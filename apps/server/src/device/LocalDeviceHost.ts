@@ -1,10 +1,5 @@
 import { pruneLocalDeviceTools } from "./deviceToolMaintenance.ts";
 import { deviceToolInstallMessage } from "@supaterm/contracts";
-/**
- * The hub runs in its standalone mode (origin root). The Supaterm proxy strips its
- * own prefix, and the Device panel derives stream and socket URLs from the
- * prefix itself rather than from anything the hub prints.
- */
 import {
   type DeviceHostSummary,
   type DevicePlatform,
@@ -51,6 +46,7 @@ import {
   isDeviceHubInstalled,
   deviceToolVersions,
   DEVICE_HUB_VERSION,
+  AGENT_DEVICE_VERSION,
 } from "./DeviceToolchain.ts";
 
 const HUB_READY_TIMEOUT_MS = 30_000;
@@ -59,11 +55,6 @@ const DAEMON_POLL_MS = 100;
 const HUB_RESTART_STABLE_UPTIME_MS = 60_000;
 const HUB_RESTART_MAX_DELAY_MS = 30_000;
 
-/**
- * Written beside the agent-device state so a server that dies without running
- * its finalizers (SIGKILL, dev-runner restarts) does not leave a hub bound to a
- * loopback port forever.
- */
 const HubStateFile = Schema.Struct({
   pid: Schema.Int,
   port: Schema.Int,
@@ -351,11 +342,6 @@ export const make = Effect.fn("LocalDeviceHost.make")(function* () {
       }
     });
 
-  /**
-   * A hub left behind by a previous server is identified by pid plus the
-   * command line's entry path, so a recycled pid belonging to something else
-   * is never touched.
-   */
   const reapStaleHub = Effect.gen(function* () {
     const previous = yield* fs
       .readFileString(hubStatePath())
@@ -423,8 +409,6 @@ export const make = Effect.fn("LocalDeviceHost.make")(function* () {
     );
     const origin = `http://127.0.0.1:${port}`;
     const scope = yield* Scope.make("sequential");
-    // On failure or interrupt, from the spawn on: the hub is not recorded yet,
-    // so nothing else stops it.
     return yield* Effect.gen(function* () {
       const child = yield* spawner
         .spawn(
@@ -551,8 +535,6 @@ export const make = Effect.fn("LocalDeviceHost.make")(function* () {
       ...hostEnvironment,
       AGENT_DEVICE_STATE_DIR: stateDir,
       AGENT_DEVICE_DAEMON_SERVER_MODE: "http",
-      // The daemon idles out after five minutes by default; the server owns
-      // its lifetime here and stops it explicitly.
       AGENT_DEVICE_DAEMON_IDLE_TIMEOUT_MS: "0",
       AGENT_DEVICE_NO_UPDATE_NOTIFIER: "1",
       FORCE_COLOR: "0",
@@ -576,7 +558,35 @@ export const make = Effect.fn("LocalDeviceHost.make")(function* () {
           Effect.scoped,
           Effect.orElseSucceed(() => false),
         );
-      if (alive) return toEndpoint(existing.value);
+      if (alive && existing.value.version === AGENT_DEVICE_VERSION)
+        return toEndpoint(existing.value);
+      if (alive) {
+        const stopped = yield* runner
+          .run({
+            command: nodePath,
+            args: [agentTool.entryPath, "daemon", "stop", "--state-dir", stateDir],
+            env: daemonEnvironment,
+            timeout: Duration.seconds(10),
+            timeoutBehavior: "timedOutResult",
+          })
+          .pipe(
+            Effect.mapError(
+              (cause) =>
+                new DeviceHost.DeviceHostError({
+                  hostId,
+                  step: "stopping previous agent tools",
+                  cause,
+                }),
+            ),
+          );
+        if (stopped.code !== 0 || stopped.timedOut) {
+          return yield* new DeviceHost.DeviceHostError({
+            hostId,
+            step: "stopping previous agent tools",
+            cause: stopped,
+          });
+        }
+      }
       yield* fs.remove(daemonFilePath(), { force: true }).pipe(Effect.ignore);
     }
     // There is no `daemon start`; the first command in a state dir spawns the

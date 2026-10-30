@@ -1,10 +1,3 @@
-/**
- * serve-sim's preview drives its "Simulator" panel by sending shell commands over a token-gated
- * socket. Proxying that would hand any environment session arbitrary command execution on the
- * host, so Supaterm runs the same underlying commands itself, typed per action: `xcrun simctl ui` and
- * `simctl privacy` for iOS, the `serve-sim-ax-settings` helper that serve-sim bundles for the
- * accessibility toggles, and `adb shell` for Android.
- */
 import {
   type DeviceActionInput,
   type DeviceActionType,
@@ -273,8 +266,6 @@ const runIos = Effect.fn("DeviceActions.runIos")(function* (
       return;
     case "setPermission": {
       if (input.permission === "notifications") {
-        // simctl has no notification permission verb; serve-sim's CLI edits
-        // the BulletinBoard plist for it.
         yield* serveSimPermissions(ready, udid, input);
         return;
       }
@@ -427,8 +418,6 @@ const runAndroid = Effect.fn("DeviceActions.runAndroid")(function* (
       );
       return;
     case "clearLocation":
-      // The emulator has no "clear"; leaving the fix in place is the closest
-      // behavior, so this is a no-op that still refreshes the reading.
       return;
     case "setPermission": {
       const permissions = ANDROID_PERMISSIONS[input.permission];
