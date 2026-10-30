@@ -283,9 +283,9 @@ menu**, which also stops `/` from suggesting skills later in a message. It is in
 mobile. Only skills enabled for the provider are listed.
 
 To install Supaterm's optional `supaterm-advisor` and `supaterm-commitee` skills,
-choose **Install** in **Settings → Integrations → Orchestration skills**
-on web and desktop. Nothing installs
-automatically. Installation applies to all projects on the selected connected
+choose **Install** in **Settings → Integrations → Orchestration skills** on web and desktop,
+or **Settings → Threads → Orchestration skills** on mobile. Nothing installs automatically.
+Installation applies to all projects on the selected connected
 environments and links the providers' native skill folders to Supaterm's bundled skills.
 With **All environments** selected, offline environments are skipped; reconnect
 and install again to include them.
