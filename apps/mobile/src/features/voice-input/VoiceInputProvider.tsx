@@ -37,6 +37,7 @@ import {
   voiceInputBlocksSubmission,
   type VoiceInputState,
 } from "@supaterm/client-runtime/voice-input";
+import { createDevFakeVoiceRecorder, devFakeMicrophoneSource } from "./devFakeVoiceRecorder";
 import {
   createLazyVoiceRecorder,
   type NativeVoiceRecorder,
@@ -138,6 +139,8 @@ function useVoiceInputRuntime() {
   const [{ session, recorder }] = useState(() => {
     const recorder = createLazyVoiceRecorder({
       create: () => {
+        const fakeMicrophone = devFakeMicrophoneSource();
+        if (fakeMicrophone) return createDevFakeVoiceRecorder(fakeMicrophone);
         if (!createNativeVoiceRecorder) throw new Error("This device can't record voice input.");
         return createNativeVoiceRecorder();
       },
