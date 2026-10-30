@@ -1,13 +1,18 @@
-import { linkableMachines, offersLinkedEnvironments } from "@supaterm/client-runtime/link-request";
+import {
+  linkableMachines,
+  linkedEnvironmentNames,
+  offersLinkedEnvironments,
+} from "@supaterm/client-runtime/link-request";
 import { createPeerLinkEnvironmentAtoms } from "@supaterm/client-runtime/state/peerLinks";
 import { AuthAccessReadScope, type EnvironmentId } from "@supaterm/contracts";
 import { Atom } from "effect/reactivity";
 
+import { useAtomValue } from "@effect/atom-react";
 import { connectionAtomRuntime } from "../connection/runtime";
-import { useEnvironments } from "./environments";
+import { useEnvironmentIdentities, useEnvironments } from "./environments";
 import { environmentPresentations } from "./presentation";
 import { useEnvironmentQuery } from "./query";
-import { useEnvironmentsWithScope } from "./session";
+import { useEnvironmentScope, useEnvironmentsWithScope } from "./session";
 
 export const peerLinkEnvironment = createPeerLinkEnvironmentAtoms(connectionAtomRuntime);
 
@@ -17,6 +22,27 @@ export const offersLinkedEnvironmentsAtom = Atom.family((environmentId: Environm
     offersLinkedEnvironments(get(environmentPresentations.serverConfigsAtom).get(environmentId)),
   ).pipe(Atom.withLabel(`peer-links:offered:${environmentId}`)),
 );
+
+const offersNoLinksAtom = Atom.make(false);
+
+export function useLinkedEnvironments(
+  environmentId: EnvironmentId | null,
+): ReadonlyMap<EnvironmentId, string> {
+  const offered = useAtomValue(
+    environmentId === null ? offersNoLinksAtom : offersLinkedEnvironmentsAtom(environmentId),
+  );
+  const canRead = useEnvironmentScope(environmentId, AuthAccessReadScope);
+  const identities = useEnvironmentIdentities();
+  const links = useEnvironmentQuery(
+    offered && canRead && environmentId !== null
+      ? peerLinkEnvironment.list({ environmentId, input: {} })
+      : null,
+  );
+  return linkedEnvironmentNames({
+    links: offered && canRead ? (links.data?.links ?? []) : [],
+    environments: identities,
+  });
+}
 
 export function usePeerLinkHosts() {
   const { environments } = useEnvironments();

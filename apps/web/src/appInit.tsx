@@ -1,5 +1,6 @@
+import { startDesktopUpdateLaunchNotice } from "./components/sidebar/updateEverythingRun";
 import { startThreadNotifications } from "./components/ThreadNotificationCoordinator";
-import { startGuideRunNotifications } from "./components/pullRequest/guide/PullRequestGuideRunCoordinator";
+import { startPullRequestGuideRunNotifications } from "./components/pullRequest/guide/PullRequestGuideRunCoordinator";
 import { installCommandPaletteCommands } from "./shortcuts/commandPaletteCommands";
 import { startWorkspaceFocus } from "./lib/workspaceFocus";
 import { installChatRouteCommands } from "./shortcuts/chatRouteCommands";
@@ -96,7 +97,7 @@ export function startAppServices(): AppRouter {
   if (isElectron) {
     syncDocumentElectronPlatformClasses(navigator.platform);
     syncDocumentWindowControlsOverlayClass();
-    disposers.push(startElectronBrowserHost());
+    disposers.push(startElectronBrowserHost(), startDesktopUpdateLaunchNotice());
   }
   disposers.push(
     startHostFreezeToasts(),
@@ -118,7 +119,7 @@ export function startAppServices(): AppRouter {
     }),
   );
   disposers.push(
-    startGuideRunNotifications(appAtomRegistry, router),
+    startPullRequestGuideRunNotifications(router, appAtomRegistry),
     startThreadNotifications(appAtomRegistry, router),
   );
   document.title = APP_DISPLAY_NAME;
