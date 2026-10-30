@@ -8348,15 +8348,24 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           cause: "Secret requests require an active run.",
         });
       }
-      const existing = projection.turnItems.find((item) => item.id === command.turnItemId);
-      if (existing !== undefined && existing.type !== "secret_request") {
+      const existing = yield* projectionStore
+        .getTurnItem({
+          threadId: command.threadId,
+          itemId: command.turnItemId,
+        })
+        .pipe(
+          Effect.mapError(
+            (cause) => new OrchestratorProjectionError({ threadId: command.threadId, cause }),
+          ),
+        );
+      if (existing !== null && existing.type !== "secret_request") {
         return yield* new OrchestratorDispatchError({
           commandId: command.commandId,
           commandType: command.type,
           cause: `Turn item ${command.turnItemId} is not a secret request.`,
         });
       }
-      if (existing !== undefined && existing.runId !== command.runId) {
+      if (existing !== null && existing.runId !== command.runId) {
         return yield* new OrchestratorDispatchError({
           commandId: command.commandId,
           commandType: command.type,
@@ -8365,7 +8374,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       }
       const now = yield* DateTime.now;
       const unchanged =
-        existing !== undefined &&
+        existing !== null &&
         (existing.secretStatus !== "pending" || command.secretStatus === "pending");
       const pending = command.secretStatus === "pending";
       const turnItem: OrchestrationV2TurnItem = unchanged

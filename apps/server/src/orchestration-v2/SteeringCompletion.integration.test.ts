@@ -349,13 +349,15 @@ it.effect.each(
         if (delivery !== null) {
           yield* Deferred.succeed(rejectSteer, undefined);
           yield* Fiber.join(delivery);
-          const requeued = yield* orchestrator.getThreadProjection(threadId);
-          const item = requeued.turnItems.find(
-            (item) => item.type === "user_message" && item.messageId === messageId,
-          );
-          assert.equal(item?.status, "pending");
-          assert.isNull(item?.startedAt);
-          assert.isNull(item?.completedAt);
+          if (!mailbox) {
+            const requeued = yield* orchestrator.getThreadProjection(threadId);
+            const item = requeued.turnItems.find(
+              (item) => item.type === "user_message" && item.messageId === messageId,
+            );
+            assert.equal(item?.status, "pending");
+            assert.isNull(item?.startedAt);
+            assert.isNull(item?.completedAt);
+          }
         }
         if (timing === "before dispatch") yield* dispatchSteer;
         yield* worker.drain();

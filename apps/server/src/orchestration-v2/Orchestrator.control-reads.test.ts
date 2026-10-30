@@ -1553,3 +1553,166 @@ it.effect("dispatch records the command outcome and its duration", () =>
     assert.strictEqual((yield* durations).count - durationsBefore, 1);
   }).pipe(Effect.provide(layerTest)),
 );
+
+it.effect("keeps secret request transitions on their original active root", () =>
+  Effect.gen(function* () {
+    const orchestrator = yield* Orchestrator.OrchestratorV2;
+    const sink = yield* EventSink.EventSinkV2;
+    const threadId = ThreadId.make("thread:secret-root");
+    yield* orchestrator.dispatch({
+      type: "thread.create",
+      commandId: CommandId.make("secret:create"),
+      threadId,
+      projectId: ProjectId.make("project:secret"),
+      title: "Secret request",
+      modelSelection,
+      runtimeMode: "full-access",
+      interactionMode: "default",
+      branch: null,
+      worktreePath: null,
+      createdBy: "user",
+      creationSource: "web",
+    });
+    yield* orchestrator.dispatch({
+      type: "message.dispatch",
+      commandId: CommandId.make("secret:message"),
+      threadId,
+      messageId: MessageId.make("secret:message"),
+      text: "Configure service",
+      attachments: [],
+      dispatchMode: { type: "defer_start" },
+      createdBy: "user",
+      creationSource: "web",
+    });
+    const projection = yield* orchestrator.getThreadProjection(threadId);
+    const run = projection.runs[0]!;
+    const now = yield* DateTime.now;
+    const record = {
+      type: "secret_request.record" as const,
+      threadId,
+      runId: run.id,
+      nodeId: run.rootNodeId!,
+      turnItemId: TurnItemId.make("secret:card"),
+      label: "Service credential",
+      reason: "Configure the service",
+      delivery: "file" as const,
+      secretStatus: "pending" as const,
+    };
+    const beforeStart = yield* Effect.exit(
+      orchestrator.dispatch({
+        ...record,
+        commandId: CommandId.make("secret:before-start"),
+      }),
+    );
+    assert.equal(beforeStart._tag, "Failure");
+    yield* sink.write({
+      events: [
+        {
+          id: EventId.make("secret:running"),
+          type: "run.updated",
+          threadId,
+          occurredAt: now,
+          payload: { ...run, status: "running", startedAt: now },
+        },
+      ],
+    });
+    const wrongRoot = yield* Effect.exit(
+      orchestrator.dispatch({
+        ...record,
+        nodeId: NodeId.make("secret:wrong-root"),
+        commandId: CommandId.make("secret:wrong-root"),
+      }),
+    );
+    assert.equal(wrongRoot._tag, "Failure");
+    yield* orchestrator.dispatch({ ...record, commandId: CommandId.make("secret:pending") });
+    const pending = (yield* orchestrator.getThreadProjection(threadId)).turnItems.find(
+      (item) => item.id === record.turnItemId,
+    );
+    assert.equal(pending?.type, "secret_request");
+    if (pending?.type !== "secret_request") throw new Error("Missing secret request");
+    assert.equal(pending.delivery, "file");
+    assert.equal(pending.status, "waiting");
+    assert.equal(pending.runId, run.id);
+    assert.equal(pending.nodeId, run.rootNodeId);
+    yield* orchestrator.dispatch({
+      ...record,
+      commandId: CommandId.make("secret:saved"),
+      secretStatus: "saved",
+    });
+    yield* orchestrator.dispatch({
+      ...record,
+      commandId: CommandId.make("secret:late-cancel"),
+      secretStatus: "cancelled",
+    });
+    const saved = (yield* orchestrator.getThreadProjection(threadId)).turnItems.find(
+      (item) => item.id === record.turnItemId,
+    );
+    assert.equal(saved?.type === "secret_request" ? saved.secretStatus : null, "saved");
+  }).pipe(Effect.provide(layerTest)),
+);
+
+it.effect("rejects a secret request that would overwrite another turn item", () =>
+  Effect.gen(function* () {
+    const orchestrator = yield* Orchestrator.OrchestratorV2;
+    const sink = yield* EventSink.EventSinkV2;
+    const threadId = ThreadId.make("thread:secret-collision");
+    yield* orchestrator.dispatch({
+      type: "thread.create",
+      commandId: CommandId.make("secret-collision:create"),
+      threadId,
+      projectId: ProjectId.make("project:secret"),
+      title: "Secret request",
+      modelSelection,
+      runtimeMode: "full-access",
+      interactionMode: "default",
+      branch: null,
+      worktreePath: null,
+      createdBy: "user",
+      creationSource: "web",
+    });
+    yield* orchestrator.dispatch({
+      type: "message.dispatch",
+      commandId: CommandId.make("secret-collision:message"),
+      threadId,
+      messageId: MessageId.make("secret-collision:message"),
+      text: "Configure service",
+      attachments: [],
+      dispatchMode: { type: "defer_start" },
+      createdBy: "user",
+      creationSource: "web",
+    });
+    const projection = yield* orchestrator.getThreadProjection(threadId);
+    const run = projection.runs[0]!;
+    const item = projection.turnItems.find((item) => item.type === "user_message")!;
+    yield* sink.write({
+      events: [
+        {
+          id: EventId.make("secret-collision:running"),
+          type: "run.updated",
+          threadId,
+          occurredAt: yield* DateTime.now,
+          payload: { ...run, status: "running" },
+        },
+      ],
+    });
+    const result = yield* Effect.exit(
+      orchestrator.dispatch({
+        type: "secret_request.record",
+        commandId: CommandId.make("secret-collision:record"),
+        threadId,
+        runId: run.id,
+        nodeId: run.rootNodeId!,
+        turnItemId: item.id,
+        label: "Service credential",
+        reason: "Configure the service",
+        delivery: "file",
+        secretStatus: "pending",
+      }),
+    );
+    assert.equal(result._tag, "Failure");
+    assert.equal(
+      (yield* orchestrator.getTurnItem({ threadId, itemId: item.id }))?.type,
+      "user_message",
+    );
+  }).pipe(Effect.provide(layerTest)),
+);
