@@ -17,36 +17,9 @@ export const ServerAuthPolicy = Schema.Literals([
 ]);
 export type ServerAuthPolicy = typeof ServerAuthPolicy.Type;
 
-/**
- * A credential type that can be exchanged for a real authenticated session.
- *
- * Bootstrap methods are for establishing trust at the start of a connection or
- * pairing flow. They are not the long-lived credential used for ordinary
- * authenticated HTTP / WebSocket traffic after pairing succeeds.
- *
- * Current methods:
- * - `desktop-bootstrap`: a trusted local desktop handoff, used so the desktop
- *   shell can pair the renderer without a login screen
- * - `one-time-token`: a short-lived pairing token, suitable for manual pairing
- *   flows such as `/pair#token=...`
- */
 export const ServerAuthBootstrapMethod = Schema.Literals(["desktop-bootstrap", "one-time-token"]);
 export type ServerAuthBootstrapMethod = typeof ServerAuthBootstrapMethod.Type;
 
-/**
- * A credential type accepted for steady-state authenticated requests after a
- * client has already paired.
- *
- * These methods are used by the server-wide auth layer for privileged HTTP and
- * WebSocket access. They are distinct from bootstrap methods so clients can
- * reason clearly about "pair first, then use session auth".
- *
- * Current methods:
- * - `browser-session-cookie`: cookie-backed browser session, used by the web
- *   app after bootstrap/pairing
- * - `bearer-access-token`: scoped token suitable for non-cookie or
- *   non-browser clients
- */
 export const ServerAuthSessionMethod = Schema.Literals([
   "browser-session-cookie",
   "bearer-access-token",
@@ -116,9 +89,6 @@ export function sessionGrantsScope(
   return session.authenticated && (session.scopes ?? []).includes(scope);
 }
 
-// Access management is included because terminal:operate and
-// orchestration:operate already reach that authority through a shell or a
-// full-access agent. Narrowing a grant means choosing explicit scopes.
 export const AuthStandardClientScopes = [
   AuthOrchestrationReadScope,
   AuthOrchestrationOperateScope,
@@ -211,6 +181,11 @@ export const AuthWebSocketTicketResult = Schema.Struct({
   expiresAt: Schema.DateTimeUtc,
 });
 export type AuthWebSocketTicketResult = typeof AuthWebSocketTicketResult.Type;
+
+export const AuthWebSocketTicketUse = Schema.Literals(["rpc", "media"]);
+export type AuthWebSocketTicketUse = typeof AuthWebSocketTicketUse.Type;
+
+export const AuthWebSocketTicketParams = Schema.Struct({ use: AuthWebSocketTicketUse });
 
 export const AuthPairingCredentialResult = Schema.Struct({
   id: TrimmedNonEmptyString,
@@ -365,6 +340,18 @@ export const AuthMcpClientAccess = Schema.Literals([
 ]);
 export type AuthMcpClientAccess = typeof AuthMcpClientAccess.Type;
 
+export const mcpClientScopes = (access: AuthMcpClientAccess): ReadonlyArray<AuthGrantScope> =>
+  access === "read-only"
+    ? [AuthOrchestrationReadScope]
+    : access === "full-access"
+      ? [
+          AuthOrchestrationReadScope,
+          AuthOrchestrationOperateScope,
+          AuthSettingsWriteScope,
+          AuthSourceControlWriteScope,
+        ]
+      : [AuthOrchestrationReadScope, AuthOrchestrationOperateScope];
+
 export const AuthMcpProtectedResourceMetadata = Schema.Struct({
   resource: Schema.String,
   authorization_servers: Schema.Array(Schema.String),
@@ -388,8 +375,11 @@ export const AuthMcpAuthorizationServerMetadata = Schema.Struct({
 });
 export type AuthMcpAuthorizationServerMetadata = typeof AuthMcpAuthorizationServerMetadata.Type;
 
+export const MCP_PEER_LINK_SOFTWARE_ID = "supaterm-peer-link";
+
 export const AuthMcpClientRegistration = Schema.Struct({
   client_name: Schema.optionalKey(Schema.String),
+  software_id: Schema.optionalKey(Schema.String),
   redirect_uris: Schema.optionalKey(Schema.Array(Schema.String)),
   token_endpoint_auth_method: Schema.optionalKey(Schema.String),
 });
@@ -419,9 +409,6 @@ export class AuthMcpRegistrationError extends Schema.Error<AuthMcpRegistrationEr
   }
 }
 
-/**
- * Every field is checked by the server, so all are optional here.
- */
 export const AuthMcpAuthorizationRequest = Schema.Struct({
   response_type: Schema.optionalKey(Schema.String),
   client_id: Schema.optionalKey(Schema.String),
@@ -433,20 +420,12 @@ export const AuthMcpAuthorizationRequest = Schema.Struct({
 });
 export type AuthMcpAuthorizationRequest = typeof AuthMcpAuthorizationRequest.Type;
 
-/**
- * The server has already validated the request; nothing here is trusted by the
- * client except for display.
- */
 export const AuthMcpApprovalDetails = Schema.Struct({
-  /** Self-declared by the client, so shown as such. */
   clientName: Schema.String,
   redirectHost: Schema.String,
   environmentHost: Schema.String,
   csrfToken: Schema.optionalKey(Schema.String),
-  /**
-   * What that session may approve in one click: only access whose scopes it
-   * holds. Anything else still needs a pairing code. Absent with `csrfToken`.
-   */
+
   oneClickAccess: Schema.optionalKey(Schema.Array(AuthMcpClientAccess)),
 });
 export type AuthMcpApprovalDetails = typeof AuthMcpApprovalDetails.Type;

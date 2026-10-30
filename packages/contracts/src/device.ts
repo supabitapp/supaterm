@@ -19,7 +19,6 @@ const ConfiguredDeviceHostId = DeviceHostId.check(
 );
 
 export const SshDeviceHostConfig = Schema.Struct({
-  // Hosts saved before EAS hosts existed carry no kind.
   kind: Schema.Literal("ssh").pipe(Schema.withDecodingDefaultKey(Effect.succeed("ssh" as const))),
   id: ConfiguredDeviceHostId,
   label: TrimmedNonEmptyString,
@@ -29,26 +28,18 @@ export const SshDeviceHostConfig = Schema.Struct({
 });
 export type SshDeviceHostConfig = typeof SshDeviceHostConfig.Type;
 
-/**
- * Cloud simulators from EAS Simulator. Sessions bill the Expo account until
- * they stop, so every one is bounded. The Expo credential is not stored here.
- */
 export const EasDeviceHostConfig = Schema.Struct({
   kind: Schema.Literal("eas"),
   id: ConfiguredDeviceHostId,
   label: TrimmedNonEmptyString,
-  /** EAS project that sessions run under, when the project's app config does not name one. */
+
   appId: Schema.optional(TrimmedNonEmptyString),
-  /**
-   * Expo access token, kept in the secret store. When empty the server uses
-   * EXPO_TOKEN, then the `eas login` session. This is `secretSetting` from
-   * settings.ts, which imports this module.
-   */
+
   accessToken: TrimmedString.pipe(
     Schema.withDecodingDefaultKey(Effect.succeed("")),
     Schema.annotateKey({ settingsSecret: true }),
   ),
-  /** EAS allows at most 40 minutes on free accounts and 115 on paid ones. */
+
   maxSessionMinutes: Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 115 })).pipe(
     Schema.withDecodingDefaultKey(Effect.succeed(30)),
   ),
@@ -59,7 +50,6 @@ export const EasDeviceHostConfig = Schema.Struct({
     Schema.withDecodingDefaultKey(Effect.succeed(2)),
   ),
 }).check(
-  // EAS requires the idle limit to be smaller than the session limit.
   Schema.makeFilter(
     (host: { readonly idleMinutes: number; readonly maxSessionMinutes: number }) =>
       host.idleMinutes < host.maxSessionMinutes ||
@@ -68,7 +58,28 @@ export const EasDeviceHostConfig = Schema.Struct({
 );
 export type EasDeviceHostConfig = typeof EasDeviceHostConfig.Type;
 
-export type DeviceHostConfig = SshDeviceHostConfig | EasDeviceHostConfig;
+export const SimlockDeviceHostConfig = Schema.Struct({
+  kind: Schema.Literal("simlock"),
+  id: ConfiguredDeviceHostId,
+  label: TrimmedNonEmptyString,
+
+  gatewayUrl: TrimmedNonEmptyString.check(Schema.isPattern(/^https?:\/\/[^\s/]+\/?$/)),
+
+  agentToken: TrimmedString.pipe(
+    Schema.withDecodingDefaultKey(Effect.succeed("")),
+    Schema.annotateKey({ settingsSecret: true }),
+  ),
+  maxLeases: Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 20 })).pipe(
+    Schema.withDecodingDefaultKey(Effect.succeed(2)),
+  ),
+
+  maxLeaseMinutes: Schema.Int.check(Schema.isBetween({ minimum: 5, maximum: 240 })).pipe(
+    Schema.withDecodingDefaultKey(Effect.succeed(60)),
+  ),
+});
+export type SimlockDeviceHostConfig = typeof SimlockDeviceHostConfig.Type;
+
+export type DeviceHostConfig = SshDeviceHostConfig | EasDeviceHostConfig | SimlockDeviceHostConfig;
 
 const uniqueHostIds = Schema.makeFilter(
   (hosts: ReadonlyArray<{ readonly id: string }>) =>
@@ -78,15 +89,11 @@ const uniqueHostIds = Schema.makeFilter(
 
 export const SshDeviceHostConfigs = Schema.Array(SshDeviceHostConfig).check(uniqueHostIds);
 
-/**
- * Kept apart from the SSH hosts in settings: servers and clients from before
- * EAS hosts decode `deviceHosts` as SSH hosts and would reject the whole file
- * or snapshot over one EAS entry.
- */
 export const EasDeviceHostConfigs = Schema.Array(EasDeviceHostConfig).check(uniqueHostIds);
 
+export const SimlockDeviceHostConfigs = Schema.Array(SimlockDeviceHostConfig).check(uniqueHostIds);
+
 export const DeviceEasAccountInput = Schema.Struct({
-  /** A saved EAS host whose stored token is checked when no new token is given. */
   hostId: Schema.optional(DeviceHostId),
   accessToken: Schema.optional(TrimmedString),
 });
@@ -99,10 +106,35 @@ export const DeviceEasAccount = Schema.Struct({
 });
 export type DeviceEasAccount = typeof DeviceEasAccount.Type;
 
-/** Checking an Expo credential failed; no device host is involved yet. */
+export const DeviceSimlockIdentityInput = Schema.Struct({
+  gatewayUrl: Schema.optional(TrimmedString),
+
+  hostId: Schema.optional(DeviceHostId),
+  agentToken: Schema.optional(TrimmedString),
+});
+export type DeviceSimlockIdentityInput = typeof DeviceSimlockIdentityInput.Type;
+
+export const DeviceSimlockIdentity = Schema.Struct({
+  gatewayUrl: Schema.String,
+
+  signedInAs: Schema.String,
+
+  tokenSource: Schema.Literals(["entered", "settings", "env"]),
+});
+export type DeviceSimlockIdentity = typeof DeviceSimlockIdentity.Type;
+
+export class DeviceSimlockIdentityError extends Schema.TaggedError<DeviceSimlockIdentityError>()(
+  "DeviceSimlockIdentityError",
+  { reason: Schema.String },
+) {
+  override get message(): string {
+    return this.reason;
+  }
+}
+
 export class DeviceEasAccountError extends Schema.TaggedError<DeviceEasAccountError>()(
   "DeviceEasAccountError",
-  // No cause: this error reaches the browser, and the reason already says what Expo answered.
+
   { reason: Schema.String },
 ) {
   override get message(): string {
@@ -161,7 +193,15 @@ const EasDeviceHostSummary = Schema.Struct({
   ...deviceHostSummaryFields,
   kind: Schema.Literal("eas"),
 });
-export const DeviceHostSummary = Schema.Union([MachineDeviceHostSummary, EasDeviceHostSummary]);
+const SimlockDeviceHostSummary = Schema.Struct({
+  ...deviceHostSummaryFields,
+  kind: Schema.Literal("simlock"),
+});
+export const DeviceHostSummary = Schema.Union([
+  MachineDeviceHostSummary,
+  EasDeviceHostSummary,
+  SimlockDeviceHostSummary,
+]);
 export type DeviceHostSummary = typeof DeviceHostSummary.Type;
 
 export const DeviceHostStatus = Schema.Literals([
@@ -196,8 +236,10 @@ const deviceServiceStateFields = {
   supportsHostRetry: Schema.optional(Schema.Boolean),
   supportsToolUpdate: Schema.optional(Schema.Boolean),
   supportsToolInspection: Schema.optional(Schema.Boolean),
-  /** Servers from before EAS hosts ignore `easDeviceHosts`, so clients offer them only when set. */
+
   supportsEasHosts: Schema.optional(Schema.Boolean),
+
+  supportsSimlockHosts: Schema.optional(Schema.Boolean),
   hostStatus: DeviceHostStatus,
   hostStatusDetail: Schema.optional(Schema.String),
   hostStatuses: DeviceHostStatuses,
@@ -212,15 +254,11 @@ const deviceServiceStateFields = {
   revision: Schema.Int,
 };
 
-/**
- * EAS host summaries travel as `easHosts`: clients from before EAS hosts
- * decode `hosts` with a `local | ssh` kind and would reject the whole state.
- * Decoded, every host is in `hosts`.
- */
 const DeviceServiceStateWire = Schema.Struct({
   ...deviceServiceStateFields,
   hosts: Schema.Array(MachineDeviceHostSummary),
   easHosts: Schema.optional(Schema.Array(EasDeviceHostSummary)),
+  simlockHosts: Schema.optional(Schema.Array(SimlockDeviceHostSummary)),
 });
 const DeviceServiceStateDecoded = Schema.Struct({
   ...deviceServiceStateFields,
@@ -234,17 +272,21 @@ export const DeviceServiceState = DeviceServiceStateWire.pipe(
       typeof DeviceServiceStateDecoded.Type,
       typeof DeviceServiceStateWire.Type
     >({
-      decode: ({ easHosts, ...state }) => ({
+      decode: ({ easHosts, simlockHosts, ...state }) => ({
         ...state,
-        hosts: [...state.hosts, ...(easHosts ?? [])],
+        hosts: [...state.hosts, ...(easHosts ?? []), ...(simlockHosts ?? [])],
       }),
       encode: (state) => ({
         ...state,
         hosts: state.hosts.filter(
-          (host): host is typeof MachineDeviceHostSummary.Type => host.kind !== "eas",
+          (host): host is typeof MachineDeviceHostSummary.Type =>
+            host.kind === "local" || host.kind === "ssh",
         ),
         easHosts: state.hosts.filter(
           (host): host is typeof EasDeviceHostSummary.Type => host.kind === "eas",
+        ),
+        simlockHosts: state.hosts.filter(
+          (host): host is typeof SimlockDeviceHostSummary.Type => host.kind === "simlock",
         ),
       }),
     }),
@@ -271,7 +313,7 @@ export const DeviceOpenInput = Schema.Struct({
   hostId: Schema.optional(DeviceHostId),
   deviceId: DeviceId,
   platform: DevicePlatform,
-  /** Boot the simulator or emulator when it is not running. Defaults to true. */
+
   boot: Schema.optional(Schema.Boolean),
 });
 export type DeviceOpenInput = typeof DeviceOpenInput.Type;
@@ -279,9 +321,9 @@ export type DeviceOpenInput = typeof DeviceOpenInput.Type;
 export const DeviceCloseInput = Schema.Struct({
   hostId: Schema.optional(DeviceHostId),
   threadId: ThreadId,
-  /** Omit to close every device session for the thread. */
+
   deviceId: Schema.optional(DeviceId),
-  /** Also shut the simulator or emulator down. Defaults to false. */
+
   shutdown: Schema.optional(Schema.Boolean),
 });
 export type DeviceCloseInput = typeof DeviceCloseInput.Type;
@@ -447,7 +489,7 @@ export class DeviceHostUnavailableError extends Schema.TaggedError<DeviceHostUna
   "DeviceHostUnavailableError",
   {
     hostId: DeviceHostId,
-    /** The host's name in Settings, which the message shows instead of its id. */
+
     hostLabel: Schema.optional(Schema.String),
     reason: Schema.String,
     cause: Schema.optional(Schema.Defect()),
@@ -492,13 +534,14 @@ export class DeviceBootError extends Schema.TaggedError<DeviceBootError>()("Devi
 }) {
   override get message(): string {
     const explanation = {
-      disk_space: "There is not enough free disk space on the environment server.",
+      disk_space: "There is not enough free disk space on its device host.",
       timeout: "The device did not become ready in time.",
-      launch_failed:
-        "The simulator or emulator could not start. Check its configuration on the environment server.",
+      launch_failed: "The simulator or emulator could not start.",
     }[this.reason];
     const summary = `Device ${this.deviceId} failed to boot: ${explanation}`;
-    return this.diagnostics ? `${summary}\n\n${this.diagnostics}` : summary;
+    return this.diagnostics
+      ? `${summary}\n\n${this.diagnostics}`
+      : `${summary} The device host sent no details. Try again or open another device; if it keeps failing, check the device on that host.`;
   }
 }
 
@@ -565,21 +608,17 @@ export type DeviceToolListResult = typeof DeviceToolListResult.Type;
 export const DeviceToolOpenInput = Schema.Struct({
   deviceId: Schema.optional(
     DeviceId.annotate({
-      description:
-        "Simulator udid or emulator serial from device_list. Omit to use the booted device for the platform, or the most recently used one.",
+      description: "Device id from `device_list`. Default: the booted or last used device.",
     }),
   ),
   platform: Schema.optional(
     DevicePlatform.annotate({
-      description: "Required when deviceId is omitted and both platforms are available.",
+      description: "Needed with no `deviceId` when both platforms exist.",
     }),
   ),
   hostId: Schema.optional(
-    DeviceHostId.annotate({ description: "Device host from device_list. Defaults to local." }),
+    DeviceHostId.annotate({ description: "Host from `device_list`. Default local." }),
   ),
-}).annotate({
-  description:
-    "Boots the device if needed, starts its live stream, and opens the Device panel so the user can watch. Returns how to drive it with the agent-device CLI.",
 });
 export type DeviceToolOpenInput = typeof DeviceToolOpenInput.Type;
 
@@ -588,6 +627,7 @@ export const DeviceToolOpenResult = Schema.Struct({
   agentDevice: Schema.Struct({
     command: Schema.String,
     targetArgs: Schema.Array(Schema.String),
+    session: Schema.String,
   }),
   quickStart: Schema.String,
 });
@@ -596,8 +636,7 @@ export type DeviceToolOpenResult = typeof DeviceToolOpenResult.Type;
 export const DeviceToolTargetInput = Schema.Struct({
   deviceId: Schema.optional(
     DeviceId.annotate({
-      description:
-        "Device from device_list. Omit to use the device most recently opened in this thread.",
+      description: "Device. Default: the last one opened here.",
     }),
   ),
   hostId: Schema.optional(DeviceHostId),
@@ -618,13 +657,13 @@ export type DeviceToolScreenshotResult = typeof DeviceToolScreenshotResult.Type;
 export const DeviceToolCloseInput = Schema.Struct({
   deviceId: Schema.optional(
     DeviceId.annotate({
-      description: "Device to close. Omit to close every device in this thread.",
+      description: "Device to close. None: close all here.",
     }),
   ),
   hostId: Schema.optional(DeviceHostId),
   shutdown: Schema.optional(
     Schema.Boolean.annotate({
-      description: "Also power the simulator or emulator off. Defaults to false.",
+      description: "Also turn it off. Default false.",
     }),
   ),
 });

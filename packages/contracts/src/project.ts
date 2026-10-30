@@ -10,6 +10,7 @@ import {
   NonNegativeInt,
   PositiveInt,
   ProjectId,
+  ThreadId,
   TrimmedNonEmptyString,
   TrimmedString,
   type UnknownUnionMember,
@@ -36,7 +37,7 @@ export const ProjectScript = Schema.Struct({
   command: TrimmedNonEmptyString,
   icon: ProjectScriptIcon,
   runOnWorktreeCreate: Schema.Boolean,
-  /** Run in the thread's worktree each time the thread is marked done. */
+
   runOnDone: Schema.optional(Schema.Boolean),
   async: Schema.optional(Schema.Boolean),
   previewUrl: Schema.optional(TrimmedNonEmptyString),
@@ -73,7 +74,6 @@ const ProjectIconName = TrimmedNonEmptyString.check(
 
 const ProjectEmoji = TrimmedNonEmptyString.check(Schema.isMaxLength(32));
 
-// Grapheme-count validation belongs to the server command boundary, not snapshot decoding.
 export const ProjectMonogramText = TrimmedNonEmptyString.check(
   Schema.isMaxLength(32),
   Schema.isPattern(/^[\p{L}\p{N}][\p{L}\p{N}\p{M}\u200c\u200d]*$/u),
@@ -84,8 +84,7 @@ const ProjectSymbolIcon = Schema.Struct({
   name: ProjectIconName,
   color: ProjectIconColor,
 });
-// Projects saved before Supaterm switched icon sets name a Lucide icon; clients map
-// those names onto the current set.
+
 const ProjectLucideIcon = Schema.Struct({
   kind: Schema.Literal("lucide"),
   name: ProjectIconName,
@@ -114,14 +113,12 @@ export const ProjectIconOverride = Schema.Union([
 ]);
 export type ProjectIconOverride = typeof ProjectIconOverride.Type;
 
-/** An override that names an icon from the project icon set, saved now or before the switch. */
 export type ProjectSymbolIconOverride = Extract<ProjectIconOverride, { kind: "icon" | "lucide" }>;
 
 export function isProjectSymbolIcon(icon: ProjectIconOverride): icon is ProjectSymbolIconOverride {
   return icon.kind === "icon" || icon.kind === "lucide";
 }
 
-/** An icon the server stores. */
 export const StoredProjectIcon = ProjectIconOverride;
 
 export const ReceivedProjectIcon = ForwardCompatibleUnion(
@@ -149,7 +146,7 @@ export const Project = Schema.Struct({
   projectIcon: Schema.optional(Schema.NullOr(ReceivedProjectIcon)),
   defaultModelSelection: Schema.NullOr(ModelSelection),
   defaultThreadEnvMode: Schema.optional(Schema.NullOr(ThreadEnvMode)),
-  // Opt-in because background sync performs network I/O and may move the checkout.
+
   autoPull: Schema.optional(Schema.Boolean),
   scripts: Schema.Array(ProjectScript),
   createdAt: IsoDateTime,
@@ -163,16 +160,6 @@ export const ProjectSnapshot = Schema.Struct({
   updatedAt: IsoDateTime,
 });
 export type ProjectSnapshot = typeof ProjectSnapshot.Type;
-
-export const ProjectChange = Schema.Union([
-  Schema.Struct({ type: Schema.Literal("project.upserted"), project: Project }),
-  Schema.Struct({
-    type: Schema.Literal("project.deleted"),
-    projectId: ProjectId,
-    deletedAt: IsoDateTime,
-  }),
-]);
-export type ProjectChange = typeof ProjectChange.Type;
 
 export const ProjectCreatePayload = Schema.Struct({
   title: TrimmedNonEmptyString,
@@ -253,8 +240,7 @@ export type ProjectSearchEntriesResult = typeof ProjectSearchEntriesResult.Type;
 
 export const ProjectSearchContentsInput = Schema.Struct({
   cwd: TrimmedNonEmptyString,
-  // Whitespace is significant in content queries (" foo", regex trailing
-  // spaces), so the query is deliberately not trimmed on the wire.
+
   query: Schema.String.check(Schema.isNonEmpty(), Schema.isMaxLength(256)),
   limit: PositiveInt.check(Schema.isLessThanOrEqualTo(PROJECT_SEARCH_CONTENTS_MAX_LIMIT)),
   caseSensitive: Schema.Boolean,
@@ -296,8 +282,6 @@ export const ProjectListEntriesResult = Schema.Struct({
 });
 export type ProjectListEntriesResult = typeof ProjectListEntriesResult.Type;
 
-// Untracked files git ignores. Wholly ignored folders such as `node_modules`
-// are left out, so the list stays small enough to pick from.
 export const ProjectListIgnoredFilesInput = Schema.Struct({
   cwd: TrimmedNonEmptyString,
 });
@@ -426,10 +410,9 @@ export class ProjectListEntriesError extends Schema.TaggedError<ProjectListEntri
 
 export const ProjectReadFileInput = Schema.Struct({
   cwd: TrimmedNonEmptyString,
-  // Workspace-relative, or an absolute host path for a file outside the
-  // workspace. Only workspace-relative paths can be written back.
+
   relativePath: TrimmedNonEmptyString.check(Schema.isMaxLength(PROJECT_READ_FILE_PATH_MAX_LENGTH)),
-  // Optional files can be absent without failing the read.
+
   allowMissing: Schema.optional(Schema.Boolean),
 });
 export type ProjectReadFileInput = typeof ProjectReadFileInput.Type;
@@ -439,7 +422,7 @@ export const ProjectReadFileResult = Schema.Struct({
   contents: Schema.String,
   byteLength: NonNegativeInt,
   truncated: Schema.Boolean,
-  // Omitted by older servers; false only for an absent optional file.
+
   exists: Schema.optional(Schema.Boolean),
 });
 export type ProjectReadFileResult = typeof ProjectReadFileResult.Type;
@@ -526,10 +509,20 @@ export type ProjectCreateNewInput = typeof ProjectCreateNewInput.Type;
 export const ProjectCreateNewResult = Schema.Struct({
   projectId: ProjectId,
   workspaceRoot: TrimmedNonEmptyString,
-  /** The project and its files exist either way. */
+
   commitError: Schema.optionalKey(TrimmedNonEmptyString),
 });
 export type ProjectCreateNewResult = typeof ProjectCreateNewResult.Type;
+
+export const ProjectCreateFromThreadInput = Schema.Struct({
+  threadId: ThreadId,
+});
+export type ProjectCreateFromThreadInput = typeof ProjectCreateFromThreadInput.Type;
+
+export const ProjectCreateFromThreadResult = Schema.Struct({
+  projectId: ProjectId,
+});
+export type ProjectCreateFromThreadResult = typeof ProjectCreateFromThreadResult.Type;
 
 export class ProjectWriteFileError extends Schema.TaggedError<ProjectWriteFileError>()(
   "ProjectWriteFileError",

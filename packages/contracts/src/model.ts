@@ -72,6 +72,7 @@ const CODEX_DRIVER_KIND = ProviderDriverKind.make("codex");
 const CLAUDE_DRIVER_KIND = ProviderDriverKind.make("claudeAgent");
 const CURSOR_DRIVER_KIND = ProviderDriverKind.make("cursor");
 const GROK_DRIVER_KIND = ProviderDriverKind.make("grok");
+const FX_DRIVER_KIND = ProviderDriverKind.make("fx");
 const MUSE_DRIVER_KIND = ProviderDriverKind.make("muse");
 const PI_DRIVER_KIND = ProviderDriverKind.make("pi");
 const ACP_REGISTRY_DRIVER_KIND = ProviderDriverKind.make("acpRegistry");
@@ -79,18 +80,13 @@ const OPENCODE_DRIVER_KIND = ProviderDriverKind.make("opencode");
 
 export const DEFAULT_MODEL = "gpt-6-astra";
 
-/**
- * The provider snapshot marks the first of these present in the live
- * `model/list` response as default; when none are available, Codex's own
- * `isDefault` flag wins.
- */
 export const PREFERRED_DEFAULT_CODEX_MODELS: ReadonlyArray<string> = [
   DEFAULT_MODEL,
   "gpt-5.6-sol",
   "gpt-5.6-terra",
 ];
 export const DEFAULT_TEXT_GENERATION_MODEL = "gpt-6-luna";
-/** Keep the official Antigravity session's current model. Never send this ID to ACP. */
+
 export const ANTIGRAVITY_DEFAULT_MODEL = "antigravity-default";
 export const DEFAULT_TEXT_GENERATION_REASONING_EFFORT = "low";
 
@@ -98,13 +94,14 @@ export const MUSE_DEFAULT_MODEL = "default";
 
 export const DEFAULT_MODEL_BY_PROVIDER: Partial<Record<ProviderDriverKind, string>> = {
   [CODEX_DRIVER_KIND]: DEFAULT_MODEL,
-  [CLAUDE_DRIVER_KIND]: "claude-fable-5-1",
+  [CLAUDE_DRIVER_KIND]: "claude-opus-5-5",
   [CURSOR_DRIVER_KIND]: "auto",
-  // Product slug, not an ACP model id. The Grok adapter treats it as "the session's current model".
+
   [GROK_DRIVER_KIND]: "grok-build",
+  [FX_DRIVER_KIND]: "default",
   [MUSE_DRIVER_KIND]: MUSE_DEFAULT_MODEL,
   [ACP_REGISTRY_DRIVER_KIND]: "default",
-  // "default" defers to the user's own Pi settings.json model selection.
+
   [PI_DRIVER_KIND]: "default",
   [OPENCODE_DRIVER_KIND]: "openai/gpt-5",
   [ProviderDriverKind.make("antigravity")]: ANTIGRAVITY_DEFAULT_MODEL,
@@ -152,6 +149,7 @@ export const PROVIDER_DISPLAY_NAMES: Partial<Record<ProviderDriverKind, string>>
   [CLAUDE_DRIVER_KIND]: "Claude",
   [CURSOR_DRIVER_KIND]: "Cursor",
   [GROK_DRIVER_KIND]: "Grok",
+  [FX_DRIVER_KIND]: "fx",
   [MUSE_DRIVER_KIND]: "Muse Code",
   [ACP_REGISTRY_DRIVER_KIND]: "ACP Registry",
   [PI_DRIVER_KIND]: "Pi",

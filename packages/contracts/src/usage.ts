@@ -2,14 +2,8 @@ import * as Schema from "effect/Schema";
 
 import { ForwardCompatibleArray, NonNegativeInt, TrimmedNonEmptyString } from "./baseSchemas.ts";
 
-/**
- * Bumped whenever the shape of {@link UsageSummary} changes incompatibly.
- * Adding providers or other array-element variants is additive: unknown entries
- * are skipped on decode and do not require a version bump.
- */
 export const USAGE_CONTRACT_VERSION = 6 as const;
 
-/** Oldest {@link UsageSummary} version a current client will still merge. */
 export const USAGE_MERGE_COMPATIBLE_SINCE = 6 as const;
 
 export const UsageProviderKind = Schema.Literals([
@@ -20,6 +14,7 @@ export const UsageProviderKind = Schema.Literals([
   "opencode",
   "antigravity",
   "pi",
+  "muse",
 ]);
 export type UsageProviderKind = typeof UsageProviderKind.Type;
 
@@ -36,12 +31,6 @@ export type UsageResolution = typeof UsageResolution.Type;
 export const UsageCostSource = Schema.Literals(["providerReported", "modelPriced", "unpriced"]);
 export type UsageCostSource = typeof UsageCostSource.Type;
 
-/**
- * `cachedInputTokens` and `cacheCreationTokens` are disjoint from
- * `uncachedInputTokens`; summing all three gives total input. `reasoningTokens`
- * is a *subset* of `outputTokens` (Codex reports it that way, and Anthropic
- * folds thinking into output), so it must never be added on top.
- */
 export const UsageTokenTotals = Schema.Struct({
   uncachedInputTokens: NonNegativeInt,
   cachedInputTokens: NonNegativeInt,
@@ -83,12 +72,7 @@ export const UsageSourceFingerprint = Schema.Struct({
   hostId: TrimmedNonEmptyString,
   provider: UsageProviderKind,
   resolvedHomePath: TrimmedNonEmptyString,
-  /**
-   * Filesystem identity of the transcript directory, as `device:inode`.
-   * Hostname and path alone are not enough: every Mac in a fleet resolves
-   * `/Users/<user>/.claude`, so two machines that happen to share a hostname
-   * would look like one source and have their usage silently dropped.
-   */
+
   volumeId: Schema.String,
 });
 export type UsageSourceFingerprint = typeof UsageSourceFingerprint.Type;
@@ -102,11 +86,7 @@ export const UsageSource = Schema.Struct({
   scannedFiles: NonNegativeInt,
   skippedFiles: NonNegativeInt,
   malformedRecords: NonNegativeInt,
-  /**
-   * Buckets also carry per-bucket session counts, but a session spans days and
-   * models, so summing those overcounts; this is the figure clients should
-   * total.
-   */
+
   distinctSessions: NonNegativeInt,
   message: Schema.NullOr(TrimmedNonEmptyString),
   action: Schema.optionalKey(Schema.Literal("enableCursorKeychain")),
@@ -129,10 +109,7 @@ export type UsagePricing = typeof UsagePricing.Type;
 export const UsageSummaryInput = Schema.Struct({
   sinceDay: UsageDay,
   untilDay: UsageDay,
-  /**
-   * IANA zone the client wants days bucketed in. An offset would be wrong for
-   * any window that crosses a DST boundary.
-   */
+
   timeZone: TrimmedNonEmptyString,
   resolution: Schema.optional(UsageResolution),
   sinceTime: Schema.optional(TrimmedNonEmptyString),
