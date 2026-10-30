@@ -2,7 +2,6 @@ export type Comment = { readonly path: string; readonly line: number; readonly b
 
 const testStart = /^\s*(it|test|describe)(\.\w+)*\(/;
 
-                                                                                              
 export const testRange = (source: string, title: string) => {
   const lines = source.split("\n");
   const start = lines.findIndex(
@@ -13,13 +12,8 @@ export const testRange = (source: string, title: string) => {
   return { start: start + 1, end: next < 0 ? lines.length : next };
 };
 
-                                                                                
 const slack = 2;
 
-   
-                                                                                            
-                                                                                 
-   
 export const grade = (input: {
   readonly kind: "bad" | "guard";
   readonly targets: ReadonlyArray<{

@@ -88,7 +88,7 @@ it.effect("answers device calls with Supaterm's handlers over the case's world",
     assert.match(command, /^\/home\/user\/\.supaterm\/userdata\/device\/.+\/agent-device$/);
     assert.include(opened.quickStart, command);
     assert.deepEqual(tools.launchers, [command]);
-                                                                              
+
     assert.deepEqual(json((yield* tools.call("device_screenshot", {})).text).screenshot, {
       mimeType: "image/png",
       width: 1206,
@@ -122,89 +122,101 @@ it("decodes only Supaterm device errors as injected failures", () => {
   assert.isUndefined(deviceFailure("default"));
 });
 
-it.effect("rebuilds prior device results with Supaterm, whose sessions reach the measured turn", () =>
-  Effect.gen(function* () {
-    const testCase = deviceCase({
-      priorTurns: [
-        { role: "user", text: "Show me Settings on the iPhone on build-mac." },
-        {
-          role: "assistant",
-          toolCalls: [
-            { tool: "device_list", input: {}, result: "default" },
-            { tool: "device_open", input: { hostId: MAC, deviceId: IPHONE }, result: "default" },
-          ],
-        },
-      ],
-      mocks: { device_screenshot: screenshotFailure },
-    });
-    const sample = makeSample(testCase, base);
-    assert.throws(() => buildMessages(sample), /run withDevices/);
-    yield* withDevices(sample);
-    const shown = JSON.stringify(buildMessages(sample));
-    const [launcher = ""] = sample.devices?.launchers ?? [];
-    assert.include(shown, launcher);
-    assert.notInclude(shown, `"content":"default"`);
-    const tools = sample.devices!;
-    assert.isFalse((yield* tools.call("device_screenshot", {})).isError);
-    const mock = deviceFailure(testCase.setup.mocks?.device_screenshot);
-    assert.isTrue((yield* tools.call("device_screenshot", {}, mock)).isError);
-  }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+it.effect(
+  "rebuilds prior device results with Supaterm, whose sessions reach the measured turn",
+  () =>
+    Effect.gen(function* () {
+      const testCase = deviceCase({
+        priorTurns: [
+          { role: "user", text: "Show me Settings on the iPhone on build-mac." },
+          {
+            role: "assistant",
+            toolCalls: [
+              { tool: "device_list", input: {}, result: "default" },
+              { tool: "device_open", input: { hostId: MAC, deviceId: IPHONE }, result: "default" },
+            ],
+          },
+        ],
+        mocks: { device_screenshot: screenshotFailure },
+      });
+      const sample = makeSample(testCase, base);
+      assert.throws(() => buildMessages(sample), /run withDevices/);
+      yield* withDevices(sample);
+      const shown = JSON.stringify(buildMessages(sample));
+      const [launcher = ""] = sample.devices?.launchers ?? [];
+      assert.include(shown, launcher);
+      assert.notInclude(shown, `"content":"default"`);
+      const tools = sample.devices!;
+      assert.isFalse((yield* tools.call("device_screenshot", {})).isError);
+      const mock = deviceFailure(testCase.setup.mocks?.device_screenshot);
+      assert.isTrue((yield* tools.call("device_screenshot", {}, mock)).isError);
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
 
-it.effect("gives a native subagent Supaterm's SubagentStart context instead of Supaterm's append", () =>
-  Effect.gen(function* () {
-    const subagentContext = yield* Effect.promise(() => supatermSubagentContext(model));
-    const native = {
-      ...buildBase(capture, { model, keepUserInstructions: false, nativeSubagent: true }),
-      subagentContext,
-    };
-    const system = (blocks: typeof base.system) =>
-      blocks.map((block) => String(block.text)).join("");
-    assert.include(system(base.system), supatermSystemAppend(model));
-    assert.notInclude(system(native.system), supatermSystemAppend(model));
-    const testCase = deviceCase({ role: "native-subagent" });
-    const shown = (sample: typeof native) =>
-      buildMessages(makeSample(testCase, sample))[0]?.content.map((block) => String(block.text));
-    const reminders = shown(native)?.join("\n") ?? "";
-                                                                
-    assert.equal(
-      reminders.includes("SubagentStart hook additional context"),
-      subagentContext !== "",
-    );
-    assert.include(reminders, subagentContext);
-                                                                                            
-    const blocks = shown({ ...native, subagentContext: "## Supaterm devices" }) ?? [];
-    assert.equal(blocks.at(-2), testCase.prompt);
-    assert.equal(
-      blocks.at(-1),
-      "<system-reminder>\nSubagentStart hook additional context: ## Supaterm devices\n</system-reminder>",
-    );
-  }),
+it.effect(
+  "gives a native subagent Supaterm's SubagentStart context instead of Supaterm's append",
+  () =>
+    Effect.gen(function* () {
+      const subagentContext = yield* Effect.promise(() => supatermSubagentContext(model));
+      const native = {
+        ...buildBase(capture, { model, keepUserInstructions: false, nativeSubagent: true }),
+        subagentContext,
+      };
+      const system = (blocks: typeof base.system) =>
+        blocks.map((block) => String(block.text)).join("");
+      assert.include(system(base.system), supatermSystemAppend(model));
+      assert.notInclude(system(native.system), supatermSystemAppend(model));
+      const testCase = deviceCase({ role: "native-subagent" });
+      const shown = (sample: typeof native) =>
+        buildMessages(makeSample(testCase, sample))[0]?.content.map((block) => String(block.text));
+      const reminders = shown(native)?.join("\n") ?? "";
+
+      assert.equal(
+        reminders.includes("SubagentStart hook additional context"),
+        subagentContext !== "",
+      );
+      assert.include(reminders, subagentContext);
+
+      const blocks = shown({ ...native, subagentContext: "## Supaterm devices" }) ?? [];
+      assert.equal(blocks.at(-2), testCase.prompt);
+      assert.equal(
+        blocks.at(-1),
+        "<system-reminder>\nSubagentStart hook additional context: ## Supaterm devices\n</system-reminder>",
+      );
+    }),
 );
 
-it.effect("tells the shell simulator the launchers Supaterm returned and agent-device's real CLI", () =>
-  Effect.gen(function* () {
-    const sample = makeSample(deviceCase({}), base);
-    yield* withDevices(sample);
-    const call = { tool: "Bash", input: { command: "ls /tmp" } };
-    const told = (request: ReturnType<typeof shellRequest>) => JSON.stringify(request.messages);
-    assert.notInclude(told(shellRequest(sample, call, "claude-haiku-5-5")), "launchers Supaterm's");
-    const opened = yield* sample.devices!.call("device_open", { hostId: MAC, deviceId: IPHONE });
-    const { command } = json(opened.text).agentDevice;
-    const request = shellRequest(sample, call, "claude-haiku-5-5");
-    assert.include(told(request), `agent-device launchers Supaterm's device_open returned: ${command}`);
-                                                                                              
-    assert.include(request.system, AGENT_DEVICE_SHELL);
-    assert.include(
-      request.system,
-      "agent-device record start [path] [--scope <app|device|system>]",
-    );
-    assert.include(request.system, "| record stop |");
-    assert.include(request.system, "Unknown flag: --stop. Did you mean --scope?");
-                                                                          
-    const plain = makeSample(deviceCase({ world: {} }), base);
-    assert.notInclude(shellRequest(plain, call, "claude-haiku-5-5").system, "agent-device");
-  }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+it.effect(
+  "tells the shell simulator the launchers Supaterm returned and agent-device's real CLI",
+  () =>
+    Effect.gen(function* () {
+      const sample = makeSample(deviceCase({}), base);
+      yield* withDevices(sample);
+      const call = { tool: "Bash", input: { command: "ls /tmp" } };
+      const told = (request: ReturnType<typeof shellRequest>) => JSON.stringify(request.messages);
+      assert.notInclude(
+        told(shellRequest(sample, call, "claude-haiku-5-5")),
+        "launchers Supaterm's",
+      );
+      const opened = yield* sample.devices!.call("device_open", { hostId: MAC, deviceId: IPHONE });
+      const { command } = json(opened.text).agentDevice;
+      const request = shellRequest(sample, call, "claude-haiku-5-5");
+      assert.include(
+        told(request),
+        `agent-device launchers Supaterm's device_open returned: ${command}`,
+      );
+
+      assert.include(request.system, AGENT_DEVICE_SHELL);
+      assert.include(
+        request.system,
+        "agent-device record start [path] [--scope <app|device|system>]",
+      );
+      assert.include(request.system, "| record stop |");
+      assert.include(request.system, "Unknown flag: --stop. Did you mean --scope?");
+
+      const plain = makeSample(deviceCase({ world: {} }), base);
+      assert.notInclude(shellRequest(plain, call, "claude-haiku-5-5").system, "agent-device");
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
 
 it("prints agent-device's own help for a lone help command on a returned launcher", () => {
@@ -212,7 +224,7 @@ it("prints agent-device's own help for a lone help command on a returned launche
     AGENT_DEVICE_SHELL.split(`$ agent-device help${topic ? ` ${topic}` : ""}\n`)[1]
       ?.split("\n$ agent-device help")[0]
       ?.trimEnd();
-                                                                                             
+
   const launcher = "/home/user/.supaterm/userdata/device/bin/agent-device";
   const target = `--platform ios --udid ${IPHONE} --config /home/user/.supaterm/userdata/device/hosts/303617b9730210ef3c86c52d.json --session supaterm-4c43aa31e607633b85e9ff2f`;
   const asked = (command: string) => launcherHelp([launcher], command);
@@ -222,7 +234,7 @@ it("prints agent-device's own help for a lone help command on a returned launche
   assert.equal(asked(`${launcher} help open ${target}`), help("open"));
   assert.equal(asked(`${launcher} --help 2>&1`), help(""));
   assert.equal(asked(`${launcher} help settings --session=supaterm-1`), help("settings"));
-                                                                                          
+
   assert.isUndefined(asked(`${launcher} metro --help ${target}`));
   assert.isUndefined(asked(`${launcher} help record 2>&1 | head -40`));
   assert.isUndefined(asked(`AD=${launcher}; $AD help record`));
@@ -240,12 +252,11 @@ it("pins agent-device's help to the version Supaterm installs", () => {
   assert.include(AGENT_DEVICE_SHELL, `agent-device ${versions["agent-device"]} prints this help`);
 });
 
-                                                                                    
 const NO_SESSION =
   "Error (SESSION_NOT_FOUND): No active session. Run open first.\nHint: Run open first or pass an explicit device selector.";
 const APP_RECORDING_BEFORE_OPEN =
   "Error (INVALID_ARGS): record start with app scope and an explicit session requires an active app session; run open <app> first, or use --scope device to record the full screen\nHint: Check command arguments and run --help for usage examples.";
-                                                                                            
+
 const iosSnapshotRefused = (session: string) =>
   `Error (SESSION_NOT_FOUND): iOS snapshot requires an active app session on the target device. Run open first (for example: open --session ${session} --platform ios --device "<name>" <app>).\nHint: Run open first or pass an explicit device selector.`;
 const APP_RECORDING_WITHOUT_APP =
@@ -257,7 +268,7 @@ it.effect("answers the returned launcher as agent-device does before and after o
     const tools = yield* makeDeviceTools({ devices, deviceHosts }, base.environment);
     const opened = json((yield* tools.call("device_open", { hostId: MAC, deviceId: IPHONE })).text);
     const { command, targetArgs, session: bound } = opened.agentDevice;
-                                                                                                    
+
     const session: string = bound ?? targetArgs[targetArgs.indexOf("--session") + 1];
     const line = (args: string) =>
       bound === undefined ? `${command} ${args} ${targetArgs.join(" ")}` : `${command} ${args}`;
@@ -278,9 +289,9 @@ it.effect("answers the returned launcher as agent-device does before and after o
       assert.include(answer(args), NO_SESSION, args);
     }
     assert.include(answer("record start /tmp/run.mp4"), APP_RECORDING_BEFORE_OPEN);
-                                                        
+
     assert.include(answer("snapshot -i"), iosSnapshotRefused("sim"));
-                                                                            
+
     for (const args of [
       "open",
       "devices",
@@ -292,7 +303,7 @@ it.effect("answers the returned launcher as agent-device does before and after o
     ]) {
       assert.isUndefined(answer(args), args);
     }
-                                                                                
+
     assert.isUndefined(answer("screenshot --bogus /tmp/shot.png"));
     assert.isUndefined(answer("screenshot --json /tmp/shot.png"));
     assert.isUndefined(tools.sessionError(history, `${line("screenshot /tmp/a.png")} && echo ok`));
@@ -348,9 +359,10 @@ const errorCode = (
 it("names the session on either ref: the bound launcher's own, or the shared one's --session", () => {
   const flags = `--platform ios --udid ${IPHONE} --config /home/user/.supaterm/userdata/device/hosts/x.json`;
   const sharedTargets = [shared("supaterm-a"), shared("supaterm-b")];
-                                                                                             
-                                                
-  const opened = [bash(`${sharedTargets[0]!.command} open com.acme.app ${flags} --session supaterm-a`)];
+
+  const opened = [
+    bash(`${sharedTargets[0]!.command} open com.acme.app ${flags} --session supaterm-a`),
+  ];
   assert.isUndefined(
     errorCode(
       sharedTargets,
@@ -367,7 +379,7 @@ it("names the session on either ref: the bound launcher's own, or the shared one
     "SESSION_NOT_FOUND",
   );
   assert.isUndefined(errorCode(sharedTargets, [], `${sharedTargets[0]!.command} screenshot`));
-                                                                             
+
   assert.equal(
     errorCode([boundTarget], [], `${boundTarget.command} screenshot`),
     "SESSION_NOT_FOUND",
@@ -383,8 +395,7 @@ it("names the session on either ref: the bound launcher's own, or the shared one
     errorCode([boundTarget], boundOpen, `${boundTarget.command} screenshot --session other`),
     "SESSION_NOT_FOUND",
   );
-                                                                                            
-                                               
+
   assert.isUndefined(
     errorCode(sharedTargets, [], `${sharedTargets[0]!.command} record start --session supaterm-a`),
   );
@@ -395,25 +406,24 @@ it("follows the session through aliases, compound calls, snapshots and whole-scr
   const after = (...history: ReadonlyArray<ShellCall>) =>
     agentDeviceSessions([boundTarget], {}, history).get("supaterm-bound");
   assert.deepEqual(after(bash(`AD=${launcher}; "$AD" open com.acme.app`)), { app: true });
-                                                                                       
+
   assert.isUndefined(after(bash(`${launcher} open com.acme.app`, "Exit code 1\nError (X): no")));
   assert.deepEqual(
     after(bash(`${launcher} open com.acme.app && ${launcher} press @e9`, "Exit code 1\nboom")),
     { app: true },
   );
-                                                            
+
   assert.isUndefined(after(bash(`false && ${launcher} open`, "Exit code 1")));
   assert.isUndefined(after(bash("ssh build-mac agent-device open com.acme.app")));
   assert.isUndefined(after(bash(`${launcher} help open`)));
-                                                                                                
-                                                      
+
   assert.isUndefined(after(bash(`${launcher} snapshot -i`)));
   const android = { ...boundTarget, ios: false, iosSimulator: false };
   assert.deepEqual(
     agentDeviceSessions([android], {}, [bash(`${launcher} snapshot -i`)]).get("supaterm-bound"),
     { app: false },
   );
-                                                                  
+
   const recording = bash(`${launcher} record start --scope device /tmp/r.mp4`);
   assert.deepEqual(after(recording), { app: false, recordingOnly: true });
   assert.isUndefined(errorCode([boundTarget], [recording], `${launcher} screenshot`));
@@ -430,7 +440,6 @@ it("follows the session through aliases, compound calls, snapshots and whole-scr
 });
 
 it("follows the shared launcher's session through flags held in a variable or an array", () => {
-                                                                 
   const target = shared("supaterm-a");
   const flags = `--platform ios --udid ${IPHONE} --config /home/user/.supaterm/userdata/device/hosts/x.json --session supaterm-a`;
   const after = (history: ShellCall, targets = [target]) =>
@@ -442,9 +451,9 @@ it("follows the shared launcher's session through flags held in a variable or an
   assert.deepEqual(after(opened), { app: true });
   const array = bash(`A=(${flags}); ${target.command} open "\${A[@]}" 2>&1 | head -60`);
   assert.deepEqual(after(array), { app: false });
-                                                                             
+
   assert.isUndefined(after(array, [target, shared("supaterm-b")]));
-                                                                                              
+
   const failed = bash(
     `AD=${target.command}; A="${flags}"; $AD open $A`,
     "Exit code 1\nError (X): no",
@@ -526,7 +535,6 @@ it.effect(
 );
 
 it("keeps a redirection's descriptor out of the app an open names, on either launcher", () => {
-                                                                                       
   const flags = `--platform ios --udid ${IPHONE} --config /home/user/.supaterm/userdata/device/hosts/x.json --session supaterm-a`;
   for (const [target, args] of [
     [shared("supaterm-a"), ` ${flags}`],
@@ -551,7 +559,6 @@ it("keeps a redirection's descriptor out of the app an open names, on either lau
 });
 
 it("follows opens the parser cannot prove ran, in calls that did not fail", () => {
-                                                                                       
   const launcher = boundTarget.command;
   const after = (command: string, output = "Opened: com.acme.app") =>
     agentDeviceSessions([boundTarget], {}, [bash(command, output)]).get("supaterm-bound");
@@ -562,7 +569,7 @@ it("follows opens the parser cannot prove ran, in calls that did not fail", () =
   assert.deepEqual(after(`cd /tmp && ${launcher} open com.acme.app; ${launcher} snapshot -i`), {
     app: true,
   });
-                                                                       
+
   assert.deepEqual(after(`mkdir -p /tmp/p && AD=${launcher}; $AD open com.acme.app`), {
     app: true,
   });
@@ -576,7 +583,7 @@ it("follows opens the parser cannot prove ran, in calls that did not fail", () =
     ]).get("supaterm-bound"),
     { app: true },
   );
-                                                   
+
   assert.isUndefined(
     after(`mkdir -p /tmp/p && ${launcher} open com.acme.app; echo done`, "Exit code 1\nno"),
   );
@@ -600,64 +607,68 @@ const deviceTools = (extra: object) =>
     base.environment,
   );
 
-it.effect("lists a host whose discovery fails as Supaterm does: failed, with none of its devices", () =>
-  Effect.gen(function* () {
-                                                                               
-    const failure = new DeviceOperationError({
-      operation: "list",
-      reason: "request_failed",
-      cause: null,
-    });
-    const tools = yield* deviceTools({ deviceDiscoveryFailures: { [MAC]: failure } });
-    const listed = json((yield* tools.call("device_list", {})).text);
-    assert.deepEqual(listed.hostStatuses[MAC], {
-      status: "failed",
-      detail:
-        "Device list failed: Could not communicate with device support. Try refreshing devices.",
-    });
-    assert.equal(listed.hostStatuses[SPARE_MAC].status, "ready");
-    assert.deepEqual(
-      listed.devices.map((device: { id: string }) => device.id),
-      [SPARE_PHONE],
-    );
-    const opened = yield* tools.call("device_open", { hostId: MAC, deviceId: IPHONE });
-    assert.isTrue(opened.isError);
-    assert.include(opened.text, IPHONE);
-    assert.isFalse(
-      (yield* tools.call("device_open", { hostId: SPARE_MAC, deviceId: SPARE_PHONE })).isError,
-    );
-                                                                      
-    const unlabeled = yield* Effect.exit(
-      deviceTools({ deviceDiscoveryFailures: { "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee": failure } }),
-    );
-    assert.isTrue(unlabeled._tag === "Failure");
-  }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+it.effect(
+  "lists a host whose discovery fails as Supaterm does: failed, with none of its devices",
+  () =>
+    Effect.gen(function* () {
+      const failure = new DeviceOperationError({
+        operation: "list",
+        reason: "request_failed",
+        cause: null,
+      });
+      const tools = yield* deviceTools({ deviceDiscoveryFailures: { [MAC]: failure } });
+      const listed = json((yield* tools.call("device_list", {})).text);
+      assert.deepEqual(listed.hostStatuses[MAC], {
+        status: "failed",
+        detail:
+          "Device list failed: Could not communicate with device support. Try refreshing devices.",
+      });
+      assert.equal(listed.hostStatuses[SPARE_MAC].status, "ready");
+      assert.deepEqual(
+        listed.devices.map((device: { id: string }) => device.id),
+        [SPARE_PHONE],
+      );
+      const opened = yield* tools.call("device_open", { hostId: MAC, deviceId: IPHONE });
+      assert.isTrue(opened.isError);
+      assert.include(opened.text, IPHONE);
+      assert.isFalse(
+        (yield* tools.call("device_open", { hostId: SPARE_MAC, deviceId: SPARE_PHONE })).isError,
+      );
+
+      const unlabeled = yield* Effect.exit(
+        deviceTools({
+          deviceDiscoveryFailures: { "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee": failure },
+        }),
+      );
+      assert.isTrue(unlabeled._tag === "Failure");
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
 
-it.effect("denies every device tool with Supaterm's own error when agent device access is off", () =>
-  Effect.gen(function* () {
-    const tools = yield* deviceTools({ deviceAgentAccess: false });
-    for (const [name, input] of [
-      ["device_list", {}],
-      ["device_open", { hostId: MAC, deviceId: IPHONE }],
-      ["device_screenshot", {}],
-      ["device_close", {}],
-    ] as const) {
-      const result = yield* tools.call(name, input);
-      assert.isTrue(result.isError, name);
-                                                                                                
-                                                  
-      const denied = result.text.startsWith(
-        "Agent device access is turned off for this environment.",
-      );
-      assert.isTrue(
-        denied || (name === "device_screenshot" && result.text === "Device screenshot failed."),
-        `${name}: ${result.text}`,
-      );
-    }
-                                                                                                
-    assert.notInclude(supatermSystemAppend(model, false), "## Supaterm devices");
-  }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+it.effect(
+  "denies every device tool with Supaterm's own error when agent device access is off",
+  () =>
+    Effect.gen(function* () {
+      const tools = yield* deviceTools({ deviceAgentAccess: false });
+      for (const [name, input] of [
+        ["device_list", {}],
+        ["device_open", { hostId: MAC, deviceId: IPHONE }],
+        ["device_screenshot", {}],
+        ["device_close", {}],
+      ] as const) {
+        const result = yield* tools.call(name, input);
+        assert.isTrue(result.isError, name);
+
+        const denied = result.text.startsWith(
+          "Agent device access is turned off for this environment.",
+        );
+        assert.isTrue(
+          denied || (name === "device_screenshot" && result.text === "Device screenshot failed."),
+          `${name}: ${result.text}`,
+        );
+      }
+
+      assert.notInclude(supatermSystemAppend(model, false), "## Supaterm devices");
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
 
 it.effect("reports an unreadable capture as Supaterm does: a successful 0×0 screenshot", () =>
@@ -680,12 +691,12 @@ it.effect("reports an unreadable capture as Supaterm does: a successful 0×0 scr
 it.effect("refuses an open on a device another thread's agent-device session holds", () =>
   Effect.gen(function* () {
     const tools = yield* deviceTools({ deviceOwners: { [IPHONE]: "acme-design-review" } });
-                                                                     
+
     const owner = "supaterm-a062c547ef0b6bf8ee839b67";
     assert.deepEqual(tools.owners, [
       { deviceId: IPHONE, threadId: "acme-design-review", session: owner },
     ]);
-                                                                                                       
+
     const opened = json((yield* tools.call("device_open", { hostId: MAC, deviceId: IPHONE })).text);
     assert.deepEqual(json((yield* tools.call("device_list", {})).text).open, [
       { hostId: MAC, deviceId: IPHONE },
@@ -712,10 +723,10 @@ it.effect("refuses an open on a device another thread's agent-device session hol
       `Error (DEVICE_IN_USE): Device is already in use by session "${owner}".\nHint: Waited 5000ms for this device and it stayed busy. Run agent-device session list`,
     );
     assert.notInclude(answer("open --wait 5000"), "--wait <ms>");
-                                                             
+
     assert.equal(answer("screenshot /tmp/a.png", owner), "");
     assert.equal(answer("open com.acme.app", owner), "");
-                                                            
+
     history.push({
       tool: "Bash",
       input: { command: `${line("open com.acme.app")} && ${line("screenshot /tmp/a.png")}` },
@@ -738,7 +749,7 @@ it.effect("refuses an open on a device another thread's agent-device session hol
       told,
       `${owner} (Acme iPhone, ${IPHONE}, on build-mac) belongs to another Supaterm thread (acme-design-review)`,
     );
-                                                    
+
     history.push({ tool: "Bash", input: { command: line("close", owner) }, output: "Closed" });
     assert.equal(answer("open com.acme.app"), "");
     assert.include(describeSessions(tools.sessions(history), tools.owners), "was closed");
@@ -758,7 +769,7 @@ it.effect("leaves a free device free when another thread holds a different one",
       tools.sessionError([], `${command} screenshot /tmp/a.png${flags}`) ?? "",
       "SESSION_NOT_FOUND",
     );
-                                                                          
+
     assert.isFalse(
       (yield* tools.call("device_list", {})).text.includes(`"hostId":"${LOCAL_DEVICE_HOST_ID}"`),
     );
@@ -766,7 +777,7 @@ it.effect("leaves a free device free when another thread holds a different one",
 );
 
 type Opened = { command: string; targetArgs: Array<string>; session?: string };
-                                                                                                     
+
 const commandLine = (opened: Opened, args: string, session?: string) => {
   const own = opened.session ?? opened.targetArgs[opened.targetArgs.indexOf("--session") + 1];
   if (opened.session !== undefined)
@@ -779,8 +790,6 @@ it.effect(
   "tells the simulator each launcher's device, and routes DEVICE_IN_USE to the held one",
   () =>
     Effect.gen(function* () {
-                                                                                            
-                                                                                              
       const owner = "supaterm-a062c547ef0b6bf8ee839b67";
       const sample = makeSample(
         deviceCase({ world: { ...twoMacs, deviceOwners: { [IPHONE]: "acme-design-review" } } }),
@@ -802,7 +811,7 @@ it.effect(
           shellRequest(sample, { tool: "Bash", input: { command } }, model).messages[0]?.content[0]
             ?.text,
         );
-                                                                                      
+
       const heldOpen = commandLine(held, "open com.acme.app --metro-port 8095");
       const refused = cannedOutput(sample, heldOpen) ?? "";
       assert.include(
@@ -811,7 +820,6 @@ it.effect(
       );
       sample.shell.push({ tool: "Bash", input: { command: heldOpen }, output: refused });
 
-                                                                                                
       const spareOpen = commandLine(spare, "open com.acme.app --metro-port 8095");
       assert.isUndefined(cannedOutput(sample, spareOpen));
       const free = told(spareOpen);
@@ -833,7 +841,6 @@ it.effect(
       );
       assert.notInclude(free, "Error (DEVICE_IN_USE)");
 
-                                                                                                  
       const piped = commandLine(held, "open com.acme.app");
       const refusal = told(`${piped} 2>&1 | tail -5`);
       assert.include(
@@ -841,7 +848,7 @@ it.effect(
         `In the new call, \`${piped}\` drives Acme iPhone, ${IPHONE}, on build-mac, which session ${owner} holds: it fails with exit code 1, printing "Error (DEVICE_IN_USE): Device is already in use by session "${owner}"." and "Hint: Run agent-device session list to inspect active sessions. To reuse this device,`,
       );
       assert.notInclude(refusal, "no other session holds");
-                                                                                        
+
       const alias =
         spare.session === undefined
           ? `A=${spare.command}; "$A" open com.acme.app ${spare.targetArgs.join(" ")}`
@@ -852,22 +859,21 @@ it.effect(
         both,
         `on spare-mac, which no other session holds: it prints no DEVICE_IN_USE`,
       );
-                                                                                     
+
       assert.notInclude(told(commandLine(held, "open com.acme.app", owner)), "In the new call");
-                                                                                             
+
       const reopen = told(`${commandLine(held, "close", owner)}; ${piped}`);
       assert.include(
         reopen,
         `\`${piped}\` drives Acme iPhone, ${IPHONE}, on build-mac, which no other session holds: it prints no DEVICE_IN_USE`,
       );
       assert.notInclude(reopen, `which session ${owner} holds`);
-                                             
+
       assert.notInclude(
         told(`${commandLine(spare, "screenshot /tmp/a.png")} && echo ok`),
         "In the new call",
       );
 
-                                                                           
       const alone = makeSample(deviceCase({}), base);
       yield* withDevices(alone);
       const own: Opened = json(
@@ -887,19 +893,17 @@ it.effect(
 );
 
 it("tells the simulator 0.21.31's --foreground and session list behaviour", () => {
-                                                                                                   
-                                                                           
   assert.include(
     AGENT_DEVICE_SHELL,
     "open --foreground with no app or URL fails with exit code 1 when the command passes --udid or --device",
   );
   assert.include(AGENT_DEVICE_SHELL, "open <app> --foreground works.");
-                                                                                               
+
   assert.include(
     AGENT_DEVICE_SHELL,
     "session list prints, as JSON, the started sessions on the launcher's host, other threads' too",
   );
-                                              
+
   for (const args of ["open com.acme.app --foreground", "session list"]) {
     assert.isUndefined(
       agentDeviceSessionError(

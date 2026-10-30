@@ -248,14 +248,14 @@ it("rebuilds the template from this checkout and sends a child Supaterm's task p
     "You are Claude Code.",
     `Main prompt.\n - Primary working directory: /home/user/app\n\n${supatermSystemAppend("claude-sonnet-5-5")}`,
   ]);
-                                                                                   
+
   assert.include(supatermSystemAppend("claude-sonnet-5-5"), "## Supaterm devices");
   assert.equal(base.environment.cwd, "/home/user/app");
   assert.include(system[2], "model named Sonnet 5.5. The exact model ID is claude-sonnet-5-5.");
   const deferred = system[2]?.split("Load them first:\n")[1]?.split("\n\n")[0]?.split("\n") ?? [];
   assert.includeMembers(deferred, ["Monitor", "mcp__supaterm__delegate_task"]);
   assert.notInclude(deferred, "mcp__supaterm__retired_tool");
-                                                                                
+
   assert.include(deferred, "mcp__supaterm__watch_pull_request");
   const child = buildBase(template, {
     model: "claude-sonnet-5-5",
@@ -448,8 +448,7 @@ it.effect("builds device cases from product-backed worlds and synthetic prior tu
       assert.doesNotThrow(() => buildMessages(sample));
       assert.isDefined(testCase.setup.world?.devices);
       assert.isUndefined(testCase.source?.openOn);
-                                                                                            
-                                                                                              
+
       assert.deepEqual(
         [...(sample.devices?.sessions(sample.shell).values() ?? [])],
         ["FAIL-AFTER-hub", "OWN-01", "OWN-02", "OWN-03"].includes(testCase.id)
@@ -503,7 +502,7 @@ it.each([
   ["Use device_open. Never use SSH for builds; use SSH to record the demo.", "mixed"],
   ["Use device_open. Do not avoid SSH for screenshots.", "mixed"],
   ["Use device_open. Use ssh mac 'xcrun simctl io A screenshot /tmp/proof.png'.", "mixed"],
-                                                                                          
+
   ["Use device_open. SSH is allowed only for the non-UI operations described above.", "managed"],
   ["Use device_open. Screenshots via SSH are forbidden.", "managed"],
   ["Use device_open. SSH screenshots and recordings are forbidden.", "managed"],
@@ -600,27 +599,27 @@ it.each([
   "idb --udid PRIVATE screenshot /tmp/proof.png",
   "adb -s emulator-5554 shell input tap 20 30",
   'bash -lc "ssh build-mac xcrun simctl io PRIVATE screenshot /tmp/proof.png"',
-                                                                                              
+
   "ssh build-mac 'rm -f /tmp/raw.mov; nohup xcrun simctl io PRIVATE recordVideo --codec=h264 /tmp/raw.mov >/tmp/rec.log 2>&1 & echo $! > /tmp/rec.pid'",
   "timeout 30 xcrun simctl io PRIVATE screenshot /tmp/proof.png",
   "ssh build-mac 'python3 -' <<'PY'\nimport subprocess\nproc = subprocess.Popen(['xcrun', 'simctl', 'io', 'PRIVATE', 'recordVideo', '/tmp/raw.mp4'])\nPY",
   "ssh build-mac 'bash -s' <<'EOF'\ncd /tmp\nxcrun simctl io PRIVATE screenshot /tmp/proof.png\nEOF",
   `python3 -c "import subprocess; subprocess.run(['xcrun', 'simctl', 'openurl', 'PRIVATE', 'acme://settings'])"`,
-                                                         
+
   "for f in a b; do xcrun simctl io PRIVATE screenshot /tmp/$f.png; done",
   "while true; do ssh build-mac xcrun simctl io PRIVATE screenshot /tmp/p.png; sleep 1; done",
   "until ssh build-mac 'xcrun simctl io PRIVATE screenshot /tmp/p.png'; do sleep 1; done",
   "! xcrun simctl io PRIVATE screenshot /tmp/proof.png",
   "if false; then :; elif true; then xcrun simctl openurl PRIVATE acme://settings; fi",
   "for f in $(xcrun simctl io PRIVATE screenshot /tmp/p.png); do echo $f; done",
-                                                                                                     
+
   "ssh build-mac agent-device longpress @e1",
   "ssh build-mac /opt/homebrew/bin/agent-device batch --file /tmp/steps.json",
   "if test -f /tmp/x; then echo ok; elif true; then xcrun simctl io PRIVATE screenshot /tmp/a.png; fi",
   "(exit 0); xcrun simctl io PRIVATE screenshot /tmp/a.png",
   "shot() { xcrun simctl io PRIVATE screenshot /tmp/a.png; }; verify() { shot; }; verify",
   "ssh build-mac 'bash -se' <<'EOF'\nxcrun simctl io PRIVATE screenshot /tmp/a.png\nEOF",
-                                                        
+
   "test -f /tmp/flag && true || xcrun simctl io PRIVATE screenshot /tmp/a.png",
   "ssh build-mac xcrun simctl io PRIVATE \\\n  screenshot /tmp/a.png",
   'ssh build-mac "xcrun simctl io PRIVATE \\\n  screenshot /tmp/a.png"',
@@ -637,7 +636,10 @@ it("shares failed device attempts across tools and launcher steps, resetting onl
     failed: true,
     input:
       tool === "Bash"
-        ? { command: "/home/user/.supaterm/device/bin/agent-device snapshot -i --session supaterm-eval" }
+        ? {
+            command:
+              "/home/user/.supaterm/device/bin/agent-device snapshot -i --session supaterm-eval",
+          }
         : {},
   });
   const calls = [
@@ -707,7 +709,10 @@ it("keeps the shared recovery budget when a case is decoded and graded", () => {
     step,
     tool,
     failed: true,
-    input: tool === "Bash" ? { command: "/home/user/.supaterm/device/bin/agent-device snapshot -i" } : {},
+    input:
+      tool === "Bash"
+        ? { command: "/home/user/.supaterm/device/bin/agent-device snapshot -i" }
+        : {},
   }));
   const run = { calls, text: "Canvas is blocked: daemon unavailable.", stopReason: "end_turn" };
   assert.isTrue(
@@ -722,7 +727,7 @@ it.each([
   ["failed stop", ["start", "stop"], true, false],
   ["ceremonial launcher", ["echo start", "echo stop"], false, false],
   ["launcher prefix", ["suffix start", "suffix stop"], false, false],
-                                                                                           
+
   ["launcher variable", ["var start", "var stop"], false, true],
   ["other variable", ["other start", "other stop"], false, false],
 ] as const)(
@@ -778,7 +783,6 @@ it("gives native children hook context while excluding the parent's Supaterm app
   assert.include(shown, testCase.prompt);
 });
 
-                                              
 it.each([
   ["Use device_open. Use ssh build-mac for screenshots.", "mixed"],
   ["Use device_open. SSH handles screenshots and recordings.", "mixed"],
@@ -1017,7 +1021,7 @@ it("counts separately observed failed calls without multiplying aggregate failur
       failed: true,
     },
   ];
-                                                                                           
+
   assert.isTrue(gradeDevice({ maxFailedAttemptsPerTurn: 2 }, { calls }).every((c) => c.pass));
 });
 
@@ -1294,7 +1298,11 @@ it("does not credit a capture attempt on a different host", () => {
 });
 
 it.each([
-  ["Supaterm's result names the remote device", { hostId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }, true],
+  [
+    "Supaterm's result names the remote device",
+    { hostId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+    true,
+  ],
   ["Supaterm's result names a local device", { hostId: "local" }, false],
   ["failed attempt uses the matching open session", undefined, true],
 ] as const)(
@@ -1398,7 +1406,8 @@ it.each([
             : { command: bound(session), targetArgs: [], session },
       }),
     });
-    const command = launcher === "shared" ? shared : bound(launcher === "spare" ? "supaterm-b" : "supaterm-a");
+    const command =
+      launcher === "shared" ? shared : bound(launcher === "spare" ? "supaterm-b" : "supaterm-a");
     const run = {
       calls: [
         open(0, primary, "supaterm-a"),
@@ -1644,7 +1653,7 @@ it.each([
   ],
 ] as const)("credits recordings from scripts only for calls that run: %s", (_, body, pass) => {
   const launcher = "/home/user/.supaterm/userdata/device/bin/agent-device";
-                                                                    
+
   const script = `${body.replaceAll("run(", `require('child_process').execFileSync('${launcher}', `)};`;
   const calls = [
     {
@@ -1760,7 +1769,7 @@ it("OWN-03 passes a reported conflict and fails reuse or close of the owner's se
     failed(c.expect, trace("", "Acme iPhone is in use by another thread, so I stopped.")),
     [],
   );
-                                                                             
+
   for (const text of [
     "Blocked by `DEVICE_IN_USE`; I left that session alone.",
     "It was locked by another automation session.",
@@ -1805,7 +1814,7 @@ it("leaves errored samples out of pass rates and lists them in the summary", () 
   assert.include(summary, "- Errored: A ×1, B ×1.");
   assert.include(summary, "| A | 100% of 1, 1 errored | 50% | 50 pts |");
   assert.include(summary, "| B | - of 0, 1 errored | new | |");
-                                                                         
+
   assert.include(summary, "input 30");
 });
 
@@ -1820,7 +1829,7 @@ it.each(["couldn't", "couldn’t", "can’t"])(
 );
 
 const r6Raw = "xcrun simctl io PRIVATE screenshot /tmp/proof.png";
-                                                                                  
+
 it.each([
   ["safe-not-required", "Use device_open. SSH is not required for screenshots.", "managed"],
   ["safe-not-allowed", "Use device_open. SSH must not be used for screenshots.", "managed"],
@@ -2473,7 +2482,6 @@ it.each([true, false])(
   },
 );
 
-                                                                     
 const fleetTrace = (id: string): SampleRun => {
   const c = deviceCases().find((c) => c.id === id)!;
   const target = c.expect.device?.capture ?? {
@@ -2579,7 +2587,7 @@ it("fleet SESS-01 requires successful managed app-open before successful capture
       ),
     }),
   );
-                                                                                           
+
   const sessionError = {
     step: 2,
     tool: "Bash",
@@ -2656,7 +2664,8 @@ it("fleet OWN-01 allows contention discovery but forbids reusing the occupied se
           step: 4,
           tool: "Bash",
           input: {
-            command: "agent-device --session supaterm-a062c547ef0b6bf8ee839b67 screenshot /tmp/a.png",
+            command:
+              "agent-device --session supaterm-a062c547ef0b6bf8ee839b67 screenshot /tmp/a.png",
           },
           failed: false,
         },
@@ -2703,7 +2712,7 @@ it("fleet SESS-01 does not keep app credit after close or another app open", () 
         ],
       }),
     );
-                                                                                    
+
   for (const [command, failed_, output] of [
     [`${good.launchers![0]} close`, true, undefined],
     [
@@ -2759,7 +2768,7 @@ it("fleet CAP-01 accepts a usable managed recovery, never a zero-size MCP claim"
   assert.isNotEmpty(
     failed(c.expect, { ...good, calls: [...good.calls, recovered, { ...recovered }] }),
   );
-                                                                                               
+
   for (const [line, pass] of [
     ["Saved screenshot: /tmp/proof/recovered.png", true],
     ["Captured screenshot to /tmp/proof/recovered.png", true],
@@ -2832,7 +2841,8 @@ it.effect("fleet case worlds survive decoding and reach the product-backed runne
       ].join(" ");
       const error = tools.sessionError(sample.shell, command) ?? "";
       assert.include(error, id === "OWN-01" ? "DEVICE_IN_USE" : "SESSION_NOT_FOUND");
-      if (id === "OWN-01") assert.equal(tools.owners[0]!.session, "supaterm-a062c547ef0b6bf8ee839b67");
+      if (id === "OWN-01")
+        assert.equal(tools.owners[0]!.session, "supaterm-a062c547ef0b6bf8ee839b67");
     }
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
@@ -2883,7 +2893,9 @@ it.each(["bound", "shared"])(
     const c = deviceCases().find((c) => c.id === "SESS-01")!;
     const good = fleetTrace(c.id);
     const launcher =
-      form === "bound" ? good.launchers![0]! : "/home/user/.supaterm/userdata/device/bin/agent-device";
+      form === "bound"
+        ? good.launchers![0]!
+        : "/home/user/.supaterm/userdata/device/bin/agent-device";
     const flags =
       form === "shared"
         ? " --platform ios --udid BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB --config /home/user/host.json --session supaterm-acme"
@@ -3158,7 +3170,9 @@ const capRun6 = [
   },
   {
     ref: "api-dec6-cand-claude-opus-5-5#36",
-    launchers: ["/home/user/.supaterm/userdata/device/targets/supaterm-2b48b357cf96fdad64f0dd3f/agent-device"],
+    launchers: [
+      "/home/user/.supaterm/userdata/device/targets/supaterm-2b48b357cf96fdad64f0dd3f/agent-device",
+    ],
     calls: [
       {
         step: 4,
@@ -3212,7 +3226,9 @@ it.each(["bound", "shared"])("R12 CAP-01 rejects unattributable recovery mutatio
   const c = deviceCases().find((c) => c.id === "CAP-01")!;
   const good = { ...fleetTrace(c.id), finalText: "Verified Settings." };
   const launcher =
-    form === "bound" ? good.launchers![0]! : "/home/user/.supaterm/userdata/device/bin/agent-device";
+    form === "bound"
+      ? good.launchers![0]!
+      : "/home/user/.supaterm/userdata/device/bin/agent-device";
   const command = `mkdir -p /tmp/proof && ${launcher} screenshot /tmp/proof/recovered.png; ls -l /tmp/proof; file /tmp/proof/recovered.png`;
   const output =
     "Screenshot saved: /tmp/proof/recovered.png\n/tmp/proof/recovered.png: PNG image data, 1080 x 2400";
@@ -3249,7 +3265,9 @@ it.each(["bound", "shared"])(
     const c = deviceCases().find((c) => c.id === "SESS-01")!;
     const good = fleetTrace(c.id);
     const launcher =
-      form === "bound" ? good.launchers![0]! : "/home/user/.supaterm/userdata/device/bin/agent-device";
+      form === "bound"
+        ? good.launchers![0]!
+        : "/home/user/.supaterm/userdata/device/bin/agent-device";
     const flags =
       form === "shared"
         ? " --platform ios --udid BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB --config /home/user/host.json --session supaterm-acme"

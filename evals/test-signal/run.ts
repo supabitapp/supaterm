@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-                                                                                  
+
 // @effect-diagnostics nodeBuiltinImport:off
 import * as NodeChildProcess from "node:child_process";
 import * as NodeCrypto from "node:crypto";
@@ -32,7 +32,7 @@ const models = values.model ?? ["gpt-6.1-terra", "gpt-6-luna"];
 const repo = NodePath.resolve(import.meta.dirname, "../..");
 const checkFile =
   values.prompt ?? NodePath.join(repo, ".macroscope/check-run-agents/test-signal.md");
-                                                                                 
+
 const instructions = NodeFS.readFileSync(checkFile, "utf8")
   .replace(/^---\n[\s\S]*?\n---\n/, "")
   .trim();
@@ -50,12 +50,11 @@ const git = (args: ReadonlyArray<string>) => {
   return result.status === 0 ? result.stdout : undefined;
 };
 
-                                                                                
 const world = (entry: Case) => {
   const files = new Map<string, string>();
   if (entry.type === "real") {
     const diff = git(["diff", `${entry.rev}~1`, entry.rev, "--", ...entry.paths]);
-                                                              
+
     if (!diff) throw new Error(`${entry.id}: no diff at ${entry.rev}.`);
     return { diff, files };
   }
@@ -78,17 +77,13 @@ const world = (entry: Case) => {
   return { diff, files };
 };
 
-                                                                                              
-                                               
 const ruleFiles = new Set(["docs/internals/testing.md", "AGENTS.md"]);
 const readAt = (entry: Case, files: Map<string, string>, path: string) =>
   ruleFiles.has(path)
     ? NodeFS.readFileSync(NodePath.join(repo, path), "utf8")
     : (files.get(path) ?? git(["show", `${entry.rev}:${path}`]));
 
-                                                                                              
 const grepAt = (entry: Case, files: Map<string, string>, pattern: string, scope: string) => {
-                                                                                                   
   const check = NodeChildProcess.spawnSync("grep", ["-E", "--", pattern], {
     input: "",
     encoding: "utf8",
@@ -96,7 +91,7 @@ const grepAt = (entry: Case, files: Map<string, string>, pattern: string, scope:
   if (check.status !== 0 && check.status !== 1) return check.stderr.trim() || "grep failed.";
   const served = new Map(files);
   for (const path of ruleFiles) served.set(path, readAt(entry, files, path) ?? "");
-                                                                                                  
+
   const matched = new Set((git(["ls-files", "--", scope || "."]) ?? "").split("\n"));
   const inScope = (path: string) => matched.has(path);
   const fromRev = (git(["grep", "-n", "-E", "-e", pattern, entry.rev, "--", scope || "."]) ?? "")
@@ -288,7 +283,7 @@ const summary = await Effect.runPromise(
       ({ model, entry, n }) => sampleSafely(entry, model, n),
       { concurrency: Number(values.concurrency) },
     )).slice();
-                                      
+
     const splits = pairs.filter(({ model, entry }) => {
       const own = rows.filter((row) => row.model === model && row.case === entry.id);
       return own.length === 2 && own.some(passed) && !own.every(passed);
@@ -308,7 +303,7 @@ const summary = await Effect.runPromise(
     for (const model of models) {
       const verdicts = selected.map((entry) => {
         const own = rows.filter((row) => row.model === model && row.case === entry.id);
-                                                                                              
+
         const graded = own.filter(isGraded);
         const passes = own.filter(passed).length;
         return {

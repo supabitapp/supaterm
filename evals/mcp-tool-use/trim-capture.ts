@@ -1,17 +1,13 @@
 #!/usr/bin/env node
 // @effect-diagnostics nodeBuiltinImport:off
-   
-                                                                                                   
-                                                                                 
-                                                                                      
-   
+
 import * as NodeFS from "node:fs";
 import * as NodeZlib from "node:zlib";
 
 type Block = { readonly text?: string; readonly [key: string]: unknown };
 type Message = { readonly role?: string; content?: string | ReadonlyArray<Block> };
 type Item = Message & { readonly [key: string]: unknown };
-                                                                
+
 type Native = {
   readonly system: ReadonlyArray<Block & { readonly text: string }>;
   readonly messages: ReadonlyArray<Item>;
@@ -20,7 +16,6 @@ type Native = {
   readonly [key: string]: unknown;
 };
 
-                                                                                                
 const CLAUDE_SKILLS = new Set([
   "update-config",
   "keybindings-help",
@@ -36,12 +31,11 @@ const CLAUDE_SKILLS = new Set([
   "security-review",
 ]);
 const CLAUDE_AGENTS = new Set(["Explore", "general-purpose", "Plan", "statusline-setup"]);
-                                                                                        
+
 const USER_SKILL_LINE = /^- `r[02]` = |\(file: r[02]\//;
-                                                                                             
+
 const CODEX_MODELS = new Set(["gpt-6.1-sol", "gpt-6-astra", "gpt-6-luna"]);
 
-                                                                      
 const trimModelList = (tool: unknown): unknown => {
   if (Array.isArray(tool)) return tool.map(trimModelList);
   if (typeof tool !== "object" || tool === null) return tool;
@@ -62,7 +56,6 @@ const trimModelList = (tool: unknown): unknown => {
   );
 };
 
-                                                                                                
 const keepEntries = (text: string, header: string, keep: ReadonlySet<string>) => {
   const start = text.indexOf(header) + header.length;
   const end = text.indexOf("\n\n", text.indexOf("\n- ", start));
@@ -87,13 +80,12 @@ const trimClaude = (native: Native) => {
   if (!first || !Array.isArray(first.content))
     throw new Error("The capture has no first user turn.");
   const blocks = (first.content as ReadonlyArray<Block>).flatMap((block) => {
-                                                                                    
     if (block.type !== "text") return [];
     const text = block.text ?? "";
-                                  
+
     if (text.includes("Codebase and user instructions are")) return [];
     if (!text.includes("# gitStatus")) return [block];
-                                                          
+
     return [
       { ...block, text: "<system-reminder>\n# gitStatus\n(Set by each case.)\n</system-reminder>" },
     ];
@@ -103,7 +95,7 @@ const trimClaude = (native: Native) => {
   for (const message of head.slice(1)) {
     if (typeof message.content !== "string") continue;
     let text = message.content;
-                                                                
+
     const runtime = text.indexOf("<runtime_info>");
     if (runtime !== -1) text = text.slice(0, runtime + "<runtime_info>".length);
     const agents = "Available agent types for the Agent tool:\n";
@@ -123,11 +115,10 @@ const textOf = ({ content }: Item) =>
 
 const trimCodex = (native: Native) => {
   const input = native.input.flatMap(({ id: _id, ...item }): Array<Item> => {
-                                                                                
     if (item.type !== "message" && item.type !== "additional_tools") return [];
     if (item.role === "assistant") return [];
     const text = textOf(item);
-                                                                            
+
     if (text.includes("<supaterm_")) return [];
     if (item.role === "user") {
       const env = /<environment_context>[\s\S]*?<\/environment_context>/.exec(text)?.[0];
@@ -148,7 +139,7 @@ const trimCodex = (native: Native) => {
     );
     return [{ ...item, content }];
   });
-                                                        
+
   input.push({
     type: "message",
     role: "developer",
@@ -166,7 +157,7 @@ const native: Native = JSON.parse(NodeFS.readFileSync(capturePath, "utf8")).requ
 const raw = JSON.stringify({
   request: { provider_native: harness === "claude" ? trimClaude(native) : trimCodex(native) },
 });
-                                                      
+
 const user = /\/(?:home|Users)\/([^/\s"\\]+)/.exec(raw)?.[1];
 const body = user ? raw.replace(new RegExp(`/(home|Users)/${user}\\b`, "g"), "/$1/user") : raw;
 const leak = new RegExp(

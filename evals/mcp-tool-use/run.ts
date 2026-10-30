@@ -1,10 +1,6 @@
 #!/usr/bin/env node
 // @effect-diagnostics nodeBuiltinImport:off
-   
-                                                                                                    
-                                                                                           
-                                             
-   
+
 import * as NodeChildProcess from "node:child_process";
 import * as NodeUtil from "node:util";
 import * as NodeVM from "node:vm";
@@ -68,7 +64,7 @@ import {
   launcherHelp,
   makeDeviceTools,
 } from "./devices.ts";
-                                                                      
+
 const MODELS = {
   "claude-sonnet-5-5": "Sonnet 5.5",
   "claude-opus-5-5": "Opus 5.5",
@@ -76,11 +72,11 @@ const MODELS = {
   "gpt-6-astra": "GPT-6 Astra",
 } as const;
 type Model = keyof typeof MODELS;
-                                                                                             
+
 const isCodex = (model: Model): model is Extract<Model, `gpt-${string}`> =>
   model.startsWith("gpt-");
 const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
-                                                              
+
 const PRICES = {
   "claude-sonnet-5-5": { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 },
   "claude-haiku-5-5": { input: 0.1, output: 0.5, cacheWrite: 0.125, cacheRead: 0.01 },
@@ -93,8 +89,7 @@ const TOOL_LOADED = "Tool loaded.";
 const DEFERRED_LIST =
   /(The following deferred tools are now available via ToolSearch\.[^\n]*\n)((?:[^\n]+\n)*)/;
 const MODEL_LINE = /You are powered by the model named .+?\. The exact model ID is [\w.-]+\./;
-                                                                                              
-                                                                                            
+
 const IDENTITY =
   /You are Claude Code, Anthropic's official CLI for Claude(?:, running within the Claude Agent SDK)?\./g;
 const NEUTRAL_IDENTITY = "You are an AI coding agent running in the user's terminal.";
@@ -107,9 +102,9 @@ type Call = {
   readonly step: number;
   readonly tool: string;
   readonly input: unknown;
-                                                                  
+
   readonly id?: string;
-                                                                                   
+
   failed?: boolean;
   output?: string;
 };
@@ -117,11 +112,11 @@ export type SampleRun = {
   readonly calls: ReadonlyArray<Call>;
   text: string;
   stopReason: string;
-                                                                                  
+
   readonly finalText?: string;
-                                                                                    
+
   readonly linked?: ReadonlyArray<string>;
-                                                                                           
+
   readonly launchers?: ReadonlyArray<string>;
 };
 
@@ -130,89 +125,70 @@ const Rest = [Schema.Record(Schema.String, Schema.Unknown)] as const;
 const PriorToolCall = Schema.Struct({
   tool: Schema.String,
   input: Schema.Unknown,
-                                                                                                   
+
   result: Schema.Unknown,
 });
 
-   
-                                                                                      
-                                                                  
-   
 const McpToolUseCall = Schema.Struct({
   tool: Schema.String,
   args: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
 });
 type McpToolUseCall = typeof McpToolUseCall.Type;
 
-                                                                            
 const McpToolUseExpect = Schema.Struct({
-                                            
   calls: Schema.optional(Schema.Array(McpToolUseCall)),
-                                     
+
   callsMustNot: Schema.optional(Schema.Array(McpToolUseCall)),
   notCalls: Schema.optional(Schema.Array(Schema.String)),
-                                                         
+
   order: Schema.optional(Schema.Array(Schema.String)),
   minCalls: Schema.optional(Schema.Record(Schema.String, Schema.Number)),
   maxCalls: Schema.optional(Schema.Record(Schema.String, Schema.Number)),
-                                                                              
+
   endsTurnAfter: Schema.optional(Schema.String),
-                                                 
+
   shellMustNot: Schema.optional(Schema.Array(Schema.String)),
-                                                            
+
   textMust: Schema.optional(Schema.Array(Schema.String)),
   textMustNot: Schema.optional(Schema.Array(Schema.String)),
-                                                                               
+
   linked: Schema.optional(Schema.Array(Schema.String)),
-                                                                                                
+
   device: Schema.optional(DeviceExpect),
 });
 
-   
-                                                                                                 
-                                                                                     
-   
 const McpToolUseWorld = Schema.StructWithRest(
   Schema.Struct({
-                                                       
     repo: Schema.optional(Schema.String),
     branch: Schema.optional(Schema.String),
-                                      
+
     status: Schema.optional(Schema.String),
-                                                                                       
+
     commits: Schema.optional(
       Schema.Array(
         Schema.StructWithRest(Schema.Struct({ sha: Schema.String, subject: Schema.String }), Rest),
       ),
     ),
-                                                                                               
+
     devices: Schema.optional(Schema.Array(DeviceSummary)),
-                                                                                            
+
     deviceHosts: Schema.optional(Schema.Record(Schema.String, Schema.String)),
-       
-                                                                                               
-                                                                                              
-       
+
     agentDeviceSessions: Schema.optional(
       Schema.Record(Schema.String, Schema.Struct({ app: Schema.optional(Schema.String) })),
     ),
-       
-                                                                                 
-                                                                                                          
-                                                                                  
-       
+
     deviceDiscoveryFailures: Schema.optional(Schema.Record(Schema.String, DeviceOperationError)),
-                                                                                                          
+
     deviceAgentAccess: Schema.optional(Schema.Boolean),
-                                                                                                              
+
     deviceInvalidCapture: Schema.optional(Schema.Boolean),
-                                                                                               
+
     deviceOwners: Schema.optional(Schema.Record(Schema.String, Schema.String)),
   }),
   Rest,
 );
 
-                                                                
 export const McpToolUseCase = Schema.Struct({
   id: Schema.String,
   area: Schema.String,
@@ -223,11 +199,11 @@ export const McpToolUseCase = Schema.Struct({
   privacy: Schema.optional(Schema.Literals(["commit-safe", "private"])),
   setup: Schema.Struct({
     role: Schema.Literals(["top", "delegated-child", "native-subagent"]),
-                                                                                 
+
     harness: Schema.optional(Schema.Literals(["claude", "codex"])),
-                                                                                
+
     linkedEnvironments: Schema.optional(Schema.Boolean),
-                                                                                                         
+
     delegateRole: Schema.optional(OrchestratorMcpTaskRole),
     context: Schema.optional(Schema.String),
     priorTurns: Schema.optional(
@@ -240,21 +216,18 @@ export const McpToolUseCase = Schema.Struct({
       ),
     ),
     world: Schema.optional(McpToolUseWorld),
-       
-                                                                                                        
-                                                                                                       
-       
+
     mocks: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
-                                                                                         
+
     shellMocks: Schema.optional(
       Schema.Array(Schema.Struct({ match: Schema.String, output: Schema.String })),
     ),
   }),
   prompt: Schema.String,
-                                                                                        
+
   promptContext: Schema.optional(Schema.Struct({ records: Schema.Array(ComposerContextRecord) })),
   expect: McpToolUseExpect,
-                                                                 
+
   maxSteps: Schema.optional(Schema.Number),
   source: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
   notes: Schema.optional(Schema.String),
@@ -270,7 +243,7 @@ const MessagesRequest = Schema.Struct({
   messages: Schema.Array(Schema.Struct({ role: Schema.String, content: Content })),
   tools: Schema.Array(Schema.StructWithRest(Schema.Struct({ name: Schema.String }), Rest)),
 });
-                                                                             
+
 const Capture = Schema.Struct({ request: Schema.Struct({ provider_native: MessagesRequest }) });
 const ResponsesRequest = Schema.StructWithRest(
   Schema.Struct({
@@ -323,11 +296,11 @@ const toolResult = (id: string, content: unknown): Block => ({
 });
 const texts = (content: typeof Content.Type) =>
   typeof content === "string" ? [content] : content.flatMap((block) => block.text ?? []);
-const isSupatermName = (name: string) => name.startsWith(Supaterm_PREFIX) || name.startsWith("mcp__supaterm__");
+const isSupatermName = (name: string) =>
+  name.startsWith(Supaterm_PREFIX) || name.startsWith("mcp__supaterm__");
 const hasTool = (tools: ReadonlyArray<ApiTool>, name: string) =>
   tools.some((tool) => tool.name === name);
 
-                                                                                                         
 const CODEX_NAMES: Readonly<Record<string, string>> = {
   exec_command: "Bash",
   shell_command: "Bash",
@@ -350,8 +323,6 @@ export const normalizeToolInput = (name: string, input: unknown) =>
       ? { patch: input }
       : input;
 
-                                                                                         
-                                             
 const supatermSourceTools: ReadonlyArray<Tool.Any> = [
   OrchestratorToolkit,
   ThreadToolkit,
@@ -373,14 +344,15 @@ const supatermTools: ReadonlyArray<ApiTool> = supatermSourceTools.map((tool) => 
 const enabledWhen = (predicate: () => boolean) =>
   new Set(
     supatermSourceTools
+      .values()
       .filter(
         (tool) => Context.getOrUndefined(tool.annotations, McpSchema.EnabledWhen) === predicate,
       )
       .map((tool) => `${Supaterm_PREFIX}${tool.name}`),
   );
-                                                                                       
+
 const hiddenFromSubagents = enabledWhen(McpInvocationContext.hiddenFromSubagents);
-                                                                                             
+
 const hiddenWhileLinksOff = enabledWhen(McpInvocationContext.hiddenWhileLinksOff);
 const visibleSupatermTools = (options: { readonly subagent?: boolean; readonly links?: boolean }) =>
   supatermTools.filter(
@@ -389,12 +361,7 @@ const visibleSupatermTools = (options: { readonly subagent?: boolean; readonly l
       !(options.subagent === true && hiddenFromSubagents.has(tool.name)),
   );
 
-   
-                                                                                                           
-                                                                                    
-   
 const claudeQueryOptions = (model: Model, device = true) => {
-                                                                                                   
   const input: Parameters<typeof makeClaudeQueryOptions>[0] & {
     readonly deviceToolsAvailable?: boolean;
   } = {
@@ -402,13 +369,12 @@ const claudeQueryOptions = (model: Model, device = true) => {
     nativeThreadId: "mcp-tool-use-eval",
     resume: false,
     cwd: null,
-    mcpServers: { "supaterm": { type: "http", url: "http://127.0.0.1/mcp" } },
+    mcpServers: { supaterm: { type: "http", url: "http://127.0.0.1/mcp" } },
     deviceToolsAvailable: device,
   };
   return makeClaudeQueryOptions(input);
 };
 
-                                                                                                  
 export const supatermSystemAppend = (model: Model, device = true) => {
   const { systemPrompt } = claudeQueryOptions(model, device);
   if (isRecord(systemPrompt) && systemPrompt.type === "preset" && systemPrompt.append) {
@@ -417,10 +383,6 @@ export const supatermSystemAppend = (model: Model, device = true) => {
   throw new Error("makeClaudeQueryOptions no longer appends Supaterm text to a preset prompt.");
 };
 
-   
-                                                                                                    
-                                              
-   
 export const supatermSubagentContext = async (model: Model, device = true) => {
   const hooks = (claudeQueryOptions(model, device).hooks?.SubagentStart ?? []).flatMap(
     (m) => m.hooks,
@@ -446,14 +408,12 @@ export const supatermSubagentContext = async (model: Model, device = true) => {
     .join("\n\n");
 };
 
-   
-                                                                                            
-                                                                                      
-                                                              
-   
 const supatermContextReport = (model: Model) => {
   const size = (chars: number) => `${chars} chars (~${Math.round(chars / 4)} tokens)`;
-  const descriptions = supatermTools.reduce((sum, tool) => sum + valueText(tool.description).length, 0);
+  const descriptions = supatermTools.reduce(
+    (sum, tool) => sum + valueText(tool.description).length,
+    0,
+  );
   const schemas = JSON.stringify(supatermTools).length;
   return [
     `- Supaterm context: system text ${size((isCodex(model) ? JSON.stringify(buildCodexAdditionalContext({ model }, { browser: true, device: true })) : supatermSystemAppend(model)).length)}`,
@@ -485,7 +445,6 @@ const NATIVE_SCHEMAS: Readonly<Record<string, Omit<ApiTool, "name">>> = {
   },
 };
 
-                                                                       
 export const buildBase = (
   template: typeof MessagesRequest.Type,
   options: {
@@ -493,9 +452,9 @@ export const buildBase = (
     readonly keepUserInstructions: boolean;
     readonly subagent?: boolean;
     readonly links?: boolean;
-                                                                                                 
+
     readonly nativeSubagent?: boolean;
-                                                                                               
+
     readonly deviceAccess?: boolean;
   },
 ) => {
@@ -518,13 +477,12 @@ export const buildBase = (
   const append = options.nativeSubagent ? "" : supatermSystemAppend(model, options.deviceAccess);
   const modelLine = `You are powered by the model named ${MODELS[model]}. The exact model ID is ${model}.`;
   const joined = systemTexts.join("\n");
-                                                                                       
+
   const cwd = /Primary working directory: (\S+)/.exec(joined)?.[1] ?? "/home/user/app";
   const home = /^\/(?:home|Users)\/[^/]+/.exec(cwd)?.[0];
   const anonymize = (value: string) =>
     home === undefined ? value : value.replaceAll(home, home.replace(/[^/]+$/, "user"));
   const system = systemTexts.map((value) => {
-                                                                                                
     const at = value.indexOf(RUNTIME_MARKER);
     return anonymize(at === -1 ? value : value.slice(0, at) + append)
       .replace(DEFERRED_LIST, (_, header: string) => `${header}${names}\n`)
@@ -532,15 +490,14 @@ export const buildBase = (
       .replace(IDENTITY, NEUTRAL_IDENTITY);
   });
   const [first] = template.messages;
-                                           
+
   const reminders = (first?.role === "user" ? texts(first.content).slice(0, -1) : []).filter(
     (value) =>
       options.keepUserInstructions || !value.includes("Codebase and user instructions are"),
   );
-                                                                                             
+
   const gitStatusAt = reminders.findIndex((value) => value.includes("# gitStatus"));
-                                                                                            
-                    
+
   const open = { type: "object", additionalProperties: true };
   const nativeSchema = (name: string) =>
     NATIVE_SCHEMAS[name] ?? { description: name, input_schema: open };
@@ -549,14 +506,14 @@ export const buildBase = (
     system: system.map(text),
     reminders: reminders.filter((_, i) => i !== gitStatusAt).map((value) => text(anonymize(value))),
     gitStatusAt: gitStatusAt === -1 ? reminders.length : gitStatusAt,
-                                                                                      
+
     environment: {
       cwd: anonymize(cwd),
       platform: /Platform: (\w+)/.exec(joined)?.[1] ?? "linux",
       date: /Today's date is ([\d-]+)/.exec(reminders.join("\n"))?.[1],
     },
     nativeTools: template.tools.filter((tool) => !isSupatermName(tool.name)),
-                                                                                                        
+
     supaterm,
     deferred: [...supaterm, ...nativeDeferred.map((name) => ({ name, ...nativeSchema(name) }))],
   };
@@ -564,11 +521,10 @@ export const buildBase = (
 
 type Base = ReturnType<typeof buildBase> & {
   readonly codex?: typeof ResponsesRequest.Type;
-                                                                    
+
   readonly subagentContext?: string;
 };
 
-                                                                                               
 const buildCodexBase = (
   template: typeof ResponsesRequest.Type,
   options: {
@@ -577,7 +533,7 @@ const buildCodexBase = (
     readonly effort?: string | undefined;
     readonly subagent?: boolean;
     readonly links?: boolean;
-                                                                                               
+
     readonly deviceAccess?: boolean;
   },
 ): Base => {
@@ -598,7 +554,7 @@ const buildCodexBase = (
     role,
     content: [{ type: "input_text", text: value }],
   });
-                                                                                                
+
   const input = template.input.flatMap((item) => {
     const content = contentText(item);
     if (content.includes("<supaterm_")) return [];
@@ -606,8 +562,7 @@ const buildCodexBase = (
       const env = /<environment_context>[\s\S]*?<\/environment_context>/.exec(content)?.[0];
       return env ? [message(clean(options.keepUserInstructions ? content : env), "user")] : [];
     }
-                                                                                                
-                  
+
     if (item.type !== "message" && item.type !== "additional_tools") return [];
     if (item.role === "assistant") return [];
     return [JSON.parse(clean(JSON.stringify(item))) as Block];
@@ -647,7 +602,6 @@ const buildCodexBase = (
   };
 };
 
-                                                                                          
 const codexCall = (name: string, input: unknown) => {
   const args = isRecord(input) ? input : {};
   if (name === "Bash")
@@ -692,17 +646,14 @@ const codexMessages = (messages: ReadonlyArray<ApiMessage>): Array<Block> =>
             },
     ),
   );
-                                                                                          
+
 type ShellEntry = { readonly tool: string; readonly input: unknown; readonly output: string };
-                                                                                                 
+
 const createdPullRequests = ({ tool, input, output }: ShellEntry) =>
   tool === "Bash" && isRecord(input) && typeof input.command === "string"
     ? changeRequestsCreatedBy(input.command, output).map(({ url }) => url)
     : [];
-   
-                                                                                                  
-                                                                                                         
-   
+
 type Sample = {
   readonly testCase: McpToolUseCase;
   readonly base: Base;
@@ -713,9 +664,9 @@ type Sample = {
   readonly linked: Set<string>;
   readonly codeStore: Record<string, unknown>;
   nextTask: number;
-                                                                                          
+
   devices?: DeviceTools;
-                                                                                  
+
   readonly priorResults: Map<unknown, string>;
 };
 
@@ -750,12 +701,6 @@ export const makeSample = (testCase: McpToolUseCase, base: Base): Sample => {
   };
 };
 
-   
-                                                                                                        
-                                                                                                        
-                                                                                                    
-                                                                                                  
-   
 export const withDevices = Effect.fn("evaluateMcpToolUse.withDevices")(function* (sample: Sample) {
   const world = sample.testCase.setup.world;
   if (world?.devices === undefined) return;
@@ -769,17 +714,12 @@ export const withDevices = Effect.fn("evaluateMcpToolUse.withDevices")(function*
   }
 });
 
-                                           
 const MAIN_COMMITS = [
   { sha: "9f2c1ab", subject: "feat(web): show the model name in the thread header" },
   { sha: "4e7d2c0", subject: "fix(server): retry provider start once on ENOENT" },
   { sha: "b81f3d9", subject: "chore: update dependencies" },
 ];
 
-   
-                                                                                                  
-                                                                                                    
-   
 const gitStatus = ({ setup }: McpToolUseCase) => {
   const prior = valueText(setup.priorTurns ?? []);
   const branch = setup.world?.branch ?? "main";
@@ -809,7 +749,6 @@ const findTool = (base: Base, bare: string) =>
   [...base.nativeTools, ...base.deferred].find((tool) => normalizeToolName(tool.name) === bare) ??
   (base.codex ? { name: bare } : undefined);
 
-                                                                                            
 const loadTools = (tools: Array<ApiTool>, id: string, found: ReadonlyArray<ApiTool>): Block => {
   for (const tool of found) {
     if (!hasTool(tools, tool.name)) tools.push({ ...tool, defer_loading: true });
@@ -818,7 +757,6 @@ const loadTools = (tools: Array<ApiTool>, id: string, found: ReadonlyArray<ApiTo
   return { type: "tool_result", tool_use_id: id, content };
 };
 
-                                                                                                   
 export const buildMessages = (sample: Sample) => {
   const { testCase, base, tools } = sample;
   const messages: Array<ApiMessage> = [];
@@ -844,11 +782,13 @@ export const buildMessages = (sample: Sample) => {
       const tool = findTool(base, call.tool);
       if (tool === undefined) throw new Error(`${testCase.id}: unknown prior tool ${call.tool}.`);
       if (call.result === "default" && isDeviceTool(call.tool) && !sample.priorResults.has(call)) {
-        throw new Error(`${testCase.id}: prior ${call.tool} needs Supaterm's result; run withDevices.`);
+        throw new Error(
+          `${testCase.id}: prior ${call.tool} needs Supaterm's result; run withDevices.`,
+        );
       }
       return { ...call, id: `toolu_prior_${nextId++}`, name: tool.name, tool, prior: call };
     });
-                                                                                    
+
     const unloaded = [...new Set(calls.map((call) => call.tool))].filter(
       (tool) => !hasTool(tools, tool.name),
     );
@@ -859,7 +799,7 @@ export const buildMessages = (sample: Sample) => {
       push("assistant", { type: "tool_use", id, name: toolSearch, input });
       push("user", loadTools(tools, id, unloaded), text(TOOL_LOADED));
     }
-                                                      
+
     for (const { id, name, input, result, tool, prior } of calls) {
       push("assistant", { type: "tool_use", id, name, input });
       const replayed =
@@ -876,17 +816,16 @@ export const buildMessages = (sample: Sample) => {
       : projectComposerContextForProvider({ text: testCase.prompt, ...testCase.promptContext });
   const childPrompt = () => taskPrompt({ task: prompt, role: delegateRole });
   push("user", text(role === "delegated-child" ? childPrompt() : prompt));
-                                                                                                
+
   if (native && base.subagentContext) {
     push("user", reminder(`SubagentStart hook additional context: ${base.subagentContext}`));
   }
   return messages;
 };
 
-                                                                                                    
 const claudeModel = (id: string) => ({ id, options: [{ id: "effort", values: EFFORTS }] });
 const codexModel = (id: string) => ({ id, options: [{ id: "reasoningEffort", values: EFFORTS }] });
-                                                                                              
+
 const PROVIDERS = [
   {
     providerInstanceId: "claudeAgent",
@@ -921,7 +860,6 @@ const DEFAULT_THREAD = {
 const HTML_RENDERED =
   "Shown to the reader above your reply. Don't mention or describe the page; reply with only what it doesn't already say.";
 
-                                                                                                       
 const pullRequest = (repo: string, input: Readonly<Record<string, unknown>>) => {
   const url = typeof input.url === "string" ? input.url : "";
   const repository =
@@ -935,8 +873,11 @@ const pullRequest = (repo: string, input: Readonly<Record<string, unknown>>) => 
   };
 };
 
-                                                                      
-const supatermDefault = (sample: Sample, name: string, input: Readonly<Record<string, unknown>>) => {
+const supatermDefault = (
+  sample: Sample,
+  name: string,
+  input: Readonly<Record<string, unknown>>,
+) => {
   const pr = () => pullRequest(sample.repo, input);
   switch (name) {
     case "orchestrator_capabilities":
@@ -979,7 +920,6 @@ const supatermDefault = (sample: Sample, name: string, input: Readonly<Record<st
       return { ...pr(), alreadyLinked };
     }
     case "request_secret": {
-                                                                                                         
       const id = "5f0c9e2a7b4d4183a6e1c8d2b9f07a64";
       const home =
         /^\/(?:home|Users)\/[^/]+/.exec(sample.base.environment.cwd)?.[0] ?? "/home/user";
@@ -1030,10 +970,8 @@ const supatermDefault = (sample: Sample, name: string, input: Readonly<Record<st
   }
 };
 
-                                            
 const EVAL_ENVIRONMENT_ID = EnvironmentId.make("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee");
 
-                                                                                                 
 const withProductFields = (name: string, value: unknown, child: boolean): unknown => {
   if (!isRecord(value)) return value;
   const linked = (thread: unknown, idKey = "threadId") => {
@@ -1076,7 +1014,6 @@ const withProductFields = (name: string, value: unknown, child: boolean): unknow
   }
 };
 
-                                                                                       
 const capabilities = ({ base }: Sample, value: unknown) =>
   isRecord(value)
     ? {
@@ -1091,7 +1028,6 @@ const capabilities = ({ base }: Sample, value: unknown) =>
       }
     : value;
 
-                                                                                                  
 const searchTools = (base: Base, query: string, max: number) => {
   if (query.startsWith("select:")) {
     const wanted = query.slice("select:".length).split(",");
@@ -1111,7 +1047,6 @@ const searchTools = (base: Base, query: string, max: number) => {
 const SUBAGENT_WATCH_ERROR =
   "This thread is a subagent, so it cannot watch pull requests. Its parent thread owns the pull request: finish your task and report back instead.";
 
-                                                                                              
 const nativeResult = (name: string, input: Readonly<Record<string, unknown>>) => {
   const skill = valueText(input.skill);
   const results: Readonly<Record<string, string>> = {
@@ -1140,7 +1075,6 @@ const decodeShellReply = Schema.decodeUnknownOption(Schema.fromJsonString(ShellR
 const callText = ({ tool, input }: Omit<ShellEntry, "output">) =>
   `<call>${tool} ${valueText(input)}</call>`;
 
-                                                                                            
 export const shellRequest = (sample: Sample, call: Omit<ShellEntry, "output">, model: string) => {
   const { testCase, base, repo, shell, devices } = sample;
   const { world, context, shellMocks = [] } = testCase.setup;
@@ -1153,7 +1087,7 @@ export const shellRequest = (sample: Sample, call: Omit<ShellEntry, "output">, m
     ...(shellMocks.length > 0
       ? [`Commands that match these regexes print exactly this output: ${valueText(shellMocks)}`]
       : []),
-                                                                                                 
+
     ...(devices?.describe(shell, typeof command === "string" ? command : undefined) ?? []),
     ...(world?.deviceInvalidCapture
       ? [
@@ -1167,9 +1101,9 @@ export const shellRequest = (sample: Sample, call: Omit<ShellEntry, "output">, m
   return {
     model,
     max_tokens: 8_000,
-                                                                                          
+
     output_config: { effort: "low", format: { type: "json_schema", schema: SHELL_REPLY_SCHEMA } },
-                                                                                                       
+
     system: devices ? `${SHELL_PROMPT}\n\n${AGENT_DEVICE_SHELL}` : SHELL_PROMPT,
     messages: [
       {
@@ -1182,7 +1116,6 @@ export const shellRequest = (sample: Sample, call: Omit<ShellEntry, "output">, m
   };
 };
 
-                                                                                          
 export const shellOutput = (content: ReadonlyArray<Block>) => {
   const reply = content.flatMap((block) => (isText(block) ? [block.text] : [])).join("");
   return Option.match(decodeShellReply(reply), {
@@ -1191,7 +1124,6 @@ export const shellOutput = (content: ReadonlyArray<Block>) => {
   });
 };
 
-                                                                                           
 export const mockOutput = (sample: Sample, command: string) =>
   /&&|\|\||[;|\n]/.test(command.trim())
     ? undefined
@@ -1207,16 +1139,11 @@ type Config = {
   readonly shellModel: PricedModel;
 };
 
-   
-                                                                                                 
-                                                                                                   
-   
 export const cannedOutput = (sample: Sample, command: string) =>
   mockOutput(sample, command) ??
   launcherHelp(sample.devices?.launchers ?? [], command) ??
   sample.devices?.sessionError(sample.shell, command);
 
-                                                                                      
 const simulate = Effect.fn("evaluateMcpToolUse.simulate")(function* (
   sample: Sample,
   config: Config,
@@ -1241,7 +1168,6 @@ const simulate = Effect.fn("evaluateMcpToolUse.simulate")(function* (
   return output;
 });
 
-                                    
 const answerToolCall = Effect.fn("evaluateMcpToolUse.answerToolCall")(function* (
   sample: Sample,
   config: Config,
@@ -1272,7 +1198,7 @@ const answerToolCall = Effect.fn("evaluateMcpToolUse.answerToolCall")(function* 
     return loadTools(tools, call.id, found);
   }
   const mock = testCase.setup.mocks?.[name];
-                                                                                                                
+
   const failure = deviceFailure(mock);
   const fromWorld = mock === undefined || mock === "default" || failure !== undefined;
   if (sample.devices && isSupatermName(call.name) && isDeviceTool(name) && fromWorld) {
@@ -1287,7 +1213,6 @@ const answerToolCall = Effect.fn("evaluateMcpToolUse.answerToolCall")(function* 
         : withProductFields(name, mock, testCase.setup.role === "delegated-child"),
     );
   if (isSupatermName(call.name)) {
-                                                       
     if (name === "watch_pull_request" && testCase.setup.role === "delegated-child") {
       return failed(SUBAGENT_WATCH_ERROR);
     }
@@ -1305,14 +1230,14 @@ const answerToolCall = Effect.fn("evaluateMcpToolUse.answerToolCall")(function* 
     });
   if (!SHELL_TOOLS.has(name)) return toolResult(call.id, nativeResult(name, input));
   const output = yield* simulate(sample, config, { tool: name, input });
-                                                                 
+
   return /^(Exit code [1-9]|<tool_use_error>)/.test(output)
     ? failed(output)
     : toolResult(call.id, output);
 });
 
 const BOUND = /^([<>]=)(-?\d+(?:\.\d+)?)$/;
-                                                                                            
+
 const matches = (expected: unknown, actual: unknown): boolean => {
   const bound = typeof expected === "string" ? BOUND.exec(expected) : null;
   if (bound !== null) {
@@ -1335,7 +1260,6 @@ const matches = (expected: unknown, actual: unknown): boolean => {
   return Object.entries(expected).every(([path, value]) => matches(value, at(path)));
 };
 
-                                                                                                     
 const withOptionsObject = (input: unknown) => {
   if (!isRecord(input) || !isRecord(input.target) || !Array.isArray(input.target.options)) {
     return input;
@@ -1353,7 +1277,7 @@ export const gradeSample = (expect: McpToolUseCase["expect"], run: SampleRun) =>
   const add = (check: string, pass: boolean) => checks.push({ check, pass });
   const calls = run.calls.map((call) => ({ ...call, input: withOptionsObject(call.input) }));
   const count = (tool: string) => calls.filter((call) => call.tool === tool).length;
-                                                                                
+
   const found = ({ tool, args = {} }: McpToolUseCall) =>
     calls.some((call) => tool.split("|").includes(call.tool) && matches(args, call.input));
   const label = ({ tool, args }: McpToolUseCall) => (args ? `${tool} ${valueText(args)}` : tool);
@@ -1375,7 +1299,7 @@ export const gradeSample = (expect: McpToolUseCase["expect"], run: SampleRun) =>
     const ended = run.stopReason === "end_turn" && last.includes(expect.endsTurnAfter);
     add(`endsTurnAfter ${expect.endsTurnAfter}`, ended);
   }
-                                                  
+
   const shell = calls.flatMap((call) =>
     isRecord(call.input) && typeof call.input.command === "string" ? [call.input.command] : [],
   );
@@ -1390,9 +1314,8 @@ export const gradeSample = (expect: McpToolUseCase["expect"], run: SampleRun) =>
   return checks;
 };
 
-                                                                 
 const SETTLED = /^(notCalls|callsMustNot|shellMustNot|maxCalls|textMustNot) /;
-                                                                                            
+
 export const failedEarly = (expect: McpToolUseCase["expect"], run: SampleRun) =>
   gradeSample(expect, run).some((check) => !check.pass && SETTLED.test(check.check));
 
@@ -1402,7 +1325,7 @@ const requestBody = ({ base, tools }: Sample, effort: string, messages: unknown)
   thinking: { type: "adaptive", display: "summarized" },
   output_config: { effort },
   cache_control: { type: "ephemeral" },
-                                                                                
+
   system: base.system.map((block, i) =>
     i === base.system.length - 1 ? { ...block, cache_control: { type: "ephemeral" } } : block,
   ),
@@ -1423,7 +1346,6 @@ const codexRequest = (base: Base, input: ReadonlyArray<Block>) => ({
   input: [...(base.codex?.input ?? []), ...input],
 });
 
-                                                                                                 
 export const executeCodex = async (
   code: string,
   catalog: ReadonlyArray<{ name: string; description: string }>,
@@ -1451,7 +1373,7 @@ export const executeCodex = async (
     globalThis.store = (k,v) => __stored[k] = v; globalThis.load = k => __stored[k];
   })(__bridge, JSON.parse(__catalog));
   (async () => { ${code}\n })().then(() => { __done = true; }, e => { text(String(e)); __done = true; });`);
-                                                                                         
+
   for (let count = 0; !context.__done || pending.length > 0; count++) {
     if (count === 128) throw new Error("Code cell exceeded 128 tool calls.");
     const job = pending.shift();
@@ -1532,8 +1454,6 @@ const callCodex = Effect.fn("evaluateMcpToolUse.callCodex")(function* (
   };
 });
 
-                                                                                             
-                                                                                    
 const RETRY = Schedule.min([Schedule.exponential("2 seconds"), Schedule.spaced("1 minute")]).pipe(
   Schedule.jittered,
 );
@@ -1545,7 +1465,6 @@ const postModel = Effect.fn("evaluateMcpToolUse.postModel")(function* (
   responses = false,
 ) {
   const client = (yield* HttpClient.HttpClient).pipe(
-                                                                                               
     HttpClient.filterStatus((status) => status !== 529),
     HttpClient.retryTransient({
       retryOn: "errors-and-responses",
@@ -1561,7 +1480,7 @@ const postModel = Effect.fn("evaluateMcpToolUse.postModel")(function* (
     HttpClientRequest.setHeaders({
       ...(apiKey ? { "x-api-key": apiKey } : {}),
       "anthropic-version": "2023-06-01",
-                                                                                            
+
       "anthropic-beta": "advanced-tool-use-2025-11-20",
       ...proxy?.headers,
     }),
@@ -1579,7 +1498,6 @@ const callModel = (apiKey: string, body: unknown, proxy?: Config["proxy"]) =>
     Effect.flatMap(Schema.decodeUnknownEffect(Schema.fromJsonString(ApiResponse))),
   );
 
-                                                                                                  
 const recordedCall = (step: number, use: typeof ToolUse.Type): Call => {
   const tool = normalizeToolName(use.name);
   const input = normalizeToolInput(use.name, use.input);
@@ -1592,7 +1510,6 @@ const recordedCall = (step: number, use: typeof ToolUse.Type): Call => {
   };
 };
 
-                                                                                  
 const settle = (call: Call | undefined, result: Block) => {
   if (call !== undefined) {
     call.failed = result.is_error === true;
@@ -1601,20 +1518,17 @@ const settle = (call: Call | undefined, result: Block) => {
   return result;
 };
 
-                                                                                                 
 export const ranCalls = (
   { base, tools }: Sample,
   step: number,
   uses: ReadonlyArray<typeof ToolUse.Type>,
 ) =>
   uses
+    .values()
     .filter((use) => base.codex !== undefined || hasTool(tools, use.name))
-    .map((use) => recordedCall(step, use));
+    .map((use) => recordedCall(step, use))
+    .toArray();
 
-   
-                                                                                             
-                                                                                             
-   
 const runSample = Effect.fn("evaluateMcpToolUse.runSample")(function* (
   testCase: McpToolUseCase,
   config: Config,
@@ -1633,7 +1547,7 @@ const runSample = Effect.fn("evaluateMcpToolUse.runSample")(function* (
   const { usage } = spent;
   let stopReason = "max_steps";
   let finalText = "";
-                                                                                            
+
   const extra = isCodex(config.model) ? 4 : 0;
   const maxSteps = testCase.maxSteps === undefined ? config.maxSteps : testCase.maxSteps + extra;
   for (let step = 0; step < maxSteps; step++) {
@@ -1668,7 +1582,7 @@ const runSample = Effect.fn("evaluateMcpToolUse.runSample")(function* (
         const answer = (name: string, args: unknown, record = true) => {
           const tool = normalizeToolName(name);
           const normalized = normalizeToolInput(name, args);
-                                                                                       
+
           let recorded = own;
           if (record) {
             recorded = { step, tool, input: normalized };
@@ -1718,7 +1632,7 @@ const runSample = Effect.fn("evaluateMcpToolUse.runSample")(function* (
         });
       }),
     );
-                                                                       
+
     const loaded = results.some((result) => Array.isArray(result.content));
     messages.push({ role: "user", content: [...results, ...(loaded ? [text(TOOL_LOADED)] : [])] });
     if (failedEarly(testCase.expect, { calls, text: said.join("\n\n"), stopReason })) {
@@ -1726,7 +1640,7 @@ const runSample = Effect.fn("evaluateMcpToolUse.runSample")(function* (
       break;
     }
   }
-                                                                                              
+
   return {
     calls,
     text: said.join("\n\n"),
@@ -1743,13 +1657,12 @@ const runSample = Effect.fn("evaluateMcpToolUse.runSample")(function* (
 type ResultRow = Pick<McpToolUseCase, "id" | "kind" | "pattern"> & {
   readonly role: string;
   readonly pass: boolean;
-                                                                                            
+
   readonly error?: string;
   readonly usage: Usage;
   readonly shellUsage: Usage;
 };
 
-                                                                                           
 const passRate = (
   rows: ReadonlyArray<{ readonly pass: boolean; readonly error?: string | undefined }>,
 ) => {
@@ -1761,7 +1674,7 @@ const groups = <A>(rows: ReadonlyArray<A>, key: (row: A) => string) =>
   [...Map.groupBy(rows, key)].toSorted(([left], [right]) => left.localeCompare(right));
 
 const USAGE_KEYS = ["input", "output", "cacheWrite", "cacheRead"] as const;
-                                                                                          
+
 const spend = (usages: ReadonlyArray<Usage>, model: PricedModel | undefined) => {
   const total = (key: keyof Usage) => usages.reduce((sum, usage) => sum + usage[key], 0);
   const price = (key: keyof Usage) => (model ? PRICES[model][key] : 0);
@@ -1769,7 +1682,6 @@ const spend = (usages: ReadonlyArray<Usage>, model: PricedModel | undefined) => 
   return { cost, tokens: USAGE_KEYS.map((key) => `${key} ${total(key)}`).join(", ") };
 };
 
-                                                                                              
 export const summarize = (
   rows: Array<ResultRow>,
   options: { readonly header: string; readonly shellModel: PricedModel; readonly model: Model },
@@ -1882,20 +1794,20 @@ const main = Effect.gen(function* () {
       out: string,
       baseline: string,
       case: { ...string, multiple: true },
-                                                                    
+
       samples: string,
-                                                     
+
       concurrency: { ...string, default: "8" },
-                                                                                  
+
       "max-steps": string,
       effort: string,
       "shell-model": { ...string, default: "claude-haiku-5-5" },
-                                                                                                   
+
       "user-instructions": { ...string, default: "drop" },
       "dry-run": { type: "boolean", default: false },
       "stop-on-regression": { type: "boolean", default: false },
       "regression-budget": string,
-                                                                                                   
+
       context: { type: "boolean", default: false },
     },
   });
@@ -1931,8 +1843,7 @@ const main = Effect.gen(function* () {
       (setup.harness === undefined || setup.harness === harness),
   );
   if (selected.length === 0) return yield* Effect.die(new Error("No case matches --case."));
-                                                                                            
-                         
+
   const templatePath =
     flags.template ||
     path.join(import.meta.dirname, "templates", codex ? "codex.json.gz" : "claude.json.gz");
@@ -1976,7 +1887,7 @@ const main = Effect.gen(function* () {
               : Effect.succeed(built);
           }),
         );
-                                                                                      
+
   const baseKey = ({ setup }: McpToolUseCase) =>
     `${codex && setup.role === "native-subagent" ? "top" : setup.role}:${setup.world?.deviceAgentAccess !== false}:${setup.linkedEnvironments === true}`;
   const base = yield* buildFor("top", true, false);
@@ -1994,7 +1905,6 @@ const main = Effect.gen(function* () {
   const baseFor = (testCase: McpToolUseCase) => bases.get(baseKey(testCase)) ?? base;
   const effort = flags.effort ?? base.codex?.reasoning.effort ?? "high";
   if (flags["dry-run"]) {
-                                                                                      
     for (const testCase of selected) {
       const sample = makeSample(testCase, baseFor(testCase));
       yield* Effect.scoped(withDevices(sample));
@@ -2028,9 +1938,9 @@ const main = Effect.gen(function* () {
       .map(([id, r]) => [id, passRate(r)] as const)
       .filter(([, rate]) => !Number.isNaN(rate)),
   );
-                                                                                                
+
   const passedBefore = (id: string) => baseline.get(id) === 1;
-                                                                      
+
   const commit = yield* Effect.try(() =>
     NodeChildProcess.execFileSync("git", ["describe", "--always", "--dirty"], {
       encoding: "utf8",
@@ -2047,7 +1957,6 @@ const main = Effect.gen(function* () {
     return runSample(testCase, config, baseFor(testCase), usage).pipe(
       inFlight.withPermits(1),
       Effect.matchCause({
-                                                                                              
         onFailure: (cause) => ({
           ...identity,
           ...usage,
@@ -2067,16 +1976,14 @@ const main = Effect.gen(function* () {
       ),
     );
   };
-                                                                                
+
   const runCase = Effect.fn("evaluateMcpToolUse.runCase")(function* (testCase: McpToolUseCase) {
     const samples = Array.from({ length: flags.samples ?? 2 }, () => testCase);
     const first = yield* Effect.forEach(samples, runOne, { concurrency: "unbounded" });
     const split = flags.samples === undefined && new Set(first.map((row) => row.pass)).size > 1;
     return split ? [...first, yield* runOne(testCase)] : first;
   });
-                                                                                               
-                                                                                             
-                                                                            
+
   const stopEarly = flags["stop-on-regression"];
   const budget = flags["regression-budget"] ?? 0;
   const ordered = stopEarly
@@ -2090,7 +1997,7 @@ const main = Effect.gen(function* () {
       runCase(testCase).pipe(
         Effect.flatMap((caseRows) => {
           rows.push(...caseRows);
-                                                                                         
+
           if (!stopEarly || !passedBefore(testCase.id) || !(passRate(caseRows) <= 0.5)) {
             return Effect.void;
           }

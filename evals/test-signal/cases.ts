@@ -1,14 +1,9 @@
-   
-                                                                                             
-                                                                                                  
-                      
-   
 export type Case = {
   readonly id: string;
   readonly kind: "bad" | "guard";
   readonly source: string;
   readonly rev: string;
-                                                                                                
+
   readonly targets: ReadonlyArray<{ readonly path: string; readonly title: string }>;
 } & (
   | { readonly type: "real"; readonly paths: ReadonlyArray<string> }
@@ -67,7 +62,7 @@ export const cases: ReadonlyArray<Case> = [
       "apps/server/src/mcp/threadAccess.test.ts",
       "apps/server/src/mcp/OrchestratorMcpService.test.ts",
     ],
-                                                                                                 
+
     targets: [
       {
         path: "apps/server/src/mcp/threadAccess.test.ts",

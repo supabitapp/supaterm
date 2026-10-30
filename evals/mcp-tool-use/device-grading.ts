@@ -77,7 +77,7 @@ const flagValue = (words: ReadonlyArray<string>, flag: string) => {
     if (word.startsWith(`${flag}=`)) return word.slice(flag.length + 1);
   }
 };
-                                                                                      
+
 const launcherOpens = (previous: DeviceRun["calls"]) =>
   previous.flatMap((call) => {
     if (call.tool !== "device_open" || call.failed !== false) return [];
@@ -105,11 +105,7 @@ const launcherOpens = (previous: DeviceRun["calls"]) =>
       return [];
     }
   });
-   
-                                                                                              
-                                                                                               
-                                      
-   
+
 const launcherTarget = (words: ReadonlyArray<string>, previous: DeviceRun["calls"]) => {
   const id = flagValue(words, "--udid") ?? flagValue(words, "--serial");
   const session = flagValue(words, "--session");
@@ -197,7 +193,7 @@ export function briefRoute(text: string) {
     for (const route of routes) {
       const before = clause.slice(0, route.index);
       const after = clause.slice(route.index + route[0].length).split(managed)[0] ?? "";
-                                                                                        
+
       const copies =
         /^\s+(?:to\s+)?(?:copy|fetch|transfer|download|sync)\b/.test(after) ||
         /\b(?:copy|fetch|transfer|download|sync)\s+(?:(?:the|saved)\s+)*(?:screenshots?|recordings?|artifacts?)\s+(?:over|via|through|using)\s*$/.test(
@@ -255,7 +251,7 @@ const deviceOperation = (words: ReadonlyArray<string>) => {
 };
 const interpreter = /^(?:python\d*(?:\.\d+)?|node|ruby|perl|osascript)$/;
 const shells = new Set(["bash", "sh", "zsh"]);
-                                                     
+
 const AGENT_DEVICE_ERROR = /\bError \([A-Z_]+\):|"success"\s*:\s*false/;
 
 export type ShellInvocation = {
@@ -263,16 +259,14 @@ export type ShellInvocation = {
   readonly remote: boolean;
   readonly raw: boolean;
   readonly managed: boolean;
-                                                                                                  
+
   readonly executed: boolean;
-                                                                                 
+
   readonly unmasked: boolean;
-                                                                
+
   readonly sequenced: boolean;
 };
 
-                                                                                             
-                                                                                   
 const tokens = (source: string) =>
   source
     .replace(/'[^']*'|\\[\s\S]/g, (part) => (part === "\\\n" ? "" : part))
@@ -325,7 +319,6 @@ function unwrap(words: string[]) {
   return words;
 }
 
-                                                                                           
 function scriptInvocations(
   script: string,
   remote: boolean,
@@ -334,8 +327,7 @@ function scriptInvocations(
 ): ShellInvocation[] {
   const actions: ShellInvocation[] = [];
   const python = language.startsWith("python");
-                                                                                         
-                                                                
+
   let definitionIndent: number | undefined;
   if (python)
     script = script
@@ -409,7 +401,7 @@ function scriptInvocations(
         ...shellInvocations(program, new Map(variables), remote).map((action) => ({
           ...action,
           executed: action.executed && certain,
-                                                                                                      
+
           sequenced: true,
         })),
       );
@@ -419,13 +411,12 @@ function scriptInvocations(
   return actions;
 }
 
-                                                                                             
 export function shellInvocations(
   command: string,
   variables = new Map<string, string>(),
   remote = false,
   succeeded = false,
-                                                                                  
+
   shell: {
     functions: Map<string, { text: string; certain: boolean }>;
     exited: boolean;
@@ -459,7 +450,7 @@ export function shellInvocations(
   let pipe: string | undefined;
   let gate = "";
   let status: boolean | undefined;
-                                                                                                   
+
   const conditions: Array<{
     parent: boolean;
     certain: boolean;
@@ -471,7 +462,7 @@ export function shellInvocations(
   let currentCertain = true;
   let currentUnmasked = true;
   let currentSequenced = false;
-                                                                         
+
   let exited = false;
   const append = (nested: ShellInvocation[]) =>
     actions.push(
@@ -530,8 +521,7 @@ export function shellInvocations(
     }
     if (words[0] === "then") {
       const condition = conditions.at(-1);
-                                                                                           
-                         
+
       if (condition) condition.take = condition.before === true ? false : status;
       active =
         condition?.parent !== false && condition?.take !== false && condition?.before !== true;
@@ -552,7 +542,6 @@ export function shellInvocations(
       words.shift();
     }
     if (words[0] === "elif") {
-                                                                  
       const condition = conditions.at(-1);
       if (condition) {
         condition.before =
@@ -599,8 +588,7 @@ export function shellInvocations(
     if (!active || exited || !words.length || reachable === false) return;
     const list = listTokens();
     currentUnmasked = !list.includes("||") && words[0] !== "!";
-                                                                                                     
-                                                                             
+
     currentSequenced =
       commandTokens[tokenIndex] === "|" ||
       commandTokens.slice(tokenIndex).some((t) => /^[;\n&]$/.test(t));
@@ -611,8 +599,7 @@ export function shellInvocations(
       !commandTokens.some((t) => /^(?:if|for|while|until|then|else|fi|do|done)$/.test(t)) &&
       !commandTokens.slice(tokenIndex).some((t) => /^[;\n&]$/.test(t));
     currentCertain = certain && (reachable === true || finalAndSuccess);
-                                                                                            
-                                                               
+
     const value = truth(words);
     status =
       reachable === true
@@ -644,7 +631,7 @@ export function shellInvocations(
     if (/^(?:exit|return)$/.test(executable(words[0]))) {
       if (currentCertain) {
         exited = true;
-                                                                                
+
         if (executable(words[0]) === "exit") shell.exited = true;
       } else certain = false;
       return;
@@ -683,13 +670,13 @@ export function shellInvocations(
         if (option === "--") break;
         if (/^-[bBcDEeFIiJLlmOoPpQRSWw]$/.test(option)) at++;
       }
-      at++;               
+      at++;
       if (words[at] === "--") at++;
       const script = words.slice(at).join(" ");
-                                                                                             
+
       const destination = unwrap(tokens(script).map((word) => unquote(word, new Map())));
       const reader = executable(destination[0]);
-                                                                                            
+
       const programFlag = shells.has(reader) ? /^-[a-z]*c[a-z]*$/ : /^-[a-z]*[ce][a-z]*$/;
       const hasProgram = destination.some((word) => programFlag.test(word));
       if (
@@ -755,14 +742,14 @@ export function shellInvocations(
   let redirectOperands: string[] = [];
   for (; tokenIndex < commandTokens.length; tokenIndex++) {
     const token = commandTokens[tokenIndex]!;
-                                                                                       
+
     if (token === "\n") comment = false;
     if (comment) continue;
     if (token.startsWith("#")) {
       comment = true;
       continue;
     }
-                                                                                           
+
     const nameAt = tokenIndex + (token === "function" ? 1 : 0);
     const bodyAt =
       commandTokens[nameAt + 1] === "(" && commandTokens[nameAt + 2] === ")"
@@ -813,7 +800,7 @@ export function shellInvocations(
       }
       if (token === ")" || token === "}") {
         const scope = scopes.pop();
-                                                                              
+
         if (scope) exited = scope.exited || (!scope.subshell && exited);
         if (scope) ({ variables, active, certain } = scope);
       }
@@ -891,7 +878,6 @@ export function gradeDevice(expect: typeof DeviceExpect.Type | undefined, run: D
     )
       return [];
     const paths = (call.output ?? "").split("\n").flatMap((line) => {
-                                                                                                
       const saved = line.match(
         /^[^\w\n]*(?:Screenshot saved|Saved screenshot|Captured screenshot|Wrote screenshot)(?: to)?:?\s+(.+)$/i,
       )?.[1];
@@ -986,7 +972,7 @@ export function gradeDevice(expect: typeof DeviceExpect.Type | undefined, run: D
       for (const action of actions) {
         const { args, words } = action;
         const onTarget = matches(launcherTarget(words, run.calls.slice(0, index)));
-                                                                                
+
         const ran =
           call.failed === false &&
           action.executed &&
@@ -1054,9 +1040,9 @@ export function gradeDevice(expect: typeof DeviceExpect.Type | undefined, run: D
     const failedByTurn = new Map<number, number>();
     for (const call of run.calls) {
       const actions = shell.find(([source]) => source === call)?.[1] ?? [];
-                                                                                               
+
       const device = actions.filter((action) => action.managed || action.raw).length;
-                                                                                              
+
       const errors = (call.output ?? "").match(new RegExp(AGENT_DEVICE_ERROR, "g"))?.length ?? 0;
       let discoveryFailed = false;
       if (call.tool === "device_list") {
