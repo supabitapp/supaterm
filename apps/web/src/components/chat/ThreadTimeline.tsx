@@ -5,7 +5,7 @@ import {
   type TimelineEntriesInput,
   type TimelineEntry,
 } from "../../session-logic";
-import { useThreadVisibleTurnItems } from "../../state/entities";
+import { useTimelineVisibleTurnItems } from "../../state/entities";
 import {
   peekRememberedThreadTimeline,
   rememberReadyThreadTimeline,
@@ -17,7 +17,8 @@ import { MessagesTimeline } from "./MessagesTimeline";
 /**
  * The timeline with the streamed text. ChatView reads the thread through its quiet
  * atoms, which hold through text deltas; this reads the live turn items, so a
- * delta re-renders the timeline without re-rendering ChatView.
+ * reasoning delta re-renders the timeline without re-rendering ChatView. Streamed
+ * assistant text reaches only its own row, through useAssistantMessageText.
  */
 export function ThreadTimeline({
   threadDetailRef,
@@ -37,7 +38,7 @@ export function ThreadTimeline({
   syncing: boolean;
   detailLoading: boolean;
 }) {
-  const visibleTurnItems = useThreadVisibleTurnItems(threadDetailRef);
+  const visibleTurnItems = useTimelineVisibleTurnItems(threadDetailRef);
   const [projectTimelineEntries] = useState(createTimelineEntriesProjector);
   const serverEntries = projectTimelineEntries(
     { ...entriesInput, visibleTurnItems },
