@@ -418,7 +418,7 @@ export function ComposerDictationStatus(props: {
             className="absolute inset-0 min-w-0 flex-row items-center gap-2.5 px-4"
             style={waveformStyle}
           >
-            <View className="min-w-0 max-w-[50%] shrink justify-center">
+            <View className="min-w-0 max-w-[75%] shrink justify-center">
               <DictationElapsedTime
                 className="text-2xl font-semibold text-foreground"
                 seconds={props.elapsedSeconds}
