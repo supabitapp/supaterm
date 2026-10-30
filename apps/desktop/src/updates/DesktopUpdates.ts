@@ -67,6 +67,7 @@ const UpdateInfo = Schema.Struct({
   // fail the decode and block the update state transition. The shape is
   // validated defensively in normalizeDesktopUpdateReleaseNotes.
   releaseNotes: Schema.optional(Schema.Unknown),
+  releaseDate: Schema.optional(Schema.String),
 });
 
 const DownloadProgressInfo = Schema.Struct({
@@ -857,6 +858,7 @@ export const make = Effect.gen(function* () {
             info.releaseNotes,
             info.version,
             state.channel,
+            info.releaseDate,
           );
           yield* setState(
             reduceDesktopUpdateStateOnUpdateAvailable(

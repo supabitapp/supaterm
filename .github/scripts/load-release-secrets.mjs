@@ -8,6 +8,7 @@ const profiles = {
   apple: ["CSC_LINK", "CSC_KEY_PASSWORD", "APPLE_API_KEY", "APPLE_API_KEY_ID", "APPLE_API_ISSUER"],
   "app-store": ["APPLE_API_KEY", "APPLE_API_KEY_ID", "APPLE_API_ISSUER"],
   "release-app": ["RELEASE_APP_ID", "RELEASE_APP_PRIVATE_KEY"],
+  "release-notes": ["ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN"],
 };
 const profile = process.env.RELEASE_SECRET_PROFILE;
 const names = Object.hasOwn(profiles, profile ?? "") ? profiles[profile] : undefined;
@@ -47,10 +48,17 @@ for (const name of names) {
   }
 }
 
+const mask = (value) =>
+  process.stdout.write(
+    `::add-mask::${value.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A")}\n`,
+  );
+
 for (const name of names) {
   const value = secrets[name];
-  const masked = value.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
-  process.stdout.write(`::add-mask::${masked}\n`);
+  mask(value);
+  // Network errors name a URL's bare host, which the whole-value mask does not cover.
+  const url = URL.parse(value);
+  if (url?.protocol === "https:" || url?.protocol === "http:") mask(url.host);
   const delimiter = `fnox_${NodeCrypto.randomUUID()}`;
   NodeFS.appendFileSync(process.env.GITHUB_ENV, `${name}<<${delimiter}\n${value}\n${delimiter}\n`);
 }
