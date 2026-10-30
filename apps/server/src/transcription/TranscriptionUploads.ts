@@ -66,8 +66,7 @@ type Outcome = Exit.Exit<TranscriptionUploadResult, TranscriptionError>;
 
 /** `request` is the encoded preparation; a cancelled upload has none and answers any request. */
 type Entry =
-  | { readonly _tag: "Transcribing"; readonly request: string; readonly work: Work }
-  | { readonly _tag: "Submitting"; readonly request: string; readonly work: Work }
+  | { readonly _tag: "Transcribing" | "Submitting"; readonly request: string; readonly work: Work }
   | {
       readonly _tag: "Settled";
       readonly request: string | undefined;
@@ -77,12 +76,12 @@ type Entry =
 
 const cancelled: Outcome = Exit.fail(new TranscriptionError({ reason: "cancelled" }));
 
-const joinEntry = (entry: Entry, request: string) =>
-  entry.request !== undefined && entry.request !== request
-    ? Effect.fail(new TranscriptionError({ reason: "requestConflict" }))
-    : entry._tag === "Settled"
-      ? entry.outcome
-      : Deferred.await(entry.work.result);
+const joinEntry = (entry: Entry, request: string) => {
+  if (entry.request !== undefined && entry.request !== request) {
+    return Effect.fail(new TranscriptionError({ reason: "requestConflict" }));
+  }
+  return entry._tag === "Settled" ? entry.outcome : Deferred.await(entry.work.result);
+};
 
 const messageDispatch = (
   submit: TranscriptionUploadSubmit,
@@ -156,6 +155,7 @@ const make = Effect.gen(function* () {
     if (live.size !== entries.size) yield* Ref.set(entriesRef, live);
     return live;
   });
+  const liveEntries = Effect.flatMap(Clock.currentTimeMillis, pruneExpired);
 
   // Only the entry's own work settles it; a cancel that replaced it has already answered.
   const settle = Effect.fnUntraced(function* (uploadId: string, result: Result, exit: Outcome) {
@@ -252,7 +252,7 @@ const make = Effect.gen(function* () {
     request: string,
     partPath: string,
   ) {
-    const live = yield* pruneExpired(yield* Clock.currentTimeMillis);
+    const live = yield* liveEntries;
     const existing = live.get(uploadId);
     if (existing !== undefined) return joinEntry(existing, request);
     if (live.size >= MAX_ENTRIES) {
@@ -292,13 +292,8 @@ const make = Effect.gen(function* () {
     }
     const { uploadId } = claims;
     const request = encodeRequest(claims.request);
-    const known = yield* storeLock.withPermits(1)(
-      Effect.map(Effect.flatMap(Clock.currentTimeMillis, pruneExpired), (live) => {
-        const entry = live.get(uploadId);
-        return entry && joinEntry(entry, request);
-      }),
-    );
-    if (known !== undefined) return yield* known;
+    const known = (yield* storeLock.withPermits(1)(liveEntries)).get(uploadId);
+    if (known !== undefined) return yield* joinEntry(known, request);
     if (body === undefined || claims.expiresAt <= (yield* Clock.currentTimeMillis)) {
       return yield* new TranscriptionError({ reason: "uploadExpired" });
     }
@@ -377,8 +372,7 @@ const make = Effect.gen(function* () {
   }, Effect.uninterruptible);
 
   yield* Effect.sleep(PRUNE_INTERVAL).pipe(
-    Effect.andThen(Clock.currentTimeMillis),
-    Effect.flatMap((now) => storeLock.withPermits(1)(pruneExpired(now))),
+    Effect.andThen(storeLock.withPermits(1)(liveEntries)),
     Effect.forever,
     Effect.forkIn(serviceScope),
   );

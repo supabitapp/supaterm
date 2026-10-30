@@ -108,7 +108,7 @@ const cancel = Effect.fnUntraced(function* (uploadId: string) {
   return yield* uploads.cancel({ uploadId });
 });
 
-const reason = <A>(effect: Effect.Effect<A, TranscriptionError>) =>
+const reason = <A, R>(effect: Effect.Effect<A, TranscriptionError, R>) =>
   effect.pipe(
     Effect.flip,
     Effect.map((error) => error.reason),
