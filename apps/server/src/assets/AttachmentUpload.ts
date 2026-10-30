@@ -56,25 +56,71 @@ const attachmentUploadClaimsJson = Schema.fromJsonString(AttachmentUploadClaims)
 const decodeAttachmentUploadClaims = Schema.decodeUnknownOption(attachmentUploadClaimsJson);
 const encodeAttachmentUploadClaims = Schema.encodeSync(attachmentUploadClaimsJson);
 
-function decodeClaims(encodedPayload: string): AttachmentUploadClaims | null {
-  try {
-    return Option.getOrNull(decodeAttachmentUploadClaims(base64UrlDecodeUtf8(encodedPayload)));
-  } catch {
-    return null;
-  }
-}
-
 const loadSigningSecret = Effect.gen(function* () {
   const secretStore = yield* ServerSecretStore.ServerSecretStore;
   return yield* secretStore.getOrCreateRandom(SIGNING_SECRET_NAME, 32);
 });
 
-export const issueAttachmentUploadUrl = Effect.fn("AttachmentUpload.issueUrl")(function* (
-  input: AttachmentCreateUploadUrlInput,
+export const signUploadToken = Effect.fn("AttachmentUpload.signToken")(function* (
+  payloadJson: string,
 ) {
   const secret = yield* loadSigningSecret.pipe(
     Effect.mapError((cause) => new AttachmentUploadSigningKeyError({ cause })),
   );
+  const encodedPayload = base64UrlEncode(payloadJson);
+  return `${encodedPayload}.${signPayload(encodedPayload, secret)}`;
+});
+
+/** The signed JSON payload, or null when the token was not signed by this server. */
+export const verifyUploadToken = Effect.fn("AttachmentUpload.verifyToken")(function* (
+  token: string,
+) {
+  const [encodedPayload, signature, unexpectedSegment] = token.split(".");
+  if (!encodedPayload || !signature || unexpectedSegment) {
+    return null;
+  }
+
+  const secret = yield* loadSigningSecret.pipe(
+    Effect.tapError((cause) =>
+      Effect.logError("Failed to load the attachment upload signing key.", { cause }),
+    ),
+    Effect.orElseSucceed(() => null),
+  );
+  if (!secret || !timingSafeEqualBase64Url(signature, signPayload(encodedPayload, secret))) {
+    return null;
+  }
+  try {
+    return base64UrlDecodeUtf8(encodedPayload);
+  } catch {
+    return null;
+  }
+});
+
+/** Stops reading once the body outgrows `sizeBytes`, so a mismatch shows in the count. */
+export const writeUploadBody = Effect.fn("AttachmentUpload.writeBody")(function* <E>(
+  body: Stream.Stream<Uint8Array, E>,
+  sizeBytes: number,
+  partPath: string,
+) {
+  const fileSystem = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  let receivedBytes = 0;
+  yield* fileSystem.makeDirectory(path.dirname(partPath), { recursive: true });
+  yield* Stream.run(
+    body.pipe(
+      Stream.takeWhile((chunk) => {
+        receivedBytes += chunk.byteLength;
+        return receivedBytes <= sizeBytes;
+      }),
+    ),
+    fileSystem.sink(partPath),
+  );
+  return receivedBytes;
+});
+
+export const issueAttachmentUploadUrl = Effect.fn("AttachmentUpload.issueUrl")(function* (
+  input: AttachmentCreateUploadUrlInput,
+) {
   const config = yield* ServerConfig.ServerConfig;
   const nowMs = yield* Clock.currentTimeMillis;
   const previousSweep = lastPendingSweepByDirectory.get(config.attachmentsDir);
@@ -97,7 +143,7 @@ export const issueAttachmentUploadUrl = Effect.fn("AttachmentUpload.issueUrl")(f
     attachmentType === "file" ? attachmentFileExtension(input.name) : undefined,
   );
   const expiresAt = nowMs + ATTACHMENT_UPLOAD_URL_TTL_MS;
-  const encodedPayload = base64UrlEncode(
+  const token = yield* signUploadToken(
     encodeAttachmentUploadClaims({
       version: 1,
       kind: "attachment-upload",
@@ -112,7 +158,7 @@ export const issueAttachmentUploadUrl = Effect.fn("AttachmentUpload.issueUrl")(f
 
   return {
     attachmentId,
-    relativeUrl: `${ATTACHMENT_UPLOAD_ROUTE_PREFIX}/${encodedPayload}.${signPayload(encodedPayload, secret)}`,
+    relativeUrl: `${ATTACHMENT_UPLOAD_ROUTE_PREFIX}/${token}`,
     expiresAt,
   };
 });
@@ -120,22 +166,8 @@ export const issueAttachmentUploadUrl = Effect.fn("AttachmentUpload.issueUrl")(f
 export const validateAttachmentUploadToken = Effect.fn("AttachmentUpload.validateToken")(function* (
   token: string,
 ) {
-  const [encodedPayload, signature, unexpectedSegment] = token.split(".");
-  if (!encodedPayload || !signature || unexpectedSegment) {
-    return null;
-  }
-
-  const secret = yield* loadSigningSecret.pipe(
-    Effect.tapError((cause) =>
-      Effect.logError("Failed to load the attachment upload signing key.", { cause }),
-    ),
-    Effect.orElseSucceed(() => null),
-  );
-  if (!secret || !timingSafeEqualBase64Url(signature, signPayload(encodedPayload, secret))) {
-    return null;
-  }
-
-  const claims = decodeClaims(encodedPayload);
+  const payload = yield* verifyUploadToken(token);
+  const claims = payload === null ? null : Option.getOrNull(decodeAttachmentUploadClaims(payload));
   if (!claims || claims.expiresAt <= (yield* Clock.currentTimeMillis)) {
     return null;
   }
@@ -179,20 +211,9 @@ export const storeAttachmentUpload = Effect.fn("AttachmentUpload.store")(functio
   }
 
   const fileSystem = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-  let receivedBytes = 0;
   const bodyStream = body instanceof Uint8Array ? Stream.make(body) : body;
   return yield* Effect.gen(function* () {
-    yield* fileSystem.makeDirectory(path.dirname(finalPath), { recursive: true });
-    yield* Stream.run(
-      bodyStream.pipe(
-        Stream.takeWhile((chunk) => {
-          receivedBytes += chunk.byteLength;
-          return receivedBytes <= claims.sizeBytes;
-        }),
-      ),
-      fileSystem.sink(partPath),
-    );
+    const receivedBytes = yield* writeUploadBody(bodyStream, claims.sizeBytes, partPath);
     if (receivedBytes !== claims.sizeBytes) {
       return {
         ok: false,

@@ -3,6 +3,9 @@ import {
   AuthOrchestrationOperateScope,
   AuthOrchestrationReadScope,
   EnvironmentHttpApi,
+  TranscriptionError,
+  type TranscriptionErrorReason,
+  TranscriptionUploadResult,
 } from "@supaterm/contracts";
 import { isDevProxiedPath } from "@supaterm/shared/devProxy";
 import { injectMcpAppCookieBootstrap, injectMcpAppThemeBootstrap } from "@supaterm/shared/mcpApp";
@@ -39,6 +42,7 @@ import {
   validateAttachmentUploadToken,
 } from "./assets/AttachmentUpload.ts";
 import * as BrowserTraceCollector from "./observability/BrowserTraceCollector.ts";
+import * as TranscriptionUploads from "./transcription/TranscriptionUploads.ts";
 import * as EnvironmentAuth from "./auth/EnvironmentAuth.ts";
 import {
   annotateEnvironmentRequest,
@@ -488,6 +492,68 @@ export const layerAttachmentUploadRoute = HttpRouter.add(
     return stored.ok
       ? HttpServerResponse.empty({ status: 204 })
       : HttpServerResponse.text(stored.detail, { status: stored.status });
+  }),
+);
+
+const transcriptionUploadStatus = (reason: TranscriptionErrorReason | undefined) => {
+  switch (reason) {
+    case "uploadExpired":
+      return 410;
+    case "requestConflict":
+      return 409;
+    case "rateLimited":
+      return 429;
+    default:
+      return 422;
+  }
+};
+const transcriptionUploadResponse = HttpServerResponse.schemaJson(TranscriptionUploadResult);
+const transcriptionErrorResponse = HttpServerResponse.schemaJson(TranscriptionError);
+
+export const layerTranscriptionUploadRoute = Layer.unwrap(
+  Effect.gen(function* () {
+    const uploads = yield* TranscriptionUploads.TranscriptionUploads;
+    return HttpRouter.add(
+      "POST",
+      `${TranscriptionUploads.TRANSCRIPTION_UPLOAD_ROUTE_PREFIX}/*`,
+      Effect.gen(function* () {
+        const request = yield* HttpServerRequest.HttpServerRequest;
+        const url = HttpServerRequest.toURL(request);
+        if (Option.isNone(url)) {
+          return HttpServerResponse.text("Bad Request", { status: 400 });
+        }
+        // Keep the request stream in the route scope until the response is sent.
+        const bodyPull = yield* Stream.toPull(request.stream);
+        return yield* uploads
+          .receive(
+            url.value.pathname.slice(
+              `${TranscriptionUploads.TRANSCRIPTION_UPLOAD_ROUTE_PREFIX}/`.length,
+            ),
+            request.headers["content-length"] === "0"
+              ? undefined
+              : Stream.fromPull(Effect.succeed(bodyPull)),
+          )
+          .pipe(
+            Effect.flatMap((result) => transcriptionUploadResponse(result)),
+            Effect.catchTags({
+              // Rebuilt without its cause, which can carry provider details.
+              TranscriptionError: (error) =>
+                transcriptionErrorResponse(
+                  new TranscriptionError({
+                    ...(error.reason === undefined ? {} : { reason: error.reason }),
+                    ...(error.retryAfterMs === undefined
+                      ? {}
+                      : { retryAfterMs: error.retryAfterMs }),
+                  }),
+                  { status: transcriptionUploadStatus(error.reason) },
+                ),
+            }),
+            Effect.orElseSucceed(() =>
+              HttpServerResponse.text("Internal Server Error", { status: 500 }),
+            ),
+          );
+      }),
+    );
   }),
 );
 
