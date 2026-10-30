@@ -66,7 +66,6 @@ export function acpProviderOptionDescriptors(input: {
   let hasModeCategory = false;
 
   for (const option of input.configOptions ?? []) {
-    // "model" options surface as the model list; "collaboration_mode" options
     // are driven by Supaterm's own plan/build interaction mode in the ACP adapter.
     if (option.category === "model" || option.category === "collaboration_mode") {
       continue;
@@ -121,10 +120,6 @@ export function acpProviderOptionDescriptors(input: {
       })),
     );
     const currentValue = choiceId(modeState.currentModeId);
-    // Some agents mirror one knob through both the modes API and a config
-    // option (codex-acp advertises its thinking levels as modes too). Skip
-    // the synthetic descriptor when an existing descriptor already exposes
-    // the same choice set, so the composer shows the knob once.
     const duplicatesKnownModeDescriptor = mirroredModeChoiceSets.some(
       (choiceIds) =>
         choiceIds.size === choices.length && choices.every((choice) => choiceIds.has(choice.id)),

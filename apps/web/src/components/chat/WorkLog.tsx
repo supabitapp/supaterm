@@ -141,6 +141,7 @@ export function WorkLogDetails({
   const atLiveEdgeRef = useRef(true);
   // No deps: each streamed chunk re-renders this, and pinning before paint
   // shows the new text without a visible jump.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- pins the scroller's scrollTop to the bottom after each commit while following live output
   useLayoutEffect(() => {
     const scroller = scrollerRef.current;
     if (followLive && atLiveEdgeRef.current && scroller) {

@@ -6,7 +6,9 @@ import {
   type ServerProvider,
 } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
+import { Atom, AtomRegistry } from "effect/reactivity";
 import {
+  createProviderModelSelectionsAtom,
   applyProviderInstanceSettings,
   deriveProviderEntriesByEnvironment,
   deriveProviderInstanceEntries,
@@ -56,6 +58,36 @@ const model = (slug: string, isCustom = false, isDefault = false) => ({
   isCustom,
   ...(isDefault ? { isDefault: true } : {}),
   capabilities: {},
+});
+
+it("prunes disabled model selections before publishing and does not resurrect them", () => {
+  const registry = AtomRegistry.make();
+  using _registry = { [Symbol.dispose]: () => registry.dispose() };
+  const enabled = deriveProviderInstanceEntries([
+    provider({ provider: ProviderDriverKind.make("codex"), instanceId: "codex" }),
+    provider({ provider: ProviderDriverKind.make("codex"), instanceId: "second" }),
+  ]);
+  const entries = Atom.make(enabled);
+  const selections = createProviderModelSelectionsAtom(entries);
+  registry.mount(selections);
+  const first = { instanceId: ProviderInstanceId.make("codex"), model: "first" };
+  const second = { instanceId: ProviderInstanceId.make("second"), model: "second" };
+  registry.set(selections, [first, second]);
+  registry.set(
+    entries,
+    enabled.map((entry) => ({ ...entry, enabled: entry.instanceId !== "codex" })),
+  );
+  expect(registry.get(selections)).toEqual([second]);
+  registry.set(entries, enabled);
+  expect(registry.get(selections)).toEqual([second]);
+  registry.set(
+    entries,
+    enabled.map((entry) => ({ ...entry, enabled: false })),
+  );
+  registry.set(selections, [first]);
+  expect(registry.get(selections)).toEqual([]);
+  registry.set(selections, null);
+  expect(registry.get(selections)).toBeNull();
 });
 
 describe("isProviderInstancePickerReady", () => {

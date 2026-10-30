@@ -27,14 +27,12 @@ import * as PullRequestDiffLoader from "./pullRequestDiffHttp.ts";
 import { withOrchestrationProtocolHeader } from "./environmentHttpAuth.ts";
 import { fetchEnvironmentSessionState } from "./session.ts";
 import { fetchEnvironmentShellSnapshot } from "./shellSnapshotHttp.ts";
-import * as ThreadSnapshotLoader from "./threadSnapshotHttp.ts";
 import { fetchEnvironmentThreadTranscript } from "./threadTranscriptHttp.ts";
 import { fetchEnvironmentBoundedThreadSnapshot } from "./boundedThreadSnapshotHttp.ts";
 
 import { fetchEnvironmentThreadHistoryPage } from "./threadHistoryHttp.ts";
 import { v2Projection } from "./orchestrationV2TestFixtures.ts";
 
-const encodeThreadSnapshot = Schema.encodeSync(OrchestrationV2ThreadDetailSnapshot);
 const encodeBoundedSnapshot = Schema.encodeSync(OrchestrationV2ThreadBoundedSnapshot);
 const encodeThreadTranscript = Schema.encodeSync(OrchestrationV2ThreadTranscript);
 
@@ -115,6 +113,7 @@ function makeHarness(reply: (requestNumber: number) => Response | Promise<Respon
 }
 
 type HttpInput = ReturnType<typeof makeHarness>["input"];
+
 const LOADERS: ReadonlyArray<{
   readonly name: string;
   readonly method: string;
@@ -157,18 +156,6 @@ const LOADERS: ReadonlyArray<{
       fetchEnvironmentShellSnapshot(input).pipe(
         Effect.map(({ loadPullRequests: _links, ...snapshot }) => snapshot),
       ),
-  },
-  {
-    name: "thread snapshot",
-    method: "GET",
-    path: `/api/orchestration/threads/${THREAD.projection.thread.id}`,
-    response: encodeThreadSnapshot(THREAD),
-    expected: THREAD,
-    load: (input: HttpInput) =>
-      ThreadSnapshotLoader.fetchEnvironmentThreadSnapshot({
-        ...input,
-        threadId: THREAD.projection.thread.id,
-      }),
   },
   {
     name: "thread transcript",
@@ -245,7 +232,7 @@ describe("authenticated environment HTTP requests", () => {
         const harness = makeHarness(() => Response.json(loader.response));
         const result = yield* loader.load(harness.input).pipe(Effect.provide(harness.layerHttp));
 
-        expect(result).toEqual(loader.response);
+        expect(result).toEqual(loader.expected);
         expect(harness.calls).toHaveLength(1);
         const call = harness.calls[0]!;
         const url = new URL(call.url);
@@ -293,15 +280,15 @@ describe("authenticated environment HTTP requests", () => {
       });
       const pending = yield* fetchEnvironmentSessionState({
         ...harness.input,
-        timeoutMs: 100,
+        timeoutMs: 60_000,
       }).pipe(Effect.provide(harness.layerHttp), Effect.flip, Effect.forkChild);
       yield* Effect.promise(() => requested.promise);
-      yield* TestClock.adjust(100);
+      yield* TestClock.adjust(60_000);
 
       expect(yield* Fiber.join(pending)).toMatchObject({
         _tag: "RemoteEnvironmentAuthTimeoutError",
         requestUrl: `${ORIGIN}/api/auth/session`,
-        timeoutMs: 100,
+        timeoutMs: 60_000,
       });
       response.resolve(Response.json(SESSION));
     }),

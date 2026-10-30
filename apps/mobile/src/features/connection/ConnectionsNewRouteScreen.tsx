@@ -10,8 +10,8 @@ import {
   type StaticScreenProps,
 } from "@react-navigation/native";
 import type { EnvironmentId } from "@supaterm/contracts";
-import { AsyncResult } from "effect/reactivity";
-import { useEffect, useRef, useState } from "react";
+import { useAtomValue } from "@effect/atom-react";
+import { useRef, useState } from "react";
 import { Linking, Pressable, StyleSheet, View } from "react-native";
 import Svg, { Defs, RadialGradient, Rect, Stop } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -22,11 +22,12 @@ import { SettingsScreen } from "../settings/components/SettingsScreen";
 import { AppText as Text, AppTextInput, type AppTextInputProps } from "../../components/ui/AppText";
 import { FrostedCutout } from "../../components/ui/FrostedCutout";
 import { pairingUrlForFields, extractPairingUrlFromQrPayload, parsePairingUrl } from "./pairing";
-import {
-  setPendingConnectionError,
-  useRemoteConnections,
-} from "../../state/use-remote-environment-registry";
+import { useRemoteConnections } from "../../state/use-remote-environment-registry";
 import { SymbolView } from "../../components/ui/AppSymbol";
+import { autoConnectReport, devAutoConnectAttemptAtom } from "./devAutoConnect";
+import { leaveSettingsPage } from "../settings/settings-navigation";
+import { workspaceHasColumns } from "../workspace/workspace-selection-store";
+import { settlePromise } from "@supaterm/client-runtime/state/runtime";
 
 type ConnectionsNewRouteParams = {
   readonly mode?: string;
@@ -38,69 +39,62 @@ type ConnectionsNewRouteParams = {
 export function ConnectionsNewRouteScreen({
   route,
 }: StaticScreenProps<ConnectionsNewRouteParams | undefined>) {
-  const {
-    connectionPairingUrl,
-    onChangeConnectionPairingUrl,
-    onConnectPress,
-    pairingConnectionError,
-  } = useRemoteConnections();
+  const params = route.params ?? {};
+
+  const routePairingUrl = __DEV__ ? (params.pairingUrl?.trim() ?? "") : "";
+
+  return (
+    <PairingForm
+      key={routePairingUrl}
+      routePairingUrl={routePairingUrl}
+      routeFor={params.routeFor}
+    />
+  );
+}
+
+function PairingForm({
+  routePairingUrl,
+  routeFor,
+}: {
+  readonly routePairingUrl: string;
+  readonly routeFor: EnvironmentId | undefined;
+}) {
+  const { connectionPairingUrl, onChangeConnectionPairingUrl, onConnectPress } =
+    useRemoteConnections();
   const navigation = useNavigation();
   const routeName = useRoute().name;
-  const params = route.params ?? {};
-  // Deep-link prefill exists for development automation only. A production
-  // link must not arrive with attacker-chosen host and token already filled.
-  const routePairingUrl = __DEV__ ? (params.pairingUrl?.trim() ?? "") : "";
-  const shouldAutoConnect =
-    __DEV__ &&
-    routePairingUrl.length > 0 &&
-    (params.autoConnect === "1" || params.autoConnect === "true");
   const insets = useSafeAreaInsets();
-  const [hostInput, setHostInput] = useState("");
-  const [codeInput, setCodeInput] = useState("");
-  const [originalPairingUrl, setOriginalPairingUrl] = useState("");
+  const [originalPairingUrl, setOriginalPairingUrl] = useState(
+    routePairingUrl || connectionPairingUrl,
+  );
+  const [initialPairing] = useState(() => parsePairingUrl(routePairingUrl || connectionPairingUrl));
+  const [hostInput, setHostInput] = useState(initialPairing.host);
+  const [codeInput, setCodeInput] = useState(initialPairing.code);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const [ownAttempt, setOwnAttempt] = useState(false);
+  const autoConnect = autoConnectReport(
+    useAtomValue(devAutoConnectAttemptAtom),
+    routePairingUrl,
+    ownAttempt,
+  );
+  const connecting = isSubmitting || autoConnect.connecting;
+  const pairingConnectionError = submitError ?? autoConnect.error;
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const screenFocused = useIsFocused();
   const scannerLockedRef = useRef(false);
 
   const [scanComplete, setScanComplete] = useState(false);
-  const attemptedAutoConnectRef = useRef<string | null>(null);
 
   const headerIconColor = useUniwindTheme()["--color-icon"];
 
-  const connectDisabled = isSubmitting || hostInput.trim().length === 0;
+  const connectDisabled = connecting || hostInput.trim().length === 0;
 
-  const [syncedPairingUrls, setSyncedPairingUrls] = useState<{
-    readonly connection: string;
-    readonly route: string;
-  } | null>(null);
-  if (
-    syncedPairingUrls?.connection !== connectionPairingUrl ||
-    syncedPairingUrls.route !== routePairingUrl
-  ) {
-    setSyncedPairingUrls({ connection: connectionPairingUrl, route: routePairingUrl });
-    const prefillUrl =
-      syncedPairingUrls?.route !== routePairingUrl && routePairingUrl.length > 0
-        ? routePairingUrl
-        : syncedPairingUrls?.connection !== connectionPairingUrl
-          ? connectionPairingUrl
-          : null;
-    if (prefillUrl !== null) {
-      setOriginalPairingUrl(prefillUrl);
-      const { host, code } = parsePairingUrl(prefillUrl);
-      setHostInput(host);
-      setCodeInput(code);
-    }
-  }
-
-  const [seenPairingConnectionError, setSeenPairingConnectionError] =
-    useState(pairingConnectionError);
-  if (seenPairingConnectionError !== pairingConnectionError) {
-    setSeenPairingConnectionError(pairingConnectionError);
-    if (pairingConnectionError) {
-      setIsSubmitting(false);
-    }
-  }
+  const clearError = () => {
+    setSubmitError(null);
+    setOwnAttempt(true);
+  };
 
   const handleHostChange = (value: string) => {
     const parsed = parsePairingUrl(value);
@@ -111,15 +105,13 @@ export function ConnectionsNewRouteScreen({
       return;
     }
     setHostInput(value);
-    setPendingConnectionError(null);
+    clearError();
   };
 
   const handleCodeChange = (value: string) => {
     setCodeInput(value);
-    setPendingConnectionError(null);
+    clearError();
   };
-
-  useEffect(() => () => setPendingConnectionError(null), []);
 
   const handleScanPress = async () => {
     if (isSubmitting) return;
@@ -141,26 +133,29 @@ export function ConnectionsNewRouteScreen({
   };
 
   const connectAndClose = async (pairingUrl: string) => {
+    if (connecting) return;
+    setOwnAttempt(true);
+    setSubmitError(null);
     setIsSubmitting(true);
     onChangeConnectionPairingUrl(pairingUrl);
-    const connect = async () => {
-      const result = await onConnectPress(pairingUrl, params.routeFor);
-      void Haptics.notificationAsync(
-        AsyncResult.isSuccess(result)
-          ? Haptics.NotificationFeedbackType.Success
-          : Haptics.NotificationFeedbackType.Error,
-      );
-      if (AsyncResult.isSuccess(result)) {
-        // Return to whatever opened the sheet. Replacing it with Home would
-        // nest Home inside any sheet still below it.
-        if (!navigation.canGoBack()) {
-          navigation.dispatch(StackActions.replace("Home"));
-        } else {
-          navigation.goBack();
-        }
-      }
-    };
-    await connect().finally(() => setIsSubmitting(false));
+    const result = await settlePromise(() => onConnectPress(pairingUrl, routeFor));
+    setIsSubmitting(false);
+    if (result._tag === "Failure") {
+      setSubmitError("Could not connect. Try again.");
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
+    const outcome = result.value;
+    setSubmitError(outcome.error);
+    void Haptics.notificationAsync(
+      outcome.ok
+        ? Haptics.NotificationFeedbackType.Success
+        : Haptics.NotificationFeedbackType.Error,
+    );
+    if (outcome.ok) {
+      if (!navigation.canGoBack()) navigation.dispatch(StackActions.replace("Home"));
+      else leaveSettingsPage(navigation, workspaceHasColumns(), "SettingsEnvironments");
+    }
   };
 
   const handleQrScan = ({ data }: { readonly data: string }) => {
@@ -191,27 +186,17 @@ export function ConnectionsNewRouteScreen({
     }
   };
 
-  const handleSubmit = async () => {
-    await connectAndClose(pairingUrlForFields(hostInput, codeInput, originalPairingUrl));
-  };
-
-  useEffect(() => {
-    if (!shouldAutoConnect || attemptedAutoConnectRef.current === routePairingUrl) {
-      return;
-    }
-
-    attemptedAutoConnectRef.current = routePairingUrl;
-    void connectAndClose(routePairingUrl);
-  }, [connectAndClose, routePairingUrl, shouldAutoConnect]);
+  const handleSubmit = () =>
+    connectAndClose(pairingUrlForFields(hostInput, codeInput, originalPairingUrl));
 
   return (
     <SettingsScreen
       formSheet={routeName === "ConnectionsNew"}
-      title={params.routeFor ? "Add route" : "Add environment"}
+      title={routeFor ? "Add route" : "Add environment"}
       actions={[
         {
-          accessibilityLabel: isSubmitting ? "Connecting" : "Add environment",
-          loading: isSubmitting,
+          accessibilityLabel: connecting ? "Connecting" : "Add environment",
+          loading: connecting,
           icon: "checkmark",
           tintColor: headerIconColor,
           disabled: connectDisabled,

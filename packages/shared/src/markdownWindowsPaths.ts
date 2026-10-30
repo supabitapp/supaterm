@@ -41,11 +41,12 @@ export function remarkKeepWindowsPathDestinations(
   function keepDestination(this: DestinationCompileContext, token: DestinationToken) {
     const decoded = this.resume();
     const authored = this.sliceSerialize(token);
-    const preserve = isWindowsAbsolutePath(authored) && !authored.includes("&");
+    const windowsPath = isWindowsAbsolutePath(authored);
+    const preserve = windowsPath && !authored.includes("&");
     const node = this.stack.at(-1);
     if (node) {
       node.url = preserve ? authored : decoded;
-      if (preserve) capture?.(authored, token, node);
+      if (windowsPath) capture?.(authored, token, node);
     }
   }
   // oxlint-disable-next-line no-this-in-exported-function -- unified binds the processor when installing plugins.
@@ -62,14 +63,17 @@ export function remarkKeepWindowsPathDestinations(
 const parser = unified().use(remarkParse).use(remarkGfm);
 
 export function markdownWithAuthoredWindowsPaths(markdown: string): string {
-  if (!/\](?:\(|:)\s*<?(?:[A-Za-z]:|\\\\)/.test(markdown)) return markdown;
+  if (!/\](?:\(|:)[\s>]*<?(?:[A-Za-z]:[\\/]|\\\\)/.test(markdown)) return markdown;
   const edits: Array<{ start: number; end: number; content: string; node: object }> = [];
   const tree = parser()
     .use(remarkKeepWindowsPathDestinations, (authored, token, node) => {
+      if (!authored.includes("\\") || /[<>]/.test(authored)) return;
       const start = token.start.offset;
       const end = token.end.offset;
       if (start === undefined || end === undefined) return;
-      edits.push({ start, end, content: authored.replace(/\\/g, "\\\\"), node });
+      const escaped = authored.replace(/\\(?!&)/g, "\\\\");
+      const angled = markdown[start - 1] === "<";
+      edits.push({ start, end, content: angled ? escaped : `<${escaped}>`, node });
     })
     .parse(markdown);
   const retainedNodes = new Set<object>();
@@ -87,4 +91,15 @@ export function markdownWithAuthoredWindowsPaths(markdown: string): string {
     markdown = markdown.slice(0, edit.start) + edit.content + markdown.slice(edit.end);
   }
   return markdown;
+}
+
+function keepWindowsProsePathEscape(this: EscapeCompileContext) {
+  if (this.stack.at(-1)?.type !== "fragment") keepWindowsPathEscape.call(this);
+}
+
+export function remarkKeepWindowsProsePaths(this: Processor) {
+  // oxlint-disable-next-line no-this-in-exported-function -- unified binds the processor when installing plugins.
+  (this.data().fromMarkdownExtensions ??= []).push({
+    exit: { characterEscape: keepWindowsProsePathEscape },
+  });
 }

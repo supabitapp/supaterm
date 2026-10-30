@@ -1,3 +1,4 @@
+import type { ChangeRequestTerminology } from "@supaterm/client-runtime/source-control-clients";
 import { Tooltip, TooltipTrigger, TooltipPopup } from "../ui/tooltip";
 import type {
   EnvironmentId,
@@ -21,6 +22,7 @@ import { PullRequestGlyph } from "./pullRequestIcons";
 
 export function PullRequestStackMenu({
   hostLabel,
+  terminology,
   stack,
   reference,
   environmentId,
@@ -33,6 +35,7 @@ export function PullRequestStackMenu({
   onRetry,
 }: {
   hostLabel: string;
+  terminology: ChangeRequestTerminology;
   notice?: string | null;
   onRetry?: (() => void) | undefined;
   stack: PullRequestStack;
@@ -110,7 +113,7 @@ export function PullRequestStackMenu({
       });
     }
   };
-  const mergeCountLabel = `${mergeLayers.length} ${mergeLayers.length === 1 ? "pull request" : "pull requests"}`;
+  const mergeCountLabel = `${mergeLayers.length} ${mergeLayers.length === 1 ? terminology.singular : terminology.plural}`;
   return (
     <>
       <Menu open={open} onOpenChange={setOpen}>
@@ -164,7 +167,7 @@ export function PullRequestStackMenu({
                   disabled={mergeDisabled}
                 >
                   <PullRequestGlyph.merged aria-hidden />
-                  {`${confirm.armed === "menu-merge" ? "Confirm merge" : "Merge stack"} (${mergeLayers.length})`}
+                  {`${confirm.armed === "menu-merge" ? "Confirm merge" : `Merge ${terminology.singular} stack`} (${mergeLayers.length})`}
                 </MenuItem>
               ) : null}
               {canRebase ? (
@@ -198,7 +201,7 @@ export function PullRequestStackMenu({
         <InlineConfirmTooltip
           armed={confirm.armed === "merge"}
           render={<span className="inline-flex" />}
-          tip={`Merge stack through #${reference.number} into ${stack.base} (${mergeCountLabel})`}
+          tip={`Merge ${terminology.singular} stack through #${reference.number} into ${stack.base} (${mergeCountLabel})`}
           armedTip={`Click again to merge ${mergeCountLabel} into ${stack.base} using ${mergeMethod}`}
         >
           <Button
@@ -212,7 +215,7 @@ export function PullRequestStackMenu({
             </InlineConfirmIcon>
             <InlineConfirmLabel
               armed={confirm.armed === "merge"}
-              idle={pending ? "Working…" : "Merge stack"}
+              idle={pending ? "Working…" : `Merge ${terminology.singular} stack`}
               confirm="Confirm merge"
             />
           </Button>

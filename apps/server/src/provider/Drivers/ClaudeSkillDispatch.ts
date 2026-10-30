@@ -1,18 +1,5 @@
 import type { ServerProviderSkill } from "@supaterm/contracts";
 
-/**
- * Claude Code's only user-side invocation is a text block whose first character
- * is `/`: the harness expands `/name args` into the SKILL.md body, and every
- * character after the name (newlines included) arrives as `ARGUMENTS`. Only one
- * skill expands per message; a second `/x` becomes argument text
- *    ([#87113](https://github.com/anthropics/claude-code/issues/87113)).
- */
-
-/**
- * Same token shape the composer and timeline chips recognise
- * (`packages/shared/src/composerInlineTokens.ts`), so a rendered chip and a
- * dispatched skill are always the same set.
- */
 const SKILL_MENTION_PATTERN =
   /(^|\s)\p{Sc}(?![0-9][0-9_]*(?:[kKmMbBtT]|[eE][0-9]+)?(?:\s|$))(?=[a-zA-Z0-9:_-]*[a-zA-Z])([a-zA-Z0-9][a-zA-Z0-9:_-]*)(?=\s|$)/gu;
 
@@ -22,7 +9,6 @@ export interface ClaudeSkillDispatch {
   readonly leadingText: string | undefined;
   /** `/name` plus the trailing text, ready to be the message's last text block. */
   readonly commandText: string;
-  readonly skillName: string;
 }
 
 export function planClaudeSkillDispatch(
@@ -60,6 +46,5 @@ export function planClaudeSkillDispatch(
     leadingText:
       prompt.slice(0, last.start).trim().length > 0 ? promptWithInlineSlashes : undefined,
     commandText: `/${last.name}${prompt.slice(last.end)}`.trimEnd(),
-    skillName: last.name,
   };
 }

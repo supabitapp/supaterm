@@ -1,23 +1,6 @@
 #!/usr/bin/env node
 // @effect-diagnostics nodeBuiltinImport:off globalTimers:off globalDate:off - Host-side capture script drives git, a server subprocess, and a browser directly.
-/**
- * Regenerates the marketing hero screenshot (apps/marketing/src/assets/app-desktop.webp).
- *
- *   vp run screenshots:marketing [--skip-build] [--keep] [--out <file.webp>]
- *
- * Builds the web client, starts an isolated server on it, seeds the scene from
- * `marketing-hero.scene.ts` as fake git repos plus projection rows, and captures
- * the hero thread with its turn diff at 1440x900 @2x in headless Chromium, in
- * the dark appearance the marketing site wears. The production build is
- * deliberate: it draws the release art behind the sidebar header, where the
- * dev client draws its blueprint. Nothing touches ~/.supaterm: all state lives
- * in a temp directory.
- *
- * Projection rows are written directly, which is fine for a visual fixture but
- * skips the event log. Payloads are decoded with the contract schemas before
- * insert, so a schema change fails here with the offending field instead of
- * breaking server startup.
- */
+
 import * as NodeChildProcess from "node:child_process";
 import * as NodeCrypto from "node:crypto";
 import * as NodeFSP from "node:fs/promises";
@@ -62,7 +45,6 @@ const CHECKPOINT_REFS_PREFIX = "refs/supaterm/orchestration-v2/checkpoints";
 const NOW = Date.now();
 const isoMinutesAgo = (minutes: number) => new Date(NOW - minutes * 60_000).toISOString();
 
-// Fake repos must not pick up the maintainer's git identity, signing, or hooks.
 const GIT_ENV = {
   ...NodeProcess.env,
   GIT_CONFIG_GLOBAL: NodeOS.devNull,
@@ -95,8 +77,6 @@ function run(command: string, args: ReadonlyArray<string>, env = NodeProcess.env
   });
 }
 
-// ── Workspace ────────────────────────────────────────────────────────────────
-
 interface CheckpointFile {
   readonly path: string;
   readonly kind: string;
@@ -114,7 +94,6 @@ interface Workspace {
   }>;
 }
 
-/** Mirrors `checkpointRefForScopeOrdinal` in apps/server/src/orchestration-v2/CheckpointService.ts. */
 function checkpointRef(scopeId: string, ordinal: number): string {
   const scopeKey = NodeCrypto.createHash("sha256").update(scopeId).digest("hex").slice(0, 32);
   return `${CHECKPOINT_REFS_PREFIX}/${Buffer.from(scopeKey).toString("base64url")}/ordinal/${ordinal}`;
@@ -146,8 +125,6 @@ async function createWorkspace(root: string): Promise<Workspace> {
     );
   }
 
-  // Each turn's checkpoint is a commit of the worktree after that turn, kept under
-  // the hidden ref the server diffs between. Ordinal 0 is the turn-1 baseline.
   const heroWorktree = worktreeFor(HERO_THREAD);
   const heroScopeId = `checkpoint-scope:thread:${HERO_THREAD.id}:name:root`;
   let parent = git(heroWorktree, "rev-parse", "HEAD");
@@ -187,8 +164,6 @@ async function createWorkspace(root: string): Promise<Workspace> {
   return { projectRoots, worktreeFor, heroScopeId, heroCheckpoints };
 }
 
-// ── Projection rows ──────────────────────────────────────────────────────────
-
 type Row = Record<string, NodeSqlite.SQLInputValue>;
 
 function runIdsFor(threadId: string, ordinal: number) {
@@ -198,7 +173,7 @@ function runIdsFor(threadId: string, ordinal: number) {
 
 function encodePayload(schema: Schema.Codec<unknown, unknown>, payload: object): string {
   try {
-    Schema.decodeUnknownSync(schema)(payload);
+    Schema.decodeSync(schema)(payload);
   } catch (error) {
     const id = "id" in payload ? String(payload.id) : "payload";
     throw new Error(`${id} no longer matches its contract schema:\n${String(error)}`, {
@@ -474,7 +449,6 @@ function seed(db: NodeSqlite.DatabaseSync, workspace: Workspace): void {
     return messageId;
   };
 
-  // Hero thread: completed turns with checkpoints the diff panel reads.
   const hero = HERO_THREAD;
   const heroWorktree = workspace.worktreeFor(hero);
   const heroTimes = hero.turns.map((turn) => ({
@@ -642,7 +616,6 @@ function seed(db: NodeSqlite.DatabaseSync, workspace: Workspace): void {
     });
   }
 
-  // Sidebar threads: thread rows, plus a run for the ones shown mid-flight.
   const insertSidebarThread = (thread: SceneSidebarThread, done: boolean) => {
     const id = NodeCrypto.randomUUID();
     const at = isoMinutesAgo(thread.minutesAgo);
@@ -734,8 +707,6 @@ function pullRequestLink(title: string, branch: string, pullRequest: ScenePullRe
   };
 }
 
-// ── Server ───────────────────────────────────────────────────────────────────
-
 async function reservePort(): Promise<number> {
   return await new Promise((resolve, reject) => {
     const server = NodeNet.createServer();
@@ -748,7 +719,6 @@ async function reservePort(): Promise<number> {
   });
 }
 
-/** Resolves with the first match of `pattern` in the child's stdout; rejects on exit or after two minutes. */
 function waitForOutput(
   child: NodeChildProcess.ChildProcess,
   label: string,
@@ -774,7 +744,6 @@ function waitForOutput(
   });
 }
 
-/** Starts the server and resolves with the pairing URL it prints once startup has finished. */
 function startServer(
   root: string,
   home: string,
@@ -783,11 +752,9 @@ function startServer(
   readonly server: NodeChildProcess.ChildProcess;
   readonly pairingUrl: Promise<string>;
 } {
-  // An inherited dev URL would make the server redirect to that origin instead of serving the build.
   const env = { ...NodeProcess.env };
   delete env.VITE_DEV_SERVER_URL;
-  // Run outside the repo so per-directory tool shims (mise, asdf) resolve
-  // provider CLIs the way they would for a normal install.
+
   const server = NodeChildProcess.spawn(
     NodeProcess.execPath,
     [
@@ -811,7 +778,6 @@ function startServer(
   return { server, pairingUrl };
 }
 
-/** Builds the web client the server serves, with no origin or channel from a developer's `.env`. */
 function buildWebClient(): Promise<void> {
   return run("vp", ["run", "--filter", "@supaterm/web", "build"], {
     ...NodeProcess.env,
@@ -845,8 +811,6 @@ function issuePairingCredential(home: string): string {
   return parsed.credential;
 }
 
-// ── Capture ──────────────────────────────────────────────────────────────────
-
 function installChromium(): Promise<void> {
   const require = NodeModule.createRequire(import.meta.url);
   const cli = NodePath.join(
@@ -867,10 +831,7 @@ async function capture(page: Page, pairingUrl: string, environmentId: string): P
 
   await page.getByRole("button", { name: "Open diff" }).last().click();
   await page.getByText("Latest turn", { exact: true }).waitFor();
-  // Opening the panel narrows the chat, but the timeline keeps the turn rail it
-  // measured for the wide layout until the window resizes, so nudge the window.
-  // Each size must reach a frame, or the two resizes cancel out unobserved.
-  // A string because scripts compile without DOM types; this runs in the page.
+
   const nextFrames = () =>
     page.evaluate(
       "new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))",
@@ -879,7 +840,7 @@ async function capture(page: Page, pairingUrl: string, environmentId: string): P
   await nextFrames();
   await page.setViewportSize(VIEWPORT);
   await nextFrames();
-  // Diff files render inside shadow roots; the expand toggle is slotted into the light DOM.
+
   const fileHeader = page.locator("diffs-container", {
     has: page.locator("bdi", { hasText: HERO_THREAD.diffFile }),
   });
@@ -897,15 +858,12 @@ async function capture(page: Page, pairingUrl: string, environmentId: string): P
     .last()
     .waitFor();
 
-  // Toasts (provider update notices, for one) depend on the capturing machine.
   await page.addStyleTag({ content: '[data-slot="toast-viewport"] { display: none !important; }' });
-  // Park the pointer on the empty header so no row shows a hover state.
+
   await page.mouse.move(700, 25);
   await page.waitForTimeout(500);
   return await page.screenshot({ type: "png" });
 }
-
-// ── Main ─────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
   const { values } = NodeUtil.parseArgs({
@@ -936,8 +894,6 @@ async function main(): Promise<void> {
       await NodeFSP.readFile(NodePath.join(home, "userdata", "environment-id"), "utf8")
     ).trim();
 
-    // Seeding after startup keeps the live runs away from startup recovery,
-    // which would otherwise end them as interrupted.
     const db = new NodeSqlite.DatabaseSync(NodePath.join(home, "userdata", "statev2.sqlite"), {
       timeout: 5_000,
     });
@@ -952,7 +908,7 @@ async function main(): Promise<void> {
       colorScheme: "dark",
     });
     const png = await capture(await context.newPage(), startupPairingUrl, environmentId);
-    // The full-quality PNG outlives the temp directory for PR before/after evidence.
+
     const pngPath = NodePath.join(NodeOS.tmpdir(), "supaterm-marketing-hero.png");
     await NodeFSP.writeFile(pngPath, png);
     await sharp(png).webp({ quality: 90, effort: 6, smartSubsample: true }).toFile(values.out);
@@ -967,7 +923,7 @@ async function main(): Promise<void> {
           `Pair a browser with http://127.0.0.1:${port}/pair#token=${issuePairingCredential(home)}\n` +
           `State is in ${root}. Press Ctrl-C to stop.\n`,
       );
-      // Ctrl-C reaches the whole foreground process group, server included.
+
       await new Promise<never>(() => {});
     }
   } finally {

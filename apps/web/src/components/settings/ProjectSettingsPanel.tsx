@@ -11,16 +11,17 @@ import {
 } from "@supaterm/client-runtime/state/runtime";
 import { scopeProjectRef, scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { planProjectRemoval } from "@supaterm/client-runtime/state/projects";
+import { readUnloadedThreadCount } from "../../state/olderSettledShelf";
 import { AsyncResult } from "effect/reactivity";
 import {
   isProjectSymbolIcon,
   type EnvironmentId,
   type ProjectIconOverride,
 } from "@supaterm/contracts";
-import { useLocation, useNavigate } from "@tanstack/react-router";
+import { Navigate, useLocation, useNavigate } from "@tanstack/react-router";
 import * as Cause from "effect/Cause";
 import { InfoIcon, TrashIcon } from "@supaterm/icons";
-import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useRef, useState, type ReactNode } from "react";
 
 import { useComposerDraftStore } from "../../composerDraftStore";
 import { releaseProjectDraftUploads } from "../../lib/composerDraftUploads";
@@ -63,6 +64,24 @@ const ProjectIconPickerDialog = lazy(() =>
 
 export type ProjectSettingsCategory = "general" | "source-control" | "project";
 
+interface ProjectSelection {
+  readonly key: string;
+  readonly environmentId: EnvironmentId | null;
+  readonly checkoutKey: string | null;
+  readonly memberKeys: ReadonlyArray<string>;
+}
+
+function sameProjectSelection(a: ProjectSelection | null, b: ProjectSelection): boolean {
+  return (
+    a !== null &&
+    a.key === b.key &&
+    a.environmentId === b.environmentId &&
+    a.checkoutKey === b.checkoutKey &&
+    a.memberKeys.length === b.memberKeys.length &&
+    a.memberKeys.every((key, index) => key === b.memberKeys[index])
+  );
+}
+
 export function ProjectSettingsPanel({
   projectKey,
   environmentId = null,
@@ -75,7 +94,6 @@ export function ProjectSettingsPanel({
   unavailable?: ReactNode;
 }) {
   const groups = useSettingsProjectGroups();
-  const navigate = useNavigate({ from: "/settings" });
   const pathname = useLocation({ select: (location) => location.pathname });
 
   const selected = groups.find((group) => group.projectKey === projectKey) ?? null;
@@ -86,49 +104,43 @@ export function ProjectSettingsPanel({
         (checkoutKey === null || member.physicalProjectKey === checkoutKey),
     ) ?? [];
 
-  // Remember the members of the last rendered group so a grouping-rule change
-  // (which changes the group key) can follow the project to its new group.
-  const lastSelectionRef = useRef<{
-    key: string;
-    environmentId: EnvironmentId | null;
-    checkoutKey: string | null;
-    memberKeys: string[];
-  } | null>(null);
-  useEffect(() => {
-    if (!selected || members.length === 0) return;
-    lastSelectionRef.current = {
+  // Retain group members so grouping-rule changes can follow the project to its new group.
+  const [lastSelection, setLastSelection] = useState<ProjectSelection | null>(null);
+  if (selected && members.length > 0) {
+    const current: ProjectSelection = {
       key: selected.projectKey,
       environmentId,
       checkoutKey,
       memberKeys: members.map((member) => member.physicalProjectKey),
     };
-  }, [selected, members, environmentId, checkoutKey]);
+    if (!sameProjectSelection(lastSelection, current)) setLastSelection(current);
+  }
 
-  useEffect(() => {
-    if (members.length > 0) return;
-    const last = lastSelectionRef.current;
-    if (
-      last?.key !== projectKey ||
-      last.environmentId !== environmentId ||
-      last.checkoutKey !== checkoutKey
-    )
-      return;
-    const successor = groups.find((group) =>
-      group.memberProjects.some((member) => last.memberKeys.includes(member.physicalProjectKey)),
-    );
-    if (successor) {
-      void navigate({
-        to: pathname,
-        search: () => ({
+  const successor =
+    members.length === 0 &&
+    lastSelection?.key === projectKey &&
+    lastSelection.environmentId === environmentId &&
+    lastSelection.checkoutKey === checkoutKey
+      ? groups.find((group) =>
+          group.memberProjects.some((member) =>
+            lastSelection.memberKeys.includes(member.physicalProjectKey),
+          ),
+        )
+      : undefined;
+  if (successor) {
+    return (
+      <Navigate
+        to={pathname}
+        search={{
           project: successor.projectKey,
           machine: environmentId ?? undefined,
           checkout: checkoutKey ?? undefined,
-        }),
-        replace: true,
-        hashScrollIntoView: false,
-      });
-    }
-  }, [groups, navigate, pathname, projectKey, members.length, environmentId, checkoutKey]);
+        }}
+        replace
+        hashScrollIntoView={false}
+      />
+    );
+  }
 
   if ((!selected || members.length === 0) && unavailable != null) return unavailable;
 
@@ -169,7 +181,7 @@ function ProjectDetail({
   group: SidebarProjectSnapshot;
   hasOtherMembers: boolean;
 }) {
-  const navigate = useNavigate({ from: "/settings" });
+  const navigate = useNavigate();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const { environments } = useEnvironments();
   const environmentById = new Map(
@@ -328,6 +340,7 @@ function ProjectDetail({
       hasOtherMembers,
       displayName: group.displayName,
       threads,
+      unloadedThreadCount: readUnloadedThreadCount(members, threads),
     });
     const confirmed = await settlePromise(() =>
       api.dialogs.confirm(confirmationMessage, { variant: "destructive" }),

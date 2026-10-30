@@ -1,3 +1,11 @@
+import { useClientSettings } from "../../hooks/useSettings";
+import { resolveThreadDetailsVisibility, THREAD_DETAILS_ITEMS } from "./threadDetailsItems";
+import { ThreadDetailsItemsMenuItems } from "./ThreadDetailsItemsMenu";
+import { ThreadDetailsProviderLimits } from "./ThreadDetailsProviderLimits";
+import { ThreadServersPanel } from "./ThreadServersPanel";
+import { Menu, MenuPopup, MenuTrigger } from "../ui/menu";
+import { Button } from "../ui/button";
+import { SlidersHorizontalIcon } from "@supaterm/icons";
 import type {
   EditorId,
   EnvironmentId,
@@ -35,7 +43,7 @@ const GitActionsControl = memo(BaseGitActionsControl);
 
 export interface ThreadDetailsPanelProps extends Pick<
   ComponentProps<typeof ThreadDetailsCard>,
-  "anchor" | "handle" | "onPresentationChange"
+  "anchor" | "handle"
 > {
   forceNewWorktree?: boolean;
   environmentId: EnvironmentId;
@@ -74,6 +82,7 @@ export interface ThreadDetailsPanelProps extends Pick<
     input: NewProjectScriptInput,
   ) => Promise<ProjectScriptActionResult>;
   onDeleteProjectScript: (scriptId: string) => Promise<ProjectScriptActionResult>;
+  providerLimits?: ComponentProps<typeof ThreadDetailsProviderLimits>;
   contextWindow?: ComponentProps<typeof ThreadDetailsUsage>["contextWindow"];
   forkSource?: ComponentProps<typeof ThreadDetailsForkControl>["source"] | null;
   forkDisabled?: boolean;
@@ -81,9 +90,10 @@ export interface ThreadDetailsPanelProps extends Pick<
 }
 
 export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
+  const visible = useClientSettings(resolveThreadDetailsVisibility);
   const fileScripts = useSupatermProjectFileScripts(
     props.environmentId,
-    props.activeProjectScripts ? props.gitCwd : null,
+    props.activeProjectScripts && visible.scripts ? props.gitCwd : null,
   );
   // Same rule as the composer strip: a lone remote machine still gets a row,
   // shown as a static label because there is nothing to pick.
@@ -123,10 +133,26 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
       threadRef={{ environmentId: props.environmentId, threadId: props.threadId }}
       anchor={props.anchor}
       handle={props.handle}
-      onPresentationChange={props.onPresentationChange}
+      contentKey={THREAD_DETAILS_ITEMS.filter((item) => visible[item.id])
+        .map((item) => item.id)
+        .join(",")}
     >
       {(density) => (
         <>
+          <div className="flex justify-end px-2 pt-1">
+            <Menu>
+              <MenuTrigger
+                render={
+                  <Button variant="ghost" size="icon-xs" aria-label="Choose thread details" />
+                }
+              >
+                <SlidersHorizontalIcon />
+              </MenuTrigger>
+              <MenuPopup align="end">
+                <ThreadDetailsItemsMenuItems />
+              </MenuPopup>
+            </Menu>
+          </div>
           <ThreadDetailsSection
             headingId="thread-details-workspace-heading"
             title="Workspace"
@@ -134,7 +160,7 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
             showHeading={false}
           >
             <div className="flex flex-col">
-              {density === "full" && showEnvironment ? (
+              {density === "full" && visible.environment && showEnvironment ? (
                 <BranchToolbarEnvironmentSelector
                   displayMode="panel"
                   autoEnvironmentLabel={props.autoEnvironmentLabel}
@@ -148,7 +174,7 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
                 />
               ) : null}
 
-              {density !== "essential" && props.showOpenInPicker ? (
+              {density !== "essential" && visible.openIn && props.showOpenInPicker ? (
                 <OpenInPicker
                   keybindings={props.keybindings}
                   environmentId={props.environmentId}
@@ -159,7 +185,7 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
                 />
               ) : null}
 
-              {props.activeProjectScripts ? (
+              {visible.scripts && props.activeProjectScripts ? (
                 <ProjectScriptsControl
                   environmentId={props.environmentId}
                   displayMode="panel"
@@ -175,7 +201,7 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
             </div>
           </ThreadDetailsSection>
 
-          {props.gitCwd ? (
+          {props.gitCwd && (visible.branch || visible.gitActions || visible.changes) ? (
             <ThreadDetailsSection
               headingId="thread-details-version-control-heading"
               title="Version Control"
@@ -183,12 +209,14 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
               separated={density === "full"}
             >
               <div className="flex flex-col">
-                {props.isGitRepo ? (
+                {visible.branch && props.isGitRepo ? (
                   <BranchToolbar layout="panel" panelSection="branch" {...branchToolbarProps} />
                 ) : null}
-                {props.activeProjectName ? (
+                {(visible.gitActions || visible.changes) && props.activeProjectName ? (
                   <GitActionsControl
                     displayMode="panel"
+                    showActions={visible.gitActions}
+                    showChanges={visible.changes}
                     compact={density !== "full"}
                     gitCwd={props.gitCwd}
                     activeThreadRef={activeThreadRef}
@@ -200,7 +228,13 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
             </ThreadDetailsSection>
           ) : null}
 
-          {!props.draftId ? (
+          {visible.servers && density === "full" && !props.draftId ? (
+            <ThreadServersPanel environmentId={props.environmentId} threadId={props.threadId} />
+          ) : null}
+          {visible.limits && props.providerLimits ? (
+            <ThreadDetailsProviderLimits {...props.providerLimits} />
+          ) : null}
+          {visible.usage && !props.draftId ? (
             <ThreadDetailsUsage contextWindow={props.contextWindow ?? null}>
               {props.forkSource && props.onForkFromRun ? (
                 <ThreadDetailsForkControl
@@ -213,11 +247,11 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
             </ThreadDetailsUsage>
           ) : null}
 
-          {density === "full" && !props.draftId ? (
+          {visible.automations && density === "full" && !props.draftId ? (
             <ThreadAutomationsPanel environmentId={props.environmentId} threadId={props.threadId} />
           ) : null}
 
-          {density === "full" && !props.draftId ? (
+          {visible.lineage && density === "full" && !props.draftId ? (
             <ThreadRelationshipsPanel
               environmentId={props.environmentId}
               threadId={props.threadId}

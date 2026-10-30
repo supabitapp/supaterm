@@ -22,7 +22,6 @@ import {
   type ConnectionRegistration,
   type ConnectionRoute,
   type PlatformConnectionRegistration,
-  type PrimaryConnectionRegistration,
   SshConnectionProfile,
   connectionRegistrationCatalogEntry,
 } from "./catalog.ts";
@@ -44,9 +43,9 @@ import * as ConnectionWakeups from "./wakeups.ts";
 import { withEnvironmentLabel } from "./labels.ts";
 import type * as RpcSession from "../rpc/session.ts";
 import {
-  GitHubRoutingPermissions,
-  gitHubRoutingConnectionKey,
-} from "./githubRoutingPermissions.ts";
+  PullRequestRoutingPermissions,
+  pullRequestRoutingConnectionKey,
+} from "./pullRequestRoutingPermissions.ts";
 import {
   connectionRouteId,
   credentialConnectionId,
@@ -96,6 +95,19 @@ export class PlatformEnvironmentRemovalError extends Schema.TaggedError<Platform
   }
 }
 
+export const assertKnownAddress = Effect.fn("EnvironmentRegistry.assertKnownAddress")(function* (
+  entries: ReadonlyMap<EnvironmentId, ConnectionCatalogEntry>,
+  route: ConnectionRoute,
+) {
+  const saved = entries.get(route.target.environmentId);
+  if (saved === undefined || saved.defaultLabel !== undefined) return;
+  if (findRouteToSameAddress(connectionRoutes(saved), route) !== undefined) return;
+  return yield* new ConnectionBlockedError({
+    reason: "configuration",
+    detail: `That address claims to be ${saved.target.label}, which is already saved. Add it as a route from that environment's settings instead.`,
+  });
+});
+
 export class EnvironmentRegistry extends Context.Service<
   EnvironmentRegistry,
   {
@@ -110,8 +122,8 @@ export class EnvironmentRegistry extends Context.Service<
      */
     readonly register: (
       registration: ConnectionRegistration,
-    ) => Effect.Effect<boolean, Persistence.ConnectionPersistenceError>;
-    readonly registerPlatform: (registration: PrimaryConnectionRegistration) => Effect.Effect<void>;
+      options?: { readonly knownAddressOnly?: boolean },
+    ) => Effect.Effect<boolean, Persistence.ConnectionPersistenceError | ConnectionBlockedError>;
     readonly reconcilePlatform: (
       registrations: ReadonlyArray<PlatformConnectionRegistration>,
     ) => Effect.Effect<void>;
@@ -202,8 +214,7 @@ interface EnvironmentServiceScope {
   readonly scope: Scope.Closeable;
 }
 
-/** @public Service construction is part of the canonical Effect module API. */
-export const make = Effect.gen(function* () {
+const make = Effect.gen(function* () {
   const registryScope = yield* Scope.Scope;
   const storage = yield* Persistence.ConnectionTargetStore;
   const registrations = yield* Persistence.ConnectionRegistrationStore;
@@ -211,7 +222,7 @@ export const make = Effect.gen(function* () {
   const ownedDataCleanup = yield* Persistence.EnvironmentOwnedDataCleanup;
   const profiles = yield* ConnectionProfileStore.ConnectionProfileStore;
   const credentials = yield* ConnectionCredentialStore.ConnectionCredentialStore;
-  const githubRoutingPermissions = yield* GitHubRoutingPermissions;
+  const pullRequestRoutingPermissions = yield* PullRequestRoutingPermissions;
   const connectivity = yield* Connectivity.Connectivity;
   const driver = yield* ConnectionDriver.ConnectionDriver;
   const wakeups = yield* ConnectionWakeups.ConnectionWakeups;
@@ -559,7 +570,7 @@ export const make = Effect.gen(function* () {
 
   const withRoutes = (previous: ConnectionCatalogEntry, routes: ReadonlyArray<ConnectionRoute>) => {
     const next = entryWithRoutes(previous, routes);
-    if (gitHubRoutingConnectionKey(previous) === gitHubRoutingConnectionKey(next)) {
+    if (pullRequestRoutingConnectionKey(previous) === pullRequestRoutingConnectionKey(next)) {
       return { entry: next, addressesChanged: false };
     }
     const { unsupportedReason: _reason, serverUpdateRequired: _update, ...rest } = next;
@@ -568,6 +579,7 @@ export const make = Effect.gen(function* () {
 
   const register = Effect.fn("EnvironmentRegistry.register")(function* (
     registration: ConnectionRegistration,
+    options?: { readonly knownAddressOnly?: boolean },
   ) {
     const registered = connectionRegistrationCatalogEntry(registration);
     const environmentId = registered.target.environmentId;
@@ -575,6 +587,9 @@ export const make = Effect.gen(function* () {
       environmentId,
       Effect.gen(function* () {
         if ((yield* Ref.get(platformEnvironmentIds)).has(environmentId)) return false;
+        if (options?.knownAddressOnly === true) {
+          yield* assertKnownAddress(yield* SubscriptionRef.get(entries), registered);
+        }
         const previous = (yield* SubscriptionRef.get(entries)).get(environmentId);
         let entry = registered;
         if (previous !== undefined) {
@@ -588,7 +603,7 @@ export const make = Effect.gen(function* () {
               : existing;
           const next = withRoutes(previous, upsertRoute(routes, route));
           if (next.addressesChanged) {
-            yield* githubRoutingPermissions.forget(environmentId).pipe(
+            yield* pullRequestRoutingPermissions.forget(environmentId).pipe(
               Effect.mapError(
                 (error) =>
                   new Persistence.ConnectionPersistenceError({
@@ -616,7 +631,7 @@ export const make = Effect.gen(function* () {
   ) {
     const next = withRoutes(previous, routes);
     if (next.addressesChanged) {
-      yield* githubRoutingPermissions.forget(previous.target.environmentId).pipe(
+      yield* pullRequestRoutingPermissions.forget(previous.target.environmentId).pipe(
         Effect.mapError(
           (error) =>
             new Persistence.ConnectionPersistenceError({
@@ -667,19 +682,20 @@ export const make = Effect.gen(function* () {
           const previous = (yield* SubscriptionRef.get(entries)).get(target.environmentId);
           const entry: ConnectionCatalogEntry =
             previous?.unsupportedReason !== undefined &&
-            gitHubRoutingConnectionKey(previous) === gitHubRoutingConnectionKey(registered)
+            pullRequestRoutingConnectionKey(previous) ===
+              pullRequestRoutingConnectionKey(registered)
               ? { ...registered, ...unsupportedState(previous) }
               : registered;
           const persisted = (yield* Ref.get(persistedEnvironmentIds)).has(target.environmentId);
           if (
             persisted ||
             (previous !== undefined &&
-              gitHubRoutingConnectionKey(previous) !== gitHubRoutingConnectionKey(entry))
+              pullRequestRoutingConnectionKey(previous) !== pullRequestRoutingConnectionKey(entry))
           ) {
-            const revoked = yield* githubRoutingPermissions.forget(target.environmentId).pipe(
+            const revoked = yield* pullRequestRoutingPermissions.forget(target.environmentId).pipe(
               Effect.tapError((error) =>
                 Effect.logWarning(
-                  "Could not clear GitHub routing permission for a platform environment.",
+                  "Could not clear Pull request routing permission for a platform environment.",
                   {
                     environmentId: target.environmentId,
                     error,
@@ -788,10 +804,10 @@ export const make = Effect.gen(function* () {
         environmentId,
         Effect.gen(function* () {
           const entry = (yield* SubscriptionRef.get(entries)).get(environmentId);
-          const revoked = yield* githubRoutingPermissions.forget(environmentId).pipe(
+          const revoked = yield* pullRequestRoutingPermissions.forget(environmentId).pipe(
             Effect.tapError((error) =>
               Effect.logWarning(
-                "Could not clear GitHub routing permission after platform removal.",
+                "Could not clear Pull request routing permission after platform removal.",
                 {
                   environmentId,
                   error,
@@ -841,12 +857,6 @@ export const make = Effect.gen(function* () {
     },
   );
 
-  const registerPlatform = Effect.fn("EnvironmentRegistry.registerPlatform")(function* (
-    registration: PrimaryConnectionRegistration,
-  ) {
-    yield* installPlatformRegistration(registration);
-  });
-
   const reconcilePlatform = Effect.fn("EnvironmentRegistry.reconcilePlatform")(function* (
     platformRegistrations: ReadonlyArray<PlatformConnectionRegistration>,
   ) {
@@ -873,7 +883,7 @@ export const make = Effect.gen(function* () {
         });
       }
       const entry = yield* getEntry(environmentId);
-      yield* githubRoutingPermissions.forget(environmentId);
+      yield* pullRequestRoutingPermissions.forget(environmentId);
       yield* registrations.remove(entry.target);
       yield* Ref.update(persistedEnvironmentIds, (current) => {
         const next = new Set(current);
@@ -1207,7 +1217,6 @@ export const make = Effect.gen(function* () {
     networkStatus,
     start,
     register,
-    registerPlatform,
     reconcilePlatform,
     remove,
     removeRoute,

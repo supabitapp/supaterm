@@ -30,13 +30,6 @@ import { SidebarDraftDiscardButton, draftPenClassName } from "./SidebarThreadRow
 
 const DRAFTS_SHELF_EXPANDED_KEY = "supaterm:sidebar:drafts-expanded";
 
-// One unsent draft session the user has invested content in. Two lines,
-// with the typed prompt above the branch or project name. All the draft's
-// settings (model, env mode, branch, worktree) still travel with it —
-// clicking is a plain navigation to /draft/$draftId, which touches nothing.
-// While the draft is open the row renders a frozen snapshot (see
-// SidebarDraftBlock); memoized so per-keystroke block re-renders skip it
-// entirely.
 const SidebarDraftRow = memo(function SidebarDraftRow(props: {
   draftId: DraftId;
   composer: ComposerThreadDraftState;
@@ -102,8 +95,9 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
       <Tooltip>
         <TooltipTrigger
           render={<div />}
-          role="button"
-          tabIndex={0}
+          role="treeitem"
+          tabIndex={-1}
+          data-sidebar-row={`draft:${draftId}`}
           aria-label={accessibility.label}
           aria-current={accessibility.current}
           data-testid="sidebar-draft-row"

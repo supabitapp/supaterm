@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { pipe } from "effect/Function";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { make as makeJsonSchemaGenerator } from "@effect/openapi-generator/JsonSchemaGenerator";
@@ -292,13 +293,6 @@ function isJsonSchemaNode(value: Schema.Json | undefined): value is JsonSchemaNo
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-// Adapts Codex's JSON Schema to Effect's importer, visiting only schema
-// positions so a field literally named "properties" is left alone:
-// - Effect imports an object without additionalProperties as an open record.
-//   Codex omits it for plain structs, so close objects that list properties.
-// - Effect cannot intersect shared object fields with object alternatives,
-//   which Codex uses for "one of these keys plus shared fields"
-//   (image_url | file_id). Fold the shared fields into each alternative.
 function adaptSchemaForEffect(value: Schema.Json): Schema.Json {
   if (!isJsonSchemaNode(value)) {
     return value;
@@ -644,15 +638,15 @@ const generateFiles = Effect.fn("generateFiles")(function* () {
     );
 
     for (const [definitionName, definitionSchema] of Object.entries(parsed.definitions ?? {})) {
-      aggregateSchemas[localDefinitionNames.get(definitionName)!] = stripNullDefaults(
-        normalizeNullableTypes(
-          rewriteExternalRefs(
-            DefinitionOverrides[definitionName] ?? definitionSchema,
-            localDefinitionNames,
-            file.namespace,
-            exportNameByQualifiedName,
-          ),
+      aggregateSchemas[localDefinitionNames.get(definitionName)!] = pipe(
+        rewriteExternalRefs(
+          DefinitionOverrides[definitionName] ?? definitionSchema,
+          localDefinitionNames,
+          file.namespace,
+          exportNameByQualifiedName,
         ),
+        normalizeNullableTypes,
+        stripNullDefaults,
       );
     }
 
@@ -663,15 +657,15 @@ const generateFiles = Effect.fn("generateFiles")(function* () {
       }
     }
 
-    aggregateSchemas[file.exportName] = stripNullDefaults(
-      normalizeNullableTypes(
-        rewriteExternalRefs(
-          topLevelSchema,
-          localDefinitionNames,
-          file.namespace,
-          exportNameByQualifiedName,
-        ),
+    aggregateSchemas[file.exportName] = pipe(
+      rewriteExternalRefs(
+        topLevelSchema,
+        localDefinitionNames,
+        file.namespace,
+        exportNameByQualifiedName,
       ),
+      normalizeNullableTypes,
+      stripNullDefaults,
     );
   }
 

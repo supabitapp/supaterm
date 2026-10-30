@@ -9,7 +9,7 @@ import { type EnvironmentId, resolveEnvironmentMachineKind } from "@supaterm/con
 import { useAtomValue } from "@effect/atom-react";
 import * as Cause from "effect/Cause";
 import { AsyncResult } from "effect/reactivity";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { Platform, Pressable, View } from "react-native";
 import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 
@@ -82,7 +82,7 @@ export function ConnectionEnvironmentRow(props: {
     enabled &&
     (props.environment.connectionState === "connecting" ||
       props.environment.connectionState === "reconnecting");
-  const handleSave = useCallback(async () => {
+  const handleSave = async () => {
     const result = await props.onUpdate(props.environment.environmentId, {
       label: label.trim(),
       displayUrl: url.trim(),
@@ -96,7 +96,7 @@ export function ConnectionEnvironmentRow(props: {
       "Could not update environment",
       error instanceof Error ? error.message : "The environment could not be updated.",
     );
-  }, [label, url, props]);
+  };
 
   return (
     <Animated.View layout={LinearTransition.duration(250)} className="bg-grouped-card">

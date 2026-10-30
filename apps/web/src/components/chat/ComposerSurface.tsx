@@ -108,7 +108,7 @@ function ContextStrip({
         contextStripRowClasses,
         "relative isolate mx-auto -mt-4 w-[calc(100%-2*var(--chat-composer-drawer-inset))] pt-5 pb-1",
         "before:absolute before:inset-0 before:-z-1 before:rounded-b-2xl before:border before:border-(--chat-composer-outline) before:mask-b-from-transparent before:mask-b-from-(position:--spacing-composer-seam) before:mask-b-to-black before:mask-b-to-(position:--spacing-composer-seam) before:shadow-composer",
-        "dark:before:border-white/7 dark:before:bg-composer-seam-below dark:before:shadow-composer-dark",
+        "dark:before:border-white/7 dark:before:bg-composer-seam-below dark:before:bg-origin-border dark:before:shadow-composer-dark",
         "group-has-data-[composer-banner-surface=attached]/composer-surface:before:bg-(--chat-composer-glass-surface)/(--glass-opacity) group-has-data-[composer-banner-surface=attached]/composer-surface:before:backdrop-blur-(--glass-blur) group-has-data-[composer-banner-surface=attached]/composer-surface:before:backdrop-saturate-(--glass-saturation)",
         // The shell drops its glass while the collapse animation resizes it.
         "group-data-model-strip-transition/composer-surface:before:bg-(--chat-composer-glass-surface)/(--glass-opacity) group-data-model-strip-transition/composer-surface:before:backdrop-blur-(--glass-blur)",

@@ -3,9 +3,13 @@ import {
   type OrchestrationV2LimitRecoveryUpdate,
   type RunId,
 } from "@supaterm/contracts";
+import { type TimestampFormat } from "@supaterm/contracts/settings";
+import { deadlineStore } from "@supaterm/client-runtime/clock";
 import { GaugeIcon } from "@supaterm/icons";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useDeadlinePassed } from "../../hooks/useDeadline";
 import { Button } from "../ui/button";
+import { formatUpcomingTimestamp } from "../../timestampFormat";
 import { toastManager } from "../ui/toast";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
 
@@ -15,11 +19,12 @@ type RecoveryProps = {
   stoppedAt: string;
   snoozedUntil: string | null;
   recovery: OrchestrationV2LimitRecovery | null;
+  timestampFormat: TimestampFormat;
   onChange: (recovery: OrchestrationV2LimitRecoveryUpdate) => Promise<void>;
 };
 
 export function usageLimitRecoveryBannerItem(props: RecoveryProps): ComposerBannerStackItem {
-  const { runId, resetAt, stoppedAt } = props;
+  const { runId, resetAt, stoppedAt, timestampFormat } = props;
   const canSchedule = resetAt !== null && Date.parse(resetAt) > Date.parse(stoppedAt);
   return {
     id: `usage-limit-recovery:${runId}`,
@@ -29,7 +34,7 @@ export function usageLimitRecoveryBannerItem(props: RecoveryProps): ComposerBann
     icon: <GaugeIcon />,
     title: "Usage limit reached",
     description: resetAt
-      ? `Resets ${new Date(resetAt).toLocaleString()}`
+      ? `Resets ${formatUpcomingTimestamp(resetAt, timestampFormat)}`
       : "Reset time unavailable; retry manually",
     actions: canSchedule ? <RecoveryActions key={`${runId}:${resetAt}`} {...props} /> : null,
   };
@@ -37,23 +42,20 @@ export function usageLimitRecoveryBannerItem(props: RecoveryProps): ComposerBann
 
 function RecoveryActions({ runId, resetAt, recovery, snoozedUntil, onChange }: RecoveryProps) {
   const [pending, setPending] = useState(false);
-  const [nowMs, setNowMs] = useState(() => Date.now());
-  useEffect(() => {
-    const delay = Date.parse(resetAt ?? "") - Math.max(nowMs, Date.now());
-    if (!Number.isFinite(delay) || delay <= 0) return;
-    const timer = window.setTimeout(() => setNowMs(Date.now()), Math.min(delay + 1, 2_147_483_647));
-    return () => window.clearTimeout(timer);
-  }, [resetAt, nowMs]);
 
   const scheduled =
     recovery?.runId === runId && recovery.resetAt === resetAt && recovery.autoResume;
+  // The server leaves snoozedUntil in place after the timer wakes the thread,
+  // so a snooze whose reset has passed is no longer active.
+  const resetPassed = useDeadlinePassed(resetAt === null ? null : Date.parse(resetAt));
   const snoozed =
     recovery?.snooze === true &&
     recovery.runId === runId &&
     recovery.resetAt === resetAt &&
     resetAt !== null &&
     snoozedUntil !== null &&
-    Date.parse(snoozedUntil) === Date.parse(resetAt);
+    Date.parse(snoozedUntil) === Date.parse(resetAt) &&
+    !resetPassed;
   async function toggle(action: "resume" | "snooze") {
     if (resetAt === null) return;
     if (action === "snooze" && !snoozed && Date.parse(resetAt) <= Date.now()) {
@@ -62,7 +64,8 @@ function RecoveryActions({ runId, resetAt, recovery, snoozedUntil, onChange }: R
         title: "Could not snooze thread",
         description: "The reset time has passed. Retry the thread manually.",
       });
-      setNowMs(Date.now());
+      // The deadline timer can lag after a throttled tab or sleep; disable now.
+      deadlineStore(Date.parse(resetAt)).refresh();
       return;
     }
     setPending(true);
@@ -87,16 +90,14 @@ function RecoveryActions({ runId, resetAt, recovery, snoozedUntil, onChange }: R
       <Button size="xs" variant="ghost" disabled={pending} onClick={() => void toggle("resume")}>
         {pending ? "Saving..." : scheduled ? "Cancel auto-resume" : "Resume at reset"}
       </Button>
-      {!snoozed ? (
-        <Button
-          size="xs"
-          variant="ghost"
-          disabled={pending || Date.parse(resetAt!) <= nowMs}
-          onClick={() => void toggle("snooze")}
-        >
-          {pending ? "Saving..." : "Snooze until reset"}
-        </Button>
-      ) : null}
+      <Button
+        size="xs"
+        variant="ghost"
+        disabled={pending || (!snoozed && resetPassed)}
+        onClick={() => void toggle("snooze")}
+      >
+        {pending ? "Saving..." : snoozed ? "Wake now" : "Snooze until reset"}
+      </Button>
     </>
   );
 }

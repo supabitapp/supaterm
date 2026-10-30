@@ -163,6 +163,7 @@ export const withServerTools = Effect.fn("cli.serverTools.withServerTools")(func
     const environmentAuth = yield* EnvironmentAuth.EnvironmentAuth;
     const issued = yield* Effect.acquireRelease(
       environmentAuth.issueMcpClientSession({
+        peerLink: false,
         label: client.label,
         // The CLI runs as the machine's owner. A server from this build starts
         // new threads at the project's default mode, never at this ceiling.

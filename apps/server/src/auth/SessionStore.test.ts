@@ -465,6 +465,35 @@ it.layer(NodeServices.layer)("SessionStore.layer", (it) => {
     }).pipe(Effect.provide(layerSessionStore())),
   );
 
+  it.effect("keeps legacy tickets valid and signs RPC and media bindings separately", () =>
+    Effect.gen(function* () {
+      const sessions = yield* SessionStore.SessionStore;
+      const owner = yield* sessions.issue({ subject: "owner" });
+      const legacy = yield* sessions.issueWebSocketToken(owner.sessionId);
+      const rpc = yield* sessions.issueWebSocketToken(owner.sessionId, {
+        audience: "rpc",
+        proofKeyThumbprint: "bound-key",
+      });
+      const media = yield* sessions.issueWebSocketToken(owner.sessionId, { audience: "media" });
+      expect(yield* sessions.verifyWebSocketToken(legacy.token)).toMatchObject({
+        sessionId: owner.sessionId,
+      });
+      expect(yield* sessions.verifyWebSocketToken(rpc.token)).toMatchObject({
+        audience: "rpc",
+        proofKeyThumbprint: "bound-key",
+      });
+      const verifiedMedia = yield* sessions.verifyWebSocketToken(media.token);
+      expect(verifiedMedia.audience).toBe("media");
+      expect(verifiedMedia.proofKeyThumbprint).toBeUndefined();
+      const [payload, signature] = rpc.token.split(".");
+      const claims = JSON.parse(Buffer.from(payload!, "base64url").toString());
+      const tampered = `${Buffer.from(JSON.stringify({ ...claims, aud: "media" })).toString("base64url")}.${signature}`;
+      expect((yield* Effect.flip(sessions.verifyWebSocketToken(tampered)))._tag).toBe(
+        "InvalidWebSocketTokenSignatureError",
+      );
+    }).pipe(Effect.provide(layerSessionStore())),
+  );
+
   it.effect("keeps connected short-lived sessions visible through expiry and HTTP renewal", () =>
     Effect.gen(function* () {
       const sessions = yield* SessionStore.SessionStore;

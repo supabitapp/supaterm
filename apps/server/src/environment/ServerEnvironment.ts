@@ -19,6 +19,7 @@ import { resolveServerSelfUpdateCapability } from "../service/selfUpdate.ts";
 import { resolveServiceLauncherMode } from "../service/serviceLauncherClient.ts";
 import * as ServerConfig from "../config.ts";
 import * as ProcessRunner from "../processRunner.ts";
+import { databaseMigrationHead } from "../persistence/databaseMigrationHead.ts";
 import { resolveServerEnvironmentLabel } from "./ServerEnvironmentLabel.ts";
 import { detectServerEnvironmentMachineKind } from "./ServerEnvironmentMachine.ts";
 
@@ -195,9 +196,7 @@ export const make = Effect.gen(function* () {
     launcherManaged: launcher.managed,
   });
   const serverInstallation = serverSelfUpdate === null ? yield* resolveServerInstallation : null;
-  // Static is correct: the control fd is known at bootstrap, and the desktop
-  // app and its bundled server ship in one artifact, so a present fd means the
-  // app speaks the requestDesktopUpdate protocol.
+  // Desktop and server ship together; a control fd guarantees requestDesktopUpdate support.
 
   const desktopAppUpdate =
     serverSelfUpdate === "desktop-managed" && serverConfig.desktopTelemetryControlFd !== undefined;
@@ -212,7 +211,17 @@ export const make = Effect.gen(function* () {
     },
     serverVersion: packageJson.version,
     orchestrationProtocolVersion: ORCHESTRATION_PROTOCOL_VERSION,
+    ...((databaseMigration) => (databaseMigration === undefined ? {} : { databaseMigration }))(
+      databaseMigrationHead(serverConfig.dbPath),
+    ),
     capabilities: {
+      connectionProbe: true,
+      providerWorkspaceSnapshotsOnDemand: true,
+      threadProjectFromScratch: true,
+      localServerStop: true,
+      peerLinks: true,
+      mcpModeLimitHeader: true,
+      linkFence: true,
       fileAttachments: { maxUploadBytes: PROVIDER_SEND_TURN_MAX_FILE_BYTES },
       threadStop: true,
       queuedRunStart: true,
@@ -223,7 +232,7 @@ export const make = Effect.gen(function* () {
       ...(serverSelfUpdate === "boot-service" || desktopAppUpdate
         ? { serverSelfUpdateProgress: true }
         : {}),
-      ...(desktopAppUpdate ? { desktopAppUpdate: true } : {}),
+      ...(desktopAppUpdate ? { desktopAppUpdate: true, desktopAppChannelSwitch: true } : {}),
     },
   };
 

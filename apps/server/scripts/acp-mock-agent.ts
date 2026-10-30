@@ -23,6 +23,10 @@ const antigravityProfile = process.env.SUPATERM_ACP_ANTIGRAVITY === "1";
 const emitToolCalls = process.env.SUPATERM_ACP_EMIT_TOOL_CALLS === "1";
 const emitInterleavedAssistantToolCalls =
   process.env.SUPATERM_ACP_EMIT_INTERLEAVED_ASSISTANT_TOOL_CALLS === "1";
+const emitNotice = process.env.SUPATERM_ACP_EMIT_NOTICE === "1";
+const omitInitializeModelState = process.env.SUPATERM_ACP_OMIT_INITIALIZE_MODEL_STATE === "1";
+const emitTrackedToolCallKindThenHang =
+  process.env.SUPATERM_ACP_EMIT_TRACKED_TOOL_CALL_KIND_THEN_HANG;
 const emitV2Fidelity = process.env.SUPATERM_ACP_EMIT_V2_FIDELITY === "1";
 const vibeRetryOutcome = process.env.SUPATERM_ACP_VIBE_RETRY_OUTCOME;
 const emitGenericToolPlaceholders = process.env.SUPATERM_ACP_EMIT_GENERIC_TOOL_PLACEHOLDERS === "1";
@@ -330,7 +334,6 @@ function configOptions(): ReadonlyArray<AcpSchema.SessionConfigOption> {
   }
 
   return [
-    // Mirrors GitHub Copilot, whose default agent is the empty-valued choice.
     ...(emitEmptyDefaultAgentOption
       ? [
           {
@@ -439,8 +442,6 @@ function modeState(): AcpCompat.SessionModeState {
   };
 }
 
-// Mirrors the real Grok ACP: it advertises versioned model ids, never the CLI's own
-// "grok-build" product name.
 const grokAcpModels: ReadonlyArray<AcpCompat.ModelInfo> = [
   {
     modelId: process.env.SUPATERM_ACP_GROK_MODEL ?? "grok-4.6",
@@ -586,7 +587,7 @@ const program = Effect.gen(function* () {
       return {
         protocolVersion: 2,
         info: { name: "supaterm-acp-mock-agent", version: "0.0.0" },
-        _meta: { modelState: modelState() },
+        ...(omitInitializeModelState ? {} : { _meta: { modelState: modelState() } }),
         capabilities: {
           session: {
             ...(supportsSessionLifecycle ? { fork: {}, additionalDirectories: {} } : {}),
@@ -610,8 +611,6 @@ const program = Effect.gen(function* () {
     }),
   );
 
-  // Mirrors the real Antigravity agent: the API key method reads
-  // GEMINI_API_KEY from the process environment and rejects when it is missing.
   yield* agent.handleAuthenticate((request) =>
     Effect.gen(function* () {
       if (antigravityProfile) {
@@ -948,21 +947,20 @@ const program = Effect.gen(function* () {
             },
           });
         });
-        yield* Effect.sleep("1200 millis")
-          .pipe(
-            Effect.andThen(
-              Effect.sync(() => {
-                writeJsonRpcNotification("_x.ai/task_completed", {
-                  sessionId: cancelledSessionId,
-                  update: {
-                    sessionUpdate: "task_completed",
-                    task_snapshot: { task_id: "task-bg-1", command: "sleep 30" },
-                  },
-                });
-              }),
-            ),
-          )
-          .pipe(Effect.forkDetach);
+        yield* Effect.sleep("1200 millis").pipe(
+          Effect.andThen(
+            Effect.sync(() => {
+              writeJsonRpcNotification("_x.ai/task_completed", {
+                sessionId: cancelledSessionId,
+                update: {
+                  sessionUpdate: "task_completed",
+                  task_snapshot: { task_id: "task-bg-1", command: "sleep 30" },
+                },
+              });
+            }),
+          ),
+          Effect.forkDetach,
+        );
       }
     }),
   );
@@ -972,6 +970,125 @@ const program = Effect.gen(function* () {
       const requestedSessionId = String(request.sessionId ?? sessionId);
       beginAcpMockPrompt(cancelledSessions, requestedSessionId);
       promptCount += 1;
+      const idleError = process.env.SUPATERM_ACP_IDLE_ERROR;
+      if (idleError === "grok-background" && promptCount === 1) {
+        // The structured completion lands before the prompt settles, so it is buffered.
+        const taskId = "call-idle-error-background";
+        writeJsonRpcNotification("session/update", {
+          sessionId: requestedSessionId,
+          update: {
+            sessionUpdate: "tool_call",
+            toolCallId: taskId,
+            title: "run_terminal_command",
+            kind: "execute",
+            status: "in_progress",
+            rawInput: { command: "sleep 1; echo done" },
+          },
+        });
+        writeJsonRpcNotification("session/update", {
+          sessionId: requestedSessionId,
+          update: {
+            sessionUpdate: "tool_call_update",
+            toolCallId: taskId,
+            status: "completed",
+            rawOutput: {
+              type: "BackgroundTaskStarted",
+              task_id: taskId,
+              task_type: "bash",
+              status: "running",
+              command: "sleep 1; echo done",
+            },
+          },
+        });
+        writeJsonRpcNotification("_x.ai/task_completed", {
+          sessionId: requestedSessionId,
+          update: {
+            sessionUpdate: "task_completed",
+            task_snapshot: { task_id: taskId, kind: "bash", exit_code: 0, output: "done\n" },
+          },
+        });
+        writeJsonRpcNotification("session/update", {
+          sessionId: requestedSessionId,
+          update: { sessionUpdate: "state_update", state: "idle", stopReason: "error" },
+        });
+        return {};
+      }
+      if (idleError !== undefined && promptCount === 1) {
+        const toolCallId = "tool-call-idle-error-1";
+        writeJsonRpcNotification("session/update", {
+          sessionId: requestedSessionId,
+          update: {
+            sessionUpdate: "tool_call_update",
+            toolCallId,
+            title: "Terminal",
+            kind: "execute",
+            status: "in_progress",
+            rawInput: { command: ["long-running-tool"] },
+          },
+        });
+        writeJsonRpcNotification("session/update", {
+          sessionId: requestedSessionId,
+          update: {
+            sessionUpdate: "tool_call_update",
+            toolCallId: "tool-call-idle-error-monitor",
+            title: "Monitor",
+            kind: "execute",
+            status: "in_progress",
+            rawInput: { command: ["background-monitor"] },
+          },
+        });
+        writeJsonRpcNotification("session/update", {
+          sessionId: requestedSessionId,
+          update: {
+            sessionUpdate: "tool_call_update",
+            toolCallId: "tool-call-idle-error-subagent",
+            title: "Subagent",
+            kind: "other",
+            status: "in_progress",
+            rawInput: {},
+          },
+        });
+        writeJsonRpcNotification("session/update", {
+          sessionId: "mock-child-session-idle-error",
+          update: {
+            sessionUpdate: "tool_call_update",
+            toolCallId: "tool-call-idle-error-child",
+            title: "Child tool",
+            kind: "execute",
+            status: "in_progress",
+            rawInput: { command: ["child-tool"] },
+          },
+        });
+        writeJsonRpcNotification("session/update", {
+          sessionId: requestedSessionId,
+          update: {
+            sessionUpdate: "state_update",
+            state: "idle",
+            stopReason: "error",
+            ...(idleError === "details"
+              ? { error: { code: -32000, message: "Missing Authentication header" } }
+              : {}),
+          },
+        });
+        // The agent outlives the failed prompt, so its subagent finishes afterwards.
+        yield* Effect.sleep("50 millis").pipe(
+          Effect.andThen(
+            Effect.sync(() =>
+              writeJsonRpcNotification("session/update", {
+                sessionId: requestedSessionId,
+                update: {
+                  sessionUpdate: "tool_call_update",
+                  toolCallId: "tool-call-idle-error-subagent",
+                  status: "completed",
+                },
+              }),
+            ),
+          ),
+          Effect.forkDetach,
+        );
+        return {};
+      }
+
       if (
         process.env.SUPATERM_ACP_CRASH_PROMPT === "1" &&
         request.prompt.some((part) => part.type === "text" && part.text === "crash now")
@@ -1061,6 +1178,29 @@ const program = Effect.gen(function* () {
             content: { type: "text", text: "Recovered answer" },
           },
         });
+        return yield* finishPrompt(requestedSessionId, "end_turn");
+      }
+
+      if (emitNotice) {
+        const chunk = (text: string) =>
+          writeJsonRpcNotification("session/update", {
+            sessionId: requestedSessionId,
+            update: {
+              sessionUpdate: "agent_message_chunk",
+              messageId: "mock-notice-message",
+              content: { type: "text", text },
+            },
+          });
+        chunk("before the notice, ");
+        writeJsonRpcNotification("session/update", {
+          sessionId: requestedSessionId,
+          update: {
+            sessionUpdate: "notice",
+            severity: "info",
+            title: "skill discovery warning: candidate was skipped because its metadata is invalid",
+          },
+        });
+        chunk("after the notice");
         return yield* finishPrompt(requestedSessionId, "end_turn");
       }
 
@@ -1175,7 +1315,7 @@ const program = Effect.gen(function* () {
             status: "completed",
             rawInput: { query: "TODO", path: "apps/web" },
           },
-          // Grok backend searches: the query only arrives in the completed rawOutput.
+
           {
             sessionUpdate: "tool_call_update",
             toolCallId: "grok-x-search",
@@ -1447,6 +1587,21 @@ const program = Effect.gen(function* () {
         return yield* Effect.never;
       }
 
+      if (emitTrackedToolCallKindThenHang !== undefined) {
+        yield* agent.client.sessionUpdate({
+          sessionId: requestedSessionId,
+          update: {
+            sessionUpdate: "tool_call_update",
+            toolCallId: "tracked-tool-call",
+            title: "git status",
+            kind: emitTrackedToolCallKindThenHang as AcpSchema.ToolKind,
+            status: "pending",
+            rawInput: { command: "git status" },
+          },
+        });
+        return yield* Effect.never;
+      }
+
       if (
         hangPromptForever ||
         (hangFirstPromptForever && promptCount === 1) ||
@@ -1474,11 +1629,7 @@ const program = Effect.gen(function* () {
             const detachedCommand = runningCommandIgnoresTerm
               ? 'trap "" TERM; bash -c \'trap "" TERM; while :; do sleep 1; done\' & child=$!; printf "%s %s %s\n" "$PPID" "$$" "$child" > "$1"; echo published; wait "$child"'
               : 'sleep 120 & child=$!; printf "%s %s %s\n" "$PPID" "$$" "$child" > "$1"; echo published; wait "$child"';
-            // Nested bash publishes "$PPID $$ $child" once it starts. Do not
-            // write the launcher PID alone here: that races with bash and can
-            // clobber the triple that interrupt tests wait for. It then prints a
-            // line, so an agent that exits after launch only exits once the
-            // triple exists instead of racing a slow launcher start.
+
             const detachedLauncher = NodeChildProcess.spawn(
               process.execPath,
               ["-e", launcher, "bash", "-c", detachedCommand, "bash", runningCommandPidPath],
@@ -1518,7 +1669,7 @@ const program = Effect.gen(function* () {
             rawInput: {
               command: ["sleep", "120"],
             },
-            // Grok-like mid-stream Bash re-report: exit_code 0 while still running.
+
             rawOutput: { type: "Bash", exit_code: 0 },
           },
         });
@@ -1543,7 +1694,6 @@ const program = Effect.gen(function* () {
           },
         });
         if (exitAfterRunningCommandLaunch) {
-          // The test sends `_test/exit` once Supaterm has recorded the published processes.
           yield* Effect.promise(() => runningCommandPublished);
           return yield* Effect.never;
         }
@@ -1581,7 +1731,7 @@ const program = Effect.gen(function* () {
           promptIdFromRequestMeta(request),
           grokKillTaskShape,
         );
-        // Keep the prompt RPC and peer alive after the kill result.
+
         return yield* Effect.never;
       }
 
@@ -1840,7 +1990,7 @@ const program = Effect.gen(function* () {
               stop_reason: "end_turn",
             },
           });
-          // Neither the prompt RPC nor the process ends, matching the Grok incident.
+
           return yield* Effect.never;
         }
         writeJsonRpcNotification("_x.ai/session/prompt_complete", {
@@ -2332,7 +2482,6 @@ const program = Effect.gen(function* () {
       }
 
       if (emitXAiPlanMdWrite) {
-        // Match Grok's real session layout so isGrokPlanMarkdownPath accepts it.
         const planRoot = process.env.SUPATERM_ACP_PLAN_ROOT ?? "/tmp/mock-home/.grok";
         const planPath = `${planRoot}/sessions/${requestedSessionId}/plan.md`;
         const planBody = "# Mock plan\n\n- Write the feature\n- Add a test\n- Ship it\n";

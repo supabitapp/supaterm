@@ -20,12 +20,17 @@ import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
 import { HttpClient } from "effect/http";
 
-import { CLI_RELEASE_BASE_URL_ENV } from "@supaterm/shared/cliRelease";
+import {
+  CLI_RELEASE_BASE_URL_ENV,
+  cliReleaseChannelOf,
+  crossesReleaseTrack,
+} from "@supaterm/shared/cliRelease";
 
 import packageJson from "../../package.json" with { type: "json" };
 import * as ServerConfig from "../config.ts";
 import * as DesktopAppUpdate from "../desktopUpdate/DesktopAppUpdate.ts";
 import * as ProcessRunner from "../processRunner.ts";
+import { databaseMigrationHead } from "../persistence/databaseMigrationHead.ts";
 import {
   ensurePinnedRuntimeInstalled,
   pinnedRuntimeCommand,
@@ -39,6 +44,22 @@ import * as ServiceLauncherClient from "./serviceLauncherClient.ts";
 import { isExactServiceVersion, SERVICE_LAUNCHER_PROTOCOL } from "./serviceProtocol.ts";
 
 const PREFLIGHT_TIMEOUT = Duration.seconds(30);
+
+function trackSwitchBlockReason(input: {
+  readonly serverVersion: string;
+  readonly targetVersion: string;
+  readonly targetDatabaseMigration: number | undefined;
+  readonly databaseMigration: () => number | undefined;
+}): string | null {
+  if (!crossesReleaseTrack(input.serverVersion, input.targetVersion)) return null;
+  const databaseMigration = input.databaseMigration();
+  if (input.targetDatabaseMigration === undefined || databaseMigration === undefined) {
+    return `Cannot confirm this database works with supaterm@${input.targetVersion}. Check the target release from Settings before switching tracks.`;
+  }
+  return input.targetDatabaseMigration < databaseMigration
+    ? `This database has changes supaterm@${input.targetVersion} does not support yet; it stays on this release.`
+    : null;
+}
 
 export function resolveServerSelfUpdateCapability(input: {
   readonly desktopManaged: boolean;
@@ -122,9 +143,30 @@ export const make = Effect.fn("cloud.server_self_update.make")(function* () {
   const update: ServerSelfUpdate["Service"]["update"] = Effect.fn(
     "cloud.server_self_update.update",
   )(function* (input, reportProgress = () => Effect.void, onHandoffAccepted = () => Effect.void) {
+    if (input.channel !== undefined) {
+      const expectedChannel = input.channel === "nightly" ? "nightly" : "stable";
+      if (cliReleaseChannelOf(input.targetVersion) !== expectedChannel) {
+        return yield* failWith("The target version does not belong to the selected update track.");
+      }
+      const reason = trackSwitchBlockReason({
+        serverVersion: packageJson.version,
+        targetVersion: input.targetVersion,
+        targetDatabaseMigration: input.targetDatabaseMigration,
+        databaseMigration: () => databaseMigrationHead(serverConfig.dbPath),
+      });
+      if (reason !== null) return yield* failWith(reason);
+    }
     if (capability === "desktop-managed") {
       if (desktopAppUpdate.available) {
-        return yield* desktopAppUpdate.run(reportProgress);
+        return yield* desktopAppUpdate.run(
+          reportProgress,
+          input.channel === undefined
+            ? undefined
+            : {
+                channel: input.channel,
+                targetVersion: input.targetVersion,
+              },
+        );
       }
       return yield* failWith(
         "This server is managed by the Supaterm desktop app on its machine; update the desktop app to update it.",
@@ -163,6 +205,7 @@ export const make = Effect.fn("cloud.server_self_update.make")(function* () {
               args: [
                 ...pinnedRuntimeCommand(runtime).args,
                 "__service-preflight",
+                ...(input.channel === undefined ? [] : ["--database-path", serverConfig.dbPath]),
                 "--launcher-protocol",
                 String(SERVICE_LAUNCHER_PROTOCOL),
               ],
@@ -257,8 +300,9 @@ export const make = Effect.fn("cloud.server_self_update.make")(function* () {
 
   return ServerSelfUpdate.of({
     update,
-    commitDesktopUpdate: (requestId, onHandoffAccepted) =>
-      desktopAppUpdate.commit(requestId, onHandoffAccepted),
+    commitDesktopUpdate: Effect.fn("ServerSelfUpdate.commitDesktopUpdate")(
+      (requestId, onHandoffAccepted) => desktopAppUpdate.commit(requestId, onHandoffAccepted),
+    ),
   });
 });
 

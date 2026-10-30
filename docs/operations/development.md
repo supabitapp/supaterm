@@ -20,7 +20,7 @@ Then, from the repository root:
 export PATH="$HOME/.local/bin:$PATH"
 mise install
 mise exec -- vp i
-mise exec -- vp run dev
+mise exec -- vp run dev --home-dir "$PWD/.supaterm"
 ```
 
 The commands below use bare `vp`; activate Mise in your shell, or prefix each
@@ -48,13 +48,25 @@ Add `--browser` to open a browser automatically.
 ### State and ports
 
 Linked worktrees default to their own `.supaterm/userdata`, even when `SUPATERM_HOME` is set.
-The main checkout defaults to `~/.supaterm/dev/userdata`. An explicit `--home-dir` wins in both cases.
+The main checkout uses `SUPATERM_HOME` or defaults to `~/.supaterm`, the live install.
+Pass `--home-dir "$PWD/.supaterm"` when starting development there. An explicit `--home-dir` wins in both cases.
+The first worktree start copies a missing database from the live install read-only when the source
+is at most 500 MiB. Larger sources warn and start empty. `--no-seed` or `SUPATERM_DEV_SEED=0` skips this.
+For a larger source, stop development and run `vp run migrate-dev-db`; allow disk space for the copy before pruning.
 Never run a development server against the live `~/.supaterm/userdata`.
 See [test data](../../AGENTS.md#test-data) for copying a consistent database snapshot.
 
 Read ports from the `[dev-runner]` output. Worktrees derive stable preferences from their paths,
 but occupied ports can shift them. `SUPATERM_PORT_OFFSET` or `SUPATERM_DEV_INSTANCE` can select a
 different preference when needed.
+
+### Replay provider
+
+Source development servers register `Replay (dev)` to exercise streaming, approvals, and turn
+rendering without a paid model. Use the replay picker with `Ctrl+Alt+Shift+R`. Each scenario
+is a model and each prompt plays the next recorded turn. Disable it in provider settings when
+unneeded; restarting development preserves that choice. Use a real provider when testing its
+protocol or model behavior.
 
 ### Sharing and remote debugging
 
@@ -161,6 +173,10 @@ against the merge base with `origin/main`, or with a ref you pass. A changed `pa
 the mapping does not recognize affects every package. CI still runs the full test suites and the
 jobs the summary lists, so a local pass does not promise a green CI run.
 
+The runner also checks React Compiler coverage for changed web and mobile files.
+A cached success applies only while its tracked
+source, generated files, install, and environment inputs remain unchanged.
+
 While you iterate, run single checks:
 
 ```sh
@@ -177,7 +193,6 @@ and runs in headless Chromium with the React Compiler on, like the app. There is
 TypeScript workspaces typecheck with `tsc`. The `typescript` catalog entry is
 `@tsc-rs/typescript`, the tsc-rs drop-in, with Effect diagnostics, quick fixes, and
 refactors built in. VS Code uses it through `js/ts.tsdk.path` in `.vscode/settings.json`.
-Marketing keeps `astro check` for Astro files.
 
 Use `vp run lint:mobile` for native mobile changes. CI owns the full suite; see
 [ci.yml](../../.github/workflows/ci.yml) for its current jobs.

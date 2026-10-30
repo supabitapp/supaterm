@@ -1,10 +1,8 @@
-import { useAtomValue } from "@effect/atom-react";
-import { useEffect, useSyncExternalStore } from "react";
-
 import { primaryEnvironmentIdAtom } from "../state/primaryEnvironment";
 import { primaryServerSettingsAtom } from "../state/server";
 import { getThemeDefinition, singleAppearanceOf, subscribeToCustomThemes } from "../themePalette";
-import { useTheme } from "./useTheme";
+import { setTheme, setAppearanceMode } from "./useTheme";
+import { appAtomRegistry } from "../rpc/atomRegistry";
 
 const APPLIED_DEFAULT_THEME_STORAGE_PREFIX = "supaterm:default-theme-applied:v2:";
 
@@ -48,19 +46,11 @@ function writeAppliedGeneration(storageKey: string, generation: string): void {
   } catch {}
 }
 
-export function useDefaultThemeAdoption(): void {
-  const environmentId = useAtomValue(primaryEnvironmentIdAtom);
-  const settings = useAtomValue(primaryServerSettingsAtom);
-  const { defaultTheme, defaultThemeSetAt } = settings;
-  const { setTheme, setAppearanceMode } = useTheme();
-  // Re-read when published or custom palettes change, so a theme that resolves late still applies.
-  const definition = useSyncExternalStore(
-    subscribeToCustomThemes,
-    () => getThemeDefinition(defaultTheme),
-    () => null,
-  );
-
-  useEffect(() => {
+export function startDefaultThemeAdoption(): () => void {
+  const apply = () => {
+    const environmentId = appAtomRegistry.get(primaryEnvironmentIdAtom);
+    const { defaultTheme, defaultThemeSetAt } = appAtomRegistry.get(primaryServerSettingsAtom);
+    const definition = getThemeDefinition(defaultTheme);
     if (typeof window === "undefined" || environmentId === null) return;
     const storageKey = `${APPLIED_DEFAULT_THEME_STORAGE_PREFIX}${environmentId}`;
     const generation = defaultThemeToApply({
@@ -72,11 +62,7 @@ export function useDefaultThemeAdoption(): void {
     });
     if (generation === null || definition === null) return;
 
-    // Clicking a card is a user choosing one half of their own mix; a set theme
-    // is the environment saying what this client opens on, so it takes the base
-    // preference and, for a single-appearance theme, the matching mode --
-    // otherwise a dark-only theme on a light client is recorded as applied
-    // while nothing changes.
+    // Single-appearance defaults need a matching mode before their generation is marked applied.
     if (!setTheme(defaultTheme)) return;
     const half = singleAppearanceOf(definition);
     // Recorded only once both land: marking the generation applied while the
@@ -84,5 +70,14 @@ export function useDefaultThemeAdoption(): void {
     // light half with no retry.
     if (half !== null && !setAppearanceMode(half)) return;
     writeAppliedGeneration(storageKey, generation);
-  }, [environmentId, defaultTheme, defaultThemeSetAt, definition, setTheme, setAppearanceMode]);
+  };
+  const stops = [
+    appAtomRegistry.subscribe(primaryEnvironmentIdAtom, apply),
+    appAtomRegistry.subscribe(primaryServerSettingsAtom, apply),
+    subscribeToCustomThemes(apply),
+  ];
+  apply();
+  return () => {
+    for (const stop of stops) stop();
+  };
 }

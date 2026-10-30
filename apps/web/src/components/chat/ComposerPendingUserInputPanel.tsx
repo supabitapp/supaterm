@@ -126,6 +126,7 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
   }
 
   // A delayed answer only advances its own question, while permission remains granted.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the auto-advance timer when the question changes, input is disabled, or the panel unmounts
   useEffect(() => {
     const clearAutoAdvance = () => {
       if (autoAdvanceTimerRef.current !== null) {
@@ -157,6 +158,7 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
   const selectOptionFromShortcut = useEffectEvent(handleOptionSelection);
   const isPaneInputOwner = usePaneInputOwner();
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Registers number-key answers only while this pane's question is visible and answerable.
   useEffect(() => {
     if (!activeQuestion || responseDisabled || isCollapsed) return;
     const handler = (event: globalThis.KeyboardEvent) => {

@@ -1,11 +1,10 @@
-import { useIsFocused } from "@react-navigation/native";
 import { videoMimeType } from "@supaterm/shared/video";
-import { useEffect, useState } from "react";
-import { Keyboard, Modal, Pressable, View } from "react-native";
+import { Modal, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppActivityIndicator } from "./ui/AppActivityIndicator";
-import { loadLocalAttachmentPreview } from "../lib/localAttachmentPreview";
+import { useLocalAttachmentPreview } from "../lib/localAttachmentPreview";
+import { usePreviewPresentation, videoPreviewKey } from "../lib/previewPresentation";
 import { useMediaActions } from "../state/mediaActions";
 import { type MediaActionsSource } from "../lib/mediaActionsSource";
 import {
@@ -56,39 +55,9 @@ function useMediaPlayback(source: MediaVideoPreviewSource): PlaybackState {
 
 function useLocalPlayback(source: LocalVideoPreviewSource): PlaybackState {
   const { attachment } = source;
-  const [uri, setUri] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  // Only a different file needs a new lease; a metadata update on the same
-  // draft must not dispose the file Android is still playing.
-  const [leasedAttachment, setLeasedAttachment] = useState(attachment);
-  if (leasedAttachment.id !== attachment.id || leasedAttachment.fileUri !== attachment.fileUri) {
-    setLeasedAttachment(attachment);
-    setUri(null);
-    setError(null);
-  }
-  useEffect(() => {
-    const controller = new AbortController();
-    const loading = loadLocalAttachmentPreview(leasedAttachment, controller.signal);
-    void loading.then(
-      (file) => {
-        if (file === null) return;
-        if (controller.signal.aborted) file.dispose();
-        else setUri(file.uri);
-      },
-      (cause: unknown) => {
-        if (!controller.signal.aborted) {
-          setError(cause instanceof Error ? cause.message : "Could not load this video.");
-        }
-      },
-    );
-    return () => {
-      controller.abort();
-      void loading.then(
-        (file) => file?.dispose(),
-        () => undefined,
-      );
-    };
-  }, [leasedAttachment]);
+  const preview = useLocalAttachmentPreview(attachment);
+  const { uri } = preview;
+  const error = preview.error ? preview.error.message || "Could not load this video." : null;
   const mimeType = videoMimeType(attachment) ?? attachment.mimeType;
   return {
     uri,
@@ -136,7 +105,6 @@ function OpenVideoPreviewModal(props: {
   const insets = useSafeAreaInsets();
   const mediaActions = useMediaActions(playback.actionsSource, props.onRequestClose);
 
-  useEffect(() => Keyboard.dismiss(), []);
   return (
     <Modal
       visible
@@ -207,22 +175,21 @@ export function VideoPreviewModal(props: {
   readonly source: VideoPreviewSource | null;
   readonly onRequestClose: () => void;
 }) {
-  const isFocused = useIsFocused();
-  const { source, onRequestClose } = props;
-  const hasSource = source !== null;
-  useEffect(() => {
-    if (!isFocused && hasSource) onRequestClose();
-  }, [isFocused, hasSource, onRequestClose]);
-  if (source === null || !isFocused) return null;
+  usePreviewPresentation(
+    props.source === null ? null : videoPreviewKey(props.source),
+    props.onRequestClose,
+  );
+  const { source } = props;
+  if (source === null) return null;
   return source.type === "local" ? (
     <LocalPreviewModal
-      key={`local:${source.attachment.id}:${source.attachment.fileUri}`}
+      key={videoPreviewKey(source)}
       source={source}
       onRequestClose={props.onRequestClose}
     />
   ) : (
     <MediaPreviewModal
-      key={mediaVideoThumbnailKey(source)}
+      key={videoPreviewKey(source)}
       source={source}
       onRequestClose={props.onRequestClose}
     />

@@ -34,6 +34,7 @@ import { ServerProviderTranscription } from "./transcription.ts";
 import { ServerSettings } from "./settings.ts";
 import { RelayConnectionInfo, RelayServerUrl } from "./relay.ts";
 
+import { DesktopUpdateChannelSchema } from "./ipc.ts";
 const KeybindingsMalformedConfigIssue = Schema.Struct({
   kind: Schema.Literal("keybindings.malformed-config"),
   message: TrimmedNonEmptyString,
@@ -118,17 +119,9 @@ export const ServerProviderSkill = Schema.Struct({
   enabled: Schema.Boolean,
   displayName: Schema.optional(TrimmedNonEmptyString),
   shortDescription: Schema.optional(TrimmedNonEmptyString),
-  /**
-   * The skill is hidden from the agent's own skill tool, so only the user can
-   * start it — Claude Code's `disable-model-invocation`. Composers must offer
-   * it as a slash command; naming it in prose does nothing.
-   */
+
   userInvocationOnly: Schema.optional(Schema.Boolean),
-  /**
-   * The mirror of {@link ServerProviderSkill.userInvocationOnly}: Claude Code's
-   * `user-invocable: false` keeps the skill out of its own slash commands, so
-   * only the agent can start it. Composers must not offer it under `/`.
-   */
+
   userInvocable: Schema.optional(Schema.Boolean),
 });
 export type ServerProviderSkill = typeof ServerProviderSkill.Type;
@@ -152,11 +145,6 @@ export function isProviderWorkspaceSnapshotCurrent(
   return nowMs - Date.parse(snapshot.checkedAt) < PROVIDER_WORKSPACE_SNAPSHOT_TTL_MS;
 }
 
-/**
- * Snapshots with `availability: "unavailable"` MUST set
- * `installed: false` and `enabled: false`; the runtime refuses turn
- * starts against them with a structured error.
- */
 export const ServerProviderAvailability = Schema.Literals(["available", "unavailable"]);
 export type ServerProviderAvailability = typeof ServerProviderAvailability.Type;
 
@@ -220,14 +208,11 @@ export const ServerProviderUpdateState = Schema.Struct({
 export type ServerProviderUpdateState = typeof ServerProviderUpdateState.Type;
 
 export const ServerProvider = Schema.Struct({
-  // Routing key for the configured instance this snapshot represents. This
-  // is the only stable identity consumers may use for provider routing.
   instanceId: ProviderInstanceId,
   driver: ProviderDriverKind,
   displayName: Schema.optional(TrimmedNonEmptyString),
   accentColor: Schema.optional(TrimmedNonEmptyString),
-  // Optional visual identity supplied by the owning provider driver. Clients
-  // must still validate remote URLs against that driver's trusted origin.
+
   iconUrl: Schema.optional(TrimmedNonEmptyString.check(Schema.isMaxLength(2_048))),
   badgeLabel: Schema.optional(TrimmedNonEmptyString),
   continuation: Schema.optional(ServerProviderContinuation),
@@ -238,7 +223,7 @@ export const ServerProvider = Schema.Struct({
   supportsConversationRollback: Schema.optional(Schema.Boolean),
   supportsTextGeneration: Schema.optional(Schema.Boolean),
   supportsReviewGuides: Schema.optional(Schema.Boolean),
-  // An unknown status from a newer server must not drop the whole provider.
+
   transcription: ForwardCompatibleOptional(ServerProviderTranscription),
   setup: Schema.optional(
     Schema.Struct({
@@ -265,8 +250,7 @@ export const ServerProvider = Schema.Struct({
   enabled: Schema.Boolean,
   installed: Schema.Boolean,
   version: Schema.NullOr(TrimmedNonEmptyString),
-  // Version reported by the installed CLI for a local provider with a separate
-  // server. Null means unknown; absence keeps legacy snapshots on `version`.
+
   installedVersion: Schema.optionalKey(Schema.NullOr(TrimmedNonEmptyString)),
   status: ServerProviderState,
   auth: ServerProviderAuth,
@@ -295,25 +279,29 @@ export type ServerProviders = typeof ServerProviders.Type;
 export const isProviderAvailable = (snapshot: ServerProvider): boolean =>
   snapshot.availability !== "unavailable";
 
-/**
- * Treat an absent `supportsTextGeneration` as supported so legacy
- * producers, which all support application text generation, keep working
- * without resending the field.
- */
 export const isProviderTextGenerationCapable = (snapshot: ServerProvider): boolean =>
   snapshot.supportsTextGeneration !== false;
 
 export const isProviderReviewGuideCapable = (snapshot: ServerProvider): boolean =>
   isProviderTextGenerationCapable(snapshot) && snapshot.supportsReviewGuides === true;
 
+export const OtlpEndpointSource = Schema.Literals(["environment", "bootstrap", "settings"]);
+export type OtlpEndpointSource = typeof OtlpEndpointSource.Type;
+
 export const ServerObservability = Schema.Struct({
   logsDirectoryPath: TrimmedNonEmptyString,
   localTracingEnabled: Schema.Boolean,
   otlpTracesUrl: Schema.optional(TrimmedNonEmptyString),
+  otlpTracesSource: Schema.optional(OtlpEndpointSource),
+  otlpTracesVariable: Schema.optional(TrimmedNonEmptyString),
   otlpTracesEnabled: Schema.Boolean,
   otlpMetricsUrl: Schema.optional(TrimmedNonEmptyString),
+  otlpMetricsSource: Schema.optional(OtlpEndpointSource),
+  otlpMetricsVariable: Schema.optional(TrimmedNonEmptyString),
   otlpMetricsEnabled: Schema.Boolean,
   otlpLogsUrl: Schema.optional(TrimmedNonEmptyString),
+  otlpLogsSource: Schema.optional(OtlpEndpointSource),
+  otlpLogsVariable: Schema.optional(TrimmedNonEmptyString),
   otlpLogsEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
 });
 export type ServerObservability = typeof ServerObservability.Type;
@@ -334,22 +322,16 @@ export const OtlpEndpointCheckResult = Schema.Union([
 ]);
 export type OtlpEndpointCheckResult = typeof OtlpEndpointCheckResult.Type;
 
-/** The client tells the server what it is, so the triage context can name it. */
 export const ServerPrepareTriageInput = Schema.Struct({
   client: AuthClientPresentationMetadata,
 });
 export type ServerPrepareTriageInput = typeof ServerPrepareTriageInput.Type;
 
 export const ServerPrepareTriageResult = Schema.Struct({
-  /** Composer text that links the session's prompt file. */
   prompt: Schema.String,
 });
 export type ServerPrepareTriageResult = typeof ServerPrepareTriageResult.Type;
 
-/**
- * The prompt file links as a chip in the user's message; clients spot a triage
- * draft by it.
- */
 export const TRIAGE_PROMPT_FILE_NAME = "triage-playbook.md";
 
 export class ServerPrepareTriageError extends Schema.TaggedError<ServerPrepareTriageError>()(
@@ -560,11 +542,6 @@ export const EnvironmentThemeColor = Schema.String.check(
 );
 export type EnvironmentThemeColor = typeof EnvironmentThemeColor.Type;
 
-/**
- * The appearance keywords are excluded outright: a published `dark.json`
- * would otherwise capture every client whose stored preference is the stock
- * `"dark"`, retinting people who never chose it.
- */
 export const EnvironmentThemeId = Schema.String.check(
   Schema.isPattern(/^(?!(?:system|light|dark)$)[a-z0-9](?:[a-z0-9-]{0,47})$/),
 );
@@ -579,11 +556,7 @@ const environmentThemeFields = {
   version: Schema.optional(Schema.Literal(1)),
   name: TrimmedNonEmptyString.check(Schema.isMaxLength(48)),
   appearance: Schema.Literals(["light", "dark"]),
-  /**
-   * When present, clients derive the full palette from them with the guided
-   * theme editor's generator and layer `colors` on top; when absent, `colors`
-   * is the palette, as in an exported theme file.
-   */
+
   canvas: Schema.optional(EnvironmentThemeColor),
   accent: Schema.optional(EnvironmentThemeColor),
   colors: Schema.optional(EnvironmentThemeColors),
@@ -620,11 +593,6 @@ export const ServerDirectEndpoint = Schema.Struct({
 });
 export type ServerDirectEndpoint = typeof ServerDirectEndpoint.Type;
 
-/**
- * Kept apart from `directEndpoints`, which older clients turn into plain HTTP
- * routes. Only a client that already trusts `address` from a relay pairing
- * dials these, and the tunnel handshake proves the host before any request.
- */
 export const ServerTunnelEndpoints = Schema.Struct({
   address: TrimmedNonEmptyString,
   urls: ForwardCompatibleArray(RelayServerUrl),
@@ -636,14 +604,10 @@ const ServerConfigSettings = Schema.Struct({
   autoDismissQuestions: Schema.optionalKey(Schema.Boolean),
 });
 
-/**
- * A stretch where the server's event loop could not run, so it answered
- * nothing and clients may have dropped the connection.
- */
 export const ServerEventLoopStall = Schema.Struct({
   detectedAt: IsoDateTime,
   durationMs: NonNegativeInt,
-  /** One-minute load average when the stall was seen. Absent on Windows, which has none. */
+
   loadAverage: Schema.optionalKey(Schema.Number),
   cpuCount: PositiveInt,
 });
@@ -659,55 +623,37 @@ export const ServerConfig = Schema.Struct({
   providers: ServerProviders,
   availableEditors: ForwardCompatibleArray(EditorId),
   remoteOpenTargets: Schema.optionalKey(ForwardCompatibleArray(RemoteOpenTarget)),
-  /**
-   * Hints only: the client checks each address answers as this environment
-   * before using it.
-   */
+
   directEndpoints: Schema.optionalKey(ForwardCompatibleArray(ServerDirectEndpoint)),
   tunnelEndpoints: Schema.optionalKey(ServerTunnelEndpoints),
   observability: ServerObservability,
   settings: ServerConfigSettings,
   shellResumeCompletionMarker: Schema.optionalKey(Schema.Boolean),
-  /**
-   * Changes whenever the server restarts. A client resumes its in-memory shell
-   * on a new connection only while this stays the same.
-   */
+
   shellSyncGeneration: Schema.optionalKey(TrimmedNonEmptyString),
+
+  shellThreadFamilies: Schema.optionalKey(Schema.Boolean),
+
+  shellOlderSettled: Schema.optionalKey(Schema.Boolean),
   shellRevealInFileManager: Schema.optionalKey(Schema.Boolean),
   shellRevealInFileManagerKind: Schema.optionalKey(FileManagerRevealKind),
   threadResumeCompletionMarker: Schema.optionalKey(Schema.Boolean),
-  /**
-   * Clients must not send window fields to servers that don't advertise this.
-   */
+
   threadSnapshotPagination: Schema.optionalKey(Schema.Boolean),
   reasoningMessages: Schema.optionalKey(Schema.Boolean),
   threadFind: Schema.optionalKey(Schema.Boolean),
   threadFindProgressive: Schema.optionalKey(Schema.Boolean),
+
+  secretProviderSettings: Schema.optionalKey(Schema.Boolean),
   scratchWorkspaceRoot: Schema.optionalKey(TrimmedNonEmptyString),
   newProjectsRoot: Schema.optionalKey(TrimmedNonEmptyString),
-  /**
-   * The latest stall long enough to notice, sent only for a few minutes after
-   * it. A client that reconnects reads it to say why the host stopped
-   * answering. Clients do not cache it, since it describes the host at connect.
-   */
+
   lastEventLoopStall: Schema.optionalKey(ServerEventLoopStall),
-  /**
-   * Never sent in a config snapshot: the theme stream emits the current set
-   * before any change, so a snapshot carrying it too would hand every
-   * subscriber the same array twice per connect.
-   */
+
   environmentThemes: Schema.optional(Schema.Array(EnvironmentTheme)),
 });
 export type ServerConfig = typeof ServerConfig.Type;
 
-/**
- * The machine an environment should be drawn as: the user's pick, else what
- * the server detected, else a generic server. Settings only exist once
- * connected; a descriptor alone (before any connection) still yields the
- * detected kind. A null config (nothing known yet, or an
- * older server) resolves to the same generic so rows never flicker between
- * glyphs.
- */
 export function resolveEnvironmentMachineKind(
   config: {
     readonly environment: Pick<ExecutionEnvironmentDescriptor, "platform">;
@@ -829,11 +775,6 @@ const ServerConfigKnownStreamEvents = [
 
 const isUnknownServerConfigStreamEvent = hasUnknownUnionTag(ServerConfigKnownStreamEvents, "type");
 
-/**
- * A config event whose type this build does not know, such as a newer server's event or the
- * `usageLimitSourcesUpdated` that servers with usage-limit hubs send on every connect. A failed
- * config subscription closes the connection, so clients skip these instead.
- */
 const ServerConfigStreamUnknownEvent = Schema.Struct({ type: Schema.String })
   .check(
     Schema.makeFilter(
@@ -859,7 +800,7 @@ const ServerConfigStreamUnknownEvent = Schema.Struct({ type: Schema.String })
 
 export const ServerConfigStreamEvent = Schema.Union([
   ...ServerConfigKnownStreamEvents,
-  // After the known arms: union members are tried in order.
+
   ServerConfigStreamUnknownEvent,
 ]);
 export type ServerConfigStreamEvent = typeof ServerConfigStreamEvent.Type;
@@ -940,9 +881,11 @@ export class ServerProviderUpdateError extends Schema.TaggedError<ServerProvider
 }
 
 export const ServerSelfUpdateInput = Schema.Struct({
-  /** Exact npm version of the `supaterm` package to install (never a dist-tag, so
-      the server and the acknowledging client agree on what was requested). */
   targetVersion: TrimmedNonEmptyString,
+
+  channel: Schema.optionalKey(DesktopUpdateChannelSchema),
+
+  targetDatabaseMigration: Schema.optionalKey(Schema.Int),
 });
 export type ServerSelfUpdateInput = typeof ServerSelfUpdateInput.Type;
 

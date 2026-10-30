@@ -13,7 +13,10 @@ import {
   usableRoutes,
 } from "@supaterm/client-runtime/connection";
 import { type EnvironmentId, sessionGrantsScope } from "@supaterm/contracts";
-import { AUTH_SCOPE_OPTIONS } from "@supaterm/shared/authScopeOptions";
+import {
+  AUTH_SCOPE_OPTIONS,
+  sessionPermissionsUnavailableMessage,
+} from "@supaterm/shared/authScopeOptions";
 import { AsyncResult, Atom } from "effect/reactivity";
 import * as Option from "effect/Option";
 import * as Haptics from "expo-haptics";
@@ -29,7 +32,7 @@ import { cn } from "../../lib/cn";
 import { environmentSession } from "../../state/session";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { connectionTone } from "../connection/connectionTone";
-import { SettingsActionRow } from "./components/SettingsActionRow";
+import { ListActionRow as SettingsActionRow } from "../../components/ui/ListActionRow";
 import { SettingsDragHandle } from "./components/SettingsDragHandle";
 import { SettingsSection } from "./components/SettingsSection";
 
@@ -48,10 +51,6 @@ const ROUTE_ICONS: Record<ConnectionRouteKind, AppSymbolName> = {
   ssh: "terminal",
 };
 
-/**
- * The ways this device reaches an environment, preferred first. Edit shows
- * drag handles and remove buttons; Add route pairs this machine over another address.
- */
 export function EnvironmentRoutesSection({
   environmentId,
   connected,
@@ -65,7 +64,7 @@ export function EnvironmentRoutesSection({
   const entry = useAtomValue(environmentCatalog.catalogValueAtom).entries.get(environmentId);
   const prepared = useAtomValue(environmentSession.preparedConnectionValueAtom(environmentId));
   const sessionResult = useAtomValue(environmentSession.sessionStateAtom(environmentId));
-  const session = Option.getOrNull(AsyncResult.value(sessionResult));
+  const session = AsyncResult.getOrElse(sessionResult, () => null);
   const [permissionsOpen, setPermissionsOpen] = useState(false);
   const reorder = useAtomCommand(environmentCatalog.reorderRoutes, "route reorder");
   const removeRoute = useAtomCommand(environmentCatalog.removeRoute, "route removal");
@@ -83,9 +82,7 @@ export function EnvironmentRoutesSection({
     null,
   );
   const [heights, setHeights] = useState<ReadonlyMap<string, number>>(() => new Map());
-  // Each drop remounts the rows so the new order and the cleared drag offsets
-  // land in one frame. Kept rows would show their old offsets in their new
-  // slots until the animated style catches up, and the card flashes empty.
+
   const [drops, setDrops] = useState(0);
   if (entry === undefined) return null;
 
@@ -188,8 +185,14 @@ export function EnvironmentRoutesSection({
             </>
           ) : (
             <Text className="text-sm text-foreground-muted">
-              Permissions not checked. Connect to this environment to view this session’s
-              permissions.
+              {sessionPermissionsUnavailableMessage({
+                connected: activeRouteId !== null,
+                failed: sessionResult._tag === "Failure",
+                rejected:
+                  sessionResult._tag !== "Failure" &&
+                  !sessionResult.waiting &&
+                  session?.authenticated === false,
+              })}
             </Text>
           )}
         </View>
@@ -233,8 +236,7 @@ export function EnvironmentRoutesSection({
               if (!cancelled) move(index, dropIndex(index, translation));
             }}
             onStep={(direction) => move(index, direction === "up" ? index - 1 : index + 1)}
-            // Learned routes are refreshed from the server unless a connect
-            // skips them; paired routes can be removed.
+
             onRemove={
               routes.length > 1 && (!isLearned(route) || unused)
                 ? () => confirmRemove(route)
@@ -267,7 +269,7 @@ function RouteRow(props: {
   const { route, lifted, offset } = props;
   const label = connectionRouteLabel(route);
   const address = connectionRouteAddress(route);
-  // A route a connect skips has no speed worth measuring.
+
   const latency = useAtomValue(
     props.unused ? NO_LATENCY : environmentSession.routeLatencyAtoms(route).labelAtom,
   );

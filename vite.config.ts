@@ -1,6 +1,8 @@
 import "vite-plus/test/config";
 import { defineConfig } from "vite-plus";
 import * as NodeURL from "node:url";
+import { remoteCacheUrl } from "./infra/task-cache/src/remoteCache.ts";
+import { cachedTestTasks } from "./scripts/lib/cached-tests.ts";
 import antiSlop from "ultracite/oxlint/anti-slop";
 
 const DOM_TEST_ENVIRONMENT_ALLOWLIST: Array<string> = [];
@@ -40,6 +42,12 @@ const RESTRICTED_IMPORT_PATHS = [
     importNames: ["CodeView"],
     message: "Use StyledDiffCodeView so web diff surfaces share styling and virtualized geometry.",
   },
+  {
+    name: "react-native-screens",
+    importNames: ["ScrollViewMarker"],
+    message:
+      "Use NativeScrollViewMarker or NativeScrollView (src/native/NativeScrollViewMarker.tsx): they carry the header's scroll-edge blur under the Duo's vertical bar.",
+  },
 ];
 
 const RESTRICTED_UI_VARIANT_PATTERNS = [
@@ -63,7 +71,11 @@ const RESTRICTED_PULL_REQUEST_GLYPH_IMPORTS = {
     "Pick a glyph by meaning from PullRequestGlyph in apps/web/src/components/pullRequest/pullRequestIcons.tsx so every surface draws the same pull request the same way.",
 };
 
+const cacheUrl = remoteCacheUrl(import.meta.dirname);
+const taskCacheConfig = { scripts: false, ...(cacheUrl ? { remote: { url: cacheUrl } } : {}) };
+
 export default defineConfig({
+  run: { cache: taskCacheConfig, tasks: cachedTestTasks(process.env.SUPATERM_CACHED_TESTS) },
   resolve: {
     alias: {
       "~": NodeURL.fileURLToPath(new URL("./apps/web/src", import.meta.url)),
@@ -71,6 +83,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    env: { VP_REMOTE_CACHE: "off", VP_REMOTE_CACHE_URL: "" },
     exclude: TEST_EXCLUDE,
     hookTimeout: 60_000,
     testTimeout: 60_000,
@@ -121,7 +134,8 @@ export default defineConfig({
       : {}),
   },
   staged: {
-    "*": "vp fmt --no-error-on-unmatched-pattern",
+    "*": ["vp fmt --no-error-on-unmatched-pattern", "vp lint --no-error-on-unmatched-pattern"],
+    "{*.{js,jsx,ts,tsx,mjs,cjs,mts,cts},package.json,knip.jsonc}": () => "vp run knip:check",
   },
   fmt: {
     ignorePatterns: [
@@ -141,6 +155,8 @@ export default defineConfig({
       "apps/mobile/android/**",
       "apps/mobile/ios/**",
       "apps/mobile/uniwind-types.d.ts",
+      "apps/mobile/modules/supaterm-highlights/Vendor/**",
+      "apps/mobile/modules/supaterm-highlights/cpp/generated/**",
       "*.icon/**",
     ],
     sortPackageJson: {},
@@ -169,6 +185,7 @@ export default defineConfig({
       "apps/mobile/ios/**",
       "apps/mobile/uniwind-types.d.ts",
       "oxlint-plugin-supaterm/**",
+      "infra/task-cache/vendor/**",
     ],
     plugins: ["eslint", "oxc", "react", "unicorn", "typescript"],
     jsPlugins: [
@@ -186,6 +203,39 @@ export default defineConfig({
       perf: "error",
     },
     rules: {
+      "supaterm/no-em-dash-copy": "error",
+      "supaterm/no-unreasoned-state-sync": "error",
+      "unicorn/require-module-specifiers": "error",
+      "unicorn/no-useless-fallback-in-spread": "error",
+      "eslint/no-unneeded-ternary": "error",
+      "eslint/no-unsafe-optional-chaining": "error",
+      "unicorn/no-useless-spread": "error",
+      "eslint/no-new": "error",
+      "eslint/no-empty-pattern": "error",
+      "typescript/no-extraneous-class": "error",
+      "react/capitalized-calls": "error",
+      "react/static-components": "error",
+      "react/no-unstable-nested-components": "error",
+      "react/no-array-index-key": "error",
+      "react/immutability": "error",
+      "react/memo-dependencies": "error",
+      "react/purity": "error",
+      "react/refs": "error",
+      "react/exhaustive-effect-dependencies": "error",
+      "react/set-state-in-effect": "error",
+      "react/no-object-type-as-default-prop": "off",
+      "unicorn/no-array-reverse": "off",
+      "unicorn/no-new-array": "off",
+      "unicorn/prefer-array-find": "off",
+      "unicorn/prefer-set-has": "off",
+      "unicorn/prefer-string-starts-ends-with": "off",
+      "unicorn/prefer-add-event-listener": "off",
+      "typescript/no-this-alias": "off",
+      "eslint/no-control-regex": "off",
+      "eslint/no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" },
+      ],
       "anti-slop/no-chained-type-assertions": "off",
       "anti-slop/no-conditional-empty-object-spread": "off",
       "anti-slop/no-known-value-widening": "off",
@@ -234,8 +284,7 @@ export default defineConfig({
       "supaterm/no-low-value-comments": "error",
       "supaterm/no-manual-effect-runtime-in-tests": "error",
       "supaterm/no-native-title-tooltip": "error",
-      // Test files only (the rule checks the filename). denyWarnings makes it fail lint like an error.
-      "supaterm/no-polling-loop-in-tests": "warn",
+      "supaterm/no-polling-loop-in-tests": "error",
       "supaterm/no-raw-mcp-registration": "error",
       "supaterm/no-real-time-wait-in-tests": "error",
       "supaterm/no-test-in-loop": "error",
@@ -250,6 +299,14 @@ export default defineConfig({
       "supaterm/require-suppression-reason": "error",
     },
     overrides: [
+      {
+        // Generated protocol descriptions preserve the published schema text.
+        files: [
+          "packages/effect-acp/src/_generated/schema.gen.ts",
+          "packages/effect-acp/src/_generated/schema-v1.gen.ts",
+        ],
+        rules: { "supaterm/no-em-dash-copy": "off" },
+      },
       {
         files: [
           "**/*.{test,spec,test-d,spec-d}.{ts,tsx,js,jsx}",
@@ -291,10 +348,6 @@ export default defineConfig({
       {
         files: ["apps/web/src/**/*.browser.test.{ts,tsx}"],
         rules: { "supaterm/no-frame-waits-in-browser-tests": "error" },
-      },
-      {
-        files: ["**/*.browser.test.*"],
-        rules: { "supaterm/no-real-time-wait-in-tests": "off" },
       },
       {
         files: ["apps/**/src/**", "packages/**/src/**"],
@@ -372,8 +425,71 @@ export default defineConfig({
         rules: { "eslint/no-restricted-imports": ["error", { paths: RESTRICTED_IMPORT_PATHS }] },
       },
       {
+        // The server and every client load a forge's shared definition, so a UI runtime
+        // imported there would break the server; client-only forge code goes in `src/client/`.
+        files: ["packages/source-control-*/src/shared/**"],
+        rules: {
+          "eslint/no-restricted-imports": [
+            "error",
+            {
+              paths: [...RESTRICTED_IMPORT_PATHS, RESTRICTED_PULL_REQUEST_GLYPH_IMPORTS],
+              patterns: [
+                {
+                  group: [
+                    "react",
+                    "react/*",
+                    "react-*",
+                    "expo",
+                    "expo-*",
+                    "@supaterm/client-runtime",
+                    "@supaterm/client-runtime/*",
+                    "../client/*",
+                    "../server/*",
+                    "../../client/*",
+                    "../../server/*",
+                    "../../../client/*",
+                    "../../../server/*",
+                    "@supaterm/source-control-*/client/*",
+                    "@supaterm/source-control-*/server/*",
+                  ],
+                  message:
+                    "Shared forge definitions load on the server and every client; keep UI and server code out.",
+                },
+              ],
+            },
+          ],
+        },
+      },
+      {
+        files: ["apps/server/src/**", "packages/source-control-*/src/server/**"],
+        rules: {
+          "eslint/no-restricted-imports": [
+            "error",
+            {
+              paths: [...RESTRICTED_IMPORT_PATHS, RESTRICTED_PULL_REQUEST_GLYPH_IMPORTS],
+              patterns: [
+                {
+                  group: [
+                    "@supaterm/source-control-*/client/*",
+                    "../client/*",
+                    "../../client/*",
+                    "../../../client/*",
+                  ],
+                  message:
+                    "A forge's client entry is UI-only; the server reads its `shared/definition`.",
+                },
+              ],
+            },
+          ],
+        },
+      },
+      {
         files: ["apps/mobile/src/**"],
-        rules: { "supaterm/no-mobile-uniwind-theme-escape-hatches": "error" },
+        rules: {
+          "supaterm/no-mobile-uniwind-theme-escape-hatches": "error",
+          "supaterm/no-ambiguous-detail-navigation": "error",
+          "supaterm/require-registered-list-scroll": "error",
+        },
       },
       {
         files: ["apps/mobile/src/**"],

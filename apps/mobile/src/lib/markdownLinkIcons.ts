@@ -1,11 +1,13 @@
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import type { ImageSourcePropType } from "react-native";
 
-import type { MarkdownLinkIcon } from "./markdownLinks";
+export interface MarkdownLinkIcon {
+  readonly source: ImageSourcePropType;
+  readonly tints: boolean;
+}
 
-const MARKDOWN_LINK_ICON_SOURCES = {
-  github: require("../../assets/link-icons/github.png"),
-} as const satisfies Readonly<Record<MarkdownLinkIcon, ImageSourcePropType>>;
-
-export function markdownLinkIconSource(icon: MarkdownLinkIcon): ImageSourcePropType {
-  return MARKDOWN_LINK_ICON_SOURCES[icon];
+export function markdownLinkIcon(host: string): MarkdownLinkIcon | null {
+  return sourceControlClients.findByPublicDomain(host)
+    ? { source: require("../../assets/icons/file-diff.png"), tints: true }
+    : null;
 }

@@ -3,13 +3,27 @@ import * as Effect from "effect/Effect";
 import * as SqlClient from "effect/sql/SqlClient";
 
 import Migration0001 from "./Migrations/001_Baseline.ts";
+import Migration0002 from "./Migrations/002_ActiveTurnItemIndexes.ts";
+import Migration0003 from "./Migrations/003_ThreadMessageSearch.ts";
+import Migration0004 from "./Migrations/004_PeerLinks.ts";
+import Migration0005 from "./Migrations/005_PeerLinkFence.ts";
+import Migration0006 from "./Migrations/006_WaitingLinkRequestIndex.ts";
+import Migration0007 from "./Migrations/007_PeerRelayLinks.ts";
 
 /**
  * Add a schema change as a new entry with the next id. Never edit, renumber, or
  * remove a shipped entry: the migrator skips every id up to the highest one a
  * database recorded.
  */
-const migrationEntries = [[1, "Baseline", Migration0001]] as const;
+const migrationEntries = [
+  [1, "Baseline", Migration0001],
+  [2, "ActiveTurnItemIndexes", Migration0002],
+  [3, "ThreadMessageSearch", Migration0003],
+  [4, "PeerLinks", Migration0004],
+  [5, "PeerLinkFence", Migration0005],
+  [6, "WaitingLinkRequestIndex", Migration0006],
+  [7, "PeerRelayLinks", Migration0007],
+] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);
 
@@ -19,13 +33,6 @@ const loader = Migrator.fromRecord(
   ),
 );
 
-/**
- * The migrator compares ids only, so it would silently skip any of this
- * build's migrations at or below the highest recorded id that the ledger holds
- * under another name. Refuse that. Recorded ids this build does not know, such
- * as those a newer Supaterm added, are left in place so older builds keep
- * opening the database.
- */
 const assertKnownMigrationHistory = Effect.fn("assertKnownMigrationHistory")(function* () {
   const sql = yield* SqlClient.SqlClient;
   const tables = yield* sql`

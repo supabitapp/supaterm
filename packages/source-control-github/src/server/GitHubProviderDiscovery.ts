@@ -7,11 +7,12 @@ import {
   SourceControlProviderKind,
 } from "@supaterm/contracts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
-import { readSourceControlHostSettings } from "@supaterm/source-control-core/client/definition";
+import { readSourceControlHostSettings } from "@supaterm/source-control-core/shared/definition";
 import * as SourceControlHost from "@supaterm/source-control-core/server/SourceControlHost";
-import * as GitHubClient from "../client/definition.ts";
+import * as GitHubClient from "../shared/definition.ts";
 import * as GitHubRest from "./GitHubRest.ts";
 import * as GitHubCredentials from "./GitHubCredentials.ts";
+import * as GitHubAppSignIn from "./GitHubAppSignIn.ts";
 import {
   effectiveGitHubAccount,
   findAuthenticatedGitHubAccount,
@@ -154,13 +155,14 @@ function environmentTokenVariable(host: string, environment: NodeJS.ProcessEnv):
 
 interface DiscoveryTokenHost {
   readonly host: string;
-  readonly source: "settings" | "environment";
+  readonly source: "settings" | "environment" | "app";
   readonly environmentVariable?: string;
 }
 
 function discoveryTokenHosts(
   settings: GitHubClient.GitHubSettings,
   environment: NodeJS.ProcessEnv,
+  appEnabled: boolean,
 ): ReadonlyArray<DiscoveryTokenHost> {
   const enabledSavedHosts = Object.entries(settings.tokens)
     .flatMap(([host, token]) =>
@@ -174,7 +176,14 @@ function discoveryTokenHosts(
       if (right.host === "github.com") return 1;
       return left.host.localeCompare(right.host);
     });
-  const savedHosts = new Set(enabledSavedHosts.map((entry) => entry.host));
+  const appHosts: DiscoveryTokenHost[] =
+    appEnabled &&
+    settings.hosts["github.com"]?.enabled !== false &&
+    !enabledSavedHosts.some(({ host }) => host === "github.com") &&
+    (settings.signIns["github.com"] ?? "").trim() !== ""
+      ? [{ host: "github.com", source: "app" }]
+      : [];
+  const savedHosts = new Set([...enabledSavedHosts, ...appHosts].map((entry) => entry.host));
   const seenHosts = new Set(savedHosts);
   const environmentHosts = ["github.com", environment.GH_HOST?.trim().toLowerCase()].flatMap(
     (host) => {
@@ -188,7 +197,7 @@ function discoveryTokenHosts(
         : [{ host, source: "environment" as const, environmentVariable }];
     },
   );
-  return [...enabledSavedHosts, ...environmentHosts];
+  return [...enabledSavedHosts, ...appHosts, ...environmentHosts];
 }
 
 function discoveryTokenAuthAccounts(cli: SourceControlProviderDiscoveryItem) {
@@ -207,108 +216,123 @@ export const make = Effect.gen(function* () {
   const sourceControlHost = yield* SourceControlHost.SourceControlHost;
   const process = sourceControlHost.process;
   const environment = yield* HostProcess.Environment;
+  const appSignIn = yield* GitHubAppSignIn.GitHubAppSignIn;
 
   return {
     type: "managed-cli",
     kind: discovery.kind,
     label: discovery.label,
     installHint: discovery.installHint,
-    probe: Effect.fn("GitHubSourceControlProvider.discovery")(function* (cwd: string) {
-      yield* credentials.invalidateAll;
-      const settings = readSourceControlHostSettings(
-        GitHubClient.settings,
-        yield* sourceControlHost.settings.get.pipe(
-          Effect.map((current) => current.sourceControlHosts[GitHubClient.definition.kind]),
-          Effect.orElseSucceed(() => undefined),
-        ),
-      );
-      const cli = yield* probeSourceControlProvider({
-        cwd,
-        process,
-        spec: { ...discovery, parseAuth: (input) => parseGitHubAuth(input, settings) },
-      });
-      const tokenHosts = discoveryTokenHosts(settings, environment);
-      if (tokenHosts.length === 0) return cli;
+    probe: Effect.fn("GitHubSourceControlProvider.discovery")(
+      function* (cwd: string) {
+        yield* credentials.invalidateAll;
+        const settings = readSourceControlHostSettings(
+          GitHubClient.settings,
+          yield* sourceControlHost.settings.get.pipe(
+            Effect.map((current) => current.sourceControlHosts[GitHubClient.definition.kind]),
+            Effect.orElseSucceed(() => undefined),
+          ),
+        );
+        const cli = yield* probeSourceControlProvider({
+          cwd,
+          process: {
+            run: (input) =>
+              process.run({ ...input, concurrency: GitHubCredentials.GH_PROCESS_CONCURRENCY }),
+          },
+          spec: { ...discovery, parseAuth: (input) => parseGitHubAuth(input, settings) },
+        });
+        const tokenHosts = discoveryTokenHosts(settings, environment, appSignIn.enabled);
+        if (tokenHosts.length === 0) return cli;
 
-      let firstInvalid: DiscoveryTokenHost | undefined;
-      let firstUnknown:
-        | { readonly candidate: DiscoveryTokenHost; readonly detail: string }
-        | undefined;
-      for (const candidate of tokenHosts) {
-        const viewer = yield* api
-          .rest({ host: candidate.host, operation: "discovery", path: "user" })
-          .pipe(Effect.result);
-        if (Result.isSuccess(viewer)) {
-          const login = Option.getOrUndefined(decodeViewer(viewer.success.body))?.login;
-          if (login !== undefined) {
-            return {
-              ...cli,
-              status: "available" as const,
-              auth: {
-                ...providerAuth({
-                  status: "authenticated",
-                  account: login,
-                  host: candidate.host,
-                  detail:
-                    candidate.source === "settings"
-                      ? `Using the token saved for ${candidate.host}; it overrides the environment and gh login for that host.`
-                      : `Using ${candidate.environmentVariable} from the server environment; it overrides the account chosen in Settings.`,
-                }),
-                ...discoveryTokenAuthAccounts(cli),
-              },
-            } satisfies SourceControlProviderDiscoveryItem;
+        let firstInvalid: DiscoveryTokenHost | undefined;
+        let firstUnknown:
+          | { readonly candidate: DiscoveryTokenHost; readonly detail: string }
+          | undefined;
+        for (const candidate of tokenHosts) {
+          const viewer = yield* api
+            .rest({ host: candidate.host, operation: "discovery", path: "user" })
+            .pipe(Effect.result);
+          if (Result.isSuccess(viewer)) {
+            const login = Option.getOrUndefined(decodeViewer(viewer.success.body))?.login;
+            if (login !== undefined) {
+              return {
+                ...cli,
+                status: "available" as const,
+                auth: {
+                  ...providerAuth({
+                    status: "authenticated",
+                    account: login,
+                    host: candidate.host,
+                    detail:
+                      candidate.source === "settings"
+                        ? `Using the token saved for ${candidate.host}; it overrides the environment and gh login for that host.`
+                        : candidate.source === "app"
+                          ? `Signed in with ${appSignIn.metadata?.appName ?? "GitHub App"}.`
+                          : `Using ${candidate.environmentVariable} from the server environment; it overrides the account chosen in Settings.`,
+                  }),
+                  ...discoveryTokenAuthAccounts(cli),
+                },
+              } satisfies SourceControlProviderDiscoveryItem;
+            }
+            firstUnknown ??= {
+              candidate,
+              detail: `GitHub returned an unreadable account for ${candidate.host}.`,
+            };
+            continue;
           }
-          firstUnknown ??= {
-            candidate,
-            detail: `GitHub returned an unreadable account for ${candidate.host}.`,
-          };
-          continue;
+          if (viewer.failure._tag === "GitHubApiAuthenticationError") {
+            firstInvalid ??= candidate;
+          } else {
+            // Only a refusal says the token is bad; a network error or pause says nothing.
+            firstUnknown ??= { candidate, detail: viewer.failure.message };
+          }
         }
-        if (viewer.failure._tag === "GitHubApiAuthenticationError") {
-          firstInvalid ??= candidate;
-        } else {
-          // Only a refusal says the token is bad; a network error or pause says nothing.
-          firstUnknown ??= { candidate, detail: viewer.failure.message };
-        }
-      }
 
-      const accounts = discoveryTokenAuthAccounts(cli);
-      const failed =
-        firstUnknown ??
-        (firstInvalid === undefined
-          ? undefined
-          : {
-              candidate: firstInvalid,
+        const accounts = discoveryTokenAuthAccounts(cli);
+        const failed =
+          firstUnknown ??
+          (firstInvalid === undefined
+            ? undefined
+            : {
+                candidate: firstInvalid,
+                detail:
+                  firstInvalid.source === "settings"
+                    ? `GitHub refused the token saved for ${firstInvalid.host}. Replace or remove it in Settings → Source Control.`
+                    : firstInvalid.source === "app"
+                      ? "GitHub refused the app sign-in. Sign in again in Settings → Source Control."
+                      : `GitHub refused the token in ${firstInvalid.environmentVariable}. Replace it, or unset it to use \`gh auth login\`.`,
+              });
+        if (failed === undefined) return cli;
+        const cliHost = Option.getOrUndefined(cli.auth.host);
+        if (
+          cli.auth.status === "authenticated" &&
+          cliHost !== undefined &&
+          tokenHosts.every((candidate) => candidate.host !== cliHost)
+        ) {
+          return cli;
+        }
+        return {
+          ...cli,
+          status: "available" as const,
+          auth: {
+            ...providerAuth({
+              status: firstUnknown === undefined ? "unauthenticated" : "unknown",
+              host: failed.candidate.host,
               detail:
-                firstInvalid.source === "settings"
-                  ? `GitHub refused the token saved for ${firstInvalid.host}. Replace or remove it in Settings → Source Control.`
-                  : `GitHub refused the token in ${firstInvalid.environmentVariable}. Replace it, or unset it to use \`gh auth login\`.`,
-            });
-      if (failed === undefined) return cli;
-      const cliHost = Option.getOrUndefined(cli.auth.host);
-      if (
-        cli.auth.status === "authenticated" &&
-        cliHost !== undefined &&
-        tokenHosts.every((candidate) => candidate.host !== cliHost)
-      ) {
-        return cli;
-      }
-      return {
-        ...cli,
-        status: "available" as const,
-        auth: {
-          ...providerAuth({
-            status: firstUnknown === undefined ? "unauthenticated" : "unknown",
-            host: failed.candidate.host,
-            detail:
-              firstUnknown === undefined
-                ? failed.detail
-                : `Could not check the token for ${failed.candidate.host}: ${failed.detail}`,
-          }),
-          ...accounts,
-        },
-      } satisfies SourceControlProviderDiscoveryItem;
-    }),
+                firstUnknown === undefined
+                  ? failed.detail
+                  : `Could not check the token for ${failed.candidate.host}: ${failed.detail}`,
+            }),
+            ...accounts,
+          },
+        } satisfies SourceControlProviderDiscoveryItem;
+      },
+      Effect.map((item) =>
+        appSignIn.enabled && appSignIn.metadata !== null
+          ? { ...item, appSignIn: true, appSignInMetadata: appSignIn.metadata }
+          : item,
+      ),
+    ),
 
     refineUnknownRemote: ({ context }) => {
       const url = URL.parse(context.provider.baseUrl);

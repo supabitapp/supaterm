@@ -8,13 +8,12 @@ import {
   onSizeChanged,
   size,
 } from "@expo/ui/jetpack-compose/modifiers";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { Pressable, View, type StyleProp, type ViewStyle } from "react-native";
 import { useAndroidControlSizing } from "./ui/useAndroidControlSizing";
 import { useAppearancePreferences } from "../features/settings/appearance/AppearancePreferencesProvider";
 import { resolveScaledTextRole } from "../lib/appearancePreferences";
 
-/** Keep the animated width and icon positioning entirely inside Compose, not Yoga. */
 export function ScrollComposeButton(props: {
   readonly expanded: boolean;
   readonly onPress: () => void;
@@ -28,9 +27,9 @@ export function ScrollComposeButton(props: {
   const scale = fabSize / nativeSize;
   const nativeIconSize = Math.round(iconSize / scale);
   const [buttonWidth, setButtonWidth] = useState(nativeSize);
-  const rememberWidth = useCallback(({ width }: { width: number }) => {
+  const rememberWidth = ({ width }: { width: number }) => {
     setButtonWidth((previous) => Math.max(previous, width));
-  }, []);
+  };
   return (
     <View
       pointerEvents="box-none"
@@ -84,7 +83,7 @@ export function ScrollComposeButton(props: {
           </Box>
         </NativeThemeHost>
       </View>
-      {/* The visual host is wider than the button; only this target intercepts list touches. */}
+      {}
       <Pressable
         onPress={props.onPress}
         accessibilityRole="button"

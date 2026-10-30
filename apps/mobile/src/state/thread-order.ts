@@ -1,12 +1,15 @@
+import { deadlineStore, minuteTick } from "@supaterm/client-runtime/clock";
 import { useAtomValue } from "@effect/atom-react";
-import { useEffect, useRef } from "react";
 import { Atom } from "effect/reactivity";
 
 import {
   reconcilePendingThreadOrder,
   type PendingThreadOrder,
 } from "../features/threads/threadOrder";
-import { getThreadListV2OrderedSection } from "../features/threads/threadListV2";
+import {
+  getThreadListV2OrderedSection,
+  nextSnoozeWakeAfter,
+} from "../features/threads/threadListV2";
 import { appAtomRegistry } from "./atom-registry";
 import { environmentThreadShells } from "./threads";
 import { queuedThreadKeysAtom } from "./use-thread-outbox";
@@ -19,26 +22,14 @@ export const pendingThreadOrderAtom = Atom.make<PendingThreadOrder | null>(null)
   Atom.keepAlive,
 );
 
-export function usePendingThreadOrder(nowMinute: string, snoozeWakeTick: number) {
-  const pending = useAtomValue(pendingThreadOrderAtom);
-  const refreshedClockRef = useRef<{ nowMinute: string; snoozeWakeTick: number } | null>(null);
-  // A timed wake can change section membership without a shell event. Use the
-  // lists' existing clocks to retire that hold and re-enable their move menus.
-  useEffect(() => {
-    const refreshedClock = refreshedClockRef.current;
-    if (
-      refreshedClock?.nowMinute === nowMinute &&
-      refreshedClock.snoozeWakeTick === snoozeWakeTick
-    ) {
-      return;
-    }
-    refreshedClockRef.current = { nowMinute, snoozeWakeTick };
-    getPendingThreadOrder();
-  });
-  return pending;
+export function usePendingThreadOrder(_nowMinute?: string, _snoozeWakeTick?: number) {
+  return useAtomValue(pendingThreadOrderAtom);
 }
 
 let refreshPendingOrder: (() => void) | undefined;
+// Only one hold is live at a time; starting another tears down the previous
+// hold's subscriptions so its clocks and listeners do not outlive it.
+let teardownPendingOrder: (() => void) | undefined;
 
 export function getPendingThreadOrder(): PendingThreadOrder | null {
   refreshPendingOrder?.();
@@ -47,31 +38,60 @@ export function getPendingThreadOrder(): PendingThreadOrder | null {
 
 export function beginPendingThreadOrder(pending: PendingThreadOrder) {
   const unsubscribers: (() => void)[] = [];
+  // A timed wake can change section membership without a shell event, so the
+  // hold also re-checks on each minute and at the next snooze expiry.
+  let wake: { readonly atMs: number | null; readonly unsubscribe: () => void } | null = null;
+  const armWake = (atMs: number | null) => {
+    if (wake?.atMs === atMs) return;
+    wake?.unsubscribe();
+    wake = { atMs, unsubscribe: deadlineStore(atMs).subscribe(refresh) };
+  };
+  const teardown = () => {
+    for (const unsubscribe of unsubscribers.splice(0)) unsubscribe();
+    wake?.unsubscribe();
+    wake = null;
+  };
   const cancel = () => {
     if (refreshPendingOrder !== refresh) return;
     refreshPendingOrder = undefined;
-    for (const unsubscribe of unsubscribers) unsubscribe();
+    teardownPendingOrder = undefined;
+    teardown();
     appAtomRegistry.set(pendingThreadOrderAtom, null);
   };
   const refresh = () => {
     if (refreshPendingOrder !== refresh) return;
     const current = appAtomRegistry.get(pendingThreadOrderAtom);
     if (current === null) return;
+    const threads = appAtomRegistry.get(environmentThreadShells.navigationThreadShellsAtom);
+    const nowMs = Date.now();
     const ordered = getThreadListV2OrderedSection({
-      threads: appAtomRegistry.get(environmentThreadShells.threadShellsAtom),
+      threads,
       section: current.section,
-      now: new Date().toISOString(),
+      now: new Date(nowMs).toISOString(),
       queuedThreadKeys: appAtomRegistry.get(queuedThreadKeysAtom),
     });
     const next = reconcilePendingThreadOrder(current, ordered);
-    if (next === null) cancel();
-    else if (next !== current) appAtomRegistry.set(pendingThreadOrderAtom, next);
+    if (next === null) {
+      cancel();
+      return;
+    }
+    if (next !== current) appAtomRegistry.set(pendingThreadOrderAtom, next);
+    armWake(nextSnoozeWakeAfter(threads, nowMs));
   };
+  teardownPendingOrder?.();
   refreshPendingOrder = refresh;
+  teardownPendingOrder = teardown;
   appAtomRegistry.set(pendingThreadOrderAtom, pending);
   unsubscribers.push(
-    appAtomRegistry.subscribe(environmentThreadShells.threadShellsAtom, refresh),
+    appAtomRegistry.subscribe(environmentThreadShells.navigationThreadShellsAtom, refresh),
     appAtomRegistry.subscribe(queuedThreadKeysAtom, refresh),
+    minuteTick.subscribe(refresh),
+  );
+  armWake(
+    nextSnoozeWakeAfter(
+      appAtomRegistry.get(environmentThreadShells.navigationThreadShellsAtom),
+      Date.now(),
+    ),
   );
   return {
     isPending: () => {

@@ -12,12 +12,6 @@ import * as DesktopAssets from "./DesktopAssets.ts";
 import * as DesktopEnvironment from "./DesktopEnvironment.ts";
 import { makeComponentLogger } from "./DesktopObservability.ts";
 
-// Linux ships as an AppImage, so the .desktop entry users end up with is
-// created by whatever integration tool they use (AppImageLauncher names it
-// appimagekit_<hash>-….desktop) and its filename is not under our control.
-// Electron's app.setAsDefaultProtocolClient resolves the desktop id from
-// setDesktopName, which cannot match those files — so the browser keeps
-// prompting "Choose an application" for every OAuth callback.
 const { logInfo, logWarning } = makeComponentLogger("desktop-linux-url-handler");
 
 export class DesktopLinuxUrlHandlerRegistrationError extends Schema.TaggedError<DesktopLinuxUrlHandlerRegistrationError>()(
@@ -62,9 +56,6 @@ const escapeDesktopEntryString = (value: string): string =>
     .replaceAll("\r", "\\r")
     .replaceAll("\t", "\\t");
 
-// Exec values are unescaped twice by implementations: first the general
-// string-value rules, then the Exec quoting rules — so writing composes the
-// layers in reverse.
 export function escapeDesktopEntryExecArgument(value: string): string {
   const quoted = value
     .replaceAll("\\", () => "\\\\")
@@ -75,14 +66,11 @@ export function escapeDesktopEntryExecArgument(value: string): string {
   return escapeDesktopEntryString(`"${quoted}"`);
 }
 
-// Legacy xdg-open looks up the first Exec word without unquoting it.
 const escapeUrlHandlerExecTarget = (value: string): string =>
   /[ \t\n"'\\><~|&;$*?#()`]/.test(value)
     ? escapeDesktopEntryExecArgument(value)
     : escapeDesktopEntryString(value.replaceAll("%", "%%"));
 
-// The AppImage integration entry owns the window identity. This
-// hidden URL-only entry must not compete with it for StartupWMClass matching.
 export function renderUrlHandlerDesktopEntry(input: {
   readonly displayName: string;
   readonly execTarget: string;
@@ -120,7 +108,7 @@ export class DesktopLinuxUrlHandler extends Context.Service<
   }
 >()("@supaterm/desktop/app/DesktopLinuxUrlHandler") {}
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
   const fileSystem = yield* FileSystem.FileSystem;
@@ -138,17 +126,17 @@ export const make = Effect.gen(function* () {
   const themeIconDir = environment.path.join(hicolorDir, LINUX_THEME_ICON_SIZE, "apps");
 
   const writeDesktopEntry = Effect.gen(function* () {
-    // Inside the mounted AppImage, process.execPath points at a transient
-    // /tmp/.mount_* path — the handler must launch the AppImage itself.
-    const execTarget = Option.getOrElse(environment.appImagePath, () => process.execPath);
+    const execTarget = environment.desktopLauncherPath.pipe(
+      Option.orElse(() => environment.appImagePath),
+      Option.getOrElse(() => process.execPath),
+    );
     const content = renderUrlHandlerDesktopEntry({
       displayName: environment.displayName,
       execTarget,
       scheme,
       ...(environment.isPackaged ? { iconPath } : {}),
     });
-    // Pre-ready setup normally wrote this already. Avoid truncating a valid
-    // entry while the portal may be reading it during startup.
+
     const existing = yield* fileSystem
       .readFileString(desktopEntryPath)
       .pipe(Effect.orElseSucceed(() => null));
@@ -176,6 +164,7 @@ export const make = Effect.gen(function* () {
           stdin: "ignore",
           stdout: "ignore",
           stderr: "ignore",
+          forceKillAfter: "1 second",
         },
       );
       const handle = yield* spawner.spawn(command);
@@ -294,7 +283,7 @@ export const make = Effect.gen(function* () {
     yield* Effect.gen(function* () {
       const { png } = yield* assets.iconPaths;
       if (Option.isNone(png)) return;
-      // The AppImage mount is temporary; the chooser needs the icon after exit.
+
       yield* fileSystem.makeDirectory(iconsDir, { recursive: true });
       yield* fileSystem.copyFile(png.value, iconPath);
     }).pipe(
@@ -306,10 +295,6 @@ export const make = Effect.gen(function* () {
     yield* installThemeIcons;
 
     yield* updateDesktopDatabase.pipe(
-      // Some MIME implementations, including GIO, use mimeinfo.cache to verify
-      // that a desktop entry is associated with a scheme. Cache refresh is
-      // independently best-effort so a missing update-desktop-database executable
-      // does not prevent xdg-mime from recording the requested default.
       Effect.catch((error) =>
         logWarning("desktop MIME cache refresh failed", {
           applicationsDir: environment.linuxApplicationsDir,

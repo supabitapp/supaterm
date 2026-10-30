@@ -51,18 +51,18 @@ export function QuestionAttachments(props: {
     props.requestId,
     props.question.id,
   ]);
-  // A focused input that unmounts never delivers its onBlur, so release focus here or
-  // the screen would keep treating the keyboard as owned by a removed input.
   const focusedRef = useRef(false);
   const onInputFocusChange = props.onInputFocusChange;
   const releaseFocus = useEffectEvent(() => {
     if (focusedRef.current) onInputFocusChange?.(false);
   });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Releases native input focus on unmount because the removed input cannot emit blur.
   useEffect(() => () => releaseFocus(), []);
   const pickerScope = useRef<{
     key: string;
     active: boolean;
   } | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Invalidates pending native picker and paste results when their question scope is removed.
   useEffect(() => {
     const scope = {
       key: scopeKey,

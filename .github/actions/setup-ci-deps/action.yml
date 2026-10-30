@@ -1,21 +1,98 @@
-name: Install full workspace dependencies
-description: Install the full workspace with a separate dependency cache
+name: Install workspace dependencies
+description: Install full or filtered workspace dependencies with optional caches
+inputs:
+  install:
+    description: Whether to install workspace dependencies
+    default: "true"
+  install-args:
+    description: Space-separated arguments for vp install
+    default: ""
+  cache:
+    description: Restore and save shared dependency caches; disable in secret-bearing release jobs
+    default: "true"
+  task-cache-read-token:
+    description: Optional read-only credential for the configured private task cache
+    default: ""
 runs:
   using: composite
   steps:
-    - name: Resolve pnpm store path
+    - name: Resolve dependency cache paths
       id: pnpm_store
+      if: inputs.install == 'true'
       shell: bash
-      run: echo "path=$(mise exec -- vp pm cache dir)" >> "$GITHUB_OUTPUT"
+      env:
+        INSTALL_ARGS: ${{ inputs.install-args }}
+      run: |
+        echo "path=$(mise exec -- vp pm cache dir)" >> "$GITHUB_OUTPUT"
+        metadata="${pnpm_config_cache_dir:-$RUNNER_TEMP/pnpm-metadata}"
+        echo "metadata=$metadata" >> "$GITHUB_OUTPUT"
+        if [[ -z "$INSTALL_ARGS" ]]; then
+          echo "namespace=full" >> "$GITHUB_OUTPUT"
+        else
+          echo "namespace=filtered-$(printf '%s' "$INSTALL_ARGS" | shasum -a 256 | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+        fi
 
-    - name: Cache full pnpm store
-      uses: actions/cache@v6
+    - name: Restore pnpm store
+      id: pnpm_cache
+      if: inputs.install == 'true' && inputs.cache == 'true'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
       with:
         path: ${{ steps.pnpm_store.outputs.path }}
-        key: pnpm-full-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json') }}
+        key: pnpm-${{ steps.pnpm_store.outputs.namespace }}-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json') }}
         restore-keys: |
+          pnpm-full-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json') }}
+          pnpm-${{ steps.pnpm_store.outputs.namespace }}-v1-${{ runner.os }}-${{ runner.arch }}-
           pnpm-full-v1-${{ runner.os }}-${{ runner.arch }}-
 
+    - name: Cache lockfile verification
+      if: inputs.install == 'true' && inputs.cache == 'true'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: ${{ steps.pnpm_store.outputs.metadata }}/lockfile-verified.jsonl
+        key: pnpm-verification-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', '.npmrc', 'pnpmfile.cjs', '.pnpmfile.cjs') }}
+
     - name: Install dependencies
+      if: inputs.install == 'true'
       shell: bash
-      run: mise exec -- vp install
+      env:
+        INSTALL_ARGS: ${{ inputs.install-args }}
+        pnpm_config_cache_dir: ${{ steps.pnpm_store.outputs.metadata }}
+      run: |
+        args=()
+        if [[ -n "$INSTALL_ARGS" ]]; then
+          read -r -a args <<< "$INSTALL_ARGS"
+        fi
+        mise exec -- vp install "${args[@]}"
+
+    - name: Save pnpm store
+      if: >-
+        inputs.install == 'true' && inputs.cache == 'true' &&
+        steps.pnpm_cache.outputs.cache-hit != 'true' &&
+        (steps.pnpm_store.outputs.namespace == 'full' ||
+          steps.pnpm_cache.outputs.cache-matched-key != format('pnpm-full-v1-{0}-{1}-{2}', runner.os, runner.arch, hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json')))
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: ${{ steps.pnpm_store.outputs.path }}
+        key: ${{ steps.pnpm_cache.outputs.cache-primary-key }}
+
+    - name: Enable shared task cache
+      if: >-
+        inputs.install == 'true' &&
+        github.repository == 'supabitapp/supaterm' &&
+        (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) &&
+        hashFiles('.task-cache.json') != '' &&
+        inputs.task-cache-read-token != ''
+      shell: bash
+      env:
+        SUPATERM_TASK_CACHE_READ_TOKEN: ${{ inputs.task-cache-read-token }}
+      run: |
+        if ! jq -e '.endpoint | strings | select(length > 0)' .task-cache.json > /dev/null; then
+          echo "Private task cache is not configured; skipping."
+          exit 0
+        fi
+        node infra/task-cache/scripts/install-ci.ts
+        if [[ ( "$GITHUB_EVENT_NAME" == pull_request && "$GITHUB_BASE_REF" == main ) || ( "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ) ]]; then
+          echo 'VP_REMOTE_CACHE=read-write' >> "$GITHUB_ENV"
+        else
+          echo 'VP_REMOTE_CACHE=read' >> "$GITHUB_ENV"
+        fi

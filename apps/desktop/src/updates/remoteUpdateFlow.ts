@@ -11,12 +11,6 @@ export type RemoteDesktopUpdateStep =
       readonly reason?: string;
     };
 
-/**
- * The caps are what stop a check -> up-to-date -> check loop and endless
- * download retries; they are counts rather than booleans because a state event
- * raced by the local 4-minute poller can re-show an already-handled status
- * once.
- */
 export interface RemoteDesktopUpdateAttempts {
   readonly checks: number;
   readonly downloads: number;
@@ -46,9 +40,7 @@ export function nextRemoteDesktopUpdateStep(
       reason: disabledReason ?? "Automatic updates are disabled on this machine.",
     };
   }
-  // An install of this version already failed to apply here. Installing it
-  // again from afar would stop the app's threads for nothing, so only the user
-  // on this machine retries it.
+
   if (
     state.notAppliedVersion !== undefined &&
     (state.downloadedVersion ?? state.availableVersion) === state.notAppliedVersion
@@ -59,11 +51,7 @@ export function nextRemoteDesktopUpdateStep(
       reason: `Update ${state.notAppliedVersion} did not apply on this machine. Retry it from the desktop app there.`,
     };
   }
-  // Mirror installDownloadedUpdate's own admission rule exactly, so the run
-  // never reports an install that the updater then refuses. A download
-  // survives an unrelated background updater error (errorContext null) and
-  // a previous failed install (errorContext "install"); it does not survive
-  // a check or download error, which fall through to the error branch.
+
   if (isInstallableDesktopUpdateState(state)) {
     return { action: "install" };
   }
@@ -80,9 +68,7 @@ export function nextRemoteDesktopUpdateStep(
     }
     return { action: "download" };
   }
-  // "up-to-date" and "error" are retained from earlier/background checks,
-  // so before this run has issued its own check they are stale, not
-  // terminal: the whole point of a remote request is to look again.
+
   if (state.status === "up-to-date") {
     if (attempts.checks === 0) {
       return { action: "check" };
@@ -109,11 +95,6 @@ export function nextRemoteDesktopUpdateStep(
   return { action: "check" };
 }
 
-/**
- * Updater messages are plain strings and may be blank; a blank reason would
- * fail encoding and silently drop the terminal report, leaving the server to
- * wait for its timeout.
- */
 export function normalizeRemoteUpdateReason(reason: string | undefined): string | undefined {
   const trimmed = reason?.trim();
   return trimmed ? trimmed : undefined;

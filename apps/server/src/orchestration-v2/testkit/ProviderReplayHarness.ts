@@ -1,3 +1,5 @@
+import * as PreviewAgentActivity from "../../preview/PreviewAgentActivity.ts";
+import * as ProviderInstanceRegistry from "../../provider/ProviderInstanceRegistry.ts";
 import * as OtelEnvironment from "@supaterm/shared/otelEnvironment";
 import { DEFAULT_SIGNAL_EXPORT } from "@supaterm/shared/observability";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -291,8 +293,6 @@ export function layerWithRegistry<Error>(
           Layer.provide(RuntimePolicy.layer),
         );
   const layerDatabase = options.databaseLayer ?? SqlitePersistence.layerMemory;
-  // One queue shared by the adapters, the orchestrator, and the worker, like
-  // runtimeLayer.ts; layer memoization keeps it a single instance.
   const layerContinuationRequests =
     options.runContinuationWorker === true ? ProviderContinuationRequests.layer : Layer.empty;
   const layerProvidedRegistry = registryLayer.pipe(
@@ -354,7 +354,6 @@ export function layerWithRegistry<Error>(
     IdAllocator.layer,
     layerProviderEventIngestorProvided,
   );
-  // The real hub, recording what each command streamed so fixtures can assert it.
   const layerCommandOutputHubProvided = CommandOutputRecorder.layer.pipe(
     Layer.provide(Layer.merge(layerEventSinkProvided, layerStores)),
   );
@@ -446,7 +445,11 @@ export function layerWithRegistry<Error>(
   const layerThreadTitleRegenerationTest = Layer.succeed(
     ThreadTitleRegenerationService.ThreadTitleRegenerationService,
     ThreadTitleRegenerationService.ThreadTitleRegenerationService.of({
-      execute: () => Effect.void,
+      execute: Effect.fn("ThreadTitleRegenerationService.ThreadTitleRegenerationService.execute")(
+        function () {
+          return Effect.void;
+        },
+      ),
     }),
   );
   const layerOrchestratorProvided = Orchestrator.layer.pipe(
@@ -516,13 +519,21 @@ export function layerWithRegistry<Error>(
     layerEventSinkProvided,
     layerContinuationWorkerProvided,
     layerCommandOutputHubProvided,
-  ).pipe(Layer.provide(ProviderTurnStartServiceTestkit.layer), Layer.provide(NodeServices.layer));
+  ).pipe(
+    Layer.provide(PreviewAgentActivity.layer),
+    Layer.provide(
+      Layer.mock(ProviderInstanceRegistry.ProviderInstanceRegistry)({
+        // @effect-diagnostics-next-line effectSucceedWithVoid:off - This service returns an optional instance.
+        getInstance: () => Effect.succeed(undefined),
+      }),
+    ),
+    Layer.provide(ProviderTurnStartServiceTestkit.layer),
+    Layer.provide(NodeServices.layer),
+  );
 
   if (options.runEffectWorker === false) {
     return layerReplayRuntime;
   }
-  // Built before the runtime it shares stores with, so recovery commits before
-  // the effect worker claims anything, as in serverRuntimeStartup.
   const layerStartupRecovery: Layer.Layer<
     never,
     MigrationError | PlatformError.PlatformError | SqlError

@@ -38,6 +38,7 @@ import {
   createMessageAttachmentPreviewProjector,
   providerErrorPresentation,
   type TimelineEntry,
+  timelineEntryIsPersistentResourceCard,
   workEntryIndicatesToolFailure,
   workEntryDisplayIndicatesToolFailure,
   workEntryIndicatesToolSuccess,
@@ -795,6 +796,27 @@ describe("V2 session presentation", () => {
       scheduledTaskId: ScheduledTaskId.make("task-queued"),
       senderThreadId: ThreadId.make("thread-agent-sender"),
     } satisfies OrchestrationV2TurnItem;
+    for (const inputIntent of [
+      "queued_turn",
+      "turn_start",
+      "steer",
+      "promoted_queued_to_steer",
+    ] as const) {
+      expect(
+        deriveTimelineEntriesFromVisibleTurnItems({
+          visibleTurnItems: [
+            {
+              position: 0,
+              visibility: "local",
+              sourceThreadId: projection.thread.id,
+              sourceItemId: dispatchedItem.id,
+              item: { ...dispatchedItem, inputIntent, status: "pending" },
+            },
+          ],
+          optimisticMessages: [],
+        }),
+      ).toHaveLength(inputIntent === "queued_turn" ? 0 : 1);
+    }
     const promotedEntries = deriveTimelineEntriesFromVisibleTurnItems({
       visibleTurnItems: [
         {
@@ -1343,6 +1365,45 @@ describe("native provider presentation in the v2 timeline", () => {
     item,
   });
 
+  it.each(["secret_request", "link_request"] as const)(
+    "keeps %s reachable as a persistent request card",
+    (type) => {
+      const item: OrchestrationV2TurnItem =
+        type === "secret_request"
+          ? {
+              ...base,
+              type,
+              label: "API token",
+              reason: "Connect the service",
+              delivery: "file",
+              secretStatus: "pending",
+            }
+          : { ...base, type, reason: "Connect the worker", linkStatus: "pending" };
+      const entries = deriveTimelineEntriesFromVisibleTurnItems({
+        visibleTurnItems: [visible(item)],
+        optimisticMessages: [],
+      });
+      expect(entries[0]).toMatchObject({ kind: "event", projectedItem: { item: { type } } });
+      expect(timelineEntryIsPersistentResourceCard(entries[0]!)).toBe(true);
+      const rows = deriveMessagesTimelineRows({
+        timelineEntries: entries,
+        latestRun: {
+          runId: base.runId,
+          status: "completed",
+          startedAt: DateTime.formatIso(timestamp),
+          completedAt: DateTime.formatIso(timestamp),
+        },
+        isWorking: false,
+        activeTurnStartedAt: null,
+        turnDiffSummaries: [],
+        supportsConversationRollback: false,
+      });
+      expect(rows.some((row) => row.kind === "event" && row.projectedItem.item.type === type)).toBe(
+        true,
+      );
+    },
+  );
+
   it("keeps async answers in the question row, including incrementally appended replies", () => {
     const requestId = RuntimeRequestId.make("question");
     const question: OrchestrationV2TurnItem = {
@@ -1579,6 +1640,23 @@ describe("HTML renders in the timeline", () => {
     expect(rowsFor(entries, false)).toEqual(["message", "turn-fold", "mcp-app", "message"]);
   });
 
+  it("hosts an MCP app whose call failed, as a form-deferring write does", () => {
+    const mcpApp = {
+      attachmentId: "render-thread-app-html",
+      server: "github",
+      tool: "create_pull_request",
+      resourceUri: "ui://github-mcp-server/pr-create",
+    };
+    const call = renderCall("failed", {
+      supatermMcpApp: mcpApp,
+      result: { content: [], isError: true },
+    });
+    const entries = turn(
+      call.type === "dynamic_tool" ? { ...call, toolName: "github.create_pull_request" } : call,
+    );
+    expect(entries.find((entry) => entry.kind === "mcp-app")).toMatchObject({ mcpApp });
+  });
+
   it("keeps a render visible when its superseded attempt folds", () => {
     const attempt: OrchestrationV2RunAttempt = {
       id: RunAttemptId.make("attempt-superseded"),
@@ -1742,6 +1820,51 @@ describe("incremental v2 timeline entries", () => {
     expect(next.entries.at(-1)).toMatchObject({ id: "late-message" });
     for (const [index, entry] of previous.entries.entries())
       expect(next.entries[index]).toBe(entry);
+  });
+
+  it("re-derives only the work entry whose tool item changed", () => {
+    const fixture = makeStreamingTimelineFixture("Partial");
+    const visibleTurnItems = fixture.visibleTurnItems.map((row) =>
+      row.item.id === "live-work"
+        ? { ...row, item: { ...row.item, status: "running" as const, completedAt: null } }
+        : row,
+    );
+    const input = { visibleTurnItems, optimisticMessages: [] };
+    const previous = deriveTimelineEntriesFromVisibleTurnItemsWithState(input);
+    const nextInput = { ...input, visibleTurnItems: fixture.visibleTurnItems };
+    const next = deriveTimelineEntriesFromVisibleTurnItemsWithState(nextInput, previous);
+    expect(next.entries).toEqual(deriveTimelineEntriesFromVisibleTurnItems(nextInput));
+    for (const [index, entry] of previous.entries.entries()) {
+      if (entry.id === "live-work") expect(next.entries[index]).not.toBe(entry);
+      else expect(next.entries[index]).toBe(entry);
+    }
+
+    const anchoredInput = {
+      ...nextInput,
+      anchoredMessages: [
+        {
+          id: MessageId.make("feedback"),
+          runId: null,
+          role: "assistant" as const,
+          text: "Feedback received",
+          streaming: false,
+          createdAt: fixture.time(6),
+          updatedAt: fixture.time(6),
+        },
+      ],
+    };
+    const anchored = deriveTimelineEntriesFromVisibleTurnItemsWithState(anchoredInput);
+    const movedInput = {
+      ...anchoredInput,
+      visibleTurnItems: anchoredInput.visibleTurnItems.map((row) =>
+        row.item.id === "live-work"
+          ? { ...row, item: { ...row.item, startedAt: DateTime.makeUnsafe(fixture.time(8)) } }
+          : row,
+      ),
+    };
+    expect(
+      deriveTimelineEntriesFromVisibleTurnItemsWithState(movedInput, anchored).entries,
+    ).toEqual(deriveTimelineEntriesFromVisibleTurnItems(movedInput));
   });
 
   it.each(["completion", "provenance", "ordering", "attachment", "run"] as const)(

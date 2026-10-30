@@ -66,10 +66,6 @@ export function getCodexTurnAccumulator(
   return created;
 }
 
-/**
- * Codex reports a running `total` for the thread and `last`, the usage of the
- * newest model response.
- */
 function codexTurnTokenUsageDelta(
   previous: CodexCumulativeTokenUsage | undefined,
   current: CodexCumulativeTokenUsage,
@@ -104,8 +100,6 @@ export function accumulateCodexTurnTokenUsage(
 ): void {
   const current = codexTokenUsageBreakdown(usage.total);
   if (state.activeTurnId !== turnId) {
-    // The total is thread-wide, so every update moves the baseline. A late
-    // update for a finished turn is not counted toward the live turn.
     state.baseline = current;
     return;
   }

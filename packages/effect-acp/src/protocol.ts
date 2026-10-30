@@ -520,11 +520,6 @@ export const makeAcpPatchedProtocol = Effect.fn("makeAcpPatchedProtocol")(functi
       );
   };
 
-  // A notification has no reply to fail, so one the schema rejects is logged
-  // and dropped. Ending the connection over it would kill a working session
-  // because one update, possibly from a newer spec, did not parse. An agent
-  // repeats a bad shape on every update, so each distinct failure is warned
-  // about once per connection.
   const dropUndecodableNotification = (method: string) => (cause: Schema.SchemaError) => {
     const error = AcpError.AcpProtocolParseError.fromSchemaError(
       "decode-notification-payload",
@@ -867,13 +862,14 @@ export const makeAcpPatchedProtocol = Effect.fn("makeAcpPatchedProtocol")(functi
   );
 
   const clientProtocol = RpcClient.Protocol.of({
-    run: (_clientId, f) =>
-      Stream.fromQueue(clientQueue).pipe(
+    run: Effect.fnUntraced(function* (_clientId, f) {
+      return yield* Stream.fromQueue(clientQueue).pipe(
         Stream.runForEach((message) => f(message)),
         Effect.forever,
-      ),
-    send: (_clientId, request) =>
-      offerOutgoing(request).pipe(
+      );
+    }),
+    send: Effect.fnUntraced(function* (_clientId, request) {
+      return yield* offerOutgoing(request).pipe(
         Effect.mapError(
           (error) =>
             new RpcClientError.RpcClientError({
@@ -883,32 +879,36 @@ export const makeAcpPatchedProtocol = Effect.fn("makeAcpPatchedProtocol")(functi
               }),
             }),
         ),
-      ),
+      );
+    }),
     supportsAck: true,
     supportsTransferables: false,
     codecFor: parserFactory.codecFor,
   });
 
   const serverProtocol = RpcServer.Protocol.of({
-    run: (f) =>
-      Stream.fromQueue(serverQueue).pipe(
+    run: Effect.fnUntraced(function* (f) {
+      return yield* Stream.fromQueue(serverQueue).pipe(
         Stream.runForEach((message) => f(0, message)),
         Effect.forever,
-      ),
+      );
+    }),
     disconnects,
-    send: (_clientId, response) =>
-      offerOutgoing(response).pipe(
+    send: Effect.fnUntraced(function* (_clientId, response) {
+      return yield* offerOutgoing(response).pipe(
         Effect.tapError((error) =>
           response._tag === "Exit" && options.onOutgoingResponseFailure !== undefined
             ? options.onOutgoingResponseFailure(acpRequestIdentity(response.requestId), error)
             : Effect.void,
         ),
         Effect.orDie,
-      ),
-    end: (_clientId) =>
-      Ref.update(outgoingWriterState, (state) => ({ ...state, intentionalEnd: true })).pipe(
+      );
+    }),
+    end: Effect.fn("RpcServer.Protocol.end")(function (_clientId) {
+      return Ref.update(outgoingWriterState, (state) => ({ ...state, intentionalEnd: true })).pipe(
         Effect.andThen(Queue.end(outgoing)),
-      ),
+      );
+    }),
     clientIds: Effect.succeed(new Set([0])),
     initialMessage: Effect.succeedNone,
     supportsAck: true,

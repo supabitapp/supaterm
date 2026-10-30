@@ -26,7 +26,6 @@ export const TerminalThreadInput = Schema.Struct({
 });
 export type TerminalThreadInput = typeof TerminalThreadInput.Type;
 
-/** Terminal ids are ALWAYS chosen by the client and sent explicitly — no server-side allocation. */
 const TerminalSessionInput = Schema.Struct({
   ...TerminalThreadInput.fields,
   terminalId: TerminalIdSchema,
@@ -110,6 +109,9 @@ export const TerminalSessionSnapshot = Schema.Struct({
   label: Schema.String.check(Schema.isMaxLength(128)),
   updatedAt: Schema.String,
   sequence: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
+
+  cols: Schema.optional(TerminalColsSchema),
+  rows: Schema.optional(TerminalRowsSchema),
 });
 export type TerminalSessionSnapshot = typeof TerminalSessionSnapshot.Type;
 
@@ -203,6 +205,9 @@ const TerminalActivityEvent = Schema.Struct({
   type: Schema.Literal("activity"),
   hasRunningSubprocess: Schema.Boolean,
   label: Schema.String.check(Schema.isMaxLength(128)),
+
+  cols: Schema.optional(TerminalColsSchema),
+  rows: Schema.optional(TerminalRowsSchema),
 });
 
 export const TerminalEvent = Schema.Union([

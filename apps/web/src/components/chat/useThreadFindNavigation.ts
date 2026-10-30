@@ -1,3 +1,4 @@
+import { useStableCallback } from "../../hooks/useStableCallback";
 import type { LegendListRef } from "@legendapp/list/react";
 import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import type { ThreadFindMatch } from "./threadFind";
@@ -47,10 +48,8 @@ export function useThreadFindNavigation({
   const pagingPositionRef = useRef<{ key: string; entries: typeof entries; top: number } | null>(
     null,
   );
-  const currentEntriesRef = useRef(entries);
-  useLayoutEffect(() => {
-    currentEntriesRef.current = entries;
-  }, [entries]);
+  const readCurrentEntries = useStableCallback(() => entries);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Track manual scrolling in the mounted viewport so pending history anchoring can yield.
   useEffect(() => {
     if (!container) return;
     const onScroll = () => {
@@ -58,7 +57,7 @@ export function useThreadFindNavigation({
       const range = activeRangeRef.current;
       if (
         !position ||
-        position.entries !== currentEntriesRef.current ||
+        position.entries !== readCurrentEntries() ||
         !range?.startContainer.isConnected
       )
         return;
@@ -70,8 +69,8 @@ export function useThreadFindNavigation({
     };
     container.addEventListener("scroll", onScroll, { passive: true });
     return () => container.removeEventListener("scroll", onScroll);
-  }, [container]);
-  const revealRef = useRef<(range: Range | null) => void>(() => {});
+  }, [container, readCurrentEntries]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Retire asynchronous list-scroll callbacks when their selected match changes or unmounts.
   useLayoutEffect(() => {
     currentMatchKeyRef.current = matchKey;
     return () => {
@@ -84,6 +83,7 @@ export function useThreadFindNavigation({
     key: null,
     pages: new Set(),
   });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- requests earlier history pages until the active match's entry is loaded
   useEffect(() => {
     if (requestedPagesRef.current.key !== matchKey)
       requestedPagesRef.current = { key: matchKey, pages: new Set() };
@@ -102,7 +102,7 @@ export function useThreadFindNavigation({
 
     historyControls.onLoadEarlier(match.entryId);
   }, [entries, historyControls, listReady, match, matchKey, rowIndex]);
-  const reveal = (range: Range | null) => {
+  const reveal = function revealMatch(range: Range | null) {
     activeRangeRef.current = range;
     if (!matchKey) {
       positioningRef.current = null;
@@ -167,11 +167,16 @@ export function useThreadFindNavigation({
           viewOffset: FIND_MATCH_VIEW_MARGIN,
         })
         .then(() => {
-          if (positioningRef.current !== request || currentMatchKeyRef.current !== matchKey) return;
+          if (
+            positioningRef.current !== request ||
+            currentMatchKeyRef.current !== matchKey ||
+            readCurrentEntries() !== entries
+          )
+            return;
 
           positionedEntriesRef.current = entries;
           settledMatchRef.current = matchKey;
-          revealRef.current(activeRangeRef.current);
+          revealMatch(activeRangeRef.current);
         });
     };
     if (!range) {
@@ -217,21 +222,17 @@ export function useThreadFindNavigation({
       listRef.current?.scrollToOffset({ offset: scroll + delta, animated: false });
 
       requestAnimationFrame(() => {
-        if (currentMatchKeyRef.current !== matchKey) return;
+        if (currentMatchKeyRef.current !== matchKey || readCurrentEntries() !== entries) return;
         if (
           listRef.current?.getState?.().scroll === scroll &&
           range.getBoundingClientRect().top === rect.top
         )
           return;
         revealedMatchRef.current = null;
-        revealRef.current(activeRangeRef.current);
+        revealMatch(activeRangeRef.current);
       });
     }
   };
-
-  useLayoutEffect(() => {
-    revealRef.current = reveal;
-  }, [reveal]);
 
   useThreadFindHighlights({
     container,

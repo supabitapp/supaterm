@@ -159,6 +159,7 @@ export function ComposerBannerStack({ className, items }: ComposerBannerStackPro
   const stackedNotices = stacked.filter((slot) => !staysVisible(slot.item));
   const hasStack = stackedNotices.length > 0;
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Retains exiting banner DOM until its animations settle, cancelling completion handlers on disposal.
   useEffect(() => {
     if (exitingKey === "") return;
     let cancelled = false;
@@ -178,6 +179,7 @@ export function ComposerBannerStack({ className, items }: ComposerBannerStackPro
     setStackExpanded(false);
   }
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Moves DOM focus to the newly committed notice or peek button after a stack toggle.
   useLayoutEffect(() => {
     if (stackExpanded && pendingFocusRef.current === "notice") {
       pendingFocusRef.current = null;
@@ -348,7 +350,7 @@ export function ComposerBannerStack({ className, items }: ComposerBannerStackPro
   );
 }
 
-function NoticeText({
+export function NoticeText({
   children,
   className,
   detailsLabel,
@@ -361,6 +363,7 @@ function NoticeText({
   const detailsRef = useRef<HTMLButtonElement>(null);
   const [showDetails, setShowDetails] = useState(false);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- measures text overflow in the DOM via ResizeObserver and MutationObserver to show the details button
   useLayoutEffect(() => {
     const text = textRef.current;
     if (!text) return;

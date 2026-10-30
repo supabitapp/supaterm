@@ -9,7 +9,7 @@ import type {
   BrowserImportSource,
   BrowserImportSourceId,
 } from "./browserImport.ts";
-import { AuthAccessTokenResult, AuthSessionState, AuthWebSocketTicketResult } from "./auth.ts";
+import { AuthAccessTokenResult, AuthSessionState } from "./auth.ts";
 import { AdvertisedEndpoint } from "./remoteAccess.ts";
 import { ExecutionEnvironmentDescriptor } from "./environment.ts";
 import { type ClientSettings, type QuitConfirmationMode, SnapShotShortcut } from "./settings.ts";
@@ -28,7 +28,7 @@ export interface ContextMenuItem<T extends string = string> {
   destructive?: boolean;
   disabled?: boolean;
   header?: boolean;
-  /** Icon keyword resolved by the web fallback. macOS native menus show the keywords they map. */
+
   icon?: string;
   separatorBefore?: boolean;
   checked?: boolean;
@@ -219,7 +219,6 @@ export const DesktopSnapShotId = TrimmedNonEmptyString.check(
 );
 export type DesktopSnapShotId = typeof DesktopSnapShotId.Type;
 
-/** `id` is absent for failures before a capture exists. */
 export const DesktopSnapShotEvent = Schema.Union([
   Schema.Struct({ type: Schema.Literal("requested"), id: DesktopSnapShotId }),
   Schema.Struct({ type: Schema.Literal("started"), id: DesktopSnapShotId }),
@@ -296,12 +295,21 @@ export interface DesktopUpdateReleaseNote {
   version: string;
   items: ReadonlyArray<string>;
   totalItems: number;
+
+  releasedAt?: string;
+
+  intro?: string;
+
+  stats?: string;
 }
 
 export const DesktopUpdateReleaseNoteSchema = Schema.Struct({
   version: Schema.String,
   items: Schema.Array(Schema.String),
   totalItems: Schema.Number,
+  releasedAt: Schema.optionalKey(Schema.String),
+  intro: Schema.optionalKey(Schema.String),
+  stats: Schema.optionalKey(Schema.String),
 });
 
 export const DesktopUpdateStateSchema = Schema.Struct({
@@ -328,10 +336,10 @@ export const DesktopCliCommandStateSchema = Schema.Struct({
   supported: Schema.Boolean,
 
   installedPath: Schema.NullOr(Schema.String),
-
   onPath: Schema.Boolean,
-
   shadowedBy: Schema.optionalKey(Schema.String),
+
+  launcherPath: Schema.optionalKey(Schema.NullOr(Schema.String)),
 });
 export type DesktopCliCommandState = typeof DesktopCliCommandStateSchema.Type;
 
@@ -360,13 +368,9 @@ export const DesktopUpdateCheckResultSchema = Schema.Struct({
 export const PRIMARY_LOCAL_ENVIRONMENT_ID = "primary";
 
 export interface DesktopEnvironmentBootstrap {
-  // The web env runtime keys local environments off this so projects routed to
-  // a specific backend reopen against the same one.
   id: string;
   label: string;
-  // Concrete WSL distro used by the current backend run. This stays separate
-  // from id because a default-tracking instance keeps the stable
-  // "wsl:default" IPC target while each run launches a specific distro.
+
   runningDistro?: string | null;
   httpBaseUrl: string | null;
   wsBaseUrl: string | null;
@@ -504,10 +508,6 @@ export const PickFolderOptionsSchema = Schema.Struct({
   targetEnvironmentId: Schema.optionalKey(Schema.String),
 });
 
-/**
- * Oversized files carry an empty text so the renderer can reject them by size
- * without the main process ever holding their contents.
- */
 export interface PickedThemeFile {
   name: string;
   size: number;
@@ -534,13 +534,12 @@ export const DesktopWslDistroSchema = Schema.Struct({
 
 export interface DesktopWslState {
   enabled: boolean;
-  // null means "track the current WSL default distro".
+
   distro: string | null;
   available: boolean;
   wslOnly: boolean;
   distros: readonly DesktopWslDistro[];
-  // Always null in wsl-only mode — that path shows a dialog and falls back to
-  // Windows instead.
+
   preflightError: string | null;
 }
 
@@ -589,14 +588,11 @@ export interface DesktopPreviewTabState {
   pictureInPicture: boolean;
   colorScheme: DesktopPreviewColorScheme;
   audioMuted: boolean;
-  /**
-   * Whether the guest is currently emitting audio. Observed from Chromium, and
-   * independent of {@link audioMuted}: a muted tab that is playing still reports
-   * `true`, which is what lets the tab strip distinguish "muted and making
-   * sound" from "muted and silent".
-   */
+
   audible: boolean;
   controller: "human" | "agent" | "none";
+
+  capturing: boolean;
   favicon?: DesktopPreviewFavicon;
   updatedAt: string;
 }
@@ -646,16 +642,9 @@ export interface DesktopPreviewRecordingInputEvent {
 
 export interface DesktopPreviewWebviewConfig {
   partition: string;
-  /**
-   * Encodes the security posture (sandboxed but contextIsolation off so the
-   * picker preload can read the page's React DevTools hook).
-   */
+
   webPreferences: string;
-  /**
-   * Absolute `file://`-style URL to the picker preload bundle. Set to null
-   * when the bundle isn't present (older builds, broken install) — the
-   * renderer must then disable element-pick affordances.
-   */
+
   preloadUrl: string | null;
 }
 
@@ -938,12 +927,6 @@ export const DesktopPreviewTabInputSchema = Schema.Struct({
   tabId: DesktopPreviewTabIdSchema,
 });
 
-/**
- * Tab creation carries the client's configured browser defaults so the guest is
- * born already zoomed and color-scheme-emulated. Applying them after creation
- * instead would paint one frame at 100%/system first, which reads as a flash on
- * every tab open.
- */
 export const DesktopPreviewCreateTabInputSchema = Schema.Struct({
   tabId: DesktopPreviewTabIdSchema,
   zoomFactor: Schema.optional(Schema.Number.check(Schema.isGreaterThan(0))),
@@ -971,17 +954,13 @@ export const DesktopPreviewNavigateInputSchema = Schema.Struct({
 
 export const DesktopPreviewConfigInputSchema = Schema.Struct({
   environmentId: EnvironmentId,
-  /**
-   * Derivation stays in main: `will-attach-webview` only prefix-checks the
-   * partition string, so a renderer-supplied partition could attach to a
-   * session that never had the UA rewrite or permission handlers installed.
-   */
+
   profileId: Schema.optional(BrowserProfileId),
 });
 
 export const DesktopPreviewClearDataInputSchema = Schema.Struct({
   environmentId: EnvironmentId,
-  /** Omit to clear every profile; otherwise only this profile's partition. */
+
   profileId: Schema.optional(BrowserProfileId),
 });
 
@@ -1035,22 +1014,14 @@ export interface DesktopBridge {
   getAppBranding: () => DesktopAppBranding | null;
   getPathForFile?: (file: File) => string;
   getClientPlatform?: () => string;
-  /** Native macOS symbol PNGs; missing symbols use the client's SVG fallback. */
+
   getEnvironmentMachineIcons?: () => DesktopEnvironmentMachineIcons;
   setNotificationBadge?: (badge: { count: number; image: string | null }) => Promise<void>;
   onNotificationBadgeClear?: (listener: () => void) => () => void;
   onTrackpadScrollEnd?: (listener: () => void) => () => void;
-  /**
-   * Renderer `window.focus()` cannot raise an Electron window, and on Wayland
-   * only the main process can spend a notification click's activation token.
-   */
+
   revealWindow?: () => Promise<void>;
-  /**
-   * The OS locale as a BCP-47 tag, which the renderer cannot read for itself:
-   * the packaged app ships only the `en-US` Chromium locale pak, so
-   * `navigator.language` and the default `Intl` locale are pinned to `en-US`
-   * regardless of OS settings.
-   */
+
   getSystemLocale?: () => string | null;
   getLocalEnvironmentBootstraps: () => readonly DesktopEnvironmentBootstrap[];
   getLocalEnvironmentEnabled?: () => boolean;
@@ -1099,10 +1070,6 @@ export interface DesktopBridge {
     credential: string,
   ) => Promise<AuthAccessTokenResult>;
   fetchSshSessionState: (httpBaseUrl: string, bearerToken: string) => Promise<AuthSessionState>;
-  issueSshWebSocketTicket: (
-    httpBaseUrl: string,
-    bearerToken: string,
-  ) => Promise<AuthWebSocketTicketResult>;
   onSshPasswordPrompt: (listener: (request: DesktopSshPasswordPromptRequest) => void) => () => void;
   resolveSshPasswordPrompt: (requestId: string, password: string | null) => Promise<void>;
   getServerExposureState: () => Promise<DesktopServerExposureState>;
@@ -1117,7 +1084,6 @@ export interface DesktopBridge {
   setWslDistro: (distro: string | null) => Promise<DesktopWslState>;
   setWslOnly: (enabled: boolean) => Promise<DesktopWslState>;
   pickFolder: (options?: PickFolderOptions) => Promise<string | null>;
-  /** Optional while older desktop shells can host a newer web client. */
   pickProjectFavicon?: (initialPath?: string) => Promise<string | null>;
   pickThemeFiles?: () => Promise<readonly PickedThemeFile[] | null>;
   setTheme: (theme: DesktopTheme) => Promise<void>;
@@ -1130,9 +1096,7 @@ export interface DesktopBridge {
   openExternal: (url: string) => Promise<boolean>;
   openSystemSettings?: (pane: SystemSettingsPane) => Promise<boolean>;
   checkSystemPermission?: (pane: SystemSettingsPane) => Promise<boolean>;
-  /**
-   * Optional: older desktop builds lack it; callers fall back to VS Code only.
-   */
+
   probeRemoteEditors?: () => Promise<readonly EditorId[]>;
   pasteAsText?: () => Promise<void>;
   onMenuAction: (listener: (action: string) => void) => () => void;
@@ -1140,13 +1104,18 @@ export interface DesktopBridge {
   onQuitShortcut?: (listener: (event: QuitShortcutHintEvent) => void) => () => void;
   getWindowFullscreenState: () => boolean;
   onWindowFullscreenStateChange: (listener: (fullscreen: boolean) => void) => () => void;
-  /** App window zoom; older desktop shells omit this method. */
+
   getWindowZoomFactor?: () => number;
   getUpdateState: () => Promise<DesktopUpdateState>;
-  setUpdateChannel: (channel: DesktopUpdateChannel) => Promise<DesktopUpdateState>;
+
+  setUpdateChannel: (
+    channel: DesktopUpdateChannel,
+    minimumVersion?: string,
+  ) => Promise<DesktopUpdateState>;
   checkForUpdate: () => Promise<DesktopUpdateCheckResult>;
   downloadUpdate: () => Promise<DesktopUpdateActionResult>;
-  installUpdate: () => Promise<DesktopUpdateActionResult>;
+
+  installUpdate: (expectedVersion?: string) => Promise<DesktopUpdateActionResult>;
   onUpdateState: (listener: (state: DesktopUpdateState) => void) => () => void;
 
   cliCommand?: {
@@ -1163,7 +1132,6 @@ export interface DesktopBridge {
   codexMicro?: DesktopCodexMicroBridge;
 }
 
-/** Renderer callback invoked by Electron with a fresh user gesture before display-media capture. */
 export const DESKTOP_PREVIEW_RECORDING_CAPTURE_TRIGGER = "__supatermDesktopPreviewRecordingCapture";
 
 export interface DesktopPreviewBridge {
@@ -1198,12 +1166,7 @@ export interface DesktopPreviewBridge {
   }) => Promise<BrowserImportResult>;
   setAnnotationTheme: (theme: DesktopPreviewAnnotationTheme) => Promise<void>;
   setAnnotationSendEnabled: (tabId: string, enabled: boolean) => Promise<void>;
-  /**
-   * Activate the in-page element picker for the given tab. Resolves with
-   * the picked annotation and its attach/send intent, or `null` when the
-   * user cancels (Escape / nav). The promise rejects if the picker can't be
-   * activated (no webview, etc.).
-   */
+
   pickElement: (tabId: string) => Promise<PreviewAnnotationSubmissionResult | null>;
   cancelPickElement: (tabId: string) => Promise<void>;
   captureScreenshot: (
@@ -1224,7 +1187,6 @@ export interface DesktopPreviewBridge {
       mimeType: string,
       data: Uint8Array,
     ) => Promise<DesktopPreviewRecordingArtifact>;
-    onFrame: (listener: (frame: DesktopPreviewRecordingFrame) => void) => () => void;
   };
   onStateChange: (listener: (tabId: string, state: DesktopPreviewTabState) => void) => () => void;
   onPointerEvent: (listener: (event: DesktopPreviewPointerEvent) => void) => () => void;

@@ -1,3 +1,8 @@
+import {
+  CONTEXT_CHIP_ACCENTS,
+  contextChipColorVariable,
+  type ContextChipAccentKind,
+} from "./lib/contextChipAccents";
 import * as Equal from "effect/Equal";
 import * as Schema from "effect/Schema";
 import "culori/css";
@@ -450,9 +455,10 @@ function srgbChannelToLinear(channel: number): number {
   return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
 }
 
-function linearChannelToSrgb(channel: number): number {
+function linearChannelToSrgb(channel: number, round = true): number {
   const c = channel <= 0.0031308 ? channel * 12.92 : 1.055 * channel ** (1 / 2.4) - 0.055;
-  return Math.round(Math.min(1, Math.max(0, c)) * 255);
+  const value = Math.min(1, Math.max(0, c)) * 255;
+  return round ? Math.round(value) : value;
 }
 
 export function themeColorDistance(first: string, second: string): number {
@@ -515,12 +521,12 @@ function mapThemeOklchToSrgbGamut(color: ThemeOklch): ThemeOklch {
   return { ...color, C: low };
 }
 
-function themeOklchToRgb(color: ThemeOklch): ThemeRgbColor {
+function themeOklchToRgb(color: ThemeOklch, round = true): ThemeRgbColor {
   const linear = oklchToRgbUnclamped(mapThemeOklchToSrgbGamut(color));
   return {
-    r: linearChannelToSrgb(linear.r),
-    g: linearChannelToSrgb(linear.g),
-    b: linearChannelToSrgb(linear.b),
+    r: linearChannelToSrgb(linear.r, round),
+    g: linearChannelToSrgb(linear.g, round),
+    b: linearChannelToSrgb(linear.b, round),
   };
 }
 
@@ -530,18 +536,21 @@ function themeOklchToThemeColor(color: ThemeOklch): string {
 
 function solveOklchLightness(
   base: ThemeOklch,
-  against: ThemeRgbColor,
+  against: ThemeRgbColor | ReadonlyArray<ThemeRgbColor>,
   minContrast: number,
   direction: "lighter" | "darker",
 ): ThemeOklch {
+  const surfaces = Array.isArray(against) ? against : [against as ThemeRgbColor];
+  const contrastOf = (color: ThemeOklch) =>
+    Math.min(...surfaces.map((surface) => themeContrastRatio(themeOklchToRgb(color), surface)));
   let low = direction === "lighter" ? base.L : 0;
   let high = direction === "lighter" ? 1 : base.L;
   let candidate = { ...base };
-  if (themeContrastRatio(themeOklchToRgb(candidate), against) >= minContrast) return candidate;
+  if (contrastOf(candidate) >= minContrast) return candidate;
   for (let step = 0; step < 18; step += 1) {
     const mid = (low + high) / 2;
     candidate = { ...base, L: mid };
-    const contrast = themeContrastRatio(themeOklchToRgb(candidate), against);
+    const contrast = contrastOf(candidate);
     if (contrast >= minContrast) {
       if (direction === "lighter") high = mid;
       else low = mid;
@@ -557,6 +566,57 @@ function solveOklchLightness(
  * Moves only the lightness, so a color that is too dim on `surface` keeps its
  * hue instead of collapsing to black or white.
  */
+const CONTEXT_CHIP_CONTRAST = 5;
+const CONTEXT_CHIP_MESSAGE_VARIABLE = "--context-chip-message";
+const CONTEXT_CHIP_INVALID_VARIABLE = "--context-chip-invalid";
+
+export function contextChipVariables(colors: ThemeColors): Readonly<Record<string, string>> {
+  // CSS paints surfaces from their unrounded OKLCH, so measure them unrounded.
+  const parsedCanvas = parseThemeColor(colors.canvas);
+  const canvas = parsedCanvas ? themeOklchToRgb(parsedCanvas.color, false) : THEME_WHITE_FOREGROUND;
+  const onCanvas = (value: string) => {
+    const parsed = parseThemeColor(value);
+    return parsed
+      ? mixThemeRgbColors(canvas, themeOklchToRgb(parsed.color, false), parsed.alpha)
+      : canvas;
+  };
+  const isDark = (color: ThemeRgbColor) => themeRelativeLuminance(color) < 0.179;
+  const messageMatchesCanvas = isDark(onCanvas(colors.messageSurface)) === isDark(canvas);
+  const surfaces = [canvas, onCanvas(colors.surface), onCanvas(colors.surfaceRaised)];
+  if (messageMatchesCanvas) surfaces.push(onCanvas(colors.messageSurface));
+  const contrastOnSurfaces = (color: ThemeRgbColor) =>
+    Math.min(...surfaces.map((surface) => themeContrastRatio(color, surface)));
+  const blackContrast = contrastOnSurfaces(THEME_BLACK_FOREGROUND);
+  const whiteContrast = contrastOnSurfaces(THEME_WHITE_FOREGROUND);
+  const direction = blackContrast >= whiteContrast ? "darker" : "lighter";
+  const minContrast = Math.min(CONTEXT_CHIP_CONTRAST, Math.max(blackContrast, whiteContrast));
+  const accents: Array<[string, string]> = [
+    ...(Object.entries(CONTEXT_CHIP_ACCENTS) as Array<[ContextChipAccentKind, string]>).map(
+      ([kind, accent]): [string, string] => [contextChipColorVariable(kind), accent],
+    ),
+    [CONTEXT_CHIP_INVALID_VARIABLE, colors.errorForeground],
+  ];
+  const variables: Record<string, string> = Object.fromEntries(
+    accents.flatMap(([variable, accent]) => {
+      const parsed = parseThemeColor(accent);
+      if (!parsed) return [];
+      const solved = solveOklchLightness(parsed.color, surfaces, minContrast, direction);
+      return [[variable, themeRgbToHexColor(themeOklchToRgb(solved))]];
+    }),
+  );
+  if (!messageMatchesCanvas) variables[CONTEXT_CHIP_MESSAGE_VARIABLE] = colors.messageForeground;
+  return variables;
+}
+
+function applyContextChipVariables(root: HTMLElement, colors: ThemeColors): void {
+  const variables = contextChipVariables(colors);
+  root.style.removeProperty(CONTEXT_CHIP_MESSAGE_VARIABLE);
+  root.style.removeProperty(CONTEXT_CHIP_INVALID_VARIABLE);
+  for (const [variable, value] of Object.entries(variables)) {
+    root.style.setProperty(variable, value);
+  }
+}
+
 export function readableThemeColorOn(color: string, surface: string, minContrast: number): string {
   const parsedColor = parseThemeColor(color);
   const parsedSurface = parseThemeColor(surface);
@@ -1442,6 +1502,7 @@ export function applyThemeColorPreview(colors: ThemeColors, appearance: ThemeApp
   for (const [role, value] of Object.entries(colors) as Array<[ThemeColorRole, string]>) {
     if (isThemeColor(value)) root.style.setProperty(APP_THEME_VARIABLES[role], value);
   }
+  applyContextChipVariables(root, colors);
   setThemePreviewAppearance(appearance);
 }
 
@@ -1463,6 +1524,7 @@ export function applyThemePalette(theme: ThemePreference, appearance?: ThemeAppe
   for (const [role, value] of Object.entries(colors) as Array<[ThemeColorRole, string]>) {
     root.style.setProperty(APP_THEME_VARIABLES[role], value);
   }
+  applyContextChipVariables(root, colors);
 }
 
 export function resolveThemeAppearance(
@@ -1551,4 +1613,8 @@ export function resolveThemeHalf(
   appearance: ThemeAppearance,
 ): ThemePreference {
   return halves?.[appearance] ?? theme;
+}
+
+export function getStandardPaintedThemeColors(appearance: ThemeAppearance): ThemeColors {
+  return getStandardThemeColors(appearance);
 }

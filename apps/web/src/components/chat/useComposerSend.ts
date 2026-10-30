@@ -1,3 +1,4 @@
+import { useLinkedEnvironments } from "../../state/peerLinks";
 import {
   ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
   threadContextsOutsideEnvironment,
@@ -217,6 +218,7 @@ export function useComposerSend(input: ComposerSendInput) {
     handleNewThreadInActiveProject,
   } = input;
   const openPaneThread = usePaneThreadNavigation();
+  const linkedEnvironments = useLinkedEnvironments(environmentId);
   const clientSettingsHydrated = useClientSettingsHydrated();
   const uploadThreadFeedback = useOrchestrationCommand(threadEnvironment.uploadFeedback, {
     reportFailure: false,
@@ -227,6 +229,7 @@ export function useComposerSend(input: ComposerSendInput) {
   // A send awaits its approval declines, so it reads the approvals pending by then.
   const pendingApprovalsRef = useRef(pendingApprovals);
   const respondingRequestIdsRef = useRef(respondingRequestIds);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- mirrors approvals into refs that an async send reads after awaiting uploads
   useLayoutEffect(() => {
     pendingApprovalsRef.current = pendingApprovals;
     respondingRequestIdsRef.current = respondingRequestIds;
@@ -360,6 +363,7 @@ export function useComposerSend(input: ComposerSendInput) {
       previewAnnotations: sendContextPreviewAnnotations,
       reviewComments: composerReviewComments,
       threadContexts: composerThreadContexts,
+      environmentContexts: composerEnvironmentContexts,
       selectedProvider: ctxSelectedProvider,
       selectedModel: ctxSelectedModel,
       selectedProviderModels: ctxSelectedProviderModels,
@@ -383,6 +387,7 @@ export function useComposerSend(input: ComposerSendInput) {
       : promptRef.current;
     const strandedThread = threadContextsOutsideEnvironment({
       text: promptForSend,
+      linkedEnvironments,
       records: composerThreadContexts,
       environmentId,
     })[0];
@@ -411,6 +416,7 @@ export function useComposerSend(input: ComposerSendInput) {
           reviewComments: composerReviewComments,
           previewAnnotations: composerPreviewAnnotations,
           threadContexts: composerThreadContexts,
+          environmentContexts: composerEnvironmentContexts,
         },
         setThreadError,
       );
@@ -428,7 +434,8 @@ export function useComposerSend(input: ComposerSendInput) {
       elementContextCount:
         composerPreviewAnnotations.length +
         composerReviewComments.length +
-        composerThreadContexts.length,
+        composerThreadContexts.length +
+        composerEnvironmentContexts.length,
     });
     const feedbackCommand =
       ctxSelectedProvider === "codex" &&
@@ -437,7 +444,8 @@ export function useComposerSend(input: ComposerSendInput) {
       sendableComposerTerminalContexts.length === 0 &&
       composerPreviewAnnotations.length === 0 &&
       composerReviewComments.length === 0 &&
-      composerThreadContexts.length === 0
+      composerThreadContexts.length === 0 &&
+      composerEnvironmentContexts.length === 0
         ? parseCodexFeedbackCommand(trimmed)
         : null;
     if (feedbackCommand && multipleModelSelections === null) {
@@ -544,6 +552,7 @@ export function useComposerSend(input: ComposerSendInput) {
       previewAnnotations: composerPreviewAnnotations,
       reviewComments: composerReviewComments,
       threadContexts: composerThreadContexts,
+      environmentContexts: composerEnvironmentContexts,
     });
     const composerAttachmentsSnapshot = sendSnapshot.attachments;
     const messageTextForSend = sendSnapshot.messageText;
@@ -554,6 +563,7 @@ export function useComposerSend(input: ComposerSendInput) {
       reviewComments: sendSnapshot.reviewComments,
       previewAnnotations: sendSnapshot.previewAnnotations,
       threadContexts: sendSnapshot.threadContexts,
+      environmentContexts: sendSnapshot.environmentContexts,
       attachments: composerAttachmentsSnapshot.map((attachment) => ({
         attachment,
         attachmentId: attachment.id,

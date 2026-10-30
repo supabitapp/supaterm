@@ -6,8 +6,12 @@ import {
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  awaitsTrackSwitch,
+  collectChannelSwitchTargets,
   collectRestartingMachines,
+  localSwitchBlockReason,
   collectServerUpdateTargets,
+  describeUpdateEverything,
   runUpdateEverything,
   type UpdateEverythingMachine,
 } from "./updateEverything.logic";
@@ -30,7 +34,9 @@ function machine(
         orchestrationProtocolVersion: ORCHESTRATION_PROTOCOL_VERSION,
         capabilities: {
           ...(selfUpdate ? { serverSelfUpdate: selfUpdate } : {}),
-          ...(selfUpdate === "desktop-managed" ? { desktopAppUpdate: true } : {}),
+          ...(selfUpdate === "desktop-managed"
+            ? { desktopAppUpdate: true, desktopAppChannelSwitch: true }
+            : {}),
         },
       },
       settings: { continueThreadsAfterServerUpdate: false },
@@ -81,6 +87,45 @@ describe("collectServerUpdateTargets", () => {
       ["busy", "already updating"],
       ["manual", "needs a manual update"],
     ]);
+  });
+});
+
+describe("collectChannelSwitchTargets", () => {
+  it("does not equate migration numbers with database compatibility across tracks", () => {
+    const release = { channel: "latest" as const, version: "0.1.3" };
+    const { targets, skipped } = collectChannelSwitchTargets(
+      [
+        machine("nightly", "0.1.2-nightly.20261020.1200", "boot-service"),
+        machine("stable", "0.1.2", "boot-service"),
+      ],
+      release,
+    );
+    expect(targets.map((target) => target.serverLabel)).toEqual(["stable"]);
+    expect(skipped).toEqual([
+      {
+        environmentId: EnvironmentId.make("nightly"),
+        label: "nightly",
+        reason:
+          "database compatibility for this release has not been verified; switch this machine manually",
+      },
+    ]);
+  });
+});
+
+describe("localSwitchBlockReason", () => {
+  it("requires every hosted backend to connect and then requires compatibility proof", () => {
+    const release = { channel: "latest" as const, version: "0.1.3" };
+    const nightly = "0.1.4-nightly.20261027.3796";
+    expect(localSwitchBlockReason(nightly, release, [{ connected: true }], 1)).toContain(
+      "has not been verified",
+    );
+    expect(localSwitchBlockReason(nightly, release, [{ connected: true }], 2)).toContain(
+      "not connected",
+    );
+    expect(localSwitchBlockReason(nightly, release, [{ connected: false }], 1)).toContain(
+      "not connected",
+    );
+    expect(localSwitchBlockReason("0.1.3", release, [], 1)).toBeNull();
   });
 });
 
@@ -143,5 +188,65 @@ describe("runUpdateEverything", () => {
 
     expect(calls).toEqual(["providers", "servers"]);
     expect(result.localReady).toBe(false);
+  });
+});
+
+describe("describeUpdateEverything", () => {
+  it("gives each machine one row with its Supaterm and provider updates", () => {
+    const id = EnvironmentId.make;
+    const { rows } = describeUpdateEverything({
+      localVersion: "1.1.0",
+      localMachines: [
+        { environmentId: id("local"), label: "Mainbook" },
+        { environmentId: id("wsl"), label: "Mainbook WSL" },
+      ],
+      servers: [
+        {
+          environmentId: id("npm"),
+          serverLabel: "bb-1",
+          selfUpdate: "boot-service",
+          targetVersion: "1.1.0",
+        },
+      ],
+      providerMachines: [
+        { environmentId: id("npm"), label: "bb-1", providers: ["Codex", "Claude"] },
+        { environmentId: id("local"), label: "Mainbook", providers: ["Codex"] },
+        { environmentId: id("manual"), label: "alvin", providers: ["Claude"] },
+      ],
+      skipped: [
+        { environmentId: id("manual"), label: "alvin", reason: "needs a manual update" },
+        { environmentId: id("offline"), label: "TheoRoom", reason: "not connected" },
+      ],
+    });
+
+    expect(
+      rows.map(({ label, app, skipped, providers }) => [label, app, skipped, providers]),
+    ).toEqual([
+      ["Mainbook", "this-app", null, ["Codex"]],
+      ["Mainbook WSL", "this-app", null, []],
+      ["bb-1", "server", null, ["Codex", "Claude"]],
+      ["alvin", null, "needs a manual update", ["Claude"]],
+      ["TheoRoom", null, "not connected", []],
+    ]);
+  });
+});
+
+describe("partial track switch review", () => {
+  it("retains off-track hosts for review while compatibility still blocks their update", () => {
+    const offTrack = machine("remote", "0.0.49", "boot-service");
+    const alreadySwitched = machine("current", "0.0.50-nightly.20261029.1", "boot-service");
+    const hosted = machine("hosted", "0.0.49", "desktop-managed", { hostedByThisApp: true });
+    const manual = machine("manual", "0.0.49", undefined);
+    expect(
+      [offTrack, alreadySwitched, hosted, manual].flatMap((entry) =>
+        awaitsTrackSwitch(entry, "nightly") ? [entry.label] : [],
+      ),
+    ).toEqual(["remote"]);
+    const plan = collectChannelSwitchTargets([offTrack], {
+      channel: "nightly",
+      version: "0.0.50-nightly.20261029.1",
+    });
+    expect(plan.targets).toEqual([]);
+    expect(plan.skipped[0]?.reason).toContain("database compatibility");
   });
 });

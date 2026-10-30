@@ -34,8 +34,19 @@ function recordEffect(action: string) {
   state.completed.resolve();
 }
 
+vi.mock("../components/chat/guestShareAvailability", () => ({ canShareWithGuestAtom: () => null }));
+vi.mock("../components/chat/guestShareDialogState", () => ({ openGuestShareDialog: vi.fn() }));
+vi.mock("../lib/copyThreadReference", () => ({ copyThreadReference: vi.fn() }));
+vi.mock("../rpc/atomRegistry", () => ({ appAtomRegistry: { get: () => false } }));
+vi.mock("../state/server", () => ({
+  serverEnvironment: {
+    settingsValueAtom: () => null,
+    createGuestShare: { permissionAtom: () => null },
+  },
+}));
 vi.mock("../components/CustomSnoozeDialog", () => ({ requestCustomSnooze: vi.fn() }));
-vi.mock("react", () => ({
+vi.mock("react", async (original) => ({
+  ...(await original<typeof import("react")>()),
   useCallback: (callback: unknown) => callback,
   useMemo: (factory: () => unknown) => factory(),
 }));
@@ -105,6 +116,8 @@ vi.mock("../components/ui/toast", () => ({
   toastManager: { add: () => state.completed.resolve() },
 }));
 vi.mock("../components/Sidebar.snooze", () => ({
+  pickSnoozePreset: (shown: readonly { id: string }[], id: string) =>
+    shown.find((preset) => preset.id === id),
   resolveSnoozePresets: () => [
     { id: "hour", label: "In 1 hour", whenLabel: "3 PM", snoozedUntil: "2099-01-01T00:00:00Z" },
   ],
@@ -127,6 +140,7 @@ vi.mock("./useSettings", () => ({
     }),
 }));
 vi.mock("./useThreadActions", () => ({
+  canTurnThreadIntoProject: () => false,
   useThreadActions: () =>
     Object.fromEntries(
       [

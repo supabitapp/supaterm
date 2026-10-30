@@ -18,14 +18,8 @@ import { useOrchestrationCommand } from "../../state/use-orchestration-command";
 import { useLinkedThreadPullRequest } from "../ThreadStatusIndicators";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 
-/**
- * The change request a thread is linked to. When the linked one is merged or
- * closed and the thread's branch has a newer open one, that one replaces it:
- * the thread is relinked on the server, and an open panel showing the old one
- * follows.
- */
+/** Relink replaced closed/merged requests to the newer open request on the same branch, moving its panel. */
 export function useThreadLinkedPullRequest(input: {
-  // Null for drafts, which have nothing to relink on the server.
   readonly serverThreadRef: ScopedThreadRef | null;
   readonly environmentId: EnvironmentId | null;
   readonly persisted: ThreadLinkedPullRequest | null;
@@ -64,6 +58,7 @@ export function useThreadLinkedPullRequest(input: {
 
   const relinkKeysRef = useRef(new Map<string, string>());
   const relinkWriteRef = useRef(Promise.resolve());
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- persists the detected PR to the server thread once per change and retargets the open right panel store
   useEffect(() => {
     if (serverThreadRef === null) return;
     const threadKey = scopedThreadKey(serverThreadRef);
@@ -113,7 +108,6 @@ export function useThreadLinkedPullRequest(input: {
   return {
     linked,
     linkedKey: linked ? JSON.stringify([linked.projectId, linked.repository, linked.number]) : null,
-    // Detail is shown for the persisted link; a replacement only exists once it is merged.
     hasDetail: persisted !== null,
   };
 }

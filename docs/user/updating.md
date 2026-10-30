@@ -5,7 +5,7 @@ When a server is behind your web or desktop app, an update notice appears in the
 conversation and **Settings → Connections**. Update the machine named in that
 notice. A server installed with the `supaterm` command stays on its release
 channel, so a nightly app does not offer to update a stable server unless the
-server is too old to connect. To switch it, run
+server is too old to connect. To switch tracks, use the [update-track flow](#switch-update-tracks), or run
 `supaterm update --channel nightly` on its host.
 
 ## Update everything at once
@@ -43,7 +43,8 @@ below.
 Server updates restart the connection and can interrupt active agents and
 terminal commands. Saved threads, settings, and project files remain.
 
-**Settings → General → Continue threads after restarts** is on by default.
+**Continue threads after restarts** is on by default in **Settings → Threads** on web and
+desktop. On mobile, use **Settings → Maintenance → Continue after restart**.
 It resumes supported active threads after an update, crash, or machine
 restart. Changes are saved to connected environments that support this setting;
 update older servers first. If a supported environment was offline or has a
@@ -51,9 +52,9 @@ different value, use **Apply to all** in Settings after it connects.
 Supaterm must start again on that machine;
 the setting does not enable automatic startup. Terminal commands may still be
 interrupted, and threads without saved provider resume state need a new message.
-A thread that finished its turn to wait on a monitor, subagent, or background task
-is woken and told that this work stopped. A background shell, such as a dev server,
-does not wake it; the thread learns about it with your next message.
+A thread waiting on a subagent, background task, or a command or monitor marked as awaited
+wakes and learns that the work stopped. A server or monitor left running does not wake it;
+the thread learns about that with your next message.
 A thread is not resumed while it waits for your approval, answer, or secret, or
 while it is archived, snoozed, or Done. After three automatic resumes in a row,
 the thread waits for your next message.
@@ -146,3 +147,19 @@ download updates in the background and apply them when you next leave the app.
 It saves drafts and queued messages before restarting. If you keep the app open
 for a long time, it may ask to install immediately; choosing **Later** leaves the
 update queued for the next suitable moment.
+
+## Switch update tracks
+
+In the desktop app, choose **Settings → About → Update track** to switch between Stable and
+Nightly. Review the connected machines and any reasons they cannot switch. Remote machines
+update before the current app. A failed machine keeps its selected track so you can retry.
+
+A switch requires confirmed compatibility with the destination release. A remote desktop on
+macOS must switch locally. Follow the dialog's recovery instructions for an older release or
+an unavailable machine.
+
+## Recover a desktop startup failure
+
+If the desktop server repeatedly fails to start, its recovery window offers an available
+update or a link to the last version that started successfully. Use **Copy details** when
+reporting the error.

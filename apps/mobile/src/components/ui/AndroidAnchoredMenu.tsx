@@ -90,6 +90,7 @@ export function AndroidAnchoredMenu(props: AndroidAnchoredMenuProps) {
   }, []);
 
   const submenuDepth = path.length;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Registers the native back handler while the in-window menu is open over the keyboard.
   useEffect(() => {
     if (anchor === null || !anchor.keyboardWasVisible) {
       return;

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
-import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
 import { EnvironmentAuthInvalidError } from "@supaterm/contracts";
@@ -214,7 +213,7 @@ describe("remote environment authorization", () => {
         }).pipe(
           provideRemoteHttp(fetch.fetchFn),
           Effect.provideService(ClientCapabilities.AnalyticsDevice, {
-            id: Effect.succeed(Option.some("device-1")),
+            id: Effect.succeedSome("device-1"),
           }),
         ),
       );

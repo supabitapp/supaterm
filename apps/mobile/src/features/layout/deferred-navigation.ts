@@ -1,4 +1,3 @@
-/** Hold in-place route changes while a workspace mutation is still running. */
 export function createDeferredNavigation() {
   let pending = 0;
   let latest: (() => void) | null = null;
@@ -20,3 +19,5 @@ export function createDeferredNavigation() {
     },
   };
 }
+
+export const threadSelectionDeferral = createDeferredNavigation();

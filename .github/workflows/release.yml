@@ -130,7 +130,9 @@ jobs:
         with:
           cache: false
       - name: Install workspace dependencies
-        run: mise exec -- vp install
+        uses: ./.github/actions/setup-ci-deps
+        with:
+          cache: false
         env:
           pnpm_config_cache_dir: ${{ runner.temp }}/pnpm-metadata
 
@@ -250,7 +252,9 @@ jobs:
         with:
           cache: false
       - name: Install workspace dependencies
-        run: mise exec -- vp install
+        uses: ./.github/actions/setup-ci-deps
+        with:
+          cache: false
       - name: Ensure Electron runtime is installed
         run: vp run --filter @supaterm/desktop ensure:electron
 
@@ -278,7 +282,9 @@ jobs:
         with:
           cache: false
       - name: Install workspace dependencies
-        run: mise exec -- vp install
+        uses: ./.github/actions/setup-ci-deps
+        with:
+          cache: false
       - name: Ensure Electron runtime is installed
         run: vp run --filter @supaterm/desktop ensure:electron
 
@@ -314,7 +320,9 @@ jobs:
         with:
           cache: false
       - name: Install workspace dependencies
-        run: mise exec -- vp install
+        uses: ./.github/actions/setup-ci-deps
+        with:
+          cache: false
 
       - name: Test
         run: vp run --filter @supaterm/mobile test --shard ${{ matrix.shard }}/${{ strategy.job-total }} --maxWorkers 8
@@ -345,7 +353,9 @@ jobs:
         with:
           cache: false
       - name: Install workspace dependencies
-        run: mise exec -- vp install
+        uses: ./.github/actions/setup-ci-deps
+        with:
+          cache: false
 
       - name: Resolve Playwright version
         id: playwright_version
@@ -373,6 +383,12 @@ jobs:
       - name: Test
         run: vp run --filter @supaterm/web test --shard ${{ matrix.shard }}/${{ strategy.job-total }} --maxWorkers 8
 
+      - name: Boot the built web client
+        if: matrix.shard == 1
+        run: |
+          vp run --filter @supaterm/web build
+          node apps/web/scripts/verify-built-boot.ts
+
   # Server test files run one at a time, so more small runners beat fewer big ones.
   test_server:
     name: Release server tests ${{ matrix.shard }}
@@ -396,7 +412,9 @@ jobs:
         with:
           cache: false
       - name: Install workspace dependencies
-        run: mise exec -- vp install
+        uses: ./.github/actions/setup-ci-deps
+        with:
+          cache: false
       - name: Install Chromium for server browser integration tests
         run: node apps/server/node_modules/playwright-core/cli.js install --with-deps --only-shell chromium
 
@@ -430,9 +448,12 @@ jobs:
           path: ${{ runner.temp }}/pnpm-metadata
 
       - name: Install bundle dependencies
+        uses: ./.github/actions/setup-ci-deps
+        with:
+          cache: false
+          install-args: --filter=supaterm... --filter=@supaterm/web... --filter=@supaterm/desktop... --filter=@supaterm/scripts...
         env:
           pnpm_config_cache_dir: ${{ runner.temp }}/pnpm-metadata
-        run: vp install --filter=supaterm... --filter=@supaterm/web... --filter=@supaterm/desktop... --filter=@supaterm/scripts...
 
       - name: Align package versions to release version
         run: node scripts/update-release-package-versions.ts "${{ needs.preflight.outputs.version }}"
@@ -490,6 +511,7 @@ jobs:
       rust_target: aarch64-apple-darwin
       resource_key: darwin-arm64
       cli_archive: true
+      launch_check: true
       mac_installer: ${{ needs.preflight.outputs.release_channel != 'preview' }}
 
   desktop_mac_x64:
@@ -532,6 +554,7 @@ jobs:
       rust_target: x86_64-unknown-linux-gnu
       resource_key: linux-x64
       cli_archive: true
+      launch_check: true
 
   # node-pty has no Linux prebuild and compiles from source, so the arm64 app
   # and archive are built on arm64 hardware rather than cross-built.
@@ -622,7 +645,10 @@ jobs:
         with:
           cache: false
       - name: Install workspace dependencies
-        run: mise exec -- vp install --filter=supaterm... --filter=@supaterm/scripts...
+        uses: ./.github/actions/setup-ci-deps
+        with:
+          cache: false
+          install-args: --filter=supaterm... --filter=@supaterm/scripts...
       - name: Build the npm launcher
         run: node scripts/build-npm-launcher.ts --version "${{ needs.preflight.outputs.version }}" --output-dir npm-packages
 
@@ -656,19 +682,25 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: write
+      pull-requests: read
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
+          fetch-depth: 0
+          filter: blob:none
 
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
         with:
           cache: false
       - name: Install workspace dependencies
-        run: mise exec -- vp install --filter=@supaterm/scripts...
+        uses: ./.github/actions/setup-ci-deps
+        with:
+          cache: false
+          install-args: --filter=@supaterm/scripts...
       - name: Download all desktop artifacts
         uses: actions/download-artifact@v8
         with:
@@ -768,6 +800,34 @@ jobs:
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
 
+      - name: Write release notes
+        if: needs.preflight.outputs.release_channel != 'preview' && needs.preflight.outputs.previous_tag != ''
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          RELEASE_REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.preflight.outputs.tag }}
+          RELEASE_REF: ${{ needs.preflight.outputs.ref }}
+          PREVIOUS_TAG: ${{ needs.preflight.outputs.previous_tag }}
+          RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          if [[ -z "$OPENAI_API_KEY" ]]; then
+            echo "Release summaries are not configured; using generated release notes."
+            exit 0
+          fi
+          node scripts/generate-release-notes.ts \
+            --repository "$RELEASE_REPOSITORY" \
+            --tag "$RELEASE_TAG" \
+            --ref "$RELEASE_REF" \
+            --previous-tag "$PREVIOUS_TAG" \
+            --version "$RELEASE_VERSION" \
+            --output release-notes.md
+          if [[ -s release-notes.md ]]; then
+            cat release-notes.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       # A preview release gets a warning instead of generated notes. Generated
       # notes would list every commit since the previous preview, which is
       # unmerged branch history no one should read as a changelog, and would
@@ -793,10 +853,11 @@ jobs:
           tag_name: ${{ needs.preflight.outputs.tag }}
           target_commitish: ${{ needs.preflight.outputs.ref }}
           name: ${{ needs.preflight.outputs.release_name }}
-          generate_release_notes: ${{ needs.preflight.outputs.release_channel != 'preview' }}
-          body_path: ${{ needs.preflight.outputs.release_channel == 'preview' && 'release-notes.md' || '' }}
+          generate_release_notes: ${{ hashFiles('release-notes.md') == '' }}
+          body_path: ${{ hashFiles('release-notes.md') != '' && 'release-notes.md' || '' }}
           previous_tag: ${{ needs.preflight.outputs.previous_tag }}
           prerelease: ${{ needs.preflight.outputs.is_prerelease }}
+          draft: true
           make_latest: ${{ needs.preflight.outputs.make_latest }}
           files: ${{ steps.release_files.outputs.files }}
           fail_on_unmatched_files: true
@@ -809,18 +870,23 @@ jobs:
           tag_name: ${{ needs.preflight.outputs.tag }}
           target_commitish: ${{ needs.preflight.outputs.ref }}
           name: ${{ needs.preflight.outputs.release_name }}
-          generate_release_notes: ${{ needs.preflight.outputs.release_channel != 'preview' }}
-          body_path: ${{ needs.preflight.outputs.release_channel == 'preview' && 'release-notes.md' || '' }}
+          generate_release_notes: ${{ hashFiles('release-notes.md') == '' }}
+          body_path: ${{ hashFiles('release-notes.md') != '' && 'release-notes.md' || '' }}
           prerelease: ${{ needs.preflight.outputs.is_prerelease }}
+          draft: true
           make_latest: ${{ needs.preflight.outputs.make_latest }}
           files: ${{ steps.release_files.outputs.files }}
           fail_on_unmatched_files: true
           token: ${{ github.token }}
 
-  # The `supaterm` npm package is a launcher that downloads this version's CLI
-  # archive from the GitHub Release, so it publishes only once that release
-  # exists. Preview publishes too, under the `preview` dist-tag, which
-  # nothing resolves unless asked for by name.
+      - name: Publish release after uploading assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.preflight.outputs.tag }}
+          RELEASE_MAKE_LATEST: ${{ needs.preflight.outputs.make_latest }}
+        run: gh release edit "$RELEASE_TAG" --draft=false --latest="$RELEASE_MAKE_LATEST"
+
   publish_cli:
     name: Publish CLI to npm
     needs: [preflight, release]
@@ -842,7 +908,10 @@ jobs:
         with:
           cache: false
       - name: Install workspace dependencies
-        run: mise exec -- vp install --filter=supaterm... --filter=@supaterm/scripts...
+        uses: ./.github/actions/setup-ci-deps
+        with:
+          cache: false
+          install-args: --filter=supaterm... --filter=@supaterm/scripts...
       - name: Build the npm launcher
         run: node scripts/build-npm-launcher.ts --version "${{ needs.preflight.outputs.version }}" --output-dir npm-packages
 
@@ -884,7 +953,10 @@ jobs:
         with:
           cache: false
       - name: Install workspace dependencies
-        run: mise exec -- vp install --filter=@supaterm/scripts... --filter=@supaterm/web...
+        uses: ./.github/actions/setup-ci-deps
+        with:
+          cache: false
+          install-args: --filter=@supaterm/scripts... --filter=@supaterm/web...
       - name: Build hosted app
         run: |
           vp run --filter @supaterm/web build
@@ -947,7 +1019,10 @@ jobs:
         with:
           cache: false
       - name: Install workspace dependencies
-        run: mise exec -- vp install --filter=@supaterm/marketing...
+        uses: ./.github/actions/setup-ci-deps
+        with:
+          cache: false
+          install-args: --filter=@supaterm/marketing...
       - name: Build site
         run: vp run --filter @supaterm/marketing build
       - name: Stage site
@@ -1045,7 +1120,10 @@ jobs:
         with:
           cache: false
       - name: Install workspace dependencies
-        run: mise exec -- vp install --filter=@supaterm/scripts... --filter=@supaterm/oxlint-plugin-supaterm...
+        uses: ./.github/actions/setup-ci-deps
+        with:
+          cache: false
+          install-args: --filter=@supaterm/scripts... --filter=@supaterm/oxlint-plugin-supaterm...
       - id: update_versions
         name: Update version strings
         env:

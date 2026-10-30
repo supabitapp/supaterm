@@ -53,7 +53,8 @@
       "corepack": true,
       "env": {
         "APP_VARIANT": "production",
-        "NODE_OPTIONS": "--max-old-space-size=4096"
+        "NODE_OPTIONS": "--max-old-space-size=4096",
+        "SOURCEMAP_FILE": "/tmp/supaterm-ios-main.jsbundle.map"
       },
       "channel": "production",
       "environment": "production",

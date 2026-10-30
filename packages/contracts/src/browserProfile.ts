@@ -4,11 +4,6 @@ import { TrimmedNonEmptyString } from "./baseSchemas.ts";
 export const BROWSER_PROFILE_NAME_MAX_LENGTH = 48;
 export const BROWSER_PROFILE_MAX_COUNT = 24;
 
-/**
- * Control characters are rejected because ids are folded into delimiter-joined
- * cache keys on the client; one carrying the delimiter would resolve to a
- * different profile's partition.
- */
 export const BrowserProfileId = TrimmedNonEmptyString.check(
   Schema.isMaxLength(64),
   Schema.isPattern(/^[^\p{Cc}]+$/u),
@@ -41,13 +36,6 @@ export function isBuiltInBrowserProfileId(id: string): boolean {
   return BUILT_IN_BROWSER_PROFILES.some((profile) => profile.id === id);
 }
 
-/**
- * - Repeated ids, which map to one partition and would otherwise appear as
- *   two isolated identities sharing every cookie.
- * - `kind: "incognito"` on anything but the built-in, since persistence is
- *   keyed off that one id; such a profile is labelled ephemeral while its
- *   cookies survive restarts.
- */
 export function resolveBrowserProfiles(
   userProfiles: ReadonlyArray<BrowserProfile>,
 ): ReadonlyArray<BrowserProfile> {

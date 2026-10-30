@@ -1,5 +1,6 @@
 import {
   McpCapabilityUnavailableError,
+  OrchestratorMcpEnvironmentTarget,
   OrchestratorMcpFailure,
   PositiveInt,
   PullRequestCheckStatus,
@@ -11,6 +12,7 @@ import {
   ThreadId,
 } from "@supaterm/contracts";
 import * as Schema from "effect/Schema";
+import * as McpSchema from "effect/ai/McpSchema";
 import * as Tool from "effect/ai/Tool";
 import * as Toolkit from "effect/ai/Toolkit";
 
@@ -39,6 +41,7 @@ const REGISTER_EVERY_PR =
   "Register every pull request you open for this thread, including each layer of a stack, right after creating it.";
 
 export const PullRequestTargetInput = Schema.Struct({
+  environmentId: OrchestratorMcpEnvironmentTarget,
   threadId: Schema.optional(
     ThreadId.annotate({
       description: "Thread to act on. Omit for this thread.",
@@ -47,7 +50,7 @@ export const PullRequestTargetInput = Schema.Struct({
   url: Schema.optional(
     TrimmedNonEmptyString.annotate({
       description:
-        "The pull request's web URL, for example https://github.com/owner/repo/pull/123. Preferred when you have it; host, repository and number are read from it.",
+        "The pull request's web URL as its host shows it, for example https://git.example.com/owner/repo/pull/123 or https://git.example.com/group/project/-/merge_requests/123. Preferred when you have it; host, repository and number are read from it.",
     }),
   ),
   repository: Schema.optional(
@@ -64,7 +67,7 @@ export const PullRequestTargetInput = Schema.Struct({
   host: Schema.optional(
     TrimmedNonEmptyString.annotate({
       description:
-        "Host the repository lives on, for example github.com. Defaults to the host of this thread's project.",
+        "Host the repository lives on, for example git.example.com. Defaults to the host of this thread's project.",
     }),
   ),
 });
@@ -161,6 +164,15 @@ export class PullRequestHostRequiredError extends Schema.TaggedError<PullRequest
   }
 }
 
+export class PullRequestUrlUnavailableError extends Schema.TaggedError<PullRequestUrlUnavailableError>()(
+  "PullRequestUrlUnavailableError",
+  {},
+) {
+  override get message(): string {
+    return "This thread's project is on a host with no known pull request URL shape. Pass url.";
+  }
+}
+
 export class PullRequestThreadRequiredError extends Schema.TaggedError<PullRequestThreadRequiredError>()(
   "PullRequestThreadRequiredError",
   {},
@@ -254,9 +266,11 @@ export class PullRequestGuideFailedError extends Schema.TaggedError<PullRequestG
 export const PullRequestToolError = Schema.Union([
   OrchestratorMcpFailure,
   McpCapabilityUnavailableError,
+  OrchestratorMcpEnvironmentTarget,
   PullRequestUrlInvalidError,
   PullRequestTargetIncompleteError,
   PullRequestHostRequiredError,
+  PullRequestUrlUnavailableError,
   PullRequestThreadRequiredError,
   PullRequestThreadNotFoundError,
   PullRequestLinkFailedError,
@@ -281,8 +295,12 @@ const PullRequestIdentity = {
   url: Schema.String,
 };
 
+export const CHILD_PULL_REQUEST_REPORT_NEXT =
+  "End your reply with: PR <full URL>, head <SHA>, checks and reviews <state>.";
+
 export const LinkPullRequestResult = Schema.Struct({
   ...PullRequestIdentity,
+  next: Schema.optional(Schema.Literal(CHILD_PULL_REQUEST_REPORT_NEXT)),
   alreadyLinked: Schema.Boolean.annotate({
     description: "True when the pull request was linked to this thread before the call.",
   }),
@@ -352,7 +370,7 @@ export const ThreadPullRequestEntry = Schema.Struct({
   stack: Schema.NullOr(
     Schema.Struct({
       kind: Schema.Literals(["native", "derived"]),
-      /** 1-based layer, bottom of the stack first. Pull requests built on the same one share it. */
+
       position: Schema.Int,
       size: Schema.Int,
     }),
@@ -402,6 +420,7 @@ const UnlinkPullRequestTool = Tool.make("unlink_pull_request", {
 const ListThreadPullRequestsTool = Tool.make("list_thread_pull_requests", {
   description: `List the pull requests linked to a thread (omit threadId for this thread) with their last known host state, and how they chain into stacks (bottom to top). ${REGISTER_EVERY_PR}`,
   parameters: Schema.Struct({
+    environmentId: OrchestratorMcpEnvironmentTarget,
     threadId: Schema.optional(
       ThreadId.annotate({ description: "Thread to list. Omit for this thread." }),
     ),
@@ -428,7 +447,8 @@ const WatchPullRequestTool = Tool.make("watch_pull_request", {
   .annotate(Tool.Readonly, false)
   .annotate(Tool.Destructive, false)
   .annotate(Tool.Idempotent, true)
-  .annotate(Tool.OpenWorld, false);
+  .annotate(Tool.OpenWorld, false)
+  .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenFromSubagents);
 
 const UnwatchPullRequestTool = Tool.make("unwatch_pull_request", {
   description:
@@ -442,7 +462,8 @@ const UnwatchPullRequestTool = Tool.make("unwatch_pull_request", {
   .annotate(Tool.Readonly, false)
   .annotate(Tool.Destructive, false)
   .annotate(Tool.Idempotent, true)
-  .annotate(Tool.OpenWorld, false);
+  .annotate(Tool.OpenWorld, false)
+  .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenFromSubagents);
 
 const WatchWorkflowRunTool = Tool.make("watch_workflow_run", {
   description:
@@ -456,7 +477,8 @@ const WatchWorkflowRunTool = Tool.make("watch_workflow_run", {
   .annotate(Tool.Readonly, false)
   .annotate(Tool.Destructive, false)
   .annotate(Tool.Idempotent, true)
-  .annotate(Tool.OpenWorld, false);
+  .annotate(Tool.OpenWorld, false)
+  .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenFromSubagents);
 
 const UnwatchWorkflowRunTool = Tool.make("unwatch_workflow_run", {
   description:
@@ -470,7 +492,8 @@ const UnwatchWorkflowRunTool = Tool.make("unwatch_workflow_run", {
   .annotate(Tool.Readonly, false)
   .annotate(Tool.Destructive, false)
   .annotate(Tool.Idempotent, true)
-  .annotate(Tool.OpenWorld, false);
+  .annotate(Tool.OpenWorld, false)
+  .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenFromSubagents);
 
 const GuideTarget = Schema.Struct({
   url: PullRequestTargetInput.fields.url,
@@ -509,6 +532,7 @@ const WritePullRequestGuidesTool = Tool.make("write_pull_request_guides", {
   description:
     "Write review guides for up to 20 pull requests, the tour a maintainer reads in a pull request's Guide tab. Each run reads its change in a temporary checkout and takes minutes, so this returns once the runs are under way; read a guide with read_pull_request_guide to see when it is written. A guide for the same head that is already running is joined, not restarted; a pull request whose guide is current is written again. Each pull request is read through the project in this environment whose checkout has that repository. Fails while review guides are off on this server.",
   parameters: Schema.Struct({
+    environmentId: OrchestratorMcpEnvironmentTarget,
     pullRequests: Schema.Array(GuideTarget).check(Schema.isMinLength(1), Schema.isMaxLength(20)),
   }),
   success: WritePullRequestGuidesResult,
@@ -524,7 +548,10 @@ const WritePullRequestGuidesTool = Tool.make("write_pull_request_guides", {
 const ReadPullRequestGuideTool = Tool.make("read_pull_request_guide", {
   description:
     "Read a pull request's stored review guide and its run: run.Running while one is being written, run.Failed with the reason when the last one failed, guide null when none was written. stale is true after a push the guide has not caught up with. Never starts a run.",
-  parameters: GuideTarget,
+  parameters: Schema.Struct({
+    environmentId: OrchestratorMcpEnvironmentTarget,
+    ...GuideTarget.fields,
+  }),
   success: ReadPullRequestGuideResult,
   failure: PullRequestToolError,
   dependencies: guideDependencies,

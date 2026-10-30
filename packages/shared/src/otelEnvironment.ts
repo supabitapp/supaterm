@@ -6,6 +6,8 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as SchemaTransformation from "effect/SchemaTransformation";
 
+import type { OtlpEndpointSource } from "@supaterm/contracts";
+
 import { OtlpHeadersFromString, OtlpProtocol, type SignalExport } from "./observability.ts";
 
 type OtlpSignalName = "TRACES" | "METRICS" | "LOGS";
@@ -15,6 +17,7 @@ export type OtelSignal = Data.TaggedEnum<{
   Off: {};
   Export: {
     readonly url: string;
+    readonly variable: string;
     readonly protocol: OtlpProtocol;
     readonly headers: Readonly<Record<string, string>> | undefined;
   };
@@ -241,6 +244,7 @@ const endpointSignal = (name: OtlpSignalName, own: Settings, generic: Settings):
   return {
     signal: OtelSignal.Export({
       url: url.toString(),
+      variable: ownEndpoint ? `OTEL_EXPORTER_OTLP_${name}_ENDPOINT` : "OTEL_EXPORTER_OTLP_ENDPOINT",
       protocol: protocol.value ?? "http/protobuf",
       headers: headers.value,
     }),
@@ -255,9 +259,7 @@ export const load: Effect.Effect<OtelEnvironment> = Config.all({
     SUPATERM_FALSE,
     (value) => `SUPATERM_OTEL_SDK_DISABLED=${value} is not a yes or a no and was ignored`,
   ),
-  // The specification: a boolean it defines is true "only by the
-  // case-insensitive string `true`", implementations "MUST NOT" accept other
-  // values as true, and should warn about unrecognized ones.
+  // OTEL booleans are true only for case-insensitive true; warn on unrecognized values.
   spec: flag(
     "OTEL_SDK_DISABLED",
     ["true"],
@@ -318,39 +320,53 @@ export type SignalName = "traces" | "metrics" | "logs";
 export interface SignalEndpoint {
   readonly url: string;
   readonly export: SignalExport;
+  readonly source: OtlpEndpointSource;
+  /** The environment variable that set the endpoint, when `source` is `environment`. */
+  readonly variable?: string;
 }
 
 export const resolveSignalEndpoint = (
   otel: OtelEnvironment,
   signal: SignalName,
   supaterm: { readonly url: string | undefined; readonly export: SignalExport },
-  ...fallbackUrls: ReadonlyArray<string | undefined>
+  fallback: { readonly bootstrapUrl: string | undefined; readonly settingsUrl: string | undefined },
 ): SignalEndpoint | undefined => {
   if (otel.disabled) {
     return undefined;
   }
   const supatermUrl = blankAsUnset(supaterm.url);
   if (supatermUrl !== undefined) {
-    return { url: supatermUrl, export: supaterm.export };
+    return {
+      url: supatermUrl,
+      export: supaterm.export,
+      source: "environment",
+      variable: `SUPATERM_OTLP_${signal.toUpperCase()}_URL`,
+    };
   }
   return OtelSignal.$match(otel[signal], {
-    Export: ({ url, protocol, headers }): SignalEndpoint => ({
+    Export: ({ url, variable, protocol, headers }): SignalEndpoint => ({
       url,
       export: { protocol, headers, exportIntervalMs: supaterm.export.exportIntervalMs },
+      source: "environment",
+      variable,
     }),
     Off: () => undefined,
-    Unset: () => {
-      const url = fallbackUrls.map(blankAsUnset).find((candidate) => candidate !== undefined);
-      return url === undefined ? undefined : { url, export: supaterm.export };
+    Unset: (): SignalEndpoint | undefined => {
+      const settingsUrl = blankAsUnset(fallback.settingsUrl);
+      // The desktop forwards the saved setting as its bootstrap URL, so only a differing one is
+      // the desktop's own.
+      const url = blankAsUnset(fallback.bootstrapUrl) ?? settingsUrl;
+      if (url === undefined) return undefined;
+      return {
+        url,
+        export: supaterm.export,
+        source: url === settingsUrl ? "settings" : "bootstrap",
+      };
     },
   });
 };
 
-/**
- * Provide this around Effect's OTLP exporters, which read
- * `OTEL_RESOURCE_ATTRIBUTES` for themselves and die when it does not decode,
- * so they see what `load` accepted instead.
- */
+/** Give OTLP exporters the accepted resource attributes so their own decoding cannot fail. */
 export const layerResourceAttributes = (attributes: Readonly<Record<string, string>>) =>
   ConfigProvider.layerAdd(
     ConfigProvider.fromEnv({

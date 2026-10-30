@@ -187,11 +187,6 @@ const screenshot = await getImage({
     return null;
   }
 
-  // Macs get the installer, which picks the build for the Mac's chip itself.
-  // Browsers cannot reliably tell Apple Silicon from Intel (the UA lies, GPU
-  // strings lie), and a wrong guess hands an Apple Silicon user a broken app.
-  // Releases without the installer fall back to the arm64 build.
-  // Do NOT add arch detection back here.
   function pickAsset(assets: ReleaseAsset[], platform: Platform): string | null {
     if (platform.os === "win") {
       return assets.find((a) => a.name.endsWith("-x64.exe"))?.browser_download_url ?? null;
@@ -397,10 +392,7 @@ const screenshot = await getImage({
     box-shadow:
       0 20px 48px -16px rgba(0, 0, 0, 0.65),
       0 2px 0 0 rgba(255, 255, 255, 0.04) inset;
-    animation:
-      mark-in 1s cubic-bezier(0.2, 0.7, 0.2, 1) var(--d) both,
-      mark-drift var(--dur) ease-in-out calc(var(--d) + 1s) infinite;
-    animation-play-state: running, var(--home-motion-state, paused);
+    animation: mark-in 1s cubic-bezier(0.2, 0.7, 0.2, 1) var(--d) both;
   }
 
   .hero-float-card img {
@@ -414,17 +406,13 @@ const screenshot = await getImage({
     from { opacity: 0; transform: translate(var(--fx), var(--fy)) rotate(calc(var(--rot) + 24deg)) scale(0.6); }
     to { opacity: 1; transform: translate(0, 0) rotate(var(--rot)) scale(1); }
   }
-  @keyframes mark-drift {
-    0%, 100% { transform: translate(0, 0) rotate(var(--rot)); }
-    50% { transform: translate(var(--dx), var(--dy)) rotate(calc(var(--rot) + var(--wob))); }
-  }
 
-  .hf-opencode    { --x: max(-300px, -19vw); --y: 20px; --s: 64px; --rot: 6deg; --depth: 0.6; --d: 620ms; --dur: 8.5s; --dx: 2px; --dy: -8px; --wob: 3deg; --fx: -40px; --fy: -80px; }
-  .hf-antigravity { --x: min(300px, 19vw); --y: 20px; --s: 64px; --rot: -5deg; --depth: 0.6; --d: 580ms; --dur: 9.8s; --dx: -2px; --dy: -9px; --wob: -3deg; --fx: 40px; --fy: -80px; }
-  .hf-claude   { --x: max(-560px, -38vw); --y: 128px; --s: 96px; --rot: -8deg; --depth: 1.2; --d: 380ms; --dur: 10.5s; --dx: 4px; --dy: -12px; --wob: -2deg; --fx: -160px; --fy: -40px; --tint: rgba(217, 119, 87, 0.22); }
-  .hf-codex    { --x: min(560px, 38vw); --y: 128px; --s: 96px; --rot: 7deg; --depth: 1.2; --d: 460ms; --dur: 9.2s; --dx: -4px; --dy: -10px; --wob: 2deg; --fx: 160px; --fy: -40px; }
-  .hf-grok     { --x: max(-440px, -30vw); --y: 440px; --s: 80px; --rot: 4deg; --depth: 0.9; --d: 540ms; --dur: 11.5s; --dx: 3px; --dy: -9px; --wob: -3deg; --fx: -120px; --fy: 80px; }
-  .hf-cursor   { --x: min(440px, 30vw); --y: 440px; --s: 80px; --rot: -5deg; --depth: 0.9; --d: 700ms; --dur: 7.8s; --dx: -3px; --dy: -11px; --wob: 3deg; --fx: 120px; --fy: 80px; }
+  .hf-opencode    { --x: max(-300px, -19vw); --y: 20px; --s: 64px; --rot: 6deg; --depth: 0.6; --d: 620ms; --fx: -40px; --fy: -80px; }
+  .hf-antigravity { --x: min(300px, 19vw); --y: 20px; --s: 64px; --rot: -5deg; --depth: 0.6; --d: 580ms; --fx: 40px; --fy: -80px; }
+  .hf-claude   { --x: max(-560px, -38vw); --y: 128px; --s: 96px; --rot: -8deg; --depth: 1.2; --d: 380ms; --fx: -160px; --fy: -40px; --tint: rgba(217, 119, 87, 0.22); }
+  .hf-codex    { --x: min(560px, 38vw); --y: 128px; --s: 96px; --rot: 7deg; --depth: 1.2; --d: 460ms; --fx: 160px; --fy: -40px; }
+  .hf-grok     { --x: max(-440px, -30vw); --y: 440px; --s: 80px; --rot: 4deg; --depth: 0.9; --d: 540ms; --fx: -120px; --fy: 80px; }
+  .hf-cursor   { --x: min(440px, 30vw); --y: 440px; --s: 80px; --rot: -5deg; --depth: 0.9; --d: 700ms; --fx: 120px; --fy: 80px; }
   /* Beside the CTA, so they move down with the model above the headline. */
   .hf-grok, .hf-cursor { top: calc(var(--y) + var(--crt-shift)); }
 

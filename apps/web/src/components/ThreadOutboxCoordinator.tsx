@@ -21,12 +21,14 @@ const outboxReadyAtom = Atom.make((get) => {
 export function ThreadOutboxCoordinator() {
   const ready = useAtomValue(outboxReadyAtom);
   const entries = useThreadOutbox();
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Loads persisted outbox entries and subscribes to changes from other browser contexts.
   useEffect(() => {
     void webThreadOutbox.load().catch(console.error);
     return subscribeThreadOutboxStorage(() => {
       void webThreadOutbox.reload().catch(console.error);
     });
   }, []);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Drives persisted outbox delivery and its retry timer while entries and environments are ready.
   useEffect(() => {
     if (!ready || entries.length === 0) return;
     let stopped = false;

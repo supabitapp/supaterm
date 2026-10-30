@@ -81,9 +81,6 @@ class ClaudeResetCreditError extends Schema.TaggedError<ClaudeResetCreditError>(
 
 const isClaudeResetCreditError = Schema.is(ClaudeResetCreditError);
 
-/**
- * An unanswered or unconfirmed claim retries with the same request id.
- */
 export const isSettledClaudeResetCreditFailure = (error: unknown) =>
   isClaudeResetCreditError(error) &&
   error.reason !== "requestFailed" &&
@@ -196,10 +193,6 @@ const CLAIM_OUTCOMES = {
   ineligible: "noCredit",
 } as const satisfies Record<string, ProviderConsumeResetCreditOutcome>;
 
-/**
- * `requestId` is the idempotency key: a retry with the same id is the same
- * claim.
- */
 export const consumeClaudeResetCredit = Effect.fn("consumeClaudeResetCredit")(function* (input: {
   readonly configDir: string;
   readonly accountConfigPath: string;
@@ -255,8 +248,7 @@ export const consumeClaudeResetCredit = Effect.fn("consumeClaudeResetCredit")(fu
   if (body.result === "cooldown") {
     return yield* new ClaudeResetCreditError({ reason: "coolingDown" });
   }
-  // Claude could not say whether the claim landed, so, like the CLI, keep the
-  // request id and let the retry ask about the same claim.
+
   if (body.result === "unavailable") {
     return yield* new ClaudeResetCreditError({ reason: "unconfirmed" });
   }

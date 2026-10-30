@@ -1,5 +1,6 @@
 package expo.modules.supatermreviewdiff
 
+import expo.modules.kotlin.Promise
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
@@ -38,7 +39,7 @@ class SupatermReviewDiffModule : Module() {
       Prop("rowHeight") { view: SupatermReviewDiffView, rowHeight: Double ->
         view.setRowHeight(rowHeight.toFloat())
       }
-      // Accept the shared prop while deriving Android's scroll range from the drawn text.
+
       Prop("contentWidth") { _: SupatermReviewDiffView, _: Double -> }
       Prop("contentInsetBottom") { view: SupatermReviewDiffView, value: Double ->
         view.setContentInsetBottom(value.toFloat())
@@ -48,6 +49,9 @@ class SupatermReviewDiffModule : Module() {
       }
       Prop("initialRowIndex") { view: SupatermReviewDiffView, initialRowIndex: Double ->
         view.setInitialRowIndex(initialRowIndex)
+      }
+      Prop("initialFileId") { view: SupatermReviewDiffView, fileId: String ->
+        view.setInitialFileId(fileId)
       }
 
       Events(
@@ -71,8 +75,12 @@ class SupatermReviewDiffModule : Module() {
       AsyncFunction("setTokensJson") { view: SupatermReviewDiffView, tokensJson: String ->
         view.setTokensJson(tokensJson)
       }
-      AsyncFunction("setTokensPatchJson") { view: SupatermReviewDiffView, tokensPatchJson: String ->
-        view.setTokensPatchJson(tokensPatchJson)
+      AsyncFunction("setTokensPatchJson") {
+          view: SupatermReviewDiffView,
+          tokensPatchJson: String,
+          promise: Promise
+        ->
+        view.setTokensPatchJson(tokensPatchJson) { accepted -> promise.resolve(accepted) }
       }
 
       OnViewDestroys { view: SupatermReviewDiffView ->

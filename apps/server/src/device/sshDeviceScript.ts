@@ -205,7 +205,7 @@ async function install(name, version, entry) {
   const agentEntry = await install('agent-device', agentVersion, 'bin/agent-device.mjs');
   const previousAgent = read(agentFile)?.entryPath;
   let daemon = read(daemonFile);
-  if (daemon && (previousAgent !== agentEntry || !await healthy(daemon.httpPort, '/health'))) {
+  if (daemon && (previousAgent !== agentEntry || daemon.version !== agentVersion || !await healthy(daemon.httpPort, '/health'))) {
     const stopped = run(process.execPath, [previousAgent || agentEntry, 'daemon', 'stop', '--state-dir', state]);
     if (stopped.status !== 0) throw Error('Could not stop the previous agent-device version.');
     fs.rmSync(daemonFile, { force: true });

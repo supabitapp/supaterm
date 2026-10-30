@@ -1,3 +1,5 @@
+import type { ComposerThreadDraftState } from "../../composerDraftStore";
+import { countPreparingComposerImages } from "./preparingComposerImages";
 import type { RefObject } from "react";
 import type { ChatComposerProps } from "./ChatComposer";
 import type { ComposerDraftContextRecords } from "../composerContextPresentation";
@@ -58,8 +60,13 @@ async function downloadAttachmentBlob(url: string): Promise<Blob | null> {
  */
 export function useComposerContextImport(input: {
   readonly environmentId: EnvironmentId;
+  readonly linkedEnvironments: ReadonlyMap<EnvironmentId, string>;
   readonly activeThread: ChatComposerProps["activeThread"];
   readonly activeThreadId: ChatComposerProps["activeThreadId"];
+  readonly readAttachments: () => Pick<
+    ComposerThreadDraftState,
+    "images" | "files" | "terminalContexts"
+  >;
   readonly composerDraftTarget: ChatComposerProps["composerDraftTarget"];
   readonly attachmentDraftTarget: ChatComposerProps["composerDraftTarget"];
   readonly attachmentTargetKey: string;
@@ -68,13 +75,13 @@ export function useComposerContextImport(input: {
   readonly pendingUserInputs: ReadonlyArray<PendingUserInput>;
   readonly composerContextRecords: ComposerDraftContextRecords;
   readonly composerImages: ReadonlyArray<ComposerImageAttachment>;
-  readonly composerFilesRef: ChatComposerProps["composerFilesRef"];
-  readonly pendingImageCompressionsRef: RefObject<Map<string, number>>;
   readonly pendingThreadImportsRef: RefObject<Map<string, number>>;
   readonly addComposerFilesToDraft: (files: ComposerFileAttachment[]) => string[];
 }) {
   const {
+    readAttachments,
     environmentId,
+    linkedEnvironments,
     activeThread,
     activeThreadId,
     composerDraftTarget,
@@ -85,8 +92,6 @@ export function useComposerContextImport(input: {
     pendingUserInputs,
     composerContextRecords,
     composerImages,
-    composerFilesRef,
-    pendingImageCompressionsRef,
     pendingThreadImportsRef,
     addComposerFilesToDraft,
   } = input;
@@ -100,6 +105,9 @@ export function useComposerContextImport(input: {
     (store) => store.addPreviewAnnotation,
   );
   const addComposerDraftThreadContexts = useComposerDraftStore((store) => store.addThreadContexts);
+  const addComposerDraftEnvironmentContexts = useComposerDraftStore(
+    (store) => store.addEnvironmentContexts,
+  );
   const createAssetUrl = useAtomQueryRunner(assetEnvironment.createUrl, { reportFailure: false });
   const loadThreadTranscript = useAtomCommand(orchestrationEnvironment.threadTranscript, {
     reportFailure: false,
@@ -123,7 +131,7 @@ export function useComposerContextImport(input: {
     return (
       (draft?.images.length ?? 0) +
       (draft?.files.length ?? 0) +
-      (pendingImageCompressionsRef.current.get(attachmentTargetKey) ?? 0) +
+      countPreparingComposerImages(attachmentTargetKey) +
       (pendingThreadImportsRef.current.get(attachmentTargetKey) ?? 0) +
       countQuestionAttachments(otherQuestionKeys)
     );
@@ -173,7 +181,7 @@ export function useComposerContextImport(input: {
     if (attachmentTargetKeyRef.current !== importTargetKey) return;
     const replacesFileMarker =
       record.kind === "file" &&
-      composerFilesRef.current.some(
+      readAttachments().files.some(
         (candidate) =>
           composerFileNeedsReattach(candidate) &&
           composerFileMatchesReattachMarker(candidate, {
@@ -294,7 +302,7 @@ export function useComposerContextImport(input: {
                     ? existing.record.id
                     : undefined,
                 })
-              : existing?.kind === "thread"
+              : existing?.kind === "thread" || existing?.kind === "environment"
                 ? existing.record
                 : existing
                   ? (uploadedContextRecordFromDraft(existing) ?? undefined)
@@ -348,9 +356,24 @@ export function useComposerContextImport(input: {
           break;
         }
         case "thread": {
-          // The agent can only read threads on its own server; a pasted foreign one is dropped.
-          if (record.environmentId !== environmentId) break;
+          // The agent reads threads on its own server and the machines it links to; a pasted
+          // thread from any other machine is dropped.
+          if (
+            record.environmentId !== environmentId &&
+            !linkedEnvironments.has(record.environmentId)
+          )
+            break;
           addComposerDraftThreadContexts(threadDraftTarget, [record], {
+            appendReference: false,
+          });
+          rewritten.set(record.contextId, record.contextId);
+          break;
+        }
+        case "environment": {
+          // A machine means the same machine from any thread, so a pasted one is kept,
+          // but not in an answer to an agent's question, which carries no machines.
+          if (questionAttachmentTarget !== null) break;
+          addComposerDraftEnvironmentContexts(composerDraftTarget, [record], {
             appendReference: false,
           });
           rewritten.set(record.contextId, record.contextId);

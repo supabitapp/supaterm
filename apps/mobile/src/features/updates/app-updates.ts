@@ -1,5 +1,5 @@
 import * as Updates from "expo-updates";
-// Metro namespace imports evaluate unrelated React Native getters, including unavailable native modules.
+
 import { AppState } from "react-native";
 
 import {
@@ -34,19 +34,9 @@ export interface AppUpdateClient {
 export interface AppUpdateEnvironment {
   readonly confirmInstallNow: () => Promise<boolean>;
   readonly flushPendingWrites: () => Promise<void>;
-  /**
-   * Whether a deferred restart may fire right now: the app must still be
-   * backgrounded (flush latency or an iOS suspend can push the continuation
-   * into the next foreground session) and not merely paused behind an
-   * app-initiated handoff like the Android image picker.
-   */
+
   readonly isSafeToRestartInBackground: () => Promise<boolean>;
-  /**
-   * With `includeCurrent`, an app that is already backgrounded fires
-   * immediately (so a backgrounding that raced module load is not missed);
-   * without it, only a future transition fires, so an attempt that already
-   * failed in the current background session cannot retry in a tight loop.
-   */
+
   readonly onNextBackground: (apply: () => void, includeCurrent: boolean) => void;
   readonly onForegroundStay: (apply: () => void) => void;
 }
@@ -96,7 +86,6 @@ const UPDATE_CHECK_UNAVAILABLE_ERROR_CODES = new Set([
 ]);
 let appUpdateCheckInFlight: AppUpdateCheckInFlight | undefined;
 
-/** Expo's development launcher reports updates as enabled even though its OTA APIs reject. */
 export function isAppUpdateCheckAvailable(client: Pick<AppUpdateClient, "isEnabled"> = Updates) {
   return client.isEnabled && !(typeof __DEV__ !== "undefined" && __DEV__);
 }
@@ -150,7 +139,7 @@ export async function runAppUpdateCheck(options: AppUpdateCheckOptions = {}): Pr
     promise: deferred.promise,
     stateListeners,
   };
-  // Publish the operation before any state listener can synchronously re-enter.
+
   appUpdateCheckInFlight = inFlight;
 
   const execution = performAppUpdateCheck(client, {
@@ -188,8 +177,6 @@ function createDeferred(): Deferred {
 }
 
 function notifyListeners<A>(listeners: ReadonlySet<(value: A) => void>, value: A): void {
-  // A listener can synchronously subscribe another caller. Snapshot so that
-  // caller receives only observeAppUpdateCheck's explicit current-value replay.
   const snapshot = Array.from(listeners);
   for (const listener of snapshot) listener(value);
 }
@@ -238,8 +225,7 @@ async function performAppUpdateCheck(
     setState("idle");
     return;
   }
-  // A rollback directive (`eas update:rollback`) arrives as isAvailable: false
-  // with isRollBackToEmbedded: true. The running OTA still has to be dropped.
+
   if (!check.value.isAvailable && !check.value.isRollBackToEmbedded) {
     setState("current");
     return;
@@ -252,7 +238,7 @@ async function performAppUpdateCheck(
     setState("idle");
     return;
   }
-  // isNew is always false for a rollback, so it cannot be the sole gate.
+
   if (!fetched.value.isNew && !fetched.value.isRollBackToEmbedded) {
     setState("current");
     return;
@@ -279,12 +265,6 @@ async function performAppUpdateCheck(
 
 type AppUpdateInstallOutcome = "installed" | "flush-failed" | "restart-failed";
 
-/**
- * Restarting mid-session while native surfaces are mounted is the crashiest
- * moment expo-updates has, so the restart flushes persistence first and, by
- * default, waits for a backgrounding — where nothing is rendering and the
- * teardown is invisible.
- */
 async function installAppUpdate(
   client: AppUpdateClient,
   environment: AppUpdateEnvironment,
@@ -347,8 +327,7 @@ async function promptDeferredAppUpdateInstall(
   if (!deferral.pendingInstall || deferral.installInProgress) return;
   const installNow = await settlePromise(() => environment.confirmInstallNow());
   if (installNow._tag !== "Success" || !installNow.value) return;
-  // A backgrounding while the alert was up may have started the deferred
-  // restart already; the stale accept must not start a second one.
+
   if (!deferral.pendingInstall || deferral.installInProgress) return;
   await installPendingAppUpdate(client, environment, deferral, {});
 }
@@ -378,8 +357,7 @@ async function applyDeferredAppUpdateInstall(
       reportUpdateFailure(flushed, "Could not save pending state.", undefined);
     }
     deferral.installInProgress = false;
-    // This attempt already ran in the current background session; retrying
-    // before a fresh transition would just loop over the same failure.
+
     scheduleDeferredAppUpdateInstall(client, environment, deferral, false);
     return;
   }
@@ -435,12 +413,8 @@ function defaultOnNextBackground(apply: () => void, includeCurrent: boolean): vo
   }
 }
 
-export const DEFERRED_INSTALL_PROMPT_AFTER_MS = 30 * 60 * 1000;
+const DEFERRED_INSTALL_PROMPT_AFTER_MS = 30 * 60 * 1000;
 
-/**
- * iOS "inactive" blips (app switcher, a pulled-down notification shade) leave
- * the timer running.
- */
 function defaultOnForegroundStay(apply: () => void): void {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const arm = () => {
@@ -488,23 +462,9 @@ function isAppUpdateUnavailableError(error: unknown): boolean {
   return typeof code === "string" && UPDATE_CHECK_UNAVAILABLE_ERROR_CODES.has(code);
 }
 
-export function createAppUpdateLaunchCheck(
-  client: AppUpdateClient = Updates,
-): () => Promise<void> | undefined {
-  let started = false;
+const FOREGROUND_APP_UPDATE_RECHECK_AFTER_MS = 15 * 60 * 1000;
 
-  return () => {
-    if (started || !isAppUpdateCheckAvailable(client)) return undefined;
-    started = true;
-    return runAppUpdateCheck({ client });
-  };
-}
-
-export const checkForAppUpdateOnLaunch = createAppUpdateLaunchCheck();
-
-export const FOREGROUND_APP_UPDATE_RECHECK_AFTER_MS = 15 * 60 * 1000;
-
-export function shouldRecheckAppUpdateOnForeground(
+function shouldRecheckAppUpdateOnForeground(
   backgroundedAtMs: number | null,
   activeAtMs: number,
   pendingInstall: boolean,
@@ -516,31 +476,26 @@ export function shouldRecheckAppUpdateOnForeground(
   );
 }
 
-export function createAppUpdateForegroundRecheck(
+export function installAppUpdateChecks(
   client: AppUpdateClient = Updates,
   deferral: AppUpdateDeferral = appUpdateDeferral,
 ): () => void {
-  let started = false;
-
-  return () => {
-    if (started || !isAppUpdateCheckAvailable(client)) return;
-    started = true;
-    let backgroundedAtMs: number | null = null;
-    AppState.addEventListener("change", (state) => {
-      if (state === "background") {
-        backgroundedAtMs = Date.now();
-        return;
-      }
-      if (state !== "active") return;
-      const shouldCheck = shouldRecheckAppUpdateOnForeground(
-        backgroundedAtMs,
-        Date.now(),
-        deferral.pendingInstall,
-      );
-      backgroundedAtMs = null;
-      if (shouldCheck) void runAppUpdateCheck({ client, deferral });
-    });
-  };
+  if (!isAppUpdateCheckAvailable(client)) return () => undefined;
+  void runAppUpdateCheck({ client, deferral });
+  let backgroundedAtMs: number | null = null;
+  const subscription = AppState.addEventListener("change", (state) => {
+    if (state === "background") {
+      backgroundedAtMs = Date.now();
+      return;
+    }
+    if (state !== "active") return;
+    const shouldCheck = shouldRecheckAppUpdateOnForeground(
+      backgroundedAtMs,
+      Date.now(),
+      deferral.pendingInstall,
+    );
+    backgroundedAtMs = null;
+    if (shouldCheck) void runAppUpdateCheck({ client, deferral });
+  });
+  return () => subscription.remove();
 }
-
-export const startAppUpdateForegroundRecheck = createAppUpdateForegroundRecheck();

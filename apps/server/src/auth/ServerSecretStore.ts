@@ -127,12 +127,12 @@ export const SecretStoreError = Schema.Union([
   SecretStoreEncodeError,
 ]);
 export type SecretStoreError = typeof SecretStoreError.Type;
-const isSecretStoreError = Schema.is(SecretStoreError);
+export const isSecretStoreError = Schema.is(SecretStoreError);
 
 const isPlatformError = (value: unknown): value is PlatformError.PlatformError =>
   Predicate.isTagged(value, "PlatformError");
 
-const isSecretAlreadyExistsError = (error: SecretStoreError): boolean =>
+export const isSecretAlreadyExistsError = (error: SecretStoreError): boolean =>
   "cause" in error && isPlatformError(error.cause) && error.cause.reason._tag === "AlreadyExists";
 
 export class ServerSecretStore extends Context.Service<
@@ -150,7 +150,7 @@ export class ServerSecretStore extends Context.Service<
   }
 >()("supaterm/auth/ServerSecretStore") {}
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const crypto = yield* Crypto.Crypto;
   const fileSystem = yield* FileSystem.FileSystem;

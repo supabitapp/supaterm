@@ -137,7 +137,7 @@ it.effect.each(deliveries)(
         const sdkMessages = yield* Queue.unbounded<SDKMessage>();
         const offers: SDKUserMessage[] = [];
         const nativeQueue: SDKUserMessage[] = [];
-        const batchAbort = new AbortController();
+        let batchAborted = false;
         const adapter = yield* ClaudeAdapterV2.makeClaudeAdapterV2({
           instanceId: modelSelection.instanceId,
           settings,
@@ -156,10 +156,8 @@ it.effect.each(deliveries)(
                   Effect.sync(() => {
                     offers.push(message);
                     nativeQueue.push(message);
-                    // Claude Code 2.1.289's queue watcher aborts when a now-priority
-                    // command arrives, including while Bash blocks pending reads.
                     if (nativeQueue.some((command) => command.priority === "now")) {
-                      batchAbort.abort({ kind: "interrupt" });
+                      batchAborted = true;
                     }
                   }),
                 setModel: () => Effect.void,
@@ -374,8 +372,6 @@ it.effect.each(deliveries)(
               queuedRunId: queuedRun.id,
               targetRunId: parent.id,
             });
-            // Promotion cancels the queued run and moves its message into the
-            // running run as a steer that remembers where it came from.
             const promoted = yield* orchestrator.getThreadProjection(threadId);
             assert.equal(promoted.runs.find((run) => run.id === queuedRun.id)?.status, "cancelled");
             assert.equal(
@@ -391,7 +387,7 @@ it.effect.each(deliveries)(
           yield* worker.drain();
           const explicitSteer =
             delivery === "user steering" || delivery === "promoted queued message";
-          assert.equal(batchAbort.signal.aborted, explicitSteer);
+          assert.equal(batchAborted, explicitSteer);
           assert.equal(offers.length, explicitSteer ? 2 : 1);
           const finished = yield* watch(
             (event) =>
@@ -400,8 +396,7 @@ it.effect.each(deliveries)(
               event.payload.status === "waiting",
           );
           yield* Queue.offer(sdkMessages, toolResult("build", false));
-          for (const id of statusIds)
-            yield* Queue.offer(sdkMessages, toolResult(id, batchAbort.signal.aborted));
+          for (const id of statusIds) yield* Queue.offer(sdkMessages, toolResult(id, batchAborted));
           if (explicitSteer) yield* Queue.offer(sdkMessages, result("aborted", true));
           yield* Queue.offer(sdkMessages, result("completed", false));
           yield* Fiber.join(finished);

@@ -87,9 +87,6 @@ export const makeProviderAuthService = Effect.gen(function* () {
     return instance.auth;
   });
 
-  // Native sessions may still belong to the previous provider after the
-  // selected model changes. Read session bindings, not the selected model,
-  // when invalidating credentials for sign-in or sign-out.
   const stopSessions = Effect.fn("ProviderAuthService.stopSessions")(function* (
     instanceId: ProviderInstanceId,
     binding: ProviderAuthController["credentialBinding"],
@@ -207,8 +204,8 @@ export const makeProviderAuthService = Effect.gen(function* () {
         });
       return yield* auth.reconnectProfile(input.methodId);
     }),
-    importProfile: (input) =>
-      credentialChanges.withPermit(
+    importProfile: Effect.fn("ProviderAuthService.importProfile")(function (input) {
+      return credentialChanges.withPermit(
         Effect.gen(function* () {
           const auth = yield* getController(input.instanceId, "import");
           yield* checkSharedBinding(input.instanceId, "start", auth);
@@ -223,7 +220,8 @@ export const makeProviderAuthService = Effect.gen(function* () {
             stopSessions(input.instanceId, auth.credentialBinding),
           );
         }),
-      ),
+      );
+    }),
     start: Effect.fn("ProviderAuthService.start")(function* (input, ownerSessionId) {
       return yield* credentialChanges.withPermit(
         Effect.gen(function* () {

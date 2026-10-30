@@ -23,7 +23,8 @@ import {
   ResizablePanelGroup,
   useCollapsiblePanel,
 } from "~/components/ui/resizable";
-import { useIsMobile } from "~/hooks/useMediaQuery";
+import { useMediaQuery } from "~/hooks/useMediaQuery";
+import { announce } from "~/lib/announce";
 import { resolveSidebarState, type ResponsiveSidebarState } from "./sidebarState";
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
@@ -79,7 +80,7 @@ function SidebarProvider({
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
-  const isMobile = useIsMobile();
+  const isMobile = useMediaQuery("max-md");
   const [openMobile, setOpenMobile] = React.useState(false);
   const [mobileSheetMounted, setMobileSheetMounted] = React.useState(false);
   const setMobileSheetElement = (element: HTMLDivElement | null) => {
@@ -94,6 +95,9 @@ function SidebarProvider({
       setOpenProp(openState);
     } else {
       _setOpen(openState);
+    }
+    if (!isMobile && openState !== open) {
+      announce(`Sidebar ${openState ? "shown" : "hidden"}`, "sidebar-visibility");
     }
 
     await cookieStore.set({
@@ -172,6 +176,7 @@ function Sidebar({
   const desktopSidebarRef = React.useRef<HTMLDivElement>(null);
   const offcanvasCollapsed = !isMobile && state === "collapsed";
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- keeps collapsed sidebar focus outside its inert DOM subtree
   React.useLayoutEffect(() => {
     const sidebar = desktopSidebarRef.current;
     if (!sidebar) return;

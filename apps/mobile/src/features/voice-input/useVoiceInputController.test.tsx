@@ -142,6 +142,9 @@ beforeEach(() => {
     }),
     requestPermission: async () => ({ granted: true, canAskAgain: true }),
     configureRecording: async () => {},
+    sampleRecording: () => null,
+    publishAudioLevels: () => {},
+    keepAwake: () => () => {},
     releaseRecording: async () => {},
     deleteRecording: () => {},
     onStateChange: (next) => {

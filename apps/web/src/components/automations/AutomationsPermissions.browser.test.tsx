@@ -18,6 +18,7 @@ const state = vi.hoisted(() => ({
   projects: [] as Array<Record<string, unknown>>,
   permissions: new Set<string>(),
   tasks: new Map<string, ScheduledTask[]>(),
+  pendingEnvironments: new Set<string>(),
   search: {} as Record<string, unknown>,
   navigate: vi.fn(),
   upsert: vi.fn(),
@@ -103,7 +104,7 @@ vi.mock(import("../settings/useSettingsProjectGroups"), async (original) => ({
 }));
 vi.mock(import("../../hooks/useNowMinute"), async (original) => ({
   ...(await original()),
-  useNowMinuteMs: () => Date.parse("2026-10-07T12:00:00Z"),
+  useNowMinute: () => "2026-10-07T12:00",
 }));
 vi.mock(import("@effect/atom-react"), async (original) => {
   const { AsyncResult } = await import("effect/reactivity");
@@ -114,27 +115,26 @@ vi.mock(import("@effect/atom-react"), async (original) => {
     }) =>
       typeof atom?.read === "function"
         ? atom.read(({ environmentId }) =>
-            AsyncResult.success({ tasks: state.tasks.get(environmentId) ?? [] }),
+            state.pendingEnvironments.has(environmentId)
+              ? AsyncResult.initial()
+              : AsyncResult.success({ tasks: state.tasks.get(environmentId) ?? [] }),
           )
         : []) as never,
   };
 });
 // Pickers and icons that read live provider and git state are out of scope here.
-vi.mock(import("../EnvironmentMachineIcon"), async (original) => ({
-  ...(await original()),
-  EnvironmentMachineIcon: (() => null) as never,
+vi.mock(import("../EnvironmentMachineIcon"), () => ({
+  EnvironmentMachineIcon: () => <></>,
 }));
-vi.mock(import("../WorktreeBaseBranchPicker"), async (original) => ({
-  ...(await original()),
-  WorktreeBaseBranchPicker: (() => null) as never,
+vi.mock(import("../WorktreeBaseBranchPicker"), () => ({
+  WorktreeBaseBranchPicker: () => <></>,
 }));
-vi.mock(import("../chat/ProviderModelPicker"), async (original) => ({
-  ...(await original()),
-  ProviderModelPicker: (() => null) as never,
-}));
-vi.mock(import("../settings/ScopeSentence"), async (original) => ({
-  ...(await original()),
-  ScopeSentence: (() => null) as never,
+vi.mock(import("../chat/ProviderModelPicker"), async () => {
+  const { memo } = await import("react");
+  return { ProviderModelPicker: memo(() => <></>) };
+});
+vi.mock(import("../settings/ScopeSentence"), () => ({
+  ScopeSentence: () => <></>,
 }));
 vi.mock(import("../ui/sidebar"), async (original) => ({
   ...(await original()),
@@ -229,6 +229,7 @@ describe("automation permissions", () => {
     ];
     state.permissions = new Set([primaryId, remoteId]);
     state.tasks = new Map();
+    state.pendingEnvironments = new Set();
     state.search = {};
     state.navigate.mockReset();
     state.upsert.mockReset().mockResolvedValue({ _tag: "Success" });
@@ -268,6 +269,22 @@ describe("automation permissions", () => {
     state.permissions.add(remoteId);
     await click(createButton);
     expect(environmentSelect()?.textContent).toContain("Remote");
+  });
+
+  it("keeps a new draft when a linked task arrives after the editor opens", async () => {
+    await using _test = await setupTest();
+    state.pendingEnvironments.add(remoteId);
+    state.search = { environmentId: remoteId, taskId };
+    await renderPage();
+    await click(buttonNamed("New automation")!);
+    expect(pageText()).toContain("New automation");
+
+    state.tasks.set(remoteId, [task(remoteProjectId)]);
+    state.pendingEnvironments.delete(remoteId);
+    await renderPage();
+
+    expect(pageText()).toContain("New automation");
+    expect(pageText()).not.toContain("Edit automation");
   });
 
   it("opens a read-only editor for a deep-linked task without enabling edits", async () => {

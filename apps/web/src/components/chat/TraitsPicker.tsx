@@ -1,3 +1,5 @@
+import type { EffortDisplay } from "@supaterm/contracts/settings";
+import { resolveEffortGlyph } from "./effortLevels";
 import {
   buildTraitsTriggerLabel,
   getDescriptorStringValue,
@@ -30,8 +32,8 @@ import {
   type SpeedToggle,
   type SpeedToggleLevel,
 } from "@supaterm/client-runtime/provider-speed-toggle";
-import { memo } from "react";
-import { BrainIcon, ZapIcon } from "@supaterm/icons";
+import { memo, useRef, type ReactNode } from "react";
+import { BrainIcon, ZapIcon, ChartColumnIcon } from "@supaterm/icons";
 import { UltrafastIcon } from "../Icons";
 import {
   Menu,
@@ -53,7 +55,7 @@ import {
   ComposerControlIcon,
   type ComposerControlSize,
 } from "./ComposerControl";
-import { useComposerMenuProps } from "./composerEventScope";
+import { focusRequestedPermission, useComposerMenuProps } from "./composerEventScope";
 import { useComposerMenuState } from "./useComposerMenuState";
 
 type ProviderOptions = ReadonlyArray<ProviderOptionSelection>;
@@ -565,6 +567,10 @@ export const TraitsPicker = memo(function TraitsPicker({
   triggerClassName,
   isComposerOwned,
   shortcutLabel = null,
+  effortDisplay = "label",
+  extraMenuContent,
+  extraMenuHint,
+  extraMenuOwnsModeShortcut = false,
   size = "sm",
   hidden = false,
   disabled = false,
@@ -576,8 +582,13 @@ export const TraitsPicker = memo(function TraitsPicker({
     /** The key that opens the picker, shown on its trigger. */
     shortcutLabel?: string | null;
     disabled?: boolean;
+    effortDisplay?: EffortDisplay;
+    extraMenuContent?: ReactNode;
+    extraMenuHint?: string;
+    extraMenuOwnsModeShortcut?: boolean;
   }) {
   const composerFloatingLayerProps = useComposerMenuProps();
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const [isMenuOpen, setIsMenuOpen] = useComposerMenuState(hidden || disabled);
   const updateModelOptions = useUpdateModelOptions(provider, instanceId, model, persistence);
   const {
@@ -652,7 +663,7 @@ export const TraitsPicker = memo(function TraitsPicker({
     return speedToggleControl;
   }
 
-  const triggerLabel = buildTraitsTriggerLabel({
+  const trigger = buildTraitsTriggerLabel({
     descriptors,
     speedToggle,
     primarySelectDescriptorId: primarySelectDescriptor?.id ?? null,
@@ -661,11 +672,18 @@ export const TraitsPicker = memo(function TraitsPicker({
     reportedModelSelection,
   });
 
+  const triggerLabel = trigger.label;
   const isCodexStyle = provider === "codex";
+  const effortLevel = primarySelectDescriptor
+    ? resolveEffortGlyph(primarySelectDescriptor, getDescriptorStringValue(primarySelectDescriptor))
+    : null;
+  const showEffortBars =
+    isComposerOwned && effortDisplay === "bars" && effortLevel && effortLevel.special === null;
 
   return (
     <>
       <Menu
+        onOpenChangeComplete={(open) => focusRequestedPermission(open, triggerRef.current)}
         open={isMenuOpen}
         onOpenChange={(open) => {
           setIsMenuOpen(open && !disabled);
@@ -677,9 +695,16 @@ export const TraitsPicker = memo(function TraitsPicker({
               <MenuTrigger
                 render={
                   <ComposerControl
+                    ref={triggerRef}
                     disabled={disabled}
                     aria-label={triggerLabel}
-                    data-composer-shortcut={isComposerOwned ? "composer.effort" : undefined}
+                    data-composer-shortcut={
+                      isComposerOwned
+                        ? extraMenuOwnsModeShortcut
+                          ? "composer.effort composer.mode"
+                          : "composer.effort"
+                        : undefined
+                    }
                     size={size}
                     className={cn(
                       isCodexStyle
@@ -692,7 +717,15 @@ export const TraitsPicker = memo(function TraitsPicker({
               />
             }
           >
-            {isCodexStyle ? (
+            {showEffortBars ? (
+              <>
+                <ComposerControlIcon icon={ChartColumnIcon} size={size} />
+                <span aria-hidden>
+                  {effortLevel.filled}/{effortLevel.count}
+                </span>
+                <span className="sr-only">{effortLevel.label}</span>
+              </>
+            ) : isCodexStyle ? (
               <span
                 className={cn(
                   "flex min-w-0 w-full items-center",
@@ -725,6 +758,7 @@ export const TraitsPicker = memo(function TraitsPicker({
           </TooltipTrigger>
           <TooltipPopup side="top" shortcut={shortcutLabel}>
             {triggerLabel}
+            {extraMenuHint ? <div className="text-muted-foreground">{extraMenuHint}</div> : null}
           </TooltipPopup>
         </Tooltip>
         <MenuPopup align="start" {...(isComposerOwned ? composerFloatingLayerProps : {})}>
@@ -741,6 +775,12 @@ export const TraitsPicker = memo(function TraitsPicker({
             omitToggleOnlyOptions
             {...persistence}
           />
+          {extraMenuContent ? (
+            <>
+              <MenuDivider />
+              {extraMenuContent}
+            </>
+          ) : null}
         </MenuPopup>
       </Menu>
       {speedToggleControl}

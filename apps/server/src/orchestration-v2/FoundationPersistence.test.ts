@@ -1,3 +1,4 @@
+import * as TestClock from "effect/testing/TestClock";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import * as ServerSettings from "../serverSettings.ts";
@@ -770,7 +771,7 @@ it.layer(layerTest)("orchestration V2 foundation persistence", (it) => {
       });
       const beforeCompaction = yield* projections.getThreadProjection(threadId);
 
-      const summary = yield* maintenance.compactEventStore;
+      const summary = yield* maintenance.compactEventStore();
       // Superseded state spans several discovery pages. Both turn-item updates
       // stay, and so do the first message and node events (replay order). The
       // rename stays too: visits are read state and only supersede each other.
@@ -1733,17 +1734,15 @@ it.layer(layerTest)("orchestration V2 foundation persistence", (it) => {
       };
       const executionCount = yield* Ref.make(0);
       const layerOutbox = Layer.mock(EffectOutbox.EffectOutboxV2)({
-        claimNext: () => Effect.succeed(Option.some(claimedEffect)),
+        claimNext: () => Effect.succeedSome(claimedEffect),
         get: () =>
-          Effect.succeed(
-            Option.some({
-              ...claimedEffect,
-              status: "cancelled" as const,
-              leaseOwner: null,
-              leaseExpiresAt: null,
-              completedAt: now,
-            }),
-          ),
+          Effect.succeedSome({
+            ...claimedEffect,
+            status: "cancelled" as const,
+            leaseOwner: null,
+            leaseExpiresAt: null,
+            completedAt: now,
+          }),
         clearCancellation: () => Effect.void,
         awaitCancellation: () => Effect.never,
       });
@@ -2355,6 +2354,94 @@ it.layer(layerTest)("orchestration V2 foundation persistence", (it) => {
     }),
   );
 
+  it.effect.each([{ replayed: false }, { replayed: true }] as const)(
+    "starts later thread work behind a delegated-task stop that never returns (replayed: $replayed)",
+    ({ replayed }) =>
+      Effect.gen(function* () {
+        const outbox = yield* EffectOutbox.EffectOutboxV2;
+        const key = `foundation-hung-delegated-stop:${replayed}`;
+        const threadId = ThreadId.make(`thread:${key}`);
+        const stopEffectId = `effect:${key}:stop`;
+        const stopStarted = yield* Deferred.make<void>();
+        const turnStarted = yield* Deferred.make<void>();
+        yield* outbox.enqueue([
+          {
+            id: stopEffectId,
+            commandId: CommandId.make(`command:${key}:stop`),
+            threadId,
+            request: { type: "delegated-tasks.stop" },
+          },
+        ]);
+        if (replayed) {
+          assert.isTrue(
+            Option.isSome(
+              yield* outbox.claimNext({ workerId: "crashed-worker", leaseDurationMs: 30_000 }),
+            ),
+          );
+          assert.equal((yield* outbox.reconcileAfterProcessLoss).requeued, 1);
+        }
+
+        const layerExecutor = Layer.succeed(
+          EffectWorker.OrchestrationEffectExecutorV2,
+          EffectWorker.OrchestrationEffectExecutorV2.of({
+            execute: (effect) =>
+              effect.request.type === "delegated-tasks.stop"
+                ? Deferred.succeed(stopStarted, undefined).pipe(Effect.andThen(Effect.never))
+                : Deferred.succeed(turnStarted, undefined),
+          }),
+        );
+        const layerWorker = EffectWorker.layerWithOptions({
+          workerId: "hung-delegated-stop-worker",
+        }).pipe(
+          Layer.provide(
+            Layer.merge(Layer.succeed(EffectOutbox.EffectOutboxV2, outbox), layerExecutor),
+          ),
+        );
+
+        yield* Effect.gen(function* () {
+          yield* EffectWorker.runDaemonWithOptions({ concurrency: 2 }).pipe(Effect.forkScoped);
+          yield* Deferred.await(stopStarted);
+          yield* outbox.enqueue([
+            {
+              id: `effect:${key}:turn`,
+              commandId: CommandId.make(`command:${key}:turn`),
+              threadId,
+              request: { type: "provider-turn.start", runId: RunId.make(`run:${key}`) },
+            },
+          ]);
+          yield* outbox.notifyAvailable();
+
+          const turn = yield* Deferred.await(turnStarted).pipe(
+            Effect.timeoutOption("1 hour"),
+            Effect.forkChild,
+          );
+          yield* TestClock.adjust("1 hour");
+          assert.isTrue(
+            Option.isSome(yield* Fiber.join(turn)),
+            "provider-turn.start never ran behind the hung delegated-tasks.stop",
+          );
+          const stop = yield* outbox.get(stopEffectId);
+          assert.isTrue(Option.isSome(stop));
+          if (Option.isSome(stop)) {
+            assert.equal(stop.value.status, "failed");
+            assert.include(stop.value.lastError ?? "", "Timed out");
+          }
+        }).pipe(
+          Effect.provide(layerWorker),
+          Effect.scoped,
+          Effect.ensuring(
+            outbox
+              .cancelUnsettled({
+                threadId,
+                effectTypes: ["delegated-tasks.stop", "provider-turn.start"],
+                reason: "fixture complete",
+              })
+              .pipe(Effect.orDie),
+          ),
+        );
+      }),
+  );
+
   it.effect(
     "persists shutdown continuation intent through the real event sink without domain events",
     () =>
@@ -2610,7 +2697,7 @@ it.layer(layerTest)("orchestration V2 foundation persistence", (it) => {
             awaitWork: Effect.void,
             runRecoveryOnce: Effect.succeed(false),
             runOnce: Effect.succeed(false),
-            nextClaimableAt: Effect.succeed(Option.none()),
+            nextClaimableAt: Effect.succeedNone,
             drain: () => Effect.succeed(0),
           }),
         ),
@@ -2827,7 +2914,7 @@ it.layer(layerTest)("orchestration V2 foundation persistence", (it) => {
             awaitWork: Effect.void,
             runRecoveryOnce: Effect.succeed(false),
             runOnce: Effect.succeed(false),
-            nextClaimableAt: Effect.succeed(Option.none()),
+            nextClaimableAt: Effect.succeedNone,
             drain: () => Effect.succeed(0),
           }),
         ),
@@ -3129,7 +3216,7 @@ it.effect("allows writes while compaction waits for the reader to discover obsol
           : Effect.succeed(statement);
       };
       const compacted = yield* Deferred.make<void>();
-      const compaction = yield* maintenance.compactEventStore.pipe(
+      const compaction = yield* maintenance.compactEventStore().pipe(
         Effect.provideService(Statement.CurrentTransformer, observeDiscovery),
         Effect.provideService(Statement.SpanPropagationEnabled, true),
         Effect.tap(() => Deferred.succeed(compacted, undefined)),
@@ -3148,4 +3235,108 @@ it.effect("allows writes while compaction waits for the reader to discover obsol
       assert.deepEqual(retained, [{ id: "latest" }]);
     }).pipe(Effect.provide(maintenanceLayer));
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+);
+
+it.effect.each(["cancel transaction", "fail transaction", "cancel publication"] as const)(
+  "preserves event consistency and allows later writes after %s",
+  (scenario) =>
+    Effect.gen(function* () {
+      const paused = yield* Deferred.make<void>();
+      const release = yield* Deferred.make<void>();
+      const committed = scenario === "cancel publication";
+      const pause = Deferred.succeed(paused, undefined).pipe(
+        Effect.andThen(Deferred.await(release)),
+      );
+      const layerPausingOutbox = Layer.effect(
+        EffectOutbox.EffectOutboxV2,
+        Effect.gen(function* () {
+          const delegate = yield* EffectOutbox.EffectOutboxV2;
+          return EffectOutbox.EffectOutboxV2.of({
+            ...delegate,
+            enqueue: (effects) =>
+              delegate
+                .enqueue(effects)
+                .pipe(
+                  Effect.andThen(!committed && effects.length > 0 ? pause : Effect.void),
+                  Effect.andThen(
+                    scenario === "fail transaction" && effects.length > 0
+                      ? Effect.die("Injected transaction failure")
+                      : Effect.void,
+                  ),
+                ),
+            notifyAvailable: (count) =>
+              (committed ? pause : Effect.void).pipe(
+                Effect.andThen(delegate.notifyAvailable(count)),
+              ),
+          });
+        }),
+      ).pipe(Layer.provide(layerEffectOutboxProvided));
+      const layerEventSink = EventSink.layerFromStores.pipe(
+        Layer.provide(
+          Layer.mergeAll(
+            layerStoresProvided,
+            layerPausingOutbox,
+            layerCommandReceiptStoreProvided,
+            ProjectStore.layer.pipe(Layer.provide(layerDatabase)),
+            TurnItemPositionStore.layer.pipe(Layer.provide(layerDatabase)),
+          ),
+        ),
+      );
+
+      yield* Effect.gen(function* () {
+        const eventSink = yield* EventSink.EventSinkV2;
+        const projections = yield* ProjectionStore.ProjectionStoreV2;
+        const outbox = yield* EffectOutbox.EffectOutboxV2;
+        const now = yield* DateTime.now;
+        const first = makeThread(ThreadId.make("thread:interrupted-publish:first"), now);
+        const marker = makeThread(ThreadId.make("thread:interrupted-publish:marker"), now);
+        const published = yield* eventSink
+          .stream({ afterSequence: yield* eventSink.latestSequence() })
+          .pipe(
+            Stream.takeUntil((stored) => stored.event.threadId === marker.id),
+            Stream.runCollect,
+            Effect.forkScoped({ startImmediately: true }),
+          );
+        const writer = yield* eventSink
+          .writeWithEffects({
+            events: [
+              threadCreatedEvent({ id: "event:interrupted-publish:first", thread: first, now }),
+            ],
+            effects: [
+              {
+                id: "effect:interrupted-publish:first",
+                commandId: CommandId.make("command:interrupted-publish:first"),
+                threadId: first.id,
+                request: { type: "terminal.cleanup" },
+              },
+            ],
+          })
+          .pipe(Effect.forkScoped);
+        yield* Deferred.await(paused);
+        if (scenario !== "fail transaction") writer.interruptUnsafe();
+        if (scenario !== "cancel transaction") yield* Deferred.succeed(release, undefined);
+        assert.equal((yield* Fiber.await(writer))._tag, "Failure");
+        assert.equal(
+          (yield* projections.getThreadShell(first.id))?.id ?? null,
+          committed ? first.id : null,
+        );
+        assert.equal(
+          Option.isSome(yield* outbox.get("effect:interrupted-publish:first")),
+          committed,
+        );
+        yield* eventSink.write({
+          events: [
+            threadCreatedEvent({ id: "event:interrupted-publish:marker", thread: marker, now }),
+          ],
+        });
+        assert.deepEqual(
+          Array.from(yield* Fiber.join(published), (stored) => stored.event.threadId),
+          committed ? [first.id, marker.id] : [marker.id],
+        );
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(layerEventSink, layerStoresProvided, layerEffectOutboxProvided),
+        ),
+      );
+    }).pipe(Effect.provide(layerDatabase)),
 );

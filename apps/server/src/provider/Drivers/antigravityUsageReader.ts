@@ -1,5 +1,6 @@
 // @effect-diagnostics-next-line nodeBuiltinImport:off - Effect's File.Info has no ctime, which the cache fingerprint needs.
 import * as NodeFSP from "node:fs/promises";
+import { pipe } from "effect/Function";
 
 import type { UsageRecord } from "@supaterm/provider-core/server/usage";
 import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
@@ -101,6 +102,12 @@ const MODEL_IDS: Record<number, string> = {
   1047: "gemini-3-flash-preview",
 };
 
+// ACP slugs append the thinking level, which shares the base model's price.
+function withRateModel(record: UsageRecord): UsageRecord {
+  const rateModel = record.model.replace(/-(?:low|medium|high)$/, "");
+  return rateModel === record.model ? record : { ...record, rateModel };
+}
+
 function modelName(name: string, id: number): string {
   if (name) {
     const normalized = name
@@ -170,11 +177,6 @@ class AntigravityDatabaseDecodeError extends Schema.TaggedError<AntigravityDatab
   }
 }
 
-/**
- * One statement.all() holds the event loop until every row it returns is in memory, and a
- * generation row carries the conversation's whole context so far, often megabytes, so generations
- * are read one at a time.
- */
 const GENERATION_PAGE_ROWS = 1;
 const STEP_PAGE_ROWS = 64;
 
@@ -199,9 +201,7 @@ const readDatabase = Effect.fn("readDatabase")(function* (
     if (!tables.has("gen_metadata") && !tables.has("steps")) {
       return yield* new AntigravityDatabaseDecodeError({ path });
     }
-    // A rowid seek works whatever the table's indexes. Antigravity declares idx as the INTEGER
-    // PRIMARY KEY, so rowid order is idx order; the sort keeps idx order where rows are stored
-    // otherwise.
+
     const readMetadata = Effect.fnUntraced(function* (
       query: string,
       pageRows: number,
@@ -218,8 +218,6 @@ const readDatabase = Effect.fn("readDatabase")(function* (
           }>(query, [after, pageRows])
           .pipe(Effect.withTracerEnabled(false));
         for (const row of rows) {
-          // Skipped here rather than in SQL, so a statement never scans past
-          // more than one page of steps that have no metadata.
           if (step && row.data === null) continue;
           const idx = row.idx;
           if (typeof idx !== "number") {
@@ -245,7 +243,9 @@ const readDatabase = Effect.fn("readDatabase")(function* (
       for (const row of yield* sql.unsafe<{ readonly data: unknown }>(
         "SELECT data FROM trajectory_metadata_blob",
       )) {
-        trajectoryTimestamp ??= yield* decode(() => timestamp(nested(fields(blob(row.data)), 2)));
+        trajectoryTimestamp ??= yield* decode(() =>
+          pipe(blob(row.data), fields, (message) => nested(message, 2), timestamp),
+        );
       }
     }
     const steps = tables.has("steps")
@@ -476,7 +476,7 @@ export const readAntigravityUsage = Effect.fn("readAntigravityUsage")(function* 
   }
   for (const [index, group] of groups.entries()) {
     if (group.parent === index && group.record.timestampMs >= sinceMs) {
-      files[group.fileIndex]!.records.push(group.record);
+      files[group.fileIndex]!.records.push(withRateModel(group.record));
     }
   }
   return { files, errors };

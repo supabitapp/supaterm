@@ -34,10 +34,16 @@ import {
   AuthEnvironmentScope,
   AuthTokenExchangeRequest,
   AuthSessionState,
+  AuthWebSocketTicketParams,
   AuthWebSocketTicketResult,
   ServerAuthSessionMethod,
 } from "./auth.ts";
-import { AuthSessionId, ThreadId, TrimmedNonEmptyString } from "./baseSchemas.ts";
+import {
+  AuthSessionId,
+  DpopFailureReason,
+  ThreadId,
+  TrimmedNonEmptyString,
+} from "./baseSchemas.ts";
 import { RelayConnectionInfo, RelayPreparationError } from "./relay.ts";
 import {
   ExecutionEnvironmentDescriptor,
@@ -133,6 +139,7 @@ export class EnvironmentAuthInvalidError extends Schema.TaggedError<EnvironmentA
   {
     code: Schema.Literal("auth_invalid"),
     reason: EnvironmentAuthInvalidReason,
+    dpopFailureReason: Schema.optionalKey(DpopFailureReason),
     traceId: TrimmedNonEmptyString,
   },
   { httpApiStatus: 401 },
@@ -349,6 +356,14 @@ class EnvironmentAuthHttpApi extends HttpApiGroup.make("auth")
     }).middleware(EnvironmentAuthenticatedAuth),
   )
   .add(
+    HttpApiEndpoint.post("webSocketTicketFor", "/api/auth/websocket-ticket/:use", {
+      headers: OptionalBearerHeaders,
+      params: AuthWebSocketTicketParams,
+      success: AuthWebSocketTicketResult,
+      error: [EnvironmentInternalError],
+    }).middleware(EnvironmentAuthenticatedAuth),
+  )
+  .add(
     HttpApiEndpoint.post("pairingCredential", "/api/auth/pairing-token", {
       headers: OptionalBearerHeaders,
       payload: AuthCreatePairingCredentialInput,
@@ -444,14 +459,24 @@ const EnvironmentOrchestrationThreadSnapshotParams = Schema.Struct({
   threadId: ThreadId,
 });
 
+const EnvironmentOrchestrationShellSnapshotQuery = Schema.Struct({
+  omitIdleSubagents: Schema.optionalKey(Schema.String),
+  omitOlderSettled: Schema.optionalKey(Schema.String),
+});
+
 const EnvironmentOrchestrationThreadBoundedSnapshotQuery = Schema.Struct({
+  deferWork: Schema.optionalKey(Schema.String),
   compactTurnItems: Schema.optionalKey(Schema.String),
+  dedupeBodies: Schema.optionalKey(Schema.String),
+  compactIds: Schema.optionalKey(Schema.String),
 });
 
 const EnvironmentOrchestrationThreadHistoryQuery = Schema.Struct({
   cursor: TrimmedNonEmptyString,
   throughEntryId: Schema.optional(TrimmedNonEmptyString),
-  view: Schema.optional(Schema.Literals(["conversation", "activity"])),
+  view: Schema.optional(Schema.Literals(["conversation", "activity", "work"])),
+  deferWork: Schema.optionalKey(Schema.String),
+  compactIds: Schema.optionalKey(Schema.String),
 });
 
 const EnvironmentOrchestrationThreadHistoryErrors = [
@@ -465,6 +490,7 @@ class EnvironmentOrchestrationHttpApi extends HttpApiGroup.make("orchestration")
   .add(
     HttpApiEndpoint.get("shellSnapshot", "/api/orchestration/shell", {
       headers: OrchestrationProtocolHeaders,
+      query: EnvironmentOrchestrationShellSnapshotQuery,
       success: OrchestrationV2ShellSnapshot,
       error: EnvironmentOrchestrationSnapshotErrors,
     }).middleware(EnvironmentAuthenticatedAuth),

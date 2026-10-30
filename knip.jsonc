@@ -5,6 +5,21 @@
   // These executables are supplied by the OS or installed separately from npm.
   "ignoreBinaries": ["eas", "file", "mkfifo", "pkill", "pkg-config", "plutil", "sips"],
   "workspaces": {
+    "infra/task-cache": {
+      "entry": [
+        "alchemy.run.ts",
+        "src/nativeHook.js",
+        "src/nativeRunHook.js",
+        "src/runHook.ts",
+        "src/preload.mjs",
+        "src/flush.ts",
+        "scripts/*.ts",
+      ],
+      "ignore": [
+        "vendor/vite-plus-remote-cache-cloudflare/src/index.ts",
+        "vendor/vite-plus-remote-cache-cloudflare/src/admission.ts",
+      ],
+    },
     ".": {
       "ignoreDependencies": ["effect"],
       "project": ["*.{js,mjs,cjs,ts,mts,cts}", ".github/**/*.cjs"],
@@ -24,6 +39,13 @@
       // electron-builder loads the macOS signer by path.
       "entry": [
         "check-commit-message.ts",
+        "test-cached.ts",
+        "smoke-desktop-app.ts",
+        "generate-release-notes.ts",
+        "mobile-behavior.ts",
+        "mobile-behavior/run.ts",
+        "fixtures/issue-18188/seed-stale-thread-command.js",
+        "render-metrics.ts",
         "clean-worktree.ts",
         "knip-schemas.ts",
         "mobile-native-client.ts",
@@ -43,9 +65,7 @@
         "src/bin.ts!",
         "src/claude-history-worker.ts!",
         "scripts/cli.ts",
-        "scripts/evaluate-thread-titles.ts",
         "scripts/fetch-expo-schema.ts",
-        "scripts/measure-pr-preview.ts",
         "scripts/probe-claude-fork-local-rollback-replay.ts",
         "scripts/update-test-shard-weights.ts",
         "scripts/verify-background-live.ts",
@@ -109,6 +129,7 @@
       ],
       // Fonts are configured as asset paths; Expo autolinks the native packages.
       "ignoreDependencies": [
+        "@supaterm/mobile-highlights-native",
         "@supaterm/mobile-relay-tunnel",
         "@expo-google-fonts/jetbrains-mono",
         "@supaterm/mobile-review-diff-native",
@@ -141,7 +162,7 @@
     },
     "packages/source-control-github": {
       // graphqlgen reads its config; the generated operations export every selection's class.
-      "entry": ["graphql.config.ts"],
+      "entry": ["graphql.config.ts", "scripts/measure-pr-preview.ts"],
       "ignoreIssues": { "**/*.graphql.ts": ["exports", "types", "namespaceMembers"] },
     },
   },

@@ -34,7 +34,7 @@ const isEnvironmentThemeId = Schema.is(EnvironmentThemeId);
 const THEME_FILE_SUFFIX = ".json";
 
 const MAX_THEME_FILES = 32;
-/** Exported so the publish path cannot accept a file the watcher will skip. */
+/** Shared with publishing so it cannot accept files the watcher skips. */
 export const MAX_THEME_FILE_BYTES = 32 * 1024;
 const MAX_THEME_TOTAL_BYTES = 192 * 1024;
 
@@ -56,17 +56,6 @@ export class EnvironmentThemeService extends Context.Service<
   }
 >()("supaterm/environmentTheme/EnvironmentThemeService") {}
 
-/**
- * Reads a theme file through one opened handle, so every check binds to the
- * file actually read rather than to a path that may have been swapped since:
- * O_NOFOLLOW rejects a symlink outright (a symlinked themes directory stays
- * usable, a symlinked file inside it does not), O_NONBLOCK keeps a FIFO from
- * blocking the open, and the fstat type and size gate examines the open
- * descriptor.
- *
- * Windows has neither flag (the constants are undefined, and OR-ing them in is
- * a no-op), so the symlink check there is an lstat before the open.
- */
 export const readThemeFileGuarded = (filePath: string, maxBytes: number): string | null => {
   let fd: number;
   try {
@@ -176,21 +165,10 @@ export const readPublishedThemes = Effect.fn(function* (themesDir: string) {
 const make = Effect.gen(function* () {
   const { environmentThemesDir } = yield* ServerConfig.ServerConfig;
   const fs = yield* FileSystem.FileSystem;
-  /**
-   * Every observed set carries a sequence number, so a subscriber can drop
-   * queued events that predate the snapshot it started from. Without it a
-   * publish landing between subscribing and reading replays after the newer
-   * value and walks clients backwards onto stale colors.
-   */
+  // Sequence numbers let subscribers drop queued events older than their initial snapshot.
   const changes = yield* PubSub.sliding<PublishedThemes>(1);
   const published = yield* Ref.make<PublishedThemes>({ seq: 0, themes: [] });
-  /**
-   * Guards the whole read/compare/publish, not just the state update. The
-   * directory read is async, so two concurrent refreshes can finish out of
-   * order and a slower read of an older set would publish under a higher
-   * sequence -- which the subscriber filter, ordering publications rather than
-   * observations, could not then drop.
-   */
+  // Serialize read/compare/publish so slow older reads cannot publish with newer sequence numbers.
   const refreshSemaphore = yield* Semaphore.make(1);
   const watcherScope = yield* Scope.make("sequential");
   yield* Effect.addFinalizer(() => Scope.close(watcherScope, Exit.void));
@@ -200,8 +178,7 @@ const make = Effect.gen(function* () {
       const themes = yield* readPublishedThemes(environmentThemesDir).pipe(
         Effect.provideService(FileSystem.FileSystem, fs),
       );
-      // Structural equality over the whole decoded value: a hand-rolled field
-      // list here silently drops republishes for any field it forgets.
+      // Compare the whole value so new fields cannot silently miss republishes.
       const [changed, next] = yield* Ref.modify(
         published,
         (previous): readonly [readonly [boolean, PublishedThemes], PublishedThemes] => {
@@ -215,15 +192,11 @@ const make = Effect.gen(function* () {
     }),
   );
 
-  // The directory is created up front so the watcher has something to attach
-  // to before the first publisher writes into it.
   yield* fs
     .makeDirectory(environmentThemesDir, { recursive: true })
     .pipe(Effect.ignoreCause({ log: true }));
 
-  // Debounced for the same reason settings watching is: a theme script emits
-  // several events per save and `fs.watch` can fire before the content is
-  // flushed.
+  // A save emits several events, and fs.watch can fire before content is flushed.
   const watchEvents = fs.watch(environmentThemesDir).pipe(Stream.debounce(Duration.millis(100)));
 
   yield* refresh;

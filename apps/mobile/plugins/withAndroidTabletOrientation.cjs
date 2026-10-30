@@ -1,11 +1,6 @@
 const { withMainActivity } = require("expo/config-plugins");
 
-// FULL_USER allows all four orientations while still respecting the user's
-// auto-rotate lock, matching iPad behavior. Foldables change smallestScreenWidthDp on
-// fold/unfold without recreating the activity (smallestScreenSize is in the
-// manifest's configChanges), so the policy is re-evaluated in onConfigurationChanged:
-// unfolding past the tablet breakpoint unlocks rotation, and folding back restores
-// the portrait lock.
+// Reapply orientation on fold changes without overriding the system auto-rotate lock.
 
 const ORIENTATION_METHODS = `
   // Applied in onCreate and re-applied on fold/unfold; added by
@@ -31,7 +26,7 @@ function insertAfter(contents, anchor, insertion, description) {
   const index = contents.indexOf(anchor);
   if (index === -1) {
     throw new Error(
-      `withAndroidTabletOrientation: could not find ${description} in MainActivity — the Expo template changed; update the plugin anchors.`,
+      `withAndroidTabletOrientation: could not find ${description} in MainActivity. The Expo template changed; update the plugin anchors.`,
     );
   }
   const end = index + anchor.length;

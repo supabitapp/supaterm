@@ -1,16 +1,5 @@
 #!/usr/bin/env node
-/**
- * Builds the `supaterm` npm package behind `npx supaterm` / `npm i -g supaterm`: a launcher
- * with no dependencies that downloads this exact version's CLI archive from
- * the GitHub Release on first run (scripts/npm-launcher/supaterm.mjs).
- * The executables are not published to npm. npm's publish-time scanning held
- * 250 MB platform packages back for up to an hour after the launcher went
- * live, and every install in that window ran a launcher with nothing to
- * launch.
- *
- * Output: `<output-dir>/supaterm/` (the package tree) and `<output-dir>/supaterm.tgz`,
- * which is what gets published.
- */
+
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as Effect from "effect/Effect";
@@ -41,7 +30,6 @@ export class NpmLauncherCommandFailedError extends Schema.TaggedError<NpmLaunche
   }
 }
 
-/** package.json for the launcher. `engines` asks for `import.meta.dirname` and `fetch`. */
 export function npmLauncherPackageManifest(version: string) {
   return {
     name: NPM_LAUNCHER_PACKAGE_NAME,
@@ -87,7 +75,7 @@ export const buildNpmLauncher = Effect.fn("buildNpmLauncher")(function* (input: 
   const tarball = path.join(input.outputDir, `${NPM_LAUNCHER_PACKAGE_NAME}.tgz`);
   yield* fs.remove(tarball, { force: true });
   const tar = (yield* HostProcess.Platform) === "win32" ? windowsSystemTar() : "tar";
-  // npm tarballs root everything under `package/`.
+
   const child = yield* spawner.spawn(
     ChildProcess.make(tar, ["-czf", tarball, "-C", scratch, "package"], {
       stdout: "inherit",

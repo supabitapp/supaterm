@@ -1,8 +1,10 @@
+import type { EnvironmentContextRecord } from "@supaterm/contracts";
 import { type OrchestrationV2ProviderTurn, type RunAttemptId } from "@supaterm/contracts";
 import {
   deriveLatestThreadRun,
   deriveThreadRuntime,
 } from "@supaterm/client-runtime/state/thread-execution";
+import { checkpointFileTotals } from "@supaterm/client-runtime/state/thread-checkpoints";
 import { derivePendingBackgroundWork } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 import {
   latestUnheldRun,
@@ -182,7 +184,7 @@ export function shouldOpenProactiveTurnDiff(input: {
 }
 
 export function resolveProactiveTurnDiffAction(input: {
-  checkpoint: Pick<TurnDiffSummary, "status" | "files"> | undefined;
+  checkpoint: Pick<TurnDiffSummary, "status" | "files" | "filesTotal"> | undefined;
   isGitRepo: boolean | undefined;
 }): "defer" | "ignore" | "open" {
   if (input.checkpoint === undefined || input.checkpoint.status === "missing") return "defer";
@@ -190,15 +192,12 @@ export function resolveProactiveTurnDiffAction(input: {
   if (
     !input.isGitRepo ||
     input.checkpoint.status !== "ready" ||
-    input.checkpoint.files.length === 0
+    checkpointFileTotals(input.checkpoint).count === 0
   ) {
     return "ignore";
   }
-  const changedLines = input.checkpoint.files.reduce(
-    (total, file) => total + file.additions + file.deletions,
-    0,
-  );
-  return input.checkpoint.files.length >= 3 || changedLines >= 50 ? "open" : "ignore";
+  const totals = checkpointFileTotals(input.checkpoint);
+  return totals.count >= 3 || totals.additions + totals.deletions >= 50 ? "open" : "ignore";
 }
 
 export function resolveExplicitDiffOpenOnActivate(input: {
@@ -257,10 +256,7 @@ export function shouldReleaseTimelineAnchorForToolActivity(input: {
   });
 }
 
-export {
-  findRecordedWorktreeSetup,
-  resolveVisibleWorktreeSetup,
-} from "@supaterm/client-runtime/worktree-setup";
+export { resolveVisibleWorktreeSetup } from "@supaterm/client-runtime/worktree-setup";
 
 export function resolveWorktreeSetupProgress(input: {
   threadId: ThreadId;
@@ -653,13 +649,6 @@ export function resolveTerminalWorktreePath(input: {
   return input.threadWorktreePath;
 }
 
-export function revokeBlobPreviewUrl(previewUrl: string | undefined): void {
-  if (!previewUrl || typeof URL === "undefined" || !previewUrl.startsWith("blob:")) {
-    return;
-  }
-  URL.revokeObjectURL(previewUrl);
-}
-
 export async function resolveFileAttachmentUrl(input: {
   attachment: ChatFileAttachment;
   environmentId: EnvironmentId;
@@ -717,18 +706,6 @@ export async function prepareRevertedMessageAttachments(input: {
       return new File([await response.blob()], attachment.name, { type: attachment.mimeType });
     }),
   );
-}
-
-export function revokeUserMessagePreviewUrls(message: ChatMessage): void {
-  if (message.role !== "user" || !message.attachments) {
-    return;
-  }
-  for (const attachment of message.attachments) {
-    if (!isImageAttachment(attachment)) {
-      continue;
-    }
-    revokeBlobPreviewUrl(attachment.previewUrl);
-  }
 }
 
 export function timelineHasEphemeralPreviewUrls(
@@ -879,7 +856,7 @@ export function recallCheckoutIsRepo(
     : sessionCheckoutIsRepo.get(checkoutIsRepoKey(environmentId, cwd));
 }
 
-export function threadHasStarted(thread: Thread | null | undefined): boolean {
+function threadHasStarted(thread: Thread | null | undefined): boolean {
   return Boolean(thread && (thread.latestRun !== null || thread.itemCount > 0 || thread.runtime));
 }
 
@@ -1153,6 +1130,10 @@ export function hasServerAcknowledgedLocalDispatch(input: {
   );
 }
 
+// Returning to the window should land the caret in the composer, so the reader can type right
+// away. The exceptions are places where focus is deliberate: another text field, a terminal in
+// the drawer or the right panel, an open dialog, menu, or popup, or a region or sidebar row
+// reached from the keyboard. A plain focused button or a clicked row yields to the composer.
 export function shouldRefocusComposerOnWindowFocus(
   activeElement:
     | (Pick<Element, "tagName" | "closest" | "getAttribute"> & { isContentEditable?: boolean })
@@ -1172,7 +1153,7 @@ export function shouldRefocusComposerOnWindowFocus(
   }
   return (
     activeElement.closest(
-      '[role="dialog"], [role="alertdialog"], [role="application"], [data-slot$="-popup"], [data-terminal-owner]',
+      '[data-workspace-area]:focus-visible, [role="treeitem"]:focus-visible, [role="dialog"], [role="alertdialog"], [role="application"], [role="menu"], [role="listbox"], [data-slot$="-popup"], [data-terminal-owner]',
     ) === null
   );
 }
@@ -1253,12 +1234,6 @@ export type LocalThreadErrorEntry = {
 
 export function chatActionErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "An error occurred.";
-}
-
-export function releaseChatTimelineAnchor<T extends { readonly messageId: MessageId | null }>(
-  current: T,
-): T {
-  return current.messageId === null ? current : { ...current, messageId: null };
 }
 
 // The factories below build functions ChatView calls during render, or hands
@@ -1478,6 +1453,7 @@ export interface ComposerSendContents {
   readonly previewAnnotations: ReadonlyArray<PreviewAnnotationPayload>;
   readonly reviewComments: ReadonlyArray<ReviewCommentContext>;
   readonly threadContexts: ReadonlyArray<ThreadContextRecord>;
+  readonly environmentContexts?: ReadonlyArray<EnvironmentContextRecord>;
 }
 
 /**
@@ -1496,6 +1472,7 @@ export function snapshotComposerSend(contents: ComposerSendContents) {
     previewAnnotations: [...contents.previewAnnotations],
     reviewComments: [...contents.reviewComments],
     threadContexts: [...contents.threadContexts],
+    environmentContexts: [...(contents.environmentContexts ?? [])],
     messageText: contents.terminalContexts
       .filter((context) => !terminalContexts.includes(context))
       .reduce(

@@ -19,8 +19,6 @@ for (const [network, prefix] of [
 ] as const) {
   LOCAL_ADDRESSES.addSubnet(network, prefix, "ipv4");
 }
-// Also the IPv6 ranges that carry an IPv4 address a translator may route to
-// without checking it: IPv4-compatible, local-use NAT64, and Teredo.
 for (const [network, prefix] of [
   ["::", 96],
   ["64:ff9b:1::", 48],
@@ -52,11 +50,6 @@ const ipv6Groups = (address: string) => {
   );
 };
 
-/**
- * The IPv4 address a NAT64 or 6to4 address stands for, which a translator
- * will route to, so it is checked as well. Public NAT64 targets stay
- * reachable, as on IPv6-only networks.
- */
 const embeddedIPv4 = (address: string) => {
   const at = NAT64.check(address, "ipv6") ? 6 : SIX_TO_FOUR.check(address, "ipv6") ? 1 : -1;
   if (at === -1) return undefined;
@@ -81,10 +74,6 @@ const isLocal = (address: string, family: number): boolean => {
   return embedded !== undefined && isLocal(embedded, 4);
 };
 
-/**
- * The caller connects only to addresses checked here, so a name that later resolves elsewhere
- * (DNS rebinding) changes nothing.
- */
 const publicAddresses = async (host: string) => {
   const addresses = NodeNet.isIP(host)
     ? [{ address: host, family: NodeNet.isIP(host) }]
@@ -121,10 +110,6 @@ const readRequest = (data: Buffer) => {
   return { command: data[1], host, port: data.readUInt16BE(end - 2), rest: data.subarray(end) };
 };
 
-/**
- * Chrome's Local Network Access misses some requests, such as speculation-rules prefetches;
- * nothing misses this.
- */
 export const publicProxy = Effect.acquireRelease(
   Effect.callback<
     { readonly server: NodeNet.Server; readonly sockets: Set<NodeNet.Socket> },

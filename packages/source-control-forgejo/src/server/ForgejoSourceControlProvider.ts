@@ -193,10 +193,6 @@ export function repositoryNameFromRemoteUrl(url: string): string | null {
     : path.split("/").slice(-2).join("/");
 }
 
-/**
- * A Forgejo remote's URL can't say which server it belongs to (an SSH alias, an installation
- * mount), so the identity's browser URL comes from the login that serves it.
- */
 const refineRepositoryIdentity: NonNullable<
   SourceControlProvider.SourceControlProvider["Service"]["refineRepositoryIdentity"]
 > = Effect.fn("ForgejoSourceControlProvider.refineRepositoryIdentity")(function* ({
@@ -232,6 +228,26 @@ const refineRepositoryIdentity: NonNullable<
     provider: SourceControlProviderKind.make("forgejo"),
     webUrl: `${baseUrl}/${path}`,
   };
+});
+
+const resolveRemoteWebHost: NonNullable<
+  SourceControlProvider.SourceControlProvider["Service"]["resolveRemoteWebHost"]
+> = Effect.fn("ForgejoSourceControlProvider.resolveRemoteWebHost")(function* ({
+  cwd,
+  context,
+  resolveContext,
+}) {
+  if (!ForgejoCli.parseForgejoRemote(context.remoteUrl)?.ssh) return null;
+  const resolved = yield* resolveContext({
+    cwd,
+    context: {
+      ...context,
+      provider: { kind: SourceControlProviderKind.make("unknown"), name: "Unknown", baseUrl: "" },
+    },
+  });
+  return resolved?.provider.kind === "forgejo"
+    ? new URL(resolved.provider.baseUrl).host.toLowerCase()
+    : null;
 });
 
 const RepositorySchema = Schema.Struct({
@@ -306,6 +322,7 @@ export const make = Effect.gen(function* () {
     kind: SourceControlProviderKind.make("forgejo"),
     repositoryNameFromRemoteUrl,
     refineRepositoryIdentity,
+    resolveRemoteWebHost,
     listChangeRequests: Effect.fn("ForgejoSourceControlProvider.listChangeRequests")(
       function* (input) {
         const repo = yield* cli.resolveRepository(input);
@@ -337,11 +354,12 @@ export const make = Effect.gen(function* () {
       },
       (effect, input) => effect.pipe(mapError("listChangeRequests", input.cwd)),
     ),
-    getChangeRequest: (input) =>
-      getPull(input).pipe(
+    getChangeRequest: Effect.fn("ForgejoSourceControlProvider.getChangeRequest")(function (input) {
+      return getPull(input).pipe(
         Effect.map(toForgejoChangeRequest),
         mapError("getChangeRequest", input.cwd),
-      ),
+      );
+    }),
     createChangeRequest: Effect.fn("ForgejoSourceControlProvider.createChangeRequest")(
       function* (input) {
         const repo = yield* cli.resolveRepository(input);
@@ -461,7 +479,6 @@ export const make = Effect.gen(function* () {
             ],
           });
         if (input.force) {
-          // The sha comes from the server and git would read anything but a commit as an option.
           if (!/^[0-9a-f]{7,64}$/i.test(pull.head.sha))
             return yield* new ForgejoCli.ForgejoCliError({
               command: repo.command ?? "tea",
@@ -469,8 +486,7 @@ export const make = Effect.gen(function* () {
               detail: "Forgejo reported a pull request head that is not a commit.",
               reason: "invalid-response",
             });
-          // tea leaves an existing PR branch at its old tip. Keep dirty files safe
-          // while bringing the selected branch to the PR revision we fetched.
+
           yield* process.run({
             operation: "ForgejoSourceControlProvider.checkoutChangeRequest",
             command: "git",

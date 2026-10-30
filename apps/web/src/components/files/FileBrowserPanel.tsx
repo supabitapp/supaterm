@@ -42,12 +42,7 @@ interface FileBrowserPanelProps {
   selectedPath: string | null;
   selectedPathRevealId: number;
   onOpenFile: (relativePath: string) => void;
-  /**
-   * Set when `cwd` is a host folder outside the workspace rather than the
-   * workspace root. Entries then open and mention as host paths. A host folder can
-   * be a home directory, so nothing walks it whole: there is no expand-all, and
-   * search filters the folders already loaded instead of indexing on the server.
-   */
+
   hostFolder?: boolean;
   onRefreshSelectedFile?: () => void;
   workspaceMutationId: string | null;
@@ -94,6 +89,7 @@ function FileSearchField(props: {
         value={props.value}
         aria-label={props.ariaLabel}
         placeholder="Search files"
+        data-workspace-focus-default
         spellCheck={false}
         onChange={(event) => props.onValueChange(event.target.value)}
         onKeyDown={(event) => {
@@ -106,8 +102,6 @@ function FileSearchField(props: {
   );
 }
 
-// The tree diffs `treePaths` by identity, so the panel must keep this result cached
-// across the hooks that read it.
 function buildTreeEntries(
   directoryEntries: readonly ProjectEntry[],
   searchEntries: readonly ProjectEntry[],
@@ -180,17 +174,7 @@ export default function FileBrowserPanel({
   const treeSelectionPathRef = useRef<string | null>(null);
   const handledRevealRef = useRef<{ path: string; revealId: number } | null>(null);
 
-  // The tree renders rows in shadow DOM and its anchor rect is unreliable, so
-  // capture the right-click position ourselves; contextmenu is a composed
-  // event, so a capture-phase listener sees it with viewport coordinates.
   const contextMenuPointerRef = useRef<{ x: number; y: number; at: number } | null>(null);
-  useEffect(() => {
-    const capturePointer = (event: MouseEvent) => {
-      contextMenuPointerRef.current = { x: event.clientX, y: event.clientY, at: event.timeStamp };
-    };
-    document.addEventListener("contextmenu", capturePointer, true);
-    return () => document.removeEventListener("contextmenu", capturePointer, true);
-  }, []);
 
   const showEntryContextMenu = useStableCallback(
     (item: TreeContextMenuItem, context: TreeContextMenuOpenContext) => {
@@ -219,8 +203,7 @@ export default function FileBrowserPanel({
           position,
         );
         if (clicked === null) return;
-        // "Open with" submenu selections report the child id ("editor:<id>"),
-        // which is not present in the top-level item list.
+
         const isFileMenuAction =
           fileMenuItems.some((entry) => entry.id === clicked) || clicked.startsWith("editor:");
         if (isFileMenuAction) {
@@ -265,7 +248,6 @@ export default function FileBrowserPanel({
         }
       }).then((result) => {
         context.close();
-        // Keep surfacing unexpected failures as unhandled rejections.
         if (!AsyncResult.isSuccess(result)) throw Cause.squash(result.cause);
       });
     },
@@ -291,8 +273,6 @@ export default function FileBrowserPanel({
     initialExpansion: "closed",
     icons: SUPATERM_PIERRE_ICONS,
     onSelectionChange: (selectedPaths) => {
-      // The drag controller's selection cache must track every change,
-      // including reveal-driven ones, or drags act on a stale selection.
       dragMention.handleSelectionChange(selectedPaths);
       if (syncingSelectionRef.current) return;
       if (dragMention.isDragInProgress()) {
@@ -315,6 +295,7 @@ export default function FileBrowserPanel({
     onSearchChange: (value) => setQuery(value ?? ""),
     unsafeCSS: PIERRE_TREE_UNSAFE_CSS,
   });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- makes the Pierre tree model re-render row decorations when loading directories change
   useEffect(() => {
     if (loadingDirectoriesRef.current === loadingDirectories) return;
     loadingDirectoriesRef.current = loadingDirectories;
@@ -341,6 +322,7 @@ export default function FileBrowserPanel({
     search.close();
   };
   const expandedPathsRef = useRef(new Set<string>());
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to the Pierre tree model to load directories as they are expanded
   useEffect(() => {
     const currentPaths = new Set(directoryPaths);
     for (const path of expandedPathsRef.current) {
@@ -364,6 +346,7 @@ export default function FileBrowserPanel({
     loadExpanded();
     return model.subscribe(loadExpanded);
   }, [directoryPaths, load, model]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- pushes ignored-file status into the imperative Pierre tree model
   useEffect(() => {
     model.setGitStatus(
       entries
@@ -374,6 +357,7 @@ export default function FileBrowserPanel({
         })),
     );
   }, [entries, model]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- loads the selected file's ancestor directories and aborts on cleanup
   useEffect(() => {
     if (!selectedPath) return;
     const controller = new AbortController();
@@ -404,6 +388,7 @@ export default function FileBrowserPanel({
     resourceKey: `files:${environmentId}:${cwd}`,
   });
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- applies tree path changes to the imperative Pierre tree model as a reset or batch update
   useEffect(() => {
     if (!ready) return;
     if (previousTreePathsRef.current === treePaths) return;
@@ -418,11 +403,13 @@ export default function FileBrowserPanel({
     if (updates.length > 0) model.batch(updates);
   }, [ready, entryKinds, model, treePaths]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- expands every directory in the Pierre tree model while expand-all is on and no search is active
   useEffect(() => {
     if (expandAll && !query.trim())
       setAllDirectoriesExpanded(model, expandableDirectoryPaths, true);
   }, [expandableDirectoryPaths, expandAll, model, query]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reveals an externally selected path in the Pierre tree model by expanding, selecting and scrolling
   useEffect(() => {
     if (!selectedPath) {
       handledRevealRef.current = null;
@@ -435,8 +422,7 @@ export default function FileBrowserPanel({
     }
     const revealRequest = { path: selectedPath, revealId: selectedPathRevealId };
     const handledReveal = handledRevealRef.current;
-    // Entry refreshes rebuild treePaths while the same preview stays open.
-    // Replaying a handled reveal would close an active tree search and steal focus.
+
     if (
       handledReveal?.path === revealRequest.path &&
       handledReveal.revealId === revealRequest.revealId
@@ -447,10 +433,6 @@ export default function FileBrowserPanel({
     const selectedItem = model.getItem(selectedTreePath);
     if (!selectedItem) return;
 
-    // A selection that originated inside the tree (clicking a row, possibly
-    // in an active tree search) is already visible; re-revealing it would
-    // close the search and clobber the user's context. Only sync external
-    // opens (file picker, content search, chat links).
     const selectedInTree = model
       .getSelectedPaths()
       .some((path) => path.replace(/\/$/, "") === selectedPath);
@@ -469,8 +451,6 @@ export default function FileBrowserPanel({
       model.getItem(path)?.deselect();
     }
 
-    // Directory rows are registered with a trailing slash (see treePath), so
-    // ancestor lookups must use the same form to expand them.
     const segments = selectedPath.split("/");
     let ancestorPath = "";
     for (const segment of segments.slice(0, -1)) {
@@ -490,30 +470,17 @@ export default function FileBrowserPanel({
     });
   }, [entryKinds, model, selectedPath, selectedPathRevealId]);
 
-  // The capture phase runs before the tree's own dragstart handler selects
-  // the dragged row, so the drag flag is up before that selection emits.
-  const panelRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const panel = panelRef.current;
-    if (panel === null) {
-      return;
-    }
-    const handleDragStart = (event: DragEvent) => dragMention.handleDragStart(event);
-    const handleDragEnd = () =>
-      dragMention.handleDragEnd((path) => model.getItem(path)?.deselect());
-    panel.addEventListener("dragstart", handleDragStart, true);
-    panel.addEventListener("dragend", handleDragEnd);
-    return () => {
-      panel.removeEventListener("dragstart", handleDragStart, true);
-      panel.removeEventListener("dragend", handleDragEnd);
-    };
-  }, [dragMention, model]);
-
   return (
     <div
-      ref={panelRef}
       className="flex min-h-0 flex-1 flex-col bg-background"
       data-file-browser-panel={`${environmentId}:${cwd}`}
+
+      onContextMenuCapture={(event) => {
+        contextMenuPointerRef.current = { x: event.clientX, y: event.clientY, at: event.timeStamp };
+      }}
+
+      onDragStartCapture={(event) => dragMention.handleDragStart(event.nativeEvent)}
+      onDragEnd={() => dragMention.handleDragEnd((path) => model.getItem(path)?.deselect())}
     >
       <div
         className="flex h-10 min-h-10 shrink-0 items-center gap-1 border-b border-border/60 bg-background px-2 in-data-[preview-panel-mode=inline]:mb-1 in-data-[preview-panel-mode=inline]:h-9 in-data-[preview-panel-mode=inline]:min-h-9 in-data-[preview-panel-mode=inline]:border-b-transparent"

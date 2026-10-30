@@ -1,3 +1,6 @@
+import type { ProviderDriverKind } from "@supaterm/contracts";
+import { resolveModelShortName } from "@supaterm/client-runtime/provider-clients";
+
 export type ModelEsque = {
   slug: string;
   name: string;
@@ -47,10 +50,17 @@ export function getProviderRowLabel(
   return `${providerDisplayName} · ${sub}`;
 }
 
-export function getTriggerDisplayModelName(model: ModelEsque): string {
-  return getDisplayModelName(model, { preferShortName: true });
+export function getTriggerDisplayModelName(
+  model: ModelEsque,
+  driverKind?: ProviderDriverKind | null | undefined,
+): string {
+  const shortName = resolveModelShortName(model, driverKind);
+  return getDisplayModelName({ ...model, shortName }, { preferShortName: true });
 }
 
-export function getTriggerDisplayModelLabel(model: ModelEsque): string {
-  return getTriggerDisplayModelName(model);
+export function getTriggerDisplayModelLabel(
+  model: ModelEsque,
+  driverKind?: ProviderDriverKind | null,
+): string {
+  return getTriggerDisplayModelName(model, driverKind);
 }

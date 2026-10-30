@@ -35,6 +35,8 @@ import {
 } from "../state/use-composer-drafts";
 import { loadLocalAttachmentPreview } from "./localAttachmentPreview";
 
+const NO_LINKED_ENVIRONMENTS: ReadonlyMap<EnvironmentId, string> = new Map();
+
 export interface NativeContextClipboard {
   readonly text: string;
   readonly fragment: string;
@@ -68,6 +70,8 @@ export async function importComposerContextClipboard(
   signal: AbortSignal,
   existingContextCount = 0,
   destinationEnvironmentId?: EnvironmentId,
+  /** The machines the destination links to, whose threads its agent can read too. */
+  linkedEnvironments: ReadonlyMap<EnvironmentId, string> = NO_LINKED_ENVIRONMENTS,
 ) {
   const fragment =
     decodeComposerContextFragment(input.fragment) ?? decodeComposerContextClipboardHtml(input.html);
@@ -81,6 +85,7 @@ export async function importComposerContextClipboard(
           text: imported.text,
           records: imported.context.records,
           environmentId: destinationEnvironmentId,
+          linkedEnvironments,
         });
   const skippedIds = new Set(skippedThreads.map((record) => record.contextId));
   const retained = imported.context.records.filter((record) => !skippedIds.has(record.contextId));
@@ -107,6 +112,8 @@ export async function importComposerContextClipboard(
         failures.push(record.name);
       }
     }
+    // The last copy can be cancelled after its own check; a cancelled import must not return files nobody will release.
+    checkAborted(signal);
     return {
       text: imported.text,
       context: { version: 1 as const, records },

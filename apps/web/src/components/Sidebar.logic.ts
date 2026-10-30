@@ -1,4 +1,8 @@
+import { observeIntersection } from "../lib/observeIntersection";
+const EMPTY_DELEGATED_THREAD_KEYS: ReadonlySet<string> = new Set();
+import { deadlineStore } from "@supaterm/client-runtime/clock";
 import type { ThreadId, EnvironmentId } from "@supaterm/contracts";
+import { isShownUnderParent } from "@supaterm/client-runtime/state/threads";
 import { backgroundWorkHoldsCompletion } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 import { threadPullRequestSearchTerms } from "@supaterm/shared/threadPullRequests";
 import * as React from "react";
@@ -64,36 +68,81 @@ const SIDEBAR_ROW_SUBSCRIPTION_OVERSCAN_PX = 160;
 
 export function useSidebarRowSubscriptionLease(isActive: boolean): {
   readonly leaseLiveStatus: boolean;
-  readonly rowRef: React.Dispatch<React.SetStateAction<HTMLElement | null>>;
+  readonly rowRef: (row: HTMLElement | null) => (() => void) | undefined;
 } {
-  const [row, setRow] = React.useState<HTMLElement | null>(null);
   const [isNearViewport, setIsNearViewport] = React.useState(isActive);
-  if (
-    !isNearViewport &&
-    (isActive || (row !== null && typeof IntersectionObserver === "undefined"))
-  ) {
-    setIsNearViewport(true);
-  }
-
-  React.useEffect(() => {
-    if (isActive || row === null || typeof IntersectionObserver === "undefined") return;
-
-    const scrollRoot = row.closest<HTMLElement>('[data-slot="scroll-area-viewport"]');
-    const observer = new IntersectionObserver(
-      ([entry]) => setIsNearViewport(entry?.isIntersecting === true),
-      {
-        root: scrollRoot,
-        rootMargin: `${SIDEBAR_ROW_SUBSCRIPTION_OVERSCAN_PX}px 0px`,
-      },
-    );
-    observer.observe(row);
-    return () => observer.disconnect();
-  }, [isActive, row]);
-
+  if (isActive && !isNearViewport) setIsNearViewport(true);
+  const canObserve = typeof IntersectionObserver !== "undefined";
   return {
-    leaseLiveStatus: isActive || isNearViewport,
-    rowRef: setRow,
+    leaseLiveStatus: isActive || isNearViewport || !canObserve,
+    rowRef: (row) => {
+      if (row === null || isActive || !canObserve) return undefined;
+      return observeIntersection(row, (entry) => setIsNearViewport(entry.isIntersecting), {
+        root: row.closest('[data-slot="scroll-area-viewport"]'),
+        rootMargin: `${SIDEBAR_ROW_SUBSCRIPTION_OVERSCAN_PX}px 0px`,
+      });
+    },
   };
+}
+
+const fileDragClears = new Set<(active: false) => void>();
+function clearFileDrags() {
+  const clears = [...fileDragClears];
+  fileDragClears.clear();
+  for (const clear of clears) clear(false);
+}
+
+/**
+ * A file drag that ends outside every drop target (Escape, or a drop elsewhere)
+ * sends no dragleave to the row it last entered, so the window's dragend clears it.
+ */
+export function setFileDragActive(setActive: (active: boolean) => void, active: boolean) {
+  setActive(active);
+  if (typeof window === "undefined") return;
+  if (!active) {
+    if (fileDragClears.delete(setActive) && fileDragClears.size === 0) {
+      window.removeEventListener("dragend", clearFileDrags);
+    }
+    return;
+  }
+  if (fileDragClears.size === 0) window.addEventListener("dragend", clearFileDrags, { once: true });
+  fileDragClears.add(setActive);
+}
+
+/**
+ * A clock that advances exactly when a snooze wake time passes, so a woken
+ * thread leaves the shelf on time without a per-second clock.
+ */
+export function useSnoozeWakeClock(
+  threads: ReadonlyArray<{ readonly snoozedUntil?: string | null | undefined }>,
+): number {
+  const [clockMs, setClockMs] = React.useState(() => Date.now());
+  const wakeTimes: number[] = [];
+  let nextWakeAt: number | null = null;
+  for (const thread of threads) {
+    const wakeAt = thread.snoozedUntil == null ? Number.NaN : Date.parse(thread.snoozedUntil);
+    if (!(wakeAt > clockMs)) continue;
+    wakeTimes.push(wakeAt);
+    if (nextWakeAt === null || wakeAt < nextWakeAt) nextWakeAt = wakeAt;
+  }
+  const wakeDeadline = deadlineStore(nextWakeAt);
+  const woke = React.useSyncExternalStore(
+    wakeDeadline.subscribe,
+    wakeDeadline.getSnapshot,
+    wakeDeadline.getSnapshot,
+  );
+  // Advancing to the latest wake that has passed skips every wake that elapsed
+  // meanwhile, e.g. across a laptop sleep. Stepping one wake at a time would
+  // re-render once per elapsed wake and hit React's limit.
+  if (woke && nextWakeAt !== null) {
+    let nextClockMs = nextWakeAt;
+    for (const wakeAt of wakeTimes) {
+      if (wakeAt > nextClockMs && deadlineStore(wakeAt).getSnapshot()) nextClockMs = wakeAt;
+    }
+    setClockMs(nextClockMs);
+    return nextClockMs;
+  }
+  return clockMs;
 }
 
 export function useRetainedValue<T>(key: string | null, value: T | null): T | null {
@@ -112,14 +161,6 @@ export function useRetainedValue<T>(key: string | null, value: T | null): T | nu
 // dragging; replaying their committed DOM order would animate the drop twice.
 export const animateSidebarLayoutChanges: AnimateLayoutChanges = (args) =>
   args.isSorting ? defaultAnimateLayoutChanges(args) : false;
-
-// Rows and section markers share one sortable list. The separators resolve
-// the lifecycle action; Sidebar.drag previews the resulting layout. Pinned
-// threads keep the dragged position; active and done threads use time
-// order. Snoozed rows can leave the shelf, but dropping into it is not
-// supported because snoozing requires a wake time. The Working shelf follows
-// live status, so its rows only drag out as chat context, never between
-// sidebar sections.
 
 export type SidebarSection = "pinned" | "active" | "working" | "snoozed" | "done";
 
@@ -161,6 +202,7 @@ export type SidebarListItem =
       readonly projectKey: string | null;
       readonly count: number;
       readonly collapsed: boolean;
+      readonly dot?: ReturnType<typeof resolveSidebarFolderDot>;
     }
   | { readonly kind: "marker"; readonly marker: SidebarListMarker };
 
@@ -439,10 +481,7 @@ type LogicalSidebarProject = SidebarProject & {
 
 export type ThreadTraversalDirection = "previous" | "next";
 
-/**
- * Shared-worktree checks must exclude only successful deletions, never the
- * whole batch.
- */
+/** Exclude only successful deletions from shared-worktree checks. */
 export async function deleteSelectedThreadEntries<
   TEntry extends { readonly threadKey: string },
 >(input: {
@@ -522,16 +561,27 @@ export function resolveSidebarRowThreadId(
   return thread?.id ?? threadId;
 }
 
+/**
+ * `delegatedUnderParent` holds the tasks linked environments run for a thread
+ * the sidebar lists, by thread key; they show under that thread, as subagents do.
+ */
 export function filterSidebarV2VisibleThreads<
-  T extends Pick<SidebarThreadSummary, "archivedAt" | "lineage"> & {
-    environmentId: string;
+  T extends Pick<SidebarThreadSummary, "archivedAt" | "environmentId" | "id" | "lineage"> & {
     projectId: string;
   },
->(threads: readonly T[], scopedProjectKeys: ReadonlySet<string> | null): T[] {
+>(
+  threads: readonly T[],
+  scopedProjectKeys: ReadonlySet<string> | null,
+  delegatedUnderParent: ReadonlySet<string> = EMPTY_DELEGATED_THREAD_KEYS,
+): T[] {
   return threads.filter(
     (thread) =>
       thread.archivedAt === null &&
-      !isSidebarSubagentThread(thread) &&
+      !isShownUnderParent(
+        { environmentId: thread.environmentId, threadId: thread.id },
+        thread.lineage,
+        delegatedUnderParent,
+      ) &&
       (scopedProjectKeys === null ||
         scopedProjectKeys.has(`${thread.environmentId}:${thread.projectId}`)),
   );
@@ -570,6 +620,7 @@ export interface ThreadStatusPill {
     | "Failed"
     | "Pending Approval"
     | "Awaiting Input"
+    | "Guest Request"
     | "Waiting";
   colorClass: string;
   dotClass: string;
@@ -578,13 +629,22 @@ export interface ThreadStatusPill {
 
 type ThreadStatusInput = Pick<
   SidebarThreadSummary,
-  "hasPendingApprovals" | "hasPendingUserInput" | "pendingSubagentRequest" | "latestRun" | "runtime"
+  | "hasPendingApprovals"
+  | "hasPendingUserInput"
+  | "pendingSubagentRequest"
+  | "pendingGuestMessageCount"
+  | "latestRun"
+  | "runtime"
 > & {
   lastVisitedAt?: string | null | undefined;
   pendingBackgroundTasks?: SidebarThreadSummary["pendingBackgroundTasks"] | undefined;
   blockedOnThreadWait?: boolean | undefined;
 };
 
+/**
+ * Thread jump hints appear once the jump modifier has been held for a moment,
+ * so a quick shortcut never flashes them, and hide as soon as it is released.
+ */
 export interface ThreadJumpHintVisibilityController {
   sync: (shouldShow: boolean) => void;
   dispose: () => void;
@@ -643,6 +703,7 @@ export function useThreadJumpHintVisibility(): {
   const [showThreadJumpHints, setShowThreadJumpHints] = React.useState(false);
   const controllerRef = React.useRef<ThreadJumpHintVisibilityController | null>(null);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- owns and disposes the keyboard hint timer controller
   React.useEffect(() => {
     const controller = createThreadJumpHintVisibilityController({
       delayMs: THREAD_JUMP_HINT_SHOW_DELAY_MS,
@@ -690,11 +751,7 @@ function hasUnseenFailure(thread: ThreadStatusInput): boolean {
   return completedAt > lastVisitedAt;
 }
 
-// A double-click dispatches two `click` events before `dblclick`: the first has
-// `detail === 1`, the second `detail === 2`. The second click must not run the
-// row's single-click navigation, otherwise double-click-to-rename would also
-// navigate. `MouseEvent.detail` is 0 for synthetic/keyboard activations, which
-// still count as a normal single activation.
+// Suppress trailing double-click navigation; keyboard and synthetic clicks use detail 0.
 export function isTrailingDoubleClick(detail: number): boolean {
   return detail > 1;
 }
@@ -780,6 +837,7 @@ export function resolveAdjacentThreadId<T>(input: {
 export type SidebarThreadStatus =
   | "approval"
   | "input"
+  | "request"
   | "working"
   | "waiting"
   | "failed"
@@ -793,7 +851,14 @@ export function shouldRecedeSidebarThread(input: {
   isActive: boolean;
   isSelected: boolean;
 }): boolean {
-  if (input.isActive || input.isSelected || input.status === "input") return false;
+  if (
+    input.isActive ||
+    input.isSelected ||
+    input.status === "input" ||
+    input.status === "request"
+  ) {
+    return false;
+  }
   if (input.status === "working" || input.status === "waiting") return true;
   if (input.status === "ready" || input.status === "approval") {
     return !input.isUnread && !input.isWoke;
@@ -806,9 +871,10 @@ type SidebarThreadStatusInput = Pick<
   | "hasPendingApprovals"
   | "hasPendingUserInput"
   | "pendingSubagentRequest"
+  | "pendingGuestMessageCount"
   | "runtime"
   | "blockedOnThreadWait"
->;
+> & { readonly pendingBackgroundTasks?: SidebarThreadSummary["pendingBackgroundTasks"] };
 
 export function resolveSidebarThreadStatus(thread: SidebarThreadStatusInput): SidebarThreadStatus {
   if (thread.hasPendingApprovals || thread.pendingSubagentRequest === "approval") {
@@ -817,7 +883,14 @@ export function resolveSidebarThreadStatus(thread: SidebarThreadStatusInput): Si
   if (thread.hasPendingUserInput || thread.pendingSubagentRequest === "user_input") {
     return "input";
   }
-  if (thread.runtime?.status === "running" && thread.blockedOnThreadWait === true) {
+  // A guest is waiting on the owner; the agent's own requests come first.
+  if ((thread.pendingGuestMessageCount ?? 0) > 0) {
+    return "request";
+  }
+  if (
+    (thread.runtime?.status === "running" && thread.blockedOnThreadWait === true) ||
+    backgroundWorkHoldsCompletion(thread.pendingBackgroundTasks ?? [])
+  ) {
     return "waiting";
   }
   if (
@@ -842,6 +915,7 @@ export type SidebarV2TopStatusKind =
   | "failed"
   | "limited"
   | "input"
+  | "request"
   | "waiting"
   | "woke"
   | "working";
@@ -862,8 +936,8 @@ export function resolveSidebarV2TopStatus(input: {
   if (input.status === "approval") {
     return "approval";
   }
-  if (input.status === "input") {
-    return "input";
+  if (input.status === "input" || input.status === "request") {
+    return input.status;
   }
   if (input.status === "failed" || input.status === "limited") {
     return input.status;
@@ -938,6 +1012,15 @@ export function resolveThreadStatusPill(input: {
       label: "Awaiting Input",
       colorClass: "text-indigo-600 dark:text-indigo-300/90",
       dotClass: "bg-indigo-500 dark:bg-indigo-300/90",
+      pulse: false,
+    };
+  }
+
+  if ((thread.pendingGuestMessageCount ?? 0) > 0) {
+    return {
+      label: "Guest Request",
+      colorClass: "text-guest-foreground",
+      dotClass: "bg-guest",
       pulse: false,
     };
   }
@@ -1054,8 +1137,7 @@ function sortProjectsByActivity<TProject extends SidebarProject>(
     return [...projects];
   }
 
-  // Each project's timestamp walks all of its threads, so compute it once
-  // per project instead of once per comparison.
+  // Project timestamps scan all threads; compute once per project instead of per comparison.
   return projects
     .map((project) => ({
       project,
@@ -1132,15 +1214,17 @@ export function sortLogicalProjectsForSidebar<
 
 export function sortSidebarV2ProjectGroups<
   TProject extends LogicalSidebarProject,
-  TThread extends ScopedSidebarThread & Pick<SidebarThreadSummary, "lineage">,
+  TThread extends ScopedSidebarThread &
+    Pick<SidebarThreadSummary, "environmentId" | "id" | "lineage">,
 >(
   projects: readonly TProject[],
   threads: readonly TThread[],
   sortOrder: SidebarProjectSortOrder,
+  delegatedUnderParent: ReadonlySet<string> = EMPTY_DELEGATED_THREAD_KEYS,
 ): TProject[] {
   return sortLogicalProjectsForSidebar(
     projects,
-    filterSidebarV2VisibleThreads(threads, null),
+    filterSidebarV2VisibleThreads(threads, null, delegatedUnderParent),
     sortOrder,
   );
 }
@@ -1175,4 +1259,26 @@ export function sortScopedProjectsForSidebar<
       left.environmentId.localeCompare(right.environmentId) ||
       left.id.localeCompare(right.id),
   );
+}
+
+export function resolveSidebarFolderDot(
+  threads: ReadonlyArray<ThreadStatusInput & SidebarThreadStatusInput>,
+): "attention" | "failed" | "unread" | "working" | null {
+  const statuses = new Set(threads.map(resolveSidebarThreadStatus));
+  if (
+    statuses.has("input") ||
+    statuses.has("approval") ||
+    statuses.has("request") ||
+    statuses.has("limited")
+  ) {
+    return "attention";
+  }
+  if (statuses.has("failed")) return "failed";
+  // Rows show Done only for ready threads, so the dot follows the same rule.
+  const hasUnread = threads.some(
+    (thread) => resolveSidebarThreadStatus(thread) === "ready" && hasUnseenCompletion(thread),
+  );
+  if (hasUnread) return "unread";
+  if (statuses.has("working")) return "working";
+  return null;
 }

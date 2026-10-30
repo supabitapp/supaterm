@@ -93,6 +93,7 @@ export function GuideTour({
     event.preventDefault();
     step(event.key === "j" ? 1 : -1);
   });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- document keydown listener for j/k tour stepping while the guide is active
   useEffect(() => {
     if (!active) return;
     const onKeyDown = (event: KeyboardEvent) => stepFromKey(event);

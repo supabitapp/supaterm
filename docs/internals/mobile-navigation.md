@@ -15,7 +15,7 @@ while a draft resolves its project, flashes between two surfaces.
 
 ## UIKit constraints
 
-The [react-native-screens patch](../../patches/react-native-screens@4.26.2.patch)
+The [Screens dependency](../operations/mobile-screens-fork.md)
 preserves behavior that is easy to break when changing native headers:
 
 - The brand belongs in `headerTitle`. On iOS 26.5, UIKit morphs a background-free
@@ -32,7 +32,7 @@ preserves behavior that is easy to break when changing native headers:
   gesture. Upstream gives every horizontal ScrollView priority, so swiping back
   on a code block or table can only bounce its content.
 
-The patch adds native header props that require code generation and a new binary.
+Native header props require code generation and a new binary.
 Patch rebuild guidance lives in the
 [mobile development README](../../apps/mobile/README.md#development).
 
@@ -62,3 +62,15 @@ Video playback holds the first signed asset URL for the lifetime of the preview.
 Following credential refreshes reactively would restart playback. Quick Look copies
 original bytes into its own temporary directory so preview and sharing cannot
 mutate a draft or workspace file.
+
+## Selecting workspace detail
+
+Selecting a thread, draft, or workspace destination replaces the selected detail. Deliberate
+navigation within that detail pushes a route. Preserve this distinction across search, deep
+links, new-project completion, and inspector expansion. Persist selection identity, never a
+navigator's transient route key.
+
+The native feed marker registers its descendant scroll view for header behavior. Scroll-edge
+bleed can extend behind the Duo's vertical bar, but must never change horizontal content insets
+or offsets. Restore clipping and geometry when detached or recycled. Hidden inspectors release
+their stream consumers, and compact layouts retain normal back navigation.

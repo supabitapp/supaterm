@@ -1,7 +1,3 @@
-/**
- * (A deny-all session is refused on the free tier: the spike's
- * `text_generation` recording.)
- */
 import type { ProviderReplayEntry } from "@supaterm/contracts";
 
 export const OPENCODE2_TITLE_GENERATION: ReadonlyArray<ProviderReplayEntry> = [

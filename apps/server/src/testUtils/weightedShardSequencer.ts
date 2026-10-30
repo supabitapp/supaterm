@@ -10,14 +10,8 @@ const FILE_OVERHEAD_SECONDS = 0.5;
 
 const recordedSeconds: Readonly<Record<string, number>> = shardWeights;
 
-/**
- * Splits server test files across `--shard` runs by recorded duration. Vitest's
- * default split hashes file paths into equal-count shards, which can put the
- * slowest files on one runner. Here the longest file goes to the lightest shard
- * first. Every shard derives the same split from the same file list, so each
- * file still runs in exactly one shard. Files without a recorded time count as
- * fast files. Record fresh times with `node scripts/update-test-shard-weights.ts`.
- */
+// Every shard must derive the same assignment from the same file list.
+// Put the longest files on the lightest shard; equal file counts skew runtimes.
 export class WeightedShardSequencer extends BaseSequencer {
   override async shard(files: TestSpecification[]) {
     const { index, count } = this.ctx.config.shard ?? { index: 1, count: 1 };

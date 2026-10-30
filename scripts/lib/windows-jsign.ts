@@ -1,9 +1,3 @@
-// Azure Trusted Signing from a non-Windows host. The Windows-only path is
-// electron-builder's azureSignOptions (PowerShell + signtool.exe); this one is
-// electron-builder's `win.signtoolOptions.sign` hook and the CLI archive's
-// signer. jsign reads AZURE_TENANT_ID, AZURE_CLIENT_ID and AZURE_CLIENT_SECRET
-// itself when no --storepass is given.
-
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
@@ -43,7 +37,7 @@ export const signWithJsign = Effect.fn("signWithJsign")(function* (file: string)
         "http://timestamp.acs.microsoft.com",
         "--tsmode",
         "RFC3161",
-        // jsign appends a nested signature by default; signtool replaces.
+
         "--replace",
         file,
       ],

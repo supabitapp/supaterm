@@ -201,3 +201,8 @@ describe("thread settings sheet state", () => {
     ).toBe(false);
   });
 });
+
+vi.mock("../../state/use-composer-drafts", async () => {
+  const { Atom } = await import("effect/reactivity");
+  return { modelOptionMemoryAtom: Atom.make({}), schedulePersistComposerState: () => {} };
+});

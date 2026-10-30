@@ -10,8 +10,7 @@ const config = getDefaultConfig(__dirname);
 const workspaceRoot = path.resolve(__dirname, "../..");
 const expoPackagePath = fs.realpathSync(require.resolve("expo/package.json"));
 const relativeExpoPackagePath = path.relative(workspaceRoot, expoPackagePath);
-// Expo builds lazy chunk URLs relative to the server root, so packages in pnpm's
-// global virtual store get `/../` URLs that normalize to the wrong file.
+
 if (
   relativeExpoPackagePath.startsWith(`..${path.sep}`) ||
   path.isAbsolute(relativeExpoPackagePath)
@@ -26,24 +25,9 @@ const licenseGeneratorSource = path.join(
   "third-party-licenses.ts",
 );
 const escapedWorkspaceRoot = workspaceRoot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const mobileShikiRoot = path.dirname(require.resolve("shiki/package.json", { paths: [__dirname] }));
 const generatedDeviceStreamRoot = path.join(__dirname, ".generated", "device-stream");
 const generatedMermaidWorkletRoot = path.join(__dirname, ".generated", "mermaid-worklet");
 const generatedPreviewStreamRoot = path.join(__dirname, ".generated", "preview-stream");
-const resolveShikiDependencyRoot = (packageName) => {
-  const entryPath = require.resolve(packageName, { paths: [mobileShikiRoot] });
-  let currentDir = path.dirname(entryPath);
-
-  while (!fs.existsSync(path.join(currentDir, "package.json"))) {
-    const parentDir = path.dirname(currentDir);
-    if (parentDir === currentDir) {
-      throw new Error(`Could not resolve package root for ${packageName}`);
-    }
-    currentDir = parentDir;
-  }
-
-  return currentDir;
-};
 
 config.resolver = {
   ...config.resolver,
@@ -61,14 +45,6 @@ config.resolver = {
     "@supaterm/mobile-device-stream": generatedDeviceStreamRoot,
     "@supaterm/mobile-mermaid-worklet": generatedMermaidWorkletRoot,
     "@supaterm/mobile-preview-stream": generatedPreviewStreamRoot,
-    shiki: mobileShikiRoot,
-    "@shikijs/core": resolveShikiDependencyRoot("@shikijs/core"),
-    "@shikijs/engine-javascript": resolveShikiDependencyRoot("@shikijs/engine-javascript"),
-    "@shikijs/engine-oniguruma": resolveShikiDependencyRoot("@shikijs/engine-oniguruma"),
-    "@shikijs/langs": resolveShikiDependencyRoot("@shikijs/langs"),
-    "@shikijs/themes": resolveShikiDependencyRoot("@shikijs/themes"),
-    "@shikijs/types": resolveShikiDependencyRoot("@shikijs/types"),
-    "@shikijs/vscode-textmate": resolveShikiDependencyRoot("@shikijs/vscode-textmate"),
   },
 };
 

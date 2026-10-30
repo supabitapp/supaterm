@@ -1,9 +1,10 @@
 import { Menu as MenuPrimitive } from "@base-ui/react/menu";
-import { CheckIcon, ChevronRightIcon } from "@supaterm/icons";
+import { CheckIcon, ChevronRightIcon, SearchIcon } from "@supaterm/icons";
 import type * as React from "react";
 
 import { cn } from "~/lib/utils";
 import { buttonVariants } from "./button";
+import { Spinner } from "./spinner";
 import { POPUP_MOTION_CLASS } from "./popup-styles";
 
 const Menu = MenuPrimitive.Root;
@@ -70,6 +71,35 @@ function MenuPopup({
   );
 }
 
+function MenuSearchInput({
+  busy = false,
+  onKeyDown,
+  ...props
+}: Omit<React.ComponentProps<"input">, "className" | "size"> & { busy?: boolean }) {
+  return (
+    <div className="min-w-0 shrink-0 px-2 pt-1.5 pb-1">
+      <div className="relative border-b border-border/70 pb-1.5 focus-within:border-ring">
+        <span className="pointer-events-none absolute top-1.5 left-0 text-muted-foreground">
+          {busy ? (
+            <Spinner aria-hidden size="md" tone="muted" />
+          ) : (
+            <SearchIcon aria-hidden className="size-4" />
+          )}
+        </span>
+        <input
+          {...props}
+          data-slot="menu-search-input"
+          className="h-6.5 w-full min-w-0 bg-transparent ps-5 font-sans text-sm leading-6.5 text-foreground outline-none placeholder:text-placeholder"
+          onKeyDown={(event) => {
+            if (event.key !== "ArrowDown" && event.key !== "Escape") event.stopPropagation();
+            onKeyDown?.(event);
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 function MenuGroup(props: MenuPrimitive.Group.Props) {
   return <MenuPrimitive.Group data-slot="menu-group" {...props} />;
 }
@@ -127,7 +157,7 @@ function MenuCheckboxItem({
   variant = "default",
   ...props
 }: MenuPrimitive.CheckboxItem.Props & {
-  variant?: "default" | "switch";
+  variant?: "default" | "icon" | "switch";
 }) {
   return (
     <MenuPrimitive.CheckboxItem
@@ -137,6 +167,7 @@ function MenuCheckboxItem({
         variant === "switch"
           ? "grid-cols-[1fr_auto] gap-4 pe-1.5"
           : "grid-cols-[1rem_minmax(0,1fr)] pe-4",
+        variant === "icon" && "grid-cols-[0.625rem_minmax(0,1fr)]",
         className,
       )}
       data-slot="menu-checkbox-item"
@@ -154,8 +185,11 @@ function MenuCheckboxItem({
         </>
       ) : (
         <>
-          <MenuPrimitive.CheckboxItemIndicator className="col-start-1">
+          <MenuPrimitive.CheckboxItemIndicator
+            className={cn("col-start-1", variant === "icon" && "-mx-0.5")}
+          >
             <svg
+              className={variant === "icon" ? "size-3.5" : undefined}
               fill="none"
               height="24"
               stroke="currentColor"
@@ -343,6 +377,7 @@ export {
   MenuTrigger as DropdownMenuTrigger,
   MenuPopup,
   MenuPopup as DropdownMenuContent,
+  MenuSearchInput,
   MenuGroup,
   MenuGroup as DropdownMenuGroup,
   MenuItem,

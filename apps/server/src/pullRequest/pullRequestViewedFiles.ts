@@ -46,10 +46,6 @@ const makeFileRevisions = (dependencies: FileRevisionsDependencies) => {
   const heldFileRevisions = new Map<string, HeldFileRevisions>();
   const refreshingFileRevisions = new Set<string>();
 
-  /**
-   * Spelled from the project rather than the reference, since a reference arrives however
-   * the client spelled it while the epoch is bumped against the remote's own spelling.
-   */
   const fileRevisionsKey = (project: SupportedProject, ref: PullRequestRef) =>
     [
       refEpoch({ ...ref, host: project.host, repository: project.repository }),
@@ -92,8 +88,7 @@ const makeFileRevisions = (dependencies: FileRevisionsDependencies) => {
         const oldest = heldFileRevisions.keys().next().value;
         if (oldest !== undefined) heldFileRevisions.delete(oldest);
       }
-      // The entry is only as fresh as its oldest revision: stamping it with `now` on a partial
-      // answer would let an old revision ride past the point it should have been re-read.
+
       const stamped = [...revisions.keys()].every((path) => answer.revisions.has(path))
         ? at
         : (carried?.at ?? at);
@@ -110,11 +105,6 @@ const makeFileRevisions = (dependencies: FileRevisionsDependencies) => {
     return paths.every((path) => held.asked.has(path)) ? held : null;
   };
 
-  /**
-   * `held` answers from a stale value and refetches off the critical path, since a badge a
-   * moment behind beats a page that won't paint until the host answers; `fresh` is for the
-   * press itself, which must not store a revision the head already moved off.
-   */
   const fileRevisionsOf = (
     project: SupportedProject,
     ref: PullRequestRef,
@@ -124,8 +114,7 @@ const makeFileRevisions = (dependencies: FileRevisionsDependencies) => {
   ): Effect.Effect<ReadonlyMap<string, string> | null, PullRequestError> => {
     const read = project.api.getFileRevisions;
     if (read === undefined) return Effect.succeed(null);
-    // Suspended, so a held answer costs the host nothing: a provider is free to do its work as
-    // the request is built rather than as the effect is run.
+
     const fetch = Effect.suspend(() => {
       const key = fileRevisionsKey(project, ref);
       return read({
@@ -147,8 +136,7 @@ const makeFileRevisions = (dependencies: FileRevisionsDependencies) => {
         return Effect.succeed(held.revisions);
       if (freshness === "fresh") return fetch;
       if (refreshingFileRevisions.has(key)) return Effect.succeed(held.revisions);
-      // Its own fiber rather than a child: the caller has been answered and is gone before this
-      // lands.
+
       return Effect.sync(() => {
         refreshingFileRevisions.add(key);
         runFork(
@@ -233,10 +221,6 @@ export const make = (dependencies: Dependencies) => {
     },
   );
 
-  /**
-   * A tick's host round trip is slower than an untick's, so unordered presses could finish
-   * out of order and leave a stale tick standing over a later untick.
-   */
   const filesViewedGates = new Map<
     string,
     { readonly gate: Semaphore.Semaphore; pending: number }
@@ -247,9 +231,6 @@ export const make = (dependencies: Dependencies) => {
     number: number,
     write: Effect.Effect<void, PullRequestError>,
   ) =>
-    // Suspended rather than generated, so finding the gate, putting it in and taking a place in
-    // its queue are one step: yielding for `Semaphore.make` between the lookup and the insert
-    // lets two presses each make a gate of their own and neither wait on the other.
     Effect.suspend(() => {
       const key = `${project.project.id} ${project.remote} ${number}`;
       const held = filesViewedGates.get(key);
@@ -290,9 +271,7 @@ export const make = (dependencies: Dependencies) => {
       yield* filesViewedStore
         .set({
           ...filesViewedScope(project, input.number, viewer),
-          // A path left out of the answer stores with no baseline, not the empty revision, since
-          // the empty revision is itself an answer and would misreport the file once it turns
-          // out to have a version after all.
+
           files: input.files.map((file) => ({
             path: file.path,
             revision: revisions?.get(file.path) ?? null,

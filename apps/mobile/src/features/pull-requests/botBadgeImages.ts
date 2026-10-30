@@ -1,8 +1,3 @@
-/**
- * Each entry is a host plus a path that only serves those assets, so screenshots uploaded to
- * the same service (such as cursor.com/artifacts or app.devin.ai/attachments) stay visible.
- * Only the description's Attachments strip skips them; markdown still renders them inline.
- */
 const BOT_BADGE_PREFIXES = [
   "static.devin.ai/assets/",
   "cursor.com/assets/images/",
@@ -39,7 +34,7 @@ const BOT_BADGE_PREFIXES = [
   "vercel.com/api/www/avatar",
   "app.netlify.com/qr-code/",
   "workers.cloudflare.com/logo.svg",
-  // Cloudflare Pages reuses one old GitHub upload as its logo.
+
   "user-images.githubusercontent.com/23264/106598434-9e719e00-654f-11eb-9e59-6167043cfa01.png",
   "qr.expo.dev/",
 ];

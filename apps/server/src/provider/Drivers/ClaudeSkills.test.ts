@@ -80,7 +80,9 @@ it.layer(NodeServices.layer)("discoverClaudeSkills", (it) => {
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
-      const tempDir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-claude-skills-" });
+      const tempDir = yield* fs.realPath(
+        yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-claude-skills-" }),
+      );
       const configDir = path.join(tempDir, "claude-home");
       const workspace = path.join(tempDir, "workspace");
       const nestedWorkspace = path.join(workspace, "packages", "app");
@@ -235,7 +237,6 @@ it.layer(NodeServices.layer)("discoverClaudeSkills", (it) => {
         {
           leadingText: undefined,
           commandText: "/plugin:alias focus on auth",
-          skillName: "plugin:alias",
         },
       );
       assert.deepEqual(
@@ -359,6 +360,8 @@ it.layer(NodeServices.layer)("discoverClaudeSkills", (it) => {
         '--add-dir "extra skills"',
         '--add-dir="extra skills"',
         `--add-dir missing --add-dir "${extraDir}"`,
+        `--add-dir "${extraDir}" --add-dir missing`,
+        `--add-dir missing "${extraDir}"`,
       ]) {
         const settings = { homePath: configDir, launchArgs };
         const skills = yield* discoverClaudeSkills(settings, workspace);
@@ -382,7 +385,6 @@ it.layer(NodeServices.layer)("discoverClaudeSkills", (it) => {
         {
           leadingText: undefined,
           commandText: "/demo",
-          skillName: "demo",
         },
       );
       yield* writeSkill(
@@ -504,9 +506,6 @@ it.layer(NodeServices.layer)("discoverClaudeSkills", (it) => {
 
       const skills = yield* discoverClaudeSkills({ homePath: configDir }, undefined);
 
-      // A skill with no frontmatter falls back to its directory name; a skill
-      // whose frontmatter fails to parse is skipped entirely (Claude Code
-      // won't load it either).
       assert.deepEqual(
         skills.map((skill) => skill.name),
         ["no-frontmatter"],
@@ -561,8 +560,6 @@ it.layer(NodeServices.layer)("discoverClaudeSkills", (it) => {
       const workspace = path.join(tempDir, "workspace");
       yield* fs.makeDirectory(workspace, { recursive: true });
 
-      // The spawned CLI resolves a relative CLAUDE_CONFIG_DIR against its own
-      // cwd (the workspace), so discovery must do the same.
       yield* writeSkill(
         path.join(workspace, "relative-config", "skills"),
         "relative-skill",
@@ -684,8 +681,7 @@ it.layer(NodeServices.layer)("discoverClaudeSkills", (it) => {
           ["---", `name: ${name}`, "---", "", "# Body"].join("\n"),
         );
       }
-      // Verified against the CLI: with an unknown string or a boolean in the
-      // map, the valid "off" sibling is ignored too and every skill runs.
+
       yield* fs.writeFileString(
         path.join(configDir, "settings.json"),
         '{ "skillOverrides": { "unknown-mode": "some-future-mode", "boolean-false": false, "sibling-off": "off" } }',

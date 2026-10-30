@@ -139,6 +139,7 @@ export function BranchPicker({
     setShowBottomBranchScrollFade(maxScrollOffset - scrollElement.scrollTop > 1);
   };
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Measures the virtual list DOM after opening and after its layout settles.
   useLayoutEffect(() => {
     if (!open) {
       return;
@@ -156,6 +157,7 @@ export function BranchPicker({
   }, [open, updateBranchListScrollFades]);
 
   const previousResultsQuery = useRef<string | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Resets the virtual list scroll position when the displayed query changes.
   useEffect(() => {
     if (!open) {
       previousResultsQuery.current = null;

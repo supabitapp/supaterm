@@ -1,7 +1,7 @@
+import { shortcutLabelForCommand } from "../../keybindings";
 import { useAtomValue } from "@effect/atom-react";
 
 import { undoLatestThreadAction, useThreadUndoNotice } from "../../hooks/showThreadUndoNotice";
-import { shortcutLabelForCommand } from "../../keybindings";
 import { primaryServerKeybindingsAtom } from "../../state/server";
 import { Alert, AlertDescription } from "../ui/alert";
 import { InlineButton } from "../ui/button";

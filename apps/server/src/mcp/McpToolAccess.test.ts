@@ -140,6 +140,7 @@ const probeHandlers: McpToolAccess.Handlers<typeof ProbeToolkit.tools> = {
   starts_threads: McpToolAccess.startsThreads(
     (input) => input,
     (_, modes) => Effect.succeed({ ran: `${modes.runtimeMode}/${modes.interactionMode}` }),
+    "stamped",
   ),
   writes_environment: McpToolAccess.writesEnvironment(() => ran),
 };
@@ -217,7 +218,6 @@ const supervised = threadCaller(supervisedThreadId);
 const plan = threadCaller(planThreadId);
 const fullAccess = threadCaller(fullAccessThreadId);
 const ended = threadCaller(endedThreadId);
-// Its turn ended, but a background subagent it started still runs.
 const background = threadCaller(backgroundThreadId);
 const oldProviderBackground = threadCaller(oldProviderThreadId);
 const archivedBackground = threadCaller(archivedThreadId);

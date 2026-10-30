@@ -1,3 +1,4 @@
+import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useId, useState } from "react";
 import { create } from "zustand";
 import {
@@ -9,7 +10,7 @@ import {
 import { Button } from "./ui/button";
 import { CalendarIcon } from "@supaterm/icons";
 import { Calendar } from "./ui/calendar";
-import { useNowMinuteMs } from "../hooks/useNowMinute";
+import { useNowMinute } from "../hooks/useNowMinute";
 import { weekStartsOn } from "../timestampFormat";
 import { Popover, PopoverTrigger, PopoverPopup } from "./ui/popover";
 import { Input } from "./ui/input";
@@ -50,11 +51,13 @@ function finish(choice: SnoozeChoice | null) {
 
 export function CustomSnoozeDialogHost() {
   const request = useRequest((state) => state.request);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- resolves any pending snooze request promise with null when the dialog host unmounts
   useEffect(() => () => finish(null), []);
   return request ? <CustomSnoozeDialog /> : null;
 }
 
 function CustomSnoozeDialog() {
+  const navigate = useNavigate();
   const id = useId();
   const [initial] = useState(() => new Date(Date.now() + 3_600_000));
   const [mode, setMode] = useState<CustomSnoozeInput["mode"]>("date");
@@ -67,7 +70,7 @@ function CustomSnoozeDialog() {
   const input: CustomSnoozeInput =
     mode === "date" ? { mode, date: localSnoozeDate(date), time } : { mode, amount, unit };
   // The minute clock moves the calendar's first selectable day past midnight while it stays open.
-  const nowMinuteMs = useNowMinuteMs();
+  const nowMinuteMs = Date.parse(`${useNowMinute()}:00.000Z`);
   const startOfToday = new Date(nowMinuteMs);
   startOfToday.setHours(0, 0, 0, 0);
   return (
@@ -219,6 +222,16 @@ function CustomSnoozeDialog() {
             )}
           </DialogPanel>
           <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost-muted"
+              onClick={() => {
+                finish(null);
+                void navigate({ to: "/settings/threads", hash: "snooze-options" });
+              }}
+            >
+              Edit snooze options
+            </Button>
             <Button type="button" variant="outline" onClick={() => finish(null)}>
               Cancel
             </Button>

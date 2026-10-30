@@ -26,10 +26,6 @@ export class NodePtyModuleLoadError extends Schema.TaggedError<NodePtyModuleLoad
 
 type NodePtyModuleLoader = () => Promise<typeof import("node-pty")>;
 
-// node-pty stays external to the CLI bundle because it dlopens a native
-// addon. Inside a Node single-executable, `import()` cannot load files from
-// disk (only built-ins resolve), while `require` always reads the real
-// filesystem, so both the module and its spawn-helper resolve through it.
 const requireForNodePty = NodeModule.createRequire(import.meta.url);
 
 const loadNodePty: NodePtyModuleLoader = () =>
@@ -81,14 +77,8 @@ const ensureNodePtySpawnHelperExecutable = Effect.fn(function* () {
   yield* fs.chmod(helperPath, 0o755).pipe(Effect.orElseSucceed(() => undefined));
 });
 
-/**
- * node-pty defers creation to avoid blocking on named pipes:
- * https://github.com/microsoft/node-pty/pull/885
- * Supaterm adopted that behavior when upgrading from 1.1.0 to 1.2.0-beta.15:
- * https://github.com/supabitapp/supaterm/pull/13748
- * Its public API has no readiness event. The private ready_datapipe handler sets
- * pid before our listener runs.
- */
+// Windows has no public PTY readiness event. The private ready_datapipe handler
+// sets pid before notifying our listener.
 const waitForWindowsPid = (
   process: import("node-pty").IPty,
   trackedProcess: NodePtyProcess,
@@ -141,10 +131,6 @@ const waitForWindowsPid = (
     return Effect.sync(cleanup);
   });
 
-/**
- * Cancels Windows startup without waiting for the first output, unlike public kill().
- * The private agent can cancel the pending connection before a child exists.
- */
 const killStartingWindowsPty = (process: import("node-pty").IPty) =>
   Effect.try(() => {
     if (

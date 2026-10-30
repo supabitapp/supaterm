@@ -1,10 +1,17 @@
 import * as NodeFS from "node:fs";
 
 import {
-  MOBILE_THEME_VARIABLE_NAMES,
+  createMobileThemeVariables,
+  type MobileThemeVariable,
   type MobileThemeAppearance,
   type MobileThemeVariables,
 } from "./mobileTheme";
+
+import { SUPATERM_LIGHT_THEME_COLORS } from "@supaterm/shared/themePalettes";
+
+const MOBILE_THEME_VARIABLE_NAMES = Object.keys(
+  createMobileThemeVariables(SUPATERM_LIGHT_THEME_COLORS, "light"),
+) as ReadonlyArray<MobileThemeVariable>;
 
 export function readDefaultMobileThemeVariables(
   appearance: MobileThemeAppearance,

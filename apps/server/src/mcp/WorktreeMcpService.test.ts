@@ -352,9 +352,7 @@ const expectTypedFailure = (exit: Exit.Exit<unknown, unknown>, expected: object)
 // make several calls against the SAME instance (the in-flight guard lives in
 // the layer's closure, so a fresh layer per call would never see it).
 const resolveService = (harness: ReturnType<typeof makeHarness>) =>
-  Effect.gen(function* () {
-    return yield* WorktreeMcpService.WorktreeMcpService;
-  }).pipe(Effect.provide(harness.layer));
+  WorktreeMcpService.WorktreeMcpService.pipe(Effect.provide(harness.layer));
 
 const runHandoff = (
   harness: ReturnType<typeof makeHarness>,

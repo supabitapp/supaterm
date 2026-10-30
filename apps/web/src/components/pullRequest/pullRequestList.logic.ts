@@ -1,3 +1,4 @@
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import * as Schema from "effect/Schema";
 
 import {
@@ -5,13 +6,11 @@ import {
   PullRequestListEntry,
   PullRequestListProjectError,
   PullRequestListResult,
-  pullRequestHostOf,
   resolvePullRequestAuthorFilter,
 } from "@supaterm/contracts";
 import type {
   ProjectId,
   RepositoryIdentity,
-  SourceControlProviderKind,
   PullRequestAction,
   PullRequestActor,
   PullRequestDiffStat,
@@ -22,8 +21,6 @@ import type {
   PullRequestListState,
   PullRequestState,
 } from "@supaterm/contracts";
-
-import { sourceControlRepositorySelector } from "@supaterm/shared/sourceControl";
 
 import { toSortableTimestamp } from "../../lib/threadSort";
 import type { PullRequestListSort } from "./pullRequestListPreferences";
@@ -127,6 +124,79 @@ export function collectPullRequestListFacets(
       (left, right) => right.count - left.count || left.name.localeCompare(right.name),
     ),
   };
+}
+
+/** How many loaded matches come before the host's answers. */
+const HOSTED_CHOICE_ROOM = 15;
+
+export function pullRequestAuthorChoices(
+  facets: ReadonlyArray<PullRequestAuthorFacet>,
+  hosted: ReadonlyArray<PullRequestActor>,
+  query: string,
+): ReadonlyArray<PullRequestAuthorFacet> {
+  const needle = normalize(query);
+  const loaded = facets.filter(
+    (facet) =>
+      needle === null ||
+      facet.actor.login.toLowerCase().includes(needle) ||
+      facet.actor.name?.toLowerCase().includes(needle),
+  );
+  const known = new Map(facets.map((facet) => [normalize(facet.actor.login), facet]));
+  const seen = new Set(loaded.map((facet) => normalize(facet.actor.login)));
+  const added: PullRequestAuthorFacet[] = [];
+  for (const actor of hosted) {
+    const key = normalize(actor.login);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    added.push(known.get(key) ?? { actor, count: 0, mergedCount: 0 });
+  }
+  // The picker shows a short list, and loaded matches alone could fill it.
+  return [...loaded.slice(0, HOSTED_CHOICE_ROOM), ...added, ...loaded.slice(HOSTED_CHOICE_ROOM)];
+}
+
+/**
+ * The author a filter names, as a choice: an author picked from the host's answer is on no
+ * loaded row, so it stays shown after the search that found it clears.
+ */
+export function selectedPullRequestAuthor(
+  facets: ReadonlyArray<PullRequestAuthorFacet>,
+  hosted: ReadonlyArray<PullRequestActor>,
+  value: string | undefined,
+): PullRequestAuthorFacet | undefined {
+  if (value === undefined) return undefined;
+  const key = normalize(value);
+  return (
+    facets.find((facet) => normalize(facet.actor.login) === key) ?? {
+      actor: hosted.find((actor) => normalize(actor.login) === key) ?? {
+        login: value,
+        name: null,
+        avatarUrl: null,
+      },
+      count: 0,
+      mergedCount: 0,
+    }
+  );
+}
+
+export function pullRequestLabelChoices(
+  facets: ReadonlyArray<PullRequestLabelFacet>,
+  hosted: ReadonlyArray<PullRequestLabel>,
+  query: string,
+): ReadonlyArray<PullRequestLabelFacet> {
+  const needle = normalize(query);
+  const loaded = facets.filter(
+    (facet) => needle === null || facet.name.toLowerCase().includes(needle),
+  );
+  const known = new Map(facets.map((facet) => [normalize(facet.name), facet]));
+  const seen = new Set(loaded.map((facet) => normalize(facet.name)));
+  const added: PullRequestLabelFacet[] = [];
+  for (const label of hosted) {
+    const key = normalize(label.name);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    added.push(known.get(key) ?? { ...label, count: 0 });
+  }
+  return [...loaded, ...added];
 }
 
 export function pullRequestEntryViewer(
@@ -312,10 +382,7 @@ export function pullRequestStatsBatches(
   });
 }
 
-/**
- * Size sorting needs every loaded row, while the other modes only need rows
- * near the viewport.
- */
+/** Size sorting needs all loaded rows' stats; other modes need only nearby rows. */
 export function pullRequestStatsRequestBatches({
   entriesByKey,
   candidateKeys,
@@ -376,11 +443,7 @@ export function retainVisiblePullRequestStatsBatches(
   });
 }
 
-/**
- * The feed is sliced by recency, so an older authored or review-requested row can be
- * missing from its first page and arrive with a later one; grouping the loaded pages would
- * then move it above rows already read.
- */
+/** Recency pagination can introduce older priority rows; grouping pages would reorder read rows. */
 export function partitionPullRequestsWithPriority<Entry extends PullRequestListEntry>(
   entries: ReadonlyArray<Entry>,
   authored: ReadonlyArray<Entry>,
@@ -421,11 +484,7 @@ export type PullRequestDiffStats = ReadonlyMap<
   { readonly additions: number; readonly deletions: number }
 >;
 
-/**
- * The stats read is keyed by the rows on screen, so adding or removing one row is a fresh
- * query with nothing in it yet; replacing the map would blank every count already showing for
- * the round trip.
- */
+/** New stats queries must not blank existing counts. */
 export function mergePullRequestDiffStats(
   previous: PullRequestDiffStats,
   stats: ReadonlyArray<{
@@ -605,11 +664,7 @@ export function writePullRequestListSnapshot(
   } catch {}
 }
 
-/**
- * Until `projectsKnown`, the id is kept rather than dropped: an environment that has not
- * reported yet is not the same as one without the project, and dropping first would show every
- * project's pull requests for a moment before narrowing back down.
- */
+/** Retain project scope during reconnect until projects arrive. */
 export function resolveProjectScope<Id extends string>(
   projectId: Id | undefined,
   projects: ReadonlyArray<{ readonly id: string }>,
@@ -651,11 +706,7 @@ export function resolveQueryEnvironmentIds<Id extends string>(
   return environmentIds.filter((environmentId) => holders.has(environmentId));
 }
 
-/**
- * Still connecting is not the same as gone: a server the workspace already knows about is kept
- * named here even while it has nothing to answer with yet, so the lookup that follows finds
- * nothing under it rather than falling through to a different server's project of the same id.
- */
+/** Retain connecting environments to avoid matching another server's project id. */
 export function resolveSelectedEnvironmentId<Id extends string>(
   namedEnvironmentId: Id | undefined,
   knownEnvironmentIds: ReadonlySet<Id>,
@@ -665,11 +716,7 @@ export function resolveSelectedEnvironmentId<Id extends string>(
   return knownEnvironmentIds.has(namedEnvironmentId) ? namedEnvironmentId : fallbackEnvironmentId;
 }
 
-/**
- * Every host searches more than a row shows — GitHub reads bodies and commit messages, GitLab
- * and Bitbucket read descriptions — so a result can be a real match with nothing on the row to
- * show for it.
- */
+/** Host search also matches bodies and commits absent from visible row fields. */
 export function scorePullRequestMatch(entry: PullRequestListEntry, query: string): number {
   const needle = query.trim().toLowerCase();
   if (needle.length === 0) return 0;
@@ -893,13 +940,7 @@ export function reusePullRequestEntries<Entry extends PullRequestListEntry>(
 
 const PULL_REQUEST_OVERRIDE_TRUST_MS = 60_000;
 
-/**
- * A read that started before the action can land after it and still say the old thing, so an
- * override is not cleared because an answer arrived but because the answer agrees: the row is
- * there in the state the override said. A row that is absent says nothing — the authored and
- * reviewing groups are read apart from the feed, and a page is only a page — so absence never
- * confirms.
- */
+/** Retire overrides only when returned rows agree; partial-feed absence proves nothing. */
 export function settlePullRequestOverrides<Entry extends PullRequestListEntry>(
   overrides: ReadonlyMap<string, PullRequestListOverride>,
   answered: ReadonlyArray<Entry>,
@@ -938,10 +979,11 @@ export function pullRequestHostActions(
         : [[provider.host.toLowerCase(), new Set(provider.actions)] as const],
     ),
   );
-  const legacy = new Set<PullRequestAction>(["close", "merge", "ready", "reopen"]);
   const none = new Set<PullRequestAction>();
   return (entry) =>
-    byHost.get(entry.host.toLowerCase()) ?? (entry.provider === "github" ? legacy : none);
+    byHost.get(entry.host.toLowerCase()) ??
+    sourceControlClients.find(entry.provider)?.changeRequestActionsWhenUnreported ??
+    none;
 }
 
 export function pullRequestQuickActions(
@@ -965,7 +1007,9 @@ export function largestPullRequestReadCount(
   const counts = new Map<string, number>();
   for (const entry of entries) {
     const read = `${entry.environmentId} ${entry.host.toLowerCase()} ${
-      entry.provider === "github" ? "" : entry.repository.toLowerCase()
+      sourceControlClients.find(entry.provider)?.changeRequestListScope === "host"
+        ? ""
+        : entry.repository.toLowerCase()
     }`;
     counts.set(read, (counts.get(read) ?? 0) + 1);
   }
@@ -998,12 +1042,15 @@ export function findProjectForRepository<
       return false;
     }
     const identity = project.repositoryIdentity;
-    if (!identity || sourceControlRepositorySelector(identity)?.toLowerCase() !== repository) {
+    if (
+      !identity ||
+      sourceControlClients.repositorySelector(identity)?.toLowerCase() !== repository
+    ) {
       return false;
     }
     return (
       host === undefined ||
-      pullRequestHostOf(identity, identity.provider as SourceControlProviderKind) === host
+      sourceControlClients.changeRequestHost(identity, identity.provider) === host
     );
   });
   // Azure repository names can collide across projects on the same host.

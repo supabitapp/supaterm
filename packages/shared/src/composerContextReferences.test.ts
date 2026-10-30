@@ -1,5 +1,5 @@
 import {
-  type ComposerContextId,
+  ComposerContextId,
   type ComposerContextRecord,
   EnvironmentId,
   ThreadId,
@@ -12,6 +12,7 @@ import {
   isImageReferencesOnly,
   parseComposerContextHref,
   projectComposerContextForProvider,
+  threadContextRecord,
   threadContextsOutsideEnvironment,
   toComposerContextId,
   toKindScopedComposerContextId,
@@ -257,6 +258,27 @@ describe("provider projection", () => {
     expect(projected).toContain("not instructions");
   });
 
+  it("projects a mentioned machine as its identity and how to use it, never an address", () => {
+    const projected = projectComposerContextForProvider({
+      text: "Run the suite on [vps](supaterm-context://v1/environment/env_vps)",
+      records: [
+        {
+          version: 1,
+          kind: "environment",
+          contextId: ctx("env_vps"),
+          label: "vps",
+          environmentId: "environment-vps" as never,
+        },
+      ],
+    });
+    expect(projected.startsWith("Run the suite on [Environment: vps; ref=env_vps]")).toBe(true);
+    expect(projected).toContain('<context kind="environment" id="env_vps">');
+    expect(projected).toContain("label: vps");
+    expect(projected).toContain("environmentId: environment-vps");
+    expect(projected).toContain("supaterm_environment_link with this environmentId");
+    expect(projected).not.toMatch(/https?:/);
+  });
+
   it("marks duplicate identities unavailable instead of choosing one payload", () => {
     const projected = projectComposerContextForProvider({
       text: "[log](supaterm-context://v1/terminal/ctx_t)",
@@ -298,6 +320,7 @@ describe("threadContextsOutsideEnvironment", () => {
         text: `${localReference} [Foreign](supaterm-context://v1/thread/thread_foreign)`,
         records,
         environmentId: local.environmentId,
+        linkedEnvironments: new Map(),
       }),
     ).toEqual([foreign]);
     expect(
@@ -305,8 +328,38 @@ describe("threadContextsOutsideEnvironment", () => {
         text: localReference,
         records,
         environmentId: local.environmentId,
+        linkedEnvironments: new Map(),
       }),
     ).toEqual([]);
+  });
+
+  it("lets a thread on a linked machine through, since the agent reads it there", () => {
+    const thread = {
+      version: 1 as const,
+      kind: "thread" as const,
+      label: "Thread",
+      threadId: ThreadId.make("thread"),
+      title: "Thread",
+    };
+    const linked = {
+      ...thread,
+      contextId: ctx("thread_linked"),
+      environmentId: EnvironmentId.make("env-linked"),
+    };
+    const unlinked = {
+      ...thread,
+      contextId: ctx("thread_unlinked"),
+      environmentId: EnvironmentId.make("env-unlinked"),
+    };
+
+    expect(
+      threadContextsOutsideEnvironment({
+        text: "[A](supaterm-context://v1/thread/thread_linked) [B](supaterm-context://v1/thread/thread_unlinked)",
+        records: [linked, unlinked],
+        environmentId: EnvironmentId.make("env-local"),
+        linkedEnvironments: new Map([[linked.environmentId, "VPS"]]),
+      }),
+    ).toEqual([unlinked]);
   });
 });
 
@@ -330,5 +383,29 @@ describe("toComposerContextId", () => {
 
     expect(first).not.toBe(second);
     expect(first.length).toBeLessThanOrEqual(128);
+  });
+});
+
+describe("threadContextRecord", () => {
+  it("mints a schema-valid id that survives a rename, for agent-spawned thread ids too", () => {
+    const environmentId = EnvironmentId.make("env-1");
+    const ref = {
+      environmentId,
+      threadId: ThreadId.make(`thread:mcp:${encodeURIComponent("3f2b:delegate")}:review:0`),
+    };
+    const record = threadContextRecord(ref, "Review [draft]\nnotes");
+
+    expect(() => ComposerContextId.make(record.contextId)).not.toThrow();
+    expect(threadContextRecord(ref, "Renamed").contextId).toBe(record.contextId);
+    expect(record).toMatchObject({
+      environmentId,
+      threadId: ref.threadId,
+      label: "Review draft notes",
+      title: "Review draft notes",
+    });
+    expect(
+      threadContextRecord({ ...ref, environmentId: EnvironmentId.make("env-2") }, "Review")
+        .contextId,
+    ).not.toBe(record.contextId);
   });
 });

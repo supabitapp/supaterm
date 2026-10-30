@@ -16,7 +16,6 @@ import {
   sessionGrantsScope,
   type SessionGrantInput,
 } from "@supaterm/contracts";
-import * as Option from "effect/Option";
 import { AsyncResult } from "effect/reactivity";
 import { useRef, useState, type ReactElement } from "react";
 
@@ -53,7 +52,7 @@ function allowsHostMedia(session: SessionGrantInput | null) {
 function canReadHostMedia(environmentId: EnvironmentId | null): boolean {
   if (environmentId === null) return true;
   const result = appAtomRegistry.get(environmentSession.sessionStateAtom(environmentId));
-  return result._tag !== "Failure" && allowsHostMedia(Option.getOrNull(AsyncResult.value(result)));
+  return result._tag !== "Failure" && allowsHostMedia(AsyncResult.getOrElse(result, () => null));
 }
 
 export function useMediaActions(source: MediaActionSource) {
@@ -103,7 +102,7 @@ export function useMediaActions(source: MediaActionSource) {
         "Image copying is unavailable. Use a secure browser connection or save the image.",
       );
     }
-    // Start the clipboard write in the user gesture; fetching/decoding may finish later.
+
     await navigator.clipboard.write([
       new ClipboardItem({ "image/png": actionUrl().then(readMediaPng) }),
     ]);

@@ -1,5 +1,4 @@
 import type {
-  ProviderApprovalDecision,
   ProviderApprovalOption,
   ProviderUserInputAnswers,
   UserInputQuestion,
@@ -47,19 +46,6 @@ export function isAntigravityUserInputRequest(
   return request.toolCall.toolCallId.startsWith("interaction_");
 }
 
-export function selectAntigravityPermissionOptionId(
-  request: EffectAcpSchema.RequestPermissionRequest,
-  decision: ProviderApprovalDecision,
-): string | undefined {
-  if (decision === "cancel" || isAntigravityUserInputRequest(request)) {
-    return undefined;
-  }
-  const kind =
-    decision === "accept" ? "allow_once" : decision === "decline" ? "reject_once" : "allow_always";
-  const option = request.options.find((entry) => entry.kind === kind);
-  return option?.optionId.trim() ? option.optionId : undefined;
-}
-
 /** Copy truncated text so V8 cannot retain the original large string. */
 const SECURITY_WARNING_META_KEY = "agy.security.warning";
 const WARNING_TEXT_LIMIT = 512;
@@ -70,10 +56,6 @@ const decodeSecurityWarning = Schema.decodeUnknownOption(
   }),
 );
 
-/**
- * The agent marks "Allow Always" on shell and web tools with a prompt injection
- * warning in `_meta`. Surface it as option text so both clients can show it.
- */
 function antigravitySecurityWarning(option: EffectAcpSchema.PermissionOption): string | undefined {
   const meta = option._meta;
   if (!Predicate.isObject(meta)) return undefined;
@@ -233,6 +215,79 @@ export function sanitizeAntigravityToolPayload(payload: unknown): unknown {
   return sanitizeToolValue(payload, { nodes: 512, text: 64_000 }, 0);
 }
 
+const ANTIGRAVITY_CLIENT_READ_TITLES = new Set([
+  "Running client_view_file",
+  "Run client_view_file?",
+]);
+
+function antigravityClientReadPath(update: {
+  readonly title?: string | null;
+  readonly locations?: ReadonlyArray<{ readonly path: string }> | null;
+  readonly rawInput?: unknown;
+}): string | undefined {
+  if (!update.title || !ANTIGRAVITY_CLIENT_READ_TITLES.has(update.title)) return undefined;
+  const target =
+    update.locations?.[0]?.path ??
+    (Predicate.isObject(update.rawInput) ? update.rawInput.absolute_path : undefined);
+  return typeof target === "string" && target ? target : undefined;
+}
+
+export function makeAntigravityReadRepair() {
+  type Outcome = "served" | "refused";
+  const openReads = new Map<
+    string,
+    { readonly path: string; readonly sessionId: string; outcome?: Outcome }
+  >();
+
+  const earlyOutcomes: Array<{ readonly path: string; readonly outcome: Outcome }> = [];
+  return {
+    reset: () => {
+      openReads.clear();
+      earlyOutcomes.length = 0;
+    },
+
+    attempted: (path: string, served: boolean) => {
+      const outcome = served ? "served" : "refused";
+      for (const [toolCallId, read] of openReads) {
+        if (read.path !== path || read.outcome !== undefined) continue;
+        read.outcome = outcome;
+        return served ? { sessionId: read.sessionId, toolCallId } : undefined;
+      }
+      earlyOutcomes.push({ path, outcome });
+      return undefined;
+    },
+    repair: (
+      notification: EffectAcpSchema.SessionNotification,
+    ): EffectAcpSchema.SessionNotification => {
+      const update = notification.update;
+      if (update.sessionUpdate !== "tool_call" && update.sessionUpdate !== "tool_call_update") {
+        return notification;
+      }
+      const path = antigravityClientReadPath(update);
+      if (path !== undefined && !openReads.has(update.toolCallId)) {
+        const early = earlyOutcomes.findIndex((entry) => entry.path === path);
+        const outcome = early === -1 ? undefined : earlyOutcomes.splice(early, 1)[0]?.outcome;
+        const sessionId = notification.sessionId;
+        openReads.set(
+          update.toolCallId,
+          outcome === undefined ? { path, sessionId } : { path, sessionId, outcome },
+        );
+      }
+      const read = openReads.get(update.toolCallId);
+      if (update.status === "pending" || update.status === "in_progress") {
+        return read?.outcome === "served"
+          ? { ...notification, update: { ...update, status: "completed" } }
+          : notification;
+      }
+      if (update.status !== "completed" && update.status !== "failed") return notification;
+      openReads.delete(update.toolCallId);
+      if (update.status === "completed" || read?.outcome !== "served") return notification;
+      const { rawOutput: _stepError, ...rest } = update;
+      return { ...notification, update: { ...rest, status: "completed" } };
+    },
+  };
+}
+
 export function normalizeAntigravitySessionUpdate(
   notification: EffectAcpSchema.SessionNotification,
 ): EffectAcpSchema.SessionNotification {
@@ -341,37 +396,26 @@ export function normalizeAntigravityToolCall(toolCall: AcpToolCallState): AcpToo
   };
 }
 
-export function isAntigravityOpenCommand(toolCall: AcpToolCallState): boolean {
-  return toolCall.kind === "execute" && toolCall.status === "inProgress";
-}
+const ANTIGRAVITY_SUBAGENT_TITLES = new Set([
+  "Running start_subagent",
+  "Run start_subagent?",
+  "Running invoke_subagent",
+  "Run invoke_subagent?",
+]);
 
-/**
- * ACP 1.1.1 exposes subagent invocations as ordinary tools, without child IDs
- * or models.
- */
 export function classifyAntigravitySubagentToolCall(
   toolCall: AcpToolCallState,
   rawPayload?: unknown,
 ): "subagent" | "mcp" | undefined {
   if (
     (toolCall.kind !== undefined && toolCall.kind !== "other") ||
-    (toolCall.title !== "Running start_subagent" && toolCall.title !== "Run start_subagent?")
+    toolCall.title === undefined ||
+    !ANTIGRAVITY_SUBAGENT_TITLES.has(toolCall.title)
   )
     return undefined;
   const update = Predicate.isObject(rawPayload) ? rawPayload.update : undefined;
   const meta = Predicate.isObject(update) ? update._meta : toolCall.data.meta;
   return Predicate.isObject(meta) && meta.is_mcp_tool_call === true ? "mcp" : "subagent";
-}
-
-/** History sends a completed start before the separate result and its final status. */
-export function isAntigravitySubagentReplayStart(rawPayload: unknown): boolean {
-  const update = Predicate.isObject(rawPayload) ? rawPayload.update : undefined;
-  return (
-    Predicate.isObject(update) &&
-    update.sessionUpdate === "tool_call" &&
-    update.status === "completed" &&
-    (update.rawOutput === undefined || update.rawOutput === null)
-  );
 }
 
 export function antigravitySubagentOutput(toolCall: AcpToolCallState): string | undefined {

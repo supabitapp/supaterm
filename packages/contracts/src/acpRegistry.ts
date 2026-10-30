@@ -228,7 +228,7 @@ export const AcpRegistrySetProviderInput = Schema.Struct({
   providerId: AcpRegistryProviderId,
   apiType: AcpRegistryProviderProtocol,
   baseUrl: AcpRegistryUrl,
-  // Write-only secrets. Provider list responses intentionally cannot carry headers.
+
   headers: Schema.optionalKey(
     Schema.Record(
       TrimmedNonEmptyString.check(Schema.isMaxLength(128)),
@@ -270,8 +270,7 @@ export type AcpRegistryProbeModel = typeof AcpRegistryProbeModel.Type;
 
 export const AcpRegistryProbeResult = Schema.Struct({
   instanceId: ProviderInstanceId,
-  // `ready` is only returned after a disposable ACP session/new probe completes.
-  // It does not imply that authentication was passively detected.
+
   ready: Schema.Literal(true),
   icon: Schema.NullOr(AcpRegistryUrl),
   authMethods: Schema.Array(AcpRegistryProbeAuthMethod).check(Schema.isMaxLength(32)),

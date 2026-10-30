@@ -18,6 +18,7 @@ export function useThreadContextDrop(
   onDrop: (refs: ReadonlyArray<ScopedThreadRef>, isActive: () => boolean) => void,
 ) {
   const handleDrop = useEffectEvent(onDrop);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes the target element to thread-context drop events and marks old drops inactive
   useEffect(() => {
     const target = targetRef.current;
     if (!target) return;

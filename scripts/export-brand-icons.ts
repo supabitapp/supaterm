@@ -818,7 +818,7 @@ const isCurrent = Effect.fn("iconExport.isCurrent")(function* (
   return Buffer.from(actual).equals(expected);
 });
 
-export const exportBrandIcons = Effect.fn("exportBrandIcons")(function* (checkOnly: boolean) {
+const exportBrandIcons = Effect.fn("exportBrandIcons")(function* (checkOnly: boolean) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const repositoryRoot = yield* RepositoryRoot;
@@ -932,7 +932,7 @@ export const exportBrandIcons = Effect.fn("exportBrandIcons")(function* (checkOn
   yield* Console.log(`Updated ${generated.size} generated icon assets.`);
 });
 
-export const exportBrandIconsCommand = Command.make(
+const exportBrandIconsCommand = Command.make(
   "export-brand-icons",
   {
     check: Flag.Boolean("check").pipe(

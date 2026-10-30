@@ -130,6 +130,8 @@ export class OrchestratorV2ScenarioStepError extends Schema.TaggedError<Orchestr
 
 function commandThreadIds(command: OrchestrationV2Command): ReadonlyArray<ThreadId> {
   switch (command.type) {
+    case "thread.guest-share.close":
+    case "thread.guest-message.dismiss":
     case "thread.create":
     case "thread.stop":
     case "thread.archive":
@@ -221,10 +223,6 @@ const hasActiveRun = (projection: OrchestrationV2ThreadProjection) =>
   );
 
 const SCENARIO_WAIT_ATTEMPTS = 10_000;
-// Iterations count event-loop turns, not time: while async work (git
-// subprocesses, fixture IO) is in flight the loop is idle and the counter
-// burns at full speed on slow runners. A wait is exhausted only once BOTH
-// the iteration budget and this wall-clock deadline are spent.
 const SCENARIO_WAIT_DEADLINE_MS = 60_000;
 const scenarioWaitDeadline = () => performance.now() + SCENARIO_WAIT_DEADLINE_MS;
 const scenarioWaitExhausted = (attemptsRemaining: number, deadlineAt: number) =>
@@ -284,8 +282,8 @@ export function runOrchestratorV2Scenario(
       const capturedShellSnapshots = new Map<string, OrchestrationV2ThreadShellSnapshot>();
       let anonymousBackgroundDispatchIndex = 0;
 
-      const awaitDispatch = (key: string) =>
-        Effect.gen(function* () {
+      const awaitDispatch = Effect.fn("awaitDispatch")(function (key: string) {
+        return Effect.gen(function* () {
           const fiber = backgroundDispatches.get(key);
           if (!fiber) {
             return yield* new OrchestratorV2ScenarioStepError({
@@ -297,6 +295,7 @@ export function runOrchestratorV2Scenario(
           backgroundDispatches.delete(key);
           storedEventGroups.push(events);
         });
+      });
 
       const waitForPendingRuntimeRequest = (
         threadId: ThreadId,
@@ -576,8 +575,6 @@ export function runOrchestratorV2Scenario(
           });
         }
         while (true) {
-          // The run settles only through the latest armed debounce; a rearm (a
-          // late frame) supersedes it with a new receipt.
           const armed = yield* Effect.promise(() =>
             gate.waitForFinishArmed(consumedFinishReceipts),
           ).pipe(
@@ -731,9 +728,5 @@ export function runOrchestratorV2Scenario(
         capturedShellSnapshots,
       };
     }),
-  ).pipe(
-    // A failed step can leave provider frames held at a gate. Release them
-    // before the harness shuts the provider down, or teardown waits on them.
-    Effect.ensuring(Effect.sync(() => options.replayGate?.releaseAll())),
-  );
+  ).pipe(Effect.ensuring(Effect.sync(() => options.replayGate?.releaseAll())));
 }

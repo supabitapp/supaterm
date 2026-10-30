@@ -48,7 +48,7 @@ const websocketTicket = (ticket: string) =>
 function makeHarness(responses: ReadonlyArray<Response>) {
   const fetch = recordedFetch(responses);
   const layer = RemoteEnvironmentAuthorization.layer.pipe(
-    Layer.provide(
+    Layer.provideMerge(
       Layer.mergeAll(
         layerRemoteHttpClient(fetch.fetchFn),
         Layer.succeed(
@@ -101,11 +101,12 @@ describe("RemoteEnvironmentAuthorization", () => {
     }),
   );
 
-  it.effect("reuses a validated bearer descriptor while issuing fresh websocket tickets", () =>
+  it.effect("validates a fresh bearer descriptor while issuing fresh websocket tickets", () =>
     Effect.gen(function* () {
       const harness = makeHarness([
         Response.json(DESCRIPTOR),
         websocketTicket("first-ticket"),
+        Response.json(DESCRIPTOR),
         websocketTicket("second-ticket"),
       ]);
 
@@ -122,15 +123,19 @@ describe("RemoteEnvironmentAuthorization", () => {
         return [yield* authorize(), yield* authorize()] as const;
       }).pipe(Effect.provide(harness.layer));
 
+      expect(first.descriptor).toEqual(DESCRIPTOR);
+      expect(second.descriptor).toEqual(DESCRIPTOR);
       expect(first.socketUrl).toContain("wsTicket=first-ticket");
       expect(second.socketUrl).toContain("wsTicket=second-ticket");
       expect(
         harness.fetch.calls.filter(([url]) =>
           String(url).endsWith("/.well-known/supaterm/environment"),
         ),
-      ).toHaveLength(1);
+      ).toHaveLength(2);
       expect(
-        harness.fetch.calls.filter(([url]) => String(url).endsWith("/api/auth/websocket-ticket")),
+        harness.fetch.calls.filter(([url]) =>
+          String(url).endsWith("/api/auth/websocket-ticket/rpc"),
+        ),
       ).toHaveLength(2);
     }),
   );

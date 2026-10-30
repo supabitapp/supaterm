@@ -25,16 +25,8 @@ import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as ProcessRunner from "../processRunner.ts";
 import { isExactServiceVersion, parseServiceState, SERVICE_STATE_FILE } from "./serviceProtocol.ts";
 
-/**
- * A pinned runtime is an exact Supaterm release archive unpacked into
- * <baseDir>/runtime/versions/<version>: the self-contained executable, the
- * web client, and the native packages beside it. The boot service points its
- * unit or launch agent at the executable, and server self-update installs the
- * target version here before switching over. The runtime never depends on a
- * Node or npm on the machine; the only npm involvement in Supaterm is the `supaterm`
- * package for people who prefer `npx supaterm` or `npm install -g supaterm`, and even a
- * CLI installed that way pins an archive when it sets up the service.
- */
+// Boot services run self-contained release archives without requiring Node or npm.
+// Self-updates pin another version before switching the service executable.
 const PINNED_RUNTIME_DIR = "runtime";
 const PINNED_RUNTIME_INSTALL_TIMEOUT = Duration.minutes(10);
 const PINNED_RUNTIME_DOWNLOAD_STALL_TIMEOUT = Duration.minutes(1);
@@ -106,15 +98,6 @@ export class PinnedRuntimePreflightBlockedError extends Schema.TaggedError<Pinne
 export type PinnedRuntimeProgress =
   | { readonly stage: "download"; readonly received: number; readonly total: number | undefined }
   | { readonly stage: "verify" | "extract" | "validate" | "cached" };
-
-/**
- * Installs the Supaterm release archive for `version` into the pinned runtime
- * directory unless a complete install is already there, and returns its
- * paths. The sentinel is written only after extraction and validation
- * succeed; checking the entry file alone is not enough, since tar writes the
- * executable before the last native package and a killed install leaves a
- * plausible-looking but broken tree behind.
- */
 
 interface PinnedRuntimeInstallInput {
   readonly baseDir: string;
@@ -273,6 +256,8 @@ const installPinnedRuntime = Effect.fn("cloud.pinned_runtime.ensure_installed")(
 ) {
   const { fs } = input;
   const paths = pinnedRuntimePaths(input.path, input.baseDir, input.version, input.platform);
+  // Tar writes the executable before the last native package. Only the sentinel,
+  // written after extraction and validation, proves the install finished.
   const [versionDirExists, entryExists, sentinel] = yield* Effect.all([
     fs.exists(paths.versionDir),
     fs.exists(paths.entryPath),
@@ -615,14 +600,9 @@ const selectUnusedRuntimes = Effect.fn("cloud.pinned_runtime.select_unused")(fun
   return pruned;
 });
 
-/**
- * Every update publishes a new immutable runtime, so without pruning they pile up. Removes
- * completed runtimes nothing can start again and keeps: the caller's versions, everything the
- * service state references (active, rollback, pending), and runtimes that a running process
- * executes, a `supaterm` launcher points at, or `references` (such as the service unit) name, plus
- * anything published within the last hour. Staging directories, symlinks, and unexpected entries
- * are never touched. Returns the versions removed.
- */
+// Preserve every runtime still referenced by service state, running processes,
+// launchers, or caller paths. Recent installs get a one-hour grace period;
+// staging directories, symlinks, and unexpected entries are never removed.
 export const prunePinnedRuntimes = Effect.fn("cloud.pinned_runtime.prune")(function* (input: {
   readonly baseDir: string;
   readonly keep: ReadonlyArray<string>;

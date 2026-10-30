@@ -1,23 +1,18 @@
-/**
- * Electron allows one debugger client per webContents, so the relay shares the
- * attach the preview manager already holds.
- */
-
 export interface CdpRelayTarget {
   readonly send: (
     method: string,
     params: Record<string, unknown>,
     sessionId: string | undefined,
+
+    owner?: string,
   ) => Promise<unknown>;
-  /** The page's own CDP target id; Playwright keys the main frame by it. */
+  readonly sessionDetached?: (owner: string) => void;
+
   readonly targetId: () => Promise<string>;
   readonly url: () => string;
   readonly title: () => string;
   readonly userAgent: () => string;
-  /**
-   * The desktop app and the server it launched share a disk, so the server's
-   * Playwright reads the file where it asked for it.
-   */
+
   readonly setDownloadDirectory: (directory: string | null) => void;
 }
 
@@ -56,11 +51,7 @@ export function createCdpRelayConnection(
 ): CdpRelayConnection {
   const send = (message: Record<string, unknown>) => write(JSON.stringify(message));
   let attached = false;
-  /**
-   * Sessions this relay invented. Extra page sessions (Playwright's
-   * `newCDPSession`) all reach the one real debugger session, so each gets the
-   * page's events; other ids are the page's own child sessions, such as iframes.
-   */
+
   const sessions = new Map<string, "browser" | "page">([[PAGE_SESSION_ID, "page"]]);
   let sessionSequence = 0;
   const newSession = (kind: "browser" | "page") => {
@@ -121,8 +112,10 @@ export function createCdpRelayConnection(
       }
       case "Target.detachFromTarget": {
         const sessionId = command.params?.["sessionId"];
-        if (typeof sessionId === "string" && sessionId !== PAGE_SESSION_ID)
+        if (typeof sessionId === "string" && sessionId !== PAGE_SESSION_ID) {
           sessions.delete(sessionId);
+          target.sessionDetached?.(sessionId);
+        }
         return {};
       }
       case "Target.setAutoAttach": {
@@ -143,11 +136,15 @@ export function createCdpRelayConnection(
 
   const pageCommand = (command: CdpCommand): Promise<unknown> => {
     const child = sessions.get(command.sessionId!) === "page" ? undefined : command.sessionId;
+    const owner =
+      child === undefined && command.sessionId !== PAGE_SESSION_ID ? command.sessionId : undefined;
 
     if (command.method === "Runtime.runIfWaitingForDebugger" && child === undefined) {
       return Promise.resolve({});
     }
-    return target.send(command.method, command.params ?? {}, child);
+
+    if (command.method === "Emulation.setFocusEmulationEnabled") return Promise.resolve({});
+    return target.send(command.method, command.params ?? {}, child, owner);
   };
 
   return {
@@ -164,8 +161,7 @@ export function createCdpRelayConnection(
           ? browserCommand(command)
           : pageCommand(command);
       const route = command.sessionId === undefined ? {} : { sessionId: command.sessionId };
-      // Replies leave as commands finish, as Chromium's do, so a slow command
-      // such as a screenshot never holds up the ones behind it.
+
       void result.then(
         (value) => {
           const announce =
@@ -188,12 +184,12 @@ export function createCdpRelayConnection(
     },
     event: (method, params, sessionId) => {
       if (!attached) return;
-      // Download events are the browser's; Playwright listens on its root session.
+
       if (method.startsWith("Browser.download")) {
         send({ method, params });
         return;
       }
-      // Electron reports the page's own events with an empty session id.
+
       if (sessionId) {
         send({ method, params, sessionId });
         return;

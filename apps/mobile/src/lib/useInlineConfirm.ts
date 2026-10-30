@@ -24,8 +24,10 @@ export function useInlineConfirm<Key extends string>() {
   const touched = useRef<{ readonly key: Key; readonly touch: Touch } | null>(null);
   const navigation = useContext(NavigationContext);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Cancels the confirmation timeout when its owning control unmounts.
   useEffect(() => () => confirm.disarm(), [confirm]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Registers native touch, navigation and app lifecycle listeners while confirmation is armed.
   useEffect(() => {
     if (armed === null) return;
     AccessibilityInfo.announceForAccessibility(ARMED_HINT);

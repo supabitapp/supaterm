@@ -26,32 +26,18 @@ import * as Stream from "effect/Stream";
 import * as EventSink from "./EventSink.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
 
-/**
- * Live command output.
- *
- * Output never becomes an orchestration event. Adapters push raw chunks here
- * (through the session manager), the hub keeps a bounded, normalized tail per
- * running command, and `subscribe` serves one expanded row: the current tail,
- * then coalesced appends, then the persisted final output. Memory is bounded
- * per command and in count, and a client that is not showing the row receives nothing.
- */
-
 /** Fastest a subscriber receives frames while output flows. */
 const COMMAND_OUTPUT_FRAME_INTERVAL_MS = 100;
 /** After a subscriber falls behind and is sent the whole tail, it waits this long. */
 const COMMAND_OUTPUT_REPLACE_INTERVAL_MS = 500;
 /** Raw text a subscriber may accumulate before it is sent the tail instead. */
 const COMMAND_OUTPUT_MAX_APPEND_CHARS = 16 * 1024;
-/** Running commands tracked at once; the least recently written is dropped beyond this. */
 const MAX_LIVE_COMMANDS = 64;
-/** Finished tails kept for a settle that reports no output of its own (an interrupt). */
 const MAX_FINISHED_COMMANDS = 16;
-/** Final output read from persistence is normalized from at most this many trailing chars. */
 const MAX_FINAL_SOURCE_CHARS = TERMINAL_OUTPUT_TAIL_CHARS * 4;
 
 interface Subscriber {
   pendingAppend: string;
-  /** The next frame must carry the whole tail. */
   needsReplace: boolean;
   /** `needsReplace` was caused by the subscriber falling behind. */
   overflowed: boolean;
@@ -61,14 +47,8 @@ interface Subscriber {
 export type CommandOutputTarget = OrchestrationV2SubscribeCommandOutputInput;
 
 export interface CommandOutputHubShape {
-  /** Add raw output for a running command. Called for every provider chunk. */
   readonly append: (input: CommandOutputTarget & { readonly chunk: string }) => Effect.Effect<void>;
-  /**
-   * The command settled. Its tail is kept briefly for a settle that carries no
-   * output (an interrupt); otherwise the persisted output is what rows show.
-   */
   readonly finish: (input: CommandOutputTarget) => Effect.Effect<void>;
-  /** Frames for one row until its command settles; see `OrchestrationV2CommandOutputFrame`. */
   readonly subscribe: (
     input: CommandOutputTarget,
   ) => Stream.Stream<OrchestrationV2CommandOutputFrame, OrchestrationV2CommandOutputError>;
@@ -100,7 +80,6 @@ function legacyClaudeBashOutput(output: string): string {
   return out.length > 0 && err.length > 0 && !out.endsWith("\n") ? `${out}\n${err}` : out + err;
 }
 
-/** The output a row shows from a persisted item, bounded before normalization. */
 function persistedCommandOutput(output: string | undefined): {
   readonly text: string;
   readonly truncated: boolean;
@@ -108,7 +87,6 @@ function persistedCommandOutput(output: string | undefined): {
   if (output === undefined) return { text: "", truncated: false };
   let source = output;
   if (output.length > MAX_FINAL_SOURCE_CHARS) {
-    // Start on a fresh line, so the cut can't land inside an escape sequence.
     source = output.slice(output.length - MAX_FINAL_SOURCE_CHARS);
     const newline = source.indexOf("\n");
     if (newline !== -1 && newline + 1 < source.length) source = source.slice(newline + 1);
@@ -120,7 +98,6 @@ function persistedCommandOutput(output: string | undefined): {
   };
 }
 
-/** Sets `key` as the newest entry of `map`, dropping the oldest beyond `max`. */
 function setBounded<V>(
   map: Map<string, V>,
   key: string,
@@ -139,7 +116,6 @@ function setBounded<V>(
 export const make = Effect.gen(function* () {
   const eventSink = yield* EventSink.EventSinkV2;
   const projections = yield* ProjectionStore.ProjectionStoreV2;
-  // Insertion order doubles as recency: every write re-inserts its entry.
   const tails = new Map<string, TerminalOutputState>();
   const finished = new Map<string, TerminalOutputState>();
   const subscribers = new Map<string, Set<Subscriber>>();
@@ -167,7 +143,6 @@ export const make = Effect.gen(function* () {
       const key = commandKey(target);
       const tail = appendTerminalOutput(tails.get(key) ?? EMPTY_TERMINAL_OUTPUT, chunk);
       setBounded(tails, key, tail, MAX_LIVE_COMMANDS, (oldest) => {
-        // Its viewers no longer share the hub's state; resync them on the next frame.
         for (const subscriber of subscribers.get(oldest) ?? []) {
           subscriber.needsReplace = true;
           subscriber.pendingAppend = "";
@@ -196,7 +171,6 @@ export const make = Effect.gen(function* () {
           overflowed: false,
           wake,
         };
-        // Attach before reading anything, so no chunk falls between a read and the attach.
         const keySubscribers = subscribers.get(key) ?? new Set<Subscriber>();
         keySubscribers.add(subscriber);
         subscribers.set(key, keySubscribers);
@@ -209,8 +183,6 @@ export const make = Effect.gen(function* () {
           }),
         );
 
-        // The persisted item says when the command is done and what it finally printed.
-        // Providers that report output only in item snapshots (ACP, Pi) stream through here too.
         let snapshotOutput: string | undefined;
         let lost: Cause.Cause<unknown> | undefined;
         let settled: Extract<OrchestrationV2TurnItem, { type: "command_execution" }> | undefined;
@@ -240,8 +212,6 @@ export const make = Effect.gen(function* () {
                 ? observe(stored.event.payload)
                 : Effect.void,
             ),
-            // Without its event stream the row can never settle: end with an error
-            // instead of waiting forever.
             Effect.catchCause((cause) =>
               Effect.sync(() => {
                 lost = cause;
@@ -250,7 +220,6 @@ export const make = Effect.gen(function* () {
             Effect.forkScoped,
           );
         const item = yield* projections.getTurnItem(target);
-        // Only command rows have output; anything else would hold a subscription open forever.
         if (item === null || item.type !== "command_execution") {
           return yield* new OrchestrationV2CommandOutputError({
             threadId: target.threadId,
@@ -280,7 +249,6 @@ export const make = Effect.gen(function* () {
           }
           lastFrameAt = yield* Clock.currentTimeMillis;
           throttle = COMMAND_OUTPUT_FRAME_INTERVAL_MS;
-          // A finished tail still shows until the settled item arrives.
           const tail = tails.get(key) ?? finished.get(key);
           if (settled !== undefined) {
             if (settled.output === undefined && tail !== undefined) {
@@ -302,8 +270,6 @@ export const make = Effect.gen(function* () {
             if (tail === undefined) {
               return { kind: "replace", ...persistedCommandOutput(snapshotOutput), running: true };
             }
-            // The cursor, style and any unfinished escape ride along so the client
-            // applies later appends exactly as the hub does.
             return {
               kind: "replace",
               text: terminalOutputResumeText(tail),

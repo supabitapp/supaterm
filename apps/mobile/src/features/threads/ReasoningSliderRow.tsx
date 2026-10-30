@@ -114,6 +114,7 @@ export function ReasoningSliderRow(props: ReasoningSliderRowProps) {
   }
   const previewIndex = draft.selectedIndex === selectedIndex ? draft.previewIndex : selectedIndex;
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Synchronizes the native slider animation with the selected value when no gesture owns it.
   useEffect(() => {
     if (!dragging.get()) {
       progress.set(withTiming(max > 0 ? selectedIndex / max : 0, SNAP_ANIMATION));

@@ -38,6 +38,7 @@ jobs:
     runs-on: depot-ubuntu-24.04-16
     timeout-minutes: 10
     env:
+      VITE_RELEASE_CHANNEL: preview
       VITE_HOSTED_APP_URL: https://preview-${{ github.event.pull_request.number }}.supaterm.com
     steps:
       - name: Checkout PR without credentials

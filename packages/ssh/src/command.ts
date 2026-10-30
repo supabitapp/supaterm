@@ -17,11 +17,6 @@ import { SshCommandError, SshInvalidTargetError } from "./errors.ts";
 const DEFAULT_SSH_COMMAND_TIMEOUT_MS = 60_000;
 const MAX_SSH_ERROR_OUTPUT_LENGTH = 4_000;
 
-/**
- * ssh is a real executable everywhere (`ssh.exe` on Windows), so it is always
- * spawned directly — cmd.exe shell mode would re-tokenize arguments such as
- * identity-file paths containing spaces.
- */
 const sshCommandForPlatform = (platform: NodeJS.Platform): string =>
   platform === "win32" ? "ssh.exe" : "ssh";
 
@@ -39,7 +34,7 @@ export interface RunSshCommandOptions extends SshAuthOptions {
   readonly remoteCommandArgs?: ReadonlyArray<string>;
   readonly stdin?: string;
   readonly timeoutMs?: number;
-  /** Keep the end of long failed-command stdout, where the final cause usually is. */
+
   readonly keepErrorOutputTail?: boolean;
 }
 
@@ -160,7 +155,7 @@ function normalizeSshErrorMessage(input: {
   return cleanedStdout.length > 0 ? cleanedStdout : input.fallbackMessage;
 }
 
-function sshTargetLogFields(target: DesktopSshEnvironmentTarget) {
+export function sshTargetLogFields(target: DesktopSshEnvironmentTarget) {
   return {
     alias: target.alias,
     hostname: target.hostname,
@@ -308,22 +303,21 @@ export const runSshCommand = Effect.fn("ssh/command.runSshCommand")(function* (
     Effect.flatMap((result) =>
       Option.match(result, {
         onSome: Effect.succeed,
-        onNone: () =>
-          Effect.gen(function* () {
-            yield* Effect.logWarning("ssh.command.timedOut", {
-              ...sshTargetLogFields(target),
-              timeoutMs: input.timeoutMs ?? DEFAULT_SSH_COMMAND_TIMEOUT_MS,
-              remoteCommandArgs: input.remoteCommandArgs ?? [],
-              preHostArgs: input.preHostArgs ?? [],
-              hasStdin: input.stdin !== undefined,
-            });
-            return yield* new SshCommandError({
-              command: ["ssh"],
-              exitCode: null,
-              stderr: "",
-              message: `SSH command timed out after ${input.timeoutMs ?? DEFAULT_SSH_COMMAND_TIMEOUT_MS}ms.`,
-            });
-          }),
+        onNone: Effect.fn("ssh.command.timeout")(function* () {
+          yield* Effect.logWarning("ssh.command.timedOut", {
+            ...sshTargetLogFields(target),
+            timeoutMs: input.timeoutMs ?? DEFAULT_SSH_COMMAND_TIMEOUT_MS,
+            remoteCommandArgs: input.remoteCommandArgs ?? [],
+            preHostArgs: input.preHostArgs ?? [],
+            hasStdin: input.stdin !== undefined,
+          });
+          return yield* new SshCommandError({
+            command: ["ssh"],
+            exitCode: null,
+            stderr: "",
+            message: `SSH command timed out after ${input.timeoutMs ?? DEFAULT_SSH_COMMAND_TIMEOUT_MS}ms.`,
+          });
+        }),
       }),
     ),
   );

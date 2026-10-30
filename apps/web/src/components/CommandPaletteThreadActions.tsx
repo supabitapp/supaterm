@@ -6,6 +6,10 @@ import {
   FolderIcon,
   GitBranchIcon,
   HashIcon,
+  FolderPlusIcon,
+  UserIcon,
+  TextSearchIcon,
+  MessageSquareIcon,
   type IconComponent,
   MailUnreadIcon,
   MessageSquarePlusIcon,
@@ -46,6 +50,14 @@ const THREAD_PALETTE_COMMANDS: Record<
   Exclude<ThreadActionMenuId, SnoozePresetAction>,
   ThreadPaletteCommand | null
 > = {
+  find: { icon: TextSearchIcon, searchTerms: ["find", "search", "thread"] },
+  "turn-into-project": { icon: FolderPlusIcon, searchTerms: ["create", "project", "scratch"] },
+  "share-guest": { icon: UserIcon, searchTerms: ["share", "guest"] },
+  "copy-thread": {
+    title: "Copy thread",
+    icon: MessageSquareIcon,
+    searchTerms: ["copy", "thread", "link"],
+  },
   "open-beside": null,
   "filter-by-project": null,
   "project-settings": null,

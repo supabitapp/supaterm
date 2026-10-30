@@ -9,8 +9,9 @@ On web and desktop, a new thread keeps the current project and carries your mode
 and mode selections, unless the destination project has its own model default.
 Its branch and workspace mode come from your configured defaults. To continue in
 an existing worktree, use **New thread in this worktree** from the branch toolbar.
-On mobile, a new task opens in the project you last chose, or your first project
-when that one is gone; tap the project in the draft to pick another.
+On mobile, a new thread uses the current thread's project or the last project you opened or chose.
+If neither is available, the project picker opens. Turn off **Settings → General → Use last project**
+to choose each time. When a project exists on several machines, Supaterm prefers a connected copy.
 
 When you change a new thread's project, its branch, workspace mode, and machine
 choice reset to that project's defaults; the prompt and a model you picked stay.
@@ -33,6 +34,10 @@ of its first message, and a short id, like
 folder, so the files the agent wrote stay until you delete them. Branch, worktree, and diff controls stay hidden because
 these folders are not Git repositories. This is unavailable when the data
 directory itself sits inside a Git checkout.
+
+To keep work from a projectless thread, choose **Turn into project** from its menu. Its folder
+becomes the project in place, and other threads in that folder join it. Rename the project in
+its settings; use **Initialize Git** when you want branch and diff controls.
 
 ### Send feedback
 
@@ -132,6 +137,9 @@ To generate a fresh title from the conversation, open a thread's menu and choose
 **Regenerate title**. The action is unavailable while title generation is in progress
 or when the connected environment needs a server update.
 
+On web and desktop, set **Thread title instructions** in **Settings → Threads → Text generation**
+to control new and regenerated titles. Select a project to give it its own instructions.
+
 Agents connected through Supaterm can use the same server-owned metadata workflow to
 rename a thread, regenerate its title, or link and unlink a pull request. These changes
 appear on web, desktop, and mobile without requiring the originating browser to remain
@@ -149,12 +157,12 @@ Pinned, Snoozed, and Done remain shared shelves in every mode. Select a group's 
 it; the thread you have open stays visible. On web and desktop, drag a project's header to reorder
 projects; this sets **Settings → General → Project order** to **Manual**, which the project pickers
 also follow. The grouping, collapsed groups, and project order are saved on this device.
-You can also change it in Settings → General on web and desktop, or Settings → Organization on mobile.
+Change grouping in **Settings → General** on every client.
 
 ### Working threads
 
-In Default grouping, threads that are working or monitoring fold into a collapsed **Working**
-section. A thread returns to the top of the active list when it finishes, fails, or needs an approval or answer.
+In Default grouping, threads that are working or waiting on work the agent will resume from
+fold into **Working**. A server or monitor left running does not keep a thread there. A thread returns to the top of the active list when it finishes, fails, or needs an approval or answer.
 The Working section lists the thread you last sent work to first. Pinned threads stay in the
 pinned section.
 
@@ -185,7 +193,7 @@ Press `Escape` while dragging to cancel.
 By default, environments mark inactive threads as Done after three days. Merged pull requests
 mark their linked threads as Done when **Automatically mark merged threads as Done** is enabled. A closed pull request
 can also mark an idle thread as Done. An empty thread's inactivity counts from when it was created.
-Pins, work in progress, pending questions or approvals, and live background work
+Pins, work in progress, pending questions or approvals, and background work the agent is waiting on
 prevent automatic completion. An open pull request does not prevent inactivity
 completion unless you turn on **Keep threads with an open PR**, but an old closed or merged pull request does not mark work as Done if you
 resumed it after it closed. Only your own messages count as resuming. A turn that
@@ -196,7 +204,7 @@ choose **Automatic completion**, and pick **Disabled**. The current option is ch
 **Enabled** to return to the usual rules. The **Mark as Done**, **Snooze**, and **Archive** actions still work while it
 is disabled.
 
-Change these rules in **Settings → General** on web and desktop, or **Settings → Thread behavior** on mobile.
+Change these rules in **Settings → Threads**.
 They continue to run when your apps are closed. On web and desktop, choose an environment at the
 top to change only its rules, or **All environments** to update connected environments together.
 Mixed values show where the selected environments disagree. Mobile applies these
@@ -219,13 +227,16 @@ The linked pull request participates in automatic completion.
 
 On web and desktop, open the command palette with `Cmd/Ctrl+K`, or select
 **Search** at the top of the sidebar, to search threads across connected
-environments. Message search starts after two characters and includes your
-messages and final agent responses.
+environments by title, branch, pull request, or project. Recent and frequent selections rank
+higher. **In messages** finds conversations containing all the query words and opens at the
+matching message. Use a word of at least three characters, or two for Chinese, Japanese, and Korean.
+Mobile thread search also opens message matches at their location.
 
 Use **Settings → Keybindings** to find or customize shortcuts for searching files
 and copying a thread reference. A copied reference uses the thread's pull request
-link when available, otherwise its thread ID. See [keybindings](./keybindings.md)
-for custom configuration.
+link when available, otherwise a thread chip you can paste into another composer. Choose
+**Copy thread** to copy the chip even when a PR exists, or **Thread ID** for the bare ID. See
+[keybindings](./keybindings.md) for custom configuration.
 
 ## Pin messages
 
@@ -252,9 +263,9 @@ Queued messages stay saved while the limit blocks the thread. They run after
 the continuation finishes. If the queue was held by a restart, resume it then.
 
 When the provider reports a reset time, choose **Resume at reset** to schedule a
-continuation. You can cancel it from the thread. Enable **Auto-resume limited
-threads** in **Settings → General** on web and desktop, or **Settings → Thread
-behavior** on mobile, to schedule limit stops by default.
+continuation. You can cancel it from the thread. In **Settings → Threads**, enable
+**Auto-resume limited threads** on web and desktop, or **Resume after usage limits** on mobile,
+to schedule limit stops by default.
 The environment must be running when the reset arrives; it resumes overdue
 continuations after a restart. Stopping the thread, sending a new message,
 archiving, or marking it as Done prevents a pending continuation from starting.
@@ -262,16 +273,17 @@ archiving, or marking it as Done prevents a pending continuation from starting.
 Choose **Snooze until reset** to hide the thread until its allowance returns.
 Snooze and auto-resume are independent: snooze alone wakes the thread without
 sending a message; enabling both wakes and continues it. **Wake now** cancels
-the snooze. Enable **Snooze limited threads** in thread behavior settings to
-snooze limit stops by default. Providers without a reset time offer manual
+the snooze. In **Settings → Threads**, enable **Snooze limited threads** on web and desktop,
+or **Snooze until limits reset** on mobile, to snooze limit stops by default. Providers without a reset time offer manual
 retry and the normal snooze choices.
 
-On web and desktop, use **Agents** to follow work delegated to subagents.
+On web and desktop, use **Agents** to follow work delegated to subagents. On mobile, open a
+subagent from its conversation card or **Agents**. On iOS layouts with an inspector, it opens
+beside the parent; maximize it for a full-screen view and close that view to return.
 Stop on a thread also stops the subagents it delegated to.
 
-Subagent threads started by the agent can't take messages; message the parent
-thread instead. When such a subagent needs an approval or an answer, the parent
-thread asks for it.
+If a subagent thread is read-only, send follow-up directions through its parent. Pending
+questions and approvals remain available in the conversation while the subagent waits.
 
 Expand a tool call in the conversation to see its full command and output.
 Summaries shorten shell wrappers and can still describe the latest call after it
@@ -298,7 +310,17 @@ between them, and restores the split when there is room again. Each browser tab
 remembers its own arrangement; a new tab or a restarted desktop app starts from the
 most recent one.
 
+To customize the thread details card, right-click it or open **Settings → Appearance → Thread
+details**. Hidden actions keep their keyboard shortcuts; **Reset to default** restores the rows.
+
+The card also lists servers started by the thread. Select one to open its page. **Stop** ends
+that server's job and requires terminal access; it is unavailable on Windows.
+
 ## Snooze until later
+
+On web and desktop, change menu choices in **Settings → Threads → Snooze options**. Choose durations or times on a
+day; weekdays mean the next occurrence after today. Choices use the destination environment's
+settings and also apply on mobile. Use **Custom** for a one-time wake time.
 
 Choose **Snooze → Custom…** from a thread's menu to pick a date and time in your
 local time zone, or a duration in minutes, hours, or days. Durations start when
@@ -309,3 +331,9 @@ snoozed thread or open its menu.
 A snoozed thread keeps working and stays hidden until its wake time, even while
 its agent wakes itself for background work. It comes back early only when it needs
 an approval or answer from you, when a run fails, or when you send it a message.
+
+## Project folders
+
+On web and desktop, enable **Project folders** in **Settings → Labs** to group active work.
+Pinned, Snoozed, and Done keep their own shelves. Projects without active threads are hidden
+unless selected by the project filter. The choice is saved on this device.

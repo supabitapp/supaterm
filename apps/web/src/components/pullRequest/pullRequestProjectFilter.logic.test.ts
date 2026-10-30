@@ -2,7 +2,7 @@ import { EnvironmentId, ProjectId } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import { findScopedProject } from "./pullRequestList.logic";
-import { pullRequestFilterProjects } from "./pullRequestProjectFilter.logic";
+import { pullRequestFilterProjects } from "@supaterm/client-runtime/pull-request-project-filter";
 
 const cups = EnvironmentId.make("env-cups");
 const nucbox = EnvironmentId.make("env-nucbox");

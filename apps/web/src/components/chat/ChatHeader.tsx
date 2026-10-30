@@ -1,3 +1,5 @@
+import { readThreadShell } from "../../state/entities";
+import { GuestShareIndicator } from "./GuestShareControls";
 import {
   AuthOrchestrationOperateScope,
   type EnvironmentId,
@@ -9,6 +11,7 @@ import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
+  settlePromise,
 } from "@supaterm/client-runtime/state/runtime";
 import { ChevronDownIcon } from "@supaterm/icons";
 import {
@@ -57,6 +60,7 @@ interface ChatHeaderProps {
   onJumpToPinnedMessage: (pin: ThreadPinnedMessage) => void;
   onUnpinMessage?: ((pin: ThreadPinnedMessage) => void) | undefined;
   onNewThreadInProject: () => void;
+  onFind?: (() => void) | undefined;
   onOpenProjectSettings?: (() => void) | undefined;
 }
 
@@ -88,6 +92,7 @@ export const ChatHeader = memo(function ChatHeader({
   onJumpToPinnedMessage,
   onUnpinMessage,
   onNewThreadInProject,
+  onFind,
   onOpenProjectSettings,
 }: ChatHeaderProps) {
   const timestampFormat = useClientSettings((settings) => settings.timestampFormat);
@@ -124,6 +129,7 @@ export const ChatHeader = memo(function ChatHeader({
       ? renaming.title
       : null;
   const isRenamingTitle = renamingTitle !== null;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- measures breadcrumb DOM overflow and observes size and font changes while mounted
   useEffect(() => {
     const list = breadcrumbContainerRef.current?.querySelector("ol");
     if (!list || !parentThreadLink) return;
@@ -178,6 +184,7 @@ export const ChatHeader = memo(function ChatHeader({
     });
   });
   const isPaneInputOwner = usePaneInputOwner();
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes this pane's header to external rename commands until the thread changes
   useEffect(
     () =>
       subscribeThreadRename((threadRef) => {
@@ -214,10 +221,32 @@ export const ChatHeader = memo(function ChatHeader({
       }
     });
   };
-  const { openMenu, closeMenu } = useThreadActionMenu({
+  const { threadActions, closeMenu } = useThreadActionMenu({
     threadRef: isServerThread ? activeThreadRef : null,
     onStartRename: startRename,
   });
+  const openMenu = (position: { x: number; y: number }) => {
+    if (!isServerThread) return;
+    const thread = readThreadShell(activeThreadRef);
+    const api = readLocalApi();
+    if (!thread || !api) return;
+    const actions = threadActions(thread);
+    void settlePromise(() =>
+      api.contextMenu.show(
+        onFind
+          ? [{ id: "find" as const, label: "Find in thread" }, ...actions.items]
+          : actions.items,
+        position,
+      ),
+    ).then((result) => {
+      if (result._tag === "Failure" || result.value === null) return;
+      if (result.value === "find") {
+        onFind?.();
+        return;
+      }
+      void actions.run(result.value);
+    });
+  };
   const titleButtonRef = useRef<HTMLButtonElement | null>(null);
   const titleMenuTimerRef = useRef<{
     readonly threadRef: typeof activeThreadRef;
@@ -228,6 +257,7 @@ export const ChatHeader = memo(function ChatHeader({
     clearTimeout(titleMenuTimerRef.current.timeoutId);
     titleMenuTimerRef.current = null;
   };
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the native title menu timer when its owning thread leaves the header
   useEffect(
     () => () => {
       const pending = titleMenuTimerRef.current;
@@ -440,6 +470,7 @@ export const ChatHeader = memo(function ChatHeader({
           )}
         </WorkspaceBreadcrumbItem>
       </WorkspaceBreadcrumb>
+      {isServerThread ? <GuestShareIndicator threadRef={activeThreadRef} /> : null}
       <PinnedMessagesMenu
         pins={pinnedMessages}
         timestampFormat={timestampFormat}

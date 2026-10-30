@@ -10,7 +10,6 @@ import { InlineConfirmIcon, InlineConfirmTooltip } from "../InlineConfirm";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { ComposerBanner } from "./ComposerBanner";
-import { useIsPaneInputOwner } from "../../chatPanes/paneScope";
 
 const SNIPPET_MAX_CHARS = 90;
 
@@ -57,11 +56,6 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
     onSendAll,
     onClose,
   } = props;
-  // Its keys are window-wide, so the menu closes once its chat pane is no longer the one in use.
-  const ownsInput = useIsPaneInputOwner();
-  useEffect(() => {
-    if (!ownsInput) onClose();
-  }, [onClose, ownsInput]);
   const drawerRef = useRef<HTMLDivElement>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(entries[0]?.id ?? null);
   const confirm = useInlineConfirm<string>();
@@ -70,6 +64,7 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
 
   const highlightedEntry = entries.find((entry) => entry.id === highlightedId) ?? entries[0];
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Dismisses the open menu on document pointer events outside its drawer.
   useEffect(() => {
     const closeOnOutsidePointer = (event: PointerEvent) => {
       const drawer = drawerRef.current;
@@ -86,6 +81,7 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
     return () => document.removeEventListener("pointerdown", closeOnOutsidePointer, true);
   }, [onClose]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Owns capture-phase keyboard navigation while the stash menu is mounted.
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       const target = event.target;

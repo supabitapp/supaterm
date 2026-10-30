@@ -27,7 +27,7 @@ describe("draft thread handoff", () => {
     const initial = router.getInitialState(options);
     const draft = router.getStateForAction(
       initial,
-      CommonActions.navigate("Thread", { draft: { projectId: "project" } }),
+      StackActions.push("Thread", { draft: { projectId: "project" } }),
       options,
     )!;
     if (!draft || draft.stale !== false) throw new Error("Draft route was not initialized");
@@ -61,7 +61,7 @@ describe("missing shared-content project recovery", () => {
     const initial = router.getInitialState(options);
     const staleDraft = router.getStateForAction(
       initial,
-      CommonActions.navigate("Thread", {
+      StackActions.push("Thread", {
         draft: { environmentId: "environment", projectId: "deleted", incomingShareId: "share" },
       }),
       options,
@@ -77,7 +77,7 @@ describe("missing shared-content project recovery", () => {
     expect(picker.routes.at(-1)?.params).toEqual({ incomingShareId: "share" });
     const recovered = router.getStateForAction(
       picker,
-      CommonActions.navigate("Thread", {
+      StackActions.push("Thread", {
         draft: { environmentId: "environment", projectId: "replacement", incomingShareId: "share" },
       }),
       options,

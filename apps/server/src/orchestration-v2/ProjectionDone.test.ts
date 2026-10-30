@@ -458,7 +458,7 @@ it.effect(
       );
       assert.isTrue(queries.every(([query]) => !query.includes("COUNT(")));
       const pendingQuery = queries.find(([query]) =>
-        query.includes("FROM orchestration_v2_projection_turn_items"),
+        /FROM orchestration_v2_projection_turn_items\s+i\b/u.test(query),
       );
       assert.isDefined(pendingQuery);
       const metadata = yield* store.getThread(threadId);

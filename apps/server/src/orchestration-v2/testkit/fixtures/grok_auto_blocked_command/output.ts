@@ -23,9 +23,6 @@ interface Frame {
   readonly result?: unknown;
 }
 
-// Grok's Auto mode runs routine commands on its own classifier's say-so and
-// asks about the ones it holds, but only a client declaring a prompting type
-// gets asked; any other client gets a silent "Auto mode blocked this action".
 export function assertGrokAutoBlockedCommandOutput(
   result: OrchestratorV2ScenarioResult,
   transcript: ProviderReplayTranscript,
@@ -82,8 +79,6 @@ export function assertGrokAutoBlockedCommandOutput(
   )?.frame.result;
   assert.deepEqual(answer, { outcome: { outcome: "selected", optionId: "allow-once" } });
 
-  // Grok's bash prompt offers `always-allow`, which it saves for the whole
-  // project, not the session. The card must not offer it as a session choice.
   const approval = projection.turnItems.find(
     (item) => item.type === "approval_request" && item.requestId === request.id,
   );

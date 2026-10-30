@@ -1,6 +1,5 @@
+import { useSelectWorkspaceTab } from "./useSelectWorkspaceTab";
 import { Toolbar } from "../../components/ui/Toolbar";
-import { useNavigation, type ParamListBase } from "@react-navigation/native";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { NATIVE_LIQUID_GLASS_SUPPORTED } from "../../native/native-glass";
 import { dispatchHardwareKeyboardCommand } from "../keyboard/hardwareKeyboardCommands";
 import type { WorkspaceFilterMenu } from "./workspace-filter-menu";
@@ -10,7 +9,7 @@ function invokeFilterAction(menu: WorkspaceFilterMenu, id: string | undefined) {
 }
 
 export function WorkspaceHeaderActions(props: { readonly filterMenu?: WorkspaceFilterMenu }) {
-  const navigation = useNavigation<NativeStackNavigationProp<ParamListBase>>();
+  const selectTab = useSelectWorkspaceTab();
   const filterMenu = props.filterMenu;
   const filterIcon = filterMenu?.customized
     ? "line.3.horizontal.decrease.circle.fill"
@@ -21,12 +20,7 @@ export function WorkspaceHeaderActions(props: { readonly filterMenu?: WorkspaceF
       <Toolbar.Button
         accessibilityLabel="Settings"
         icon="gearshape"
-        onPress={() =>
-          navigation.navigate("SettingsSheet", {
-            screen: "SettingsContent",
-            params: { screen: "Settings" },
-          })
-        }
+        onPress={() => selectTab("settings")}
       />
       {filterMenu ? (
         <Toolbar.Menu accessibilityLabel={filterMenu.accessibilityLabel} icon={filterIcon}>

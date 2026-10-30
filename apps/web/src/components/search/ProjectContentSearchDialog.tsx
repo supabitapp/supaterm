@@ -136,6 +136,7 @@ function OpenContentSearchDialog(props: {
   const visibleMatches = matches.slice(0, visibleCount);
   const groups = groupMatches(visibleMatches);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Scrolls the selected search result DOM element into view after keyboard selection.
   useEffect(() => {
     document
       .querySelector<HTMLElement>(`[data-content-search-result="${selectedIndex}"]`)

@@ -238,7 +238,9 @@ export function useThreadOutboxEditor(routeKey: string) {
   const editing = useSyncExternalStore(editor.subscribe, editor.getSnapshot);
   const entry = editing?.entry;
   const editingId = entry?.id;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Releases the paused outbox entry and temporary composer draft when the editor leaves the route.
   useEffect(() => () => editor.cancel(), [editor]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Renews the persisted delivery pause while an outbox entry is being edited.
   useEffect(() => {
     if (!editingId) return;
     const timer = setInterval(() => {
@@ -276,6 +278,7 @@ export function useThreadOutboxAttachments(entry: PendingThreadTurn | undefined)
     previews = threadOutboxAttachmentPreviews(entry);
     setCurrent({ entry, previews });
   }
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Revokes the browser object URLs owned by the attachment preview set.
   useEffect(
     () => () => {
       for (const item of previews) if (item.url?.startsWith("blob:")) URL.revokeObjectURL(item.url);

@@ -1,6 +1,5 @@
 import type { DeviceServiceState, ThreadId } from "@supaterm/contracts";
 
-/** Host identity is part of the selection because Android serials repeat across hosts. */
 export function threadDevicePreviews(state: DeviceServiceState | null, threadId: ThreadId) {
   return (state?.sessions ?? [])
     .filter((session) => session.threadId === threadId)
@@ -14,6 +13,7 @@ export function threadDevicePreviews(state: DeviceServiceState | null, threadId:
         session,
         name: device?.name ?? (session.platform === "ios" ? "iOS Simulator" : "Android Emulator"),
         description: [device?.version, host?.label].filter(Boolean).join(" · "),
+        serveSimOnly: host?.kind === "simlock",
       };
     });
 }

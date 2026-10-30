@@ -1,4 +1,5 @@
 import * as Context from "effect/Context";
+import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -204,8 +205,7 @@ function toPersistenceSqlOrDecodeError(
         });
 }
 
-/** @public Service construction is part of the canonical Effect module API. */
-export const make = Effect.gen(function* () {
+const make = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
 
   const insertSessionRow = (ignoreExisting: boolean) =>
@@ -416,6 +416,7 @@ export const make = Effect.gen(function* () {
 
   const getById: AuthSessionRepository["Service"]["getById"] = (input) =>
     getSessionRowById(input).pipe(
+      NodeSqliteClient.readOnly,
       Effect.mapError(
         toPersistenceSqlOrDecodeError(
           "AuthSessionRepository.getById:query",
@@ -443,6 +444,7 @@ export const make = Effect.gen(function* () {
 
   const listActive: AuthSessionRepository["Service"]["listActive"] = (input) =>
     listActiveSessionRows(input).pipe(
+      NodeSqliteClient.readOnly,
       Effect.mapError(
         toPersistenceSqlOrDecodeError(
           "AuthSessionRepository.listActive:query",

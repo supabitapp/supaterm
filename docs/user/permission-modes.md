@@ -3,7 +3,7 @@
 Permission modes control when an agent needs your approval to act. Choose a mode in the message
 composer; it applies to that thread.
 
-Set the default for new threads in **Settings → General → New threads → Permissions**.
+Set the default for new threads in **Settings → Threads → New threads → Permissions**.
 Projects can override the environment default. New threads use this setting rather than the
 mode of the thread you were viewing. The initial default is **Full access**; existing threads
 and modes you choose in a draft keep their permissions.
@@ -32,7 +32,8 @@ including OpenCode and Antigravity, fall back to asking. On Grok, commands its r
 to you for approval.
 
 Muse Code offers only **Supervised** and **Full access**. A Muse thread already set to another mode
-runs in **Supervised**.
+runs in **Supervised**. fx offers **Supervised** and **Auto**; other saved modes run as
+Supervised.
 
 Grok offers no **Auto-accept edits**. A Grok thread already set to it runs in **Supervised**. Grok
 file-change approvals offer **Allow all edits this session**. Its command approvals have no
@@ -44,7 +45,8 @@ by the permission mode. See [ACP Registry permissions](./providers-acp.md#permis
 Claude can still ask in **Full access** when its settings disable bypass permissions or an ask rule
 matches the action, and for a few safety checks of its own that no setting skips. The approval
 shows Claude's reason when it gives one, and **Why am I being asked this?** explains which case
-applies.
+applies. A text reply can decline that request with feedback directed to the agent that asked,
+including a subagent, while leaving other pending requests unanswered.
 
 Antigravity can still send native approval requests in **Full access**. It only offers remembered
 approvals for actions that support them.

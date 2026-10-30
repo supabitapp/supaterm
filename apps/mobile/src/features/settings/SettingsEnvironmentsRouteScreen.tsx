@@ -4,7 +4,7 @@ import type { EnvironmentId } from "@supaterm/contracts";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { LocalEnvironmentList } from "../connection/LocalEnvironmentList";
-import { GitHubRoutingSettings } from "../connection/GitHubRoutingSettings";
+import { PullRequestRoutingSettings } from "../connection/PullRequestRoutingSettings";
 import { useUniwindTheme } from "../../lib/useUniwindTheme";
 import { useRemoteConnections } from "../../state/use-remote-environment-registry";
 import {
@@ -27,15 +27,7 @@ export function SettingsEnvironmentsRouteScreen() {
     : connectedEnvironments;
   const headerIconColor = useUniwindTheme()["--color-icon"];
   const openEnvironment = (environmentId: EnvironmentId) => {
-    navigation.navigate("SettingsSheet", {
-      screen: "SettingsContent",
-      params: {
-        screen: "SettingsEnvironmentDetail",
-        params: {
-          environmentId,
-        },
-      },
-    });
+    navigation.navigate("SettingsEnvironmentDetail", { environmentId });
   };
   const handleUpdateEnvironment = (
     environmentId: EnvironmentId,
@@ -71,13 +63,7 @@ export function SettingsEnvironmentsRouteScreen() {
           accessibilityLabel: "Add environment",
           icon: "plus",
           tintColor: headerIconColor,
-          onPress: () =>
-            navigation.navigate("SettingsSheet", {
-              screen: "SettingsContent",
-              params: {
-                screen: "SettingsEnvironmentNew",
-              },
-            }),
+          onPress: () => navigation.navigate("SettingsEnvironmentNew"),
         },
       ]}
     >
@@ -101,7 +87,8 @@ export function SettingsEnvironmentsRouteScreen() {
           onSetEnabled={onSetEnvironmentEnabled}
           onUpdate={handleUpdateEnvironment}
         />
-        <GitHubRoutingSettings />
+
+        <PullRequestRoutingSettings />
       </ScrollView>
     </SettingsScreen>
   );

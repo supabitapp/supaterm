@@ -136,6 +136,12 @@ vi.mock("@supaterm/client-runtime/environment", () => ({
   scopeProjectRef: (environmentId: string, projectId: string) => ({ environmentId, projectId }),
   scopeThreadRef: (environmentId: string, threadId: string) => ({ environmentId, threadId }),
 }));
+vi.mock("../providerInstances", () => ({
+  resolveProjectDefaultProviderModelSelection: () => null,
+}));
+vi.mock("@supaterm/shared/usageLimits", () => ({
+  resolveNewThreadModelSelection: () => ({ selection: null, fallback: false }),
+}));
 vi.mock("@supaterm/contracts", () => ({
   DEFAULT_RUNTIME_MODE: "default",
   DEFAULT_SERVER_SETTINGS: {},
@@ -216,6 +222,9 @@ vi.mock("../state/entities", () => {
     useThread: () => null,
   };
 });
+vi.mock("../state/olderSettledShelf", () => ({
+  readUnloadedThreadCount: () => 0,
+}));
 vi.mock("../state/server", () => ({
   environmentServerConfigsAtom: {},
   primaryServerSettingsAtom: "primary-settings",
@@ -226,7 +235,7 @@ vi.mock("../threadRoutes", () => ({
 vi.mock("../uiStateStore", () => ({
   useUiStateStore: () => [],
 }));
-vi.mock("./useSettings", () => ({ useClientSettings: () => ({}) }));
+vi.mock("./useSettings", () => ({ getClientSettings: () => ({}) }));
 
 import { useNewThreadHandler } from "./useHandleNewThread";
 

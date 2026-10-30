@@ -15,6 +15,7 @@ import {
   ThreadId,
 } from "@supaterm/contracts";
 import * as Context from "effect/Context";
+import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import * as DateTime from "effect/DateTime";
 import * as Deferred from "effect/Deferred";
 import * as Duration from "effect/Duration";
@@ -79,6 +80,7 @@ export const OrchestrationEffectRequestV2 = Schema.Union([
     providerSessionId: ProviderSessionId,
     requestId: RuntimeRequestId,
     decision: Schema.optional(ProviderApprovalDecision),
+    feedback: Schema.optional(Schema.String),
     answers: Schema.optional(ProviderUserInputAnswers),
   }),
   Schema.Struct({
@@ -151,12 +153,6 @@ export const OrchestrationEffectStatusV2 = Schema.Literals([
 ]);
 export type OrchestrationEffectStatusV2 = typeof OrchestrationEffectStatusV2.Type;
 
-/**
- * Command retries are deduplicated by their receipts first, and a run's effects
- * are re-enqueued only around one server restart, so a week is far longer than
- * either and leaves recent history for debugging. Failed rows are kept: storage
- * cleanup keeps a deleted thread's worktree while any of its effects failed.
- */
 export const SETTLED_EFFECT_RETENTION = Duration.days(7);
 const PRUNE_BATCH_SIZE = 500;
 
@@ -318,8 +314,6 @@ export const layer: Layer.Layer<EffectOutboxV2, never, SqlClient.SqlClient> = La
         available,
         Array.from({ length: Math.min(64, Math.max(0, Math.floor(count))) }, () => undefined),
       ).pipe(Effect.asVoid);
-    // An earlier effect waiting out a retry backoff still blocks later ones, so
-    // a turn cannot start while a failed rollback is about to restore files.
     const claimableCandidatePredicate = (
       availableBefore?: string,
       excludeRestartContinuations = false,
@@ -421,11 +415,10 @@ export const layer: Layer.Layer<EffectOutboxV2, never, SqlClient.SqlClient> = La
           WHERE effect_id = ${effectId}
           LIMIT 1
         `.pipe(
+          NodeSqliteClient.readOnly,
           Effect.flatMap((rows) => {
             const row = rows[0];
-            return row === undefined
-              ? Effect.succeed(Option.none())
-              : rowToEffect(row).pipe(Effect.map(Option.some));
+            return row === undefined ? Effect.succeedNone : rowToEffect(row).pipe(Effect.asSome);
           }),
           Effect.mapError((cause) => new EffectOutboxError({ operation: "get", effectId, cause })),
         ),
@@ -438,6 +431,7 @@ export const layer: Layer.Layer<EffectOutboxV2, never, SqlClient.SqlClient> = La
           WHERE command_id = ${commandId}
           ORDER BY created_at ASC, effect_id ASC
         `.pipe(
+          NodeSqliteClient.readOnly,
           Effect.flatMap((rows) => decodeRows("list", rows)),
           Effect.mapError((cause) =>
             isEffectOutboxError(cause)
@@ -537,9 +531,6 @@ export const layer: Layer.Layer<EffectOutboxV2, never, SqlClient.SqlClient> = La
           const leaseExpiresAt = DateTime.formatIso(
             DateTime.add(now, { milliseconds: Math.max(1, leaseDurationMs) }),
           );
-          // Empty safety claims are expected while the daemon is idle. Tracing
-          // this query records the full SQL text on every poll and can dominate
-          // the local trace without adding actionable information.
           const claimStatement = sql<EffectRow>`
             UPDATE orchestration_v2_effect_outbox
             SET
@@ -572,7 +563,7 @@ export const layer: Layer.Layer<EffectOutboxV2, never, SqlClient.SqlClient> = La
           SELECT MIN(candidate.available_at) AS available_at
           FROM orchestration_v2_effect_outbox AS candidate
           WHERE ${claimableCandidatePredicate()}
-        `.pipe(Effect.withTracerEnabled(false));
+        `.pipe(NodeSqliteClient.readOnly, Effect.withTracerEnabled(false));
         const availableAt = rows[0]?.available_at;
         if (availableAt === undefined || availableAt === null) return Option.none();
         const parsed = DateTime.make(availableAt);
@@ -690,8 +681,6 @@ export const layer: Layer.Layer<EffectOutboxV2, never, SqlClient.SqlClient> = La
         const cutoff = DateTime.formatIso(
           DateTime.subtractDuration(yield* DateTime.now, SETTLED_EFFECT_RETENTION),
         );
-        // Each batch is its own statement, so a large backlog never holds the
-        // write lock for long and writers can commit between batches.
         const deleteBatch = sql<{ readonly effect_id: string }>`
           DELETE FROM orchestration_v2_effect_outbox
           WHERE rowid IN (

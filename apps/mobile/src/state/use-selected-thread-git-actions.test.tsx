@@ -1,4 +1,5 @@
-import { act, useEffect, useReducer } from "react";
+import { act, useLayoutEffect, useReducer } from "react";
+import { RegistryContext } from "@effect/atom-react";
 import { createRoot, type Root } from "react-dom/client";
 import { AsyncResult } from "effect/reactivity";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
@@ -17,28 +18,39 @@ const harness = vi.hoisted(() => ({
 }));
 
 vi.mock("./use-atom-command", () => ({
-  useAtomCommand: (command: unknown) =>
-    command === "refreshStatus"
-      ? async (input: unknown) => {
-          harness.refreshStatusCalls.push(input);
-          harness.onRefreshSettled();
-          return AsyncResult.success({});
-        }
-      : async () => AsyncResult.success({}),
+  useAtomCommand: () => async () => AsyncResult.success({}),
 }));
 vi.mock("./vcs", () => ({
-  vcsEnvironment: { refreshStatus: "refreshStatus" },
+  vcsEnvironment: {
+    refreshStatus: {
+      label: "refreshStatus",
+      run: async (_registry: unknown, input: unknown) => {
+        harness.refreshStatusCalls.push(input);
+        harness.onRefreshSettled();
+        return AsyncResult.success({});
+      },
+    },
+  },
   vcsActionManager: { runStackedAction: () => "runStackedAction", track: vi.fn() },
 }));
 vi.mock("./threads", () => ({ threadEnvironment: { updateMetadata: "updateMetadata" } }));
 vi.mock("./queries", () => ({ useBranches: () => ({ data: null, refresh: () => {} }) }));
 vi.mock("../lib/uuid", () => ({ uuidv4: () => "uuid" }));
-vi.mock("./atom-registry", () => ({ appAtomRegistry: {} }));
+vi.mock("./atom-registry", async () => {
+  const { AtomRegistry } = await import("effect/reactivity");
+  return { appAtomRegistry: AtomRegistry.make() };
+});
 vi.mock("./session", () => ({
   readEnvironmentScope: () => true,
   useEnvironmentScope: () => true,
 }));
-vi.mock("./use-remote-environment-registry", () => ({ setPendingConnectionError: () => {} }));
+vi.mock("./use-remote-environment-registry", async () => {
+  const { Atom } = await import("effect/reactivity");
+  return {
+    environmentConnectedAtom: Atom.family(() => Atom.make(true)),
+    setPendingConnectionError: () => {},
+  };
+});
 vi.mock("./use-vcs-action-state", () => ({ showGitActionResult: () => {} }));
 
 vi.mock("./use-thread-selection", () => ({
@@ -54,6 +66,7 @@ vi.mock("./use-selected-thread-worktree", () => ({
   useSelectedThreadWorktree: () => harness.worktree,
 }));
 
+import { appAtomRegistry } from "./atom-registry";
 import { useSelectedThreadGitActions } from "./use-selected-thread-git-actions";
 
 let root: Root | null = null;
@@ -61,19 +74,11 @@ let rerender: () => void = () => {};
 
 function Consumer() {
   const [, bump] = useReducer((count: number) => count + 1, 0);
-  useEffect(() => {
+  useLayoutEffect(() => {
     rerender = bump;
   });
   useSelectedThreadGitActions();
   return null;
-}
-
-async function flush() {
-  for (let index = 0; index < 5; index += 1) {
-    await act(async () => {
-      await Promise.resolve();
-    });
-  }
 }
 
 beforeEach(() => {
@@ -97,16 +102,20 @@ afterEach(() => {
 describe("useSelectedThreadGitActions", () => {
   it("refreshes once on mount and does not loop when refreshes rerender the consumer", async () => {
     root = createRoot(document.createElement("div"));
-    act(() => root!.render(<Consumer />));
-    await flush();
+    await act(async () =>
+      root!.render(
+        <RegistryContext.Provider value={appAtomRegistry}>
+          <Consumer />
+        </RegistryContext.Provider>,
+      ),
+    );
 
     harness.selection = {
       selectedThread: { environmentId: "environment-1", id: "thread-1" },
       selectedThreadProject: { id: "project-1", workspaceRoot: "/repo" },
       selectedEnvironmentRuntime: { connectionState: "connected" },
     };
-    act(() => rerender());
-    await flush();
+    await act(async () => rerender());
 
     expect(harness.refreshStatusCalls).toEqual([
       { environmentId: "environment-1", input: { cwd: "/repo" } },

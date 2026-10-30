@@ -48,7 +48,7 @@ export class SshPasswordPrompt extends Context.Service<SshPasswordPrompt, SshPas
     SshPasswordPrompt,
     SshPasswordPrompt.of({
       isAvailable: false,
-      request: () => Effect.succeed(null),
+      request: Effect.fn("SshPasswordPrompt.request")(() => Effect.succeed(null)),
     }),
   );
 }

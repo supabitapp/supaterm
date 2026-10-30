@@ -68,7 +68,7 @@ const INPUT_QUIET_MS = 100;
 const AGENT_DOUBLE_TAP_MS = 350;
 const JOYSTICK_ACTIVITY_DISTANCE = 0.1;
 const DEBUG_LINE_LOG_LIMIT = 200;
-// Electron rejects a zero threshold; the locked state does not depend on it.
+
 const LOCK_CHECK_IDLE_THRESHOLD_SECONDS = 1;
 
 const { logDebug, logInfo, logWarning } = makeComponentLogger("desktop-codex-micro");
@@ -109,9 +109,8 @@ type SessionEnd = { readonly healthy: boolean };
 export class CodexMicro extends Context.Service<
   CodexMicro,
   {
-    /** False in a desktop build packaged without the keyboard's HID library. */
     readonly available: boolean;
-    /** Cheap and idempotent: runs on every client-settings write. */
+
     readonly configure: (settings: CodexMicroSettings) => Effect.Effect<void>;
     readonly state: Effect.Effect<CodexMicroDeviceState>;
     readonly setLighting: (model: CodexMicroLightingModel) => Effect.Effect<void>;
@@ -366,7 +365,7 @@ const make = Effect.gen(function* () {
           Effect.andThen(
             Effect.suspend(() => {
               knobHoldPending = false;
-              // The screen can lock while the knob is held.
+
               return inputLocked.pipe(
                 Effect.flatMap((locked) =>
                   locked ? Effect.void : emitInput({ type: "encoder", input: "longPress" }),
@@ -378,7 +377,6 @@ const make = Effect.gen(function* () {
       ).pipe(Effect.asVoid);
     });
 
-    // A release after the hold fired belongs to the long press and is swallowed.
     const releaseKnob = Effect.suspend(() => {
       if (!knobHoldPending) return Effect.void;
       knobHoldPending = false;
@@ -452,8 +450,6 @@ const make = Effect.gen(function* () {
     yield* Effect.forkScoped(inputLoop);
     yield* Effect.forkScoped(lightingLoop);
 
-    // Registered after the workers so it runs first on close: a disable or quit
-    // lets the in-flight request finish, then turns the lights off.
     yield* Effect.addFinalizer(() =>
       Effect.gen(function* () {
         stopping = true;
@@ -624,8 +620,12 @@ const make = Effect.gen(function* () {
       Effect.withSpan("desktop.codexMicro.state"),
     ),
     setLighting,
-    subscribeState: (listener) => subscribe(stateListeners, listener),
-    subscribeInput: (listener) => subscribe(inputListeners, listener),
+    subscribeState: Effect.fnUntraced(function* (listener) {
+      return yield* subscribe(stateListeners, listener);
+    }),
+    subscribeInput: Effect.fnUntraced(function* (listener) {
+      return yield* subscribe(inputListeners, listener);
+    }),
   });
 });
 
@@ -635,10 +635,18 @@ export const layerUnavailable = Layer.succeed(
   CodexMicro,
   CodexMicro.of({
     available: false,
-    configure: () => Effect.void,
+    configure: Effect.fnUntraced(function* () {
+      return yield* Effect.void;
+    }),
     state: Effect.succeed(deviceState("disabled", "unavailable")),
-    setLighting: () => Effect.void,
-    subscribeState: () => Effect.void,
-    subscribeInput: () => Effect.void,
+    setLighting: Effect.fnUntraced(function* () {
+      return yield* Effect.void;
+    }),
+    subscribeState: Effect.fnUntraced(function* () {
+      return yield* Effect.void;
+    }),
+    subscribeInput: Effect.fnUntraced(function* () {
+      return yield* Effect.void;
+    }),
   }),
 );

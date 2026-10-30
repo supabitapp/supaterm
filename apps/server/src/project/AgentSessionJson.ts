@@ -47,9 +47,6 @@ export function createTranscriptJsonReader(
   selectPath: (path: JsonPath) => boolean,
   options?: { readonly maxDepth?: number },
 ) {
-  // The synchronous tokenizer is exported at runtime in 3.6.0, but omitted
-  // from its bundled types. Unlike parser(), it does not wrap tokens in an
-  // async generator; the file reader already supplies backpressure and UTF-8.
   const { jsonParser } = StreamJson as typeof StreamJson & {
     jsonParser: (
       options: ParserOptions,
@@ -88,9 +85,6 @@ export function createTranscriptJsonReader(
         assembler.consume(token);
     }
   };
-  // Forward actual selected keys instead of reconstructing them from path
-  // changes: adjacent duplicate keys have the same path but JSON.parse keeps
-  // the last value. Reconstructing paths can silently retain the first value.
   const stack: Array<{ path: JsonPath; key: string | number | null; selected: boolean }> = [];
   let selectedValue = false;
   const startValue = () => {

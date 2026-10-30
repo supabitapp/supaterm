@@ -20,11 +20,6 @@ function frameField(frame: unknown, key: string): unknown {
   return typeof frame === "object" && frame !== null ? Reflect.get(frame, key) : undefined;
 }
 
-/**
- * Pi steers through `prompt` with `streamingBehavior: "steer"`, which Pi
- * queues into the running agent loop. The steer lands in the same provider
- * turn: no interrupt, no second turn, one settled run.
- */
 export function assertPiMessageSteeringOutput(
   result: OrchestratorV2ScenarioResult,
   transcript: ProviderReplayTranscript,

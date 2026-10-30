@@ -18,7 +18,7 @@ import type { SubscriptionUsageSnapshot as SubscriptionUsageProps } from "./subs
 
 export function SubscriptionUsage(props: SubscriptionUsageProps, environment: WidgetEnvironment) {
   "widget";
-  // The widget runtime evaluates this function without the app's module scope.
+
   const now = Date.now();
   const limit = 2;
   const mode = props.theme?.mode;
@@ -57,8 +57,6 @@ export function SubscriptionUsage(props: SubscriptionUsageProps, environment: Wi
     },
   ];
   return (
-    // The card is one Button so a tap reaches the app's interaction listener,
-    // which opens props.url. expo-widgets has no Android counterpart to widgetURL.
     <Button
       colors={{ containerColor: colors.surface }}
       modifiers={[fillMaxSize()]}

@@ -13,7 +13,6 @@ import {
   type SessionGrantInput,
 } from "@supaterm/contracts";
 import { normalizeNativeMarkdownUrl } from "../lib/markdownLinks";
-import * as Option from "effect/Option";
 import { AsyncResult } from "effect/reactivity";
 import { useEffect, useRef, useState } from "react";
 import { useRefreshAssetUrl } from "./assets";
@@ -29,7 +28,7 @@ function allowsHostMedia(session: SessionGrantInput | null) {
 function canReadHostMedia(environmentId: EnvironmentId | null): boolean {
   if (environmentId === null) return true;
   const result = appAtomRegistry.get(environmentSession.sessionStateAtom(environmentId));
-  return result._tag !== "Failure" && allowsHostMedia(Option.getOrNull(AsyncResult.value(result)));
+  return result._tag !== "Failure" && allowsHostMedia(AsyncResult.getOrElse(result, () => null));
 }
 export function useMediaActions(source: MediaActionsSource | undefined, onOpenFile?: () => void) {
   const navigation = useNavigation();
@@ -51,6 +50,7 @@ export function useMediaActions(source: MediaActionsSource | undefined, onOpenFi
   );
   const controller = useRef<AbortController | null>(null);
   const [sharing, setSharing] = useState(false);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- aborts the in-flight media share when the component unmounts
   useEffect(() => () => controller.current?.abort(), []);
   const share = () => {
     if (!source || controller.current || !canReadHostMedia(hostEnvironmentId)) return;

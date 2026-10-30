@@ -29,7 +29,7 @@ export interface IncomingShareInboxDependencies {
   readonly onCleanupError?: (error: unknown) => void;
 }
 
-export function sortAndDedupeIncomingShares(
+function sortAndDedupeIncomingShares(
   drafts: ReadonlyArray<IncomingShareDraft>,
 ): ReadonlyArray<IncomingShareDraft> {
   const ids = new Set<string>();
@@ -44,10 +44,6 @@ export function sortAndDedupeIncomingShares(
     });
 }
 
-/**
- * This prevents a stale storage load or a foreground refresh from restoring an
- * item after it has been consumed.
- */
 export class IncomingShareInbox {
   private readonly operations = new SerializedAsyncQueue();
 
@@ -86,9 +82,6 @@ export class IncomingShareInbox {
         return persisted;
       }
 
-      // A share extension payload remains available until the containing app
-      // acknowledges it. Use a content-derived id so a crash after the durable
-      // write but before acknowledgement reuses the same inbox item.
       const shareId = await this.dependencies.idForPayloads(payloads);
       if (loaded.some((draft) => draft.id === shareId)) {
         if (this.dependencies.cleanupReplayedPayloads) {
@@ -112,9 +105,6 @@ export class IncomingShareInbox {
         );
       }
 
-      // The durable inbox write is the transaction boundary. Never clear the
-      // native handoff first: a process termination must leave one recoverable
-      // copy on one side of the boundary.
       try {
         await this.dependencies.writeDraft(draft);
       } catch (error) {
@@ -131,9 +121,6 @@ export class IncomingShareInbox {
 
   consume(shareId: string): Promise<ReadonlyArray<IncomingShareDraft>> {
     return this.runExclusive(async () => {
-      // The stable payload-derived id already coalesces retries of the same
-      // native handoff. Payload equality cannot identify duplicate handoffs:
-      // users may intentionally share identical content more than once.
       await this.dependencies.removeDraft(shareId);
       return sortAndDedupeIncomingShares(await this.dependencies.loadDrafts());
     });

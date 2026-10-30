@@ -13,6 +13,7 @@ export interface Finding {
 
 export interface PoseResult {
   readonly cleanupFailed?: boolean;
+  readonly blocked?: boolean;
   readonly pose: Pose;
   readonly steps: ReadonlyArray<StepResult>;
   readonly error?: string;
@@ -31,7 +32,7 @@ export const failedChecks = (result: PoseResult) =>
   );
 
 export const poseFailed = (result: PoseResult) =>
-  result.error !== undefined || failedChecks(result).length > 0;
+  !result.blocked && (result.error !== undefined || failedChecks(result).length > 0);
 
 const escapeHtml = (value: string) =>
   value
@@ -90,16 +91,17 @@ export function renderReport(
         })
         .join("");
       const error = result.error
-        ? `<td class="bad"><h3>stopped</h3>${result.stopped ? `<a href="${relative(result.stopped)}"><img src="${relative(result.stopped)}"></a>` : ""}<p class="fail">${escapeHtml(result.error)}</p></td>`
+        ? `<td class="bad"><h3>${result.blocked ? "infrastructure blocked" : "stopped"}</h3>${result.stopped ? `<a href="${relative(result.stopped)}"><img src="${relative(result.stopped)}"></a>` : ""}<p class="fail">${escapeHtml(result.error)}</p></td>`
         : "";
       return `<tr><th>${escapeHtml(result.pose.id)}<br><small>${escapeHtml(describePose(result.pose))}</small></th>${cells}${error}</tr>`;
     })
     .join("");
   const failed = results.filter(poseFailed).length;
+  const blocked = results.filter((result) => result.blocked).length;
   const findings = results.reduce((count, result) => count + (result.findings?.length ?? 0), 0);
   return `<!doctype html><meta charset="utf-8"><title>Mobile E2E</title>
 <style>body{font:14px system-ui;margin:24px}table{border-collapse:collapse}td,th{border:1px solid #ddd;padding:8px;vertical-align:top;text-align:left}td{width:190px}td.bad{background:#fff5f4}h3{margin:0 0 6px;font-size:13px}img{width:180px;display:block;margin:0 0 6px}img.lag{outline:3px solid #b42318}.pass{color:#16794a}.fail{color:#b42318}.review{color:#7a4b00}.review.high{color:#b42318}ul{padding-left:16px;margin:4px 0}small{color:#666}</style>
-<h1>Mobile E2E · ${results.length} poses · ${running ? "in progress" : failed === 0 && errors.length === 0 ? "all checks passed" : `${failed} with failing checks, ${errors.length} run errors`} · ${findings} review findings</h1>
+<h1>Mobile E2E · ${results.length} poses · ${running ? "in progress" : failed === 0 && blocked === 0 && errors.length === 0 ? "all checks passed" : `${failed} with failing checks, ${blocked} infrastructure blocked, ${errors.length} run errors`} · ${findings} review findings</h1>
 ${errors.map((error) => `<p class="fail">${escapeHtml(error)}</p>`).join("")}
 <p><span class="fail">✗</span> failed check <span class="review">◆</span> agent review finding</p>
 <table>${rows}</table>`;

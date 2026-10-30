@@ -108,7 +108,10 @@ vi.mock("../../state/thread-order", () => ({
   },
 }));
 vi.mock("../../state/threads", () => ({
-  environmentThreadShells: { threadShellsAtom: "thread-shells" },
+  environmentThreadShells: {
+    threadShellsAtom: "thread-shells",
+    navigationThreadShellsAtom: "thread-shells",
+  },
   threadEnvironment: Object.fromEntries(
     [
       "archive",
@@ -403,7 +406,7 @@ describe("thread action undo", () => {
       await useThreadListActions().unpinThread(thread);
       expect(readThreadUndoNotice()?.action).toBe("Unpinned");
       await readThreadUndoNotice()!.undo();
-      // 2099 is the unexpired case; 2000 has long passed.
+
       const restoresSnooze = snoozedUntil === "2099-01-01T09:00:00.000Z";
       expect(state.requests.map(({ action }) => action)).toEqual(
         restoresSnooze ? ["unpin", "pin", "snooze"] : ["unpin", "pin"],

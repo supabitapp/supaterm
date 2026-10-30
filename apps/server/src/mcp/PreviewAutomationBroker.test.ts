@@ -1048,3 +1048,46 @@ it.effect("keeps each thread's current tab when threads share a provider session
     }),
   ),
 );
+
+it.effect.each([
+  { remote: 500, expected: 500 },
+  { remote: 5000, expected: 2000 },
+  { remote: 0, expected: 2000 },
+  { remote: -1, expected: 2000 },
+  { remote: 1.5, expected: 2000 },
+  { remote: "500", expected: 2000 },
+  { remote: undefined, expected: 2000 },
+])("reports a bounded valid host timeout: %s", ({ remote, expected }) =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const broker = yield* makeBroker;
+      const connected = yield* Deferred.make<void>();
+      const requests = requestsFrom(yield* broker.connect(makeHost()), () => {
+        Deferred.doneUnsafe(connected, Effect.void);
+      });
+      yield* Stream.runForEach(requests, (request) =>
+        broker.respond({
+          clientId: "client-1",
+          connectionId: request.connectionId,
+          requestId: request.requestId,
+          ok: false,
+          error: {
+            _tag: "PreviewAutomationTimeoutError",
+            message: "Navigation timed out.",
+            detail: { timeoutMs: remote },
+          },
+        }),
+      ).pipe(Effect.forkScoped);
+      yield* Deferred.await(connected);
+      const error = yield* broker
+        .invoke<void>({
+          scope,
+          operation: "open",
+          input: { url: "https://example.test" },
+          timeoutMs: 2000,
+        })
+        .pipe(Effect.flip);
+      expect(error).toMatchObject({ _tag: "PreviewAutomationTimeoutError", timeoutMs: expected });
+    }),
+  ),
+);

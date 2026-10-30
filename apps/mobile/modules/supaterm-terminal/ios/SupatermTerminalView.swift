@@ -22,17 +22,7 @@ private enum GhosttyRuntime {
   }
 }
 
-/// Encodes hardware-keyboard combos that UITextField never surfaces through its
-/// text-editing delegate (control combos, Escape, Tab, arrow keys) into the byte
-/// sequences a terminal expects.
-///
-/// Capture uses UIKeyCommand with `wantsPriorityOverSystemBehavior` rather than
-/// `pressesBegan`: while a text field is first responder, iPadOS routes hardware key
-/// events through the text-input system, which can consume presses before they reach
-/// responder press callbacks. Registered key commands are matched deterministically
-/// before that happens.
 private enum TerminalHardwareKeyEncoder {
-  /// Characters that produce a control byte when combined with Ctrl.
   private static let controlInputs = "abcdefghijklmnopqrstuvwxyz@[\\]^_-? "
 
   static func makeKeyCommands(action: Selector) -> [UIKeyCommand] {
@@ -97,7 +87,6 @@ private enum TerminalHardwareKeyEncoder {
   private static func controlSequence(for scalar: Unicode.Scalar) -> String? {
     switch scalar {
     case "a"..."z":
-      // Ctrl+A..Z -> 0x01..0x1A (Ctrl+C = ETX, Ctrl+Z = SUB, ...).
       return UnicodeScalar(scalar.value - 96).map(String.init)
     case " ", "@":
       return "\u{00}"
@@ -120,8 +109,6 @@ private enum TerminalHardwareKeyEncoder {
 }
 
 private enum TerminalInputSequence {
-  /// Terminal Enter is carriage return. Sending line feed instead is Ctrl+J,
-  /// which raw-mode TUIs may interpret as the literal J key.
   static let carriageReturn = "\r"
 
   static func normalizingReturn(_ input: String) -> String {
@@ -205,6 +192,7 @@ public final class SupatermTerminalView: ExpoView, UITextFieldDelegate {
   private var lastContentScale: CGFloat = 0
   private var lastReportedGrid: (cols: Int, rows: Int)?
   private var lastAppliedBuffer = ""
+  private var streamedOutput: TerminalOutputBuffer?
   private var pendingVerticalScrollPoints: CGFloat = 0
   private var app: ghostty_app_t?
   private var surface: ghostty_surface_t?
@@ -216,30 +204,34 @@ public final class SupatermTerminalView: ExpoView, UITextFieldDelegate {
   let onInput = EventDispatcher()
   let onResize = EventDispatcher()
   let onCapture = EventDispatcher()
+  private var hasPendingCapture = false
   var captureRequest: Double = 0 {
     didSet {
       guard captureRequest > 0, captureRequest != oldValue else { return }
-      guard let surface else { onCapture(["text": ""]); return }
-      let selection = ghostty_selection_s(
-        top_left: ghostty_point_s(tag: GHOSTTY_POINT_VIEWPORT, coord: GHOSTTY_POINT_COORD_TOP_LEFT, x: 0, y: 0),
-        bottom_right: ghostty_point_s(tag: GHOSTTY_POINT_VIEWPORT, coord: GHOSTTY_POINT_COORD_BOTTOM_RIGHT, x: 0, y: 0),
-        rectangle: false)
-      var captured = ghostty_text_s()
-      guard ghostty_surface_read_text(surface, selection, &captured) else { onCapture(["text": ""]); return }
-      defer { ghostty_surface_free_text(surface, &captured) }
-      let text = captured.text.flatMap { String(bytes: UnsafeBufferPointer(start: UnsafeRawPointer($0).assumingMemoryBound(to: UInt8.self), count: Int(captured.text_len)), encoding: .utf8) } ?? ""
-      // Android joins snapshot rows with "\n" and trims each row's trailing whitespace, so do
-      // the same here: identical terminal content must capture identically on both platforms.
-      let normalized = text.split(separator: "\n", omittingEmptySubsequences: false)
-        .map { row -> String in
-          var line = String(row)
-          // Kotlin's trimEnd only strips ASCII whitespace; match it exactly.
-          while let last = line.last, last.isASCII && last.isWhitespace { line.removeLast() }
-          return line
-        }
-        .joined(separator: "\n")
-      onCapture(["text": normalized])
+      hasPendingCapture = true
     }
+  }
+
+  private func capture() {
+    guard let surface else { onCapture(["text": ""]); return }
+    let selection = ghostty_selection_s(
+      top_left: ghostty_point_s(tag: GHOSTTY_POINT_VIEWPORT, coord: GHOSTTY_POINT_COORD_TOP_LEFT, x: 0, y: 0),
+      bottom_right: ghostty_point_s(tag: GHOSTTY_POINT_VIEWPORT, coord: GHOSTTY_POINT_COORD_BOTTOM_RIGHT, x: 0, y: 0),
+      rectangle: false)
+    var captured = ghostty_text_s()
+    guard ghostty_surface_read_text(surface, selection, &captured) else { onCapture(["text": ""]); return }
+    defer { ghostty_surface_free_text(surface, &captured) }
+    let text = captured.text.flatMap { String(bytes: UnsafeBufferPointer(start: UnsafeRawPointer($0).assumingMemoryBound(to: UInt8.self), count: Int(captured.text_len)), encoding: .utf8) } ?? ""
+
+    let normalized = text.split(separator: "\n", omittingEmptySubsequences: false)
+      .map { row -> String in
+        var line = String(row)
+
+        while let last = line.last, last.isASCII && last.isWhitespace { line.removeLast() }
+        return line
+      }
+      .joined(separator: "\n")
+    onCapture(["text": normalized])
   }
 
   var terminalKey: String = "" {
@@ -253,7 +245,15 @@ public final class SupatermTerminalView: ExpoView, UITextFieldDelegate {
 
   var initialBuffer: String = "" {
     didSet {
-      applyRemoteBuffer(initialBuffer)
+      hasPendingBuffer = true
+    }
+  }
+  private var hasPendingBuffer = false
+
+  var sharedGrid: [Int] = [] {
+    didSet {
+      guard oldValue != sharedGrid else { return }
+      resizeSurface()
     }
   }
 
@@ -323,7 +323,7 @@ public final class SupatermTerminalView: ExpoView, UITextFieldDelegate {
 
     applyTheme()
     clipsToBounds = true
-    // The real scale arrives with the window; layoutSubviews corrects it.
+
     contentScaleFactor = traitCollection.displayScale
 
     terminalViewport.clipsToBounds = true
@@ -413,8 +413,6 @@ public final class SupatermTerminalView: ExpoView, UITextFieldDelegate {
 
   public func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString string: String) -> Bool {
     if !string.isEmpty {
-      // Some software keyboards deliver Return through this delegate instead of
-      // textFieldShouldReturn, so normalize that path too.
       emitInput(TerminalInputSequence.normalizingReturn(string))
       return false
     }
@@ -535,7 +533,11 @@ public final class SupatermTerminalView: ExpoView, UITextFieldDelegate {
     ghostty_surface_set_color_scheme(createdSurface, appearance.ghosttyColorScheme)
     setupWriteCallback()
     resizeSurface()
-    feedBuffer(initialBuffer)
+    if let streamedOutput {
+      feedData(streamedOutput.data)
+    } else if !hasPendingBuffer {
+      feedBuffer(initialBuffer)
+    }
   }
 
   private func resetSurface() {
@@ -563,9 +565,26 @@ public final class SupatermTerminalView: ExpoView, UITextFieldDelegate {
     }
     surface = nil
     app = nil
+
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    terminalViewport.layer.sublayers?.forEach { $0.removeFromSuperlayer() }
+    CATransaction.commit()
+  }
+
+  func applyPendingBuffer() {
+    if hasPendingBuffer {
+      hasPendingBuffer = false
+      applyRemoteBuffer(initialBuffer)
+    }
+    if hasPendingCapture {
+      hasPendingCapture = false
+      capture()
+    }
   }
 
   private func applyRemoteBuffer(_ buffer: String) {
+    guard streamedOutput == nil else { return }
     guard surface != nil else {
       createSurfaceIfPossible()
       return
@@ -586,6 +605,20 @@ public final class SupatermTerminalView: ExpoView, UITextFieldDelegate {
 
     resetSurface()
     createSurfaceIfPossible()
+  }
+
+  func writeOutput(_ data: String, reset: Bool) {
+    let output = streamedOutput ?? TerminalOutputBuffer()
+    let bytes = Data(data.utf8)
+    output.write(bytes, reset: reset)
+    streamedOutput = output
+    if reset {
+      refreshSurface()
+    } else if surface == nil {
+      createSurfaceIfPossible()
+    } else {
+      feedData(bytes)
+    }
   }
 
   private func feedBuffer(_ buffer: String) {
@@ -636,10 +669,24 @@ public final class SupatermTerminalView: ExpoView, UITextFieldDelegate {
     terminalViewport.contentScaleFactor = scale
     ghostty_surface_set_content_scale(surface, Double(scale), Double(scale))
     ghostty_surface_set_size(surface, width, height)
+    let fitted = ghostty_surface_size(surface)
+    let fittedCols = max(1, Int(fitted.columns))
+    let fittedRows = max(1, Int(fitted.rows))
+
+    var surfaceWidth = width
+    var surfaceHeight = height
+    if sharedGrid.count == 2, sharedGrid[0] > 0, sharedGrid[1] > 0 {
+      surfaceWidth -= UInt32(max(fittedCols - sharedGrid[0], 0)) * fitted.cell_width_px
+      surfaceHeight -= UInt32(max(fittedRows - sharedGrid[1], 0)) * fitted.cell_height_px
+      if surfaceWidth != width || surfaceHeight != height {
+        ghostty_surface_set_size(surface, surfaceWidth, surfaceHeight)
+      }
+    }
     ghostty_surface_set_occlusion(surface, window != nil)
-    configureIOSurfaceLayers()
+    configureIOSurfaceLayers(
+      size: CGSize(width: CGFloat(surfaceWidth) / scale, height: CGFloat(surfaceHeight) / scale))
     redrawSurface()
-    emitGhosttyResize()
+    emitResize(cols: fittedCols, rows: fittedRows)
   }
 
   private func redrawSurface() {
@@ -647,19 +694,6 @@ public final class SupatermTerminalView: ExpoView, UITextFieldDelegate {
     ghostty_surface_refresh(surface)
     ghostty_surface_draw(surface)
     markIOSurfaceLayersForDisplay()
-    emitGhosttyResize()
-  }
-
-  private func emitGhosttyResize() {
-    guard let surface else {
-      emitEstimatedResize()
-      return
-    }
-
-    let size = ghostty_surface_size(surface)
-    let cols = max(1, Int(size.columns))
-    let rows = max(1, Int(size.rows))
-    emitResize(cols: cols, rows: rows)
   }
 
   private func emitEstimatedResize() {
@@ -686,8 +720,6 @@ public final class SupatermTerminalView: ExpoView, UITextFieldDelegate {
   }
 
   private func updateContentScale() {
-    // The trait collection follows the scene the view is in, which matters once
-    // iPhone apps run resizable and on external displays; UIScreen.main does not.
     let scale = traitCollection.displayScale
     if contentScaleFactor != scale {
       contentScaleFactor = scale
@@ -710,8 +742,8 @@ public final class SupatermTerminalView: ExpoView, UITextFieldDelegate {
     ghostty_app_keyboard_changed(app)
   }
 
-  private func configureIOSurfaceLayers() {
-    let targetBounds = CGRect(origin: .zero, size: terminalViewport.bounds.size)
+  private func configureIOSurfaceLayers(size: CGSize) {
+    let targetBounds = CGRect(origin: .zero, size: size)
     CATransaction.begin()
     CATransaction.setDisableActions(true)
     terminalViewport.layer.sublayers?.forEach { sublayer in

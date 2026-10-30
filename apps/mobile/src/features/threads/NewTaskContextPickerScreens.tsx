@@ -1,9 +1,10 @@
+import { NativeScrollView } from "../../native/NativeScrollViewMarker";
 import { SearchField } from "../../components/ui/SearchField";
 import { Button } from "../../components/ui/Button";
 import { Toolbar } from "../../components/ui/Toolbar";
 import * as Dialog from "../../components/ui/Dialog";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
-import { NavigationRow } from "../../components/ui/NavigationRow";
+import { SelectionRow } from "../../components/ui/SelectionRow";
 import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
 import { shouldCheckoutNewTaskBranch } from "./new-task-context-presentation";
 import type { VcsRef } from "@supaterm/client-runtime/state/vcs";
@@ -19,7 +20,8 @@ import {
 } from "@supaterm/client-runtime/state/runtime";
 import * as Haptics from "expo-haptics";
 import { useNavigation } from "@react-navigation/native";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
+import { sanitizeNewRefName } from "@supaterm/shared/git";
 import { Platform, Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -41,6 +43,9 @@ import {
 import { useNativeMailSearchToolbar } from "../../native/use-native-mail-search-toolbar";
 import { branchBadgeLabel, useNewTaskFlow } from "./new-task-flow-provider";
 import { checkoutNewTaskBranch } from "./checkout-new-task-branch";
+import { filterNewTaskBranches } from "./new-task-context-presentation";
+import { useDebouncedValue, usePaginatedBranches } from "../../state/queries";
+import { setPendingConnectionError } from "../../state/use-remote-environment-registry";
 
 import { useEnvironmentPresentation } from "../../state/presentation";
 import { useRemoteConnections } from "../../state/use-remote-environment-registry";
@@ -50,6 +55,8 @@ import {
   useConnectionDiagnosis,
 } from "../connection/ConnectionDiagnosisDetails";
 import { environmentStatusText } from "../connection/environmentStatusText";
+
+const BRANCH_SEARCH_DEBOUNCE_MS = 150;
 
 function EnvironmentPickerRow(props: {
   environmentId: EnvironmentId;
@@ -136,90 +143,6 @@ function EnvironmentPickerRow(props: {
   );
 }
 
-function SelectionRow(props: {
-  readonly icon?: "arrow.triangle.branch" | ReactNode;
-  readonly onPress: () => void;
-  readonly disabled?: boolean;
-  readonly selected: boolean;
-  readonly isLast?: boolean;
-  readonly subtitle?: string;
-  readonly title: string;
-}) {
-  if (Platform.OS === "android") {
-    return (
-      <NavigationRow
-        className="bg-grouped-card"
-        title={props.title}
-        subtitle={props.subtitle}
-        leading={
-          props.icon === "arrow.triangle.branch" ? (
-            <SymbolView
-              name="arrow.triangle.branch"
-              size={24}
-              tintColorClassName="accent-icon-muted"
-            />
-          ) : (
-            props.icon
-          )
-        }
-        trailing={
-          props.selected ? (
-            <SymbolView name="checkmark" size={20} tintColorClassName="accent-focus" />
-          ) : null
-        }
-        accessibilityRole="radio"
-        accessibilityState={{ checked: props.selected }}
-        disabled={props.disabled}
-        onPress={props.onPress}
-      />
-    );
-  }
-  return (
-    <Pressable
-      accessibilityLabel={[props.title, props.subtitle].filter(Boolean).join(", ")}
-      accessibilityRole="radio"
-      accessibilityState={{ checked: props.selected }}
-      className={cn(
-        "min-h-14 flex-row items-center gap-3 bg-grouped-card px-4 py-3 active:bg-subtle",
-        !props.isLast && "border-b border-border-subtle",
-      )}
-      disabled={props.disabled}
-      onPress={props.onPress}
-      style={{ opacity: props.disabled ? 0.45 : 1 }}
-    >
-      {props.icon === "arrow.triangle.branch" ? (
-        <SymbolView
-          name="arrow.triangle.branch"
-          size={17}
-          tintColorClassName="accent-icon-muted"
-          type="monochrome"
-        />
-      ) : (
-        (props.icon ?? null)
-      )}
-      <View className="min-w-0 flex-1 gap-0.5">
-        <Text className="text-base font-supaterm-medium text-foreground" numberOfLines={1}>
-          {props.title}
-        </Text>
-        {props.subtitle ? (
-          <Text className="text-xs text-foreground-muted" numberOfLines={1}>
-            {props.subtitle}
-          </Text>
-        ) : null}
-      </View>
-      {props.selected ? (
-        <SymbolView
-          name="checkmark"
-          size={16}
-          tintColorClassName="accent-icon"
-          type="monochrome"
-          weight="semibold"
-        />
-      ) : null}
-    </Pressable>
-  );
-}
-
 function ToggleRow(props: {
   readonly title: string;
   readonly value: boolean;
@@ -240,44 +163,6 @@ function ToggleRow(props: {
         accessibilityLabel={props.title}
         onValueChange={props.onValueChange}
         value={props.value}
-      />
-    </View>
-  );
-}
-
-function BranchSelectionRow(props: {
-  readonly badge: string | null;
-  readonly branch: VcsRef;
-  readonly disabled: boolean;
-  readonly isFirst: boolean;
-  readonly isLast: boolean;
-  readonly onSelect: (branch: VcsRef) => void;
-  readonly selected: boolean;
-}) {
-  const { branch, onSelect } = props;
-  const onPress = () => onSelect(branch);
-
-  return (
-    <View
-      className={cn(
-        props.isFirst &&
-          (Platform.OS === "android"
-            ? "overflow-hidden rounded-t-[28px]"
-            : "overflow-hidden rounded-t-2xl"),
-        props.isLast &&
-          (Platform.OS === "android"
-            ? "overflow-hidden rounded-b-[28px]"
-            : "overflow-hidden rounded-b-2xl"),
-      )}
-    >
-      <SelectionRow
-        icon="arrow.triangle.branch"
-        disabled={props.disabled}
-        isLast={props.isLast}
-        onPress={onPress}
-        selected={props.selected}
-        subtitle={props.badge ? props.badge.toUpperCase() : undefined}
-        title={branch.name}
       />
     </View>
   );
@@ -361,101 +246,84 @@ export function NewTaskBranchPickerRouteScreen() {
   const switchRef = useAtomCommand(vcsEnvironment.switchRef, { reportFailure: false });
   const [switchingBranchName, setSwitchingBranchName] = useState<string | null>(null);
   const selectingBranchNameRef = useRef<string | null>(null);
-  const allowSelectionNavigationRef = useRef(false);
-  const mountedRef = useRef(true);
-  const { selectBranch: selectFlowBranch, selectedProject, setBranchQuery, workspaceMode } = flow;
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-      setBranchQuery("");
-    };
-  }, [setBranchQuery]);
-
-  useEffect(
-    () =>
-      navigation.addListener("beforeRemove", (event) => {
-        if (selectingBranchNameRef.current !== null && !allowSelectionNavigationRef.current) {
-          event.preventDefault();
-        }
-      }),
-    [navigation],
-  );
+  const [branchQuery, setBranchQuery] = useState("");
+  const branchSearchQuery = sanitizeNewRefName(branchQuery);
+  const debouncedBranchQuery = useDebouncedValue(branchSearchQuery, BRANCH_SEARCH_DEBOUNCE_MS);
+  const branchState = usePaginatedBranches({
+    environmentId: flow.selectedProject?.environmentId ?? null,
+    cwd: flow.selectedProject?.workspaceRoot || null,
+    query: debouncedBranchQuery,
+  });
+  const branchesLoading =
+    branchSearchQuery !== debouncedBranchQuery ||
+    (branchState.isPending && branchState.data === null);
+  const refreshBranches = () => {
+    if (!flow.selectedProject) return;
+    setPendingConnectionError(null);
+    branchState.refresh();
+  };
 
   const selectBranch = async (branch: VcsRef) => {
+    const project = flow.selectedProject;
     const needsCheckout = shouldCheckoutNewTaskBranch({
       branchIsCurrent: branch.current,
       branchWorktreePath: branch.worktreePath,
-      workspaceMode,
+      workspaceMode: flow.workspaceMode,
     });
-    if (selectingBranchNameRef.current !== null || (needsCheckout && !canWriteSourceControl)) {
+    if (
+      !project ||
+      selectingBranchNameRef.current !== null ||
+      (needsCheckout && !canWriteSourceControl)
+    )
+      return;
+    selectingBranchNameRef.current = branch.name;
+    setSwitchingBranchName(branch.name);
+    void Haptics.selectionAsync();
+    const releaseRemovalGuard = navigation.addListener("beforeRemove", (event) =>
+      event.preventDefault(),
+    );
+    const result = await checkoutNewTaskBranch({
+      branch,
+      project,
+      workspaceMode: flow.workspaceMode,
+      readRefs,
+      switchRef,
+    }).finally(releaseRemovalGuard);
+    selectingBranchNameRef.current = null;
+    setSwitchingBranchName(null);
+    if (result._tag === "Failure") {
+      if (navigation.isFocused() && !isAtomCommandInterrupted(result)) {
+        const error = squashAtomCommandFailure(result);
+        Dialog.alert(
+          "Could not switch branch",
+          error instanceof Error ? error.message : "The branch could not be checked out.",
+        );
+      }
       return;
     }
-    selectingBranchNameRef.current = branch.name;
-    void Haptics.selectionAsync();
-
-    const checkoutAndSelect = async () => {
-      if (!selectedProject) return;
-      setSwitchingBranchName(branch.name);
-      const result = await checkoutNewTaskBranch({
-        branch,
-        project: selectedProject,
-        workspaceMode,
-        readRefs,
-        switchRef,
-      });
-      if (result._tag === "Failure") {
-        if (mountedRef.current && navigation.isFocused() && !isAtomCommandInterrupted(result)) {
-          const error = squashAtomCommandFailure(result);
-          Dialog.alert(
-            "Could not switch branch",
-            error instanceof Error ? error.message : "The branch could not be checked out.",
-          );
-        }
-        return;
-      }
-
-      // The checkout has already changed the repository. Persist the matching
-      // draft selection even if the native sheet was dismissed while the
-      // command was in flight; only visible-screen work is focus-gated below.
-      selectFlowBranch(result.value);
-      if (!mountedRef.current || !navigation.isFocused()) {
-        return;
-      }
-      setBranchQuery("");
-      allowSelectionNavigationRef.current = true;
-      navigation.goBack();
-    };
-
-    await checkoutAndSelect().finally(() => {
-      selectingBranchNameRef.current = null;
-      allowSelectionNavigationRef.current = false;
-      if (mountedRef.current) {
-        setSwitchingBranchName(null);
-      }
-    });
+    flow.selectBranch(result.value);
+    if (navigation.isFocused()) navigation.goBack();
   };
 
   return (
     <BranchPickerScreen
       title={flow.workspaceMode === "worktree" ? "Base branch" : "Branch"}
       project={flow.selectedProject}
-      branches={flow.filteredBranches}
+      branches={filterNewTaskBranches(branchState.refs, branchQuery)}
       selectedBranchName={
         flow.selectedBranchName ??
         flow.availableBranches.find((branch) => branch.current)?.name ??
         flow.availableBranches.find((branch) => branch.isDefault)?.name ??
         null
       }
-      query={flow.branchQuery}
-      onQueryChange={flow.setBranchQuery}
-      loading={flow.branchesLoading}
-      error={flow.branchesError}
-      refreshing={flow.branchesFetchingNextPage}
-      hasMore={flow.hasMoreBranches}
-      onRefresh={flow.loadBranches}
-      onLoadMore={flow.loadMoreBranches}
+      query={branchQuery}
+      onQueryChange={setBranchQuery}
+      loading={branchesLoading}
+      error={branchState.error}
+      refreshing={branchState.isFetchingNextPage}
+      hasMore={branchState.data?.nextCursor !== null && branchState.data?.nextCursor !== undefined}
+      onRefresh={refreshBranches}
+      onLoadMore={branchState.loadNext}
       selectionDisabled={switchingBranchName !== null}
       onSelect={selectBranch}
       worktree={
@@ -510,14 +378,15 @@ export function BranchPickerScreen(props: {
   };
 
   const renderBranch = ({ item, index }: { readonly item: VcsRef; readonly index: number }) => (
-    <BranchSelectionRow
-      badge={branchBadgeLabel({ branch: item, project: props.project })}
-      branch={item}
+    <SelectionRow
+      icon="arrow.triangle.branch"
       disabled={props.selectionDisabled ?? false}
       isFirst={index === 0}
       isLast={index === props.branches.length - 1}
-      onSelect={props.onSelect}
+      onPress={() => props.onSelect(item)}
       selected={selectedBranchName === item.name}
+      subtitle={branchBadgeLabel({ branch: item, project: props.project })?.toUpperCase()}
+      title={item.name}
     />
   );
 
@@ -573,6 +442,7 @@ export function BranchPickerScreen(props: {
       </ScrollView>
     ) : (
       <LegendList
+        renderScrollComponent={Platform.OS === "ios" ? NativeScrollView : undefined}
         alwaysBounceVertical={false}
         automaticallyAdjustsScrollIndicatorInsets
         automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}

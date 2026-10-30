@@ -1,13 +1,6 @@
 import ExpoModulesCore
-// Brings in `state` and `ignore(_:for:)` for the gate and React Native's touch handler.
 import UIKit.UIGestureRecognizerSubclass
 
-/// Keeps the tap that dismisses a native menu from also pressing the React Native view under it.
-///
-/// UIKit passes that tap through the menu's window-level container and only holds it back from
-/// UIResponder touches, so React Native's surface touch handler still delivers a full press
-/// (react-native#58983). Adapted from expo-modules-core's SystemMenuTouchGate (MIT), which Expo
-/// installs only on windows hosting SwiftUI views; this covers MenuView buttons and header menus.
 final class SupatermMenuDismissTouchGate: UIGestureRecognizer, UIGestureRecognizerDelegate {
   static func install(in window: UIWindow) {
     guard !(window.gestureRecognizers ?? []).contains(where: { $0 is SupatermMenuDismissTouchGate }) else {
@@ -18,14 +11,11 @@ final class SupatermMenuDismissTouchGate: UIGestureRecognizer, UIGestureRecogniz
 
   private init() {
     super.init(target: nil, action: nil)
-    // Never hold a touch back, and never give React Native's handler a reason to cancel.
     delaysTouchesEnded = false
     cancelsTouchesInView = false
     delegate = self
   }
 
-  // UIKit asks this before delivering the event's touches to any recognizer, so an ignored touch
-  // never reaches JS as touchStart, pressIn, or press.
   func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive event: UIEvent) -> Bool {
     if let touches = event.allTouches {
       ignoreSurfaceTouches(touches.filter { $0.phase == .began }, for: event)
@@ -55,15 +45,12 @@ final class SupatermMenuDismissTouchGate: UIGestureRecognizer, UIGestureRecogniz
     }
   }
 
-  // UIKit adds this container to the window while a menu is presented, and turns its interaction
-  // off once dismissal commits so taps during the dismiss animation reach the app again.
   private static func isOpenMenuContainer(_ view: UIView) -> Bool {
     view.isUserInteractionEnabled
       && NSStringFromClass(type(of: view)) == "_UI".appending("ContextMenuContainerView")
   }
 }
 
-/// Installs the menu dismiss gate on every window the app shows.
 public final class SupatermMenuDismissTouchGateSubscriber: ExpoAppDelegateSubscriber {
   public func subscriberDidRegister() {
     NotificationCenter.default.addObserver(

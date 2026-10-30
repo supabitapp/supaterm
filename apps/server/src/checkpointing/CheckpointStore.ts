@@ -63,10 +63,6 @@ export class CheckpointStore extends Context.Service<
       input: DiffCheckpointsInput,
     ) => Effect.Effect<string, CheckpointStoreError>;
 
-    /**
-     * Returns null when HEAD did not move or a checkpoint does not record HEAD.
-     * Then every changed path belongs to the turn.
-     */
     readonly listAuthoredPaths: (
       input: ListAuthoredPathsInput,
     ) => Effect.Effect<ReadonlySet<string> | null, CheckpointStoreError>;
@@ -77,7 +73,7 @@ export class CheckpointStore extends Context.Service<
   }
 >()("supaterm/checkpointing/CheckpointStore") {}
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const vcsRegistry = yield* VcsDriverRegistry.VcsDriverRegistry;
 

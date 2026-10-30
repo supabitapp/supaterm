@@ -5,18 +5,7 @@ import {
   type DesktopEnvironmentBootstrap,
 } from "@supaterm/contracts";
 
-/**
- * Desktop-local secondary backends (e.g. a parallel WSL backend) are registered
- * by the connection platform source as bearer connections whose id carries this
- * prefix. It is the renderer's single signal that an environment is a
- * host-managed local backend rather than a user-saved remote or SSH
- * environment.
- *
- * Keep this the one source of truth: the producer (`connection/platform.ts`)
- * mints ids via {@link desktopLocalConnectionId} and every consumer classifies
- * via {@link isDesktopLocalConnectionTarget}, so the convention can never drift
- * between the two.
- */
+/** Identifies host-managed backends consistently in the connection producer and consumers. */
 const DESKTOP_LOCAL_CONNECTION_ID_PREFIX = "local:";
 
 export function desktopLocalConnectionId(backendId: string): string {

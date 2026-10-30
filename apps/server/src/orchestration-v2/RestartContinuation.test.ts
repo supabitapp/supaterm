@@ -191,12 +191,12 @@ it("does not continue settled root runs with restart-cancelled background work",
 });
 
 it.effect.each(["completed", "waiting", "cancelled"] as const)(
-  "wakes a %s run whose monitor the restart cancelled, with the note as its prompt",
+  "wakes a %s run whose awaited monitor the restart cancelled, with the note as its prompt",
   (status) =>
     Effect.gen(function* () {
       const base = makeProjection();
       const work = [
-        { kind: "monitor" as const, label: "Watch CI run 42" },
+        { kind: "monitor" as const, label: "Watch CI run 42", awaited: true as const },
         { kind: "shell" as const, label: "vp run dev" },
       ];
       const projection = {
@@ -368,7 +368,6 @@ it.effect.each(["running", "waiting"])(
           { ...base.providerTurns[0]!, status: status === "waiting" ? "completed" : "running" },
         ],
         turnItems: [
-          // Codex keeps a native subagent on its own child provider thread.
           item("item:native", {
             type: "subagent",
             origin: "provider_native",
@@ -408,8 +407,6 @@ it.effect.each(["running", "waiting"])(
       const work = (committed?.events ?? []).flatMap((event) =>
         event.type === "run.background-work-cancelled" ? [event.payload] : [],
       );
-      // The subagent is reported on the run that awaited it. A running run's
-      // shell died with its turn.
       assert.deepEqual(work, [
         {
           runId,
@@ -737,7 +734,6 @@ it.effect("wakes a run whose subagent's own shell the restart cut, past a wake i
         providerTurns: [{ ...base.providerTurns[0]!, status: "completed" }],
       }) as unknown as OrchestrationV2ThreadProjection;
     assert.equal(restartContinuationRun(withShell("agent:1"), now)?.id, runId);
-    // A shell the agent started itself still does not wake it.
     assert.isUndefined(restartContinuationRun(withShell(), now));
 
     const texts = yield* continuationTexts({
@@ -758,7 +754,6 @@ it.effect("wakes a run whose subagent's own shell the restart cut, past a wake i
     } as unknown as OrchestrationV2ThreadProjection);
     assert.lengthOf(texts, 1);
     assert.include(texts[0], "- subagent: sleep 150 (subagent agent:1)");
-    // A run the user stopped before it started still takes precedence.
     const stopped = yield* continuationTexts({
       ...base,
       runs: [

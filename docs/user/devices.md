@@ -23,7 +23,7 @@ Choose **Float device over chat** in the toolbar to keep watching and tapping th
 device in a small window while the right panel shows something else; drag the
 window by its handle, resize it from any edge, and use **Open in right panel**
 to bring it back.
-Turn off the device hub in **Settings → Integrations → Devices** to stop the
+Turn off the device hub in **Settings → Devices** to stop the
 helper processes; simulators and emulators keep running until you power them
 off.
 
@@ -71,9 +71,11 @@ back from the device after a change.
 
 When an agent opens a device, it floats over the chat in web and desktop clients
 connected to the thread, the same way an agent-driven browser does. Turn off
-**Auto-show floating preview** in **Settings → Integrations → Browser** to open a
+**Auto-show floating preview** in **Settings → Browser** to open a
 right-panel tab instead. In the mobile app, open the agent's thread and tap the
 device button above the composer to watch the live screen and control it.
+On iOS layouts with an inspector, a device can open beside the thread. Maximize it to fill the
+screen and close that view to return to the inspector.
 If the thread has several devices open, choose one in the viewer. Closing the
 viewer stops streaming and leaves the device available to the agent. Device
 activity also appears in the thread timeline.
@@ -85,7 +87,7 @@ once per server. After enabling the device hub or agent access, restart existing
 agent sessions so they receive the device CLI environment.
 
 To keep agents away from simulators, turn off **Agent device access** in
-**Settings → Integrations → Devices**. This hides the device tools from agents
+**Settings → Devices**. This hides the device tools from agents
 started from then on; your own Device panel is unaffected.
 
 ## Remote connections
@@ -97,7 +99,7 @@ falls back to a slower still-image stream and Android cannot show video.
 
 ## SSH device hosts
 
-In Settings → Integrations → Devices, choose the environments that should use
+In Settings → Devices, choose the environments that should use
 the host and add it under **Device hosts**. Enter an SSH alias or `user@host`, with
 an optional identity file and port. These resolve on the environment server,
 so use the SSH configuration and keys available there. Password prompts are
@@ -124,6 +126,16 @@ localhost without forwarding or another reachable address.
 
 ## Device tool updates
 
-The connected Supaterm server manages the device hub and agent tools on its own machine and configured SSH hosts. Required versions install automatically the next time those tools are used. Settings → Integrations → Check device tool versions reads installed versions without installing tools or starting devices.
+The connected Supaterm server manages the device hub and agent tools on its own machine and configured SSH hosts. Required versions install automatically the next time those tools are used. Settings → Devices → Check versions reads installed versions without installing tools or starting devices.
 
 To receive newer tool versions on a remote environment, update that environment's Supaterm server. Updating only the browser or mobile app does not update the remote server. An offline host keeps its installed files, but an update needs network access before device support can start; Supaterm does not fall back to an older version. Reconnect the host and use Retry if installation fails. Existing device and agent-access settings are preserved.
+
+## Device pools
+
+Enable **Simlock device hosts** in **Settings → Labs** to connect a self-hosted device pool.
+Add its endpoint and credentials in **Settings → Devices**. Opening a pooled device leases it;
+close the session when finished so others can use it. Pool access is off by default and needs
+a compatible gateway.
+
+EAS device hosts support iOS and Android simulator sessions. Device availability and controls
+depend on the selected host; an unavailable target does not become available by changing clients.

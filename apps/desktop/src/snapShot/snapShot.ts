@@ -23,7 +23,6 @@ interface AccessibilityTreeNode {
 }
 
 const MAX_ACCESSIBILITY_TREE_NODES = 10_000;
-const WINDOW_BLUR_TIMEOUT_MS = 1_000;
 
 export const WINDOWS_MODIFIER_PAIR_VIRTUAL_KEYS: Record<
   SnapShotModifier,
@@ -438,25 +437,6 @@ export async function accessibleWindowElementTree(
   return { root: compacted.root, truncated: completedTruncated };
 }
 
-export function hideAndWaitForBlur(window: {
-  readonly hide: () => void;
-  readonly once: (event: "blur", listener: () => void) => unknown;
-  readonly removeListener: (event: "blur", listener: () => void) => unknown;
-}): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      window.removeListener("blur", onBlur);
-      reject(new Error("Timed out waiting for Supaterm to lose focus."));
-    }, WINDOW_BLUR_TIMEOUT_MS);
-    const onBlur = () => {
-      clearTimeout(timeout);
-      resolve();
-    };
-    window.once("blur", onBlur);
-    window.hide();
-  });
-}
-
 type WindowBounds = {
   readonly x: number;
   readonly y: number;
@@ -485,7 +465,7 @@ export function findAccessibleWindow<
 ): T | undefined {
   const normalizeTitle = (value: string) => {
     const title = value.trim();
-    // Terminal apps can animate a leading CLI spinner between capture and AT-SPI lookup.
+
     return matchMode === "wayland" ? title.replace(/^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏](?:\s+|$)/u, "") : title;
   };
   const titles = new Set(
@@ -494,7 +474,7 @@ export function findAccessibleWindow<
       return normalized ? [normalized] : [];
     }),
   );
-  // Wayland accessibility providers can expose window size without a screen position.
+
   const boundsKeys =
     matchMode === "wayland"
       ? (["width", "height"] as const)
@@ -523,8 +503,7 @@ export function findAccessibleWindow<
     const browserMatch = findBrowserTitleMatch(windows, titles, captured, matchMode, matchesBounds);
     if (browserMatch) return browserMatch;
   }
-  // GTK4/libadwaita often exposes the frame as an unnamed group. A PID-scoped
-  // lookup can accept the one window whose bounds match; size-only guesses cannot.
+
   if (!options.allowUntitledUniqueBounds) return undefined;
   const boundsMatches = windows.filter(
     (window) => normalizeTitle(window.name ?? "") === "" && matchesBounds(window),
@@ -532,7 +511,6 @@ export function findAccessibleWindow<
   return boundsMatches.length === 1 ? boundsMatches[0] : undefined;
 }
 
-// Chrome's macOS AX title can append the browser and profile to the captured page title.
 function findBrowserTitleMatch<T extends { readonly name?: string | null }>(
   windows: readonly T[],
   titles: ReadonlySet<string>,
@@ -593,30 +571,6 @@ export function toElectronAccelerator(shortcut: SnapShotKeyChord): string {
   if (shortcut.shiftKey) parts.push("Shift");
   parts.push(ELECTRON_KEY_NAMES[shortcut.key] ?? shortcut.key.toUpperCase());
   return parts.join("+");
-}
-
-interface CaptureSourceLike {
-  readonly id: string;
-  readonly name: string;
-}
-
-interface ActiveWindowLike {
-  readonly id: number;
-  readonly title: string;
-}
-
-export function findCaptureSource<T extends CaptureSourceLike>(
-  sources: readonly T[],
-  activeWindow: ActiveWindowLike,
-): T | undefined {
-  const idPrefix = `window:${activeWindow.id}:`;
-  const idMatch = sources.find((source) => source.id.startsWith(idPrefix));
-  if (idMatch) return idMatch;
-
-  const title = activeWindow.title.trim();
-  if (!title) return undefined;
-  const titleMatches = sources.filter((source) => source.name.trim() === title);
-  return titleMatches.length === 1 ? titleMatches[0] : undefined;
 }
 
 export function isWaylandSession(

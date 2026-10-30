@@ -17,6 +17,7 @@ import * as Ref from "effect/Ref";
 import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import * as SubscriptionRef from "effect/SubscriptionRef";
+import * as TestClock from "effect/testing/TestClock";
 
 import { AVAILABLE_CONNECTION_STATE } from "../connection/model.ts";
 import * as EnvironmentSupervisor from "../connection/supervisor.ts";
@@ -24,7 +25,7 @@ import * as ConnectionWakeups from "../connection/wakeups.ts";
 import * as Persistence from "../platform/persistence.ts";
 import * as RpcSession from "../rpc/session.ts";
 import type { WsRpcProtocolClient } from "../rpc/protocol.ts";
-import { makeEnvironmentShellState } from "./shell.ts";
+import { type EnvironmentShellState, makeEnvironmentShellState } from "./shell.ts";
 import * as ShellSnapshotLoader from "./shellSnapshotHttp.ts";
 import { v2Project, v2ShellSnapshot, v2ThreadShell } from "./orchestrationV2TestFixtures.ts";
 import { LIVE_SHELL_SNAPSHOT, PREPARED, TARGET, session } from "./shellSyncTestFixtures.ts";
@@ -212,9 +213,7 @@ describe("environment shell synchronization", () => {
       expect(yield* SubscriptionRef.get(capturedAfterSequences)).toEqual([10, 40, 40]);
 
       yield* PubSub.publish(wakeups, "application-background");
-      for (let attempt = 0; attempt < 10; attempt += 1) {
-        yield* Effect.yieldNow;
-      }
+      yield* Effect.yieldNow;
       expect((yield* SubscriptionRef.get(capturedAfterSequences)).length).toBe(3);
       expect(yield* Ref.get(loaderCalls)).toBe(1);
 
@@ -225,6 +224,161 @@ describe("environment shell synchronization", () => {
       );
       expect(yield* SubscriptionRef.get(capturedAfterSequences)).toEqual([10, 40, 40, 20]);
       expect(yield* Ref.get(loaderCalls)).toBe(2);
+    }),
+  );
+});
+
+const makePersistenceHarness = Effect.fn("test.makeShellPersistenceHarness")(function* (
+  saveShell: Persistence.EnvironmentCacheStore["Service"]["saveShell"],
+) {
+  const events = yield* Queue.unbounded<OrchestrationV2ShellStreamItem>();
+  const client = {
+    [ORCHESTRATION_V2_WS_METHODS.subscribeShell]: () => Stream.fromQueue(events),
+  } as unknown as WsRpcProtocolClient;
+  const supervisor = EnvironmentSupervisor.EnvironmentSupervisor.of({
+    target: TARGET,
+    state: yield* SubscriptionRef.make(AVAILABLE_CONNECTION_STATE),
+    session: yield* SubscriptionRef.make(Option.some(session(client))),
+    prepared: yield* SubscriptionRef.make(Option.some(PREPARED)),
+    connect: Effect.void,
+    disconnect: Effect.void,
+    retryNow: Effect.void,
+  });
+  const cache = Persistence.EnvironmentCacheStore.of({
+    loadShell: () => Effect.succeedNone,
+    saveShell,
+    loadThread: () => Effect.succeedNone,
+    saveThread: () => Effect.void,
+    removeThread: () => Effect.void,
+    loadServerConfig: () => Effect.succeedNone,
+    saveServerConfig: () => Effect.void,
+    loadVcsRefs: () => Effect.succeedNone,
+    saveVcsRefs: () => Effect.void,
+    removeVcsRefs: () => Effect.void,
+    clearVcsRefs: () => Effect.void,
+    clear: () => Effect.void,
+  });
+  const state = yield* makeEnvironmentShellState().pipe(
+    Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor),
+    Effect.provideService(Persistence.EnvironmentCacheStore, cache),
+    Effect.provideService(ShellSnapshotLoader.ShellSnapshotLoader, {
+      load: () => Effect.succeedNone,
+    }),
+  );
+  const send = Effect.fn("test.sendShellItem")(function* (
+    item: OrchestrationV2ShellStreamItem,
+    ready: (snapshot: OrchestrationV2ShellSnapshot) => boolean,
+  ) {
+    const previous = yield* SubscriptionRef.get(state);
+    yield* Queue.offer(events, item);
+    return yield* SubscriptionRef.changes(state).pipe(
+      Stream.filter((value) => value !== previous),
+      Stream.map((value) => value.snapshot),
+      Stream.filter(Option.isSome),
+      Stream.map((value) => value.value),
+      Stream.filter(ready),
+      Stream.runHead,
+      Effect.map(Option.getOrThrow),
+    );
+  });
+  yield* send({ kind: "snapshot", snapshot: LIVE_SHELL_SNAPSHOT }, () => true);
+  return { state, send };
+});
+
+describe("shell persistence and synchronization", () => {
+  it.effect("skips unchanged shell writes, persists resets and flushes changed rows", () =>
+    Effect.gen(function* () {
+      const saved = yield* SubscriptionRef.make<ReadonlyArray<OrchestrationV2ShellSnapshot>>([]);
+      yield* Effect.scoped(
+        Effect.gen(function* () {
+          const h = yield* makePersistenceHarness((_id, snapshot) =>
+            SubscriptionRef.update(saved, (values) => [...values, snapshot]),
+          );
+          yield* TestClock.adjust("500 millis");
+          yield* h.send(
+            { kind: "thread.updated", sequence: 10, location: "active", thread: v2ThreadShell },
+            (snapshot) => snapshot.snapshotSequence === 10,
+          );
+          yield* TestClock.adjust("10 seconds");
+          expect(
+            (yield* SubscriptionRef.get(saved)).map((snapshot) => snapshot.snapshotSequence),
+          ).toEqual([1]);
+          const live = Option.getOrThrow((yield* SubscriptionRef.get(h.state)).snapshot);
+          expect(live.snapshotSequence).toBe(10);
+          const enriched = yield* h.send(
+            {
+              kind: "snapshot",
+              snapshot: { ...live, projects: live.projects.map((project) => ({ ...project })) },
+              resolvedRepositoryIdentityRoots: live.projects.map(
+                (project) => project.workspaceRoot,
+              ),
+            },
+            () => true,
+          );
+          expect(enriched.projects).toEqual(live.projects);
+          expect(enriched.snapshotSequence).toBe(10);
+          yield* TestClock.adjust("10 seconds");
+          expect(
+            (yield* SubscriptionRef.get(saved)).map((snapshot) => snapshot.snapshotSequence),
+          ).toEqual([1]);
+          yield* h.send(
+            { kind: "snapshot", snapshot: { ...LIVE_SHELL_SNAPSHOT, snapshotSequence: 4 } },
+            (snapshot) => snapshot.snapshotSequence === 4,
+          );
+          yield* TestClock.adjust("10 seconds");
+          yield* h.send(
+            {
+              kind: "snapshot",
+              snapshot: {
+                ...LIVE_SHELL_SNAPSHOT,
+                snapshotSequence: 4,
+                projects: [{ ...v2Project, title: "Changed at same sequence" }],
+              },
+            },
+            (snapshot) => snapshot.projects[0]?.title === "Changed at same sequence",
+          );
+        }),
+      );
+      expect(
+        (yield* SubscriptionRef.get(saved)).map((snapshot) => [
+          snapshot.snapshotSequence,
+          snapshot.projects[0]?.title,
+        ]),
+      ).toEqual([
+        [1, v2Project.title],
+        [4, v2Project.title],
+        [4, "Changed at same sequence"],
+      ]);
+    }),
+  );
+
+  it.effect("retries a failed shell save after a cursor-only update", () =>
+    Effect.gen(function* () {
+      const attempts = yield* Ref.make<ReadonlyArray<number>>([]);
+      yield* Effect.scoped(
+        Effect.gen(function* () {
+          const h = yield* makePersistenceHarness((_id, snapshot) =>
+            Effect.gen(function* () {
+              const values = yield* Ref.updateAndGet(attempts, (values) => [
+                ...values,
+                snapshot.snapshotSequence,
+              ]);
+              if (values.length === 1)
+                return yield* new Persistence.ConnectionPersistenceError({
+                  operation: "save-shell",
+                  message: "test failure",
+                });
+            }),
+          );
+          yield* TestClock.adjust("500 millis");
+          yield* h.send(
+            { kind: "thread.updated", sequence: 2, location: "active", thread: v2ThreadShell },
+            (snapshot) => snapshot.snapshotSequence === 2,
+          );
+          yield* TestClock.adjust("10 seconds");
+        }),
+      );
+      expect(yield* Ref.get(attempts)).toEqual([1, 2]);
     }),
   );
 
@@ -251,25 +405,25 @@ describe("environment shell synchronization", () => {
         retryNow: Effect.void,
       } satisfies EnvironmentSupervisor.EnvironmentSupervisor["Service"]);
       const cache = Persistence.EnvironmentCacheStore.of({
-        loadShell: () => Effect.succeed(Option.none()),
+        loadShell: () => Effect.succeedNone,
         saveShell: (_environmentId, snapshot) =>
           Deferred.succeed(saveStarted, undefined).pipe(
             Effect.andThen(Deferred.await(releaseSave)),
             Effect.andThen(SubscriptionRef.update(saved, (values) => [...values, snapshot])),
           ),
-        loadThread: () => Effect.succeed(Option.none()),
+        loadThread: () => Effect.succeedNone,
         saveThread: () => Effect.void,
         removeThread: () => Effect.void,
-        loadServerConfig: () => Effect.succeed(Option.none()),
+        loadServerConfig: () => Effect.succeedNone,
         saveServerConfig: () => Effect.void,
-        loadVcsRefs: () => Effect.succeed(Option.none()),
+        loadVcsRefs: () => Effect.succeedNone,
         saveVcsRefs: () => Effect.void,
         removeVcsRefs: () => Effect.void,
         clearVcsRefs: () => Effect.void,
         clear: () => Effect.void,
       });
       const snapshotLoader = ShellSnapshotLoader.ShellSnapshotLoader.of({
-        load: () => Effect.succeed(Option.none()),
+        load: () => Effect.succeedNone,
       });
 
       const shellState = yield* makeEnvironmentShellState().pipe(
@@ -390,7 +544,7 @@ describe("environment shell synchronization", () => {
         retryNow: Effect.void,
       } satisfies EnvironmentSupervisor.EnvironmentSupervisor["Service"]);
       const cache = Persistence.EnvironmentCacheStore.of({
-        loadShell: () => Effect.succeed(Option.none()),
+        loadShell: () => Effect.succeedNone,
         saveShell: (_environmentId, snapshot) =>
           Effect.gen(function* () {
             if (snapshot.projects[0]?.repositoryIdentity == null) {
@@ -399,19 +553,19 @@ describe("environment shell synchronization", () => {
             }
             yield* SubscriptionRef.update(saved, (values) => [...values, snapshot]);
           }),
-        loadThread: () => Effect.succeed(Option.none()),
+        loadThread: () => Effect.succeedNone,
         saveThread: () => Effect.void,
         removeThread: () => Effect.void,
-        loadServerConfig: () => Effect.succeed(Option.none()),
+        loadServerConfig: () => Effect.succeedNone,
         saveServerConfig: () => Effect.void,
-        loadVcsRefs: () => Effect.succeed(Option.none()),
+        loadVcsRefs: () => Effect.succeedNone,
         saveVcsRefs: () => Effect.void,
         removeVcsRefs: () => Effect.void,
         clearVcsRefs: () => Effect.void,
         clear: () => Effect.void,
       });
       const snapshotLoader = ShellSnapshotLoader.ShellSnapshotLoader.of({
-        load: () => Effect.succeed(Option.none()),
+        load: () => Effect.succeedNone,
       });
 
       const shellState = yield* makeEnvironmentShellState().pipe(
@@ -509,25 +663,25 @@ describe("environment shell synchronization", () => {
         retryNow: Effect.void,
       } satisfies EnvironmentSupervisor.EnvironmentSupervisor["Service"]);
       const cache = Persistence.EnvironmentCacheStore.of({
-        loadShell: () => Effect.succeed(Option.none()),
+        loadShell: () => Effect.succeedNone,
         saveShell: (_environmentId, snapshot) =>
           Deferred.succeed(saveStarted, undefined).pipe(
             Effect.andThen(Deferred.await(releaseSave)),
             Effect.andThen(SubscriptionRef.update(saved, (values) => [...values, snapshot])),
           ),
-        loadThread: () => Effect.succeed(Option.none()),
+        loadThread: () => Effect.succeedNone,
         saveThread: () => Effect.void,
         removeThread: () => Effect.void,
-        loadServerConfig: () => Effect.succeed(Option.none()),
+        loadServerConfig: () => Effect.succeedNone,
         saveServerConfig: () => Effect.void,
-        loadVcsRefs: () => Effect.succeed(Option.none()),
+        loadVcsRefs: () => Effect.succeedNone,
         saveVcsRefs: () => Effect.void,
         removeVcsRefs: () => Effect.void,
         clearVcsRefs: () => Effect.void,
         clear: () => Effect.void,
       });
       const snapshotLoader = ShellSnapshotLoader.ShellSnapshotLoader.of({
-        load: () => Effect.succeed(Option.none()),
+        load: () => Effect.succeedNone,
       });
 
       const scope = yield* Scope.make();
@@ -606,21 +760,21 @@ describe("environment shell synchronization", () => {
         retryNow: Effect.void,
       } satisfies EnvironmentSupervisor.EnvironmentSupervisor["Service"]);
       const cache = Persistence.EnvironmentCacheStore.of({
-        loadShell: () => Effect.succeed(Option.some(cachedSnapshot)),
+        loadShell: () => Effect.succeedSome(cachedSnapshot),
         saveShell: () => Effect.void,
-        loadThread: () => Effect.succeed(Option.none()),
+        loadThread: () => Effect.succeedNone,
         saveThread: () => Effect.void,
         removeThread: () => Effect.void,
-        loadServerConfig: () => Effect.succeed(Option.none()),
+        loadServerConfig: () => Effect.succeedNone,
         saveServerConfig: () => Effect.void,
-        loadVcsRefs: () => Effect.succeed(Option.none()),
+        loadVcsRefs: () => Effect.succeedNone,
         saveVcsRefs: () => Effect.void,
         removeVcsRefs: () => Effect.void,
         clearVcsRefs: () => Effect.void,
         clear: () => Effect.void,
       });
       const snapshotLoader = ShellSnapshotLoader.ShellSnapshotLoader.of({
-        load: () => Effect.succeed(Option.some(httpSnapshot)),
+        load: () => Effect.succeedSome(httpSnapshot),
       });
       const shellState = yield* makeEnvironmentShellState().pipe(
         Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor),
@@ -638,6 +792,101 @@ describe("environment shell synchronization", () => {
       const state = yield* SubscriptionRef.get(shellState);
       expect(Option.getOrThrow(state.snapshot).snapshotSequence).toBe(4);
       expect(Option.getOrThrow(state.snapshot).projects[0]?.title).toBe("Server reset");
+    }),
+  );
+
+  it.effect("opts in to shell omissions and counts authoritative snapshots and removals", () =>
+    Effect.gen(function* () {
+      const events = yield* Queue.unbounded<OrchestrationV2ShellStreamItem>();
+      const subscribeInput = yield* Deferred.make<unknown>();
+      const loadOptions = yield* Ref.make<ReadonlyArray<unknown>>([]);
+      const client = {
+        [ORCHESTRATION_V2_WS_METHODS.subscribeShell]: (input: unknown) =>
+          Stream.unwrap(
+            Deferred.succeed(subscribeInput, input).pipe(Effect.as(Stream.fromQueue(events))),
+          ),
+      } as unknown as WsRpcProtocolClient;
+      const familySession: RpcSession.RpcSession = {
+        ...session(client),
+        initialConfig: Effect.succeed({
+          shellResumeCompletionMarker: true,
+          shellThreadFamilies: true,
+          shellOlderSettled: true,
+        } as never),
+      };
+      const supervisor = EnvironmentSupervisor.EnvironmentSupervisor.of({
+        target: TARGET,
+        state: yield* SubscriptionRef.make(AVAILABLE_CONNECTION_STATE),
+        session: yield* SubscriptionRef.make(Option.some(familySession)),
+        prepared: yield* SubscriptionRef.make(Option.some(PREPARED)),
+        connect: Effect.void,
+        disconnect: Effect.void,
+        retryNow: Effect.void,
+      } satisfies EnvironmentSupervisor.EnvironmentSupervisor["Service"]);
+      const cache = Persistence.EnvironmentCacheStore.of({
+        loadShell: () => Effect.succeedNone,
+        saveShell: () => Effect.void,
+        loadThread: () => Effect.succeedNone,
+        saveThread: () => Effect.void,
+        removeThread: () => Effect.void,
+        loadServerConfig: () => Effect.succeedNone,
+        saveServerConfig: () => Effect.void,
+        loadVcsRefs: () => Effect.succeedNone,
+        saveVcsRefs: () => Effect.void,
+        removeVcsRefs: () => Effect.void,
+        clearVcsRefs: () => Effect.void,
+        clear: () => Effect.void,
+      });
+      const snapshotLoader = ShellSnapshotLoader.ShellSnapshotLoader.of({
+        load: (_prepared, options) =>
+          Ref.update(loadOptions, (all) => [...all, options]).pipe(
+            Effect.as(Option.some(LIVE_SHELL_SNAPSHOT)),
+          ),
+      });
+      const shellState = yield* makeEnvironmentShellState().pipe(
+        Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor),
+        Effect.provideService(Persistence.EnvironmentCacheStore, cache),
+        Effect.provideService(ShellSnapshotLoader.ShellSnapshotLoader, snapshotLoader),
+      );
+      const stateWhere = (predicate: (state: EnvironmentShellState) => boolean) =>
+        SubscriptionRef.changes(shellState).pipe(Stream.filter(predicate), Stream.runHead);
+
+      expect(yield* Deferred.await(subscribeInput)).toMatchObject({
+        afterSequence: 1,
+        omitIdleSubagents: true,
+        omitOlderSettled: true,
+      });
+      expect(yield* Ref.get(loadOptions)).toEqual([
+        { omitIdleSubagents: true, omitOlderSettled: true },
+      ]);
+      const loaded = Option.getOrThrow(yield* stateWhere((state) => state.generation > 0));
+      expect(loaded.removedAt.size).toBe(0);
+
+      const gone = ThreadId.make("thread-gone");
+      yield* Queue.offer(events, {
+        kind: "snapshot",
+        snapshot: { ...LIVE_SHELL_SNAPSHOT, threads: [] },
+        resolvedRepositoryIdentityRoots: [],
+      });
+      yield* Queue.offer(events, {
+        kind: "thread.removed",
+        sequence: 2,
+        location: "active",
+        threadId: gone,
+      });
+      const removed = Option.getOrThrow(yield* stateWhere((state) => state.removedAt.size > 0));
+
+      expect(removed.generation).toBe(loaded.generation);
+      expect(removed.removedAt.get(gone)).toBe(2);
+
+      yield* Queue.offer(events, {
+        kind: "snapshot",
+        snapshot: { ...LIVE_SHELL_SNAPSHOT, snapshotSequence: 5 },
+      });
+      const reset = Option.getOrThrow(
+        yield* stateWhere((state) => state.generation > loaded.generation),
+      );
+      expect(reset.removedAt.size).toBe(0);
     }),
   );
 

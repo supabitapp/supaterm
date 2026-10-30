@@ -20,9 +20,6 @@ export const CLAUDE_BACKGROUND_SUBAGENT_LIFECYCLE_RESUME_PROMPT = [
 
 export const CLAUDE_BACKGROUND_SUBAGENT_LIFECYCLE_FINAL_PROMPT = "Reply with exactly: ALL_DONE";
 
-// Each wake turn reports a notification that landed during the turn before
-// it, so the wake result is what starts its continuation run. Each next prompt
-// waits for that run to settle, as the recording waited for the wake turn.
 export function claudeBackgroundSubagentLifecycleInput(): OrchestratorFixtureInput {
   return {
     steps: [

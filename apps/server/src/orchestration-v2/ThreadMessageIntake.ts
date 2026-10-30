@@ -11,8 +11,6 @@ import * as AttachmentClaims from "./AttachmentClaims.ts";
 import * as ThreadLaunch from "./ThreadLaunchService.ts";
 import * as ThreadManagement from "./ThreadManagementService.ts";
 
-// These dispatcher failures occur in receipt validation or planning, before
-// commitCommand. Generic dispatch errors can follow a commit and remain uncertain.
 function dispatchWasNotAccepted(
   error: Orchestrator.OrchestratorV2Error | ThreadManagement.ThreadManagementError,
 ) {
@@ -41,21 +39,44 @@ const releaseUnusedClaims = Effect.fn("ThreadMessageIntake.releaseUnusedClaims")
   if (claimedPaths.length === 0) return;
   const config = yield* ServerConfig.ServerConfig;
   const retained = new Set(
-    accepted.map((attachment) =>
-      resolveAttachmentPath({
+    accepted.flatMap((attachment) => {
+      const path = resolveAttachmentPath({
         attachmentsDir: config.attachmentsDir,
         attachment,
-      }),
-    ),
+      });
+      return path ? [path, `${path}.txt`] : [];
+    }),
   );
   yield* AttachmentClaims.releaseClaimedAttachments(
     claimedPaths.filter((path) => !retained.has(path)),
   );
 });
 
-export const dispatchCommand = Effect.fn("ThreadMessageIntake.dispatchCommand")(function* (
-  command: OrchestrationV2Command,
+const withGuestAttachments = Effect.fn("ThreadMessageIntake.withGuestAttachments")(function* (
+  command: Extract<OrchestrationV2Command, { readonly type: "message.dispatch" }>,
 ) {
+  if (command.guestMessageId === undefined) return command;
+  const threads = yield* ThreadManagement.ThreadManagementService;
+  const { thread } = yield* threads.getThreadRecords(command.threadId, []).pipe(
+    Effect.mapError(
+      (cause) =>
+        new AttachmentClaims.AttachmentClaimError({
+          message: "Failed to read the guest message.",
+          cause,
+        }),
+    ),
+  );
+  const message = thread.guestShare?.messages.find(
+    (candidate) => candidate.id === command.guestMessageId && candidate.status === "pending",
+  );
+  return { ...command, attachments: message?.attachments ?? [] };
+});
+
+export const dispatchCommand = Effect.fn("ThreadMessageIntake.dispatchCommand")(function* (
+  incoming: OrchestrationV2Command,
+) {
+  const command =
+    incoming.type === "message.dispatch" ? yield* withGuestAttachments(incoming) : incoming;
   const threads = yield* ThreadManagement.ThreadManagementService;
   if (command.type === "runtime-request.respond" && command.attachmentsByQuestionId) {
     const config = yield* ServerConfig.ServerConfig;
@@ -94,12 +115,6 @@ export const dispatchCommand = Effect.fn("ThreadMessageIntake.dispatchCommand")(
       })
       .pipe(
         Effect.tap((result) => {
-          // A replayed receipt reports the first attempt's answer, so this
-          // attempt's copies go unreferenced and are released. The resolved
-          // turn item proves the respond was applied; questionAnswer is only
-          // recorded when the accepted command carried attachments, so its
-          // absence means the accepted answer referenced no copies. With no
-          // resolved item at all the outcome is ambiguous and everything stays.
           const answeredItems = result.storedEvents.flatMap(({ event }) =>
             event.type === "turn-item.updated" &&
             event.payload.type === "user_input_request" &&
@@ -225,8 +240,6 @@ export const launchThread = Effect.fn("ThreadMessageIntake.launchThread")(functi
         if (error._tag === "ThreadManagementProviderInstanceDisabledError") {
           return AttachmentClaims.releaseClaimedAttachments(claimed.claimedPaths);
         }
-        // Project/receipt reads precede message dispatch. The create-thread error
-        // also wraps post-message projection reads, so its tag alone is not proof.
         const notAccepted =
           error.operation === "resolve-project" ||
           error.operation === "read-receipt" ||

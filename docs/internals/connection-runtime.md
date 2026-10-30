@@ -129,3 +129,14 @@ follow replacement sessions. After a transport failure they wait for the
 supervisor; an expected domain failure may resubscribe on the same healthy
 session. Reconnection does not automatically replay mutations, whose retry and
 idempotency rules belong to the operation.
+
+## Sparse shell state
+
+A cold shell can omit idle descendants and older settled threads. Absence from that shell does
+not mean deletion: thread-family and worktree queries remain authoritative. Merge responses
+within their connection generation and retain deletion tombstones so a late response cannot
+resurrect a removed thread. Every visible pane and queued target must acquire the family it uses.
+
+Recent inbound frames prove that a socket is alive. Resume checks should preserve that socket
+and probe a silent one without treating a cached HTTP response as liveness evidence. Keep
+route-specific time budgets in the shared connection owner, including encrypted relay routes.

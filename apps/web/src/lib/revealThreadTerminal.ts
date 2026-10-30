@@ -1,6 +1,7 @@
 import type { ScopedThreadRef } from "@supaterm/contracts";
 
 import { selectThreadRightPanelState, useRightPanelStore } from "../rightPanelStore";
+import { focusTerminalOnNavigation } from "./terminalFocus";
 import { useTerminalUiStateStore } from "../terminalUiStateStore";
 
 export function revealThreadTerminal(threadRef: ScopedThreadRef, terminalId: string) {
@@ -11,10 +12,12 @@ export function revealThreadTerminal(threadRef: ScopedThreadRef, terminalId: str
   if (surface) {
     panels.activateTerminal(threadRef, surface.id, terminalId);
     panels.activateSurface(threadRef, surface.id);
+    focusTerminalOnNavigation(threadRef, terminalId);
     return;
   }
   useTerminalUiStateStore.getState().ensureTerminal(threadRef, terminalId, {
     open: true,
     active: true,
   });
+  focusTerminalOnNavigation(threadRef, terminalId);
 }

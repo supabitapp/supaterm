@@ -1,0 +1,185 @@
+import * as RemoteLaunchJournal from "./RemoteLaunchJournal.ts";
+import * as RelayCompanion from "../relay/RelayCompanion.ts";
+import * as NodeServices from "@effect/platform-node/NodeServices";
+import {
+  EnvironmentHttpApi,
+  EnvironmentId,
+  type AuthMcpClientAccess,
+  type ExecutionEnvironmentDescriptor,
+} from "@supaterm/contracts";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as Ref from "effect/Ref";
+import * as FetchHttpClient from "effect/http/FetchHttpClient";
+import * as HttpRouter from "effect/http/HttpRouter";
+import * as HttpServer from "effect/http/HttpServer";
+import * as HttpServerRequest from "effect/http/HttpServerRequest";
+import * as HttpApi from "effect/http-api/HttpApi";
+import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
+
+import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
+import * as AuthHttp from "../auth/http.ts";
+import * as McpOAuth from "../auth/McpOAuth.ts";
+import * as McpOAuthHttp from "../auth/mcpOAuthHttp.ts";
+import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
+import * as ServerConfig from "../config.ts";
+import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
+import * as ServerHttp from "../http.ts";
+import * as McpHttpServer from "../mcp/McpHttpServer.ts";
+import * as McpSessionRegistry from "../mcp/McpSessionRegistry.ts";
+import * as Sqlite from "../persistence/Sqlite.ts";
+import * as PeerLinks from "./PeerLinks.ts";
+import * as ServerSettings from "../serverSettings.ts";
+import * as PeerMcpClient from "./PeerMcpClient.ts";
+
+class PeerTestApi extends HttpApi.make("environment")
+  .add(EnvironmentHttpApi.groups.metadata)
+  .add(EnvironmentHttpApi.groups.mcpOAuth) {}
+
+export const descriptorOf = (
+  environmentId: string,
+  label: string,
+  capabilities: Partial<ExecutionEnvironmentDescriptor["capabilities"]> = {},
+): ExecutionEnvironmentDescriptor => ({
+  environmentId: EnvironmentId.make(environmentId),
+  label,
+  platform: { os: "linux", arch: "x64" },
+  serverVersion: "0.0.0-test",
+  orchestrationProtocolVersion: 2,
+  capabilities: {
+    mcpModeLimitHeader: true,
+    linkFence: true,
+    ...capabilities,
+  },
+});
+
+export const servePeer = <E, R>(
+  initial: ExecutionEnvironmentDescriptor,
+  tools: Layer.Layer<never, E, R>,
+) =>
+  Effect.gen(function* () {
+    const descriptor = yield* Ref.make(initial);
+    const bearers = yield* Ref.make<ReadonlyArray<string>>([]);
+    const probes = yield* Ref.make(0);
+    const layerEnvironment = Layer.succeed(ServerEnvironment.ServerEnvironment, {
+      getEnvironmentId: Ref.get(descriptor).pipe(Effect.map((current) => current.environmentId)),
+      getDescriptor: Ref.get(descriptor),
+    });
+    const authContext = yield* EnvironmentAuth.layer.pipe(
+      Layer.provideMerge(ServerSettings.layerTest({ linkedEnvironmentsEnabled: true })),
+      Layer.provide(Sqlite.layerMemory),
+      Layer.provideMerge(ServerSecretStore.layer),
+      Layer.provideMerge(ServerEnvironment.layerIdentity),
+      Layer.provideMerge(
+        ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-peer-link-peer-" }),
+      ),
+      Layer.provideMerge(NodeServices.layer),
+      Layer.fresh,
+      Layer.build,
+    );
+    const layerRecordBearers = HttpRouter.middleware(
+      (httpEffect) =>
+        Effect.gen(function* () {
+          const request = yield* HttpServerRequest.HttpServerRequest;
+          if (request.url.startsWith("/.well-known/supaterm/environment")) {
+            yield* Ref.update(probes, (count) => count + 1);
+          }
+          const authorization = request.headers.authorization;
+          if (authorization !== undefined) {
+            yield* Ref.update(bearers, (seen) => [...seen, authorization]);
+          }
+          return yield* httpEffect;
+        }),
+      { global: true },
+    );
+    const layerRoutes = Layer.mergeAll(
+      HttpApiBuilder.layer(PeerTestApi).pipe(
+        Layer.provide(McpOAuthHttp.layer.pipe(Layer.provide(McpOAuth.layer))),
+        Layer.provide(ServerHttp.layerServerEnvironmentHttpApi),
+        Layer.provide(AuthHttp.layerAuthenticatedAuth),
+      ),
+      tools.pipe(
+        Layer.provideMerge(McpHttpServer.layerMcpTransport),
+        Layer.provide(
+          Layer.mock(McpSessionRegistry.McpSessionRegistry)({
+            // @effect-diagnostics-next-line effectSucceedWithVoid:off - This optional result requires undefined, not the wider void type.
+            resolve: () => Effect.succeed(undefined),
+          }),
+        ),
+        Layer.provide(McpOAuth.layerMcpClientAuthenticator),
+      ),
+    ).pipe(
+      Layer.provide(layerRecordBearers),
+      Layer.provide(layerEnvironment),
+      Layer.provide(Layer.succeedContext(authContext)),
+    );
+    yield* HttpRouter.serve(layerRoutes, { disableListenLog: true, disableLogger: true }).pipe(
+      Layer.fresh,
+      Layer.build,
+    );
+    const address = (yield* HttpServer.HttpServer).address;
+    if (address._tag === "UnixPathAddress") return yield* Effect.die("expected a TCP address");
+    const url = `http://127.0.0.1:${address.port}`;
+    const auth = Context.get(authContext, EnvironmentAuth.EnvironmentAuth);
+    return {
+      url,
+      auth,
+      settings: Context.get(authContext, ServerSettings.ServerSettingsService),
+      descriptor,
+      bearers,
+      probes,
+      linkedSessions: auth
+        .listSessions()
+        .pipe(
+          Effect.map((sessions) =>
+            sessions.filter((session) => session.client.label?.startsWith("Supaterm · ")),
+          ),
+        ),
+    };
+  });
+
+export type ServedPeer = Effect.Success<ReturnType<typeof servePeer>>;
+
+export const layerLinkingEnvironment = (
+  descriptor: ExecutionEnvironmentDescriptor,
+  secrets: typeof ServerSecretStore.layer = ServerSecretStore.layer,
+  companion?: RelayCompanion.RelayCompanion["Service"],
+) =>
+  PeerMcpClient.layer.pipe(
+    Layer.provideMerge(RemoteLaunchJournal.layer),
+    Layer.provideMerge(
+      PeerLinks.layer.pipe(
+        Layer.provide(
+          companion === undefined
+            ? RelayCompanion.layer()
+            : Layer.succeed(RelayCompanion.RelayCompanion, companion),
+        ),
+      ),
+    ),
+    Layer.provideMerge(ServerSettings.layerTest({ linkedEnvironmentsEnabled: true })),
+    Layer.provideMerge(Sqlite.layerMemory),
+    Layer.provide(Layer.mergeAll(secrets, FetchHttpClient.layer)),
+    Layer.provideMerge(
+      Layer.succeed(ServerEnvironment.ServerEnvironment, {
+        getEnvironmentId: Effect.succeed(descriptor.environmentId),
+        getDescriptor: Effect.succeed(descriptor),
+      }),
+    ),
+    Layer.provide(ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-peer-link-here-" })),
+    Layer.provideMerge(NodeServices.layer),
+    Layer.fresh,
+  );
+
+export const linkTo = (
+  links: PeerLinks.PeerLinks["Service"],
+  peer: ServedPeer,
+  access: AuthMcpClientAccess = "auto",
+) =>
+  peer.auth
+    .issuePairingCredential()
+    .pipe(
+      Effect.flatMap((pairing) =>
+        links.link({ url: peer.url, pairingCode: pairing.credential, access }),
+      ),
+    );

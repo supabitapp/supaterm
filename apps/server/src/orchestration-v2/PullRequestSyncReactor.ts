@@ -1,6 +1,7 @@
-import { siblingPullRequestUrl } from "@supaterm/shared/changeRequestUrl";
 import {
   CommandId,
+  isOrchestrationV2WorkActive,
+  type OrchestrationV2TurnItem,
   type PullRequestSummary,
   type ThreadId,
   type ThreadPullRequestKey,
@@ -14,7 +15,8 @@ import {
   normalizeThreadPullRequestKey,
   threadPullRequestKeysEqual,
   visibleThreadPullRequests,
-} from "@supaterm/shared/threadPullRequests";
+} from "../sourceControl/threadPullRequests.ts";
+import { sourceControlDefinitions } from "../sourceControl/sourceControlDefinitions.ts";
 import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
@@ -39,10 +41,117 @@ import { isTerminalRunStatus } from "./ThreadManagementService.ts";
 const SLOW_SYNC_INTERVAL_MS = 15 * 60 * 1_000;
 // Every server polls every open linked pull request, and most of them sit untouched for days.
 // One nobody has updated for QUIET_AFTER_MS is read on the quiet cadence instead of each sweep;
-// requested refreshes, watches and `gh pr merge` still read it at once.
 const QUIET_AFTER_MS = 30 * 60 * 1_000;
 const QUIET_SYNC_INTERVAL_MS = 5 * 60 * 1_000;
-const PULL_REQUEST_CLOSE_COMMAND = /\b(?:gh\s+pr|glab\s+mr)\s+(?:merge|close)\b/u;
+
+const isChangeRequestCloseCommand = (command: string) =>
+  sourceControlDefinitions.definitions.some(
+    (definition) => definition.changeRequestCloseCommand?.test(command) === true,
+  );
+
+const COMMAND_START =
+  "(?:^|[;&|({`\\n]|\\b(?:do|then|else)\\s)\\s*(?:(?:\\w+=\\S*|env|time|nohup|timeout\\s+\\S+)\\s+)*";
+const CREATE_COMMANDS = sourceControlDefinitions.definitions.flatMap(
+  ({ kind, changeRequestCreateCommand: command }) =>
+    command === undefined
+      ? []
+      : // The subcommand must end its shell word: `gh pr create#x` runs another one.
+        [
+          {
+            kind,
+            command,
+            run: new RegExp(`${COMMAND_START}${command.source}(?=$|[\\s;&|)])`, "gu"),
+          },
+        ],
+);
+const createCommandCount = (code: string) =>
+  CREATE_COMMANDS.reduce((count, { run }) => count + [...code.matchAll(run)].length, 0);
+
+const SHELL_WRAPPER = /^\s*(?:\S*\/)?(?:ba|z|da|k)?sh\s+-l?c\s+(?=["'])([\s\S]*)$/u;
+const SHELL_WORD_PIECE = /"((?:\\[\s\S]|[^"\\])*)"|'([^']*)'|\\([\s\S])|(\S)/gu;
+const HEREDOC_BODY =
+  /<<-?[ \t]*(['"]?)(\w+)\1[^\n]*\n(?:(?:[\s\S]*?\n)?[ \t]*\2[ \t]*(?=\n|$)|[\s\S]*$)/gu;
+const QUOTED_OR_COMMENT = /'[^']*'|"(?:\\[\s\S]|[^"\\])*"|(?<=^|[\s;&|(])#[^\n]*/gmu;
+const COMMAND_SEPARATOR = /&&|\|\||[;|\n]/u;
+const LISTS_CHANGE_REQUESTS =
+  /\b(?:gh\s+(?:pr\s+(?:list|status)|search\s+prs|api)|glab\s+(?:mr\s+list|api))\b/u;
+const URL_LINE = /^[ \t]*(https?:\/\/\S+)[ \t]*$/gmu;
+
+function shellScript(input: string): string {
+  const [, wrapped] = SHELL_WRAPPER.exec(input) ?? [];
+  return wrapped === undefined
+    ? input
+    : Array.from(
+        wrapped.matchAll(SHELL_WORD_PIECE),
+        ([, double, single, escaped, bare]) =>
+          double?.replace(/\\(["\\$`])/gu, "$1") ?? single ?? escaped ?? bare,
+      ).join("");
+}
+
+function shellSegments(script: string): ReadonlyArray<string> {
+  const segments: Array<string> = [];
+  let current = "";
+  let quote: string | null = null;
+  for (let index = 0; index < script.length; index++) {
+    const char = script[index] ?? "";
+    if (quote !== null) {
+      current += char;
+      if (char === "\\" && quote === '"') current += script[++index] ?? "";
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === "'" || char === '"') quote = char;
+    if (char === "\\") {
+      current += char + (script[++index] ?? "");
+      continue;
+    }
+    const pair = script.slice(index, index + 2);
+    if (pair === "&&" || pair === "||" || char === ";" || char === "|" || char === "\n") {
+      segments.push(current);
+      current = "";
+      if (pair === "&&" || pair === "||") index++;
+      continue;
+    }
+    current += char;
+  }
+  segments.push(current);
+  return segments;
+}
+
+const shellCode = (script: string) =>
+  script.replace(HEREDOC_BODY, "<<").replace(QUOTED_OR_COMMENT, "''");
+
+type CommandExecution = Extract<OrchestrationV2TurnItem, { readonly type: "command_execution" }>;
+
+function changeRequestsCreatedBy(input: string, output: string) {
+  if (!CREATE_COMMANDS.some(({ command }) => command.test(input))) return [];
+  const script = shellScript(input);
+  const code = shellCode(script);
+  const creates = createCommandCount(code);
+  if (creates === 0) return [];
+  const otherCommands = code
+    .split(COMMAND_SEPARATOR)
+    .filter((part) => createCommandCount(part) === 0)
+    .join("\n");
+  if (LISTS_CHANGE_REQUESTS.test(otherCommands)) return [];
+  const otherScript = shellSegments(script)
+    .filter((segment) => createCommandCount(shellCode(segment)) === 0)
+    .join("\n");
+  const creators = new Set(
+    CREATE_COMMANDS.filter(({ run }) => code.match(run) !== null).map(({ kind }) => kind),
+  );
+  const created = new Map<string, ThreadPullRequestKey & { readonly url: string }>();
+  for (const [, url = ""] of output.matchAll(URL_LINE)) {
+    const parsed = sourceControlDefinitions.parseChangeRequestUrl(url);
+    if (parsed === null || !creators.has(parsed.definition.kind)) continue;
+    const { link } = parsed;
+    const named = new RegExp(`(?:^|(?<=[\\s#/=("']))${link.number}(?=$|[\\s);&|/"'])`, "u");
+    if (named.test(otherScript)) continue;
+    const key = normalizeThreadPullRequestKey(link);
+    created.set(threadPullRequestKeyOf(key), { ...key, url });
+  }
+  return created.size > creates ? [] : [...created.values()];
+}
 
 const isPullRequestProviderError = Schema.is(PullRequestProviderError);
 
@@ -51,6 +160,19 @@ type SnapshotFields = Omit<ThreadPullRequestSnapshot, "syncedAt">;
 interface LinkEntry {
   readonly thread: ProjectionStore.ProjectionThreadPullRequests;
   readonly link: ThreadPullRequestLink;
+}
+
+function siblingChangeRequestUrl(url: string, number: number): string | null {
+  if (!Number.isSafeInteger(number) || number < 1) return null;
+  const parsed = sourceControlDefinitions.parseChangeRequestUrl(url);
+  if (parsed === null) return null;
+  const { definition, link } = parsed;
+  return definition.changeRequestUrl({
+    host: link.host,
+    repository: link.repository,
+    number,
+    webUrl: link.repositoryUrl,
+  });
 }
 
 function snapshotFieldsOf(summary: PullRequestSummary): SnapshotFields {
@@ -172,7 +294,7 @@ export class PullRequestSyncReactor extends Context.Service<
   }
 >()("supaterm/orchestration-v2/PullRequestSyncReactor") {}
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const engine = yield* Orchestrator.OrchestratorV2;
   const projections = yield* ProjectionStore.ProjectionStoreV2;
@@ -255,7 +377,7 @@ export const make = Effect.gen(function* () {
     const stacksReadThisSweep = new Map<string, ThreadPullRequestStack | null>();
     const persistence = yield* Semaphore.make(1);
 
-    const syncEntry = Effect.fn("PullRequestSyncReactor.syncEntry")(function* (
+    const syncEntry = Effect.fnUntraced(function* (
       entry: LinkEntry,
       fields: SnapshotFields,
       fetchedStack: { readonly stack: ThreadPullRequestStack | null } | null,
@@ -285,7 +407,7 @@ export const make = Effect.gen(function* () {
         ) {
           continue;
         }
-        const url = siblingPullRequestUrl(link.url, layer.number);
+        const url = siblingChangeRequestUrl(link.url, layer.number);
         if (url === null) continue;
         const uuid = yield* crypto.randomUUIDv4();
         yield* engine.dispatch({
@@ -311,12 +433,9 @@ export const make = Effect.gen(function* () {
           stack: nextStack,
         });
       }
-    });
+    }, Effect.withSpan("PullRequestSyncReactor.syncEntry"));
 
-    const syncGroup = Effect.fn("PullRequestSyncReactor.syncGroup")(function* (
-      key: string,
-      entries: ReadonlyArray<LinkEntry>,
-    ) {
+    const syncGroup = Effect.fnUntraced(function* (key: string, entries: ReadonlyArray<LinkEntry>) {
       const first = entries[0]!;
       const ref = {
         projectId: first.thread.projectId,
@@ -381,11 +500,6 @@ export const make = Effect.gen(function* () {
         }
         const fetched = fetchedStack.stack;
         stacksReadThisSweep.set(key, fetched);
-        // A layer pushed above an older member changes none of that member's own fields, so it
-        // would keep its shorter layer list. Members of this stack whose layer list differs read
-        // their stack once, in this sweep if still pending or the next; agreeing ones read none.
-        // Only groups of the same project: another project reads with its own credential and
-        // may see a different layer list, so flagging across projects would never settle.
         if (fetched !== null) {
           const fetchedKey = nativeStackKeyOf(first.link, fetched);
           for (const [siblingKey, siblingEntries] of groups) {
@@ -421,7 +535,7 @@ export const make = Effect.gen(function* () {
           ),
         { discard: true },
       );
-    });
+    }, Effect.withSpan("PullRequestSyncReactor.syncGroup"));
 
     const skips = new Map<string, { count: number; readonly key: string }>();
     const readGroup = (key: string, entries: ReadonlyArray<LinkEntry>, pauseKey: string) =>
@@ -447,8 +561,6 @@ export const make = Effect.gen(function* () {
         }
         const first = entries[0]!;
         const pauseKey = `${first.thread.projectId}\0${normalizeThreadPullRequestKey(first.link).host}`;
-        // Checked against the clock as each read starts, so a pause found earlier in this sweep
-        // holds the rest, and one that ends during the sweep lets the rest through.
         return Clock.currentTimeMillis.pipe(
           Effect.flatMap((startedAtMs) =>
             (pausedUntil.get(pauseKey) ?? 0) > startedAtMs
@@ -457,8 +569,6 @@ export const make = Effect.gen(function* () {
           ),
         );
       },
-      // As wide as one batched summary read, so the sweep's reads on a host arrive together and
-      // GitHub answers them in one request rather than one `gh pr view` apiece.
       { concurrency: 25, discard: true },
     );
     for (const [reason, { count, key }] of skips) {
@@ -473,7 +583,7 @@ export const make = Effect.gen(function* () {
     }).pipe(Effect.catchCause(logSkipped("pull request sync sweep failed", {}))),
   );
 
-  const closeCommandThreads = new Set<ThreadId>();
+  const closeCommands = new Map<ThreadId, Set<string>>();
   const refreshOpenLinks = (threadId: ThreadId) =>
     projections.getThreadsWithPullRequests(threadId).pipe(
       Effect.flatMap((threads) =>
@@ -489,6 +599,32 @@ export const make = Effect.gen(function* () {
       ),
       Effect.catchCause(logSkipped("pull request refresh after run skipped", { threadId })),
     );
+
+  const linkCreatedChangeRequests = Effect.fn("PullRequestSyncReactor.linkCreatedChangeRequests")(
+    function* (threadId: ThreadId, item: CommandExecution) {
+      if (isOrchestrationV2WorkActive(item.status)) return;
+      yield* Effect.forEach(
+        changeRequestsCreatedBy(item.input, item.output ?? ""),
+        (created) =>
+          engine
+            .dispatch({
+              type: "thread.pull-request.link",
+              commandId: CommandId.make(
+                `server:pr-created-link:${threadId}:${item.id}:${threadPullRequestKeyOf(created)}`,
+              ),
+              threadId,
+              ...created,
+              source: "created",
+            })
+            .pipe(
+              Effect.catchCause(
+                logSkipped("linking a pull request a command created failed", { threadId }),
+              ),
+            ),
+        { discard: true },
+      );
+    },
+  );
 
   const start: PullRequestSyncReactor["Service"]["start"] = Effect.fn(
     "PullRequestSyncReactor.start",
@@ -521,17 +657,19 @@ export const make = Effect.gen(function* () {
           // sends no merge notification. When a run that ran such a command ends, read the
           // thread's open links fresh, so completion does not wait for the next sweep and the
           // cached summary. Other runs add no host reads.
-          case "turn-item.updated":
-            if (
-              event.payload.type === "command_execution" &&
-              PULL_REQUEST_CLOSE_COMMAND.test(event.payload.input)
-            ) {
-              closeCommandThreads.add(event.threadId);
-            }
-            return Effect.void;
+          case "turn-item.updated": {
+            const item = event.payload;
+            if (item.type !== "command_execution") return Effect.void;
+            const linked = linkCreatedChangeRequests(event.threadId, item);
+            if (!isChangeRequestCloseCommand(item.input)) return linked;
+            const ended = closeCommands.get(event.threadId) ?? new Set<string>();
+            closeCommands.set(event.threadId, ended);
+            if (isOrchestrationV2WorkActive(item.status) || ended.has(item.id)) return linked;
+            ended.add(item.id);
+            return Effect.andThen(linked, refreshOpenLinks(event.threadId));
+          }
           case "run.updated":
-            return isTerminalRunStatus(event.payload.status) &&
-              closeCommandThreads.delete(event.threadId)
+            return isTerminalRunStatus(event.payload.status) && closeCommands.delete(event.threadId)
               ? refreshOpenLinks(event.threadId)
               : Effect.void;
           default:

@@ -23,6 +23,11 @@ import { recordIos } from "./recording.ts";
 
 export class DeviceCleanupError extends Error {}
 
+export const poolError = (message: string) =>
+  /Failed to read daemon response|Daemon connection closed|ECONNREFUSED|ECONNRESET|EPIPE|WORKER_UNREACHABLE|xcrun timed out/i.test(
+    message,
+  );
+
 const AGENT_DEVICE_ENTRY = NodePath.join(
   REPO_ROOT,
   "scripts/node_modules/agent-device/bin/agent-device.mjs",
@@ -94,6 +99,13 @@ export class Device {
       this.session,
       "runner.log",
     );
+  }
+
+  get deviceId() {
+    return this.id;
+  }
+  get automationEnvironment() {
+    return this.env;
   }
 
   static async create(pose: Pose, root: string, directory: string) {

@@ -1,4 +1,4 @@
-import { SymbolView } from "./ui/AppSymbol";
+import { useProjectIdentity } from "../lib/projectIdentity";
 import { AppText } from "./ui/AppText";
 import { NodeIcon } from "./ui/NodeIcon";
 import { Image } from "expo-image";
@@ -55,8 +55,7 @@ export const ProjectFavicon = memo(function ProjectFavicon(props: {
     () => (isProjectFaviconFallbackUrl(faviconUrl) ? null : faviconUrl),
     [faviconUrl],
   );
-  // Inline images are self-contained; remote URLs key on their revision so signed-token
-  // rotation reuses the disk cache while a changed icon starts from the loading state.
+
   const cacheKey = useMemo(
     () =>
       renderableFaviconUrl && props.workspaceRoot
@@ -156,6 +155,7 @@ function ProjectFaviconImage(props: {
     () => createProjectFaviconRequest(props.cacheKey, props.faviconUrl),
     [props.cacheKey, props.faviconUrl],
   );
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- owns the favicon image request until this image unmounts
   useLayoutEffect(() => {
     if (faviconRequest === null) return;
 
@@ -168,6 +168,12 @@ function ProjectFaviconImage(props: {
       : "loading",
   );
 
+  const identity = useProjectIdentity(props.projectTitle);
+  const fallbackGlyph: ProjectIconGlyph = {
+    kind: "monogram",
+    text: identity.monogram,
+    color: identity.color,
+  };
   const requestIsActive = faviconRequest !== null;
   const showImage = requestIsActive && status === "loaded";
 
@@ -180,14 +186,7 @@ function ProjectFaviconImage(props: {
         justifyContent: "center",
       }}
     >
-      {!showImage ? (
-        <SymbolView
-          name={{ ios: "folder.fill", android: props.open ? "folder_open" : "folder" }}
-          size={props.size}
-          tintColorClassName={"accent-icon-subtle"}
-          type="monochrome"
-        />
-      ) : null}
+      {!showImage ? <ProjectIconGlyphView glyph={fallbackGlyph} size={props.size} /> : null}
 
       {requestIsActive ? (
         <Image

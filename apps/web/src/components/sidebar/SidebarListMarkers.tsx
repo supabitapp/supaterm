@@ -1,6 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { ReactNode } from "react";
+import { useLayoutEffect, type ReactNode } from "react";
 import { cn } from "~/lib/utils";
 import {
   animateSidebarLayoutChanges,
@@ -16,13 +16,19 @@ export function SortableSidebarMarker(
     className?: string;
     children?: ReactNode;
     "data-testid"?: string;
+    revealOverflow?: boolean;
   },
 ) {
-  const { setNodeRef, transform, transition } = useSortable({
+  const { node, setNodeRef, transform, transition } = useSortable({
     id: props.id ?? sidebarMarkerId(props.marker),
     disabled: SIDEBAR_SORTABLE_DRAG_DISABLED,
     animateLayoutChanges: animateSidebarLayoutChanges,
   });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- keeps the translated drop hint inside the sidebar scroll viewport
+  useLayoutEffect(() => {
+    if (props.revealOverflow && transform?.y !== undefined)
+      node.current?.firstElementChild?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [node, props.revealOverflow, transform?.y]);
   return (
     <li
       ref={setNodeRef}
@@ -51,6 +57,7 @@ export function SidebarSectionPlaceholder(props: {
       marker={props.marker}
       data-testid={`sidebar-${props.marker}`}
       className="relative mx-0.5 -mb-px h-0"
+      revealOverflow={props.marker === "done-placeholder" && props.showHint}
     >
       {props.showHint ? (
         <div
@@ -125,6 +132,9 @@ export function SidebarSectionHeader(props: {
       className={cn("mx-0.5 h-8", props.className)}
     >
       <CollapsibleSectionHeader
+        role="treeitem"
+        tabIndex={-1}
+        data-sidebar-row={`shelf:${shelf}`}
         onClick={() => {
           props.toggle.prepare();
           props.toggle.onToggle();

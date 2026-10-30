@@ -7,6 +7,7 @@ import "~/index.css";
 
 import { act, fakeTimers, render } from "../../../test/render";
 import { MessagesTimeline } from "./MessagesTimeline";
+import { useTimelineFollow } from "./useTimelineFollow";
 import { remarkThoughtPreview } from "./TimelineWorkEntryRow.logic";
 import { parseMarkdownWithMath } from "@supaterm/shared/markdownMath";
 import { collectThreadFindRanges } from "./threadFindHighlights";
@@ -127,7 +128,172 @@ function setup({ scheduledTasks = [] as ReadonlyArray<{ id: string; title: strin
 const TASK_ID = ScheduledTaskId.make("task-1");
 const AUTOMATION_PROMPT = "Triage the inbox\n\nLabel every new issue and close duplicates.";
 
+function FollowTimeline({
+  props,
+  entries,
+}: {
+  props: Omit<TimelineProps, "timelineEntries">;
+  entries: ReadonlyArray<Entry>;
+}) {
+  const follow = useTimelineFollow({
+    legendListRef: props.listRef,
+    routeThreadKey: props.routeThreadKey,
+    activeThreadKey: props.routeThreadKey,
+    composerTimelineInset: 0,
+    isServerThread: false,
+    serverProjection: null,
+    threadStatus: "live",
+    activeActivityRun: null,
+    activeRunningTurnId: null,
+    timelineEntries: entries,
+  });
+  return (
+    <>
+      <button
+        onClick={() => {
+          follow.cancelTimelineLiveFollowForUserNavigationStable();
+          void props.listRef.current?.scrollToOffset({ offset: 600, animated: false });
+        }}
+      >
+        Read middle
+      </button>
+      <button
+        onClick={() => {
+          follow.scrollToEnd();
+          follow.cancelTimelineLiveFollowForUserNavigationStable();
+        }}
+      >
+        Cancel pending end scroll
+      </button>
+      <MessagesTimeline
+        {...props}
+        timelineEntries={entries}
+        anchorMessageId={follow.timelineAnchorMessageId}
+        liveFollowEnabled={follow.timelineLiveFollowEnabled}
+        onManualNavigation={follow.cancelTimelineLiveFollowForUserNavigationStable}
+        onIsAtEndChange={follow.onIsAtEndChangeStable}
+        onAnchorReady={follow.onTimelineAnchorReadyStable}
+        onAnchorSizeChanged={follow.onTimelineAnchorSizeChangedStable}
+        onViewportAttach={follow.attachTimelineViewport}
+        cancelPositionRestoreRef={follow.cancelPositionRestoreRef}
+      />
+    </>
+  );
+}
+
 describe("MessagesTimeline messages", () => {
+  it("cancels an end scroll before its pending frame can move the viewport", async () => {
+    const props = baseProps();
+    const entries = Array.from({ length: 120 }, (_, index) =>
+      message(`Scroll message ${index}`, {}, `scroll-message-${index}`),
+    );
+    await using screen = await renderElement(<FollowTimeline props={props} entries={entries} />);
+    await screen.getByRole("button", { name: "Read middle", exact: true }).click();
+    await vi.waitFor(() => expect(props.listRef.current?.getScrollableNode()?.scrollTop).toBe(600));
+    using _timers = fakeTimers();
+    await click(screen.button("Cancel pending end scroll"));
+    await act(() => vi.advanceTimersByTimeAsync(100));
+    expect(props.listRef.current?.getScrollableNode()?.scrollTop).toBe(600);
+  });
+
+  it("keeps the first and last message mounted while virtualizing the middle", async () => {
+    const props = baseProps();
+    const entries = [
+      message("System opener", { role: "system" }, "system-opener"),
+      ...Array.from({ length: 120 }, (_, index) =>
+        message(`Message ${index}`, {}, `retained-message-${index}`),
+      ),
+      message("System closer", { role: "system" }, "system-closer"),
+    ];
+    await using screen = await renderTimeline(entries, { ...props, liveFollowEnabled: false });
+    await props.listRef.current?.scrollToIndex({ index: 60, animated: false });
+    await expect.element(screen.getByText("Message 60", { exact: true })).toBeVisible();
+    await expect
+      .element(
+        screen.container.querySelector<HTMLElement>('[data-message-id="retained-message-0"]'),
+      )
+      .toBeInTheDocument();
+    await expect
+      .element(
+        screen.container.querySelector<HTMLElement>('[data-message-id="retained-message-119"]'),
+      )
+      .toBeInTheDocument();
+    expect(screen.container.querySelectorAll("[data-message-id]").length).toBeLessThan(
+      entries.length,
+    );
+  });
+
+  it("opens interrupted work and folds it again when the next run starts", async () => {
+    const props = baseProps();
+    const runId = RunId.make("interrupted-run");
+    const entries: Entry[] = [
+      {
+        id: "interrupted-work",
+        kind: "work",
+        createdAt: CREATED_AT,
+        entry: {
+          id: "interrupted-work",
+          createdAt: CREATED_AT,
+          runId,
+          label: "Read interruption fixture",
+          tone: "tool",
+        },
+      },
+    ];
+    const timeline = (
+      latestRun: NonNullable<TimelineProps["latestRun"]>,
+      routeThreadKey = props.routeThreadKey,
+    ) => (
+      <MessagesTimeline
+        {...props}
+        routeThreadKey={routeThreadKey}
+        timelineEntries={
+          latestRun.runId === runId
+            ? entries
+            : [...entries, message("Next request", { runId: latestRun.runId }, "next-user")]
+        }
+        latestRun={latestRun}
+        isWorking={latestRun.status === "running"}
+      />
+    );
+    const running: NonNullable<TimelineProps["latestRun"]> = {
+      runId,
+      status: "running",
+      startedAt: CREATED_AT,
+      completedAt: null,
+    };
+    const interrupted: NonNullable<TimelineProps["latestRun"]> = {
+      ...running,
+      status: "interrupted",
+      completedAt: "2026-03-17T19:12:30.000Z",
+    };
+    await using screen = await renderElement(timeline(running));
+    await expect
+      .element(screen.getByText("Read interruption fixture", { exact: true }))
+      .toBeVisible();
+
+    await screen.rerender(timeline(interrupted));
+    await expect
+      .element(screen.getByText("Read interruption fixture", { exact: true }))
+      .toBeVisible();
+    await expect
+      .element(screen.getByRole("button", { name: "You stopped after 2.0s" }))
+      .toHaveAttribute("aria-expanded", "true");
+
+    await screen.rerender(timeline({ ...running, runId: RunId.make("next-run") }));
+    await expect
+      .element(screen.getByText("Read interruption fixture", { exact: true }))
+      .not.toBeInTheDocument();
+
+    await screen.rerender(timeline(interrupted, `${props.routeThreadKey}-other`));
+    await expect
+      .element(screen.getByText("Read interruption fixture", { exact: true }))
+      .not.toBeInTheDocument();
+    await expect
+      .element(screen.getByRole("button", { name: "You stopped after 2.0s" }))
+      .toHaveAttribute("aria-expanded", "false");
+  });
+
   it("settles when equally long messages have very different rendered heights", async () => {
     const props = baseProps();
     const tall = message("a\n\n".repeat(6000), { role: "assistant" }, "tall");

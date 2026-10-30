@@ -57,6 +57,7 @@ export function ThreadListToolbar(props: {
     Keyboard.dismiss();
   }, [onSearchQueryChange]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Registers the native back handler while the thread search owns back navigation.
   useEffect(() => {
     if (!searching || !listFocused) return;
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {

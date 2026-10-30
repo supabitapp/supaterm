@@ -1,3 +1,5 @@
+import * as DocumentText from "../provider/DocumentText.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import { NodeHttpServer } from "@effect/platform-node";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
@@ -105,10 +107,12 @@ const withServer = <A, E, R>(
       layerAttachmentUploadRoute,
     ).pipe(
       Layer.provide(McpPendingUploads.layer),
+      Layer.provide(DocumentText.layer),
+      Layer.provide(ServerSettings.layerTest()),
       Layer.provideMerge(McpHttpServer.layerMcpTransport),
       Layer.provide(
         Layer.mock(McpSessionRegistry.McpSessionRegistry)({
-          resolve: () => Effect.succeed(undefined),
+          resolve: () => Effect.undefined,
         }),
       ),
       Layer.provide(
@@ -154,14 +158,15 @@ const withServer = <A, E, R>(
   }).pipe(
     Effect.scoped,
     Effect.provide(
-      Layer.mergeAll(
-        NodeHttpServer.layerTest,
-        FetchHttpClient.layer,
-        ServerSecretStore.layer.pipe(
-          Layer.provideMerge(
-            ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-transcribe-cli-" }),
+      Layer.mergeAll(FetchHttpClient.layer, DocumentText.layer, ServerSettings.layerTest()).pipe(
+        Layer.provideMerge(NodeHttpServer.layerTest),
+        Layer.provideMerge(
+          ServerSecretStore.layer.pipe(
+            Layer.provideMerge(
+              ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-transcribe-cli-" }),
+            ),
+            Layer.provideMerge(NodeServices.layer),
           ),
-          Layer.provideMerge(NodeServices.layer),
         ),
       ),
     ),

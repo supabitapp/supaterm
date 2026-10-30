@@ -8,6 +8,7 @@ import {
   ThreadId,
   TrimmedNonEmptyString,
 } from "./baseSchemas.ts";
+import { SourceControlProviderKind } from "./sourceControl.ts";
 
 export const ORCHESTRATION_PROTOCOL_VERSION = 2;
 export const ORCHESTRATION_PROTOCOL_VERSION_TEXT = "2";
@@ -48,10 +49,6 @@ export const ExecutionEnvironmentPlatform = Schema.Struct({
   machine: ForwardCompatibleOptional(EnvironmentMachineKind),
 });
 
-/**
- * Lives here (not settings.ts) so orchestration contracts can reference it
- * without an import cycle.
- */
 export const ThreadEnvMode = Schema.Literals(["local", "worktree"]);
 export type ThreadEnvMode = typeof ThreadEnvMode.Type;
 
@@ -59,10 +56,6 @@ export const WorktreeSubmodules = Schema.Literals(["recursive", "top-level", "no
 export type WorktreeSubmodules = typeof WorktreeSubmodules.Type;
 export type ExecutionEnvironmentPlatform = typeof ExecutionEnvironmentPlatform.Type;
 
-/** How a server can replace itself with another version when asked over RPC.
-    "boot-service" restarts through the launcher-backed boot service.
-    "desktop-app" means the supervising desktop app updated and relaunched
-    itself, bringing the server back with it. */
 export const ServerSelfUpdateMethod = Schema.Literals(["boot-service", "desktop-app"]);
 export type ServerSelfUpdateMethod = typeof ServerSelfUpdateMethod.Type;
 
@@ -76,37 +69,38 @@ export const ServerSelfUpdateCapability = Schema.Literals(["boot-service", "desk
 export type ServerSelfUpdateCapability = typeof ServerSelfUpdateCapability.Type;
 
 export const ExecutionEnvironmentCapabilities = Schema.Struct({
-  /** Largest file a client may upload for a turn. */
+  connectionProbe: Schema.optionalKey(Schema.Boolean),
+  providerWorkspaceSnapshotsOnDemand: Schema.optionalKey(Schema.Boolean),
+  threadProjectFromScratch: Schema.optionalKey(Schema.Boolean),
   fileAttachments: Schema.optionalKey(
     Schema.Struct({
       maxUploadBytes: Schema.Int.check(Schema.isGreaterThanOrEqualTo(1)),
     }),
   ),
-  /** The update path clients should offer for this server. Absent on
-      servers that must be relaunched manually (dev checkouts, Windows
-      foreground runs). */
+
   serverSelfUpdate: ForwardCompatibleOptional(ServerSelfUpdateCapability),
   threadStop: Schema.optionalKey(Schema.Boolean),
-  /** The server accepts queued-run.start, which sends one held message now. */
+
+  localServerStop: Schema.optionalKey(Schema.Boolean),
   queuedRunStart: Schema.optionalKey(Schema.Boolean),
-  /** Manual commands must update this install, not the host's default global prefix. */
+
   serverInstallation: ForwardCompatibleOptional(ServerInstallation),
   serverSelfUpdateProgress: Schema.optionalKey(Schema.Boolean),
   ignoredFileListing: Schema.optionalKey(Schema.Boolean),
-  /** The desktop app supervising this server can be driven over RPC:
-      server.updateServer runs its check -> download -> relaunch. Absent on
-      servers the desktop app does not supervise, where clients tell the user
-      to update the app on that machine. */
+
   desktopAppUpdate: Schema.optionalKey(Schema.Boolean),
-  /** Server answers server.prepareTriage. */
+
+  desktopAppChannelSwitch: Schema.optionalKey(Schema.Boolean),
   triage: Schema.optionalKey(Schema.Boolean),
+
+  peerLinks: Schema.optionalKey(Schema.Boolean),
+
+  mcpModeLimitHeader: Schema.optionalKey(Schema.Boolean),
+
+  linkFence: Schema.optionalKey(Schema.Boolean),
 });
 export type ExecutionEnvironmentCapabilities = typeof ExecutionEnvironmentCapabilities.Type;
 
-/**
- * Clients decode this before comparing protocol versions, so its closed sets must read a newer
- * server's values instead of failing: a decode failure here hides the "update" message.
- */
 export const ExecutionEnvironmentDescriptor = Schema.Struct({
   environmentId: EnvironmentId,
   label: TrimmedNonEmptyString,
@@ -115,6 +109,8 @@ export const ExecutionEnvironmentDescriptor = Schema.Struct({
   orchestrationProtocolVersion: Schema.Int,
   relayEndpoint: Schema.optionalKey(Schema.String),
   relayUrl: Schema.optionalKey(Schema.String),
+
+  databaseMigration: Schema.optionalKey(Schema.Int),
   capabilities: ExecutionEnvironmentCapabilities,
 });
 export type ExecutionEnvironmentDescriptor = typeof ExecutionEnvironmentDescriptor.Type;
@@ -137,10 +133,10 @@ export const RepositoryIdentity = Schema.Struct({
   canonicalKey: TrimmedNonEmptyString,
   locator: RepositoryIdentityLocator,
   webUrl: Schema.optionalKey(TrimmedNonEmptyString),
-  /** Work tree root, or the git dir for a bare repository. */
+
   rootPath: Schema.optionalKey(TrimmedNonEmptyString),
   displayName: Schema.optionalKey(TrimmedNonEmptyString),
-  provider: Schema.optionalKey(TrimmedNonEmptyString),
+  provider: Schema.optionalKey(SourceControlProviderKind),
   owner: Schema.optionalKey(TrimmedNonEmptyString),
   name: Schema.optionalKey(TrimmedNonEmptyString),
   origin: Schema.optionalKey(RepositoryOrigin),

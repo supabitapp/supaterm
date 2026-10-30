@@ -1,11 +1,14 @@
 import {
   DEFAULT_SERVER_SETTINGS,
+  OnePasswordAccount,
   ProjectId,
   ProviderDriverKind,
   ProjectSettingsOverrides,
   ProviderInstanceId,
   ServerSettingsPatch,
   WorktreeCleanupRules,
+  SecretProviderId,
+  SecretProviderKind,
   type ServerProvider,
 } from "@supaterm/contracts";
 import * as Duration from "effect/Duration";
@@ -13,7 +16,7 @@ import * as Schema from "effect/Schema";
 import { describe, expect, it } from "vite-plus/test";
 import { resolveServerBackgroundActivitySettings } from "./backgroundActivitySettings.ts";
 import { createModelSelection } from "./model.ts";
-import { resolveProjectScripts, projectScriptsInheritDefaults } from "./projectScripts.ts";
+import { resolveProjectScripts } from "./projectScripts.ts";
 import {
   applyServerSettingsPatch,
   fallbackTextGenerationModelSelection,
@@ -85,6 +88,24 @@ describe("resolveReviewGuideModelSelection", () => {
 });
 
 describe("fallbackTextGenerationModelSelection", () => {
+  it("replaces and clears the fallback without carrying model options", () => {
+    const fallbackModelSelection = { instanceId: ProviderInstanceId.make("codex"), model: "new" };
+    const settings = applyServerSettingsPatch(
+      {
+        ...DEFAULT_SERVER_SETTINGS,
+        fallbackModelSelection: {
+          ...fallbackModelSelection,
+          model: "old",
+          options: [{ id: "effort", value: "high" }],
+        },
+      },
+      { fallbackModelSelection },
+    );
+    expect(settings.fallbackModelSelection).toEqual(fallbackModelSelection);
+    expect(
+      applyServerSettingsPatch(settings, { fallbackModelSelection: null }).fallbackModelSelection,
+    ).toBeNull();
+  });
   it("ignores a configured non-default instance at machine scope, matching no fallback", () => {
     const configured = ProviderInstanceId.make("codex_work");
     const providerInstances = {
@@ -160,18 +181,15 @@ describe("serverSettings helpers", () => {
       defaultProjectScripts: [action],
     });
     expect(resolveProjectScripts(unfolded, existing)).toEqual(existing.scripts);
-    expect(projectScriptsInheritDefaults(unfolded, existing)).toBe(false);
     const defaults = applyServerSettingsPatch(FOLDED_SERVER_SETTINGS, {
       defaultProjectScripts: [action],
     });
     expect(resolveProjectScripts(defaults, project)).toEqual([action]);
-    expect(projectScriptsInheritDefaults(defaults, project)).toBe(true);
     expect(resolveProjectScripts(defaults, existing)).toEqual([action]);
     const disabled = applyServerSettingsPatch(defaults, {
       projectSettingsOverrides: { [project.id]: { defaultProjectScripts: [] } },
     });
     expect(resolveProjectScripts(disabled, project)).toEqual([]);
-    expect(projectScriptsInheritDefaults(disabled, project)).toBe(false);
     const changedDefault = applyServerSettingsPatch(disabled, {
       defaultProjectScripts: [{ ...action, command: "npm run build" }],
     });
@@ -180,7 +198,6 @@ describe("serverSettings helpers", () => {
       projectSettingsOverrides: { [project.id]: null },
     });
     expect(resolveProjectScripts(reset, existing)).toEqual(changedDefault.defaultProjectScripts);
-    expect(projectScriptsInheritDefaults(reset, existing)).toBe(true);
     expect(
       resolveProjectScripts(
         applyServerSettingsPatch(reset, { defaultProjectScripts: [] }),
@@ -532,6 +549,7 @@ describe("serverSettings helpers", () => {
       "gpt-5.4",
     );
     const addedSinceV26_10_1 = {
+      threadTitleInstructions: "Keep titles concise",
       sidebarAutoMarkDoneKeepPullRequests: true,
     } satisfies ProjectSettingsOverrides;
     const rulesAddedSinceV26_10_1 = {
@@ -667,6 +685,28 @@ describe("serverSettings helpers", () => {
         rules: { ...stored.worktreeCleanup.rules, worktreeDoneAfterDays: null },
       });
     });
+  });
+
+  it("upserts and removes secretProviders per entry so concurrent edits cannot clobber", () => {
+    const personal = SecretProviderId.make("personal");
+    const work = SecretProviderId.make("work");
+    const onePassword = (label: string, account: string) => ({
+      kind: SecretProviderKind.make("one_password"),
+      label,
+      config: { account: OnePasswordAccount.make(account) },
+    });
+    const current = {
+      ...DEFAULT_SERVER_SETTINGS,
+      secretProviders: { [personal]: onePassword("Personal", "my.1password.com") },
+    };
+
+    const added = applyServerSettingsPatch(current, {
+      secretProviders: { [work]: onePassword("Work", "team.1password.com") },
+    });
+    expect(Object.keys(added.secretProviders)).toEqual([personal, work]);
+
+    const removed = applyServerSettingsPatch(added, { secretProviders: { [personal]: null } });
+    expect(Object.keys(removed.secretProviders)).toEqual([work]);
   });
 
   it("replaces and removes individual usage prices without clobbering other models", () => {
@@ -866,6 +906,13 @@ describe("worktreesDirectory", () => {
 });
 
 describe("synchronized model preferences", () => {
+  it("supports provider identifiers that match inherited object keys", () => {
+    const provider = ProviderInstanceId.make("toString");
+    const next = applyServerSettingsPatch(DEFAULT_SERVER_SETTINGS, {
+      setModelsHidden: [{ provider, model: "example", hidden: true }],
+    });
+    expect(next.providerModelPreferences?.[provider]?.hiddenModels).toEqual(["example"]);
+  });
   const provider = ProviderInstanceId.make("codex_work");
   const saved = {
     favorites: [{ provider, model: "sol" }],
@@ -879,6 +926,7 @@ describe("synchronized model preferences", () => {
     const remove = { setModelFavorites: [{ provider, model: "sol", favorite: false }] };
     const removed = applyServerSettingsPatch(first, remove);
     expect(applyServerSettingsPatch(removed, remove).favorites).toEqual([]);
+    expect(first.favorites).toEqual([{ provider, model: "sol" }]);
   });
 
   it("preserves unrelated models and providers during bulk visibility and order edits", () => {
@@ -899,6 +947,9 @@ describe("synchronized model preferences", () => {
       ],
       setProviderModelOrder: { provider, modelOrder: ["sol", "luna", "astra"] },
     });
+    expect(initial.providerModelPreferences?.[provider]).toEqual(
+      saved.providerModelPreferences[provider],
+    );
     expect(web.providerModelPreferences?.[provider]).toEqual({
       hiddenModels: ["luna", "sol"],
       modelOrder: ["sol", "luna", "astra"],
@@ -959,5 +1010,47 @@ describe("synchronized model preferences", () => {
         setModelFavorites: [{ provider, model: "sol", favorite: false }],
       }).favorites,
     ).toEqual([{ provider: otherProvider, model: "sol" }]);
+  });
+});
+
+describe("project override compatibility", () => {
+  it("keeps stored unknown overrides while rejecting unsupported incoming overrides", () => {
+    const projectId = ProjectId.make("future-project");
+    const current = {
+      ...DEFAULT_SERVER_SETTINGS,
+      projectSettingsOverrides: {
+        [projectId]: { defaultAutoPull: true, futureServerSetting: 3 },
+      },
+    };
+    const patch = {
+      projectSettingsOverrides: {
+        [projectId]: { defaultAutoPull: false, futureServerSetting: 4, futureClientSetting: "x" },
+      },
+    };
+    const updated = applyServerSettingsPatch(current, patch);
+    expect(updated.projectSettingsOverrides[projectId]).toEqual({
+      defaultAutoPull: false,
+      futureServerSetting: 3,
+    });
+    expect(
+      applyServerSettingsPatch(updated, {
+        projectSettingsOverrides: { [projectId]: {} },
+      }).projectSettingsOverrides[projectId],
+    ).toEqual({ futureServerSetting: 3 });
+    expect(
+      applyServerSettingsPatch(updated, {
+        projectSettingsOverrides: { [projectId]: null },
+      }).projectSettingsOverrides[projectId],
+    ).toBeUndefined();
+  });
+  it("supports an inherited provider identifier in order updates", () => {
+    const provider = ProviderInstanceId.make("toString");
+    const result = applyServerSettingsPatch(DEFAULT_SERVER_SETTINGS, {
+      setProviderModelOrder: { provider, modelOrder: ["model-a"] },
+    });
+    expect(result.providerModelPreferences[provider]).toEqual({
+      hiddenModels: [],
+      modelOrder: ["model-a"],
+    });
   });
 });

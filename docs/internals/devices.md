@@ -103,7 +103,7 @@ is a few lines that point at the tools and prefer them over raw `simctl` and
 The hub vendors two streaming servers with different wire formats. iOS video is
 an HTTP body of AVCC envelopes decoded with WebCodecs, with input on a separate
 binary WebSocket; Android multiplexes SEMU-framed H.264 and JSON gestures over
-one WebSocket. [`deviceStream.ts`](../../apps/web/src/components/device/deviceStream.ts)
+one WebSocket. [`deviceStream.ts`](../../packages/client-runtime/src/device/stream.ts)
 speaks both so one panel covers both platforms.
 
 Simulators encode H.264 High 5.1 without frame reordering, but the hub's fallback
@@ -121,3 +121,14 @@ hubs that serve it pay nothing, and switches on that 409, or when its MJPEG
 image fails in a browser that has `RTCPeerConnection`. Offers are not trickled:
 serve-sim takes one offer with every candidate. The video element only feeds
 the same canvas sink, so the panel and the mobile WebView keep one surface.
+
+## Session-bound access
+
+Use the launcher returned by `device_open` with its bound host, device, session, and config.
+Provider instructions and child-agent context must preserve that binding. An ambiguous device
+name needs an explicit host; guessing can operate another session's device. Closing a session
+releases its stream and lease without closing devices owned by another session.
+
+Pool hosts require an explicit opt-in and keep credentials on the server. Lease limits and
+expiry apply through restarts. EAS iOS and Android sessions have distinct upstream credentials;
+a read-only preview must not gain mutable device actions through the stream proxy.

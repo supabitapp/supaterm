@@ -145,6 +145,7 @@ function ExpandedWorkGroupEntries({
   // A closed row keeps its room while its panel animates shut, and no longer:
   // a recycled row's last size stays cached after it scrolls out mid-close.
   const closingEntryTimersRef = useRef(new Map<string, number>());
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Clear this work group's pending collapse timers when its virtualized list unmounts.
   useEffect(() => {
     const timers = closingEntryTimersRef.current;
     return () => timers.forEach((timer) => window.clearTimeout(timer));
@@ -227,6 +228,7 @@ function ExpandedWorkGroupEntries({
     setRestoringPosition(false);
   };
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- observes the list scroller and its content with ResizeObserver to update scroll fades
   useLayoutEffect(() => {
     const element = listRef.current?.getScrollableNode();
     if (!element) return;
@@ -239,6 +241,7 @@ function ExpandedWorkGroupEntries({
     <SimpleWorkEntryRow key={item.id} workEntry={item} workspaceRoot={workspaceRoot} />
   );
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reads expanded row sizes from LegendList's measured state after layout
   useLayoutEffect(updateExpandedContentHeight, [entries, updateExpandedContentHeight]);
 
   return (
@@ -285,13 +288,14 @@ function ExpandedWorkGroupEntries({
 
 const workEntryKey = (entry: TimelineWorkEntry) => entry.id;
 
-export function WorkingTimelineRow() {
+export function WorkingTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "working" }> }) {
   const { isCompacting, isPreparingWorktree, backgroundWorktreeSetup } =
     use(TimelineRowActivityCtx);
+  const compacting = row.compacting ?? (isCompacting ? "Compacting…" : undefined);
   const label = isPreparingWorktree ? (
     "Setting up worktree…"
-  ) : isCompacting ? (
-    <CompactingLabel />
+  ) : compacting !== undefined ? (
+    <CompactingLabel label={compacting} />
   ) : null;
   if (!label && !backgroundWorktreeSetup) return null;
   return (
@@ -350,11 +354,11 @@ function BackgroundWorktreeSetupChip({ snapshot }: { snapshot: WorktreeSetupSnap
   );
 }
 
-function CompactingLabel() {
+function CompactingLabel({ label }: { label: string }) {
   return (
     <span className="inline-flex items-center gap-1.5">
       <ShrinkIcon aria-hidden="true" className="size-3" />
-      Compacting…
+      {label}
     </span>
   );
 }

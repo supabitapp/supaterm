@@ -14,6 +14,7 @@ import { HorizontalRule } from "@tiptap/extension-horizontal-rule";
 import {
   type Command,
   type Editor,
+  Extension,
   markInputRule,
   markPasteRule,
   mergeAttributes,
@@ -415,3 +416,12 @@ function deleteAcrossList(editor: Editor): boolean {
   if (!listItemTypeAt($from) && !listItemTypeAt(next.$from)) return false;
   return joinTextblockForward(state, editor.view.dispatch);
 }
+
+export const ComposerBoldSelectionOnlyExtension = Extension.create({
+  name: "composerBoldSelectionOnly",
+  priority: 1000,
+  addKeyboardShortcuts() {
+    const ignoreWithoutSelection = () => this.editor.state.selection.empty;
+    return { "Mod-b": ignoreWithoutSelection, "Mod-B": ignoreWithoutSelection };
+  },
+});

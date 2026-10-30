@@ -4,14 +4,17 @@ import {
   planComposerTurn,
   sendTitleFallbackLabels,
   snapshotComposerSend,
-  findRecordedWorktreeSetup,
   mergeDirectPreviewAnnotation,
 } from "./ChatView.logic";
 import { recallCheckoutIsRepo, rememberCheckoutIsRepo } from "./ChatView.logic";
 import { ProviderDriverKind, type ServerProvider } from "@supaterm/contracts";
 import { deriveProviderInstanceEntries, NO_PROVIDER_MODEL_SELECTION } from "../providerInstances";
 import { ensureInlineContextReferences } from "../lib/composerContextReferences";
-import { terminalContextReference } from "../lib/composerContextRecords";
+import {
+  terminalContextReference,
+  environmentContextRecord,
+  buildMessageContext,
+} from "../lib/composerContextRecords";
 import { headlineUsageWindows } from "@supaterm/shared/usageLimits";
 import {
   CommandId,
@@ -879,16 +882,6 @@ describe("worktree setup visibility", () => {
     const other = { ...base, threadId: ThreadId.make("another-thread") };
     expect(resolve(other, other)).toEqual({ snapshot: null, isPreparingWorktree: false });
   });
-
-  it("reads the settled snapshot back from the thread's activities", () => {
-    const activities = [
-      { kind: "setup-script.started", payload: {} },
-      { kind: "worktree-setup", payload: settledDone },
-      { kind: "worktree-setup", payload: { not: "a snapshot" } },
-    ];
-    expect(findRecordedWorktreeSetup(activities, threadId)).toEqual(settledDone);
-    expect(findRecordedWorktreeSetup(activities, ThreadId.make("other"))).toBeNull();
-  });
 });
 
 describe("waitForRevertedMessage", () => {
@@ -1304,6 +1297,22 @@ describe("snapshotComposerSend", () => {
     expect(snapshot.messageText).toBe(
       ensureInlineContextReferences("run", [terminalContextReference(live)]).trim(),
     );
+  });
+
+  it("retains machine references in the immutable send snapshot and message context", () => {
+    const machine = environmentContextRecord(EnvironmentId.make("remote"), "Remote worker");
+    const environmentContexts = [machine];
+    const snapshot = snapshotComposerSend({ ...contents, environmentContexts });
+    environmentContexts.length = 0;
+    expect(snapshot.environmentContexts).toEqual([machine]);
+    expect(
+      buildMessageContext({
+        terminalContexts: snapshot.terminalContexts,
+        reviewComments: [],
+        previewAnnotations: [],
+        environmentContexts: snapshot.environmentContexts,
+      })?.records,
+    ).toContainEqual(machine);
   });
 
   it("titles a message without text after its first terminal context", () => {

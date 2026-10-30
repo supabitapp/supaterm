@@ -3,7 +3,6 @@ import type { AuthSessionState } from "@supaterm/contracts";
 import { squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import React, { startTransition, useEffect, useEffectEvent, useRef, useState } from "react";
 
-import { APP_DISPLAY_NAME } from "../../branding";
 import { connectPairing } from "../../connection/onboarding";
 import {
   peekPairingTokenFromUrl,
@@ -20,7 +19,7 @@ export function PairingPendingSurface() {
   return (
     <StandalonePage tone="pairing">
       <StandalonePageHeader
-        eyebrow={APP_DISPLAY_NAME}
+        eyebrow="Connect"
         title="Pairing with this environment"
         description="Validating the pairing link and preparing your session."
       />
@@ -74,6 +73,7 @@ export function PairingRouteSurface({
     void submitCredential(token, pairingUrl);
   });
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- strips the pairing token from the URL and submits it once when the route carries one
   useEffect(() => {
     if (!autoPairToken || autoSubmitAttemptedRef.current) {
       return;
@@ -87,7 +87,7 @@ export function PairingRouteSurface({
   return (
     <StandalonePage tone="pairing">
       <StandalonePageHeader
-        eyebrow={APP_DISPLAY_NAME}
+        eyebrow="Connect"
         title="Pair with this environment"
         description={describeAuthGate(auth.bootstrapMethods)}
       />
@@ -197,6 +197,7 @@ export function HostedPairingRouteSurface() {
     void submitHostedPairingRequest();
   });
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- strips the pairing token from the URL and submits the hosted pairing request once on mount
   useEffect(() => {
     if (submitAttemptedRef.current) {
       return;
@@ -210,7 +211,7 @@ export function HostedPairingRouteSurface() {
   return (
     <StandalonePage tone="pairing">
       <StandalonePageHeader
-        eyebrow={APP_DISPLAY_NAME}
+        eyebrow="Connect"
         title={
           status === "paired"
             ? "Backend paired"

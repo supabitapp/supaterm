@@ -198,6 +198,7 @@ export function MermaidDiagram({
   const renderError = failure?.source === trimmedSource ? failure.message : null;
   const math = trimmedSource.includes("$$") ? use(loadMath()) : null;
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Mounts the imperative diagram renderer into the committed container and destroys it on cleanup.
   useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) return;

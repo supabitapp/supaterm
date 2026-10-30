@@ -1,3 +1,6 @@
+import * as Logger from "effect/Logger";
+import * as FileSystem from "effect/FileSystem";
+import * as ByteSize from "effect/ByteSize";
 // @effect-diagnostics nodeBuiltinImport:off - builds real worktree layouts on disk.
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as NodeFS from "node:fs";
@@ -855,6 +858,80 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
             [],
           );
         }).pipe(Effect.scoped),
+      );
+
+      it.effect.each([
+        { sourceBytes: 500 * 1024 * 1024 - 1, shouldSeed: true },
+        { sourceBytes: 500 * 1024 * 1024, shouldSeed: true },
+        { sourceBytes: 500 * 1024 * 1024 + 1, shouldSeed: false },
+      ])(
+        "checks source size before seeding an empty worktree: $sourceBytes bytes",
+        ({ sourceBytes, shouldSeed }) =>
+          Effect.gen(function* () {
+            const fs = yield* FileSystem.FileSystem;
+            const path = yield* Path.Path;
+            const root = yield* makeWorktree;
+            const home = path.join(root, "home");
+            const source = path.join(home, ".supaterm", "userdata", "statev2.sqlite");
+            NodeFS.mkdirSync(path.dirname(source), { recursive: true });
+            NodeFS.writeFileSync(source, "");
+            const spawned: Array<ReadonlyArray<string>> = [];
+            const warnings: Array<string> = [];
+            const spawnerLayer = Layer.succeed(
+              ChildProcessSpawner.ChildProcessSpawner,
+              ChildProcessSpawner.make((command) => {
+                spawned.push((command as unknown as { readonly args: ReadonlyArray<string> }).args);
+                return Effect.succeed(mockProcess(0));
+              }),
+            );
+
+            yield* runDevRunnerWithInput({ ...devServerInput, supatermHome: undefined }).pipe(
+              Effect.provide([
+                emptyConfigLayer,
+                netServiceLayer,
+                spawnerLayer,
+                Logger.layer([
+                  Logger.make((options) => {
+                    if (options.logLevel === "Warn") warnings.push(String(options.message));
+                  }),
+                ]),
+              ]),
+              Effect.provideService(FileSystem.FileSystem, {
+                ...fs,
+                stat: (file) =>
+                  fs
+                    .stat(file)
+                    .pipe(
+                      Effect.map((info) =>
+                        file === source ? { ...info, size: ByteSize.bytes(sourceBytes) } : info,
+                      ),
+                    ),
+              }),
+              Effect.provideService(HostProcess.Platform, "linux"),
+              Effect.provideService(HostProcess.WorkingDirectory, root),
+              Effect.provideService(HostProcess.HomeDirectory, home),
+              Effect.provideService(HostProcess.Environment, {}),
+            );
+
+            assert.equal(
+              spawned.some((args) => args.some((arg) => arg.endsWith("migrate-dev-db.ts"))),
+              shouldSeed,
+            );
+            assert.deepStrictEqual(spawned.at(-1), [
+              "run",
+              "--filter=supaterm",
+              "dev",
+              ...devServerInput.runArgs,
+            ]);
+            if (shouldSeed) {
+              assert.deepStrictEqual(warnings, []);
+            } else {
+              assert.lengthOf(warnings, 1);
+              assert.include(warnings[0]!, source);
+              assert.include(warnings[0]!, "skipping automatic database seeding");
+              assert.include(warnings[0]!, "vp run migrate-dev-db");
+            }
+          }).pipe(Effect.scoped),
       );
 
       it.effect("falls back to an ambient SUPATERM_HOME outside a worktree", () =>

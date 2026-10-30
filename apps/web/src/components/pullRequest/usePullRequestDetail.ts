@@ -1,11 +1,12 @@
+import { resolvePullRequestDetailChecks } from "@supaterm/client-runtime/pull-request-checks";
+import { usePullRequestChecksRefresh } from "~/hooks/usePullRequestChecksRefresh";
 import {
   AuthSourceControlWriteScope,
   type EnvironmentId,
-  type PullRequestDetail,
   type PullRequestListEntry,
   type PullRequestRef,
 } from "@supaterm/contracts";
-import { useEffect, useEffectEvent, useState } from "react";
+import { useState } from "react";
 
 import { useEnvironmentQuery } from "~/state/query";
 import { useEnvironmentScope } from "~/state/session";
@@ -18,16 +19,10 @@ import {
 import {
   readPullRequestDetailSnapshot,
   resolveDisplayedPullRequestDetail,
-  writePullRequestDetailSnapshot,
 } from "./pullRequestDetail.logic";
-import { pullRequestChecksState } from "./pullRequestPresentation";
 
 export function pullRequestRefKey(reference: PullRequestRef) {
   return `${reference.projectId}:${reference.host ?? ""}:${reference.repository}#${reference.number}`;
-}
-
-function pullRequestDetailSummary(data: PullRequestDetail | null) {
-  return data === null ? null : { ...data, checksState: pullRequestChecksState(data.checks) };
 }
 
 /**
@@ -42,11 +37,32 @@ export function usePullRequestDetail(
   const scopeKey = `${environmentId}:${pullRequestRefKey(reference)}`;
   const canWriteSourceControl = useEnvironmentScope(environmentId, AuthSourceControlWriteScope);
   const detailQuery = useEnvironmentQuery(
-    pullRequestEnvironment.detail({ environmentId, input: reference }),
+    pullRequestEnvironment.detail({ environmentId, input: { ...reference, allowStale: false } }),
   );
   const activityQuery = useEnvironmentQuery(
     pullRequestEnvironment.activity({ environmentId, input: reference }),
   );
+  const checksQuery = useEnvironmentQuery(
+    detailQuery.data !== null
+      ? pullRequestEnvironment.checks({ environmentId, input: reference })
+      : null,
+  );
+  const liveDetail = resolvePullRequestDetailChecks(
+    detailQuery.data,
+    checksQuery.data,
+    checksQuery.dataUpdatedAt >= detailQuery.dataUpdatedAt,
+  );
+  usePullRequestChecksRefresh({
+    refresh: () => {
+      if (!checksQuery.isPending && !detailQuery.isPending) checksQuery.refresh();
+    },
+    enabled:
+      liveDetail?.state === "open" &&
+      checksQuery.error === null &&
+      !(checksQuery.isSuccess && checksQuery.data === null),
+    key: `workspace-pr-checks:${environmentId}:${pullRequestRefKey(reference)}`,
+    checks: liveDetail?.checks ?? [],
+  });
   const [cachedDetail, setCachedDetail] = useState(() =>
     readPullRequestDetailSnapshot(
       typeof window === "undefined" ? undefined : window.localStorage,
@@ -68,35 +84,17 @@ export function usePullRequestDetail(
   } else if (detailQuery.data !== null && detailQuery.data !== cachedDetail) {
     setCachedDetail(detailQuery.data);
   }
-  const saveDetailSnapshot = useEffectEvent((data: PullRequestDetail) => {
-    writePullRequestDetailSnapshot(
-      typeof window === "undefined" ? undefined : window.localStorage,
-      environmentId,
-      reference,
-      data,
-    );
-  });
-  useEffect(() => {
-    if (detailQuery.data !== null) saveDetailSnapshot(detailQuery.data);
-  }, [detailQuery.data]);
-  const detailSummary = pullRequestDetailSummary(detailQuery.data);
-  const observedSummary = useSharedPullRequestSummary(
-    environmentId,
-    reference,
-    detailSummary,
-    detailQuery.dataUpdatedAt,
-  );
+  const observedSummary = useSharedPullRequestSummary(environmentId, reference);
   const activity = activityQuery.data;
   const resolvedCoreDetail = resolveDisplayedPullRequestDetail({
-    live: detailQuery.data,
+    live: liveDetail,
     cached: cachedDetail,
     reference,
   });
   // Every hook runs above this line: a hook between the merge and the panel's plain readers of
   // `detail` would cost it its cache scope.
   const listSummary = listEntry === null ? null : pullRequestListEntryToSummary(listEntry);
-  // The list row is also published to the shared cache, but only after this commit's layout
-  // effects run, so it is compared directly rather than trusted to be there already.
+  // The row can come from the page's stored snapshot, which no answer has published yet.
   const sharedSummary = newestPullRequestSummary(
     resolvedCoreDetail,
     newestPullRequestSummary(observedSummary, listSummary),

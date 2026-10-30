@@ -20,13 +20,7 @@ interface MountDiagramOptions {
 
 let mounts = 0;
 
-/**
- * Pele's mount() contract, with layout in the bounded diagram worker instead of the main thread.
- * A diagram this tab already laid out at this width draws in the same frame, so toggling views or
- * remounting a timeline row does not flash. Otherwise the source stays readable until the first
- * render, which waits until the element is visible. Width changes re-render in 32 px steps and keep
- * the last good diagram when a new width fails to lay out.
- */
+/** Reuses cached layout while a bounded worker renders visible diagrams at their current width. */
 export function mountDiagram(element: HTMLElement, source: string, options: MountDiagramOptions) {
   const id = `mermaid-${++mounts}`;
   let destroyed = false;

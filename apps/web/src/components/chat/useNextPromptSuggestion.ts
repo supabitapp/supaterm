@@ -1,24 +1,42 @@
 import type { EnvironmentId, RunId, ThreadId } from "@supaterm/contracts";
 import { nextPromptSuggestionRunId } from "@supaterm/client-runtime/state/orchestration";
 import { useAtomValue } from "@effect/atom-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import * as Data from "effect/Data";
+import * as Effect from "effect/Effect";
+import { AsyncResult, Atom } from "effect/reactivity";
+import { runAtomCommand } from "@supaterm/client-runtime/state/runtime";
 
-import { useStableCallback } from "~/hooks/useStableCallback";
 import { useEnvironment } from "~/state/environments";
 import { orchestrationEnvironment } from "~/state/orchestration";
-import { useAtomCommand } from "~/state/use-atom-command";
 
 import type { ThreadShell } from "../../types";
 
-interface SuggestedRun {
+class SuggestedRun extends Data.Class<{
+  readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
   readonly runId: RunId;
-}
+}> {}
 
-/**
- * What the user is likely to send after the agent's latest reply. It lives in this component
- * only; the server decides whether the run is recent enough to spend a model call on.
- */
+const suggestionAtom = Atom.family((target: SuggestedRun | null) =>
+  target === null
+    ? Atom.make(AsyncResult.success<string | null>(null))
+    : Atom.make((get) =>
+        Effect.promise(async () => {
+          const answer = await runAtomCommand(
+            get.registry,
+            orchestrationEnvironment.suggestNextPrompt,
+            {
+              environmentId: target.environmentId,
+              input: { threadId: target.threadId, afterRunId: target.runId },
+            },
+            { reportFailure: false, reportDefect: false },
+          );
+          return answer._tag === "Success" ? answer.value.suggestion : null;
+        }),
+      ).pipe(Atom.setIdleTTL(0)),
+);
+
 export function useNextPromptSuggestion(input: {
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId | null;
@@ -31,39 +49,23 @@ export function useNextPromptSuggestion(input: {
   const canSuggest = useAtomValue(
     orchestrationEnvironment.suggestNextPrompt.permissionAtom(environmentId),
   );
-  const suggestNextPrompt = useStableCallback(
-    useAtomCommand(orchestrationEnvironment.suggestNextPrompt, {
-      reportFailure: false,
-      reportDefect: false,
-    }),
-  );
-  const [result, setResult] = useState<(SuggestedRun & { readonly text: string }) | null>(null);
   const [dismissed, setDismissed] = useState<SuggestedRun | null>(null);
   const runId = nextPromptSuggestionRunId({ enabled, connected, canSuggest, latestRun });
   const active = threadId !== null && runId !== null;
 
-  useEffect(() => {
-    if (!active) return;
-    let current = true;
-    void suggestNextPrompt({ environmentId, input: { threadId, afterRunId: runId } }).then(
-      (answer) => {
-        if (!current || answer._tag !== "Success" || answer.value.suggestion === null) return;
-        setResult({ threadId, runId, text: answer.value.suggestion });
-      },
-    );
-    return () => {
-      current = false;
-    };
-  }, [active, environmentId, threadId, runId, suggestNextPrompt]);
-
-  const matches = (entry: SuggestedRun | null) =>
-    entry !== null && entry.threadId === threadId && entry.runId === runId;
-  const visible = active && result !== null && matches(result) && !matches(dismissed);
+  const result = useAtomValue(
+    suggestionAtom(active ? new SuggestedRun({ environmentId, threadId, runId }) : null),
+  );
+  const visible =
+    active &&
+    result._tag === "Success" &&
+    (dismissed?.threadId !== threadId || dismissed.runId !== runId);
 
   return {
-    suggestion: visible ? result.text : null,
+    suggestion: visible ? result.value : null,
     dismiss: () => {
-      if (threadId !== null && runId !== null) setDismissed({ threadId, runId });
+      if (threadId !== null && runId !== null)
+        setDismissed(new SuggestedRun({ environmentId, threadId, runId }));
     },
   };
 }

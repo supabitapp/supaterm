@@ -20,6 +20,7 @@ import type * as EffectAcpErrors from "effect-acp/errors";
 import type * as EffectAcpSchema from "effect-acp/compat";
 
 import type * as AcpSessionRuntime from "@supaterm/provider-acp/server/AcpSessionRuntime";
+import { acpProviderOptionDescriptors } from "@supaterm/provider-acp/server/sessionConfig";
 import { makeManagedServerProvider } from "@supaterm/provider-core/server/managedProvider";
 import {
   makeManualOnlyProviderMaintenanceCapabilities,
@@ -31,6 +32,8 @@ import {
   type ServerProviderDraft,
 } from "@supaterm/provider-core/server/snapshotProbe";
 import { resolveUsageLimitsAfterProbe } from "@supaterm/provider-core/server/usageLimits";
+
+import { antigravityThinkingConfig } from "./acp/AntigravityAcpSupport.ts";
 
 const EMPTY_MODEL_CAPABILITIES = createModelCapabilities({ optionDescriptors: [] });
 const MAX_WORKSPACE_SNAPSHOTS = 32;
@@ -44,8 +47,23 @@ type SessionSetupResult = Pick<
   "configOptions" | "models"
 >;
 
+type ThinkingConfig = NonNullable<ReturnType<typeof antigravityThinkingConfig>>;
+
+export type AntigravityThinkingLevels = ReadonlyMap<string, ThinkingConfig | null>;
+
+function thinkingCapabilities(config: ThinkingConfig | null | undefined, observed: boolean) {
+  const descriptor = config
+    ? acpProviderOptionDescriptors({ configOptions: [config], modeState: undefined })[0]
+    : undefined;
+  if (descriptor?.type !== "select") return EMPTY_MODEL_CAPABILITIES;
+
+  const { currentValue: _currentValue, ...unobserved } = descriptor;
+  return createModelCapabilities({ optionDescriptors: [observed ? descriptor : unobserved] });
+}
+
 export function buildAntigravityModelsFromSession(
   setup: SessionSetupResult,
+  thinkingLevels: AntigravityThinkingLevels = new Map(),
 ): ReadonlyArray<ServerProviderModel> {
   const config = setup.configOptions?.find(
     (option) => option.id === "model" || option.category === "model",
@@ -61,19 +79,30 @@ export function buildAntigravityModelsFromSession(
             name: model.name,
           })) ?? [])
         : [];
+  const currentThinking = antigravityThinkingConfig(setup.configOptions);
   const seen = new Set<string>();
+
+  const names = new Set<string>();
   return entries.flatMap((entry): ServerProviderModel[] => {
     if (!entry.value.trim() || seen.has(entry.value)) return [];
     seen.add(entry.value);
+    const baseName = entry.name.trim() ? entry.name : entry.value;
+    const name = names.has(baseName) ? `${baseName} (${entry.value})` : baseName;
+    names.add(baseName);
+    const observed =
+      entry.value === currentValue ? (currentThinking ?? null) : thinkingLevels.get(entry.value);
     return [
       {
         slug: entry.value,
-        name: entry.name.trim() ? entry.name : entry.value,
+        name,
         isCustom: false,
         ...(entry.value === currentValue
           ? { isDefault: true, aliases: [ANTIGRAVITY_DEFAULT_MODEL] }
           : {}),
-        capabilities: EMPTY_MODEL_CAPABILITIES,
+        capabilities:
+          observed === undefined
+            ? thinkingCapabilities(currentThinking, false)
+            : thinkingCapabilities(observed, true),
       },
     ];
   });
@@ -160,10 +189,19 @@ export const makeAntigravityProvider = Effect.fn("makeAntigravityProvider")(func
     draft: initialDraft,
     authRevision: 0,
   });
-  // Skills the driver discovered on disk per workspace. Session callbacks
-  // rewrite the workspace entry with native commands and must keep these, or
-  // the registry drops the suggestions and never re-reads the workspace.
+
   const discoveredSkills = new Map<string, ServerProvider["skills"]>();
+  const thinkingLevels = new Map<string, ThinkingConfig | null>();
+  const observeThinkingLevels = (
+    configOptions: ReadonlyArray<EffectAcpSchema.SessionConfigOption> | null | undefined,
+  ) => {
+    const model = configOptions?.find(
+      (option) => option.id === "model" || option.category === "model",
+    );
+    if (model?.type === "select" && model.currentValue) {
+      thinkingLevels.set(model.currentValue, antigravityThinkingConfig(configOptions) ?? null);
+    }
+  };
   const getSnapshot = SubscriptionRef.get(metadata).pipe(
     Effect.flatMap((state) => options.stampIdentity(state.draft)),
   );
@@ -211,6 +249,7 @@ export const makeAntigravityProvider = Effect.fn("makeAntigravityProvider")(func
         draft: {
           ...draft,
           installed: !missingInstallation,
+
           version: version === "unknown" ? draft.version : version || draft.version,
           status: errorMessage ? "error" : authenticated ? "ready" : "warning",
           checkedAt: updatedAt,
@@ -268,6 +307,7 @@ export const makeAntigravityProvider = Effect.fn("makeAntigravityProvider")(func
     cwd?: string,
   ) {
     if (!settings.enabled) return;
+    observeThinkingLevels(started.sessionSetupResult.configOptions);
     const before = yield* SubscriptionRef.get(metadata);
     const supportsTextGeneration = yield* options.supportsTextGeneration;
     const usageLimits =
@@ -302,7 +342,7 @@ export const makeAntigravityProvider = Effect.fn("makeAntigravityProvider")(func
             published: draft.usageLimits,
             probed: usageLimits ?? draft.usageLimits,
           }),
-          models: buildAntigravityModelsFromSession(started.sessionSetupResult),
+          models: buildAntigravityModelsFromSession(started.sessionSetupResult, thinkingLevels),
           supportsTextGeneration,
           ...(cwd
             ? {
@@ -325,7 +365,8 @@ export const makeAntigravityProvider = Effect.fn("makeAntigravityProvider")(func
   const onConfigOptionsUpdated = Effect.fn("AntigravityProvider.onConfigOptionsUpdated")(function* (
     configOptions: ReadonlyArray<EffectAcpSchema.SessionConfigOption>,
   ) {
-    const models = buildAntigravityModelsFromSession({ configOptions });
+    observeThinkingLevels(configOptions);
+    const models = buildAntigravityModelsFromSession({ configOptions }, thinkingLevels);
     yield* SubscriptionRef.update(metadata, (state) => {
       if (state.draft.auth.status !== "authenticated") return state;
       return { ...state, draft: { ...state.draft, models } };
@@ -392,6 +433,7 @@ export const makeAntigravityProvider = Effect.fn("makeAntigravityProvider")(func
         }) satisfies AntigravityProviderState,
     );
     discoveredSkills.clear();
+    thinkingLevels.clear();
   });
 
   const snapshotForCwd = Effect.fn("AntigravityProvider.snapshotForCwd")(function* (

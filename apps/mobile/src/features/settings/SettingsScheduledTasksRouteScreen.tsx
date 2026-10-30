@@ -19,7 +19,7 @@ import {
   squashAtomCommandFailure,
   type AtomCommandResult,
 } from "@supaterm/client-runtime/state/runtime";
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useFocusEffect, useNavigation, usePreventRemove } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AppState, Platform, Pressable, TextInput as RNTextInput, View } from "react-native";
@@ -63,7 +63,11 @@ import {
 } from "./scheduledTaskDraft";
 import { settingsTargetsForProject } from "./settings-environment-filter.logic";
 import { useScheduledTaskEditor } from "./scheduled-task-editor";
-import { scheduledTaskEditorSessionAtom } from "./scheduled-task-editor-state";
+import {
+  discardScheduledTaskEditor,
+  markScheduledTaskEditorSaved,
+  scheduledTaskEditorSessionAtom,
+} from "./scheduled-task-editor-state";
 import { appAtomRegistry } from "../../state/atom-registry";
 import {
   formatNextScheduledTaskRun,
@@ -164,7 +168,11 @@ function SelectRow(props: {
   const value = (
     <View className="min-w-0 flex-1 flex-row items-center justify-end gap-2">
       {props.valueIcon}
-      <Text className="shrink text-right text-base text-foreground-muted" numberOfLines={1}>
+      <Text
+        textRole="footnote"
+        className="shrink text-right text-foreground-muted"
+        numberOfLines={1}
+      >
         {props.value}
       </Text>
     </View>
@@ -178,7 +186,9 @@ function SelectRow(props: {
             : "min-h-14 flex-row items-center gap-3 px-4 py-3"
         }
       >
-        <Text className="text-lg text-foreground">{props.label}</Text>
+        <Text textRole="body" className="text-foreground">
+          {props.label}
+        </Text>
         {value}
       </View>
     );
@@ -197,7 +207,9 @@ function SelectRow(props: {
             : "min-h-14 flex-row items-center gap-3 px-4 py-3 active:opacity-70"
         }
       >
-        <Text className="text-lg text-foreground">{props.label}</Text>
+        <Text textRole="body" className="text-foreground">
+          {props.label}
+        </Text>
         {value}
         <SymbolView
           name="chevron.down"
@@ -230,8 +242,14 @@ function PickerRow(props: {
           : "min-h-14 flex-row items-center gap-3 px-4 py-3 active:opacity-70 disabled:opacity-50"
       }
     >
-      <Text className="text-lg text-foreground">{props.label}</Text>
-      <Text className="min-w-0 flex-1 text-right text-base text-foreground-muted" numberOfLines={1}>
+      <Text textRole="body" className="text-foreground">
+        {props.label}
+      </Text>
+      <Text
+        textRole="footnote"
+        className="min-w-0 flex-1 text-right text-foreground-muted"
+        numberOfLines={1}
+      >
         {props.value}
       </Text>
       <SymbolView
@@ -289,7 +307,7 @@ export function SettingsScheduledTasksRouteScreen() {
         ]}
       />
       <SettingsScreen
-        title="Scheduled Tasks"
+        title="Scheduled tasks"
         trailing={
           <View className="flex-row items-center">
             <AndroidSettingsEnvironmentFilter />
@@ -354,14 +372,6 @@ export function SettingsScheduledTasksRouteScreen() {
 }
 
 export function SettingsScheduledTaskNewRouteScreen() {
-  const { resetEditor } = useScheduledTaskEditor();
-  const { availableTargets } = useSettingsEnvironmentFilter();
-  const initialized = useRef(false);
-  useLayoutEffect(() => {
-    if (initialized.current || availableTargets.length === 0) return;
-    initialized.current = true;
-    resetEditor();
-  }, [availableTargets.length, resetEditor]);
   return <SettingsScheduledTaskEditorScreen title="New scheduled task" />;
 }
 
@@ -370,20 +380,14 @@ export function SettingsScheduledTaskEditRouteScreen() {
 }
 
 function SettingsScheduledTaskEditorScreen({ title }: { readonly title: string }) {
-  const {
-    editor,
-    voiceOwnerKey,
-    readEditor,
-    setEditor,
-    startEditor,
-    hasChanges,
-    draftForEnvironment,
-  } = useScheduledTaskEditor();
+  const { editor, voiceOwnerKey, readEditor, setEditor, hasChanges, draftForEnvironment } =
+    useScheduledTaskEditor();
   const { availableTargets } = useSettingsEnvironmentFilter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+
+  const saved = useRef(false);
   const ownerKey = editor ? `${voiceOwnerKey}:${editor.environmentId}` : null;
   const prompt = editor?.draft.prompt ?? "";
   const [selectionState, setSelectionState] = useState<{
@@ -422,8 +426,12 @@ function SettingsScheduledTaskEditorScreen({ title }: { readonly title: string }
     },
     disabled: saving,
   });
-  const preventRemove = !saved && (hasChanges || saving);
+  const preventRemove = hasChanges || saving;
   usePreventRemove(preventRemove, ({ data }) => {
+    if (saved.current) {
+      navigation.dispatch(data.action);
+      return;
+    }
     if (saving) {
       Dialog.alert("Saving task", "Wait for the task to finish saving before leaving.");
       return;
@@ -435,19 +443,12 @@ function SettingsScheduledTaskEditorScreen({ title }: { readonly title: string }
         style: "destructive",
         onPress: () => {
           if (voiceInput.isBusy) voiceInput.cancel();
-          startEditor(null);
+          discardScheduledTaskEditor();
           navigation.dispatch(data.action);
         },
       },
     ]);
   });
-  useEffect(() => {
-    if (!saved) return;
-    const frame = requestAnimationFrame(() => {
-      if (navigation.isFocused()) navigation.goBack();
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [navigation, saved]);
   return (
     <SettingsScreen title={title}>
       {Platform.OS === "ios" ? (
@@ -455,8 +456,7 @@ function SettingsScheduledTaskEditorScreen({ title }: { readonly title: string }
           options={{
             headerBackVisible: false,
             gestureEnabled: !preventRemove,
-            // The system back button begins its native pop before the removal
-            // guard runs. Dispatch from a bar action so the guard runs first.
+
             unstable_headerLeftItems: () => [
               withNativeGlassHeaderItem({
                 type: "button",
@@ -504,7 +504,11 @@ function SettingsScheduledTaskEditorScreen({ title }: { readonly title: string }
             setDraft={(draft) => {
               if (!saving) setEditor({ ...editor, draft });
             }}
-            onSaved={() => setSaved(true)}
+            onSaved={() => {
+              saved.current = true;
+              markScheduledTaskEditorSaved();
+              if (navigation.isFocused()) navigation.goBack();
+            }}
             onChangeEnvironment={(target) => {
               if (target.environmentId === editor.environmentId) return;
               setEditor({
@@ -838,8 +842,13 @@ function TaskForm({
                 onPress={() => setTimePickerOpen((open) => !open)}
                 className="min-h-14 flex-row items-center gap-3 border-t border-border-subtle px-4 py-3 active:opacity-70"
               >
-                <Text className="text-lg text-foreground">Time</Text>
-                <Text className="min-w-0 flex-1 text-right text-base text-foreground-muted">
+                <Text textRole="body" className="text-foreground">
+                  Time
+                </Text>
+                <Text
+                  textRole="footnote"
+                  className="min-w-0 flex-1 text-right text-foreground-muted"
+                >
                   {formatTime(draft.schedule.timeOfDay)}
                 </Text>
                 <SymbolView
@@ -928,7 +937,9 @@ function TaskForm({
             </>
           )}
           <View className="min-h-14 flex-row items-center gap-3 border-t border-border-subtle px-4 py-3">
-            <Text className="min-w-0 flex-1 text-lg text-foreground">Enabled</Text>
+            <Text textRole="body" className="min-w-0 flex-1 text-foreground">
+              Enabled
+            </Text>
             <ThemedSwitch
               accessibilityLabel="Task enabled"
               value={draft.enabled}

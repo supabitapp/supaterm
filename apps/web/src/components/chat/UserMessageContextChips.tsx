@@ -1,3 +1,4 @@
+import { isSvgAttachment } from "@supaterm/shared/image";
 import { TimelineRowCtx } from "./timelineRowContext";
 import { useRenderedAppearance } from "../../hooks/useTheme";
 import { PullRequestGlyph } from "../pullRequest/pullRequestIcons";
@@ -27,13 +28,13 @@ import {
 import { PREFERRED_HIGHLIGHTER } from "../../lib/syntaxHighlighting";
 import ChatMarkdown, { type ChatMarkdownContextReference } from "../ChatMarkdown";
 import { ThreadContextChip } from "../ThreadContextChip";
+import { EnvironmentContextChip } from "../EnvironmentContextChip";
 import { MessageCircleIcon, MousePointerClickIcon, PaintbrushIcon } from "@supaterm/icons";
 import { buildExpandedImagePreview } from "./ExpandedImagePreview";
 import { WorkspaceEntryIcon, WorkspaceEntryTooltip } from "./WorkspaceEntryIcon";
 import { TerminalContextInlineChip } from "./TerminalContextInlineChip";
 import { Tooltip, TooltipTrigger, TooltipPopup } from "../ui/tooltip";
 import {
-  ContextChipShell,
   PullRequestChip,
   UnresolvedChip,
   ImageChipButton,
@@ -49,7 +50,11 @@ import {
 } from "~/lib/composerContextRecords";
 import { ContextChip, ContextChipLabel, type ContextChipKind } from "../ContextChip";
 import { createContextPresentationRegistry } from "../contextPresentationRegistry";
-import { SkillChipIcon } from "./SkillInlineText";
+import {
+  SkillChipPopover,
+  skillInstructionsOpener,
+  skillPopoverDescription,
+} from "./SkillInlineText";
 import { formatWorkspaceRelativePath } from "../../filePathDisplay";
 import {
   type ReviewCommentContext,
@@ -97,22 +102,18 @@ function UserMessageMentionChip(props: {
   );
 }
 
-function UserMessageContextChip(props: {
-  icon: ReactNode;
-  label: string;
-  kindLabel?: string;
+function UserMessageSkillChip(props: {
+  record: Extract<KnownComposerContextRecord, { kind: "skill" }>;
   copyMarkdown: string;
-  tooltip?: string;
-  kind: ContextChipKind;
 }) {
+  const { skills, threadRef } = use(TimelineRowCtx);
+  const skill = skills.find((candidate) => candidate.name === props.record.name);
   return (
-    <ContextChipShell
-      kind={props.kind}
-      icon={props.icon}
-      label={props.label}
-      aria-label={props.kindLabel ? `${props.kindLabel}, ${props.label}` : undefined}
-      data-markdown-copy={props.copyMarkdown}
-      tooltip={props.tooltip}
+    <SkillChipPopover
+      label={props.record.label || props.record.name}
+      description={skill ? skillPopoverDescription(skill) : null}
+      copyMarkdown={props.copyMarkdown}
+      onViewInstructions={skillInstructionsOpener(threadRef, skill)}
     />
   );
 }
@@ -270,6 +271,7 @@ function UserMessageElementDetails({
 }
 
 interface UserMessageContextRenderContext {
+  environmentId: import("@supaterm/contracts").EnvironmentId;
   reference: ChatMarkdownContextReference;
   annotationImage: ChatImageAttachment | null;
   attachment: ChatImageAttachment | ChatFileAttachment | null;
@@ -312,14 +314,7 @@ const userMessageContextPresentationRegistry = createContextPresentationRegistry
       canRender: (record) => record.kind === "skill",
       render: (record, context) =>
         record.kind === "skill" ? (
-          <UserMessageContextChip
-            icon={<SkillChipIcon />}
-            label={record.label || record.name}
-            kindLabel="Skill"
-            tooltip={`$${record.name}`}
-            copyMarkdown={context.copyMarkdown}
-            kind="skill"
-          />
+          <UserMessageSkillChip record={record} copyMarkdown={context.copyMarkdown} />
         ) : (
           <UnavailableUserMessageContextChip {...context} />
         ),
@@ -330,6 +325,16 @@ const userMessageContextPresentationRegistry = createContextPresentationRegistry
       render: (record, context) =>
         record.kind === "thread" ? (
           <ThreadContextChip record={record} copyMarkdown={context.copyMarkdown} />
+        ) : (
+          <UnavailableUserMessageContextChip {...context} />
+        ),
+    },
+    {
+      kind: "environment",
+      canRender: (record) => record.kind === "environment",
+      render: (record, context) =>
+        record.kind === "environment" ? (
+          <EnvironmentContextChip record={record} copyMarkdown={context.copyMarkdown} />
         ) : (
           <UnavailableUserMessageContextChip {...context} />
         ),
@@ -380,6 +385,11 @@ const userMessageContextPresentationRegistry = createContextPresentationRegistry
         return (
           <FileChip
             name={record.name}
+            svgPreview={
+              isSvgAttachment(attachment)
+                ? { environmentId: context.environmentId, attachmentId: attachment.id }
+                : undefined
+            }
             size={size}
             isVideo={isVideo}
             theme={context.resolvedTheme}
@@ -511,13 +521,14 @@ export function UserMessageContextReferenceChip(props: {
   onExpandVideo: (file: ChatFileAttachment) => void;
   onOpenFile: (file: ChatFileAttachment) => void;
 }) {
-  const { resolvedTheme } = use(TimelineRowCtx);
+  const { resolvedTheme, activeThreadEnvironmentId } = use(TimelineRowCtx);
   const copyMarkdown = formatComposerContextReference({
     kind: props.reference.kind,
     contextId: props.reference.contextId as ComposerContextId,
     label: props.reference.label,
   });
   return userMessageContextPresentationRegistry.render(props.reference.kind, props.record, {
+    environmentId: activeThreadEnvironmentId,
     reference: props.reference,
     annotationImage: props.annotationImage,
     attachment: props.attachment,

@@ -1,5 +1,5 @@
 import { AuthSettingsWriteScope, type EnvironmentId } from "@supaterm/contracts";
-import type { SourceControlClientDefinition } from "@supaterm/client-runtime/source-control-clients";
+import type { SourceControlDefinition } from "@supaterm/client-runtime/source-control-clients";
 import { useState } from "react";
 
 import { useEnvironmentSettings } from "../../hooks/useSettings";
@@ -15,8 +15,8 @@ export function SourceControlHostSettings({
   onSaved,
 }: {
   readonly environmentId: EnvironmentId;
-  readonly definition: SourceControlClientDefinition & {
-    readonly settings: NonNullable<SourceControlClientDefinition["settings"]>;
+  readonly definition: SourceControlDefinition & {
+    readonly settings: NonNullable<SourceControlDefinition["settings"]>;
   };
   readonly onSaved: () => void;
 }) {

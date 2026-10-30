@@ -14,11 +14,9 @@ import {
 } from "@supaterm/client-runtime/preview/server-browser-stream";
 import type { EnvironmentId, PreviewStreamHostSetup } from "@supaterm/contracts";
 import {
-  useEffect,
   useEffectEvent,
   useImperativeHandle,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
   type Ref,
@@ -54,11 +52,13 @@ export interface PreviewPictureInPictureState {
 type NativeStreamBridge = {
   readonly ref?: Ref<PreviewStreamRef>;
   readonly onUnauthorized: () => void;
+
+  readonly onRefused: (delayMs: number) => void;
   readonly onGone?: () => void;
   readonly onViewport?: (viewport: { readonly width: number; readonly height: number }) => void;
   readonly onControl?: (control: PreviewStreamControl | null) => void;
   readonly onPictureInPicture?: (state: PreviewPictureInPictureState, detail?: string) => void;
-  /** True while frames show, so commands reach the page. Pass a stable function. */
+
   readonly onStreamingChange?: (streaming: boolean) => void;
   readonly compact?: boolean;
   readonly pdfUri?: string | null;
@@ -84,7 +84,6 @@ async function sendFilesToPage(
       endHandoff();
     }
     for (const asset of result.canceled ? [] : result.assets) {
-      // React Native's FormData uploads a file part from its URI.
       files.push({
         uri: asset.uri,
         name: asset.name,
@@ -139,14 +138,21 @@ const MAX_REFUSALS = 3;
 
 export function PreviewStreamWebView(
   props: Omit<PreviewStreamConfiguration, "access"> &
-    Omit<NativeStreamBridge, "onUnauthorized"> & {
+    Omit<NativeStreamBridge, "onUnauthorized" | "onRefused"> & {
       readonly environmentId: EnvironmentId;
       readonly paused?: boolean;
     },
 ) {
-  const { access, error, refresh } = usePreviewStreamAccess(props.environmentId);
+  const { access, error, refresh, retryAfter } = usePreviewStreamAccess(props.environmentId);
   if (access && !props.paused) {
-    return <AuthorizedPreviewStream {...props} access={access} onUnauthorized={refresh} />;
+    return (
+      <AuthorizedPreviewStream
+        {...props}
+        access={access}
+        onUnauthorized={refresh}
+        onRefused={retryAfter}
+      />
+    );
   }
   return (
     <View
@@ -185,20 +191,13 @@ function AuthorizedPreviewStream({
 }: PreviewStreamConfiguration & NativeStreamBridge & { readonly environmentId: EnvironmentId }) {
   const [attempt, setAttempt] = useState(0);
   const [previousAccess, setPreviousAccess] = useState(props.access);
-  // Wait for refreshed access, including cookie credentials with unchanged JSON.
+
   if (props.access !== previousAccess) {
     setPreviousAccess(props.access);
     setAttempt((current) => current + 1);
   }
   const processRetried = useRef(false);
   const unauthorized = useRef(0);
-  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(
-    () => () => {
-      if (refreshTimer.current !== null) clearTimeout(refreshTimer.current);
-    },
-    [],
-  );
   const configuration = JSON.stringify({
     access: props.access,
     threadId: props.threadId,
@@ -216,14 +215,7 @@ function AuthorizedPreviewStream({
       onUnauthorized={() => {
         const refusals = ++unauthorized.current;
         if (refusals >= MAX_REFUSALS) return false;
-        if (refreshTimer.current !== null) clearTimeout(refreshTimer.current);
-        refreshTimer.current = setTimeout(
-          () => {
-            refreshTimer.current = null;
-            props.onUnauthorized();
-          },
-          refusals === 1 ? 0 : 1_000 * 2 ** (refusals - 1),
-        );
+        props.onRefused(refusals === 1 ? 0 : 1_000 * 2 ** (refusals - 1));
         return true;
       }}
       onRetry={() => {
@@ -263,7 +255,7 @@ function PreviewStreamDocumentView({
   onRetry,
   onStreaming,
   onRecoverProcess,
-}: Omit<NativeStreamBridge, "onUnauthorized"> & {
+}: Omit<NativeStreamBridge, "onUnauthorized" | "onRefused"> & {
   readonly environmentId: EnvironmentId;
   readonly threadId: string;
   readonly tabId: string;
@@ -275,13 +267,13 @@ function PreviewStreamDocumentView({
   readonly onRecoverProcess: () => boolean;
 }) {
   const webView = useRef<WebView<object>>(null);
-  const active = useRef(true);
+  const active = useRef(false);
   const failed = useRef(false);
+  const bootstrapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [status, setStatus] = useState<"connecting" | "streaming" | "error">("connecting");
   const [error, setError] = useState<string | null>(null);
   const [gone, setGone] = useState(false);
   const [hostSetup, setHostSetup] = useState<PreviewStreamHostSetup | null>(null);
-  const [started, setStarted] = useState(false);
   const [control, setControl] = useState<PreviewStreamControl | null>(null);
   const dialogRef = useRef<PreviewStreamControl["dialog"]>(null);
   const [promptText, setPromptText] = useState("");
@@ -301,7 +293,6 @@ function PreviewStreamDocumentView({
       ),
     );
   };
-  const controlChanged = useEffectEvent((next: PreviewStreamControl | null) => onControl?.(next));
   const command = (input: PreviewStreamInput) =>
     webView.current?.injectJavaScript(
       `window.SupatermPreviewStream?.command(${JSON.stringify(input)}); true;`,
@@ -314,9 +305,15 @@ function PreviewStreamDocumentView({
       },
       () => Dialog.alert("Could not read the clipboard"),
     );
+  const clearBootstrapTimer = () => {
+    if (bootstrapTimer.current === null) return;
+    clearTimeout(bootstrapTimer.current);
+    bootstrapTimer.current = null;
+  };
   const fail = (message: string) => {
     if (!active.current || failed.current) return;
     failed.current = true;
+    clearBootstrapTimer();
     webView.current?.injectJavaScript("window.SupatermPreviewStream?.stop(); true;");
     onStreamingChange?.(false);
     setControl(null);
@@ -328,34 +325,34 @@ function PreviewStreamDocumentView({
   const bootstrapTimedOut = useEffectEvent(() =>
     fail("Browser viewer could not start. Reconnect to try again."),
   );
-  useEffect(() => {
-    if (started) return;
-    const timer = setTimeout(bootstrapTimedOut, 15_000);
-    return () => clearTimeout(timer);
-  }, [started]);
-  const source = useMemo(
-    () => ({
-      html: previewStreamDocument(configuration, previewStreamScript),
-      baseUrl: Platform.OS === "android" ? "https://localhost/" : "file:///",
-    }),
-    [configuration],
-  );
+  const streamEnded = useEffectEvent(() => {
+    onStreamingChange?.(false);
+    onControl?.(null);
+  });
+
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- starts the bootstrap timeout and stops the WebView stream when this view unmounts
+  useLayoutEffect(() => {
+    active.current = true;
+    const view = webView.current;
+    bootstrapTimer.current = setTimeout(bootstrapTimedOut, 15_000);
+    return () => {
+      if (bootstrapTimer.current !== null) clearTimeout(bootstrapTimer.current);
+      bootstrapTimer.current = null;
+      active.current = false;
+      view?.injectJavaScript("window.SupatermPreviewStream?.stop(); true;");
+      streamEnded();
+    };
+  }, []);
+  const source = {
+    html: previewStreamDocument(configuration, previewStreamScript),
+    baseUrl: Platform.OS === "android" ? "https://localhost/" : "file:///",
+  };
   useImperativeHandle(ref, () => ({
     command,
     paste,
     togglePictureInPicture: () =>
       webView.current?.injectJavaScript("window.SupatermPreviewStream?.pictureInPicture(); true;"),
   }));
-  useLayoutEffect(() => {
-    active.current = true;
-    const view = webView.current;
-    return () => {
-      active.current = false;
-      view?.injectJavaScript("window.SupatermPreviewStream?.stop(); true;");
-    };
-  }, []);
-  useEffect(() => () => onStreamingChange?.(false), [onStreamingChange]);
-  useEffect(() => () => controlChanged(null), []);
   const processTerminated = () => {
     if (!active.current || failed.current) return;
     if (!onRecoverProcess()) fail("Browser viewer stopped. Reconnect to try again.");
@@ -444,14 +441,13 @@ function PreviewStreamDocumentView({
                 onPictureInPicture?.(message, message.detail);
                 return;
               case "status":
-                setStarted(true);
+                clearBootstrapTimer();
                 if (message.status === "error") {
                   fail(message.detail ?? "Browser stream failed.");
                   return;
                 }
                 setStatus(message.status);
                 if (message.status === "connecting") {
-                  // Dialogs may have closed and reopened while this viewer was disconnected.
                   dialogRef.current = null;
                   setControl(null);
                   onControl?.(null);

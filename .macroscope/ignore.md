@@ -249,3 +249,13 @@ ENV/**
 **/spec/**
 **/specs/**
 **/e2e/**
+.repos/**
+**/*.generated.ts
+**/*.graphql.ts
+apps/server/schema/expo.graphql
+packages/source-control-github/schema/github.graphql
+apps/mobile/generated-uniwind-*
+apps/server/src/testUtils/shardWeights.json
+**/*.ndjson
+apps/mobile/modules/supaterm-terminal/Vendor/**
+native/libghostty-vt/include/**

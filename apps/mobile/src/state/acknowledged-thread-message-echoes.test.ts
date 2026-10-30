@@ -86,4 +86,24 @@ describe("acknowledged message echoes", () => {
       registry.dispose();
     }
   });
+  it("retires a paged-out message at its committed sequence", () => {
+    const registry = AtomRegistry.make();
+    const acknowledgment = { ...message, sequence: 42 };
+    const messagesAtom = Atom.make([acknowledgment]);
+    const sequenceAtom = Atom.make(41);
+    const echoes = createAcknowledgedThreadMessageEchoesAtom({
+      messagesAtom,
+      threadAtom: () => Atom.make(null),
+      sequenceAtom: () => sequenceAtom,
+    });
+    try {
+      const unmount = registry.mount(echoes);
+      expect(registry.get(echoes)).toEqual([]);
+      registry.set(sequenceAtom, 42);
+      expect(registry.get(echoes)).toEqual([acknowledgment]);
+      unmount();
+    } finally {
+      registry.dispose();
+    }
+  });
 });

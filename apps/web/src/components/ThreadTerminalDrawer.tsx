@@ -1,4 +1,5 @@
-import { useAtomValue } from "@effect/atom-react";
+import { usePaneScope } from "../chatPanes/paneScope";
+import { useAtomMount, useAtomValue } from "@effect/atom-react";
 import { scopedThreadKey } from "@supaterm/client-runtime/environment";
 import {
   isAtomCommandInterrupted,
@@ -83,7 +84,8 @@ import { readLocalApi } from "~/localApi";
 import { confirmTerminalClose } from "~/lib/terminalCloseConfirm";
 import { useClientSettings } from "../hooks/useSettings";
 import { useLocalStorage } from "../hooks/useLocalStorage";
-import { useAttachedTerminalSession } from "../state/terminalSessions";
+import { attachedTerminalSessionAtom } from "../state/terminalSessions";
+import { appAtomRegistry } from "../rpc/atomRegistry";
 import { serverEnvironment } from "../state/server";
 import { previewEnvironment } from "../state/preview";
 import { readEnvironmentScope } from "../state/session";
@@ -94,6 +96,12 @@ import { TerminalSplitPanels } from "./TerminalSplitPanels";
 import { useAtomCommand } from "../state/use-atom-command";
 import { preventTerminalCloseShortcut } from "../lib/terminalCloseShortcut";
 import { observeResize } from "../lib/observeResize";
+import {
+  consumePendingTerminalFocus,
+  focusTerminal,
+  focusTerminalViewport,
+  registerTerminalFocusTarget,
+} from "../lib/terminalFocus";
 import {
   resolveTerminalFontPreference,
   resolveTerminalFontSizePreference,
@@ -143,7 +151,10 @@ function readDrawerLayout(column: HTMLElement | null): Omit<DrawerLayout, "compo
   };
 }
 
-function writeSystemMessage(terminal: GhosttyTerminalSurface, message: string): void {
+function writeSystemMessage(
+  terminal: Pick<GhosttyTerminalSurface, "write">,
+  message: string,
+): void {
   terminal.write(`\r\n[terminal] ${message}\r\n`);
 }
 
@@ -168,6 +179,31 @@ export function synchronizeTerminalOutput(
   writeTerminalOutputUpdate(terminal, update);
   terminal.clearSelection();
   return update.cursor;
+}
+
+function synchronizeTerminalSession(
+  terminal: Pick<GhosttyTerminalSurface, "resetAndWrite" | "write" | "clearSelection">,
+  previous: Pick<TerminalSessionState, "output" | "version" | "error">,
+  session: Pick<TerminalSessionState, "output" | "version" | "error">,
+  cursor: TerminalOutputCursor,
+): TerminalOutputCursor {
+  const nextCursor =
+    session.version === previous.version && session.output === previous.output
+      ? cursor
+      : synchronizeTerminalOutput(terminal, session, cursor);
+  if (session.error !== null && session.error !== previous.error) {
+    writeSystemMessage(terminal, session.error);
+  }
+  return nextCursor;
+}
+
+function writableSessionGeneration(
+  session: TerminalSessionState,
+  canOperate: boolean,
+): number | null {
+  return canOperate && session.version > 0 && session.status === "running"
+    ? session.output.generation
+    : null;
 }
 
 function parseTerminalColor(value: string, fallback: GhosttyColor): GhosttyColor {
@@ -430,8 +466,8 @@ interface TerminalViewportProps {
   providerInstanceId?: ProviderInstanceId;
   onSessionExited: () => void;
   onAddTerminalContext?: (selection: TerminalContextSelection) => void;
-  focusRequestId: number;
-  autoFocus: boolean;
+  /** Focuses the viewport when it mounts; otherwise focus arrives through `focusTerminal`. */
+  autoFocus?: boolean;
   visible: boolean;
   resizeEpoch: number;
   drawerHeight: number;
@@ -470,14 +506,15 @@ function TerminalSessionViewport({
   providerInstanceId,
   onSessionExited,
   onAddTerminalContext,
-  focusRequestId,
-  autoFocus,
+  autoFocus = false,
   visible,
   resizeEpoch,
   drawerHeight,
   keybindings,
 }: TerminalViewportProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const autoFocusedRef = useRef(false);
+  const paneId = usePaneScope()?.paneId ?? null;
   const terminalRef = useRef<GhosttyTerminalSurface | null>(null);
   const visibleRef = useRef(visible);
   const environmentId = threadRef.environmentId;
@@ -532,20 +569,20 @@ function TerminalSessionViewport({
     }),
   );
   const terminalFontRef = useRef({ family: terminalFontFamily, size: terminalFontSize });
-  const terminalSession = useAttachedTerminalSession({
-    environmentId,
-    terminal: {
-      threadId,
-      terminalId,
-      cwd,
-      ...(worktreePath !== undefined ? { worktreePath } : {}),
-      ...(runtimeEnv ? { env: runtimeEnv } : {}),
-      ...(providerInstanceId ? { providerInstanceId } : {}),
-    },
+  const terminalSessionAtom = attachedTerminalSessionAtom(environmentId, {
+    threadId,
+    terminalId,
+    cwd,
+    ...(worktreePath !== undefined ? { worktreePath } : {}),
+    ...(runtimeEnv ? { env: runtimeEnv } : {}),
+    ...(providerInstanceId ? { providerInstanceId } : {}),
   });
-  const canResizeTerminal =
-    canOperateTerminal && terminalSession.version > 0 && terminalSession.status === "running";
-  const resizeSessionGeneration = canResizeTerminal ? terminalSession.output.generation : null;
+  useAtomMount(terminalSessionAtom);
+  const readTerminalSession = useEffectEvent(() => appAtomRegistry.get(terminalSessionAtom));
+  const subscribeTerminalSession = useEffectEvent(
+    (listener: (session: TerminalSessionState) => void) =>
+      appAtomRegistry.subscribe(terminalSessionAtom, listener),
+  );
   const writeTerminal = useEffectEvent((data: string) =>
     runTerminalWrite({
       environmentId,
@@ -553,15 +590,12 @@ function TerminalSessionViewport({
     }),
   );
   const resizeTerminal = useEffectEvent((cols: number, rows: number) => {
-    if (!canResizeTerminal || !hasTerminalWriteAccess()) return;
+    if (writableSessionGeneration(readTerminalSession(), hasTerminalWriteAccess()) === null) return;
     return runTerminalResize({
       environmentId,
       input: { threadId, terminalId, cols, rows },
     });
   });
-  const terminalOutput = terminalSession.output;
-  const terminalError = terminalSession.error;
-  const terminalStatus = terminalSession.status;
   const outputCursorRef = useRef<TerminalOutputCursor>(INITIAL_TERMINAL_OUTPUT_CURSOR);
   const synchronizedStatusRef = useRef<TerminalSessionState["status"]>("closed");
   const synchronizeTerminalStatus = useEffectEvent(
@@ -583,48 +617,41 @@ function TerminalSessionViewport({
       if (version > 0) synchronizedStatusRef.current = status;
     },
   );
-  const terminalVersion = terminalSession.version;
-  const previousSessionRef = useRef({
-    output: terminalOutput,
-    error: terminalError,
-    status: terminalStatus,
-    version: terminalVersion,
-  });
-  const readLatestSession = useEffectEvent(() => ({
-    output: terminalOutput,
-    error: terminalError,
-    status: terminalStatus,
-    version: terminalVersion,
-  }));
   const openTerminalLink = useEffectEvent(
     (url: string, fallbackToBrowser: () => void, forceBrowser: boolean) =>
       openTerminalLinkInPreview({ url, threadRef, openPreview, fallbackToBrowser, forceBrowser }),
   );
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- applies terminal write permission to its live input and delivers pending pane focus
   useLayoutEffect(() => {
-    if (terminalRef.current) terminalRef.current.input.readOnly = !canOperateTerminal;
-  }, [canOperateTerminal]);
+    const terminal = terminalRef.current;
+    if (!terminal) return;
+    terminal.input.readOnly = !canOperateTerminal;
+    if (canOperateTerminal && visibleRef.current)
+      consumePendingTerminalFocus(threadRef, terminalId, paneId);
+    if (writableSessionGeneration(readTerminalSession(), canOperateTerminal) !== null) {
+      terminal.resendSize();
+    }
+  }, [canOperateTerminal, threadRef, terminalId, paneId]);
 
   // Links re-read the grant on activation; only the hovered link's styling needs a nudge.
   const linkActivationScopeRef = useRef(canOpenHostEditor);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- refreshes link activation styling on the imperative terminal surface when the editor grant changes
   useEffect(() => {
     if (linkActivationScopeRef.current === canOpenHostEditor) return;
     linkActivationScopeRef.current = canOpenHostEditor;
     terminalRef.current?.refreshLinkActivation();
   }, [canOpenHostEditor]);
 
-  useEffect(() => {
-    if (resizeSessionGeneration === null) return;
-    // The first fit can finish before authorization or the attach snapshot.
-    // Replay its grid once this writable session exists, including reconnects.
-    terminalRef.current?.resendSize();
-  }, [resizeSessionGeneration]);
-
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- applies visibility to the live terminal surface and restores focus for its owning pane
   useLayoutEffect(() => {
     visibleRef.current = visible;
     terminalRef.current?.setVisible(visible);
-  }, [visible]);
+    // A request made while this viewport was hidden could not focus it.
+    if (visible) consumePendingTerminalFocus(threadRef, terminalId, paneId);
+  }, [terminalId, threadRef, visible, paneId]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- applies font family and size changes to the live Ghostty terminal surface
   useEffect(() => {
     const current = terminalFontRef.current;
     if (current.family === terminalFontFamily && current.size === terminalFontSize) return;
@@ -632,6 +659,7 @@ function TerminalSessionViewport({
     void terminalRef.current?.setFont(terminalFontOptions(terminalFontFamily, terminalFontSize));
   }, [terminalFontFamily, terminalFontSize]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- creates the terminal surface and owns its session, theme, and input subscriptions until disposal
   useEffect(() => {
     const mount = containerRef.current;
     if (!mount) return;
@@ -680,8 +708,8 @@ function TerminalSessionViewport({
       if (currentFont.family !== setupFont.family || currentFont.size !== setupFont.size) {
         void terminal.setFont(terminalFontOptions(currentFont.family, currentFont.size));
       }
-      const latestSession = readLatestSession();
-      previousSessionRef.current = latestSession;
+      const latestSession = readTerminalSession();
+      terminal.setSharedGrid(latestSession.grid);
       const initialOutput = readTerminalOutputUpdate(
         latestSession.output,
         INITIAL_TERMINAL_OUTPUT_CURSOR,
@@ -693,6 +721,27 @@ function TerminalSessionViewport({
       if (latestSession.error !== null) writeSystemMessage(terminal, latestSession.error);
       synchronizedStatusRef.current = "closed";
       synchronizeTerminalStatus(terminal, latestSession.status, latestSession.version);
+      let previousSession = latestSession;
+      let resizeGeneration = writableSessionGeneration(latestSession, hasTerminalWriteAccess());
+      setupCleanups.push(
+        subscribeTerminalSession((session) => {
+          terminal.setSharedGrid(session.grid);
+          const nextResizeGeneration = writableSessionGeneration(session, hasTerminalWriteAccess());
+          if (nextResizeGeneration !== resizeGeneration) {
+            resizeGeneration = nextResizeGeneration;
+            if (nextResizeGeneration !== null) terminal.resendSize();
+          }
+          const previous = previousSession;
+          previousSession = session;
+          synchronizeTerminalStatus(terminal, session.status, session.version);
+          outputCursorRef.current = synchronizeTerminalSession(
+            terminal,
+            previous,
+            session,
+            outputCursorRef.current,
+          );
+        }),
+      );
       setupCleanups.push(
         registerTerminalScriptPasteSurface({ environmentId, threadId, terminalId }, terminal),
       );
@@ -1076,7 +1125,7 @@ function TerminalSessionViewport({
         if (cancelled) return;
         const message =
           error instanceof Error ? error.message : "Unable to initialize libghostty-vt";
-        mount.textContent = `${message} — close and reopen the terminal to retry.`;
+        mount.textContent = `${message}. Close and reopen the terminal to retry.`;
       });
 
     return () => {
@@ -1089,44 +1138,10 @@ function TerminalSessionViewport({
     };
   }, [cwd, environmentId, threadId, terminalId]);
 
-  useEffect(() => {
-    const terminal = terminalRef.current;
-    const current = {
-      output: terminalOutput,
-      error: terminalError,
-      status: terminalStatus,
-      version: terminalVersion,
-    };
-    if (!terminal) {
-      previousSessionRef.current = current;
-      return;
-    }
-
-    const previous = previousSessionRef.current;
-    synchronizeTerminalStatus(terminal, current.status, current.version);
-    if (current.version === previous.version && current.output === previous.output) {
-      return;
-    }
-
-    outputCursorRef.current = synchronizeTerminalOutput(terminal, current, outputCursorRef.current);
-
-    if (current.error !== null && current.error !== previous.error) {
-      writeSystemMessage(terminal, current.error);
-    }
-
-    previousSessionRef.current = current;
-  }, [terminalOutput, terminalError, terminalStatus, terminalVersion]);
-
-  // Each new request focuses again, even when nothing else changed.
-  const focusRequest = autoFocus && canOperateTerminal && visible ? focusRequestId : null;
-  useEffect(() => {
-    if (focusRequest === null) return;
-    (terminalRef.current ?? containerRef.current)?.focus();
-  }, [focusRequest]);
-
   // The surface measures its mount, so each drawer resize or window resize refits it.
   // A hidden surface skips fitting, and showing it again fits through setVisible.
   const layoutRevision = visible ? `${drawerHeight}:${resizeEpoch}` : null;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- refits the live terminal after drawer resizing and cancels the pending frame on cleanup
   useEffect(() => {
     const terminal = terminalRef.current;
     if (!terminal || layoutRevision === null) return;
@@ -1144,9 +1159,38 @@ function TerminalSessionViewport({
       window.cancelAnimationFrame(frame);
     };
   }, [layoutRevision]);
+
+  const attachContainer = (mount: HTMLDivElement) => {
+    containerRef.current = mount;
+    const focus = () =>
+      focusTerminalViewport({
+        mount,
+        surface: terminalRef.current,
+        canOperate: readEnvironmentScope(environmentId, AuthTerminalOperateScope),
+        visible: visibleRef.current,
+        paneId,
+      });
+    // Once per viewport: a re-attached ref (a fresh callback identity) must not
+    // pull focus back on every render of a chatty terminal. As a request, it
+    // waits for the grant or for the viewport to show when it cannot focus yet.
+    if (autoFocus && !autoFocusedRef.current) {
+      autoFocusedRef.current = true;
+      focusTerminal(threadRef, terminalId, paneId);
+    }
+    const unregister = registerTerminalFocusTarget({
+      threadRef,
+      terminalId,
+      paneId,
+      focus,
+    });
+    return () => {
+      unregister();
+      containerRef.current = null;
+    };
+  };
   return (
     <div
-      ref={containerRef}
+      ref={attachContainer}
       tabIndex={-1}
       className="relative h-full w-full overflow-hidden bg-(--terminal-background)"
     />
@@ -1168,7 +1212,6 @@ interface ThreadTerminalDrawerProps {
   activeTerminalId: string;
   terminalGroups: ThreadTerminalGroup[];
   activeTerminalGroupId: string;
-  focusRequestId: number;
   onSplitTerminal: () => void;
   onSplitTerminalVertical: () => void;
   onNewTerminal: () => void;
@@ -1346,7 +1389,6 @@ export default function ThreadTerminalDrawer({
   activeTerminalId,
   terminalGroups,
   activeTerminalGroupId,
-  focusRequestId,
   onSplitTerminal,
   onSplitTerminalVertical,
   onNewTerminal,
@@ -1392,9 +1434,23 @@ export default function ThreadTerminalDrawer({
     });
   };
   const [resizeEpoch, setResizeEpoch] = useState(0);
-  const [splitFocusRequestId, setSplitFocusRequestId] = useState(0);
+  const paneId = usePaneScope()?.paneId ?? null;
   const drawerHeightRef = useRef(drawerHeight);
-  const lastSyncedHeightRef = useRef({ threadId, height: controlledDrawerHeight });
+  const [lastSyncedHeight, setLastSyncedHeight] = useState({
+    threadId,
+    controlledHeight: controlledDrawerHeight,
+    height: controlledDrawerHeight,
+  });
+  if (
+    lastSyncedHeight.threadId !== threadId ||
+    lastSyncedHeight.controlledHeight !== controlledDrawerHeight
+  ) {
+    setLastSyncedHeight({
+      threadId,
+      controlledHeight: controlledDrawerHeight,
+      height: controlledDrawerHeight,
+    });
+  }
   const resizeStateRef = useRef<{
     pointerId: number;
     startY: number;
@@ -1566,6 +1622,7 @@ export default function ThreadTerminalDrawer({
     });
   };
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- preserves the live drag height on the drawer DOM while React applies a new layout cap
   useLayoutEffect(() => {
     const resizeState = resizeStateRef.current;
     if (resizeState) {
@@ -1576,15 +1633,10 @@ export default function ThreadTerminalDrawer({
   }, [drawerHeight]);
 
   const syncHeight = (nextHeight: number) => {
-    const lastSynced = lastSyncedHeightRef.current;
-    if (lastSynced.threadId === threadId && lastSynced.height === nextHeight) return;
-    lastSyncedHeightRef.current = { threadId, height: nextHeight };
+    if (lastSyncedHeight.threadId === threadId && lastSyncedHeight.height === nextHeight) return;
+    setLastSyncedHeight({ threadId, controlledHeight: controlledDrawerHeight, height: nextHeight });
     onHeightChange(nextHeight);
   };
-
-  useEffect(() => {
-    lastSyncedHeightRef.current = { threadId, height: controlledDrawerHeight };
-  }, [controlledDrawerHeight, threadId]);
 
   const handleResizePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
@@ -1663,6 +1715,7 @@ export default function ThreadTerminalDrawer({
       setResizeEpoch((value) => value + 1);
     },
   );
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- measures the drawer before visible paint and observes window and chat column resizes while visible
   useLayoutEffect(() => {
     if (!visible) {
       return;
@@ -1686,6 +1739,7 @@ export default function ThreadTerminalDrawer({
   }, [isPanel, visible]);
 
   const syncPreferredHeight = useEffectEvent(() => syncHeight(preferredDrawerHeight));
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- persists this mounted drawer's preferred height when its terminal surface is disposed
   useEffect(() => () => syncPreferredHeight(), []);
 
   if (normalizedTerminalIds.length === 0) {
@@ -1743,7 +1797,7 @@ export default function ThreadTerminalDrawer({
         {...(launchLocation.runtimeEnv ? { runtimeEnv: launchLocation.runtimeEnv } : {})}
         onSessionExited={() => onCloseTerminal(terminalId)}
         onAddTerminalContext={onAddTerminalContext}
-        focusRequestId={focusRequestId + splitFocusRequestId}
+
         autoFocus={terminalId === resolvedActiveTerminalId}
         visible={visible}
         resizeEpoch={resizeEpoch}
@@ -1845,7 +1899,7 @@ export default function ThreadTerminalDrawer({
                 activeTerminalId={resolvedActiveTerminalId}
                 onActiveTerminalChange={onActiveTerminalChange}
                 onLayoutChange={(layout) => onSplitLayoutChange(activeTerminalGroup.id, layout)}
-                onDividerRelease={() => setSplitFocusRequestId((value) => value + 1)}
+                onDividerRelease={() => focusTerminal(threadRef, activeTerminalId, paneId)}
                 renderTerminal={renderTerminalViewport}
               />
             ) : (

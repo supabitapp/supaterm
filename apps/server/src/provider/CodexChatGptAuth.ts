@@ -15,6 +15,7 @@ import * as Cause from "effect/Cause";
 import * as AnalyticsService from "../telemetry/AnalyticsService.ts";
 import { openAiUserId } from "../telemetry/Identify.ts";
 import * as Crypto from "effect/Crypto";
+import * as Hex from "effect/encoding/Hex";
 import * as Exit from "effect/Exit";
 import { codexAuthCallbackPage, codexAuthReturnUrl } from "./CodexAuthCallbackPage.ts";
 import * as Effect from "effect/Effect";
@@ -104,6 +105,7 @@ export const makeCodexChatGptAuth = Effect.fn("makeCodexChatGptAuth")(function* 
   readonly defaultReturnUrl?: string;
   readonly reconnectProfile?: ChatGptReconnectProfile | null;
   readonly telemetryFlow?: "direct" | "primary_handoff";
+  readonly expectedProfileKey?: string;
 }) {
   const analytics = yield* Effect.serviceOption(AnalyticsService.AnalyticsService);
   const settings = yield* Effect.serviceOption(ServerSettings.ServerSettingsService);
@@ -293,8 +295,7 @@ export const makeCodexChatGptAuth = Effect.fn("makeCodexChatGptAuth")(function* 
       for (const session of saved.sessions) {
         if (!session.scopes.includes(REQUIRED_SCOPE) || connections.has(session.clientId)) continue;
         connections.add(session.clientId);
-        // Subjects are client-scoped. Use verified email only for counting locally,
-        // never export it or merge the underlying profiles.
+
         const email = session.email?.trim().toLowerCase();
         if (email) accounts.add(email);
         else unidentifiedConnectedConnectionCount++;
@@ -624,8 +625,7 @@ export const makeCodexChatGptAuth = Effect.fn("makeCodexChatGptAuth")(function* 
       const expectedSubject =
         savedRegistration?.subject ??
         (previous?.clientId === registeredClientId ? previous?.subject : undefined);
-      // Subjects are checked within the same registration. Legacy callback migration
-      // registers a new client, whose subject cannot be compared with the old client.
+
       if (registeredClientId && expectedSubject && identity.subject !== expectedSubject)
         return yield* failure(
           "verify",
@@ -712,73 +712,79 @@ export const makeCodexChatGptAuth = Effect.fn("makeCodexChatGptAuth")(function* 
       ),
     );
   });
-  const access = lock.withPermit(
-    withSessionLock(
-      Effect.uninterruptible(
-        Effect.gen(function* () {
-          const saved = yield* read;
-          if (Option.isNone(saved))
-            return yield* failure("access", "Sign in with ChatGPT to use managed Codex.");
-          let record = saved.value;
-          if (!record.scopes.includes(REQUIRED_SCOPE))
-            return yield* failure(
-              "sharing",
-              "Token sharing is disabled. Sign in with ChatGPT and enable token sharing.",
-            );
-          const now = yield* Clock.currentTimeMillis;
-          if (record.expiresAt - now > 60_000) return record;
-          if (record.earliestRefreshAt !== null && record.earliestRefreshAt > now) {
-            if (record.expiresAt > now) return record;
-            return yield* failure(
-              "refresh",
-              "ChatGPT cannot renew this connection yet. Try again shortly.",
-            );
-          }
-          if (!record.refreshToken) {
-            yield* remove;
-            return yield* failure("refresh", "Your ChatGPT connection expired. Sign in again.");
-          }
-          const tokens = yield* exchange(
-            new URLSearchParams({
-              grant_type: "refresh_token",
-              client_id: record.clientId,
-              refresh_token: record.refreshToken,
-              resource,
-            }),
-          ).pipe(
-            Effect.interruptible,
-            Effect.timeout("20 seconds"),
-            Effect.mapError((error) =>
-              error._tag === "ProviderSetupError" && error.operation === "client"
-                ? error
-                : failure(
-                    "refresh",
-                    "Could not renew the ChatGPT connection. Retry, or sign in again.",
-                  ),
-            ),
-          );
-          if (!tokens.refresh_token || tokens.token_type.toLowerCase() !== "bearer") {
-            return yield* failure("refresh", "ChatGPT returned an invalid renewal. Sign in again.");
-          }
-          record = {
-            ...record,
-            accessToken: tokens.access_token,
-            refreshToken: tokens.refresh_token,
-            expiresAt: (yield* Clock.currentTimeMillis) + tokens.expires_in * 1000,
-            earliestRefreshAt: earliest(tokens.earliest_refresh_at),
-            scopes: tokens.scope.split(/\s+/).filter(Boolean),
-          };
-          yield* save(record);
-          if (!record.scopes.includes(REQUIRED_SCOPE))
-            return yield* failure(
-              "sharing",
-              "ChatGPT token sharing is no longer enabled. Sign in again.",
-            );
-          return record;
-        }),
+
+  const profileKey = (record: CodexChatGptCredentials) =>
+    crypto
+      .digest(
+        "SHA-256",
+        new TextEncoder().encode(
+          JSON.stringify([record.clientId, record.subject, record.idToken ?? null]),
+        ),
+      )
+      .pipe(Effect.map(Hex.encode), Effect.orDie);
+  const access = Effect.gen(function* () {
+    const saved = yield* read;
+    if (Option.isNone(saved))
+      return yield* failure("access", "Sign in with ChatGPT to use managed Codex.");
+    let record = saved.value;
+    if (
+      options.expectedProfileKey !== undefined &&
+      (yield* profileKey(record)) !== options.expectedProfileKey
+    )
+      return yield* failure("access", "The ChatGPT connection changed. Start a new session.");
+    if (!record.scopes.includes(REQUIRED_SCOPE))
+      return yield* failure(
+        "sharing",
+        "Token sharing is disabled. Sign in with ChatGPT and enable token sharing.",
+      );
+    const now = yield* Clock.currentTimeMillis;
+    if (record.expiresAt - now > 60_000) return record;
+    if (record.earliestRefreshAt !== null && record.earliestRefreshAt > now) {
+      if (record.expiresAt > now) return record;
+      return yield* failure(
+        "refresh",
+        "ChatGPT cannot renew this connection yet. Try again shortly.",
+      );
+    }
+    if (!record.refreshToken) {
+      yield* remove;
+      return yield* failure("refresh", "Your ChatGPT connection expired. Sign in again.");
+    }
+    const tokens = yield* exchange(
+      new URLSearchParams({
+        grant_type: "refresh_token",
+        client_id: record.clientId,
+        refresh_token: record.refreshToken,
+        resource,
+      }),
+    ).pipe(
+      Effect.interruptible,
+      Effect.timeout("20 seconds"),
+      Effect.mapError((error) =>
+        error._tag === "ProviderSetupError" && error.operation === "client"
+          ? error
+          : failure("refresh", "Could not renew the ChatGPT connection. Retry, or sign in again."),
       ),
-    ),
-  );
+    );
+    if (!tokens.refresh_token || tokens.token_type.toLowerCase() !== "bearer") {
+      return yield* failure("refresh", "ChatGPT returned an invalid renewal. Sign in again.");
+    }
+    record = {
+      ...record,
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token,
+      expiresAt: (yield* Clock.currentTimeMillis) + tokens.expires_in * 1000,
+      earliestRefreshAt: earliest(tokens.earliest_refresh_at),
+      scopes: tokens.scope.split(/\s+/).filter(Boolean),
+    };
+    yield* save(record);
+    if (!record.scopes.includes(REQUIRED_SCOPE))
+      return yield* failure(
+        "sharing",
+        "ChatGPT token sharing is no longer enabled. Sign in again.",
+      );
+    return record;
+  }).pipe(Effect.uninterruptible, withSessionLock, lock.withPermit);
   const logout = Effect.gen(function* () {
     const credentials = Option.getOrUndefined(yield* read);
     let confirmed = !credentials?.refreshToken;
@@ -977,6 +983,7 @@ export const makeCodexChatGptAuth = Effect.fn("makeCodexChatGptAuth")(function* 
     controller: { ...controller, reconnectProfile, importProfile },
     read,
     access,
+    profileKey,
     exportProfile,
     revoke: lock.withPermit(withSessionLock(remove)),
   };

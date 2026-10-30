@@ -39,10 +39,6 @@ const NATIVE_CLI_INSTANCE_ID = ProviderInstanceId.make("nativeCli");
 const OPENCODE_INSTANCE_ID = ProviderInstanceId.make("opencode");
 const encoder = new TextEncoder();
 
-// Pin a non-win32 platform so `resolveSpawnCommand` is a no-op and the raw
-// `{ command, args }` assertions below hold deterministically on any host
-// (including Windows). Windows-specific resolution is covered by the dedicated
-// win32 case at the end of this suite.
 const layerNonWindowsPlatform = Layer.succeed(HostProcess.Platform, "linux");
 
 function lifecycleFor(provider: ProviderDriverKind): ProviderMaintenanceCapabilities {

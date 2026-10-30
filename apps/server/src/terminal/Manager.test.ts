@@ -455,6 +455,149 @@ it.layer(
     }),
   );
 
+  // Which client owns the shared PTY size is left open by the issue, so this only asserts
+  // that every attached renderer is told the grid the PTY actually has.
+  it.effect("tells every attached stream the shared PTY size when attaches disagree", () =>
+    Effect.gen(function* () {
+      const { manager, ptyAdapter } = yield* createManager();
+      const wideEvents: TerminalAttachStreamEvent[] = [];
+      const narrowEvents: TerminalAttachStreamEvent[] = [];
+      const stopWide = yield* manager.attachStream(openInput({ cols: 130, rows: 15 }), (event) =>
+        Effect.sync(() => {
+          wideEvents.push(event);
+        }),
+      );
+      yield* Effect.addFinalizer(() => Effect.sync(stopWide));
+      const stopNarrow = yield* manager.attachStream(openInput({ cols: 54, rows: 15 }), (event) =>
+        Effect.sync(() => {
+          narrowEvents.push(event);
+        }),
+      );
+      yield* Effect.addFinalizer(() => Effect.sync(stopNarrow));
+
+      const spawned = ptyAdapter.spawnInputs[0]!;
+      const ptySize = ptyAdapter.processes[0]!.resizeCalls.at(-1) ?? {
+        cols: spawned.cols,
+        rows: spawned.rows,
+      };
+      const lastReportedSize = (events: ReadonlyArray<TerminalAttachStreamEvent>) => {
+        for (const event of events.toReversed()) {
+          const source: Record<string, unknown> =
+            event.type === "snapshot" ? event.snapshot : event;
+          if (typeof source.cols === "number" && typeof source.rows === "number") {
+            return { cols: source.cols, rows: source.rows };
+          }
+        }
+        return null;
+      };
+
+      expect({
+        wide: lastReportedSize(wideEvents),
+        narrow: lastReportedSize(narrowEvents),
+      }).toEqual({ wide: ptySize, narrow: ptySize });
+    }),
+  );
+
+  it.effect("gives the PTY back to the remaining viewer when the narrowest one detaches", () =>
+    Effect.gen(function* () {
+      const { manager, ptyAdapter } = yield* createManager();
+      const restored = yield* Deferred.make<void>();
+      const stopWide = yield* manager.attachStream(
+        openInput({ cols: 130, rows: 15 }),
+        (event) =>
+          event.type === "activity" && event.cols === 130 && event.rows === 15
+            ? Deferred.succeed(restored, undefined).pipe(Effect.asVoid)
+            : Effect.void,
+        undefined,
+        "wide",
+      );
+      yield* Effect.addFinalizer(() => Effect.sync(stopWide));
+      const stopNarrow = yield* manager.attachStream(
+        openInput({ cols: 54, rows: 15 }),
+        () => Effect.void,
+        undefined,
+        "narrow",
+      );
+      const process = ptyAdapter.processes[0]!;
+
+      yield* manager.resize(
+        { threadId: "thread-1", terminalId: DEFAULT_TERMINAL_ID, cols: 80, rows: 12 },
+        "narrow",
+      );
+      // A resize from a client with no attached stream cannot override attached viewers.
+      yield* manager.resize({
+        threadId: "thread-1",
+        terminalId: DEFAULT_TERMINAL_ID,
+        cols: 200,
+        rows: 50,
+      });
+      expect(process.resizeCalls.at(-1)).toEqual({ cols: 80, rows: 12 });
+
+      stopNarrow();
+      yield* Deferred.await(restored);
+      expect(process.resizeCalls.at(-1)).toEqual({ cols: 130, rows: 15 });
+    }),
+  );
+
+  // Client retries resend the first attach's size, which a later resize may have replaced.
+  it.effect("retains the attached grid when a terminal restarts", () =>
+    Effect.gen(function* () {
+      const { manager, ptyAdapter } = yield* createManager();
+      const stop = yield* manager.attachStream(
+        openInput({ cols: 54, rows: 15 }),
+        () => Effect.void,
+        undefined,
+        "narrow",
+      );
+      yield* Effect.addFinalizer(() => Effect.sync(stop));
+      const restarted = yield* manager.restart(restartInput({ cols: 130, rows: 40 }));
+      expect(restarted).toMatchObject({ cols: 54, rows: 15 });
+      expect(ptyAdapter.spawnInputs.at(-1)).toMatchObject({ cols: 54, rows: 15 });
+    }).pipe(Effect.scoped),
+  );
+
+  it.effect("keeps a viewer's resized grid when the same viewer attaches again", () =>
+    Effect.gen(function* () {
+      const { manager, ptyAdapter } = yield* createManager();
+      const restored = yield* Deferred.make<void>();
+      const stopWide = yield* manager.attachStream(
+        openInput({ cols: 130, rows: 15 }),
+        (event) =>
+          event.type === "activity" && event.cols === 130 && event.rows === 15
+            ? Deferred.succeed(restored, undefined).pipe(Effect.asVoid)
+            : Effect.void,
+        undefined,
+        "wide",
+      );
+      yield* Effect.addFinalizer(() => Effect.sync(stopWide));
+      const stopFirst = yield* manager.attachStream(
+        openInput({ cols: 54, rows: 15 }),
+        () => Effect.void,
+        undefined,
+        "phone",
+      );
+      const process = ptyAdapter.processes[0]!;
+      yield* manager.resize(
+        { threadId: "thread-1", terminalId: DEFAULT_TERMINAL_ID, cols: 100, rows: 15 },
+        "phone",
+      );
+
+      const stopRetry = yield* manager.attachStream(
+        { ...openInput({ cols: 54, rows: 15 }), resume: true },
+        () => Effect.void,
+        undefined,
+        "phone",
+      );
+      expect(process.resizeCalls.at(-1)).toEqual({ cols: 100, rows: 15 });
+
+      stopRetry();
+      stopFirst();
+      yield* Deferred.await(restored);
+      expect(process.resizeCalls.at(-1)).toEqual({ cols: 130, rows: 15 });
+      expect(ptyAdapter.spawnInputs).toHaveLength(1);
+    }),
+  );
+
   it.effect("resumed attaches after close never respawn until the terminal is reopened", () =>
     Effect.gen(function* () {
       const { manager, ptyAdapter } = yield* createManager();
@@ -817,6 +960,35 @@ it.layer(
     }),
   );
 
+  it.effect.each([
+    { name: "OSC", sequence: "\u001b]0;unfinished" },
+    { name: "DCS", sequence: "\u001bPunfinished" },
+    { name: "PM", sequence: "\u001b^unfinished" },
+    { name: "APC", sequence: "\u001b_unfinished" },
+    { name: "CSI", sequence: "\u001b[5" },
+    { name: "C1 OSC", sequence: "\u009d0;unfinished" },
+    { name: "C1 DCS", sequence: "\u0090unfinished" },
+    { name: "C1 PM", sequence: "\u009eunfinished" },
+    { name: "C1 APC", sequence: "\u009funfinished" },
+    { name: "C1 CSI", sequence: "\u009b5" },
+  ])("keeps output after a cancelled $name sequence in history", ({ sequence }) =>
+    Effect.gen(function* () {
+      const { manager, ptyAdapter } = yield* createManager();
+      yield* manager.open(openInput());
+      const process = ptyAdapter.processes[0]!;
+      for (const cancel of ["\u0018", "\u001a"]) {
+        process.emitData(sequence);
+        process.emitData(cancel);
+        process.emitData("next line\n");
+        process.emitData(`${sequence}${cancel}next line\n`);
+      }
+      yield* manager.close({ threadId: "thread-1" });
+
+      const reopened = yield* manager.open(openInput());
+      expect(reopened.history.match(/next line/g)).toHaveLength(4);
+    }),
+  );
+
   it.effect("handles CSI and DCS query sequences split across output chunks", () =>
     Effect.gen(function* () {
       const { manager, ptyAdapter } = yield* createManager();
@@ -840,6 +1012,60 @@ it.layer(
 
       const reopened = yield* manager.open(openInput());
       assert.equal(reopened.history, "before after after after after\n");
+    }),
+  );
+
+  it.effect("preserves large chunked OSC 52 and DCS strings across reopen", () =>
+    Effect.gen(function* () {
+      const { manager, ptyAdapter, logsDir } = yield* createManager();
+      yield* manager.open(openInput());
+      const process = ptyAdapter.processes[0]!;
+      const outputSeen = yield* Deferred.make<void>();
+      const unsubscribe = yield* manager.subscribe((event) =>
+        event.type === "output" && event.data === "done\n"
+          ? Deferred.succeed(outputSeen, undefined).pipe(Effect.asVoid)
+          : Effect.void,
+      );
+      yield* Effect.addFinalizer(() => Effect.sync(unsubscribe));
+      const sequences = [
+        { prefix: `\u001b]52;c;${"YWJj".repeat(16_384)}\u001b`, terminator: "\\" },
+        { prefix: `\u0090q${"?".repeat(65_536)}`, terminator: "\u009c" },
+      ];
+      const stripped = "\u001b]11;?\u0007\u0090$q m\u009c";
+      const preserved = "\u001b[31m\u009d52;c;YWJj\u009c";
+      const expected =
+        sequences.map(({ prefix, terminator }) => prefix + terminator + preserved).join("") +
+        "done\n";
+
+      const charCodeAt = String.prototype.charCodeAt;
+      let largeStringReads = 0;
+      yield* Effect.gen(function* () {
+        // eslint-disable-next-line no-extend-native -- Count character reads without retaining spy call records.
+        String.prototype.charCodeAt = function (this: string, index: number) {
+          if (this.length > 4_096) largeStringReads += 1;
+          return charCodeAt.call(this, index);
+        };
+        for (const { prefix, terminator } of sequences) {
+          for (let offset = 0; offset < prefix.length; offset += 4_096) {
+            process.emitData(prefix.slice(offset, offset + 4_096));
+          }
+          process.emitData(terminator + stripped + preserved);
+        }
+        process.emitData("done\n");
+        yield* Deferred.await(outputSeen);
+      }).pipe(
+        Effect.ensuring(
+          Effect.sync(() => {
+            // eslint-disable-next-line no-extend-native -- Restore the native method after counting reads.
+            String.prototype.charCodeAt = charCodeAt;
+          }),
+        ),
+      );
+      yield* manager.close({ threadId: "thread-1" });
+
+      expect(largeStringReads).toBeLessThan(2 * expected.length);
+      expect(yield* readFileString(yield* historyLogPath(logsDir))).toBe(expected);
+      expect((yield* manager.open(openInput())).history.startsWith(expected)).toBe(true);
     }),
   );
 
@@ -1535,6 +1761,53 @@ it.layer(
       ptyAdapter.processes.at(-1)!.emitData("new session only\n");
       expect(yield* pull).toMatchObject([{ type: "output", data: "new session only\n" }]);
       expect(ptyAdapter.spawnInputs).toHaveLength(4);
+    }).pipe(Effect.scoped),
+  );
+
+  it.effect.each([
+    { recovered: true, label: "after recovery" },
+    { recovered: false, label: "when cancelled before recovery" },
+  ])("keeps a stalled viewer's size until its attach stream ends ($label)", ({ recovered }) =>
+    Effect.gen(function* () {
+      const { manager, ptyAdapter } = yield* createManager();
+      const restored = yield* Deferred.make<void>();
+      const stopWide = yield* manager.attachStream(
+        openInput({ cols: 130, rows: 15 }),
+        (event) =>
+          event.type === "activity" && event.cols === 130 && event.rows === 15
+            ? Deferred.succeed(restored, undefined).pipe(Effect.asVoid)
+            : Effect.void,
+        undefined,
+        "wide",
+      );
+      yield* Effect.addFinalizer(() => Effect.sync(stopWide));
+      const process = ptyAdapter.processes[0]!;
+
+      yield* Effect.gen(function* () {
+        const pull = yield* Stream.toPull(
+          manager.attachOutputStream(openInput({ cols: 54, rows: 15 }), "narrow"),
+        );
+        expect(yield* pull).toMatchObject([{ type: "snapshot" }]);
+        expect(process.resizeCalls.at(-1)).toEqual({ cols: 54, rows: 15 });
+        // Overflow releases the inner subscription before any recovery pull.
+        yield* publishPastOutputBudget(manager, process);
+        yield* manager.resize(
+          { threadId: "thread-1", terminalId: DEFAULT_TERMINAL_ID, cols: 50, rows: 12 },
+          "narrow",
+        );
+        expect(process.resizeCalls.at(-1)).toEqual({ cols: 50, rows: 12 });
+        if (!recovered) return;
+
+        expect(yield* pull).toMatchObject([{ type: "snapshot" }]);
+        yield* manager.resize(
+          { threadId: "thread-1", terminalId: DEFAULT_TERMINAL_ID, cols: 48, rows: 12 },
+          "narrow",
+        );
+        expect(process.resizeCalls.at(-1)).toEqual({ cols: 48, rows: 12 });
+      }).pipe(Effect.scoped);
+
+      yield* Deferred.await(restored);
+      expect(process.resizeCalls.at(-1)).toEqual({ cols: 130, rows: 15 });
     }).pipe(Effect.scoped),
   );
 

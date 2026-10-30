@@ -6,7 +6,7 @@ import type {
   ThreadId,
   WorktreeSetupSnapshot,
 } from "@supaterm/contracts";
-import { scopedThreadKey } from "@supaterm/client-runtime/environment";
+import { scopedThreadKey, scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { workspacePreparationRetryRunIds } from "@supaterm/client-runtime/state/turn-item-presentation";
 import { useState } from "react";
 import { useStableCallback } from "../../hooks/useStableCallback";
@@ -16,8 +16,11 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import { vcsEnvironment } from "../../state/vcs";
 import { useTerminalUiStateStore } from "../../terminalUiStateStore";
 import type { Thread } from "../../types";
+import { focusTerminal } from "../../lib/terminalFocus";
 import { resolveVisibleWorktreeSetup, resolveWorktreeSetupProgress } from "../ChatView.logic";
 import { worktreeSetupAgentStarted } from "./MessagesTimeline.logic";
+import { retryThreadWorktreeLocally } from "../../state/threadOutbox";
+import { usePaneThreadNavigation } from "../../chatPanes/paneScope";
 
 /** Runs with a workspace preparation retry in flight, across ChatView instances. */
 const retryingWorkspacePreparationRunIds = new Set<RunId>();
@@ -28,6 +31,7 @@ const retryingWorkspacePreparationRunIds = new Set<RunId>();
  */
 export function useWorktreeSetup(input: {
   readonly routeThreadRef: ScopedThreadRef;
+  readonly currentRouteThreadKeyRef: { readonly current: string | null };
   // The draft id for a draft route, else the route's thread key. A bootstrap
   // rotates the thread id, so setup started from a draft stays keyed by it.
   readonly ownerKey: string;
@@ -44,6 +48,7 @@ export function useWorktreeSetup(input: {
 }) {
   const {
     routeThreadRef,
+    currentRouteThreadKeyRef,
     ownerKey,
     activeThread,
     threadRef,
@@ -56,6 +61,8 @@ export function useWorktreeSetup(input: {
   const cancelWorktreeSetup = useAtomCommand(vcsEnvironment.cancelWorktreeSetup, {
     reportFailure: false,
   });
+  const openPaneThread = usePaneThreadNavigation();
+  const isCurrentOwner = useStableCallback((key: string) => key === ownerKey);
   const retryWorkspacePreparation = useAtomCommand(threadEnvironment.retryWorkspacePreparation);
   const storeEnsureTerminal = useTerminalUiStateStore((state) => state.ensureTerminal);
   // The thread a send is setting up, recorded by begin() before the server knows it.
@@ -114,11 +121,6 @@ export function useWorktreeSetup(input: {
     turnStarted: activityRun?.startedAt != null,
     followUpSent,
   });
-  // Sends wait for the agent handoff, not for the setup script: an async
-  // script keeps the snapshot running while the agent already works, and a
-  // follow-up must not be held behind a slow install. Before the first
-  // snapshot arrives the starting session stands in for it. A send that
-  // queues behind the setup run or the pending task is never held here.
   const blocksSend =
     !sendQueuesBehindSetup &&
     (worktreeSetup !== null
@@ -157,6 +159,17 @@ export function useWorktreeSetup(input: {
     });
     return result._tag === "Success" && result.value.cancelled;
   });
+  const workLocally = useStableCallback(async () => {
+    if (!worktreeSetup || worktreeSetup.phase !== "running") return;
+    const owner = ownerKey;
+    const replacement = await retryThreadWorktreeLocally(
+      scopeThreadRef(target.environmentId, worktreeSetup.threadId),
+      cancel,
+    );
+    if (replacement && currentRouteThreadKeyRef.current !== null && isCurrentOwner(owner)) {
+      await openPaneThread({ kind: "server", threadRef: replacement }, { replace: true });
+    }
+  });
   const retryPreparation = useStableCallback((runId: RunId) => {
     // One retry per failed run: a second click lands after the run is preparing again.
     if (!threadRef || retryingWorkspacePreparationRunIds.has(runId)) return;
@@ -174,6 +187,7 @@ export function useWorktreeSetup(input: {
   const openSetupTerminal = setupThreadRef
     ? (terminalId: string) => {
         storeEnsureTerminal(setupThreadRef, terminalId, { open: true, active: true });
+        focusTerminal(setupThreadRef, terminalId);
       }
     : null;
 
@@ -184,6 +198,7 @@ export function useWorktreeSetup(input: {
     retryableRunIds: retryableRunIds.ids,
     begin,
     cancel,
+    workLocally,
     retryPreparation,
     openSetupTerminal,
   };

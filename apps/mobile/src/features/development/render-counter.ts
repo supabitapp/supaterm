@@ -1,13 +1,3 @@
-// Dev-only render counter driven by `scripts/measure-renders.mts` through the
-// Hermes inspector. It wraps the DevTools hook's commit callback, so it must load
-// before React renders anything; see `render-counter-entry.ts`.
-//
-// The fiber walk matches the web counter used for React Compiler work: a
-// bailed-out subtree keeps `child === alternate.child`, so it is not descended,
-// because fibers there keep stale flags and alternates from older commits.
-// PerformedWork (1) is cleared whenever React clones a fiber, so a reached fiber
-// with it set rendered in this commit.
-
 interface Fiber {
   readonly tag: number;
   readonly type: unknown;
@@ -20,7 +10,7 @@ interface Fiber {
 }
 interface HookSlot {
   readonly memoizedState: unknown;
-  /** Non-null only for useState and useReducer, the hooks that can schedule a render. */
+
   readonly queue: unknown;
   readonly next: HookSlot | null;
 }
@@ -73,8 +63,7 @@ function changedStateSlot(alternate: Fiber, node: Fiber): number {
   for (let index = 0; a && b && index < 800; index++) {
     const before = a.memoizedState;
     const after = b.memoizedState;
-    // Memo, callback and ref slots change because something upstream did; only a
-    // state update is a cause of its own.
+
     if (b.queue !== null && !isEffect(after) && !Object.is(before, after)) return index;
     a = a.next;
     b = b.next;
@@ -145,13 +134,12 @@ const sorted = (map: Map<string, number>) =>
 install(state);
 
 Object.assign(globalThis, {
-  /** Routes an app link in-process, so drivers need no simctl or adb access. */
   __supatermRenderCounterOpen(url: string) {
     const { Linking } = require("react-native") as typeof import("react-native");
     void Linking.openURL(url);
     return true;
   },
-  /** Restarts the JS app on Home; deferred so the inspector call can reply first. */
+
   __supatermRenderCounterReload() {
     const { DevSettings } = require("react-native") as typeof import("react-native");
     setTimeout(() => DevSettings.reload(), 100);

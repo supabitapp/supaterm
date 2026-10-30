@@ -1,9 +1,16 @@
+import { AnimatedHeight } from "~/components/AnimatedHeight";
+import { DeviceHostDiagnostics } from "../device/DeviceSetup";
+import {
+  PlatformStatus,
+  platformSetupStatus,
+  deviceHubDescription,
+  agentDeviceDescription,
+} from "../device/DeviceSetup";
 import { DeviceHostUpdates } from "../device/DeviceHostUpdates";
 import { DeviceToolVersions } from "../device/DeviceToolVersions";
 import { useScopedSettings, useUpdateScopedSettings } from "./useScopedSettings";
 import { ScopedSwitch } from "./ScopedSwitch";
-import { DeviceHostsSettings } from "./DeviceHostsSettings";
-import { EasDeviceHostsSettings } from "./EasDeviceHostsSettings";
+import { DeviceSourcesSettings } from "./DeviceSourcesSettings";
 import {
   AuthSettingsWriteScope,
   BrowserImportFailureReason,
@@ -41,7 +48,6 @@ import { EllipsisVerticalIcon, PlusIcon } from "@supaterm/icons";
 import { useId, useRef, useState } from "react";
 
 import { ScreenRotationIcon } from "~/browser/ScreenRotationIcon";
-import { AnimatedHeight } from "~/components/AnimatedHeight";
 import { resolveEnvironmentOptionLabel } from "~/components/BranchToolbar.logic";
 import { previewBridge } from "~/components/preview/previewBridge";
 import { cn, randomUUID } from "~/lib/utils";
@@ -58,11 +64,6 @@ import {
   AgentDeviceSetupStatus,
   DeviceHubSetupStatus,
   deviceHubReadiness,
-  PlatformStatus,
-  platformSetupStatus,
-  deviceHubDescription,
-  agentDeviceDescription,
-  DeviceHostDiagnostics,
 } from "~/components/device/DeviceSetup";
 import { isElectron } from "../../env";
 
@@ -180,11 +181,8 @@ const APPEARANCE_LABELS: Readonly<Record<PreviewAppearancePreference, string>> =
 
 const zoomLabel = (zoomFactor: number) => `${Math.round(zoomFactor * 100)}%`;
 
-/**
- * IPC flattens the failure to its message, so the reason token travels inside
- * it. Anything unrecognised reads as a plain read failure rather than leaking
- * the raw message into a toast.
- */
+/** IPC carries reason tokens inside messages; treat unknown tokens as read failures without exposing raw
+ * text. */
 class ProfileLimitReachedError extends Error {
   constructor() {
     super("Browser profile limit reached.");
@@ -230,9 +228,7 @@ async function importBrowserCookiesIntoTarget(
               (profile) => profile.id === input.target.profileId,
             );
             if (existing) return current;
-            // The wizard refuses a new target at the cap, but the cap can be
-            // reached while the import runs; the updater sees the newest
-            // settings, so this is the check that holds.
+            // The profile cap may be reached during import; enforce it against the updater's latest settings.
             if (current.browserProfiles.length >= BROWSER_PROFILE_MAX_COUNT) {
               throw new ProfileLimitReachedError();
             }
@@ -253,9 +249,8 @@ async function importBrowserCookiesIntoTarget(
             persisted.browserProfiles.find((profile) => profile.id === input.target.profileId)
               ?.name ?? source.name;
         } catch (cause) {
-          // This target id belongs only to the attempted new profile. Clear
-          // its partition so a failed registration cannot strand imported
-          // cookies behind a profile that disappears on restart.
+          // Clear the new target's partition on registration failure so imported cookies cannot outlive its
+          // profile.
           await clearBrowserProfileData(bridge, [environmentId], input.target.profileId).catch(
             () => undefined,
           );
@@ -292,11 +287,7 @@ const viewportSelectValue = (viewport: PreviewViewportSetting): string => {
   return RESPONSIVE_VALUE;
 };
 
-/**
- * The trigger renders this rather than a bare `SelectValue`, which would fall
- * back to printing the raw stored value ("fill") because the options are built
- * inline instead of from an `items` map.
- */
+/** Inline options lack an items map; bare SelectValue would display the stored fill token. */
 const viewportSelectLabel = (viewport: PreviewViewportSetting): string => {
   const value = viewportSelectValue(viewport);
   if (value === FILL_VALUE) return "Fill panel";
@@ -354,9 +345,7 @@ function BrowserViewportSetting({ disabled }: { readonly disabled: boolean }) {
     });
   };
 
-  // Committed on blur rather than per keystroke: typing "2560" passes through
-  // "256", which is a legal dimension, so an onValueChange handler would
-  // persist that intermediate size and churn the settings file on every key.
+  // Commit on blur to avoid persisting valid intermediate dimensions and rewriting settings per keystroke.
   const commitDimension = (axis: "width" | "height", value: number | null) => {
     if (value === null || !isValidDimension(value)) return;
     const next = { ...presentedSize, [axis]: value };
@@ -801,15 +790,23 @@ function DeviceIntegrationSettings() {
   const connected = selected?.connection.phase === "connected" && selected.serverConfig !== null;
   const environmentId = connected ? selected.environmentId : null;
 
+  const { state } = useDeviceState(environmentId);
+
   return (
-    <SettingsSection id="devices" title="Devices">
-      <DeviceIntegrationControls
-        key={`${environmentId}:${JSON.stringify(search)}`}
-        environmentId={environmentId}
-        enabled={settings.enableDeviceSupport}
-        agentAccessEnabled={settings.enableAgentDeviceAccess}
+    <>
+      <SettingsSection id="devices" title="Devices">
+        <DeviceIntegrationControls
+          key={`${environmentId}:${JSON.stringify(search)}`}
+          environmentId={environmentId}
+          enabled={settings.enableDeviceSupport}
+          agentAccessEnabled={settings.enableAgentDeviceAccess}
+        />
+      </SettingsSection>
+      <DeviceSourcesSettings
+        supportsEas={state.supportsEasHosts === true}
+        supportsSimlock={state.supportsSimlockHosts === true}
       />
-    </SettingsSection>
+    </>
   );
 }
 
@@ -841,14 +838,8 @@ function DeviceIntegrationControls({
   );
   const [platformsRevealed, setPlatformsRevealed] = useState(false);
   if (platformsRevealed && !enabled) setPlatformsRevealed(false);
-  if (
-    enabled &&
-    !platformsRevealed &&
-    (hubReady || localPlatformsUnavailable) &&
-    pending !== "hub"
-  ) {
+  if (enabled && !platformsRevealed && (hubReady || localPlatformsUnavailable) && pending !== "hub")
     setPlatformsRevealed(true);
-  }
 
   const update = async (
     kind: NonNullable<typeof pending>,
@@ -1065,8 +1056,10 @@ function DeviceIntegrationControls({
           environmentId={environmentId}
         />
       ) : null}
-      <DeviceHostsSettings environmentId={environmentId} />
-      {state.supportsEasHosts ? <EasDeviceHostsSettings environmentId={environmentId} /> : null}
+      <DeviceSourcesSettings
+        supportsEas={state.supportsEasHosts === true}
+        supportsSimlock={state.supportsSimlockHosts === true}
+      />
     </>
   );
 }
@@ -1186,8 +1179,7 @@ function BrowserProfilesSetting({ disabled }: { readonly disabled: boolean }) {
   const createProfile = (baseName: string) => {
     if (!settingsHydrated || importInFlightRef.current) return undefined;
     const currentProfiles = getClientSettings().browserProfiles;
-    // Checked against the live settings, not the rendered list: two clicks
-    // before a re-render would otherwise both pass the disabled control.
+    // Check live settings; repeated clicks before render can bypass the disabled control.
     if (currentProfiles.length >= BROWSER_PROFILE_MAX_COUNT) return undefined;
     const resolvedProfiles = resolveBrowserProfiles(currentProfiles);
     const taken = new Set(resolvedProfiles.map((profile) => profile.name));
@@ -1596,7 +1588,11 @@ function BrowserProfilesSetting({ disabled }: { readonly disabled: boolean }) {
   );
 }
 
-export function IntegrationsSettingsPanel() {
+export function IntegrationsSettingsPanel({
+  area = "all",
+}: {
+  area?: "all" | "browser" | "devices";
+}) {
   const previewDefaultsDisabled = !isElectron;
   const previewDefaults = (
     <>
@@ -1613,20 +1609,31 @@ export function IntegrationsSettingsPanel() {
 
   return (
     <SettingsPageContainer>
-      <OrchestrationSkillsSettings />
-      <SettingsSection id="browser" title="Browser">
-        <AgentBrowserAccessRow />
-        {previewDefaultsDisabled ? (
-          <SettingsUnavailableGroup message="Only available in the desktop app.">
-            {previewDefaults}
-          </SettingsUnavailableGroup>
-        ) : (
-          previewDefaults
-        )}
-        <BrowserSearchEngineSetting />
-        <PullRequestLinksOpenInAppSetting />
-      </SettingsSection>
-      <DeviceIntegrationSettings />
+      {area !== "devices" ? (
+        <>
+          <OrchestrationSkillsSettings />
+          <SettingsSection id="browser" title="Browser">
+            <AgentBrowserAccessRow />
+            {previewDefaultsDisabled ? (
+              <SettingsUnavailableGroup message="Only available in the desktop app.">
+                {previewDefaults}
+              </SettingsUnavailableGroup>
+            ) : (
+              previewDefaults
+            )}
+            <BrowserSearchEngineSetting />
+            <PullRequestLinksOpenInAppSetting />
+          </SettingsSection>
+        </>
+      ) : null}
+      {area !== "browser" ? <DeviceIntegrationSettings /> : null}
     </SettingsPageContainer>
   );
+}
+
+export function BrowserSettingsPanel() {
+  return <IntegrationsSettingsPanel area="browser" />;
+}
+export function DevicesSettingsPanel() {
+  return <IntegrationsSettingsPanel area="devices" />;
 }

@@ -5,6 +5,7 @@ import * as NodeReadline from "node:readline";
 
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import * as Fiber from "effect/Fiber";
 import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
@@ -92,11 +93,12 @@ export const mcpToolSession = (
     message: unknown,
   ): Effect.fn.Return<ReadonlyArray<unknown>, AcpMcpBridgeError> {
     const response = yield* Effect.tryPromise({
-      try: () =>
+      try: (signal) =>
         fetchImplementation(options.endpoint, {
           method: "POST",
           headers: { "content-type": "application/json", ...headers() },
           body: JSON.stringify(message),
+          signal,
         }),
       catch: bridgeError,
     });
@@ -213,7 +215,7 @@ export function runAcpMcpStdioBridge(options: AcpMcpStdioBridgeOptions): Effect.
     )(
       function* (line: string, envelope: JsonRpcEnvelope) {
         const response = yield* Effect.tryPromise({
-          try: () =>
+          try: (signal) =>
             fetchImplementation(options.endpoint, {
               method: "POST",
               headers: {
@@ -224,6 +226,7 @@ export function runAcpMcpStdioBridge(options: AcpMcpStdioBridgeOptions): Effect.
                 ...(protocolVersion === null ? {} : { "mcp-protocol-version": protocolVersion }),
               },
               body: line,
+              signal,
             }),
           catch: bridgeError,
         });
@@ -279,13 +282,11 @@ export function runAcpMcpStdioBridge(options: AcpMcpStdioBridgeOptions): Effect.
       line: string,
     ): Effect.fn.Return<void> {
       if (line.trim().length === 0) return;
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(line);
-      } catch {
+      const parsed = yield* Effect.try((): unknown => JSON.parse(line)).pipe(Effect.result);
+      if (Result.isFailure(parsed)) {
         return yield* respondWithError(null, "Parse error", -32700);
       }
-      const envelope = asEnvelope(parsed);
+      const envelope = asEnvelope(parsed.success);
       if (envelope === null) return;
       const isResponse = envelope.id !== undefined && ("result" in envelope || "error" in envelope);
       const isSessionHandshake =
@@ -320,7 +321,7 @@ export function runAcpMcpStdioBridge(options: AcpMcpStdioBridgeOptions): Effect.
 
     const reader = NodeReadline.createInterface({ input: options.input });
     yield* Stream.runForEach(Stream.fromAsyncIterable(reader, bridgeError), dispatch).pipe(
-      Effect.catchCause(() => Effect.void),
+      Effect.ignoreCause,
     );
     yield* Fiber.awaitAll(running);
   });

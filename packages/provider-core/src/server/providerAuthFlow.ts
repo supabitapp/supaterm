@@ -512,8 +512,6 @@ export const make = Effect.fn("ProviderAuthFlow.make")(function* (options: {
       active = undefined;
       if (flow?.responseFiber) yield* Fiber.interrupt(flow.responseFiber);
       if (flow?.fiber) yield* Fiber.interrupt(flow.fiber);
-      // Settings edits rebuild instances; admitted sessions (including those of
-      // peers sharing this binding) end with their own scopes, not this one.
     }),
   );
   return controller;

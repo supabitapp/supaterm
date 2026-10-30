@@ -373,8 +373,7 @@ export const makeAntigravityInstallation = Effect.fn("AntigravityInstallation.ma
           profileDirectory,
           platform,
           baseEnv: environment,
-          // The profile is scoped, so it cleans up the unpack; a shallow
-          // root keeps it under Windows' path limit.
+
           tempDirectory: profileDirectory,
         });
         const runtime = yield* makeAntigravityAcpRuntime({
@@ -390,9 +389,7 @@ export const makeAntigravityInstallation = Effect.fn("AntigravityInstallation.ma
               ? ChildProcessSpawner.make(
                   Effect.fnUntraced(function* (command) {
                     const child = yield* spawner.spawn(command);
-                    // Stop PyInstaller's tree before ACP closes its pipes. Once
-                    // the launcher exits, taskkill cannot reach its children,
-                    // which keep the executable and unpacked DLLs locked.
+
                     yield* Scope.addFinalizer(
                       validationScope,
                       child.kill({ forceKillAfter: "1 second" }).pipe(Effect.orDie),
@@ -401,14 +398,11 @@ export const makeAntigravityInstallation = Effect.fn("AntigravityInstallation.ma
                   }),
                 )
               : spawner,
-          clientInfo: { name: "supaterm", version: "0.0.0" },
         });
         const initialized = yield* runtime.initialize();
         if (
           initialized.agentInfo?.name !== "antigravity-acp" ||
           initialized.agentInfo.version !== expectedVersion ||
-          // Antigravity 1.1.1 can report 2 with the legacy ACP response shape.
-          // The ACP client chooses the session wire format from that shape.
           (initialized.protocolVersion !== 1 && initialized.protocolVersion !== 2) ||
           initialized.agentCapabilities?.loadSession !== true ||
           !initialized.agentCapabilities.sessionCapabilities?.resume ||
@@ -464,7 +458,6 @@ export const makeAntigravityInstallation = Effect.fn("AntigravityInstallation.ma
             { flag: "wx", mode: 0o600 },
           );
           yield* fs.rename(pointerPath, activePath);
-          // The pointer commits the install. Later temp cleanup cannot undo it.
           yield* SubscriptionRef.update(
             state,
             (current) =>
@@ -531,9 +524,7 @@ export const makeAntigravityInstallation = Effect.fn("AntigravityInstallation.ma
         const response = yield* http
           .execute(HttpClientRequest.get(asset.url))
           .pipe(Effect.flatMap(HttpClientResponse.filterStatusOk));
-        // dl.google.com gzips the zip when the client accepts it, so
-        // `content-length` is the encoded size. The decoded stream is still
-        // checked against the pinned byte count and hash below.
+
         const contentLength = response.headers["content-length"];
         const contentEncoding = response.headers["content-encoding"]?.trim().toLowerCase();
         const identityBody = contentEncoding === undefined || contentEncoding === "identity";

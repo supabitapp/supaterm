@@ -79,6 +79,7 @@ interface BranchToolbarProps {
   projectPicker?: ReactNode;
   contextStripPlacement?: "top" | "bottom";
   usageMeter?: ReactNode;
+  permissions?: ReactNode;
 }
 
 const COMPOSER_CONTEXT_MOTION_DURATION_MS = 180;
@@ -142,11 +143,6 @@ function useLabelsOverflow(element: HTMLDivElement | null): boolean {
     let groups = 0;
     for (const child of current.children) {
       if (!(child instanceof HTMLElement)) continue;
-      // Reserve the natural width of the controls inside it, blocks in overflow
-      // included, so Git labels compact before squeezing out the model picker.
-      // Reserving only the visible controls would let the labels expand into
-      // room the composer just freed, shrink the host, and hide the controls
-      // again.
       const hostedControls = child.matches('[data-chat-resting-composer-controls-host="true"]')
         ? child.querySelector<HTMLElement>('[data-chat-composer-resting-controls="true"]')
         : null;
@@ -183,6 +179,7 @@ function useLabelsOverflow(element: HTMLDivElement | null): boolean {
     setOverflows(nextOverflows);
   });
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Animates committed label widths after the context strip changes its compact mode.
   useLayoutEffect(() => {
     const pending = pendingLabelRectsRef.current;
     if (pending?.overflows !== overflows) return;
@@ -224,6 +221,7 @@ function useLabelsOverflow(element: HTMLDivElement | null): boolean {
     }
   }, [overflows]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Cancels label animations owned by this toolbar when it unmounts.
   useEffect(
     () => () => {
       for (const animation of labelAnimationsRef.current.values()) {
@@ -233,11 +231,13 @@ function useLabelsOverflow(element: HTMLDivElement | null): boolean {
     [],
   );
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Measures committed controls to choose the context strip's compact layout before paint.
   useLayoutEffect(() => {
     // oxlint-disable-next-line react/set-state-in-effect -- The label mode comes from measuring the committed DOM, which render cannot read.
     measure();
   });
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Observes toolbar size and font loading while this context strip is mounted.
   useEffect(() => {
     if (!element) return;
     const stopObserving = observeResize(element, measure);
@@ -283,6 +283,7 @@ export const BranchToolbar = memo(function BranchToolbar({
   projectPicker,
   contextStripPlacement = "bottom",
   usageMeter,
+  permissions,
 }: BranchToolbarProps) {
   const branchSelectorRef = useRef<BranchToolbarBranchSelectorHandle>(null);
   const threadRef = scopeThreadRef(environmentId, threadId);
@@ -360,12 +361,13 @@ export const BranchToolbar = memo(function BranchToolbar({
   const labelsOverflow = useLabelsOverflow(stripElement);
 
   if (!activeProject) {
-    return layout === "composer" && projectPicker ? (
+    return layout === "composer" && (projectPicker || permissions) ? (
       <ComposerSurface.ContextStrip
         placement={contextStripPlacement}
         className={CONTEXT_STRIP_CLASS}
       >
         {projectPicker}
+        {permissions}
       </ComposerSurface.ContextStrip>
     ) : null;
   }
@@ -475,6 +477,7 @@ export const BranchToolbar = memo(function BranchToolbar({
         />
       ) : null}
       {usageMeter}
+      {permissions}
     </ComposerSurface.ContextStrip>
   );
 });

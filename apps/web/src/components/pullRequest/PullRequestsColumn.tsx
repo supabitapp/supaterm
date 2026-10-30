@@ -13,6 +13,7 @@ import {
 } from "../WorkspaceBreadcrumb";
 import { WorkspacePageContainer } from "../WorkspacePageContainer";
 import { WorkspacePageHeader } from "../WorkspacePageHeader";
+import { workspaceAreaProps } from "../../lib/workspaceFocus";
 import { PullRequestCompactFilterMenu } from "./PullRequestCompactFilterMenu";
 import type { PullRequestFilterOption } from "./PullRequestListFilters";
 import { INVOLVEMENT_TABS, STATE_TABS } from "./pullRequestListOptions";
@@ -22,14 +23,12 @@ function ExpandableSearch({
   searchValue,
   open,
   onOpenChange,
-  focusToken,
   onFocusWithin,
 }: {
   searchInput: ReactNode;
   searchValue: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  focusToken: number;
   /**
    * An unmount fires no blur, which is the point: whoever unmounted this can still see the reader
    * was mid-typing and move the focus somewhere that continues the sentence.
@@ -37,18 +36,11 @@ function ExpandableSearch({
   onFocusWithin?: (focused: boolean) => void;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- focuses the search input DOM node when the topbar search opens
   useEffect(() => {
     if (!open) return;
     containerRef.current?.querySelector("input")?.focus();
   }, [open]);
-  const appliedFocusToken = useRef(focusToken);
-  useEffect(() => {
-    if (appliedFocusToken.current === focusToken) return;
-    appliedFocusToken.current = focusToken;
-    const input = containerRef.current?.querySelector("input");
-    input?.focus();
-    input?.select();
-  }, [focusToken]);
   if (open || searchValue.length > 0) {
     return (
       <div
@@ -115,8 +107,10 @@ export function PullRequestsColumn({
   listBody: ReactNode;
   scrollRef: RefObject<HTMLDivElement | null>;
 }) {
+  const contentArea = workspaceAreaProps("pull-requests", 1, "Pull requests");
   const markerRef = useRef<HTMLDivElement | null>(null);
   const [condensed, setCondensed] = useState(false);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- IntersectionObserver on the scroll marker condenses the topbar
   useEffect(() => {
     const marker = markerRef.current;
     if (!marker) return;
@@ -132,20 +126,18 @@ export function PullRequestsColumn({
   const topbarSearchFocusedRef = useRef(false);
   const inFlowSearchRef = useRef<HTMLDivElement | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [searchFocusToken, setSearchFocusToken] = useState(0);
+  const topbarSearchRef = useRef<HTMLDivElement | null>(null);
   const searchExpanded = searchOpen || searchValue.length > 0;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- window keydown listener focuses the visible search input on Cmd/Ctrl+F
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return;
       if (event.key.toLowerCase() !== "f" || !(event.metaKey || event.ctrlKey)) return;
       if (event.altKey || event.shiftKey) return;
       event.preventDefault();
-      if (condensed) {
-        setSearchOpen(true);
-        setSearchFocusToken((token) => token + 1);
-        return;
-      }
-      const input = inFlowSearchRef.current?.querySelector("input");
+      // A closed topbar search has no input yet; opening it mounts one that focuses itself.
+      if (condensed) setSearchOpen(true);
+      const input = (condensed ? topbarSearchRef : inFlowSearchRef).current?.querySelector("input");
       input?.focus();
       input?.select();
     };
@@ -153,6 +145,7 @@ export function PullRequestsColumn({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [condensed]);
   if (!condensed && searchOpen) setSearchOpen(false);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- moves DOM focus to the in-flow search when the topbar search it was typed in unmounts
   useEffect(() => {
     if (condensed) return;
     if (!topbarSearchFocusedRef.current) return;
@@ -174,7 +167,7 @@ export function PullRequestsColumn({
         {condensed ? (
           <WorkspaceBreadcrumb ariaLabel="Pull request scope" className="overflow-hidden">
             <WorkspaceBreadcrumbItem current className={cn(searchExpanded && "sr-only")}>
-              <h1 className="truncate">Pull Requests</h1>
+              <h1 className="truncate">Pull requests</h1>
             </WorkspaceBreadcrumbItem>
             {searchExpanded ? null : <WorkspaceBreadcrumbSeparator />}
             <WorkspaceBreadcrumbItem className="shrink gap-1.5">
@@ -204,19 +197,18 @@ export function PullRequestsColumn({
         ) : (
           <WorkspaceBreadcrumb ariaLabel="Pull requests breadcrumb">
             <WorkspaceBreadcrumbItem current>
-              <h1 className="truncate">Pull Requests</h1>
+              <h1 className="truncate">Pull requests</h1>
             </WorkspaceBreadcrumbItem>
           </WorkspaceBreadcrumb>
         )}
         <div className="min-w-0 flex-1" />
         {condensed ? (
-          <div className="flex shrink items-center gap-1.5">
+          <div ref={topbarSearchRef} className="flex shrink items-center gap-1.5">
             <ExpandableSearch
               searchInput={searchInput}
               searchValue={searchValue}
               open={searchOpen}
               onOpenChange={setSearchOpen}
-              focusToken={searchFocusToken}
               onFocusWithin={(focused) => {
                 topbarSearchFocusedRef.current = focused;
               }}
@@ -231,7 +223,7 @@ export function PullRequestsColumn({
         ref={scrollRef}
         className="topbar-scroll-fade scrollbar-gutter-both min-h-0 flex-1 overflow-y-auto"
       >
-        <WorkspacePageContainer width="expanded" className="min-h-full gap-4">
+        <WorkspacePageContainer {...contentArea} width="expanded" className="min-h-full gap-4">
           <div className="flex flex-col gap-3">
             <div ref={inFlowSearchRef} className="flex flex-wrap items-center gap-2">
               <div className="min-w-0 basis-full @lg/pr-list:basis-0 @lg/pr-list:flex-1">

@@ -15,7 +15,12 @@ export const DEFAULT_ACTIVITY_FILTER: ActivityFilter = {
 };
 
 function isBot(actor: PullRequestActor | null) {
-  return actor?.isBot === true || actor?.login.endsWith("[bot]") === true;
+  return actor?.isBot === true;
+}
+
+function isVerdict(reviewState: string | null) {
+  const state = reviewState?.trim().toUpperCase().replaceAll("-", "_");
+  return state === "APPROVED" || state === "CHANGES_REQUESTED";
 }
 
 function eventCount(activity: PullRequestActivity) {
@@ -50,7 +55,7 @@ export function filterPullRequestActivity(activity: PullRequestActivity, filter:
       : activity.comments.filter(
           (comment) =>
             !allDiscussionIds.has(comment.id) &&
-            (filter.bots || !isBot(comment.author)) &&
+            (filter.bots || !isBot(comment.author) || isVerdict(comment.reviewState)) &&
             (filter.resolved || comment.reviewState?.trim().toLowerCase() !== "dismissed"),
         );
   const filtered = {

@@ -10,7 +10,6 @@ import {
 } from "@supaterm/client-runtime/connection";
 import type { EnvironmentId } from "@supaterm/contracts";
 import Constants from "expo-constants";
-import * as Option from "effect/Option";
 import { AsyncResult } from "effect/reactivity";
 import { View } from "react-native";
 
@@ -23,13 +22,12 @@ import { copyTextWithHaptic } from "../../lib/copyTextWithHaptic";
 const HOP_MARK = { ok: "✓", failed: "✕", unchecked: "–" } as const;
 const HOP_NOTE = { ok: "", failed: " · Failed", unchecked: " · Not checked" } as const;
 
-/** Same model as the web Settings row; null while connected, off, or not failed. */
 export function useConnectionDiagnosis(
   environmentId: EnvironmentId,
   presentation: EnvironmentPresentation | null,
 ) {
-  const state = Option.getOrElse(
-    AsyncResult.value(useAtomValue(environmentCatalog.stateAtom(environmentId))),
+  const state = AsyncResult.getOrElse(
+    useAtomValue(environmentCatalog.stateAtom(environmentId)),
     () => AVAILABLE_CONNECTION_STATE,
   );
   if (presentation === null || !presentation.entry.enabled) return { diagnosis: null, state };

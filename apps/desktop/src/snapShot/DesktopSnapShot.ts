@@ -1,5 +1,6 @@
 // @effect-diagnostics globalTimers:off -- Capture timeouts and Electron overlay animation timers run at native callback boundaries outside Effect fibers.
 
+import { pipe } from "effect/Function";
 import {
   DEFAULT_CLIENT_SETTINGS,
   DesktopPendingSnapShot,
@@ -90,6 +91,7 @@ import {
   snapShotShortcutSystemConflict,
 } from "./snapShot.ts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
+import { readImageDimensions } from "@supaterm/shared/imageDimensions";
 
 const MAX_CAPTURE_WIDTH = 2_560;
 const MAX_CAPTURE_HEIGHT = 1_600;
@@ -412,10 +414,8 @@ async function requestMacSnapShotPermissions(
 }
 
 function snapShotImageSize(png: Buffer, fallback: Electron.Rectangle): Electron.Size {
-  try {
-    const size = Electron.nativeImage.createFromBuffer(png).getSize();
-    if (size.width > 0 && size.height > 0) return size;
-  } catch {}
+  const size = readImageDimensions(png);
+  if (size) return size;
   return {
     width: Math.max(1, Math.round(fallback.width)),
     height: Math.max(1, Math.round(fallback.height)),
@@ -603,7 +603,7 @@ function createSnapShotFlashWindow(bounds: Electron.Rectangle): Electron.BaseWin
   return window;
 }
 
-export class SnapShotFlash {
+class SnapShotFlash {
   private flashWindow: Electron.BaseWindow | undefined;
   private animationTimer: ReturnType<typeof setInterval> | undefined;
   private closeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -679,7 +679,6 @@ async function showCaptureFeedback(
   platform: NodeJS.Platform,
   destinationWindowBounds?: Electron.Rectangle,
 ): Promise<boolean> {
-  // Wayland does not let this client position overlays on another app's window.
   if (platform === "linux") return false;
   const bounds = snapShotFlashBounds(active, platform);
   const animationsEnabled =
@@ -814,7 +813,7 @@ export const make = Effect.gen(function* () {
   const transition = new SnapShotTransition({
     showWindow: showCaptureWindow,
     waitForCompositorFrame: environment.platform === "win32",
-    // Transparent Windows surfaces must not resize while their compositor animation is running.
+
     boundOverlayToCaptureDisplays: environment.platform !== "linux",
     alwaysOnTopLevel: environment.platform === "linux" ? undefined : "pop-up-menu",
   });
@@ -897,8 +896,6 @@ export const make = Effect.gen(function* () {
     const imageTempPath = path.join(captureDirectory, `${id}.tmp.png`);
 
     return yield* Effect.gen(function* () {
-      // Retire feedback before reading screen pixels, so a rapid capture cannot
-      // photograph the previous capture's overlay.
       closeLinuxFeedback();
       flash.dispose();
       transition.dispose();
@@ -1132,9 +1129,7 @@ export const make = Effect.gen(function* () {
       transition.dispose();
       closeLinuxFeedback();
     }
-    // Every client-settings save lands here. Only the fields that decide which
-    // shortcut listener runs may tear it down; a font-size change must not
-    // uninstall a global keyboard hook or drop an approved portal session.
+
     const shortcutInputsChanged =
       settings.snapShotEnabled !== previousSettings.snapShotEnabled ||
       settings.snapShotIncludeAccessibility !== previousSettings.snapShotIncludeAccessibility ||
@@ -1288,10 +1283,10 @@ export const make = Effect.gen(function* () {
     if (isModifierPairShortcut(shortcut)) {
       registered = yield* Effect.tryPromise(() =>
         startPairShortcutProcess(snapShotShortcutModifierPair(shortcut), onCurrentShortcut, () => {
-          void runPromise(
-            setShortcutFailure(
-              snapShotShortcutRegistrationFailureMessage(shortcut, environment.platform),
-            ),
+          void pipe(
+            snapShotShortcutRegistrationFailureMessage(shortcut, environment.platform),
+            setShortcutFailure,
+            runPromise,
           ).catch(() => undefined);
         }),
       ).pipe(
@@ -1718,24 +1713,28 @@ export const make = Effect.gen(function* () {
           ),
         ),
     ),
-    setAnimationDestination: (id, destination) =>
-      Effect.promise(async () => {
-        if (linuxFeedback?.id === id && destination.relativeFrame) {
-          await linuxFeedback.feedback
-            .animateTo(destination.relativeFrame)
-            .catch(() => closeLinuxFeedback(id));
-          return;
-        }
-        transition.animateTo(id, destination);
-        await transition.waitForLanding(id);
-      }),
-    dismissAnimation: (id) =>
-      Effect.sync(() => {
+    setAnimationDestination: Effect.fn("DesktopSnapShot.setAnimationDestination")(
+      function (id, destination) {
+        return Effect.promise(async () => {
+          if (linuxFeedback?.id === id && destination.relativeFrame) {
+            await linuxFeedback.feedback
+              .animateTo(destination.relativeFrame)
+              .catch(() => closeLinuxFeedback(id));
+            return;
+          }
+          transition.animateTo(id, destination);
+          await transition.waitForLanding(id);
+        });
+      },
+    ),
+    dismissAnimation: Effect.fn("DesktopSnapShot.dismissAnimation")(function (id) {
+      return Effect.sync(() => {
         closeLinuxFeedback(id);
         transition.dismiss(id);
-      }),
-    acknowledge: (id) =>
-      Effect.promise(async () => {
+      });
+    }),
+    acknowledge: Effect.fn("DesktopSnapShot.acknowledge")(function (id) {
+      return Effect.promise(async () => {
         await completeLinuxFeedback(id);
         await transition.complete(id);
       }).pipe(
@@ -1751,7 +1750,8 @@ export const make = Effect.gen(function* () {
         Effect.mapError(
           (cause) => new DesktopSnapShotError({ operation: "acknowledge", captureId: id, cause }),
         ),
-      ),
+      );
+    }),
   });
 });
 

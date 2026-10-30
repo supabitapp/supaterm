@@ -29,11 +29,6 @@ function cursorSdkResultDetail(result: RunResult): string {
   }
 }
 
-/**
- * The SDK throws this when `sandboxOptions.enabled` is set and local sandboxing
- * is unavailable. That happens on hosts that cannot launch `cursorsandbox`, and
- * also after an unsandboxed run caches "unsupported" for the process.
- */
 function cursorSandboxUnsupported(cause: unknown): boolean {
   const seen = new Set<object>();
   let current = cause;
@@ -87,8 +82,6 @@ export const makeCursorTextGeneration = Effect.fn("makeCursorTextGeneration")(fu
       const { operation, prompt, modelSelection } = input;
 
       const apiKey = yield* resolveCursorApiKey(operation);
-      // The SDK loads sandbox.json independently of settingSources and lets it
-      // expand the writable paths. Its public API cannot override that policy.
       if (yield* fs.exists(`${yield* HostProcess.HomeDirectory}/.cursor/sandbox.json`)) {
         return yield* new TextGenerationError({
           operation,
@@ -97,9 +90,6 @@ export const makeCursorTextGeneration = Effect.fn("makeCursorTextGeneration")(fu
         });
       }
       const cwd = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-cursor-text-" });
-      // The SDK keeps SQLite handles open after `agent.close()` and only releases
-      // them from a store the caller disposes. Its state lives outside `cwd` so the
-      // agent's workspace stays empty.
       const stateRoot = yield* fs.makeTempDirectoryScoped({
         prefix: "supaterm-cursor-text-state-",
       });
@@ -139,8 +129,6 @@ export const makeCursorTextGeneration = Effect.fn("makeCursorTextGeneration")(fu
         );
 
       const request = Effect.gen(function* () {
-        // When the SDK refuses it, the empty temp directory and empty setting
-        // sources still keep this run off the user's project.
         const agent = yield* Effect.acquireRelease(
           createCursorAgent(true).pipe(
             Effect.catchIf(cursorSandboxUnsupported, () => createCursorAgent(false)),

@@ -36,12 +36,7 @@ const TERMINAL_RUN_STATUSES = new Set<OrchestrationV2Run["status"]>([
   "rolled_back",
 ]);
 
-/**
- * Includes `waiting`: a successful turn persists as waiting until checkpoint capture flips it to
- * completed, and waiting is only set from completed. Excludes `rolled_back`: the provider-thread
- * roster is not run-tied, so a rolled-back latest run must fail the gate entirely (not only item
- * filter).
- */
+// waiting is completed work awaiting checkpoints; exclude rolled_back entirely because provider threads are not run-tied.
 const SETTLED_FOR_BACKGROUND_WAIT_RUN_STATUSES = new Set<OrchestrationV2Run["status"]>([
   "cancelled",
   "completed",
@@ -53,6 +48,12 @@ const SETTLED_FOR_BACKGROUND_WAIT_RUN_STATUSES = new Set<OrchestrationV2Run["sta
 void TERMINAL_RUN_STATUSES;
 
 export type PendingBackgroundWorkTask = OrchestrationV2PendingBackgroundTask;
+
+export function turnItemUpdateCanEndBackgroundWork(
+  item: Pick<OrchestrationV2TurnItem, "type" | "status">,
+): boolean {
+  return BACKGROUND_TURN_ITEM_TYPES.has(item.type) && !isOrchestrationV2WorkActive(item.status);
+}
 
 export function deriveBlockedOnThreadWait(input: {
   readonly activeRun: Pick<OrchestrationV2Run, "id" | "status"> | null;
@@ -88,17 +89,21 @@ export function deriveBlockedOnThreadWait(input: {
 }
 
 export function backgroundWorkHoldsCompletion(
-  tasks: ReadonlyArray<Pick<PendingBackgroundWorkTask, "kind">>,
+  tasks: ReadonlyArray<Pick<PendingBackgroundWorkTask, "kind" | "awaited">>,
 ): boolean {
-  return tasks.some((task) => backgroundWorkKindHoldsCompletion(task.kind));
+  return tasks.some(
+    (task) => task.awaited === true || backgroundWorkKindHoldsCompletion(task.kind),
+  );
 }
 
+// Commands and monitors are as often a dev server or its watchdog as a wait, so they hold
+// only when the agent marks them awaited.
 function backgroundWorkKindHoldsCompletion(kind: PendingBackgroundWorkTask["kind"]): boolean {
   switch (kind) {
     case "command":
+    case "monitor":
       return false;
     case "subagent":
-    case "monitor":
     case "background_task":
       return true;
   }
@@ -109,7 +114,9 @@ type PendingBackgroundWorkRun = Pick<OrchestrationV2Run, "id" | "ordinal" | "sta
 type PendingBackgroundWorkPullRequest = Pick<
   ThreadPullRequestLink,
   "host" | "repository" | "number" | "url" | "source" | "watch"
->;
+> & {
+  readonly snapshot: Pick<NonNullable<ThreadPullRequestLink["snapshot"]>, "state"> | null;
+};
 
 type PendingBackgroundWorkProviderThread = Pick<
   OrchestrationV2ProviderThread,
@@ -128,6 +135,7 @@ type PendingBackgroundWorkTurnItem = {
     readonly nativeId: string | null;
   } | null;
   readonly input?: unknown;
+  readonly monitor?: boolean | undefined;
   readonly prompt?: string | undefined;
   readonly childThreadId?: ThreadId | null;
 };
@@ -186,7 +194,7 @@ function pendingTaskFromTurnItem(
         ...(item.childThreadId == null ? {} : { childThreadId: item.childThreadId }),
       };
     case "command_execution":
-      return { ...named, kind: "command" };
+      return { ...named, kind: item.monitor === true ? "monitor" : "command" };
     default:
       return { ...named, kind: "background_task" };
   }
@@ -200,10 +208,7 @@ function nativeTaskIdFromTurnItem(item: PendingBackgroundWorkTurnItem): string {
   return String(item.id);
 }
 
-/**
- * The turn items the pending-work list names, without its settled-run gate.
- * Stop ends exactly these, so the list and Stop cannot disagree.
- */
+/** Items Stop ends, without the pending list's settled-run gate. */
 export function pendingBackgroundTurnItems<Item extends PendingBackgroundWorkTurnItem>(input: {
   readonly turnItems: ReadonlyArray<Item>;
   readonly runs?: ReadonlyArray<PendingBackgroundWorkRun>;
@@ -222,35 +227,16 @@ export function pendingBackgroundTurnItems<Item extends PendingBackgroundWorkTur
   );
 }
 
-/**
- * Derive one normalized pending-background-work list for post-settlement UI.
- *
- * Sources:
- * - Provider-thread roster (Claude SDK background tasks)
- * - Active command_execution / dynamic_tool / subagent turn items
- * - Pull request and workflow run watches, as monitors: a watch wakes the
- *   agent, so the thread stays working between wakes instead of returning to
- *   the inbox. Callers that pick a run to interrupt leave the watches out;
- *   Stop ends watches on its own.
- *
- * Gated on latest root run settlement. Dedupes by native task ID. Excludes
- * the roster while any interruptible foreground run remains active. Excludes
- * Grok persistent monitors (`dynamic_tool` input with `persistent: true`).
- * Excludes turn items whose run resolves to `rolled_back` (abandoned work);
- * items with a null or absent run id stay eligible (matches SQL shell path).
- * Does not consult subagent entities (those double-count turn items).
- */
+/** Reconcile roster, active items, and watches after root-run settlement, deduped by native id.
+ * Exclude foreground work, persistent monitors, and rolled-back runs.
+ * Subagent entities duplicate turn items; Stop handles watches separately. */
 export function derivePendingBackgroundWork(input: {
   readonly latestRun: PendingBackgroundWorkRun | null | undefined;
   readonly providerThreads: ReadonlyArray<PendingBackgroundWorkProviderThread>;
   readonly turnItems: ReadonlyArray<PendingBackgroundWorkTurnItem>;
   readonly activeProviderThreadId?: string | null;
   readonly hasActiveRun?: boolean;
-  /**
-   * Run rows used to exclude items owned by rolled_back runs. Optional for
-   * callers that already filtered (SQL shell path); in-memory callers should
-   * pass projection runs so policy cannot drift.
-   */
+  /** Excludes rolled-back runs; optional only when the caller already filtered them, as SQL shell reads do. */
   readonly runs?: ReadonlyArray<PendingBackgroundWorkRun>;
   readonly pullRequests?: ReadonlyArray<PendingBackgroundWorkPullRequest> | undefined;
   readonly workflowRunWatches?: ReadonlyArray<ThreadWorkflowRunWatch> | undefined;
@@ -317,6 +303,7 @@ function watchTasks(input: {
     taskId: `workflow-run-watch:${watch.host}/${watch.repository}#${watch.runId}`,
     description: `Watching ${watch.name} run`,
     kind: "monitor" as const,
+    awaited: true as const,
   }));
   return [...pullRequestWatchTasks(input.pullRequests), ...runWatches];
 }
@@ -325,13 +312,17 @@ function pullRequestWatchTasks(
   pullRequests: ReadonlyArray<PendingBackgroundWorkPullRequest> | undefined,
 ): Array<PendingBackgroundWorkTask> {
   return (pullRequests ?? []).flatMap((link) =>
-    link.watch === undefined || link.source === "stack-dismissed"
+    // The watch reactor ends a merged PR's watch without waking the agent, so it holds nothing.
+    link.watch === undefined ||
+    link.source === "stack-dismissed" ||
+    link.snapshot?.state === "merged"
       ? []
       : [
           {
             taskId: `pull-request-watch:${threadPullRequestKeyOf(link)}`,
             description: `Watching pull request #${link.number}`,
             kind: "monitor" as const,
+            awaited: true as const,
           },
         ],
   );

@@ -12,13 +12,7 @@ import {
   useComposerDraftModelState,
 } from "../../composerDraftStore";
 import { getComposerPromptInjectionState, getComposerProviderState } from "./composerProviderState";
-import {
-  applyProviderInstanceSettings,
-  deriveProviderInstanceEntries,
-  NO_PROVIDER_MODEL_SELECTION,
-  sortProviderInstanceEntries,
-  type ProviderInstanceEntry,
-} from "../../providerInstances";
+import { NO_PROVIDER_MODEL_SELECTION, providerInstanceEntriesFor } from "../../providerInstances";
 import type { UnifiedSettings } from "@supaterm/contracts/settings";
 
 const NO_PROVIDER_MODELS: ServerProvider["models"] = [];
@@ -52,12 +46,10 @@ export function useComposerProviderModel(
     lockedInstanceId,
   } = input;
   const draftModelState = useComposerDraftModelState(threadRef);
-  const providerInstanceEntries: ReadonlyArray<ProviderInstanceEntry> = sortProviderInstanceEntries(
-    applyProviderInstanceSettings(
-      deriveProviderInstanceEntries(providerStatuses),
-      settings,
-      activeProjectId,
-    ),
+  const providerInstanceEntries = providerInstanceEntriesFor(
+    providerStatuses,
+    settings,
+    activeProjectId,
   );
   const selection = resolveComposerProviderSelection({
     entries: providerInstanceEntries,

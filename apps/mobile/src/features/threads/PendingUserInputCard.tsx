@@ -1,7 +1,7 @@
 import { Button } from "../../components/ui/Button";
 import { QuestionAttachments } from "./QuestionAttachments";
 import * as Haptics from "expo-haptics";
-import type { RuntimeRequestId } from "@supaterm/contracts";
+import type { EnvironmentId, RuntimeRequestId } from "@supaterm/contracts";
 import type { ThreadUserInputQuestion } from "@supaterm/client-runtime/state/thread-requests";
 import {
   useCallback,
@@ -28,11 +28,11 @@ import Animated, {
   FadeInUp,
   FadeOutDown,
   LayoutAnimationConfig,
-  LinearTransition,
   ReduceMotion,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
+  type DerivedValue,
   type EntryAnimationsValues,
   type ExitAnimationsValues,
   type LayoutAnimation,
@@ -51,8 +51,9 @@ import { SYSTEM_FONT_FAMILY } from "../../lib/fonts";
 import { SelectableMarkdownText } from "../../native/SelectableMarkdownText";
 import { useOpenPullRequest } from "../../native/useOpenPullRequest";
 import { useMarkdownPreviewStyles } from "../files/FileMarkdownPreview";
+import { useLiveThreadLinkLabels } from "../../state/entities";
+import { isPendingUserInputOptionSelected } from "@supaterm/client-runtime/state/pending-user-input";
 import {
-  isPendingUserInputOptionSelected,
   isPendingUserInputQuestionAnswered,
   resumePendingUserInputQuestionIndex,
   type PendingUserInput,
@@ -60,9 +61,10 @@ import {
 } from "../../lib/threadActivity";
 
 export interface PendingUserInputCardProps {
+  readonly environmentId: EnvironmentId;
   readonly canOperateThread: boolean;
   readonly pendingUserInput: PendingUserInput;
-  readonly maxHeight: number;
+  readonly maxHeight: DerivedValue<number>;
   readonly collapsed: boolean;
   readonly onToggleCollapsed: () => void;
   readonly onStopThread?: () => void;
@@ -93,8 +95,6 @@ export interface PendingUserInputCardProps {
  * untouchable.
  */
 const EXPANDED_CARD_IS_OVERLAY = Platform.OS === "ios";
-
-const CARD_LAYOUT_TRANSITION = LinearTransition.duration(200);
 
 /** Long enough to see the picked option highlight before the next question replaces it. */
 const SINGLE_SELECT_ADVANCE_DELAY_MS = 200;
@@ -166,8 +166,9 @@ function QuestionPage(props: {
   );
 }
 
-function QuestionText(props: { readonly markdown: string }) {
+function QuestionText(props: { readonly markdown: string; readonly environmentId: EnvironmentId }) {
   const styles = useMarkdownPreviewStyles();
+  const markdown = useLiveThreadLinkLabels(props.markdown, props.environmentId);
   const openLink = useOpenPullRequest();
   const textStyle = useMemo(
     () => ({ ...styles.nativeTextStyle, fontFamily: SYSTEM_FONT_FAMILY, fontWeight: "500" }),
@@ -175,7 +176,7 @@ function QuestionText(props: { readonly markdown: string }) {
   );
   return (
     <SelectableMarkdownText
-      markdown={props.markdown}
+      markdown={markdown}
       textStyle={textStyle}
       onLinkPress={(href) => void openLink(href)}
     />
@@ -214,6 +215,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
       advanceTimerRef.current = null;
     }
   }, []);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Cancels the native question-advance timer when its card leaves.
   useEffect(() => cancelAutoAdvance, [cancelAutoAdvance]);
   const pushDirection = useSharedValue(1);
   const describeQuestion = (index: number) => {
@@ -246,6 +248,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
   // the latest render's advance instead of the one that scheduled it, and skips
   // a request that replaced the one tapped.
   const advanceRef = useRef(advance);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Keeps the native question timer reading the current advance callback.
   useLayoutEffect(() => {
     advanceRef.current = advance;
   });
@@ -269,20 +272,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
     if (!cardCoverage) {
       return;
     }
-    const coverage = Math.max(0, cardHeightRef.current - barHeightRef.current);
-    if (coverage === cardCoverage.get()) {
-      return;
-    }
-    if (cardCoverage.get() === 0) {
-      cardCoverage.set(coverage);
-      return;
-    }
-    cardCoverage.set(
-      withTiming(coverage, {
-        duration: USER_INPUT_TOGGLE_DURATION_MS,
-        easing: Easing.out(Easing.cubic),
-      }),
-    );
+    cardCoverage.set(Math.max(0, cardHeightRef.current - barHeightRef.current));
   }, [cardCoverage]);
   const handleBarLayout = useCallback(
     (event: LayoutChangeEvent) => {
@@ -300,12 +290,16 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
     [cardHeight, notifyCoverage],
   );
   const cardProgress = props.cardProgress;
+  const maxHeight = props.maxHeight;
   const cardAnimatedStyle = useAnimatedStyle(() => {
     const progress = cardProgress === undefined ? 1 : cardProgress.value;
     return {
+      maxHeight: maxHeight.value,
       transform: [{ translateY: (1 - progress) * cardHeight.value }],
     };
   });
+  const cardMaxHeightStyle = useAnimatedStyle(() => ({ maxHeight: maxHeight.value }));
+  const overlayHeightStyle = useAnimatedStyle(() => ({ height: maxHeight.value }));
 
   // On iOS the card stays MOUNTED while collapsed (hidden via the animated
   // style): expanding animates existing views on the UI thread the same
@@ -385,13 +379,8 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
           ? undefined
           : FadeOutDown.duration(USER_INPUT_TOGGLE_DURATION_MS).easing(Easing.out(Easing.cubic))
       }
-      layout={CARD_LAYOUT_TRANSITION}
       className="overflow-hidden gap-2.5 rounded-[20px] border border-border bg-card-alt p-4"
-      style={
-        EXPANDED_CARD_IS_OVERLAY
-          ? [{ maxHeight: props.maxHeight }, cardAnimatedStyle]
-          : { maxHeight: props.maxHeight }
-      }
+      style={EXPANDED_CARD_IS_OVERLAY ? cardAnimatedStyle : cardMaxHeightStyle}
     >
       <QuestionAutoDismissToggle
         deadline={autoDismissAt}
@@ -457,7 +446,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
           ) : null}
           {question ? (
             <>
-              <QuestionText markdown={question.question} />
+              <QuestionText environmentId={props.environmentId} markdown={question.question} />
               {question.multiSelect ? (
                 <Text className="font-sans text-xs text-foreground-muted">
                   Select one or more options.
@@ -576,13 +565,13 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
     <View className="relative">
       {bar}
       {EXPANDED_CARD_IS_OVERLAY ? (
-        <View
+        <Animated.View
           pointerEvents={props.collapsed ? "none" : "box-none"}
           className="absolute inset-x-0 bottom-0 justify-end overflow-hidden"
-          style={{ height: props.maxHeight }}
+          style={overlayHeightStyle}
         >
           {card}
-        </View>
+        </Animated.View>
       ) : (
         card
       )}

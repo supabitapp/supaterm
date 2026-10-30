@@ -260,11 +260,8 @@ export const make = Effect.gen(function* () {
     return yield* findExistingFile(projectCwd, resolveIconHref(baseDir, href), "workspace");
   });
 
-  // Starts every probe at once and returns the first hit in list order. A miss
-  // costs one round of filesystem latency instead of one per probe, which
-  // matters when the disk is slow. Fibers are joined in order, so a hit returns
-  // without waiting for lower-ranked probes (the scope interrupts them), and a
-  // failure surfaces only when no earlier probe found a file.
+  // Probe concurrently but join in priority order: an early hit avoids waiting
+  // for lower-ranked probes, and a later failure cannot mask that hit.
   const firstInOrder = Effect.fn("ProjectFaviconResolver.firstInOrder")(function* <A>(
     items: ReadonlyArray<A>,
     probe: (item: A) => Effect.Effect<string | null, ProjectFaviconResolutionError>,

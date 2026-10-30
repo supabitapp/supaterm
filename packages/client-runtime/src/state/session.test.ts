@@ -1,3 +1,6 @@
+import * as RpcHttp from "../rpc/http.ts";
+import type { RpcSession } from "../rpc/session.ts";
+import { PrimaryConnectionTarget } from "../connection/model.ts";
 import {
   type AuthSessionState,
   EnvironmentId,
@@ -16,7 +19,7 @@ import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
 import * as SubscriptionRef from "effect/SubscriptionRef";
 import { HttpClient, HttpClientError, HttpClientResponse } from "effect/http";
-import { Atom, AtomRegistry } from "effect/reactivity";
+import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import * as TestClock from "effect/testing/TestClock";
 
 import { BearerConnectionProfile, type ConnectionRoute } from "../connection/catalog.ts";
@@ -30,7 +33,7 @@ import * as EnvironmentRegistry from "../connection/registry.ts";
 import * as EnvironmentSupervisor from "../connection/supervisor.ts";
 import { layer as layerRelayGateway, RelayGateway, type RelayTransport } from "../relay/gateway.ts";
 import type { WsRpcProtocolClient } from "../rpc/protocol.ts";
-import type { RpcSession } from "../rpc/session.ts";
+
 import { createEnvironmentSessionAtoms } from "./session.ts";
 
 const environmentId = EnvironmentId.make("latency-state-test");
@@ -75,6 +78,7 @@ const makeHarness = Effect.fn("RouteLatencyTest.makeHarness")(function* (options
     probe: Effect.sync(() => {
       probes += 1;
     }),
+    inboundFrames: Effect.succeed(0),
     closed: Effect.never,
   };
   let probes = 0;
@@ -246,11 +250,12 @@ const grantedSession = {
 } satisfies AuthSessionState;
 
 describe("session state", () => {
-  it.effect("retries an unreachable environment before settling its grants", () =>
+  it.effect("retries an unreachable environment and publishes recovered grants", () =>
     Effect.gen(function* () {
       const failed = yield* Deferred.make<void>();
       let requests = 0;
       const { atoms, registry, supervisor } = yield* makeHarness({
+        activeRoute: directRoute("lan"),
         reply: () =>
           Effect.suspend(() => {
             requests += 1;
@@ -265,35 +270,14 @@ describe("session state", () => {
       registry.mount(atom);
       yield* SubscriptionRef.set(supervisor.prepared, Option.some(prepared(directRoute("lan"))));
       yield* Deferred.await(failed);
-      yield* TestClock.adjust("1 second");
+      expect(yield* AtomRegistry.getResult(registry, atom).pipe(Effect.flip)).toMatchObject({
+        _tag: "RemoteEnvironmentAuthFetchError",
+      });
+      yield* TestClock.adjust("2 seconds");
       expect(
         yield* AtomRegistry.getResult(registry, atom, { suspendOnWaiting: true }),
       ).toMatchObject({ scopes: grantedSession.scopes });
       expect(requests).toBe(2);
-    }),
-  );
-
-  it.effect("settles on the failure once the retries run out", () =>
-    Effect.gen(function* () {
-      const failures = yield* Queue.unbounded<void>();
-      const { atoms, registry, supervisor } = yield* makeHarness({
-        reply: () =>
-          Queue.offer(failures, undefined).pipe(
-            Effect.andThen(Effect.fail("connection reset" as const)),
-          ),
-      });
-      const atom = atoms.sessionStateAtom(environmentId);
-      registry.mount(atom);
-      yield* SubscriptionRef.set(supervisor.prepared, Option.some(prepared(directRoute("lan"))));
-      for (const backoff of ["1 second", "2 seconds", "4 seconds"] as const) {
-        yield* Queue.take(failures);
-        yield* TestClock.adjust(backoff);
-      }
-      const result = yield* AtomRegistry.getResult(registry, atom, { suspendOnWaiting: true }).pipe(
-        Effect.flip,
-      );
-      expect(result).toMatchObject({ _tag: "RemoteEnvironmentAuthFetchError" });
-      expect(yield* Queue.size(failures)).toBe(1);
     }),
   );
 });
@@ -365,6 +349,117 @@ describe("relay transport", () => {
       unmount();
       for (let task = tasks.shift(); task !== undefined; task = tasks.shift()) task();
       expect(subscriptions).toBe(0);
+    }),
+  );
+});
+
+const RETRY_TARGET = new PrimaryConnectionTarget({
+  environmentId: EnvironmentId.make("environment-1"),
+  label: "Test environment",
+  httpBaseUrl: "https://environment.example.test",
+  wsBaseUrl: "wss://environment.example.test",
+});
+const RETRY_PREPARED: PreparedConnection = {
+  environmentId: RETRY_TARGET.environmentId,
+  label: RETRY_TARGET.label,
+  httpBaseUrl: "https://environment.example.test",
+  socketUrl: "wss://environment.example.test/ws",
+  httpAuthorization: { _tag: "Bearer", token: "bearer-token" },
+  target: RETRY_TARGET,
+};
+const RETRY_SESSION = {
+  authenticated: true,
+  auth: {
+    policy: "remote-reachable",
+    bootstrapMethods: [],
+    sessionMethods: [],
+    sessionCookieName: "t3_session",
+  },
+  scopes: ["orchestration:read"],
+} satisfies AuthSessionState;
+
+const retryRpcSession = (): RpcSession => ({ closed: Effect.never }) as unknown as RpcSession;
+
+const makeRetryHarness = Effect.fn("TestSessionState.makeRetryHarness")(function* (
+  reply: (requestNumber: number) => Promise<Response>,
+) {
+  let requestCount = 0;
+  const transport = yield* SubscriptionRef.make(Option.some(retryRpcSession()));
+  const supervisor = EnvironmentSupervisor.EnvironmentSupervisor.of({
+    target: RETRY_TARGET,
+    state: yield* SubscriptionRef.make(AVAILABLE_CONNECTION_STATE),
+    session: transport,
+    prepared: yield* SubscriptionRef.make(Option.some(RETRY_PREPARED)),
+    connect: Effect.void,
+    disconnect: Effect.void,
+    retryNow: Effect.void,
+  } satisfies EnvironmentSupervisor.EnvironmentSupervisor["Service"]);
+  const followStream: EnvironmentRegistry.EnvironmentRegistry["Service"]["followStream"] = (
+    _environmentId,
+    stream,
+  ) => Stream.provideService(stream, EnvironmentSupervisor.EnvironmentSupervisor, supervisor);
+  const runtime = Atom.runtime(
+    Layer.mergeAll(
+      Layer.succeed(
+        EnvironmentRegistry.EnvironmentRegistry,
+        EnvironmentRegistry.EnvironmentRegistry.of({
+          followStream,
+        } as unknown as EnvironmentRegistry.EnvironmentRegistry["Service"]),
+      ),
+      RpcHttp.layerRemoteHttpClient(async () => reply(++requestCount)),
+
+      Layer.succeed(Clock.Clock, yield* Clock.Clock),
+    ),
+  );
+  const registry = yield* Effect.acquireRelease(Effect.sync(AtomRegistry.make), (registry) =>
+    Effect.sync(() => registry.dispose()),
+  );
+  const results = yield* Queue.unbounded<AsyncResult.AsyncResult<AuthSessionState, unknown>>();
+  const atom = createEnvironmentSessionAtoms(runtime).sessionStateAtom(RETRY_TARGET.environmentId);
+  const unsubscribe = registry.subscribe(atom, (result) => Queue.offerUnsafe(results, result), {
+    immediate: true,
+  });
+  yield* Effect.addFinalizer(() => Effect.sync(unsubscribe));
+  const nextSettled = Effect.fn("TestSessionState.nextSettled")(function* () {
+    for (;;) {
+      const result = yield* Queue.take(results);
+      if (!result.waiting && result._tag !== "Initial") return result;
+    }
+  });
+  return { transport, nextSettled };
+});
+
+const unreachable = () => Promise.reject(new TypeError("Network request failed"));
+
+describe("environment session state", () => {
+  it.effect("fetches permissions again when the connection is re-established", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeRetryHarness((requestNumber) =>
+        requestNumber === 1 ? unreachable() : Promise.resolve(Response.json(RETRY_SESSION)),
+      );
+      expect((yield* harness.nextSettled())._tag).toBe("Failure");
+
+      yield* SubscriptionRef.set(harness.transport, Option.some(retryRpcSession()));
+
+      expect(yield* harness.nextSettled()).toMatchObject({ _tag: "Success", value: RETRY_SESSION });
+    }),
+  );
+
+  it.effect("retries a failed permission check with backoff that restarts per connection", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeRetryHarness((requestNumber) =>
+        requestNumber <= 3 ? unreachable() : Promise.resolve(Response.json(RETRY_SESSION)),
+      );
+      expect((yield* harness.nextSettled())._tag).toBe("Failure");
+
+      yield* TestClock.adjust("2 seconds");
+      expect((yield* harness.nextSettled())._tag).toBe("Failure");
+
+      yield* SubscriptionRef.set(harness.transport, Option.some(retryRpcSession()));
+      expect((yield* harness.nextSettled())._tag).toBe("Failure");
+
+      yield* TestClock.adjust("2 seconds");
+      expect(yield* harness.nextSettled()).toMatchObject({ _tag: "Success", value: RETRY_SESSION });
     }),
   );
 });

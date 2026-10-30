@@ -1,30 +1,12 @@
 import type { ResponseStreamingMode } from "@supaterm/contracts";
 import type * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAdapter";
 
-// An opening fence may sit at any indentation, since fences inside list items
-// are indented past the marker. A closing fence may be indented at most three
-// spaces more than its opener.
 const MARKDOWN_FENCE_PATTERN = /^( *)(`{3,}|~{3,})/;
-// CommonMark blank lines hold only spaces and tabs. Other whitespace, such as
-// a no-break space, is paragraph content.
 const BLANK_LINE_PATTERN = /^[ \t]*$/;
-// The trailing space is required, so a partial `-` or `1.` never matches before
-// the model finishes the marker.
 const LIST_ITEM_START_PATTERN = /^[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]/;
 const SECTION_TITLE_PATTERN = /^ {0,3}(?:#{1,6}(?:[ \t]|$)|\*\*(?:[^*]|\*(?!\*))+\*\*:?$)/;
-// An unindented ATX heading ends the paragraph or list above it, even with no
-// blank line between them. A bold line would continue the paragraph instead.
 const TOP_LEVEL_HEADING_PATTERN = /^#{1,6}(?:[ \t]|$)/;
 
-/**
- * Only fully terminated lines count, so a trailing partial line never leaks; a
- * list item start is the one lookahead that may sit on the partial line, since
- * tight lists have no blank lines between items and would otherwise land all at
- * once.
- *
- * A section title holds the boundary until a content line follows it, so a
- * title never lands alone and waits above a block that is still streaming.
- */
 export function splitBufferedAssistantText(text: string): { ready: string; rest: string } {
   let openFence: { marker: string; indent: number } | null = null;
   let boundary = -1;

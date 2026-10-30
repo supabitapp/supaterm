@@ -43,13 +43,6 @@ import {
   parseKeybindingShortcut,
 } from "@supaterm/shared/keybindings";
 
-export {
-  DEFAULT_KEYBINDINGS,
-  compileResolvedKeybindingRule,
-  compileResolvedKeybindingsConfig,
-  parseKeybindingShortcut,
-};
-
 export const ResolvedKeybindingFromConfig = KeybindingRule.pipe(
   Schema.decodeTo(
     Schema.toType(ResolvedKeybindingRule),
@@ -136,7 +129,7 @@ function migrateMarkDoneKeybinding(rules: readonly KeybindingRule[]) {
   return rules.map((rule) => (rule === previous ? { ...rule, key: "mod+shift+d" } : rule));
 }
 
-function keybindingRuleFromUpsertInput(input: ServerUpsertKeybindingInput): KeybindingRule {
+function keybindingRuleFromInput(input: ServerRemoveKeybindingInput): KeybindingRule {
   return input.when === undefined
     ? { key: input.key, command: input.command }
     : { key: input.key, command: input.command, when: input.when };
@@ -147,12 +140,6 @@ function replaceTargetFromUpsertInput(input: ServerUpsertKeybindingInput): Keybi
   return input.replace.when === undefined
     ? { key: input.replace.key, command: input.replace.command }
     : { key: input.replace.key, command: input.replace.command, when: input.replace.when };
-}
-
-function keybindingRuleFromRemoveInput(input: ServerRemoveKeybindingInput): KeybindingRule {
-  return input.when === undefined
-    ? { key: input.key, command: input.command }
-    : { key: input.key, command: input.command, when: input.when };
 }
 
 function encodeShortcut(shortcut: KeybindingShortcut): string | null {
@@ -572,8 +559,7 @@ const make = Effect.gen(function* () {
 
     const revalidateAndEmitSafely = revalidateAndEmit.pipe(Effect.ignoreCause({ log: true }));
 
-    // Editors emit multiple events per save (truncate, write, rename) and
-    // `fs.watch` can fire before the content has been flushed to disk.
+    // Saves emit multiple events; fs.watch may fire before content is flushed.
     const debouncedKeybindingsEvents = fs.watch(keybindingsConfigDir).pipe(
       Stream.filter((event) => {
         return (
@@ -631,7 +617,7 @@ const make = Effect.gen(function* () {
       upsertSemaphore.withPermits(1)(
         Effect.gen(function* () {
           const customConfig = yield* loadWritableCustomKeybindingsConfig();
-          const rule = keybindingRuleFromUpsertInput(input);
+          const rule = keybindingRuleFromInput(input);
           const replaceTarget = replaceTargetFromUpsertInput(input);
           const nextConfig = [
             ...customConfig.filter((entry) => {
@@ -673,7 +659,7 @@ const make = Effect.gen(function* () {
       upsertSemaphore.withPermits(1)(
         Effect.gen(function* () {
           const customConfig = yield* loadWritableCustomKeybindingsConfig();
-          const target = keybindingRuleFromRemoveInput(input);
+          const target = keybindingRuleFromInput(input);
           const nextConfig = customConfig.filter((entry) => !isSameKeybindingRule(entry, target));
           yield* writeConfigAtomically(nextConfig);
           const nextResolved = mergeWithDefaultKeybindings(

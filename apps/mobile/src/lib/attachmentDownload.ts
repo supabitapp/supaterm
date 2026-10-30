@@ -110,7 +110,7 @@ async function createCachedAttachmentFile(attachment: AttachmentFileMetadata) {
   const release = () => {
     if (!disposed || sharing) return;
     activeDirectories.delete(directory.uri);
-    // A receiver can still be reading after Android's chooser returns.
+
     if (!shared) removeDownloadDirectory(directory);
   };
   const preview: AttachmentPreviewFile = {
@@ -201,7 +201,6 @@ export async function openAttachmentInViewer(input: {
   }
 }
 
-/** The caller owns this cached file until disposal, unless it has been shared with another app. */
 export async function downloadAttachmentForPreview(input: {
   readonly url: string;
   readonly attachment: AttachmentFileMetadata;
@@ -222,7 +221,6 @@ export async function downloadAttachmentForPreview(input: {
     }
     return cached.preview;
   } catch (cause) {
-    // Android may leave a partial file after a failed or interrupted request.
     cached.preview.dispose();
     if (input.signal.aborted) return null;
     throw new Error("Could not download the attachment. Check the connection and try again.", {
@@ -269,6 +267,20 @@ export async function shareLocalAttachment(input: {
     }
   } finally {
     cached.preview.dispose();
+  }
+}
+
+export async function writeGeneratedAttachmentFile(input: {
+  readonly bytes: Uint8Array;
+  readonly attachment: AttachmentFileMetadata;
+}): Promise<AttachmentPreviewFile> {
+  const cached = await createCachedAttachmentFile(input.attachment);
+  try {
+    await cached.file.write(input.bytes);
+    return cached.preview;
+  } catch (error) {
+    cached.preview.dispose();
+    throw error;
   }
 }
 

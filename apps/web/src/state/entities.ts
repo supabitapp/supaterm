@@ -136,6 +136,11 @@ export function useAllEnvironmentProjectSnapshotsReady(): boolean {
   return useAtomValue(allEnvironmentProjectSnapshotsReadyAtom);
 }
 
+/** Tasks linked environments run for a listed thread, by thread key; lists show them under it. */
+export function useDelegatedUnderParent(): ReadonlySet<string> {
+  return useAtomValue(environmentThreadShells.delegatedUnderParentAtom);
+}
+
 export function useThreadShellsForProjectRefs(
   refs: ReadonlyArray<ScopedProjectRef>,
 ): ReadonlyArray<EnvironmentThreadShell> {
@@ -256,6 +261,13 @@ export function readProject(ref: ScopedProjectRef): EnvironmentProject | null {
   return appAtomRegistry.get(environmentProjects.projectAtom(ref));
 }
 
+export function subscribeProject(
+  ref: ScopedProjectRef,
+  listener: (project: EnvironmentProject | null) => void,
+): () => void {
+  return appAtomRegistry.subscribe(environmentProjects.projectAtom(ref), listener);
+}
+
 export function readProjects(): ReadonlyArray<EnvironmentProject> {
   return appAtomRegistry.get(environmentProjects.projectsAtom);
 }
@@ -284,11 +296,7 @@ export function waitForProject(
   });
 }
 
-/**
- * Resolves once a deleted project leaves the live client store. The delete
- * command returns before the shell stream does, so anything that picks a
- * project in between (the index route's draft landing) still sees it.
- */
+/** Waits for removal from the live store; delete replies arrive before the shell stream. */
 export function waitForProjectRemoval(ref: ScopedProjectRef, timeoutMs = 5_000): Promise<boolean> {
   return waitForAtomValue({
     registry: appAtomRegistry,
@@ -361,13 +369,7 @@ function shellParentThreadId(
     : thread.lineage.parentThreadId;
 }
 
-/**
- * The live shells the panel's immediate relationships can reach: the thread,
- * its parent, its children, and the threads its subagents, workflow members and
- * context transfers name. Keeps its array while those shells are unchanged, so
- * another thread streaming in the same environment does not re-render the panel.
- */
-/** Exported for tests. */
+/** Retains unchanged reachable shells so unrelated streams do not re-render the panel. */
 export function selectThreadRelationshipShells(
   threadId: ThreadId,
   projection: Pick<

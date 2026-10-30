@@ -31,6 +31,7 @@ interface BufferedAnalyticsEvent {
 interface DeliveryState {
   readonly failedBatch: ReadonlyArray<BufferedAnalyticsEvent>;
   readonly batchAttempts: number;
+  readonly firstFailedAt: number;
   readonly failures: number;
   readonly retryAt: number;
 }
@@ -38,7 +39,7 @@ interface DeliveryState {
 const FLUSH_INTERVAL_MS = 10_000;
 // A hung send would hold the flush lock, and with it the shutdown flush.
 const SEND_TIMEOUT = "10 seconds";
-const MAX_BATCH_ATTEMPTS = 5;
+const MAX_BATCH_RETRY_MS = 30 * 60_000;
 const RETRY_BASE_DELAY_MS = 2_000;
 // Clients can report any number of owner ids; past this many per observer, new ones
 // are not sent. Each observer has its own cap, so client reports never crowd out the
@@ -47,8 +48,6 @@ const MAX_RECORDED_OWNERS = 1_000;
 const RETRY_MAX_DELAY_MS = 300_000;
 
 const REJECTED_BATCH_STATUSES = new Set([400, 401, 413]);
-
-declare const __SUPATERM_TELEMETRY_CHANNEL__: "stable" | "nightly" | "preview" | "dev" | undefined;
 
 /** `random` is in [0, 1). */
 function retryDelayMs(failures: number, random: number): number {
@@ -95,9 +94,13 @@ export class AnalyticsService extends Context.Service<
   static readonly layerTest = Layer.succeed(
     AnalyticsService,
     AnalyticsService.of({
-      record: () => Effect.void,
+      record: Effect.fn("AnalyticsService.record")(function () {
+        return Effect.void;
+      }),
       flush: Effect.void,
-      recordOwners: () => Effect.void,
+      recordOwners: Effect.fn("AnalyticsService.recordOwners")(function () {
+        return Effect.void;
+      }),
     }),
   );
 }
@@ -118,7 +121,6 @@ function serverOsFromNodePlatform(platform: string): ClientOs {
 }
 
 /** @public */
-/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const telemetryConfig = yield* TelemetryEnvConfig;
   const httpClient = yield* HttpClient.HttpClient;
@@ -129,6 +131,7 @@ export const make = Effect.gen(function* () {
   const deliveryRef = yield* Ref.make<DeliveryState>({
     failedBatch: [],
     batchAttempts: 0,
+    firstFailedAt: 0,
     failures: 0,
     retryAt: 0,
   });
@@ -138,8 +141,6 @@ export const make = Effect.gen(function* () {
   // The background flush and the shutdown flush must not send the same batch at once.
   const flushLock = yield* Semaphore.make(1);
   const clientType = serverConfig.mode === "desktop" ? "desktop-app" : "cli-web-client";
-  const telemetryChannel =
-    typeof __SUPATERM_TELEMETRY_CHANNEL__ === "undefined" ? "dev" : __SUPATERM_TELEMETRY_CHANNEL__;
   const hostPlatform = yield* HostProcess.Platform;
   const hostArchitecture = yield* HostProcess.Architecture;
 
@@ -194,7 +195,7 @@ export const make = Effect.gen(function* () {
           wsl: Option.getOrUndefined(telemetryConfig.wslDistroName),
           arch: hostArchitecture,
           supatermVersion: packageJson.version,
-          telemetryChannel,
+          telemetryChannel: ServerConfig.telemetryChannel,
           clientType,
           serverOs: serverOsFromNodePlatform(hostPlatform),
           serverArch: hostArchitecture,
@@ -229,27 +230,47 @@ export const make = Effect.gen(function* () {
 
       const sent = yield* Effect.result(sendBatch(batch));
       if (Result.isSuccess(sent)) {
-        yield* Ref.set(deliveryRef, { failedBatch: [], batchAttempts: 0, failures: 0, retryAt: 0 });
+        yield* Ref.set(deliveryRef, {
+          failedBatch: [],
+          batchAttempts: 0,
+          firstFailedAt: 0,
+          failures: 0,
+          retryAt: 0,
+        });
         continue;
       }
 
+      const now = yield* Clock.currentTimeMillis;
       const failures = delivery.failures + 1;
       const batchAttempts = delivery.batchAttempts + 1;
-      const retryAt = (yield* Clock.currentTimeMillis) + retryDelayMs(failures, yield* Random.next);
+      const firstFailedAt = delivery.batchAttempts === 0 ? now : delivery.firstFailedAt;
+      const retryAt = now + retryDelayMs(failures, yield* Random.next);
       const error = sent.failure;
       const rejected =
         error._tag === "HttpClientError" &&
         error.reason._tag === "StatusCodeError" &&
         REJECTED_BATCH_STATUSES.has(error.reason.response.status);
-      if (!rejected && batchAttempts < MAX_BATCH_ATTEMPTS) {
-        yield* Ref.set(deliveryRef, { failedBatch: batch, batchAttempts, failures, retryAt });
+      if (!rejected && now - firstFailedAt < MAX_BATCH_RETRY_MS) {
+        yield* Ref.set(deliveryRef, {
+          failedBatch: batch,
+          batchAttempts,
+          firstFailedAt,
+          failures,
+          retryAt,
+        });
         yield* Effect.logDebug("Failed to send telemetry batch; will retry", {
           attempt: batchAttempts,
           cause: error,
         });
         return;
       }
-      yield* Ref.set(deliveryRef, { failedBatch: [], batchAttempts: 0, failures, retryAt });
+      yield* Ref.set(deliveryRef, {
+        failedBatch: [],
+        batchAttempts: 0,
+        firstFailedAt: 0,
+        failures,
+        retryAt,
+      });
       yield* Effect.logWarning(
         rejected
           ? "Dropped telemetry batch the endpoint rejected"
@@ -309,7 +330,7 @@ export const make = Effect.gen(function* () {
     ),
   );
 
-  yield* Effect.forever(Effect.sleep(FLUSH_INTERVAL_MS).pipe(Effect.flatMap(() => flushWhenDue)), {
+  yield* Effect.forever(Effect.sleep(FLUSH_INTERVAL_MS).pipe(Effect.andThen(flushWhenDue)), {
     disableYield: true,
   }).pipe(Effect.forkScoped);
 

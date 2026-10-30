@@ -22,6 +22,7 @@ const harness = vi.hoisted(() => ({
   online: false,
   existingThread: false,
   archivedThread: false,
+  snapshotThreadId: "thread",
 }));
 
 vi.mock("../rpc/atomRegistry", async () => {
@@ -39,11 +40,11 @@ vi.mock("../rpc/atomRegistry", async () => {
         if (atom === "shell") return { status: harness.online ? "live" : "cached" };
         if (atom === "snapshot")
           return {
-            archivedThreads: harness.archivedThread ? [{ id: "thread" }] : [],
+            archivedThreads: harness.archivedThread ? [{ id: harness.snapshotThreadId }] : [],
             threads: harness.existingThread
               ? [
                   {
-                    id: "thread",
+                    id: harness.snapshotThreadId,
                     branch: "old",
                     runtimeMode: "approval-required",
                     interactionMode: "plan",
@@ -216,6 +217,7 @@ beforeEach(() => {
   harness.online = false;
   harness.existingThread = false;
   harness.archivedThread = false;
+  harness.snapshotThreadId = "thread";
   harness.run.mockResolvedValue(AsyncResult.success({ sequence: 1 }));
   harness.verify.mockResolvedValue({ status: "verified" });
 });
@@ -731,6 +733,108 @@ describe("web thread outbox delivery", () => {
     await replaceThreadOutboxTurn(failed, failed.payload);
 
     expect(webThreadOutbox.getSnapshot()).toEqual(movedToReplacementThread);
+  });
+
+  it("waits for cancelled delivery before retrying locally and preserves queued message order", async () => {
+    const { enqueueThreadOutboxTurns, retryThreadWorktreeLocally, webThreadOutbox } =
+      await import("./threadOutbox");
+    const [task, followUp] = pendingTaskWithFollowUp();
+    const uploaded = {
+      type: "file" as const,
+      id: "saved-file",
+      name: "notes.txt",
+      mimeType: "text/plain",
+      sizeBytes: 5,
+    };
+    const attachment = { ...uploaded, bytes: new Blob(["notes"]), uploaded };
+    await enqueueThreadOutboxTurns([
+      {
+        ...task,
+        localAttachments: [attachment],
+        input: {
+          ...task.input,
+          bootstrap: {
+            ...task.input.bootstrap,
+            prepareWorktree: { projectCwd: "/project", baseBranch: "main" },
+            runSetupScript: true,
+          },
+        },
+      },
+      followUp,
+    ]);
+    let finishDelivery!: (value: ReturnType<typeof AsyncResult.fail>) => void;
+    const delivery = new Promise<ReturnType<typeof AsyncResult.fail>>((resolve) => {
+      finishDelivery = resolve;
+    });
+    let signalStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      signalStarted = resolve;
+    });
+    harness.run.mockImplementationOnce(() => {
+      signalStarted();
+      return delivery;
+    });
+    harness.online = true;
+    const drain = webThreadOutbox.drain();
+    await started;
+    let signalCancelled!: () => void;
+    const cancelled = new Promise<void>((resolve) => {
+      signalCancelled = resolve;
+    });
+    const cancel = vi.fn(async () => {
+      signalCancelled();
+      return true;
+    });
+    const ref = { environmentId: task.environmentId, threadId: task.input.threadId };
+    const retry = retryThreadWorktreeLocally(ref, cancel);
+    const repeated = retryThreadWorktreeLocally(ref, cancel);
+    await cancelled;
+    expect(webThreadOutbox.getSnapshot()[0]?.payload.input.threadId).toBe(task.input.threadId);
+    harness.online = false;
+    finishDelivery(
+      AsyncResult.fail({ _tag: "OrchestrationDispatchCommandError", message: "Cancelled." }),
+    );
+    await drain;
+    expect(await retry).toEqual({ environmentId: "environment", threadId: "replacement-thread" });
+    expect(await repeated).toEqual(await retry);
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(
+      webThreadOutbox.getSnapshot().map((entry) => [entry.id, entry.payload.input.threadId]),
+    ).toEqual([
+      ["message", "replacement-thread"],
+      ["follow-up", "replacement-thread"],
+    ]);
+    expect(webThreadOutbox.getSnapshot()[0]?.payload.input.bootstrap).toEqual({
+      createThread: task.input.bootstrap.createThread,
+    });
+    expect(webThreadOutbox.getSnapshot()[0]?.payload.localAttachments).toEqual([attachment]);
+    harness.online = true;
+    await webThreadOutbox.drain();
+    harness.existingThread = true;
+    harness.snapshotThreadId = "replacement-thread";
+    await webThreadOutbox.drain();
+    await webThreadOutbox.drain();
+    expect(
+      harness.run.mock.calls
+        .slice(1)
+        .filter((call) => call[1].label === "send")
+        .map((call) => call[2].input.message.text),
+    ).toEqual(["Saved prompt", "Follow-up"]);
+  });
+
+  it("leaves a task and its follow-ups unchanged when worktree cancellation is refused", async () => {
+    const { enqueueThreadOutboxTurns, retryThreadWorktreeLocally, webThreadOutbox } =
+      await import("./threadOutbox");
+    const [task, followUp] = pendingTaskWithFollowUp();
+    await enqueueThreadOutboxTurns([task, followUp]);
+    const before = webThreadOutbox.getSnapshot();
+    expect(
+      await retryThreadWorktreeLocally(
+        { environmentId: task.environmentId, threadId: task.input.threadId },
+        async () => false,
+      ),
+    ).toBeNull();
+    expect(webThreadOutbox.getSnapshot()).toEqual(before);
   });
 
   it("follows a rejected creation another tab already moved", async () => {

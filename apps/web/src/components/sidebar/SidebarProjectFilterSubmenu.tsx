@@ -1,19 +1,12 @@
 import type { EnvironmentId, EnvironmentMachineKind } from "@supaterm/contracts";
-import { FolderIcon, SettingsIcon } from "@supaterm/icons";
+import { CheckIcon, FolderIcon, SettingsIcon } from "@supaterm/icons";
 import type { MouseEvent } from "react";
 import type { SidebarProjectSnapshot } from "~/sidebarProjectGrouping";
 import { ProjectEnvironmentBadge } from "../ProjectEnvironmentBadge";
 import { ProjectFavicon } from "../ProjectFavicon";
 import { Button } from "../ui/button";
 import { Kbd } from "../ui/kbd";
-import {
-  MenuRadioGroup,
-  MenuRadioItem,
-  MenuRadioItemIndicator,
-  MenuSub,
-  MenuSubPopup,
-  MenuSubTrigger,
-} from "../ui/menu";
+import { MenuGroup, MenuItem, MenuSub, MenuSubPopup, MenuSubTrigger } from "../ui/menu";
 
 interface ProjectFilterItem {
   readonly value: string;
@@ -22,7 +15,7 @@ interface ProjectFilterItem {
 
 export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
   items,
-  value,
+  values,
   open,
   onOpenChange,
   projects,
@@ -32,8 +25,7 @@ export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
   onProjectSettings,
 }: {
   items: readonly TItem[];
-  /** "all" or the selected project's key. */
-  value: string;
+  values: readonly string[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projects: ReadonlyMap<string, SidebarProjectSnapshot>;
@@ -43,33 +35,55 @@ export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
     readonly machineByEnvironmentId: ReadonlyMap<EnvironmentId, EnvironmentMachineKind>;
   } | null;
   shortcutLabels: ReadonlyMap<TItem, string>;
-  onSelect: (value: string) => void;
+  onSelect: (value: string, multiple: boolean) => void;
   onProjectSettings: (event: MouseEvent<HTMLElement>, project: SidebarProjectSnapshot) => void;
 }) {
-  const selected = items.find((item) => item.value === value) ?? items[0];
+  const selected = items.filter((item) => values.includes(item.value));
   return (
     <MenuSub open={open} onOpenChange={onOpenChange}>
       <MenuSubTrigger>
         <span className="flex-1">Project</span>
-        <span className="ml-6 max-w-32 truncate text-muted-foreground">{selected?.label}</span>
+        {selected.length > 1 ? (
+          <span aria-hidden className="flex items-center -space-x-1">
+            {selected.slice(0, 2).map((item) => {
+              const project = projects.get(item.value);
+              return project ? (
+                <ProjectFavicon key={item.value} project={project} className="size-4 shrink-0" />
+              ) : null;
+            })}
+            {selected.length > 2 ? (
+              <span className="pl-1 text-xs">+{selected.length - 2}</span>
+            ) : null}
+          </span>
+        ) : null}
+        <span className="ml-6 max-w-32 truncate text-muted-foreground">
+          {selected.length === 0 ? items[0]?.label : selected.map((item) => item.label).join(", ")}
+        </span>
       </MenuSubTrigger>
       <MenuSubPopup className="max-w-[min(18rem,var(--available-width))]">
-        <MenuRadioGroup
-          value={value}
-          onValueChange={(next) => {
-            if (typeof next === "string") onSelect(next);
-          }}
-        >
+        <MenuGroup>
           {items.map((item) => {
             const project = projects.get(item.value) ?? null;
             const shortcut = shortcutLabels.get(item);
-            const checked = item.value === value;
+            const checked =
+              item.value === "all" ? values.length === 0 : values.includes(item.value);
             return (
-              <MenuRadioItem
+              <MenuItem
                 key={item.value}
-                value={item.value}
+                role="menuitemcheckbox"
+                aria-checked={checked}
                 label={item.label}
-                closeOnClick
+                onClick={(event) => {
+                  if (event.shiftKey) event.preventBaseUIHandler();
+                  onSelect(item.value, event.shiftKey);
+                }}
+                onKeyDown={(event) => {
+                  if (event.shiftKey && event.key === "Enter") {
+                    event.preventDefault();
+                    event.preventBaseUIHandler();
+                    onSelect(item.value, true);
+                  }
+                }}
                 onContextMenu={(event) => {
                   if (project) onProjectSettings(event, project);
                 }}
@@ -99,7 +113,7 @@ export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
                           : "flex"
                       }
                     >
-                      <MenuRadioItemIndicator />
+                      {checked ? <CheckIcon aria-hidden className="size-3.5" /> : null}
                     </span>
                     {project ? (
                       <span
@@ -124,10 +138,10 @@ export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
                     ) : null}
                   </span>
                 </span>
-              </MenuRadioItem>
+              </MenuItem>
             );
           })}
-        </MenuRadioGroup>
+        </MenuGroup>
       </MenuSubPopup>
     </MenuSub>
   );

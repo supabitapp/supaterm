@@ -2,6 +2,7 @@ import {
   EnvironmentId,
   ProjectId,
   ProviderInstanceId,
+  SourceControlProviderKind,
   ThreadId,
   type OrchestrationV2ServerCommand as OrchestrationCommand,
   PullRequestOperationError,
@@ -20,6 +21,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
 import * as Stream from "effect/Stream";
+import * as Schema from "effect/Schema";
 import type { Tool } from "effect/ai";
 
 import * as Orchestrator from "../../../orchestration-v2/Orchestrator.ts";
@@ -36,7 +38,11 @@ import * as McpToolAccess from "../../McpToolAccess.ts";
 import * as McpToolAccessTestkit from "../../McpToolAccess.testkit.ts";
 import { listThreadPullRequests } from "./handlers.ts";
 import * as PullRequestsHandlers from "./handlers.ts";
-import { PullRequestsToolkit } from "./tools.ts";
+import {
+  PullRequestsToolkit,
+  LinkPullRequestResult,
+  CHILD_PULL_REQUEST_REPORT_NEXT,
+} from "./tools.ts";
 
 const PROJECT_ID = ProjectId.make("project-1");
 const THREAD_ID = ThreadId.make("thread-1");
@@ -69,7 +75,7 @@ function makeProject(
       remoteName: "origin",
       remoteUrl: "git@github.com:supabitapp/supaterm.git",
     },
-    provider: "github",
+    provider: SourceControlProviderKind.make("github"),
     displayName: "supabitapp/supaterm",
     owner: "supabitapp",
     name: "supaterm",
@@ -244,6 +250,26 @@ const makeHarness = Effect.fn("makePullRequestsToolkitHarness")(function* (
 });
 
 describe("pull request toolkit handlers", () => {
+  const encodeLinkResult = Schema.encodeSync(LinkPullRequestResult);
+  it.effect("preserves child reporting guidance in the encoded link result", () =>
+    Effect.gen(function* () {
+      const parent = ThreadId.make("parent");
+      const harness = yield* makeHarness({
+        thread: {
+          ...makeThread([]),
+          lineage: {
+            rootThreadId: parent,
+            parentThreadId: parent,
+            relationshipToParent: "subagent",
+          },
+        },
+      });
+      const result = yield* harness.call("link_pull_request", {
+        url: "https://github.com/supabitapp/supaterm/pull/12",
+      });
+      expect(encodeLinkResult(result).next).toBe(CHILD_PULL_REQUEST_REPORT_NEXT);
+    }),
+  );
   it.effect("refuses a credential without the pull-requests capability", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness();
@@ -489,7 +515,7 @@ describe("pull request toolkit handlers", () => {
             remoteName: "origin",
             remoteUrl: "git@gitlab.com:group/sub/project.git",
           },
-          provider: "gitlab",
+          provider: SourceControlProviderKind.make("gitlab"),
           displayName: "group/sub/project",
         }),
       });
@@ -512,7 +538,7 @@ describe("pull request toolkit handlers", () => {
             remoteName: "origin",
             remoteUrl: "http://forge.example:3000/git/owner/repo.git",
           },
-          provider: "forgejo",
+          provider: SourceControlProviderKind.make("forgejo"),
           displayName: "git/owner/repo",
         }),
       });
@@ -546,7 +572,7 @@ describe("pull request toolkit handlers", () => {
             remoteName: "origin",
             remoteUrl: "http://dummy:secret@scm.example.test:8080/tfs/Collection/Project/_git/Repo",
           },
-          provider: "unknown",
+          provider: SourceControlProviderKind.make("unknown"),
           displayName: "tfs/collection/project/_git/repo",
         }),
       });
@@ -727,7 +753,7 @@ describe("pull request guide tools", () => {
               remoteName: "origin",
               remoteUrl: "git@github.com:acme/web.git",
             },
-            provider: "github",
+            provider: SourceControlProviderKind.make("github"),
             displayName: "acme/web",
             owner: "acme",
             name: "web",
@@ -799,7 +825,7 @@ describe("pull request guide tools", () => {
             remoteName: "origin",
             remoteUrl: "https://dev.azure.com/org/project/_git/web",
           },
-          provider: "azure-devops",
+          provider: SourceControlProviderKind.make("azure-devops"),
           displayName: "org/project/_git/web",
           owner: "org",
           name: "web",

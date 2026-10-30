@@ -1,5 +1,5 @@
 import { EnvironmentId } from "@supaterm/contracts";
-import { mediaMimeType } from "@supaterm/shared/filePreview";
+import { mediaMimeType } from "@supaterm/shared/mediaPreview";
 import {
   getProjectFaviconCacheKey,
   getProjectFaviconResourceKey,

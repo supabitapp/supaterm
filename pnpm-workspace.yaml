@@ -1,5 +1,6 @@
 packages:
   - apps/*
+  - infra/*
   - oxlint-plugin-supaterm
   - packages/*
   - scripts
@@ -22,10 +23,11 @@ allowBuilds:
   # Ships N-API prebuilds; the install script would only fall back to node-gyp.
   node-hid: false
   node-pty: true
-  "react-native-enriched-markdown@file:apps/mobile/deps/react-native-enriched-markdown-1.2.0-supacode.16.tgz": true
+  "react-native-enriched-markdown@file:apps/mobile/deps/react-native-enriched-markdown-1.2.0-supacode.17.tgz": true
   sharp: true
   "@tsc-rs/typescript": true
   utf-8-validate: false
+  workerd: true
 
 catalog:
   "@effect/atom-react": 4.0.5
@@ -37,6 +39,7 @@ catalog:
   "@legendapp/list": 3.3.5
   "@noble/hashes": 1.8.0
   "@pierre/diffs": 1.6.1
+  "@pierre/highlights": 0.2.0
   "@tailwindcss/node": 4.3.3
   "@tailwindcss/oxide": 4.3.3
   "@tailwindcss/vite": 4.3.3
@@ -52,8 +55,8 @@ catalog:
   tailwindcss: 4.3.3
   typescript: npm:@tsc-rs/typescript@0.8.0
   undici: 8.12.3
-  vite: npm:@voidzero-dev/vite-plus-core@1.3.0
-  vite-plus: 1.3.0
+  vite: npm:@voidzero-dev/vite-plus-core@1.4.0
+  vite-plus: 1.4.0
   yaml: ^2.9.0
   # Markdown pipeline: the server counts find matches with the same parser the
   # web renders with, so both must resolve to one version.
@@ -114,7 +117,7 @@ minimumReleaseAgeExclude:
   - expo-sharing@58.0.19
   - expo-sqlite@58.0.13
   - expo-symbols@58.0.4
-  - electron@44.9.3
+  - electron@44.10.0
   - "@anthropic-ai/claude-agent-sdk@0.3.276"
   - "@shadcn/lint@0.1.5"
   - cn@0.3.2
@@ -135,7 +138,7 @@ minimumReleaseAgeExclude:
   - "react@19.3.0"
   - "react-dom@19.3.0"
   - "react-native@0.88.0"
-  - "react-native-keyboard-controller@1.22.7"
+  - "react-native-keyboard-controller@1.22.8"
   - "react-native-worklets@0.13.0"
   - "react-native-reanimated@4.7.1"
   - "react-native-screens@4.28.0"
@@ -175,6 +178,30 @@ minimumReleaseAgeExclude:
   - agent-device@0.21.32
 
 overrides:
+  react-native-image-viewing: 0.2.2
+  mdast-util-math: 3.0.0
+  micromark-extension-llm-math: 3.1.1-20250610
+  expo-observe: 58.0.15
+  expo-audio: 58.0.9
+  expo-video: 58.0.11
+  expo-network: 58.0.3
+  expo-sharing: 58.0.19
+  "@ff-labs/fff-node": 0.11.0
+  "@legendapp/list": 3.3.5
+  "@pierre/diffs": 1.6.1
+  "@react-native-ai/apple": 0.12.0
+  "@react-native-menu/menu": 2.0.0
+  "@react-navigation/native-stack": 7.21.0
+  node-pty: 1.2.0-beta.15
+  react-native-gesture-handler: 3.3.0
+  react-native-reanimated: 4.7.1
+  react-native-keyboard-controller: 1.22.8
+  react-native-pdf-jsi: 5.0.0
+  react-native-webview: 14.0.1
+  "@expo/ui": 58.0.20
+  "@expo/fingerprint": 0.21.5
+  "@muse-code/sdk": 1.4.6
+  app-builder-lib: 26.17.0
   # Keep on the patched version. A fresh resolution would take a newer release and
   # fail on the unused patch. Move this with patches/expo-modules-core@*.patch.
   expo-modules-core: 58.0.22
@@ -237,11 +264,6 @@ overrides:
   yaml: "catalog:"
 
 packageExtensions:
-  # Bundled dev resolves rolldown's dev runtime from the installed package, which
-  # must match the rolldown Vite+ bundles, but vite-plus-core does not declare it.
-  "@voidzero-dev/vite-plus-core@1.3.0":
-    dependencies:
-      rolldown: 1.2.14
   react-native-pdf-jsi@5.0.0:
     dependencies:
       "@expo/config-plugins": "58.0.9"
@@ -270,7 +292,9 @@ patchedDependencies:
   mdast-util-math@3.0.0: patches/mdast-util-math@3.0.0.patch
   micromark-extension-llm-math@3.1.1-20250610: patches/micromark-extension-llm-math@3.1.1-20250610.patch
   micromark-extension-gfm-table@2.1.2: patches/micromark-extension-gfm-table@2.1.2.patch
+  expo-observe@58.0.15: patches/expo-observe@58.0.15.patch
   expo-audio@58.0.9: patches/expo-audio@58.0.9.patch
+  expo-video@58.0.11: patches/expo-video@58.0.11.patch
   expo-network@58.0.3: patches/expo-network@58.0.3.patch
   "@expo/metro-config@58.0.14": patches/@expo__metro-config@58.0.14.patch
   expo-sharing@58.0.19: patches/expo-sharing@58.0.19.patch
@@ -287,12 +311,12 @@ patchedDependencies:
   # Screens v5 stack, split and tab screens leave at once, like legacy screens. Exiting animations
   # inside one otherwise hold its removal for a later mount, after its stack has moved on.
   react-native-reanimated@4.7.1: patches/react-native-reanimated@4.7.1.patch
-  react-native-keyboard-controller@1.22.7: patches/react-native-keyboard-controller@1.22.7.patch
+  react-native-keyboard-controller@1.22.8: patches/react-native-keyboard-controller@1.22.8.patch
   react-native-pdf-jsi@5.0.0: patches/react-native-pdf-jsi@5.0.0.patch
   # Android: a nested WebView hands a vertical drag to its scrolling parent at the page's edge.
   react-native-webview@14.0.1: patches/react-native-webview@14.0.1.patch
   # Code blocks start with their lines wrapped; the header toggle unwraps a block.
-  react-native-enriched-markdown@1.2.0-supacode.16: patches/react-native-enriched-markdown@1.2.0-supacode.16.patch
+  react-native-enriched-markdown@1.2.0-supacode.17: patches/react-native-enriched-markdown@1.2.0-supacode.17.patch
   "@expo/ui@58.0.20": patches/@expo__ui@58.0.20.patch
   # Android: a Compose host that requests layout in a mount (a new screen's app bar) is laid out
   # before that frame is drawn, instead of a frame later.
@@ -300,6 +324,7 @@ patchedDependencies:
   # Android: Maven-resolved gradle plugins (expo-widgets) have no sourceDir; without this
   # skip, the fingerprint silently drops every Expo native module and OTAs reach stale binaries.
   "@expo/fingerprint@0.21.5": patches/@expo__fingerprint@0.21.5.patch
+  "@muse-code/sdk@1.4.6": patches/@muse-code__sdk@1.4.6.patch
   app-builder-lib@26.17.0: patches/app-builder-lib@26.17.0.patch
 
 peerDependencyRules:

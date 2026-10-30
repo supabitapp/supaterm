@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useState } from "react";
 import type { NativeSyntheticEvent } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import * as Arr from "effect/Array";
@@ -6,25 +6,21 @@ import { pipe } from "effect/Function";
 import * as Result from "effect/Result";
 
 import type { EnvironmentId, ThreadId } from "@supaterm/contracts";
+import { scopedThreadKey } from "../../lib/scopedEntities";
 import {
   buildReviewCommentTarget,
   clearReviewCommentTarget,
+  completeReviewCommentRange,
   formatReviewSelectedRangeLabel,
   getSelectedReviewCommentLines,
+  nextReviewSheetId,
+  reviewCommentSelectionScope,
   setReviewCommentTarget,
-  useReviewCommentTarget,
+  startReviewCommentRange,
+  useReviewCommentSelection,
 } from "./reviewCommentSelection";
-import type {
-  NativeReviewDiffData,
-  NativeReviewDiffCommentTarget,
-} from "./nativeReviewDiffAdapter";
+import type { NativeReviewDiffData } from "./nativeReviewDiffAdapter";
 import type { ReviewSectionItem } from "./reviewModel";
-
-interface PendingNativeCommentSelection extends NativeReviewDiffCommentTarget {
-  readonly sectionId: string;
-  readonly sectionTitle: string;
-  readonly rowId: string;
-}
 
 export function useReviewCommentSelectionController(input: {
   readonly environmentId?: EnvironmentId;
@@ -34,11 +30,23 @@ export function useReviewCommentSelectionController(input: {
 }) {
   const { environmentId, nativeReviewDiffData, selectedSection, threadId } = input;
   const navigation = useNavigation();
-  const activeCommentTarget = useReviewCommentTarget();
-  const [pendingNativeCommentSelection, setPendingNativeCommentSelection] =
-    useState<PendingNativeCommentSelection | null>(null);
+  const [sheetId] = useState(nextReviewSheetId);
 
-  const openReviewCommentSheet = useCallback(() => {
+  const scope = reviewCommentSelectionScope(
+    sheetId,
+    environmentId && threadId ? scopedThreadKey(environmentId, threadId) : null,
+    selectedSection === null
+      ? null
+      : {
+          id: selectedSection.id,
+          content: selectedSection.source?.diffHash ?? selectedSection.diff,
+        },
+  );
+  const { target: activeCommentTarget, pending: pendingRange } = useReviewCommentSelection(scope);
+  const hasRangeTarget =
+    activeCommentTarget !== null && activeCommentTarget.startIndex !== activeCommentTarget.endIndex;
+
+  const openReviewCommentSheet = () => {
     if (!environmentId || !threadId) {
       return;
     }
@@ -47,167 +55,84 @@ export function useReviewCommentSelectionController(input: {
       environmentId,
       threadId,
     });
-  }, [environmentId, navigation, threadId]);
+  };
 
-  const selectedRowIds = useMemo(() => {
-    if (
-      activeCommentTarget &&
-      activeCommentTarget.sectionTitle === selectedSection?.title &&
-      activeCommentTarget.startIndex !== activeCommentTarget.endIndex
-    ) {
-      return pipe(
+  const selectedRowIds = hasRangeTarget
+    ? pipe(
         getSelectedReviewCommentLines(activeCommentTarget),
         Arr.filterMap((line) => {
           const rowId = nativeReviewDiffData.rowIdByCommentLineId.get(line.id);
           return rowId ? Result.succeed(rowId) : Result.failVoid;
         }),
-      );
-    }
+      )
+    : pendingRange
+      ? [pendingRange.rowId]
+      : [];
 
-    return pendingNativeCommentSelection ? [pendingNativeCommentSelection.rowId] : [];
-  }, [
-    activeCommentTarget,
-    nativeReviewDiffData.rowIdByCommentLineId,
-    pendingNativeCommentSelection,
-    selectedSection?.title,
-  ]);
-
-  const selectionAction = useMemo(() => {
-    if (
-      activeCommentTarget &&
-      activeCommentTarget.sectionTitle === selectedSection?.title &&
-      activeCommentTarget.startIndex !== activeCommentTarget.endIndex
-    ) {
-      return {
+  const selectionAction = hasRangeTarget
+    ? {
         title: `Comment on ${formatReviewSelectedRangeLabel(activeCommentTarget)}`,
         onOpenComment: openReviewCommentSheet,
-      };
-    }
+      }
+    : pendingRange
+      ? { title: "Select range end", onOpenComment: null }
+      : null;
 
-    if (
-      pendingNativeCommentSelection &&
-      pendingNativeCommentSelection.sectionTitle === selectedSection?.title
-    ) {
-      return {
-        title: "Select range end",
-        onOpenComment: null,
-      };
-    }
-
-    return null;
-  }, [
-    activeCommentTarget,
-    openReviewCommentSheet,
-    pendingNativeCommentSelection,
-    selectedSection?.title,
-  ]);
-
-  const selectedSectionId = selectedSection?.id;
-  const [selectionSectionId, setSelectionSectionId] = useState(selectedSectionId);
-  if (selectionSectionId !== selectedSectionId) {
-    setSelectionSectionId(selectedSectionId);
-    setPendingNativeCommentSelection(null);
-  }
-  const clearedTargetSection = useRef<{ readonly sectionId: string | undefined } | null>(null);
-  useEffect(() => {
-    if (
-      clearedTargetSection.current !== null &&
-      clearedTargetSection.current.sectionId === selectedSectionId
-    ) {
+  const onPressLine = (
+    event: NativeSyntheticEvent<{
+      readonly rowId?: string;
+      readonly gesture?: "tap" | "longPress";
+    }>,
+  ) => {
+    if (!selectedSection || scope === null) {
       return;
     }
-    clearedTargetSection.current = { sectionId: selectedSectionId };
-    clearReviewCommentTarget();
-  });
 
-  const [previousCommentTarget, setPreviousCommentTarget] = useState(activeCommentTarget);
-  if (previousCommentTarget !== activeCommentTarget) {
-    setPreviousCommentTarget(activeCommentTarget);
-    if (activeCommentTarget === null) {
-      setPendingNativeCommentSelection(null);
+    const { rowId, gesture } = event.nativeEvent;
+    if (!rowId) {
+      return;
     }
-  }
 
-  const onPressLine = useCallback(
-    (
-      event: NativeSyntheticEvent<{
-        readonly rowId?: string;
-        readonly gesture?: "tap" | "longPress";
-      }>,
-    ) => {
-      if (!selectedSection) {
-        return;
-      }
+    const target = nativeReviewDiffData.commentTargetsByRowId.get(rowId);
+    if (!target) {
+      return;
+    }
 
-      const { rowId, gesture } = event.nativeEvent;
-      if (!rowId) {
-        return;
-      }
-
-      const target = nativeReviewDiffData.commentTargetsByRowId.get(rowId);
-      if (!target) {
-        return;
-      }
-
-      if (gesture === "longPress") {
-        clearReviewCommentTarget();
-        setPendingNativeCommentSelection({
-          ...target,
-          sectionId: selectedSection.id,
-          sectionTitle: selectedSection.title,
-          rowId,
-        });
-        return;
-      }
-
-      if (
-        pendingNativeCommentSelection &&
-        pendingNativeCommentSelection.sectionTitle === selectedSection.title &&
-        pendingNativeCommentSelection.filePath === target.filePath
-      ) {
-        setReviewCommentTarget(
-          buildReviewCommentTarget(
-            {
-              sectionTitle: pendingNativeCommentSelection.sectionTitle,
-              sectionId: pendingNativeCommentSelection.sectionId,
-              filePath: pendingNativeCommentSelection.filePath,
-              lines: pendingNativeCommentSelection.lines,
-            },
-            pendingNativeCommentSelection.lineIndex,
-            target.lineIndex,
-          ),
-        );
-        return;
-      }
-
-      setPendingNativeCommentSelection(null);
-      setReviewCommentTarget({
-        sectionTitle: selectedSection.title,
+    if (gesture === "longPress") {
+      startReviewCommentRange(scope, {
         sectionId: selectedSection.id,
+        sectionTitle: selectedSection.title,
         filePath: target.filePath,
         lines: target.lines,
-        startIndex: target.lineIndex,
-        endIndex: target.lineIndex,
+        lineIndex: target.lineIndex,
+        rowId,
       });
-      openReviewCommentSheet();
-    },
-    [
-      nativeReviewDiffData.commentTargetsByRowId,
-      openReviewCommentSheet,
-      pendingNativeCommentSelection,
-      selectedSection,
-    ],
-  );
+      return;
+    }
 
-  const clearSelection = useCallback(() => {
-    clearReviewCommentTarget();
-    setPendingNativeCommentSelection(null);
-  }, []);
+    if (pendingRange && pendingRange.filePath === target.filePath) {
+      completeReviewCommentRange(
+        scope,
+        buildReviewCommentTarget(pendingRange, pendingRange.lineIndex, target.lineIndex),
+      );
+      return;
+    }
+
+    setReviewCommentTarget(scope, {
+      sectionTitle: selectedSection.title,
+      sectionId: selectedSection.id,
+      filePath: target.filePath,
+      lines: target.lines,
+      startIndex: target.lineIndex,
+      endIndex: target.lineIndex,
+    });
+    openReviewCommentSheet();
+  };
 
   return {
     selectedRowIds,
     selectionAction,
     onPressLine,
-    clearSelection,
+    clearSelection: clearReviewCommentTarget,
   };
 }

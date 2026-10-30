@@ -1,10 +1,9 @@
 import {
   threadPullRequestsOf,
   threadPullRequestKeysEqual,
-} from "@supaterm/shared/threadPullRequests";
+} from "../../../sourceControl/threadPullRequests.ts";
 import {
   CommandId,
-  pullRequestHostOf,
   type OrchestrationProjectShell,
   type OrchestrationV2ThreadShell,
   type SourceControlProviderKind,
@@ -12,13 +11,14 @@ import {
   type ThreadPullRequestLink,
   type ThreadWorkflowRunWatch,
 } from "@supaterm/contracts";
-import { changeRequestUrlFor, parseChangeRequestUrl } from "@supaterm/shared/changeRequestUrl";
+import { canonicalizeGitCafePullRequestUrl } from "@supaterm/source-control-definitions/registry";
+import { sourceControlDefinitions } from "../../../sourceControl/sourceControlDefinitions.ts";
 import {
   normalizeThreadPullRequestKey,
   resolveThreadPullRequestChains,
   threadPullRequestKeyOf,
   visibleThreadPullRequests,
-} from "@supaterm/shared/threadPullRequests";
+} from "../../../sourceControl/threadPullRequests.ts";
 import * as Cause from "effect/Cause";
 import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
@@ -39,6 +39,7 @@ import {
   PullRequestUrlInvalidError,
   PullRequestTargetIncompleteError,
   PullRequestHostRequiredError,
+  PullRequestUrlUnavailableError,
   PullRequestUnlinkFailedError,
   PullRequestListFailedError,
   PullRequestNotOpenError,
@@ -56,6 +57,7 @@ import {
   WorkflowRunUnreadableError,
   WorkflowRunWatchFailedError,
   WorkflowRunWatchFromSubagentError,
+  CHILD_PULL_REQUEST_REPORT_NEXT,
 } from "./tools.ts";
 
 interface ResolvedTarget {
@@ -70,10 +72,10 @@ function projectHostAndProvider(project: OrchestrationProjectShell | undefined):
   readonly kind: SourceControlProviderKind | null;
 } {
   const identity = project?.repositoryIdentity;
-  const kind = (identity?.provider as SourceControlProviderKind | undefined) ?? null;
+  const kind = identity?.provider ?? null;
   if (!identity || kind === null) return { host: null, kind: null };
   return {
-    host: pullRequestHostOf(identity, kind),
+    host: sourceControlDefinitions.changeRequestHost(identity, kind),
     kind,
   };
 }
@@ -83,11 +85,14 @@ const resolveTarget = Effect.fn("PullRequestsToolkit.resolveTarget")(function* (
   project: OrchestrationProjectShell | undefined,
 ) {
   if (input.url !== undefined) {
-    const parsed = parseChangeRequestUrl(input.url);
-    if (parsed === null) {
+    const parsed = sourceControlDefinitions.parseChangeRequestUrl(input.url)?.link;
+    if (parsed === undefined) {
       return yield* new PullRequestUrlInvalidError({});
     }
-    return { ...normalizeThreadPullRequestKey(parsed), url: input.url } satisfies ResolvedTarget;
+    return {
+      ...normalizeThreadPullRequestKey(parsed),
+      url: canonicalizeGitCafePullRequestUrl(input.url),
+    } satisfies ResolvedTarget;
   }
   if (input.repository === undefined || input.number === undefined) {
     return yield* new PullRequestTargetIncompleteError({});
@@ -98,27 +103,32 @@ const resolveTarget = Effect.fn("PullRequestsToolkit.resolveTarget")(function* (
     return yield* new PullRequestHostRequiredError({});
   }
   const repository = input.repository.toLowerCase();
+  const remoteUrl =
+    host === projectHost.host ? project?.repositoryIdentity?.locator.remoteUrl : undefined;
+  const recognized = sourceControlDefinitions.recognizeRemote(`https://${host}/${repository}`);
+  const pathKind = sourceControlDefinitions.parseChangeRequestUrl(
+    `https://${host}/${repository}/pullrequest/${input.number}`,
+  )?.definition.kind;
+  const kind =
+    sourceControlDefinitions.findByPublicHost(host)?.kind ??
+    (recognized && sourceControlDefinitions.find(recognized.kind) ? recognized.kind : undefined) ??
+    pathKind ??
+    (host === projectHost.host ? projectHost.kind : null);
+  const target = {
+    host,
+    repository,
+    number: input.number,
+    ...(remoteUrl === undefined ? {} : { remoteUrl }),
+  };
   const url =
-    changeRequestUrlFor(
-      host === projectHost.host ? projectHost.kind : null,
-      host,
-      repository,
-      input.number,
-      project?.repositoryIdentity?.locator.remoteUrl,
-    ) ??
-    (/(?:^|\/)_git\/[^/]+$/u.test(repository)
-      ? changeRequestUrlFor(
-          "azure-devops",
-          host,
-          repository,
-          input.number,
-          project?.repositoryIdentity?.locator.remoteUrl,
-        )
-      : null) ??
-    `https://${host}/${repository}/pull/${input.number}`;
+    sourceControlDefinitions.get(kind).changeRequestUrl(target) ??
+    sourceControlDefinitions.get(null).changeRequestUrl(target);
+  if (url === null) {
+    return yield* new PullRequestUrlUnavailableError({});
+  }
   return {
     ...normalizeThreadPullRequestKey({ host, repository, number: input.number, url }),
-    url,
+    url: canonicalizeGitCafePullRequestUrl(url),
   } satisfies ResolvedTarget;
 });
 
@@ -226,10 +236,10 @@ const make = Effect.gen(function* () {
     if (threadId === undefined) {
       return yield* new PullRequestThreadRequiredError();
     }
-    const thread = yield* engine
-      .getThreadShell(threadId)
-      .pipe(Effect.map(Option.fromNullishOr))
-      .pipe(Effect.mapError((cause) => new Failure({ cause })));
+    const thread = yield* engine.getThreadShell(threadId).pipe(
+      Effect.map(Option.fromNullishOr),
+      Effect.mapError((cause) => new Failure({ cause })),
+    );
     if (Option.isNone(thread) || thread.value.deletedAt !== null) {
       return yield* new PullRequestThreadNotFoundError({ threadId });
     }
@@ -449,13 +459,17 @@ const make = Effect.gen(function* () {
     link_pull_request: writesThread((input) =>
       Effect.gen(function* () {
         const thread = yield* requireThread(PullRequestLinkFailedError, input.threadId);
+        const next =
+          thread.lineage.relationshipToParent === "subagent"
+            ? ({ next: CHILD_PULL_REQUEST_REPORT_NEXT } as const)
+            : {};
         const project = yield* projectOf(thread, PullRequestLinkFailedError);
         const target = yield* resolveTarget(input, project);
         const existing = threadPullRequestsOf(thread).find((link) =>
           threadPullRequestKeysEqual(link, target),
         );
         if (existing && existing.source !== "stack-dismissed")
-          return { ...target, alreadyLinked: true };
+          return { ...target, alreadyLinked: true, ...next };
         const alreadyLinked = yield* engine
           .dispatch({
             type: "thread.pull-request.link",
@@ -472,7 +486,7 @@ const make = Effect.gen(function* () {
 
             Effect.catchCause(dispatchFailure(PullRequestLinkFailedError)),
           );
-        return { ...target, alreadyLinked };
+        return { ...target, alreadyLinked, ...next };
       }),
     ),
     unlink_pull_request: writesThread((input) =>

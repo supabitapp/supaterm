@@ -9,7 +9,7 @@ const TabKey = {
 
 export const DesktopBrowserEvent = Schema.Union([
   Schema.Struct({ type: Schema.Literal("attached"), ...TabKey }),
-  /** Its `<webview>` went away: closed, crashed, swapped, or devtools took the debugger. */
+
   Schema.Struct({ type: Schema.Literal("detached"), ...TabKey }),
   Schema.Struct({ type: Schema.Literal("cdp"), ...TabKey, message: Schema.String }),
 ]);
@@ -24,6 +24,12 @@ export const DesktopBrowserCommand = Schema.Union([
     phase: Schema.Literals(["move", "click"]),
     x: Schema.Finite,
     y: Schema.Finite,
+  }),
+
+  Schema.Struct({
+    type: Schema.Literal("turn"),
+    threadId: TrimmedNonEmptyString,
+    active: Schema.Boolean,
   }),
 ]);
 export type DesktopBrowserCommand = typeof DesktopBrowserCommand.Type;

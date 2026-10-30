@@ -15,7 +15,7 @@ import {
 import { Lock as LockGlyph, LockOpen } from "@supaterm/icons/nodes";
 import * as Arr from "effect/Array";
 import * as Result from "effect/Result";
-import { useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
+import { useState, type ReactElement, type ReactNode } from "react";
 import {
   isProviderDriverKind,
   resolveProviderInstanceEnabled,
@@ -54,7 +54,12 @@ import type {
   ProviderClientDefinition,
   ProviderEnvironmentField,
 } from "@supaterm/provider-core/client";
-import { deriveProviderSettingsFields, ProviderSettingsForm } from "./ProviderSettingsForm";
+import {
+  deriveProviderSettingsFields,
+  ProviderSettingsForm,
+  reconcileRowsDraft,
+  seedRowsDraft,
+} from "./ProviderSettingsForm";
 import { ProviderModelsSection } from "./ProviderModelsSection";
 import { ProviderInstanceIcon } from "../chat/ProviderInstanceIcon";
 import { ProviderAccentColorPicker } from "./ProviderAccentColorPicker";
@@ -113,6 +118,9 @@ function makeEnvironmentDraftRow(
   };
 }
 
+const toEnvironmentDraftRows = (environment: ReadonlyArray<ProviderInstanceEnvironmentVariable>) =>
+  environment.map(makeEnvironmentDraftRow);
+
 function providerEnvironmentsEqual(
   left: ReadonlyArray<ProviderInstanceEnvironmentVariable>,
   right: ReadonlyArray<ProviderInstanceEnvironmentVariable>,
@@ -138,12 +146,7 @@ function readConfigString(config: unknown, key: string): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
-/**
- * Unlike provider settings field updates, does not drop empty-looking values —
- * the caller is responsible for deciding whether an empty array / empty object
- * should be stored explicitly (e.g. `customModels: []` is a meaningful "user
- * cleared their custom list" state distinct from "driver default").
- */
+/** Preserve explicit empty arrays/objects; clearing a custom list differs from selecting driver defaults. */
 function nextConfigBlobWithValue(
   config: unknown,
   key: string,
@@ -308,29 +311,19 @@ export function ProviderEnvironmentSection(props: {
   readonly environment: ReadonlyArray<ProviderInstanceEnvironmentVariable>;
   readonly onChange: (environment: ReadonlyArray<ProviderInstanceEnvironmentVariable>) => void;
 }) {
-  const [rows, setRows] = useState<ReadonlyArray<EnvironmentDraftRow>>(() =>
-    props.environment.map(makeEnvironmentDraftRow),
+  const [storedDraft, setDraft] = useState(() =>
+    seedRowsDraft(props.environment, toEnvironmentDraftRows),
   );
-  const previousEnvironmentRef = useRef(props.environment);
-  const lastPublishedEnvironmentRef = useRef<
-    ReadonlyArray<ProviderInstanceEnvironmentVariable> | undefined
-  >(undefined);
-
-  useEffect(() => {
-    const previousEnvironment = previousEnvironmentRef.current;
-    const lastPublishedEnvironment = lastPublishedEnvironmentRef.current;
-    previousEnvironmentRef.current = props.environment;
-    lastPublishedEnvironmentRef.current = undefined;
-    if (
-      previousEnvironment === props.environment ||
-      providerEnvironmentsEqual(previousEnvironment, props.environment) ||
-      (lastPublishedEnvironment !== undefined &&
-        providerEnvironmentsEqual(lastPublishedEnvironment, props.environment))
-    ) {
-      return;
-    }
-    setRows(props.environment.map(makeEnvironmentDraftRow));
-  }, [props.environment]);
+  const draft = reconcileRowsDraft(
+    storedDraft,
+    props.environment,
+    providerEnvironmentsEqual,
+    toEnvironmentDraftRows,
+  );
+  if (draft !== storedDraft) setDraft(draft);
+  const rows = draft.rows;
+  const setRows = (nextRows: ReadonlyArray<EnvironmentDraftRow>) =>
+    setDraft({ ...draft, rows: nextRows });
 
   const publishRows = (nextRows: ReadonlyArray<EnvironmentDraftRow>) => {
     const published: ProviderInstanceEnvironmentVariable[] = [];
@@ -350,7 +343,7 @@ export function ProviderEnvironmentSection(props: {
       const { id: _id, ...rest } = row;
       published.push({ ...rest, name });
     }
-    lastPublishedEnvironmentRef.current = published;
+    setDraft({ rows: nextRows, seen: draft.seen, lastPublished: published });
     props.onChange(published);
   };
 
@@ -612,14 +605,8 @@ interface ProviderInstanceCardProps {
 const EMPTY_ACP_PROJECTS: NonNullable<ProviderInstanceCardProps["acpProjects"]> = [];
 const NO_CUSTOM_MODELS: ReadonlyArray<CustomModelDefinition> = [];
 
-/**
- * Unknown drivers (`driverOption === undefined`) get a read-only
- *     notice instead of editable fields, so fork instances round-trip
- *     without accidentally destroying their config.
- * With `projectOverride` set, the Switch instead reads and writes
- *     that project's override, leaving the environment's `instance.enabled`
- *     untouched.
- */
+/** Unknown drivers stay read-only to preserve fork config. projectOverride switches affect only the
+ * project, not instance.enabled. */
 export function ProviderInstanceCard({
   instanceId,
   instance,
@@ -718,8 +705,6 @@ export function ProviderInstanceCard({
   const driverKind: ProviderDriverKind | null = isProviderDriverKind(instance.driver)
     ? instance.driver
     : null;
-  // Keyed on the stored list, not the whole instance, so writing another field
-  // leaves the models list (often ~50 rows) with the same props.
   const storedCustomModels =
     instance.config !== null && typeof instance.config === "object"
       ? (instance.config as Record<string, unknown>).customModels
@@ -885,7 +870,7 @@ export function ProviderInstanceCard({
                   size={mode === "list" ? "icon-micro" : "icon-xs"}
                   variant="ghost-muted"
                   className={mode === "list" ? "pointer-events-auto relative shrink-0" : undefined}
-                  aria-label={`${updateProgress ? "Updating" : versionAdvisory.title} — view details`}
+                  aria-label={`${updateProgress ? "Updating" : versionAdvisory.title}, view details`}
                 >
                   {updateProgress ? (
                     <Spinner tone="muted" {...(mode === "list" ? { size: "sm" as const } : {})} />
@@ -1180,7 +1165,6 @@ export function ProviderInstanceCard({
                 displayName={displayName}
                 value={accentColor}
                 onCommit={updateAccentColor}
-                commitDelayMs={120}
               />
               <DraftInput
                 id={`provider-instance-${instanceId}-display-name`}

@@ -1,3 +1,4 @@
+import type { EffortDisplay } from "@supaterm/contracts/settings";
 import {
   type ModelCapabilities,
   type ModelSelection,
@@ -63,6 +64,10 @@ type TraitsRenderInput = {
   triggerClassName?: string;
   isComposerOwned?: boolean;
   shortcutLabel?: string | null;
+  effortDisplay?: EffortDisplay;
+  extraMenuContent?: ReactNode;
+  extraMenuHint?: string;
+  extraMenuOwnsModeShortcut?: boolean;
 };
 
 export function getComposerPromptInjectionState(prompt: string): ComposerPromptInjectionState {
@@ -242,6 +247,10 @@ function renderTraitsControl(
     triggerClassName,
     isComposerOwned,
     shortcutLabel,
+    effortDisplay,
+    extraMenuContent,
+    extraMenuHint,
+    extraMenuOwnsModeShortcut,
   } = input;
   const hasTarget = threadRef !== undefined || draftId !== undefined;
   const { selections: resolvedModelOptions } = resolveComposerOptionSelections(
@@ -279,6 +288,10 @@ function renderTraitsControl(
       {...(triggerClassName !== undefined ? { triggerClassName } : {})}
       {...(isComposerOwned ? { isComposerOwned } : {})}
       {...(shortcutLabel ? { shortcutLabel } : {})}
+      {...(effortDisplay ? { effortDisplay } : {})}
+      {...(extraMenuContent ? { extraMenuContent } : {})}
+      {...(extraMenuHint ? { extraMenuHint } : {})}
+      {...(extraMenuOwnsModeShortcut !== undefined ? { extraMenuOwnsModeShortcut } : {})}
     />
   );
 }

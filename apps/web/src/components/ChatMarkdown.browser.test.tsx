@@ -1,3 +1,4 @@
+import { userEvent } from "vite-plus/test/browser";
 import { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import { AsyncResult } from "effect/reactivity";
 import { type ReactElement } from "react";
@@ -12,6 +13,24 @@ import { getSyntaxHighlighterPromise } from "../lib/syntaxHighlighting";
 import { MarkdownFindContext } from "./chat/markdownFindContext";
 import { useThreadFindHighlights } from "./chat/threadFindHighlights";
 import { setMarkdownTaskChecked } from "./files/filePreviewMode";
+
+const { hostMediaRequests } = vi.hoisted(() => ({
+  hostMediaRequests: [] as { environmentId: string | null; resource: unknown }[],
+}));
+vi.mock(import("../assets/assetUrls"), async (original) => {
+  const actual = await original();
+  return {
+    ...actual,
+    useAssetUrlState: (...args: Parameters<typeof actual.useAssetUrlState>) => {
+      const [environmentId, resource] = args;
+      if (resource?._tag === "github-media") {
+        hostMediaRequests.push({ environmentId, resource });
+        return { _tag: "Loading" } as const;
+      }
+      return actual.useAssetUrlState(...args);
+    },
+  };
+});
 
 const { workspaceSearch, filesystemMetadata } = vi.hoisted(() => ({
   workspaceSearch: vi.fn(),
@@ -578,6 +597,22 @@ describe("ChatMarkdown headings", () => {
   });
 });
 
+describe("ChatMarkdown inline code selection", () => {
+  it("selects the whole inline code span on double-click, but only a word in fenced code", async () => {
+    setup();
+    await using screen = await renderText(
+      "Run `migration-gate --dry-run` first.\n\n```txt\nfenced-block word\n```",
+    );
+    await userEvent.dblClick(screen.getByText("migration-gate --dry-run"));
+    expect(window.getSelection()?.toString()).toBe("migration-gate --dry-run");
+
+    window.getSelection()?.removeAllRanges();
+    const fenced = screen.container.querySelector("pre code")!;
+    await userEvent.dblClick(fenced, { position: { x: 4, y: 4 } });
+    expect(window.getSelection()?.toString()).toBe("fenced");
+  });
+});
+
 describe("ChatMarkdown Windows file links", () => {
   const environmentId = EnvironmentId.make("env-windows");
   const renderWindows = (text: string, parseRawHtml: boolean) =>
@@ -661,4 +696,23 @@ describe("ChatMarkdown thread find", () => {
     await vi.waitFor(() => expect(diagrams()).toBe(1));
     await vi.waitFor(() => expect(activeHighlights()).toEqual(["Alpha"]));
   });
+});
+
+it("loads private host media through the selected environment's asset service", async () => {
+  setup();
+  hostMediaRequests.length = 0;
+  const environmentId = EnvironmentId.make("remote-media");
+  await using screen = await renderText(
+    "![Private upload](https://github.com/user-attachments/assets/5566)",
+    { sourceControlMedia: true, threadRef: { environmentId, threadId: ThreadId.make("media") } },
+  );
+  expect(hostMediaRequests).toContainEqual({
+    environmentId,
+    resource: {
+      _tag: "github-media",
+      cwd: "/tmp/project",
+      url: "https://github.com/user-attachments/assets/5566",
+    },
+  });
+  expect(screen.container.querySelector('img[src^="https://github.com"]')).toBeNull();
 });

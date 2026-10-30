@@ -15,17 +15,23 @@ const state = vi.hoisted(() => ({
   assetAtom: {},
   mint: vi.fn(),
   assetQuery: vi.fn(),
+  execute: vi.fn(),
+  connection: { _tag: "Some", value: { httpBaseUrl: "https://host.test" } } as
+    | { _tag: "Some"; value: { httpBaseUrl: string } }
+    | { _tag: "None" },
 }));
 
 vi.mock("react", () => ({ useCallback: <A>(callback: A) => callback }));
 vi.mock("@effect/atom-react", () => ({
+  useAtomMount: () => undefined,
+  useAtomSubscribe: () => undefined,
   useAtomValue: (atom: unknown) =>
     atom === state.assetAtom
       ? AsyncResult.success({ relativeUrl: "/api/assets/image.png", expiresAt: 1 })
       : AsyncResult.initial(false),
 }));
 vi.mock("./session", () => ({
-  environmentSession: { sessionStateAtom: () => ({}) },
+  environmentSession: { sessionStateAtom: () => ({}), preparedConnectionValueAtom: () => ({}) },
   usePreparedConnection: () => ({ _tag: "Some", value: { httpBaseUrl: "https://host.test" } }),
 }));
 vi.mock("./presentation", () => ({
@@ -39,13 +45,19 @@ vi.mock("./query", () => ({
 }));
 vi.mock("./projectClones", () => ({ environmentProjectCloneListAtom: () => null }));
 vi.mock("../connection/runtime", () => ({ connectionAtomRuntime: {} }));
+vi.mock("../connection/catalog", () => ({
+  environmentCatalog: { sessionGenerationAtom: () => null },
+}));
 vi.mock("@supaterm/client-runtime/state/assets", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@supaterm/client-runtime/state/assets")>()),
   createAssetEnvironmentAtoms: () => ({ createUrl: state.assetQuery }),
 }));
 vi.mock("./use-atom-query-runner", () => ({ useAtomQueryRunner: () => state.mint }));
 
-import { useRefreshAssetUrl, useAssetUrlState } from "./assets";
+vi.mock("./atom-registry", () => ({ appAtomRegistry: { get: () => state.connection } }));
+vi.mock("@supaterm/client-runtime/state/runtime", () => ({ executeAtomQuery: state.execute }));
+
+import { refreshAssetUrl, useRefreshAssetUrl, useAssetUrlState } from "./assets";
 
 const environmentId = EnvironmentId.make("asset-environment");
 const threadId = ThreadId.make("asset-thread");
@@ -54,6 +66,8 @@ const resource = { _tag: "media-file", threadId, path: "/repo/image.png" } as co
 beforeEach(() => {
   state.session = null;
   state.phase = "connected";
+  state.connection = { _tag: "Some", value: { httpBaseUrl: "https://host.test" } };
+  state.execute.mockReset();
   state.assetQuery.mockReset().mockReturnValue(state.assetAtom);
   state.mint
     .mockReset()
@@ -101,4 +115,31 @@ it("lets the server authorize an explicit refresh before the client grant loads"
   });
   state.mint.mockResolvedValue(AsyncResult.failure(Cause.fail(denied)));
   await expect(useRefreshAssetUrl(environmentId, resource)()).resolves.toBeNull();
+});
+
+it("resolves refreshed native preview assets against the current connection", async () => {
+  const controller = new AbortController();
+  state.execute.mockImplementation(async () => {
+    state.connection = { _tag: "Some", value: { httpBaseUrl: "https://reconnected.test" } };
+    return AsyncResult.success({ relativeUrl: "/api/assets/fresh-video.mp4", expiresAt: 99 });
+  });
+  await expect(refreshAssetUrl(environmentId, resource, controller.signal)).resolves.toBe(
+    "https://reconnected.test/api/assets/fresh-video.mp4",
+  );
+  expect(state.execute.mock.calls[0]?.[2]).toMatchObject({
+    refresh: true,
+    signal: controller.signal,
+  });
+});
+
+it("does not mint an asset while disconnected or reuse a result after disconnect", async () => {
+  state.connection = { _tag: "None" };
+  await expect(refreshAssetUrl(environmentId, resource)).resolves.toBeNull();
+  expect(state.execute).not.toHaveBeenCalled();
+  state.connection = { _tag: "Some", value: { httpBaseUrl: "https://host.test" } };
+  state.execute.mockImplementation(async () => {
+    state.connection = { _tag: "None" };
+    return AsyncResult.success({ relativeUrl: "/api/assets/stale.mp4", expiresAt: 99 });
+  });
+  await expect(refreshAssetUrl(environmentId, resource)).resolves.toBeNull();
 });

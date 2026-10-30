@@ -10,7 +10,7 @@ import { useEffect, useEffectEvent, useRef } from "react";
 import { View } from "react-native";
 
 import { AppText as Text, AppTextInput } from "../../../components/ui/AppText";
-import { SettingsChoiceRow } from "./SettingsChoiceRow";
+import { ListChoiceRow as SettingsChoiceRow } from "../../../components/ui/ListChoiceRow";
 import { SettingsSection } from "./SettingsSection";
 
 const MODES = {
@@ -61,6 +61,7 @@ export function BranchNamingSettings(props: {
   const saveDrafts = useEffectEvent(() =>
     send({ ...take("branchNamePrefix"), ...take("branchNameInstructions") }),
   );
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- saves unsent branch naming drafts to server settings when the section unmounts
   useEffect(() => () => saveDrafts(), []);
   const choice =
     props.mode === null || props.prefixFromRepository === null

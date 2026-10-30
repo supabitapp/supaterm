@@ -32,6 +32,7 @@ import { HttpServerRequest, HttpServerResponse } from "effect/http";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 
 import * as EnvironmentAuth from "./EnvironmentAuth.ts";
+import { verifyRequestDpopProof } from "./dpop.ts";
 import * as SessionStore from "./SessionStore.ts";
 import { deriveAuthClientMetadata } from "./utils.ts";
 
@@ -132,19 +133,12 @@ export function failEnvironmentNotFound(reason: EnvironmentResourceNotFoundReaso
   );
 }
 
-/**
- * `<img>` and WebSocket cannot set headers, so media routes (device hub,
- * preview stream) authenticate the way the `/ws` upgrade does: a cookie for browser
- * sessions, or a short-lived `wsTicket` minted over authenticated HTTP for
- * bearer clients. The upgrade authenticator already implements that
- * fallback order, so it is used for plain requests as well.
- */
 export const authenticateMediaRequest =
   /* Request instrumentation already owns the span; keep this helper in that context. */
   Effect.fnUntraced(function* (requiredScope: AuthEnvironmentScope) {
     const request = yield* HttpServerRequest.HttpServerRequest;
     const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;
-    const session = yield* serverAuth.authenticateWebSocketUpgrade(request).pipe(
+    const session = yield* serverAuth.authenticateWebSocketUpgrade(request, "media").pipe(
       Effect.catch((error) =>
         Effect.gen(function* () {
           if (EnvironmentAuth.isServerAuthCredentialError(error)) {
@@ -242,6 +236,7 @@ export const layer = HttpApiBuilder.group(
             const previousCredential = EnvironmentAuth.selectRequestCredential(
               request,
               sessions.cookieName,
+              sessions.previousLoopbackCookieName,
             );
             const result = yield* serverAuth.createBrowserSession(
               args.payload.credential,
@@ -333,6 +328,38 @@ export const layer = HttpApiBuilder.group(
             yield* appendCredentialResponseHeaders;
             return yield* serverAuth.issueWebSocketTicket(session);
           },
+          Effect.catchIf(EnvironmentAuth.isServerAuthInternalError, (error) =>
+            failEnvironmentInternal("websocket_ticket_issuance_failed", error),
+          ),
+        ),
+      )
+      .handle(
+        "webSocketTicketFor",
+        Effect.fn("environment.auth.webSocketTicketFor")(
+          function* (args) {
+            yield* annotateEnvironmentRequest(args.endpoint.name);
+            const session = yield* EnvironmentAuthenticatedPrincipal;
+            const request = yield* HttpServerRequest.HttpServerRequest;
+            const authorization = request.headers.authorization;
+            const token = authorization?.startsWith("Bearer ")
+              ? authorization.slice(7).trim()
+              : undefined;
+            const proofKeyThumbprint =
+              request.headers.dpop === undefined
+                ? undefined
+                : yield* verifyRequestDpopProof({
+                    request,
+                    ...(token ? { expectedAccessToken: token } : {}),
+                  });
+            yield* appendCredentialResponseHeaders;
+            return yield* serverAuth.issueWebSocketTicket(
+              { ...session, ...(proofKeyThumbprint ? { proofKeyThumbprint } : {}) },
+              { use: args.params.use },
+            );
+          },
+          Effect.catchIf(EnvironmentAuth.isServerAuthCredentialError, (error) =>
+            failEnvironmentAuthInvalid(EnvironmentAuth.serverAuthCredentialReason(error)),
+          ),
           Effect.catchIf(EnvironmentAuth.isServerAuthInternalError, (error) =>
             failEnvironmentInternal("websocket_ticket_issuance_failed", error),
           ),

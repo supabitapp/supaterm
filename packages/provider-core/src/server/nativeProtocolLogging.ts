@@ -4,10 +4,6 @@ export function structuralProtocolMethod(value: string): string {
   return value.length <= 128 && /^[A-Za-z][A-Za-z0-9._:/-]*$/.test(value) ? value : "unknown";
 }
 
-/**
- * Provider payload values may contain prompts, credentials, or arbitrarily
- * large tool output and must never be copied into the observability stream.
- */
 export function summarizeNativeProtocolPayload(
   payload: unknown,
 ): Readonly<Record<string, unknown>> {

@@ -1,13 +1,13 @@
 import {
-  GH_RESOLVED_CONFIG_ARGS,
   normalizeGitRemoteUrl,
-  parseGhResolvedRemotes,
   parseGitRemoteFetchUrls,
+  parseGhResolvedRemotes,
+  GH_RESOLVED_CONFIG_ARGS,
 } from "@supaterm/shared/git";
-import {
-  detectSourceControlProviderFromRemoteUrl,
-  isSshRemoteUrl,
-} from "@supaterm/shared/sourceControl";
+import { isSshRemoteUrl } from "@supaterm/shared/sourceControl";
+import { parseGitRemoteHost } from "@supaterm/source-control-core/shared/definition";
+import { definition } from "../shared/definition.ts";
+import { isGitHubHost } from "./GitHubCredentials.ts";
 import type * as SourceControlHost from "@supaterm/source-control-core/server/SourceControlHost";
 import * as Effect from "effect/Effect";
 
@@ -152,8 +152,9 @@ export function parseGitHubRepositorySelector(
   }
   const parts = trimmed.split("/").filter(Boolean);
   if (parts.length === 2) return { host: defaultHost, owner: parts[0]!, name: parts[1]! };
-  if (parts.length === 3)
-    return { host: parts[0]!.toLowerCase(), owner: parts[1]!, name: parts[2]! };
+  const host = parts[0]?.toLowerCase();
+  if (parts.length === 3 && host !== undefined && isGitHubHost(host))
+    return { host, owner: parts[1]!, name: parts[2]! };
   return null;
 }
 
@@ -183,14 +184,13 @@ export function parsePullRequestReference(
 }
 
 export function gitHubApiHostForRemote(remoteUrl: string): string | null {
-  const provider = detectSourceControlProviderFromRemoteUrl(remoteUrl);
-  if (provider === null) return null;
-  const host = new URL(provider.baseUrl).host.toLowerCase();
-
+  const remote = parseGitRemoteHost(remoteUrl);
+  if (remote === null) return null;
+  const host = new URL(`https://${remote.host}`).host.toLowerCase();
   if (isSshRemoteUrl(remoteUrl) && !host.includes(".")) {
     return host.includes("github") ? "github.com" : null;
   }
-  return provider.kind === "github" ? host : null;
+  return definition.recognizeRemote(remote) === null ? null : host;
 }
 
 function apiHostForHint(host: string): string {

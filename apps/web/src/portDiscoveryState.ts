@@ -3,6 +3,7 @@ import {
   PREVIEW_URL_MAX_LENGTH,
   type DiscoveredLocalServer,
   type EnvironmentId,
+  type ThreadId,
 } from "@supaterm/contracts";
 import { isLoopbackHost } from "@supaterm/shared/preview";
 
@@ -56,4 +57,23 @@ export function useDiscoveredPortsState(
     servers: query.data?.servers ?? EMPTY_PORTS,
     configuredUrlProbing: query.data?.configuredUrlProbing === true,
   };
+}
+
+function useDiscoveredPorts(
+  environmentId: EnvironmentId | null,
+): ReadonlyArray<DiscoveredLocalServer> {
+  return useDiscoveredPortsState(environmentId).servers;
+}
+
+export function useThreadDiscoveredPorts(input: {
+  readonly environmentId: EnvironmentId | null;
+  readonly threadId: ThreadId | null;
+}): ReadonlyArray<DiscoveredLocalServer> {
+  const ports = useDiscoveredPorts(input.environmentId);
+  return input.threadId
+    ? ports.filter(
+        (port) =>
+          port.terminal?.threadId === input.threadId || port.agent?.threadId === input.threadId,
+      )
+    : EMPTY_PORTS;
 }

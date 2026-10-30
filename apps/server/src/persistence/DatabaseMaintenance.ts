@@ -10,6 +10,7 @@ import { isSqlError } from "effect/sql/SqlError";
 import * as EventStore from "../orchestration-v2/EventStore.ts";
 import * as ProjectionMaintenance from "../orchestration-v2/ProjectionMaintenance.ts";
 import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
+import { rebuildMessageSearch } from "../orchestration-v2/messageSearchIndex.ts";
 
 export class DatabaseMissingError extends Schema.TaggedError<DatabaseMissingError>()(
   "DatabaseMissingError",
@@ -56,7 +57,6 @@ export class DatabaseCompactError extends Schema.TaggedError<DatabaseCompactErro
   }
 }
 
-/** Offline inspection and repair of a Supaterm state database, for `supaterm doctor`. */
 export class DatabaseMaintenance extends Context.Service<
   DatabaseMaintenance,
   {
@@ -68,7 +68,7 @@ export class DatabaseMaintenance extends Context.Service<
       },
       DatabaseMissingError | DatabaseInspectError
     >;
-    /** Compacts history, then VACUUMs into incremental auto_vacuum. Refuses while a server has it open. */
+
     readonly compact: (databasePath: string) => Effect.Effect<
       {
         readonly beforeBytes: number;
@@ -131,12 +131,9 @@ const make = Effect.gen(function* () {
       const beforeBytes = Number((yield* fs.stat(databasePath)).size);
       const result = yield* Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
-        // Hold an exclusive lock through compaction and VACUUM. In WAL mode this
-        // is refused while any other connection has the file open, even an idle
-        // one, which is how a running server or desktop app is detected.
+
         yield* sql`PRAGMA busy_timeout = 0`;
-        // VACUUM and the truncating checkpoint sync through checkpoints, which
-        // need F_FULLFSYNC on macOS to reach the disk.
+
         yield* sql`PRAGMA checkpoint_fullfsync = ON`;
         yield* sql`PRAGMA locking_mode = EXCLUSIVE`;
         yield* sql`BEGIN EXCLUSIVE`.pipe(
@@ -151,14 +148,14 @@ const make = Effect.gen(function* () {
         if (!(yield* maintenance.verify).valid) {
           return yield* new DatabaseProjectionsInvalidError({ path: databasePath });
         }
-        const summary = yield* maintenance.compactEventStore;
+        const summary = yield* maintenance.compactEventStore();
         if (!(yield* maintenance.verify).valid) {
           return yield* new DatabaseProjectionsInvalidError({ path: databasePath });
         }
-        // VACUUM rebuilds the file, which is the only way to switch an existing
-        // database to incremental auto_vacuum; the server reclaims online after.
+
         yield* sql`PRAGMA auto_vacuum = INCREMENTAL`;
         yield* sql`VACUUM`;
+        yield* rebuildMessageSearch(sql);
         yield* sql`PRAGMA wal_checkpoint(TRUNCATE)`;
         return summary;
       }).pipe(

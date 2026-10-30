@@ -2,7 +2,9 @@ import type { EditorId, EnvironmentId, ResolvedKeybindingsConfig } from "@supate
 import { useEffect } from "react";
 
 import { usePreferredEditor } from "../../editorPreferences";
+import { editorLabelForPlatform } from "../../editorLabels";
 import { isOpenFavoriteEditorShortcut } from "../../keybindings";
+import { announce } from "../../lib/announce";
 import { useRemoteOpenState } from "../../remoteOpen";
 import { shellEnvironment } from "../../state/shell";
 import { useAtomCommand } from "../../state/use-atom-command";
@@ -26,6 +28,7 @@ export function useOpenFavoriteEditorShortcut({
   const remote = useRemoteOpenState(environmentId);
   const isPaneInputOwner = usePaneInputOwner();
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Registers the mounted pane's editor shortcut and removes its window listener on disposal.
   useEffect(() => {
     if (!enabled || remote.mode !== "local-exec") return;
     const handler = (event: globalThis.KeyboardEvent) => {
@@ -34,12 +37,15 @@ export function useOpenFavoriteEditorShortcut({
       if (!openInCwd || !preferredEditor) return;
 
       event.preventDefault();
+      const label = editorLabelForPlatform(preferredEditor, navigator.platform);
       void openInEditorMutation({
         environmentId,
         input: {
           cwd: openInCwd,
           editor: preferredEditor,
         },
+      }).then((result) => {
+        if (result._tag === "Success") announce(`Opened in ${label}`);
       });
     };
     window.addEventListener("keydown", handler);

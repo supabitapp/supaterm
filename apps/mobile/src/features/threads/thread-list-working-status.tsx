@@ -14,6 +14,7 @@ export const ThreadListWorkingStatus = memo(function ThreadListWorkingStatus(pro
     Number.isFinite(startedMs) ? formatWorkingDurationLabel(Date.now() - startedMs) : null,
   );
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Owns the elapsed-time timer and pauses it while the native app is backgrounded.
   useEffect(() => {
     if (!Number.isFinite(startedMs)) return;
     let timer: ReturnType<typeof setInterval> | undefined;

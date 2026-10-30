@@ -152,11 +152,11 @@ const recordStartupHeartbeat = Effect.gen(function* () {
 
   const { threadCount, projectCount } = yield* Effect.all({
     projects: projects.snapshot,
-    threads: threads.getShellSnapshot(),
+    threadCount: threads.countThreads(),
   }).pipe(
-    Effect.map(({ projects: projectSnapshot, threads: shellSnapshot }) => ({
+    Effect.map(({ projects: projectSnapshot, threadCount }) => ({
       projectCount: projectSnapshot.projects.length,
-      threadCount: shellSnapshot.threads.length + shellSnapshot.archivedThreads.length,
+      threadCount,
     })),
     Effect.catch((cause) =>
       Effect.logWarning("failed to gather V2 startup counts for telemetry", {
@@ -280,8 +280,7 @@ const resolveAutoBootstrapWelcomeTargets = Effect.gen(function* () {
       title: path.basename(serverConfig.cwd) || "project",
       workspaceRoot: serverConfig.cwd,
     });
-    const shell = yield* threads.getShellSnapshot();
-    const existingThread = shell.threads.find(
+    const existingThread = (yield* threads.listActiveShellIndex()).find(
       (thread) =>
         thread.projectId === project.id && thread.lineage.relationshipToParent !== "subagent",
     );
@@ -384,9 +383,7 @@ export const maybeOpenBrowser = Effect.fn("serverRuntimeStartup.maybeOpenBrowser
 
 const runStartupPhase = <A, E, R>(phase: string, effect: Effect.Effect<A, E, R>) =>
   effect.pipe(
-    // Attributes on the span itself, not annotateSpans: an annotation follows
-    // every fiber forked inside the phase, such as the effect worker, for the
-    // life of the server.
+    // Use span attributes; annotations would follow long-lived forked fibers for the server's lifetime.
     Effect.withSpan(`server.startup.${phase}`, { attributes: { "startup.phase": phase } }),
   );
 

@@ -115,6 +115,7 @@ function codexMicroSlotStatus(
     case "approval":
       return "awaiting-approval";
     case "input":
+    case "request":
     case "limited":
       return "awaiting-response";
     case "working":

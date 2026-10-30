@@ -49,13 +49,7 @@ export function describeProviderInstance(
   };
 }
 
-/**
- * `resolveThreadProviderInstance` builds a fresh object per call, which breaks
- * the memoized row's props comparison on every parent render — the result only
- * depends on (environment, instance id), so one cache per provider-list
- * generation keeps each row's `providerInstance` prop stable until the instance
- * behind the row actually changes.
- */
+/** Cache per provider-list generation to keep memoized row props stable. */
 export function createThreadRowProviderInstanceResolver(
   providersByEnvironmentId: ReadonlyMap<EnvironmentId, ReadonlyArray<ThreadListProvider>>,
 ): (thread: EnvironmentThreadShell) => ThreadRowProviderInstance | null {

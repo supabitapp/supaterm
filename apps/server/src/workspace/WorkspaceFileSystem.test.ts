@@ -575,7 +575,6 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
         const path = yield* Path.Path;
         const cwd = yield* makeTempDir;
         yield* writeTextFile(cwd, ".git/config", "[core]\n");
-        // A bare repository named `.bare`, and a linked worktree's git folder inside it.
         yield* writeTextFile(cwd, ".bare/HEAD", "ref: refs/heads/main\n");
         yield* writeTextFile(cwd, ".bare/objects/info/packs");
         yield* writeTextFile(cwd, ".bare/refs/heads/main");
@@ -649,7 +648,6 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
         const fileSystem = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const parentDir = yield* makeTempDir;
-        // A bare repository with a worktree checked out inside it.
         const bare = path.join(parentDir, "repo.git");
         yield* writeTextFile(bare, "HEAD", "ref: refs/heads/main\n");
         yield* writeTextFile(bare, "objects/info/packs");

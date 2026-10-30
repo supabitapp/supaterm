@@ -67,6 +67,7 @@ export function MermaidDiagramScreen(props: StaticScreenProps<MermaidDiagramRout
   const [result, setResult] = useState<{ source: string; diagram: Diagram | null } | null>(null);
   const diagram = result?.source === source ? result.diagram : null;
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Keeps the native diagram renderer in sync with source and measured viewport width.
   useEffect(() => {
     if (!width) return;
     let active = true;
@@ -84,6 +85,7 @@ export function MermaidDiagramScreen(props: StaticScreenProps<MermaidDiagramRout
     };
   }, [source, width]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Updates the navigation header with the current zoom controls.
   useLayoutEffect(() => {
     const controls = <ZoomControls zoom={zoom} onZoom={setZoom} />;
     navigation.setOptions({ headerRight: () => controls });
