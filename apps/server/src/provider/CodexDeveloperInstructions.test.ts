@@ -86,21 +86,28 @@ describe("Codex runtime context", () => {
 });
 
 describe("Codex orchestration context", () => {
-  it("routes subagents native first, delegate_task for the rest", () => {
+  it("preserves model, options and isolation requirements for subagents", () => {
     const orchestration = Object.entries(buildCodexAdditionalContext({ model: "gpt-6.1-sol" }))
       .filter(([key]) => key.startsWith("supaterm_orchestration_"))
       .map(([, entry]) => entry.value)
       .join("\n");
 
-    NodeAssert.ok(orchestration.includes("use your native tool when the child uses your provider"));
-    NodeAssert.ok(orchestration.includes("`run_in_background:false`"));
-    NodeAssert.ok(orchestration.includes("A native type running another provider's model"));
-    NodeAssert.ok(
-      orchestration.includes("Every new delegate review or re-check is a new `delegate_task`"),
-    );
-    NodeAssert.ok(orchestration.includes("never a `supaterm_thread_send`"));
-    NodeAssert.ok(!orchestration.includes("inheritedOptions"));
-    NodeAssert.ok(!orchestration.includes("Prefer native"));
+    const requiredPolicies = [
+      "Use native delegation for the same provider only when it supports the selected model and no options are requested or inherited.",
+      "Otherwise use `delegate_task` with the selected provider instance and model.",
+      "Use it also for cross-provider or explicitly Supaterm-owned child work.",
+      'A separate checkout requires `delegate_task` with `isolation:"worktree"`.',
+      "Every independent review or re-check needs a new `delegate_task`",
+      "Ordinary same-conversation follow-ups may use `supaterm_thread_send` on `childThreadId`; independent review rounds may not.",
+      "While an async delegate runs, end your turn and await its notification.",
+      "Model options go in `target.options` after reading the selected model's descriptors.",
+      "Nonempty inherited options for the same provider instance and model require `delegate_task` too.",
+      "Never translate max to high or ignore unsupported settings: report the mismatch.",
+      "Verify the returned providerInstanceId, model, and options.",
+    ];
+    for (const policy of requiredPolicies) {
+      NodeAssert.ok(orchestration.includes(policy), policy);
+    }
 
     NodeAssert.ok(!orchestration.includes("acp-mcp-call"));
   });
