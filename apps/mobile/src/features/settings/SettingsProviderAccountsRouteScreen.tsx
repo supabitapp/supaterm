@@ -177,7 +177,6 @@ function ProviderAccount({
     !unavailable &&
     !needsExternalSetup &&
     provider.setup?.canAuthenticate !== false &&
-    !choosingMethod &&
     !loading &&
     !auth.error;
   function signInLabel() {
@@ -196,7 +195,6 @@ function ProviderAccount({
     if (state?.phase === "failed" || state?.phase === "cancelled") return state.message;
     if (signedIn) return "Signed in.";
     if (needsExternalSetup) return "Follow the provider’s setup guide to sign in.";
-    if (choosingMethod) return "Choose how to sign in below.";
     return "Not signed in.";
   }
   async function run(command: () => Promise<AtomCommandResult<unknown, unknown>>) {

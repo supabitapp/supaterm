@@ -12,7 +12,7 @@ export function WorkspaceNoTabs() {
         detail="Show a section to add it back to navigation."
         actionLabel="Edit navigation tabs"
         variant="plain"
-        onAction={() => openSettings(navigation, "SettingsNavigation")}
+        onAction={() => openSettings(navigation, "Settings")}
       />
     </View>
   );

@@ -149,3 +149,5 @@ export function workspaceTabForNativeSlot(order: readonly WorkspaceTab[], slot: 
   const index = NATIVE_WORKSPACE_TAB_SLOTS.findIndex((candidate) => candidate === slot);
   return order[index] ?? null;
 }
+
+export const WORKSPACE_DOCK = { height: 48, tabsWidth: 176, gap: 12, bottomGap: 6 };

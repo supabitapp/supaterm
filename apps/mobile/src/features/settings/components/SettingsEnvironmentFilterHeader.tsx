@@ -1,3 +1,4 @@
+import { connectionAddressLabel } from "@supaterm/client-runtime/connection";
 import type { NativeStackHeaderItem } from "@react-navigation/native-stack";
 import { resolveEnvironmentMachineKind } from "@supaterm/contracts";
 import { Platform, Pressable } from "react-native";

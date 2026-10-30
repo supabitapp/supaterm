@@ -1,3 +1,4 @@
+import { useNavigation } from "@react-navigation/native";
 import * as Dialog from "../../components/ui/Dialog";
 import * as Haptics from "expo-haptics";
 import { useSelectWorkspaceDetail } from "../workspace/useSelectWorkspaceDetail";
@@ -20,6 +21,7 @@ export function usePendingTaskListActions(
   readonly openPendingTask: (pendingTask: PendingNewTask) => void;
   readonly confirmDeletePendingTask: (pendingTask: PendingNewTask) => void;
 } {
+  const navigation = useNavigation();
   const selectDetail = useSelectWorkspaceDetail();
   const selectThreadRoute =
     selectRoute ??

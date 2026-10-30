@@ -194,6 +194,7 @@ function AdaptiveWorkspaceLayoutContent(
     Platform.OS === "android" && (androidSettingsOpen || workspace?.state.selectedTab === "usage");
   const navigation = useNavigation();
   const activeRoleOwner = useRef<symbol | null>(null);
+  const [railOverlay, setRailOverlay] = useState(false);
   const [primarySidebarPreferredVisible, setPrimarySidebarPreferredVisible] = useState(true);
   const [supplementaryPanePreferredVisible, setSupplementaryPanePreferredVisible] = useState(true);
   const [supplementaryPanePreferredWidth, setSupplementaryPanePreferredWidth] = useState<
@@ -724,23 +725,37 @@ function AdaptiveWorkspaceLayoutContent(
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- animates the Reanimated rail and sidebar width shared values toward the layout's targets
   useEffect(() => {
     if (nativeWorkspace) return;
+    renderedRailWidth.set(withTiming(navigationRailWidth, WORKSPACE_PANE_TIMING));
+    // A workspace page hides the sidebar through React instead, in the same commit that mounts
+    // the page. Animating it here would hide it a few frames before the page appears.
+    if (workspacePage) {
+      leavingWorkspacePage.current = true;
+      return;
+    }
+    const snap = leavingWorkspacePage.current;
+    leavingWorkspacePage.current = false;
     const targetWidth = panes.primarySidebarVisible
       ? (layout.listPaneWidth ?? 0) + (layout.listPaneGap ?? 0)
       : 0;
+    // The content beside it already took its final width when the page closed.
     renderedSidebarWidth.set(
-      withTiming(targetWidth, WORKSPACE_PANE_TIMING, (finished) => {
+      withTiming(targetWidth, snap ? { duration: 0 } : WORKSPACE_PANE_TIMING, (finished) => {
         if (finished && Platform.OS === "android") runOnJS(settleListPane)(listPaneRevision);
       }),
     );
   }, [
     nativeWorkspace,
+    navigationRailWidth,
     layout.listPaneWidth,
     layout.listPaneGap,
     panes.primarySidebarVisible,
     renderedSidebarWidth,
+    renderedRailWidth,
     settleListPane,
     listPaneRevision,
+    workspacePage,
   ]);
+  const railAnimatedStyle = useAnimatedStyle(() => ({ width: renderedRailWidth.value }));
   // Showing or hiding the sidebar clips a fixed-width list. A hinge resize instead tracks the
   // animated edge, so the header actions slide with it rather than jumping or being covered.
   const listPaneGap = layout.listPaneGap ?? 0;

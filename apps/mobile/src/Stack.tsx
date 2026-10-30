@@ -102,7 +102,6 @@ import {
   SettingsEnvironmentMaintenanceRouteScreen,
   SettingsThreadsRouteScreen,
   SettingsWorktreesRouteScreen,
-  SettingsThreadsRouteScreen,
   SettingsEnvironmentSourceControlRouteScreen,
 } from "./features/settings/SettingsServerControlsRouteScreen";
 import {

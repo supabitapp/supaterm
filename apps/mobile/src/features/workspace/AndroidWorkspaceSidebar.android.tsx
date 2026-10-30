@@ -1,3 +1,4 @@
+import { WorkspaceTabPanes } from "./WorkspaceTabPanes";
 import { useAndroidFloatingTabs } from "../settings/appearance/AppearancePreferencesProvider";
 import { WorkspaceNoTabs } from "./WorkspaceNoTabs";
 import { useEnabledNavigationTabs } from "./navigation-tabs";

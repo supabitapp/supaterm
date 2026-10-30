@@ -20,7 +20,7 @@ import {
   setComposerDraftText,
   waitForComposerDraftsLoaded,
 } from "../../state/use-composer-drafts";
-import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
+import { useSelectWorkspaceDetail } from "../workspace/useSelectWorkspaceDetail";
 
 const CLI_COMMAND = "npx supaterm triage";
 
@@ -30,7 +30,9 @@ const CLI_COMMAND = "npx supaterm triage";
  */
 export function useStartTriage() {
   const navigation = useNavigation();
-  const { selectThreadRoute } = useAdaptiveWorkspaceLayout();
+  const selectDetail = useSelectWorkspaceDetail();
+  const selectThreadRoute = (params: ReactNavigation.RootParamList["Thread"]) =>
+    selectDetail({ name: "Thread", params });
   const prepare = useAtomCommand(serverEnvironment.prepareTriage, { reportFailure: false });
   const openScratch = useAtomCommand(projectEnvironment.openScratch, { reportFailure: false });
   const inFlight = useRef(false);

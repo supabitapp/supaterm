@@ -38,6 +38,7 @@ export function SettingsLabsRouteScreen() {
         contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 18) + 18 }}
       >
         <BetaSettingsSection />
+        <GuestSharingSettingsSection />
       </ScrollView>
     </SettingsScreen>
   );
@@ -123,6 +124,13 @@ export function AutoMarkDoneSettingsRows(props: {
         </SettingsSection>
       ) : null}
       <SettingsSection title="Auto-mark Done">
+        <SettingsSwitchRow
+          icon="arrow.triangle.branch"
+          label="Keep open pull requests"
+          value={referenceSettings.sidebarAutoMarkDoneKeepPullRequests}
+          disabled={disabled}
+          onValueChange={(value) => writeToAll({ sidebarAutoMarkDoneKeepPullRequests: value })}
+        />
         <SettingsSwitchRow
           icon="arrow.triangle.branch"
           label="Auto-mark Done merged threads"
@@ -228,5 +236,38 @@ function BetaSettingsSection() {
         machine. While it is off, nothing new starts over a link; tasks already running finish.
       </Text>
     </View>
+  );
+}
+
+function GuestSharingSettingsSection() {
+  const { environments } = useEnvironments();
+  const connected = environments.filter(
+    (environment) => environment.connection.phase === "connected",
+  );
+  const writable = useEnvironmentsWithScope(connected, AuthSettingsWriteScope);
+  const updateSettings = useAtomCommand(serverEnvironment.updateSettings, {
+    label: "guest sharing beta update",
+    reportFailure: true,
+  });
+  if (connected.length === 0) return null;
+  return (
+    <SettingsSection title="Beta: Guest sharing">
+      {connected.map((environment) => (
+        <SettingsSwitchRow
+          key={environment.environmentId}
+          icon="link"
+          label={environment.label}
+          subtitle="Share a live thread over an encrypted connection. You approve guest messages before they reach the agent."
+          value={environment.serverConfig?.settings.guestSharingEnabled === true}
+          disabled={!writable.has(environment.environmentId)}
+          onValueChange={(value) =>
+            void updateSettings({
+              environmentId: environment.environmentId,
+              input: { patch: { guestSharingEnabled: value } },
+            })
+          }
+        />
+      ))}
+    </SettingsSection>
   );
 }

@@ -7,7 +7,7 @@ import { NodeIcon } from "./NodeIcon";
 const ANDROID_ICON_BY_SF_SYMBOL = {
   "face.smiling": IconNodes.SmilePlus,
   tag: IconNodes.Tag,
-  pause: IconNodes.Pause,
+  pause: IconNodes.Columns,
   "bolt.circle": IconNodes.Zap,
   "circle.fill": IconNodes.Circle,
   plusminus: IconNodes.Diff,

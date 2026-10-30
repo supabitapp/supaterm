@@ -221,12 +221,6 @@ export function NativeStackScreenOptions(props: {
     if (!setOptions || !normalizedOptions) {
       return;
     }
-    const stableOptions = stabilizeOptionFunctions(
-      normalizedOptions,
-      "options",
-      latestOptionFunctionsRef.current,
-      optionFunctionWrappersRef.current,
-    ) as NativeStackNavigationOptions;
     const signature = optionsSignature([stableOptions, props.optionsVersion]);
     if (lastAppliedOptionsSignatureRef.current === signature) {
       return;

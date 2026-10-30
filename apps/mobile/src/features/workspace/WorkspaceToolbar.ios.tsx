@@ -4,7 +4,6 @@ import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import { use, useCallback, useEffect, useRef } from "react";
 import { Platform } from "react-native";
 import { isDuoDevice } from "../../lib/device-type";
-import { useDeviceType } from "../../native/native-layout-metrics";
 import type { SearchBarCommands } from "react-native-screens";
 
 import { NATIVE_LIQUID_GLASS_SUPPORTED } from "../../native/native-glass";

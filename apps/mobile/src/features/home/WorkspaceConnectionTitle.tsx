@@ -2,7 +2,6 @@ import type { NativeStackNavigationOptions } from "@react-navigation/native-stac
 import { createContext, use, useEffect, useState, type ReactNode } from "react";
 import { Animated, Platform, Pressable, View } from "react-native";
 
-import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { SymbolView } from "../../components/ui/AppSymbol";
 import { AppText as Text } from "../../components/ui/AppText";
 import { useAndroidControlSizing } from "../../components/ui/useAndroidControlSizing";
@@ -123,24 +122,13 @@ export function WorkspaceConnectionTitle(props: {
           Platform.OS === "android" && { gap: 7 * scale },
         ]}
       >
-        {status.showsProgress ? (
-          <AppActivityIndicator
-            colorClassName={"accent-icon-muted"}
-            size={Platform.OS === "android" ? Math.round(20 * scale) : "small"}
-          />
-        ) : (
-          <SymbolView
-            name="wifi.slash"
-            size={Math.round((size === "pageTitle" ? 17 : 15) * scale)}
-            tintColorClassName={"accent-icon-muted"}
-            type="monochrome"
-          />
-        )}
-        <Text
-          className="font-t3-bold text-foreground-muted"
-          numberOfLines={1}
-          style={{ flexShrink: 1, fontSize: (size === "pageTitle" ? 20 : 16) * scale }}
-        >
+        <SymbolView
+          name="wifi.slash"
+          size={Math.round((size === "pageTitle" ? 17 : 15) * scale)}
+          tintColorClassName="accent-icon-muted"
+          type="monochrome"
+        />
+        <Text numberOfLines={1} className="text-sm text-foreground-muted" style={{ flexShrink: 1 }}>
           {status.label}
         </Text>
       </Pressable>

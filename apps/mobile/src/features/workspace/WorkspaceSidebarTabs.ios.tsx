@@ -4,7 +4,7 @@ import type { NativeSyntheticEvent, ViewProps } from "react-native";
 import { useControlTheme } from "../../components/ui/useControlTheme";
 import { useNavigationTabOrder, useHiddenNavigationTabs } from "./navigation-tabs";
 import { useWorkspaceTabs } from "./WorkspaceTabsContext";
-import { useWorkspaceTabSelection } from "./useWorkspaceTabSelection";
+import { useSelectWorkspaceTab } from "./useSelectWorkspaceTab";
 
 const NativeSidebarTabBar = requireNativeView<
   ViewProps & {
@@ -12,10 +12,7 @@ const NativeSidebarTabBar = requireNativeView<
     selectedTab: string;
     selectedColor: string;
     appearance: string;
-    showsCompose: boolean;
-    compact?: boolean;
     onSelectionChange: (event: NativeSyntheticEvent<{ tab: string }>) => void;
-    onCompose: () => void;
   }
 >("SupatermNativeControls", "SidebarTabBar");
 
@@ -44,9 +41,6 @@ export function WorkspaceSidebarTabs(props: {
       )}
       selectedColor={colors["--color-primary"]}
       appearance={colorScheme}
-      showsCompose={Boolean(props.onNewTask)}
-      compact={props.compact}
-      onCompose={() => props.onNewTask?.()}
       onSelectionChange={({ nativeEvent }) => {
         const tab = tabs.find((candidate) => candidate === nativeEvent.tab);
         if (tab === "settings") selectTab("settings");

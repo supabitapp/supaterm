@@ -11,13 +11,16 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useKeyboardState } from "react-native-keyboard-controller";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAndroidControlSizing } from "../../components/ui/useAndroidControlSizing";
 import { useToolbarLayout } from "../../components/ui/useToolbarLayout";
 import { rootNavigationRef } from "../../lib/rootNavigation";
 import { useWorkspaceConnectionState } from "../../state/workspace";
 import { androidWorkspaceNavigationColors } from "./android-workspace-navigation-colors";
+import {
+  androidWorkspaceTabNavigationState,
+  type AndroidWorkspaceNavigationTab,
+} from "./android-workspace-tabs";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { useAndroidWorkspaceRoot } from "./AndroidWorkspaceTabsProvider";
 import { useNavigationTabOrder, useHiddenNavigationTabs } from "./navigation-tabs";
@@ -34,11 +37,21 @@ interface NativeNavigationProps extends ViewProps {
   readonly selectedTab: AndroidWorkspaceNavigationTab;
   readonly dark: boolean;
   readonly textScale: number;
+  readonly newEnabled: boolean;
+  readonly safeAreaTop: number;
+  readonly safeAreaBottom: number;
+  readonly headerHeight: number;
   readonly containerColor: number;
   readonly selectedColor: number;
   readonly indicatorColor: number;
   readonly unselectedColor: number;
-  readonly onTabSelected: (event: NativeSyntheticEvent<{ readonly tab: WorkspaceTab }>) => void;
+  readonly actionColor: number;
+  readonly actionContentColor: number;
+  readonly onTabSelected: (
+    event: NativeSyntheticEvent<{ readonly tab: AndroidWorkspaceNavigationTab }>,
+  ) => void;
+  readonly onNewThread: () => void;
+  readonly onOverlayChange: (event: NativeSyntheticEvent<{ readonly overlay: boolean }>) => void;
 }
 
 const NativeNavigation = requireNativeView<NativeNavigationProps>("SupatermWorkspaceNavigation");
@@ -64,6 +77,8 @@ export function AndroidWorkspaceNavigation(props: {
   const root = useAndroidWorkspaceRoot();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const toolbar = useToolbarLayout();
+  const connectionState = useWorkspaceConnectionState();
   const keyboardVisible = useKeyboardState((state) => state.isVisible);
   const { themeAppearance, themeVariables: colors } = useAppearancePreferences();
   const { scale, fabSize } = useAndroidControlSizing();
@@ -108,6 +123,10 @@ export function AndroidWorkspaceNavigation(props: {
         selectedTab={selectedTab}
         dark={themeAppearance === "dark"}
         textScale={scale}
+        newEnabled={connectionState.hasConnections}
+        safeAreaTop={toolbar.paddingTop}
+        safeAreaBottom={insets.bottom}
+        headerHeight={toolbar.height}
         containerColor={nativeColor(containerColor)}
         selectedColor={nativeColor(selectedColor)}
         indicatorColor={nativeColor(indicatorColor)}

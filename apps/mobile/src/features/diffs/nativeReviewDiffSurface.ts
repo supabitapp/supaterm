@@ -193,7 +193,7 @@ export function isPendingNativeViewRegistration(error: unknown): boolean {
 }
 
 function useNativeReviewDiffPayload(
-  nativeView: NativeReviewDiffViewRef | null,
+  nativeRef: React.RefObject<NativeReviewDiffViewRef | null>,
   method: NativeReviewDiffPayloadMethod,
   payload: string | undefined,
   resetKey?: string,
@@ -377,13 +377,13 @@ function NativeReviewDiffContent(
     nativeViewRef,
     () => ({
       scrollToFile: async (fileId, animated = true) => {
-        await nativeView?.scrollToFile(fileId, animated);
+        await nativeRef.current?.scrollToFile(fileId, animated);
       },
       scrollToTop: async (animated = true) => {
-        await nativeView?.scrollToTop(animated);
+        await nativeRef.current?.scrollToTop(animated);
       },
     }),
-    [nativeView],
+    [],
   );
 
   const RawNativeView = cachedNativeReviewDiffRawView;
