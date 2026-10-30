@@ -395,7 +395,7 @@ export const PullRequestCoreRepositoryPullRequestPullRequest = Schema.Struct({
   headRefOid: Shared.GitObjectID,
   /** The head and base repositories are different. */
   isCrossRepository: Schema.Boolean,
-  
+  /** Indicates whether maintainers can modify the pull request. */
   maintainerCanModify: Schema.Boolean,
   /** The owner of the repository associated with this pull request's head Ref. */
   headRepositoryOwner: Schema.NullOr(RepositoryOwner),
@@ -648,9 +648,9 @@ export declare namespace PullRequestPreview {
   export type Result = typeof PullRequestPreview.result.Type
 }
 
-
+/** The connection type for Commit. */
 export const CommitConnection = Schema.Struct({
-  
+  /** Identifies the total count of items in the connection. */
   totalCount: Shared.Int
 })
 export interface CommitConnection extends Schema.Struct.Type<typeof CommitConnection.fields> {}
@@ -682,7 +682,7 @@ export interface GitActorConnection extends Schema.Struct.Type<typeof GitActorCo
 
 /** Represents a Git commit. */
 export const PullRequestActivityRepositoryPullRequestCommitsNodesCommitCommit = Schema.Struct({
-  
+  /** The Node ID of the Commit object */
   id: Shared.ID,
   /** The Git object ID */
   oid: Shared.GitObjectID,
@@ -690,7 +690,7 @@ export const PullRequestActivityRepositoryPullRequestCommitsNodesCommitCommit = 
   messageHeadline: Schema.String,
   /** The datetime when this commit was committed. */
   committedDate: Shared.DateTime,
-  
+  /** The parents of a commit. */
   parents: CommitConnection,
   /**
    * The list of authors for this commit based on the git author and the Co-authored-by
@@ -840,9 +840,9 @@ export const NodesCommit = Schema.Struct({
   __typename: Schema.Literal("Commit"),
   /** The Git object ID */
   oid: Shared.GitObjectID,
-  
+  /** The number of additions in this commit. */
   additions: Shared.Int,
-  
+  /** The number of deletions in this commit. */
   deletions: Shared.Int
 })
 export interface NodesCommit extends Schema.Struct.Type<typeof NodesCommit.fields> {}
@@ -853,7 +853,7 @@ export const PullRequestCommitStatsNodesNodeOther = Schema.Struct({
 })
 export interface PullRequestCommitStatsNodesNodeOther extends Schema.Struct.Type<typeof PullRequestCommitStatsNodesNodeOther.fields> {}
 
-
+/** `query PullRequestCommitStats` */
 export const PullRequestCommitStats = GraphQL.query("PullRequestCommitStats", {
   document: {
     variables: [
@@ -1310,7 +1310,7 @@ export const RepositoryLabelsRepositoryRepository = Schema.Struct({
 })
 export interface RepositoryLabelsRepositoryRepository extends Schema.Struct.Type<typeof RepositoryLabelsRepositoryRepository.fields> {}
 
-
+/** `query RepositoryLabels` */
 export const RepositoryLabels = GraphQL.query("RepositoryLabels", {
   document: {
     variables: [
@@ -1340,12 +1340,12 @@ export declare namespace RepositoryLabels {
 
 /** A repository contains the content for a project. */
 export const RepositoryAuthorsRepositoryRepository = Schema.Struct({
-  
+  /** A list of Users that can be mentioned in the context of the repository. */
   mentionableUsers: UserConnection
 })
 export interface RepositoryAuthorsRepositoryRepository extends Schema.Struct.Type<typeof RepositoryAuthorsRepositoryRepository.fields> {}
 
-
+/** `query RepositoryAuthors` */
 export const RepositoryAuthors = GraphQL.query("RepositoryAuthors", {
   document: {
     variables: [
