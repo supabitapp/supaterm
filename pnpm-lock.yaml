@@ -312,7 +312,7 @@ overrides:
 
 packageExtensionsChecksum: sha256-ZeGv/OY+lRVO9NHWT6evcQhmof6eqSKRxQzuidBF8EI=
 
-pnpmfileChecksum: sha256-vO59NwsGgST76IRUGDII2G50Nfh12K0VVoRtzwSEJNE=
+pnpmfileChecksum: sha256-y/PhKoDmFNodNdg3kygcxZuY/7uD2C5B9XfK7RPEp7c=
 
 patchedDependencies:
   '@expo/fingerprint@0.21.5': 8fba80d6bbce46c72de427fe8c7907462d262a0bfe50c6b2b7ee9c4e0c61e5e1
