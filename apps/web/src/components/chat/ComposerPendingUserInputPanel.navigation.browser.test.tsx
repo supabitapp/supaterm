@@ -6,6 +6,7 @@ import {
   TurnItemId,
   type OrchestrationV2ThreadProjection,
 } from "@supaterm/contracts";
+import { makeThreadRequestsResolvedAnnouncer } from "@supaterm/client-runtime/state/thread-requests";
 import { useLayoutEffect, useRef, type ComponentProps } from "react";
 import { expect, it, vi } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser";
@@ -169,7 +170,7 @@ it("retains answers, selections and question position after leaving chat, includ
   expect(requests.activePendingDraftAnswers["question-2"]?.customAnswer).toBe("");
 });
 
-it("isolates drafts by environment, thread and request and discards only resolved requests", async () => {
+it("clears resolved drafts and question positions off-thread while preserving other request scopes", async () => {
   using _timers = fakeTimers();
   const environmentId = EnvironmentId.make("scope-environment");
   const projection = questionProjection(threadRef.threadId);
@@ -192,18 +193,13 @@ it("isolates drafts by environment, thread and request and discards only resolve
     await act(() => requests.onAdvanceActivePendingUserInput());
   }
 
-  await show({
-    environmentId,
-    projection: {
-      ...projection,
-      runtimeRequests: projection.runtimeRequests.map((request) =>
-        request.id === "first"
-          ? { ...request, status: "resolved", resolvedAt: projection.updatedAt }
-          : request,
-      ),
-    },
-  });
-  expect(requests.activePendingUserInput?.requestId).toBe("second");
+  await screen.rerender(null);
+  await act(() =>
+    makeThreadRequestsResolvedAnnouncer(
+      environmentId,
+      threadRef.threadId,
+    )([RuntimeRequestId.make("second")]),
+  );
   for (const [index, scope] of scopes.entries()) {
     await show(scope);
     expect(requests.activePendingQuestionIndex).toBe(index === 0 ? 0 : 1);
