@@ -19,8 +19,9 @@ it.layer(NodeServices.layer)("root CLI commands", (it) => {
     readonly path?: string;
     readonly env?: Record<string, string>;
     readonly executable?: boolean;
+    readonly args?: ReadonlyArray<string>;
   }) =>
-    resolveRootCliCommand("browser setup").pipe(
+    resolveRootCliCommand("browser setup", input.args).pipe(
       Effect.provideService(HostProcess.ExecutablePath, input.node),
       Effect.provideService(HostProcess.Arguments, [input.node, input.entry]),
       Effect.provideService(HostProcess.IsExecutable, input.executable ?? false),
@@ -75,6 +76,28 @@ it.layer(NodeServices.layer)("root CLI commands", (it) => {
           env: { ELECTRON_RUN_AS_NODE: "1" },
         }),
       ).toBe(`sudo env ELECTRON_RUN_AS_NODE=1 /opt/runtime/electron '${entry}' browser setup`);
+    }).pipe(Effect.scoped),
+  );
+
+  it.effect("keeps the arguments, so root runs setup on the same Supaterm home", () =>
+    Effect.gen(function* () {
+      const args = ["--base-dir", "/srv/supaterm home"];
+      expect(
+        yield* rootCommand({
+          node: "/home/theo/.local/node/bin/node",
+          entry: "/home/theo/.local/lib/node_modules/supaterm/dist/bin.mjs",
+          path: yield* pathWithSupaterm,
+          args,
+        }),
+      ).toBe(`sudo env "PATH=$PATH" supaterm browser setup --base-dir '/srv/supaterm home'`);
+      expect(
+        yield* rootCommand({
+          node: "/opt/supaterm/supaterm",
+          entry: "/opt/supaterm/supaterm",
+          executable: true,
+          args,
+        }),
+      ).toBe("sudo /opt/supaterm/supaterm browser setup --base-dir '/srv/supaterm home'");
     }).pipe(Effect.scoped),
   );
 
