@@ -57,6 +57,7 @@ const makeDependencies = Effect.fn("TestConnectionResolver.makeDependencies")((o
   readonly primaryBearerToken?: string;
   readonly prepareSsh?: ClientCapabilities.SshEnvironmentGateway["Service"]["prepare"];
   readonly descriptorProtocolVersion?: number | undefined;
+  readonly onDescriptorFetch?: () => void;
 }) => {
   const profiles = new Map(
     (options?.profiles ?? []).map((profile) => [profile.connectionId, profile]),
@@ -107,8 +108,9 @@ const makeDependencies = Effect.fn("TestConnectionResolver.makeDependencies")((o
   });
 
   const layerDependencies = Layer.mergeAll(
-    RpcHttp.layerRemoteHttpClient((() =>
-      Promise.resolve(
+    RpcHttp.layerRemoteHttpClient((() => {
+      options?.onDescriptorFetch?.();
+      return Promise.resolve(
         Response.json({
           environmentId: ENVIRONMENT_ID,
           label: "Compatible environment",
@@ -118,7 +120,8 @@ const makeDependencies = Effect.fn("TestConnectionResolver.makeDependencies")((o
             options?.descriptorProtocolVersion ?? ORCHESTRATION_PROTOCOL_VERSION,
           capabilities: {},
         }),
-      )) satisfies typeof fetch),
+      );
+    }) satisfies typeof fetch),
     Layer.succeed(
       ConnectionProfileStore.ConnectionProfileStore,
       options?.profileStore ?? profileStore,
@@ -144,6 +147,51 @@ const makeDependencies = Effect.fn("TestConnectionResolver.makeDependencies")((o
 });
 
 describe("ConnectionResolver", () => {
+  it.effect("reuses the descriptor verified during bearer authorization", () =>
+    Effect.gen(function* () {
+      let descriptorFetches = 0;
+      const dependencies = yield* makeDependencies({
+        primaryBearerToken: "saved-token",
+        onDescriptorFetch: () => {
+          descriptorFetches += 1;
+        },
+        descriptorProtocolVersion: ORCHESTRATION_PROTOCOL_VERSION - 1,
+        authorizeBearer: (input) =>
+          Effect.succeed({
+            environmentId: input.expectedEnvironmentId,
+            label: "Authorized environment",
+            httpBaseUrl: input.httpBaseUrl,
+            socketUrl: "wss://authorized.example.test/ws?wsTicket=verified",
+            httpAuthorization: { _tag: "Bearer" as const, token: input.bearerToken },
+            descriptor: {
+              environmentId: input.expectedEnvironmentId,
+              label: "Verified environment",
+              platform: { os: "linux" as const, arch: "x64" as const },
+              serverVersion: "0.0.0-test",
+              orchestrationProtocolVersion: ORCHESTRATION_PROTOCOL_VERSION,
+              capabilities: {},
+            },
+          }),
+      });
+      const resolver = yield* ConnectionResolver.ConnectionResolver.pipe(
+        Effect.provide(dependencies),
+      );
+      const prepared = yield* resolver.prepare(
+        catalogEntry(
+          new PrimaryConnectionTarget({
+            environmentId: ENVIRONMENT_ID,
+            label: "Primary",
+            httpBaseUrl: "https://environment.example.test",
+            wsBaseUrl: "wss://environment.example.test",
+          }),
+        ),
+      );
+      expect(prepared.socketUrl).toContain("wsTicket=verified");
+      expect(descriptorFetches).toBe(0);
+      expect(prepared).not.toHaveProperty("descriptor");
+    }),
+  );
+
   it.effect("blocks an old host during discovery before opening orchestration RPC", () =>
     Effect.gen(function* () {
       const layerBroker = yield* makeDependencies({
