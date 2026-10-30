@@ -510,6 +510,10 @@
     "./orchestrationV2DedupedBodies": {
       "types": "./src/orchestrationV2DedupedBodies.ts",
       "import": "./src/orchestrationV2DedupedBodies.ts"
+    },
+    "./paletteSearch": {
+      "types": "./src/paletteSearch.ts",
+      "import": "./src/paletteSearch.ts"
     }
   },
   "scripts": {

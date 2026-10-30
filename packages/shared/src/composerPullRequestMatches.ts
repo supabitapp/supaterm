@@ -4,6 +4,8 @@ import { visibleThreadPullRequests } from "./threadPullRequests.ts";
 
 export interface ComposerPullRequestMatch {
   readonly number: number;
+  readonly host?: string;
+  readonly url?: string;
   readonly projectId: string;
   readonly repository: string;
   readonly updatedAt: string;
@@ -19,6 +21,7 @@ export function composerPullRequestsFromLinks(
       : [
           {
             projectId,
+            host: link.host,
             repository: link.repository,
             number: link.number,
             url: link.url,
@@ -45,8 +48,7 @@ export function filterComposerPullRequestMatches<
   readonly limit: number;
 }): ReadonlyArray<Entry | Linked> {
   const repository = input.repository.trim().toLowerCase();
-  const keyOf = (entry: ComposerPullRequestMatch) =>
-    `${entry.repository.trim().toLowerCase()}#${entry.number}`;
+  const keyOf = composerPullRequestKey;
   const linked = (input.linked ?? []).filter((entry) => String(entry.number).includes(input.query));
   const linkedKeys = new Set(linked.map(keyOf));
   const matchingEntries = input.entries.filter(
@@ -73,4 +75,45 @@ export function filterComposerPullRequestMatches<
         right.updatedAt.localeCompare(left.updatedAt),
     )
     .slice(0, input.limit);
+}
+
+export function withLinkedComposerPullRequestsFirst<
+  Entry extends ComposerPullRequestMatch,
+  Linked extends ComposerPullRequestMatch & {
+    readonly title: string;
+    readonly headBranch: string;
+  },
+>(input: {
+  readonly matches: ReadonlyArray<Entry>;
+  readonly linked: ReadonlyArray<Linked>;
+  readonly query: string;
+  readonly limit: number;
+}): ReadonlyArray<Entry | Linked> {
+  const keyOf = composerPullRequestKey;
+  const matchesByKey = new Map(input.matches.map((entry) => [keyOf(entry), entry]));
+  const words = input.query.toLowerCase().split(/\s+/u).filter(Boolean);
+  const linked = input.linked.flatMap((entry): Array<Entry | Linked> => {
+    const match = matchesByKey.get(keyOf(entry));
+    if (match !== undefined) return [match];
+    const text =
+      `#${entry.number} ${entry.title} ${entry.repository} ${entry.headBranch}`.toLowerCase();
+    return words.every((word) => text.includes(word)) ? [entry] : [];
+  });
+  const linkedKeys = new Set(linked.map(keyOf));
+  return [...linked, ...input.matches.filter((entry) => !linkedKeys.has(keyOf(entry)))].slice(
+    0,
+    input.limit,
+  );
+}
+
+function composerPullRequestKey(entry: ComposerPullRequestMatch): string {
+  let host = entry.host;
+  if (host === undefined && entry.url !== undefined) {
+    try {
+      host = new URL(entry.url).host;
+    } catch {
+      host = "";
+    }
+  }
+  return `${host?.trim().toLowerCase() ?? ""}/${entry.repository.trim().toLowerCase()}#${entry.number}`;
 }
