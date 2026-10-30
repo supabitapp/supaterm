@@ -5,8 +5,8 @@ export type ThreadActivityStatus = "working" | "approval" | "input" | "idle";
 
 export const THREAD_STATUS_TEXT = {
   working: "Working",
-  approval: THREAD_STATUS_TEXT.approval,
-  input: THREAD_STATUS_TEXT.input,
+  approval: "Needs approval",
+  input: "Needs your input",
 } as const;
 
 export interface ThreadActivitySnapshot {
