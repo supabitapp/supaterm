@@ -105,11 +105,6 @@ function byOpenCodeRuntime<A, E, R, PE>(
   );
 }
 
-/**
- * Capability and selection reads are hot, so they use the last successful probe (1.x before one
- * lands) and never wait on a slow server. Opening a session waits for a probe, so each server is
- * spoken to in its own protocol.
- */
 function selectOpenCodeRuntimeAdapter(input: {
   readonly probe: OpenCodeRuntimeProbe;
   readonly v1: ProviderAdapter.ProviderAdapterV2["Service"];

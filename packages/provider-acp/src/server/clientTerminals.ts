@@ -60,8 +60,6 @@ function appendOutput(state: OutputBufferState, chunk: Uint8Array): void {
 function readOutput(state: OutputBufferState): string {
   let combined: Uint8Array = NodeBuffer.Buffer.concat(state.chunks, state.bytes);
   if (state.truncated) {
-    // Drop leading UTF-8 continuation bytes so truncation lands on a
-    // character boundary, as the spec requires.
     let start = 0;
     while (start < combined.byteLength && (combined[start]! & 0b1100_0000) === 0b1000_0000) {
       start += 1;

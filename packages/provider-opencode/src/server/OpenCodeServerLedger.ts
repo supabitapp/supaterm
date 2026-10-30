@@ -60,7 +60,6 @@ interface ObservedProcess {
   readonly zombie: boolean;
 }
 
-// `ps -o lstart` prints e.g. `Sat Sep  6 20:51:57 2026`; C locale and UTC keep it stable.
 const DARWIN_PS_LINE =
   /^\s*(\d+)\s+(\d+)\s+(\S+)\s+(\w{3} \w{3} +\d{1,2} \d{2}:\d{2}:\d{2} \d{4})\s+(.*)$/;
 
@@ -150,6 +149,7 @@ export const make = Effect.fn("OpenCodeServerLedger.make")(function* (input: {
         Effect.orElseSucceed(() => undefined),
       );
     }
+    // @effect-diagnostics-next-line effectSucceedWithVoid:off - Missing process observations are undefined, not void.
     return Effect.succeed(undefined);
   };
 
@@ -193,9 +193,6 @@ export const make = Effect.fn("OpenCodeServerLedger.make")(function* (input: {
     function* (server) {
       if (!recordable) return Effect.void;
       const pgid = server.pid;
-      // The spawned process leads the group. If it already exited (a wrapper
-      // that left the server running), any live member identifies the group:
-      // a group id is not reused while the group has members.
       const leader = yield* observe(pgid);
       const members =
         leader !== undefined && !leader.zombie && leader.pgid === pgid
@@ -317,5 +314,9 @@ export const layer = (input: { readonly stateDir: string }) =>
 
 export const layerTest = Layer.succeed(
   OpenCodeServerLedger,
-  OpenCodeServerLedger.of({ track: () => Effect.succeed(Effect.void) }),
+  OpenCodeServerLedger.of({
+    track: Effect.fn("OpenCodeServerLedger.track")(function () {
+      return Effect.succeed(Effect.void);
+    }),
+  }),
 );

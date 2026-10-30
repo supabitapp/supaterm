@@ -2,11 +2,6 @@ import { type ModelCapabilities, type ProviderOptionChoice } from "@supaterm/con
 import { createModelCapabilities } from "@supaterm/shared/model";
 import * as Predicate from "effect/Predicate";
 
-/**
- * Pi's full thinking ladder. Extra High (`xhigh`) and Max are opt-in per
- * model via `thinkingLevelMap`; advertising them globally makes
- * `set_thinking_level` fail on models that lack them.
- */
 const PI_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 
 export type PiThinkingLevel = (typeof PI_THINKING_LEVELS)[number];

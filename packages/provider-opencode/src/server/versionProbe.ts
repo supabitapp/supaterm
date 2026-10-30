@@ -35,11 +35,6 @@ function probed(version: string | null | undefined): ProbedOpenCode | undefined 
 export const classifyOpenCodeCliVersion = (output: string) =>
   probed(parseGenericCliVersion(output));
 
-/**
- * Each serves its web UI's HTML with a 200 on the other's path, so only a JSON body counts. Both
- * versions answer a wrong password with a 401 on either path, so a 401 says nothing about the
- * version.
- */
 function classifyOpenCodeProbeResponse(
   path: "/api/info" | "/global/health",
   response: {
@@ -89,8 +84,6 @@ const probeOpenCodeBinary = Effect.fn("probeOpenCodeBinary")(function* (
   });
 });
 
-// Server failures reach clients through the provider status, so their details are fixed text:
-// the underlying error can carry the configured URL, its credentials, or the password header.
 const probeOpenCodeServer = Effect.fn("probeOpenCodeServer")(function* (
   serverUrl: string,
   serverPassword: string,

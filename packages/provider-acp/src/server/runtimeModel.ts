@@ -294,6 +294,13 @@ export type AcpParsedSessionEvent =
       readonly rawPayload: unknown;
     }
   | {
+      readonly _tag: "NoticeReceived";
+      readonly severity: string;
+      readonly title: string;
+      readonly description?: string;
+      readonly rawPayload: unknown;
+    }
+  | {
       readonly _tag: "UnknownUpdate";
       readonly updateType: string;
       readonly rawPayload: unknown;
@@ -567,8 +574,6 @@ function extractToolCallCommand(
       return executable;
     }
   }
-  // Titles like `Read \`src/a.ts\`` are not commands. Only execute tools
-  // fall back to a backtick or bare title.
   if (kind !== "execute") {
     return undefined;
   }
@@ -637,11 +642,6 @@ function locationsFromToolCallInput(input: {
   return locations.length > 0 ? locations : undefined;
 }
 
-// Some ACP agents (observed with Grok's CLI) resend the ENTIRE accumulated tool-call
-// output on every `tool_call_update` notification instead of a delta, so a redrawing
-// terminal progress bar can balloon a single tool call to hundreds of KB per update at
-// several updates per second. Cap what we retain/emit to a bounded tail so one busy tool
-// call cannot flood runtime event ingestion.
 const TOOL_CALL_CONTENT_MAX_CHARS = 8_000;
 const TOOL_CALL_CONTENT_TRUNCATION_MARKER = "[Earlier output truncated]\n\n";
 
@@ -655,10 +655,6 @@ function boundToolCallOutputText(text: string): string {
 
 const RAW_OUTPUT_TEXT_FIELDS = ["content", "stdout", "stderr", "output"] as const;
 
-// `rawOutput` is provider-defined and, for terminal-shaped tools, mirrors the same
-// cumulative text-growth problem as `content` (see the comment above). Bound its known
-// text-bearing fields the same way so a chatty provider cannot smuggle unbounded output
-// through this field instead.
 function boundToolCallRawOutput(rawOutput: unknown): unknown {
   if (!isRecord(rawOutput)) {
     return rawOutput;
@@ -793,7 +789,7 @@ function normalizeToolKind(kind: unknown): string | undefined {
   return typeof kind === "string" && kind.trim().length > 0 ? kind.trim() : undefined;
 }
 
-export function canonicalItemTypeFromAcpToolKind(kind: string | undefined): ToolLifecycleItemType {
+function canonicalItemTypeFromAcpToolKind(kind: string | undefined): ToolLifecycleItemType {
   switch (kind) {
     case "read":
       return "dynamic_tool_call";
@@ -847,9 +843,6 @@ function makeToolCallState(
     data.kind = kind;
   }
   if (title) {
-    // The agent's verbatim title. Presentation summarizes `title` on the
-    // state (e.g. a command line becomes "Ran command"), so identity checks
-    // such as MCP-fallback detection need the raw value preserved here.
     data.title = title;
   }
   if (command) {
@@ -859,8 +852,6 @@ function makeToolCallState(
     data.rawInput = input.rawInput;
   }
   if (isRecord(input._meta)) {
-    // Some agents identify MCP calls only here (goose `goose.toolCall`,
-    // qwen `toolName`/`serverId`, claude-acp `claudeCode.toolName`).
     data.meta = input._meta;
   }
   if (input.rawOutput !== undefined) {
@@ -949,9 +940,6 @@ export function mergeToolCallState(
   };
 }
 
-// Even with bounded content (see TOOL_CALL_CONTENT_MAX_CHARS above), a redrawing terminal
-// can still shift its bounded tail window on nearly every notification, which would emit
-// a runtime event per redraw.
 const TOOL_CALL_UPDATE_MIN_DETAIL_GROWTH_CHARS = 256;
 const TOOL_CALL_UPDATE_COALESCE_LIMIT = 10;
 
@@ -973,9 +961,6 @@ function toolCallOutputUnchanged(previous: AcpToolCallState, next: AcpToolCallSt
   );
 }
 
-// Command tools keep `detail` equal to the command, so live stdout lives on
-// `data.content` / `data.rawOutput`. Measure that too, otherwise coalescing never
-// sees growth and in-progress output is held until completed/failed.
 export function toolCallProgressLength(state: AcpToolCallState): number {
   let contentChars = 0;
   const content = state.data.content;
@@ -1192,11 +1177,6 @@ export function extractMcpToolCallIdentity(
   return undefined;
 }
 
-/**
- * Terminal ids embedded in a raw tool_call update, captured before
- * {@link resolveEmbeddedTerminalContent} rewrites them into plain text, so the
- * projection can still resolve the terminal's command line.
- */
 export function embeddedTerminalIdsFromSessionUpdate(
   notification: EffectAcpSchema.SessionNotification,
 ): { readonly toolCallId: string; readonly terminalIds: ReadonlyArray<string> } | undefined {
@@ -1208,6 +1188,27 @@ export function embeddedTerminalIdsFromSessionUpdate(
     .filter((entry) => entry.type === "terminal")
     .map((entry) => entry.terminalId);
   return terminalIds.length === 0 ? undefined : { toolCallId: update.toolCallId, terminalIds };
+}
+
+export function withTrackedPermissionToolCall(
+  params: EffectAcpSchema.RequestPermissionRequest,
+  tracked: AcpToolCallState | undefined,
+): EffectAcpSchema.RequestPermissionRequest {
+  if (tracked === undefined) return params;
+  const { title, kind, rawInput } = params.toolCall;
+  return {
+    ...params,
+    toolCall: {
+      ...params.toolCall,
+      ...(title === undefined && typeof tracked.data.title === "string"
+        ? { title: tracked.data.title }
+        : {}),
+      ...(kind === undefined && tracked.kind === "execute" ? { kind: "execute" as const } : {}),
+      ...(rawInput === undefined && tracked.data.rawInput !== undefined
+        ? { rawInput: tracked.data.rawInput }
+        : {}),
+    },
+  };
 }
 
 export function parsePermissionRequest(
@@ -1332,11 +1333,6 @@ export function syntheticLoadSessionResponseFromInitialize(
   };
 }
 
-// The parsed AcpToolCallState already carries bounded content (see makeToolCallState /
-// extractTextContentFromToolCallContent above), but the raw JSON-RPC notification is also
-// threaded through as `rawPayload` for logging/debugging and ends up persisted on the
-// runtime event. Substitute the same bounded `content`/`rawOutput` there so an oversized
-// cumulative update cannot smuggle the unbounded buffer back in through the raw payload.
 function boundToolCallRawPayload(
   params: EffectAcpSchema.SessionNotification,
   update: AcpToolCallUpdate,
@@ -1598,6 +1594,19 @@ export function parseSessionUpdateEvent(params: EffectAcpSchema.SessionNotificat
           ...(upd.title === null ? { title: null } : title ? { title } : {}),
           ...(upd.updatedAt === null ? { updatedAt: null } : updatedAt ? { updatedAt } : {}),
         },
+        rawPayload: params,
+      });
+      break;
+    }
+    case "notice": {
+      const title = upd.title.trim().slice(0, 1_024);
+      const description = upd.description?.trim().slice(0, 4_096);
+      if (title.length === 0) break;
+      events.push({
+        _tag: "NoticeReceived",
+        severity: boundedContentMetadata(upd.severity, 64) || "info",
+        title,
+        ...(description ? { description } : {}),
         rawPayload: params,
       });
       break;

@@ -4,6 +4,7 @@ import {
   isXAiTaskCompletedWakeNotification,
   xAiRateLimitedErrorCode,
 } from "./xaiAcpExtension.ts";
+import { discoverGrokSkills, leadingGrokSkillMention } from "./skills.ts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { getModelSelectionStringOptionValue } from "@supaterm/shared/model";
 import { resolveSelfInvocation, type SelfInvocation } from "@supaterm/shared/nodeRuntime";
@@ -236,21 +237,27 @@ export function makeGrokAcpAdapterFlavor(
     runtimeHarness: "Grok",
     capabilities: GrokProviderCapabilitiesV2,
     interruptPromptOnCancel: false,
-    // User Stop (requestRuntimeRestart) still hard-kills the process group and
-    // respawns so existing background tasks stop too. Non-Stop interrupts
-    // (mid-prompt steering, restart_active) omit requestRuntimeRestart and stay
-    // soft: session/cancel carries cancelTrigger=ctrl_c, the session survives,
-    // and background work remains available to the replacement turn.
     restartRuntimeAfterInterrupt: true,
     terminateRuntimeProcessGroupOnInterrupt: true,
-    // Steering restarts on a settled turn additionally skip session/cancel so
-    // fire-and-forget subagents survive the steer (E1 harness confirmed the
-    // Grok CLI accepts a concurrent session/prompt in that state).
     preserveRuntimeOnSettledInterrupt: true,
-    // Grok ACP initialize reports promptCapabilities.image:false but the agent
-    // still accepts image content blocks (verified with real screenshots).
     supportsImagePrompts: true,
     supportsCompaction: true,
+    rewriteUserText: (text, turnInput) => {
+      const mention = leadingGrokSkillMention(text);
+      if (mention === undefined) return Effect.succeed(text);
+      return discoverGrokSkills(
+        options.settings,
+        options.environment,
+        turnInput.runtimePolicy.cwd ?? undefined,
+      ).pipe(
+        Effect.map((skills) =>
+          skills.some((skill) => skill.enabled && skill.name === mention.name)
+            ? `/${mention.name}${mention.rest}`
+            : text,
+        ),
+        Effect.orElseSucceed(() => text),
+      );
+    },
     resolveModelId: (selection) => resolveGrokAcpBaseModelId(selection.model),
     getModelContextWindow: (selection, session) => {
       if (selection.instanceId !== options.instanceId) return undefined;
@@ -303,8 +310,6 @@ export function makeGrokAcpAdapterFlavor(
           environment: options.environment,
           runtimeMode: grokLaunchRuntimeMode(runtimePolicy),
         })),
-    // In its Auto mode Grok decides routine actions itself and only asks about
-    // what its classifier blocked, so every prompt it sends goes to the user.
     permissionDisposition: (policy, request) =>
       grokLaunchRuntimeMode(policy) === "auto" ? "ask" : acpPermissionDisposition(policy, request),
     approvalOptions: grokApprovalOptions,

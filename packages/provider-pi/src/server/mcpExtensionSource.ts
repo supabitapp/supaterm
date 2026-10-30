@@ -7,10 +7,6 @@ export const SUPATERM_MCP_BEARER_ENV = "SUPATERM_MCP_BEARER_TOKEN";
 export const SUPATERM_PI_RUNTIME_MODE_ENV = "SUPATERM_PI_RUNTIME_MODE";
 export const SUPATERM_PI_MCP_EXTENSION_PATH_ENV = "SUPATERM_PI_MCP_EXTENSION_PATH";
 
-/**
- * Pi tools whose confirmations the bridge raises as file-change approvals.
- * Auto-accept edits skips them; the adapter keys the approval kind off them.
- */
 export const PI_FILE_CHANGE_TOOLS = ["edit", "write"] as const;
 
 export const PI_SUPATERM_MCP_EXTENSION_SOURCE = `\

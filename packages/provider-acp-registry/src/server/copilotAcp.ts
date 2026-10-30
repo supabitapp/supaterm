@@ -7,11 +7,6 @@ import type {
   AcpAdapterV2SubagentUpdate,
 } from "@supaterm/provider-acp/server/adapter";
 
-// Only its opt-in raw event feed says who wrote a chunk: each chunk is preceded
-// by an `assistant.*_delta` carrying the spawning `task` tool call id. Both
-// arrive inline on the same reader, in wire order, so the delta just before a
-// chunk is that chunk's author.
-
 const COPILOT_META_KEY = "github.com/copilot";
 const COPILOT_SESSION_EVENT = "github.com/copilot/sessionEvent";
 

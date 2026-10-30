@@ -1,10 +1,3 @@
-/**
- * Cursor discovers Agent Skills recursively from user and project roots but
- * its ACP command catalog only appears after opening a real session. Scanning
- * the same roots avoids starting an agent and its MCP servers just to populate
- * a composer menu.
- */
-
 import type { ServerProviderSkill } from "@supaterm/contracts";
 import * as ByteSize from "effect/ByteSize";
 import * as Effect from "effect/Effect";
@@ -125,7 +118,7 @@ function parseSkillFrontmatter(contents: string): CursorSkillFrontmatter | undef
 
 const discoverSkillsInRoot = Effect.fn("discoverCursorSkillsInRoot")(function* (input: {
   readonly directory: string;
-  readonly scope: "user" | "project";
+  readonly scope: "user" | "project" | "system";
   readonly budget: CursorSkillScanBudget;
   readonly scannedRoots: Set<string>;
 }): Effect.fn.Return<ReadonlyArray<ServerProviderSkill>, never, FileSystem.FileSystem | Path.Path> {
@@ -153,9 +146,6 @@ const discoverSkillsInRoot = Effect.fn("discoverCursorSkillsInRoot")(function* (
       return;
     }
     visitedDirectories.add(resolvedDirectory);
-    // A symlink whose target lives outside the root is a skill package
-    // boundary: read its own SKILL.md so linked skill libraries show up, but
-    // never walk the target tree.
     const insideRoot =
       resolvedDirectory === rootDirectory ||
       resolvedDirectory.startsWith(`${rootDirectory}${path.sep}`);
@@ -230,7 +220,11 @@ const inspectCursorSkills = Effect.fn("inspectCursorSkills")(function* (
     { directory: path.join(base, ".codex", "skills"), scope },
     { directory: path.join(base, ".claude", "skills"), scope },
   ];
-  const roots = [...(cwd ? rootsBelow(cwd, "project") : []), ...rootsBelow(userHome, "user")];
+  const roots = [
+    ...(cwd ? rootsBelow(cwd, "project") : []),
+    ...rootsBelow(userHome, "user"),
+    { directory: path.join(userHome, ".cursor", "skills-cursor"), scope: "system" as const },
+  ];
 
   const skillsByName = new Map<string, ServerProviderSkill>();
   const budget: CursorSkillScanBudget = {
