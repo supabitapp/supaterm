@@ -52,7 +52,7 @@ learned over plain HTTP, so its candidate addresses only need to be reachable.
 The host advertises them as `tunnelEndpoints`, apart from `directEndpoints`,
 because older clients turn every direct endpoint into a plain HTTP route.
 
-[GitHub routing trust](../../packages/client-runtime/src/connection/githubRoutingPermissions.ts)
+Pull-request routing trust
 covers every user-saved route. Adding or changing an address revokes the grant;
 reordering and learned-address changes preserve it.
 
@@ -100,3 +100,26 @@ auth and platform-managed discovery are skipped and only saved environments (pai
 This is possible because the desktop renderer is not served by the backend: the `supaterm://` scheme
 serves the bundled client from disk (Vite in development) and API traffic always goes to the
 environment's own URL.
+
+## Linked execution
+
+A client connection and an agent link grant different authority. Linked execution is off by
+default and requires both environments to enable it. Forwarded MCP calls use the destination's
+permissions and preserve the caller's mode ceiling. A restricted link may mutate only work it
+created; derived children retain that origin and cannot escape through another environment.
+
+Remote delegation must persist a launch intent and an idempotency key before contacting the
+peer. Recovery reconciles the remote launch before retrying, including a lost response. Persist
+completion and cancellation obligations until acknowledged; a restart must not orphan a child
+or launch it twice. Local child IDs cannot stand in for remote environment and run identities.
+
+## Pairing and reachability
+
+An environment ID reported by a new address is not proof that the address belongs to a saved
+machine. Generic pairing must reject it before spending the code, then recheck under the
+registration lock. Explicit **Add route** supplies the expected identity. Credential refresh at
+an existing address remains valid.
+
+Managed private-network listeners filter both socket endpoints and advertised addresses.
+Explicit host configuration stays authoritative. Preserve existing valid browser cookies when
+a bind-address change alters the preferred cookie name.

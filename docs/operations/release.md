@@ -53,15 +53,22 @@ bumps require a new store binary under the existing OTA fingerprint policy.
   - Linux `x64` and `arm64` AppImage and `.deb`, from one electron-builder run. The `.deb` updates in the app through electron-updater, which installs it with `dpkg`.
   - Windows `x64` and `arm64` NSIS installer
 - The macOS arm64 job also builds `supaterm-installer.dmg` from `native/mac-installer` (`scripts/build-mac-installer.ts`). Nightly builds it so a broken build shows up there first, but only stable releases publish it. It is a small universal app, and the website's macOS buttons link to it. When opened, it reads `latest-mac.yml` from the release marked latest, downloads the `-arm64.zip` or `-x64.zip` it lists from tag `v<version>`, and checks the sha512, our team ID, and notarization before installing. Copies people have already downloaded keep depending on that feed name, those zip suffixes, the tag format, and the team ID, so changing any of them breaks installers in the wild. It always installs stable, which is why nightly releases do not carry it.
-- Publishes one GitHub Release with all produced files.
+- Launches the packaged Linux x64 and macOS arm64 app against an isolated historical fixture,
+  opens a thread, and fails publication when the backend or renderer cannot start. Keep the
+  fixture historical so the smoke run exercises migration.
+- Uploads all produced files to a draft, then publishes the GitHub Release.
   - Stable tags with a suffix after `X.Y.Z` (for example `1.2.3-alpha.1`) are published as GitHub prereleases.
   - Only plain stable `X.Y.Z` releases are marked as the repository's latest release.
   - Nightly runs are always GitHub prereleases and never marked latest.
-  - Automatically generated release notes are pinned to the previous tag in the same channel, so stable compares to the previous stable tag and nightly compares to the previous nightly tag.
+  - Automatically generated release notes compare against the previous tag in the same channel.
+    Summaries are optional; unavailable credentials or generation failures keep ordinary notes
+    and must not block publication or alter preview-channel isolation.
 - Includes Electron auto-update metadata (for example `latest*.yml`, `nightly*.yml`, and `*.blockmap`) in release assets.
 - Builds a self-contained CLI archive per platform (`supaterm-<version>-<platform>-<arch>.tar.gz`, `.zip` on Windows) in the same job as that target's desktop artifact and attaches them to the GitHub Release with a `SHA256SUMS` file, on every channel, for five targets: macOS arm64, Linux x64 and arm64, Windows x64 and arm64. Every archive is smoke-tested on hardware of its own architecture, and every one but the Windows archives is also built and signed there. There is no macOS x64 archive: Node single-executables are unsupported on x64 macOS (the SEA docs list macOS as arm64 only) and the binary segfaults on start; the x64 desktop app is Electron and unaffected.
   - The archive holds the server as a Node single-executable (`scripts/build-cli-archive.ts`), so unpacking it needs neither Node, npm, nor a compiler. It is the only form in which Supaterm manages a runtime: the desktop's SSH environments, the boot service, `supaterm update`, and the install scripts all download and verify this archive against `SHA256SUMS`. The `supaterm` npm package exists for people who run `npx supaterm` or `npm install -g supaterm` themselves, and it downloads this same archive too; nothing in the product installs from npm. The `curl | sh` installers are `scripts/install.sh` and `scripts/install.ps1`; the marketing site copies them into its `public/` at build time (`apps/marketing/scripts/stage-install-scripts.mjs`) and serves them at `supaterm.com/install.sh` and `/install.ps1`.
   - Every executable embeds the exact Node in `SEA_NODE_VERSION` (`apps/server/scripts/seaNodeVersion.ts`), the only place that version is set. `build-exe` runs the pack on it through `vp env exec --node`; native builds reject a different host Node, and cross-target builds download that version for their target. Development, CI, and the desktop backend stay on the mise Node, the line Electron ships. Keep the version exact: only exact versions have a `nodejs.org/dist` directory. Runtime changes need a new release version because installed runtimes are cached by that version.
+  - Linux arm64 executables build on a Linux arm64 host with the injection path needed for
+    16 KiB and 64 KiB page kernels. Keep that path until the runtime supports those kernels.
   - Release macOS archives are signed with the Developer ID certificate and notarized using the Apple credentials loaded through fnox. Windows executables use the same Azure Trusted Signing setup as the installer. Every native addon in the macOS archive is signed too, since the hardened runtime refuses unsigned libraries.
   - Each archive is extracted and executed (`scripts/smoke-cli-archive.ts`) on its build runner, or on the `verify_runner` for Windows.
 - After the GitHub Release is published, publishes the `supaterm` npm package with OIDC trusted publishing from the same workflow file. It is only a launcher (`scripts/npm-launcher/supaterm.mjs`, packed by `scripts/build-npm-launcher.ts`): on first run it downloads its exact version's CLI archive from the GitHub Release (or from `SUPATERM_RELEASE_BASE_URL`), verifies it against `SHA256SUMS`, and unpacks it into `<Supaterm home>/runtime/versions/<version>`, the layout the install scripts and `supaterm update` share. The executables are not on npm: its publish-time scanning can hold 80-250 MB packages back for up to an hour after the launcher is live, and every install in that window would get a launcher with no executable. The old `@supabitapp/supaterm-<platform>-<arch>` packages get no new versions. Because the launcher reads from the release, `publish_cli` runs after `release`, never before. `release` waits for `check_cli_publish`, which packs the launcher and runs `npm publish --dry-run`, so a publish that would fail stops the run before the GitHub Release is public.
@@ -219,8 +226,10 @@ release archives, and then its npm launcher, available before users can receive 
 
 The workflow enforces this ordering:
 
-1. `release` publishes the GitHub Release with the CLI archives and `SHA256SUMS`, once
-   `check_cli_publish` has run the npm publish as a dry run.
+1. `release` uploads the CLI archives and `SHA256SUMS` to a draft and publishes only after every
+   asset is attached and `check_cli_publish` succeeds. A new feed entry therefore has its archives.
+   Rerunning an already-public release can temporarily replace assets; service updates may fail
+   until the upload finishes.
 2. `publish_cli` publishes the `supaterm@<version>` launcher, which downloads from that release, on
    every channel.
 3. `deploy_web` depends on both before moving the hosted channel to the new client.
@@ -230,6 +239,10 @@ Desktop auto-update reads the GitHub Release directly, so a desktop client can s
 a few minutes before `supaterm@<version>` is on npm. **Update everything** does not wait for npm:
 boot-service and desktop-managed servers update from the GitHub Release. Until `publish_cli`
 finishes, only the copied manual command for npm-run servers does not resolve yet.
+
+Fleet track changes require compatibility evidence from Supaterm release metadata and actual
+migration identities. A maximum migration number cannot establish compatibility across independent
+histories. Preserve the explicit manual downgrade path.
 
 Preserve these dependencies when changing the release graph. Publishing a client first would leave
 the **Update server** action targeting a package version that does not exist yet.

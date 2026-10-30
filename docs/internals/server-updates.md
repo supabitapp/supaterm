@@ -72,7 +72,7 @@ opt-out. The
 requires matching durable run, provider thread, session, and native resume identity.
 Queued runs never started, so recovery holds them and continues the run they wait
 behind. A finished run qualifies only when the restart cancels work the agent waits on
-(a monitor, subagent, or background task) and its session was live, so stale records
+(a subagent, background task, or command or monitor explicitly marked as awaited) and its session was live, so stale records
 from an older crash never wake it. Its continuation prompt is the note of what will not
 report back. A shell alone does not wake a finished run: most are dev servers nobody
 waits on, so that note waits for the next user message.

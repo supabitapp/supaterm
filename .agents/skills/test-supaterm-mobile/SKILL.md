@@ -42,7 +42,7 @@ mobile verification includes that step unless the user prohibits it.
 
 For an existing AgentDevice session, run
 `vp run mobile:install <ios|android> --session <session>` from that session's
-directory. This installs a cached build without building. Supply `--abi arm64-v8a`
+directory. This fetches a matching cached build or builds on a cache miss. Supply `--abi arm64-v8a`
 for an ARM Android target; `--metro <url>` also opens the app against Metro.
 Keep using the launcher and target arguments returned by `device_open`.
 

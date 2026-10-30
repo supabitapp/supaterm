@@ -12,7 +12,8 @@ client can produce reassuring timings while missing the active transport path.
 
 The v2 checks pin these invariants:
 
-- Client cold opens target 75 recent timeline rows and about 1 MiB of encoded data. Required
+- Client cold opens bound retained turns and their recent timeline items, targeting about
+  1 MiB of encoded data even when a single turn is large. Required
   control records and the at-least-one-row rule can exceed the byte target; it is not a hard cap.
 - The bounded snapshot does not retain the full duplicate conversation-message table.
 - Older activity is fetched in bounded HTTP pages and merged without disturbing the live scroll
@@ -41,8 +42,9 @@ The v2 checks pin these invariants:
   ingestion, which keeps one bounded tail per running command and throttles each subscriber. Do not
   route output deltas through `turn_item.updated`: a busy command would flood the event store and
   block ingestion for every other thread.
-- The initial shell contains active navigation rows only. Archived rows use the dedicated archive
-  query, and transcript message bodies stay in thread detail regardless of message size.
+- The initial shell omits idle child threads and older settled rows. Authoritative family and
+  worktree reads restore omitted relationships on demand. Deletion tombstones must survive a
+  late family response. Archived rows use their dedicated query; transcript bodies stay in detail.
 - Shell resume sends deltas plus compact repository-enrichment metadata, not another full project
   and thread snapshot. It finds changed aggregates with one grouped query over a covering index,
   never by decoding the event payloads in the gap.
@@ -131,3 +133,11 @@ the screen freezes, and back does nothing. Release builds retry forever; dev bui
 heavy content renders should use React Native's `Animated` with `useNativeDriver: true`, which
 updates views without commits, not Reanimated's `withRepeat`. The running-thread shimmer in
 `thread-work-log.tsx` is the example.
+
+## Deferred history
+
+Completed and superseded work inside a long turn loads in bounded pages when expanded.
+Pagination must preserve control-record dependencies, branch ancestry, and the item targeted by
+search or a pinned-message jump. Enforce payload budgets before decoding rows and invalidate
+caches whose old format retained an unbounded turn. Control records can exceed the byte target;
+measure actual transfers rather than claiming a hard total cap.

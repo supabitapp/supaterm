@@ -387,11 +387,13 @@ Traces are best for one request. Metrics are best for trends.
 Good metric families to watch:
 
 - `supaterm_rpc_request_duration`
+- `supaterm_orchestration_command_duration`
 - `supaterm_git_command_duration`
 
 Counters tell you volume and failure rate:
 
 - `supaterm_rpc_requests_total`
+- `supaterm_orchestration_commands_total`
 - `supaterm_git_commands_total`
 
 Use metrics when the question is:
@@ -598,7 +600,20 @@ with a startup warning, rather than sending it to the Settings endpoint.
 Service names are fixed: `supaterm-server` for the backend and `supaterm-desktop` for the desktop main
 process, both in `service.namespace` `supaterm`. `OTEL_SERVICE_NAME` and a `service.name` or
 `service.namespace` in `OTEL_RESOURCE_ATTRIBUTES` are ignored. Tell installations apart with other
-resource attributes, such as `OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=development`.
+resource attributes, such as `OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=staging`.
+
+Each process reports its own release channel and deployment environment. The server and desktop
+main process accept resource-attribute overrides; web and mobile describe their own builds.
+Desktop development uses its package version, independent of the connected server version.
+
+Application attributes use the `supaterm.` prefix: `supaterm.server.managed_by` identifies
+desktop-owned and standalone servers, `supaterm.client.surface` distinguishes web and desktop
+renderers, and `supaterm.desktop.mode` distinguishes development and packaged main processes.
+Update dashboards that filter the former `service.mode` attribute.
+
+Every resource has a `service.instance.id`, scoped to the process, page load, or mobile session.
+An explicit server or desktop value in `OTEL_RESOURCE_ATTRIBUTES` overrides the generated one.
+Node resources carry runtime metadata; browser resources carry browser and language metadata.
 
 If the OTLP URLs are unset, local tracing still works, metrics stay in-process only, and logs stay
 on stdout only.
@@ -677,3 +692,10 @@ Before you take one:
   swapping, it can make the problem worse or crash the server.
 - The file contains everything in server memory, including tokens, secrets, and thread content. Do
   not share it publicly. Delete it when you are done, because storage cleanup does not remove it.
+
+## Private secret requests
+
+Private-card values must stay out of logs, traces, analytics, persisted conversation items, and
+MCP result text. Only metadata needed to describe the request may cross those surfaces. File
+delivery writes permission-protected plaintext on the environment; shell access to that file
+is intentional. Report lifecycle outcomes without echoing the value or its contents.

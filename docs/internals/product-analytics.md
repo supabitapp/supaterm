@@ -44,8 +44,9 @@ runs; use `surface` for the connected client.
 
 ## Interpreting events
 
-Use `client.turn.requested` for active-use reports. `client.connected` counts
-reconnects, so network behavior can inflate it. One identity can appear in several
+Use `client.turn.requested` for active-use reports. Replayed command receipts, reconnects, and
+resumed launches must not add another use event. Source development and smoke runs disable
+collection by default. One identity can appear in several
 client groups during a period; adding those groups double-counts users.
 
 Provider send and completion counts need not match. Providers can emit synthetic
@@ -92,3 +93,7 @@ Keep analytics payloads to product metadata and normalized measurements. Do not
 send prompts, authentication material, raw provider payloads, user-assigned device
 names, or conversation identifiers. Client metadata is best effort; invalid values
 must not reject a connection. PostHog person profiles remain disabled.
+
+Guest sharing records only allowlisted action categories after a successful operation. Retry
+replays must not count again. Guest names, share and thread IDs, messages, files, and secret-card
+values never become analytics properties.
