@@ -1898,6 +1898,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     ownerKey: composerDraftTargetKey,
     environmentId,
     threadId: isServerThread && activeThread ? activeThread.id : null,
+    projectId: activeProjectId,
     language: voiceLanguage.tag,
     languageLabel: voiceLanguage.label,
     readPrompt: () => promptRef.current,

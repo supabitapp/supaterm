@@ -6,7 +6,7 @@ import {
   type VoiceDraftSnapshot,
   type VoiceInputState,
 } from "@supaterm/client-runtime/voice-input";
-import type { EnvironmentId, ThreadId } from "@supaterm/contracts";
+import type { EnvironmentId, ProjectId, ThreadId } from "@supaterm/contracts";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useStableCallback } from "../hooks/useStableCallback";
@@ -26,6 +26,8 @@ export interface ComposerVoiceInputOptions {
   readonly ownerKey: string;
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId | null;
+  /** A draft has no thread yet; its project still names the jargon to listen for. */
+  readonly projectId: ProjectId | null;
   readonly language: string;
   readonly languageLabel: string;
   readonly readPrompt: () => string;
@@ -110,7 +112,8 @@ function createVoiceRuntime(onStateChange: (state: VoiceInputState) => void) {
   const controller: VoiceInputController = new VoiceInputController({
     recorder,
     getTranscriber: () => {
-      const { environmentId, threadId, language } = read();
+      const { environmentId, threadId, projectId, language } = read();
+      const context = threadId ? { threadId } : projectId ? { projectId } : null;
       return createServerVoiceTranscriber({
         locale: language,
         transcribe: (uri, signal) => {
@@ -119,7 +122,7 @@ function createVoiceRuntime(onStateChange: (state: VoiceInputState) => void) {
           return uploadVoiceAudio({
             environmentId,
             audio: recording.audio,
-            request: { language, ...(threadId ? { context: { threadId } } : {}) },
+            request: { language, ...(context ? { context } : {}) },
             signal,
           });
         },
