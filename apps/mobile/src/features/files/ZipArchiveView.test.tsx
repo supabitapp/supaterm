@@ -16,6 +16,8 @@ const server = vi.hoisted(() => ({
   refresh: vi.fn(async () => "file:///first.zip"),
 }));
 
+vi.mock("../../state/threads", () => ({ environmentThreadDetails: {} }));
+
 vi.mock("../../state/entities", () => ({
   useEnvironmentServerConfig: () => ({ environment: { capabilities: server.capabilities } }),
 }));
@@ -205,8 +207,10 @@ function setup() {
       await act(async () => root.render(<ZipArchiveView {...input} />));
     },
     settle: async (assert: () => void) => {
-      await act(async () => vi.runAllTimersAsync());
-      assert();
+      await vi.waitFor(async () => {
+        await act(async () => vi.runAllTimersAsync());
+        assert();
+      });
     },
   };
 }
@@ -390,7 +394,9 @@ it("releases an extracted draft file when the entry closes during persistence", 
     dispose,
   });
   const persisted = Promise.withResolvers<string>();
-  vi.spyOn(composerImages, "persistComposerAttachmentFile").mockReturnValue(persisted.promise);
+  const persist = vi
+    .spyOn(composerImages, "persistComposerAttachmentFile")
+    .mockReturnValue(persisted.promise);
   const remove = vi
     .spyOn(composerImages, "removePersistedComposerAttachmentFile")
     .mockResolvedValue();
@@ -405,9 +411,127 @@ it("releases an extracted draft file when the entry closes during persistence", 
     (button) => button.textContent === "Add to chat",
   )!;
   await act(async () => add.click());
+  await screen.settle(() => expect(persist).toHaveBeenCalledOnce());
   await act(async () => screen.root.render(null));
   await act(async () => persisted.resolve("file:///documents/cancelled.txt"));
   expect(remove).toHaveBeenCalledWith("file:///documents/cancelled.txt");
   expect(dispose).toHaveBeenCalledOnce();
   expect(appAtomRegistry.get(composerDraftsAtom)["target-draft"]).toBeUndefined();
+});
+
+it("lists an archive without inflating an unselected corrupt member", async () => {
+  const screen = setup();
+  files.set(
+    "file:///first.zip",
+    Uint8Array.from(
+      atob(
+        "UEsDBBQAAAAIAAAAIVyzyFShGAAAABYAAAAJAAAAZmlyc3QudHh0c8ssKi5RSCxKzsgsS1VIzs8rSc0rKQYAUEsDBBQAAAAIAAAAIVzVNreyGQAAABcAAAAKAAAAYnJva2VuLnR4dP////////////////////////////////9QSwECFAMUAAAACAAAACFcs8hUoRgAAAAWAAAACQAAAAAAAAAAAAAAgAEAAAAAZmlyc3QudHh0UEsBAhQDFAAAAAgAAAAhXNU2t7IZAAAAFwAAAAoAAAAAAAAAAAAAAIABPwAAAGJyb2tlbi50eHRQSwUGAAAAAAIAAgBvAAAAgAAAAAAA",
+      ),
+      (character) => character.charCodeAt(0),
+    ),
+  );
+  await screen.render();
+  await screen.settle(() => {
+    expect(screen.container.querySelector('[aria-label="first.txt"]')).not.toBeNull();
+    expect(screen.container.querySelector('[aria-label="broken.txt"]')).not.toBeNull();
+  });
+  await act(async () =>
+    screen.container.querySelector<HTMLButtonElement>('[aria-label="first.txt"]')!.click(),
+  );
+  await screen.settle(() =>
+    expect(screen.container.querySelector("pre")?.textContent).toBe("First archive contents"),
+  );
+});
+
+async function trackZipReaders() {
+  const zip = await import("@supaterm/client-runtime/zip/bounded-zip");
+  const open = zip.openBoundedZip;
+  const readers: Array<{
+    read: ReturnType<typeof vi.fn<Awaited<ReturnType<typeof open>>["read"]>>;
+    close: ReturnType<typeof vi.fn<() => void>>;
+  }> = [];
+  vi.spyOn(zip, "openBoundedZip").mockImplementation(async (...args) => {
+    const archive = await open(...args);
+    const reader = { ...archive, read: vi.fn(archive.read), close: vi.fn(archive.close) };
+    readers.push(reader);
+    return reader;
+  });
+  return readers;
+}
+
+it("reads only the selected member for preview, Save and Add and closes replaced readers", async () => {
+  const screen = setup();
+  const readers = await trackZipReaders();
+  const attachments = await import("../../lib/attachmentDownload");
+  const composerImages = await import("../../lib/composerImages");
+  vi.spyOn(attachments, "shareGeneratedAttachment").mockResolvedValue(true);
+  vi.spyOn(attachments, "writeGeneratedAttachmentFile").mockResolvedValue({
+    uri: "file:///generated/first.txt",
+    share: vi.fn(),
+    dispose: vi.fn(),
+  });
+  vi.spyOn(composerImages, "persistComposerAttachmentFile").mockResolvedValue(
+    "file:///documents/first.txt",
+  );
+  const props = { ...screen.props, draftKey: "target-draft", maxAttachmentBytes: 1024 };
+  await screen.render(props);
+  await screen.settle(() => expect(readers).toHaveLength(1));
+  expect(readers[0]!.read).not.toHaveBeenCalled();
+  await act(async () =>
+    screen.container.querySelector<HTMLButtonElement>('[aria-label="first.txt"]')!.click(),
+  );
+  await screen.settle(() =>
+    expect(screen.container.querySelector("pre")?.textContent).toBe("First archive contents"),
+  );
+  const save = Array.from(screen.container.querySelectorAll("button")).find(
+    (button) => button.textContent === "Save file",
+  )!;
+  await act(async () => save.click());
+  await screen.settle(() => expect(attachments.shareGeneratedAttachment).toHaveBeenCalledOnce());
+  const add = Array.from(screen.container.querySelectorAll("button")).find(
+    (button) => button.textContent === "Add to chat",
+  )!;
+  await act(async () => add.click());
+  await screen.settle(() =>
+    expect(appAtomRegistry.get(composerDraftsAtom)["target-draft"]?.attachments).toHaveLength(1),
+  );
+  expect(readers[0]!.read.mock.calls.map(([path]) => path)).toEqual([
+    "first.txt",
+    "first.txt",
+    "first.txt",
+  ]);
+  const selectionSignal = readers[0]!.read.mock.calls[0]![1]!.signal!;
+  await act(async () => navigation.remove!());
+  expect(selectionSignal.aborted).toBe(true);
+  files.set("file:///replacement.zip", files.get("file:///first.zip")!);
+  await screen.render({ ...props, uri: "file:///replacement.zip" });
+  await screen.settle(() => expect(readers).toHaveLength(2));
+  expect(readers[0]!.close).toHaveBeenCalledOnce();
+  expect(readers[1]!.read).not.toHaveBeenCalled();
+  await act(async () => screen.root.render(null));
+  expect(readers[1]!.close).toHaveBeenCalledOnce();
+});
+
+it("discards a selected member that resolves after the entry closes", async () => {
+  const screen = setup();
+  const readers = await trackZipReaders();
+  await screen.render();
+  await screen.settle(() => expect(readers).toHaveLength(1));
+  const pending = Promise.withResolvers<Awaited<ReturnType<(typeof readers)[number]["read"]>>>();
+  readers[0]!.read.mockReturnValueOnce(pending.promise);
+  await act(async () =>
+    screen.container.querySelector<HTMLButtonElement>('[aria-label="first.txt"]')!.click(),
+  );
+  const selectionSignal = readers[0]!.read.mock.calls[0]![1]!.signal!;
+  await act(async () => navigation.remove!());
+  expect(selectionSignal.aborted).toBe(true);
+  await act(async () =>
+    pending.resolve({
+      bytes: new TextEncoder().encode("late content"),
+      date: new Date(0),
+      directory: false,
+    }),
+  );
+  expect(screen.container.querySelector("pre")).toBeNull();
+  expect(screen.container.textContent).not.toContain("late content");
 });

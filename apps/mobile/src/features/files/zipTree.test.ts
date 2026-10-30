@@ -14,7 +14,6 @@ function entry(path: string): ZipEntry {
     isDirectory: false,
     sizeBytes: 1,
     mimeType: "text/plain",
-    bytes: new Uint8Array([1]),
   };
 }
 

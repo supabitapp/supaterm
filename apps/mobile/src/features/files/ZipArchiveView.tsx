@@ -2,7 +2,8 @@ import { formatAttachmentSize } from "@supaterm/client-runtime/state/attachments
 import {
   ARCHIVE_ENTRY_MAX_BYTES,
   ARCHIVE_MAX_BYTES,
-  boundedZip,
+  openBoundedZip,
+  type BoundedZipArchive,
 } from "@supaterm/client-runtime/zip/bounded-zip";
 import type { EnvironmentId } from "@supaterm/contracts";
 import { filePreviewDelimiter, parseDelimitedPreview } from "@supaterm/shared/delimitedPreview";
@@ -58,6 +59,7 @@ import {
 } from "./zipTree";
 
 interface ZipArchive {
+  readonly reader: BoundedZipArchive;
   readonly entries: ReadonlyArray<ZipEntry>;
   readonly fileCount: number;
 }
@@ -124,9 +126,9 @@ async function readArchiveBody(
 }
 
 async function openArchive(bytes: ArrayBuffer, signal: AbortSignal): Promise<ZipArchive> {
-  let files: Awaited<ReturnType<typeof boundedZip>>;
+  let reader: BoundedZipArchive;
   try {
-    files = await boundedZip(bytes, ARCHIVE_MAX_BYTES, { signal });
+    reader = await openBoundedZip(bytes, ARCHIVE_MAX_BYTES, { signal });
   } catch (cause) {
     throw new ZipFailureError({
       title: "Couldn't browse this ZIP",
@@ -134,21 +136,21 @@ async function openArchive(bytes: ArrayBuffer, signal: AbortSignal): Promise<Zip
       retry: false,
     });
   }
-  const entries = [...files].map(([path, file]): ZipEntry => {
+  const entries = reader.entries.map((file): ZipEntry => {
+    const { path } = file;
     const name = path.split("/").findLast(Boolean) ?? path;
     const dot = name.lastIndexOf(".");
     return {
       path,
       name,
       isDirectory: file.directory,
-      sizeBytes: file.bytes.byteLength,
+      sizeBytes: file.size,
       mimeType:
         (dot > 0 ? hostPreviewMimeTypeFromExtension(name.slice(dot).toLowerCase()) : null) ??
         "application/octet-stream",
-      bytes: file.bytes,
     };
   });
-  return { entries, fileCount: entries.filter((entry) => !entry.isDirectory).length };
+  return { reader, entries, fileCount: entries.filter((entry) => !entry.isDirectory).length };
 }
 
 type ArchiveState =
@@ -172,10 +174,11 @@ function useZipArchive(input: {
   const { uri, isLocal, sizeBytes } = input;
 
   const refresh = useEffectEvent(input.refresh);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Load archive bytes and cancel the stream on cleanup.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Load archive metadata and close its reader on cleanup.
   useEffect(() => {
     if (!uri) return;
     const abort = new AbortController();
+    let opened: ZipArchive | undefined;
     controller.current = abort;
     const startedAt = Date.now();
     // oxlint-disable-next-line react/set-state-in-effect -- A new archive load resets its progress.
@@ -209,7 +212,9 @@ function useZipArchive(input: {
       return openArchive(bytes, abort.signal);
     })()
       .then((archive) => {
-        if (!abort.signal.aborted) setState({ status: "ready", archive });
+        opened = archive;
+        if (abort.signal.aborted) archive.reader.close();
+        else setState({ status: "ready", archive });
       })
       .catch((cause: unknown) => {
         if (!abort.signal.aborted)
@@ -218,7 +223,10 @@ function useZipArchive(input: {
             failure: cause instanceof ZipFailureError ? cause.failure : NETWORK,
           });
       });
-    return () => abort.abort();
+    return () => {
+      abort.abort();
+      opened?.reader.close();
+    };
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Retry must reload the archive.
   }, [uri, isLocal, sizeBytes, revision]);
   return {
@@ -515,7 +523,7 @@ export function ZipArchiveView(props: {
     readonly entry: ZipEntry;
   } | null>(null);
   const archive = state.status === "ready" ? state.archive : null;
-  const selected = selection && selection.archive === archive ? selection.entry : null;
+  const selected = selection && selection.archive === archive ? selection : null;
   const entryOpen = selected !== null;
   usePreventRemove(entryOpen, () => setSelection(null));
   const insets = useSafeAreaInsets();
@@ -566,9 +574,10 @@ export function ZipArchiveView(props: {
       {selected ? (
         <View className="absolute inset-0">
           <ZipEntryView
-            key={selected.path}
+            key={selected.entry.path}
             archiveName={props.name}
-            entry={selected}
+            reader={selected.archive.reader}
+            entry={selected.entry}
             environmentId={props.environmentId}
             draftKey={props.draftKey}
             maxAttachmentBytes={props.maxAttachmentBytes}
@@ -581,6 +590,7 @@ export function ZipArchiveView(props: {
 }
 
 async function addZipEntryToDraft(input: {
+  readonly reader: BoundedZipArchive;
   readonly entry: ZipEntry;
   readonly draftKey: string;
   readonly maxBytes: number;
@@ -589,11 +599,13 @@ async function addZipEntryToDraft(input: {
   const { entry, signal } = input;
   const name = zipEntryAttachmentName(entry.name);
   signal.throwIfAborted();
+  const { bytes } = await input.reader.read(entry.path, { signal });
+  signal.throwIfAborted();
   const id = uuidv4();
-  const sizeBytes = entry.bytes.byteLength;
+  const sizeBytes = bytes.byteLength;
   if (sizeBytes === 0) throw new Error(`'${name}' is empty or could not be read.`);
   const file = await writeGeneratedAttachmentFile({
-    bytes: entry.bytes,
+    bytes,
     attachment: { name, mimeType: entry.mimeType },
   });
   try {
@@ -626,6 +638,7 @@ type EntryContent =
   | { readonly status: "failed"; readonly title: string; readonly message: string };
 
 function ZipEntryView(props: {
+  readonly reader: BoundedZipArchive;
   readonly archiveName: string;
   readonly entry: ZipEntry;
   readonly environmentId: EnvironmentId | null;
@@ -633,7 +646,7 @@ function ZipEntryView(props: {
   readonly maxAttachmentBytes: number | undefined;
   readonly onBack: () => void;
 }) {
-  const { entry, draftKey, maxAttachmentBytes } = props;
+  const { reader, entry, draftKey, maxAttachmentBytes } = props;
   const { mimeType } = entry;
   const previewKind = filePreviewKind({ name: entry.name, mimeType });
   const isText = previewKind === "text" || previewKind === "markdown" || previewKind === "html";
@@ -659,15 +672,17 @@ function ZipEntryView(props: {
   const pendingViewerError = useRef<string | null>(null);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Cancel a pending save or attach when the entry closes.
   useEffect(() => () => action.current?.abort(), []);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Write the selected entry to a cached file and release it on cleanup.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Read the selected entry and release its temporary file on cleanup.
   useEffect(() => {
     if (tooBig) return;
     const controller = new AbortController();
     let release: (() => void) | undefined;
     void (async (): Promise<EntryContent> => {
-      if (isText) return { status: "text", ...decodeFilePreviewText(entry.bytes) };
+      const { bytes } = await reader.read(entry.path, { signal: controller.signal });
+      controller.signal.throwIfAborted();
+      if (isText) return { status: "text", ...decodeFilePreviewText(bytes) };
       const file = await writeGeneratedAttachmentFile({
-        bytes: entry.bytes,
+        bytes,
         attachment: { name: entry.name, mimeType },
       });
       if (controller.signal.aborted) {
@@ -693,7 +708,7 @@ function ZipEntryView(props: {
       release?.();
     };
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Retry must reread the entry.
-  }, [entry, isText, mimeType, tooBig, revision]);
+  }, [entry, reader, isText, mimeType, tooBig, revision]);
 
   const run = (kind: "save" | "attach", task: (signal: AbortSignal) => Promise<unknown>) => {
     if (busy || action.current !== null) return;
@@ -721,8 +736,10 @@ function ZipEntryView(props: {
   };
   const save = () =>
     run("save", async (signal) => {
+      const { bytes } = await reader.read(entry.path, { signal });
+      signal.throwIfAborted();
       const shared = await shareGeneratedAttachment({
-        bytes: entry.bytes,
+        bytes,
         attachment: { name: entry.name, mimeType },
         signal,
       });
@@ -735,7 +752,7 @@ function ZipEntryView(props: {
   const addToChat = () => {
     if (draftKey === null || maxAttachmentBytes === undefined) return;
     run("attach", (signal) =>
-      addZipEntryToDraft({ entry, draftKey, maxBytes: maxAttachmentBytes, signal }),
+      addZipEntryToDraft({ reader, entry, draftKey, maxBytes: maxAttachmentBytes, signal }),
     );
   };
   const openViewer = () => {

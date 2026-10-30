@@ -4,7 +4,6 @@ export interface ZipEntry {
   readonly isDirectory: boolean;
   readonly sizeBytes: number;
   readonly mimeType: string;
-  readonly bytes: Uint8Array<ArrayBuffer>;
 }
 
 export interface ZipTreeNode {
