@@ -215,6 +215,21 @@ export const layer: Layer.Layer<
               );
             }),
           ),
+        loadRunInterruptReason: () =>
+          projectionStore
+            .getTurnItem({
+              threadId: input.threadId,
+              itemId: idAllocator.derive.runSignalTurnItem({
+                runId: input.runId,
+                signal: "interrupt-request",
+              }),
+            })
+            .pipe(
+              Effect.map((item) =>
+                item?.type === "run_interrupt_request" ? item.message : undefined,
+              ),
+              Effect.orElseSucceed(() => undefined),
+            ),
         hasUnpairedRunInterruptRequest: () =>
           projectionStore
             .hasUnpairedRunInterruptRequest(
@@ -1461,6 +1476,7 @@ export const layer: Layer.Layer<
         shouldStartProviderTurn: runControls.shouldStartProviderTurn,
         shouldFinalizeRun: runControls.shouldFinalizeRun,
         hasUnpairedRunInterruptRequest: runControls.hasUnpairedRunInterruptRequest,
+        loadRunInterruptReason: runControls.loadRunInterruptReason,
         message: {
           messageId: message.id,
           text: userText,

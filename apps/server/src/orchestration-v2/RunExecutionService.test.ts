@@ -2558,6 +2558,22 @@ it.effect("emits run_interrupt_result when hard-stop finalizes the active attemp
   }),
 );
 
+it.effect.each([true, false])(
+  "keeps the recorded agent interrupt reason when finalizing is %s",
+  (current) =>
+    Effect.gen(function* () {
+      const reason = "Stopped by an agent: Allow the queued replay follow-up to run.";
+      const { written } = yield* captureRootRunTermination({
+        key: `agent-stop-${current}`,
+        shouldFinalizeRun: () => Effect.succeed(current),
+        hasUnpairedRunInterruptRequest: () => Effect.succeed(true),
+        loadRunInterruptReason: () => Effect.succeed(reason),
+      });
+      const result = written.find((item) => item.type === "run_interrupt_result");
+      assert.equal(result?.type === "run_interrupt_result" ? result.message : undefined, reason);
+    }),
+);
+
 it.effect("records a finished run as failed when its ownership check cannot be read", () =>
   Effect.gen(function* () {
     const { observed } = yield* captureRootRunTermination({
@@ -3159,6 +3175,7 @@ function captureRootRunTermination(input: {
   readonly shouldFinalizeRun: () => Effect.Effect<boolean, ProjectionStore.ProjectionStoreV2Error>;
   readonly rejectTerminalWrite?: boolean;
   readonly hasUnpairedRunInterruptRequest?: () => Effect.Effect<boolean, never>;
+  readonly loadRunInterruptReason?: () => Effect.Effect<string | undefined, never>;
   readonly seedOpenSubagent?: boolean;
   readonly events?: (
     ids: BackgroundScenarioIds,
@@ -3347,6 +3364,9 @@ function captureRootRunTermination(input: {
           : {
               hasUnpairedRunInterruptRequest: input.hasUnpairedRunInterruptRequest,
             }),
+        ...(input.loadRunInterruptReason === undefined
+          ? {}
+          : { loadRunInterruptReason: input.loadRunInterruptReason }),
         message: {
           messageId: MessageId.make(`message:${input.key}`),
           text: "interrupt projection",

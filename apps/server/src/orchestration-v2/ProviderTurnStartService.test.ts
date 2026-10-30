@@ -720,6 +720,8 @@ function makeLocalCommandHarness(input: {
         Layer.mock(ProjectionStore.ProjectionStoreV2)({
           getThreadRecords,
           getTurnStartContext,
+          getTurnItem: ({ itemId }) =>
+            Effect.succeed(projection.turnItems.find((item) => item.id === itemId) ?? null),
           getRuntimeRecoveryProjection: () =>
             Effect.as(failReadIfRunning, {
               ...projection,
@@ -1419,3 +1421,43 @@ for (const previousMessages of [[], ["/compact", " /COMPACT "]]) {
       }),
   );
 }
+
+effectIt.effect("loads the recorded interrupt reason after startup for terminal finalization", () =>
+  Effect.gen(function* () {
+    const harness = makeLocalCommandHarness({ text: "Continue", failReadsAfterRunning: true });
+    yield* harness.start;
+    const controls = harness.startRootRun.mock.calls[0]?.[0];
+    expect(controls?.loadRunInterruptReason).toBeDefined();
+    if (controls?.loadRunInterruptReason === undefined) return;
+    const idAllocator = yield* IdAllocator.IdAllocatorV2;
+    const projection = harness.projection();
+    const run = projection.runs.at(-1)!;
+    const now = yield* DateTime.now;
+    const message = "Stopped by an agent: Allow the queued replay follow-up to run.";
+    harness.setProjection({
+      ...projection,
+      turnItems: [
+        ...projection.turnItems,
+        {
+          id: idAllocator.derive.runSignalTurnItem({ runId: run.id, signal: "interrupt-request" }),
+          type: "run_interrupt_request",
+          threadId: run.threadId,
+          runId: run.id,
+          nodeId: run.rootNodeId,
+          providerThreadId: run.providerThreadId,
+          providerTurnId: null,
+          nativeItemRef: null,
+          parentItemId: null,
+          ordinal: 1,
+          status: "completed",
+          title: "Interrupt",
+          startedAt: now,
+          completedAt: now,
+          updatedAt: now,
+          message,
+        },
+      ],
+    });
+    expect(yield* controls.loadRunInterruptReason()).toBe(message);
+  }).pipe(Effect.provide(IdAllocator.layer)),
+);
