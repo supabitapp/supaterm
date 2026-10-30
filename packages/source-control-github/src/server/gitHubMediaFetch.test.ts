@@ -6,11 +6,17 @@ import { HttpClient, HttpClientResponse } from "effect/http";
 
 import * as GitHubCredentials from "./GitHubCredentials.ts";
 import * as GitHubMediaFetch from "./gitHubMediaFetch.ts";
+import * as GitHubRequestPolicy from "./GitHubRequestPolicy.ts";
+import * as GitHubAppAccess from "./GitHubAppAccess.ts";
 
 describe("GitHubMediaFetch", () => {
   it.effect("loads private media immediately after login with the GitHub credential", () => {
     let lookups = 0;
     const authorizations: Array<string | undefined> = [];
+    const credential = (host: string) =>
+      ++lookups === 1
+        ? Effect.fail(new GitHubCredentials.GitHubNotSignedInError({ host }))
+        : Effect.succeed({ token: Redacted.make("signed-in"), fingerprint: "fingerprint" });
     return Effect.gen(function* () {
       const fetchMedia = yield* GitHubMediaFetch.make;
       const request = {
@@ -24,17 +30,10 @@ describe("GitHubMediaFetch", () => {
       expect(authorizations).toEqual([undefined, "Bearer signed-in", "Bearer signed-in"]);
     }).pipe(
       Effect.provide(
-        Layer.mock(GitHubCredentials.GitHubCredentials)({
-          get: (host) =>
-            ++lookups === 1
-              ? Effect.fail(new GitHubCredentials.GitHubNotSignedInError({ host }))
-              : Effect.succeed({
-                  host,
-                  token: Redacted.make("signed-in"),
-                  source: "gh" as const,
-                  fingerprint: "fingerprint",
-                }),
-        }),
+        Layer.merge(
+          Layer.mock(GitHubRequestPolicy.GitHubRequestPolicy)({ credential }),
+          Layer.mock(GitHubAppAccess.GitHubAppAccess)({ credentialFor: credential }),
+        ),
       ),
       Effect.provideService(
         HttpClient.HttpClient,
@@ -70,15 +69,16 @@ describe("GitHubMediaFetch", () => {
       ]);
     }).pipe(
       Effect.provide(
-        Layer.mock(GitHubCredentials.GitHubCredentials)({
-          get: (host) =>
-            Effect.succeed({
-              host,
-              token: Redacted.make("signed-in"),
-              source: "gh" as const,
-              fingerprint: "fingerprint",
-            }),
-        }),
+        Layer.merge(
+          Layer.mock(GitHubRequestPolicy.GitHubRequestPolicy)({
+            credential: () =>
+              Effect.succeed({
+                token: Redacted.make("signed-in"),
+                fingerprint: "fingerprint",
+              }),
+          }),
+          Layer.mock(GitHubAppAccess.GitHubAppAccess)({}),
+        ),
       ),
       Effect.provideService(
         HttpClient.HttpClient,

@@ -1,4 +1,5 @@
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import { afterEach, beforeEach, describe, expect, it, vi } from "@effect/vitest";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
@@ -21,6 +22,8 @@ import * as GitHubClient from "../shared/definition.ts";
 import * as GitHubAppAccess from "./GitHubAppAccess.ts";
 import * as GitHubAppSignIn from "./GitHubAppSignIn.ts";
 import * as GitHubRest from "./GitHubRest.ts";
+import * as GitHubPullRequestApi from "./GitHubPullRequestApi.ts";
+import * as GitHubMediaFetch from "./gitHubMediaFetch.ts";
 
 type Reply = { readonly status?: number; readonly body: unknown };
 interface Sent {
@@ -112,7 +115,7 @@ function harness(options: {
     Layer.provideMerge(SourceControlRateLimit.layer),
     Layer.provideMerge(options.settingsWritesFail === true ? failingWrites : host),
     Layer.provide(NodeCrypto.layer),
-    Layer.provide(Layer.succeed(HttpClient.HttpClient, http)),
+    Layer.provideMerge(Layer.succeed(HttpClient.HttpClient, http)),
   );
   return { layer, requests };
 }
@@ -429,6 +432,153 @@ describe("GitHubAppSignIn", () => {
 
 describe("GitHub requests with the app sign-in", () => {
   const answerUser = (sent: Sent): Reply => ({ body: { login: sent.token ?? "anonymous" } });
+
+  it.effect.each([
+    "https://raw.githubusercontent.com/owner/repo/main/shot.png",
+    "https://media.githubusercontent.com/owner/repo/main/shot.png",
+    "https://github.com/owner/repo/assets/123/asset-id",
+  ])("loads private media with an app-only session from %s", (url) => {
+    const { layer, requests } = harness({
+      signIns: { "github.com": session() },
+      ghSignedIn: false,
+      handle: (sent) =>
+        sent.path === "/user/installations"
+          ? {
+              body: {
+                installations: [
+                  { id: 1, repository_selection: "all", account: { login: "owner" } },
+                ],
+              },
+            }
+          : { status: sent.token === "ghu_current" ? 200 : 404, body: {} },
+    });
+    return Effect.gen(function* () {
+      const fetchMedia = yield* GitHubMediaFetch.make;
+      const response = yield* fetchMedia({
+        url,
+        headers: {},
+      });
+      expect(response?.status).toBe(200);
+      expect(
+        requests.filter((sent) => sent.host === new URL(url).host).map((sent) => sent.token),
+      ).toEqual(["ghu_current"]);
+    }).pipe(Effect.provide(layer), Effect.scoped);
+  });
+
+  it.effect("loads repository media with the personal fallback outside app coverage", () => {
+    const { layer, requests } = harness({
+      signIns: { "github.com": session() },
+      handle: (sent) =>
+        sent.path === "/user/installations"
+          ? { body: { installations: [] } }
+          : { status: sent.token === "gh-token" ? 200 : 404, body: {} },
+    });
+    return Effect.gen(function* () {
+      const fetchMedia = yield* GitHubMediaFetch.make;
+      const response = yield* fetchMedia({
+        url: "https://raw.githubusercontent.com/owner/repo/main/shot.png",
+        headers: {},
+      });
+      expect(response?.status).toBe(200);
+      expect(
+        requests
+          .filter((sent) => sent.host === "raw.githubusercontent.com")
+          .map((sent) => sent.token),
+      ).toEqual(["gh-token"]);
+    }).pipe(Effect.provide(layer), Effect.scoped);
+  });
+
+  it.effect("uses the app for media before personal credentials and strips it on redirects", () => {
+    vi.stubEnv("GH_TOKEN", "personal-account-token");
+    const { layer, requests } = harness({
+      signIns: { "github.com": session() },
+      handle: () => ({ body: {} }),
+    });
+    const mediaHttp = HttpClient.make((request) => {
+      const url = new URL(request.url);
+      const token = request.headers.authorization;
+      return Effect.succeed(
+        HttpClientResponse.fromWeb(
+          request,
+          url.hostname === "github.com"
+            ? new Response(null, {
+                status: token === "Bearer ghu_current" ? 302 : 403,
+                headers: { location: "https://objects.example.com/signed" },
+              })
+            : new Response(null, { status: token === undefined ? 200 : 403 }),
+        ),
+      );
+    });
+    return Effect.gen(function* () {
+      const fetchMedia = yield* GitHubMediaFetch.make.pipe(
+        Effect.provideService(HttpClient.HttpClient, mediaHttp),
+      );
+      const response = yield* fetchMedia({
+        url: "https://github.com/user-attachments/assets/1a1842fb",
+        headers: {},
+      });
+      expect(response?.status).toBe(200);
+      expect(requests).toEqual([]);
+    }).pipe(Effect.provide(layer), Effect.scoped);
+  });
+
+  it.effect("ignores stored app sessions for media when app sign-in is not configured", () => {
+    vi.stubEnv(GitHubAppSignIn.CLIENT_ID_VARIABLE, "");
+    const { layer } = harness({
+      signIns: { "github.com": session() },
+      handle: (sent) => ({ status: sent.token === "gh-token" ? 200 : 403, body: {} }),
+    });
+    return Effect.gen(function* () {
+      const fetchMedia = yield* GitHubMediaFetch.make;
+      const response = yield* fetchMedia({
+        url: "https://raw.githubusercontent.com/owner/repo/main/shot.png",
+        headers: {},
+      });
+      expect(response?.status).toBe(200);
+    }).pipe(Effect.provide(layer), Effect.scoped);
+  });
+
+  it.effect("verifies the personal account for a repository outside app coverage", () => {
+    const { layer, requests } = harness({
+      signIns: { "github.com": session() },
+      handle: (sent) =>
+        sent.path === "/user/installations"
+          ? { body: { installations: [] } }
+          : {
+              body:
+                sent.token === "ghu_current"
+                  ? { id: 101, login: "app-account" }
+                  : { id: 202, login: "personal-account" },
+            },
+    });
+    return Effect.gen(function* () {
+      const api = yield* GitHubPullRequestApi.make.pipe(Effect.provide(NodeServices.layer));
+      const host = { cwd: "/repo", host: "github.com" };
+      const repository = { ...host, repository: "acme/uncovered" };
+      expect(yield* api.getRoutingIdentity(host)).toEqual({
+        accountId: "101",
+        viewer: "app-account",
+      });
+      expect(yield* api.getRoutingIdentity(repository)).toEqual({
+        accountId: "202",
+        viewer: "personal-account",
+      });
+      const held = yield* api.withVerifiedCredential(repository, (identity) =>
+        Effect.gen(function* () {
+          const rest = yield* GitHubRest.GitHubRest;
+          const response = yield* rest.rest({ host: host.host, operation: "test", path: "user" });
+          return { identity, response: JSON.parse(response.body) };
+        }),
+      );
+      expect(held.identity.accountId).toBe("202");
+      expect(held.response).toEqual({ id: 202, login: "personal-account" });
+      expect(requests.filter((sent) => sent.path === "/user").map((sent) => sent.token)).toEqual([
+        "ghu_current",
+        "gh-token",
+        "gh-token",
+      ]);
+    }).pipe(Effect.provide(layer), Effect.scoped);
+  });
 
   it.effect("uses the app before GH_TOKEN and gh, and a saved token before the app", () => {
     vi.stubEnv("GH_TOKEN", "from-env");

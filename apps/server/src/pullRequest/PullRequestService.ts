@@ -1552,6 +1552,7 @@ export const make = Effect.gen(function* () {
     }
     const identity = yield* api
       .getRoutingIdentity({
+        ...input,
         cwd: project.project.workspaceRoot,
         host,
       })
@@ -1598,6 +1599,7 @@ export const make = Effect.gen(function* () {
       .getRoutingIdentity({
         cwd: project.project.workspaceRoot,
         host: project.host,
+        repository: project.repository,
       })
       .pipe(Effect.mapError(toPullRequestError("routeIdentity")));
     if (!identity.viewer.trim() || !identity.accountId.trim()) {

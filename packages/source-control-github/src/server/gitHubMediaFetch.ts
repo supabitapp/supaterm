@@ -10,7 +10,8 @@ import {
 
 import { GITHUB_CREDENTIALED_MEDIA_HOSTS } from "../shared/gitHubMedia.ts";
 
-import * as GitHubCredentials from "./GitHubCredentials.ts";
+import * as GitHubRequestPolicy from "./GitHubRequestPolicy.ts";
+import * as GitHubAppAccess from "./GitHubAppAccess.ts";
 
 const isCredentialedHost = (url: string) => {
   try {
@@ -20,20 +21,38 @@ const isCredentialedHost = (url: string) => {
   }
 };
 
+const mediaRepository = (url: string) => {
+  const parsed = URL.parse(url);
+  if (parsed === null) return null;
+  const [, owner, repository, kind] = parsed.pathname.split("/");
+  const repositoryFile =
+    parsed.hostname === "raw.githubusercontent.com" ||
+    parsed.hostname === "media.githubusercontent.com";
+  const repositoryAsset =
+    (parsed.hostname === "github.com" || parsed.hostname === "www.github.com") && kind === "assets";
+  return (repositoryFile || repositoryAsset) && owner && repository
+    ? `${owner}/${repository}`
+    : null;
+};
+
 const MAX_REDIRECTS = 3;
 const MANUAL_REDIRECT: RequestInit = { redirect: "manual" };
 
 export const make = Effect.gen(function* () {
-  const credentials = yield* GitHubCredentials.GitHubCredentials;
+  const policy = yield* GitHubRequestPolicy.GitHubRequestPolicy;
+  const appAccess = yield* GitHubAppAccess.GitHubAppAccess;
   const httpClient = HttpClient.withScope(yield* HttpClient.HttpClient);
 
-  const token = Effect.suspend(() => credentials.get("github.com")).pipe(
-    Effect.map((credential) => credential.token),
-    Effect.orElseSucceed(() => null),
-  );
-
   return Effect.fn("GitHubMediaFetch.fetchMedia")(function* (request: SourceControlMediaRequest) {
-    const bearer = yield* token;
+    const repository = mediaRepository(request.url);
+    const bearer = yield* (
+      repository === null
+        ? policy.credential("github.com")
+        : appAccess.credentialFor("github.com", repository)
+    ).pipe(
+      Effect.map((credential) => credential.token),
+      Effect.orElseSucceed(() => null),
+    );
     let target = request.url;
     for (let hop = 0; ; hop += 1) {
       const authorization =

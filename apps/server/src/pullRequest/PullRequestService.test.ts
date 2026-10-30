@@ -1114,7 +1114,11 @@ it.effect("routing verifies the current account on the requested host without ca
       providers: [
         fakePullRequestProvider(SourceControlProviderKind.make("github"), {
           getRoutingIdentity: (input) => {
-            assert.deepStrictEqual(input, { cwd: "/a", host: "github.example.test" });
+            assert.deepStrictEqual(input, {
+              cwd: "/a",
+              host: "github.example.test",
+              repository: "acme/web",
+            });
             return Effect.succeed({
               viewer,
               accountId: viewer === "first-account" ? "123" : "456",
@@ -1140,6 +1144,53 @@ it.effect("routing verifies the current account on the requested host without ca
     if (failure._tag === "PullRequestOperationError") {
       assert.strictEqual(failure.operation, "routeIdentity");
     }
+  }),
+);
+
+it.effect("routes with the account selected for the repository before verifying execution", () =>
+  Effect.gen(function* () {
+    const personalIdentity = { accountId: "202", viewer: "personal-account" };
+    const appIdentity = { accountId: "101", viewer: "app-account" };
+    let executions = 0;
+    const service = yield* makeService({
+      projects: [
+        project({ id: "p1", title: "web", workspaceRoot: "/a", repository: "acme/uncovered" }),
+      ],
+      providers: [
+        fakePullRequestProvider(SourceControlProviderKind.make("github"), {
+          getRoutingIdentity: (input) =>
+            Effect.succeed(input.repository === "acme/uncovered" ? personalIdentity : appIdentity),
+          withVerifiedCredential: (_, use) =>
+            use({ ...personalIdentity, credentialFingerprint: "personal-token" }),
+        }),
+      ],
+    });
+    const reference = {
+      projectId: "p1" as ProjectId,
+      repository: "acme/uncovered",
+      number: 1,
+      host: "github.com",
+    };
+    const route = yield* service.routing(reference);
+    const result = yield* service.withRoutingCredential(
+      { ...reference, expectedAccountId: route.accountId },
+      Effect.sync(() => ++executions),
+    );
+    assert.strictEqual(route.accountId, personalIdentity.accountId);
+    const identityRequest = { host: "github.com", repository: "acme/uncovered" };
+    assert.strictEqual(
+      (yield* service.routingIdentity(identityRequest)).accountId,
+      personalIdentity.accountId,
+    );
+    assert.strictEqual(result, 1);
+    const rejected = yield* service
+      .withRoutingCredential(
+        { ...reference, expectedAccountId: appIdentity.accountId },
+        Effect.sync(() => ++executions),
+      )
+      .pipe(Effect.flip);
+    assert.strictEqual(rejected._tag, "PullRequestOperationError");
+    assert.strictEqual(executions, 1);
   }),
 );
 

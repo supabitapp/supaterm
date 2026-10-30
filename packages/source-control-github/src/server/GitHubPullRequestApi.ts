@@ -422,6 +422,7 @@ export class GitHubPullRequestApi extends Context.Service<
     readonly getRoutingIdentity: (input: {
       readonly cwd: string;
       readonly host: string;
+      readonly repository?: string;
     }) => Effect.Effect<
       { readonly accountId: string; readonly viewer: string },
       GitHubPullRequestApiError
