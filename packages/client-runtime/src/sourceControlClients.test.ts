@@ -1,8 +1,18 @@
-import { ProjectId, SourceControlProviderKind } from "@supaterm/contracts";
+import {
+  ProjectId,
+  SourceControlAppAccessInput,
+  SourceControlAppSignIn,
+  SourceControlProviderKind,
+} from "@supaterm/contracts";
+import * as Schema from "effect/Schema";
 import { describe, expect, it } from "vite-plus/test";
 
 import { appSignInTargetForRemote, sourceControlClients } from "./sourceControlClients.ts";
 import { normalizeThreadPullRequestKey } from "./threadPullRequests.ts";
+
+const decodeAppSignIn = Schema.decodeUnknownSync(SourceControlAppSignIn);
+const encodeAppAccessInput = Schema.encodeSync(SourceControlAppAccessInput);
+const decodeAppAccessInput = Schema.decodeUnknownSync(SourceControlAppAccessInput);
 
 const parse = (url: string) => {
   const parsed = sourceControlClients.parseChangeRequestUrl(url);
@@ -402,5 +412,34 @@ describe("appSignInTargetForRemote", () => {
   it("skips hosts the app is not registered on", () => {
     expect(appSignInTargetForRemote("https://ghe.acme.test/acme/web.git", discovery)).toBeNull();
     expect(appSignInTargetForRemote("https://gitlab.com/acme/web.git", discovery)).toBeNull();
+  });
+
+  it("keeps a configured HTTPS port through app-access discovery and its wire contract", () => {
+    const appSignIn = decodeAppSignIn({
+      appName: "Workspace Access",
+      hosts: ["github.example.com:8443"],
+      installUrl: "https://github.example.com:8443/apps/workspace-access/installations/new",
+      revokeUrl: "https://github.example.com:8443/settings/installations",
+    });
+    const remote = "https://github.example.com:8443/Team/Repo.git";
+    const target = appSignInTargetForRemote(remote, [
+      { kind: SourceControlProviderKind.make("github"), appSignInMetadata: appSignIn },
+    ]);
+    expect(target).not.toBeNull();
+    if (target === null) return;
+    const encoded = encodeAppAccessInput(target.input);
+    expect(decodeAppAccessInput(encoded)).toEqual({
+      provider: "github",
+      host: "github.example.com:8443",
+      repository: "Team/Repo",
+    });
+    expect(
+      appSignInTargetForRemote(remote, [
+        {
+          kind: SourceControlProviderKind.make("github"),
+          appSignInMetadata: { ...appSignIn, hosts: ["github.example.com"] },
+        },
+      ]),
+    ).toBeNull();
   });
 });

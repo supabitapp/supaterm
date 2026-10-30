@@ -189,7 +189,9 @@ export function parseGitRemoteRepository(
       const url = new URL(normalized);
       const repositorySegments = url.pathname.split("/").filter((segment) => segment.length > 0);
       if (url.hostname && repositorySegments.length > 1) {
-        return { host: url.hostname, path: repositorySegments.join("/") };
+        const host =
+          url.protocol === "http:" || url.protocol === "https:" ? url.host : url.hostname;
+        return { host, path: repositorySegments.join("/") };
       }
     } catch {
       return null;
@@ -205,10 +207,9 @@ export function parseGitRemoteRepository(
 
 export function normalizeGitRemoteUrl(value: string): string {
   const repository = parseGitRemoteRepository(value);
-  return repository === null
-    ? lowerCaseRemote(value)
-    : (azureDevOpsRepositoryKey(repository.host, repository.path.split("/")) ??
-        `${repository.host}/${repository.path}`);
+  if (repository === null) return lowerCaseRemote(value);
+  const host = repository.host.replace(/:\d+$/, "");
+  return azureDevOpsRepositoryKey(host, repository.path.split("/")) ?? `${host}/${repository.path}`;
 }
 
 export type GitRemoteDirection = "fetch" | "push";
