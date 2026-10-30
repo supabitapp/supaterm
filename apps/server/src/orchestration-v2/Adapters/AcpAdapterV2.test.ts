@@ -3384,8 +3384,8 @@ describe("AcpAdapterV2", () => {
       }).pipe(Effect.provide(layerTest), Effect.scoped),
   );
 
-  // Oracle: #13457. Grok expands only a leading `/name`, so a picked leading `$name`
-  // must reach it in that form; anything else keeps the user's text.
+  // Grok expands only a leading `/name`, so a picked leading `$name` must reach it in that
+  // form; anything else keeps the user's text.
   it.live.each([
     { text: "$deploy ship it", sent: "/deploy ship it", native: true },
     { text: "ship $deploy", sent: "ship $deploy", native: false },
@@ -3467,8 +3467,8 @@ describe("AcpAdapterV2", () => {
     }).pipe(Effect.provide(layerTest), Effect.scoped),
   );
 
-  // Oracle: #15888 KillTask reports. Command completion must release the turn even
-  // when the CLI keeps the prompt RPC and process alive. Kill calls stay visible.
+  // Command completion must release the turn even when the CLI keeps the prompt RPC and
+  // process alive, as KillTask reports show. Kill calls stay visible.
   it.live.each([
     { shape: "output_only", expectedCommand: { type: "command_execution", status: "completed" } },
     { shape: "variant_only", expectedCommand: { type: "command_execution", status: "completed" } },

@@ -257,11 +257,9 @@ const config: ExpoConfig = {
             EXDevMenuShowFloatingActionButton: false,
           }
         : {}),
-      // The App Store screenshot harness rotates the iPad interface from
-      // inside the app (CI denies osascript the Accessibility access that
-      // Simulator menu scripting needs), and iPadOS ignores programmatic
-      // orientation requests for multitasking-capable apps — so the capture
-      // build opts out of multitasking and declares landscape support.
+      // The screenshot harness rotates the iPad from inside the app (CI denies osascript
+      // Accessibility access), and iPadOS ignores programmatic orientation requests from
+      // multitasking-capable apps, so the capture build opts out of multitasking.
       ...(process.env.SUPATERM_SHOWCASE_CAPTURE_BUILD === "1"
         ? {
             "UISupportedInterfaceOrientations~ipad": [
@@ -382,12 +380,9 @@ const config: ExpoConfig = {
         android: {
           // Keep the supported floor explicit.
           minSdkVersion: 24,
-          // kotlinx-io uses Kotlin 2.3's return-value checker annotation, while
-          // SDK 58 builds with Kotlin 2.2. It has no runtime behavior.
-          // WorkManager 2.9 keeps InputMerger classes but not their constructors,
-          // and R8 full mode no longer keeps a default constructor implicitly.
-          // Without it no work request can start, so the Glance session behind
-          // the widget never renders and it stays on "Loading widget".
+          // kotlinx-io uses Kotlin 2.3's annotation-only return-value checker; SDK 58 is on 2.2.
+          // R8 full mode strips WorkManager 2.9's InputMerger constructors, so no work request
+          // starts and the widget stays on "Loading widget".
           extraProguardRules: [
             "-dontwarn kotlin.MustUseReturnValues",
             "-keep class * extends androidx.work.InputMerger { <init>(); }",

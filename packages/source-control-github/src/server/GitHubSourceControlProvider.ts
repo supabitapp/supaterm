@@ -291,11 +291,9 @@ export const make = Effect.gen(function* () {
     api.rest(input).pipe(Effect.mapError((error) => fromGitHubApiError(error, notFoundDetail)));
 
   /**
-   * Head lookups to one host under one credential share aliased documents: the resolver batches by
-   * the host's endpoint and `batchKey`. Each lookup has its own `repository` root, so lookups on
-   * different repositories may share a document, and a repository GitHub cannot find fails only
-   * its own. Interactive and background lookups never share one, since they use separate
-   * resolvers, so a document is sent under one reserve setting.
+   * Lookups to one host under one credential share aliased documents, each with its own
+   * `repository` root, so a repository GitHub cannot find fails only its own lookup. Interactive
+   * and background lookups use separate resolvers, so a document has one reserve setting.
    */
   const headResolver = GraphQLResolver.aliased(client.PullRequestsByHead, {
     batchKey: GitHubGraphQlClient.batchKey,
@@ -633,11 +631,9 @@ export const make = Effect.gen(function* () {
 
   return SourceControlProvider.SourceControlProvider.of({
     kind: SourceControlProviderKind.make("github"),
-    // `gh pr list --head` filters on the head ref name alone and accepts anything, so an
-    // `owner:branch` or `remote:branch` selector silently lists zero pull requests while
-    // spending a GraphQL call; the bare branch is always among the selectors. Without the owner,
-    // a bare branch also lists same-named branches on other forks (`main`, `patch-1`), so read a
-    // full page and let the owner check pick the right head.
+    // `gh pr list --head` matches the ref name alone, so an `owner:branch` selector silently
+    // lists nothing while spending a GraphQL call. A bare branch also lists same-named branches
+    // on other forks, so read a full page and let the owner check pick the right head.
     headBranchProbe: ({ headSelectors }) => ({
       headSelectors: headSelectors.filter((selector) => !selector.includes(":")),
       limit: 100,

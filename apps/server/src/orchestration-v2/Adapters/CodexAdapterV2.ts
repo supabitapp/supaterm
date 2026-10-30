@@ -6036,11 +6036,9 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                   status: input.status,
                   completedAt: input.completedAt,
                 });
-                // Codex does not wake a parent whose turn already completed, so
-                // the child's result would sit unread until the next message.
-                // Only direct children of a root turn wake it: a grandchild
-                // reports to its own parent, and a root turn already running on
-                // the thread receives the result natively.
+                // Codex does not wake a parent whose turn already completed. Only direct
+                // children of a root turn wake it: a grandchild reports to its own parent,
+                // and a root turn already running receives the result natively.
                 const parent = input.context.subagent.parentContext;
                 if (
                   continuationRequests !== undefined &&

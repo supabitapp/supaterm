@@ -1104,11 +1104,8 @@ const ConversationTimeline = memo(function ConversationTimeline({
     contentInsetEndAdjustment,
   });
 
-  // Each row carries its own provider. LegendList moves rows into their
-  // containers one commit after this component renders, so a provider around
-  // the list would re-render the outgoing thread's rows with the incoming
-  // thread's context just before they unmount. extraData hands a changed
-  // sharedState to the rows that stay.
+  // Each row carries its own provider: LegendList moves rows one commit late, so a provider around
+  // the list would re-render the outgoing thread's rows with the incoming thread's context.
   const renderItem = ({ item }: { item: MessagesTimelineRow }) => (
     <TimelineRowCtx value={sharedState}>
       <div className="messages-timeline-row-frame">

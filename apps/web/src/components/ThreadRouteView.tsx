@@ -30,12 +30,9 @@ import {
 } from "../threadRoutes";
 
 /**
- * Plain server threads are unkeyed, so navigating between them reuses one instance as ChatView
- * expects. Each chat pane renders one, from the `_chat` layout rather than the two leaf routes,
- * since an element only survives a route swap when the same parent renders it.
- *
- * The focused pane follows the URL. A pane in the background changes its own thread instead,
- * so a draft promoting or a thread disappearing behind the user never moves the URL.
+ * Unkeyed, and rendered from the `_chat` layout rather than the leaf routes, so navigating between
+ * server threads reuses one ChatView instance. Only the focused pane follows the URL; a background
+ * pane changes its own thread, so a draft promoting behind the user never moves the URL.
  */
 export function ThreadRouteView({ target, paneId }: { target: ThreadRouteTarget; paneId: string }) {
   const navigate = useNavigate();

@@ -1,15 +1,7 @@
 /**
- * `supaterm triage` - hand a misbehaving install to the user's own coding agent.
- *
- * The command is deliberately thin: it writes a `context.md` with machine facts
- * (versions, paths, server liveness), then launches claude or codex
- * interactively, seeded with the playbook from `triagePrompt.ts`. The agent
- * asks the user what went wrong, investigates, and files the issue; the
- * harness's own permission prompts gate anything it wants to run. With no
- * agent CLI installed, the prompt and context are written to disk for the user
- * to paste into whatever agent they do have. `--print` writes nothing and starts
- * nothing: it prints the prompt with the context inline, for an agent that is
- * already running on this machine.
+ * `supaterm triage` hands a misbehaving install to the user's own coding agent. It stays thin:
+ * machine facts go to `context.md` and the agent starts with the `triagePrompt.ts` playbook,
+ * its own permission prompts gating what it runs. Without an agent CLI both are left on disk.
  */
 // @effect-diagnostics nodeBuiltinImport:off
 import * as NodeChildProcess from "node:child_process";

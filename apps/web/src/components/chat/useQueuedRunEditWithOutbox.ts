@@ -16,11 +16,8 @@ import { useQueuedRunEdit } from "./useQueuedRunEdit";
 import { usePaneInputOwner, usePaneThreadNavigation } from "../../chatPanes/paneScope";
 
 /**
- * Queued-run editing plus editing a message still waiting in the thread outbox.
- * Both edit in the composer, so starting either cancels the other, and the
- * composer-facing fields follow whichever edit is open. `isEditing`,
- * `editingRunId`, `cancelEdit` and `saveEdit` stay the queued run's; `outbox`
- * drives the outbox edit.
+ * Queued-run and outbox-message edits share the composer, so starting either cancels the other.
+ * `isEditing`, `editingRunId`, `cancelEdit` and `saveEdit` stay the queued run's.
  */
 export function useQueuedRunEditWithOutbox(input: Parameters<typeof useQueuedRunEdit>[0]) {
   const queuedRunEdit = useQueuedRunEdit(input);

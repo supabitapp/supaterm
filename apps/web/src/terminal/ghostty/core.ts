@@ -177,11 +177,8 @@ function sameColor(left: GhosttyColor, right: GhosttyColor): boolean {
 }
 
 /**
- * A terminal program can print one base character followed by a huge run of
- * combining marks, packing hundreds of thousands of codepoints into a single
- * cell that still fits the scrollback buffer. Engines cap spread-call
- * arguments far below that, so convert in bounded chunks instead of spreading
- * every codepoint into String.fromCodePoint at once.
+ * A run of combining marks can pack hundreds of thousands of codepoints into one
+ * cell, far past engines' spread-argument caps, so convert in bounded chunks.
  */
 export function ghosttyCellText(codepointView: DataView, graphemeLength: number): string {
   if (graphemeLength === 1) return String.fromCodePoint(codepointView.getUint32(0, true));

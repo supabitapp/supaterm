@@ -134,11 +134,9 @@ export const ACP_PROTOCOL = "acp.ndjson-jsonrpc" as const;
 const ACP_DEFERRED_FINALIZE_DEBOUNCE: Duration.Input = "3000 millis";
 
 /**
- * Coalescing window for streamed text. A text segment's first chunk and its
- * close emit at once; a later chunk schedules one full-text snapshot this long
- * after it, and the chunks inside the window share it instead of each emitting
- * the whole reply, which grew with the square of the reply length. The flush
- * is scheduled, not a hard deadline, so it can land later under host load.
+ * A segment's first chunk and close emit at once; later chunks inside this window
+ * share one full-text snapshot instead of each emitting the whole reply, which grew
+ * with the square of its length. The flush is scheduled, not a hard deadline.
  */
 const ACP_TEXT_FLUSH_INTERVAL: Duration.Input = "50 millis";
 
@@ -1898,29 +1896,22 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
         // Direct Stop (requestRuntimeRestart) quarantines residual events from the
         // stopped run so they cannot wake or attach to a later prompt/run.
         const stoppedRunQuarantine = yield* Ref.make(false);
-        // A steering restart (or any interrupt) can finalize a turn while its
-        // spawned subagents are still running natively. Carry the live
-        // lineages into the next turn on the same session so their terminal
-        // signals can still flip the original turn items instead of leaving
-        // them running forever.
+        // An interrupt can finalize a turn while its subagents still run natively. Carry the
+        // live lineages into the next turn so their terminal signals still settle the
+        // original turn items instead of leaving them running forever.
         const carryoverSubagents = yield* Ref.make<AcpCarryoverSubagents | null>(null);
         const handledBackgroundTaskIdsInActiveTurn = yield* Ref.make<ReadonlySet<string>>(
           new Set(),
         );
         const midTurnUnreportedCompletedTaskIds = yield* Ref.make<ReadonlySet<string>>(new Set());
-        // A monitor-event can arrive after its task and the user-facing provider
-        // turn already completed. Grok starts another internal prompt for that
-        // stale notification; suppress its agent output until a genuine terminal
-        // mutation or the next app turn so it cannot create a redundant app
-        // continuation.
+        // Grok starts an internal prompt for a monitor-event that lands after its task and
+        // turn completed. Suppress that output until a genuine terminal mutation or the next
+        // app turn so it cannot create a redundant continuation.
         const suppressPostSettleMonitorPrompt = yield* Ref.make(false);
         const runningBackgroundTaskIds = yield* Ref.make<ReadonlySet<string>>(new Set());
-        // Normalized tool statuses are not genuine: Grok Bash re-reports carry
-        // exit_code 0 mid-stream. A straggler monitor-event can land after the
-        // real end (the CLI keeps streaming while the agent already consumed
-        // the output via get_command_or_subagent_output); without the tombstone
-        // it would resurrect the running set and pin offers/idle-release
-        // forever.
+        // Normalized statuses lie: Grok Bash re-reports carry exit_code 0 mid-stream, and a
+        // straggler monitor-event can land after the real end. Without the tombstone it would
+        // resurrect the running set and pin offers and idle-release forever.
         const endedBackgroundTaskIds = yield* Ref.make<ReadonlySet<string>>(new Set());
         const endedBackgroundTaskIdLimit = 128;
 
@@ -4692,11 +4683,9 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
               return;
             }
             const bufferOutcome = yield* bufferPostSettleWake(notification);
-            // A completed root keeps its subscriber open while background items
-            // remain, so project its terminals immediately even when the wake
-            // frame is buffered for a continuation. Non-completed roots stay
-            // memory-only: durable ingest requires a subscriber that owns the
-            // original runId, which the interrupted path does not guarantee.
+            // A completed root keeps its subscriber open while background items remain, so its
+            // terminals project even when the wake is buffered. Other roots stay memory-only:
+            // durable ingest needs a subscriber owning the original runId.
             const carryover = yield* Ref.get(carryoverSubagents);
             const rootTerminalCanStillProject =
               carryover !== null &&
@@ -6744,12 +6733,9 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           const configSelections = hasNativeConfigWithSyntheticModeId
             ? optionSelections
             : optionSelections.filter((selection) => selection.id !== ACP_SESSION_MODE_OPTION_ID);
-          // Probe-time descriptors are a per-model union, so a stored
-          // selection can reference an option the live session does not
-          // expose (Kilo advertises per-model "effort" descriptors while its
-          // session config omits them). Failing the open here wedges the run
-          // in a retry loop; skip like the out-of-range values below and let
-          // the agent default apply.
+          // Probe-time descriptors are a per-model union, so a stored selection can name an
+          // option the live session lacks (Kilo's "effort"). Failing the open wedges the run in
+          // a retry loop; skip it like the out-of-range values below.
           const unsupportedConfigIds = configSelections
             .map((selection) => selection.id)
             .filter((id) => !availableConfigIds.has(id));
@@ -7994,13 +7980,10 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                         flavor.preserveRuntimeOnSettledInterrupt === true &&
                         turnInput.requestRuntimeRestart !== true &&
                         interruptContext?.providerTurnId === turnInput.providerTurnId;
-                      // Settlement is read under the callback permit after
-                      // draining admitted responses: the native prompt can have
-                      // returned on the wire while its completion callback has
-                      // not yet run, and a cancel sent in that window is exactly
-                      // what settled-soft mode exists to avoid. Also treat the
-                      // turn as settled when the wire signal is already done
-                      // (non-blocking; do not await under the permit).
+                      // Read under the callback permit after draining admitted responses: the
+                      // prompt can have returned on the wire before its callback ran, and a
+                      // cancel in that window is what settled-soft mode avoids. A done wire
+                      // signal also counts; never await it under the permit.
                       let settledSoftInterrupt = false;
                       if (softSteerCandidate && interruptContext !== null) {
                         const promptSettledUnderPermit = yield* runtimeCallbackPermit.withPermit(
@@ -8040,11 +8023,9 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                       }
                       const context = interruptContext;
                       if (context?.providerTurnId !== turnInput.providerTurnId) {
-                        // A queued user Stop must still contain that orphan
-                        // runtime. With a different live turn active this stays
-                        // a pure no-op success instead: quarantine and teardown
-                        // are session-global and would maim the replacement
-                        // turn.
+                        // A queued user Stop must still contain an orphan runtime. With another
+                        // turn live this stays a no-op: quarantine and teardown are
+                        // session-global and would maim the replacement turn.
                         const containOrphanRuntime =
                           context === null &&
                           hardRestart &&

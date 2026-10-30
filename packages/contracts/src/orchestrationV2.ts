@@ -412,11 +412,9 @@ export const ThreadPinnedMessage = Schema.Struct({
 export type ThreadPinnedMessage = typeof ThreadPinnedMessage.Type;
 
 /**
- * How often the user opens a thread, for search ranking. `score` is an open
- * count that halves every two weeks, as of `openedAt`. `picks` holds the last
- * few palette queries that picked the thread, folded to lowercase, newest
- * first, each with when it was picked. Times are epoch milliseconds: ranking
- * does arithmetic on them.
+ * Search ranking input. `score` is an open count that halves every two weeks as
+ * of `openedAt`; `picks` are recent palette queries that picked the thread,
+ * lowercased, newest first. Times are epoch milliseconds because ranking does arithmetic.
  */
 export const OrchestrationV2ThreadOpens = Schema.Struct({
   openedAt: Schema.Finite,
@@ -2961,7 +2959,7 @@ export const OrchestrationV2Command = Schema.Union([
     /** Reject unless no message or run has landed on this thread. */
     expectedEmpty: Schema.optional(Schema.Boolean),
     limitRecovery: Schema.optional(Schema.NullOr(OrchestrationV2LimitRecoveryUpdate)),
-    /** Link (object) or unlink (null) a pull request (#8160); absent leaves it unchanged. */
+    /** Link (object) or unlink (null) a pull request; absent leaves it unchanged. */
     linkedPullRequest: Schema.optional(Schema.NullOr(ThreadLinkedPullRequest)),
   }),
   Schema.Struct({
@@ -3430,14 +3428,10 @@ export type OrchestrationV2SubscribeCommandOutputInput =
   typeof OrchestrationV2SubscribeCommandOutputInput.Type;
 
 /**
- * Output of one command row, separate from the thread stream so it is never
- * persisted as events and only reaches clients that show the row expanded.
- * `replace` carries the whole bounded tail (first frame, or after the client
- * fell behind); `append` extends it. Text is terminal output, not display
- * text: `replace` carries the cleaned tail plus the cursor and style escapes
- * needed to resume, and `append` carries raw chunks. Clients must feed both
- * through `appendTerminalOutput` from `@supaterm/shared/terminalOutput`.
- * The stream ends after a frame with `running: false`.
+ * Kept off the thread stream so it is never persisted and only reaches clients
+ * showing the row expanded. `replace` carries the bounded tail with resume
+ * escapes, `append` raw chunks; feed both through `appendTerminalOutput` from
+ * `@supaterm/shared/terminalOutput`. The stream ends after `running: false`.
  */
 export const OrchestrationV2CommandOutputFrame = Schema.Struct({
   kind: Schema.Literals(["replace", "append"]),

@@ -137,20 +137,10 @@ interface HomeScreenProps {
   readonly listHeader: ReactElement | undefined;
 }
 
-// v2 rows are mixed-height: done slim rows run ~60dp, single-line cards
-// measured ~74dp on device (252px on the Pixel 10 Pro screenshot), two-line
-// cards ~94dp. The estimate seeds the recycler's initial container count,
-// `ceil((scrollLength + 2 * INITIAL_DRAW_DISTANCE) / estimate)` with the
-// initial draw distance capped at 50, so an estimate at or below the average
-// row height starts the pool at or above the item count for the short lists
-// that LegendList otherwise keeps pooling to exactly its item count — that is
-// what stopped the dev-mode "no unused container available" warning on the
-// seeded short-list device passes. It is a mitigation, not an elimination:
-// after first layout the full drawDistance applies, and a sudden expansion
-// past the pooled headroom (~25+ items appearing at once) still creates a
-// container on demand with the dev-only warning one pass ahead of the
-// measured-height pool expansion. The old tallest-card estimate (~92) fired
-// that warning on every ordinary shelf expand, so the average wins.
+// Rows run ~60dp (slim) to ~94dp (two-line card). The estimate seeds the recycler's initial
+// container count, so staying at or below the average row height pools short lists past their
+// item count and avoids the dev-only "no unused container available" warning; the tallest-card
+// estimate fired it on every shelf expand.
 const ESTIMATED_THREAD_LIST_V2_ROW_HEIGHT = 72;
 // Rows away from the viewport skip their swipe actions (see
 // swipe-row-activation), so render further ahead: a fast fling then reaches
@@ -409,11 +399,8 @@ export function HomeScreen(props: HomeScreenProps) {
       ),
     ),
   );
-  // Thread List v2 (beta): one flat list in creation order, no grouping.
-  // Done threads collapse into a recency tail below the card block.
-  // Done threads stay in the live shell stream (done ≠ archived), so
-  // the partition works directly off live shells — no snapshot merging or
-  // optimistic holds.
+  // Done threads stay in the live shell stream (done is not archived), so the partition works
+  // directly off live shells with no snapshot merging or optimistic holds.
   const handleMarkThreadDone = props.onMarkThreadDone;
   const {
     onSnoozeThread,

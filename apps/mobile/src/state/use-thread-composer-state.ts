@@ -655,11 +655,8 @@ export function useThreadComposerState() {
       }
     }
 
-    // Resolved here rather than at drain time: the outbox can deliver minutes
-    // later, and the choice belongs to the moment the user pressed send.
-    // Steering travels as "auto" so a turn that ends in the meantime degrades
-    // to a queued run on the server instead of failing the delivery and
-    // bouncing the message back into the draft.
+    // Resolved at send, not drain: the outbox can deliver minutes later. Steering travels as "auto"
+    // so a turn that ends meanwhile degrades to a queued run instead of bouncing to the draft.
     // A redirect declined approvals to steer the waiting turn, not to queue behind it.
     const activeTurnDefault = beforeDispatch !== undefined ? "steer" : followUpBehavior;
     const followUpAction = resolveComposerDispatchMode({

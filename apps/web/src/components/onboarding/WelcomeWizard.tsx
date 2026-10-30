@@ -93,12 +93,8 @@ import { cn } from "../../lib/utils";
 import { formatRelativeTime } from "../../timestampFormat";
 
 /**
- * First-run welcome wizard. Rendered over the workspace at `/welcome` on a
- * fresh install (no completed-onboarding flag, empty workspace). Flow per the
- * onboarding overhaul spec: connection choice → pair →
- * managed Codex setup or an inline CLI terminal → project import → main screen.
- * Every step past the connection gate is skippable; the whole wizard is
- * re-runnable by clearing the flag.
+ * Shown at `/welcome` on a fresh install (no completed-onboarding flag, empty workspace). Every
+ * step past the connection gate is skippable; clearing the flag re-runs the wizard.
  */
 
 type WizardStep = "connection" | "agents" | "import";

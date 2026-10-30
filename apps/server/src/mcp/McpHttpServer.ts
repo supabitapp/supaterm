@@ -193,11 +193,9 @@ const layerMcpAuthMiddleware = HttpRouter.middleware<{
 }>()(makeMcpAuthMiddleware).layer;
 
 /**
- * Claude Code moves an MCP result above its output limit to a file and hands
- * the agent a notice instead, so a snapshot that carries the full accessibility
- * tree and page text loses its locators too. Claude Code also shows the model
- * `structuredContent` in place of the text blocks when a result has both, so
- * both carry the same bounded snapshot.
+ * Claude Code swaps an MCP result over its output limit for a file notice, losing the snapshot's
+ * locators, and shows `structuredContent` instead of text blocks when a result has both, so both
+ * carry the same bounded snapshot.
  */
 export const MAX_SNAPSHOT_TEXT_BYTES = 20_000;
 const MAX_SNAPSHOT_VISIBLE_TEXT_CHARS = 8_000;

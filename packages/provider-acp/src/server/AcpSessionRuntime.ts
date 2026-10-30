@@ -280,12 +280,9 @@ export function wrapCommandForLinuxCgroup(
         '[ "$actual" = "$expected" ] || exit 126',
         "unset ELECTRON_RUN_AS_NODE SUPATERM_ACP_CGROUP_WRAPPER",
         "trap 'exit 125' 0",
-        // The trap alone does not cover a failed `exec`: bash — which is
-        // /bin/sh on Arch derivatives — exits 127 without running the EXIT
-        // trap, so a missing agent binary reported "killed by the wrapper"
-        // instead of "never launched". The caller always hands us an absolute
-        // target, so test it as an executable file rather than asking the
-
+        // A failed `exec` in bash (/bin/sh on Arch derivatives) exits 127 without the EXIT
+        // trap, so a missing binary read as "killed by the wrapper". The target is always
+        // absolute, so test it as an executable file first.
         '[ -f "$1" ] && [ -x "$1" ] || { printf "%s: %s: not an executable file\\n" "$0" "$1" >&2; exit 125; }',
         'exec "$@"',
       ].join("\n"),

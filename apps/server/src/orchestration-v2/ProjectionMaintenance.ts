@@ -235,13 +235,9 @@ export const layer: Layer.Layer<
     const COMPACTION_PAGE_SIZE = 50;
 
     /**
-     * Scan newest first to retain the newest state for each entity. Keyed
-     * entities (messages, nodes, PR links) also keep their oldest event: client
-     * reducers append an entity where they first see it, so a replay from any
-     * cursor must either carry that first event or find the entity already
-     * present. Only the events in between are deleted.
-     * Page every event, including non-candidates: filtering before LIMIT could
-     * still scan the entire history when superseded events are sparse.
+     * Keyed entities keep their newest and oldest events: client reducers append an entity where
+     * they first see it, so a replay from any cursor needs that first event. Page every event, as
+     * filtering before LIMIT scans all history when superseded events are sparse.
      * turn-item.updated stays intact because replay assigns positions on first write.
      */
     const compactEventStore = Effect.gen(function* () {

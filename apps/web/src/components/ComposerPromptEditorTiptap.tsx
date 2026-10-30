@@ -1495,12 +1495,9 @@ function ComposerPromptEditorTiptapInner(
     editorHolder.current = editor;
   }, [editor]);
 
-  // Tiptap forwards option changes to the view from a passive effect, so a
-  // class change here would reach the ProseMirror element one tick after
-  // React commits. The chat composer measures its resting and expanded
-  // geometry in layout effects that run first, and it clamps the prompt
-  // through `className`, so the attributes are pushed to the view here for
-  // those measurements to see the layout they are about to reserve for.
+  // Tiptap forwards option changes from a passive effect, one tick after React commits. The
+  // composer measures its geometry in layout effects that run first and clamps the prompt through
+  // `className`, so push the attributes here for those measurements to see them.
   useLayoutEffect(() => {
     if (!editor?.isInitialized) return;
     editor.view.setProps({ attributes: editorAttributes });

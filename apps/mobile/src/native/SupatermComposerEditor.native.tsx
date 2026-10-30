@@ -329,11 +329,9 @@ export function ComposerEditor({
             event.nativeEvent.selection,
           );
           if (acknowledgedEventCount === false) return;
-          // Android emits the selection change mid-mutation, before the change
-          // event, so the payload can carry post-edit text. It must reach the
-          // parent alongside the acknowledged revision, or the next render
-          // stamps the stale draft at that revision and can re-apply it over
-          // the newer native text.
+          // Android emits the selection change before the change event, carrying post-edit text.
+          // It must reach the parent with the acknowledged revision, or the next render stamps
+          // the stale draft at that revision over the newer native text.
           if (event.nativeEvent.value !== props.value) {
             onChangeText(event.nativeEvent.value);
           }

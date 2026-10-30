@@ -504,7 +504,7 @@ describe("buildThreadListV2Items", () => {
       now: NOW,
     });
 
-    // Since #7969 a done thread leaves the active block even while pinned;
+    // A done thread leaves the active block even while pinned;
     // the pin re-applies when the thread is un-done.
     expect(layout.items.map((item) => item.thread.id)).toEqual(["active", "pinned-done"]);
     expect(layout.items.map((item) => item.pinned)).toEqual([false, false]);
@@ -2237,12 +2237,8 @@ describe("thread list v2 minute tick invalidation", () => {
           invalidated.push(atStart[index]!.key);
         }
       }
-      // The ready row draws a minute-granular time and carries the snooze
-      // menu, and the done slim row's swipe-revealed snooze menu shows
-      // preset times too, so both rows' menu content moved. Every other row
-      // — the approval card (status label, never snoozable), the snoozed
-      // shelf row ("2h" unchanged, Wake only), the shelf headers, and the
-      // queued row — survives the tick untouched.
+      // Only the ready and done rows show minute-granular text (time label or snooze presets);
+      // every other row survives the tick untouched.
       expect(invalidated).toEqual([
         `v2-thread:${environmentId}:tick-ready`,
         `v2-thread:${environmentId}:tick-done`,

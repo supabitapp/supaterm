@@ -258,18 +258,10 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
   const confirmQueued = (message: Message): Promise<boolean> =>
     serialize(async () => currentMessages().some((candidate) => candidate === message));
 
-  // Rewrites an already-queued message. A no-op when the message has been
-  // removed in the meantime (e.g. deleted or delivered), so a trailing editor
-  // flush can never resurrect it. Returns whether the message was updated.
-  //
-  // `expectedRevision` makes the update a compare-and-set: pass the revision
-  // read before starting slow work, and the update is rejected before the
-  // stale payload is persisted when any other write was accepted since. An
-  // enqueue can still publish synchronously while the durable write below is
-  // in flight, so the revision is re-checked after the write too; the stale
-  // payload it just persisted is then overwritten with the winning payload
-  // inside this mutation, so a crash before the winner's own serialized write
-  // cannot leave stale state on disk.
+  // A no-op once the message is gone, so a trailing editor flush cannot resurrect it.
+  // `expectedRevision` makes it a compare-and-set, re-checked after the durable write
+  // because an enqueue can publish during it; the winner is then rewritten here, so a
+  // crash before its own write cannot leave stale state on disk.
   const update = (
     message: Message,
     expectedRevision?: number,
@@ -322,11 +314,9 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
       return true;
     });
 
-  // `expectedRevision` makes the removal a compare-and-set too: an edit
-  // accepted after the caller decided to remove (restore-to-composer reads
-  // the payload it is about to delete) keeps the newer message queued.
-  // `canRemove` adds a live ownership check for state such as an open editor,
-  // which can change without writing a new message revision.
+  // `expectedRevision` keeps an edit accepted after the caller decided to remove queued.
+  // `canRemove` adds a live ownership check for state such as an open editor, which can
+  // change without writing a new message revision.
   const remove = (
     message: Message,
     expectedRevision?: number,

@@ -171,12 +171,9 @@ function publishPushFailureDetail(input: {
 }
 
 /**
- * Adding a project clones over SSH for most hosts, and a machine with no SSH
- * key there would fail every time, while the host's HTTPS credential helper
- * may be set up. A clone whose SSH login was refused is retried once over
- * HTTPS, unless the caller asked for SSH. A looked-up repository has the
- * provider's own HTTPS URL; any other URL is rewritten, which is refused
- * where it would have to guess.
+ * A machine with no SSH key for the host may still have its HTTPS credential helper, so a clone
+ * whose SSH login was refused retries once over HTTPS unless the caller asked for SSH. URLs other
+ * than a looked-up repository's own HTTPS URL are rewritten, or refused where that would guess.
  */
 function httpsFallbackUrl(
   input: SourceControlCloneRepositoryInput,
@@ -204,7 +201,7 @@ function selectRemoteUrl(
   }
 }
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const config = yield* ServerConfig.ServerConfig;
   const fileSystem = yield* FileSystem.FileSystem;
@@ -439,11 +436,9 @@ export const make = Effect.gen(function* () {
     destinationPath: string,
   ) {
     const normalized = yield* normalizeDestinationPath(destinationPath);
-    // Only what git left behind may go. The destination was empty when the
-    // clone started, so anything without a `.git` inside was put there by
-    // someone else since; refuse rather than delete their files.
-    // A missing destination is already discarded; any other read failure
-    // (a file in its place, permissions) is not something to remove through.
+    // Only what git left behind may go: the destination was empty when the clone started, so
+    // anything without a `.git` inside is someone else's. A missing destination is already
+    // discarded; any other read failure (a file in its place, permissions) is not removed through.
     const entries = yield* fileSystem.readDirectory(normalized).pipe(
       Effect.catchIf(
         (cause) => cause.reason._tag === "NotFound",

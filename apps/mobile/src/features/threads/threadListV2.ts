@@ -74,15 +74,9 @@ export function resolveThreadListV2ProviderDrivers(
 }
 
 /**
- * Thread List v2 model, ported from the web sidebar v2
- * (apps/web/src/components/Sidebar.logic.ts + SidebarV2.tsx).
- *
- * Six visual states. Color distinguishes approval, input, active work, and
- * failures. Ready is the unlabeled resting state; waiting (runtime status "idle") is the agent
- * parked on open background tasks, blue like active work rather than a false Done.
- * The orchestrator v2 presentation bridge parks runtime at idle when the
- * post-settlement background roster holds the run's completion (subagents,
- * monitors); commands left running, such as a dev server, read as ready.
+ * Ported from the web sidebar v2 (apps/web/src/components/Sidebar.logic.ts). Waiting (runtime
+ * "idle") is the agent parked on open subagents or monitors, blue like active work rather than a
+ * false Done; commands left running, such as a dev server, read as ready.
  */
 export type ThreadListV2Status =
   | "approval"

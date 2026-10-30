@@ -482,12 +482,9 @@ function gitFailureDetail(reason: GitCommandFailureReason | null): string {
 // distinguishes them with a separate error line.
 const GIT_NOT_A_COMMIT_PATTERN = /^error: .+(?:, not a commit|expected commit type)/im;
 
-// Hooks write to the same stream git does, and nothing distinguishes their text
-// from git's: a pre-push hook echoing "authentication failed" would otherwise
-// be read as a credential failure. `remote:` is deliberately excluded — git
-// prefixes every byte the server sends that way, remote hook output included,
-// so trusting it would reintroduce the same false positive from the other end
-// of the connection.
+// Hooks share git's stream, so a pre-push hook echoing "authentication failed" would read as a
+// credential failure; only git's own diagnostic prefixes count. `remote:` is excluded because git
+// prefixes all server output with it, remote hook output included.
 const GIT_DIAGNOSTIC_LINE_PATTERN = /^(?:fatal|error):|^!\s|^\s+!\s/;
 // ssh reports the refusal itself, unprefixed, and git only adds a generic
 // "Could not read from remote repository" after it. Dropping ssh's line would
@@ -2639,11 +2636,9 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       Effect.orElseSucceed(() => null),
     );
     if (currentUpstream) {
-      // A branch tracking a differently named ref was cut from it, the way `git
-      // checkout -b feature origin/dev` and our own worktree flow leave it.
-      // That upstream is the branch's base, not its publish target, and pushing
-      // HEAD onto it would write feature commits to a shared branch (bare `git
-      // push` refuses this under push.default=simple).
+      // A branch tracking a differently named ref was cut from it (`git checkout -b feature
+      // origin/dev`, our worktree flow). That upstream is its base, not its publish target, and
+      // pushing HEAD onto it would write feature commits to a shared branch.
       const isAliasOfUpstreamHead =
         branch === currentUpstream.branchName ||
         (branch.endsWith(`/${currentUpstream.branchName}`) &&
@@ -4231,12 +4226,9 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       Effect.provideService(Path.Path, path),
     );
     if (result.exitCode === 0) {
-      // Git for Windows never descends into NTFS junctions, such as pnpm's
-      // node_modules links. It reports success but leaves them and their parent
-      // directories behind, so a resumed thread would find a stub instead of
-      // recreating its checkout. Git has already unregistered the worktree, so
-      // anything left here is logged rather than returned: a retry could never
-      // succeed.
+      // Git for Windows skips NTFS junctions such as pnpm's node_modules links, reporting
+      // success but leaving a stub a resumed thread would find instead of recreating its
+      // checkout. The worktree is already unregistered, so leftovers are logged, not returned.
       if (yield* fileSystem.exists(target).pipe(Effect.orElseSucceed(() => false))) {
         const removed = yield* removeLeftoverLinks(target).pipe(
           Effect.catch((error) =>

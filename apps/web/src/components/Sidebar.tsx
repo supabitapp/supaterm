@@ -1331,11 +1331,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     navigateToThread(threadRef);
   };
 
-  // Parking the thread you're looking at (mark done or snooze) moves you
-  // forward: the next remaining card (never a done or snoozed row, never
-  // one leaving in the same batch), or a fresh draft in this project when it
-  // was the last active one. Callers snapshot the plan BEFORE the command
-  // mutates the partition; background parks never navigate (null plan).
+  // Parking the open thread moves to the next remaining card, or a fresh draft when it was the
+  // last active one. Callers snapshot the plan BEFORE the command mutates the partition;
+  // background parks never navigate (null plan).
   const planForwardNavigation = (
     threadKey: string,
     coParkingKeys?: ReadonlySet<string>,
@@ -1402,12 +1400,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     })();
   };
   useEffect(() => registerMarkDoneAndAdvance(attemptMarkDone), [attemptMarkDone]);
-  // Post-completion navigation must skip threads being marked done in this same batch —
-  // they are all leaving the card block together. Rows already in the done
-  // shelf are skipped: nothing to do on a valid mixed selection. Pinned and
-  // snoozed rows ARE included: the decider clears the pin and the snooze as
-  // part of marking done, so they park like the rest, even when a snooze hides
-  // an earlier mark-done.
+  // Navigation skips threads marked done in this batch, since they all leave together. Pinned and
+  // snoozed rows ARE included: marking done clears the pin and the snooze, so they park too.
   const markThreadsDone = (threadKeys: readonly string[]) => {
     const coMarkingDoneKeys = new Set(threadKeys);
     for (const threadKey of threadKeys) {
@@ -1699,11 +1693,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       cancelThreadDrag();
     }
   }, [cancelThreadDrag, dragState, sidebarListItems]);
-  // Every shell event rebuilds sidebarListItems, but rows only move when the
-  // rendered order, a row's section, the draft block, the pending rows, the
-  // undo notice or a shelf toggle changes. Keying the motion pass on those
-  // keeps ordinary updates from forcing a layout read and animating rows
-  // whose position drifted for other reasons.
+  // Every shell event rebuilds sidebarListItems, but rows only move when these change. Keying the
+  // motion pass on them keeps ordinary updates from forcing a layout read and animating rows.
   const listMotionLayoutKey = [
     sidebarListLayoutKey(sidebarListItems),
     routeDraftIdForRows ?? "",

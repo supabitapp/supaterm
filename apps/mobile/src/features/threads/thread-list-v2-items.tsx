@@ -393,11 +393,9 @@ const DRAFT_TASK_MENU_ACTIONS: MenuAction[] = [
 ];
 
 /**
- * Unsent work, in the same idiom as an active v2 row: it is work the user
- * wrote, so it reads like the thread it will become. The status slot says
- * what happens next, not where the item sits: "Sends on reconnect" stays
- * uncolored because nothing is asked of the user; "Draft" uses an amber pen
- * like the web sidebar to identify work waiting on the user.
+ * Unsent work reads like the thread it will become. The status slot says what happens next:
+ * "Sends on reconnect" stays uncolored because nothing is asked of the user; "Draft" uses the web
+ * sidebar's amber pen for work waiting on the user.
  */
 export const ThreadListV2PendingRow = memo(function ThreadListV2PendingRow(props: {
   readonly pendingTask: PendingNewTask;
@@ -619,11 +617,8 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   readonly pinned?: boolean;
   readonly wokeAt: string | null;
   readonly snoozeWakeLabelText?: string;
-  /** Preformatted against the parent clock (row order timestamp: done stamp
-      on done rows, latest activity otherwise). Blank while a status label
-      or the wake countdown owns that slot. Precomputed per row — not via the
-      list's extraData — so the minute tick re-renders only rows whose
-      displayed text moved. */
+  /** Precomputed per row, not via the list's extraData, so the minute tick re-renders only rows
+      whose text moved. Blank while a status label or the wake countdown owns the slot. */
   readonly timeLabel: string;
   readonly snoozePresetMinute: string;
   readonly project: EnvironmentProject | null;
@@ -798,13 +793,9 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   );
   const handleMarkDone = useCallback(() => onMarkThreadDone(thread), [onMarkThreadDone, thread]);
   const [customSnoozeOpen, setCustomSnoozeOpen] = useState(false);
-  // A recycled cell reassigns this mounted row to a different thread without
-  // remounting it, and the render closure stops running while list equality
-  // says the item is unchanged — so any row-local UI state must be dismissed
-  // when the identity under it changes. Without this, a custom snooze sheet
-  // opened for one thread survives the thread's removal/reorder and its
-  // submit snoozes whichever thread the cell was reassigned to. (ThreadSwipeable
-  // enforces the same contract on the swipe layer with its resetKey.)
+  // A recycled cell reassigns this row to another thread without remounting, so row-local UI
+  // state is dismissed when the identity changes; otherwise an open custom snooze sheet would
+  // snooze whichever thread the cell was reassigned to.
   const [boundIdentity, setBoundIdentity] = useState(threadKey);
   if (boundIdentity !== threadKey) {
     setBoundIdentity(threadKey);

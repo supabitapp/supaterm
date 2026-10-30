@@ -295,15 +295,10 @@ const CLAUDE_GROUP_WATCH_SCRIPT = [
 ].join("\n");
 
 /**
- * When the CLI exits it stops the MCP servers it started, but not their children: a plugin's
- * `bun run start` wrapper dies and its `bun server.ts` keeps running, writing to a pipe nobody
- * reads. Those stay in the CLI's group, so the rest of the group gets SIGKILL once the
- * CLI exits for any reason.
- *
- * That cleanup needs this server alive, and the CLI finishes its turn after its pipes close. A
- * server that crashes or is killed would leave the CLI working next to the session it resumes,
- * so a watcher in the group reads a pipe only this server holds and stops the group at
- * its end-of-file.
+ * The CLI stops the MCP servers it started on exit, but not their children (a plugin's
+ * `bun server.ts` outlives its `bun run start` wrapper), so the rest of its group gets SIGKILL.
+ * A watcher in the group reads a pipe only this server holds and stops the group at its EOF,
+ * so a crashed server cannot leave the CLI working next to the session it resumes.
  */
 export function spawnClaudeProcessGroup(options: ClaudeSpawnOptions): ClaudeSpawnedProcess {
   const child = NodeChildProcess.spawn(
@@ -1500,22 +1495,14 @@ export const CLAUDE_READ_ONLY_SUPATERM_MCP_ALLOWED_TOOLS: ReadonlyArray<string> 
   "mcp__supaterm__html_render",
 ];
 
-// Claude Code aborts an HTTP MCP call after 60 s ("The operation timed out.")
-// unless the server config sets `timeout`. Supaterm's wait tools (supaterm_thread_wait,
-// delegate_task mode=wait) legitimately block for up to an hour
-// (MAX_WAIT_TIMEOUT_MS in OrchestratorMcpService), so the budget sits just
-// above that and the server's own wait timeout is what ends a long call.
+// Claude Code aborts an HTTP MCP call after 60 s unless the server config sets `timeout`.
+// Supaterm's wait tools block for up to MAX_WAIT_TIMEOUT_MS (an hour), so the budget sits
+// just above that and the server's own wait timeout ends a long call.
 export const CLAUDE_SUPATERM_MCP_TOOL_TIMEOUT_MS = 65 * 60 * 1_000;
 
-// The SDK's `allowedTools` only pre-approves tool calls; availability is the
-// separate `tools` option. Attaching the Supaterm MCP server therefore always
-// pre-approves its tools (headless modes like `dontAsk` deny anything that is
-// not pre-approved), but read-only sandboxes pre-approve only the annotated
-// read-only orchestrator tools so a read-only session cannot silently spawn
-// threads or scheduled tasks.
-//
-// The header carries the credential itself: the query runner sends
-// `mcpServers` over the CLI's stdin, never its argv or environment.
+// `allowedTools` only pre-approves calls, and headless modes like `dontAsk` deny the rest.
+// Read-only sandboxes approve only read-only tools, so they cannot silently spawn threads.
+// The header carries the credential: `mcpServers` goes over the CLI's stdin, never argv or env.
 
 export function claudeMcpQueryOverrides(input: {
   readonly mcpSession: McpProviderSession.McpProviderSessionConfig | undefined;
@@ -3010,7 +2997,7 @@ const awaitClaudeUserInputAnswers = Effect.fn("awaitClaudeUserInputAnswers")(fun
 
 /**
  * "[ede_diagnostic] ..." entries are CLI-internal telemetry (the CLI hides them from its own UI
- * too), so they must never become the error banner (#5557).
+ * too), so they must never become the error banner.
  */
 function resultUserFacingError(result: SDKResultMessage): string | undefined {
   const errors = "errors" in result && Array.isArray(result.errors) ? result.errors : [];
@@ -3553,11 +3540,9 @@ interface ClaudeSubagentProjectionTarget {
 }
 
 /**
- * Whether a transcript line ends the assistant's turn. Claude Code writes each
- * block of a message as its own line, `stop_reason: null` on all but the last,
- * and text before a tool call (`tool_use`) is not the reply. A line without the
- * field (no CLI writes one) keeps the turn open: waiting costs at most the flush
- * window, while ending the turn early can lose the reply.
+ * Claude Code writes each block of a message as its own line, `stop_reason: null` on all but
+ * the last, and text before a `tool_use` is not the reply. A line without the field keeps the
+ * turn open: waiting costs at most the flush window, ending early can lose the reply.
  */
 function isClaudeTranscriptTurnEnd(entry: unknown): boolean {
   if (field(entry, "type") !== "assistant") return false;
@@ -5706,11 +5691,9 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
               existingSubagent.task.runId !== input.onlyIfRunningInRun)
           )
             return;
-          // Status is monotone with one exception: task_started for a known
-          // task id is an authoritative CLI lifecycle event (SendMessage to a
-          // completed subagent resumes it and re-emits task_started with the
-          // same id), so it may re-open a terminal entry. A late or
-          // out-of-order task_progress must not.
+          // Status is monotone except for task_started on a known task id: SendMessage to a
+          // completed subagent resumes it under the same id, so it may re-open a terminal
+          // entry. A late or out-of-order task_progress must not.
           const isReopen =
             input.reopen === true &&
             existingSubagent !== undefined &&
@@ -5855,13 +5838,10 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             lastAssistantMessageId:
               input.reopen === true ? null : (existingSubagent?.lastAssistantMessageId ?? null),
           } satisfies ActiveClaudeSubagent;
-          // The same terminal protection, applied atomically: a concurrent
-          // fiber (live stream vs continuation drain) may have terminalized
-          // the registry entry after this update's lookup read it. A resume
-          // re-open (task_started) bypasses it only when the registered entry
-          // is still the terminal generation the lookup resolved; if a
-          // concurrent fiber installed a newer terminal entry meanwhile, the
-          // re-open must not clobber its result.
+          // The same terminal protection, applied atomically: the live stream or continuation
+          // drain may have terminalized the entry after the lookup read it. A resume re-open
+          // bypasses it only while the registered entry is still the terminal generation the
+          // lookup resolved, so it never clobbers a newer terminal result.
           const accepted = yield* Ref.modify(sessionSubagentsByTaskId, (current) => {
             const registered = current.get(input.taskId);
             if (
@@ -8492,11 +8472,9 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                 status: "running",
               });
             }
-            // A resume task_started reuses the resuming tool call's
-            // tool_use_id (e.g. SendMessage), whose tool_result only
-            // acknowledges delivery. Only the Agent launch's tool_result may
-            // terminalize the subagent, and Agent tool_uses never enter
-            // toolCalls (they project as subagent rows instead).
+            // A resume task_started reuses the resuming call's tool_use_id (e.g. SendMessage),
+            // whose tool_result only acknowledges delivery. Only the Agent launch's tool_result
+            // may terminalize the subagent, and Agent tool_uses never enter toolCalls.
             if (
               subagent !== undefined &&
               findToolCall(context, toolResult.tool_use_id) === undefined
@@ -9033,11 +9011,9 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             toolName !== "ExitPlanMode" &&
             (toolName === "AskUserQuestion" || requiresClaudeApproval(context))
           ) {
-            // The SDK blocks on the answer, and the prompt echo cannot arrive
-            // until the held turn goes on, so the request is raised now and
-            // the held output goes with it to the pending prompt turn, as it
-            // did before this turn was held. ExitPlanMode is answered at once
-            // below, so its frames stay held.
+            // The SDK blocks on the answer and the prompt echo cannot arrive until the held turn
+            // goes on, so the request is raised now with the held output. ExitPlanMode is
+            // answered at once below, so its frames stay held.
             yield* releaseHeldRootFrames(context);
             if (toolName !== "Agent") {
               yield* ensureToolCallStarted({

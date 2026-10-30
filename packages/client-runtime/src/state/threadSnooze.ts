@@ -32,11 +32,9 @@ interface QueuedThreadShell {
 }
 
 /**
- * A queued turn start lives for at most this long: session adoption takes
- * seconds, so a user message still unadopted after the grace window is a
- * failed start (or stale data — shells from older servers can carry user
- * messages with no latestTurn at all), not pending work. Without this bound
- * such threads would be permanently unable to be marked done.
+ * Session adoption takes seconds, so a user message still unadopted after this
+ * is a failed start or stale data, not pending work. Without the bound such
+ * threads could never be marked done.
  */
 export const QUEUED_TURN_START_GRACE_MS = 2 * 60 * 1_000;
 const DAY_MS = 24 * 60 * 60 * 1_000;
@@ -102,13 +100,9 @@ function failureEdgeAt(shell: ThreadSnoozeShell): string | null | undefined {
 }
 
 /**
- * A thread may be snoozed unless the agent or one of its subagents is blocked
- * on the user: hiding a pending approval or user-input request defeats the
- * request, and a queued turn start (a message no turn has adopted yet) is
- * invisible pending work the same way it is for marking done. A running
- * session IS snoozable — snooze only affects visibility, never the agent.
- * Client-side twin of the server invariants so the UI can reject before a
- * round trip.
+ * Refused while the agent or a subagent waits on the user, since hiding the
+ * request defeats it, or while a turn start is still queued. A running session
+ * is snoozable: snooze only hides it. Client twin of the server invariants.
  */
 export function canSnooze(
   shell: Pick<

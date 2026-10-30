@@ -55,12 +55,9 @@ export const lookOf = (settings: BoltComputerSettings): Look => ({
 });
 
 /**
- * Adds a canvas with the app icon's computer to `container`, filling it. It switches on, turns
- * toward a nearby pointer and hops with a spin on a click. Frames are drawn only while it moves
- * on screen. The canvas reaches past the container so hops and the floor's shadow take no layout
- * space.
- * The error state shakes on forever unless `restAfter` seconds lets it rest between shakes.
- * Returns null, adding nothing, if the browser refuses a 2D context.
+ * Frames are drawn only while the computer moves on screen. The canvas reaches past `container` so
+ * hops and the floor's shadow take no layout space. The error state shakes forever unless
+ * `restAfter` lets it rest. Returns null, adding nothing, if the browser refuses a 2D context.
  */
 export function mountBoltComputer(
   container: HTMLElement,

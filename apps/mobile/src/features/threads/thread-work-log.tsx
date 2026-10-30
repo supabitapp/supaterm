@@ -606,11 +606,8 @@ function ThreadWorkGroupList(props: {
     finishPendingAppend();
     rememberPosition();
   });
-  // The native ScrollView reports its content size a frame or more after
-  // LegendList has laid the rows out, so a detail toggle rendered the group
-  // at its old height while the rows below already moved. Read the size
-  // LegendList computes on the JS thread instead; it settles in the same
-  // commit as the row measurement that changed it.
+  // The native ScrollView reports content size a frame or more after LegendList lays rows out, so
+  // read LegendList's JS-thread size instead; it settles in the same commit as the row measurement.
   useLayoutEffect(() => {
     const list = listRef.current;
     if (!list) return;
@@ -901,7 +898,7 @@ const ThreadWorkLogRow = function ThreadWorkLogRow(
         onPress={() => {
           if (notifiedSubagentThreadId !== undefined) {
             // Push, not navigate: navigate reuses this Thread route, so back
-            // would skip the parent thread and land on Home (matches #15068).
+            // would skip the parent thread and land on Home.
             navigation.dispatch(
               StackActions.push("Thread", {
                 environmentId: String(props.environmentId),

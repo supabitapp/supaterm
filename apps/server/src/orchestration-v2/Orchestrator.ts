@@ -3823,13 +3823,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       });
     }
 
-    // Marking done joins archive here: both mean "done with this
-    // thread", so a live provider session must not keep running background
-    // work (PR monitors, dev servers, subagent fleets) after any of them
-    // lands. The mark-done guard above already rejects active or blocked runs,
-    // so marking done here only ever stops an idle session; commands are
-    // decided serially against the projection, so a turn start that
-    // re-engages the thread cannot race this detach.
+    // Archive and mark-done both mean "done with this thread", so a live session must not keep
+    // running background work. The mark-done guard already rejects active runs, and commands are
+    // decided serially, so a turn start that re-engages the thread cannot race this detach.
     const detachSessionIds = new Set(
       command.type === "thread.archive" || command.type === "thread.mark-done"
         ? (providerContext?.providerSessions ?? []).map((session) => session.id)
@@ -7488,11 +7484,8 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     });
   });
 
-  // The wait path uses this when its blocking window ends without a terminal
-  // (timeout), so a child that later terminalizes mid-parent-turn still wakes
-  // the parent. Runs under the parent thread's dispatch lock, which is also
-  // what finalize takes for its parent-side writes, so the two never interleave
-  // on this row.
+  // A wait that times out uses this so a child finishing mid-parent-turn still wakes the parent.
+  // It runs under the parent's dispatch lock, as finalize does, so the two never interleave.
   const dispatchDelegatedTaskWakePolicy = Effect.fn(
     "orchestrationV2.dispatch.delegatedTaskWakePolicy",
   )(function* (
@@ -9752,12 +9745,10 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     ]);
     const run = projection.runs.find((candidate) => candidate.id === command.runId);
     const subagent = projection.subagents.find((candidate) => candidate.id === command.subagentId);
-    // A user Stop cancels an app-owned task here when nothing else can settle it: no child run was
-    // ever bound to it and it is not the child's original task (#19002). This holds whatever else
-    // the child is doing. A task with a bound run, live or ended, keeps its settlement path, since
-    // its result may still be on the way, and the child stop the client sends next interrupts the
-    // run. A task that already ended is written again, so a client holding a stale copy, such as
-    // one cached before a repair, shows it ended.
+    // A user Stop cancels an app-owned task only when nothing else can settle it: no child run was
+    // ever bound to it and it is not the child's original task. A bound run keeps its settlement
+    // path since its result may still arrive. An ended task is written again so stale clients
+    // show it ended.
     if (
       subagent?.origin === "app_owned" &&
       subagent.childThreadId !== null &&
@@ -9986,11 +9977,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       );
       const runOrdinalOf = (item: (typeof projection.turnItems)[number]) =>
         item.runId === null ? -1 : (runOrdinals.get(item.runId) ?? -1);
-      // Each provider thread is interrupted at its latest pending work: that
-      // turn's run bounds the settle follow-up, which must cover all of the
-      // thread's work. The target comes from the item's provider turn, since
-      // a native subagent item names its own provider thread but its
-      // parent's turn; interrupting the parent's turn reaches the subagent.
+      // Interrupt each provider thread at its latest pending work, whose run bounds the settle
+      // follow-up. The target is the item's provider turn: a native subagent item names its own
+      // thread but its parent's turn, and interrupting that turn reaches the subagent.
       const latestTurnByProviderThread = new Map<
         OrchestrationV2ProviderThread["id"],
         { readonly turn: (typeof projection.providerTurns)[number]; readonly runOrdinal: number }
@@ -10912,12 +10901,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
   });
 
   /**
-   * Every mutation here targets the PARENT thread, so callers must hold the
-   * parent thread's dispatch lock rather than the child's: the
-   * delegated_task.wake-policy handler rewrites the same subagent row under
-   * that lock with a full-row payload, and unserialized writers clobber each
-   * other (stale policy on the terminal row, or a terminal row regressed to
-   * running).
+   * Every mutation here targets the PARENT thread, so callers must hold the parent's dispatch
+   * lock: the wake-policy handler rewrites the same subagent row under it with a full-row
+   * payload, and unserialized writers clobber each other.
    */
   const finalizeAppOwnedSubagentTask = Effect.fn("Orchestrator.finalizeAppOwnedSubagentTask")(
     function* (
@@ -12152,12 +12138,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       if (stored.event.type !== "run.updated") return;
       const threadId = stored.event.threadId;
       const run = stored.event.payload;
-      // finalize writes the parent thread and startNextQueuedRun writes this
-      // thread, so each takes its own thread's lock, sequentially and never
-      // nested: dispatchDelegatedTaskRequest already writes child events
-      // while holding the parent lock, so nesting the parent lock inside the
-      // child lock here would invert that order, and the keyed executor's
-      // semaphores are neither reentrant nor deadlock-aware.
+      // Each write takes its own thread's lock, sequentially and never nested:
+      // dispatchDelegatedTaskRequest takes the parent lock before child writes, so nesting
+      // here would invert that order, and the keyed semaphores are not deadlock-aware.
       if (delegatedTaskTerminalStatus(run.status) !== null) {
         yield* threadDispatch.withLock(
           threadId,
@@ -12225,7 +12208,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
 
   // A child whose run ends while its background tasks or its own subagents still run has no
   // result yet. When that work settles there is no run update to finalize it, so these events
-  // do it (#17512). A background roster counts once it empties after it was seen non-empty.
+  // do it. A background roster counts once it empties after it was seen non-empty.
   const providerThreadsWithBackgroundWork = new Set<string>();
   const settlesChildWork = (stored: OrchestrationV2StoredEvent) => {
     const { event } = stored;

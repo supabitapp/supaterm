@@ -336,11 +336,9 @@ const scopedProgram = Effect.scoped(
     const shutdown = yield* DesktopShutdown.DesktopShutdown;
 
     yield* Effect.addFinalizer(() =>
-      // Stop every backend in the pool, not just the primary. The
-      // electronApp.quit() path can race ahead of the layer-scope
-      // cascade, so leaving the WSL instance for its parent scope
-      // finalizer means it gets hard-killed by the OS instead of
-      // receiving SIGTERM + grace.
+      // Stop every pool backend, not just the primary: electronApp.quit() can race ahead of
+      // the layer-scope cascade, so the WSL child would be hard-killed instead of getting
+      // SIGTERM and grace.
       stopAllPoolInstances().pipe(Effect.ensuring(shutdown.markComplete)),
     );
 

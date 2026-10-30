@@ -581,12 +581,10 @@ const deliver = <E>(answer: Effect.Effect<void, E>) =>
 type ModelRef = ReturnType<typeof Model.Ref.make>;
 
 /**
- * OpenCode takes a client id (it must start with `msg_`) and answers a repeat of one in the same
- * session with the item it already has, so a retried request never queues a second message, and a
- * turn knows the message fork and rollback cut at before OpenCode answers. The id is unique across
- * the whole server, which refuses it in any other session (409), so it names the session: another
- * Supaterm database or environment on the same server repeats thread ids and run ordinals, never session
- * ids.
+ * OpenCode answers a repeated client id (`msg_` prefix) in the same session with the item it
+ * has, so retries never queue twice and a turn knows its fork and rollback cut up front. The id
+ * must be unique server-wide (409 elsewhere), so it names the session: another Supaterm database
+ * on the same server repeats thread ids and run ordinals, never session ids.
  */
 const turnPromptId = (sessionId: string, attemptId: string) =>
   SessionMessage.ID.make(`msg_supaterm_turn_${sessionId}:${attemptId}`);
@@ -1640,12 +1638,9 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
           yield* settleCall(call, terminal.status);
         }
         if (terminal.status === "failed") {
-          // A background call is settled by the report its parent reads, and a
-          // child that failed has no report to read: every call attached to it
-          // has to end with the failure, or the background ones keep the thread
-          // showing work that is gone. Which of them joined the child last
-          // does not matter: a foreground call is one until it is marked
-          // background, and the earlier background call outlives that window.
+          // A background call settles via the report its parent reads, and a failed child has
+          // none, so every attached call ends with the failure or the thread keeps showing work
+          // that is gone. Which one joined last does not matter.
           for (const attached of callsAttachedTo(state)) {
             yield* settleCall(attached, terminal.status, terminal.failure.message);
           }
@@ -2333,11 +2328,9 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
           event.type === "session.execution.started" ||
           event.type === "unreadable.execution.started"
         ) {
-          // A session runs one execution at a time, each opening with `started`
-          // on this ordered stream. Once the run `unsettled` waits on has
-          // started, a later start means that run is over: an end not seen by
-          // now was lost with a dropped stream, and the next end is this
-          // execution's own.
+          // A session runs one execution at a time, so a later `started` means the run
+          // `unsettled` waits on is over: its unseen end was lost with a dropped stream, and
+          // the next end is this execution's own.
           const state = threads.get(sessionId);
           if (state?.unsettled === true) {
             if (state.unsettledStarted) state.unsettled = false;

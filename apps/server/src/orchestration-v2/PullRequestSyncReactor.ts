@@ -313,7 +313,7 @@ export class PullRequestSyncReactor extends Context.Service<
   }
 >()("supaterm/orchestration-v2/PullRequestSyncReactor") {}
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const engine = yield* Orchestrator.OrchestratorV2;
   const projections = yield* ProjectionStore.ProjectionStoreV2;
@@ -522,11 +522,9 @@ export const make = Effect.gen(function* () {
         }
         const fetched = fetchedStack.stack;
         stacksReadThisSweep.set(key, fetched);
-        // A layer pushed above an older member changes none of that member's own fields, so it
-        // would keep its shorter layer list. Members of this stack whose layer list differs read
-        // their stack once, in this sweep if still pending or the next; agreeing ones read none.
-        // Only groups of the same project: another project reads with its own credential and
-        // may see a different layer list, so flagging across projects would never settle.
+        // A layer pushed above an older member leaves that member's fields alone, so members
+        // whose layer list differs read their stack once; agreeing ones read none. Only within
+        // one project: another project's credential may see a different list and never settle.
         if (fetched !== null) {
           const fetchedKey = nativeStackKeyOf(first.link, fetched);
           for (const [siblingKey, siblingEntries] of groups) {

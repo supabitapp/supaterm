@@ -719,12 +719,9 @@ export const ServerConfig = Schema.Struct({
 export type ServerConfig = typeof ServerConfig.Type;
 
 /**
- * The machine an environment should be drawn as: the user's pick, else what
- * the server detected, else a generic server. Settings only exist once
- * connected; a descriptor alone (before any connection) still yields the
- * detected kind. A null config (nothing known yet, or an
- * older server) resolves to the same generic so rows never flicker between
- * glyphs.
+ * The user's pick, else what the server detected, else a generic server. A
+ * descriptor alone, before any connection, still yields the detected kind; a
+ * null config resolves to the same generic so rows never flicker between glyphs.
  */
 export function resolveEnvironmentMachineKind(
   config: {

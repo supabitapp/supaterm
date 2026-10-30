@@ -334,7 +334,7 @@ function isArm64HostRunningIntelBuild(runtimeInfo: DesktopRuntimeInfo): boolean 
   return runtimeInfo.hostArch === "arm64" && runtimeInfo.appArch === "x64";
 }
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const config = yield* DesktopConfig.DesktopConfig;
   const pool = yield* DesktopBackendPool.DesktopBackendPool;
@@ -723,11 +723,9 @@ export const make = Effect.gen(function* () {
         return yield* Effect.gen(function* () {
           const { downloadedVersion } = yield* Ref.get(updateStateRef);
           if (downloadedVersion !== null) yield* writeInstallRecord(downloadedVersion);
-          // Stop every backend in the pool, not just the primary. With parallel
-          // WSL + Windows backends, leaving the WSL instance up means
-          // quitAndInstall's app.quit() exits before the pool's scope cascade
-          // has a chance to run its stop finalizer, so the WSL child gets
-          // hard-killed by the OS instead of receiving SIGTERM + grace.
+          // Stop every pool backend, not just the primary: quitAndInstall's app.quit() exits before
+          // the pool's scope finalizers run, so the WSL child would be hard-killed instead of
+          // getting SIGTERM and grace.
           const instances = yield* pool.list;
 
           const runningInstances = yield* Effect.filter(instances, (instance) =>

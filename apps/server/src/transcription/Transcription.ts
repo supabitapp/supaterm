@@ -252,11 +252,9 @@ const make = Effect.gen(function* () {
               () => new TranscriptionError({ reason: "failed", cause: Cause.squash(exit.cause) }),
             ),
           } as const);
-    // Record the outcome before deleting the upload, so a failed delete can't
-    // turn a finished vendor call into a second one. Callers hear last, once
-    // the upload is already gone.
-    // Only `failed` can mean the vendor did work whose result never arrived. Any other
-    // refusal spent nothing, so a resubmission simply tries again.
+    // Record the outcome before deleting the upload, so a failed delete can't turn a finished
+    // vendor call into a second one. Only `failed` can mean the vendor did work whose result
+    // never arrived; any other refusal spent nothing, so a resubmission simply tries again.
     const recorded = outcome._tag === "Succeeded" || outcome.error.reason === "failed";
     yield* storeLock.withPermits(1)(
       Ref.update(entriesRef, (entries) => {

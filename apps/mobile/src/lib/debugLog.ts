@@ -1,20 +1,8 @@
 /**
- * Namespaced, filterable debug logging shared by mobile subsystems.
- *
- * Ordinary, expected conditions — a queued send failing while the device is
- * offline, for example — go through a debug logger instead of `console.warn`
- * so warning output stays reserved for failures someone can act on. Output
- * uses `console.log` with a `[supaterm-<namespace>]` prefix, matching the existing
- * terminal debug log. (client-runtime cannot host this: its
- * tooling bans `console.*` in favor of Effect logging.)
- *
- * A logger is silent in every build, including development, unless enabled.
- * Toggle it from a JS debugger or the Metro console, including on release/TestFlight builds:
- * - `globalThis.__SUPATERM_DEBUG__ = true` enables every namespace;
- * - `globalThis.__SUPATERM_DEBUG__ = ["thread-outbox"]` enables only listed ones.
- *
- * Subsystems whose traces are useful by default in development (`__DEV__`)
- * opt in with `enabledInDev`.
+ * Expected conditions, such as a queued send failing offline, log here so `console.warn` stays for
+ * actionable failures; client-runtime bans `console.*`, so this cannot live there. Silent in every
+ * build unless `globalThis.__SUPATERM_DEBUG__` is `true` or lists the namespace, or, in `__DEV__`,
+ * the logger sets `enabledInDev`.
  */
 
 export interface DebugLogger {

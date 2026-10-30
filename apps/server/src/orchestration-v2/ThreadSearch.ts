@@ -154,17 +154,10 @@ export function buildSearchSnippet(text: string, matchStart: number): string {
   return `${start > 0 ? "…" : ""}${shown.slice(0, end)}${cut ? "…" : ""}`;
 }
 
-// The newest messages that hold every token, from active, non-subagent
-// threads. Every palette and sidebar hides subagent threads, so their
-// messages would only use up the hit limit; filters apply before it, so
-// hidden threads never crowd out a visible match. Word starts and ranking
-// happen in JS, with the rules titles use.
-//
-// Without the index (an SQLite build without FTS5 trigrams, see migration
-// 69) or for two-character CJK words, the same query scans the newest
-// messages migration 2 would index. That scan is weaker than the index: it
-// ignores case for ASCII only and does not fold accents ("cafe" misses
-// "café"). Exported so a test can check the query plan.
+// Filters apply before the hit limit so hidden subagent threads never crowd out a visible match.
+// Without FTS5 trigrams, or for two-character CJK words, the query scans the newest messages
+// instead; that scan folds case for ASCII only and keeps accents ("cafe" misses "café").
+// Exported so a test can check the query plan.
 export const messageHitsQuery = (
   sql: SqlClient.SqlClient,
   { match, substrings, projectId, excludedThreadIds }: typeof SearchRequest.Encoded,
@@ -298,7 +291,7 @@ const OlderDoneTitleRow = Schema.Struct({
   latestUserMessageAt: Schema.NullOr(IsoDateTime),
 });
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
 

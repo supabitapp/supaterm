@@ -1,22 +1,10 @@
 #!/usr/bin/env node
 // @effect-diagnostics nodeBuiltinImport:off globalTimers:off globalDate:off - Host-side capture script drives git, a server subprocess, and a browser directly.
 /**
- * Regenerates the marketing hero screenshot (apps/marketing/src/assets/app-desktop.webp).
- *
- *   vp run screenshots:marketing [--skip-build] [--keep] [--out <file.webp>]
- *
- * Builds the web client, starts an isolated server on it, seeds the scene from
- * `marketing-hero.scene.ts` as fake git repos plus projection rows, and captures
- * the hero thread with its turn diff at 1440x900 @2x in headless Chromium, in
- * the dark appearance the marketing site wears. The production build is
- * deliberate: it draws the release art behind the sidebar header, where the
- * dev client draws its blueprint. Nothing touches ~/.supaterm: all state lives
- * in a temp directory.
- *
- * Projection rows are written directly, which is fine for a visual fixture but
- * skips the event log. Payloads are decoded with the contract schemas before
- * insert, so a schema change fails here with the offending field instead of
- * breaking server startup.
+ * `vp run screenshots:marketing [--skip-build] [--keep] [--out <file.webp>]` regenerates
+ * apps/marketing/src/assets/app-desktop.webp; all state lives in a temp dir, never ~/.supaterm.
+ * Only the production build draws the release art behind the sidebar header. Projection rows skip
+ * the event log, so payloads are schema-decoded first and a schema change fails here, not at boot.
  */
 import * as NodeChildProcess from "node:child_process";
 import * as NodeCrypto from "node:crypto";

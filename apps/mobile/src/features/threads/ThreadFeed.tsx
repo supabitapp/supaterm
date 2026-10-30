@@ -1451,11 +1451,9 @@ function renderFeedEntry(
     const hasCopyText = presentation.text.trim().length > 0;
     const attachments = message.attachments ?? [];
     const hasReviewCommentContext = presentation.text.includes("<review_comment");
-    // A bubble that sizes itself from its content cannot lay out a block whose
-    // intrinsic width overflows `maxWidth`: Android positions the bubble's
-    // children during the unclamped pass and never moves them once the width
-    // is clamped, so the paragraphs around the block end up drawn on top of
-    // each other. Pinning the width removes that pass.
+    // Android positions a content-sized bubble's children during the unclamped pass and never moves
+    // them once `maxWidth` clamps, so a wider block overlaps its paragraphs. Pinning the width
+    // removes that pass.
     const hasWideBlock = hasWideMarkdownBlock(renderedText, WIDE_MARKDOWN_BLOCK_OPTIONS);
     const assistantTurnStillInProgress =
       message.role === "assistant" &&
@@ -2200,11 +2198,9 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
   const transitionEndFollow = (event: ThreadFeedLiveFollowEvent) => {
     setEndFollow(resolveThreadFeedLiveFollow(endFollowEnabledRef.current, event));
   };
-  // A width change re-wraps every row at once, and LegendList re-measures them over the next
-  // commits. Its end threshold and MVCP only see the new geometry, so the reader's place is
-  // taken before any row lands: the end while following, otherwise the row under the header.
-  // On iOS, LegendList keeps that place in the same commit as every re-measure. Android's
-  // list moves only while its MVCP is on, which following turns off, so it restores after.
+  // A width change re-wraps every row and LegendList re-measures over later commits, so the place
+  // (end while following, else the row under the header) is taken first. iOS keeps it per
+  // re-measure; Android's MVCP is off while following, so it restores after.
   // undefined: no reflow. null: a reflow with nothing to restore.
   const reflowAnchorRef = useRef<ThreadFeedReflowAnchor | null | undefined>(undefined);
   const reflowAnchorsSizeChanges = Platform.OS === "ios";
@@ -2291,12 +2287,9 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
     usesNativeAutomaticInsets,
     bottomContentInset,
   });
-  // With automatic insets the header inset lives in UIKit's adjustedContentInset,
-  // which LegendList's JS anchoring math cannot see — it measures the anchored
-  // end space from the scroll view's frame top. Fold the header height back into
-  // the anchor offset or a just-sent message anchors underneath the header and
-  // the oversized end space keeps maintainScrollAtEnd snapping away from earlier
-  // messages.
+  // With automatic insets the header inset lives in UIKit's adjustedContentInset, which
+  // LegendList's anchoring math cannot see. Fold the header height into the anchor offset or a
+  // just-sent message anchors under the header and maintainScrollAtEnd keeps snapping away.
   const navigationHeaderHeight = useContext(HeaderHeightContext);
   const anchorTopInset = usesNativeAutomaticInsets
     ? (navigationHeaderHeight ?? insets.top + IOS_NAV_BAR_HEIGHT)
@@ -2765,12 +2758,9 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     handleHistoryPrefetch();
     reportHeaderMaterialVisibility(event.nativeEvent.contentOffset.y + anchorTopInset > 6);
-    // LegendList recomputes its inset-aware end distance before invoking
-    // this handler, so getState() is current. Only the actual end re-arms
-    // follow: its broader maintain-scroll threshold is large enough for a
-    // streaming chunk to pull a user back before their upward drag escapes.
-    // A live user-scroll session still wins even if the first scroll event
-    // remains inside LegendList's at-end tolerance.
+    // getState() is current here. Only the actual end re-arms follow: the broader maintain-scroll
+    // threshold would let a streaming chunk pull the user back mid-drag. A live user-scroll
+    // session wins even inside LegendList's at-end tolerance.
     const listState = listRef.current?.getState();
     if (listState) {
       transitionEndFollow({
@@ -3267,12 +3257,9 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
               loadedListKeyRef.current = listMountKey;
               onListLoaded();
             }}
-            // The empty↔filled key remounts the list when messages first
-            // arrive. LegendList's maintainScrollAtEnd calls scrollToEnd(),
-            // which is blind to UIKit's adjustedContentInset — inserting into
-            // an already-attached list under a transparent header can pin
-            // short content at offset 0 (one header-height too high). A fresh
-            // mount positions during attach, where UIKit applies the inset.
+            // The empty↔filled key remounts the list when messages first arrive: scrollToEnd() is
+            // blind to UIKit's adjustedContentInset and can pin short content one header-height
+            // too high, while a fresh mount positions during attach, where UIKit applies the inset.
             key={listMountKey}
             style={{ flex: 1 }}
             // RN 0.81+ drops touches inside the contentInset area
@@ -3293,13 +3280,9 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
             automaticallyAdjustsScrollIndicatorInsets={usesNativeAutomaticInsets}
             {...(usesNativeAutomaticInsets
               ? {
-                  // Like the Home ScrollView, we rely purely on
-                  // `contentInsetAdjustmentBehavior: "automatic"` so UIKit derives the
-                  // top inset from the transparent header. A manual contentInset
-                  // (which LegendList consumes into its own layout math) collapses the
-                  // scroll view's adjustedContentInset top to 0, leaving the iOS 26/27
-                  // scroll-edge effect no region to render into — which is why the
-                  // header blur was missing on threads.
+                  // UIKit derives the top inset from the transparent header. A manual
+                  // contentInset collapses adjustedContentInset top to 0, leaving the iOS 26
+                  // scroll-edge effect no region to render the header blur into.
                   scrollIndicatorInsets: { top: 0, left: 0, right: 0, bottom: 0 },
                 }
               : { scrollIndicatorInsets: { top: topContentInset, bottom: 0 } })}
@@ -3311,11 +3294,9 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
             contentInsetStartAdjustment={usesNativeAutomaticInsets ? anchorTopInset : 0}
             contentInsetEndAdjustment={props.contentInsetEndAdjustment}
             keyboardOffset={props.keyboardOffset}
-            // UIKit's automatic behavior adds the safe-area bottom on top of the
-            // raw contentInset the keyboard integration writes. The detail screen
-            // under-reports the composer inset by this amount (see
-            // ThreadDetailScreen); this tells LegendList's scroll math about the
-            // extra so programmatic end scrolls land at the true resting offset.
+            // UIKit adds the safe-area bottom on top of the raw contentInset, and
+            // ThreadDetailScreen under-reports the composer inset by that amount; telling
+            // LegendList keeps programmatic end scrolls at the true resting offset.
             contentInsetEndStaticAdjustment={usesNativeAutomaticInsets ? insets.bottom : 0}
             // Android's initial end scroll can run before the keyboard integration
             // reports the composer height. Seed that estimate for LegendList's
@@ -3365,19 +3346,15 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
             keyboardShouldPersistTaps="always"
             keyboardDismissMode="none"
             keyboardLiftBehavior="whenAtEnd"
-            // Seed the list's scroll math with the real viewport before its own
-            // onLayout: the empty→filled remount can then tell at mount that
-            // short content underflows the viewport and skip programmatic
-            // positioning entirely (any offset write during screen attach races
-            // UIKit's adjustedContentInset application and lands high or low).
+            // Seeding the real viewport before onLayout lets the empty→filled remount see short
+            // content underflow and skip programmatic positioning, since any offset write during
+            // screen attach races UIKit's adjustedContentInset and lands high or low.
             {...(viewportHeight > 0 && viewportWidth > 0
               ? { estimatedListSize: { height: viewportHeight, width: viewportWidth } }
               : {})}
-            // RN's native scrollTo command clamps targets to a floor of
-            // -contentInset.top using the RAW inset — under automatic insets the
-            // header inset only exists in adjustedContentInset, so scrolls to
-            // negative offsets (content top below the transparent header) get
-            // clamped to 0.
+            // RN's native scrollTo clamps to -contentInset.top using the raw inset; under automatic
+            // insets the header inset only exists in adjustedContentInset, so negative offsets
+            // would clamp to 0.
             scrollToOverflowEnabled
             estimatedItemSize={180}
             alignItemsAtEnd

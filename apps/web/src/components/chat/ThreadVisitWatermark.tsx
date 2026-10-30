@@ -62,12 +62,9 @@ export function ThreadVisitWatermark(props: { readonly threadRef: ScopedThreadRe
     const lastVisitedAt = serverThread.lastVisitedAt ? Date.parse(serverThread.lastVisitedAt) : NaN;
     if (!Number.isNaN(lastVisitedAt) && lastVisitedAt >= threadUpdatedAt) return;
 
-    // Server-tracked visited state: record the watermark server-side so it
-    // syncs across every device connected to the environment. Dedupe per
-    // watermark — the effect re-runs before the command's echo lands. The
-    // dedupe also keeps a mark-unread on the open thread sticky: the rewind
-    // leaves updatedAt untouched, so the already-dispatched key skips a
-    // fresh visit until new activity lands or the thread is reopened.
+    // Dedupe per watermark: the effect re-runs before the command's echo lands. It also keeps a
+    // mark-unread on the open thread sticky, since the rewind leaves updatedAt untouched and the
+    // dispatched key skips a fresh visit until new activity lands or the thread is reopened.
     const dispatchKey = `${threadKey}:${serverThread.updatedAt}`;
     if (lastDispatchedVisitRef.current === dispatchKey) return;
     const dispatch = () => {

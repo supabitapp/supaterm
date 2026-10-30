@@ -1,12 +1,7 @@
 /**
- * Shared server settings.
- *
- * Every server keeps its own `settings.json`, but some keys are user
- * preferences that only live on the server because the server has to act on
- * them (automatic completion runs with no client attached). A user does not want
- * those to differ per machine. Clients write these keys to every shared-settings
- * sync target, and warn when another target still holds a different value so
- * the user can push their current value out.
+ * Some user preferences live in each server's `settings.json` only because the
+ * server acts on them with no client attached. Clients write these keys to every
+ * sync target and warn when one still differs, so they never vary per machine.
  */
 import type { EnvironmentId, ServerSettings, ServerSettingsPatch } from "@supaterm/contracts";
 import { isModelSelectionProviderEnabled } from "@supaterm/shared/serverSettings";
@@ -96,12 +91,9 @@ export interface SharedSettingsEnvironment {
 }
 
 /**
- * Shared-settings sync targets whose values differ from the primary
- * environment's. Other environments are skipped: nothing can be read from or
- * written to them. With no
- * primary settings loaded there is nothing to compare against, so nothing is
- * reported. Callers must pass the real loaded settings, never a default
- * fallback, or "apply to all" would push defaults over real values.
+ * Sync targets whose values differ from the primary environment's. Callers must
+ * pass the real loaded settings, never a default fallback, or "apply to all"
+ * would push defaults over real values.
  */
 export function findSharedSettingsMismatches(input: {
   readonly primaryEnvironmentId: EnvironmentId | null;

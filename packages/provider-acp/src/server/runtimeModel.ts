@@ -637,11 +637,9 @@ function locationsFromToolCallInput(input: {
   return locations.length > 0 ? locations : undefined;
 }
 
-// Some ACP agents (observed with Grok's CLI) resend the ENTIRE accumulated tool-call
-// output on every `tool_call_update` notification instead of a delta, so a redrawing
-// terminal progress bar can balloon a single tool call to hundreds of KB per update at
-// several updates per second. Cap what we retain/emit to a bounded tail so one busy tool
-// call cannot flood runtime event ingestion.
+// Some ACP agents (Grok's CLI) resend the entire accumulated output on every
+// `tool_call_update`, so a redrawing progress bar reaches hundreds of KB per update. Keep a
+// bounded tail so one busy tool call cannot flood runtime event ingestion.
 const TOOL_CALL_CONTENT_MAX_CHARS = 8_000;
 const TOOL_CALL_CONTENT_TRUNCATION_MARKER = "[Earlier output truncated]\n\n";
 
@@ -1076,13 +1074,10 @@ function acpMcpFallbackInput(value: string | undefined): Record<string, unknown>
 }
 
 /**
- * Agents flatten injected MCP tools into model-facing function names with no
- * shared convention (survey of the 2026-08 registry builds): Kilo and
- * opencode use `supaterm_<tool>`, claude-acp, qwen, and Amp
- * `mcp__supaterm__<tool>`, droid `supaterm___<tool>`, Copilot `supaterm-<tool>`,
- * cline appends `: <args json>`. Supaterm always injects its server as
- * "supaterm", and matches are additionally gated on the known Supaterm tool
- * inventory, so the separator match can stay loose.
+ * Agents name injected MCP tools with no shared convention (`supaterm_<tool>`,
+ * `mcp__supaterm__<tool>`, `supaterm___<tool>`, `supaterm-<tool>`, cline appends
+ * `: <args json>`). Matches are also gated on the known Supaterm tool inventory,
+ * so the separator match can stay loose.
  */
 const SUPATERM_MCP_TITLE_CALL =
   /^(?:mcp[-_]{1,2})?supaterm[-_.:/ ]{1,3}(?<tool>[A-Za-z0-9][A-Za-z0-9_.-]*)(?::.*)?$/i;
@@ -1332,11 +1327,9 @@ export function syntheticLoadSessionResponseFromInitialize(
   };
 }
 
-// The parsed AcpToolCallState already carries bounded content (see makeToolCallState /
-// extractTextContentFromToolCallContent above), but the raw JSON-RPC notification is also
-// threaded through as `rawPayload` for logging/debugging and ends up persisted on the
-// runtime event. Substitute the same bounded `content`/`rawOutput` there so an oversized
-// cumulative update cannot smuggle the unbounded buffer back in through the raw payload.
+// The raw notification is persisted on the runtime event as `rawPayload`, so it gets the same
+// bounded `content`/`rawOutput` as the parsed state; otherwise an oversized cumulative update
+// would smuggle the unbounded buffer back in.
 function boundToolCallRawPayload(
   params: EffectAcpSchema.SessionNotification,
   update: AcpToolCallUpdate,

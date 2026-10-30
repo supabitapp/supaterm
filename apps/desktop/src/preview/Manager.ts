@@ -320,11 +320,9 @@ const cropAnnotationScreenshot = (
 };
 
 /**
- * Electron converts `toBitmap()` output to sRGB by default. Captures on P3 Macs are
- * P3, so that conversion costs more per tick than the JPEG encode the fingerprint
- * replaces. An invalid target color space has no Skia color space, so `readPixels`
- * copies the pixels without a color transform. The fingerprint only compares frames
- * with each other, so color accuracy is irrelevant.
+ * Electron's default sRGB conversion of P3 captures costs more per tick than the JPEG encode the
+ * fingerprint replaces. An invalid color space makes `readPixels` skip the transform, and the
+ * fingerprint only compares frames with each other.
  */
 const FINGERPRINT_BITMAP_OPTIONS: Electron.ToBitmapOptions = {
   colorSpace: { primaries: "invalid", transfer: "invalid", matrix: "invalid", range: "invalid" },
@@ -438,11 +436,9 @@ type PointerEventListener = (event: DesktopPreviewPointerEvent) => Effect.Effect
 type OpenLinkListener = (event: DesktopPreviewOpenLinkEvent) => Effect.Effect<void>;
 
 /**
- * `about:blank` stays out: Chromium skips browser-side navigation for it, so the child copies
- * the guest's `contextIsolation: false` preferences and Electron gives no way to override them.
- * Deliberately not `ElectronShell.parseSafeExternalUrl`: that also admits
- * `vscode://vscode-remote/...` deep links, which belong in `shell.openExternal` and not in a
- * window spawned by a third-party page in the preview.
+ * `about:blank` stays out: Chromium skips browser-side navigation for it, so the child copies the
+ * guest's `contextIsolation: false` and Electron cannot override it. Not `parseSafeExternalUrl`,
+ * which admits `vscode://` deep links that belong in `shell.openExternal`, not a preview popup.
  */
 const POPUP_PROTOCOLS = new Set(["http:", "https:"]);
 
@@ -3623,7 +3619,7 @@ export class PreviewManager extends Context.Service<
   }
 >()("@supaterm/desktop/preview/Manager/PreviewManager") {}
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* PreviewManagerMake() {
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
   const browserSession = yield* BrowserSession.BrowserSession;

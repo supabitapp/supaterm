@@ -142,11 +142,8 @@ function useLabelsOverflow(element: HTMLDivElement | null): boolean {
     let groups = 0;
     for (const child of current.children) {
       if (!(child instanceof HTMLElement)) continue;
-      // Reserve the natural width of the controls inside it, blocks in overflow
-      // included, so Git labels compact before squeezing out the model picker.
-      // Reserving only the visible controls would let the labels expand into
-      // room the composer just freed, shrink the host, and hide the controls
-      // again.
+      // Reserve the natural width of the hosted controls, overflowed ones included, so Git labels
+      // compact first. Reserving only visible controls lets the labels re-expand and hide them.
       const hostedControls = child.matches('[data-chat-resting-composer-controls-host="true"]')
         ? child.querySelector<HTMLElement>('[data-chat-composer-resting-controls="true"]')
         : null;

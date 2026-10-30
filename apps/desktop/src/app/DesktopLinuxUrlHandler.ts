@@ -12,12 +12,9 @@ import * as DesktopAssets from "./DesktopAssets.ts";
 import * as DesktopEnvironment from "./DesktopEnvironment.ts";
 import { makeComponentLogger } from "./DesktopObservability.ts";
 
-// Linux ships as an AppImage, so the .desktop entry users end up with is
-// created by whatever integration tool they use (AppImageLauncher names it
-// appimagekit_<hash>-….desktop) and its filename is not under our control.
-// Electron's app.setAsDefaultProtocolClient resolves the desktop id from
-// setDesktopName, which cannot match those files — so the browser keeps
-// prompting "Choose an application" for every OAuth callback.
+// The AppImage's .desktop entry is named by the user's integration tool (e.g.
+// appimagekit_<hash>-….desktop), so app.setAsDefaultProtocolClient's setDesktopName-based id
+// cannot match it and the browser prompts "Choose an application" on every OAuth callback.
 const { logInfo, logWarning } = makeComponentLogger("desktop-linux-url-handler");
 
 export class DesktopLinuxUrlHandlerRegistrationError extends Schema.TaggedError<DesktopLinuxUrlHandlerRegistrationError>()(
@@ -120,7 +117,7 @@ export class DesktopLinuxUrlHandler extends Context.Service<
   }
 >()("@supaterm/desktop/app/DesktopLinuxUrlHandler") {}
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
   const fileSystem = yield* FileSystem.FileSystem;

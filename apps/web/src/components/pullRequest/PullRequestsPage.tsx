@@ -1536,12 +1536,9 @@ export function PullRequestsPage() {
                   }
                   refreshToken={detailRefreshToken}
                   onActed={(action, phase = "done") => {
-                    // An action that only moves a row's state is written onto the row as it is
-                    // sent, and taken back if the host refuses; the host invalidates its caches,
-                    // so the next scheduled read confirms it. The rest change what the counts and
-                    // checks say, and those need the reads once they are done.
-                    // From every row held, not the ones on screen: a pull request closed from an
-                    // open list has left the screen, and reopening it has to find it anyway.
+                    // State-only actions are written onto the row as sent and taken back if the
+                    // host refuses; the rest need fresh reads once done. Look in every held row,
+                    // since a pull request closed from an open list has left the screen.
                     const acted = heldPullRequestsBySurface.get(
                       pullRequestListEntryId(renderedPullRequestSurface),
                     );

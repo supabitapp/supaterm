@@ -150,12 +150,8 @@ function CompactRelativeTimeLabel(props: { timestamp: string | null }) {
       );
 }
 
-// Floats at the row's right edge, vertically centered, while the jump
-// modifier is held. An overlay pill instead of an inline slot: the hint
-// must neither displace the status/time label (holding ⌘ used to blank
-// out "Working") nor shift any layout when it appears. pointer-events-none
-// so it never swallows clicks meant for the mark-done/reopen buttons it
-// can overlap.
+// An overlay rather than an inline slot so the hint never displaces the status label or shifts
+// layout; pointer-events-none so it never swallows clicks on the buttons it overlaps.
 function JumpHintBadge(props: { label: string }) {
   return (
     <span
@@ -686,12 +682,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   const isUnread = hasUnseenCompletion({ ...thread, lastVisitedAt });
   const status = resolveSidebarThreadStatus(thread);
   const showDuration = environmentConnected && shouldShowSidebarV2Duration(status);
-  // A woken thread reappears at its original position (the sort is
-  // deliberately static), so the pill has to carry the weight. Snoozing is
-  // an explicit act, so the pill clears only when the user re-engages:
-  // reading a completion-triggered wake, clicking the pill, sending a
-  // message, marking done, archiving, or a change request state that completes the
-  // thread. Timer wakes survive a mere visit. An unparseable visit timestamp
+  // A woken thread keeps its static sort position, so the pill carries the signal and clears only
+  // when the user re-engages; timer wakes survive a mere visit. An unparseable visit timestamp
   // counts as never-visited, so corrupt local data cannot eat the wake signal.
   const lastVisitedDate = lastVisitedAt === undefined ? null : parseTimestampDate(lastVisitedAt);
   const wokeAtDate = props.wokeAt === null ? null : parseTimestampDate(props.wokeAt);

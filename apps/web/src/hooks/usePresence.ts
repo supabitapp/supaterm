@@ -3,12 +3,9 @@ import { useEffect, useRef, useState } from "react";
 import { animationsSettled } from "~/lib/motion";
 
 /**
- * Keeps the last non-null `value` rendered while its element plays an exit
- * transition. Spread `props` on that element: it carries `data-ending-style`
- * while exiting, matching Base UI popups, and `data-enter` when the value
- * arrived after mount, so `data-enter:starting:` styles never replay on first
- * paint. Unmount waits for the element's own animations, so `transition: none`
- * unmounts immediately.
+ * Keeps the last non-null `value` rendered through its exit transition. `data-enter` is set only
+ * when the value arrived after mount, so `data-enter:starting:` styles never replay on first
+ * paint. Unmount waits for the element's own animations, so `transition: none` unmounts at once.
  */
 export function usePresence<T>(value: T | null | undefined) {
   const live = value ?? null;

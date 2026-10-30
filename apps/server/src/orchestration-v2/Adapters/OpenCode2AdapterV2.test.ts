@@ -3232,11 +3232,9 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
 
   it.effect("prompts under ids no other session on the server can hold", () =>
     Effect.gen(function* () {
-      // Two Supaterm databases on one external server repeat thread ids and run
-      // ordinals, so their turns can share an attempt id and their steers a
-      // message id. OpenCode refuses a prompt id another session already
-      // holds with 409 ConflictError; the replay refuses a client id it
-      // already gave another recorded message.
+      // Two Supaterm databases on one external server can share attempt and steer message
+      // ids. OpenCode refuses a prompt id another session holds with 409 ConflictError; the
+      // replay refuses a client id it already gave another recorded message.
       const OTHER = "ses_f148ca2deffeOtherSession000";
       const steerInto = (session: string, recorded: string): ReadonlyArray<ProviderReplayEntry> => [
         out("session.prompt", {

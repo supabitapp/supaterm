@@ -302,11 +302,9 @@ export const layer = Layer.effect(
       return task;
     });
 
-    // Run-state columns (last_run_*, run_count) are intentionally absent from
-    // the conflict clause: they are owned by the run transitions below, and a
-    // concurrent settings save must not overwrite an in-flight increment.
-    // Check existence in the write itself so an edit cannot undo a deletion
-    // that landed after upsert loaded the previous task.
+    // Run-state columns stay out of the conflict clause so a concurrent settings save cannot
+    // overwrite an in-flight increment. Existence is checked in the write itself so an edit
+    // cannot undo a deletion that landed after upsert loaded the previous task.
     const saveTask = (task: ScheduledTask, requireExisting: boolean) =>
       sql<{ task_id: string }>`
         INSERT INTO scheduled_tasks (
@@ -426,11 +424,9 @@ export const layer = Layer.effect(
         ),
       );
 
-    // Best-effort escape hatch: if anything fails between markRunning and
-    // markCompleted, write a full terminal record so runDueTasks neither skips
-    // the task forever (it filters out 'running' rows) nor re-fires it
-    // immediately: the dispatch may already have gone out, so next_run_at must
-    // advance and run_count must count the attempt.
+    // A failure between markRunning and markCompleted writes a full terminal record, so
+    // runDueTasks neither skips the 'running' row forever nor re-fires it: the dispatch may have
+    // gone out, so next_run_at advances and run_count counts the attempt.
     const releaseStuckRun = Effect.fn("ScheduledTaskService.releaseStuckRun")(
       function* (task: ScheduledTask, message: string) {
         const now = yield* localNow;

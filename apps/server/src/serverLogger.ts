@@ -57,13 +57,9 @@ export const layer = Effect.gen(function* () {
           resource: ServerConfig.otlpResource(config, hostName),
         });
 
-  // `Logger.layer` writes the whole logger set rather than adding to it, so
-  // every logger the server wants has to be named in this one call.
-  // `Logger.tracerLogger` reaches a collector by attaching each message to the
-  // active span as a span event, which covers only messages logged inside a
-  // recorded span and files them under traces. The OTLP logger carries the same
-  // messages as log records stamped with their trace and span ids, so it is a
-  // superset: keeping both would export every in-span message twice.
+  // `Logger.layer` replaces the whole logger set, so every logger is named in this one call. The
+  // OTLP logger is a superset of `Logger.tracerLogger` (it stamps trace and span ids on every
+  // record), so keeping both would export every in-span message twice.
   const layerLogger = Logger.layer(
     otlpLogger === undefined
       ? [consolePretty(), Logger.tracerLogger]

@@ -222,11 +222,9 @@ export const FontFamilyPreference = Schema.String.check(Schema.isMaxLength(200))
 export type FontFamilyPreference = typeof FontFamilyPreference.Type;
 
 /**
- * The environment's theme, set with `supaterm theme set <id>`. Each client applies
- * it once per value — live when connected, on its next connect otherwise — so
- * setting it switches every client, while a theme a user picks in Settings
- * afterwards sticks until the next set. Empty means "no environment theme",
- * which is also how it is cleared.
+ * Set with `supaterm theme set <id>`. Each client applies it once per value, so a
+ * set switches every client while a later pick in Settings sticks until the next
+ * set. Empty means "no environment theme", which is also how it is cleared.
  */
 export const DefaultThemePreference = Schema.String.check(Schema.isMaxLength(64));
 // Deliberately absent from ServerSettingsPatch: `supaterm theme set` checks that an
@@ -932,13 +930,10 @@ export const ProjectProviderInstanceOverride = Schema.Struct({
 export type ProjectProviderInstanceOverride = typeof ProjectProviderInstanceOverride.Type;
 
 /**
- * One project's overrides. An absent key inherits the environment value;
- * `null` is a real value where the environment type is nullable (no default
- * model, no dedicated writer model, never automatically mark as done).
- *
- * `providerInstances` sits outside `PROJECT_SCOPED_SERVER_SETTING_KEYS`: every
- * other key replaces its `ServerSettings` field whole, while this one keeps the
- * settings.json shape but overrides field by field, per `ProviderInstanceId`.
+ * An absent key inherits the environment value; `null` is a real value where the
+ * environment type is nullable. `providerInstances` sits outside
+ * `PROJECT_SCOPED_SERVER_SETTING_KEYS` because it overrides field by field per
+ * `ProviderInstanceId` instead of replacing its `ServerSettings` field whole.
  */
 export const ProjectSettingsOverrides = Schema.Struct({
   worktreeCleanup: Schema.optionalKey(WorktreeCleanup),
@@ -1412,18 +1407,10 @@ export const ServerSettingsPatch = Schema.Struct({
   defaultModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   defaultRuntimeMode: Schema.optionalKey(RuntimeMode),
   /**
-   * Per-project entry replacement: each entry replaces that project's whole
-   * override set and `null` removes it.
-   *
-   * Keys added after clients already resent whole entries are the exception:
-   * an entry that omits `providerInstances`, `reviewGuideModelSelection`,
-   * `reviewGuideInstructions` or `sidebarAutoMarkDoneKeepPullRequests` keeps
-   * the stored value, and custom worktree rules without `worktreeKeepWhen` or
-   * `worktreeDoneAfterDays` keep the stored rule, so a client built before
-   * those fields cannot wipe them by editing another key. Clearing
-   * every provider override for a project means sending `providerInstances:
-   * {}`; clearing any other key means listing it in
-   * `projectSettingsOverrideRemovals` as well.
+   * Each entry replaces the project's whole override set and `null` removes it, except keys
+   * added after clients already resent whole entries: omitting one keeps the stored value, so
+   * older clients cannot wipe it. Clear provider overrides with `providerInstances: {}` and
+   * other keys via `projectSettingsOverrideRemovals`.
    */
   projectSettingsOverrides: Schema.optionalKey(
     Schema.Record(

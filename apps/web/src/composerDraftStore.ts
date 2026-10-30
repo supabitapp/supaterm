@@ -230,15 +230,9 @@ const PersistedComposerThreadDraftState = Schema.Struct({
   previewAnnotations: Schema.optionalKey(Schema.Array(PreviewAnnotationPayloadSchema)),
   reviewComments: Schema.optionalKey(Schema.Array(ReviewCommentContextSchema)),
   threadContexts: Schema.optionalKey(Schema.Array(ThreadContextRecord)),
-  // Keyed by `ProviderInstanceId` (open branded slug) so custom provider
-  // instances (e.g. `codex_personal`) round-trip alongside the built-in
-  // `codex` / `claudeAgent` / ... entries.
-  //
-  // The record's value schema is NOT wrapped in `Schema.optionalKey`:
-  // that helper is only meaningful on property signatures with a known
-  // key set, and `Schema.Record(<branded string>, …)` produces an index
-  // signature at runtime (Schema rejects the combination). Absence of
-  // an entry already encodes "no selection for this instance".
+  // Keyed by `ProviderInstanceId` so custom provider instances round-trip. The record's values
+  // are NOT `Schema.optionalKey`: a branded-string Record is an index signature, which Schema
+  // rejects with it, and a missing entry already means "no selection for this instance".
   modelSelectionByProvider: Schema.optionalKey(Schema.Record(ProviderInstanceId, ModelSelection)),
   activeProvider: Schema.optionalKey(Schema.NullOr(ProviderInstanceId)),
   // True only when a human picked this selection in the composer. Seeded
@@ -857,12 +851,8 @@ function normalizeProviderInstanceId(value: unknown): ProviderInstanceId | null 
 }
 
 /**
- * Coerce an unknown value into a `ReadonlyArray<ProviderOptionSelection>`.
- *
- * Validation is intentionally permissive: descriptors are the source of truth
- * for which option ids are meaningful for a given provider/model. Anything
- * outside the descriptor list is harmless trailing data and will simply be
- * ignored downstream.
+ * Permissive on purpose: descriptors decide which option ids matter for a
+ * provider/model, so entries outside them are harmless and ignored downstream.
  */
 function coerceProviderOptionSelections(
   value: unknown,
@@ -1488,11 +1478,8 @@ function normalizePersistedDraftsByThreadKey(
 export function partializeComposerDraftStoreState(
   state: ComposerDraftStoreState,
 ): PersistedComposerDraftStoreState {
-  // Draft sessions worth persisting: mapped (a new-thread flow targets
-  // them), promoting (mid-send), or holding real user content (they back a
-  // sidebar row). Everything else is a zombie — and its composer blob must
-  // be dropped WITH it, or model/mode-only entries would persist forever
-  // keyed to a session that no longer exists.
+  // Persist only mapped, promoting, or content-holding draft sessions. Drop a zombie's composer
+  // blob WITH it, or model/mode-only entries would persist forever keyed to a dead session.
   const mappedDraftKeys = new Set(
     Object.values(state.logicalProjectDraftThreadKeyByLogicalProjectKey),
   );

@@ -580,11 +580,9 @@ export interface RejectedSecondaryBootstrap {
 }
 
 /**
- * A backend that rejected a bootstrap token will usually keep rejecting it, so
- * the poll backs off on that exact signature instead of re-presenting a dead
- * credential every few seconds. It still retries on a capped backoff: a backend
- * that restarts on the same port seeds a fresh grant for the same token, and
- * nothing in the topology says it restarted.
+ * A rejected bootstrap token usually stays rejected, so the poll backs off on that exact
+ * signature. It still retries on a capped backoff: a backend restarting on the same port seeds a
+ * fresh grant for the same token, and nothing in the topology says it restarted.
  */
 export function isRejectedSecondaryBootstrap(
   rejected: RejectedSecondaryBootstrap | undefined,

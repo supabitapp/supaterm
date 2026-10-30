@@ -71,11 +71,9 @@ export function museVerbatimPath(path: string): string {
 }
 
 /**
- * On Windows Muse rejects anything but the verbatim canonical path, true case
- * and long names included, so resolve with the native realpath, which unlike
- * FileSystem.realPath fixes case and expands 8.3 names. Muse itself still
- * starts in the plain path: the `muse.cmd` launcher runs under cmd.exe, which
- * cannot use a verbatim directory.
+ * On Windows Muse accepts only the verbatim canonical path, so resolve with the
+ * native realpath, which unlike FileSystem.realPath fixes case and expands 8.3
+ * names. Muse still starts in the plain path: cmd.exe cannot use a verbatim one.
  */
 export const museWorkspaceRoot = Effect.fn("museWorkspaceRoot")(function* (path: string) {
   if ((yield* HostProcess.Platform) !== "win32") return path;
@@ -94,11 +92,9 @@ function windowsEnvironmentValue(environment: NodeJS.ProcessEnv, name: string) {
 }
 
 /**
- * The SDK spawns without a shell, which finds the `muse` launcher on PATH
- * everywhere but Windows. There Node neither looks a bare `muse` up with
- * PATHEXT (ENOENT) nor runs a `.cmd` file such as Muse's own launcher (EINVAL)
- * without a shell, so resolve the binary like any other command and run a
- * `.cmd` or `.bat` under cmd.exe.
+ * The SDK spawns without a shell, and on Windows Node then neither resolves a
+ * bare `muse` with PATHEXT (ENOENT) nor runs a `.cmd` launcher (EINVAL). Resolve
+ * the binary like any other command and run a `.cmd` or `.bat` under cmd.exe.
  */
 export const museLaunch = Effect.fn("museLaunch")(function* (
   binaryPath: string,

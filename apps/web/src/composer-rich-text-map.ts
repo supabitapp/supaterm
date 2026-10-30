@@ -533,14 +533,9 @@ export function pmToFlat(map: RichDocMap, pmPos: number): number {
   return Math.max(0, Math.min(best, map.docLength));
 }
 
-// ── Caret stops at styled edges ────────────────────────────────────────────
-//
-// Markers are decorations, not text, so the position where styled text meets
-// unstyled text (or a paragraph edge) is a single document position. The
-// caret gets two stops there: one that types with the marks before the edge
-// and one that types with the marks after it. Stored marks pick the stop, and
-// the revealed markers render on the matching side of the caret, so a pasted
-// `**bold**` at the start of a line can still be typed in front of.
+// Markers are decorations, not text, so a styled edge is a single document position. The caret
+// gets two stops there, picked by stored marks, so a pasted `**bold**` at the start of a line can
+// still be typed in front of.
 
 function styledEdge(state: EditorState) {
   const { selection } = state;

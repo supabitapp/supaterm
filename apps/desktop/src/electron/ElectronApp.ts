@@ -110,7 +110,7 @@ const readEnvironmentMachineSymbol = Effect.fn("desktop.readEnvironmentMachineSy
     }).pipe(Effect.orElseSucceed(() => null)),
 );
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = ElectronApp.of({
   metadata: Effect.gen(function* () {
     const appVersion = yield* Effect.try({

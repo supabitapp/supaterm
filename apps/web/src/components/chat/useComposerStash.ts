@@ -691,11 +691,8 @@ export function useComposerStash(input: {
     const stashTarget = composerDraftTarget;
     const entryId = randomUUID();
     const persistStash = async () => {
-      // Persist the text-only entry *first*, then clear. Ordering matters in
-      // both directions: writing before clearing means a crash or closed tab
-      // mid-encode still leaves the prompt recoverable, while clearing before
-      // the async image work means edits typed during encoding are not wiped.
-      // Images are appended to the stored entry as they finish encoding.
+      // Persist the text-only entry first so a crash mid-encode leaves the prompt recoverable,
+      // then clear before the async image work so edits typed during encoding are not wiped.
       const { evicted, written, durable } = stashEntryToQueue({
         id: entryId,
         createdAt: new Date().toISOString(),

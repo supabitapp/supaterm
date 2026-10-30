@@ -17,11 +17,9 @@ export interface AttachmentTray {
 }
 
 /**
- * Only attachments added to the open draft play the entrance, and the tray's
- * height eases only when attachments arrive or a removed one finishes leaving.
- * Switching drafts or composer layouts (resting, approval, a question), sending,
- * and stashing show the tray as it is. Measures synchronously so a snap-shot's
- * flight (which skips this) reads final geometry.
+ * Only attachments added to the open draft animate; switching drafts or layouts, sending, and
+ * stashing show the tray as it is. Measures synchronously so a snap-shot's flight (which skips
+ * this) reads final geometry.
  */
 export function useAttachmentTrayMotion(
   draftKey: string,

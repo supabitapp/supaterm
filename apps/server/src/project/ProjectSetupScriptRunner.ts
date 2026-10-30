@@ -121,7 +121,7 @@ export class ProjectSetupScriptRunner extends Context.Service<
   }
 >()("supaterm/project/ProjectSetupScriptRunner") {}
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 /**
  * Each run gets its own random token so script output cannot spoof completion, and the sentinel
  * pattern is built per run from it.
@@ -199,7 +199,7 @@ function wrapCommandForCompletion(
   }
 }
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const projects = yield* ProjectService.ProjectService;
   const terminalManager = yield* TerminalManager.TerminalManager;

@@ -113,13 +113,9 @@ export function useRetainedValue<T>(key: string | null, value: T | null): T | nu
 export const animateSidebarLayoutChanges: AnimateLayoutChanges = (args) =>
   args.isSorting ? defaultAnimateLayoutChanges(args) : false;
 
-// Rows and section markers share one sortable list. The separators resolve
-// the lifecycle action; Sidebar.drag previews the resulting layout. Pinned
-// threads keep the dragged position; active and done threads use time
-// order. Snoozed rows can leave the shelf, but dropping into it is not
-// supported because snoozing requires a wake time. The Working shelf follows
-// live status, so its rows only drag out as chat context, never between
-// sidebar sections.
+// Rows and section markers share one sortable list; the separators resolve the lifecycle action.
+// Dropping into the snoozed shelf is unsupported because snoozing needs a wake time, and Working
+// follows live status, so its rows only drag out as chat context.
 
 export type SidebarSection = "pinned" | "active" | "working" | "snoozed" | "done";
 
@@ -690,11 +686,8 @@ function hasUnseenFailure(thread: ThreadStatusInput): boolean {
   return completedAt > lastVisitedAt;
 }
 
-// A double-click dispatches two `click` events before `dblclick`: the first has
-// `detail === 1`, the second `detail === 2`. The second click must not run the
-// row's single-click navigation, otherwise double-click-to-rename would also
-// navigate. `MouseEvent.detail` is 0 for synthetic/keyboard activations, which
-// still count as a normal single activation.
+// A double-click dispatches a second `click` with `detail === 2` before `dblclick`; it must not
+// navigate, or double-click-to-rename would too. Keyboard activations have `detail === 0`.
 export function isTrailingDoubleClick(detail: number): boolean {
   return detail > 1;
 }

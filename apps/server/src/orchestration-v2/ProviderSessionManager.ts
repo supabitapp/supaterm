@@ -318,7 +318,7 @@ export const layerWithOptions = (
        * When present, an unreadable settings file withholds browser access
        * rather than granting it — an explicit "off" silently becoming "on"
        * would violate the user's stated choice, whereas the reverse costs an
-       * agent one toolset and is visible immediately (#7083).
+       * agent one toolset and is visible immediately.
        */
       const serverSettings = yield* Effect.serviceOption(ServerSettings.ServerSettingsService);
       const projectService = yield* Effect.serviceOption(ProjectService.ProjectService);
@@ -444,12 +444,9 @@ export const layerWithOptions = (
           : mcpPrepareLock.withLock(
               threadId,
               Effect.gen(function* () {
-                // Reuse a still-valid credential for this thread instead of
-                // rotating: long-lived provider processes (codex app-server)
-                // build their MCP client once per conversation and keep using
-                // the credential it started with, so a thread that detaches and
-                // re-attaches across a workspace handoff must come back to the
-                // same token or the process's tool calls fail auth.
+                // Reuse a still-valid credential instead of rotating: codex app-server builds
+                // its MCP client once per conversation, so a thread re-attaching after a
+                // workspace handoff must get the same token or its tool calls fail auth.
                 const { browser: browserToolsAvailable, device: deviceToolsAvailable } =
                   yield* agentAccessSettings(threadId);
                 const capabilities = new Set<
@@ -741,11 +738,9 @@ export const layerWithOptions = (
         }
       });
 
-      // Read as soon as the session leaves the live map: after that, a
-      // replacement session with the same id can open and report tasks of its
-      // own on the same provider threads. OpenCode's background subagents run
-      // on a server shared by its sessions and can outlive this one, so their
-      // roster stays.
+      // Read as soon as the session leaves the live map, before a replacement with the same id
+      // reports its own tasks on these provider threads. OpenCode's background subagents run on
+      // a shared server and can outlive this session, so their roster stays.
       const readReleasedBackgroundTasks = Effect.fn(
         "ProviderSessionManager.readReleasedBackgroundTasks",
       )(
@@ -1062,11 +1057,9 @@ export const layerWithOptions = (
             Option.match(entry, {
               onNone: () => Effect.void,
               onSome: (entry) =>
-                // Revoke every credential this session recorded, including for
-                // threads that detached without re-attaching: the provider
-                // process is gone, so nothing holds them anymore. Skip threads
-                // a live replacement session took over, since credential reuse
-                // means the replacement may hold this very credential.
+                // The provider process is gone, so revoke every credential it recorded, even for
+                // detached threads. Skip threads a live replacement session took over: credential
+                // reuse means it may hold this very credential.
                 Ref.get(sessions).pipe(
                   Effect.flatMap((current) =>
                     Effect.forEach(

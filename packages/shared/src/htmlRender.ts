@@ -154,11 +154,9 @@ export interface HtmlRenderTheme {
   readonly variables: Readonly<Record<string, string>>;
 }
 
-// Chart series stay fixed rather than following the theme: an accent can be
-// gray, as the default themes' is, or sit on top of another series. The order
-// keeps neighbors apart under simulated protanopia and deuteranopia (OKLab
-// ΔE×100 ≥ 8, ≥ 15 with full color vision), keeps the first three apart
-// pairwise, and every series clears 3:1 on the default canvas.
+// Fixed, not themed: an accent can be gray or match another series. The order keeps
+// neighbors apart under protanopia and deuteranopia (OKLab ΔE×100 ≥ 8, ≥ 15 with full
+// color vision), the first three apart pairwise, and every series at 3:1 on the canvas.
 const FIXED_COLORS = {
   light: {
     success: "#10b981",

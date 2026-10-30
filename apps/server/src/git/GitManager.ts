@@ -181,11 +181,9 @@ const PR_THREAD_COMMAND_OUTPUT_CHARS = 2_000;
 const isSourceControlProviderError = Schema.is(SourceControlProviderError);
 
 /**
- * A hosting provider rejects a throttled request immediately, so caching every
- * failure for a flat 20s made a rate-limited poller re-ask *faster* than a
- * healthy one does (which waits PR_LOOKUP_CACHE_TTL), turning a transient 429
- * into sustained pressure. Backing off per branch keeps the retry rate below
- * the healthy rate once a branch has failed more than a couple of times.
+ * A throttled request fails immediately, so a flat failure TTL made a rate-limited poller re-ask
+ * faster than a healthy one waiting PR_LOOKUP_CACHE_TTL. Backing off per branch keeps retries
+ * below the healthy rate after a couple of failures.
  */
 function prLookupFailureTtl(consecutiveFailures: number): Duration.Duration {
   const exponent = Math.max(0, consecutiveFailures - 1);
@@ -1003,11 +1001,10 @@ export const make = Effect.gen(function* () {
 
       if (repositoryNameWithOwner.length === 0) {
         yield* fetchChangeRequestHeadIntoBranch(cwd, pullRequest.number, localBranch).pipe(
-          // Without the host's head ref, a head in the same repository is a branch on the
-          // primary remote, so it is fetched by name instead, but only when that remote is the
-          // pull request's own repository: a host can find a change request by number outside
-          // the checkout's repository. Only while it is open, too: the branch of a closed one
-          // may have moved on past the head it was closed with.
+          // Without the host's head ref, fetch a same-repository head by branch name, but only
+          // when the primary remote is the pull request's own repository (a host finds change
+          // requests by number outside it) and the pull request is open (a closed one's branch
+          // may have moved past its head).
           Effect.catch((cause) =>
             pullRequest.isCrossRepository === true || pullRequest.state !== "open"
               ? Effect.fail(cause)
@@ -1285,11 +1282,9 @@ export const make = Effect.gen(function* () {
       return null;
     }
 
-    // Both sides must be resolved before treating a mismatch as real:
-    // `readConfigValueNullable` swallows any git-config read failure into
-    // `null`, so a transient failure to resolve the *current* remote URL must
-    // read as "unknown", not as "no remote" — the latter would otherwise drop
-    // an already-known PR badge on every hiccup.
+    // `readConfigValueNullable` turns any git-config read failure into `null`, so a mismatch
+    // counts only when both sides resolved; otherwise a transient failure would drop an
+    // already-known PR badge.
     if (lastKnown.headRemoteUrlKey !== null && current.headRemoteUrlKey !== null) {
       return lastKnown.headRemoteUrlKey === current.headRemoteUrlKey ? lastKnown.pr : null;
     }
@@ -1712,11 +1707,9 @@ export const make = Effect.gen(function* () {
             })
             .pipe(
               Effect.flatMap((result) => {
-                // `merge-base --is-ancestor` reports 0 for ancestor and 1
-                // for not-ancestor; any other non-zero exit is a failed
-                // probe, not a negative result. A failed probe rejects the
-                // whole inference instead of letting a surviving probe win
-                // by default and attach the wrong fork's PR.
+                // Any exit other than 0 or 1 is a failed probe, not a negative result, and
+                // rejects the whole inference rather than letting a surviving probe attach the
+                // wrong fork's PR by default.
                 if (result.exitCode === 0) return Effect.succeed(remote.name);
                 if (result.exitCode === 1) return Effect.succeed(null);
                 return new GitCommandError({

@@ -434,7 +434,7 @@ describe("AcpRuntimeModel", () => {
 
   it("bounds an oversized cumulative tool_call_update content buffer to a tail window", () => {
     // Mirrors Grok's ACP CLI resending the ENTIRE accumulated terminal output on every
-    // tool_call_update notification instead of a delta (see upstream #6556).
+    // tool_call_update notification instead of a delta.
     const hugeText = Array.from({ length: 2_000 }, (_, i) => `line ${i}: ${"x".repeat(50)}`).join(
       "\n",
     );

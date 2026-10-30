@@ -1,17 +1,10 @@
 import { DEFAULT_HOSTED_APP_URL } from "./remote.ts";
 
 /**
- * Prompt links open Supaterm from outside it with a prompt ready to send. They never send it:
- * a link from a stranger fills a draft, and the user reads it and presses Send. A link also
- * cannot pick a runtime mode, branch, or worktree. Those stay the user's own defaults.
- *
- * Shared links are https on the hosted app, because that is what Twitter and GitHub make
- * clickable. The `supaterm://` scheme carries the same paths into desktop and mobile:
- *
- *   https://app.supaterm.com/new?prompt=…&repo=owner/name&provider=codex&model=gpt-5
- *   https://app.supaterm.com/new?pr=owner/name/123&prompt=…
- *   https://app.supaterm.com/<environmentId>/<threadId>?prompt=…
- *   supaterm://new?…   supaterm://threads/<environmentId>/<threadId>?…
+ * A prompt link only fills a draft, since it may come from a stranger, and cannot pick a
+ * runtime mode, branch, or worktree. Shared links are https on the hosted app because that is
+ * what Twitter and GitHub make clickable; `supaterm://` carries the same paths, such as
+ * `/new?prompt=…&repo=owner/name`, into desktop and mobile.
  */
 
 export const PROMPT_LINK_MAX_PROMPT_LENGTH = 8_000;

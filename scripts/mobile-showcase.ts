@@ -926,11 +926,9 @@ async function iosSimulatorDataPath(udid: string): Promise<string> {
   return dataPath;
 }
 
-// generativeexperiencesd posts a "Ready for Apple Intelligence" follow-up
-// banner on an eligible device's first boot, and CoreFollowUp re-surfaces it on
-// every boot until the user dismisses it. Stamping the readiness marker before
-// boot makes the daemon skip the post, and dropping the CoreFollowUp store
-// clears a banner that a previous boot already queued.
+// generativeexperiencesd posts a "Ready for Apple Intelligence" banner on first boot and
+// CoreFollowUp re-surfaces it every boot until dismissed. The readiness marker makes the daemon
+// skip the post; dropping the CoreFollowUp store clears one a previous boot queued.
 export async function suppressIosSystemFollowUps(udid: string): Promise<void> {
   const dataPath = await iosSimulatorDataPath(udid);
   const preferences = NodePath.join(dataPath, "Library/Preferences");

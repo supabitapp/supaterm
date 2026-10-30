@@ -548,12 +548,10 @@ function firstHeaderValue(value: string | undefined): string | undefined {
 }
 
 /**
- * Browsers send `Origin` on WebSocket upgrades, cross-origin requests, and
- * non-GET requests, so an absent header means a same-origin read or a
- * non-browser client. Otherwise the request must be same-origin by the
- * browser's own `Sec-Fetch-Site` (which survives the dev proxy rewriting
- * `Host`), come from this server's own host (directly or behind a proxy that
- * reports `X-Forwarded-Host`), or come from one of the trusted app origins.
+ * Browsers send `Origin` on upgrades, cross-origin and non-GET requests, so its absence means a
+ * same-origin read or a non-browser client. Otherwise accept a same-origin `Sec-Fetch-Site` (it
+ * survives the dev proxy rewriting `Host`), this server's own host (`X-Forwarded-Host` behind a
+ * proxy), or a trusted app origin.
  */
 function isBrowserOriginAllowed(
   request: HttpServerRequest.HttpServerRequest,
@@ -576,7 +574,7 @@ function isBrowserOriginAllowed(
   );
 }
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const policy = yield* EnvironmentAuthPolicy.EnvironmentAuthPolicy;
   const bootstrapCredentials = yield* PairingGrantStore.PairingGrantStore;

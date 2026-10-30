@@ -18,34 +18,17 @@ export const ServerAuthPolicy = Schema.Literals([
 export type ServerAuthPolicy = typeof ServerAuthPolicy.Type;
 
 /**
- * A credential type that can be exchanged for a real authenticated session.
- *
- * Bootstrap methods are for establishing trust at the start of a connection or
- * pairing flow. They are not the long-lived credential used for ordinary
- * authenticated HTTP / WebSocket traffic after pairing succeeds.
- *
- * Current methods:
- * - `desktop-bootstrap`: a trusted local desktop handoff, used so the desktop
- *   shell can pair the renderer without a login screen
- * - `one-time-token`: a short-lived pairing token, suitable for manual pairing
- *   flows such as `/pair#token=...`
+ * A credential exchanged once for a session at pairing, never sent on ordinary
+ * traffic afterwards. `desktop-bootstrap` lets the desktop shell pair its
+ * renderer without a login screen; `one-time-token` backs `/pair#token=...`.
  */
 export const ServerAuthBootstrapMethod = Schema.Literals(["desktop-bootstrap", "one-time-token"]);
 export type ServerAuthBootstrapMethod = typeof ServerAuthBootstrapMethod.Type;
 
 /**
- * A credential type accepted for steady-state authenticated requests after a
- * client has already paired.
- *
- * These methods are used by the server-wide auth layer for privileged HTTP and
- * WebSocket access. They are distinct from bootstrap methods so clients can
- * reason clearly about "pair first, then use session auth".
- *
- * Current methods:
- * - `browser-session-cookie`: cookie-backed browser session, used by the web
- *   app after bootstrap/pairing
- * - `bearer-access-token`: scoped token suitable for non-cookie or
- *   non-browser clients
+ * A credential for steady-state HTTP and WebSocket requests after pairing,
+ * kept apart from bootstrap methods: pair first, then use session auth.
+ * `bearer-access-token` serves clients that cannot hold a browser cookie.
  */
 export const ServerAuthSessionMethod = Schema.Literals([
   "browser-session-cookie",
@@ -213,10 +196,8 @@ export const AuthWebSocketTicketResult = Schema.Struct({
 export type AuthWebSocketTicketResult = typeof AuthWebSocketTicketResult.Type;
 
 /**
- * The route a WebSocket ticket opens: the RPC socket, or the media routes
- * (device hub, preview stream) that share one ticket across many requests.
- * It is a path segment so a DPoP mint proof covers it; a query parameter is
- * outside the proof's `htu` and could be stripped on the way to the server.
+ * The route a WebSocket ticket opens. It is a path segment so the DPoP mint
+ * proof's `htu` covers it; a query parameter could be stripped in transit.
  * Clients that predate this mint at the bare path and get tickets that open either.
  */
 export const AuthWebSocketTicketUse = Schema.Literals(["rpc", "media"]);

@@ -387,11 +387,9 @@ const SettingsContentStack = createV5SheetStackNavigator({
         title: "Diagnostics",
       },
     }),
-    // Its params are a tap-time snapshot, not a stable resource address: `now` is the wall-clock
-    // of the tap, `environmentIds` is the usage screen's local filter selection, and the window
-    // id/kind identify freshly aggregated pools. React Navigation round-trips non-path params
-    // through the URL as query strings, so a path here would bake in a permanently stale
-    // timestamp and filter.
+    // No path: its params are a tap-time snapshot (wall-clock `now`, local filter, freshly
+    // aggregated pools), and React Navigation would round-trip them through the URL as a
+    // permanently stale query string.
     SettingsUsageAccount: createNativeStackScreen({
       screen: UsageLimitAccountScreen,
       options: { title: "Account" },

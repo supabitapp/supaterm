@@ -771,11 +771,8 @@ function PullRequestCodeTab({
     if (comment !== null) onFinish(comment);
   };
 
-  // The viewer's SlotPortals memoizes each visible file's header/annotation portal on these
-  // render props and on `options` below; a fresh identity on any of them — as a plain inline
-  // function or object literal would be — invalidates that memo and recreates every portal on
-  // screen on any tab re-render (a drag-selection, a keystroke in the draft, a review-store
-  // update), which is the jank this file is otherwise clean of.
+  // The viewer's SlotPortals memoizes each file's portal on these render props and `options`; a
+  // fresh identity on any of them recreates every portal on screen on each tab re-render.
   const renderCodeViewFooter = () =>
     nextCursor === null ? null : (
       <div
@@ -990,12 +987,9 @@ function PullRequestCodeTab({
     </div>
   );
 
-  // A rebase or a force-push can take the scoped commit out of the change. Its diff may still
-  // be reachable on the host, but it is no longer part of what is being reviewed, so the scope
-  // goes back to the whole change rather than sitting under a name nothing matches.
-  // Including when the change reports no commits at all: the scope dropdown is the only way back
-  // to the whole diff and it is not drawn without commits to list, so a scope that outlived them
-  // would leave the tab reading one obsolete commit with nothing to press.
+  // A rebase or force-push can take the scoped commit out of the change, so the scope goes back to
+  // the whole change. That includes a change with no commits: the scope dropdown is not drawn then,
+  // so a stale scope would leave the tab on an obsolete commit with no way back.
   const selectedCommit = orderedCommits.find((entry) => entry.oid === commit);
   const scopeLabel = selectedCommit ? selectedCommit.messageHeadline : "All commits";
   const changeIgnoreWhitespace = (next: boolean) => {

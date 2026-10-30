@@ -99,11 +99,9 @@ function AppContent() {
                   barStyle={themeAppearance === "dark" ? "light-content" : "dark-content"}
                 />
               ) : null}
-              {/* The navigation theme drives the NATIVE header appearance: native-stack
-                forwards `dark` as the nav bar's overrideUserInterfaceStyle. Without
-                this, React Navigation defaults to its light theme and every native
-                header (glass buttons, title, materials) is forced light even when
-                the system is in dark mode. */}
+              {/* native-stack forwards the navigation theme's `dark` as the nav bar's
+                overrideUserInterfaceStyle; without it every native header is forced light
+                even in system dark mode. */}
               <GlobalVoiceInputControl>
                 <NativeLayoutMetricsProvider>
                   <IncomingShareProvider>

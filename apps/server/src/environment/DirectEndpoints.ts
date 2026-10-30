@@ -1,10 +1,7 @@
 /**
- * DirectEndpoints - the LAN and tailnet addresses this server listens on now.
- *
- * Clients save these as extra routes so they can move to a faster path when one is reachable,
- * and replace a saved LAN address when DHCP or a new Wi-Fi network changes it. Only addresses the
- * server is actually bound to are listed: a loopback-only server lists none,
- * because its loopback address means a different machine to every client.
+ * The LAN and tailnet addresses this server listens on now, which clients save as faster routes.
+ * Only bound addresses are listed: a loopback-only server lists none, because its loopback
+ * address means a different machine to every client.
  */
 import type { ServerDirectEndpoint } from "@supaterm/contracts";
 import {
@@ -90,7 +87,7 @@ export function resolveBoundEndpoints(input: {
   }));
 }
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const config = yield* ServerConfig.ServerConfig;
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
@@ -104,11 +101,9 @@ export const make = Effect.gen(function* () {
         interfaces: NodeOS.networkInterfaces(),
       }),
     ];
-    // Tailscale Serve terminates HTTPS on the tailnet name and forwards to
-    // loopback, so it works even for a loopback-only server. The name is only
-    // listed once it answers as this server: Serve setup can fail without
-    // stopping startup. Anything slower than the probe leaves it out rather
-    // than holding back the addresses already found.
+    // Tailscale Serve forwards to loopback, so it works even for a loopback-only server. The
+    // name is listed only once it answers as this server, since Serve setup can fail without
+    // stopping startup; a slow probe leaves it out rather than holding back the rest.
     if (config.tailscaleServeEnabled) {
       const servedUrl = yield* readTailscaleStatus.pipe(
         Effect.map((status) => status.magicDnsName),

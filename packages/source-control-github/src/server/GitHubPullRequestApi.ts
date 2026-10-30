@@ -954,7 +954,7 @@ interface RestReadInput<A> {
   readonly decode: (raw: string) => Result.Result<A, unknown>;
 }
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const api = yield* GitHubRest.GitHubRest;
   const policy = yield* GitHubRequestPolicy.GitHubRequestPolicy;

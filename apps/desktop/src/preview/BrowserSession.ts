@@ -23,13 +23,9 @@ const PROFILE_PARTITION_MARKER = "profile-";
 
 export type BrowserSessionPartitionNamespace = "profile";
 
-// `clipboard-sanitized-write` is the Electron permission behind
-// `navigator.clipboard.writeText()` — note it is NOT `clipboard-write`, which
-// is not a valid Electron permission name. Async clipboard writes are gated by
-// the permission *check* handler (not only the request handler), so both
-// handlers must allow it; otherwise built-in "Copy" buttons — e.g. the Next.js
-// / Vercel error overlay — fail with `Failed to execute 'writeText' on
-// 'Clipboard': Write permission denied`.
+// `navigator.clipboard.writeText()` needs Electron's `clipboard-sanitized-write`, not the invalid
+// `clipboard-write`. The permission check handler gates it too, so both handlers must allow it or
+// page "Copy" buttons fail with "Write permission denied".
 const ALLOWED_PREVIEW_PERMISSIONS: ReadonlySet<string> = new Set([
   "clipboard-read",
   "clipboard-sanitized-write",
@@ -185,7 +181,7 @@ const previewHostWindow = (guest: WebContents | null): BrowserWindow | undefined
   return BrowserWindow.fromWebContents(host) ?? undefined;
 };
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* BrowserSessionMake() {
   const crypto = yield* Crypto.Crypto;
   const electronDialog = yield* ElectronDialog.ElectronDialog;
@@ -264,11 +260,9 @@ export const make = Effect.gen(function* BrowserSessionMake() {
       return Effect.try({
         try: () => {
           const browserSession = session.fromPartition(partition);
-          // The guest keeps Electron's native User-Agent. Rewriting it in any
-          // form — even variants that keep the Electron token — makes Cloudflare
-          // Turnstile fail its integrity check with error 600010 and recreate
-          // the challenge every few seconds, so logins behind it never complete
-          // (#5002).
+          // The guest keeps Electron's native User-Agent. Rewriting it in any form, even keeping
+          // the Electron token, makes Cloudflare Turnstile fail with error 600010 and loop the
+          // challenge, so logins behind it never complete.
           browserSession.setPermissionRequestHandler(
             (webContents, permission, callback, details) => {
               if (permission === "openExternal") {

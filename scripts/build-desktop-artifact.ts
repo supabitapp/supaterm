@@ -960,11 +960,9 @@ const NODE_PTY_WINDOWS_EXCLUSIONS = [
   "!**/node_modules/node-pty/prebuilds/win32-*/**/*",
   "!**/node_modules/node-pty/third_party/conpty/**/*",
 ] as const;
-// node-hid publishes its C sources and every platform's prebuild in one package.
-// Each platform keeps only what it loads; foreign .node files would also be
-// unpacked and Authenticode-signed on Windows. electron-builder's native rebuild
-// also compiles a build/ copy, which pkg-prebuilds would load ahead of the
-// equivalent N-API prebuild.
+// node-hid ships its C sources and every platform's prebuild. Foreign .node files would be
+// unpacked and Authenticode-signed on Windows, and pkg-prebuilds would load electron-builder's
+// rebuilt build/ copy ahead of the equivalent N-API prebuild.
 const NODE_HID_SOURCE_EXCLUSIONS = [
   "!**/node_modules/node-hid/hidapi/**/*",
   "!**/node_modules/node-hid/src/**/*",
@@ -3386,17 +3384,8 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
         packages: ["<no module regions found; the bundle scan needs updating>"],
       });
     }
-    // The check above is one-directional: it only proves nothing external got
-    // inlined. A regression to externalizing everything would also pass it,
-    // since source-file regions still exist -- and that is the failure this
-    // whole change exists to prevent, because those packages are not in the
-    // selected sidecar closure and both backends would die on ERR_MODULE_NOT_FOUND.
-    // `effect` is imported by every server module, so it is inlined in any
-    // correctly bundled build.
-    // The list-based check above only sees packages someone already thought to
-    // list. bufferutil and utf-8-validate were inlined for exactly that reason:
-    // native, but absent from the list, so nothing flagged them. Inspect the
-    // installed graph, including packages in pnpm's shared virtual store.
+    // The list-based check only sees packages someone thought to list, so inspect the installed
+    // graph, including pnpm's shared virtual store, for native packages that got inlined.
     const installed = yield* readInstalledPackages([
       path.join(repoRoot, "apps/server"),
       path.join(repoRoot, "apps/desktop"),

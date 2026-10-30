@@ -31,21 +31,9 @@ export function shouldUseRestingComposerLayout(input: {
   hasMultilinePrompt: boolean;
   timelineOverflows: boolean;
 }): boolean {
-  // Multiline drafts stay readable. Resting only clamps a single prompt
-  // line and overlays its actions; non-image attachment and context
-  // rows keep their natural height above it while image previews move inline.
-  // Banners and the tasks badge dock above the surface, so they are absent
-  // too, and resting hides them along with the model controls and the strip
-  // below.
-  //
-  // Only a timeline scroll rests the composer: the user asked for it with the
-  // gesture, and it lifts on the next composer interaction. Losing focus never
-  // rests it, so clicking a message, copying output, or selecting text for a
-  // citation leaves the composer where it was.
-  //
-  // Resting exists to give reading space back to the timeline. A thread that
-  // fits above the composer has nothing to reclaim, so it stays expanded and
-  // never shows the collapsed row that a fresh thread would otherwise open on.
+  // Resting clamps a single prompt line, so multiline drafts never rest. Only a timeline scroll
+  // rests it, never losing focus, so clicking or selecting text leaves the composer where it was.
+  // Resting gives reading space back to the timeline, so a thread that fits stays expanded.
   return (
     input.isExistingThread &&
     !input.isMobileViewport &&

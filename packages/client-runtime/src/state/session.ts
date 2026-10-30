@@ -125,11 +125,9 @@ function makeEnvironmentSessionAtoms<R, E>(
     ).pipe(Atom.withLabel(`environment-prepared-connection:${environmentId}`)),
   );
 
-  // Keyed on the prepared connection's identity: a reconnect (new credential,
-  // new base URL) swaps the prepared value, which re-runs the fetch, so scope
-  // changes from re-pairing are picked up without an explicit refresh. Nothing
-  // else re-reads it while the connection stays up, and clients treat a failed
-  // read as missing grants, so a transient failure retries before it settles.
+  // Keyed on the prepared connection, so a reconnect re-runs the fetch and picks up
+  // re-pairing scopes. Nothing else re-reads it while connected and a failed read means
+  // missing grants, so a transient failure retries before it settles.
   const sessionStateAtom = Atom.family((environmentId: EnvironmentId) =>
     runtime
       .atom((get) => {

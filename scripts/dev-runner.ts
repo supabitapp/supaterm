@@ -341,11 +341,9 @@ export const createDevRunnerEnv = Effect.fn("dev-runner.createDevRunnerEnv")(fun
     delete output.SUPATERM_HOME;
   }
 
-  // A dev-runner server is never launcher-managed. When the shell that runs
-  // this script was itself spawned by the machine's managed Supaterm service (an
-  // agent working inside Supaterm), these leak through and the child server
-  // fails startup with "The service launcher started a different Supaterm version"
-  // (serviceLauncherClient.ts resolveStartup).
+  // A dev-runner server is never launcher-managed. A shell spawned by the managed Supaterm
+  // service leaks these, and the child server then fails startup with "The service launcher
+  // started a different Supaterm version" (serviceLauncherClient.ts resolveStartup).
   delete output.SUPATERM_SERVICE_LAUNCHER_CONTEXT;
   delete output.SUPATERM_BOOT_SERVICE_UNIT;
 
@@ -355,11 +353,8 @@ export const createDevRunnerEnv = Effect.fn("dev-runner.createDevRunnerEnv")(fun
 
   if (!isDesktopMode) {
     output.SUPATERM_PORT = String(serverPort);
-    // HOST is Vite's own bind address, and the desktop branch below is the
-    // only place we set it. An inherited one (an exported HOST, a container,
-    // a `HOST=0.0.0.0 npm start` habit) would otherwise reach Vite and pin
-    // its HMR socket to that address — see the `explicitHost` gate in
-    // apps/web/vite.config.ts.
+    // HOST is Vite's bind address and only the desktop branch below sets it. An inherited one
+    // would pin Vite's HMR socket to that address; see `explicitHost` in apps/web/vite.config.ts.
     delete output.HOST;
     if (mode === "dev" || mode === "dev:web") {
       // Browser dev is single-origin: everything (including /ws) is proxied

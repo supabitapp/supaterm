@@ -112,11 +112,9 @@ const isComplete = (dir) => {
 };
 
 /**
- * Moves a finished staging folder to `dir`. Rename never replaces an existing
- * folder, so a complete install another launcher (or `supaterm update`) published
- * first is kept, never deleted from under a running process. Only a folder
- * without the completion marker, left by an interrupted older installer, is
- * cleared before trying again.
+ * Rename never replaces an existing folder, so a complete install another launcher (or
+ * `supaterm update`) published first is kept, never deleted from under a running process. Only a
+ * folder without the completion marker, left by an interrupted installer, is cleared and retried.
  */
 function publish(staging, dir) {
   try {

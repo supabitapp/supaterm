@@ -259,14 +259,9 @@ function fileManagerCommandForPlatform(
   }
 }
 
-// A graphical session variable plus an executable `xdg-open` does not prove
-// that opening a directory does anything: without an `inode/directory` MIME
-// handler, `xdg-open` exits nonzero after the launcher has already detached, so
-// the client would see a silent no-op. The probe carries its own timeout well
-// inside the scan timeout `server.getConfig` applies to editor discovery: that
-// outer timeout degrades to an empty editor list, so a hung `xdg-mime` (broken
-// D-Bus or desktop session) must cost only the file manager, not every
-// discovered editor.
+// Without an `inode/directory` MIME handler, `xdg-open` fails after the launcher detached, a
+// silent no-op, so the handler is probed. This sits well inside editor discovery's timeout, which
+// degrades to an empty list: a hung `xdg-mime` must cost only the file manager.
 const LINUX_DIRECTORY_HANDLER_PROBE_TIMEOUT = "2 seconds";
 
 const hasUsableLinuxDirectoryHandler = Effect.fn("externalLauncher.hasUsableLinuxDirectoryHandler")(
@@ -347,13 +342,10 @@ const resolveUsableFileManagerCommand = Effect.fn(
   return undefined;
 });
 
-// Reveal on Windows and WSL runs through PowerShell (see
-// resolveFileManagerRevealLaunch), not the `explorer` command that gates the
-// file-manager editor itself, so the capability must probe the executables the
-// reveal actually spawns. Callers gate on file-manager availability first;
-// the Linux "files" kind relies on that gate for the directory-handler probe,
-// while the WSL fallback re-probes because its availability may have come
-// from the Explorer bridge instead.
+// Reveal on Windows and WSL spawns PowerShell, not the `explorer` that gates the file-manager
+// editor, so this probes what reveal spawns. Linux "files" relies on the callers' file-manager
+// gate for the directory-handler probe; the WSL fallback re-probes because that gate may have
+// passed through the Explorer bridge instead.
 const fileManagerRevealKindForPlatform = Effect.fn(
   "externalLauncher.fileManagerRevealKindForPlatform",
 )(function* (
@@ -471,13 +463,9 @@ const resolveFileManagerRevealKind = Effect.fn("externalLauncher.resolveFileMana
   },
 );
 
-// Callers apply a timeout (`resolveAvailableEditorsForConfig`) and disconnect
-// mid-connect; neither may cancel a scan other connects are waiting on, or
-// throw away work a slow host (a busy server at startup, a long PATH) needs
-// more than one connect to finish. Expiry uses the monotonic clock
-// (Clock.monotonicTimeNanos), matching the command-resolution cache in
-// @supaterm/shared/shell, so a backward wall-clock adjustment cannot keep an
-// expired entry alive.
+// A caller's timeout or disconnect must not cancel a scan other connects wait on, or discard
+// work a slow host needs several connects to finish. Expiry uses the monotonic clock so a
+// backward wall-clock adjustment cannot keep an expired entry alive.
 const EDITOR_DISCOVERY_CACHE_TTL_NANOS = 60_000_000_000n;
 
 interface EditorDiscoveryCacheEntry {
@@ -785,7 +773,7 @@ const launchEditorProcess = Effect.fn("externalLauncher.launchEditorProcess")(fu
   );
 });
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const fileSystem = yield* FileSystem.FileSystem;

@@ -1795,11 +1795,9 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
               }
               return;
             }
-            // An overflow can surface as a model error (`message_end` with
-            // stopReason error) before Pi compacts and retries the turn. Clear
-            // that failure only when Pi confirms that compaction will retry;
-            // a successful non-retrying compaction must not erase an exhausted
-            // provider retry.
+            // An overflow can surface as a model error before Pi compacts and retries. Clear it
+            // only when Pi confirms the retry, so a non-retrying compaction cannot erase an
+            // exhausted provider retry.
             if (event["willRetry"] === true) turn.failure = null;
             turn.latestCompactionAfterTokens =
               nonNegativeInteger(result, "estimatedTokensAfter") ?? null;
@@ -1964,11 +1962,9 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
             const responseTurn =
               pendingPrompt?.providerTurnId === turn?.providerTurn.id ? turn : null;
             if (event["success"] === true) {
-              // Deferred success ack. Command-only prompts (pure extension
-              // slash commands) never start an agent run and never emit
-              // `agent_settled`, so probe for idleness. The probe result is
-              // re-queued behind any events Pi emitted before answering
-              // get_state, which keeps the check stream-ordered.
+              // Command-only prompts (extension slash commands) never emit `agent_settled`, so
+              // probe for idleness. The probe result is re-queued behind events Pi emitted
+              // before answering get_state, which keeps the check stream-ordered.
               if (
                 pendingPrompt?.kind === "turn_start" &&
                 responseTurn !== null &&
@@ -2437,13 +2433,9 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
                 Effect.ignore,
               );
             }
-            // Resolved before the turn is installed: a failure here (an
-            // unreadable attachment) must not leave `activeTurn` set, which
-            // would reject every later turn as already active.
-            // Orchestration instructions reach pi through the Supaterm MCP
-            // extension's before_agent_start system-prompt hook, never by
-            // wrapping the user text: a wrapped first message would no
-            // longer start with "/" and slash commands would stop expanding.
+            // Resolved before the turn is installed, so an unreadable attachment cannot leave
+            // `activeTurn` set. Instructions go through the MCP extension's system-prompt hook:
+            // wrapping the user text would stop a leading "/" from expanding.
             const compactCommand = continuation
               ? null
               : parsePiCompactCommand(turnInput.message.text);
@@ -2604,13 +2596,10 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
                     steerInput.message.attachments,
                   )
                 : null;
-            // Prompt with streamingBehavior steer is atomic on Pi's side: it
-            // queues during an active run and starts a new run if settlement
-            // won the race. A direct `steer` sent after Pi became idle would
-            // remain queued forever. Send fire-and-forget under the session
-            // permit so a slash-command dialog cannot block the turn, and so
-            // settlement cannot overtake the active-turn check.
-            // /compact is not a prompt: Pi's compact RPC aborts the agent first.
+            // A steer-behavior prompt queues during a run or starts one if settlement won the race;
+            // a bare `steer` after Pi went idle stays queued forever. Fire-and-forget under the
+            // permit so a slash-command dialog cannot block the turn or let settlement overtake
+            // the active-turn check. /compact is not a prompt: its RPC aborts the agent first.
             yield* sessionEventPermit.withPermits(1)(
               Effect.gen(function* () {
                 if (threadState?.activeTurn !== turn) {

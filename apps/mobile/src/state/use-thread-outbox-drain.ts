@@ -425,12 +425,8 @@ export async function restoreRejectedQueuedMessage(
         attachments: queuedMessage.attachments,
       });
     } finally {
-      // Snapshots for the rollbacks below: undoComposerDraftMerge restores
-      // the original draft only while it is untouched, and otherwise takes
-      // out just what this recovery inserted so edits typed during the awaits
-      // survive. Captured in a finally because mergeComposerDraftContent
-      // publishes before its persistence await: even its failure leaves the
-      // merged content in the draft.
+      // Captured in a finally because mergeComposerDraftContent publishes before its persistence
+      // await, so even its failure leaves the merged content in the draft for the rollbacks below.
       mergedDraft = getComposerDraftSnapshot(draftKey);
       rollback = { snapshot: originalDraft, merged: mergedDraft };
     }
@@ -1387,11 +1383,9 @@ export function useThreadOutboxDrain(): void {
         }
         return deliveryAction === "remove"
           ? creation !== undefined
-            ? // A creation entry that survived its delivery cleanup either
-              // holds edits (recover them) or the delivered payload (a
-              // recovered duplicate the user can delete). Restart loses any
-              // in-memory distinction, and losing edits is the worse failure,
-              // so recovery is unconditional here.
+            ? // A creation entry that survived delivery cleanup holds either edits or a duplicate
+              // the user can delete. Restart loses the distinction and losing edits is worse,
+              // so recovery is unconditional.
               recoverEditedCreationAfterDelivery(nextQueuedMessage)
             : removeQueuedMessage("[thread-outbox] failed to remove message for a missing thread")
           : creation !== undefined

@@ -580,11 +580,9 @@ export function decodePersistedComposerState(value: unknown): {
         .map(([key, draft]): readonly [string, ComposerDraft] => [
           key,
           restoreMissingComposerFileReferences(
-            // A new-task draft holding only a model choice is not content. Strip
-            // it so the next compose pass re-resolves project → sticky →
-            // provider defaults instead of listing the draft after a restart.
-            // Drafts with runtime/interaction/workspace settings or actual text /
-            // attachments were deliberately configured and are left alone.
+            // A new-task draft holding only a model choice is not content: strip it so the next
+            // compose pass re-resolves project, sticky and provider defaults instead of listing
+            // the draft after a restart.
             isNewTaskDraftKey(key) &&
               draft.modelSelection &&
               draft.text.length === 0 &&
@@ -1493,11 +1491,8 @@ export function sameComposerDraftState(a: ComposerDraft, b: ComposerDraft): bool
 }
 
 /**
- * When the draft is untouched since `merged` (the state captured right after
- * the merge), the pre-merge snapshot comes back exactly. When the user edited
- * the draft during the merge's awaits, only what the merge inserted (the
- * appended text and the new attachments) is taken back out, so the user's edits
- * survive the rollback.
+ * An untouched draft gets the pre-merge snapshot back exactly. If the user edited it during the
+ * merge's awaits, only the appended text and new attachments come back out, so the edits survive.
  */
 export function undoComposerDraftMergeState(
   current: Record<string, ComposerDraft>,

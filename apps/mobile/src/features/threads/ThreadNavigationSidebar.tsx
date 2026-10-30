@@ -426,11 +426,9 @@ function ThreadNavigationSidebarPane(
     onScroll: handleListScroll,
     onScrollBeginDrag: handleScrollBeginDrag,
   });
-  // The sticky header's project shells and search maps feed row props, so
-  // they have to bust the recycler's memoization — otherwise a row keeps the
-  // blank favicon and fallback title it was first rendered with. The minute
-  // clock deliberately stays out: its per-row text lives on the items, so a
-  // tick only re-renders rows whose displayed text actually moved.
+  // Project shells and search maps feed row props, so they bust the recycler's memoization or a
+  // row keeps its first blank favicon and title. The minute clock stays out: its text lives on
+  // the items, so a tick re-renders only rows whose text moved.
   const listExtraData = {
     activeNewTask,
     selectedThreadKey: props.selectedThreadKey ?? "",

@@ -410,11 +410,9 @@ function normalizeSupatermMcpToolLabel(value: string): string {
 }
 
 /**
- * ACP agents disagree on how the injected Supaterm server prefixes its tools:
- * `mcp__supaterm__x` (Claude/Cursor), `supaterm.x` (Codex), plus single
- * underscore, colon, slash, dash, and space separators seen from registry
- * agents. The prefix match is deliberately loose because the display-name
- * inventory is the real gate; unknown tools stay on the generic renderer.
+ * Agents disagree on the Supaterm tool prefix (`mcp__supaterm__x`, `supaterm.x`, and
+ * underscore, colon, slash, dash, or space separators). The match is loose because the
+ * display-name inventory is the real gate; unknown tools stay on the generic renderer.
  */
 function resolveSupatermMcpToolName(value: string): string | null {
   const label = normalizeSupatermMcpToolLabel(value);

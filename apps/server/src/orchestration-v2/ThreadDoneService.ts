@@ -399,12 +399,9 @@ export const make = Effect.gen(function* () {
       { concurrency: 8, discard: true },
     );
     if (mergedPullRequest !== null) {
-      // The merge just confirmed a terminal state the lookup caches can still
-      // call open (branch answers live two minutes, the sweep runs every
-      // minute). Drop the swept checkouts' cached answers so the merge completes
-      // its branch threads now instead of on a later sweep. Threads linked to
-      // the merged pull request become done from the event itself below and need no
-      // lookup, so they are absent from this map by construction.
+      // Cached branch answers outlive a sweep and can still call the merged branch open, so
+      // drop them to complete its threads now. Threads linked to the merged pull request are
+      // done from the event itself and never enter this map.
       const cwds = [...new Set(lookupCwdByThreadId.values())];
       yield* Effect.forEach(cwds, (cwd) => git.invalidateStatus(cwd), {
         concurrency: 8,
@@ -458,11 +455,9 @@ export const make = Effect.gen(function* () {
       const thread = group[0]!;
       const reference = thread.linkedPullRequest ?? thread.branchPullRequest;
       if (reference != null) {
-        // The event carries the merged state, so only the threads linked to
-        // that exact pull request become done from it. Every other linked thread
-        // falls through to a fresh summary lookup below: the merge sweep
-        // covers all candidates, and an unrelated merge must never complete
-        // them.
+        // Only threads linked to the merged pull request become done from the event. Every
+        // other linked thread falls through to a fresh lookup, since an unrelated merge must
+        // never complete them.
         const matchesMerge =
           mergedPullRequest !== null &&
           reference.projectId === mergedPullRequest.projectId &&
@@ -585,11 +580,9 @@ export const make = Effect.gen(function* () {
       return sweepThread(threadId).pipe(FiberSet.run(threadSweeps), Effect.asVoid);
     });
 
-  // Marking done closes the thread's shells that sit at an idle prompt, so they stop
-  // holding the worktree. A terminal running a command (a dev server, an
-  // editor) stays for the user to close. Then the project's done script runs
-  // in the thread's own worktree; a thread in the shared checkout skips it,
-  // because other threads may still be working there.
+  // Idle shells close so they stop holding the worktree; a terminal running a command stays
+  // for the user to close. The done script skips the shared checkout, where other threads may
+  // still be working.
   const cleanUpDoneThread = Effect.fn("ThreadDoneServiceV2.cleanUpDoneThread")(
     function* (threadId: ThreadId) {
       const done = yield* projections.getThread(threadId);

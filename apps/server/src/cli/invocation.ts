@@ -40,14 +40,9 @@ const InstallManifest = Schema.Struct({
 const decodeInstallManifest = Schema.decodeUnknownEffect(Schema.fromJsonString(InstallManifest));
 
 /**
- * The script this CLI was started through: the `supaterm` npm launcher that
- * downloaded and ran this executable (it names itself in
- * `SUPATERM_NPM_LAUNCHER_PATH`), or the Node entry script of a build run from
- * source. A standalone executable has none and reports its own path.
- *
- * The variable is inherited by everything the server spawns, so a launcher
- * counts only when its package is this exact version: a different `supaterm` run
- * from an agent's shell must not claim to be the npm install.
+ * The npm launcher or source entry script this CLI started through, else its own path. Spawned
+ * processes inherit `SUPATERM_NPM_LAUNCHER_PATH`, so a launcher counts only at this exact
+ * version: a different `supaterm` run from an agent's shell must not claim to be the npm install.
  */
 export const resolveEntryPath = Effect.gen(function* () {
   const npmLauncher = (yield* HostProcess.Environment).SUPATERM_NPM_LAUNCHER_PATH?.trim();
@@ -183,11 +178,9 @@ const resolveInstallLauncher = Effect.gen(function* () {
 });
 
 /**
- * `supaterm <subcommand> <args>` for a person to run on this host: `supaterm` when it is
- * on PATH, the package runner this process came from, or else the absolute
- * path of the launcher for this install, such as the one the desktop app
- * installs. `args` are quoted for the host's shell: POSIX, or PowerShell on
- * Windows.
+ * `supaterm <subcommand> <args>` for a person to run on this host, via PATH, the package runner
+ * this process came from, or this install's launcher path. `args` are quoted for the host's
+ * shell: POSIX, or PowerShell on Windows.
  */
 export const resolveHostCliCommand = Effect.fn("invocation.resolveHostCliCommand")(function* (
   subcommand: string,

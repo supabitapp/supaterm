@@ -562,13 +562,9 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
   const insets = useSafeAreaInsets();
   const isKeyboardVisible = useKeyboardState((state) => state.isVisible);
   const liveKeyboardHeight = useKeyboardState((state) => state.height);
-  // Android can swallow the IME hide callbacks when the app is backgrounded mid keyboard-hide
-  // (the reported repro: send — which blurs and starts the hide — then Home within a second). The
-  // keyboard library's height AND visibility then stay frozen open, so gating the sticky
-  // translation on visibility alone still strands the composer after resume. An input that kept
-  // focus through the switch is exempt: Android restores its keyboard unchanged, so no keyboard
-  // or focus event would ever lift the quarantine. Hiding the keyboard with Back keeps focus, so
-  // Back then Home mid-hide takes the exemption and can still strand the composer.
+  // Android can swallow IME hide callbacks when backgrounded mid-hide, freezing the keyboard's
+  // height and visibility open. An input that kept focus is exempt, since Android restores its
+  // keyboard and no event would lift the quarantine; so Back then Home mid-hide still strands it.
   const [keyboardStateSuspect, setKeyboardStateSuspect] = useState(false);
   const ownedInputFocusedRef = useRef(false);
   useEffect(() => {
@@ -972,13 +968,9 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
   // Waiting for a visibility render misses the first keyboard frames.
   const keyboardStickyEnabled = Platform.OS === "ios" || !keyboardStateSuspect;
   const estimatedOverlayHeight = composerOverlapHeight;
-  // The overlay's measured height includes the home-indicator inset (the
-  // composer pads it), but contentInsetAdjustmentBehavior="automatic" makes
-  // UIKit add the safe-area bottom to the content inset AGAIN — leaving a
-  // dead strip between the resting content and the composer. Report the
-  // overlay height minus the safe area; UIKit adds it back, and ThreadFeed
-  // hands LegendList the same delta via contentInsetEndStaticAdjustment so
-  // its end-scroll math matches the real resting position.
+  // The overlay height already includes the home-indicator inset, and automatic insets make UIKit
+  // add the safe-area bottom again. Report it minus the safe area; ThreadFeed hands LegendList the
+  // same delta via contentInsetEndStaticAdjustment.
   const nativeInsetOvercount =
     props.usesAutomaticContentInsets === true && Platform.OS === "ios" ? insets.bottom : 0;
   const { contentInsetEndAdjustment, onComposerLayout } = useKeyboardChatComposerInset(
@@ -1264,11 +1256,8 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
         return;
       }
       lastScrolledSubmittedMessageIdRef.current = submittedMessageId;
-      // Wait for the keyboard dismissal (started by blur() on send) to finish
-      // before scrolling: scrollMessageToEnd freezes keyboard-driven inset
-      // updates while it runs, and a close event swallowed by that freeze
-      // leaves the keyboard padding permanently applied — overshooting the
-      // anchor and leaving a phantom bottom inset once the reply streams in.
+      // Wait for the send's keyboard dismissal first: scrollMessageToEnd freezes keyboard-driven
+      // inset updates, and a close event swallowed by that freeze leaves a phantom bottom inset.
       void KeyboardController.dismiss()
         .then(() => {
           if (

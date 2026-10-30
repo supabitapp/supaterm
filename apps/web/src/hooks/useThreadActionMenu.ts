@@ -55,15 +55,9 @@ function failureToast(title: string, error: unknown) {
 }
 
 /**
- * The per-thread action menu (pin, mark done, snooze, rename, copy, delete…) as
- * a self-contained hook, for surfaces other than the sidebar row. The chat header
- * renders it through the native context-menu bridge and the command palette lists
- * `threadActions` as commands; both dispatch through the same mutations the
- * sidebar uses.
- *
- * Unlike the sidebar, marking done and snoozing here never navigate away: the caller
- * is acting on the thread they are reading, and ChatView's parked-thread
- * banner already offers the way back.
+ * The thread action menu for surfaces other than the sidebar row, using the sidebar's mutations.
+ * Unlike the sidebar, marking done and snoozing never navigate away: the caller is reading the
+ * thread, and ChatView's parked-thread banner already offers the way back.
  */
 export function useThreadActionMenu(input: {
   readonly threadRef: ScopedThreadRef | null;
