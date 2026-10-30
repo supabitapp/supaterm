@@ -24,7 +24,7 @@ describe("parseChangeRequestUrl", () => {
       expect(
         parseChangeRequestUrl(`https://git.cafe/PingDotGG/Supaterm/${path}/23897`),
         path,
-      ).toEqual({ host: "git.cafe", repository: "supabitapp/supaterm", number: 23897 });
+      ).toEqual({ host: "git.cafe", repository: "pingdotgg/supaterm", number: 23897 });
     }
     expect(parseChangeRequestUrl("https://staging.git.cafe/team/repo/pull/7/files")).toEqual({
       host: "staging.git.cafe",

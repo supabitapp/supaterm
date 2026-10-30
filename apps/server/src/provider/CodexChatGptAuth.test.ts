@@ -1596,7 +1596,11 @@ const makeRenewalBroker = Effect.gen(function* () {
   );
   return yield* Effect.gen(function* () {
     const store = yield* ProviderCredentialStore.make("codex-chatgpt", instanceId);
-    yield* store.set(new TextEncoder().encode(JSON.stringify(credentials)));
+    yield* store.set(
+      new TextEncoder().encode(
+        JSON.stringify({ activeClientId: credentials.clientId, sessions: [credentials] }),
+      ),
+    );
     const auth = yield* makeCodexChatGptAuth({ instanceId });
     const profileKey = yield* auth.profileKey(credentials);
     const scope = yield* Scope.make();
