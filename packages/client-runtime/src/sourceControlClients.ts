@@ -20,10 +20,10 @@ export {
   type HostCredentialSettings,
   type ParsedChangeRequestUrl,
   type ReferenceAutolink,
-  type SourceControlAppSignIn,
   type SourceControlDefinition,
   type SourceControlHostCredentials,
 } from "@supaterm/source-control-core/shared/definition";
+export type { SourceControlAppSignIn } from "@supaterm/contracts";
 
 export const sourceControlClients = builtInSourceControlDefinitions;
 
