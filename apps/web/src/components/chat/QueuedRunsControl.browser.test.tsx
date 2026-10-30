@@ -1,3 +1,4 @@
+import { ATTACHMENT_ONLY_BOOTSTRAP_PROMPT } from "@supaterm/shared/composerContextReferences";
 import { EnvironmentId, MessageId, ThreadId } from "@supaterm/contracts";
 import { serializeAssistantCitation } from "@supaterm/shared/assistantCitations";
 import { createRef, type ComponentProps } from "react";
@@ -15,23 +16,36 @@ vi.mock(import("@supaterm/client-runtime/state/thread-workflows"), async (import
   deriveThreadQueueWorkflowState: (() => state.workflow) as never,
 }));
 
-vi.mock(import("../../state/entities"), async (importOriginal) => ({
-  ...(await importOriginal()),
-  useThreadProjection: (() => state.projection) as never,
-}));
-
-vi.mock(import("../../state/use-atom-command"), async (importOriginal) => ({
-  ...(await importOriginal()),
-  useAtomCommand: ((command: unknown) => async (input: unknown) => {
-    state.commands.push({ command, input });
-  }) as never,
-}));
-
-vi.mock(import("../../assets/assetUrls"), async (importOriginal) => ({
-  ...(await importOriginal()),
-  useAssetUrls: ((_environmentId: never, resources: ReadonlyArray<{ attachmentId: string }>) =>
-    resources.map((resource) => `https://assets.test/${resource.attachmentId}`)) as never,
-}));
+vi.mock(
+  import("../../state/entities"),
+  () =>
+    ({
+      useThreadProjection: () => {
+        if (!state.projection) return null;
+        const current = state.projection as { projection: Record<string, unknown> };
+        return { projection: { runtimeRequests: [], turnItems: [], ...current.projection } };
+      },
+      useQuietThreadShell: () => null,
+    }) as never,
+);
+vi.mock(
+  import("../../state/use-atom-command"),
+  () =>
+    ({
+      useAtomCommand: (command: unknown) => async (input: unknown) => {
+        state.commands.push({ command, input });
+        return { _tag: "Success", value: undefined };
+      },
+    }) as never,
+);
+vi.mock(
+  import("../../assets/assetUrls"),
+  () =>
+    ({
+      useAssetUrls: (_environmentId: unknown, resources: ReadonlyArray<{ attachmentId: string }>) =>
+        resources.map((resource) => `https://assets.test/${resource.attachmentId}`),
+    }) as never,
+);
 
 import { act, render as renderUi } from "../../../test/render";
 import { threadEnvironment } from "../../state/threads";
@@ -153,6 +167,41 @@ describe("QueuedRunsControl attachments and edit mode", () => {
     });
 
     expect(screen.container.childElementCount).toBe(0);
+  });
+
+  it("shows the guest who submitted a queued message", async () => {
+    setup();
+    state.projection = { projection: { messages: [] } };
+    const workflow = workflowWithAttachment();
+    state.workflow = {
+      ...workflow,
+      queuedRuns: workflow.queuedRuns.map((queued) => ({
+        ...queued,
+        message: {
+          role: "user",
+          text: queued.text,
+          context: { guest: { name: "Taylor", text: queued.text } },
+        },
+      })),
+    };
+    await using screen = await renderQueue();
+    expect(screen.container.textContent).toContain("Taylor (guest)");
+  });
+
+  it("shows the image without its attachment-only bootstrap prompt", async () => {
+    setup();
+    state.projection = { projection: { messages: [] } };
+    const workflow = workflowWithAttachment();
+    state.workflow = {
+      ...workflow,
+      queuedRuns: workflow.queuedRuns.map((queued) => ({
+        ...queued,
+        text: ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
+      })),
+    };
+    await using screen = await renderQueue();
+    expect(screen.container.querySelector("img")).not.toBeNull();
+    expect(screen.container.textContent).not.toContain(ATTACHMENT_ONLY_BOOTSTRAP_PROMPT);
   });
 
   it("keeps the original queued message visible while editing", async () => {

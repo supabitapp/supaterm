@@ -10,7 +10,7 @@ import {
   countPreparingComposerImages,
   usePreparingComposerImages,
 } from "./preparingComposerImages";
-import { useComposerLinkedEnvironments } from "./useComposerLinkedEnvironments";
+import { useLinkedEnvironments } from "../../state/peerLinks";
 import { readCanQueueComposerMessage } from "../../state/composerQueue";
 import { useComposerTypingGuard } from "./useComposerTypingGuard";
 import { insertAttachmentReferencesForDraft } from "./composerAttachmentReferences";
@@ -616,7 +616,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     onEditLatestQueuedMessage,
     onCancelQueuedMessageEdit,
   } = props;
-  const linkedEnvironments = useComposerLinkedEnvironments(environmentId);
+  const linkedEnvironments = useLinkedEnvironments(environmentId);
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const composerDraftTargetKey = composerTargetKey(composerDraftTarget);
   const {

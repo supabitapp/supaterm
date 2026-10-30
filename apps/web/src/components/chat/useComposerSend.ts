@@ -1,4 +1,4 @@
-import { useComposerLinkedEnvironments } from "./useComposerLinkedEnvironments";
+import { useLinkedEnvironments } from "../../state/peerLinks";
 import {
   ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
   threadContextsOutsideEnvironment,
@@ -218,7 +218,7 @@ export function useComposerSend(input: ComposerSendInput) {
     handleNewThreadInActiveProject,
   } = input;
   const openPaneThread = usePaneThreadNavigation();
-  const linkedEnvironments = useComposerLinkedEnvironments(environmentId);
+  const linkedEnvironments = useLinkedEnvironments(environmentId);
   const clientSettingsHydrated = useClientSettingsHydrated();
   const uploadThreadFeedback = useOrchestrationCommand(threadEnvironment.uploadFeedback, {
     reportFailure: false,

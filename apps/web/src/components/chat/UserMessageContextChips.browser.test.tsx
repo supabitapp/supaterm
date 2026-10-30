@@ -22,6 +22,7 @@ vi.mock(import("@pierre/diffs/react"), () => ({ FileDiff: () => null }) as never
 it("loads the complete sent-message registry and renders machine context", async () => {
   const { UserMessageContextReferenceChip } = await import("./UserMessageContextChips");
   const record = {
+    version: 1,
     kind: "environment",
     contextId: ComposerContextId.make("machine-remote"),
     environmentId: EnvironmentId.make("remote"),
