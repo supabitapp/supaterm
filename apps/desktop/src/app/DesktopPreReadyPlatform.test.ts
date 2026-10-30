@@ -172,7 +172,7 @@ describe("DesktopPreReadyPlatform", () => {
     vi.stubEnv("VITE_DEV_SERVER_URL", "");
     vi.stubEnv("XDG_DATA_HOME", "/xdg");
     vi.stubEnv("APPIMAGE", "/Applications/current.AppImage");
-    vi.stubEnv("SUPATERM_DESKTOP_LAUNCHER_PATH", " /opt/Supaterm/supaterm ");
+    vi.stubEnv("SUPATERM_DESKTOP_LAUNCHER_PATH", " /opt/Supaterm Desktop/supaterm ");
     getSwitchValueMock.mockReturnValue("");
 
     return Effect.scoped(
@@ -185,7 +185,7 @@ describe("DesktopPreReadyPlatform", () => {
         const entry = writeFileSyncMock.mock.calls.find(
           ([path]) => path === "/xdg/applications/com.supaterm.desktop.desktop",
         )?.[1];
-        assert.include(entry, 'Exec="/opt/Supaterm/supaterm" %U');
+        assert.include(entry, 'Exec="/opt/Supaterm Desktop/supaterm" %U');
       }),
     ).pipe(Effect.ensuring(Effect.sync(() => vi.unstubAllEnvs())));
   });

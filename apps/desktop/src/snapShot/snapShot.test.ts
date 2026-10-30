@@ -314,13 +314,13 @@ describe("findAccessibleWindow", () => {
   });
 
   it("uses the captured source title when the active title changed", () => {
-    const windows = [{ name: "Editor — saved", bounds: captured.bounds }];
+    const windows = [{ name: "Editor - saved", bounds: captured.bounds }];
 
     expect(
       findAccessibleWindow(windows, {
         ...captured,
-        title: "Editor — saving",
-        sourceTitle: "Editor — saved",
+        title: "Editor - saving",
+        sourceTitle: "Editor - saved",
       }),
     ).toBe(windows[0]);
   });

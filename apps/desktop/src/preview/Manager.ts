@@ -3493,7 +3493,7 @@ export class PreviewManager extends Context.Service<
   }
 >()("@supaterm/desktop/preview/Manager/PreviewManager") {}
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* PreviewManagerMake() {
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
   const browserSession = yield* BrowserSession.BrowserSession;

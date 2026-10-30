@@ -432,7 +432,7 @@ const requiresBackendRelaunch = (previous: RuntimeState, next: RuntimeState): bo
   previous.bindHost !== next.bindHost ||
   previous.localHttpUrl !== next.localHttpUrl;
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const config = yield* DesktopConfig.DesktopConfig;
   const networkInterfaces = yield* DesktopNetworkInterfaces.DesktopNetworkInterfaces;

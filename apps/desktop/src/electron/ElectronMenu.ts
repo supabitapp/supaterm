@@ -114,7 +114,7 @@ const MENU_ICON_SYMBOLS: Readonly<Record<string, string>> = {
   trash: "trash",
 };
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const platform = yield* HostProcess.Platform;
   const menuIconCache = new Map<string, Option.Option<Electron.NativeImage>>();

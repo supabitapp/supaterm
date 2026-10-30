@@ -340,7 +340,7 @@ function isArm64HostRunningIntelBuild(runtimeInfo: DesktopRuntimeInfo): boolean 
   return runtimeInfo.hostArch === "arm64" && runtimeInfo.appArch === "x64";
 }
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const config = yield* DesktopConfig.DesktopConfig;
   const pool = yield* DesktopBackendPool.DesktopBackendPool;

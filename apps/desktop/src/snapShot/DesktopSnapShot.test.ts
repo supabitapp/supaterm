@@ -1609,12 +1609,12 @@ it("reads Flatpak app text from the AT-SPI proxy when the compositor PID misses"
   vi.stubEnv("XDG_SESSION_TYPE", "wayland");
   const bounds = { x: 0, y: 0, width: 1_920, height: 1_048 };
   const tree = vi.fn(async () => ({
-    name: "Issue — Zen Browser",
+    name: "Issue - Zen Browser",
     children: [{ name: "New Tab", children: [] }],
   }));
   const proxyWindow = {
     role: "window",
-    name: "Issue — Zen Browser",
+    name: "Issue - Zen Browser",
     bounds,
     tree,
     children: async () => [],
@@ -1642,14 +1642,14 @@ it("reads Flatpak app text from the AT-SPI proxy when the compositor PID misses"
     assert.strictEqual(
       await readAccessibleWindowText(
         {
-          title: "Issue — Zen Browser",
+          title: "Issue - Zen Browser",
           bounds: { x: 0, y: 0, width: 1_920, height: 1_048 },
           owner: { processId: 207651 },
         },
         "linux",
-        "Issue — Zen Browser",
+        "Issue - Zen Browser",
       ),
-      "Issue — Zen Browser\nNew Tab",
+      "Issue - Zen Browser\nNew Tab",
     );
     assert.deepEqual(accessibilityByPidMock.mock.calls, [[207651, { timeout: 0 }]]);
     assert.lengthOf(accessibilityListMock.mock.calls, 1);

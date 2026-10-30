@@ -111,7 +111,7 @@ const handleCheckForUpdatesMenuClick = Effect.gen(function* () {
   yield* checkForUpdatesFromMenu;
 }).pipe(Effect.withSpan("desktop.menu.handleCheckForUpdatesClick"));
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const electronMenu = yield* ElectronMenu.ElectronMenu;
   const environment = yield* DesktopEnvironment.DesktopEnvironment;

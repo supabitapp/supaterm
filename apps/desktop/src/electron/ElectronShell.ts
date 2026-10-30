@@ -55,7 +55,7 @@ export class ElectronShell extends Context.Service<
   }
 >()("@supaterm/desktop/electron/ElectronShell") {}
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = ElectronShell.of({
   openExternal: Effect.fn("ElectronShell.openExternal")(function (rawUrl) {
     return Option.match(parseSafeExternalUrl(rawUrl), {

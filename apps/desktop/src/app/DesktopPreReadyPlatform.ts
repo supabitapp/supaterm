@@ -53,7 +53,7 @@ export class DesktopPreReadyElectronOptions extends Context.Service<
   }
 >()("@supaterm/desktop/app/DesktopPreReadyPlatform/DesktopPreReadyElectronOptions") {}
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const platform = yield* HostProcess.Platform;
   const homeDirectory = yield* HostProcess.HomeDirectory;

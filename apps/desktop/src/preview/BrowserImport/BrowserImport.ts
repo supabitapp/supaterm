@@ -146,7 +146,7 @@ export const writeCookies = Effect.fn("BrowserImport.writeCookies")(function* (
   return { imported, skipped, skippedDomains: [...skippedDomains].slice(0, 20) };
 });
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* BrowserImportMake() {
   const browserSession = yield* BrowserSession.BrowserSession;
   const platform = yield* HostProcess.Platform;

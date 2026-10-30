@@ -229,7 +229,7 @@ const serveDesktopAsset = Effect.fn("desktop.protocol.serveAsset")(function* (
   });
 });
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const registered = yield* Ref.make(false);
   const context = yield* Effect.context<FileSystem.FileSystem | Path.Path>();

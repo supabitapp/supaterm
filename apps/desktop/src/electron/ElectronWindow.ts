@@ -128,7 +128,7 @@ export class ElectronWindow extends Context.Service<
   }
 >()("@supaterm/desktop/electron/ElectronWindow") {}
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const platform = yield* HostProcess.Platform;
 
