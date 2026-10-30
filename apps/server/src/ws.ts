@@ -1,3 +1,4 @@
+import * as DocumentText from "./provider/DocumentText.ts";
 import * as SourceControlSignIn from "./sourceControl/SourceControlSignIn.ts";
 import * as GuestShareService from "./guest/GuestShareService.ts";
 import * as SecretRequests from "./secrets/SecretRequests.ts";
@@ -1136,11 +1137,6 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
       ),
     );
 
-    // Always attach the enrichment subscription before the first load so
-    // completions that race HTTP snapshot fetch still push a refresh. We still
-    // emit one compact metadata refresh up front: getAvailable may have been
-    // cold on the HTTP path (null identity), and enrichment PubSub events
-    // published before this subscribe attached are dropped.
     const completionMarker =
       input.requestCompletionMarker === true
         ? Stream.make({ kind: "synchronized" as const })
@@ -1243,6 +1239,7 @@ export const layerWsRpc = (
         | ThreadManagementService.ThreadManagementService
         | ThreadLaunchService.ThreadLaunchService
         | FileSystem.FileSystem
+        | DocumentText.DocumentText
         | ServerConfig.ServerConfig
         | ServerSettings.ServerSettingsService
       >();
@@ -1754,6 +1751,7 @@ export const layerWsRpc = (
           keybindings: keybindingsConfig.keybindings,
           issues: keybindingsConfig.issues,
           providers,
+          secretProviderSettings: true,
           ...editorConfig,
           remoteOpenTargets: yield* resolveAvailableEditorsForConfig(
             remoteOpenTargets.resolveTargets(),
@@ -2375,9 +2373,7 @@ export const layerWsRpc = (
             }
             if (input.workspaceSnapshotsOnDemand !== true) return { providers };
             const commandProviders =
-              input.usageLimitsCommand === true
-                ? withUsageLimitsCommands(providers, yield* usageLimitSources.current)
-                : providers;
+              input.usageLimitsCommand === true ? withUsageLimitsCommands(providers) : providers;
             const { instanceId, cwd } = input;
             if (instanceId === undefined || cwd === undefined) {
               return { providers: withoutWorkspaceSnapshots(commandProviders) };
@@ -3312,7 +3308,7 @@ export const layer = Layer.unwrap(
         const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;
         const sessions = yield* SessionStore.SessionStore;
         const analytics = yield* AnalyticsService.AnalyticsService;
-        const session = yield* serverAuth.authenticateWebSocketUpgrade(request).pipe(
+        const session = yield* serverAuth.authenticateWebSocketUpgrade(request, "rpc").pipe(
           Effect.catchIf(EnvironmentAuth.isServerAuthCredentialError, (error) =>
             failEnvironmentAuthInvalid(EnvironmentAuth.serverAuthCredentialReason(error)),
           ),

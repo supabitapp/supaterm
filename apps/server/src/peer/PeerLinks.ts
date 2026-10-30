@@ -481,24 +481,21 @@ const make = Effect.gen(function* () {
   const statusOf = (link: PeerLink, now: DateTime.Utc) =>
     DateTime.isLessThanOrEqualTo(link.expiresAt, now)
       ? Effect.succeed<PeerLinkStatus>("expired")
-      : routeUrls(link)
-          .pipe(
-            Effect.flatMap((urls) =>
-              Effect.findFirst(urls, (url) =>
-                describe(url).pipe(
-                  Effect.map(
-                    (found) =>
-                      Option.isSome(found) && found.value.environmentId === link.environmentId,
-                  ),
+      : routeUrls(link).pipe(
+          Effect.flatMap((urls) =>
+            Effect.findFirst(urls, (url) =>
+              describe(url).pipe(
+                Effect.map(
+                  (found) =>
+                    Option.isSome(found) && found.value.environmentId === link.environmentId,
                 ),
               ),
             ),
-          )
-          .pipe(
-            Effect.map((answered): PeerLinkStatus =>
-              Option.isSome(answered) ? "reachable" : "unreachable",
-            ),
-          );
+          ),
+          Effect.map((answered): PeerLinkStatus =>
+            Option.isSome(answered) ? "reachable" : "unreachable",
+          ),
+        );
 
   const list: PeerLinks["Service"]["list"] = Effect.gen(function* () {
     const links = yield* Effect.forEach(yield* readRows, toLink);

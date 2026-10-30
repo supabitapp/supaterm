@@ -1,3 +1,4 @@
+import { buildPairingAppLink } from "@supaterm/shared/remote";
 // @effect-diagnostics nodeBuiltinImport:off - CLI integration exercises Node HTTP and filesystem boundaries.
 import * as NodeHttp from "node:http";
 import * as NodeFS from "node:fs";
@@ -300,6 +301,9 @@ describe("supaterm pair", () => {
 
         const token = /#token=([A-Z2-9]+)/.exec(output)?.[1];
         assert.isString(token);
+        const pairingUrl = /Pairing URL: (.+)/.exec(output)?.[1];
+        assert.isString(pairingUrl);
+        assert.include(output, `App link: ${buildPairingAppLink(pairingUrl!)}`);
 
         const listed = yield* captureStdout(
           runCli(["auth", "pairing", "list", "--base-dir", baseDir, "--json"]),

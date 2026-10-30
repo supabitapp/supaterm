@@ -11,6 +11,7 @@ import {
   ThreadId,
 } from "@supaterm/contracts";
 import * as KeyedLock from "@supaterm/shared/KeyedLock";
+import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Context from "effect/Context";
 import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
@@ -85,7 +86,7 @@ export class RemoteLaunchJournal extends Context.Service<
     readonly pending: Effect.Effect<ReadonlyArray<RemoteLaunchIntent>, RemoteLaunchJournalError>;
     readonly complete: (
       intent: RemoteLaunchIntent,
-      taskId: typeof NodeId.Type,
+      taskId: NodeId,
     ) => Effect.Effect<void, RemoteLaunchJournalError>;
     readonly remove: (id: string) => Effect.Effect<void, RemoteLaunchJournalError>;
   }
@@ -99,13 +100,15 @@ const make = Effect.gen(function* () {
   const path = yield* Path.Path;
   const crypto = yield* Crypto.Crypto;
   const config = yield* ServerConfig.ServerConfig;
+  const platform = yield* HostProcess.Platform;
   const directory = path.join(config.stateDir, "remote-launches");
   const locks = yield* KeyedLock.make<string>();
   const filename = (id: string) => path.join(directory, `${id}.json`);
   const read = (id: string) => fs.readFileString(filename(id)).pipe(Effect.flatMap(decode));
-  const syncDirectory = Effect.scoped(
-    fs.open(directory, { flag: "r" }).pipe(Effect.flatMap((file) => file.sync)),
-  );
+  const syncDirectory =
+    platform === "win32"
+      ? Effect.void
+      : Effect.scoped(fs.open(directory, { flag: "r" }).pipe(Effect.flatMap((file) => file.sync)));
 
   const write = Effect.fn("RemoteLaunchJournal.write")(function* (
     intent: RemoteLaunchIntent,

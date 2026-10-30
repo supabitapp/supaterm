@@ -251,6 +251,7 @@ const make = Effect.gen(function* () {
           .link({
             url,
             ...(alternateUrls.length === 0 ? {} : { alternateUrls }),
+            ...(answer.relay === undefined ? {} : { relay: answer.relay }),
             pairingCode: answer.pairingCode,
             access: answer.access,
             ...(answer.environmentId === undefined

@@ -19,6 +19,7 @@ import { resolveServerSelfUpdateCapability } from "../service/selfUpdate.ts";
 import { resolveServiceLauncherMode } from "../service/serviceLauncherClient.ts";
 import * as ServerConfig from "../config.ts";
 import * as ProcessRunner from "../processRunner.ts";
+import { databaseMigrationHead } from "../persistence/databaseMigrationHead.ts";
 import { resolveServerEnvironmentLabel } from "./ServerEnvironmentLabel.ts";
 import { detectServerEnvironmentMachineKind } from "./ServerEnvironmentMachine.ts";
 
@@ -212,8 +213,14 @@ export const make = Effect.gen(function* () {
     },
     serverVersion: packageJson.version,
     orchestrationProtocolVersion: ORCHESTRATION_PROTOCOL_VERSION,
+    ...((databaseMigration) => (databaseMigration === undefined ? {} : { databaseMigration }))(
+      databaseMigrationHead(serverConfig.dbPath),
+    ),
     capabilities: {
       connectionProbe: true,
+      providerWorkspaceSnapshotsOnDemand: true,
+      threadProjectFromScratch: true,
+      localServerStop: true,
       peerLinks: true,
       mcpModeLimitHeader: true,
       linkFence: true,
@@ -227,7 +234,7 @@ export const make = Effect.gen(function* () {
       ...(serverSelfUpdate === "boot-service" || desktopAppUpdate
         ? { serverSelfUpdateProgress: true }
         : {}),
-      ...(desktopAppUpdate ? { desktopAppUpdate: true } : {}),
+      ...(desktopAppUpdate ? { desktopAppUpdate: true, desktopAppChannelSwitch: true } : {}),
     },
   };
 

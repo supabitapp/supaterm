@@ -434,7 +434,7 @@ export const layerAssetRoute = HttpRouter.add(
         headers: { "cache-control": "private, max-age=3600", "x-content-type-options": "nosniff" },
       });
     }
-    if (asset.kind === "github-media") {
+    if (asset.kind === "source-control-media") {
       return yield* sourceControlMediaResponse(asset, request.headers).pipe(
         Effect.tapError((cause) =>
           // The URL can carry a token in its query string, and the error keeps the request it

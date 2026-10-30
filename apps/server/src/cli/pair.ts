@@ -1,13 +1,3 @@
-/**
- * `supaterm pair` - mint a pairing token for an already-running server and print it
- * as a QR code, without restarting anything.
- *
- * Discovery reads the `server-runtime.json` a live server persists next to its
- * database, then confirms the process is actually answering by fetching its
- * public environment descriptor. Inside a linked git worktree only the
- * worktree's own `.supaterm` is checked (matching dev-runner precedence);
- * otherwise the shared Supaterm home.
- */
 import {
   type AuthEnvironmentScope,
   AuthStandardClientScopes,
@@ -16,7 +6,7 @@ import {
   ExecutionEnvironmentDescriptor,
   PortSchema,
 } from "@supaterm/contracts";
-import { buildPairingUrl } from "@supaterm/shared/remote";
+import { buildPairingAppLink, buildPairingUrl } from "@supaterm/shared/remote";
 import { relayName } from "@supaterm/shared/relay/name";
 import * as NodeOS from "node:os";
 import { DEFAULT_SIGNAL_EXPORT } from "@supaterm/shared/observability";
@@ -214,6 +204,7 @@ const formatPairOutput = (input: {
     renderTerminalQrCode(input.pairingUrl),
     "",
     `Pairing URL: ${input.pairingUrl}`,
+    `App link: ${buildPairingAppLink(input.pairingUrl)}`,
     `Token: ${input.token}`,
     `Expires: ${DateTime.formatIso(input.expiresAt)}`,
     ...input.notes.flatMap((note) => ["", `Note: ${note}`]),
@@ -408,11 +399,6 @@ const resolveTailscalePairingBase = Effect.fn("pair.resolveTailscalePairingBase"
       if (existing.descriptor.environmentId !== input.target.descriptor.environmentId) {
         return yield* new ServesOtherEnvironmentError({ servePort: input.servePort });
       }
-      // Matching environment id proves the mapping reaches this server, but
-      // not through which port: for a dev server it may front the backend
-      // (whose /.well-known also answers) while /pair only renders through
-      // the web origin. Reuse as-is for regular servers; fall through and
-      // repoint our own mapping at the web port for dev servers.
       if (input.target.state.devUrl === undefined) {
         return { baseUrl, notes };
       }

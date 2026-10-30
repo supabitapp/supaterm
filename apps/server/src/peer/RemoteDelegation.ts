@@ -25,6 +25,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schedule from "effect/Schedule";
 import * as Scope from "effect/Scope";
+import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import type * as Tool from "effect/ai/Tool";
 
@@ -84,6 +85,8 @@ export class RemoteDelegation extends Context.Service<
     readonly start: () => Effect.Effect<void, never, Scope.Scope>;
   }
 >()("supaterm/peer/RemoteDelegation") {}
+
+const isOrchestratorMcpFailure = Schema.is(OrchestratorMcpFailure);
 
 const isModeRefusal = (error: OrchestratorMcpFailure) =>
   error.code === "runtime_mode_escalation_denied" ||
@@ -372,7 +375,7 @@ const make = Effect.gen(function* () {
               )
             : undefined;
           if (existing !== undefined) {
-            yield* journal.complete(intent, existing.id).pipe(Effect.orDie);
+            yield* journal.complete(intent, existing.id);
             yield* followOne(intent.parentThreadId, existing.id).pipe(Effect.forkIn(followers));
             return { taskId: existing.id };
           }
@@ -396,7 +399,7 @@ const make = Effect.gen(function* () {
               limits,
               success: OrchestratorMcpThreadInterruptResult,
             });
-            yield* journal.remove(intent.id).pipe(Effect.orDie);
+            yield* journal.remove(intent.id);
             return yield* new OrchestratorMcpFailure({
               code: "parent_not_active",
               message:
@@ -446,12 +449,12 @@ const make = Effect.gen(function* () {
               code: "orchestration_error",
               message: "The remote task record could not be read.",
             });
-          yield* journal.complete(intent, taskId).pipe(Effect.orDie);
+          yield* journal.complete(intent, taskId);
           yield* followOne(intent.parentThreadId, taskId).pipe(Effect.forkIn(followers));
           return { taskId };
         }).pipe(
           Effect.mapError((error) =>
-            error instanceof OrchestratorMcpFailure
+            isOrchestratorMcpFailure(error)
               ? error
               : new OrchestratorMcpFailure({
                   code: "orchestration_error",
