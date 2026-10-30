@@ -88,3 +88,14 @@ export function markdownWithAuthoredWindowsPaths(markdown: string): string {
   }
   return markdown;
 }
+
+function keepWindowsProsePathEscape(this: EscapeCompileContext) {
+  if (this.stack.at(-1)?.type !== "fragment") keepWindowsPathEscape.call(this);
+}
+
+export function remarkKeepWindowsProsePaths(this: Processor) {
+  // oxlint-disable-next-line no-this-in-exported-function -- unified binds the processor when installing plugins.
+  (this.data().fromMarkdownExtensions ??= []).push({
+    exit: { characterEscape: keepWindowsProsePathEscape },
+  });
+}

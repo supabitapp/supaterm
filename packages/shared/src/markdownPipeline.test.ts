@@ -1,8 +1,13 @@
 import { expect, it } from "vite-plus/test";
+import { markdownDestinationHostPath } from "./markdownLinks.ts";
 import { unified } from "unified";
 import remarkParse from "remark-parse";
 import remarkRehype from "remark-rehype";
-import { CHAT_MARKDOWN_REHYPE_PLUGINS, CHAT_MARKDOWN_REMARK_PLUGINS } from "./markdownPipeline.ts";
+import {
+  chatMarkdownImageSources,
+  CHAT_MARKDOWN_REHYPE_PLUGINS,
+  CHAT_MARKDOWN_REMARK_PLUGINS,
+} from "./markdownPipeline.ts";
 
 it("preserves in-app thread links through the shared Markdown sanitizer", () => {
   const processor = unified()
@@ -12,7 +17,7 @@ it("preserves in-app thread links through the shared Markdown sanitizer", () => 
     .use(CHAT_MARKDOWN_REHYPE_PLUGINS);
   const tree = processor.runSync(
     processor.parse(
-      '[Open thread](supaterm-thread://v1/environment/thread)\n\n<a href="javascript:alert(1)">Unsafe</a>',
+      '[Open thread](supaterm-thread://v1/thread)\n\n<supaterm-thread://v2/environment/thread:a%3A1>\n\n<a href="javascript:alert(1)">Unsafe</a>',
     ),
   );
   expect(tree.children[0]).toMatchObject({
@@ -20,8 +25,18 @@ it("preserves in-app thread links through the shared Markdown sanitizer", () => 
     children: [
       {
         tagName: "a",
-        properties: { href: "supaterm-thread://v1/environment/thread" },
+        properties: { href: "supaterm-thread://v1/thread" },
         children: [{ type: "text", value: "Open thread" }],
+      },
+    ],
+  });
+  expect(tree.children[2]).toMatchObject({
+    tagName: "p",
+    children: [
+      {
+        tagName: "a",
+        properties: { href: "supaterm-thread://v2/environment/thread:a%3A1" },
+        children: [{ type: "text", value: "supaterm-thread://v2/environment/thread:a%3A1" }],
       },
     ],
   });
@@ -78,4 +93,25 @@ it("keeps an image on its own line under a label but leaves inline images inline
   ).toBe("Palette<br>\n<img><br>\nHero (dark)<br>\n<img>");
   expect(render("Built [![CI](/ci.svg)](/ci)\nand wrapped")).toBe("Built <img>\nand wrapped");
   expect(render("Hard-wrapped\nprose")).toBe("Hard-wrapped\nprose");
+});
+
+it("finds rendered images without granting code, comments, or ordinary links", () => {
+  expect(
+    chatMarkdownImageSources(
+      [
+        "![plot](./plots/result.png)",
+        '<img src="/tmp/chart.png">',
+        "`![hidden](/tmp/code.png)`",
+        "<!-- ![hidden](/tmp/comment.png) -->",
+        "[ordinary](/tmp/link.png)",
+        "![reference][plot]",
+        "[plot]: /tmp/ref.png",
+      ].join("\n\n"),
+    ),
+  ).toEqual(["./plots/result.png", "/tmp/chart.png", "/tmp/ref.png"]);
+  expect(
+    chatMarkdownImageSources(String.raw`![shot](C:\Users\me\.supaterm\shot.png)`).map(
+      markdownDestinationHostPath,
+    ),
+  ).toEqual([String.raw`C:\Users\me\.supaterm\shot.png`]);
 });
