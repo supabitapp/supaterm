@@ -62,6 +62,8 @@ export type VoiceInputControllerDependencies = {
   readonly requestPermission: () => Promise<{
     readonly granted: boolean;
     readonly canAskAgain: boolean;
+    /** Why there is no microphone to grant, when asking cannot fix it. */
+    readonly reason?: string;
   }>;
   readonly configureRecording: () => Promise<void>;
   readonly releaseRecording: () => Promise<void>;
@@ -274,7 +276,7 @@ export class VoiceInputController {
       if (!this.isCurrent(operationToken)) return;
       if (!permission.granted) {
         this.setError(
-          "Microphone access is required for voice input.",
+          permission.reason ?? "Microphone access is required for voice input.",
           permission.canAskAgain ? "retry" : "settings",
         );
         return;

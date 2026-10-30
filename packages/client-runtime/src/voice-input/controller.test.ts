@@ -177,6 +177,19 @@ describe("VoiceInputController", () => {
     await denied.controller.start();
     expect(denied.controller.currentState.errorAction).toBe("settings");
     expect(denied.recorder.record).not.toHaveBeenCalled();
+
+    const missing = createHarness({
+      requestPermission: async () => ({
+        granted: false,
+        canAskAgain: true,
+        reason: "No microphone was found.",
+      }),
+    });
+    await missing.controller.start();
+    expect(missing.controller.currentState).toMatchObject({
+      error: "No microphone was found.",
+      errorAction: "retry",
+    });
   });
 
   it.each(["permission", "transcription"] as const)(

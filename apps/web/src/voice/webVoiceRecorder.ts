@@ -85,7 +85,11 @@ export class WebVoiceRecorder implements VoiceRecorder {
     return this.mediaRecorder?.state === "recording" ? performance.now() - this.startedAt : 0;
   }
 
-  async requestPermission(): Promise<{ granted: boolean; canAskAgain: boolean }> {
+  async requestPermission(): Promise<{
+    granted: boolean;
+    canAskAgain: boolean;
+    reason?: string;
+  }> {
     if (this.stream) return { granted: true, canAskAgain: true };
     const generation = this.permissionGeneration;
     const fakeSource = fakeMicrophoneSource();
@@ -106,6 +110,13 @@ export class WebVoiceRecorder implements VoiceRecorder {
     } catch (error) {
       if (error instanceof DOMException && error.name === "NotAllowedError") {
         return { granted: false, canAskAgain: false };
+      }
+      if (error instanceof DOMException && error.name === "NotFoundError") {
+        return {
+          granted: false,
+          canAskAgain: true,
+          reason: "No microphone was found. Connect one, then record again.",
+        };
       }
       throw error;
     }
@@ -253,7 +264,11 @@ export class WebVoiceRecorder implements VoiceRecorder {
     let node: AudioScheduledSourceNode;
     if (source.startsWith("data:")) {
       const player = context.createBufferSource();
-      player.buffer = await context.decodeAudioData(await (await fetch(source)).arrayBuffer());
+      // The desktop CSP blocks fetching `data:` URLs.
+      const bytes = Uint8Array.from(atob(source.slice(source.indexOf(",") + 1)), (char) =>
+        char.charCodeAt(0),
+      );
+      player.buffer = await context.decodeAudioData(bytes.buffer);
       player.connect(destination);
       node = player;
     } else {
