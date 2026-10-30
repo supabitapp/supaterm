@@ -1051,7 +1051,7 @@ export const ProjectSettingsOverrides = Schema.Struct({
 } satisfies Record<ProjectScopedServerSettingKey | "providerInstances", unknown>);
 export type ProjectSettingsOverrides = typeof ProjectSettingsOverrides.Type;
 
-export const keepUnknownOverrideKeys = <Entry extends Schema.Struct<Schema.Struct.Fields>>(
+const keepUnknownOverrideKeys = <Entry extends Schema.Struct<Schema.Struct.Fields>>(
   entry: Entry,
 ): Schema.Codec<
   Entry["Type"],
