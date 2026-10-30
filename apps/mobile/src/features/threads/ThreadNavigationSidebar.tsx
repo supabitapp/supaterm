@@ -79,6 +79,7 @@ import {
 } from "./thread-list-v2-items";
 import { useThreadRowProviderInstanceResolver } from "./thread-provider-instance";
 import type { ThreadPrPresentation } from "../../state/thread-pr-presentation";
+import { ThreadPrDemandProvider } from "../../state/thread-pr-demand";
 import {
   threadListV2ListItemsAreEqual,
   THREAD_LIST_V2_DONE_INITIAL_COUNT,
@@ -113,10 +114,15 @@ interface ThreadNavigationSidebarProps {
 }
 
 export function ThreadNavigationSidebar(props: ThreadNavigationSidebarProps) {
-  if (Platform.OS !== "ios") {
-    return <ThreadNavigationSidebarPane {...props} nativeChrome={false} />;
-  }
-  return <NativeSidebarContainer {...props} />;
+  return (
+    <ThreadPrDemandProvider visible={props.visible}>
+      {Platform.OS !== "ios" ? (
+        <ThreadNavigationSidebarPane {...props} nativeChrome={false} />
+      ) : (
+        <NativeSidebarContainer {...props} />
+      )}
+    </ThreadPrDemandProvider>
+  );
 }
 
 function NativeSidebarContainer(props: ThreadNavigationSidebarProps) {

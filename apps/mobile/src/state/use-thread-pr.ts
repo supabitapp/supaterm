@@ -7,10 +7,11 @@ import {
 import type { EnvironmentId, PullRequestSummary } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import { Atom } from "effect/reactivity";
-import { useMemo } from "react";
+import { use, useMemo } from "react";
 
 import { connectionAtomRuntime } from "../connection/runtime";
 import { useEnvironmentQuery } from "./query";
+import { ThreadPrDemandContext } from "./thread-pr-demand";
 import {
   rememberBounded,
   resolveThreadPrSource,
@@ -58,6 +59,7 @@ const pullRequestSummaryAtom = createLinkedPullRequestSummaryAtomFamily(
 export { type ThreadPr, type ThreadPrPresentation } from "./thread-pr-presentation";
 
 export function useThreadPr(thread: EnvironmentThreadShell): ThreadPrPresentation | null {
+  const demand = use(ThreadPrDemandContext);
   const { linkedPresentation, pullRequestRef } = useMemo(
     () =>
       resolveThreadPrSource({
@@ -72,7 +74,7 @@ export function useThreadPr(thread: EnvironmentThreadShell): ThreadPrPresentatio
     key === null ? undefined : current.get(key),
   );
   const pullRequestSummary = useEnvironmentQuery(
-    pullRequestRef === null
+    pullRequestRef === null || !demand
       ? null
       : pullRequestSummaryAtom({
           environmentId: thread.environmentId,
