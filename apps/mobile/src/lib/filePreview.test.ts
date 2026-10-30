@@ -5,6 +5,7 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   type ReactNode,
 } from "react";
 import { createRoot } from "react-dom/client";
@@ -80,6 +81,10 @@ vi.mock("react-native", () => ({
   useWindowDimensions: () => ({ width: 390, height: 844, fontScale: 1 }),
   Text: ({ children }: { children?: ReactNode }) => createElement("span", null, children),
   AppState: { currentState: "active", addEventListener: () => ({ remove() {} }) },
+  AccessibilityInfo: {
+    isReduceMotionEnabled: async () => true,
+    addEventListener: () => ({ remove() {} }),
+  },
   View: ({ children }: { children?: ReactNode }) => createElement("div", null, children),
   Pressable: (props: {
     children?: ReactNode;
@@ -100,6 +105,13 @@ vi.mock("react-native", () => ({
     ),
 }));
 vi.mock("../components/PierreEntryIcon", () => ({ PierreEntryIcon: () => null }));
+vi.mock("react-native-svg", () => ({
+  default: ({ children }: { children?: ReactNode }) => createElement("svg", null, children),
+  Defs: () => null,
+  LinearGradient: () => null,
+  Rect: () => null,
+  Stop: () => null,
+}));
 vi.mock("../components/ui/AppText", () => ({
   AppText: ({ children }: { children?: ReactNode }) => createElement("span", null, children),
 }));
@@ -210,13 +222,31 @@ vi.mock("@legendapp/list/react-native", () => ({
     useEffect(() => callback({ sizeVisible: 1 }), [callback]),
 }));
 vi.mock("react-native-reanimated", () => {
-  const transition = { delay: () => transition, duration: () => transition };
+  const transition = {
+    delay: () => transition,
+    duration: () => transition,
+    easing: () => transition,
+    reduceMotion: () => transition,
+  };
   return {
     default: { View: ({ children }: { children?: ReactNode }) => children },
     FadeIn: transition,
     FadeInUp: transition,
+    FadeOut: transition,
+    Easing: { bezier: vi.fn(), out: vi.fn(), cubic: vi.fn() },
+    ReduceMotion: { Never: "never", Always: "always" },
+    useSharedValue: (value: number) =>
+      useRef({
+        value,
+        set(next: number) {
+          this.value = next;
+        },
+      }).current,
+    useAnimatedStyle: (style: () => unknown) => style(),
+    withTiming: (value: number) => value,
   };
 });
+vi.mock("../features/threads/thread-feed-loading", () => ({ ThreadFeedLoading: () => null }));
 vi.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0 }),
 }));
@@ -279,6 +309,13 @@ vi.mock("../features/threads/HtmlRenderWebView", () => ({}));
 vi.mock("../features/threads/McpAppWebView", () => ({}));
 vi.mock("../features/layout/AdaptiveWorkspaceLayout", () => ({
   useAdaptiveWorkspaceLayout: () => ({ fileInspector: { supported: false } }),
+}));
+vi.mock("../features/workspace/useSelectWorkspaceDetail", () => ({
+  useSelectWorkspaceDetail: () => (detail: { name: string; params: unknown }) =>
+    audio.navigate(detail.name, detail.params),
+}));
+vi.mock("../features/threads/useOpenLinkedThread", () => ({
+  useOpenLinkedThread: () => vi.fn(),
 }));
 vi.mock("../features/threads/thread-workflow-opening", () => ({ useWorkflowOpening: () => null }));
 vi.mock("../features/threads/useFileChipShare", () => ({ useFileChipShare: () => vi.fn() }));
