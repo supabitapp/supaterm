@@ -18,6 +18,10 @@ const FIXED_TERMS = [
   "worktree",
 ];
 
+// What people name while directing agents here, which a speech model hears as "super term",
+// "cloud", or "code X".
+const SUPATERM_TERMS = ["Supaterm", "Claude", "Codex", "Opus", "Sonnet", "Haiku", "GPT"];
+
 const isWordLength = (word: string) => word.length > 2 && word.length <= 20;
 
 const splitWords = (value: string) =>
@@ -50,6 +54,7 @@ export function keytermCandidates(input: {
   return [
     ...projectNames,
     ...(input.branch ? splitWords(input.branch) : []),
+    ...SUPATERM_TERMS,
     ...FIXED_TERMS,
     ...input.skills.filter(isSingleWordSkill).map((skill) => skill.name),
   ];

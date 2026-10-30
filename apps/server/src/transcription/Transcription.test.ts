@@ -490,6 +490,9 @@ describe("Transcription", () => {
           "transcription",
         ]);
         expect(call?.keyterms).toContain("worktree");
+        expect(call?.keyterms).toEqual(
+          expect.arrayContaining(["Claude", "Codex", "Opus", "Sonnet", "Haiku", "GPT"]),
+        );
         expect(call?.keyterms).toContain("thermos");
         expect(call?.keyterms).not.toContain("machine");
         expect(call?.keyterms).not.toContain("kstack");
