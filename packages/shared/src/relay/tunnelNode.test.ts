@@ -1,18 +1,104 @@
 // @effect-diagnostics nodeBuiltinImport:off - verifies loopback request boundaries on real TCP sockets.
+import * as NodeCrypto from "node:crypto";
 import * as NodeHttp from "node:http";
 import * as NodeNet from "node:net";
 import type * as NodeStream from "node:stream";
+import * as NodeStreamPromises from "node:stream/promises";
 import { afterEach, expect, it, vi } from "vite-plus/test";
-import type { TunnelStream } from "./tunnel.ts";
-import { openLoopbackRelay } from "./tunnelNode.ts";
+import { acceptClientHandshake, createClientHandshake, relayPublicKey } from "./protocol.ts";
+import { createTunnelSession, type TunnelStream } from "./tunnel.ts";
+import { openLoopbackRelay, TunnelSocket } from "./tunnelNode.ts";
 
 const { open } = vi.hoisted(() => ({ open: vi.fn<() => Promise<TunnelStream>>() }));
-vi.mock("./tunnel.ts", () => ({ createTunnelConnector: () => ({ open, close: () => {} }) }));
+vi.mock("./tunnel.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./tunnel.ts")>()),
+  createTunnelConnector: () => ({ open, close: () => {} }),
+}));
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).toReversed()) await cleanup();
   open.mockReset();
+});
+
+function encryptedSocket() {
+  const identity = NodeCrypto.randomBytes(32);
+  const handshake = createClientHandshake(relayPublicKey(identity), NodeCrypto.randomBytes);
+  const accepted = acceptClientHandshake(handshake.hello, identity, NodeCrypto.randomBytes);
+  const received = Promise.withResolvers<string>();
+  const hash = NodeCrypto.createHash("sha256");
+  let messagesSent = 0;
+  const client = createTunnelSession({
+    cipher: handshake.finish(accepted.welcome),
+    initiator: true,
+    send: (data) => {
+      messagesSent++;
+      queueMicrotask(() => host.receive(data));
+    },
+  });
+  const host = createTunnelSession({
+    cipher: accepted.cipher,
+    initiator: false,
+    send: (data) => queueMicrotask(() => client.receive(data)),
+    onStream: (stream) => {
+      stream.onData = (data) => {
+        hash.update(data);
+        stream.consumed(data.length);
+      };
+      stream.onEnd = () => received.resolve(hash.digest("hex"));
+    },
+  });
+  const socket = new TunnelSocket(client.open());
+  cleanups.push(async () => {
+    socket.destroy();
+    client.close();
+    host.close();
+  });
+  return { socket, received: received.promise, host, messagesSent: () => messagesSent };
+}
+
+it.each(["write", "writev"])(
+  "delivers a large socket %s across flow-control windows",
+  async (method) => {
+    const { socket, received, host } = encryptedSocket();
+    const payload = NodeCrypto.randomBytes(9 * 1024 * 1024);
+    const written = NodeStreamPromises.finished(socket, { readable: false });
+    if (method === "writev") {
+      socket.cork();
+      socket.write(Buffer.alloc(0));
+      socket.write(payload.subarray(0, payload.length / 2));
+      socket.write(Buffer.alloc(0));
+      socket.write(payload.subarray(payload.length / 2));
+      socket.end(Buffer.alloc(0));
+    } else {
+      socket.end(payload);
+    }
+    await written;
+    expect(await received).toBe(NodeCrypto.createHash("sha256").update(payload).digest("hex"));
+    expect(host.closed).toBe(false);
+  },
+);
+
+it("packs small WebSocket frame writes into shared encrypted records", async () => {
+  const { socket, received, messagesSent } = encryptedSocket();
+  const written = Promise.withResolvers<void>();
+  const header = Buffer.alloc(4, 1);
+  const payload = Buffer.alloc(200, 2);
+  const hash = NodeCrypto.createHash("sha256");
+  for (let frame = 0; frame < 200; frame++) {
+    socket.cork();
+    socket.write(header);
+    socket.write(payload, (error) => {
+      if (error) written.reject(error);
+      else if (frame === 199) written.resolve();
+    });
+    socket.uncork();
+    hash.update(header).update(payload);
+  }
+  await written.promise;
+  expect(messagesSent()).toBeLessThanOrEqual(2);
+  socket.end();
+  expect(await received).toBe(hash.digest("hex"));
 });
 
 async function fixture(upgrade = false) {
