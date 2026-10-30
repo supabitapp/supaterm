@@ -265,16 +265,19 @@ async function openProjectDraft(project: EnvironmentProject, request: LinkedDraf
 
 async function openScratchDraft(request: LinkedDraftRequest) {
   const serverConfigs = appAtomRegistry.get(environmentServerConfigsAtom);
+  const projects = appAtomRegistry.get(environmentProjects.projectsAtom);
   const environmentId = promptLinkScratchEnvironmentId(
     latestThreadEnvironmentIds(appAtomRegistry.get(environmentThreadShells.threadShellsAtom)),
     appAtomRegistry
       .get(workspaceConnections.environmentsAtom)
       .filter(
         (environment) =>
-          availableScratchWorkspaceRoot(
-            environment.connectionState,
-            serverConfigs.get(environment.environmentId),
-          ) !== null,
+          availableScratchWorkspaceRoot({
+            environmentId: environment.environmentId,
+            connectionPhase: environment.connectionState,
+            serverConfig: serverConfigs.get(environment.environmentId),
+            projects,
+          }) !== null,
       )
       .map((environment) => environment.environmentId),
   );

@@ -9,7 +9,8 @@ const harness = vi.hoisted(() => ({
 
 vi.mock("react-native", () => ({ View: harness.Passthrough }));
 vi.mock("expo-image", () => ({ Image: () => <img alt="" /> }));
-vi.mock("./ui/AppSymbol", () => ({ SymbolView: () => null }));
+vi.mock("./ui/NodeIcon", () => ({ NodeIcon: () => null }));
+vi.mock("uniwind", () => ({ useResolveClassNames: () => ({}) }));
 vi.mock("./ui/AppText", () => ({
   AppText: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
 }));
@@ -17,6 +18,10 @@ vi.mock("../state/assets", async () => {
   const { Atom } = await import("effect/reactivity");
   const url = Atom.make<string | null>("https://example.test/favicon.png");
   return { projectFaviconUrlAtom: () => url };
+});
+vi.mock("../state/projects", async () => {
+  const { Atom } = await import("effect/reactivity");
+  return { environmentProjects: { projectsAtom: Atom.make([]) } };
 });
 
 import { EnvironmentId } from "@supaterm/contracts";

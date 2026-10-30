@@ -6,6 +6,8 @@ import {
 import type { ProjectIconColor, ProjectIconOverride } from "@supaterm/contracts";
 import type { IconNode } from "@supaterm/icons/nodes";
 import { resolveProjectIcon } from "@supaterm/icons/project";
+import { isScratchProject } from "@supaterm/client-runtime/state/projects";
+import { isProjectFaviconFallbackUrl } from "@supaterm/shared/projectFavicon";
 
 export type ProjectIconGlyph =
   | { readonly kind: "emoji"; readonly emoji: string }
@@ -68,4 +70,23 @@ export function projectAutoMonogram(projectTitle: string): ProjectIconGlyph | nu
         color: preferredProjectColor(projectColorKey(projectTitle)),
       }
     : null;
+}
+
+export type ProjectChipIcon = { readonly kind: "favicon"; readonly uri: string } | ProjectIconGlyph;
+
+export function resolveProjectChipIcon(
+  project: {
+    readonly title: string;
+    readonly workspaceRoot: string;
+    readonly projectIcon?: ProjectIconOverride | null;
+  } | null,
+  scratchWorkspaceRoot: string | null | undefined,
+  faviconUrl: () => string | null,
+): ProjectChipIcon | null {
+  if (!project || isScratchProject(project, scratchWorkspaceRoot)) return null;
+  const glyph = resolveProjectIconGlyph(project.projectIcon);
+  if (glyph) return glyph;
+  const url = faviconUrl();
+  if (url && !isProjectFaviconFallbackUrl(url)) return { kind: "favicon", uri: url };
+  return projectAutoMonogram(project.title);
 }
