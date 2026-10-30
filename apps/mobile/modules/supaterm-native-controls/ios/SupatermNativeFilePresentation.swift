@@ -17,7 +17,6 @@ private final class FilePreviewController: QLPreviewController {
   }
 }
 
-/// Quick Look owns image and document controls, zooming, and source-view transitions.
 final class SupatermNativeFilePresentation: NSObject, QLPreviewControllerDataSource,
   QLPreviewControllerDelegate, UIAdaptivePresentationControllerDelegate {
   let identifier: String
@@ -53,8 +52,7 @@ final class SupatermNativeFilePresentation: NSObject, QLPreviewControllerDataSou
           try? FileManager.default.removeItem(at: file.deletingLastPathComponent())
           return
         }
-        // Quick Look knows which formats it renders; refuse before presenting so the caller
-        // can fall back instead of showing an "unsupported format" page.
+
         guard QLPreviewController.canPreview(file as NSURL) else {
           try? FileManager.default.removeItem(at: file.deletingLastPathComponent())
           throw NSError(
@@ -89,14 +87,12 @@ final class SupatermNativeFilePresentation: NSObject, QLPreviewControllerDataSou
     loading?.cancel()
     guard !finished else { return }
     guard let controller else { finish(); return }
-    // Drain Close from viewDidAppear after opening or cancelling an interactive dismissal.
-    // Starting a second modal transition while UIKit is settling the first can strand it.
+
     guard !controller.isBeingPresented, !controller.isBeingDismissed else { return }
     controller.dismiss(animated: !UIAccessibility.isReduceMotionEnabled) { [self] in finish() }
   }
 
   private func resumePendingDismissal() {
-    // Appearance callbacks run before UIKit has cleared the current transition.
     DispatchQueue.main.async { [weak self] in
       if self?.dismissRequested == true { self?.dismiss() }
     }
@@ -145,7 +141,6 @@ final class SupatermNativeFilePresentation: NSObject, QLPreviewControllerDataSou
     DispatchQueue.main.async { [completion] in completion(error) }
   }
 
-  /// Copy original bytes so preview and sharing do not mutate a draft or workspace file.
   nonisolated private static func prepareFile(url: URL, title: String) async throws -> URL {
     try Task.checkCancellation()
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("supaterm-preview-\(UUID().uuidString)")
@@ -167,9 +162,7 @@ final class SupatermNativeFilePresentation: NSObject, QLPreviewControllerDataSou
         try FileManager.default.moveItem(at: temporaryFile, to: download)
       }
       try Task.checkCancellation()
-      // Pictures and PDFs are identified by content so a misnamed file still opens correctly.
-      // Anything else keeps its own extension: Quick Look decides from that whether it can
-      // render the document (Office, iWork, RTF and more) and refuses before we present.
+
       let filename = URL(fileURLWithPath: title).lastPathComponent as NSString
       let originalExtension = filename.pathExtension
       var type: UTType?

@@ -7,6 +7,7 @@ final class SupatermNativeVideoPresentation: NSObject, AVPlayerViewControllerDel
   private let controller = AVPlayerViewController()
   private let completion: (Error?) -> Void
   private var itemObservation: NSKeyValueObservation?
+  private var playbackObservation: NSKeyValueObservation?
   private var backgroundObserver: NSObjectProtocol?
   private var playbackError: Error?
   private var presented = false
@@ -27,7 +28,8 @@ final class SupatermNativeVideoPresentation: NSObject, AVPlayerViewControllerDel
   private weak var fullScreenController: UIViewController?
   private var embedded = false
 
-  init(identifier: String, url: URL, title: String, completion: @escaping (Error?) -> Void) {
+  init(identifier: String, url: URL, title: String,
+       onPlaybackChange: @escaping (Bool) -> Void, completion: @escaping (Error?) -> Void) {
     self.identifier = identifier
     self.completion = completion
     super.init()
@@ -38,6 +40,12 @@ final class SupatermNativeVideoPresentation: NSObject, AVPlayerViewControllerDel
     metadata.value = title as NSString
     item.externalMetadata = [metadata]
     controller.player = AVPlayer(playerItem: item)
+    playbackObservation = controller.player?.observe(\.timeControlStatus, options: [.new]) { player, _ in
+
+      if player.timeControlStatus != .waitingToPlayAtSpecifiedRate {
+        onPlaybackChange(player.timeControlStatus == .playing)
+      }
+    }
     controller.delegate = self
     controller.overrideUserInterfaceStyle = .dark
     controller.allowsPictureInPicturePlayback = false
@@ -67,13 +75,10 @@ final class SupatermNativeVideoPresentation: NSObject, AVPlayerViewControllerDel
     } catch {
       NSLog("Supaterm video audio session: %@", error.localizedDescription)
     }
-    // AVKit exposes programmatic inline-to-full-screen entry through this selector.
-    // This is the same guarded entry point used by expo-video's enterFullscreen().
+
     let enterFullScreen = NSSelectorFromString("enterFullScreenAnimated:completionHandler:")
     if let source = sources.view(for: sourceIdentifier), source.window != nil,
       controller.responds(to: enterFullScreen) {
-      // AVKit owns the transition from its inline view to full screen. Using a
-      // separate UIKit zoom transition prevents its native Close action from exiting.
       var responder: UIResponder? = source
       while let current = responder, !(current is UIViewController) { responder = current.next }
       let parent = responder as? UIViewController ?? presenter
@@ -148,13 +153,12 @@ final class SupatermNativeVideoPresentation: NSObject, AVPlayerViewControllerDel
       controller.removeFromParent()
     }
     itemObservation = nil
+    playbackObservation = nil
     controller.player = nil
     if let backgroundObserver { NotificationCenter.default.removeObserver(backgroundObserver) }
     backgroundObserver = nil
     let audioSession = AVAudioSession.sharedInstance()
-    // Still what present() set, allowing the .mixWithOthers flip expo-video
-    // makes when the inline players pause under this preview. A recorder that
-    // claimed the session since owns it.
+
     if let previousAudioSession, audioSession.category == .playback,
       audioSession.mode == .moviePlayback,
       audioSession.categoryOptions.isSubset(of: [.mixWithOthers]) {
@@ -163,7 +167,7 @@ final class SupatermNativeVideoPresentation: NSObject, AVPlayerViewControllerDel
         mode: previousAudioSession.mode,
         options: previousAudioSession.options
       )
-      // Deactivating with notification lets interrupted apps resume.
+
       try? audioSession.setActive(false, options: [.notifyOthersOnDeactivation])
     }
     completion(playbackError)
