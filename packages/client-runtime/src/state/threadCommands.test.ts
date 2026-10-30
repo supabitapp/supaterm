@@ -129,6 +129,7 @@ const makeHarness = Effect.fn("TestThreadCommands.makeHarness")(function* (optio
           register: () => Effect.die("unused"),
           unregister: () => Effect.void,
           loadEarlier: () => options?.loadEarlier?.() ?? Effect.die("unused"),
+          expandWork: () => Effect.die("unused"),
           reconcilePendingWork: (_environmentId, threadId) =>
             options?.reconcilePendingWork?.(threadId) ?? Queue.offer(reconciled, threadId),
         }),

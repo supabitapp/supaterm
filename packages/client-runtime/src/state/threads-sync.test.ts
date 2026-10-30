@@ -280,7 +280,7 @@ const makeHarness = Effect.fn("TestEnvironmentThreads.makeHarness")(function* (o
   return {
     threadState,
     loadWork: (anchorId: string) =>
-      historyController.loadEarlier(TARGET.environmentId, THREAD_ID, undefined, anchorId),
+      historyController.expandWork(TARGET.environmentId, THREAD_ID, anchorId),
     loadEarlier: (throughEntryId?: string) =>
       historyController.loadEarlier(TARGET.environmentId, THREAD_ID, throughEntryId),
     reconcilePendingWork: historyController.reconcilePendingWork(TARGET.environmentId, THREAD_ID),
@@ -828,6 +828,42 @@ describe("EnvironmentThreads", () => {
         expect((yield* SubscriptionRef.get(harness.threadState)).history.loading).toBe(false);
       }),
     );
+    it.effect("keeps conversation loading when work with the same cursor is cancelled", () =>
+      Effect.gen(function* () {
+        const anchor = {
+          ...command("anchor", "completed", 0, 1),
+          deferredWork: { cursor: "shared-cursor", itemCount: 3, lastOrdinal: 3 },
+        };
+        const conversationStarted = yield* Deferred.make<void>();
+        const workStarted = yield* Deferred.make<void>();
+        const interruptConversation = yield* Deferred.make<void>();
+        const interruptWork = yield* Deferred.make<void>();
+        const harness = yield* makeHarness({
+          cached: cachedItem(anchor),
+          cachedHistory: { historyCursor: "shared-cursor", hasMoreHistory: true },
+          historyHttpClient: HttpClient.make((_request, url) =>
+            Effect.gen(function* () {
+              const work = url.searchParams.get("view") === "work";
+              yield* Deferred.succeed(work ? workStarted : conversationStarted, undefined);
+              yield* Deferred.await(work ? interruptWork : interruptConversation);
+              return yield* Effect.interrupt;
+            }),
+          ),
+        });
+        const conversation = yield* harness.loadEarlier().pipe(Effect.forkChild);
+        yield* Deferred.await(conversationStarted);
+        const work = yield* harness.loadWork(anchor.id).pipe(Effect.forkChild);
+        yield* Deferred.await(workStarted);
+        expect((yield* SubscriptionRef.get(harness.threadState)).history.loading).toBe(true);
+        yield* Deferred.succeed(interruptWork, undefined);
+        yield* Fiber.await(work);
+        expect((yield* SubscriptionRef.get(harness.threadState)).history.loading).toBe(true);
+        yield* Deferred.succeed(interruptConversation, undefined);
+        yield* Fiber.await(conversation);
+        expect((yield* SubscriptionRef.get(harness.threadState)).history.loading).toBe(false);
+      }),
+    );
+
     it.effect("loads deferred work on demand and resumes a failed page", () =>
       Effect.gen(function* () {
         const anchor = {

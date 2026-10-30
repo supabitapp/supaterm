@@ -70,11 +70,10 @@ import type { EnvironmentRegistry } from "../connection/registry.ts";
 import * as EnvironmentSupervisor from "../connection/supervisor.ts";
 import * as ThreadHistoryController from "./threadHistoryController.ts";
 
-export type LoadEarlierThreadHistoryInput = {
-  readonly threadId: ThreadId;
-  readonly throughEntryId?: string;
-  readonly workAnchorId?: string;
-};
+export type LoadEarlierThreadHistoryInput = { readonly threadId: ThreadId } & (
+  | { readonly throughEntryId?: string; readonly workAnchorId?: never }
+  | { readonly workAnchorId: string; readonly throughEntryId?: never }
+);
 
 export type {
   ArchiveThreadInput,
@@ -134,12 +133,17 @@ export function createThreadEnvironmentAtoms<R, E>(
         _tag: "noop",
       } satisfies ThreadHistoryController.ThreadHistoryLoadEarlierResult;
     }
-    return yield* controller.value.loadEarlier(
-      supervisor.target.environmentId,
-      input.threadId,
-      input.throughEntryId,
-      input.workAnchorId,
-    );
+    return yield* input.workAnchorId === undefined
+      ? controller.value.loadEarlier(
+          supervisor.target.environmentId,
+          input.threadId,
+          input.throughEntryId,
+        )
+      : controller.value.expandWork(
+          supervisor.target.environmentId,
+          input.threadId,
+          input.workAnchorId,
+        );
   });
 
   const interruptTurn = Effect.fn("ThreadCommands.interruptTurn")(function* (
