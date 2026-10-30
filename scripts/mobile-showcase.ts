@@ -510,7 +510,7 @@ function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-export async function stopProcess(child: NodeChildProcess.ChildProcess): Promise<void> {
+async function stopProcess(child: NodeChildProcess.ChildProcess): Promise<void> {
   if (child.exitCode !== null || child.signalCode !== null) return;
 
   const exited = new Promise<void>((resolve) => {
@@ -524,11 +524,7 @@ export async function stopProcess(child: NodeChildProcess.ChildProcess): Promise
   await Promise.race([exited, delay(1_000)]);
 }
 
-export async function waitForPort(
-  port: number,
-  label = "Process",
-  timeoutMs = 60_000,
-): Promise<void> {
+async function waitForPort(port: number, label = "Process", timeoutMs = 60_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const open = await new Promise<boolean>((resolve) => {
@@ -566,7 +562,7 @@ async function waitForFileContent(
   throw new Error(`${label} was not written to ${filePath} within ${timeoutMs}ms.`);
 }
 
-export async function reserveAvailablePort(): Promise<number> {
+async function reserveAvailablePort(): Promise<number> {
   return await new Promise<number>((resolve, reject) => {
     const server = NodeNet.createServer();
     server.once("error", reject);
@@ -681,14 +677,14 @@ function startShowcaseServer(
   );
 }
 
-export interface ShowcaseEnvironment {
+interface ShowcaseEnvironment {
   readonly baseDir: string;
   readonly environmentId: string;
   readonly label: string;
   readonly port: number;
 }
 
-export async function startShowcaseEnvironments(
+async function startShowcaseEnvironments(
   rootDir: string,
   track: (server: NodeChildProcess.ChildProcess) => void,
   environments: ReadonlyArray<(typeof SHOWCASE_ENVIRONMENTS)[number]> = SHOWCASE_ENVIRONMENTS,
@@ -755,7 +751,7 @@ export function parsePairingCredentialOutput(output: string): string {
   return parsed.credential;
 }
 
-export async function issuePairingCredential(baseDir: string): Promise<string> {
+async function issuePairingCredential(baseDir: string): Promise<string> {
   const output = await commandOutput(
     "node",
     ["apps/server/src/bin.ts", "auth", "pairing", "create", "--base-dir", baseDir, "--json"],
@@ -764,7 +760,7 @@ export async function issuePairingCredential(baseDir: string): Promise<string> {
   return parsePairingCredentialOutput(output);
 }
 
-export function buildShowcasePairingUrl(host: string, port: number, credential: string): string {
+function buildShowcasePairingUrl(host: string, port: number, credential: string): string {
   const url = new URL(`http://${host}:${port}/`);
   url.hash = new URLSearchParams([["token", credential]]).toString();
   return url.toString();
@@ -788,7 +784,7 @@ function startMetro(config: ShowcaseConfig): NodeChildProcess.ChildProcess {
   );
 }
 
-export async function warmMetroBundle(
+async function warmMetroBundle(
   platform: ShowcaseDevice["platform"],
   host: string,
   metroPort: number,

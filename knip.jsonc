@@ -27,12 +27,11 @@
         "clean-worktree.ts",
         "knip-schemas.ts",
         "mobile-native-client.ts",
-        "mobile-e2e.ts",
         "setup-worktree.ts",
         "sign-macos.ts",
         "verify-windows-desktop-artifact.ts",
       ],
-      "ignoreDependencies": ["agent-device", "esbuild"],
+      "ignoreDependencies": ["esbuild"],
       // The `supaterm` npm package's files: copied into the package, never imported.
       "ignore": ["npm-launcher/**"],
     },
