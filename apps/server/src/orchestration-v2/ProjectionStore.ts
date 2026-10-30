@@ -6835,14 +6835,13 @@ export const layerMemory: Layer.Layer<ProjectionStoreV2> = Layer.effect(
       listActiveSubagentThreadIds: Effect.fn("ProjectionStore.listActiveSubagentThreadIds")(
         function* () {
           const existing = (yield* Ref.get(replayState)).projections;
-          return [...existing.values()]
-            .filter(
-              ({ thread }) =>
-                thread.deletedAt === null &&
-                thread.archivedAt === null &&
-                thread.lineage.relationshipToParent === "subagent",
-            )
-            .map(({ thread }) => thread.id);
+          return [...existing.values()].flatMap(({ thread }) =>
+            thread.deletedAt === null &&
+            thread.archivedAt === null &&
+            thread.lineage.relationshipToParent === "subagent"
+              ? [thread.id]
+              : [],
+          );
         },
       ),
       readShellSnapshot: (options) =>

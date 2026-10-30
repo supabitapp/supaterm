@@ -147,14 +147,19 @@ it.layer(layerTest)("CodexDriver", (it) => {
         });
         yield* store.set(new TextEncoder().encode(json));
         const replacement = yield* encodeCredentials({
-          clientId: "oaiapp_replacement",
-          subject: "replacement-user",
-          email: "replacement@example.test",
-          accessToken: "replacement-access",
-          refreshToken: "replacement-refresh",
-          expiresAt: Number.MAX_SAFE_INTEGER,
-          earliestRefreshAt: null,
-          scopes: ["chatgpt.tokens.use.direct"],
+          activeClientId: "oaiapp_replacement",
+          sessions: [
+            {
+              clientId: "oaiapp_replacement",
+              subject: "replacement-user",
+              email: "replacement@example.test",
+              accessToken: "replacement-access",
+              refreshToken: "replacement-refresh",
+              expiresAt: Number.MAX_SAFE_INTEGER,
+              earliestRefreshAt: null,
+              scopes: ["chatgpt.tokens.use.direct"],
+            },
+          ],
         });
         const replaceAccount = store.set(new TextEncoder().encode(replacement)).pipe(Effect.orDie);
         const executable = {
