@@ -161,11 +161,14 @@ export async function downloadLocalUpdate(
 }
 
 export async function installLocalUpdate(
-  bridge: DesktopBridge,
+  bridge: Pick<DesktopBridge, "installUpdate">,
   reportError: ReportLocalUpdateError = toastUpdateError,
+  expectedVersion?: string,
 ): Promise<boolean> {
   try {
-    await desktopUpdateRestart.install(bridge);
+    await desktopUpdateRestart.install({
+      installUpdate: () => bridge.installUpdate(expectedVersion),
+    });
     return true;
   } catch (error) {
     reportError(
