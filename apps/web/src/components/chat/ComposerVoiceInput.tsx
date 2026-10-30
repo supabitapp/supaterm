@@ -29,7 +29,9 @@ export function ComposerVoiceButton(props: {
   const label = unavailable
     ? "Voice input unavailable"
     : recording
-      ? "Stop and review"
+      ? availability.canReview
+        ? "Stop and review"
+        : "Send voice message"
       : "Voice input";
   const detail = unavailable
     ? availability.unavailableReason
@@ -47,7 +49,6 @@ export function ComposerVoiceButton(props: {
             variant="ghost"
             size="icon-sm"
             aria-label={label}
-            aria-pressed={recording}
             disabled={props.disabled || busy || (unavailable && !availability.opensSettings)}
             onPointerDown={keepComposerFocus}
             onClick={() => {
