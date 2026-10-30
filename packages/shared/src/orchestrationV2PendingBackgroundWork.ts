@@ -88,17 +88,21 @@ export function deriveBlockedOnThreadWait(input: {
 }
 
 export function backgroundWorkHoldsCompletion(
-  tasks: ReadonlyArray<Pick<PendingBackgroundWorkTask, "kind">>,
+  tasks: ReadonlyArray<Pick<PendingBackgroundWorkTask, "kind" | "awaited">>,
 ): boolean {
-  return tasks.some((task) => backgroundWorkKindHoldsCompletion(task.kind));
+  return tasks.some(
+    (task) => task.awaited === true || backgroundWorkKindHoldsCompletion(task.kind),
+  );
 }
 
+// Commands and monitors are as often a dev server or its watchdog as a wait, so they hold
+// only when the agent marks them awaited.
 function backgroundWorkKindHoldsCompletion(kind: PendingBackgroundWorkTask["kind"]): boolean {
   switch (kind) {
     case "command":
+    case "monitor":
       return false;
     case "subagent":
-    case "monitor":
     case "background_task":
       return true;
   }
@@ -109,7 +113,9 @@ type PendingBackgroundWorkRun = Pick<OrchestrationV2Run, "id" | "ordinal" | "sta
 type PendingBackgroundWorkPullRequest = Pick<
   ThreadPullRequestLink,
   "host" | "repository" | "number" | "url" | "source" | "watch"
->;
+> & {
+  readonly snapshot: Pick<NonNullable<ThreadPullRequestLink["snapshot"]>, "state"> | null;
+};
 
 type PendingBackgroundWorkProviderThread = Pick<
   OrchestrationV2ProviderThread,
@@ -128,6 +134,7 @@ type PendingBackgroundWorkTurnItem = {
     readonly nativeId: string | null;
   } | null;
   readonly input?: unknown;
+  readonly monitor?: boolean | undefined;
   readonly prompt?: string | undefined;
   readonly childThreadId?: ThreadId | null;
 };
@@ -186,7 +193,7 @@ function pendingTaskFromTurnItem(
         ...(item.childThreadId == null ? {} : { childThreadId: item.childThreadId }),
       };
     case "command_execution":
-      return { ...named, kind: "command" };
+      return { ...named, kind: item.monitor === true ? "monitor" : "command" };
     default:
       return { ...named, kind: "background_task" };
   }
@@ -317,6 +324,7 @@ function watchTasks(input: {
     taskId: `workflow-run-watch:${watch.host}/${watch.repository}#${watch.runId}`,
     description: `Watching ${watch.name} run`,
     kind: "monitor" as const,
+    awaited: true as const,
   }));
   return [...pullRequestWatchTasks(input.pullRequests), ...runWatches];
 }
@@ -325,13 +333,17 @@ function pullRequestWatchTasks(
   pullRequests: ReadonlyArray<PendingBackgroundWorkPullRequest> | undefined,
 ): Array<PendingBackgroundWorkTask> {
   return (pullRequests ?? []).flatMap((link) =>
-    link.watch === undefined || link.source === "stack-dismissed"
+    // The watch reactor ends a merged PR's watch without waking the agent, so it holds nothing.
+    link.watch === undefined ||
+    link.source === "stack-dismissed" ||
+    link.snapshot?.state === "merged"
       ? []
       : [
           {
             taskId: `pull-request-watch:${threadPullRequestKeyOf(link)}`,
             description: `Watching pull request #${link.number}`,
             kind: "monitor" as const,
+            awaited: true as const,
           },
         ],
   );

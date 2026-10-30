@@ -22,6 +22,7 @@ export type SupatermMcpToolSummaryAction =
   | "thread-wait"
   | "thread-interrupt"
   | "workflow-stop"
+  | "background-wait"
   | "thread-configuration"
   | "thread-configure"
   | "thread-fork"
@@ -39,6 +40,7 @@ export type SupatermMcpToolSummaryAction =
   | "question-list"
   | "question-read"
   | "question-respond"
+  | "secret-request"
   | "worktree-handoff"
   | "worktree-list"
   | "worktree-status"
@@ -49,6 +51,9 @@ export type SupatermMcpToolSummaryAction =
   | "project-delete"
   | "project-clone"
   | "environment-read"
+  | "environment-links"
+  | "environment-link"
+  | "environment-unlink"
   | "environment-update"
   | "attachment-prepare"
   | "attachment-discard"
@@ -156,6 +161,7 @@ const SUPATERM_MCP_TOOLS: Readonly<Record<string, SupatermMcpToolDefinition>> = 
     ["Delete", "Deleting", "Requested deletion of", "a scheduled task"],
     "schedule-delete",
   ),
+  request_secret: tool(["Ask for", "Asking for", "Asked for", "a secret"], "secret-request"),
   create_threads: tool(["Create", "Creating", "Created", "Supaterm threads"], "thread-create"),
   supaterm_thread_start: tool(
     ["Start", "Starting", "Started", "a Supaterm thread"],
@@ -168,6 +174,10 @@ const SUPATERM_MCP_TOOLS: Readonly<Record<string, SupatermMcpToolDefinition>> = 
   supaterm_workflow_stop: tool(
     ["Stop", "Stopping", "Requested a stop for", "a workflow"],
     "workflow-stop",
+  ),
+  supaterm_background_wait: tool(
+    ["Update", "Updating", "Updated", "background waits"],
+    "background-wait",
   ),
   supaterm_thread_interrupt: tool(
     ["Interrupt", "Interrupting", "Requested an interrupt of", "a Supaterm thread"],
@@ -203,6 +213,7 @@ const SUPATERM_MCP_TOOLS: Readonly<Record<string, SupatermMcpToolDefinition>> = 
     "browser",
     "Snapshot the preview page",
   ),
+  preview_act: tool(["Use", "Using", "Used", "the preview browser"], "browser", "browser"),
   preview_click: tool(
     ["Click", "Clicking", "Clicked", "in the preview browser"],
     "browser",
@@ -285,6 +296,11 @@ const SUPATERM_MCP_TOOLS: Readonly<Record<string, SupatermMcpToolDefinition>> = 
     ["Run", "Running", "Requested a run of", "a scheduled task"],
     "schedule-run",
   ),
+  supaterm_queue: tool(["Manage", "Managing", "Managed", "queued messages"], "queue-edit"),
+  supaterm_pending_request: tool(
+    ["Handle", "Handling", "Handled", "pending questions"],
+    "question-respond",
+  ),
   supaterm_queue_list: tool(["List", "Listing", "Listed", "queued messages"], "queue-list"),
   supaterm_queue_read: tool(["Read", "Reading", "Read", "a queued message"], "queue-read"),
   supaterm_queue_edit: tool(["Edit", "Editing", "Edited", "a queued message"], "queue-edit"),
@@ -316,7 +332,11 @@ const SUPATERM_MCP_TOOLS: Readonly<Record<string, SupatermMcpToolDefinition>> = 
     ["Read", "Reading", "Read", "thread configuration"],
     "thread-configuration",
   ),
-  supaterm_thread_configure: tool(["Set", "Setting", "Set", "thread model"], "thread-configure"),
+  supaterm_thread_configure: tool(
+    ["Use", "Using", "Used", "thread model settings"],
+    "thread-configure",
+  ),
+  supaterm_thread_transfer: tool(["Use", "Using", "Used", "thread transfers"], "thread-fork"),
   supaterm_thread_fork: tool(
     ["Fork", "Forking", "Requested a fork of", "this thread"],
     "thread-fork",
@@ -354,6 +374,18 @@ const SUPATERM_MCP_TOOLS: Readonly<Record<string, SupatermMcpToolDefinition>> = 
   supaterm_environment_read: tool(
     ["Read", "Reading", "Read", "environment preferences"],
     "environment-read",
+  ),
+  supaterm_environment_links: tool(
+    ["List", "Listing", "Listed", "linked environments"],
+    "environment-links",
+  ),
+  supaterm_environment_link: tool(
+    ["Ask to link", "Asking to link", "Asked to link", "an environment"],
+    "environment-link",
+  ),
+  supaterm_environment_unlink: tool(
+    ["Forget", "Forgetting", "Forgot", "a linked environment"],
+    "environment-unlink",
   ),
   supaterm_environment_preferences_update: tool(
     ["Update", "Updating", "Updated", "environment preferences"],
@@ -447,18 +479,63 @@ export function resolveSupatermMcpToolId(toolName: string | null | undefined): s
   return name !== null && Object.hasOwn(SUPATERM_MCP_TOOLS, name) ? name : null;
 }
 
+type SummaryInput = Readonly<Record<string, unknown>>;
+
+const asSummaryInput = (input: unknown): SummaryInput | undefined =>
+  typeof input === "object" && input !== null ? (input as SummaryInput) : undefined;
+
+/** Action tools present each call as the single-purpose tool its action replaced. */
+const ACTION_TOOLS: Readonly<Record<string, (action: string) => string | undefined>> = {
+  preview_act: (action) => `preview_${action}`,
+  supaterm_queue: (action) => `supaterm_queue_${action}`,
+  supaterm_pending_request: (action) => `supaterm_pending_request_${action}`,
+  supaterm_thread_transfer: (action) =>
+    ({
+      fork: "supaterm_thread_fork",
+      merge_back: "supaterm_thread_merge_back",
+      status: "supaterm_thread_transfers",
+    })[action],
+};
+
+/** Pass the call's input so an action tool resolves to the labels and summary of its action. */
 export function resolveSupatermMcpToolDefinition(
   toolName: string | null | undefined,
+  input?: unknown,
 ): SupatermMcpToolDefinition | null {
   const name = toolName == null ? null : resolveSupatermMcpToolName(toolName);
-  return name !== null && Object.hasOwn(SUPATERM_MCP_TOOLS, name)
-    ? SUPATERM_MCP_TOOLS[name]!
-    : null;
+  if (name === null || !Object.hasOwn(SUPATERM_MCP_TOOLS, name)) return null;
+  const action = asSummaryInput(input)?.action;
+  const actionTool = typeof action === "string" ? ACTION_TOOLS[name]?.(action) : undefined;
+  return actionTool !== undefined && Object.hasOwn(SUPATERM_MCP_TOOLS, actionTool)
+    ? SUPATERM_MCP_TOOLS[actionTool]!
+    : SUPATERM_MCP_TOOLS[name]!;
+}
+
+/** Tools whose summary depends on which fields a call sets. */
+const ACTION_SUMMARIES: Readonly<
+  Record<string, (input: SummaryInput) => SupatermMcpToolSummaryAction | undefined>
+> = {
+  supaterm_thread_configure: ({ modelSelection }) =>
+    modelSelection === undefined ? "thread-configuration" : "thread-configure",
+  schedule_task: ({ scheduledTaskId }) =>
+    scheduledTaskId === undefined ? "schedule-create" : "schedule-update",
+};
+
+export function resolveSupatermMcpSummaryAction(
+  toolName: string | null | undefined,
+  input: unknown,
+): SupatermMcpToolSummaryAction | null {
+  const definition = resolveSupatermMcpToolDefinition(toolName, input);
+  if (definition === null) return null;
+  const summarize = ACTION_SUMMARIES[resolveSupatermMcpToolName(toolName!) ?? ""];
+  const fields = asSummaryInput(input);
+  return (fields && summarize?.(fields)) ?? definition.summaryAction;
 }
 
 export function resolveSupatermMcpToolPresentation(
   toolName: string | null | undefined,
+  input?: unknown,
 ): SupatermMcpToolPresentation | null {
-  const definition = resolveSupatermMcpToolDefinition(toolName);
+  const definition = resolveSupatermMcpToolDefinition(toolName, input);
   return definition === null ? null : { displayName: definition.displayName, logo: "supaterm" };
 }
