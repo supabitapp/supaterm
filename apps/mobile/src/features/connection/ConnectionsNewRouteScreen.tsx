@@ -27,6 +27,7 @@ import { SymbolView } from "../../components/ui/AppSymbol";
 import { autoConnectReport, devAutoConnectAttemptAtom } from "./devAutoConnect";
 import { leaveSettingsPage } from "../settings/settings-navigation";
 import { workspaceHasColumns } from "../workspace/workspace-selection-store";
+import { settlePromise } from "@supaterm/client-runtime/state/runtime";
 
 type ConnectionsNewRouteParams = {
   readonly mode?: string;
@@ -137,20 +138,23 @@ function PairingForm({
     setSubmitError(null);
     setIsSubmitting(true);
     onChangeConnectionPairingUrl(pairingUrl);
-    try {
-      const outcome = await onConnectPress(pairingUrl, routeFor);
-      setSubmitError(outcome.error);
-      void Haptics.notificationAsync(
-        outcome.ok
-          ? Haptics.NotificationFeedbackType.Success
-          : Haptics.NotificationFeedbackType.Error,
-      );
-      if (outcome.ok) {
-        if (!navigation.canGoBack()) navigation.dispatch(StackActions.replace("Home"));
-        else leaveSettingsPage(navigation, workspaceHasColumns(), "SettingsEnvironments");
-      }
-    } finally {
-      setIsSubmitting(false);
+    const result = await settlePromise(() => onConnectPress(pairingUrl, routeFor));
+    setIsSubmitting(false);
+    if (result._tag === "Failure") {
+      setSubmitError("Could not connect. Try again.");
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
+    const outcome = result.value;
+    setSubmitError(outcome.error);
+    void Haptics.notificationAsync(
+      outcome.ok
+        ? Haptics.NotificationFeedbackType.Success
+        : Haptics.NotificationFeedbackType.Error,
+    );
+    if (outcome.ok) {
+      if (!navigation.canGoBack()) navigation.dispatch(StackActions.replace("Home"));
+      else leaveSettingsPage(navigation, workspaceHasColumns(), "SettingsEnvironments");
     }
   };
 

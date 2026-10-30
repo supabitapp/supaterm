@@ -178,7 +178,7 @@ type NativeReviewDiffRawViewProps = Omit<
   readonly ref?: Ref<NativeReviewDiffViewRef>;
 };
 
-let cachedNativeReviewDiffRawView: ComponentType<NativeReviewDiffRawViewProps> | undefined;
+let CachedNativeReviewDiffRawView: ComponentType<NativeReviewDiffRawViewProps> | undefined;
 let nativeReviewDiffViewResolutionFailed = false;
 
 type NativeReviewDiffPayloadMethod = "setRowsJson" | "setTokensJson" | "setTokensPatchJson";
@@ -384,29 +384,29 @@ function NativeReviewDiffContent(
     [],
   );
 
-  const RawNativeView = cachedNativeReviewDiffRawView;
+  const RawNativeView = CachedNativeReviewDiffRawView;
   if (!RawNativeView) {
     return null;
   }
 
-  /* oxlint-disable react/refs -- The native view receives this ref; only event callbacks access its current value. */
-  return createElement(RawNativeView, {
-    ...nativeProps,
-    refreshEnabled: props.onPullToRefresh !== undefined,
-    onDebug: (event) => {
-      if (event.nativeEvent.message === "rows-decode-failed") {
-        console.error("[native-review-diff] rows decode failed", event.nativeEvent.error);
-        onRowsFailure();
-      }
-      onDebug?.(event);
-    },
-    ref: nativeRef,
-  });
-  /* oxlint-enable react/refs */
+  return (
+    <RawNativeView
+      {...nativeProps}
+      refreshEnabled={props.onPullToRefresh !== undefined}
+      onDebug={(event) => {
+        if (event.nativeEvent.message === "rows-decode-failed") {
+          console.error("[native-review-diff] rows decode failed", event.nativeEvent.error);
+          onRowsFailure();
+        }
+        onDebug?.(event);
+      }}
+      ref={nativeRef}
+    />
+  );
 }
 
 export function resolveNativeReviewDiffView(): ComponentType<NativeReviewDiffViewProps> | null {
-  if (cachedNativeReviewDiffRawView) {
+  if (CachedNativeReviewDiffRawView) {
     return NativeReviewDiffView;
   }
 
@@ -419,7 +419,7 @@ export function resolveNativeReviewDiffView(): ComponentType<NativeReviewDiffVie
   }
 
   try {
-    cachedNativeReviewDiffRawView = requireNativeView<NativeReviewDiffRawViewProps>(
+    CachedNativeReviewDiffRawView = requireNativeView<NativeReviewDiffRawViewProps>(
       NATIVE_REVIEW_DIFF_MODULE_NAME,
     );
   } catch (cause) {
@@ -433,5 +433,5 @@ export function resolveNativeReviewDiffView(): ComponentType<NativeReviewDiffVie
     return null;
   }
 
-  return cachedNativeReviewDiffRawView ? NativeReviewDiffView : null;
+  return CachedNativeReviewDiffRawView ? NativeReviewDiffView : null;
 }

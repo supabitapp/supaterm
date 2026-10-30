@@ -221,4 +221,22 @@ describe("QR pairing", () => {
     await act(() => scanner()({ data: pairingUrl }));
     expect(state.goBack).toHaveBeenCalledTimes(1);
   });
+
+  it("clears a rejected connection attempt and permits another scan", async () => {
+    state.onConnectPress.mockRejectedValueOnce(new Error("Connection interrupted"));
+    state.onConnectPress.mockResolvedValue({ ok: true, error: null });
+    await mount();
+    await act(() => scanner()({ data: pairingUrl }));
+    expect(state.goBack).not.toHaveBeenCalled();
+    expect(renderer!.root.findByProps({ accessibilityLiveRegion: "polite" }).props.children).toBe(
+      "Could not connect. Try again.",
+    );
+    await act(() =>
+      renderer!.root.findByProps({ accessibilityLabel: "Scan QR code" }).props.onPress(),
+    );
+    expect(state.requestCameraPermission).toHaveBeenCalledOnce();
+    await act(() => scanner()({ data: pairingUrl }));
+    expect(state.onConnectPress).toHaveBeenCalledTimes(2);
+    expect(state.goBack).toHaveBeenCalledOnce();
+  });
 });
