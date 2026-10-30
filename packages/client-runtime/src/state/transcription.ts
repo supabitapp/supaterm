@@ -113,15 +113,7 @@ const decodeError = Schema.decodeUnknownOption(TranscriptionError);
 
 export type VoiceUploadResponse = { readonly status: number; readonly body: unknown };
 
-function uploadFailure(response: VoiceUploadResponse): VoiceUploadError {
-  const error = Option.getOrUndefined(decodeError(response.body));
-  if (!error) {
-    return new VoiceUploadError(
-      undefined,
-      `The recording couldn't be uploaded (${response.status}).`,
-      response.status >= 500,
-    );
-  }
+function refusal(error: TranscriptionError): VoiceUploadError {
   return new VoiceUploadError(
     error.reason,
     error.retryAfterMs === undefined
@@ -129,6 +121,35 @@ function uploadFailure(response: VoiceUploadResponse): VoiceUploadError {
       : `${error.message} Try again in ${Math.ceil(error.retryAfterMs / 1000)} s.`,
     error.reason === "rateLimited",
   );
+}
+
+function uploadFailure(response: VoiceUploadResponse): VoiceUploadError {
+  const error = Option.getOrUndefined(decodeError(response.body));
+  return error
+    ? refusal(error)
+    : new VoiceUploadError(
+        undefined,
+        `The recording couldn't be uploaded (${response.status}).`,
+        response.status >= 500,
+      );
+}
+
+// A failed RPC surfaces as a tagged value, not necessarily a decoded class instance.
+async function prepareUpload(
+  prepare: () => Promise<TranscriptionPrepareUploadResult>,
+): Promise<TranscriptionPrepareUploadResult> {
+  try {
+    return await prepare();
+  } catch (error) {
+    const refused = Option.getOrUndefined(decodeError(error));
+    if (refused) throw refusal(refused);
+    throw new VoiceUploadError(
+      "disconnected",
+      "The recording couldn't reach the environment.",
+      true,
+      { cause: error },
+    );
+  }
 }
 
 /**
@@ -148,7 +169,7 @@ export async function uploadVoiceRecording(input: {
   const signal = input.signal ?? new AbortController().signal;
   for (let attempt = 0; ; attempt++) {
     throwIfVoiceTranscriptionAborted(signal);
-    const prepared = await input.prepare(input.request);
+    const prepared = await prepareUpload(() => input.prepare(input.request));
     let response: VoiceUploadResponse;
     try {
       response = await input.post(prepared.relativeUrl, signal);

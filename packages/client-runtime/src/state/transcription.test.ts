@@ -127,6 +127,20 @@ describe("uploadVoiceRecording", () => {
       message: "Transcription is rate limited. Try again soon. Try again in 3 s.",
     });
 
+    const unready = await uploadVoiceRecording({
+      request,
+      prepare: async () => {
+        throw { _tag: "TranscriptionError", reason: "unsupportedLanguage" };
+      },
+      post: async () => ({ status: 200, body: { text: "never" } }),
+      cancel: async () => undefined,
+    }).catch((error: unknown) => error);
+    expect(unready).toMatchObject({
+      reason: "unsupportedLanguage",
+      retryable: false,
+      message: "This provider can't transcribe that language.",
+    });
+
     const dropped = await harness([new TypeError("network")])
       .upload()
       .catch((error: unknown) => error);

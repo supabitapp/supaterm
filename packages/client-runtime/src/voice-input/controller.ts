@@ -149,9 +149,18 @@ type VoiceInputSession = {
 let activeSession: VoiceInputSession | null = null;
 let activeTranscriptionOperation: Promise<unknown> | null = null;
 
+// Not `Promise.withResolvers`: the web client targets a runtime library without it.
+function deferred(): { readonly promise: Promise<void>; readonly resolve: () => void } {
+  let resolve: () => void = () => undefined;
+  const promise = new Promise<void>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
 function acquireSession(): VoiceInputSession | null {
   if (activeSession) return null;
-  const { promise, resolve } = Promise.withResolvers<void>();
+  const { promise, resolve } = deferred();
   const token = { abandoned: false, released: promise, release: resolve };
   activeSession = token;
   return token;

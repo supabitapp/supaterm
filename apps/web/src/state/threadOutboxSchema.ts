@@ -76,10 +76,18 @@ export const OutboxAttachment = Schema.Struct({
   uploaded: Schema.optionalKey(ChatAttachment),
 });
 
+/** A voice message: the environment transcribes the WAV and sends the text as this turn. */
+export const OutboxVoice = Schema.Struct({
+  audio: Schema.instanceOf(Blob),
+  durationMs: Schema.Number,
+  language: Schema.optionalKey(Schema.String),
+});
+
 export const OutboxTurn = Schema.Struct({
   environmentId: EnvironmentId,
   input: OutboxTurnInput,
   localAttachments: Schema.Array(OutboxAttachment),
+  voice: Schema.optionalKey(OutboxVoice),
   pendingWorktree: Schema.optionalKey(
     Schema.Struct({
       projectCwd: Schema.String,
@@ -94,7 +102,7 @@ export const OutboxTurn = Schema.Struct({
 export type OutboxTurn = typeof OutboxTurn.Type;
 
 export const StoredOutboxEntry = Schema.Struct({
-  schemaVersion: Schema.Literals([1, 2]),
+  schemaVersion: Schema.Literals([1, 2, 3]),
   id: Schema.String,
   scope: Schema.String,
   createdAt: Schema.String,
@@ -109,8 +117,9 @@ export const StoredOutboxEntry = Schema.Struct({
   pauseUntil: Schema.Number,
 });
 
+// Older clients skip version 3, so they never deliver a voice message as an empty text one.
 export function encodeStoredOutboxEntry(
   entry: Omit<typeof StoredOutboxEntry.Type, "schemaVersion">,
 ) {
-  return { schemaVersion: 2 as const, ...entry };
+  return { schemaVersion: entry.payload.voice ? (3 as const) : (2 as const), ...entry };
 }
