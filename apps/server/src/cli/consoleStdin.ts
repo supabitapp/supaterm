@@ -4,55 +4,35 @@ import * as NodeTty from "node:tty";
 
 import * as HostProcess from "@supaterm/shared/HostProcess";
 
-/**
- * Whether this process is the desktop app's `supaterm.cmd` running the CLI in a
- * terminal with no stdin. The launcher runs the app's executable with
- * `ELECTRON_RUN_AS_NODE`, and Electron's Windows executable is a GUI program:
- * on start it points stdout and stderr at the parent's console but leaves
- * stdin unset, so prompts see no terminal and children such as the agent
- * `supaterm triage` starts inherit nothing to read from. Input the user piped or
- * redirected is a valid descriptor and is left alone, as is any run whose
- * output is not a console (the desktop backend, scripts).
- */
 function needsConsoleStdin(input: {
   readonly platform: NodeJS.Platform;
   readonly env: NodeJS.ProcessEnv;
-  readonly stdinOpen: boolean;
+  readonly stdinMissing: boolean;
   readonly stdoutIsConsole: boolean;
 }): boolean {
   return (
     input.platform === "win32" &&
-    // Set only by the launcher (DesktopCliShim), never for the desktop backend.
     input.env.SUPATERM_DESKTOP_CLI_LAUNCHER === "1" &&
-    !input.stdinOpen &&
+    input.stdinMissing &&
     input.stdoutIsConsole
   );
 }
 
-const isOpen = (fd: number) => {
+const isMissingInput = (fd: number) => {
   try {
-    NodeFS.fstatSync(fd);
-    return true;
+    return NodeFS.fstatSync(fd).isCharacterDevice() && !NodeTty.isatty(fd);
   } catch {
-    return false;
+    return true;
   }
 };
 
-/**
- * Reopens the console's input as `process.stdin` when {@link needsConsoleStdin}
- * holds, and returns its descriptor so interactive children can be given the
- * same console. Returns undefined, changing nothing, everywhere else.
- * Call before anything reads `process.stdin`.
- */
 export function attachConsoleStdin(): number | undefined {
   const needed = needsConsoleStdin({
     platform: HostProcess.Platform.defaultValue(),
     env: process.env,
-    stdinOpen: isOpen(0),
+    stdinMissing: isMissingInput(0),
     stdoutIsConsole: NodeTty.isatty(1),
   });
-  // The marker describes this process's own start; a server started here
-  // must not pass it on to the shells and `supaterm` runs it spawns.
   delete process.env.SUPATERM_DESKTOP_CLI_LAUNCHER;
   if (!needed) return undefined;
   let fd: number;
@@ -66,6 +46,17 @@ export function attachConsoleStdin(): number | undefined {
     return undefined;
   }
   const stdin = new NodeTty.ReadStream(fd);
+  stdin.on("pause", () => {
+    const internal = stdin as unknown as {
+      _handle?: { reading: boolean; readStop(): void };
+      _readableState: { reading: boolean };
+    };
+    const handle = internal._handle;
+    if (!handle) return;
+    internal._readableState.reading = false;
+    handle.reading = false;
+    handle.readStop();
+  });
   Object.defineProperty(process, "stdin", { value: stdin, configurable: true, enumerable: true });
   consoleStdinFd = fd;
   return fd;
@@ -73,5 +64,4 @@ export function attachConsoleStdin(): number | undefined {
 
 let consoleStdinFd: number | undefined;
 
-/** The stdin to hand an interactive child: the reopened console, or the inherited one. */
 export const interactiveStdin = (): number | "inherit" => consoleStdinFd ?? "inherit";
