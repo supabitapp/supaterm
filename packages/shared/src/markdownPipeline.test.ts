@@ -3,11 +3,55 @@ import { markdownDestinationHostPath } from "./markdownLinks.ts";
 import { unified } from "unified";
 import remarkParse from "remark-parse";
 import remarkRehype from "remark-rehype";
+import { markdownWithAuthoredWindowsPaths } from "./markdownWindowsPaths.ts";
 import {
   chatMarkdownImageSources,
   CHAT_MARKDOWN_REHYPE_PLUGINS,
   CHAT_MARKDOWN_REMARK_PLUGINS,
 } from "./markdownPipeline.ts";
+
+it.each([
+  [String.raw`![paren](C:\a\)b.png)`, String.raw`C:\a\)b.png`],
+  [String.raw`![paren](<C:\a\)b.png>)`, String.raw`C:\a\)b.png`],
+  [String.raw`![amp](C:\R&D\.supaterm\a&amp;b.png)`, String.raw`C:\R&D\.supaterm\a&b.png`],
+  [String.raw`![html](<C:\R\&D\.supaterm\b.png>)`, String.raw`C:\R&D\.supaterm\b.png`],
+  [
+    String.raw`![ref][image]
+
+[image]: C:\R&D\.supaterm\a&amp;b.png`,
+    String.raw`C:\R&D\.supaterm\a&b.png`,
+  ],
+  ["> ![quoted](\n> C:\\work\\.supaterm\\shot.png)", String.raw`C:\work\.supaterm\shot.png`],
+])("preserves Windows destinations for native Markdown parsing: %s", (markdown, expected) => {
+  const processor = unified().use(remarkParse);
+  const tree = processor.parse(markdownWithAuthoredWindowsPaths(markdown));
+  const urls: string[] = [];
+  type Node = { type: string; url?: string; children?: ReadonlyArray<Node> };
+  const visit = (node: Node) => {
+    if (node.url !== undefined) urls.push(node.url);
+    node.children?.forEach(visit);
+  };
+  visit(tree);
+  expect(urls).toEqual([expected]);
+});
+
+it("only rewrites Windows destinations retained in the parsed Markdown", () => {
+  const examples = [
+    "`[file](C:\\repo\\.config\\file.md)`",
+    "```md\n![image](C:\\repo\\.config\\image.png)\n```",
+    String.raw`[web](https://example.com/a\_b?key=&amp;)`,
+    String.raw`[relative](./a\_b)`,
+  ].join("\n\n");
+  expect(markdownWithAuthoredWindowsPaths(examples)).toBe(examples);
+
+  const label = String.raw`[file](C:\repo\_a)`;
+  const markdown = `![${label}](C:\\repo\\_a)`;
+  const rewritten = markdownWithAuthoredWindowsPaths(markdown);
+  expect(rewritten).toContain(`![${label}]`);
+  expect(unified().use(remarkParse).parse(rewritten).children[0]).toMatchObject({
+    children: [{ type: "image", url: String.raw`C:\repo\_a` }],
+  });
+});
 
 it("preserves in-app thread links through the shared Markdown sanitizer", () => {
   const processor = unified()
