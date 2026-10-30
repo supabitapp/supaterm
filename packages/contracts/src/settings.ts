@@ -1266,7 +1266,7 @@ export const ServerSettings = Schema.Struct({
     ),
   ),
   nextPromptSuggestionsEnabled: Schema.Boolean.pipe(
-    Schema.withDecodingDefault(Effect.succeed(false)),
+    Schema.withDecodingDefault(Effect.succeed(true)),
   ),
   threadTitleInstructions: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
   branchNamingMode: BranchNamingMode.pipe(

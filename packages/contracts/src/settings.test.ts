@@ -58,6 +58,19 @@ describe("restart continuation", () => {
   });
 });
 
+describe("next prompt suggestions", () => {
+  it("enables suggestions for sparse existing settings", () => {
+    expect(decodeServerSettings({}).nextPromptSuggestionsEnabled).toBe(true);
+    expect(DEFAULT_SERVER_SETTINGS.nextPromptSuggestionsEnabled).toBe(true);
+  });
+
+  it("preserves an explicit opt-out", () => {
+    const input = { nextPromptSuggestionsEnabled: false };
+    expect(encodeServerSettings(decodeServerSettings(input))).toMatchObject(input);
+    expect(decodeServerSettingsPatch(input)).toEqual(input);
+  });
+});
+
 describe("ServerSettings Encrypted Relay", () => {
   it("enables relay by default for settings without a saved preference", () => {
     expect(decodeServerSettings({})).toMatchObject({
