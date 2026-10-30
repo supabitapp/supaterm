@@ -18,6 +18,7 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 
+import { createDeviceSimlockIdentityCheck } from "./deviceIdentity";
 import { connectionAtomRuntime } from "../connection/runtime";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { environmentSession } from "./session";
@@ -177,12 +178,4 @@ export const deviceEasAccountCheck = createEnvironmentRpcQueryAtomFamily(connect
 });
 
 /** Who a Simlock token is, checked as the host editor's URL and token fields change. */
-export const deviceSimlockIdentityCheck = createEnvironmentRpcQueryAtomFamily(
-  connectionAtomRuntime,
-  {
-    label: "environment-data:device:simlock-identity-check",
-    tag: WS_METHODS.deviceSimlockIdentity,
-    staleTimeMs: 0,
-    idleTtlMs: 0,
-  },
-);
+export const deviceSimlockIdentityCheck = createDeviceSimlockIdentityCheck(connectionAtomRuntime);
