@@ -3,14 +3,13 @@ import { WorkerPoolManager } from "@pierre/diffs/worker";
 import DiffsWorker from "@pierre/diffs/worker/worker.js?worker";
 import * as Schema from "effect/Schema";
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
-import { useStableCallback } from "../hooks/useStableCallback";
-import { useRenderedAppearance } from "../hooks/useTheme";
-import { resolveDiffThemeName, type DiffThemeName } from "../lib/diffRendering";
+import { getRenderedAppearance, subscribeRenderedAppearance } from "../hooks/useTheme";
+import { resolveDiffThemeName } from "../lib/diffRendering";
 import { PREFERRED_HIGHLIGHTER } from "../lib/syntaxHighlighting";
 
 export class DiffWorkerError extends Schema.TaggedError<DiffWorkerError>()("DiffWorkerError", {
   operation: Schema.Literals(["create-worker", "get-render-options", "set-render-options"]),
-  themeName: Schema.Literals(["pierre-light", "pierre-dark"]),
+  themeName: Schema.Literals(["pierre-light", "supaterm-light", "pierre-dark"]),
   cause: Schema.Defect(),
 }) {
   override get message(): string {
@@ -27,72 +26,64 @@ function resolveDiffWorkerPoolSize() {
 let sharedWorkerPool:
   | {
       readonly pool: WorkerPoolManager;
+      readonly unsubscribeTheme: () => void;
       consumers: number;
       idleTimer: ReturnType<typeof setTimeout> | undefined;
     }
   | undefined;
 
-function acquireDiffWorkerPool(themeName: DiffThemeName, poolSize: number) {
-  const entry = (sharedWorkerPool ??= {
-    pool: new WorkerPoolManager(
-      {
-        workerFactory: () => {
-          try {
-            return new DiffsWorker();
-          } catch (cause) {
-            throw new DiffWorkerError({ operation: "create-worker", themeName, cause });
-          }
-        },
-        poolSize,
-        totalASTLRUCacheSize: 240,
+function applyDiffWorkerTheme(pool: WorkerPoolManager) {
+  const themeName = resolveDiffThemeName(getRenderedAppearance());
+  let operation: DiffWorkerError["operation"] = "get-render-options";
+  void (async () => {
+    try {
+      const current = pool.getDiffRenderOptions();
+      if (current.theme === themeName) return;
+      operation = "set-render-options";
+      await pool.setRenderOptions({ ...current, theme: themeName });
+    } catch (cause) {
+      console.error(new DiffWorkerError({ operation, themeName, cause }));
+    }
+  })();
+}
+
+function createDiffWorkerPool(poolSize: number) {
+  const themeName = resolveDiffThemeName(getRenderedAppearance());
+  const pool = new WorkerPoolManager(
+    {
+      workerFactory: () => {
+        try {
+          return new DiffsWorker();
+        } catch (cause) {
+          throw new DiffWorkerError({ operation: "create-worker", themeName, cause });
+        }
       },
-      {
-        theme: themeName,
-        preferredHighlighter: PREFERRED_HIGHLIGHTER,
-        tokenizeMaxLineLength: 1_000,
-        useTokenTransformer: true,
-      },
-    ),
+      poolSize,
+      totalASTLRUCacheSize: 240,
+    },
+    {
+      theme: themeName,
+      preferredHighlighter: PREFERRED_HIGHLIGHTER,
+      tokenizeMaxLineLength: 1_000,
+      useTokenTransformer: true,
+    },
+  );
+  return {
+    pool,
+    unsubscribeTheme: subscribeRenderedAppearance(() => applyDiffWorkerTheme(pool)),
     consumers: 0,
     idleTimer: undefined,
-  });
+  };
+}
+
+function acquireDiffWorkerPool(poolSize: number) {
+  const entry = (sharedWorkerPool ??= createDiffWorkerPool(poolSize));
   clearTimeout(entry.idleTimer);
   entry.idleTimer = undefined;
   entry.consumers += 1;
   return entry;
 }
 
-function DiffWorkerThemeSync({ themeName }: { themeName: DiffThemeName }) {
-  const workerPool = useWorkerPool();
-
-  useEffect(() => {
-    if (!workerPool) {
-      return;
-    }
-
-    let operation: DiffWorkerError["operation"] = "get-render-options";
-    void (async () => {
-      try {
-        const current = workerPool.getDiffRenderOptions();
-        if (current.theme === themeName) {
-          return;
-        }
-
-        operation = "set-render-options";
-        await workerPool.setRenderOptions({
-          ...current,
-          theme: themeName,
-        });
-      } catch (cause) {
-        console.error(new DiffWorkerError({ operation, themeName, cause }));
-      }
-    })();
-  }, [themeName, workerPool]);
-
-  return null;
-}
-
-// Plain-text views do not queue a highlight task that could retry a blank first render.
 function DiffWorkerReady({ children }: { children?: ReactNode }) {
   const workerPool = useWorkerPool();
   const [readyPool, setReadyPool] = useState<WorkerPoolManager>();
@@ -125,34 +116,35 @@ function DiffWorkerReady({ children }: { children?: ReactNode }) {
   );
 }
 
-export function DiffWorkerPoolProvider({ children }: { children?: ReactNode }) {
-  const resolvedTheme = useRenderedAppearance();
-  const diffThemeName = resolveDiffThemeName(resolvedTheme);
-  const [workerPoolSize] = useState(resolveDiffWorkerPoolSize);
-  // A new subscribe identity makes React release and reacquire the shared pool on every render.
-  const subscribe = useStableCallback((onStoreChange: () => void) => {
-    if (typeof window === "undefined") return () => {};
-    const entry = acquireDiffWorkerPool(diffThemeName, workerPoolSize);
-    onStoreChange();
-    return () => {
-      entry.consumers -= 1;
-      if (entry.consumers !== 0) return;
-      entry.idleTimer = setTimeout(() => {
-        entry.idleTimer = undefined;
-        entry.pool.terminate();
-        if (sharedWorkerPool === entry) sharedWorkerPool = undefined;
-      }, DIFF_WORKER_IDLE_TTL_MS);
-    };
-  });
-  const workerPool = useSyncExternalStore(
-    subscribe,
+function subscribeSharedWorkerPool(onStoreChange: () => void) {
+  if (typeof window === "undefined") return () => {};
+  const entry = acquireDiffWorkerPool(resolveDiffWorkerPoolSize());
+  onStoreChange();
+  return () => {
+    entry.consumers -= 1;
+    if (entry.consumers !== 0) return;
+    entry.idleTimer = setTimeout(() => {
+      entry.idleTimer = undefined;
+      entry.unsubscribeTheme();
+      entry.pool.terminate();
+      if (sharedWorkerPool === entry) sharedWorkerPool = undefined;
+    }, DIFF_WORKER_IDLE_TTL_MS);
+  };
+}
+
+export function useDiffWorkerPool() {
+  return useSyncExternalStore(
+    subscribeSharedWorkerPool,
     () => sharedWorkerPool?.pool,
     () => undefined,
   );
+}
+
+export function DiffWorkerPoolProvider({ children }: { children?: ReactNode }) {
+  const workerPool = useDiffWorkerPool();
 
   return (
     <WorkerPoolContext value={workerPool}>
-      <DiffWorkerThemeSync themeName={diffThemeName} />
       <DiffWorkerReady>{children}</DiffWorkerReady>
     </WorkerPoolContext>
   );

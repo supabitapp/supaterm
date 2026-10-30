@@ -3,6 +3,8 @@ import {
   AuthTerminalOperateScope,
   type ScopedThreadRef,
 } from "@supaterm/contracts";
+import { usePaneScope } from "../chatPanes/paneScope";
+import { focusPanelTerminalAfterClose } from "../lib/terminalFocus";
 import { getTerminalLabel } from "@supaterm/shared/terminalLabels";
 import { closePreviewSession } from "../components/preview/closePreviewSession";
 import { useThreadTerminalActions } from "../components/terminal/useThreadTerminalActions";
@@ -31,6 +33,7 @@ export function useRightPanelSurfaceClose(input: {
   readonly terminalHasRunningSubprocessById: ReadonlyMap<string, boolean>;
 }) {
   const { threadRef, terminalLabelsById, terminalHasRunningSubprocessById } = input;
+  const paneId = usePaneScope()?.paneId ?? null;
   const closePreview = useAtomCommand(previewEnvironment.close, "preview close");
   const canOperatePreview = useEnvironmentScope(
     threadRef?.environmentId ?? null,
@@ -71,8 +74,8 @@ export function useRightPanelSurfaceClose(input: {
       (left, right) => Number(left.id === activeId) - Number(right.id === activeId),
     );
     for (const surface of ordered) {
-      releaseSurfaceResources(threadRef, surface);
       store.closeSurface(threadRef, surface.id);
+      releaseSurfaceResources(threadRef, surface);
     }
     const nextActiveSurface = selectActiveRightPanelSurface(
       useRightPanelStore.getState().byThreadKey,
@@ -81,6 +84,7 @@ export function useRightPanelSurfaceClose(input: {
     if (nextActiveSurface?.kind === "preview" && nextActiveSurface.resourceId) {
       setActivePreviewTab(threadRef, nextActiveSurface.resourceId);
     }
+    focusPanelTerminalAfterClose(threadRef, activeId, paneId);
   };
   const terminalCloseTarget = (terminalId: string) => ({
     label: terminalLabelsById.get(terminalId) ?? getTerminalLabel(terminalId),

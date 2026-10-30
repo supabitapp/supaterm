@@ -239,9 +239,10 @@ describe("resource monitor retry", () => {
           .element(screen.getByText(historyError, { exact: true }))
           .not.toBeInTheDocument();
       }
-      expect(fixture.registry.get(fixture.historyQueries(`${environmentId}:900000`))._tag).toBe(
-        "Success",
-      );
+      const originalHistory = fixture.historyQueries(`${environmentId}:900000`);
+      const stop = fixture.registry.mount(originalHistory);
+      await vi.waitFor(() => expect(fixture.registry.get(originalHistory)._tag).toBe("Success"));
+      stop();
       expect(monitor.retry).toHaveBeenCalledExactlyOnceWith({ environmentId, input: {} });
     },
   );

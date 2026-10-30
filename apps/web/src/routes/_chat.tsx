@@ -1,7 +1,8 @@
 import { AuthPreviewOperateScope, type KeybindingCommand } from "@supaterm/contracts";
-import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
+import { Outlet, createFileRoute, redirect, useLocation } from "@tanstack/react-router";
 import { useAtomValue } from "@effect/atom-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { paneTargetKey } from "../chatPanes/layout";
 
 import { registerAppCommandHandler } from "../appCommandBus";
 import { isCommandPaletteOpen, openCommandPalette } from "../commandPaletteBus";
@@ -186,13 +187,24 @@ function ChatRouteLayout() {
   // Both thread routes render here, not in their own leaf components, so the
   // draft-to-thread promotion keeps one ChatView mounted across the swap.
   const threadTarget = useThreadRouteTarget();
+  const pathname = useLocation({ select: (location) => location.pathname });
+  const modal =
+    pathname === "/usage" || pathname === "/settings" || pathname.startsWith("/settings/");
+  const [retainedTarget, setRetainedTarget] = useState(threadTarget);
+  if (
+    threadTarget &&
+    (!retainedTarget || paneTargetKey(threadTarget) !== paneTargetKey(retainedTarget))
+  )
+    setRetainedTarget(threadTarget);
+  const workspaceTarget = threadTarget ?? (modal ? retainedTarget : null);
   return (
     <>
-      <ChatRouteGlobalShortcuts />
+      {modal ? null : <ChatRouteGlobalShortcuts />}
       {threadTarget?.kind === "server" ? (
         <ThreadLinkPrompt threadRef={threadTarget.threadRef} />
       ) : null}
-      {threadTarget ? <ChatPaneWorkspace target={threadTarget} /> : <Outlet />}
+      {workspaceTarget ? <ChatPaneWorkspace target={workspaceTarget} active={!modal} /> : null}
+      {modal || !workspaceTarget ? <Outlet /> : null}
     </>
   );
 }

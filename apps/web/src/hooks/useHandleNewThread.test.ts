@@ -226,7 +226,7 @@ vi.mock("../threadRoutes", () => ({
 vi.mock("../uiStateStore", () => ({
   useUiStateStore: () => [],
 }));
-vi.mock("./useSettings", () => ({ useClientSettings: () => ({}) }));
+vi.mock("./useSettings", () => ({ getClientSettings: () => ({}) }));
 
 import { useNewThreadHandler } from "./useHandleNewThread";
 

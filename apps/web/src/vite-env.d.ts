@@ -3,6 +3,7 @@
 import type { DesktopBridge } from "@supaterm/contracts";
 
 interface ImportMetaEnv {
+  readonly SUPATERM_FEATURE_SECRETS?: string;
   readonly VITE_HTTP_URL: string;
   readonly VITE_WS_URL: string;
   readonly VITE_HOSTED_APP_URL: string;

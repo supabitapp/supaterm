@@ -4,18 +4,12 @@ import type {
   ScopedThreadRef,
   ThreadId,
 } from "@supaterm/contracts";
-import * as Option from "effect/Option";
 import { useEffect, useEffectEvent, useRef } from "react";
 
-import {
-  flushPendingFaviconsForThread,
-  recordFaviconForThread,
-  useFaviconProjectRefForThread,
-} from "~/browserFaviconStore";
+import { recordFaviconForThread } from "~/browserFaviconStore";
 import { useBrowserPointerStore } from "~/browser/browserPointerStore";
 import { applyPreviewDesktopState, type DesktopPreviewOverlay } from "~/previewStateStore";
 import { previewEnvironment } from "~/state/preview";
-import { usePreparedConnection } from "~/state/session";
 import { useAtomCommand } from "~/state/use-atom-command";
 
 import { previewBridge } from "./previewBridge";
@@ -44,11 +38,6 @@ export function usePreviewBridge(input: {
   // stable for the effects.
   const { environmentId, threadId } = threadRef;
   const stableThreadRef: ScopedThreadRef = { environmentId, threadId };
-  const projectRef = useFaviconProjectRefForThread(stableThreadRef);
-  const preparedConnection = usePreparedConnection(stableThreadRef.environmentId);
-  const environmentHostname = Option.isSome(preparedConnection)
-    ? new URL(preparedConnection.value.httpBaseUrl).hostname
-    : undefined;
 
   const lastReportedUrl = useRef<string | null>(null);
   const lastReportedKind = useRef<DesktopPreviewTabState["navStatus"]["kind"] | null>(null);
@@ -62,7 +51,7 @@ export function usePreviewBridge(input: {
       lastDesktopNavStatus.current = state.navStatus;
       applyPreviewDesktopState(stableThreadRef, tabId, projectDesktopState(state));
       if (state.favicon) {
-        recordFaviconForThread(stableThreadRef, state.favicon, projectRef, environmentHostname);
+        recordFaviconForThread(stableThreadRef, state.favicon);
       }
       const reported = buildReportInput({
         threadId: stableThreadRef.threadId,
@@ -89,10 +78,6 @@ export function usePreviewBridge(input: {
       if (changedTabId === runtimeTabId) handleStateChange(changedTabId, state);
     });
   }, [runtimeTabId]);
-  useEffect(() => {
-    if (!projectRef) return;
-    flushPendingFaviconsForThread(stableThreadRef, projectRef, environmentHostname);
-  }, [environmentHostname, projectRef, stableThreadRef]);
 }
 
 function shouldClearBrowserPointer(

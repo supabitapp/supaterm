@@ -9,6 +9,7 @@ import "vite-plus/test/config";
 import { defineConfig, type Connect, type Plugin } from "vite-plus";
 import * as Hash from "effect/Hash";
 import pkg from "./package.json" with { type: "json" };
+import pdfjsPkg from "pdfjs-dist/package.json" with { type: "json" };
 
 import {
   DEV_PROXIED_ORIGIN_PRESERVING_PREFIXES,
@@ -84,7 +85,28 @@ const browserTestProject = {
   // Pre-bundled so a late first import does not trigger a mid-run reload. The
   // dependency scan misses autocomplete because tests reach it only through lazy imports.
   optimizeDeps: {
-    include: ["vite-plus/test/browser", "@base-ui/react/autocomplete", "@supaterm/mermaid > pele"],
+    include: [
+      "vite-plus/test/browser",
+      "@base-ui/react/autocomplete",
+      "@supaterm/mermaid > pele",
+      "saxes",
+      "@betteroffice/docx/editor",
+      "@betteroffice/docx/layout",
+      "@betteroffice/docx/layout/render",
+      "@betteroffice/docx/yrs",
+      "@betteroffice/fonts",
+      "@betteroffice/pptx",
+      "@betteroffice/xlsx",
+      "@betteroffice/xlsx/headless",
+      "fast-xml-parser",
+      "entities",
+      "dompurify",
+      "heic-to/next",
+      "jszip",
+      "pdfjs-dist",
+      "sql.js",
+      "tiff",
+    ],
   },
   test: {
     name: "browser",
@@ -168,6 +190,28 @@ const configuredAllowedHosts = (process.env.SUPATERM_DEV_ALLOWED_HOSTS ?? "")
   .filter((entry) => entry.length > 0);
 const allowedHosts = [".ts.net", ...configuredAllowedHosts];
 
+function chunkCycleGuardPlugin(): Plugin {
+  return {
+    name: "supaterm:chunk-cycle-guard",
+    apply: "build",
+    generateBundle(_options, bundle) {
+      const done = new Set<string>();
+      const visit = (fileName: string, path: string[]) => {
+        if (done.has(fileName)) return;
+        const start = path.indexOf(fileName);
+        if (start !== -1) {
+          this.error(`Chunk import cycle: ${[...path.slice(start), fileName].join(" -> ")}`);
+        }
+        const chunk = bundle[fileName];
+        if (chunk?.type !== "chunk") return;
+        for (const imported of chunk.imports) visit(imported, [...path, fileName]);
+        done.add(fileName);
+      };
+      for (const fileName of Object.keys(bundle)) visit(fileName, []);
+    },
+  };
+}
+
 export default defineConfig(() => {
   return {
     run: {
@@ -182,6 +226,7 @@ export default defineConfig(() => {
     assetsInclude: ["**/*.wasm"],
     plugins: [
       devCompressionPlugin(),
+      chunkCycleGuardPlugin(),
       builtDev
         ? undefined
         : thirdPartyLicensesPlugin({
@@ -220,10 +265,19 @@ export default defineConfig(() => {
       "import.meta.env.SUPATERM_DESKTOP_UPDATE_REPOSITORY": JSON.stringify(
         configuredDesktopUpdateRepository,
       ),
+      "import.meta.env.SUPATERM_FEATURE_SECRETS": JSON.stringify(
+        process.env.SUPATERM_FEATURE_SECRETS ?? "",
+      ),
       "import.meta.env.APP_VERSION": JSON.stringify(configuredAppVersion),
     },
     resolve: {
       tsconfigPaths: true,
+      alias: {
+        "@betteroffice/fonts-cjk": new URL(
+          "./src/components/files/office/fonts-cjk.ts",
+          import.meta.url,
+        ).pathname,
+      },
       dedupe: ["react", "react-dom"],
     },
     experimental: {
@@ -283,6 +337,14 @@ export default defineConfig(() => {
       outDir: "dist",
       emptyOutDir: true,
       manifest: true,
+      rolldownOptions: {
+        output: {
+          assetFileNames: (asset) =>
+            asset.originalFileNames.some((path) => /[/\\]pdfjs-dist[/\\]wasm[/\\]/.test(path))
+              ? `assets/pdfjs-${pdfjsPkg.version}/[name][extname]`
+              : "assets/[name]-[hash][extname]",
+        },
+      },
       sourcemap: buildSourcemap,
     },
     test: {

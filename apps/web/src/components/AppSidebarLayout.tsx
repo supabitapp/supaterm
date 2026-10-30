@@ -10,6 +10,7 @@ import {
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import type { KeybindingCommand } from "@supaterm/contracts";
 
+import { isAppRouteModalOpen } from "./AppRouteModal";
 import { registerAppCommandHandler } from "../appCommandBus";
 import { isCommandPaletteOpen } from "../commandPaletteBus";
 import { isElectron } from "../env";
@@ -37,8 +38,7 @@ import {
   usePanelNavigationSuppression,
 } from "../panelAnimations";
 import ThreadSidebar from "./Sidebar";
-import { SettingsSidebarNav } from "./settings/SettingsSidebarNav";
-import { SidebarBrandWidthProbe, SidebarChromeHeader } from "./sidebar/SidebarChrome";
+import { SidebarBrandWidthProbe } from "./sidebar/SidebarChrome";
 import { MainAppLocationTracker } from "./sidebar/mainAppLocation";
 import type { SidebarRouteReveal } from "./sidebar/routeReveal";
 import { useProjects } from "../state/entities";
@@ -107,7 +107,7 @@ function SidebarControl() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented) return;
+      if (event.defaultPrevented || isAppRouteModalOpen()) return;
       if (
         event.target instanceof HTMLElement &&
         event.target.closest("[data-keybinding-capture]")
@@ -115,7 +115,7 @@ function SidebarControl() {
         return;
       }
       if (
-        isRichTextBoldShortcut(event) &&
+        isRichTextBoldShortcut(event, window.getSelection()) &&
         event.target instanceof HTMLElement &&
         event.target.closest('[data-composer-rich-text="true"]')
       ) {
@@ -140,7 +140,7 @@ function SidebarControl() {
       if (action === "sidebar.toggle") toggleSidebar();
     });
     const unregister = registerAppCommandHandler((command) => {
-      if (command !== "sidebar.toggle") return false;
+      if (command !== "sidebar.toggle" || isAppRouteModalOpen()) return false;
       toggleSidebar();
       return true;
     });
@@ -206,7 +206,7 @@ export function NavigationHistoryShortcuts() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented) return;
+      if (event.defaultPrevented || isAppRouteModalOpen()) return;
       if (
         event.target instanceof HTMLElement &&
         event.target.closest("[data-keybinding-capture]")
@@ -229,7 +229,9 @@ export function NavigationHistoryShortcuts() {
     };
 
     window.addEventListener("keydown", onKeyDown);
-    const unregister = registerAppCommandHandler(navigateHistory);
+    const unregister = registerAppCommandHandler(
+      (command) => !isAppRouteModalOpen() && navigateHistory(command),
+    );
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       unregister();
@@ -254,6 +256,7 @@ function ThreadUndoShortcut() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (isAppRouteModalOpen()) return;
       // A held key undoes once. Cancel its repeats so they cannot fall through
       // to the editor's own undo, even after the last notice is gone.
       if (event.repeat) {
@@ -319,7 +322,7 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
   const pathname = useLocation({ select: (location) => location.pathname });
   const panelAnimationsSuppressed = usePanelNavigationSuppression(pathname);
   const routePanelAnimationsActive = panelAnimationsActive && !panelAnimationsSuppressed;
-  const isOnSettings = pathname === "/settings" || pathname.startsWith("/settings/");
+
   const isMacosDesktop = isMacosDesktopWindow();
   const [brandWidth, setBrandWidth] = useState(0);
   const sidebarMinimumWidth = resolveThreadSidebarMinimumWidth(brandWidth);
@@ -369,7 +372,7 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
           side="left"
           data-app-sidebar=""
           role="navigation"
-          aria-label={isOnSettings ? "Settings" : "Threads"}
+          aria-label="Threads"
           resizable={{
             defaultWidth: resolveDefaultThreadSidebarWidth(window.innerWidth),
             minWidth: sidebarMinimumWidth,
@@ -377,14 +380,7 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
           }}
           style={windowControlsInsetStyle}
         >
-          {isOnSettings ? (
-            <>
-              <SidebarChromeHeader isElectron={isElectron} />
-              <SettingsSidebarNav pathname={pathname} />
-            </>
-          ) : (
-            <ThreadSidebar routeReveal={sidebarRouteReveal} />
-          )}
+          <ThreadSidebar routeReveal={sidebarRouteReveal} />
         </Sidebar>
         <SidebarInsetPanel minWidth={THREAD_MAIN_CONTENT_MIN_WIDTH}>
           <SidebarBrandWidthProbe onWidthChange={setBrandWidth} />
@@ -392,7 +388,7 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
           {children}
           <SidebarControl />
           <NavigationHistoryShortcuts />
-          {isOnSettings ? null : <ThreadUndoShortcut />}
+          <ThreadUndoShortcut />
           <MainAppLocationTracker />
         </SidebarInsetPanel>
       </SidebarProvider>

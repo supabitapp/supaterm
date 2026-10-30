@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useInsertionEffect, useRef, useState } from "react";
 
 /**
  * Only call it from event handlers and effects; during render it would see the
@@ -10,7 +10,7 @@ export function useStableCallback<Args extends ReadonlyArray<unknown>, Result>(
   fn: (...args: Args) => Result,
 ): (...args: Args) => Result {
   const latest = useRef(fn);
-  useLayoutEffect(() => {
+  useInsertionEffect(() => {
     latest.current = fn;
   });
   const [stable] = useState(
