@@ -253,7 +253,12 @@ export function createWorkspaceFocusController(doc: Document) {
     const areaName = workspaceArea(lost)?.dataset.workspaceArea;
     const label = lost.getAttribute("aria-label");
     requestAnimationFrame(() => {
-      if (doc.activeElement !== doc.body || !doc.hasFocus() || isWorkspaceElementVisible(lost))
+      if (
+        doc.activeElement !== doc.body ||
+        !doc.hasFocus() ||
+        isWorkspaceElementVisible(lost) ||
+        pendingPaletteFocus !== undefined
+      )
         return;
       const remounted = Array.from(doc.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).find(
         (element) =>
@@ -378,16 +383,19 @@ export function requestWorkspaceContentFocus() {
   requestWorkspaceFocus({ area: "content" });
 }
 
-let pendingPaletteDirection: 1 | -1 | undefined;
+let pendingPaletteFocus: { readonly direction: 1 | -1 } | undefined;
 export function queueWorkspaceFocusFromPalette(direction: 1 | -1) {
-  pendingPaletteDirection = direction;
+  pendingPaletteFocus = { direction };
 }
 
 /** Runs at the palette's normal focus restoration milestone, after its focus trap closes. */
 export function restoreWorkspaceFocusFromPalette(): boolean {
-  if (pendingPaletteDirection === undefined) return false;
-  const direction = pendingPaletteDirection;
-  pendingPaletteDirection = undefined;
-  window.requestAnimationFrame(() => controller?.move(direction, undefined, true));
+  const request = pendingPaletteFocus;
+  if (request === undefined) return false;
+  window.requestAnimationFrame(() => {
+    if (pendingPaletteFocus !== request) return;
+    pendingPaletteFocus = undefined;
+    controller?.move(request.direction, undefined, true);
+  });
   return true;
 }
