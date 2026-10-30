@@ -200,14 +200,6 @@ export const preparePairingRegistration = Effect.fn(
 
 const isBearerCredential = Schema.is(BearerConnectionCredential);
 
-/**
- * Each saved route keeps the credential it was paired with, so re-pairing after
- * a revoked session would otherwise fix only the link's address. When pairing
- * reached a saved route, that route takes the new credential if the server now
- * rejects its own. The check only goes to an address that already carries that
- * credential. Runs before `register`, whose restarted supervisor reads
- * credentials as it connects.
- */
 const refreshReachedRouteCredential = Effect.fn(
   "clientRuntime.connection.onboarding.refreshReachedRouteCredential",
 )(
