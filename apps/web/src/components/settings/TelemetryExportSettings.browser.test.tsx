@@ -28,7 +28,9 @@ vi.mock(import("../../state/use-atom-command"), async (original) => ({
   useAtomCommand: ((command: unknown) =>
     command === "updateSettings"
       ? updateSettings
-      : vi.fn(async () => ({ _tag: "Success", value: { status: "reachable" } }))) as never,
+      : command === checkOtlpEndpointCommand
+        ? checkOtlpEndpoint
+        : vi.fn()) as never,
 }));
 vi.mock(import("../../state/server"), async (original) => {
   const actual = await original();
