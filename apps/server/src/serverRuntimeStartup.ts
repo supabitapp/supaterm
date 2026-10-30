@@ -383,9 +383,7 @@ export const maybeOpenBrowser = Effect.fn("serverRuntimeStartup.maybeOpenBrowser
 
 const runStartupPhase = <A, E, R>(phase: string, effect: Effect.Effect<A, E, R>) =>
   effect.pipe(
-    // Attributes on the span itself, not annotateSpans: an annotation follows
-    // every fiber forked inside the phase, such as the effect worker, for the
-    // life of the server.
+    // Use span attributes; annotations would follow long-lived forked fibers for the server's lifetime.
     Effect.withSpan(`server.startup.${phase}`, { attributes: { "startup.phase": phase } }),
   );
 

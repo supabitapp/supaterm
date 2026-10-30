@@ -230,7 +230,7 @@ it.effect("resends the snapshot only when the tunnel endpoints change", () =>
       Stream.empty,
       {
         resolveAvailableEditors: () => Effect.succeed([]),
-        resolveFileManagerRevealKind: () => Effect.succeed(undefined),
+        resolveFileManagerRevealKind: () => Effect.void,
       },
       Stream.make(Option.none(), Option.some(endpoints), Option.some(endpoints), Option.none()),
     ).pipe(Stream.runCollect);
@@ -255,7 +255,7 @@ it.effect.each([relayAdvertisement, null])(
         Stream.make({ version: 1, type: "relayAdvertisementUpdated", payload }),
         {
           resolveAvailableEditors: () => Deferred.await(sent).pipe(Effect.as(["file-manager"])),
-          resolveFileManagerRevealKind: () => Effect.succeed(undefined),
+          resolveFileManagerRevealKind: () => Effect.void,
         },
         Stream.empty,
       ).pipe(
@@ -419,7 +419,7 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(Orchestrator.OrchestratorV2)({}),
   Layer.mock(OtlpEndpointCheck.OtlpEndpointCheck)({}),
   Layer.mock(PairingGrantStore.PairingGrantStore)({}),
-  Layer.mock(PortScanner.PortDiscovery)({}),
+  PortScanner.layerTest,
   Layer.mock(PreviewManager.PreviewManager)({}),
   Layer.mock(ProcessDiagnostics.ProcessDiagnostics)({}),
   Layer.mock(ProcessResourceMonitor.ProcessResourceMonitor)({}),
@@ -511,7 +511,7 @@ it.effect(
               Effect.andThen(Deferred.await(finishDiscovery)),
               Effect.as([]),
             ),
-          resolveFileManagerRevealKind: () => Effect.succeed(undefined),
+          resolveFileManagerRevealKind: () => Effect.void,
         }),
         Layer.mock(ProviderRegistry.ProviderRegistry)({
           getProviders: Effect.succeed([]),
@@ -701,7 +701,6 @@ it.effect("thread resume across compacted history keeps message order and final 
         )
       `;
     }
-    // Only the event between a's first and newest is deleted.
     assert.equal((yield* maintenance.compactEventStore).deletedEventCount, 1);
 
     const items = yield* subscribeOrchestrationV2Thread({

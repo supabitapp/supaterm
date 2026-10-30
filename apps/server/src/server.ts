@@ -241,8 +241,7 @@ const layerHostPowerMonitor = HostPowerMonitor.layer.pipe(
   Layer.provide(layerDesktopTelemetryReceiver),
 );
 
-// Reuses DesktopTelemetryReceiverLayerLive: a fresh receiver layer here
-// would open a second reader on the desktop telemetry fd.
+// A fresh receiver layer would open a second reader on the desktop telemetry fd.
 const layerDesktopAppUpdate = DesktopAppUpdate.layer.pipe(
   Layer.provide(layerDesktopTelemetryReceiver),
 );

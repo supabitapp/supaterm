@@ -1,3 +1,4 @@
+import * as SharedKeybindings from "@supaterm/shared/keybindings";
 import { KeybindingCommand, KeybindingRule, KeybindingsConfig } from "@supaterm/contracts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
@@ -52,7 +53,7 @@ const readKeybindingsConfig = (configPath: string) =>
 it.layer(NodeServices.layer)("keybindings", (it) => {
   it.effect("parses shortcuts including plus key", () =>
     Effect.sync(() => {
-      assert.deepEqual(Keybindings.parseKeybindingShortcut("mod+j"), {
+      assert.deepEqual(SharedKeybindings.parseKeybindingShortcut("mod+j"), {
         key: "j",
         metaKey: false,
         ctrlKey: false,
@@ -60,7 +61,7 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
         altKey: false,
         modKey: true,
       });
-      assert.deepEqual(Keybindings.parseKeybindingShortcut("mod++"), {
+      assert.deepEqual(SharedKeybindings.parseKeybindingShortcut("mod++"), {
         key: "+",
         metaKey: false,
         ctrlKey: false,
@@ -73,7 +74,7 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
 
   it.effect("compiles valid rule with parsed when AST", () =>
     Effect.sync(() => {
-      const compiled = Keybindings.compileResolvedKeybindingRule({
+      const compiled = SharedKeybindings.compileResolvedKeybindingRule({
         key: "mod+d",
         command: "terminal.split",
         when: "terminalOpen && !terminalFocus",
@@ -104,14 +105,14 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
   it.effect("rejects invalid rules", () =>
     Effect.sync(() => {
       assert.isNull(
-        Keybindings.compileResolvedKeybindingRule({
+        SharedKeybindings.compileResolvedKeybindingRule({
           key: "mod+shift+d+o",
           command: "terminal.new",
         }),
       );
 
       assert.isNull(
-        Keybindings.compileResolvedKeybindingRule({
+        SharedKeybindings.compileResolvedKeybindingRule({
           key: "mod+d",
           command: "terminal.split",
           when: "terminalFocus && (",
@@ -119,7 +120,7 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
       );
 
       assert.isNull(
-        Keybindings.compileResolvedKeybindingRule({
+        SharedKeybindings.compileResolvedKeybindingRule({
           key: "mod+d",
           command: "terminal.split",
           when: `${"!".repeat(300)}terminalFocus`,
@@ -140,7 +141,7 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
       });
 
       const persisted = yield* readKeybindingsConfig(keybindingsConfigPath);
-      assert.deepEqual(persisted, Keybindings.DEFAULT_KEYBINDINGS);
+      assert.deepEqual(persisted, SharedKeybindings.DEFAULT_KEYBINDINGS);
     }).pipe(Effect.provide(layerKeybindings())),
   );
 
@@ -157,7 +158,7 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
 
       assert.deepEqual(
         configState.keybindings,
-        Keybindings.compileResolvedKeybindingsConfig(Keybindings.DEFAULT_KEYBINDINGS),
+        SharedKeybindings.compileResolvedKeybindingsConfig(SharedKeybindings.DEFAULT_KEYBINDINGS),
       );
       assert.deepEqual(configState.issues, [
         {
@@ -235,7 +236,7 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
           persisted.some((entry) => entry.command === "terminal.toggle" && entry.key === "mod+j"),
         );
 
-        for (const defaultRule of Keybindings.DEFAULT_KEYBINDINGS) {
+        for (const defaultRule of SharedKeybindings.DEFAULT_KEYBINDINGS) {
           assert.isTrue(byCommand.has(defaultRule.command), `expected ${defaultRule.command}`);
         }
         assert.isTrue(byCommand.has("script.run-tests.run"));
@@ -255,7 +256,7 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
       const { keybindingsConfigPath } = yield* ServerConfig.ServerConfig;
       yield* writeKeybindingsConfig(
         keybindingsConfigPath,
-        Keybindings.DEFAULT_KEYBINDINGS.map((rule) =>
+        SharedKeybindings.DEFAULT_KEYBINDINGS.map((rule) =>
           rule.command === "thread.mark-done" ? { ...rule, key: "mod+shift+s" } : rule,
         ),
       );
@@ -264,7 +265,7 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
       yield* keybindings.syncDefaultKeybindingsOnStartup;
       assert.deepEqual(
         yield* readKeybindingsConfig(keybindingsConfigPath),
-        Keybindings.DEFAULT_KEYBINDINGS,
+        SharedKeybindings.DEFAULT_KEYBINDINGS,
       );
 
       const snapshot = yield* keybindings.getSnapshot;
@@ -276,7 +277,7 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
       yield* keybindings.syncDefaultKeybindingsOnStartup;
       assert.deepEqual(
         yield* readKeybindingsConfig(keybindingsConfigPath),
-        Keybindings.DEFAULT_KEYBINDINGS,
+        SharedKeybindings.DEFAULT_KEYBINDINGS,
       );
 
       yield* keybindings.upsertKeybindingRule({

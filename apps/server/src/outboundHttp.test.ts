@@ -86,8 +86,7 @@ describe("installHttp1FetchDispatcher", () => {
     expect(Undici.getGlobalDispatcher()).toBeInstanceOf(Undici.EnvHttpProxyAgent);
   });
 
-  // Only a runtime that bundles undici 8 (Node 26+) offers h2 through the
-  // built-in fetch, so only there can this prove fetch reads the new dispatcher.
+  // Only bundled undici 8 (Node 26+) offers fetch h2 and can prove dispatcher replacement.
   it.effect.runIf(builtinFetchUsesHttp2(process.versions.undici))(
     "moves the built-in fetch off HTTP/2",
     () =>

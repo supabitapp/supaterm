@@ -279,9 +279,7 @@ const discoverPairTarget = Effect.fn("pair.discoverPairTarget")(function* (
       if (Option.isNone(state)) {
         continue;
       }
-      // The pid check guards against a dead server's state file whose port
-      // was since reused by a different server: pairing would then mint a
-      // token in the old database while the QR code points at the new server.
+      // A dead server's port may be reused; do not mint tokens in its old database for another server.
       if (!isProcessAlive(state.value.pid)) {
         continue;
       }

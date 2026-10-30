@@ -42,8 +42,7 @@ export class ServerAlreadyRunningError extends Schema.TaggedError<ServerAlreadyR
   "ServerAlreadyRunningError",
   { stateDir: Schema.String },
 ) {
-  // Distinct process exit code so a supervisor can tell "owned by another
-  // server" apart from a crash and stop restarting.
+  // Distinct exit codes let supervisors stop restarting an already-owned server.
   override readonly [Runtime.errorExitCode] = SERVER_EXIT_CODE_STATE_DIR_OWNED;
 
   override get message(): string {

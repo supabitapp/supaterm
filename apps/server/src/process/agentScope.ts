@@ -48,11 +48,7 @@ export interface ScopeState {
   readonly populated: boolean | undefined;
 }
 
-/**
- * Our pipe can close before systemd handles the kill, so a scope that is
- * still stopping, is empty, or already counted an OOM kill is "stopping":
- * systemd records `Result=oom-kill` for it in a moment.
- */
+/** Pipes can close before systemd records oom-kill; stopping, empty or OOM-counted scopes remain pending. */
 export function classifyScope(state: ScopeState): "oom-killed" | "gone" | "running" | "stopping" {
   if (state.result === "oom-kill") return "oom-killed";
   if (

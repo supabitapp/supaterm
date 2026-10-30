@@ -29,10 +29,7 @@ export interface ProcessRunInput {
   readonly maxOutputBytes?: number | undefined;
   readonly outputMode?: "error" | "truncate" | undefined;
   readonly truncatedMarker?: string | undefined;
-  /**
-   * On timeout, return a synthetic timedOut result.
-   * Partial stdout/stderr are not preserved.
-   */
+  /** Timed-out results discard partial stdout/stderr. */
   readonly timeoutBehavior?: "error" | "timedOutResult" | undefined;
 }
 
@@ -149,8 +146,6 @@ const DEFAULT_TIMEOUT = "60 seconds";
 // Keep SIGTERM-ignoring helpers from blocking timeouts or graceful shutdown.
 const FORCE_KILL_AFTER = "1 second";
 const DEFAULT_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
-
-export { isWindowsCommandNotFound } from "@supaterm/provider-core/server/snapshotProbe";
 
 const collectText = Effect.fnUntraced(function* (input: {
   readonly command: string;
@@ -391,7 +386,7 @@ const runProcessCore = Effect.fn("processRunner.runProcessCore")(function* (
   } satisfies ProcessRunOutput;
 });
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.fn("ProcessRunner.make")(function* () {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
 

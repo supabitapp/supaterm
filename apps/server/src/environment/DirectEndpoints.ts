@@ -1,11 +1,3 @@
-/**
- * DirectEndpoints - the LAN and tailnet addresses this server listens on now.
- *
- * Clients save these as extra routes so they can move to a faster path when one is reachable,
- * and replace a saved LAN address when DHCP or a new Wi-Fi network changes it. Only addresses the
- * server is actually bound to are listed: a loopback-only server lists none,
- * because its loopback address means a different machine to every client.
- */
 import type { ServerDirectEndpoint } from "@supaterm/contracts";
 import {
   buildTailscaleHttpsBaseUrl,
@@ -35,10 +27,7 @@ import {
 
 type NetworkInterfacesMap = ReturnType<typeof NodeOS.networkInterfaces>;
 
-/**
- * Stays under the config read's own discovery timeout, so a slow `tailscale`
- * CLI drops only the tailnet name and never the LAN addresses.
- */
+// Stay below the config discovery timeout so slow Tailscale drops only the tailnet name.
 const TAILSCALE_ENDPOINT_TIMEOUT = Duration.seconds(3);
 
 export class DirectEndpoints extends Context.Service<
@@ -83,7 +72,7 @@ export function resolveBoundEndpoints(input: {
   return new Set(addresses)
     .values()
     .filter((address) => !input.onCloudVm || tailscaleAddresses.has(address))
-    .map((address) => ({
+    .map((address): ServerDirectEndpoint => ({
       kind: tailscaleAddresses.has(address) ? "tailnet" : "lan",
       httpBaseUrl: `http://${formatHostForUrl(address)}:${input.port}/`,
     }))
@@ -112,7 +101,7 @@ const probeCloudMetadata = Effect.callback<boolean>((resume) => {
   return Effect.sync(() => socket.destroy());
 });
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const config = yield* ServerConfig.ServerConfig;
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
@@ -131,11 +120,7 @@ export const make = Effect.gen(function* () {
         onCloudVm: yield* onCloudVm,
       }),
     ];
-    // Tailscale Serve terminates HTTPS on the tailnet name and forwards to
-    // loopback, so it works even for a loopback-only server. The name is only
-    // listed once it answers as this server: Serve setup can fail without
-    // stopping startup. Anything slower than the probe leaves it out rather
-    // than holding back the addresses already found.
+    // Serve setup can fail without stopping startup; advertise only after it answers as this server.
     if (config.tailscaleServeEnabled) {
       const servedUrl = yield* readTailscaleStatus.pipe(
         Effect.map((status) => status.magicDnsName),

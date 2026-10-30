@@ -38,8 +38,7 @@ const HANDOFF_DELAY_MS = 2_000;
  */
 const PREPARED_TIMEOUT_MS = 30 * 60_000;
 const TERMINATE_GRACE_MS = 5_000;
-// Matches SERVER_EXIT_CODE_STATE_DIR_OWNED in contracts. The standalone
-// launcher stays independent of the Effect-backed contracts package.
+// Match contracts' SERVER_EXIT_CODE_STATE_DIR_OWNED without depending on Effect.
 const STATE_DIR_OWNED_EXIT_CODE = 78;
 
 type TerminalStatus = "committed" | "rolled-back" | "failed";
@@ -126,9 +125,7 @@ async function syncFile(filePath: string): Promise<void> {
   }
 }
 
-// Flushes a directory entry so a rename into it survives power loss. Windows
-// has no directory fsync: the handle opens but sync fails with EPERM, and
-// NTFS journals the rename on its own.
+// Fsync makes renames durable; Windows returns EPERM and NTFS journals them itself.
 async function syncDirectory(directory: string): Promise<void> {
   const handle = await NodeFSP.open(directory, "r");
   try {
@@ -146,14 +143,11 @@ function runCp(args: ReadonlyArray<string>): Promise<boolean> {
   });
 }
 
-/**
- * Node's own clone flag is not used: on macOS `fs.copyFile` falls back to a full copy.
- */
+// macOS fs.copyFile clone flags fall back to full copies.
 async function copyDatabaseFile(source: string, destination: string): Promise<void> {
   // oxlint-disable-next-line supaterm/no-global-process-runtime -- Standalone launcher has no Effect runtime.
   const platform = process.platform;
-  // `cp -c` replaces the destination with a new file, which would cut a
-  // hard-linked database off from its other links; copy into it instead.
+  // cp -c replaces files and breaks hard links; copy into hard-linked destinations instead.
   const hardLinked =
     platform === "darwin" &&
     ((await NodeFSP.stat(destination).catch(() => undefined))?.nlink ?? 1) > 1;
@@ -167,10 +161,7 @@ async function copyDatabaseFile(source: string, destination: string): Promise<vo
 }
 
 const GIB = 1024 ** 3;
-/**
- * Clones share blocks, but the trial server diverges from them as it writes,
- * migrations included, so a cloned backup still needs room for that churn.
- */
+// Cloned backups still need headroom for trial writes and migrations to diverge.
 const CLONED_BACKUP_MIN_HEADROOM_BYTES = GIB;
 const CLONED_BACKUP_HEADROOM_FRACTION = 0.1;
 
@@ -186,12 +177,7 @@ async function statDatabaseFiles(dbPath: string): Promise<ReadonlyArray<NodeFS.S
   return stats;
 }
 
-/**
- * - macOS: `cp -c` clones within one APFS volume and silently copies
- *   anywhere else, so every existing database file must share the backup
- *   directory's device, whose filesystem type must match the system volume's,
- *   which is always APFS.
- */
+// cp -c silently copies across volumes; require one device matching the APFS system volume's filesystem type.
 async function backupCanClone(dbPath: string, backupRoot: string): Promise<boolean> {
   // oxlint-disable-next-line supaterm/no-global-process-runtime -- Standalone launcher has no Effect runtime.
   const platform = process.platform;
@@ -235,10 +221,7 @@ const filesystemBackupSpaceProbe: BackupSpaceProbe = {
   canClone: backupCanClone,
 };
 
-/**
- * Runs before the server is stopped so a full disk refuses the update instead of causing an
- * outage and a cold restart.
- */
+/** Check before stopping the server so full disks refuse updates without an outage. */
 export async function databaseBackupBlocker(
   baseDir: string,
   dbPath: string,
@@ -261,10 +244,7 @@ export async function databaseBackupBlocker(
   return `Not enough free disk space to back up the database before updating: ${gb(needed)} GB needed, ${gb(free)} GB free. Free up disk space and try again. The server was not stopped.`;
 }
 
-/**
- * A completed backup is never overwritten because a restarted launcher may be looking at
- * database writes from an earlier attempt by the same trial.
- */
+// Preserve completed backups; restarted trials may already have changed the live database.
 async function backupDatabaseOnce(baseDir: string, pending: PendingServiceUpdate): Promise<void> {
   const backupDir = databaseBackupDir(baseDir, pending.id);
   if (await pathExists(backupDir)) return;
@@ -294,7 +274,7 @@ const restoreMarkerPath = (baseDir: string, updateId: string) =>
 const databaseRestorePending = (baseDir: string, pending: PendingServiceUpdate) =>
   pathExists(restoreMarkerPath(baseDir, pending.id));
 
-/** Mark rollback before changing live files so launcher recovery cannot boot a partial restore. */
+// Mark before live writes so recovery cannot boot a partial restore.
 async function markDatabaseRestorePending(backupDir: string): Promise<void> {
   const markerPath = NodePath.join(backupDir, RESTORE_MARKER);
   if (!(await pathExists(markerPath))) {
@@ -308,11 +288,7 @@ async function markDatabaseRestorePending(backupDir: string): Promise<void> {
   }
 }
 
-/**
- * The file a restore writes for `path`: where its symlinks lead, even when the
- * last target is missing, as after a crash between `cp -c` removing a file
- * and cloning over it.
- */
+// Resolve symlink targets even if a crashed cp -c left the final target missing.
 async function restoreTarget(path: string): Promise<string> {
   let current = path;
   for (let hops = 0; hops < 40; hops++) {
@@ -327,8 +303,7 @@ async function restoreTarget(path: string): Promise<string> {
       throw cause;
     });
     if (link === undefined) return current;
-    // Joined without normalizing: a `..` in the link must follow directory links
-    // the way the filesystem does, not cancel a path segment.
+    // Do not normalize .. before following directory symlinks; match filesystem resolution.
     current = NodePath.isAbsolute(link)
       ? link
       : `${await NodeFSP.realpath(NodePath.dirname(current))}${NodePath.sep}${link}`;
@@ -349,8 +324,7 @@ async function restoreDatabaseBackup(
     const livePath = `${pending.dbPath}${suffix}`;
     const source = databaseBackupFile(backupDir, suffix);
     if (await pathExists(source)) {
-      // A clone replaces its destination, so restore into the file a symlinked
-      // database resolves to and keep the link itself.
+      // Restore into the symlink target; cloning would replace the link.
       const target = await restoreTarget(livePath);
       await copyDatabaseFile(source, target);
       await syncFile(target);
@@ -548,11 +522,6 @@ export class Launcher {
   }
 
   async #recover(): Promise<void> {
-    // A restart deferred by `supaterm update` is done no matter who restarted the
-    // service, but only once this launcher is the version the marker waits
-    // for: a launcher that came up between the CLI writing the marker and
-    // writing the new state still runs the old version, and the marker has
-    // to outlive it.
     const restartPending = restartPendingPath(this.#baseDir);
     const awaitedVersion = await NodeFSP.readFile(restartPending, "utf8").catch(() => undefined);
     if (awaitedVersion?.trim() === this.#state.activeVersion) {
@@ -687,8 +656,7 @@ export class Launcher {
       await reject("The requested target runtime is missing or incomplete.");
       return;
     }
-    // A check that cannot run refuses the update too: the alternative is
-    // stopping the server without knowing whether the backup fits.
+    // Failed checks must refuse updates rather than stop the server with unknown backup capacity.
     const backupBlocker = await databaseBackupBlocker(
       this.#baseDir,
       message.dbPath,
@@ -799,11 +767,7 @@ export class Launcher {
     throw new Error(`Active child exited unexpectedly (${String(code ?? signal ?? "unknown")}).`);
   }
 
-  /**
-   * Exiting would make systemd or launchd start another refused server, so stay
-   * idle until stopped or restarted. A pending update fails without restoring
-   * its backup: the other owner may have written to the database since.
-   */
+  // Stay idle to avoid supervisor restart loops; never restore backups over another owner's possible writes.
   async #idleWhileStateDirOwned(): Promise<void> {
     this.#clearTimer();
     const pending = this.#state.update;
