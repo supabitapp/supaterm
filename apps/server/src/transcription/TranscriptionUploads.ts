@@ -64,20 +64,22 @@ interface Work {
 
 type Outcome = Exit.Exit<TranscriptionUploadResult, TranscriptionError>;
 
-/** `request` is the encoded preparation; a cancelled upload has none and answers any request. */
+/** `request` is the encoded preparation. A cancelled upload answers every request alike. */
 type Entry =
   | { readonly _tag: "Transcribing" | "Submitting"; readonly request: string; readonly work: Work }
   | {
       readonly _tag: "Settled";
-      readonly request: string | undefined;
+      readonly request: string;
       readonly settledAt: number;
       readonly outcome: Outcome;
-    };
+    }
+  | { readonly _tag: "Cancelled"; readonly settledAt: number };
 
 const cancelled: Outcome = Exit.fail(new TranscriptionError({ reason: "cancelled" }));
 
 const joinEntry = (entry: Entry, request: string) => {
-  if (entry.request !== undefined && entry.request !== request) {
+  if (entry._tag === "Cancelled") return cancelled;
+  if (entry.request !== request) {
     return Effect.fail(new TranscriptionError({ reason: "requestConflict" }));
   }
   return entry._tag === "Settled" ? entry.outcome : Deferred.await(entry.work.result);
@@ -149,7 +151,7 @@ const make = Effect.gen(function* () {
     const entries = yield* Ref.get(entriesRef);
     const live = new Map(
       [...entries].filter(
-        ([, entry]) => entry._tag !== "Settled" || entry.settledAt + OUTCOME_TTL_MS > now,
+        ([, entry]) => !("settledAt" in entry) || entry.settledAt + OUTCOME_TTL_MS > now,
       ),
     );
     if (live.size !== entries.size) yield* Ref.set(entriesRef, live);
@@ -171,7 +173,7 @@ const make = Effect.gen(function* () {
     const owned = yield* storeLock.withPermits(1)(
       Ref.modify(entriesRef, (entries) => {
         const entry = entries.get(uploadId);
-        if (entry === undefined || entry._tag === "Settled" || entry.work.result !== result) {
+        if (!(entry && "work" in entry) || entry.work.result !== result) {
           return [false, entries] as const;
         }
         const next = new Map(entries).set(uploadId, {
@@ -342,21 +344,13 @@ const make = Effect.gen(function* () {
         const now = yield* Clock.currentTimeMillis;
         const live = yield* pruneExpired(now);
         const entry = live.get(uploadId);
-        if (
-          entry?._tag === "Submitting" ||
-          (entry?._tag === "Settled" && entry.request !== undefined)
-        ) {
+        if (entry?._tag === "Submitting" || entry?._tag === "Settled") {
           return { outcome: "tooLate" } as const;
         }
         // Recorded even when nothing is known yet, so an upload still on its way can't start.
         yield* Ref.set(
           entriesRef,
-          new Map(live).set(uploadId, {
-            _tag: "Settled",
-            request: undefined,
-            settledAt: now,
-            outcome: cancelled,
-          }),
+          new Map(live).set(uploadId, { _tag: "Cancelled", settledAt: now }),
         );
         return {
           outcome: "cancelled",

@@ -36,6 +36,7 @@ import * as TranscriptionUploads from "./TranscriptionUploads.ts";
 const INSTANCE = ProviderInstanceId.make("claude_test");
 const THREAD = ThreadId.make("thread-1");
 const AUDIO = new Uint8Array([1, 2, 3, 4, 5, 6]);
+const AUDIO_BODY = Stream.make(AUDIO);
 
 const submit = (commandId: string) => ({
   threadId: THREAD,
@@ -97,7 +98,7 @@ const prepare = Effect.fnUntraced(function* (
 
 const upload = Effect.fnUntraced(function* (
   token: string,
-  body: Stream.Stream<Uint8Array> | undefined = Stream.make(AUDIO),
+  body: Stream.Stream<Uint8Array> | undefined,
 ) {
   const uploads = yield* TranscriptionUploads.TranscriptionUploads;
   return yield* uploads.receive(token, body);
@@ -126,7 +127,7 @@ describe("TranscriptionUploads", () => {
       const harness = yield* makeHarness;
       yield* Effect.gen(function* () {
         const prepared = yield* prepare({});
-        const pending = yield* Effect.forkChild(upload(tokenOf(prepared.relativeUrl)));
+        const pending = yield* Effect.forkChild(upload(tokenOf(prepared.relativeUrl), AUDIO_BODY));
         expect(yield* Queue.take(harness.transcribing)).toBe(Buffer.from(AUDIO).toString("hex"));
         yield* Queue.offer(harness.transcripts, Effect.succeed({ text: "hello" }));
 
@@ -144,7 +145,7 @@ describe("TranscriptionUploads", () => {
         const target = { ...submit("command-1"), delivery: "queue" as const };
         const prepared = yield* prepare({ submit: target });
         expect(prepared.uploadId).toBe("command-1");
-        const pending = yield* Effect.forkChild(upload(tokenOf(prepared.relativeUrl)));
+        const pending = yield* Effect.forkChild(upload(tokenOf(prepared.relativeUrl), AUDIO_BODY));
         yield* Queue.take(harness.transcribing);
         yield* Fiber.interrupt(pending);
 
@@ -181,10 +182,10 @@ describe("TranscriptionUploads", () => {
       yield* Effect.gen(function* () {
         const first = yield* prepare({ submit: submit("command-2") });
         const again = yield* prepare({ submit: submit("command-2") });
-        const pending = yield* Effect.forkChild(upload(tokenOf(first.relativeUrl)));
+        const pending = yield* Effect.forkChild(upload(tokenOf(first.relativeUrl), AUDIO_BODY));
         yield* Queue.take(harness.transcribing);
-        const repeated = yield* Effect.forkChild(upload(tokenOf(first.relativeUrl)));
-        const reprepared = yield* Effect.forkChild(upload(tokenOf(again.relativeUrl)));
+        const repeated = yield* Effect.forkChild(upload(tokenOf(first.relativeUrl), AUDIO_BODY));
+        const reprepared = yield* Effect.forkChild(upload(tokenOf(again.relativeUrl), AUDIO_BODY));
 
         yield* Queue.offer(harness.transcripts, Effect.succeed({ text: "ship it" }));
         yield* Queue.take(harness.dispatches);
@@ -209,10 +210,12 @@ describe("TranscriptionUploads", () => {
       yield* Effect.gen(function* () {
         const first = yield* prepare({ submit: submit("command-3") });
         const other = yield* prepare({ language: "en", submit: submit("command-3") });
-        yield* Effect.forkChild(upload(tokenOf(first.relativeUrl)));
+        yield* Effect.forkChild(upload(tokenOf(first.relativeUrl), AUDIO_BODY));
         yield* Queue.take(harness.transcribing);
 
-        expect(yield* reason(upload(tokenOf(other.relativeUrl)))).toBe("requestConflict");
+        expect(yield* reason(upload(tokenOf(other.relativeUrl), AUDIO_BODY))).toBe(
+          "requestConflict",
+        );
         expect(yield* Ref.get(harness.transcriptions)).toHaveLength(1);
       }).pipe(Effect.provide(harness.layer));
     }).pipe(Effect.provide(environment)),
@@ -223,7 +226,7 @@ describe("TranscriptionUploads", () => {
       const harness = yield* makeHarness;
       yield* Effect.gen(function* () {
         const stopped = yield* prepare({ submit: submit("command-4") });
-        const pending = yield* Effect.forkChild(upload(tokenOf(stopped.relativeUrl)));
+        const pending = yield* Effect.forkChild(upload(tokenOf(stopped.relativeUrl), AUDIO_BODY));
         yield* Queue.take(harness.transcribing);
 
         expect(yield* cancel(stopped.uploadId)).toEqual({ outcome: "cancelled" });
@@ -233,7 +236,7 @@ describe("TranscriptionUploads", () => {
         expect(yield* leftoverFiles).toEqual([]);
 
         const sending = yield* prepare({ submit: submit("command-5") });
-        const sent = yield* Effect.forkChild(upload(tokenOf(sending.relativeUrl)));
+        const sent = yield* Effect.forkChild(upload(tokenOf(sending.relativeUrl), AUDIO_BODY));
         yield* Queue.take(harness.transcribing);
         yield* Queue.offer(harness.transcripts, Effect.succeed({ text: "keep going" }));
         yield* Queue.take(harness.dispatches);
@@ -258,7 +261,7 @@ describe("TranscriptionUploads", () => {
         const prepared = yield* prepare({});
 
         expect(yield* cancel(prepared.uploadId)).toEqual({ outcome: "cancelled" });
-        expect(yield* reason(upload(tokenOf(prepared.relativeUrl)))).toBe("cancelled");
+        expect(yield* reason(upload(tokenOf(prepared.relativeUrl), AUDIO_BODY))).toBe("cancelled");
         expect(yield* Ref.get(harness.transcriptions)).toEqual([]);
         expect(yield* leftoverFiles).toEqual([]);
       }).pipe(Effect.provide(harness.layer));
@@ -270,7 +273,7 @@ describe("TranscriptionUploads", () => {
       const harness = yield* makeHarness;
       yield* Effect.gen(function* () {
         const silent = yield* prepare({ submit: submit("command-6") });
-        const quiet = yield* Effect.forkChild(upload(tokenOf(silent.relativeUrl)));
+        const quiet = yield* Effect.forkChild(upload(tokenOf(silent.relativeUrl), AUDIO_BODY));
         yield* Queue.take(harness.transcribing);
         yield* Queue.offer(harness.transcripts, Effect.succeed({ text: "  " }));
         expect(yield* Fiber.join(quiet)).toEqual({
@@ -280,7 +283,7 @@ describe("TranscriptionUploads", () => {
         expect(yield* Queue.size(harness.dispatches)).toBe(0);
 
         const rejected = yield* prepare({ submit: submit("command-7") });
-        const refused = yield* Effect.forkChild(upload(tokenOf(rejected.relativeUrl)));
+        const refused = yield* Effect.forkChild(upload(tokenOf(rejected.relativeUrl), AUDIO_BODY));
         yield* Queue.take(harness.transcribing);
         yield* Queue.offer(harness.transcripts, Effect.succeed({ text: "deploy" }));
         yield* Queue.take(harness.dispatches);
@@ -323,7 +326,7 @@ describe("TranscriptionUploads", () => {
         ).toBe("invalidAudio");
         expect(yield* Ref.get(harness.transcriptions)).toEqual([]);
 
-        const retried = yield* Effect.forkChild(upload(tokenOf(prepared.relativeUrl)));
+        const retried = yield* Effect.forkChild(upload(tokenOf(prepared.relativeUrl), AUDIO_BODY));
         yield* Queue.take(harness.transcribing);
         yield* Queue.offer(harness.transcripts, Effect.succeed({ text: "again" }));
         expect(yield* Fiber.join(retried)).toEqual({ text: "again" });
@@ -338,7 +341,9 @@ describe("TranscriptionUploads", () => {
       const restarted = yield* makeHarness;
 
       expect(
-        yield* reason(upload(tokenOf(prepared.relativeUrl))).pipe(Effect.provide(restarted.layer)),
+        yield* reason(upload(tokenOf(prepared.relativeUrl), AUDIO_BODY)).pipe(
+          Effect.provide(restarted.layer),
+        ),
       ).toBe("uploadExpired");
       expect(yield* Ref.get(restarted.transcriptions)).toEqual([]);
     }).pipe(Effect.provide(environment)),
@@ -350,15 +355,18 @@ describe("TranscriptionUploads", () => {
       yield* Effect.gen(function* () {
         const unused = yield* prepare({});
         const used = yield* prepare({});
+        expect(yield* reason(upload(tokenOf(used.relativeUrl), undefined))).toBe("uploadExpired");
         yield* TestClock.adjust("5 minutes");
-        const pending = yield* Effect.forkChild(upload(tokenOf(used.relativeUrl)));
+        const pending = yield* Effect.forkChild(upload(tokenOf(used.relativeUrl), AUDIO_BODY));
         yield* Queue.take(harness.transcribing);
         yield* Queue.offer(harness.transcripts, Effect.succeed({ text: "late" }));
         yield* Fiber.join(pending);
         yield* TestClock.adjust("6 minutes");
 
         expect(yield* upload(tokenOf(used.relativeUrl), undefined)).toEqual({ text: "late" });
-        expect(yield* reason(upload(tokenOf(unused.relativeUrl)))).toBe("uploadExpired");
+        expect(yield* reason(upload(tokenOf(unused.relativeUrl), AUDIO_BODY))).toBe(
+          "uploadExpired",
+        );
         expect(yield* Ref.get(harness.transcriptions)).toHaveLength(1);
       }).pipe(Effect.provide(harness.layer));
     }).pipe(Effect.provide(environment)),
