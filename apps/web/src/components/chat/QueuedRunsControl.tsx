@@ -1,3 +1,7 @@
+import { resolveUserMessagePresentation } from "@supaterm/client-runtime/user-message";
+import { Link } from "@tanstack/react-router";
+import { useScheduledTaskTitle } from "./useScheduledTaskTitle";
+import { isAttachmentOnlyBootstrapPrompt } from "@supaterm/shared/composerContextReferences";
 import { queuedRunEditBlockedReason } from "@supaterm/client-runtime/queued-run-edit";
 import { derivePendingThreadRequests } from "@supaterm/client-runtime/state/thread-requests";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
@@ -16,13 +20,13 @@ import { useId, useImperativeHandle, useRef, useState, type Ref } from "react";
 
 import { useAssetUrls } from "../../assets/assetUrls";
 import { threadEnvironment } from "../../state/threads";
-import { useThreadProjection } from "../../state/entities";
+import { useQuietThreadShell, useThreadProjection } from "../../state/entities";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { isImageAttachment, type ChatMessage } from "../../types";
 import { cn } from "~/lib/utils";
 import { ComposerBanner } from "./ComposerBanner";
 import { InlineConfirmButton } from "../InlineConfirm";
-import { Button } from "../ui/button";
+import { Button, InlineButton } from "../ui/button";
 import { Collapsible, CollapsiblePanel } from "../ui/collapsible";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 
@@ -72,6 +76,7 @@ export function QueuedRunsControl({
   readonly editingRunId: RunId | null;
   readonly onEditQueuedRun: (request: EditQueuedRunRequest) => void;
   readonly onCancelEdit: () => void;
+  readonly onOpenThread: (threadId: ThreadId) => void;
 }) {
   const projection = useThreadProjection(
     scopeThreadRef(props.environmentId, props.threadId),
@@ -109,7 +114,8 @@ export function QueuedRunsControl({
     (message) => message.inputIntent === "queued_turn" && !acknowledgedMessageIds.has(message.id),
   );
   const items = [
-    ...queued.map(({ run, text, attachments }, serverIndex) => ({
+    ...queued.map(({ run, text, attachments, message }, serverIndex) => ({
+      message,
       key: run.id,
       runId: run.id,
       messageId: run.userMessageId,
@@ -126,6 +132,7 @@ export function QueuedRunsControl({
       pending: false,
     })),
     ...optimisticQueued.map((message) => ({
+      message: undefined,
       key: message.id,
       runId: null,
       messageId: null,
@@ -226,13 +233,15 @@ export function QueuedRunsControl({
             <ComposerBanner.Scroll className="max-h-32">
               <ComposerBanner.Children render={<ol />} id={queueListId}>
                 {items.map((item) => {
-                  const previewText = assistantCitationsToPlainText(
-                    replaceComposerContextReferences(item.text, (reference) =>
-                      reference.kind === "image" && item.thumbnails.length > 0
-                        ? ""
-                        : reference.label,
-                    ),
-                  ).trim();
+                  const previewText = isAttachmentOnlyBootstrapPrompt(item.text)
+                    ? ""
+                    : assistantCitationsToPlainText(
+                        replaceComposerContextReferences(item.text, (reference) =>
+                          reference.kind === "image" && item.thumbnails.length > 0
+                            ? ""
+                            : reference.label,
+                        ),
+                      ).trim();
                   const rowRunId = item.runId;
                   const isEditing = rowRunId !== null && rowRunId === props.editingRunId;
                   return (
@@ -246,6 +255,11 @@ export function QueuedRunsControl({
                       )}
                     >
                       <ComposerBanner.Content className="text-foreground/80">
+                        <QueuedMessageSender
+                          message={item.message}
+                          environmentId={props.environmentId}
+                          onOpenThread={props.onOpenThread}
+                        />
                         {isEditing ? (
                           <span className="sr-only">Editing queued message: </span>
                         ) : null}
@@ -382,4 +396,48 @@ export function QueuedRunsControl({
       </ComposerBanner.Root>
     </ComposerBanner.Drawer>
   );
+}
+
+function QueuedMessageSender({
+  message,
+  environmentId,
+  onOpenThread,
+}: {
+  message: ThreadQueueProjection["messages"][number] | undefined;
+  environmentId: EnvironmentId;
+  onOpenThread: (threadId: ThreadId) => void;
+}) {
+  const presentation = message ? resolveUserMessagePresentation(message) : null;
+  const taskTitle = useScheduledTaskTitle(environmentId, presentation?.scheduledTaskId);
+  const senderId = message?.senderThreadId;
+  const sender = useQuietThreadShell(
+    presentation?.attribution === "agent" && senderId
+      ? scopeThreadRef(environmentId, senderId)
+      : null,
+  );
+  if (presentation?.attribution === "automation" && presentation.scheduledTaskId)
+    return (
+      <InlineButton
+        tone="muted"
+        render={
+          <Link
+            to="/automations"
+            search={{ environmentId, taskId: presentation.scheduledTaskId }}
+          />
+        }
+      >
+        {taskTitle ?? "Automation"}
+      </InlineButton>
+    );
+  if (presentation?.attribution === "agent" && senderId)
+    return (
+      <InlineButton tone="muted" onClick={() => onOpenThread(senderId)}>
+        {sender?.title.trim() || "Agent"}
+      </InlineButton>
+    );
+  if (presentation?.attribution === "guest")
+    return <span className="text-guest-foreground">{presentation.guestName} (guest)</span>;
+  if (presentation?.attribution === "supaterm")
+    return <span className="text-muted-foreground">Sent by Supaterm</span>;
+  return null;
 }

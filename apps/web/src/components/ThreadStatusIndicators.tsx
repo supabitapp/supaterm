@@ -95,17 +95,12 @@ export function useLinkedThreadPullRequest(
   // The query atom and shared summary effect key on this object, and a sidebar row
   // must not touch the summary cache on every render.
   const reference = fallback == null ? null : linkedPullRequestReference(fallback);
-  const queried = useEnvironmentQuery(
+  useEnvironmentQuery(
     !enabled || environmentId === null || reference === null
       ? null
       : linkedPullRequestDetailAtom({ environmentId, input: reference }),
   );
-  const detail = useSharedPullRequestSummary(
-    environmentId,
-    reference,
-    queried.data,
-    queried.dataUpdatedAt,
-  );
+  const detail = useSharedPullRequestSummary(environmentId, reference);
 
   if (current !== null) return currentStatus;
   return detail === null

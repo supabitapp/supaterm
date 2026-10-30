@@ -1,3 +1,4 @@
+import { BackgroundThreadContext } from "../chat/backgroundThread";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 
@@ -47,7 +48,13 @@ function useNavigateToPaneTarget() {
  * single thread renders as a one-cell grid, so splitting it, moving it, or
  * closing its neighbours never remounts the view the user is in.
  */
-export function ChatPaneWorkspace({ target }: { target: ThreadRouteTarget }) {
+export function ChatPaneWorkspace({
+  target,
+  active = true,
+}: {
+  target: ThreadRouteTarget;
+  active?: boolean;
+}) {
   const layout = useChatPaneStore((state) => state.layout);
   const navigateToTarget = useNavigateToPaneTarget();
   const routeKey = paneTargetKey(target);
@@ -55,26 +62,30 @@ export function ChatPaneWorkspace({ target }: { target: ThreadRouteTarget }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useLayoutEffect(() => {
+    if (!active) return;
     routeKeyRef.current = routeKey;
     const rect = containerRef.current?.getBoundingClientRect();
     useChatPaneStore
       .getState()
       .reconcileRoute(target, rect ? { width: rect.width, height: rect.height } : null);
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- the key identifies the target; a new object for the same thread is not a navigation
-  }, [routeKey]);
+  }, [active, routeKey]);
 
   const focusedKey = layout ? paneTargetKey(focusedPane(layout).target) : null;
   // Focus changes move the URL; route changes flow the other way through the reconcile above.
   useEffect(() => {
-    if (focusedKey === null || focusedKey === routeKeyRef.current) return;
+    if (!active || focusedKey === null || focusedKey === routeKeyRef.current) return;
     const { layout: current, historyMode } = useChatPaneStore.getState();
     const focused = current ? focusedPane(current).target : null;
     if (!focused || paneTargetKey(focused) !== focusedKey) return;
     navigateToTarget(focused, historyMode === "replace");
-  }, [focusedKey, navigateToTarget]);
+  }, [active, focusedKey, navigateToTarget]);
 
-  useEffect(() => trackChatPaneWorkspaceMount(), []);
-  useEffect(() => window.desktopBridge?.onMenuAction(runPaneMenuAction), []);
+  useEffect(() => (active ? trackChatPaneWorkspaceMount() : undefined), [active]);
+  useEffect(
+    () => (active ? window.desktopBridge?.onMenuAction(runPaneMenuAction) : undefined),
+    [active],
+  );
 
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   useLayoutEffect(() => {
@@ -93,12 +104,19 @@ export function ChatPaneWorkspace({ target }: { target: ThreadRouteTarget }) {
   }, []);
 
   return (
-    <SidebarInset className="h-svh min-h-0 overflow-hidden overscroll-y-none md:h-dvh">
-      <div ref={containerRef} className="isolate flex min-h-0 min-w-0 flex-1">
-        {layout && size ? <PaneGrid layout={layout} size={size} /> : null}
-      </div>
-      <LinkPullRequestDialogHost />
-    </SidebarInset>
+    <BackgroundThreadContext value={!active}>
+      <SidebarInset
+        inert={!active}
+        aria-hidden={!active || undefined}
+        data-chat-workspace-active={active}
+        className="h-svh min-h-0 overflow-hidden overscroll-y-none md:h-dvh"
+      >
+        <div ref={containerRef} className="isolate flex min-h-0 min-w-0 flex-1">
+          {layout && size ? <PaneGrid layout={layout} size={size} /> : null}
+        </div>
+        <LinkPullRequestDialogHost />
+      </SidebarInset>
+    </BackgroundThreadContext>
   );
 }
 

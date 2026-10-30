@@ -10,7 +10,11 @@ import { recallCheckoutIsRepo, rememberCheckoutIsRepo } from "./ChatView.logic";
 import { ProviderDriverKind, type ServerProvider } from "@supaterm/contracts";
 import { deriveProviderInstanceEntries, NO_PROVIDER_MODEL_SELECTION } from "../providerInstances";
 import { ensureInlineContextReferences } from "../lib/composerContextReferences";
-import { terminalContextReference } from "../lib/composerContextRecords";
+import {
+  terminalContextReference,
+  environmentContextRecord,
+  buildMessageContext,
+} from "../lib/composerContextRecords";
 import { headlineUsageWindows } from "@supaterm/shared/usageLimits";
 import {
   CommandId,
@@ -1293,6 +1297,22 @@ describe("snapshotComposerSend", () => {
     expect(snapshot.messageText).toBe(
       ensureInlineContextReferences("run", [terminalContextReference(live)]).trim(),
     );
+  });
+
+  it("retains machine references in the immutable send snapshot and message context", () => {
+    const machine = environmentContextRecord(EnvironmentId.make("remote"), "Remote worker");
+    const environmentContexts = [machine];
+    const snapshot = snapshotComposerSend({ ...contents, environmentContexts });
+    environmentContexts.length = 0;
+    expect(snapshot.environmentContexts).toEqual([machine]);
+    expect(
+      buildMessageContext({
+        terminalContexts: snapshot.terminalContexts,
+        reviewComments: [],
+        previewAnnotations: [],
+        environmentContexts: snapshot.environmentContexts,
+      })?.records,
+    ).toContainEqual(machine);
   });
 
   it("titles a message without text after its first terminal context", () => {

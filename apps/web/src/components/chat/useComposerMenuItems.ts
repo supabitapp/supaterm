@@ -1,4 +1,11 @@
-import { matchComposerThreadItems } from "@supaterm/client-runtime/composerThreadItems";
+import { useAtomValue } from "@effect/atom-react";
+import { useEnvironmentIdentities, useEnvironmentMachines } from "../../state/environments";
+import { offersLinkedEnvironmentsAtom } from "../../state/peerLinks";
+import type { DraftId } from "../../composerDraftStore";
+import {
+  matchComposerEnvironmentItems,
+  matchComposerThreadItems,
+} from "@supaterm/client-runtime/composerThreadItems";
 import { useState } from "react";
 import type {
   EnvironmentId,
@@ -57,6 +64,7 @@ export function useComposerMenuItems({
   selectedProviderSkills,
   selectedProviderSlashCommands,
   showSkillsInSlashMenu,
+  questionAttachmentTarget,
 }: {
   readonly composerTrigger: ComposerTrigger | null;
   readonly environmentId: EnvironmentId;
@@ -71,6 +79,7 @@ export function useComposerMenuItems({
   readonly selectedProviderSkills: ServerProvider["skills"];
   readonly selectedProviderSlashCommands: ServerProvider["slashCommands"];
   readonly showSkillsInSlashMenu: boolean;
+  readonly questionAttachmentTarget: DraftId | null;
 }) {
   // Thread mentions rank by recency as of when the composer mounted.
   const [now] = useState(() => Date.now());
@@ -91,6 +100,13 @@ export function useComposerMenuItems({
   const environmentThreadShells = useThreadShells(isPathTrigger);
   // Mounts older settled threads matching the mention, which shells may leave out.
   useThreadSearch(isPathTrigger ? [environmentId] : [], pathTriggerQuery, { titlesOnly: true });
+  const environmentIdentities = useEnvironmentIdentities();
+  const environmentMachines = useEnvironmentMachines();
+  const offersMachines = useAtomValue(offersLinkedEnvironmentsAtom(environmentId));
+  const mentionableEnvironments = environmentIdentities.map((identity) => ({
+    ...identity,
+    machine: environmentMachines.get(identity.environmentId) ?? ("server" as const),
+  }));
   const workspaceEntries = useComposerPathSearch({
     environmentId,
     cwd: isPathTrigger ? gitCwd : null,
@@ -167,6 +183,13 @@ export function useComposerMenuItems({
           query: composerTrigger.query,
           now,
         }),
+        ...(questionAttachmentTarget === null && offersMachines
+          ? matchComposerEnvironmentItems({
+              environments: mentionableEnvironments,
+              environmentId,
+              query: composerTrigger.query,
+            })
+          : []),
         ...workspaceEntries.entries.map((entry) => ({
           id: `path:${entry.kind}:${entry.path}`,
           type: "path" as const,

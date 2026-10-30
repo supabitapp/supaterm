@@ -1,3 +1,4 @@
+import type { EnvironmentContextRecord } from "@supaterm/contracts";
 import { type OrchestrationV2ProviderTurn, type RunAttemptId } from "@supaterm/contracts";
 import {
   deriveLatestThreadRun,
@@ -1458,6 +1459,7 @@ export interface ComposerSendContents {
   readonly previewAnnotations: ReadonlyArray<PreviewAnnotationPayload>;
   readonly reviewComments: ReadonlyArray<ReviewCommentContext>;
   readonly threadContexts: ReadonlyArray<ThreadContextRecord>;
+  readonly environmentContexts?: ReadonlyArray<EnvironmentContextRecord>;
 }
 
 /**
@@ -1476,6 +1478,7 @@ export function snapshotComposerSend(contents: ComposerSendContents) {
     previewAnnotations: [...contents.previewAnnotations],
     reviewComments: [...contents.reviewComments],
     threadContexts: [...contents.threadContexts],
+    environmentContexts: [...(contents.environmentContexts ?? [])],
     messageText: contents.terminalContexts
       .filter((context) => !terminalContexts.includes(context))
       .reduce(

@@ -1,5 +1,6 @@
+import { BackgroundThreadContext } from "./backgroundThread";
 import type { KeybindingCommand, ResolvedKeybindingsConfig } from "@supaterm/contracts";
-import { useEffect, useEffectEvent } from "react";
+import { use, useEffect, useEffectEvent } from "react";
 import { registerAppCommandHandler } from "../../appCommandBus";
 import { isCommandPaletteOpen } from "../../commandPaletteBus";
 import { resolveChatShortcutCommand, type ShortcutMatchContext } from "../../keybindings";
@@ -51,6 +52,7 @@ export interface ChatShortcutsInput {
  * input, so handlers act on the current render without re-registering on every change.
  */
 export function useChatShortcuts(input: ChatShortcutsInput) {
+  const background = use(BackgroundThreadContext);
   const resolveHandler = (command: KeybindingCommand) =>
     input.commands[command] ??
     composerShortcutCommands(
@@ -60,7 +62,7 @@ export function useChatShortcuts(input: ChatShortcutsInput) {
     )[command] ??
     input.fallback(command);
   const handleShortcut = useEffectEvent((event: KeyboardEvent) => {
-    if (!input.isInputOwner()) return;
+    if (background || !input.isInputOwner()) return;
     const { keybindings } = input;
     if (preventRepeatedTerminalCloseShortcut(event, keybindings)) {
       event.stopPropagation();
@@ -98,6 +100,7 @@ export function useChatShortcuts(input: ChatShortcutsInput) {
   });
   const dismissFind = useEffectEvent((event: KeyboardEvent) => {
     if (
+      background ||
       !input.isInputOwner() ||
       event.key !== "Escape" ||
       !input.threadFindActive ||
@@ -113,7 +116,8 @@ export function useChatShortcuts(input: ChatShortcutsInput) {
     input.closeThreadFind();
   });
   const handleAppCommand = useEffectEvent((command: KeybindingCommand) => {
-    if (!input.isInputOwner() || !input.enabled || isCommandPaletteOpen()) return false;
+    if (background || !input.isInputOwner() || !input.enabled || isCommandPaletteOpen())
+      return false;
     const run = resolveHandler(command);
     if (!run) return false;
     return run({ repeat: false, terminalFocusOwner: getTerminalFocusOwner() }) !== false;

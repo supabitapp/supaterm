@@ -1,4 +1,4 @@
-import { useLinkedEnvironments } from "../../state/peerLinks";
+import { useComposerLinkedEnvironments } from "./useComposerLinkedEnvironments";
 import {
   ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
   threadContextsOutsideEnvironment,
@@ -218,7 +218,7 @@ export function useComposerSend(input: ComposerSendInput) {
     handleNewThreadInActiveProject,
   } = input;
   const openPaneThread = usePaneThreadNavigation();
-  const linkedEnvironments = useLinkedEnvironments(environmentId);
+  const linkedEnvironments = useComposerLinkedEnvironments(environmentId);
   const clientSettingsHydrated = useClientSettingsHydrated();
   const uploadThreadFeedback = useOrchestrationCommand(threadEnvironment.uploadFeedback, {
     reportFailure: false,
@@ -363,6 +363,7 @@ export function useComposerSend(input: ComposerSendInput) {
       previewAnnotations: sendContextPreviewAnnotations,
       reviewComments: composerReviewComments,
       threadContexts: composerThreadContexts,
+      environmentContexts: composerEnvironmentContexts,
       selectedProvider: ctxSelectedProvider,
       selectedModel: ctxSelectedModel,
       selectedProviderModels: ctxSelectedProviderModels,
@@ -415,6 +416,7 @@ export function useComposerSend(input: ComposerSendInput) {
           reviewComments: composerReviewComments,
           previewAnnotations: composerPreviewAnnotations,
           threadContexts: composerThreadContexts,
+          environmentContexts: composerEnvironmentContexts,
         },
         setThreadError,
       );
@@ -432,7 +434,8 @@ export function useComposerSend(input: ComposerSendInput) {
       elementContextCount:
         composerPreviewAnnotations.length +
         composerReviewComments.length +
-        composerThreadContexts.length,
+        composerThreadContexts.length +
+        composerEnvironmentContexts.length,
     });
     const feedbackCommand =
       ctxSelectedProvider === "codex" &&
@@ -441,7 +444,8 @@ export function useComposerSend(input: ComposerSendInput) {
       sendableComposerTerminalContexts.length === 0 &&
       composerPreviewAnnotations.length === 0 &&
       composerReviewComments.length === 0 &&
-      composerThreadContexts.length === 0
+      composerThreadContexts.length === 0 &&
+      composerEnvironmentContexts.length === 0
         ? parseCodexFeedbackCommand(trimmed)
         : null;
     if (feedbackCommand && multipleModelSelections === null) {
@@ -548,6 +552,7 @@ export function useComposerSend(input: ComposerSendInput) {
       previewAnnotations: composerPreviewAnnotations,
       reviewComments: composerReviewComments,
       threadContexts: composerThreadContexts,
+      environmentContexts: composerEnvironmentContexts,
     });
     const composerAttachmentsSnapshot = sendSnapshot.attachments;
     const messageTextForSend = sendSnapshot.messageText;
@@ -558,6 +563,7 @@ export function useComposerSend(input: ComposerSendInput) {
       reviewComments: sendSnapshot.reviewComments,
       previewAnnotations: sendSnapshot.previewAnnotations,
       threadContexts: sendSnapshot.threadContexts,
+      environmentContexts: sendSnapshot.environmentContexts,
       attachments: composerAttachmentsSnapshot.map((attachment) => ({
         attachment,
         attachmentId: attachment.id,

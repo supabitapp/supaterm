@@ -50,6 +50,7 @@ const baseProps = {
   editingRunId: null,
   onEditQueuedRun: () => undefined,
   onCancelEdit: () => undefined,
+  onOpenThread: () => undefined,
 } satisfies ComponentProps<typeof QueuedRunsControl>;
 
 async function renderQueue(props: Partial<ComponentProps<typeof QueuedRunsControl>> = {}) {

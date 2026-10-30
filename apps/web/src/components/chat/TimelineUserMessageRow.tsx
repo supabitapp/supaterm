@@ -1,3 +1,4 @@
+import { useScheduledTaskTitle } from "./useScheduledTaskTitle";
 import { InlineAudioPreview } from "../files/InlineAudioPreview";
 import { filePreviewKind } from "@supaterm/shared/filePreview";
 import { GuestMessageName, guestBubbleClassName } from "./guestMessageStyle";
@@ -15,8 +16,6 @@ import { ThreadId, type MessageId, type ServerProviderSkill } from "@supaterm/co
 import { resolveUserMessagePresentation } from "@supaterm/client-runtime/user-message";
 import { Link } from "@tanstack/react-router";
 import { useQuietThreadShell } from "../../state/entities";
-import { useEnvironmentQuery } from "../../state/query";
-import { serverEnvironment } from "../../state/server";
 import {
   collectComposerContextReferences,
   replaceComposerContextReferences,
@@ -144,15 +143,7 @@ function AutomationMessageRow({ row }: { row: Extract<TimelineRow, { kind: "mess
   const [expanded, toggleExpanded, setExpanded] = useTimelineDisclosure();
   const revealRef = findRevealRef(() => setExpanded(true));
   const { text, scheduledTaskId } = resolveUserMessagePresentation(row.message);
-  const tasksQuery = useEnvironmentQuery(
-    scheduledTaskId
-      ? serverEnvironment.scheduledTasksLive({
-          environmentId: ctx.activeThreadEnvironmentId,
-          input: {},
-        })
-      : null,
-  );
-  const taskTitle = tasksQuery.data?.tasks.find((task) => task.id === scheduledTaskId)?.title;
+  const taskTitle = useScheduledTaskTitle(ctx.activeThreadEnvironmentId, scheduledTaskId);
   const summary = taskTitle ?? text.trim().split(/\r?\n/, 1)[0] ?? "";
 
   const revertTurnCount = row.revertTurnCount;

@@ -1,3 +1,4 @@
+import type { EnvironmentContextRecord } from "@supaterm/contracts";
 import type {
   EnvironmentId,
   PreviewAnnotationPayload,
@@ -105,6 +106,7 @@ export function useComposerStash(input: {
   readonly composerPreviewAnnotations: ReadonlyArray<PreviewAnnotationPayload>;
   readonly composerReviewComments: ReadonlyArray<ReviewCommentContext>;
   readonly composerThreadContexts: ReadonlyArray<ThreadContextRecord>;
+  readonly composerEnvironmentContexts: ReadonlyArray<EnvironmentContextRecord>;
   readonly attachmentTargetKeyRef: RefObject<string>;
   readonly composerDraftTargetKeyRef: RefObject<string>;
   readonly composerEditorRef: RefObject<ComposerPromptEditorHandle | null>;
@@ -151,6 +153,7 @@ export function useComposerStash(input: {
     composerPreviewAnnotations,
     composerReviewComments,
     composerThreadContexts,
+    composerEnvironmentContexts,
     attachmentTargetKeyRef,
     composerDraftTargetKeyRef,
     composerEditorRef,
@@ -628,6 +631,7 @@ export function useComposerStash(input: {
     const files = [...readAttachments().files];
     const stashedRecords: ComposerContextRecord[] = [
       ...composerThreadContexts,
+      ...composerEnvironmentContexts,
       ...readAttachments().terminalContexts.map(terminalContextRecord),
       ...composerReviewComments.map(reviewCommentContextRecord),
       ...composerPreviewAnnotations.map((annotation) =>
