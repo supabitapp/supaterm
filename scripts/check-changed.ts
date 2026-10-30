@@ -1,4 +1,4 @@
-// @effect-diagnostics nodeBuiltinImport:off globalConsole:off
+// @effect-diagnostics nodeBuiltinImport:off globalConsole:off globalTimers:off
 // Runs CI's fast checks for this branch's changes: format and lint of the
 // changed files, knip, generated GraphQL operations, rendered icon inputs,
 // typecheck of the affected packages and their dependents, the test files
@@ -7,13 +7,17 @@
 // change also gets the unused-patch install check below. CI still runs the full
 // test suites and the jobs listed in the summary.
 //
-//   vp run check:changed          compare against the merge base with origin/main
-//   vp run check:changed <ref>    compare against the merge base with <ref>
+//   vp run check:changed                  compare against the merge base with origin/main
+//   vp run check:changed <ref>            compare against the merge base with <ref>
+//   vp run check:changed --concurrency 1  run the steps one at a time
 //
 // Uncommitted and untracked files count. Affected packages come from
 // scripts/lib/changed-packages.ts.
-// The steps run side by side; each prints its output when it finishes. A
-// rerun on exactly the files of the last passing run prints that run's summary.
+// The steps run side by side within a budget derived from the machine's cores
+// and available memory, and each prints its output when it finishes. A step
+// running past the timeout is killed with its process group and reported as
+// TIMEOUT. A rerun on exactly the files of the last passing run prints that
+// run's summary.
 import * as NodeChildProcess from "node:child_process";
 import * as NodeCrypto from "node:crypto";
 import * as NodeFS from "node:fs";
@@ -39,7 +43,58 @@ const git = (...args: Array<string>) =>
     .split("\n")
     .filter(Boolean);
 
-const ref = process.argv[2] ?? "origin/main";
+const USAGE = "usage: vp run check:changed [<ref>] [--concurrency <n>] [--timeout <seconds>]";
+const positiveInt = (name: string, value: string | undefined) => {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    console.error(`check:changed: ${name} must be a positive integer.\n${USAGE}`);
+    process.exit(1);
+  }
+  return parsed;
+};
+const flags = new Map<string, string | undefined>();
+const positional: Array<string> = [];
+for (let index = 2; index < process.argv.length; index += 1) {
+  const arg = process.argv[index]!;
+  const [name, inline] = arg.split("=", 2) as [string, string | undefined];
+  if (name === "--concurrency" || name === "--timeout") {
+    flags.set(name, inline ?? process.argv[++index]);
+  } else if (arg.startsWith("-")) {
+    console.error(`check:changed: unknown option ${arg}.\n${USAGE}`);
+    process.exit(1);
+  } else {
+    positional.push(arg);
+  }
+}
+// A flag wins over its environment variable.
+const override = (flag: string, envName: string) =>
+  flags.has(flag)
+    ? positiveInt(flag, flags.get(flag))
+    : process.env[envName] === undefined
+      ? undefined
+      : positiveInt(envName, process.env[envName]);
+
+const GiB = 1024 ** 3;
+// A typecheck or test step can take several cores and gigabytes of memory, so
+// allow one step per two cores and per 6 GiB of available memory. macOS counts
+// its file cache as used, so its total memory stands in for available memory;
+// elsewhere availableMemory() honors a cgroup limit.
+const concurrency =
+  override("--concurrency", "CHECK_CHANGED_CONCURRENCY") ??
+  Math.max(
+    1,
+    Math.min(
+      Math.floor(NodeOS.availableParallelism() / 2),
+      Math.floor(
+        // oxlint-disable-next-line supaterm/no-global-process-runtime -- This script runs without an Effect runtime.
+        (NodeOS.platform() === "darwin" ? NodeOS.totalmem() : process.availableMemory()) /
+          (6 * GiB),
+      ),
+    ),
+  );
+const timeoutSeconds = override("--timeout", "CHECK_CHANGED_TIMEOUT") ?? 900;
+
+const ref = positional[0] ?? "origin/main";
 const mergeBase = NodeChildProcess.spawnSync("git", ["merge-base", "HEAD", ref], {
   cwd: root,
   encoding: "utf8",
@@ -287,6 +342,7 @@ const iconInputs = files.some(
 );
 
 const filters = (names: ReadonlyArray<string>) => names.flatMap((name) => ["--filter", name]);
+const typecheckWorkers = Math.min(concurrency, affected.length);
 const steps = [
   // Runs first; it takes about a second.
   runPatchCheck && { name: "unused patches", run: checkPatches },
@@ -310,10 +366,12 @@ const steps = [
       "--cache",
       "--parallel",
       "--concurrency-limit",
-      "4",
+      String(typecheckWorkers),
       ...filters(affected),
       "typecheck",
     ],
+    // Budget slots the step holds: one per worker it runs in parallel.
+    weight: typecheckWorkers,
   },
   // From the repo root, the root vite.config.ts hands each file to its package's config.
   vitestTests.length > 0 && {
@@ -330,35 +388,77 @@ const steps = [
 
 // Output is piped, so keep the colors a terminal would get.
 const env = process.stdout.isTTY ? { ...process.env, FORCE_COLOR: "1" } : process.env;
+type Outcome = "pass" | "FAIL" | "TIMEOUT";
 const runStep = (step: (typeof steps)[number]) =>
-  new Promise<{ name: string; ok: boolean; seconds: string }>((resolve) => {
+  new Promise<{ name: string; outcome: Outcome; time: string }>((resolve) => {
     const started = performance.now();
-    const finish = (ok: boolean, output?: Buffer) => {
-      const seconds = ((performance.now() - started) / 1000).toFixed(1);
-      console.log(`\n> vp ${step.name}  ${ok ? "pass" : "FAIL"}  ${seconds}s`);
+    const finish = (outcome: Outcome, output?: Buffer) => {
+      const time =
+        outcome === "TIMEOUT"
+          ? `killed after ${timeoutSeconds}s`
+          : `${((performance.now() - started) / 1000).toFixed(1)}s`;
+      console.log(`\n> vp ${step.name}  ${outcome}  ${time}`);
       if (output) process.stdout.write(output);
-      resolve({ name: step.name, ok, seconds });
+      resolve({ name: step.name, outcome, time });
     };
     // In-process steps print their own output. The patch check is first and
     // takes about a second, so the commands start right after it.
-    if ("run" in step) return finish(step.run());
+    if ("run" in step) return finish(step.run() ? "pass" : "FAIL");
     const output: Array<Buffer> = [];
     const command = "command" in step && step.command ? step.command : "vp";
-    const child = NodeChildProcess.spawn(command, step.args, { cwd: root, env });
+    // Its own process group, so a timeout kills every process the step started.
+    const child = NodeChildProcess.spawn(command, step.args, { cwd: root, env, detached: true });
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      try {
+        if (child.pid !== undefined) process.kill(-child.pid, "SIGKILL");
+      } catch {
+        child.kill("SIGKILL");
+      }
+    }, timeoutSeconds * 1000);
     child.stdout.on("data", (chunk: Buffer) => output.push(chunk));
     child.stderr.on("data", (chunk: Buffer) => output.push(chunk));
     // A failed spawn emits "error", then "close" with a nonzero code.
     child.on("error", (error) => output.push(Buffer.from(`${error.message}\n`)));
-    child.on("close", (status) => finish(status === 0, Buffer.concat(output)));
+    child.on("close", (status) => {
+      clearTimeout(timer);
+      if (timedOut) finish("TIMEOUT");
+      else finish(status === 0 ? "pass" : "FAIL", Buffer.concat(output));
+    });
   });
+
+// Steps claim budget in order, so a light step cannot take free slots ahead of
+// a waiting heavier one, which would delay typecheck.
+let freeSlots = concurrency;
+const waiting: Array<{ readonly slots: number; readonly start: () => void }> = [];
+const admit = () => {
+  while (waiting.length > 0 && waiting[0]!.slots <= freeSlots) {
+    const next = waiting.shift()!;
+    freeSlots -= next.slots;
+    next.start();
+  }
+};
+const runWithinBudget = (step: (typeof steps)[number]) => {
+  const slots = Math.min("weight" in step && step.weight ? step.weight : 1, concurrency);
+  return new Promise<void>((start) => {
+    waiting.push({ slots, start });
+    admit();
+  })
+    .then(() => runStep(step))
+    .finally(() => {
+      freeSlots += slots;
+      admit();
+    });
+};
 
 // Vitest runs started together race to rebuild node_modules/.vitest-cache after
 // an install (ENOTEMPTY), so they run one after another.
 let previousVitest: Promise<unknown> = Promise.resolve();
 const results = await Promise.all(
   steps.map((step) => {
-    if (!("args" in step) || step.args[0] !== "test") return runStep(step);
-    const result = previousVitest.then(() => runStep(step));
+    if (!("args" in step) || step.args[0] !== "test") return runWithinBudget(step);
+    const result = previousVitest.then(() => runWithinBudget(step));
     previousVitest = result;
     return result;
   }),
@@ -366,7 +466,13 @@ const results = await Promise.all(
 
 const summary = ["check:changed summary"];
 for (const result of results) {
-  summary.push(`  ${result.ok ? "pass" : "FAIL"}  ${result.name}  ${result.seconds}s`);
+  summary.push(`  ${result.outcome}  ${result.name}  ${result.time}`);
+}
+if (results.some((result) => result.outcome === "TIMEOUT")) {
+  summary.push(
+    `  TIMEOUT: ran past ${timeoutSeconds}s and was killed; this is not a check failure. ` +
+      "Raise --timeout or lower --concurrency.",
+  );
 }
 const ciOnly = [
   "full test suites",
@@ -381,7 +487,7 @@ if (!runKnip) summary.push("  knip skipped: no code or manifest changed");
 console.log(`\n${summary.join("\n")}`);
 // exitCode, not exit(): piped stdout is asynchronous on macOS, and exit()
 // would cut off a failing step's output.
-if (results.some((result) => !result.ok)) {
+if (results.some((result) => result.outcome !== "pass")) {
   process.exitCode = 1;
 } else if (inputKey() !== key) {
   console.log("  pass not cached: files changed during the run");
