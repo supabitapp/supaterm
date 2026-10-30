@@ -857,7 +857,7 @@ jobs:
           body_path: ${{ hashFiles('release-notes.md') != '' && 'release-notes.md' || '' }}
           previous_tag: ${{ needs.preflight.outputs.previous_tag }}
           prerelease: ${{ needs.preflight.outputs.is_prerelease }}
-          draft: ${{ needs.preflight.outputs.is_prerelease }}
+          draft: true
           make_latest: ${{ needs.preflight.outputs.make_latest }}
           files: ${{ steps.release_files.outputs.files }}
           fail_on_unmatched_files: true
@@ -873,19 +873,19 @@ jobs:
           generate_release_notes: ${{ hashFiles('release-notes.md') == '' }}
           body_path: ${{ hashFiles('release-notes.md') != '' && 'release-notes.md' || '' }}
           prerelease: ${{ needs.preflight.outputs.is_prerelease }}
-          draft: ${{ needs.preflight.outputs.is_prerelease }}
+          draft: true
           make_latest: ${{ needs.preflight.outputs.make_latest }}
           files: ${{ steps.release_files.outputs.files }}
           fail_on_unmatched_files: true
           token: ${{ github.token }}
 
-      - name: Publish prerelease after uploading assets
-        if: needs.preflight.outputs.is_prerelease == 'true'
+      - name: Publish release after uploading assets
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ needs.preflight.outputs.tag }}
-        run: gh release edit "$RELEASE_TAG" --draft=false
+          RELEASE_MAKE_LATEST: ${{ needs.preflight.outputs.make_latest }}
+        run: gh release edit "$RELEASE_TAG" --draft=false --latest="$RELEASE_MAKE_LATEST"
 
   publish_cli:
     name: Publish CLI to npm
