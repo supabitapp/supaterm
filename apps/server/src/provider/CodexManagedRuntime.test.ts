@@ -151,8 +151,7 @@ it.live.each(
           assert.include(provider, 'model_catalog_url="https://api.openai.com/v1/models"');
           assert.notInclude(provider, "env_key");
           assert.include(provider, "refresh_interval_ms=0");
-          
-          
+
           if (source === "managed" && account === "primary") {
             const commandMatch = /auth=\{command=(.*),args=(\[.*\]),timeout_ms=/u.exec(provider);
             assert.isNotNull(commandMatch);
@@ -183,7 +182,10 @@ it.live.each(
               code: 0,
             });
             const saved = Option.getOrThrow(yield* runtime.auth.read);
-            const expired = yield* encodeJson({ ...saved, expiresAt: 0 });
+            const expired = yield* encodeJson({
+              activeClientId: saved.clientId,
+              sessions: [{ ...saved, expiresAt: 0 }],
+            });
             yield* store.set(new TextEncoder().encode(expired));
             assert.deepEqual(yield* runHelper, { stdout: "renewed-access", stderr: "", code: 0 });
             assert.equal(renewals, 1);
@@ -192,7 +194,10 @@ it.live.each(
               "renewed-refresh",
             );
             assert.equal((yield* runtime.resolve).revision, effective.revision);
-            const replaced = yield* encodeJson({ ...saved, subject: "replacement-user" });
+            const replaced = yield* encodeJson({
+              activeClientId: saved.clientId,
+              sessions: [{ ...saved, subject: "replacement-user" }],
+            });
             yield* store.set(new TextEncoder().encode(replaced));
             const refused = yield* runHelper;
             assert.equal(refused.code, 1);
