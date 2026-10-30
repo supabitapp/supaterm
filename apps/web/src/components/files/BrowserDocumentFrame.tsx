@@ -23,7 +23,17 @@ import {
   matchesKeybindingShortcut,
   normalizeEventKey,
 } from "@supaterm/shared/keybindings";
-import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import { isElectron } from "~/env";
+import { FileSurfaceLoading } from "./fileSurfaceChrome";
 
 import { useOpenLink } from "~/browser/useOpenLink";
 import { ExpandedImageDialog } from "~/components/chat/ExpandedImageDialog";
@@ -35,11 +45,6 @@ import { readLocalApi } from "~/localApi";
 import { cn } from "~/lib/utils";
 import { primaryServerKeybindingsAtom, serverEnvironment } from "~/state/server";
 
-/**
- * The page reports the keys, and a page script can report any key it likes,
- * so only commands that change what the reader sees are here, never one that
- * changes a thread.
- */
 const HTML_RENDER_SHORTCUT_COMMANDS: ReadonlySet<KeybindingCommand> = new Set([
   "commandPalette.toggle",
   "filePicker.toggle",
@@ -67,24 +72,42 @@ const HTML_RENDER_SHORTCUT_COMMANDS: ReadonlySet<KeybindingCommand> = new Set([
 export const isPdfPreviewFile = (path: string): boolean =>
   /\.pdf$/i.test(path.split(/[?#]/, 1)[0] ?? "");
 
+const PdfViewer = lazy(() => import("./PdfViewer"));
+
+function PdfDocument(props: { src: string; title: string }) {
+  const [src] = useState(props.src);
+
+  const native =
+    !isElectron &&
+    navigator.pdfViewerEnabled &&
+    !/iPad|iPhone|iPod/.test(navigator.userAgent) &&
+    !(navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  return native ? (
+    // oxlint-disable-next-line react/iframe-missing-sandbox -- Chromium's PDF plugin requires an unsandboxed frame; src is an exact-file asset grant.
+    <iframe
+      src={`${src.split("#", 1)[0]}#navpanes=0&view=FitH`}
+      title={props.title}
+      className="block h-full min-h-0 w-full flex-1 border-0 bg-white"
+    />
+  ) : (
+    <Suspense fallback={<FileSurfaceLoading />}>
+      <PdfViewer src={src} title={props.title} />
+    </Suspense>
+  );
+}
+
 export function BrowserDocumentFrame(props: {
   readonly src: string;
   readonly title: string;
   readonly pdf: boolean;
   readonly htmlRender?: boolean;
   readonly threadRef?: ScopedThreadRef | undefined;
-  /** Stable resource identity and revision; defaults to src for callers that reload on URL changes. */
+
   readonly documentKey?: string | undefined;
 }) {
   const key = props.documentKey ?? props.src;
   return props.pdf ? (
-    <embed
-      key={props.src}
-      src={props.src}
-      type="application/pdf"
-      title={props.title}
-      className="min-h-0 w-full flex-1 border-0"
-    />
+    <PdfDocument key={key} src={props.src} title={props.title} />
   ) : props.htmlRender ? (
     <HtmlRenderDocument
       key={key}
@@ -98,7 +121,6 @@ export function BrowserDocumentFrame(props: {
   );
 }
 
-// URL renewals must not discard form input or scroll; a new key mounts a fresh document.
 function FileDocument(props: { readonly src: string; readonly title: string }) {
   const [src] = useState(props.src);
   return (
@@ -111,17 +133,13 @@ function FileDocument(props: { readonly src: string; readonly title: string }) {
   );
 }
 
-/**
- * The first URL is kept for the frame's lifetime: signed asset URLs re-mint
- * while it stays mounted, and a new src would reload the page.
- */
 export function HtmlRenderDocument(props: {
   readonly src: string;
   readonly title: string;
   readonly className?: string;
   readonly threadRef?: ScopedThreadRef | undefined;
   readonly onContentHeight?: (height: number) => void;
-  /** Reports the image viewer opening and closing, so a virtualized row can stay mounted. */
+
   readonly onFullscreenChange?: ((fullscreen: boolean) => void) | undefined;
 }) {
   const theme = useHtmlRenderTheme();
@@ -132,15 +150,13 @@ export function HtmlRenderDocument(props: {
   const postTheme = () => {
     frameRef.current?.contentWindow?.postMessage(htmlRenderThemeMessage(theme), "*");
   };
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- posts the current theme to the sandboxed iframe's window
   useEffect(postTheme, [theme]);
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const environmentKeybindings = useAtomValue(
     serverEnvironment.configValueAtom(props.threadRef?.environmentId ?? null),
   )?.keybindings;
-  // The app resolves a replayed key in its live context, so every allowed
-  // binding counts whatever its `when`, and a key that any binding gives to
-  // another command stays with the page. Only Cmd/Ctrl chords: a printable key
-  // would type into the composer instead.
+
   const mac = isMacPlatform(navigator.platform);
   const resolve = (shortcut: KeybindingShortcut): HtmlRenderShortcut => ({
     key: shortcut.key,
@@ -168,11 +184,9 @@ export function HtmlRenderDocument(props: {
       "*",
     );
   };
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- posts allowed and blocked shortcuts to the sandboxed iframe's window
   useEffect(postShortcuts, [blocked, shortcuts]);
-  // The page reports the key and code, and a page script can report any pair,
-  // so a key that could match another command's binding is never replayed. A
-  // named key (Backspace, Enter) must be the shortcut's own, since some app
-  // handlers read `event.key` directly.
+
   const isShortcut = useEffectEvent(
     (key: NonNullable<ReturnType<typeof readHtmlRenderKeyDown>>) => {
       const matches = (shortcut: HtmlRenderShortcut) =>
@@ -209,107 +223,68 @@ export function HtmlRenderDocument(props: {
     }
     void openLink(url, { event: modifiers }).catch((cause: unknown) => console.error(cause));
   });
-  // It asks the client, which opens the link only while this frame has focus
-  // and the reader has just used the app. A page can take focus by script, so
-  // this stops opens on load, not a page that waits for the reader's next click
-  // or key.
-  useEffect(() => {
-    const openLink = (event: MessageEvent) => {
-      const frame = frameRef.current;
-      const request = readHtmlRenderLinkRequest(event.data);
-      if (
-        request === undefined ||
-        frame === null ||
-        event.source !== frame.contentWindow ||
-        document.activeElement !== frame ||
-        navigator.userActivation?.isActive === false
-      ) {
-        return;
-      }
-      open(request.url, request);
-      frame.contentWindow?.postMessage(htmlRenderResult(request.id), "*");
-    };
-    window.addEventListener("message", openLink);
-    return () => window.removeEventListener("message", openLink);
-  }, []);
-  useEffect(() => {
-    const replayKey = (event: MessageEvent) => {
-      const frame = frameRef.current;
-      const key = readHtmlRenderKeyDown(event.data);
-      if (
-        key === undefined ||
-        frame === null ||
-        event.source !== frame.contentWindow ||
-        document.activeElement !== frame ||
-        navigator.userActivation?.isActive === false
-      ) {
-        return;
-      }
-      if (!isShortcut(key)) return;
-      frame.dispatchEvent(
-        new KeyboardEvent("keydown", { ...key, bubbles: true, cancelable: true }),
-      );
-    };
-    window.addEventListener("message", replayKey);
-    return () => window.removeEventListener("message", replayKey);
-  }, []);
-  // A clicked page image opens in the same viewer as chat images, gated like a link.
-  useEffect(() => {
-    const openImage = (event: MessageEvent) => {
-      const frame = frameRef.current;
-      const request = readHtmlRenderImageRequest(event.data);
-      if (
-        request === undefined ||
-        frame === null ||
-        event.source !== frame.contentWindow ||
-        document.activeElement !== frame ||
-        navigator.userActivation?.isActive === false
-      ) {
-        return;
-      }
-      setExpandedImage({ images: [{ src: request.src, name: request.name }], index: 0 });
-    };
-    window.addEventListener("message", openImage);
-    return () => window.removeEventListener("message", openImage);
-  }, []);
   const { onFullscreenChange } = props;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reports fullscreen to the parent while the image viewer is open, and clears it on unmount
   useEffect(() => {
     if (expandedImage === null) return;
     onFullscreenChange?.(true);
     return () => onFullscreenChange?.(false);
   }, [expandedImage, onFullscreenChange]);
-  const { onContentHeight } = props;
-  // A page posts its height once per change, so listen from the commit that
-  // inserts the frame; a passive effect could run after a fast page's first post.
-  useLayoutEffect(() => {
-    if (onContentHeight === undefined) return;
-    const resize = (event: MessageEvent) => {
-      const height = readHtmlRenderContentHeight(event.data);
-      if (height !== undefined && event.source === frameRef.current?.contentWindow) {
-        onContentHeight(height);
+
+  const onFrameMessage = useEffectEvent((frame: HTMLIFrameElement, event: MessageEvent) => {
+    const height = readHtmlRenderContentHeight(event.data);
+    if (height !== undefined) {
+      props.onContentHeight?.(height);
+      return;
+    }
+    if (document.activeElement !== frame || navigator.userActivation?.isActive === false) return;
+    const linkRequest = readHtmlRenderLinkRequest(event.data);
+    if (linkRequest !== undefined) {
+      open(linkRequest.url, linkRequest);
+      frame.contentWindow?.postMessage(htmlRenderResult(linkRequest.id), "*");
+      return;
+    }
+    const key = readHtmlRenderKeyDown(event.data);
+    if (key !== undefined) {
+      if (isShortcut(key)) {
+        frame.dispatchEvent(
+          new KeyboardEvent("keydown", { ...key, bubbles: true, cancelable: true }),
+        );
       }
+      return;
+    }
+    const imageRequest = readHtmlRenderImageRequest(event.data);
+    if (imageRequest !== undefined) {
+      setExpandedImage({ images: [{ src: imageRequest.src, name: imageRequest.name }], index: 0 });
+    }
+  });
+
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- attaches a window message listener for the iframe at commit, before its first height post
+  useLayoutEffect(() => {
+    const frame = frameRef.current;
+    if (frame === null) return;
+    const onMessage = (event: MessageEvent) => {
+      if (event.source === frame.contentWindow) onFrameMessage(frame, event);
     };
-    window.addEventListener("message", resize);
-    return () => window.removeEventListener("message", resize);
-  }, [onContentHeight]);
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
   return (
     <>
       <iframe
         ref={frameRef}
         src={src}
         title={props.title}
-        // Never allow-same-origin: the opaque origin keeps the page out of the app's session.
+
         sandbox="allow-scripts allow-forms"
         loading="lazy"
         onLoad={() => {
           setLoaded(true);
-          // Covers a theme change that landed while the page was loading.
+
           postTheme();
           postShortcuts();
         }}
-        // A frame whose color scheme differs from its document's paints an opaque
-        // canvas, so the blank document a frame starts with would flash white in
-        // dark mode. Once the page is in, its prefers-color-scheme follows the app.
+
         className={cn("border-0 scheme-light", props.className)}
         style={loaded ? { colorScheme: theme.appearance } : undefined}
       />
