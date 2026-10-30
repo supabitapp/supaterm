@@ -514,6 +514,14 @@
     "./paletteSearch": {
       "types": "./src/paletteSearch.ts",
       "import": "./src/paletteSearch.ts"
+    },
+    "./mediaPreview": {
+      "types": "./src/mediaPreview.ts",
+      "import": "./src/mediaPreview.ts"
+    },
+    "./markdownFrontmatter": {
+      "types": "./src/markdownFrontmatter.ts",
+      "import": "./src/markdownFrontmatter.ts"
     }
   },
   "scripts": {
