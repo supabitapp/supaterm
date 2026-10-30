@@ -12,6 +12,7 @@ import {
 } from "@supaterm/contracts";
 import { PROJECT_FAVICON_FALLBACK_MARKER } from "@supaterm/shared/projectFavicon";
 import { MCP_APP_MAX_HTML_BYTES } from "@supaterm/shared/mcpApp";
+import { FILE_TEXT_PREVIEW_MAX_BYTES } from "@supaterm/shared/filePreview";
 import { describe, expect, it } from "@effect/vitest";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -460,8 +461,46 @@ describe("AssetAccess", () => {
     }).pipe(Effect.provide(layerTest)),
   );
 
+  it.effect.each(["notes.txt", "data.json", "index.ts", "notes.md"])(
+    "reads large draft text and code through an exact signed URL: %s",
+    (name) =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const root = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-draft-text-" });
+        const filePath = path.join(root, name);
+        const tail = "beyond the initial preview limit\n";
+        const content = `${" ".repeat(FILE_TEXT_PREVIEW_MAX_BYTES)}${tail}`;
+        yield* fs.writeFileString(filePath, content);
+        const sibling = `other-${name}`;
+        yield* fs.writeFileString(path.join(root, sibling), "private sibling");
+
+        const issued = yield* issueAssetUrl({
+          resource: { _tag: "draft-workspace-file", cwd: root, path: filePath },
+        });
+        expect(issued.fileRevision).toEqual(expect.any(String));
+        const suffix = issued.relativeUrl.slice(`${ASSET_ROUTE_PREFIX}/`.length);
+        const token = suffix.slice(0, suffix.indexOf("/"));
+        const asset = yield* resolveAsset(token, name);
+        expect(asset).toMatchObject({ kind: "file", path: yield* fs.realPath(filePath) });
+        if (asset?.kind !== "file") throw new Error("Expected draft text file");
+        const response = HttpServerResponse.toWeb(
+          yield* assetFileResponse(asset, `bytes=${FILE_TEXT_PREVIEW_MAX_BYTES}-`),
+        );
+        expect(response.status).toBe(206);
+        expect(response.headers.get("content-range")).toBe(
+          `bytes ${FILE_TEXT_PREVIEW_MAX_BYTES}-${content.length - 1}/${content.length}`,
+        );
+        expect(yield* Effect.promise(() => response.text())).toBe(tail);
+        for (const requestedPath of [sibling, `../${name}`, `../${sibling}`]) {
+          expect(yield* resolveAsset(token, requestedPath)).toBeNull();
+        }
+        expect(yield* resolveAsset(`${token}tampered`, name)).toBeNull();
+      }).pipe(Effect.provide(layerTest)),
+  );
+
   it.effect(
-    "rejects draft media escapes and disallowed types without enabling non-draft media",
+    "rejects draft file escapes and disallowed types without enabling non-draft files",
     () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
@@ -469,14 +508,30 @@ describe("AssetAccess", () => {
         const directory = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-draft-boundary-" });
         const root = path.join(directory, "workspace");
         yield* fs.makeDirectory(root);
-        for (const name of ["video.mp4", "audio.wav", "secret.txt"]) {
+        for (const name of [
+          "video.mp4",
+          "audio.wav",
+          "notes.txt",
+          "data.json",
+          "index.ts",
+          "notes.md",
+          "secret.bin",
+        ]) {
           yield* fs.writeFileString(path.join(root, name), "workspace bytes");
           yield* fs.writeFileString(path.join(directory, name), "outside bytes");
         }
         for (const [requestedPath, tag] of [
           ["../video.mp4", "AssetWorkspacePathValidationError"],
           ["../audio.wav", "AssetWorkspacePathValidationError"],
-          ["secret.txt", "AssetPreviewTypeValidationError"],
+          ["../notes.txt", "AssetWorkspacePathValidationError"],
+          ["../data.json", "AssetWorkspacePathValidationError"],
+          ["../index.ts", "AssetWorkspacePathValidationError"],
+          ["../notes.md", "AssetWorkspacePathValidationError"],
+          [path.join(directory, "notes.txt"), "AssetWorkspacePathValidationError"],
+          [path.join(directory, "data.json"), "AssetWorkspacePathValidationError"],
+          [path.join(directory, "index.ts"), "AssetWorkspacePathValidationError"],
+          [path.join(directory, "notes.md"), "AssetWorkspacePathValidationError"],
+          ["secret.bin", "AssetPreviewTypeValidationError"],
         ] as const) {
           const error = yield* issueAssetUrl({
             resource: { _tag: "draft-workspace-file", cwd: root, path: requestedPath },
@@ -484,7 +539,14 @@ describe("AssetAccess", () => {
           }).pipe(Effect.flip);
           expect(error._tag).toBe(tag);
         }
-        for (const name of ["video.mp4", "audio.wav"]) {
+        for (const name of [
+          "video.mp4",
+          "audio.wav",
+          "notes.txt",
+          "data.json",
+          "index.ts",
+          "notes.md",
+        ]) {
           const error = yield* issueAssetUrl({
             resource: { _tag: "workspace-file", threadId: ThreadId.make("thread-1"), path: name },
             workspaceRoot: root,
@@ -495,7 +557,7 @@ describe("AssetAccess", () => {
   );
 
   it.effect.skipIf(!symlinksSupported)(
-    "rejects draft media symlinks escaping the workspace or targeting disallowed types",
+    "rejects escaping draft symlinks and media targeting disallowed types",
     () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
@@ -504,11 +566,14 @@ describe("AssetAccess", () => {
         const root = path.join(directory, "workspace");
         yield* fs.makeDirectory(root);
         const outside = path.join(directory, "outside.mp4");
+        const outsideText = path.join(directory, "outside.txt");
         const secret = path.join(root, "secret.txt");
         yield* fs.writeFileString(outside, "outside bytes");
+        yield* fs.writeFileString(outsideText, "outside text");
         yield* fs.writeFileString(secret, "private bytes");
         for (const [name, target] of [
           ["escape.mp4", outside],
+          ["escape.txt", outsideText],
           ["disguised.wav", secret],
         ] as const) {
           yield* fs.symlink(target, path.join(root, name));
@@ -520,6 +585,15 @@ describe("AssetAccess", () => {
             error._tag,
           );
         }
+        const escapedText = yield* issueAssetUrl({
+          resource: {
+            _tag: "draft-workspace-file",
+            cwd: root,
+            path: path.join(root, "escape.txt"),
+          },
+          workspaceRoot: root,
+        }).pipe(Effect.flip);
+        expect(escapedText._tag).toBe("AssetWorkspaceAssetNotFoundError");
       }).pipe(Effect.provide(layerTest)),
   );
 
@@ -530,7 +604,7 @@ describe("AssetAccess", () => {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const root = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-draft-absolute-" });
-        for (const extension of ["png", "mp4", "wav"]) {
+        for (const extension of ["png", "mp4", "wav", "txt", "md"]) {
           const target = path.join(root, `target.${extension}`);
           const alias = path.join(root, `alias.${extension}`);
           yield* fs.writeFileString(target, "preview bytes");

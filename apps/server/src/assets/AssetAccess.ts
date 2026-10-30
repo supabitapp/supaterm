@@ -19,6 +19,7 @@ import {
   TurnItemId,
 } from "@supaterm/contracts";
 import {
+  filePreviewKind,
   hostPreviewMimeTypeFromExtension,
   isWorkspaceAudioPreviewPath,
   isWorkspacePreviewEntryPath,
@@ -90,6 +91,10 @@ const inlinePreviewMimeTypeForExtension = (extension: string) =>
   INLINE_PREVIEW_MIME_TYPES[extension] ??
   hostPreviewMimeTypeFromExtension(`.${extension}`) ??
   undefined;
+const isTextPreviewPath = (path: string) => {
+  const kind = filePreviewKind({ name: path });
+  return kind === "text" || kind === "markdown";
+};
 const PREVIEW_ASSET_EXTENSIONS = new Set([
   ...WORKSPACE_BROWSER_PREVIEW_EXTENSIONS,
   ".avif",
@@ -465,7 +470,9 @@ const finalizeWorkspaceFileAsset = Effect.fn("AssetAccess.finalizeWorkspaceFileA
       input.resource._tag === "draft-workspace-file" &&
       (isWorkspaceAudioPreviewPath(resolved.relativePath) ||
         isWorkspaceVideoPreviewPath(resolved.relativePath));
-    if (!isDraftMedia && !isWorkspacePreviewEntryPath(resolved.relativePath)) {
+    const isDraftText =
+      input.resource._tag === "draft-workspace-file" && isTextPreviewPath(resolved.relativePath);
+    if (!isDraftMedia && !isDraftText && !isWorkspacePreviewEntryPath(resolved.relativePath)) {
       return yield* new AssetPreviewTypeValidationError({
         resource: input.resource,
       });
@@ -624,7 +631,7 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
       const hostPath = input.resource.path.startsWith("~/")
         ? expandHomePath(input.resource.path, yield* HostProcess.HomeDirectory)
         : input.resource.path;
-      if (path.isAbsolute(hostPath)) {
+      if (path.isAbsolute(hostPath) && !isTextPreviewPath(hostPath)) {
         const finalized = yield* finalizeAbsoluteMediaFileAsset({
           requestedPath: hostPath,
           workspaceRoot: draftWorkspaceRoot,
@@ -648,7 +655,7 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
       );
       const finalized = yield* finalizeWorkspaceFileAsset({
         workspaceRoot,
-        requestedPath: input.resource.path,
+        requestedPath: hostPath,
         resource: input.resource,
         expiresAt,
       });
