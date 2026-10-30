@@ -20,6 +20,7 @@ import { formatSubagentDisplayTitle } from "@supaterm/client-runtime/state/subag
 import {
   ProviderDriverKind,
   type OrchestrationV2Notification,
+  type OrchestrationV2RemoteTaskChild,
   type OrchestrationV2TurnItem,
   type OrchestrationV2Subagent,
   type ProviderInstanceId,
@@ -437,6 +438,7 @@ function SubagentTimelineLink(props: {
     environmentThreadDetails.threadAtom(props.parentRef),
     (thread) => thread?.projection.subagents.find((agent) => agent.id === props.subagentId) ?? null,
   );
+  const remote = agent?.remoteChild;
   const threadId = props.threadId;
   const liveStatus = agent?.status ?? props.status;
   const status = props.event ? props.event.status : liveStatus;

@@ -24,12 +24,14 @@ import { observeResize } from "../../lib/observeResize";
 
 export function ThreadDetailsCard({
   threadRef,
+  contentKey,
   anchor,
   handle,
   onPresentationChange,
   children,
 }: {
   threadRef: ScopedThreadRef;
+  contentKey?: string;
   anchor: RefObject<Element | null>;
   handle: ReturnType<typeof PopoverCreateHandle>;
   onPresentationChange: (presentation: ThreadPanelPresentation) => void;
@@ -63,7 +65,7 @@ export function ThreadDetailsCard({
   );
   const threadKey = `${threadRef.environmentId}:${threadRef.threadId}`;
   const [contentElement, setContentElement] = useState<HTMLDivElement | null>(null);
-  const measurementKey = `${threadKey}:${preferredPlacement?.width ?? "popup"}`;
+  const measurementKey = `${threadKey}:${preferredPlacement?.width ?? "popup"}:${contentKey ?? ""}`;
   const [measurements, setMeasurements] = useState({
     key: measurementKey,
     heights: { full: 0, compact: 0 },

@@ -10,6 +10,7 @@ import {
   messageSearchTokens,
 } from "@supaterm/shared/paletteSearch";
 import { create } from "zustand";
+import { useChatPaneStore } from "../../chatPanes/store";
 import type { ThreadFindPositionReader, ThreadFindStart } from "./threadFind";
 
 export interface ThreadFindLocalSelection {
@@ -43,39 +44,60 @@ export const CLOSED_THREAD_FIND: ThreadFindState = {
   localSelection: null,
 };
 
-export const useThreadFindStore = create<ThreadFindState>(() => CLOSED_THREAD_FIND);
-
-/** What find needs from the timeline that shows a thread. */
+const makeStore = () => create<ThreadFindState>(() => CLOSED_THREAD_FIND);
+export const useThreadFindStore = makeStore();
+const scopedStores = new Map<string, ReturnType<typeof makeStore>>();
+export function currentThreadFindScope(): string {
+  return useChatPaneStore.getState().layout?.focusedPaneId ?? "root";
+}
+export function getThreadFindStore(scope = currentThreadFindScope()) {
+  if (scope === "root") return useThreadFindStore;
+  let store = scopedStores.get(scope);
+  if (!store) {
+    store = makeStore();
+    scopedStores.set(scope, store);
+  }
+  return store;
+}
 interface ThreadFindTimeline {
   readonly threadKey: string;
   readonly readPosition: ThreadFindPositionReader;
 }
-
-let attachedTimeline: ThreadFindTimeline | null = null;
-
-function timelineFor(threadKey: string): ThreadFindTimeline | null {
-  return attachedTimeline?.threadKey === threadKey ? attachedTimeline : null;
-}
-
-/** Attaches the timeline showing a thread; returns the detach. */
-export function attachThreadFindTimeline(timeline: ThreadFindTimeline): () => void {
-  attachedTimeline = timeline;
+const attachedTimelines = new Map<string, ThreadFindTimeline>();
+export function attachThreadFindTimeline(
+  timeline: ThreadFindTimeline,
+  scope = currentThreadFindScope(),
+): () => void {
+  attachedTimelines.set(scope, timeline);
   return () => {
-    if (attachedTimeline === timeline) attachedTimeline = null;
+    if (attachedTimelines.get(scope) === timeline) attachedTimelines.delete(scope);
   };
 }
+function timelineFor(threadKey: string, scope: string): ThreadFindTimeline | null {
+  const timeline = attachedTimelines.get(scope);
+  return timeline?.threadKey === threadKey ? timeline : null;
+}
+export function openFocusedThreadFind(): void {
+  const scope = currentThreadFindScope();
+  const timeline = attachedTimelines.get(scope);
+  if (timeline) openThreadFind(timeline.threadKey, scope);
+}
 
-function readThreadFindPosition(threadKey: string, query: string): ThreadFindStart | undefined {
-  return timelineFor(threadKey)?.readPosition(query);
+function readThreadFindPosition(
+  threadKey: string,
+  query: string,
+  scope: string,
+): ThreadFindStart | undefined {
+  return timelineFor(threadKey, scope)?.readPosition(query);
 }
 
 /** Opens find, or refocuses it and restarts its search from the viewport when already open. */
-export function openThreadFind(threadKey: string): void {
-  const previous = useThreadFindStore.getState();
+export function openThreadFind(threadKey: string, scope = currentThreadFindScope()): void {
+  const previous = getThreadFindStore(scope).getState();
   const current = previous.threadKey === threadKey ? previous : CLOSED_THREAD_FIND;
   const query = current.query.trim();
-  const start = query ? readThreadFindPosition(threadKey, query) : undefined;
-  useThreadFindStore.setState({
+  const start = query ? readThreadFindPosition(threadKey, query, scope) : undefined;
+  getThreadFindStore(scope).setState({
     ...current,
     threadKey,
     focusRequestId: previous.focusRequestId + 1,
@@ -101,9 +123,13 @@ export interface PendingThreadFind {
  * Opens find on `query` in the thread, such as at the message a search result
  * came from. The thread's view shows it once it is on screen.
  */
-export function openThreadFindOnQuery(threadKey: string, find: PendingThreadFind): void {
-  const previous = useThreadFindStore.getState();
-  useThreadFindStore.setState({
+export function openThreadFindOnQuery(
+  threadKey: string,
+  find: PendingThreadFind,
+  scope = currentThreadFindScope(),
+): void {
+  const previous = getThreadFindStore(scope).getState();
+  getThreadFindStore(scope).setState({
     ...(previous.threadKey === threadKey ? previous : CLOSED_THREAD_FIND),
     threadKey,
     query: find.query,
@@ -116,9 +142,13 @@ export function openThreadFindOnQuery(threadKey: string, find: PendingThreadFind
   });
 }
 
-export function setThreadFindQuery(threadKey: string, query: string): void {
-  const start = readThreadFindPosition(threadKey, query.trim());
-  useThreadFindStore.setState((previous) => ({
+export function setThreadFindQuery(
+  threadKey: string,
+  query: string,
+  scope = currentThreadFindScope(),
+): void {
+  const start = readThreadFindPosition(threadKey, query.trim(), scope);
+  getThreadFindStore(scope).setState((previous) => ({
     query,
     offset: 0,
     start,
@@ -128,8 +158,8 @@ export function setThreadFindQuery(threadKey: string, query: string): void {
   }));
 }
 
-export function closeThreadFind(): void {
-  useThreadFindStore.setState(CLOSED_THREAD_FIND);
+export function closeThreadFind(scope = currentThreadFindScope()): void {
+  getThreadFindStore(scope).setState(CLOSED_THREAD_FIND);
 }
 
 /**
@@ -141,14 +171,15 @@ export function retainThreadFindForRoute(route: {
   readonly threadRef: ScopedThreadRef | null;
 }): void {
   if (route.modalPage) return;
-  const { threadKey } = useThreadFindStore.getState();
+  const scope = currentThreadFindScope();
+  const { threadKey } = getThreadFindStore(scope).getState();
   const shownKey = route.threadRef ? scopedThreadKey(route.threadRef) : null;
-  if (threadKey !== null && threadKey !== shownKey) closeThreadFind();
+  if (threadKey !== null && threadKey !== shownKey) closeThreadFind(scope);
 }
 
 /** Whether find is open in `thread`, as long as find is available there. */
 export function useThreadFindOpen(thread: ScopedThreadRef | null, enabled: boolean): boolean {
-  const openThreadKey = useThreadFindStore((state) => state.threadKey);
+  const openThreadKey = getThreadFindStore()((state) => state.threadKey);
   return enabled && thread !== null && openThreadKey === scopedThreadKey(thread);
 }
 

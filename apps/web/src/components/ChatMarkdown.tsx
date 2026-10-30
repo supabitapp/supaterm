@@ -1,3 +1,4 @@
+import { InlineAudioPreview } from "./files/InlineAudioPreview";
 import { HostImageUrlContext } from "./chat/hostImageUrl";
 import { buildFileLinkParentSuffixByPath, fileLinkLabel } from "@supaterm/shared/fileLinks";
 import {
@@ -70,6 +71,7 @@ import React, {
   Suspense,
   type ComponentProps,
   type ClipboardEvent as ReactClipboardEvent,
+  type MouseEvent as ReactMouseEvent,
   use,
   memo,
   useLayoutEffect,
@@ -949,6 +951,10 @@ function markdownHeadingRenderer(level: 1 | 2 | 3 | 4 | 5 | 6) {
 }
 
 // Keep component types stable when streaming changes the message state.
+function selectInlineCode(event: ReactMouseEvent<HTMLElement>) {
+  window.getSelection()?.selectAllChildren(event.currentTarget);
+}
+
 const CHAT_MARKDOWN_COMPONENTS = {
   h1: markdownHeadingRenderer(1),
   h2: markdownHeadingRenderer(2),
@@ -967,8 +973,8 @@ const CHAT_MARKDOWN_COMPONENTS = {
     return <div {...props}>{children}</div>;
   },
   p: function MarkdownParagraph({ node: _node, children, ...props }) {
-    const { skills } = use(ChatMarkdownRendererContext);
-    return <p {...props}>{renderSkillInlineMarkdownChildren(children, skills)}</p>;
+    const { skills, threadRef } = use(ChatMarkdownRendererContext);
+    return <p {...props}>{renderSkillInlineMarkdownChildren(children, skills, threadRef)}</p>;
   },
   blockquote: function MarkdownBlockquote({ node: _node, children, ...props }) {
     const alert =
@@ -1003,14 +1009,14 @@ const CHAT_MARKDOWN_COMPONENTS = {
     );
   },
   li: function MarkdownListItem({ node, children, ...props }) {
-    const { skills } = use(ChatMarkdownRendererContext);
+    const { skills, threadRef } = use(ChatMarkdownRendererContext);
     // The checkbox finds its marker from this offset when toggled, so list items
     // don't read the source text and re-render on every streamed token.
     // remark-gfm marks task items with this class; plain items carry no offset.
     const isTaskItem = String(props.className ?? "").includes("task-list-item");
     return (
       <li {...props} data-list-item-offset={isTaskItem ? node?.position?.start.offset : undefined}>
-        {renderSkillInlineMarkdownChildren(children, skills)}
+        {renderSkillInlineMarkdownChildren(children, skills, threadRef)}
       </li>
     );
   },
@@ -1145,6 +1151,7 @@ const CHAT_MARKDOWN_COMPONENTS = {
               href &&
               faviconHost !== null &&
               mediaKindFromPath(href) !== null &&
+              mediaKindFromPath(href) !== "audio" &&
               !event.defaultPrevented &&
               !event.metaKey &&
               !event.ctrlKey &&
@@ -1344,6 +1351,11 @@ const CHAT_MARKDOWN_COMPONENTS = {
           inlineCodeFilePathCandidate(codeText) ?? codeText.trim(),
         );
       }
+      return (
+        <code {...props} className={className} onDoubleClick={selectInlineCode}>
+          {children}
+        </code>
+      );
     }
     return (
       <code {...props} className={className}>
@@ -1361,6 +1373,7 @@ const CHAT_MARKDOWN_COMPONENTS = {
       threadRef,
       workspaceMutationId,
       renderContextReference,
+      fileLinkChip,
     } = use(ChatMarkdownRendererContext);
     const imageExpand = use(MarkdownLinkContext) ? undefined : expandMedia;
     const contextReference = typeof src === "string" ? parseComposerContextHref(src) : null;
@@ -1390,7 +1403,42 @@ const CHAT_MARKDOWN_COMPONENTS = {
       imageBaseDir ?? cwd,
       cwd ?? imageBaseDir,
     );
-    const kind = mediaKindFromPath(classifiedSrc) ?? "image";
+    const mediaKind = mediaKindFromPath(classifiedSrc);
+    if (mediaKind === "audio") {
+      const filePath = imageSource._tag === "WorkspaceFile" ? imageSource.path : null;
+      const name =
+        (filePath ?? classifiedSrc.split(/[?#]/, 1)[0] ?? "").split(/[\\/]/).at(-1) ||
+        altText ||
+        "Audio";
+      if (imageSource._tag !== "Direct" && !(filePath && threadRef)) {
+        return <ChatMarkdownImageFallback alt={altText} copyMarkdown={copyMarkdown} kind="audio" />;
+      }
+      return (
+        <InlineAudioPreview
+          key={classifiedSrc}
+          name={name}
+          copyMarkdown={copyMarkdown}
+          {...(filePath && threadRef
+            ? {
+                environmentId: threadRef.environmentId,
+                resource: {
+                  _tag: "media-file" as const,
+                  threadId: threadRef.threadId,
+                  path: filePath,
+                },
+                onOpen: () => useRightPanelStore.getState().openFile(threadRef, filePath),
+              }
+            : imageSource._tag === "Direct"
+              ? { src: resolveProtocolRelativeMediaUrl(imageSource.uri) }
+              : {})}
+        />
+      );
+    }
+    if (mediaKind === null && imageSource._tag === "WorkspaceFile") {
+      const fileLinkMeta = resolveMarkdownFileLinkMeta(srcString, cwd, imageBaseDir ?? cwd);
+      if (fileLinkMeta) return fileLinkChip(fileLinkMeta, copyMarkdown, srcString);
+    }
+    const kind = mediaKind ?? "image";
     const directUri = imageSource._tag === "Direct" ? imageSource.uri : null;
     const githubMediaUrl =
       directUri === null ? null : githubMediaFetchUrl(resolveProtocolRelativeMediaUrl(directUri));

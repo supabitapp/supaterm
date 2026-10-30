@@ -5,7 +5,7 @@ import {
   type ProviderDriverKind,
   type ResolvedKeybindingsConfig,
 } from "@supaterm/contracts";
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useState, useRef } from "react";
 import { Badge } from "../ui/badge";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -55,6 +55,7 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
   onInstanceModelChange: (instanceId: ProviderInstanceId, model: string) => void;
 }) {
   const composerFloatingLayerProps = useComposerMenuProps();
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [uncontrolledIsMenuOpen, setUncontrolledIsMenuOpen] = useState(false);
   const isMenuOpen = props.open ?? uncontrolledIsMenuOpen;
   const size = props.size ?? "sm";
@@ -281,8 +282,10 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
         className="before:hidden"
         padding="none"
         touchBackdrop
+        initialFocus={searchInputRef}
       >
         <ModelPickerContent
+          searchInputRef={searchInputRef}
           environmentId={props.environmentId}
           activeInstanceId={activeInstanceId}
           model={props.model}

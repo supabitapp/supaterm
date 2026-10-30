@@ -1,3 +1,8 @@
+import {
+  createOptimisticBlobPreviews,
+  emptyOptimisticUserMessages,
+  reconcileOptimisticUserMessages,
+} from "./chat/optimisticUserMessages";
 import { shallow } from "zustand/vanilla/shallow";
 import { useCitedHistory } from "./chat/citationProcedure";
 import { GuestPendingMessages } from "./chat/GuestShareControls";
@@ -347,7 +352,6 @@ import { ScrollToEndPill } from "./chat/ScrollToEndPill";
 import { WorkspaceDropOverlay } from "./WorkspaceDropOverlay";
 import {
   buildLocalDraftThread,
-  collectUserMessageBlobPreviewUrls,
   deriveCommittedServerUserMessageIds,
   dismissBranchMismatchForSession,
   shouldRenderPreviewMiniPlayer,
@@ -356,7 +360,6 @@ import {
   resolveComposerProviderSelection,
   resolveThreadMetadataUpdateForNextTurn,
   resolveSendEnvMode,
-  revokeUserMessagePreviewUrls,
   startNewThreadForProject,
   codexArtifactTemplatePromptToAppend,
   shouldRefocusComposerOnWindowFocus,
@@ -729,7 +732,20 @@ export default function ChatView(props: ChatViewProps) {
   };
   const citeAssistantTextStable = useStableCallback(citeAssistantText);
   const [isWorkspaceFileDragActive, setIsWorkspaceFileDragActive] = useState(false);
-  const [optimisticUserMessages, setOptimisticUserMessages] = useState<ChatMessage[]>([]);
+  const [optimisticBlobPreviews] = useState(createOptimisticBlobPreviews);
+  const [heldOptimisticUserMessages, setHeldOptimisticUserMessages] = useState(() =>
+    emptyOptimisticUserMessages(threadId),
+  );
+  const optimisticState = reconcileOptimisticUserMessages(
+    heldOptimisticUserMessages,
+    threadId,
+    serverAcknowledgedUserMessageIds,
+  );
+  if (optimisticState !== heldOptimisticUserMessages) {
+    optimisticBlobPreviews.handOff(optimisticState);
+    setHeldOptimisticUserMessages(optimisticState);
+  }
+  const optimisticUserMessages = optimisticState.messages;
   const [workLocallyResendDraftId, setWorkLocallyResendDraftId] = useState<DraftId | null>(null);
   if (workLocallyResendDraftId !== null && workLocallyResendDraftId !== draftId) {
     setWorkLocallyResendDraftId(null);
@@ -1540,8 +1556,14 @@ export default function ChatView(props: ChatViewProps) {
     }
   };
   const openFileAttachmentStable = useStableCallback(openFileAttachment);
-  const { handoffAttachmentPreviewsStable, timelineAttachmentUrlById } =
-    useAttachmentPreviewHandoff({ environmentId, serverVisibleTurnItems, optimisticUserMessages });
+  const { timelineAttachmentUrlById } = useAttachmentPreviewHandoff({
+    environmentId,
+    threadId,
+    serverVisibleTurnItems,
+    handoff: optimisticState.handoff,
+    blobPreviews: optimisticBlobPreviews,
+    setOptimisticUserMessages: setHeldOptimisticUserMessages,
+  });
   const anchoredTimelineMessages = feedbackSubmissions.flatMap((submission) =>
     submission.status === "interrupted"
       ? []
@@ -2214,53 +2236,9 @@ export default function ChatView(props: ChatViewProps) {
     terminalUiState.terminalOpen,
   ]);
 
-  useEffect(() => {
-    if (!activeThread?.id) return;
-    if (activeMessageCount === 0) {
-      return;
-    }
-    const removedMessages = optimisticUserMessages.filter((message) =>
-      serverAcknowledgedUserMessageIds.has(message.id),
-    );
-    if (removedMessages.length === 0) {
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      setOptimisticUserMessages((existing) =>
-        existing.filter((message) => !serverAcknowledgedUserMessageIds.has(message.id)),
-      );
-    }, 0);
-    for (const removedMessage of removedMessages) {
-      const previewUrls = collectUserMessageBlobPreviewUrls(removedMessage);
-      if (previewUrls.length > 0) {
-        handoffAttachmentPreviewsStable(removedMessage.id, previewUrls);
-        continue;
-      }
-      revokeUserMessagePreviewUrls(removedMessage);
-    }
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [
-    activeMessageCount,
-    activeThread?.id,
-    serverAcknowledgedUserMessageIds,
-    handoffAttachmentPreviewsStable,
-    optimisticUserMessages,
-  ]);
-
-  // Keyed on the thread, not the draft: a draft's promotion to its server
-  // route keeps this instance and drops `draftId`, and the send it is still
-  // dispatching must survive that swap.
-  const [optimisticUserMessagesThreadId, setOptimisticUserMessagesThreadId] = useState(threadId);
-  if (optimisticUserMessagesThreadId !== threadId) {
-    setOptimisticUserMessagesThreadId(threadId);
-    setOptimisticUserMessages((existing) => {
-      for (const message of existing) {
-        revokeUserMessagePreviewUrls(message);
-      }
-      return [];
-    });
+  const [localDispatchThreadId, setLocalDispatchThreadId] = useState(threadId);
+  if (localDispatchThreadId !== threadId) {
+    setLocalDispatchThreadId(threadId);
     resetLocalDispatch();
   }
 
@@ -3944,6 +3922,11 @@ export default function ChatView(props: ChatViewProps) {
                     onAddProjectScript={saveProjectScriptStable}
                     onUpdateProjectScript={updateProjectScriptStable}
                     onDeleteProjectScript={deleteProjectScriptStable}
+                    providerLimits={{
+                      providerInstanceId: activeProviderInstanceId,
+                      providers: providerStatuses,
+                      contextWindow: activeContextWindow,
+                    }}
                     contextWindow={
                       activeContextWindow
                         ? {

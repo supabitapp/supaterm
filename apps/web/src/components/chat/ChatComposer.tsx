@@ -1019,7 +1019,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     null,
   );
   const [composerMenuAnchor, setComposerMenuAnchor] = useState<HTMLDivElement | null>(null);
-  const hasWrappedPrompt = useComposerMultilinePrompt(composerMenuAnchor);
+  const [hasWrappedPrompt, observeComposerBody] = useComposerMultilinePrompt();
   const hasMultilinePrompt = prompt.includes("\n") || hasWrappedPrompt;
   const [tasksExpandedPreference, setTasksExpandedPreference] = useLocalStorage(
     COMPOSER_TASKS_EXPANDED_KEY,
@@ -2343,6 +2343,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       onPromptEdit={editPromptFromTraitsStable}
       compatibleRuntimeMode={compatibleRuntimeMode}
       defaultRuntimeMode={defaultRuntimeMode}
+      effortDisplay={settings.effortDisplay}
       permissionsShownInStrip={permissionsShownInStrip}
       compatibleRuntimeModeOptions={compatibleRuntimeModeOptions}
       handleRuntimeModeChange={handleRuntimeModeChange}
@@ -3418,7 +3419,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
             ) : null}
 
             <div
-              ref={setComposerMenuAnchor}
+              ref={(body) => {
+                setComposerMenuAnchor(body);
+                return observeComposerBody(body);
+              }}
               data-chat-composer-body="true"
               className={cn(
                 "relative px-3 pb-2 sm:px-4",

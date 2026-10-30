@@ -10,7 +10,9 @@ import { Button } from "../ui/button";
 
 function SkillInlineText(props: {
   text: string;
-  skills: ReadonlyArray<ServerProviderSkill>;
+  skills: ReadonlyArray<
+    Pick<ServerProviderSkill, "name" | "displayName"> & Partial<ServerProviderSkill>
+  >;
   threadRef: ScopedThreadRef | undefined;
 }) {
   const nodes: ReactNode[] = [];
@@ -24,9 +26,14 @@ function SkillInlineText(props: {
       <SkillChipPopover
         key={`${start}:${skill.name}`}
         label={formatProviderSkillDisplayName(skill)}
-        description={skillPopoverDescription(skill)}
+        description={skillPopoverDescription(
+          props.skills.find((candidate) => candidate.name === skill.name) ?? skill,
+        )}
         copyMarkdown={rawText}
-        onViewInstructions={skillInstructionsOpener(props.threadRef, skill)}
+        onViewInstructions={skillInstructionsOpener(
+          props.threadRef,
+          props.skills.find((candidate) => candidate.name === skill.name) ?? skill,
+        )}
       />,
     );
     cursor = end;
@@ -43,7 +50,9 @@ function SkillInlineText(props: {
 
 export function renderSkillInlineMarkdownChildren(
   children: ReactNode,
-  skills: ReadonlyArray<ServerProviderSkill>,
+  skills: ReadonlyArray<
+    Pick<ServerProviderSkill, "name" | "displayName"> & Partial<ServerProviderSkill>
+  >,
   threadRef: ScopedThreadRef | undefined,
 ): ReactNode {
   return Children.map(children, (child) => {
@@ -71,17 +80,21 @@ export function renderSkillInlineMarkdownChildren(
 }
 
 export function skillPopoverDescription(
-  skill: Pick<ServerProviderSkill, "description" | "shortDescription">,
+  skill: Pick<ServerProviderSkill, "name"> &
+    Partial<Pick<ServerProviderSkill, "description" | "shortDescription">>,
 ) {
   return skill.description?.trim() || skill.shortDescription?.trim() || null;
 }
 
 export function skillInstructionsOpener(
   threadRef: ScopedThreadRef | null | undefined,
-  skill: Pick<ServerProviderSkill, "path"> | undefined,
+  skill:
+    | (Pick<ServerProviderSkill, "name"> & Partial<Pick<ServerProviderSkill, "path">>)
+    | undefined,
 ) {
   if (!threadRef || !skill?.path) return undefined;
-  return () => useRightPanelStore.getState().openFile(threadRef, skill.path);
+  const path = skill.path;
+  return () => useRightPanelStore.getState().openFile(threadRef, path);
 }
 
 export function SkillChipPopover(props: {
@@ -96,7 +109,7 @@ export function SkillChipPopover(props: {
       icon={<SkillChipIcon />}
       label={props.label}
       accessibleLabel={`Skill ${props.label}`}
-      copyMarkdown={props.copyMarkdown}
+      {...(props.copyMarkdown !== undefined ? { copyMarkdown: props.copyMarkdown } : {})}
     >
       <div className="space-y-3 p-2 text-sm">
         <p className="font-medium">{props.label}</p>
@@ -111,7 +124,7 @@ export function SkillChipPopover(props: {
   );
 }
 
-function SkillChipIcon() {
+export function SkillChipIcon() {
   return (
     <span
       aria-hidden="true"

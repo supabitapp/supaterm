@@ -1,4 +1,4 @@
-import { useLayoutEffect } from "react";
+import { useLayoutEffect, type RefObject } from "react";
 import type { RunId } from "@supaterm/contracts";
 import type { TimelineEntry } from "../../session-logic";
 import {
@@ -8,11 +8,13 @@ import {
 } from "./MessagesTimeline.logic";
 import type { ThreadFindPositionReader } from "./threadFind";
 import { attachThreadFindTimeline } from "./threadFindStore";
+import { usePaneScope } from "../../chatPanes/paneScope";
 import { readThreadFindPosition } from "./threadFindPosition";
 
 /** Hands thread find how to read the find position of this timeline's viewport. */
 export function useThreadFindPositionReader({
   threadKey,
+  findPositionReaderRef,
   timelineViewportElement,
   findFoldRunIds,
   timelineEntries,
@@ -24,6 +26,7 @@ export function useThreadFindPositionReader({
   contentInsetEndAdjustment,
 }: {
   readonly threadKey: string;
+  readonly findPositionReaderRef?: RefObject<ThreadFindPositionReader | null>;
   readonly timelineViewportElement: HTMLDivElement | null;
   readonly findFoldRunIds: ReadonlyMap<string, RunId> | null;
   readonly timelineEntries: ReadonlyArray<TimelineEntry>;
@@ -35,6 +38,7 @@ export function useThreadFindPositionReader({
   readonly contentInsetEndAdjustment: number;
 }) {
   // Layout effect so a find opened right after a thread switch reads this viewport.
+  const scope = usePaneScope()?.paneId ?? "root";
   useLayoutEffect(() => {
     if (!timelineViewportElement) return;
     const read: ThreadFindPositionReader = (query) => {
@@ -83,9 +87,16 @@ export function useThreadFindPositionReader({
         contentInsetEndAdjustment,
       );
     };
-    return attachThreadFindTimeline({ threadKey, readPosition: read });
+    if (findPositionReaderRef) findPositionReaderRef.current = read;
+    const detach = attachThreadFindTimeline({ threadKey, readPosition: read }, scope);
+    return () => {
+      detach();
+      if (findPositionReaderRef?.current === read) findPositionReaderRef.current = null;
+    };
   }, [
     contentInsetEndAdjustment,
+    findPositionReaderRef,
+    scope,
     findFoldRunIds,
     isWorking,
     threadKey,

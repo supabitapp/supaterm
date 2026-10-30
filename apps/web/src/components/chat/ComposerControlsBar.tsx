@@ -1,3 +1,4 @@
+import type { EffortDisplay } from "@supaterm/contracts/settings";
 import type {
   EnvironmentId,
   ModelSelection,
@@ -48,6 +49,7 @@ export function ComposerControlsBar(props: {
   compatibleRuntimeMode: RuntimeMode;
   defaultRuntimeMode: RuntimeMode;
   permissionsShownInStrip: boolean;
+  effortDisplay: EffortDisplay;
   compatibleRuntimeModeOptions: ReadonlyArray<RuntimeModeOption>;
   handleRuntimeModeChange: (mode: RuntimeMode) => void;
   composerControlsCollapsed: boolean;
@@ -148,6 +150,7 @@ export function ComposerControlsBar(props: {
     promptUltrathink,
     onPromptEdit,
     isComposerOwned: true,
+    effortDisplay: props.effortDisplay,
     extraMenuContent: (
       <ComposerPermissionsSection
         runtimeMode={compatibleRuntimeMode}

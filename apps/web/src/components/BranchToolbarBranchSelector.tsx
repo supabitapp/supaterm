@@ -640,6 +640,7 @@ export function BranchToolbarBranchSelector({
       onSelectItem={selectPickerItem}
       value={resolvedActiveBranch}
       query={branchQuery}
+      resultsQuery={deferredBranchQuery}
       onQueryChange={setBranchQuery}
       hasNextPage={hasNextPage}
       isFetchingNextPage={isFetchingNextPage}

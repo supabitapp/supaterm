@@ -1117,6 +1117,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   }, [endFollowAllowed]);
 
   useThreadFindPositionReader({
+    threadKey: routeThreadKey,
     findPositionReaderRef,
     timelineViewportElement,
     findFoldRunIds,

@@ -1,3 +1,5 @@
+import type { EffortDisplay } from "@supaterm/contracts/settings";
+import { resolveEffortGlyph } from "./effortLevels";
 import {
   buildTraitsTriggerLabel,
   getDescriptorStringValue,
@@ -31,7 +33,7 @@ import {
   type SpeedToggleLevel,
 } from "@supaterm/client-runtime/provider-speed-toggle";
 import { memo, useRef, type ReactNode } from "react";
-import { BrainIcon, ZapIcon } from "@supaterm/icons";
+import { BrainIcon, ZapIcon, ChartColumnIcon } from "@supaterm/icons";
 import { UltrafastIcon } from "../Icons";
 import {
   Menu,
@@ -565,6 +567,7 @@ export const TraitsPicker = memo(function TraitsPicker({
   triggerClassName,
   isComposerOwned,
   shortcutLabel = null,
+  effortDisplay = "label",
   extraMenuContent,
   extraMenuHint,
   extraMenuOwnsModeShortcut = false,
@@ -579,6 +582,7 @@ export const TraitsPicker = memo(function TraitsPicker({
     /** The key that opens the picker, shown on its trigger. */
     shortcutLabel?: string | null;
     disabled?: boolean;
+    effortDisplay?: EffortDisplay;
     extraMenuContent?: ReactNode;
     extraMenuHint?: string;
     extraMenuOwnsModeShortcut?: boolean;
@@ -669,6 +673,11 @@ export const TraitsPicker = memo(function TraitsPicker({
   });
 
   const isCodexStyle = provider === "codex";
+  const effortLevel = primarySelectDescriptor
+    ? resolveEffortGlyph(primarySelectDescriptor, getDescriptorStringValue(primarySelectDescriptor))
+    : null;
+  const showEffortBars =
+    isComposerOwned && effortDisplay === "bars" && effortLevel && effortLevel.special === null;
 
   return (
     <>
@@ -707,7 +716,15 @@ export const TraitsPicker = memo(function TraitsPicker({
               />
             }
           >
-            {isCodexStyle ? (
+            {showEffortBars ? (
+              <>
+                <ComposerControlIcon icon={ChartColumnIcon} size={size} />
+                <span aria-hidden>
+                  {effortLevel.filled}/{effortLevel.count}
+                </span>
+                <span className="sr-only">{effortLevel.label}</span>
+              </>
+            ) : isCodexStyle ? (
               <span
                 className={cn(
                   "flex min-w-0 w-full items-center",

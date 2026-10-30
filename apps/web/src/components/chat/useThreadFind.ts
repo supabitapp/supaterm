@@ -12,9 +12,14 @@ import {
   type ThreadFindStart,
   stepThreadFindIndex,
 } from "./threadFind";
-import { subscribeThreadFindOpen } from "./threadFindActionBus";
+import {
+  getThreadFindStore,
+  openThreadFind,
+  closeThreadFind,
+  attachThreadFindTimeline,
+} from "./threadFindStore";
 import { toastManager } from "../ui/toast";
-import { usePaneInputOwner } from "../../chatPanes/paneScope";
+import { usePaneScope } from "../../chatPanes/paneScope";
 
 const EMPTY_SKILLS: readonly InlineSkill[] = [];
 
@@ -57,7 +62,10 @@ export function useThreadFind({
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshAfterSearchRef = useRef(false);
   const threadKey = thread ? scopedThreadKey(thread) : null;
-  const [state, setState] = useState(CLOSED_FIND);
+  const scope = usePaneScope()?.paneId ?? "root";
+  const store = getThreadFindStore(scope);
+  const state = store();
+  const setState = store.setState;
   if (state.threadKey !== null && (!enabled || state.threadKey !== threadKey))
     setState(CLOSED_FIND);
   const isOpen = enabled && threadKey !== null && state.threadKey === threadKey;
@@ -71,37 +79,16 @@ export function useThreadFind({
       });
       return;
     }
-    const start =
-      state.threadKey === threadKey && state.query.trim()
-        ? positionReader.current?.(state.query.trim())
-        : undefined;
-    setState((previous) => {
-      const current = previous.threadKey === threadKey ? previous : CLOSED_FIND;
-      return {
-        ...current,
-        threadKey,
-        focusRequestId: previous.focusRequestId + 1,
-        ...(current.query.trim()
-          ? {
-              start,
-              offset: 0,
-              localSelection: null,
-              navigationId: current.navigationId + 1,
-              requestId: current.navigationId + 1,
-            }
-          : {}),
-      };
-    });
+    openThreadFind(threadKey, scope);
   });
-  const close = useStableCallback(() => setState(CLOSED_FIND));
-  const isPaneInputOwner = usePaneInputOwner();
-  useEffect(
-    () =>
-      subscribeThreadFindOpen(() => {
-        if (isPaneInputOwner()) open();
-      }),
-    [isPaneInputOwner, open],
-  );
+  const close = useStableCallback(() => closeThreadFind(scope));
+  useLayoutEffect(() => {
+    if (!threadKey || !enabled) return;
+    return attachThreadFindTimeline(
+      { threadKey, readPosition: (query) => positionReader.current?.(query) },
+      scope,
+    );
+  }, [threadKey, enabled, positionReader, scope]);
 
   const remote = useServerResults(
     isOpen ? thread : null,
