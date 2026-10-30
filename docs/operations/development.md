@@ -173,8 +173,8 @@ against the merge base with `origin/main`, or with a ref you pass. A changed `pa
 the mapping does not recognize affects every package. CI still runs the full test suites and the
 jobs the summary lists, so a local pass does not promise a green CI run.
 
-The runner also checks the agent context budget when the server changes and React Compiler
-coverage for changed web and mobile files. A cached success applies only while its tracked
+The runner also checks React Compiler coverage for changed web and mobile files.
+A cached success applies only while its tracked
 source, generated files, install, and environment inputs remain unchanged.
 
 While you iterate, run single checks:

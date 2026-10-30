@@ -122,8 +122,6 @@ for (const file of code) {
   }
 }
 
-if (affected.includes("supaterm")) tests.add("apps/server/src/provider/AgentContextBudget.test.ts");
-
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const compilerApps = [
   {

@@ -123,7 +123,7 @@ const shellCode = (script: string) =>
 
 type CommandExecution = Extract<OrchestrationV2TurnItem, { readonly type: "command_execution" }>;
 
-export function changeRequestsCreatedBy(input: string, output: string) {
+function changeRequestsCreatedBy(input: string, output: string) {
   if (!CREATE_COMMANDS.some(({ command }) => command.test(input))) return [];
   const script = shellScript(input);
   const code = shellCode(script);

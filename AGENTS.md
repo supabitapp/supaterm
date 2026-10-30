@@ -110,10 +110,6 @@ For turn-rendering checks, use the free `Replay (dev)` provider described in [te
 
 For authorized mobile verification, a missing or outdated native client is a build step, not a blocker. Run `vp run mobile:install <ios|android> [device-id]` on the device host before starting Metro. It installs a client matching the native fingerprint from cache or builds one. Omit the device ID only when exactly one target is available. Its JSON result names the build log and any next step. See `test-supaterm-mobile` for the full workflow.
 
-## Evals
-
-Before changing model-facing instructions, MCP descriptions or schemas, or generated-title prompts, read [evals/README.md](evals/README.md) and run the relevant evals. Add a failing case for a model behavior fix.
-
 ## Pull requests
 
 - Conventional commit titles, plain language: `fix(web): new threads no longer spike CPU`.

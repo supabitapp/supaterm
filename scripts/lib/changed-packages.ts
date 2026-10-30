@@ -28,7 +28,6 @@ const EXTRA_OWNERS: ReadonlyArray<readonly [RegExp, ReadonlyArray<string>]> = [
 const RUST = /^native\/(resource-monitor|kde-snap-shot|hyprland-snap-shot)\//;
 
 const TEST_ONLY_DEPS: Readonly<Record<string, ReadonlyArray<string>>> = {
-  "@supaterm/evals": ["supaterm"],
   "@supaterm/provider-pi": ["@supaterm/client-runtime"],
   "@supaterm/scripts": [
     "@supaterm/desktop",

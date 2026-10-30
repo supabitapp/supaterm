@@ -1129,7 +1129,7 @@ export const layerMcpTransport = McpServer.layerHttp({
   allowSessionTermination: true,
 }).pipe(Layer.provide(layerMcpAuthMiddleware));
 
-export const layerTools = Layer.mergeAll(
+const layerTools = Layer.mergeAll(
   layerPreviewToolkit,
   layerOrchestratorToolkit,
   layerThreadToolkit,

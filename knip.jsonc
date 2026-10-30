@@ -5,15 +5,6 @@
   // These executables are supplied by the OS or installed separately from npm.
   "ignoreBinaries": ["eas", "file", "mkfifo", "pkill", "pkg-config", "plutil", "sips"],
   "workspaces": {
-    "evals": {
-      "entry": [
-        "mcp-tool-use/run.ts",
-        "mcp-tool-use/trim-capture.ts",
-        "thread-titles/run.ts",
-        "test-signal/run.ts",
-      ],
-      "ignore": ["mcp-tool-use/templates/**"],
-    },
     "infra/task-cache": {
       "entry": [
         "alchemy.run.ts",
