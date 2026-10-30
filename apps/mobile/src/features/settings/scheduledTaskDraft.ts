@@ -71,9 +71,13 @@ export function scheduleDraftForTask(task: Pick<ScheduledTask, "schedule">): Sch
       };
 }
 
+export function parseIntervalMinutes(value: string): number {
+  return Number(value.trim().replace(",", "."));
+}
+
 export function scheduleFromDraft(draft: ScheduleDraft): ScheduledTaskSchedule | null {
   if (draft.mode === "interval") {
-    const minutes = Number(draft.intervalMinutes);
+    const minutes = parseIntervalMinutes(draft.intervalMinutes);
     const everyMs = Math.round(minutes * 60_000);
     return minutes >= 1 && Number.isSafeInteger(everyMs) ? { type: "interval", everyMs } : null;
   }
