@@ -192,7 +192,6 @@ export interface ThreadDetailScreenProps {
     readonly interactionLocked: boolean;
   };
   readonly worktreeSetup?: WorktreeSetupCardProps | null;
-  readonly setupWorkingStartedAt?: string | null;
   readonly canOperateThread: boolean;
   readonly selectedThread: EnvironmentThreadShell;
   readonly contentPresentation: ThreadContentPresentation;
@@ -1456,7 +1455,6 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
               feed={props.selectedThreadFeed}
               pendingHandoff={props.pendingHandoff}
               worktreeSetup={props.worktreeSetup}
-              setupWorkingStartedAt={props.setupWorkingStartedAt}
               queuedMessages={props.queuedMessages}
               creatingThread={clientCreation !== null}
               dispatchingMessageId={props.dispatchingMessageId}

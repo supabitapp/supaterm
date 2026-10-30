@@ -19,7 +19,7 @@ const running: WorktreeSetupSnapshot = {
 };
 
 describe("mobile worktree setup handoff", () => {
-  it("keeps the setup identity after its card retires so the working header can take over", () => {
+  it("keeps the finished setup after its card retires once the turn starts", () => {
     const done = { ...running, phase: "done" as const, sequence: 2 };
     const held = resolveWorktreeSetupSnapshot(threadId, done, running);
     expect(held).toBe(done);

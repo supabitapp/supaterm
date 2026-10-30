@@ -27,13 +27,10 @@ export function useWorktreeSetup(input: {
   );
   const snapshot = resolveWorktreeSetupSnapshot(input.threadId, query.data, live);
   if (snapshot && snapshot !== live) setHeld({ key, snapshot });
-  return {
-    snapshot,
-    visible: resolveVisibleWorktreeSetup({
-      live: snapshot,
-      recorded: null,
-      turnStarted: input.turnStarted,
-      followUpSent: input.followUpSent,
-    }),
-  };
+  return resolveVisibleWorktreeSetup({
+    live: snapshot,
+    recorded: null,
+    turnStarted: input.turnStarted,
+    followUpSent: input.followUpSent,
+  });
 }
