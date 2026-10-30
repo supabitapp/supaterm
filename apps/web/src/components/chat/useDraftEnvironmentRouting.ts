@@ -74,6 +74,9 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
   const setLogicalProjectDraftThreadId = useComposerDraftStore(
     (store) => store.setLogicalProjectDraftThreadId,
   );
+  const draftProviderInstanceId = useComposerDraftStore((store) =>
+    draftId === null ? null : (store.getComposerDraft(draftId)?.activeProvider ?? null),
+  );
   const allProjects = useProjects();
   const { openScratchProject } = useScratchProject();
   const needsLoadBalancing = automaticEnvironment && !draftThread?.loadBalancedEnvironmentId;
@@ -111,8 +114,15 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
         .map((candidate) => candidate.environmentId)
     : [];
   const onLoadBalancingResolved = (environmentId: EnvironmentId) => {
-    if (!needsLoadBalancing || !draftId || sendInFlightRef.current) return;
+    if (!needsLoadBalancing || !draftId || envLocked || sendInFlightRef.current) return;
     if (!draftThread || draftThread.promotedTo || getDraftSession(draftId) !== draftThread) return;
+    const composerDraft = useComposerDraftStore.getState().getComposerDraft(draftId);
+    if (
+      (composerDraft?.images.length ?? 0) > 0 ||
+      (composerDraft?.files.length ?? 0) > 0 ||
+      (composerDraft?.activeProvider ?? null) !== draftProviderInstanceId
+    )
+      return;
     const target = logicalProjectEnvironments.find(
       (environment) => environment.environmentId === environmentId,
     );

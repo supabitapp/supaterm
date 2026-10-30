@@ -65,20 +65,39 @@ function Routing({
   automatic = false,
   sendInFlight = false,
   attachments = false,
+  envLocked = false,
+  providerAvailable = true,
+  projectScope,
+  sendRef,
 }: {
   scope?: string;
   automatic?: boolean;
   sendInFlight?: boolean;
   attachments?: boolean;
+  envLocked?: boolean;
+  providerAvailable?: boolean;
+  projectScope?: string;
+  sendRef?: { current: boolean };
 }) {
   const draftId = DraftId.make(scope);
   const draftThread = useComposerDraftStore((state) => state.getDraftSession(draftId));
+  const activeProviderInstanceId = useComposerDraftStore(
+    (state) => state.getComposerDraft(draftId)?.activeProvider ?? null,
+  );
+  const storedAttachments = useComposerDraftStore((state) => {
+    const draft = state.getComposerDraft(draftId);
+    return (draft?.images.length ?? 0) > 0 || (draft?.files.length ?? 0) > 0;
+  });
   const routing = useDraftEnvironmentRouting({
     draftId,
     draftThread,
-    envLocked: false,
+    envLocked,
     automaticEnvironment:
-      automatic && draftThread?.environmentSelection !== "manual" && !attachments,
+      automatic &&
+      draftThread?.environmentSelection !== "manual" &&
+      !attachments &&
+      !storedAttachments &&
+      !envLocked,
     logicalProjectEnvironments: (automatic ? environments : [targetEnvironmentId]).map(
       (environmentId) => ({
         environmentId,
@@ -89,19 +108,19 @@ function Routing({
       }),
     ),
     environmentById,
-    providersByEnvironment,
+    providersByEnvironment: providerAvailable ? providersByEnvironment : new Map(),
     loadBalancingSettings: { loadBalancingWeights: {} },
     referencedThreadContexts: [],
-    activeProviderInstanceId: null,
+    activeProviderInstanceId,
     selectedProvider: provider.driver,
-    composerHasAttachments: attachments,
-    activeProjectKey: scope,
+    composerHasAttachments: attachments || storedAttachments,
+    activeProjectKey: projectScope ?? scope,
     activeProjectIsScratch: false,
     projectGroupingSettings: {
       sidebarProjectGroupingMode: "repository",
       sidebarProjectGroupingOverrides: {},
     },
-    sendInFlightRef: { current: sendInFlight },
+    sendInFlightRef: sendRef ?? { current: sendInFlight },
   });
   return (
     <>
@@ -321,3 +340,106 @@ it.each(["scope", "manual", "attachments", "sending", "unmount"] as const)(
     ).toBeNull();
   },
 );
+
+it("a same-turn stored attachment blocks an automatic completion", async () => {
+  using test = setup();
+  await using _screen = await render(
+    <RegistryContext value={test.registry}>
+      <Routing automatic />
+    </RegistryContext>,
+    { router: false },
+  );
+  await act(() => {
+    test.registry.set(resources.get(originalEnvironmentId)!, ready(0.8));
+    test.registry.set(resources.get(targetEnvironmentId)!, ready(0.1));
+    useComposerDraftStore.getState().addImage(DraftId.make("first"), {
+      type: "image",
+      id: "attachment",
+      name: "image.png",
+      mimeType: "image/png",
+      sizeBytes: 1,
+      previewUrl: "data:image/png;base64,AA==",
+      file: new File(["x"], "image.png", { type: "image/png" }),
+    });
+  });
+  expect(
+    useComposerDraftStore.getState().getComposerDraft(DraftId.make("first"))?.images,
+  ).toHaveLength(1);
+  expect(
+    useComposerDraftStore.getState().getDraftSession(DraftId.make("first"))
+      ?.loadBalancedEnvironmentId ?? null,
+  ).toBeNull();
+});
+
+it("a same-turn provider change blocks an automatic completion", async () => {
+  using test = setup();
+  await using _screen = await render(
+    <RegistryContext value={test.registry}>
+      <Routing automatic />
+    </RegistryContext>,
+    { router: false },
+  );
+  await act(() => {
+    test.registry.set(resources.get(originalEnvironmentId)!, ready(0.8));
+    test.registry.set(resources.get(targetEnvironmentId)!, ready(0.1));
+    useComposerDraftStore.getState().setModelSelection(DraftId.make("first"), {
+      instanceId: ProviderInstanceId.make("other"),
+      model: "other-model",
+    });
+  });
+  expect(
+    useComposerDraftStore.getState().getDraftSession(DraftId.make("first"))
+      ?.loadBalancedEnvironmentId ?? null,
+  ).toBeNull();
+});
+
+it("a same-turn file attachment blocks an automatic completion", async () => {
+  using test = setup();
+  await using _screen = await render(
+    <RegistryContext value={test.registry}>
+      <Routing automatic />
+    </RegistryContext>,
+    { router: false },
+  );
+  await act(() => {
+    test.registry.set(resources.get(originalEnvironmentId)!, ready(0.8));
+    test.registry.set(resources.get(targetEnvironmentId)!, ready(0.1));
+    useComposerDraftStore.getState().addFiles(DraftId.make("first"), [
+      {
+        type: "file",
+        id: "file",
+        name: "context.txt",
+        mimeType: "text/plain",
+        sizeBytes: 1,
+        file: new File(["x"], "context.txt", { type: "text/plain" }),
+      },
+    ]);
+  });
+  expect(
+    useComposerDraftStore.getState().getComposerDraft(DraftId.make("first"))?.files,
+  ).toHaveLength(1);
+  expect(
+    useComposerDraftStore.getState().getDraftSession(DraftId.make("first"))
+      ?.loadBalancedEnvironmentId ?? null,
+  ).toBeNull();
+});
+
+it("a live send flag blocks an already queued completion", async () => {
+  using test = setup();
+  const sendRef = { current: false };
+  await using _screen = await render(
+    <RegistryContext value={test.registry}>
+      <Routing automatic sendRef={sendRef} />
+    </RegistryContext>,
+    { router: false },
+  );
+  await act(() => {
+    test.registry.set(resources.get(originalEnvironmentId)!, ready(0.8));
+    test.registry.set(resources.get(targetEnvironmentId)!, ready(0.1));
+    sendRef.current = true;
+  });
+  expect(
+    useComposerDraftStore.getState().getDraftSession(DraftId.make("first"))
+      ?.loadBalancedEnvironmentId ?? null,
+  ).toBeNull();
+});
