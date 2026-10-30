@@ -1,3 +1,4 @@
+import { contextChipVariables } from "./themePalette";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { converter } from "culori/fn";
 import { BUILT_IN_THEME_IDS, BUILT_IN_THEMES } from "@supaterm/shared/themePalettes";
@@ -173,7 +174,10 @@ describe("theme files", () => {
       vi.stubGlobal("document", {
         documentElement: {
           dataset,
-          style: { setProperty: (name: string, value: string) => variables.set(name, value) },
+          style: {
+            setProperty: (name: string, value: string) => variables.set(name, value),
+            removeProperty: (name: string) => variables.delete(name),
+          },
         },
       });
       applyThemePalette(appearance === "dark" ? "dracula" : "catppuccin-latte", appearance);
@@ -818,5 +822,20 @@ describe("singleAppearanceOf", () => {
     const { variants: _pair, ...base } = DUAL_THEME;
     expect(singleAppearanceOf({ ...base, id: "x", appearance: "dark" })).toBe("dark");
     expect(singleAppearanceOf(DUAL_THEME)).toBe(null);
+  });
+});
+
+describe("context chip contrast", () => {
+  it("keeps standard light and dark chips legible on their actual painted surfaces", () => {
+    for (const appearance of ["light", "dark"] as const) {
+      const colors = getStandardThemeColors(appearance);
+      const variables = contextChipVariables(colors);
+      for (const [name, ink] of Object.entries(variables)) {
+        if (name === "--context-chip-message") continue;
+        for (const surface of [colors.canvas, colors.surface, colors.surfaceRaised]) {
+          expect(contrastRatio(ink, surface), `${appearance} ${name}`).toBeGreaterThanOrEqual(4.9);
+        }
+      }
+    }
   });
 });

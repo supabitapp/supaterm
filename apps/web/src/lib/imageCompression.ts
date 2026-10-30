@@ -10,11 +10,7 @@ import {
 
 const MAX_DIMENSION = IMAGE_ATTACHMENT_MAX_EDGE;
 export const MAX_STASH_IMAGE_DATA_URL_CHARS = 1_300_000;
-/**
- * Ceiling on the *source* file handed to the re-encoder. File size is a
- * proxy for pixel count, and decoding hundreds of megapixels into an
- * ImageBitmap can OOM the tab — beyond this we refuse rather than risk it.
- */
+/** Bound source decoding: enormous ImageBitmaps can OOM the tab before resizing. */
 export const MAX_COMPRESSIBLE_SOURCE_BYTES = 50 * 1024 * 1024;
 const MAX_HEIC_DECODE_PIXELS = 64_000_000;
 const MAX_HEIC_METADATA_BYTES = 1024 * 1024;
@@ -215,6 +211,18 @@ const composerThumbnails = new WeakMap<
   Partial<Record<ComposerImageThumbnailMode, Promise<string | null>>>
 >();
 
+const settledComposerThumbnails = new WeakMap<
+  File,
+  Partial<Record<ComposerImageThumbnailMode, string | null>>
+>();
+
+export function readComposerImageThumbnail(
+  file: File,
+  mode: ComposerImageThumbnailMode = "square",
+): string | null | undefined {
+  return settledComposerThumbnails.get(file)?.[mode];
+}
+
 export function createComposerImageThumbnail(
   file: File,
   mode: ComposerImageThumbnailMode = "square",
@@ -223,7 +231,7 @@ export function createComposerImageThumbnail(
   const cached = fileThumbnails?.[mode];
   if (cached) return cached;
   const thumbnail = (async () => {
-    if (!canRecompress()) return null;
+    if (!canRecompress() || file.size > MAX_COMPRESSIBLE_SOURCE_BYTES) return null;
     let bitmap: ImageBitmap | undefined;
     try {
       bitmap = await createImageBitmap(file);
@@ -257,7 +265,33 @@ export function createComposerImageThumbnail(
     }
   })();
   composerThumbnails.set(file, { ...fileThumbnails, [mode]: thumbnail });
+  void thumbnail.then((value) =>
+    settledComposerThumbnails.set(file, { ...settledComposerThumbnails.get(file), [mode]: value }),
+  );
   return thumbnail;
+}
+
+export function inheritComposerImageThumbnail(source: File, target: File): void {
+  if (source === target) return;
+  const thumbnails = composerThumbnails.get(source);
+  if (!thumbnails) return;
+  for (const mode of Object.keys(thumbnails) as ComposerImageThumbnailMode[]) {
+    if (composerThumbnails.get(target)?.[mode]) continue;
+    const thumbnail = thumbnails[mode]!;
+    const value = settledComposerThumbnails.get(source)?.[mode];
+    if (value !== undefined)
+      settledComposerThumbnails.set(target, {
+        ...settledComposerThumbnails.get(target),
+        [mode]: value,
+      });
+    composerThumbnails.set(target, { ...composerThumbnails.get(target), [mode]: thumbnail });
+    void thumbnail.then((next) =>
+      settledComposerThumbnails.set(target, {
+        ...settledComposerThumbnails.get(target),
+        [mode]: next,
+      }),
+    );
+  }
 }
 
 async function encodeWithinBudget(
@@ -272,8 +306,7 @@ async function encodeWithinBudget(
   const target = createCanvas(width, height);
   if (!target) return null;
 
-  // Probe WebP once; JPEG (no alpha) needs a white matte, so the fill has to
-  // happen before drawing and depends on which codec we end up using.
+  // Probe the codec before drawing; JPEG needs a white matte because it has no alpha.
   const mimeType =
     preferredMimeType ??
     ((await encodeCanvas(target.canvas, QUALITY_STEPS[0], "image/webp"))
@@ -317,10 +350,7 @@ async function reencodeWithinBudget(
   }
 
   try {
-    // Each pass shrinks relative to the *previous target*, capped by
-    // MAX_DIMENSION. Scaling a fixed ceiling instead would be a no-op for
-    // images already smaller than that ceiling — the fallback passes would
-    // all resolve to the source size and never actually reduce resolution.
+    // Shrink the previous target; using MAX_DIMENSION leaves smaller images unchanged.
     const baseDimension = Math.min(MAX_DIMENSION, Math.max(bitmap.width, bitmap.height));
     let encodeFailed = false;
     for (const dimensionScale of [1, ...FALLBACK_SCALE_STEPS]) {

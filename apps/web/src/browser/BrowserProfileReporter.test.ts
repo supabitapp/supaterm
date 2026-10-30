@@ -16,6 +16,9 @@ import {
   selectBrowserProfileReportTargets,
 } from "./BrowserProfileReporter";
 
+const decodeConfig = Schema.decodeUnknownSync(ServerConfig);
+const decodeSession = Schema.decodeUnknownSync(AuthSessionState);
+
 const first = EnvironmentId.make("environment-1");
 const second = EnvironmentId.make("environment-2");
 const config = (label: string) => ({ label }) as unknown as EnvironmentServerConfig;
@@ -78,7 +81,7 @@ it("reports to current servers with preview access and stops when that access is
     sessionMethods: ["browser-session-cookie"],
     sessionCookieName: "supaterm_session",
   };
-  const current = Schema.decodeUnknownSync(ServerConfig)({
+  const current = decodeConfig({
     environment: {
       environmentId: first,
       label: "Current server",
@@ -107,15 +110,13 @@ it("reports to current servers with preview access and stops when that access is
     [second, current],
   ]);
   const allowed = AsyncResult.success(
-    Schema.decodeUnknownSync(AuthSessionState)({
+    decodeSession({
       authenticated: true,
       auth,
       scopes: [AuthPreviewOperateScope],
     }),
   );
-  const denied = AsyncResult.success(
-    Schema.decodeUnknownSync(AuthSessionState)({ authenticated: true, auth, scopes: [] }),
-  );
+  const denied = AsyncResult.success(decodeSession({ authenticated: true, auth, scopes: [] }));
   expect(
     selectBrowserProfileReportTargets(configs, (id) => (id === first ? allowed : denied)),
   ).toEqual(new Map([[first, current]]));

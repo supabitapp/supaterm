@@ -22,9 +22,7 @@ function originOf(url: string): string | null {
   }
 }
 
-/**
- * Webview lifetime is owned by ElectronBrowserHost.
- */
+/** ElectronBrowserHost owns webview lifetime. */
 export function usePreviewBridge(input: {
   threadRef: ScopedThreadRef;
   tabId: string;
@@ -34,8 +32,6 @@ export function usePreviewBridge(input: {
   const { threadRef, tabId, runtimeTabId, serverDriven = false } = input;
   const clearBrowserPointer = useBrowserPointerStore((state) => state.clear);
   const reportStatus = useAtomCommand(previewEnvironment.reportStatus, "preview status report");
-  // Callers pass a fresh threadRef each render; rebuilding it from its ids keeps the ref
-  // stable for the effects.
   const { environmentId, threadId } = threadRef;
   const stableThreadRef: ScopedThreadRef = { environmentId, threadId };
 
@@ -69,6 +65,7 @@ export function usePreviewBridge(input: {
       });
     },
   );
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to preview bridge state changes and capture activity for the current tab
   useEffect(() => {
     if (!previewBridge || typeof window === "undefined") return;
     lastReportedUrl.current = null;

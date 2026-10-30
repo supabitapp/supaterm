@@ -81,6 +81,7 @@ export function BrowserSurfaceSlot(props: {
     };
   };
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- pushes visibility, radius and stacking to the desktop browser surface after layout
   useLayoutEffect(() => {
     presentationRef.current = { visible, cornerRadius, zIndex, layoutVersion };
     updateRef.current?.();
