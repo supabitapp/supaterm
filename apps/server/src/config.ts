@@ -26,8 +26,6 @@ declare const __SUPATERM_TELEMETRY_CHANNEL__: ReleaseChannel | undefined;
 export const telemetryChannel: ReleaseChannel =
   typeof __SUPATERM_TELEMETRY_CHANNEL__ === "undefined" ? "dev" : __SUPATERM_TELEMETRY_CHANNEL__;
 
-export const DEFAULT_PORT = 3773;
-
 export const RuntimeMode = Schema.Literals(["web", "desktop"]);
 export type RuntimeMode = typeof RuntimeMode.Type;
 
