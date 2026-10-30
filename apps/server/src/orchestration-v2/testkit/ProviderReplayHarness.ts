@@ -1,3 +1,5 @@
+import * as PreviewAgentActivity from "../../preview/PreviewAgentActivity.ts";
+import * as ProviderInstanceRegistry from "../../provider/ProviderInstanceRegistry.ts";
 import * as OtelEnvironment from "@supaterm/shared/otelEnvironment";
 import { DEFAULT_SIGNAL_EXPORT } from "@supaterm/shared/observability";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -443,7 +445,11 @@ export function layerWithRegistry<Error>(
   const layerThreadTitleRegenerationTest = Layer.succeed(
     ThreadTitleRegenerationService.ThreadTitleRegenerationService,
     ThreadTitleRegenerationService.ThreadTitleRegenerationService.of({
-      execute: () => Effect.void,
+      execute: Effect.fn("ThreadTitleRegenerationService.ThreadTitleRegenerationService.execute")(
+        function () {
+          return Effect.void;
+        },
+      ),
     }),
   );
   const layerOrchestratorProvided = Orchestrator.layer.pipe(
@@ -513,7 +519,17 @@ export function layerWithRegistry<Error>(
     layerEventSinkProvided,
     layerContinuationWorkerProvided,
     layerCommandOutputHubProvided,
-  ).pipe(Layer.provide(ProviderTurnStartServiceTestkit.layer), Layer.provide(NodeServices.layer));
+  ).pipe(
+    Layer.provide(PreviewAgentActivity.layer),
+    Layer.provide(
+      Layer.mock(ProviderInstanceRegistry.ProviderInstanceRegistry)({
+        // @effect-diagnostics-next-line effectSucceedWithVoid:off - This service returns an optional instance.
+        getInstance: () => Effect.succeed(undefined),
+      }),
+    ),
+    Layer.provide(ProviderTurnStartServiceTestkit.layer),
+    Layer.provide(NodeServices.layer),
+  );
 
   if (options.runEffectWorker === false) {
     return layerReplayRuntime;

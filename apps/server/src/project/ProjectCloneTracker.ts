@@ -406,10 +406,18 @@ export const make = Effect.gen(function* () {
   );
 
   return ProjectCloneTracker.of({
-    start: (input, hooks) => locked(start(input, hooks)),
-    cancel: (projectId) => locked(cancel(projectId)),
-    retry: (projectId) => locked(retry(projectId)),
-    discard: (projectId) => locked(discard(projectId)),
+    start: Effect.fn("ProjectCloneTracker.start")(function (input, hooks) {
+      return locked(start(input, hooks));
+    }),
+    cancel: Effect.fn("ProjectCloneTracker.cancel")(function (projectId) {
+      return locked(cancel(projectId));
+    }),
+    retry: Effect.fn("ProjectCloneTracker.retry")(function (projectId) {
+      return locked(retry(projectId));
+    }),
+    discard: Effect.fn("ProjectCloneTracker.discard")(function (projectId) {
+      return locked(discard(projectId));
+    }),
     get,
     stream,
   });

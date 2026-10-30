@@ -16,7 +16,6 @@ import {
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Option from "effect/Option";
 import * as Fiber from "effect/Fiber";
 import { TestClock } from "effect/testing";
 
@@ -162,7 +161,7 @@ function makeLayer(options: {
             getThreadRecords as ThreadManagement.ThreadManagementService["Service"]["getThreadRecords"],
         }),
         Layer.mock(ProjectStore.ProjectStoreV2)({
-          get: () => Effect.succeed(Option.some({ projectId, workspaceRoot: "/repo" } as never)),
+          get: () => Effect.succeedSome({ projectId, workspaceRoot: "/repo" } as never),
         }),
         Layer.mock(TextGeneration.TextGeneration)({ generateNextPrompt }),
         ServerSettings.layerTest({

@@ -978,8 +978,8 @@ export const layerWithOptions = (
           ([entry, releasedAt]) =>
             Option.match(entry, {
               onNone: () => Effect.void,
-              onSome: (entry) =>
-                Effect.gen(function* () {
+              onSome: Effect.fn("onSome")(function (entry) {
+                return Effect.gen(function* () {
                   const releasedBackgroundTasks = yield* readReleasedBackgroundTasks({
                     entry,
                     reason: input.reason,
@@ -1021,7 +1021,8 @@ export const layerWithOptions = (
                   if (Option.isSome(closeExit) && Exit.isFailure(closeExit.value)) {
                     return yield* Effect.failCause(closeExit.value.cause);
                   }
-                }),
+                });
+              }),
             }),
           ([entry]) =>
             Option.match(entry, {

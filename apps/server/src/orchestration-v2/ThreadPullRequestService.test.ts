@@ -114,7 +114,7 @@ describe("ThreadPullRequestServiceV2 reads", () => {
           }),
           Layer.mock(ProjectStore.ProjectStoreV2)({
             listShells: () => Effect.succeed([project]),
-            getShell: () => Effect.succeed(Option.some(project)),
+            getShell: () => Effect.succeedSome(project),
           }),
           Layer.mock(GitManager.GitManager)({
             branchPullRequest: (_input, options) =>
@@ -135,7 +135,7 @@ describe("ThreadPullRequestServiceV2 reads", () => {
                   remoteName: "origin",
                   remoteUrl: "git@github.com:acme/project.git",
                 },
-                provider: "github" as const,
+                provider: SourceControlProviderKind.make("github"),
                 owner: "acme",
                 name: "project",
               }),
@@ -351,7 +351,7 @@ describe("ThreadPullRequestServiceV2 reads", () => {
             }),
             Layer.mock(ProjectStore.ProjectStoreV2)({
               listShells: () => Effect.succeed([project]),
-              getShell: () => Effect.succeed(Option.some(project)),
+              getShell: () => Effect.succeedSome(project),
             }),
             Layer.mock(GitManager.GitManager)({
               branchPullRequest: () => Effect.succeed(null),
@@ -377,7 +377,7 @@ describe("ThreadPullRequestServiceV2 reads", () => {
                     remoteName: "origin",
                     remoteUrl: "git@github.com:acme/project.git",
                   },
-                  provider: "github" as const,
+                  provider: SourceControlProviderKind.make("github"),
                   owner: "acme",
                   name: "project",
                 }),

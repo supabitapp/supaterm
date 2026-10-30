@@ -137,7 +137,7 @@ it.effect.each(deliveries)(
         const sdkMessages = yield* Queue.unbounded<SDKMessage>();
         const offers: SDKUserMessage[] = [];
         const nativeQueue: SDKUserMessage[] = [];
-        const batchAbort = new AbortController();
+        let batchAborted = false;
         const adapter = yield* ClaudeAdapterV2.makeClaudeAdapterV2({
           instanceId: modelSelection.instanceId,
           settings,
@@ -157,7 +157,7 @@ it.effect.each(deliveries)(
                     offers.push(message);
                     nativeQueue.push(message);
                     if (nativeQueue.some((command) => command.priority === "now")) {
-                      batchAbort.abort({ kind: "interrupt" });
+                      batchAborted = true;
                     }
                   }),
                 setModel: () => Effect.void,
@@ -387,7 +387,7 @@ it.effect.each(deliveries)(
           yield* worker.drain();
           const explicitSteer =
             delivery === "user steering" || delivery === "promoted queued message";
-          assert.equal(batchAbort.signal.aborted, explicitSteer);
+          assert.equal(batchAborted, explicitSteer);
           assert.equal(offers.length, explicitSteer ? 2 : 1);
           const finished = yield* watch(
             (event) =>
@@ -396,8 +396,7 @@ it.effect.each(deliveries)(
               event.payload.status === "waiting",
           );
           yield* Queue.offer(sdkMessages, toolResult("build", false));
-          for (const id of statusIds)
-            yield* Queue.offer(sdkMessages, toolResult(id, batchAbort.signal.aborted));
+          for (const id of statusIds) yield* Queue.offer(sdkMessages, toolResult(id, batchAborted));
           if (explicitSteer) yield* Queue.offer(sdkMessages, result("aborted", true));
           yield* Queue.offer(sdkMessages, result("completed", false));
           yield* Fiber.join(finished);

@@ -158,7 +158,7 @@ it.effect.each([
       const savedParent = yield* store.getThread(parentThreadId);
       assert.deepEqual(savedParent.pinnedAt, parentCreatedAt);
       assert.equal(savedParent.pinOrderKey, "a0");
-      const candidates = yield* store.getSettlementCandidates();
+      const candidates = yield* store.getAutoMarkDoneCandidates();
       assert.deepEqual(
         candidates.map((candidate) => candidate.id),
         [childThreadId],

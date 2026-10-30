@@ -1,4 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off
+import * as DocumentText from "../provider/DocumentText.ts";
 import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
 
@@ -19,7 +20,13 @@ import {
 import * as ServerConfig from "../config.ts";
 import { attachmentIsPendingUpload, claimPendingAttachments } from "./AttachmentClaims.ts";
 
-const layerTest = Layer.mergeAll(NodeServices.layer).pipe(
+const layerTest = Layer.mergeAll(
+  NodeServices.layer,
+  Layer.mock(DocumentText.DocumentText)({
+    // @effect-diagnostics-next-line effectSucceedWithVoid:off - Document extraction returns an optional path.
+    ensure: () => Effect.succeed(undefined),
+  }),
+).pipe(
   Layer.provideMerge(
     ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-attachment-claims-" }),
   ),

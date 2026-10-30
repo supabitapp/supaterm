@@ -130,6 +130,8 @@ export class OrchestratorV2ScenarioStepError extends Schema.TaggedError<Orchestr
 
 function commandThreadIds(command: OrchestrationV2Command): ReadonlyArray<ThreadId> {
   switch (command.type) {
+    case "thread.guest-share.close":
+    case "thread.guest-message.dismiss":
     case "thread.create":
     case "thread.stop":
     case "thread.archive":
@@ -280,8 +282,8 @@ export function runOrchestratorV2Scenario(
       const capturedShellSnapshots = new Map<string, OrchestrationV2ThreadShellSnapshot>();
       let anonymousBackgroundDispatchIndex = 0;
 
-      const awaitDispatch = (key: string) =>
-        Effect.gen(function* () {
+      const awaitDispatch = Effect.fn("awaitDispatch")(function (key: string) {
+        return Effect.gen(function* () {
           const fiber = backgroundDispatches.get(key);
           if (!fiber) {
             return yield* new OrchestratorV2ScenarioStepError({
@@ -293,6 +295,7 @@ export function runOrchestratorV2Scenario(
           backgroundDispatches.delete(key);
           storedEventGroups.push(events);
         });
+      });
 
       const waitForPendingRuntimeRequest = (
         threadId: ThreadId,

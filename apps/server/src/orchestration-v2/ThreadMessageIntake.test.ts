@@ -1,4 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off
+import * as DocumentText from "../provider/DocumentText.ts";
 import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -36,7 +37,16 @@ import { dispatchCommand } from "./ThreadMessageIntake.ts";
 
 const layerIntakeTest = ServerConfig.layerTest(process.cwd(), {
   prefix: "supaterm-question-intake-",
-}).pipe(Layer.provideMerge(NodeServices.layer), Layer.provideMerge(ServerSettings.layerTest()));
+}).pipe(
+  Layer.provideMerge(NodeServices.layer),
+  Layer.provideMerge(ServerSettings.layerTest()),
+  Layer.provideMerge(
+    Layer.mock(DocumentText.DocumentText)({
+      // @effect-diagnostics-next-line effectSucceedWithVoid:off - Document extraction returns an optional path.
+      ensure: () => Effect.succeed(undefined),
+    }),
+  ),
+);
 
 const layerFailingDispatchHandler =
   (captured: OrchestrationV2ServerCommand[]) => (command: OrchestrationV2ServerCommand) => {

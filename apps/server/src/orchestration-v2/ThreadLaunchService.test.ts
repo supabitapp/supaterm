@@ -1,3 +1,4 @@
+import * as DocumentText from "../provider/DocumentText.ts";
 import * as Scheduler from "../scheduling/Scheduler.ts";
 import * as WorktreeSetupTracker from "../project/WorktreeSetupTracker.ts";
 import * as ProjectCloneTracker from "../project/ProjectCloneTracker.ts";
@@ -188,7 +189,7 @@ function makeHarness(options: HarnessOptions = {}) {
               ? Option.some(otherProject)
               : Option.none(),
         ),
-      getByWorkspaceRoot: () => Effect.succeed(Option.some(project)),
+      getByWorkspaceRoot: () => Effect.succeedSome(project),
       snapshot: Effect.die("unused"),
       getShell: () => Effect.die("unused"),
       listShells: () => Effect.die("unused"),
@@ -222,10 +223,16 @@ function makeHarness(options: HarnessOptions = {}) {
       Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
         namedProjectsRoot: "/projects",
         isScratchProject: () => Effect.succeed(false),
-        folderForThread: () => Effect.succeed(Option.none()),
+        folderForThread: () => Effect.succeedNone,
       }),
   );
   const layerLaunch = ThreadLaunch.layer.pipe(
+    Layer.provide(
+      Layer.mock(DocumentText.DocumentText)({
+        // @effect-diagnostics-next-line effectSucceedWithVoid:off - Document extraction returns an optional path.
+        ensure: () => Effect.succeed(undefined),
+      }),
+    ),
     Layer.provide(
       Layer.mergeAll(
         layerExternalServices,
@@ -2053,7 +2060,18 @@ it.effect("shared intake preserves durable attachment bytes after a lost launch 
       assert.isNotNull(path);
       assert.deepEqual(yield* fs.readFile(path), new Uint8Array([1, 2, 3, 4]));
     }
-  }).pipe(Effect.provide(Layer.mergeAll(harness.layer, layerFiles)));
+  }).pipe(
+    Effect.provide(
+      Layer.mergeAll(
+        harness.layer,
+        layerFiles,
+        Layer.mock(DocumentText.DocumentText)({
+          // @effect-diagnostics-next-line effectSucceedWithVoid:off - Document extraction returns an optional path.
+          ensure: () => Effect.succeed(undefined),
+        }),
+      ),
+    ),
+  );
 });
 
 it.effect("cancels tracked setup before provider work is released", () =>
@@ -2286,5 +2304,16 @@ it.effect("replays an accepted send after the project disables the instance", ()
     if (fresh._tag !== "ThreadManagementProviderInstanceDisabledError") {
       assert.fail(`expected ThreadManagementProviderInstanceDisabledError, got ${fresh._tag}`);
     }
-  }).pipe(Effect.provide(Layer.mergeAll(harness.layer, layerFiles)));
+  }).pipe(
+    Effect.provide(
+      Layer.mergeAll(
+        harness.layer,
+        layerFiles,
+        Layer.mock(DocumentText.DocumentText)({
+          // @effect-diagnostics-next-line effectSucceedWithVoid:off - Document extraction returns an optional path.
+          ensure: () => Effect.succeed(undefined),
+        }),
+      ),
+    ),
+  );
 });

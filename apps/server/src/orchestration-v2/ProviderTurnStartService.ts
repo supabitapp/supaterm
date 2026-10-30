@@ -164,7 +164,7 @@ export const layer: Layer.Layer<
         }
         yield* gitWorkflow.createWorktree({
           cwd,
-          refName: `refs/heads/${branch}`,
+          refName: branch,
           path: worktreePath,
         });
       },

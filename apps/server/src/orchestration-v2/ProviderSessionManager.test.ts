@@ -1,3 +1,4 @@
+import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
 import * as NetAddress from "effect/net/NetAddress";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
@@ -580,7 +581,15 @@ function layerTest(input: {
         ),
       ),
     ),
-  ).pipe(Layer.provide(NodeServices.layer));
+  ).pipe(
+    Layer.provide(
+      Layer.mock(ProviderInstanceRegistry.ProviderInstanceRegistry)({
+        // @effect-diagnostics-next-line effectSucceedWithVoid:off - This service returns an optional instance.
+        getInstance: () => Effect.succeed(undefined),
+      }),
+    ),
+    Layer.provide(NodeServices.layer),
+  );
 }
 
 const fakeHttpServer = HttpServer.HttpServer.of({
@@ -1165,7 +1174,7 @@ it.effect(
             Effect.flatMap((hold) =>
               hold
                 ? Deferred.succeed(projectReadHeld, undefined).pipe(Effect.andThen(Effect.never))
-                : Effect.succeed(Option.some(makeBrowserAccessProject(requestedProjectId))),
+                : Effect.succeedSome(makeBrowserAccessProject(requestedProjectId)),
             ),
           ),
       });
