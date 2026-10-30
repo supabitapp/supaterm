@@ -59,7 +59,7 @@ export function useDiscoveredPortsState(
   };
 }
 
-export function useDiscoveredPorts(
+function useDiscoveredPorts(
   environmentId: EnvironmentId | null,
 ): ReadonlyArray<DiscoveredLocalServer> {
   return useDiscoveredPortsState(environmentId).servers;

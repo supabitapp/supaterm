@@ -194,7 +194,7 @@ export function registerNavigationHistoryCommands(router: AnyRouter): () => void
   );
 }
 
-export function NavigationHistoryShortcuts() {
+function NavigationHistoryShortcuts() {
   const router = useRouter();
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- keeps route history commands installed while the shell is mounted
   useEffect(() => registerNavigationHistoryCommands(router), [router]);

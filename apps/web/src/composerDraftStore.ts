@@ -3926,7 +3926,7 @@ export function finalizePromotedDraftThreadByRef(threadRef: ScopedThreadRef): vo
 type DraftPromotionShell = Pick<EnvironmentThreadShell, "latestRun" | "latestUserMessageAt">;
 
 /** The server owns a draft's send once its message persisted or its run started or stopped. */
-export function resolveDraftPromotionNavigationTarget(input: {
+function resolveDraftPromotionNavigationTarget(input: {
   serverThreadRef: ScopedThreadRef | null;
   serverThread: DraftPromotionShell | null | undefined;
   backgroundSubmissionPending: boolean;
