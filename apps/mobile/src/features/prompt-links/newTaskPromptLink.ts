@@ -18,7 +18,7 @@ import {
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
 import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
-import type { EnvironmentId, ThreadId } from "@supaterm/contracts";
+import type { EnvironmentId, ProjectId, ThreadId } from "@supaterm/contracts";
 import {
   parseNewThreadLink,
   type LinkedPrompt,
@@ -136,13 +136,16 @@ function runQuery<A, E>(atom: Atom.Atom<AsyncResult.AsyncResult<A, E>>) {
 function writeDraft(
   draftKey: string,
   environmentId: EnvironmentId,
+  projectId: ProjectId,
   request: LinkedDraftRequest,
 ): boolean {
   if (request.prompt) setComposerDraftText(draftKey, request.prompt.text);
   if (request.provider === null) return false;
+  const config = appAtomRegistry.get(environmentServerConfigsAtom).get(environmentId);
   const resolved = resolvePromptLinkModelSelection(
-    appAtomRegistry.get(environmentServerConfigsAtom).get(environmentId)?.providers ?? [],
+    config?.providers ?? [],
     { provider: request.provider, model: request.model },
+    config ? { settings: config.settings, projectId } : undefined,
   );
   if (resolved) updateComposerDraftSettings(draftKey, { modelSelection: resolved.selection });
   return resolved?.exact !== true;
@@ -243,7 +246,7 @@ async function openProjectDraft(project: EnvironmentProject, request: LinkedDraf
       pullRequestUnavailable = request.pullRequest.number;
     }
   }
-  const modelUnavailable = writeDraft(draftKey, project.environmentId, request);
+  const modelUnavailable = writeDraft(draftKey, project.environmentId, project.id, request);
   dispatchFromNewTask(
     StackActions.push("Thread", {
       draft: {
