@@ -1,10 +1,18 @@
 import { useRef, useState } from "react";
 import { expect, it } from "vite-plus/test";
+import { EnvironmentId } from "@supaterm/contracts";
+import { mergeWithDefaultKeybindings } from "@supaterm/shared/keybindings";
 import { page, userEvent } from "vite-plus/test/browser";
 
 import { act, render } from "../../../test/render";
 import { Dialog, DialogPopup } from "../ui/dialog";
 import { ComposerStashMenu } from "./ComposerStashMenu";
+import { isMacPlatform } from "../../lib/utils";
+import { useComposerStash } from "./useComposerStash";
+import { DraftId, useComposerThreadDraft } from "../../composerDraftStore";
+import { PaneScopeProvider, usePaneInputOwner } from "../../chatPanes/paneScope";
+import { useChatPaneStore } from "../../chatPanes/store";
+import { usePromptStashStore } from "../../promptStashStore";
 
 function Composer({ dialog = false }: { dialog?: boolean }) {
   const composerFormRef = useRef<HTMLFormElement>(null);
@@ -136,5 +144,125 @@ it("navigates, deletes and restores stashed prompts from the composer and drawer
   await focus(editor().element());
   await press("{ArrowDown}{Enter}");
   await expect.element(editor()).toHaveValue("second prompt");
+  await expect.element(stash()).not.toBeInTheDocument();
+});
+
+function OwnedStash() {
+  const draftId = DraftId.make("stash-ownership");
+  const composerDraft = useComposerThreadDraft(draftId);
+  const composerFormRef = useRef<HTMLFormElement>(null);
+  const promptRef = useRef("");
+  const composerEditorRef = useRef(null);
+  const { isStashMenuOpen, toggleStashMenuStable, setIsStashMenuOpen } = useComposerStash({
+    environmentId: EnvironmentId.make("stash-environment"),
+    readAttachments: () => composerDraft,
+    composerDraftTarget: draftId,
+    attachmentDraftTarget: draftId,
+    composerDraft,
+    promptRef,
+    keybindings: mergeWithDefaultKeybindings([]),
+    terminalOpen: false,
+    isPaneInputOwner: usePaneInputOwner(),
+    routeKind: "draft",
+    projectSelectionRequired: false,
+    isRevertingCheckpoint: false,
+    isEditingQueuedMessage: false,
+    pendingUserInputs: [],
+    activePendingProgress: null,
+    canQueueMessage: true,
+    canQueueSelectedProvider: true,
+    isSendBusy: false,
+    isConnecting: false,
+    sendDisabledReason: null,
+    prompt: "",
+    composerMenuOpen: false,
+    isComposerModelPickerOpen: false,
+    isComposerCollapsedMobile: false,
+    composerPreviewAnnotations: [],
+    composerReviewComments: [],
+    composerThreadContexts: [],
+    composerEnvironmentContexts: [],
+    attachmentTargetKeyRef: useRef("stash-ownership"),
+    composerDraftTargetKeyRef: useRef("stash-ownership"),
+    composerEditorRef,
+    isRevertingCheckpointRef: useRef(false),
+    pendingThreadImportsRef: useRef(new Map()),
+    setComposerCursor: () => {},
+    setComposerTrigger: () => {},
+    importContextRecords: () => new Map(),
+    expandMobileComposer: () => {},
+    submitComposer: () => null,
+  });
+  return (
+    <>
+      <form ref={composerFormRef} />
+      <button onClick={toggleStashMenuStable}>Toggle stash</button>
+      {isStashMenuOpen && (
+        <ComposerStashMenu
+          entries={[]}
+          stashShortcutLabel={null}
+          sendAllBlockedReason={null}
+          composerFormRef={composerFormRef}
+          onRestore={() => {}}
+          onDelete={() => {}}
+          onSendAll={() => {}}
+          onClose={() => setIsStashMenuOpen(false)}
+        />
+      )}
+    </>
+  );
+}
+
+it("closes the owned stash on pane focus loss and permits a fresh keyboard reopen", async () => {
+  const previous = useChatPaneStore.getState().layout;
+  const previousEntries = usePromptStashStore.getState().entries;
+  using _state = {
+    [Symbol.dispose]() {
+      useChatPaneStore.setState({ layout: previous });
+      usePromptStashStore.setState({ entries: previousEntries });
+    },
+  };
+  usePromptStashStore.setState({ entries: [] });
+  useChatPaneStore.setState({
+    layout: {
+      columns: [
+        { id: "left", size: 50 },
+        { id: "right", size: 50 },
+      ],
+      rows: [{ id: "row", size: 100 }],
+      cells: ["first", "second"].map((id, column) => ({
+        id,
+        column,
+        columnSpan: 1,
+        row: 0,
+        rowSpan: 1,
+        target: { kind: "draft", draftId: DraftId.make(id) },
+      })),
+      focusedPaneId: "first",
+    },
+  });
+  await using screen = await render(
+    <PaneScopeProvider
+      value={{
+        paneId: "first",
+        layoutVersion: "1",
+        narrow: false,
+        collapsed: false,
+        element: null,
+      }}
+    >
+      <OwnedStash />
+    </PaneScopeProvider>,
+  );
+  await screen.getByRole("button", { name: "Toggle stash" }).click();
+  await expect.element(stash()).toBeInTheDocument();
+  await act(() => useChatPaneStore.getState().focus("second"));
+  await expect.element(stash()).not.toBeInTheDocument();
+  await act(() => useChatPaneStore.getState().focus("first"));
+  await expect.element(stash()).not.toBeInTheDocument();
+  await act(() => (document.activeElement as HTMLElement).blur());
+  await press(isMacPlatform(navigator.platform) ? "{Meta>}s{/Meta}" : "{Control>}s{/Control}");
+  await expect.element(stash()).toBeInTheDocument();
+  await press("{Escape}");
   await expect.element(stash()).not.toBeInTheDocument();
 });

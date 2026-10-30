@@ -10,7 +10,6 @@ import { InlineConfirmIcon, InlineConfirmTooltip } from "../InlineConfirm";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { ComposerBanner } from "./ComposerBanner";
-import { useIsPaneInputOwner } from "../../chatPanes/paneScope";
 
 const SNIPPET_MAX_CHARS = 90;
 
@@ -57,11 +56,6 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
     onSendAll,
     onClose,
   } = props;
-  // Its keys are window-wide, so the menu closes once its chat pane is no longer the one in use.
-  const ownsInput = useIsPaneInputOwner();
-  useEffect(() => {
-    if (!ownsInput) onClose();
-  }, [onClose, ownsInput]);
   const drawerRef = useRef<HTMLDivElement>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(entries[0]?.id ?? null);
   const confirm = useInlineConfirm<string>();

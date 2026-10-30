@@ -10,7 +10,7 @@ import {
   type ThreadContextRecord,
 } from "@supaterm/contracts";
 import { scopeProjectRef } from "@supaterm/client-runtime/environment";
-import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { toastManager } from "../ui/toast";
 import {
   deriveLogicalProjectKeyFromSettings,
@@ -27,7 +27,10 @@ interface DraftEnvironmentRoutingInput {
   readonly envLocked: boolean;
   readonly automaticEnvironment: boolean;
   readonly logicalProjectEnvironments: ReturnType<typeof useLogicalProjectEnvironments>;
-  readonly environmentById: ReadonlyMap<EnvironmentId, EnvironmentPresentation>;
+  readonly environmentById: ReadonlyMap<
+    EnvironmentId,
+    Pick<EnvironmentPresentation, "connection" | "serverConfig">
+  >;
   readonly providersByEnvironment: ReturnType<typeof useEnvironmentProviders>;
   readonly loadBalancingSettings: {
     readonly loadBalancingWeights: Readonly<Record<string, number>>;
@@ -73,7 +76,6 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
   );
   const allProjects = useProjects();
   const { openScratchProject } = useScratchProject();
-  const isSendInFlight = useEffectEvent(() => sendInFlightRef.current);
   const needsLoadBalancing = automaticEnvironment && !draftThread?.loadBalancedEnvironmentId;
   const loadBalancingCandidates = needsLoadBalancing
     ? logicalProjectEnvironments
@@ -108,16 +110,11 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
         })
         .map((candidate) => candidate.environmentId)
     : [];
-  const loadBalancing = useLoadBalancedEnvironment(
-    loadBalancingCandidates,
-    loadBalancingSettings.loadBalancingWeights,
-  );
-  const refreshLoadBalancing = loadBalancing.refresh;
-  useEffect(() => {
-    if (!needsLoadBalancing || loadBalancing.pending || !draftId || isSendInFlight()) return;
+  const onLoadBalancingResolved = (environmentId: EnvironmentId) => {
+    if (!needsLoadBalancing || !draftId || sendInFlightRef.current) return;
     if (!draftThread || draftThread.promotedTo || getDraftSession(draftId) !== draftThread) return;
     const target = logicalProjectEnvironments.find(
-      (environment) => environment.environmentId === loadBalancing.environmentId,
+      (environment) => environment.environmentId === environmentId,
     );
     if (!target?.projectId) return;
     setDraftThreadContext(draftId, {
@@ -125,16 +122,13 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
       environmentSelection: "auto",
       loadBalancedEnvironmentId: target.environmentId,
     });
-  }, [
-    needsLoadBalancing,
-    loadBalancing.pending,
-    loadBalancing.environmentId,
-    draftId,
-    draftThread,
-    getDraftSession,
-    logicalProjectEnvironments,
-    setDraftThreadContext,
-  ]);
+  };
+  const loadBalancing = useLoadBalancedEnvironment(
+    loadBalancingCandidates,
+    loadBalancingSettings.loadBalancingWeights,
+    onLoadBalancingResolved,
+  );
+  const refreshLoadBalancing = loadBalancing.refresh;
   const onAutoEnvironment = () => {
     if (envLocked || !draftId) return;
     if (composerHasAttachments) {

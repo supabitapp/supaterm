@@ -69,6 +69,7 @@ import { useStableCallback } from "../../hooks/useStableCallback";
 import type { ReviewCommentContext } from "../../reviewCommentContext";
 import type { ChatComposerProps } from "./ChatComposer";
 import { useInputsChanged, useInputsChangedWhileActive } from "./useInputsChanged";
+import { useIsPaneInputOwner } from "../../chatPanes/paneScope";
 
 /**
  * The prompt stash: saving the draft aside, restoring or deleting an entry, sending every
@@ -182,6 +183,7 @@ export function useComposerStash(input: {
     (store) => store.clearComposerPromptAndImages,
   );
   const setComposerDraftThreadContexts = useComposerDraftStore((store) => store.setThreadContexts);
+  const ownsInput = useIsPaneInputOwner();
   const [isStashMenuOpen, setIsStashMenuOpen] = useState(false);
   const [isSendingAllStash, setIsSendingAllStash] = useState(false);
   const [stashPulse, setStashPulse] = useState<{ key: number; active: boolean }>({
@@ -833,7 +835,7 @@ export function useComposerStash(input: {
   const promptChangedWhileStashOpen = useInputsChangedWhileActive(isStashMenuOpen, [prompt]);
   if (
     isStashMenuOpen &&
-    ((composerMenuOpenChanged && composerMenuOpen) || promptChangedWhileStashOpen)
+    (!ownsInput || (composerMenuOpenChanged && composerMenuOpen) || promptChangedWhileStashOpen)
   ) {
     setIsStashMenuOpen(false);
   }
