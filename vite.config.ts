@@ -300,6 +300,14 @@ export default defineConfig({
     },
     overrides: [
       {
+        // Generated protocol descriptions preserve the published schema text.
+        files: [
+          "packages/effect-acp/src/_generated/schema.gen.ts",
+          "packages/effect-acp/src/_generated/schema-v1.gen.ts",
+        ],
+        rules: { "supaterm/no-em-dash-copy": "off" },
+      },
+      {
         files: [
           "**/*.{test,spec,test-d,spec-d}.{ts,tsx,js,jsx}",
           "**/__tests__/**/*.{ts,tsx,js,jsx}",
