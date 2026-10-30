@@ -62,7 +62,8 @@ export class TunnelSocket extends NodeStream.Duplex {
     callback: (error?: Error | null) => void,
   ) {
     this.touch();
-    const last = chunks.length - 1;
+    const last = chunks.findLastIndex(({ chunk }) => chunk.byteLength > 0);
+    if (last === -1) return callback();
     try {
       chunks.forEach(({ chunk }, index) =>
         this.stream.write(

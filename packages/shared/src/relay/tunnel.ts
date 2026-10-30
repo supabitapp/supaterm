@@ -24,7 +24,6 @@ export const TUNNEL_MAX_PLAIN_BYTES = 64 * 1024;
 const SESSION_WINDOW = 8 * 1024 * 1024;
 const MIN_MESSAGE_COST = 48 * 1024;
 export const TUNNEL_STREAM_WINDOW = 2 * 1024 * 1024;
-const STREAM_SEND_QUEUE_BYTES = 8 * 1024 * 1024;
 const MAX_STREAMS = 256;
 export const TUNNEL_KEEPALIVE_MS = 15_000;
 const KEEPALIVE_MISSES = 3;
@@ -51,7 +50,6 @@ export interface TunnelSession {
 interface StreamState {
   readonly stream: TunnelStream;
   readonly pending: { data: Uint8Array; sent?: (error?: Error) => void }[];
-  pendingBytes: number;
   unconsumed: number;
   sendCredit: number;
   receiveCredit: number;
@@ -126,7 +124,6 @@ export function createTunnelSession(input: {
     if (index >= 0) ready.splice(index, 1);
     for (const item of state.pending.splice(0))
       item.sent?.(error ?? new Error("Tunnel stream closed"));
-    state.pendingBytes = 0;
     grantSession(state.unconsumed);
     state.unconsumed = 0;
     state.stream.onClose(error);
@@ -168,7 +165,6 @@ export function createTunnelSession(input: {
           parts.push(frame(DATA, state.stream.id, chunk));
           size += HEADER_BYTES + chunk.length;
           data += chunk.length;
-          state.pendingBytes -= chunk.length;
           state.sendCredit -= chunk.length;
           if (chunk.length === head.data.length) {
             state.pending.shift();
@@ -224,9 +220,6 @@ export function createTunnelSession(input: {
             sent?.();
             return;
           }
-          if (state.pendingBytes + bytes.length > STREAM_SEND_QUEUE_BYTES)
-            throw new Error("Tunnel stream send queue full");
-          state.pendingBytes += bytes.length;
           state.pending.push({ data: bytes, ...(sent ? { sent } : {}) });
           if (state.sendCredit > 0) markReady(state);
         },
@@ -261,7 +254,6 @@ export function createTunnelSession(input: {
         onClose: () => {},
       },
       pending: [],
-      pendingBytes: 0,
       unconsumed: 0,
       sendCredit: TUNNEL_STREAM_WINDOW,
       receiveCredit: TUNNEL_STREAM_WINDOW,
