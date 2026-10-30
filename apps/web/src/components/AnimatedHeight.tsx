@@ -40,6 +40,7 @@ function TrackedHeight({
     readonly isShrinking: boolean;
   }>({ height: null, isClipping: false, isShrinking: false });
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- fallback timer that ends clipping when the height transition never reports its end
   useEffect(() => {
     if (!heightState.isClipping) return;
     const clippedHeight = heightState.height;
@@ -53,6 +54,7 @@ function TrackedHeight({
     return () => window.clearTimeout(timeoutId);
   }, [heightState.height, heightState.isClipping]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- measures the content element and observes its size before paint to animate height
   useLayoutEffect(() => {
     if (holdHeight) return;
     const element = contentRef.current;
@@ -146,6 +148,7 @@ function KeyedHeight({
   const animationRef = useRef<Animation | null>(null);
   const animatedKeyRef = useRef(animateKey);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- observes the mounted content height and releases its animation on unmount
   useLayoutEffect(() => {
     const content = contentRef.current;
     if (!content) return;
@@ -158,6 +161,7 @@ function KeyedHeight({
     };
   }, []);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- animates the mounted wrapper between committed content heights
   useLayoutEffect(() => {
     if (animatedKeyRef.current === animateKey) return;
     animatedKeyRef.current = animateKey;

@@ -87,6 +87,7 @@ export function useResizableWidth(options: UseResizableWidthOptions): {
   });
 
   const { refresh } = drag;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reapplies the live drag pointer position to the DOM before paint when the bounds change
   useLayoutEffect(() => refresh({ min: minWidth, max: maxWidth }), [refresh, minWidth, maxWidth]);
 
   return {

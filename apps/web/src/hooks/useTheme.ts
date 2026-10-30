@@ -634,7 +634,7 @@ function clearThemeHalves(): boolean {
   return true;
 }
 
-function refreshTheme({ preservePreview = false } = {}): void {
+export function refreshTheme({ preservePreview = false } = {}): void {
   if (typeof window === "undefined") return;
   lastAppliedTheme = null;
   applyTheme(getStored(), { suppressTransitions: true, preservePreview });
@@ -669,3 +669,5 @@ export function useTheme() {
     themeHalves: snapshot.themeHalves,
   } as const;
 }
+
+export const getThemeSnapshot = getSnapshot;

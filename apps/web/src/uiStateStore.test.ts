@@ -12,7 +12,7 @@ import {
 function makeUiState(overrides: Partial<UiState> = {}): UiState {
   return {
     projectOrder: [],
-    sidebarProjectScopeKey: null,
+    sidebarProjectScopeKeys: [],
     threadChangedFilesExpandedById: {},
     defaultAdvertisedEndpointKey: null,
     pullRequestMergeMethod: "merge",
@@ -50,7 +50,7 @@ describe("parsePersistedState", () => {
     expect(parsed).toEqual({
       projectOrder: ["physical-b", "physical-a"],
       defaultAdvertisedEndpointKey: "desktop-core:lan:http",
-      sidebarProjectScopeKey: null,
+      sidebarProjectScopeKeys: [],
       pullRequestMergeMethod: "merge",
       threadChangedFilesExpandedById: {
         "environment:thread-1": {
@@ -116,6 +116,7 @@ describe("uiStateStore persistence", () => {
       projectOrder: ["physical-b", "physical-a"],
       defaultAdvertisedEndpointKey: "desktop-core:lan:http",
       sidebarProjectScopeKey: null,
+      sidebarProjectScopeKeys: [],
       threadChangedFilesExpandedById: {
         "environment:thread-1": {
           "turn-1": false,
@@ -130,14 +131,14 @@ describe("uiStateStore persistence", () => {
   });
 
   it("restores the sidebar project scope across reloads", () => {
-    persistState(makeUiState({ sidebarProjectScopeKey: "github.com/supabitapp/supacode-next" }));
+    persistState(makeUiState({ sidebarProjectScopeKeys: ["github.com/supabitapp/supacode-next"] }));
 
     const persisted = JSON.parse(
       localStorageStub.getItem(PERSISTED_STATE_KEY) ?? "{}",
     ) as PersistedUiState;
 
-    expect(parsePersistedState(persisted).sidebarProjectScopeKey).toBe(
+    expect(parsePersistedState(persisted).sidebarProjectScopeKeys).toEqual([
       "github.com/supabitapp/supacode-next",
-    );
+    ]);
   });
 });

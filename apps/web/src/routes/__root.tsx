@@ -26,11 +26,9 @@ import { DesktopWebLinkCoordinator } from "../components/desktop/DesktopWebLinkC
 import { DesktopAppActivationCoordinator } from "../components/desktop/DesktopAppActivationCoordinator";
 import { RunningThreadKeepAlive } from "../components/desktop/RunningThreadKeepAlive";
 import { DesktopUpdateLaunchNotice } from "../components/sidebar/updateEverythingRun";
-import { ThreadNotificationCoordinator } from "../components/ThreadNotificationCoordinator";
 import { getCodexMicroBridge } from "../components/codexMicro/codexMicroBridge";
 import { ReopenClosedViewShortcut } from "../components/ReopenClosedViewShortcut";
 import { ProjectCloneToastCoordinator } from "../components/ProjectCloneToastCoordinator";
-import { PullRequestGuideRunCoordinator } from "../components/pullRequest/guide/PullRequestGuideRunCoordinator";
 import { ChatGptWelcomeCoordinator } from "../components/settings/ChatGptWelcomeCoordinator";
 import { ThemeEditorHost } from "../components/settings/ThemeEditorHost";
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
@@ -58,6 +56,12 @@ const CodexMicroCoordinator = lazy(() =>
     default: module.CodexMicroCoordinator,
   })),
 );
+
+const DevReplayHost = import.meta.env.DEV
+  ? lazy(() =>
+      import("../components/DevReplayHost").then((module) => ({ default: module.DevReplayHost })),
+    )
+  : null;
 
 export const Route = createRootRoute({
   beforeLoad: async ({ location }) => {
@@ -145,6 +149,11 @@ function RootRouteView() {
         <AnchoredToastProvider>
           <CustomSnoozeDialogHost />
           <GuestShareDialogHost />
+          {DevReplayHost ? (
+            <Suspense>
+              <DevReplayHost />
+            </Suspense>
+          ) : null}
           <CommandPalette>
             <AppSidebarLayout>
               <Outlet />
@@ -190,15 +199,18 @@ function RootRouteView() {
           {isElectron ? <RunningThreadKeepAlive /> : null}
           <SshPasswordPromptDialog />
           <SnapShotCoordinator />
-          <ThreadNotificationCoordinator />
           <ReopenClosedViewShortcut />
           <ConfirmDialogHost />
           <CustomSnoozeDialogHost />
           <GuestShareDialogHost />
+          {DevReplayHost ? (
+            <Suspense>
+              <DevReplayHost />
+            </Suspense>
+          ) : null}
 
           <ProjectCloneToastCoordinator />
           <AddProjectToMachineDialogHost />
-          <PullRequestGuideRunCoordinator />
           <HostedStaticEnvironmentBootstrap />
           {primaryEnvironmentAuthenticated ? (
             <EventRouter skipInitialBootstrapNavigation={returningFromWelcome} />
@@ -219,6 +231,7 @@ function HostedStaticEnvironmentBootstrap() {
   const { environments } = useEnvironments();
   const activeEnvironmentId = useActiveEnvironmentId();
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- selects a connected environment for the mounted static app entry
   useEffect(() => {
     if (
       environments.some(
@@ -252,11 +265,7 @@ function RootRouteErrorView({ error }: ErrorComponentProps) {
 
   return (
     <StandalonePage tone="error">
-      <StandalonePageHeader
-        eyebrow={APP_DISPLAY_NAME}
-        title="Something went wrong."
-        description={message}
-      />
+      <StandalonePageHeader eyebrow="Error" title="Something went wrong." description={message} />
 
       <div className="mt-5 flex flex-wrap gap-2">
         <Button size="sm" onClick={() => void router.invalidate()}>
@@ -339,6 +348,7 @@ function errorReport(error: unknown, pathname: string): string {
 }
 
 function AuthenticatedTracingBootstrap() {
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- starts tracing after the authenticated application mounts
   useEffect(() => {
     void configureClientTracing();
   }, []);
@@ -389,6 +399,7 @@ function EventRouter({
     })().catch(() => undefined);
   });
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- expands the bootstrap project in the UI store and navigates the router on a server welcome
   useEffect(() => {
     if (!serverConfig) {
       return;
@@ -397,6 +408,7 @@ function EventRouter({
     setActiveEnvironmentId(serverConfig.environment.environmentId);
   }, [serverConfig]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- delivers server welcome navigation to the mounted router
   useEffect(() => {
     handleWelcome(serverWelcome);
   }, [serverWelcome]);

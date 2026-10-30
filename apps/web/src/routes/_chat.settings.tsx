@@ -1,3 +1,4 @@
+import { workspaceAreaProps } from "../lib/workspaceFocus";
 import { Outlet, createFileRoute, redirect, useLocation } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
 import { RotateCcwIcon } from "@supaterm/icons";
@@ -118,7 +119,10 @@ function SettingsContentLayout() {
   const [restoreSignal, setRestoreSignal] = useState(0);
 
   return (
-    <SidebarInset className="h-full min-h-0 overflow-hidden overscroll-y-none isolate">
+    <SidebarInset
+      {...workspaceAreaProps("settings", 1, "Settings")}
+      className="h-full min-h-0 overflow-hidden overscroll-y-none isolate"
+    >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground">
         <WorkspacePageHeader electron={false}>
           <div className="flex w-full items-center gap-3">

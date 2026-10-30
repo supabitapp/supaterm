@@ -816,6 +816,10 @@ export class GhosttyTerminalSurface {
     this.refreshHoveredLink();
   }
 
+  heightForRows(rows: number): number {
+    return Math.ceil(rows * this.metrics.height + CONTENT_PADDING * 2);
+  }
+
   async setFont(font: GhosttyTerminalFont): Promise<void> {
     if (this.disposed) return;
     const fontSize = terminalFontSize(font.size);

@@ -1,3 +1,6 @@
+import { crossesReleaseTrack } from "@supaterm/shared/cliRelease";
+import { useServerConfigs } from "~/state/entities";
+import type { DesktopUpdateChannel } from "@supaterm/contracts";
 import { useAtomValue } from "@effect/atom-react";
 import {
   AuthEnvironmentMaintainScope,
@@ -41,6 +44,24 @@ export function serverUpdateStageLabel(stage: ServerUpdateStage): string {
   return UPDATE_STAGE_LABELS[stage];
 }
 
+const CROSS_TRACK_NOTE = "Switch tracks in Settings > About > Update track";
+
+function refusedCrossing(
+  target: Pick<ServerUpdateTarget, "selfUpdate" | "targetVersion" | "channel">,
+  serverVersion: string | undefined,
+): boolean {
+  return (
+    target.channel === undefined &&
+    target.selfUpdate !== null &&
+    serverVersion !== undefined &&
+    crossesReleaseTrack(serverVersion, target.targetVersion)
+  );
+}
+
+function CrossTrackNote() {
+  return <span className="text-xs text-muted-foreground">{CROSS_TRACK_NOTE}</span>;
+}
+
 function updateFailureMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Server update failed.";
 }
@@ -52,6 +73,9 @@ export interface ServerUpdateTarget {
   readonly installation?: ServerInstallation | undefined;
   readonly desktopAppUpdate?: boolean;
   readonly targetVersion: string;
+  readonly channel?: DesktopUpdateChannel;
+  readonly targetDatabaseMigration?: number;
+  readonly trackOnly?: boolean;
 }
 
 type UpdateButtonProps = Pick<ComponentProps<typeof Button>, "variant" | "size" | "className"> & {
@@ -81,6 +105,10 @@ export function useServerUpdate() {
       environmentId,
       input: {
         targetVersion,
+        ...(target.channel === undefined ? {} : { channel: target.channel }),
+        ...(target.targetDatabaseMigration === undefined
+          ? {}
+          : { targetDatabaseMigration: target.targetDatabaseMigration }),
       },
     });
     pendingUpdateEnvironmentIds.delete(environmentId);
@@ -124,10 +152,12 @@ export function ServerUpdatesAction({
   const update = useServerUpdate();
   const pending = useRef(false);
   const [isPending, setIsPending] = useState(false);
+  const serverConfigs = useServerConfigs();
   const eligible = targets.filter(
     (target) =>
       target.selfUpdate !== null &&
-      (target.selfUpdate !== "desktop-managed" || target.desktopAppUpdate),
+      (target.selfUpdate !== "desktop-managed" || target.desktopAppUpdate) &&
+      !refusedCrossing(target, serverConfigs.get(target.environmentId)?.environment.serverVersion),
   );
   const handleUpdate = async () => {
     if (pending.current) return;
@@ -194,10 +224,7 @@ export function ServerUpdateProgress({
   );
 }
 
-/**
- * Self-updates delegate their full lifecycle to client-runtime so this component can unmount
- * during reconnect without losing operation state.
- */
+/** client-runtime owns self-updates so unmounting during reconnect preserves operation state. */
 export function ServerUpdateAction({
   environmentId,
   serverLabel,
@@ -205,6 +232,9 @@ export function ServerUpdateAction({
   installation,
   desktopAppUpdate = false,
   targetVersion,
+  channel,
+  targetDatabaseMigration,
+  trackOnly,
   label = "Update",
   variant = "outline",
   size = "xs",
@@ -212,6 +242,7 @@ export function ServerUpdateAction({
   appearance = "button",
 }: ServerUpdateTarget & UpdateButtonProps) {
   const isDesktopAppUpdate = selfUpdate === "desktop-managed";
+  const serverVersion = useServerConfigs().get(environmentId)?.environment.serverVersion;
   const sessionStateAtom = environmentSession.sessionStateAtom(environmentId);
   const canUpdate = canUpdateServer(useAtomValue(sessionStateAtom));
   const update = useServerUpdate();
@@ -260,6 +291,9 @@ export function ServerUpdateAction({
       selfUpdate,
       desktopAppUpdate,
       targetVersion,
+      ...(channel === undefined ? {} : { channel }),
+      ...(targetDatabaseMigration === undefined ? {} : { targetDatabaseMigration }),
+      ...(trackOnly === undefined ? {} : { trackOnly }),
     });
   };
 
@@ -270,6 +304,14 @@ export function ServerUpdateAction({
       </span>
     );
   }
+
+  if (
+    refusedCrossing(
+      { selfUpdate, targetVersion, ...(channel === undefined ? {} : { channel }) },
+      serverVersion,
+    )
+  )
+    return <CrossTrackNote />;
 
   const manualCommand =
     selfUpdate === null ? manualServerUpdateCommand(targetVersion, installation) : null;
@@ -319,9 +361,7 @@ export function ServerUpdateAction({
   );
 }
 
-/**
- * Its version comes from the host descriptor because the host never delivers a server config.
- */
+/** Read the host descriptor's version because the host never delivers server config. */
 export function OutdatedServerUpdateAction({
   environmentId,
   serverLabel,
@@ -363,6 +403,8 @@ export function OutdatedServerUpdateAction({
           : `Reconnected on supaterm@${result.value.targetVersion}.`,
     });
   };
+  if (fromVersion !== undefined && crossesReleaseTrack(fromVersion, targetVersion))
+    return <CrossTrackNote />;
   return (
     <Button size="xs" variant="outline" onClick={() => void handleUpdate()}>
       {label}

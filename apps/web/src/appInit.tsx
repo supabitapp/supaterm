@@ -1,3 +1,8 @@
+import { startThreadNotifications } from "./components/ThreadNotificationCoordinator";
+import { startGuideRunNotifications } from "./components/pullRequest/guide/PullRequestGuideRunCoordinator";
+import { installCommandPaletteCommands } from "./shortcuts/commandPaletteCommands";
+import { startWorkspaceFocus } from "./lib/workspaceFocus";
+import { installChatRouteCommands } from "./shortcuts/chatRouteCommands";
 import type { ClientSettings } from "@supaterm/contracts/settings";
 import { createBrowserHistory, createHashHistory } from "@tanstack/react-router";
 
@@ -12,7 +17,10 @@ import { startSlowRpcRequestToasts } from "./components/SlowRpcRequestToastCoord
 import { applyAppearanceContrast } from "./appearanceContrast";
 import { applyAppearanceFontVariables } from "./appearanceFonts";
 import { APP_DISPLAY_NAME } from "./branding";
-import { subscribeComposerDraftModelReconciliation } from "./composerDraftStore";
+import {
+  subscribeDraftThreadPromotion,
+  subscribeComposerDraftModelReconciliation,
+} from "./composerDraftStore";
 import { isElectron } from "./env";
 import { startDefaultThemeAdoption } from "./hooks/useDefaultTheme";
 import { startEnvironmentThemeRepaint } from "./hooks/useEnvironmentTheme";
@@ -97,6 +105,22 @@ export function startAppServices(): AppRouter {
   );
   disposers.push(startBrowserProfileReporting());
   disposers.push(startPreviewTitleRecording(), startAgentOpenedPreviews());
+  disposers.push(
+    installChatRouteCommands(router),
+    installCommandPaletteCommands(router),
+    startWorkspaceFocus(router),
+  );
+  disposers.push(
+    subscribeDraftThreadPromotion({
+      registry: appAtomRegistry,
+      threadRefsAtom: environmentThreadShells.threadRefsAtom,
+      threadShellAtom: environmentThreadShells.threadShellAtom,
+    }),
+  );
+  disposers.push(
+    startGuideRunNotifications(appAtomRegistry, router),
+    startThreadNotifications(appAtomRegistry, router),
+  );
   document.title = APP_DISPLAY_NAME;
   disposers.push(startSshPasswordPromptQueue());
   disposers.push(startClientAppearance(), startThemeSync());
