@@ -61,14 +61,12 @@ export function ThreadInspectorContentStack(props: {
     setMountedModes(new Set([...mountedModes, props.mode]));
   }
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Owns the delayed native inspector prewarm timer and cancels it when the mode changes.
   useEffect(() => {
     if (props.mode === "route" || props.mode === "preview") {
       return;
     }
 
-    // The file tree is expensive to detach because UIKit rebuilds its focus
-    // graph. Keep both chat inspectors alive after the opening animation so a
-    // later Files/Git switch only changes visibility.
     const alternateMode = props.mode === "files" ? "git" : "files";
     const timeout = setTimeout(() => {
       setMountedModes((current) => {
