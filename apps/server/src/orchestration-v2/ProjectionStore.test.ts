@@ -847,6 +847,121 @@ const commandReadsSkipSettledLeafNodes = Effect.gen(function* () {
     nodeNames(yield* store.getThreadRecords(threadId, ["nodes"])),
     nodes.map(([name]) => name).toSorted(),
   );
+
+  const subagents = [
+    ["delivered", finishedRun, "completed", "delivered"],
+    ["acknowledged", finishedRun, "failed", "acknowledged"],
+    ["disposed", finishedRun, "cancelled", "disposed"],
+    ["pending-delivery", finishedRun, "completed", "pending"],
+    ["claimed", finishedRun, "completed", "claimed"],
+    ["no-delivery", finishedRun, "interrupted", null],
+    ["running", finishedRun, "running", null],
+    ["active-run-delivered", activeRun, "completed", "delivered"],
+  ] as const;
+  for (const [index, [name, run, status, delivery]] of subagents.entries()) {
+    const id = NodeId.make(`node:finished-subagents:${name}`);
+    yield* store.apply({
+      id: EventId.make(`event:finished-subagents:item:${name}`),
+      type: "turn-item.updated",
+      threadId,
+      runId: run.id,
+      nodeId: id,
+      driver,
+      occurredAt: now,
+      payload: {
+        id: TurnItemId.make(`item:finished-subagents:${name}`),
+        type: "subagent",
+        threadId,
+        runId: run.id,
+        nodeId: id,
+        providerThreadId: null,
+        providerTurnId: null,
+        nativeItemRef: null,
+        parentItemId: null,
+        ordinal: 100 + index,
+        status: status === "running" ? "running" : "completed",
+        title: name,
+        startedAt: now,
+        completedAt: status === "running" ? null : now,
+        updatedAt: now,
+        subagentId: id,
+        origin: "app_owned",
+        driver,
+        providerInstanceId,
+        childThreadId: null,
+        prompt: "Do the work",
+        result: null,
+      },
+    });
+    yield* store.apply({
+      id: EventId.make(`event:finished-subagents:${name}`),
+      type: "subagent.updated",
+      threadId,
+      runId: run.id,
+      nodeId: id,
+      driver,
+      providerInstanceId,
+      occurredAt: now,
+      payload: {
+        id,
+        threadId,
+        runId: run.id,
+        parentNodeId: run.rootNodeId!,
+        origin: "app_owned",
+        createdBy: "agent",
+        driver,
+        providerInstanceId,
+        providerThreadId: null,
+        childThreadId: null,
+        nativeTaskRef: null,
+        prompt: "Do the work",
+        title: name,
+        model: null,
+        ...(delivery === null
+          ? {}
+          : { completionDelivery: { state: delivery, observedByRunId: null } }),
+        status,
+        result: null,
+        startedAt: now,
+        completedAt: status === "running" ? null : now,
+        updatedAt: now,
+      },
+    });
+  }
+  const subagentNames = (records: {
+    readonly subagents: ReadonlyArray<{ readonly title: string | null }>;
+  }) => records.subagents.map((subagent) => subagent.title ?? "").toSorted();
+  assert.deepEqual(
+    subagentNames(
+      yield* store.getThreadRecords(threadId, ["subagents"], { omitSettledSubagents: true }),
+    ),
+    ["active-run-delivered", "claimed", "no-delivery", "pending-delivery", "running"],
+  );
+  assert.deepEqual(
+    subagentNames(yield* store.getThreadRecords(threadId, ["subagents"])),
+    subagents.map(([name]) => name).toSorted(),
+  );
+  // A command about one finished task keeps it, and reads only its node and turn item.
+  const deliveredId = NodeId.make("node:finished-subagents:delivered");
+  const forTask = yield* store.getThreadRecords(threadId, ["subagents", "nodes", "turnItems"], {
+    omitSettledSubagents: { except: [deliveredId] },
+    nodeIds: [NodeId.make("node:finished-leaf-nodes:finished-tool")],
+    turnItemNodeIds: [deliveredId],
+  });
+  assert.deepEqual(subagentNames(forTask), [
+    "active-run-delivered",
+    "claimed",
+    "delivered",
+    "no-delivery",
+    "pending-delivery",
+    "running",
+  ]);
+  assert.deepEqual(nodeNames(forTask), ["finished-tool"]);
+  assert.deepEqual(
+    forTask.turnItems.map((item) => item.title),
+    ["delivered"],
+  );
+  assert.strictEqual(yield* store.getSubagentCount(threadId), subagents.length);
 });
 
 const backgroundThreadUpdatesKeepTimestamp = Effect.gen(function* () {
@@ -3617,6 +3732,12 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
       const projection = yield* projectionStore.getThreadProjection(threadId);
       assert.deepEqual(projection.runs[0]?.delegatedCompletion, run.delegatedCompletion);
       assert.deepEqual(projection.subagents[0]?.completionDelivery, task.completionDelivery);
+      assert.deepEqual(
+        (yield* projectionStore.getThreadRecords(threadId, ["subagents"], {
+          omitSettledSubagents: true,
+        })).subagents,
+        [],
+      );
     }),
   );
 
@@ -4475,6 +4596,8 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           (row) => row.id === threadId,
         ),
       );
+      assert.strictEqual(yield* store.getLimitRecoveryWakeAt(now), DateTime.toEpochMillis(reset));
+      assert.isNull(yield* store.getLimitRecoveryWakeAt(reset));
       const due = (yield* store.getLimitRecoveryCandidates({
         ...recoveryOptions,
         now: reset,
@@ -4497,9 +4620,14 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           (row) => row.id === threadId,
         ),
       );
+      assert.strictEqual(
+        yield* store.getLimitRecoveryWakeAt(reset),
+        DateTime.toEpochMillis(DateTime.add(reset, { minutes: 1 })),
+      );
       yield* sql`UPDATE orchestration_v2_projection_threads
         SET payload_json = json_set(payload_json, '$.snoozedUntil', NULL, '$.limitRecovery.autoResume', json('false'))
         WHERE thread_id = ${threadId}`;
+      assert.isNull(yield* store.getLimitRecoveryWakeAt(now));
       assert.isUndefined(
         (yield* store.getLimitRecoveryCandidates({
           ...recoveryOptions,

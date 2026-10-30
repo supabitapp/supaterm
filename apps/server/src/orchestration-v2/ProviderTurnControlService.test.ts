@@ -212,6 +212,7 @@ it.effect(
           getLimitRecoveryCandidates: () => Effect.die("unused getLimitRecoveryCandidates"),
           getQuestionAutoDismissCandidates: () =>
             Effect.die("unused getQuestionAutoDismissCandidates"),
+          getLimitRecoveryWakeAt: () => Effect.die("unused getLimitRecoveryWakeAt"),
           getShellSnapshot: () => Effect.die("unused getShellSnapshot"),
           listActiveSubagentThreadIds: () => Effect.die("unused listActiveSubagentThreadIds"),
           countThreads: () => Effect.die("unused countThreads"),
@@ -237,6 +238,7 @@ it.effect(
           getThreadHistoryPage: () => Effect.die("unused"),
           getTimelinePage: () => Effect.die("Unused timeline read"),
           getMessageCount: () => Effect.die("unused message count"),
+          getSubagentCount: () => Effect.die("unused subagent count"),
           getNextTurnItemOrdinal: () => Effect.die("unused ordinal read"),
           getTurnItem: () => Effect.die("unused turn item read"),
           getThreadRecords: () => Effect.die("unused record read"),
