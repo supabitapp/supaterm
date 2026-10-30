@@ -262,7 +262,7 @@ describe("openBoundedZip", () => {
     const bytes = await archive([["a.txt", "hello"]]);
     new Uint8Array(bytes, 30, 5).set(new TextEncoder().encode("../xx"));
     await expect(openBoundedZip(bytes)).rejects.toThrow("path");
-    const encoded = (name: string) => new TextEncoder().encode(name.replace(/[^a-z.]/g, "x"));
+    const encoded = (name: string) => name.replace(/[^a-z.]/g, "x");
     const unicode = await new JSZip()
       .file("資料.txt", "hello")
       .generateAsync({ type: "arraybuffer", encodeFileName: encoded });
@@ -276,7 +276,7 @@ describe("openBoundedZip", () => {
       .file("../資料.txt", "hidden", { createFolders: false })
       .generateAsync({
         type: "arraybuffer",
-        encodeFileName: () => new TextEncoder().encode("safe.txt"),
+        encodeFileName: () => "safe.txt",
       });
     await expect(openBoundedZip(unsafe)).rejects.toThrow("path");
   });
