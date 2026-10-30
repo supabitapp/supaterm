@@ -35,8 +35,8 @@ import * as Transcription from "./Transcription.ts";
 
 export const TRANSCRIPTION_UPLOAD_ROUTE_PREFIX = "/api/transcription/uploads";
 
-// A URL can start work for this long after preparation, and an outcome is kept this long
-// after settling, so a replayed URL always finds the work it started instead of paying again.
+// A URL can start work for this long after preparation. An entry outlives every URL issued for
+// it, so a replayed or re-prepared URL finds the work or cancellation instead of starting again.
 const OUTCOME_TTL_MS = ATTACHMENT_UPLOAD_URL_TTL_MS;
 const MAX_ENTRIES = 64;
 const PRUNE_INTERVAL = "1 minute";
@@ -64,16 +64,24 @@ interface Work {
 
 type Outcome = Exit.Exit<TranscriptionUploadResult, TranscriptionError>;
 
-/** `request` is the encoded preparation. A cancelled upload answers every request alike. */
+/**
+ * `request` is the encoded preparation. A cancelled upload answers every request alike.
+ * `retainUntil` covers the latest URL issued for the upload; running work is never dropped.
+ */
 type Entry =
-  | { readonly _tag: "Transcribing" | "Submitting"; readonly request: string; readonly work: Work }
+  | {
+      readonly _tag: "Transcribing" | "Submitting";
+      readonly request: string;
+      readonly work: Work;
+      readonly retainUntil: number;
+    }
   | {
       readonly _tag: "Settled";
       readonly request: string;
-      readonly settledAt: number;
+      readonly retainUntil: number;
       readonly outcome: Outcome;
     }
-  | { readonly _tag: "Cancelled"; readonly settledAt: number };
+  | { readonly _tag: "Cancelled"; readonly retainUntil: number };
 
 const cancelled: Outcome = Exit.fail(new TranscriptionError({ reason: "cancelled" }));
 
@@ -150,9 +158,7 @@ const make = Effect.gen(function* () {
   const pruneExpired = Effect.fnUntraced(function* (now: number) {
     const entries = yield* Ref.get(entriesRef);
     const live = new Map(
-      [...entries].filter(
-        ([, entry]) => !("settledAt" in entry) || entry.settledAt + OUTCOME_TTL_MS > now,
-      ),
+      [...entries].filter(([, entry]) => "work" in entry || entry.retainUntil > now),
     );
     if (live.size !== entries.size) yield* Ref.set(entriesRef, live);
     return live;
@@ -179,7 +185,7 @@ const make = Effect.gen(function* () {
         const next = new Map(entries).set(uploadId, {
           _tag: "Settled",
           request: entry.request,
-          settledAt,
+          retainUntil: Math.max(entry.retainUntil, settledAt + OUTCOME_TTL_MS),
           outcome,
         });
         return [true, next] as const;
@@ -257,7 +263,9 @@ const make = Effect.gen(function* () {
     const live = yield* liveEntries;
     const existing = live.get(uploadId);
     if (existing !== undefined) return joinEntry(existing, request);
-    if (live.size >= MAX_ENTRIES) {
+    // Cancellations hold no work or outcome, so they don't use up capacity.
+    const held = [...live.values()].filter((entry) => entry._tag !== "Cancelled").length;
+    if (held >= MAX_ENTRIES) {
       return Effect.fail(new TranscriptionError({ reason: "rateLimited" }));
     }
     const audioPath = path.join(directory, `${yield* randomId}.wav`);
@@ -276,6 +284,7 @@ const make = Effect.gen(function* () {
         _tag: "Transcribing",
         request,
         work: { result, fiber },
+        retainUntil: claims.expiresAt,
       }),
     );
     return Deferred.await(result);
@@ -322,6 +331,16 @@ const make = Effect.gen(function* () {
   )(function* (input) {
     const uploadId = input.submit?.commandId ?? (yield* randomId);
     const expiresAt = (yield* Clock.currentTimeMillis) + ATTACHMENT_UPLOAD_URL_TTL_MS;
+    yield* storeLock.withPermits(1)(
+      Effect.flatMap(liveEntries, (live) => {
+        const entry = live.get(uploadId);
+        if (entry === undefined || entry.retainUntil >= expiresAt) return Effect.void;
+        return Ref.set(
+          entriesRef,
+          new Map(live).set(uploadId, { ...entry, retainUntil: expiresAt }),
+        );
+      }),
+    );
     const token = yield* signUploadToken(
       encodeUploadClaims({
         version: 1,
@@ -348,10 +367,8 @@ const make = Effect.gen(function* () {
           return { outcome: "tooLate" } as const;
         }
         // Recorded even when nothing is known yet, so an upload still on its way can't start.
-        yield* Ref.set(
-          entriesRef,
-          new Map(live).set(uploadId, { _tag: "Cancelled", settledAt: now }),
-        );
+        const retainUntil = Math.max(entry?.retainUntil ?? 0, now + OUTCOME_TTL_MS);
+        yield* Ref.set(entriesRef, new Map(live).set(uploadId, { _tag: "Cancelled", retainUntil }));
         return {
           outcome: "cancelled",
           stopped: entry?._tag === "Transcribing" ? entry.work : undefined,

@@ -371,4 +371,55 @@ describe("TranscriptionUploads", () => {
       }).pipe(Effect.provide(harness.layer));
     }).pipe(Effect.provide(environment)),
   );
+
+  it.effect("keeps an outcome or cancellation for as long as a URL prepared again for it", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness;
+      yield* Effect.gen(function* () {
+        const sent = yield* prepare({ submit: submit("command-8") });
+        const pending = yield* Effect.forkChild(upload(tokenOf(sent.relativeUrl), AUDIO_BODY));
+        yield* Queue.take(harness.transcribing);
+        yield* Queue.offer(harness.transcripts, Effect.succeed({ text: "once" }));
+        yield* Queue.take(harness.dispatches);
+        yield* Queue.offer(
+          harness.dispatchReplies,
+          Effect.succeed({ sequence: 4, storedEvents: [] }),
+        );
+        yield* Fiber.join(pending);
+        const stopped = yield* prepare({ submit: submit("command-9") });
+        expect(yield* cancel(stopped.uploadId)).toEqual({ outcome: "cancelled" });
+
+        yield* TestClock.adjust("9 minutes");
+        const sentAgain = yield* prepare({ submit: submit("command-8") });
+        const stoppedAgain = yield* prepare({ submit: submit("command-9") });
+        yield* TestClock.adjust("2 minutes");
+
+        expect(yield* upload(tokenOf(sentAgain.relativeUrl), AUDIO_BODY)).toEqual({
+          text: "once",
+          submission: { status: "sent", sequence: 4 },
+        });
+        expect(yield* reason(upload(tokenOf(stoppedAgain.relativeUrl), AUDIO_BODY))).toBe(
+          "cancelled",
+        );
+        expect(yield* Ref.get(harness.transcriptions)).toHaveLength(1);
+        expect(yield* Queue.size(harness.dispatches)).toBe(0);
+      }).pipe(Effect.provide(harness.layer));
+    }).pipe(Effect.provide(environment)),
+  );
+
+  it.effect("doesn't let cancellations use up upload capacity", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness;
+      yield* Effect.gen(function* () {
+        yield* Effect.forEach(
+          Array.from({ length: 65 }, (_, index) => `never-prepared-${index}`),
+          (uploadId) => cancel(uploadId),
+          { discard: true },
+        );
+        const prepared = yield* prepare({});
+        yield* Queue.offer(harness.transcripts, Effect.succeed({ text: "room" }));
+        expect(yield* upload(tokenOf(prepared.relativeUrl), AUDIO_BODY)).toEqual({ text: "room" });
+      }).pipe(Effect.provide(harness.layer));
+    }).pipe(Effect.provide(environment)),
+  );
 });
