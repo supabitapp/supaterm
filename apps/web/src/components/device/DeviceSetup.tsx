@@ -3,8 +3,7 @@ import type { DevicePlatform, DeviceServiceState, EnvironmentId } from "@supater
 import { CheckIcon } from "@supaterm/icons";
 import { Check as CheckGlyph, CircleAlert } from "@supaterm/icons/nodes";
 import { AuthSettingsWriteScope } from "@supaterm/contracts";
-import { useAtomMount } from "@effect/atom-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Button } from "~/components/ui/button";
 import { DialogClose } from "~/components/ui/dialog";
@@ -12,7 +11,7 @@ import { MorphIcon } from "~/components/MorphIcon";
 import { WizardHeader, WizardPanel, WizardSteps, WizardFooter } from "~/components/ui/wizard";
 import { Spinner } from "~/components/ui/spinner";
 import { Switch } from "~/components/ui/switch";
-import { deviceEnvironment, deviceHostProbeAtom, NO_DEVICE_PROBE_ATOM } from "~/state/device";
+import { deviceEnvironment } from "~/state/device";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
 import { cn } from "~/lib/utils";
@@ -119,7 +118,7 @@ export function platformSetupStatus(state: DeviceServiceState, platform: DeviceP
     ready: true,
     message:
       remoteHost?.kind === "eas"
-        ? `${remoteHost.label} starts ${platform === "ios" ? "iOS Simulators" : "Android emulators"} in the cloud with EAS Simulator.`
+        ? `${remoteHost.label} starts iOS Simulators in the cloud with EAS Simulator.`
         : platform === "ios"
           ? `Xcode and iOS Simulator are available${location}.`
           : `The Android SDK and Emulator are available${location}.`,
@@ -142,7 +141,10 @@ export function DeviceSetup(props: {
     (host) => host.kind === "local" && !host.platforms.some((platform) => platform.available),
   );
 
-  useAtomMount(enabled ? deviceHostProbeAtom(props.environmentId) : NO_DEVICE_PROBE_ATOM);
+  // Remote hosts report platforms only after a probe, like the Device panel's refresh on open.
+  useEffect(() => {
+    if (enabled) void list({ environmentId: props.environmentId, input: {} });
+  }, [enabled, list, props.environmentId]);
 
   const update = async (
     kind: NonNullable<typeof pending>,

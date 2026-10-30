@@ -19,7 +19,6 @@ export function usePasteToFocusComposer(
 ) {
   const isPaneInputOwner = usePaneInputOwner();
   const pasteAsTextShortcutUntilRef = useRef(0);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Routes window paste events into the active composer when no editable element owns them.
   useEffect(() => {
     const keyHandler = (event: KeyboardEvent) => {
       if (!isPaneInputOwner()) return;

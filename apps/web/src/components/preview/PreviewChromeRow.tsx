@@ -11,7 +11,8 @@ import {
   type FormEvent,
   type KeyboardEvent,
   type ReactNode,
-  type RefObject,
+  useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -29,8 +30,7 @@ interface Props {
   canGoForward: boolean;
   refreshDisabled: boolean;
   inputDisabled?: boolean | undefined;
-  /** Owned by the caller so its shortcut handler can focus the address bar directly. */
-  urlInputRef: RefObject<HTMLInputElement | null>;
+  focusUrlNonce?: number | undefined;
   onBack: () => void;
   onForward: () => void;
   onRefresh: () => void;
@@ -59,7 +59,7 @@ export function PreviewChromeRow({
   canGoForward,
   refreshDisabled,
   inputDisabled,
-  urlInputRef: inputRef,
+  focusUrlNonce,
   onBack,
   onForward,
   onRefresh,
@@ -79,8 +79,16 @@ export function PreviewChromeRow({
   leadingActions,
 }: Props) {
   const refreshShortcut = useShortcutLabel("preview.refresh", PREVIEW_FOCUS_SHORTCUT_OPTIONS);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const [draft, setDraft] = useState(url);
   const [inputFocused, setInputFocused] = useState(false);
+
+  useEffect(() => {
+    if (focusUrlNonce == null) return;
+    const node = inputRef.current;
+    if (!node) return;
+    node.focus();
+  }, [focusUrlNonce]);
 
   const submit = (event?: FormEvent | KeyboardEvent) => {
     event?.preventDefault();
@@ -180,8 +188,6 @@ export function PreviewChromeRow({
                     }
                   }}
                   placeholder="Search or enter URL"
-                  aria-label="Search or enter URL"
-                  data-workspace-focus-default
                   spellCheck={false}
                   disabled={inputDisabled}
                   data-preview-url-input

@@ -160,7 +160,8 @@ function configuredBinaryPath(config: unknown): string {
   return typeof config.binaryPath === "string" ? config.binaryPath.trim() : "";
 }
 
-// Subscribe only in the label because every status push restamps all providers' checkedAt.
+// Subscribes on its own: a status push restamps `checkedAt` on every provider,
+// and this label is the only part of the panel that shows it.
 function ProviderLastChecked({ environmentId }: { environmentId: EnvironmentId }) {
   const serverProviders =
     useAtomValue(serverEnvironment.providersValueAtom(environmentId)) ?? EMPTY_SERVER_PROVIDERS;
@@ -266,7 +267,8 @@ function EnvironmentUnavailablePlaceholder({
       : `Waiting for ${environment.label}'s configuration.`
     : connectionStatusTitle(environment.connection);
   const error = isLoading ? null : environment.connection.error;
-  // Wedged devices can remain here indefinitely; a spinner would continuously repaint.
+  // No spinner: this state can persist indefinitely for a wedged device, and a
+  // continuously repainting animation would run the whole time.
   return (
     <ProviderSettingsPlaceholder
       deviceTabs={deviceTabs}
@@ -570,7 +572,9 @@ export function EnvironmentProviderSettings({
   const toggleModelFavorite = useToggleEnvironmentModelFavorite(environmentId);
   const persistProviderInstance = usePersistEnvironmentProviderInstanceMutation(environmentId);
   const serverProviders = useAtomValue(providersIgnoringCheckedAtAtom(environmentId));
-  // Hide overrides on older servers that silently ignore providerInstances patches.
+  // Older servers decode an unknown providerInstances key away, so sending
+  // a project override patch would silently do nothing. Hide the switch
+  // instead of offering a control that can never take effect.
   const supportsProjectProviderOverrides = useServerConfigs().has(environmentId);
   const refreshServerProviders = useAtomCommand(serverEnvironment.refreshProviders, {
     reportFailure: false,
@@ -596,6 +600,8 @@ export function EnvironmentProviderSettings({
   const refreshingRef = useRef(false);
   const updatingInstanceIdsRef = useRef<Set<ProviderInstanceId>>(new Set());
 
+  // Rows call these at event time and receive the same functions every render,
+  // so a settings write or provider push only redraws the row it changed.
   const acceptUrlAuthentication = useStableCallback(
     (instanceId: ProviderInstanceId, action: AcpRegistryUrlAuthAction) => {
       void acceptAcpRegistryUrlAuth({
@@ -668,7 +674,8 @@ export function EnvironmentProviderSettings({
       targetVersion?: string,
     ) => {
       if (!readEnvironmentScope(environmentId, AuthProvidersManageScope)) return;
-      // Guard re-entry with a ref; deferred state updates cannot gate dispatch.
+      // Ref-based re-entry guard, mirroring refreshProviders: a state updater
+      // may run after this function returns, so it cannot gate the dispatch.
       if (updatingInstanceIdsRef.current.has(candidate.instanceId)) {
         return;
       }
@@ -863,7 +870,9 @@ export function EnvironmentProviderSettings({
       const agentId = providerConfigString(instance.config, "agentId");
       if (agentId === null) return;
 
-      // Concurrent removals race client snapshots; let the server decide whether the agent remains in use.
+      // The server decides from its latest settings whether this was the last
+      // instance using the managed agent. A client-side snapshot check can race
+      // two removals and make both callers skip cleanup.
       const uninstallResult = await uninstallAcpRegistryManagedBinary({
         environmentId,
         input: { agentId },
@@ -982,7 +991,6 @@ export function EnvironmentProviderSettings({
           ) : null
         }
         headerAction={
-          // The ghost button's padding would inset its label; the New design aligns the text to the card edge.
           <div className="flex min-w-0 items-center gap-2">
             <ProviderUpdatesAction />
             <Tooltip>
@@ -1052,10 +1060,9 @@ export function EnvironmentProviderSettings({
             </ScrollArea>
           </div>
 
-          <div data-provider-detail className="min-w-0 @min-[48rem]/providers:min-h-0">
+          <div className="min-w-0 @min-[48rem]/providers:min-h-0">
             {selectedRow ? (
               <ScrollArea scrollFade chainVerticalScroll className="@min-[48rem]/providers:h-full">
-                {/* Flat sections run dividers edge to edge and inset text like the list beside them. */}
                 <div className="space-y-6 p-4">{renderProviderInstance(selectedRow, "editor")}</div>
               </ScrollArea>
             ) : (
@@ -1199,7 +1206,12 @@ interface ProviderInstanceRowActions {
 
 const NO_MODELS: ReadonlyArray<string> = [];
 
-/** Stable props let this boundary return cached cards even when settings rebuild parent row elements. */
+/**
+ * The boundary that lets the list skip work: the parent rebuilds every row
+ * element when settings change, so this cheap component re-renders, but each
+ * prop is a primitive, a settings value shared across pushes, or a stable
+ * action, and its cached card element is returned unchanged.
+ */
 // The row takes the override as primitives so a settings write that leaves this
 // instance's override unchanged keeps the row's cached card.
 function projectOverrideProps(override: ReturnType<typeof resolveProjectProviderOverride> | null) {

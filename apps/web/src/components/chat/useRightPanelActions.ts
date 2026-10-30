@@ -1,5 +1,5 @@
-import { usePaneScope } from "../../chatPanes/paneScope";
 import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
+import type { Dispatch } from "react";
 import type { ThreadPreviewState } from "../../previewStateStore";
 import { formatFilePathForClipboard } from "@supaterm/client-runtime/media-actions";
 import { resolvePathLinkTarget } from "@supaterm/shared/fileLinks";
@@ -7,7 +7,7 @@ import { resolveExplicitDiffOpenOnActivate } from "../ChatView.logic";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { type ScopedThreadRef, type RunId } from "@supaterm/contracts";
 import { scopedThreadKey } from "@supaterm/client-runtime/environment";
-import { useEffect } from "react";
+import { type SetStateAction, useEffect } from "react";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
@@ -17,15 +17,12 @@ import { useDiffPanelStore } from "../../diffPanelStore";
 import { type ThreadPanelPresentation } from "../../rightPanelLayout";
 import {
   selectActiveRightPanel,
-  selectThreadPanelOpen,
   type RightPanelSurface,
   useRightPanelStore,
 } from "../../rightPanelStore";
-import { requestWorkspaceContentFocus, requestWorkspaceFocus } from "../../lib/workspaceFocus";
 import { setActivePreviewTab } from "../../previewStateStore";
 import { BrowserSettingsReadError } from "../../browser/openFileInPreview";
 import { addBrowserSurface } from "../preview/addBrowserSurface";
-import { focusActivePanelTerminal, focusTerminal } from "../../lib/terminalFocus";
 import { subscribePreviewAction } from "../preview/previewActionBus";
 import { browserMiniPlayerSource, usePreviewMiniPlayerStore } from "../../previewMiniPlayerStore";
 import type { threadPullRequestPanelTarget } from "../pullRequest/pullRequestDetail.logic";
@@ -59,6 +56,7 @@ interface RightPanelActionsInput {
   readonly gitCwd: string | null;
   readonly activeProjectCwd: string | null;
   readonly explicitDiffOpenRef: { current: ScopedThreadRef | null };
+  readonly setTerminalFocusRequestId: Dispatch<SetStateAction<number>>;
   readonly onDiffPanelOpen: (() => void) | undefined;
   readonly closeRightPanelSurface: (surface: RightPanelSurface) => void;
 }
@@ -68,7 +66,6 @@ interface RightPanelActionsInput {
  * requests and device tabs.
  */
 export function useRightPanelActions(input: RightPanelActionsInput) {
-  const paneId = usePaneScope()?.paneId ?? null;
   const {
     routeKind,
     activeThreadRef,
@@ -92,6 +89,7 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
     gitCwd,
     activeProjectCwd,
     explicitDiffOpenRef,
+    setTerminalFocusRequestId,
     onDiffPanelOpen,
     closeRightPanelSurface,
   } = input;
@@ -213,7 +211,7 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
       setActivePreviewTab(activeThreadRef, surface.resourceId);
     }
     if (surface.kind === "terminal") {
-      focusTerminal(activeThreadRef, surface.activeTerminalId, paneId);
+      setTerminalFocusRequestId((value) => value + 1);
     }
     if (surface.kind === "diff" && !diffOpen) {
       onDiffPanelOpen?.();
@@ -227,32 +225,11 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
       return;
     }
     useRightPanelStore.getState().toggleVisibility(activeThreadRef);
-    focusActivePanelTerminal(activeThreadRef, paneId);
   };
   const toggleRightPanelStable = useStableCallback(toggleRightPanel);
   const toggleThreadPanel = () => {
     if (!activeThreadRef || routeKind === "draft") return;
-    const store = useRightPanelStore.getState();
-    if (threadPanelPresentation === "inline" && isPaneInputOwner()) {
-      const open = selectThreadPanelOpen(
-        store.threadPanelVisibilityByThreadKey,
-        activeThreadRef,
-        "inline",
-      );
-      if (!open) {
-        requestWorkspaceFocus({ area: "details" });
-      } else {
-        const details = document.activeElement?.closest('[data-workspace-area="details"]');
-        if (
-          details &&
-          (paneId === null ||
-            details.closest<HTMLElement>("[data-chat-pane]")?.dataset.chatPane === paneId)
-        ) {
-          requestWorkspaceContentFocus();
-        }
-      }
-    }
-    store.toggleThreadPanel(activeThreadRef, threadPanelPresentation);
+    useRightPanelStore.getState().toggleThreadPanel(activeThreadRef, threadPanelPresentation);
   };
   const toggleThreadPanelStable = useStableCallback(toggleThreadPanel);
 
@@ -304,7 +281,6 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
     );
   };
   const copyRightPanelFilePathStable = useStableCallback(copyRightPanelFilePath);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Subscribes the mounted pane to preview actions and releases that registration on unmount.
   useEffect(
     () =>
       subscribePreviewAction((action) => {

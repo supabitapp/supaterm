@@ -4,9 +4,6 @@ import * as Schema from "effect/Schema";
 import {
   OrchestratorMcpDelegateTaskInput,
   OrchestratorMcpDelegateTaskResult,
-  OrchestratorMcpRequestSecretInput,
-  OrchestratorMcpRequestSecretResult,
-  OrchestratorMcpClientRequestId,
 } from "./orchestratorMcp.ts";
 
 const decodeDelegateTaskInput = Schema.decodeUnknownSync(OrchestratorMcpDelegateTaskInput);
@@ -68,30 +65,5 @@ describe("orchestrator MCP contracts", () => {
         pendingApproval: { ...pendingApproval, kind: "user_input" },
       }),
     ).toThrow();
-  });
-});
-
-const decodeSecretRequest = Schema.decodeUnknownSync(OrchestratorMcpRequestSecretInput);
-const decodeSecretResult = Schema.decodeUnknownSync(OrchestratorMcpRequestSecretResult);
-const decodeRequestId = Schema.decodeUnknownSync(OrchestratorMcpClientRequestId);
-
-describe("private file requests", () => {
-  it("requires explicit file delivery and returns only its path", () => {
-    const input = { label: "CLI token", reason: "Authenticate the requested CLI" };
-    expect(() => decodeSecretRequest(input)).toThrow();
-    expect(() => decodeSecretRequest({ ...input, delivery: "secretRef" })).toThrow();
-    expect(decodeSecretRequest({ ...input, delivery: "file" }).delivery).toBe("file");
-    expect(() => decodeSecretResult({ status: "saved", secretRef: "private" })).toThrow();
-    expect(
-      decodeSecretResult({ status: "saved", file: "/private/token", value: "hidden" }),
-    ).toEqual({ status: "saved", file: "/private/token" });
-  });
-});
-
-describe("idempotent request keys", () => {
-  it("keeps a retry key with paired Unicode and rejects malformed surrogates", () => {
-    expect(decodeRequestId("launch-😀")).toBe("launch-😀");
-    expect(() => decodeRequestId("launch-\ud800")).toThrow();
-    expect(() => decodeRequestId("launch-\udc00")).toThrow();
   });
 });

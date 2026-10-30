@@ -31,12 +31,6 @@ import {
 import type { ProviderAuthController } from "./ProviderAuthService.ts";
 
 const AUTH_TIMEOUT_MS = 300_000;
-
-const NO_RESPONSE_HINT_MS = 30_000;
-const NO_RESPONSE_MESSAGE =
-  "Antigravity has not reached Google after 30 seconds. Check this machine's network connection. Broken IPv6 is a common cause.";
-const UNREACHABLE_MESSAGE =
-  "Antigravity could not reach Google. Check this machine's network connection, then start sign-in again.";
 const FORWARDING_FAILED_MESSAGE = "Could not deliver the sign-in response. Start sign-in again.";
 const isSetupError = Schema.is(ProviderSetupError);
 const isAcpRequestError = Schema.is(AcpErrors.AcpRequestError);
@@ -270,17 +264,6 @@ export const makeAntigravityAuth = Effect.fn("makeAntigravityAuth")(function* <
   const runSignIn = Effect.fn("AntigravityAuth.runSignIn")(
     function* (flow: AuthFlow, stopSessions: Effect.Effect<void, ProviderSetupError>) {
       yield* stopSessions.pipe(Effect.ensuring(stopOwnedProcesses));
-      yield* Effect.sleep(NO_RESPONSE_HINT_MS).pipe(
-        Effect.andThen(
-          lock.withPermits(1)(
-            Effect.gen(function* () {
-              if (activeFlow !== flow || flow.state.phase !== "starting") return;
-              yield* publishFlow(flow, { ...flow.state, message: NO_RESPONSE_MESSAGE });
-            }),
-          ),
-        ),
-        Effect.forkScoped,
-      );
       const runtime = yield* options.makeRuntime({
         onAuthorizationUrl: (url) => receiveAuthorizationUrl(flow, url),
       });
@@ -305,14 +288,7 @@ export const makeAntigravityAuth = Effect.fn("makeAntigravityAuth")(function* <
         Effect.timeoutOrElse({
           duration: AUTH_TIMEOUT_MS,
           orElse: () =>
-            Effect.fail(
-              setupError(
-                "start",
-                flow.state.phase === "starting"
-                  ? UNREACHABLE_MESSAGE
-                  : "Google sign-in expired. Start sign-in again.",
-              ),
-            ),
+            Effect.fail(setupError("start", "Google sign-in expired. Start sign-in again.")),
         }),
         Effect.exit,
         Effect.flatMap((result) => finishFlow(flow, result)),

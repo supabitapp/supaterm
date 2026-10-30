@@ -149,7 +149,8 @@ const replayHttpClient = (
           query,
           raw === undefined ? undefined : decodeJson(raw),
         );
-
+        // The event stream and requests are separate connections: a request
+        // is matched only once what was recorded before it was delivered.
         if (operation.type !== "event.subscribe") await controller.untilInboundDelivered();
         if (operation.type === "session.prompt") onPrompt?.(operation.input);
         await controller.expectOutbound(operation);
@@ -252,10 +253,7 @@ const makeReplayAdapter = (
 
 const layerReplayHost = TestProviderHost.layer().pipe(Layer.provide(NodeServices.layer));
 
-const layerReplayHostWithAttachments = (
-  attachmentsDir: string,
-  resolveExtractedTextPath?: (path: string) => Effect.Effect<string | undefined>,
-) =>
+const layerReplayHostWithAttachments = (attachmentsDir: string) =>
   Layer.effect(
     ProviderHost.ProviderHost,
     Effect.gen(function* () {
@@ -265,7 +263,6 @@ const layerReplayHostWithAttachments = (
         paths: { ...host.paths, attachmentsDir },
         resolveAttachmentPath: (attachment) =>
           resolveAttachmentPath({ attachmentsDir, attachment }),
-        ...(resolveExtractedTextPath === undefined ? {} : { resolveExtractedTextPath }),
       });
     }),
   ).pipe(Layer.provide(layerReplayHost));
@@ -289,7 +286,6 @@ export const openCode2ReplayRuntime = (
     readonly borrowers?: { current: number };
     readonly replayGate?: ProviderReplayGate;
     readonly attachmentsDir?: string;
-    readonly resolveExtractedTextPath?: (path: string) => Effect.Effect<string | undefined>;
     readonly fileSystem?: FileSystem.FileSystem;
   },
 ) =>
@@ -323,10 +319,7 @@ export const openCode2ReplayRuntime = (
       Layer.mergeAll(
         options?.attachmentsDir === undefined
           ? layerReplayHost
-          : layerReplayHostWithAttachments(
-              options.attachmentsDir,
-              options.resolveExtractedTextPath,
-            ),
+          : layerReplayHostWithAttachments(options.attachmentsDir),
         IdAllocator.layer,
         NodeServices.layer,
       ),

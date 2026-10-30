@@ -560,6 +560,9 @@ const taskAgentLinkageFields = {
   timelineBypass: Schema.optional(Schema.Boolean),
 } as const;
 
+export const TaskAgentLinkage = Schema.Struct(taskAgentLinkageFields);
+export type TaskAgentLinkage = typeof TaskAgentLinkage.Type;
+
 const TaskStartedPayload = Schema.Struct({
   taskId: RuntimeTaskId,
   description: Schema.optional(TrimmedNonEmptyStringSchema),

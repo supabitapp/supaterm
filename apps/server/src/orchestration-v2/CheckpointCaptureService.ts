@@ -67,8 +67,12 @@ export const layer: Layer.Layer<
     }) {
       const { run, rootNode, scope, providerThread, readyCheckpointOrdinals } =
         yield* projections.getCheckpointCaptureContext(input.threadId, input);
+      // A stopped run is already terminal. Its checkpoint is the rollback point
+      // for the message after it, so capture leaves its status alone.
       const stopped = run?.status === "interrupted" || run?.status === "cancelled";
 
+      // The effect is at-least-once. A settled run with a checkpoint proves
+      // that an earlier execution committed its result.
       if (
         run !== undefined &&
         run.checkpointId !== null &&
@@ -76,6 +80,9 @@ export const layer: Layer.Layer<
       ) {
         return;
       }
+      // Rollback shares this effect lane, so it can only land before a capture
+      // runs, e.g. while a failed capture waits to retry. The workspace now
+      // holds the rollback target, and the run must stay discarded.
       if (run?.status === "rolled_back") {
         return;
       }
@@ -121,6 +128,10 @@ export const layer: Layer.Layer<
         appRunOrdinal: run.ordinal,
         capturedAt,
       });
+      // Match RunExecutionService: capture loaded the waiting run before
+      // materializing baselines. Omit delegatedCompletion so a newer cohort
+      // write during capture is not overwritten by this stale snapshot
+      // (ProjectionStore preserves the field when absent from the payload).
       const { delegatedCompletion: _delegatedCompletion, ...runWithoutDelegatedCompletion } = run;
       const commandId = CommandId.make(`command:effect:checkpoint.capture:${run.id}`);
       yield* eventSink.commitCommand({
@@ -228,15 +239,14 @@ export const layer: Layer.Layer<
     });
 
     return CheckpointCaptureServiceV2.of({
-      execute: Effect.fn("CheckpointCaptureServiceV2.execute")(function (input) {
-        return execute(input).pipe(
+      execute: (input) =>
+        execute(input).pipe(
           Effect.mapError((cause) =>
             isCheckpointCaptureExecutionError(cause)
               ? cause
               : new CheckpointCaptureExecutionError({ ...input, cause }),
           ),
-        );
-      }),
+        ),
     });
   }),
 );

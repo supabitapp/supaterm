@@ -444,16 +444,15 @@ export function createVcsActionManager<R, E>(
       label: `vcs-action:run-stacked:${commandKey}`,
       scheduler: vcsCommandScheduler,
       concurrency: { mode: "serial", key: () => commandKey },
-      execute: Effect.fn("VcsAction.runStackedAction")(function* (
-        input: RunVcsStackedActionInput,
-        registry,
-      ) {
+      execute: (input: RunVcsStackedActionInput, registry) => {
         if (target === null) {
-          return yield* new VcsActionUnavailableError({
-            operation: "run_change_request",
-            environmentId: requestedTarget.environmentId,
-            cwd: requestedTarget.cwd,
-          });
+          return Effect.fail(
+            new VcsActionUnavailableError({
+              operation: "run_change_request",
+              environmentId: requestedTarget.environmentId,
+              cwd: requestedTarget.cwd,
+            }),
+          );
         }
         const transportActionId = createVcsActionTransportId(target, input.actionId);
         registry.set(
@@ -481,7 +480,7 @@ export function createVcsActionManager<R, E>(
             registry.set(stateAtom, EMPTY_VCS_ACTION_STATE);
           }
         });
-        return yield* consumeVcsActionProgress(
+        return consumeVcsActionProgress(
           runStreamInEnvironment(
             target.environmentId,
             runStreamGuarded(WS_METHODS.gitRunStackedAction, rpcInput),
@@ -525,7 +524,7 @@ export function createVcsActionManager<R, E>(
           ),
           Effect.onInterrupt(() => clearOwnedState),
         );
-      }),
+      },
     });
     runStackedActionCommands.set(commandKey, command);
     return command;

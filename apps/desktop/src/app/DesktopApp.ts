@@ -31,7 +31,6 @@ import * as DesktopShutdown from "./DesktopShutdown.ts";
 import * as DesktopServerExposure from "../backend/DesktopServerExposure.ts";
 import * as DesktopAppSettings from "../settings/DesktopAppSettings.ts";
 import * as DesktopShellEnvironment from "../shell/DesktopShellEnvironment.ts";
-import * as DesktopStartupRecovery from "./DesktopStartupRecovery.ts";
 import * as DesktopState from "./DesktopState.ts";
 import * as DesktopRemoteUpdates from "../updates/DesktopRemoteUpdates.ts";
 import * as DesktopUpdates from "../updates/DesktopUpdates.ts";
@@ -178,7 +177,7 @@ const bootstrap = Effect.gen(function* () {
       : { assetDirectory: environment.clientAssetsDir }),
   });
   yield* installDesktopIpcHandlers();
-
+  // Its preload bridge asks main synchronously, so this registers with the other IPC handlers.
   yield* CodexMicroDesktop.install;
   yield* logBootstrapInfo("bootstrap ipc handlers registered");
 
@@ -324,7 +323,6 @@ const startup = Effect.gen(function* () {
   yield* Effect.forkScoped(cliCommand.installAutomatically);
   yield* updates.configure;
   yield* DesktopRemoteUpdates.listen;
-  yield* DesktopStartupRecovery.listen;
   yield* linuxUrlHandler.register;
   yield* bootstrap.pipe(Effect.catchCause((cause) => fatalStartupCause("bootstrap", cause)));
 }).pipe(Effect.withSpan("desktop.startup"));
@@ -338,6 +336,11 @@ const scopedProgram = Effect.scoped(
     const shutdown = yield* DesktopShutdown.DesktopShutdown;
 
     yield* Effect.addFinalizer(() =>
+      // Stop every backend in the pool, not just the primary. The
+      // electronApp.quit() path can race ahead of the layer-scope
+      // cascade, so leaving the WSL instance for its parent scope
+      // finalizer means it gets hard-killed by the OS instead of
+      // receiving SIGTERM + grace.
       stopAllPoolInstances().pipe(Effect.ensuring(shutdown.markComplete)),
     );
 

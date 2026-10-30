@@ -68,6 +68,10 @@ export class ElectronProtocol extends Context.Service<
 function makeDesktopContentSecurityPolicy(input: DesktopProtocolRegistrationInput): string {
   const scriptSources = ["'self'", "'unsafe-inline'", "'wasm-unsafe-eval'"];
 
+  // The renderer connects directly to user-configured environments. Those environment
+  // origins are not known when this response policy is created, so restrict
+  // connections by the network schemes the client supports instead of by host.
+  // GLTFLoader fetches embedded textures through blob URLs after parsing the model.
   const connectSources = ["'self'", "blob:", "http:", "https:", "ws:", "wss:"];
 
   return [
@@ -95,6 +99,9 @@ function withContentSecurityPolicy(response: Response, policy: string): Response
   });
 }
 
+/**
+ * Must run synchronously during process bootstrap, before Electron emits `ready`.
+ */
 function registerDesktopSchemePrivilegesSync(): void {
   Electron.protocol.registerSchemesAsPrivileged([
     {
@@ -105,7 +112,8 @@ function registerDesktopSchemePrivilegesSync(): void {
         supportFetchAPI: true,
         corsEnabled: true,
         stream: true,
-
+        // Custom schemes skip Chromium's V8 code cache unless they opt in.
+        // Dev stays off: Vite serves changing code at stable URLs.
         codeCache: true,
       },
     },
@@ -154,9 +162,7 @@ const proxyRequest = Effect.fn("desktop.protocol.proxyRequest")(function* (
     return new Response(null, { status: 404 });
   }
 
-  const targetUrl = new URL(targetOrigin);
-  targetUrl.pathname = requestUrl.pathname;
-  targetUrl.search = requestUrl.search;
+  const targetUrl = new URL(`${requestUrl.pathname}${requestUrl.search}`, targetOrigin);
   const headers = new Headers(request.headers);
   const headersToRemove: string[] = [];
   for (const name of headers.keys()) {
@@ -229,7 +235,7 @@ const serveDesktopAsset = Effect.fn("desktop.protocol.serveAsset")(function* (
   });
 });
 
-/** @public */
+/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const registered = yield* Ref.make(false);
   const context = yield* Effect.context<FileSystem.FileSystem | Path.Path>();

@@ -33,7 +33,7 @@ internal object TerminalTypefaces {
   var bold: Typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
     private set
 
-  @Suppress("TooGenericExceptionCaught")
+  @Suppress("TooGenericExceptionCaught") // Typeface.createFromAsset exposes RuntimeException.
   fun ensureLoaded(context: Context) {
     if (loaded) return
     loaded = true
@@ -50,6 +50,10 @@ internal object TerminalTypefaces {
   }
 }
 
+/**
+ * Selection operations backed by the native terminal. The terminal owns the
+ * selection state; the canvas only drives gestures and renders the result.
+ */
 internal interface TerminalSelectionDelegate {
   fun selectWordAt(col: Int, row: Int): Boolean
 
@@ -140,12 +144,17 @@ internal class TerminalCanvasView(context: Context) : View(context) {
   private var extentCol = 0
   private var extentRow = 0
 
+  // Word-snapped span from the initial long-press; extending anchors to the
+  // far word edge so the word never shrinks mid-drag.
   private var wordStartCol = 0
   private var wordStartRow = 0
   private var wordEndCol = 0
   private var wordEndRow = 0
   private var actionMode: ActionMode? = null
 
+  // Actual selection endpoints in viewport cells, derived from the decoded
+  // frame (word-snap can extend past the pressed cell). Drive handle
+  // placement and hit testing.
   private var selectionEndpointsValid = false
   private var selectionStartCol = 0
   private var selectionStartRow = 0
@@ -298,7 +307,8 @@ internal class TerminalCanvasView(context: Context) : View(context) {
   override fun onTouchEvent(event: MotionEvent): Boolean {
     if (event.actionMasked == MotionEvent.ACTION_DOWN) {
       parent?.requestDisallowInterceptTouchEvent(true)
-
+      // Touch-down always stops momentum, even when the event is consumed by
+      // a selection-handle grab and never reaches the gesture detector.
       scroller.forceFinished(true)
       removeCallbacks(flingRunnable)
     } else if (event.actionMasked == MotionEvent.ACTION_UP ||
@@ -403,7 +413,8 @@ internal class TerminalCanvasView(context: Context) : View(context) {
     val delegate = selectionDelegate ?: return
     val col = columnAt(px)
     val row = rowAt(py)
-
+    // Set before selectWordAt: the delegate re-renders synchronously and
+    // updateSelectionEndpoints only scans while a selection is active.
     selectionActive = true
     if (!delegate.selectWordAt(col, row)) {
       selectionActive = false
@@ -474,6 +485,10 @@ internal class TerminalCanvasView(context: Context) : View(context) {
 
   private fun handleRadius(): Float = max(cellHeightPx * 0.45f, 12f)
 
+  /**
+   * Begin dragging when the touch lands on a selection handle. The opposite
+   * endpoint becomes the drag anchor so the grabbed end follows the finger.
+   */
   private fun grabHandleAt(px: Float, py: Float): Boolean {
     if (!selectionActive || !selectionEndpointsValid) return false
     val slop = max(handleRadius() * 2f, 24 * density)
@@ -508,6 +523,7 @@ internal class TerminalCanvasView(context: Context) : View(context) {
     return handleGrabbed
   }
 
+  /** Scan the decoded frame for the first/last selected cells. */
   private fun updateSelectionEndpoints() {
     selectionEndpointsValid = false
     val currentFrame = frame
@@ -530,6 +546,8 @@ internal class TerminalCanvasView(context: Context) : View(context) {
     }
   }
 
+  // Anchor the toolbar to the actual word-snapped endpoints when known;
+  // gesture cells can lag behind what the terminal selected.
   private fun selectionBounds(): Rect {
     val startCol = if (selectionEndpointsValid) selectionStartCol else min(anchorCol, extentCol)
     val endCol = if (selectionEndpointsValid) selectionEndCol else max(anchorCol, extentCol)
@@ -576,7 +594,8 @@ internal class TerminalCanvasView(context: Context) : View(context) {
 
         override fun onDestroyActionMode(mode: ActionMode) {
           actionMode = null
-
+          // Dismissing the toolbar (e.g. Back) drops the selection too —
+          // except mid-drag, where grabHandleAt finishes the mode on purpose.
           if (selectionActive && !dragSelecting) clearSelection()
         }
 

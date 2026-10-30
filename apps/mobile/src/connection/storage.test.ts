@@ -47,28 +47,4 @@ describe("mobile connection catalog storage", () => {
       expect(memory.deleted).toEqual([CONNECTION_CATALOG_KEY]);
     }),
   );
-  it.effect("preserves routing grants while migrating the saved field", () =>
-    Effect.gen(function* () {
-      const grants = [
-        { environmentId: "remote", connectionKey: "pinned-endpoint", permission: "read" },
-      ];
-      const memory = makeStorage({
-        [CONNECTION_CATALOG_KEY]: JSON.stringify({
-          schemaVersion: 1,
-          targets: [],
-          profiles: [],
-          credentials: [],
-          githubRoutingPermissions: grants,
-        }),
-      });
-      const catalog = yield* make().pipe(
-        Effect.provideService(MobileSecureStorage.MobileSecureStorage, memory.storage),
-      );
-      expect((yield* catalog.read).pullRequestRoutingPermissions).toEqual(grants);
-      yield* catalog.update((document) => document);
-      const stored = JSON.parse(memory.values.get(CONNECTION_CATALOG_KEY)!);
-      expect(stored.pullRequestRoutingPermissions).toEqual(grants);
-      expect(stored).not.toHaveProperty("githubRoutingPermissions");
-    }),
-  );
 });

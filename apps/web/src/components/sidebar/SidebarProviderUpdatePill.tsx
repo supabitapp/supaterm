@@ -111,7 +111,6 @@ export function SidebarProviderUpdatePill() {
     setDismissAfterExitKey(null);
   });
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- fallback timer that finishes the exit if the CSS transition never ends
   useEffect(() => {
     if (exitingKey === null) return;
     // A cancelled or skipped CSS transition must not keep a hidden spinner mounted.
@@ -119,7 +118,6 @@ export function SidebarProviderUpdatePill() {
     return () => window.clearTimeout(timeoutId);
   }, [exitingKey]);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- timer that dismisses the pill after it has been visible for dismissAfterVisibleMs
   useEffect(() => {
     if (!dismissAfterVisibleMs || !viewKey) {
       return;

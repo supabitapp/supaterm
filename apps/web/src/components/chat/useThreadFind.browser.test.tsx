@@ -11,8 +11,6 @@ import { act, fakeTimers, render } from "../../../test/render";
 import { useThreadFind } from "./useThreadFind";
 import { orchestrationEnvironment } from "~/state/orchestration";
 import { requestThreadFindOpen } from "./threadFindActionBus";
-import { closeThreadFind, openThreadFind, useIsThreadFindActive } from "./threadFindStore";
-import { useStableCallback } from "../../hooks/useStableCallback";
 
 const queries = vi.hoisted(() => ({
   results: new Map<string, OrchestrationV2SearchThreadResult>(),
@@ -59,18 +57,15 @@ function Probe({
   environmentId,
   enabled = true,
   progressive = false,
-  onOpen,
 }: {
   environmentId: EnvironmentId;
   enabled?: boolean;
   progressive?: boolean;
-  onOpen?: () => void;
 }) {
   const state = useThreadFind({
     thread: { environmentId, threadId },
     enabled,
     progressive,
-    onOpen,
   });
   useLayoutEffect(() => {
     find = state;
@@ -78,43 +73,11 @@ function Probe({
   return null;
 }
 function setup() {
-  closeThreadFind("root");
   queries.results.clear();
   queries.pending = false;
   threadDetail.content = undefined;
   vi.clearAllMocks();
 }
-
-function FindVisibilityProbe({ scope, label }: { scope: string; label: string }) {
-  const active = useIsThreadFindActive("environment:a:shared-thread", scope);
-  const toggle = useStableCallback(() =>
-    active ? closeThreadFind(scope) : openThreadFind("environment:a:shared-thread", scope),
-  );
-  return (
-    <button type="button" onClick={toggle}>
-      {label}: {active ? "open" : "closed"}
-    </button>
-  );
-}
-
-it("keeps compiled Find visibility subscribed through rerenders and pane changes", async () => {
-  closeThreadFind("visibility-left");
-  closeThreadFind("visibility-right");
-  await using screen = await render(<FindVisibilityProbe scope="visibility-left" label="First" />);
-  await screen.rerender(<FindVisibilityProbe scope="visibility-left" label="Second" />);
-  await act(() => openThreadFind("environment:a:shared-thread", "visibility-left"));
-  await expect.element(screen.getByRole("button", { name: "Second: open" })).toBeVisible();
-  await screen.getByRole("button", { name: "Second: open" }).click();
-  await expect.element(screen.getByRole("button", { name: "Second: closed" })).toBeVisible();
-  await act(() => openThreadFind("environment:a:shared-thread", "visibility-right"));
-  await expect.element(screen.getByRole("button", { name: "Second: closed" })).toBeVisible();
-  await screen.rerender(<FindVisibilityProbe scope="visibility-right" label="Right" />);
-  await expect.element(screen.getByRole("button", { name: "Right: open" })).toBeVisible();
-  await act(() => closeThreadFind("visibility-left"));
-  await expect.element(screen.getByRole("button", { name: "Right: open" })).toBeVisible();
-  await act(() => closeThreadFind("visibility-right"));
-  await expect.element(screen.getByRole("button", { name: "Right: closed" })).toBeVisible();
-});
 
 describe("V2 find state", () => {
   function messageResult(index: number, snapshotSequence = 9): OrchestrationV2SearchThreadResult {
@@ -720,18 +683,4 @@ describe("V2 find state", () => {
     await screen.rerender(<Probe environmentId={a} />);
     expect(find.isOpen).toBe(false);
   });
-});
-
-it("cancels follow on each open action, including global entrypoints, without reacting to query updates", async () => {
-  setup();
-  const onOpen = vi.fn();
-  await using screen = await render(<Probe environmentId={a} onOpen={onOpen} />);
-  await act(() => requestThreadFindOpen());
-  expect(onOpen).toHaveBeenCalledTimes(1);
-  await act(() => find.barProps.onQueryChange("needle"));
-  threadDetail.content = { visibleTurnItems: [], runs: [] };
-  await screen.rerender(<Probe environmentId={a} onOpen={onOpen} />);
-  expect(onOpen).toHaveBeenCalledTimes(1);
-  await act(() => find.open());
-  expect(onOpen).toHaveBeenCalledTimes(2);
 });

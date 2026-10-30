@@ -1,7 +1,7 @@
-import type { RepositoryIdentity } from "@supaterm/contracts";
-import { canonicalizeGitCafePullRequestUrl } from "@supaterm/source-control-definitions/registry";
+import { pullRequestHostOf, type RepositoryIdentity } from "@supaterm/contracts";
+import { parseChangeRequestUrl } from "@supaterm/shared/changeRequestUrl";
 
-import { sourceControlClients, type ChangeRequestTerminology } from "./sourceControlClients.ts";
+import { sourceControlClients } from "./sourceControlClients.ts";
 
 const PULL_REQUEST_NUMBER_PATTERN = /^#?(\d+)$/;
 
@@ -43,11 +43,10 @@ export function pullRequestLinkProject(identity: RepositoryIdentity | null | und
     (identity.owner && identity.name ? `${identity.owner}/${identity.name}` : null);
   if (repository === null) return null;
   const definition = sourceControlClients.get(identity.provider ?? "unknown");
-  const host = sourceControlClients.changeRequestHost(identity, definition.kind);
+  const host = pullRequestHostOf(identity, definition.kind);
   return {
     host,
     repository,
-    terminology: definition.changeRequest,
     webUrl: (number: number) =>
       definition.changeRequestUrl({
         host,
@@ -71,28 +70,22 @@ export function resolveLinkPullRequestInput(input: {
   readonly project: {
     readonly host: string;
     readonly repository: string;
-    readonly terminology: ChangeRequestTerminology;
     readonly webUrl: (number: number) => string | null;
   } | null;
   readonly hasProject: (reference: ResolvedLink) => boolean;
 }): { link: ResolvedLink } | { error: string } | null {
   const parsed =
-    sourceControlClients.parseChangeRequestUrl(input.reference.trim()) !== null
+    parseChangeRequestUrl(input.reference.trim()) !== null
       ? input.reference.trim()
       : parsePullRequestReference(input.reference);
   if (parsed === null) return null;
-  const url = sourceControlClients.parseChangeRequestUrl(parsed)?.link;
-  if (url !== undefined) {
+  const url = parseChangeRequestUrl(parsed);
+  if (url !== null) {
     if (!input.hasProject({ ...url, url: parsed })) {
       return { error: `No project in this environment can read ${url.host}/${url.repository}.` };
     }
     return {
-      link: {
-        host: url.host,
-        repository: url.repository,
-        number: url.number,
-        url: canonicalizeGitCafePullRequestUrl(parsed),
-      },
+      link: { host: url.host, repository: url.repository, number: url.number, url: parsed },
     };
   }
   const number = Number(parsed);
@@ -104,19 +97,11 @@ export function resolveLinkPullRequestInput(input: {
     };
   }
   const webUrl = input.project.webUrl(number);
-  const webReference =
-    webUrl === null ? undefined : sourceControlClients.parseChangeRequestUrl(webUrl)?.link;
-  if (webUrl === null || webReference === undefined) {
-    return {
-      error: `Paste a full URL; this project's host has no known ${input.project.terminology.singular} URL.`,
-    };
+  const webReference = webUrl === null ? null : parseChangeRequestUrl(webUrl);
+  if (webUrl === null || webReference === null) {
+    return { error: "Paste a full URL; this project's host has no known pull request URL." };
   }
   return {
-    link: {
-      host: webReference.host,
-      repository: webReference.repository,
-      number: webReference.number,
-      url: webUrl,
-    },
+    link: { ...webReference, url: webUrl },
   };
 }

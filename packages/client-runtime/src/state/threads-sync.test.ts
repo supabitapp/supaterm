@@ -2,9 +2,7 @@ import {
   EnvironmentId,
   EventId,
   MessageId,
-  NodeId,
   ORCHESTRATION_V2_WS_METHODS,
-  RuntimeRequestId,
   ThreadId,
   TurnItemId,
   type OrchestrationV2ThreadDetailSnapshot,
@@ -23,13 +21,10 @@ import * as PubSub from "effect/PubSub";
 import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
 import * as Scope from "effect/Scope";
-import * as Scheduler from "effect/Scheduler";
-import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import * as SubscriptionRef from "effect/SubscriptionRef";
 import * as TestClock from "effect/testing/TestClock";
 import { HttpClient, HttpClientResponse } from "effect/http";
-import { pendingBackgroundTurnItems } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 
 import type { WsRpcProtocolClient } from "../rpc/protocol.ts";
 import {
@@ -41,15 +36,8 @@ import {
 import * as ConnectionWakeups from "../connection/wakeups.ts";
 import * as EnvironmentSupervisor from "../connection/supervisor.ts";
 import * as Persistence from "../platform/persistence.ts";
-import {
-  ORCHESTRATION_THREAD_CACHE_SCHEMA_VERSION,
-  StoredOrchestrationThreadSnapshot,
-  decodeOrDiscardOrchestrationCache,
-} from "../platform/orchestrationCache.ts";
 import * as RpcSession from "../rpc/session.ts";
-import { v2Now, v2Projection, v2ThreadId } from "./orchestrationV2TestFixtures.ts";
-import { onThreadRequestsResolved, type ThreadRequestsResolved } from "./threadRequests.ts";
-import { EMPTY_THREAD_HISTORY_META } from "./threadHistoryMerge.ts";
+import { v2Projection, v2ThreadId } from "./orchestrationV2TestFixtures.ts";
 import * as ThreadHistoryController from "./threadHistoryController.ts";
 import {
   EMPTY_ENVIRONMENT_THREAD_STATE,
@@ -97,7 +85,6 @@ function testSession(
     subscribeServerConfig: (input) => client.subscribeServerConfig(input),
     ready: Effect.void,
     probe: Effect.void,
-    inboundFrames: Effect.succeed(0),
     closed: Effect.never,
   };
 }
@@ -121,7 +108,6 @@ const makeHarness = Effect.fn("TestEnvironmentThreads.makeHarness")(function* (o
     readonly latestLocalTurnOrdinal?: number | null;
   };
   readonly httpSnapshot?: ThreadSnapshotLoadResult;
-
   readonly completionMarker?: boolean;
   readonly resumeCache?: NonNullable<Parameters<typeof makeEnvironmentThreadState>[1]>;
   readonly loadCached?: ReturnType<Persistence.EnvironmentCacheStore["Service"]["loadThread"]>;
@@ -129,9 +115,6 @@ const makeHarness = Effect.fn("TestEnvironmentThreads.makeHarness")(function* (o
   readonly removeThread?: Persistence.EnvironmentCacheStore["Service"]["removeThread"];
   readonly historyPaging?: "enabled" | "no-http" | "no-controller";
   readonly historyHttpClient?: HttpClient.HttpClient;
-  readonly getTurnItem?: (input: {
-    readonly itemId: TurnItemId;
-  }) => Effect.Effect<{ readonly item: OrchestrationV2TurnItem | null }>;
 }) {
   const inputs = yield* Queue.unbounded<TestThreadInput>();
   const observed = yield* Queue.unbounded<EnvironmentThreadState>();
@@ -174,8 +157,6 @@ const makeHarness = Effect.fn("TestEnvironmentThreads.makeHarness")(function* (o
           Effect.as(streamFrom(inputs)),
         ),
       ),
-    [ORCHESTRATION_V2_WS_METHODS.getTurnItem]: (input: { readonly itemId: TurnItemId }) =>
-      options?.getTurnItem?.(input) ?? Effect.die("Unexpected getTurnItem request"),
   } as unknown as WsRpcProtocolClient;
   const supervisorSession = yield* SubscriptionRef.make<Option.Option<RpcSession.RpcSession>>(
     Option.some(testSession(client, options)),
@@ -279,11 +260,8 @@ const makeHarness = Effect.fn("TestEnvironmentThreads.makeHarness")(function* (o
 
   return {
     threadState,
-    loadWork: (anchorId: string) =>
-      historyController.expandWork(TARGET.environmentId, THREAD_ID, anchorId),
     loadEarlier: (throughEntryId?: string) =>
       historyController.loadEarlier(TARGET.environmentId, THREAD_ID, throughEntryId),
-    reconcilePendingWork: historyController.reconcilePendingWork(TARGET.environmentId, THREAD_ID),
     inputs,
     observed,
     latest,
@@ -322,30 +300,6 @@ const snapshot = (
 
 const synchronized = (): OrchestrationV2ThreadStreamItem => ({ kind: "synchronized" });
 
-const PENDING_QUESTION = {
-  id: RuntimeRequestId.make("question"),
-  nodeId: NodeId.make("question-node"),
-  providerTurnId: null,
-  nativeRequestRef: null,
-  kind: "user_input" as const,
-  status: "pending" as const,
-  responseCapability: { type: "message" as const },
-  createdAt: v2Now,
-  resolvedAt: null,
-};
-
-const questionResolved = (sequence: number): OrchestrationV2ThreadStreamItem => ({
-  kind: "event",
-  sequence,
-  event: {
-    id: EventId.make("event-request"),
-    type: "runtime-request.updated",
-    threadId: THREAD_ID,
-    occurredAt: v2Now,
-    payload: { ...PENDING_QUESTION, status: "resolved", resolvedAt: v2Now },
-  },
-});
-
 const titleUpdated = (title: string, sequence = 2): OrchestrationV2ThreadStreamItem => {
   const occurredAt = DateTime.makeUnsafe("2026-06-20T01:00:00.000Z");
   return {
@@ -377,91 +331,26 @@ const deleted = (sequence = 3): OrchestrationV2ThreadStreamItem => {
 };
 
 describe("EnvironmentThreads", () => {
-  it.effect("discards an oversized version-4 cache and requests a fresh bounded snapshot", () =>
+  it.effect("loads the server thread when its local cache read fails", () =>
     Effect.gen(function* () {
-      const item: OrchestrationV2TurnItem = {
-        id: TurnItemId.make("old-unbounded-cache-item"),
-        threadId: THREAD_ID,
-        runId: null,
-        nodeId: null,
-        providerThreadId: null,
-        providerTurnId: null,
-        nativeItemRef: null,
-        parentItemId: null,
-        ordinal: 1,
-        status: "completed",
-        title: null,
-        startedAt: BASE_PROJECTION.updatedAt,
-        completedAt: BASE_PROJECTION.updatedAt,
-        updatedAt: BASE_PROJECTION.updatedAt,
-        type: "system_notice",
-        message: "x".repeat(1_100_000),
-      };
-      const schema = Schema.fromJsonString(StoredOrchestrationThreadSnapshot);
-      const encoded = yield* Schema.encodeEffect(schema)({
-        schemaVersion: ORCHESTRATION_THREAD_CACHE_SCHEMA_VERSION,
-        environmentId: TARGET.environmentId,
-        threadId: THREAD_ID,
-        snapshot: {
-          snapshotSequence: CACHED_SNAPSHOT_SEQUENCE,
-          projection: { ...BASE_PROJECTION, turnItems: [item] },
-        },
-      });
-      const stale = encoded.replace(
-        `"schemaVersion":${ORCHESTRATION_THREAD_CACHE_SCHEMA_VERSION}`,
-        '"schemaVersion":4',
-      );
-      let discarded = false;
       const h = yield* makeHarness({
-        loadCached: decodeOrDiscardOrchestrationCache(
-          Schema.decodeEffect(schema)(stale).pipe(
-            Effect.map((stored) => Option.some(stored.snapshot)),
-          ),
-          Effect.sync(() => {
-            discarded = true;
+        loadCached: Effect.fail(
+          new Persistence.ConnectionPersistenceError({
+            operation: "load-thread",
+            message: "The database connection is closing.",
           }),
         ),
         httpSnapshot: {
           _tag: "present",
-          snapshot: { snapshotSequence: CACHED_SNAPSHOT_SEQUENCE, projection: BASE_PROJECTION },
-          history: { historyCursor: "fresh-bounded-cursor", hasMoreHistory: true },
+          snapshot: { snapshotSequence: 7, projection: BASE_PROJECTION },
         },
       });
+
       const state = yield* awaitThreadState(h.observed, (value) => value.status === "live");
-      expect(discarded).toBe(true);
+      expect(Option.getOrThrow(state.data)).toEqual(BASE_PROJECTION);
       expect(yield* Ref.get(h.loaderCalls)).toBe(1);
       expect(yield* SubscriptionRef.get(h.subscriptionCount)).toBe(1);
-      expect(Option.getOrThrow(state.data)).toEqual(BASE_PROJECTION);
-      expect(state.history.historyCursor).toBe("fresh-bounded-cursor");
-      expect(state.history.hasMoreHistory).toBe(true);
     }),
-  );
-
-  it.effect.each(["read failure", "cache miss"] as const)(
-    "loads the server thread after a %s",
-    (scenario) =>
-      Effect.gen(function* () {
-        const h = yield* makeHarness({
-          loadCached:
-            scenario === "cache miss"
-              ? Effect.succeedNone
-              : Effect.fail(
-                  new Persistence.ConnectionPersistenceError({
-                    operation: "load-thread",
-                    message: "The database connection is closing.",
-                  }),
-                ),
-          httpSnapshot: {
-            _tag: "present",
-            snapshot: { snapshotSequence: 7, projection: BASE_PROJECTION },
-          },
-        });
-
-        const state = yield* awaitThreadState(h.observed, (value) => value.status === "live");
-        expect(Option.getOrThrow(state.data)).toEqual(BASE_PROJECTION);
-        expect(yield* Ref.get(h.loaderCalls)).toBe(1);
-        expect(yield* SubscriptionRef.get(h.subscriptionCount)).toBe(1);
-      }),
   );
 
   it.effect("flushes newer data after an older background write completes", () =>
@@ -530,7 +419,6 @@ describe("EnvironmentThreads", () => {
         resumeCache,
       }).pipe(Effect.provideService(Scope.Scope, scope));
       yield* awaitThreadState(first.observed, (value) => value.status === "live");
-      yield* first.awaitSubscriptions(1);
       const applying = yield* Deferred.make<void>();
       const update = titleUpdated("Not applied", 8);
       if (update.kind !== "event") return yield* Effect.die("Expected an event");
@@ -565,11 +453,6 @@ describe("EnvironmentThreads", () => {
 
   it.effect("prevents an old scope from replacing its successor's cached data", () =>
     Effect.gen(function* () {
-      const announced: ThreadRequestsResolved[] = [];
-      yield* Effect.acquireRelease(
-        Effect.sync(() => onThreadRequestsResolved((event) => announced.push(event))),
-        (unsubscribe) => Effect.sync(unsubscribe),
-      );
       const resumeCache: NonNullable<Parameters<typeof makeEnvironmentThreadState>[1]> = {
         snapshot: undefined,
         owner: undefined,
@@ -577,27 +460,24 @@ describe("EnvironmentThreads", () => {
       const oldScope = yield* Effect.acquireRelease(Scope.make(), (scope) =>
         Scope.close(scope, Exit.void),
       );
-      const old = yield* makeHarness({
-        cached: { ...BASE_PROJECTION, runtimeRequests: [PENDING_QUESTION] },
-        resumeCache,
-      }).pipe(Effect.provideService(Scope.Scope, oldScope));
+      const old = yield* makeHarness({ cached: BASE_PROJECTION, resumeCache }).pipe(
+        Effect.provideService(Scope.Scope, oldScope),
+      );
       yield* awaitThreadState(old.observed, (value) => value.status === "live");
       const successor = yield* makeHarness({ resumeCache });
-      yield* Queue.offer(successor.inputs, titleUpdated("Successor title", 10));
+      yield* Queue.offer(successor.inputs, titleUpdated("Successor title", 9));
       yield* awaitThreadState(
         successor.observed,
         (value) => Option.getOrNull(value.data)?.thread.title === "Successor title",
       );
-      announced.length = 0;
-      yield* Queue.offerAll(old.inputs, [questionResolved(8), titleUpdated("Old scope title", 9)]);
+      yield* Queue.offer(old.inputs, titleUpdated("Old scope title", 8));
       yield* awaitThreadState(
         old.observed,
         (value) => Option.getOrNull(value.data)?.thread.title === "Old scope title",
       );
       yield* Scope.close(oldScope, Exit.void);
 
-      expect(announced).toEqual([]);
-      expect(resumeCache.snapshot?.sequence).toBe(10);
+      expect(resumeCache.snapshot?.sequence).toBe(9);
       expect(Option.getOrThrow(resumeCache.snapshot!.state.data).thread.title).toBe(
         "Successor title",
       );
@@ -696,7 +576,7 @@ describe("EnvironmentThreads", () => {
       const harness = yield* makeHarness({ cached: BASE_PROJECTION });
 
       yield* Queue.offer(harness.inputs, titleUpdated("Live title", CACHED_SNAPSHOT_SEQUENCE + 1));
-      const live = yield* awaitThreadState(
+      yield* awaitThreadState(
         harness.observed,
         (value) =>
           value.status === "live" &&
@@ -704,745 +584,10 @@ describe("EnvironmentThreads", () => {
           value.data.value.thread.title === "Live title",
       );
 
-      expect(live.sequence).toBe(CACHED_SNAPSHOT_SEQUENCE + 1);
       expect(yield* Ref.get(harness.lastSubscribeAfterSequence)).toBe(CACHED_SNAPSHOT_SEQUENCE);
       expect(yield* Ref.get(harness.loaderCalls)).toBe(0);
     }),
   );
-
-  describe("cached work (#18188)", () => {
-    const at = DateTime.makeUnsafe("2026-06-20T00:00:00.000Z");
-    const parentThreadId = ThreadId.make("thread:parent");
-    const command = (
-      id: string,
-      status: "running" | "completed",
-      exitCode?: number,
-      ordinal = id === "older-command" ? 1 : 2,
-    ): Extract<OrchestrationV2TurnItem, { type: "command_execution" }> => ({
-      id: TurnItemId.make(id),
-      threadId: THREAD_ID,
-      runId: null,
-      nodeId: null,
-      providerThreadId: null,
-      providerTurnId: null,
-      nativeItemRef: null,
-      parentItemId: null,
-      ordinal,
-      status,
-      title: null,
-      startedAt: at,
-      completedAt: status === "completed" ? at : null,
-      updatedAt: at,
-      type: "command_execution",
-      input: `run ${id}`,
-      output: "",
-      ...(exitCode === undefined ? {} : { exitCode }),
-    });
-    const localRow = (item: OrchestrationV2TurnItem, position: number) => ({
-      position,
-      visibility: "local" as const,
-      sourceThreadId: THREAD_ID,
-      sourceItemId: item.id,
-      item,
-    });
-    const cachedItem = (item: OrchestrationV2TurnItem) => ({
-      ...BASE_PROJECTION,
-      turnItems: [item],
-      visibleTurnItems: [localRow(item, 0)],
-    });
-    const historyPage = (
-      request: Parameters<typeof HttpClientResponse.fromWeb>[0],
-      items: ReadonlyArray<ReturnType<typeof localRow>>,
-      nextCursor: string | null,
-    ) =>
-      HttpClientResponse.fromWeb(
-        request,
-        Response.json({
-          snapshotSequence: CACHED_SNAPSHOT_SEQUENCE,
-          items,
-          nextCursor,
-          hasMoreHistory: nextCursor !== null,
-        }),
-      );
-    it.effect("loads a long unwrapped turn through its user message and resumes failed pages", () =>
-      Effect.gen(function* () {
-        const prompt = {
-          ...command("prompt", "completed", 0, 0),
-          type: "user_message" as const,
-          messageId: MessageId.make("prompt"),
-          inputIntent: "turn_start" as const,
-          createdBy: "user" as const,
-          creationSource: "web" as const,
-          text: "Do the work",
-          attachments: [],
-        };
-        const work = Array.from({ length: 1_000 }, (_, index) =>
-          command(`work-${index + 1}`, "completed", 0, index + 1),
-        );
-        const older = [prompt, ...work.slice(0, -1)];
-        const tail = work.at(-1)!;
-        const requests: string[] = [];
-        let failed = false;
-        const harness = yield* makeHarness({
-          cached: cachedItem(tail),
-          cachedHistory: { historyCursor: "1000", hasMoreHistory: true },
-          historyHttpClient: HttpClient.make((request, url) => {
-            const cursor = url.searchParams.get("cursor")!;
-            requests.push(cursor);
-            if (cursor === "before-user") return Effect.succeed(historyPage(request, [], cursor));
-            if (cursor === "925" && !failed) {
-              failed = true;
-              return Effect.succeed(
-                HttpClientResponse.fromWeb(request, new Response(null, { status: 503 })),
-              );
-            }
-            const end = Number(cursor);
-            expect(Number.isFinite(end)).toBe(true);
-            const start = Math.max(0, end - 75);
-            return Effect.succeed(
-              historyPage(
-                request,
-                older.slice(start, end).map(localRow),
-                start === 0 ? "before-user" : String(start),
-              ),
-            );
-          }),
-        });
-        expect((yield* harness.loadEarlier())._tag).toBe("error");
-        expect(requests).toEqual(["1000", "925"]);
-        expect(yield* harness.loadEarlier()).toEqual({ _tag: "loaded" });
-        const state = yield* SubscriptionRef.get(harness.threadState);
-        expect(
-          Option.getOrThrow(state.data).visibleTurnItems.map((row) => row.sourceItemId),
-        ).toEqual([prompt, ...work].map((item) => item.id));
-        expect(state.history).toMatchObject({
-          historyCursor: "before-user",
-          hasMoreHistory: true,
-          loading: false,
-        });
-        expect(requests.slice(1, 3)).toEqual(["925", "925"]);
-        expect(yield* harness.loadEarlier()).toEqual({
-          _tag: "error",
-          message: "History did not advance.",
-        });
-        expect((yield* SubscriptionRef.get(harness.threadState)).history.loading).toBe(false);
-      }),
-    );
-    it.effect("keeps conversation loading when work with the same cursor is cancelled", () =>
-      Effect.gen(function* () {
-        const anchor = {
-          ...command("anchor", "completed", 0, 1),
-          deferredWork: { cursor: "shared-cursor", itemCount: 3, lastOrdinal: 3 },
-        };
-        const conversationStarted = yield* Deferred.make<void>();
-        const workStarted = yield* Deferred.make<void>();
-        const interruptConversation = yield* Deferred.make<void>();
-        const interruptWork = yield* Deferred.make<void>();
-        const harness = yield* makeHarness({
-          cached: cachedItem(anchor),
-          cachedHistory: { historyCursor: "shared-cursor", hasMoreHistory: true },
-          historyHttpClient: HttpClient.make((_request, url) =>
-            Effect.gen(function* () {
-              const work = url.searchParams.get("view") === "work";
-              yield* Deferred.succeed(work ? workStarted : conversationStarted, undefined);
-              yield* Deferred.await(work ? interruptWork : interruptConversation);
-              return yield* Effect.interrupt;
-            }),
-          ),
-        });
-        const conversation = yield* harness.loadEarlier().pipe(Effect.forkChild);
-        yield* Deferred.await(conversationStarted);
-        const work = yield* harness.loadWork(anchor.id).pipe(Effect.forkChild);
-        yield* Deferred.await(workStarted);
-        expect((yield* SubscriptionRef.get(harness.threadState)).history.loading).toBe(true);
-        yield* Deferred.succeed(interruptWork, undefined);
-        yield* Fiber.await(work);
-        expect((yield* SubscriptionRef.get(harness.threadState)).history.loading).toBe(true);
-        yield* Deferred.succeed(interruptConversation, undefined);
-        yield* Fiber.await(conversation);
-        expect((yield* SubscriptionRef.get(harness.threadState)).history.loading).toBe(false);
-      }),
-    );
-
-    it.effect("loads deferred work on demand and resumes a failed page", () =>
-      Effect.gen(function* () {
-        const anchor = {
-          ...command("anchor", "completed", 0, 1),
-          deferredWork: { cursor: "first", itemCount: 3, lastOrdinal: 3 },
-        };
-        const requests: string[] = [];
-        let failed = false;
-        const harness = yield* makeHarness({
-          cached: cachedItem(anchor),
-          cachedHistory: { historyCursor: "older", hasMoreHistory: true },
-          historyHttpClient: HttpClient.make((request, url) => {
-            expect(url.searchParams.get("view")).toBe("work");
-            const cursor = url.searchParams.get("cursor")!;
-            requests.push(cursor);
-            if (cursor === "second" && !failed) {
-              failed = true;
-              return Effect.succeed(
-                HttpClientResponse.fromWeb(request, new Response("Unavailable", { status: 503 })),
-              );
-            }
-            return Effect.succeed(
-              historyPage(
-                request,
-                [
-                  localRow(
-                    command(`work-${cursor}`, "completed", 0, cursor === "first" ? 3 : 2),
-                    0,
-                  ),
-                ],
-                cursor === "first" ? "second" : null,
-              ),
-            );
-          }),
-        });
-        expect(requests).toEqual([]);
-        expect((yield* harness.loadWork(anchor.id))._tag).toBe("error");
-        const partial = Option.getOrThrow((yield* SubscriptionRef.get(harness.threadState)).data);
-        expect(partial.visibleTurnItems[0]?.item.deferredWork?.cursor).toBe("second");
-        expect(yield* harness.loadWork(anchor.id)).toEqual({ _tag: "loaded" });
-        const state = yield* SubscriptionRef.get(harness.threadState);
-        expect(
-          Option.getOrThrow(state.data).visibleTurnItems.map((row) => row.item.ordinal),
-        ).toEqual([1, 2, 3]);
-        expect(state.history.historyCursor).toBe("older");
-        expect(requests).toEqual(["first", "second", "second"]);
-      }),
-    );
-
-    it.effect.each(["deferred", "complete"] as const)(
-      "settles a replaced work request when the new snapshot is %s",
-      (mode) =>
-        Effect.gen(function* () {
-          const anchor = {
-            ...command("anchor", "completed"),
-            deferredWork: { cursor: "before", itemCount: 80, lastOrdinal: 80 },
-          };
-          const asked = yield* Deferred.make<void>();
-          const release = yield* Deferred.make<void>();
-          const harness = yield* makeHarness({
-            cached: cachedItem(anchor),
-            historyHttpClient: HttpClient.make((request) =>
-              Effect.gen(function* () {
-                yield* Deferred.succeed(asked, undefined);
-                yield* Deferred.await(release);
-                return historyPage(request, [], null);
-              }),
-            ),
-          });
-          const loading = yield* harness.loadWork(anchor.id).pipe(Effect.forkChild);
-          yield* Deferred.await(asked);
-          const replacement =
-            mode === "deferred"
-              ? { ...anchor, deferredWork: { ...anchor.deferredWork, cursor: "after" } }
-              : command("anchor", "completed");
-          yield* Queue.offer(
-            harness.inputs,
-            snapshot(
-              {
-                ...BASE_PROJECTION,
-                thread: { ...BASE_PROJECTION.thread, title: "Replacement" },
-                turnItems: [replacement],
-                visibleTurnItems: [localRow(replacement, 0)],
-              },
-              CACHED_SNAPSHOT_SEQUENCE + 1,
-            ),
-          );
-          yield* awaitThreadState(
-            harness.observed,
-            (value) => Option.getOrNull(value.data)?.thread.title === "Replacement",
-          );
-          yield* Deferred.succeed(release, undefined);
-          expect((yield* Fiber.join(loading))._tag).toBe(mode === "deferred" ? "error" : "noop");
-        }),
-    );
-
-    it.effect("does not mark replacement history loading when a queued request becomes stale", () =>
-      Effect.gen(function* () {
-        const harness = yield* makeHarness({
-          cached: BASE_PROJECTION,
-          cachedHistory: { historyCursor: "older", hasMoreHistory: true },
-          historyHttpClient: HttpClient.make((request) =>
-            Effect.succeed(historyPage(request, [], null)),
-          ),
-        });
-        const held = yield* Deferred.make<void>();
-        const release = yield* Deferred.make<void>();
-        const replacement = yield* SubscriptionRef.updateEffect(harness.threadState, (latest) =>
-          Deferred.succeed(held, undefined).pipe(
-            Effect.andThen(Deferred.await(release)),
-            Effect.as({ ...latest, history: { ...latest.history, historyCursor: "replacement" } }),
-          ),
-        ).pipe(Effect.forkChild({ startImmediately: true }));
-        yield* Deferred.await(held);
-        const dispatcher = new Scheduler.MixedScheduler("sync").makeDispatcher();
-        const loading = yield* harness.loadEarlier().pipe(
-          Effect.forkChild({ startImmediately: true }),
-          Effect.provideService(Scheduler.Scheduler, {
-            executionMode: "sync",
-            shouldYield: () => false,
-            makeDispatcher: () => dispatcher,
-          }),
-        );
-        dispatcher.flush();
-        yield* Deferred.succeed(release, undefined);
-        yield* Fiber.join(replacement);
-        dispatcher.flush();
-        expect(yield* Fiber.join(loading)).toEqual({ _tag: "noop" });
-        expect((yield* SubscriptionRef.get(harness.threadState)).history).toMatchObject({
-          historyCursor: "replacement",
-          loading: false,
-        });
-      }),
-    );
-
-    it.effect("loads targeted messages without fetching unrelated deferred work", () =>
-      Effect.gen(function* () {
-        const anchor = {
-          ...command("anchor", "completed"),
-          deferredWork: { cursor: "work", itemCount: 80, lastOrdinal: 80 },
-        };
-        const message = {
-          ...command("older-message", "completed"),
-          type: "assistant_message" as const,
-          messageId: MessageId.make("older-message"),
-          text: "Older response",
-          streaming: false,
-        };
-        const views: Array<string | null> = [];
-        const harness = yield* makeHarness({
-          cached: cachedItem(anchor),
-          cachedHistory: { historyCursor: "older", hasMoreHistory: true },
-          historyHttpClient: HttpClient.make((request, url) => {
-            views.push(url.searchParams.get("view"));
-            return Effect.succeed(
-              url.searchParams.get("view") === "work"
-                ? HttpClientResponse.fromWeb(request, new Response("Unavailable", { status: 503 }))
-                : historyPage(request, [localRow(message, 0)], null),
-            );
-          }),
-        });
-        expect(yield* harness.loadEarlier(message.messageId)).toEqual({ _tag: "loaded" });
-        const state = yield* SubscriptionRef.get(harness.threadState);
-        expect(
-          Option.getOrThrow(state.data).visibleTurnItems.some(
-            (row) => row.sourceItemId === message.id,
-          ),
-        ).toBe(true);
-        expect(views).toEqual(["conversation", null]);
-      }),
-    );
-
-    const inheritedRow = {
-      position: 0,
-      visibility: "inherited" as const,
-      sourceThreadId: parentThreadId,
-      sourceItemId: TurnItemId.make("cached-command"),
-      item: { ...command("cached-command", "running"), threadId: parentThreadId },
-    };
-    const cachedProjection = (items: ReadonlyArray<OrchestrationV2TurnItem>) => ({
-      ...BASE_PROJECTION,
-      turnItems: items,
-      visibleTurnItems: [inheritedRow, ...items.map((item, index) => localRow(item, index + 1))],
-    });
-
-    const cached: OrchestrationV2ThreadProjection = cachedProjection([
-      command("older-command", "completed", 0),
-      command("cached-command", "running"),
-    ]);
-    const cachedHistory = { historyCursor: "older", hasMoreHistory: true };
-    const projectionStatuses = (projection: OrchestrationV2ThreadProjection) => ({
-      items: projection.turnItems.map((item) => [String(item.id), item.status]),
-      rows: projection.visibleTurnItems.map((row) => [
-        row.visibility,
-        String(row.sourceItemId),
-        row.item.status,
-      ]),
-      pending: pendingBackgroundTurnItems(projection).map((item) => String(item.id)),
-    });
-    const statuses = (state: EnvironmentThreadState) =>
-      projectionStatuses(Option.getOrThrow(state.data));
-    const settledStatuses = {
-      items: [
-        ["older-command", "completed"],
-        ["cached-command", "completed"],
-      ],
-      rows: [
-        ["inherited", "cached-command", "running"],
-        ["local", "older-command", "completed"],
-        ["local", "cached-command", "completed"],
-      ],
-      pending: [],
-    };
-    const serverItems = (items: Record<string, OrchestrationV2TurnItem | null>) => ({
-      getTurnItem: ({ itemId }: { readonly itemId: TurnItemId }) =>
-        Effect.succeed({ item: items[itemId] ?? null }),
-    });
-
-    it.effect("settles an item the server finished without any new event, keeping history", () =>
-      Effect.gen(function* () {
-        const written = yield* Deferred.make<OrchestrationV2ThreadDetailSnapshot>();
-        const harness = yield* makeHarness({
-          cached,
-          cachedHistory,
-          saveThread: (_environmentId, thread) => Deferred.succeed(written, thread),
-          ...serverItems({ "cached-command": command("cached-command", "completed", 0) }),
-        });
-        const before = yield* SubscriptionRef.get(harness.threadState);
-
-        yield* harness.reconcilePendingWork;
-
-        const after = yield* SubscriptionRef.get(harness.threadState);
-        expect(statuses(after)).toEqual(settledStatuses);
-        const settled = Option.getOrThrow(after.data);
-        expect(settled.visibleTurnItems[0]).toBe(inheritedRow);
-        expect(settled.visibleTurnItems[2]!.item).toBe(settled.turnItems[1]);
-        expect(after.history).toEqual(before.history);
-        yield* TestClock.adjust("500 millis");
-        const saved = yield* Deferred.await(written);
-        expect(projectionStatuses(saved.projection)).toEqual(settledStatuses);
-        expect(saved).toMatchObject({ historyCursor: "older", hasMoreHistory: true });
-      }),
-    );
-
-    it.effect("saves the repair after older history was loaded, without the expansion", () =>
-      Effect.gen(function* () {
-        const evenOlder = command("even-older-command", "completed", 0, 0);
-        const scope = yield* Scope.make();
-        const harness = yield* makeHarness({
-          cached,
-          cachedHistory,
-          historyHttpClient: HttpClient.make((request) =>
-            Effect.succeed(
-              HttpClientResponse.fromWeb(
-                request,
-                Response.json({
-                  snapshotSequence: CACHED_SNAPSHOT_SEQUENCE,
-                  items: [localRow(evenOlder, 0)],
-                  nextCursor: null,
-                  hasMoreHistory: false,
-                }),
-              ),
-            ),
-          ),
-          ...serverItems({ "cached-command": command("cached-command", "completed", 0) }),
-        }).pipe(Scope.provide(scope));
-        expect(yield* harness.loadEarlier()).toEqual({ _tag: "loaded" });
-        expect((yield* SubscriptionRef.get(harness.threadState)).history.expanded).toBe(true);
-
-        yield* harness.reconcilePendingWork;
-        const after = yield* SubscriptionRef.get(harness.threadState);
-        expect(after.history).toMatchObject({ expanded: true, historyCursor: null });
-        expect(statuses(after).pending).toEqual([]);
-        yield* TestClock.adjust("500 millis");
-        yield* Scope.close(scope, Exit.void);
-
-        const saved = (yield* Ref.get(harness.savedThreads)).at(-1);
-        expect(saved).toMatchObject({
-          snapshotSequence: CACHED_SNAPSHOT_SEQUENCE,
-          historyCursor: "older",
-          hasMoreHistory: true,
-        });
-        expect(projectionStatuses(saved!.projection)).toEqual(settledStatuses);
-
-        const reloaded = yield* makeHarness({
-          cached: saved!.projection,
-          cachedHistory: { historyCursor: saved!.historyCursor!, hasMoreHistory: true },
-        });
-        expect(statuses(yield* SubscriptionRef.get(reloaded.threadState))).toEqual(settledStatuses);
-      }),
-    );
-
-    const expandedHarness = Effect.fn("expandedHarness")(function* (
-      scope: Scope.Closeable,
-      options?: Pick<NonNullable<Parameters<typeof makeHarness>[0]>, "getTurnItem">,
-    ) {
-      const harness = yield* makeHarness({
-        cached,
-        cachedHistory,
-        historyHttpClient: HttpClient.make((request) =>
-          Effect.succeed(
-            HttpClientResponse.fromWeb(
-              request,
-              Response.json({
-                snapshotSequence: CACHED_SNAPSHOT_SEQUENCE,
-                items: [localRow(command("even-older-command", "completed", 0, 0), 0)],
-                nextCursor: null,
-                hasMoreHistory: false,
-              }),
-            ),
-          ),
-        ),
-        ...serverItems({ "cached-command": command("cached-command", "completed", 0) }),
-        ...options,
-      }).pipe(Scope.provide(scope));
-      return harness;
-    });
-    const expand = (harness: Effect.Success<ReturnType<typeof expandedHarness>>) =>
-      Effect.gen(function* () {
-        expect(yield* harness.loadEarlier()).toEqual({ _tag: "loaded" });
-        expect((yield* SubscriptionRef.get(harness.threadState)).history.expanded).toBe(true);
-      });
-    const lastSaved = (harness: Effect.Success<ReturnType<typeof expandedHarness>>) =>
-      Ref.get(harness.savedThreads).pipe(Effect.map((saved) => saved.at(-1)));
-
-    it.effect("saves an expanded thread's repair when its scope closes before the save runs", () =>
-      Effect.gen(function* () {
-        const scope = yield* Scope.make();
-        const harness = yield* expandedHarness(scope);
-        yield* expand(harness);
-
-        yield* harness.reconcilePendingWork;
-        yield* Scope.close(scope, Exit.void);
-
-        const saved = yield* lastSaved(harness);
-        expect(saved).toMatchObject({ historyCursor: "older", hasMoreHistory: true });
-        expect(projectionStatuses(saved!.projection)).toEqual(settledStatuses);
-      }),
-    );
-
-    it.effect(
-      "saves an expanded thread's repair when its scope closes during the save cooldown",
-      () =>
-        Effect.gen(function* () {
-          const scope = yield* Scope.make();
-          const harness = yield* expandedHarness(scope);
-          yield* Queue.offer(harness.inputs, titleUpdated("Renamed", CACHED_SNAPSHOT_SEQUENCE + 1));
-          yield* awaitThreadState(
-            harness.observed,
-            (value) => Option.getOrThrow(value.data).thread.title === "Renamed",
-          );
-          yield* TestClock.adjust("500 millis");
-          expect((yield* lastSaved(harness))?.projection.thread.title).toBe("Renamed");
-          yield* expand(harness);
-
-          yield* harness.reconcilePendingWork;
-          yield* Scope.close(scope, Exit.void);
-
-          const saved = yield* lastSaved(harness);
-          expect(saved).toMatchObject({
-            snapshotSequence: CACHED_SNAPSHOT_SEQUENCE + 1,
-            historyCursor: "older",
-            hasMoreHistory: true,
-          });
-          expect(saved!.projection.thread.title).toBe("Renamed");
-          expect(projectionStatuses(saved!.projection)).toEqual(settledStatuses);
-        }),
-    );
-
-    it.effect("saves a completion event that lands while the server is asked", () =>
-      Effect.gen(function* () {
-        const asked = yield* Deferred.make<void>();
-        const answer = yield* Deferred.make<OrchestrationV2TurnItem>();
-        const scope = yield* Scope.make();
-        const harness = yield* expandedHarness(scope, {
-          getTurnItem: () =>
-            Deferred.succeed(asked, undefined).pipe(
-              Effect.andThen(Deferred.await(answer)),
-              Effect.map((item) => ({ item })),
-            ),
-        });
-        yield* expand(harness);
-        const reconciling = yield* harness.reconcilePendingWork.pipe(Effect.forkChild);
-        yield* Deferred.await(asked);
-        const fromEvent = command("cached-command", "completed", 1);
-        yield* Queue.offer(harness.inputs, {
-          kind: "event",
-          sequence: CACHED_SNAPSHOT_SEQUENCE + 1,
-          event: {
-            id: EventId.make("event-cached-command-completed"),
-            type: "turn-item.updated",
-            threadId: THREAD_ID,
-            occurredAt: at,
-            payload: fromEvent,
-          },
-        });
-        yield* awaitThreadState(harness.observed, (value) =>
-          Option.getOrThrow(value.data).turnItems.some(
-            (item) => item.id === fromEvent.id && item.status === "completed",
-          ),
-        );
-
-        yield* Deferred.succeed(answer, command("cached-command", "completed", 0));
-        yield* Fiber.join(reconciling);
-        yield* Scope.close(scope, Exit.void);
-
-        const live = Option.getOrThrow((yield* SubscriptionRef.get(harness.threadState)).data);
-        expect(live.turnItems.find((item) => item.id === fromEvent.id)).toEqual(fromEvent);
-        const saved = yield* lastSaved(harness);
-        expect(saved).toMatchObject({ historyCursor: "older", hasMoreHistory: true });
-        expect(projectionStatuses(saved!.projection)).toEqual(settledStatuses);
-        expect(saved!.projection.turnItems.find((item) => item.id === fromEvent.id)).toEqual(
-          fromEvent,
-        );
-      }),
-    );
-
-    it.effect.each(["running", "missing", "timed out"] as const)(
-      "saves a completion event that overtakes a %s lookup reply",
-      (reply) =>
-        Effect.gen(function* () {
-          const asked = yield* Deferred.make<void>();
-          const answer = yield* Deferred.make<void>();
-          const scope = yield* Scope.make();
-          const harness = yield* expandedHarness(scope, {
-            getTurnItem: () =>
-              Deferred.succeed(asked, undefined).pipe(
-                Effect.andThen(reply === "timed out" ? Effect.never : Deferred.await(answer)),
-                Effect.as({
-                  item: reply === "running" ? command("cached-command", "running") : null,
-                }),
-              ),
-          });
-          yield* expand(harness);
-          const reconciling = yield* harness.reconcilePendingWork.pipe(Effect.forkChild);
-          yield* Deferred.await(asked);
-          const fromEvent = command("cached-command", "completed", 1);
-          yield* Queue.offer(harness.inputs, {
-            kind: "event",
-            sequence: CACHED_SNAPSHOT_SEQUENCE + 1,
-            event: {
-              id: EventId.make("event-cached-command-completed"),
-              type: "turn-item.updated",
-              threadId: THREAD_ID,
-              occurredAt: at,
-              payload: fromEvent,
-            },
-          });
-          yield* awaitThreadState(harness.observed, (value) =>
-            Option.getOrThrow(value.data).turnItems.some(
-              (item) => item.id === fromEvent.id && item.status === "completed",
-            ),
-          );
-
-          if (reply === "timed out") yield* TestClock.adjust("10 seconds");
-          else yield* Deferred.succeed(answer, undefined);
-          yield* Fiber.join(reconciling);
-          yield* Scope.close(scope, Exit.void);
-
-          const saved = yield* lastSaved(harness);
-          expect(saved).toMatchObject({ historyCursor: "older", hasMoreHistory: true });
-          expect(projectionStatuses(saved!.projection)).toEqual(settledStatuses);
-          expect(saved!.projection.turnItems.find((item) => item.id === fromEvent.id)).toEqual(
-            fromEvent,
-          );
-        }),
-    );
-
-    it.effect("saves the repair for an expanded thread resumed in the same session", () =>
-      Effect.gen(function* () {
-        const resumeCache: NonNullable<Parameters<typeof makeEnvironmentThreadState>[1]> = {
-          snapshot: {
-            state: {
-              data: Option.some(cached),
-              status: "cached",
-              error: Option.none(),
-              history: { ...EMPTY_THREAD_HISTORY_META, historyCursor: null, expanded: true },
-              sequence: CACHED_SNAPSHOT_SEQUENCE,
-            },
-            sequence: CACHED_SNAPSHOT_SEQUENCE,
-            persisted: true,
-          },
-          owner: undefined,
-        };
-        const scope = yield* Scope.make();
-        const harness = yield* makeHarness({
-          cached,
-          cachedHistory,
-          resumeCache,
-          ...serverItems({ "cached-command": command("cached-command", "completed", 0) }),
-        }).pipe(Scope.provide(scope));
-
-        yield* harness.reconcilePendingWork;
-        yield* TestClock.adjust("500 millis");
-        yield* Scope.close(scope, Exit.void);
-
-        const saved = (yield* Ref.get(harness.savedThreads)).at(-1);
-        expect(saved).toMatchObject({ historyCursor: "older", hasMoreHistory: true });
-        expect(projectionStatuses(saved!.projection)).toEqual(settledStatuses);
-      }),
-    );
-
-    it.effect("gives up on a lookup the server never answers, settling the rest", () =>
-      Effect.gen(function* () {
-        const askedCached = yield* Deferred.make<void>();
-        const askedSilent = yield* Deferred.make<void>();
-        const harness = yield* makeHarness({
-          cached: cachedProjection([...cached.turnItems, command("silent-command", "running")]),
-          cachedHistory,
-          getTurnItem: ({ itemId }) =>
-            itemId === "silent-command"
-              ? Deferred.succeed(askedSilent, undefined).pipe(Effect.andThen(Effect.never))
-              : Deferred.succeed(askedCached, undefined).pipe(
-                  Effect.as({ item: command("cached-command", "completed", 0) }),
-                ),
-        });
-        const reconciling = yield* harness.reconcilePendingWork.pipe(Effect.forkChild);
-        yield* Deferred.await(askedCached);
-        yield* Deferred.await(askedSilent);
-
-        yield* TestClock.adjust("10 seconds");
-
-        expect(reconciling.pollUnsafe()).toEqual(Exit.void);
-        expect(statuses(yield* SubscriptionRef.get(harness.threadState)).items).toEqual([
-          ["older-command", "completed"],
-          ["cached-command", "completed"],
-          ["silent-command", "running"],
-        ]);
-      }),
-    );
-
-    it.effect("keeps items the server still runs or does not return", () =>
-      Effect.gen(function* () {
-        const harness = yield* makeHarness({
-          cached: cachedProjection([...cached.turnItems, command("missing-command", "running")]),
-          cachedHistory,
-          ...serverItems({ "cached-command": command("cached-command", "running") }),
-        });
-
-        yield* harness.reconcilePendingWork;
-
-        expect(statuses(yield* SubscriptionRef.get(harness.threadState)).items).toEqual([
-          ["older-command", "completed"],
-          ["cached-command", "running"],
-          ["missing-command", "running"],
-        ]);
-      }),
-    );
-
-    it.effect("keeps events that land while the server is asked", () =>
-      Effect.gen(function* () {
-        const asked = yield* Deferred.make<void>();
-        const answer = yield* Deferred.make<OrchestrationV2TurnItem>();
-        const harness = yield* makeHarness({
-          cached,
-          cachedHistory,
-          getTurnItem: () =>
-            Deferred.succeed(asked, undefined).pipe(
-              Effect.andThen(Deferred.await(answer)),
-              Effect.map((item) => ({ item })),
-            ),
-        });
-        const reconciling = yield* harness.reconcilePendingWork.pipe(Effect.forkChild);
-        yield* Deferred.await(asked);
-        yield* Queue.offer(harness.inputs, titleUpdated("Renamed", CACHED_SNAPSHOT_SEQUENCE + 1));
-        yield* awaitThreadState(
-          harness.observed,
-          (value) => Option.getOrThrow(value.data).thread.title === "Renamed",
-        );
-
-        yield* Deferred.succeed(answer, command("cached-command", "completed", 0));
-        yield* Fiber.join(reconciling);
-
-        const after = yield* SubscriptionRef.get(harness.threadState);
-        expect(Option.getOrThrow(after.data).thread.title).toBe("Renamed");
-        expect(statuses(after)).toEqual(settledStatuses);
-      }),
-    );
-  });
 
   it.effect("keeps progressive history metadata from a bounded socket fallback", () =>
     Effect.gen(function* () {
@@ -1498,6 +643,7 @@ describe("EnvironmentThreads", () => {
         historyCursor: "socket-history-cursor",
         hasMoreHistory: true,
         latestLocalTurnOrdinal: 47,
+        payloadBudgetExceeded: false,
       });
 
       const state = yield* awaitThreadState(
@@ -1560,17 +706,6 @@ describe("EnvironmentThreads", () => {
           text: "COD4 result",
           streaming: false,
         };
-        const prompt = {
-          ...message,
-          id: "item:older-prompt",
-          messageId: "message:older-prompt",
-          ordinal: 0,
-          type: "user_message",
-          inputIntent: "turn_start",
-          createdBy: "user",
-          creationSource: "web",
-          attachments: [],
-        };
         const activity = {
           ...common,
           id: "item:older-command",
@@ -1593,16 +728,6 @@ describe("EnvironmentThreads", () => {
         const harness = yield* makeHarness({
           historyHttpClient: HttpClient.make((request, url) =>
             Effect.gen(function* () {
-              if (url.searchParams.get("cursor") === "next-cursor")
-                return HttpClientResponse.fromWeb(
-                  request,
-                  Response.json({
-                    snapshotSequence: 14,
-                    items: [projected(prompt, 0)],
-                    nextCursor: "before-prompt",
-                    hasMoreHistory: true,
-                  }),
-                );
               expect(url.searchParams.get("cursor")).toBe("progressive-cursor");
               const conversationOnly = url.searchParams.get("view") === "conversation";
               if (!conversationOnly && activityRequests++ === 0) {
@@ -1633,6 +758,7 @@ describe("EnvironmentThreads", () => {
           historyCursor: "progressive-cursor",
           hasMoreHistory: true,
           latestLocalTurnOrdinal: 47,
+          payloadBudgetExceeded: false,
         });
         yield* awaitThreadState(
           harness.observed,
@@ -1675,16 +801,14 @@ describe("EnvironmentThreads", () => {
         const complete = yield* SubscriptionRef.get(harness.threadState);
         expect(complete.history).toMatchObject({
           loading: false,
-          historyCursor: mode === "retry" ? "before-prompt" : "next-cursor",
+          historyCursor: "next-cursor",
           error: null,
           latestLocalTurnOrdinal: 47,
         });
         expect(
           Option.getOrThrow(complete.data).visibleTurnItems.map((row) => row.sourceItemId),
-        ).toEqual(
-          mode === "retry" ? [prompt.id, message.id, activity.id] : [message.id, activity.id],
-        );
-        expect(Option.getOrThrow(complete.data).turnItems).toHaveLength(mode === "retry" ? 3 : 2);
+        ).toEqual([message.id, activity.id]);
+        expect(Option.getOrThrow(complete.data).turnItems).toHaveLength(2);
       }),
   );
 
@@ -1745,6 +869,7 @@ describe("EnvironmentThreads", () => {
         historyCursor: "compact-cursor",
         hasMoreHistory: true,
         latestLocalTurnOrdinal: 2,
+        payloadBudgetExceeded: false,
         turnItemsOmitLocalVisible: true,
       });
 
@@ -1889,7 +1014,9 @@ describe("EnvironmentThreads", () => {
         });
 
         const warm = yield* makeHarness(
-          cacheKind === "retained" ? { resumeCache } : { loadCached: Effect.succeedSome(saved!) },
+          cacheKind === "retained"
+            ? { resumeCache }
+            : { loadCached: Effect.succeed(Option.some(saved!)) },
         );
         yield* Queue.offer(warm.inputs, titleUpdated("Grown while closed", 200));
         yield* awaitThreadState(
@@ -2227,36 +1354,6 @@ describe("EnvironmentThreads", () => {
     }),
   );
 
-  it.effect("announces request resolution only from a synchronized projection", () =>
-    Effect.gen(function* () {
-      const announced = yield* Queue.unbounded<ThreadRequestsResolved>();
-      yield* Effect.acquireRelease(
-        Effect.sync(() => onThreadRequestsResolved((event) => Queue.offerUnsafe(announced, event))),
-        (unsubscribe) => Effect.sync(unsubscribe),
-      );
-      const harness = yield* makeHarness({
-        cached: { ...BASE_PROJECTION, runtimeRequests: [PENDING_QUESTION] },
-        completionMarker: true,
-      });
-      yield* awaitThreadState(
-        harness.observed,
-        (value) => value.status === "synchronizing" && Option.isSome(value.data),
-      );
-
-      yield* Queue.offerAll(harness.inputs, [
-        questionResolved(CACHED_SNAPSHOT_SEQUENCE + 1),
-        synchronized(),
-      ]);
-
-      expect(yield* Queue.take(announced)).toEqual({
-        environmentId: TARGET.environmentId,
-        threadId: THREAD_ID,
-        pendingRequestIds: [],
-      });
-      expect(yield* Queue.size(announced)).toBe(0);
-    }),
-  );
-
   it.effect("skips an unknown event type and resumes after it", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness({ cached: BASE_PROJECTION, completionMarker: true });
@@ -2356,7 +1453,9 @@ describe("EnvironmentThreads", () => {
       expect(yield* SubscriptionRef.get(harness.subscriptionCount)).toBe(3);
 
       yield* PubSub.publish(harness.wakeups, "application-background");
-      yield* Effect.yieldNow;
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        yield* Effect.yieldNow;
+      }
       expect(yield* SubscriptionRef.get(harness.subscriptionCount)).toBe(3);
     }),
   );

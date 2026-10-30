@@ -1,14 +1,20 @@
-import { type PointerEvent as ReactPointerEvent } from "react";
+import { useLayoutEffect, type PointerEvent as ReactPointerEvent } from "react";
 import { type SensorProps } from "@dnd-kit/core";
 import { getOwnerDocument, getWindow } from "@dnd-kit/utilities";
+
+// Search unmounts the drag context while its owning Sidebar remains mounted.
+export function SidebarDragLifecycle({ onUnmount }: { onUnmount: () => void }) {
+  useLayoutEffect(() => onUnmount, [onUnmount]);
+  return null;
+}
 
 type Options = {
   distance: number;
   onAttach: (sensor: SidebarPointerSensor) => void;
   onFinish: (started: boolean) => void;
-  /** Return true to claim the move and hide this position from sorting. */
+  /** Return true to claim the move: the sort gesture then ignores this pointer position. */
   onMove?: (point: { x: number; y: number }) => boolean;
-  /** Return true to consume the release and cancel sorting. */
+  /** Return true when the release was consumed elsewhere, so the sort is cancelled. */
   onDrop?: (point: { x: number; y: number }) => boolean;
 };
 
@@ -126,15 +132,16 @@ export class SidebarPointerSensor {
     this.document.removeEventListener("dragstart", this.preventDefault);
     this.document.removeEventListener("contextmenu", this.preventDefault);
     this.document.removeEventListener("selectionchange", this.clearSelection);
-    // Suppress the eventual click after cancellation; a fresh pointerdown clears suppression after
-    // out-of-document release.
+    // Cancellation can precede release by an arbitrary amount of time. Consume that release
+    // click, or let a fresh pointerdown end suppression if release happened outside the
+    // document.
     if (!aborted || cancelled) {
       this.document.addEventListener("click", this.suppressClick, { capture: true });
       this.document.addEventListener("pointerdown", this.clearClickSuppression, { capture: true });
     }
     try {
-      // Release the preview before dnd-kit clears transforms; end/cancel events may be omitted before first
-      // layout.
+      // Release the sidebar preview before dnd-kit clears its transforms.
+      // Its public end/cancel event can be omitted before its first layout.
       this.props.options.onFinish(!aborted);
     } finally {
       if (aborted) this.props.onAbort(this.props.active);

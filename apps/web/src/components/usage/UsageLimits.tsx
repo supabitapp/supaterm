@@ -95,7 +95,6 @@ function paceMarkStyles(timeLeft: number | null) {
 export function usePaceMark(timeLeft: number | null) {
   const [bar, setBar] = useState<HTMLElement | null>(null);
   const [roomy, setRoomy] = useState(false);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- measures the bar DOM width before paint and remeasures through a ResizeObserver
   useLayoutEffect(() => {
     if (!bar) return;
     const measure = () => setRoomy(bar.getBoundingClientRect().width >= 6);

@@ -1,11 +1,8 @@
 import type { EnvironmentId } from "@supaterm/contracts";
-import type { NavigationState, PartialState } from "@react-navigation/native";
 import { Atom } from "effect/reactivity";
 
-import { findLinkedRoute } from "../../lib/appLinking";
-
 import { appAtomRegistry } from "../../state/atom-registry";
-import { hasScheduledTaskDraftChanges, type ScheduledTaskDraft } from "./scheduledTaskDraft";
+import type { ScheduledTaskDraft } from "./scheduledTaskDraft";
 
 export type ScheduledTaskEditor = {
   readonly environmentId: EnvironmentId;
@@ -23,22 +20,8 @@ export const scheduledTaskEditorSessionAtom = Atom.make<ScheduledTaskEditorSessi
   null,
 ).pipe(Atom.keepAlive);
 let nextEditorId = 0;
-let newTaskLinkAwaitsDiscard = false;
-
-export function scheduledTaskEditorHasChanges(
-  initial: ScheduledTaskEditor | null,
-  current: ScheduledTaskEditor | null,
-): boolean {
-  return Boolean(
-    initial &&
-    current &&
-    (initial.environmentId !== current.environmentId ||
-      hasScheduledTaskDraftChanges(initial.draft, current.draft)),
-  );
-}
 
 export function startScheduledTaskEditor(next: ScheduledTaskEditor | null): void {
-  newTaskLinkAwaitsDiscard = false;
   appAtomRegistry.set(scheduledTaskEditorSessionAtom, {
     id: ++nextEditorId,
     initial: next,
@@ -62,14 +45,6 @@ export function updateScheduledTaskEditor(
   });
 }
 
-export function markScheduledTaskEditorSaved(): void {
-  newTaskLinkAwaitsDiscard = false;
-  const session = appAtomRegistry.get(scheduledTaskEditorSessionAtom);
-  if (session) {
-    appAtomRegistry.set(scheduledTaskEditorSessionAtom, { ...session, initial: session.current });
-  }
-}
-
 export function readScheduledTaskEditor(
   voiceOwnerKey: string,
   defaultEditor: ScheduledTaskEditor | null,
@@ -77,27 +52,4 @@ export function readScheduledTaskEditor(
   const session = appAtomRegistry.get(scheduledTaskEditorSessionAtom);
   if (`scheduled-task:${session?.id ?? 0}` !== voiceOwnerKey) return null;
   return session ? session.current : defaultEditor;
-}
-
-export function takeScheduledTaskNewLink(
-  state: PartialState<NavigationState> | undefined,
-): PartialState<NavigationState> | undefined {
-  if (findLinkedRoute(state, ["SettingsScheduledTaskNew"])) {
-    const session = appAtomRegistry.get(scheduledTaskEditorSessionAtom);
-    if (session && scheduledTaskEditorHasChanges(session.initial, session.current)) {
-      newTaskLinkAwaitsDiscard = true;
-    } else {
-      appAtomRegistry.set(scheduledTaskEditorSessionAtom, null);
-    }
-  }
-  return state;
-}
-
-export function discardScheduledTaskEditor(): void {
-  if (newTaskLinkAwaitsDiscard) {
-    newTaskLinkAwaitsDiscard = false;
-    appAtomRegistry.set(scheduledTaskEditorSessionAtom, null);
-    return;
-  }
-  startScheduledTaskEditor(null);
 }

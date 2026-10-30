@@ -1,15 +1,15 @@
-import { useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute, type ParamListBase } from "@react-navigation/native";
 import type {
   NativeStackHeaderItem,
   NativeStackHeaderItemMenu,
   NativeStackNavigationOptions,
+  NativeStackNavigationProp,
 } from "@react-navigation/native-stack";
 import {
   Children,
   isValidElement,
   useLayoutEffect,
   useMemo,
-  useRef,
   use,
   type ReactElement,
   type ReactNode,
@@ -17,7 +17,11 @@ import {
 import type { ColorValue } from "react-native";
 import type { HeaderBarButtonSearchBarPlacementItem } from "react-native-screens";
 import { NativeWorkspaceTabActivityContext } from "./v5-workspace-context";
-import { NativeStackScreenOptions, useScreenOptionsWriter } from "./StackHeader";
+import { NativeStackScreenOptions } from "./StackHeader";
+
+function useNativeStackNavigation(): NativeStackNavigationProp<ParamListBase> | null {
+  return useNavigation<NativeStackNavigationProp<ParamListBase>>();
+}
 
 function labelFromChildren(children: ReactNode): string {
   const parts: string[] = [];
@@ -61,8 +65,6 @@ function iconFromProp(icon: unknown): NativeStackHeaderIcon | undefined {
   return undefined;
 }
 
-type RegisterHandler = (handler: unknown) => () => void;
-
 type ToolbarElementProps = Record<string, unknown> & { readonly children?: ReactNode };
 
 function elementTypeName(element: ReactElement): string | undefined {
@@ -75,7 +77,6 @@ function elementTypeName(element: ReactElement): string | undefined {
 
 function convertMenuAction(
   element: ReactElement<ToolbarElementProps>,
-  register: RegisterHandler,
 ): NativeStackHeaderItemMenu["menu"]["items"][number] | null {
   const typeName = elementTypeName(element);
   if (typeName === "NativeHeaderToolbarMenuAction") {
@@ -86,7 +87,10 @@ function convertMenuAction(
       description: typeof element.props.subtitle === "string" ? element.props.subtitle : undefined,
       disabled: Boolean(element.props.disabled),
       icon: iconFromProp(element.props.icon),
-      onPress: register(element.props.onPress),
+      onPress:
+        typeof element.props.onPress === "function"
+          ? (element.props.onPress as () => void)
+          : () => undefined,
       state: element.props.isOn === true ? "on" : undefined,
       destructive: Boolean(element.props.destructive),
       discoverabilityLabel:
@@ -105,36 +109,30 @@ function convertMenuAction(
           : labelFromChildren(element.props.children),
       icon: iconFromProp(element.props.icon),
       inline: Boolean(element.props.inline),
-      items: collectMenuItems(element.props.children, register),
+      items: collectMenuItems(element.props.children),
     };
   }
 
   return null;
 }
 
-function collectMenuItems(
-  children: ReactNode,
-  register: RegisterHandler,
-): NativeStackHeaderItemMenu["menu"]["items"] {
+function collectMenuItems(children: ReactNode): NativeStackHeaderItemMenu["menu"]["items"] {
   const items: NativeStackHeaderItemMenu["menu"]["items"] = [];
   Children.forEach(children, (child) => {
     if (!isValidElement<ToolbarElementProps>(child)) {
       return;
     }
-    const item = convertMenuAction(child, register);
+    const item = convertMenuAction(child);
     if (item) {
       items.push(item);
       return;
     }
-    items.push(...collectMenuItems(child.props.children, register));
+    items.push(...collectMenuItems(child.props.children));
   });
   return items;
 }
 
-function convertToolbarChild(
-  child: ReactNode,
-  register: RegisterHandler,
-): NativeToolbarItem | null {
+function convertToolbarChild(child: ReactNode): NativeToolbarItem | null {
   if (!isValidElement<ToolbarElementProps>(child)) {
     return null;
   }
@@ -161,7 +159,10 @@ function convertToolbarChild(
       axisBehavior: child.props.axisBehavior as NativeStackHeaderAxisBehavior,
       disabled: Boolean(child.props.disabled),
       icon: iconFromProp(child.props.icon),
-      onPress: register(child.props.onPress),
+      onPress:
+        typeof child.props.onPress === "function"
+          ? (child.props.onPress as () => void)
+          : () => undefined,
       sharesBackground: !child.props.separateBackground,
       tintColor: child.props.tintColor as ColorValue | undefined,
       variant:
@@ -186,7 +187,7 @@ function convertToolbarChild(
       icon: iconFromProp(child.props.icon),
       menu: {
         title: typeof child.props.title === "string" ? child.props.title : undefined,
-        items: collectMenuItems(child.props.children, register),
+        items: collectMenuItems(child.props.children),
       },
       sharesBackground: !child.props.separateBackground,
       tintColor: child.props.tintColor as ColorValue | undefined,
@@ -209,12 +210,14 @@ function convertToolbarChild(
   return null;
 }
 
-function collectToolbarItems(children: ReactNode, register: RegisterHandler): NativeToolbarItem[] {
+function collectToolbarItems(children: ReactNode): NativeToolbarItem[] {
   const items: NativeToolbarItem[] = [];
   Children.forEach(children, (child) => {
-    const item = convertToolbarChild(child, register);
+    const item = convertToolbarChild(child);
     if (item) {
       if (item.type === "spacing") {
+        // Native inserts spacing items at `index`, treating a missing index
+        // as 0 — which would move the spacer in front of earlier siblings.
         (item as { index?: number }).index = items.length;
       }
       items.push(item);
@@ -227,49 +230,32 @@ function NativeHeaderToolbarRoot(props: {
   readonly placement?: "left" | "right" | "bottom";
   readonly children?: ReactNode;
 }) {
-  const setOptions = useScreenOptionsWriter();
+  const navigation = useNativeStackNavigation();
   const route = useRoute();
   const tabActivity = use(NativeWorkspaceTabActivityContext);
   const isTabActive = tabActivity?.isActive;
-  const committedHandlers = useRef<(() => void)[]>([]);
-  const { items, handlers } = useMemo(() => {
-    const handlers: (() => void)[] = [];
-    const register: RegisterHandler = (handler) => {
-      const index = handlers.length;
-      handlers.push(typeof handler === "function" ? (handler as () => void) : () => undefined);
-      return () => committedHandlers.current[index]?.();
-    };
-    return { items: collectToolbarItems(props.children, register), handlers };
-  }, [props.children, committedHandlers]);
-
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes committed toolbar handlers to the ref native actions call; discarded renders must not leak
-  useLayoutEffect(() => {
-    committedHandlers.current = handlers;
-    return () => {
-      committedHandlers.current = [];
-    };
-  }, [handlers, committedHandlers]);
-
-  const headerItems = items.filter(
-    (item): item is NativeStackHeaderItem => item.type !== "searchBarPlacement",
+  const items = useMemo(() => collectToolbarItems(props.children), [props.children]);
+  // UIKit's search placement item belongs to the toolbar, never a header group.
+  const headerItems = useMemo(
+    () => items.filter((item): item is NativeStackHeaderItem => item.type !== "searchBarPlacement"),
+    [items],
   );
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears this placement's native header items through the navigator when the toolbar unmounts
   useLayoutEffect(() => {
-    if (!setOptions) return;
+    if (!navigation) return;
     return () => {
       if (isTabActive && !isTabActive()) return;
       if (props.placement === "bottom") {
-        setOptions({
+        navigation.setOptions({
           unstable_headerToolbarItems: () => [],
         } as NativeStackOptionsWithToolbar);
       } else if (props.placement === "left") {
-        setOptions({ unstable_headerLeftItems: () => [] });
+        navigation.setOptions({ unstable_headerLeftItems: () => [] });
       } else {
-        setOptions({ unstable_headerRightItems: () => [] });
+        navigation.setOptions({ unstable_headerRightItems: () => [] });
       }
     };
-  }, [setOptions, props.placement, isTabActive]);
+  }, [navigation, props.placement, isTabActive]);
 
   return (
     <NativeStackScreenOptions

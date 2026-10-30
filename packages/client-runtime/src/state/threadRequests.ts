@@ -1,6 +1,4 @@
 import type {
-  EnvironmentId,
-  ThreadId,
   OrchestrationV2ThreadProjection,
   OrchestrationV2RuntimeRequest,
   OrchestrationV2UserInputQuestion,
@@ -18,18 +16,7 @@ import type { ThreadStructure, ThreadStructureVisibleTurnItem } from "./models.t
 export type ApprovalResponder = (
   requestId: RuntimeRequestId,
   decision: ProviderApprovalDecision,
-  feedback?: string,
 ) => Promise<AtomCommandResult<unknown, unknown> | undefined>;
-
-export async function sendApprovalFeedback(
-  approval: ThreadPendingApproval,
-  feedback: string,
-  respond: ApprovalResponder,
-): Promise<boolean> {
-  if (!approval.supportsFeedback || approval.responseCapability !== "live" || !feedback.trim())
-    return false;
-  return (await respond(approval.requestId, "decline", feedback.trim()))?._tag === "Success";
-}
 
 /** Declines every approval a redirect replaces; any one still pending would block the agent. */
 export async function declinePendingApprovals(
@@ -54,7 +41,6 @@ export interface ThreadPendingApproval {
   readonly appName?: string;
   readonly options?: ReadonlyArray<ProviderApprovalOption>;
   readonly responseCapability: "live" | "not_resumable";
-  readonly supportsFeedback?: boolean;
 }
 
 export const FULL_ACCESS_OVERRIDE_QUESTION = "Why am I being asked this?";
@@ -107,98 +93,6 @@ export function seedUserInputDraftAnswers<Draft extends { readonly customAnswer?
     seeded[question.id] = { customAnswer: question.initialAnswer };
   }
   return seeded;
-}
-
-export function userInputDraftKey(
-  environmentId: string,
-  threadId: string | null,
-  requestId: string | undefined,
-): string {
-  return JSON.stringify([environmentId, threadId, requestId]);
-}
-
-export function pruneResolvedUserInputDrafts<T>(
-  draftsByRequestKey: Record<string, T>,
-  environmentId: string,
-  threadId: string,
-  pendingRequestIds: ReadonlyArray<string>,
-): Record<string, T> {
-  const threadPrefix = JSON.stringify([environmentId, threadId]).slice(0, -1);
-  const pendingKeys = new Set(
-    pendingRequestIds.map((requestId) => userInputDraftKey(environmentId, threadId, requestId)),
-  );
-  const retained = Object.entries(draftsByRequestKey).filter(
-    ([key]) => !key.startsWith(threadPrefix) || pendingKeys.has(key),
-  );
-  return retained.length === Object.keys(draftsByRequestKey).length
-    ? draftsByRequestKey
-    : Object.fromEntries(retained);
-}
-
-export function resolvedQuestionDraftKeys(
-  keys: Iterable<string>,
-  threadPrefix: string,
-  pendingRequestIds: ReadonlyArray<string>,
-): string[] {
-  const pendingPrefixes = pendingRequestIds.map(
-    (requestId) =>
-      `${threadPrefix}${encodeURIComponent(`${JSON.stringify([requestId]).slice(0, -1)},`)}`,
-  );
-  const resolved: string[] = [];
-  for (const key of keys) {
-    if (key.startsWith(threadPrefix) && !pendingPrefixes.some((prefix) => key.startsWith(prefix)))
-      resolved.push(key);
-  }
-  return resolved;
-}
-
-export interface ThreadRequestsResolved {
-  readonly environmentId: EnvironmentId;
-  readonly threadId: ThreadId;
-
-  readonly pendingRequestIds: ReadonlyArray<RuntimeRequestId>;
-}
-
-const threadRequestsResolvedListeners = new Set<(event: ThreadRequestsResolved) => void>();
-
-export function onThreadRequestsResolved(
-  listener: (event: ThreadRequestsResolved) => void,
-): () => void {
-  threadRequestsResolvedListeners.add(listener);
-  return () => threadRequestsResolvedListeners.delete(listener);
-}
-
-function notifyThreadRequestsResolved(event: ThreadRequestsResolved): void {
-  for (const listener of threadRequestsResolvedListeners) {
-    try {
-      listener(event);
-    } catch (error) {
-      queueMicrotask(() => {
-        throw error;
-      });
-    }
-  }
-}
-
-export function makeThreadRequestsResolvedAnnouncer(
-  environmentId: EnvironmentId,
-  threadId: ThreadId,
-) {
-  let announced: ReadonlySet<RuntimeRequestId> | null = null;
-  return (pendingRequestIds: ReadonlyArray<RuntimeRequestId>) => {
-    const pending = new Set(pendingRequestIds);
-    const resolvedSome = announced === null || [...announced].some((id) => !pending.has(id));
-    announced = pending;
-    if (resolvedSome) notifyThreadRequestsResolved({ environmentId, threadId, pendingRequestIds });
-  };
-}
-
-export function pendingRuntimeRequestIds(
-  projection: Pick<OrchestrationV2ThreadProjection, "runtimeRequests">,
-): RuntimeRequestId[] {
-  return projection.runtimeRequests.flatMap((request) =>
-    request.status === "pending" ? [request.id] : [],
-  );
 }
 
 export function derivePendingThreadRequests(
@@ -254,9 +148,6 @@ export function derivePendingThreadRequests(
         ? { options: item.options }
         : {}),
       responseCapability: responseCapability === "live" ? "live" : "not_resumable",
-      ...(request.responseCapability.type === "live" && request.responseCapability.supportsFeedback
-        ? { supportsFeedback: true }
-        : {}),
     });
   }
 

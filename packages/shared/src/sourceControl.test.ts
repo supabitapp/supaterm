@@ -141,7 +141,7 @@ it("names an Azure DevOps repository by its own name, not its project path", () 
   // the checkout; the recorded `org/project/_git/repo` path is refused, and the repository then
   // reads as unavailable on the page.
   const selector = sourceControlRepositorySelector({
-    provider: SourceControlProviderKind.make("azure-devops"),
+    provider: "azure-devops",
     displayName: "contoso/payments/_git/checkout",
     owner: "contoso",
     name: "checkout",
@@ -152,7 +152,7 @@ it("names an Azure DevOps repository by its own name, not its project path", () 
 it("decodes an Azure DevOps repository name that the remote URL percent-encodes", () => {
   // A remote spells a space as `%20`, and `az repos pr list --repository` reads that literally.
   const selector = sourceControlRepositorySelector({
-    provider: SourceControlProviderKind.make("azure-devops"),
+    provider: "azure-devops",
     displayName: "contoso/payments%20(eu)/_git/checkout%20(eu)",
     owner: "contoso",
     name: "checkout%20(eu)",
@@ -162,7 +162,7 @@ it("decodes an Azure DevOps repository name that the remote URL percent-encodes"
 
 it("keeps a GitLab identity's whole path, because a nested group is part of the name", () => {
   const selector = sourceControlRepositorySelector({
-    provider: SourceControlProviderKind.make("gitlab"),
+    provider: "gitlab",
     displayName: "group/subgroup/service",
     owner: "group",
     name: "service",

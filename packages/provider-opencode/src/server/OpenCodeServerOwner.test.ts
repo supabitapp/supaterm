@@ -53,6 +53,8 @@ const makeRuntime = Effect.gen(function* () {
     createOpenCodeSdkClient: () => ({}) as never,
     loadOpenCodeInventory: unusedRuntimeMethod,
     loadOpenCodeSkills: unusedRuntimeMethod,
+    loadInventoryFromCli: unusedRuntimeMethod,
+    loadSkillsFromCli: unusedRuntimeMethod,
   };
   return { runtime, starts, closes, failNextStart, started, closed };
 });
@@ -132,6 +134,8 @@ it.effect("replaces a dead cached process before its exit watcher runs", () =>
       createOpenCodeSdkClient: () => ({}) as never,
       loadOpenCodeInventory: unusedRuntimeMethod,
       loadOpenCodeSkills: unusedRuntimeMethod,
+      loadInventoryFromCli: unusedRuntimeMethod,
+      loadSkillsFromCli: unusedRuntimeMethod,
     };
 
     yield* Effect.scoped(
@@ -185,6 +189,8 @@ it.effect("cleans up an interrupted startup and allows a retry", () =>
       createOpenCodeSdkClient: () => ({}) as never,
       loadOpenCodeInventory: unusedRuntimeMethod,
       loadOpenCodeSkills: unusedRuntimeMethod,
+      loadInventoryFromCli: unusedRuntimeMethod,
+      loadSkillsFromCli: unusedRuntimeMethod,
     };
 
     yield* Effect.scoped(

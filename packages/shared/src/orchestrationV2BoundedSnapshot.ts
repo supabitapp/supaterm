@@ -3,8 +3,6 @@ import type {
   OrchestrationV2ThreadProjection,
 } from "@supaterm/contracts";
 
-import { restoreSnapshotBodies } from "./orchestrationV2DedupedBodies.ts";
-
 function isLocalTimelineRow(
   projection: Pick<OrchestrationV2ThreadProjection, "thread">,
   row: OrchestrationV2ProjectedTurnItem,
@@ -40,9 +38,7 @@ export function boundedSnapshotProjection(snapshot: {
   readonly projection: OrchestrationV2ThreadProjection;
   readonly turnItemsOmitLocalVisible?: true | undefined;
 }): OrchestrationV2ThreadProjection {
-  return restoreSnapshotBodies(
-    snapshot.turnItemsOmitLocalVisible === true
-      ? restoreLocalVisibleTurnItems(snapshot.projection)
-      : snapshot.projection,
-  );
+  return snapshot.turnItemsOmitLocalVisible === true
+    ? restoreLocalVisibleTurnItems(snapshot.projection)
+    : snapshot.projection;
 }

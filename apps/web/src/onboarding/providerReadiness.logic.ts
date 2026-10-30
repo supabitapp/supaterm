@@ -72,7 +72,11 @@ export function selectOnboardingProvidersByDriver(
   return providersByDriver;
 }
 
-// These need no Node/npm and install where provider maintenance recognizes native binaries.
+/**
+ * Neither needs Node or npm, and both land in the paths the server's provider
+ * maintenance recognizes as native, so the one-click updater in Settings keeps
+ * working after install.
+ */
 const NATIVE_INSTALL_COMMANDS = {
   claudeAgent: {
     windows: "irm https://claude.ai/install.ps1 | iex",

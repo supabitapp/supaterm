@@ -9,10 +9,8 @@ import {
   usePullRequestMediaUrl,
 } from "./PullRequestMedia";
 import { videoMimeType } from "@supaterm/shared/video";
-import { createContext, useContext, useMemo, useState } from "react";
-import { changeRequestReferenceAutolinker } from "@supaterm/client-runtime/pull-request-markdown";
-import type { ReferenceAutolink } from "@supaterm/client-runtime/source-control-clients";
-import { linkReferenceAutolinks } from "./pullRequestAutolinks";
+import { createContext, useContext, useCallback, useMemo, useState } from "react";
+import { githubMarkdownLinks } from "@supaterm/shared/githubMarkdownLinks";
 
 import { useOpenPullRequest } from "../../native/useOpenPullRequest";
 import { SelectableMarkdownText } from "../../native/SelectableMarkdownText";
@@ -28,32 +26,27 @@ import {
 import { ThreadMarkdownImageView } from "../threads/ThreadMarkdownImage";
 import type { MarkdownImageRenderer } from "../../native/SelectableMarkdownText";
 
-const AutolinksContext = createContext<((text: string) => ReadonlyArray<ReferenceAutolink>) | null>(
-  null,
-);
+const RepositoryContext = createContext<string | null>(null);
 
 export function PullRequestMarkdownRepository(props: {
-  readonly changeRequest: { readonly provider: string; readonly url: string } | null | undefined;
+  readonly value: string | null;
   readonly params: PullRequestParams;
   readonly children: ReactNode;
 }) {
-  const provider = props.changeRequest?.provider;
-  const url = props.changeRequest?.url;
-  const autolinks =
-    provider === undefined || url === undefined
-      ? null
-      : changeRequestReferenceAutolinker({ provider, url });
   const target = pullRequestTarget(props.params);
   const project = useProject({
     environmentId: target.environmentId,
     projectId: target.input.projectId,
   });
   const cwd = project?.workspaceRoot;
-  const media = cwd ? { environmentId: target.environmentId, cwd } : null;
+  const media = useMemo(
+    () => (cwd ? { environmentId: target.environmentId, cwd } : null),
+    [target.environmentId, cwd],
+  );
   return (
-    <AutolinksContext value={autolinks}>
+    <RepositoryContext value={props.value}>
       <PullRequestMediaContext value={media}>{props.children}</PullRequestMediaContext>
-    </AutolinksContext>
+    </RepositoryContext>
   );
 }
 
@@ -110,25 +103,34 @@ function PullRequestMarkdownContent(props: {
   readonly markdown: string;
   readonly imageGroupMarkdown?: string;
 }) {
-  const autolinks = useContext(AutolinksContext);
+  const repositoryUrl = useContext(RepositoryContext);
   const mediaContext = useContext(PullRequestMediaContext);
-  const markdown = linkReferenceAutolinks(props.markdown, autolinks);
+  const markdown = useMemo(
+    () => githubMarkdownLinks(props.markdown, repositoryUrl),
+    [props.markdown, repositoryUrl],
+  );
   const openPullRequest = useOpenPullRequest();
-  const openLink = (href: string) => {
-    void openPullRequest(href);
-  };
-  const gallery: FilePreviewItem[] = markdownImageSources(
-    props.imageGroupMarkdown ?? props.markdown,
-  )
-    .filter(
-      (uri) =>
-        /^https?:\/\//i.test(uri) &&
-        videoMimeType({ name: uri.split(/[?#]/)[0] ?? uri, mimeType: "" }) === null,
-    )
-    .map((uri) => pullRequestImageSource(uri, mediaContext));
+  const openLink = useCallback(
+    (href: string) => {
+      void openPullRequest(href);
+    },
+    [openPullRequest],
+  );
+  const gallery = useMemo<FilePreviewItem[]>(
+    () =>
+      markdownImageSources(props.imageGroupMarkdown ?? props.markdown)
+        .filter(
+          (uri) =>
+            /^https?:\/\//i.test(uri) &&
+            videoMimeType({ name: uri.split(/[?#]/)[0] ?? uri, mimeType: "" }) === null,
+        )
+        .map((uri) => pullRequestImageSource(uri, mediaContext)),
+    [props.markdown, props.imageGroupMarkdown, mediaContext],
+  );
   const [preview, setPreview] = useState<FilePreviewSource | null>(null);
-  const renderImage: MarkdownImageRenderer = (image) => (
-    <MarkdownImage href={image.href} alt={image.alt} onPreview={setPreview} />
+  const renderImage = useCallback<MarkdownImageRenderer>(
+    (image) => <MarkdownImage href={image.href} alt={image.alt} onPreview={setPreview} />,
+    [],
   );
   const styles = useMarkdownPreviewStyles();
   return (

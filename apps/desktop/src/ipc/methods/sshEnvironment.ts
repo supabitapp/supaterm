@@ -1,6 +1,7 @@
 import {
   bootstrapRemoteBearerSession,
   fetchRemoteSessionState,
+  issueRemoteWebSocketTicket,
   RemoteEnvironmentAuthUndeclaredStatusError,
   type RemoteEnvironmentAuthError,
 } from "@supaterm/client-runtime/authorization";
@@ -23,6 +24,7 @@ import {
   EnvironmentScopeRequiredError,
   AuthAccessTokenResult,
   AuthSessionState,
+  AuthWebSocketTicketResult,
 } from "@supaterm/contracts";
 import { SshHttpBridgeError } from "@supaterm/ssh/errors";
 import { resolveLoopbackSshHttpBaseUrl } from "@supaterm/ssh/tunnel";
@@ -38,7 +40,8 @@ import * as DesktopSshPasswordPrompts from "../../ssh/DesktopSshPasswordPrompts.
 type DesktopSshEnvironmentRequestOperation =
   | "fetch-environment-descriptor"
   | "bootstrap-bearer-session"
-  | "fetch-session-state";
+  | "fetch-session-state"
+  | "issue-websocket-ticket";
 
 type DesktopSshEnvironmentRequestCause = RemoteEnvironmentAuthError | SshHttpBridgeError;
 
@@ -192,6 +195,23 @@ export const fetchSshSessionState = DesktopIpc.makeIpcMethod({
   }) {
     return yield* withLoopbackSshApi("fetch-session-state", (resolvedHttpBaseUrl) =>
       fetchRemoteSessionState({
+        httpBaseUrl: resolvedHttpBaseUrl,
+        bearerToken,
+      }),
+    )(httpBaseUrl);
+  }),
+});
+
+export const issueSshWebSocketTicket = DesktopIpc.makeIpcMethod({
+  channel: IpcChannels.ISSUE_SSH_WEBSOCKET_TOKEN_CHANNEL,
+  payload: DesktopSshBearerRequestInputSchema,
+  result: AuthWebSocketTicketResult,
+  handler: Effect.fn("desktop.ipc.sshEnvironment.issueWebSocketTicket")(function* ({
+    httpBaseUrl,
+    bearerToken,
+  }) {
+    return yield* withLoopbackSshApi("issue-websocket-ticket", (resolvedHttpBaseUrl) =>
+      issueRemoteWebSocketTicket({
         httpBaseUrl: resolvedHttpBaseUrl,
         bearerToken,
       }),

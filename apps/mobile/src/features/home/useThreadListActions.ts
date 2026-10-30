@@ -147,7 +147,9 @@ function useThreadActionExecutor(
         key,
         async () =>
           action === "reopen"
-            ? await reopenMutation({
+            ? // reason "user" pins the thread active: auto-mark-done stays
+              // suppressed until real activity clears the pin server-side.
+              await reopenMutation({
                 environmentId: thread.environmentId,
                 input: { threadId: thread.id, reason: "user" },
               })
@@ -169,7 +171,8 @@ function useThreadActionExecutor(
         Dialog.alert(actionFailureTitle(action), actionFailureMessage(action, result.cause));
         return false;
       }
-
+      // Done threads stay in the live shell stream; only the archive
+      // lifecycle still feeds the archived-snapshot surface.
       if (action === "archive" || action === "unarchive" || action === "delete") {
         refreshArchivedThreadsForEnvironment(thread.environmentId);
       }
@@ -212,7 +215,7 @@ export function useThreadListActions(): {
   readonly reopenThread: (thread: EnvironmentThreadShell) => Promise<boolean>;
   readonly pinThread: (thread: EnvironmentThreadShell) => Promise<boolean>;
   readonly unpinThread: (thread: EnvironmentThreadShell) => Promise<boolean>;
-
+  /** Sets per-thread automatic completion on or off. */
   readonly setThreadAutoMarkDone: (
     thread: EnvironmentThreadShell,
     enabled: boolean,
@@ -292,7 +295,7 @@ export function useThreadListActions(): {
         }
       },
     });
-
+  // A snooze that already lapsed, or that a raised hand ended, has nothing to restore.
   const undoSnapshot = (thread: EnvironmentThreadShell) => ({
     ...thread,
     snoozedUntil: effectiveSnoozed(thread, { now: new Date().toISOString() })
@@ -428,7 +431,8 @@ export function useThreadListActions(): {
       return false;
     }
     selectionHaptic();
-
+    // Same placement as web: a fresh pin takes the top of the arranged
+    // run. Servers that predate reordering get the bare pin (keyless).
     let orderKey: string | undefined;
     if (environmentSupportsPinReorder(thread.environmentId)) {
       const shells = appAtomRegistry.get(environmentThreadShells.threadShellsAtom);
@@ -443,7 +447,7 @@ export function useThreadListActions(): {
       ? (restoreOrderKey ?? orderKey)
       : undefined;
     ThreadUndo.invalidate("pin", scopedThreadKey(thread.environmentId, thread.id));
-
+    // Pinning clears snooze, so older Done or Snoozed undos would fight this pin.
     ThreadUndo.invalidate("mark-done", scopedThreadKey(thread.environmentId, thread.id));
     ThreadUndo.invalidate("snooze", scopedThreadKey(thread.environmentId, thread.id));
     const result = await withThreadDismissal(
@@ -596,13 +600,14 @@ export function useThreadListActions(): {
     });
   };
 
+  // Plan against the complete section so filtering does not change a move.
   const reorderPinnedMutation = useAtomCommand(threadEnvironment.reorderPin, {
     reportFailure: false,
   });
   const moveThread = async (thread: EnvironmentThreadShell, direction: ThreadMoveDestination) => {
     if (!checkThreadOperationPermission(thread, "Could not move thread")) return false;
     if (getPendingThreadOrder() !== null || appAtomRegistry.get(threadDropBusyAtom)) return false;
-    const shells = appAtomRegistry.get(environmentThreadShells.navigationThreadShellsAtom);
+    const shells = appAtomRegistry.get(environmentThreadShells.threadShellsAtom);
     const current = shells.find(
       (row) => row.id === thread.id && row.environmentId === thread.environmentId,
     );
@@ -621,7 +626,7 @@ export function useThreadListActions(): {
         appAtomRegistry.set(threadDropBusyAtom, false);
       });
     }
-
+    // The inbox is time-ordered, so entering Active only changes lifecycle.
     if (section === "active") {
       const lifecycle = threadDropLifecycle(thread, section, new Date().toISOString());
       if (!lifecycle.unpin && !lifecycle.reopen && !lifecycle.unsnooze) return false;
@@ -700,7 +705,7 @@ export function useThreadListActions(): {
         const orderKey = assignments.find(
           ({ id }) => id === scopedThreadKey(thread.environmentId, thread.id),
         )?.orderKey;
-
+        // Same as pinThread: older Unpinned, Done, or Snoozed undos would fight this pin.
         ThreadUndo.invalidate("pin", scopedThreadKey(thread.environmentId, thread.id));
         ThreadUndo.invalidate("mark-done", scopedThreadKey(thread.environmentId, thread.id));
         ThreadUndo.invalidate("snooze", scopedThreadKey(thread.environmentId, thread.id));

@@ -79,7 +79,7 @@ export function createDesktopUpdateStateAtom(getBridge: () => DesktopUpdateBridg
   );
 }
 
-export const desktopUpdateStateAtom = createDesktopUpdateStateAtom(getDesktopUpdateBridge);
+const desktopUpdateStateAtom = createDesktopUpdateStateAtom(getDesktopUpdateBridge);
 
 export function useDesktopUpdateState(): DesktopUpdateState | null {
   return AsyncResult.getOrElse(useAtomValue(desktopUpdateStateAtom), () => null);

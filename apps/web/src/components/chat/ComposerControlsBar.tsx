@@ -1,4 +1,3 @@
-import type { EffortDisplay } from "@supaterm/contracts/settings";
 import type {
   EnvironmentId,
   ModelSelection,
@@ -11,14 +10,12 @@ import type {
 import type { AppModelOption } from "../../modelSelection";
 import type { ProviderInstanceEntry } from "../../providerInstances";
 import { shortcutLabelForCommand } from "../../keybindings";
-import { resolveComposerControlsOwnership } from "./composerControlsOwnership";
 import { cn } from "~/lib/utils";
 import type { ChatComposerProps } from "./ChatComposer";
 import { CompactComposerControlsMenu } from "./CompactComposerControlsMenu";
 import { ComposerControlSeparator } from "./ComposerControl";
 import {
   ComposerFooterModeControls,
-  ComposerPermissionsSection,
   ComposerModelPicker,
   type RuntimeModeOption,
 } from "./ComposerFooterControls";
@@ -47,9 +44,6 @@ export function ComposerControlsBar(props: {
   promptUltrathink: PromptUltrathink;
   onPromptEdit: (edit: (prompt: string) => string) => void;
   compatibleRuntimeMode: RuntimeMode;
-  defaultRuntimeMode: RuntimeMode;
-  permissionsShownInStrip: boolean;
-  effortDisplay: EffortDisplay;
   compatibleRuntimeModeOptions: ReadonlyArray<RuntimeModeOption>;
   handleRuntimeModeChange: (mode: RuntimeMode) => void;
   composerControlsCollapsed: boolean;
@@ -93,13 +87,11 @@ export function ComposerControlsBar(props: {
     promptUltrathink,
     onPromptEdit,
     compatibleRuntimeMode,
-    defaultRuntimeMode,
-    permissionsShownInStrip,
     compatibleRuntimeModeOptions,
     handleRuntimeModeChange,
     composerControlsCollapsed,
     composerControlsHidden,
-    restingHiddenBlockCount: measuredHiddenBlockCount,
+    restingHiddenBlockCount,
     iconOnlyBlockCount,
     showInlineRestingControls,
     showLeadingSeparator,
@@ -136,8 +128,6 @@ export function ComposerControlsBar(props: {
     promptUltrathink,
     onPromptEdit,
   });
-  const accessMatchesDefault = compatibleRuntimeMode === defaultRuntimeMode;
-  const permissionsChipHidden = accessMatchesDefault || permissionsShownInStrip;
   const providerTraitsPickerInput = {
     provider: selectedProvider,
     instanceId: selectedInstanceId,
@@ -150,42 +140,13 @@ export function ComposerControlsBar(props: {
     promptUltrathink,
     onPromptEdit,
     isComposerOwned: true,
-    effortDisplay: props.effortDisplay,
-    extraMenuContent: (
-      <ComposerPermissionsSection
-        runtimeMode={compatibleRuntimeMode}
-        runtimeModeOptions={compatibleRuntimeModeOptions}
-        onRuntimeModeChange={handleRuntimeModeChange}
-      />
-    ),
-    ...(permissionsChipHidden
-      ? {
-          extraMenuHint: `Permissions: ${compatibleRuntimeModeOptions.find((option) => option.mode === compatibleRuntimeMode)?.label ?? compatibleRuntimeMode}`,
-        }
-      : {}),
     shortcutLabel: shortcutLabelForCommand(keybindings, "composer.effort"),
   } satisfies Parameters<typeof renderProviderTraitsPicker>[0];
   const providerTraitsPicker = renderProviderTraitsPicker(providerTraitsPickerInput);
-  const {
-    accessDisplay,
-    showModeBlock,
-    hiddenBlockCount: restingHiddenBlockCount,
-    hiddenBlockIds: hiddenRestingBlockIds,
-    traitsHidden,
-    effortOwnsModeShortcut,
-    overflowShowsPermissions,
-  } = resolveComposerControlsOwnership({
-    matchesDefault: permissionsChipHidden,
-    hasTraits: providerTraitsPicker !== null,
-    planModeUiEnabled: false,
-    collapsed: composerControlsCollapsed,
-    measuredHiddenBlockCount,
-  });
   const restingProviderTraitsPicker = renderProviderTraitsPicker({
     ...providerTraitsPickerInput,
     size: composerControlsCollapsed ? "xs" : "sm",
-    hidden: composerControlsHidden || traitsHidden,
-    extraMenuOwnsModeShortcut: effortOwnsModeShortcut,
+    hidden: composerControlsHidden || restingHiddenBlockCount > 1,
   });
   const restingBlockDefs = [
     ...(providerTraitsPicker
@@ -201,26 +162,23 @@ export function ComposerControlsBar(props: {
           },
         ]
       : []),
-    ...(showModeBlock
-      ? [
-          {
-            id: "mode",
-            content: (
-              <ComposerFooterModeControls
-                accessDisplay={accessDisplay}
-                emphasized={!accessMatchesDefault}
-                keybindings={keybindings}
-                runtimeMode={compatibleRuntimeMode}
-                runtimeModeOptions={compatibleRuntimeModeOptions}
-                size={composerControlsCollapsed ? "xs" : "sm"}
-                hidden={composerControlsHidden || restingHiddenBlockCount > 0}
-                onRuntimeModeChange={handleRuntimeModeChange}
-              />
-            ),
-          },
-        ]
-      : []),
+    {
+      id: "mode",
+      content: (
+        <ComposerFooterModeControls
+          keybindings={keybindings}
+          runtimeMode={compatibleRuntimeMode}
+          runtimeModeOptions={compatibleRuntimeModeOptions}
+          size={composerControlsCollapsed ? "xs" : "sm"}
+          hidden={composerControlsHidden || restingHiddenBlockCount > 0}
+          onRuntimeModeChange={handleRuntimeModeChange}
+        />
+      ),
+    },
   ];
+  const hiddenRestingBlockIds = restingBlockDefs
+    .slice(restingBlockDefs.length - restingHiddenBlockCount)
+    .map((def) => def.id);
   // Its own element, so typing (which rebuilds the controls around it) leaves it cached.
   const composerModelPicker = (
     <ComposerModelPicker
@@ -323,7 +281,6 @@ export function ComposerControlsBar(props: {
           )}
         >
           <CompactComposerControlsMenu
-            showPermissions={overflowShowsPermissions}
             runtimeMode={compatibleRuntimeMode}
             runtimeModeOptions={compatibleRuntimeModeOptions}
             size={composerControlsCollapsed ? "xs" : "sm"}

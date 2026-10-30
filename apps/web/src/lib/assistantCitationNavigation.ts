@@ -1,4 +1,3 @@
-import { pipe } from "effect/Function";
 import type { AssistantCitation } from "@supaterm/contracts";
 import {
   formatAssistantCitationHref,
@@ -28,11 +27,8 @@ export function assistantCitationFromLocation(href: string) {
   const hash = href.slice(hashIndex + 1);
   if (!hash.startsWith(CITATION_HASH_PREFIX) || hash.length > 140_000) return null;
   try {
-    return pipe(
-      hash.slice(CITATION_HASH_PREFIX.length),
-      Base64Url.decodeString,
-      Result.getOrThrow,
-      parseAssistantCitationHref,
+    return parseAssistantCitationHref(
+      Result.getOrThrow(Base64Url.decodeString(hash.slice(CITATION_HASH_PREFIX.length))),
     );
   } catch {
     return null;

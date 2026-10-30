@@ -4,7 +4,7 @@ import { View } from "react-native";
 import { RenderErrorBoundary, RenderFailureView } from "../../components/RenderErrorBoundary";
 import { NativeInspectorContent } from "../../native/NativeInspectorContent";
 
-export type ThreadInspectorMode = "route" | "git" | "files" | "preview";
+export type ThreadInspectorMode = "route" | "git" | "files";
 
 const INSPECTOR_PREWARM_DELAY_MS = 350;
 
@@ -46,7 +46,6 @@ function InspectorContentPane(props: {
 }
 
 export function ThreadInspectorContentStack(props: {
-  readonly renderPreview?: () => ReactNode;
   readonly renderFiles: () => ReactNode;
   readonly renderGit?: () => ReactNode;
   readonly mode: ThreadInspectorMode;
@@ -61,12 +60,14 @@ export function ThreadInspectorContentStack(props: {
     setMountedModes(new Set([...mountedModes, props.mode]));
   }
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Owns the delayed native inspector prewarm timer and cancels it when the mode changes.
   useEffect(() => {
-    if (props.mode === "route" || props.mode === "preview") {
+    if (props.mode === "route") {
       return;
     }
 
+    // The file tree is expensive to detach because UIKit rebuilds its focus
+    // graph. Keep both chat inspectors alive after the opening animation so a
+    // later Files/Git switch only changes visibility.
     const alternateMode = props.mode === "files" ? "git" : "files";
     const timeout = setTimeout(() => {
       setMountedModes((current) => {
@@ -82,11 +83,6 @@ export function ThreadInspectorContentStack(props: {
 
   return (
     <View className="flex-1">
-      {props.mode === "preview" && props.renderPreview ? (
-        <InspectorContentPane mounted resetKeys={props.resetKeys} visible>
-          <InspectorRenderer render={props.renderPreview} />
-        </InspectorContentPane>
-      ) : null}
       <InspectorContentPane
         mounted={mountedModes.has("files") || props.mode === "files"}
         resetKeys={props.resetKeys}

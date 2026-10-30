@@ -15,6 +15,8 @@ import * as DesktopServerExposure from "../backend/DesktopServerExposure.ts";
 import * as DesktopAppSettings from "../settings/DesktopAppSettings.ts";
 import * as DesktopWslEnvironment from "./DesktopWslEnvironment.ts";
 
+// Exported so callers that parse pool ids (e.g. the pickFolder IPC handler in
+// ipc/methods/window.ts) reference the same prefix this module produces.
 export const WSL_INSTANCE_ID_PREFIX = "wsl:";
 const WSL_DEFAULT_DISTRO_ID = `${WSL_INSTANCE_ID_PREFIX}default`;
 const MAX_TCP_PORT = 65_535;
@@ -41,6 +43,9 @@ const isWslInstanceId = (id: DesktopBackendPool.BackendInstanceId): boolean =>
 const buildLabel = (distro: string | null): string =>
   distro === null ? "WSL (default distro)" : `WSL (${distro})`;
 
+// Loopback-only port scan starting one above the primary's port. The
+// WSL backend is reachable via 127.0.0.1 from Windows (wslhost
+// auto-forwards), so we only need to verify the IPv4 loopback can bind.
 const scanForWslPort = Effect.fn("desktop.wslBackend.scanForWslPort")(function* (
   startPort: number,
 ): Effect.fn.Return<number, NetService.NetError, NetService.NetService> {
@@ -64,7 +69,11 @@ export const layer = Layer.effect(
     const wslEnvironment = yield* DesktopWslEnvironment.DesktopWslEnvironment;
     const appSettings = yield* DesktopAppSettings.DesktopAppSettings;
     const net = yield* NetService.NetService;
-
+    // Serialize reconcile so the bootstrap fork and the IPC handlers
+    // (setWslBackendEnabled, setWslDistro) can't interleave. Without
+    // this, two reconciles could both observe "no WSL instance
+    // registered" between their pool reads and both call startNew
+    // with different distros, leaving the loser stranded.
     const reconcileMutex = yield* Semaphore.make(1);
 
     const preflightErrorRef = yield* Ref.make(Option.none<string>());
@@ -160,6 +169,11 @@ export const layer = Layer.effect(
       const existing = yield* findExistingWslInstance;
       const existingId = Option.map(existing, (instance) => instance.id);
 
+      // In wsl-only mode the pool's primary IS the WSL backend (see
+      // DesktopBackendConfiguration.resolvePrimary), so the
+      // orchestrator skips registering a parallel "wsl:<distro>"
+      // secondary. Without this skip we'd spin up two WSL processes
+      // on the same distro for users who explicitly asked for one.
       const shouldRun = settings.wslBackendEnabled && available && !settings.wslOnly;
       const targetId = shouldRun
         ? Option.some(resolveTargetInstanceId(settings.wslDistro))
@@ -196,6 +210,8 @@ export const layer = Layer.effect(
       }
 
       if (Option.isSome(targetId)) {
+        // Pre-warm the WSL VM before registering so the readiness probe doesn't
+        // race wsl.exe's first-spawn cold start.
         yield* wslEnvironment.preWarm(settings.wslDistro);
         yield* startNew({ distro: settings.wslDistro });
       }

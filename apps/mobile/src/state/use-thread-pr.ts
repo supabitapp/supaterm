@@ -1,56 +1,35 @@
 import { useAtomValue } from "@effect/atom-react";
+import { scopedThreadKey, scopeThreadRef } from "@supaterm/client-runtime/environment";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import {
   createLinkedPullRequestSummaryAtomFamily,
   pullRequestDetailToVcsStatus,
 } from "@supaterm/client-runtime/state/pull-requests";
-import type { EnvironmentId, PullRequestSummary } from "@supaterm/contracts";
-import * as Effect from "effect/Effect";
 import { Atom } from "effect/reactivity";
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 
 import { connectionAtomRuntime } from "../connection/runtime";
+import { appAtomRegistry } from "./atom-registry";
 import { useEnvironmentQuery } from "./query";
 import {
-  rememberBounded,
   resolveThreadPrSource,
   presentThreadPr,
   type ThreadPrPresentation,
 } from "./thread-pr-presentation";
 
-const MAX_PULL_REQUEST_SNAPSHOTS = 500;
+const pullRequestSummaryAtom = createLinkedPullRequestSummaryAtomFamily(connectionAtomRuntime);
+const MAX_THREAD_PR_SNAPSHOTS = 500;
 
-const pullRequestSnapshotsAtom = Atom.make<ReadonlyMap<string, PullRequestSummary>>(new Map()).pipe(
-  Atom.keepAlive,
-  Atom.withLabel("mobile:thread-pr-snapshots"),
-);
-
-function snapshotKey(
-  environmentId: EnvironmentId,
-  reference: { readonly projectId: string; readonly repository: string; readonly number: number },
-): string {
-  return JSON.stringify([
-    environmentId,
-    reference.projectId,
-    reference.repository,
-    reference.number,
-  ]);
+interface ThreadPrSnapshot {
+  readonly identity: string;
+  readonly presentation: ThreadPrPresentation;
 }
 
-const pullRequestSummaryAtom = createLinkedPullRequestSummaryAtomFamily(
-  connectionAtomRuntime,
-  undefined,
-  ({ environmentId, input }, summary, registry) =>
-    Effect.sync(() =>
-      registry.update(pullRequestSnapshotsAtom, (current) =>
-        rememberBounded(
-          current,
-          snapshotKey(environmentId, input),
-          summary,
-          MAX_PULL_REQUEST_SNAPSHOTS,
-        ),
-      ),
-    ),
+// One bounded cache survives row virtualization without retaining one live
+// atom for every thread or pull request ever seen.
+const threadPrSnapshotsAtom = Atom.make<ReadonlyMap<string, ThreadPrSnapshot>>(new Map()).pipe(
+  Atom.keepAlive,
+  Atom.withLabel("mobile:thread-pr-snapshots"),
 );
 
 export {
@@ -68,10 +47,17 @@ export function useThreadPr(thread: EnvironmentThreadShell): ThreadPrPresentatio
       }),
     [thread.pullRequests, thread.branchPullRequest],
   );
-  const key = pullRequestRef === null ? null : snapshotKey(thread.environmentId, pullRequestRef);
-  const snapshot = useAtomValue(pullRequestSnapshotsAtom, (current) =>
-    key === null ? undefined : current.get(key),
+  const threadKey = scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id));
+  const snapshotIdentity = JSON.stringify(pullRequestRef);
+  // Select this row's entry so writes for other rows do not re-render it.
+  const snapshotEntry = useAtomValue(
+    threadPrSnapshotsAtom,
+    useCallback(
+      (current: ReadonlyMap<string, ThreadPrSnapshot>) => current.get(threadKey),
+      [threadKey],
+    ),
   );
+  const snapshot = snapshotEntry?.identity === snapshotIdentity ? snapshotEntry.presentation : null;
   const pullRequestSummary = useEnvironmentQuery(
     pullRequestRef === null
       ? null
@@ -84,18 +70,43 @@ export function useThreadPr(thread: EnvironmentThreadShell): ThreadPrPresentatio
           },
         }),
   );
-  const summary = pullRequestRef === null ? undefined : (pullRequestSummary.data ?? snapshot);
-  // Rows pass `pr` into callbacks; a fresh object per render would invalidate them.
-  const summaryPresentation = useMemo(
-    () =>
-      summary === undefined
-        ? null
-        : presentThreadPr(pullRequestDetailToVcsStatus(summary), {
-            kind: summary.provider,
-            name: summary.provider,
-            baseUrl: "",
-          }),
-    [summary],
-  );
-  return linkedPresentation ?? summaryPresentation;
+
+  const live = useMemo<ThreadPrPresentation | null | undefined>(() => {
+    if (pullRequestRef === null) return null;
+    const summary = pullRequestSummary.data;
+    return summary === null
+      ? undefined
+      : presentThreadPr(pullRequestDetailToVcsStatus(summary), {
+          kind: summary.provider,
+          name: summary.provider,
+          baseUrl: "",
+        });
+  }, [pullRequestRef, pullRequestSummary.data]);
+
+  useEffect(() => {
+    if (live === undefined) return;
+    appAtomRegistry.modify(threadPrSnapshotsAtom, (current) => {
+      const existing = current.get(threadKey);
+      if (live === null) {
+        if (existing === undefined) return [false, current];
+        const next = new Map(current);
+        next.delete(threadKey);
+        return [true, next];
+      }
+      if (existing?.identity === snapshotIdentity && existing.presentation === live) {
+        return [false, current];
+      }
+      const next = new Map(current);
+      next.delete(threadKey);
+      next.set(threadKey, { identity: snapshotIdentity, presentation: live });
+      while (next.size > MAX_THREAD_PR_SNAPSHOTS) {
+        const oldestKey = next.keys().next().value;
+        if (oldestKey === undefined) break;
+        next.delete(oldestKey);
+      }
+      return [true, next];
+    });
+  }, [live, snapshotIdentity, threadKey]);
+
+  return linkedPresentation ?? (live === undefined ? snapshot : live);
 }

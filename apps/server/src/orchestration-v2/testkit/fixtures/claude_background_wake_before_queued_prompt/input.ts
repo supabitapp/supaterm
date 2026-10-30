@@ -5,6 +5,10 @@ import {
 } from "../claude_background_subagent_lifecycle/input.ts";
 import type { OrchestratorFixtureInput } from "../shared.ts";
 
+// Agent B's wait outlives the stop prompt, so its "stopped" notification
+// lands during the stop turn and queues a wake turn in the CLI. The resume
+// prompt is sent as soon as the stop turn settles, and the CLI runs the
+// queued wake turn before it.
 export const CLAUDE_BACKGROUND_WAKE_BEFORE_QUEUED_PROMPT_LAUNCH_PROMPT = [
   "Live-test background subagents. You must call the Agent tool before replying. Do exactly this, with no extra steps.",
   "",

@@ -1,6 +1,7 @@
 import {
-  useEffectEvent,
+  useCallback,
   useLayoutEffect,
+  useRef,
   useState,
   type ComponentProps,
   type ReactNode,
@@ -38,20 +39,29 @@ export function MotionPresence({
   const [mounted, setMounted] = useState(visible);
   if (visible && !mounted) setMounted(true);
   const visibility = useSharedValue(visible && !appear ? 1 : 0);
-  const hide = useEffectEvent(() => {
-    if (visible) return;
+  const visibleRef = useRef(visible);
+  const onHiddenRef = useRef(onHidden);
+  useLayoutEffect(() => {
+    visibleRef.current = visible;
+    onHiddenRef.current = onHidden;
+  }, [onHidden, visible]);
+  const hide = useCallback(() => {
+    if (visibleRef.current) return;
     setMounted(false);
-    onHidden?.();
-  });
-  const duration = visible ? MOTION_ENTER_DURATION_MS : MOTION_EXIT_DURATION_MS;
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Retargets the native visibility animation and releases content when its exit finishes.
+    onHiddenRef.current?.();
+  }, []);
   useLayoutEffect(() => {
     if (!mounted) return;
+    if (reducedMotion) {
+      visibility.set(visible ? 1 : 0);
+      if (!visible) hide();
+      return;
+    }
     visibility.set(
       withTiming(
         visible ? 1 : 0,
         {
-          duration: reducedMotion ? 0 : duration,
+          duration: visible ? MOTION_ENTER_DURATION_MS : MOTION_EXIT_DURATION_MS,
           easing: Easing.bezier(0.32, 0.72, 0, 1),
           reduceMotion: ReduceMotion.Never,
         },
@@ -60,7 +70,7 @@ export function MotionPresence({
         },
       ),
     );
-  }, [duration, mounted, reducedMotion, visibility, visible]);
+  }, [hide, mounted, reducedMotion, visibility, visible]);
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: visibility.value,
     transform: [{ translateY: (1 - visibility.value) * offsetY }],

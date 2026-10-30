@@ -1,8 +1,5 @@
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
-import { useAtomValue } from "@effect/atom-react";
-import * as Effect from "effect/Effect";
-import { AsyncResult, Atom } from "effect/reactivity";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AuthProvidersManageScope } from "@supaterm/contracts";
 import type { createServerEnvironmentAtoms } from "@supaterm/client-runtime/state/server";
 import { useAtomCommand } from "./use-atom-command";
@@ -26,26 +23,13 @@ export function useOrchestrationSkills(
   const read = useAtomCommand(commands.orchestrationSkillsStatus, { reportFailure: false });
   const install = useAtomCommand(commands.orchestrationSkillsInstall, { reportFailure: false });
   const uninstall = useAtomCommand(commands.orchestrationSkillsUninstall, { reportFailure: false });
-  const [initialStatusAtom] = useState(() =>
-    Atom.make(
-      Effect.promise(() =>
-        runOrchestrationSkillsAction(selection, async (environmentId) => {
-          const result = await read({ environmentId, input: {} });
-          return result._tag === "Success" ? result.value : null;
-        }),
-      ),
-    ).pipe(Atom.withLabel("mobile:orchestration-skills:initial-status")),
+  const [results, setResults] = useState<Awaited<ReturnType<typeof runOrchestrationSkillsAction>>>(
+    [],
   );
-  const initialStatus = useAtomValue(initialStatusAtom);
-  const [updatedResults, setResults] = useState<Awaited<
-    ReturnType<typeof runOrchestrationSkillsAction>
-  > | null>(null);
-  const results = updatedResults ?? AsyncResult.getOrElse(initialStatus, () => []);
-  const [pendingAction, setPending] = useState<"Status" | "Install" | "Uninstall" | null>(null);
-  const pending = initialStatus.waiting ? "Status" : pendingAction;
+  const [pending, setPending] = useState<"Status" | "Install" | "Uninstall" | null>("Status");
   const busy = useRef(false);
   const request = async (action: "Status" | "Install" | "Uninstall") => {
-    if (initialStatus.waiting || busy.current) return;
+    if (busy.current) return;
     busy.current = true;
     setPending(action);
     const outcome = await settlePromise(async () => {
@@ -73,6 +57,22 @@ export function useOrchestrationSkills(
     setPending(null);
     if (outcome._tag === "Failure") throw squashAtomCommandFailure(outcome);
   };
+  useEffect(() => {
+    let active = true;
+    busy.current = true;
+    void runOrchestrationSkillsAction(selection, async (environmentId) => {
+      const result = await read({ environmentId, input: {} });
+      return result._tag === "Success" ? result.value : null;
+    }).then((next) => {
+      if (!active) return;
+      busy.current = false;
+      setPending(null);
+      setResults(next);
+    });
+    return () => {
+      active = false;
+    };
+  }, [selection, read]);
   const entries = results.map((result) => ({
     ...result,
     ...orchestrationSkillsView(result.status),

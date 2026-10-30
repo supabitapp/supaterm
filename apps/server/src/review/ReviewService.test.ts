@@ -23,6 +23,7 @@ function layer(input: {
   readonly previousWorktreesDirectories?: ReadonlyArray<string>;
   readonly projectRoots?: ReadonlyArray<string> | "unavailable";
   readonly threadWorktrees?: ReadonlyArray<{ worktreePath: string; deleted?: boolean }>;
+  /** What `git worktree list` reports for every project. */
   readonly gitWorktrees?: ReadonlyArray<string>;
 }) {
   const projectRoots = input.projectRoots ?? [];
@@ -182,6 +183,7 @@ describe("ReviewService", () => {
 
       assert.strictEqual((yield* review(projectRoot, [projectRoot])).cwd, projectRoot);
       assert.strictEqual((yield* review(projectChild, [projectRoot])).cwd, projectChild);
+      // A child whose name starts with `..` is still inside.
       const dottedChild = `${projectRoot}/..feature`;
       yield* fs.makeDirectory(dottedChild);
       assert.strictEqual((yield* review(dottedChild, [projectRoot])).cwd, dottedChild);
@@ -204,9 +206,11 @@ describe("ReviewService", () => {
       });
       const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-review-base-" });
       const project = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-review-project-" });
+      // Checkouts outside every managed folder, as `git worktree add ../feature` makes.
       const bound = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-review-bound-" });
       const deleted = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-review-deleted-" });
       const unbound = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-review-unbound-" });
+      // A client can set a thread's path to any folder; git doesn't list this one.
       const claimed = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-review-claimed-" });
       yield* fs.makeDirectory(`${bound}/sub`);
 
@@ -225,7 +229,9 @@ describe("ReviewService", () => {
                 { worktreePath: bound },
                 { worktreePath: claimed },
                 { worktreePath: deleted, deleted: true },
+                // A relative path would resolve against the server's own cwd.
                 { worktreePath: "supaterm-review-relative" },
+                // A filesystem root would make every folder look bound.
                 { worktreePath: "/" },
               ],
             }),

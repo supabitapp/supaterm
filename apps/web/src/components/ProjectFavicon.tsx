@@ -30,6 +30,8 @@ function DynamicProjectIconFallback() {
   return <FolderIcon className="size-full text-inherit" />;
 }
 
+// Every surface must pass the project record itself (or a snapshot spread from it)
+// so the saved title, favicon and icon override always travel together.
 export type ProjectFaviconProject = Pick<
   EnvironmentProject,
   "environmentId" | "workspaceRoot" | "title" | "faviconPath" | "projectIcon"

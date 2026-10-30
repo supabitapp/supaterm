@@ -7,7 +7,6 @@ import {
 } from "@supaterm/contracts";
 import { expect, it } from "@effect/vitest";
 import * as Context from "effect/Context";
-import * as Clock from "effect/Clock";
 import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -25,50 +24,44 @@ import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as EnvironmentAuth from "./EnvironmentAuth.ts";
 import * as ServerSecretStore from "./ServerSecretStore.ts";
 import * as AuthHttp from "./http.ts";
-import * as SessionStore from "./SessionStore.ts";
 
 const DEV_TOKEN = "reusable-dev-auth-token-that-is-long-enough";
 class AuthTestApi extends HttpApi.make("environment").add(EnvironmentHttpApi.groups.auth) {}
 
-const layerConfig = (overrides?: Partial<ServerConfig.ServerConfig["Service"]>) =>
-  Layer.effect(
-    ServerConfig.ServerConfig,
-    Effect.gen(function* () {
-      const config = yield* ServerConfig.ServerConfig;
-      return {
-        ...config,
-        mode: "web",
-        devUrl: new URL("http://127.0.0.1:5173"),
-        devAuthToken: Redacted.make(DEV_TOKEN),
-        ...overrides,
-      } satisfies ServerConfig.ServerConfig["Service"];
-    }),
-  ).pipe(
-    Layer.provide(ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-auth-http-test-" })),
-  );
+const layerConfig = Layer.effect(
+  ServerConfig.ServerConfig,
+  Effect.gen(function* () {
+    const config = yield* ServerConfig.ServerConfig;
+    return {
+      ...config,
+      mode: "web",
+      devUrl: new URL("http://127.0.0.1:5173"),
+      devAuthToken: Redacted.make(DEV_TOKEN),
+    } satisfies ServerConfig.ServerConfig["Service"];
+  }),
+).pipe(
+  Layer.provide(ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-auth-http-test-" })),
+);
 
-const layerEnvironmentAuth = (config: ReturnType<typeof layerConfig>) =>
-  EnvironmentAuth.layer.pipe(
-    Layer.provide(SqlitePersistence.layerMemory),
-    Layer.provide(ServerSecretStore.layer),
-    Layer.provide(ServerEnvironment.layerIdentity),
-    Layer.provide(config),
-  );
-const layerRoutes = (config = layerConfig(), auth = layerEnvironmentAuth(config)) => {
-  return HttpApiBuilder.layer(AuthTestApi).pipe(
-    Layer.provide(AuthHttp.layer),
-    Layer.provide(AuthHttp.layerAuthenticatedAuth),
-    Layer.provideMerge(auth),
-    Layer.provide(config),
-    Layer.provideMerge(
-      HttpPlatform.layer.pipe(
-        Layer.provideMerge(NodeServices.layer),
-        Layer.provideMerge(Etag.layerWeak),
-      ),
+const layerEnvironmentAuth = EnvironmentAuth.layer.pipe(
+  Layer.provide(SqlitePersistence.layerMemory),
+  Layer.provide(ServerSecretStore.layer),
+  Layer.provide(ServerEnvironment.layerIdentity),
+  Layer.provide(layerConfig),
+);
+const layerRoutes = HttpApiBuilder.layer(AuthTestApi).pipe(
+  Layer.provide(AuthHttp.layer),
+  Layer.provide(AuthHttp.layerAuthenticatedAuth),
+  Layer.provideMerge(layerEnvironmentAuth),
+  Layer.provide(layerConfig),
+  Layer.provideMerge(
+    HttpPlatform.layer.pipe(
+      Layer.provideMerge(NodeServices.layer),
+      Layer.provideMerge(Etag.layerWeak),
     ),
-    Layer.provide(NodeServices.layer),
-  );
-};
+  ),
+  Layer.provide(NodeServices.layer),
+);
 
 const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
 const postJson = (path: string, body: unknown, headers?: Readonly<Record<string, string>>) =>
@@ -77,65 +70,6 @@ const postJson = (path: string, body: unknown, headers?: Readonly<Record<string,
     headers: { "content-type": "application/json", ...headers },
     body: encodeJson(body),
   });
-
-it.effect("replaces the previous loopback session when re-pairing after a bind migration", () =>
-  Effect.gen(function* () {
-    const config = layerConfig({ host: "0.0.0.0", devUrl: undefined, devAuthToken: undefined });
-    const context = yield* Layer.build(layerEnvironmentAuth(config));
-    const auth = Context.get(context, EnvironmentAuth.EnvironmentAuth);
-    const sessions = Context.get(context, SessionStore.SessionStore);
-    const original = yield* sessions.issue({ method: "browser-session-cookie" });
-    const pairing = yield* auth.issuePairingCredential({ scopes: ["orchestration:read"] });
-    const requestContext = Context.make(Crypto.Crypto, yield* Crypto.Crypto).pipe(
-      Context.add(Clock.Clock, yield* Clock.Clock),
-      Context.add(
-        ServerSecretStore.ServerSecretStore,
-        ServerSecretStore.ServerSecretStore.of({
-          get: () => Effect.succeedNone,
-          set: () => Effect.void,
-          create: () => Effect.void,
-          getOrCreateRandom: () => Effect.die("Not used by these routes."),
-          remove: () => Effect.void,
-        }),
-      ),
-    );
-    const cookie = yield* Effect.acquireUseRelease(
-      Effect.sync(() =>
-        HttpRouter.toWebHandler(layerRoutes(config, Layer.succeedContext(context)), {
-          disableLogger: true,
-        }),
-      ),
-      (server) =>
-        Effect.tryPromise(async () => {
-          const response = await server.handler(
-            postJson(
-              "/api/auth/browser-session",
-              { credential: pairing.credential },
-              {
-                cookie: `${sessions.previousLoopbackCookieName}=${original.token}`,
-              },
-            ),
-            requestContext,
-          );
-          expect(response.status).toBe(200);
-          const cookies = response.headers.getSetCookie();
-          expect(cookies).toHaveLength(1);
-          expect(cookies[0]).toContain(`${sessions.cookieName}=`);
-          expect(cookies[0]).toContain("HttpOnly");
-          return cookies[0]?.split(";", 1)[0] ?? "";
-        }),
-      (server) => Effect.promise(() => server.dispose()),
-    );
-    expect((yield* Effect.flip(sessions.verify(original.token)))._tag).toBe(
-      "SessionTokenRevokedError",
-    );
-    const replacement = yield* sessions.verify(cookie.slice(sessions.cookieName.length + 1));
-    expect(replacement.scopes).toEqual(["orchestration:read"]);
-    expect((yield* sessions.listActive()).map((session) => session.sessionId)).toEqual([
-      replacement.sessionId,
-    ]);
-  }).pipe(Effect.provide(NodeServices.layer)),
-);
 
 it.effect("sets the selected browser session cookies through the HTTP route", () =>
   Effect.gen(function* () {
@@ -154,8 +88,8 @@ it.effect("sets the selected browser session cookies through the HTTP route", ()
       Effect.sync(
         () =>
           [
-            HttpRouter.toWebHandler(layerRoutes(), { disableLogger: true }),
-            HttpRouter.toWebHandler(layerRoutes(), { disableLogger: true }),
+            HttpRouter.toWebHandler(layerRoutes, { disableLogger: true }),
+            HttpRouter.toWebHandler(layerRoutes, { disableLogger: true }),
           ] as const,
       ),
       ([environmentA, environmentB]) =>

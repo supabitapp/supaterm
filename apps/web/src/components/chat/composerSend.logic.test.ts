@@ -1,9 +1,8 @@
-import { threadContextRecord } from "@supaterm/shared/composerContextReferences";
 import { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { describe, expect, it } from "vite-plus/test";
 import { formatInlineContextReference } from "../../lib/composerContextReferences";
-import { threadContextReference } from "../../lib/composerContextRecords";
+import { threadContextRecord, threadContextReference } from "../../lib/composerContextRecords";
 import {
   approvalRedirectNotice,
   loadBalancingSendWarning,

@@ -1,4 +1,3 @@
-import { pipe } from "effect/Function";
 import * as DateTime from "effect/DateTime";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
@@ -132,14 +131,14 @@ function codexPlanLabel(planType: string | null | undefined): string | undefined
     case "plus":
       return "ChatGPT Plus Subscription";
     case "pro":
-      return "ChatGPT Pro 200 Subscription";
+      return "ChatGPT Pro 20x Subscription";
     case "prolite":
-      return "ChatGPT Pro 100 Subscription";
+      return "ChatGPT Pro 5x Subscription";
     case "promax":
-      return "ChatGPT Pro 500 Subscription";
-    case "self_serve_business_prolite":
-      return "ChatGPT Business Premium Subscription";
+      return "ChatGPT Pro Max Subscription";
     case "team":
+      return "ChatGPT Team Subscription";
+    case "self_serve_business_prolite":
     case "self_serve_business_usage_based":
     case "business":
       return "ChatGPT Business Subscription";
@@ -441,6 +440,12 @@ const requestCodexChatGptModels = Effect.fn("requestCodexChatGptModels")(functio
   );
 });
 
+/**
+ * App-server starts its catalog refresh before `initialize` names the client,
+ * so that first fetch goes out as the plain CLI, misses tiers like Sol
+ * Ultrafast, and overwrites the shared `models_cache.json`. Naming the
+ * originator at spawn closes that race.
+ */
 export const codexAppServerEnvironment = (
   environment: NodeJS.ProcessEnv | undefined,
 ): NodeJS.ProcessEnv => ({
@@ -468,6 +473,9 @@ export const withCodexAppServerClient = Effect.fn("withCodexAppServerClient")(fu
   readonly cwd: string;
   readonly environment?: NodeJS.ProcessEnv | undefined;
 }) {
+  // `~` is not shell-expanded when env vars are set via `child_process.spawn`,
+  // so `CODEX_HOME=~/.codex_work` would reach codex verbatim and trip
+  // "CODEX_HOME points to '~/.codex_work', but that path does not exist".
   const resolvedHomePath = input.homePath
     ? expandHomePath(input.homePath, yield* HostProcess.HomeDirectory)
     : undefined;
@@ -558,8 +566,7 @@ const probeCodexAppServerProvider = Effect.fn("probeCodexAppServerProvider")(fun
       // Usage is an enrichment: a failure or a slow answer degrades to "no
       // usage this probe" rather than costing the account and models.
       input.skipNativeUsage
-        ? // @effect-diagnostics-next-line effectSucceedWithVoid:off - This optional result requires undefined, not the wider void type.
-          Effect.succeed(undefined)
+        ? Effect.succeed(undefined)
         : withCodexDiscoveryDeadline(
             client.request("account/rateLimits/read", null),
             deadlineMs,
@@ -789,7 +796,6 @@ export const checkCodexProviderStatus = Effect.fn("checkCodexProviderStatus")(fu
         ? makeUnavailableUsageLimits({
             checkedAt,
             reason: "probeFailed",
-            ...(accountStatus.message ? { message: accountStatus.message } : {}),
             ...(snapshot.rateLimits ? { message: snapshot.rateLimits.failure } : {}),
           })
         : codexRateLimitsToLimits({
@@ -803,10 +809,11 @@ export const checkCodexProviderStatus = Effect.fn("checkCodexProviderStatus")(fu
     presentation: CODEX_PRESENTATION,
     enabled: codexSettings.enabled,
     checkedAt,
-    models: pipe(
-      appendCustomCodexModels(snapshot.models ?? [], codexSettings.customModels),
-      applyPreferredCodexDefaultModel,
-      (models) => applyConfiguredCodexServiceTier(models, snapshot.serviceTier),
+    models: applyConfiguredCodexServiceTier(
+      applyPreferredCodexDefaultModel(
+        appendCustomCodexModels(snapshot.models ?? [], codexSettings.customModels),
+      ),
+      snapshot.serviceTier,
     ),
     skills: snapshot.skills,
     slashCommands: [

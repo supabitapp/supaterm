@@ -11,7 +11,6 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as Exit from "effect/Exit";
-import * as Semaphore from "effect/Semaphore";
 import * as Scope from "effect/Scope";
 import * as EffectAcpErrors from "effect-acp/errors";
 
@@ -21,20 +20,20 @@ import type * as AcpSessionRuntime from "@supaterm/provider-acp/server/AcpSessio
 import {
   antigravityPermissionMode,
   applyAntigravityAcpModelSelection,
-  buildAntigravityPrompt,
   type AntigravityAcpRuntimeInput,
 } from "../../provider/acp/AntigravityAcpSupport.ts";
-import { readAntigravityClientTextFile } from "../../provider/acp/AntigravityClientFiles.ts";
+import {
+  readAntigravityClientTextFile,
+  writeAntigravityClientTextFile,
+} from "../../provider/acp/AntigravityClientFiles.ts";
 import {
   antigravityApprovalOptions,
   antigravitySubagentOutput,
   classifyAntigravitySubagentToolCall,
   extractAntigravityUserInputQuestion,
-  makeAntigravityReadRepair,
   makeAntigravityUserInputResponse,
   normalizeAntigravityToolCall,
 } from "../../provider/acp/AntigravityProtocol.ts";
-import { isAntigravitySignInRequiredError } from "../../provider/antigravityAuthSupport.ts";
 import {
   AcpProviderCapabilitiesV2,
   makeAcpAdapterV2,
@@ -82,6 +81,10 @@ export interface AntigravityAdapterV2Options {
   readonly continuationRequests?: Parameters<typeof makeAcpAdapterV2>[0]["continuationRequests"];
 }
 
+/**
+ * ACP 1.1.1 exposes subagent invocations as ordinary `start_subagent` tools without child
+ * session ids.
+ */
 const extractAntigravitySubagentUpdate: NonNullable<AcpAdapterV2Flavor["extractSubagentUpdate"]> = (
   toolCall,
 ) => {
@@ -125,47 +128,13 @@ export function makeAntigravityAcpAdapterFlavor(
           Scope.close(scope, Exit.void),
           options.makeRuntime({
             ...input,
-            clientFileReads: true,
+            clientFileSystem: true,
             additionalDirectories: [options.host.paths.attachmentsDir],
           }),
         )
         .pipe(Effect.provideService(Scope.Scope, scope));
-
-      const reads = makeAntigravityReadRepair();
-
-      const updates = yield* Semaphore.make(1);
-      let projectUpdate: Parameters<typeof runtime.handleSessionUpdate>[0] | undefined;
       return {
         ...runtime,
-        handleReadTextFile: (handler) =>
-          runtime.handleReadTextFile((request, context) =>
-            handler(request, context).pipe(
-              Effect.onExit((exit) => {
-                const served = reads.attempted(request.path, Exit.isSuccess(exit));
-                if (served === undefined || projectUpdate === undefined) return Effect.void;
-                return updates
-                  .withPermit(
-                    projectUpdate({
-                      sessionId: served.sessionId,
-                      update: {
-                        sessionUpdate: "tool_call_update",
-                        toolCallId: served.toolCallId,
-                        status: "completed",
-                      },
-                    }),
-                  )
-                  .pipe(Effect.ignore);
-              }),
-            ),
-          ),
-        prompt: (payload, promptOptions) =>
-          Effect.sync(reads.reset).pipe(Effect.andThen(runtime.prompt(payload, promptOptions))),
-        handleSessionUpdate: (handler) => {
-          projectUpdate = handler;
-          return runtime.handleSessionUpdate((notification) =>
-            updates.withPermit(handler(reads.repair(notification))),
-          );
-        },
         start: () =>
           runtime
             .start()
@@ -174,7 +143,7 @@ export function makeAntigravityAcpAdapterFlavor(
                 (started) => options.onSessionStarted?.(started, input.cwd) ?? Effect.void,
               ),
             ),
-      } satisfies typeof runtime;
+      };
     },
     Effect.provideService(Crypto.Crypto, options.crypto),
     Effect.mapError((cause): EffectAcpErrors.AcpError =>
@@ -189,17 +158,9 @@ export function makeAntigravityAcpAdapterFlavor(
     runtimeHarness: "Antigravity",
     capabilities: AntigravityProviderCapabilitiesV2,
     makeRuntime,
-    buildPrompt: ({ text, attachments, promptCapabilities }) =>
-      buildAntigravityPrompt({
-        input: text,
-        attachments,
-        attachmentsDir: options.host.paths.attachmentsDir,
-        promptCapabilities,
-      }).pipe(
-        Effect.provideService(FileSystem.FileSystem, options.fileSystem),
-        Effect.provideService(Path.Path, options.path),
-      ),
-
+    // Loading history replays every tool call; resume restores the session
+    // without the replay and is what the official client does.
+    preferResumeSession: true,
     subagentsIdleOnTurnCompletion: true,
     ...(options.onSessionEvent === undefined ? {} : { onSessionEvent: options.onSessionEvent }),
     applyModelSelection: Effect.fn("AntigravityAdapterV2.applyModelSelection")(function* ({
@@ -224,6 +185,13 @@ export function makeAntigravityAcpAdapterFlavor(
           allowedRoots: antigravityClientFileRoots(cwd),
           request,
         }),
+      writeTextFile: (request, cwd) =>
+        writeAntigravityClientTextFile({
+          fileSystem: options.fileSystem,
+          path: options.path,
+          allowedRoots: antigravityClientFileRoots(cwd),
+          request,
+        }),
     },
     approvalOptions: antigravityApprovalOptions,
     extractPermissionQuestion: (request) => {
@@ -238,7 +206,6 @@ export function makeAntigravityAcpAdapterFlavor(
     extractSubagentUpdate: extractAntigravitySubagentUpdate,
     supportsImagePrompts: true,
     supportsCompaction: true,
-    requiresSignIn: isAntigravitySignInRequiredError,
   };
 }
 

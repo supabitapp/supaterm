@@ -47,7 +47,7 @@ const chooseAccount = async (details: Electron.SelectWebauthnAccountDetails) => 
   return details.accounts[response]?.credentialId;
 };
 
-/** @public */
+/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
   const fs = yield* FileSystem.FileSystem;

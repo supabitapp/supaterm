@@ -108,6 +108,7 @@ async function windowsForPid(
     .catch(() => []);
 }
 
+/** Flatpak apps reach AT-SPI through xdg-dbus-proxy, so the compositor PID misses. */
 async function windowsFromAppList(App: AccessibilityApp): Promise<readonly AccessibilityElement[]> {
   const apps = await App.list().catch(() => []);
   return (await Promise.all(apps.map((app) => app.children().catch(() => [])))).flat();
@@ -171,7 +172,8 @@ async function readCapturedWindowAccessibility(
     .catch(() => {
       progress.flatComplete = true;
     });
-
+  // A decorated screenshot contains more than the accessibility client area. Keep its
+  // frame origin/scale so element coordinates include the actual decoration offset.
   const sourceBounds =
     matchMode === "wayland" && active.clientBounds
       ? active.bounds

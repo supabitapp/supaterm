@@ -29,7 +29,6 @@ export function PairingLinkCreatedDialog({
 }) {
   const copyButtonRef = useRef<HTMLButtonElement | null>(null);
   const notifiedRef = useRef(false);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- closes the pairing dialog and reports the externally observed device connection
   useEffect(() => {
     if (!result || !connected || notifiedRef.current) return;
     notifiedRef.current = true;

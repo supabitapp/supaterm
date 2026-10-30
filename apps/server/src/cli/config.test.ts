@@ -23,33 +23,11 @@ import * as NetService from "@supaterm/shared/Net";
 import { DEFAULT_SIGNAL_EXPORT } from "@supaterm/shared/observability";
 import * as OtelEnvironment from "@supaterm/shared/otelEnvironment";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import * as HostProcess from "@supaterm/shared/HostProcess";
-import packageJson from "../../package.json" with { type: "json" };
-import { ServiceLauncherHostProcess } from "../service/serviceLauncherClient.ts";
-import {
-  SERVICE_LAUNCHER_CONTEXT_ENV,
-  SERVICE_LAUNCHER_PROTOCOL,
-} from "../service/serviceProtocol.ts";
 import { deriveServerPaths } from "../config.ts";
 import { resolveServerConfig } from "./config.ts";
 
 const deriveExplicitServerPaths = (baseDir: string, devUrl: URL | undefined) =>
   deriveServerPaths(baseDir, devUrl, { baseDirIsExplicit: true });
-
-const minimalDesktopFlags = (baseDir: string) => ({
-  mode: Option.some("desktop" as const),
-  port: Option.some(4888),
-  host: Option.none<string>(),
-  baseDir: Option.some(baseDir),
-  cwd: Option.none<string>(),
-  devUrl: Option.none<URL>(),
-  noBrowser: Option.none<boolean>(),
-  bootstrapFd: Option.none<number>(),
-  autoBootstrapProjectFromCwd: Option.none<boolean>(),
-  logWebSocketEvents: Option.none<boolean>(),
-  tailscaleServeEnabled: Option.none<boolean>(),
-  tailscaleServePort: Option.none<number>(),
-});
 
 const encodeDesktopBootstrap = Schema.encodeEffect(Schema.fromJsonString(DesktopBackendBootstrap));
 const encodeUnknownJson = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));
@@ -112,7 +90,8 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
     yield* fs.writeFileString(filePath, `${encoded}\n`);
     return yield* Effect.acquireRelease(
       Effect.sync(() => NodeFS.openSync(filePath, "r")),
-      // Windows cannot reopen the fd through /proc or /dev/fd, so the reader closes it.
+      // Without a /proc or /dev/fd path to reopen, the reader consumes the fd
+      // itself (autoClose), so on Windows it is already closed here.
       (fd) =>
         Effect.sync(() => {
           try {
@@ -470,79 +449,6 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
     }),
   );
 
-  it.effect("reports the desktop bootstrap as the source of endpoints it supplied", () =>
-    Effect.gen(function* () {
-      const fs = yield* FileSystem.FileSystem;
-      const baseDir = yield* fs.makeTempDirectoryScoped({
-        prefix: "supaterm-cli-config-otlp-bootstrap-",
-      });
-      const fd = yield* openBootstrapFd(
-        makeDesktopBootstrap({
-          otlpTracesUrl: "http://localhost:4318/v1/traces",
-          otlpMetricsUrl: "http://localhost:4318/v1/metrics",
-          otlpLogsUrl: "http://localhost:4318/v1/logs",
-        }),
-      );
-
-      const resolved = yield* resolveServerConfig(
-        { ...minimalDesktopFlags(baseDir), bootstrapFd: Option.some(fd) },
-        Option.none(),
-      ).pipe(
-        Effect.provide(
-          Layer.mergeAll(
-            ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} })),
-            NetService.layer,
-          ),
-        ),
-      );
-
-      expect(resolved).toMatchObject({
-        otlpTracesUrl: "http://localhost:4318/v1/traces",
-        otlpTracesSource: "bootstrap",
-        otlpMetricsSource: "bootstrap",
-        otlpLogsSource: "bootstrap",
-      });
-    }),
-  );
-
-  it.effect("reports saved settings as the source of endpoints read from settings.json", () =>
-    Effect.gen(function* () {
-      const fs = yield* FileSystem.FileSystem;
-      const path = yield* Path.Path;
-      const baseDir = yield* fs.makeTempDirectoryScoped({
-        prefix: "supaterm-cli-config-otlp-settings-",
-      });
-      const derivedPaths = yield* deriveExplicitServerPaths(baseDir, undefined);
-      yield* fs.makeDirectory(path.dirname(derivedPaths.settingsPath), { recursive: true });
-      yield* fs.writeFileString(
-        derivedPaths.settingsPath,
-        `${JSON.stringify({
-          observability: {
-            otlpTracesUrl: "http://localhost:4318/v1/traces",
-            otlpMetricsUrl: "http://localhost:4318/v1/metrics",
-            otlpLogsUrl: "http://localhost:4318/v1/logs",
-          },
-        })}\n`,
-      );
-
-      const resolved = yield* resolveServerConfig(minimalDesktopFlags(baseDir), Option.none()).pipe(
-        Effect.provide(
-          Layer.mergeAll(
-            ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} })),
-            NetService.layer,
-          ),
-        ),
-      );
-
-      expect(resolved).toMatchObject({
-        otlpTracesUrl: "http://localhost:4318/v1/traces",
-        otlpTracesSource: "settings",
-        otlpMetricsSource: "settings",
-        otlpLogsSource: "settings",
-      });
-    }),
-  );
-
   it.effect("zeroes an endpoint stored in Settings when the SDK is disabled", () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
@@ -832,11 +738,6 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
         });
         expect(resolved.otlpLogsUrl).toBe("http://settings:4318/v1/logs");
         expect(resolved.otlpLogsExport.headers).toEqual({ "x-key": "secret" });
-        expect(resolved).toMatchObject({
-          otlpTracesVariable: "SUPATERM_OTLP_TRACES_URL",
-          otlpMetricsVariable: "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
-        });
-        expect(resolved.otlpLogsVariable).toBeUndefined();
       }),
   );
 
@@ -889,53 +790,5 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
         expect(resolved.otlpMetricsUrl).toBeUndefined();
         expect(resolved.otlpLogsUrl).toBeUndefined();
       }),
-  );
-
-  it.effect("listens on private networks only under the service launcher with no host set", () =>
-    Effect.gen(function* () {
-      const { join } = yield* Path.Path;
-      const baseDir = join(NodeOS.tmpdir(), "supaterm-cli-config-service-host");
-      const resolveHost = (input: {
-        readonly connected: boolean;
-        readonly env?: Record<string, string>;
-      }) =>
-        resolveServerConfig(minimalWebFlags(baseDir), Option.none()).pipe(
-          Effect.map(({ host, privateNetworkOnly }) => ({ host, privateNetworkOnly })),
-          Effect.provide(
-            Layer.mergeAll(
-              ConfigProvider.layer(ConfigProvider.fromEnv({ env: input.env ?? {} })),
-              NetService.layer,
-            ),
-          ),
-          Effect.provideService(HostProcess.Environment, {
-            [SERVICE_LAUNCHER_CONTEXT_ENV]: JSON.stringify({
-              protocol: SERVICE_LAUNCHER_PROTOCOL,
-              childVersion: packageJson.version,
-            }),
-          }),
-          Effect.provideService(ServiceLauncherHostProcess, {
-            connected: input.connected,
-            send: () => false,
-            on: () => undefined,
-            off: () => undefined,
-          }),
-        );
-
-      expect(yield* resolveHost({ connected: true })).toEqual({
-        host: "0.0.0.0",
-        privateNetworkOnly: true,
-      });
-      // `service.env` reaches the server as its environment.
-      expect(yield* resolveHost({ connected: true, env: { SUPATERM_HOST: "127.0.0.1" } })).toEqual({
-        host: "127.0.0.1",
-        privateNetworkOnly: undefined,
-      });
-      // Without the launcher's IPC channel the context was inherited, e.g. by
-      // `t3 serve` started from an agent inside the service.
-      expect(yield* resolveHost({ connected: false })).toEqual({
-        host: undefined,
-        privateNetworkOnly: undefined,
-      });
-    }),
   );
 });

@@ -9,8 +9,6 @@ import {
   type OrchestrationV2Subagent,
   type OrchestrationV2ThreadProjection,
   type ModelSelection,
-  type OrchestrationV2Actor,
-  type OrchestrationV2CreationSource,
   type RuntimeMode,
   type ProviderInteractionMode,
   ProviderInstanceId,
@@ -27,14 +25,12 @@ import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
-import * as SqlError from "effect/sql/SqlError";
 
 import { AgentScope } from "@supaterm/shared/AgentScope";
 import { isTemporaryWorktreeBranch } from "@supaterm/shared/git";
 import { getModelSelectionStringOptionValue, modelSelectionsEqual } from "@supaterm/shared/model";
 import * as AnalyticsService from "../telemetry/AnalyticsService.ts";
 import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
-import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
 import * as EventSink from "./EventSink.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
 import * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
@@ -71,11 +67,6 @@ export class ProviderEventPublishError extends Schema.TaggedError<ProviderEventP
   }
 }
 
-const isLockTimeout = (error: EventSink.EventSinkV2Error) =>
-  SqlError.isSqlError(error.cause) && error.cause.reason._tag === "LockTimeoutError";
-const retryLockTimeout = <A, R>(write: Effect.Effect<A, EventSink.EventSinkV2Error, R>) =>
-  Effect.retry(write, { while: isLockTimeout, times: 2 });
-
 export const ProviderEventIngestorV2Error = Schema.Union([
   ProviderEventNormalizeError,
   ProviderEventPublishError,
@@ -86,14 +77,6 @@ export interface ProviderTurnAnalyticsContext {
   readonly modelSelection: ModelSelection;
   readonly runtimeMode?: RuntimeMode;
   readonly interactionMode?: ProviderInteractionMode;
-  readonly origin?: ProviderTurnOrigin;
-}
-
-export interface ProviderTurnOrigin {
-  readonly createdBy: OrchestrationV2Actor;
-  readonly creationSource: OrchestrationV2CreationSource;
-  readonly scheduled: boolean;
-  readonly subagent: boolean;
 }
 
 export class ProviderTurnAnalytics extends Context.Reference<{
@@ -107,11 +90,8 @@ export const layerAnalytics = Layer.effect(
   Effect.gen(function* () {
     const analytics = yield* AnalyticsService.AnalyticsService;
     return {
-      record: Effect.fn("ProviderTurnAnalytics.record")(function (
-        properties: Readonly<Record<string, unknown>>,
-      ) {
-        return analytics.record("provider.turn.completed", properties);
-      }),
+      record: (properties: Readonly<Record<string, unknown>>) =>
+        analytics.record("provider.turn.completed", properties),
     };
   }),
 );
@@ -146,7 +126,6 @@ function providerTurnAnalyticsProperties(input: {
     ...(effort ? { effort } : {}),
     ...(input.context?.runtimeMode ? { runtimeMode: input.context.runtimeMode } : {}),
     ...(input.context?.interactionMode ? { interactionMode: input.context.interactionMode } : {}),
-    ...input.context?.origin,
     ...(input.providerTurn.startedAt && input.providerTurn.completedAt
       ? {
           durationMs: Math.max(
@@ -319,7 +298,6 @@ export const layer: Layer.Layer<
   | IdAllocator.IdAllocatorV2
   | ProjectionStore.ProjectionStoreV2
   | ThreadCommandExecutor.ThreadCommandExecutor
-  | ProviderInstanceRegistry.ProviderInstanceRegistry
 > = Layer.effect(
   ProviderEventIngestorV2,
   Effect.gen(function* () {
@@ -330,8 +308,6 @@ export const layer: Layer.Layer<
     const threadCommands = yield* ThreadCommandExecutor.ThreadCommandExecutor;
     const analytics = yield* ProviderTurnAnalytics;
     const agentScope = yield* AgentScope;
-    const instances = yield* ProviderInstanceRegistry.ProviderInstanceRegistry;
-    const scope = yield* Effect.scope;
     const completedTurnAnalytics = new Set<string>();
 
     const makeDomainEvent =
@@ -414,6 +390,12 @@ export const layer: Layer.Layer<
       },
     );
 
+    /**
+     * A native subagent's thread starts on the parent's model when the provider
+     * names the real one later (a Claude agent file's model arrives with the
+     * subagent's first reply). Thread commands rewrite the whole thread row
+     * under the thread's lock, so this read and write take it too.
+     */
     const syncSubagentThreadModel = Effect.fn("ProviderEventIngestor.syncSubagentThreadModel")(
       function* (input: ProviderEventIngestInput, subagent: OrchestrationV2Subagent) {
         const { childThreadId, model } = subagent;
@@ -452,7 +434,7 @@ export const layer: Layer.Layer<
               },
               occurredAt: now,
             });
-            return yield* eventSink.write({ events: [event] }).pipe(retryLockTimeout);
+            return yield* eventSink.write({ events: [event] });
           }),
         );
       },
@@ -767,7 +749,7 @@ export const layer: Layer.Layer<
                   ...input.writeIfProviderThreadOwner,
                   events,
                 })
-                .pipe(retryLockTimeout, Effect.mapError(mapWriteError));
+                .pipe(Effect.mapError(mapWriteError));
               return ownerResult.storedEvents;
             }
             if (input.writeIfRunCurrent === undefined) {
@@ -777,7 +759,7 @@ export const layer: Layer.Layer<
                   ...(input.commandId === undefined ? {} : { commandId: input.commandId }),
                   events,
                 })
-                .pipe(retryLockTimeout, Effect.mapError(mapWriteError));
+                .pipe(Effect.mapError(mapWriteError));
             }
             const result = yield* eventSink
               .writeIfRunCurrent({
@@ -787,28 +769,11 @@ export const layer: Layer.Layer<
                 ...input.writeIfRunCurrent,
                 events,
               })
-              .pipe(retryLockTimeout, Effect.mapError(mapWriteError));
+              .pipe(Effect.mapError(mapWriteError));
             return result.storedEvents;
           },
           (effect, input) =>
             effect.pipe(
-              Effect.tap((storedEvents) =>
-                Effect.gen(function* () {
-                  if (
-                    storedEvents.length === 0 ||
-                    input.event.type !== "turn.terminal" ||
-                    input.event.status !== "failed" ||
-                    input.event.failure.class !== "usage_limit"
-                  )
-                    return;
-                  const instance = yield* instances.getInstance(input.providerInstanceId);
-                  if (!instance?.snapshot.refreshUsage) return;
-                  yield* instance.snapshot.refreshUsage.pipe(
-                    Effect.ignoreCause({ log: true }),
-                    Effect.forkIn(scope, { startImmediately: true }),
-                  );
-                }),
-              ),
               Effect.flatMap((storedEvents) =>
                 Effect.gen(function* () {
                   if (input.event.type !== "app_thread.created") return storedEvents;
@@ -848,7 +813,6 @@ export const layer: Layer.Layer<
                   ),
                 ),
               ),
-              // @effect-diagnostics-next-line flatMapConditionalToFilterOrFail:off - The predicate narrows the captured event for the subagent update.
               Effect.flatMap((storedEvents) =>
                 storedEvents.length === 0 || input.event.type !== "subagent.updated"
                   ? Effect.succeed(storedEvents)

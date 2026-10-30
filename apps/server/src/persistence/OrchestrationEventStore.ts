@@ -57,6 +57,11 @@ export class OrchestrationEventStore extends Context.Service<
       readonly events: ReadonlyArray<OrchestrationV2DomainEvent>;
     }) => Effect.Effect<ReadonlyArray<OrchestrationV2StoredEvent>, OrchestrationEventStoreError>;
 
+    /**
+     * A row whose `event_type` this build does not know fails the read unless
+     * `skipUnknownEventTypes` is set, which logs and drops it instead. Only
+     * client thread replay opts in; anything that builds server state stays strict.
+     */
     readonly readAgentEvents: (input?: {
       readonly afterSequence?: number;
       readonly throughSequence?: number;
@@ -87,17 +92,25 @@ export class OrchestrationEventStore extends Context.Service<
 
     readonly latestApplicationSequence: Effect.Effect<number, OrchestrationEventStoreError>;
 
+    /**
+     * Each project or thread with an event in the range, at its newest
+     * sequence, oldest first. Reads no payloads, so unknown event types from a
+     * newer build are included rather than failing the read. Legacy thread rows
+     * are included too; refetching an aggregate is idempotent.
+     */
     readonly readChangedApplicationAggregates: (input: {
       readonly afterSequence: number;
       readonly throughSequence: number;
       readonly limit: number;
     }) => Effect.Effect<ReadonlyArray<ChangedApplicationAggregate>, OrchestrationEventStoreError>;
 
+    /** A row whose `event_type` this build does not know fails the read. */
     readonly readApplicationEvents: (input: {
       readonly afterSequence: number;
       readonly throughSequence: number;
     }) => Stream.Stream<ApplicationStoredEvent, OrchestrationEventStoreError>;
 
+    /** Publish only after the surrounding event/projection transaction commits. */
     readonly publishCommitted: (
       events: ReadonlyArray<ApplicationStoredEvent>,
     ) => Effect.Effect<void>;
@@ -108,7 +121,6 @@ export class OrchestrationEventStore extends Context.Service<
     readonly streamProjectedApplicationEvents: <A extends { readonly sequence: number }>(input: {
       readonly afterSequence?: number;
       readonly project: (event: ApplicationStoredEvent) => A;
-      readonly filter?: (event: ApplicationStoredEvent) => boolean;
     }) => Stream.Stream<A, OrchestrationEventStoreError>;
   }
 >()("supaterm/persistence/OrchestrationEventStore") {}
@@ -238,6 +250,7 @@ function rowToApplicationStoredEvent(
   return row.aggregate_kind === "project" ? rowToProjectEvent(row) : rowToV2StoredEvent(row);
 }
 
+// Only agent replay reads rows this way, and it reads thread rows alone.
 const keepReplayRow = (row: ApplicationEventRow, skipUnknownEventTypes?: boolean) =>
   skipUnknownEventTypes !== true || isKnownOrchestrationV2EventType(row.event_type)
     ? Effect.succeed(true)
@@ -423,7 +436,7 @@ const makeEventStore = Effect.gen(function* () {
         ])}
       ORDER BY sequence ASC
       LIMIT ${input.limit}
-    `.pipe(NodeSqliteClient.readOnly);
+    `;
 
   const appendAgentEvents: OrchestrationEventStore["Service"]["appendAgentEvents"] = (input) =>
     Effect.forEach(
@@ -440,7 +453,9 @@ const makeEventStore = Effect.gen(function* () {
           const promptKey = subagent === undefined ? undefined : `${event.type}:${subagent.id}`;
           const hint = promptKey === undefined ? undefined : promptHints.get(promptKey);
           const payloadJson = yield* encodeJson(encoded.payload);
-
+          // Progress ticks repeat an unchanged prompt, so store it once and point
+          // later rows at it. ProjectionMaintenance never deletes these anchor
+          // rows.
           const storedPayload =
             hint !== undefined && subagent !== undefined
               ? sql`CASE WHEN EXISTS (
@@ -597,7 +612,6 @@ const makeEventStore = Effect.gen(function* () {
         LIMIT ${Math.max(0, Math.floor(input.maxEvents)) + 1}
       )
     `.pipe(
-      NodeSqliteClient.readOnly,
       Effect.mapError(toPersistenceSqlError("OrchestrationEventStore.getAgentReplayStats:query")),
       Effect.map((rows) => ({
         eventCount: rows[0]?.eventCount ?? 0,
@@ -621,18 +635,17 @@ const makeEventStore = Effect.gen(function* () {
         AND aggregate_kind = 'thread'
         ${threadId === undefined ? sql`` : sql`AND stream_id = ${threadId}`}
     `.pipe(
-      NodeSqliteClient.readOnly,
       Effect.map((rows) => rows[0]?.sequence ?? 0),
       Effect.mapError(toPersistenceSqlError("OrchestrationEventStore.latestAgentSequence:query")),
     );
 
+  // The OR planner otherwise scans every V2 event instead of seeking the final sequence.
   const latestApplicationSequence = sql<{ readonly sequence: number | null }>`
     SELECT MAX(sequence) AS sequence
     FROM orchestration_events INDEXED BY idx_orchestration_events_application_high_water
     WHERE aggregate_kind = 'project'
       OR (application_event_version = 2 AND aggregate_kind = 'thread')
   `.pipe(
-    NodeSqliteClient.readOnly,
     Effect.map((rows) => rows[0]?.sequence ?? 0),
     Effect.mapError(
       toPersistenceSqlError("OrchestrationEventStore.latestApplicationSequence:query"),
@@ -653,6 +666,7 @@ const makeEventStore = Effect.gen(function* () {
         ORDER BY "sequence" ASC
         LIMIT ${input.limit}
       `.pipe(
+        // GROUP BY scans the whole range before LIMIT applies; keep it off the writer.
         NodeSqliteClient.readOnly,
         Effect.mapError(
           toPersistenceSqlError("OrchestrationEventStore.readChangedApplicationAggregates:query"),
@@ -696,17 +710,11 @@ const makeEventStore = Effect.gen(function* () {
 
   const streamProjectedApplicationEvents: OrchestrationEventStore["Service"]["streamProjectedApplicationEvents"] =
     (input) =>
-      replayAndBufferProjectedLiveEvents<
-        ApplicationStoredEvent,
-        ReturnType<typeof input.project>,
-        OrchestrationEventStoreError,
-        never
-      >({
+      replayAndBufferProjectedLiveEvents({
         subscribe: PubSub.subscribe(committedEvents),
         latestSequence: latestApplicationSequence,
         afterSequence: input.afterSequence ?? 0,
         project: input.project,
-        ...(input.filter === undefined ? {} : { filter: input.filter }),
         replay: (throughSequence) =>
           catchUpApplicationEvents({
             afterSequence: input?.afterSequence ?? 0,

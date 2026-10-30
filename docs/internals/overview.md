@@ -18,10 +18,6 @@ versioned clients and servers. Subscriptions send the state a client needs, so a
 thread does not pay for every thread's history. Authentication of a socket does not authorize every
 method on it. See [environment auth](./environment-auth.md).
 
-Forge capabilities and routing definitions are shared metadata. Server consumers must not
-import them through client modules that can pull in React or native dependencies. Per-forge
-behavior belongs at the adapter boundary; see [source control](../user/source-control.md).
-
 ### Mixed versions
 
 Web, desktop, mobile, and environments upgrade independently, and every build with the same

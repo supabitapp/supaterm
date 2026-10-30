@@ -8,7 +8,7 @@ import {
 } from "react";
 
 import { useStableCallback } from "../hooks/useStableCallback";
-import { type BrowserViewportTarget, commitBrowserViewportChange } from "./browserViewportActions";
+import { commitBrowserViewportChange } from "./browserViewportActions";
 import {
   browserViewportSettingKey,
   resizeBrowserViewportFromRail,
@@ -27,21 +27,21 @@ interface ViewportDrag extends PreviewViewportSize {
 const KEYBOARD_RESIZE_COMMIT_DELAY_MS = 150;
 
 export function useBrowserViewportResize(options: {
-  readonly target: BrowserViewportTarget;
+  readonly tabId: string;
   readonly viewport: PreviewViewportSetting;
   readonly zoomFactor: number;
   readonly containerSize: PreviewViewportSize;
   readonly deviceToolbarVisible: boolean;
   readonly aspectRatio: number | null;
 }) {
-  const { target, viewport, zoomFactor, containerSize, deviceToolbarVisible, aspectRatio } =
-    options;
+  const { tabId, viewport, zoomFactor, containerSize, deviceToolbarVisible, aspectRatio } = options;
   const dragCleanupRef = useRef<(() => void) | null>(null);
   const dragVersionRef = useRef(0);
   const keyboardCommitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const keyboardViewportRef = useRef<ViewportDrag | null>(null);
   const [dragViewport, setDragViewport] = useState<ViewportDrag | null>(null);
   const sourceViewportKey = browserViewportSettingKey(viewport);
+  // Drag listeners and the keyboard commit timer outlive the render that started them.
   const isCurrentSource = useStableCallback((key: string) => key === sourceViewportKey);
   const activeDrag = dragViewport?.sourceKey === sourceViewportKey ? dragViewport : null;
   const effectiveViewport = activeDrag
@@ -60,7 +60,6 @@ export function useBrowserViewportResize(options: {
       ? resolveBrowserDeviceViewportLayout(containerSize, effectiveViewport, zoomFactor)
       : resolveBrowserViewportLayout(containerSize, effectiveViewport, zoomFactor);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the drag and the keyboard commit timer when the component unmounts
   useEffect(
     () => () => {
       dragVersionRef.current += 1;
@@ -74,7 +73,6 @@ export function useBrowserViewportResize(options: {
     [],
   );
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the pending keyboard viewport commit timer once the source viewport changes
   useEffect(() => {
     const pending = keyboardViewportRef.current;
     if (!pending || pending.sourceKey === sourceViewportKey) return;
@@ -94,7 +92,7 @@ export function useBrowserViewportResize(options: {
     }
     keyboardViewportRef.current = null;
     setDragViewport(null);
-    return commitBrowserViewportChange(target, next);
+    return commitBrowserViewportChange(tabId, next);
   };
 
   const clearDrag = () => setDragViewport(null);
@@ -103,7 +101,7 @@ export function useBrowserViewportResize(options: {
     const clearIfCurrent = () => {
       if (dragVersionRef.current === version) clearDrag();
     };
-    void commitBrowserViewportChange(target, next).then(clearIfCurrent, clearIfCurrent);
+    void commitBrowserViewportChange(tabId, next).then(clearIfCurrent, clearIfCurrent);
   };
 
   const handleResizeKeyDown = (

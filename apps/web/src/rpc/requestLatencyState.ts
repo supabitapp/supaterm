@@ -1,3 +1,4 @@
+import { useAtomValue } from "@effect/atom-react";
 import { WS_METHODS } from "@supaterm/contracts";
 import { Atom } from "effect/reactivity";
 
@@ -5,8 +6,11 @@ import { appAtomRegistry } from "./atomRegistry";
 
 const SLOW_RPC_ACK_THRESHOLD_MS = 15_000;
 /**
- * Updates wait for package installs; VCS refreshes may wait for background work and network calls.
- * Give these requests longer than the normal 15s warning threshold.
+ * Some requests are slow by design. Provider and server updates shell out to a
+ * package manager and only respond once the install finishes. A VCS status
+ * refresh fetches, may auto-pull, looks up the pull request, and first waits for
+ * any background refresh of the same repository, which often totals over 15s.
+ * Warning about those after 15s is noise, so they get a much longer leash.
  */
 const LONG_RUNNING_RPC_ACK_THRESHOLD_MS = 120_000;
 const MAX_TRACKED_RPC_ACK_REQUESTS = 256;
@@ -27,12 +31,10 @@ interface PendingRpcAckRequest {
 
 const pendingRpcAckRequests = new Map<string, PendingRpcAckRequest>();
 // Background reports nobody waits on. A busy host delays them first, and warning
-// about a request the user never made does not say what is wrong. A sign-in wait
-// lasts as long as the user takes on the forge.
+// about a request the user never made does not say what is wrong.
 const untrackedRpcAckMethods = new Set<string>([
   WS_METHODS.serverGetUsageSummary,
   WS_METHODS.serverReportClientActivity,
-  WS_METHODS.sourceControlSignInWait,
 ]);
 const longRunningRpcAckMethods = new Set<string>([
   WS_METHODS.serverUpdateProvider,
@@ -137,8 +139,6 @@ function evictOldestPendingRpcRequestIfNeeded(): void {
   }
 }
 
-export function subscribeSlowRpcAckRequests(
-  listener: (requests: ReadonlyArray<SlowRpcAckRequest>) => void,
-): () => void {
-  return appAtomRegistry.subscribe(slowRpcAckRequestsAtom, listener);
+export function useSlowRpcAckRequests(): ReadonlyArray<SlowRpcAckRequest> {
+  return useAtomValue(slowRpcAckRequestsAtom);
 }

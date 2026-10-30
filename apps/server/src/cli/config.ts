@@ -24,7 +24,6 @@ import * as SchemaTransformation from "effect/SchemaTransformation";
 import { Argument, Flag } from "effect/cli";
 import * as CliError from "effect/cli/CliError";
 
-import { resolveServiceLauncherMode } from "../service/serviceLauncherClient.ts";
 import { readBootstrapEnvelope } from "../bootstrap.ts";
 import * as ServerConfig from "../config.ts";
 import { expandHomePath, resolveBaseDir } from "../os-jank.ts";
@@ -417,20 +416,13 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
     () => 443,
   );
   const staticDir = devUrl ? undefined : yield* ServerConfig.resolveStaticDir();
-  const explicitHost = resolveOptionPrecedence(
-    normalizedFlags.host,
-    Option.fromUndefinedOr(env.host),
-    Option.fromUndefinedOr(bootstrap?.host),
-  );
-  const privateNetworkOnly =
-    Option.isNone(explicitHost) &&
-    mode === "web" &&
-    (yield* resolveServiceLauncherMode().pipe(
-      Effect.map((launcher) => launcher.managed),
-      Effect.orElseSucceed(() => false),
-    ));
-  const host = Option.getOrElse(explicitHost, () =>
-    privateNetworkOnly ? "0.0.0.0" : mode === "desktop" ? "127.0.0.1" : undefined,
+  const host = Option.getOrElse(
+    resolveOptionPrecedence(
+      normalizedFlags.host,
+      Option.fromUndefinedOr(env.host),
+      Option.fromUndefinedOr(bootstrap?.host),
+    ),
+    () => (mode === "desktop" ? "127.0.0.1" : undefined),
   );
   const logLevel = Option.getOrElse(cliLogLevel, () => env.logLevel);
 
@@ -445,28 +437,22 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
     otel,
     "traces",
     { url: env.otlpTracesUrl, export: signalExport },
-    {
-      bootstrapUrl: bootstrap?.otlpTracesUrl,
-      settingsUrl: persistedObservabilitySettings.otlpTracesUrl,
-    },
+    bootstrap?.otlpTracesUrl,
+    persistedObservabilitySettings.otlpTracesUrl,
   );
   const metrics = OtelEnvironment.resolveSignalEndpoint(
     otel,
     "metrics",
     { url: env.otlpMetricsUrl, export: signalExport },
-    {
-      bootstrapUrl: bootstrap?.otlpMetricsUrl,
-      settingsUrl: persistedObservabilitySettings.otlpMetricsUrl,
-    },
+    bootstrap?.otlpMetricsUrl,
+    persistedObservabilitySettings.otlpMetricsUrl,
   );
   const logs = OtelEnvironment.resolveSignalEndpoint(
     otel,
     "logs",
     { url: env.otlpLogsUrl, export: signalExport },
-    {
-      bootstrapUrl: bootstrap?.otlpLogsUrl,
-      settingsUrl: persistedObservabilitySettings.otlpLogsUrl,
-    },
+    bootstrap?.otlpLogsUrl,
+    persistedObservabilitySettings.otlpLogsUrl,
   );
 
   const config: ServerConfig.ServerConfig["Service"] = {
@@ -482,12 +468,6 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
     otlpTracesExport: traces?.export ?? signalExport,
     otlpMetricsExport: metrics?.export ?? signalExport,
     otlpLogsExport: logs?.export ?? signalExport,
-    ...(traces !== undefined ? { otlpTracesSource: traces.source } : {}),
-    ...(traces?.variable !== undefined ? { otlpTracesVariable: traces.variable } : {}),
-    ...(metrics !== undefined ? { otlpMetricsSource: metrics.source } : {}),
-    ...(metrics?.variable !== undefined ? { otlpMetricsVariable: metrics.variable } : {}),
-    ...(logs !== undefined ? { otlpLogsSource: logs.source } : {}),
-    ...(logs?.variable !== undefined ? { otlpLogsVariable: logs.variable } : {}),
     otelEnvironment: otel,
     mode,
     port,
@@ -496,7 +476,6 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
     ...derivedPaths,
     serverTracePath,
     host,
-    ...(privateNetworkOnly ? { privateNetworkOnly } : {}),
     staticDir,
     devUrl,
     ...(devAuthToken === undefined ? {} : { devAuthToken }),
@@ -521,8 +500,12 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
 });
 
 /**
- * CLIs run from linked-worktree source use its state to keep unreleased migrations
- * out of the live install. Installed CLIs retain the normal home; --base-dir overrides both.
+ * Same precedence as dev-runner: without --base-dir, a CLI running from a linked
+ * worktree's own source uses only that worktree's `.supaterm`. Commands that open
+ * the target database run this checkout's migrations, so falling back to the
+ * shared home could migrate the live install with unreleased schema. An installed
+ * CLI invoked inside some project's worktree carries released migrations and
+ * keeps the normal home.
  */
 export const resolveCliWorktreeHome = Effect.fn("config.resolveCliWorktreeHome")(function* (
   explicitBaseDir: Option.Option<string>,

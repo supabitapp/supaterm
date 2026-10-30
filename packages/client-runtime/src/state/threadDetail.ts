@@ -33,7 +33,6 @@ import {
   type PendingThreadRequests,
 } from "./threadRequests.ts";
 import { arrayElementsEqual, parseThreadKey, threadKey } from "./entities.ts";
-import { getProjectionArrayReplacementIndex } from "./orchestrationV2Projection.ts";
 
 const EMPTY_VISIBLE_TURN_ITEMS: OrchestrationV2ThreadProjection["visibleTurnItems"] = Object.freeze(
   [],
@@ -124,29 +123,6 @@ function sameTurnItemStructure(previous: TurnItem, next: TurnItem): boolean {
   return sameApartFromStripped(sameTurnItem, previous, structure, next);
 }
 
-function sameProjectionArray<T>(
-  previous: ReadonlyArray<T>,
-  next: ReadonlyArray<T>,
-  same: (previous: T, next: T) => boolean,
-): boolean {
-  if (previous === next) return true;
-  if (previous.length !== next.length) return false;
-  const replacedIndex = getProjectionArrayReplacementIndex(previous, next);
-  if (replacedIndex !== undefined) return same(previous[replacedIndex]!, next[replacedIndex]!);
-  return previous.every((item, index) => same(item, next[index]!));
-}
-
-function sameVisibleTurnItemStructure(before: VisibleTurnItem, after: VisibleTurnItem): boolean {
-  return (
-    before === after ||
-    (before.position === after.position &&
-      before.visibility === after.visibility &&
-      before.sourceThreadId === after.sourceThreadId &&
-      before.sourceItemId === after.sourceItemId &&
-      sameTurnItemStructure(before.item, after.item))
-  );
-}
-
 /**
  * Whether `previous` and `next` have the same ThreadStructure: they differ
  * only by text streamed into existing assistant and reasoning items or by a
@@ -180,14 +156,32 @@ export function sameThreadStructure(
   ) {
     return false;
   }
-  return (
-    sameProjectionArray(previous.turnItems, next.turnItems, sameTurnItemStructure) &&
-    sameProjectionArray(
-      previous.visibleTurnItems,
-      next.visibleTurnItems,
-      sameVisibleTurnItemStructure,
-    )
-  );
+  if (
+    previous.turnItems.length !== next.turnItems.length ||
+    previous.visibleTurnItems.length !== next.visibleTurnItems.length
+  ) {
+    return false;
+  }
+  for (let index = 0; index < next.turnItems.length; index += 1) {
+    if (!sameTurnItemStructure(previous.turnItems[index]!, next.turnItems[index]!)) {
+      return false;
+    }
+  }
+  for (let index = 0; index < next.visibleTurnItems.length; index += 1) {
+    const before = previous.visibleTurnItems[index]!;
+    const after = next.visibleTurnItems[index]!;
+    if (before === after) continue;
+    if (
+      before.position !== after.position ||
+      before.visibility !== after.visibility ||
+      before.sourceThreadId !== after.sourceThreadId ||
+      before.sourceItemId !== after.sourceItemId ||
+      !sameTurnItemStructure(before.item, after.item)
+    ) {
+      return false;
+    }
+  }
+  return true;
 }
 
 export function createEnvironmentThreadDetailAtoms<E>(
@@ -199,8 +193,8 @@ export function createEnvironmentThreadDetailAtoms<E>(
   const threadStateValueAtomFamily = Atom.family((key: string) => {
     const ref = parseThreadKey(key);
     return Atom.make((get) =>
-      AsyncResult.getOrElse(
-        get(threadStateAtom(ref.environmentId, ref.threadId)),
+      Option.getOrElse(
+        AsyncResult.value(get(threadStateAtom(ref.environmentId, ref.threadId))),
         () => EMPTY_ENVIRONMENT_THREAD_STATE,
       ),
     ).pipe(Atom.setIdleTTL(0), Atom.withLabel(`environment-thread-state-value:${key}`));
@@ -239,7 +233,7 @@ export function createEnvironmentThreadDetailAtoms<E>(
           projection: toThreadStructure(next.projection),
         };
       }
-
+      // Compared against the latest projection, a delta only compares the item it replaced.
       previousProjection = next?.projection ?? null;
       return previous;
     }).pipe(Atom.setIdleTTL(0), Atom.withLabel(`environment-quiet-thread:${key}`));
@@ -409,12 +403,6 @@ export function createEnvironmentThreadDetailAtoms<E>(
       Atom.withLabel(`environment-thread-status:${key}`),
     ),
   );
-  const sequenceAtomFamily = Atom.family((key: string) =>
-    Atom.make((get) => get(threadStateValueAtomFamily(key)).sequence).pipe(
-      Atom.setIdleTTL(0),
-      Atom.withLabel(`environment-thread-sequence:${key}`),
-    ),
-  );
   const errorAtomFamily = Atom.family((key: string) =>
     Atom.make((get) => Option.getOrNull(get(threadStateValueAtomFamily(key)).error)).pipe(
       Atom.setIdleTTL(0),
@@ -445,7 +433,6 @@ export function createEnvironmentThreadDetailAtoms<E>(
     quietVisibleTurnItemsAtom: (ref: ScopedThreadRef) =>
       quietVisibleTurnItemsAtomFamily(threadKey(ref)),
     statusAtom: (ref: ScopedThreadRef) => statusAtomFamily(threadKey(ref)),
-    sequenceAtom: (ref: ScopedThreadRef) => sequenceAtomFamily(threadKey(ref)),
     errorAtom: (ref: ScopedThreadRef) => errorAtomFamily(threadKey(ref)),
     historyAtom: (ref: ScopedThreadRef) => historyAtomFamily(threadKey(ref)),
   };

@@ -61,8 +61,7 @@ export function sortDoneThreads<T extends DoneThreadTimestampInput & { readonly 
     })
     .sort(
       (left, right) =>
-        right.timestampMs - left.timestampMs ||
-        (left.thread.id < right.thread.id ? -1 : left.thread.id > right.thread.id ? 1 : 0),
+        right.timestampMs - left.timestampMs || left.thread.id.localeCompare(right.thread.id),
     )
     .map(({ thread }) => thread);
 }
@@ -117,6 +116,14 @@ export function getThreadSortTimestamp(
   return getLatestUserMessageTimestamp(thread);
 }
 
+/**
+ * Sort anchor for the active thread list: creation time, re-anchored to
+ * reopenedAt when the thread last re-entered the active list (an explicit
+ * reopen, or a done thread waking on activity). The list stays static
+ * between lifecycle transitions, but an un-done thread surfaces at the
+ * top instead of sinking back to its creation-order slot. Shared by web and
+ * mobile so both render the same order. Malformed timestamps sink to 0.
+ */
 function activeThreadAnchorTimestampMs(thread: {
   readonly createdAt: string;
   readonly reopenedAt?: string | null | undefined;
@@ -332,4 +339,21 @@ export function sortActiveThreadsByOrderKey<
       (left.environmentId ?? "").localeCompare(right.environmentId ?? "")
     );
   });
+}
+
+export function planPinnedMove(input: {
+  readonly orderedIds: readonly string[];
+  readonly keysById: ReadonlyMap<string, string | null | undefined>;
+  readonly movedId: string;
+  readonly direction: "up" | "down";
+}): ReadonlyArray<{ readonly id: string; readonly orderKey: string }> | null {
+  const { orderedIds, keysById, movedId, direction } = input;
+  const from = orderedIds.indexOf(movedId);
+  if (from === -1) return null;
+  const to = direction === "up" ? from - 1 : from + 1;
+  if (to < 0 || to >= orderedIds.length) return null;
+  const newOrder = [...orderedIds];
+  newOrder.splice(from, 1);
+  newOrder.splice(to, 0, movedId);
+  return planPinnedReorder({ orderedIds: newOrder, keysById, movedId });
 }

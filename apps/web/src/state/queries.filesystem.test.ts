@@ -1,12 +1,4 @@
-import {
-  AuthFilesystemReadScope,
-  EnvironmentId,
-  ThreadId,
-  TurnItemId,
-  type AuthSessionState,
-  type OrchestrationV2GetTurnItemResult,
-} from "@supaterm/contracts";
-import { Atom, AsyncResult } from "effect/reactivity";
+import { AuthFilesystemReadScope, EnvironmentId, type AuthSessionState } from "@supaterm/contracts";
 import { beforeEach, expect, it, vi } from "vite-plus/test";
 
 const state = vi.hoisted(() => ({
@@ -18,8 +10,6 @@ const state = vi.hoisted(() => ({
   searchAtom: {},
   contentAtom: {},
   contentRequests: vi.fn(),
-  turnItem: vi.fn(),
-  queried: vi.fn(),
   contentError: null as string | null,
   contentData: {
     matches: [{ path: "src/index.ts", lineNumber: 3, lineContent: "a match", matchRanges: [] }],
@@ -51,36 +41,33 @@ vi.mock("./projects", () => ({
   },
 }));
 vi.mock("../rpc/atomRegistry", () => ({ appAtomRegistry: {} }));
-vi.mock("./orchestration", () => ({ orchestrationEnvironment: { turnItem: state.turnItem } }));
+vi.mock("./orchestration", () => ({ orchestrationEnvironment: {} }));
 vi.mock("./threads", () => ({ useEnvironmentThread: vi.fn() }));
 vi.mock("./vcs", () => ({ vcsEnvironment: {} }));
 vi.mock("./query", () => ({
-  useEnvironmentQuery: (atom: unknown) => {
-    state.queried(atom);
-    return {
-      data:
-        atom === state.sessionAtom
-          ? state.session
-          : atom === state.searchAtom
-            ? { entries: [{ path: "src/index.ts", kind: "file" }] }
-            : atom === state.contentAtom
-              ? state.contentData
-              : null,
-      error:
-        atom === state.sessionAtom
-          ? state.sessionError
+  useEnvironmentQuery: (atom: unknown) => ({
+    data:
+      atom === state.sessionAtom
+        ? state.session
+        : atom === state.searchAtom
+          ? { entries: [{ path: "src/index.ts", kind: "file" }] }
           : atom === state.contentAtom
-            ? state.contentError
+            ? state.contentData
             : null,
-      isPending:
-        atom === state.sessionAtom &&
-        (state.sessionWaiting || (state.session === null && state.sessionError === null)),
-      refresh: vi.fn(),
-    };
-  },
+    error:
+      atom === state.sessionAtom
+        ? state.sessionError
+        : atom === state.contentAtom
+          ? state.contentError
+          : null,
+    isPending:
+      atom === state.sessionAtom &&
+      (state.sessionWaiting || (state.session === null && state.sessionError === null)),
+    refresh: vi.fn(),
+  }),
 }));
 
-import { useProjectContentSearch, useTurnItemDetail } from "./queries";
+import { useProjectContentSearch } from "./queries";
 
 const target = {
   environmentId: EnvironmentId.make("test-environment"),
@@ -155,32 +142,4 @@ it("fails closed after a session check fails, even with a cached grant and match
     isPending: false,
   });
   expect(state.contentRequests).not.toHaveBeenCalled();
-});
-
-it("reads guest item detail through its restricted source without creating an owner query", () => {
-  state.turnItem.mockClear();
-  state.queried.mockClear();
-  const detail = Atom.make(AsyncResult.initial<OrchestrationV2GetTurnItemResult, unknown>());
-  const source = vi.fn(() => detail);
-  const item = {
-    environmentId: target.environmentId,
-    threadId: ThreadId.make("guest-thread"),
-    itemId: TurnItemId.make("guest-item"),
-    revision: "first",
-  };
-
-  useTurnItemDetail(item, source);
-  useTurnItemDetail({ ...item, revision: "second" }, source);
-
-  expect(source.mock.calls).toEqual([
-    [{ threadId: item.threadId, itemId: item.itemId, revision: "first" }],
-    [{ threadId: item.threadId, itemId: item.itemId, revision: "second" }],
-  ]);
-  expect(state.queried.mock.calls).toEqual([[detail], [detail]]);
-  expect(state.turnItem).not.toHaveBeenCalled();
-
-  useTurnItemDetail(null, source);
-  expect(source).toHaveBeenCalledTimes(2);
-  expect(state.queried).toHaveBeenLastCalledWith(null);
-  expect(state.turnItem).not.toHaveBeenCalled();
 });

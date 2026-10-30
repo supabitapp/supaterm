@@ -53,7 +53,6 @@ export interface RpcSession {
   ) => ServerConfigSubscription;
   readonly ready: Effect.Effect<void, ConnectionAttemptError>;
   readonly probe: Effect.Effect<void, ConnectionAttemptError>;
-  readonly inboundFrames: Effect.Effect<number>;
   readonly closed: Effect.Effect<never, ConnectionAttemptError>;
 }
 
@@ -148,14 +147,13 @@ function socketFailureLocation(via: "relay" | "direct") {
   return { hop: via === "relay" ? "tunnel" : "server", via } as const;
 }
 
-const make = Effect.fn("RpcSessionFactory.make")(function* (options: RpcSessionOptions = {}) {
+/** @public Service construction is part of the canonical Effect module API. */
+export const make = Effect.fn("RpcSessionFactory.make")(function* (
+  options: RpcSessionOptions = {},
+) {
   const webSocketConstructor = yield* Socket.WebSocketConstructor;
   const serverConfigInput: ServerConfigSubscriptionInput =
     options.environmentThemes === true ? { environmentThemes: true } : {};
-  const onDemandSnapshots = (input: ServerConfigSubscriptionInput) => ({
-    ...input,
-    workspaceSnapshotsOnDemand: true,
-  });
 
   const connect = Effect.fnUntraced(function* (connection: PreparedConnection) {
     const via = connection.connectionMethod === "relay" ? "relay" : "direct";
@@ -188,19 +186,9 @@ const make = Effect.fn("RpcSessionFactory.make")(function* (options: RpcSessionO
         Effect.asVoid,
       ),
     });
-    let inboundFrames = 0;
-    const countingWebSocketConstructor: typeof webSocketConstructor = (url, options) => {
-      const socket = webSocketConstructor(url, options);
-      socket.addEventListener("message", () => {
-        inboundFrames += 1;
-      });
-      return socket;
-    };
     const layerSocket = Socket.layerWebSocket(connection.socketUrl, {
       openTimeout: SOCKET_OPEN_TIMEOUT,
-    }).pipe(
-      Layer.provide(Layer.succeed(Socket.WebSocketConstructor, countingWebSocketConstructor)),
-    );
+    }).pipe(Layer.provide(Layer.succeed(Socket.WebSocketConstructor, webSocketConstructor)));
     const layerProtocol = Layer.effect(
       RpcClient.Protocol,
       RpcClient.makeProtocolSocket({
@@ -238,7 +226,7 @@ const make = Effect.fn("RpcSessionFactory.make")(function* (options: RpcSessionO
       detail: `${connection.label} config subscription ended.`,
     });
     const serverConfigSource = protocolClient[WS_METHODS.subscribeServerConfig](
-      onDemandSnapshots(serverConfigInput),
+      serverConfigInput,
     ).pipe(
       Stream.runForEach((event) =>
         Effect.gen(function* () {
@@ -376,7 +364,7 @@ const make = Effect.fn("RpcSessionFactory.make")(function* (options: RpcSessionO
           Effect.as(
             Equal.equals(input, serverConfigInput)
               ? serverConfigEvents
-              : protocolClient[WS_METHODS.subscribeServerConfig](onDemandSnapshots(input)),
+              : protocolClient[WS_METHODS.subscribeServerConfig](input),
           ),
         ),
       );
@@ -404,7 +392,6 @@ const make = Effect.fn("RpcSessionFactory.make")(function* (options: RpcSessionO
         Effect.raceFirst(Deferred.await(disconnected)),
       ),
       probe,
-      inboundFrames: Effect.sync(() => inboundFrames),
       closed: Effect.raceFirst(
         Deferred.await(disconnected),
         Deferred.await(configSubscriptionClosed),

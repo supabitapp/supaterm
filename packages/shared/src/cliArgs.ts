@@ -77,13 +77,9 @@ export function parseCliArgs(
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i]!;
 
-    if (token === "--") {
-      positionals.push(...tokens.slice(i + 1));
-      break;
-    }
-
     if (token.startsWith("--")) {
       const rest = token.slice(2);
+      if (!rest) continue;
 
       const eqIndex = rest.indexOf("=");
       if (eqIndex !== -1) {

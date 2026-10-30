@@ -1,70 +1,42 @@
-import { builtInSourceControlDefinitions } from "@supaterm/source-control-definitions/registry";
+import * as AzureDevOps from "@supaterm/source-control-azure-devops/client/definition";
+import * as Bitbucket from "@supaterm/source-control-bitbucket/client/definition";
 import {
-  HostCredentialSettings,
+  makeSourceControlClientRegistry,
   readSourceControlHostSettings,
-  type SourceControlDefinition,
-} from "@supaterm/source-control-core/shared/definition";
-import type {
-  ServerSettings,
-  SourceControlAppAccessInput,
-  SourceControlAppSignIn,
-  SourceControlProviderDiscoveryItem,
-} from "@supaterm/contracts";
-import { parseGitRemoteRepository } from "@supaterm/shared/git";
+} from "@supaterm/source-control-core/client/definition";
+import type { ServerSettings } from "@supaterm/contracts";
 
 export {
   UNKNOWN_SOURCE_CONTROL_CLIENT,
-  type ChangeRequestLink,
   type ChangeRequestTerminology,
-  type HostAccountChoice,
-  type HostCredentialSettings,
-  type ParsedChangeRequestUrl,
-  type ReferenceAutolink,
-  type SourceControlDefinition,
-  type SourceControlHostCredentials,
-} from "@supaterm/source-control-core/shared/definition";
-export type { SourceControlAppSignIn } from "@supaterm/contracts";
+  type SourceControlClientDefinition,
+} from "@supaterm/source-control-core/client/definition";
+import * as Forgejo from "@supaterm/source-control-forgejo/client/definition";
+import * as GitCafe from "@supaterm/source-control-gitcafe/client/definition";
+import * as GitHub from "@supaterm/source-control-github/client/definition";
+import * as GitLab from "@supaterm/source-control-gitlab/client/definition";
 
-export const sourceControlClients = builtInSourceControlDefinitions;
+/**
+ * GitHub comes first because a repository that has not reported its host yet reads as GitHub,
+ * which is what clients have always shown there. A change request URL goes to the first host
+ * whose shape it has, so GitCafe, which claims `/pulls/` only on its own hostnames, comes before
+ * Forgejo, which claims it everywhere.
+ */
+const BUILT_IN_SOURCE_CONTROL_CLIENTS = [
+  GitHub.definition,
+  GitLab.definition,
+  GitCafe.definition,
+  Forgejo.definition,
+  Bitbucket.definition,
+  AzureDevOps.definition,
+];
 
-export function readHostCredentialSettings(
-  settings: Pick<ServerSettings, "sourceControlHosts">,
-  kind: string,
-): HostCredentialSettings {
-  return readSourceControlHostSettings(HostCredentialSettings, settings.sourceControlHosts[kind]);
-}
+export const sourceControlClients = makeSourceControlClientRegistry(
+  BUILT_IN_SOURCE_CONTROL_CLIENTS,
+);
 
-export function capitalizeTerm(term: string): string {
-  return term.charAt(0).toUpperCase() + term.slice(1);
-}
+export type { GitHubSettings } from "@supaterm/source-control-github/client/definition";
 
-export function appSignInTargetForRemote(
-  remoteUrl: string,
-  discovery: ReadonlyArray<
-    Pick<SourceControlProviderDiscoveryItem, "kind" | "appSignInMetadata">
-  > = [],
-): {
-  readonly definition: SourceControlDefinition;
-  readonly appSignIn: SourceControlAppSignIn;
-  readonly input: SourceControlAppAccessInput;
-} | null {
-  const parsed = parseGitRemoteRepository(remoteUrl);
-  const provider = sourceControlClients.recognizeRemote(remoteUrl);
-  const definition = provider ? sourceControlClients.find(provider.kind) : undefined;
-  const appSignIn = discovery.find((item) => item.kind === definition?.kind)?.appSignInMetadata;
-  if (parsed === null || definition === undefined || appSignIn === undefined) return null;
-  if (!appSignIn.hosts.includes(parsed.host)) return null;
-
-  const asWritten = remoteUrl
-    .trim()
-    .replace(/\.git\/?$/i, "")
-    .split(/[/:]/)
-    .slice(-2)
-    .join("/");
-  const repository = asWritten.toLowerCase() === parsed.path ? asWritten : parsed.path;
-  return {
-    definition,
-    appSignIn,
-    input: { provider: definition.kind, host: parsed.host, repository },
-  };
+export function readGitHubSettings(settings: Pick<ServerSettings, "sourceControlHosts">) {
+  return readSourceControlHostSettings(GitHub.settings, settings.sourceControlHosts.github);
 }

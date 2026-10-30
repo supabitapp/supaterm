@@ -1,3 +1,7 @@
+// Mirrors the newest build on a Google Play track to a rolling GitHub
+// prerelease as a universal APK. Play generates and signs that APK from the
+// uploaded bundle with the app signing key, so it carries the same signature
+// as the Play Store install. Run by .github/workflows/mobile-android-apk.yml.
 const { execFileSync } = require("node:child_process");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
@@ -46,6 +50,10 @@ async function play(token, method, url) {
   return response;
 }
 
+// Highest version code the track serves, with its release name. Play names a
+// release after the bundle's versionName unless the uploader sets one. This
+// endpoint reads without opening an edit; an edit would invalidate any open
+// EAS Submit edit made with the same service account.
 async function newestTrackBuild(token, appUrl, trackName) {
   const { releases = [] } = await (
     await play(token, "GET", `${appUrl}/tracks/${trackName}/releases`)

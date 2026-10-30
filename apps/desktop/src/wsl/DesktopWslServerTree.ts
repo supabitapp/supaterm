@@ -8,6 +8,15 @@ import * as Semaphore from "effect/Semaphore";
 
 import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
 
+// Packaged Windows builds ship the server tree inside resources/server.asar
+// (see scripts/build-desktop-artifact.ts). The Windows primary reads it in
+// place through the asar-aware ELECTRON_RUN_AS_NODE runtime, but the WSL
+// backend launches plain `wsl.exe -- node`, which cannot read an asar archive.
+// Reading through Electron's patched fs also transparently returns the
+// contents of files that electron-builder/asar left in the server.asar.unpacked
+// sibling (native binaries), so a single walk of the archive yields the
+// complete tree.
+
 export type WslServerTreeResult =
   | { readonly ok: true; readonly root: string }
   | { readonly ok: false; readonly reason: string; readonly fatal: boolean };
@@ -91,7 +100,7 @@ const copyTree = (
       }),
   );
 
-/** @public */
+/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
   const fs = yield* FileSystem.FileSystem;
@@ -121,7 +130,9 @@ export const make = Effect.gen(function* () {
   const extract = Effect.gen(function* () {
     yield* Effect.log(`[wsl-server-tree] Extracting ${serverRoot} to ${versionDir}...`);
     yield* fs.makeDirectory(treeRoot, { recursive: true });
-
+    // Keep the temporary tree beside the target so rename is atomic. Cleanup
+    // is owned explicitly because a scoped temp-directory finalizer treats the
+    // successful rename (and therefore missing original path) as an error.
     const partialDir = yield* fs.makeTempDirectory({
       directory: treeRoot,
       prefix: `.${version}.extract-`,
@@ -148,6 +159,10 @@ export const make = Effect.gen(function* () {
     .withPermits(1)(
       needsExtraction
         ? Effect.gen(function* () {
+            // Invalidate completeness before recursive deletion. Windows can
+            // remove part of a tree and then fail on a locked file; without
+            // this ordering, a surviving marker makes ensure reuse that
+            // half-deleted fallback instead of extracting it again.
             yield* fs.remove(join(versionDir, MARKER_FILE_NAME), { force: true });
             yield* fs.remove(treeRoot, { recursive: true, force: true });
           }).pipe(

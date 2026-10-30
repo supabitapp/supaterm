@@ -5,13 +5,12 @@ import {
   type AtomCommandResult,
 } from "@supaterm/client-runtime/state/runtime";
 import type { EnvironmentId, ScopedThreadRef } from "@supaterm/contracts";
-import { memo, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
+import { memo, type MouseEvent as ReactMouseEvent } from "react";
 
 import { readLocalApi } from "../../localApi";
 import { cn } from "../../lib/utils";
 import { shouldOpenMarkdownFileLinkInEditor } from "../../markdown-links";
 import type { markdownFileCopyPaths } from "../../markdownFileHostPath";
-import { documentIconColorForFileName } from "../../pierre-icons";
 import { ContextChip } from "../ContextChip";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -321,8 +320,6 @@ export const MarkdownFileLink = memo(function MarkdownFileLink({
     canOpenInBrowser,
     canOpenInPanel,
   });
-  const accent = documentIconColorForFileName(iconPath);
-  const chipStyle = accent ? ({ "--context-chip-accent": accent } as CSSProperties) : undefined;
 
   return (
     <Tooltip>
@@ -334,7 +331,6 @@ export const MarkdownFileLink = memo(function MarkdownFileLink({
               dir="ltr"
               render={<a href={href} />}
               className={MARKDOWN_FILE_LINK_CLASS_NAME}
-              style={chipStyle}
               data-markdown-copy={copyMarkdown}
               onClick={(event) => {
                 event.preventDefault();
@@ -366,7 +362,6 @@ export const MarkdownFileLink = memo(function MarkdownFileLink({
               aria-label={`File options for ${label}`}
               aria-haspopup="menu"
               className={cn(MARKDOWN_FILE_LINK_CLASS_NAME, "select-text")}
-              style={chipStyle}
               data-markdown-copy={copyMarkdown}
               onClick={handleContextMenu}
               onContextMenu={handleContextMenu}

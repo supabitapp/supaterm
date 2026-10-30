@@ -50,7 +50,8 @@ describe("resolveRemoteOpenState", () => {
   });
 
   it("keeps exec behavior for the desktop app's own primary even on a NAT URL", () => {
-    // wsl-only binds the desktop-owned primary to its WSL2 NAT address.
+    // wsl-only mode binds the primary to the WSL2 NAT address; it is still
+    // this machine because the desktop app manages its own primary backend.
     expect(
       resolveRemoteOpenState({
         target: primaryTarget("http://172.29.112.1:14369"),

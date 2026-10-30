@@ -1,3 +1,8 @@
+/**
+ * macOS shows the access prompt on the server's own screen, which a remote client cannot answer, so
+ * a read gives up after a timeout. The Keychain read stays in flight: the next read joins it
+ * instead of stacking a second prompt, and picks up the token once someone allows access.
+ */
 import * as NodeModule from "node:module";
 
 import * as Clock from "effect/Clock";

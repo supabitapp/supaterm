@@ -37,7 +37,8 @@ const REPO_ROOT = NodePath.resolve(NodePath.dirname(NodeURL.fileURLToPath(import
 const MOBILE_ROOT = NodePath.join(REPO_ROOT, "apps/mobile");
 const ANDROID_PACKAGE = "com.supaterm.mobile";
 const APP_SCHEME = "supaterm";
-
+// expo-dev-launcher reads these off the manifest URL and updates the dev menu
+// preferences before the app loads, keeping captures free of dev chrome.
 const DEV_CLIENT_LAUNCH_FLAGS = "disableOnboarding=1&disableFab=1&disableAutoLaunch=1";
 const IOS_READY_FILENAME = "SupatermShowcaseReadyScene";
 const SERVER_HOST = "0.0.0.0";
@@ -68,7 +69,8 @@ const MOBILE_BUILD_ENV = {
   APP_VARIANT: "production",
   MOBILE_VERSION_POLICY: "appVersion",
   EXPO_NO_GIT_STATUS: "1",
-
+  // Lets the capture build require full screen on iPad so the app can rotate
+  // itself to landscape (see app.config.ts).
   SUPATERM_SHOWCASE_CAPTURE_BUILD: "1",
   JAVA_HOME:
     NodeProcess.env.JAVA_HOME ??
@@ -340,6 +342,8 @@ export function parseShowcaseCliArgs(args: ReadonlyArray<string>): CliOptions {
       } else if (SHOWCASE_THEMES.some((theme) => theme === value)) {
         themes.add(value as ShowcaseTheme);
       } else {
+        // The app silently falls back to its default palette for an unknown id,
+        // so reject it here rather than shipping a mislabeled screenshot.
         throw new Error(`Unsupported theme '${value}'. Use ${SHOWCASE_THEMES.join(", ")}, or all.`);
       }
       index += 1;
@@ -724,7 +728,8 @@ export async function startShowcaseEnvironments(
     track(captureServer);
     await waitForPort(port, `${environment.label} capture server`);
     await waitForShowcaseThreads(dbPath, environment.projectIds);
-
+    // The server begins listening before the ServerEnvironment layer
+    // persists the environment id, so poll rather than read once.
     const environmentId = await waitForFileContent(
       NodePath.join(baseDir, "userdata", "environment-id"),
       `${environment.label} environment id`,
@@ -921,6 +926,11 @@ async function iosSimulatorDataPath(udid: string): Promise<string> {
   return dataPath;
 }
 
+// generativeexperiencesd posts a "Ready for Apple Intelligence" follow-up
+// banner on an eligible device's first boot, and CoreFollowUp re-surfaces it on
+// every boot until the user dismisses it. Stamping the readiness marker before
+// boot makes the daemon skip the post, and dropping the CoreFollowUp store
+// clears a banner that a previous boot already queued.
 export async function suppressIosSystemFollowUps(udid: string): Promise<void> {
   const dataPath = await iosSimulatorDataPath(udid);
   const preferences = NodePath.join(dataPath, "Library/Preferences");
@@ -966,6 +976,9 @@ export async function normalizeIosSimulator(
   ]);
 }
 
+// iPadOS 26 windowing ("Chamois") runs UIRequiresFullScreen apps in a fixed
+// portrait compatibility window, which defeats the in-app landscape rotation
+// the capture build relies on.
 export async function ensureIosFullScreenAppsMode(udid: string): Promise<void> {
   const current = await commandOutput("xcrun", [
     "simctl",
@@ -977,7 +990,8 @@ export async function ensureIosFullScreenAppsMode(udid: string): Promise<void> {
     "SBChamoisWindowingEnabled",
   ]).catch(() => "");
   if (current.trim() === "0") return;
-
+  // The Settings toggle writes all three keys; SBChamoisWindowingEnabled
+  // alone is not honored on a freshly created device.
   for (const key of [
     "SBChamoisWindowingEnabled",
     "SBMedusaMultitaskingEnabled",
@@ -995,7 +1009,9 @@ export async function ensureIosFullScreenAppsMode(udid: string): Promise<void> {
       "false",
     ]);
   }
-
+  // A SpringBoard restart is not enough on a freshly created simulator (the
+  // first CI run captured with windowing still active), so reboot the device
+  // and verify the mode actually stuck.
   await runCommand("xcrun", ["simctl", "shutdown", udid]);
   await runCommand("xcrun", ["simctl", "boot", udid]);
   await runCommand("xcrun", ["simctl", "bootstatus", udid, "-b"]);
@@ -1059,23 +1075,6 @@ async function captureIos(
   if (capture.device.orientation === "landscape") {
     await ensureIosFullScreenAppsMode(simulator.udid);
   }
-  if (capture.device.fold) {
-    const command = NodeProcess.env.AGENT_DEVICE_PATH ?? "agent-device";
-    const target = [
-      "--platform",
-      "ios",
-      "--udid",
-      simulator.udid,
-      "--session",
-      `showcase-${simulator.udid}`,
-    ];
-    await runCommand(command, ["open", ...target]);
-    try {
-      await runCommand(command, ["fold", capture.device.fold, ...target]);
-    } finally {
-      await runCommand(command, ["close", ...target]);
-    }
-  }
   await normalizeIosSimulator(capture.appearance, simulator.udid);
   if (appPath) {
     await runCommand("xcrun", ["simctl", "uninstall", simulator.udid, ANDROID_PACKAGE]).catch(
@@ -1112,7 +1111,8 @@ async function captureIos(
       firstScene,
       "--showcaseTheme",
       capture.theme,
-
+      // The app rotates itself; Simulator menu UI scripting needs macOS
+      // Accessibility permission that CI runners do not grant to osascript.
       "--showcaseOrientation",
       capture.device.orientation ?? "portrait",
     ]);
@@ -1128,6 +1128,9 @@ async function captureIos(
       for (let attempt = 0; attempt < 2; attempt += 1) {
         const isLastAttempt = attempt === 1;
         try {
+          // A freshly installed Expo development build can spend well over 30s
+          // applying an already-bundled update after it reaches 100%. Killing it
+          // at that point sends the next capture back to the dev launcher.
           await waitForScene(120_000);
           break;
         } catch (error) {
@@ -1143,18 +1146,14 @@ async function captureIos(
       showcaseCaptureDirectory(outputDirectory, capture),
       `${scene}.png`,
     );
-    await runCommand("xcrun", [
-      "simctl",
-      "io",
-      simulator.udid,
-      "screenshot",
-      ...(capture.device.fold ? ["--display", capture.device.fold === "closed" ? "1" : "3"] : []),
-      destination,
-    ]);
+    await runCommand("xcrun", ["simctl", "io", simulator.udid, "screenshot", destination]);
     if (capture.device.orientation === "landscape") {
+      // A headless simulator keeps its display portrait while the rotated app
+      // renders sideways inside it; with Simulator.app attached the display
+      // itself rotates. Only post-rotate the former.
       const { width, height } = readPngDimensions(await NodeFSP.readFile(destination));
       if (height > width) {
-        await runCommand("sips", ["--rotate", capture.device.fold ? "90" : "270", destination]);
+        await runCommand("sips", ["--rotate", "270", destination]);
       }
     }
     await finalizeCapture(destination, capture.device);
@@ -1295,6 +1294,9 @@ async function writeAndroidShowcaseScene(serial: string, scene: ShowcaseScene): 
   ]);
 }
 
+// Gesture and key-command toggles have no launch-URL flag, so they still go
+// through the preferences file; onboarding, auto-launch and the floating button
+// come from DEV_CLIENT_LAUNCH_FLAGS on the launch URL.
 async function prepareAndroidShowcaseApp(serial: string): Promise<void> {
   const preferences = `<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
 <map>

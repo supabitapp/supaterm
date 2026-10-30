@@ -6,7 +6,7 @@ import {
 } from "@supaterm/shared/usageLimits";
 import { memo } from "react";
 
-import { useNowMinute } from "../../hooks/useNowMinute";
+import { useNowMinuteMs } from "../../hooks/useNowMinute";
 import { usePrimarySettings } from "../../hooks/useSettings";
 import { formatUpcomingTimestamp } from "../../timestampFormat";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -80,8 +80,7 @@ function WindowReset({
   readonly window: ServerProviderUsageWindow;
   readonly resetsAt: string;
 }) {
-  const minute = useNowMinute();
-  const now = Date.parse(`${minute}:00Z`);
+  const now = useNowMinuteMs();
   const timestampFormat = usePrimarySettings((settings) => settings.timestampFormat);
   const resetsIn = formatResetsIn(window, now);
   return (

@@ -1,19 +1,16 @@
-import {
-  projectMonogram,
-  preferredProjectColor,
-  projectColorKey,
-} from "@supaterm/shared/projectIdentity";
 import type { ProjectIconColor, ProjectIconOverride } from "@supaterm/contracts";
 import type { IconNode } from "@supaterm/icons/nodes";
 import { resolveProjectIcon } from "@supaterm/icons/project";
-import { isScratchProject } from "@supaterm/client-runtime/state/projects";
-import { isProjectFaviconFallbackUrl } from "@supaterm/shared/projectFavicon";
 
 export type ProjectIconGlyph =
   | { readonly kind: "emoji"; readonly emoji: string }
   | { readonly kind: "icon"; readonly node: IconNode; readonly color: ProjectIconColor }
   | { readonly kind: "monogram"; readonly text: string; readonly color: ProjectIconColor };
 
+/**
+ * Hermes has no Intl.Segmenter, so combining marks are folded into their base
+ * character instead of full grapheme segmentation.
+ */
 export function countGlyphs(text: string): number {
   return Array.from(text.replace(/\p{M}/gu, "")).length;
 }
@@ -60,33 +57,4 @@ const PROJECT_ICON_COLOR_CLASSES: Record<
 
 export function projectIconColorClassNames(color: ProjectIconColor) {
   return PROJECT_ICON_COLOR_CLASSES[color];
-}
-
-export function projectAutoMonogram(projectTitle: string): ProjectIconGlyph | null {
-  return projectTitle.trim()
-    ? {
-        kind: "monogram",
-        text: projectMonogram(projectTitle),
-        color: preferredProjectColor(projectColorKey(projectTitle)),
-      }
-    : null;
-}
-
-export type ProjectChipIcon = { readonly kind: "favicon"; readonly uri: string } | ProjectIconGlyph;
-
-export function resolveProjectChipIcon(
-  project: {
-    readonly title: string;
-    readonly workspaceRoot: string;
-    readonly projectIcon?: ProjectIconOverride | null;
-  } | null,
-  scratchWorkspaceRoot: string | null | undefined,
-  faviconUrl: () => string | null,
-): ProjectChipIcon | null {
-  if (!project || isScratchProject(project, scratchWorkspaceRoot)) return null;
-  const glyph = resolveProjectIconGlyph(project.projectIcon);
-  if (glyph) return glyph;
-  const url = faviconUrl();
-  if (url && !isProjectFaviconFallbackUrl(url)) return { kind: "favicon", uri: url };
-  return projectAutoMonogram(project.title);
 }

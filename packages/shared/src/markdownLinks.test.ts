@@ -4,7 +4,6 @@ import { extractMarkdownLinkHrefs, resolveMarkdownFileLinkTarget } from "./markd
 
 import {
   inlineCodeFilePathCandidate,
-  markdownDestinationHostPath,
   isMarkdownFileLinkLabel,
   parseMarkdownFileLink,
 } from "./markdownLinks.ts";
@@ -51,15 +50,6 @@ describe("parseMarkdownFileLink", () => {
   it("recognizes a relative folder that ends in a slash", () => {
     expect(parseMarkdownFileLink("patches/")).toEqual({ path: "patches/" });
     expect(parseMarkdownFileLink("docs/My%20Folder/")?.path).toBe("docs/My Folder/");
-  });
-
-  // regression: #16096 relative links with non-ASCII names open as files
-  it("recognizes relative paths with non-ASCII names", () => {
-    expect(parseMarkdownFileLink("pastexam/線性代數/exam_易志偉.pdf")?.path).toBe(
-      "pastexam/線性代數/exam_易志偉.pdf",
-    );
-    expect(parseMarkdownFileLink("Résumé%20final.pdf")?.path).toBe("Résumé final.pdf");
-    expect(parseMarkdownFileLink("資料.備份")?.path).toBe("資料.備份");
   });
 
   it("accepts conventional extensionless names with or without a position", () => {
@@ -162,16 +152,5 @@ describe("resolveMarkdownFileLinkTarget", () => {
     expect(resolveMarkdownFileLinkTarget("file:///c%3A/Users/x/shot.png")).toBe(
       "c:/Users/x/shot.png",
     );
-  });
-});
-
-describe("markdownDestinationHostPath", () => {
-  it.each([
-    ["/tmp/chart%20one.png?download=1#image", "/tmp/chart one.png"],
-    ["file:///C:/Users/me/shot.png", "C:/Users/me/shot.png"],
-    ["file://host/share/shot.png", String.raw`\\host\share\shot.png`],
-    ["file://[broken", null],
-  ])("resolves the authored host path %s", (source, expected) => {
-    expect(markdownDestinationHostPath(source)).toBe(expected);
   });
 });

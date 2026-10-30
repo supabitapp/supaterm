@@ -1,4 +1,8 @@
 import {
+  canonicalRepositoryKey,
+  sourceControlRepositorySelector,
+} from "@supaterm/shared/sourceControl";
+import {
   CommandId,
   type OrchestrationProjectShell,
   type OrchestrationV2DomainEvent,
@@ -18,13 +22,11 @@ import * as Schedule from "effect/Schedule";
 import type * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 
-import * as BackgroundPolicy from "../background/BackgroundPolicy.ts";
 import * as GitManager from "../git/GitManager.ts";
 import * as ProjectStore from "./ProjectStore.ts";
 import * as PullRequestService from "../pullRequest/PullRequestService.ts";
 import * as RepositoryIdentityResolver from "../project/RepositoryIdentityResolver.ts";
 import { forkParked } from "../serverActivation.ts";
-import { sourceControlDefinitions } from "../sourceControl/sourceControlDefinitions.ts";
 import * as Orchestrator from "./Orchestrator.ts";
 
 class ThreadPullRequestServiceV2 extends Context.Service<
@@ -55,8 +57,8 @@ function pullRequestMatchesProject(
   return (
     pullRequest.repositoryKey !== null &&
     project.repositoryIdentity != null &&
-    sourceControlDefinitions.canonicalRepositoryKey(pullRequest.repositoryKey) ===
-      sourceControlDefinitions.canonicalRepositoryKey(project.repositoryIdentity.canonicalKey)
+    canonicalRepositoryKey(pullRequest.repositoryKey) ===
+      canonicalRepositoryKey(project.repositoryIdentity.canonicalKey)
   );
 }
 
@@ -67,12 +69,14 @@ const resolveProjectForPullRequestDiscovery = Effect.fn(
   repositoryIdentities: RepositoryIdentityResolver.RepositoryIdentityResolver["Service"],
   options?: { readonly refresh?: boolean },
 ) {
+  // Identities stay cached for 15 minutes. A finished turn may have added the
+  // remote its pull request lives on, so post-turn discovery refreshes.
   const repositoryIdentity = yield* repositoryIdentities.resolve(project.workspaceRoot, {
     refresh: options?.refresh ?? false,
   });
   return {
     project: { ...project, repositoryIdentity },
-    repository: sourceControlDefinitions.repositorySelector(repositoryIdentity),
+    repository: sourceControlRepositorySelector(repositoryIdentity),
   };
 });
 
@@ -101,7 +105,6 @@ export const make = Effect.gen(function* () {
   const repositoryIdentities = yield* RepositoryIdentityResolver.RepositoryIdentityResolver;
   const crypto = yield* Crypto.Crypto;
   const fileSystem = yield* FileSystem.FileSystem;
-  const backgroundPolicy = yield* BackgroundPolicy.BackgroundPolicy;
   const pendingBackfill = new Map<ThreadId, number>();
 
   const finishBackfill = (threads: ReadonlyArray<Pick<OrchestrationV2ThreadShell, "id">>) => {
@@ -131,6 +134,8 @@ export const make = Effect.gen(function* () {
           })
           .pipe(NodeSqliteClient.readOnly)
       : Effect.gen(function* () {
+          // Read the sequence first. The thread is then at least this new, so a
+          // sync guarded by the sequence is rejected rather than missing a change.
           const snapshotSequence = yield* orchestrator.getThreadEventSequence(threadId);
           const thread = yield* orchestrator.getThreadShell(threadId);
           return { snapshotSequence, threads: thread === null ? [] : [thread] };
@@ -143,15 +148,9 @@ export const make = Effect.gen(function* () {
       readThreadSnapshot(request),
       projectStore.listShells(),
     ]);
-    const snapshotThreads =
-      request.threadId === null
-        ? threadSnapshot.threads.filter(
-            (thread) => thread.lineage.relationshipToParent !== "subagent",
-          )
-        : threadSnapshot.threads;
     const projects = new Map(projectShells.map((project) => [project.id, project]));
     if (request.backfill) {
-      for (const thread of snapshotThreads) {
+      for (const thread of threadSnapshot.threads) {
         if (
           (thread.doneOverride === "done" || thread.doneAt !== null) &&
           thread.branchPullRequest == null
@@ -161,13 +160,13 @@ export const make = Effect.gen(function* () {
       }
     }
     const visibleThreadIds = new Set(
-      snapshotThreads.filter((thread) => thread.branch !== null).map((thread) => thread.id),
+      threadSnapshot.threads.filter((thread) => thread.branch !== null).map((thread) => thread.id),
     );
     const checkedIds = request.threadId === null ? [...pendingBackfill.keys()] : [request.threadId];
     for (const threadId of checkedIds) {
       if (!visibleThreadIds.has(threadId)) pendingBackfill.delete(threadId);
     }
-    const threads = snapshotThreads.filter(
+    const threads = threadSnapshot.threads.filter(
       (thread) =>
         thread.archivedAt === null &&
         ((thread.doneOverride !== "done" && thread.doneAt === null) ||
@@ -304,6 +303,9 @@ export const make = Effect.gen(function* () {
             updates,
             ({ thread, branchPullRequest, replacement }) =>
               Effect.gen(function* () {
+                // Discovery can perform network I/O. Re-read the project at
+                // the transaction boundary so a deleted project or changed
+                // workspace root cannot apply a result from the old checkout.
                 const currentProject = yield* projectStore.getShell(project.id);
                 if (!projectWorkspaceMatchesSnapshot(currentProject, project.workspaceRoot)) {
                   return failBackfill([thread]);
@@ -327,13 +329,13 @@ export const make = Effect.gen(function* () {
                 });
                 pendingBackfill.delete(thread.id);
               }).pipe(
-                Effect.catchCauseIf(
-                  (cause) => !Cause.hasInterruptsOnly(cause),
-                  (cause) =>
-                    Effect.logWarning("thread pull request update failed", {
-                      threadId: thread.id,
-                      cause: Cause.pretty(cause),
-                    }).pipe(Effect.tap(() => Effect.sync(() => failBackfill([thread])))),
+                Effect.catchCause((cause) =>
+                  Cause.hasInterruptsOnly(cause)
+                    ? Effect.failCause(cause)
+                    : Effect.logWarning("thread pull request update failed", {
+                        threadId: thread.id,
+                        cause: Cause.pretty(cause),
+                      }).pipe(Effect.tap(() => Effect.sync(() => failBackfill([thread])))),
                 ),
               ),
             { discard: true },
@@ -398,7 +400,6 @@ export const make = Effect.gen(function* () {
         yield* worker.enqueue({ threadId: null, refresh: false, backfill: true });
         yield* worker.drain;
         yield* Effect.gen(function* () {
-          if (!(yield* backgroundPolicy.shouldRunOpportunisticWork)) return;
           yield* worker.enqueue({ threadId: null, refresh: false });
           yield* worker.drain;
         }).pipe(Effect.repeat(Schedule.spaced("1 minute")), Effect.delay("1 minute"));

@@ -52,10 +52,10 @@ See [images and videos](#images-and-videos-in-messages) for previewing and savin
 
 ## Send while the agent is working
 
-On web and desktop, choose **Settings → Chat → Follow-up behavior** to queue
+On web and desktop, choose **Settings → General → Follow-up behavior** to queue
 new messages for a later turn or steer the running turn immediately. The setting
 applies to this client; already queued messages keep their place. Queued messages
-are saved on the server and can be edited or removed above the composer.
+are saved on the server and can be edited, reordered, or removed above the composer.
 When Enter sends, `Cmd+Enter` on macOS or `Ctrl+Enter` on Windows and Linux uses
 the opposite action: it steers when your default is Queue and queues when your
 default is Steer.
@@ -75,7 +75,7 @@ including one still waiting to send. When the composer has text, press `Option+U
 on macOS or `Alt+Up` on Windows and Linux with the cursor at the start instead. Change
 `thread.editQueuedMessage` to use another shortcut for the latter.
 
-Mobile has the same choice under **Settings → Chat**. While a turn is
+Mobile has the same choice under **Settings → Follow-ups**. While a turn is
 running the send button shows which action it will take. Long-press it to use the
 other action for a single message, or hold `Cmd` while sending from a hardware
 keyboard. The button only offers Steer when the running agent supports it.
@@ -174,10 +174,11 @@ composer. A suggestion is never sent for you: it only fills the draft, and typin
 
 Suggestions work with every provider. Claude threads use Claude's own prediction, which reuses the
 turn's prompt cache, so it costs almost nothing. Other providers use the text generation model in
-**Settings > Threads → Text generation**, so each suggestion is a small request to that provider. Either way, nothing
+**Settings > General**, so each suggestion is a small request to that provider. Either way, nothing
 is suggested at the start of a thread, in plan mode, after an error, or when the next step is not
 obvious. Only replies from the last few hours get one, so opening an older thread costs nothing.
-They are on by default. Turn them off with **Next prompt suggestions** in **Settings > Chat**.
+They are on by default. Turn them off with **Next prompt suggestions** in **Settings > General**, or
+**Settings > Agent behavior** on mobile.
 
 ## Edit an earlier prompt
 
@@ -247,15 +248,15 @@ Steer. Click it or press your send shortcut to use that action. Hold `Cmd` on ma
 Windows and Linux to switch the button to the opposite action, then click, or use the opposite-action
 shortcut described above.
 
-On web and desktop, queued messages appear at the end of the thread; on mobile, above the
-composer. **Send now** sends a message immediately, steering the running turn when supported.
-You can also edit or remove a queued message. On web and desktop, removing takes two presses of the row's **X**
+Queued messages appear above the composer. Rows show a thumbnail of any attached image alongside
+the text. Drag a row by its handle to reorder it, use the handle's arrow keys, promote the message
+to a steer, or remove it. On web and desktop, removing takes two presses of the row's **X**
 because the message is discarded, not returned to the composer.
 
 If you stop the agent or the server restarts, queued messages keep their order and are held.
 Press **Resume** in an empty composer on web and desktop, or **Resume queue** on mobile, to
 continue. Sending a new message also resumes the queue, unless it steers a turn that is already
-running. You can edit or remove held messages without starting them. **Send now** on a
+running. You can edit, reorder, or remove held messages without starting them. **Send now** on a
 held row starts a turn with that message ahead of the others.
 
 The pencil on a queued row opens that message in the composer for editing. The original message
@@ -279,13 +280,13 @@ highlighted. On mobile,
 
 The slash menu also includes skills unless you turn off **Show skills in slash
 menu**, which also stops `/` from suggesting skills later in a message. It is in
-**Settings → Chat** on web and desktop, and **Settings → Chat** on
+**Settings → General** on web and desktop, and **Settings → Thread behavior** on
 mobile. Only skills enabled for the provider are listed.
 
 To install Supaterm's optional `supaterm-advisor` and `supaterm-commitee` skills,
-choose **Install** in **Settings → Integrations → Orchestration skills** on web and desktop,
-or **Settings → Threads → Orchestration skills** on mobile. Nothing installs automatically.
-Installation applies to all projects on the selected connected
+choose **Install** in **Settings → Integrations → Orchestration skills**
+on web and desktop, or **Settings → Agent behavior** on mobile. Nothing installs
+automatically. Installation applies to all projects on the selected connected
 environments and links the providers' native skill folders to Supaterm's bundled skills.
 With **All environments** selected, offline environments are skipped; reconnect
 and install again to include them.
@@ -306,17 +307,13 @@ provider supports it. Web and desktop also offer compaction from the context met
 With Codex and Claude, send `/goal` followed by what "done" means, for example
 `/goal all tests in packages/api pass`. The agent keeps working across turns
 until it judges the goal met. The thread shows **Goal** while it works, and a
-status at the end of the conversation shows the goal and its progress.
+row above the composer shows the goal and its progress.
 
 - `/goal` alone shows the current goal. `/goal clear` removes it.
 - Codex also supports `/goal pause` and `/goal resume`. Stopping a Codex goal
-  pauses it, as does Codex ending its work without meeting the goal.
+  pauses it.
 - Stopping Claude ends the current turn, but the goal stays set. Claude checks it
   again at the end of your next message.
-
-Sending a new goal or `/goal resume` during work interrupts the turn and starts the goal unless
-you queue it. `/goal clear` and `/goal pause` interrupt only a turn working on that goal. Other
-goal commands wait for the turn to finish.
 
 ## Context in your message
 
@@ -338,16 +335,13 @@ the repository by text. Choose a result to insert it as a chip. You can also dra
 from the thread's linked pull requests panel onto the composer.
 
 Another thread can be context too. Type `@` followed by part of its title to pick one from
-the same server or an authorized linked environment. Linked results show the machine name.
-On web and desktop, drag a thread out of the sidebar and drop it on the
+the same server, or on web and desktop drag a thread out of the sidebar and drop it on the
 composer; a multi-selection drops together. The chip shows the thread's current title and
 opens it when selected. Your prompt only carries a reference: the agent reads the thread's
 history on demand, so attaching a long thread costs nothing until the agent looks. Attaching a
 thread does not change it, and the agent cannot send messages to it unless you ask.
 
-**Copy thread** copies a chip that you can paste into another composer. References to authorized
-linked environments stay references the agent reads there. Dropping a thread from any other
-environment attaches a saved transcript file. The source
+Dropping a thread from another environment attaches a saved transcript file. The source
 environment must be connected and up to date. The transcript includes the visible history and
 saved text context at the time of the drop; later messages and the contents of attached files
 are not copied. The agent can read the saved transcript after the source disconnects. Normal
@@ -374,8 +368,7 @@ files show the copy that was attached to the message.
 
 ## Attached files
 
-Select a file chip in your draft or a sent message to preview it. ZIP attachments open a
-searchable file tree, including on mobile; select an entry to preview, save, or attach it. Code and JSON use syntax
+Select a file chip in your draft or a sent message to preview it. Code and JSON use syntax
 highlighting; Markdown, HTML, CSV, and TSV offer rendered and raw views. Audio files have
 playback controls. Large text files show a limited preview; save the file to read it in full.
 
@@ -416,10 +409,3 @@ including filenames or folders containing `#` or `?`.
 
 On mobile, select a PDF attachment or link to open it. iOS uses the native viewer;
 Android opens a compatible installed file viewer.
-
-## Private secrets
-
-When an agent requests a secret, enter it in the private card instead of a chat message.
-The card delivers it to the requested file on the environment running the task. The value is
-kept out of conversation history and tool-result text, but the agent and commands on that
-machine can read the delivered file. Review the destination before submitting.

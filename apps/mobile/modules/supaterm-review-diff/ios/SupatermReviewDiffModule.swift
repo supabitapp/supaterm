@@ -61,10 +61,6 @@ public class SupatermReviewDiffModule: Module {
         view.setInitialRowIndex(initialRowIndex)
       }
 
-      Prop("initialFileId") { (view: SupatermReviewDiffView, fileId: String) in
-        view.setInitialFileId(fileId)
-      }
-
       Prop("scrollEnabled") { (view: SupatermReviewDiffView, enabled: Bool) in
         view.setScrollEnabled(enabled)
       }
@@ -99,6 +95,9 @@ public class SupatermReviewDiffModule: Module {
         view.scrollToTop(animated: animated)
       }
 
+      // Large, frequently changing JSON values cannot be regular Fabric props. Expo's
+      // prop adapter compares strings on the main thread before invoking a setter, which
+      // makes a syntax-token patch capable of blocking a frame by itself.
       AsyncFunction("setRowsJson") { (view: SupatermReviewDiffView, rowsJson: String) in
         view.setRowsJson(rowsJson)
       }
@@ -107,10 +106,8 @@ public class SupatermReviewDiffModule: Module {
         view.setTokensJson(tokensJson)
       }
 
-      AsyncFunction("setTokensPatchJson") { (view: SupatermReviewDiffView, tokensPatchJson: String, promise: Promise) in
-        view.setTokensPatchJson(tokensPatchJson) { accepted in
-          promise.resolve(accepted)
-        }
+      AsyncFunction("setTokensPatchJson") { (view: SupatermReviewDiffView, tokensPatchJson: String) in
+        view.setTokensPatchJson(tokensPatchJson)
       }
     }
   }

@@ -1,4 +1,3 @@
-import { checkpointFileTotals } from "@supaterm/client-runtime/state/thread-checkpoints";
 import { type TimelineRow, TimelineRowCtx, TimelineRowActivityCtx } from "./timelineRowContext";
 import { MessageAuthorHeading, MESSAGE_HEADING_LEVEL } from "./TimelineRowParts";
 import { resolveAssistantMessageCopyState } from "./MessagesTimeline.logic";
@@ -55,14 +54,12 @@ export function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind
             />
           </AssistantCitationSource>
         </div>
-        {ctx.onOpenTurnDiff ? (
-          <AssistantChangedFilesSection
-            turnSummary={row.assistantTurnDiffSummary}
-            routeThreadKey={ctx.routeThreadKey}
-            resolvedTheme={ctx.resolvedTheme}
-            onOpenTurnDiff={ctx.onOpenTurnDiff}
-          />
-        ) : null}
+        <AssistantChangedFilesSection
+          turnSummary={row.assistantTurnDiffSummary}
+          routeThreadKey={ctx.routeThreadKey}
+          resolvedTheme={ctx.resolvedTheme}
+          onOpenTurnDiff={ctx.onOpenTurnDiff}
+        />
         {row.showAssistantMeta ? (
           <AssistantMessageMeta
             className="mt-1.5"
@@ -94,8 +91,7 @@ function AssistantForkButton({
     capabilities: support.providerSession?.capabilities,
   });
 
-  const onForkFromRun = ctx.onForkFromRun;
-  if (!canFork || onForkFromRun === undefined || projectedItem.item.runId === null) return null;
+  if (!canFork || projectedItem.item.runId === null) return null;
   const runId = projectedItem.item.runId;
 
   return (
@@ -109,9 +105,9 @@ function AssistantForkButton({
             disabled={busy}
             onClick={() => {
               setBusy(true);
-              void onForkFromRun({ sourceThreadId: projectedItem.sourceThreadId, runId }).finally(
-                () => setBusy(false),
-              );
+              void ctx
+                .onForkFromRun({ sourceThreadId: projectedItem.sourceThreadId, runId })
+                .finally(() => setBusy(false));
             }}
             aria-label="Fork from this response"
           />
@@ -253,9 +249,6 @@ export function HtmlRenderTimelineRow({
   const { onAppFullscreenChange } = ctx;
   const onFullscreenChange = (fullscreen: boolean) => onAppFullscreenChange(row.id, fullscreen);
 
-  if (ctx.renderHtmlRender) {
-    return <div className="min-w-0 px-1">{ctx.renderHtmlRender(row)}</div>;
-  }
   return (
     <div className="min-w-0 px-1">
       <HtmlRenderFrame
@@ -354,7 +347,6 @@ function AssistantChangedFilesSectionInner({
     <ChangedFilesCard
       runId={turnSummary.runId}
       files={checkpointFiles}
-      totals={checkpointFileTotals(turnSummary)}
       allDirectoriesExpanded={allDirectoriesExpanded}
       resolvedTheme={resolvedTheme}
       onToggleAllDirectories={() =>

@@ -1,39 +1,26 @@
-import * as Dialog from "../../components/ui/Dialog";
-import { RegistryContext, useAtomMount, useAtomValue } from "@effect/atom-react";
+import { useAtomValue } from "@effect/atom-react";
 import {
-  AuthProvidersManageScope,
   type EnvironmentId,
-  type ProviderConsumeResetCreditOutcome,
-  type ProviderConsumeResetCreditInput,
   type ServerProvider,
-  type ServerProviderResetCredits,
   type ServerProviderUsageWindow,
 } from "@supaterm/contracts";
 import {
-  formatDuration,
   formatResetsIn,
   limitsNotice,
   paceOf,
   paceRemainingPercent,
   remainingPercent,
 } from "@supaterm/shared/usageLimits";
-import { type ReactNode, useContext, useRef, useState } from "react";
-import { Atom } from "effect/reactivity";
+import { type ReactNode, useEffect, useEffectEvent, useRef, useState } from "react";
+import { refreshUsageLimits } from "@supaterm/client-runtime/state/usage";
 import { Linking, Pressable, View } from "react-native";
 
 import { AppText as Text } from "../../components/ui/AppText";
 import { ProviderIcon } from "../../components/ProviderIcon";
 import { environmentPresentations } from "../../state/presentation";
 import { serverEnvironment } from "../../state/server";
-import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
+
 import { useAtomCommand } from "../../state/use-atom-command";
-import { useNowMinuteMs } from "../../lib/clock";
-import {
-  environmentIdsKey,
-  limitsAutoRefreshSetAtom,
-  limitsRefreshFailuresAtom,
-  refreshEnvironmentLimits,
-} from "./usageLimitsRefresh";
 import { usageProviderKind, useProviderColors } from "./usageProviders";
 
 const PACE_LABEL = { ahead: "ahead of pace", on: "on pace", under: "under pace" } as const;
@@ -98,7 +85,7 @@ function WindowRow(props: {
           bar
         ) : (
           <View className="h-1.5">
-            {}
+            {/* Clip the same full-width bar so neither fill proportions nor corner radii change. */}
             {(
               [
                 [0, tickX - 3],
@@ -217,152 +204,80 @@ export function AccountLimits(props: {
   );
 }
 
-const OUTCOME_TEXT: Record<ProviderConsumeResetCreditOutcome, string> = {
-  reset: "Reset applied. Your windows have cleared.",
-  nothingToReset: "Nothing to reset right now.",
-  noCredit: "No reset credit left.",
-  alreadyRedeemed: "That credit was already redeemed.",
-};
-
-export function ResetCredits(props: {
-  readonly environmentId: EnvironmentId;
-  readonly input: ProviderConsumeResetCreditInput;
-  readonly credits: ServerProviderResetCredits;
-  readonly now: number;
-  readonly dense?: boolean;
-}) {
-  const { environmentId, input, credits, now, dense = false } = props;
-  const canManageProviders = useEnvironmentScope(environmentId, AuthProvidersManageScope);
-  const consume = useAtomCommand(serverEnvironment.consumeResetCredit, {
-    reportFailure: false,
-  });
-  const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
-  if (dense && credits.availableCount === 0 && status === null) return null;
-
-  const expiresIn = credits.nextExpiresAt
-    ? formatDuration(Date.parse(credits.nextExpiresAt) - now)
-    : null;
-  const summary =
-    credits.availableCount === 0
-      ? "No reset credits banked"
-      : `${credits.availableCount} ${credits.availableCount === 1 ? "reset credit" : "reset credits"} banked${
-          expiresIn ? ` · next expires in ${expiresIn}` : ""
-        }`;
-
-  const redeem = async () => {
-    if (!readEnvironmentScope(environmentId, AuthProvidersManageScope)) return;
-    setBusy(true);
-    setStatus(null);
-    const result = await consume({ environmentId, input });
-    setBusy(false);
-    if (result._tag === "Success") {
-      setStatus(result.value.warning ?? OUTCOME_TEXT[result.value.outcome]);
-      return;
-    }
-    setStatus(
-      "error" in result.cause && result.cause.error instanceof Error
-        ? result.cause.error.message
-        : "Could not use the reset credit.",
-    );
-  };
-
-  const confirm = () => {
-    if (!readEnvironmentScope(environmentId, AuthProvidersManageScope)) return;
-    Dialog.alert(
-      "Use a reset credit?",
-      "This redeems one credit on your account and clears the current rate-limit windows. It cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Use credit", onPress: () => void redeem() },
-      ],
-    );
-  };
-
-  return (
-    <View className="flex-row flex-wrap items-center gap-x-3 gap-y-1">
-      <Text className="text-xs tabular-nums text-foreground-tertiary">{summary}</Text>
-      {credits.availableCount > 0 ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ disabled: busy || !canManageProviders }}
-          disabled={busy || !canManageProviders}
-          onPress={confirm}
-          className={
-            dense
-              ? "rounded-full bg-subtle-strong px-2.5 py-1 disabled:opacity-[0.45]"
-              : "min-h-[44px] justify-center rounded-full bg-subtle-strong px-3 py-1.5 disabled:opacity-[0.45]"
-          }
-        >
-          <Text
-            className={
-              dense
-                ? "text-xs font-supaterm-medium text-foreground"
-                : "text-sm font-supaterm-medium text-foreground"
-            }
-          >
-            {busy ? "Using…" : "Use reset"}
-          </Text>
-        </Pressable>
-      ) : null}
-      {!canManageProviders ? (
-        <Text className="text-xs text-foreground-tertiary">
-          This connection cannot manage provider accounts.
-        </Text>
-      ) : null}
-      {status ? <Text className="text-sm text-foreground">{status}</Text> : null}
-    </View>
-  );
-}
-
-const IDLE_ATOM = Atom.make(undefined);
-
 export function useRefreshLimits(
   selectedEnvironmentIds: ReadonlySet<EnvironmentId> | null = null,
   active = false,
 ) {
-  const registry = useContext(RegistryContext);
   const presentations = useAtomValue(environmentPresentations.presentationsAtom);
-  const now = useNowMinuteMs();
+  const refreshProviders = useAtomCommand(serverEnvironment.refreshProviders, {
+    reportFailure: false,
+  });
+  const [now, setNow] = useState(() => Date.now());
   const [refreshing, setRefreshing] = useState(false);
   const refreshingRef = useRef(false);
-  const selected = [...presentations].filter(
-    ([environmentId]) =>
-      selectedEnvironmentIds === null || selectedEnvironmentIds.has(environmentId),
-  );
-  const connectedIds = selected.flatMap(([environmentId, presentation]) =>
-    presentation.connection.phase === "connected" ? [environmentId] : [],
-  );
-  const connectedKey = environmentIdsKey(connectedIds);
-  useAtomMount(active && connectedKey !== "" ? limitsAutoRefreshSetAtom(connectedKey) : IDLE_ATOM);
-  const failedIds = new Set(
-    useAtomValue(limitsRefreshFailuresAtom(environmentIdsKey(selected.map(([id]) => id)))),
-  );
-  const failedLabels = selected.flatMap(([environmentId, presentation]) =>
-    failedIds.has(environmentId) ? [presentation.entry.target.label] : [],
-  );
-
-  const refresh = (afterPending: boolean) =>
-    Promise.all(
-      connectedIds.map((environmentId) =>
-        refreshEnvironmentLimits(registry, environmentId, { afterPending }),
-      ),
+  const [failedEnvironments, setFailedEnvironments] = useState<
+    readonly { environmentId: EnvironmentId; label: string }[]
+  >([]);
+  const refresh = async (automatic = false, afterPending = false) => {
+    const connected = [...presentations].filter(
+      ([environmentId, presentation]) =>
+        presentation.connection.phase === "connected" &&
+        (selectedEnvironmentIds === null || selectedEnvironmentIds.has(environmentId)),
     );
-
+    await Promise.all(
+      connected.map(async ([environmentId, presentation]) => {
+        const result = await refreshUsageLimits(
+          environmentId,
+          () => refreshProviders({ environmentId, input: {} }),
+          automatic,
+          afterPending,
+        );
+        if (result === undefined) return;
+        setFailedEnvironments((previous) => [
+          ...previous.filter((failed) => failed.environmentId !== environmentId),
+          ...(result._tag === "Failure"
+            ? [{ environmentId, label: presentation.entry.target.label }]
+            : []),
+        ]);
+      }),
+    ).finally(() => setNow(Date.now()));
+  };
+  // Always toggles `refreshing`, even with nothing to probe: Android's
+  // RefreshControl keeps its spinner up until it sees true then false.
   const refreshManually = async () => {
     if (refreshingRef.current) return;
     refreshingRef.current = true;
     setRefreshing(true);
-    await refresh(false).finally(() => {
+    await refresh().finally(() => {
       refreshingRef.current = false;
       setRefreshing(false);
     });
   };
+  const connectedLimitsEnvironments = [...presentations]
+    .flatMap(([environmentId, presentation]) =>
+      presentation.connection.phase === "connected" &&
+      (selectedEnvironmentIds === null || selectedEnvironmentIds.has(environmentId))
+        ? [environmentId]
+        : [],
+    )
+    .sort()
+    .join(",");
+  const autoRefreshLimits = useEffectEvent(() => refresh(true));
+  useEffect(() => {
+    if (active && connectedLimitsEnvironments) void autoRefreshLimits();
+  }, [active, connectedLimitsEnvironments]);
+
+  const failedLabels = failedEnvironments
+    .filter(
+      ({ environmentId }) =>
+        selectedEnvironmentIds === null || selectedEnvironmentIds.has(environmentId),
+    )
+    .map(({ label }) => label);
   return {
     now,
     refreshing,
     failedLabels,
     refresh: refreshManually,
-    refreshAfterEnable: () => refresh(true),
+    refreshAfterEnable: () => refresh(false, true),
   };
 }

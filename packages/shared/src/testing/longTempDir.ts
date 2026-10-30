@@ -3,7 +3,10 @@ import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
 import * as HostProcess from "../HostProcess.ts";
 
-// Windows runner temp paths use 8.3 names; canonicalize to long names before equality checks.
+// GitHub's Windows runners hand out the temp directory by its 8.3 short name
+// (C:\Users\RUNNER~1\...). Anything that canonicalises a path, such as git or
+// realpath, reports the long form, so equality checks between a temp path and
+// its canonical form fail.
 if (HostProcess.Platform.defaultValue() === "win32") {
   try {
     const longForm = NodeFS.realpathSync.native(NodeOS.tmpdir());

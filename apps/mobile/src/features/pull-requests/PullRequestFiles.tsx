@@ -1,7 +1,10 @@
-import { NativeScrollView } from "../../native/NativeScrollViewMarker";
-import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { AnimatedLegendList } from "@legendapp/list/reanimated";
-import { StackActions, useNavigation, type StaticScreenProps } from "@react-navigation/native";
+import {
+  StackActions,
+  useNavigation,
+  useRoute,
+  type StaticScreenProps,
+} from "@react-navigation/native";
 import type { PullRequestChangeBreakdown } from "@supaterm/contracts";
 import { useState } from "react";
 import { Platform, View } from "react-native";
@@ -31,7 +34,6 @@ import {
 } from "./usePullRequestDiff";
 import { usePullRequestFileFilter } from "./usePullRequestFileFilter";
 import { usePullRequestFilesViewed } from "./usePullRequestFilesViewed";
-import { pullRequestFileJumpScope, requestPullRequestFileJump } from "./pullRequestFileJump";
 
 const BREAKDOWN_LABELS = {
   code: "Code",
@@ -47,13 +49,10 @@ function fileDirectory(path: string) {
 }
 
 function useChangedFiles(params: PullRequestDiffParams) {
+  const diff = usePullRequestDiff(params);
   const detail = useEnvironmentQuery(composerPullRequests.detail(pullRequestTarget(params)));
-
+  // A commit's diff is part of the pull request, so the PR's file counts and viewed state don't apply.
   const pr = params.commit ? null : detail.data;
-  const terminology = sourceControlClients.get(
-    (detail.data ?? params.initialSummary)?.provider,
-  ).changeRequest;
-  const diff = usePullRequestDiff(params, terminology);
   const viewed = usePullRequestFilesViewed(params, pr);
   const filter = usePullRequestFileFilter(diff.parsed);
   const parsed = filter.parsed;
@@ -62,7 +61,6 @@ function useChangedFiles(params: PullRequestDiffParams) {
     filter,
     viewed,
     pr,
-    terminology,
     parsed,
     loading: diff.isPending && parsed.kind === "empty" && !diff.error,
   };
@@ -95,7 +93,7 @@ function describeFiles(
 function FileRow(props: {
   readonly file: ReviewRenderableFile;
   readonly viewed: boolean;
-
+  /** Shown under the file name where files aren't grouped by directory. */
   readonly directory?: string;
   readonly onPress: () => void;
 }) {
@@ -247,6 +245,10 @@ function ChangeBreakdownLine(props: {
   );
 }
 
+/**
+ * The changed-files section of the pull request overview. The overview tab is a single list,
+ * so the section supplies its header, rows, and footer instead of rendering a list of its own.
+ */
 export function usePullRequestFilesSection(params: PullRequestParams) {
   const navigation = useNavigation();
   const files = useChangedFiles(params);
@@ -259,7 +261,7 @@ export function usePullRequestFilesSection(params: PullRequestParams) {
     refresh: diff.refresh,
     header: (
       <>
-        <PullRequestReadStatus pending={false} error={diff.error} terminology={files.terminology} />
+        <PullRequestReadStatus pending={false} error={diff.error} />
         {loading ? (
           <View
             accessibilityLabel="Loading changed files"
@@ -391,10 +393,11 @@ function DirectoryRow(props: {
   );
 }
 
+/** The `PullRequestFiles` sheet: a changed-file picker presented over a file diff. */
 export function PullRequestFilesSheet({ route }: StaticScreenProps<PullRequestDiffParams>) {
   const params = route.params;
   const navigation = useNavigation();
-  const jumpScope = pullRequestFileJumpScope(params);
+  const fileSelectionId = useRoute().key;
   const files = useChangedFiles(params);
   const { diff, filter, viewed, parsed, loading } = files;
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
@@ -412,7 +415,7 @@ export function PullRequestFilesSheet({ route }: StaticScreenProps<PullRequestDi
         title="Changed files"
         subtitle={`#${params.number} · ${params.commit?.slice(0, 7) ?? params.repository}`}
         onClose={() => navigation.goBack()}
-
+        // iOS gets the native menu below; SheetHeader would render this as a custom bar item.
         trailing={Platform.OS === "android" ? <FileFilterMenu filter={filter} /> : undefined}
       />
       <Toolbar placement="right">
@@ -432,7 +435,6 @@ export function PullRequestFilesSheet({ route }: StaticScreenProps<PullRequestDi
       </Toolbar>
       <ScreenContent>
         <AnimatedLegendList
-          renderScrollComponent={Platform.OS === "ios" ? NativeScrollView : undefined}
           className="flex-1"
           data={parsed.kind === "files" ? groupByDirectory(parsed.files, collapsed) : []}
           keyExtractor={(item) => item.key}
@@ -454,16 +456,15 @@ export function PullRequestFilesSheet({ route }: StaticScreenProps<PullRequestDi
                 <FileRow
                   file={item.file}
                   viewed={viewed.isViewed(item.file.path)}
-                  onPress={() => {
-                    requestPullRequestFileJump(jumpScope, item.file.path);
+                  onPress={() =>
                     navigation.dispatch(
                       StackActions.popTo("PullRequestFile", {
                         ...params,
                         path: item.file.path,
-                        focus: undefined,
+                        fileSelectionId,
                       }),
-                    );
-                  }}
+                    )
+                  }
                 />
               )}
             </Animated.View>
@@ -473,11 +474,7 @@ export function PullRequestFilesSheet({ route }: StaticScreenProps<PullRequestDi
           estimatedItemSize={64}
           ListHeaderComponent={
             <>
-              <PullRequestReadStatus
-                pending={false}
-                error={diff.error}
-                terminology={files.terminology}
-              />
+              <PullRequestReadStatus pending={false} error={diff.error} />
               {parsed.kind === "files" ? (
                 <View className="flex-row items-center gap-2 py-2">
                   <Text textRole="caption" className="min-w-0 flex-1 text-foreground-muted">

@@ -1,3 +1,12 @@
+/**
+ * A user bubble sizes itself from its content (`maxWidth` with no `width`), so
+ * Android lays the bubble's children out during the unclamped intrinsic pass —
+ * where the surrounding paragraphs collapse to a single line — and never
+ * repositions them once the width is clamped back to `maxWidth`. Ordered lists
+ * hit the same Android layout bug because each item contains a flexing content
+ * column inside a shrink-to-fit row.
+ */
+
 const FENCED_CODE_BLOCK = /^ {0,3}(?:```|~~~)/m;
 const ORDERED_LIST_ITEM = /^ {0,3}\d{1,9}[.)](?:[ \t]+|$)/;
 const INDENTED_ORDERED_LIST_ITEM = /^( {4,})\d{1,9}[.)](?:[ \t]+|$)/;
@@ -23,6 +32,7 @@ function hasIndentedCodeBlock(text: string): boolean {
     let column = 0;
     let index = 0;
 
+    // Markdown tabs advance to the next four-column stop.
     while (index < line.length) {
       if (line[index] === " ") {
         column += 1;

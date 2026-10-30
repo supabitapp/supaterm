@@ -1,5 +1,3 @@
-import { useAtomValue } from "@effect/atom-react";
-import { deviceStreamScreenAtom } from "../device/deviceStreamSession";
 import { FILL_PREVIEW_VIEWPORT, type ScopedThreadRef } from "@supaterm/contracts";
 import { shouldShowFloatingBrowser } from "@supaterm/client-runtime/preview/floating-browser";
 import { previewPdfAssetUrl } from "@supaterm/shared/preview";
@@ -12,7 +10,6 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  useId,
 } from "react";
 
 import { useChatCanvas } from "../chat/ChatCanvasContext";
@@ -51,6 +48,7 @@ import { useRightPanelStore } from "~/rightPanelStore";
 import { useDeviceState } from "~/state/device";
 
 import { DeviceStreamView } from "../device/DeviceStreamView";
+import type { DeviceScreenSize } from "@supaterm/client-runtime/device/stream";
 import type { PreviewStreamViewport } from "@supaterm/client-runtime/preview/server-browser-stream";
 import { previewBridge } from "./previewBridge";
 import { showPreviewPopup } from "./showPreviewPopup";
@@ -281,8 +279,7 @@ function DeviceMiniPlayer({
   miniPlayer,
 }: Props & { readonly source: Extract<PreviewMiniPlayerSource, { kind: "device" }> }) {
   const { state: deviceState } = useDeviceState(threadRef.environmentId);
-  const viewId = useId();
-  const screen = useAtomValue(deviceStreamScreenAtom(viewId));
+  const [screen, setScreen] = useState<DeviceScreenSize | null>(null);
   const sourceSize = resolveDeviceMiniPlayerSourceSize(source.platform, screen);
   const device = deviceState.devices.find(
     (entry) => entry.hostId === source.hostId && entry.id === source.deviceId,
@@ -324,7 +321,7 @@ function DeviceMiniPlayer({
             deviceName={device?.name ?? source.name}
             deviceDescription={`${hostLabel} · ${device?.version ?? source.platform}`}
             visible
-            viewId={viewId}
+            onScreen={setScreen}
           />
         </div>
       )}
@@ -370,7 +367,6 @@ function MiniPlayerShell({
   const [pillOpen, setPillOpen] = useState(false);
   const handleTappedRef = useRef(false);
   const handleRef = useRef<HTMLDivElement | null>(null);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- document pointerdown listener closes the open pill on an outside press
   useEffect(() => {
     if (!pillOpen) return;
     const dismiss = (event: PointerEvent) => {
@@ -397,7 +393,6 @@ function MiniPlayerShell({
   const { width: sourceWidth, height: sourceHeight } = sourceSize;
   const reportPreview = canvas?.reportPreview;
   const clearPreview = canvas?.clearPreview;
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers the visible preview geometry with this pane's canvas layout registry
   useLayoutEffect(() => {
     if (!visible) {
       clearPreview?.(sourceKey);
@@ -421,7 +416,6 @@ function MiniPlayerShell({
     visible,
     clearPreview,
   ]);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- releases this preview's canvas registry entry when its source or owning canvas changes
   useLayoutEffect(() => () => clearPreview?.(sourceKey), [clearPreview, sourceKey]);
 
   const radius = frame ? cornerRadius(frame) : PREVIEW_MINI_PLAYER_CORNER_RADIUS;

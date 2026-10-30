@@ -106,12 +106,14 @@ const handleCheckForUpdatesMenuClick = Effect.gen(function* () {
     return;
   }
 
+  // The result dialogs need no main window. Opening one before the backend
+  // answers strands the renderer on a failed auth bootstrap.
   const desktopWindow = yield* DesktopWindow.DesktopWindow;
   yield* desktopWindow.activate;
   yield* checkForUpdatesFromMenu;
 }).pipe(Effect.withSpan("desktop.menu.handleCheckForUpdatesClick"));
 
-/** @public */
+/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const electronMenu = yield* ElectronMenu.ElectronMenu;
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
@@ -141,7 +143,10 @@ export const make = Effect.gen(function* () {
     const settingsClick = () => {
       runMenuEffect("open-settings", dispatchMenuAction("open-settings"));
     };
-
+    // Chromium already pastes as plain text for this chord, so the accelerator
+    // needs nothing from the menu: the composer and the terminal each arm
+    // themselves from the same keydown. Routing it through the renderer anyway
+    // lands a second, injected paste and doubles the text.
     const pasteAsTextClick = (
       _item: Electron.MenuItem,
       _window: Electron.BaseWindow | undefined,
@@ -199,10 +204,7 @@ export const make = Effect.gen(function* () {
                 },
                 { type: "separator" as const },
               ]),
-
-          environment.platform === "darwin"
-            ? { label: "Close Window", click: (_item, window) => window?.close() }
-            : { role: "quit" },
+          { role: environment.platform === "darwin" ? "close" : "quit" },
         ],
       },
       {
@@ -290,16 +292,7 @@ export const make = Effect.gen(function* () {
           { role: "togglefullscreen" },
         ],
       },
-      {
-        role: "windowMenu",
-        submenu: [
-          { role: "minimize" },
-          { role: "zoom" },
-          ...(environment.platform === "darwin"
-            ? [{ type: "separator" as const }, { role: "front" as const }]
-            : []),
-        ],
-      },
+      { role: "windowMenu" },
       {
         role: "help",
         submenu: [

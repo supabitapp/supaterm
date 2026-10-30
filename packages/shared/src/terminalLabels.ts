@@ -26,7 +26,10 @@ export function resolveTerminalSessionLabel(
   return getTerminalLabel(terminalId);
 }
 
-/** Append a UUID when metadata is unavailable to avoid reusing unseen host sessions. */
+/**
+ * When metadata is unavailable, callers append a UUID so an unseen host session
+ * cannot be reused accidentally.
+ */
 export function nextTerminalId(
   existingTerminalIds: ReadonlyArray<string>,
   uniqueSuffix?: string,

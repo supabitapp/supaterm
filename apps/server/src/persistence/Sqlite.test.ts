@@ -11,23 +11,6 @@ import * as SqlClient from "effect/sql/SqlClient";
 
 import * as SqlitePersistence from "./Sqlite.ts";
 
-it.effect("keeps temporary statement journals in memory", () =>
-  Effect.gen(function* () {
-    const sql = yield* SqlClient.SqlClient;
-    const rows = yield* sql<{ readonly temp_store: number }>`PRAGMA temp_store`;
-    assert.equal(rows[0]?.temp_store, 2);
-    yield* sql`CREATE TABLE temporary_sort_probe(value TEXT)`;
-    yield* sql`INSERT INTO temporary_sort_probe VALUES ('b'), ('a')`;
-    const sorted = yield* sql<{ readonly value: string }>`
-      SELECT value FROM temporary_sort_probe ORDER BY value
-    `;
-    assert.deepEqual(
-      sorted.map((row) => row.value),
-      ["a", "b"],
-    );
-  }).pipe(Effect.provide(SqlitePersistence.layerMemory)),
-);
-
 it.effect("drops planner statistics a database already has", () => {
   const tempDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "supaterm-sqlite-stats-"));
   const dbPath = NodePath.join(tempDir, "state.sqlite");

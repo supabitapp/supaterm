@@ -215,7 +215,8 @@ export function loadGhosttyKeyboardLayoutMap(): Promise<GhosttyKeyboardLayoutMap
   return promise;
 }
 
-// Browsers omit consumed modifiers; treat Shift as consumed for unchorded characters.
+// Browsers do not expose consumed modifiers; treat Shift as consumed for
+// unchorded character input.
 export function ghosttyConsumedMods(
   event: Pick<KeyboardEvent, "altKey" | "ctrlKey" | "key" | "metaKey" | "shiftKey">,
 ): number {
@@ -240,7 +241,8 @@ export function ghosttyUnshiftedCodepoint(
     if (lowercase !== event.key && [...lowercase].length === 1) {
       return lowercase.codePointAt(0) ?? 0;
     }
-    // Without layout data, the unshifted character is unknown; guessing corrupts Kitty alternate keys.
+    // Without layout data the unshifted form of a shifted key is unknowable;
+    // reporting the shifted character as unshifted corrupts Kitty alternate keys.
     return 0;
   }
   return event.key.codePointAt(0) ?? 0;

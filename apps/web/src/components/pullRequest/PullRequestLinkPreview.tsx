@@ -49,9 +49,9 @@ export function PullRequestLinkPreview({
   const [open, setOpen] = useState(false);
   const previewActionsRef = useRef<PreviewCardPrimitive.Root.Actions | null>(null);
   const [resolvingClick, setResolvingClick] = useState(false);
-  const previewQuery = useEnvironmentQuery(
+  const detailQuery = useEnvironmentQuery(
     open
-      ? pullRequestEnvironment.previewCard({
+      ? pullRequestEnvironment.detail({
           environmentId: target.environmentId,
           input: target.input,
         })
@@ -84,19 +84,19 @@ export function PullRequestLinkPreview({
           },
         })
       : link;
-  const preview = previewQuery.data;
-  const showCard = preview !== null || (previewQuery.error !== null && fallback !== undefined);
-  const showUrlTooltip = open && previewQuery.error !== null && !showCard;
+  const detail = detailQuery.data;
+  const showCard = detail !== null || (detailQuery.error !== null && fallback !== undefined);
+  const showUrlTooltip = open && detailQuery.error !== null && !showCard;
   const state =
-    preview === null
+    detail === null
       ? null
-      : resolvePullRequestState({ state: preview.state, isDraft: preview.isDraft });
+      : resolvePullRequestState({ state: detail.state, isDraft: detail.isDraft });
   const authorLabel =
-    preview?.author === null
+    detail?.author === null
       ? "ghost"
-      : preview?.author.name && preview.author.name !== preview.author.login
-        ? `${preview.author.name} (@${preview.author.login})`
-        : (preview?.author.login ?? null);
+      : detail?.author.name && detail.author.name !== detail.author.login
+        ? `${detail.author.name} (@${detail.author.login})`
+        : (detail?.author.login ?? null);
 
   return (
     <PreviewCard open={open} onOpenChange={setOpen} actionsRef={previewActionsRef}>
@@ -116,13 +116,13 @@ export function PullRequestLinkPreview({
       {showCard ? (
         <PreviewCardPopup align="center" className="w-80 max-w-[calc(100vw-2rem)]">
           <div className="p-3">
-            {preview === null ? (
+            {detail === null ? (
               fallback
             ) : (
               <div className="min-w-0">
                 <div className="flex min-w-0 items-center gap-1.5 text-2xs text-muted-foreground">
-                  <span className="min-w-0 truncate">{preview.repository}</span>
-                  <span className="shrink-0">#{preview.number}</span>
+                  <span className="min-w-0 truncate">{detail.repository}</span>
+                  <span className="shrink-0">#{detail.number}</span>
                   <span aria-hidden>·</span>
                   {state === null ? null : (
                     <span className="inline-flex shrink-0 items-center gap-1">
@@ -132,14 +132,14 @@ export function PullRequestLinkPreview({
                   )}
                 </div>
                 <p className="mt-1 text-sm font-medium leading-snug text-foreground text-pretty">
-                  {preview.title}
+                  {detail.title}
                 </p>
                 <div className="mt-2 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-                  <PullRequestActorAvatar actor={preview.author} className="size-4" />
+                  <PullRequestActorAvatar actor={detail.author} className="size-4" />
                   <span className="min-w-0 truncate">{authorLabel}</span>
                   <span aria-hidden>·</span>
                   <span className="shrink-0">
-                    opened <RelativeTime timestamp={preview.createdAt} />
+                    opened <RelativeTime timestamp={detail.createdAt} />
                   </span>
                 </div>
               </div>

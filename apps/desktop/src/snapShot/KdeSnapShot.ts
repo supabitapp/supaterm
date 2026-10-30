@@ -36,7 +36,7 @@ function kdeCaptureDesktopEntry(executable: string): string {
     "Name=Supaterm SnapShots",
     "NoDisplay=true",
     `Exec=${escapeDesktopEntryExecArgument(executable)} check`,
-
+    // KService reads this custom property as a KConfig list, not an XDG ';' list.
     "X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2",
     MARKER,
     "",
@@ -180,9 +180,10 @@ export class KdeCaptureSetup {
         await NodeFSP.rm(staging, { recursive: true, force: true });
       }
     }
-
+    // KService must see the new desktop entry before KWin checks the executable.
     await run("kbuildsycoca6", ["--noincremental"]);
-
+    // AppImages change XDG search paths, and KService caches are also locale-specific.
+    // Refresh Plasma's cache in its session environment, not just the app's cache.
     await run("systemd-run", [
       "--user",
       "--quiet",

@@ -1,6 +1,3 @@
-import { pipe } from "effect/Function";
-import * as Option from "effect/Option";
-import { Atom } from "effect/reactivity";
 import {
   DEFAULT_MODEL_BY_PROVIDER,
   defaultInstanceIdForDriver,
@@ -21,35 +18,6 @@ import {
 } from "@supaterm/client-runtime/state/provider-instance-display";
 
 export { normalizeProviderAccentColor, shouldShowInstanceBadge };
-
-export function createProviderModelSelectionsAtom(
-  entries: Atom.Atom<ReadonlyArray<ProviderInstanceEntry> | null>,
-) {
-  type Selections = ReadonlyArray<ModelSelection> | null;
-  const prune = (
-    selections: Selections,
-    providers: ReadonlyArray<ProviderInstanceEntry> | null,
-  ) => {
-    if (selections === null || providers === null) return selections;
-    const disabled = new Set(
-      providers.filter((entry) => !entry.enabled).map((entry) => entry.instanceId),
-    );
-    const next = selections.filter((selection) => !disabled.has(selection.instanceId));
-    return next.length === selections.length ? selections : next;
-  };
-  return Atom.writable<Selections, Selections>(
-    (get) => {
-      const selections = Option.getOrNull(get.self<Selections>());
-      return selections === null || selections.length === 0
-        ? selections
-        : prune(selections, get(entries));
-    },
-    (ctx, selections) => {
-      ctx.setSelf(selections === null ? null : prune(selections, ctx.get(entries)));
-      ctx.refreshSelf();
-    },
-  );
-}
 
 /**
  * Local-only placeholder used while a draft has no provider it can safely
@@ -207,20 +175,7 @@ function applyProviderInstanceBranding(
   };
 }
 
-/** Picker order: each driver's default instance first, then its custom instances. */
-export function providerInstanceEntriesFor(
-  providers: ReadonlyArray<ServerProvider>,
-  settings: Pick<ServerSettings, "providerInstances" | "projectSettingsOverrides">,
-  projectId: ProjectId | null,
-): ReadonlyArray<ProviderInstanceEntry> {
-  return pipe(
-    deriveProviderInstanceEntries(providers),
-    (entries) => applyProviderInstanceSettings(entries, settings, projectId),
-    sortProviderInstanceEntries,
-  );
-}
-
-function sortProviderInstanceEntries(
+export function sortProviderInstanceEntries(
   entries: ReadonlyArray<ProviderInstanceEntry>,
 ): ReadonlyArray<ProviderInstanceEntry> {
   const byKind = new Map<ProviderDriverKind, ProviderInstanceEntry[]>();
@@ -298,20 +253,4 @@ export function resolveDefaultProviderModelSelection(
   if (selection?.instanceId === instanceId) return selection;
   const model = getDefaultProviderInstanceModel(providers, instanceId);
   return model ? { instanceId, model } : null;
-}
-
-export function resolveProjectDefaultProviderModelSelection(
-  providers: ReadonlyArray<ServerProvider>,
-  settings: ServerSettings,
-  projectId: ProjectId | null,
-): ModelSelection | null {
-  const entries = providerInstanceEntriesFor(providers, settings, projectId);
-  // Matches resolveComposerProviderSelection: the first driver group wins before any other.
-  const entry =
-    resolveSelectableProviderInstanceEntry(
-      entries.filter((candidate) => candidate.driverKind === entries[0]?.driverKind),
-      undefined,
-    ) ?? resolveSelectableProviderInstanceEntry(entries, undefined);
-  const model = entry ? getDefaultProviderInstanceModel(providers, entry.instanceId) : undefined;
-  return entry && model ? { instanceId: entry.instanceId, model } : null;
 }

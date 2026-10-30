@@ -8,7 +8,7 @@ import * as NodePath from "node:path";
 import * as NodeUtil from "node:util";
 
 import { BUILD_ENV, prepareClient } from "./mobile-e2e/build.ts";
-import { Device, DeviceCleanupError, poolError, stopDeviceDaemon } from "./mobile-e2e/device.ts";
+import { Device, DeviceCleanupError, stopDeviceDaemon } from "./mobile-e2e/device.ts";
 import { captureHostResources } from "./mobile-e2e/diagnostics.ts";
 import { runJourney, type StepResult } from "./mobile-e2e/journey.ts";
 import { POSES, type Pose, selectPoses } from "./mobile-e2e/poses.ts";
@@ -79,9 +79,6 @@ async function runPose(
       pose,
       steps,
       error: error instanceof Error ? error.message : String(error),
-      blocked:
-        poolError(error instanceof Error ? error.message : String(error)) &&
-        !steps.some((step) => step.checks.some((check) => !check.pass)),
       ...(error instanceof DeviceCleanupError ? { cleanupFailed: true } : {}),
       ...(screenshot ? { stopped: screenshot } : {}),
     };
@@ -257,12 +254,7 @@ async function main() {
     if (platform === "android") await prepareServices();
     for (const pose of poses) {
       interruption.signal.throwIfAborted();
-      let result = await runPose(pose, root, output, prepareServices, client, saveReport);
-      for (let attempt = 0; result.blocked && !result.cleanupFailed && attempt < 2; attempt++) {
-        const attemptDirectory = NodePath.join(output, `${pose.id}-infrastructure-${attempt + 1}`);
-        await NodeFSP.rename(NodePath.join(output, pose.id), attemptDirectory);
-        result = await runPose(pose, root, output, prepareServices, client, saveReport);
-      }
+      const result = await runPose(pose, root, output, prepareServices, client, saveReport);
       if (values.review) {
         try {
           const findings = await reviewPose(result, output);
@@ -323,11 +315,10 @@ async function main() {
     process.removeListener("SIGTERM", onSigterm);
   }
   const failed = results.filter(poseFailed).length;
-  const blocked = results.filter((result) => result.blocked).length;
   NodeProcess.stdout.write(
-    `${JSON.stringify({ report: NodePath.join(output, "index.html"), poses: results.length, failed, blocked, errors: errors.length })}\n`,
+    `${JSON.stringify({ report: NodePath.join(output, "index.html"), poses: results.length, failed, errors: errors.length })}\n`,
   );
-  process.exitCode = failed || blocked || errors.length ? 1 : 0;
+  process.exitCode = failed || errors.length ? 1 : 0;
 }
 
 if (import.meta.main) await main();

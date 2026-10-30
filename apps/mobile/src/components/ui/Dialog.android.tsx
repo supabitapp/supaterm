@@ -14,7 +14,7 @@ import {
 import { useAppearancePreferences } from "../../features/settings/appearance/AppearancePreferencesProvider";
 import { useScaledTextRole } from "../../features/settings/appearance/useScaledTextRole";
 
-import { useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { themeColorWithContrast } from "../../lib/mobileTheme";
 import type { Alert, AlertButton } from "react-native";
 import type { ConfirmDialogRequest, TextInputDialogRequest } from "./Dialog.types";
@@ -33,74 +33,64 @@ type DialogRequest =
   | { readonly kind: "confirm"; readonly request: ConfirmDialogRequest }
   | { readonly kind: "text-input"; readonly request: TextInputDialogRequest };
 
-type PresentedDialog = DialogRequest & { readonly id: number };
-
-let presented: PresentedDialog | null = null;
-let nextPresentationId = 0;
-const listeners = new Set<() => void>();
-
-function setPresented(next: PresentedDialog | null) {
-  presented = next;
-  for (const listener of listeners) listener();
-}
-
-function submitRequest(dialog: DialogRequest) {
-  setPresented({ ...dialog, id: ++nextPresentationId });
-}
-
-function dismiss(id: number) {
-  if (presented?.id === id) setPresented(null);
-}
-
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-}
-
-function getPresented() {
-  return presented;
-}
+let presentRequest: ((request: DialogRequest) => void) | null = null;
 
 export function alert(...[title, message, buttons, options]: Parameters<typeof Alert.alert>): void {
   const actions = buttons?.length ? buttons.slice(0, 3) : [{ text: "OK" }];
   const normalized = actions.map((action, index) =>
     index === actions.length - 1 ? { ...action, text: action.text || "OK" } : action,
   );
-  submitRequest({
+  presentRequest?.({
     kind: "alert",
     request: { title, message, buttons: normalized, options },
   });
 }
 
 export function confirm(request: ConfirmDialogRequest): void {
-  submitRequest({ kind: "confirm", request });
+  presentRequest?.({ kind: "confirm", request });
 }
 
 export function prompt(request: TextInputDialogRequest): void {
-  submitRequest({ kind: "text-input", request });
+  presentRequest?.({ kind: "text-input", request });
 }
 
+/** Android presenter for Dialog.alert, Dialog.confirm and Dialog.prompt; mounted once at the app root. */
 export function Host() {
-  const presented = useSyncExternalStore(subscribe, getPresented, getPresented);
+  const [presented, setPresented] = useState<(DialogRequest & { readonly id: number }) | null>(
+    null,
+  );
+  const [inputValue, setInputValue] = useState("");
+  const nextPresentationId = useRef(0);
+  useEffect(() => {
+    const present = (request: DialogRequest) => {
+      setInputValue(request.kind === "text-input" ? request.request.initialValue : "");
+      setPresented({ ...request, id: ++nextPresentationId.current });
+    };
+    presentRequest = present;
+    return () => {
+      // When Android replaces the activity, the new root's Host registers before the old root
+      // unmounts. Clearing unconditionally would leave the live Host without dialogs.
+      if (presentRequest === present) presentRequest = null;
+    };
+  }, []);
 
-  const handleCancel = () => {
-    if (!presented) return;
-    dismiss(presented.id);
-    if (presented.kind === "alert") presented.request.options?.onDismiss?.();
-    else presented.request.onCancel?.();
-  };
+  const handleCancel = useCallback(() => {
+    setPresented(null);
+    if (presented?.kind === "alert") presented.request.options?.onDismiss?.();
+    else presented?.request.onCancel?.();
+  }, [presented]);
 
-  const handleConfirm = (nativeInputValue?: string) => {
-    if (!presented) return;
-    dismiss(presented.id);
-    if (presented.kind === "confirm") {
-      presented.request.onConfirm();
-    } else if (presented.kind === "text-input") {
-      presented.request.onConfirm(nativeInputValue ?? presented.request.initialValue);
-    }
-  };
+  const handleConfirm = useCallback(
+    (nativeInputValue?: string) => {
+      setPresented(null);
+      if (presented?.kind === "confirm") {
+        presented.request.onConfirm();
+      } else if (presented?.kind === "text-input") {
+        presented.request.onConfirm(nativeInputValue ?? inputValue);
+      }
+    },
+    [inputValue, presented],
+  );
 
   if (presented?.kind === "alert") {
     return (
@@ -114,7 +104,7 @@ export function Host() {
         alertActions={presented.request.buttons ?? [{ text: "OK" }]}
         dismissable={presented.request.options?.cancelable ?? false}
         onAlertAction={(action) => {
-          dismiss(presented.id);
+          setPresented(null);
           action.onPress?.();
         }}
         onCancel={handleCancel}
@@ -131,6 +121,7 @@ export function Host() {
         presented.kind === "text-input" ? presented.request.initialValue : undefined
       }
       inputPlaceholder={presented.kind === "text-input" ? presented.request.placeholder : undefined}
+      onInputChange={setInputValue}
       onCancel={handleCancel}
       onConfirm={handleConfirm}
     />
@@ -157,7 +148,7 @@ function DialogPresentation(props: DialogPresentationProps) {
     },
   ];
   const destructive = actions.some((action) => action.style === "destructive");
-
+  // Error text colors can be pastel in dark themes. Filled actions need a white-label contrast pair.
   const destructiveFill = themeColorWithContrast(colors["--color-danger-foreground"], "#ffffff");
   const renderAction = (action: AlertButton, index: number) => {
     const isDestructive = action.style === "destructive";
@@ -222,6 +213,7 @@ function DialogPresentation(props: DialogPresentationProps) {
                 singleLine
                 value={inputState}
                 selection={inputSelection}
+                onValueChange={props.onInputChange}
                 textStyle={inputTypography}
                 keyboardOptions={{ imeAction: "done" }}
                 keyboardActions={{
@@ -276,6 +268,7 @@ interface DialogPresentationProps {
   >;
   readonly inputInitialValue?: string;
   readonly inputPlaceholder?: string;
+  readonly onInputChange?: (value: string) => void;
   readonly onCancel: () => void;
   readonly onConfirm: (inputValue?: string) => void;
 }

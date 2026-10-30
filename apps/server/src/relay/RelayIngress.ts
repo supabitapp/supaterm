@@ -46,10 +46,6 @@ export const tunnelConnectionMethod = (request: HttpServerRequest.HttpServerRequ
 
 export const isRelayPath = (pathname: string) =>
   pathname === "/ws" ||
-  pathname === "/mcp" ||
-  pathname === "/oauth/mcp/register" ||
-  pathname === "/oauth/mcp/decision" ||
-  pathname === "/oauth/mcp/token" ||
   pathname.startsWith("/api/") ||
   pathname === "/oauth/token" ||
   pathname === "/.well-known/supaterm/environment";

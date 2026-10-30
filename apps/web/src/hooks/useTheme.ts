@@ -1,7 +1,7 @@
 import type { DesktopBridge } from "@supaterm/contracts";
 import { safeErrorLogAttributes } from "@supaterm/client-runtime/errors";
 import * as Schema from "effect/Schema";
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import {
   applyThemePalette,
   CUSTOM_THEMES_STORAGE_KEY,
@@ -479,41 +479,17 @@ function subscribe(listener: () => void): () => void {
   };
 }
 
-export function getRenderedAppearance(): ThemeAppearance {
-  return getThemePreviewAppearance() ?? getSnapshot().resolvedTheme;
-}
-
-export function subscribeRenderedAppearance(listener: () => void): () => void {
-  const stopTheme = subscribe(listener);
-  const stopPreview = subscribeToThemePreview(listener);
-  return () => {
-    stopTheme();
-    stopPreview();
-  };
-}
-
 export function useRenderedAppearance() {
-  return useSyncExternalStore(
-    subscribeRenderedAppearance,
-    getRenderedAppearance,
-    () => "light" as const,
+  const { resolvedTheme } = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const previewAppearance = useSyncExternalStore(
+    subscribeToThemePreview,
+    getThemePreviewAppearance,
+    () => null,
   );
+  return previewAppearance ?? resolvedTheme;
 }
 
-export function startThemeSync(): () => void {
-  const sync = () => applyTheme(getSnapshot().theme);
-  const unsubscribe = subscribe(sync);
-  window.addEventListener("focus", sync);
-  const frame = window.requestAnimationFrame(sync);
-  sync();
-  return () => {
-    unsubscribe();
-    window.removeEventListener("focus", sync);
-    window.cancelAnimationFrame(frame);
-  };
-}
-
-export function setTheme(next: Theme): boolean {
+function setTheme(next: Theme): boolean {
   if (typeof window === "undefined") return false;
   try {
     // Preserve the current mode before replacing a legacy or inferred theme
@@ -557,7 +533,7 @@ export function setTheme(next: Theme): boolean {
   return true;
 }
 
-export function setAppearanceMode(nextAppearanceMode: ThemePreferenceMode): boolean {
+function setAppearanceMode(nextAppearanceMode: ThemePreferenceMode): boolean {
   if (typeof window === "undefined") return false;
   try {
     writeAppearanceModePreference(nextAppearanceMode);
@@ -634,7 +610,7 @@ function clearThemeHalves(): boolean {
   return true;
 }
 
-export function refreshTheme({ preservePreview = false } = {}): void {
+function refreshTheme({ preservePreview = false } = {}): void {
   if (typeof window === "undefined") return;
   lastAppliedTheme = null;
   applyTheme(getStored(), { suppressTransitions: true, preservePreview });
@@ -655,6 +631,12 @@ export function useTheme() {
     return setAppearanceMode(nextMode);
   };
 
+  // applyTheme reads the appearance mode and halves from storage, so it keys on the
+  // whole snapshot; getSnapshot keeps one object until one of those changes.
+  useEffect(() => {
+    applyTheme(snapshot.theme);
+  }, [snapshot]);
+
   return {
     theme,
     setTheme,
@@ -669,5 +651,3 @@ export function useTheme() {
     themeHalves: snapshot.themeHalves,
   } as const;
 }
-
-export const getThemeSnapshot = getSnapshot;

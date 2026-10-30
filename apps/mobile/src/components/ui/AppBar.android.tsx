@@ -1,6 +1,12 @@
-import { useRef, useState } from "react";
-import { Keyboard, Pressable, TextInput, type TextInputInstance, View } from "react-native";
-import { useHardwareBack } from "../../lib/backHandler";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  BackHandler,
+  Keyboard,
+  Pressable,
+  TextInput,
+  type TextInputInstance,
+  View,
+} from "react-native";
 import { useToolbarLayout } from "./useToolbarLayout";
 import { NativeStackScreenOptions } from "../../native/StackHeader";
 import { AndroidWorkspaceSidebarButton } from "../../features/layout/workspace-sidebar-toolbar";
@@ -23,15 +29,19 @@ export function AppBar(props: AppBarProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const searching = search !== undefined && (searchOpen || search.value.length > 0);
   const onSearchChange = search?.onChangeText;
-  const closeSearch = () => {
+  const closeSearch = useCallback(() => {
     onSearchChange?.("");
     setSearchOpen(false);
     Keyboard.dismiss();
-  };
-  useHardwareBack(searching && search?.mode !== "inline", () => {
-    closeSearch();
-    return true;
-  });
+  }, [onSearchChange]);
+  useEffect(() => {
+    if (!searching || search?.mode === "inline") return;
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      closeSearch();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [closeSearch, searching, search?.mode]);
   const menuView = props.menus?.map((menu) => (
     <Menu
       key={menu.title}
@@ -196,7 +206,7 @@ export function AppBar(props: AppBarProps) {
           {searching ? (
             <View
               className="absolute inset-0 bg-header"
-
+              // Match Material TopAppBar's navigation inset so the back button stays put.
               style={{ paddingTop, paddingBottom, paddingHorizontal: 4 }}
             >
               <View className="flex-1 flex-row items-center gap-1">

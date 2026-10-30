@@ -19,21 +19,6 @@ describe("parseChangeRequestUrl", () => {
     });
   });
 
-  it("reads a GitCafe pull request at its canonical /pull/ path and the older /pulls/ path", () => {
-    for (const path of ["pull", "pulls"]) {
-      expect(parseChangeRequestUrl(`https://git.cafe/Owner/Supaterm/${path}/23897`), path).toEqual({
-        host: "git.cafe",
-        repository: "owner/supaterm",
-        number: 23897,
-      });
-    }
-    expect(parseChangeRequestUrl("https://staging.git.cafe/team/repo/pull/7/files")).toEqual({
-      host: "staging.git.cafe",
-      repository: "team/repo",
-      number: 7,
-    });
-  });
-
   it("reads Forgejo URLs even when the hostname contains github", () => {
     expect(parseChangeRequestUrl("https://github.internal/team/repo/pulls/7")).toEqual({
       host: "github.internal",
@@ -127,9 +112,6 @@ describe("parseChangeRequestUrl", () => {
       "https://github.com/supabitapp/supaterm",
       "https://github.com/supabitapp/supaterm/pull/abc",
       "https://gitlab.com/supabitapp/supaterm/-/issues/12",
-      "https://git.cafe/supabitapp/supaterm/issues/123",
-      "https://git.cafe/supabitapp/supaterm/pull/abc",
-      "https://git.cafe/supabitapp/supaterm",
       "https://blog.example.test/2026/updates/pull/3",
       "https://scm.example.test/tfs/Collection/Project/_git/Repo",
       "https://scm.example.test/tfs/Collection/Project/pullrequest/123",

@@ -100,18 +100,6 @@ export const make = Effect.gen(function* () {
     Effect.orElseSucceed(() => false),
   );
 
-  const runsOurLauncher = Effect.fn("DesktopCliCommand.runsOurLauncher")(
-    function* (candidate: string) {
-      if (yield* isOurLink(candidate)) return true;
-      const [resolved, ours] = yield* Effect.all([fs.realPath(candidate), fs.realPath(launcher)]);
-      if (resolved !== ours) return false;
-      const info = yield* fs.stat(candidate);
-      if (info.type !== "File" || Number(info.size) > 16_384) return false;
-      return (yield* fs.readFileString(candidate)).includes(DesktopCliShim.MARKER);
-    },
-    Effect.orElseSucceed(() => false),
-  );
-
   const powershell = (env: Record<string, string>) =>
     Effect.scoped(
       Effect.gen(function* () {
@@ -154,9 +142,7 @@ export const make = Effect.gen(function* () {
   const foreignFirstOnPath = Effect.gen(function* () {
     const first = yield* firstOnPath;
     if (Option.isNone(first)) return first;
-    const ours = windows
-      ? sameWindowsPath(first.value, launcher)
-      : yield* runsOurLauncher(first.value);
+    const ours = windows ? sameWindowsPath(first.value, launcher) : yield* isOurLink(first.value);
     if (ours) return Option.none<string>();
     return first;
   });
@@ -178,31 +164,19 @@ export const make = Effect.gen(function* () {
 
   const state: DesktopCliCommand["Service"]["state"] = Effect.gen(function* () {
     if (!environment.isPackaged) {
-      return { supported: false, installedPath: null, onPath: false, launcherPath: null } as const;
+      return { supported: false, installedPath: null, onPath: false } as const;
     }
-    const launcherPath = (yield* exists(launcher)) ? launcher : null;
     const installed = yield* installedAt;
     const shadowedBy = yield* foreignFirstOnPath;
     const shadow = Option.isSome(shadowedBy) ? { shadowedBy: shadowedBy.value } : {};
+    if (Option.isNone(installed)) {
+      return { supported: true, installedPath: null, onPath: false, ...shadow };
+    }
+
     const first = yield* firstOnPath;
-    const onPath = windows
-      ? Option.isSome(installed)
-      : Option.isSome(first) && (yield* runsOurLauncher(first.value));
-    return {
-      supported: true,
-      installedPath: Option.getOrNull(installed),
-      onPath,
-      launcherPath,
-      ...shadow,
-    };
-  }).pipe(
-    Effect.orElseSucceed(() => ({
-      supported: false,
-      installedPath: null,
-      onPath: false,
-      launcherPath: null,
-    })),
-  );
+    const onPath = windows || (Option.isSome(first) && (yield* isOurLink(first.value)));
+    return { supported: true, installedPath: installed.value, onPath, ...shadow };
+  }).pipe(Effect.orElseSucceed(() => ({ supported: false, installedPath: null, onPath: false })));
 
   const ensureLauncher = DesktopCliShim.install.pipe(
     Effect.provideService(DesktopEnvironment.DesktopEnvironment, environment),

@@ -5,9 +5,8 @@ import { usePullRequestConnected } from "./usePullRequestConnected";
 import { useAtomValue } from "@effect/atom-react";
 import { useNavigation, type StaticScreenProps } from "@react-navigation/native";
 import { squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
-import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import type { PullRequestReviewerCandidate } from "@supaterm/contracts";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   FlatList,
   Platform,
@@ -17,10 +16,11 @@ import {
   type ScrollViewProps,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { NativeScrollViewMarker as ScrollViewMarker } from "../../native/NativeScrollViewMarker";
+import { ScrollViewMarker } from "react-native-screens";
 import { AppText as Text, AppTextInput as TextInput } from "../../components/ui/AppText";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Button } from "../../components/ui/Button";
+import { useRestingTopOffset } from "../../native/useRestingTopOffset";
 import { SymbolView } from "../../components/ui/AppSymbol";
 import { NativeStackScreenOptions } from "../../native/StackHeader";
 import { useNativeLayoutMetrics } from "../../native/native-layout-metrics";
@@ -34,9 +34,21 @@ import {
 import { PullRequestAvatar } from "./PullRequestPresentation";
 import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff";
 function ReviewerScrollView(props: ScrollViewProps) {
+  const insets = useSafeAreaInsets();
+  const restingOffset = useRestingTopOffset(insets.top, props);
   return (
-    <ScrollViewMarker style={{ flex: 1 }}>
-      <ScrollView {...props} contentInsetAdjustmentBehavior="automatic" />
+    <ScrollViewMarker
+      style={{
+        flex: 1,
+      }}
+    >
+      <ScrollView
+        {...props}
+        {...restingOffset}
+        automaticallyAdjustContentInsets={false}
+        contentInsetAdjustmentBehavior="never"
+        contentInset={{ top: insets.top }}
+      />
     </ScrollViewMarker>
   );
 }
@@ -51,9 +63,6 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
   const target = pullRequestTarget(route.params);
   const detail = useEnvironmentQuery(composerPullRequests.detail(target));
   const pr = detail.data;
-  const { singular } = sourceControlClients.get(
-    (pr ?? route.params.initialSummary)?.provider,
-  ).changeRequest;
   const canWrite = useAtomValue(
     composerPullRequests.requestReviewers.permissionAtom(target.environmentId),
   );
@@ -86,14 +95,13 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
         (a, b) => Number(b.isRequested) - Number(a.isRequested) || a.login.localeCompare(b.login),
       );
   })();
-
-  const search = (next: string) => {
-    setQuery(next);
+  useEffect(() => {
+    if (candidates.length === 0) return;
     listRef.current?.scrollToOffset({
       offset: Platform.OS === "ios" ? -insets.top : 0,
       animated: false,
     });
-  };
+  }, [candidates, insets.top]);
   const update = async (
     candidate: Pick<PullRequestReviewerCandidate, "id" | "kind" | "isRequested">,
   ) => {
@@ -124,7 +132,7 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
       return;
     }
     if (!pr?.capabilities.reviewers.listCandidates) {
-      search("");
+      setQuery("");
       detail.refresh();
     }
   };
@@ -132,8 +140,12 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
   const searchOptions = {
     placeholder: "Search reviewers",
     autoCapitalize: "none" as const,
-    onChangeText: (event: { nativeEvent: { text: string } }) => search(event.nativeEvent.text),
-    onCancelButtonPress: () => search(""),
+    onChangeText: (event: {
+      nativeEvent: {
+        text: string;
+      };
+    }) => setQuery(event.nativeEvent.text),
+    onCancelButtonPress: () => setQuery(""),
     hideNavigationBar: false,
     hideWhenScrolling: false,
     obscureBackground: false,
@@ -156,7 +168,7 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
               ? [
                   createNativeMailSearchToolbarItem({
                     placeholder: "Search reviewers",
-                    onSearchTextChange: search,
+                    onSearchTextChange: setQuery,
                     showsSearchDismissButton: true,
                     searchTextChangeId: "pr-reviewer-search",
                   }),
@@ -190,14 +202,14 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
                   placeholder="Search reviewers"
                   placeholderTextColorClassName="accent-foreground-muted"
                   value={query}
-                  onChangeText={search}
+                  onChangeText={setQuery}
                   autoCapitalize="none"
                   className="min-h-11 rounded-xl bg-grouped-card px-3 text-sm"
                 />
               ) : null}
               {!allowed ? (
                 <Text className="text-xs text-foreground-muted">
-                  Requesting reviews requires write access and an open {singular}.
+                  Requesting reviews requires write access and an open pull request.
                 </Text>
               ) : null}
               {error ? (
@@ -287,7 +299,7 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
               <AppActivityIndicator />
             ) : (
               <Text className="text-danger-foreground">
-                {detail.error ?? `Couldn't load this ${singular}.`}
+                {detail.error ?? "Couldn't load this pull request."}
               </Text>
             )
           ) : (
@@ -300,7 +312,7 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
                 placeholder="Reviewer login or ID"
                 placeholderTextColorClassName="accent-foreground-muted"
                 value={query}
-                onChangeText={search}
+                onChangeText={setQuery}
                 autoCapitalize="none"
                 autoCorrect={false}
                 className="min-h-12 rounded-xl bg-grouped-card px-3 text-base"

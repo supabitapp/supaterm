@@ -27,13 +27,13 @@ describe("Windows Markdown destinations", () => {
     ["[file](\\\\server\\share\\.github\\file.md)", "\\\\server\\share\\.github\\file.md"],
     ["[file][ref]\n\n[ref]: C:\\repo\\.github\\file.md", "C:\\repo\\.github\\file.md"],
   ])("preserves the authored path through parsing: %s", (markdown, expected) => {
-    expect(destinations(markdown)).toEqual([expected]);
+    expect(destinations(markdownWithAuthoredWindowsPaths(markdown))).toEqual([expected]);
   });
 
   it("preserves each destination independently", () => {
     const markdown =
       "[file](C:\\repo\\.github\\file.md)\n\n![image](D:\\repo\\_assets\\preview.png)";
-    expect(destinations(markdown)).toEqual([
+    expect(destinations(markdownWithAuthoredWindowsPaths(markdown))).toEqual([
       "C:\\repo\\.github\\file.md",
       "D:\\repo\\_assets\\preview.png",
     ]);
@@ -56,13 +56,13 @@ describe("Windows Markdown destinations", () => {
     const markdown = "[" + label + "](C:\\repo\\.github\\file.md)";
     const result = markdownWithAuthoredWindowsPaths(markdown);
     expect(result).toContain(label);
-    expect(destinations(markdown)).toEqual(["C:\\repo\\.github\\file.md"]);
+    expect(destinations(result)).toEqual(["C:\\repo\\.github\\file.md"]);
   });
   it("does not rewrite a destination-shaped image label", () => {
     const label = "[file](C:\\repo\\_a)";
     const markdown = `![${label}](C:\\repo\\_a)`;
     const result = markdownWithAuthoredWindowsPaths(markdown);
     expect(result).toContain(label);
-    expect(destinations(markdown)).toEqual(["C:\\repo\\_a"]);
+    expect(destinations(result)).toEqual(["C:\\repo\\_a"]);
   });
 });

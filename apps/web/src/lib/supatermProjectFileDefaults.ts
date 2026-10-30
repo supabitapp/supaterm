@@ -15,7 +15,16 @@ import {
 import { appAtomRegistry } from "~/rpc/atomRegistry";
 import { environmentPresentations } from "~/state/presentation";
 
-/** Reads cached project defaults with optimistic edits; missing or invalid files resolve to null. */
+/**
+ * Read and decode the project's checked-in `supaterm.json`.
+ *
+ * Imperative counterpart to `useSupatermProjectFileState` for the new-thread path,
+ * which resolves defaults at call time rather than render time. The file
+ * query atom caches per (environment, cwd), so repeat calls don't re-fetch.
+ * Optimistic in-app writes overlay the query result, matching what
+ * `useProjectFileQuery` renders. Missing, truncated, or invalid files
+ * resolve to null.
+ */
 export async function readSupatermProjectFile(
   environmentId: EnvironmentId,
   workspaceRoot: string,

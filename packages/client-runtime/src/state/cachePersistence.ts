@@ -22,7 +22,7 @@ export const runCachePersistence = Effect.fn("runCachePersistence")(function* <A
     );
   }
   const wait = (duration: `${number} millis` | `${number} seconds`) =>
-    Queue.take(backgrounded).pipe(Effect.timeoutOrElse({ duration, orElse: () => Effect.void }));
+    Effect.sleep(duration).pipe(Effect.raceFirst(Queue.take(backgrounded)));
 
   let next = yield* Queue.take(queue);
   yield* wait("500 millis");

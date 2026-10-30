@@ -1,4 +1,3 @@
-import * as sharedUserInput from "@supaterm/client-runtime/state/pending-user-input";
 import type { ThreadContextRecord, UserInputQuestion } from "@supaterm/contracts";
 import { replaceComposerContextReferences } from "@supaterm/shared/composerContextReferences";
 import { formatThreadLink } from "@supaterm/shared/threadLinks";
@@ -13,7 +12,7 @@ export function projectPendingUserInputAnswer(
   const recordsById = new Map(threadContexts.map((record) => [record.contextId, record]));
   return replaceComposerContextReferences(answer, (reference) => {
     const record = reference.kind === "thread" ? recordsById.get(reference.contextId) : undefined;
-    return record ? formatThreadLink(record, reference.label) : reference.source;
+    return record ? formatThreadLink(record.threadId, reference.label) : reference.source;
   });
 }
 
@@ -47,6 +46,15 @@ export interface PendingUserInputProgress {
   canAdvance: boolean;
 }
 
+function normalizeDraftAnswer(value: string | undefined): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 function normalizeSelectedOptionValues(value: string[] | undefined): string[] {
   if (!Array.isArray(value)) {
     return [];
@@ -60,8 +68,32 @@ export function resolvePendingUserInputAnswer(
   question: UserInputQuestion,
   draft: PendingUserInputDraftAnswer | undefined,
 ): string | string[] | null {
-  const answer = sharedUserInput.resolvePendingUserInputAnswer(question, draft);
-  return typeof answer === "string" || answer === null ? answer : [...answer];
+  if (draft?.attachmentsBlocked) return null;
+  const customAnswer =
+    question.allowCustomAnswer === false
+      ? null
+      : question.initialAnswer !== undefined
+        ? (draft?.customAnswer ?? null)
+        : normalizeDraftAnswer(draft?.customAnswer);
+  if (customAnswer !== null && customAnswer.length > 0) {
+    return customAnswer;
+  }
+
+  const selectedOptionValues = normalizeSelectedOptionValues(draft?.selectedOptionValues).filter(
+    (value) => question.options.some((option) => (option.value ?? option.label) === value),
+  );
+  if (question.multiSelect) {
+    return selectedOptionValues.length > 0
+      ? selectedOptionValues
+      : (customAnswer ??
+          (question.allowCustomAnswer !== false && (draft?.attachmentCount ?? 0) > 0 ? "" : null));
+  }
+
+  return (
+    selectedOptionValues[0] ??
+    customAnswer ??
+    (question.allowCustomAnswer !== false && (draft?.attachmentCount ?? 0) > 0 ? "" : null)
+  );
 }
 
 export function setPendingUserInputCustomAnswer(
@@ -78,6 +110,34 @@ export function setPendingUserInputCustomAnswer(
     customAnswer,
     ...(selectedOptionValues && selectedOptionValues.length > 0 ? { selectedOptionValues } : {}),
   };
+}
+
+export function pendingUserInputRequestKey(
+  environmentId: string,
+  threadId: string | null,
+  requestId: string | undefined,
+): string {
+  return JSON.stringify([environmentId, threadId, requestId]);
+}
+
+export function pruneResolvedUserInputDrafts<T>(
+  draftsByRequestKey: Record<string, T>,
+  environmentId: string,
+  threadId: string,
+  pendingRequestIds: ReadonlyArray<string>,
+): Record<string, T> {
+  const threadPrefix = JSON.stringify([environmentId, threadId]).slice(0, -1);
+  const pendingKeys = new Set(
+    pendingRequestIds.map((requestId) =>
+      pendingUserInputRequestKey(environmentId, threadId, requestId),
+    ),
+  );
+  const retained = Object.entries(draftsByRequestKey).filter(
+    ([key]) => !key.startsWith(threadPrefix) || pendingKeys.has(key),
+  );
+  return retained.length === Object.keys(draftsByRequestKey).length
+    ? draftsByRequestKey
+    : Object.fromEntries(retained);
 }
 
 const DISPLACED_ANSWER_SEPARATOR = "\n\n";
@@ -101,11 +161,23 @@ export function togglePendingUserInputOptionSelection(
   draft: PendingUserInputDraftAnswer | undefined,
   optionValue: string,
 ): PendingUserInputDraftAnswer {
-  const next = sharedUserInput.togglePendingUserInputOptionSelection(question, draft, optionValue);
-  const { selectedOptionValues, ...rest } = next;
+  if (question.multiSelect) {
+    const selectedOptionValues = normalizeSelectedOptionValues(draft?.selectedOptionValues);
+    const nextSelectedOptionValues = selectedOptionValues.includes(optionValue)
+      ? selectedOptionValues.filter((value) => value !== optionValue)
+      : [...selectedOptionValues, optionValue];
+
+    return {
+      customAnswer: "",
+      ...(nextSelectedOptionValues.length > 0
+        ? { selectedOptionValues: nextSelectedOptionValues }
+        : {}),
+    };
+  }
+
   return {
-    ...rest,
-    ...(selectedOptionValues ? { selectedOptionValues: [...selectedOptionValues] } : {}),
+    customAnswer: "",
+    selectedOptionValues: [optionValue],
   };
 }
 

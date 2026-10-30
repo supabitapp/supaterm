@@ -1,7 +1,3 @@
-import noUnreasonedStateSync from "./rules/no-unreasoned-state-sync.ts";
-import requireRegisteredListScroll from "./rules/require-registered-list-scroll.ts";
-import noAmbiguousDetailNavigation from "./rules/no-ambiguous-detail-navigation.ts";
-import noEmDashCopy from "./rules/no-em-dash-copy.ts";
 import { definePlugin } from "@oxlint/plugins";
 
 import namespaceNodeImports from "./rules/namespace-node-imports.ts";
@@ -38,10 +34,6 @@ export default definePlugin({
     name: "supaterm",
   },
   rules: {
-    "no-unreasoned-state-sync": noUnreasonedStateSync,
-    "require-registered-list-scroll": requireRegisteredListScroll,
-    "no-ambiguous-detail-navigation": noAmbiguousDetailNavigation,
-    "no-em-dash-copy": noEmDashCopy,
     "namespace-node-imports": namespaceNodeImports,
     "no-dom-test-environment": noDomTestEnvironment,
     "no-frame-waits-in-browser-tests": noFrameWaitsInBrowserTests,

@@ -1,6 +1,5 @@
 import { CommandId, EnvironmentId, MessageId, ProjectId, ThreadId } from "@supaterm/contracts";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
-import type { ComposerDraft } from "./use-composer-drafts";
 
 const harness = vi.hoisted(() => ({
   cleanup: vi.fn(),
@@ -28,10 +27,10 @@ vi.mock("./thread-outbox", async () => {
   return { threadOutboxManager: harness.manager };
 });
 
-vi.mock("./use-composer-drafts", async () => {
-  const { Atom } = await import("effect/reactivity");
+vi.mock("./use-composer-drafts", async (importOriginal) => {
+  const original = await importOriginal<typeof import("./use-composer-drafts")>();
   return {
-    composerDraftsAtom: Atom.make<Record<string, ComposerDraft>>({}).pipe(Atom.keepAlive),
+    ...original,
     clearComposerDraft: harness.clearDraft,
     flushComposerDrafts: harness.flushDrafts,
     scheduleUnusedComposerAttachmentCleanup: harness.cleanup,

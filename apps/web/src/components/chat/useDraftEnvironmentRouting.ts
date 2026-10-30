@@ -10,7 +10,7 @@ import {
   type ThreadContextRecord,
 } from "@supaterm/contracts";
 import { scopeProjectRef } from "@supaterm/client-runtime/environment";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import { toastManager } from "../ui/toast";
 import {
   deriveLogicalProjectKeyFromSettings,
@@ -27,10 +27,7 @@ interface DraftEnvironmentRoutingInput {
   readonly envLocked: boolean;
   readonly automaticEnvironment: boolean;
   readonly logicalProjectEnvironments: ReturnType<typeof useLogicalProjectEnvironments>;
-  readonly environmentById: ReadonlyMap<
-    EnvironmentId,
-    Pick<EnvironmentPresentation, "connection" | "serverConfig">
-  >;
+  readonly environmentById: ReadonlyMap<EnvironmentId, EnvironmentPresentation>;
   readonly providersByEnvironment: ReturnType<typeof useEnvironmentProviders>;
   readonly loadBalancingSettings: {
     readonly loadBalancingWeights: Readonly<Record<string, number>>;
@@ -74,11 +71,9 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
   const setLogicalProjectDraftThreadId = useComposerDraftStore(
     (store) => store.setLogicalProjectDraftThreadId,
   );
-  const draftProviderInstanceId = useComposerDraftStore((store) =>
-    draftId === null ? null : (store.getComposerDraft(draftId)?.activeProvider ?? null),
-  );
   const allProjects = useProjects();
   const { openScratchProject } = useScratchProject();
+  const isSendInFlight = useEffectEvent(() => sendInFlightRef.current);
   const needsLoadBalancing = automaticEnvironment && !draftThread?.loadBalancedEnvironmentId;
   const loadBalancingCandidates = needsLoadBalancing
     ? logicalProjectEnvironments
@@ -113,18 +108,16 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
         })
         .map((candidate) => candidate.environmentId)
     : [];
-  const onLoadBalancingResolved = (environmentId: EnvironmentId) => {
-    if (!needsLoadBalancing || !draftId || envLocked || sendInFlightRef.current) return;
+  const loadBalancing = useLoadBalancedEnvironment(
+    loadBalancingCandidates,
+    loadBalancingSettings.loadBalancingWeights,
+  );
+  const refreshLoadBalancing = loadBalancing.refresh;
+  useEffect(() => {
+    if (!needsLoadBalancing || loadBalancing.pending || !draftId || isSendInFlight()) return;
     if (!draftThread || draftThread.promotedTo || getDraftSession(draftId) !== draftThread) return;
-    const composerDraft = useComposerDraftStore.getState().getComposerDraft(draftId);
-    if (
-      (composerDraft?.images.length ?? 0) > 0 ||
-      (composerDraft?.files.length ?? 0) > 0 ||
-      (composerDraft?.activeProvider ?? null) !== draftProviderInstanceId
-    )
-      return;
     const target = logicalProjectEnvironments.find(
-      (environment) => environment.environmentId === environmentId,
+      (environment) => environment.environmentId === loadBalancing.environmentId,
     );
     if (!target?.projectId) return;
     setDraftThreadContext(draftId, {
@@ -132,14 +125,16 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
       environmentSelection: "auto",
       loadBalancedEnvironmentId: target.environmentId,
     });
-  };
-  const loadBalancing = useLoadBalancedEnvironment(
-    loadBalancingCandidates,
-    loadBalancingSettings.loadBalancingWeights,
-    onLoadBalancingResolved,
-    JSON.stringify([draftId, activeProjectKey]),
-  );
-  const refreshLoadBalancing = loadBalancing.refresh;
+  }, [
+    needsLoadBalancing,
+    loadBalancing.pending,
+    loadBalancing.environmentId,
+    draftId,
+    draftThread,
+    getDraftSession,
+    logicalProjectEnvironments,
+    setDraftThreadContext,
+  ]);
   const onAutoEnvironment = () => {
     if (envLocked || !draftId) return;
     if (composerHasAttachments) {
@@ -178,19 +173,13 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
     readonly draftId: string;
     readonly projectKey: string | null;
   } | null>(null);
-  const [busyRequest, setBusyRequest] = useState<(typeof environmentChangeRef)["current"]>(null);
-  const isEnvironmentChanging =
-    busyRequest !== null &&
-    busyRequest.draftId === draftId &&
-    busyRequest.projectKey === activeProjectKey;
-  if (busyRequest !== null && !isEnvironmentChanging) setBusyRequest(null);
-
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Invalidates a pending scratch-project RPC when its draft or project leaves the mounted scope.
+  const [isEnvironmentChanging, setIsEnvironmentChanging] = useState(false);
   useLayoutEffect(() => {
     return () => {
       const request = environmentChangeRef.current;
       if (request?.draftId === draftId && request.projectKey === activeProjectKey) {
         environmentChangeRef.current = null;
+        setIsEnvironmentChanging(false);
       }
     };
   }, [draftId, activeProjectKey]);
@@ -209,7 +198,7 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
       projectKey: activeProjectKey,
     };
     environmentChangeRef.current = request;
-    setBusyRequest(null);
+    setIsEnvironmentChanging(false);
     const retarget = (project: (typeof allProjects)[number]) => {
       const currentDraft = getDraftSession(draftId);
       if (
@@ -238,8 +227,10 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
       }
     };
     const finish = () => {
-      if (environmentChangeRef.current === request) environmentChangeRef.current = null;
-      setBusyRequest((current) => (current === request ? null : current));
+      if (environmentChangeRef.current === request) {
+        environmentChangeRef.current = null;
+        setIsEnvironmentChanging(false);
+      }
     };
     if (target.projectId !== null) {
       const project = allProjects.find(
@@ -250,7 +241,7 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
       finish();
       return;
     }
-    setBusyRequest(request);
+    setIsEnvironmentChanging(true);
     void openScratchProject(target.environmentId, "Could not switch machine")
       .then((project) => {
         if (project) retarget(project);

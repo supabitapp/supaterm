@@ -62,6 +62,8 @@ function parseRecord(parsed: unknown, state: typeof PiScanState.Type): readonly 
   if (timestampMs === null) return [];
   const source = entry.type === "message" ? entry.message : entry;
   const usage = source.usage;
+  // Pi's auxiliary tool and summary records carry no model attribution. Match
+  // Pi's own breakdown rather than assigning them to the conversation model.
   const rateModel =
     "model" in source
       ? "responseModel" in source
@@ -79,6 +81,8 @@ function parseRecord(parsed: unknown, state: typeof PiScanState.Type): readonly 
     reasoningTokens: Math.min(outputTokens, tokenCount(usage.reasoning)),
   };
   const cost = usage.cost?.total;
+  // Pi defaults omitted catalog rates to zero. Let shared pricing estimate
+  // API-equivalent cost when the transcript has no positive cost estimate.
   const reportedCostUsd =
     typeof cost === "number" && Number.isFinite(cost) && cost > 0 ? cost : null;
   if (totalTokens(totals) === 0 && reportedCostUsd === null) return [];
@@ -92,6 +96,9 @@ function parseRecord(parsed: unknown, state: typeof PiScanState.Type): readonly 
       totals,
       reportedCostUsd,
       speed: "standard",
+      // Forks copy entries verbatim, including ID/timestamp. Entry IDs are only
+      // eight random hex digits, so retain timestamp/model to avoid collisions
+      // across unrelated sessions.
       dedupeKey: JSON.stringify(["pi", entry.id, entry.timestamp, model]),
     },
   ];

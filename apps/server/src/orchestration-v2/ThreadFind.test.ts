@@ -24,11 +24,7 @@ import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
 import * as ProjectStore from "./ProjectStore.ts";
 import * as EventStore from "./EventStore.ts";
-import {
-  encodeThreadHistoryCursor,
-  selectHistoryPageFromCursor,
-  THREAD_HISTORY_PAGE_POLICY,
-} from "./threadHistoryPaging.ts";
+import { encodeThreadHistoryCursor, selectHistoryPageFromCursor } from "./threadHistoryPaging.ts";
 import { projectTurnItemForWire } from "./WireProjection.ts";
 
 const layerTest = Layer.mergeAll(EventStore.layer, ProjectionStore.layer, ProjectStore.layer).pipe(
@@ -730,7 +726,7 @@ describe("V2 history materialization", () => {
       }).pipe(Effect.provide(layerTest)),
   );
 
-  it.effect("pages long turns without duplicating or skipping messages", () =>
+  it.effect("pages complete turns without duplicating or skipping messages", () =>
     Effect.gen(function* () {
       const projection = yield* setup;
       const items = Array.from({ length: 45 }, (_, turn) => [
@@ -771,11 +767,7 @@ describe("V2 history materialization", () => {
             snapshotSequence: snapshot.snapshotSequence,
           }),
         });
-        assert.isTrue(
-          page.items.length === 1 ||
-            Buffer.byteLength(JSON.stringify(page.items), "utf8") <=
-              THREAD_HISTORY_PAGE_POLICY.maxEncodedBytes,
-        );
+        assert.equal(page.items[0]?.item.type, "user_message");
         collected.unshift(...page.items.map((row) => String(row.sourceItemId)));
         cursor = page.nextCursor;
       }

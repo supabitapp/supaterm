@@ -7,7 +7,7 @@ import {
   type EnvironmentId,
   type ServerProvider,
 } from "@supaterm/contracts";
-import { useState, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useState, type ReactNode } from "react";
 import { usesChatGptSharing } from "@supaterm/shared/usageLimits";
 
 import { useEnvironmentSettings } from "../../hooks/useSettings";
@@ -43,11 +43,16 @@ export function AddCodexAccountDialog({
   const [pending, setPending] = useState(false);
   const provider = providers?.find((candidate) => candidate.instanceId === instanceId);
   const connected = usesChatGptSharing(provider);
+  const closeAfterConnection = useEffectEvent(onClose);
+  useEffect(() => {
+    if (connected) closeAfterConnection();
+  }, [connected]);
 
   const createAccount = async () => {
     if (pending || !name.trim() || !readEnvironmentScope(environmentId, AuthProvidersManageScope))
       return;
     setPending(true);
+    // The ID is routing identity; the name is editable and need not be unique.
     const id = ProviderInstanceId.make(`codex_${randomUUID()}`);
     const result = await update({
       environmentId,
@@ -81,9 +86,6 @@ export function AddCodexAccountDialog({
       open={!connected}
       onOpenChange={(open) => {
         if (!open) onClose();
-      }}
-      onOpenChangeComplete={(open) => {
-        if (!open && connected) onClose();
       }}
     >
       <WizardPopup size="wide">

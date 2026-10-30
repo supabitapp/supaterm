@@ -1,9 +1,5 @@
 import type { AssetResource, ThreadId } from "@supaterm/contracts";
-import {
-  audioMimeTypeFromExtension,
-  mediaMimeType,
-  mediaMimeTypeFromExtension,
-} from "@supaterm/shared/mediaPreview";
+import { mediaMimeType, mediaMimeTypeFromExtension } from "@supaterm/shared/filePreview";
 
 import {
   classifyMarkdownImageSource,
@@ -81,10 +77,9 @@ export function resolveMediaSource(
       ? mediaMimeType(classified.uri)
       : extensionIndex < 0
         ? null
-        : (mediaMimeTypeFromExtension(basename.slice(extensionIndex)) ??
-          audioMimeTypeFromExtension(basename.slice(extensionIndex)));
+        : mediaMimeTypeFromExtension(basename.slice(extensionIndex));
   const mimeType = detectedMimeType ?? (input.imageEmbed ? "image/*" : null);
-  if (mimeType === null || mimeType.startsWith("audio/")) return null;
+  if (mimeType === null) return null;
   const kind = mimeType.startsWith("video/") ? "video" : "image";
 
   const reference =

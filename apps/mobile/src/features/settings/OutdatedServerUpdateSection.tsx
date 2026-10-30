@@ -1,8 +1,8 @@
-import { useAtom, useAtomValue } from "@effect/atom-react";
-import { squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
+import { useAtomValue } from "@effect/atom-react";
+import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import type { EnvironmentId } from "@supaterm/contracts";
 import { AsyncResult } from "effect/reactivity";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 
 import { AppText as Text } from "../../components/ui/AppText";
@@ -13,13 +13,9 @@ import {
   updateOutdatedServer,
 } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
-import { ListActionRow as SettingsActionRow } from "../../components/ui/ListActionRow";
+import { SettingsActionRow } from "./components/SettingsActionRow";
 import { SettingsSection } from "./components/SettingsSection";
-import {
-  environmentReleaseCheckAtom,
-  releaseCheckError,
-  releaseCheckValue,
-} from "./environmentUpdateCheck";
+import { findEnvironmentUpdate } from "./environment-maintenance";
 
 export function OutdatedServerUpdateSection({
   environmentId,
@@ -31,22 +27,37 @@ export function OutdatedServerUpdateSection({
   const describe = useAtomCommand(describeOutdatedServer, { reportFailure: false });
   const update = useAtomCommand(updateOutdatedServer, { reportFailure: false });
   const state = useAtomValue(serverEnvironment.updateStateAtom(environmentId));
-  const [checkResult, startCheck] = useAtom(environmentReleaseCheckAtom(environmentId));
-  const release = releaseCheckValue(checkResult);
-  const checking = checkResult.waiting;
-
-  const [checkErrorDismissed, setCheckErrorDismissed] = useState(false);
-  const error = checkErrorDismissed ? null : releaseCheckError(checkResult);
+  const [release, setRelease] = useState<{
+    fromVersion: string;
+    targetVersion: string | null;
+  } | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const controller = useRef<AbortController | null>(null);
+  useEffect(() => () => controller.current?.abort(), []);
   const busy = checking || state.status === "running";
 
-  function check() {
-    if (busy) return;
-    setCheckErrorDismissed(false);
-    startCheck(async () => {
+  async function check() {
+    if (busy || controller.current !== null) return;
+    const request = new AbortController();
+    controller.current = request;
+    setChecking(true);
+    setError(null);
+    const timeout = setTimeout(() => request.abort(), 20_000);
+    const result = await settlePromise(async () => {
       const description = await describe(environmentId);
       if (AsyncResult.isFailure(description)) throw squashAtomCommandFailure(description);
-      return description.value.serverVersion;
+      const fromVersion = description.value.serverVersion;
+      const targetVersion = await findEnvironmentUpdate(fromVersion, request.signal);
+      if (!request.signal.aborted) setRelease({ fromVersion, targetVersion });
     });
+    clearTimeout(timeout);
+    controller.current = null;
+    setChecking(false);
+    if (AsyncResult.isFailure(result)) {
+      const failure = squashAtomCommandFailure(result);
+      setError(failure instanceof Error ? failure.message : "Could not check for updates.");
+    }
   }
 
   function requestUpdate() {
@@ -60,7 +71,7 @@ export function OutdatedServerUpdateSection({
         {
           text: "Update",
           onPress: () => {
-            setCheckErrorDismissed(true);
+            setError(null);
             void update({
               environmentId,
               input: { targetVersion },
@@ -102,7 +113,7 @@ export function OutdatedServerUpdateSection({
         label="Check for updates"
         disabled={busy}
         loading={checking}
-        onPress={check}
+        onPress={() => void check()}
       />
       {release?.targetVersion ? (
         <SettingsActionRow

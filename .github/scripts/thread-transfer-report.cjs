@@ -107,7 +107,7 @@ function formatValue(value, kind) {
 }
 
 function formatImpact(current, baseline, kind) {
-  if (baseline === undefined) return "N/A";
+  if (baseline === undefined) return "—";
   const delta = current - baseline;
   const prefix = delta > 0 ? "+" : delta < 0 ? "−" : "";
   const magnitude = formatValue(Math.abs(delta), kind);
@@ -154,7 +154,7 @@ function renderComment(input) {
       const pass = observed <= ceiling;
       failed ||= !pass;
       rows.push(
-        `| ${provider === "codex" ? "Codex" : "Claude"} | ${metric.label} | ${baselineObserved === undefined ? "N/A" : formatValue(baselineObserved, metric.kind)} | ${formatValue(observed, metric.kind)} | ${formatImpact(observed, baselineObserved, metric.kind)} | ${formatValue(ceiling, metric.kind)} | ${pass ? "✅" : "❌"} |`,
+        `| ${provider === "codex" ? "Codex" : "Claude"} | ${metric.label} | ${baselineObserved === undefined ? "—" : formatValue(baselineObserved, metric.kind)} | ${formatValue(observed, metric.kind)} | ${formatImpact(observed, baselineObserved, metric.kind)} | ${formatValue(ceiling, metric.kind)} | ${pass ? "✅" : "❌"} |`,
       );
 
       if (comparable && baseline.providers[provider].ceiling[metric.key] !== ceiling) {

@@ -3,7 +3,6 @@ import {
   ClaudeSettings,
   CodexSettings,
   EasDeviceHostConfig,
-  SimlockDeviceHostConfig,
   type ServerSettings,
   secretSettingsFields,
 } from "@supaterm/contracts";
@@ -32,7 +31,6 @@ const providerSecretFields = new Map([
   ),
 ]);
 const easDeviceHostSecretFields = secretSettingsFields(EasDeviceHostConfig);
-const simlockDeviceHostSecretFields = secretSettingsFields(SimlockDeviceHostConfig);
 const encode = (value: string) => Buffer.from(value, "utf8").toString("base64url");
 
 export interface SettingsSecret {
@@ -140,15 +138,5 @@ export function mapSettingsSecrets(
       ) as EasDeviceHostConfig,
   );
 
-  const simlockDeviceHosts = settings.simlockDeviceHosts.map(
-    (host) =>
-      mapFields(
-        host,
-        simlockDeviceHostSecretFields,
-        (field) =>
-          `simlock-device-host-${encode(host.id)}-${encode(new URL(host.gatewayUrl).origin)}-${encode(field)}`,
-      ) as SimlockDeviceHostConfig,
-  );
-
-  return { ...settings, providerInstances, sourceControlHosts, easDeviceHosts, simlockDeviceHosts };
+  return { ...settings, providerInstances, sourceControlHosts, easDeviceHosts };
 }

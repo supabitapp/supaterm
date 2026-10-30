@@ -401,53 +401,6 @@ export function readPendingThreadCreation(ref: ScopedThreadRef) {
   );
 }
 
-const localWorktreeRetries = new Map<string, Promise<ScopedThreadRef | null>>();
-
-function waitForOutboxDelivery(id: string): Promise<void> {
-  if (!webThreadOutbox.isSending(id)) return Promise.resolve();
-  return new Promise((resolve) => {
-    const unsubscribe = webThreadOutbox.subscribe(() => {
-      if (webThreadOutbox.isSending(id)) return;
-      unsubscribe();
-      resolve();
-    });
-  });
-}
-
-export function retryThreadWorktreeLocally(ref: ScopedThreadRef, cancel: () => Promise<boolean>) {
-  const key = scopedThreadKey(ref);
-  const pending = localWorktreeRetries.get(key);
-  if (pending) return pending;
-  const retry = async () => {
-    const original = readPendingThreadCreation(ref);
-    if (!original || !(await cancel())) return null;
-    await waitForOutboxDelivery(original.id);
-    const entry = webThreadOutbox.getSnapshot().find((candidate) => candidate.id === original.id);
-    if (!entry || entry.status === "delivered" || entry.scope !== original.scope) return null;
-    const { pendingWorktree: _worktree, ...payload } = entry.payload;
-    const {
-      prepareWorktree: _prepare,
-      runSetupScript: _script,
-      ...bootstrap
-    } = payload.input.bootstrap ?? {};
-    const replacement = await replaceThreadOutboxTurn(entry, {
-      ...payload,
-      input: { ...payload.input, bootstrap },
-    });
-    if (payload.draftId) {
-      useComposerDraftStore.getState().setDraftThreadContext(DraftId.make(payload.draftId), {
-        envMode: "local",
-        startFromOrigin: false,
-        worktreePath: null,
-      });
-    }
-    return replacement ?? ref;
-  };
-  const result = retry().finally(() => localWorktreeRetries.delete(key));
-  localWorktreeRetries.set(key, result);
-  return result;
-}
-
 export function useThreadOutboxLoaded() {
   return useSyncExternalStore(webThreadOutbox.subscribe, webThreadOutbox.isLoaded);
 }

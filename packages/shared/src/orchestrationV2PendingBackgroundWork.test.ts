@@ -3,40 +3,7 @@ import { ProviderInstanceId, ProviderThreadId } from "@supaterm/contracts";
 import {
   backgroundWorkHoldsCompletion,
   derivePendingBackgroundWork,
-  turnItemUpdateCanEndBackgroundWork,
 } from "./orchestrationV2PendingBackgroundWork.ts";
-
-describe("turnItemUpdateCanEndBackgroundWork", () => {
-  it.each(["command_execution", "dynamic_tool", "subagent"] as const)(
-    "checks completion after %s stops executing",
-    (type) => {
-      for (const status of ["idle", "completed", "failed", "cancelled", "interrupted"] as const) {
-        expect(turnItemUpdateCanEndBackgroundWork({ type, status })).toBe(true);
-      }
-      for (const status of ["pending", "running", "waiting"] as const) {
-        expect(turnItemUpdateCanEndBackgroundWork({ type, status })).toBe(false);
-      }
-    },
-  );
-
-  it.each(["file_change", "file_search", "web_search", "compaction", "proposed_plan"] as const)(
-    "does not trigger background completion for %s",
-    (type) => {
-      expect(turnItemUpdateCanEndBackgroundWork({ type, status: "completed" })).toBe(false);
-    },
-  );
-});
-
-describe("backgroundWorkHoldsCompletion", () => {
-  it.each([
-    ["a dev server", false, [{ taskId: "dev", kind: "command" }]],
-    ["a dev server's watchdog monitor", false, [{ taskId: "watch", kind: "monitor" }]],
-    ["a command the agent waits on", true, [{ taskId: "tests", kind: "command", awaited: true }]],
-    ["a subagent", true, [{ taskId: "review", kind: "subagent" }]],
-  ] as const)("with %s pending, holds completion: %s", (_case, holds, tasks) => {
-    expect(backgroundWorkHoldsCompletion(tasks)).toBe(holds);
-  });
-});
 
 describe("derivePendingBackgroundWork", () => {
   it("takes each subagent item's instance from its joined owner", () => {
@@ -342,7 +309,6 @@ describe("derivePendingBackgroundWork kinds", () => {
           id: "pt-1" as never,
           pendingBackgroundTasks: [
             { taskId: "bash", kind: "command" },
-            { taskId: "tests", kind: "command", awaited: true },
             { taskId: "watch", kind: "monitor" },
             { taskId: "workflow", kind: "background_task" },
           ],
@@ -369,7 +335,6 @@ describe("derivePendingBackgroundWork kinds", () => {
     });
     expect(tasks).toEqual([
       { taskId: "bash", kind: "command" },
-      { taskId: "tests", kind: "command", awaited: true },
       { taskId: "watch", kind: "monitor" },
       { taskId: "workflow", kind: "background_task" },
       {
@@ -396,29 +361,22 @@ describe("derivePendingBackgroundWork kinds", () => {
     };
     const link = (
       number: number,
-      extra: {
-        source?: "agent" | "stack-dismissed";
-        watched?: boolean;
-        state?: "open" | "closed" | "merged";
-      },
+      extra: { source?: "agent" | "stack-dismissed"; watched?: boolean },
     ) => ({
       host: "github.com",
       repository: "acme/app",
       number,
       url: `https://github.com/acme/app/pull/${number}`,
       source: extra.source ?? "agent",
-      snapshot: extra.state === undefined ? null : { state: extra.state },
       ...(extra.watched === false ? {} : { watch }),
     });
     const pullRequests = [
       link(1, {}),
       link(2, { watched: false }),
       link(3, { source: "stack-dismissed" }),
-      link(4, { state: "merged" }),
-      link(5, { state: "closed" }),
     ];
 
-    it("keeps a settled run waiting on each visible watch, as an awaited monitor", () => {
+    it("keeps a settled run waiting on each visible watch, as a monitor", () => {
       const tasks = derivePendingBackgroundWork({
         latestRun: { id: "run-1" as never, ordinal: 1, status: "completed" },
         providerThreads: [],
@@ -430,13 +388,6 @@ describe("derivePendingBackgroundWork kinds", () => {
           taskId: "pull-request-watch:github.com/acme/app#1",
           description: "Watching pull request #1",
           kind: "monitor",
-          awaited: true,
-        },
-        {
-          taskId: "pull-request-watch:github.com/acme/app#5",
-          description: "Watching pull request #5",
-          kind: "monitor",
-          awaited: true,
         },
       ]);
       expect(backgroundWorkHoldsCompletion(tasks)).toBe(true);
@@ -450,10 +401,7 @@ describe("derivePendingBackgroundWork kinds", () => {
           turnItems: [],
           pullRequests,
         }).map((task) => task.taskId),
-      ).toEqual([
-        "pull-request-watch:github.com/acme/app#1",
-        "pull-request-watch:github.com/acme/app#5",
-      ]);
+      ).toEqual(["pull-request-watch:github.com/acme/app#1"]);
     });
 
     it("lists no watch while a run is active", () => {
@@ -492,7 +440,6 @@ describe("derivePendingBackgroundWork kinds", () => {
           taskId: "workflow-run-watch:github.com/acme/app#42",
           description: "Watching Release run",
           kind: "monitor",
-          awaited: true,
         },
       ]);
       expect(backgroundWorkHoldsCompletion(tasks)).toBe(true);

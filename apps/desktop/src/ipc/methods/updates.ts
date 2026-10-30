@@ -23,14 +23,11 @@ export const getUpdateState = DesktopIpc.makeIpcMethod({
 
 export const setUpdateChannel = DesktopIpc.makeIpcMethod({
   channel: IpcChannels.UPDATE_SET_CHANNEL_CHANNEL,
-  payload: Schema.Struct({
-    channel: DesktopUpdateChannelSchema,
-    minimumVersion: Schema.optional(Schema.String),
-  }),
+  payload: DesktopUpdateChannelSchema,
   result: DesktopUpdateStateSchema,
-  handler: Effect.fn("desktop.ipc.updates.setChannel")(function* ({ channel, minimumVersion }) {
+  handler: Effect.fn("desktop.ipc.updates.setChannel")(function* (channel) {
     const updates = yield* DesktopUpdates.DesktopUpdates;
-    return yield* updates.setChannel(channel, { minimumVersion });
+    return yield* updates.setChannel(channel);
   }),
 });
 
@@ -46,14 +43,11 @@ export const downloadUpdate = DesktopIpc.makeIpcMethod({
 
 export const installUpdate = DesktopIpc.makeIpcMethod({
   channel: IpcChannels.UPDATE_INSTALL_CHANNEL,
-
-  payload: Schema.UndefinedOr(Schema.String),
+  payload: Schema.Void,
   result: DesktopUpdateActionResultSchema,
-  handler: Effect.fn("desktop.ipc.updates.install")(function* (expectedVersion) {
+  handler: Effect.fn("desktop.ipc.updates.install")(function* () {
     const updates = yield* DesktopUpdates.DesktopUpdates;
-    if (expectedVersion === undefined) return yield* updates.install;
-    const { accepted, completed, state } = yield* updates.installPrepared(expectedVersion);
-    return { accepted, completed, state };
+    return yield* updates.install;
   }),
 });
 

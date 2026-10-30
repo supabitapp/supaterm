@@ -30,7 +30,6 @@ export function useDraftHeroLayoutTransition(
     previousComposerRectRef.current = measureComposerSurface(composerAnchorRef.current);
   };
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Measures committed composer geometry and drives its Web Animation before paint.
   useLayoutEffect(() => {
     const transitionGroup = transitionGroupRef.current;
     const nextComposerRect = measureComposerSurface(composerAnchorRef.current);

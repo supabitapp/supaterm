@@ -32,7 +32,6 @@ export function NativeMermaidBlock({
   const fontSize = Math.max(10, Math.round(textStyle.fontSize * 0.8));
   const failed = renderDiagram !== null && result?.source === source && result.diagram === null;
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Keeps the native diagram renderer in sync with the source and measured block width.
   useEffect(() => {
     if (!renderDiagram || !width) return;
     let active = true;

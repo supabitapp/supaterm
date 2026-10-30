@@ -1,3 +1,13 @@
+/**
+ * SupatermProjectFileLoader - Effect service that loads the checked-in `supaterm.json`
+ * project file from a workspace root.
+ *
+ * Loading is best-effort: a missing file resolves to `Option.none`, and
+ * unreadable or invalid files are logged and treated as absent so callers
+ * can fall back to their defaults.
+ *
+ * @module SupatermProjectFileLoader
+ */
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -49,7 +59,7 @@ const logSupatermProjectFileLoadError = (error: SupatermProjectFileLoadError) =>
     }),
   );
 
-/** @public */
+/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;

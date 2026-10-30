@@ -12,6 +12,8 @@ import { CLAUDE_BACKGROUND_TASK_INTERRUPT_PROMPT } from "./input.ts";
 
 const BACKGROUND_TASK_ID = "bt3kw2qpn";
 
+// Interrupting a turn tears down its CLI process, which kills the background
+// task it started.
 export function assertClaudeBackgroundTaskInterruptOutput(
   result: OrchestratorV2ScenarioResult,
   transcript: ProviderReplayTranscript,

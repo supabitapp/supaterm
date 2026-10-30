@@ -3,7 +3,6 @@ import { assert, describe, it } from "@effect/vitest";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Option from "effect/Option";
 import * as SqlClient from "effect/sql/SqlClient";
 
 import * as AuthPairingLinks from "./AuthPairingLinks.ts";
@@ -257,42 +256,3 @@ describe("persistence error correlation", () => {
     }).pipe(Effect.provide(layerProviderSessionRuntime)),
   );
 });
-
-it.effect("keeps a pairing credential available after a required-scope rejection", () =>
-  Effect.gen(function* () {
-    const links = yield* AuthPairingLinks.AuthPairingLinkRepository;
-    yield* links.create({
-      id: "scope-check",
-      credential: "scope-check-token",
-      method: "one-time-token",
-      scopes,
-      subject: "scope-check",
-      label: null,
-      createdAt: issuedAt,
-      expiresAt,
-    });
-    assert.isTrue(
-      Option.isNone(
-        yield* links.consumeAvailable({
-          credential: "scope-check-token",
-          requiredScopes: ["access:read", "access:write"],
-          consumedAt: now,
-          now,
-        }),
-      ),
-    );
-    const results = yield* Effect.forEach(
-      [1, 2],
-      () =>
-        links.consumeAvailable({
-          credential: "scope-check-token",
-          requiredScopes: ["access:read"],
-          consumedAt: now,
-          now,
-        }),
-      { concurrency: "unbounded" },
-    );
-    assert.equal(results.filter(Option.isSome).length, 1);
-    assert.equal(results.filter(Option.isNone).length, 1);
-  }).pipe(Effect.provide(layerAuthPairingLink)),
-);

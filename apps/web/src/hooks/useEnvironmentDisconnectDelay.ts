@@ -1,23 +1,24 @@
-import { deadlineAfter } from "@supaterm/client-runtime/clock";
 import type { EnvironmentId } from "@supaterm/contracts";
-import { useState } from "react";
-
-import { useDeadlinePassed } from "./useDeadline";
-
-const DISCONNECT_DELAY_MS = 20_000;
+import { useEffect, useState } from "react";
 
 export function useEnvironmentDisconnectDelay(unavailableEnvironmentId: EnvironmentId | null) {
-  return useEnvironmentStateHeldFor(unavailableEnvironmentId, DISCONNECT_DELAY_MS);
-}
-
-export function useEnvironmentStateHeldFor(environmentId: EnvironmentId | null, delayMs: number) {
-  const [held, setHeld] = useState(() => ({
-    environmentId,
-    deadline: deadlineAfter(delayMs),
-  }));
-  if (held.environmentId !== environmentId) {
-    setHeld({ environmentId, deadline: deadlineAfter(delayMs) });
+  const [delay, setDelay] = useState({ environmentId: unavailableEnvironmentId, elapsed: false });
+  if (delay.environmentId !== unavailableEnvironmentId) {
+    setDelay({ environmentId: unavailableEnvironmentId, elapsed: false });
   }
-  const elapsed = useDeadlinePassed(held.environmentId === null ? null : held.deadline);
-  return environmentId !== null && held.environmentId === environmentId && elapsed;
+
+  useEffect(() => {
+    if (unavailableEnvironmentId === null) return;
+    const timeout = setTimeout(
+      () => setDelay({ environmentId: unavailableEnvironmentId, elapsed: true }),
+      20_000,
+    );
+    return () => clearTimeout(timeout);
+  }, [unavailableEnvironmentId]);
+
+  return (
+    unavailableEnvironmentId !== null &&
+    delay.environmentId === unavailableEnvironmentId &&
+    delay.elapsed
+  );
 }

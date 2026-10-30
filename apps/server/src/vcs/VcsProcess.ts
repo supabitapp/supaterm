@@ -20,9 +20,7 @@ import {
   VcsProcessTimeoutError,
 } from "@supaterm/contracts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
-import type { SourceControlProcessInput } from "@supaterm/source-control-core/server/SourceControlHost";
 
-import { gitCommandDuration, gitCommandsTotal, withMetrics } from "../observability/Metrics.ts";
 import * as ProcessRunner from "../processRunner.ts";
 
 export interface VcsProcessInput {
@@ -39,9 +37,6 @@ export interface VcsProcessInput {
   readonly maxOutputBytes?: number;
   readonly outputMode?: ProcessRunner.ProcessRunInput["outputMode"];
   readonly appendTruncationMarker?: boolean;
-  readonly classifyFailure?: SourceControlProcessInput["classifyFailure"];
-  readonly notFoundDetail?: string;
-  readonly concurrency?: SourceControlProcessInput["concurrency"];
 }
 
 export interface VcsProcessOutput {
@@ -65,32 +60,23 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_OUTPUT_BYTES = 1_000_000;
 const OUTPUT_TRUNCATED_MARKER = "\n\n[truncated]";
 const VCS_PROCESS_CONCURRENCY = 8;
+const GITHUB_PROCESS_CONCURRENCY = 4;
 
 export const GIT_INDEX_LOCKED_DETAIL =
   "Git's index is locked. Wait for other Git operations to finish, then try again.";
 
 export const CHECKPOINT_CAPTURE_OPERATION = "GitVcsDriver.checkpoints.captureCheckpoint";
 
-// Caller operations are diagnostic strings; only known labels may become metric attributes.
-const gitMetricOperations = new Set([
-  CHECKPOINT_CAPTURE_OPERATION,
-  "GitVcsDriver.checkpoints.deleteCheckpointRefs",
-  "GitVcsDriver.checkpoints.diffCheckpoints",
-  "GitVcsDriver.checkpoints.hasHeadCommit",
-  "GitVcsDriver.checkpoints.listAuthoredPaths",
-  "GitVcsDriver.checkpoints.resolveCheckpointCommit",
-  "GitVcsDriver.checkpoints.resolveGitCommonDir",
-  "GitVcsDriver.checkpoints.resolveHeadCommit",
-  "GitVcsDriver.checkpoints.restoreCheckpoint",
-  "GitVcsDriver.detectRepository",
-  "GitVcsDriver.filterIgnoredPaths",
-  "GitVcsDriver.initRepository",
-  "GitVcsDriver.isInsideWorkTree",
-  "GitVcsDriver.listRemotes",
-  "GitVcsDriver.listWorkspaceFiles",
-  "GitVcsDriver.resolveGitCommonDir",
-]);
-
+/**
+ * Appends `key=value` to the `GIT_CONFIG_*` entries git reads as command-line
+ * config, so argv stays the same on every platform and nothing is written to
+ * the user's config. The entry goes after any inherited ones. Windows env names
+ * are case-insensitive (elsewhere git reads only `GIT_CONFIG_COUNT`), so there the
+ * count is found regardless of casing, read from
+ * the last spelling (a per-command value spread over process.env), and updated
+ * under every spelling so the child sees it whichever one Node keeps. A count
+ * git would reject is left alone so git still reports it.
+ */
 export const gitConfigEnv = (
   env: NodeJS.ProcessEnv,
   key: string,
@@ -105,6 +91,8 @@ export const gitConfigEnv = (
   if (
     inherited !== undefined &&
     inherited !== "" &&
+    // Git parses the count with strtoul: leading whitespace, an optional sign
+    // (only -0 is non-negative), digits, and nothing after them.
     /^[ \t\r\n\v\f]*(?:\+?\d+|-0+)/.exec(inherited)?.[0] !== inherited
   ) {
     return {};
@@ -117,20 +105,26 @@ export const gitConfigEnv = (
   };
 };
 
+/**
+ * Git otherwise opens any folder holding `HEAD`, `objects/` and `refs/` as a
+ * bare repository and applies its `config`, including commands such as
+ * `core.fsmonitor`. Files saved in a project or checked out from a clone can
+ * form one, so git started by Supaterm (or by gh and friends) only opens a bare
+ * repository named with `--git-dir` or `GIT_DIR`. Git before 2.38 ignores it.
+ */
 export const explicitBareRepositoryEnv = (env: NodeJS.ProcessEnv, platform: NodeJS.Platform) =>
   gitConfigEnv(env, "safe.bareRepository", "explicit", platform);
 
-const classifyNonZeroExit = (
-  stderr: string,
-  classifyFailure: VcsProcessInput["classifyFailure"],
-): VcsProcessExitFailureKind => {
+const classifyNonZeroExit = (command: string, stderr: string): VcsProcessExitFailureKind => {
   const normalized = stderr.toLowerCase();
-  const commandKind = classifyFailure?.(stderr) ?? null;
 
   if (
-    commandKind === "authentication" ||
     normalized.includes("authentication failed") ||
     normalized.includes("not logged in") ||
+    normalized.includes("gh auth login") ||
+    normalized.includes("glab auth login") ||
+    normalized.includes("az devops login") ||
+    normalized.includes("please run az login") ||
     normalized.includes("no oauth token") ||
     normalized.includes("unauthorized")
   ) {
@@ -138,7 +132,6 @@ const classifyNonZeroExit = (
   }
 
   if (
-    commandKind === "rate-limited" ||
     normalized.includes("api rate limit") ||
     normalized.includes("rate limit exceeded") ||
     normalized.includes("secondary rate limit") ||
@@ -148,7 +141,24 @@ const classifyNonZeroExit = (
     return "rate-limited";
   }
 
-  return commandKind ?? "command-failed";
+  if (
+    (command === "gh" &&
+      (normalized.includes("could not resolve to a pullrequest") ||
+        normalized.includes("repository.pullrequest") ||
+        normalized.includes("no pull requests found for branch") ||
+        normalized.includes("pull request not found"))) ||
+    (command === "glab" &&
+      (normalized.includes("merge request not found") ||
+        normalized.includes("not found") ||
+        normalized.includes("404"))) ||
+    (command === "az" &&
+      normalized.includes("pull request") &&
+      (normalized.includes("not found") || normalized.includes("does not exist")))
+  ) {
+    return "not-found";
+  }
+
+  return "command-failed";
 };
 
 // Classify before discarding stderr; keep paths and process output out of errors.
@@ -167,22 +177,10 @@ export const make = Effect.gen(function* () {
   const processRunner = yield* ProcessRunner.ProcessRunner;
   const hostPlatform = yield* HostProcess.Platform;
   const vcsProcesses = yield* Semaphore.make(VCS_PROCESS_CONCURRENCY);
-  const keyedProcesses = new Map<string, Semaphore.Semaphore>();
-  const keyedPermit = (concurrency: NonNullable<VcsProcessInput["concurrency"]>) => {
-    let semaphore = keyedProcesses.get(concurrency.key);
-    if (semaphore === undefined) {
-      semaphore = Semaphore.makeUnsafe(concurrency.limit);
-      keyedProcesses.set(concurrency.key, semaphore);
-    }
-    return semaphore.withPermits(1);
-  };
+  const githubProcesses = yield* Semaphore.make(GITHUB_PROCESS_CONCURRENCY);
 
-  const spawn = Effect.fn("VcsProcess.spawn")(function* (
-    input: VcsProcessInput,
-    baseError: VcsProcessErrorContext,
-  ) {
-    let failedExit = false;
-    const execution = processRunner
+  const spawn = (input: VcsProcessInput, baseError: VcsProcessErrorContext) =>
+    processRunner
       .run({
         command: input.command,
         args: input.args,
@@ -201,10 +199,6 @@ export const make = Effect.gen(function* () {
         timeoutBehavior: "error",
       })
       .pipe(
-        Effect.tap((result) => {
-          failedExit = result.code === null || (!input.allowNonZeroExit && result.code !== 0);
-          return Effect.void;
-        }),
         Effect.mapError(
           Match.valueTags({
             ProcessSpawnError: (error) =>
@@ -233,22 +227,6 @@ export const make = Effect.gen(function* () {
           }),
         ),
       );
-
-    return yield* input.command === "git"
-      ? execution.pipe(
-          withMetrics({
-            counter: gitCommandsTotal,
-            timer: gitCommandDuration,
-            attributes: {
-              operation: gitMetricOperations.has(input.operation) ? input.operation : "other",
-            },
-            outcomeAttributes: (outcome) => ({
-              outcome: outcome === "success" && failedExit ? "failure" : outcome,
-            }),
-          }),
-        )
-      : execution;
-  });
 
   const runUnbounded = Effect.fn("VcsProcess.runUnbounded")(function* (input: VcsProcessInput) {
     const baseError = {
@@ -286,7 +264,7 @@ export const make = Effect.gen(function* () {
     }
 
     if (!input.allowNonZeroExit && result.code !== 0) {
-      const failureKind = classifyNonZeroExit(result.stderr, input.classifyFailure);
+      const failureKind = classifyNonZeroExit(input.command, result.stderr);
       const error = VcsProcessExitError.fromProcessExit(
         baseError,
         {
@@ -295,13 +273,9 @@ export const make = Effect.gen(function* () {
           stderrTruncated: result.stderrTruncated,
         },
         failureKind,
-        {
-          retryable:
-            input.command === "git" &&
-            failureKind === "command-failed" &&
-            isTransientGitExit(result.stderr),
-          ...(input.notFoundDetail === undefined ? {} : { notFoundDetail: input.notFoundDetail }),
-        },
+        input.command === "git" &&
+          failureKind === "command-failed" &&
+          isTransientGitExit(result.stderr),
       );
       if (
         input.command === "git" &&
@@ -349,9 +323,7 @@ export const make = Effect.gen(function* () {
         }),
       );
     }
-    return yield* input.concurrency === undefined
-      ? bounded
-      : keyedPermit(input.concurrency)(bounded);
+    return yield* input.command === "gh" ? githubProcesses.withPermits(1)(bounded) : bounded;
   });
 
   return VcsProcess.of({ run });

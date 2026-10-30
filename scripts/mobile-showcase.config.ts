@@ -38,7 +38,6 @@ export interface ShowcaseIosDevice {
   readonly appearance: ShowcaseAppearance;
   readonly theme: ShowcaseTheme;
   readonly orientation?: "portrait" | "landscape";
-  readonly fold?: "closed" | "open";
   readonly scenes: ReadonlyArray<ShowcaseScene>;
   readonly storeAsset: ShowcaseStoreAssetSpec;
 }
@@ -85,7 +84,8 @@ export function resolveShowcaseAndroidAbi(
 
 const config: ShowcaseConfig = {
   outputDirectory: "artifacts/app-store/screenshots",
-
+  // Dedicated port so the harness cannot attach to a normal mobile dev server
+  // (or a second worktree) and capture the wrong bundle.
   metroPort: 8199,
   settleDelayMs: 2_500,
   devices: [
@@ -140,26 +140,6 @@ const config: ShowcaseConfig = {
         maximumUploadCount: 10,
       },
     },
-    ...(["closed", "open"] as const).map((fold): ShowcaseIosDevice => ({
-      id: `iphone-duo-${fold}`,
-      platform: "ios",
-      simulator: `Supaterm Showcase iPhone Duo ${fold}`,
-      simulatorDeviceType: "com.apple.CoreSimulator.SimDeviceType.iPhone-Duo",
-      appearance: "dark",
-      theme: DEFAULT_SHOWCASE_THEME,
-      orientation: fold === "closed" ? "portrait" : "landscape",
-      fold,
-
-      scenes: ["thread", "terminal", "review", "threads", "environments"],
-      storeAsset: {
-        store: "apple",
-        directory: `apple/iphone-duo-${fold}`,
-        width: fold === "closed" ? 1398 : 2853,
-        height: fold === "closed" ? 2034 : 2007,
-        minimumUploadCount: 1,
-        maximumUploadCount: 5,
-      },
-    })),
     {
       id: "ipad-13",
       platform: "ios",
@@ -182,7 +162,8 @@ const config: ShowcaseConfig = {
       id: "pixel",
       platform: "android",
       avd: "Pixel_10_Pro",
-
+      // Apple Silicon uses ARM64 locally; CI overrides this with x86_64 so its
+      // Linux runner can use KVM acceleration.
       abi: resolveShowcaseAndroidAbi(process.env.SUPATERM_SHOWCASE_ANDROID_ABI),
       appearance: "dark",
       theme: DEFAULT_SHOWCASE_THEME,

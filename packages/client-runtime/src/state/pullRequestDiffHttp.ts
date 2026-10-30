@@ -75,15 +75,10 @@ export const layer: Layer.Layer<PullRequestDiffLoader, never, HttpClient.HttpCli
   Effect.gen(function* () {
     const httpClient = yield* HttpClient.HttpClient;
     return PullRequestDiffLoader.of({
-      load: Effect.fnUntraced(
-        function* (prepared, input) {
-          return yield* fetchEnvironmentPullRequestDiff({
-            prepared,
-            diff: input,
-          });
-        },
-        Effect.provideService(HttpClient.HttpClient, httpClient),
-      ),
+      load: (prepared, input) =>
+        fetchEnvironmentPullRequestDiff({ prepared, diff: input }).pipe(
+          Effect.provideService(HttpClient.HttpClient, httpClient),
+        ),
     });
   }),
 );

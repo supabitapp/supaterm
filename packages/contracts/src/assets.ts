@@ -11,8 +11,6 @@ import { ToolActivityNativeAppReference } from "./providerRuntime.ts";
 
 const ASSET_PATH_MAX_LENGTH = 1024;
 
-export const SOURCE_CONTROL_MEDIA_ASSET = "github-media" as const;
-
 export const AssetResource = Schema.Union([
   Schema.TaggedStruct("workspace-file", {
     threadId: ThreadId,
@@ -31,7 +29,8 @@ export const AssetResource = Schema.Union([
     attachmentId: TrimmedNonEmptyString.check(Schema.isMaxLength(256)),
     fileName: Schema.optionalKey(TrimmedNonEmptyString.check(Schema.isMaxLength(255))),
     mimeType: Schema.optionalKey(TrimmedNonEmptyString.check(Schema.isMaxLength(100))),
-
+    /** Generic attachments download by default. Document viewers opt into an
+        inline response after deciding the file type is safe to preview. */
     disposition: Schema.optionalKey(Schema.Literals(["inline", "attachment"])),
     renderIntent: Schema.optionalKey(Schema.Literal("mcp-app")),
   }),
@@ -42,14 +41,17 @@ export const AssetResource = Schema.Union([
   }),
   Schema.TaggedStruct("project-favicon", {
     cwd: TrimmedNonEmptyString.check(Schema.isMaxLength(ASSET_PATH_MAX_LENGTH)),
-
+    // A cache-key hint only. The server reads the authoritative path from the
+    // project projection before it issues the signed URL.
     path: Schema.optional(ProjectFaviconPath),
   }),
   Schema.TaggedStruct("native-app-icon", {
     app: ToolActivityNativeAppReference,
   }),
-
-  Schema.TaggedStruct(SOURCE_CONTROL_MEDIA_ASSET, {
+  // An upload a pull request body points at on GitHub. A private repository serves these only
+  // to a request that carries a credential, which the client has none of, so the server fetches
+  // them with the `gh` credential the repository at `cwd` authenticates with.
+  Schema.TaggedStruct("github-media", {
     cwd: TrimmedNonEmptyString.check(Schema.isMaxLength(ASSET_PATH_MAX_LENGTH)),
     url: TrimmedNonEmptyString.check(Schema.isMaxLength(2048)),
   }),
@@ -74,7 +76,7 @@ export const AssetCreateUrlResult = Schema.Struct({
     TrimmedNonEmptyString.check(Schema.isMaxLength(ASSET_PATH_MAX_LENGTH)),
   ),
   imageDimensions: Schema.optional(AssetImageDimensions),
-
+  /** Changes only when the file's contents or identity change, unlike `relativeUrl`, which is re-signed on every mint. */
   fileRevision: Schema.optional(TrimmedNonEmptyString.check(Schema.isMaxLength(256))),
 });
 export type AssetCreateUrlResult = typeof AssetCreateUrlResult.Type;
@@ -208,7 +210,7 @@ export class AssetWorkspaceAssetNotFoundError extends Schema.TaggedError<AssetWo
   "AssetWorkspaceAssetNotFoundError",
   {
     resource: AssetResource,
-
+    // Absolute path after home/workspace resolution; absent on older servers.
     checkedPath: Schema.optionalKey(Schema.String),
   },
 ) {
@@ -291,12 +293,12 @@ export class AssetSigningKeyLoadError extends Schema.TaggedError<AssetSigningKey
   }
 }
 
-export class AssetSourceControlMediaUrlValidationError extends Schema.TaggedError<AssetSourceControlMediaUrlValidationError>()(
+export class AssetGitHubMediaUrlValidationError extends Schema.TaggedError<AssetGitHubMediaUrlValidationError>()(
   "AssetGitHubMediaUrlValidationError",
   {},
 ) {
   override get message(): string {
-    return "Only media a source control host keeps behind a credential can be fetched with one.";
+    return "Only media hosted by GitHub can be fetched with a GitHub credential.";
   }
 }
 
@@ -313,7 +315,7 @@ export const AssetAccessError = Schema.Union([
   AssetProjectFaviconResolutionError,
   AssetProjectFaviconInspectionError,
   AssetProjectFaviconNotFoundError,
-  AssetSourceControlMediaUrlValidationError,
+  AssetGitHubMediaUrlValidationError,
   AssetSigningKeyLoadError,
 ]);
 export type AssetAccessError = typeof AssetAccessError.Type;

@@ -1,5 +1,13 @@
+/**
+ * KnownWorkspaces - the folders a client-named cwd may act in: a Supaterm-managed
+ * worktree folder, a registered project, or a thread's worktree. Clients send
+ * the thread's worktree, else the project root. A client also sets a thread's
+ * worktree path, so one counts only under a managed folder or when git lists
+ * it as a worktree of the thread's project.
+ *
+ * @module KnownWorkspaces
+ */
 import * as HostProcess from "@supaterm/shared/HostProcess";
-import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -26,6 +34,7 @@ export class UnknownWorkspaceError extends Schema.TaggedError<UnknownWorkspaceEr
   }
 }
 
+/** Whether `candidate` is `root` or inside it. Resolve both the same way first. */
 export const isWithinRoot = (path: Path.Path, candidate: string, root: string) => {
   const relative = path.relative(root, candidate);
   return (
@@ -44,7 +53,7 @@ export class KnownWorkspaces extends Context.Service<
   }
 >()("supaterm/workspace/KnownWorkspaces") {}
 
-/** @public */
+/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const config = yield* ServerConfig.ServerConfig;
   const fileSystem = yield* FileSystem.FileSystem;
@@ -54,6 +63,8 @@ export const make = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
   const git = yield* GitVcsDriver.GitVcsDriver;
 
+  // A root that does not exist yet keeps its lexical path. One that cannot be
+  // resolved for another reason, or resolves to a filesystem root, grants nothing.
   const resolveRoot = (value: string) => {
     const resolvedPath = path.resolve(value);
     return fileSystem.realPath(resolvedPath).pipe(
@@ -94,10 +105,7 @@ export const make = Effect.gen(function* () {
           project_id AS "projectId"
         FROM orchestration_v2_projection_threads
         WHERE deleted_at IS NULL AND json_extract(payload_json, '$.worktreePath') IS NOT NULL
-      `.pipe(
-        NodeSqliteClient.readOnly,
-        Effect.orElseSucceed(() => []),
-      );
+      `.pipe(Effect.orElseSucceed(() => []));
       const projectWorktrees = new Map<string, ReadonlyArray<string>>();
       const isProjectWorktree = Effect.fnUntraced(function* (
         projectId: string,
@@ -118,6 +126,8 @@ export const make = Effect.gen(function* () {
         return real !== null && listed.includes(real);
       });
       for (const { worktreePath, projectId } of threads) {
+        // A relative path would resolve against the server's own cwd. One under a
+        // managed folder is still resolved: it can be a symlink to a checkout elsewhere.
         if (!path.isAbsolute(worktreePath)) continue;
         if (!within(yield* resolveRoot(worktreePath))) continue;
         const lexical = path.resolve(worktreePath);

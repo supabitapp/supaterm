@@ -1,21 +1,15 @@
-import * as NodeServices from "@effect/platform-node/NodeServices";
 import {
   DEFAULT_SERVER_SETTINGS,
-  GitCommandError,
   type ServerSettings,
   type ServerSettingsPatch,
-  VcsProcessExitError,
-  VcsProcessSpawnError,
 } from "@supaterm/contracts";
 import { applyServerSettingsPatch } from "@supaterm/shared/serverSettings";
 import * as SourceControlHost from "@supaterm/source-control-core/server/SourceControlHost";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as ChildProcess from "effect/process/ChildProcess";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import * as Ref from "effect/Ref";
-import * as Stream from "effect/Stream";
 
 export interface TestSourceControlHostOptions {
   readonly settings?: ServerSettings;
@@ -44,8 +38,6 @@ const failingGit: Git = {
   fetchRemoteBranch: unexpectedGit("fetchRemoteBranch"),
   fetchRemoteTrackingBranch: unexpectedGit("fetchRemoteTrackingBranch"),
   setBranchUpstream: unexpectedGit("setBranchUpstream"),
-  createBranch: unexpectedGit("createBranch"),
-  writeConfigValue: unexpectedGit("writeConfigValue"),
   switchRef: unexpectedGit("switchRef"),
 };
 
@@ -55,10 +47,8 @@ export const layer = (
   Layer.effectContext(
     Effect.gen(function* () {
       const settings = yield* Ref.make(options.settings ?? DEFAULT_SERVER_SETTINGS);
-      const update = (patch: ServerSettingsPatch) =>
-        Ref.updateAndGet(settings, (current) => applyServerSettingsPatch(current, patch));
       const host = SourceControlHost.SourceControlHost.of({
-        settings: { get: Ref.get(settings), update },
+        settings: { get: Ref.get(settings) },
         process: {
           run:
             options.process?.run ??
@@ -68,7 +58,8 @@ export const layer = (
       });
       return Context.make(SourceControlHost.SourceControlHost, host).pipe(
         Context.add(TestSourceControlHostSettings, {
-          update: (patch) => Effect.asVoid(update(patch)),
+          update: (patch) =>
+            Ref.update(settings, (current) => applyServerSettingsPatch(current, patch)),
         }),
       );
     }),
@@ -87,113 +78,3 @@ export const processOutput = (
   stdoutTruncated: false,
   stderrTruncated: false,
 });
-
-const TRUNCATION_MARKER = "\n\n[truncated]";
-const DEFAULT_MAX_OUTPUT_BYTES = 1_000_000;
-
-const collectText = <E>(stream: Stream.Stream<Uint8Array, E>, maxBytes: number, marker: string) =>
-  Stream.runCollect(stream).pipe(
-    Effect.map((chunks) => {
-      const bytes = Buffer.concat(Array.from(chunks));
-      const truncated = bytes.byteLength > maxBytes;
-      const text = bytes.subarray(0, maxBytes).toString("utf8");
-      return { text: truncated ? `${text}${marker}` : text, truncated };
-    }),
-  );
-
-const runForReal = (
-  spawner: ChildProcessSpawner.ChildProcessSpawner["Service"],
-  input: SourceControlHost.SourceControlProcessInput,
-): Effect.Effect<
-  SourceControlHost.SourceControlProcessOutput,
-  VcsProcessSpawnError | VcsProcessExitError
-> => {
-  const context = {
-    operation: input.operation,
-    command: input.command,
-    cwd: input.cwd,
-    argumentCount: input.args.length,
-  };
-  const maxBytes = input.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES;
-  const marker = input.appendTruncationMarker ? TRUNCATION_MARKER : "";
-  return Effect.gen(function* () {
-    const child = yield* spawner.spawn(
-      ChildProcess.make(input.command, input.args, {
-        cwd: input.spawnCwd ?? input.cwd,
-        ...(input.env === undefined ? {} : { env: input.env, extendEnv: true }),
-      }),
-    );
-    const [stdout, stderr] = yield* Effect.all(
-      [
-        collectText(
-          input.onStdoutChunk === undefined
-            ? child.stdout
-            : child.stdout.pipe(
-                Stream.tap((chunk) => Effect.sync(() => input.onStdoutChunk?.(chunk))),
-              ),
-          maxBytes,
-          marker,
-        ),
-        collectText(child.stderr, maxBytes, marker),
-        input.stdin === undefined
-          ? Effect.void
-          : Stream.run(Stream.encodeText(Stream.make(input.stdin)), child.stdin),
-      ],
-      { concurrency: "unbounded" },
-    );
-    const exitCode = yield* child.exitCode;
-    if (exitCode !== 0 && !input.allowNonZeroExit) {
-      return yield* VcsProcessExitError.fromProcessExit(
-        context,
-        { exitCode, stderr: stderr.text, stderrTruncated: stderr.truncated },
-        input.classifyFailure?.(stderr.text) ?? "command-failed",
-        input.notFoundDetail === undefined ? undefined : { notFoundDetail: input.notFoundDetail },
-      );
-    }
-    return {
-      exitCode,
-      stdout: stdout.text,
-      stderr: stderr.text,
-      stdoutTruncated: stdout.truncated,
-      stderrTruncated: stderr.truncated,
-    };
-  }).pipe(
-    Effect.scoped,
-    Effect.catchTags({
-      PlatformError: (cause) => Effect.fail(new VcsProcessSpawnError({ ...context, cause })),
-    }),
-  );
-};
-
-export const layerWithRealGit = (
-  options: TestSourceControlHostOptions = {},
-): Layer.Layer<SourceControlHost.SourceControlHost | TestSourceControlHostSettings> =>
-  Layer.unwrap(
-    Effect.gen(function* () {
-      const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-      const run = (input: SourceControlHost.SourceControlProcessInput) =>
-        runForReal(spawner, input);
-      return layer({
-        ...options,
-        process: { run, ...options.process },
-        git: {
-          execute: (input) =>
-            run({ ...input, command: "git" }).pipe(
-              Effect.mapError(
-                (cause) =>
-                  new GitCommandError({
-                    operation: input.operation,
-                    command: "git",
-                    cwd: input.cwd,
-                    argumentCount: input.args.length,
-                    ...(cause._tag === "VcsProcessExitError" ? { exitCode: cause.exitCode } : {}),
-                    detail: cause.message,
-                    cause,
-                  }),
-              ),
-            ),
-          ...options.git,
-        },
-      });
-    }),
-  ).pipe(Layer.provide(NodeServices.layer));

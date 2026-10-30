@@ -1,4 +1,5 @@
 import { useAtomValue } from "@effect/atom-react";
+import { useMemo } from "react";
 import { Atom } from "effect/reactivity";
 
 import { environmentShell, environmentShellSummaryAtom } from "./shell";
@@ -35,19 +36,26 @@ export function useConnectionsReady() {
   return useAtomValue(workspaceConnections.isReadyAtom);
 }
 
-export const workspaceStateAtom = Atom.make((get) =>
-  projectWorkspaceState({
-    isReady: get(workspaceConnections.isReadyAtom),
-    networkStatus: get(environmentCatalog.networkStatusValueAtom),
-    environments: get(workspaceConnections.environmentsAtom),
-    shellSummary: get(environmentShellSummaryAtom),
-    hasSyncingConnectedEnvironment: get(hasSyncingConnectedEnvironmentAtom),
-  }),
-).pipe(Atom.withLabel("mobile:workspace-state"));
-
 export function useWorkspaceState() {
+  const isReady = useConnectionsReady();
+  const networkStatus = useAtomValue(environmentCatalog.networkStatusValueAtom);
+  const projectedEnvironments = useWorkspaceEnvironments();
+  const shellSummary = useAtomValue(environmentShellSummaryAtom);
+  const hasSyncingConnectedEnvironment = useAtomValue(hasSyncingConnectedEnvironmentAtom);
+  const state = useMemo(
+    () =>
+      projectWorkspaceState({
+        isReady,
+        networkStatus,
+        environments: projectedEnvironments,
+        shellSummary,
+        hasSyncingConnectedEnvironment,
+      }),
+    [isReady, networkStatus, projectedEnvironments, shellSummary, hasSyncingConnectedEnvironment],
+  );
+
   return {
-    environments: useWorkspaceEnvironments(),
-    state: useAtomValue(workspaceStateAtom),
+    environments: projectedEnvironments,
+    state,
   };
 }

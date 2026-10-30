@@ -30,7 +30,7 @@ import {
   makeGrokAdapterV2,
 } from "@supaterm/provider-grok/testing";
 
-const DEFAULT_GROK_SETTINGS = Schema.decodeSync(GrokSettings)({});
+const DEFAULT_GROK_SETTINGS = Schema.decodeUnknownSync(GrokSettings)({});
 
 function layerGrokProviderAdapterRegistryReplay(
   transcript: AcpReplayTranscript,

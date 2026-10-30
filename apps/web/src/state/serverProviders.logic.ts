@@ -24,7 +24,12 @@ function sameIgnoringCheckedAt(previous: object, next: object, nested: boolean):
   });
 }
 
-/** Ignores checkedAt; requires config projection to preserve unchanged nested references. */
+/**
+ * Keeps each provider from `previous` when `next` only moved its `checkedAt`
+ * timestamps. Every status push restamps them, so views that never show them
+ * would otherwise redraw each provider on every push. Relies on the config
+ * projection already sharing unchanged nested values.
+ */
 export function reuseProvidersIgnoringCheckedAt(
   previous: ReadonlyArray<ServerProvider> | null,
   next: ReadonlyArray<ServerProvider>,

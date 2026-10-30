@@ -5,14 +5,11 @@ import {
   OrchestratorMcpFailure,
   PreviewAutomationUnavailableError,
   type ProviderInstanceId,
-  type ProviderInteractionMode,
   type RuntimeMode,
   type ThreadId,
 } from "@supaterm/contracts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
-import * as Fiber from "effect/Fiber";
-import { formatThreadLink } from "@supaterm/shared/threadLinks";
 
 const ALL_MCP_CAPABILITIES = [
   "preview",
@@ -27,52 +24,20 @@ export interface McpThreadCaller {
   readonly threadId: ThreadId;
   readonly providerSessionId: string;
   readonly providerInstanceId: ProviderInstanceId;
-  readonly subagent?: boolean;
 }
 
 export interface McpClientCaller {
   readonly sessionId: string;
   readonly label: string;
   readonly access: AuthMcpClientAccess;
-  readonly linked?: boolean | undefined;
-  readonly narrowedTo?: ClientModes | undefined;
-  readonly webOrigin?: string | undefined;
 }
 
-export const MODE_LIMIT_HEADER = "supaterm-mode-limit";
-
-export interface ClientModes {
-  readonly runtimeMode: RuntimeMode;
-  readonly interactionMode: ProviderInteractionMode;
-}
-
-const runtimeModeRank: Record<RuntimeMode, number> = {
-  "approval-required": 0,
-  "auto-accept-edits": 1,
-  auto: 2,
-  "full-access": 3,
-};
-const interactionModeRank: Record<ProviderInteractionMode, number> = { plan: 0, default: 1 };
-
-export const clientModeCeiling = (client: McpClientCaller | undefined): ClientModes => {
-  const approved: ClientModes = {
-    runtimeMode:
-      client === undefined || client.access === "read-only" ? "approval-required" : client.access,
-    interactionMode: "default",
-  };
-  const asked = client?.narrowedTo;
-  if (asked === undefined) return approved;
-  return {
-    runtimeMode:
-      runtimeModeRank[asked.runtimeMode] < runtimeModeRank[approved.runtimeMode]
-        ? asked.runtimeMode
-        : approved.runtimeMode,
-    interactionMode:
-      interactionModeRank[asked.interactionMode] < interactionModeRank[approved.interactionMode]
-        ? asked.interactionMode
-        : approved.interactionMode,
-  };
-};
+/**
+ * A read-only client never reaches a write (`McpToolAccess` refuses it first),
+ * so it maps to the lowest mode rather than to nothing.
+ */
+export const clientRuntimeModeCeiling = (client: McpClientCaller | undefined): RuntimeMode =>
+  client === undefined || client.access === "read-only" ? "approval-required" : client.access;
 
 /**
  * A thread caller's omitted target falls back to its own thread; a client
@@ -86,33 +51,12 @@ export interface McpInvocationScope {
   readonly requestNamespace: string;
   readonly thread: McpThreadCaller | undefined;
   readonly client: McpClientCaller | undefined;
-  readonly linkedEnvironments?: boolean;
 }
-
-export const threadLinkFor = (
-  scope: Pick<McpInvocationScope, "environmentId" | "client">,
-  threadId: ThreadId,
-): string =>
-  scope.client?.webOrigin === undefined
-    ? formatThreadLink({ environmentId: scope.environmentId, threadId })
-    : `${scope.client.webOrigin}/${encodeURIComponent(scope.environmentId)}/${encodeURIComponent(threadId)}`;
 
 export class McpInvocationContext extends Context.Service<
   McpInvocationContext,
   McpInvocationScope
 >()("supaterm/mcp/McpInvocationContext") {}
-
-export const hiddenFromSubagents = (): boolean => {
-  const fiber = Fiber.getCurrent();
-  const scope = fiber && Context.getOrUndefined(fiber.context, McpInvocationContext);
-  return scope?.thread?.subagent !== true;
-};
-
-export const hiddenWhileLinksOff = (): boolean => {
-  const fiber = Fiber.getCurrent();
-  const scope = fiber && Context.getOrUndefined(fiber.context, McpInvocationContext);
-  return scope?.linkedEnvironments !== false;
-};
 
 export type McpCapabilityError<C extends McpCapability> = C extends "preview"
   ? PreviewAutomationUnavailableError

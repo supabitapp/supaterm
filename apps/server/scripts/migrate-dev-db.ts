@@ -110,6 +110,7 @@ export interface RunMigrateDevDbInput {
 }
 
 export interface RunMigrateDevDbOptions {
+  /** Overridable for tests; the directory writes must never target. */
   readonly sharedHome?: string | undefined;
 }
 
@@ -133,10 +134,15 @@ const isProcessAlive = (pid: number): boolean => {
     process.kill(pid, 0);
     return true;
   } catch (error) {
+    // EPERM means the process exists but belongs to someone else.
     return (error as NodeJS.ErrnoException).code === "EPERM";
   }
 };
 
+/**
+ * The server writes its pid to server-runtime.json next to the database, which also catches an idle server holding an open-but-inactive
+ * connection. A leftover -shm alone is not a signal — read-only connections cannot clean it up on close.
+ */
 const ensureNotInUse = Effect.fn("ensureDevDbNotInUse")(function* (databasePath: string) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -197,37 +203,21 @@ const CLEARED_TABLES: ReadonlyArray<string> = [
   "auth_pairing_links",
 ];
 
-export const clearedTables = Effect.fn("migrateDevDb.clearedTables")(function* (
-  schema: "main" | "src",
-) {
-  const sql = yield* SqlClient.SqlClient;
-  const references = yield* sql.unsafe<{ name: string; parent: string }>(
-    `SELECT m.name, f."table" AS parent FROM ${schema}.sqlite_master m, pragma_foreign_key_list(m.name, '${schema}') f WHERE m.type = 'table'`,
-  );
-  const cleared = new Set(CLEARED_TABLES);
-  for (let grew = true; grew;) {
-    grew = false;
-    for (const { name, parent } of references) {
-      if (cleared.has(parent) && !cleared.has(name)) {
-        cleared.add(name);
-        grew = true;
-      }
-    }
-  }
-  return cleared;
-});
-
 const PROVIDER_SESSIONS_TABLE = "orchestration_v2_projection_provider_sessions";
 
+// Done threads stay: they are most of real history, and the UI shows them.
 const rootIsVisible = (sql: SqlClient.SqlClient) => sql`
   root.deleted_at IS NULL
   AND json_extract(root.payload_json, '$.deletedAt') IS NULL
   AND json_extract(root.payload_json, '$.archivedAt') IS NULL`;
 
-const copySourceSlice = Effect.fn("copyDevDbSourceSlice")(function* (
-  sourcePath: string,
-  input: RunMigrateDevDbInput,
-) {
+/**
+ * Build the snapshot from this checkout's schema, then copy the visible
+ * threads' rows in by column name. Columns the source lacks keep their
+ * defaults, and source tables this schema dropped are skipped, so a source
+ * written by an older or newer build still imports.
+ */
+const copySourceSlice = Effect.fn("copyDevDbSourceSlice")(function* (sourcePath: string) {
   const sql = yield* SqlClient.SqlClient;
   yield* runMigrations();
   yield* sql`ATTACH DATABASE ${`${NodeURL.pathToFileURL(sourcePath).href}?mode=ro`} AS src`;
@@ -236,84 +226,22 @@ const copySourceSlice = Effect.fn("copyDevDbSourceSlice")(function* (
       (row) => row.name,
     ),
   );
-  const cleared = yield* clearedTables("src");
   const tables = (yield* sql<{ name: string }>`
     SELECT name FROM main.sqlite_master
-    WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name <> 'effect_sql_migrations'
-      AND name NOT IN (SELECT name FROM pragma_table_list WHERE schema = 'main' AND type IN ('virtual', 'shadow'))
-    ORDER BY CASE name WHEN 'projection_projects' THEN 0 WHEN 'orchestration_v2_projection_threads' THEN 1 ELSE 2 END, rowid`)
+    WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name <> 'effect_sql_migrations'`)
     .map((row) => row.name)
-    .filter((name) => sourceTables.has(name) && !cleared.has(name));
+    .filter((name) => sourceTables.has(name) && !CLEARED_TABLES.includes(name));
   const filtered = sourceTables.has("orchestration_v2_projection_threads");
 
   yield* sql.withTransaction(
     Effect.gen(function* () {
       if (filtered) {
-        yield* sql`CREATE TEMP TABLE copy_live_threads (thread_id TEXT PRIMARY KEY)`;
-        const activityTables = [
-          [
-            "orchestration_v2_projection_runs",
-            "status IN ('queued', 'preparing', 'starting', 'running', 'waiting')",
-          ],
-          ["orchestration_v2_projection_runtime_requests", "status = 'pending'"],
-          [
-            "orchestration_v2_projection_turn_items",
-            "type IN ('command_execution', 'dynamic_tool', 'subagent') AND status IN ('pending', 'running', 'waiting')",
-          ],
-          ["orchestration_v2_projection_provider_sessions", "status NOT IN ('stopped', 'error')"],
-          [
-            "orchestration_v2_projection_provider_threads",
-            "status = 'active' OR json_array_length(payload_json, '$.pendingBackgroundTasks') > 0",
-          ],
-          ["orchestration_v2_projection_subagents", "status IN ('pending', 'running', 'waiting')"],
-        ] as const;
-        for (const [table, predicate] of activityTables) {
-          if (sourceTables.has(table)) {
-            yield* sql.unsafe(
-              `INSERT OR IGNORE INTO copy_live_threads SELECT thread_id FROM src."${table}" WHERE ${predicate} AND thread_id IS NOT NULL`,
-            );
-          }
-        }
-        yield* sql`INSERT OR IGNORE INTO copy_live_threads
-          SELECT thread_id FROM src.orchestration_v2_projection_threads
-          WHERE json_extract(payload_json, '$.limitRecovery') IS NOT NULL
-            OR (json_extract(payload_json, '$.lineage.relationshipToParent') = 'subagent'
-              AND json_extract(payload_json, '$.forkedFrom.type') = 'node'
-              AND NOT EXISTS (
-                SELECT 1 FROM src.orchestration_v2_projection_context_transfers result
-                WHERE result.source_thread_id = src.orchestration_v2_projection_threads.thread_id
-                  AND result.type = 'subagent_result'
-              ))`;
-        yield* sql`INSERT OR IGNORE INTO copy_live_threads
-          SELECT thread_id FROM src.orchestration_v2_projection_runs r
-          WHERE status = 'failed' AND ordinal = (
-            SELECT MAX(latest.ordinal) FROM src.orchestration_v2_projection_runs latest WHERE latest.thread_id = r.thread_id)
-            OR json_type(payload_json, '$.delegatedCompletion.delivery') = 'object'`;
-        yield* sql`CREATE TEMP TABLE copy_families AS
-          SELECT family.thread_id, family.updated_at, root.thread_id AS root_id, root.project_id
-          FROM src.orchestration_v2_projection_threads family
+        yield* sql`CREATE TEMP TABLE copied_threads (thread_id TEXT PRIMARY KEY)`;
+        yield* sql`INSERT OR IGNORE INTO copied_threads
+          SELECT family.thread_id FROM src.orchestration_v2_projection_threads family
           JOIN src.orchestration_v2_projection_threads root ON root.thread_id =
             COALESCE(json_extract(family.payload_json, '$.lineage.rootThreadId'), family.thread_id)
           WHERE ${rootIsVisible(sql)}`;
-        yield* sql`CREATE TEMP TABLE copy_stopped_families AS
-          SELECT root_id, project_id, MAX(updated_at) AS updated_at, COUNT(*) AS size
-          FROM copy_families GROUP BY root_id, project_id
-          HAVING SUM(thread_id IN (SELECT thread_id FROM copy_live_threads)) = 0`;
-        yield* sql`CREATE TEMP TABLE copied_projects AS
-          SELECT p.project_id FROM src.projection_projects p
-          LEFT JOIN (SELECT project_id, MAX(updated_at) AS last_stopped_at FROM copy_stopped_families GROUP BY project_id) q
-            ON q.project_id = p.project_id
-          WHERE p.deleted_at IS NULL
-          ORDER BY (q.last_stopped_at IS NULL) ASC, COALESCE(q.last_stopped_at, p.updated_at) DESC
-          LIMIT ${input.projects}`;
-        yield* sql`CREATE TEMP TABLE copied_threads AS
-          SELECT thread_id FROM copy_families WHERE root_id IN (
-            SELECT root_id FROM (
-              SELECT root_id, ROW_NUMBER() OVER (PARTITION BY project_id ORDER BY updated_at DESC) AS recency_rank
-              FROM copy_stopped_families WHERE project_id IN (SELECT project_id FROM copied_projects)
-                AND size <= ${input.threadsPerProject}
-            ) WHERE recency_rank <= ${input.threadsPerProject}
-          )`;
       }
       for (const name of tables) {
         const columns = yield* sql<{ name: string; notnull: number }>`
@@ -325,13 +253,10 @@ const copySourceSlice = Effect.fn("copyDevDbSourceSlice")(function* (
           ? ""
           : name === "orchestration_events"
             ? `WHERE (aggregate_kind = 'thread' AND stream_id IN (SELECT thread_id FROM copied_threads))
-                OR (aggregate_kind = 'project' AND stream_id IN (SELECT project_id FROM copied_projects))
-                OR aggregate_kind NOT IN ('thread', 'project')`
-            : name === "projection_projects"
-              ? "WHERE project_id IN (SELECT project_id FROM copied_projects)"
-              : threadColumn === undefined || name === PROVIDER_SESSIONS_TABLE
-                ? ""
-                : `WHERE thread_id IN (SELECT thread_id FROM copied_threads)${threadColumn.notnull === 0 ? " OR thread_id IS NULL" : ""}`;
+                OR aggregate_kind < 'thread' OR aggregate_kind > 'thread'`
+            : threadColumn === undefined || name === PROVIDER_SESSIONS_TABLE
+              ? ""
+              : `WHERE thread_id IN (SELECT thread_id FROM copied_threads)${threadColumn.notnull === 0 ? " OR thread_id IS NULL" : ""}`;
         const columnList = columns.map((column) => `"${column.name}"`).join(", ");
         yield* sql.unsafe(
           `INSERT OR REPLACE INTO main."${name}" (${columnList}) SELECT ${columnList} FROM src."${name}" ${filter}`,
@@ -352,6 +277,10 @@ const copySourceSlice = Effect.fn("copyDevDbSourceSlice")(function* (
 const pruneSnapshot = Effect.fn("pruneDevDbSnapshot")(function* (input: RunMigrateDevDbInput) {
   const sql = yield* SqlClient.SqlClient;
 
+  // Threads the server would resume or start work on by itself. Its own
+  // recovery queries find most of them; usage-limit recovery also depends on
+  // settings, so any thread whose latest run failed or that has a recovery
+  // choice counts as live too.
   const projections = yield* ProjectionStore.ProjectionStoreV2;
   const recoveryThreadIds = yield* Effect.forEach(RECOVERY_KINDS, (kind) =>
     projections.getRecoveryThreadIds(kind),
@@ -369,6 +298,9 @@ const pruneSnapshot = Effect.fn("pruneDevDbSnapshot")(function* (input: RunMigra
     SELECT thread_id FROM orchestration_v2_projection_threads
     WHERE json_extract(payload_json, '$.limitRecovery') IS NOT NULL`;
 
+  // Forks and subagents read history and results through their lineage, so
+  // a thread family is cloned or dropped as a whole. A family is stopped when
+  // its root is visible and open and none of its threads is live.
   yield* sql`CREATE TEMP TABLE thread_families AS
     SELECT thread_id, updated_at,
       COALESCE(json_extract(payload_json, '$.lineage.rootThreadId'), thread_id) AS root_id
@@ -414,6 +346,9 @@ const pruneSnapshot = Effect.fn("pruneDevDbSnapshot")(function* (input: RunMigra
       WHERE recency_rank <= ${input.threadsPerProject}
     )`;
 
+  // Every thread table is keyed by thread_id, so one sweep covers them and new
+  // tables need no change here. Provider sessions are shared between threads
+  // and pruned by binding below.
   const threadTables = yield* sql<{ name: string }>`
     SELECT m.name FROM sqlite_master m, pragma_table_info(m.name) c
     WHERE m.type = 'table' AND c.name = 'thread_id'
@@ -442,7 +377,7 @@ const pruneSnapshot = Effect.fn("pruneDevDbSnapshot")(function* (input: RunMigra
             AND stream_id NOT IN (SELECT thread_id FROM kept_threads))
            OR (aggregate_kind = 'project'
             AND stream_id NOT IN (SELECT project_id FROM kept_projects))`;
-      for (const table of [...(yield* clearedTables("main"))].reverse()) {
+      for (const table of CLEARED_TABLES) {
         yield* sql`DELETE FROM ${sql(table)}`;
       }
     }),
@@ -468,6 +403,8 @@ export const runMigrateDevDb = Effect.fn("runMigrateDevDb")(function* (
   input: RunMigrateDevDbInput,
   options: RunMigrateDevDbOptions = {},
 ) {
+  // SQLite treats a negative LIMIT as "no limit", which would clone
+  // everything. The CLI flags validate this too; this covers direct callers.
   if (input.projects < 1 || input.threadsPerProject < 0) {
     return yield* Effect.die("projects must be >= 1 and threadsPerProject >= 0");
   }
@@ -502,7 +439,9 @@ export const runMigrateDevDb = Effect.fn("runMigrateDevDb")(function* (
   if (canonicalBaseDir === canonicalSharedHome) {
     return yield* new MigrateDevDbSharedHomeError();
   }
-
+  // The destination db and snapshot both get deleted below; a --source that
+  // resolves to either (e.g. a leftover snapshot file) would be destroyed
+  // before it is ever read.
   const canonicalSourcePath = yield* fs
     .realPath(sourcePath)
     .pipe(Effect.orElseSucceed(() => sourcePath));
@@ -531,7 +470,7 @@ export const runMigrateDevDb = Effect.fn("runMigrateDevDb")(function* (
 
   const pruned = yield* Effect.gen(function* () {
     yield* Console.log(`Copying visible threads from ${sourcePath} (read-only)...`);
-    yield* copySourceSlice(sourcePath, input).pipe(
+    yield* copySourceSlice(sourcePath).pipe(
       Effect.provide(NodeSqliteClient.layer({ filename: snapshotPath })),
       wrapPhase("snapshot", sourcePath),
     );
@@ -549,12 +488,14 @@ export const runMigrateDevDb = Effect.fn("runMigrateDevDb")(function* (
     );
 
     yield* Console.log(`Compacting into ${databasePath}...`);
-
+    // Re-check right before the swap: a dev server started while the
+    // snapshot was migrating and pruning must not lose its database.
     yield* ensureNotInUse(databasePath);
     yield* removeDatabaseFiles(databasePath);
     yield* Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
-
+      // VACUUM INTO writes this connection's auto_vacuum mode, so the copy
+      // gets the incremental mode a freshly booted server creates.
       yield* sql`PRAGMA auto_vacuum = INCREMENTAL`;
       yield* sql`VACUUM INTO ${databasePath}`;
     }).pipe(
@@ -567,7 +508,7 @@ export const runMigrateDevDb = Effect.fn("runMigrateDevDb")(function* (
 
   yield* Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
-
+    // WAL does not survive VACUUM INTO; turn it back on like server boot does.
     yield* sql.unsafe("PRAGMA journal_mode = WAL").unprepared;
   }).pipe(
     Effect.provide(NodeSqliteClient.layer({ filename: databasePath })),

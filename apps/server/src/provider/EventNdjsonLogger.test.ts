@@ -16,6 +16,7 @@ import * as Schema from "effect/Schema";
 import * as TestClock from "effect/testing/TestClock";
 
 import {
+  makeEventNdjsonLogger,
   makeEventNdjsonLogStore,
   type PendingRecord,
   writeBatchedMessages,
@@ -69,10 +70,11 @@ it.layer(NodeServices.layer)("EventNdjsonLogger", (it) => {
       circular.self = circular;
 
       try {
-        const store = yield* makeEventNdjsonLogStore(basePath);
-        const logger = store.logger("native");
+        const logger = yield* makeEventNdjsonLogger(basePath, { stream: "native" });
+        assert.exists(logger);
+        if (!logger) return;
         yield* logger.write(circular, ThreadId.make("thread-1"));
-        yield* store.close();
+        yield* logger.close();
 
         const serialized = encodeUnknownJson(messages);
         assert.notInclude(serialized, secret);
@@ -96,12 +98,15 @@ it.layer(NodeServices.layer)("EventNdjsonLogger", (it) => {
         const basePath = NodePath.join(tempDir, "provider-canonical.ndjson");
 
         try {
-          const store = yield* makeEventNdjsonLogStore(basePath);
-          const logger = store.logger("orchestration");
+          const logger = yield* makeEventNdjsonLogger(basePath, { stream: "orchestration" });
+          assert.notEqual(logger, undefined);
+          if (!logger) {
+            return;
+          }
 
           yield* logger.write({ id: "evt-no-thread" }, null);
           yield* logger.write({ id: "evt-invalid-thread" }, "!!!" as unknown as ThreadId);
-          yield* store.close();
+          yield* logger.close();
 
           const globalPath = ownedLogPath(basePath, "_global");
           assert.equal(NodeFS.existsSync(globalPath), true);
@@ -341,8 +346,14 @@ it.layer(NodeServices.layer)("EventNdjsonLogger", (it) => {
       const basePath = NodePath.join(tempDir, "provider-canonical.ndjson");
 
       try {
-        const store = yield* makeEventNdjsonLogStore(basePath, { batchWindowMs: 0 });
-        const logger = store.logger("canonical");
+        const logger = yield* makeEventNdjsonLogger(basePath, {
+          stream: "canonical",
+          batchWindowMs: 0,
+        });
+        assert.notEqual(logger, undefined);
+        if (!logger) {
+          return;
+        }
 
         yield* Effect.all(
           [
@@ -351,7 +362,7 @@ it.layer(NodeServices.layer)("EventNdjsonLogger", (it) => {
           ],
           { concurrency: "unbounded" },
         );
-        yield* store.close();
+        yield* logger.close();
 
         const globalPath = ownedLogPath(basePath, "_global");
         assert.equal(NodeFS.existsSync(globalPath), true);

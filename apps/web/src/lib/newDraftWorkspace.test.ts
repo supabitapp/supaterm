@@ -14,7 +14,6 @@ const testState = vi.hoisted(() => ({
   projects: [] as Project[],
   projectFile: null as SupatermProjectFile | null,
   projectFileReads: 0,
-  unloadedThreadCount: 0,
 }));
 
 vi.mock("../state/entities", () => ({
@@ -29,9 +28,6 @@ vi.mock("./supatermProjectFileDefaults", () => ({
     testState.projectFileReads += 1;
     return testState.projectFile;
   },
-}));
-vi.mock("../state/olderSettledShelf", () => ({
-  readUnloadedThreadCount: () => testState.unloadedThreadCount,
 }));
 
 import { DraftId, useComposerDraftStore } from "../composerDraftStore";
@@ -63,7 +59,6 @@ beforeEach(() => {
   testState.projects = [];
   testState.projectFile = null;
   testState.projectFileReads = 0;
-  testState.unloadedThreadCount = 0;
   useComposerDraftStore.setState({
     draftsByThreadKey: {},
     draftThreadsByThreadKey: {},
@@ -72,19 +67,6 @@ beforeEach(() => {
 });
 
 describe("resolveNewDraftWorkspace", () => {
-  it("keeps the configured mode when the project has unloaded settled threads", async () => {
-    const project = makeProject("existing-repo");
-    testState.projects = [project];
-    testState.unloadedThreadCount = 1;
-
-    await expect(
-      resolveNewDraftWorkspace(scopeProjectRef(environmentId, project.id), {
-        ...serverConfigWith({ defaultThreadEnvMode: "worktree" }),
-        newProjectsRoot: "/repos",
-      }),
-    ).resolves.toMatchObject({ envMode: "worktree" });
-  });
-
   it("takes the mode from supaterm.json when settings leave it open", async () => {
     const project = makeProject("worktree-repo");
     testState.projects = [project];

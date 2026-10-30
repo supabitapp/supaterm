@@ -63,7 +63,6 @@ function Tooltip<Payload>(props: TooltipPrimitive.Root.Props<Payload>) {
   const hovered = use(TooltipScrollContext);
   const localActionsRef = useRef<TooltipPrimitive.Root.Actions | null>(null);
   const actionsRef = props.actionsRef ?? localActionsRef;
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Releases the mounted trigger from the hover registry so scrolling cannot close a stale tooltip.
   useEffect(
     () => () => {
       hovered?.clear(actionsRef);

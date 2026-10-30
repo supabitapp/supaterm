@@ -285,8 +285,14 @@ function decodeUrlPathSegment(segment: string): string {
   }
 }
 
-// az repos pr list infers the organisation/project from the checkout and accepts
-// only a repository name. Decode the URL's final segment: az treats %20 literally.
+/**
+ * Azure DevOps is the exception: `az repos pr list --repository` takes a repository name, and
+ * takes the organisation and project from the checkout it detects — so the recorded
+ * `org/project/_git/repo` path is refused outright and the whole repository reads as
+ * unavailable. Its name is the last segment, which is what this hands over. The segment comes
+ * from the remote URL, where a name with a space reads `my%20repo`; `az` looks that up literally
+ * and answers 404, so it goes out decoded.
+ */
 export function sourceControlRepositorySelector(
   identity:
     | Pick<RepositoryIdentity, "provider" | "displayName" | "owner" | "name">

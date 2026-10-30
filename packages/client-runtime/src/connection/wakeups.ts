@@ -6,16 +6,11 @@ import type * as Stream from "effect/Stream";
 export type ConnectionWakeup =
   | "application-active"
   | "application-resumed"
-  | "application-active-long"
   | "application-background"
   | "network-changed";
 
-export function isMobileResume(reason: ConnectionWakeup): boolean {
-  return reason === "application-resumed" || reason === "application-active-long";
-}
-
 export function shouldResubscribeAfterWakeup(reason: ConnectionWakeup): boolean {
-  return reason === "application-active" || isMobileResume(reason);
+  return reason === "application-active" || reason === "application-resumed";
 }
 
 export class ConnectionWakeups extends Context.Service<

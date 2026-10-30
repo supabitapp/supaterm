@@ -127,7 +127,7 @@ const makeHarness = Effect.fn("test.make_boot_service_harness")(function* (
         control.linger = "yes";
       if (!failed && command === "systemctl --user enable supaterm.service") control.enabled = true;
       if (!failed && command === "systemctl --user restart supaterm.service") control.active = true;
-      // A timed-out stop may still stop the service.
+      // A stop that fails (a timeout, say) has still stopped the service.
       if (command === "systemctl --user stop supaterm.service") control.active = false;
       if (
         control.stateAfterStop !== undefined &&
@@ -344,7 +344,8 @@ it.layer(NodeServices.layer)("boot service install", (it) => {
       expect((yield* service.status).current).toBe(false);
       expect(yield* service.uninstall).toBe(true);
       expect((yield* service.status).installed).toBe(false);
-      // systemd can take 90s to stop, exceeding the runner's 60s default.
+      // The stop can block up to systemd's 90s TimeoutStopSec; the runner's
+      // 60s default would cancel it mid-shutdown.
       expect(timeouts.get("systemctl --user disable --now supaterm.service")).toEqual(
         Duration.seconds(120),
       );
@@ -558,6 +559,7 @@ it.layer(NodeServices.layer)("boot service install", (it) => {
       expect(failure).toBe("repair failed");
       expect(control.active).toBe(true);
 
+      // A failed stop skips the operation but still starts the service again.
       control.failCommand = "systemctl --user stop supaterm.service";
       let ran = false;
       const stopFailure = yield* service
@@ -575,6 +577,8 @@ it.layer(NodeServices.layer)("boot service install", (it) => {
       expect(control.active).toBe(true);
       control.failCommand = undefined;
 
+      // An enabled unit that is not active (crash-looping in auto-restart, say)
+      // is still stopped for the repair and started again afterwards.
       control.active = false;
       commands.length = 0;
       yield* service.withStopped(Effect.sync(() => commands.push("repair")));
@@ -586,9 +590,11 @@ it.layer(NodeServices.layer)("boot service install", (it) => {
         "systemctl --user restart supaterm.service",
       ]);
       expect(control.active).toBe(true);
+      // A running unit the user disabled is started again but stays disabled.
       control.enabled = false;
       yield* service.withStopped(Effect.void);
       expect(control).toMatchObject({ active: true, enabled: false });
+      // A unit that was neither enabled nor active stays stopped.
       control.active = false;
       control.enabled = false;
       commands.length = 0;

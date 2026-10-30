@@ -5,6 +5,10 @@ import * as Layer from "effect/Layer";
 
 import { Agent, createAgentPlatform, SqliteLocalAgentStore } from "./sdk.ts";
 
+/**
+ * The SDK listens for that error, then rejects an internal promise nothing awaits.
+ * Node exits on that unhandled rejection and takes the server with it.
+ */
 const CURSOR_SHELL_SPAWN_MARKERS = [
   "dump_zsh_state",
   "dump_bash_state",
@@ -55,6 +59,10 @@ function onUnhandledRejection(reason: unknown): void {
   process.exit(1);
 }
 
+/**
+ * The SDK entry points that run agents in this process. Reaching them through
+ * this service keeps the shell spawn guard armed while they are in use.
+ */
 export class CursorSdk extends Context.Service<
   CursorSdk,
   {

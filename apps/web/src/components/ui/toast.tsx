@@ -71,40 +71,8 @@ export type ThreadToastData = {
     | "secondary";
 };
 
-type BaseToastManager = ReturnType<typeof Toast.createToastManager<ThreadToastData>>;
-type ToastManagerListener = Parameters<BaseToastManager[" subscribe"]>[0];
-type ToastManagerEvent = Parameters<ToastManagerListener>[0];
-
-/**
- * base-ui's manager drops events while no provider is subscribed. App services raise toasts
- * from before the first render (and while the root error view replaces the providers), so hold
- * those until a provider listens.
- */
-function createBufferedToastManager(): BaseToastManager {
-  const manager = Toast.createToastManager<ThreadToastData>();
-  const listeners = new Set<ToastManagerListener>();
-  const pending: ToastManagerEvent[] = [];
-  manager[" subscribe"]((event) => {
-    if (listeners.size === 0) {
-      pending.push(event);
-      return;
-    }
-    for (const listener of listeners) listener(event);
-  });
-  return {
-    ...manager,
-    " subscribe"(listener) {
-      listeners.add(listener);
-      for (const event of pending.splice(0)) listener(event);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
-  };
-}
-
-const toastManager = createBufferedToastManager();
-const anchoredToastManager = createBufferedToastManager();
+const toastManager = Toast.createToastManager<ThreadToastData>();
+const anchoredToastManager = Toast.createToastManager<ThreadToastData>();
 type ToastId = ReturnType<typeof toastManager.add>;
 const threadToastVisibleTimeoutRemainingMs = new Map<ToastId, number>();
 
@@ -491,7 +459,6 @@ function ThreadToastVisibleAutoDismiss({
   toastId: ToastId;
   dismissAfterVisibleMs: number | undefined;
 }) {
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- dismiss timer that pauses on visibilitychange, focus and blur so it only counts visible time
   useEffect(() => {
     if (!dismissAfterVisibleMs || dismissAfterVisibleMs <= 0) return;
     if (typeof window === "undefined" || typeof document === "undefined") return;
@@ -581,7 +548,6 @@ function Toasts({ position }: { position: ToastPosition }) {
   );
   const visibleToastLayout = buildVisibleToastLayout(visibleToasts);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- prunes the module-level remaining-time map of toasts the manager has dropped
   useEffect(() => {
     const activeToastIds = new Set(toasts.map((toast) => toast.id));
     for (const toastId of threadToastVisibleTimeoutRemainingMs.keys()) {
@@ -634,7 +600,9 @@ function Toasts({ position }: { position: ToastPosition }) {
                   ? "not-data-expanded:[--toast-calc-height:var(--toast-frontmost-height)] data-expanded:[--toast-calc-height:max(var(--toast-frontmost-height,var(--toast-height)),var(--toast-height))]"
                   : "[--toast-calc-height:max(var(--toast-frontmost-height,var(--toast-height)),var(--toast-height))]",
                 "[--toast-gap:--spacing(3)] [--toast-peek:--spacing(3)] [--toast-scale:calc(max(0,1-(var(--toast-index)*.1)))] [--toast-shrink:calc(1-var(--toast-scale))]",
-                // Base UI measures with height:auto; --toast-height as min-height would prevent shrinking.
+                // Root height: never `min-h-(--toast-height)` — Base UI measures height by briefly forcing
+                // `height: auto` on this node; an old `min-height` from `--toast-height` blocks shrinking,
+                // so `recalculateHeight` keeps the inflated value after an expandable closes.
                 visibleIndex > 0
                   ? "not-data-expanded:h-(--toast-calc-height) data-expanded:h-auto"
                   : "h-auto",
@@ -698,8 +666,8 @@ function Toasts({ position }: { position: ToastPosition }) {
               </div>
               <Toast.Content
                 className={cn(
-                  // overflow-x:clip preserves visible vertical overflow; hidden would force overflow-y:auto
-                  // and clip detail panels.
+                  // `overflow-x: clip` avoids the CSS quirk where pairing `hidden` + `y: visible`
+                  // forces `y` to `auto`. Expandable detail panels can extend below without being cut off.
                   "pointer-events-auto min-h-0 overflow-y-visible pl-3.5 text-sm transition-opacity duration-250 [overflow-x:clip] data-expanded:opacity-100",
                   stackedActionLayout
                     ? "flex flex-col gap-2 py-2.5 pr-3.5"

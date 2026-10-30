@@ -4,11 +4,11 @@ import {
   type ThreadGroupingProject,
 } from "@supaterm/client-runtime/state/thread-grouping";
 import type { SidebarThreadGrouping } from "@supaterm/contracts";
+import { threadPullRequestSearchTerms } from "@supaterm/shared/threadPullRequests";
 import {
   canSnooze,
   effectiveSnoozed,
   hasQueuedTurnStart,
-  pickSnoozePreset,
   QUEUED_TURN_START_GRACE_MS,
   resolveSnoozePresets,
   snoozeWakeLabel,
@@ -17,15 +17,7 @@ import {
 import type { SnoozePreset } from "@supaterm/client-runtime/state/thread-snooze";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import { resolveThreadProviderStack } from "@supaterm/client-runtime/state/models";
-import {
-  threadSearchMatchKey,
-  threadSearchSubject,
-} from "@supaterm/client-runtime/state/thread-search";
-import {
-  foldSearchQuery,
-  rankSearchItems,
-  scoreThreadSearch,
-} from "@supaterm/shared/paletteSearch";
+import { threadSearchMatchKey } from "@supaterm/client-runtime/state/thread-search";
 import {
   createInboxReturnTracker,
   isThreadWorking,
@@ -39,7 +31,6 @@ import {
   sortDoneThreads,
 } from "@supaterm/client-runtime/state/thread-sort";
 import type { EnvironmentId, ProjectId } from "@supaterm/contracts";
-import type { SnoozePresetSetting } from "@supaterm/contracts/settings";
 
 import type { ThreadListProvider } from "../../state/thread-list-environments";
 
@@ -75,10 +66,20 @@ export function resolveThreadListV2ProviderDrivers(
   return currentDriver === undefined ? [] : drivers;
 }
 
+/**
+ * Thread List v2 model, ported from the web sidebar v2
+ * (apps/web/src/components/Sidebar.logic.ts + SidebarV2.tsx).
+ *
+ * Six visual states. Color distinguishes approval, input, active work, and
+ * failures. Ready is the unlabeled resting state; waiting (runtime status "idle") is the agent
+ * parked on open background tasks, blue like active work rather than a false Done.
+ * The orchestrator v2 presentation bridge parks runtime at idle when the
+ * post-settlement background roster holds the run's completion (subagents,
+ * monitors); commands left running, such as a dev server, read as ready.
+ */
 export type ThreadListV2Status =
   | "approval"
   | "input"
-  | "request"
   | "working"
   | "waiting"
   | "failed"
@@ -86,42 +87,28 @@ export type ThreadListV2Status =
   | "ready";
 export type ThreadListV2SwipeAction = "archive" | "mark-done" | "reopen" | "snooze" | "unsnooze";
 
-/**
- * Presets for a row's snooze menu, read at the list's minute instead of the
- * clock: the compiler keys a row's memo on its inputs, so a clock read inside
- * it would keep the times from the row's first render.
- */
-export function resolveThreadListV2SnoozePresets(input: {
-  readonly secondary: "snooze" | null;
-  readonly now: string;
-  readonly presets: ReadonlyArray<SnoozePresetSetting> | undefined;
-}): ReadonlyArray<SnoozePreset> {
-  return input.secondary === "snooze"
-    ? resolveSnoozePresets(new Date(input.now), presetOptions(input.presets))
-    : [];
-}
-
-function presetOptions(presets: ReadonlyArray<SnoozePresetSetting> | undefined) {
-  return presets ? { presets } : {};
-}
-
 export function resolveThreadListV2SnoozeMenuSelection(input: {
   readonly event: string;
   readonly displayedPresets: ReadonlyArray<SnoozePreset>;
   readonly now: Date;
-  readonly presets: ReadonlyArray<SnoozePresetSetting> | undefined;
 }):
   | { readonly _tag: "selected"; readonly preset: SnoozePreset }
   | { readonly _tag: "expired" }
   | { readonly _tag: "not-snooze" } {
   if (!input.event.startsWith("snooze:")) return { _tag: "not-snooze" };
-  const preset = pickSnoozePreset({
-    shown: input.displayedPresets,
-    id: input.event.slice("snooze:".length),
-    now: input.now,
-    ...presetOptions(input.presets),
-  });
-  return preset ? { _tag: "selected", preset } : { _tag: "expired" };
+
+  const currentPreset = resolveSnoozePresets(input.now).find(
+    (candidate) => input.event === `snooze:${candidate.id}`,
+  );
+  if (currentPreset) return { _tag: "selected", preset: currentPreset };
+
+  const displayedPreset = input.displayedPresets.find(
+    (candidate) => input.event === `snooze:${candidate.id}`,
+  );
+  if (displayedPreset && Date.parse(displayedPreset.snoozedUntil) > input.now.getTime()) {
+    return { _tag: "selected", preset: displayedPreset };
+  }
+  return { _tag: "expired" };
 }
 
 export function resolveThreadListV2SwipeActions(input: {
@@ -206,7 +193,6 @@ export function resolveThreadListV2Status(
     | "hasPendingApprovals"
     | "hasPendingUserInput"
     | "pendingSubagentRequest"
-    | "pendingGuestMessageCount"
     | "runtime"
     | "blockedOnThreadWait"
   >,
@@ -216,10 +202,6 @@ export function resolveThreadListV2Status(
   }
   if (thread.hasPendingUserInput || thread.pendingSubagentRequest === "user_input") {
     return "input";
-  }
-  // A guest is waiting on the owner; the agent's own requests come first.
-  if ((thread.pendingGuestMessageCount ?? 0) > 0) {
-    return "request";
   }
   if (thread.runtime?.status === "running" && thread.blockedOnThreadWait === true) {
     return "waiting";
@@ -302,7 +284,6 @@ export interface ThreadListV2Layout {
   readonly items: ThreadListV2Item[];
   /** Done threads beyond the render limit (behind "Show more"). */
   readonly hiddenDoneCount: number;
-  readonly listedSettledThreads: ReadonlyArray<EnvironmentThreadShell>;
   /** Pinned threads in scope, including collapsed rows. */
   readonly pinnedCount: number;
   readonly activeCount: number;
@@ -321,9 +302,6 @@ export interface ThreadListV2Layout {
       a timeout at this boundary so the list re-partitions the moment a
       snooze expires instead of on the next minute tick. */
   readonly nextSnoozeWakeAt: string | null;
-  /** Threads listed only because their messages match the search. */
-  readonly contentOnlyThreadKeys: ReadonlySet<string>;
-  readonly searching: boolean;
 }
 
 export interface ThreadListV2ThreadListItem {
@@ -530,7 +508,6 @@ export function buildThreadListV2ListItems(input: {
   readonly loadedEnvironmentIds?: ReadonlySet<EnvironmentId>;
   readonly queuedThreadKeys?: ReadonlySet<string>;
   readonly shelfPreferencesLoading?: boolean;
-  readonly searching?: boolean;
 }): ThreadListV2ListItem[] {
   const queuedThreadKeys = input.queuedThreadKeys?.size ? input.queuedThreadKeys : undefined;
   const threadItems = input.items.map((item): ThreadListV2ThreadListItem => {
@@ -573,7 +550,6 @@ export function buildThreadListV2ListItems(input: {
       showTrailingDivider: false,
     });
   }
-  if (input.searching) return [...draftItems, ...pendingItems, ...threadItems];
   const workingCount = input.workingCount ?? 0;
   const workingShelfHeaderIndex = input.workingShelfHeaderIndex ?? null;
   const snoozedCount = input.snoozedCount ?? 0;
@@ -726,7 +702,6 @@ export function buildThreadListV2Items(input: {
   readonly collapsedGroups?: readonly string[];
   /** Returns this device observed but the server does not stamp, such as an
       approval request mid-turn. */
-  readonly isWorking?: (thread: EnvironmentThreadShell) => boolean;
   readonly inboxReturnAt?: (thread: EnvironmentThreadShell) => number | undefined;
   readonly snoozedShelfExpanded?: boolean;
   /** Expands the done shelf into rows. Expanded is the default. */
@@ -736,10 +711,6 @@ export function buildThreadListV2Items(input: {
       outbox. Such a thread has work the user is waiting on, so it stays in
       the active block even when the server has done it. */
   readonly queuedThreadKeys?: ReadonlySet<string>;
-  /** Whether the shelf may list a settled row yet; older settled rows load in pages. */
-  readonly isListedSettled?: (thread: EnvironmentThreadShell) => boolean;
-  /** Settled threads in scope that are not local (older settled threads not loaded). */
-  readonly unloadedSettledCount?: number;
 }): ThreadListV2Layout {
   const now = input.now;
   const pending =
@@ -753,8 +724,7 @@ export function buildThreadListV2Items(input: {
             pendingOrder: null,
           }),
         );
-  const query = foldSearchQuery(input.searchQuery);
-  const nowMs = Date.parse(now);
+  const query = input.searchQuery.trim().toLocaleLowerCase();
   const projectKeys = input.projectRefs
     ? new Set(input.projectRefs.map((ref) => `${ref.environmentId}:${ref.projectId}`))
     : null;
@@ -767,36 +737,27 @@ export function buildThreadListV2Items(input: {
   let nextSnoozeWakeAt: string | null = null;
 
   const queuedThreadKeys = input.queuedThreadKeys?.size ? input.queuedThreadKeys : undefined;
-  const listedThreads = input.threads.filter(
-    (thread) =>
-      thread.archivedAt === null &&
-      thread.lineage.relationshipToParent !== "subagent" &&
-      (input.environmentId === null || thread.environmentId === input.environmentId) &&
-      (projectKeys === null || projectKeys.has(`${thread.environmentId}:${thread.projectId}`)),
-  );
-  // The same matches as the command palette, typo fallback included. Only
-  // listed threads are ranked: a hidden exact match must not turn typos off.
-  const rankedMatches =
-    query.length > 0
-      ? rankSearchItems(listedThreads, (thread, options) =>
-          scoreThreadSearch(query, threadSearchSubject(thread, null), nowMs, {
-            ...options,
-            picks: false,
-          }),
-        ).map(({ item }) => item)
-      : null;
-  const matchingThreads = rankedMatches === null ? null : new Set(rankedMatches);
-  // Threads listed only because their messages match; only their rows show
-  // the message and open at it.
-  const contentOnlyThreadKeys = new Set<string>();
-  for (const thread of listedThreads) {
-    if (matchingThreads !== null && !matchingThreads.has(thread)) {
-      const key = threadSearchMatchKey({
-        environmentId: thread.environmentId,
-        threadId: thread.id,
-      });
-      if (input.matchedThreadKeys?.has(key) !== true) continue;
-      contentOnlyThreadKeys.add(key);
+  for (const thread of input.threads) {
+    if (thread.archivedAt !== null || thread.lineage.relationshipToParent === "subagent") continue;
+    // The server stamps doneOverride for the tail.
+    if (input.environmentId !== null && thread.environmentId !== input.environmentId) continue;
+    if (projectKeys !== null && !projectKeys.has(`${thread.environmentId}:${thread.projectId}`)) {
+      continue;
+    }
+    if (
+      query.length > 0 &&
+      !thread.title.toLocaleLowerCase().includes(query) &&
+      !threadPullRequestSearchTerms(thread).some((term) =>
+        term.toLocaleLowerCase().includes(query),
+      ) &&
+      input.matchedThreadKeys?.has(
+        threadSearchMatchKey({
+          environmentId: thread.environmentId,
+          threadId: thread.id,
+        }),
+      ) !== true
+    ) {
+      continue;
     }
     // Snooze outranks completion and pinning until the thread wakes.
     if (effectiveSnoozed(thread, { now })) {
@@ -816,55 +777,11 @@ export function buildThreadListV2Items(input: {
       done.push(thread);
     } else if (thread.pinnedAt != null) {
       pinned.push(thread);
-    } else if ((input.isWorking ?? isThreadWorking)(thread)) {
+    } else if (isThreadWorking(thread)) {
       working.push(thread);
     } else {
       active.push(thread);
     }
-  }
-
-  if (rankedMatches !== null) {
-    // Searching lists every match by rank across shelves, as the palette and
-    // the web sidebar do, then threads listed for their messages in the
-    // server's order. Each row keeps its shelf's look.
-    const slim = new Set([...snoozed, ...done]);
-    const snoozedThreads = new Set(snoozed);
-    const pinnedThreads = new Set(pinned);
-    const threadByKey = new Map(
-      listedThreads.map((thread) => [
-        threadSearchMatchKey({ environmentId: thread.environmentId, threadId: thread.id }),
-        thread,
-      ]),
-    );
-    const contentOnly = [...(input.matchedThreadKeys ?? [])].flatMap((key) => {
-      const thread = contentOnlyThreadKeys.has(key) ? threadByKey.get(key) : undefined;
-      return thread ? [thread] : [];
-    });
-    const results = [...rankedMatches, ...contentOnly];
-    return {
-      items: results.map((thread, index) => ({
-        thread,
-        variant: slim.has(thread) ? "slim" : "card",
-        snoozed: snoozedThreads.has(thread),
-        pinned: pinnedThreads.has(thread),
-        wokeAt: slim.has(thread) ? null : resolveThreadListV2WokeAt(thread, { now }),
-        isLast: index === results.length - 1,
-      })),
-      searching: true,
-      hiddenDoneCount: 0,
-      listedSettledThreads: [],
-      pinnedCount: 0,
-      activeCount: 0,
-      inboxGroups: null,
-      workingCount: 0,
-      workingShelfHeaderIndex: null,
-      snoozedCount: 0,
-      snoozedShelfHeaderIndex: null,
-      doneCount: 0,
-      doneShelfHeaderIndex: null,
-      nextSnoozeWakeAt,
-      contentOnlyThreadKeys,
-    };
   }
 
   // The inbox orders by when each thread came back to the user, not the saved
@@ -911,17 +828,15 @@ export function buildThreadListV2Items(input: {
           (thread) => `${thread.environmentId}:${thread.id}` === selectedThreadKey,
         );
   const orderedDone = sortDoneThreadsReusingLast(done);
-  const listedSettled =
-    input.isListedSettled === undefined ? orderedDone : orderedDone.filter(input.isListedSettled);
-  const settledTotal = orderedDone.length + (input.unloadedSettledCount ?? 0);
   const doneLimit = input.doneLimit ?? Number.POSITIVE_INFINITY;
   const limitedDone =
-    listedSettled.length > doneLimit ? listedSettled.slice(0, doneLimit) : listedSettled;
+    orderedDone.length > doneLimit ? orderedDone.slice(0, doneLimit) : orderedDone;
   const selectedDone =
-    selectedThreadKey === null ||
-    limitedDone.some((thread) => `${thread.environmentId}:${thread.id}` === selectedThreadKey)
+    selectedThreadKey === null
       ? undefined
-      : orderedDone.find((thread) => `${thread.environmentId}:${thread.id}` === selectedThreadKey);
+      : orderedDone
+          .slice(limitedDone.length)
+          .find((thread) => `${thread.environmentId}:${thread.id}` === selectedThreadKey);
   const pagedDone = selectedDone === undefined ? limitedDone : [...limitedDone, selectedDone];
   const visibleDone =
     input.doneShelfExpanded !== false
@@ -982,7 +897,7 @@ export function buildThreadListV2Items(input: {
       isLast: false,
     });
   }
-  const doneShelfHeaderIndex = settledTotal > 0 ? items.length : null;
+  const doneShelfHeaderIndex = orderedDone.length > 0 ? items.length : null;
   for (const thread of visibleDone) {
     items.push({
       thread,
@@ -999,11 +914,9 @@ export function buildThreadListV2Items(input: {
   }
   return {
     items,
-    searching: false,
     pinnedCount: pinned.length,
     activeCount: inboxCount,
-    hiddenDoneCount: Math.max(0, settledTotal - pagedDone.length),
-    listedSettledThreads: listedSettled,
+    hiddenDoneCount: orderedDone.length - pagedDone.length,
     workingCount: orderedWorking.length,
     workingShelfHeaderIndex,
     inboxGroups:
@@ -1019,22 +932,8 @@ export function buildThreadListV2Items(input: {
           })),
     snoozedCount: orderedSnoozed.length,
     snoozedShelfHeaderIndex,
-    doneCount: settledTotal,
+    doneCount: orderedDone.length,
     doneShelfHeaderIndex,
     nextSnoozeWakeAt,
-    contentOnlyThreadKeys,
   };
-}
-
-export function nextSnoozeWakeAfter(
-  threads: ReadonlyArray<{ readonly snoozedUntil?: string | null }>,
-  nowMs: number,
-): number | null {
-  let next: number | null = null;
-  for (const thread of threads) {
-    if (thread.snoozedUntil == null) continue;
-    const wakeAtMs = Date.parse(thread.snoozedUntil);
-    if (wakeAtMs > nowMs && (next === null || wakeAtMs < next)) next = wakeAtMs;
-  }
-  return next;
 }

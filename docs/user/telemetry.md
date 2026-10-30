@@ -20,7 +20,7 @@ Linux, so export it there and restart the app. On Windows, set it as a user envi
 ## Export diagnostics to your own receiver
 
 To send traces, metrics, or logs to an OpenTelemetry receiver, open
-**Settings > About > View diagnostics**, select an environment, and enter each signal's OTLP HTTP
+**Settings > General > Diagnostics**, select an environment, and enter each signal's OTLP HTTP
 endpoint under **OpenTelemetry export** (for example `http://localhost:4318/v1/traces`). Save, then
 restart that environment's server. The receiver must be reachable from the server's machine.
 **Test** sends an empty export from the server to check an endpoint before or after you save it;
@@ -29,15 +29,7 @@ the signal's currently running endpoint and do not follow redirects. To check a 
 that requires authentication, save it and restart the server first.
 
 `SUPATERM_OTLP_*_URL` and standard `OTEL_EXPORTER_OTLP_*` environment variables override the saved
-settings. The export settings identify the variable supplying a running endpoint. **Test** checks
-that endpoint while an override applies; editing the saved field does not replace it.
-For endpoints saved here or set with `SUPATERM_OTLP_*_URL`, set `SUPATERM_OTLP_HEADERS` for
+settings. For endpoints saved here or set with `SUPATERM_OTLP_*_URL`, set `SUPATERM_OTLP_HEADERS` for
 receivers that need authentication and `SUPATERM_OTLP_PROTOCOL=http/protobuf` for receivers that do
 not accept JSON. An endpoint set with `OTEL_EXPORTER_OTLP_*` takes its headers and protocol from
 `OTEL_EXPORTER_OTLP_HEADERS` and `OTEL_EXPORTER_OTLP_PROTOCOL` instead.
-
-## Native crash reports
-
-Mobile crash reporting is opt-in and appears in **Settings → About → Diagnostics** when the app
-build has a configured receiver. No native crash report is sent until you enable **Send crash reports**. Crash reports are separate from product usage events and may contain
-stack traces; use a receiver you trust and turn reporting off to stop sending them.

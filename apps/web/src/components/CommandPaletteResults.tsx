@@ -22,7 +22,7 @@ import {
   CommandShortcut,
 } from "./ui/command";
 import { getVirtualizedScrollFadeClassName } from "./ui/scroll-area";
-import { SearchMatchHintLine, ThreadSearchMatchExcerpt } from "./ThreadSearchMatch";
+import { ThreadSearchMatchExcerpt } from "./ThreadSearchMatch";
 
 interface CommandPaletteResultsProps {
   emptyStateMessage?: string;
@@ -89,8 +89,11 @@ interface CommandPaletteVirtualizedResultsProps extends Omit<CommandPaletteResul
   listRef: RefObject<LegendListRef | null>;
 }
 
-/** Pass flat items with virtualized to Command, scroll highlights via listRef, and handle Enter for
- * unmounted rows. */
+/**
+ * The parent passes the flat item order to the Command root as `items` with
+ * `virtualized`, scrolls keyboard highlights into view through `listRef`, and
+ * runs Enter itself since the row may be unmounted.
+ */
 export function CommandPaletteVirtualizedResults(props: CommandPaletteVirtualizedResultsProps) {
   const { listRef } = props;
   const [scrollFade, setScrollFade] = useState({ top: false, bottom: false });
@@ -152,38 +155,12 @@ export function CommandPaletteTitleIcon(props: { children: ReactNode }) {
   return <span className="flex h-5 shrink-0 items-center self-start pt-0.5">{props.children}</span>;
 }
 
-function CommandPaletteTitle({
-  item,
-}: {
-  item: Pick<CommandPaletteActionItem | CommandPaletteSubmenuItem, "title">;
-}) {
-  const { title } = item;
+function CommandPaletteTitle({ title }: { title: ReactNode }) {
   return (
     <span className="truncate" dir={typeof title === "string" ? textDirection(title) : undefined}>
       {title}
     </span>
   );
-}
-
-/**
- * Project and environment for a thread row whose second line shows a message
- * snippet or match hint instead, so similar rows can still be told apart.
- */
-function ThreadRowContext({
-  item,
-}: {
-  item: CommandPaletteActionItem | CommandPaletteSubmenuItem;
-}) {
-  if (!item.threadSearch || !(item.threadContentMatch || item.matchHint)) return null;
-  // A "Project: …" hint already names the project.
-  const context = [item.threadSearch.projectTitle, item.threadSearch.environmentLabel]
-    .filter((part) => part && part !== item.matchHint?.text)
-    .join(" · ");
-  return context ? (
-    <span className="max-w-[45%] shrink-0 truncate text-muted-foreground/70 text-xs">
-      {context}
-    </span>
-  ) : null;
 }
 
 function DisabledCommandPaletteResultRow(props: {
@@ -196,14 +173,12 @@ function DisabledCommandPaletteResultRow(props: {
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="flex min-w-0 items-center gap-1.5 text-sm text-foreground">
             {props.item.titleLeadingContent}
-            <CommandPaletteTitle item={props.item} />
-            <ThreadRowContext item={props.item} />
+            <CommandPaletteTitle title={props.item.title} />
           </span>
           {props.item.threadContentMatch ? (
             <ThreadSearchMatchExcerpt match={props.item.threadContentMatch} />
-          ) : props.item.matchHint ? (
-            <SearchMatchHintLine hint={props.item.matchHint} />
-          ) : props.item.description ? (
+          ) : null}
+          {props.item.description ? (
             <span className="min-w-0 text-muted-foreground/70 text-xs">
               {props.item.description}
             </span>
@@ -212,7 +187,7 @@ function DisabledCommandPaletteResultRow(props: {
       ) : (
         <span className="flex min-w-0 flex-1 items-center gap-1.5 text-sm text-foreground">
           {props.item.titleLeadingContent}
-          <CommandPaletteTitle item={props.item} />
+          <CommandPaletteTitle title={props.item.title} />
         </span>
       )}
       {props.item.titleTrailingContent}
@@ -248,14 +223,12 @@ function CommandPaletteResultRow(props: {
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="flex min-w-0 items-center gap-1.5 text-sm text-foreground">
             {props.item.titleLeadingContent}
-            <CommandPaletteTitle item={props.item} />
-            <ThreadRowContext item={props.item} />
+            <CommandPaletteTitle title={props.item.title} />
           </span>
           {props.item.threadContentMatch ? (
             <ThreadSearchMatchExcerpt match={props.item.threadContentMatch} />
-          ) : props.item.matchHint ? (
-            <SearchMatchHintLine hint={props.item.matchHint} />
-          ) : props.item.description ? (
+          ) : null}
+          {props.item.description ? (
             <span className="min-w-0 text-muted-foreground/70 text-xs">
               {props.item.description}
             </span>
@@ -264,7 +237,7 @@ function CommandPaletteResultRow(props: {
       ) : (
         <span className="flex min-w-0 flex-1 items-center gap-1.5 text-sm text-foreground">
           {props.item.titleLeadingContent}
-          <CommandPaletteTitle item={props.item} />
+          <CommandPaletteTitle title={props.item.title} />
         </span>
       )}
       {props.item.titleTrailingContent}

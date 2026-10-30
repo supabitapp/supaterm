@@ -1,5 +1,5 @@
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Linking, Platform, Pressable, useWindowDimensions, View } from "react-native";
 import Animated, {
   Easing,
@@ -8,7 +8,7 @@ import Animated, {
   interpolate,
   ReduceMotion,
   useAnimatedStyle,
-  useDerivedValue,
+  useSharedValue,
   withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -35,22 +35,18 @@ const ENTERING = FadeIn.duration(180).reduceMotion(ReduceMotion.System);
 
 export function GlobalVoiceInputControl(props: { readonly children: ReactNode }) {
   const voice = useGlobalVoiceInput();
-  const [expanded, setExpanded] = useState(false);
+  const collapseRef = useRef<(() => void) | null>(null);
   const presentation = resolveVoiceComposerPresentation(voice.state, voice.elapsedSeconds);
   const visible =
     presentation.statusLabel !== null &&
     !(voice.ownerKey && voice.focusedOwners.has(voice.ownerKey));
-  // A pill that reappears starts collapsed.
-  if (!visible && expanded) setExpanded(false);
-  const pill = visible ? (
-    <EdgeDictationPill expanded={expanded} onExpandedChange={setExpanded} />
-  ) : null;
+  const pill = visible ? <EdgeDictationPill collapseRef={collapseRef} /> : null;
   return (
     <>
       <View
         className="flex-1"
         onStartShouldSetResponderCapture={() => {
-          if (expanded) setExpanded(false);
+          collapseRef.current?.();
           return false;
         }}
       >
@@ -61,16 +57,24 @@ export function GlobalVoiceInputControl(props: { readonly children: ReactNode })
   );
 }
 
-function EdgeDictationPill(props: {
-  readonly expanded: boolean;
-  readonly onExpandedChange: (expanded: boolean) => void;
-}) {
+function EdgeDictationPill(props: { readonly collapseRef: RefObject<(() => void) | null> }) {
   const voice = useGlobalVoiceInput();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { fabSize } = useAndroidControlSizing();
-  const { expanded, onExpandedChange: setExpanded } = props;
-  const progress = useDerivedValue(() => withTiming(expanded ? 1 : 0, MORPH_TIMING));
+  const [expanded, setExpanded] = useState(false);
+  const progress = useSharedValue(0);
+  useEffect(() => {
+    progress.set(withTiming(expanded ? 1 : 0, MORPH_TIMING));
+  }, [expanded, progress]);
+  const { collapseRef } = props;
+  useEffect(() => {
+    if (!expanded) return;
+    collapseRef.current = () => setExpanded(false);
+    return () => {
+      collapseRef.current = null;
+    };
+  }, [collapseRef, expanded]);
 
   const expandedWidth = Math.min(width - insets.left - insets.right - 32, EXPANDED_MAX_WIDTH);
   const pillStyle = useAnimatedStyle(() => ({

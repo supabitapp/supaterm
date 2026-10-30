@@ -1,4 +1,3 @@
-import { trimOptionalString } from "@supaterm/source-control-core/server/pullRequestUtils";
 import * as Cause from "effect/Cause";
 import * as DateTime from "effect/DateTime";
 import * as Exit from "effect/Exit";
@@ -57,6 +56,11 @@ const GitLabMergeRequestSchema = Schema.Struct({
   source_project: Schema.optional(Schema.NullOr(GitLabProjectReferenceSchema)),
   target_project: Schema.optional(Schema.NullOr(GitLabProjectReferenceSchema)),
 });
+
+function trimOptionalString(value: string | null | undefined): string | null {
+  const trimmed = value?.trim() ?? "";
+  return trimmed.length > 0 ? trimmed : null;
+}
 
 function normalizeGitLabMergeRequestState(
   state: string | null | undefined,

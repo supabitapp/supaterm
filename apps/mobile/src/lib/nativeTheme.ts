@@ -1,6 +1,7 @@
 import type { MaterialColors } from "@expo/ui/jetpack-compose";
 import { flattenThemeColor, type MobileThemeVariables } from "./mobileTheme";
 
+/** Native controls use the same resolved palette as RN, without generating new hues. */
 export function createNativeThemeColors(colors: MobileThemeVariables): MaterialColors {
   const roles = {
     primary: colors["--color-primary"],
@@ -52,7 +53,7 @@ export function createNativeThemeColors(colors: MobileThemeVariables): MaterialC
     onTertiaryFixed: colors["--color-primary-foreground"],
     onTertiaryFixedVariant: colors["--color-primary-foreground"],
   } satisfies Record<keyof MaterialColors, string>;
-
+  // Material scheme roles are opaque. Composite translucent RN fills onto the canvas.
   return Object.fromEntries(
     Object.entries(roles).map(([role, color]) => [
       role,

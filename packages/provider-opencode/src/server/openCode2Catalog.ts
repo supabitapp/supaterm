@@ -5,8 +5,16 @@ import * as Option from "effect/Option";
 import * as OpenCodeRuntime from "./OpenCodeRuntime.ts";
 import type { OpenCode2Model } from "./status.ts";
 
+/**
+ * A server loads its provider list with the rest of its catalog, which takes a couple of seconds
+ * on a cold start, and the model loader retries while the catalog is empty anyway.
+ */
 const PROVIDER_NAME_TIMEOUT = "3 seconds";
 
+/**
+ * The models carry the payload and the names are decoration, so a provider read is bounded as
+ * well as optional: one that never answers must not hold the models back.
+ */
 export const loadOpenCode2Catalog = (
   client: OpenCodeClient,
   directory: string,

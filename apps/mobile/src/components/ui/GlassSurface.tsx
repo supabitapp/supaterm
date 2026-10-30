@@ -15,6 +15,7 @@ import { cn } from "../../lib/cn";
 import { useAppearancePreferences } from "../../features/settings/appearance/AppearancePreferencesProvider";
 import { GlassBackdrop } from "./GlassBackdrop";
 
+// Explicit mappings keep the native glassEffectStyle enum out of style-array conversion.
 export const ThemedGlassView = withUniwind(GlassView, {
   style: { fromClassName: "className" },
   tintColor: { fromClassName: "tintColorClassName", styleProperty: "accentColor" },
@@ -24,8 +25,7 @@ interface GlassSurfaceProps extends ViewProps {
   readonly ref?: Ref<ViewInstance>;
   readonly children: ReactNode;
   readonly glassEffectStyle?: "clear" | "regular" | "none";
-
-  readonly tintColor?: ColorValue | null;
+  readonly tintColor?: ColorValue;
   readonly tintColorClassName?: string;
   readonly chrome?: "default" | "none";
   readonly fallbackColor?: ColorValue;
@@ -71,7 +71,7 @@ export function GlassSurface({
           className,
         )}
         glassEffectStyle={glassEffectStyle}
-        tintColor={tintColor == null ? undefined : String(tintColor)}
+        tintColor={tintColor === undefined ? undefined : String(tintColor)}
         tintColorClassName={
           tintColorClassName ?? (tintColor === undefined ? "accent-glass-tint" : undefined)
         }

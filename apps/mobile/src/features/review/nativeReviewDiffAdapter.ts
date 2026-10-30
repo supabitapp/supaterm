@@ -1,9 +1,11 @@
 import type { NativeReviewDiffRow, NativeReviewDiffTheme } from "../diffs/nativeReviewDiffSurface";
-import type { NativeReviewDiffFile } from "../diffs/nativeReviewDiffTypes";
+import type {
+  NativeReviewDiffFile,
+  NativeReviewDiffLanguage,
+} from "../diffs/nativeReviewDiffTypes";
 import * as Arr from "effect/Array";
 import { pipe } from "effect/Function";
 import type { ResolvedMobileCodeSurface } from "../../lib/appearancePreferences";
-import { resolveHighlightLanguage } from "../../lib/highlightLanguage";
 import { type MobileThemeId, type MobileThemeVariables } from "../../lib/mobileTheme";
 import { getMobileTerminalTheme, type TerminalAppearanceScheme } from "../terminal/terminalTheme";
 import { computeWordAltDiffRanges } from "./reviewWordDiffs";
@@ -17,10 +19,8 @@ import type { ReviewInlineComment } from "./reviewCommentSelection";
 
 const NATIVE_REVIEW_MAX_WORD_DIFF_RANGE_COUNT = 4;
 const NATIVE_REVIEW_MAX_WORD_DIFF_COVERAGE = 0.45;
-
-const NATIVE_REVIEW_MAX_WORD_DIFF_COMPARISONS = 1_000;
-
-const NATIVE_REVIEW_MAX_FILE_ROWS = 100_000;
+// Bound the rows serialized to the native heap before mapping and word matching.
+const NATIVE_REVIEW_MAX_FILE_ROWS = 2_000;
 const TRUNCATED_FILE_NOTICE = "This diff is too large to show in full.";
 const NATIVE_HEX_COLOR = /^#([\da-f]{2})([\da-f]{2})([\da-f]{2})([\da-f]{2})?$/i;
 const NATIVE_RGBA_COLOR =
@@ -177,7 +177,9 @@ export function createNativeReviewDiffTheme(
 ): NativeReviewDiffTheme {
   const terminalTheme = getMobileTerminalTheme(themeId, scheme);
   const [, terminalRed] = terminalTheme.palette;
-
+  // Swift expects #RRGGBB/#RRGGBBAA while Android expects #RRGGBB/#AARRGGBB.
+  // Flatten translucent app tokens onto the code surface so both native
+  // implementations receive the one unambiguous shared format.
   const screen = opaqueNativeHexColor(
     appTheme["--color-screen"],
     scheme === "dark" ? "#000000" : "#ffffff",
@@ -232,6 +234,35 @@ function mapChangeType(file: ReviewRenderableFile): NativeReviewDiffRow["changeT
     default:
       return "modified";
   }
+}
+
+function getLanguageForPath(
+  filePath: string,
+  languageHint: string | null,
+): NativeReviewDiffLanguage {
+  const hinted = languageHint?.toLowerCase();
+  if (hinted === "typescript" || hinted === "tsx" || hinted === "javascript" || hinted === "jsx") {
+    return hinted;
+  }
+  if (hinted === "json" || hinted === "yaml" || hinted === "bash" || hinted === "diff") {
+    return hinted;
+  }
+
+  const normalizedPath = filePath.toLowerCase();
+  if (normalizedPath.endsWith(".tsx")) return "tsx";
+  if (normalizedPath.endsWith(".ts")) return "typescript";
+  if (normalizedPath.endsWith(".jsx")) return "jsx";
+  if (normalizedPath.endsWith(".js") || normalizedPath.endsWith(".cjs")) return "javascript";
+  if (normalizedPath.endsWith(".json") || normalizedPath.endsWith(".jsonc")) return "json";
+  if (normalizedPath.endsWith(".yml") || normalizedPath.endsWith(".yaml")) return "yaml";
+  if (
+    normalizedPath.endsWith(".sh") ||
+    normalizedPath.includes("/bin/") ||
+    normalizedPath.includes("shell")
+  ) {
+    return "bash";
+  }
+  return "diff";
 }
 
 function createNoticeRow(fileId: string, suffix: string, text: string): NativeReviewDiffRow {
@@ -311,45 +342,63 @@ function shouldUseWordDiffRanges(
 
 function addNativeWordDiffRanges(
   rows: ReadonlyArray<NativeReviewDiffRow>,
-  lineRows: ReadonlyArray<ReviewRenderableLineRow>,
 ): ReadonlyArray<NativeReviewDiffRow> {
   const nextRows = [...rows];
-  const addedRowIndexes = new Map<number, number>();
-  const pairs: Array<{ deletionRowIndex: number; additionTokenIndex: number }> = [];
-  let lineIndex = 0;
+  let index = 0;
 
-  rows.forEach((row, rowIndex) => {
-    if (row.kind !== "line") return;
-    const source = lineRows[lineIndex++];
-    if (source?.change === "add" && source.additionTokenIndex !== null) {
-      addedRowIndexes.set(source.additionTokenIndex, rowIndex);
-    } else if (source?.change === "delete" && source.comparison?.change === "add") {
-      pairs.push({ deletionRowIndex: rowIndex, additionTokenIndex: source.comparison.tokenIndex });
+  while (index < nextRows.length) {
+    const deletedRowIndexes: number[] = [];
+    const addedRowIndexes: number[] = [];
+    const fileId = nextRows[index]?.fileId;
+
+    while (
+      nextRows[index]?.kind === "line" &&
+      nextRows[index]?.change === "delete" &&
+      nextRows[index]?.fileId === fileId
+    ) {
+      deletedRowIndexes.push(index);
+      index += 1;
     }
-  });
 
-  let comparisonCount = 0;
-  for (const { deletionRowIndex, additionTokenIndex } of pairs) {
-    if (comparisonCount >= NATIVE_REVIEW_MAX_WORD_DIFF_COMPARISONS) break;
-    const addedRowIndex = addedRowIndexes.get(additionTokenIndex);
-    if (addedRowIndex === undefined) continue;
-    const deletedRow = nextRows[deletionRowIndex];
-    const addedRow = nextRows[addedRowIndex];
-    if (!deletedRow?.content || !addedRow?.content) continue;
-
-    comparisonCount += 1;
-    const ranges = computeWordAltDiffRanges({
-      deletionLine: deletedRow.content,
-      additionLine: addedRow.content,
-    });
-    const deletionRanges = trimWordDiffRanges(deletedRow.content, ranges.deletion);
-    const additionRanges = trimWordDiffRanges(addedRow.content, ranges.addition);
-
-    if (shouldUseWordDiffRanges(deletedRow.content, deletionRanges)) {
-      nextRows[deletionRowIndex] = { ...deletedRow, wordDiffRanges: deletionRanges };
+    while (
+      nextRows[index]?.kind === "line" &&
+      nextRows[index]?.change === "add" &&
+      nextRows[index]?.fileId === fileId
+    ) {
+      addedRowIndexes.push(index);
+      index += 1;
     }
-    if (shouldUseWordDiffRanges(addedRow.content, additionRanges)) {
-      nextRows[addedRowIndex] = { ...addedRow, wordDiffRanges: additionRanges };
+
+    const pairedCount = Math.min(deletedRowIndexes.length, addedRowIndexes.length);
+    for (let pairIndex = 0; pairIndex < pairedCount; pairIndex += 1) {
+      const deletedRowIndex = deletedRowIndexes[pairIndex];
+      const addedRowIndex = addedRowIndexes[pairIndex];
+      if (deletedRowIndex === undefined || addedRowIndex === undefined) {
+        continue;
+      }
+      const deletedRow = nextRows[deletedRowIndex];
+      const addedRow = nextRows[addedRowIndex];
+      if (!deletedRow?.content || !addedRow?.content) {
+        continue;
+      }
+
+      const ranges = computeWordAltDiffRanges({
+        deletionLine: deletedRow.content,
+        additionLine: addedRow.content,
+      });
+      const deletionRanges = trimWordDiffRanges(deletedRow.content, ranges.deletion);
+      const additionRanges = trimWordDiffRanges(addedRow.content, ranges.addition);
+
+      if (shouldUseWordDiffRanges(deletedRow.content, deletionRanges)) {
+        nextRows[deletedRowIndex] = { ...deletedRow, wordDiffRanges: deletionRanges };
+      }
+      if (shouldUseWordDiffRanges(addedRow.content, additionRanges)) {
+        nextRows[addedRowIndex] = { ...addedRow, wordDiffRanges: additionRanges };
+      }
+    }
+
+    if (deletedRowIndexes.length === 0 && addedRowIndexes.length === 0) {
+      index += 1;
     }
   }
 
@@ -422,21 +471,13 @@ function prepareFileRows(file: ReviewRenderableFile): PreparedNativeReviewFileRo
     rows.push(createNoticeRow(file.id, "truncated", TRUNCATED_FILE_NOTICE));
   }
   rows.push(...noticeRowsForFile(file));
-  if (file.noEOFCRAdditions || file.noEOFCRDeletions) {
-    const side = file.noEOFCRAdditions
-      ? file.noEOFCRDeletions
-        ? "Old and new files have"
-        : "New file has"
-      : "Old file has";
-    rows.push(createNoticeRow(file.id, "eof", `${side} no newline at end of file.`));
-  }
   const prepared: PreparedNativeReviewFileRows = {
     fileId: file.id,
     filePath: file.path,
     lineCount: lineRows.length,
     truncated: sourceRows !== file.rows,
-
-    rows: addNativeWordDiffRanges(rows, lineRows),
+    // Comments must not split the source deletion/addition runs used for word matching.
+    rows: addNativeWordDiffRanges(rows),
     commentTargetsByRowId,
     rowIdByCommentLineId,
     commentedRows: null,
@@ -507,7 +548,7 @@ function prepareNativeReviewDiffData(parsedDiff: ReviewParsedDiff): PreparedNati
   const files = parsedDiff.files.map<NativeReviewDiffFile>((file) => ({
     id: file.id,
     path: file.path,
-    language: resolveHighlightLanguage({ language: file.languageHint, path: file.path }),
+    language: getLanguageForPath(file.path, file.languageHint),
     additions: file.additions,
     deletions: file.deletions,
   }));

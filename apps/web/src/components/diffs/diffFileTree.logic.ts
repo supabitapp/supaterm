@@ -101,34 +101,6 @@ export function diffFileTreePositions(paths: ReadonlyArray<string>): ReadonlyMap
   return positions;
 }
 
-export function orderDiffFilesLikeTree(
-  files: ReadonlyArray<FileDiffMetadata>,
-): ReadonlyArray<FileDiffMetadata> {
-  const paths = files.map(resolveFileDiffPath);
-  const positions = diffFileTreePositions(paths);
-  const keys = paths.map((path) => {
-    const key: number[] = [];
-    let directory = "";
-    for (const segment of path.split("/").slice(0, -1)) {
-      directory += `${segment}/`;
-      key.push(positions.get(directory)!);
-    }
-    key.push(positions.get(path)!);
-    return key;
-  });
-  return files
-    .map((file, index) => ({ file, key: keys[index]! }))
-    .toSorted((left, right) => {
-      const length = Math.min(left.key.length, right.key.length);
-      for (let index = 0; index < length; index++) {
-        const difference = left.key[index]! - right.key[index]!;
-        if (difference !== 0) return difference;
-      }
-      return left.key.length - right.key.length;
-    })
-    .map(({ file }) => file);
-}
-
 export function compareDiffFileTreeEntries(
   getPositions: () => ReadonlyMap<string, number>,
 ): FileTreeSortComparator {
@@ -160,6 +132,7 @@ export function buildDiffFileTreeUpdates(
   for (const path of previousPaths) {
     if (!next.has(path)) updates.push({ type: "remove", path });
   }
+  // Deepest first: a directory can only go once everything under it has.
   const removedDirectories = [...previousDirectories]
     .filter((directory) => !nextDirectories.has(directory))
     .toSorted((left, right) => pathDepth(right) - pathDepth(left));
@@ -167,6 +140,7 @@ export function buildDiffFileTreeUpdates(
     updates.push({ type: "remove", path: directory, recursive: true });
   }
 
+  // Shallowest first: a file's directory has to exist before the file does.
   const addedDirectories = [...nextDirectories]
     .filter((directory) => !previousDirectories.has(directory))
     .toSorted((left, right) => pathDepth(left) - pathDepth(right));

@@ -184,8 +184,8 @@ export const make = Effect.gen(function* () {
     get: readClientSettings(fileSystem, environment.clientSettingsPath).pipe(
       Effect.withSpan("desktop.clientSettings.get"),
     ),
-    set: Effect.fn("desktop.clientSettings.set")(function (settings) {
-      return crypto.randomUUIDv4().pipe(
+    set: (settings) =>
+      crypto.randomUUIDv4().pipe(
         Effect.map((uuid) => uuid.replace(/-/g, "")),
         Effect.mapError(
           (cause) =>
@@ -204,8 +204,8 @@ export const make = Effect.gen(function* () {
             suffix,
           }),
         ),
-      );
-    }),
+        Effect.withSpan("desktop.clientSettings.set"),
+      ),
   });
 });
 
@@ -218,9 +218,7 @@ export const layerTest = (initialSettings: Option.Option<ClientSettings> = Optio
       const settingsRef = yield* Ref.make(initialSettings);
       return DesktopClientSettings.of({
         get: Ref.get(settingsRef),
-        set: Effect.fn("DesktopClientSettings.set")(function (settings) {
-          return Ref.set(settingsRef, Option.some(settings));
-        }),
+        set: (settings) => Ref.set(settingsRef, Option.some(settings)),
       });
     }),
   );

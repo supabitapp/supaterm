@@ -55,7 +55,6 @@ export const DesktopConfig = Config.all({
   otlpProtocol: Config.schema(OtlpProtocol, "SUPATERM_OTLP_PROTOCOL").pipe(
     Config.withDefault("http/json"),
   ),
-  desktopLauncherPath: trimmedString("SUPATERM_DESKTOP_LAUNCHER_PATH"),
   appImagePath: trimmedString("APPIMAGE"),
   disableAutoUpdate: optionalBoolean("SUPATERM_DISABLE_AUTO_UPDATE"),
   mockUpdates: optionalBoolean("SUPATERM_DESKTOP_MOCK_UPDATES"),

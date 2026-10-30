@@ -1,5 +1,4 @@
 import type { ExpoConfig } from "expo/config";
-import { crashReportingEndpoint } from "./src/lib/crashReportingConfig.ts";
 
 import { BRAND_ASSET_PATHS } from "../../scripts/lib/brand-assets.ts";
 import { loadRepoEnv } from "../../scripts/lib/public-config.ts";
@@ -7,11 +6,10 @@ import { loadRepoEnv } from "../../scripts/lib/public-config.ts";
 type AppVariant = "development" | "preview" | "production";
 
 const repoEnv = loadRepoEnv();
-const crashEndpointUrl = crashReportingEndpoint(repoEnv.SUPATERM_MOBILE_CRASH_REPORT_URL);
 Object.assign(process.env, repoEnv);
 
 const APP_VARIANT = resolveAppVariant(repoEnv.APP_VARIANT);
-
+// Metro can remove the other variants' image imports before collecting assets.
 process.env.EXPO_PUBLIC_APP_VARIANT = APP_VARIANT;
 const isIosPersonalTeamBuild = repoEnv.SUPATERM_IOS_PERSONAL_TEAM === "1";
 const runtimeVersionPolicy =
@@ -167,7 +165,8 @@ const widgetsPlugin: NonNullable<ExpoConfig["plugins"]>[number] = [
           targetCellWidth: 4,
           targetCellHeight: 3,
           resizeMode: "both",
-
+          // Embeds the layout in the APK so the widget renders before the app
+          // has run once; the app replaces it with stored props on publish.
           initialLayout: "./src/widgets/SubscriptionUsage.android.tsx",
         },
       },
@@ -179,6 +178,9 @@ const sharingPlugin: NonNullable<ExpoConfig["plugins"]>[number] = [
   "expo-sharing",
   {
     ios: {
+      // Personal Teams cannot sign App Groups or extension targets. Keep the
+      // reduced-capability local build usable while release builds expose the
+      // real system share target.
       enabled: !isIosPersonalTeamBuild,
       extensionBundleIdentifier: `${iosBundleIdentifier}.sharing`,
       appGroupId: `group.${iosBundleIdentifier}`,
@@ -205,6 +207,9 @@ const config: ExpoConfig = {
   scheme: variant.scheme,
   version: "26.10.6",
   runtimeVersion: {
+    // Development manifests resolve on every launch, so avoid fingerprint's
+    // expensive native-project calculation there. Preview and production stay
+    // fingerprinted so OTAs only reach binaries with matching native projects.
     policy: runtimeVersionPolicy,
   },
   orientation: "portrait",
@@ -221,12 +226,14 @@ const config: ExpoConfig = {
     supportsTablet: true,
     requireFullScreen: process.env.SUPATERM_SHOWCASE_CAPTURE_BUILD === "1",
     bundleIdentifier: iosBundleIdentifier,
-
+    // Pin code signing to SUPABIT COMPANY LIMITED so non-interactive `expo run:ios`
+    // does not fall back to a personal team (which cannot sign app groups).
     appleTeamId: "9ZLSJ2GN2B",
     entitlements: {
       "keychain-access-groups": [`$(AppIdentifierPrefix)${variant.iosBundleIdentifier}`],
     },
     infoPlist: {
+      // Native navigation owns visibility across full-screen preview transitions.
       UIViewControllerBasedStatusBarAppearance: true,
       UISupportedInterfaceOrientations: [
         "UIInterfaceOrientationPortrait",
@@ -239,7 +246,8 @@ const config: ExpoConfig = {
       NSLocalNetworkUsageDescription:
         "Allow Supaterm to connect to Supaterm servers on your local network or tailnet.",
       NSPhotoLibraryAddUsageDescription: "Allow Supaterm to save images to your photo library.",
-
+      // "Audio, AirPlay, and Picture in Picture": the browser screen's system
+      // picture in picture needs it to start and to stay up outside the app.
       UIBackgroundModes: ["audio"],
       ITSAppUsesNonExemptEncryption: false,
       ...(process.env.SUPATERM_SHOWCASE_CAPTURE_BUILD === "1"
@@ -249,7 +257,11 @@ const config: ExpoConfig = {
             EXDevMenuShowFloatingActionButton: false,
           }
         : {}),
-
+      // The App Store screenshot harness rotates the iPad interface from
+      // inside the app (CI denies osascript the Accessibility access that
+      // Simulator menu scripting needs), and iPadOS ignores programmatic
+      // orientation requests for multitasking-capable apps — so the capture
+      // build opts out of multitasking and declares landscape support.
       ...(process.env.SUPATERM_SHOWCASE_CAPTURE_BUILD === "1"
         ? {
             "UISupportedInterfaceOrientations~ipad": [
@@ -271,9 +283,11 @@ const config: ExpoConfig = {
       backgroundImage: variant.assets.androidAdaptiveBackgroundImage,
       foregroundImage: variant.assets.androidAdaptiveForeground,
     },
-
+    // Opts into OnBackInvokedCallback-based back dispatch (Android 13+).
+    // JS back handling survives it via react-native's Android 16 shim plus
+    // withAndroidPredictiveBackCompat on Android 13-15.
     predictiveBackGestureEnabled: true,
-
+    // expo-sensors declares this for its pedometer, which the app does not use.
     blockedPermissions: ["android.permission.ACTIVITY_RECOGNITION"],
   },
   web: {
@@ -310,6 +324,8 @@ const config: ExpoConfig = {
     [
       "expo-quick-actions",
       {
+        // Adaptive launcher-shortcut icon; referenced by resource name from
+        // the shortcut items set in src/features/shortcuts.
         androidIcons: {
           shortcut_icon: {
             foregroundImage: variant.assets.androidAdaptiveForeground,
@@ -364,8 +380,14 @@ const config: ExpoConfig = {
       "expo-build-properties",
       {
         android: {
+          // Keep the supported floor explicit.
           minSdkVersion: 24,
-
+          // kotlinx-io uses Kotlin 2.3's return-value checker annotation, while
+          // SDK 58 builds with Kotlin 2.2. It has no runtime behavior.
+          // WorkManager 2.9 keeps InputMerger classes but not their constructors,
+          // and R8 full mode no longer keeps a default constructor implicitly.
+          // Without it no work request can start, so the Glance session behind
+          // the widget never renders and it stays on "Loading widget".
           extraProguardRules: [
             "-dontwarn kotlin.MustUseReturnValues",
             "-keep class * extends androidx.work.InputMerger { <init>(); }",
@@ -377,10 +399,11 @@ const config: ExpoConfig = {
       },
     ],
     "./plugins/withIosCocoaPodsUuidCache.cjs",
-
+    // Only the accelerometer is used (device viewer shake). Compile out the
+    // pedometer so iOS needs no motion purpose string.
     ["expo-sensors", { motionPermission: false }],
     ...(!isIosPersonalTeamBuild ? [widgetsPlugin] : []),
-    "./plugins/withAndroidNetworkSecurityConfig.cjs",
+    "./plugins/withAndroidCleartextTraffic.cjs",
     "./plugins/withAndroidGradleHeap.cjs",
     "./plugins/withAndroidFbjniVersion.cjs",
     "./plugins/withAndroidInputBackground.cjs",
@@ -393,14 +416,13 @@ const config: ExpoConfig = {
   extra: {
     appVariant: APP_VARIANT,
     iosPersonalTeamBuild: isIosPersonalTeamBuild,
-    crashReporting: { endpointUrl: crashEndpointUrl },
     eas: {
       projectId: "c96e633c-2940-4aab-a40a-44777a9600c6",
-      observe: { endpointUrl: crashEndpointUrl ?? "https://observe.invalid" },
     },
   },
   owner: "supabitapp",
   experiments: {
+    // Metro only runs babel-plugin-react-compiler when this is set; see src/reactCompilerCoverage.test.ts.
     reactCompiler: true,
   },
 };

@@ -10,9 +10,7 @@ import {
 
 import type { ComposerFileAttachment, ComposerImageAttachment } from "../../composerDraftStore";
 import { isHeicImageFile } from "../../lib/imageCompression";
-import { isVideoAttachment, videoMimeType } from "../../types";
-import { isSvgAttachment } from "@supaterm/shared/image";
-import { isWorkspaceImagePreviewPath } from "@supaterm/shared/filePreview";
+import { isVideoAttachment } from "../../types";
 
 type ComposerAttachmentFileKind = "image" | "file" | "unsupported-image";
 
@@ -61,31 +59,9 @@ export function normalizeComposerImageFileMimeType(file: File): File {
   });
 }
 
-function isDngFile(file: Pick<File, "name" | "type">): boolean {
-  const mimeType = file.type.split(";", 1)[0]?.trim().toLowerCase();
-  return (
-    file.name.toLowerCase().endsWith(".dng") ||
-    mimeType === "image/dng" ||
-    mimeType === "image/x-dng" ||
-    mimeType === "image/x-adobe-dng"
-  );
-}
-
-export function composerFileAttachmentMimeType(file: Pick<File, "name" | "type">): string {
-  // Downstream image detection uses MIME, even for attachments staged as files.
-  if (isDngFile(file)) return "image/x-adobe-dng";
-  if (isSvgAttachment({ name: file.name, mimeType: file.type })) return "image/svg+xml";
-  return (
-    videoMimeType({ name: file.name, mimeType: file.type }) ??
-    (file.type || "application/octet-stream")
-  );
-}
-
 export function classifyComposerAttachmentFile(
   file: Pick<File, "name" | "type">,
 ): ComposerAttachmentFileKind {
-  if (isSvgAttachment({ name: file.name, mimeType: file.type })) return "file";
-  if (isDngFile(file)) return "file";
   if (isHeicImageFile(file)) {
     return "image";
   }
@@ -95,9 +71,7 @@ export function classifyComposerAttachmentFile(
   if (!file.type.toLowerCase().startsWith("image/")) {
     return "file";
   }
-  if (isProviderSendTurnSupportedImageMimeType(file.type)) return "image";
-  // These can be previewed as files, but providers must not receive them as images.
-  return isWorkspaceImagePreviewPath(file.name) ? "file" : "unsupported-image";
+  return isProviderSendTurnSupportedImageMimeType(file.type) ? "image" : "unsupported-image";
 }
 
 export function isPreviewableComposerVideo(
@@ -173,14 +147,8 @@ export function shouldHandleComposerAttachmentPaste(input: {
 }): boolean {
   if (
     input.files.some((file) => {
-      if (isDngFile(file)) return true;
       const classification = classifyComposerAttachmentFile(file);
-      return (
-        classification === "image" ||
-        classification === "unsupported-image" ||
-        file.type.toLowerCase().startsWith("image/") ||
-        isSvgAttachment({ name: file.name, mimeType: file.type })
-      );
+      return classification === "image" || classification === "unsupported-image";
     })
   ) {
     return true;

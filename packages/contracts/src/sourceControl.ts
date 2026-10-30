@@ -2,6 +2,11 @@ import * as Schema from "effect/Schema";
 import { PositiveInt, TrimmedNonEmptyString } from "./baseSchemas.ts";
 import { VcsDriverKind } from "./vcs.ts";
 
+/**
+ * Open on purpose, like `ProviderDriverKind`: a server can report a host this client does not
+ * ship a definition for, and clients fall back to a generic presentation instead of failing to
+ * decode.
+ */
 export const SourceControlProviderKind = TrimmedNonEmptyString.check(
   Schema.isMaxLength(64),
   Schema.isPattern(/^[a-z][a-z0-9-]*$/),
@@ -127,7 +132,7 @@ export const SourceControlProviderAuth = Schema.Struct({
         active: Schema.Boolean,
         authenticated: Schema.Boolean,
         error: Schema.optionalKey(TrimmedNonEmptyString),
-
+        /** Set when the login comes from a token variable such as `GH_TOKEN`, which wins over Settings. */
         environmentVariable: Schema.optionalKey(TrimmedNonEmptyString),
       }),
     ),
@@ -151,57 +156,10 @@ export const VcsDiscoveryItem = Schema.Struct({
 });
 export type VcsDiscoveryItem = typeof VcsDiscoveryItem.Type;
 
-const SourceControlAppHost = TrimmedNonEmptyString.check(
-  Schema.makeFilter(
-    (host) => {
-      try {
-        const url = new URL(`https://${host}`);
-        return (
-          url.host === host.toLowerCase() &&
-          url.pathname === "/" &&
-          !url.username &&
-          !url.password &&
-          !url.search &&
-          !url.hash
-        );
-      } catch {
-        return false;
-      }
-    },
-    { expected: "a host name with an optional port" },
-  ),
-);
-
-const SourceControlAppUrl = TrimmedNonEmptyString.check(
-  Schema.isMaxLength(2048),
-  Schema.makeFilter(
-    (value) => {
-      try {
-        const url = new URL(value);
-        return url.protocol === "https:" && !url.username && !url.password;
-      } catch {
-        return false;
-      }
-    },
-    { expected: "an HTTPS URL without credentials" },
-  ),
-);
-
-export const SourceControlAppSignIn = Schema.Struct({
-  appName: TrimmedNonEmptyString,
-  hosts: Schema.Array(SourceControlAppHost).check(Schema.isMinLength(1)),
-  installUrl: SourceControlAppUrl,
-  revokeUrl: SourceControlAppUrl,
-});
-export type SourceControlAppSignIn = typeof SourceControlAppSignIn.Type;
-
 export const SourceControlProviderDiscoveryItem = Schema.Struct({
   kind: SourceControlProviderKind,
   ...SourceControlDiscoverySharedFields,
   auth: SourceControlProviderAuth,
-
-  appSignIn: Schema.optionalKey(Schema.Boolean),
-  appSignInMetadata: Schema.optionalKey(SourceControlAppSignIn),
 });
 export type SourceControlProviderDiscoveryItem = typeof SourceControlProviderDiscoveryItem.Type;
 
@@ -226,61 +184,6 @@ export class SourceControlProviderError extends Schema.TaggedError<SourceControl
 ) {
   override get message(): string {
     return `Source control provider ${this.provider} failed in ${this.operation}: ${this.detail}`;
-  }
-}
-
-export const SourceControlSignInInput = Schema.Struct({
-  provider: SourceControlProviderKind,
-  host: TrimmedNonEmptyString,
-});
-export type SourceControlSignInInput = typeof SourceControlSignInInput.Type;
-
-export const SourceControlSignInPrompt = Schema.Struct({
-  userCode: TrimmedNonEmptyString,
-  verificationUri: TrimmedNonEmptyString,
-  expiresAt: Schema.Number,
-});
-export type SourceControlSignInPrompt = typeof SourceControlSignInPrompt.Type;
-
-export const SourceControlSignInResult = Schema.Struct({
-  account: TrimmedNonEmptyString,
-});
-export type SourceControlSignInResult = typeof SourceControlSignInResult.Type;
-
-export const SourceControlSignInFailure = Schema.Literals([
-  "unsupported",
-  "not-started",
-  "cancelled",
-  "denied",
-  "expired",
-  "failed",
-]);
-export type SourceControlSignInFailure = typeof SourceControlSignInFailure.Type;
-
-export const SourceControlAppAccessInput = Schema.Struct({
-  provider: SourceControlProviderKind,
-  host: TrimmedNonEmptyString,
-  repository: TrimmedNonEmptyString,
-});
-export type SourceControlAppAccessInput = typeof SourceControlAppAccessInput.Type;
-
-export const SourceControlAppAccess = Schema.Struct({
-  status: Schema.Literals(["covered", "not-covered", "signed-out"]),
-});
-export type SourceControlAppAccess = typeof SourceControlAppAccess.Type;
-
-export class SourceControlSignInError extends Schema.TaggedError<SourceControlSignInError>()(
-  "SourceControlSignInError",
-  {
-    provider: SourceControlProviderKind,
-    host: Schema.String,
-    reason: SourceControlSignInFailure,
-    detail: Schema.String,
-    cause: Schema.optional(Schema.Defect()),
-  },
-) {
-  override get message(): string {
-    return this.detail;
   }
 }
 

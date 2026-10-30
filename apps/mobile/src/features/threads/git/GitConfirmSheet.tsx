@@ -1,5 +1,4 @@
 import { resolveDefaultBranchActionDialogCopy } from "@supaterm/client-runtime/state/vcs";
-import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { resolveAutoFeatureBranchName } from "@supaterm/shared/git";
 import * as Arr from "effect/Array";
 import * as Result from "effect/Result";
@@ -15,7 +14,6 @@ import { NativeStackScreenOptions } from "../../../native/StackHeader";
 import { AppText as Text } from "../../../components/ui/AppText";
 import { useSelectedThreadGitActions } from "../../../state/use-selected-thread-git-actions";
 import { useSelectedThreadGitState } from "../../../state/use-selected-thread-git-state";
-import { useThreadSelection } from "../../../state/use-thread-selection";
 import { SheetActionButton } from "./gitSheetComponents";
 
 type GitConfirmSheetProps = StaticScreenProps<{
@@ -35,10 +33,6 @@ export function GitConfirmSheet(props: GitConfirmSheetProps) {
   const gitState = useSelectedThreadGitState();
   const gitActions = useSelectedThreadGitActions();
   const { canWriteSourceControl, canChangeThreadBranch } = gitActions;
-  const { selectedThreadProject } = useThreadSelection();
-  const terminology = sourceControlClients.get(
-    selectedThreadProject?.repositoryIdentity?.provider,
-  ).changeRequest;
 
   const params = props.route.params;
 
@@ -60,10 +54,9 @@ export function GitConfirmSheet(props: GitConfirmSheetProps) {
             action: confirmAction,
             branchName,
             includesCommit,
-            terminology,
           })
         : null,
-    [branchName, confirmAction, includesCommit, terminology],
+    [branchName, confirmAction, includesCommit],
   );
 
   const continuePendingAction = useCallback(async () => {

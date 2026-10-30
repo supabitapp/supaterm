@@ -24,7 +24,6 @@ export function useTimelineMessageJump({
   handlers: MessageJumpHandlers;
 }) {
   const [advance] = useState(createMessageJumpRunner);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Advance the imperative list scroll through bounded history pages as the requested message becomes available.
   useEffect(() => {
     if (!jump || !listReady) return;
     advance(

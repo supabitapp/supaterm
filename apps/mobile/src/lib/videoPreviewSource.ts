@@ -1,9 +1,4 @@
-import {
-  SOURCE_CONTROL_MEDIA_ASSET,
-  type AssetResource,
-  type ChatFileAttachment,
-  type EnvironmentId,
-} from "@supaterm/contracts";
+import type { AssetResource, ChatFileAttachment, EnvironmentId } from "@supaterm/contracts";
 import { videoMimeType } from "@supaterm/shared/video";
 
 import type { DraftComposerFileAttachment } from "./composerImages";
@@ -22,13 +17,7 @@ export type MediaVideoPreviewSource = {
       readonly environmentId: EnvironmentId;
       readonly resource: Extract<
         AssetResource,
-        {
-          readonly _tag:
-            | "attachment"
-            | "media-file"
-            | "draft-workspace-file"
-            | typeof SOURCE_CONTROL_MEDIA_ASSET;
-        }
+        { readonly _tag: "attachment" | "media-file" | "draft-workspace-file" | "github-media" }
       >;
     }
 );
@@ -56,10 +45,10 @@ export function mediaVideoThumbnailKey(source: MediaVideoPreviewSource): string 
               source.resource.path,
               source.srcFragment ?? "",
             ]
-          : source.resource._tag === SOURCE_CONTROL_MEDIA_ASSET
+          : source.resource._tag === "github-media"
             ? [
                 "media-video",
-                SOURCE_CONTROL_MEDIA_ASSET,
+                "github-media",
                 source.environmentId,
                 source.resource.cwd,
                 source.resource.url,

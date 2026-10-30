@@ -16,7 +16,8 @@ import { cli } from "../binCli.ts";
 import { symlinksSupported } from "@supaterm/shared/testing/symlinks";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 
-// Windows chmod cannot force these directory or file permission failures.
+// These force a failure with chmod, which Windows ignores for directories and
+// cannot use to make a file unreadable, so the failure never happens there.
 const windowsHost = HostProcess.Platform.defaultValue() === "win32";
 
 const runCli = (args: ReadonlyArray<string>) =>

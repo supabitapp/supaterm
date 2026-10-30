@@ -28,7 +28,6 @@ export function useHardwareKeyboardCommand(
   command: HardwareKeyboardCommand | ReadonlyArray<HardwareKeyboardCommand>,
   handler: CommandHandler,
 ): void {
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers the handler in the module-level hardware keyboard command registry
   useEffect(() => {
     const commands = typeof command === "string" ? [command] : command;
     for (const command of commands) {

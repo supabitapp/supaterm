@@ -21,12 +21,7 @@ import {
   ProviderCompatibilityPolicy,
   resolveProviderCompatibility,
 } from "./providerCompatibility.ts";
-import { resolveAntigravityReleaseAsset } from "./antigravityRelease.ts";
-import bundledManifest from "./model-manifest.json" with { type: "json" };
 
-const decodeCompatibilityPolicies = Schema.decodeUnknownSync(
-  Schema.Array(ProviderCompatibilityPolicy),
-);
 const driver = ProviderDriverKind.make("codex");
 const policy: ProviderCompatibilityPolicy = {
   driver,
@@ -57,6 +52,8 @@ const provider: ServerProvider = {
 
 describe("provider compatibility", () => {
   it("keeps releases before V2 on the OpenCode 1 policy they shipped with", () => {
+    // Every installed build fetches main's manifest, and 0.0.45 and older run the
+    // V1 orchestrator, which cannot drive OpenCode 2.
     const opencode = ProviderDriverKind.make("opencode");
     for (const [version, expected] of [
       ["1.14.19", "supported"],
@@ -129,19 +126,6 @@ describe("provider compatibility", () => {
         expected,
       );
     }
-  });
-
-  it("supports the managed Antigravity runtime in the bundled manifest", () => {
-    const policies = decodeCompatibilityPolicies(bundledManifest.compatibility);
-    const release = resolveAntigravityReleaseAsset("darwin", "arm64");
-    assert.strictEqual(
-      resolveProviderCompatibility(
-        policies,
-        ProviderDriverKind.make("antigravity"),
-        `agy_acp_server_${release?.version}`,
-      )?.status,
-      "supported",
-    );
   });
 
   it("classifies boundaries and treats unlisted versions and release tags as unknown", () => {

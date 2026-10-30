@@ -39,7 +39,6 @@ import {
   parseGitHubRepositorySelector,
   parsePullRequestReference,
   readCheckoutGitHubRepository,
-  resolveGitHubRepository,
   type GitHubRepositoryLocator,
 } from "./gitHubRepositoryResolution.ts";
 import * as SourceControlRateLimit from "@supaterm/source-control-core/server/SourceControlRateLimit";
@@ -51,7 +50,13 @@ import {
   PullRequestsByHead,
 } from "./sourceControlProvider.graphql.ts";
 
+/**
+ * The generated head lookup with its rows left undecoded, so `listByHead` decodes them one at a
+ * time: a row whose fields no longer decode is skipped rather than failing every lookup that
+ * shared its document.
+ */
 const LenientPullRequestsByHead = GraphQL.query(PullRequestsByHead.name, {
+  // The template, not the joined text: `GraphQLResolver.aliased` repeats it per lookup.
   document: PullRequestsByHead.template!,
   variables: PullRequestsByHead.variables,
   result: Schema.Struct({
@@ -111,7 +116,6 @@ function fromGitHubApiError(
     case "GitHubApiNotFoundError":
       return failure(notFound, error);
     case "GitHubCliFailedError":
-    case "GitHubAppSessionError":
     case "GitHubApiResponseError":
     case "GitHubApiRequestError":
       return failure(error.message.trim() || "GitHub request failed.", error);
@@ -164,6 +168,12 @@ function trimmed(value: string): string | null {
   return text.length > 0 ? text : null;
 }
 
+/**
+ * A pull request as every read reports it, or null for a row this cannot use: a number below
+ * one, a blank title, URL or branch name, or an `updatedAt` that is not a date. A list skips a
+ * null, so one such row cannot hide the rest. The generated schema already holds every row to
+ * GitHub's own types, with `state` as a lenient enum.
+ */
 function toPullRequestRecord(node: PullRequestNode): NormalizedGitHubPullRequestRecord | null {
   const title = trimmed(node.title);
   const url = trimmed(node.url);
@@ -258,6 +268,10 @@ export const make = Effect.gen(function* () {
     ),
   ).pipe(Effect.provide(GitHubGraphQlClient.layer));
 
+  /**
+   * Runs a generated read against `target`. GitHub's refusals and `errors` fail the way REST
+   * ones do; an answer that does not decode is a `decodeDetail` failure.
+   */
   const graphqlRead = <A, E, R>(
     target: GitHubGraphQlClient.GitHubGraphQlTarget["Service"],
     decodeDetail: string,
@@ -275,6 +289,13 @@ export const make = Effect.gen(function* () {
   const rest = (input: GitHubRest.GitHubRestInput, notFoundDetail?: string) =>
     api.rest(input).pipe(Effect.mapError((error) => fromGitHubApiError(error, notFoundDetail)));
 
+  /**
+   * Head lookups to one host under one credential share aliased documents: the resolver batches by
+   * the host's endpoint and `batchKey`. Each lookup has its own `repository` root, so lookups on
+   * different repositories may share a document, and a repository GitHub cannot find fails only
+   * its own. Interactive and background lookups never share one, since they use separate
+   * resolvers, so a document is sent under one reserve setting.
+   */
   const headResolver = GraphQLResolver.aliased(client.PullRequestsByHead, {
     batchKey: GitHubGraphQlClient.batchKey,
   }).pipe(RequestResolver.batchN(HEAD_LOOKUPS_PER_DOCUMENT));
@@ -305,7 +326,8 @@ export const make = Effect.gen(function* () {
         host: locator.host,
         operation: "listPullRequestsByHead",
         allowReserve: input.allowReserve,
-
+        // Up to 50 heads of 100 rows each. A default branch such as `main` can match a hundred
+        // fork pull requests, so the usual cap would cut the answer short.
         maxResponseBytes: HEAD_LOOKUP_MAX_RESPONSE_BYTES,
       },
       "GitHub returned an invalid change request list.",
@@ -521,9 +543,7 @@ export const make = Effect.gen(function* () {
       );
 
       yield* Effect.gen(function* () {
-        if (!exists) {
-          yield* git.createBranch({ cwd: input.cwd, branch: localBranch, startPoint: target.ref });
-        }
+        if (!exists) yield* runGit(input.cwd, "branch", ["branch", "--", localBranch, target.ref]);
         yield* Effect.scoped(git.switchRef({ cwd: input.cwd, refName: localBranch }));
         if (exists) {
           yield* runGit(
@@ -612,62 +632,17 @@ export const make = Effect.gen(function* () {
 
   return SourceControlProvider.SourceControlProvider.of({
     kind: SourceControlProviderKind.make("github"),
-
+    // `gh pr list --head` filters on the head ref name alone and accepts anything, so an
+    // `owner:branch` or `remote:branch` selector silently lists zero pull requests while
+    // spending a GraphQL call; the bare branch is always among the selectors. Without the owner,
+    // a bare branch also lists same-named branches on other forks (`main`, `patch-1`), so read a
+    // full page and let the owner check pick the right head.
     headBranchProbe: ({ headSelectors }) => ({
       headSelectors: headSelectors.filter((selector) => !selector.includes(":")),
       limit: 100,
     }),
-    readChangeRequestTemplate: Effect.fn("GitHubSourceControlProvider.readChangeRequestTemplate")(
-      function ({ cwd, treeish }) {
-        return GitHubChangeRequestTemplate.detect(cwd, treeish, git.execute);
-      },
-    ),
-
-    createsChangeRequestsIn: Effect.fn("GitHubSourceControlProvider.createsChangeRequestsIn")(
-      function* ({ cwd, context, repository }) {
-        const host = URL.canParse(context.provider.baseUrl)
-          ? new URL(context.provider.baseUrl).host
-          : null;
-        const target = repository?.toLowerCase();
-        const fromEnvironment = parseGitHubRepositorySelector(
-          environment.GH_REPO ?? "",
-          host ?? "",
-        );
-        if (fromEnvironment !== null) {
-          const { host: targetHost, owner, name } = fromEnvironment;
-          return (
-            host !== null &&
-            URL.canParse(`https://${targetHost}`) &&
-            new URL(`https://${targetHost}`).host === host &&
-            `${owner}/${name}`.toLowerCase() === target
-          );
-        }
-        const mark = yield* git
-          .readConfigValue(cwd, `remote.${context.remoteName}.gh-resolved`)
-          .pipe(Effect.orElseSucceed(() => null));
-        const { locator } = resolveGitHubRepository({
-          remotes: `${context.remoteName}\t${context.remoteUrl} (fetch)`,
-          resolved: mark === null ? "" : `remote.${context.remoteName}.gh-resolved ${mark}`,
-          hostHint: host ?? undefined,
-          defaultHost: host ?? "github.com",
-        });
-        return locator === null || `${locator.owner}/${locator.name}`.toLowerCase() === target;
-      },
-    ),
-
-    recordBranchBase: Effect.fn("GitHubSourceControlProvider.recordBranchBase")(function ({
-      cwd,
-      branch,
-      baseBranch,
-    }) {
-      return git
-        .writeConfigValue({ cwd, key: `branch.${branch}.gh-merge-base`, value: baseBranch })
-        .pipe(
-          Effect.catch((cause) =>
-            Effect.logWarning("Could not record the branch base for gh", { cause }),
-          ),
-        );
-    }),
+    readChangeRequestTemplate: ({ cwd, treeish }) =>
+      GitHubChangeRequestTemplate.detect(cwd, treeish, git.execute),
     resolveLink: (input) => {
       // Automatic enrichment must not send ambient CLI credentials to a host from message text.
       if (input.url.host !== "github.com") return undefined;
@@ -677,37 +652,31 @@ export const make = Effect.gen(function* () {
       if (!match) return undefined;
       return readLinkSubject(input, `repos/${match[1]}/${match[2]}/issues/${match[3]}`);
     },
-    listChangeRequests: Effect.fn("GitHubSourceControlProvider.listChangeRequests")(
-      function (input) {
-        return (
-          input.state === "open" ? Effect.succeed(true) : SourceControlRateLimit.Interactive
-        ).pipe(
-          Effect.flatMap((allowReserve) =>
-            listByHead({
-              cwd: input.cwd,
-              headSelector: input.headSelector,
-              state: input.state,
-              limit: input.limit ?? (input.state === "open" ? 1 : 20),
-              host: contextHost(input.context),
-              context: input.context,
-              allowReserve,
-            }),
-          ),
-          Effect.map((records) => records.map(toChangeRequest)),
-          Effect.mapError(
-            providerError("listChangeRequests", input.cwd, { reference: input.headSelector }),
-          ),
-        );
-      },
-    ),
-    getChangeRequest: Effect.fn("GitHubSourceControlProvider.getChangeRequest")(function (input) {
-      return readPullRequest({ ...input, host: contextHost(input.context) }).pipe(
+    listChangeRequests: (input) =>
+      (input.state === "open" ? Effect.succeed(true) : SourceControlRateLimit.Interactive).pipe(
+        Effect.flatMap((allowReserve) =>
+          listByHead({
+            cwd: input.cwd,
+            headSelector: input.headSelector,
+            state: input.state,
+            limit: input.limit ?? (input.state === "open" ? 1 : 20),
+            host: contextHost(input.context),
+            context: input.context,
+            allowReserve,
+          }),
+        ),
+        Effect.map((records) => records.map(toChangeRequest)),
+        Effect.mapError(
+          providerError("listChangeRequests", input.cwd, { reference: input.headSelector }),
+        ),
+      ),
+    getChangeRequest: (input) =>
+      readPullRequest({ ...input, host: contextHost(input.context) }).pipe(
         Effect.map(toChangeRequest),
         Effect.mapError(
           providerError("getChangeRequest", input.cwd, { reference: input.reference }),
         ),
-      );
-    }),
+      ),
     createChangeRequest: Effect.fn("GitHubSourceControlProvider.createChangeRequest")(
       function* (input) {
         const locator = yield* resolveRepository(input);
@@ -752,11 +721,7 @@ export const make = Effect.gen(function* () {
         const locator =
           parseGitHubRepositorySelector(input.repository, fallbackHost) ??
           (/^[^/\s]+$/.test(bareName)
-            ? {
-                host: fallbackHost,
-                owner: yield* readViewerLogin(fallbackHost),
-                name: bareName,
-              }
+            ? { host: fallbackHost, owner: yield* readViewerLogin(fallbackHost), name: bareName }
             : null);
         if (locator === null) return yield* failure("Repositories are named owner/name.");
         return repositoryCloneUrls(yield* readRepository(locator));
@@ -764,9 +729,7 @@ export const make = Effect.gen(function* () {
       (effect, input) =>
         effect.pipe(
           Effect.mapError(
-            providerError("getRepositoryCloneUrls", input.cwd, {
-              repository: input.repository,
-            }),
+            providerError("getRepositoryCloneUrls", input.cwd, { repository: input.repository }),
           ),
         ),
     ),
@@ -791,6 +754,7 @@ export const make = Effect.gen(function* () {
               isViewer || owner === null ? "user/repos" : `orgs/${encodeURIComponent(owner)}/repos`,
             body: { name, private: input.visibility === "private" },
           },
+
           `No organization named ${owner ?? "that"} that this account can create repositories in.`,
         );
         const decoded = decodeRawRepository(response.body);
@@ -819,14 +783,11 @@ export const make = Effect.gen(function* () {
       },
       (effect, input) => effect.pipe(Effect.mapError(providerError("getDefaultBranch", input.cwd))),
     ),
-    checkoutChangeRequest: Effect.fn("GitHubSourceControlProvider.checkoutChangeRequest")(
-      function (input) {
-        return checkoutPullRequest(input).pipe(
-          Effect.mapError(
-            providerError("checkoutChangeRequest", input.cwd, { reference: input.reference }),
-          ),
-        );
-      },
-    ),
+    checkoutChangeRequest: (input) =>
+      checkoutPullRequest(input).pipe(
+        Effect.mapError(
+          providerError("checkoutChangeRequest", input.cwd, { reference: input.reference }),
+        ),
+      ),
   });
 });

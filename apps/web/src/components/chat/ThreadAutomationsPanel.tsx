@@ -16,7 +16,7 @@ import {
 
 import { ThreadDetailsSection } from "./ThreadDetailsSection";
 import { cn } from "../../lib/utils";
-import { useNowMinute } from "../../hooks/useNowMinute";
+import { useNowMinuteMs } from "../../hooks/useNowMinute";
 import { lastRunLabel, nextRunLabel, scheduleLabel } from "../automations/automations.logic";
 import { useEnvironmentQuery } from "../../state/query";
 import { serverEnvironment } from "../../state/server";
@@ -89,8 +89,7 @@ export function ThreadAutomationsPanel(props: {
   });
   const navigate = useNavigate();
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
-  const minute = useNowMinute();
-  const now = Date.parse(`${minute}:00Z`);
+  const now = useNowMinuteMs();
 
   const boundTasks = (tasksQuery.data?.tasks ?? []).filter(
     (task) => task.threadId === props.threadId,
@@ -168,6 +167,12 @@ export function ThreadAutomationsPanel(props: {
         </Tooltip>
       }
     >
+      {tasksQuery.error !== null ? (
+        <p className="px-2.5 py-1.5 text-2xs text-destructive">
+          Could not load automations: {tasksQuery.error}
+        </p>
+      ) : null}
+
       <ul className="m-0 list-none p-0">
         {boundTasks.map((task) => (
           <li
@@ -243,12 +248,6 @@ export function ThreadAutomationsPanel(props: {
           </li>
         ))}
       </ul>
-      {/* Kept last: the details card treats a section whose last child is empty as empty. */}
-      {tasksQuery.error !== null ? (
-        <p className="px-2.5 py-1.5 text-2xs text-destructive">
-          Could not load automations: {tasksQuery.error}
-        </p>
-      ) : null}
     </ThreadDetailsSection>
   );
 }

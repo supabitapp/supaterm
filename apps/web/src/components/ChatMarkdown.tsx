@@ -1,5 +1,3 @@
-import { InlineAudioPreview } from "./files/InlineAudioPreview";
-import { HostImageUrlContext } from "./chat/hostImageUrl";
 import { buildFileLinkParentSuffixByPath, fileLinkLabel } from "@supaterm/shared/fileLinks";
 import {
   isWindowsDrivePathHref,
@@ -10,11 +8,7 @@ import {
 } from "@supaterm/shared/markdownLinks";
 import { isHostPath, resolveWorkspaceFilePath } from "@supaterm/shared/path";
 import { usePullRequestLinking } from "~/hooks/usePullRequestLinking";
-import {
-  AuthFilesystemReadScope,
-  AuthOrchestrationOperateScope,
-  SOURCE_CONTROL_MEDIA_ASSET,
-} from "@supaterm/contracts";
+import { AuthFilesystemReadScope, AuthOrchestrationOperateScope } from "@supaterm/contracts";
 import {
   CHAT_MARKDOWN_REMARK_PLUGINS,
   CHAT_MARKDOWN_REMARK_PLUGINS_WITH_BREAKS,
@@ -51,6 +45,7 @@ import {
   type ServerProviderSkill,
   type ThreadPullRequestKey,
 } from "@supaterm/contracts";
+import { githubMediaFetchUrl } from "@supaterm/shared/githubMedia";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
@@ -74,7 +69,6 @@ import React, {
   Suspense,
   type ComponentProps,
   type ClipboardEvent as ReactClipboardEvent,
-  type MouseEvent as ReactMouseEvent,
   use,
   memo,
   useLayoutEffect,
@@ -174,9 +168,12 @@ import {
   stripRepeatedWorkspacePrefix,
   WORKSPACE_BASENAME_LOOKUP_LIMIT,
 } from "@supaterm/client-runtime/workspace-basename-lookup";
-import { resolvePullRequestPreviewTarget } from "@supaterm/client-runtime/change-request-links";
-import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
-import { useOpenChangeRequestLink } from "~/lib/openPullRequestLink";
+import {
+  parseChangeRequestUrl,
+  pullRequestCandidateUrlFromReferenceAutolink,
+  resolvePullRequestPreviewTarget,
+  useOpenChangeRequestLink,
+} from "~/lib/openPullRequestLink";
 import { useOpenLink } from "../browser/useOpenLink";
 import { writeTextToClipboard } from "../hooks/useCopyToClipboard";
 import { isPreviewAvailableFor } from "../browser/previewRuntime";
@@ -243,9 +240,9 @@ interface ChatMarkdownProps {
   onImageExpand?: ((preview: ExpandedImagePreview) => void) | undefined;
   extraRemarkPlugins?: NonNullable<ReactMarkdownOptions["remarkPlugins"]>;
   renderContextReference?: ((reference: ChatMarkdownContextReference) => ReactNode) | undefined;
-  /** Loads private host media through the environment credential for `cwd`, which a private repository's
+  /** Loads GitHub-hosted media through `cwd`'s GitHub credential, which a private repository's
       uploads need; without it those images and videos load unauthenticated and 404. */
-  sourceControlMedia?: boolean | undefined;
+  githubMedia?: boolean | undefined;
   headingLevelOffset?: number | undefined;
 }
 
@@ -456,7 +453,7 @@ function useChatMarkdownState({
   onImageExpand,
   renderContextReference,
   headingLevelOffset = 0,
-  sourceControlMedia = false,
+  githubMedia = false,
 }: ChatMarkdownProps) {
   const resolvedTheme = useRenderedAppearance();
   const markdownRef = useRef<HTMLElement>(null);
@@ -486,7 +483,6 @@ function useChatMarkdownState({
   }
   // A layout cleanup runs in the commit that changes scope, so a request resolving
   // before paint cannot reach a parent onImageExpand either.
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- layout cleanup invalidates media requests still loading for the old scope before paint
   useLayoutEffect(
     () => () => {
       mediaRequestId.current += 1;
@@ -684,14 +680,14 @@ function useChatMarkdownState({
       !pullRequestLinking.canLink(href)
     )
       return null;
-    const parsed = sourceControlClients.parseChangeRequestUrl(href)?.link;
-    return parsed === undefined ? null : { ...parsed, url: href };
+    const parsed = parseChangeRequestUrl(href);
+    return parsed === null ? null : { ...parsed, url: href };
   };
   const linkedThreadPullRequestFor = (href: string) => {
     if (threadRef === undefined || !pullRequestLinking.isLinked(readThreadShell(threadRef), href))
       return null;
-    const parsed = sourceControlClients.parseChangeRequestUrl(href)?.link;
-    return parsed === undefined ? null : { ...parsed, url: href };
+    const parsed = parseChangeRequestUrl(href);
+    return parsed === null ? null : { ...parsed, url: href };
   };
   const updateThreadPullRequestLink = async (href: string, linked: boolean) => {
     if (threadRef === undefined || (!linked && linkedThreadPullRequestFor(href) === null)) return;
@@ -893,7 +889,7 @@ function useChatMarkdownState({
     environmentId,
     expandMedia,
     fileLinkChip,
-    sourceControlMedia,
+    githubMedia,
     renderContextReference,
     headingLevelOffset,
     imageBaseDir,
@@ -955,10 +951,6 @@ function markdownHeadingRenderer(level: 1 | 2 | 3 | 4 | 5 | 6) {
 }
 
 // Keep component types stable when streaming changes the message state.
-function selectInlineCode(event: ReactMouseEvent<HTMLElement>) {
-  window.getSelection()?.selectAllChildren(event.currentTarget);
-}
-
 const CHAT_MARKDOWN_COMPONENTS = {
   h1: markdownHeadingRenderer(1),
   h2: markdownHeadingRenderer(2),
@@ -977,8 +969,8 @@ const CHAT_MARKDOWN_COMPONENTS = {
     return <div {...props}>{children}</div>;
   },
   p: function MarkdownParagraph({ node: _node, children, ...props }) {
-    const { skills, threadRef } = use(ChatMarkdownRendererContext);
-    return <p {...props}>{renderSkillInlineMarkdownChildren(children, skills, threadRef)}</p>;
+    const { skills } = use(ChatMarkdownRendererContext);
+    return <p {...props}>{renderSkillInlineMarkdownChildren(children, skills)}</p>;
   },
   blockquote: function MarkdownBlockquote({ node: _node, children, ...props }) {
     const alert =
@@ -1013,14 +1005,14 @@ const CHAT_MARKDOWN_COMPONENTS = {
     );
   },
   li: function MarkdownListItem({ node, children, ...props }) {
-    const { skills, threadRef } = use(ChatMarkdownRendererContext);
+    const { skills } = use(ChatMarkdownRendererContext);
     // The checkbox finds its marker from this offset when toggled, so list items
     // don't read the source text and re-render on every streamed token.
     // remark-gfm marks task items with this class; plain items carry no offset.
     const isTaskItem = String(props.className ?? "").includes("task-list-item");
     return (
       <li {...props} data-list-item-offset={isTaskItem ? node?.position?.start.offset : undefined}>
-        {renderSkillInlineMarkdownChildren(children, skills, threadRef)}
+        {renderSkillInlineMarkdownChildren(children, skills)}
       </li>
     );
   },
@@ -1081,14 +1073,13 @@ const CHAT_MARKDOWN_COMPONENTS = {
     const citation = href ? parseAssistantCitationHref(href) : null;
     if (citation) return <AssistantCitationChip citation={citation} />;
 
-    const threadLink = href ? parseThreadLinkHref(href) : null;
-    if (threadLink) {
-      const written = hastPlainTextDeep(node);
-      const label = written && parseThreadLinkHref(written) === null ? written : null;
+    const linkedThreadId = href ? parseThreadLinkHref(href) : null;
+    if (linkedThreadId) {
+      const label = hastPlainTextDeep(node) || linkedThreadId;
       return environmentId ? (
-        <MarkdownThreadLink environmentId={environmentId} link={threadLink} label={label} />
+        <MarkdownThreadLink environmentId={environmentId} threadId={linkedThreadId} label={label} />
       ) : (
-        <span>{label ?? "Thread"}</span>
+        <span>{label}</span>
       );
     }
     const contextReference = href ? parseComposerContextHref(href) : null;
@@ -1113,16 +1104,14 @@ const CHAT_MARKDOWN_COMPONENTS = {
       );
       const pullRequestCopy =
         pullRequestAutolink === "commit"
-          ? /\/commit\/([0-9a-f]{7,40})$/iu.exec(href ?? "")?.[1]
-          : pullRequestAutolink === "reference" || pullRequestAutolink === "mention"
+          ? /\/commit\/([0-9a-f]{40})$/iu.exec(href ?? "")?.[1]
+          : pullRequestAutolink === "reference"
             ? plainHastText(node)
             : undefined;
       const isPullRequestAutolink = pullRequestCopy !== undefined;
       const confirmBeforeOpen = pullRequestAutolink === "reference";
       const pullRequestCandidateUrl =
-        confirmBeforeOpen && href
-          ? sourceControlClients.changeRequestUrlFromReferenceAutolink(href)
-          : href;
+        confirmBeforeOpen && href ? pullRequestCandidateUrlFromReferenceAutolink(href) : href;
       const pullRequestPreviewTarget = pullRequestCandidateUrl
         ? resolvePullRequestPreviewTarget({
             environmentId,
@@ -1155,7 +1144,6 @@ const CHAT_MARKDOWN_COMPONENTS = {
               href &&
               faviconHost !== null &&
               mediaKindFromPath(href) !== null &&
-              mediaKindFromPath(href) !== "audio" &&
               !event.defaultPrevented &&
               !event.metaKey &&
               !event.ctrlKey &&
@@ -1355,11 +1343,6 @@ const CHAT_MARKDOWN_COMPONENTS = {
           inlineCodeFilePathCandidate(codeText) ?? codeText.trim(),
         );
       }
-      return (
-        <code {...props} className={className} onDoubleClick={selectInlineCode}>
-          {children}
-        </code>
-      );
     }
     return (
       <code {...props} className={className}>
@@ -1372,12 +1355,11 @@ const CHAT_MARKDOWN_COMPONENTS = {
       expandMedia,
       cwd,
       environmentId,
-      sourceControlMedia,
+      githubMedia,
       imageBaseDir,
       threadRef,
       workspaceMutationId,
       renderContextReference,
-      fileLinkChip,
     } = use(ChatMarkdownRendererContext);
     const imageExpand = use(MarkdownLinkContext) ? undefined : expandMedia;
     const contextReference = typeof src === "string" ? parseComposerContextHref(src) : null;
@@ -1407,59 +1389,21 @@ const CHAT_MARKDOWN_COMPONENTS = {
       imageBaseDir ?? cwd,
       cwd ?? imageBaseDir,
     );
-    const mediaKind = mediaKindFromPath(classifiedSrc);
-    if (mediaKind === "audio") {
-      const filePath = imageSource._tag === "WorkspaceFile" ? imageSource.path : null;
-      const name =
-        (filePath ?? classifiedSrc.split(/[?#]/, 1)[0] ?? "").split(/[\\/]/).at(-1) ||
-        altText ||
-        "Audio";
-      if (imageSource._tag !== "Direct" && !(filePath && threadRef)) {
-        return <ChatMarkdownImageFallback alt={altText} copyMarkdown={copyMarkdown} kind="audio" />;
-      }
-      return (
-        <InlineAudioPreview
-          key={classifiedSrc}
-          name={name}
-          copyMarkdown={copyMarkdown}
-          {...(filePath && threadRef
-            ? {
-                environmentId: threadRef.environmentId,
-                resource: {
-                  _tag: "media-file" as const,
-                  threadId: threadRef.threadId,
-                  path: filePath,
-                },
-                onOpen: () => useRightPanelStore.getState().openFile(threadRef, filePath),
-              }
-            : imageSource._tag === "Direct"
-              ? { src: resolveProtocolRelativeMediaUrl(imageSource.uri) }
-              : {})}
-        />
-      );
-    }
-    if (mediaKind === null && imageSource._tag === "WorkspaceFile") {
-      const fileLinkMeta = resolveMarkdownFileLinkMeta(srcString, cwd, imageBaseDir ?? cwd);
-      if (fileLinkMeta) return fileLinkChip(fileLinkMeta, copyMarkdown, srcString);
-    }
-    const kind = mediaKind ?? "image";
+    const kind = mediaKindFromPath(classifiedSrc) ?? "image";
     const directUri = imageSource._tag === "Direct" ? imageSource.uri : null;
-    const hostMediaUrl =
-      directUri === null
-        ? null
-        : (sourceControlClients.mediaUrl(resolveProtocolRelativeMediaUrl(directUri))?.fetchUrl ??
-          null);
+    const githubMediaUrl =
+      directUri === null ? null : githubMediaFetchUrl(resolveProtocolRelativeMediaUrl(directUri));
     if (
-      sourceControlMedia &&
+      githubMedia &&
       cwd !== undefined &&
       environmentId !== null &&
       directUri !== null &&
-      hostMediaUrl !== null
+      githubMediaUrl !== null
     ) {
       return (
         <ChatMarkdownAssetImage
           environmentId={environmentId}
-          resource={{ _tag: SOURCE_CONTROL_MEDIA_ASSET, cwd, url: hostMediaUrl }}
+          resource={{ _tag: "github-media", cwd, url: githubMediaUrl }}
           alt={altText}
           kind={kind}
           copyMarkdown={copyMarkdown}
@@ -1470,7 +1414,7 @@ const CHAT_MARKDOWN_COMPONENTS = {
           srcFragment={markdownImageSourceFragment(classifiedSrc)}
           originalUrl={resolveProtocolRelativeMediaUrl(directUri)}
           framed={false}
-          fallbackSrc={hostMediaUrl}
+          fallbackSrc={githubMediaUrl}
           onImageExpand={imageExpand}
         />
       );
@@ -1510,24 +1454,6 @@ const CHAT_MARKDOWN_COMPONENTS = {
           imageProps={imageProps}
           actionsSource={actionsSource}
           originalUrl={originalUrl}
-          onImageExpand={imageExpand}
-        />
-      );
-    }
-    const hostImageUrl = use(HostImageUrlContext);
-    if (imageSource._tag === "WorkspaceFile" && kind === "image" && hostImageUrl !== null) {
-      const hostSrc = hostImageUrl(imageSource.path);
-      return (
-        <ChatMarkdownImage
-          key={hostSrc}
-          src={hostSrc}
-          alt={altText}
-          copyMarkdown={copyMarkdown}
-          standalone={standalone}
-          className={className}
-          style={authoredSizeStyle}
-          imageProps={imageProps}
-          actionsSource={{ kind, name: altText || kind, src: hostSrc }}
           onImageExpand={imageExpand}
         />
       );

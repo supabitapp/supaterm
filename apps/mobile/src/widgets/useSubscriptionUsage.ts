@@ -1,42 +1,40 @@
-import { runAtomCommand } from "@supaterm/client-runtime/state/runtime";
-import type { EnvironmentId } from "@supaterm/contracts";
+import { useAtomValue } from "@effect/atom-react";
+import { useEffect, useMemo } from "react";
+import { AppState } from "react-native";
 
-import { environmentCatalog } from "../connection/catalog";
-import { isAppActive, subscribeAppState } from "../lib/appState";
-import { appAtomRegistry } from "../state/atom-registry";
 import { environmentPresentations } from "../state/presentation";
 import { serverEnvironment } from "../state/server";
+import { useAtomCommand } from "../state/use-atom-command";
 import { createWidgetRefresher, WIDGET_REFRESH_INTERVAL } from "./subscriptionUsageSnapshot";
 
-export function installSubscriptionUsageRefresh(): () => void {
-  const refresh = createWidgetRefresher((environmentId: EnvironmentId) =>
-    runAtomCommand(
-      appAtomRegistry,
-      serverEnvironment.refreshProviders,
-      { environmentId, input: {} },
-      { label: serverEnvironment.refreshProviders.label, reportFailure: false },
-    ),
+export function useSubscriptionUsage(enabled = true) {
+  const presentations = useAtomValue(environmentPresentations.presentationsAtom);
+  const refreshProviders = useAtomCommand(serverEnvironment.refreshProviders, {
+    reportFailure: false,
+  });
+  const refresh = useMemo(
+    () =>
+      createWidgetRefresher(
+        (environmentId: Parameters<typeof refreshProviders>[0]["environmentId"]) =>
+          refreshProviders({ environmentId, input: {} }),
+      ),
+    [refreshProviders],
   );
-  const update = () => {
-    if (!isAppActive() || !appAtomRegistry.get(environmentCatalog.catalogValueAtom).isReady) return;
-    const connected = [...appAtomRegistry.get(environmentPresentations.presentationsAtom)].flatMap(
-      ([id, presentation]) => (presentation.connection.phase === "connected" ? [id] : []),
-    );
-    void refresh(connected, Date.now());
-  };
 
-  const unsubscribeCatalog = appAtomRegistry.subscribe(environmentCatalog.catalogValueAtom, update);
-  const unsubscribePresentations = appAtomRegistry.subscribe(
-    environmentPresentations.presentationsAtom,
-    update,
-    { immediate: true },
-  );
-  const unsubscribeAppState = subscribeAppState(update);
-  const timer = setInterval(update, WIDGET_REFRESH_INTERVAL);
-  return () => {
-    unsubscribeCatalog();
-    unsubscribePresentations();
-    unsubscribeAppState();
-    clearInterval(timer);
-  };
+  useEffect(() => {
+    const update = () => {
+      if (!enabled || AppState.currentState !== "active") return;
+      const connected = [...presentations].flatMap(([id, presentation]) =>
+        presentation.connection.phase === "connected" ? [id] : [],
+      );
+      void refresh(connected, Date.now());
+    };
+    update();
+    const subscription = AppState.addEventListener("change", update);
+    const timer = setInterval(update, WIDGET_REFRESH_INTERVAL);
+    return () => {
+      subscription.remove();
+      clearInterval(timer);
+    };
+  }, [enabled, presentations, refresh]);
 }

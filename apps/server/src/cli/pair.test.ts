@@ -1,4 +1,3 @@
-import { buildPairingAppLink } from "@supaterm/shared/remote";
 // @effect-diagnostics nodeBuiltinImport:off - CLI integration exercises Node HTTP and filesystem boundaries.
 import * as NodeHttp from "node:http";
 import * as NodeFS from "node:fs";
@@ -56,10 +55,12 @@ describe("pair tailscale local target", () => {
     expect(resolveTailscaleLocalTarget({ ...baseState, devUrl: "http://localhost:5733/" })).toEqual(
       { localPort: 5_733 },
     );
-    // tailscale serve defaults to loopback, so non-loopback dev servers need an explicit target.
+    // A dev server on a non-loopback interface must be proxied at that
+    // interface; tailscale serve defaults to 127.0.0.1 otherwise.
     expect(
       resolveTailscaleLocalTarget({ ...baseState, devUrl: "http://192.168.1.10:5733/" }),
     ).toEqual({ localPort: 5_733, localHost: "192.168.1.10" });
+    // URL.hostname keeps IPv6 brackets, so the serve target stays valid.
     expect(
       resolveTailscaleLocalTarget({ ...baseState, devUrl: "http://[fd7a:115c::1]:5733/" }),
     ).toEqual({ localPort: 5_733, localHost: "[fd7a:115c::1]" });
@@ -299,9 +300,6 @@ describe("supaterm pair", () => {
 
         const token = /#token=([A-Z2-9]+)/.exec(output)?.[1];
         assert.isString(token);
-        const pairingUrl = /Pairing URL: (.+)/.exec(output)?.[1];
-        assert.isString(pairingUrl);
-        assert.include(output, `App link: ${buildPairingAppLink(pairingUrl!)}`);
 
         const listed = yield* captureStdout(
           runCli(["auth", "pairing", "list", "--base-dir", baseDir, "--json"]),
@@ -658,69 +656,5 @@ describe("auth scope options", () => {
       assert.equal(scopeError.option, "scope");
       assert.equal(scopeError.value, "admin");
     }),
-  );
-});
-
-describe("auth pairing create --base-url", () => {
-  it.effect.each(["192.168.1.5:3773", "localhost:3773", "ftp://localhost:3773"])(
-    "rejects %s before issuing a token",
-    (baseUrl) =>
-      Effect.gen(function* () {
-        const baseDir = NodeFS.mkdtempSync(
-          NodePath.join(NodeOS.tmpdir(), "supaterm-cli-base-url-test-"),
-        );
-        const error = yield* runCli([
-          "auth",
-          "pairing",
-          "create",
-          "--base-dir",
-          baseDir,
-          "--base-url",
-          baseUrl,
-        ]).pipe(Effect.provide(layerCliRuntime), Effect.flip);
-
-        if (!CliError.isCliError(error) || error._tag !== "ShowHelp") {
-          assert.fail(`Expected ShowHelp, got ${String(error)}`);
-        }
-        const flagError = error.errors[0];
-        if (flagError?._tag !== "InvalidValue") {
-          assert.fail(`Expected InvalidValue, got ${String(flagError?._tag)}`);
-        }
-        assert.equal(flagError.option, "base-url");
-        assert.equal(flagError.value, baseUrl);
-
-        const listOutput = yield* captureStdout(
-          runCli(["auth", "pairing", "list", "--base-dir", baseDir, "--json"]),
-        );
-        assert.deepEqual(JSON.parse(listOutput), []);
-      }),
-  );
-
-  it.effect.each(["http://192.168.1.5:3773", "https://example.com", "http:localhost:3773"])(
-    "prints a pair URL for %s",
-    (baseUrl) =>
-      Effect.gen(function* () {
-        const baseDir = NodeFS.mkdtempSync(
-          NodePath.join(NodeOS.tmpdir(), "supaterm-cli-base-url-test-"),
-        );
-        const output = yield* captureStdout(
-          runCli([
-            "auth",
-            "pairing",
-            "create",
-            "--base-dir",
-            baseDir,
-            "--base-url",
-            baseUrl,
-            "--json",
-          ]),
-        );
-        const issued = JSON.parse(output) as {
-          readonly credential: string;
-          readonly pairUrl: string;
-        };
-
-        assert.equal(issued.pairUrl, `${new URL(baseUrl).origin}/pair#token=${issued.credential}`);
-      }),
   );
 });

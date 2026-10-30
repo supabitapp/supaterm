@@ -1,4 +1,3 @@
-import * as DocumentText from "../provider/DocumentText.ts";
 import * as Scheduler from "../scheduling/Scheduler.ts";
 import * as WorktreeSetupTracker from "../project/WorktreeSetupTracker.ts";
 import * as ProjectCloneTracker from "../project/ProjectCloneTracker.ts";
@@ -180,7 +179,6 @@ function makeHarness(options: HarnessOptions = {}) {
       bootstrap: () => Effect.die("unused"),
       update: () => Effect.die("unused"),
       delete: () => Effect.die("unused"),
-      listPage: () => Effect.die("unused"),
       getById: (id) =>
         Effect.succeed(
           id === projectId
@@ -189,7 +187,7 @@ function makeHarness(options: HarnessOptions = {}) {
               ? Option.some(otherProject)
               : Option.none(),
         ),
-      getByWorkspaceRoot: () => Effect.succeedSome(project),
+      getByWorkspaceRoot: () => Effect.succeed(Option.some(project)),
       snapshot: Effect.die("unused"),
       getShell: () => Effect.die("unused"),
       listShells: () => Effect.die("unused"),
@@ -223,16 +221,10 @@ function makeHarness(options: HarnessOptions = {}) {
       Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
         namedProjectsRoot: "/projects",
         isScratchProject: () => Effect.succeed(false),
-        folderForThread: () => Effect.succeedNone,
+        folderForThread: () => Effect.succeed(Option.none()),
       }),
   );
   const layerLaunch = ThreadLaunch.layer.pipe(
-    Layer.provide(
-      Layer.mock(DocumentText.DocumentText)({
-        // @effect-diagnostics-next-line effectSucceedWithVoid:off - Document extraction returns an optional path.
-        ensure: () => Effect.succeed(undefined),
-      }),
-    ),
     Layer.provide(
       Layer.mergeAll(
         layerExternalServices,
@@ -662,6 +654,7 @@ it.effect("keeps native maintenance commands out of steering and restart message
           attachments: [],
           dispatchMode: { type: scenario.mode, targetRunId: targetRun.id },
         });
+        // A steer sent while a maintenance turn runs waits as a queued follow-up.
         if (scenario.name.startsWith("steer-")) {
           yield* dispatch;
           const queued = (yield* threads.getThreadProjection(launched.threadId)).runs[1];
@@ -1387,8 +1380,6 @@ it.effect("replays a server-allocated launch", () =>
       assert.equal(first.threadId, retry.threadId);
       assert.isFalse(first.resumed);
       assert.isTrue(retry.resumed);
-      assert.isNumber(first.sequence);
-      assert.equal(retry.sequence, first.sequence);
       assert.equal(harness.runSetup.mock.calls.length, 1);
       assert.equal(retry.projection.messages.length, 1);
       assert.equal(retry.projection.runs.length, 1);
@@ -1447,37 +1438,6 @@ it.effect("replays an accepted launch after the project disables the instance", 
     if (fresh._tag !== "ThreadManagementProviderInstanceDisabledError") {
       assert.fail(`expected ThreadManagementProviderInstanceDisabledError, got ${fresh._tag}`);
     }
-  }).pipe(Effect.provide(harness.layer));
-});
-
-it.effect("an agent's launch never starts work above the modes it asks for", () => {
-  const harness = makeHarness();
-  return Effect.gen(function* () {
-    const launches = yield* ThreadLaunch.ThreadLaunchService;
-    const threads = yield* ThreadManagement.ThreadManagementService;
-    const created = yield* launches.launch(
-      launchInput({ command: "command:launch:narrowed-retry", thread: "thread:narrowed" }),
-    );
-    const failed = yield* launches
-      .launch({
-        ...launchInput({
-          command: "command:launch:narrowed-retry",
-          thread: "thread:narrowed",
-          message: "Run this",
-        }),
-        runtimeMode: "approval-required",
-        interactionMode: "plan",
-        createdBy: "agent",
-        creationSource: "mcp",
-      })
-      .pipe(Effect.flip);
-    if (failed._tag !== "ThreadLaunchError") {
-      assert.fail(`expected ThreadLaunchError, got ${failed._tag}`);
-    }
-    assert.equal(failed.operation, "dispatch-message");
-    const projection = yield* threads.getThreadProjection(created.threadId);
-    assert.equal(projection.runs.length, 0);
-    assert.equal(projection.messages.length, 0);
   }).pipe(Effect.provide(harness.layer));
 });
 
@@ -1653,72 +1613,6 @@ it.effect("does not let a failing same-command caller strand a concurrent durabl
       yield* Deferred.succeed(allowSetup, undefined);
     }).pipe(Effect.provide(harness.layer));
   }),
-);
-
-it.effect("reports one concurrent same-command launch as new and the rest as resumed", () =>
-  Effect.gen(function* () {
-    const arrived = yield* Ref.make(0);
-    const bothRead = yield* Deferred.make<void>();
-    const harness = makeHarness({
-      managedFolders: Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
-        namedProjectsRoot: "/projects",
-        isScratchProject: () => Effect.succeed(false),
-        folderForThread: () =>
-          Ref.updateAndGet(arrived, (count) => count + 1).pipe(
-            Effect.tap((count) =>
-              count === 2 ? Deferred.succeed(bothRead, undefined) : Effect.void,
-            ),
-            Effect.andThen(Deferred.await(bothRead)),
-            Effect.as(Option.none()),
-          ),
-      }),
-    });
-    yield* Effect.gen(function* () {
-      const launches = yield* ThreadLaunch.ThreadLaunchService;
-      const input = launchInput({
-        command: "command:launch:concurrent-resumed",
-        thread: "thread:launch:concurrent-resumed",
-      });
-      const results = yield* Effect.all([launches.launch(input), launches.launch(input)], {
-        concurrency: "unbounded",
-      });
-      assert.deepEqual(results.map((result) => result.resumed).sort(), [false, true]);
-    }).pipe(Effect.provide(harness.layer));
-  }),
-);
-
-it.effect(
-  "does not report a retry as resumed when the earlier attempt only claimed the thread",
-  () =>
-    Effect.gen(function* () {
-      const harness = makeHarness();
-      yield* Effect.gen(function* () {
-        const launches = yield* ThreadLaunch.ThreadLaunchService;
-        const threads = yield* ThreadManagement.ThreadManagementService;
-        const input = launchInput({
-          command: "command:launch:claimed-only",
-          thread: "thread:launch:claimed-only",
-          message: "Counted once",
-        });
-        yield* threads.dispatch({
-          type: "thread.create",
-          commandId: input.commandId,
-          threadId: input.threadId,
-          projectId: input.projectId,
-          title: input.title,
-          modelSelection: input.modelSelection,
-          runtimeMode: input.runtimeMode,
-          interactionMode: input.interactionMode,
-          branch: null,
-          worktreePath: null,
-          createdBy: input.createdBy,
-          creationSource: input.creationSource,
-        });
-        const retried = yield* launches.launch(input);
-        assert.isFalse(retried.resumed);
-        assert.isTrue((yield* launches.launch(input)).resumed);
-      }).pipe(Effect.provide(harness.layer));
-    }),
 );
 
 it.effect("schedules an accepted preparing message exactly once across concurrent retries", () =>
@@ -2060,18 +1954,7 @@ it.effect("shared intake preserves durable attachment bytes after a lost launch 
       assert.isNotNull(path);
       assert.deepEqual(yield* fs.readFile(path), new Uint8Array([1, 2, 3, 4]));
     }
-  }).pipe(
-    Effect.provide(
-      Layer.mergeAll(
-        harness.layer,
-        layerFiles,
-        Layer.mock(DocumentText.DocumentText)({
-          // @effect-diagnostics-next-line effectSucceedWithVoid:off - Document extraction returns an optional path.
-          ensure: () => Effect.succeed(undefined),
-        }),
-      ),
-    ),
-  );
+  }).pipe(Effect.provide(Layer.mergeAll(harness.layer, layerFiles)));
 });
 
 it.effect("cancels tracked setup before provider work is released", () =>
@@ -2304,16 +2187,5 @@ it.effect("replays an accepted send after the project disables the instance", ()
     if (fresh._tag !== "ThreadManagementProviderInstanceDisabledError") {
       assert.fail(`expected ThreadManagementProviderInstanceDisabledError, got ${fresh._tag}`);
     }
-  }).pipe(
-    Effect.provide(
-      Layer.mergeAll(
-        harness.layer,
-        layerFiles,
-        Layer.mock(DocumentText.DocumentText)({
-          // @effect-diagnostics-next-line effectSucceedWithVoid:off - Document extraction returns an optional path.
-          ensure: () => Effect.succeed(undefined),
-        }),
-      ),
-    ),
-  );
+  }).pipe(Effect.provide(Layer.mergeAll(harness.layer, layerFiles)));
 });

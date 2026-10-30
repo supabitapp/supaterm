@@ -1,16 +1,26 @@
-import { type RuntimeMode, type ResolvedKeybindingsConfig } from "@supaterm/contracts";
-import { memo, useRef, type ReactNode } from "react";
+import { RuntimeMode, type ResolvedKeybindingsConfig } from "@supaterm/contracts";
+import { memo, type ReactNode } from "react";
 import { EllipsisIcon } from "@supaterm/icons";
-import { Menu, MenuPopup, MenuSeparator as MenuDivider, MenuTrigger } from "../ui/menu";
-import { ComposerPermissionsSection, type RuntimeModeOption } from "./ComposerFooterControls";
+import {
+  Menu,
+  MenuPopup,
+  MenuRadioGroup,
+  MenuRadioItem,
+  MenuSeparator as MenuDivider,
+  MenuShortcut,
+  MenuTrigger,
+} from "../ui/menu";
+import { shortcutLabelForCommand } from "../../keybindings";
 import { ComposerControl, ComposerControlIcon } from "./ComposerControl";
-import { focusRequestedPermission, useComposerMenuProps } from "./composerEventScope";
+import { useComposerMenuProps } from "./composerEventScope";
 import { useComposerMenuState } from "./useComposerMenuState";
 
 export const CompactComposerControlsMenu = memo(function CompactComposerControlsMenu(props: {
   runtimeMode: RuntimeMode;
-  runtimeModeOptions: ReadonlyArray<RuntimeModeOption>;
-  showPermissions?: boolean;
+  runtimeModeOptions: ReadonlyArray<{
+    readonly mode: RuntimeMode;
+    readonly label: string;
+  }>;
   keybindings: ResolvedKeybindingsConfig;
   traitsMenuContent?: ReactNode;
   size?: "sm" | "xs";
@@ -25,27 +35,19 @@ export const CompactComposerControlsMenu = memo(function CompactComposerControls
   const composerFloatingLayerProps = useComposerMenuProps();
   const size = props.size ?? "sm";
   const [open, setOpen] = useComposerMenuState(props.hidden);
-  const triggerRef = useRef<HTMLButtonElement>(null);
+  const runtimeModeShortcut = shortcutLabelForCommand(props.keybindings, "composer.mode");
 
   return (
-    <Menu
-      open={open}
-      onOpenChange={setOpen}
-      onOpenChangeComplete={(open) => focusRequestedPermission(open, triggerRef.current)}
-    >
+    <Menu open={open} onOpenChange={setOpen}>
       <MenuTrigger
         render={
           <ComposerControl
-            ref={triggerRef}
             size={size}
             className="shrink-0"
             aria-label="More composer controls"
-            data-composer-shortcut={[
-              props.showPermissions ? "composer.mode" : "",
-              props.traitsMenuContent ? "composer.effort" : "",
-            ]
-              .filter(Boolean)
-              .join(" ")}
+            data-composer-shortcut={
+              props.traitsMenuContent ? "composer.mode composer.effort" : "composer.mode"
+            }
           />
         }
       >
@@ -58,13 +60,23 @@ export const CompactComposerControlsMenu = memo(function CompactComposerControls
             <MenuDivider />
           </>
         ) : null}
-        {props.showPermissions ? (
-          <ComposerPermissionsSection
-            runtimeMode={props.runtimeMode}
-            runtimeModeOptions={props.runtimeModeOptions}
-            onRuntimeModeChange={props.onRuntimeModeChange}
-          />
-        ) : null}
+        <div className="flex items-center gap-2 px-2 py-1.5 font-medium text-muted-foreground text-xs">
+          Access
+          {runtimeModeShortcut ? <MenuShortcut>{runtimeModeShortcut}</MenuShortcut> : null}
+        </div>
+        <MenuRadioGroup
+          value={props.runtimeMode}
+          onValueChange={(value) => {
+            if (!value || value === props.runtimeMode) return;
+            props.onRuntimeModeChange(value as RuntimeMode);
+          }}
+        >
+          {props.runtimeModeOptions.map((option) => (
+            <MenuRadioItem key={option.mode} value={option.mode}>
+              {option.label}
+            </MenuRadioItem>
+          ))}
+        </MenuRadioGroup>
       </MenuPopup>
     </Menu>
   );

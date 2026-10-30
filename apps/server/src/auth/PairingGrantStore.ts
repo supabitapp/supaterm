@@ -212,7 +212,6 @@ export class PairingGrantStore extends Context.Service<
       credential: string,
       input?: {
         readonly requestedScopes?: ReadonlyArray<AuthEnvironmentScope>;
-        readonly requiredScopes?: ReadonlyArray<AuthEnvironmentScope>;
       },
     ) => Effect.Effect<BootstrapGrant, BootstrapCredentialError>;
   }
@@ -224,11 +223,6 @@ const PAIRING_TOKEN_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 const PAIRING_TOKEN_LENGTH = 12;
 const PAIRING_TOKEN_REJECTION_LIMIT =
   Math.floor(256 / PAIRING_TOKEN_ALPHABET.length) * PAIRING_TOKEN_ALPHABET.length;
-
-const PAIRING_TOKEN_PATTERN = new RegExp(
-  `^[${PAIRING_TOKEN_ALPHABET}]{${PAIRING_TOKEN_LENGTH}}$`,
-  "i",
-);
 
 const make = Effect.gen(function* () {
   const crypto = yield* Crypto.Crypto;
@@ -393,19 +387,15 @@ const make = Effect.gen(function* () {
           }),
         } satisfies BootstrapGrant;
       }
-      const pairingCredential = PAIRING_TOKEN_PATTERN.test(credential)
-        ? credential.toUpperCase()
-        : credential;
       // The scope check is part of the UPDATE's WHERE clause so a rejected
       // request cannot consume a one-time link. The re-check below only
       // explains why nothing matched.
       const consumed = yield* pairingLinks
         .consumeAvailable({
-          credential: pairingCredential,
+          credential,
           ...(input?.requestedScopes !== undefined
             ? { requestedScopes: input.requestedScopes }
             : {}),
-          ...(input?.requiredScopes === undefined ? {} : { requiredScopes: input.requiredScopes }),
           consumedAt: now,
           now,
         })
@@ -423,7 +413,7 @@ const make = Effect.gen(function* () {
       }
 
       const matching = yield* pairingLinks
-        .getByCredential({ credential: pairingCredential })
+        .getByCredential({ credential })
         .pipe(Effect.mapError((cause) => new BootstrapCredentialLookupError({ cause })));
       if (Option.isNone(matching)) {
         return yield* new UnknownBootstrapCredentialError({});
@@ -442,10 +432,8 @@ const make = Effect.gen(function* () {
       }
 
       if (
-        (input?.requestedScopes !== undefined &&
-          !input.requestedScopes.some((scope) => matching.value.scopes.includes(scope))) ||
-        (input?.requiredScopes !== undefined &&
-          !input.requiredScopes.every((scope) => matching.value.scopes.includes(scope)))
+        input?.requestedScopes !== undefined &&
+        !input.requestedScopes.some((scope) => matching.value.scopes.includes(scope))
       ) {
         return yield* new BootstrapCredentialScopeNotGrantedError({});
       }

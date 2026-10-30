@@ -28,14 +28,10 @@ export const layer = Layer.effect(
       FileSystem.FileSystem | Crypto.Crypto | HttpClient.HttpClient
     >();
     return CursorAccountReader.of({
-      read: Effect.fn("CursorAccountReader.read")(function (credentialSource, sinceMs, untilMs) {
-        return readCursorAccountUsage(
-          credentialSource,
-          sinceMs,
-          untilMs,
-          keychain.accessToken,
-        ).pipe(Effect.provideContext(context));
-      }),
+      read: (credentialSource, sinceMs, untilMs) =>
+        readCursorAccountUsage(credentialSource, sinceMs, untilMs, keychain.accessToken).pipe(
+          Effect.provideContext(context),
+        ),
     });
   }),
 );

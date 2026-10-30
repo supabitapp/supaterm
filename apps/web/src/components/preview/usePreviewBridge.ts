@@ -4,12 +4,18 @@ import type {
   ScopedThreadRef,
   ThreadId,
 } from "@supaterm/contracts";
+import * as Option from "effect/Option";
 import { useEffect, useEffectEvent, useRef } from "react";
 
-import { recordFaviconForThread } from "~/browserFaviconStore";
+import {
+  flushPendingFaviconsForThread,
+  recordFaviconForThread,
+  useFaviconProjectRefForThread,
+} from "~/browserFaviconStore";
 import { useBrowserPointerStore } from "~/browser/browserPointerStore";
 import { applyPreviewDesktopState, type DesktopPreviewOverlay } from "~/previewStateStore";
 import { previewEnvironment } from "~/state/preview";
+import { usePreparedConnection } from "~/state/session";
 import { useAtomCommand } from "~/state/use-atom-command";
 
 import { previewBridge } from "./previewBridge";
@@ -22,7 +28,9 @@ function originOf(url: string): string | null {
   }
 }
 
-/** ElectronBrowserHost owns webview lifetime. */
+/**
+ * Webview lifetime is owned by ElectronBrowserHost.
+ */
 export function usePreviewBridge(input: {
   threadRef: ScopedThreadRef;
   tabId: string;
@@ -32,8 +40,15 @@ export function usePreviewBridge(input: {
   const { threadRef, tabId, runtimeTabId, serverDriven = false } = input;
   const clearBrowserPointer = useBrowserPointerStore((state) => state.clear);
   const reportStatus = useAtomCommand(previewEnvironment.reportStatus, "preview status report");
+  // Callers pass a fresh threadRef each render; rebuilding it from its ids keeps the ref
+  // stable for the effects.
   const { environmentId, threadId } = threadRef;
   const stableThreadRef: ScopedThreadRef = { environmentId, threadId };
+  const projectRef = useFaviconProjectRefForThread(stableThreadRef);
+  const preparedConnection = usePreparedConnection(stableThreadRef.environmentId);
+  const environmentHostname = Option.isSome(preparedConnection)
+    ? new URL(preparedConnection.value.httpBaseUrl).hostname
+    : undefined;
 
   const lastReportedUrl = useRef<string | null>(null);
   const lastReportedKind = useRef<DesktopPreviewTabState["navStatus"]["kind"] | null>(null);
@@ -47,7 +62,7 @@ export function usePreviewBridge(input: {
       lastDesktopNavStatus.current = state.navStatus;
       applyPreviewDesktopState(stableThreadRef, tabId, projectDesktopState(state));
       if (state.favicon) {
-        recordFaviconForThread(stableThreadRef, state.favicon);
+        recordFaviconForThread(stableThreadRef, state.favicon, projectRef, environmentHostname);
       }
       const reported = buildReportInput({
         threadId: stableThreadRef.threadId,
@@ -65,7 +80,6 @@ export function usePreviewBridge(input: {
       });
     },
   );
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to preview bridge state changes and capture activity for the current tab
   useEffect(() => {
     if (!previewBridge || typeof window === "undefined") return;
     lastReportedUrl.current = null;
@@ -75,6 +89,10 @@ export function usePreviewBridge(input: {
       if (changedTabId === runtimeTabId) handleStateChange(changedTabId, state);
     });
   }, [runtimeTabId]);
+  useEffect(() => {
+    if (!projectRef) return;
+    flushPendingFaviconsForThread(stableThreadRef, projectRef, environmentHostname);
+  }, [environmentHostname, projectRef, stableThreadRef]);
 }
 
 function shouldClearBrowserPointer(

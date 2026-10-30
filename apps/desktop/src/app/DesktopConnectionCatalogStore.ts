@@ -118,6 +118,7 @@ export class DesktopConnectionCatalogStore extends Context.Service<
       boolean,
       DesktopConnectionCatalogStoreWriteError | DesktopConnectionCatalogStoreProtectionError
     >;
+    readonly clear: Effect.Effect<void>;
   }
 >()("@supaterm/desktop/app/DesktopConnectionCatalogStore") {}
 
@@ -235,7 +236,7 @@ const writeDocument = Effect.fn("desktop.connectionCatalogStore.writeDocument")(
   );
 });
 
-/** @public */
+/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
   const fileSystem = yield* FileSystem.FileSystem;
@@ -320,6 +321,15 @@ export const make = Effect.gen(function* () {
       yield* writeCatalog(catalog);
       return true;
     }),
+    clear: fileSystem.remove(catalogPath, { force: true }).pipe(
+      Effect.catch((error) =>
+        Effect.logWarning("Could not clear the desktop connection catalog.", {
+          catalogPath,
+          error,
+        }),
+      ),
+      Effect.withSpan("desktop.connectionCatalogStore.clear"),
+    ),
   });
 });
 

@@ -2,7 +2,6 @@ import * as Schema from "effect/Schema";
 
 import {
   IsoDateTime,
-  MessageId,
   ProjectId,
   ThreadId,
   TrimmedNonEmptyString,
@@ -12,13 +11,10 @@ import {
 export const OrchestrationThreadSearchSource = Schema.Literals(["user", "assistant"]);
 export type OrchestrationThreadSearchSource = typeof OrchestrationThreadSearchSource.Type;
 
-export const THREAD_SEARCH_QUERY_MAX_LENGTH = 200;
-
+// The server's SQLite client is synchronous and single-connection. Bound both
+// scan input and response size so a search cannot monopolize that connection.
 export const OrchestrationSearchThreadsInput = Schema.Struct({
-  query: TrimmedString.check(
-    Schema.isMinLength(2),
-    Schema.isMaxLength(THREAD_SEARCH_QUERY_MAX_LENGTH),
-  ),
+  query: TrimmedString.check(Schema.isMinLength(2), Schema.isMaxLength(200)),
   limit: Schema.optionalKey(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 50 }))),
 });
 export type OrchestrationSearchThreadsInput = typeof OrchestrationSearchThreadsInput.Type;
@@ -29,12 +25,6 @@ export const OrchestrationThreadSearchMatch = Schema.Struct({
   source: OrchestrationThreadSearchSource,
   snippet: Schema.String.check(Schema.isMaxLength(240)),
   messageCreatedAt: Schema.NullOr(IsoDateTime),
-
-  quality: Schema.optionalKey(Schema.Finite),
-
-  hits: Schema.optionalKey(Schema.Int),
-
-  messageId: Schema.optionalKey(MessageId),
 });
 export type OrchestrationThreadSearchMatch = typeof OrchestrationThreadSearchMatch.Type;
 

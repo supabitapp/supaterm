@@ -31,8 +31,8 @@ export function persistQuery<A, I>(schema: Schema.Codec<A, I>): QueryPersistence
       if (store === null) return Option.none<A>();
       const stored = yield* store.load(environmentId, key);
       if (Option.isNone(stored)) return Option.none<A>();
-      return yield* Schema.decodeEffect(codec)(stored.value).pipe(
-        Effect.asSome,
+      return yield* Schema.decodeUnknownEffect(codec)(stored.value).pipe(
+        Effect.map(Option.some),
         Effect.catch(() => Effect.succeedNone),
       );
     }),

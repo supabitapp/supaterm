@@ -15,6 +15,8 @@ function consumeLine(state: ReplyState, line: string) {
   if (transportError.test(text) || text === serverError) {
     state.failure = text;
   } else if (text.trim() !== "" && !(state.failure && /^\s+at\s/.test(text))) {
+    // An explanation or code sample can quote the same diagnostic. Only
+    // classify an assistant item consisting entirely of a transport dump.
     state.disqualified = true;
     state.failure = undefined;
   }

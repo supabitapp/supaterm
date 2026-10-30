@@ -20,13 +20,18 @@ import {
   pullRequestReactionEmoji,
   pullRequestReactionName,
   pullRequestReactionTooltip,
-  pullRequestReactionsSignature,
-} from "@supaterm/client-runtime/pull-request-reactions";
+} from "./pullRequestReactions.logic";
 
 const PILL_CLASS =
   "inline-flex h-6 shrink-0 items-center gap-1 rounded-full border px-2 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring";
 
 const EMPTY_PENDING: ReadonlyMap<PullRequestReactionContent, boolean> = new Map();
+
+function reactionsSignature(reactions: ReadonlyArray<PullRequestReaction>): string {
+  return reactions
+    .map((reaction) => `${reaction.content}:${reaction.count}:${reaction.viewerHasReacted ? 1 : 0}`)
+    .join(" ");
+}
 
 export function PullRequestReactionBar({
   reactions,
@@ -39,7 +44,7 @@ export function PullRequestReactionBar({
 }: {
   readonly reactions: ReadonlyArray<PullRequestReaction>;
   readonly canReact: boolean;
-  /** Omit to react to the pull request description. */
+  /** Absent reacts to the change request itself, which is where its description's reactions live. */
   readonly subjectId?: string | undefined;
   readonly environmentId: EnvironmentId;
   readonly reference: PullRequestRef;
@@ -55,7 +60,7 @@ export function PullRequestReactionBar({
     reportFailure: false,
   });
 
-  const signature = pullRequestReactionsSignature(reactions);
+  const signature = reactionsSignature(reactions);
   const values = pending.signature === signature ? pending.values : EMPTY_PENDING;
   const shown = applyPendingPullRequestReactions(reactions, values);
 

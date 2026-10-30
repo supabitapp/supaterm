@@ -54,7 +54,10 @@ export function HostedBrowserWebview(props: {
   readonly initialUrl: string | null;
   readonly viewport: PreviewViewportSetting;
   readonly pictureInPicture: boolean;
-  /** Fixed for the tab lifetime; Electron reads partition before guest attachment. */
+  /**
+   * Fixed for the tab's lifetime: Electron only honours `partition` before the
+   * guest attaches, so a live change here would not move the tab anyway.
+   */
   readonly profileId: string | undefined;
   readonly zoomFactor: number;
   readonly serverDriven?: boolean;
@@ -107,7 +110,6 @@ export function HostedBrowserWebview(props: {
   const serverColorScheme = serverRendering?.colorScheme;
   const serverZoomFactor = serverRendering?.zoomFactor;
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- owns the desktop tab lease while this browser surface is mounted
   useEffect(() => {
     if (!clientSettingsHydrated) return;
     crashRecoveryRef.current = INITIAL_WEBVIEW_CRASH_RECOVERY_STATE;
@@ -122,13 +124,11 @@ export function HostedBrowserWebview(props: {
     };
   }, [clientSettingsHydrated, runtimeTabId, serverDriven, tabId, threadRef.threadId]);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- synchronizes the server color scheme into the desktop tab
   useEffect(() => {
     const bridge = window.desktopBridge?.preview;
     if (!bridge || serverColorScheme === undefined) return;
     withDesktopTab(runtimeTabId, () => bridge.setColorScheme(runtimeTabId, serverColorScheme));
   }, [runtimeTabId, serverColorScheme]);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- synchronizes server zoom into the desktop tab
   useEffect(() => {
     const bridge = window.desktopBridge?.preview;
     if (!bridge || serverZoomFactor === undefined) return;
@@ -146,7 +146,6 @@ export function HostedBrowserWebview(props: {
     webviewRef.current = node as ElectronWebview | null;
   };
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers the mounted webview and owns crash recovery listeners
   useEffect(() => {
     const webview = webviewRef.current;
     const bridge = previewBridge;
@@ -158,7 +157,9 @@ export function HostedBrowserWebview(props: {
       if (!lease) return;
       void (async () => {
         try {
-          // Tab creation and webview attachment use separate effects; wait to avoid PreviewTabNotFoundError.
+          // The main-process tab and the DOM webview are created by separate
+          // effects. Wait for the former so registration cannot race and fail
+          // with PreviewTabNotFoundError on a fast about:blank attachment.
           await lease.ready;
           if (disposed || webviewRef.current !== webview) return;
           const webContentsId = webview.getWebContentsId();
@@ -178,7 +179,9 @@ export function HostedBrowserWebview(props: {
         if (!disposed) remountCrashedWebview(webviewGeneration + 1);
       }, recovery.delayMs);
     };
-    // Guest clicks only emit focus here; replay pointerdown to dismiss host popups.
+    // A click inside the guest only reaches this document as a webview focus
+    // event, so open menus and popovers never see the outside press that
+    // would dismiss them. Replay it as a pointerdown on the webview itself.
     const dismissHostPopups = () => {
       webview.dispatchEvent(
         new PointerEvent("pointerdown", { bubbles: true, pointerType: "mouse" }),
@@ -225,7 +228,8 @@ export function HostedBrowserWebview(props: {
       : content
         ? content.height / content.scale
         : (lastRect?.height ?? 800);
-  // Build from primitives on each side of the resize hook to keep both objects cached.
+  // Built from primitives on each side of the resize hook, so neither object is
+  // shared across it and both stay cached; the hook's layout keys the sync effect.
   const containerSize =
     active && lastRect ? lastRect : { width: hiddenWidth, height: hiddenHeight };
   const deviceToolbarVisible = active && viewport._tag !== "fill" && !presentation.fitSourceContent;
@@ -237,7 +241,7 @@ export function HostedBrowserWebview(props: {
     handleResizePointerDown,
     layout: viewportLayout,
   } = useBrowserViewportResize({
-    target: { threadRef, tabId, runtimeTabId },
+    tabId: runtimeTabId,
     viewport,
     zoomFactor: layoutZoomFactor,
     containerSize,
@@ -267,7 +271,6 @@ export function HostedBrowserWebview(props: {
     });
   };
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes the browser viewport presentation after DOM layout
   useEffect(() => {
     const frameId = window.requestAnimationFrame(syncContentPresentation);
     return () => window.cancelAnimationFrame(frameId);
@@ -275,7 +278,6 @@ export function HostedBrowserWebview(props: {
 
   const viewportScrollKey = `${runtimeTabId}:${viewport._tag}:${viewportWidth}:${viewportHeight}`;
   const scrolledViewportKeyRef = useRef<string | null>(null);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- resets the mounted browser scroll position after its viewport changes
   useEffect(() => {
     if (scrolledViewportKeyRef.current === viewportScrollKey) return;
     scrolledViewportKeyRef.current = viewportScrollKey;
@@ -318,7 +320,11 @@ export function HostedBrowserWebview(props: {
         <webview
           key={webviewGeneration}
           ref={setWebviewRef}
-          // Electron needs allowpopups at attachment. React drops boolean values for unknown attributes.
+          // Must be an attribute on the element itself: Electron reads it when the
+          // guest attaches, so setting it from the ref callback lands too late and
+          // the guest attaches with popups disabled. React types `allowpopups` as a
+          // boolean, but react-dom drops boolean values for unrecognized attributes,
+          // so the literal string has to be spread past the type.
           {...({ allowpopups: "true" } as unknown as { readonly allowpopups?: boolean })}
           src={webviewGeneration === 0 ? initialSrc : recoverySrc}
           partition={config.partition}

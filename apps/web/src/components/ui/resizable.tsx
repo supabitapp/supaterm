@@ -170,16 +170,14 @@ function useCollapsiblePanel(options: ResizablePanelWidthOptions) {
   // Changing defaultSize re-registers the panel, so it is fixed at mount.
   const [defaultSize] = React.useState(defaultWidth);
 
+  const latest = React.useRef({ ...options, width });
+  React.useLayoutEffect(() => {
+    latest.current = { ...options, width };
+  });
+
   const applied = React.useRef<{ open: boolean; width: number } | null>(null);
   const endToggle = React.useRef<(() => void) | null>(null);
   const mountFrame = React.useRef(0);
-  const animateOpen = React.useEffectEvent((element: HTMLElement) => {
-    if (!open) return;
-    endToggle.current = animateToggle(element);
-    panel?.resize(width);
-  });
-
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Synchronizes the imperative panel size and DOM transition with its open state and stored width.
   React.useLayoutEffect(() => {
     const element = elementRef.current;
     if (!panel || !element) return;
@@ -198,7 +196,12 @@ function useCollapsiblePanel(options: ResizablePanelWidthOptions) {
         } else if (animateMount) {
           panel.collapse();
           // Paint the collapsed frame first so the open has somewhere to animate from.
-          mountFrame.current = requestAnimationFrame(() => animateOpen(element));
+          mountFrame.current = requestAnimationFrame(() => {
+            const current = latest.current;
+            if (!current.open) return;
+            endToggle.current = animateToggle(element);
+            panel.resize(current.width);
+          });
         } else {
           panel.resize(width);
         }
@@ -216,7 +219,6 @@ function useCollapsiblePanel(options: ResizablePanelWidthOptions) {
     if (open) panel.resize(width);
     else panel.collapse();
   }, [animateMount, open, panel, width]);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Cancels the pending animation frame and removes DOM transition listeners on unmount.
   React.useEffect(
     () => () => {
       cancelAnimationFrame(mountFrame.current);
@@ -226,21 +228,25 @@ function useCollapsiblePanel(options: ResizablePanelWidthOptions) {
   );
 
   const subscribe = React.use(ResizablePanelGroupContext)?.subscribe;
-  const handleLayoutChanged = React.useEffectEvent(() => {
-    const group = elementRef.current?.parentElement;
-    if (!panel || !group || !open) return;
-    if (panel.isCollapsed()) {
-      options.onCollapse?.();
-      return;
-    }
-    const nextWidth = Math.round((panel.getSize().asPercentage / 100) * group.offsetWidth);
-    if (nextWidth === width) return;
-    applied.current = { open: true, width: nextWidth };
-    setStored({ storageKey, width: nextWidth });
-    writeStoredWidth(storageKey, nextWidth);
-  });
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Subscribes to panel layout events to persist user resizing and report collapse.
-  React.useEffect(() => subscribe?.(handleLayoutChanged), [subscribe]);
+  React.useEffect(
+    () =>
+      subscribe?.(() => {
+        const group = elementRef.current?.parentElement;
+        const current = latest.current;
+        if (!panel || !group || !current.open) return;
+        if (panel.isCollapsed()) {
+          current.onCollapse?.();
+          return;
+        }
+        // The layout is current here but the DOM has not re-rendered yet, so derive pixels from it.
+        const nextWidth = Math.round((panel.getSize().asPercentage / 100) * group.offsetWidth);
+        if (nextWidth === current.width) return;
+        applied.current = { open: true, width: nextWidth };
+        setStored({ storageKey: current.storageKey, width: nextWidth });
+        writeStoredWidth(current.storageKey, nextWidth);
+      }),
+    [panel, subscribe],
+  );
 
   // Sizes are measured, so a toggle reports every animated frame; keep the pinned width.
   const onResize = (size: PanelSize) => {
@@ -250,10 +256,11 @@ function useCollapsiblePanel(options: ResizablePanelWidthOptions) {
   };
 
   const reset = () => {
-    writeStoredWidth(storageKey, null);
-    applied.current = { open, width: defaultWidth };
-    setStored({ storageKey, width: defaultWidth });
-    if (open) panel?.resize(defaultWidth);
+    const current = latest.current;
+    writeStoredWidth(current.storageKey, null);
+    applied.current = { open: current.open, width: current.defaultWidth };
+    setStored({ storageKey: current.storageKey, width: current.defaultWidth });
+    if (current.open) panel?.resize(current.defaultWidth);
   };
 
   return {

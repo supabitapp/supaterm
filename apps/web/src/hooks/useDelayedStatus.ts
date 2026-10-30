@@ -1,18 +1,12 @@
-import {
-  delayedStatusDeadline,
-  shownDelayedStatus,
-  stepDelayedStatus,
-} from "@supaterm/client-runtime/delayed-status";
-import { useState } from "react";
-
-import { useDeadlinePassed } from "./useDeadline";
+import { createDelayedStatus, type ShownStatus } from "@supaterm/client-runtime/delayed-status";
+import { useEffect, useState } from "react";
 
 export function useDelayedStatus<A>(key: string, value: A | null): A | null {
-  const [state, setState] = useState(() =>
-    stepDelayedStatus<A>(null, { key, value, deadlinePassed: false }, Date.now),
-  );
-  const deadlinePassed = useDeadlinePassed(delayedStatusDeadline(state));
-  const next = stepDelayedStatus(state, { key, value, deadlinePassed }, Date.now);
-  if (next !== state) setState(next);
-  return shownDelayedStatus(next, key);
+  const [shown, setShown] = useState<ShownStatus<A> | null>(null);
+  const [status] = useState(() => createDelayedStatus<A>(setShown));
+  useEffect(() => () => status.dispose(), [status]);
+  useEffect(() => {
+    status.update(key, value);
+  }, [status, key, value]);
+  return shown?.key === key ? shown.value : null;
 }

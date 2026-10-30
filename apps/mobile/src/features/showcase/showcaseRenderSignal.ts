@@ -7,16 +7,10 @@ export type ShowcaseRenderSignal = Readonly<{
 }>;
 
 const listeners = new Set<() => void>();
-export type ShowcaseRenderSnapshot = Readonly<{
-  signal: ShowcaseRenderSignal | null;
+let renderSignal: ShowcaseRenderSignal | null = null;
 
-  reports: number;
-}>;
-
-let snapshot: ShowcaseRenderSnapshot = { signal: null, reports: 0 };
-
-export function getShowcaseRenderSnapshot(): ShowcaseRenderSnapshot {
-  return snapshot;
+export function getShowcaseRenderSignal(): ShowcaseRenderSignal | null {
+  return renderSignal;
 }
 
 export function subscribeToShowcaseRenderSignal(listener: () => void): () => void {
@@ -25,13 +19,13 @@ export function subscribeToShowcaseRenderSignal(listener: () => void): () => voi
 }
 
 export function reportShowcaseSceneRendered(signal: ShowcaseRenderSignal): void {
-  snapshot = { signal, reports: snapshot.reports + 1 };
+  renderSignal = signal;
   for (const listener of listeners) listener();
 }
 
 export function clearShowcaseRenderSignal(): void {
-  if (snapshot.signal === null) return;
-  snapshot = { signal: null, reports: snapshot.reports + 1 };
+  if (renderSignal === null) return;
+  renderSignal = null;
   for (const listener of listeners) listener();
 }
 

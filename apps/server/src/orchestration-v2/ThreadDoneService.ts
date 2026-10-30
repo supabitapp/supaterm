@@ -1,12 +1,8 @@
-import {
-  backgroundWorkHoldsCompletion,
-  turnItemUpdateCanEndBackgroundWork,
-} from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
+import { backgroundWorkHoldsCompletion } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
 import { visibleThreadPullRequests } from "@supaterm/shared/threadPullRequests";
 import {
   CommandId,
-  isOrchestrationV2WorkActive,
   type ThreadId,
   type OrchestrationV2DomainEvent,
   type OrchestrationV2ThreadShell,
@@ -17,12 +13,9 @@ import * as Context from "effect/Context";
 import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
-import * as FiberSet from "effect/FiberSet";
-import * as FiberMap from "effect/FiberMap";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Schedule from "effect/Schedule";
-import * as Semaphore from "effect/Semaphore";
 import type * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 
@@ -33,7 +26,6 @@ import * as ServerSettings from "../serverSettings.ts";
 import { forkParked } from "../serverActivation.ts";
 import * as TerminalManager from "../terminal/Manager.ts";
 import * as ProjectStore from "./ProjectStore.ts";
-import { sourceControlDefinitions } from "../sourceControl/sourceControlDefinitions.ts";
 import * as Orchestrator from "./Orchestrator.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
 
@@ -59,6 +51,18 @@ function latestMillis(values: ReadonlyArray<number | null>): number | null {
   return latest;
 }
 
+function canonicalRepositoryKey(key: string): string {
+  return key
+    .replace(
+      /^(?:ssh\.dev\.azure\.com|vs-ssh\.visualstudio\.com)\/v3\/([^/]+)\/([^/]+)\/([^/]+)$/u,
+      "dev.azure.com/$1/$2/_git/$3",
+    )
+    .replace(
+      /^([^.]+)\.visualstudio\.com\/(?:defaultcollection\/)?([^/]+)\/_git\/([^/]+)$/u,
+      "dev.azure.com/$1/$2/_git/$3",
+    );
+}
+
 function pullRequestMatchesProject(
   pullRequest: GitManager.GitBranchPullRequest,
   project: {
@@ -68,8 +72,8 @@ function pullRequestMatchesProject(
   return (
     pullRequest.repositoryKey !== null &&
     project.repositoryIdentity != null &&
-    sourceControlDefinitions.canonicalRepositoryKey(pullRequest.repositoryKey) ===
-      sourceControlDefinitions.canonicalRepositoryKey(project.repositoryIdentity.canonicalKey)
+    canonicalRepositoryKey(pullRequest.repositoryKey) ===
+      canonicalRepositoryKey(project.repositoryIdentity.canonicalKey)
   );
 }
 
@@ -158,7 +162,6 @@ export function isAutoMarkDoneCandidate(
   if (thread.pinnedAt != null || thread.autoMarkDoneDisabledAt != null) return false;
   // Blocked-on-you work must never park behind a done override.
   if (thread.pendingRuntimeRequest !== null) return false;
-  if ((thread.pendingGuestMessageCount ?? 0) > 0) return false;
   if (thread.activityRunStatus != null) return false;
   if (backgroundWorkHoldsCompletion(thread.pendingBackgroundTasks ?? [])) return false;
   if (threadHasQueuedTurnStart(thread, nowMs)) return false;
@@ -169,19 +172,13 @@ export function isAutoMarkDoneCandidate(
 export function isSnoozed(
   thread: Pick<
     ProjectionStore.ProjectionDoneCandidate,
-    | "snoozedUntil"
-    | "snoozedAt"
-    | "latestRunCompletedAt"
-    | "status"
-    | "pendingRuntimeRequest"
-    | "pendingGuestMessageCount"
+    "snoozedUntil" | "snoozedAt" | "latestRunCompletedAt" | "status" | "pendingRuntimeRequest"
   >,
   nowMs: number,
 ): boolean {
   const snoozedUntilMs = toMillis(thread.snoozedUntil);
   if (snoozedUntilMs === null || snoozedUntilMs <= nowMs) return false;
   if (thread.pendingRuntimeRequest !== null) return false;
-  if ((thread.pendingGuestMessageCount ?? 0) > 0) return false;
   const snoozedAtMs = toMillis(thread.snoozedAt);
   const completedAtMs = toMillis(thread.latestRunCompletedAt);
   const wokeOnError =
@@ -202,11 +199,8 @@ export function resolveAutoMarkDoneAt(input: {
   const { thread } = input;
   let pullRequest = input.pullRequest;
   const links = donePullRequestLinks(thread.pullRequests ?? []);
-  if (links.some((link) => link.snapshot === null)) return null;
-  const hasOpenLink = links.some((link) => link.snapshot?.state === "open");
-  if (hasOpenLink) {
-    pullRequest = null;
-  } else if (links.length > 0) {
+  if (links.some((link) => link.snapshot === null || link.snapshot.state === "open")) return null;
+  if (links.length > 0) {
     const latest = links.reduce((current, candidate) =>
       linkTerminalAtMs(candidate) > linkTerminalAtMs(current) ? candidate : current,
     );
@@ -234,10 +228,9 @@ export function resolveAutoMarkDoneAt(input: {
     return DateTime.makeUnsafe(activityAtMs);
   }
   const hasOpenPullRequest =
-    hasOpenLink ||
-    (pullRequest === null
+    pullRequest === null
       ? thread.linkedPullRequest != null || thread.branchPullRequest != null
-      : pullRequest.state === "open");
+      : pullRequest.state === "open";
   if (input.autoMarkDoneKeepPullRequests === true && hasOpenPullRequest) return null;
   if (input.autoMarkDoneAfterDays === null) return null;
   // A passed wake timer restarts inactivity. An earlier wake can only delay completion.
@@ -311,7 +304,6 @@ export const make = Effect.gen(function* () {
   const pullRequests = yield* PullRequestService.PullRequestService;
   const crypto = yield* Crypto.Crypto;
   const fileSystem = yield* FileSystem.FileSystem;
-  const shellClosedThreads = new Set<ThreadId>();
   const terminals = yield* TerminalManager.TerminalManager;
   const projectScripts = yield* ProjectSetupScriptRunner.ProjectSetupScriptRunner;
   // Marking a done thread done again re-emits thread.marked-done with the same doneAt,
@@ -337,7 +329,7 @@ export const make = Effect.gen(function* () {
     // sweep on a possibly stale cached answer.
     const candidates = threads.filter((thread) => isAutoMarkDoneCandidate(thread, nowMs));
 
-    const markThreadDone = Effect.fnUntraced(
+    const markThreadDone = Effect.fn("ThreadDoneServiceV2.markThreadDone")(
       function* (thread: (typeof candidates)[number], pullRequest: DonePullRequest | null) {
         const currentSettings = resolveProjectSettings(
           yield* settingsService.getSettings,
@@ -365,13 +357,13 @@ export const make = Effect.gen(function* () {
       },
       (effect, thread) =>
         effect.pipe(
-          Effect.catchCauseIf(
-            (cause) => !Cause.hasInterruptsOnly(cause),
-            (cause) =>
-              Effect.logWarning("automatic thread completion skipped", {
-                threadId: thread.id,
-                cause: Cause.pretty(cause),
-              }).pipe(Effect.as(null)),
+          Effect.catchCause((cause) =>
+            Cause.hasInterruptsOnly(cause)
+              ? Effect.failCause(cause)
+              : Effect.logWarning("automatic thread completion skipped", {
+                  threadId: thread.id,
+                  cause: Cause.pretty(cause),
+                }).pipe(Effect.as(null)),
           ),
         ),
     );
@@ -403,6 +395,12 @@ export const make = Effect.gen(function* () {
       { concurrency: 8, discard: true },
     );
     if (mergedPullRequest !== null) {
+      // The merge just confirmed a terminal state the lookup caches can still
+      // call open (branch answers live two minutes, the sweep runs every
+      // minute). Drop the swept checkouts' cached answers so the merge completes
+      // its branch threads now instead of on a later sweep. Threads linked to
+      // the merged pull request become done from the event itself below and need no
+      // lookup, so they are absent from this map by construction.
       const cwds = [...new Set(lookupCwdByThreadId.values())];
       yield* Effect.forEach(cwds, (cwd) => git.invalidateStatus(cwd), {
         concurrency: 8,
@@ -429,7 +427,7 @@ export const make = Effect.gen(function* () {
     };
     const groups = Map.groupBy(lookupCandidates, lookupKey);
 
-    const wouldMarkDone = Effect.fnUntraced(function* (
+    const wouldMarkDone = Effect.fn("ThreadDoneServiceV2.wouldMarkDone")(function* (
       group: ReadonlyArray<(typeof lookupCandidates)[number]>,
       pullRequest: DonePullRequest,
     ) {
@@ -450,12 +448,17 @@ export const make = Effect.gen(function* () {
       });
     });
 
-    const pullRequestFor = Effect.fnUntraced(function* (
+    const pullRequestFor = Effect.fn("ThreadDoneServiceV2.pullRequestFor")(function* (
       group: ReadonlyArray<(typeof lookupCandidates)[number]>,
     ) {
       const thread = group[0]!;
       const reference = thread.linkedPullRequest ?? thread.branchPullRequest;
       if (reference != null) {
+        // The event carries the merged state, so only the threads linked to
+        // that exact pull request become done from it. Every other linked thread
+        // falls through to a fresh summary lookup below: the merge sweep
+        // covers all candidates, and an unrelated merge must never complete
+        // them.
         const matchesMerge =
           mergedPullRequest !== null &&
           reference.projectId === mergedPullRequest.projectId &&
@@ -508,8 +511,7 @@ export const make = Effect.gen(function* () {
       if (cwd === undefined) {
         return yield* Effect.die(new Error("thread project not found"));
       }
-      const refresh = group.filter((member) => shellClosedThreads.delete(member.id)).length > 0;
-      return yield* git.branchPullRequest({ cwd, branch: thread.branch }, { refresh });
+      return yield* git.branchPullRequest({ cwd, branch: thread.branch });
     });
 
     yield* Effect.forEach(
@@ -522,13 +524,13 @@ export const make = Effect.gen(function* () {
             discard: true,
           });
         }).pipe(
-          Effect.catchCauseIf(
-            (cause) => !Cause.hasInterruptsOnly(cause),
-            (cause) =>
-              Effect.logWarning("automatic thread completion skipped", {
-                threadIds: group.map((thread) => thread.id),
-                cause: Cause.pretty(cause),
-              }),
+          Effect.catchCause((cause) =>
+            Cause.hasInterruptsOnly(cause)
+              ? Effect.failCause(cause)
+              : Effect.logWarning("automatic thread completion skipped", {
+                  threadIds: group.map((thread) => thread.id),
+                  cause: Cause.pretty(cause),
+                }),
           ),
         ),
       { concurrency: 8, discard: true },
@@ -540,41 +542,23 @@ export const make = Effect.gen(function* () {
     threadId?: ThreadId,
   ) =>
     sweep(mergedPullRequest, threadId).pipe(
-      Effect.catchCauseIf(
-        (cause) => !Cause.hasInterruptsOnly(cause),
-        (cause) =>
-          Effect.logWarning("automatic thread completion sweep failed", {
-            cause: Cause.pretty(cause),
-          }),
+      Effect.catchCause((cause) =>
+        Cause.hasInterruptsOnly(cause)
+          ? Effect.failCause(cause)
+          : Effect.logWarning("automatic thread completion sweep failed", {
+              cause: Cause.pretty(cause),
+            }),
       ),
     );
-  const fullSweeps = yield* makeDrainableWorker(() => runSweep(null));
-  const threadSweeps = yield* FiberSet.make<void>();
-  const threadSweepSlots = yield* Semaphore.make(8);
-  const threadSweepStates = new Map<ThreadId, "queued" | "running" | "rerun">();
-  const sweepThread = (
-    threadId: ThreadId,
-  ): Effect.Effect<void, Effect.Error<ReturnType<typeof runSweep>>> =>
-    Effect.sync(() => threadSweepStates.set(threadId, "running")).pipe(
-      Effect.andThen(runSweep(null, threadId)),
-      threadSweepSlots.withPermits(1),
-      Effect.andThen(
-        Effect.suspend(() => {
-          if (threadSweepStates.get(threadId) === "rerun") return sweepThread(threadId);
-          threadSweepStates.delete(threadId);
-          return Effect.void;
-        }),
-      ),
-    );
-  const enqueueThread = (threadId: ThreadId) =>
-    Effect.suspend(() => {
-      const state = threadSweepStates.get(threadId);
-      if (state === "running") threadSweepStates.set(threadId, "rerun");
-      if (state !== undefined) return Effect.void;
-      threadSweepStates.set(threadId, "queued");
-      return sweepThread(threadId).pipe(FiberSet.run(threadSweeps), Effect.asVoid);
-    });
+  const worker = yield* makeDrainableWorker((threadId: ThreadId | undefined) =>
+    runSweep(null, threadId),
+  );
 
+  // Marking done closes the thread's shells that sit at an idle prompt, so they stop
+  // holding the worktree. A terminal running a command (a dev server, an
+  // editor) stays for the user to close. Then the project's done script runs
+  // in the thread's own worktree; a thread in the shared checkout skips it,
+  // because other threads may still be working there.
   const cleanUpDoneThread = Effect.fn("ThreadDoneServiceV2.cleanUpDoneThread")(
     function* (threadId: ThreadId) {
       const done = yield* projections.getThread(threadId);
@@ -635,7 +619,7 @@ export const make = Effect.gen(function* () {
       effect.pipe(
         Effect.catchCause((cause) =>
           Cause.hasInterruptsOnly(cause)
-            ? Effect.interrupt
+            ? Effect.failCause(cause)
             : Effect.logWarning("cleaning up a done thread failed", {
                 threadId,
                 cause: Cause.pretty(cause),
@@ -644,64 +628,24 @@ export const make = Effect.gen(function* () {
       ),
   );
 
-  const cleanups = yield* FiberMap.make<ThreadId, void, never>();
-  const cleanupSlots = yield* Semaphore.make(8);
-
   const processEvent = (event: OrchestrationV2DomainEvent) => {
     switch (event.type) {
       case "thread.marked-done":
-        return FiberMap.run(
-          cleanups,
-          event.threadId,
-          cleanupSlots.withPermits(1)(cleanUpDoneThread(event.threadId)),
-          { onlyIfMissing: true },
-        ).pipe(Effect.asVoid);
-      case "thread.reopened":
-      case "thread.archived":
-      case "thread.deleted":
-        return FiberMap.remove(cleanups, event.threadId);
-      case "thread.metadata-updated":
-        return event.payload.doneOverride === "done"
-          ? Effect.void
-          : FiberMap.remove(cleanups, event.threadId);
+        return cleanUpDoneThread(event.threadId);
       case "thread.pull-request-link-updated":
       case "thread.pull-request-synced":
       case "thread.workflow-run-watch-synced":
       case "provider-session.detached":
-        return enqueueThread(event.threadId);
-      case "run.background-work-cancelled":
-        return enqueueThread(event.threadId);
-      case "subagent.updated":
-        return isOrchestrationV2WorkActive(event.payload.status)
-          ? Effect.void
-          : enqueueThread(event.threadId);
-      case "provider-thread.updated":
-        return backgroundWorkHoldsCompletion(event.payload.pendingBackgroundTasks ?? [])
-          ? Effect.void
-          : enqueueThread(event.threadId);
-      case "turn-item.updated": {
-        const item = event.payload;
-        if (
-          item.type === "command_execution" &&
-          !isOrchestrationV2WorkActive(item.status) &&
-          sourceControlDefinitions.definitions.some(
-            (definition) => definition.changeRequestCloseCommand?.test(item.input) === true,
-          )
-        )
-          shellClosedThreads.add(event.threadId);
-        return turnItemUpdateCanEndBackgroundWork(item)
-          ? enqueueThread(event.threadId)
-          : Effect.void;
-      }
+        return worker.enqueue(event.threadId);
       case "provider-session.updated":
         return event.payload.status !== "starting" && event.payload.status !== "running"
-          ? enqueueThread(event.threadId)
+          ? worker.enqueue(event.threadId)
           : Effect.void;
       case "run.updated":
         return ["completed", "interrupted", "failed", "cancelled", "rolled_back"].includes(
           event.payload.status,
         )
-          ? enqueueThread(event.threadId)
+          ? worker.enqueue(event.threadId)
           : Effect.void;
       default:
         return Effect.void;
@@ -717,8 +661,8 @@ export const make = Effect.gen(function* () {
       let lastDoneSettings = autoMarkDoneSettingsKey(initialSettings);
       yield* forkParked(
         Effect.gen(function* () {
-          yield* fullSweeps.enqueue(undefined);
-          yield* fullSweeps.drain;
+          yield* worker.enqueue(undefined);
+          yield* worker.drain;
         }).pipe(Effect.repeat(Schedule.spaced("1 minute")), Effect.asVoid),
       );
       yield* forkParked(
@@ -728,7 +672,7 @@ export const make = Effect.gen(function* () {
             return Effect.void;
           }
           lastDoneSettings = key;
-          return fullSweeps.enqueue(undefined);
+          return worker.enqueue(undefined);
         }),
       );
       yield* forkParked(Stream.runForEach(mergedPullRequests, (event) => runSweep(event)));
@@ -742,13 +686,7 @@ export const make = Effect.gen(function* () {
     },
   );
 
-  return {
-    start,
-    drain: Effect.all(
-      [fullSweeps.drain, FiberSet.awaitEmpty(threadSweeps), FiberMap.awaitEmpty(cleanups)],
-      { discard: true },
-    ),
-  } satisfies ThreadDoneServiceV2["Service"];
+  return { start, drain: worker.drain } satisfies ThreadDoneServiceV2["Service"];
 });
 
 export const layer = Layer.effect(ThreadDoneServiceV2, make);

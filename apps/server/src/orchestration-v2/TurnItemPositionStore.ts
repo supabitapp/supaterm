@@ -103,14 +103,13 @@ export const layer: Layer.Layer<TurnItemPositionStoreV2, never, SqlClient.SqlCli
 
     return TurnItemPositionStoreV2.of({
       allocate,
-      normalize: Effect.fn("TurnItemPositionStoreV2.normalize")(function (item, runOrdinal) {
-        return allocate({
+      normalize: (item, runOrdinal) =>
+        allocate({
           threadId: item.threadId,
           turnItemId: item.id,
           runId: item.runId,
           ...(runOrdinal === undefined ? {} : { runOrdinal }),
-        }).pipe(Effect.map((ordinal) => (item.ordinal === ordinal ? item : { ...item, ordinal })));
-      }),
+        }).pipe(Effect.map((ordinal) => (item.ordinal === ordinal ? item : { ...item, ordinal }))),
     });
   }),
 );

@@ -1,5 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off - Builds a Firefox-shaped
-
+// `cookies.sqlite` fixture with the same native bindings Firefox itself uses.
 import * as NodePath from "@effect/platform-node/NodePath";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { describe, expect, it } from "@effect/vitest";
@@ -37,7 +37,8 @@ const writeFirefoxCookieDatabase = Effect.fnUntraced(function* (
     rawSameSite?: number;
     originAttributes?: string;
   }>,
-
+  // Firefox stamps `PRAGMA user_version`; schema 16+ stores `expiry` in
+  // milliseconds, earlier ones in seconds.
   schemaVersion = 15,
 ) {
   const fileSystem = yield* FileSystem.FileSystem;
@@ -45,7 +46,7 @@ const writeFirefoxCookieDatabase = Effect.fnUntraced(function* (
   const file = `${directory}/cookies.sqlite`;
   const database = new NodeSqlite.DatabaseSync(file);
   database.exec(`pragma user_version = ${schemaVersion}`);
-
+  // Only schemas 10–14 have `rawSameSite`; the schema-15 migration dropped it.
   const hasRawSameSite = schemaVersion >= 10 && schemaVersion <= 14;
   database.exec(
     `create table moz_cookies (
@@ -86,6 +87,8 @@ describe("readFirefoxCookies", () => {
   it.effect("converts millisecond expiries from schema 16 and newer", () =>
     run(
       Effect.gen(function* () {
+        // Firefox 129 (schema 16) migrated `expiry` to milliseconds; older
+        // profiles still hold seconds. Both must land as seconds for Electron.
         const row = {
           host: "example.test",
           name: "c",
@@ -166,6 +169,9 @@ describe("readFirefoxCookies", () => {
   it.effect("keeps an unset SameSite unspecified instead of widening it to none", () =>
     run(
       Effect.gen(function* () {
+        // nsICookie::SAMESITE_UNSET is 256, a cookie that carried no SameSite
+        // attribute. It is not SAMESITE_NONE (0), which is an explicit opt-in
+        // to cross-site use; importing it as "none" would widen its scope.
         const row = {
           host: "example.test",
           name: "c",
@@ -192,6 +198,8 @@ describe("readFirefoxCookies", () => {
   it.effect("imports rows whose SameSite was never written", () =>
     run(
       Effect.gen(function* () {
+        // Schema 9 added `sameSite` without a default, so rows from before the
+        // upgrade hold NULL. One such row must not fail the whole import.
         const row = {
           host: "example.test",
           name: "c",
@@ -221,6 +229,10 @@ describe("readFirefoxCookies", () => {
   it.effect("applies the schema-15 rawSameSite rule to older databases", () =>
     run(
       Effect.gen(function* () {
+        // Schemas 10–14 defaulted `sameSite` to Lax and kept the declared value
+        // in `rawSameSite`. Firefox's own migration to 15 turns "Lax by
+        // default, None declared" into Unset; an unmigrated database has to be
+        // read the same way or an undeclared cookie becomes an explicit Lax.
         const row = {
           host: "example.test",
           name: "c",
@@ -264,6 +276,9 @@ describe("readFirefoxCookies", () => {
             sameSite: 1,
           },
           {
+            // Same host, name and path as above: Firefox keeps these apart by
+            // container, Electron cannot, so importing both would hand the
+            // profile whichever one happened to be written last.
             host: "mail.test",
             name: "session",
             value: "work-container",
@@ -325,6 +340,8 @@ describe("readFirefoxCookies", () => {
 describe("parseFirefoxProfiles", () => {
   it.effect("reads named profiles and ignores Install sections", () =>
     Effect.gen(function* () {
+      // `Install*` sections name a default profile but do not describe one, so
+      // counting them would invent a profile whose directory does not exist.
       const parsed = yield* parsePosixFirefoxProfiles(
         [
           "[Install4F96D1932A9F858E]",

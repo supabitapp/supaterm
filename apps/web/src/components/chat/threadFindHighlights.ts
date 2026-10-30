@@ -1,5 +1,5 @@
 import { findThreadSearchOccurrences } from "@supaterm/shared/threadSearch";
-import { useEffect, useEffectEvent, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { THREAD_FIND_BLOCK_TAGS } from "@supaterm/shared/threadFindText";
 
 const THREAD_FIND_HIGHLIGHT_NAME = "supaterm-thread-find";
@@ -120,18 +120,14 @@ export function useThreadFindHighlights(input: {
 
   const rangesRef = useRef<readonly ThreadFindRange[]>([]);
   const paintRef = useRef<ReturnType<typeof makeThreadFindHighlightPainter> | null>(null);
-  const clearActiveRange = useEffectEvent(() => onActiveRange(null));
-  const paintSelection = useEffectEvent(
-    (
-      paint: ReturnType<typeof makeThreadFindHighlightPainter>,
-      ranges: readonly ThreadFindRange[],
-    ) => paint(ranges, { activeRowId, activeOccurrence, onActiveRange }),
-  );
+  const selectionRef = useRef({ activeRowId, activeOccurrence, onActiveRange });
+  useLayoutEffect(() => {
+    selectionRef.current = { activeRowId, activeOccurrence, onActiveRange };
+  }, [activeRowId, activeOccurrence, onActiveRange]);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Maintains CSS Highlight ranges as searchable DOM rows mount, mutate, or unmount.
   useEffect(() => {
     if (typeof CSS === "undefined" || !CSS.highlights || typeof Highlight === "undefined") {
-      clearActiveRange();
+      selectionRef.current.onActiveRange(null);
       return;
     }
     const clearHighlights = () => {
@@ -140,7 +136,7 @@ export function useThreadFindHighlights(input: {
     };
     rangesRef.current = [];
     if (!container || query.length === 0) {
-      clearActiveRange();
+      selectionRef.current.onActiveRange(null);
       clearHighlights();
       return;
     }
@@ -166,7 +162,7 @@ export function useThreadFindHighlights(input: {
       }
       for (const row of cache.keys()) if (!rows.has(row)) cache.delete(row);
       rangesRef.current = ranges;
-      paintSelection(paint, ranges);
+      paint(ranges, selectionRef.current);
     };
     let frame: number | null = null;
     const observer = new MutationObserver((mutations) => {
@@ -212,7 +208,6 @@ export function useThreadFindHighlights(input: {
     };
   }, [container, query]);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Repaints the browser's active CSS Highlight when the selected occurrence changes.
   useEffect(() => {
     paintRef.current?.(rangesRef.current, { activeRowId, activeOccurrence, onActiveRange });
   }, [activeOccurrence, activeRowId, onActiveRange]);

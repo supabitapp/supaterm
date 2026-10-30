@@ -1,5 +1,4 @@
 import * as Context from "effect/Context";
-import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -45,7 +44,6 @@ export type CreateAuthPairingLinkInput = typeof CreateAuthPairingLinkInput.Type;
 export const ConsumeAuthPairingLinkInput = Schema.Struct({
   credential: Schema.String,
   requestedScopes: Schema.optionalKey(AuthEnvironmentScopes),
-  requiredScopes: Schema.optionalKey(AuthEnvironmentScopes),
   consumedAt: Schema.DateTimeUtcFromString,
   now: Schema.DateTimeUtcFromString,
 });
@@ -118,7 +116,7 @@ function toPersistenceSqlOrDecodeError(
         });
 }
 
-/** @public */
+/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
 
@@ -156,7 +154,7 @@ export const make = Effect.gen(function* () {
   const consumeAvailablePairingLinkRow = SqlSchema.findOneOption({
     Request: ConsumeAuthPairingLinkInput,
     Result: AuthPairingLinkRawDbRow,
-    execute: ({ credential, requestedScopes, requiredScopes, consumedAt, now }) =>
+    execute: ({ credential, requestedScopes, consumedAt, now }) =>
       sql`
         UPDATE auth_pairing_links
         SET consumed_at = ${consumedAt}
@@ -171,12 +169,6 @@ export const make = Effect.gen(function* () {
               SELECT value FROM json_each(auth_pairing_links.scopes)
             )
           ))
-          AND NOT EXISTS (
-            SELECT 1 FROM json_each(${JSON.stringify(requiredScopes ?? [])}) AS required
-            WHERE required.value NOT IN (
-              SELECT value FROM json_each(auth_pairing_links.scopes)
-            )
-          )
         RETURNING
           id AS "id",
           credential AS "credential",
@@ -289,7 +281,6 @@ export const make = Effect.gen(function* () {
 
   const listActive: AuthPairingLinkRepository["Service"]["listActive"] = (input) =>
     listActivePairingLinkRows(input).pipe(
-      NodeSqliteClient.readOnly,
       Effect.mapError(
         toPersistenceSqlOrDecodeError(
           "AuthPairingLinkRepository.listActive:query",
@@ -325,7 +316,6 @@ export const make = Effect.gen(function* () {
 
   const getByCredential: AuthPairingLinkRepository["Service"]["getByCredential"] = (input) =>
     getPairingLinkRowByCredential(input).pipe(
-      NodeSqliteClient.readOnly,
       Effect.mapError(
         toPersistenceSqlOrDecodeError(
           "AuthPairingLinkRepository.getByCredential:query",

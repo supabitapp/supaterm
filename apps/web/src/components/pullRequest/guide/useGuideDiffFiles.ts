@@ -53,7 +53,6 @@ export function useGuideDiffFiles({
   const data = query.data;
   if (
     data !== null &&
-    !query.isPending &&
     loading &&
     (data.nextCursor === null || data.nextCursor !== current.cursor)
   ) {

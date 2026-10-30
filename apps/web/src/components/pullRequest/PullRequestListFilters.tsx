@@ -2,7 +2,6 @@ import { Spinner } from "~/components/ui/spinner";
 import type {
   EnvironmentId,
   ProjectId,
-  PullRequestFilterOptionsInput,
   PullRequestInvolvement,
   PullRequestListFilters,
   PullRequestListState,
@@ -24,8 +23,6 @@ import {
 import { type ElementType, useState } from "react";
 
 import { getSourceControlPresentationForKind } from "~/sourceControlPresentation";
-import { useDebouncedValue } from "~/state/queries";
-import { type EnvironmentQueryTarget, usePullRequestFilterOptions } from "~/state/pullRequests";
 import { ProjectFavicon, type ProjectFaviconProject } from "../ProjectFavicon";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group";
 import { Button } from "../ui/button";
@@ -39,7 +36,6 @@ import {
   MenuRadioGroup,
   MenuRadioItem,
   MenuRadioItemIndicator,
-  MenuSearchInput,
   MenuSeparator,
   MenuSub,
   MenuSubPopup,
@@ -48,9 +44,6 @@ import {
 } from "../ui/menu";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import {
-  pullRequestAuthorChoices,
-  selectedPullRequestAuthor,
-  pullRequestLabelChoices,
   pullRequestLabelColor,
   type PullRequestAuthorFacet,
   type PullRequestLabelFacet,
@@ -97,12 +90,10 @@ export function PullRequestSearchInput({
   value,
   busy,
   onChange,
-  onSubmit,
 }: {
   value: string;
   busy?: boolean;
   onChange: (value: string) => void;
-  onSubmit: (value: string) => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
   return (
@@ -118,14 +109,6 @@ export function PullRequestSearchInput({
         onChange={(event) => {
           setDraft(event.currentTarget.value);
           onChange(event.currentTarget.value);
-          if ((event.nativeEvent as InputEvent).inputType === "insertFromPaste") {
-            onSubmit(event.currentTarget.value);
-          }
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && !event.nativeEvent.isComposing) {
-            onSubmit(event.currentTarget.value);
-          }
         }}
         placeholder="Search pull requests, or label:bug"
         aria-label="Search pull requests"
@@ -135,10 +118,14 @@ export function PullRequestSearchInput({
 }
 
 const ALL_PROJECTS_VALUE = "all";
+/** MenuRadioGroup wants a string, so "every host" wears the one value no host can be. */
 const ALL_HOSTS_VALUE = "";
 const ALL_SERVERS_VALUE = "";
 const UNFILTERED_VALUE = "all";
-/** Project ids are unique only within an environment. */
+/**
+ * A project's own radio value, carrying the server along with the id: the id alone is only
+ * unique within its own server, so two rows sharing one would otherwise both read as checked.
+ */
 export const pullRequestProjectKey = (project: {
   readonly id: ProjectId;
   readonly environmentId: EnvironmentId;
@@ -245,103 +232,30 @@ function PullRequestFilterRadioSubmenu<Value extends string>({
   );
 }
 
-/** The listing's own scope, which the pickers search the host within. */
-export type PullRequestFilterOptionScope = EnvironmentQueryTarget<
-  Omit<PullRequestFilterOptionsInput, "kind" | "query">
->;
-
-const OPTION_SEARCH_DEBOUNCE_MS = 250;
-
-function useHostedFilterOptions(
-  scope: ReadonlyArray<PullRequestFilterOptionScope>,
-  kind: PullRequestFilterOptionsInput["kind"],
-  query: string,
-) {
-  const typed = query.trim().slice(0, 100);
-  const sent = useDebouncedValue(typed, OPTION_SEARCH_DEBOUNCE_MS);
-  const hosted = usePullRequestFilterOptions(
-    scope.map(({ environmentId, input }) => ({
-      environmentId,
-      input: { ...input, kind, ...(sent ? { query: sent } : {}) },
-    })),
-  );
-  // Until the search catches up with the typing, the host's answers are for older text.
-  return sent === typed ? hosted : { labels: [], authors: [], error: null, isPending: true };
-}
-
-function PullRequestAuthorChoices({
-  value,
-  options,
-  scope,
-  onChange,
-}: {
-  value: string | undefined;
-  options: ReadonlyArray<PullRequestAuthorFacet>;
-  scope: ReadonlyArray<PullRequestFilterOptionScope>;
-  onChange: (author: string | undefined) => void;
-}) {
-  const [query, setQuery] = useState("");
-  const hosted = useHostedFilterOptions(scope, "authors", query);
-  const login = value?.toLowerCase() ?? "";
-  const selected = selectedPullRequestAuthor(options, hosted.authors, value);
-  const visible = [
-    ...(selected ? [selected] : []),
-    ...pullRequestAuthorChoices(options, hosted.authors, query).filter(
-      (option) => option.actor.login.toLowerCase() !== login,
-    ),
-  ].slice(0, 30);
-  const select = (next: string) => next.toLowerCase() !== login && onChange(next || undefined);
-  return (
-    <>
-      <MenuSearchInput
-        autoFocus
-        busy={hosted.isPending}
-        value={query}
-        onChange={(event) => setQuery(event.currentTarget.value)}
-        placeholder="Search authors"
-        aria-label="Search authors"
-      />
-      <MenuRadioGroup value={selected?.actor.login ?? value ?? ""} onValueChange={select}>
-        <MenuRadioItem value="">
-          <span className="flex min-w-0 items-center gap-2">
-            <LayersIcon aria-hidden className="size-3.5" />
-            Anyone
-          </span>
-        </MenuRadioItem>
-        {visible.map((option) => (
-          <MenuRadioItem key={option.actor.login.toLowerCase()} value={option.actor.login}>
-            <span className="flex min-w-0 items-center gap-2">
-              <PullRequestActorAvatar actor={option.actor} />
-              <span className="min-w-0 flex-1 truncate">{option.actor.login}</span>
-              {option.mergedCount > 0 ? (
-                <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                  {option.mergedCount} merges loaded
-                </span>
-              ) : null}
-            </span>
-          </MenuRadioItem>
-        ))}
-        {visible.length === 0 && !hosted.isPending ? (
-          <MenuItem disabled>
-            {hosted.error === null ? "No authors found" : "Couldn't search authors on the host"}
-          </MenuItem>
-        ) : null}
-      </MenuRadioGroup>
-    </>
-  );
-}
-
 function PullRequestAuthorFilter({
   value,
   options,
-  scope,
   onChange,
 }: {
   value: string | undefined;
   options: ReadonlyArray<PullRequestAuthorFacet>;
-  scope: ReadonlyArray<PullRequestFilterOptionScope>;
   onChange: (author: string | undefined) => void;
 }) {
+  const [query, setQuery] = useState("");
+  const needle = query.trim().toLowerCase();
+  const login = value?.toLowerCase() ?? "";
+  const selected = options.find((option) => option.actor.login.toLowerCase() === login);
+  const visible = [
+    ...(selected ? [selected] : []),
+    ...options.filter(
+      (option) =>
+        option !== selected &&
+        (needle.length === 0 ||
+          option.actor.login.toLowerCase().includes(needle) ||
+          option.actor.name?.toLowerCase().includes(needle)),
+    ),
+  ].slice(0, 10);
+  const select = (next: string) => next.toLowerCase() !== login && onChange(next || undefined);
   return (
     <MenuSub>
       <MenuSubTrigger>
@@ -352,99 +266,65 @@ function PullRequestAuthorFilter({
         </span>
       </MenuSubTrigger>
       <MenuSubPopup>
-        <PullRequestAuthorChoices
-          value={value}
-          options={options}
-          scope={scope}
-          onChange={onChange}
-        />
+        <div className="p-1 pb-2">
+          <InputGroup>
+            <InputGroupAddon>
+              <SearchIcon aria-hidden />
+            </InputGroupAddon>
+            <InputGroupInput
+              autoFocus
+              size="compact"
+              value={query}
+              onChange={(event) => setQuery(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key !== "ArrowDown" && event.key !== "Escape") event.stopPropagation();
+              }}
+              placeholder="Search authors"
+              aria-label="Search authors"
+            />
+          </InputGroup>
+        </div>
+        <MenuRadioGroup value={selected?.actor.login ?? value ?? ""} onValueChange={select}>
+          <MenuRadioItem value="">
+            <span className="flex min-w-0 items-center gap-2">
+              <LayersIcon aria-hidden className="size-3.5" />
+              Anyone
+            </span>
+          </MenuRadioItem>
+          {visible.map((option) => (
+            <MenuRadioItem key={option.actor.login.toLowerCase()} value={option.actor.login}>
+              <span className="flex min-w-0 items-center gap-2">
+                <PullRequestActorAvatar actor={option.actor} />
+                <span className="min-w-0 flex-1 truncate">{option.actor.login}</span>
+                <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                  {option.mergedCount} merges loaded
+                </span>
+              </span>
+            </MenuRadioItem>
+          ))}
+          {visible.length === 0 ? <MenuItem disabled>No authors found</MenuItem> : null}
+        </MenuRadioGroup>
       </MenuSubPopup>
     </MenuSub>
-  );
-}
-
-function PullRequestLabelChoices({
-  value,
-  options,
-  scope,
-  onChange,
-}: {
-  value: ReadonlyArray<string>;
-  options: ReadonlyArray<PullRequestLabelFacet>;
-  scope: ReadonlyArray<PullRequestFilterOptionScope>;
-  onChange: (labels: ReadonlyArray<string>) => void;
-}) {
-  const [query, setQuery] = useState("");
-  const hosted = useHostedFilterOptions(scope, "labels", query);
-  const selected = new Set(value.map((name) => name.toLowerCase()));
-  const choices = pullRequestLabelChoices(options, hosted.labels, query);
-  const visible = [
-    ...value
-      .filter((name) => !choices.some((option) => option.name.toLowerCase() === name.toLowerCase()))
-      .map((name) => ({ name, color: null, count: 0 })),
-    ...choices,
-  ];
-  return (
-    <>
-      <MenuSearchInput
-        autoFocus
-        busy={hosted.isPending}
-        value={query}
-        onChange={(event) => setQuery(event.currentTarget.value)}
-        placeholder="Search labels"
-        aria-label="Search labels"
-      />
-      {visible.length === 0 && !hosted.isPending ? (
-        <MenuItem disabled>
-          {hosted.error === null ? "No labels found" : "Couldn't search labels on the host"}
-        </MenuItem>
-      ) : null}
-      {visible.map((option) => {
-        const key = option.name.toLowerCase();
-        const dot = pullRequestLabelColor(option.color);
-        return (
-          <MenuCheckboxItem
-            key={key}
-            checked={selected.has(key)}
-            onCheckedChange={(next) =>
-              onChange(
-                next
-                  ? [...value, option.name]
-                  : value.filter((name) => name.toLowerCase() !== option.name.toLowerCase()),
-              )
-            }
-          >
-            <span className="flex min-w-0 items-center gap-2">
-              <span
-                aria-hidden
-                className="size-2.5 shrink-0 rounded-full bg-muted-foreground"
-                {...(dot ? { style: { backgroundColor: dot } } : {})}
-              />
-              <span className="min-w-0 flex-1 truncate">{option.name}</span>
-              {option.count > 0 ? (
-                <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                  {option.count}
-                </span>
-              ) : null}
-            </span>
-          </MenuCheckboxItem>
-        );
-      })}
-    </>
   );
 }
 
 function PullRequestLabelFilter({
   value,
   options,
-  scope,
   onChange,
 }: {
   value: ReadonlyArray<string>;
   options: ReadonlyArray<PullRequestLabelFacet>;
-  scope: ReadonlyArray<PullRequestFilterOptionScope>;
   onChange: (labels: ReadonlyArray<string>) => void;
 }) {
+  const selected = new Set(value.map((name) => name.toLowerCase()));
+  const visible = [
+    ...value
+      .filter((name) => !options.some((option) => option.name.toLowerCase() === name.toLowerCase()))
+      .map((name) => ({ name, color: null, count: 0 })),
+    ...options,
+  ];
   return (
     <MenuSub>
       <MenuSubTrigger>
@@ -455,12 +335,40 @@ function PullRequestLabelFilter({
         </span>
       </MenuSubTrigger>
       <MenuSubPopup>
-        <PullRequestLabelChoices
-          value={value}
-          options={options}
-          scope={scope}
-          onChange={onChange}
-        />
+        {visible.length === 0 ? (
+          <MenuItem disabled>No labels in this view</MenuItem>
+        ) : (
+          visible.map((option) => {
+            const key = option.name.toLowerCase();
+            const checked = selected.has(key);
+            const dot = pullRequestLabelColor(option.color);
+            return (
+              <MenuCheckboxItem
+                key={key}
+                checked={checked}
+                onCheckedChange={(next) =>
+                  onChange(
+                    next
+                      ? [...value, option.name]
+                      : value.filter((name) => name.toLowerCase() !== option.name.toLowerCase()),
+                  )
+                }
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <span
+                    aria-hidden
+                    className="size-2.5 shrink-0 rounded-full bg-muted-foreground"
+                    {...(dot ? { style: { backgroundColor: dot } } : {})}
+                  />
+                  <span className="min-w-0 flex-1 truncate">{option.name}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                    {option.count}
+                  </span>
+                </span>
+              </MenuCheckboxItem>
+            );
+          })
+        )}
       </MenuSubPopup>
     </MenuSub>
   );
@@ -480,7 +388,6 @@ export function PullRequestFiltersMenu({
   onFilters,
   authorOptions = NO_FACETS,
   labelOptions = NO_FACETS,
-  optionScope,
   host,
   hostOptions,
   onHost,
@@ -504,7 +411,6 @@ export function PullRequestFiltersMenu({
   onFilters: (filters: PullRequestListFilters) => void;
   authorOptions?: ReadonlyArray<PullRequestAuthorFacet>;
   labelOptions?: ReadonlyArray<PullRequestLabelFacet>;
-  optionScope: ReadonlyArray<PullRequestFilterOptionScope>;
   host: string | undefined;
   hostOptions: ReadonlyArray<PullRequestFilterOption<string>>;
   onHost: (host: string | undefined) => void;
@@ -590,13 +496,11 @@ export function PullRequestFiltersMenu({
         <PullRequestAuthorFilter
           value={filters.author}
           options={authorOptions}
-          scope={optionScope}
           onChange={(author) => updateFilters({ author })}
         />
         <PullRequestLabelFilter
           value={selectedLabels}
           options={labelOptions}
-          scope={optionScope}
           onChange={(labels) =>
             updateFilters({
               labels: labels.length === 0 ? undefined : labels.slice(0, 10).map((label) => [label]),

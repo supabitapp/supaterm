@@ -337,10 +337,3 @@ many pull requests it merges and the merge strategy. GitHub rebases the remainin
 It can rewrite history and restart checks. If a layer fails, earlier updates remain; resolve that
 layer before retrying. GitHub may require manual conflict resolution after a lower layer is amended,
 even when its changes look independent. Stack actions require an environment that supports them.
-
-## Pull request links from agent commands
-
-Supaterm can detect supported pull-request creation commands in agent shell output and link
-the result to the thread. Commands inside loops or custom API scripts may not be recognized.
-An agent must still register the PR with Supaterm's link tool and check the thread's linked PRs
-before finishing. A PR you explicitly unlink is not repeatedly restored from the same command.

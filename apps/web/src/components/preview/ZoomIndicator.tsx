@@ -14,7 +14,6 @@ export function ZoomIndicator({ zoomFactor }: Props) {
   const lastFactorRef = useRef(zoomFactor);
   const timerRef = useRef<number | null>(null);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- shows the indicator on a zoom change and hides it with a timer
   useEffect(() => {
     if (Math.abs(lastFactorRef.current - zoomFactor) < ZOOM_EPSILON) return;
     lastFactorRef.current = zoomFactor;

@@ -1,6 +1,6 @@
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import { threadSupportsProviderHandoff } from "@supaterm/client-runtime/state/thread-workflows";
-import type { ThreadStructure } from "@supaterm/client-runtime/state/models";
+import type { OrchestrationV2ThreadProjection } from "@supaterm/contracts";
 
 type ThreadStartMarkers = Pick<
   EnvironmentThreadShell,
@@ -16,7 +16,7 @@ function threadShellHasStarted(thread: ThreadStartMarkers | null | undefined): b
 
 export function threadAllowsProviderSwitch(input: {
   readonly thread: ThreadStartMarkers | null | undefined;
-  readonly projection: ThreadStructure | null | undefined;
+  readonly projection: OrchestrationV2ThreadProjection | null | undefined;
 }): boolean {
   return input.projection != null
     ? threadSupportsProviderHandoff(input.projection)

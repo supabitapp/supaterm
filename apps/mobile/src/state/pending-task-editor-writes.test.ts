@@ -13,16 +13,6 @@ const harness = vi.hoisted(() => ({
   }>,
 }));
 
-vi.mock("./threads", async () => {
-  const { Atom } = await import("effect/reactivity");
-  const Option = await import("effect/Option");
-  return {
-    environmentThreadDetails: {
-      stateAtom: Atom.family(() => Atom.make({ data: Option.none(), sequence: 0 })),
-    },
-  };
-});
-
 vi.mock("./thread-outbox", async () => {
   const { createThreadOutboxManager } = await import("./thread-outbox-manager");
   const { appAtomRegistry } = await import("./atom-registry");

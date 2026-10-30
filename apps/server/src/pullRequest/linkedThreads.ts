@@ -1,14 +1,13 @@
 import {
   normalizeThreadPullRequestKey,
   threadPullRequestKeysEqual,
-} from "../sourceControl/threadPullRequests.ts";
+} from "@supaterm/shared/threadPullRequests";
 import {
   PullRequestLinkedThreadsResult,
   PullRequestOperationError,
   type ThreadPullRequestKey,
 } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
-import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import * as Schema from "effect/Schema";
 import * as SqlClient from "effect/sql/SqlClient";
 
@@ -40,7 +39,7 @@ export const listLinkedPullRequestThreads = Effect.fn("listLinkedPullRequestThre
         AND json_extract(link.value, '$.source') != 'stack-dismissed'
         AND t.deleted_at IS NULL
       ORDER BY "updatedAt" DESC, id ASC
-    `.pipe(NodeSqliteClient.readOnly);
+    `;
     const threads = rows
       .filter((row) => threadPullRequestKeysEqual(row, key))
       .map(({ id, projectId, title, archivedAt }) => ({ id, projectId, title, archivedAt }));

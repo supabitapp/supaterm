@@ -1,19 +1,9 @@
 import type {
-  CheckpointId,
-  MessageId,
-  NodeId,
-  OrchestrationV2Checkpoint,
   OrchestrationV2DomainEvent,
   OrchestrationV2ContextHandoff,
-  OrchestrationV2Subagent,
   OrchestrationV2ThreadProjection,
-  OrchestrationV2ThreadStreamItem,
   OrchestrationV2TurnItem,
 } from "@supaterm/contracts";
-import {
-  dedupeSubagentBodies,
-  dedupeTurnItemBodies,
-} from "@supaterm/shared/orchestrationV2DedupedBodies";
 import {
   compactDynamicToolOutput,
   omitToolOutputImageData,
@@ -21,7 +11,6 @@ import {
   toolOutputIndicatesFailure,
 } from "@supaterm/shared/toolOutput";
 
-const MAX_WIRE_CHECKPOINT_FILES = 200;
 const MAX_DETAIL_STRING_BYTES = 32_768;
 const MAX_DYNAMIC_VALUE_BYTES = 16_384;
 const MAX_ON_DEMAND_BYTES = 256 * 1024;
@@ -36,7 +25,8 @@ function truncateDetail(
   ) {
     return value;
   }
-
+  // UTF-8 needs at least one byte per UTF-16 code unit. Only encode the prefix
+  // that could fit, rather than allocating a buffer for the complete output.
   const prefix = Buffer.from(value.slice(0, maxBytes), "utf8")
     .subarray(0, maxBytes)
     .toString("utf8")
@@ -44,6 +34,11 @@ function truncateDetail(
   return `${prefix}\n… output truncated for transport`;
 }
 
+/**
+ * Clients never receive more than this (see projectTurnItemForWire), so a full
+ * diff of a large file would only grow the database and the heap that reads it
+ * back.
+ */
 export function boundFileChangeForStorage(item: OrchestrationV2TurnItem): OrchestrationV2TurnItem {
   if (item.type !== "file_change") return item;
   const { diffStr, oldStr, newStr } = item;
@@ -74,6 +69,7 @@ function summarizeDynamicValue(value: unknown): unknown {
     serialized = "Unserializable tool output";
   }
 
+  // Splitting and normalizing every line can allocate far more than the input.
   const start = /\S/u.exec(serialized)?.index;
   let firstLine = start === undefined ? "Large tool output" : "";
   let pendingSpace = false;
@@ -95,57 +91,8 @@ function summarizeDynamicValue(value: unknown): unknown {
   };
 }
 
-type CheckpointFiles = Pick<OrchestrationV2Checkpoint, "files" | "filesTotal">;
-
-const cappedCheckpointFiles = new WeakMap<object, object>();
-
-function capCheckpointFiles<T extends CheckpointFiles>(value: T): T {
-  if (value.files.length <= MAX_WIRE_CHECKPOINT_FILES || value.filesTotal !== undefined) {
-    return value;
-  }
-  const cached = cappedCheckpointFiles.get(value);
-  if (cached !== undefined) return cached as T;
-  let additions = 0;
-  let deletions = 0;
-  for (const file of value.files) {
-    additions += file.additions;
-    deletions += file.deletions;
-  }
-  const capped = {
-    ...value,
-    files: value.files.slice(0, MAX_WIRE_CHECKPOINT_FILES),
-    filesTotal: { count: value.files.length, additions, deletions },
-  };
-  cappedCheckpointFiles.set(value, capped);
-  return capped;
-}
-
-export function capProjectionCheckpointFilesForWire(
-  projection: OrchestrationV2ThreadProjection,
-): OrchestrationV2ThreadProjection {
-  const checkpoints = projection.checkpoints.map(capCheckpointFiles);
-  const turnItems = projection.turnItems.map(capCheckpointItemFiles);
-  const visibleTurnItems = projection.visibleTurnItems.map((row) => {
-    const item = capCheckpointItemFiles(row.item);
-    return item === row.item ? row : { ...row, item };
-  });
-  const unchanged = (next: ReadonlyArray<unknown>, previous: ReadonlyArray<unknown>) =>
-    next.every((value, index) => value === previous[index]);
-  return unchanged(checkpoints, projection.checkpoints) &&
-    unchanged(turnItems, projection.turnItems) &&
-    unchanged(visibleTurnItems, projection.visibleTurnItems)
-    ? projection
-    : { ...projection, checkpoints, turnItems, visibleTurnItems };
-}
-
-function capCheckpointItemFiles(item: OrchestrationV2TurnItem): OrchestrationV2TurnItem {
-  return item.type === "checkpoint" ? capCheckpointFiles(item) : item;
-}
-
 export function projectTurnItemForWire(item: OrchestrationV2TurnItem): OrchestrationV2TurnItem {
   switch (item.type) {
-    case "checkpoint":
-      return capCheckpointFiles(item);
     case "handoff": {
       const { summary: _summary, ...projected } = item;
       return projected;
@@ -214,6 +161,10 @@ function boundDynamicValue(value: unknown): unknown {
     : truncateDetail(json, MAX_ON_DEMAND_BYTES);
 }
 
+/**
+ * When the rest is too large to send whole, its truncated text still comes with
+ * the image markers, in order, so clients can load each image by index.
+ */
 function boundToolOutput(output: unknown): unknown {
   const omitted = omitToolOutputImageData(output);
   const bounded = boundDynamicValue(omitted);
@@ -249,20 +200,8 @@ export function projectTurnItemForDetail(item: OrchestrationV2TurnItem): Orchest
         result:
           item.result === null ? null : (truncateDetail(item.result, MAX_ON_DEMAND_BYTES) ?? null),
       };
-    case "file_change":
-      return {
-        ...projectTurnItemForWire(item),
-        ...(item.diffStr === undefined
-          ? {}
-          : { diffStr: truncateDetail(item.diffStr, MAX_ON_DEMAND_BYTES) }),
-        ...(!item.diffStr?.trim() && item.oldStr !== undefined
-          ? { oldStr: truncateDetail(item.oldStr, MAX_ON_DEMAND_BYTES) }
-          : {}),
-        ...(!item.diffStr?.trim() && item.newStr !== undefined
-          ? { newStr: truncateDetail(item.newStr, MAX_ON_DEMAND_BYTES) }
-          : {}),
-      };
     case "handoff":
+    case "file_change":
       return projectTurnItemForWire(item);
     default:
       return item;
@@ -290,7 +229,6 @@ export function projectThreadProjectionForWire(
   };
   return {
     ...projection,
-    checkpoints: projection.checkpoints.map(capCheckpointFiles),
     contextHandoffs: projection.contextHandoffs.map(projectContextHandoffForWire),
     turnItems: projection.turnItems.map(project),
     visibleTurnItems: projection.visibleTurnItems.map((row) => ({
@@ -307,61 +245,5 @@ export function projectDomainEventForWire(
     ? { ...event, payload: projectTurnItemForWire(event.payload) }
     : event.type === "context-handoff.updated"
       ? { ...event, payload: projectContextHandoffForWire(event.payload) }
-      : event.type === "checkpoint.captured"
-        ? { ...event, payload: capCheckpointFiles(event.payload) }
-        : event;
-}
-
-const LIVE_DEDUPE_MEMORY = 32;
-
-function remember<K, V>(memory: Map<K, V>, key: K, value: V): void {
-  memory.delete(key);
-  memory.set(key, value);
-  if (memory.size > LIVE_DEDUPE_MEMORY) memory.delete(memory.keys().next().value as K);
-}
-
-export function makeLiveBodyDeduper(): (
-  item: OrchestrationV2ThreadStreamItem,
-) => OrchestrationV2ThreadStreamItem {
-  const messageText = new Map<MessageId, string>();
-  const checkpointFiles = new Map<CheckpointId, OrchestrationV2Checkpoint["files"]>();
-  const subagents = new Map<NodeId, Pick<OrchestrationV2Subagent, "prompt" | "result">>();
-  const source = {
-    messageText: (id: MessageId) => messageText.get(id),
-    checkpointFiles: (id: CheckpointId) => checkpointFiles.get(id),
-    subagent: (id: NodeId) => subagents.get(id),
-  };
-  const rememberSubagent = ({ id, prompt, result }: OrchestrationV2Subagent) =>
-    remember(subagents, id, { prompt, result });
-  return (item) => {
-    if (item.kind === "snapshot") {
-      const { messages, checkpoints, subagents: records } = item.projection;
-      for (const message of messages) remember(messageText, message.id, message.text);
-      for (const checkpoint of checkpoints)
-        remember(checkpointFiles, checkpoint.id, checkpoint.files);
-      for (const subagent of records) rememberSubagent(subagent);
-      return item;
-    }
-    if (item.kind !== "event") return item;
-    const { event } = item;
-    switch (event.type) {
-      case "message.updated":
-        remember(messageText, event.payload.id, event.payload.text);
-        return item;
-      case "checkpoint.captured":
-        remember(checkpointFiles, event.payload.id, event.payload.files);
-        return item;
-      case "subagent.updated": {
-        const payload = dedupeSubagentBodies(event.payload, subagents.get(event.payload.id));
-        rememberSubagent(event.payload);
-        return payload === event.payload ? item : { ...item, event: { ...event, payload } };
-      }
-      case "turn-item.updated": {
-        const payload = dedupeTurnItemBodies(event.payload, source);
-        return payload === event.payload ? item : { ...item, event: { ...event, payload } };
-      }
-      default:
-        return item;
-    }
-  };
+      : event;
 }

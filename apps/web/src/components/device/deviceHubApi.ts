@@ -32,25 +32,21 @@ export interface DeviceForegroundInfo {
   readonly isReactNative?: boolean;
 }
 
-export interface DeviceHubTarget {
+interface Target {
   readonly access: DeviceHubAccess;
   readonly platform: DevicePlatform;
   readonly deviceId: string;
 }
 
-const vendorBase = (target: DeviceHubTarget) =>
+const vendorBase = (target: Target) =>
   `${target.access.httpBase}${target.platform === "ios" ? "/vendor/serve-sim" : "/vendor/serve-emu"}`;
 
-const hubUrl = (target: DeviceHubTarget, path: string, params?: Record<string, string>) => {
+const hubUrl = (target: Target, path: string, params?: Record<string, string>) => {
   const search = params ? `?${new URLSearchParams(params).toString()}` : "";
   return withDeviceHubQuery(`${vendorBase(target)}${path}${search}`, target.access);
 };
 
-const fetchJson = async (
-  target: DeviceHubTarget,
-  url: string,
-  signal?: AbortSignal,
-): Promise<unknown> => {
+const fetchJson = async (target: Target, url: string, signal?: AbortSignal): Promise<unknown> => {
   const response = await fetch(url, {
     cache: "no-store",
     credentials: target.access.credentials ? "include" : "same-origin",
@@ -100,7 +96,7 @@ const flattenIosAxTree = (roots: ReadonlyArray<unknown>): ReadonlyArray<DeviceAx
 };
 
 export async function fetchDeviceAxTree(
-  target: DeviceHubTarget,
+  target: Target,
   signal?: AbortSignal,
 ): Promise<DeviceAxTree> {
   if (target.platform === "ios") {
@@ -158,7 +154,7 @@ export async function fetchDeviceAxTree(
 }
 
 const openEventSource = (
-  target: DeviceHubTarget,
+  target: Target,
   url: string,
   onMessage: (data: unknown) => void,
 ): (() => void) => {
@@ -172,7 +168,7 @@ const openEventSource = (
 };
 
 export function subscribeDeviceForeground(
-  target: DeviceHubTarget,
+  target: Target,
   onChange: (app: DeviceForegroundInfo | null) => void,
 ): () => void {
   if (target.platform !== "ios") return () => {};
@@ -206,20 +202,8 @@ const toEventLogEntry = (raw: unknown): DeviceEventLogEntry | null => {
   };
 };
 
-export const DEVICE_EVENT_LOG_LIMIT = 100;
-
-/** A reset batch replaces the log; the log keeps the newest entries up to the limit. */
-export function appendDeviceEventLog(
-  current: ReadonlyArray<DeviceEventLogEntry>,
-  incoming: ReadonlyArray<DeviceEventLogEntry>,
-  reset: boolean,
-): ReadonlyArray<DeviceEventLogEntry> {
-  const merged = reset ? [...incoming] : [...current, ...incoming];
-  return merged.length > DEVICE_EVENT_LOG_LIMIT ? merged.slice(-DEVICE_EVENT_LOG_LIMIT) : merged;
-}
-
 export function subscribeDeviceEventLog(
-  target: DeviceHubTarget,
+  target: Target,
   onEvents: (entries: ReadonlyArray<DeviceEventLogEntry>, reset: boolean) => void,
 ): () => void {
   if (target.platform !== "ios") return () => {};

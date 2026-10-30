@@ -405,7 +405,7 @@ function makeReplayCreateHost(controller: MuseReplayController) {
   };
 }
 
-const DEFAULT_MUSE_SETTINGS = Schema.decodeSync(MuseSettings)({ enabled: true });
+const DEFAULT_MUSE_SETTINGS = Schema.decodeUnknownSync(MuseSettings)({ enabled: true });
 
 export function layer(input: {
   readonly scenario: string;
@@ -421,6 +421,7 @@ export function layer(input: {
           settings: DEFAULT_MUSE_SETTINGS,
           environment: input.environment ?? {},
           createHost: input.createHost,
+
           continuationRequests: yield* ProviderContinuationRequests.ProviderContinuationRequests,
         }),
       ];
@@ -436,6 +437,11 @@ export function layer(input: {
   );
 }
 
+/**
+ * Fills a recording's `<workspace>` with what the adapter sends on this host:
+ * the canonical path (macOS /var -> /private/var), which `turn/start` names in
+ * museWorkspaceRoot's form (verbatim on Windows).
+ */
 export const materializeMuseReplayWorkspace = Effect.fn("materializeMuseReplayWorkspace")(
   function* (transcript: ProviderReplayTranscript, workspace: string) {
     const canonical = yield* FileSystem.FileSystem.pipe(

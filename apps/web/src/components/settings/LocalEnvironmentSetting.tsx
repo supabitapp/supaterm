@@ -16,7 +16,8 @@ import { Switch } from "../ui/switch";
 import { SettingsRow } from "./settingsLayout";
 import { searchableSetting } from "./settingsSearch";
 
-// Toggling relaunches desktop; the switch reflects startup state.
+// Toggling relaunches the desktop app, so the switch only reflects the value
+// this process started with; there is no live state to keep in sync.
 export function LocalEnvironmentSetting() {
   const setEnabled = window.desktopBridge?.setLocalEnvironmentEnabled;
   const [enabled] = useState(() => !isLocalEnvironmentDisabled());

@@ -21,6 +21,7 @@ import {
   type ThreadId,
 } from "@supaterm/contracts";
 import * as Cause from "effect/Cause";
+import * as Option from "effect/Option";
 import { AsyncResult } from "effect/reactivity";
 
 import { appAtomRegistry } from "../rpc/atomRegistry";
@@ -30,7 +31,6 @@ import { readEnvironmentScope, useEnvironmentScope } from "./session";
 import { sourceControlEnvironment } from "./sourceControl";
 import { useAtomCommand } from "./use-atom-command";
 import { vcsActionManager, vcsEnvironment } from "./vcs";
-import { suggestAppAccessForRemote } from "../components/sourceControlAppAccessToast";
 
 export type SourceControlActionKind =
   | "init"
@@ -287,17 +287,13 @@ export function useSourceControlPublishRepositoryAction(scope: SourceControlActi
         ),
       );
     }
-    const result = await publishRepository({
+    return publishRepository({
       environmentId: target.environmentId,
       input: {
         cwd: target.cwd,
         ...input,
       },
     });
-    if (result._tag === "Success") {
-      void suggestAppAccessForRemote(target.environmentId, result.value.remoteUrl);
-    }
-    return result;
   };
   return useAction({
     kind: "publishRepository",
@@ -373,14 +369,15 @@ export function readCachedPullRequestResolution(
   if (target.environmentId === null || target.cwd === null || target.reference === null) {
     return null;
   }
-  return AsyncResult.getOrElse(
-    appAtomRegistry.get(
-      gitEnvironment.pullRequestResolution({
-        environmentId: target.environmentId,
-        input: { cwd: target.cwd, reference: target.reference },
-      }),
+  return Option.getOrNull(
+    AsyncResult.value(
+      appAtomRegistry.get(
+        gitEnvironment.pullRequestResolution({
+          environmentId: target.environmentId,
+          input: { cwd: target.cwd, reference: target.reference },
+        }),
+      ),
     ),
-    () => null,
   );
 }
 

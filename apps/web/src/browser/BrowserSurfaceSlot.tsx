@@ -24,11 +24,13 @@ export function BrowserSurfaceSlot(props: {
   // A pane moving to another spot in a split can keep its size, which no resize observer reports.
   const paneLayoutVersion = usePaneLayoutVersion();
   const layoutVersion = `${props.layoutVersion ?? ""}:${paneLayoutVersion ?? ""}`;
+  const elementRef = useRef<HTMLDivElement | null>(null);
   const presentationRef = useRef({ visible, cornerRadius, zIndex, layoutVersion });
   const updateRef = useRef<(() => void) | null>(null);
 
-  // The lease lives as long as this element for one tab, so the ref callback owns it.
-  const attachSurface = (element: HTMLDivElement) => {
+  useLayoutEffect(() => {
+    const element = elementRef.current;
+    if (!element) return;
     let lease = acquireBrowserSurface(tabId, fitSourceContent);
     const update = () => {
       const rect = element.getBoundingClientRect();
@@ -79,13 +81,12 @@ export function BrowserSurfaceSlot(props: {
       if (updateRef.current === update) updateRef.current = null;
       lease.release();
     };
-  };
+  }, [fitSourceContent, tabId]);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- pushes visibility, radius and stacking to the desktop browser surface after layout
   useLayoutEffect(() => {
     presentationRef.current = { visible, cornerRadius, zIndex, layoutVersion };
     updateRef.current?.();
   }, [cornerRadius, layoutVersion, visible, zIndex]);
 
-  return <div ref={attachSurface} className={className} data-browser-surface-slot={tabId} />;
+  return <div ref={elementRef} className={className} data-browser-surface-slot={tabId} />;
 }

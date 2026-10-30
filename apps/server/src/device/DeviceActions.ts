@@ -1,3 +1,10 @@
+/**
+ * serve-sim's preview drives its "Simulator" panel by sending shell commands over a token-gated
+ * socket. Proxying that would hand any environment session arbitrary command execution on the
+ * host, so Supaterm runs the same underlying commands itself, typed per action: `xcrun simctl ui` and
+ * `simctl privacy` for iOS, the `serve-sim-ax-settings` helper that serve-sim bundles for the
+ * accessibility toggles, and `adb shell` for Android.
+ */
 import {
   type DeviceActionInput,
   type DeviceActionType,
@@ -10,7 +17,6 @@ import {
   type DeviceTextSize,
 } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
-import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 
 import type { DeviceHostReady } from "./DeviceHost.ts";
@@ -266,6 +272,8 @@ const runIos = Effect.fn("DeviceActions.runIos")(function* (
       return;
     case "setPermission": {
       if (input.permission === "notifications") {
+        // simctl has no notification permission verb; serve-sim's CLI edits
+        // the BulletinBoard plist for it.
         yield* serveSimPermissions(ready, udid, input);
         return;
       }
@@ -341,16 +349,13 @@ const serveSimPermissions = Effect.fn("DeviceActions.serveSimPermissions")(funct
 const adb = (run: Runner, serial: string, args: ReadonlyArray<string>, operation: string) =>
   run("adb", ["-s", serial, ...args]).pipe(Effect.flatMap(ok(operation)));
 
-const androidShellWord = (value: string) =>
-  /^[\w@%+=:,./-]+$/.test(value) ? value : `'${value.replaceAll("'", "'\\''")}'`;
-
 const runAndroid = Effect.fn("DeviceActions.runAndroid")(function* (
   run: Runner,
   input: DeviceActionInput,
 ) {
   const serial = input.deviceId;
   const shell = (args: ReadonlyArray<string>, operation: string) =>
-    adb(run, serial, ["shell", ...args.map(androidShellWord)], operation);
+    adb(run, serial, ["shell", ...args], operation);
   switch (input.type) {
     case "setAppearance":
       yield* shell(["cmd", "uimode", "night", input.value === "dark" ? "yes" : "no"], "appearance");
@@ -418,6 +423,8 @@ const runAndroid = Effect.fn("DeviceActions.runAndroid")(function* (
       );
       return;
     case "clearLocation":
+      // The emulator has no "clear"; leaving the fix in place is the closest
+      // behavior, so this is a no-op that still refreshes the reading.
       return;
     case "setPermission": {
       const permissions = ANDROID_PERMISSIONS[input.permission];
@@ -429,11 +436,9 @@ const runAndroid = Effect.fn("DeviceActions.runAndroid")(function* (
         });
       }
       const verb = input.decision === "grant" ? "grant" : "revoke";
-      const results = yield* Effect.forEach(permissions, (permission) =>
-        shell(["pm", verb, input.appId, permission], "permission").pipe(Effect.result),
-      );
-      const failure = results.find(Result.isFailure);
-      if (failure && !results.some(Result.isSuccess)) return yield* failure.failure;
+      for (const permission of permissions) {
+        yield* shell(["pm", verb, input.appId, permission], "permission").pipe(Effect.ignore);
+      }
       return;
     }
     case "openUrl":

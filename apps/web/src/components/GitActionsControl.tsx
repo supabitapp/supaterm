@@ -130,8 +130,6 @@ interface GitActionsControlProps {
   onOpenPullRequest?: ((number: number) => void) | undefined;
   displayMode?: "toolbar" | "panel";
   compact?: boolean;
-  showActions?: boolean;
-  showChanges?: boolean;
   onOpenChanges?: () => void;
 }
 
@@ -334,7 +332,6 @@ function GitActionElapsedTime({
 }) {
   const [nowMs, setNowMs] = useState(() => Date.now());
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Owns the elapsed-time interval while a Git action is running.
   useEffect(() => {
     if (startedAtMs === null) {
       return;
@@ -932,8 +929,6 @@ export default function GitActionsControl({
   draftId,
   displayMode = "toolbar",
   compact = false,
-  showActions = true,
-  showChanges = true,
   onOpenChanges,
 }: GitActionsControlProps) {
   const isPanel = displayMode === "panel";
@@ -984,7 +979,6 @@ export default function GitActionsControl({
   const sourceControlScope = { environmentId: activeEnvironmentId, cwd: gitCwd };
   const vcsActionState = useAtomValue(vcsActionManager.stateAtom(sourceControlScope));
   const visibleInlineSuccess = inlineSuccess?.scopeKey === successScopeKey ? inlineSuccess : null;
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Owns the timeout that dismisses the current Git success notice.
   useEffect(() => {
     if (!inlineSuccess) return;
     const timeoutId = window.setTimeout(() => {
@@ -1082,7 +1076,6 @@ export default function GitActionsControl({
     activeDraftThread?.envMode === "worktree" &&
     activeDraftThread.worktreePath === null;
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- persists the draft thread branch when the live git status subscription reports a different branch
   useEffect(() => {
     if (isGitActionRunning || isSelectingWorktreeBase || activeServerThread) {
       return;
@@ -1140,7 +1133,6 @@ export default function GitActionsControl({
       })
     : null;
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Refreshes Git status from window focus and visibility listeners, disposing their debounce timer with the workspace.
   useEffect(() => {
     if (gitCwd === null) {
       return;
@@ -1260,12 +1252,9 @@ export default function GitActionsControl({
     const actionResult = result.value;
     syncThreadBranchAfterGitAction(actionResult);
     if (isPanel) {
-      const createdPullRequest = actionResult.pr.status === "created";
       setInlineSuccess({
-        title: createdPullRequest
-          ? `Created ${changeRequestTerminology.shortLabel}`
-          : actionResult.toast.title,
-        description: createdPullRequest ? null : (actionResult.toast.description ?? null),
+        title: actionResult.toast.title,
+        description: actionResult.toast.description ?? null,
         scopeKey: successScopeKey,
       });
       return;
@@ -1581,8 +1570,7 @@ export default function GitActionsControl({
       ) : null}
       {gitStatusForActions?.refName === null && (
         <p className="px-2 py-1.5 text-xs text-warning">
-          Detached HEAD: create and check out a branch to enable push and{" "}
-          {changeRequestTerminology.singular} actions.
+          Detached HEAD: create and check out a branch to enable push and pull request actions.
         </p>
       )}
       {gitStatusForActions &&
@@ -1600,7 +1588,7 @@ export default function GitActionsControl({
 
   return (
     <>
-      {!showActions ? null : presentation === "menu" ? (
+      {presentation === "menu" ? (
         !isRepo ? (
           <MenuItem
             density={presentation === "menu" ? "touch" : "default"}
@@ -1812,7 +1800,7 @@ export default function GitActionsControl({
         </ActionGroup>
       )}
 
-      {showChanges && isPanel && isRepo ? (
+      {isPanel && isRepo ? (
         <ThreadDetailsControl
           type="button"
           variant="ghost"
@@ -2010,15 +1998,13 @@ export default function GitActionsControl({
         </DialogPopup>
       </Dialog>
 
-      {showActions ? (
-        <PublishRepositoryDialog
-          open={isPublishDialogOpen}
-          onOpenChange={setIsPublishDialogOpen}
-          environmentId={activeEnvironmentId}
-          threadRef={activeThreadRef}
-          gitCwd={gitCwd}
-        />
-      ) : null}
+      <PublishRepositoryDialog
+        open={isPublishDialogOpen}
+        onOpenChange={setIsPublishDialogOpen}
+        environmentId={activeEnvironmentId}
+        threadRef={activeThreadRef}
+        gitCwd={gitCwd}
+      />
 
       <Dialog
         open={pendingDefaultBranchAction !== null}

@@ -376,6 +376,8 @@ impl Collector {
     }
 
     fn process_table(&self) -> Vec<ProcessTableEntry> {
+        // Use a dedicated System so this refresh cannot reset the CPU
+        // baseline tracked by self.system for snapshots.
         let mut process_table_system = System::new();
         process_table_system.refresh_processes_specifics(
             ProcessesToUpdate::All,
@@ -387,6 +389,10 @@ impl Collector {
             .iter()
             .filter_map(|(pid, process)| {
                 let pid = pid.as_u32();
+                // Pid 0 is the kernel idle process on some platforms. The
+                // processTable contract requires positive pids, and one zero
+                // would fail the whole event decode on the server, so drop it
+                // here. It can never be a terminal descendant.
                 if pid == 0 {
                     return None;
                 }
@@ -594,6 +600,9 @@ fn matches_external_identity(
     actual_start_time_ms: u64,
     expected_start_time_ms: Option<u64>,
 ) -> bool {
+    // sysinfo reports process starts at whole-second precision. Normalize the
+    // higher-resolution Electron timestamp to that same bucket instead of
+    // accepting adjacent seconds, which could attach a quickly reused PID.
     expected_start_time_ms.is_none_or(|expected| {
         actual_start_time_ms == expected - (expected % PROCESS_START_TIME_PRECISION_MS)
     })

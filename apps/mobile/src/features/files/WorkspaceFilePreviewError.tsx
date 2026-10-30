@@ -1,4 +1,5 @@
 import type { EnvironmentId } from "@supaterm/contracts";
+import { useCallback } from "react";
 import { View } from "react-native";
 
 import { EmptyState } from "../../components/ui/EmptyState";
@@ -16,10 +17,10 @@ export function WorkspaceFilePreviewError(props: {
   const { environmentId, onRetry } = props;
   const environment = useEnvironmentPresentation(environmentId);
   const retryEnvironment = useAtomCommand(environmentCatalog.retryNow, "environment retry");
-  const retryConnection = () => {
+  const retryConnection = useCallback(() => {
     if (environmentId !== null) void retryEnvironment(environmentId);
     onRetry();
-  };
+  }, [environmentId, onRetry, retryEnvironment]);
 
   if (props.reason === "disconnected") {
     return (

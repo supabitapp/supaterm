@@ -2,10 +2,6 @@ import { usePullRequestConnected } from "./usePullRequestConnected";
 import { useAtomValue } from "@effect/atom-react";
 import { useNavigation } from "@react-navigation/native";
 import type { PullRequestAction, PullRequestDetail } from "@supaterm/contracts";
-import {
-  capitalizeTerm,
-  sourceControlClients,
-} from "@supaterm/client-runtime/source-control-clients";
 import Animated from "react-native-reanimated";
 import { PR_ROW_LAYOUT, PR_DISCLOSURE_ENTER, PR_ROW_EXIT } from "./pullRequestAnimations";
 import { useState } from "react";
@@ -19,11 +15,7 @@ import { PullRequestAgentRow } from "./PullRequestAgentRow";
 import { PullRequestGlyph } from "./pullRequestGlyphs";
 import { composerPullRequests } from "../../state/pull-requests";
 import { useEnvironmentQuery } from "../../state/query";
-import {
-  allowedUpdateMethods,
-  PR_ACTION_ICONS,
-  pullRequestActionLabel,
-} from "./pullRequestActions";
+import { allowedUpdateMethods, PR_ACTION_ICONS, PR_ACTION_LABELS } from "./pullRequestActions";
 import {
   checkStatus,
   pullRequestBranchSummary,
@@ -57,12 +49,10 @@ export function PullRequestStatusMenu(props: RowProps) {
   const action = usePullRequestAction(props.params, props.pr);
   const actions = STATUS_ACTIONS.filter(action.available);
   const status = pullRequestStatus(props.pr);
-  const terminology = sourceControlClients.get(props.pr.provider).changeRequest;
-  const term = capitalizeTerm(terminology.singular);
   const trigger = (
     <Pressable
       accessibilityRole={actions.length ? "button" : undefined}
-      accessibilityLabel={`${term} status, ${status.label}`}
+      accessibilityLabel={`Pull request status, ${status.label}`}
       disabled={!actions.length}
       className="min-h-8 flex-row items-center gap-1.5 active:opacity-70"
     >
@@ -76,10 +66,10 @@ export function PullRequestStatusMenu(props: RowProps) {
   if (!actions.length) return trigger;
   return (
     <Menu
-      title={`${term} status`}
+      title="Pull request status"
       actions={actions.map((id) => ({
         id,
-        title: pullRequestActionLabel(id, terminology),
+        title: PR_ACTION_LABELS[id],
         image: PR_ACTION_ICONS[id],
         attributes: { destructive: id === "close" },
       }))}
@@ -89,14 +79,14 @@ export function PullRequestStatusMenu(props: RowProps) {
         if (selected === "close")
           action.confirm(
             selected,
-            pullRequestActionLabel("close", terminology),
-            `Close this ${terminology.singular} without merging its changes?`,
+            "Close pull request",
+            "Close this pull request without merging its changes?",
           );
         else if (selected === "revert")
           action.confirm(
             selected,
-            pullRequestActionLabel("revert", terminology),
-            `Open a new ${terminology.singular} that reverses these changes?`,
+            "Create revert pull request",
+            "Open a new pull request that reverses these changes?",
           );
         else void action.perform(selected);
       }}
@@ -110,7 +100,6 @@ export function PullRequestChecksRow(props: RowProps) {
   const [expanded, setExpanded] = useState(false);
   const checks = pullRequestChecksSummary(props.pr);
   const action = usePullRequestAction(props.params, props.pr);
-  const definition = sourceControlClients.get(props.pr.provider);
   return (
     <Animated.View layout={PR_ROW_LAYOUT}>
       <PullRequestCardRow
@@ -143,7 +132,7 @@ export function PullRequestChecksRow(props: RowProps) {
                 action.confirm(
                   "approve-workflows",
                   "Approve workflows",
-                  `Allow this ${definition.changeRequest.singular}'s workflows to run? Review the workflow changes first.`,
+                  "Allow this pull request's workflows to run? Review the workflow changes first.",
                 )
               }
             />
@@ -173,7 +162,7 @@ export function PullRequestChecksRow(props: RowProps) {
             icon="arrow.up.right"
             onPress={() =>
               void Linking.openURL(
-                definition.changeRequestChecksUrl?.(props.pr.url) ?? props.pr.url,
+                props.pr.provider === "github" ? `${props.pr.url}/checks` : props.pr.url,
               )
             }
           />

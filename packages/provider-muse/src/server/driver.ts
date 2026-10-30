@@ -22,8 +22,6 @@ import * as ProviderEventLoggers from "@supaterm/provider-core/server/ProviderEv
 import { makeManagedServerProvider } from "@supaterm/provider-core/server/managedProvider";
 import { enrichMuseSnapshot, latestMuseVersion, museMaintenance } from "./maintenance.ts";
 import { makeMuseEnvironment } from "./sdk.ts";
-import { museUsageReader } from "./usage.ts";
-import type * as MuseUsageHome from "./MuseUsageHome.ts";
 import {
   defaultProviderContinuationIdentity,
   type ProviderDriver,
@@ -55,14 +53,9 @@ export type MuseDriverEnv =
   | Path.Path
   | ProviderEventLoggers.ProviderEventLoggers;
 
-export const MuseDriver: ProviderDriver<
-  MuseSettings,
-  MuseDriverEnv,
-  Path.Path | MuseUsageHome.MuseUsageHome
-> = {
+export const MuseDriver: ProviderDriver<MuseSettings, MuseDriverEnv> = {
   driverKind: DRIVER_KIND,
   metadata: { displayName: "Muse Code", supportsMultipleInstances: true },
-  usage: museUsageReader,
   configSchema: MuseSettings,
   defaultConfig: () => decodeMuseSettings({}),
   create: Effect.fn("MuseDriver.create")(function* ({

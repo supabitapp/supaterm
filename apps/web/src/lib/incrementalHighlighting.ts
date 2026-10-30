@@ -9,21 +9,11 @@ import {
 
 import type { DiffThemeName } from "./diffRendering";
 
-export interface HighlightedDocument {
-  type: "root";
-  children: ReturnType<typeof createHastElement>[];
-}
-
-export interface IncrementalHighlightedDocument {
-  (code: string): HighlightedDocument;
-  dispose(): void;
-}
-
 function highlightedDocument(
   highlighter: DiffsHighlighter,
   themeName: DiffThemeName,
   children: ReturnType<typeof renderTokenLines>,
-): HighlightedDocument {
+) {
   const theme = highlighter.getTheme(themeName);
   return {
     type: "root" as const,
@@ -41,12 +31,14 @@ function highlightedDocument(
   };
 }
 
+export type HighlightedDocument = ReturnType<typeof highlightedDocument>;
+
 export function highlightCodeDocument(
   highlighter: DiffsHighlighter,
   code: string,
   language: string,
   theme: DiffThemeName,
-): HighlightedDocument {
+) {
   const { tokens } = highlighter.codeToTokens(code, { lang: language, theme });
   const children = renderTokenLines(tokens, { cacheHtmlStyles: true }).flatMap((line, index) =>
     index === 0 ? [line] : [createTextNodeElement("\n"), line],
@@ -58,7 +50,7 @@ export function createIncrementalHighlightedDocument(
   highlighter: DiffsHighlighter,
   language: string,
   theme: DiffThemeName,
-): IncrementalHighlightedDocument {
+) {
   let stream: DiffsStreamTokenizer | undefined;
   let source = "";
   let completed: ReturnType<typeof renderTokenLines> = [];
@@ -87,7 +79,6 @@ export function createIncrementalHighlightedDocument(
     stream ??= highlighter.createStreamTokenizer({ lang: language, theme });
     const result = stream.enqueue(input.slice(source.length));
     if (result instanceof Promise) {
-      void result.catch(() => undefined);
       dispose();
       return highlightCodeDocument(highlighter, code, language, theme);
     }

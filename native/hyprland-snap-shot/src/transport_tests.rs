@@ -1,3 +1,4 @@
+//! Real Wayland socket/FD transport against a private compositor fixture, no desktop access.
 use crate::{
     capture::capture_on,
     protocols::{

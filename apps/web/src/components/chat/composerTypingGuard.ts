@@ -32,14 +32,7 @@ export function updateComposerTypingGuard(
         }
         seen.add(id);
       }
-      return {
-        ...state,
-        seen,
-        held:
-          held.size === state.held.size && [...held].every((id) => state.held.has(id))
-            ? state.held
-            : held,
-      };
+      return { ...state, seen, held };
     }
     case "type":
       return { ...state, lastTypedAt: event.now };
@@ -50,7 +43,7 @@ export function updateComposerTypingGuard(
     case "idle":
       return {
         ...state,
-        held: state.held.size === 0 ? state.held : new Set<string>(),
+        held: new Set<string>(),
         lastTypedAt: -Infinity,
         focused: event.type === "blur" ? false : state.focused,
       };

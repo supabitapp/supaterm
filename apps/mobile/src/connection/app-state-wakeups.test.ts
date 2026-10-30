@@ -13,13 +13,6 @@ describe("mobileApplicationStateWakeup", () => {
     expect(mobileApplicationStateWakeup("inactive", "active")).toBe("application-resumed");
   });
 
-  it("marks only long background returns for route revalidation", () => {
-    expect(mobileApplicationStateWakeup("background", "active", 9999)).toBe("application-resumed");
-    expect(mobileApplicationStateWakeup("background", "active", 10000)).toBe(
-      "application-active-long",
-    );
-  });
-
   it("ignores repeated app-state reports", () => {
     expect(mobileApplicationStateWakeup("active", "active")).toBeNull();
     expect(mobileApplicationStateWakeup("background", "background")).toBeNull();

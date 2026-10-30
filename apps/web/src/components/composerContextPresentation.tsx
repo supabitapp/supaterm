@@ -1,11 +1,6 @@
 import ChatMarkdown from "./ChatMarkdown";
-import { isSvgAttachment } from "@supaterm/shared/image";
 import { ReadOnlySourcePreview } from "./files/AttachmentFilePreview";
-import type {
-  EnvironmentContextRecord,
-  PreviewAnnotationPayload,
-  ThreadContextRecord,
-} from "@supaterm/contracts";
+import type { PreviewAnnotationPayload, ThreadContextRecord } from "@supaterm/contracts";
 import { formatAttachmentSize } from "@supaterm/client-runtime/state/attachments";
 import { videoMimeType } from "@supaterm/shared/video";
 import { MessageCircleIcon, MousePointerClickIcon } from "@supaterm/icons";
@@ -36,7 +31,6 @@ import {
 import type { TerminalContextDraft } from "~/lib/terminalContext";
 import type { ReviewCommentContext } from "~/reviewCommentContext";
 import { ComposerPendingTerminalContextChip } from "./chat/ComposerPendingTerminalContexts";
-import { EnvironmentContextChip } from "./EnvironmentContextChip";
 import { ThreadContextChip } from "./ThreadContextChip";
 import {
   createContextPresentationRegistry,
@@ -65,8 +59,7 @@ export type ComposerDraftContextRecord =
     }
   | { kind: "image"; record: ComposerImageAttachment; upload?: AttachmentUploadState | undefined }
   | { kind: "file"; record: ComposerFileAttachment; upload?: AttachmentUploadState | undefined }
-  | { kind: "thread"; record: ThreadContextRecord }
-  | { kind: "environment"; record: EnvironmentContextRecord };
+  | { kind: "thread"; record: ThreadContextRecord };
 
 export interface ComposerContextActions {
   environmentId: EnvironmentId | null;
@@ -105,7 +98,6 @@ export function composerContextRecordsFromDraft(input: {
   reviewComments?: ReadonlyArray<ReviewCommentContext>;
   previewAnnotations?: ReadonlyArray<PreviewAnnotationPayload>;
   threadContexts?: ReadonlyArray<ThreadContextRecord>;
-  environmentContexts?: ReadonlyArray<EnvironmentContextRecord>;
   images?: ReadonlyArray<ComposerImageAttachment>;
   files?: ReadonlyArray<ComposerFileAttachment>;
   uploadsByImageId?: Readonly<Record<string, AttachmentUploadState>>;
@@ -141,9 +133,6 @@ export function composerContextRecordsFromDraft(input: {
   }
   for (const record of input.threadContexts ?? []) {
     records.set(record.contextId, { kind: "thread", record });
-  }
-  for (const record of input.environmentContexts ?? []) {
-    records.set(record.contextId, { kind: "environment", record });
   }
   return records;
 }
@@ -234,15 +223,6 @@ function FileContextChip(props: {
   return (
     <FileChip
       name={props.record.name}
-      svgPreview={
-        isSvgAttachment(props.record)
-          ? {
-              file: props.record.file,
-              environmentId: props.record.uploadEnvironmentId,
-              attachmentId: props.record.uploadedAttachmentId,
-            }
-          : undefined
-      }
       size={size}
       isVideo={isVideo}
       theme={resolvedTheme}
@@ -373,15 +353,7 @@ const composerContextPresentationRegistry = createContextPresentationRegistry<
   ComposerContextRenderContext,
   ReactElement
 >({
-  requiredKinds: [
-    "image",
-    "file",
-    "terminal",
-    "review-comment",
-    "preview-annotation",
-    "thread",
-    "environment",
-  ],
+  requiredKinds: ["image", "file", "terminal", "review-comment", "preview-annotation", "thread"],
   handlers: [
     {
       kind: "terminal",
@@ -473,16 +445,6 @@ const composerContextPresentationRegistry = createContextPresentationRegistry<
       render: (entry, context) =>
         entry.kind === "thread" ? (
           <ComposerThreadContextChip record={entry.record} />
-        ) : (
-          <UnresolvedContextChip label={context.label} />
-        ),
-    },
-    {
-      kind: "environment",
-      canRender: (entry) => entry.kind === "environment",
-      render: (entry, context) =>
-        entry.kind === "environment" ? (
-          <EnvironmentContextChip record={entry.record} />
         ) : (
           <UnresolvedContextChip label={context.label} />
         ),

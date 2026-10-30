@@ -27,7 +27,6 @@ export function ComposerCommandMenuLayer(props: {
     setPosition(null);
   }
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- positions the menu from the composer's DOM rect, tracking window resize, scroll and ancestor resizes
   useLayoutEffect(() => {
     const anchor = props.anchor;
     if (!anchor) return;

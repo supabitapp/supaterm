@@ -3,6 +3,9 @@ import { defaultInclude, defineConfig } from "vite-plus";
 
 import { isDesktopRuntimeExternalDependency } from "../../scripts/lib/desktop-external-packages.ts";
 
+// The packaged app then installs just those externals, instead of a full
+// production install of apps/desktop's dependency tree next to a server bundle
+// that already carries its own copy of the same libraries.
 const isMainProcessExternal = (id: string) =>
   id === "electron" || id.startsWith("electron/") || isDesktopRuntimeExternalDependency(id);
 const shouldLaunchElectronAfterPack = process.env.SUPATERM_DESKTOP_DEV === "1";
@@ -32,7 +35,7 @@ export default defineConfig({
         dependsOn: ["supaterm#build"],
         cache: false,
       },
-
+      // tsc (tsc-rs) rewrites the tsbuildinfo it reads, which keeps a task out of the cache.
       typecheck: {
         command: "tsc --noEmit",
         cache: { input: [{ auto: true }, "!*.tsbuildinfo"] },
@@ -76,6 +79,7 @@ export default defineConfig({
       },
     },
     {
+      // boot.cjs requires the other two at runtime, so all three stay separate files.
       format: "cjs",
       outDir: "dist-electron",
       dts: false,
@@ -115,6 +119,7 @@ export default defineConfig({
       entry: ["src/preview-pip-preload.ts"],
     },
     {
+      // Sandboxed preloads must be self-contained, without shared runtime chunks.
       format: "cjs",
       outDir: "dist-electron",
       dts: false,
@@ -125,7 +130,8 @@ export default defineConfig({
   ],
   test: {
     include: [...defaultInclude, "../../native/kde-snap-shot/src/*.test.ts"],
-
+    // The Windows lane runs workspace suites concurrently; filesystem-heavy
+    // desktop integration tests can exceed Vitest's 5 second default there.
     testTimeout: 15_000,
     setupFiles: [
       "../../packages/shared/src/testing/longTempDir.ts",

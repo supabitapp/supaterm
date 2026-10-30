@@ -27,11 +27,7 @@ export function resolveProviderInstanceDisplayName(
 }
 
 export function providerInstanceInitials(label: string): string {
-  const words = label
-    .replace(/[^\P{P}'’]+/gu, " ")
-    .split(/\s+/u)
-    .map((word) => word.replace(/^['’]+|['’]+$/gu, ""))
-    .filter(Boolean);
+  const words = label.replace(/[_-]+/g, " ").split(/\s+/u).filter(Boolean);
   if (words.length === 0) return "";
   if (words.length === 1) return Array.from(words[0]!).slice(0, 2).join("").toUpperCase();
   return words

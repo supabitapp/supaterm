@@ -12,6 +12,11 @@ import {
   type RecordingKeyPress,
 } from "./RecordingInput.ts";
 
+/**
+ * Chromium's capture cursor uses native window bounds, which do not follow a
+ * webview's CSS placement or scale. Draw it in the guest's coordinate space
+ * while recording, and make the native cursor transparent to avoid two cursors.
+ */
 export function installRecordingCursor(
   document: Document,
   window: Window,

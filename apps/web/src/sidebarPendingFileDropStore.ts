@@ -2,7 +2,10 @@ import { create } from "zustand";
 
 import type { ScopedThreadRef } from "@supaterm/contracts";
 
-/** Compare both ids; scopedThreadKey can collide when ids contain colons. */
+/**
+ * `scopedThreadKey` joins with `:`, so two distinct refs can collide when an id
+ * itself contains one; drops must never cross threads on that account.
+ */
 export function isSameSidebarThreadRef(a: ScopedThreadRef, b: ScopedThreadRef): boolean {
   return a.environmentId === b.environmentId && a.threadId === b.threadId;
 }

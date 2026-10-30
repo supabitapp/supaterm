@@ -84,13 +84,6 @@ export interface DeviceOpenContext {
 
 export type AgentDaemonEndpoint = Pick<AgentDeviceEndpoint, "baseUrl" | "token">;
 
-export interface AgentDeviceBinding extends AgentDaemonEndpoint {
-  readonly agentDeviceId: string | null;
-  readonly session?: string;
-  readonly stateDir?: string;
-  readonly installDirectory?: string;
-}
-
 /** Where the proxy sends a device hub request, for hosts that serve several upstreams. */
 export interface HubUpstream {
   readonly url: string;
@@ -131,7 +124,10 @@ export interface DeviceOperations {
    */
   readonly agentEndpoint?: (
     deviceId: string,
-  ) => Effect.Effect<AgentDeviceBinding, DeviceHostUnavailableError>;
+  ) => Effect.Effect<
+    AgentDaemonEndpoint & { readonly agentDeviceId: string },
+    DeviceHostUnavailableError
+  >;
   /**
    * Set by hosts that end devices on their own (EAS stops sessions at their
    * limits), so a session on a device the host stops listing is dropped.

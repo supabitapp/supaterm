@@ -20,6 +20,7 @@ final class SupatermPresentationSources {
   }
 
   func view(for identifier: String) -> UIView? {
+    // Use the child bounds, not the wrapper's potentially stretched layout bounds.
     entries[identifier]?.view?.subviews.first
   }
 }
@@ -38,6 +39,7 @@ final class SupatermPresentationSourceView: ExpoView {
   }
 }
 
+/// Sizes the containing React Native modal without replacing UIKit's sheet interaction.
 final class SupatermContextSheetSizeView: ExpoView {
   var contentHeight: CGFloat = 0 {
     didSet { updateSheet() }
@@ -47,7 +49,7 @@ final class SupatermContextSheetSizeView: ExpoView {
 
   override func didMoveToWindow() {
     super.didMoveToWindow()
-
+    // The modal's presentation controller is attached after the content view.
     DispatchQueue.main.async { [weak self] in self?.updateSheet() }
   }
 
@@ -116,6 +118,7 @@ func presentFileShare(
     activity.popoverPresentationController?.sourceRect = source?.bounds
       ?? CGRect(x: origin.bounds.midX, y: origin.bounds.midY, width: 1, height: 1)
   } else {
+    // Let UIKit adapt the remote share scene to the phone, not an anchored popover.
     activity.modalPresentationStyle = .automatic
   }
   presenter.present(activity, animated: true)

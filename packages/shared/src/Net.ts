@@ -44,7 +44,7 @@ export class NetService extends Context.Service<NetService, NetServiceShape>()(
   "@supaterm/shared/Net/NetService",
 ) {}
 
-/** @public */
+/** @public Service construction is part of the canonical Effect module API. */
 export const make = () => {
   const canListenOnHost = (port: number, host: string): Effect.Effect<boolean> =>
     Effect.callback<boolean>((resume) => {

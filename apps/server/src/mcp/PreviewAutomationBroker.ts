@@ -199,14 +199,6 @@ function remoteDetailKind(detail: unknown): RemoteDetailKind {
   }
 }
 
-const readRemoteTimeoutMs = (detail: unknown): number | undefined => {
-  if (typeof detail !== "object" || detail === null || !("timeoutMs" in detail)) return undefined;
-  const timeoutMs = detail.timeoutMs;
-  return typeof timeoutMs === "number" && Number.isInteger(timeoutMs) && timeoutMs > 0
-    ? timeoutMs
-    : undefined;
-};
-
 const MAX_REASON_CHARS = 500;
 
 const classifyResponseError = (
@@ -255,16 +247,11 @@ const classifyResponseError = (
         ...context,
         ...remoteDiagnostics,
       });
-    case "PreviewAutomationTimeoutError": {
-      const remoteTimeoutMs = readRemoteTimeoutMs(error.detail);
+    case "PreviewAutomationTimeoutError":
       return new PreviewAutomationTimeoutError({
         ...context,
         ...remoteDiagnostics,
-        ...(remoteTimeoutMs === undefined
-          ? {}
-          : { timeoutMs: Math.min(context.timeoutMs, remoteTimeoutMs) }),
       });
-    }
     case "PreviewAutomationControlInterruptedError": {
       const reason = decodeControlReason(error.detail);
       return new PreviewAutomationControlInterruptedError({
@@ -655,16 +642,17 @@ export const make = Effect.gen(function* PreviewAutomationBrokerMake() {
         input.updateCurrentTab === false ? timeoutMs : timeoutMs + HOST_RESPONSE_GRACE_MS;
       const result = yield* Deferred.await(deferred).pipe(Effect.timeoutOption(responseTimeoutMs));
       return yield* Option.match(result, {
-        onNone: Effect.fn("PreviewAutomationBroker.responseTimeout")(function* () {
-          // Do not replay actions: the client may have applied them before
-          // becoming unreachable. A background metadata read has a short budget
-          // and changes nothing, so a slow one must not cut the host off from the
-          // agent's next call.
-          if (input.updateCurrentTab !== false) {
-            yield* disconnect(connection.clientId, connection.queue, true);
-          }
-          return yield* new PreviewAutomationTimeoutError(requestContext);
-        }),
+        onNone: () =>
+          Effect.gen(function* () {
+            // Do not replay actions: the client may have applied them before
+            // becoming unreachable. A background metadata read has a short budget
+            // and changes nothing, so a slow one must not cut the host off from the
+            // agent's next call.
+            if (input.updateCurrentTab !== false) {
+              yield* disconnect(connection.clientId, connection.queue, true);
+            }
+            return yield* new PreviewAutomationTimeoutError(requestContext);
+          }),
         onSome: (value) => Effect.succeed(value as A),
       });
     });

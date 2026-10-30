@@ -1,11 +1,21 @@
-/** Worktrees use isolated .supaterm state; ambient SUPATERM_HOME could otherwise select the live userdata database. */
+/**
+ * A linked git worktree gets its own (gitignored) `.supaterm`: feature work in a
+ * throwaway branch must not share a database with the real app, and an ambient
+ * `SUPATERM_HOME` counts as an explicit base dir — flipping the state directory
+ * from `<base>/dev` to `<base>/userdata`, the live production database.
+ */
 
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 
-// Match worktrees/<name>; bare repos and GIT_COMMON_DIR need not use a directory named .git.
+/**
+ * The common dir is not necessarily named `.git`: a worktree of a bare repo
+ * points at `<repo>.git/worktrees/<name>`, and `$GIT_COMMON_DIR` can be
+ * anything. So match on the `worktrees/<name>` tail, which git always uses,
+ * rather than on the name of the directory containing it.
+ */
 const pointsAtLinkedWorktree = (gitFileContents: string, path: Path.Path): boolean => {
   const gitdir = gitFileContents
     .split(/\r?\n/)

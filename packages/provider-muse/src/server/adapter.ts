@@ -1,4 +1,4 @@
-import { MspError, type ProcessExit, type SendUserTurnOptions } from "@muse-code/sdk";
+import { MspError, type SendUserTurnOptions } from "@muse-code/sdk";
 import {
   MUSE_DEFAULT_MODEL,
   ProviderDriverKind,
@@ -30,6 +30,7 @@ import * as Cause from "effect/Cause";
 import * as DateTime from "effect/DateTime";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
 import * as FileSystem from "effect/FileSystem";
 import * as Queue from "effect/Queue";
 import * as Schema from "effect/Schema";
@@ -235,6 +236,11 @@ interface PendingRequest {
   shown: boolean;
 }
 
+/**
+ * Muse 1.4.4 cannot address an inline child session (`session/read` and
+ * `view/subscribe` answer sessionNotFound), so the thread carries the prompt,
+ * live status (on its root node) and result.
+ */
 interface ChildContext {
   readonly childSessionId: string;
   readonly childThreadId: ThreadId;
@@ -281,12 +287,8 @@ export const makeMuseAdapterV2 = Effect.fn("makeMuseAdapterV2")(function* (
   return ProviderAdapter.ProviderAdapterV2.of({
     instanceId: options.instanceId,
     driver: MUSE_PROVIDER,
-    getCapabilities: Effect.fn("MuseAdapter.getCapabilities")(function () {
-      return Effect.succeed(MuseProviderCapabilitiesV2);
-    }),
-    planSelectionTransition: Effect.fn("MuseAdapter.planSelectionTransition")(function () {
-      return Effect.succeed(turnScopedSelectionTransition());
-    }),
+    getCapabilities: () => Effect.succeed(MuseProviderCapabilitiesV2),
+    planSelectionTransition: () => Effect.succeed(turnScopedSelectionTransition()),
     openSession: Effect.fn("MuseAdapterV2.openSession")(function* (
       input: ProviderAdapter.ProviderAdapterV2OpenSessionInput,
     ) {
@@ -392,10 +394,11 @@ export const makeMuseAdapterV2 = Effect.fn("makeMuseAdapterV2")(function* (
         }).pipe(
           Effect.timeout(options.requestTimeoutMs ?? 30_000),
           Effect.catchTags({
-            TimeoutError: Effect.fnUntraced(function* (cause) {
-              yield* eventPermit.withPermits(1)(failHost(cause));
-              return yield* protocolError(`Muse ${method} timed out; its host was closed`, cause);
-            }),
+            TimeoutError: (cause) =>
+              Effect.gen(function* () {
+                yield* eventPermit.withPermits(1)(failHost(cause));
+                return yield* protocolError(`Muse ${method} timed out; its host was closed`, cause);
+              }),
           }),
         );
       const updateSession = Effect.fnUntraced(function* (
@@ -1370,7 +1373,7 @@ export const makeMuseAdapterV2 = Effect.fn("makeMuseAdapterV2")(function* (
                 detail: null,
                 ...(notification ? { notification } : {}),
                 dispatchIfCurrent: (dispatch) =>
-                  wake === held ? Effect.asSome(dispatch) : Effect.succeedNone,
+                  wake === held ? Effect.map(dispatch, Option.some) : Effect.succeed(Option.none()),
                 clearIfCurrent: () =>
                   Effect.sync(() => {
                     if (wake === held) wake = undefined;
@@ -1687,12 +1690,6 @@ export const makeMuseAdapterV2 = Effect.fn("makeMuseAdapterV2")(function* (
           threadId: input.threadId,
           env: environment,
         });
-        const scopeUnit = launch.unit;
-        const stopScope =
-          scopeUnit === undefined ? Effect.void : yield* Effect.cached(agentScope.stop(scopeUnit));
-        yield* Scope.addFinalizer(scope, stopScope);
-        const processExited = yield* Deferred.make<ProcessExit>();
-        yield* Deferred.await(processExited).pipe(Effect.andThen(stopScope), Effect.forkIn(scope));
         const created = yield* Effect.acquireRelease(
           createMuseSdkHostEffect(
             {
@@ -1701,9 +1698,6 @@ export const makeMuseAdapterV2 = Effect.fn("makeMuseAdapterV2")(function* (
               cwd,
               environment,
               runtimeMode: input.runtimePolicy.runtimeMode,
-              onProcessExit: (exit) => {
-                Deferred.doneUnsafe(processExited, Effect.succeed(exit));
-              },
             },
             options.createHost,
           ).pipe(
@@ -1722,12 +1716,7 @@ export const makeMuseAdapterV2 = Effect.fn("makeMuseAdapterV2")(function* (
                 closed = true;
                 hostEpoch++;
               }
-              const close = Effect.tryPromise(() => created.close());
-              yield* (
-                scopeUnit === undefined
-                  ? close
-                  : close.pipe(Effect.interruptible, Effect.timeoutOption("13 seconds"))
-              ).pipe(Effect.ignore);
+              yield* Effect.tryPromise(() => created.close()).pipe(Effect.ignore);
             }),
           { interruptible: true },
         ).pipe(Effect.provideService(Scope.Scope, scope));
@@ -1757,7 +1746,7 @@ export const makeMuseAdapterV2 = Effect.fn("makeMuseAdapterV2")(function* (
               epoch,
             });
         });
-        const reportExit = (exit: ProcessExit) => {
+        void created.exited.then((exit) => {
           if (!closed && epoch === hostEpoch) {
             const reason = created
               .stderrTail?.()
@@ -1771,12 +1760,7 @@ export const makeMuseAdapterV2 = Effect.fn("makeMuseAdapterV2")(function* (
               epoch,
             });
           }
-        };
-        void created.exited.then(reportExit);
-        yield* Deferred.await(processExited).pipe(
-          Effect.tap((exit) => Effect.sync(() => reportExit(exit))),
-          Effect.forkIn(scope),
-        );
+        });
       });
       yield* Effect.addFinalizer(() =>
         Effect.gen(function* () {
@@ -1923,11 +1907,10 @@ export const makeMuseAdapterV2 = Effect.fn("makeMuseAdapterV2")(function* (
         message: ProviderAdapter.ProviderAdapterV2TurnMessage,
       ) {
         const parts: SendUserTurnOptions<unknown>["input"] = [];
-        const text = yield* providerMessageTextWithAttachmentPaths({
+        const text = providerMessageTextWithAttachmentPaths({
           text: message.text,
           attachments: message.attachments,
           resolveAttachmentPath: providerHost.resolveAttachmentPath,
-          resolveExtractedTextPath: providerHost.resolveExtractedTextPath,
         });
         if (text) parts.push({ type: "text", text });
         for (const attachment of message.attachments)

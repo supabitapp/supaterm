@@ -2,10 +2,7 @@ import { toHtml } from "hast-util-to-html";
 import { disposeHighlighter, getSharedHighlighter, type DiffsHighlighter } from "@pierre/diffs";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 
-import { resolveDiffThemeName } from "./diffRendering";
 import { createIncrementalHighlightedDocument } from "./incrementalHighlighting";
-
-const themes = [resolveDiffThemeName("dark"), resolveDiffThemeName("light")];
 
 const samples = {
   typescript: "/* multi\nline comment */\nconst x = `template\n${1 + 2}`;\nconst re = /abc/;\n",
@@ -33,7 +30,7 @@ describe.each(["highlights", "shiki-wasm"] as const)(
     beforeAll(async () => {
       highlighter = await getSharedHighlighter({
         langs: Object.keys(samples) as Array<keyof typeof samples>,
-        themes,
+        themes: ["pierre-dark", "pierre-light"],
         preferredHighlighter: engine,
       });
     });
@@ -41,7 +38,7 @@ describe.each(["highlights", "shiki-wasm"] as const)(
     it.each(Object.entries(samples))(
       "matches full HTML at every streaming prefix in %s",
       (language, code) => {
-        for (const theme of themes) {
+        for (const theme of ["pierre-dark", "pierre-light"] as const) {
           const highlight = createIncrementalHighlightedDocument(highlighter, language, theme);
           for (let end = 0; end <= code.length; end++) {
             const text = code.slice(0, end);
@@ -53,28 +50,6 @@ describe.each(["highlights", "shiki-wasm"] as const)(
         }
       },
     );
-
-    it("handles a rejected async tokenizer while returning the full highlight", async () => {
-      const tokenizer = highlighter.createStreamTokenizer({
-        lang: "typescript",
-        theme: "pierre-dark",
-      });
-      vi.spyOn(tokenizer, "enqueue").mockImplementation(() =>
-        Promise.reject(new Error("tokenizer failed")),
-      );
-      vi.spyOn(highlighter, "createStreamTokenizer").mockReturnValue(tokenizer);
-      const highlight = createIncrementalHighlightedDocument(
-        highlighter,
-        "typescript",
-        "pierre-dark",
-      );
-      const code = "const value = 1;";
-      expect(toHtml(highlight(code))).toBe(
-        highlighter.codeToHtml(code, { lang: "typescript", theme: "pierre-dark" }),
-      );
-      await Promise.resolve();
-      highlight.dispose();
-    });
 
     it("keeps completed lines while a newline-terminated last line grows", () => {
       const completed = "/* open\ncomment */\n";

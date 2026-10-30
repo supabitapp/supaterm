@@ -11,6 +11,8 @@ const MAC_MODIFIER_PAIR_DEVICE_MASKS: Record<SnapShotModifier, readonly [number,
   meta: [0x8, 0x10],
 };
 
+// The CoreGraphics query connects osascript to the window server, which registers it as a
+// foreground app attributed to Supaterm. Go background-only first so it never gets a Dock tile.
 const POLLER_SCRIPT = `
 ObjC.import("AppKit");
 $.NSApplication.sharedApplication.setActivationPolicy($.NSApplicationActivationPolicyProhibited);

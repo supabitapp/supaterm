@@ -111,6 +111,7 @@ describe("DesktopPreReadyPlatform", () => {
           appendSwitchMock.mock.calls.some(([name]) => name === "force-device-scale-factor"),
         );
 
+        // The settings service discards fields it does not own when rewriting its document.
         files.set(settingsPath, JSON.stringify({ linuxPasswordStore: "basic" }));
         commandLine.clear();
         assert.equal(yield* launch, explicitScale);
@@ -164,28 +165,6 @@ describe("DesktopPreReadyPlatform", () => {
           "Icon=/xdg/icons/com.supaterm.desktop.desktop.png",
         );
         assert.isTrue(identity.iconInstalled);
-      }),
-    ).pipe(Effect.ensuring(Effect.sync(() => vi.unstubAllEnvs())));
-  });
-
-  it.effect("points the early portal entry at a configured distribution launcher", () => {
-    vi.stubEnv("VITE_DEV_SERVER_URL", "");
-    vi.stubEnv("XDG_DATA_HOME", "/xdg");
-    vi.stubEnv("APPIMAGE", "/Applications/current.AppImage");
-    vi.stubEnv("SUPATERM_DESKTOP_LAUNCHER_PATH", " /opt/Supaterm Desktop/supaterm ");
-    getSwitchValueMock.mockReturnValue("");
-
-    return Effect.scoped(
-      Effect.gen(function* () {
-        yield* Layer.build(
-          DesktopPreReadyPlatform.layer.pipe(
-            Layer.provide(Layer.succeed(HostProcess.Platform, "linux")),
-          ),
-        );
-        const entry = writeFileSyncMock.mock.calls.find(
-          ([path]) => path === "/xdg/applications/com.supaterm.desktop.desktop",
-        )?.[1];
-        assert.include(entry, 'Exec="/opt/Supaterm Desktop/supaterm" %U');
       }),
     ).pipe(Effect.ensuring(Effect.sync(() => vi.unstubAllEnvs())));
   });

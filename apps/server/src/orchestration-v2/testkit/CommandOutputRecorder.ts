@@ -12,8 +12,10 @@ import * as CommandOutputHub from "../CommandOutputHub.ts";
 import type * as EventSink from "../EventSink.ts";
 import type * as ProjectionStore from "../ProjectionStore.ts";
 
+/** What one command streamed through the hub during a replay. */
 export interface RecordedCommandOutput {
   readonly chunks: number;
+  /** The live tail as a viewer would have seen it. */
   readonly output: TerminalOutputState;
 }
 
@@ -35,15 +37,14 @@ export const layer: Layer.Layer<
       CommandOutputHub.CommandOutputHub,
       CommandOutputHub.CommandOutputHub.of({
         ...hub,
-        append: Effect.fn("CommandOutputHub.CommandOutputHub.append")(function (input) {
-          return Effect.sync(() => {
+        append: (input) =>
+          Effect.sync(() => {
             const previous = recorded.get(input.itemId);
             recorded.set(input.itemId, {
               chunks: (previous?.chunks ?? 0) + 1,
               output: appendTerminalOutput(previous?.output ?? EMPTY_TERMINAL_OUTPUT, input.chunk),
             });
-          }).pipe(Effect.andThen(hub.append(input)));
-        }),
+          }).pipe(Effect.andThen(hub.append(input))),
       }),
     ).pipe(
       Context.add(CommandOutputRecorder, {

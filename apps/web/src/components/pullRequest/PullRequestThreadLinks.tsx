@@ -6,8 +6,8 @@ import { CheckIcon, MessageSquareIcon } from "@supaterm/icons";
 import { useState } from "react";
 import { usePullRequestLinking } from "~/hooks/usePullRequestLinking";
 
-import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
-import { normalizeThreadPullRequestKey } from "@supaterm/client-runtime/thread-pull-requests";
+import { parseChangeRequestUrl } from "~/lib/openPullRequestLink";
+import { normalizeThreadPullRequestKey } from "@supaterm/shared/threadPullRequests";
 import { useProjects, useServerConfigs, useThreadShell, useThreadShells } from "~/state/entities";
 import { pullRequestEnvironment } from "~/state/pullRequests";
 import { useEnvironmentQuery } from "~/state/query";
@@ -43,10 +43,7 @@ function EnabledPullRequestThreadLinks({
   display,
   onPickerOpenChange,
 }: PullRequestThreadLinksProps) {
-  const parsedUrl = sourceControlClients.parseChangeRequestUrl(url);
-  const parsed = parsedUrl?.link ?? null;
-  const term = (parsedUrl?.definition ?? sourceControlClients.get(undefined)).changeRequest
-    .singular;
+  const parsed = parseChangeRequestUrl(url);
   const thread = useThreadShell(threadRef?.environmentId === environmentId ? threadRef : null);
   const currentThreadRef = thread === null ? null : threadRef;
   const linking = usePullRequestLinking(environmentId);
@@ -62,7 +59,8 @@ function EnabledPullRequestThreadLinks({
         })
       : null,
   );
-  // Retain the last count while refresh temporarily clears query data.
+  // Refreshes can briefly clear the query value. Keep the last response so polling
+  // does not hide the linked-thread count between responses.
   const [lastRelations, setLastRelations] = useState(relations.data);
   if (relations.data !== null && relations.data !== lastRelations) {
     setLastRelations(relations.data);
@@ -80,7 +78,7 @@ function EnabledPullRequestThreadLinks({
       const error = squashAtomCommandFailure(result);
       toastManager.add({
         type: "error",
-        title: remove ? `Could not unlink the ${term}` : `Could not link the ${term}`,
+        title: remove ? "Could not unlink the pull request" : "Could not link the pull request",
         description: error instanceof Error ? error.message : String(error),
       });
       return;
@@ -153,7 +151,7 @@ function EnabledPullRequestThreadLinks({
       {display === "picker" ? (
         <Dialog open onOpenChange={onPickerOpenChange}>
           <DialogPopup className="max-w-md" showCloseButton={false}>
-            <DialogTitle className="sr-only">Link {term} to a thread</DialogTitle>
+            <DialogTitle className="sr-only">Link pull request to a thread</DialogTitle>
             <ThreadPicker
               environmentId={environmentId}
               url={url}

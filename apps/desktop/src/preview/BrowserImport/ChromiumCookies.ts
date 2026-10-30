@@ -1,5 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off - `node:crypto` implements the
-
+// OSCrypt primitives Chromium uses; Effect has no equivalent.
 import * as NodeCrypto from "node:crypto";
 
 import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
@@ -26,6 +26,7 @@ import {
   type ImportedCookie,
 } from "./CookieDatabase.ts";
 
+/** OSCrypt's CBC mode uses a fixed IV of 16 spaces rather than a per-record one. */
 const AES_CBC_IV = Buffer.alloc(16, 0x20);
 const AES_GCM_NONCE_LENGTH = 12;
 const AES_GCM_TAG_LENGTH = 16;
@@ -72,6 +73,12 @@ const decodeSchemaVersion = Schema.decodeUnknownEffect(
   Schema.Tuple([Schema.Struct({ value: SchemaVersion })]),
 );
 
+/**
+ * Unspecified is imported as Electron's own `unspecified` rather than pinned to
+ * Lax, so the target browser applies its default just as the source did;
+ * anything unrecognised lands there too, since guessing "none" would widen a
+ * cookie's scope on import.
+ */
 const sameSiteFromColumn = (value: number): ImportedCookie["sameSite"] => {
   if (value === 0) return "no_restriction";
   if (value === 1) return "lax";
@@ -79,12 +86,21 @@ const sameSiteFromColumn = (value: number): ImportedCookie["sameSite"] => {
   return "unspecified";
 };
 
+/**
+ * The microsecond value overflows JavaScript's safe integer range and
+ * `node:sqlite` refuses to narrow it, so the division happens in SQL and this
+ * only ever sees seconds.
+ */
 const WEBKIT_EPOCH_OFFSET_SECONDS = 11_644_473_600;
 const toUnixSeconds = (webkitSeconds: number): number | undefined => {
   if (webkitSeconds <= 0) return undefined;
   return webkitSeconds - WEBKIT_EPOCH_OFFSET_SECONDS;
 };
 
+/**
+ * Chromium >= 127 prefixes the plaintext with SHA-256 of the host key, binding
+ * a cookie to its domain.
+ */
 const stripDomainBinding = (
   plaintext: Buffer,
   domain: string,
@@ -145,12 +161,17 @@ export function decryptChromiumValue(
   const prefix = buffer.subarray(0, 3).toString("latin1");
   const payload = buffer.subarray(3);
 
+  // Windows' legacy v10 format is AES-256-GCM. App-bound records use v20 and
+  // intentionally have no key here, so they fall through as undecryptable.
   if (platform === "win32") {
     return prefix === "v10" && keys.gcmV10
       ? decryptGcm(payload, keys.gcmV10, domain, schemaVersion)
       : null;
   }
 
+  // Chromium retries a failed record with a key derived from an empty
+  // passphrase, because some Linux clients wrote data that way
+  // (crbug.com/1195256).
   if (prefix === "v10") {
     if (!keys.cbcV10) return null;
     return (

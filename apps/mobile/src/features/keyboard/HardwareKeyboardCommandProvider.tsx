@@ -1,6 +1,6 @@
 import * as Dialog from "../../components/ui/Dialog";
 import { StackActions, useNavigation } from "@react-navigation/native";
-import { resolveThreadReferenceCopyTarget } from "@supaterm/client-runtime/thread-reference";
+import { resolveThreadReferenceCopyTarget } from "@supaterm/shared/threadReference";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { resolveThreadForkSource } from "@supaterm/client-runtime/state/thread-workflows";
 import { AuthOrchestrationOperateScope, ThreadId } from "@supaterm/contracts";
@@ -17,12 +17,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { copyThreadReference } from "../../lib/copyThreadReference";
-import { Platform } from "react-native";
-import {
-  firstWorkspaceDetailOpen,
-  workspaceHasColumns,
-} from "../workspace/workspace-selection-store";
+import { tryCopyTextWithHaptic } from "../../lib/copyTextWithHaptic";
 import { suppressKeyboardMotion } from "../../lib/motionInput";
 import { SupatermKeyboardCommands } from "../../native/SupatermKeyboardCommands";
 import { useThreadShell } from "../../state/entities";
@@ -48,7 +43,6 @@ import {
   subscribeToHardwareKeyboardCommandRegistrations,
   type HardwareKeyboardCommand,
 } from "./hardwareKeyboardCommands";
-import { selectWorkspaceDetail } from "../workspace/workspace-detail-selection";
 
 const EMPTY_COPY_FEEDBACK: GitActionProgress = {
   phase: "idle",
@@ -72,6 +66,7 @@ function getRegisteredCommandsSnapshot(): ReadonlySet<HardwareKeyboardCommand> {
   return registeredCommandsSnapshot.commands;
 }
 
+/** Render inside the workspace so palette actions share its navigation and pane state. */
 export function HardwareKeyboardCommandOverlay() {
   return use(CommandPaletteContext);
 }
@@ -96,8 +91,7 @@ export function HardwareKeyboardCommandProvider({
       activeThreadRef === null
         ? null
         : resolveThreadReferenceCopyTarget({
-            threadRef: activeThreadRef,
-            title: activeThread?.title ?? "",
+            threadId: activeThread?.id ?? activeThreadRef.threadId,
             pullRequests: activeThread?.pullRequests,
             linkedPullRequestUrl:
               (activeThread?.linkedPullRequest ?? activeThread?.branchPullRequest)?.url ?? null,
@@ -124,7 +118,6 @@ export function HardwareKeyboardCommandProvider({
       setCopyFeedback(EMPTY_COPY_FEEDBACK);
     }, COPY_FEEDBACK_DISMISS_MS);
   }, []);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the copy feedback timer on unmount
   useEffect(
     () => () => {
       if (copyFeedbackTimerRef.current !== null) {
@@ -202,12 +195,7 @@ export function HardwareKeyboardCommandProvider({
               );
               return;
             }
-            navigation.dispatch(
-              selectWorkspaceDetail({
-                name: "Thread",
-                params: { environmentId, threadId: targetThreadId },
-              }),
-            );
+            navigation.navigate("Thread", { environmentId, threadId: targetThreadId });
           })
           .finally(() => {
             forkInFlight.current = false;
@@ -218,14 +206,16 @@ export function HardwareKeyboardCommandProvider({
       if (command === "copyThreadReference") {
         if (copyTarget === null) return;
         const requestId = ++copyRequestIdRef.current;
-        void copyThreadReference(copyTarget).then((didCopy) => {
+        void tryCopyTextWithHaptic(copyTarget.value, {
+          target: copyTarget.clipboardTarget,
+        }).then((didCopy) => {
           if (requestId !== copyRequestIdRef.current) return;
           showCopyFeedback(
             didCopy
               ? {
                   phase: "success",
                   label: copyTarget.successTitle,
-                  description: copyTarget.description,
+                  description: copyTarget.value,
                 }
               : {
                   phase: "error",
@@ -239,13 +229,11 @@ export function HardwareKeyboardCommandProvider({
 
       if (command === "newTask") {
         void readStartNewTaskDestination(uuidv4()).then((params) =>
-          navigation.dispatch(selectWorkspaceDetail({ name: "Thread", params })),
+          navigation.navigate("Thread", params),
         );
         return;
       }
       if (command === "back") {
-        if (Platform.OS === "ios" && workspaceHasColumns() && firstWorkspaceDetailOpen(navigation))
-          return;
         if (navigation.canGoBack()) {
           navigation.goBack();
         } else {

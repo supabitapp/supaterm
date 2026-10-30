@@ -75,8 +75,8 @@ export const layerFromProviderInstanceRegistry: Layer.Layer<
   Effect.gen(function* () {
     const instances = yield* ProviderInstanceRegistry.ProviderInstanceRegistry;
     return ProviderAdapterRegistryV2.of({
-      get: Effect.fn("ProviderAdapterRegistryV2.get")(function (instanceId) {
-        return instances.getInstance(instanceId).pipe(
+      get: (instanceId) =>
+        instances.getInstance(instanceId).pipe(
           Effect.flatMap((instance) => {
             if (instance === undefined)
               return new ProviderAdapterRegistryLookupError({ instanceId });
@@ -131,13 +131,11 @@ export const layerFromProviderInstanceRegistry: Layer.Layer<
               },
             } satisfies ProviderAdapter.ProviderAdapterV2["Service"]);
           }),
-        );
-      }),
-      list: Effect.fn("ProviderAdapterRegistryV2.list")(function () {
-        return instances.listInstances.pipe(
+        ),
+      list: () =>
+        instances.listInstances.pipe(
           Effect.map((available) => available.map((instance) => instance.instanceId)),
-        );
-      }),
+        ),
       getMetadata: Effect.fn("ProviderAdapterRegistry.getMetadata")(function* (instanceId) {
         const instance = yield* instances.getInstance(instanceId);
         if (instance === undefined) {
@@ -332,3 +330,15 @@ export const makeRegistryFromConfigMap = Effect.fn(
   const entries = yield* buildAdaptersFromConfigMap({ ...input, parentScope });
   return makeRegistry(Array.from(entries.values()).map((entry) => entry.adapter));
 });
+
+export function layerFromDrivers<R>(input: {
+  readonly drivers: ReadonlyArray<AnyProviderAdapterDriver<R>>;
+  readonly configMap: ProviderInstanceConfigMap;
+}): Layer.Layer<ProviderAdapterRegistryV2, ProviderAdapterRegistryBuildError, R> {
+  return Layer.effect(
+    ProviderAdapterRegistryV2,
+    makeRegistryFromConfigMap(input).pipe(
+      Effect.map((registry) => ProviderAdapterRegistryV2.of(registry)),
+    ),
+  ) as Layer.Layer<ProviderAdapterRegistryV2, ProviderAdapterRegistryBuildError, R>;
+}

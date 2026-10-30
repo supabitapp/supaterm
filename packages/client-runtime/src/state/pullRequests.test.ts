@@ -44,7 +44,7 @@ import {
 import * as PullRequestDiffLoader from "./pullRequestDiffHttp.ts";
 import { executeAtomQuery } from "./runtime.ts";
 import { createPullRequestRouter } from "./pullRequestRouting.ts";
-import { PullRequestRoutingPermissions } from "../connection/pullRequestRoutingPermissions.ts";
+import { GitHubRoutingPermissions } from "../connection/githubRoutingPermissions.ts";
 
 const trustedRouting = {
   get: () => Effect.succeed("read-write" as const),
@@ -107,7 +107,7 @@ for (const scenario of [
               input: unknown,
             ) =>
               Effect.gen(function* () {
-                if (local) expect(input).toEqual({ host: "github.com", repository: "acme/web" });
+                if (local) expect(input).toEqual({ host: "github.com" });
                 calls.push(`${name}:identity`);
                 if (
                   local &&
@@ -198,7 +198,7 @@ for (const scenario of [
         ).pipe(
           Effect.provideService(EnvironmentRegistry.EnvironmentRegistry, environmentRegistry),
           Effect.provideService(RpcPermissionGuard, { authorize: () => Effect.void }),
-          Effect.provideService(PullRequestRoutingPermissions, {
+          Effect.provideService(GitHubRoutingPermissions, {
             ...trustedRouting,
             get: () => Effect.succeed(trusted ? "read-write" : "off"),
           }),
@@ -283,7 +283,7 @@ it.effect.each([
           }).pipe(
             Effect.provideService(EnvironmentRegistry.EnvironmentRegistry, environmentRegistry),
             Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor),
-            Effect.provideService(PullRequestRoutingPermissions, trustedRouting),
+            Effect.provideService(GitHubRoutingPermissions, trustedRouting),
           );
         const first = yield* read().pipe(Effect.forkChild);
         yield* Deferred.await(started);
@@ -347,7 +347,7 @@ it.effect.each(["revoked", "disabled"] as const)(
         ).pipe(
           Effect.provideService(EnvironmentRegistry.EnvironmentRegistry, environmentRegistry),
           Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor),
-          Effect.provideService(PullRequestRoutingPermissions, {
+          Effect.provideService(GitHubRoutingPermissions, {
             ...trustedRouting,
             get: () => Effect.sync(() => (trusted ? "read-write" : "off")),
           }),
@@ -415,7 +415,7 @@ it.effect.each(["origin", "alternate"] as const)(
           }).pipe(
             Effect.provideService(EnvironmentRegistry.EnvironmentRegistry, environmentRegistry),
             Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor),
-            Effect.provideService(PullRequestRoutingPermissions, trustedRouting),
+            Effect.provideService(GitHubRoutingPermissions, trustedRouting),
           );
         const first = yield* read().pipe(Effect.forkChild);
         yield* Deferred.await(started);
@@ -479,7 +479,7 @@ it.effect("forgets routed viewed marks when a viewed-files batch fails", () =>
         );
       }).pipe(
         Effect.provideService(EnvironmentRegistry.EnvironmentRegistry, environmentRegistry),
-        Effect.provideService(PullRequestRoutingPermissions, trustedRouting),
+        Effect.provideService(GitHubRoutingPermissions, trustedRouting),
         Effect.provideService(RpcPermissionGuard, { authorize: () => Effect.void }),
         Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor),
       );
@@ -514,7 +514,6 @@ function session(client: WsRpcProtocolClient): RpcSession {
     subscribeServerConfig: (input) => client.subscribeServerConfig(input),
     ready: Effect.void,
     probe: Effect.void,
-    inboundFrames: Effect.succeed(0),
     closed: Effect.never,
   };
 }
@@ -603,110 +602,6 @@ const makeTestRuntime = Effect.fn("makeTestRuntime")(function* (
   return { runtime, atoms, registry, environmentRegistry, supervisor, localSupervisor };
 });
 
-it.effect.each([false, true])(
-  "routes covered and uncovered repositories with their actual account (concurrent: %s)",
-  (concurrent) =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const covered = "acme/covered";
-        const uncovered = "acme/uncovered";
-        const firstStarted = yield* Deferred.make<void>();
-        const secondOriginStarted = yield* Deferred.make<void>();
-        const releaseFirst = yield* Deferred.make<void>();
-        const probes: Array<{ host: string; repository?: string }> = [];
-        const executions: Array<{
-          environment: string;
-          repository: string;
-          accountId: string | undefined;
-        }> = [];
-        const identity = (repository?: string) => ({
-          host: "GitHub.COM",
-          provider: "github",
-          viewer: repository?.toLowerCase() === uncovered ? "personal" : "app",
-          accountId: repository?.toLowerCase() === uncovered ? "202" : "101",
-        });
-        const client = (local: boolean) =>
-          ({
-            [WS_METHODS.pullRequestsRouting]: (input: { repository: string }) =>
-              Effect.gen(function* () {
-                if (input.repository === uncovered)
-                  yield* Deferred.succeed(secondOriginStarted, undefined);
-                return identity(input.repository);
-              }),
-            [WS_METHODS.pullRequestsRoutingIdentity]: (input: {
-              host: string;
-              repository?: string;
-            }) =>
-              Effect.gen(function* () {
-                probes.push(input);
-                if (concurrent && probes.length === 1) {
-                  yield* Deferred.succeed(firstStarted, undefined);
-                  yield* Deferred.await(releaseFirst);
-                }
-                return identity(input.repository);
-              }),
-            [WS_METHODS.pullRequestsSummary]: (input: {
-              repository: string;
-              expectedAccountId?: string;
-            }) =>
-              Effect.gen(function* () {
-                if (local && input.expectedAccountId !== identity(input.repository).accountId)
-                  return yield* new PullRequestOperationError({
-                    operation: "routeIdentity",
-                    detail: "The account does not match the repository credential.",
-                  });
-                executions.push({
-                  environment: local ? "local" : "origin",
-                  repository: input.repository,
-                  accountId: input.expectedAccountId,
-                });
-                return null;
-              }),
-          }) as unknown as WsRpcProtocolClient;
-        const { environmentRegistry, supervisor } = yield* makeTestRuntime(
-          client(false),
-          client(true),
-        );
-        const route = createPullRequestRouter();
-        const read = (repository: string) =>
-          route(WS_METHODS.pullRequestsSummary, {
-            projectId: ProjectId.make("project"),
-            host: "github.com",
-            repository,
-            number: 7,
-          }).pipe(
-            Effect.provideService(EnvironmentRegistry.EnvironmentRegistry, environmentRegistry),
-            Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor),
-            Effect.provideService(PullRequestRoutingPermissions, trustedRouting),
-          );
-        if (concurrent) {
-          const first = yield* read(covered).pipe(Effect.forkChild);
-          yield* Deferred.await(firstStarted);
-          const second = yield* read(uncovered).pipe(Effect.forkChild);
-          yield* Deferred.await(secondOriginStarted);
-          yield* Effect.yieldNow;
-          yield* Deferred.succeed(releaseFirst, undefined);
-          yield* Fiber.join(first);
-          yield* Fiber.join(second);
-        } else {
-          yield* read(covered);
-          yield* read(uncovered);
-        }
-        expect(probes).toEqual([
-          { host: "GitHub.COM", repository: covered },
-          { host: "GitHub.COM", repository: uncovered },
-        ]);
-        expect(executions).toEqual(
-          expect.arrayContaining([
-            { environment: "local", repository: covered, accountId: "101" },
-            { environment: "local", repository: uncovered, accountId: "202" },
-          ]),
-        );
-        expect(executions).toHaveLength(2);
-      }),
-    ),
-);
-
 it.effect.each([
   "default",
   "origin-off",
@@ -784,7 +679,7 @@ it.effect.each([
           ? request
           : request.pipe(
               Effect.provideService(RpcPermissionGuard, { authorize: () => Effect.void }),
-              Effect.provideService(PullRequestRoutingPermissions, {
+              Effect.provideService(GitHubRoutingPermissions, {
                 ...trustedRouting,
                 get: (entry) =>
                   Effect.succeed(
@@ -903,7 +798,7 @@ it.effect.each(
       }).pipe(
         Effect.provideService(EnvironmentRegistry.EnvironmentRegistry, environmentRegistry),
         Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor),
-        Effect.provideService(PullRequestRoutingPermissions, trustedRouting),
+        Effect.provideService(GitHubRoutingPermissions, trustedRouting),
         Effect.provideService(RpcPermissionGuard, { authorize: () => Effect.void }),
       );
       yield* stored === "unavailable"
@@ -966,7 +861,7 @@ it.live.each([undefined, true, false])(
           number: 7,
         }).pipe(
           Effect.provideService(EnvironmentRegistry.EnvironmentRegistry, environmentRegistry),
-          Effect.provideService(PullRequestRoutingPermissions, trustedRouting),
+          Effect.provideService(GitHubRoutingPermissions, trustedRouting),
           Effect.provideService(RpcPermissionGuard, { authorize: () => Effect.void }),
           Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor),
         );
@@ -1062,7 +957,7 @@ it.live(
           expect(invalidations).toContainEqual({ environment: "local", input: {} });
         }).pipe(
           Effect.provideService(EnvironmentRegistry.EnvironmentRegistry, environmentRegistry),
-          Effect.provideService(PullRequestRoutingPermissions, trustedRouting),
+          Effect.provideService(GitHubRoutingPermissions, trustedRouting),
           Effect.provideService(RpcPermissionGuard, { authorize: () => Effect.void }),
           Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor),
         );
@@ -1416,41 +1311,12 @@ it.effect("routes checks through one reader", () =>
         number: 1,
       }).pipe(
         Effect.provideService(EnvironmentRegistry.EnvironmentRegistry, environmentRegistry),
-        Effect.provideService(PullRequestRoutingPermissions, trustedRouting),
+        Effect.provideService(GitHubRoutingPermissions, trustedRouting),
         Effect.provideService(RpcPermissionGuard, { authorize: () => Effect.void }),
         Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor),
       );
       expect(result).toEqual({ state: "open", checks: [] });
       expect(calls).toEqual(["local"]);
-    }),
-  ),
-);
-
-it.effect("shares checks reads across reference property order", () =>
-  Effect.scoped(
-    Effect.gen(function* () {
-      let reads = 0;
-      const client = {
-        [WS_METHODS.pullRequestsSubscribeRefreshes]: () => Stream.never,
-        [WS_METHODS.pullRequestsChecks]: () =>
-          Effect.sync(() => {
-            reads += 1;
-            return { state: "open", checks: [], observedAt: 1_000 };
-          }),
-      } as unknown as WsRpcProtocolClient;
-      const { atoms, registry } = yield* makeTestRuntime(client);
-      const projectId = ProjectId.make("project-1");
-      const row = atoms.checks({
-        environmentId: TARGET.environmentId,
-        input: { host: "github.com", repository: "acme/web", number: 1, projectId },
-      });
-      const panel = atoms.checks({
-        environmentId: TARGET.environmentId,
-        input: { projectId, host: "github.com", repository: "acme/web", number: 1 },
-      });
-      yield* AtomRegistry.getResult(registry, row);
-      yield* AtomRegistry.getResult(registry, panel);
-      expect(reads).toBe(1);
     }),
   ),
 );
@@ -1578,11 +1444,15 @@ it.effect("updates cached labels after successful edits without rereading the ho
       registry.refresh(detail);
       yield* detailRefreshStarted.await;
       expect(registry.get(detail).waiting).toBe(true);
-      expect(AsyncResult.getOrThrow(registry.get(detail)).labels).toEqual([addedLabel]);
+      expect(Option.getOrThrow(AsyncResult.value(registry.get(detail))).labels).toEqual([
+        addedLabel,
+      ]);
       yield* releaseDetailRefresh.open;
       yield* Effect.exit(AtomRegistry.getResult(registry, detail, { suspendOnWaiting: true }));
       expect(AsyncResult.isFailure(registry.get(detail))).toBe(true);
-      expect(AsyncResult.getOrThrow(registry.get(detail)).labels).toEqual([addedLabel]);
+      expect(Option.getOrThrow(AsyncResult.value(registry.get(detail))).labels).toEqual([
+        addedLabel,
+      ]);
       failDetail = false;
       registry.refresh(detail);
       expect(
@@ -1649,7 +1519,7 @@ it.effect("denies a routed write when only the origin has source-control permiss
       }).pipe(
         Effect.provideService(EnvironmentRegistry.EnvironmentRegistry, fixture.environmentRegistry),
         Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, fixture.supervisor),
-        Effect.provideService(PullRequestRoutingPermissions, trustedRouting),
+        Effect.provideService(GitHubRoutingPermissions, trustedRouting),
         Effect.provideService(RpcPermissionGuard, {
           authorize: (id, method, input) =>
             createCommandPermissions(fixture.runtime, method).authorize(
@@ -1706,7 +1576,7 @@ it.effect("publishes the accepted guide run before the follow-up read finishes",
       const result = yield* Effect.promise(() => atoms.generateReviewGuide.run(registry, target));
       expect(result._tag).toBe("Success");
       yield* refreshStarted.await;
-      expect(AsyncResult.getOrElse(registry.get(query), () => null)).toEqual(accepted);
+      expect(Option.getOrNull(AsyncResult.value(registry.get(query)))).toEqual(accepted);
     }),
   ),
 );

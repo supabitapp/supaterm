@@ -58,7 +58,6 @@ export function ThreadTimeline({
     rememberedForActive: peekRememberedThreadTimeline<typeof entries>(activeThreadKey),
     scope: timelineScope,
   });
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Records committed rows in the cross-mount timeline cache used during thread switches.
   useLayoutEffect(() => {
     if (detailLoading || entries.length === 0 || timelineHasEphemeralPreviewUrls(entries)) {
       return;

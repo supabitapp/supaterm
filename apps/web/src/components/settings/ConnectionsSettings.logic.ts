@@ -60,7 +60,11 @@ import {
   resolveDesktopUpdateButtonAction,
 } from "../desktopUpdate.logic";
 
-/** Keep terminal:read with terminal:operate to avoid creating unseen shells on every script run. */
+/**
+ * Operating terminals without being able to list them leaves a client
+ * allocating a fresh shell for every script run it cannot see, so the pairing
+ * form keeps `terminal:read` alongside `terminal:operate`.
+ */
 export function togglePairingScopeSelection(
   current: ReadonlyArray<AuthGrantScope>,
   scope: AuthGrantScope,
@@ -87,6 +91,11 @@ export function canRevokeOtherClients(
 
 type WslEnableBridge = Pick<DesktopBridge, "setWslBackendEnabled" | "setWslDistro" | "setWslOnly">;
 
+/**
+ * A QR code encoding a loopback URL makes the scanning device dial itself, so
+ * loopback endpoints stay copyable from the endpoint menu but are never
+ * offered as QR targets.
+ */
 export function isQrShareableEndpoint(endpoint: AdvertisedEndpoint): boolean {
   return endpoint.status !== "unavailable" && endpoint.reachability !== "loopback";
 }
@@ -117,8 +126,12 @@ export function isWslSettingsRowVisible(input: {
 }
 
 /**
- * Once client/server versions match, this passive Version label follows the sidebar update action,
- * including retryable failures. Rechecks retain downloaded-update labels; `state` is null outside desktop.
+ * Passive label for this machine's Version row once client and server versions
+ * match. The desktop bundles its server, so a pending app update is the only
+ * way it falls behind. Pending states follow the sidebar update control's
+ * action, including retryable failures, so the two never disagree; the sidebar
+ * is where to act. A recheck keeps a downloaded update while `checking`, so it
+ * keeps its label too. `state` is null outside the desktop app.
  */
 export function resolveLocalVersionStatusLabel(state: DesktopUpdateState | null): string {
   if (!state) return "Up to date";
@@ -146,7 +159,10 @@ export function resolveLocalVersionStatusLabel(state: DesktopUpdateState | null)
 
 export type QrEndpointOption = {
   readonly id: string;
-  /** Stable per endpoint type, not unique; used only to match the saved default. */
+  /**
+   * Stable per endpoint *type* (endpointDefaultPreferenceKey). Multiple
+   * endpoints can share one, so it is only used to match the saved default.
+   */
   readonly preferenceKey: string;
   readonly qrShareable: boolean;
 };
@@ -175,7 +191,9 @@ export async function applyWslEnableSelection(input: {
 }): Promise<DesktopWslState> {
   const { bridge, mode, nextDistro, persistedDistro } = input;
 
-  // Stage preferences before enabling; only the final call should relaunch WSL with the complete selection.
+  // Stage every preference before enabling. The desktop only relaunches for
+  // mode/distro changes while WSL is active, so the final enable observes the
+  // complete selection and is the only call that may relaunch.
   await bridge.setWslOnly(mode === "wsl-only");
   if (persistedDistro !== nextDistro) {
     await bridge.setWslDistro(nextDistro);

@@ -1,3 +1,13 @@
+/**
+ * `supaterm pair` - mint a pairing token for an already-running server and print it
+ * as a QR code, without restarting anything.
+ *
+ * Discovery reads the `server-runtime.json` a live server persists next to its
+ * database, then confirms the process is actually answering by fetching its
+ * public environment descriptor. Inside a linked git worktree only the
+ * worktree's own `.supaterm` is checked (matching dev-runner precedence);
+ * otherwise the shared Supaterm home.
+ */
 import {
   type AuthEnvironmentScope,
   AuthStandardClientScopes,
@@ -6,7 +16,7 @@ import {
   ExecutionEnvironmentDescriptor,
   PortSchema,
 } from "@supaterm/contracts";
-import { buildPairingAppLink, buildPairingUrl } from "@supaterm/shared/remote";
+import { buildPairingUrl } from "@supaterm/shared/remote";
 import { relayName } from "@supaterm/shared/relay/name";
 import * as NodeOS from "node:os";
 import { DEFAULT_SIGNAL_EXPORT } from "@supaterm/shared/observability";
@@ -141,10 +151,7 @@ export class ServePortOccupiedError extends Schema.TaggedError<ServePortOccupied
 }
 
 const resolveDirectPairingBaseUrl = (state: PersistedServerRuntimeState): string =>
-  state.devUrl ??
-  resolveHeadlessConnectionString(state.host, state.port, {
-    privateNetworkOnly: state.privateNetworkOnly,
-  });
+  state.devUrl ?? resolveHeadlessConnectionString(state.host, state.port);
 
 export class DevServerNotProxiableError extends Schema.TaggedError<DevServerNotProxiableError>()(
   "DevServerNotProxiableError",
@@ -204,7 +211,6 @@ const formatPairOutput = (input: {
     renderTerminalQrCode(input.pairingUrl),
     "",
     `Pairing URL: ${input.pairingUrl}`,
-    `App link: ${buildPairingAppLink(input.pairingUrl)}`,
     `Token: ${input.token}`,
     `Expires: ${DateTime.formatIso(input.expiresAt)}`,
     ...input.notes.flatMap((note) => ["", `Note: ${note}`]),
@@ -279,7 +285,9 @@ const discoverPairTarget = Effect.fn("pair.discoverPairTarget")(function* (
       if (Option.isNone(state)) {
         continue;
       }
-      // A dead server's port may be reused; do not mint tokens in its old database for another server.
+      // The pid check guards against a dead server's state file whose port
+      // was since reused by a different server: pairing would then mint a
+      // token in the old database while the QR code points at the new server.
       if (!isProcessAlive(state.value.pid)) {
         continue;
       }
@@ -397,6 +405,11 @@ const resolveTailscalePairingBase = Effect.fn("pair.resolveTailscalePairingBase"
       if (existing.descriptor.environmentId !== input.target.descriptor.environmentId) {
         return yield* new ServesOtherEnvironmentError({ servePort: input.servePort });
       }
+      // Matching environment id proves the mapping reaches this server, but
+      // not through which port: for a dev server it may front the backend
+      // (whose /.well-known also answers) while /pair only renders through
+      // the web origin. Reuse as-is for regular servers; fall through and
+      // repoint our own mapping at the web port for dev servers.
       if (input.target.state.devUrl === undefined) {
         return { baseUrl, notes };
       }
@@ -565,10 +578,6 @@ export const pairCommand = Command.make("pair", {
         if (isLoopbackHost(new URL(pairingBaseUrl).hostname)) {
           notes.push(
             "This URL is only reachable from this machine. Re-run with --tailscale, or restart the server with a reachable --host.",
-          );
-        } else if (target.state.privateNetworkOnly) {
-          notes.push(
-            "This URL works only from this machine's local network. From elsewhere, re-run with --tailscale or use Encrypted Relay.",
           );
         }
         if (target.variant === "dev" && target.state.devUrl === undefined) {

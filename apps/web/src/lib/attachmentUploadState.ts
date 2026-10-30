@@ -18,7 +18,10 @@ export type AttachmentUploadState =
       readonly status: "failed";
       readonly environmentId: EnvironmentId;
       readonly reason: string;
-      /** Retry/release deletes this id; never use a persisted draft attachment id. */
+      /**
+       * Retry and release delete it, so it must never carry a draft's persisted
+       * attachment id.
+       */
       readonly attachmentId?: string;
       readonly previous?: ReadyAttachmentUpload;
     };

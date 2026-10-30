@@ -1,3 +1,16 @@
+/**
+ * `supaterm triage` - hand a misbehaving install to the user's own coding agent.
+ *
+ * The command is deliberately thin: it writes a `context.md` with machine facts
+ * (versions, paths, server liveness), then launches claude or codex
+ * interactively, seeded with the playbook from `triagePrompt.ts`. The agent
+ * asks the user what went wrong, investigates, and files the issue; the
+ * harness's own permission prompts gate anything it wants to run. With no
+ * agent CLI installed, the prompt and context are written to disk for the user
+ * to paste into whatever agent they do have. `--print` writes nothing and starts
+ * nothing: it prints the prompt with the context inline, for an agent that is
+ * already running on this machine.
+ */
 // @effect-diagnostics nodeBuiltinImport:off
 import * as NodeChildProcess from "node:child_process";
 import * as NodeReadlinePromises from "node:readline/promises";
@@ -97,13 +110,15 @@ const runInteractiveSession = (input: {
   Effect.callback<number, TriageAgentSpawnError>((resume) => {
     const child = NodeChildProcess.spawn(input.command, [...input.args], {
       cwd: input.cwd,
-      // The Windows desktop launcher supplies terminal input through the reopened console.
+      // The agent reads the user's terminal; under the desktop app's Windows
+      // launcher that is the reopened console, not the (missing) inherited stdin.
       stdio: [interactiveStdin(), "inherit", "inherit"],
       shell: input.shell,
     });
     child.once("error", (cause) =>
       resume(Effect.fail(new TriageAgentSpawnError({ command: input.command, cause }))),
     );
+    // Signal death has no exit code; report failure rather than success.
     child.once("exit", (code, signal) => resume(Effect.succeed(code ?? (signal === null ? 0 : 1))));
   });
 

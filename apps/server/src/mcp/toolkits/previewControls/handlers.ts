@@ -1,5 +1,4 @@
 import * as Effect from "effect/Effect";
-import * as PortDiscovery from "../../../preview/PortScanner.ts";
 import * as Preview from "../../../preview/Manager.ts";
 import { requireThreadMcpCapability } from "../../McpInvocationContext.ts";
 import * as McpToolAccess from "../../McpToolAccess.ts";
@@ -12,13 +11,6 @@ const access = Effect.gen(function* () {
   return { scope, manager: yield* Preview.PreviewManager };
 });
 export const layer = McpToolAccess.toLayer(PreviewControlsToolkit, {
-  supaterm_preview_stop_server: McpToolAccess.writesEnvironment((input) =>
-    Effect.gen(function* () {
-      const discovery = yield* PortDiscovery.PortDiscovery;
-      yield* discovery.stopServer(input);
-      return {};
-    }),
-  ),
   supaterm_preview_list: McpToolAccess.readsAsCaller((input) =>
     Effect.gen(function* () {
       const { scope, manager } = yield* access;

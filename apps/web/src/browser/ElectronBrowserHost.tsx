@@ -1,28 +1,21 @@
 import { parseScopedThreadKey } from "@supaterm/client-runtime/environment";
 import {
   AuthPreviewOperateScope,
-  type DesktopPreviewBridge,
   type DesktopPreviewOpenLinkEvent,
-  type EnvironmentId,
   FILL_PREVIEW_VIEWPORT,
 } from "@supaterm/contracts";
 import { useAtomValue } from "@effect/atom-react";
-import { runAtomCommand } from "@supaterm/client-runtime/state/runtime";
-import { type ComponentProps, useState } from "react";
+import { type ComponentProps, useEffect, useEffectEvent, useState } from "react";
 
 import { primaryEnvironmentIdAtom } from "~/state/primaryEnvironment";
 
 import { isElectron } from "~/env";
 import { useClientSettingsHydrated } from "~/hooks/useSettings";
 import { useDesktopHostedPreviewSessions } from "~/components/preview/usePreviewSession";
-import {
-  readActivePreviewSessions,
-  type ThreadPreviewState,
-  useActivePreviewSessions,
-} from "~/previewStateStore";
-import { appAtomRegistry } from "~/rpc/atomRegistry";
+import { useActivePreviewSessions } from "~/previewStateStore";
 import { previewEnvironment } from "~/state/preview";
 import { useEnvironmentScope } from "~/state/session";
+import { useAtomCommand } from "~/state/use-atom-command";
 
 import { readPreviewAnnotationTheme } from "./annotationTheme";
 import { useBrowserDefaults } from "./browserDefaults";
@@ -32,11 +25,10 @@ import { openUrlInPreview } from "./openFileInPreview";
 import { rendersServerTabNatively } from "./previewRuntime";
 import { previewRuntimeTabId } from "./previewRuntimeTabId";
 
-/** Every session this window renders as a hosted webview, in a fixed (non-display) order. */
-function hostedBrowserSessions(
-  previewByThreadKey: Record<string, ThreadPreviewState>,
-  primaryEnvironmentId: EnvironmentId | null,
-) {
+export function ElectronBrowserHost() {
+  const previewByThreadKey = useActivePreviewSessions();
+  const primaryEnvironmentId = useAtomValue(primaryEnvironmentIdAtom);
+  useDesktopHostedPreviewSessions(primaryEnvironmentId);
   const activeSessions = Object.entries(previewByThreadKey).flatMap(([threadKey, previewState]) => {
     const threadRef = parseScopedThreadKey(threadKey);
     // Only tabs the server backs with this desktop's page render as native webviews.
@@ -57,80 +49,69 @@ function hostedBrowserSessions(
           }))
       : [];
   });
-  // Electron destroys a moved webview's guest, so the render order must not follow the server's
-  // updatedAt order. Any fixed order works; this one is not a display order.
-  return activeSessions.toSorted((left, right) =>
+
+  const sessions = activeSessions.toSorted((left, right) =>
     left.runtimeTabId < right.runtimeTabId ? -1 : left.runtimeTabId > right.runtimeTabId ? 1 : 0,
   );
-}
 
-function startAnnotationThemeSync(preview: DesktopPreviewBridge): () => void {
-  let lastSerializedTheme = "";
-  const syncTheme = () => {
-    const theme = readPreviewAnnotationTheme();
-    const serializedTheme = JSON.stringify(theme);
-    if (serializedTheme === lastSerializedTheme) return;
-    lastSerializedTheme = serializedTheme;
-    void preview.setAnnotationTheme(theme).catch(() => {
-      lastSerializedTheme = "";
+  useEffect(() => {
+    const preview = window.desktopBridge?.preview;
+    if (!preview) return;
+
+    let lastSerializedTheme = "";
+    const syncTheme = () => {
+      const theme = readPreviewAnnotationTheme();
+      const serializedTheme = JSON.stringify(theme);
+      if (serializedTheme === lastSerializedTheme) return;
+      lastSerializedTheme = serializedTheme;
+      void preview.setAnnotationTheme(theme).catch(() => {
+        lastSerializedTheme = "";
+      });
+    };
+    const frameId = window.requestAnimationFrame(syncTheme);
+    const observer = new MutationObserver(syncTheme);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class", "style"],
     });
-  };
-  // App services start before the first paint, when the theme styles may not be applied yet.
-  const frameId = window.requestAnimationFrame(syncTheme);
-  const observer = new MutationObserver(syncTheme);
-  observer.observe(document.documentElement, {
-    attributes: true,
-    attributeFilter: ["class", "style"],
-  });
-  const headObserver = new MutationObserver(syncTheme);
-  headObserver.observe(document.head, {
-    childList: true,
-    subtree: true,
-    characterData: true,
-  });
-  return () => {
-    window.cancelAnimationFrame(frameId);
-    observer.disconnect();
-    headObserver.disconnect();
-  };
-}
+    const headObserver = new MutationObserver(syncTheme);
+    headObserver.observe(document.head, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      observer.disconnect();
+      headObserver.disconnect();
+    };
+  }, []);
 
-function openLinkInPreview({ tabId, url, background }: DesktopPreviewOpenLinkEvent): void {
-  const source = hostedBrowserSessions(
-    readActivePreviewSessions(),
-    appAtomRegistry.get(primaryEnvironmentIdAtom),
-  ).find((session) => session.runtimeTabId === tabId);
-  if (!source) return;
-  void openUrlInPreview({
-    threadRef: source.threadRef,
-    url,
-    openPreview: (input) => runAtomCommand(appAtomRegistry, previewEnvironment.open, input),
-    profileId: source.snapshot.profileId,
-    background,
-  });
-}
-
-/** App-lifetime listeners for the desktop preview bridge: annotation theme, agent pointer, links. */
-export function startElectronBrowserHost(): () => void {
-  const preview = window.desktopBridge?.preview;
-  if (!preview) return () => {};
-  const disposers = [
-    startAnnotationThemeSync(preview),
-    preview.onPointerEvent((event) => {
+  useEffect(() => {
+    const preview = window.desktopBridge?.preview;
+    if (!preview) return;
+    return preview.onPointerEvent((event) => {
       useBrowserPointerStore.getState().apply(event);
-    }),
-    preview.onOpenLink(openLinkInPreview),
-  ];
-  return () => {
-    for (const dispose of disposers) dispose();
-  };
-}
+    });
+  }, []);
 
-export function ElectronBrowserHost() {
-  const previewByThreadKey = useActivePreviewSessions();
-  const primaryEnvironmentId = useAtomValue(primaryEnvironmentIdAtom);
-  useDesktopHostedPreviewSessions(primaryEnvironmentId);
-  const sessions = hostedBrowserSessions(previewByThreadKey, primaryEnvironmentId);
+  const openPreview = useAtomCommand(previewEnvironment.open, { reportFailure: true });
+  const onOpenLink = useEffectEvent(({ tabId, url, background }: DesktopPreviewOpenLinkEvent) => {
+    const source = sessions.find((session) => session.runtimeTabId === tabId);
+    if (!source) return;
+    void openUrlInPreview({
+      threadRef: source.threadRef,
+      url,
+      openPreview,
+      profileId: source.snapshot.profileId,
+      background,
+    });
+  });
+  useEffect(() => {
+    const preview = window.desktopBridge?.preview;
+    if (!preview) return;
+    return preview.onOpenLink(onOpenLink);
+  }, []);
 
   if (!isElectron) return null;
   return (

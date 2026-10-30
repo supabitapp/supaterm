@@ -1,20 +1,11 @@
-import type { ScopedThreadRef, ServerProviderSkill } from "@supaterm/contracts";
 import { formatProviderSkillDisplayName } from "@supaterm/shared/inlineSkills";
 import { Children, cloneElement, isValidElement, type ReactNode } from "react";
-import { matchInlineSkills } from "@supaterm/shared/inlineSkills";
+import { matchInlineSkills, type InlineSkill } from "@supaterm/shared/inlineSkills";
 
-import { useRightPanelStore } from "~/rightPanelStore";
 import { SKILL_CHIP_ICON_SVG } from "../composerInlineChip";
-import { ContextChipPopover } from "../contextChipParts";
-import { Button } from "../ui/button";
+import { ContextChip, ContextChipLabel } from "../ContextChip";
 
-function SkillInlineText(props: {
-  text: string;
-  skills: ReadonlyArray<
-    Pick<ServerProviderSkill, "name" | "displayName"> & Partial<ServerProviderSkill>
-  >;
-  threadRef: ScopedThreadRef | undefined;
-}) {
+function SkillInlineText(props: { text: string; skills: ReadonlyArray<InlineSkill> }) {
   const nodes: ReactNode[] = [];
   let cursor = 0;
 
@@ -22,20 +13,7 @@ function SkillInlineText(props: {
     if (start > cursor) {
       nodes.push(props.text.slice(cursor, start));
     }
-    nodes.push(
-      <SkillChipPopover
-        key={`${start}:${skill.name}`}
-        label={formatProviderSkillDisplayName(skill)}
-        description={skillPopoverDescription(
-          props.skills.find((candidate) => candidate.name === skill.name) ?? skill,
-        )}
-        copyMarkdown={rawText}
-        onViewInstructions={skillInstructionsOpener(
-          props.threadRef,
-          props.skills.find((candidate) => candidate.name === skill.name) ?? skill,
-        )}
-      />,
-    );
+    nodes.push(<SkillChip key={`${start}:${skill.name}`} skill={skill} rawText={rawText} />);
     cursor = end;
   }
 
@@ -50,14 +28,11 @@ function SkillInlineText(props: {
 
 export function renderSkillInlineMarkdownChildren(
   children: ReactNode,
-  skills: ReadonlyArray<
-    Pick<ServerProviderSkill, "name" | "displayName"> & Partial<ServerProviderSkill>
-  >,
-  threadRef: ScopedThreadRef | undefined,
+  skills: ReadonlyArray<InlineSkill>,
 ): ReactNode {
   return Children.map(children, (child) => {
     if (typeof child === "string") {
-      return <SkillInlineText text={child} skills={skills} threadRef={threadRef} />;
+      return <SkillInlineText text={child} skills={skills} />;
     }
     if (!isValidElement<{ children?: ReactNode; node?: { tagName?: string } }>(child)) {
       return child;
@@ -74,53 +49,17 @@ export function renderSkillInlineMarkdownChildren(
     return cloneElement(
       child,
       undefined,
-      renderSkillInlineMarkdownChildren(child.props.children, skills, threadRef),
+      renderSkillInlineMarkdownChildren(child.props.children, skills),
     );
   });
 }
 
-export function skillPopoverDescription(
-  skill: Pick<ServerProviderSkill, "name"> &
-    Partial<Pick<ServerProviderSkill, "description" | "shortDescription">>,
-) {
-  return skill.description?.trim() || skill.shortDescription?.trim() || null;
-}
-
-export function skillInstructionsOpener(
-  threadRef: ScopedThreadRef | null | undefined,
-  skill:
-    | (Pick<ServerProviderSkill, "name"> & Partial<Pick<ServerProviderSkill, "path">>)
-    | undefined,
-) {
-  if (!threadRef || !skill?.path) return undefined;
-  const path = skill.path;
-  return () => useRightPanelStore.getState().openFile(threadRef, path);
-}
-
-export function SkillChipPopover(props: {
-  label: string;
-  description: string | null | undefined;
-  copyMarkdown?: string | undefined;
-  onViewInstructions: (() => void) | undefined;
-}) {
+function SkillChip(props: { skill: InlineSkill; rawText: string }) {
   return (
-    <ContextChipPopover
-      kind="skill"
-      icon={<SkillChipIcon />}
-      label={props.label}
-      accessibleLabel={`Skill ${props.label}`}
-      {...(props.copyMarkdown !== undefined ? { copyMarkdown: props.copyMarkdown } : {})}
-    >
-      <div className="space-y-3 p-2 text-sm">
-        <p className="font-medium">{props.label}</p>
-        <p>{props.description || "No description is available for this skill."}</p>
-        {props.onViewInstructions ? (
-          <Button variant="outline" size="sm" onClick={props.onViewInstructions}>
-            View instructions
-          </Button>
-        ) : null}
-      </div>
-    </ContextChipPopover>
+    <ContextChip kind="skill" data-markdown-copy={props.rawText}>
+      <SkillChipIcon />
+      <ContextChipLabel>{formatProviderSkillDisplayName(props.skill)}</ContextChipLabel>
+    </ContextChip>
   );
 }
 

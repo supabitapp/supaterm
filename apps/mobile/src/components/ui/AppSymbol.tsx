@@ -5,11 +5,6 @@ import { withUniwind } from "uniwind";
 import { NodeIcon } from "./NodeIcon";
 
 const ANDROID_ICON_BY_SF_SYMBOL = {
-  "face.smiling": IconNodes.SmilePlus,
-  tag: IconNodes.Tag,
-  pause: IconNodes.Columns,
-  "bolt.circle": IconNodes.Zap,
-  "circle.fill": IconNodes.Circle,
   plusminus: IconNodes.Diff,
   "git.pull-request.closed": IconNodes.GitPullRequestClosed,
   "git.pull-request.draft": IconNodes.GitPullRequestDraft,
@@ -204,7 +199,8 @@ export type AppSymbolName =
 
 export type AppSymbolViewProps = Omit<SymbolViewProps, "name"> & { name: AppSymbolName };
 
-const FILLED_OUTLINE_SF_SYMBOLS: ReadonlySet<string> = new Set(["pin.fill", "circle.fill"]);
+// The icon set has no solid variant of these, so the outline is filled to tell the states apart.
+const FILLED_OUTLINE_SF_SYMBOLS: ReadonlySet<string> = new Set(["pin.fill"]);
 
 export function isAppSymbolName(name: string): name is Extract<AppSymbolName, string> {
   return Object.prototype.hasOwnProperty.call(ANDROID_ICON_BY_SF_SYMBOL, name);

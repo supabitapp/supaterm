@@ -12,7 +12,6 @@ import type {
   ScopedThreadRef,
 } from "@supaterm/contracts";
 import { formatAttachmentSize } from "@supaterm/client-runtime/state/attachments";
-import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { videoMimeType } from "@supaterm/shared/video";
 import { Platform, Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -112,7 +111,7 @@ export function ComposerContextSheet(props: {
       : undefined;
   if (record && !("payload" in record) && (record.kind === "image" || record.kind === "file")) {
     const mimeType = videoMimeType(record) ?? record.mimeType;
-    const previewKind = filePreviewKind(record, { richDocuments: false });
+    const previewKind = filePreviewKind(record);
     const resource = {
       _tag: "attachment" as const,
       attachmentId: record.attachmentId,
@@ -184,10 +183,6 @@ export function ComposerContextSheet(props: {
     record?.kind === "review-comment" && "pullRequest" in record
       ? record.pullRequest?.url
       : undefined;
-  const changeRequestTerm = (
-    (pullRequestUrl ? sourceControlClients.findByChangeRequestUrl(pullRequestUrl) : undefined) ??
-    sourceControlClients.get(undefined)
-  ).changeRequest.singular;
   const terminal = record?.kind === "terminal" && !("payload" in record) ? record : null;
   return (
     <Sheet title={terminal?.terminalLabel ?? props.label} onClose={props.onClose}>
@@ -323,9 +318,6 @@ export function ComposerContextSheet(props: {
                 ) : null}
               </View>
             ) : null}
-            {record.kind === "environment" ? (
-              <ContextField label="Machine" value={record.label} />
-            ) : null}
             {record.kind === "skill" ? (
               <View className="gap-3">
                 <ContextField label="Skill" value={record.name} />
@@ -366,12 +358,12 @@ export function ComposerContextSheet(props: {
             onPress={() => {
               props.onClose();
               void openPullRequest(pullRequestUrl).catch(() =>
-                Dialog.alert(`Could not open ${changeRequestTerm}`, "Try again when connected."),
+                Dialog.alert("Could not open pull request", "Try again when connected."),
               );
             }}
             className="rounded-xl bg-subtle p-4"
           >
-            <Text className="text-foreground">Open {changeRequestTerm}</Text>
+            <Text className="text-foreground">Open pull request</Text>
           </Pressable>
         ) : null}
         {props.onOpenAttachment ? (
@@ -384,7 +376,7 @@ export function ComposerContextSheet(props: {
         ) : null}
         {props.onOpenPullRequest && !pullRequestUrl ? (
           <Button
-            label={`Open ${changeRequestTerm}`}
+            label="Open pull request"
             tone="secondary"
             onPress={props.onOpenPullRequest}
             fullWidth

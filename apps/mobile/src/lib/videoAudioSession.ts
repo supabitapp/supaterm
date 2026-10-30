@@ -6,16 +6,22 @@ const nativeControls = requireOptionalNativeModule<{
   releaseVideoAudioSession(): Promise<void>;
 }>("SupatermNativeControls");
 
+// Players report not playing during seeks and buffering stalls, and another
+// player may start right after one stops. Both keep the session.
 const RELEASE_DELAY_MS = 1_000;
 
 let playingCount = 0;
 let releaseTimer: ReturnType<typeof setTimeout> | undefined;
 
-function mediaPlaybackStarted(): void {
+export function mediaPlaybackStarted(): void {
   playingCount += 1;
 }
 
-function mediaPlaybackStopped(): void {
+/**
+ * expo-video activates the iOS playback session but never deactivates it, so interrupted apps (Spotify,
+ * Podcasts) are never told they may resume. In-app audio previews count too, since deactivating stops them.
+ */
+export function mediaPlaybackStopped(): void {
   playingCount -= 1;
   if (playingCount > 0 || Platform.OS !== "ios") return;
   clearTimeout(releaseTimer);
@@ -38,14 +44,14 @@ export function fullscreenVideoClosed(): void {
   for (const listener of fullscreenListeners) listener();
 }
 
-function subscribeFullscreenVideo(listener: () => void): () => void {
+export function subscribeFullscreenVideo(listener: () => void): () => void {
   fullscreenListeners.add(listener);
   return () => {
     fullscreenListeners.delete(listener);
   };
 }
 
-function isFullscreenVideoOpen(): boolean {
+export function isFullscreenVideoOpen(): boolean {
   return fullscreenCount > 0;
 }
 
@@ -54,7 +60,6 @@ export function useFullscreenVideoOpen(): boolean {
 }
 
 export function useMediaAudioSessionHold(active: boolean): void {
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- holds the shared native audio session while media plays and releases it on cleanup
   useEffect(() => {
     if (!active) return;
     mediaPlaybackStarted();

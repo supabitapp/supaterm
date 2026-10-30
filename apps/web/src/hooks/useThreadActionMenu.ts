@@ -1,8 +1,3 @@
-import { canShareWithGuestAtom } from "../components/chat/guestShareAvailability";
-import { resolveThreadReferenceCopyTarget } from "@supaterm/client-runtime/thread-reference";
-import { copyThreadReference } from "../lib/copyThreadReference";
-import { appAtomRegistry } from "../rpc/atomRegistry";
-import { openGuestShareDialog } from "../components/chat/guestShareDialogState";
 import { scopeProjectRef, scopeThreadRef } from "@supaterm/client-runtime/environment";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import { requestCustomSnooze } from "../components/CustomSnoozeDialog";
@@ -24,7 +19,7 @@ import {
 } from "@supaterm/contracts";
 import { useRouter } from "@tanstack/react-router";
 
-import { pickSnoozePreset, resolveSnoozePresets } from "../components/Sidebar.snooze";
+import { resolveSnoozePresets } from "../components/Sidebar.snooze";
 import {
   buildThreadActionMenuItems,
   threadActionRequiresOperate,
@@ -47,7 +42,7 @@ import { threadRuntimeCanArchive } from "@supaterm/client-runtime/state/models";
 import { useCopyToClipboard } from "./useCopyToClipboard";
 import { useNewThreadHandler } from "./useHandleNewThread";
 import { useClientSettings } from "./useSettings";
-import { canTurnThreadIntoProject, useThreadActions } from "./useThreadActions";
+import { useThreadActions } from "./useThreadActions";
 
 function failureToast(title: string, error: unknown) {
   toastManager.add(
@@ -59,11 +54,20 @@ function failureToast(title: string, error: unknown) {
   );
 }
 
-/** Thread menu mutations retain the destination environment and its grants. */
+/**
+ * The per-thread action menu (pin, mark done, snooze, rename, copy, delete…) as
+ * a self-contained hook, for surfaces other than the sidebar row. The chat header
+ * renders it through the native context-menu bridge and the command palette lists
+ * `threadActions` as commands; both dispatch through the same mutations the
+ * sidebar uses.
+ *
+ * Unlike the sidebar, marking done and snoozing here never navigate away: the caller
+ * is acting on the thread they are reading, and ChatView's parked-thread
+ * banner already offers the way back.
+ */
 export function useThreadActionMenu(input: {
   readonly threadRef: ScopedThreadRef | null;
   readonly onStartRename: (threadRef: ScopedThreadRef) => void;
-  readonly onFind?: (threadRef: ScopedThreadRef) => void;
 }) {
   const { threadRef, onStartRename } = input;
   const router = useRouter();
@@ -76,7 +80,6 @@ export function useThreadActionMenu(input: {
     primaryEnvironmentId,
   });
   const {
-    turnThreadIntoProject,
     markThreadDone,
     reopenThread,
     snoozeThread,
@@ -141,12 +144,7 @@ export function useThreadActionMenu(input: {
       const preset =
         action === "snooze:custom"
           ? await requestCustomSnooze()
-          : pickSnoozePreset(
-              snoozePresets,
-              action.slice("snooze:".length),
-              timestampFormat,
-              threadRef.environmentId,
-            );
+          : snoozePresets.find((candidate) => `snooze:${candidate.id}` === action);
       if (!preset) return;
       const result = await snoozeThread(threadRef, preset.snoozedUntil);
       if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
@@ -164,36 +162,6 @@ export function useThreadActionMenu(input: {
       }
     };
     switch (action) {
-      case "find":
-        input.onFind?.(threadRef);
-        return;
-      case "share-guest":
-        if (appAtomRegistry.get(canShareWithGuestAtom(threadRef.environmentId)))
-          openGuestShareDialog(threadRef);
-        return;
-      case "turn-into-project": {
-        const result = await turnThreadIntoProject(threadRef);
-        if (result._tag === "Success")
-          toastManager.add({
-            type: "success",
-            title: "Project created",
-            description: thread.title,
-          });
-        else if (!isAtomCommandInterrupted(result))
-          failureToast("Could not turn thread into a project", squashAtomCommandFailure(result));
-        return;
-      }
-      case "copy-thread": {
-        const target = resolveThreadReferenceCopyTarget({
-          threadRef,
-          title: thread.title,
-          pullRequests: thread.pullRequests,
-          linkedPullRequestUrl:
-            thread.linkedPullRequest?.url ?? thread.branchPullRequest?.url ?? null,
-        });
-        if (target) await copyThreadReference(target);
-        return;
-      }
       case "project-settings": {
         if (!project) return;
         const projectKey =
@@ -333,16 +301,11 @@ export function useThreadActionMenu(input: {
 
   const threadActions = (thread: EnvironmentThreadShell) => {
     const now = new Date();
-    const snoozePresets = resolveSnoozePresets(now, timestampFormat, thread.environmentId);
+    const snoozePresets = resolveSnoozePresets(now, timestampFormat);
     const isSnoozed = effectiveSnoozed(thread, { now: now.toISOString() });
     return {
       items: buildThreadActionMenuItems({
         canOperate: readEnvironmentScope(thread.environmentId, AuthOrchestrationOperateScope),
-        canFind: input.onFind !== undefined,
-        canTurnIntoProject: canTurnThreadIntoProject(
-          scopeThreadRef(thread.environmentId, thread.id),
-        ),
-        canShareWithGuest: appAtomRegistry.get(canShareWithGuestAtom(thread.environmentId)),
         branch: thread.branch ?? null,
         projectFilter: null,
         isPinned: thread.pinnedAt != null,

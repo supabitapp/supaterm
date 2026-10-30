@@ -88,25 +88,27 @@ export function mergeShellSnapshotProjects(
 
   if (isEnrichment) {
     const nextById = new Map(next.projects.map((project) => [project.id, project] as const));
-    const projects = previous.projects.map((project) => {
-      const candidate = nextById.get(project.id);
-      if (candidate === undefined || candidate.workspaceRoot !== project.workspaceRoot) {
-        return project;
-      }
-      if (resolvedRootSet?.has(project.workspaceRoot) === true) {
-        if (sameRepositoryIdentity(project.repositoryIdentity, candidate.repositoryIdentity)) {
+    return {
+      ...previous,
+      projects: previous.projects.map((project) => {
+        const candidate = nextById.get(project.id);
+        if (candidate === undefined || candidate.workspaceRoot !== project.workspaceRoot) {
           return project;
         }
-        return { ...project, repositoryIdentity: candidate.repositoryIdentity };
-      }
-      if (project.repositoryIdentity == null && candidate.repositoryIdentity != null) {
-        return { ...project, repositoryIdentity: candidate.repositoryIdentity };
-      }
-      return project;
-    });
-    return projects.every((project, index) => project === previous.projects[index])
-      ? previous
-      : { ...previous, projects };
+        if (resolvedRootSet?.has(project.workspaceRoot) === true) {
+          // Refreshes re-resolve every root; an unchanged identity keeps the project's identity
+          // so every subscriber (each pull request row, the sidebar) skips re-rendering.
+          if (sameRepositoryIdentity(project.repositoryIdentity, candidate.repositoryIdentity)) {
+            return project;
+          }
+          return { ...project, repositoryIdentity: candidate.repositoryIdentity };
+        }
+        if (project.repositoryIdentity == null && candidate.repositoryIdentity != null) {
+          return { ...project, repositoryIdentity: candidate.repositoryIdentity };
+        }
+        return project;
+      }),
+    };
   }
 
   const previousById = new Map(previous.projects.map((project) => [project.id, project] as const));

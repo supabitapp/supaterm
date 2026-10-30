@@ -4,7 +4,11 @@ import { nextTerminalId, resolveTerminalSessionLabel } from "@supaterm/shared/te
 import * as Arr from "effect/Array";
 import * as Order from "effect/Order";
 
-export { resolveTerminalSessionLabel } from "@supaterm/shared/terminalLabels";
+export {
+  getTerminalLabel,
+  nextTerminalId,
+  resolveTerminalSessionLabel,
+} from "@supaterm/shared/terminalLabels";
 
 export interface TerminalMenuSession {
   readonly terminalId: string;
@@ -57,6 +61,11 @@ export function getTerminalStatusLabel(input: {
   return "Not started";
 }
 
+/**
+ * Counts the terminal screen already mounted (`activeRouteTerminalId`) as occupied so
+ * an empty session list on the primary route still advances to `term-2` instead of
+ * `replace`-navigating to the same `default` tab.
+ */
 export function nextOpenTerminalId(input: {
   readonly listedTerminalIds: ReadonlyArray<string>;
   readonly activeRouteTerminalId?: string | null;
@@ -105,6 +114,10 @@ export function buildTerminalMenuSessions(input: {
   return Arr.sort(sessionsById.values(), terminalMenuSessionOrder);
 }
 
+/**
+ * Returns null when no other live session remains and the terminal UI should
+ * be dismissed instead.
+ */
 export function previousLiveTerminalId(input: {
   readonly sessions: ReadonlyArray<TerminalMenuSession>;
   readonly exitedTerminalId: string;

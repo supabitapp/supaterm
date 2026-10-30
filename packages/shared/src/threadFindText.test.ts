@@ -1,7 +1,6 @@
 import { EnvironmentId, MessageId, ThreadId } from "@supaterm/contracts";
 import { expect, it } from "vite-plus/test";
 import { serializeAssistantCitation } from "./assistantCitations.ts";
-import { ATTACHMENT_ONLY_BOOTSTRAP_PROMPT } from "./composerContextReferences.ts";
 import { searchableMessageSegments } from "./threadFindText.ts";
 
 it("excludes review attachments rendered as context chips", () => {
@@ -30,16 +29,6 @@ it("excludes structured context chips without joining text across them", () => {
       context: { version: 1, records: [] },
     }),
   ).toEqual(["before", "after"]);
-});
-
-it("excludes the hidden prompt of an attachment-only message", () => {
-  expect(
-    searchableMessageSegments({
-      role: "user",
-      streaming: false,
-      text: ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
-    }),
-  ).toEqual([]);
 });
 
 it("does not upgrade literal legacy tags in messages with structured context", () => {

@@ -7,7 +7,10 @@ export interface ThreadSelectionState {
 
 interface ThreadSelectionStore extends ThreadSelectionState {
   toggleThread: (threadKey: string) => void;
-  /** Requires ordered scoped thread keys from the same project. */
+  /**
+   * Requires the ordered list of scoped thread keys within the same project so the store can
+   * compute which threads fall between anchor and target.
+   */
   rangeSelectTo: (threadKey: string, orderedThreadKeys: readonly string[]) => void;
   clearSelection: () => void;
   removeFromSelection: (threadKeys: readonly string[]) => void;

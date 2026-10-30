@@ -62,7 +62,6 @@ export const planThreadDeletion = Effect.fn("ThreadDeletion.planThreadDeletion")
       ...projection.thread,
       deletedAt: projection.thread.deletedAt ?? now,
       titleRegeneration: null,
-      guestShare: null,
       updatedAt: now,
     },
   });

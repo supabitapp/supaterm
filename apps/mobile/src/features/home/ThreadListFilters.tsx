@@ -8,20 +8,13 @@ import {
   type HomeListFilterMenuSubmenu,
 } from "./home-list-filter-menu";
 
-export const ThreadListFilters = memo(function ThreadListFilters(
-  props: HomeListFilterMenuInput & { readonly gutter?: number },
-) {
+export const ThreadListFilters = memo(function ThreadListFilters(props: HomeListFilterMenuInput) {
   const filters = buildHomeListFilterMenu(props).items.filter((item) => item.type === "submenu");
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerStyle={{
-        paddingHorizontal: props.gutter ?? 16,
-        paddingTop: 2,
-        paddingBottom: 10,
-        gap: 8,
-      }}
+      contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 2, paddingBottom: 10, gap: 8 }}
     >
       {filters.map((filter) => (
         <ThreadListFilterPill key={filter.title} filter={filter} />

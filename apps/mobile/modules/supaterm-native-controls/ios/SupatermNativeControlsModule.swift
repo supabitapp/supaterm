@@ -3,6 +3,8 @@ import ExpoModulesCore
 import Security
 import UIKit
 
+// Expo Modules 2.0: plain members marked @JS are bound by the macro, while the
+// views and main-queue presenters stay in definition(). Both are merged.
 @ExpoModule("SupatermNativeControls")
 public final class SupatermNativeControlsModule: Module {
   private let presentationSources = SupatermPresentationSources()
@@ -10,7 +12,6 @@ public final class SupatermNativeControlsModule: Module {
   private var filePresentation: SupatermNativeFilePresentation?
 
   public func definition() -> ModuleDefinition {
-    Events("videoPlaybackChange")
     Constants {
       if #available(iOS 26.0, *) {
         return [
@@ -35,8 +36,6 @@ public final class SupatermNativeControlsModule: Module {
       ViewName("SidebarTabBar")
       Events("onSelectionChange")
       Prop("selectedIndex") { (view: SupatermSidebarTabBarView, value: Int) in view.selectedIndex = value }
-      Prop("tabs") { (view: SupatermSidebarTabBarView, value: [String]) in view.tabs = value }
-      Prop("selectedTab") { (view: SupatermSidebarTabBarView, value: String) in view.selectedTab = value }
       Prop("selectedColor") { (view: SupatermSidebarTabBarView, value: UIColor) in view.selectedColor = value }
       Prop("appearance") { (view: SupatermSidebarTabBarView, value: String) in view.appearance = value }
     }
@@ -44,10 +43,6 @@ public final class SupatermNativeControlsModule: Module {
     View(SupatermLayoutMetricsView.self) {
       ViewName("LayoutMetrics")
       Events("onMetricsChange")
-    }
-
-    View(SupatermScrollEdgeBleedView.self) {
-      ViewName("ScrollEdgeBleed")
     }
 
     AsyncFunction("presentVideo") { (url: URL, title: String, sourceIdentifier: String, identifier: String, promise: Promise) in
@@ -118,15 +113,20 @@ public final class SupatermNativeControlsModule: Module {
     }.runOnQueue(.main)
   }
 
+  // UIKit presenters are main-actor isolated rather than run on the JS thread
+  // the macro would otherwise pick.
   @JS
   @MainActor
   func dismissVideo(identifier: String) async {
     dismissVideoPresentation(identifier: identifier)
   }
 
+  // expo-video activates the session for inline playback but never deactivates
+  // it. Any other category or mode means another feature (recording) owns it.
   @JS
   @MainActor
   func releaseVideoAudioSession() async {
+    // The fullscreen presentation releases the session in its own teardown.
     guard videoPresentation == nil else { return }
     let session = AVAudioSession.sharedInstance()
     guard session.category == .playback, session.mode == .moviePlayback else { return }
@@ -139,6 +139,8 @@ public final class SupatermNativeControlsModule: Module {
     dismissFilePresentation(identifier: identifier)
   }
 
+  // Rotates the interface without Simulator menu UI scripting, which CI
+  // runners cannot perform (osascript is denied Accessibility access there).
   @JS
   @MainActor
   func applyShowcaseOrientation(orientation: String) async {
@@ -153,6 +155,12 @@ public final class SupatermNativeControlsModule: Module {
     }
   }
 
+  // The geometry request above can fail transiently (for example before the
+  // scene is foreground-active), so callers poll this until it settles.
+  // Screen bounds — not the scene's interface orientation — decide the
+  // answer because they match the captured framebuffer: with iPadOS
+  // windowing active, a floating landscape window still reports a portrait
+  // screen, and screenshots would come out portrait.
   @JS
   @MainActor
   func getInterfaceOrientation() async -> String {
@@ -199,6 +207,8 @@ public final class SupatermNativeControlsModule: Module {
     return launchArgument("--showcaseScene")
   }
 
+  // The palette is fixed for the whole capture, so it only ever arrives as a
+  // launch argument — unlike the scene, which the runner rewrites in place.
   @JS
   func getShowcaseTheme() -> String? {
     launchArgument("--showcaseTheme")
@@ -236,16 +246,10 @@ public final class SupatermNativeControlsModule: Module {
         userInfo: [NSLocalizedDescriptionKey: "The video preview is no longer available."]
       )
     }
-    let presentation = SupatermNativeVideoPresentation(
-      identifier: identifier, url: url, title: title,
-      onPlaybackChange: { [weak self] isPlaying in
-        self?.sendEvent("videoPlaybackChange", ["identifier": identifier, "isPlaying": isPlaying])
-      },
-      completion: { [weak self] error in
-        self?.videoPresentation = nil
-        if let error { promise.reject(error) } else { promise.resolve(nil) }
-      }
-    )
+    let presentation = SupatermNativeVideoPresentation(identifier: identifier, url: url, title: title) { [weak self] error in
+      self?.videoPresentation = nil
+      if let error { promise.reject(error) } else { promise.resolve(nil) }
+    }
     videoPresentation = presentation
     presentation.present(from: presenter, sources: presentationSources, sourceIdentifier: sourceIdentifier)
   }

@@ -13,29 +13,46 @@ import { usePresence } from "../../hooks/usePresence";
 import { animationsSettled } from "../../lib/motion";
 import { Popover, PopoverPopup, PopoverCreateHandle } from "../ui/popover";
 import { selectThreadPanelOpen, useRightPanelStore } from "../../rightPanelStore";
+import type { ThreadPanelPresentation } from "../../rightPanelLayout";
 import { useChatCanvas } from "./ChatCanvasContext";
 import {
   THREAD_DETAILS_CARD_GAP,
   resolveThreadDetailsCardDensity,
+  resolveThreadDetailsCardLayout,
 } from "./threadDetailsCardLayout";
 import { observeResize } from "../../lib/observeResize";
 
 export function ThreadDetailsCard({
   threadRef,
-  contentKey,
   anchor,
   handle,
+  onPresentationChange,
   children,
 }: {
   threadRef: ScopedThreadRef;
-  contentKey?: string;
   anchor: RefObject<Element | null>;
   handle: ReturnType<typeof PopoverCreateHandle>;
+  onPresentationChange: (presentation: ThreadPanelPresentation) => void;
   children: (density: "full" | "compact" | "essential") => ReactNode;
 }) {
   const canvas = useChatCanvas();
-  const preferredPlacement = canvas?.preferredDetailsCard ?? null;
-  const placement = canvas?.detailsCardPlacement ?? null;
+  const preferredPlacement = canvas
+    ? resolveThreadDetailsCardLayout({
+        container: canvas.container,
+        lane: canvas.lane,
+        frame: null,
+        topInset: canvas.detailsCardTopInset,
+      })
+    : null;
+  const placement = canvas
+    ? resolveThreadDetailsCardLayout({
+        container: canvas.container,
+        lane: canvas.lane,
+        frame: canvas.layout.frame,
+        overlapsDetailsCard: canvas.layout.overlapsDetailsCard,
+        topInset: canvas.detailsCardTopInset,
+      })
+    : null;
   const mode = placement ? "inline" : "popover";
   const topInset = canvas?.detailsCardTopInset ?? 0;
   const inlineOpen = useRightPanelStore((state) =>
@@ -46,7 +63,7 @@ export function ThreadDetailsCard({
   );
   const threadKey = `${threadRef.environmentId}:${threadRef.threadId}`;
   const [contentElement, setContentElement] = useState<HTMLDivElement | null>(null);
-  const measurementKey = `${threadKey}:${preferredPlacement?.width ?? "popup"}:${contentKey ?? ""}`;
+  const measurementKey = `${threadKey}:${preferredPlacement?.width ?? "popup"}`;
   const [measurements, setMeasurements] = useState({
     key: measurementKey,
     heights: { full: 0, compact: 0 },
@@ -56,13 +73,28 @@ export function ThreadDetailsCard({
     measurements.key === measurementKey ? measurements.heights : { full: 0, compact: 0 };
   const height = placement?.height ?? Math.max(0, (canvas?.container.height ?? 0) - 52);
   const density = resolveThreadDetailsCardDensity(height, contentHeights);
-  const measureDetailsCard = canvas?.measureDetailsCard;
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- DOM-measured inline placement dismisses the no-longer-visible popover.
+  const reportDetailsCard = canvas?.reportDetailsCard;
+  const cardLeft = preferredPlacement?.x;
+  const cardRight = preferredPlacement
+    ? preferredPlacement.x + preferredPlacement.width
+    : undefined;
+  const cardBottom =
+    preferredPlacement && measurements.key === measurementKey && measurements.fullContentHeight > 0
+      ? preferredPlacement.y + Math.min(measurements.fullContentHeight, preferredPlacement.height)
+      : undefined;
   useLayoutEffect(() => {
+    reportDetailsCard?.(
+      inlineOpen && cardLeft !== undefined && cardRight !== undefined && cardBottom !== undefined
+        ? { left: cardLeft, right: cardRight, bottom: cardBottom }
+        : null,
+    );
+  }, [reportDetailsCard, inlineOpen, cardLeft, cardRight, cardBottom]);
+  useLayoutEffect(() => () => reportDetailsCard?.(null), [reportDetailsCard]);
+  useLayoutEffect(() => {
+    onPresentationChange(mode);
     if (mode === "inline" && popoverOpen)
       useRightPanelStore.getState().setThreadPanelOpen(threadRef, "popover", false);
-  }, [mode, threadRef, popoverOpen]);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Observe the rendered content height after its animations settle to select a fitting density.
+  }, [mode, onPresentationChange, threadRef, popoverOpen]);
   useLayoutEffect(() => {
     const element = contentElement;
     if (!element || density === "essential") return;
@@ -78,12 +110,6 @@ export function ThreadDetailsCard({
       const lists = element.querySelectorAll<HTMLElement>(
         "[data-thread-relationships-panel], [data-thread-details-pr-list]",
       );
-      if (density === "full" && preferredPlacement)
-        measureDetailsCard?.({
-          threadRef,
-          width: preferredPlacement.width,
-          fullContentHeight: next,
-        });
       const fittingHeight =
         next - Array.from(lists).reduce((sum, list) => sum + list.offsetHeight, 0);
       setMeasurements((current) => {
@@ -120,7 +146,7 @@ export function ThreadDetailsCard({
       disposed = true;
       stopObserving();
     };
-  }, [contentElement, density, measurementKey, measureDetailsCard, preferredPlacement, threadRef]);
+  }, [contentElement, density, measurementKey]);
   const renderCard = (motionProps?: PresenceProps) => (
     <div
       {...motionProps}

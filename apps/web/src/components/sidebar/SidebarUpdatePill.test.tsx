@@ -1,7 +1,7 @@
 import type { DesktopUpdateState } from "@supaterm/contracts";
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it } from "vite-plus/test";
 
-import { installLocalUpdate, shouldUseSidebarUpdateReleaseNotesPopover } from "./SidebarUpdatePill";
+import { shouldUseSidebarUpdateReleaseNotesPopover } from "./SidebarUpdatePill";
 
 const nightlyState: DesktopUpdateState = {
   enabled: true,
@@ -31,25 +31,5 @@ describe("sidebar update release notes popover", () => {
     expect(shouldUseSidebarUpdateReleaseNotesPopover({ ...nightlyState, releaseNotes: [] })).toBe(
       false,
     );
-  });
-});
-
-describe("local update installation", () => {
-  it("installs only the downloaded version approved by the track switch", async () => {
-    const approvedVersion = "26.10.29-nightly.2";
-    const reportError = vi.fn();
-    const bridge = {
-      installUpdate: async (expectedVersion?: string) => ({
-        accepted: expectedVersion === approvedVersion,
-        completed: false,
-        state: {
-          ...nightlyState,
-          status: "downloaded" as const,
-          downloadedVersion: approvedVersion,
-        },
-      }),
-    };
-    expect(await installLocalUpdate(bridge, reportError, approvedVersion)).toBe(true);
-    expect(reportError).not.toHaveBeenCalled();
   });
 });

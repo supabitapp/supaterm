@@ -9,6 +9,19 @@ import type * as GitVcsDriver from "./GitVcsDriver.ts";
 
 const INDEX_LIST_MAX_BYTES = 64 * 1024 * 1024;
 
+/**
+ * Removes the linked worktree at `worktreePath` by running `git worktree
+ * remove` through `run`.
+ *
+ * Git for Windows before 2.54 follows NTFS junctions while it deletes a
+ * worktree, and deletes what they point to, such as a shared node_modules.
+ * Later versions skip junctions but leave them, and the folders holding them,
+ * behind. On Windows, Git therefore never deletes the files: this makes the
+ * checks `git worktree remove` makes before deleting (builtin/worktree.c),
+ * deletes the folder with Node's `rm`, which unlinks junctions without
+ * following them, and then has Git drop the now-missing worktree's metadata.
+ * Git elsewhere only unlinks links, so other hosts run Git as before.
+ */
 export const removeLinkedWorktree = Effect.fn("WorktreeRemoval.removeLinkedWorktree")(function* <
   A,
   E,

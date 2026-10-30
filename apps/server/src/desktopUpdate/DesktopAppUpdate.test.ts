@@ -57,9 +57,6 @@ interface HarnessOptions {
   readonly controlFd?: number | undefined;
   readonly reports?: (requestId: string) => readonly DesktopUpdateStatusReport[];
   readonly keepOpen?: boolean;
-  readonly onRequest?: (
-    trackSwitch: DesktopTelemetryReceiver.DesktopTrackSwitch | undefined,
-  ) => void;
 }
 
 const makeHarness = Effect.fn("test.make_desktop_app_update_harness")(function* (
@@ -92,10 +89,9 @@ const makeHarness = Effect.fn("test.make_desktop_app_update_harness")(function* 
     Effect.provide(
       Layer.mergeAll(
         DesktopTelemetryReceiver.layerTest({
-          requestDesktopUpdate: (requestId, trackSwitch) =>
+          requestDesktopUpdate: (requestId) =>
             Effect.sync(() => {
               currentRequestId = requestId;
-              options.onRequest?.(trackSwitch);
             }),
           desktopUpdates: Effect.succeed({
             latest: Option.none<DesktopUpdateStatusReport>(),
@@ -110,22 +106,6 @@ const makeHarness = Effect.fn("test.make_desktop_app_update_harness")(function* 
 });
 
 it.layer(NodeServices.layer)("desktop app update", (it) => {
-  it.effect("forwards the checked track and release to the desktop installer", () =>
-    Effect.gen(function* () {
-      let requested: DesktopTelemetryReceiver.DesktopTrackSwitch | undefined;
-      const { service } = yield* makeHarness({
-        onRequest: (value) => {
-          requested = value;
-        },
-        reports: (requestId) => [report(requestId, makeState(), { outcome: "up-to-date" })],
-      });
-      yield* service.run(() => Effect.void, {
-        channel: "nightly",
-        targetVersion: "1.3.0-nightly.20261029.1",
-      });
-      expect(requested).toEqual({ channel: "nightly", targetVersion: "1.3.0-nightly.20261029.1" });
-    }),
-  );
   it.effect("collapses state reports into progress stages and succeeds on installing", () =>
     Effect.gen(function* () {
       const { service } = yield* makeHarness({

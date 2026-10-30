@@ -63,10 +63,6 @@ on:
         required: false
         default: false
         type: boolean
-      launch_check:
-        required: false
-        default: false
-        type: boolean
       # A runner of the target's own platform and architecture, for a `runner`
       # that cannot execute the target. The build job skips everything that
       # runs the packaged binaries, and a second job runs it there.
@@ -153,19 +149,9 @@ jobs:
           path: ${{ runner.temp }}/pnpm-metadata
 
       - name: Install desktop dependencies
-        uses: ./.github/actions/setup-ci-deps
-        with:
-          cache: false
-          install-args: --filter=@supaterm/desktop... --filter=supaterm... --filter=@supaterm/scripts...
         env:
           pnpm_config_cache_dir: ${{ runner.temp }}/pnpm-metadata
-
-      - name: Reuse dependencies for staged installs
-        id: stage_pnpm
-        shell: bash
-        run: |
-          store=$(vp pm cache dir)
-          echo "store=$(dirname "$store")" >> "$GITHUB_OUTPUT"
+        run: vp install --filter=@supaterm/desktop... --filter=supaterm... --filter=@supaterm/scripts...
 
       - name: Cache resource monitor
         id: resource_monitor_cache
@@ -263,23 +249,6 @@ jobs:
             echo "APPLE_API_KEY=$key_path" >> "$GITHUB_ENV"
           fi
 
-      - name: Download verified target Node.js for the CLI executable
-        if: inputs.cli_archive && inputs.platform == 'win'
-        shell: bash
-        run: |
-          set -euo pipefail
-          version=$(node --input-type=module -e 'import { SEA_NODE_VERSION } from "./apps/server/scripts/seaNodeVersion.ts"; console.log(SEA_NODE_VERSION);')
-          name="node-v$version-win-$INPUTS_ARCH"
-          dir="$RUNNER_TEMP/node-download"
-          dest="${XDG_CACHE_HOME:-$HOME/.cache}/tsdown/node/v$version/win-$INPUTS_ARCH"
-          mkdir -p "$dir" "$dest"
-          fetch=(curl -fsSL --retry 5 --retry-all-errors --connect-timeout 10 --speed-limit 102400 --speed-time 30)
-          "${fetch[@]}" -o "$dir/$name.zip" "https://nodejs.org/dist/v$version/$name.zip"
-          "${fetch[@]}" -o "$dir/SHASUMS256.txt" "https://nodejs.org/dist/v$version/SHASUMS256.txt"
-          (cd "$dir" && grep -F " $name.zip" SHASUMS256.txt | sha256sum -c -)
-          unzip -p "$dir/$name.zip" "$name/node.exe" > "$dest/node.exe"
-          test -s "$dest/node.exe"
-
       # build-exe runs the pack on SEA_NODE_VERSION
       # (apps/server/scripts/seaNodeVersion.ts) while the repo stays on the mise
       # Node. Native builds embed that executable; cross-target builds download
@@ -288,7 +257,8 @@ jobs:
         if: inputs.cli_archive
         shell: bash
         env:
-          VP_DOWNLOAD_TIMEOUT: "120"
+          # The executable bundles the server again, so it needs the same stamp
+          # as release.yml's JS bundle.
           SUPATERM_TELEMETRY_CHANNEL: ${{ github.repository == 'supabitapp/supaterm' && inputs.release_channel || 'dev' }}
         run: |
           args=(build-exe --verbose)
@@ -342,21 +312,10 @@ jobs:
           mkdir -p "$target_dir"
           cp "native/resource-monitor/target/${INPUTS_RUST_TARGET}/release/${binary_name}" "$target_dir/$binary_name"
 
-      - uses: ./.github/actions/setup-apt-mirrors
-        if: inputs.platform == 'linux'
-
-      - name: Install patchelf
-        if: inputs.cli_archive && inputs.platform == 'linux'
-        shell: bash
-        run: command -v patchelf || { sudo apt-get update && sudo apt-get install -y patchelf; }
-
       - name: Build CLI archive
         if: inputs.cli_archive
         shell: bash
         env:
-          pnpm_config_cache_dir: ${{ runner.temp }}/pnpm-metadata
-          pnpm_config_store_dir: ${{ steps.stage_pnpm.outputs.store }}
-          pnpm_config_prefer_offline: "true"
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
@@ -384,6 +343,9 @@ jobs:
           name: cli-${{ inputs.platform }}-${{ inputs.arch }}
           path: release-cli/*
           if-no-files-found: error
+
+      - uses: ./.github/actions/setup-apt-mirrors
+        if: inputs.platform == 'linux'
 
       - name: Install Linux desktop build libraries
         if: inputs.platform == 'linux'
@@ -481,8 +443,6 @@ jobs:
         shell: bash
         env:
           pnpm_config_cache_dir: ${{ runner.temp }}/pnpm-metadata
-          pnpm_config_store_dir: ${{ steps.stage_pnpm.outputs.store }}
-          pnpm_config_prefer_offline: "true"
           SUPATERM_DESKTOP_REUSE_RESOURCE_MONITOR: true
           SUPATERM_DESKTOP_REUSE_LINUX_CAPTURE_HELPERS: ${{ steps.capture_helper_cache.outputs.cache-hit == 'true' }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -543,38 +503,6 @@ jobs:
           fi
 
           vp run dist:desktop:artifact "${args[@]}"
-
-      - name: Launch packaged desktop app
-        if: inputs.launch_check
-        shell: bash
-        run: |
-          set -euo pipefail
-          check=(node scripts/smoke-desktop-app.ts --artifacts-dir "$RUNNER_TEMP/desktop-launch-check")
-          if [[ "$INPUTS_PLATFORM" == mac ]]; then
-            mount="$RUNNER_TEMP/desktop-launch-dmg"
-            hdiutil attach -nobrowse -readonly -mountpoint "$mount" "$(ls "$GITHUB_WORKSPACE"/release/*.dmg)"
-            trap 'hdiutil detach "$mount" -force >/dev/null || true' EXIT
-            app=$(ls -d "$mount"/*.app)
-            executable=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$app/Contents/Info.plist")
-            "${check[@]}" --executable "$app/Contents/MacOS/$executable"
-          elif [[ "$INPUTS_PLATFORM" == linux ]]; then
-            sudo apt-get install -y xvfb
-            appimage=$(ls "$GITHUB_WORKSPACE"/release/*.AppImage)
-            chmod +x "$appimage"
-            (cd "$RUNNER_TEMP" && "$appimage" --appimage-extract >/dev/null)
-            xvfb-run -a "${check[@]}" --executable "$RUNNER_TEMP/squashfs-root/supaterm"
-          else
-            echo "Unsupported desktop launch-check platform: $INPUTS_PLATFORM" >&2
-            exit 1
-          fi
-
-      - name: Upload launch check output
-        if: failure() && inputs.launch_check
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: desktop-launch-check-${{ inputs.platform }}-${{ inputs.arch }}
-          path: ${{ runner.temp }}/desktop-launch-check
-          if-no-files-found: ignore
 
       # Nightly builds it too, so a broken installer build fails a nightly
       # before it can fail a stable release, but only stable publishes it.

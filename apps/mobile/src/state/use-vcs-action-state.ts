@@ -1,9 +1,7 @@
 import { useAtomValue } from "@effect/atom-react";
-import { secondTick } from "@supaterm/client-runtime/clock";
 import { type VcsActionState, type VcsActionTarget } from "@supaterm/client-runtime/state/vcs";
 import { Atom } from "effect/reactivity";
-import * as Haptics from "expo-haptics";
-import { useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 
 import { appAtomRegistry } from "./atom-registry";
 import { vcsActionManager } from "./vcs";
@@ -32,12 +30,6 @@ function broadcast(result: GitActionResultNotification | null): void {
 }
 
 export function showGitActionResult(result: GitActionResultNotification): void {
-  // Best effort: devices without a haptics engine reject.
-  Haptics.notificationAsync(
-    result.type === "success"
-      ? Haptics.NotificationFeedbackType.Success
-      : Haptics.NotificationFeedbackType.Error,
-  ).catch(() => undefined);
   if (dismissTimer) clearTimeout(dismissTimer);
   broadcast(result);
   dismissTimer = setTimeout(() => {
@@ -69,8 +61,6 @@ export interface GitActionProgress {
   readonly prUrl?: string;
 }
 
-const subscribeNever = () => () => {};
-
 const EMPTY_PROGRESS: GitActionProgress = {
   phase: "idle",
   label: null,
@@ -88,10 +78,12 @@ export function useGitActionProgress(target: VcsActionTarget): GitActionProgress
   const actionState = useVcsActionState(target);
   const { result } = useGitActionResultNotification();
 
-  const nowMs = useSyncExternalStore(
-    actionState.isRunning ? secondTick.subscribe : subscribeNever,
-    secondTick.getSnapshot,
-  );
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!actionState.isRunning) return;
+    const interval = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [actionState.isRunning]);
 
   if (actionState.isRunning) {
     const description =

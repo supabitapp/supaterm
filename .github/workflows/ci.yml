@@ -18,9 +18,6 @@ jobs:
   # side instead of one after another. The `Check` job at the end of this file
   # passes only when every other job does.
   lint:
-    permissions:
-      contents: read
-      id-token: write
     name: Lint
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 10
@@ -44,8 +41,6 @@ jobs:
         run: mise exec -- jactionlint --format github --shellcheck=shellcheck
       - name: Install workspace dependencies
         uses: ./.github/actions/setup-ci-deps
-        with:
-          task-cache-read-token: ${{ secrets.SUPATERM_TASK_CACHE_READ_TOKEN }}
       # electron's install.js (run by ensure:electron) reads this cache before it
       # downloads from GitHub and verifies the bundled checksums. The key changes
       # only with the Electron version. The package path goes through the global
@@ -74,9 +69,6 @@ jobs:
         run: vp check
 
   typecheck:
-    permissions:
-      contents: read
-      id-token: write
     name: Typecheck
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 10
@@ -90,8 +82,6 @@ jobs:
         uses: ./.github/actions/setup-mise
       - name: Install workspace dependencies
         uses: ./.github/actions/setup-ci-deps
-        with:
-          task-cache-read-token: ${{ secrets.SUPATERM_TASK_CACHE_READ_TOKEN }}
       # electron's install.js (run by ensure:electron) reads this cache before it
       # downloads from GitHub and verifies the bundled checksums. The key changes
       # only with the Electron version. The package path goes through the global
@@ -108,9 +98,6 @@ jobs:
         run: mise exec -- vp run typecheck
 
   build:
-    permissions:
-      contents: read
-      id-token: write
     name: Build
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 10
@@ -136,8 +123,6 @@ jobs:
         uses: ./.github/actions/setup-mise
       - name: Install workspace dependencies
         uses: ./.github/actions/setup-ci-deps
-        with:
-          task-cache-read-token: ${{ secrets.SUPATERM_TASK_CACHE_READ_TOKEN }}
       # electron's install.js (run by ensure:electron) reads this cache before it
       # downloads from GitHub and verifies the bundled checksums. The key changes
       # only with the Electron version. The package path goes through the global
@@ -164,9 +149,6 @@ jobs:
         run: node apps/desktop/scripts/verify-preload-bundle.mjs
 
   test:
-    permissions:
-      contents: read
-      id-token: write
     name: Test
     runs-on: depot-ubuntu-24.04-16
     timeout-minutes: 10
@@ -191,8 +173,6 @@ jobs:
         uses: ./.github/actions/setup-mise
       - name: Install workspace dependencies
         uses: ./.github/actions/setup-ci-deps
-        with:
-          task-cache-read-token: ${{ secrets.SUPATERM_TASK_CACHE_READ_TOKEN }}
       # electron's install.js (run by ensure:electron) reads this cache before it
       # downloads from GitHub and verifies the bundled checksums. The key changes
       # only with the Electron version. The package path goes through the global
@@ -218,9 +198,6 @@ jobs:
         run: vp run --parallel --concurrency-limit 4 --filter '!supaterm' --filter '!@supaterm/monorepo' --filter '!@supaterm/web' --filter '!@supaterm/mobile' test --maxWorkers 4
 
   test_mobile:
-    permissions:
-      contents: read
-      id-token: write
     name: Test Mobile ${{ matrix.shard }}
     runs-on: depot-ubuntu-24.04-16
     timeout-minutes: 10
@@ -238,16 +215,11 @@ jobs:
         uses: ./.github/actions/setup-mise
       - name: Install workspace dependencies
         uses: ./.github/actions/setup-ci-deps
-        with:
-          task-cache-read-token: ${{ secrets.SUPATERM_TASK_CACHE_READ_TOKEN }}
 
       - name: Test
         run: vp run --filter @supaterm/mobile test --shard ${{ matrix.shard }}/${{ strategy.job-total }} --maxWorkers 8
 
   test_web:
-    permissions:
-      contents: read
-      id-token: write
     name: Test Web ${{ matrix.shard }}
     runs-on: depot-ubuntu-24.04-16
     timeout-minutes: 10
@@ -265,8 +237,6 @@ jobs:
         uses: ./.github/actions/setup-mise
       - name: Install workspace dependencies
         uses: ./.github/actions/setup-ci-deps
-        with:
-          task-cache-read-token: ${{ secrets.SUPATERM_TASK_CACHE_READ_TOKEN }}
 
       # The browser project runs React tests in headless Chromium. Same cache key as
       # test_server, so both jobs share one downloaded browser.
@@ -296,16 +266,7 @@ jobs:
       - name: Test
         run: vp run --filter @supaterm/web test --shard ${{ matrix.shard }}/${{ strategy.job-total }} --maxWorkers 8
 
-      - name: Boot the built web client
-        if: matrix.shard == 1
-        run: |
-          vp run --filter @supaterm/web build
-          node apps/web/scripts/verify-built-boot.ts
-
   test_server:
-    permissions:
-      contents: read
-      id-token: write
     name: Test Server ${{ matrix.shard }}
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 10
@@ -323,8 +284,6 @@ jobs:
         uses: ./.github/actions/setup-mise
       - name: Install workspace dependencies
         uses: ./.github/actions/setup-ci-deps
-        with:
-          task-cache-read-token: ${{ secrets.SUPATERM_TASK_CACHE_READ_TOKEN }}
       # Cache the pinned browser and skip apt unless shared libraries are missing.
       - name: Resolve Playwright version
         id: playwright_version
@@ -353,18 +312,7 @@ jobs:
         env:
           SUPATERM_TRANSFER_BUDGET_REPORT_PATH: ${{ runner.temp }}/supaterm-transfer-budget.md
           SUPATERM_TRANSFER_BUDGET_RESULT_PATH: ${{ runner.temp }}/thread-transfer-result.json
-        run: >-
-          vp run test:cached -- --shard ${{ matrix.shard }}/${{ strategy.job-total }}
-          --uncached apps/server/integration/transferBudgetV2.integration.test.ts
-          --verify-hits 1 --report "${{ runner.temp }}/test-cache-${{ matrix.shard }}.json" apps/server
-
-      - name: Upload test cache measurements
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: test-cache-${{ matrix.shard }}
-          path: ${{ runner.temp }}/test-cache-${{ matrix.shard }}.json
-          if-no-files-found: error
+        run: vp run --filter supaterm test --shard ${{ matrix.shard }}/${{ strategy.job-total }}
 
       # integration/transferBudgetV2.integration.test.ts writes the report; exactly one shard
       # produces these files. Gating the upload on their presence keeps a

@@ -98,6 +98,12 @@ export function initialCodexScanState(): CodexScanState {
   };
 }
 
+/**
+ * A forked or subagent rollout opens with the parent's full history copied in,
+ * every line re-stamped to the fork instant. Those copies are written in one
+ * synchronous burst (observed gaps 0-40ms), while the child's first genuine
+ * usage event only lands after a real model turn (observed 5s+).
+ */
 const FORK_COPY_MAX_GAP_MS = 1000;
 
 function isForkedSessionMeta(payload: Record<string, unknown>): boolean {
@@ -135,6 +141,9 @@ function parseCodexRecord(parsed: unknown, state: CodexScanState): UsageRecord |
   const payloadType = payloadRecord["type"];
 
   if (record["type"] === "session_meta") {
+    // Only the first meta describes this file's own session. A forked rollout
+    // repeats the ancestors' metas right after it; letting those through would
+    // reassign every subsequent record to an ancestor session.
     if (state.sawSessionMeta) return null;
     state.sawSessionMeta = true;
     const id = payloadRecord["id"] ?? payloadRecord["session_id"];
@@ -293,6 +302,10 @@ function parseCodexRecord(parsed: unknown, state: CodexScanState): UsageRecord |
   };
 }
 
+/**
+ * Codex omits the field when no tier was requested, which bills as standard, as
+ * do `default` and `standard`. `fast` is accepted as an alias of `priority`.
+ */
 function codexSpeed(serviceTier: unknown): UsageSpeed {
   if (serviceTier === "priority" || serviceTier === "fast") return "fast";
   if (serviceTier === "ultrafast") return "ultrafast";
@@ -319,7 +332,8 @@ export const codexUsageFormat: TranscriptUsageFormat<CodexScanState> = {
       info: { last_token_usage: true, total_token_usage: true },
     },
   },
-
+  // `turn_context`, `thread_settings_applied` and `session_meta` lines hold no
+  // usage, but they carry the model, tier and session the reducer needs.
   usageMarkers: ['"token_count"', '"turn_context"', '"thread_settings_applied"', '"session_meta"'],
   parseLine: (line, state) => orEmpty(parseCodexLine(line, state)),
   parseProjected: (projected, state) => orEmpty(parseCodexRecord(projected, state)),

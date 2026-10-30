@@ -3,8 +3,7 @@ import {
   connectionCatalogDisplayUrl,
   type EnvironmentPresentation as BaseEnvironmentPresentation,
 } from "@supaterm/client-runtime/connection";
-import type { ComposerEnvironmentCandidate } from "@supaterm/client-runtime/composerThreadItems";
-import { type EnvironmentId, resolveEnvironmentMachineKind } from "@supaterm/contracts";
+import type { EnvironmentId } from "@supaterm/contracts";
 import { useMemo } from "react";
 
 import { environmentCatalog } from "../connection/catalog";
@@ -52,18 +51,4 @@ export function useEnvironments() {
 
 export function useEnvironmentConnectionState(environmentId: EnvironmentId) {
   return useEnvironmentQuery(environmentCatalog.stateAtom(environmentId));
-}
-
-/** The user's machines as `@` mention candidates, drawn with their machine kind. */
-export function useMentionableEnvironments(): ReadonlyArray<ComposerEnvironmentCandidate> {
-  const { environments } = useEnvironments();
-  return useMemo(
-    () =>
-      environments.map((environment) => ({
-        environmentId: environment.environmentId,
-        label: environment.label,
-        machine: resolveEnvironmentMachineKind(environment.serverConfig),
-      })),
-    [environments],
-  );
 }

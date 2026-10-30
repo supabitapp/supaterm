@@ -1,37 +1,36 @@
 import {
   repositoryGroupingKeyOf,
-  type EnvironmentId,
   type ModelSelection,
   type ProjectId,
   type ServerSettings,
   resolveProjectProviderInstanceEnabled,
-  type PullRequestLinkedThreadsResult,
   type RepositoryIdentity,
   type ServerProvider,
   type ThreadLinkedPullRequest,
-  type ThreadId,
   type ThreadPullRequestLink,
 } from "@supaterm/contracts";
 import { resolveSelectableModel, type SelectableModelOption } from "@supaterm/shared/model";
-import type { AsyncResult } from "effect/reactivity";
 import type { PromptLinkPullRequest, PromptLinkRepository } from "@supaterm/shared/promptLinks";
 import {
   threadPullRequestKeyOf,
   threadPullRequestsOf,
   visibleThreadPullRequests,
-} from "./threadPullRequests.ts";
+} from "@supaterm/shared/threadPullRequests";
 
-const PROMPT_LINK_REPOSITORY_HOSTS = ["github.com", "git.cafe", "staging.git.cafe"];
+const repositoryKey = (repository: PromptLinkRepository) =>
+  `github.com/${repository.owner}/${repository.name}`.toLowerCase();
 
-export function findPromptLinkProjects<
+/**
+ * Callers pass projects most recently active first, so the user lands where they last worked.
+ */
+export function findPromptLinkProject<
   P extends { readonly repositoryIdentity?: RepositoryIdentity | null | undefined },
->(projects: ReadonlyArray<P>, repository: PromptLinkRepository): P[] {
-  const path = `${repository.owner}/${repository.name}`.toLowerCase();
-  const keys = new Set(PROMPT_LINK_REPOSITORY_HOSTS.map((host) => `${host}/${path}`));
-  return projects.filter(
+>(projects: ReadonlyArray<P>, repository: PromptLinkRepository): P | undefined {
+  const key = repositoryKey(repository);
+  return projects.find(
     (project) =>
       project.repositoryIdentity != null &&
-      keys.has(repositoryGroupingKeyOf(project.repositoryIdentity).toLowerCase()),
+      repositoryGroupingKeyOf(project.repositoryIdentity).toLowerCase() === key,
   );
 }
 
@@ -56,29 +55,6 @@ export function findPromptLinkPullRequestThread<
     if (linked) latest = thread;
   }
   return latest;
-}
-
-export function findPromptLinkProject<
-  P extends { readonly repositoryIdentity?: RepositoryIdentity | null | undefined },
->(projects: ReadonlyArray<P>, repository: PromptLinkRepository): P | undefined {
-  return findPromptLinkProjects(projects, repository)[0];
-}
-
-export function pickPromptLinkPullRequestThread(
-  lookups: ReadonlyArray<{
-    readonly environmentId: EnvironmentId;
-    readonly result: AsyncResult.AsyncResult<PullRequestLinkedThreadsResult, unknown>;
-  }>,
-): { readonly environmentId: EnvironmentId; readonly id: ThreadId } | null | undefined {
-  for (const { environmentId, result } of lookups) {
-    if (result._tag === "Initial" || result.waiting) return undefined;
-    const thread =
-      result._tag === "Success"
-        ? result.value.threads.find((candidate) => candidate.archivedAt === null)
-        : undefined;
-    if (thread !== undefined) return { environmentId, id: thread.id };
-  }
-  return null;
 }
 
 const PROVIDER_ALIASES: Record<string, string> = { claude: "claudeagent" };

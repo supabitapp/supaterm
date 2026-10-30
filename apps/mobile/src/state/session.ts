@@ -17,11 +17,11 @@ export const environmentSession = createEnvironmentSessionAtoms(connectionAtomRu
 
 const EMPTY_SESSION_STATE_ATOM = Atom.make(AsyncResult.initial<AuthSessionState>());
 
-export function sessionHasScope(
+function sessionHasScope(
   result: AsyncResult.AsyncResult<AuthSessionState, unknown>,
   scope: AuthEnvironmentScope,
 ): boolean {
-  const session = AsyncResult.getOrElse(result, () => null);
+  const session = Option.getOrNull(AsyncResult.value(result));
   return result._tag !== "Failure" && session !== null && sessionGrantsScope(session, scope);
 }
 

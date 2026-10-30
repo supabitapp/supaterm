@@ -24,9 +24,7 @@ export function resolvePendingHandoff(
   // counts: paging can leave a window of only tool rows.
   if (!projection?.visibleTurnItems.length) return null;
   const from = projection.runs.findLast(
-    (run) =>
-      run.status !== "rolled_back" &&
-      (run.startedAt !== null || (run.status === "starting" && run.contextHandoffId !== null)),
+    (run) => run.startedAt !== null && run.status !== "rolled_back",
   )?.modelSelection;
   if (from === undefined || selection == null) return null;
   const source = providers.find((provider) => provider.instanceId === from.instanceId);

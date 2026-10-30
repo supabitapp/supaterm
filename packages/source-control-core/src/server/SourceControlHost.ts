@@ -2,10 +2,8 @@ import type {
   GitCommandError,
   ServerSettings,
   ServerSettingsError,
-  ServerSettingsPatch,
   VcsError,
   VcsListRemotesResult,
-  VcsProcessExitFailureKind,
   VcsSwitchRefInput,
   VcsSwitchRefResult,
 } from "@supaterm/contracts";
@@ -27,12 +25,6 @@ export interface SourceControlProcessInput {
   readonly maxOutputBytes?: number;
   readonly outputMode?: "error" | "truncate" | undefined;
   readonly appendTruncationMarker?: boolean;
-
-  readonly classifyFailure?: (stderr: string) => VcsProcessExitFailureKind | null;
-
-  readonly notFoundDetail?: string;
-
-  readonly concurrency?: { readonly key: string; readonly limit: number };
 }
 
 export interface SourceControlProcessOutput {
@@ -60,11 +52,8 @@ export class SourceControlHost extends Context.Service<
   SourceControlHost,
   {
     readonly settings: {
+      /** Read fresh on each call, so a credential saved in Settings applies without a restart. */
       readonly get: Effect.Effect<ServerSettings, ServerSettingsError>;
-
-      readonly update: (
-        patch: ServerSettingsPatch,
-      ) => Effect.Effect<ServerSettings, ServerSettingsError>;
     };
     readonly process: {
       readonly run: (
@@ -83,7 +72,10 @@ export class SourceControlHost extends Context.Service<
         readonly cwd: string;
         readonly revision: string;
       }) => Effect.Effect<{ readonly commitSha: string }, GitCommandError>;
-
+      /**
+       * The outer effect resolves the repository and fails when the server cannot drive
+       * one there; the inner one lists its remotes.
+       */
       readonly remotes: (
         cwd: string,
       ) => Effect.Effect<Effect.Effect<VcsListRemotesResult, VcsError>, VcsError>;
@@ -107,17 +99,6 @@ export class SourceControlHost extends Context.Service<
       readonly setBranchUpstream: (
         input: SourceControlGitRemoteBranch & { readonly branch: string },
       ) => Effect.Effect<void, GitCommandError>;
-
-      readonly createBranch: (input: {
-        readonly cwd: string;
-        readonly branch: string;
-        readonly startPoint: string;
-      }) => Effect.Effect<void, GitCommandError>;
-      readonly writeConfigValue: (input: {
-        readonly cwd: string;
-        readonly key: string;
-        readonly value: string;
-      }) => Effect.Effect<void, GitCommandError>;
       readonly switchRef: (
         input: VcsSwitchRefInput,
       ) => Effect.Effect<VcsSwitchRefResult, GitCommandError>;

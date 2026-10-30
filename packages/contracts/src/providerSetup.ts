@@ -130,7 +130,8 @@ export const ProviderAuthState = Schema.Struct({
   authorizationUrl: Schema.NullOr(Schema.String),
   expiresAt: Schema.NullOr(IsoDateTime),
   message: Schema.NullOr(Schema.String),
-
+  // Newer servers may add method types, interactions, or owners; older
+  // clients drop what they cannot decode instead of rejecting the state.
   methods: Schema.optionalKey(
     ForwardCompatibleArray(ProviderAuthMethod).check(Schema.isMaxLength(32)),
   ),
@@ -183,6 +184,7 @@ export const ProviderInstallCancelInput = Schema.Struct({
 });
 export type ProviderInstallCancelInput = typeof ProviderInstallCancelInput.Type;
 
+/** Safe setup failure text. Never include OAuth codes, URLs, or native token data. */
 export class ProviderSetupError extends Schema.TaggedError<ProviderSetupError>()(
   "ProviderSetupError",
   {

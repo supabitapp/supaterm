@@ -1,4 +1,3 @@
-import { resolveQueuedEditExit } from "@supaterm/client-runtime/queued-run-edit";
 import type { ChatAttachment } from "@supaterm/contracts";
 import {
   composerDraftHasUserContent,
@@ -15,18 +14,15 @@ export function recoverQueuedMessageEdit(input: {
 }): "kept" | "discarded" | "clean" {
   const store = useComposerDraftStore.getState();
   const draft = store.getComposerDraft(input.editTarget);
-  const recovery = resolveQueuedEditExit({
-    editChanged:
-      draft !== null &&
-      (draft.prompt !== input.originalText || draft.images.length > 0 || draft.files.length > 0),
-    threadDraftEmpty: !composerDraftHasUserContent(store.getComposerDraft(input.threadTarget)),
-  });
-  if (recovery === "kept") {
+  const dirty =
+    draft !== null &&
+    (draft.prompt !== input.originalText || draft.images.length > 0 || draft.files.length > 0);
+  if (dirty && !composerDraftHasUserContent(store.getComposerDraft(input.threadTarget))) {
     store.moveComposerPromptAndImages(input.editTarget, input.threadTarget);
-  } else {
-    store.clearComposerContent(input.editTarget);
+    return "kept";
   }
-  return recovery;
+  store.clearComposerContent(input.editTarget);
+  return dirty ? "discarded" : "clean";
 }
 
 export async function prepareQueuedEditAttachments(input: {

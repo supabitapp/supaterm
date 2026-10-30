@@ -8,15 +8,7 @@ export function filePreviewDelimiter(file: { name: string; mimeType?: string }):
   return null;
 }
 
-export function parseDelimitedPreview(
-  text: string,
-  delimiter: "," | "\t",
-  limits: { maxRows: number; maxColumns: number; maxCellLength: number } = {
-    maxRows: 100,
-    maxColumns: 30,
-    maxCellLength: 2000,
-  },
-) {
+export function parseDelimitedPreview(text: string, delimiter: "," | "\t") {
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = "";
@@ -24,7 +16,7 @@ export function parseDelimitedPreview(
   let truncated = false;
   let rowStart = text.charCodeAt(0) === 0xfeff ? 1 : 0;
   const endCell = () => {
-    if (row.length < limits.maxColumns) row.push(cell);
+    if (row.length < 30) row.push(cell);
     else truncated = true;
     cell = "";
   };
@@ -32,7 +24,7 @@ export function parseDelimitedPreview(
     const char = text[index];
     if (char === '"') {
       if (quoted && text[index + 1] === '"') {
-        if (cell.length < limits.maxCellLength) cell += '"';
+        if (cell.length < 2000) cell += '"';
         else truncated = true;
         index++;
         continue;
@@ -49,10 +41,9 @@ export function parseDelimitedPreview(
         row = [];
         if (char === "\r" && text[index + 1] === "\n") index++;
         rowStart = index + 1;
-        if (rows.length === limits.maxRows)
-          return { rows, truncated: truncated || index < text.length - 1 };
+        if (rows.length === 100) return { rows, truncated: truncated || index < text.length - 1 };
       }
-    } else if (cell.length < limits.maxCellLength) cell += char;
+    } else if (cell.length < 2000) cell += char;
     else truncated = true;
   }
   if (rowStart < text.length) {

@@ -1,6 +1,7 @@
 import { Button } from "../../components/ui/Button";
 import deviceStreamScript from "@supaterm/mobile-device-stream";
 import {
+  useEffect,
   useEffectEvent,
   useImperativeHandle,
   useLayoutEffect,
@@ -45,7 +46,6 @@ export function DeviceStreamWebView({
     access: props.access,
     platform: props.platform,
     deviceId: props.deviceId,
-    ...(props.serveSimOnly ? { serveSimOnly: true } : {}),
     colors: props.colors,
   });
   return (
@@ -95,20 +95,14 @@ function DeviceStreamDocumentView({
   readonly onRecoverProcess: () => boolean;
 }) {
   const webView = useRef<WebView<object>>(null);
-  const active = useRef(false);
+  const active = useRef(true);
   const failed = useRef(false);
-  const bootstrapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [status, setStatus] = useState<DeviceStreamStatus>("connecting");
   const [error, setError] = useState<string | null>(null);
-  const clearBootstrapTimer = () => {
-    if (bootstrapTimer.current === null) return;
-    clearTimeout(bootstrapTimer.current);
-    bootstrapTimer.current = null;
-  };
+  const [started, setStarted] = useState(false);
   const fail = (message: string) => {
     if (!active.current || failed.current) return;
     failed.current = true;
-    clearBootstrapTimer();
     void onInputConnected(false);
     webView.current?.injectJavaScript("window.SupatermDeviceStream?.stop(); true;");
     setError(message);
@@ -117,22 +111,11 @@ function DeviceStreamDocumentView({
   const bootstrapTimedOut = useEffectEvent(() =>
     fail("Device viewer could not start. Reconnect to try again."),
   );
-  const resetInput = useEffectEvent(() => void onInputConnected(false));
-
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- starts the bootstrap timeout and stops the WebView device stream when this view unmounts
-  useLayoutEffect(() => {
-    active.current = true;
-    resetInput();
-    const view = webView.current;
-    bootstrapTimer.current = setTimeout(bootstrapTimedOut, 15_000);
-    return () => {
-      if (bootstrapTimer.current !== null) clearTimeout(bootstrapTimer.current);
-      bootstrapTimer.current = null;
-      active.current = false;
-      view?.injectJavaScript("window.SupatermDeviceStream?.stop(); true;");
-      resetInput();
-    };
-  }, []);
+  useEffect(() => {
+    if (started) return;
+    const timer = setTimeout(bootstrapTimedOut, 15_000);
+    return () => clearTimeout(timer);
+  }, [started]);
   const source = {
     html: deviceStreamDocument(configuration, deviceStreamScript),
     baseUrl,
@@ -148,6 +131,16 @@ function DeviceStreamDocumentView({
     appSwitcher: () => command("appSwitcher"),
     rotate: () => command("rotate"),
   }));
+  const resetInput = useEffectEvent(() => void onInputConnected(false));
+  useLayoutEffect(() => {
+    active.current = true;
+    resetInput();
+    const view = webView.current;
+    return () => {
+      active.current = false;
+      view?.injectJavaScript("window.SupatermDeviceStream?.stop(); true;");
+    };
+  }, []);
   const processTerminated = () => {
     if (!active.current || failed.current) return;
     void onInputConnected(false);
@@ -180,7 +173,7 @@ function DeviceStreamDocumentView({
           else if (message?.type === "input") void onInputConnected(message.connected);
           else if (message?.type === "retry") onRetry();
           else if (message?.type === "status") {
-            clearBootstrapTimer();
+            setStarted(true);
             if (message.status === "error") fail(message.detail ?? "Device stream failed.");
             else {
               setStatus(message.status);

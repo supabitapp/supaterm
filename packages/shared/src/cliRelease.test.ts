@@ -1,13 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import {
-  acceptsTrackSwitchRelease,
-  crossesReleaseTrack,
-  desktopUpdateChannelOf,
-  cliArchiveTarCommand,
-  newestCliReleaseVersion,
-  parseChecksums,
-} from "./cliRelease.ts";
+import { cliArchiveTarCommand, newestCliReleaseVersion, parseChecksums } from "./cliRelease.ts";
 
 describe("cliRelease", () => {
   it("parses sha256sum output including binary-mode markers", () => {
@@ -45,26 +38,5 @@ describe("cliRelease", () => {
     expect(newestCliReleaseVersion(releases, "nightly")).toBe("1.2.4-nightly.20260912.7");
     expect(newestCliReleaseVersion(releases, "stable")).toBe("1.2.3");
     expect(newestCliReleaseVersion([{ tag_name: "v1.2.3" }], "preview")).toBeUndefined();
-  });
-});
-
-describe("release track selection", () => {
-  const stable = "1.2.3";
-  const nightly = "1.2.4-nightly.20261029.1";
-  const preview = "1.2.4-preview.20261029.1";
-  it("distinguishes a track crossing from a preview", () => {
-    expect(crossesReleaseTrack(stable, nightly)).toBe(true);
-    expect(crossesReleaseTrack(nightly, stable)).toBe(true);
-    expect(crossesReleaseTrack(preview, stable)).toBe(false);
-    expect(crossesReleaseTrack(stable, stable)).toBe(false);
-    expect(desktopUpdateChannelOf(nightly)).toBe("nightly");
-    expect(desktopUpdateChannelOf(preview)).toBe("latest");
-  });
-  it("accepts only the checked release or a newer release on the same track", () => {
-    expect(acceptsTrackSwitchRelease(nightly, "nightly", nightly)).toBe(true);
-    expect(acceptsTrackSwitchRelease("1.2.4-nightly.20261029.2", "nightly", nightly)).toBe(true);
-    expect(acceptsTrackSwitchRelease("1.2.4-nightly.20261028.9", "nightly", nightly)).toBe(false);
-    expect(acceptsTrackSwitchRelease(preview, "nightly", nightly)).toBe(false);
-    expect(acceptsTrackSwitchRelease("1.2.4", "latest", nightly)).toBe(true);
   });
 });

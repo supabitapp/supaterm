@@ -1,7 +1,6 @@
 import { AuthStandardClientScopes } from "@supaterm/contracts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
-import * as Crypto from "effect/Crypto";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -48,11 +47,11 @@ const layerPairingGrantStore = (
   );
 
 it.layer(NodeServices.layer)("PairingGrantStore.layer", (it) => {
-  it.effect("accepts lowercase one-time tokens exactly once", () =>
+  it.effect("issues one-time bootstrap tokens that can only be consumed once", () =>
     Effect.gen(function* () {
       const bootstrapCredentials = yield* PairingGrantStore.PairingGrantStore;
       const issued = yield* bootstrapCredentials.issueOneTimeToken({ label: "Julius iPhone" });
-      const first = yield* bootstrapCredentials.consume(issued.credential.toLowerCase());
+      const first = yield* bootstrapCredentials.consume(issued.credential);
       const second = yield* Effect.flip(bootstrapCredentials.consume(issued.credential));
 
       expect(first.method).toBe("one-time-token");
@@ -63,38 +62,6 @@ it.layer(NodeServices.layer)("PairingGrantStore.layer", (it) => {
       expect(issued.label).toBe("Julius iPhone");
       expect(second._tag).toBe("UnknownBootstrapCredentialError");
       expect(second.message).toContain("Unknown bootstrap credential");
-    }).pipe(
-      Effect.provide(layerPairingGrantStore()),
-      Effect.provideServiceEffect(
-        Crypto.Crypto,
-        Effect.map(Crypto.Crypto, (crypto) => ({
-          ...crypto,
-          randomBytes: (size) => Effect.succeed(new Uint8Array(size).fill(8)),
-        })),
-      ),
-    ),
-  );
-
-  it.effect("preserves a code after an all-scopes rejection and consumes one allowed retry", () =>
-    Effect.gen(function* () {
-      const store = yield* PairingGrantStore.PairingGrantStore;
-      const issued = yield* store.issueOneTimeToken({ scopes: ["orchestration:read"] });
-      const denied = yield* store
-        .consume(issued.credential, {
-          requiredScopes: ["orchestration:read", "orchestration:operate"],
-        })
-        .pipe(Effect.flip);
-      expect(denied._tag).toBe("BootstrapCredentialScopeNotGrantedError");
-      const retried = yield* Effect.all(
-        Array.from({ length: 8 }, () =>
-          store
-            .consume(issued.credential.toLowerCase(), { requiredScopes: ["orchestration:read"] })
-            .pipe(Effect.result),
-        ),
-        { concurrency: "unbounded" },
-      );
-      expect(retried.filter((result) => result._tag === "Success")).toHaveLength(1);
-      expect(retried.filter((result) => result._tag === "Failure")).toHaveLength(7);
     }).pipe(Effect.provide(layerPairingGrantStore())),
   );
 

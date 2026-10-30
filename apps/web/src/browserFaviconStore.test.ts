@@ -1,26 +1,13 @@
-import { scopedThreadKey, scopeProjectRef } from "@supaterm/client-runtime/environment";
+import { scopeProjectRef } from "@supaterm/client-runtime/environment";
 import { EnvironmentId, ProjectId, ThreadId } from "@supaterm/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-const metadata = vi.hoisted(() => ({
-  projectId: null as string | null,
-  httpBaseUrl: null as string | null,
-}));
+vi.mock("~/state/entities", () => ({ useQuietThreadShell: () => null }));
+vi.mock("~/state/session", () => ({ usePreparedConnection: () => ({ _tag: "None" }) }));
 
-vi.mock("~/state/entities", () => ({
-  useQuietThreadShell: () => null,
-  readThreadShell: () => (metadata.projectId ? { projectId: metadata.projectId } : null),
-}));
-vi.mock("~/state/session", () => ({
-  usePreparedConnection: () => ({ _tag: "None" }),
-  readPreparedConnection: () =>
-    metadata.httpBaseUrl ? { httpBaseUrl: metadata.httpBaseUrl } : null,
-}));
-
-import { DraftId, useComposerDraftStore } from "./composerDraftStore";
 import {
+  flushPendingFaviconsForThread,
   lookupFavicon,
-  lookupFaviconForThread,
   recordFaviconForProject,
   recordFaviconForThread,
   resetBrowserFaviconsForTests,
@@ -39,12 +26,7 @@ const favicon = (pageUrl: string, capturedAt: number, dataUrl = PNG) => ({
 });
 
 describe("browser favicon store", () => {
-  beforeEach(() => {
-    resetBrowserFaviconsForTests();
-    metadata.projectId = null;
-    metadata.httpBaseUrl = null;
-    useComposerDraftStore.setState({ draftThreadsByThreadKey: {} });
-  });
+  beforeEach(resetBrowserFaviconsForTests);
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -85,16 +67,18 @@ describe("browser favicon store", () => {
     ).toBeNull();
   });
 
-  it("retains origins until the thread's project is known, then lands them with the next capture", () => {
-    expect(recordFaviconForThread(threadRef, favicon("http://localhost:3000/", 1))).toBe(false);
-    expect(recordFaviconForThread(threadRef, favicon("http://localhost:5173/", 2))).toBe(false);
+  it("retains multiple origins until project and connection metadata hydrate", () => {
+    expect(
+      recordFaviconForThread(threadRef, favicon("http://localhost:3000/", 1), null, undefined),
+    ).toBe(false);
+    expect(
+      recordFaviconForThread(threadRef, favicon("http://localhost:5173/", 2), null, undefined),
+    ).toBe(false);
     expect(
       Object.keys(Object.values(useBrowserFaviconStore.getState().pendingByThreadKey)[0] ?? {}),
     ).toHaveLength(2);
 
-    metadata.projectId = "project-1";
-    metadata.httpBaseUrl = "http://192.168.64.2:3773";
-    expect(recordFaviconForThread(threadRef, favicon("http://localhost:5173/", 3))).toBe(true);
+    expect(flushPendingFaviconsForThread(threadRef, projectRef, "192.168.64.2")).toBe(true);
     expect(Object.keys(useBrowserFaviconStore.getState().byKey).toSorted()).toEqual([
       "env-1:project-1 http://localhost:3000",
       "env-1:project-1 http://localhost:5173",
@@ -102,48 +86,27 @@ describe("browser favicon store", () => {
     expect(useBrowserFaviconStore.getState().pendingByThreadKey).toEqual({});
   });
 
-  it("files a draft thread's capture under the draft's project with no view registering it", () => {
-    useComposerDraftStore
-      .getState()
-      .setLogicalProjectDraftThreadId("env-1:project-1", projectRef, DraftId.make("draft-1"), {
-        threadId: threadRef.threadId,
-      });
-    expect(recordFaviconForThread(threadRef, favicon("http://localhost:3000/", 1))).toBe(true);
-    expect(useBrowserFaviconStore.getState().byKey).toEqual({
-      "env-1:project-1 http://localhost:3000": { dataUrl: PNG, capturedAt: 1 },
-    });
-  });
-
   it("persists unambiguous loopback captures while the environment is offline", () => {
-    metadata.projectId = "project-1";
-    expect(recordFaviconForThread(threadRef, favicon("http://localhost:3000/", 1))).toBe(true);
+    expect(
+      recordFaviconForThread(
+        threadRef,
+        favicon("http://localhost:3000/", 1),
+        projectRef,
+        undefined,
+      ),
+    ).toBe(true);
     expect(useBrowserFaviconStore.getState().byKey).toEqual({
       "env-1:project-1 http://localhost:3000": { dataUrl: PNG, capturedAt: 1 },
     });
 
-    expect(recordFaviconForThread(threadRef, favicon("http://192.168.64.2:5173/", 2))).toBe(false);
-    expect(Object.values(useBrowserFaviconStore.getState().pendingByThreadKey)[0]).toBeDefined();
-  });
-
-  it("shows a newer pending capture over the stored favicon for the same origin", () => {
-    const NEWER = "data:image/png;base64,BBBB";
-    metadata.projectId = "project-1";
-    metadata.httpBaseUrl = "http://192.168.64.2:3773";
-    expect(recordFaviconForThread(threadRef, favicon("http://192.168.64.2:5173/", 1))).toBe(true);
-
-    metadata.httpBaseUrl = null;
-    expect(recordFaviconForThread(threadRef, favicon("http://192.168.64.2:5173/", 2, NEWER))).toBe(
-      false,
+    recordFaviconForThread(
+      threadRef,
+      favicon("http://192.168.64.2:5173/", 2),
+      projectRef,
+      undefined,
     );
-    expect(
-      lookupFaviconForThread(
-        useBrowserFaviconStore.getState(),
-        scopedThreadKey(threadRef),
-        projectRef,
-        "http://192.168.64.2:5173/",
-        "192.168.64.2",
-      ),
-    ).toBe(NEWER);
+    expect(flushPendingFaviconsForThread(threadRef, projectRef, undefined)).toBe(false);
+    expect(Object.values(useBrowserFaviconStore.getState().pendingByThreadKey)[0]).toBeDefined();
   });
 
   it("keeps the memory shadow authoritative after an asymmetric primary write failure", () => {

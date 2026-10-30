@@ -6,7 +6,7 @@ import type {
   CodexMicroSlotStatus,
   CodexMicroThreadRef,
 } from "@supaterm/contracts";
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 import { getCodexMicroBridge } from "./codexMicroBridge";
 
@@ -61,35 +61,26 @@ export function useCodexMicroPressedInput(): CodexMicroPressedInput | null {
 }
 
 export function useCodexMicroDeviceState(): CodexMicroDeviceState | null {
-  const [store] = useState(() => {
-    let state: CodexMicroDeviceState | null = null;
-    return {
-      getSnapshot: () => state,
-      subscribe: (notify: () => void) => {
-        const bridge = getCodexMicroBridge();
-        if (bridge === null) return () => {};
-        let current = true;
-        let pushed = false;
-        const unsubscribe = bridge.onStateChange((next) => {
-          pushed = true;
-          if (!current) return;
-          state = next;
-          notify();
-        });
-        void bridge.getState().then(
-          (next) => {
-            if (!current || pushed) return;
-            state = next;
-            notify();
-          },
-          () => undefined,
-        );
-        return () => {
-          current = false;
-          unsubscribe();
-        };
+  const [state, setState] = useState<CodexMicroDeviceState | null>(null);
+  useEffect(() => {
+    const bridge = getCodexMicroBridge();
+    if (bridge === null) return;
+    let current = true;
+    let pushed = false;
+    const unsubscribe = bridge.onStateChange((next) => {
+      pushed = true;
+      if (current) setState(next);
+    });
+    void bridge.getState().then(
+      (next) => {
+        if (current && !pushed) setState(next);
       },
+      () => undefined,
+    );
+    return () => {
+      current = false;
+      unsubscribe();
     };
-  });
-  return useSyncExternalStore(store.subscribe, store.getSnapshot);
+  }, []);
+  return state;
 }

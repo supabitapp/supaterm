@@ -3,7 +3,12 @@ import { Command } from "effect/cli";
 
 import { main as runServiceLauncher } from "../serviceLauncher.ts";
 
-/** The launcher must stop its child before exiting; `runMain` would interrupt that shutdown. */
+/**
+ * The launcher owns SIGTERM handling and the process lifetime: it must finish stopping its child
+ * before the process exits, so it runs detached from the CLI's fiber rather than under `runMain`,
+ * whose signal handler would interrupt the fiber and exit while the child is still being
+ * terminated.
+ */
 export const serviceLauncherCommand = Command.make("__service-launcher").pipe(
   Command.unlisted,
   Command.withHandler(() =>

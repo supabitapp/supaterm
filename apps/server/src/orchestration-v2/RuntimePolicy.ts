@@ -51,13 +51,12 @@ export class RuntimePolicyV2 extends Context.Service<RuntimePolicyV2, RuntimePol
 ) {}
 
 export const layer: Layer.Layer<RuntimePolicyV2> = Layer.succeed(RuntimePolicyV2, {
-  resolve: Effect.fn("RuntimePolicyV2.resolve")(function (input) {
-    return Effect.succeed({
+  resolve: (input) =>
+    Effect.succeed({
       runtimeMode: input.thread.runtimeMode,
       interactionMode: input.thread.interactionMode,
       cwd: input.thread.worktreePath,
-    });
-  }),
+    }),
 });
 
 function providerRuntimeMode(

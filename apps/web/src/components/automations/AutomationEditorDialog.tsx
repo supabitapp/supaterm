@@ -24,7 +24,11 @@ import {
 
 import { useEnvironmentSettings } from "../../hooks/useSettings";
 import { getCustomModelOptionsByInstance } from "../../modelSelection";
-import { providerInstanceEntriesFor } from "../../providerInstances";
+import {
+  applyProviderInstanceSettings,
+  deriveProviderInstanceEntries,
+  sortProviderInstanceEntries,
+} from "../../providerInstances";
 import { useEnvironment, type EnvironmentPresentation } from "../../state/environments";
 import { useProjects } from "../../state/entities";
 import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
@@ -183,10 +187,12 @@ export function AutomationEditorDialog({
     !tasksQuery.data.tasks.some((entry) => entry.id === draft.editingId);
   const selectedProjectId = draft.projectId || projects[0]?.id || "";
   const selectedProject = projects.find((project) => project.id === selectedProjectId);
-  const instanceEntries = providerInstanceEntriesFor(
-    providers,
-    settings,
-    selectedProject?.id ?? null,
+  const instanceEntries = sortProviderInstanceEntries(
+    applyProviderInstanceSettings(
+      deriveProviderInstanceEntries(providers),
+      settings,
+      selectedProject?.id ?? null,
+    ),
   );
 
   // The real model picker is keyed by a `${instanceId}:${model}` string, which
@@ -308,7 +314,7 @@ export function AutomationEditorDialog({
         <DialogHeader>
           <DialogTitle>{draft.editingId ? "Edit automation" : "New automation"}</DialogTitle>
           <DialogDescription>
-            Run a prompt automatically, on an interval or at a fixed time.
+            Run a prompt automatically — on an interval or at a fixed time.
           </DialogDescription>
         </DialogHeader>
 

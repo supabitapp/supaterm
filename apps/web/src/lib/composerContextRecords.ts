@@ -1,15 +1,10 @@
 import {
-  capitalizeTerm,
-  sourceControlClients,
-} from "@supaterm/client-runtime/source-control-clients";
-import {
   COMPOSER_CONTEXT_REVIEW_DIFF_MAX_CHARS,
   COMPOSER_CONTEXT_REVIEW_TEXT_MAX_CHARS,
 } from "@supaterm/contracts";
 import type {
   ComposerContextId,
   ComposerContextRecord,
-  EnvironmentContextRecord,
   EnvironmentId,
   FileContextRecord,
   ImageContextRecord,
@@ -19,6 +14,7 @@ import type {
   PreviewAnnotationContextRecord,
   PreviewAnnotationPayload,
   ReviewCommentContextRecord,
+  ScopedThreadRef,
   TerminalContextRecord,
   ThreadContextRecord,
   ThreadId,
@@ -47,7 +43,11 @@ import type { ReviewCommentContext } from "~/reviewCommentContext";
 
 const PREVIEW_LABEL_MAX_CHARS = 48;
 
-// Truncate selections to wire bounds before persistence to avoid send-time encoding failures.
+/**
+ * A review selection can be arbitrarily large, but the wire schema bounds `text` and `diff`.
+ * Clamp at the same boundary so an oversized selection still sends, marked where it was cut,
+ * rather than failing to encode at send time.
+ */
 const TRUNCATION_MARKER = "\n… truncated …";
 
 function clampContextText(value: string, max: number): string {
@@ -99,12 +99,9 @@ export function pullRequestContextDisplayState(
 }
 
 export function pullRequestContextKindLabel(comment: ReviewCommentPresentation): string {
-  const url = comment.pullRequest?.url;
-  const host = url === undefined ? null : sourceControlClients.findByChangeRequestUrl(url);
-  const term = (host ?? sourceControlClients.get(undefined)).changeRequest.singular;
   const state = pullRequestContextDisplayState(comment);
-  if (state === null) return capitalizeTerm(term);
-  return `${capitalizeTerm(state)} ${term}`;
+  if (state === null) return "Pull request";
+  return `${state[0]!.toUpperCase()}${state.slice(1)} pull request`;
 }
 
 export function previewAnnotationContextLabel(annotation: PreviewAnnotationPayload): string {
@@ -153,27 +150,24 @@ export function previewAnnotationContextReference(
   };
 }
 
+function threadContextId(threadId: ThreadId): ComposerContextId {
+  return toKindScopedComposerContextId("thread", threadId);
+}
+
 export function threadContextReference(record: ThreadContextRecord): ComposerContextReference {
   return { kind: "thread", contextId: record.contextId, label: record.label };
 }
 
-/** One record per machine: mentioning the same machine twice reuses the chip. */
-export function environmentContextReference(
-  record: EnvironmentContextRecord,
-): ComposerContextReference {
-  return { kind: "environment", contextId: record.contextId, label: record.label };
-}
-
-export function environmentContextRecord(
-  environmentId: EnvironmentId,
-  label: string,
-): EnvironmentContextRecord {
+export function threadContextRecord(ref: ScopedThreadRef, title: string): ThreadContextRecord {
+  const label = sanitizeComposerContextLabel(title, "thread");
   return {
     version: 1,
-    kind: "environment",
-    contextId: toKindScopedComposerContextId("environment", environmentId),
-    label: sanitizeComposerContextLabel(label, "environment"),
-    environmentId,
+    kind: "thread",
+    contextId: threadContextId(ref.threadId),
+    label,
+    environmentId: ref.environmentId,
+    threadId: ref.threadId,
+    title: label,
   };
 }
 
@@ -316,7 +310,6 @@ export function buildMessageContext(input: {
   reviewComments: ReadonlyArray<ReviewCommentContext>;
   previewAnnotations: ReadonlyArray<PreviewAnnotationPayload>;
   threadContexts?: ReadonlyArray<ThreadContextRecord>;
-  environmentContexts?: ReadonlyArray<EnvironmentContextRecord>;
   attachments?: ReadonlyArray<BoundComposerAttachment>;
 }): OrchestrationMessageContext | undefined {
   const screenshotAttachmentIds = new Set(
@@ -328,7 +321,6 @@ export function buildMessageContext(input: {
     ...input.terminalContexts.map(terminalContextRecord),
     ...input.reviewComments.map(reviewCommentContextRecord),
     ...(input.threadContexts ?? []),
-    ...(input.environmentContexts ?? []),
     ...input.previewAnnotations.map((annotation) =>
       previewAnnotationContextRecord(annotation, {
         screenshotContextId: screenshotAttachmentIds.has(annotation.id) ? annotation.id : undefined,
@@ -479,7 +471,11 @@ export function previewAnnotationFromRecord(
   };
 }
 
-/** Labels are display-only; folded ids can collide, so paste deduplication compares payloads. */
+/**
+ * Whether two records carry the same payload, ignoring the label (display text, never
+ * identity). Context ids are a folded form of producer ids, so a collision alone does not mean
+ * the records are the same excerpt; the paste path compares payloads before de-duplicating.
+ */
 export function isSameComposerContextPayload(
   left: ComposerContextRecord,
   right: ComposerContextRecord,

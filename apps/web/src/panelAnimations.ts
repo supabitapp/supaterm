@@ -12,7 +12,6 @@ export function usePanelNavigationSuppression(navigationKey: string): boolean {
   const [paintedNavigationKey, setPaintedNavigationKey] = useState<string | null>(null);
   const suppressed = paintedNavigationKey !== navigationKey;
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Waits for the browser to paint the destination before enabling panel transitions.
   useEffect(() => {
     if (!suppressed) return;
     let releaseFrame = 0;
@@ -58,7 +57,6 @@ export function usePanelPresence<T>(
     setPresent(open);
   }
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Owns the exit transition timer that releases retained panel content.
   useEffect(() => {
     if (open || !animated) return;
     const timeout = window.setTimeout(() => setPresent(false), durationMs);

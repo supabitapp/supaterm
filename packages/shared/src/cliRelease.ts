@@ -1,5 +1,3 @@
-import { compareSemverVersions } from "./semver.ts";
-
 const CLI_RELEASE_REPOSITORY = "supabitapp/supaterm";
 export const CLI_RELEASES_PAGE_URL = `https://github.com/${CLI_RELEASE_REPOSITORY}/releases`;
 export const CLI_RELEASE_CHECKSUMS_FILE = "SHA256SUMS";
@@ -80,28 +78,10 @@ export function cliReleaseChannelOf(version: string): CliReleaseChannel {
   return channel === "nightly" || channel === "preview" ? channel : "stable";
 }
 
-export function crossesReleaseTrack(fromVersion: string, toVersion: string): boolean {
-  const from = cliReleaseChannelOf(fromVersion);
-  const to = cliReleaseChannelOf(toVersion);
-  return from !== to && from !== "preview" && to !== "preview";
-}
-
-export function desktopUpdateChannelOf(version: string): "latest" | "nightly" {
-  return cliReleaseChannelOf(version) === "nightly" ? "nightly" : "latest";
-}
-
-export function acceptsTrackSwitchRelease(
-  found: string,
-  channel: "latest" | "nightly",
-  checked: string,
-): boolean {
-  return (
-    cliReleaseChannelOf(found) === (channel === "nightly" ? "nightly" : "stable") &&
-    compareSemverVersions(found, checked) >= 0
-  );
-}
-
-/** Page until the channel matches; nightlies can push preview/stable releases past the first page. */
+/**
+ * Callers walk pages until a channel match turns up; a busy nightly train can push the newest
+ * preview or stable release past any single page.
+ */
 export function cliReleaseIndexPageUrl(page: number): string {
   return `https://api.github.com/repos/${CLI_RELEASE_REPOSITORY}/releases?per_page=100&page=${page}`;
 }

@@ -11,7 +11,6 @@ import {
   TrimmedNonEmptyString,
   type SourceControlRepositoryVisibility,
   type VcsError,
-  type VcsProcessExitFailureKind,
 } from "@supaterm/contracts";
 
 import * as SourceControlHost from "@supaterm/source-control-core/server/SourceControlHost";
@@ -269,7 +268,7 @@ export class GitLabCli extends Context.Service<
       readonly cwd: string;
       readonly args: ReadonlyArray<string>;
       readonly timeoutMs?: number;
-
+      /** Piped to the child's stdin, for payloads that must never appear in argv. */
       readonly stdin?: string;
       readonly maxOutputBytes?: number;
     }) => Effect.Effect<SourceControlHost.SourceControlProcessOutput, GitLabCliError>;
@@ -410,14 +409,8 @@ function parseRepositoryPath(repository: string): {
   return { namespacePath, projectPath };
 }
 
-const classifyGlabFailure = (stderr: string): VcsProcessExitFailureKind | null => {
-  const normalized = stderr.toLowerCase();
-  if (normalized.includes("glab auth login")) return "authentication";
-  if (normalized.includes("not found") || normalized.includes("404")) return "not-found";
-  return null;
-};
-
-const make = Effect.gen(function* () {
+/** @public Service construction is part of the canonical Effect module API. */
+export const make = Effect.gen(function* () {
   const { process } = yield* SourceControlHost.SourceControlHost;
 
   const run = (
@@ -430,8 +423,6 @@ const make = Effect.gen(function* () {
         command: "glab",
         args: input.args,
         cwd: input.cwd,
-        classifyFailure: classifyGlabFailure,
-        notFoundDetail: "Merge request not found.",
         timeoutMs: input.timeoutMs ?? DEFAULT_TIMEOUT_MS,
         ...(input.stdin === undefined ? {} : { stdin: input.stdin }),
         ...(input.maxOutputBytes === undefined ? {} : { maxOutputBytes: input.maxOutputBytes }),
@@ -465,8 +456,8 @@ const make = Effect.gen(function* () {
 
   return GitLabCli.of({
     execute,
-    listMergeRequests: Effect.fn("GitLabCli.listMergeRequests")(function (input) {
-      return execute({
+    listMergeRequests: (input) =>
+      execute({
         cwd: input.cwd,
         args: [
           "mr",
@@ -501,10 +492,9 @@ const make = Effect.gen(function* () {
                 }),
               ),
         ),
-      );
-    }),
-    getMergeRequest: Effect.fn("GitLabCli.getMergeRequest")(function (input) {
-      return executeMergeRequest({
+      ),
+    getMergeRequest: (input) =>
+      executeMergeRequest({
         cwd: input.cwd,
         reference: input.reference,
         args: ["mr", "view", "--output", "json", "--", input.reference],
@@ -529,10 +519,9 @@ const make = Effect.gen(function* () {
             }),
           ),
         ),
-      );
-    }),
-    getRepositoryCloneUrls: Effect.fn("GitLabCli.getRepositoryCloneUrls")(function (input) {
-      return execute({
+      ),
+    getRepositoryCloneUrls: (input) =>
+      execute({
         cwd: input.cwd,
         args: ["api", `projects/${encodeURIComponent(input.repository)}`],
       }).pipe(
@@ -552,9 +541,8 @@ const make = Effect.gen(function* () {
           ),
         ),
         Effect.map(normalizeRepositoryCloneUrls),
-      );
-    }),
-    createRepository: Effect.fn("GitLabCli.createRepository")(function (input) {
+      ),
+    createRepository: (input) => {
       const { namespacePath, projectPath } = parseRepositoryPath(input.repository);
       const namespaceId: Effect.Effect<number | null, GitLabCliError> = namespacePath
         ? execute({
@@ -618,8 +606,8 @@ const make = Effect.gen(function* () {
         ),
         Effect.map(normalizeRepositoryCloneUrls),
       );
-    }),
-    createMergeRequest: Effect.fn("GitLabCli.createMergeRequest")(function (input) {
+    },
+    createMergeRequest: (input) => {
       const sourceProject = sourceProjectIdentifier(input.source);
       return execute({
         cwd: input.cwd,
@@ -639,9 +627,9 @@ const make = Effect.gen(function* () {
           `description=@${input.bodyFile}`,
         ],
       }).pipe(Effect.asVoid);
-    }),
-    getDefaultBranch: Effect.fn("GitLabCli.getDefaultBranch")(function (input) {
-      return execute({
+    },
+    getDefaultBranch: (input) =>
+      execute({
         cwd: input.cwd,
         args: ["api", "projects/:fullpath"],
       }).pipe(
@@ -660,15 +648,13 @@ const make = Effect.gen(function* () {
           ),
         ),
         Effect.map((value) => value.default_branch ?? null),
-      );
-    }),
-    checkoutMergeRequest: Effect.fn("GitLabCli.checkoutMergeRequest")(function (input) {
-      return executeMergeRequest({
+      ),
+    checkoutMergeRequest: (input) =>
+      executeMergeRequest({
         cwd: input.cwd,
         reference: input.reference,
         args: ["mr", "checkout", "--", input.reference],
-      }).pipe(Effect.asVoid);
-    }),
+      }).pipe(Effect.asVoid),
   });
 });
 

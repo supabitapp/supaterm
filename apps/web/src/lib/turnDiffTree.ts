@@ -30,7 +30,7 @@ interface MutableDirectoryNode {
   files: TurnDiffTreeFileNode[];
 }
 
-let sortCollator: Intl.Collator | undefined;
+const SORT_LOCALE_OPTIONS: Intl.CollatorOptions = { numeric: true, sensitivity: "base" };
 
 function normalizePathSegments(pathValue: string): string[] {
   return pathValue
@@ -40,8 +40,7 @@ function normalizePathSegments(pathValue: string): string[] {
 }
 
 function compareByName(a: { name: string }, b: { name: string }): number {
-  sortCollator ??= new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
-  return sortCollator.compare(a.name, b.name);
+  return a.name.localeCompare(b.name, undefined, SORT_LOCALE_OPTIONS);
 }
 
 function readStat(file: TurnDiffFileChange): TurnDiffStat | null {
@@ -95,6 +94,20 @@ function toTreeNodes(directory: MutableDirectoryNode): TurnDiffTreeNode[] {
 
   const files = directory.files.toSorted(compareByName);
   return [...subdirectories, ...files];
+}
+
+export function summarizeTurnDiffStats(files: ReadonlyArray<TurnDiffFileChange>): TurnDiffStat {
+  return files.reduce(
+    (acc, file) => {
+      const stat = readStat(file);
+      if (!stat) return acc;
+      return {
+        additions: acc.additions + stat.additions,
+        deletions: acc.deletions + stat.deletions,
+      };
+    },
+    { additions: 0, deletions: 0 },
+  );
 }
 
 export function buildTurnDiffTree(files: ReadonlyArray<TurnDiffFileChange>): TurnDiffTreeNode[] {
