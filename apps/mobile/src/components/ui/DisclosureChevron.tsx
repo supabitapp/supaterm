@@ -24,6 +24,7 @@ export function DisclosureChevron(
   const angle = props.expanded ? (direction === "right" ? 90 : 180) : 0;
   const duration = props.duration ?? MOTION_ENTER_DURATION_MS;
   const rotation = useSharedValue(angle);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Retargets the native chevron animation when expansion or motion preferences change.
   useLayoutEffect(() => {
     rotation.set(
       reducedMotion

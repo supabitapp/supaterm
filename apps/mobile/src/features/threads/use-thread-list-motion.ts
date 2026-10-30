@@ -43,6 +43,7 @@ export function useThreadListMotion(input: {
       deadline.set(performance.now() + 300);
     })();
   }, [deadline, ready, reducedMotion, scrolling, searching]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Updates the native layout animation eligibility window after the list commits.
   useLayoutEffect(() => {
     const animate =
       ready &&

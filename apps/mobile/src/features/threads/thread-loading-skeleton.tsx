@@ -53,6 +53,7 @@ export function useThreadLoadingShimmer() {
   const screenIsFocused = useIsFocused();
   const showShimmer = !reduceMotion && appIsActive && screenIsFocused;
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Subscribes to native accessibility and app lifecycle changes while the loading screen is mounted.
   useEffect(() => {
     let mounted = true;
     void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
@@ -72,6 +73,7 @@ export function useThreadLoadingShimmer() {
     };
   }, []);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Starts and cancels the native shimmer clock as focus and reduced-motion preferences change.
   useEffect(() => {
     progress.set(0);
     if (!showShimmer) return;

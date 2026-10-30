@@ -7,7 +7,9 @@ describe("hasWideMarkdownBlock", () => {
     expect(hasWideMarkdownBlock("just a message")).toBe(false);
     expect(hasWideMarkdownBlock("I found it in `secteurs_intervention` earlier")).toBe(false);
     expect(hasWideMarkdownBlock("a | b in a sentence")).toBe(false);
-    expect(hasWideMarkdownBlock("an em dash — and a rule\n\n---\n")).toBe(false);
+    expect(
+      hasWideMarkdownBlock(`an em dash ${String.fromCodePoint(0x2014)} and a rule\n\n---\n`),
+    ).toBe(false);
   });
 
   it("detects indented code blocks", () => {
