@@ -68,6 +68,7 @@ export function TimelineMinimap({
   const pressedOnStripRef = useRef(false);
   const [passThrough, setPassThrough] = useState(false);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Watches window mouse release events until the drag can stop passing through the minimap.
   useEffect(() => {
     if (!passThrough) return;
     return onMouseButtonsReleased(() => setPassThrough(false));

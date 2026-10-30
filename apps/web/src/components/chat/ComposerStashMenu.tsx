@@ -70,6 +70,7 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
 
   const highlightedEntry = entries.find((entry) => entry.id === highlightedId) ?? entries[0];
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Dismisses the open menu on document pointer events outside its drawer.
   useEffect(() => {
     const closeOnOutsidePointer = (event: PointerEvent) => {
       const drawer = drawerRef.current;
@@ -86,6 +87,7 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
     return () => document.removeEventListener("pointerdown", closeOnOutsidePointer, true);
   }, [onClose]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Owns capture-phase keyboard navigation while the stash menu is mounted.
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       const target = event.target;

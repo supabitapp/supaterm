@@ -47,6 +47,7 @@ function closeThreadOverlay<T>(atom: ThreadOverlayAtom<T>): void {
 
 function useThreadOverlay<T>(atom: ThreadOverlayAtom<T>, threadKey: string | null): T | null {
   const entry = useAtomValue(atom);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Releases this host's imperative overlay registry entry when its thread leaves.
   useEffect(
     () => () => {
       if (appAtomRegistry.get(atom)?.threadKey === threadKey) closeThreadOverlay(atom);

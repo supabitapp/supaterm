@@ -45,6 +45,7 @@ export function AssistantSelectionToolbar({
   };
   const shown = presence.value !== null;
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Clamps the toolbar to the viewport using its committed DOM dimensions.
   useLayoutEffect(() => {
     const toolbar = toolbarRef.current;
     if (!toolbar || !selection) return;
@@ -53,8 +54,7 @@ export function AssistantSelectionToolbar({
     toolbar.style.top = `${Math.max(8, Math.min(selection.position.y, window.innerHeight - toolbar.offsetHeight - 8))}px`;
   }, [selection]);
 
-  // The glass button animates itself: fading a parent would drop its backdrop
-  // blur. Timing matches POPUP_MOTION_CLASS.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Animates the glass button itself so its backdrop blur survives the fade.
   useLayoutEffect(() => {
     const toolbar = toolbarRef.current;
     if (!shown || !toolbar || prefersReducedMotion()) return;
@@ -68,6 +68,7 @@ export function AssistantSelectionToolbar({
     return () => animation.cancel();
   }, [shown, presence.exiting]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Observes native text selection, scrolling, and keyboard focus while the viewport is mounted.
   useEffect(() => {
     if (!viewport) return;
     const clear = () => setSelection(null);

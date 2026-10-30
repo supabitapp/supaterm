@@ -173,13 +173,19 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
     readonly draftId: string;
     readonly projectKey: string | null;
   } | null>(null);
-  const [isEnvironmentChanging, setIsEnvironmentChanging] = useState(false);
+  const [busyRequest, setBusyRequest] = useState<(typeof environmentChangeRef)["current"]>(null);
+  const isEnvironmentChanging =
+    busyRequest !== null &&
+    busyRequest.draftId === draftId &&
+    busyRequest.projectKey === activeProjectKey;
+  if (busyRequest !== null && !isEnvironmentChanging) setBusyRequest(null);
+
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Invalidates a pending scratch-project RPC when its draft or project leaves the mounted scope.
   useLayoutEffect(() => {
     return () => {
       const request = environmentChangeRef.current;
       if (request?.draftId === draftId && request.projectKey === activeProjectKey) {
         environmentChangeRef.current = null;
-        setIsEnvironmentChanging(false);
       }
     };
   }, [draftId, activeProjectKey]);
@@ -198,7 +204,7 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
       projectKey: activeProjectKey,
     };
     environmentChangeRef.current = request;
-    setIsEnvironmentChanging(false);
+    setBusyRequest(null);
     const retarget = (project: (typeof allProjects)[number]) => {
       const currentDraft = getDraftSession(draftId);
       if (
@@ -227,10 +233,8 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
       }
     };
     const finish = () => {
-      if (environmentChangeRef.current === request) {
-        environmentChangeRef.current = null;
-        setIsEnvironmentChanging(false);
-      }
+      if (environmentChangeRef.current === request) environmentChangeRef.current = null;
+      setBusyRequest((current) => (current === request ? null : current));
     };
     if (target.projectId !== null) {
       const project = allProjects.find(
@@ -241,7 +245,7 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
       finish();
       return;
     }
-    setIsEnvironmentChanging(true);
+    setBusyRequest(request);
     void openScratchProject(target.environmentId, "Could not switch machine")
       .then((project) => {
         if (project) retarget(project);

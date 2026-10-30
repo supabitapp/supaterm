@@ -4,6 +4,7 @@ import { cn } from "~/lib/utils";
 
 function useUserInputCountdown(deadline: string) {
   const [now, setNow] = useState(Date.now);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Updates the countdown from the wall clock and refreshes it when the document becomes visible.
   useEffect(() => {
     const tick = () => {
       const time = Date.now();
