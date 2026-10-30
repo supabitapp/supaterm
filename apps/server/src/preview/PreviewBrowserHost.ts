@@ -78,7 +78,7 @@ export class PreviewBrowserRootError extends Schema.TaggedError<PreviewBrowserRo
   {},
 ) {
   override get message(): string {
-    return "Chrome will not start its sandbox as root, so Supaterm's browser cannot run while the Supaterm server runs as root. Run the server as a nonroot user (for example `User=` in its systemd service), or set `SUPATERM_SERVER_BROWSER_SANDBOX=0` to run the browser unsandboxed as root.";
+    return "Supaterm server is running as root; Chrome's sandbox cannot start. Run Supaterm as a nonroot user. Otherwise set `SUPATERM_SERVER_BROWSER_SANDBOX=0` in the Supaterm server's environment and restart the server; this disables Chrome's sandbox. Manual: `SUPATERM_SERVER_BROWSER_SANDBOX=0 supaterm serve`. Systemd: add `Environment=SUPATERM_SERVER_BROWSER_SANDBOX=0` under `[Service]`, reload systemd, then restart the service. `supaterm browser setup` cannot fix root sandboxing.";
   }
 }
 
