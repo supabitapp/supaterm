@@ -705,7 +705,9 @@ export function filterPullRequestConversationItems(
     pullRequestConversationItemComments(item).some(
       (comment) =>
         (filter.bots ||
-          !(comment.author?.isBot === true || comment.author?.login.endsWith("[bot]"))) &&
+          !(comment.author?.isBot === true || comment.author?.login.endsWith("[bot]")) ||
+          pullRequestReviewOutcome(comment.reviewState) === "approved" ||
+          pullRequestReviewOutcome(comment.reviewState) === "changes-requested") &&
         (filter.resolved ||
           !isPullRequestCommentFinished(comment, item.kind === "thread" ? item.thread : undefined)),
     ),
