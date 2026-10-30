@@ -23,6 +23,7 @@ import {
   type GuestStreamEvent,
   MessageId,
   type OrchestrationV2TurnItem,
+  OrchestrationV2TurnItemStatus,
   ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
@@ -72,6 +73,7 @@ import * as PreviewAgentActivity from "../preview/PreviewAgentActivity.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as AnalyticsService from "../telemetry/AnalyticsService.ts";
 import * as GuestShareService from "./GuestShareService.ts";
+import { projectTurnItemForWire } from "../orchestration-v2/WireProjection.ts";
 
 const instanceId = ProviderInstanceId.make("codex");
 const adapter = {
@@ -543,6 +545,7 @@ const writeItem = (
         Extract<OrchestrationV2TurnItem, { type: "file_change" }>,
         "type" | "status" | "fileName" | "diffStr" | "oldStr" | "newStr"
       >,
+  ordinal = 1,
 ) =>
   Effect.gen(function* () {
     const runId = yield* ownerRun;
@@ -566,7 +569,7 @@ const writeItem = (
             providerTurnId: null,
             nativeItemRef: null,
             parentItemId: null,
-            ordinal: 1,
+            ordinal,
             title: null,
             startedAt: now,
             completedAt: fields.status === "running" ? null : now,
@@ -581,7 +584,7 @@ const writeItem = (
 
 it.effect("gives the guest a command's detail and output, but no file diffs", () =>
   Effect.gen(function* () {
-    const { guestShares, credential } = yield* shareThread;
+    const { orchestrator, guestShares, credential } = yield* shareThread;
     const { token: session } = yield* guestShares.redeem({ credential, name: "Sam" });
     const command = yield* writeItem("item:command", {
       type: "command_execution",
@@ -605,9 +608,23 @@ it.effect("gives the guest a command's detail and output, but no file diffs", ()
       oldStr: "",
       newStr: "export const key = 1;\n",
     });
+    const failed = yield* writeItem("item:failed-edit", {
+      type: "file_change",
+      status: "failed",
+      fileName: "src/failed.ts",
+      diffStr: "-private old contents\n+private new contents\n",
+      oldStr: "private old contents",
+      newStr: "private new contents",
+    });
+    const ownerItem = yield* orchestrator.getTurnItem({ threadId, itemId: failed });
+    assert.isNotNull(ownerItem);
+    assert.deepInclude(projectTurnItemForWire(ownerItem!), {
+      diffStr: "-private old contents\n+private new contents\n",
+    });
     for (const [id, fileName] of [
       [edit, "src/auth.ts"],
       [write, "src/config.ts"],
+      [failed, "src/failed.ts"],
     ] as const) {
       const change = (yield* guestShares.item(session, id)).item;
       assert.deepInclude(change, { type: "file_change", fileName });
@@ -629,6 +646,72 @@ it.effect("gives the guest a command's detail and output, but no file diffs", ()
       assert.isTrue(Exit.isFailure(yield* Effect.exit(request)));
     }
   }).pipe(Effect.provide(layerTest)),
+);
+
+it.effect.each(["snapshot", "replay", "live"] as const)(
+  "strips file diff fields from every status at the guest %s boundary",
+  (boundary) =>
+    Effect.gen(function* () {
+      const { orchestrator, guestShares, credential } = yield* shareThread;
+      const { token: session } = yield* guestShares.redeem({ credential, name: "Sam" });
+      const seedChanges = Effect.forEach(OrchestrationV2TurnItemStatus.literals, (status, index) =>
+        writeItem(
+          `item:diff-${status}`,
+          {
+            type: "file_change",
+            status,
+            fileName: `src/${status}.ts`,
+            diffStr: `-private-${status}\n+replacement-${status}\n`,
+            oldStr: `private-${status}`,
+            newStr: `replacement-${status}`,
+          },
+          index + 1,
+        ),
+      );
+      if (boundary === "snapshot") yield* seedChanges;
+      const events = yield* guestShares.stream(session);
+      const opened = yield* Deferred.make<void>();
+      const collecting =
+        boundary === "live"
+          ? yield* events.pipe(
+              Stream.tap((event) =>
+                event.type === "thread" && event.item.kind === "snapshot"
+                  ? Deferred.succeed(opened, undefined)
+                  : Effect.void,
+              ),
+              Stream.runCollect,
+              Effect.forkChild,
+            )
+          : null;
+      if (collecting !== null) yield* Deferred.await(opened);
+      if (boundary !== "snapshot") yield* seedChanges;
+      yield* orchestrator.dispatch({
+        type: "thread.guest-share.close",
+        commandId: CommandId.make("close-diff-stream"),
+        threadId,
+      });
+      const received =
+        collecting === null ? yield* Stream.runCollect(events) : yield* Fiber.join(collecting);
+      assert.equal(received.at(-1)?.type, "ended");
+      const items = received
+        .flatMap((event) => {
+          if (event.type !== "thread") return [];
+          if (event.item.kind === "snapshot")
+            return [
+              ...event.item.projection.turnItems,
+              ...event.item.projection.visibleTurnItems.map((row) => row.item),
+            ];
+          return event.item.kind === "event" && event.item.event.type === "turn-item.updated"
+            ? [event.item.event.payload]
+            : [];
+        })
+        .filter((item) => item.type === "file_change");
+      assert.sameMembers(
+        [...new Set(items.map((item) => item.status))],
+        [...OrchestrationV2TurnItemStatus.literals],
+      );
+      for (const item of items) assert.doesNotHaveAnyKeys(item, ["diffStr", "oldStr", "newStr"]);
+    }).pipe(Effect.provide(layerTest)),
 );
 
 it.effect.each(["owner", "expiry", "consumer"] as const)(
@@ -1276,7 +1359,21 @@ it.effect("joins and submits through the encrypted guest HTTP transport", () =>
     });
     transport.setToken(joined.token);
     yield* guestShares.check(joined.token);
+    const failedEdit = yield* writeItem("item:failed-http-edit", {
+      type: "file_change",
+      status: "failed",
+      fileName: "src/private.ts",
+      diffStr: "-private-before\n+private-after\n",
+      oldStr: "private-before",
+      newStr: "private-after",
+    });
     yield* Effect.promise(async () => {
+      const detailResponse = await transport.request(
+        `/api/guest/item?share=${joined.shareId}&item=${failedEdit}`,
+      );
+      assert.equal(detailResponse.status, 200);
+      const detail = (await detailResponse.json()) as { item: unknown };
+      assert.doesNotHaveAnyKeys(detail.item, ["diffStr", "oldStr", "newStr"]);
       assert.equal(
         (await transport.request(`/api/guest/session?share=${joined.shareId}`)).status,
         204,

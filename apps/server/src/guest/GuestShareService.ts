@@ -56,12 +56,16 @@ import { buildBoundedThreadStreamSnapshot } from "../orchestration-v2/ThreadStre
 import {
   projectDomainEventForWire,
   projectTurnItemForDetail,
-  projectTurnItemForWire,
 } from "../orchestration-v2/WireProjection.ts";
 import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as AnalyticsService from "../telemetry/AnalyticsService.ts";
 import { guestShareView, guestThreadModel } from "./guestView.ts";
+import {
+  sanitizeGuestDomainEvent,
+  sanitizeGuestSnapshot,
+  sanitizeGuestTurnItem,
+} from "./guestProjection.ts";
 import {
   classifyGuestUploads,
   GUEST_UPLOAD_HEADER_BYTES,
@@ -548,7 +552,7 @@ const make = Effect.gen(function* () {
         Stream.map((stored) => ({
           kind: "event" as const,
           sequence: stored.sequence,
-          event: projectDomainEventForWire(stored.event),
+          event: sanitizeGuestDomainEvent(projectDomainEventForWire(stored.event)),
         })),
         Stream.takeUntil((item) => endsShare(item.event)),
         coalesceThreadLiveStream,
@@ -573,10 +577,12 @@ const make = Effect.gen(function* () {
         Effect.sleep(Math.max(0, Date.parse(share.expiresAt) - DateTime.toEpochMillis(now))),
       ),
     );
-    const openingSnapshot = buildBoundedThreadStreamSnapshot({
-      snapshotSequence: snapshot.snapshotSequence,
-      projection: snapshot.projection,
-    });
+    const openingSnapshot = sanitizeGuestSnapshot(
+      buildBoundedThreadStreamSnapshot({
+        snapshotSequence: snapshot.snapshotSequence,
+        projection: snapshot.projection,
+      }),
+    );
     const opening: ReadonlyArray<GuestStreamEvent> = [
       { type: "view", view: initialView },
       { type: "thread", item: openingSnapshot },
@@ -641,7 +647,7 @@ const make = Effect.gen(function* () {
     const { item } = yield* threadItem(session, itemId);
     return {
       item:
-        item.type === "file_change" ? projectTurnItemForWire(item) : projectTurnItemForDetail(item),
+        item.type === "file_change" ? sanitizeGuestTurnItem(item) : projectTurnItemForDetail(item),
     };
   });
 
