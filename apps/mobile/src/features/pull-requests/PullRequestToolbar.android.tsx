@@ -10,6 +10,7 @@ import { WorkspaceFilterButton } from "../workspace/WorkspaceFilterButton";
 import { WorkspaceListToolbarRow } from "../workspace/WorkspaceListToolbarRow";
 import type { PullRequestFilterMenu } from "./PullRequestListFilters";
 import { openSettings } from "../settings/settings-navigation";
+import { DEFAULT_SETTINGS_PAGE } from "../workspace/workspace-tab-navigation";
 
 export function PullRequestToolbar(props: {
   readonly sidebar?: boolean;
@@ -91,7 +92,7 @@ export function PullRequestToolbar(props: {
           {
             accessibilityLabel: "Open settings",
             icon: "gearshape",
-            onPress: () => openSettings(navigation, "Settings"),
+            onPress: () => openSettings(navigation, DEFAULT_SETTINGS_PAGE),
           },
         ]}
         filter={

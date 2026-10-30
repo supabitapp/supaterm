@@ -1,4 +1,4 @@
-import { useAtomMount, useAtomSubscribe } from "@effect/atom-react";
+import { useAtomMount, useAtomRefresh, useAtomSubscribe, useAtomValue } from "@effect/atom-react";
 import { executeAtomQuery } from "@supaterm/client-runtime/state/runtime";
 import {
   ProjectListEntriesError,
@@ -6,14 +6,14 @@ import {
   type ProjectEntry,
 } from "@supaterm/contracts";
 import * as Cause from "effect/Cause";
+import * as Option from "effect/Option";
 import { useLayoutEffect, useRef, useState } from "react";
-import { Atom } from "effect/reactivity";
+import { AsyncResult, Atom } from "effect/reactivity";
 
 import { environmentCatalog } from "../../connection/catalog";
 import { appAtomRegistry } from "../../state/atom-registry";
 import { projectEnvironment } from "../../state/projects";
 import { useDebouncedValue } from "../../state/queries";
-import { useEnvironmentQuery } from "../../state/query";
 
 function createDirectories() {
   return {
@@ -102,6 +102,7 @@ function getRequests(
   return requests;
 }
 const noSessionGeneration = Atom.make(0);
+const noEntries = Atom.make(AsyncResult.initial<never, never>(false));
 
 export function useFileTreeEntries(input: {
   readonly cwd: string | null;
@@ -112,7 +113,7 @@ export function useFileTreeEntries(input: {
   const searching = input.searchQuery.trim().length > 0;
   const query = input.searchQuery.trim().slice(0, 256);
   const debouncedQuery = useDebouncedValue(query, 200);
-  const root = useEnvironmentQuery(
+  const rootAtom =
     cwd !== null && environmentId !== null
       ? projectEnvironment.listEntries({
           environmentId,
@@ -121,10 +122,10 @@ export function useFileTreeEntries(input: {
             directoryPath: "",
           },
         })
-      : null,
-  );
-  const { refresh: refreshRoot } = root;
-  const search = useEnvironmentQuery(
+      : noEntries;
+  const root = useAtomValue(rootAtom);
+  const refreshRoot = useAtomRefresh(rootAtom);
+  const searchAtom =
     searching && debouncedQuery.length > 0 && cwd !== null && environmentId !== null
       ? projectEnvironment.searchEntries({
           environmentId,
@@ -134,8 +135,9 @@ export function useFileTreeEntries(input: {
             limit: 200,
           },
         })
-      : null,
-  );
+      : noEntries;
+  const search = useAtomValue(searchAtom);
+  const refreshSearch = useAtomRefresh(searchAtom);
   const workspaceKey = JSON.stringify([environmentId, cwd]);
   const [cache, setCache] = useState(() => ({
     key: workspaceKey,
@@ -286,11 +288,12 @@ export function useFileTreeEntries(input: {
       });
     });
   };
+  const rootFailure = Option.getOrNull(AsyncResult.error(root));
   const missingRoot =
-    root.failure instanceof ProjectListEntriesError &&
-    root.failure.failure === "workspace_root_not_found";
-  const rootData = missingRoot ? null : root.data;
-  const rootListing = root.successResult ?? directories.rootListing;
+    rootFailure instanceof ProjectListEntriesError &&
+    rootFailure.failure === "workspace_root_not_found";
+  const rootData = missingRoot ? null : AsyncResult.getOrElse(root, () => null);
+  const rootListing = AsyncResult.isSuccess(root) && !root.waiting ? root : directories.rootListing;
   if (
     missingRoot &&
     (directories.entries.size > 0 ||
@@ -302,7 +305,8 @@ export function useFileTreeEntries(input: {
   ) {
     setDirectories(() => createDirectories());
   }
-  const { refresh: refreshSearch, data: searchData, successResult: searchResult } = search;
+  const searchData = AsyncResult.getOrElse(search, () => null);
+  const searchResult = AsyncResult.isSuccess(search) && !search.waiting ? search : null;
 
   const sessionGeneration =
     environmentId === null
@@ -565,6 +569,11 @@ export function useFileTreeEntries(input: {
         : { ...current, expandedPaths: new Set(expandedPaths) };
     });
 
+  const rootError = AsyncResult.isFailure(root) ? Cause.squash(root.cause) : null;
+  const searchError =
+    searching && AsyncResult.isFailure(search) ? Cause.squash(search.cause) : null;
+  const queryError = rootError ?? searchError;
+
   return {
     revealSelection,
     expandedPaths: directories.expandedPaths,
@@ -576,16 +585,19 @@ export function useFileTreeEntries(input: {
     searchResultPaths: snapshot.searchResultPaths,
     isRefreshing: directories.isRefreshing,
     error:
-      root.error ??
-      (searching ? search.error : null) ??
+      (queryError instanceof Error
+        ? queryError.message
+        : queryError === null
+          ? null
+          : "Files unavailable") ??
       [...directories.errors].find(([path]) => snapshot.reachableDirectories.has(path))?.[1] ??
       null,
     isPending:
       !missingRoot &&
-      (root.isPending ||
+      (root.waiting ||
         directories.loading.size > 0 ||
-        (searching && (query !== debouncedQuery || search.isPending))),
-    searchTruncated: !missingRoot && searching && (search.data?.truncated ?? false),
+        (searching && (query !== debouncedQuery || search.waiting))),
+    searchTruncated: !missingRoot && searching && (searchData?.truncated ?? false),
     loadedDirectories: new Set(directories.entries.keys()),
     loadingDirectories: directories.loading,
     loadDirectory: (path: string, retry = false) =>

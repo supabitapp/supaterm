@@ -7,6 +7,9 @@ import type { ServerConfig } from "@supaterm/contracts";
 import type { ZipTreeRow } from "./zipTree";
 
 const files = vi.hoisted(() => new Map<string, Uint8Array>());
+const dialogs = vi.hoisted(() => ({ alert: vi.fn() }));
+vi.mock("../../components/ui/Dialog", () => dialogs);
+vi.mock("../../lib/uuid", () => ({ uuidv4: () => "file-id" }));
 const navigation = vi.hoisted(() => ({ remove: null as (() => void) | null }));
 const server = vi.hoisted(() => ({
   capabilities: {} as ServerConfig["environment"]["capabilities"],
@@ -159,6 +162,7 @@ function setup() {
   navigation.remove = null;
   server.capabilities = {};
   server.refresh.mockClear();
+  dialogs.alert.mockClear();
   appAtomRegistry.set(composerDraftsAtom, {});
   files.set(
     "file:///first.zip",
@@ -175,6 +179,7 @@ function setup() {
   onTestFinished(() => {
     act(() => root.unmount());
     files.clear();
+    vi.restoreAllMocks();
     vi.useRealTimers();
     vi.unstubAllGlobals();
   });
@@ -287,7 +292,7 @@ it("explains why an encrypted ZIP cannot be browsed", async () => {
   const directory = view.getUint32(bytes.length - 6, true);
   view.setUint16(directory + 8, view.getUint16(directory + 8, true) | 1, true);
   await screen.render();
-  await screen.settle(() => expect(screen.container.textContent).toContain("Encrypted zip"));
+  await screen.settle(() => expect(screen.container.textContent).toContain("Encrypted archives"));
   expect(screen.container.querySelector('[aria-label="first.txt"]')).toBeNull();
 });
 
@@ -310,4 +315,99 @@ it("keeps the archive and selected entry when the parent re-renders with a new r
     expect(screen.container.querySelector("pre")?.textContent).toBe("First archive contents"),
   );
   expect(navigation.remove).not.toBeNull();
+});
+
+it("persists an extracted file through the public composer API before adding it", async () => {
+  const screen = setup();
+  const composerImages = await import("../../lib/composerImages");
+  const attachmentDownload = await import("../../lib/attachmentDownload");
+  const dispose = vi.fn();
+  vi.spyOn(attachmentDownload, "writeGeneratedAttachmentFile").mockResolvedValue({
+    uri: "file:///generated/first.txt",
+    share: vi.fn(),
+    dispose,
+  });
+  const persist = vi
+    .spyOn(composerImages, "persistComposerAttachmentFile")
+    .mockResolvedValue("file:///documents/first.txt");
+  await screen.render({ ...screen.props, draftKey: "target-draft", maxAttachmentBytes: 1024 });
+  await screen.settle(() =>
+    expect(screen.container.querySelector('[aria-label="first.txt"]')).not.toBeNull(),
+  );
+  await act(async () =>
+    screen.container.querySelector<HTMLButtonElement>('[aria-label="first.txt"]')!.click(),
+  );
+  const add = Array.from(screen.container.querySelectorAll("button")).find(
+    (button) => button.textContent === "Add to chat",
+  )!;
+  await act(async () => add.click());
+  await screen.settle(() => {
+    expect(persist).toHaveBeenCalledWith("file:///generated/first.txt", "first.txt", 1024);
+    expect(appAtomRegistry.get(composerDraftsAtom)["target-draft"]?.attachments).toMatchObject([
+      {
+        id: "file-id",
+        type: "file",
+        name: "first.txt",
+        sizeBytes: 22,
+        fileUri: "file:///documents/first.txt",
+      },
+    ]);
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+});
+
+it("reports an unavailable share target instead of silently succeeding", async () => {
+  const screen = setup();
+  const attachmentDownload = await import("../../lib/attachmentDownload");
+  vi.spyOn(attachmentDownload, "shareGeneratedAttachment").mockResolvedValue(false);
+  await screen.render();
+  await screen.settle(() =>
+    expect(screen.container.querySelector('[aria-label="first.txt"]')).not.toBeNull(),
+  );
+  await act(async () =>
+    screen.container.querySelector<HTMLButtonElement>('[aria-label="first.txt"]')!.click(),
+  );
+  const save = Array.from(screen.container.querySelectorAll("button")).find(
+    (button) => button.textContent === "Save file",
+  )!;
+  await act(async () => save.click());
+  await screen.settle(() =>
+    expect(dialogs.alert).toHaveBeenCalledWith(
+      "Could not save file",
+      "Saving files is unavailable on this device.",
+    ),
+  );
+});
+
+it("releases an extracted draft file when the entry closes during persistence", async () => {
+  const screen = setup();
+  const composerImages = await import("../../lib/composerImages");
+  const attachmentDownload = await import("../../lib/attachmentDownload");
+  const dispose = vi.fn();
+  vi.spyOn(attachmentDownload, "writeGeneratedAttachmentFile").mockResolvedValue({
+    uri: "file:///generated/first.txt",
+    share: vi.fn(),
+    dispose,
+  });
+  const persisted = Promise.withResolvers<string>();
+  vi.spyOn(composerImages, "persistComposerAttachmentFile").mockReturnValue(persisted.promise);
+  const remove = vi
+    .spyOn(composerImages, "removePersistedComposerAttachmentFile")
+    .mockResolvedValue();
+  await screen.render({ ...screen.props, draftKey: "target-draft", maxAttachmentBytes: 1024 });
+  await screen.settle(() =>
+    expect(screen.container.querySelector('[aria-label="first.txt"]')).not.toBeNull(),
+  );
+  await act(async () =>
+    screen.container.querySelector<HTMLButtonElement>('[aria-label="first.txt"]')!.click(),
+  );
+  const add = Array.from(screen.container.querySelectorAll("button")).find(
+    (button) => button.textContent === "Add to chat",
+  )!;
+  await act(async () => add.click());
+  await act(async () => screen.root.render(null));
+  await act(async () => persisted.resolve("file:///documents/cancelled.txt"));
+  expect(remove).toHaveBeenCalledWith("file:///documents/cancelled.txt");
+  expect(dispose).toHaveBeenCalledOnce();
+  expect(appAtomRegistry.get(composerDraftsAtom)["target-draft"]).toBeUndefined();
 });

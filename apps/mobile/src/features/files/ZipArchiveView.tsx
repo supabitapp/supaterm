@@ -39,9 +39,11 @@ import {
 } from "../../lib/attachmentDownload";
 import { attachmentDocumentPresentation } from "../../lib/attachmentDocumentPresentation";
 import {
-  createComposerFileAttachment,
+  persistComposerAttachmentFile,
+  type DraftComposerFileAttachment,
   removePersistedComposerAttachmentFile,
 } from "../../lib/composerImages";
+import { uuidv4 } from "../../lib/uuid";
 import { appendComposerDraftAttachments } from "../../state/use-composer-drafts";
 import { AttachmentDocumentBody, nativeViewerKind } from "./AttachmentDocumentBody";
 import { FilePreviewLoading } from "../../components/FilePreviewFeedback";
@@ -121,10 +123,10 @@ async function readArchiveBody(
   return bytes.buffer;
 }
 
-async function openArchive(bytes: ArrayBuffer): Promise<ZipArchive> {
+async function openArchive(bytes: ArrayBuffer, signal: AbortSignal): Promise<ZipArchive> {
   let files: Awaited<ReturnType<typeof boundedZip>>;
   try {
-    files = await boundedZip(bytes);
+    files = await boundedZip(bytes, ARCHIVE_MAX_BYTES, { signal });
   } catch (cause) {
     throw new ZipFailureError({
       title: "Couldn't browse this ZIP",
@@ -185,7 +187,7 @@ function useZipArchive(input: {
         if ((file.size ?? 0) > ARCHIVE_MAX_BYTES) throw new ZipFailureError(TOO_LARGE);
         const bytes = await file.arrayBuffer();
         abort.signal.throwIfAborted();
-        return openArchive(bytes);
+        return openArchive(bytes, abort.signal);
       }
       const url = (await refresh()) ?? uri;
       abort.signal.throwIfAborted();
@@ -204,7 +206,7 @@ function useZipArchive(input: {
         });
       });
       abort.signal.throwIfAborted();
-      return openArchive(bytes);
+      return openArchive(bytes, abort.signal);
     })()
       .then((archive) => {
         if (!abort.signal.aborted) setState({ status: "ready", archive });
@@ -587,19 +589,24 @@ async function addZipEntryToDraft(input: {
   const { entry, signal } = input;
   const name = zipEntryAttachmentName(entry.name);
   signal.throwIfAborted();
+  const id = uuidv4();
+  const sizeBytes = entry.bytes.byteLength;
+  if (sizeBytes === 0) throw new Error(`'${name}' is empty or could not be read.`);
   const file = await writeGeneratedAttachmentFile({
     bytes: entry.bytes,
     attachment: { name, mimeType: entry.mimeType },
   });
   try {
     signal.throwIfAborted();
-    const attachment = await createComposerFileAttachment({
-      uri: file.uri,
+    const fileUri = await persistComposerAttachmentFile(file.uri, name, input.maxBytes);
+    const attachment = {
+      id,
+      type: "file",
       name,
       mimeType: entry.mimeType,
-      sizeBytes: entry.sizeBytes,
-      maxBytes: input.maxBytes,
-    });
+      sizeBytes,
+      fileUri,
+    } satisfies DraftComposerFileAttachment;
     if (signal.aborted) {
       await removePersistedComposerAttachmentFile(attachment.fileUri);
       signal.throwIfAborted();
@@ -713,13 +720,17 @@ function ZipEntryView(props: {
     );
   };
   const save = () =>
-    run("save", (signal) =>
-      shareGeneratedAttachment({
+    run("save", async (signal) => {
+      const shared = await shareGeneratedAttachment({
         bytes: entry.bytes,
         attachment: { name: entry.name, mimeType },
         signal,
-      }),
-    );
+      });
+      if (!shared) {
+        signal.throwIfAborted();
+        throw new Error("Saving files is unavailable on this device.");
+      }
+    });
   const canAddToChat = draftKey !== null && maxAttachmentBytes !== undefined;
   const addToChat = () => {
     if (draftKey === null || maxAttachmentBytes === undefined) return;

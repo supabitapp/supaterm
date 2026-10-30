@@ -176,6 +176,7 @@ vi.mock("../../components/ui/Button", () => ({
 }));
 vi.mock("../../components/ui/AppActivityIndicator", () => ({ AppActivityIndicator: Nothing }));
 vi.mock("../../components/ui/AppSymbol", () => ({ SymbolView: Nothing }));
+vi.mock("../../components/ui/DisclosureChevron", () => ({ DisclosureChevron: Nothing }));
 vi.mock("../../components/ui/AppText", () => ({ AppText: Children }));
 vi.mock("../../components/PierreEntryIcon", () => ({ PierreEntryIcon: Nothing }));
 vi.mock("../../lib/cn", () => ({ cn: () => "" }));
