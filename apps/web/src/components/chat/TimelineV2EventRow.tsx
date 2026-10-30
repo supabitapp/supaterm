@@ -1,5 +1,3 @@
-import { LinkRequestCard } from "./LinkRequestCard";
-import { SecretRequestCard } from "./SecretRequestCard";
 import { type TimelineRow, TimelineRowCtx } from "./timelineRowContext";
 import { v2EventPresentation, subagentGroupTiming } from "./TimelineV2EventRow.logic";
 import { WorkLogBlock } from "./WorkLog";
@@ -28,24 +26,6 @@ export function V2EventTimelineRow({ row }: { row: Extract<TimelineRow, { kind: 
   const { item, visibility, sourceThreadId } = row.projectedItem;
   if (item.type === "subagent" && (row.subagents?.length ?? 1) > 1) {
     return <V2SubagentGroup key={row.id} row={row} />;
-  }
-  if (item.type === "link_request") {
-    return (
-      <LinkRequestCard
-        environmentId={ctx.activeThreadEnvironmentId}
-        item={item}
-        visibility={visibility}
-      />
-    );
-  }
-  if (item.type === "secret_request") {
-    return (
-      <SecretRequestCard
-        environmentId={ctx.activeThreadEnvironmentId}
-        item={item}
-        visibility={visibility}
-      />
-    );
   }
   if (isV2LifecycleItem(item)) {
     return (
@@ -127,7 +107,6 @@ export function V2EventTimelineRow({ row }: { row: Extract<TimelineRow, { kind: 
           <div className="mt-2">
             <V2ItemInspector
               projectedItem={row.projectedItem}
-              source={ctx.turnItemSource}
               environmentId={ctx.activeThreadEnvironmentId}
               cwd={ctx.markdownCwd}
               workspaceRoot={ctx.workspaceRoot}
@@ -229,7 +208,6 @@ function V2ErrorEventRow({
             <div className={presentation.detail ? "mt-2" : undefined}>
               <V2ItemInspector
                 projectedItem={row.projectedItem}
-                source={ctx.turnItemSource}
                 environmentId={ctx.activeThreadEnvironmentId}
                 cwd={ctx.markdownCwd}
                 workspaceRoot={ctx.workspaceRoot}
@@ -285,12 +263,11 @@ const V2SubagentGroup = memo(function V2SubagentGroup({
   return (
     <WorkLogBlock continues={row.continuesWorkLog}>
       <Collapsible open={expanded} onOpenChange={toggleExpanded} data-subagent-group>
-        {/* pr-3.25 matches the panel border, padding, and row inset so the times line up. */}
         <CollapsibleTrigger
           aria-label={label}
           aria-description={statusSummary}
           className={cn(
-            "flex w-full min-w-0 items-center gap-2.5 py-2 pr-3.25 text-left transition-opacity hover:opacity-100",
+            "flex w-full min-w-0 items-center gap-3 py-2 text-left transition-opacity hover:opacity-100",
             expanded || summary.active
               ? "text-foreground opacity-100"
               : "text-muted-foreground opacity-55",
@@ -303,7 +280,6 @@ const V2SubagentGroup = memo(function V2SubagentGroup({
                 environmentId={ctx.activeThreadEnvironmentId}
                 providerInstanceId={item.providerInstanceId}
                 driver={item.driver}
-                remote={item.remoteChild}
                 status={agents.length === 1 ? status : undefined}
               />
             ))}

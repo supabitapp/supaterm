@@ -1,4 +1,3 @@
-import { READABLE_LIGHT_THEME_NAME } from "../../lib/readableSyntaxTheme";
 import { getSharedHighlighter } from "@pierre/diffs";
 import { toHtml } from "hast-util-to-html";
 import { expect, it } from "vite-plus/test";
@@ -24,12 +23,12 @@ function normalizedHtml(html: string) {
 it("streams highlighted HTML into the DOM, keeping finished lines mounted", async () => {
   const highlighter = await getSharedHighlighter({
     langs: ["typescript"],
-    themes: ["pierre-dark", READABLE_LIGHT_THEME_NAME],
+    themes: ["pierre-dark", "pierre-light"],
     preferredHighlighter: "highlights",
   });
   const code =
     'const html = "<img src=x onerror=alert(1)>";\n\n/* multi\nline */\n\tconst x = 1;\n';
-  for (const theme of ["pierre-dark", READABLE_LIGHT_THEME_NAME] as const) {
+  for (const theme of ["pierre-dark", "pierre-light"] as const) {
     const highlight = createIncrementalHighlightedDocument(highlighter, "typescript", theme);
     await using screen = await renderUi(null);
     const { container } = screen;

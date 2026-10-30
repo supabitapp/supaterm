@@ -2,7 +2,6 @@ import * as Dialog from "../../components/ui/Dialog";
 import { useAtomValue } from "@effect/atom-react";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { resolveHandoffEndpoints, type HandoffEndpoints } from "@supaterm/client-runtime/handoff";
-import { resolveModelShortName } from "@supaterm/client-runtime/provider-clients";
 import {
   normalizeProviderAccentColor,
   resolveProviderInstanceDisplayName,
@@ -137,7 +136,7 @@ function HandoffEndpoint(props: {
   const provider = props.providers.find((candidate) => candidate.instanceId === props.instanceId);
   const model = provider?.models.find((candidate) => candidate.slug === props.model);
   const label =
-    (model ? resolveModelShortName(model, provider?.driver) : undefined) ??
+    model?.shortName ??
     model?.name ??
     props.model ??
     (provider ? resolveProviderInstanceDisplayName(provider) : props.instanceId);

@@ -4,7 +4,6 @@ import { createEnvironmentThreadShellAtoms } from "@supaterm/client-runtime/stat
 import {
   applyShellStreamEvent,
   createEnvironmentSnapshotAtom,
-  EMPTY_SHELL_STATE,
   type EnvironmentShellState,
   type EnvironmentShellStatus,
 } from "@supaterm/client-runtime/state/shell";
@@ -133,7 +132,8 @@ vi.mock("expo-file-system", () => ({
   Paths: { document: { uri: "file:///documents" } },
 }));
 
-vi.mock("../lib/composerImages", () => ({
+vi.mock("../lib/composerImages", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/composerImages")>()),
   removePersistedComposerAttachmentFile: composerAttachmentCleanupMocks.remove,
 }));
 
@@ -141,15 +141,6 @@ vi.mock("../lib/uuid", () => ({ uuidv4: () => "uuid", randomHex: () => "0000" })
 vi.mock("./assets", () => ({ assetEnvironment: {} }));
 vi.mock("./attachments", () => ({ attachmentEnvironment: {} }));
 vi.mock("./session", () => ({ environmentSession: {} }));
-vi.mock("./threads", async () => {
-  const { Atom } = await import("effect/reactivity");
-  const Option = await import("effect/Option");
-  return {
-    environmentThreadDetails: {
-      stateAtom: Atom.family(() => Atom.make({ data: Option.none(), sequence: 0 })),
-    },
-  };
-});
 vi.mock("@supaterm/client-runtime/state/runtime", () => ({
   createEnvironmentRpcCommand: () => Symbol("rpc-command"),
   executeAtomQuery: () => {
@@ -175,7 +166,6 @@ import {
   formatComposerContextReference,
 } from "@supaterm/shared/composerContextReferences";
 import { appAtomRegistry } from "./atom-registry";
-import { startComposerDraftOperation } from "./composerDraftOperations";
 import { threadOutboxManager } from "./thread-outbox";
 import {
   appendComposerDraftAttachments,
@@ -292,9 +282,9 @@ function modelReconciliationHarness(
     ],
   };
   const shellStateAtom = Atom.make<EnvironmentShellState>({
-    ...EMPTY_SHELL_STATE,
     snapshot: Option.some(initialSnapshot),
     status: initialStatus,
+    error: Option.none(),
   });
   const shellResultAtom = Atom.map(shellStateAtom, AsyncResult.success);
   const snapshotAtom = createEnvironmentSnapshotAtom(() => shellResultAtom)(environmentId);
@@ -2464,32 +2454,6 @@ describe("mobile composer drafts", () => {
       [`${retainedEnvironmentId}:thread-local`]: DRAFT,
       "new-task:local-draft": localDraft,
     });
-  });
-
-  it("aborts operations running for drafts an environment removal drops", async () => {
-    const environmentId = EnvironmentId.make("environment-removed");
-    composerDraftFileMocks.setDocument({ schemaVersion: 1, drafts: {} });
-    appAtomRegistry.set(composerDraftsAtom, {
-      "new-task:removed-draft": {
-        ...DRAFT,
-        project: {
-          environmentId,
-          projectId: ProjectId.make("project-removed"),
-          createdAt: "2026-09-05T00:00:00.000Z",
-        },
-      },
-      "environment-kept:thread-kept": DRAFT,
-    });
-    const newTask = startComposerDraftOperation("new-task:removed-draft");
-    const emptyThread = startComposerDraftOperation(`${environmentId}:thread-empty`);
-    const kept = startComposerDraftOperation("environment-kept:thread-kept");
-
-    await clearComposerDraftsEnvironment(environmentId);
-
-    expect(newTask.signal.aborted).toBe(true);
-    expect(emptyThread.signal.aborted).toBe(true);
-    expect(kept.signal.aborted).toBe(false);
-    kept.finish();
   });
 
   it("lands a still-debounced draft write when flushed", async () => {

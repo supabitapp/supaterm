@@ -36,11 +36,7 @@ import {
   SettingsSection,
   useSettingsSearchTargetId,
 } from "./settingsLayout";
-import {
-  isAdvancedTypographyTarget,
-  revealSettingsSearchTarget,
-  searchableSetting,
-} from "./settingsSearch";
+import { searchableSetting } from "./settingsSearch";
 
 function useFontDefaultFamilies() {
   const settings = useScopedSettings();
@@ -247,7 +243,7 @@ function WordWrapRow() {
         <Switch
           checked={settings.wordWrap}
           onCheckedChange={(checked) => updateSettings({ wordWrap: Boolean(checked) })}
-          aria-label="Wrap code, diffs, and file previews by default"
+          aria-label="Wrap code, tables, diffs, and file previews by default"
         />
       }
     />
@@ -296,22 +292,30 @@ function SimpleFontRows() {
   );
 }
 
+// Font smoothing only renders on macOS, so a search jump to it elsewhere
+// must not flip the section - the target would never mount to be scrolled to.
+const ADVANCED_TYPOGRAPHY_TARGET_IDS: ReadonlySet<string> = new Set([
+  "prompt-font",
+  "terminal-font",
+  ...(typeof navigator !== "undefined" && isMacPlatform(navigator.platform)
+    ? ["font-smoothing"]
+    : []),
+]);
+
 export function TypographySection() {
   const [advanced, setAdvanced] = useLocalStorage(
     TYPOGRAPHY_ADVANCED_STORAGE_KEY,
     false,
     Schema.Boolean,
   );
-  // A deep link or history step must persist the flag too: the terminal reads it, so advanced
-  // rows without it would make terminal font edits do nothing. The rows follow the target
-  // directly so its row mounts in the first commit; the target clears once handled.
   const searchTargetId = useSettingsSearchTargetId();
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- writes the advanced typography flag to localStorage when a search target needs it
+  const lastExpandedTargetRef = useRef<string | null>(null);
   useEffect(() => {
-    if (searchTargetId !== null) revealSettingsSearchTarget(searchTargetId);
-  }, [searchTargetId]);
-  const showAdvanced =
-    advanced || (searchTargetId !== null && isAdvancedTypographyTarget(searchTargetId));
+    if (searchTargetId === null || !ADVANCED_TYPOGRAPHY_TARGET_IDS.has(searchTargetId)) return;
+    if (lastExpandedTargetRef.current === searchTargetId) return;
+    lastExpandedTargetRef.current = searchTargetId;
+    setAdvanced(true);
+  }, [searchTargetId, setAdvanced]);
   return (
     <SettingsSection
       id="typography"
@@ -320,14 +324,14 @@ export function TypographySection() {
         <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-muted-foreground">
           Advanced
           <Switch
-            checked={showAdvanced}
+            checked={advanced}
             onCheckedChange={(checked) => setAdvanced(Boolean(checked))}
             aria-label="Show advanced typography settings"
           />
         </label>
       }
     >
-      {showAdvanced ? <FontSettingsGroup /> : <SimpleFontRows />}
+      {advanced ? <FontSettingsGroup /> : <SimpleFontRows />}
       <WordWrapRow />
     </SettingsSection>
   );
@@ -378,7 +382,6 @@ function FontFamilySettingsRow({
     setDraftSettled(true);
   }
   const timerValueRef = useRef(value);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the pending input debounce when an external font value supersedes it
   useLayoutEffect(() => {
     if (timerValueRef.current === value) return;
     timerValueRef.current = value;
@@ -387,7 +390,6 @@ function FontFamilySettingsRow({
       commitTimerRef.current = null;
     }
   }, [value]);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- releases the pending font input timer on unmount
   useEffect(
     () => () => {
       if (commitTimerRef.current !== null) window.clearTimeout(commitTimerRef.current);

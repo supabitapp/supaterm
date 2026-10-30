@@ -6,7 +6,6 @@ import type {
 } from "@supaterm/contracts";
 import { formatModelSlugName, resolveSelectableModel } from "@supaterm/shared/model";
 import { fileBasename } from "@supaterm/shared/path";
-import { resolveModelShortName } from "../providerClients.ts";
 import { isTerminalSubagentStatus } from "./subagentRuntime.ts";
 
 export function subagentGroupSummary(
@@ -71,7 +70,7 @@ export function resolveSubagentMetadata(input: {
     : model;
   const catalogModel = input.provider?.models.find((candidate) => candidate.slug === slug);
   const reportedLabel = catalogModel
-    ? (resolveModelShortName(catalogModel, input.provider?.driver) ?? catalogModel.name)
+    ? catalogModel.shortName || catalogModel.name
     : model
       ? formatModelSlugName(model)
       : "Not reported";

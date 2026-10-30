@@ -85,6 +85,8 @@ describe("BrowserSession", () => {
     Effect.gen(function* () {
       const browserSessions = yield* BrowserSession.BrowserSession;
 
+      // TextEncoder folds a lone surrogate to U+FFFD, so without escaping these
+      // two supported ids would hash to one partition and share every cookie.
       const loneSurrogate = yield* browserSessions.getPartition("p\ud800");
       const replacementChar = yield* browserSessions.getPartition("p\ufffd");
       assert.notStrictEqual(loneSurrogate, replacementChar);
@@ -117,8 +119,13 @@ describe("BrowserSession", () => {
     }).pipe(Effect.provide(layer)),
   );
 
+  // A rewritten session UA — any variant, even ones that keep the Electron
+  // token — makes Cloudflare Turnstile loop with error 600010 (#5002), so the
+  // guest must end up with Electron's native User-Agent.
   it.effect("keeps the guest's effective User-Agent equal to Electron's native one", () =>
     Effect.gen(function* () {
+      // Electron's real UA shape: app token, then Chrome, then Electron, then
+      // Safari — the token order and casing matter to any strip regex.
       const nativeUserAgent =
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Supaterm(Alpha)/0.0.33 Chrome/146.0.7680.216 Electron/41.5.0 Safari/537.36";
       fromPartition.mockReset();
@@ -171,7 +178,12 @@ describe("BrowserSession", () => {
         return granted;
       };
 
-      for (const permission of ["clipboard-sanitized-write", "geolocation", "fullscreen"]) {
+      for (const permission of [
+        "clipboard-read",
+        "clipboard-sanitized-write",
+        "geolocation",
+        "fullscreen",
+      ]) {
         assert.isTrue(requestAllows(permission), `request handler should allow ${permission}`);
         assert.isTrue(
           checkHandler(null, permission) as boolean,
@@ -179,6 +191,9 @@ describe("BrowserSession", () => {
         );
       }
 
+      // `clipboard-write` is not a real Electron permission — the async write API
+      // uses `clipboard-sanitized-write` — so the stale name must not be granted,
+      // and unrelated permissions stay denied.
       for (const permission of ["clipboard-write", "notifications", "midi"]) {
         assert.isFalse(requestAllows(permission), `request handler should deny ${permission}`);
         assert.isFalse(
@@ -221,55 +236,6 @@ describe("BrowserSession", () => {
     }).pipe(Effect.provide(layer)),
   );
 
-  it.effect("asks once per origin before a page reads the clipboard", () =>
-    Effect.gen(function* () {
-      const browserSessions = yield* BrowserSession.BrowserSession;
-      const partition = yield* browserSessions.getPartition("scope-a");
-      yield* browserSessions.getSession("scope-a");
-      const browserSession = sessions.get(partition);
-      assert.isDefined(browserSession);
-      const requestHandler = browserSession.setPermissionRequestHandler.mock.calls[0]?.[0];
-      const checkHandler = browserSession.setPermissionCheckHandler.mock.calls[0]?.[0];
-      assert.isFunction(requestHandler);
-      assert.isFunction(checkHandler);
-
-      const readClipboard = (requestingUrl: string) =>
-        Effect.callback<boolean>((resume) => {
-          requestHandler(
-            null,
-            "clipboard-read",
-            (granted: boolean) => resume(Effect.succeed(granted)),
-            { requestingUrl, isMainFrame: true },
-          );
-        });
-      const checkClipboard = (origin: string): boolean =>
-        checkHandler(null, "clipboard-read", origin, {}) as boolean;
-
-      showMessageBox.mockReset();
-      showMessageBox.mockReturnValueOnce(0).mockReturnValueOnce(1);
-
-      assert.isFalse(checkClipboard("https://allowed.test"));
-      assert.isTrue(yield* readClipboard("https://allowed.test/page"));
-      assert.strictEqual(showMessageBox.mock.calls.length, 1);
-      assert.strictEqual(
-        showMessageBox.mock.calls[0]?.[0].message,
-        "https://allowed.test wants to see text and images copied to the clipboard",
-      );
-      assert.deepStrictEqual(showMessageBox.mock.calls[0]?.[0].buttons, ["Allow", "Block"]);
-
-      assert.strictEqual(showMessageBox.mock.calls[0]?.[0].defaultId, 1);
-
-      assert.isTrue(yield* readClipboard("https://allowed.test/other"));
-      assert.isTrue(checkClipboard("https://allowed.test"));
-
-      assert.isFalse(yield* readClipboard("https://blocked.test/"));
-      assert.isFalse(yield* readClipboard("https://blocked.test/again"));
-      assert.isFalse(checkClipboard("https://blocked.test"));
-      assert.isTrue(checkClipboard("https://allowed.test"));
-      assert.strictEqual(showMessageBox.mock.calls.length, 2);
-    }).pipe(Effect.provide(layer)),
-  );
-
   it.effect("clears a partition whose session has not been opened yet", () =>
     Effect.gen(function* () {
       const browserSessions = yield* BrowserSession.BrowserSession;
@@ -280,16 +246,11 @@ describe("BrowserSession", () => {
       assert.isUndefined(sessions.get(partition));
 
       yield* browserSessions.getSession("scope-untouched");
-      const other = yield* browserSessions.getSession("scope-other");
       yield* browserSessions.clearCookies([partition]);
 
       const created = sessions.get(partition);
       assert.isDefined(created);
       assert.strictEqual(created.clearStorageData.mock.calls.length, 1);
-      assert.deepStrictEqual(created.clearStorageData.mock.calls[0]?.[0], {
-        storages: ["cookies", "localstorage", "indexdb", "serviceworkers", "cachestorage"],
-      });
-      assert.strictEqual(vi.mocked(other.clearStorageData).mock.calls.length, 0);
     }).pipe(Effect.provide(layer)),
   );
 });

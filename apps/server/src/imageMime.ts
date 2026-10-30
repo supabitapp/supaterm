@@ -45,6 +45,10 @@ function isBase64Whitespace(code: number): boolean {
   return code === 0x0d || code === 0x0a || code === 0x20;
 }
 
+// Data URLs carry the full image payload, so this parser must never run a
+// regex across the payload: V8's regex engine borrows the JS call stack, and
+// matching a multi-megabyte string from a deep call stack (e.g. inside fiber
+// execution) throws "Maximum call stack size exceeded".
 export function parseBase64DataUrl(
   dataUrl: string,
 ): { readonly mimeType: string; readonly base64: string } | null {

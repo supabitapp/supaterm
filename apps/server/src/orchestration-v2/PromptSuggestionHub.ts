@@ -47,24 +47,22 @@ const make = Effect.sync(() => {
   };
 
   return PromptSuggestionHub.of({
-    offer: Effect.fn("PromptSuggestionHub.offer")(function (event) {
-      return Effect.suspend(() => {
+    offer: (event) =>
+      Effect.suspend(() => {
         const pending = prediction(keyOf(event));
         return event.type === "prompt_suggestion.ready"
           ? Deferred.succeed(pending, event.suggestion).pipe(Effect.asVoid)
           : Effect.void;
-      });
-    }),
-    await: Effect.fn("PromptSuggestionHub.await")(function (target) {
-      return Effect.suspend(() => {
+      }),
+    await: (target) =>
+      Effect.suspend(() => {
         const pending = predictions.get(keyOf(target));
-        if (pending === undefined) return Effect.succeedNone;
+        if (pending === undefined) return Effect.succeed(Option.none());
         return Deferred.await(pending).pipe(
           Effect.timeoutOption(PREDICTION_WAIT),
           Effect.map((text) => Option.some(Option.getOrNull(text))),
         );
-      });
-    }),
+      }),
   });
 });
 

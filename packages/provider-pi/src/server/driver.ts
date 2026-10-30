@@ -1,3 +1,7 @@
+/**
+ * Pi state (sessions, settings, extensions, auth) lives in the user's own
+ * `~/.pi/agent`, so continuation identity uses the default instance grouping.
+ */
 import { expandHomePath } from "@supaterm/provider-core/server/pathExpansion";
 import { ProviderDriverKind, type ServerProvider } from "@supaterm/contracts";
 import { PiSettings } from "../settings.ts";

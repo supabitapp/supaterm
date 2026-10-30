@@ -16,14 +16,6 @@ import * as GitHubQuota from "./GitHubQuota.ts";
 import * as SourceControlRateLimit from "@supaterm/source-control-core/server/SourceControlRateLimit";
 import type * as SourceControlHost from "@supaterm/source-control-core/server/SourceControlHost";
 import * as TestSourceControlHost from "@supaterm/source-control-testing/TestSourceControlHost";
-import * as GitHubAppSignIn from "./GitHubAppSignIn.ts";
-
-const appSignedOut = Layer.mock(GitHubAppSignIn.GitHubAppSignIn)({
-  enabled: false,
-  metadata: null,
-  token: () => Effect.succeedNone,
-  invalidate: () => Effect.void,
-});
 
 const NOW = Date.parse("2026-10-05T12:00:00.000Z");
 
@@ -45,8 +37,6 @@ function harness(respond: (request: HttpClientRequest.HttpClientRequest) => Resp
             fingerprint: `${host}:${tokens[0]}`,
           };
         }),
-      saved: () => Effect.succeedNone,
-      fingerprint: (host, token) => Effect.succeed(`${host}:${token}`),
       invalidate: () =>
         Effect.sync(() => {
           invalidations++;
@@ -63,7 +53,7 @@ function harness(respond: (request: HttpClientRequest.HttpClientRequest) => Resp
     }),
   );
   const layer = GitHubRest.layer.pipe(
-    Layer.provide(Layer.mergeAll(credentials, http, appSignedOut)),
+    Layer.provide(Layer.mergeAll(credentials, http)),
     Layer.provideMerge(GitHubQuota.layer),
     Layer.provideMerge(SourceControlRateLimit.layer),
   );
@@ -128,6 +118,7 @@ describe("GitHubRest", () => {
         "http.response.status_code": 200,
         "github.ratelimit.remaining": 4800,
       });
+      // Nothing recorded carries the query string or the token.
       const everything = spans
         .flatMap((span) => [...span.attributes].map(([key, value]) => `${key}=${String(value)}`))
         .join("\n");
@@ -242,14 +233,10 @@ describe("GitHubRest", () => {
 });
 
 describe("GitHubCredentials", () => {
-  const unexpectedHttp = HttpClient.make((request) =>
-    Effect.die(`Unexpected request to ${request.url}`),
-  );
   const credentialsWith = (run: SourceControlHost.SourceControlHost["Service"]["process"]["run"]) =>
     GitHubCredentials.layer.pipe(
       Layer.provide(TestSourceControlHost.layer({ process: { run } })),
       Layer.provide(NodeCrypto.layer),
-      Layer.provide(Layer.succeed(HttpClient.HttpClient, unexpectedHttp)),
     );
 
   it.effect("does not cache a gh failure that is not about signing in", () => {

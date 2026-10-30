@@ -55,7 +55,9 @@ export function ThemeEditorHost() {
       return true;
     }
     if (!created) {
-      // Reapply the palette without setTheme, which would clear a mix containing the edited theme.
+      // The edited theme may be showing through the base preference or either
+      // half of the mix; the preference itself is untouched (a setTheme here
+      // would clear the mix), the palette just needs re-applying.
       const wasActive =
         getThemeDefinition(theme)?.id === savedTheme.id ||
         themeHalves?.light === savedTheme.id ||

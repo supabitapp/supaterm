@@ -1,7 +1,3 @@
-import {
-  trimOptionalString,
-  normalizeRefName,
-} from "@supaterm/source-control-core/server/pullRequestUtils";
 import * as Cause from "effect/Cause";
 import * as DateTime from "effect/DateTime";
 import * as Exit from "effect/Exit";
@@ -63,6 +59,15 @@ const AzureDevOpsPullRequestSchema = Schema.Struct({
     }),
   ),
 });
+
+function trimOptionalString(value: string | null | undefined): string | null {
+  const trimmed = value?.trim() ?? "";
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeRefName(refName: string): string {
+  return refName.trim().replace(/^refs\/heads\//, "");
+}
 
 function normalizeAzureDevOpsPullRequestState(status: string): "open" | "closed" | "merged" {
   switch (status.trim().toLowerCase()) {

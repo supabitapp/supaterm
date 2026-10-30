@@ -4,11 +4,7 @@ import {
   type FileTreeIcons,
 } from "@pierre/trees";
 import {
-  BookOpen,
   CodeXml,
-  FileText,
-  Presentation,
-  Table,
   Diff,
   Film,
   ICON_SVG_ROOT_ATTRIBUTES,
@@ -16,7 +12,7 @@ import {
   LoaderCircle,
 } from "@supaterm/icons/nodes";
 import { VIDEO_FILE_EXTENSIONS } from "@supaterm/shared/video";
-import { fileIconPathForMimeType } from "@supaterm/shared/mediaPreview";
+import { fileIconPathForMimeType } from "@supaterm/shared/filePreview";
 
 export interface PierreIconResolution {
   name: string;
@@ -25,23 +21,8 @@ export interface PierreIconResolution {
 
 const PIERRE_ICON_SPRITE_ID = "supaterm-pierre-file-icon-sprite";
 
-const DOCUMENT_ICONS = {
-  pdf: { node: FileText, color: "light-dark(#d52c36, #ff6762)" },
-  word: { node: FileText, color: "light-dark(#1a85d4, #69b1ff)" },
-  spreadsheet: { node: Table, color: "light-dark(#199f43, #5ecc71)" },
-  slides: { node: Presentation, color: "light-dark(#d47628, #ffa359)" },
-  epub: { node: BookOpen, color: "light-dark(#693acf, #9d6afb)" },
-} as const;
-
 const SUPATERM_FILE_ICON_SPRITE = `
 <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" aria-hidden="true">
-  ${Object.entries(DOCUMENT_ICONS)
-    .map(
-      ([kind, { node, color }]) =>
-        `<symbol id="supaterm-file-icon-${kind}" viewBox="0 0 24 24"><g ${ICON_SVG_ROOT_ATTRIBUTES} style="color: var(--document-icon-stroke, ${color})">${iconSvgElements(node)}</g></symbol>`,
-    )
-    .join("")}
-
   <symbol id="supaterm-file-icon-video" viewBox="0 0 24 24">
     <g color="#a631be" ${ICON_SVG_ROOT_ATTRIBUTES}>${iconSvgElements(Film)}</g>
   </symbol>
@@ -116,22 +97,6 @@ export const SUPATERM_PIERRE_ICONS = {
       VIDEO_FILE_EXTENSIONS.map((extension) => [extension, "supaterm-file-icon-video"]),
     ),
 
-    pdf: "supaterm-file-icon-pdf",
-    doc: "supaterm-file-icon-word",
-    docx: "supaterm-file-icon-word",
-    odt: "supaterm-file-icon-word",
-    rtf: "supaterm-file-icon-word",
-    xls: "supaterm-file-icon-spreadsheet",
-    xlsx: "supaterm-file-icon-spreadsheet",
-    ods: "supaterm-file-icon-spreadsheet",
-    csv: "supaterm-file-icon-spreadsheet",
-    tsv: "supaterm-file-icon-spreadsheet",
-    ppt: "supaterm-file-icon-slides",
-    pptx: "supaterm-file-icon-slides",
-    odp: "supaterm-file-icon-slides",
-    epub: "supaterm-file-icon-epub",
-    heic: "file-tree-builtin-image",
-    heif: "file-tree-builtin-image",
     cs: "supaterm-file-icon-csharp",
     csx: "supaterm-file-icon-csharp",
     dart: "supaterm-file-icon-dart",
@@ -205,8 +170,6 @@ export function resolvePierreIconForEntry(
 ): PierreIconResolution | null {
   if (kind === "directory") return null;
   const icon = completeIconResolver.resolveIcon("file-tree-icon-file", pathValue);
-  if (icon?.name === "file-tree-builtin-image" && icon.token === undefined)
-    return { ...icon, token: "image" };
   return icon?.token === "default" && mimeType
     ? completeIconResolver.resolveIcon(
         "file-tree-icon-file",
@@ -215,32 +178,12 @@ export function resolvePierreIconForEntry(
     : icon;
 }
 
-export function documentChipKindForFileName(
-  fileName: string,
-): `doc-${keyof typeof DOCUMENT_ICONS}` | undefined {
-  const icon = resolvePierreIconForEntry(fileName, "file");
-  const kind = icon?.name.replace("supaterm-file-icon-", "");
-  return kind && Object.hasOwn(DOCUMENT_ICONS, kind)
-    ? (`doc-${kind}` as `doc-${keyof typeof DOCUMENT_ICONS}`)
-    : undefined;
-}
-
-export function documentIconColorForFileName(fileName: string): string | undefined {
-  const kind = documentChipKindForFileName(fileName);
-  return kind === undefined ? undefined : `var(--context-chip-${kind})`;
-}
-
 export function hasSpecificPierreIconForFileName(fileName: string): boolean {
   return resolvePierreIconForEntry(fileName, "file")?.token !== "default";
 }
 
 export function ensurePierreIconSprite(): void {
-  if (
-    typeof document === "undefined" ||
-    !document.body ||
-    document.getElementById(PIERRE_ICON_SPRITE_ID)
-  )
-    return;
+  if (typeof document === "undefined" || document.getElementById(PIERRE_ICON_SPRITE_ID)) return;
   const container = document.createElement("div");
   container.id = PIERRE_ICON_SPRITE_ID;
   container.setAttribute("aria-hidden", "true");

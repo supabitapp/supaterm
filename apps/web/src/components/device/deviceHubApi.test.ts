@@ -1,10 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
-import {
-  appendDeviceEventLog,
-  DEVICE_EVENT_LOG_LIMIT,
-  type DeviceEventLogEntry,
-  subscribeDeviceForeground,
-} from "./deviceHubApi";
+import { subscribeDeviceForeground } from "./deviceHubApi";
 
 describe("foreground app events", () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -42,18 +37,5 @@ describe("foreground app events", () => {
     ]);
     stop();
     expect(close).toHaveBeenCalledOnce();
-  });
-});
-
-describe("event log buffer", () => {
-  const entry = (id: number): DeviceEventLogEntry => ({ id, timestamp: "", kind: "", summary: "" });
-
-  it("replaces the log on a reset batch and keeps only the newest entries", () => {
-    const full = Array.from({ length: DEVICE_EVENT_LOG_LIMIT }, (_, index) => entry(index));
-    const appended = appendDeviceEventLog(full, [entry(DEVICE_EVENT_LOG_LIMIT)], false);
-    expect(appended).toHaveLength(DEVICE_EVENT_LOG_LIMIT);
-    expect(appended[0]?.id).toBe(1);
-    expect(appended.at(-1)?.id).toBe(DEVICE_EVENT_LOG_LIMIT);
-    expect(appendDeviceEventLog(full, [entry(7)], true)).toEqual([entry(7)]);
   });
 });

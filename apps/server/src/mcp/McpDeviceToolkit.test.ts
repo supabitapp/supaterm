@@ -102,7 +102,7 @@ const readiness = {
   agentDevice: null,
 };
 const layerProjectsMock = Layer.mock(ProjectService.ProjectService)({
-  getById: () => Effect.succeedNone,
+  getById: () => Effect.succeed(Option.none()),
 });
 
 const layerDeviceServiceMock = Layer.mock(DeviceService.DeviceService)({
@@ -134,26 +134,12 @@ const layerDeviceServiceMock = Layer.mock(DeviceService.DeviceService)({
     ),
   screenshot: () => Effect.succeed({ device, png }),
   close: () => Effect.void,
-  agentLauncher: () => Effect.succeedSome("/bound-cli"),
-  locateDevice: () => Effect.succeedSome(device),
-  locateSession: (input) =>
-    Effect.succeed(
-      input.deviceId === device.id
-        ? Option.some({
-            threadId,
-            hostId: "local",
-            deviceId: device.id,
-            platform: "ios" as const,
-            openedAt: "2026-09-08T00:00:00.000Z",
-          })
-        : Option.none(),
-    ),
+  agentCli: Effect.succeed("/cli"),
   testHost: () => Effect.die("not used"),
   // As for an EAS device, agent-device knows the device by a different id than Supaterm.
   agentTarget: () =>
     Effect.succeed({
       agentDeviceId: "SIM-UDID",
-      session: "thread-device",
       args: ["--config", "/host.json", "--session", "thread-device"],
     }),
 });
@@ -184,7 +170,7 @@ it.effect("registers the device tools and returns the screenshot as image conten
         .pipe(callWith(["device"]), Effect.provideService(McpSchema.McpServerClient, client));
       expect(opened.isError).toBe(false);
       const openedContent = opened.structuredContent as { quickStart: string };
-      expect(openedContent.quickStart).toContain("/bound-cli");
+      expect(openedContent.quickStart).toContain("--udid SIM-UDID");
 
       const shot = yield* server
         .callTool({ name: "device_screenshot", arguments: { deviceId: "UDID-1" } })

@@ -197,7 +197,7 @@ function ToolActivityImageIcon(props: {
           className={cn(
             props.className,
             "inline-block overflow-hidden rounded-xs bg-background",
-            props.muted && "dark:opacity-70",
+            props.muted && "opacity-70",
           )}
         >
           <img
@@ -206,7 +206,7 @@ function ToolActivityImageIcon(props: {
             aria-hidden
             decoding="async"
             referrerPolicy="no-referrer"
-            className={cn("block size-full object-contain", props.muted && "light:brightness-70")}
+            className={cn("block size-full object-contain", props.muted && "light:brightness-60")}
             onError={() => handleLoadError(displayedSrc)}
           />
         </span>

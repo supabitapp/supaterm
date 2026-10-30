@@ -23,6 +23,8 @@ export interface RetainedLiveItem<A> {
   readonly serializedBytes: number;
 }
 
+// Published events are immutable and shared across subscriptions. Measure each
+// object once without keeping the event or its serialized copy alive.
 const serializedSizes = new WeakMap<object, number>();
 
 function serializedSize(value: object): number {
@@ -152,6 +154,8 @@ export const makeLiveStreamBudget = Effect.fn("makeLiveStreamBudget")(function* 
           Effect.catchTags({
             LiveStreamBufferError: (error) =>
               Effect.sync(() => {
+                // A grouped source can retain its own pending chunk. Close it
+                // and release the pull closure without waiting for an RPC ACK.
                 source.pull = Effect.interrupt;
               }).pipe(
                 Effect.andThen(Scope.close(sourceScope, Exit.fail(error))),
@@ -170,7 +174,10 @@ export const makeLiveStreamBudget = Effect.fn("makeLiveStreamBudget")(function* 
           }),
           Effect.forkScoped,
         );
+        // @effect-diagnostics-next-line returnEffectInGen:off - Stream.fromPull needs the pull effect as its result.
         return Effect.gen(function* () {
+          // RpcServer requests the next batch only after the client ACKs this
+          // one. Removing items from a queue alone does not mean delivery ended.
           release(inFlight);
           inFlight = [];
           yield* check;
@@ -248,6 +255,7 @@ export const bufferLiveStream = <A extends object, E, R>(
     }),
   );
 
+/** Coalesce queued full states; delivered states stay charged until the next pull ACKs them. */
 export const bufferLatestLiveStream = <A extends { readonly sequence: number }, E, R>(
   source: Stream.Stream<A, E, R>,
   key: (value: A) => string,
@@ -288,7 +296,8 @@ export const bufferLatestLiveStream = <A extends { readonly sequence: number }, 
               const wasEmpty = pending.size === 0;
               const [item] = yield* budget.replace(previous ? [previous] : [], [value]);
               pending.set(identity, item!);
-
+              // Only the empty-to-nonempty transition needs a wakeup; replacements
+              // must not leave another token after this batch has drained.
               if (wasEmpty) yield* Queue.offer(ready, undefined);
             }).pipe(Effect.uninterruptible),
           ),
@@ -311,7 +320,7 @@ export const bufferLatestLiveStream = <A extends { readonly sequence: number }, 
                       (left, right) => left.value.sequence - right.value.sequence,
                     );
                     pending.clear();
-
+                    // Moving to delivery preserves the budget charge until ACK.
                     return items as Arr.NonEmptyArray<RetainedLiveItem<A>>;
                   }),
                 ),
@@ -323,6 +332,11 @@ export const bufferLatestLiveStream = <A extends { readonly sequence: number }, 
     }),
   );
 
+/**
+ * Subscribe and start draining before reading the high-water mark. A blocked
+ * catch-up query or an unacknowledged replay batch must not strand an unbounded
+ * PubSub subscription.
+ */
 type ReplayLiveInput<A extends { readonly sequence: number }, E, R> = {
   readonly subscribe: Effect.Effect<PubSub.Subscription<A>, never, Scope.Scope>;
   readonly latestSequence: Effect.Effect<number, E, R>;
@@ -352,6 +366,8 @@ export const replayAndBufferProjectedLiveEvents = <
       const subscription = yield* input.subscribe.pipe(Scope.provide(subscriptionScope));
       let throughSequence = input.afterSequence ?? 0;
       const live = yield* retainLiveStream(
+        // Taking one event at a time avoids retaining an uncharged PubSub batch
+        // while the drain charges events to the budget.
         Stream.fromEffectRepeat(PubSub.take(subscription)).pipe(
           Stream.filter(
             (event) => event.sequence > throughSequence && (input.filter?.(event) ?? true),
@@ -366,7 +382,9 @@ export const replayAndBufferProjectedLiveEvents = <
           Effect.map((highWater) => {
             throughSequence = Math.max(highWater, input.afterSequence ?? 0);
             return input.replay(highWater).pipe(
-              Stream.filter((event) => input.filter?.(event) ?? true),
+              // The finite database page is independent of the live tail.
+              // Charge only the item being delivered so a fast reader can
+              // consume a page larger than the budget without overflowing.
               Stream.rechunk(1),
               Stream.mapEffect((event) => budget.retain(input.project(event))),
             );

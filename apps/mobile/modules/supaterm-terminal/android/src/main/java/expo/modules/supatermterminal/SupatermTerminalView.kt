@@ -31,41 +31,33 @@ class SupatermTerminalView(
   private val onInput by EventDispatcher()
   private val onResize by EventDispatcher()
   private val onCapture by EventDispatcher()
-  private var hasPendingCapture = false
   var captureRequest: Double = 0.0
     set(value) {
       if (field == value || value <= 0) return
       field = value
-      hasPendingCapture = true
-    }
-
-  private fun capture() {
-    val frame = if (terminalHandle !=
-      0L
-    ) {
-      TerminalFrame.decode(GhosttyBridge.nativeSnapshot(terminalHandle))
-    } else {
-      null
-    }
-    val text = frame?.let { snapshot ->
-      (0 until snapshot.rows).joinToString("\n") { row ->
-        (0 until snapshot.cols).joinToString("") { col ->
-          snapshot.cellText[
-            row * snapshot.cols +
-              col
-          ]
-        }.trimEnd()
+      val frame = if (terminalHandle !=
+        0L
+      ) {
+        TerminalFrame.decode(GhosttyBridge.nativeSnapshot(terminalHandle))
+      } else {
+        null
       }
-    } ?: ""
-    onCapture(mapOf("text" to text))
-  }
+      val text = frame?.let { snapshot ->
+        (0 until snapshot.rows).joinToString("\n") { row ->
+          (0 until snapshot.cols).joinToString("") { col ->
+            snapshot.cellText[
+              row * snapshot.cols +
+                col
+            ]
+          }.trimEnd()
+        }
+      } ?: ""
+      onCapture(mapOf("text" to text))
+    }
   private var terminalHandle = 0L
   private var fedBuffer = ""
-  private var streamedOutput: TerminalOutputBuffer? = null
   private var cols = 0
   private var rows = 0
-  private var measuredCols = 0
-  private var measuredRows = 0
   private var clearingInput = false
   private var isCleanedUp = false
   private var backgroundColorValue = Color.parseColor("#24292E")
@@ -86,9 +78,8 @@ class SupatermTerminalView(
     set(value) {
       if (field == value) return
       field = value
-      hasPendingBuffer = true
+      feedPendingBuffer()
     }
-  private var hasPendingBuffer = false
 
   var fontSize: Float = 10f
     set(value) {
@@ -99,13 +90,6 @@ class SupatermTerminalView(
     }
 
   var appearanceScheme: String = "dark"
-
-  var sharedGrid: List<Int> = emptyList()
-    set(value) {
-      if (field == value) return
-      field = value
-      applyGrid()
-    }
 
   var themeConfig: String = ""
     set(value) {
@@ -278,6 +262,7 @@ class SupatermTerminalView(
         event.action == KeyEvent.ACTION_DOWN
       val isEnter = isImeSend || isHardwareEnter
       if (isEnter) {
+        // Enter must send CR: raw-mode TUIs treat LF as Ctrl+J (insert newline).
         onInput(mapOf("data" to "\r"))
         true
       } else {
@@ -292,6 +277,7 @@ class SupatermTerminalView(
           onInput(mapOf("data" to "\u007F"))
           true
         }
+        // Hardware keyboard Ctrl+A..Z -> control bytes 0x01..0x1A (Ctrl+C, Ctrl+Z, ...).
         event.isCtrlPressed && keyCode in KeyEvent.KEYCODE_A..KeyEvent.KEYCODE_Z -> {
           onInput(
             mapOf("data" to (keyCode - KeyEvent.KEYCODE_A + 1).toChar().toString()),
@@ -342,19 +328,6 @@ class SupatermTerminalView(
     val nextRows = (terminalCanvas.usableHeight() / terminalCanvas.cellHeightPx)
       .toInt()
       .coerceIn(2, 200)
-    if (nextCols != measuredCols || nextRows != measuredRows) {
-      measuredCols = nextCols
-      measuredRows = nextRows
-      onResize(mapOf("cols" to measuredCols, "rows" to measuredRows))
-    }
-    applyGrid()
-  }
-
-  private fun applyGrid() {
-    if (measuredCols <= 0 || measuredRows <= 0 || isCleanedUp) return
-    val shared = sharedGrid.takeIf { it.size == 2 && it[0] > 0 && it[1] > 0 }
-    val nextCols = shared?.get(0)?.coerceAtMost(measuredCols) ?: measuredCols
-    val nextRows = shared?.get(1)?.coerceAtMost(measuredRows) ?: measuredRows
     if (nextCols == cols && nextRows == rows && terminalHandle != 0L) return
     cols = nextCols
     rows = nextRows
@@ -371,7 +344,8 @@ class SupatermTerminalView(
       )
     }
     emitResponse(response)
-    if (!hasPendingBuffer) feedPendingBuffer()
+    onResize(mapOf("cols" to cols, "rows" to rows))
+    feedPendingBuffer()
     renderSnapshot()
   }
 
@@ -389,14 +363,13 @@ class SupatermTerminalView(
       paletteColors,
     )
     fedBuffer = ""
-    streamedOutput?.let { output -> feedOutput(output.data) }
   }
 
   private fun recreateTerminal() {
     if (terminalHandle == 0L) return
     destroyTerminal()
     createTerminal()
-    if (!hasPendingBuffer) feedPendingBuffer()
+    feedPendingBuffer()
     renderSnapshot()
   }
 
@@ -408,19 +381,8 @@ class SupatermTerminalView(
     terminalCanvas.resetSelectionState()
   }
 
-  fun applyPendingBuffer() {
-    if (hasPendingBuffer) {
-      hasPendingBuffer = false
-      feedPendingBuffer()
-    }
-    if (hasPendingCapture) {
-      hasPendingCapture = false
-      capture()
-    }
-  }
-
   private fun feedPendingBuffer() {
-    if (streamedOutput != null || terminalHandle == 0L || initialBuffer == fedBuffer) return
+    if (terminalHandle == 0L || initialBuffer == fedBuffer) return
     if (!initialBuffer.startsWith(fedBuffer)) {
       recreateTerminal()
       if (terminalHandle == 0L) return
@@ -428,7 +390,8 @@ class SupatermTerminalView(
     val suffix = initialBuffer.substring(fedBuffer.length)
     if (suffix.isNotEmpty()) {
       emitResponse(GhosttyBridge.nativeFeed(terminalHandle, suffix.toByteArray(Charsets.UTF_8)))
-
+      // New output invalidates an active selection (matches the web drawer);
+      // otherwise the copy toolbar drifts out of sync with the grid.
       if (terminalCanvas.hasActiveSelection()) {
         GhosttyBridge.nativeClearSelection(terminalHandle)
         terminalCanvas.resetSelectionState()
@@ -436,29 +399,6 @@ class SupatermTerminalView(
     }
     fedBuffer = initialBuffer
     renderSnapshot()
-  }
-
-  fun writeOutput(data: String, reset: Boolean) {
-    if (isCleanedUp) return
-    val output = streamedOutput ?: TerminalOutputBuffer()
-    val bytes = data.toByteArray(Charsets.UTF_8)
-    output.write(bytes, reset)
-    streamedOutput = output
-    if (reset) {
-      recreateTerminal()
-    } else if (terminalHandle != 0L) {
-      feedOutput(bytes)
-      renderSnapshot()
-    }
-  }
-
-  private fun feedOutput(data: ByteArray) {
-    if (terminalHandle == 0L || data.isEmpty()) return
-    emitResponse(GhosttyBridge.nativeFeed(terminalHandle, data))
-    if (terminalCanvas.hasActiveSelection()) {
-      GhosttyBridge.nativeClearSelection(terminalHandle)
-      terminalCanvas.resetSelectionState()
-    }
   }
 
   private fun renderSnapshot() {

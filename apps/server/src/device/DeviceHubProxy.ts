@@ -1,8 +1,18 @@
-// The loopback hub exposes unauthenticated controls, so forward only allowlisted
-// routes after environment auth: read for streams, operate for input and tuning.
+/**
+ * Same-origin proxy in front of expo-device-hub.
+ *
+ * The hub binds loopback and is never reachable directly: serve-sim exposes a
+ * shell-exec route and serve-emu's action routes are unauthenticated, so the
+ * only way to a device stream is through this route, which requires an
+ * environment session with read scope (operate scope for input and tuning). Reusing the Supaterm
+ * origin is also what makes remote connections work unchanged — Tailscale and
+ * LAN connections already carry `/api/*` and WebSocket upgrades for the app itself.
+ *
+ * Only the routes the Device panel needs are forwarded. Anything under the
+ * hub's dashboard, exec, or WebRTC surface is rejected here.
+ */
 import { AuthOrchestrationReadScope, AuthOrchestrationOperateScope } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import {
   HttpClient,
@@ -27,7 +37,6 @@ const ALLOWED_PATHS: ReadonlyArray<RegExp> = [
   /^\/vendor\/serve-sim\/helper\/[^/]+\/panel\/(1|3)\/stream\.avcc$/,
   /^\/vendor\/serve-sim\/helper\/[^/]+\/webrtc\/(offer|close)$/,
   /^\/vendor\/serve-sim\/appstate$/,
-  /^\/vendor\/serve-emu\/api$/,
   /^\/vendor\/serve-emu\/api\/(devices|screenshot|stream-mode|stream-settings|accessibility|fold)$/,
   /^\/vendor\/serve-emu\/health$/,
 ];
@@ -36,7 +45,6 @@ const MUTABLE_PATHS: ReadonlyArray<RegExp> = [
   /^\/vendor\/serve-sim\/api\/screenshot$/,
   // WebRTC signalling: opening and closing a view of the stream, so read scope.
   /^\/vendor\/serve-sim\/helper\/[^/]+\/webrtc\/(offer|close)$/,
-  /^\/vendor\/serve-emu\/webrtc\/(offer|close)$/,
   /^\/vendor\/serve-emu\/api\/(screenshot|stream-mode|stream-settings)$/,
   /^\/vendor\/serve-emu\/api\/fold$/,
 ];
@@ -77,34 +85,22 @@ const forwardHeaders = (request: HttpServerRequest.HttpServerRequest, origin: st
   return headers;
 };
 
-export const upstreamWebSocketConstructor = Layer.effect(
-  Socket.WebSocketConstructor,
-  Effect.gen(function* () {
-    const make = yield* Socket.WebSocketConstructor;
-    return (url, options) => {
-      const socket = make(url, options);
-      socket.addEventListener("error", () => undefined);
-      return socket;
-    };
-  }),
-).pipe(Layer.provide(NodeSocket.layerWebSocketConstructor));
-
 const proxyWebSocket = Effect.fn("DeviceHubProxy.proxyWebSocket")(function* (
   request: HttpServerRequest.HttpServerRequest,
   upstreamUrl: string,
   protocols: ReadonlyArray<string> = [],
-  headers: Readonly<Record<string, string>> = {},
 ) {
   const client = yield* request.upgrade;
   const upstream = yield* Socket.makeWebSocket(upstreamUrl, {
     openTimeout: "10 seconds",
     ...(protocols.length > 0 ? { protocols: [...protocols] } : {}),
-    ...(Object.keys(headers).length > 0 ? { headers: { ...headers } } : {}),
-  }).pipe(Effect.provide(upstreamWebSocketConstructor));
+  }).pipe(Effect.provide(NodeSocket.layerWebSocketConstructor));
   yield* Effect.scoped(
     Effect.gen(function* () {
       const writeToClient = yield* client.writer;
       const writeToUpstream = yield* upstream.writer;
+      // Whichever side closes first ends the other via scope teardown: a close
+      // fails the pull with a SocketError, which loses the race.
       return yield* Effect.raceFirst(
         pumpFrames(upstream, writeToClient),
         pumpFrames(client, writeToUpstream),
@@ -177,15 +173,14 @@ const handler = Effect.gen(function* () {
   }
   const hubPath = url.value.pathname.slice(DeviceService.DEVICE_HUB_ROUTE_PREFIX.length) || "/";
   const upgrade = isWebSocketUpgrade(request);
-  const matches = (paths: ReadonlyArray<RegExp>) => paths.some((pattern) => pattern.test(hubPath));
-  const allowed = upgrade
-    ? matches(ALLOWED_WS_PATHS)
-    : matches(ALLOWED_PATHS) || matches(MUTABLE_PATHS);
+  const allowed = (upgrade ? ALLOWED_WS_PATHS : ALLOWED_PATHS).some((pattern) =>
+    pattern.test(hubPath),
+  );
   if (!allowed) {
     return HttpServerResponse.text("Not Found", { status: 404 });
   }
   const readOnly = request.method === "GET" || request.method === "HEAD";
-  if (!upgrade && !matches(readOnly ? ALLOWED_PATHS : MUTABLE_PATHS)) {
+  if (!upgrade && !readOnly && !MUTABLE_PATHS.some((pattern) => pattern.test(hubPath))) {
     return HttpServerResponse.text("Method Not Allowed", { status: 405 });
   }
   const controlsDevice =
@@ -211,12 +206,7 @@ const handler = Effect.gen(function* () {
   }
   const upstreamUrl = routed?.url ?? `${ready.hub.origin}${hubPath}${search}`;
   if (upgrade) {
-    return yield* proxyWebSocket(
-      request,
-      upstreamUrl.replace(/^http/, "ws"),
-      routed?.protocols,
-      routed?.headers,
-    );
+    return yield* proxyWebSocket(request, upstreamUrl.replace(/^http/, "ws"), routed?.protocols);
   }
   return yield* proxyHttp(request, upstreamUrl, routed?.headers);
 });

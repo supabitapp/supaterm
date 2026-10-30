@@ -176,7 +176,6 @@ const makeSupervisor = Effect.fn("CommandPerformance.makeSupervisor")(function* 
     subscribeServerConfig: (requestInput) => client.subscribeServerConfig(requestInput),
     ready: Effect.void,
     probe: Effect.void,
-    inboundFrames: Effect.succeed(0),
     closed: Effect.never,
   };
   return EnvironmentSupervisor.EnvironmentSupervisor.of({
@@ -222,7 +221,7 @@ describe("routine command transport budget", () => {
       if (command.type !== "message.dispatch") {
         throw new Error(`Expected message.dispatch, received ${command.type}`);
       }
-      if ("projection" in receipt) {
+      if (!("sequence" in receipt)) {
         throw new Error("Expected a dispatch receipt");
       }
       const { deliveryIntent: _deliveryIntent, ...formerCommand } = command;

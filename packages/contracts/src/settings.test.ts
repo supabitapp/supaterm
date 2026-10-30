@@ -12,7 +12,6 @@ import {
   ClaudeSettings,
   DEFAULT_SERVER_SETTINGS,
   requiredScopesForProjectMutation,
-  requiredScopesForServerSettingsPatch,
   resolveProjectProviderInstanceEnabled,
   resolveProviderInstanceEnabled,
   ServerSettings,
@@ -26,7 +25,6 @@ const encodeClientSettings = Schema.encodeSync(ClientSettingsSchema);
 const decodeServerSettings = Schema.decodeUnknownSync(ServerSettings);
 const decodeServerSettingsPatch = Schema.decodeUnknownSync(ServerSettingsPatch);
 const encodeServerSettings = Schema.encodeSync(ServerSettings);
-const encodeServerSettingsPatch = Schema.encodeSync(ServerSettingsPatch);
 const decodeClaudeSettings = Schema.decodeUnknownSync(ClaudeSettings);
 
 describe("automatic pull", () => {
@@ -200,55 +198,6 @@ describe("ServerSettings usage price overrides", () => {
     ]) {
       expect(() => decodeServerSettingsPatch({ usagePriceOverrides })).toThrow();
     }
-  });
-});
-
-describe("ServerSettings secret providers", () => {
-  const onePassword = (account: string) => ({
-    kind: "one_password",
-    label: "Personal",
-    config: { account },
-  });
-
-  it("keeps an unknown kind or a longer label from invalidating the rest of the settings", () => {
-    const openbao = { kind: "openbao", label: "V".repeat(65), config: { address: "https://x" } };
-    const decoded = decodeServerSettings({
-      worktreesDirectory: "/work",
-      secretProviders: { vault: openbao, personal: onePassword("my.1password.com") },
-    });
-    expect(decoded.worktreesDirectory).toBe("/work");
-    expect(encodeServerSettings(decoded).secretProviders).toEqual({
-      vault: openbao,
-      personal: onePassword("my.1password.com"),
-    });
-  });
-
-  it("accepts slug ids and null removals but no id that is not a slug", () => {
-    expect(
-      decodeServerSettingsPatch({
-        secretProviders: { "1password": onePassword("my.1password.com"), work: null },
-      }).secretProviders,
-    ).toEqual({ "1password": onePassword("my.1password.com"), work: null });
-    for (const id of ["", "My Vault", "a/b", "-vault"]) {
-      expect(() =>
-        decodeServerSettingsPatch({ secretProviders: { [id]: onePassword("my.1password.com") } }),
-      ).toThrow();
-    }
-    expect(() =>
-      decodeServerSettingsPatch({
-        secretProviders: { work: { ...onePassword("my.1password.com"), label: "V".repeat(65) } },
-      }),
-    ).toThrow();
-  });
-
-  it("rejects writes of an unknown kind or an account op could misread", () => {
-    const write = (entry: unknown) => () =>
-      decodeServerSettingsPatch({ secretProviders: { personal: entry } });
-    for (const account of ["", "my account", "--help"]) {
-      expect(write(onePassword(account))).toThrow();
-    }
-    expect(write({ kind: "one_password", label: "Personal" })).toThrow();
-    expect(write({ kind: "openbao", label: "Vault", config: { address: "https://x" } })).toThrow();
   });
 });
 
@@ -430,6 +379,7 @@ describe("ServerSettings environment icon", () => {
 
 const decodeDeviceHostSettings = Schema.decodeSync(ServerSettings);
 
+// `deviceHosts` as it was decoded before EAS hosts existed: an SSH host needs a target.
 const decodeOlderDeviceHostSettings = Schema.decodeUnknownSync(
   Schema.Struct({
     deviceHosts: Schema.Array(Schema.Struct({ id: Schema.String, target: Schema.String })),
@@ -450,7 +400,7 @@ it("keeps EAS hosts out of the SSH host list servers and clients before EAS host
 
 it("validates remote device hosts and rejects ambiguous host ids", () => {
   const host = { id: "mini", label: "Mac mini", target: "user@mini", port: 2222 };
-
+  // Hosts saved before EAS hosts existed have no `kind`; they are SSH hosts.
   expect(decodeDeviceHostSettings({ deviceHosts: [host] }).deviceHosts).toEqual([
     { kind: "ssh", ...host },
   ]);
@@ -495,27 +445,6 @@ describe("branch naming settings", () => {
       expect(decodeServerSettingsPatch(input)).toEqual(input);
     },
   );
-});
-
-describe("ServerSettings project overrides across versions", () => {
-  it("sends back an override key from a newer server when an older client edits the entry", () => {
-    const projectId = ProjectId.make("project-a");
-
-    const entry = decodeServerSettings({
-      projectSettingsOverrides: {
-        [projectId]: { defaultAutoPull: true, addedByNewerServer: { mode: "kept" } },
-      },
-    }).projectSettingsOverrides[projectId];
-
-    const sent = encodeServerSettingsPatch({
-      projectSettingsOverrides: { [projectId]: { ...entry, defaultAutoPull: false } },
-    });
-
-    expect(decodeServerSettingsPatch(sent).projectSettingsOverrides?.[projectId]).toEqual({
-      defaultAutoPull: false,
-      addedByNewerServer: { mode: "kept" },
-    });
-  });
 });
 
 describe("resolveProjectProviderInstanceEnabled", () => {
@@ -582,49 +511,5 @@ describe("thread grouping preference", () => {
     });
     expect(decoded.sidebarThreadGrouping).toBe("status");
     expect(decoded.confirmThreadDelete).toBe(false);
-  });
-});
-
-describe("new environment settings", () => {
-  it("keeps sharing and linked environments disabled unless enabled explicitly", () => {
-    expect(decodeServerSettings({})).toMatchObject({
-      guestSharingEnabled: false,
-      linkedEnvironmentsEnabled: false,
-      simlockDeviceHostsEnabled: false,
-      fallbackModelSelection: null,
-      threadTitleInstructions: "",
-    });
-    expect(
-      decodeServerSettingsPatch({ threadTitleInstructions: " Use project terminology " }),
-    ).toEqual({ threadTitleInstructions: "Use project terminology" });
-  });
-
-  it("round-trips sparse card choices without discarding future rows", () => {
-    const threadDetailsItems = { context: false, futureRow: true };
-    expect(decodeClientSettings({}).threadDetailsItems).toEqual({});
-    expect(
-      encodeClientSettings(decodeClientSettings({ threadDetailsItems })).threadDetailsItems,
-    ).toEqual(threadDetailsItems);
-    expect(decodeClientSettingsPatch({ threadDetailsItems })).toEqual({ threadDetailsItems });
-  });
-});
-
-describe("secret provider permissions", () => {
-  it("requires provider management for adding or removing a secret provider", () => {
-    const patch = decodeServerSettingsPatch({
-      secretProviders: {
-        personal: {
-          kind: "one_password",
-          label: "Personal",
-          config: { account: "personal.1password.com" },
-        },
-      },
-    });
-    expect(requiredScopesForServerSettingsPatch(patch)).toEqual(["providers:manage"]);
-    expect(
-      requiredScopesForServerSettingsPatch(
-        decodeServerSettingsPatch({ secretProviders: { personal: null } }),
-      ),
-    ).toEqual(["providers:manage"]);
   });
 });

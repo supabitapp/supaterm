@@ -1,51 +1,75 @@
-import type { OlderSettledScope } from "@supaterm/client-runtime/state/threads";
-import { useAtomValue } from "@effect/atom-react";
-import { useMemo, useSyncExternalStore } from "react";
-import { environmentServerConfigsAtom } from "../../state/server";
-import { useOlderSettledShelf, useOlderSettledShelfGrowth } from "../../state/olderSettledShelf";
+import { useMemo } from "react";
+
 import { buildThreadListV2Items, threadListInboxReturns } from "./threadListV2";
 
-type ThreadListV2LayoutInput = Omit<
-  Parameters<typeof buildThreadListV2Items>[0],
-  "inboxReturnAt" | "isWorking" | "isListedSettled" | "unloadedSettledCount"
+type ThreadListV2LayoutInput = Required<
+  Omit<Parameters<typeof buildThreadListV2Items>[0], "inboxReturnAt">
 >;
 
-export function useThreadListV2Layout(input: ThreadListV2LayoutInput) {
-  const configs = useAtomValue(environmentServerConfigsAtom);
-  const version = useSyncExternalStore(
-    threadListInboxReturns.subscribe,
-    threadListInboxReturns.getSnapshot,
-  );
-  const inbox = useMemo(
-    () => threadListInboxReturns.observe(input.threads),
-    // oxlint-disable-next-line react/memo-dependencies -- Grace expiry invalidates the snapshot.
-    [input.threads, version],
-  );
-  const environmentIds = input.environmentId === null ? [...configs.keys()] : [input.environmentId];
-  const scopes = environmentIds.flatMap((environmentId): OlderSettledScope[] => {
-    if (input.projectRefs == null) return [{ environmentId, projectIds: null }];
-    const projectIds = input.projectRefs.flatMap((ref) =>
-      ref.environmentId === environmentId ? [ref.projectId] : [],
-    );
-    return projectIds.length > 0 ? [{ environmentId, projectIds }] : [];
-  });
-  const olderSettledShelf = useOlderSettledShelf({
-    scopes,
-    expanded: input.doneShelfExpanded !== false,
-    visibleCount: input.searchQuery.trim().length === 0 ? (input.doneLimit ?? 0) : 0,
-  });
-  const threadListV2Layout = buildThreadListV2Items({
-    ...input,
-    inboxReturnAt: inbox.returnedAt,
-    isWorking: inbox.isWorking,
-    isListedSettled: olderSettledShelf.isListed,
-    unloadedSettledCount: olderSettledShelf.unloadedCount(input.threads),
-  });
-  useOlderSettledShelfGrowth(olderSettledShelf, threadListV2Layout.listedSettledThreads);
-  const contentOnlyKey = [...threadListV2Layout.contentOnlyThreadKeys].sort().join("\n");
-  const contentOnlyThreadKeys = useMemo(
-    () => new Set(contentOnlyKey ? contentOnlyKey.split("\n") : []),
-    [contentOnlyKey],
-  );
-  return { threadListV2Layout, olderSettledShelf, contentOnlyThreadKeys };
+/** Keeps Home and the iPad sidebar on the same partition. */
+export function useThreadListV2Layout({
+  grouping,
+  groupingProjects,
+  threads,
+  environmentId,
+  projectRefs,
+  searchQuery,
+  matchedThreadKeys,
+  pendingOrder,
+  queuedThreadKeys,
+  doneLimit,
+  now,
+  pinnedShelfExpanded,
+  activeShelfExpanded,
+  workingShelfExpanded,
+  collapsedGroups,
+  snoozedShelfExpanded,
+  doneShelfExpanded,
+  selectedThreadKey,
+}: ThreadListV2LayoutInput) {
+  const threadListV2Layout = useMemo(() => {
+    threadListInboxReturns.observe(threads);
+    // Done threads remain live shells; archived threads stay hidden.
+    return buildThreadListV2Items({
+      grouping,
+      groupingProjects,
+      pendingOrder,
+      threads: threads.filter((thread) => thread.archivedAt === null),
+      environmentId,
+      projectRefs,
+      searchQuery,
+      matchedThreadKeys,
+      queuedThreadKeys,
+      doneLimit,
+      now,
+      pinnedShelfExpanded,
+      activeShelfExpanded,
+      workingShelfExpanded,
+      collapsedGroups,
+      inboxReturnAt: threadListInboxReturns.returnedAt,
+      snoozedShelfExpanded,
+      doneShelfExpanded,
+      selectedThreadKey,
+    });
+  }, [
+    pinnedShelfExpanded,
+    activeShelfExpanded,
+    workingShelfExpanded,
+    collapsedGroups,
+    pendingOrder,
+    queuedThreadKeys,
+    now,
+    snoozedShelfExpanded,
+    doneShelfExpanded,
+    selectedThreadKey,
+    environmentId,
+    searchQuery,
+    matchedThreadKeys,
+    doneLimit,
+    grouping,
+    groupingProjects,
+    threads,
+    projectRefs,
+  ]);
+  return { threadListV2Layout };
 }

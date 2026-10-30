@@ -21,6 +21,6 @@ describe("textDirection", () => {
   });
 
   it("leaves text without letters to its surroundings", () => {
-    expect(textDirection(`42 ${String.fromCharCode(0x2014)} 7 ✓`)).toBeUndefined();
+    expect(textDirection("42 — 7 ✓")).toBeUndefined();
   });
 });

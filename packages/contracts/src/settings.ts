@@ -1,4 +1,4 @@
-import { EasDeviceHostConfigs, SimlockDeviceHostConfigs, SshDeviceHostConfigs } from "./device.ts";
+import { EasDeviceHostConfigs, SshDeviceHostConfigs } from "./device.ts";
 import {
   AuthOrchestrationOperateScope,
   AuthSettingsWriteScope,
@@ -7,6 +7,7 @@ import {
 } from "./auth.ts";
 import * as Effect from "effect/Effect";
 import * as Duration from "effect/Duration";
+import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as SchemaTransformation from "effect/SchemaTransformation";
 import {
@@ -32,8 +33,6 @@ import { ProjectScript, type ProjectMutation } from "./project.ts";
 import { DEFAULT_RUNTIME_MODE, RuntimeMode } from "./providerPolicy.ts";
 import { BrowserProfile, BrowserProfileId, DEFAULT_BROWSER_PROFILE_ID } from "./browserProfile.ts";
 import {
-  BrowserRecordingFrameRate,
-  DEFAULT_BROWSER_RECORDING_FRAME_RATE,
   DEFAULT_PREVIEW_APPEARANCE,
   DEFAULT_PREVIEW_ZOOM_FACTOR,
   FILL_PREVIEW_VIEWPORT,
@@ -95,45 +94,6 @@ export const SidebarAutoMarkDoneAfterDays = Schema.Number.check(
 );
 export type SidebarAutoMarkDoneAfterDays = typeof SidebarAutoMarkDoneAfterDays.Type;
 const DEFAULT_SIDEBAR_AUTO_MARK_DONE_AFTER_DAYS: SidebarAutoMarkDoneAfterDays = 3;
-
-export const MAX_SNOOZE_PRESET_MINUTES = 30 * 24 * 60;
-export const MAX_SNOOZE_PRESETS = 8;
-export const SnoozePresetDay = Schema.Literals([
-  "today",
-  "tomorrow",
-  "monday",
-  "tuesday",
-  "wednesday",
-  "thursday",
-  "friday",
-  "saturday",
-  "sunday",
-]);
-export type SnoozePresetDay = typeof SnoozePresetDay.Type;
-
-export const SnoozePresetSetting = Schema.Union([
-  Schema.Struct({
-    kind: Schema.Literal("after"),
-    minutes: Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: MAX_SNOOZE_PRESET_MINUTES })),
-  }),
-  Schema.Struct({
-    kind: Schema.Literal("at"),
-    day: SnoozePresetDay,
-    time: Schema.String.check(Schema.isPattern(/^([01]\d|2[0-3]):[0-5]\d$/)),
-  }),
-]);
-export type SnoozePresetSetting = typeof SnoozePresetSetting.Type;
-export const SnoozePresetSettings = Schema.Array(SnoozePresetSetting).check(
-  Schema.isMaxLength(MAX_SNOOZE_PRESETS),
-);
-export const DEFAULT_SNOOZE_PRESETS: ReadonlyArray<SnoozePresetSetting> = [
-  { kind: "after", minutes: 60 },
-  { kind: "after", minutes: 180 },
-  { kind: "at", day: "today", time: "18:00" },
-  { kind: "at", day: "tomorrow", time: "09:00" },
-  { kind: "at", day: "monday", time: "09:00" },
-];
-
 export const MIN_GLASS_OPACITY = 40;
 export const MAX_GLASS_OPACITY = 100;
 export const GlassOpacity = Schema.Int.check(
@@ -259,17 +219,25 @@ const DEFAULT_QUIT_CONFIRMATION_MODE: QuitConfirmationMode = "hold";
 export const FontFamilyPreference = Schema.String.check(Schema.isMaxLength(200));
 export type FontFamilyPreference = typeof FontFamilyPreference.Type;
 
+/**
+ * The environment's theme, set with `supaterm theme set <id>`. Each client applies
+ * it once per value — live when connected, on its next connect otherwise — so
+ * setting it switches every client, while a theme a user picks in Settings
+ * afterwards sticks until the next set. Empty means "no environment theme",
+ * which is also how it is cleared.
+ */
 export const DefaultThemePreference = Schema.String.check(Schema.isMaxLength(64));
-
+// Deliberately absent from ServerSettingsPatch: `supaterm theme set` checks that an
+// id is syntactically valid and actually resolvable, and a generic RPC patch
+// would let a client write a theme no client can resolve, bypassing both.
 export type DefaultThemePreference = typeof DefaultThemePreference.Type;
 
 export const DEFAULT_BROWSER_VIEWPORT: PreviewViewportSetting = FILL_PREVIEW_VIEWPORT;
 export const DEFAULT_BROWSER_AUTO_SHOW_FLOATING_PREVIEW = true;
-export {
-  BROWSER_RECORDING_FRAME_RATES,
-  BrowserRecordingFrameRate,
-  DEFAULT_BROWSER_RECORDING_FRAME_RATE,
-} from "./preview.ts";
+export const BROWSER_RECORDING_FRAME_RATES = [30, 60] as const;
+export const BrowserRecordingFrameRate = Schema.Literals(BROWSER_RECORDING_FRAME_RATES);
+export type BrowserRecordingFrameRate = typeof BrowserRecordingFrameRate.Type;
+export const DEFAULT_BROWSER_RECORDING_FRAME_RATE: BrowserRecordingFrameRate = 30;
 export const BrowserLinkTarget = Schema.Literals(["system", "app"]);
 export type BrowserLinkTarget = typeof BrowserLinkTarget.Type;
 export const DEFAULT_BROWSER_LINK_TARGET: BrowserLinkTarget = "system";
@@ -300,9 +268,6 @@ export const DiffColorScheme = Schema.Literals(["red-green", "blue-orange"]);
 export const ChatWidth = Schema.Literals(["comfortable", "wide", "full"]);
 export type ChatWidth = typeof ChatWidth.Type;
 
-export const EffortDisplay = Schema.Literals(["label", "bars"]);
-export type EffortDisplay = typeof EffortDisplay.Type;
-
 export const ModelFavorite = Schema.Struct({
   provider: ProviderInstanceId,
   model: TrimmedNonEmptyString,
@@ -329,7 +294,6 @@ export const ClientSettingsSchema = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed("red-green" as const)),
   ),
   chatWidth: ChatWidth.pipe(Schema.withDecodingDefault(Effect.succeed("comfortable" as const))),
-  effortDisplay: EffortDisplay.pipe(Schema.withDecodingDefault(Effect.succeed("label" as const))),
   loadBalancingEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   loadBalancingWeights: LoadBalancingWeights.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   appearanceContrast: AppearanceContrast.pipe(
@@ -408,7 +372,9 @@ export const ClientSettingsSchema = Schema.Struct({
   fontFamilyTerminal: FontFamilyPreference.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
 
   fontSmoothing: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
-
+  // `null` alone does not mean "show the wizard" — every install that predates
+  // this field decodes to `null` — so the gate also requires an empty workspace
+  // before it treats the client as a fresh install.
   onboardingCompletedAt: Schema.NullOr(Schema.String).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
@@ -416,6 +382,7 @@ export const ClientSettingsSchema = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed(false)),
   ),
   pullRequestLinksOpenInApp: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  composerCollapseOnScroll: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   composerRichTextEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   sendShortcut: Schema.Literals(["enter", "mod-enter-multiline", "mod-enter"]).pipe(
     Schema.withDecodingDefault(Effect.succeed("enter")),
@@ -438,9 +405,9 @@ export const ClientSettingsSchema = Schema.Struct({
   sidebarThreadSortOrder: SidebarThreadSortOrder.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_THREAD_SORT_ORDER)),
   ),
-
+  // An unknown grouping falls back to Default instead of failing the whole settings document.
   sidebarThreadGrouping: SidebarThreadGrouping.pipe(
-    Schema.catchDecoding(() => Effect.succeedSome("status" as const)),
+    Schema.catchDecoding(() => Effect.succeed(Option.some("status" as const))),
     Schema.withDecodingDefault(Effect.succeed("status" as const)),
   ),
   sidebarThreadPreviewCount: SidebarThreadPreviewCount.pipe(
@@ -464,15 +431,9 @@ export const ClientSettingsSchema = Schema.Struct({
   snapShotAnimations: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   codexMicro: CodexMicroSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   wordWrap: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
-
+  // Opt-in TeX typesetting in rendered Markdown. Off keeps math parsing and
+  // KaTeX out of the render path entirely.
   mathRenderingEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-  boringSidebarEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-  boringSidebarMultilineRows: Schema.Boolean.pipe(
-    Schema.withDecodingDefault(Effect.succeed(false)),
-  ),
-  threadDetailsItems: Schema.Record(Schema.String, Schema.Boolean).pipe(
-    Schema.withDecodingDefault(Effect.succeed({})),
-  ),
 });
 export type ClientSettings = typeof ClientSettingsSchema.Type;
 
@@ -483,6 +444,7 @@ const UsageModelTokenPrice = Schema.Number.check(
   Schema.isGreaterThanOrEqualTo(0),
 );
 
+/** Omitted cache rates use the input rate. */
 export const UsageModelPriceOverride = Schema.Struct({
   inputCostPerMillionTokens: UsageModelTokenPrice,
   outputCostPerMillionTokens: UsageModelTokenPrice,
@@ -534,6 +496,7 @@ export interface ProviderSettingsFormSchemaAnnotation {
 declare module "effect/Schema" {
   namespace Annotations {
     interface Annotations {
+      /** Store this credential separately and expose only whether it is configured to clients. */
       readonly settingsSecret?: boolean | undefined;
       readonly providerSettingsForm?: ProviderSettingsFormAnnotation | undefined;
       readonly providerSettingsFormSchema?: ProviderSettingsFormSchemaAnnotation | undefined;
@@ -545,6 +508,7 @@ export function secretSetting<S extends Schema.Top>(schema: S): S["Rebuild"] {
   return schema.annotateKey({ settingsSecret: true });
 }
 
+/** A masked form field is a credential too, so none is saved or sent to clients as plain text. */
 export function isSecretSetting(schema: Schema.Top): boolean {
   const annotations = Schema.resolveAnnotationsKey(schema) ?? Schema.resolveAnnotations(schema);
   return (
@@ -766,63 +730,8 @@ export const AntigravitySettings = makeProviderSettingsSchema(
 );
 export type AntigravitySettings = typeof AntigravitySettings.Type;
 
-const SecretProviderSlug = TrimmedNonEmptyString.check(
-  Schema.isMaxLength(64),
-  Schema.isPattern(/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/),
-);
-
-export const SecretProviderId = SecretProviderSlug.pipe(Schema.brand("SecretProviderId"));
-export type SecretProviderId = typeof SecretProviderId.Type;
-
-export const SecretProviderKind = SecretProviderSlug.pipe(Schema.brand("SecretProviderKind"));
-export type SecretProviderKind = typeof SecretProviderKind.Type;
-
-const ONE_PASSWORD_ACCOUNT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
-
-export const OnePasswordAccount = Schema.String.check(
-  Schema.isMaxLength(253),
-  Schema.makeFilter((value: string) =>
-    ONE_PASSWORD_ACCOUNT_PATTERN.test(value)
-      ? true
-      : "1Password account must be a shorthand, sign-in address, or ID with no spaces.",
-  ),
-).pipe(Schema.brand("OnePasswordAccount"));
-export type OnePasswordAccount = typeof OnePasswordAccount.Type;
-
-export const SecretProviderLabel = TrimmedNonEmptyString.check(Schema.isMaxLength(64));
-
-export const OnePasswordSecretProviderConfig = Schema.Struct({
-  account: OnePasswordAccount,
-});
-export type OnePasswordSecretProviderConfig = typeof OnePasswordSecretProviderConfig.Type;
-
-export const SecretProviderConfig = Schema.Struct({
-  kind: SecretProviderKind,
-  label: TrimmedNonEmptyString,
-  config: Schema.optionalKey(Schema.Unknown),
-});
-export type SecretProviderConfig = typeof SecretProviderConfig.Type;
-
-const SECRET_PROVIDER_KIND_CONFIG_GUARDS: Readonly<Record<string, (config: unknown) => boolean>> = {
-  one_password: Schema.is(OnePasswordSecretProviderConfig),
-};
-
-export function isKnownSecretProviderKind(kind: string): boolean {
-  return Object.hasOwn(SECRET_PROVIDER_KIND_CONFIG_GUARDS, kind);
-}
-
-const SecretProviderConfigWrite = Schema.Struct({
-  ...SecretProviderConfig.fields,
-  label: SecretProviderLabel,
-}).check(
-  Schema.makeFilter((entry) => {
-    if (!isKnownSecretProviderKind(entry.kind)) {
-      return `Unsupported secret provider kind: ${entry.kind}.`;
-    }
-    return SECRET_PROVIDER_KIND_CONFIG_GUARDS[entry.kind]!(entry.config)
-      ? true
-      : `Invalid ${entry.kind} secret provider config.`;
-  }),
+export const GitHubHost = TrimmedNonEmptyString.pipe(
+  Schema.decodeTo(Schema.String, SchemaTransformation.toLowerCase()),
 );
 
 export const SourceControlHostSettings = Schema.Record(Schema.String, Schema.Unknown);
@@ -867,6 +776,8 @@ const LegacySourceControlWritingStyle = TrimmedString.pipe(
   ),
 );
 
+// The struct member comes first so encoding uses its defaulted fields: the server strips
+// default sub-fields before writing settings.json, and a toType target would reject them.
 const SourceControlWritingStyleSetting = Schema.Union([
   SourceControlWritingStyleSettings,
   LegacySourceControlWritingStyle,
@@ -881,6 +792,10 @@ export interface BranchNamingOptions {
   instructions: string;
 }
 
+/**
+ * The naming choices clients offer. Repository naming is static naming with
+ * `branchNamePrefixFromRepository` set, so `branchNamingMode` keeps the literal set older clients decode.
+ */
 export const BRANCH_NAMING_CHOICES = ["static", "repository", "semantic", "custom"] as const;
 export type BranchNamingChoice = (typeof BRANCH_NAMING_CHOICES)[number];
 
@@ -993,7 +908,6 @@ export const PROJECT_SCOPED_SERVER_SETTING_KEYS = [
   "enableAgentBrowserAccess",
   "enableAgentDeviceAccess",
   "textGenerationModelSelection",
-  "threadTitleInstructions",
   "sourceControlWriterModelSelection",
   "reviewGuideModelSelection",
   "reviewGuideInstructions",
@@ -1017,6 +931,15 @@ export const ProjectProviderInstanceOverride = Schema.Struct({
 });
 export type ProjectProviderInstanceOverride = typeof ProjectProviderInstanceOverride.Type;
 
+/**
+ * One project's overrides. An absent key inherits the environment value;
+ * `null` is a real value where the environment type is nullable (no default
+ * model, no dedicated writer model, never automatically mark as done).
+ *
+ * `providerInstances` sits outside `PROJECT_SCOPED_SERVER_SETTING_KEYS`: every
+ * other key replaces its `ServerSettings` field whole, while this one keeps the
+ * settings.json shape but overrides field by field, per `ProviderInstanceId`.
+ */
 export const ProjectSettingsOverrides = Schema.Struct({
   worktreeCleanup: Schema.optionalKey(WorktreeCleanup),
   defaultModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
@@ -1029,7 +952,6 @@ export const ProjectSettingsOverrides = Schema.Struct({
   enableAgentBrowserAccess: Schema.optionalKey(Schema.Boolean),
   enableAgentDeviceAccess: Schema.optionalKey(Schema.Boolean),
   textGenerationModelSelection: Schema.optionalKey(ModelSelection),
-  threadTitleInstructions: Schema.optionalKey(TrimmedString),
   sourceControlWriterModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   reviewGuideModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   reviewGuideInstructions: Schema.optionalKey(TrimmedString),
@@ -1051,15 +973,11 @@ export const ProjectSettingsOverrides = Schema.Struct({
 } satisfies Record<ProjectScopedServerSettingKey | "providerInstances", unknown>);
 export type ProjectSettingsOverrides = typeof ProjectSettingsOverrides.Type;
 
-const keepUnknownOverrideKeys = <Entry extends Schema.Struct<Schema.Struct.Fields>>(
-  entry: Entry,
-): Schema.Codec<
-  Entry["Type"],
-  Entry["Encoded"],
-  Entry["DecodingServices"],
-  Entry["EncodingServices"]
-> => Schema.StructWithRest(entry, [Schema.Record(Schema.String, Schema.Unknown)]);
-
+/**
+ * An override entry as a settings patch carries it. Clients built before `worktreeKeepWhen` or
+ * `worktreeDoneAfterDays` send custom worktree rules without them, so they are optional here and
+ * the stored rule fills them in.
+ */
 export const ProjectSettingsOverridesPatchEntry = Schema.Struct({
   ...ProjectSettingsOverrides.fields,
   worktreeCleanup: Schema.optionalKey(
@@ -1080,6 +998,12 @@ export const ProjectSettingsOverridesPatchEntry = Schema.Struct({
 });
 export type ProjectSettingsOverridesPatchEntry = typeof ProjectSettingsOverridesPatchEntry.Type;
 
+/**
+ * Whether `null` is a stored override value for this key rather than "unset".
+ * Clients writing a project override treat null for every other key as a
+ * request to remove the override, so a picker's "Inherit" item and the row's
+ * reset do the same thing.
+ */
 export function isNullableProjectSettingsOverride(key: ProjectScopedServerSettingKey): boolean {
   return NULLABLE_PROJECT_SETTINGS_OVERRIDES.has(key);
 }
@@ -1095,19 +1019,22 @@ const NULLABLE_PROJECT_SETTINGS_OVERRIDES: ReadonlySet<ProjectScopedServerSettin
   "sidebarAutoMarkDoneAfterDays",
 ]);
 
+/** Reclaimable bytes from which the offline `supaterm doctor` repair is worth suggesting. */
 export const DATABASE_COMPACTION_RECOMMENDED_BYTES = 1024 ** 3;
 
+/** Live SQLite file accounting for the environment's state database. */
 export const DatabaseStorageStatus = Schema.Struct({
   databaseBytes: Schema.Number,
-
+  /** Free pages inside the file that an offline VACUUM (or incremental auto_vacuum) returns to disk. */
   reclaimableBytes: Schema.Number,
-
+  /** False on databases created before incremental auto_vacuum; `supaterm doctor` converts them. */
   incrementalVacuumEnabled: Schema.Boolean,
-
+  /** Command to run on the host to reclaim the space offline. */
   compactCommand: Schema.String,
 });
 export type DatabaseStorageStatus = typeof DatabaseStorageStatus.Type;
 
+/** Only suggest the offline conversion when it can reclaim enough to matter. */
 export function shouldRecommendDatabaseCompaction(status: DatabaseStorageStatus): boolean {
   return (
     !status.incrementalVacuumEnabled &&
@@ -1171,7 +1098,10 @@ export const ServerSettings = Schema.Struct({
   ),
 
   worktreesDirectory: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
-
+  /**
+   * Custom locations used before the current one. Server-maintained so
+   * worktrees left there stay eligible for cleanup and review diffs.
+   */
   previousWorktreesDirectories: Schema.Array(TrimmedString).pipe(
     Schema.withDecodingDefault(Effect.succeed([])),
   ),
@@ -1191,41 +1121,36 @@ export const ServerSettings = Schema.Struct({
   defaultModelSelection: Schema.NullOr(ModelSelection).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
-  fallbackModelSelection: Schema.NullOr(ModelSelection).pipe(
-    Schema.withDecodingDefault(Effect.succeed(null)),
-  ),
   defaultRuntimeMode: RuntimeMode.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE)),
   ),
-
-  projectSettingsOverrides: Schema.Record(
-    ProjectId,
-    keepUnknownOverrideKeys(ProjectSettingsOverrides),
-  ).pipe(Schema.withDecodingDefault(Effect.succeed({}))),
-
+  /**
+   * Per-project overrides of the keys in `PROJECT_SCOPED_SERVER_SETTING_KEYS`,
+   * plus `providerInstances`. The source of truth for project settings.
+   */
+  projectSettingsOverrides: Schema.Record(ProjectId, ProjectSettingsOverrides).pipe(
+    Schema.withDecodingDefault(Effect.succeed({})),
+  ),
+  /**
+   * The fold runs once so a later reset in the settings UI is not undone by the
+   * next server start.
+   */
   projectSettingsFolded: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
 
   enableAgentDeviceAccess: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-
+  /**
+   * Kept separate from agent access so enabling the user's Device panel does
+   * not also grant providers control of simulators and emulators.
+   */
   enableDeviceSupport: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   deviceOnboardingCompleted: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   deviceHosts: SshDeviceHostConfigs.pipe(Schema.withDecodingDefault(Effect.succeed([]))),
   easDeviceHosts: EasDeviceHostConfigs.pipe(Schema.withDecodingDefault(Effect.succeed([]))),
-  simlockDeviceHosts: SimlockDeviceHostConfigs.pipe(Schema.withDecodingDefault(Effect.succeed([]))),
-
-  simlockDeviceHostsEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   sidebarAutoMarkDoneAfterDays: Schema.NullOr(SidebarAutoMarkDoneAfterDays).pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_AUTO_MARK_DONE_AFTER_DAYS)),
   ),
   snoozeLimitedThreads: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   autoResumeLimitedThreads: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-
-  snoozePresets: SnoozePresetSettings.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_SNOOZE_PRESETS)),
-  ),
-  guestSharingEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-
-  linkedEnvironmentsEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   sidebarAutoMarkDoneKeepPullRequests: Schema.Boolean.pipe(
     Schema.withDecodingDefault(Effect.succeed(false)),
   ),
@@ -1234,19 +1159,30 @@ export const ServerSettings = Schema.Struct({
   ),
   backgroundActivity: BackgroundActivitySettings,
   defaultTheme: DefaultThemePreference.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
-
+  /**
+   * When the environment's theme was last set, so clients can tell a re-set of
+   * the same value from one they already applied: `supaterm theme set` must act even
+   * when it names the theme it named before.
+   */
   defaultThemeSetAt: Schema.String.check(Schema.isMaxLength(64)).pipe(
     Schema.withDecodingDefault(Effect.succeed("")),
   ),
   environmentIcon: ForwardCompatibleNullable(EnvironmentMachineKind).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
-
+  /**
+   * Null means inherit: the repository's supaterm.json, then "local". Null stays off the wire
+   * so older clients, which require a literal here, keep decoding.
+   */
   defaultThreadEnvMode: OmittedWhenNull(ThreadEnvMode),
   newWorktreesStartFromOrigin: Schema.Boolean.pipe(
     Schema.withDecodingDefault(Effect.succeed(true)),
   ),
-
+  /**
+   * Null defers to the repository's supaterm.json, then to recursive. A value
+   * picked on a newer server decodes as null here rather than failing the
+   * whole settings snapshot for an older client.
+   */
   worktreeSubmodules: ForwardCompatibleNullable(WorktreeSubmodules).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
@@ -1268,7 +1204,6 @@ export const ServerSettings = Schema.Struct({
   nextPromptSuggestionsEnabled: Schema.Boolean.pipe(
     Schema.withDecodingDefault(Effect.succeed(true)),
   ),
-  threadTitleInstructions: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
   branchNamingMode: BranchNamingMode.pipe(
     Schema.withDecodingDefault(Effect.succeed("static" as const)),
   ),
@@ -1294,14 +1229,15 @@ export const ServerSettings = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
 
+  // The driver-specific config blob is `Schema.Unknown` at this layer so
+  // envelopes with unknown drivers (forks, downgrades, in-flight PR branches)
+  // round-trip without loss. See providerInstance.ts for the forward/backward
+  // compatibility invariant.
   providerInstances: Schema.Record(ProviderInstanceId, ProviderInstanceConfig).pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
   ),
   observability: ObservabilitySettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   sourceControlHosts: Schema.Record(Schema.String, SourceControlHostSettings).pipe(
-    Schema.withDecodingDefault(Effect.succeed({})),
-  ),
-  secretProviders: Schema.Record(SecretProviderId, SecretProviderConfig).pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
   ),
   cursorKeychainUsageEnabled: Schema.Boolean.pipe(
@@ -1329,7 +1265,7 @@ export const providerInstanceConfigEnabledFlag = (config: unknown): boolean | un
 };
 
 const DEFAULT_DISABLED_PROVIDER_DRIVERS: ReadonlySet<ProviderDriverKind> = new Set(
-  ["cursor", "grok", "fx", "muse", "pi", "opencode", "antigravity"].map((driver) =>
+  ["cursor", "grok", "muse", "pi", "opencode", "antigravity"].map((driver) =>
     ProviderDriverKind.make(driver),
   ),
 );
@@ -1421,7 +1357,6 @@ const ModelSelectionPatch = Schema.Struct({
 });
 
 export const ServerSettingsPatch = Schema.Struct({
-  threadTitleInstructions: Schema.optionalKey(TrimmedString),
   publicRelayEnabled: Schema.optionalKey(Schema.Boolean),
   publicRelayUrl: Schema.optionalKey(RelayServerUrl),
   setModelFavorites: Schema.optionalKey(
@@ -1474,18 +1409,28 @@ export const ServerSettingsPatch = Schema.Struct({
   defaultProjectScripts: Schema.optionalKey(Schema.Array(ProjectScript)),
   defaultModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   defaultRuntimeMode: Schema.optionalKey(RuntimeMode),
-
-  fallbackModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
+  /**
+   * Per-project entry replacement: each entry replaces that project's whole
+   * override set and `null` removes it.
+   *
+   * Keys added after clients already resent whole entries are the exception:
+   * an entry that omits `providerInstances`, `reviewGuideModelSelection`,
+   * `reviewGuideInstructions` or `sidebarAutoMarkDoneKeepPullRequests` keeps
+   * the stored value, and custom worktree rules without `worktreeKeepWhen` or
+   * `worktreeDoneAfterDays` keep the stored rule, so a client built before
+   * those fields cannot wipe them by editing another key. Clearing
+   * every provider override for a project means sending `providerInstances:
+   * {}`; clearing any other key means listing it in
+   * `projectSettingsOverrideRemovals` as well.
+   */
   projectSettingsOverrides: Schema.optionalKey(
     Schema.Record(
       ProjectId,
       Schema.NullOr(
-        keepUnknownOverrideKeys(
-          Schema.Struct({
-            ...ProjectSettingsOverridesPatchEntry.fields,
-            sourceControlWritingStyle: Schema.optionalKey(SourceControlWritingStyleSettings),
-          }),
-        ),
+        Schema.Struct({
+          ...ProjectSettingsOverridesPatchEntry.fields,
+          sourceControlWritingStyle: Schema.optionalKey(SourceControlWritingStyleSettings),
+        }),
       ),
     ),
   ),
@@ -1497,16 +1442,11 @@ export const ServerSettingsPatch = Schema.Struct({
   deviceOnboardingCompleted: Schema.optionalKey(Schema.Boolean),
   deviceHosts: Schema.optionalKey(SshDeviceHostConfigs),
   easDeviceHosts: Schema.optionalKey(EasDeviceHostConfigs),
-  simlockDeviceHosts: Schema.optionalKey(SimlockDeviceHostConfigs),
-  simlockDeviceHostsEnabled: Schema.optionalKey(Schema.Boolean),
   sidebarAutoMarkDoneAfterDays: Schema.optionalKey(Schema.NullOr(SidebarAutoMarkDoneAfterDays)),
   sidebarAutoMarkDoneKeepPullRequests: Schema.optionalKey(Schema.Boolean),
   sidebarAutoMarkDoneOnMerge: Schema.optionalKey(Schema.Boolean),
   autoResumeLimitedThreads: Schema.optionalKey(Schema.Boolean),
   snoozeLimitedThreads: Schema.optionalKey(Schema.Boolean),
-  snoozePresets: Schema.optionalKey(SnoozePresetSettings),
-  guestSharingEnabled: Schema.optionalKey(Schema.Boolean),
-  linkedEnvironmentsEnabled: Schema.optionalKey(Schema.Boolean),
   backgroundActivity: Schema.optionalKey(
     Schema.Struct({
       schemaVersion: Schema.optionalKey(Schema.Literal(1)),
@@ -1549,13 +1489,16 @@ export const ServerSettingsPatch = Schema.Struct({
       otlpLogsUrl: Schema.optionalKey(TrimmedString),
     }),
   ),
-
+  /**
+   * Merges per host: a patched field replaces the saved one, so a client sends a per-server-host
+   * map whole, with the redaction marker for each saved secret it keeps. An empty or omitted
+   * secret is removed from the secret store.
+   */
   sourceControlHosts: Schema.optionalKey(Schema.Record(Schema.String, SourceControlHostSettings)),
-
+  // Whole-map replacement for the new instance config. Patching individual
+  // entries is intentionally out of scope: the map is small, and partial
+  // patches risk leaving driver-specific config in a half-merged state.
   providerInstances: Schema.optionalKey(Schema.Record(ProviderInstanceId, ProviderInstanceConfig)),
-  secretProviders: Schema.optionalKey(
-    Schema.Record(SecretProviderId, Schema.NullOr(SecretProviderConfigWrite)),
-  ),
   cursorKeychainUsageEnabled: Schema.optionalKey(Schema.Boolean),
 
   usagePriceOverrides: Schema.optionalKey(
@@ -1571,13 +1514,14 @@ export type ServerSettingsPatch = typeof ServerSettingsPatch.Type;
 export function requiredScopesForServerSettingsPatch(
   patch: ServerSettingsPatch,
 ): ReadonlyArray<AuthEnvironmentScope> {
+  // A project's provider switches turn instances on and off like the machine-level ones.
   let changesProviders = Object.values(patch.projectSettingsOverrides ?? {}).some(
     (entry) => entry === null || entry?.providerInstances !== undefined,
   );
   let changesSettings = false;
   for (const [key, value] of Object.entries(patch)) {
     if (value === undefined) continue;
-    if (key === "providerInstances" || key === "secretProviders") {
+    if (key === "providerInstances") {
       changesProviders = true;
     } else {
       changesSettings = true;
@@ -1589,6 +1533,11 @@ export function requiredScopesForServerSettingsPatch(
   ];
 }
 
+/**
+ * Project scripts run on the host when a worktree is created or a thread
+ * is marked done, so a project mutation that carries them needs the same grant as
+ * saving project scripts through settings, on top of `orchestration:operate`.
+ */
 export function requiredScopesForProjectMutation(
   mutation: ProjectMutation,
 ): ReadonlyArray<AuthEnvironmentScope> {
@@ -1606,7 +1555,6 @@ export const ClientSettingsPatch = Schema.Struct({
   inAppNotificationsEnabled: Schema.optionalKey(Schema.Boolean),
   diffColorScheme: Schema.optionalKey(DiffColorScheme),
   chatWidth: Schema.optionalKey(ChatWidth),
-  effortDisplay: Schema.optionalKey(EffortDisplay),
   loadBalancingEnabled: Schema.optionalKey(Schema.Boolean),
   loadBalancingWeights: Schema.optionalKey(LoadBalancingWeights),
   appearanceContrast: Schema.optionalKey(AppearanceContrast),
@@ -1642,6 +1590,7 @@ export const ClientSettingsPatch = Schema.Struct({
   fontSmoothing: Schema.optionalKey(Schema.Boolean),
   persistComposerContextStrip: Schema.optionalKey(Schema.Boolean),
   pullRequestLinksOpenInApp: Schema.optionalKey(Schema.Boolean),
+  composerCollapseOnScroll: Schema.optionalKey(Schema.Boolean),
   composerRichTextEnabled: Schema.optionalKey(Schema.Boolean),
   sendShortcut: Schema.optionalKey(Schema.Literals(["enter", "mod-enter-multiline", "mod-enter"])),
   followUpBehavior: Schema.optionalKey(Schema.Literals(["queue", "steer"])),
@@ -1666,8 +1615,5 @@ export const ClientSettingsPatch = Schema.Struct({
   codexMicro: Schema.optionalKey(CodexMicroSettings),
   wordWrap: Schema.optionalKey(Schema.Boolean),
   mathRenderingEnabled: Schema.optionalKey(Schema.Boolean),
-  boringSidebarEnabled: Schema.optionalKey(Schema.Boolean),
-  boringSidebarMultilineRows: Schema.optionalKey(Schema.Boolean),
-  threadDetailsItems: Schema.optionalKey(Schema.Record(Schema.String, Schema.Boolean)),
 });
 export type ClientSettingsPatch = typeof ClientSettingsPatch.Type;

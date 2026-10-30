@@ -1,5 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off - `node:crypto` implements the
-
+// OSCrypt key derivation Chromium uses; Effect has no equivalent.
 import * as NodeCrypto from "node:crypto";
 
 import * as HostProcess from "@supaterm/shared/HostProcess";
@@ -14,10 +14,10 @@ import { LinuxBrowserSecretPath } from "./LinuxBrowserSecret.ts";
 
 const KEY_SALT = "saltysalt";
 const KEY_LENGTH = 16;
-
+/** macOS stretches the keychain secret; Linux uses a single iteration. */
 const MAC_KEY_ITERATIONS = 1003;
 const LINUX_KEY_ITERATIONS = 1;
-
+/** Chromium's documented fallback passphrase when no Linux keyring is present. */
 const LINUX_FALLBACK_PASSPHRASE = "peanuts";
 
 export const ChromiumKeyFailure = Schema.Literals([
@@ -42,7 +42,11 @@ export interface ChromiumKeyMaterial {
   readonly cbcV10?: Buffer;
   readonly cbcV11?: Buffer;
   readonly cbcV11Error?: ChromiumKeyError;
-
+  /**
+   * AES-128-CBC from an empty passphrase. Some Linux clients wrote records
+   * with it (crbug.com/1195256), so Chromium — and this import — retry with it
+   * after a record's own key fails.
+   */
   readonly cbcEmpty?: Buffer;
   readonly gcmV10?: Buffer;
 }
@@ -50,10 +54,21 @@ export interface ChromiumKeyMaterial {
 const derive = (passphrase: string, iterations: number) =>
   NodeCrypto.pbkdf2Sync(passphrase, KEY_SALT, iterations, KEY_LENGTH, "sha1");
 
+/**
+ * Via the CLI the prompt says "security" and "Always Allow" grants trust to a
+ * tool every process on the machine can invoke; in-process it names this app
+ * and the grant belongs to it.
+ *
+ * Deliberately untimed: macOS answers this with a modal, and a timeout racing
+ * the user means the prompt can be approved while nothing is left listening,
+ * which reads as "approving did nothing".
+ */
 const readKeychainSecret = Effect.fn("ChromiumKeys.readKeychainSecret")(function* (
   service: string,
   account: string,
 ) {
+  // Only macOS cookie imports need this binding; loading it at startup can
+  // prevent the desktop from opening on platforms that never use it.
   const Keyring = yield* Effect.tryPromise({
     try: () => import("@napi-rs/keyring"),
     catch: (cause) => new ChromiumKeyError({ reason: "keychainUnavailable", cause }),
@@ -75,6 +90,10 @@ const readKeychainSecret = Effect.fn("ChromiumKeys.readKeychainSecret")(function
   return secret;
 });
 
+/**
+ * Its exit codes distinguish a missing key, denied access, and an unavailable
+ * keyring without parsing localized error messages.
+ */
 export const readLinuxSecret = Effect.fn("ChromiumKeys.readLinuxSecret")(function* (
   application: string,
 ) {
@@ -248,8 +267,13 @@ export const resolveChromiumKeys = Effect.fn("ChromiumKeys.resolveChromiumKeys")
   }
 
   if (request.platform === "linux") {
+    // The fallback passphrase always applies to `v10` records; a keyring
+    // secret, when one is reachable, additionally unlocks `v11`.
     const keyringSecret = request.linuxSecretApplication
       ? yield* readLinuxSecret(request.linuxSecretApplication).pipe(
+          // v10 remains importable when Secret Service is absent or does not
+          // contain a key. An explicit denial/lock/cancel remains a consent
+          // failure rather than being silently downgraded.
           Effect.catchIf(
             (error) => error.reason !== "needsKeychainApproval",
             (error) => Effect.succeed(error),

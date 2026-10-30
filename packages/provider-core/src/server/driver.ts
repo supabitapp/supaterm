@@ -24,6 +24,11 @@ import type { ProviderUsageReader } from "./usage.ts";
 
 export interface ProviderDriverMetadata {
   readonly displayName: string;
+  /**
+   * Defaults to `true`. Set to `false` for drivers that wrap a global
+   * resource (e.g. a single desktop app socket) — the registry then
+   * rejects multi-instance configurations with a clear error.
+   */
   readonly supportsMultipleInstances?: boolean;
 
   readonly hasDefaultInstance?: boolean;
@@ -104,12 +109,26 @@ export interface ProviderDriverCreateInput<Config> {
   readonly config: Config;
 }
 
+/**
+ * Two calls to `create` with different `instanceId` / `config` MUST yield
+ * instances with no shared mutable state.
+ */
 export interface ProviderDriver<Config, R = never, UsageR = never> {
   readonly driverKind: ProviderDriverKind;
   readonly metadata: ProviderDriverMetadata;
+  /**
+   * Using `Codec` rather than `Schema` pins `DecodingServices = never` — if
+   * we used `Schema<Config>`, the erased `any` in `AnyProviderDriver` would
+   * widen `DecodingServices` to `unknown` and poison the R channel of every
+   * caller of `decodeUnknownEffect`.
+   */
   readonly configSchema: Schema.Codec<Config, unknown>;
 
   readonly defaultConfig: () => Config;
+  /**
+   * Failures become unavailable shadow snapshots — the driver MUST NOT throw
+   * defects.
+   */
   readonly create: (
     input: ProviderDriverCreateInput<Config>,
   ) => Effect.Effect<ProviderInstance, ProviderDriverError, R | Scope.Scope>;

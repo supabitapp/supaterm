@@ -35,11 +35,9 @@ it.effect("captures supported OS events synchronously and drains them in arrival
     };
     listeners.get("open-file")!(event, "/tmp/first.html");
     listeners.get("open-url")!(event, "supaterm://new?prompt=hello");
-    const pairing = "supaterm://pair?pairingUrl=https%3A%2F%2Fserver.test%2F%23token%3Dpair";
-    listeners.get("open-url")!(event, pairing);
     listeners.get("second-instance")!({}, ["supaterm", "https://example.com/last"]);
     listeners.get("open-url")!(event, "mailto:ignored@example.com");
-    expect(prevented).toBe(3);
+    expect(prevented).toBe(2);
     const received: DesktopOpenEvent[] = [];
     yield* events
       .subscribe((entry) => received.push(entry))
@@ -47,7 +45,6 @@ it.effect("captures supported OS events synchronously and drains them in arrival
     expect(received).toEqual([
       { type: "file", path: "/tmp/first.html" },
       { type: "url", url: "supaterm://new?prompt=hello" },
-      { type: "url", url: pairing },
       { type: "second-instance", argv: ["supaterm", "https://example.com/last"] },
     ]);
     listeners.get("open-url")!(event, "https://example.com/live");

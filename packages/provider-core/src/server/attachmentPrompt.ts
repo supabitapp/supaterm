@@ -7,7 +7,6 @@ import {
   type SnapShotAccessibilityNode,
 } from "@supaterm/contracts";
 import * as Schema from "effect/Schema";
-import * as Effect from "effect/Effect";
 
 const encodePromptJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
 
@@ -157,43 +156,27 @@ export function isProviderNativeImageAttachment(attachment: ChatAttachment): boo
   );
 }
 
-export const providerMessageTextWithAttachmentPaths = Effect.fn(
-  "providerMessageTextWithAttachmentPaths",
-)(function* (input: {
+export function providerMessageTextWithAttachmentPaths(input: {
   readonly text: string;
   readonly attachments: ReadonlyArray<ChatAttachment>;
 
   readonly resolveAttachmentPath: (attachment: ChatAttachment) => string | null;
-  readonly resolveExtractedTextPath?:
-    | ((path: string) => Effect.Effect<string | undefined>)
-    | undefined;
-}) {
+}): string {
   let text = input.text;
-  for (const attachment of input.attachments) {
-    const path = input.resolveAttachmentPath(attachment);
-    const extracted =
-      path === null || !input.resolveExtractedTextPath
-        ? undefined
-        : yield* input.resolveExtractedTextPath(path);
-    const context =
-      path === null
-        ? `[Attached ${attachment.type} "${attachment.name}" is unavailable: could not resolve a saved path for attachment '${attachment.id}'.]`
-        : `[Attached ${attachment.type} "${attachment.name}" is saved at: ${path}${extracted ? ` (text extracted to: ${extracted})` : ""}]`;
-    text = text ? `${text}\n\n${context}` : context;
-  }
-
-  const truncationNotice =
-    "[Optional captured-window context was truncated to fit the prompt budget. Attachments are listed above.]";
-  let truncated = false;
   const appendContext = (context: string | undefined) => {
     if (context === undefined) return;
     const candidate = text ? `${text}\n\n${context}` : context;
-    if (candidate.length + 2 + truncationNotice.length <= PROVIDER_SEND_TURN_MAX_INPUT_CHARS) {
-      text = candidate;
-    } else {
-      truncated = true;
-    }
+    if (candidate.length <= PROVIDER_SEND_TURN_MAX_INPUT_CHARS) text = candidate;
   };
+
+  for (const attachment of input.attachments) {
+    const path = input.resolveAttachmentPath(attachment);
+    appendContext(
+      path === null
+        ? undefined
+        : `[Attached ${attachment.type} "${attachment.name}" is saved at: ${path}]`,
+    );
+  }
 
   for (const attachment of input.attachments) {
     const source =
@@ -231,5 +214,5 @@ export const providerMessageTextWithAttachmentPaths = Effect.fn(
     );
   }
 
-  return truncated ? `${text}\n\n${truncationNotice}` : text;
-});
+  return text;
+}

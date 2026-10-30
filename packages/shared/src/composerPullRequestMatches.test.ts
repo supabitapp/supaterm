@@ -5,12 +5,10 @@ import type { ThreadPullRequestLink } from "@supaterm/contracts";
 import {
   composerPullRequestsFromLinks,
   filterComposerPullRequestMatches,
-  withLinkedComposerPullRequestsFirst,
 } from "./composerPullRequestMatches.ts";
 
 const entry = (number: number, updatedAt: string) => ({
   number,
-  host: "github.com",
   projectId: "p1",
   repository: "owner/repo",
   updatedAt,
@@ -79,43 +77,5 @@ describe("linked pull requests", () => {
       limit: 10,
     });
     expect(result).toEqual([entry(4, "2026-01-03")]);
-  });
-
-  it("puts linked pull requests ahead of a text search, before and after it returns", () => {
-    const linked = composerPullRequestsFromLinks(
-      [
-        link("owner/repo", 7, {
-          snapshot: { ...link("owner/repo", 7).snapshot!, title: "Fix login" },
-        }),
-        link("owner/repo", 8),
-      ],
-      "p1",
-    );
-    const searching = withLinkedComposerPullRequestsFirst({
-      matches: [],
-      linked,
-      query: "fix",
-      limit: 10,
-    });
-    expect(searching.map((match) => match.number)).toEqual([7]);
-    const searched = withLinkedComposerPullRequestsFirst({
-      matches: [entry(9, "2026-01-05"), entry(8, "2026-01-03")],
-      linked,
-      query: "fix",
-      limit: 10,
-    });
-    expect(searched).toEqual([linked[0], entry(8, "2026-01-03"), entry(9, "2026-01-05")]);
-  });
-  it("keeps identical repository numbers on separate hosts distinct", () => {
-    const local = { ...entry(7, "2026-01-01"), title: "Fix login", headBranch: "login" };
-    const remote = { ...local, host: "github.example.com" };
-    expect(
-      withLinkedComposerPullRequestsFirst({
-        matches: [local, remote],
-        linked: [remote],
-        query: "login",
-        limit: 10,
-      }),
-    ).toEqual([remote, local]);
   });
 });

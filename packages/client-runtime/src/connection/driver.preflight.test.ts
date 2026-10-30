@@ -6,7 +6,6 @@ import * as Ref from "effect/Ref";
 import * as Stream from "effect/Stream";
 import * as TestClock from "effect/testing/TestClock";
 import { HttpClient, HttpClientResponse } from "effect/http";
-import * as FetchHttpClient from "effect/http/FetchHttpClient";
 
 import {
   BearerConnectionProfile,
@@ -38,8 +37,6 @@ const makeHarness = Effect.fnUntraced(function* () {
   const prepares = yield* Ref.make(0);
   const prepared = yield* Ref.make<ReadonlyArray<string>>([]);
   const checks = yield* Ref.make(0);
-  const cacheModes = yield* Ref.make<ReadonlyArray<RequestCache | undefined>>([]);
-  const authorizationHeaders = yield* Ref.make<ReadonlyArray<string | undefined>>([]);
   const requested = yield* Ref.make<ReadonlyArray<string>>([]);
   const connections = yield* Ref.make<ReadonlyArray<PreparedConnection>>([]);
   const resolver = ConnectionResolver.ConnectionResolver.of({
@@ -70,86 +67,43 @@ const makeHarness = Effect.fnUntraced(function* () {
           subscribeServerConfig: () => Stream.empty,
           ready: Effect.void,
           probe: Effect.void,
-          inboundFrames: Effect.succeed(0),
           closed: Effect.never,
         } satisfies RpcSession.RpcSession),
       ),
   });
   const client = HttpClient.make((request) =>
-    Effect.gen(function* () {
-      const init = Option.getOrThrow(yield* Effect.serviceOption(FetchHttpClient.RequestInit));
-      yield* Ref.update(cacheModes, (modes) => [...modes, init.cache]);
-      yield* Ref.update(authorizationHeaders, (headers) => [
-        ...headers,
-        request.headers.authorization,
-      ]);
-      return yield* Ref.update(checks, (count) => count + 1).pipe(
-        Effect.andThen(Ref.update(requested, (urls) => [...urls, request.url])),
-        Effect.as(
-          HttpClientResponse.fromWeb(
-            request,
-            Response.json({
-              environmentId: target.environmentId,
-              label: target.label,
-              platform: { os: "linux", arch: "x64" },
-              serverVersion: "0.0.0-test",
-              orchestrationProtocolVersion: ORCHESTRATION_PROTOCOL_VERSION,
-              capabilities: {},
-            }),
-          ),
+    Ref.update(checks, (count) => count + 1).pipe(
+      Effect.andThen(Ref.update(requested, (urls) => [...urls, request.url])),
+      Effect.as(
+        HttpClientResponse.fromWeb(
+          request,
+          Response.json({
+            environmentId: target.environmentId,
+            label: target.label,
+            platform: { os: "linux", arch: "x64" },
+            serverVersion: "0.0.0-test",
+            orchestrationProtocolVersion: ORCHESTRATION_PROTOCOL_VERSION,
+            capabilities: {},
+          }),
         ),
-      );
-    }),
+      ),
+    ),
   );
   const driver = yield* ConnectionDriver.make.pipe(
     Effect.provideService(ConnectionResolver.ConnectionResolver, resolver),
     Effect.provideService(RpcSession.RpcSessionFactory, factory),
     Effect.provideService(HttpClient.HttpClient, client),
   );
-  return {
-    driver,
-    prepares,
-    prepared,
-    checks,
-    requested,
-    connections,
-    cacheModes,
-    authorizationHeaders,
-  };
+  return { driver, prepares, prepared, checks, requested, connections };
 });
 
 describe("route preflight preparation", () => {
-  it.effect("checks the live session origin without cached responses or credentials", () =>
-    Effect.gen(function* () {
-      const harness = yield* makeHarness();
-      const prepared: PreparedConnection = {
-        environmentId: target.environmentId,
-        label: target.label,
-        target,
-        httpBaseUrl: "http://127.0.0.1:4390/",
-        socketUrl: "ws://127.0.0.1:4390/ws",
-        httpAuthorization: { _tag: "Bearer", token: "session-secret" },
-        connectionMethod: "relay",
-      };
-      expect(yield* harness.driver.checkHost(prepared)).toBe("answered");
-      expect(yield* harness.driver.checkHost(prepared)).toBe("answered");
-      expect(yield* Ref.get(harness.requested)).toEqual([
-        "http://127.0.0.1:4390/.well-known/supaterm/environment",
-        "http://127.0.0.1:4390/.well-known/supaterm/environment",
-      ]);
-      expect(yield* Ref.get(harness.cacheModes)).toEqual(["no-store", "no-store"]);
-      expect(yield* Ref.get(harness.authorizationHeaders)).toEqual([undefined, undefined]);
-    }),
-  );
-
   it.effect(
     "opens a socket using fresh preparation without repeating HTTP checks or authentication",
     () =>
       Effect.gen(function* () {
         const harness = yield* makeHarness();
-        const result = yield* harness.driver.preflight(entry, route);
-        if (result._tag !== "ready") throw new Error("Expected a prepared route");
-        const preflight = result.prepared;
+        const preflight = Option.getOrThrow(yield* harness.driver.preflight(entry, route));
         expect(yield* Ref.get(harness.connections)).toEqual([]);
         const lease = yield* harness.driver.connect(entry, () => Effect.void, preflight);
         expect(lease.prepared).toBe(preflight.prepared);
@@ -162,9 +116,7 @@ describe("route preflight preparation", () => {
   it.effect("renews expired preparation before opening a socket", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness();
-      const result = yield* harness.driver.preflight(entry, route);
-      if (result._tag !== "ready") throw new Error("Expected a prepared route");
-      const preflight = result.prepared;
+      const preflight = Option.getOrThrow(yield* harness.driver.preflight(entry, route));
       yield* TestClock.adjust("10 seconds");
       const lease = yield* harness.driver.connect(entry, () => Effect.void, preflight);
       expect(lease.prepared.socketUrl).toContain("ticket-2");
@@ -176,9 +128,7 @@ describe("route preflight preparation", () => {
   it.effect("prepares again when a route with the same ID changes address", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness();
-      const result = yield* harness.driver.preflight(entry, route);
-      if (result._tag !== "ready") throw new Error("Expected a prepared route");
-      const preflight = result.prepared;
+      const preflight = Option.getOrThrow(yield* harness.driver.preflight(entry, route));
       const changed: ConnectionCatalogEntry = {
         ...entry,
         profile: Option.some(
@@ -220,7 +170,7 @@ describe("route preflight preparation", () => {
         ),
       };
       const both: ConnectionCatalogEntry = { ...learned, enabled: true, alternateRoutes: [relay] };
-      expect(yield* harness.driver.preflight(both, learned)).toEqual({ _tag: "silent" });
+      expect(yield* harness.driver.preflight(both, learned)).toEqual(Option.none());
       const lease = yield* harness.driver.connect(both, () => Effect.void);
       expect(lease.prepared.target).toEqual(relayTarget);
       expect(yield* Ref.get(harness.prepared)).toEqual(["relay"]);

@@ -2,7 +2,6 @@ import { runRanAfter } from "@supaterm/shared/orchestrationV2ThreadError";
 import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
 import {
   CommandId,
-  isProviderNativeSubagentThread,
   type OrchestrationV2DomainEvent,
   type ProviderThreadId,
   type OrchestrationV2RestartCancelledBackgroundWork,
@@ -104,11 +103,8 @@ function isNonterminalNodeStatus(status: string): boolean {
 function isAppOwnedDelegation(task: {
   readonly origin: OrchestrationV2Subagent["origin"];
   readonly childThreadId: ThreadId | null;
-  readonly remoteChild?: OrchestrationV2Subagent["remoteChild"];
 }): boolean {
-  return (
-    task.origin === "app_owned" && (task.childThreadId !== null || task.remoteChild !== undefined)
-  );
+  return task.origin === "app_owned" && task.childThreadId !== null;
 }
 
 function isAppOwnedDelegationItem(
@@ -147,13 +143,6 @@ function resolveStaleBackgroundItemProviderInstanceId(
   return projection.providerThreads[0]?.providerInstanceId ?? projection.thread.providerInstanceId;
 }
 
-const cancelledItem = (
-  item: OrchestrationV2ThreadProjection["turnItems"][number],
-  now: DateTime.Utc,
-): OrchestrationV2ThreadProjection["turnItems"][number] =>
-  item.type === "secret_request" && item.secretStatus === "pending"
-    ? { ...item, status: "cancelled", secretStatus: "cancelled", completedAt: now, updatedAt: now }
-    : { ...item, status: "cancelled", completedAt: now, updatedAt: now };
 function latestStartedRun(
   projection: ProjectionStore.ProjectionRuntimeRecoveryState,
   providerThreadId: ProviderThreadId,
@@ -178,6 +167,11 @@ export const make = Effect.gen(function* () {
   const ids = yield* IdAllocator.IdAllocatorV2;
   const outbox = yield* EffectOutbox.EffectOutboxV2;
   type RecoverySession = ProjectionStore.ProjectionRuntimeRecoveryState["providerSessions"][number];
+  /**
+   * A session shared by several threads (one Codex app server) is stopped by the
+   * first thread recovery reaches. It was live when the server went down, so a
+   * later thread still decides its wake as if it were.
+   */
   const sessionsLiveAtStart = (
     projection: ProjectionStore.ProjectionRuntimeRecoveryState,
     stoppedThisPass: ReadonlyMap<string, RecoverySession>,
@@ -226,35 +220,16 @@ export const make = Effect.gen(function* () {
         }
         runs.push(run);
       }
-      const pendingRequests = projection.runtimeRequests.filter(
-        (request) => request.status === "pending",
-      );
-      const questions = pendingRequests.filter(
-        (request) =>
-          request.kind === "user_input" &&
-          request.responseCapability.type === "live" &&
-          projection.turnItems.some(
-            (item) =>
-              item.type === "user_input_request" &&
-              item.requestId === request.id &&
-              item.nodeId === request.nodeId &&
-              item.questions.length > 0 &&
-              item.questions.every((question) => question.question.trim().length > 0),
-          ) &&
-          !isProviderNativeSubagentThread(projection.thread),
-      );
-      const recoveredRequestIds = new Set(questions.map((request) => request.id));
       const messageRequestNodeIds = new Set(
-        pendingRequests
+        projection.runtimeRequests
           .filter(
             (request) =>
-              request.responseCapability.type === "message" || recoveredRequestIds.has(request.id),
+              request.status === "pending" && request.responseCapability.type === "message",
           )
           .map((request) => request.nodeId),
       );
-      const requests = pendingRequests.filter(
-        (request) =>
-          request.responseCapability.type !== "message" && !recoveredRequestIds.has(request.id),
+      const requests = projection.runtimeRequests.filter(
+        (request) => request.status === "pending" && request.responseCapability.type !== "message",
       );
       // Delegated task rows, items and nodes stay open: the child settles them.
       const delegatedTaskNodeIds = new Set<string>([
@@ -349,16 +324,6 @@ export const make = Effect.gen(function* () {
           providerInstanceId: run.providerInstanceId,
           occurredAt: now,
           payload: { ...run, queueHeld: true },
-        });
-      }
-      for (const question of questions) {
-        events.push({
-          id: yield* allocateEventId(),
-          type: "runtime-request.updated",
-          threadId: projection.thread.id,
-          nodeId: question.nodeId,
-          occurredAt: now,
-          payload: { ...question, responseCapability: { type: "message" } },
         });
       }
       for (const request of requests) {
@@ -463,11 +428,12 @@ export const make = Effect.gen(function* () {
             candidate.runId === run.id &&
             (candidate.nodeId === null || !messageRequestNodeIds.has(candidate.nodeId)) &&
             !isAppOwnedDelegationItem(candidate) &&
-            candidate.type !== "link_request" &&
             (candidate.status === "pending" ||
               candidate.status === "running" ||
               candidate.status === "waiting"),
         )) {
+          // A native subagent does not come back when its cut turn resumes, so the
+          // turn's continuation is told to restart it.
           if (run.status === "waiting") recordCancelledBackgroundItem(item);
           else if (item.type === "subagent" && item.origin === "provider_native")
             recordCancelledBackgroundItem(item);
@@ -479,10 +445,13 @@ export const make = Effect.gen(function* () {
             ...(item.nodeId === null ? {} : { nodeId: item.nodeId }),
             providerInstanceId: run.providerInstanceId,
             occurredAt: now,
-            payload: cancelledItem(item, now),
+            payload: { ...item, status: "cancelled", completedAt: now, updatedAt: now },
           });
         }
       }
+      // A blocking delegate_task wait dies with the turn that made it, and its
+      // continuation never got the tool result. Let the child's result wake
+      // the parent like an async task, so it reaches the continued turn.
       const cutRunIds = new Set(runs.map((run) => run.id));
       for (const task of projection.subagents ?? []) {
         if (
@@ -527,7 +496,7 @@ export const make = Effect.gen(function* () {
           ...(item.nodeId === null || item.nodeId === undefined ? {} : { nodeId: item.nodeId }),
           providerInstanceId,
           occurredAt: now,
-          payload: cancelledItem(item, now),
+          payload: { ...item, status: "cancelled", completedAt: now, updatedAt: now },
         });
         if (item.nodeId !== null && item.nodeId !== undefined) {
           const staleItemNode = projection.nodes.find(
@@ -549,6 +518,8 @@ export const make = Effect.gen(function* () {
           }
         }
       }
+      // No provider process outlives the server, so a native subagent still open
+      // here never reports its end, whatever state its run and item are in.
       for (const subagent of projection.subagents ?? []) {
         events.push(
           ...(yield* endOrphanedNativeSubagent({
@@ -561,6 +532,8 @@ export const make = Effect.gen(function* () {
           })),
         );
       }
+      // A provider-native subagent thread has no runs; left running, the child
+      // would show as working forever.
       events.push(
         ...(yield* endRunlessRootTurns({
           threadId: projection.thread.id,
@@ -622,6 +595,8 @@ export const make = Effect.gen(function* () {
       for (const [providerThreadId, work] of cancelledBackgroundWork) {
         const noteRun = latestStartedRun(projection, providerThreadId);
         if (noteRun === undefined) continue;
+        // Its own event: a run snapshot read before this commit could regress
+        // a lifecycle change (e.g. a checkpoint completing the run) made since.
         events.push({
           id: yield* allocateEventId(),
           type: "run.background-work-cancelled",

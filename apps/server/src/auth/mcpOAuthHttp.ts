@@ -3,7 +3,6 @@ import {
   type AuthMcpAuthorizationRequest,
   AuthMcpClientAccess,
   EnvironmentHttpApi,
-  mcpClientScopes,
 } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
@@ -11,6 +10,7 @@ import { HttpServerRequest, HttpServerResponse } from "effect/http";
 import * as HttpEffect from "effect/http/HttpEffect";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 
+import * as EnvironmentAuth from "./EnvironmentAuth.ts";
 import * as McpOAuth from "./McpOAuth.ts";
 import { renderErrorPage } from "./mcpOAuthHtml.ts";
 
@@ -25,7 +25,7 @@ const PAGE_HEADERS = {
   "x-content-type-options": "nosniff",
 };
 
-// OAuth responses contain credentials and must not be cached.
+/** OAuth responses carry codes, tokens and client ids, none of which may be cached. */
 const noStore = HttpEffect.appendPreResponseHandler((_request, response) =>
   Effect.succeed(
     HttpServerResponse.setHeaders(response, { "cache-control": "no-store", pragma: "no-cache" }),
@@ -121,7 +121,9 @@ export const layer = HttpApiBuilder.group(
               : {
                   csrfToken: session.csrfToken,
                   oneClickAccess: AuthMcpClientAccess.literals.filter((access) =>
-                    mcpClientScopes(access).every((scope) => session.scopes.includes(scope)),
+                    EnvironmentAuth.mcpClientScopes(access).every((scope) =>
+                      session.scopes.includes(scope),
+                    ),
                   ),
                 }),
           };

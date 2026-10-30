@@ -1,24 +1,17 @@
-import { WorkspaceNoTabs } from "./WorkspaceNoTabs";
-import { WORKSPACE_TAB_LABELS, useEnabledNavigationTabs } from "./navigation-tabs";
-import { WorkspaceExtraTab } from "./WorkspaceExtraTab";
-import { SettingsRouteScreen } from "../settings/SettingsRouteScreen";
-import { WorkspaceSectionToolbar } from "./WorkspaceSectionToolbar";
 import { useNavigation } from "@react-navigation/native";
-import { use } from "react";
+import { use, useCallback, useMemo } from "react";
 import { Platform, View, useWindowDimensions } from "react-native";
 import { useKeyboardState } from "react-native-keyboard-controller";
 import { SafeAreaInsetsContext, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CompactBrandTitle } from "../../components/CompactBrandTitle";
+import { isDuoDevice } from "../../lib/device-type";
 import { AndroidScreenHeader } from "../../components/ui/AndroidScreenHeader";
-import { HeaderItemsWidthContext } from "../../native/header-items-width";
 import { NativeStackScreenOptions } from "../../native/StackHeader";
 import { NativePrimaryColumnContext } from "../../native/v5-workspace-context";
-import { isDuoDevice } from "../../lib/device-type";
-import { NATIVE_LIQUID_GLASS_SUPPORTED } from "../../native/native-glass";
-import { useWorkspaceSurface } from "./useWorkspaceSurface";
 import {
   useDeviceType,
+  useDuoBottomBarInset,
   useNativeColumnLayoutMetrics,
   useNativeLayoutMetrics,
 } from "../../native/native-layout-metrics";
@@ -33,39 +26,27 @@ import {
   useWorkspaceTabs,
 } from "./WorkspaceTabsContext";
 import { WorkspaceToolbar } from "./WorkspaceToolbar.ios";
-import {
-  WORKSPACE_DOCK,
-  workspaceDockBottomClearance,
-  workspaceToolbarHeight,
-} from "./workspace-tabs-state";
+import { WORKSPACE_TOOLBAR, workspaceToolbarHeight } from "./workspace-tabs-state";
 import { WorkspaceSidebarTabs } from "./WorkspaceSidebarTabs";
-import {
-  useCompactWorkspaceTabs,
-  useSidebarWorkspaceTabs,
-  useSystemWorkspaceTabBar,
-} from "./useSystemWorkspaceTabBar";
-import { openSettings } from "../settings/settings-navigation";
-import { useSelectWorkspaceTab } from "./useSelectWorkspaceTab";
+import { useSidebarWorkspaceTabs } from "./useSidebarWorkspaceTabs";
 
-const TAB_TITLES = WORKSPACE_TAB_LABELS;
+const TAB_TITLES = {
+  threads: "Threads",
+  pullRequests: "Pull requests",
+};
 
 function WorkspaceRootTitle(props: {
-  readonly columnWidth: number;
+  readonly maxWidth: number;
   readonly onOpenEnvironments: () => void;
 }) {
-  const { state, settingsOpen } = useWorkspaceTabs()!;
-  const maxWidth = Math.max(0, props.columnWidth - (use(HeaderItemsWidthContext) ?? 160));
-  const enabled = useEnabledNavigationTabs();
-  const tabTitle = settingsOpen
-    ? "Settings"
-    : enabled.length
-      ? TAB_TITLES[state.selectedTab]
-      : "Navigation";
+  const { state } = useWorkspaceTabs()!;
   return (
-    <View style={{ width: maxWidth, minHeight: 32, justifyContent: "center" }}>
+    <View style={{ width: props.maxWidth, minHeight: 32, justifyContent: "center" }}>
       <WorkspaceConnectionTitle
-        brand={<CompactBrandTitle accessibilityLabel={`Supaterm, ${tabTitle}`} fit />}
-        maxWidth={maxWidth}
+        brand={
+          <CompactBrandTitle accessibilityLabel={`Supaterm, ${TAB_TITLES[state.selectedTab]}`} />
+        }
+        maxWidth={props.maxWidth}
         onPress={props.onOpenEnvironments}
       />
     </View>
@@ -74,19 +55,14 @@ function WorkspaceRootTitle(props: {
 
 function WorkspaceRootContent() {
   const navigation = useNavigation();
-  const selectTab = useSelectWorkspaceTab();
   const { width: windowWidth } = useWindowDimensions();
   const { layout, startNewTask } = useAdaptiveWorkspaceLayout();
   const primaryColumn = use(NativePrimaryColumnContext);
   const columnMetrics = useNativeColumnLayoutMetrics();
   const nativeMetrics = useNativeLayoutMetrics();
   const deviceType = useDeviceType();
-  const surface = useWorkspaceSurface();
-  const systemTabBar = useSystemWorkspaceTabBar();
-  const compactTabs = useCompactWorkspaceTabs();
-  const enabled = useEnabledNavigationTabs();
   const sidebarTabs = useSidebarWorkspaceTabs();
-  const sidebarPicker = sidebarTabs === "picker" || (deviceType === "pad" && layout.usesSplitView);
+  const sidebarPicker = sidebarTabs === "picker";
   const sidebarNavigation =
     primaryColumn !== null &&
     (layout.usesSplitView ||
@@ -94,71 +70,51 @@ function WorkspaceRootContent() {
       (nativeMetrics !== null && nativeMetrics.verticalBarEdge !== "none"));
   const width = columnMetrics?.width ?? windowWidth;
   const insets = useSafeAreaInsets();
+  const bottomBarInset = useDuoBottomBarInset();
   const keyboardHeight = useKeyboardState((keyboard) => keyboard.height);
   const workspace = useWorkspaceTabs()!;
   const { state } = workspace;
-
-  const settingsOpen = workspace.settingsOpen;
-  const renderHeaderTitle = () => (
-    <WorkspaceRootTitle
-      columnWidth={width}
-      onOpenEnvironments={() => openSettings(navigation, "SettingsEnvironments")}
-    />
+  const renderHeaderTitle = useCallback(
+    () => (
+      <WorkspaceRootTitle
+        maxWidth={Math.max(0, width - 160)}
+        onOpenEnvironments={() =>
+          navigation.navigate("SettingsSheet", {
+            screen: "SettingsContent",
+            params: { screen: "SettingsEnvironments" },
+          })
+        }
+      />
+    ),
+    [width, navigation],
   );
-  const tab = state.tabs[settingsOpen ? "settings" : state.selectedTab];
+  const tab = state.tabs[state.selectedTab];
   const bottomClearance =
-    layout.primarySidebarOverlaysContent && state.selectedTab === "usage"
-      ? workspaceDockBottomClearance({ bottomInset: insets.bottom, keyboardHeight })
-      : Platform.OS === "ios" && isDuoDevice(deviceType)
-        ? Math.max(insets.bottom, keyboardHeight) + 16
-        : compactTabs || deviceType === "pad"
-          ? workspaceDockBottomClearance({ bottomInset: insets.bottom, keyboardHeight })
-          : Platform.OS === "ios"
-            ? Math.max(insets.bottom, keyboardHeight) +
-              (systemTabBar || sidebarTabs || tab.searchMode !== "resting"
-                ? sidebarPicker
-                  ? 80
-                  : 16
-                : WORKSPACE_DOCK.height + WORKSPACE_DOCK.bottomGap + 16)
-            : keyboardHeight > 0 && tab.searchMode !== "resting"
-              ? keyboardHeight + 64
-              : Math.max(insets.bottom, 12) + workspaceToolbarHeight(tab.searchMode) + 16;
-  const context = { ...workspace, bottomClearance };
+    Platform.OS === "ios" && isDuoDevice(deviceType)
+      ? Math.max(bottomBarInset ?? Math.max(insets.bottom, 12), keyboardHeight + 8) +
+        WORKSPACE_TOOLBAR.height +
+        16
+      : Platform.OS === "ios"
+        ? Math.max(insets.bottom, keyboardHeight) + (sidebarPicker ? 80 : 16)
+        : keyboardHeight > 0 && tab.searchMode !== "resting"
+          ? keyboardHeight + 64
+          : Math.max(insets.bottom, 12) + workspaceToolbarHeight(tab.searchMode) + 16;
+  const context = useMemo(() => ({ ...workspace, bottomClearance }), [workspace, bottomClearance]);
 
   return (
     <WorkspaceTabsContext value={context}>
-      <View className={`flex-1 ${sidebarPicker ? "bg-drawer" : surface.className}`}>
+      <View
+        className={sidebarPicker ? "flex-1 bg-drawer" : "flex-1 bg-screen"}
+        style={sidebarPicker ? { paddingTop: insets.top } : undefined}
+      >
         {Platform.OS === "ios" ? (
           <NativeStackScreenOptions
-            optionsVersion={[
-              settingsOpen,
-              state.selectedTab,
-              state.selectionRevision,
-              width,
-              sidebarNavigation,
-              enabled.length,
-            ]}
+            optionsVersion={[state.selectedTab, state.selectionRevision, width, sidebarNavigation]}
             options={{
-              title: settingsOpen
-                ? "Settings"
-                : enabled.length
-                  ? TAB_TITLES[state.selectedTab]
-                  : "Navigation",
+              title: TAB_TITLES[state.selectedTab],
               headerShown: true,
-              headerTransparent: NATIVE_LIQUID_GLASS_SUPPORTED,
-              headerStyle: NATIVE_LIQUID_GLASS_SUPPORTED
-                ? { backgroundColor: "transparent" }
-                : undefined,
-              contentStyle: undefined,
-              ...(enabled.length === 0
-                ? { headerSearchBarOptions: undefined, unstable_headerRightItems: () => [] }
-                : {}),
               unstable_headerLeftItems: () => [],
-
-              headerTitle:
-                sidebarNavigation || (!settingsOpen && state.selectedTab !== "usage")
-                  ? renderHeaderTitle
-                  : undefined,
+              headerTitle: renderHeaderTitle,
             }}
           />
         ) : (
@@ -166,52 +122,35 @@ function WorkspaceRootContent() {
             title="Supaterm"
             titleContent={renderHeaderTitle()}
             actions={[
-              ...(state.selectedTab === "threads" || state.selectedTab === "pullRequests"
-                ? [
-                    {
-                      accessibilityLabel:
-                        state.selectedTab === "threads" ? "Search threads" : "Search pull requests",
-                      icon: "magnifyingglass" as const,
-                      onPress: () => {
-                        dispatchHardwareKeyboardCommand("focusSearch");
-                      },
-                    },
-                  ]
-                : []),
+              {
+                accessibilityLabel:
+                  state.selectedTab === "threads" ? "Search threads" : "Search pull requests",
+                icon: "magnifyingglass",
+                onPress: () => {
+                  dispatchHardwareKeyboardCommand("focusSearch");
+                },
+              },
               {
                 accessibilityLabel: "Settings",
                 icon: "gearshape",
-                onPress: () => selectTab("settings"),
+                onPress: () =>
+                  navigation.navigate("SettingsSheet", {
+                    screen: "SettingsContent",
+                    params: { screen: "Settings" },
+                  }),
               },
             ]}
           />
         )}
-        <SafeAreaInsetsContext value={compactTabs ? { ...insets, bottom: 0 } : insets}>
-          {settingsOpen ? (
-            <SettingsRouteScreen />
-          ) : enabled.length === 0 ? (
-            <WorkspaceNoTabs />
-          ) : state.selectedTab === "threads" ? (
+        <SafeAreaInsetsContext value={sidebarPicker ? { ...insets, top: 0 } : insets}>
+          {state.selectedTab === "threads" ? (
             <HomeRouteScreen />
-          ) : state.selectedTab === "pullRequests" ? (
-            <PullRequestsScreen />
           ) : (
-            <WorkspaceExtraTab tab={state.selectedTab} />
+            <PullRequestsScreen sidebar={sidebarTabs !== null} />
           )}
         </SafeAreaInsetsContext>
-        {deviceType !== "pad" && deviceType !== "phone" && sidebarPicker ? (
-          <WorkspaceSidebarTabs />
-        ) : null}
-        {}
-        {enabled.length === 0 && !settingsOpen ? null : (
-            settingsOpen
-              ? Platform.OS === "ios"
-              : state.selectedTab === "threads" || state.selectedTab === "pullRequests"
-          ) ? (
-          <WorkspaceToolbar sidebar={sidebarNavigation} onNewTask={startNewTask} />
-        ) : (
-          <WorkspaceSectionToolbar onNewTask={startNewTask} showCompose={false} />
-        )}
+        {sidebarPicker ? <WorkspaceSidebarTabs /> : null}
+        <WorkspaceToolbar sidebar={sidebarNavigation} onNewTask={startNewTask} />
       </View>
     </WorkspaceTabsContext>
   );

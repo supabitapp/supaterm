@@ -44,11 +44,15 @@ export interface ScopeState {
   readonly loadState: string;
   readonly activeState: string;
   readonly result: string;
-  readonly oomKills: number | undefined;
+  readonly oomKills: number;
   readonly populated: boolean | undefined;
 }
 
-/** Pipes can close before systemd records oom-kill; stopping, empty or OOM-counted scopes remain pending. */
+/**
+ * Our pipe can close before systemd handles the kill, so a scope that is
+ * still stopping, is empty, or already counted an OOM kill is "stopping":
+ * systemd records `Result=oom-kill` for it in a moment.
+ */
 export function classifyScope(state: ScopeState): "oom-killed" | "gone" | "running" | "stopping" {
   if (state.result === "oom-kill") return "oom-killed";
   if (
@@ -58,11 +62,7 @@ export function classifyScope(state: ScopeState): "oom-killed" | "gone" | "runni
   ) {
     return "gone";
   }
-  if (
-    state.activeState === "deactivating" ||
-    (state.oomKills ?? 0) > 0 ||
-    state.populated === false
-  ) {
+  if (state.activeState === "deactivating" || state.oomKills > 0 || state.populated === false) {
     return "stopping";
   }
   return "running";
@@ -84,7 +84,7 @@ function parseCgroupCounter(text: string, key: string): number | undefined {
 
 // A stop sends SIGTERM, then SIGKILL after this long. systemd's 90 s default
 // would outlast the wait for a previous server's agents below.
-const SCOPE_OPTIONS = ["--property=TimeoutStopSec=10s", "--property=Delegate=yes"];
+const STOP_TIMEOUT_OPTION = "--property=TimeoutStopSec=10s";
 const STOPPING_POLL_INTERVAL = "100 millis";
 const STOPPING_POLL_ATTEMPTS = 20;
 const CLEAR_FAILED_INTERVAL = "1 second";
@@ -168,8 +168,8 @@ export const make = Effect.gen(function* () {
           "true",
         ]).pipe(Effect.map((result) => result._tag === "Some" && result.value.code === 0));
 
-      const supportsOomPolicy = yield* probe([...SCOPE_OPTIONS, "--property=OOMPolicy=stop"]);
-      if (!supportsOomPolicy && !(yield* probe(SCOPE_OPTIONS))) {
+      const supportsOomPolicy = yield* probe([STOP_TIMEOUT_OPTION, "--property=OOMPolicy=stop"]);
+      if (!supportsOomPolicy && !(yield* probe([STOP_TIMEOUT_OPTION]))) {
         yield* Effect.logInfo("Agent scopes are off: no systemd user manager");
         return undefined;
       }
@@ -220,7 +220,7 @@ export const make = Effect.gen(function* () {
       loadState: values.get("LoadState") ?? "",
       activeState: values.get("ActiveState") ?? "",
       result: values.get("Result") ?? "",
-      oomKills: parseCgroupCounter(memoryEvents, "oom_kill"),
+      oomKills: parseCgroupCounter(memoryEvents, "oom_kill") ?? 0,
       populated: populated === undefined ? undefined : populated === 1,
     } satisfies ScopeState;
   });
@@ -304,29 +304,6 @@ export const make = Effect.gen(function* () {
     },
   );
 
-  const stop = Effect.fn("AgentScope.stop")(function* (unit: string) {
-    if (!unit.startsWith("supaterm-") || !unit.endsWith(".scope")) return;
-    const scope = yield* systemd;
-    if (scope === undefined) return;
-    const state = yield* readScope(scope.systemctl, unit);
-    if (
-      state === undefined ||
-      state.loadState !== "loaded" ||
-      state.activeState !== "active" ||
-      state.result === "oom-kill" ||
-      state.populated === false
-    )
-      return;
-    if (scope.supportsOomPolicy && (state.oomKills === undefined || state.oomKills > 0)) return;
-    const stopped = yield* run(scope.systemctl, ["--user", "stop", "--no-block", unit]);
-    if (stopped._tag === "None" || stopped.value.code !== 0) {
-      yield* Effect.logWarning("Could not stop an exited agent's scope", {
-        unit,
-        exitCode: stopped._tag === "Some" ? stopped.value.code : undefined,
-      });
-    }
-  });
-
   const clear: AgentScopeShape["clear"] = Effect.fn("agentScope.clear")(
     function* (threadId, sessionId) {
       const key = scopeKey(threadId, sessionId);
@@ -367,17 +344,16 @@ export const make = Effect.gen(function* () {
         slice: survivesRestart === true ? AGENT_SLICE : ownedSlice,
         unit,
         options: [
-          ...SCOPE_OPTIONS,
+          STOP_TIMEOUT_OPTION,
           ...(scope.supportsOomPolicy
             ? [`--property=OOMPolicy=${continuing ? "continue" : "stop"}`]
             : []),
           ...(owned ? [] : ["--collect"]),
         ],
       };
-      return { ...agentScopeCommand({ command: resolved, args, scope: systemdScope }), unit };
+      return agentScopeCommand({ command: resolved, args, scope: systemdScope });
     }),
     oomKilled,
-    stop,
     clear,
   } satisfies AgentScopeShape;
 });

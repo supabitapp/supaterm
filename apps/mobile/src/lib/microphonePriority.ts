@@ -1,10 +1,14 @@
-const MICROPHONE_KINDS = ["wired", "bluetooth", "builtIn", "carPlay"] as const;
+/**
+ * iOS lists only connected inputs, and only while a recording session is set up, so a device
+ * cannot be listed before then.
+ */
+export const MICROPHONE_KINDS = ["wired", "bluetooth", "builtIn", "carPlay"] as const;
 
 export type MicrophoneKind = (typeof MICROPHONE_KINDS)[number];
 
 export interface MicrophoneDevice {
   readonly kind: MicrophoneKind;
-
+  /** iOS's port identifier, stable across reconnects of the same device. */
   readonly uid: string;
   readonly name: string;
 }
@@ -17,6 +21,7 @@ interface MicrophoneInput {
   readonly type: string;
 }
 
+// A car without CarPlay connects as a Bluetooth headset, so it is a Bluetooth device.
 const KIND_BY_PORT_TYPE: Readonly<Record<string, MicrophoneKind>> = {
   MicrophoneWired: "wired",
   USBAudio: "wired",
@@ -93,6 +98,7 @@ export function rememberMicrophones(
   return next ?? order;
 }
 
+/** The connected input of the first entry that has one, or null to leave the route to iOS. */
 export function preferredMicrophoneInput<Input extends MicrophoneInput>(
   inputs: ReadonlyArray<Input>,
   order: ReadonlyArray<MicrophoneEntry>,

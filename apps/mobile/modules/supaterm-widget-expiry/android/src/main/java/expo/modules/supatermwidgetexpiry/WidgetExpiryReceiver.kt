@@ -8,6 +8,11 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 
+/**
+ * Re-renders an expo-widgets widget when a snapshot deadline passes while the app is closed.
+ * The generated `<package>.<name>Provider` receiver re-runs the JS layout with the stored
+ * snapshot on ACTION_APPWIDGET_UPDATE, so a deadline only needs to deliver that broadcast.
+ */
 class WidgetExpiryReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
     if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
@@ -43,6 +48,7 @@ class WidgetExpiryReceiver : BroadcastReceiver() {
     private const val EXTRA_DEADLINES = "expo.modules.supatermwidgetexpiry.DEADLINES"
     private const val PREFERENCES = "expo.modules.supatermwidgetexpiry.DEADLINES"
 
+    /** Arms one inexact, non-wakeup alarm for the next future deadline and carries the rest. */
     fun schedule(context: Context, name: String, deadlines: LongArray) {
       val alarms = context.getSystemService(AlarmManager::class.java)
       val now = System.currentTimeMillis()
@@ -69,6 +75,7 @@ class WidgetExpiryReceiver : BroadcastReceiver() {
       alarms.set(AlarmManager.RTC, next, operation)
     }
 
+    // Mirrors expo-widgets' widgetProviderComponentName for the generated provider class.
     private fun providerComponent(context: Context, name: String) =
       ComponentName(context.packageName, "${context.packageName}.${name}Provider")
   }

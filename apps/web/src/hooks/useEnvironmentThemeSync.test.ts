@@ -52,33 +52,33 @@ async function setupThemeSync(mode: "dark" | "system" = "dark") {
 
   let published: ReadonlyArray<EnvironmentTheme> = [NIGHTFALL_THEME];
   let readSnapshot: (() => unknown) | undefined;
-  let onPublished: ((value: ReadonlyArray<EnvironmentTheme>) => void) | undefined;
+  const effects: Array<() => void> = [];
+  const lastPublished: { current: ReadonlyArray<EnvironmentTheme> | null } = { current: null };
   vi.doMock("react", () => ({
+    useCallback: <A>(callback: A) => callback,
+    useEffect: (effect: () => void) => effects.push(effect),
+    useRef: () => lastPublished,
     useSyncExternalStore: (_subscribe: unknown, getSnapshot: () => unknown) => {
       readSnapshot = getSnapshot;
       return getSnapshot();
     },
   }));
-  vi.doMock("../rpc/atomRegistry", () => ({
-    appAtomRegistry: {
-      subscribe: (_atom: unknown, listener: (value: ReadonlyArray<EnvironmentTheme>) => void) => {
-        onPublished = listener;
-        listener(published);
-        return () => {};
-      },
-    },
-  }));
+  vi.doMock("@effect/atom-react", () => ({ useAtomValue: () => published }));
   vi.doMock("../state/server", () => ({ primaryServerEnvironmentThemesAtom: {} }));
 
   const palette = await import("../themePalette");
   storage.set(palette.THEME_APPEARANCE_MODE_STORAGE_KEY, mode);
   const { useTheme } = await import("./useTheme");
-  const { startEnvironmentThemeRepaint } = await import("./useEnvironmentTheme");
-  startEnvironmentThemeRepaint();
+  const { useEnvironmentThemeSync } = await import("./useEnvironmentTheme");
+  const flushEffects = () => {
+    for (const effect of effects.splice(0)) effect();
+  };
   const publish = (themes: ReadonlyArray<EnvironmentTheme>) => {
     published = themes;
-    onPublished?.(themes);
+    useEnvironmentThemeSync();
+    flushEffects();
     const theme = useTheme();
+    flushEffects();
     return theme;
   };
   publish(published);
@@ -90,7 +90,6 @@ afterEach(() => {
   vi.doUnmock("react");
   vi.doUnmock("@effect/atom-react");
   vi.doUnmock("../state/server");
-  vi.doUnmock("../rpc/atomRegistry");
   vi.resetModules();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();

@@ -6,7 +6,8 @@ export function rpcInitialItems<A>(items: ReadonlyArray<A>): Stream.Stream<A> {
   return Stream.unwrap(
     Effect.sync(() => {
       const initial = pending;
-      // concat retains the initial stream during live tailing; release delivered snapshots and rows.
+      // concat keeps its initial stream definition alive during the live tail.
+      // That definition must no longer own delivered snapshots or replay rows.
       pending = undefined;
       return initial === undefined ? Stream.empty : Stream.fromIterable(initial);
     }),

@@ -16,6 +16,11 @@ export type ProviderOrchestrationAdapterInfrastructure =
   | CursorKeychain.CursorKeychain
   | IdAllocator.IdAllocatorV2;
 
+/**
+ * `providerContinuationRequestsLayer` must be the same layer reference the
+ * orchestration runtime provides to its continuation worker so Effect layer
+ * memoization yields one shared queue.
+ */
 export const layer = Layer.mergeAll(
   ClaudeAdapterV2.layerQueryRunner,
   CodexAdapterV2.layerAppServerClientFactory,

@@ -33,14 +33,17 @@ export interface ReviewCommentColors {
 export function useReviewCommentColors(): ReviewCommentColors {
   const theme = useUniwindTheme();
 
-  return {
-    background: theme["--color-card"],
-    border: theme["--color-border"],
-    mutedBackground: theme["--color-subtle"],
-    text: theme["--color-foreground"],
-    mutedText: theme["--color-foreground-muted"],
-    codeBackground: theme["--color-md-code-bg"],
-  };
+  return useMemo(
+    () => ({
+      background: theme["--color-card"],
+      border: theme["--color-border"],
+      mutedBackground: theme["--color-subtle"],
+      text: theme["--color-foreground"],
+      mutedText: theme["--color-foreground-muted"],
+      codeBackground: theme["--color-md-code-bg"],
+    }),
+    [theme],
+  );
 }
 
 export const ReviewCommentCard = memo(function ReviewCommentCard(props: {
@@ -111,7 +114,10 @@ export const ReviewCommentCard = memo(function ReviewCommentCard(props: {
     () => JSON.stringify(nativeReviewDiffTheme),
     [nativeReviewDiffTheme],
   );
-  const nativeStyleJson = JSON.stringify({ ...nativeReviewDiffStyle, wordWrap: false });
+  const nativeStyleJson = useMemo(
+    () => JSON.stringify({ ...nativeReviewDiffStyle, wordWrap: false }),
+    [nativeReviewDiffStyle],
+  );
   const nativeDiffHeight = useMemo(
     () =>
       Math.min(

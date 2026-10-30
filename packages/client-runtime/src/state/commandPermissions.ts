@@ -26,7 +26,7 @@ function makeCommandPermissions<R, E>(
         const scopes = scopeKey.split(",").filter(Boolean) as AuthEnvironmentScope[];
         if (scopes.length === 0) return true;
         const result = get(sessions.sessionStateAtom(environmentId));
-        const session = AsyncResult.getOrElse(result, () => null);
+        const session = Option.getOrNull(AsyncResult.value(result));
         return (
           result._tag !== "Failure" &&
           session !== null &&
@@ -53,16 +53,18 @@ function makeCommandPermissions<R, E>(
             suspendOnWaiting: false,
           }).pipe(
             Effect.timeoutOption(6_000),
-            Effect.orElseSucceed(() => Option.none<AuthSessionState>()),
+            Effect.catch(() => Effect.succeed(Option.none<AuthSessionState>())),
           );
           const missing = scopes.find(
             (scope) => Option.isNone(session) || !sessionGrantsScope(session.value, scope),
           );
           if (missing !== undefined)
-            return yield* new EnvironmentAuthorizationError({
-              ...authScopeRequiredResponse(missing),
-              message: `This connection requires ${missing}.`,
-            });
+            return yield* Effect.fail(
+              new EnvironmentAuthorizationError({
+                ...authScopeRequiredResponse(missing),
+                message: `This connection requires ${missing}.`,
+              }),
+            );
         }),
       );
     });

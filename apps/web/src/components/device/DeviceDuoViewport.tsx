@@ -1,45 +1,38 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 import type { DuoViewer } from "@supaterm/client-runtime/device/duo-viewer";
 import type { DeviceModelSource } from "@supaterm/client-runtime/device/model";
-import type { createPhoneInteraction } from "@supaterm/client-runtime/device/phone-interaction";
+import { createPhoneInteraction } from "@supaterm/client-runtime/device/phone-interaction";
 import { createCanvasFrameSink } from "@supaterm/client-runtime/device/frame";
 import type { DeviceScreenSize, DeviceStreamClient } from "@supaterm/client-runtime/device/stream";
 import { createDuoPinch } from "@supaterm/client-runtime/device/duo-control";
-import { mountDeviceViewer } from "./mountDeviceViewer";
+import { bindPhoneTrackpad } from "./phoneTrackpad";
+import { observeResize } from "../../lib/observeResize";
 
 const loadDuoViewer = () => import("@supaterm/client-runtime/device/duo-viewer");
 
 export function DeviceDuoViewport(props: {
   readonly model: DeviceModelSource;
-  readonly source: HTMLCanvasElement;
+  readonly source: RefObject<HTMLCanvasElement | null>;
   readonly onFrameListener: (listener: (() => void) | null) => void;
   readonly onResetReady: (reset: (() => void) | null) => void;
   readonly onInputCancel: (cancel: (() => void) | null) => void;
-  readonly client: DeviceStreamClient;
+  readonly client: RefObject<DeviceStreamClient | null>;
   readonly screen: DeviceScreenSize | null;
   readonly hingePreview: number | null;
-  readonly onControlRejectedListener: (listener: (() => void) | null) => void;
+  readonly controlError: string | null;
   readonly onUnavailable: () => void;
 }) {
-  const viewerRef = useRef<
-    (DuoViewer & { readonly sources: Record<1 | 3, HTMLCanvasElement> }) | null
-  >(null);
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const viewerRef = useRef<DuoViewer | null>(null);
   const interactionRef = useRef<ReturnType<typeof createPhoneInteraction> | null>(null);
   const pinchRef = useRef<ReturnType<typeof createDuoPinch> | null>(null);
+  const trackpadRef = useRef<ReturnType<typeof bindPhoneTrackpad> | null>(null);
   const screenRef = useRef(props.screen);
   const modelRef = useRef(props.model);
   const previewRef = useRef(props.hingePreview);
-  const {
-    source,
-    client,
-    onInputCancel,
-    onControlRejectedListener,
-    onResetReady,
-    onUnavailable,
-    onFrameListener,
-  } = props;
+  const { source, client, onInputCancel, onResetReady, onUnavailable, onFrameListener } = props;
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- stores screen and model in refs, ends any active interaction, and pushes the screen into the 3D Duo viewer
   useEffect(() => {
     screenRef.current = props.screen;
     modelRef.current = props.model;
@@ -47,61 +40,84 @@ export function DeviceDuoViewport(props: {
     viewerRef.current?.setScreen(props.screen);
   }, [props.screen, props.model]);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- pushes the hinge preview into the imperative 3D Duo viewer unless a pinch is active
+  useEffect(() => {
+    if (props.controlError || !props.screen) {
+      trackpadRef.current?.cancel();
+      viewerRef.current?.rejectOrientation();
+    }
+  }, [props.controlError, props.screen]);
+
   useEffect(() => {
     previewRef.current = props.hingePreview;
     if (!pinchRef.current?.active) viewerRef.current?.setHingePreview(props.hingePreview);
   }, [props.hingePreview]);
 
-  // The 3D viewer lives as long as its canvas; later prop changes are pushed into it above.
-  const mountViewer = (canvas: HTMLCanvasElement | null) => {
-    const host = canvas?.parentElement;
-    if (!canvas || !host) return;
-    return mountDeviceViewer(canvas, host, {
-      load: () =>
-        loadDuoViewer().then(({ createDuoViewer }) => () => {
-          const sources = {
-            1: document.createElement("canvas"),
-            3: document.createElement("canvas"),
-          };
-          const viewer = createDuoViewer({
-            canvas,
-            sources,
-            onUnavailable,
-            onPanelRequested: (panel) =>
-              client.controlDuo({
-                control: "physical",
-                value: panel === 1 ? "facedown" : "faceup",
-              }),
-            onOrientationRequested: (value) => client.controlDuo({ control: "orientation", value }),
-            onModelError: (cause) => console.warn("Device 3D asset could not load", cause),
-            model: modelRef.current,
-          });
-          return { ...viewer, sources };
-        }),
-      touch: (phase, point) => client.sendRawTouch(phase, point.x, point.y),
-      viewerRef,
-      interactionRef,
-      onInputCancel,
-      onResetReady,
-      onFrameListener,
-      onUnavailable,
-      cancelInput: (viewer) => viewer.cancelInput(),
-      ready: ({ viewer, cancelTrackpad }) => {
-        onControlRejectedListener(() => {
-          cancelTrackpad();
-          viewer.rejectOrientation();
+  useEffect(() => {
+    const host = hostRef.current;
+    const canvas = canvasRef.current;
+    const decoded = source.current;
+    if (!host || !canvas || !decoded) return;
+    let disposed = false;
+    let trackpad: ReturnType<typeof bindPhoneTrackpad> | null = null;
+    let stopTrackpadEnd: (() => void) | undefined;
+    const resize = () => {
+      const { width, height } = host.getBoundingClientRect();
+      viewerRef.current?.resize(width, height, window.devicePixelRatio);
+    };
+    const stopObserving = observeResize(host, resize);
+    const blur = () => {
+      interactionRef.current?.end();
+      trackpad?.cancel();
+      viewerRef.current?.cancelInput();
+    };
+    onInputCancel(blur);
+    window.addEventListener("blur", blur);
+    void loadDuoViewer()
+      .then(({ createDuoViewer }) => {
+        if (disposed) return;
+        const sources = {
+          1: document.createElement("canvas"),
+          3: document.createElement("canvas"),
+        };
+        const viewer = createDuoViewer({
+          canvas,
+          sources,
+          onUnavailable,
+          onPanelRequested: (panel) =>
+            client.current?.controlDuo({
+              control: "physical",
+              value: panel === 1 ? "facedown" : "faceup",
+            }),
+          onOrientationRequested: (value) =>
+            client.current?.controlDuo({ control: "orientation", value }),
+          onModelError: (cause) => console.warn("Device 3D asset could not load", cause),
+          model: modelRef.current,
         });
+        viewerRef.current = viewer;
+        onResetReady(viewer.resetPose);
         viewer.setScreen(screenRef.current);
+        const primaryFrame = () => {
+          const panel = screenRef.current?.screenId;
+          if (panel === 1 || panel === 3) viewer.frameUpdated(panel, decoded);
+        };
+        onFrameListener(primaryFrame);
+        primaryFrame();
         viewer.setHingePreview(previewRef.current);
-        client.setDuoPanels({
+        client.current?.setDuoPanels({
           onScreen(next) {
             screenRef.current = next;
             interactionRef.current?.end();
             viewer.setScreen(next);
           },
-          cover: createCanvasFrameSink(viewer.sources[1], () => viewer.frameUpdated(1)),
-          inner: createCanvasFrameSink(viewer.sources[3], () => viewer.frameUpdated(3)),
+          cover: createCanvasFrameSink(sources[1], () => viewer.frameUpdated(1)),
+          inner: createCanvasFrameSink(sources[3], () => viewer.frameUpdated(3)),
+        });
+        interactionRef.current = createPhoneInteraction({
+          screenPoint: (point, captured) => viewer.screenPoint(point.x, point.y, captured),
+          touch: (phase, point) => client.current?.sendRawTouch(phase, point.x, point.y),
+          orbit: viewer.orbit,
+          zoomBy: () => {},
+          onInteractionActive: viewer.setInteractionActive,
         });
         const pinch = createDuoPinch({
           angle: () =>
@@ -111,32 +127,43 @@ export function DeviceDuoViewport(props: {
           contains: (x, y) => !!screenRef.current && viewer.beginHinge(x, y),
           change: (angle) => {
             viewer.setHingePreview(angle ?? previewRef.current, true);
-            if (angle !== null) client.controlDuo({ control: "angle", value: angle });
+            if (angle !== null) client.current?.controlDuo({ control: "angle", value: angle });
           },
         });
         pinchRef.current = pinch;
-        return {
-          frame: () => {
-            const panel = screenRef.current?.screenId;
-            if (panel === 1 || panel === 3) viewer.frameUpdated(panel, source);
+        trackpad = bindPhoneTrackpad(canvas, interactionRef.current, {
+          begin(x, y) {
+            interactionRef.current?.end();
+            return pinch.begin(x, y);
           },
-          pinch: {
-            begin(x, y) {
-              interactionRef.current?.end();
-              return pinch.begin(x, y);
-            },
-            move: pinch.move,
-            end: pinch.end,
-          },
-          dispose: () => {
-            pinchRef.current = null;
-            onControlRejectedListener(null);
-            client.setDuoPanels(null);
-          },
-        };
-      },
-    });
-  };
+          move: pinch.move,
+          end: pinch.end,
+        });
+        trackpadRef.current = trackpad;
+        stopTrackpadEnd = window.desktopBridge?.onTrackpadScrollEnd?.(() => trackpad?.endOrbit());
+        resize();
+      })
+      .catch(() => {
+        if (!disposed) onUnavailable();
+      });
+    return () => {
+      disposed = true;
+      stopTrackpadEnd?.();
+      trackpad?.dispose();
+      trackpadRef.current = null;
+      pinchRef.current = null;
+      interactionRef.current?.end();
+      interactionRef.current = null;
+      onInputCancel(null);
+      onResetReady(null);
+      onFrameListener(null);
+      client.current?.setDuoPanels(null);
+      stopObserving();
+      window.removeEventListener("blur", blur);
+      viewerRef.current?.dispose();
+      viewerRef.current = null;
+    };
+  }, [onInputCancel, onResetReady, client, onUnavailable, source, onFrameListener]);
 
   const point = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -147,13 +174,13 @@ export function DeviceDuoViewport(props: {
   };
   return (
     <div className="absolute inset-0">
-      <div className="absolute inset-0">
+      <div ref={hostRef} className="absolute inset-0">
         <div
           aria-hidden
           className="pointer-events-none absolute bottom-[6%] left-1/2 h-5 w-2/5 -translate-x-1/2 rounded-full bg-foreground/10 blur-xl"
         />
         <canvas
-          ref={mountViewer}
+          ref={canvasRef}
           aria-label="Interactive 3D iPhone Duo. Drag the screen to interact. Drag outside it or swipe with two fingers to turn. Pinch over the device to open or close its hinge."
           className="size-full touch-none"
           onPointerDown={(event) => {

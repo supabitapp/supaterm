@@ -24,9 +24,16 @@ export function fromProviders(
   };
 }
 
-const make = Effect.gen(function* () {
-  const drivers = yield* BuiltInDrivers.SourceControlDrivers;
-  return fromProviders(drivers.flatMap(({ instance }) => instance.pullRequests ?? []));
+/**
+ * @public Service construction is part of the canonical Effect module API.
+ */
+export const make = Effect.gen(function* () {
+  const drivers = yield* Effect.forEach(BuiltInDrivers.BUILT_IN_SOURCE_CONTROL_DRIVERS, (driver) =>
+    driver.make.pipe(Effect.map((instance) => instance.pullRequests)),
+  );
+  return fromProviders(
+    drivers.filter((provider): provider is PullRequestProviderApi => provider !== null),
+  );
 });
 
 export const layer = Layer.effect(PullRequestProviderRegistry, make).pipe(

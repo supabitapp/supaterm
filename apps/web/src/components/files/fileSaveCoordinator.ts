@@ -5,10 +5,8 @@ export interface FileSaveCoordinatorOptions<A, E> {
   readonly canPersist?: () => boolean;
   readonly persist: (contents: string) => Promise<AtomCommandResult<A, E>>;
   readonly onPendingChange: (pending: boolean) => void;
-
+  /** Return false when another editor has newer unsaved contents. */
   readonly onConfirmed: (contents: string) => boolean | void;
-
-  readonly onSettled?: () => void;
 }
 
 export class FileSaveCoordinator<A = unknown, E = unknown> {
@@ -19,7 +17,6 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
   private lastChangeAt = 0;
   private saving = false;
   private disposed = false;
-  private flushing = false;
 
   constructor(private readonly options: FileSaveCoordinatorOptions<A, E>) {}
 
@@ -30,16 +27,6 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
     this.lastChangeAt = Date.now();
     this.options.onPendingChange(true);
     this.schedule(this.options.debounceMs);
-  }
-
-  get unconfirmedContents(): string | null {
-    return this.latestRevision === this.confirmedRevision ? null : this.latestContents;
-  }
-
-  flush(): void {
-    this.clearTimer();
-    this.flushing = true;
-    void this.persistLatest();
   }
 
   dispose(): void {
@@ -63,9 +50,8 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
   }
 
   private async persistLatest(): Promise<void> {
-    if (this.saving) return;
-    if (this.latestRevision === this.confirmedRevision || this.options.canPersist?.() === false) {
-      this.settle();
+    if (this.saving || this.latestRevision === this.confirmedRevision) return;
+    if (this.options.canPersist?.() === false) {
       return;
     }
 
@@ -83,7 +69,6 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
     this.saving = false;
     if (revision === this.latestRevision) {
       if (confirmed) this.options.onPendingChange(false);
-      this.settle();
       return;
     }
 
@@ -91,15 +76,10 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
       0,
       this.options.debounceMs - (Date.now() - this.lastChangeAt),
     );
-    if (this.disposed || this.flushing) {
+    if (this.disposed) {
       void this.persistLatest();
     } else {
       this.schedule(remainingDebounce);
     }
-  }
-
-  private settle(): void {
-    this.flushing = false;
-    this.options.onSettled?.();
   }
 }

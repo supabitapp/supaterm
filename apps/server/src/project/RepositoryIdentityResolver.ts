@@ -1,7 +1,9 @@
 import type { RepositoryIdentity, SourceControlProviderError } from "@supaterm/contracts";
 import { repositoryPathFromRemoteUrl } from "@supaterm/source-control-core/server/SourceControlProvider";
 import {
+  detectSourceControlProviderFromGitRemoteUrl,
   GH_RESOLVED_CONFIG_ARGS,
+  normalizeGitRemoteUrl,
   parseGhResolvedRemotes,
   parseGitRemoteFetchUrls,
 } from "@supaterm/shared/git";
@@ -14,11 +16,13 @@ import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 
 import * as ProcessRunner from "../processRunner.ts";
-import { sourceControlDefinitions } from "../sourceControl/sourceControlDefinitions.ts";
 import { explicitBareRepositoryEnv } from "../vcs/VcsProcess.ts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 
 const DEFAULT_REPOSITORY_IDENTITY_CACHE_CAPACITY = 512;
+// Background sweeps resolve every project each minute. A long TTL keeps them
+// from spawning git each time. Clone, publish, and PR discovery (after a turn
+// and before it saves links) resolve with `refresh: true`.
 const DEFAULT_POSITIVE_CACHE_TTL = Duration.minutes(15);
 const DEFAULT_NEGATIVE_CACHE_TTL = Duration.minutes(1);
 
@@ -77,7 +81,7 @@ function buildRepositoryOrigin(
   canonicalKey: string,
 ): RepositoryIdentity["origin"] {
   if (!originUrl) return undefined;
-  const originKey = sourceControlDefinitions.repositoryKeyFromRemote(originUrl);
+  const originKey = normalizeGitRemoteUrl(originUrl);
   if (originKey === canonicalKey) return undefined;
   const displayName = repositoryPathOf(originKey, originUrl);
   return { canonicalKey: originKey, remoteUrl: originUrl, ...(displayName ? { displayName } : {}) };
@@ -89,8 +93,8 @@ function buildRepositoryIdentity(input: {
   readonly originUrl: string | undefined;
   readonly rootPath: string;
 }): RepositoryIdentity {
-  const canonicalKey = sourceControlDefinitions.repositoryKeyFromRemote(input.remoteUrl);
-  const sourceControlProvider = sourceControlDefinitions.recognizeRemote(input.remoteUrl);
+  const canonicalKey = normalizeGitRemoteUrl(input.remoteUrl);
+  const sourceControlProvider = detectSourceControlProviderFromGitRemoteUrl(input.remoteUrl);
   const repositoryPath = repositoryPathOf(canonicalKey, input.remoteUrl);
   const repositoryPathSegments = repositoryPath.split("/").filter((segment) => segment.length > 0);
   const [owner] = repositoryPathSegments;
@@ -123,6 +127,8 @@ const resolveRepositoryIdentityCacheKey = Effect.fn("RepositoryIdentityResolver.
     const processRunner = yield* ProcessRunner.ProcessRunner;
     const env = explicitBareRepositoryEnv(process.env, yield* HostProcess.Platform);
 
+    // git is a real executable on every platform — no cmd.exe shell mode, which
+    // would split paths containing spaces during cmd's re-tokenization.
     const topLevelResult = yield* processRunner
       .run({
         command: "git",

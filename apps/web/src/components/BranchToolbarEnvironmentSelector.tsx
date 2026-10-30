@@ -103,7 +103,11 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
     },
   });
 
-  // Keep the context strip height fixed so the composer glass seam stays aligned.
+  // The static label carries the xs control's height (h-7 sm:h-6) as well as
+  // its padding: the composer context strip has no min-height of its own, and
+  // the glass seam joining it to the composer assumes a fixed strip height, so
+  // a shorter label would drag the seam out of line whenever this label is the
+  // only thing in the strip.
   if (!interactive) {
     const lockedRow = (
       <span

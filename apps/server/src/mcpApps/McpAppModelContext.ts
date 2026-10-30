@@ -1,6 +1,5 @@
 import type { ThreadId, TurnItemId } from "@supaterm/contracts";
 import * as Context from "effect/Context";
-import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -83,7 +82,7 @@ export const layer = Layer.effect(
           )
         ORDER BY context.updated_at DESC, context.item_id DESC
         LIMIT ${MCP_APP_MODEL_CONTEXT_TURN_MAX_ENTRIES}
-      `.pipe(NodeSqliteClient.readOnly, Effect.mapError(fail));
+      `.pipe(Effect.mapError(fail));
       const retained: Array<McpAppModelContextEntry> = [];
       let bytes = 0;
       for (const entry of entries) {
@@ -101,12 +100,5 @@ export const layer = Layer.effect(
 
 export const layerEmpty = Layer.succeed(
   McpAppModelContext,
-  McpAppModelContext.of({
-    set: Effect.fn("McpAppModelContext.set")(function () {
-      return Effect.void;
-    }),
-    forThread: Effect.fn("McpAppModelContext.forThread")(function () {
-      return Effect.succeed([]);
-    }),
-  }),
+  McpAppModelContext.of({ set: () => Effect.void, forThread: () => Effect.succeed([]) }),
 );

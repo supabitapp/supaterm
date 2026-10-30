@@ -6,7 +6,6 @@ import {
   type GitRunStackedActionResult,
   type OrchestrationV2ServerCommand as OrchestrationCommand,
   type OrchestrationProjectShell,
-  SourceControlProviderKind,
 } from "@supaterm/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
@@ -41,7 +40,7 @@ const project: OrchestrationProjectShell = {
       remoteName: "origin",
       remoteUrl: "git@github.acme.test:Platform/API.git",
     },
-    provider: SourceControlProviderKind.make("github"),
+    provider: "github",
     displayName: "Platform/API",
     owner: "Platform",
     name: "API",

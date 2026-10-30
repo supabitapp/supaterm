@@ -1,8 +1,6 @@
 import type { Paragraph, PhrasingContent, Root, RootContent } from "mdast";
 import { remarkKeepWindowsPathDestinations } from "./markdownWindowsPaths.ts";
-import { type PluggableList, unified } from "unified";
-import remarkParse from "remark-parse";
-import remarkRehype from "remark-rehype";
+import type { PluggableList } from "unified";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import remarkBreaks from "remark-breaks";
@@ -13,7 +11,7 @@ import {
   CODEX_ARTIFACT_TEMPLATE_HAST_PROPERTIES,
   remarkCodexDirectives,
 } from "./codexMarkdownDirectives.ts";
-import { isWindowsDrivePathHref, normalizeMarkdownLinkDestination } from "./markdownLinks.ts";
+import { isWindowsDrivePathHref } from "./markdownLinks.ts";
 import { THREAD_LINK_PROTOCOL } from "./threadLinks.ts";
 
 type MarkdownImageHastNode = {
@@ -304,34 +302,4 @@ function remarkNormalizeLinksAndTagInlineCode() {
 
 export function shouldPreserveAssistantLineBreaks(text: string): boolean {
   return /^★ Insight(?:\s|─)/mu.test(text);
-}
-
-const imageSourceProcessor = unified()
-  .use(remarkParse)
-  .use(CHAT_MARKDOWN_REMARK_PLUGINS)
-  .use(remarkRehype, { allowDangerousHtml: true })
-  .use(CHAT_MARKDOWN_REHYPE_PLUGINS);
-
-interface ImageSourceNode {
-  readonly type: string;
-  readonly tagName?: string;
-  readonly properties?: { readonly src?: unknown; readonly dataLocalSrc?: unknown };
-  readonly children?: ReadonlyArray<ImageSourceNode>;
-}
-
-export function chatMarkdownImageSources(markdown: string): Array<string> {
-  const sources: Array<string> = [];
-  const visit = (node: ImageSourceNode) => {
-    if (node.type === "element" && node.tagName === "img") {
-      const { src, dataLocalSrc } = node.properties ?? {};
-      if (typeof dataLocalSrc === "string") {
-        sources.push(normalizeMarkdownLinkDestination(dataLocalSrc).replaceAll("\\", "/"));
-      } else if (typeof src === "string") {
-        sources.push(normalizeMarkdownLinkDestination(src));
-      }
-    }
-    node.children?.forEach(visit);
-  };
-  visit(imageSourceProcessor.runSync(imageSourceProcessor.parse(markdown)) as ImageSourceNode);
-  return sources;
 }

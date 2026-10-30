@@ -75,7 +75,10 @@ export function BrowserImportWizard({
   );
   const [targetError, setTargetError] = useState<string>();
   const newProfileId = useRef(`profile-${randomUUID()}`);
-  // Guard synchronously so a second click's refusal cannot leave the importing step during the first write.
+  // A second Import click before React has left the configure screen would
+  // start a second run; the parent refuses it, and applying that refusal here
+  // would drop the wizard out of the importing step while the first write is
+  // still going. The ref settles synchronously where state does not.
   const importInFlight = useRef(false);
 
   const runImport = () => {
@@ -263,7 +266,7 @@ function FullDiskAccessStep({
         <DialogTitle>Let Supaterm read {source.name}&rsquo;s cookies</DialogTitle>
         <DialogDescription>
           To import cookies from {source.name}, Supaterm needs Full Disk Access. Turn it on in
-          System Settings, then come back to finish the import , you can revoke it again once the
+          System Settings, then come back to finish the import — you can revoke it again once the
           import is done.
         </DialogDescription>
       </DialogHeader>

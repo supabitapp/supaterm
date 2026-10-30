@@ -3,10 +3,6 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./fakeSourceControlDriver": {
-      "types": "./src/fakeSourceControlDriver.ts",
-      "import": "./src/fakeSourceControlDriver.ts"
-    },
     "./TestSourceControlHost": {
       "types": "./src/TestSourceControlHost.ts",
       "import": "./src/TestSourceControlHost.ts"
@@ -16,7 +12,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@effect/platform-node": "catalog:",
     "@supaterm/contracts": "workspace:*",
     "@supaterm/shared": "workspace:*",
     "@supaterm/source-control-core": "workspace:*",

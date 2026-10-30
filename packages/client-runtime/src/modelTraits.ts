@@ -111,29 +111,15 @@ export function buildTraitsTriggerLabel(input: {
   ultrathinkPromptControlled: boolean;
   modelSelection?: ModelSelection | null;
   reportedModelSelection?: ModelSelection | null | undefined;
-}): {
-  label: string;
-
-  speedLabel: string | null;
-
-  otherLabels: ReadonlyArray<string>;
-} {
-  let fastModeFallbackLabel: string | null = null;
-  let speedLabel: string | null = null;
-  let reasoningLabelIndex = -1;
+}): string {
+  let speedFallbackLabel: string | null = null;
   const labels: Array<string> = [];
   for (const descriptor of input.descriptors) {
     if (input.speedToggle && descriptor.id === input.speedToggle.descriptorId) {
-      speedLabel =
-        input.speedToggle.level === "off"
-          ? null
-          : input.speedToggle.level === "ultrafast"
-            ? "Ultrafast"
-            : "Fast";
       const currentValue = getProviderOptionCurrentValue(descriptor) ?? input.speedToggle.offValue;
       if (input.speedToggle.level !== "off" || currentValue === input.speedToggle.offValue) {
         if (descriptor.type === "select") {
-          fastModeFallbackLabel =
+          speedFallbackLabel =
             descriptor.options.find(({ id }) => id === currentValue)?.label ?? null;
         }
         continue;
@@ -150,14 +136,15 @@ export function buildTraitsTriggerLabel(input: {
               input.reportedModelSelection,
             );
     if (typeof label === "string" && label.length > 0) {
-      if (descriptor.id === input.primarySelectDescriptorId) reasoningLabelIndex = labels.length;
       labels.push(label);
     }
   }
 
-  const otherLabels = labels.filter((_, index) => index !== reasoningLabelIndex);
-  if (labels.length === 0 && fastModeFallbackLabel !== null) {
-    return { label: fastModeFallbackLabel, speedLabel, otherLabels };
+  // Only fall back to text when speed is genuinely the sole trait. Keying off an
+  // empty label list alone would also catch descriptors that resolved to no
+  // label at all.
+  if (labels.length === 0 && speedFallbackLabel !== null) {
+    return speedFallbackLabel;
   }
-  return { label: labels.join(" · "), speedLabel, otherLabels };
+  return labels.join(" · ");
 }

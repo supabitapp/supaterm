@@ -1,16 +1,14 @@
+import { loadExpoFileSystem } from "../lib/expoFileSystem";
 import { FilePreviewGallery, useFilePreviewGallery } from "./FilePreviewGallery";
 import { composerImageGallery } from "../lib/composerImageGallery";
 import { SymbolView } from "./ui/AppSymbol";
 import { imageMimeType } from "@supaterm/shared/image";
 import { videoMimeType } from "@supaterm/shared/video";
-import { useAtomValue } from "@effect/atom-react";
-import { AsyncResult, Atom } from "effect/reactivity";
-import { Paths } from "expo-file-system";
+import { useEffect, useMemo, useState } from "react";
 import { Image, Pressable, ScrollView, View } from "react-native";
 import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 
 import { AppText as Text } from "./ui/AppText";
-import { MaterializedPreviewKey, materializedPreviewAtom } from "../lib/composerImagePreview";
 import { PierreEntryIcon } from "./PierreEntryIcon";
 import {
   isFileBackedComposerAttachment,
@@ -97,31 +95,75 @@ export function ComposerAttachmentThumbnail(props: ComposerAttachmentThumbnailPr
   );
 }
 
+const PREVIEW_CACHE_DIRECTORY = "supaterm-composer-previews";
+
+/**
+ * Fabric re-parses an image source URL on every layout pass of the node, and a
+ * multi-megabyte data URL makes each Fabric commit slow enough that concurrent
+ * UI-thread commits (the question card's coverage animation) win the race every
+ * time until the renderer aborts.
+ */
 const INLINE_PREVIEW_FALLBACK_MAX_CHARS = 256_000;
 
-function useComposerImagePreviewUri(attachment: DraftComposerImageAttachment): string | null {
-  const { fileUri, previewUri } = attachment;
-  const inlinePreview = fileUri === undefined && previewUri.startsWith("data:");
-  const materialized = useAtomValue(
-    inlinePreview
-      ? materializedPreviewAtom(new MaterializedPreviewKey(attachment))
-      : EMPTY_PREVIEW_ATOM,
-  );
-  if (fileUri !== undefined) {
-    return (
-      resolveOwnedComposerAttachmentFileUri(fileUri, Paths.document.uri) ??
-      (previewUri.startsWith("data:") ? fileUri : previewUri)
-    );
+async function materializeDataUrlPreview(id: string, dataUrl: string): Promise<string | null> {
+  const comma = dataUrl.indexOf(",");
+  if (comma < 0) return null;
+  const { Directory, File, Paths } = await loadExpoFileSystem();
+  const mimeType = /^data:([^;,]+)/.exec(dataUrl)?.[1] ?? "image/jpeg";
+  const extension = (mimeType.split("/")[1] ?? "jpg").replace("jpeg", "jpg");
+  const directory = new Directory(Paths.cache, PREVIEW_CACHE_DIRECTORY);
+  directory.create({ idempotent: true, intermediates: true });
+  const file = new File(directory, `${id}.${extension}`);
+  if (!file.exists) {
+    file.create();
+    await file.write(dataUrl.slice(comma + 1), { encoding: "base64" });
   }
-  if (!inlinePreview) return previewUri;
-  if (!AsyncResult.isSuccess(materialized)) return null;
-  return (
-    materialized.value ??
-    (previewUri.length <= INLINE_PREVIEW_FALLBACK_MAX_CHARS ? previewUri : null)
-  );
+  return file.uri;
 }
 
-const EMPTY_PREVIEW_ATOM = Atom.make(AsyncResult.success<string | null>(null));
+function useComposerImagePreviewUri(attachment: DraftComposerImageAttachment): string | null {
+  const { id, fileUri, previewUri } = attachment;
+  const [rebased, setRebased] = useState<{ fileUri: string; uri: string } | null>(null);
+  const [materialized, setMaterialized] = useState<{ id: string; uri: string | null } | null>(null);
+  const inlinePreview = fileUri === undefined && previewUri.startsWith("data:");
+  useEffect(() => {
+    if (fileUri === undefined) return;
+    let cancelled = false;
+    void (async () => {
+      const { Paths } = await loadExpoFileSystem();
+      const owned = resolveOwnedComposerAttachmentFileUri(fileUri, Paths.document.uri);
+      if (!cancelled && owned !== null && owned !== previewUri) setRebased({ fileUri, uri: owned });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [fileUri, previewUri]);
+  useEffect(() => {
+    if (!inlinePreview) return;
+    let cancelled = false;
+    void materializeDataUrlPreview(id, previewUri)
+      .then((uri) => {
+        if (!cancelled && uri !== null) setMaterialized({ id, uri });
+      })
+      .catch((error: unknown) => {
+        console.warn("[composer-attachments] could not cache an image preview", error);
+        if (!cancelled) setMaterialized({ id, uri: null });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, inlinePreview, previewUri]);
+  if (fileUri !== undefined && rebased?.fileUri === fileUri) return rebased.uri;
+  if (fileUri !== undefined) return previewUri.startsWith("data:") ? fileUri : previewUri;
+  if (inlinePreview) {
+    if (materialized?.id !== id) return null;
+    return (
+      materialized.uri ??
+      (previewUri.length <= INLINE_PREVIEW_FALLBACK_MAX_CHARS ? previewUri : null)
+    );
+  }
+  return previewUri;
+}
 
 function ComposerImageAttachment(
   props: ComposerAttachmentThumbnailProps & { readonly attachment: DraftComposerImageAttachment },
@@ -245,12 +287,15 @@ function ComposerVideoAttachment(props: {
   const { attachment } = props;
   const sourceIdentifier = `draft:${attachment.id}`;
   const style = { width: props.size, height: props.size, borderRadius: props.borderRadius };
-  const actionsSource: MediaActionsSource = {
-    name: attachment.name,
-    mimeType: videoMimeType(attachment) ?? attachment.mimeType,
-    sourceIdentifier,
-    attachment,
-  };
+  const actionsSource = useMemo<MediaActionsSource>(
+    () => ({
+      name: attachment.name,
+      mimeType: videoMimeType(attachment) ?? attachment.mimeType,
+      sourceIdentifier,
+      attachment,
+    }),
+    [attachment, sourceIdentifier],
+  );
 
   return (
     <VideoAttachmentTile
@@ -267,7 +312,7 @@ function ComposerVideoAttachment(props: {
 }
 
 export function ComposerAttachmentStrip(props: ComposerAttachmentStripProps) {
-  const gallery = composerImageGallery(props.attachments);
+  const gallery = useMemo(() => composerImageGallery(props.attachments), [props.attachments]);
   const size = props.imageSize ?? 72;
   const radius = props.imageBorderRadius ?? 16;
   const removeButtonPlacement = props.removeButtonPlacement ?? "overlay";

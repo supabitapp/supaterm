@@ -1,12 +1,12 @@
 # Usage and limits
 
 Open **Usage** from the sidebar or the command palette, or press `mod+u` on web and
-desktop when the terminal is not focused. On mobile, choose **Usage** in workspace navigation. Customize `usage.open` in
+desktop when the terminal is not focused. Customize `usage.open` in
 **Settings → Keybindings**.
 
 ## Understand your usage
 
-**Usage** combines Codex, Claude Code, Grok Build, OpenCode, Antigravity, Pi, Muse Code, and Cursor history
+**Usage** combines Codex, Claude Code, Grok Build, OpenCode, Antigravity, Pi, and Cursor history
 from your connected environments. It shows token use, cache savings, model breakdowns, and estimated API-equivalent
 cost, split by token type and by speed. These estimates are not your subscription bill.
 **Premium** is what Fast and Ultrafast requests cost above standard rates. Cost that cannot be
@@ -19,9 +19,6 @@ record are missing from the totals.
 OpenCode reads its SQLite database and older JSON history. Antigravity reads local conversation
 databases, including Supaterm-managed profiles. Set `OPENCODE_DATA_DIR` or `ANTIGRAVITY_DATA_DIR` on the
 server to read a different data directory; comma-separated paths read multiple directories.
-
-Muse reads native session history from the configured CLI's data home, including child sessions.
-Models without prices still contribute tokens; add custom prices to estimate their cost.
 
 Cursor reads account usage from Cursor's dashboard API using the CLI login saved on the server.
 This includes headless Supaterm sessions and desktop usage across machines; the same account counts
@@ -40,9 +37,6 @@ variable to the same directory. Pi includes recorded tool and summary costs unde
 Use absolute paths or `~/` paths in the account's environment settings; relative environment paths
 depend on each project's working directory and cannot be reliably discovered by Usage. Accounts
 sharing a history directory count once.
-
-The server saves its initial hostname in `<Supaterm home>/usage-host-id`. Persist that home
-across container recreation to preserve usage identity, or set `SUPATERM_HOST_ID` explicitly.
 
 When your app and server support different providers, usage totals may cover only the providers
 your app understands. Update the app to include newly supported providers.
@@ -120,8 +114,7 @@ anything. The command is offered only for providers that appear under **Usage �
 On wider windows, the composer shows how much of the current model's session, weekly, and monthly
 limits is left, taking the busiest window of each length. After a thread starts, the meter stays
 below the composer only when **Usage limits** is enabled in Settings → Appearance. It reads the same
-snapshot. To keep quota windows visible, enable **Provider limits** in **Settings → Appearance → Thread
-details**, or use the card's context menu. Context and estimated cost keep their existing defaults.
+snapshot and hides while the composer is collapsed.
 
 OpenCode Go reports its session, weekly, and monthly allowance when OpenCode runs locally in
 the environment. Supaterm cannot report limits for external OpenCode servers because their credentials

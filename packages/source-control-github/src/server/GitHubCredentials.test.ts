@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "@effect/vitest"
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
-import { HttpClient } from "effect/http";
 import { ChildProcessSpawner } from "effect/process";
 
 import { DEFAULT_SERVER_SETTINGS } from "@supaterm/contracts";
@@ -63,12 +62,6 @@ function harness(
       }),
     ),
     Layer.provide(NodeCrypto.layer),
-    Layer.provide(
-      Layer.succeed(
-        HttpClient.HttpClient,
-        HttpClient.make((request) => Effect.die(`Unexpected request to ${request.url}`)),
-      ),
-    ),
   );
   return { layer, calls };
 }
@@ -153,19 +146,6 @@ describe("GitHubCredentials", () => {
       expect((yield* Effect.flip(credentials.get("github.com")))._tag).toBe(
         "GitHubHostDisabledError",
       );
-    }).pipe(Effect.provide(layer));
-  });
-
-  it.effect("never hands a token to a host that is not a plain hostname", () => {
-    vi.stubEnv("GH_TOKEN", "env-token");
-    const { layer, calls } = harness();
-    return Effect.gen(function* () {
-      const credentials = yield* GitHubCredentials.GitHubCredentials;
-      for (const host of ["evil.com#.ghe.com", "evil.com/.ghe.com", "user@x.ghe.com"]) {
-        expect(GitHubCredentials.environmentToken(host, { GH_TOKEN: "env-token" })).toBeNull();
-        expect((yield* Effect.flip(credentials.get(host)))._tag).toBe("GitHubNotSignedInError");
-      }
-      expect(calls).toEqual([]);
     }).pipe(Effect.provide(layer));
   });
 });

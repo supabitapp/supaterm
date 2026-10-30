@@ -68,6 +68,8 @@ function normalizeContextMenuItems(source: readonly ContextMenuItem[]): ContextM
       continue;
     }
 
+    // Header items are decorative section labels for the web fallback only —
+    // Electron's native menu has no equivalent affordance, so we skip them.
     if (sourceItem.header === true) {
       continue;
     }
@@ -96,6 +98,9 @@ function normalizeContextMenuItems(source: readonly ContextMenuItem[]): ContextM
   return normalizedItems;
 }
 
+// Renderer positions arrive in CSS pixels; popup() expects window points, so
+// page zoom must be factored in or menus drift proportionally to their
+// distance from the window origin.
 const normalizePosition = (
   position: Option.Option<ElectronMenuPosition>,
   zoomFactor: number,
@@ -114,7 +119,7 @@ const MENU_ICON_SYMBOLS: Readonly<Record<string, string>> = {
   trash: "trash",
 };
 
-/** @public */
+/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const platform = yield* HostProcess.Platform;
   const menuIconCache = new Map<string, Option.Option<Electron.NativeImage>>();
@@ -194,8 +199,8 @@ export const make = Effect.gen(function* () {
   };
 
   return ElectronMenu.of({
-    setApplicationMenu: Effect.fn("ElectronMenu.setApplicationMenu")(function (template) {
-      return Effect.try({
+    setApplicationMenu: (template) =>
+      Effect.try({
         try: () => {
           Electron.Menu.setApplicationMenu(Electron.Menu.buildFromTemplate([...template]));
         },
@@ -207,10 +212,9 @@ export const make = Effect.gen(function* () {
             itemCount: template.length,
             cause,
           }),
-      }).pipe(Effect.orDie);
-    }),
-    popupTemplate: Effect.fn("ElectronMenu.popupTemplate")(function (input) {
-      return input.template.length === 0
+      }).pipe(Effect.orDie),
+    popupTemplate: (input) =>
+      input.template.length === 0
         ? Effect.void
         : Effect.try({
             try: () =>
@@ -226,10 +230,9 @@ export const make = Effect.gen(function* () {
                 itemCount: input.template.length,
                 cause,
               }),
-          }).pipe(Effect.orDie);
-    }),
-    showContextMenu: Effect.fn("ElectronMenu.showContextMenu")(function (input) {
-      return Effect.callback<Option.Option<string>>((resume) => {
+          }).pipe(Effect.orDie),
+    showContextMenu: (input) =>
+      Effect.callback<Option.Option<string>>((resume) => {
         const normalizedItems = normalizeContextMenuItems(input.items);
         if (normalizedItems.length === 0) {
           resume(Effect.succeedNone);
@@ -281,8 +284,7 @@ export const make = Effect.gen(function* () {
             ),
           );
         }
-      });
-    }),
+      }),
   });
 });
 

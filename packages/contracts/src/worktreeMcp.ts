@@ -2,27 +2,38 @@ import * as Schema from "effect/Schema";
 
 import { TrimmedNonEmptyString } from "./baseSchemas.ts";
 
+/**
+ * The server picks the location in its managed worktrees folder.
+ * Changing the thread's workspace detaches the live provider session, so the
+ * current turn ends shortly after the handoff is recorded; the conversation
+ * continues inside the worktree on the thread's next run.
+ */
 export const WorktreeMcpHandoffInput = Schema.Struct({
-  branch: TrimmedNonEmptyString,
+  branch: TrimmedNonEmptyString.annotate({
+    description: "Branch name to create for the worktree (e.g. 'feature/my-change').",
+  }),
   baseRef: Schema.optional(
     TrimmedNonEmptyString.annotate({
-      description: "Default: checked-out branch.",
+      description:
+        "Branch or ref the worktree branch starts from. Defaults to the branch currently checked out in the project workspace.",
     }),
   ),
   startFromOrigin: Schema.optional(
     Schema.Boolean.annotate({
       description:
-        "True: fetch, start from the remote ref; check `startedFromOrigin`. Default: server setting.",
+        "Fetch the remote baseRef belongs to and start the worktree branch from its remote-tracking commit instead of the local ref. Defaults to the server's 'new worktrees start from remote' setting.",
     }),
   ),
   runSetupScript: Schema.optional(
     Schema.Boolean.annotate({
-      description: "Default true.",
+      description:
+        "Run the project's configured setup script in the new worktree after handoff. Defaults to true.",
     }),
   ),
   continuationPrompt: Schema.optional(
     TrimmedNonEmptyString.check(Schema.isMaxLength(120_000)).annotate({
-      description: "Work to resume in the worktree next turn. Omitted: thread waits.",
+      description:
+        "Message queued as the thread's next turn after the handoff. The handoff detaches the current provider session, so pass the remaining work here to automatically resume inside the worktree; omit it to stop after the handoff and wait for the next message.",
     }),
   ),
 });
@@ -74,10 +85,14 @@ export const WorktreeMcpHandoffResult = Schema.Struct({
 export type WorktreeMcpHandoffResult = typeof WorktreeMcpHandoffResult.Type;
 
 export const WorktreeMcpStatusResult = Schema.Struct({
-  attached: Schema.Boolean,
+  attached: Schema.Boolean.annotate({
+    description: "True when this thread is already attached to a git worktree.",
+  }),
   worktreePath: Schema.NullOr(TrimmedNonEmptyString),
   branch: Schema.NullOr(TrimmedNonEmptyString),
-  projectWorkspaceRoot: TrimmedNonEmptyString,
+  projectWorkspaceRoot: TrimmedNonEmptyString.annotate({
+    description: "Root of the project's main workspace checkout.",
+  }),
   defaultStartFromOrigin: Schema.Boolean.annotate({
     description:
       "Server default used by supaterm_worktree_handoff when startFromOrigin is omitted.",

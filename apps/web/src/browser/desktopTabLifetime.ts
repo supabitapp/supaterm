@@ -31,7 +31,10 @@ const enqueueDesktopTabOperation = (
   return pending;
 };
 
-/** Runs after tab creation and earlier calls. */
+/**
+ * Runs a call against a desktop tab after the tab's create and earlier calls,
+ * so a setting sent while the tab is being created still lands on it.
+ */
 export function withDesktopTab(tabId: string, operation: () => Promise<void>): void {
   void enqueueDesktopTabOperation(tabId, operation).catch(() => undefined);
 }
@@ -50,7 +53,8 @@ export function acquireDesktopTab(
     ({
       references: 0,
       closeTimer: null,
-      // Include defaults at creation to avoid painting a frame at 100%/system.
+      // Zoom/appearance defaults travel with creation so the guest never
+      // paints a frame at 100%/system before the preference is applied.
       ready: enqueueDesktopTabOperation(tabId, async () =>
         previewBridge?.createTab(tabId, {
           ...browserDefaultTabState(await resolveBrowserDefaults()),

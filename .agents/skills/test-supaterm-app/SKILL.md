@@ -13,21 +13,13 @@ testing, use [test-supaterm-mobile](../test-supaterm-mobile/SKILL.md).
 ## Start the app
 
 Reuse this task's healthy dev server. Otherwise run `vp run dev` from the
-repository root and retain its terminal session. In the main checkout, pass
-`--home-dir "$PWD/.supaterm"`; its default home is the live install. Use the worktree's ignored
+repository root and retain its terminal session. Use the worktree's ignored
 `.supaterm` state and read the actual ports and pairing URL from the dev-runner output.
 Never run against `~/.supaterm/userdata` or set `VITE_HTTP_URL` or `VITE_WS_URL`.
 
 Test with meaningful project and thread data. Read
 [references/sqlite-fixtures.md](references/sqlite-fixtures.md) only when
 inspecting or seeding SQLite. Stop the test server before direct fixture writes.
-
-## Exercise agent turns
-
-Use `Replay (dev)` for streaming and turn rendering without paid model usage.
-Open its picker with `Ctrl+Alt+Shift+R` and select a scenario such as `showcase`.
-Use a real provider when testing its protocol or model behavior. Keep the
-requested provider, model, and options when the task specifies them.
 
 ## Use the Browser panel
 

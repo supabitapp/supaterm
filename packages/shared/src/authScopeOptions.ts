@@ -92,16 +92,3 @@ export const AUTH_SCOPE_OPTIONS: ReadonlyArray<{
     description: "Issue and revoke credentials for other clients.",
   },
 ];
-
-export function sessionPermissionsUnavailableMessage(input: {
-  readonly connected: boolean;
-  readonly failed: boolean;
-  readonly rejected: boolean;
-}): string {
-  if (!input.connected) return "Connect to this environment to view this session’s permissions.";
-  if (input.rejected)
-    return "This environment did not accept your session. Reconnect to try again.";
-  return input.failed
-    ? "Could not verify your permissions. Retrying automatically."
-    : "Checking permissions…";
-}

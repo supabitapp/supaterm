@@ -1,4 +1,5 @@
 import { useAtomValue } from "@effect/atom-react";
+import { StackActions, useNavigation } from "@react-navigation/native";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import {
   resolveWorkflowOpening,
@@ -7,8 +8,6 @@ import {
   type RuntimeSubagent,
 } from "@supaterm/client-runtime/state/subagentRuntime";
 import type { EnvironmentId, ThreadId } from "@supaterm/contracts";
-import type { EnvironmentThread } from "@supaterm/client-runtime/state/shell";
-import { Atom } from "effect/reactivity";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 
@@ -18,11 +17,9 @@ import { useAppearancePreferences } from "../settings/appearance/AppearancePrefe
 import { useMarkdownCodeHighlight } from "./markdownCodeHighlightState";
 import { SubagentRow } from "./SubagentRow";
 import { WorkLogBlock } from "./work-log-layout";
-import { useOpenLinkedThread } from "./useOpenLinkedThread";
 
 // A script longer than this many lines shows its head until opened.
 const FOLDED_SCRIPT_LINES = 10;
-const EMPTY_THREAD_ATOM = Atom.make<EnvironmentThread | null>(null);
 
 /** The workflow opening for a thread, or null; the parent's detail loads only for a workflow. */
 export function useWorkflowOpening(environmentId: EnvironmentId, threadId: ThreadId) {
@@ -40,9 +37,7 @@ export function useWorkflowOpening(environmentId: EnvironmentId, threadId: Threa
     parentId === null ? null : (thread?.projection ?? null),
   );
   const parentSubagents = useAtomValue(
-    parentId === null
-      ? EMPTY_THREAD_ATOM
-      : environmentThreadDetails.threadAtom(scopeThreadRef(environmentId, parentId)),
+    environmentThreadDetails.threadAtom(scopeThreadRef(environmentId, parentId ?? threadId)),
     (parent) => (parentId === null ? null : (parent?.projection.subagents ?? null)),
   );
   return projection === null
@@ -82,7 +77,7 @@ export function ThreadWorkflowOpening(props: {
   readonly threadId: ThreadId;
   readonly opening: WorkflowOpeningValue;
 }) {
-  const openLinkedThread = useOpenLinkedThread();
+  const navigation = useNavigation();
   const { opening } = props;
   const headline = workflowOpeningHeadline(opening);
   const canListMembers = opening.driver !== null && opening.providerInstanceId !== null;
@@ -98,7 +93,12 @@ export function ThreadWorkflowOpening(props: {
         disabled={threadId === null}
         onPress={() => {
           if (threadId !== null)
-            openLinkedThread({ environmentId: String(props.environmentId), threadId });
+            navigation.dispatch(
+              StackActions.push("Thread", {
+                environmentId: String(props.environmentId),
+                threadId,
+              }),
+            );
         }}
         className="rounded-lg px-3 py-3 active:bg-subtle"
       >

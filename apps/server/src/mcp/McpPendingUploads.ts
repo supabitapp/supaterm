@@ -47,11 +47,10 @@ const make = Effect.sync(() => {
         });
       }
     }),
-    forget: Effect.fn("McpPendingUploads.forget")((attachmentId) =>
+    forget: (attachmentId) =>
       Effect.sync(() => {
         owners.delete(attachmentId);
       }),
-    ),
   });
 });
 

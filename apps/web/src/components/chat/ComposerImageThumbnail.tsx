@@ -25,7 +25,6 @@ export const ComposerImageThumbnail = memo(function ComposerImageThumbnail({
     mode: ComposerImageThumbnailMode;
     src: string | null;
   } | null>(null);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Decode the attached File into a thumbnail and discard completion after replacement or unmount.
   useEffect(() => {
     let active = true;
     void createComposerImageThumbnail(file, mode).then((src) => {
@@ -35,7 +34,7 @@ export const ComposerImageThumbnail = memo(function ComposerImageThumbnail({
       active = false;
     };
   }, [file, mode]);
-  const src = preview?.mode === mode ? preview.src : null;
+  const src = preview?.file === file && preview.mode === mode ? preview.src : null;
   return src ? (
     <img
       src={src}

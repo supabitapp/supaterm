@@ -195,12 +195,6 @@ describe("buildCodexMicroSlotViews", () => {
     ]);
   });
 
-  it("shows a guest request as awaiting a response", () => {
-    expect(views([thread("guest", { pendingGuestMessageCount: 1 })])[0]?.status).toBe(
-      "awaiting-response",
-    );
-  });
-
   it("shows the thread you are looking at as read and marks it selected", () => {
     const unread = thread(
       "unread",

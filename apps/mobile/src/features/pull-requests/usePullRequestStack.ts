@@ -1,5 +1,5 @@
 import type { PullRequestDetail } from "@supaterm/contracts";
-import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
+import { parseChangeRequestUrl } from "@supaterm/shared/changeRequestUrl";
 import { useMemo } from "react";
 import { useEnvironmentServerConfig, useNavigationThreadShells } from "../../state/entities";
 import { pullRequestStackAtom } from "../../state/pull-requests";
@@ -15,9 +15,7 @@ export function usePullRequestStack(params: PullRequestParams, pr: PullRequestDe
   const reference = useMemo(
     () => ({
       ...pullRequestTarget(params).input,
-      host:
-        params.host ??
-        (pr ? sourceControlClients.parseChangeRequestUrl(pr.url)?.link.host : undefined),
+      host: params.host ?? (pr ? parseChangeRequestUrl(pr.url)?.host : undefined),
     }),
     [params, pr],
   );

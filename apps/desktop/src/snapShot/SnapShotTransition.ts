@@ -310,6 +310,8 @@ export class SnapShotTransition {
         }
       }
       if (this.waitForCompositorFrame) {
+        // Cover the source with a composited snapshot before the caller reveals Supaterm.
+        // Decoding and renderer animation frames alone can leave a transparent gap.
         await Promise.all(
           overlays.map(async (overlay) => {
             if (this.active !== active || overlay.window.isDestroyed()) return;
@@ -406,6 +408,8 @@ export class SnapShotTransition {
         );
         if (this.active !== active || overlay.window.isDestroyed()) return;
         if (this.waitForCompositorFrame) {
+          // Read back one pixel after preparation to flush queued compositor work
+          // before the animation clock starts on any of the display surfaces.
           await overlay.window.webContents.capturePage({ x: 0, y: 0, width: 1, height: 1 });
         }
         return overlay;

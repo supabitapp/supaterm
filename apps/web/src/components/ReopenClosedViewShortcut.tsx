@@ -47,8 +47,6 @@ import { isChatPaneWorkspaceMounted } from "../chatPanes/actions";
 import { focusedPane } from "../chatPanes/layout";
 
 const PREVIEW_FORWARDED_LAYOUT_COMMANDS = [
-  "workspace.focusNext",
-  "workspace.focusPrevious",
   "sidebar.toggle",
   "rightPanel.toggle",
   "rightPanel.toggleMaximized",
@@ -175,7 +173,6 @@ export function ReopenClosedViewShortcut() {
       });
   });
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to window keydown and the desktop menu action for the reopen closed view shortcut
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (
@@ -211,7 +208,6 @@ export function ReopenClosedViewShortcut() {
     };
   }, [keybindings, previewOpen, terminalOpen]);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers forwarded shortcut chords with the desktop preview bridge and clears them on cleanup
   useEffect(() => {
     const preview = window.desktopBridge?.preview;
     if (!preview?.setForwardedShortcuts) return;

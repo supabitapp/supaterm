@@ -1,18 +1,3 @@
-import * as ScratchThreadPromotion from "./project/ScratchThreadPromotion.ts";
-import * as DocumentText from "./provider/DocumentText.ts";
-import * as CodexManagedTokenBroker from "./provider/CodexManagedTokenBroker.ts";
-import * as PreviewAgentActivity from "./preview/PreviewAgentActivity.ts";
-import * as SourceControlSignIn from "./sourceControl/SourceControlSignIn.ts";
-import * as GuestShareService from "./guest/GuestShareService.ts";
-import * as GuestHttp from "./guest/http.ts";
-import * as SecretRequests from "./secrets/SecretRequests.ts";
-import * as PeerLinks from "./peer/PeerLinks.ts";
-import * as PeerMcpClient from "./peer/PeerMcpClient.ts";
-import * as PeerForwarding from "./peer/PeerForwarding.ts";
-import * as PeerLinkRequests from "./peer/PeerLinkRequests.ts";
-import * as RemoteDelegation from "./peer/RemoteDelegation.ts";
-import * as RemoteLaunchJournal from "./peer/RemoteLaunchJournal.ts";
-import * as RelayCompanion from "./relay/RelayCompanion.ts";
 import * as OrchestrationSkills from "./provider/OrchestrationSkills.ts";
 import * as ProviderEventLoggers from "@supaterm/provider-core/server/ProviderEventLoggers";
 import * as DatabaseStorage from "./persistence/DatabaseStorage.ts";
@@ -156,7 +141,6 @@ import * as ResourceMonitorBinary from "./resourceTelemetry/ResourceMonitorBinar
 import * as ProcessGroupMetrics from "./resourceTelemetry/ProcessGroupMetrics.ts";
 import * as ResourceTelemetry from "./resourceTelemetry/ResourceTelemetry.ts";
 import * as AntigravityUsage from "./provider/Drivers/AntigravityUsage.ts";
-import { MuseUsageHome } from "@supaterm/provider-muse/server";
 import * as CursorAccountReader from "@supaterm/provider-cursor/server/CursorAccountReader";
 import * as CursorKeychain from "@supaterm/provider-cursor/server/CursorKeychain";
 import * as CursorUsageAccounts from "@supaterm/provider-cursor/server/CursorUsageAccounts";
@@ -173,8 +157,7 @@ import * as ProjectionMaintenance from "./orchestration-v2/ProjectionMaintenance
 import * as ShellSyncGeneration from "./orchestration-v2/ShellSyncGeneration.ts";
 import * as ProjectionStoreV2 from "./orchestration-v2/ProjectionStore.ts";
 import { makePersistedServerRuntimeState } from "./serverRuntimeState.ts";
-import { TunnelSocket } from "@supaterm/shared/relay/tunnelNode";
-import { acceptsPrivateNetworkConnection, loopbackUrlHostForAddress } from "./startupAccess.ts";
+import { loopbackUrlHostForAddress } from "./startupAccess.ts";
 import * as OrchestrationHttp from "./orchestration-v2/http.ts";
 import * as ProjectHttp from "./project/http.ts";
 import * as NetService from "@supaterm/shared/Net";
@@ -241,7 +224,8 @@ const layerHostPowerMonitor = HostPowerMonitor.layer.pipe(
   Layer.provide(layerDesktopTelemetryReceiver),
 );
 
-// A fresh receiver layer would open a second reader on the desktop telemetry fd.
+// Reuses DesktopTelemetryReceiverLayerLive: a fresh receiver layer here
+// would open a second reader on the desktop telemetry fd.
 const layerDesktopAppUpdate = DesktopAppUpdate.layer.pipe(
   Layer.provide(layerDesktopTelemetryReceiver),
 );
@@ -255,7 +239,6 @@ const layerUsage = UsageService.layer.pipe(
   Layer.provide(
     Layer.mergeAll(
       AntigravityUsage.layer,
-      MuseUsageHome.layer,
       CodexUsageHistory.layer,
       CursorUsageAccounts.layer.pipe(
         Layer.provide(CursorAccountReader.layer.pipe(Layer.provide(CursorKeychain.layer))),
@@ -277,12 +260,6 @@ const layerHttpServer = Layer.unwrap(
   Effect.gen(function* () {
     const config = yield* ServerConfig.ServerConfig;
     const server = guardHttpResponseWriteErrors(NodeHttp.createServer());
-    if (config.privateNetworkOnly) {
-      server.on("connection", (socket) => {
-        if (!(socket instanceof TunnelSocket) && !acceptsPrivateNetworkConnection(socket))
-          socket.destroy();
-      });
-    }
     return NodeHttpServer.layer(() => rejectRequestsUntilServing(server), {
       host: config.host ?? "127.0.0.1",
       port: config.port,
@@ -296,7 +273,7 @@ const layerHttpServer = Layer.unwrap(
   }),
 );
 
-const layerPlatformServices = DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer));
+const layerPlatformServices = NodeServices.layer;
 
 const layerPersistence = Layer.empty.pipe(Layer.provideMerge(SqlitePersistence.layerConfig));
 
@@ -312,10 +289,11 @@ const layerRepositoryIdentityResolver = Layer.effect(
   RepositoryIdentityResolver.RepositoryIdentityResolver,
   Effect.gen(function* () {
     const registry = yield* SourceControlProviderRegistry.SourceControlProviderRegistry;
-    const drivers = yield* SourceControlBuiltInDrivers.SourceControlDrivers;
     return yield* RepositoryIdentityResolver.make({
       refine: Effect.fn(function* (identity: RepositoryIdentity) {
-        for (const kind of drivers.map(({ driver }) => driver.kind)) {
+        for (const kind of SourceControlBuiltInDrivers.BUILT_IN_SOURCE_CONTROL_DRIVERS.map(
+          (driver) => driver.kind,
+        )) {
           const provider = yield* registry.get(kind);
           if (provider.refineRepositoryIdentity === undefined) continue;
           const refined = yield* provider.refineRepositoryIdentity({
@@ -385,9 +363,6 @@ const layerVcs = Layer.empty.pipe(
   Layer.provideMerge(layerGitWorkflow),
   Layer.provideMerge(layerReview),
   Layer.provideMerge(layerSourceControlRepositoryService),
-  Layer.provideMerge(
-    SourceControlSignIn.layer.pipe(Layer.provide(layerSourceControlProviderRegistry)),
-  ),
   Layer.provideMerge(layerProjectCloneTracker),
   Layer.provideMerge(
     VcsStatusBroadcaster.layer.pipe(
@@ -634,32 +609,12 @@ const layerRuntimeCoreDependencies = layerRuntimeCoreDependenciesBase.pipe(
   Layer.provideMerge(ProjectEnrichmentService.layer),
   Layer.provideMerge(Layer.mergeAll(NativeAppIconResolver.layer, layerProjectFaviconResolver)),
   Layer.provideMerge(layerRepositoryIdentityResolver),
-  Layer.provideMerge(CodexManagedTokenBroker.layer),
   Layer.provideMerge(layerServerEnvironment),
   Layer.provideMerge(layerAuth),
   Layer.provideMerge(ServerSecretStore.layer),
 );
 
-const layerPeerServices = Layer.effectDiscard(
-  RemoteDelegation.RemoteDelegation.pipe(Effect.flatMap((service) => service.start())),
-).pipe(
-  Layer.provideMerge(RemoteDelegation.layer),
-  Layer.provideMerge(Layer.mergeAll(PeerForwarding.layer, PeerLinkRequests.layer)),
-  Layer.provideMerge(PeerMcpClient.layer),
-  Layer.provideMerge(PeerLinks.layer),
-  Layer.provideMerge(RemoteLaunchJournal.layer),
-  Layer.provideMerge(RelayCompanion.layer()),
-);
-
-const layerRuntimeDependencies = Layer.mergeAll(
-  GuestShareService.layer,
-  SecretRequests.layer,
-  ScratchThreadPromotion.layer,
-  layerPeerServices,
-).pipe(
-  Layer.provideMerge(layerRuntimeCoreDependencies),
-  Layer.provideMerge(ProjectionStoreV2.layer),
-  Layer.provideMerge(layerPortScanner),
+const layerRuntimeDependencies = layerRuntimeCoreDependencies.pipe(
   Layer.provideMerge(layerUsage),
   Layer.provideMerge(layerBackground),
   Layer.provideMerge(layerResourceDiagnostics),
@@ -693,7 +648,6 @@ const layerMakeRoutes = Layer.mergeAll(
       Layer.provide(ServerHttp.layerServerEnvironmentHttpApi),
       Layer.provide(AuthHttp.layerAuthenticatedAuth),
     ),
-    GuestHttp.layer,
     ServerHttp.layerOtlpTracesProxyRoute,
     ServerHttp.layerAssetRoute,
     ServerHttp.layerAttachmentUploadRoute,
@@ -715,11 +669,7 @@ const layerMakeRoutes = Layer.mergeAll(
   // Both transports consume the same service instance, so caches single-flight across clients
   // and mutations observed on WebSocket invalidate patches subsequently read over HTTP.
   Layer.provide(layerPullRequestService),
-  Layer.provide(
-    ServerBrowser.layer.pipe(
-      Layer.provide(Layer.merge(DesktopBrowserChannel.layer, PreviewAgentActivity.layer)),
-    ),
-  ),
+  Layer.provide(ServerBrowser.layer.pipe(Layer.provide(DesktopBrowserChannel.layer))),
   Layer.provide(PreviewBrowser.layer),
   Layer.provide(PreviewAutomationBroker.layer),
   Layer.provide(ServerSelfUpdate.layer.pipe(Layer.provide(layerDesktopAppUpdate))),

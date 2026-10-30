@@ -213,7 +213,8 @@ export async function deliverSnapShot(
     throw new Error("The captured window could not be saved to the draft.");
   }
 
-  // Paint the attachment before removing the capture overlay to avoid missing frames at landing.
+  // Reveal the attachment under the flying capture before the desktop tears the overlay down,
+  // otherwise the tile is missing for the frames between the landing and its first paint.
   if (getPendingSnapShotAnimations().some((animation) => animation.id === capture.id)) {
     await afterNextPaint();
     await waitForSnapShotAnimationDestination(capture.id).catch(() => undefined);
@@ -256,13 +257,15 @@ export function SnapShotCoordinator() {
   ) {
     setLastRouteTarget(currentTarget);
   }
-  // Reuse the resolved target until navigation so captures in one drain share a draft.
+  // What a resolution settled on (a promoted draft, a new draft, or nothing) stands in for the
+  // route's target until the route moves on, so captures in one drain share one new draft.
   const settledTargetRef = useRef<{
     readonly routeTarget: CaptureTarget | null;
     readonly target: CaptureTarget | null;
   } | null>(null);
   const readLastRouteTarget = useStableCallback(() => lastRouteTarget);
-  // Scope pending resolutions to their starting route so navigation cannot inherit another route's draft.
+  // A resolution records what it settled on against the route it started from, so a
+  // route change while it is pending cannot hand that draft to the new route.
   const readSettledTarget = (routeTarget: CaptureTarget | null) => {
     const settled = settledTargetRef.current;
     return settled && settled.routeTarget === routeTarget ? settled.target : routeTarget;
@@ -402,6 +405,8 @@ export function SnapShotCoordinator() {
     return operation;
   };
 
+  // Subscriptions read the latest handlers through effect events, so they attach once
+  // instead of restarting (and re-draining) whenever a handler's inputs change.
   const drainPending = useEffectEvent(() => drain());
   const handleSnapShotEvent = useEffectEvent(
     (bridge: DesktopSnapShotBridge, event: DesktopSnapShotEvent) => {
@@ -470,7 +475,6 @@ export function SnapShotCoordinator() {
       }
     },
   );
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to SnapShot events from the desktop bridge and drains pending ones while enabled
   useEffect(() => {
     const bridge = getDesktopSnapShotBridge();
     if (!bridge || !enabled) return;
@@ -478,7 +482,6 @@ export function SnapShotCoordinator() {
     return bridge.onSnapShotEvent((event) => handleSnapShotEvent(bridge, event));
   }, [enabled]);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- attaches window blur, focus and visibilitychange listeners to dismiss or drain SnapShot animations
   useEffect(() => {
     const dismissOnBlur = () => {
       pendingAnimationStartsRef.current.clear();

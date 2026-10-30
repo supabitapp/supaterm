@@ -1,4 +1,3 @@
-import type { PreparingComposerImage } from "./preparingComposerImages";
 import type {
   ChatAttachment,
   ChatFileAttachment,
@@ -83,7 +82,6 @@ function SnapShotAttachmentFrame({
 }) {
   const frameRef = useRef<HTMLDivElement>(null);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- scrolls the mounted tile into view and registers it as the SnapShot animation destination
   useLayoutEffect(() => {
     const frame = frameRef.current;
     if (!frame || (!animationId && !arrival)) return;
@@ -109,7 +107,6 @@ function SnapShotAttachmentFrame({
 export function ComposerAttachmentMediaRow({
   images,
   imageExits,
-  preparingImages,
   videoExits,
   arrivedIds,
   pendingSnapShotAnimations,
@@ -128,7 +125,6 @@ export function ComposerAttachmentMediaRow({
   onRemoveFile,
 }: {
   readonly images: ReadonlyArray<ComposerImageAttachment>;
-  readonly preparingImages: ReadonlyArray<PreparingComposerImage>;
   readonly imageExits: AttachmentExits<ComposerImageAttachment>;
   readonly videoExits: AttachmentExits<ComposerFileAttachment>;
   readonly arrivedIds: ReadonlySet<string>;
@@ -160,22 +156,18 @@ export function ComposerAttachmentMediaRow({
           : "flex-wrap",
       )}
     >
-      {[
-        ...imageExits.items.map((image) => ({ image, ready: image })),
-        ...preparingImages.map((image) => ({ image, ready: null })),
-      ]
-        .map(({ image, ready }) => {
-          const source = ready?.source;
-          const upload =
-            ready && supportsAttachmentUploads ? uploadsByImageId[image.id] : undefined;
+      {imageExits.items
+        .map((image) => {
+          const upload = supportsAttachmentUploads ? uploadsByImageId[image.id] : undefined;
           const snapShotAnimationPending =
-            source?.kind === "snap-shot" && pendingSnapShotIdSet.has(image.id);
+            image.source?.kind === "snap-shot" && pendingSnapShotIdSet.has(image.id);
           const snapShotArrival =
-            source?.kind === "snap-shot" && shouldAnimateSnapShotArrival(source.capturedAt);
+            image.source?.kind === "snap-shot" &&
+            shouldAnimateSnapShotArrival(image.source.capturedAt);
           const presence = imageExits.presence(image.id);
           const entering =
             !snapShotAnimationPending &&
-            (source?.kind === "snap-shot"
+            (image.source?.kind === "snap-shot"
               ? snapShotAnimations && snapShotArrival
               : arrivedIds.has(image.id));
           return (
@@ -188,20 +180,19 @@ export function ComposerAttachmentMediaRow({
               inert={snapShotAnimationPending || presence.inert}
               arrival={snapShotArrival}
               animationId={snapShotAnimationPending ? image.id : undefined}
-              animationSource={snapShotAnimationPending ? source : undefined}
+              animationSource={snapShotAnimationPending ? image.source : undefined}
               className={cn(
                 "group/attachment shrink-0 snap-start bg-background",
-                source?.kind === "snap-shot"
+                image.source?.kind === "snap-shot"
                   ? SNAP_SHOT_ATTACHMENT_FRAME_CLASS
                   : "relative h-16 w-16 overflow-hidden rounded-lg border border-border/80",
                 snapShotAnimationPending && "invisible",
               )}
             >
-              {!ready || ready.previewUrl ? (
+              {image.previewUrl ? (
                 <button
                   type="button"
-                  className={cn("h-full w-full", ready && "cursor-zoom-in")}
-                  disabled={!ready}
+                  className="h-full w-full cursor-zoom-in"
                   aria-label={`Preview ${image.name}`}
                   onClick={() => {
                     const preview = buildExpandedImagePreview(images, image.id);
@@ -211,15 +202,18 @@ export function ComposerAttachmentMediaRow({
                 >
                   <ComposerImageThumbnail
                     file={image.file}
-                    mode={source?.kind === "snap-shot" ? "snapshot" : "square"}
+                    mode={image.source?.kind === "snap-shot" ? "snapshot" : "square"}
                     alt={image.name}
                     className="h-full w-full"
                     fallback={
-                      ready && isHeicImageFile({ name: ready.name, type: ready.mimeType }) ? (
+                      isHeicImageFile({
+                        name: image.name,
+                        type: image.mimeType,
+                      }) ? (
                         <AttachmentImage
                           name={image.name}
-                          mimeType={ready.mimeType}
-                          src={ready.previewUrl}
+                          mimeType={image.mimeType}
+                          src={image.previewUrl}
                           alt={image.name}
                           className="h-full w-full object-cover"
                         />
@@ -236,9 +230,9 @@ export function ComposerAttachmentMediaRow({
                   {image.name}
                 </div>
               )}
-              {source?.kind === "snap-shot" ? (
+              {image.source?.kind === "snap-shot" ? (
                 <SnapShotAttachmentDetails
-                  source={source}
+                  source={image.source}
                   className={cn(
                     upload?.status === "uploading" && "bottom-4",
                     upload?.status === "failed" && "bottom-8",
@@ -263,14 +257,12 @@ export function ComposerAttachmentMediaRow({
                   </TooltipPopup>
                 </Tooltip>
               )}
-              {(ready ? upload?.status === "uploading" : supportsAttachmentUploads) && (
+              {upload?.status === "uploading" && (
                 <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-background/85 px-1 text-center text-3xs text-foreground">
-                  {formatAttachmentUploadProgress(
-                    upload?.status === "uploading" ? upload.progress : 0,
-                  )}
+                  {formatAttachmentUploadProgress(upload.progress)}
                 </span>
               )}
-              {ready && upload?.status === "failed" && (
+              {upload?.status === "failed" && (
                 <Tooltip>
                   <TooltipTrigger
                     render={
@@ -281,7 +273,7 @@ export function ComposerAttachmentMediaRow({
                         onClick={() =>
                           retryAttachmentUpload({
                             environmentId,
-                            image: ready,
+                            image,
                             draftTarget: attachmentDraftTarget,
                           })
                         }
@@ -297,7 +289,7 @@ export function ComposerAttachmentMediaRow({
               <span
                 className={cn(
                   "absolute right-1 top-1 flex",
-                  source?.kind === "snap-shot" &&
+                  image.source?.kind === "snap-shot" &&
                     "opacity-0 transition-opacity pointer-coarse:opacity-100 group-hover/attachment:opacity-100 group-focus-within/attachment:opacity-100",
                 )}
               >

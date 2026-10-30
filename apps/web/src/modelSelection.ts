@@ -31,12 +31,15 @@ import {
   NO_PROVIDER_MODEL_SELECTION,
 } from "./providerInstances";
 import { sortModelsForProviderInstance } from "./modelOrdering";
-import { resolveModelShortName } from "@supaterm/client-runtime/provider-clients";
 
 export const MAX_CUSTOM_MODEL_LENGTH = 256;
 const DEFAULT_TEXT_GENERATION_INSTANCE_ID = ProviderInstanceId.make("codex");
 
-// Legacy per-driver buckets would leak custom-instance models into stock instances.
+/**
+ * Custom instances intentionally do not read the legacy per-driver bucket;
+ * otherwise one custom model added to `claude_openrouter` can appear on the
+ * stock `claudeAgent` instance.
+ */
 function readInstanceCustomModels(
   settings: UnifiedSettings,
   instanceId: ProviderInstanceId,
@@ -86,17 +89,13 @@ function appendUnavailableDynamicModelSelection(
   return [...options, { slug, name: slug, isCustom: false, isUnavailable: true }];
 }
 
-function toAppModelOption(
-  model: ServerProvider["models"][number],
-  driverKind: ProviderDriverKind,
-): AppModelOption {
+function toAppModelOption(model: ServerProvider["models"][number]): AppModelOption {
   const option: AppModelOption = {
     slug: model.slug,
     name: model.name,
     isCustom: model.isCustom,
   };
-  const shortName = resolveModelShortName(model, driverKind);
-  if (shortName) option.shortName = shortName;
+  if (model.shortName) option.shortName = model.shortName;
   if (model.subProvider) option.subProvider = model.subProvider;
   if (model.aliases) option.aliases = model.aliases;
   if (model.badge) option.badge = model.badge;
@@ -161,10 +160,12 @@ function getAppModelOptions(
   selectedModel?: string | null,
 ): AppModelOption[] {
   const rawModels = getProviderModels(providers, provider);
-  // Server custom-model snapshots can lag removals; rebuild custom rows from settings.
+  // Server-reported custom rows mirror settings and can lag a removal, so
+  // only built-ins are taken from the snapshot; custom rows are rebuilt from
+  // settings below.
   const options: AppModelOption[] = rawModels
     .filter((model) => !model.isCustom)
-    .map((model) => toAppModelOption(model, provider));
+    .map(toAppModelOption);
   const seen = new Set(options.map((option) => option.slug));
   const builtInModelSlugs = new Set(
     Arr.filterMap(getProviderModels(providers, provider), (model) =>
@@ -180,13 +181,7 @@ function getAppModelOptions(
     }
 
     seen.add(entry.slug);
-    const shortName = resolveModelShortName(entry, provider);
-    options.push({
-      slug: entry.slug,
-      name: entry.name,
-      isCustom: true,
-      ...(shortName ? { shortName } : {}),
-    });
+    options.push({ slug: entry.slug, name: entry.name, isCustom: true });
   }
 
   const preferences = readInstanceModelPreferences(settings, defaultInstanceId);
@@ -206,7 +201,7 @@ export function getAppModelOptionsForInstance(
 ): AppModelOption[] {
   const options: AppModelOption[] = entry.models
     .filter((model) => !model.isCustom)
-    .map((model) => toAppModelOption(model, entry.driverKind));
+    .map(toAppModelOption);
   const seen = new Set(options.map((option) => option.slug));
   const builtInModelSlugs = new Set(
     Arr.filterMap(entry.models, (model) =>
@@ -221,13 +216,7 @@ export function getAppModelOptionsForInstance(
     }
 
     seen.add(custom.slug);
-    const shortName = resolveModelShortName(custom, entry.driverKind);
-    options.push({
-      slug: custom.slug,
-      name: custom.name,
-      isCustom: true,
-      ...(shortName ? { shortName } : {}),
-    });
+    options.push({ slug: custom.slug, name: custom.name, isCustom: true });
   }
 
   const preferences = readInstanceModelPreferences(settings, entry.instanceId);
@@ -347,7 +336,9 @@ export function resolveAppModelSelectionState(
     selectedEntry ?? entries.find((candidate) => candidate.enabled && candidate.isAvailable);
   if (entry) {
     const selectedModel = selectedEntry ? selection.model : null;
-    // Use the cheap generation default; the catalog default is the expensive chat flagship.
+    // A saved model the catalog no longer lists, or a new fallback instance,
+    // gets the driver's cheap text generation default. The catalog's own
+    // default is the flagship chat model, which is too expensive here.
     const options = getAppModelOptionsForInstance(settings, entry);
     const model =
       resolveSelectableModel(entry.driverKind, selectedModel, options) ??

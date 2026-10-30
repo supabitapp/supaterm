@@ -9,8 +9,6 @@ import {
   AuthSessionState,
   sessionGrantsScope,
 } from "./auth.ts";
-import { EnvironmentAuthInvalidError } from "./environmentHttp.ts";
-import { DpopFailureReason } from "./index.ts";
 
 describe("authorization grants", () => {
   it("reports the full grant", () => {
@@ -64,41 +62,5 @@ describe("AuthEnvironmentScopes", () => {
       scopes: ["orchestration:read", "relay:read"],
     });
     expect(session.scopes).toEqual(["orchestration:read"]);
-  });
-});
-
-const authFailureJson = Schema.toCodecJson(EnvironmentAuthInvalidError);
-const decodeAuthFailure = Schema.decodeUnknownSync(authFailureJson);
-const encodeAuthFailure = Schema.encodeSync(authFailureJson);
-const decodeDpopFailureReason = Schema.decodeUnknownSync(DpopFailureReason);
-const authFailure = {
-  _tag: "EnvironmentAuthInvalidError",
-  code: "auth_invalid",
-  reason: "invalid_credential",
-  traceId: "auth-trace",
-};
-
-describe("DPoP authentication failures", () => {
-  it.each([
-    "time_window",
-    "key_mismatch",
-    "request_mismatch",
-    "token_mismatch",
-    "invalid_proof",
-    "replay",
-  ])("preserves %s through the HTTP error codec", (dpopFailureReason) => {
-    expect(decodeDpopFailureReason(dpopFailureReason)).toBe(dpopFailureReason);
-    const input = { ...authFailure, dpopFailureReason };
-    expect(encodeAuthFailure(decodeAuthFailure(input))).toEqual(input);
-  });
-
-  it("keeps older authentication failures readable without a DPoP reason", () => {
-    expect(encodeAuthFailure(decodeAuthFailure(authFailure))).toEqual(authFailure);
-  });
-
-  it("rejects unknown or verifier-internal reasons at the wire boundary", () => {
-    for (const dpopFailureReason of ["method_mismatch", "url_mismatch", "future_reason", null]) {
-      expect(() => decodeAuthFailure({ ...authFailure, dpopFailureReason })).toThrow();
-    }
   });
 });

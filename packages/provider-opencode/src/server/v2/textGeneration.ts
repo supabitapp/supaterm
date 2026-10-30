@@ -1,3 +1,8 @@
+/**
+ * Both of its `generate` endpoints answer 403 on OpenCode's free tier ("free tier can only be
+ * used from within OpenCode"), so each request runs as a prompt in a temporary session, as 1.x
+ * does, and the session is removed afterwards.
+ */
 import { AbsolutePath, Location, Model, Provider, Session } from "@opencode/client/effect";
 import { TextGenerationError } from "@supaterm/contracts";
 import { getModelSelectionStringOptionValue } from "@supaterm/shared/model";
@@ -15,8 +20,14 @@ const isTextGenerationError = Schema.is(TextGenerationError);
 
 const GENERATION_TIMEOUT = "3 minutes";
 
+/**
+ * Denying `shell` or `read` outright gets the whole session refused on
+ * OpenCode's free models, and an ask that is never answered would hang, so asks
+ * are rejected as they arrive.
+ */
 const GENERATION_PERMISSIONS = [{ action: "*", resource: "*", effect: "ask" }] as const;
 
+/** A failure's cause is the provider's own error, kept out of `detail`. */
 type Outcome =
   | { readonly _tag: "text"; readonly text: string }
   | { readonly _tag: "failed"; readonly detail: string; readonly cause?: unknown };

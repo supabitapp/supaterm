@@ -128,9 +128,8 @@ another link to share.
 ### Reach one machine several ways
 
 A saved machine can keep several routes, including LAN, Tailscale, a public URL,
-and SSH. Choose **Add route** from its route list to authorize another address. A generic
-pairing link for an unknown address cannot add it to a saved machine. Pairing again through an
-already saved address refreshes credentials.
+and SSH. Pair it again using another address, or choose **Add route** from its
+route list. Both addresses belong to the same machine in your client.
 
 Supaterm also learns the LAN and Tailscale addresses reported by a paired
 machine. A relay pairing doesn't use plain HTTP addresses; it reaches the host
@@ -390,27 +389,3 @@ history, and saved connections are kept, and you keep working through paired env
 
 Switch **Local environment** back on in the same place to restart with your previous local
 settings.
-
-## Link environments for agents
-
-Linked environments is a beta, off by default. Enable it in **Settings → Labs** on both
-machines, then open **Settings → Connections → Linked environments** on the initiating machine.
-Link the destination using its address and a fresh pairing code. A saved client connection
-alone does not authorize agents to work on that machine.
-
-The chosen access is a ceiling; an agent cannot exceed its own permission mode. Below full
-access, agents may change only threads created through that link and do not run project setup
-scripts. **Forget** removes the local link; revoke its session on the destination to end access.
-
-Agents can delegate work to a linked environment and return its result to the parent thread.
-Use `@` in the composer to reference a linked machine or one of its threads. Both machines must
-be reachable. Turning the beta off prevents new remote work while existing tasks retain their
-completion and stop paths.
-
-## Pair with the desktop app
-
-Open a `supaterm://pair` app link to add its server to the desktop app. Confirm the displayed
-address before pairing. A new address for an existing environment still needs **Add route**.
-
-For an Android connection to a private HTTPS server, install its certificate authority as a
-**CA certificate** in Android security settings. Removing that CA removes the trust it provided.

@@ -1,4 +1,3 @@
-import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { ProjectId, type PullRequestStack, type ThreadPullRequestLink } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 import {
@@ -6,8 +5,6 @@ import {
   savedPullRequestStack,
   singlePullRequestMergeAllowed,
 } from "./pullRequestStack";
-
-const GITHUB = sourceControlClients.get("github").changeRequest;
 
 const stack: PullRequestStack = {
   id: "stack",
@@ -49,14 +46,14 @@ const link: ThreadPullRequestLink = {
 
 describe("mobile stack merge scope", () => {
   it("merges only the prefix through the selected PR, preserving host order", () => {
-    const scope = pullRequestStackMerge(stack, 2, GITHUB);
+    const scope = pullRequestStackMerge(stack, 2);
     expect(scope.position).toBe(2);
     expect(scope.heads).toEqual([
       { number: 1, headSha: "sha-1" },
       { number: 2, headSha: "sha-2" },
     ]);
     expect(scope.reason).toBeNull();
-    expect(pullRequestStackMerge(stack, 3, GITHUB).heads).toHaveLength(3);
+    expect(pullRequestStackMerge(stack, 3).heads).toHaveLength(3);
   });
   it("excludes already merged layers from the expected head revisions", () => {
     const updated = {
@@ -65,11 +62,9 @@ describe("mobile stack merge scope", () => {
         layer.number === 1 ? { ...layer, state: "merged" as const, headSha: undefined } : layer,
       ),
     };
-    expect(pullRequestStackMerge(updated, 2, GITHUB).heads).toEqual([
-      { number: 2, headSha: "sha-2" },
-    ]);
-    expect(pullRequestStackMerge(updated, 2, GITHUB).reason).toBeNull();
-    expect(pullRequestStackMerge(updated, 1, GITHUB).reason).toContain("no open layers");
+    expect(pullRequestStackMerge(updated, 2).heads).toEqual([{ number: 2, headSha: "sha-2" }]);
+    expect(pullRequestStackMerge(updated, 2).reason).toBeNull();
+    expect(pullRequestStackMerge(updated, 1).reason).toContain("no open layers");
   });
   it("blocks closed and draft dependencies, but permits them above the target", () => {
     const closed = {
@@ -78,27 +73,24 @@ describe("mobile stack merge scope", () => {
         layer.number === 2 ? { ...layer, state: "closed" as const } : layer,
       ),
     };
-    expect(pullRequestStackMerge(closed, 3, GITHUB).reason).toContain("Reopen");
-    expect(pullRequestStackMerge(closed, 1, GITHUB).reason).toBeNull();
+    expect(pullRequestStackMerge(closed, 3).reason).toContain("Reopen");
+    expect(pullRequestStackMerge(closed, 1).reason).toBeNull();
     const draft = {
       ...stack,
       layers: stack.layers.map((layer) =>
         layer.number === 2 ? { ...layer, isDraft: true } : layer,
       ),
     };
-    expect(pullRequestStackMerge(draft, 3, GITHUB).reason).toContain("ready for review");
-    expect(pullRequestStackMerge(draft, 1, GITHUB).reason).toBeNull();
+    expect(pullRequestStackMerge(draft, 3).reason).toContain("ready for review");
+    expect(pullRequestStackMerge(draft, 1).reason).toBeNull();
   });
   it("blocks missing revisions and a PR removed from the stack", () => {
     const unknown = {
       ...stack,
       layers: stack.layers.map((layer) => ({ ...layer, headSha: undefined })),
     };
-    expect(pullRequestStackMerge(unknown, 2, GITHUB).reason).toContain("latest revisions");
-    expect(pullRequestStackMerge(stack, 99, GITHUB).reason).toContain("no longer in the stack");
-    expect(
-      pullRequestStackMerge(stack, 99, sourceControlClients.get("gitlab").changeRequest).reason,
-    ).toBe("This merge request is no longer in the stack. Refresh it.");
+    expect(pullRequestStackMerge(unknown, 2).reason).toContain("latest revisions");
+    expect(pullRequestStackMerge(stack, 99).reason).toContain("no longer in the stack");
   });
   it("waits for successful discovery before allowing a single PR merge on modern servers", () => {
     expect(
@@ -130,7 +122,7 @@ describe("mobile saved stack navigation", () => {
     expect(saved?.layers).toHaveLength(3);
     expect(saved?.layers[1]).toMatchObject({ number: 2, title: "Middle layer", isDraft: false });
     expect(saved?.layers.every((layer) => layer.headSha === undefined)).toBe(true);
-    expect(pullRequestStackMerge(saved!, 2, GITHUB).reason).toContain("latest revisions");
+    expect(pullRequestStackMerge(saved!, 2).reason).toContain("latest revisions");
     expect(savedPullRequestStack([link], { ...reference, number: 3 })?.number).toBe(10);
   });
   it("never borrows membership from another host or repository", () => {

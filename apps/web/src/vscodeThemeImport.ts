@@ -98,7 +98,8 @@ function toHex(color: VsCodeRgb): string {
   return `#${channel(color.r)}${channel(color.g)}${channel(color.b)}`;
 }
 
-// Composite VS Code translucent overlays onto their surfaces; our roles are opaque.
+/** Overlays are semi-transparent in VS Code; our roles are opaque, so they are
+ *  composited onto whatever surface they sit on. */
 function flattenOver(color: VsCodeRgba, base: VsCodeRgb): string {
   if (color.a >= 1) return toHex(color);
   return toHex({
@@ -275,7 +276,8 @@ export function parseVsCodeThemeFile(value: unknown): ThemeDefinition {
   };
 
   const surfaceRaisedHex = raisedSurfaceCandidateHex ?? derived.surfaceRaised;
-  // Checked tracks use messageAction; resolve it before the unchecked input role.
+  // The checked switch track maps to messageAction, so resolve it before
+  // choosing the input role used by the unchecked track.
   const buttonHex = solidOver(canvas, "button.background");
   const actionHex =
     buttonHex && standsApart(buttonHex, canvasHex) && standsApart(buttonHex, surfaceRaisedHex)
@@ -475,6 +477,10 @@ export function pairVsCodeThemes(
   return [...passthrough, ...paired].sort((a, b) => a.order - b.order).map((entry) => entry.theme);
 }
 
+/**
+ * Some extensions reuse one display name across every file: Dracula ships
+ * dracula.json and dracula-soft.json that both say "Dracula".
+ */
 export function resolveThemeLabelCollisions(
   entries: ReadonlyArray<{ theme: ThemeDefinition; sourceName?: string | undefined }>,
 ): ReadonlyArray<ThemeDefinition> {

@@ -190,7 +190,6 @@ function ProjectScriptEditorForm({
   const isEditing = request?.scriptId != null;
   const isSaving = request !== null && savingRequest === request;
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Invalidates in-flight server save replies when their editor request is replaced or unmounted.
   useLayoutEffect(
     () => () => {
       if (pendingSubmissionRef.current?.request === request) {

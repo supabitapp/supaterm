@@ -1,7 +1,6 @@
 import {
   CommandId,
   MessageId,
-  type ProjectId,
   ScheduledTask,
   ScheduledTaskError,
   ScheduledTaskId,
@@ -27,7 +26,6 @@ import * as Ref from "effect/Ref";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
-import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import * as SqlClient from "effect/sql/SqlClient";
 
 import * as ThreadLaunchService from "../orchestration-v2/ThreadLaunchService.ts";
@@ -86,10 +84,6 @@ export class ScheduledTaskService extends Context.Service<
       input: ScheduledTaskDeleteInput,
     ) => Effect.Effect<ScheduledTaskDeleteResult, ScheduledTaskError>;
     readonly deleteForThread: (threadId: ThreadId) => Effect.Effect<void, ScheduledTaskError>;
-    readonly moveThreadTasks: (input: {
-      readonly threadIds: ReadonlyArray<ThreadId>;
-      readonly projectId: ProjectId;
-    }) => Effect.Effect<void, ScheduledTaskError>;
     /** The dispatched thread, or null if dispatch failed; leaves the task's binding unchanged. */
     readonly runNow: (
       input: ScheduledTaskRunNowInput,
@@ -119,6 +113,8 @@ function nextRunAt(
   from: DateTime.DateTime,
 ): string | null {
   if (!task.enabled) return null;
+  // A stored interval can decode yet overflow the representable DateTime
+  // range; an unrepresentable occurrence means the task has no next run.
   try {
     const next = nextScheduledRunAt(task.schedule, from);
     return next !== null && Number.isFinite(DateTime.toEpochMillis(next)) ? iso(next) : null;
@@ -183,12 +179,15 @@ export const listDueTasks = Effect.fn("ScheduledTaskService.listDueTasks")(funct
     WHERE enabled = 1 AND next_run_at IS NOT NULL
       AND next_run_at <= ${iso(now)} AND last_run_status <> 'running'
     ORDER BY next_run_at ASC, task_id ASC
-  `.pipe(NodeSqliteClient.readOnly);
+  `;
   const tasks: ScheduledTask[] = [];
   for (const row of rows) {
     const decoded = yield* Effect.result(decodeRow(row));
     if (Result.isSuccess(decoded)) {
       const task = decoded.success;
+      // next_run_at is a freeform string at the schema level; a stored value
+      // that cannot parse as a DateTime would defect the poll below, so the
+      // row is skipped here like any other corrupt row.
       if (task.nextRunAt === null || Option.isSome(DateTime.make(task.nextRunAt))) {
         tasks.push(task);
       } else {
@@ -206,29 +205,6 @@ export const listDueTasks = Effect.fn("ScheduledTaskService.listDueTasks")(funct
   return tasks;
 });
 
-const DUE_HINT_MAX_AGE_MS = 10 * 60 * 1_000;
-
-const makeDueHint = () => {
-  let version = 0;
-  let hint: { readonly dueAtMs: number; readonly checkedAtMs: number } | null = null;
-  return {
-    invalidate: Effect.sync(() => {
-      version++;
-      hint = null;
-    }),
-    version: Effect.sync(() => version),
-    isIdle: (nowMs: number) =>
-      Effect.sync(
-        () =>
-          hint !== null && hint.dueAtMs > nowMs && nowMs - hint.checkedAtMs < DUE_HINT_MAX_AGE_MS,
-      ),
-    record: (readVersion: number, dueAtMs: number, nowMs: number) =>
-      Effect.sync(() => {
-        if (readVersion === version) hint = { dueAtMs, checkedAtMs: nowMs };
-      }),
-  };
-};
-
 export const layer = Layer.effect(
   ScheduledTaskService,
   Effect.gen(function* () {
@@ -243,14 +219,9 @@ export const layer = Layer.effect(
     // full list() re-emit anyway, so a slow subscriber only ever needs the
     // latest signal — an unbounded backlog would just grow memory.
     const changesPubSub = yield* PubSub.sliding<void>(1);
-    const dueTasks = makeDueHint();
-    const notifyChanged = dueTasks.invalidate.pipe(
-      Effect.andThen(PubSub.publish(changesPubSub, undefined)),
-      Effect.asVoid,
-    );
+    const notifyChanged = PubSub.publish(changesPubSub, undefined).pipe(Effect.asVoid);
 
-    const selectAllRows = () =>
-      sql<ScheduledTaskRow>`
+    const selectAllRows = () => sql<ScheduledTaskRow>`
       SELECT
         task_id,
         title,
@@ -276,10 +247,10 @@ export const layer = Layer.effect(
       -- Not updated_at: toggles, runs and edits rewrite it, and clients render
       -- this order as-is, so rows would move under the pointer.
       ORDER BY created_at DESC, task_id ASC
-    `.pipe(NodeSqliteClient.readOnly);
+    `;
 
     const listRows = Effect.fn("ScheduledTaskService.listRows")(function* () {
-      const rows = yield* selectAllRows().pipe(NodeSqliteClient.readOnly);
+      const rows = yield* selectAllRows();
       return yield* Effect.forEach(rows, decodeRow, { concurrency: 1 });
     });
 
@@ -311,7 +282,6 @@ export const layer = Layer.effect(
 
     const findTask = Effect.fn("ScheduledTaskService.findTask")(function* (id: ScheduledTaskId) {
       const rows = yield* getRows(id).pipe(
-        NodeSqliteClient.readOnly,
         Effect.mapError((cause) =>
           taskError("Could not load schedule task.", { taskId: id, cause }),
         ),
@@ -329,6 +299,11 @@ export const layer = Layer.effect(
       return task;
     });
 
+    // Run-state columns (last_run_*, run_count) are intentionally absent from
+    // the conflict clause: they are owned by the run transitions below, and a
+    // concurrent settings save must not overwrite an in-flight increment.
+    // Check existence in the write itself so an edit cannot undo a deletion
+    // that landed after upsert loaded the previous task.
     const saveTask = (task: ScheduledTask, requireExisting: boolean) =>
       sql<{ task_id: string }>`
         INSERT INTO scheduled_tasks (
@@ -448,6 +423,11 @@ export const layer = Layer.effect(
         ),
       );
 
+    // Best-effort escape hatch: if anything fails between markRunning and
+    // markCompleted, write a full terminal record so runDueTasks neither skips
+    // the task forever (it filters out 'running' rows) nor re-fires it
+    // immediately: the dispatch may already have gone out, so next_run_at must
+    // advance and run_count must count the attempt.
     const releaseStuckRun = Effect.fn("ScheduledTaskService.releaseStuckRun")(
       function* (task: ScheduledTask, message: string) {
         const now = yield* localNow;
@@ -527,39 +507,6 @@ export const layer = Layer.effect(
         // Dispatch from the fresh row so prompt/model/binding edits made
         // after the poll read are honoured.
         const prompt = active.prompt;
-        const sendBound = (
-          threadId: ThreadId,
-          projectId: ScheduledTask["projectId"],
-          retries: number,
-        ): ReturnType<typeof threadManagement.sendToThread> =>
-          threadManagement
-            .sendToThread({
-              projectId,
-              commandId,
-              threadId,
-              messageId,
-              scheduledTaskId: active.id,
-              text: prompt,
-              attachments: [],
-              mode: "queue",
-              createdBy: active.createdBy,
-              creationSource: active.creationSource,
-            })
-            .pipe(
-              Effect.catchTags({
-                ThreadManagementThreadNotFoundError: (error) =>
-                  retries === 0
-                    ? Effect.fail(error)
-                    : threadManagement.getThreadShell(threadId).pipe(
-                        Effect.orElseSucceed(() => null),
-                        Effect.flatMap((shell) =>
-                          shell === null || shell.projectId === projectId
-                            ? Effect.fail(error)
-                            : sendBound(threadId, shell.projectId, retries - 1),
-                        ),
-                      ),
-              }),
-            );
 
         // Effect.exit (not Effect.result) so defects and interruptions in the
         // dispatch are also captured and recorded as a failed run instead of
@@ -588,9 +535,20 @@ export const layer = Layer.effect(
                   .pipe(Effect.map((launched) => launched.threadId)),
               )
             : yield* Effect.exit(
-                sendBound(ThreadId.make(active.threadId), active.projectId, 2).pipe(
-                  Effect.as(ThreadId.make(active.threadId)),
-                ),
+                threadManagement
+                  .sendToThread({
+                    projectId: active.projectId,
+                    commandId,
+                    threadId: ThreadId.make(active.threadId),
+                    messageId,
+                    scheduledTaskId: active.id,
+                    text: prompt,
+                    attachments: [],
+                    mode: "queue",
+                    createdBy: active.createdBy,
+                    creationSource: active.creationSource,
+                  })
+                  .pipe(Effect.as(ThreadId.make(active.threadId))),
               );
 
         const completedAt = yield* localNow;
@@ -661,27 +619,6 @@ export const layer = Layer.effect(
 
     const runDueTasks = Effect.fn("ScheduledTaskService.runDueTasks")(function* () {
       const now = yield* localNow;
-      const nowMs = DateTime.toEpochMillis(now);
-      if (yield* dueTasks.isIdle(nowMs)) return;
-      const readVersion = yield* dueTasks.version;
-      const [next] = yield* sql<{ next_run_at: string | null }>`
-        SELECT MIN(next_run_at) AS next_run_at FROM scheduled_tasks
-        WHERE enabled = 1 AND next_run_at IS NOT NULL AND last_run_status <> 'running'
-      `.pipe(
-        NodeSqliteClient.readOnly,
-        Effect.mapError((cause) => taskError("Could not list schedule tasks.", { cause })),
-      );
-      const nextRunAt = next?.next_run_at ?? null;
-      if (nextRunAt === null || nextRunAt > iso(now)) {
-        const nextDueAt =
-          nextRunAt === null
-            ? Option.some(Infinity)
-            : DateTime.make(nextRunAt).pipe(Option.map(DateTime.toEpochMillis));
-        if (Option.isSome(nextDueAt) && nextDueAt.value > nowMs) {
-          yield* dueTasks.record(readVersion, nextDueAt.value, nowMs);
-        }
-        return;
-      }
       const tasks = yield* listDueTasks(now).pipe(
         Effect.mapError((cause) => taskError("Could not list schedule tasks.", { cause })),
       );
@@ -706,7 +643,7 @@ export const layer = Layer.effect(
     // Recover from a crash or hard shutdown mid-run: rows stuck in 'running'
     // would otherwise be skipped by the due-task filter forever.
     yield* Effect.gen(function* () {
-      const rows = yield* selectAllRows().pipe(NodeSqliteClient.readOnly);
+      const rows = yield* selectAllRows();
       const stuck = rows.filter((row) => row.last_run_status === "running");
       if (stuck.length === 0) return;
       const now = yield* localNow;
@@ -760,6 +697,8 @@ export const layer = Layer.effect(
     const subscribeList: ScheduledTaskService["Service"]["subscribeList"] = () =>
       Stream.unwrap(
         Effect.gen(function* () {
+          // Subscribe before taking the snapshot so a change landing between
+          // the two is buffered by the subscription rather than dropped.
           const subscription = yield* PubSub.subscribe(changesPubSub);
           return Stream.concat(
             Stream.fromEffect(list()),
@@ -878,22 +817,6 @@ export const layer = Layer.effect(
       if (removed.length > 0) yield* notifyChanged;
     });
 
-    const moveThreadTasks: ScheduledTaskService["Service"]["moveThreadTasks"] = Effect.fn(
-      "ScheduledTaskService.moveThreadTasks",
-    )(function* (input) {
-      if (input.threadIds.length === 0) return;
-      const moved = yield* sql<{ task_id: ScheduledTaskId }>`
-        UPDATE scheduled_tasks SET project_id = ${input.projectId}
-        WHERE project_id != ${input.projectId} AND thread_id IN ${sql.in(input.threadIds)}
-        RETURNING task_id
-      `.pipe(
-        Effect.mapError((cause) =>
-          taskError("Could not move the thread's schedule tasks.", { cause }),
-        ),
-      );
-      if (moved.length > 0) yield* notifyChanged;
-    });
-
     const runNow: ScheduledTaskService["Service"]["runNow"] = Effect.fn(
       "ScheduledTaskService.runNow",
     )(function* (input: ScheduledTaskRunNowInput) {
@@ -912,7 +835,6 @@ export const layer = Layer.effect(
       setEnabled,
       delete: deleteTask,
       deleteForThread,
-      moveThreadTasks,
       runNow,
     });
   }),

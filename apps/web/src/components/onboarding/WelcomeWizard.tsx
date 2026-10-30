@@ -54,7 +54,7 @@ import {
 } from "../../onboarding/providerReadiness.logic";
 import { newProjectId, randomUUID } from "../../lib/utils";
 import { agentSessionImport } from "../../state/agentSessions";
-import { readProjects, waitForProject } from "../../state/entities";
+import { readProjects, useProjects } from "../../state/entities";
 import { useEnvironments, usePrimaryEnvironment } from "../../state/environments";
 import { resolveOnboardingSetup } from "../../onboarding/targetEnvironment.logic";
 import { useProjectScans } from "../../onboarding/useProjectScans";
@@ -92,6 +92,15 @@ import { toastManager } from "../ui/toast";
 import { cn } from "../../lib/utils";
 import { formatRelativeTime } from "../../timestampFormat";
 
+/**
+ * First-run welcome wizard. Rendered over the workspace at `/welcome` on a
+ * fresh install (no completed-onboarding flag, empty workspace). Flow per the
+ * onboarding overhaul spec: connection choice → pair →
+ * managed Codex setup or an inline CLI terminal → project import → main screen.
+ * Every step past the connection gate is skippable; the whole wizard is
+ * re-runnable by clearing the flag.
+ */
+
 type WizardStep = "connection" | "agents" | "import";
 const NO_ENVIRONMENTS: readonly EnvironmentId[] = [];
 
@@ -121,7 +130,6 @@ export function WelcomeWizard({
   const finishingPromiseRef = useRef<Promise<boolean> | null>(null);
   const completionErrorToastIdRef = useRef<ReturnType<typeof toastManager.add> | null>(null);
   const primaryEnvironment = usePrimaryEnvironment();
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- keeps the wizard selection registry in step with newly connected computers, recording each once
   useEffect(() => {
     const newComputers = environments.filter(
       (environment) => !autoSelectedComputers.has(environment.environmentId),
@@ -281,7 +289,6 @@ function ConnectionStep({
     .filter((environment) => skippedIds.includes(environment.environmentId))
     .map((environment) => environment.label);
   const continueRef = useRef<HTMLButtonElement>(null);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- focuses the Continue button when connection readiness first permits the next step
   useEffect(() => {
     if (
       ready &&
@@ -424,7 +431,6 @@ function PairingForm({
   const [errorMessage, setErrorMessage] = useState("");
   const mountedRef = useRef(true);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- guards an in-flight pairing result against updating an unmounted form
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -591,7 +597,6 @@ function ConnectedAgentsStep({
   } | null>(null);
   const canOperateTerminal = useEnvironmentScope(environmentId, AuthTerminalOperateScope);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- refreshes the external provider catalog when the setup machine changes
   useEffect(() => {
     void refreshProviders({ environmentId, input: {} });
   }, [environmentId, refreshProviders]);
@@ -918,7 +923,6 @@ function AgentInstallTerminal({
   // In Strict Mode, a canceled open can finish after the replacement setup
   // starts; it must not close or pre-type into the replacement session that
   // shares this terminal id.
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- opens and disposes the onboarding terminal, serializing replacement sessions during Strict Mode
   useEffect(() => {
     const generation = setupGenerationRef.current + 1;
     setupGenerationRef.current = generation;
@@ -1038,6 +1042,7 @@ function AgentInstallTerminal({
             providerInstanceId={providerInstanceId}
             advancedTypography={advancedTypography}
             onSessionExited={onClose}
+            focusRequestId={1}
             autoFocus
             visible
             resizeEpoch={0}
@@ -1071,9 +1076,14 @@ function ImportStep({
   const writableEnvironments = useEnvironmentsWithScope(scans, AuthOrchestrationOperateScope);
   const createProject = useAtomCommand(projectEnvironment.create, { reportFailure: false });
   const importThreads = useAtomCommand(agentSessionImport, { reportFailure: false });
+  const projects = useProjects();
   const [selectedPaths, setSelectedPaths] = useState<ReadonlySet<string> | null>(null);
   const importWarningRef = useRef("");
   const importedThreadCountRef = useRef(0);
+  const [landingRequest, setLandingRequest] = useState<{
+    readonly projectRef: ScopedProjectRef;
+  } | null>(null);
+  const handledLandingRequestRef = useRef<typeof landingRequest>(null);
   const importedProjectsRef = useRef(new Map<string, ScopedProjectRef>());
   const projectsWithImportedHistoryRef = useRef(new Map<string, ScopedProjectRef>());
   const lastImportSelectionRef = useRef<ReadonlyArray<string>>([]);
@@ -1082,13 +1092,31 @@ function ImportStep({
   );
   const importGenerationRef = useRef(0);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- invalidates in-flight import work when the importing step unmounts
   useEffect(() => {
     importGenerationRef.current += 1;
     return () => {
       importGenerationRef.current += 1;
     };
   }, []);
+
+  useEffect(() => {
+    if (landingRequest === null || handledLandingRequestRef.current === landingRequest) return;
+    const landingProject = landingRequest.projectRef;
+    if (
+      projects.some(
+        (project) =>
+          project.id === landingProject.projectId &&
+          project.environmentId === landingProject.environmentId,
+      )
+    ) {
+      handledLandingRequestRef.current = landingRequest;
+      void onDone(landingProject, importWarningRef.current, importedThreadCountRef.current).then(
+        (completed) => {
+          if (!completed) setIsImporting(false);
+        },
+      );
+    }
+  }, [landingRequest, onDone, projects, setIsImporting]);
 
   const { available: candidates, recent } = partitionOnboardingProjects(
     scans.flatMap((scan) =>
@@ -1123,21 +1151,7 @@ function ImportStep({
       return;
     }
     setIsImporting(true);
-    const importGeneration = importGenerationRef.current;
-    void waitForProject(projectRef)
-      .then(
-        () => projectRef,
-        () => undefined,
-      )
-      .then(async (landing) => {
-        if (importGeneration !== importGenerationRef.current) return;
-        const completed = await onDone(
-          landing,
-          importWarningRef.current,
-          importedThreadCountRef.current,
-        );
-        if (!completed) setIsImporting(false);
-      });
+    setLandingRequest({ projectRef });
   };
 
   const runImport = async (selection: typeof candidates) => {

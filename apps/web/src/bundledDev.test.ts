@@ -12,7 +12,7 @@ import { expect, it } from "vite-plus/test";
 
 const execFile = NodeUtil.promisify(NodeChildProcess.execFile);
 
-it.each(["/", "/guest"])("initializes React refresh before loading %s", async (pathname) => {
+it("initializes React refresh before a shared UI chunk runs in bundled dev", async () => {
   const root = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "supaterm-bootstrap-"));
   const output = NodePath.join(root, "output");
   let resolveBundle!: (files: Map<string, string>) => void;
@@ -26,25 +26,18 @@ it.each(["/", "/guest"])("initializes React refresh before loading %s", async (p
   try {
     await NodeFSP.mkdir(NodePath.join(root, "src/lib"), { recursive: true });
     await NodeFSP.writeFile(NodePath.join(root, "package.json"), '{"type":"module"}');
-    for (const file of [
-      "index.html",
-      "src/bootstrap.ts",
-      "src/guestPage.ts",
-      "src/lib/bootError.ts",
-    ]) {
+    for (const file of ["index.html", "src/bootstrap.ts", "src/lib/bootError.ts"]) {
       await NodeFSP.copyFile(new URL(`../${file}`, import.meta.url), NodePath.join(root, file));
     }
     await NodeFSP.writeFile(
       NodePath.join(root, "src/shared.tsx"),
       "export function Shared() { return <div>ready</div>; }",
     );
-    for (const entry of ["main", "guestMain"]) {
-      await NodeFSP.writeFile(
-        NodePath.join(root, `src/${entry}.tsx`),
-        `import { Shared } from "./shared";
-export const startup = Promise.resolve().then(() => globalThis.onStarted(Shared(), "${entry}"));`,
-      );
-    }
+    await NodeFSP.writeFile(
+      NodePath.join(root, "src/main.tsx"),
+      `import { Shared } from "./shared";
+export const startup = Promise.resolve().then(() => globalThis.onStarted(Shared()));`,
+    );
 
     server = await createServer({
       configFile: false,
@@ -80,11 +73,7 @@ export const startup = Promise.resolve().then(() => globalThis.onStarted(Shared(
             codeSplitting: {
               groups: [
                 { name: "vendor", test: /node_modules|@react-refresh/, priority: 10 },
-                {
-                  name: "shared-ui",
-                  test: /shared\.tsx$/,
-                  includeDependenciesRecursively: false,
-                },
+                { name: "shared-ui", test: /shared\.tsx$/, includeDependenciesRecursively: false },
               ],
             },
           },
@@ -105,7 +94,6 @@ export const startup = Promise.resolve().then(() => globalThis.onStarted(Shared(
       `import assert from "node:assert/strict";
 const started = Promise.withResolvers();
 globalThis.window = globalThis;
-globalThis.location = { pathname: ${JSON.stringify(pathname)} };
 globalThis.document = {
   createElement: () => ({ relList: { supports: () => true } }),
   getElementById: () => null,
@@ -115,11 +103,10 @@ globalThis.__rolldown_runtime__ = {
   registerModule() {},
   createModuleHotContext: () => ({ accept() {} }),
 };
-globalThis.onStarted = (element, entry) => started.resolve({ element, entry });
+globalThis.onStarted = started.resolve;
 console.error = (_message, error) => started.reject(error);
 await import("./assets/index.js");
-const { element, entry } = await started.promise;
-assert.equal(entry, ${JSON.stringify(pathname === "/guest" ? "guestMain" : "main")});
+const element = await started.promise;
 assert.equal(element.props.children, "ready");
 assert.equal(typeof window.$RefreshReg$, "function");
 console.log("App started with React refresh ready.");`,

@@ -1,12 +1,13 @@
 import type { EnvironmentId, RunId, ThreadId } from "@supaterm/contracts";
 import { assistantCitationsToPlainText } from "@supaterm/shared/assistantCitations";
-import { isAttachmentOnlyBootstrapPrompt } from "@supaterm/shared/composerContextReferences";
 
 export const REMOVE_QUEUED_MESSAGE_ACCESSIBILITY_LABEL = "Remove queued message";
 
 export interface ThreadQueueRowControls {
   readonly canDismiss: boolean;
   readonly canEdit: boolean;
+  readonly canMoveDown: boolean;
+  readonly canMoveUp: boolean;
   readonly canOpen: boolean;
   readonly canSend: boolean;
   readonly dismissAccessibilityLabel: string;
@@ -19,10 +20,10 @@ export function resolveThreadQueueRowControls(input: {
   readonly canOperate: boolean;
   readonly canPromoteToSteer: boolean;
   readonly canSendNow: boolean;
+  readonly canReorder: boolean;
+  readonly index: number;
   readonly isEditing?: boolean;
-  readonly editBlocked?: boolean;
-  /** A guest's message keeps the guest's words; the owner can cancel it, not rewrite it. */
-  readonly isGuestMessage?: boolean;
+  readonly queuedCount: number;
   readonly text: string;
 }): ThreadQueueRowControls {
   const mutationEnabled = input.canOperate && !input.busy;
@@ -30,16 +31,13 @@ export function resolveThreadQueueRowControls(input: {
 
   return {
     canDismiss: mutationEnabled,
-    canEdit:
-      mutationEnabled && !isEditing && input.isGuestMessage !== true && input.editBlocked !== true,
-    canOpen:
-      mutationEnabled &&
-      (isEditing || (input.isGuestMessage !== true && input.editBlocked !== true)),
+    canEdit: mutationEnabled && !isEditing,
+    canMoveDown: mutationEnabled && input.canReorder && input.index < input.queuedCount - 1,
+    canMoveUp: mutationEnabled && input.canReorder && input.index > 0,
+    canOpen: mutationEnabled,
     canSend: mutationEnabled && (input.canPromoteToSteer || input.canSendNow) && !isEditing,
     dismissAccessibilityLabel: REMOVE_QUEUED_MESSAGE_ACCESSIBILITY_LABEL,
-    displayText: isAttachmentOnlyBootstrapPrompt(input.text)
-      ? ""
-      : assistantCitationsToPlainText(input.text),
+    displayText: assistantCitationsToPlainText(input.text),
     isEditing,
   };
 }
@@ -62,4 +60,28 @@ export function buildCancelQueuedRunCommand(input: {
       threadId: input.threadId,
     },
   };
+}
+
+export function resolveQueueDragBeforeRunId(
+  rows: ReadonlyArray<{ id: RunId; y?: number; height?: number }>,
+  runId: RunId,
+  translationY: number,
+): RunId | null | undefined {
+  const sourceIndex = rows.findIndex((row) => row.id === runId);
+  const source = rows[sourceIndex];
+  if (!source || rows.some((row) => row.y === undefined || row.height === undefined)) return;
+  const center = source.y! + source.height! / 2 + translationY;
+  const remaining = rows.filter((row) => row.id !== runId);
+  return remaining.find((row) => center < row.y! + row.height! / 2)?.id ?? null;
+}
+
+export function resolveQueueDropBeforeRunId(
+  rows: ReadonlyArray<{ id: RunId; y?: number; height?: number }>,
+  runId: RunId,
+  translationY: number,
+): RunId | null | undefined {
+  const before = resolveQueueDragBeforeRunId(rows, runId, translationY);
+  if (before === undefined) return;
+  const sourceIndex = rows.findIndex((row) => row.id === runId);
+  return before === (rows[sourceIndex + 1]?.id ?? null) ? undefined : before;
 }

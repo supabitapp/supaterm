@@ -3,6 +3,7 @@ import {
   type BranchNamingOptions,
   type RepositoryIdentity,
   type VcsRef,
+  type SourceControlProviderInfo,
   type VcsStatusLocalResult,
   type VcsStatusRemoteResult,
   type VcsStatusResult,
@@ -11,6 +12,7 @@ import {
 import * as Arr from "effect/Array";
 import * as Result from "effect/Result";
 import { fileBasename } from "./path.ts";
+import { detectSourceControlProviderFromRemoteUrl } from "./sourceControl.ts";
 
 export const WORKTREE_BRANCH_PREFIX = "supaterm";
 
@@ -140,7 +142,10 @@ export function buildTemporaryWorktreeBranchName(
   return `${WORKTREE_BRANCH_PREFIX}/${token}`;
 }
 
-/** Flatten temporary supaterm/<hex> refs because an existing supaterm branch blocks nested refs. */
+/**
+ * Git stores refs as paths, so a plain `supaterm` branch makes every `supaterm/<hex>`
+ * ref impossible. This moves a temporary name to the flat `supaterm-<hex>` sibling.
+ */
 export function flattenTemporaryWorktreeBranchName(refName: string): string {
   const token = refName
     .trim()
@@ -169,45 +174,39 @@ function azureDevOpsRepositoryKey(host: string, segments: ReadonlyArray<string>)
     : `${organization}.visualstudio.com/${project}/_git/${repository}`;
 }
 
-function lowerCaseRemote(value: string): string {
-  return value
+export function normalizeGitRemoteUrl(value: string): string {
+  const normalized = value
     .trim()
     .replace(/\/+$/g, "")
     .replace(/\.git$/i, "")
     .toLowerCase();
-}
-
-export function parseGitRemoteRepository(
-  value: string,
-): { readonly host: string; readonly path: string } | null {
-  const normalized = lowerCaseRemote(value);
 
   if (/^(?:ssh|https?|git):\/\//i.test(normalized)) {
     try {
       const url = new URL(normalized);
       const repositorySegments = url.pathname.split("/").filter((segment) => segment.length > 0);
       if (url.hostname && repositorySegments.length > 1) {
-        const host =
-          url.protocol === "http:" || url.protocol === "https:" ? url.host : url.hostname;
-        return { host, path: repositorySegments.join("/") };
+        return (
+          azureDevOpsRepositoryKey(url.hostname, repositorySegments) ??
+          `${url.hostname}/${repositorySegments.join("/")}`
+        );
       }
     } catch {
-      return null;
+      return normalized;
     }
   }
+
+  // A userless one-letter prefix is a Windows drive, not an SCP host.
   const scpStyleHostAndPath = /^[a-z]:/i.test(normalized)
     ? null
     : /^(?:[a-zA-Z0-9._-]+@)?([^@:/\\\s]+):\/?([^/\s]+(?:\/[^/\s]+)+)$/i.exec(normalized);
   const scpHost = scpStyleHostAndPath?.[1];
   const scpPath = scpStyleHostAndPath?.[2];
-  return scpHost && scpPath ? { host: scpHost, path: scpPath } : null;
-}
+  if (scpHost && scpPath) {
+    return azureDevOpsRepositoryKey(scpHost, scpPath.split("/")) ?? `${scpHost}/${scpPath}`;
+  }
 
-export function normalizeGitRemoteUrl(value: string): string {
-  const repository = parseGitRemoteRepository(value);
-  if (repository === null) return lowerCaseRemote(value);
-  const host = repository.host.replace(/:\d+$/, "");
-  return azureDevOpsRepositoryKey(host, repository.path.split("/")) ?? `${host}/${repository.path}`;
+  return normalized;
 }
 
 export type GitRemoteDirection = "fetch" | "push";
@@ -327,11 +326,14 @@ export function parseOriginUrlFromGitConfig(configText: string): string | null {
   let section: string | null = null;
   let originUrl: string | null = null;
   let firstRemoteUrl: string | null = null;
+  // A trailing backslash continues the value on the next line.
   const joined = configText.replace(/\\\r?\n[ \t]*/g, "");
   for (const rawLine of joined.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (line.length === 0 || line.startsWith("#") || line.startsWith(";")) continue;
-    // Git preserves case in quoted remote subsections but lowercases legacy dotted ones.
+    // Both `[remote "origin"]` and the legacy `[remote.origin]` form, with an
+    // optional trailing comment. Git keeps quoted subsections case-sensitive
+    // but folds the dotted form to lowercase.
     const header = /^\[\s*remote(?:\s+"([^"]+)"|\.([^\]\s]+))\s*\](?:\s*[#;].*)?$/i.exec(line);
     if (header) {
       section = header[1] ?? header[2]?.toLowerCase() ?? null;
@@ -355,6 +357,20 @@ export function parseOriginUrlFromGitConfig(configText: string): string | null {
   return originUrl ?? firstRemoteUrl;
 }
 
+export function parseGitHubRepositoryNameWithOwnerFromRemoteUrl(url: string | null): string | null {
+  const trimmed = url?.trim() ?? "";
+  if (trimmed.length === 0) {
+    return null;
+  }
+
+  const match =
+    /^(?:git@github\.com:|ssh:\/\/(?:git@)?github\.com\/|https:\/\/github\.com\/|git:\/\/github\.com\/)([^/\s]+\/[^/\s]+?)(?:\.git)?\/?$/i.exec(
+      trimmed,
+    );
+  const repositoryNameWithOwner = match?.[1]?.trim() ?? "";
+  return repositoryNameWithOwner.length > 0 ? repositoryNameWithOwner : null;
+}
+
 function deriveLocalBranchNameCandidatesFromRemoteRef(
   branchName: string,
   remoteName?: string,
@@ -375,7 +391,9 @@ function deriveLocalBranchNameCandidatesFromRemoteRef(
   return [...candidates];
 }
 
-// Replace only Git-rejected whitespace; nonbreaking spaces are valid ref characters.
+// Only the whitespace git actually rejects is replaced — git accepts U+00A0 and
+// friends, and rewriting those would silently create a ref the user never asked
+// for.
 export function sanitizeNewRefName(rawName: string): string {
   return rawName.trim().replace(/[ \t\n\r\f\v]+/g, "-");
 }
@@ -404,6 +422,12 @@ export function dedupeRemoteBranchesWithLocalMatches(
     );
     return !localBranchCandidates.some((candidate) => localBranchNames.has(candidate));
   });
+}
+
+export function detectSourceControlProviderFromGitRemoteUrl(
+  remoteUrl: string,
+): SourceControlProviderInfo | null {
+  return detectSourceControlProviderFromRemoteUrl(remoteUrl);
 }
 
 const EMPTY_GIT_STATUS_REMOTE: VcsStatusRemoteResult = {

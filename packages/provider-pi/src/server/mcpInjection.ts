@@ -101,6 +101,9 @@ function normalizePiBuiltInEqualsArguments(args: ReadonlyArray<string>): Readonl
 }
 
 export function resolvePiLaunchArgs(launchArgs: string): PiLaunchArgsResolution {
+  // Pi parses equals-form tokens only as extension flags, even when their name
+  // matches a built-in option. Split known built-ins while leaving arbitrary
+  // extension flags in their native form.
   const args = normalizePiBuiltInEqualsArguments(tokenizeCliArgs(launchArgs));
   let hasProvider = false;
   let hasModel = false;
@@ -134,6 +137,8 @@ export function resolvePiLaunchArgs(launchArgs: string): PiLaunchArgsResolution 
       continue;
     }
     if (arg.startsWith("--")) {
+      // Pi extensions may register arbitrary long flags. Treat one following
+      // non-flag token as that extension flag's value.
       if (
         args[index + 1] !== undefined &&
         !args[index + 1]!.startsWith("-") &&
@@ -248,6 +253,7 @@ export function buildPiRpcLaunch(input: {
 }): {
   readonly args: ReadonlyArray<string>;
   readonly env: NodeJS.ProcessEnv;
+  readonly hasSupatermMcp: boolean;
 } {
   const hasSupatermExtension =
     input.disableExtensions !== true && input.extensionPath !== undefined;
@@ -267,6 +273,8 @@ export function buildPiRpcLaunch(input: {
         ? ["--session", input.sessionPath]
         : []),
     ...launchArgs,
+    // Restrictions follow user launch args so a configured --tools or
+    // --extension cannot silently re-enable unattended text-generation code.
     ...(input.disableExtensions === true ? ["--no-extensions"] : []),
     ...(input.disableTools === true ? ["--no-tools"] : []),
   ];
@@ -279,6 +287,7 @@ export function buildPiRpcLaunch(input: {
   }
   const environment = { ...input.environment };
   // These values belong to the current Supaterm session. Never let a Pi child reuse
+  // credentials inherited from the server or a parent provider process.
   delete environment[SUPATERM_MCP_URL_ENV];
   delete environment[SUPATERM_MCP_BEARER_ENV];
   delete environment[SUPATERM_PI_MCP_EXTENSION_PATH_ENV];
@@ -305,5 +314,6 @@ export function buildPiRpcLaunch(input: {
           }
         : {}),
     },
+    hasSupatermMcp,
   };
 }

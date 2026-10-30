@@ -1,15 +1,7 @@
 import { ExternalLinkIcon, PaperclipIcon } from "@supaterm/icons";
 import { markdownImageSourceFragment } from "@supaterm/client-runtime/markdown-images";
-import {
-  sourceControlClients,
-  type ReferenceAutolink,
-} from "@supaterm/client-runtime/source-control-clients";
-import {
-  SOURCE_CONTROL_MEDIA_ASSET,
-  type AssetResource,
-  type EnvironmentId,
-  type ScopedThreadRef,
-} from "@supaterm/contracts";
+import { githubMediaFetchUrl } from "@supaterm/shared/githubMedia";
+import type { AssetResource, EnvironmentId, ScopedThreadRef } from "@supaterm/contracts";
 import { createContext, useContext } from "react";
 import type { Options as ReactMarkdownOptions } from "react-markdown";
 
@@ -22,11 +14,11 @@ import { MediaVideoPlayer } from "../media/MediaVideoPlayer";
 import { remarkPullRequestAutolinks, splitPullRequestBody } from "./pullRequestMarkdown.logic";
 
 export const PullRequestMarkdownContext = createContext<{
-  autolinks: ((text: string) => ReadonlyArray<ReferenceAutolink>) | null;
+  repositoryUrl: string | null;
   threadRef: ScopedThreadRef | null;
 } | null>(null);
 
-function PullRequestHostVideo({
+function PullRequestGitHubVideo({
   environmentId,
   cwd,
   url,
@@ -37,7 +29,7 @@ function PullRequestHostVideo({
   url: string;
   fetchUrl: string;
 }) {
-  const resource: AssetResource = { _tag: SOURCE_CONTROL_MEDIA_ASSET, cwd, url: fetchUrl };
+  const resource: AssetResource = { _tag: "github-media", cwd, url: fetchUrl };
   const assetUrl = useAssetUrlState(environmentId, resource);
   const refreshAssetUrl = useAssetUrlRefresh(environmentId, resource);
   const src =
@@ -69,10 +61,10 @@ export function PullRequestMarkdown({
 }) {
   const segments = splitPullRequestBody(text);
   const context = useContext(PullRequestMarkdownContext);
-  const autolinks = context?.autolinks;
+  const repositoryUrl = context?.repositoryUrl;
   const resolvedThreadRef = threadRef ?? context?.threadRef ?? undefined;
-  const extraRemarkPlugins: NonNullable<ReactMarkdownOptions["remarkPlugins"]> = autolinks
-    ? [[remarkPullRequestAutolinks, { autolinks }]]
+  const extraRemarkPlugins: NonNullable<ReactMarkdownOptions["remarkPlugins"]> = repositoryUrl
+    ? [[remarkPullRequestAutolinks, { repositoryUrl }]]
     : [];
   return (
     <div
@@ -93,19 +85,19 @@ export function PullRequestMarkdown({
               pullRequestPanelRef={resolvedThreadRef ?? PULL_REQUESTS_PANEL_REF}
               environmentId={environmentId}
               extraRemarkPlugins={extraRemarkPlugins}
-              sourceControlMedia
+              githubMedia
             />
           );
         }
-        const hostMedia = sourceControlClients.mediaUrl(segment.url);
-        if (segment.media === "video" && hostMedia !== null) {
+        const githubMediaUrl = segment.media === "video" ? githubMediaFetchUrl(segment.url) : null;
+        if (githubMediaUrl !== null) {
           return (
-            <PullRequestHostVideo
+            <PullRequestGitHubVideo
               key={`${segment.id}:${segment.url}`}
               environmentId={environmentId}
               cwd={cwd}
               url={segment.url}
-              fetchUrl={hostMedia.fetchUrl}
+              fetchUrl={githubMediaUrl}
             />
           );
         }
@@ -122,7 +114,9 @@ export function PullRequestMarkdown({
           );
         }
         return (
-          // Desktop converts blocked _blank navigation to openExternal.
+          // A plain anchor rather than the page's openExternal button: the desktop window
+          // turns a blocked _blank into openExternal itself, and in a browser tab — where
+          // there is no shell to call — this is the only one of the two that goes anywhere.
           <a
             key={segment.id}
             href={segment.url}
@@ -131,9 +125,7 @@ export function PullRequestMarkdown({
             className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-sm hover:bg-muted/60"
           >
             <PaperclipIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
-            <span className="min-w-0 flex-1 truncate">
-              Open attachment on {hostMedia?.definition.label ?? new URL(segment.url).hostname}
-            </span>
+            <span className="min-w-0 flex-1 truncate">Open attachment on GitHub</span>
             <ExternalLinkIcon aria-hidden className="size-3 shrink-0 text-muted-foreground" />
           </a>
         );

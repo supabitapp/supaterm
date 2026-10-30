@@ -14,7 +14,6 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
-import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import * as SqlClient from "effect/sql/SqlClient";
 import {
   ProjectionStoreReadError,
@@ -345,7 +344,7 @@ export const makeThreadFind = Effect.fn("makeThreadFind")(function* (
       }
       return { payloads, cwd, sequence, cacheKey, sourceThreadIds };
     },
-    (effect) => sql.withTransaction(effect).pipe(NodeSqliteClient.readOnly),
+    sql.withTransaction,
     (effect, input) =>
       effect.pipe(
         Effect.mapError((cause) =>

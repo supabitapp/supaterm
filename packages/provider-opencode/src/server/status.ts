@@ -66,25 +66,19 @@ function formatOpenCodeProbeError(input: {
   readonly isExternalServer: boolean;
   readonly phase: "version" | "inventory";
   readonly serverUrl: string;
-}): {
-  readonly installed: boolean;
-  readonly message: string;
-  readonly authStatus?: "unauthenticated";
-} {
+}): { readonly installed: boolean; readonly message: string } {
   const detail = normalizedErrorMessage(input.cause);
   const lower = detail?.toLowerCase() ?? "";
 
   if (input.isExternalServer) {
-    // Bare auth-code digits can be part of the endpoint's port or path.
     if (
-      /(?:^|\s)(?:status(?:\s+code)?(?:\s*[:=]\s*|\s+)|http(?:\/\d(?:\.\d)?)?\s+)(?:401|403)\b/.test(
-        lower,
-      ) ||
-      /\b(?:unauthorized|forbidden)\b/.test(lower)
+      lower.includes("401") ||
+      lower.includes("403") ||
+      lower.includes("unauthorized") ||
+      lower.includes("forbidden")
     ) {
       return {
         installed: true,
-        authStatus: "unauthenticated",
         message: "OpenCode server rejected authentication. Check the server URL and password.",
       };
     }
@@ -129,7 +123,7 @@ function formatOpenCodeProbeError(input: {
     return {
       installed: true,
       message:
-        "macOS killed the OpenCode process due to an invalid code signature. The binary may be corrupted. Try reinstalling OpenCode.",
+        "macOS killed the OpenCode process due to an invalid code signature. The binary may be corrupted — try reinstalling OpenCode.",
     };
   }
 
@@ -142,32 +136,6 @@ function formatOpenCodeProbeError(input: {
     message: detail ? `${failureLabel}: ${detail}` : `${failureLabel}.`,
   };
 }
-
-// The status check owns the span; keep handled failures visible without adding another span.
-const logDiscoveryFailure = Effect.fnUntraced(function* (input: {
-  readonly phase: "version" | "inventory" | "models";
-  readonly isExternalServer: boolean;
-  readonly version?: string;
-  readonly cause?: Cause.Cause<unknown>;
-}) {
-  const outcome = input.cause ? "failed" : "empty";
-  const attributes = {
-    provider: "opencode",
-    phase: input.phase,
-    outcome,
-    serverMode: input.isExternalServer ? "external" : "managed",
-    ...(input.version === undefined ? {} : { version: input.version }),
-  };
-  yield* Effect.annotateCurrentSpan({
-    "discovery.phase": input.phase,
-    "discovery.outcome": outcome,
-  });
-  yield* (
-    input.cause
-      ? Effect.logWarning("OpenCode discovery failed", input.cause)
-      : Effect.logWarning("OpenCode discovery failed")
-  ).pipe(Effect.annotateLogs(attributes));
-});
 
 function titleCaseSlug(value: string): string {
   const segments: Array<string> = [];
@@ -455,6 +423,11 @@ export interface OpenCode2Model extends OpenCodeRelease {
   readonly variants: ReadonlyArray<{ readonly id: string }>;
 }
 
+/**
+ * One OpenCode instance fronts several providers, and their catalogues overlap:
+ * OpenCode Zen and OpenCode Go both list Step 5 Preview Free. Naming the
+ * sub-provider is what tells two such rows apart.
+ */
 function subProviderLabelFor(input: {
   readonly providerID: string;
   readonly providerName?: string;
@@ -569,6 +542,10 @@ export function openCode2CommandsToServerProviderSlashCommands(
   return slashCommands;
 }
 
+/**
+ * Auto asks like Supervised: OpenCode has no reviewer that approves routine
+ * actions.
+ */
 const OPENCODE_2_PRESENTATION = {
   ...OPENCODE_PRESENTATION,
   showInteractionModeToggle: true,
@@ -613,12 +590,7 @@ const checkOpenCode2 = Effect.fn("checkOpenCode2")(function* (
     message,
   });
   if (result._tag === "Failure") {
-    yield* logDiscoveryFailure({
-      phase: "models",
-      isExternalServer: settings.serverUrl.trim().length > 0,
-      version,
-      cause: result.cause,
-    });
+    yield* Effect.logWarning("OpenCode 2 model list failed", result.cause);
     return buildServerProvider({
       presentation: OPENCODE_2_PRESENTATION,
       enabled: true,
@@ -630,13 +602,6 @@ const checkOpenCode2 = Effect.fn("checkOpenCode2")(function* (
       ),
       slashCommands: [COMPACT_SLASH_COMMAND],
       probe: probe("error", "OpenCode could not load its model list."),
-    });
-  }
-  if (result.value.length === 0) {
-    yield* logDiscoveryFailure({
-      phase: "models",
-      isExternalServer: settings.serverUrl.trim().length > 0,
-      version,
     });
   }
   const models = providerModelsFromSettings(
@@ -713,7 +678,7 @@ export const checkOpenCodeProviderStatus = Effect.fn("checkOpenCodeProviderStatu
         installed: failure.installed,
         version,
         status: "error",
-        auth: { status: failure.authStatus ?? "unknown" },
+        auth: { status: "unknown" },
         message: failure.message,
       },
     });
@@ -748,10 +713,7 @@ export const checkOpenCodeProviderStatus = Effect.fn("checkOpenCodeProviderStatu
       ),
     ),
   );
-  if (probedExit._tag === "Failure") {
-    yield* logDiscoveryFailure({ phase: "version", isExternalServer, cause: probedExit.cause });
-    return fallback(Cause.squash(probedExit.cause));
-  }
+  if (probedExit._tag === "Failure") return fallback(Cause.squash(probedExit.cause));
   const probed = probedExit.value;
   if (probed.generation === "v2") {
     return yield* checkOpenCode2(openCodeSettings, probed.version, checkedAt, loadOpenCode2Models);
@@ -813,30 +775,19 @@ export const checkOpenCodeProviderStatus = Effect.fn("checkOpenCodeProviderStatu
     ),
   );
   if (inventoryExit._tag === "Failure") {
-    yield* logDiscoveryFailure({
-      phase: "inventory",
-      isExternalServer,
-      version,
-      cause: inventoryExit.cause,
-    });
     return {
       ...fallback(Cause.squash(inventoryExit.cause), version, "inventory"),
       ...installedVersion,
     };
   }
 
-  const inventoryModels = flattenOpenCodeModels(inventoryExit.value);
   const models = providerModelsFromSettings(
-    inventoryModels,
+    flattenOpenCodeModels(inventoryExit.value),
     customModels,
     DEFAULT_OPENCODE_MODEL_CAPABILITIES,
   );
   const skills = openCodeSkillsToServerProviderSkills(inventoryExit.value.skills);
   const connectedCount = inventoryExit.value.providerList.connected.length;
-  const catalogReady = connectedCount > 0 && inventoryModels.length > 0;
-  if (connectedCount > 0 && inventoryModels.length === 0) {
-    yield* logDiscoveryFailure({ phase: "inventory", isExternalServer, version });
-  }
   return {
     ...buildServerProvider({
       presentation: OPENCODE_PRESENTATION,
@@ -848,19 +799,17 @@ export const checkOpenCodeProviderStatus = Effect.fn("checkOpenCodeProviderStatu
       probe: {
         installed: true,
         version,
-        status: catalogReady ? "ready" : "warning",
+        status: connectedCount > 0 ? "ready" : "warning",
         auth: {
-          status: catalogReady ? "authenticated" : "unknown",
+          status: connectedCount > 0 ? "authenticated" : "unknown",
           type: "opencode",
         },
         message:
-          connectedCount > 0 && !catalogReady
-            ? "OpenCode upstream providers are connected, but it did not list any models yet."
-            : connectedCount > 0
-              ? `${connectedCount} upstream provider${connectedCount === 1 ? "" : "s"} connected through ${isExternalServer ? "the configured OpenCode server" : "OpenCode"}.`
-              : isExternalServer
-                ? "Connected to the configured OpenCode server, but it did not report any connected upstream providers."
-                : "OpenCode is available, but it did not report any connected upstream providers.",
+          connectedCount > 0
+            ? `${connectedCount} upstream provider${connectedCount === 1 ? "" : "s"} connected through ${isExternalServer ? "the configured OpenCode server" : "OpenCode"}.`
+            : isExternalServer
+              ? "Connected to the configured OpenCode server, but it did not report any connected upstream providers."
+              : "OpenCode is available, but it did not report any connected upstream providers.",
       },
     }),
     ...installedVersion,

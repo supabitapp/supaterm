@@ -1,4 +1,6 @@
-import { type SlowRpcAckRequest, subscribeSlowRpcAckRequests } from "../rpc/requestLatencyState";
+import { useEffect, useRef } from "react";
+
+import { type SlowRpcAckRequest, useSlowRpcAckRequests } from "../rpc/requestLatencyState";
 import { toastManager } from "./ui/toast";
 
 function describeSlowRequests(requests: ReadonlyArray<SlowRpcAckRequest>): string {
@@ -28,15 +30,15 @@ function SlowRequestDetails({ requests }: { requests: ReadonlyArray<SlowRpcAckRe
   );
 }
 
-/** One warning toast that tracks the set of slow requests while any are outstanding. */
-export function startSlowRpcRequestToasts(): () => void {
-  let toastId: ReturnType<typeof toastManager.add> | null = null;
+export function SlowRpcRequestToastCoordinator() {
+  const slowRequests = useSlowRpcAckRequests();
+  const toastIdRef = useRef<ReturnType<typeof toastManager.add> | null>(null);
 
-  const unsubscribe = subscribeSlowRpcAckRequests((slowRequests) => {
+  useEffect(() => {
     if (slowRequests.length === 0) {
-      if (toastId !== null) {
-        toastManager.close(toastId);
-        toastId = null;
+      if (toastIdRef.current !== null) {
+        toastManager.close(toastIdRef.current);
+        toastIdRef.current = null;
       }
       return;
     }
@@ -53,15 +55,21 @@ export function startSlowRpcRequestToasts(): () => void {
       type: "warning" as const,
     };
 
-    if (toastId === null) {
-      toastId = toastManager.add(nextToast);
+    if (toastIdRef.current === null) {
+      toastIdRef.current = toastManager.add(nextToast);
     } else {
-      toastManager.update(toastId, nextToast);
+      toastManager.update(toastIdRef.current, nextToast);
     }
-  });
+  }, [slowRequests]);
 
-  return () => {
-    unsubscribe();
-    if (toastId !== null) toastManager.close(toastId);
-  };
+  useEffect(
+    () => () => {
+      if (toastIdRef.current !== null) {
+        toastManager.close(toastIdRef.current);
+      }
+    },
+    [],
+  );
+
+  return null;
 }

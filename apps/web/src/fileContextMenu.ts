@@ -92,7 +92,8 @@ export function useFileContextMenu(environmentId: EnvironmentId | null) {
 
   const availableEditors = serverConfig?.availableEditors ?? [];
   const capabilities: FileContextMenuCapabilities = {
-    // WSL can reveal in Windows Explorer despite reporting Linux; use server wording.
+    // The reveal wording comes from the server because on WSL the reveal can
+    // run through Windows File Explorer even though the host reports Linux.
     revealLabel:
       environmentId !== null &&
       serverConfig?.shellRevealInFileManager === true &&

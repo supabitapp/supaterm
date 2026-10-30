@@ -231,9 +231,6 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(supaterm
   --color-diff-deletion-foreground: var(--diff-deletion-foreground);
   --color-info-foreground: var(--info-foreground);
   --color-info: var(--info);
-  --color-guest: var(--guest);
-  --color-guest-foreground: var(--guest-foreground);
-  --color-guest-surface: var(--guest-surface);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-ring: var(--ring);
   --color-input: var(--contrast-input);
@@ -900,9 +897,6 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(supaterm
   --destructive-foreground: var(--error-foreground);
   --info: var(--color-blue-500);
   --info-foreground: var(--color-blue-700);
-  --guest: var(--color-fuchsia-500);
-  --guest-foreground: var(--color-fuchsia-600);
-  --guest-surface: color-mix(in srgb, var(--guest) 14%, var(--message-surface));
   --success: var(--color-emerald-500);
   --success-foreground: var(--color-emerald-700);
   --warning: var(--color-amber-500);
@@ -953,7 +947,6 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(supaterm
     --border: --alpha(var(--color-white) / 6%);
     --input: --alpha(var(--color-white) / 8%);
     --info-foreground: var(--color-blue-400);
-    --guest-foreground: var(--color-fuchsia-300);
     --success-foreground: var(--color-emerald-400);
     --warning-foreground: var(--color-amber-400);
     --warning-surface: color-mix(in srgb, var(--warning) 16%, transparent);
@@ -1720,13 +1713,16 @@ code,
 }
 
 :is(.chat-markdown, .composer-tiptap) blockquote {
-  border-inline-start: 2px solid color-mix(in srgb, currentcolor 35%, transparent);
+  border-inline-start: 2px solid var(--contrast-border);
   padding-inline-start: 0.8rem;
-  color: inherit;
+  color: var(--contrast-muted-foreground);
 }
 
+/* A quote in the composer is text the user is still writing; muting it reads
+   as disabled in an input, so the border alone carries the quote. */
 .composer-tiptap blockquote {
   margin: 0.65rem 0;
+  color: var(--foreground);
 }
 
 /* Preflight already draws the 1px rule, as it does in chat; only the block
@@ -1853,55 +1849,72 @@ code,
   }
 }
 
-/* Diagnostics-style tables: row separators only, and a scroll-fade container
-   for horizontal overflow. Cells wrap and the table fits its lane. The root
-   chat-markdown wrapping rules (overflow-wrap: anywhere) would let columns
-   shrink to single characters, so restore word-boundary wrapping: the min
-   column width is the longest word, and only wider content scrolls. */
+/* Diagnostics-style tables: row separators only, uppercase headers, and a
+   scroll-fade container for horizontal overflow. The root chat-markdown
+   wrapping rules (overflow-wrap: anywhere) would let columns shrink to single
+   characters and defeat the overflow — restore word-boundary wrapping so the
+   min column width is the longest word. */
 .chat-markdown table {
   width: 100%;
+  min-width: max-content;
   border-collapse: collapse;
   overflow-wrap: normal;
   word-break: normal;
   font-size: 0.75rem;
 }
 
-/* Top-aligned so wrapped rows share a first line, and the outer columns sit
-   flush with the surrounding prose. */
 .chat-markdown th,
 .chat-markdown td {
   padding: 0.45rem 0.75rem;
   text-align: start;
-  vertical-align: top;
-}
-
-.chat-markdown :is(th, td):first-child {
-  padding-inline-start: 0;
-}
-
-.chat-markdown :is(th, td):last-child {
-  padding-inline-end: 0;
 }
 
 .chat-markdown thead th {
   border-bottom: 1px solid color-mix(in srgb, var(--contrast-border) 60%, transparent);
   padding-block: 0.55rem;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .chat-markdown tbody td {
   border-bottom: 1px solid color-mix(in srgb, var(--contrast-border) 60%, transparent);
 }
 
-/* Caps a long path, URL, or chip at 24rem; text past the cap wraps. */
-.chat-markdown :is(th, td) {
+/* Collapsed (default): single-line cells truncate so arbitrary chat content
+   cannot blow the column out; the footer toggle expands cells to wrap. */
+.chat-markdown .chat-markdown-table-container[data-expanded="false"] th,
+.chat-markdown .chat-markdown-table-container[data-expanded="false"] td {
+  overflow: hidden;
   max-width: 24rem;
-  overflow-wrap: break-word;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-markdown .chat-markdown-table-container[data-expanded="true"] td {
+  max-width: 24rem;
+  overflow-wrap: anywhere;
+}
+
+/* Fit expanded tables to wide timeline lanes; narrow lanes keep horizontal
+   scrolling so prose columns remain readable. */
+@container chat-lane (min-width: 36rem) {
+  .chat-markdown .chat-markdown-table-container[data-expanded="true"] table {
+    min-width: 0;
+  }
+
+  .chat-markdown .chat-markdown-table-container[data-expanded="true"] th {
+    white-space: normal;
+  }
+
+  .chat-markdown .chat-markdown-table-container[data-expanded="true"] td {
+    overflow-wrap: break-word;
+  }
 }
 
 /* Formula cells keep their natural width and scroll with the table. */
-.chat-markdown :is(th, td):has([data-markdown-math]) {
+.chat-markdown .chat-markdown-table-container td:has([data-markdown-math]) {
   max-width: none;
+  overflow: visible;
 }
 
 :root {
@@ -2196,10 +2209,4 @@ code,
       );
     }
   }
-}
-
-/* A workspace area with no control of its own takes F6 focus itself; keep that visible. */
-[data-workspace-area]:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: -2px;
 }

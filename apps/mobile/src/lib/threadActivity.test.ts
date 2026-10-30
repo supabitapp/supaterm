@@ -30,14 +30,12 @@ import { getReviewSectionIdForCheckpoint } from "../features/review/reviewModel"
 
 import {
   workEntryRowLabel,
-  threadFeedCompactionLabels,
   isContextHandoffActivityGroup,
   buildThreadFeed,
   createThreadFeedCache,
   deriveThreadFeedPresentation,
   threadFeedActivityIsVisible,
   type ThreadFeedActivity,
-  messageFoldRunId,
   type ThreadFeedCache,
   type ThreadFeedEntry,
   type ThreadFeedLatestRun,
@@ -51,24 +49,6 @@ import {
 const threadId = ThreadId.make("thread-1");
 const sourceThreadId = ThreadId.make("thread-source");
 const runId = RunId.make("run-1");
-
-it("shows a captured MCP app for a failed deferred write", () => {
-  const mcpApp = {
-    attachmentId: "deferred-app-html",
-    server: "github",
-    tool: "create_pull_request",
-    resourceUri: "ui://github-mcp-server/pr-create",
-  };
-  const item: OrchestrationV2TurnItem = {
-    ...base("deferred-app", "2026-08-29T00:00:00.000Z", 1),
-    type: "dynamic_tool",
-    toolName: "github.create_pull_request",
-    status: "failed",
-    input: {},
-    output: { supatermMcpApp: mcpApp, result: { content: [], isError: true } },
-  };
-  expect(buildThreadFeed([projected(item, 0)])).toMatchObject([{ type: "mcp-app", app: mcpApp }]);
-});
 
 it("keeps historical plan detail accessible from its paged turn item", () => {
   const item = {
@@ -1012,32 +992,6 @@ describe("buildThreadFeed", () => {
     ).toBe(false);
   });
 
-  it("names the fold that hides a progress message, with or without a run", () => {
-    const middle = {
-      ...assistantMessage("2026-06-20T00:00:02.500Z"),
-      id: TurnItemId.make("item-middle"),
-      messageId: MessageId.make("message-middle"),
-      text: "Needle found in the build config.",
-    };
-    const items = [userMessage(), command(), middle, assistantMessage()];
-    for (const runless of [false, true]) {
-      const feed = buildThreadFeed(
-        items.map((item, position) =>
-          projected(runless ? { ...item, runId: null } : item, position),
-        ),
-      );
-      const foldRunId = messageFoldRunId(feed, "message-middle");
-      expect(foldRunId, String(runless)).toBe(runless ? "runless:message-user" : runId);
-      const ids = (expanded: ReadonlySet<RunId>) =>
-        deriveThreadFeedPresentation(feed, null, expanded).map((entry) => entry.id);
-      expect(ids(new Set())).not.toContain("message-middle");
-      expect(ids(new Set([foldRunId!]))).toContain("message-middle");
-    }
-    expect(messageFoldRunId(buildThreadFeed([projected(userMessage(), 0)]), "message-user")).toBe(
-      null,
-    );
-  });
-
   it("folds progress messages while keeping the final assistant answer visible", () => {
     const opening = {
       ...assistantMessage("2026-06-20T00:00:01.500Z"),
@@ -1086,21 +1040,6 @@ describe("buildThreadFeed", () => {
       "message",
       "message",
     ]);
-    const anchor = {
-      ...command(),
-      deferredWork: { cursor: "old-work", itemCount: 100, lastOrdinal: 100 },
-    };
-    const deferredFeed = buildThreadFeed([projected(userMessage(), 0), projected(anchor, 1)]);
-    const running = { ...latestRun, status: "running" as const, completedAt: null };
-    const deferredRows = deriveThreadFeedPresentation(deferredFeed, running, new Set());
-    const disclosure = deferredRows.find((entry) => entry.type === "run-fold");
-    expect(disclosure).toMatchObject({ deferredWorkItemIds: [anchor.id], expanded: false });
-    if (disclosure?.type !== "run-fold") throw new Error("Expected deferred work disclosure");
-    expect(
-      deriveThreadFeedPresentation(deferredFeed, running, new Set([disclosure.runId])).some(
-        (entry) => entry.type === "activity-group",
-      ),
-    ).toBe(true);
     expect(expanded[4]).toMatchObject({ message: { id: middle.messageId, text: middle.text } });
 
     const active = deriveThreadFeedPresentation(
@@ -2008,7 +1947,7 @@ describe("retained v2 feed presentation", () => {
     },
   );
 
-  it("keeps a completed compaction visible alongside folded work", () => {
+  it("keeps a standalone compaction visible and folds it with other completed work", () => {
     const compact = projected(
       {
         ...base("compacted", "2026-06-20T00:00:02.000Z", 1),
@@ -2038,7 +1977,7 @@ describe("retained v2 feed presentation", () => {
     ]);
     expect(
       deriveThreadFeedPresentation(feed, latestRun, new Set()).map((entry) => entry.type),
-    ).toEqual(["message", "activity-group", "run-fold", "message"]);
+    ).toEqual(["message", "run-fold", "message"]);
     const expanded = deriveThreadFeedPresentation(feed, latestRun, new Set([runId]));
     expect(
       expanded.find(
@@ -3217,67 +3156,4 @@ describe("streamed feed updates", () => {
     expect(showsDelegation(steps[2]!)).toBe(true);
     expect(showsDelegation(steps[3]!)).toBe(false);
   });
-});
-
-it.each(["running", "completed", "failed", "interrupted"] as const)(
-  "presents an explicit compact command once when %s",
-  (status) => {
-    const now = "2026-06-20T00:00:02.000Z";
-    const compact: OrchestrationV2TurnItem = {
-      ...base("explicit-compact", now, 1),
-      type: "compaction",
-      status,
-      driver: null,
-    };
-    const feed = buildThreadFeed([
-      projected({ ...userMessage(), text: "/compact" }, 0),
-      projected(compact, 1),
-    ]);
-    const rows = deriveThreadFeedPresentation(
-      feed,
-      { runId, status: "running", startedAt: now, completedAt: null },
-      new Set(),
-      new Set(),
-      now,
-    );
-    expect(rows.map((row) => row.type)).toEqual(["activity-group"]);
-  },
-);
-
-it("folds only an affirmative native resume answer into its compaction and preserves the age", () => {
-  const question =
-    "This session is 2h 0m old and uses 20,000 tokens. Compact it before continuing?";
-  const requestId = RuntimeRequestId.make("resume-question");
-  const feed = buildThreadFeed([
-    projected(userMessage(), 0),
-    projected(
-      {
-        ...base("resume-answer", "2026-06-20T00:00:02.000Z", 1),
-        type: "user_input_request",
-        requestId,
-        questions: [],
-        questionAnswer: {
-          requestId,
-          questionTextById: { q: question },
-          answers: { q: "Compact and continue" },
-          attachmentsByQuestionId: {},
-        },
-      },
-      1,
-    ),
-    projected(
-      {
-        ...base("resume-compact", "2026-06-20T00:00:03.000Z", 2),
-        type: "compaction",
-        status: "completed",
-        driver: null,
-      },
-      2,
-    ),
-  ]);
-  const rows = deriveThreadFeedPresentation(feed, null, new Set());
-  expect(rows.map((row) => row.type)).toEqual(["message", "activity-group"]);
-  expect([...threadFeedCompactionLabels(feed).values()]).toEqual([
-    { title: "Context compacted after 2h 0m idle", compacting: "Compacting…" },
-  ]);
 });

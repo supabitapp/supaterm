@@ -1,5 +1,4 @@
 // @effect-diagnostics nodeBuiltinImport:off
-import * as DocumentText from "../provider/DocumentText.ts";
 import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
 
@@ -20,13 +19,7 @@ import {
 import * as ServerConfig from "../config.ts";
 import { attachmentIsPendingUpload, claimPendingAttachments } from "./AttachmentClaims.ts";
 
-const layerTest = Layer.mergeAll(
-  NodeServices.layer,
-  Layer.mock(DocumentText.DocumentText)({
-    // @effect-diagnostics-next-line effectSucceedWithVoid:off - Document extraction returns an optional path.
-    ensure: () => Effect.succeed(undefined),
-  }),
-).pipe(
+const layerTest = Layer.mergeAll(NodeServices.layer).pipe(
   Layer.provideMerge(
     ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-attachment-claims-" }),
   ),
@@ -186,6 +179,9 @@ describe("AttachmentClaims", () => {
 
       const copyArgs = yield* Deferred.make<readonly [string, string]>();
       const copyDone = yield* Deferred.make<void>();
+      // fs.copyFile cannot be cancelled: the write runs on a separate fiber
+      // while the claim's copyFile only observes its completion, so the file
+      // still lands after the awaiting effect is interrupted.
       const gatedFileSystem = Object.create(fileSystem, {
         copyFile: {
           value: (from: string, to: string) =>

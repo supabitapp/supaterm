@@ -258,9 +258,18 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
   const confirmQueued = (message: Message): Promise<boolean> =>
     serialize(async () => currentMessages().some((candidate) => candidate === message));
 
-  // A queued edit must not resurrect a delivered or deleted message.
-  // An enqueue can publish while persistence is pending; recheck the revision after
-  // writing and persist the winner here so a crash cannot leave stale data on disk.
+  // Rewrites an already-queued message. A no-op when the message has been
+  // removed in the meantime (e.g. deleted or delivered), so a trailing editor
+  // flush can never resurrect it. Returns whether the message was updated.
+  //
+  // `expectedRevision` makes the update a compare-and-set: pass the revision
+  // read before starting slow work, and the update is rejected before the
+  // stale payload is persisted when any other write was accepted since. An
+  // enqueue can still publish synchronously while the durable write below is
+  // in flight, so the revision is re-checked after the write too; the stale
+  // payload it just persisted is then overwritten with the winning payload
+  // inside this mutation, so a crash before the winner's own serialized write
+  // cannot leave stale state on disk.
   const update = (
     message: Message,
     expectedRevision?: number,
@@ -313,8 +322,11 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
       return true;
     });
 
-  // A stale restore-to-composer must leave newer edits queued. Editor ownership
-  // can change without a message revision, so canRemove must also be checked live.
+  // `expectedRevision` makes the removal a compare-and-set too: an edit
+  // accepted after the caller decided to remove (restore-to-composer reads
+  // the payload it is about to delete) keeps the newer message queued.
+  // `canRemove` adds a live ownership check for state such as an open editor,
+  // which can change without writing a new message revision.
   const remove = (
     message: Message,
     expectedRevision?: number,

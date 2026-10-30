@@ -1,8 +1,4 @@
-import type {
-  EnvironmentContextRecord,
-  PreviewAnnotationPayload,
-  ThreadContextRecord,
-} from "@supaterm/contracts";
+import type { PreviewAnnotationPayload, ThreadContextRecord } from "@supaterm/contracts";
 import { useEffect, useState } from "react";
 
 import type { ComposerFileAttachment, ComposerImageAttachment } from "../../composerDraftStore";
@@ -24,7 +20,6 @@ export interface RetainedContextPayloads extends RetainedAttachmentContextPayloa
   terminals: Map<string, TerminalContextDraft>;
   reviewComments: Map<string, ReviewCommentContext>;
   threads: Map<string, ThreadContextRecord>;
-  environments: Map<string, EnvironmentContextRecord>;
 }
 
 function createRetainedContextPayloads(): RetainedContextPayloads {
@@ -32,7 +27,6 @@ function createRetainedContextPayloads(): RetainedContextPayloads {
     terminals: new Map(),
     reviewComments: new Map(),
     threads: new Map(),
-    environments: new Map(),
     files: new Map(),
     previewAnnotations: new Map(),
   };
@@ -48,7 +42,6 @@ export function useRetainedContextPayloads(draftTargetKey: string): RetainedCont
     setDraft({ targetKey: draftTargetKey, payloads: createRetainedContextPayloads() });
   }
   const retained = draft.payloads;
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the retained payload maps when the draft target changes or the composer unmounts
   useEffect(
     () => () => {
       for (const payloads of Object.values(retained)) payloads.clear();

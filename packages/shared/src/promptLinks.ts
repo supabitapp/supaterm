@@ -1,7 +1,18 @@
 import { DEFAULT_HOSTED_APP_URL } from "./remote.ts";
 
-/** External links prepare a draft for review; they cannot send it or override
- * runtime mode, branch, or worktree. HTTPS and the app scheme carry the same destinations. */
+/**
+ * Prompt links open Supaterm from outside it with a prompt ready to send. They never send it:
+ * a link from a stranger fills a draft, and the user reads it and presses Send. A link also
+ * cannot pick a runtime mode, branch, or worktree. Those stay the user's own defaults.
+ *
+ * Shared links are https on the hosted app, because that is what Twitter and GitHub make
+ * clickable. The `supaterm://` scheme carries the same paths into desktop and mobile:
+ *
+ *   https://app.supaterm.com/new?prompt=…&repo=owner/name&provider=codex&model=gpt-5
+ *   https://app.supaterm.com/new?pr=owner/name/123&prompt=…
+ *   https://app.supaterm.com/<environmentId>/<threadId>?prompt=…
+ *   supaterm://new?…   supaterm://threads/<environmentId>/<threadId>?…
+ */
 
 export const PROMPT_LINK_MAX_PROMPT_LENGTH = 8_000;
 
@@ -37,11 +48,14 @@ export type PromptLinkResult<T> =
   | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly error: string };
 
-// Hidden characters let models read instructions invisible to the person reviewing the prompt.
+// Zero-width and bidi controls, tag and variation-selector blocks, and other characters that
+// render as nothing. A model reads them; the person checking the draft cannot see them, which
+// makes them the usual way to hide instructions in a prompt.
 const HIDDEN_CHARACTERS =
-  // oxlint-disable-next-line no-misleading-character-class -- these are the characters it removes.
+  // oxlint-disable-next-line no-control-regex, no-misleading-character-class -- these are the characters it removes.
   /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u00AD\u034F\u061C\u115F\u1160\u17B4\u17B5\u180B-\u180F\u200B\u200C\u200E\u200F\u202A-\u202E\u2060-\u206F\u3164\uFE00-\uFE0D\uFEFF\uFFA0\uFFF0-\uFFFB\u{1BCA0}-\u{1BCA3}\u{1D173}-\u{1D17A}\u{E0000}-\u{E0FFF}]/gu;
-// Numeric emoji ranges because Hermes lacks Unicode property escapes.
+// Emoji and the pieces emoji sequences are built from: pictographs, symbols, skin tones, and the
+// emoji presentation selector. Numeric ranges, because Hermes lacks Unicode property escapes.
 const isEmojiPart = (codePoint: number | undefined) =>
   codePoint !== undefined &&
   ((codePoint >= 0x1f000 && codePoint <= 0x1faff) ||

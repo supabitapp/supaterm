@@ -1,4 +1,5 @@
 import { mergeProps } from "@base-ui/react/merge-props";
+import { Select as SelectPrimitive } from "@base-ui/react/select";
 import { useRender } from "@base-ui/react/use-render";
 import type { ComponentProps, ComponentType, SVGProps } from "react";
 import { ChevronDownIcon } from "@supaterm/icons";
@@ -115,5 +116,24 @@ export function ComposerControlSeparator({
       className={cn("mx-0.5 hidden sm:block", size === "xs" ? "h-3.5!" : "h-4", className)}
       {...props}
     />
+  );
+}
+
+export function ComposerSelectControl({
+  className,
+  children,
+  size = "sm",
+  ...props
+}: Omit<SelectPrimitive.Trigger.Props, "className"> & {
+  className?: string | undefined;
+  size?: ComposerControlSize;
+}) {
+  return (
+    <SelectPrimitive.Trigger className={composerControlClassName(size, className)} {...props}>
+      {children}
+      <SelectPrimitive.Icon>
+        <ComposerControlChevron size={size} />
+      </SelectPrimitive.Icon>
+    </SelectPrimitive.Trigger>
   );
 }

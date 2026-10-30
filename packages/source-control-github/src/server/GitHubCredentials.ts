@@ -1,4 +1,3 @@
-import { normalizeHost } from "@supaterm/source-control-core/server/pullRequestUtils";
 import * as Cache from "effect/Cache";
 import * as Context from "effect/Context";
 import * as Crypto from "effect/Crypto";
@@ -15,17 +14,15 @@ import * as Schema from "effect/Schema";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 
 import * as SourceControlHost from "@supaterm/source-control-core/server/SourceControlHost";
-import { readSourceControlHostSettings } from "@supaterm/source-control-core/shared/definition";
+import { readSourceControlHostSettings } from "@supaterm/source-control-core/client/definition";
 import type { ServerSettings } from "@supaterm/contracts";
 
-import * as GitHubClient from "../shared/definition.ts";
-
-export const GH_PROCESS_CONCURRENCY = { key: "gh", limit: 4 } as const;
+import * as GitHubClient from "../client/definition.ts";
 
 const TOKEN_TTL = Duration.minutes(5);
 const MISSING_TTL = Duration.seconds(10);
 
-export const GitHubCredentialSource = Schema.Literals(["settings", "app", "env", "gh"]);
+export const GitHubCredentialSource = Schema.Literals(["settings", "env", "gh"]);
 export type GitHubCredentialSource = typeof GitHubCredentialSource.Type;
 
 export interface GitHubCredential {
@@ -85,35 +82,29 @@ export class GitHubCredentials extends Context.Service<
     readonly get: (
       host: string,
     ) => Effect.Effect<GitHubCredential, GitHubCredentialUnavailableError>;
-
-    readonly saved: (
-      host: string,
-    ) => Effect.Effect<
-      Option.Option<GitHubCredential>,
-      GitHubHostDisabledError | GitHubNotSignedInError
-    >;
-    readonly fingerprint: (host: string, token: string) => Effect.Effect<string>;
     readonly invalidate: (host: string) => Effect.Effect<void>;
     readonly invalidateAll: Effect.Effect<void>;
   }
 >()("@supaterm/source-control-github/server/GitHubCredentials") {}
 
-const HOSTNAME =
-  /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*(?::\d{1,5})?$/;
-
-export function isGitHubHost(host: string): boolean {
-  return HOSTNAME.test(host);
+function normalizeHost(host: string): string {
+  return host.trim().toLowerCase();
 }
 
+/** Hosts gh treats as GitHub.com-like for `GH_TOKEN`: github.com and GHE.com data residency. */
 function isGitHubDotCom(host: string): boolean {
   return host === "github.com" || host.endsWith(".ghe.com");
 }
 
+/**
+ * The environment token for a host, in gh's precedence order. gh hands `GH_ENTERPRISE_TOKEN` to
+ * any non-github.com host; here it only goes to the host `GH_HOST` names, because a remote URL
+ * picks the host and a hostile one must not receive an enterprise token.
+ */
 export function environmentToken(
   host: string,
   env: Readonly<Record<string, string | undefined>>,
 ): string | null {
-  if (!isGitHubHost(host)) return null;
   const names = isGitHubDotCom(host)
     ? ["GH_TOKEN", "GITHUB_TOKEN"]
     : env.GH_HOST?.trim().toLowerCase() === host
@@ -126,6 +117,7 @@ export function environmentToken(
   return null;
 }
 
+/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const sourceControlHost = yield* SourceControlHost.SourceControlHost;
   const process = sourceControlHost.process;
@@ -155,7 +147,6 @@ export const make = Effect.gen(function* () {
         // Never let gh print the token into a debug log.
         env: { GH_DEBUG: "", GH_PROMPT_DISABLED: "1" },
         timeoutMs: 10_000,
-        concurrency: GH_PROCESS_CONCURRENCY,
       })
       .pipe(
         Effect.mapError((error) =>
@@ -227,37 +218,30 @@ export const make = Effect.gen(function* () {
           : MISSING_TTL,
   });
 
-  const saved = Effect.fn("GitHubCredentials.saved")(function* (rawHost: string) {
-    const host = normalizeHost(rawHost);
-    if (!isGitHubHost(host)) return yield* new GitHubNotSignedInError({ host });
-    if ((yield* hostChoice(host))?.enabled === false) {
-      return yield* new GitHubHostDisabledError({ host });
-    }
-    const token = yield* savedToken(host);
-    if (token === null) return Option.none<GitHubCredential>();
-    return Option.some<GitHubCredential>({
-      host,
-      token: Redacted.make(token),
-      source: "settings",
-      fingerprint: yield* fingerprintOf(host, token),
-    });
-  });
-
   return GitHubCredentials.of({
     get: Effect.fn("GitHubCredentials.get")(function* (rawHost) {
       const host = normalizeHost(rawHost);
-      const fromSettings = yield* saved(host);
-      if (Option.isSome(fromSettings)) return fromSettings.value;
-      return yield* Cache.get(cache, cacheKey(host, (yield* hostChoice(host))?.account));
+      const choice = yield* hostChoice(host);
+      if (choice?.enabled === false) {
+        return yield* new GitHubHostDisabledError({ host });
+      }
+      const saved = yield* savedToken(host);
+      if (saved !== null) {
+        return {
+          host,
+          token: Redacted.make(saved),
+          source: "settings",
+          fingerprint: yield* fingerprintOf(host, saved),
+        } satisfies GitHubCredential;
+      }
+      return yield* Cache.get(cache, cacheKey(host, choice?.account));
     }),
-    saved,
-    fingerprint: fingerprintOf,
-    invalidate: Effect.fn("GitHubCredentials.invalidate")(function (rawHost) {
+    invalidate: (rawHost) => {
       const host = normalizeHost(rawHost);
       return hostChoice(host).pipe(
         Effect.flatMap((choice) => Cache.invalidate(cache, cacheKey(host, choice?.account))),
       );
-    }),
+    },
     invalidateAll: Cache.invalidateAll(cache),
   });
 });

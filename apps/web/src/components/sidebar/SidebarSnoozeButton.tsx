@@ -1,20 +1,17 @@
-import type { EnvironmentId } from "@supaterm/contracts";
 import { ClockIcon } from "@supaterm/icons";
 
 import { useClientSettings } from "~/hooks/useSettings";
 
 import { requestCustomSnooze } from "../CustomSnoozeDialog";
-import { pickSnoozePreset, resolveSnoozePresets, type SnoozePreset } from "../Sidebar.snooze";
+import { resolveSnoozePresets, type SnoozePreset } from "../Sidebar.snooze";
 import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuShortcut, MenuTrigger } from "../ui/menu";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 
 export function SidebarSnoozeButton({
-  environmentId,
   open,
   onOpenChange,
   onSnooze,
 }: {
-  environmentId: EnvironmentId;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSnooze: (preset: Pick<SnoozePreset, "snoozedUntil">) => void;
@@ -22,7 +19,7 @@ export function SidebarSnoozeButton({
   const timestampFormat = useClientSettings((settings) => settings.timestampFormat);
   // Resolve relative presets when the menu opens, rather than when the row mounts.
   // oxlint-disable-next-line react/purity -- The compiler holds the opening moment's presets while the menu stays open.
-  const presets = open ? resolveSnoozePresets(new Date(), timestampFormat, environmentId) : [];
+  const presets = open ? resolveSnoozePresets(new Date(), timestampFormat) : [];
   return (
     <Menu open={open} onOpenChange={onOpenChange}>
       <Tooltip>
@@ -52,15 +49,14 @@ export function SidebarSnoozeButton({
             key={preset.id}
             onClick={(event) => {
               event.stopPropagation();
-              const picked = pickSnoozePreset(presets, preset.id, timestampFormat, environmentId);
-              if (picked) onSnooze(picked);
+              onSnooze(preset);
             }}
           >
             {preset.label}
             <MenuShortcut>{preset.whenLabel}</MenuShortcut>
           </MenuItem>
         ))}
-        {presets.length > 0 ? <MenuSeparator /> : null}
+        <MenuSeparator />
         <MenuItem
           onClick={async (event) => {
             event.stopPropagation();

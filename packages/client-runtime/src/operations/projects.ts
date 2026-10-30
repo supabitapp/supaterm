@@ -25,7 +25,7 @@ import {
 } from "../state/projects.ts";
 import type { EnvironmentProject } from "../state/models.ts";
 import { sourceControlClients } from "../sourceControlClients.ts";
-import type { SourceControlDefinition } from "../sourceControlClients.ts";
+import type { SourceControlClientDefinition } from "../sourceControlClients.ts";
 
 export type AddProjectRemoteSource = SourceControlProviderKind | "url";
 
@@ -100,20 +100,14 @@ export function parseAddProjectRemoteSource(
   return (value ? sourceControlClients.find(value)?.kind : undefined) ?? "url";
 }
 
-const REPOSITORY_SHORTHAND = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9._-]+(?:\.git)?$/;
-
-export function defaultHostCloneUrl(repository: string): string | null {
-  const definition = sourceControlClients.get(undefined);
-  if (definition.publicHost === null) return null;
-  const path = repository.endsWith(".git") ? repository : `${repository}.git`;
-  return definition.defaultCloneTransport === "https"
-    ? `https://${definition.publicHost}/${path}`
-    : `git@${definition.publicHost}:${path}`;
-}
+const GITHUB_REPOSITORY_SHORTHAND =
+  /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9._-]+(?:\.git)?$/;
 
 export function normalizePastedCloneUrl(input: string): string {
   const trimmed = input.trim();
-  return REPOSITORY_SHORTHAND.test(trimmed) ? (defaultHostCloneUrl(trimmed) ?? trimmed) : trimmed;
+  if (!GITHUB_REPOSITORY_SHORTHAND.test(trimmed)) return trimmed;
+  const repository = trimmed.endsWith(".git") ? trimmed : `${trimmed}.git`;
+  return `https://github.com/${repository}`;
 }
 
 export function getDefaultCloneUrl(
@@ -209,7 +203,7 @@ export function getNewProjectPathPreview(newProjectsRoot: string, name: string):
 }
 
 export interface NewProjectPublishTarget {
-  readonly definition: SourceControlDefinition;
+  readonly definition: SourceControlClientDefinition;
   readonly owner: string | null;
 }
 

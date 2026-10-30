@@ -6,42 +6,52 @@ import * as NodePath from "node:path";
 import * as NodeURL from "node:url";
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
-import { readWorkspace } from "./lib/changed-packages.ts";
 
 const repoRoot = NodePath.resolve(NodePath.dirname(NodeURL.fileURLToPath(import.meta.url)), "..");
 
-const workspaceFiles = new Set([
+const workspaceFiles = [
   "package.json",
   "pnpm-lock.yaml",
   "pnpm-workspace.yaml",
-  ...readWorkspace(repoRoot).map(({ dir }) => `${dir}/package.json`),
-]);
-
-for (const relativePath of workspaceFiles) {
-  if (!relativePath.endsWith("package.json")) continue;
-  const manifest = JSON.parse(NodeFS.readFileSync(NodePath.join(repoRoot, relativePath), "utf8"));
-  for (const dependency of Object.values({
-    ...manifest.dependencies,
-    ...manifest.devDependencies,
-    ...manifest.optionalDependencies,
-    ...manifest.peerDependencies,
-  })) {
-    if (typeof dependency !== "string" || !/^(?:file|link):/.test(dependency)) continue;
-    const localPath = NodePath.resolve(
-      repoRoot,
-      NodePath.dirname(relativePath),
-      dependency.slice(dependency.indexOf(":") + 1),
-    );
-    const localFile = NodeFS.statSync(localPath).isDirectory()
-      ? NodePath.join(localPath, "package.json")
-      : localPath;
-    const relativeFile = NodePath.relative(repoRoot, localFile);
-    if (relativeFile.startsWith("..") || NodePath.isAbsolute(relativeFile)) {
-      throw new Error(`Release fixture dependency is outside the repository: ${dependency}`);
-    }
-    workspaceFiles.add(relativeFile);
-  }
-}
+  "apps/server/package.json",
+  "apps/desktop/package.json",
+  "apps/web/package.json",
+  "apps/mobile/package.json",
+  "apps/mobile/modules/supaterm-source-text/package.json",
+  "apps/mobile/modules/supaterm-review-diff/package.json",
+  "apps/mobile/modules/supaterm-relay-tunnel/package.json",
+  "apps/mobile/modules/supaterm-terminal/package.json",
+  "apps/marketing/package.json",
+  "oxlint-plugin-supaterm/package.json",
+  "packages/client-runtime/package.json",
+  "packages/codex-micro/package.json",
+  "packages/contracts/package.json",
+  "packages/icons/package.json",
+  "packages/mermaid/package.json",
+  "packages/shared/package.json",
+  "packages/ssh/package.json",
+  "packages/tailscale/package.json",
+  "packages/provider-core/package.json",
+  "packages/provider-testing/package.json",
+  "packages/provider-pi/package.json",
+  "packages/provider-acp/package.json",
+  "packages/provider-acp-registry/package.json",
+  "packages/provider-cursor/package.json",
+  "packages/provider-grok/package.json",
+  "packages/provider-muse/package.json",
+  "packages/provider-opencode/package.json",
+  "packages/source-control-azure-devops/package.json",
+  "packages/source-control-bitbucket/package.json",
+  "packages/source-control-core/package.json",
+  "packages/source-control-forgejo/package.json",
+  "packages/source-control-gitcafe/package.json",
+  "packages/source-control-github/package.json",
+  "packages/source-control-gitlab/package.json",
+  "packages/source-control-testing/package.json",
+  "packages/effect-acp/package.json",
+  "packages/effect-codex-app-server/package.json",
+  "scripts/package.json",
+] as const;
 
 function copyWorkspaceManifestFixture(targetRoot: string): void {
   for (const relativePath of workspaceFiles) {
@@ -49,6 +59,13 @@ function copyWorkspaceManifestFixture(targetRoot: string): void {
     const destinationPath = NodePath.resolve(targetRoot, relativePath);
     NodeFS.mkdirSync(NodePath.dirname(destinationPath), { recursive: true });
     NodeFS.cpSync(sourcePath, destinationPath);
+  }
+
+  const mobileDependencies = NodePath.resolve(repoRoot, "apps/mobile/deps");
+  if (NodeFS.existsSync(mobileDependencies)) {
+    NodeFS.cpSync(mobileDependencies, NodePath.resolve(targetRoot, "apps/mobile/deps"), {
+      recursive: true,
+    });
   }
 
   const patchesDirectory = NodePath.resolve(repoRoot, "patches");

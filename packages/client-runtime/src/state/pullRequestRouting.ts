@@ -18,34 +18,18 @@ import * as SubscriptionRef from "effect/SubscriptionRef";
 import * as EnvironmentRegistry from "../connection/registry.ts";
 import * as EnvironmentSupervisor from "../connection/supervisor.ts";
 import {
-  PullRequestRoutingPermissions,
-  pullRequestRoutingConnectionKey,
-} from "../connection/pullRequestRoutingPermissions.ts";
+  GitHubRoutingPermissions,
+  gitHubRoutingConnectionKey,
+} from "../connection/githubRoutingPermissions.ts";
 import type { ConnectionCatalogEntry } from "../connection/catalog.ts";
 import * as ConnectionProfileStore from "../connection/profileStore.ts";
 import type { RpcSession } from "../rpc/session.ts";
 import {
-  requestGuarded,
+  requestGuarded as request,
   EnvironmentRpcUnavailableError,
   type EnvironmentRpcInput,
   type EnvironmentUnaryRpcTag,
 } from "../rpc/client.ts";
-
-import {
-  recordPullRequestObservation,
-  preservePullRequestObservation,
-} from "../pullRequestObservation.ts";
-
-const request = <T extends EnvironmentUnaryRpcTag>(tag: T, input: EnvironmentRpcInput<T>) =>
-  requestGuarded(tag, input).pipe(
-    Effect.flatMap((result) =>
-      EnvironmentSupervisor.EnvironmentSupervisor.pipe(
-        Effect.map((supervisor) =>
-          recordPullRequestObservation(result, supervisor.target.environmentId),
-        ),
-      ),
-    ),
-  );
 
 const reads = new Set<string>([
   WS_METHODS.pullRequestsSummary,
@@ -187,7 +171,7 @@ const routingAllowed = Effect.fn("PullRequestRouting.allowed")(function* (
     destination.unsupportedReason !== undefined
   )
     return false;
-  const permissions = yield* PullRequestRoutingPermissions;
+  const permissions = yield* GitHubRoutingPermissions;
   const source = yield* permissions.get(origin);
   const target = yield* permissions.get(destination);
   const allowed = write
@@ -201,9 +185,8 @@ const routingAllowed = Effect.fn("PullRequestRouting.allowed")(function* (
     const profile = yield* profiles.value
       .get(entry.target.connectionId)
       .pipe(Effect.orElseSucceed(() => Option.none()));
-    const key = pullRequestRoutingConnectionKey(entry);
-    if (key === null || key !== pullRequestRoutingConnectionKey({ ...entry, profile }))
-      return false;
+    const key = gitHubRoutingConnectionKey(entry);
+    if (key === null || key !== gitHubRoutingConnectionKey({ ...entry, profile })) return false;
   }
   return true;
 });
@@ -363,8 +346,7 @@ export function createPullRequestRouter() {
           identityProbe,
         )
       : identityProbe;
-
-    if (identity === null) return yield* finish(source);
+    if (identity === null || identity.provider !== "github") return yield* finish(source);
 
     const routedInput = {
       ...input,
@@ -426,7 +408,6 @@ export function createPullRequestRouter() {
           // Route only to an environment signed in to the same account on this host.
           const alternateProbe = request(WS_METHODS.pullRequestsRoutingIdentity, {
             host: identity.host,
-            repository: ref.repository,
           }).pipe(
             Effect.timeout("2 seconds"),
             Effect.catchCause((cause) =>
@@ -437,14 +418,7 @@ export function createPullRequestRouter() {
             .run(
               id,
               reads.has(tag)
-                ? shareMetadataRead(
-                    pendingIdentities,
-                    encodeKey([
-                      identity.host.trim().toLowerCase(),
-                      ref.repository.trim().toLowerCase(),
-                    ]),
-                    alternateProbe,
-                  )
+                ? shareMetadataRead(pendingIdentities, identity.host.toLowerCase(), alternateProbe)
                 : alternateProbe,
             )
             .pipe(
@@ -455,7 +429,7 @@ export function createPullRequestRouter() {
             );
           if (
             alternate === null ||
-            alternate.provider !== identity.provider ||
+            alternate.provider !== "github" ||
             alternate.host.toLowerCase() !== identity.host.toLowerCase() ||
             alternate.accountId !== identity.accountId
           ) {
@@ -473,13 +447,13 @@ export function createPullRequestRouter() {
           ),
           Effect.map((result) =>
             typeof result === "object" && result !== null && "projectId" in result
-              ? preservePullRequestObservation(result, {
+              ? {
                   ...result,
                   projectId: ref.projectId,
                   ...(tag === WS_METHODS.pullRequestsDetail
                     ? { projectTitle: identity.projectTitle, workspaceRoot: identity.workspaceRoot }
                     : {}),
-                })
+                }
               : result,
           ),
         );

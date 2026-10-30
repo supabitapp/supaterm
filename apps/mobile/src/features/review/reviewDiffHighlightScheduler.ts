@@ -6,7 +6,7 @@ export interface NativeReviewVisibleRange {
 export function createReviewDiffHighlightScheduler(
   request: (range: NativeReviewVisibleRange) => void,
 ) {
-  let requestedRange: NativeReviewVisibleRange | undefined;
+  let requestedRange: NativeReviewVisibleRange = { firstRowIndex: 0, lastRowIndex: 80 };
   let visibleRange = requestedRange;
   let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -17,23 +17,19 @@ export function createReviewDiffHighlightScheduler(
   const flush = () => {
     cancel();
     requestedRange = visibleRange;
-    if (visibleRange) request(visibleRange);
+    request(visibleRange);
   };
 
   return {
     update(nextRange: NativeReviewVisibleRange) {
       if (
-        nextRange.firstRowIndex === visibleRange?.firstRowIndex &&
+        nextRange.firstRowIndex === visibleRange.firstRowIndex &&
         nextRange.lastRowIndex === visibleRange.lastRowIndex
       ) {
         return;
       }
       visibleRange = nextRange;
       cancel();
-      if (!requestedRange) {
-        timer = setTimeout(flush, 0);
-        return;
-      }
       const movedRows =
         Math.abs(nextRange.firstRowIndex - requestedRange.firstRowIndex) +
         Math.abs(nextRange.lastRowIndex - requestedRange.lastRowIndex);
@@ -45,10 +41,8 @@ export function createReviewDiffHighlightScheduler(
     },
     reset() {
       cancel();
-      const previousRange = visibleRange;
-      requestedRange = undefined;
+      requestedRange = { firstRowIndex: 0, lastRowIndex: 80 };
       visibleRange = requestedRange;
-      return previousRange;
     },
     cancel,
   };

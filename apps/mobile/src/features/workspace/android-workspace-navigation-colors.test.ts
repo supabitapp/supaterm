@@ -34,17 +34,11 @@ function expectVisibleSelection(colors: ReturnType<typeof androidWorkspaceNaviga
 }
 
 describe("Android workspace navigation colors", () => {
-  it.each(MOBILE_THEME_IDS)("keeps %s selection visible in every navigation layout", (themeId) => {
+  it.each(MOBILE_THEME_IDS)("keeps %s selection visible", (themeId) => {
     for (const appearance of ["light", "dark"] as const) {
       const variables = getMobileThemeRuntimeVariables(themeId, appearance, "android");
       const snapshot = { ...variables };
-      for (const [rail, floating] of [
-        [false, false],
-        [true, false],
-        [false, true],
-      ] as const) {
-        expectVisibleSelection(androidWorkspaceNavigationColors(variables, rail, floating));
-      }
+      expectVisibleSelection(androidWorkspaceNavigationColors(variables));
       expect(variables).toEqual(snapshot);
     }
   });
@@ -91,26 +85,17 @@ describe("Android workspace navigation colors", () => {
           appearance,
           getMobileThemeRuntimeVariables("material-you", appearance, "android"),
         );
-        for (const [rail, floating] of [
-          [false, false],
-          [true, false],
-          [false, true],
-        ] as const) {
-          expectVisibleSelection(androidWorkspaceNavigationColors(variables, rail, floating));
-        }
+        expectVisibleSelection(androidWorkspaceNavigationColors(variables));
       }
     },
   );
 
   it("preserves an already visible tonal fill", () => {
     const variables = getMobileThemeRuntimeVariables("one-light", "light", "android");
-    const colors = androidWorkspaceNavigationColors(
-      {
-        ...variables,
-        "--color-secondary": "#e091cf",
-      },
-      false,
-    );
+    const colors = androidWorkspaceNavigationColors({
+      ...variables,
+      "--color-secondary": "#e091cf",
+    });
     expect(colors.indicatorColor).toBe("#e091cf");
     expectVisibleSelection(colors);
   });

@@ -1,9 +1,26 @@
+/**
+ * Keyboard and text input for a preview tab's page that never lands outside it.
+ *
+ * Chromium sends a page's CDP key and text input to whichever frame holds focus
+ * in the window. A `<webview>` guest shares that focus with the app around it,
+ * so while a person works in the app, `Input.insertText` on the guest's own
+ * debugger types into the app's focused field. Such input goes through CDP only
+ * while the guest holds focus. Otherwise it goes straight to the guest's own
+ * widget, which nothing redirects.
+ */
+
+/** CDP input Chromium delivers to the window's focused frame rather than the page's. */
 const FOCUS_ROUTED_INPUT = new Set([
   "Input.insertText",
   "Input.dispatchKeyEvent",
   "Input.imeSetComposition",
 ]);
 
+/**
+ * Page script: the document holding the page's focus, or null when a cross-site
+ * frame holds it. Electron's direct input reaches only the main frame's process,
+ * and `insertText` crashes the page when focus is in another one.
+ */
 const FOCUSED_DOCUMENT = `(() => {
   let doc = document;
   for (;;) {
@@ -14,6 +31,11 @@ const FOCUSED_DOCUMENT = `(() => {
   }
 })()`;
 
+/**
+ * macOS editing commands a key press asks for (Cmd+A is `selectAll`), which
+ * Chromium runs only for CDP keys. Clipboard commands stay out: they would read
+ * or replace the person's clipboard.
+ */
 const EDITING_COMMANDS = new Set(["selectAll", "undo", "redo"]);
 
 const CROSS_SITE_FOCUS_MESSAGE =
@@ -52,12 +74,18 @@ const MODIFIER_BITS = [
   [8, "shift"],
 ] as const;
 
+/** Electron's accelerator name for a DOM key value, or null when it has none. */
 const keyCodeFor = (key: string) => {
   if ([...key].length === 1) return key;
   if (ARROW_KEYS[key]) return ARROW_KEYS[key];
   return NAMED_KEYS.has(key) || /^F(?:[1-9]|1\d|2[0-4])$/u.test(key) ? key : null;
 };
 
+/**
+ * The Electron key events for one CDP `Input.dispatchKeyEvent`. Electron
+ * derives key, code, and a char's text from `keyCode`, so typed text travels
+ * as `char` events of its own.
+ */
 export const toKeyboardInputEvents = (
   params: Record<string, unknown>,
 ): Array<Electron.KeyboardInputEvent> => {
@@ -87,12 +115,14 @@ const evaluate = async (debuggee: Electron.Debugger, expression: string) => {
   return reply.result?.value;
 };
 
+/** Sends one command to the guest's page, keeping reloads and input inside it. */
 export const sendPageCommand = async (
   webContents: Electron.WebContents,
   debuggee: Electron.Debugger,
   method: string,
   params: Record<string, unknown>,
 ): Promise<unknown> => {
+  // Electron's debugger routes Page.reload on a webview to its embedder window.
   if (method === "Page.reload") {
     if (params["ignoreCache"] === true) webContents.reloadIgnoringCache();
     else webContents.reload();
@@ -113,7 +143,7 @@ export const sendPageCommand = async (
       const commands = Array.isArray(params["commands"])
         ? params["commands"].filter((command) => EDITING_COMMANDS.has(command))
         : [];
-
+      // Runs after the page handles the keys, so the reply also waits for them.
       await evaluate(
         debuggee,
         `(() => { const doc = ${FOCUSED_DOCUMENT}; for (const name of ${JSON.stringify(commands)}) doc?.execCommand(name); return 0; })()`,

@@ -8,6 +8,10 @@ import {
 } from "./baseSchemas.ts";
 import { ProviderDriverKind, ProviderInstanceId } from "./providerInstance.ts";
 
+/**
+ * `id` is stable per provider (`five_hour`, `seven_day_opus`, `primary`) so a
+ * sparse turn-driven update lands on the same row a full probe produced.
+ */
 export const ServerProviderUsageWindow = Schema.Struct({
   id: TrimmedNonEmptyString,
   kind: Schema.Literals(["session", "weekly", "monthly", "other"]),
@@ -25,6 +29,11 @@ export const ServerProviderResetCredits = Schema.Struct({
 });
 export type ServerProviderResetCredits = typeof ServerProviderResetCredits.Type;
 
+/**
+ * `unavailable` distinguishes an account that can never report windows (API
+ * key, Bedrock) from a probe that failed this time, so clients can keep the
+ * last good bars for the latter and clear them for the former.
+ */
 export const ServerProviderUsageLimits = Schema.Struct({
   checkedAt: IsoDateTime,
   windows: ForwardCompatibleArray(ServerProviderUsageWindow),
@@ -45,6 +54,11 @@ export const ServerProviderUsageLimits = Schema.Struct({
 });
 export type ServerProviderUsageLimits = typeof ServerProviderUsageLimits.Type;
 
+/**
+ * Sparse by contract: Claude's `rate_limit_event` names one window at a time
+ * and Codex documents its notification as a partial. Windows merge by `id` onto
+ * the instance's published snapshot; omitted windows are unchanged.
+ */
 export const ProviderUsageLimitsUpdate = Schema.Struct({
   windows: Schema.Array(ServerProviderUsageWindow),
 });

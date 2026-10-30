@@ -1,13 +1,18 @@
-import type { ChangeRequestTerminology } from "@supaterm/client-runtime/source-control-clients";
-import { EnvironmentId, ProjectId, type PullRequestListEntry } from "@supaterm/contracts";
+import {
+  EnvironmentId,
+  ProjectId,
+  type PullRequestDiffResult,
+  type PullRequestListEntry,
+} from "@supaterm/contracts";
 import { useAtomRefresh } from "@effect/atom-react";
-import { useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { composerPullRequests } from "../../state/pull-requests";
 import { useEnvironmentQuery } from "../../state/query";
 import { usePullToRefresh } from "../../state/use-pull-to-refresh";
+import type { ReviewParsedDiff } from "../review/reviewModel";
 import {
-  getCachedPullRequestDiffPages,
+  combinePullRequestDiffPages,
   retainPullRequestDiffPage,
   type PullRequestDiffPage,
 } from "./pullRequestDiffPages";
@@ -37,51 +42,7 @@ export function pullRequestTarget(params: PullRequestParams) {
 
 const NO_PAGES: readonly PullRequestDiffPage[] = [];
 
-export function usePullRequestDiffEntry(navigation: {
-  readonly addListener: (
-    type: "transitionStart" | "transitionEnd",
-    listener: (event: { readonly data: { readonly closing: boolean } }) => void,
-  ) => () => void;
-}) {
-  const [ready, setReady] = useState(false);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to navigator transition events and frames to defer the diff until the opening transition ends
-  useLayoutEffect(() => {
-    if (ready) return;
-    let opening = false;
-    let closing = false;
-    const finish = () => {
-      if (!closing) setReady(true);
-    };
-    const removeStart = navigation.addListener("transitionStart", ({ data }) => {
-      closing = data.closing;
-      if (!closing) opening = true;
-    });
-    const removeEnd = navigation.addListener("transitionEnd", ({ data }) => {
-      closing = data.closing;
-      if (!closing) finish();
-    });
-
-    let frame = requestAnimationFrame(() => {
-      frame = requestAnimationFrame(() => {
-        if (!opening) finish();
-      });
-    });
-
-    const fallback = setTimeout(finish, 1_000);
-    return () => {
-      removeStart();
-      removeEnd();
-      cancelAnimationFrame(frame);
-      clearTimeout(fallback);
-    };
-  }, [navigation, ready]);
-  return ready;
-}
-
-export function usePullRequestDiff(
-  params: PullRequestDiffParams,
-  terminology: ChangeRequestTerminology,
-) {
+export function usePullRequestDiff(params: PullRequestDiffParams) {
   const reference = pullRequestTarget(params);
   const target = {
     ...reference,
@@ -109,31 +70,27 @@ export function usePullRequestDiff(
   }, [cursor, key, query.data, state.key, state.pages]);
   if (state.key !== key || state.pages !== pages) setState({ key, cursor, pages });
 
+  const [parseCache] = useState(() => new WeakMap<PullRequestDiffResult, ReviewParsedDiff>());
   const parsed = useMemo(
-    () => getCachedPullRequestDiffPages(pages, key, terminology),
-    [key, pages, terminology],
+    () => combinePullRequestDiffPages(pages, parseCache, key),
+    [key, pages, parseCache],
   );
   const patch = useMemo(() => pages.map((page) => page.result.patch).join("\n"), [pages]);
   const nextCursor = pages.at(-1)?.result.nextCursor ?? null;
   const canLoadMore =
     nextCursor !== null && nextCursor !== cursor && !query.isPending && query.error === null;
-  const loadMore = () => {
+  const loadMore = useCallback(() => {
     if (!canLoadMore) return;
     setState({ key, cursor: nextCursor, pages });
-  };
-  const { error, refresh: refreshPage } = query;
-  const refresh = () => {
-    if (cursor !== null && error !== null) {
-      refreshPage();
-      return;
-    }
+  }, [canLoadMore, key, nextCursor, pages, setState]);
+  const refresh = useCallback(() => {
     setState({ key, cursor: null, pages: NO_PAGES });
     refreshFirstPage();
-  };
-  const onPullRefresh = () => {
+  }, [key, refreshFirstPage, setState]);
+  const onPullRefresh = useCallback(() => {
     setState({ key, cursor: null, pages: NO_PAGES });
     onRefresh();
-  };
+  }, [key, onRefresh, setState]);
   return {
     ...query,
     refresh,

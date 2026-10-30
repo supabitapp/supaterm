@@ -1,7 +1,6 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import {
   AuthStandardClientScopes,
-  MCP_PEER_LINK_SOFTWARE_ID,
   type AuthCreatePairingCredentialInput,
   EnvironmentHttpApi,
 } from "@supaterm/contracts";
@@ -20,7 +19,6 @@ import * as Schema from "effect/Schema";
 
 import * as ServerConfig from "../config.ts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
-import * as ServerSettings from "../serverSettings.ts";
 import * as Sqlite from "../persistence/Sqlite.ts";
 import * as EnvironmentAuth from "./EnvironmentAuth.ts";
 import * as McpOAuth from "./McpOAuth.ts";
@@ -39,10 +37,7 @@ const layerEnvironmentAuth = EnvironmentAuth.layer.pipe(
   Layer.provideMerge(ServerEnvironment.layerIdentity),
   Layer.provide(layerConfig),
 );
-const makeLayerRoutes = (
-  capture: (auth: EnvironmentAuth.EnvironmentAuth["Service"]) => void,
-  settings: Parameters<typeof ServerSettings.layerTest>[0] = {},
-) =>
+const makeLayerRoutes = (capture: (auth: EnvironmentAuth.EnvironmentAuth["Service"]) => void) =>
   Layer.mergeAll(
     Layer.effectDiscard(
       EnvironmentAuth.EnvironmentAuth.pipe(Effect.tap((auth) => Effect.sync(() => capture(auth)))),
@@ -54,7 +49,6 @@ const makeLayerRoutes = (
     ),
   ).pipe(
     Layer.provideMerge(layerEnvironmentAuth),
-    Layer.provide(ServerSettings.layerTest(settings)),
     Layer.provide(layerConfig),
     Layer.provideMerge(
       HttpPlatform.layer.pipe(
@@ -86,7 +80,6 @@ type Handler = (request: Request) => Effect.Effect<Response>;
 
 const withRoutes = <A, E>(
   use: (handler: Handler, auth: EnvironmentAuth.EnvironmentAuth["Service"]) => Effect.Effect<A, E>,
-  settings: Parameters<typeof ServerSettings.layerTest>[0] = {},
 ) =>
   Effect.gen(function* () {
     const crypto = yield* Crypto.Crypto;
@@ -94,7 +87,7 @@ const withRoutes = <A, E>(
     let routerAuth: EnvironmentAuth.EnvironmentAuth["Service"] | undefined;
     const layerRoutes = makeLayerRoutes((auth) => {
       routerAuth = auth;
-    }, settings);
+    });
     return yield* Effect.acquireUseRelease(
       Effect.sync(() => HttpRouter.toWebHandler(layerRoutes, { disableLogger: true })),
       (web) =>
@@ -552,24 +545,3 @@ it("matches loopback redirects on everything but the port, and https redirects e
   expect(matches("https://bot.example/cb", "https://bot.example/cb?x=1")).toBe(false);
   expect(matches("https://bot.example/cb", "https://evil.example/cb")).toBe(false);
 });
-
-it.live("requires linked-environment opt-in before registering a peer client", () =>
-  Effect.gen(function* () {
-    for (const enabled of [false, true]) {
-      yield* withRoutes(
-        (handler) =>
-          Effect.gen(function* () {
-            const response = yield* handler(
-              postJson("/oauth/mcp/register", {
-                client_name: "Linked environment",
-                redirect_uris: [REDIRECT],
-                software_id: MCP_PEER_LINK_SOFTWARE_ID,
-              }),
-            );
-            expect(response.status).toBe(enabled ? 201 : 400);
-          }),
-        { linkedEnvironmentsEnabled: enabled },
-      );
-    }
-  }),
-);

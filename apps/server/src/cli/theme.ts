@@ -177,13 +177,16 @@ const publishThemeFile = Effect.fn(function* (input: {
 
   const fileBasename = path.basename(input.filePath, ".json");
   const themeId = Option.getOrElse(input.explicitId, () => fileBasename);
-  // Match watcher validation so published files will not be skipped.
+  // The same rules the watcher applies when it reads the directory back, so a
+  // publish cannot report success for a file that will then be skipped.
   if (!isEnvironmentThemeId(themeId) || UNPUBLISHABLE_THEME_IDS.has(themeId)) {
     return yield* new ThemeFileIdInvalidError({ themeId, filePath: input.filePath });
   }
 
   const destinationPath = path.join(input.themesDir, `${themeId}.json`);
-  // Non-JSON suffixes hide these from the watcher; PIDs isolate concurrent publishers.
+  // Neither ends in `.json`, so the watcher never mistakes them for themes.
+  // Both names carry the pid, so concurrent publishers of one id cannot
+  // unlink or restore over each other's staging and rollback copies.
   const backupPath = `${destinationPath}.rollback-${process.pid}`;
   const stagingPath = `${destinationPath}.staging-${process.pid}`;
   yield* fs
@@ -193,8 +196,11 @@ const publishThemeFile = Effect.fn(function* (input: {
   const publishFailure = (cause: unknown) =>
     new ThemePublishError({ themesDir: input.themesDir, cause });
 
-  // O_EXCL prevents following a symlink at the predictable staging path.
-  // Preserve bytes exactly: even an added newline could exceed the watcher's size limit.
+  // The staging entry is created O_EXCL after clearing any stale leftover, so a
+  // symlink or file already at that predictable name is never followed or
+  // written through. Written verbatim: appending so much as a newline could
+  // push a file at the size limit past it and have the watcher skip what was
+  // just accepted.
   const stagedIno = yield* Effect.try({
     try: () => {
       try {
@@ -215,7 +221,10 @@ const publishThemeFile = Effect.fn(function* (input: {
     catch: publishFailure,
   });
 
-  // Atomic rename avoids a check/replace race and preserves the exact entry for rollback.
+  // Whatever occupies the destination -- a theme, a symlink, anything -- is
+  // moved aside in one atomic step rather than inspected and then replaced:
+  // there is no window between a check and the commit, and rollback restores
+  // that exact directory entry instead of a re-read of it.
   const hadPrevious = yield* Effect.try({
     try: () => {
       try {
@@ -234,7 +243,9 @@ const publishThemeFile = Effect.fn(function* (input: {
       NodeFS.unlinkSync(stagingPath);
     } catch {}
     try {
-      // Only replace this process's inode or an empty destination; concurrent publishers win.
+      // The destination is touched only while it is empty or still holds
+      // the exact file this process put there; a concurrent publisher's
+      // newer file wins, and this process's obsolete copy is discarded.
       const destinationIno = (() => {
         try {
           return NodeFS.lstatSync(destinationPath).ino;
@@ -267,7 +278,11 @@ const publishThemeFile = Effect.fn(function* (input: {
   return { themeId, revert, cleanup };
 });
 
-/** Web and desktop cannot resolve the mobile default, and mobile does not follow this setting. */
+/**
+ * The mobile default is absent on purpose -- web and desktop cannot resolve it
+ * and mobile does not follow this setting, so naming it would be the silent
+ * no-op this check exists to stop.
+ */
 const resolvableThemeIds = Effect.fn(function* (themesDir: string) {
   const published = yield* readPublishedThemes(themesDir);
   return [...BUILT_IN_THEME_IDS, ...published.map((theme) => theme.id)].toSorted();
@@ -281,7 +296,7 @@ const themeSetCommand = Command.make("set", {
   ),
   theme: Argument.String("theme").pipe(
     Argument.withDescription(
-      'A theme id (a built-in, or one this machine publishes, where themes/nightfall.json is "nightfall"), or a path to a theme JSON file to publish and set in one step.',
+      'A theme id (a built-in, or one this machine publishes — themes/nightfall.json is "nightfall"), or a path to a theme JSON file to publish and set in one step.',
     ),
   ),
 }).pipe(

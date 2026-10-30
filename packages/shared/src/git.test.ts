@@ -9,7 +9,6 @@ import {
   flattenTemporaryWorktreeBranchName,
   isTemporaryWorktreeBranch,
   normalizeGitRemoteUrl,
-  parseGitRemoteRepository,
   parseGitRemoteFetchUrls,
   parseGitRemoteVerboseOutput,
   parseGitRemoteVerboseUrls,
@@ -48,9 +47,6 @@ describe("normalizeGitRemoteUrl", () => {
     );
     expect(normalizeGitRemoteUrl("ssh://git@gitlab.company.com:2222/team/project.git")).toBe(
       "gitlab.company.com/team/project",
-    );
-    expect(normalizeGitRemoteUrl("https://[2001:db8::1]:8443/team/project.git")).toBe(
-      "[2001:db8::1]/team/project",
     );
   });
 
@@ -406,34 +402,5 @@ describe("repositoryBranchPrefix", () => {
     ["the folder without a remote", null, "myrepo"],
   ])("names branches after %s", (_case, repositoryIdentity, expected) => {
     expect(repositoryBranchPrefix(repositoryIdentity, "/workspaces/MyRepo.git")).toBe(expected);
-  });
-});
-
-describe("parseGitRemoteRepository", () => {
-  it.each([
-    ["ssh://git@Code.Example:2222/Team/Repo.git", { host: "code.example", path: "team/repo" }],
-    [
-      "https://code.example:8443/group/nested/repo.git/",
-      { host: "code.example:8443", path: "group/nested/repo" },
-    ],
-    ["http://code.example:8080/team/repo.git", { host: "code.example:8080", path: "team/repo" }],
-    [
-      "https://git@Code.Example:8443/Team/Repo.git",
-      { host: "code.example:8443", path: "team/repo" },
-    ],
-    ["https://[2001:db8::1]:8443/team/repo.git", { host: "[2001:db8::1]:8443", path: "team/repo" }],
-    ["git://code.example:9418/team/repo.git", { host: "code.example", path: "team/repo" }],
-    ["git@code.example:team/repo.git", { host: "code.example", path: "team/repo" }],
-    [
-      "git@ssh.dev.azure.com:v3/Org/Project/Repo",
-      { host: "ssh.dev.azure.com", path: "v3/org/project/repo" },
-    ],
-    ["C:/work/repo", null],
-    ["/work/repo", null],
-    ["../repo", null],
-    ["https://code.example/repo", null],
-    ["https://", null],
-  ] as const)("reads the host and repository from %s", (remote, expected) => {
-    expect(parseGitRemoteRepository(remote)).toEqual(expected);
   });
 });

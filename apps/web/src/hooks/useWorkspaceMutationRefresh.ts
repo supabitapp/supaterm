@@ -16,7 +16,6 @@ export function useWorkspaceMutationRefresh(input: {
   const { enabled = true, mutationId, refresh, resourceKey } = input;
   const handledTokenRef = useRef<string | null>(null);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- refetches the resource once per new workspace mutation token
   useEffect(() => {
     if (!enabled) return;
     const token = workspaceMutationRefreshToken(resourceKey, mutationId);

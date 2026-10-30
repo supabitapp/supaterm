@@ -6,7 +6,6 @@ import { cn } from "../../lib/cn";
 
 function useUserInputCountdown(deadline: string | null) {
   const [now, setNow] = useState(Date.now);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Owns the countdown timer and refreshes its clock when the native app resumes.
   useLayoutEffect(() => {
     if (deadline === null) return;
     const tick = () => {

@@ -1,12 +1,22 @@
+/**
+ * Credentials for the Device panel's media requests.
+ *
+ * The panel reaches simulator streams through `/api/device-hub/*` on the
+ * environment origin. `<img>`, `EventSource`, and `WebSocket` cannot set
+ * bearer headers, so bearer connections mint a short-lived WebSocket ticket
+ * and pass it as `wsTicket`, the same way the app's own `/ws` upgrade
+ * authenticates. Cookie sessions send the cookie.
+ *
+ * A ticket lives five minutes server-side and is bound to the session, not
+ * to one request, so one ticket covers everything a panel opens at once.
+ * Callers fetch a fresh one each time they (re)connect a stream.
+ */
 import * as Effect from "effect/Effect";
 import type { HttpClient } from "effect/http";
 
 import type { PreparedConnection } from "../connection/model.ts";
 import { environmentEndpointUrl } from "../environment/endpoint.ts";
-import {
-  RemoteEnvironmentAuthUndeclaredStatusError,
-  type RemoteEnvironmentRequestError,
-} from "../rpc/http.ts";
+import type { RemoteEnvironmentRequestError } from "../rpc/http.ts";
 import { executeAuthenticatedEnvironmentHttpRequest } from "./environmentHttpAuth.ts";
 import type { DeviceHubAccess } from "../device/hubAccess.ts";
 
@@ -24,25 +34,13 @@ export const resolveDeviceHubAccess = Effect.fn("clientRuntime.state.resolveDevi
     if (input.prepared.httpAuthorization === null) {
       return { httpBase, wsBase, query: {}, credentials: true };
     }
-    const issue = (media: boolean) =>
-      executeAuthenticatedEnvironmentHttpRequest({
-        prepared: input.prepared,
-        group: "auth",
-        url: (urls) =>
-          media ? urls.webSocketTicketFor({ params: { use: "media" } }) : urls.webSocketTicket(),
-        timeoutMs: TICKET_TIMEOUT_MS,
-        request: ({ client, headers }) =>
-          media
-            ? client.webSocketTicketFor({ headers, params: { use: "media" } })
-            : client.webSocketTicket({ headers }),
-      });
-    const ticket = yield* issue(true).pipe(
-      Effect.catchIf(
-        (error) =>
-          error instanceof RemoteEnvironmentAuthUndeclaredStatusError && error.status === 404,
-        () => issue(false),
-      ),
-    );
+    const ticket = yield* executeAuthenticatedEnvironmentHttpRequest({
+      prepared: input.prepared,
+      group: "auth",
+      url: (urls) => urls.webSocketTicket(),
+      timeoutMs: TICKET_TIMEOUT_MS,
+      request: ({ client, headers }) => client.webSocketTicket({ headers }),
+    });
     return {
       httpBase,
       wsBase,

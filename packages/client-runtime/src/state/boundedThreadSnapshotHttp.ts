@@ -23,12 +23,7 @@ export const fetchEnvironmentBoundedThreadSnapshot = Effect.fn(
 }) {
   const endpoint = {
     params: { threadId: input.threadId },
-    query: {
-      compactTurnItems: "1",
-      dedupeBodies: "1",
-      compactIds: "1",
-      deferWork: "1",
-    },
+    query: { compactTurnItems: "1" },
   };
   return yield* executeAuthenticatedEnvironmentHttpRequest({
     ...input,
@@ -49,6 +44,10 @@ export const fetchEnvironmentBoundedThreadSnapshot = Effect.fn(
 });
 
 /**
+ * Shared ThreadSnapshotLoader for clients that render progressive history.
+ * Seeds from the bounded HTTP snapshot. A structured
+ * EnvironmentResourceNotFoundError means missing. Other failures report
+ * `unavailable` so the socket path remains a last resort for connectivity issues.
  */
 export const layer: Layer.Layer<
   ThreadSnapshotLoader.ThreadSnapshotLoader,
@@ -59,10 +58,7 @@ export const layer: Layer.Layer<
   Effect.gen(function* () {
     const httpClient = yield* HttpClient.HttpClient;
     return ThreadSnapshotLoader.ThreadSnapshotLoader.of({
-      load: Effect.fn("ThreadSnapshotLoader.load")(function (
-        prepared: PreparedConnection,
-        threadId: ThreadId,
-      ) {
+      load: (prepared: PreparedConnection, threadId: ThreadId) => {
         return fetchEnvironmentBoundedThreadSnapshot({
           prepared,
           threadId,
@@ -103,7 +99,7 @@ export const layer: Layer.Layer<
             ),
           ),
         );
-      }),
+      },
     });
   }),
 );

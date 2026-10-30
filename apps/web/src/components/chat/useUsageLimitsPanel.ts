@@ -5,6 +5,17 @@ import { useStableCallback } from "../../hooks/useStableCallback";
 import { toastManager } from "../ui/toast";
 import { usageLimitsBannerItem } from "./ComposerUsageLimits";
 
+/**
+ * The open /usage-limits panel for one thread, model and turn. Only the open
+ * moment is stored: the rows read live provider data, so a redeemed reset
+ * credit or refreshed probe shows through. Anything that spends quota closes
+ * it: a new turn from any source, or the agent resuming after an approval or
+ * answered question.
+ *
+ * `panelKey` names that thread, model and turn. It is null while the provider
+ * list or the thread itself is unavailable, such as during a reconnect; the
+ * panel then stays hidden rather than being dropped.
+ */
 export function useUsageLimitsPanel(input: {
   readonly environmentId: EnvironmentId;
   readonly threadKey: string;

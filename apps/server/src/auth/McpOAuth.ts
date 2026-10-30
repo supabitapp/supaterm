@@ -11,10 +11,8 @@ import {
   type AuthMcpTokenResult,
   type AuthMcpClientAccess,
   type AuthEnvironmentScope,
-  MCP_PEER_LINK_SOFTWARE_ID,
   AuthOrchestrationOperateScope,
   AuthOrchestrationReadScope,
-  mcpClientScopes,
 } from "@supaterm/contracts";
 import { encodeOAuthScope } from "@supaterm/shared/oauthScope";
 import * as Clock from "effect/Clock";
@@ -28,7 +26,6 @@ import * as Schema from "effect/Schema";
 import { HttpServerRequest } from "effect/http";
 
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
-import * as ServerSettings from "../serverSettings.ts";
 import * as McpHttpServer from "../mcp/McpHttpServer.ts";
 import type * as McpInvocationContext from "../mcp/McpInvocationContext.ts";
 import * as EnvironmentAuth from "./EnvironmentAuth.ts";
@@ -142,7 +139,6 @@ const ClientIdPayload = Schema.Struct({
   v: Schema.Literal(1),
   n: Schema.String,
   r: Schema.Array(Schema.String),
-  p: Schema.optionalKey(Schema.Literal(1)),
 });
 const decodeClientIdPayload = Schema.decodeUnknownOption(Schema.fromJsonString(ClientIdPayload));
 
@@ -150,7 +146,6 @@ export interface McpOAuthClient {
   readonly clientId: string;
   readonly name: string;
   readonly redirectUris: ReadonlyArray<string>;
-  readonly peerLink: boolean;
 }
 
 export class McpOAuthPageError extends Schema.TaggedError<McpOAuthPageError>()(
@@ -184,7 +179,6 @@ export interface AuthorizationRequest {
 interface PendingCode {
   readonly clientId: string;
   readonly clientName: string;
-  readonly peerLink: boolean;
   readonly redirectUri: string;
   readonly codeChallenge: string;
   readonly resource: string;
@@ -246,11 +240,6 @@ const make = Effect.gen(function* () {
   const environmentAuth = yield* EnvironmentAuth.EnvironmentAuth;
   const secretStore = yield* ServerSecretStore.ServerSecretStore;
   const crypto = yield* Crypto.Crypto;
-  const serverSettings = yield* ServerSettings.ServerSettingsService;
-  const linksEnabled = serverSettings.getSettings.pipe(
-    Effect.map((settings) => settings.linkedEnvironmentsEnabled),
-    Effect.orElseSucceed(() => false),
-  );
   const signingKey = yield* secretStore
     .getOrCreateRandom(SIGNING_SECRET_NAME, 32)
     .pipe(Effect.orDie);
@@ -258,10 +247,8 @@ const make = Effect.gen(function* () {
 
   const sign = (domain: string, payload: string) => signPayload(`${domain}.${payload}`, signingKey);
 
-  const signClientId = (name: string, redirectUris: ReadonlyArray<string>, peerLink: boolean) => {
-    const body = base64UrlEncode(
-      JSON.stringify({ v: 1, n: name, r: redirectUris, ...(peerLink ? { p: 1 } : {}) }),
-    );
+  const signClientId = (name: string, redirectUris: ReadonlyArray<string>) => {
+    const body = base64UrlEncode(JSON.stringify({ v: 1, n: name, r: redirectUris }));
     return `${body}.${sign("mcp-client-id", body)}`;
   };
 
@@ -277,12 +264,7 @@ const make = Effect.gen(function* () {
     }
     return Option.getOrUndefined(
       decodeClientIdPayload(json).pipe(
-        Option.map((payload) => ({
-          clientId,
-          name: payload.n,
-          redirectUris: payload.r,
-          peerLink: payload.p === 1,
-        })),
+        Option.map((payload) => ({ clientId, name: payload.n, redirectUris: payload.r })),
       ),
     );
   };
@@ -331,15 +313,7 @@ const make = Effect.gen(function* () {
       // than rejected: RFC 7591 lets the server answer with what it supports. Claude Code
       // asks for refresh_token, and hosted agents may ask for a client secret; every client
       // is registered as public and proves itself with PKCE instead.
-      const peerLink = metadata.software_id === MCP_PEER_LINK_SOFTWARE_ID;
-      if (peerLink && !(yield* linksEnabled)) {
-        return yield* new AuthMcpRegistrationError({
-          error: "invalid_client_metadata",
-          error_description:
-            "Linked environments is off on that machine. Turn it on in its Settings → Labs.",
-        });
-      }
-      return { clientId: signClientId(name, redirectUris, peerLink), name, redirectUris, peerLink };
+      return { clientId: signClientId(name, redirectUris), name, redirectUris };
     },
   );
 
@@ -421,7 +395,6 @@ const make = Effect.gen(function* () {
       next.set(code, {
         clientId: authorization.client.clientId,
         clientName: authorization.client.name,
-        peerLink: authorization.client.peerLink,
         redirectUri: authorization.redirectUri,
         codeChallenge: authorization.codeChallenge,
         resource: authorization.resource,
@@ -454,7 +427,9 @@ const make = Effect.gen(function* () {
       if (
         session === undefined ||
         !timingSafeEqualBase64Url(decision.csrfToken, session.csrfToken) ||
-        !mcpClientScopes(decision.access).every((scope) => session.scopes.includes(scope))
+        !EnvironmentAuth.mcpClientScopes(decision.access).every((scope) =>
+          session.scopes.includes(scope),
+        )
       ) {
         return yield* new McpOAuthPageError({
           description: "Your session cannot approve this request. Enter a pairing code instead.",
@@ -523,7 +498,6 @@ const make = Effect.gen(function* () {
         .issueMcpClientSession({
           label: pending.clientName,
           access: pending.access,
-          peerLink: pending.peerLink,
           client: deriveAuthClientMetadata({ request }),
         })
         .pipe(
@@ -539,7 +513,7 @@ const make = Effect.gen(function* () {
         access_token: issued.token,
         token_type: "Bearer",
         expires_in: Math.max(0, Math.floor((issued.expiresAt.epochMilliseconds - now) / 1000)),
-        scope: encodeOAuthScope(mcpClientScopes(pending.access)),
+        scope: encodeOAuthScope(EnvironmentAuth.mcpClientScopes(pending.access)),
       };
     },
   );
@@ -563,7 +537,7 @@ export const layerMcpClientAuthenticator = Layer.effect(
     const environment = yield* ServerEnvironment.ServerEnvironment;
     const environmentId = yield* environment.getEnvironmentId;
     return McpHttpServer.McpClientAuthenticator.of({
-      authenticate: Effect.fn("McpHttpServer.McpClientAuthenticator.authenticate")((request) =>
+      authenticate: (request) =>
         environmentAuth.authenticateMcpClient(request).pipe(
           Effect.flatMap((client) =>
             Clock.currentTimeMillis.pipe(
@@ -575,8 +549,6 @@ export const layerMcpClientAuthenticator = Layer.effect(
                   sessionId: client.sessionId,
                   label: client.label,
                   access: client.access,
-                  linked: client.peerLink,
-                  ...(client.peerLink ? {} : { webOrigin: requestUrls(request).issuer }),
                 },
                 capabilities: new Set<McpInvocationContext.McpCapability>([
                   "orchestration",
@@ -594,7 +566,6 @@ export const layerMcpClientAuthenticator = Layer.effect(
             ).pipe(Effect.as(undefined)),
           ),
         ),
-      ),
     });
   }),
 );

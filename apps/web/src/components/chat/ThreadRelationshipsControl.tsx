@@ -32,9 +32,6 @@ import {
   NodeId,
   type EnvironmentId,
   type OrchestrationV2Subagent,
-  type OrchestrationV2RemoteTaskChild,
-  type OrchestrationV2DelegatedFrom,
-  type ServerProvider,
   type OrchestrationV2ThreadShell,
   type ThreadId,
 } from "@supaterm/contracts";
@@ -55,11 +52,10 @@ import { useArchivedThreadSnapshots } from "../../lib/archivedThreadsState";
 import { buildThreadRouteParams } from "../../threadRoutes";
 import {
   useProjects,
-  useQuietThreadShell,
   useThreadProjection,
   useThreadRelationshipShells,
 } from "../../state/entities";
-import { useEnvironment, useEnvironmentProviders } from "../../state/environments";
+import { useEnvironmentProviders } from "../../state/environments";
 import { threadEnvironment } from "../../state/threads";
 import { orchestrationEnvironment } from "../../state/orchestration";
 import { useAtomCommand } from "../../state/use-atom-command";
@@ -210,121 +206,6 @@ function currentSubagent<Agent extends RuntimeSubagent>(
   };
 }
 
-function RemoteSubagentRow(props: {
-  readonly agent: OrchestrationV2Subagent & {
-    readonly remoteChild: OrchestrationV2RemoteTaskChild;
-  };
-  readonly provider: ServerProvider | undefined;
-}) {
-  const navigate = useNavigate();
-  const environment = useEnvironment(props.agent.remoteChild.environmentId);
-  const { remoteChild } = props.agent;
-  const status = props.agent.status;
-  const failed = status === "failed";
-  const title = relationshipThreadTitle({
-    title: props.agent.title ?? "Subagent",
-    isSubagent: true,
-  });
-  return (
-    <li className="group relative flex h-8 items-center rounded-lg">
-      <Tooltip>
-        <TooltipTrigger
-          delay={200}
-          render={
-            <ThreadDetailsControl
-              size="sm"
-              variant="ghost"
-              part="row"
-              disabled={environment === null}
-              onClick={() =>
-                void navigate({
-                  to: "/$environmentId/$threadId",
-                  params: buildThreadRouteParams(
-                    scopeThreadRef(remoteChild.environmentId, remoteChild.threadId),
-                  ),
-                })
-              }
-            />
-          }
-        >
-          <ThreadRelationshipIcon
-            driver={props.provider?.driver}
-            provider={props.provider}
-            fallbackIcon={BotIcon}
-            status={status}
-          />
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-left text-sm font-medium leading-4 text-foreground/85">
-              {title}
-            </span>
-          </span>
-          <span
-            className={`shrink-0 text-2xs ${failed ? "text-destructive" : "text-muted-foreground"}`}
-          >
-            on {remoteChild.label} · {threadRelationshipStatusLabel(status)}
-          </span>
-        </TooltipTrigger>
-        <TooltipPopup side="left">
-          {environment === null
-            ? `Runs on ${remoteChild.label}. Connect to it to open the thread there.`
-            : `Open on ${remoteChild.label}`}
-        </TooltipPopup>
-      </Tooltip>
-    </li>
-  );
-}
-
-function DelegatedFromRow(props: {
-  readonly delegatedFrom: OrchestrationV2DelegatedFrom;
-  readonly fallbackLabel: string | undefined;
-}) {
-  const navigate = useNavigate();
-  const { delegatedFrom } = props;
-  const environment = useEnvironment(delegatedFrom.environmentId);
-  const parentRef = scopeThreadRef(delegatedFrom.environmentId, delegatedFrom.threadId);
-  const parent = useQuietThreadShell(parentRef);
-  const label = environment?.label ?? props.fallbackLabel;
-  const title = parent?.title ?? delegatedFrom.title;
-  return (
-    <li className="group relative flex h-8 items-center rounded-lg">
-      <Tooltip>
-        <TooltipTrigger
-          delay={200}
-          render={
-            <ThreadDetailsControl
-              size="sm"
-              variant="ghost"
-              part="row"
-              disabled={environment === null}
-              onClick={() =>
-                void navigate({
-                  to: "/$environmentId/$threadId",
-                  params: buildThreadRouteParams(parentRef),
-                })
-              }
-            />
-          }
-        >
-          <ThreadRelationshipIcon fallbackIcon={CornerLeftUpIcon} status={null} />
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-left text-sm font-medium leading-4 text-foreground/85">
-              {title}
-            </span>
-          </span>
-          {label ? (
-            <span className="shrink-0 text-2xs text-muted-foreground">on {label}</span>
-          ) : null}
-        </TooltipTrigger>
-        <TooltipPopup side="left">
-          {environment === null
-            ? `Delegated from ${label ?? "a linked environment"}. Connect to it to open the parent thread.`
-            : "Open parent agent"}
-        </TooltipPopup>
-      </Tooltip>
-    </li>
-  );
-}
-
 export function ThreadRelationshipsPanel(props: {
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
@@ -458,17 +339,7 @@ export function ThreadRelationshipsPanel(props: {
     { id: "previous", label: "Previous agents", rows: previous, expanded: false },
   ];
 
-  const remoteSubagents = (projection?.subagents ?? []).filter(
-    (agent): agent is OrchestrationV2Subagent & { remoteChild: OrchestrationV2RemoteTaskChild } =>
-      agent.remoteChild !== undefined,
-  );
-  const delegatedFrom = currentThread?.delegatedFrom;
-  if (
-    relationshipRows.length === 0 &&
-    runningCount === 0 &&
-    remoteSubagents.length === 0 &&
-    delegatedFrom === undefined
-  ) {
+  if (relationshipRows.length === 0 && runningCount === 0) {
     return null;
   }
 
@@ -535,14 +406,6 @@ export function ThreadRelationshipsPanel(props: {
       data-thread-relationships-panel
       showHeading={false}
     >
-      {delegatedFrom === undefined ? null : (
-        <ThreadLineageRowList hiddenCount={0} onShowMore={() => {}}>
-          <DelegatedFromRow
-            delegatedFrom={delegatedFrom}
-            fallbackLabel={currentThread?.linkOrigin?.label}
-          />
-        </ThreadLineageRowList>
-      )}
       {groups.map((group) => (
         <ThreadLineageGroup key={`${scopedThreadKey(ref)}:${group.id}`} {...group}>
           {(visibleRows) =>
@@ -801,19 +664,6 @@ export function ThreadRelationshipsPanel(props: {
           }
         </ThreadLineageGroup>
       ))}
-      {remoteSubagents.length > 0 ? (
-        <ThreadLineageRowList hiddenCount={0} onShowMore={() => {}}>
-          {remoteSubagents.map((agent) => (
-            <RemoteSubagentRow
-              key={agent.id}
-              agent={agent}
-              provider={providersByEnvironment
-                .get(agent.remoteChild.environmentId)
-                ?.find((entry) => entry.instanceId === agent.providerInstanceId)}
-            />
-          ))}
-        </ThreadLineageRowList>
-      ) : null}
     </ThreadDetailsSection>
   );
 }

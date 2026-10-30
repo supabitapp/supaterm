@@ -1,6 +1,10 @@
 import type { ScopedThreadRef } from "@supaterm/contracts";
 
-/** Desktop ids must distinguish environments and server restarts; server tab ids are process-local. */
+/**
+ * The server only guarantees preview tab ids are unique within one process.
+ * Desktop resources live across every connected environment, so they need a
+ * stronger identity that also changes when a server process restarts.
+ */
 export function previewRuntimeTabId(
   threadRef: ScopedThreadRef,
   serverEpoch: string | null,

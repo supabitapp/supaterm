@@ -1,4 +1,3 @@
-import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it } from "@effect/vitest";
 import {
   PrimaryConnectionTarget,
@@ -50,19 +49,19 @@ function harness() {
 describe("workspace connection subscriptions", () => {
   it("keeps connection consumers stable across shell and provider updates", () => {
     const h = harness();
-    const shell = Atom.make(
-      AsyncResult.success<EnvironmentShellSummary>({
-        hasSnapshot: true,
-        hasSynchronizingShell: false,
-        firstError: null,
-      }),
-    );
+    const shell = Atom.make<EnvironmentShellSummary>({
+      hasSnapshot: true,
+      hasSynchronizingShell: false,
+      hasCachedShell: false,
+      hasLiveShell: true,
+      firstError: null,
+    });
     const broadState = Atom.make((get) =>
       projectWorkspaceState({
         isReady: get(h.catalog).isReady,
         networkStatus: get(h.network),
         environments: [projectWorkspaceEnvironment(ID, get(h.source)!)],
-        shellSummary: AsyncResult.getOrThrow(get(shell)),
+        shellSummary: get(shell),
         hasSyncingConnectedEnvironment: false,
       }),
     );
@@ -74,13 +73,10 @@ describe("workspace connection subscriptions", () => {
     const stopNarrow = h.registry.subscribe(h.stateAtom, () => connectionChanges++);
     try {
       for (let index = 0; index < 20; index++) {
-        h.registry.set(
-          shell,
-          AsyncResult.success({
-            ...AsyncResult.getOrThrow(h.registry.get(shell)),
-            hasSynchronizingShell: index % 2 === 0,
-          }),
-        );
+        h.registry.set(shell, {
+          ...h.registry.get(shell),
+          hasSynchronizingShell: index % 2 === 0,
+        });
         h.registry.get(broadState);
         h.registry.get(h.stateAtom);
       }

@@ -53,36 +53,10 @@ vi.mock("@react-navigation/native", () => ({
     canGoBack: () => true,
   }),
 }));
-vi.mock("../workspace/useSelectWorkspaceDetail", () => ({
-  useSelectWorkspaceDetail: () => (detail: { name: string; params: object }) =>
-    transport.navigate(detail.name, detail.params),
-}));
 vi.mock("../home/home-thread-navigation", () => ({
-  // oxlint-disable-next-line supaterm/no-ambiguous-detail-navigation -- Records route selection in the test double without dispatching navigation.
   useHomeThreadRouteSelection: () => (params: object) => transport.navigate("Thread", params),
 }));
-vi.mock("../../state/shell", () => ({
-  environmentShell: {},
-  useEnvironmentShellReadiness: () => ({ cacheRead: true, status: "live", hasError: false }),
-}));
-vi.mock("../../state/workspace", () => ({
-  useConnectionsReady: () => true,
-  useWorkspaceEnvironments: () =>
-    environmentIds.map((environmentId) => ({ environmentId, connectionState: "connected" })),
-}));
-vi.mock("../../lib/clock", () => ({ useNowMinuteMs: () => 0 }));
-vi.mock("./use-new-task-project-defaults", () => ({
-  useNewTaskProjectDefaults: (project: EnvironmentProject | null) => {
-    const config = project === null ? null : configs.get(project.environmentId);
-    return {
-      serverConfig: config,
-      isScratch: project?.workspaceRoot.startsWith("/scratch/") ?? false,
-      projectSettings: { settings: config?.settings ?? DEFAULT_SERVER_SETTINGS },
-      defaultWorkspaceMode: "local",
-      defaultWorkspaceModeSettled: true,
-    };
-  },
-}));
+vi.mock("../../state/shell", () => ({ environmentShell: {} }));
 vi.mock("../../state/entities", () => ({
   useProjects: () => useAtomValue(projectsAtom),
   useThreadShells: () => [],
@@ -184,7 +158,6 @@ vi.mock("../../state/use-composer-drafts", async (importOriginal) => ({
   isNewTaskDraftKey: (key: string) => key.startsWith("new-task:"),
   isComposerDraftEmpty: (await importOriginal<typeof import("../../state/use-composer-drafts")>())
     .isComposerDraftEmpty,
-  composerDraftsLoadedAtom: Atom.make(true),
   setComposerDraftText: (key: string, text: string) => updateDraft(key, { text }),
   setComposerDraftContext: (key: string, context: ComposerDraft["context"]) =>
     updateDraft(key, { context }),
@@ -254,7 +227,6 @@ const queueAtom = Atom.make<Record<string, ReadonlyArray<QueuedThreadMessage>>>(
 );
 const emptyDraft: ComposerDraft = { text: "", attachments: [] };
 let nextDraft = 0;
-let testFlowNumber = 0;
 function readDraft(key: string) {
   return appAtomRegistry.get(draftsAtom)[key] ?? emptyDraft;
 }
@@ -325,7 +297,7 @@ beforeEach(async () => {
   await act(() => {
     renderer = create(
       <RegistryContext.Provider value={appAtomRegistry}>
-        <NewTaskFlowProvider flowKey={`test:${++testFlowNumber}`}>
+        <NewTaskFlowProvider>
           <Probe />
         </NewTaskFlowProvider>
       </RegistryContext.Provider>,
@@ -633,10 +605,3 @@ describe("new-task environment switching", () => {
     expect(readDraft(originalDraft).project?.environmentId).toBe(firstEnvironment);
   });
 });
-
-vi.mock("../../state/threads", async () => {
-  const { Atom } = await import("effect/reactivity");
-  return { environmentThreadDetails: { pendingRequestsAtom: () => Atom.make(null) } };
-});
-
-vi.mock("../../state/peerLinks", () => ({ useLinkedEnvironments: () => new Map() }));

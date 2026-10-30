@@ -107,8 +107,8 @@ const layerBase: Layer.Layer<EventStoreV2, never, OrchestrationEventStore.Orches
           );
 
       return EventStoreV2.of({
-        append: Effect.fn("EventStoreV2.append")(function (input) {
-          return applicationEvents.appendAgentEvents(input).pipe(
+        append: (input) =>
+          applicationEvents.appendAgentEvents(input).pipe(
             Effect.mapError(
               (cause) =>
                 new EventStoreAppendEventsError({
@@ -116,22 +116,20 @@ const layerBase: Layer.Layer<EventStoreV2, never, OrchestrationEventStore.Orches
                   cause,
                 }),
             ),
-          );
-        }),
-        appendProjectEvent: Effect.fn("EventStoreV2.appendProjectEvent")(function (event) {
-          return applicationEvents
+          ),
+        appendProjectEvent: (event) =>
+          applicationEvents
             .appendProjectEvent(event)
             .pipe(
               Effect.mapError((cause) => new EventStoreAppendEventsError({ eventCount: 1, cause })),
-            );
-        }),
+            ),
         read,
         readByCommandId: ({ commandId }) =>
           applicationEvents
             .readAgentEvents({ commandId })
             .pipe(Stream.mapError((cause) => new EventStoreReadEventsError({ cause }))),
-        latestSequence: Effect.fn("EventStoreV2.latestSequence")(function (input) {
-          return applicationEvents.latestAgentSequence(input?.threadId).pipe(
+        latestSequence: (input) =>
+          applicationEvents.latestAgentSequence(input?.threadId).pipe(
             Effect.mapError(
               (cause) =>
                 new EventStoreReadEventsError({
@@ -139,8 +137,7 @@ const layerBase: Layer.Layer<EventStoreV2, never, OrchestrationEventStore.Orches
                   cause,
                 }),
             ),
-          );
-        }),
+          ),
         latestApplicationSequence: applicationEvents.latestApplicationSequence.pipe(
           Effect.mapError((cause) => new EventStoreReadEventsError({ cause })),
         ),

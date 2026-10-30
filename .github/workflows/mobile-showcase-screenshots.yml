@@ -60,14 +60,12 @@ env:
 
 jobs:
   ios:
-    name: iPhone, iPhone Duo, and iPad 13
+    name: iPhone 6.9, iPhone 6.3, iPhone 6.5, and iPad 13
     if: inputs.platform == 'all' || inputs.platform == 'ios'
     runs-on: xcode-27
     # Capturing every palette multiplies the device matrix, and only the one
     # native build is shared between them.
     timeout-minutes: ${{ inputs.theme == 'all' && 350 || 120 }}
-    env:
-      AGENT_DEVICE_PATH: ${{ github.workspace }}/scripts/node_modules/.bin/agent-device
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -90,10 +88,6 @@ jobs:
           mise exec -- vp install --filter=@supaterm/mobile... --filter=@supaterm/scripts... --filter=supaterm...
       - name: Expose pnpm
         run: mise exec -- pnpm --version
-
-      - name: Verify foldable simulator controls
-        working-directory: scripts
-        run: '"$AGENT_DEVICE_PATH" --version'
 
       - name: Capture iOS showcase
         run: |

@@ -5,19 +5,9 @@ import {
   ProviderInstanceId,
   type ServerSettings,
 } from "@supaterm/contracts";
-import * as NodeServices from "@effect/platform-node/NodeServices";
-import { it as effectIt } from "@effect/vitest";
-import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
 import { describe, expect, it } from "vite-plus/test";
 
-import * as ServerConfig from "../config.ts";
-import { ServerSettingsService } from "../serverSettings.ts";
-import {
-  DEV_REPLAY_INSTANCE_ID,
-  deriveProviderInstanceConfigMap,
-  seedDevReplayInstance,
-} from "./ProviderInstanceRegistryHydration.ts";
+import { deriveProviderInstanceConfigMap } from "./ProviderInstanceRegistryHydration.ts";
 
 const projectId = ProjectId.make("project-a");
 const instanceId = ProviderInstanceId.make("codex_work");
@@ -91,53 +81,27 @@ describe("deriveProviderInstanceConfigMap", () => {
 
     expect(merged[instanceId]).toBe(settings.providerInstances[instanceId]);
   });
-});
 
-describe("seedDevReplayInstance", () => {
-  const seed = (devUrl: URL | undefined) =>
-    Effect.gen(function* () {
-      const config = yield* ServerConfig.ServerConfig;
-      yield* seedDevReplayInstance().pipe(
-        Effect.provideService(ServerConfig.ServerConfig, { ...config, devUrl }),
-      );
-      const settings = yield* ServerSettingsService;
-      return (yield* settings.getSettings).providerInstances[DEV_REPLAY_INSTANCE_ID];
-    }).pipe(
-      Effect.provide(
-        Layer.mergeAll(
-          ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-dev-replay-seed-" }),
-          ServerSettingsService.layerTest({
-            providerInstances: {
-              [DEV_REPLAY_INSTANCE_ID]: {
-                driver: ProviderDriverKind.make("acpRegistry"),
-                displayName: "My replay",
-                enabled: false,
-                config: { source: "local", commandPath: "/old/node" },
-              },
-            },
-          }),
-        ).pipe(Layer.provideMerge(NodeServices.layer)),
-      ),
-    );
+  it("folds overrides from multiple projects", () => {
+    const otherInstanceId = ProviderInstanceId.make("claudeAgent_personal");
+    const otherProjectId = ProjectId.make("project-b");
+    const settings = settingsWith({
+      providerInstances: {
+        [instanceId]: { driver: ProviderDriverKind.make("codex"), enabled: false },
+        [otherInstanceId]: { driver: ProviderDriverKind.make("claudeAgent"), enabled: false },
+      },
+      projectSettingsOverrides: {
+        [projectId]: { providerInstances: { [instanceId]: { enabled: true } } },
+        [otherProjectId]: { providerInstances: { [otherInstanceId]: { enabled: true } } },
+      },
+    });
 
-  effectIt.effect("leaves settings alone outside dev", () =>
-    seed(undefined).pipe(
-      Effect.map((instance) =>
-        expect(instance?.config).toEqual({ source: "local", commandPath: "/old/node" }),
-      ),
-    ),
-  );
+    const merged = deriveProviderInstanceConfigMap(settings);
 
-  effectIt.effect("points a dev server at the replay agent and keeps user edits", () =>
-    seed(new URL("http://localhost:5733")).pipe(
-      Effect.map((instance) => {
-        expect(instance?.displayName).toBe("My replay");
-        expect(instance?.enabled).toBe(false);
-        expect(instance?.config).toMatchObject({
-          source: "local",
-          commandArgs: [expect.stringMatching(/scripts[/\\]dev-replay-agent\.ts$/)],
-        });
-      }),
-    ),
-  );
+    expect(merged[instanceId]).toEqual({ driver: ProviderDriverKind.make("codex"), enabled: true });
+    expect(merged[otherInstanceId]).toEqual({
+      driver: ProviderDriverKind.make("claudeAgent"),
+      enabled: true,
+    });
+  });
 });

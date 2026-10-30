@@ -6,7 +6,6 @@ import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
-import * as TestConsole from "effect/testing/TestConsole";
 import { Command } from "effect/cli";
 import { afterEach, vi } from "vite-plus/test";
 
@@ -83,40 +82,5 @@ it.layer(Layer.mergeAll(NodeServices.layer, NetService.layer))("service commands
         });
         expect(installOptions).toEqual([]);
       }),
-  );
-
-  it.effect.each(["install"] as const)("%s names the CLI that found nothing to change", (command) =>
-    Effect.gen(function* () {
-      const fs = yield* FileSystem.FileSystem;
-      const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-service-cli-test-" });
-      const { service, installOptions } = makeTestService(status);
-      vi.spyOn(BootService, "layer").mockReturnValue(
-        Layer.succeed(BootService.BootService, service),
-      );
-      const node = "/home/me/.nvm/versions/node/v26.8.2/bin/node";
-      const script = "/home/me/.nvm/versions/node/v26.8.2/lib/node_modules/supaterm/dist/bin.mjs";
-
-      const output = yield* Command.runWith(serviceCommand, { version: packageJson.version })([
-        command,
-        "--base-dir",
-        baseDir,
-      ]).pipe(
-        Effect.andThen(TestConsole.logLines),
-        Effect.map((lines) => lines.join("\n")),
-        Effect.provideService(HostProcess.Environment, {}),
-        Effect.provideService(HostProcess.IsExecutable, false),
-        Effect.provideService(HostProcess.ExecutablePath, node),
-        Effect.provideService(HostProcess.Arguments, [node, script, "service", command]),
-        Effect.provide(
-          Layer.mergeAll(
-            ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} })),
-            Layer.fresh(TestConsole.layer),
-          ),
-        ),
-      );
-      expect(output).toContain(`supaterm@${packageJson.version}`);
-      expect(output).toContain(script);
-      expect(installOptions).toEqual([]);
-    }),
   );
 });

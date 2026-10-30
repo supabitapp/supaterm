@@ -1,6 +1,7 @@
 import { View } from "react-native";
 import { Progress } from "./Progress";
 
+/** Thin, noninteractive progress at the top of its owning screen. */
 export function LoadingStrip(props: { readonly progress?: number }) {
   return (
     <View

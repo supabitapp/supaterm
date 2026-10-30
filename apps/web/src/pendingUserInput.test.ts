@@ -1,8 +1,7 @@
 import { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 import { formatInlineContextReference } from "./lib/composerContextReferences";
-import { threadContextReference } from "./lib/composerContextRecords";
-import { threadContextRecord } from "@supaterm/shared/composerContextReferences";
+import { threadContextRecord, threadContextReference } from "./lib/composerContextRecords";
 
 import {
   buildPendingUserInputAnswers,
@@ -28,7 +27,7 @@ describe("projectPendingUserInputAnswer", () => {
   it("sends thread chips as readable links with the actual thread ID", () => {
     const answer = `Compare ${formatInlineContextReference(threadContextReference(record))}`;
     expect(projectPendingUserInputAnswer(answer, [record])).toBe(
-      "Compare [Reference work](supaterm-thread://v2/env-answer/reference-thread)",
+      "Compare [Reference work](supaterm-thread://v1/reference-thread)",
     );
   });
 

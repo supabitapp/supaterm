@@ -25,6 +25,7 @@ import { type AppSymbolName, SymbolView } from "../../components/ui/AppSymbol";
 import { MaskedView } from "@expo/ui/community/masked-view";
 import type { LegendListRef } from "@legendapp/list/react-native";
 import { AnimatedLegendList } from "@legendapp/list/reanimated";
+import { StackActions, useNavigation } from "@react-navigation/native";
 import {
   useEffect,
   useEffectEvent,
@@ -85,7 +86,6 @@ import type { FilePreviewSource } from "../../components/FilePreviewModal";
 import Animated, { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { useAssetUrl } from "../../state/assets";
 import { PullRequestGlyph } from "../pull-requests/pullRequestGlyphs";
-import { useOpenLinkedThread } from "./useOpenLinkedThread";
 
 const SHIMMER_WIDTH = 72;
 const SHIMMER_SWEEP_MS = 1_350;
@@ -217,7 +217,6 @@ export function ShimmeringWorkContent(props: {
     (props.showIcon ? SHIMMER_ICON_AND_GAP_WIDTH : 0) + Math.ceil(textWidth),
   );
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Runs the native loading indicator only while foreground motion is permitted.
   useEffect(() => {
     progress.setValue(0);
     if (contentWidth <= 0 || !motionEnabled) return;
@@ -347,8 +346,6 @@ function workRowSymbolName(icon: ThreadFeedActivity["icon"]): WorkContentIcon {
       return { ios: "globe", android: "public" };
     case "search":
       return "magnifyingglass";
-    case "stop":
-      return "stop.fill";
     case "hammer":
       return { ios: "hammer", android: "construction" };
     case "lock":
@@ -609,8 +606,11 @@ function ThreadWorkGroupList(props: {
     finishPendingAppend();
     rememberPosition();
   });
-
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Subscribes to native list geometry for the expanded work card.
+  // The native ScrollView reports its content size a frame or more after
+  // LegendList has laid the rows out, so a detail toggle rendered the group
+  // at its old height while the rows below already moved. Read the size
+  // LegendList computes on the JS thread instead; it settles in the same
+  // commit as the row measurement that changed it.
   useLayoutEffect(() => {
     const list = listRef.current;
     if (!list) return;
@@ -634,8 +634,6 @@ function ThreadWorkGroupList(props: {
 
   return (
     <View style={{ height, overflow: "hidden" }}>
-      {}
-      {/* oxlint-disable-next-line supaterm/require-registered-list-scroll -- This fixed-height list is nested inside the registered thread feed scroll view. */}
       <AnimatedLegendList
         ref={listRef}
         data={props.activities}
@@ -781,8 +779,8 @@ const ThreadWorkLogRow = function ThreadWorkLogRow(
   },
 ) {
   const { row, expanded } = props;
+  const navigation = useNavigation();
   const motion = useNoticeMotion();
-  const openLinkedThread = useOpenLinkedThread();
   const failureItem = row.projectedItem.item;
   if (failureItem.type === "error" && failureItem.status === "failed") {
     const warning = failureItem.failure.class === "usage_limit";
@@ -901,10 +899,14 @@ const ThreadWorkLogRow = function ThreadWorkLogRow(
         accessibilityState={canExpand ? { expanded } : undefined}
         onPress={() => {
           if (notifiedSubagentThreadId !== undefined) {
-            openLinkedThread({
-              environmentId: String(props.environmentId),
-              threadId: String(notifiedSubagentThreadId),
-            });
+            // Push, not navigate: navigate reuses this Thread route, so back
+            // would skip the parent thread and land on Home (matches #15068).
+            navigation.dispatch(
+              StackActions.push("Thread", {
+                environmentId: String(props.environmentId),
+                threadId: String(notifiedSubagentThreadId),
+              }),
+            );
             return;
           }
           if (canExpand) {
@@ -1337,17 +1339,14 @@ function ToolActivityImage(props: {
         <View
           style={[
             StyleSheet.absoluteFill,
-            props.themeAppearance === "light" ? { filter: [{ brightness: 0.7 }] } : undefined,
+            props.themeAppearance === "light" ? { filter: [{ brightness: 0.6 }] } : undefined,
           ]}
         >
           <Image
             source={props.source}
             cachePolicy="memory-disk"
             contentFit="contain"
-            style={[
-              StyleSheet.absoluteFill,
-              { opacity: loaded ? (props.themeAppearance === "dark" ? 0.7 : 1) : 0 },
-            ]}
+            style={[StyleSheet.absoluteFill, { opacity: loaded ? 0.7 : 0 }]}
             onLoad={() => setLoaded(true)}
             onError={() => setFailed(true)}
           />

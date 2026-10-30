@@ -2,9 +2,6 @@ import type { ContextMenuItem } from "@supaterm/contracts";
 import type { SnoozePreset } from "@supaterm/client-runtime/state/thread-snooze";
 
 export type ThreadActionMenuId =
-  | "find"
-  | "turn-into-project"
-  | "share-guest"
   | "open-beside"
   | "new-thread-on-branch"
   | "filter-by-project"
@@ -25,7 +22,6 @@ export type ThreadActionMenuId =
   | "copy"
   | "copy-path"
   | "copy-branch"
-  | "copy-thread"
   | "copy-thread-id"
   | "archive"
   | "delete";
@@ -70,9 +66,6 @@ export function buildDraftActionMenuItems(options: {
 
 export interface ThreadActionMenuState {
   readonly canOperate: boolean;
-  readonly canFind?: boolean;
-  readonly canTurnIntoProject?: boolean;
-  readonly canShareWithGuest?: boolean;
   readonly branch: string | null;
   readonly projectFilter: {
     readonly label: string;
@@ -84,7 +77,7 @@ export interface ThreadActionMenuState {
   readonly isSnoozed: boolean;
   readonly canSnoozeNow: boolean;
   readonly isRegeneratingTitle: boolean;
-  /** Archive rejects attached providers, so disable it while running. */
+  /** Archive rejects a thread with an attached provider, so disable it here rather than let the action fail. */
   readonly isRunning: boolean;
   readonly snoozePresets: ReadonlyArray<SnoozePreset>;
   /** The thread can open in a new chat pane beside the focused one. */
@@ -94,8 +87,6 @@ export interface ThreadActionMenuState {
 /** Local navigation, read markers, and copying remain available to read-only clients. */
 export function threadActionRequiresOperate(action: ThreadActionMenuId): boolean {
   return ![
-    "find",
-    "share-guest",
     "open-beside",
     "new-thread-on-branch",
     "project-settings",
@@ -103,7 +94,6 @@ export function threadActionRequiresOperate(action: ThreadActionMenuId): boolean
     "copy",
     "copy-path",
     "copy-branch",
-    "copy-thread",
     "copy-thread-id",
   ].includes(action);
 }
@@ -117,22 +107,6 @@ export function buildThreadActionMenuItems(
   state: ThreadActionMenuState,
 ): ReadonlyArray<ContextMenuItem<ThreadActionMenuId>> {
   const items: ReadonlyArray<ContextMenuItem<ThreadActionMenuId>> = [
-    ...(state.canFind
-      ? [{ id: "find" as const, label: "Find in thread", icon: "text-search" }]
-      : []),
-    ...(state.canShareWithGuest
-      ? [{ id: "share-guest" as const, label: "Share with a guest", icon: "user" }]
-      : []),
-    ...(state.canTurnIntoProject
-      ? [
-          {
-            id: "turn-into-project" as const,
-            label: "Turn into project",
-            icon: "folder-plus",
-            disabled: state.isRunning,
-          },
-        ]
-      : []),
     ...(state.canOpenBeside
       ? [{ id: "open-beside" as const, label: "Open to the side", icon: "columns-2" }]
       : []),
@@ -163,11 +137,7 @@ export function buildThreadActionMenuItems(
               id: `snooze:${preset.id}` as const,
               label: `${preset.label} (${preset.whenLabel})`,
             })),
-            {
-              id: "snooze:custom" as const,
-              label: "Custom…",
-              separatorBefore: state.snoozePresets.length > 0,
-            },
+            { id: "snooze:custom" as const, label: "Custom…", separatorBefore: true },
           ],
         },
     { id: "rename", label: "Rename thread", icon: "pencil", separatorBefore: true },
@@ -212,11 +182,15 @@ export function buildThreadActionMenuItems(
         ...(state.branch
           ? [{ id: "copy-branch" as const, label: "Branch", icon: "git-branch" }]
           : []),
-        { id: "copy-thread", label: "Thread", icon: "message-square" },
         { id: "copy-thread-id", label: "Thread ID", icon: "hash" },
       ],
     },
     { id: "project-settings", label: "Project settings", icon: "settings" },
+    // Archive removes the thread from the sidebar while keeping its
+    // conversation under Settings > Archived threads — distinct from Mark as done
+    // (stays visible in the Done shelf) and Delete (clears history for
+    // good), so it sits beside Delete without borrowing its destructive
+    // styling.
     {
       id: "archive",
       label: "Archive thread",

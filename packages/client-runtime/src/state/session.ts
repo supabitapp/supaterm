@@ -1,8 +1,8 @@
-import { pipe } from "effect/Function";
 import type { AuthSessionState, EnvironmentId, ServerConfig } from "@supaterm/contracts";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
+import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import * as SubscriptionRef from "effect/SubscriptionRef";
 import { HttpClient } from "effect/http";
@@ -20,8 +20,6 @@ import { connectionRouteId, relayRouteIdentity } from "../connection/routes.ts";
 import type { PreparedConnection } from "../connection/model.ts";
 import { RelayGateway, type RelayTransport } from "../relay/gateway.ts";
 import * as EnvironmentSupervisor from "../connection/supervisor.ts";
-import type { RemoteEnvironmentRequestError } from "../rpc/http.ts";
-import type { RpcSession } from "../rpc/session.ts";
 import { safeErrorLogAttributes } from "../errors/safeLog.ts";
 import { executeAuthenticatedEnvironmentHttpRequest } from "./environmentHttpAuth.ts";
 import { followStreamInEnvironment } from "./environmentStreams.ts";
@@ -49,9 +47,6 @@ function initialConfigOption<E>(
 // the settings UI) in a loading state for long: with the transient retries in
 // sessionStateAtom, it settles within about half a minute.
 const DEFAULT_SESSION_STATE_TIMEOUT_MS = 6_000;
-const MAX_SESSION_STATE_TIMEOUT_MS = 60_000;
-const SESSION_STATE_RETRY_BASE_MS = 2_000;
-const SESSION_STATE_RETRY_MAX_MS = 60_000;
 
 /**
  * Read the granted scopes of this client's session on one environment via its
@@ -60,24 +55,13 @@ const SESSION_STATE_RETRY_MAX_MS = 60_000;
 export const fetchEnvironmentSessionState = Effect.fn(
   "clientRuntime.state.fetchEnvironmentSessionState",
 )(function* (input: { readonly prepared: PreparedConnection; readonly timeoutMs?: number }) {
-  const request = (
-    timeoutMs: number,
-  ): Effect.Effect<AuthSessionState, RemoteEnvironmentRequestError, HttpClient.HttpClient> =>
-    executeAuthenticatedEnvironmentHttpRequest({
-      ...input,
-      group: "auth",
-      url: (urls) => urls.session(),
-      timeoutMs,
-      request: ({ client, headers }) => client.session({ headers }),
-    }).pipe(
-      Effect.catchTags({
-        RemoteEnvironmentAuthTimeoutError: (error) => {
-          const nextTimeoutMs = Math.min(timeoutMs * 2, MAX_SESSION_STATE_TIMEOUT_MS);
-          return nextTimeoutMs > timeoutMs ? request(nextTimeoutMs) : Effect.fail(error);
-        },
-      }),
-    );
-  return yield* request(input.timeoutMs ?? DEFAULT_SESSION_STATE_TIMEOUT_MS);
+  return yield* executeAuthenticatedEnvironmentHttpRequest({
+    ...input,
+    group: "auth",
+    url: (urls) => urls.session(),
+    timeoutMs: input.timeoutMs ?? DEFAULT_SESSION_STATE_TIMEOUT_MS,
+    request: ({ client, headers }) => client.session({ headers }),
+  });
 });
 
 function makeEnvironmentSessionAtoms<R, E>(
@@ -111,11 +95,10 @@ function makeEnvironmentSessionAtoms<R, E>(
   // createServerEnvironmentAtoms(...).configValueAtom instead.
   const initialConfigValueAtom = Atom.family((environmentId: EnvironmentId) =>
     Atom.make((get): ServerConfig | null =>
-      pipe(
-        get(initialConfigAtom(environmentId)),
-        AsyncResult.value,
-        Option.flatten,
-        Option.getOrNull,
+      Option.getOrNull(
+        Option.getOrElse(AsyncResult.value(get(initialConfigAtom(environmentId))), () =>
+          Option.none(),
+        ),
       ),
     ).pipe(Atom.withLabel(`environment-config-value:${environmentId}`)),
   );
@@ -136,84 +119,49 @@ function makeEnvironmentSessionAtoms<R, E>(
 
   const preparedConnectionValueAtom = Atom.family((environmentId: EnvironmentId) =>
     Atom.make((get) =>
-      AsyncResult.getOrElse(get(preparedConnectionAtom(environmentId)), () =>
+      Option.getOrElse(AsyncResult.value(get(preparedConnectionAtom(environmentId))), () =>
         Option.none<PreparedConnection>(),
       ),
     ).pipe(Atom.withLabel(`environment-prepared-connection:${environmentId}`)),
   );
 
-  const transportSessionAtom = Atom.family((environmentId: EnvironmentId) =>
-    runtime.atom(
-      followStreamInEnvironment(
-        environmentId,
-        Stream.unwrap(
-          EnvironmentSupervisor.EnvironmentSupervisor.pipe(
-            Effect.map((supervisor) => SubscriptionRef.changes(supervisor.session)),
-          ),
-        ),
-      ),
-      { initialValue: Option.none() },
-    ),
-  );
-
-  const sessionStateAtom = Atom.family((environmentId: EnvironmentId) => {
-    let consecutiveFailures = 0;
-    let backoffConnection: RpcSession | null = null;
-    return runtime
+  // Keyed on the prepared connection's identity: a reconnect (new credential,
+  // new base URL) swaps the prepared value, which re-runs the fetch, so scope
+  // changes from re-pairing are picked up without an explicit refresh. Nothing
+  // else re-reads it while the connection stays up, and clients treat a failed
+  // read as missing grants, so a transient failure retries before it settles.
+  const sessionStateAtom = Atom.family((environmentId: EnvironmentId) =>
+    runtime
       .atom((get) => {
         const prepared = Option.getOrNull(get(preparedConnectionValueAtom(environmentId)));
-
-        const connection = AsyncResult.getOrElse(get(transportSessionAtom(environmentId)), () =>
-          Option.none(),
-        );
-        if (prepared === null || Option.isNone(connection)) {
+        if (prepared === null) {
           return Effect.never;
-        }
-        if (connection.value !== backoffConnection) {
-          backoffConnection = connection.value;
-          consecutiveFailures = 0;
         }
         return Effect.gen(function* () {
           const client = yield* Effect.serviceOption(HttpClient.HttpClient);
           if (Option.isNone(client)) return yield* new SessionHttpClientUnavailable();
-          return yield* fetchEnvironmentSessionState({
-            prepared,
-          }).pipe(Effect.provideService(HttpClient.HttpClient, client.value));
-        }).pipe(
-          Effect.tap(() =>
-            Effect.sync(() => {
-              consecutiveFailures = 0;
+          return yield* fetchEnvironmentSessionState({ prepared }).pipe(
+            Effect.retry({
+              while: (error) =>
+                mapRemoteEnvironmentError(error)._tag === "ConnectionTransientError",
+              schedule: Schedule.exponential("1 second"),
+              times: 3,
             }),
-          ),
-          Effect.tapError((error) => {
-            if (
-              error._tag === "SessionHttpClientUnavailable" ||
-              mapRemoteEnvironmentError(error)._tag !== "ConnectionTransientError"
-            )
-              return Effect.void;
-            const delayMs = Math.min(
-              SESSION_STATE_RETRY_BASE_MS * 2 ** consecutiveFailures,
-              SESSION_STATE_RETRY_MAX_MS,
-            );
-            consecutiveFailures += 1;
-            return Effect.sleep(delayMs).pipe(
-              Effect.andThen(Effect.sync(() => get.refreshSelf())),
-              Effect.forkScoped,
-            );
-          }),
-        );
+            Effect.provideService(HttpClient.HttpClient, client.value),
+          );
+        });
       })
       .pipe(
         Atom.swr({ staleTime: 30_000, revalidateOnMount: true }),
         Atom.setIdleTTL(5 * 60_000),
         Atom.withLabel(`environment-session-state:${environmentId}`),
-      );
-  });
+      ),
+  );
 
   const sessionStateValueAtom = Atom.family((environmentId: EnvironmentId) =>
     Atom.make(
       (get): AuthSessionState | null =>
-        AsyncResult.getOrElse(get(sessionStateAtom(environmentId)), () => null) ?? null,
+        Option.getOrNull(AsyncResult.value(get(sessionStateAtom(environmentId)))) ?? null,
     ).pipe(Atom.withLabel(`environment-session-state-value:${environmentId}`)),
   );
 

@@ -16,7 +16,9 @@ import { shortcutKeyFromEvent } from "../../keybindings";
 import { isMacPlatform } from "../../lib/utils";
 import { METRIC_OPTIONS, WINDOW_OPTIONS } from "../usage/usageShortcuts";
 
-// Rank every usage command; mixing rank and alphabetical comparisons makes order input-dependent.
+// Every usage.* command needs a rank. An unranked one falls back to the
+// alphabetical compare, which makes the comparator inconsistent and the order
+// depend on the input order.
 const usageCommandOrder = new Map<KeybindingCommand, number>(
   [
     "usage.open" as const,
@@ -288,6 +290,8 @@ export function buildKeybindingRows(
   return rowsWithConflicts;
 }
 
+// Filtering keeps the row objects so rows that stay visible while the query
+// changes receive the same props and skip rendering.
 export function filterKeybindingRows(
   rows: ReadonlyArray<KeybindingRow>,
   query: string,
@@ -362,14 +366,12 @@ export function buildKeybindingCommandOptions(
 }
 
 export function commandLabel(command: KeybindingCommand): string {
-  if (command === "workspace.focusNext") return "Focus Next Workspace Area";
-  if (command === "workspace.focusPrevious") return "Focus Previous Workspace Area";
   if (command === "composer.sendAlternate") return "Composer: Opposite Queue or Steer Action";
   if (command === "composer.sendBackground") return "Composer: Start in Background";
   if (command === "composer.sendAndNewThread") return "Composer: Send and Start New Thread";
   if (command === "thread.steerQueuedMessage") return "Queue: Send First Queued Message";
   if (command === "thread.editQueuedMessage") return "Queue: Edit Last Queued Message";
-  if (command === "thread.copyReference") return "Pull Request: Copy Link or Thread";
+  if (command === "thread.copyReference") return "Pull Request: Copy Link or Thread ID";
   const usageMetric = METRIC_OPTIONS.find((option) => option.command === command);
   if (usageMetric) return `Usage: ${usageMetric.label}`;
   const usagePeriod = WINDOW_OPTIONS.find((option) => option.command === command);

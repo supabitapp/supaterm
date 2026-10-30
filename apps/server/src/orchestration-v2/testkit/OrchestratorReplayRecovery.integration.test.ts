@@ -248,7 +248,7 @@ const runCursorRecovery = Effect.fn("runCursorRecovery")(function* (input: {
         runtimePolicyOverride: { cwd: tempDir },
       },
       harness,
-      { ...options, recoverOnStartup: true },
+      options,
     ),
   );
 
@@ -278,6 +278,9 @@ describe("orchestrator replay recovery", () => {
     () =>
       Effect.scoped(
         Effect.gen(function* () {
+          // Checkpoint against a throwaway git workspace: with no override the
+          // scope cwd falls back to process.cwd(), and a cold full-repo
+          // baseline capture on CI outlives the scenario wait budget.
           const workspace = yield* checkpointWorkspace("provider_thread_resume");
           const transcript = yield* readCodexTranscript(workspace);
           const fs = yield* FileSystem.FileSystem;
@@ -340,7 +343,7 @@ describe("orchestrator replay recovery", () => {
               runtimePolicyOverride: { cwd: workspace },
             },
             harness,
-            { ...options, recoverOnStartup: true },
+            options,
           );
 
           assertBaseProjection({
@@ -440,7 +443,7 @@ describe("orchestrator replay recovery", () => {
               runtimePolicyOverride: { cwd: workspace },
             },
             harness,
-            { ...options, recoverOnStartup: true },
+            options,
           ),
         );
         yield* assertComplete;
@@ -564,6 +567,8 @@ describe("orchestrator replay recovery", () => {
         assert.equal(settled.subagents[0]?.status, "running");
         assert.equal(childRootStatus(childThreadOf(before, settled.thread.id)), "running");
 
+        // The server restarts with the subagent still working. No automatic
+        // continuation: the user's next message resumes it.
         const result = yield* Effect.scoped(
           runOrchestratorV2ProviderReplayScenario(
             {
@@ -591,6 +596,7 @@ describe("orchestrator replay recovery", () => {
         assert.equal(projection.subagents[0]?.status, "completed");
         const child = childThreadOf(result, projection.thread.id);
         assert.equal(child?.thread.id, projection.subagents[0]?.childThreadId);
+        // Recovery cancelled the child's work; the resume reopened and ended it.
         assert.equal(childRootStatus(child), "completed");
         const conversation = (child?.turnItems ?? [])
           .toSorted((left, right) => left.ordinal - right.ordinal)

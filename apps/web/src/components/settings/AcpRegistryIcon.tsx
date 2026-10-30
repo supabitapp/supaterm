@@ -1,7 +1,4 @@
-import { useAtomValue } from "@effect/atom-react";
-import * as Effect from "effect/Effect";
-import { AsyncResult, Atom } from "effect/reactivity";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import {
   resolveOfficialAcpRegistryIconUrl,
   officialAcpRegistryIconUrlForAgentId,
@@ -41,7 +38,8 @@ export function loadCachedAcpRegistryIcon(iconUrl: string): Promise<Blob> {
       try {
         cache = await caches.open(ACP_REGISTRY_ICON_CACHE);
       } catch {
-        // Privacy modes may expose CacheStorage but reject access; icons still load from the allowlisted CDN.
+        // Some privacy modes expose CacheStorage but reject access. Icons can
+        // still load normally from the allowlisted registry CDN.
       }
     }
     if (cache !== null) {
@@ -69,33 +67,6 @@ export function loadCachedAcpRegistryIcon(iconUrl: string): Promise<Blob> {
   return load;
 }
 
-// Falls back to the raw allowlisted CDN URL when the validating fetch fails: the
-// CDN serves no CORS headers, so the fetch is often blocked cross-origin while
-// native <img> loading still works. The object URL is shared per agent and
-// revoked when the last icon unmounts.
-const acpRegistryIconSourceAtom = Atom.family((iconUrl: string) =>
-  Atom.make((get) => {
-    let disposed = false;
-    let objectUrl: string | null = null;
-    get.addFinalizer(() => {
-      disposed = true;
-      if (objectUrl !== null) URL.revokeObjectURL(objectUrl);
-    });
-    return Effect.promise(() =>
-      loadCachedAcpRegistryIcon(iconUrl).then(
-        (blob) => {
-          if (disposed) return iconUrl;
-          objectUrl = URL.createObjectURL(blob);
-          return objectUrl;
-        },
-        () => iconUrl,
-      ),
-    );
-  }).pipe(Atom.withLabel(`acp-registry-icon:${iconUrl}`)),
-);
-
-const NO_ICON_SOURCE_ATOM = Atom.make(AsyncResult.initial<string>());
-
 export function AcpRegistryAgentIcon({
   icon,
   className,
@@ -107,15 +78,40 @@ export function AcpRegistryAgentIcon({
 }) {
   const colorFilterId = useId();
   const iconUrl = resolveOfficialAcpRegistryIconUrl(icon);
-  const source = AsyncResult.getOrElse(
-    useAtomValue(iconUrl === null ? NO_ICON_SOURCE_ATOM : acpRegistryIconSourceAtom(iconUrl)),
-    () => null,
-  );
   const [image, setImage] = useState<{
+    readonly iconUrl: string;
     readonly source: string;
-    readonly status: "loaded" | "failed";
+    readonly status: "loading" | "loaded" | "failed";
   } | null>(null);
-  const status = source !== null && image?.source === source ? image.status : "loading";
+  const currentImage = image?.iconUrl === iconUrl ? image : null;
+  // Render only after the load pipeline resolves: the validated blob when the
+  // fetch succeeds, or the raw allowlisted CDN URL when it fails (the official
+  // CDN serves no CORS headers, so the validating fetch is often blocked in
+  // cross-origin browser contexts while native <img> loading still works).
+  const source = currentImage?.source ?? null;
+  const status = currentImage?.status ?? "loading";
+
+  useEffect(() => {
+    if (iconUrl === null) return;
+    let active = true;
+    let objectUrl: string | null = null;
+    void loadCachedAcpRegistryIcon(iconUrl)
+      .then((blob) => {
+        if (!active) return;
+        objectUrl = URL.createObjectURL(blob);
+        setImage({ iconUrl, source: objectUrl, status: "loading" });
+      })
+      .catch(() => {
+        if (!active) return;
+        setImage((current) =>
+          current?.iconUrl === iconUrl ? current : { iconUrl, source: iconUrl, status: "loading" },
+        );
+      });
+    return () => {
+      active = false;
+      if (objectUrl !== null) URL.revokeObjectURL(objectUrl);
+    };
+  }, [iconUrl]);
 
   return (
     <span
@@ -125,8 +121,9 @@ export function AcpRegistryAgentIcon({
         className,
       )}
     >
-      {/* Recolor alpha because external images cannot inherit currentColor; local SVG filters work despite
-       * CDN mask CORS restrictions. */}
+      {/* Recolor their alpha rather than
+          inverting RGB values; external images cannot inherit currentColor.
+          A local SVG filter also works when CDN CORS prevents CSS masks. */}
       <svg aria-hidden className="pointer-events-none absolute size-0" focusable="false">
         <defs>
           <filter id={colorFilterId} colorInterpolationFilters="sRGB">
@@ -152,8 +149,17 @@ export function AcpRegistryAgentIcon({
           decoding="async"
           referrerPolicy="no-referrer"
           src={source}
-          onError={() => setImage({ source, status: "failed" })}
-          onLoad={() => setImage({ source, status: "loaded" })}
+          onError={() => {
+            if (iconUrl === null) return;
+            setImage((current) =>
+              current?.iconUrl === iconUrl && current.source !== source
+                ? current
+                : { iconUrl, source, status: "failed" },
+            );
+          }}
+          onLoad={() => {
+            if (iconUrl !== null) setImage({ iconUrl, source, status: "loaded" });
+          }}
         />
       ) : null}
     </span>

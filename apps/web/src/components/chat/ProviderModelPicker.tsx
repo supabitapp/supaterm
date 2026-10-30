@@ -5,7 +5,7 @@ import {
   type ProviderDriverKind,
   type ResolvedKeybindingsConfig,
 } from "@supaterm/contracts";
-import { memo, useEffect, useState, useRef } from "react";
+import { memo, useEffect, useState } from "react";
 import { Badge } from "../ui/badge";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -55,7 +55,6 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
   onInstanceModelChange: (instanceId: ProviderInstanceId, model: string) => void;
 }) {
   const composerFloatingLayerProps = useComposerMenuProps();
-  const searchInputRef = useRef<HTMLInputElement>(null);
   const [uncontrolledIsMenuOpen, setUncontrolledIsMenuOpen] = useState(false);
   const isMenuOpen = props.open ?? uncontrolledIsMenuOpen;
   const size = props.size ?? "sm";
@@ -92,7 +91,6 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
     }
   };
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Locks background document scrolling while the model menu is open and restores styles and listeners on close.
   useEffect(() => {
     if (!isMenuOpen) {
       return;
@@ -283,10 +281,8 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
         className="before:hidden"
         padding="none"
         touchBackdrop
-        initialFocus={searchInputRef}
       >
         <ModelPickerContent
-          searchInputRef={searchInputRef}
           environmentId={props.environmentId}
           activeInstanceId={activeInstanceId}
           model={props.model}
@@ -306,11 +302,9 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
           terminalOpen={props.terminalOpen ?? false}
           onRequestClose={() => setIsMenuOpen(false)}
           {...(props.onOpenProviderSetup ? { onOpenProviderSetup: props.onOpenProviderSetup } : {})}
-          getModelDisabledReason={(instanceId, model) =>
-            props.disabled
-              ? "Model picker is disabled"
-              : (props.getModelDisabledReason?.(instanceId, model) ?? null)
-          }
+          {...(props.getModelDisabledReason
+            ? { getModelDisabledReason: props.getModelDisabledReason }
+            : {})}
           onInstanceModelChange={handleInstanceModelChange}
         />
         {props.selectedModels === undefined ? (

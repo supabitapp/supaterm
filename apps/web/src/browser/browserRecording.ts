@@ -284,7 +284,8 @@ const createMediaRecorder = (stream: MediaStream): MediaRecorder => {
 };
 
 const captureTabMediaStream = (frameRate: number): Promise<MediaStream> =>
-  // The armed tab supplies native-size frames without source or dimension constraints.
+  // The desktop main process routes this request to the tab that `startScreencast` armed, so the
+  // stream already arrives at that tab's native size and needs no source or dimension constraints.
   navigator.mediaDevices.getDisplayMedia({
     audio: false,
     video: { frameRate: { ideal: frameRate, max: frameRate } },
@@ -328,7 +329,8 @@ const prepareTabMediaCapture = (tabId: string, frameRate: number) => {
   const pending: PendingTabMediaCapture = {
     start: () => {
       try {
-        // executeJavaScript(..., true) supplies transient activation for automated or delayed capture.
+        // Electron invokes this callback through executeJavaScript(..., true), so even automated
+        // and delayed queued starts satisfy getDisplayMedia's transient-activation requirement.
         resolveCapture(captureTabMediaStream(frameRate));
       } catch (cause) {
         rejectCapture(cause);
@@ -572,7 +574,8 @@ export async function startBrowserRecording(
       }
       throw recordingStartupCancelledError(recording);
     };
-    // Electron grants one display-media request at a time; serialize handoff, not recording.
+    // The desktop process exposes one display-media grant at a time. Keep only the
+    // arm-to-capture handoff exclusive; acquired streams can record concurrently.
     const grant = queueDisplayMediaGrant(async () => {
       if (startingLifecycle.cancelledBeforeGrant) {
         throw new BrowserRecordingStartCancelledError({ tabId });
@@ -755,7 +758,10 @@ const finalizeBrowserRecording = async (
   }
 
   if (result._tag === "Failure" && isStartupWaitTimeout(result.error)) {
-    // Reserve the slot until late-start cancellation finishes, or it could stop a newer recording.
+    // Do not clear `active` yet. The renderer-side start promise can still
+    // resolve later, and its cancellation path will call `stopScreencast`.
+    // Keeping the slot reserved prevents a newer recording for this tab from
+    // being started and then accidentally stopped by the older late cleanup.
     throw result.error;
   }
 

@@ -24,10 +24,7 @@ export function formatProviderSkillDisplayName(
 const SKILL_TOKEN_REGEX =
   /(^|\s)\p{Sc}(?![0-9][0-9_]*(?:[kKmMbBtT]|[eE][0-9]+)?(?:\s|$))(?=[a-zA-Z0-9:_-]*[a-zA-Z])([a-zA-Z0-9][a-zA-Z0-9:_-]*)(?=\s|$)/gu;
 
-export function* matchInlineSkills<Skill extends InlineSkill>(
-  text: string,
-  skills: readonly Skill[],
-) {
+export function* matchInlineSkills(text: string, skills: readonly InlineSkill[]) {
   for (const match of text.matchAll(SKILL_TOKEN_REGEX)) {
     const name = match[2] ?? "";
     const skill = skills.find((candidate) => candidate.name === name);

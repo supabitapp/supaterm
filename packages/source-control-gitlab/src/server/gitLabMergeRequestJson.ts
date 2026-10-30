@@ -1,4 +1,3 @@
-import { trimOptionalString as trimmed } from "@supaterm/source-control-core/server/pullRequestUtils";
 import * as Cause from "effect/Cause";
 import * as Exit from "effect/Exit";
 import * as Result from "effect/Result";
@@ -23,6 +22,10 @@ import { TrimmedNonEmptyString } from "@supaterm/contracts";
 import { quoteGitPatchPath } from "@supaterm/shared/gitPatchPath";
 import { decodeJsonResult } from "@supaterm/shared/schemaJson";
 
+/**
+ * GitLab's REST enums are decoded as plain strings and normalized here: a GitLab release that
+ * adds a pipeline status or a merge status must not fail the whole payload.
+ */
 const RawUserSchema = Schema.Struct({
   id: Schema.optional(Schema.Int),
   username: Schema.String,
@@ -56,7 +59,7 @@ const RawMergeRequestSchema = Schema.Struct({
   closed_at: Schema.optional(Schema.NullOr(Schema.String)),
   reviewers: Schema.optional(Schema.NullOr(Schema.Array(RawUserSchema))),
   labels: Schema.optional(Schema.NullOr(Schema.Array(Schema.String))),
-
+  // A string, and "1000+" past GitLab's counting limit, so it is parsed rather than decoded.
   changes_count: Schema.optional(Schema.NullOr(Schema.String)),
   head_pipeline: Schema.optional(Schema.NullOr(RawPipelineSchema)),
   user: Schema.optional(
@@ -66,7 +69,11 @@ const RawMergeRequestSchema = Schema.Struct({
   auto_merge_enabled: Schema.optional(Schema.NullOr(Schema.Boolean)),
   squash_on_merge: Schema.optional(Schema.NullOr(Schema.Boolean)),
   squash: Schema.optional(Schema.NullOr(Schema.Boolean)),
-
+  /**
+   * It costs a walk of the two branches, so GitLab withholds it unless
+   * `include_diverged_commits_count` asks for it, and answers it only for a single merge
+   * request — a list never carries it, however it is asked for.
+   */
   diverged_commits_count: Schema.optional(Schema.NullOr(Schema.Int)),
 });
 
@@ -194,9 +201,17 @@ export interface GitLabMergeRequestDetail extends GitLabMergeRequestListItem {
   readonly reviewerIds: ReadonlyArray<number>;
   readonly autoMergeEnabled?: boolean;
   readonly autoMergeMethod?: PullRequestMergeMethod;
-
+  /**
+   * Absent where GitLab did not count, which is not the same as a branch that has nothing behind
+   * it: an install too old to answer must not be read as saying the branch is current.
+   */
   readonly divergedCommits?: number;
   readonly headSha?: string;
+}
+
+function trimmed(value: string | null | undefined): string | null {
+  const text = value?.trim() ?? "";
+  return text.length > 0 ? text : null;
 }
 
 function toActor(raw: Schema.Schema.Type<typeof RawUserSchema> | null | undefined) {
@@ -358,7 +373,7 @@ type DecodeFailure = Cause.Cause<Schema.SchemaError>;
 
 export interface GitLabProjectUsers {
   readonly candidates: ReadonlyArray<PullRequestReviewerCandidate>;
-
+  /** Rows GitLab returned, counted before decoding, so a skipped row cannot hide a next page. */
   readonly rawCount: number;
 }
 
@@ -424,34 +439,6 @@ export function decodeProjectUsersJson(
     });
   }
   return Result.succeed({ candidates, rawCount: decoded.success.length });
-}
-
-const RawLabelSchema = Schema.Struct({
-  name: Schema.String,
-  color: Schema.optional(Schema.NullOr(Schema.String)),
-});
-const decodeLabelEntry = Schema.decodeUnknownExit(RawLabelSchema);
-
-export interface GitLabProjectLabels {
-  readonly labels: ReadonlyArray<PullRequestLabel>;
-  readonly rawCount: number;
-}
-
-export function decodeProjectLabelsJson(
-  raw: string,
-): Result.Result<GitLabProjectLabels, DecodeFailure> {
-  const decoded = decodeUnknownList(raw);
-  if (!Result.isSuccess(decoded)) {
-    return Result.fail(decoded.failure);
-  }
-  const labels: PullRequestLabel[] = [];
-  for (const entry of decoded.success) {
-    const label = decodeLabelEntry(entry);
-    if (Exit.isFailure(label)) continue;
-    const name = trimmed(label.value.name);
-    if (name !== null) labels.push({ name, color: trimmed(label.value.color) });
-  }
-  return Result.succeed({ labels, rawCount: decoded.success.length });
 }
 
 export function decodeProjectMergeCapabilitiesJson(
@@ -924,6 +911,12 @@ const RawRepositoryBlobsSchema = Schema.Struct({
 
 const decodeRepositoryBlobs = decodeJsonResult(RawRepositoryBlobsSchema);
 
+/**
+ * Blob ids by path, or null where GitLab did not answer the query at all (a project the token
+ * cannot see, or a repository with no blobs connection). That case must be told apart from an
+ * empty answer: read as "the revision has none of these files", it would report every cleared
+ * file as changed again.
+ */
 export function decodeRepositoryBlobsJson(
   raw: string,
 ): Result.Result<ReadonlyMap<string, string> | null, DecodeFailure> {
@@ -935,6 +928,9 @@ export function decodeRepositoryBlobsJson(
   if (nodes === undefined || nodes === null) return Result.succeed(null);
   const blobs = new Map<string, string>();
   for (const node of nodes) {
+    // Not trimmed, unlike everything else read out of this payload: a leading or trailing space
+    // is a legal part of a file's name, and trimming it would key this map under a name the
+    // caller's asked-for path never matches.
     const path = node?.path;
     const oid = trimmed(node?.oid);
     if (path === undefined || path === null || path.length === 0 || oid === null) continue;

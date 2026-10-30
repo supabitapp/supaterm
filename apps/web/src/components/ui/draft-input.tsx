@@ -6,7 +6,10 @@ export type DraftInputProps = Omit<InputProps, "value" | "onChange" | "defaultVa
   readonly onCommit: (next: string) => void;
 };
 
-/** Commit drafts without settings-wide rerenders or server round trips per keystroke. */
+/**
+ * Prevents each keystroke from triggering a settings-wide re-render or a server RPC round-trip,
+ * which otherwise makes fields backed by a server-hydrated value feel laggy.
+ */
 export function DraftInput({ value, onCommit, ...rest }: DraftInputProps) {
   const bag = useCommitOnBlur(value, onCommit);
   return <Input {...rest} {...bag} />;

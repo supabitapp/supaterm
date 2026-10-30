@@ -2,10 +2,13 @@ import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
 
 import type {
+  VcsDriverCapabilities,
   VcsError,
   VcsInitInput,
   VcsListRemotesResult,
   VcsListWorkspaceFilesResult,
+  ReviewDiffPreviewInput,
+  ReviewDiffPreviewResult,
   VcsRepositoryIdentity,
 } from "@supaterm/contracts";
 import { CheckpointRef } from "@supaterm/contracts";
@@ -68,10 +71,11 @@ export interface VcsCheckpointOps {
 export class VcsDriver extends Context.Service<
   VcsDriver,
   {
+    readonly capabilities: VcsDriverCapabilities;
     readonly execute: (
       input: Omit<VcsProcess.VcsProcessInput, "command">,
     ) => Effect.Effect<VcsProcess.VcsProcessOutput, VcsError>;
-    readonly checkpoints: VcsCheckpointOps;
+    readonly checkpoints?: VcsCheckpointOps;
     readonly detectRepository: (
       cwd: string,
     ) => Effect.Effect<VcsRepositoryIdentity | null, VcsError>;
@@ -85,5 +89,8 @@ export class VcsDriver extends Context.Service<
       relativePaths: ReadonlyArray<string>,
     ) => Effect.Effect<ReadonlyArray<string>, VcsError>;
     readonly initRepository: (input: VcsInitInput) => Effect.Effect<void, VcsError>;
+    readonly getDiffPreview?: (
+      input: ReviewDiffPreviewInput,
+    ) => Effect.Effect<ReviewDiffPreviewResult, VcsError>;
   }
 >()("supaterm/vcs/VcsDriver") {}

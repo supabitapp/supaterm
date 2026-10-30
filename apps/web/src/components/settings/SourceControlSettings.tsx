@@ -47,9 +47,8 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 
 import { GitIcon, JujutsuIcon, type Icon } from "../Icons";
 import { SourceControlHostSettings } from "./SourceControlHostSettings";
-import { SourceControlAccountSettings } from "./SourceControlAccountSettings";
-import { SourceControlTokenSettings } from "./SourceControlTokenSettings";
-import { SourceControlAppSignInSettings } from "./SourceControlAppSignInSettings";
+import { GitHubAccountSettings } from "./GitHubAccountSettings";
+import { GitHubTokenSettings } from "./GitHubTokenSettings";
 import { RedactedSensitiveText } from "./RedactedSensitiveText";
 import { SourceControlWritingSettingsSection } from "./SourceControlWritingSettings";
 import {
@@ -129,13 +128,13 @@ function isProviderDiscoveryItem(
 
 function authPresentation(auth: SourceControlProviderAuth): {
   readonly label: string;
-  readonly badge: "secondary" | null;
+  readonly badge: "warning" | null;
 } {
   if (auth.status === "authenticated") {
     return { label: "Authenticated", badge: null };
   }
   if (auth.status === "unauthenticated") {
-    return { label: "Not authenticated", badge: "secondary" };
+    return { label: "Not authenticated", badge: "warning" };
   }
   return { label: "Status unknown", badge: null };
 }
@@ -152,12 +151,8 @@ function RedactedAccount(props: { readonly account: string | null }) {
 }
 
 function itemStatusDot(item: VcsDiscoveryItem | SourceControlProviderDiscoveryItem): string {
-  if (isProviderDiscoveryItem(item)) {
-    return item.status === "available" && item.auth.status === "authenticated"
-      ? "bg-success"
-      : "bg-muted-foreground/40";
-  }
   if (item.status !== "available") return "bg-warning";
+  if (isProviderDiscoveryItem(item) && item.auth.status !== "authenticated") return "bg-warning";
   return "bg-success";
 }
 
@@ -358,7 +353,7 @@ function GitFetchIntervalSettings() {
             <PolicyTooltip>
               This interval is configured for Git only. The shared Background activity policy still
               decides whether Git refreshes may run when the timer fires. Custom intervals appear as
-              Advanced in Maintenance settings.
+              Advanced in General settings.
             </PolicyTooltip>
             <span
               className={cn(
@@ -512,50 +507,13 @@ export function SourceControlSettingsPanel() {
   const handleScan = () => {
     discovery.refresh();
   };
-  const hostSettingsPanel = (item: SourceControlProviderDiscoveryItem) => {
-    const definition = sourceControlClients.find(item.kind);
-    if (!definition || environmentId === null) return undefined;
-    const credentials = definition.credentials;
-    if (credentials) {
-      const app = item.appSignInMetadata;
-      const appEnabled =
-        item.appSignIn === true && app && app.appName && app.installUrl && app.revokeUrl;
-      return (
-        <SettingsSearchTarget id={sourceControlHostSettingsSearchId(item.kind)}>
-          <div className="grid gap-6">
-            {appEnabled ? (
-              <SourceControlAppSignInSettings
-                key={`sign-in-${environmentId}`}
-                environmentId={environmentId}
-                definition={definition}
-                appSignIn={app}
-                account={Option.getOrNull(item.auth.account)}
-                onChanged={handleScan}
-              />
-            ) : null}
-            <SourceControlTokenSettings
-              key={`token-${environmentId}`}
-              environmentId={environmentId}
-              definition={definition}
-              credentials={credentials}
-              onSaved={handleScan}
-            />
-            <SourceControlAccountSettings
-              key={`accounts-${environmentId}`}
-              environmentId={environmentId}
-              definition={definition}
-              credentials={credentials}
-              auth={item.auth}
-              onSaved={handleScan}
-            />
-          </div>
-        </SettingsSearchTarget>
-      );
-    }
-    if (!definition.settings) return undefined;
+  const hostSettingsPanel = (kind: string) => {
+    const definition = sourceControlClients.find(kind);
+    if (!definition?.settings || environmentId === null) return undefined;
     return (
-      <SettingsSearchTarget id={sourceControlHostSettingsSearchId(item.kind)}>
+      <SettingsSearchTarget id={sourceControlHostSettingsSearchId(kind)}>
         <SourceControlHostSettings
+          // Drafts belong to one environment; switching must not carry them over.
           key={environmentId}
           environmentId={environmentId}
           definition={{ ...definition, settings: definition.settings }}
@@ -624,7 +582,26 @@ export function SourceControlSettingsPanel() {
             >
               {result.sourceControlProviders.map((item) => (
                 <DiscoveryItemRow key={`provider:${item.kind}`} item={item}>
-                  {hostSettingsPanel(item)}
+                  {item.kind === "github" ? (
+                    <SettingsSearchTarget id={searchableSetting("github-accounts").id}>
+                      <div className="grid gap-6">
+                        {}
+                        <GitHubTokenSettings
+                          key={`token-${environmentId}`}
+                          environmentId={environmentId}
+                          onSaved={handleScan}
+                        />
+                        <GitHubAccountSettings
+                          key={environmentId}
+                          environmentId={environmentId}
+                          auth={item.auth}
+                          onSaved={handleScan}
+                        />
+                      </div>
+                    </SettingsSearchTarget>
+                  ) : (
+                    hostSettingsPanel(item.kind)
+                  )}
                 </DiscoveryItemRow>
               ))}
             </SettingsSection>

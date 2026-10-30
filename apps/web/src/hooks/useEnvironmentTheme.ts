@@ -1,6 +1,7 @@
 import type { EnvironmentTheme } from "@supaterm/contracts";
+import { useAtomValue } from "@effect/atom-react";
 import * as Equal from "effect/Equal";
-import { useSyncExternalStore } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 
 import { primaryServerEnvironmentThemesAtom } from "../state/server";
 import {
@@ -15,8 +16,7 @@ import {
   type ThemeColors,
   type ThemeDefinition,
 } from "../themePalette";
-import { refreshTheme } from "./useTheme";
-import { appAtomRegistry } from "../rpc/atomRegistry";
+import { useTheme } from "./useTheme";
 
 function publishedThemeColors(
   theme: EnvironmentTheme,
@@ -90,17 +90,22 @@ export function useEnvironmentThemeDefinitions(): ReadonlyArray<ThemeDefinition>
   return useSyncExternalStore(subscribeToCustomThemes, getEnvironmentThemes, () => []);
 }
 
-export function startEnvironmentThemeRepaint(): () => void {
-  let lastPublished: ReadonlyArray<EnvironmentTheme> | null = null;
-  return appAtomRegistry.subscribe(
-    primaryServerEnvironmentThemesAtom,
-    (published) => {
-      if (lastPublished !== null && Equal.equals(lastPublished, published)) return;
-      lastPublished = published;
-      if (setEnvironmentThemes(publishedThemeDefinitions(published))) {
-        refreshTheme({ preservePreview: true });
-      }
-    },
-    { immediate: true },
-  );
+export function useEnvironmentThemeSync(): void {
+  const published = useAtomValue(primaryServerEnvironmentThemesAtom);
+  const { refreshTheme } = useTheme();
+  const lastPublished = useRef<ReadonlyArray<EnvironmentTheme> | null>(null);
+
+  useEffect(() => {
+    // Every reconnect snapshot delivers a fresh but usually identical array;
+    // regenerating palettes and repainting the document for it is exactly the
+    // wasted-frame class this codebase audits for.
+    if (lastPublished.current !== null && Equal.equals(lastPublished.current, published)) return;
+    lastPublished.current = published;
+
+    // The palette is painted from a snapshot taken when the theme last
+    // changed, so new colors only land if the active theme is re-applied.
+    if (setEnvironmentThemes(publishedThemeDefinitions(published))) {
+      refreshTheme({ preservePreview: true });
+    }
+  }, [published, refreshTheme]);
 }

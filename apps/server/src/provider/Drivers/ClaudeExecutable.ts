@@ -7,11 +7,20 @@ import { SpawnExecutableResolution } from "@supaterm/shared/shell";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 
+/**
+ * Windows launcher-script extensions that Node cannot spawn without a shell
+ * (`spawn EINVAL` since Node 20.12) and that the Claude Agent SDK therefore
+ * cannot use as `pathToClaudeCodeExecutable`.
+ */
 const WINDOWS_SHIM_EXTENSIONS: ReadonlySet<string> = new Set([".cmd", ".bat", ".ps1"]);
 
 export const isWindowsClaudeLauncherShimPath = (filePath: string): boolean =>
   WINDOWS_SHIM_EXTENSIONS.has(NodePath.win32.extname(filePath).toLowerCase());
 
+/**
+ * Newer package versions ship a native `bin/claude.exe`; older versions only ship `cli.js`,
+ * which the SDK runs with a JavaScript runtime.
+ */
 const NPM_PACKAGE_ENTRY_CANDIDATES = [
   ["node_modules", "@anthropic-ai", "claude-code", "bin", "claude.exe"],
   ["node_modules", "@anthropic-ai", "claude-code", "cli.js"],
@@ -34,6 +43,12 @@ export const ClaudeExecutableFileCheck = Context.Reference<ExecutableFileCheck>(
   },
 );
 
+/**
+ * The SDK spawns the given path without a shell and without Windows PATH / PATHEXT resolution,
+ * so a bare command name like `claude` fails with "native binary not found" and an npm
+ * `claude.cmd` shim fails with `spawn EINVAL`. CLI probes avoid this via `resolveSpawnCommand`,
+ * which can fall back to `shell: true`; the SDK offers no such escape hatch.
+ */
 export const resolveClaudeSdkExecutablePath = Effect.fn("resolveClaudeSdkExecutablePath")(
   function* (binaryPath: string, environment: NodeJS.ProcessEnv): Effect.fn.Return<string> {
     const platform = yield* HostProcess.Platform;

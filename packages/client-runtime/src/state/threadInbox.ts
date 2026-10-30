@@ -1,7 +1,5 @@
-// @effect-diagnostics globalTimers:off - Shelf placement timers run in web and native clients, outside an Effect runtime.
 import { threadRuntimeIsActive, type EnvironmentThreadShell } from "./models.ts";
 import { toSortableTimestamp } from "./threadSort.ts";
-import { effectiveSnoozed } from "./threadSnooze.ts";
 
 // The Working section, shared so web and mobile fold and order the inbox the
 // same way.
@@ -91,146 +89,37 @@ function sortNewestFirst<T extends Pick<EnvironmentThreadShell, "id" | "environm
   );
 }
 
-type TrackedInboxThread = WorkingThreadInput &
-  InboxThreadInput &
-  Partial<
-    Pick<
-      EnvironmentThreadShell,
-      | "archivedAt"
-      | "deletedAt"
-      | "pinnedAt"
-      | "doneOverride"
-      | "doneAt"
-      | "snoozedAt"
-      | "snoozedUntil"
-      | "activeOrderKey"
-      | "pendingGuestMessageCount"
-    >
-  >;
-
-type ThreadKeyInput = Pick<EnvironmentThreadShell, "environmentId" | "id">;
-
-export const WORKING_EXIT_GRACE_MS = 2_000;
-
 /**
+ * Remembers when this client saw each thread leave the Working section. Keep
+ * one at module scope so the inbox order survives routes that unmount the
+ * list. Call `observe` with every thread shell on each list rebuild. The first
+ * call only takes a baseline, so mounting never reshuffles the inbox.
  */
 export function createInboxReturnTracker() {
-  const keyOf = (thread: ThreadKeyInput) => `${thread.environmentId}:${thread.id}`;
-  const states = new Map<
-    string,
-    { working: boolean; deadline: number | null; placement: string }
-  >();
+  const keyOf = (thread: Pick<EnvironmentThreadShell, "environmentId" | "id">) =>
+    `${thread.environmentId}:${thread.id}`;
+  let lastWorkingKeys: ReadonlySet<string> | null = null;
   const returns = new Map<string, number>();
-  const listeners = new Set<() => void>();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let version = 0;
-  const now = () => {
-    // @effect-diagnostics-next-line globalDate:off - The grace deadline is wall-clock time shared by web and native clients.
-    return Date.now();
-  };
-  const schedule = () => {
-    clearTimeout(timer);
-    timer = undefined;
-    let next = Infinity;
-    for (const state of states.values()) {
-      if (state.deadline !== null) next = Math.min(next, state.deadline);
-    }
-    if (next === Infinity) return;
-    timer = setTimeout(
-      () => {
-        const at = now();
-        for (const [key, state] of states) {
-          if (state.deadline !== null && state.deadline <= at) {
-            state.working = false;
-            state.deadline = null;
-            returns.set(key, at);
-          }
-        }
-        schedule();
-        version++;
-        for (const listener of listeners) listener();
-      },
-      Math.max(0, next - now()),
-    );
-  };
   return {
-    subscribe(listener: () => void) {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
-    getSnapshot: () => version,
-    observe(threads: readonly TrackedInboxThread[] | null): {
-      readonly isWorking: (thread: WorkingThreadInput & ThreadKeyInput) => boolean;
-      readonly returnedAt: (thread: ThreadKeyInput) => number | undefined;
-    } {
-      if (threads === null) {
-        clearTimeout(timer);
-        timer = undefined;
-        states.clear();
-        returns.clear();
-        return { isWorking: isThreadWorking, returnedAt: () => undefined };
-      }
+    observe(threads: ReadonlyArray<WorkingThreadInput & InboxThreadInput>): void {
+      const working = new Set<string>();
       const present = new Set<string>();
-      const at = now();
-      // @effect-diagnostics-next-line globalDate:off - Snooze checks compare wall-clock ISO times.
-      const observedAt = new Date(at).toISOString();
       for (const thread of threads) {
         const key = keyOf(thread);
         present.add(key);
-        const placement = JSON.stringify([
-          thread.archivedAt,
-          thread.deletedAt,
-          thread.pinnedAt,
-          thread.doneOverride,
-          thread.doneAt,
-          thread.snoozedAt,
-          thread.snoozedUntil,
-          thread.activeOrderKey,
-        ]);
-        const previous = states.get(key);
-        const actionable =
-          thread.hasPendingApprovals ||
-          thread.hasPendingUserInput ||
-          thread.pendingSubagentRequest != null ||
-          (thread.pendingGuestMessageCount ?? 0) > 0 ||
-          (thread.interactionMode === "plan" && thread.hasActionableProposedPlan) ||
-          thread.runtime?.lastError != null ||
-          thread.latestRun?.status === "failed";
-        const moved = previous !== undefined && previous.placement !== placement;
-        const excluded =
-          thread.archivedAt != null ||
-          thread.deletedAt != null ||
-          thread.pinnedAt != null ||
-          thread.doneOverride === "done" ||
-          effectiveSnoozed(thread, { now: observedAt });
-        const actual = isThreadWorking(thread);
-
-        const deadline =
-          !actual && previous?.working && !actionable && !moved && !excluded
-            ? (previous.deadline ?? at + WORKING_EXIT_GRACE_MS)
-            : null;
-        const working = actual || (deadline !== null && deadline > at);
-        if (previous?.working && !working) returns.set(key, at);
-        states.set(key, { working, deadline: working ? deadline : null, placement });
+        if (isThreadWorking(thread)) working.add(key);
       }
-      for (const key of states.keys()) {
-        if (!present.has(key)) {
-          states.delete(key);
-          returns.delete(key);
-        }
+      for (const key of returns.keys()) {
+        if (!present.has(key)) returns.delete(key);
       }
-      schedule();
-      const observedWorking = new Map([...states].map(([key, state]) => [key, state.working]));
-      const observedReturns = new Map(returns);
-      return {
-        isWorking: (thread) => observedWorking.get(keyOf(thread)) ?? isThreadWorking(thread),
-        returnedAt: (thread) => observedReturns.get(keyOf(thread)),
-      };
+      // @effect-diagnostics-next-line globalDate:off
+      const at = Date.now();
+      for (const key of lastWorkingKeys ?? []) {
+        if (present.has(key) && !working.has(key)) returns.set(key, at);
+      }
+      lastWorkingKeys = working;
     },
-    isWorking: (thread: WorkingThreadInput & ThreadKeyInput) =>
-      states.get(keyOf(thread))?.working ?? isThreadWorking(thread),
-    returnedAt: (thread: ThreadKeyInput) => returns.get(keyOf(thread)),
+    returnedAt: (thread: Pick<EnvironmentThreadShell, "environmentId" | "id">) =>
+      returns.get(keyOf(thread)),
   };
 }

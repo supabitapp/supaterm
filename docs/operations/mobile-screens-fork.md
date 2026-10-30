@@ -1,13 +1,18 @@
 # Mobile Screens dependency
 
-The mobile client pins a committed `react-native-screens` archive in
-[its package manifest](../../apps/mobile/package.json). The archive's `supacode-fork.json`
-records its source provenance and local adaptations. Read that record before replacing it;
-Supaterm's native navigation changes must survive a source update.
+The mobile client pins `react-native-screens` to the committed
+`apps/mobile/deps/react-native-screens-5.0.0-supacode.36.tgz` archive. Its runtime,
+declarations and native sources come from
+[source commit 8edcc5cd](https://github.com/pingdotgg/react-native-screens/commit/8edcc5cd97e0c32a3168da1130077bba9b107720),
+based on `72f38a66c188bdebee7a7798c9b72a121b7a8451`. Supaterm changes the package
+version and archive metadata; it preserves the runtime and native source.
+`supacode-fork.json` inside the archive records that provenance.
 
-Repack JavaScript, declarations, and native source together. Update provenance for any adapted
-files, then update the package reference and lockfile with the resulting archive. Do not claim
-byte-identical upstream source when the package contains local changes.
+To repack a new upstream revision, extract its archive, set `version` in
+`package.json` to the matching `5.0.0-supacode.N`, replace `t3-fork.json` with a
+`supacode-fork.json` that keeps the original metadata under `source`, swap that
+file name in the `files` list, and run `npm pack --ignore-scripts`. Every other
+file must stay byte-identical to the source archive.
 
 Compiled JavaScript, declarations and native source must come from the same
 revision. Replacing only one part can leave the navigation API out of step with

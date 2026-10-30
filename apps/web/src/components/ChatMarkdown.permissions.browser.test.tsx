@@ -104,7 +104,7 @@ vi.mock(import("~/lib/openPullRequestLink"), async (original) => ({
   ...(await original()),
   resolvePullRequestPreviewTarget: () => null,
   findProjectForChangeRequest: ((projects: readonly { id: ProjectId }[]) => projects[0]) as never,
-  matchesLinkedPullRequestUrl: (candidate: { readonly url: string }, href: string) =>
+  matchesLinkedPullRequestUrl: (candidate: ThreadLinkedPullRequest, href: string) =>
     candidate.url === href,
   parseChangeRequestUrl: ((href: string) =>
     href === linkedPullRequest.url

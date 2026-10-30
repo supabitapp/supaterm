@@ -1,15 +1,6 @@
 import type { EnvironmentId } from "@supaterm/contracts";
 import { buildProjectGroups } from "@supaterm/client-runtime/state/project-grouping";
-import {
-  createContext,
-  useContext,
-  useMemo,
-  useRef,
-  useState,
-  type Dispatch,
-  type ReactNode,
-  type SetStateAction,
-} from "react";
+import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 
 import { useEnvironments, type EnvironmentPresentation } from "../../state/environments";
 import { useProjects } from "../../state/entities";
@@ -20,93 +11,41 @@ export type SettingsTarget = EnvironmentPresentation & {
   readonly serverConfig: NonNullable<EnvironmentPresentation["serverConfig"]>;
 };
 
-const targetsCache = new WeakMap<readonly EnvironmentPresentation[], readonly SettingsTarget[]>();
-const groupsCache = new WeakMap<object, Map<string, ReturnType<typeof buildProjectGroups>>>();
-
 function connectedSettingsTargets(environments: readonly EnvironmentPresentation[]) {
-  let targets = targetsCache.get(environments);
-  if (!targets) {
-    targets = environments.filter(
-      (entry): entry is SettingsTarget =>
-        entry.connection.phase === "connected" && entry.serverConfig !== null,
-    );
-    targetsCache.set(environments, targets);
-  }
-  return targets;
-}
-
-function settingsProjectGroups(
-  projects: Parameters<typeof buildProjectGroups>[0]["projects"],
-  groupingMode: Parameters<typeof buildProjectGroups>[0]["settings"]["sidebarProjectGroupingMode"],
-) {
-  let byMode = groupsCache.get(projects);
-  if (!byMode) groupsCache.set(projects, (byMode = new Map()));
-  let groups = byMode.get(groupingMode);
-  if (!groups) {
-    groups = buildProjectGroups({
-      projects,
-      settings: { sidebarProjectGroupingMode: groupingMode, sidebarProjectGroupingOverrides: {} },
-    });
-    byMode.set(groupingMode, groups);
-  }
-  return groups;
-}
-
-interface SettingsEnvironmentSelection {
-  readonly selectedIds: ReadonlySet<EnvironmentId> | null;
-  readonly selectedProjectKey: string | null;
-  readonly setSelectedIds: Dispatch<SetStateAction<ReadonlySet<EnvironmentId> | null>>;
-  readonly selectProject: (projectKey: string | null) => void;
-
-  readonly getSelectedProjectKey: () => string | null;
-}
-
-const SettingsEnvironmentSelectionContext = createContext<SettingsEnvironmentSelection | null>(
-  null,
-);
-
-export function SettingsEnvironmentFilterProvider(props: {
-  readonly open: boolean;
-  readonly children: ReactNode;
-}) {
-  const [selectedIds, setSelectedIds] = useState<ReadonlySet<EnvironmentId> | null>(null);
-  const [selectedProjectKey, setSelectedProjectKey] = useState<string | null>(null);
-
-  const currentProjectKey = useRef<string | null>(null);
-  if (!props.open && (selectedIds !== null || selectedProjectKey !== null)) {
-    setSelectedIds(null);
-    setSelectedProjectKey(null);
-  }
-  const selectProject = (projectKey: string | null) => {
-    currentProjectKey.current = projectKey;
-    setSelectedProjectKey(projectKey);
-  };
-  const getSelectedProjectKey = () => currentProjectKey.current;
-  const value = {
-    selectedIds,
-    selectedProjectKey,
-    setSelectedIds,
-    selectProject,
-    getSelectedProjectKey,
-  };
-  return (
-    <SettingsEnvironmentSelectionContext value={value}>
-      {props.children}
-    </SettingsEnvironmentSelectionContext>
+  return environments.filter(
+    (entry): entry is SettingsTarget =>
+      entry.connection.phase === "connected" && entry.serverConfig !== null,
   );
 }
 
-export function useSettingsEnvironmentFilter() {
-  const selection = useContext(SettingsEnvironmentSelectionContext);
-  if (selection === null) throw new Error("Settings environment filter provider is missing.");
-  const { selectedIds, selectedProjectKey, setSelectedIds, selectProject, getSelectedProjectKey } =
-    selection;
+const SettingsEnvironmentFilterContext = createContext<{
+  readonly availableTargets: readonly SettingsTarget[];
+  readonly selectedTargets: readonly SettingsTarget[];
+  readonly selectedIds: ReadonlySet<EnvironmentId> | null;
+  readonly projectGroups: ReturnType<typeof buildProjectGroups>;
+  readonly selectableProjectGroups: ReturnType<typeof buildProjectGroups>;
+  readonly selectedProjectKey: string | null;
+  readonly selectProject: (projectKey: string | null) => void;
+  readonly selectAll: () => void;
+  readonly toggleEnvironment: (environmentId: EnvironmentId) => void;
+} | null>(null);
+
+export function SettingsEnvironmentFilterProvider(props: { readonly children: ReactNode }) {
   const { environments } = useEnvironments();
   const projects = useProjects();
   const groupingSettings = useMobileProjectGroupingSettings();
   const groupingMode = groupingSettings.sidebarProjectGroupingMode;
-  const projectGroups = settingsProjectGroups(projects, groupingMode);
-  const availableTargets = connectedSettingsTargets(environments);
+  const [selectedIds, setSelectedIds] = useState<ReadonlySet<EnvironmentId> | null>(null);
+  const [selectedProjectKey, setSelectedProjectKey] = useState<string | null>(null);
+  const projectGroups = useMemo(
+    () =>
+      buildProjectGroups({
+        projects,
+        settings: { sidebarProjectGroupingMode: groupingMode, sidebarProjectGroupingOverrides: {} },
+      }),
+    [projects, groupingMode],
+  );
+  const availableTargets = useMemo(() => connectedSettingsTargets(environments), [environments]);
   const selectedTargets = useMemo(
     () =>
       availableTargets.filter(
@@ -123,7 +62,7 @@ export function useSettingsEnvironmentFilter() {
       ),
     [projectGroups, selectedTargets],
   );
-  return useMemo(
+  const value = useMemo(
     () => ({
       availableTargets,
       selectedTargets,
@@ -131,8 +70,7 @@ export function useSettingsEnvironmentFilter() {
       projectGroups,
       selectableProjectGroups,
       selectedProjectKey,
-      selectProject,
-      getSelectedProjectKey,
+      selectProject: setSelectedProjectKey,
       selectAll: () => setSelectedIds(null),
       toggleEnvironment: (environmentId: EnvironmentId) =>
         setSelectedIds((current) =>
@@ -146,9 +84,17 @@ export function useSettingsEnvironmentFilter() {
       projectGroups,
       selectableProjectGroups,
       selectedProjectKey,
-      setSelectedIds,
-      selectProject,
-      getSelectedProjectKey,
     ],
   );
+  return (
+    <SettingsEnvironmentFilterContext value={value}>
+      {props.children}
+    </SettingsEnvironmentFilterContext>
+  );
+}
+
+export function useSettingsEnvironmentFilter() {
+  const filter = useContext(SettingsEnvironmentFilterContext);
+  if (filter === null) throw new Error("Settings environment filter provider is missing.");
+  return filter;
 }

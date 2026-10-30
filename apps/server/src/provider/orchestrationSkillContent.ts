@@ -57,10 +57,10 @@ Share the consensus with the user. Summarize where the agents diverged and how t
   {
     name: "supaterm-advisor",
     description:
-      'Spin up a single agent as an advisor for a second opinion on the current task. Use when the user says "advisor", "second opinion", "what does X think", or wants an outside take without delegating the work itself.',
+      'Spin up a single agent as an advisor \u2014 second opinion on the current task. Use when the user says "advisor", "second opinion", "what does X think", or wants an outside take without delegating the work itself.',
     content: `---
 name: supaterm-advisor
-description: Spin up a single agent as an advisor for a second opinion on the current task. Use when the user says "advisor", "second opinion", "what does X think", or wants an outside take without delegating the work itself.
+description: Spin up a single agent as an advisor — second opinion on the current task. Use when the user says "advisor", "second opinion", "what does X think", or wants an outside take without delegating the work itself.
 license: Apache-2.0
 ---
 
@@ -68,7 +68,7 @@ license: Apache-2.0
 
 <!-- Modified for Supaterm orchestration. -->
 
-Single agent. Reads the situation you're in. Gives a judgment. You decide what to do; the advisor doesn't drive the work.
+Single agent. Reads the situation you're in. Gives a judgment. You decide what to do — the advisor doesn't drive the work.
 
 **User's request:** $ARGUMENTS
 
@@ -90,7 +90,7 @@ The advisor has zero context. Make it self-contained:
 
 - The question, sharply.
 - What you've considered and what you've ruled out.
-- Relevant files by path (let the agent read the files instead of pasting them).
+- Relevant files by path (don't paste — let the agent read).
 - Explicit ask: "give me a recommendation, with reasoning."
 
 End with the no-edits suffix:
@@ -101,7 +101,7 @@ This is analysis only. Do NOT edit, create, or delete any files. Do NOT write co
 
 ## Forwarded skills
 
-If \`$ARGUMENTS\` contains another skill reference (\`/unslop\`, \`/unslop-risk\`, \`$unslop\`, etc.), the user is asking the advisor to run that skill against the current task. Examples:
+If \`$ARGUMENTS\` contains another skill reference — \`/unslop\`, \`/unslop-risk\`, \`$unslop\`, etc. — the user is asking the advisor to run that skill against the current task. Examples:
 
 - \`/supaterm-advisor /unslop\` → advisor runs \`/unslop\` on the current diff.
 - \`/supaterm-advisor /unslop-risk\` → advisor does an unslop-risk review.
@@ -113,11 +113,11 @@ Parse the forwarded skill name out of \`$ARGUMENTS\` (\`/<name>\` or \`$<name>\`
 Invoke the \`<name>\` skill against this task. Load it via the Skill tool, or read its \`SKILL.md\`, before doing anything else.
 \`\`\`
 
-Pass through any remaining arguments after the skill name as the skill's own input. The advisor runs the skill; you're still just the orchestrator handing it the work.
+Pass through any remaining arguments after the skill name as the skill's own input. The advisor — not you — runs the skill; you're still just the orchestrator handing it the work.
 
 ## Launch and synthesize
 
-Create the advisor agent via Supaterm with \`delegate_task\`, a \`[Advisor] <topic>\` title, and the briefing as \`task\`. Wait for it to finish. Read its response. Synthesize the advisor's verdict and your recommendation for the user.
+Create the advisor agent via Supaterm with \`delegate_task\`, a \`[Advisor] <topic>\` title, and the briefing as \`task\`. Wait for it to finish. Read its response. Synthesize for the user — the advisor's verdict + your recommendation.
 
 ## Persistent advisor
 

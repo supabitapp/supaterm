@@ -58,7 +58,6 @@ import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
-import * as Stream from "effect/Stream";
 import * as SynchronizedRef from "effect/SynchronizedRef";
 
 import * as ServerConfig from "../config.ts";
@@ -76,7 +75,6 @@ import { expandHomePath } from "@supaterm/provider-core/server/pathExpansion";
 import * as ProcessRunner from "../processRunner.ts";
 import * as PortScanner from "../preview/PortScanner.ts";
 import * as NativeTelemetryClient from "../resourceTelemetry/NativeTelemetryClient.ts";
-import { terminalOutputStream } from "./OutputProtocol.ts";
 import * as PtyAdapter from "@supaterm/shared/PtyAdapter";
 
 export {
@@ -166,26 +164,11 @@ export class TerminalManager extends Context.Service<
       input: TerminalOpenInput,
     ) => Effect.Effect<TerminalSessionSnapshot, TerminalError>;
 
-    /**
-     * Attached viewers share one PTY sized to the smallest of them, so a narrow client
-     * still sees the whole TUI. Streams and resizes with the same `viewerId` (one client
-     * connection) count as one viewer; streams without one are each their own viewer.
-     */
     readonly attachStream: (
       input: TerminalAttachInput,
       listener: (event: TerminalAttachStreamEvent) => Effect.Effect<void>,
       registerCleanup?: (stop: () => void) => void,
-      viewerId?: string,
     ) => Effect.Effect<() => void, TerminalError>;
-
-    /**
-     * The `terminal.attach` RPC stream. Overflow recovery swaps the inner subscription, so
-     * `viewerId` and the size it reported stay attached until the whole stream ends.
-     */
-    readonly attachOutputStream: (
-      input: TerminalAttachInput,
-      viewerId: string,
-    ) => Stream.Stream<TerminalAttachStreamEvent, TerminalError>;
 
     readonly observeStream: (
       input: TerminalObserveInput,
@@ -201,17 +184,20 @@ export class TerminalManager extends Context.Service<
 
     readonly write: (input: TerminalWriteInput) => Effect.Effect<void, TerminalError>;
 
-    readonly resize: (
-      input: TerminalResizeInput,
-      viewerId?: string,
-    ) => Effect.Effect<void, TerminalError>;
+    readonly resize: (input: TerminalResizeInput) => Effect.Effect<void, TerminalError>;
 
     readonly clear: (input: TerminalClearInput) => Effect.Effect<void, TerminalError>;
 
+    /**
+     * Always resets history before spawning the new process.
+     */
     readonly restart: (
       input: TerminalRestartInput,
     ) => Effect.Effect<TerminalSessionSnapshot, TerminalError>;
 
+    /**
+     * When `terminalId` is omitted, closes all sessions for the thread.
+     */
     readonly close: (input: TerminalCloseInput) => Effect.Effect<void, TerminalError>;
 
     readonly closeIdle: (input: {
@@ -298,17 +284,6 @@ interface TerminalSessionState {
   runtimeEnv: Record<string, string> | null;
 }
 
-interface TerminalGrid {
-  readonly cols: number;
-  readonly rows: number;
-}
-
-/** One client connection attached to a terminal, possibly through several streams. */
-interface TerminalViewer {
-  streams: number;
-  grid: TerminalGrid | null;
-}
-
 interface PersistHistoryRequest {
   history: BoundedTerminalHistory;
   immediate: boolean;
@@ -390,8 +365,6 @@ function snapshot(session: TerminalSessionState): TerminalSessionSnapshot {
     label: terminalWireLabel(session),
     updatedAt: session.updatedAt,
     sequence: session.eventSequence,
-    cols: session.cols,
-    rows: session.rows,
   };
 }
 
@@ -688,6 +661,8 @@ function parsePosixProcessTable(stdout: string): TerminalProcessTableSnapshot {
   const childrenByParent = new Map<number, number[]>();
   const commandById = new Map<number, string>();
   for (const line of stdout.split(/\r?\n/g)) {
+    // `comm=` is the final column and may itself contain spaces, so only the
+    // first two tokens are structural.
     const match = /^\s*(\d+)\s+(\d+)\s+(.+)$/.exec(line);
     if (!match) continue;
     const pid = Number(match[1]);
@@ -725,6 +700,8 @@ function deriveSubprocessInspectResult(
   const commandName = (pid: number) =>
     normalizeChildCommandName(snapshot.commandById.get(pid) ?? "", platform);
   const shellName = commandName(terminalPid);
+  // Async prompt themes fork the shell into a helper that waits with no
+  // children of its own. That copy is not a command the user started.
   const childPid = (snapshot.childrenByParent.get(terminalPid) ?? []).find(
     (pid) =>
       shellName === null ||
@@ -755,6 +732,9 @@ function deriveSubprocessInspectResult(
 
 const POSIX_PS_ABSOLUTE_PATHS = ["/bin/ps", "/usr/bin/ps"] as const;
 
+// Resolve `ps` to an absolute path once at startup. Spawning by bare name
+// walks every PATH entry per spawn (one failed posix_spawn per directory
+// until the hit), which is measurable at a 1s poll cadence on long PATHs.
 const resolvePosixPsCommand = Effect.fn("terminal.resolvePosixPsCommand")(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   for (const candidate of POSIX_PS_ABSOLUTE_PATHS) {
@@ -791,6 +771,8 @@ const posixProcessTableSnapshot = Effect.fn("terminal.posixProcessTableSnapshot"
       ),
     );
   if (result.code !== 0 || result.timedOut || result.stdoutTruncated) {
+    // Not authoritative: an empty or partial table would mark every terminal
+    // idle and clear its registered process ids. Failing skips the tick.
     return yield* new TerminalSubprocessCheckError({
       command: "ps",
       exitCode: result.code,
@@ -1048,6 +1030,7 @@ function neutralizeInheritedHistory(history: string, maxLines: number, maxBytes:
   // An unconditional 1049 reset restores a stale saved cursor on the main
   // screen. The exit must match the inherited screen's cursor-save behavior.
   let alternateScreen: number | undefined;
+  // eslint-disable-next-line no-control-regex -- Match replayed alternate-screen controls.
   for (const match of history.matchAll(/\u001b(?:\[\?([0-9;]+)([hl])|(c))/gu)) {
     if (match[3]) alternateScreen = undefined;
     for (const parameter of (match[1] ?? "").split(";")) {
@@ -1068,10 +1051,6 @@ function isCsiFinalByte(codePoint: number): boolean {
   return codePoint >= 0x40 && codePoint <= 0x7e;
 }
 
-function isControlSequenceCancel(codePoint: number): boolean {
-  return codePoint === 0x18 || codePoint === 0x1a;
-}
-
 function shouldStripCsiSequence(body: string, finalByte: string): boolean {
   if (finalByte === "n") {
     return true;
@@ -1082,6 +1061,10 @@ function shouldStripCsiSequence(body: string, finalByte: string): boolean {
   if (finalByte === "c" && /^[>0-9;?]*$/.test(body)) {
     return true;
   }
+  // DECRQM mode queries (…$p) and DECRPM replies (…$y): replaying a stored
+  // query makes the terminal answer again, and the shell echoes the answer as
+  // junk at the prompt. The `$` guard keeps setters like DECSTR (!p) and
+  // DECSCL ("p) intact.
   if ((finalByte === "p" || finalByte === "y") && /^[0-9;?]*\$$/.test(body)) {
     return true;
   }
@@ -1096,6 +1079,9 @@ function shouldStripCsiSequence(body: string, finalByte: string): boolean {
   return false;
 }
 
+// DECRQSS ($q) and XTGETTCAP (+q) queries plus their replies ([01]$r / [01]+r):
+// pure request/response traffic with no visual value, and replaying a stored
+// query triggers a fresh reply.
 function shouldStripDcsSequence(content: string): boolean {
   return /^[01]?[$+][qr]/.test(content);
 }
@@ -1118,7 +1104,7 @@ function stripStringTerminator(value: string): string {
 function findStringTerminatorIndex(input: string, start: number): number | null {
   for (let index = start; index < input.length; index += 1) {
     const codePoint = input.charCodeAt(index);
-    if (codePoint === 0x07 || codePoint === 0x9c || isControlSequenceCancel(codePoint)) {
+    if (codePoint === 0x07 || codePoint === 0x9c) {
       return index + 1;
     }
     if (codePoint === 0x1b && input.charCodeAt(index + 1) === 0x5c) {
@@ -1147,6 +1133,7 @@ function findEscapeSequenceEndIndex(input: string, start: number): number | null
   return isEscapeFinalByte(input.charCodeAt(cursor)) ? cursor + 1 : start + 1;
 }
 
+// eslint-disable-next-line no-control-regex -- Terminal sequence introducers must reach the parser.
 const HISTORY_SEQUENCE_START = /[\u001b\u0090\u009b\u009d\u009e\u009f]/;
 const NEXT_HISTORY_SEQUENCE_START = new RegExp(HISTORY_SEQUENCE_START.source, "g");
 
@@ -1159,7 +1146,6 @@ function sanitizeTerminalHistoryChunk(
   }
 
   const input = `${pendingControlSequence}${data}`;
-  const pendingScanStart = Math.max(0, pendingControlSequence.length - 1);
   let visibleText = "";
   let index = 0;
 
@@ -1179,11 +1165,10 @@ function sanitizeTerminalHistoryChunk(
       if (nextCodePoint === 0x5b) {
         let cursor = index + 2;
         while (cursor < input.length) {
-          const cancelled = isControlSequenceCancel(input.charCodeAt(cursor));
-          if (cancelled || isCsiFinalByte(input.charCodeAt(cursor))) {
+          if (isCsiFinalByte(input.charCodeAt(cursor))) {
             const sequence = input.slice(index, cursor + 1);
             const body = input.slice(index + 2, cursor);
-            if (cancelled || !shouldStripCsiSequence(body, input[cursor] ?? "")) {
+            if (!shouldStripCsiSequence(body, input[cursor] ?? "")) {
               append(sequence);
             }
             index = cursor + 1;
@@ -1203,10 +1188,7 @@ function sanitizeTerminalHistoryChunk(
         nextCodePoint === 0x5e ||
         nextCodePoint === 0x5f
       ) {
-        const terminatorIndex = findStringTerminatorIndex(
-          input,
-          Math.max(index + 2, pendingScanStart),
-        );
+        const terminatorIndex = findStringTerminatorIndex(input, index + 2);
         if (terminatorIndex === null) {
           return { visibleText, pendingControlSequence: input.slice(index) };
         }
@@ -1234,11 +1216,10 @@ function sanitizeTerminalHistoryChunk(
     if (codePoint === 0x9b) {
       let cursor = index + 1;
       while (cursor < input.length) {
-        const cancelled = isControlSequenceCancel(input.charCodeAt(cursor));
-        if (cancelled || isCsiFinalByte(input.charCodeAt(cursor))) {
+        if (isCsiFinalByte(input.charCodeAt(cursor))) {
           const sequence = input.slice(index, cursor + 1);
           const body = input.slice(index + 1, cursor);
-          if (cancelled || !shouldStripCsiSequence(body, input[cursor] ?? "")) {
+          if (!shouldStripCsiSequence(body, input[cursor] ?? "")) {
             append(sequence);
           }
           index = cursor + 1;
@@ -1253,10 +1234,7 @@ function sanitizeTerminalHistoryChunk(
     }
 
     if (codePoint === 0x9d || codePoint === 0x90 || codePoint === 0x9e || codePoint === 0x9f) {
-      const terminatorIndex = findStringTerminatorIndex(
-        input,
-        Math.max(index + 1, pendingScanStart),
-      );
+      const terminatorIndex = findStringTerminatorIndex(input, index + 1);
       if (terminatorIndex === null) {
         return { visibleText, pendingControlSequence: input.slice(index) };
       }
@@ -1316,8 +1294,13 @@ function shouldExcludeTerminalEnvKey(key: string): boolean {
 }
 
 const APPIMAGE_RUNTIME_ENV_KEYS = ["APPIMAGE", "APPDIR", "ARGV0", "OWD"] as const;
-// Strip only AppImage mount entries, preserving user paths. If none remain,
-// remove the variable so tools fall back to their host defaults.
+// Colon-separated search-path variables the AppImage runtime points at its
+// temporary mount (e.g. /tmp/.mount_Supaterm-XXXX/usr/bin, the bundled glib schemas,
+// and an $APPDIR/usr/share XDG data entry). Only the mount segments are
+// dropped; the user's real entries are preserved. When nothing but mount
+// segments remain the variable is removed entirely so consumers fall back to
+// their platform default (e.g. gsettings finds the host schemas instead of
+// reporting "No schemas installed"). See issues #1699 and #5059.
 const APPIMAGE_PATH_LIKE_ENV_KEYS = [
   "PATH",
   "LD_LIBRARY_PATH",
@@ -1329,6 +1312,12 @@ function isPathSegmentUnderAppDir(segment: string, appDir: string): boolean {
   return segment === appDir || segment.startsWith(`${appDir}/`);
 }
 
+// On Linux AppImage builds the runtime mounts the app under a temporary dir and
+// injects APPIMAGE/APPDIR/ARGV0/OWD plus mount entries on PATH/LD_LIBRARY_PATH.
+// The integrated terminal inherits the server process environment, so without
+// this scrub those leak into the PTY and tools resolve against the AppImage
+// mount instead of the user's real environment (e.g. `php` reporting PHP_BINARY
+// as the AppImage path). See issue #1699.
 function stripAppImageRuntimeEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   if (env.APPIMAGE === undefined && env.APPDIR === undefined) return env;
 
@@ -1479,7 +1468,8 @@ export const resolveProviderInstanceTerminalEnvironment = Effect.fn(
   );
 });
 
-const make = Effect.fn("TerminalManager.make")(function* () {
+/** @public Service construction is part of the canonical Effect module API. */
+export const make = Effect.fn("TerminalManager.make")(function* () {
   const { terminalLogsDir, providerStatusCacheDir, baseDir } = yield* ServerConfig.ServerConfig;
   const ptyAdapter = yield* PtyAdapter.PtyAdapter;
   const portDiscovery = yield* PortScanner.PortDiscovery;
@@ -1526,6 +1516,9 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
   const platform = yield* HostProcess.Platform;
   const architecture = yield* HostProcess.Architecture;
   const agentScope = yield* AgentScope;
+  // Terminals must inherit the user's full environment (minus the blocklist
+  // applied in createTerminalSpawnEnv) — an allowlist here silently strips
+  // things like PSModulePath, DISPLAY, proxies, and toolchain variables.
   const baseEnv = options.env ?? process.env;
   const shellResolver = options.shellResolver ?? (() => defaultShellResolver(platform, baseEnv));
   const processRunner = yield* ProcessRunner.ProcessRunner;
@@ -1547,6 +1540,9 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
       return { ...input, env };
     },
   );
+  // One process-table snapshot per poll tick, shared across every terminal.
+  // Per-terminal `pgrep`/`ps` calls multiply spawn load by terminal count and
+  // can exhaust the PID space on hosts with many sessions (#6332).
   const fallbackProcessTableSnapshot = (
     platform === "win32"
       ? windowsProcessTableSnapshot()
@@ -1654,104 +1650,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     effect: Effect.Effect<A, E, R>,
   ): Effect.Effect<A, E, R> => threadLocks.withLock(threadId, effect);
 
-  const terminalViewers = new Map<string, Map<string, TerminalViewer>>();
-  let anonymousViewerCount = 0;
-
-  const retainViewer = (sessionKey: string, viewerId: string, grid: TerminalGrid | null) => {
-    let viewers = terminalViewers.get(sessionKey);
-    if (!viewers) {
-      viewers = new Map();
-      terminalViewers.set(sessionKey, viewers);
-    }
-    const viewer = viewers.get(viewerId);
-    if (viewer) {
-      viewer.streams += 1;
-      // After a viewer's first size, resizes own it; attach retries resend the original size.
-      viewer.grid ??= grid;
-    } else {
-      viewers.set(viewerId, { streams: 1, grid });
-    }
-  };
-
-  /** Returns whether the viewer left, which can grow the shared grid. */
-  const releaseViewer = (sessionKey: string, viewerId: string) => {
-    const viewers = terminalViewers.get(sessionKey);
-    const viewer = viewers?.get(viewerId);
-    if (!viewers || !viewer) return false;
-    viewer.streams -= 1;
-    if (viewer.streams > 0) return false;
-    viewers.delete(viewerId);
-    if (viewers.size === 0) terminalViewers.delete(sessionKey);
-    return true;
-  };
-
-  // The smallest attached viewer bounds each axis, so every viewer can draw the whole grid.
-  const sharedViewerGrid = (sessionKey: string): TerminalGrid | null => {
-    let shared: TerminalGrid | null = null;
-    for (const viewer of terminalViewers.get(sessionKey)?.values() ?? []) {
-      if (!viewer.grid) continue;
-      shared = shared
-        ? {
-            cols: Math.min(shared.cols, viewer.grid.cols),
-            rows: Math.min(shared.rows, viewer.grid.rows),
-          }
-        : viewer.grid;
-    }
-    return shared;
-  };
-
-  /** Attached viewers own the size; a caller's own size only applies when none has reported one. */
-  const withSharedGrid = <
-    A extends { readonly cols?: number | undefined; readonly rows?: number | undefined },
-  >(
-    sessionKey: string,
-    input: A,
-  ): A => {
-    const shared = sharedViewerGrid(sessionKey);
-    return shared ? { ...input, cols: shared.cols, rows: shared.rows } : input;
-  };
-
-  // Renderers draw the PTY grid, so every size change reaches them. It rides on activity
-  // because older clients reject unknown event types.
-  const resizeSession = Effect.fnUntraced(function* (
-    session: TerminalSessionState,
-    process: PtyAdapter.PtyProcess,
-    cols: number,
-    rows: number,
-  ) {
-    yield* resizePtyProcess(session, process, cols, rows);
-    session.cols = cols;
-    session.rows = rows;
-    session.updatedAt = yield* nowIso;
-    const eventStamp = advanceEventSequence(session);
-    yield* publishEvent({
-      type: "activity",
-      threadId: session.threadId,
-      terminalId: session.terminalId,
-      sequence: eventStamp.sequence,
-      hasRunningSubprocess: session.hasRunningSubprocess,
-      label: terminalWireLabel(session),
-      cols,
-      rows,
-    });
-  });
-
-  const applySharedGrid = Effect.fnUntraced(function* (threadId: string, terminalId: string) {
-    const session = yield* getSession(threadId, terminalId);
-    if (Option.isNone(session)) return;
-    const process = session.value.process;
-    const shared = sharedViewerGrid(toSessionKey(threadId, terminalId));
-    if (
-      !process ||
-      session.value.status !== "running" ||
-      !shared ||
-      (shared.cols === session.value.cols && shared.rows === session.value.rows)
-    ) {
-      return;
-    }
-    yield* resizeSession(session.value, process, shared.cols, shared.rows);
-  });
-
   const clearKillFiber = Effect.fn("terminal.clearKillFiber")(function* (
     process: PtyAdapter.PtyProcess | null,
   ) {
@@ -1779,6 +1677,8 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     fiber: Fiber.Fiber<void, never>,
   ) {
     yield* modifyManagerState((state) => {
+      // The child may finish (and run its finalizer) before this registration.
+      // Check inside the synchronized update so completed fibers are not retained.
       if (fiber.pollUnsafe() !== undefined) {
         return [undefined, state] as const;
       }
@@ -1793,6 +1693,8 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     threadId: string,
     terminalId: string,
   ) {
+    // Subscribe before SIGTERM so an immediate exit is not missed. Released with
+    // Effect.ensuring because a JS `finally` does not run when the fiber is interrupted.
     const exited = Deferred.makeUnsafe<void>();
     const unsubscribeExit = process.onExit(() => {
       Deferred.doneUnsafe(exited, Effect.void);
@@ -2362,6 +2264,9 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
               platform,
               yield* HostProcess.HomeDirectory,
             );
+            // Append (never prepend) managed ACP agent install directories so
+            // `kimi login` and friends resolve by name without shadowing any
+            // system or user tool of the same name.
             if (
               options.managedBinaryCacheDir !== undefined &&
               options.managedBinaryToolsDir !== undefined
@@ -2751,13 +2656,12 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
   );
 
   const openWithWorkspaceLease = Effect.fn("terminal.openLocked")(function* (
-    requestedInput: TerminalOpenInput,
+    input: TerminalOpenInput,
   ) {
-    const terminalId = requestedInput.terminalId;
-    yield* assertValidCwd(requestedInput.cwd);
+    const terminalId = input.terminalId;
+    yield* assertValidCwd(input.cwd);
 
-    const sessionKey = toSessionKey(requestedInput.threadId, terminalId);
-    const input = withSharedGrid(sessionKey, requestedInput);
+    const sessionKey = toSessionKey(input.threadId, terminalId);
     const existing = yield* getSession(input.threadId, terminalId);
     if (Option.isNone(existing)) {
       yield* flushPersist(input.threadId, terminalId);
@@ -2878,7 +2782,10 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     }
 
     if (liveSession.cols !== targetCols || liveSession.rows !== targetRows) {
-      yield* resizeSession(liveSession, liveSession.process, targetCols, targetRows);
+      yield* resizePtyProcess(liveSession, liveSession.process, targetCols, targetRows);
+      liveSession.cols = targetCols;
+      liveSession.rows = targetRows;
+      liveSession.updatedAt = yield* nowIso;
     }
 
     return snapshot(liveSession);
@@ -2896,9 +2803,8 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
       resolveLaunchInputEnvironment(input).pipe(Effect.flatMap(openLocked)),
     );
 
-  const openOrAttachForStream = Effect.fnUntraced(function* (requestedInput: TerminalAttachInput) {
-    const terminalId = requestedInput.terminalId;
-    const input = withSharedGrid(toSessionKey(requestedInput.threadId, terminalId), requestedInput);
+  const openOrAttachForStream = Effect.fnUntraced(function* (input: TerminalAttachInput) {
+    const terminalId = input.terminalId;
     const existing = yield* getSession(input.threadId, terminalId);
 
     if (Option.isNone(existing)) {
@@ -2938,7 +2844,11 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
       session.status === "running" &&
       (session.cols !== targetCols || session.rows !== targetRows)
     ) {
-      yield* resizeSession(session, session.process, targetCols, targetRows);
+      const process = session.process;
+      yield* resizePtyProcess(session, process, targetCols, targetRows);
+      session.cols = targetCols;
+      session.rows = targetRows;
+      session.updatedAt = yield* nowIso;
     }
 
     return snapshot(session);
@@ -3061,60 +2971,11 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     );
   };
 
-  /** Retains `viewer` and returns its release, which runs at most once. */
-  const retainViewerOnce = (
-    input: TerminalObserveInput,
-    viewer: string,
-    grid: TerminalGrid | null,
-  ) => {
-    const sessionKey = toSessionKey(input.threadId, input.terminalId);
-    retainViewer(sessionKey, viewer, grid);
-    let retained = true;
-    return () => {
-      if (!retained) return;
-      retained = false;
-      if (releaseViewer(sessionKey, viewer)) {
-        runFork(withThreadLock(input.threadId, applySharedGrid(input.threadId, input.terminalId)));
-      }
-    };
-  };
-
   const attachStream: TerminalManager["Service"]["attachStream"] = (
     input,
     listener,
     registerCleanup,
-    viewerId,
-  ) => {
-    const viewer = viewerId ?? `stream:${++anonymousViewerCount}`;
-    let detach = () => {};
-    const initial = Effect.suspend(() => {
-      detach = retainViewerOnce(
-        input,
-        viewer,
-        input.cols !== undefined && input.rows !== undefined
-          ? { cols: input.cols, rows: input.rows }
-          : null,
-      );
-      return openOrAttachForStream(input);
-    });
-    return streamSession(
-      input,
-      initial,
-      listener,
-      registerCleanup &&
-        ((stop) =>
-          registerCleanup(() => {
-            stop();
-            detach();
-          })),
-    ).pipe(
-      Effect.map((stop) => () => {
-        stop();
-        detach();
-      }),
-      Effect.onError(() => Effect.sync(detach)),
-    );
-  };
+  ) => streamSession(input, openOrAttachForStream(input), listener, registerCleanup);
 
   const observeStream: TerminalManager["Service"]["observeStream"] = (
     input,
@@ -3140,21 +3001,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
       ),
       listener,
       registerCleanup,
-    );
-
-  const attachOutputStream: TerminalManager["Service"]["attachOutputStream"] = (input, viewerId) =>
-    Stream.unwrap(
-      Effect.acquireRelease(
-        Effect.sync(() => retainViewerOnce(input, viewerId, null)),
-        (release) => Effect.sync(release),
-      ).pipe(
-        Effect.as(
-          terminalOutputStream(
-            (listener, registerCleanup) => attachStream(input, listener, registerCleanup, viewerId),
-            (listener, registerCleanup) => resyncStream(input, listener, registerCleanup),
-          ),
-        ),
-      ),
     );
 
   const metadataEventFromTerminalEvent = (
@@ -3263,36 +3109,23 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     });
   });
 
-  const resizeLocked = Effect.fn("terminal.resize")(function* (
-    input: TerminalResizeInput,
-    viewerId: string | undefined,
-  ) {
-    const sessionKey = toSessionKey(input.threadId, input.terminalId);
-    const viewer =
-      viewerId === undefined ? undefined : terminalViewers.get(sessionKey)?.get(viewerId);
-    if (viewer) {
-      viewer.grid = { cols: input.cols, rows: input.rows };
-      return yield* applySharedGrid(input.threadId, input.terminalId);
-    }
-    // A caller that is not attached cannot override the viewers that are.
-    if (sharedViewerGrid(sessionKey)) return;
+  const resizeLocked = Effect.fn("terminal.resize")(function* (input: TerminalResizeInput) {
     const session = yield* getSession(input.threadId, input.terminalId);
     if (Option.isNone(session)) {
       return;
     }
     const process = session.value.process;
-    if (
-      !process ||
-      session.value.status !== "running" ||
-      (session.value.cols === input.cols && session.value.rows === input.rows)
-    ) {
+    if (!process || session.value.status !== "running") {
       return;
     }
-    yield* resizeSession(session.value, process, input.cols, input.rows);
+    yield* resizePtyProcess(session.value, process, input.cols, input.rows);
+    session.value.cols = input.cols;
+    session.value.rows = input.rows;
+    session.value.updatedAt = yield* nowIso;
   });
 
-  const resize: TerminalManager["Service"]["resize"] = (input, viewerId) =>
-    withThreadLock(input.threadId, resizeLocked(input, viewerId));
+  const resize: TerminalManager["Service"]["resize"] = (input) =>
+    withThreadLock(input.threadId, resizeLocked(input));
 
   const clear: TerminalManager["Service"]["clear"] = (input) =>
     withThreadLock(
@@ -3317,14 +3150,13 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     );
 
   const restartResolved = Effect.fn("Manager.restartResolved")(function* (
-    requestedInput: TerminalRestartInput,
+    input: TerminalRestartInput,
   ) {
     yield* increment(terminalRestartsTotal, { scope: "thread" });
-    const terminalId = requestedInput.terminalId;
-    yield* assertValidCwd(requestedInput.cwd);
+    const terminalId = input.terminalId;
+    yield* assertValidCwd(input.cwd);
 
-    const sessionKey = toSessionKey(requestedInput.threadId, terminalId);
-    const input = withSharedGrid(sessionKey, requestedInput);
+    const sessionKey = toSessionKey(input.threadId, terminalId);
     const existingSession = yield* getSession(input.threadId, terminalId);
     let session: TerminalSessionState;
     if (Option.isNone(existingSession)) {
@@ -3475,7 +3307,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
   return TerminalManager.of({
     open,
     attachStream,
-    attachOutputStream,
     observeStream,
     resyncStream,
     write,

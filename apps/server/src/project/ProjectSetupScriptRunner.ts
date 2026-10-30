@@ -1,4 +1,4 @@
-import { linkOriginIsFenced, ProjectId, type ProjectScript, ThreadId } from "@supaterm/contracts";
+import { ProjectId, type ProjectScript } from "@supaterm/contracts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import {
   projectScriptRuntimeEnv,
@@ -18,7 +18,6 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
-import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as TerminalManager from "../terminal/Manager.ts";
 import * as ProjectService from "./ProjectService.ts";
@@ -39,6 +38,9 @@ export interface ProjectSetupScriptRunnerResultStarted {
   readonly terminalId: string;
   readonly cwd: string;
   readonly async: boolean;
+  /**
+   * The exit code is null when the terminal exited or was closed before the sentinel arrived.
+   */
   readonly completion?: Effect.Effect<ProjectSetupScriptCompletion>;
 }
 
@@ -53,7 +55,6 @@ export interface ProjectSetupScriptOutputLine {
 
 export type ProjectSetupScriptRunnerResult =
   | ProjectSetupScriptRunnerResultNoScript
-  | { readonly status: "skipped-for-link" }
   | ProjectSetupScriptRunnerResultSkipped
   | ProjectSetupScriptRunnerResultStarted;
 
@@ -88,13 +89,7 @@ export class ProjectSetupScriptOperationError extends Schema.TaggedError<Project
     projectId: Schema.optional(Schema.String),
     projectCwd: Schema.optional(Schema.String),
     worktreePath: Schema.String,
-    operation: Schema.Literals([
-      "readThread",
-      "resolveProject",
-      "readSettings",
-      "openTerminal",
-      "writeCommand",
-    ]),
+    operation: Schema.Literals(["resolveProject", "readSettings", "openTerminal", "writeCommand"]),
     cause: Schema.Defect(),
   },
 ) {
@@ -132,7 +127,7 @@ export class ProjectSetupScriptRunner extends Context.Service<
   }
 >()("supaterm/project/ProjectSetupScriptRunner") {}
 
-/** @public */
+/** @public Service construction is part of the canonical Effect module API. */
 /**
  * Each run gets its own random token so script output cannot spoof completion, and the sentinel
  * pattern is built per run from it.
@@ -150,22 +145,16 @@ function completionSentinelPattern(token: string): RegExp {
 }
 
 function stripTerminalControl(text: string): string {
-  return text
-    .replace(
-      /\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[()][A-Za-z0-9]|\x1b[=>]/g,
-      "",
-    )
-    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "");
-}
-
-const BRACKETED_PASTE_ON = "\x1b[?2004h";
-const BRACKETED_PASTE_OFF = "\x1b[?2004l";
-const SHELL_QUIET_FALLBACK = "3 seconds";
-
-function lineEditorReading(text: string, previous: boolean): boolean {
-  const on = text.lastIndexOf(BRACKETED_PASTE_ON);
-  const off = text.lastIndexOf(BRACKETED_PASTE_OFF);
-  return on === off ? previous : on > off;
+  return (
+    text
+      .replace(
+        // eslint-disable-next-line no-control-regex -- ANSI escape sequences start with ESC.
+        /\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[()][A-Za-z0-9]|\x1b[=>]/g,
+        "",
+      )
+      // eslint-disable-next-line no-control-regex -- removing control characters is the point.
+      .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "")
+  );
 }
 
 type CompletionShell = "posix" | "fish" | "powershell";
@@ -182,6 +171,12 @@ function resolveCompletionShell(
   return "posix";
 }
 
+/**
+ * The command runs inside a block and the block closes on its own line, so a trailing `# comment`
+ * or a heredoc terminator in the command cannot swallow the sentinel. The shell reads the whole
+ * block before running any of it, so a script that reads stdin cannot consume the sentinel line
+ * either.
+ */
 function wrapCommandForCompletion(
   command: string,
   shell: CompletionShell,
@@ -198,14 +193,12 @@ function wrapCommandForCompletion(
   }
 }
 
-/** @public */
+/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const projects = yield* ProjectService.ProjectService;
-  const threads = yield* ProjectionStore.ProjectionStoreV2;
   const terminalManager = yield* TerminalManager.TerminalManager;
   const serverSettings = yield* ServerSettings.ServerSettingsService;
   const crypto = yield* Crypto.Crypto;
-  const serviceScope = yield* Effect.scope;
   const completionShell = resolveCompletionShell(
     yield* HostProcess.Platform,
     yield* HostProcess.Environment,
@@ -223,6 +216,8 @@ export const make = Effect.gen(function* () {
     }) {
       const startedAtMs = yield* Clock.currentTimeMillis;
       const done = yield* Deferred.make<ProjectSetupScriptCompletion>();
+      // The shell redraws its prompt just after the sentinel. Closing before
+      // that would read the redraw as new activity and keep an idle shell.
       const promptReturned = yield* Deferred.make<void>();
       let lineBuffer = "";
       let settled = false;
@@ -264,8 +259,13 @@ export const make = Effect.gen(function* () {
         }
         if (event.type === "output") {
           lineBuffer += event.data;
+          // A bare carriage return is how installers redraw a progress line in
+          // place; each redraw becomes a short line of its own instead of being
+          // glued into one long one.
           const lines = lineBuffer.split(/\r\n|\r|\n/);
           lineBuffer = lines.pop() ?? "";
+          // A script that never prints a newline must not grow this forever.
+          // The sentinel is always on its own line, so keeping the tail is safe.
           if (lineBuffer.length > PARTIAL_LINE_MAX_LENGTH) {
             lineBuffer = lineBuffer.slice(-PARTIAL_LINE_MAX_LENGTH);
           }
@@ -290,61 +290,7 @@ export const make = Effect.gen(function* () {
         Effect.tap(() => Deferred.await(promptReturned).pipe(Effect.timeoutOption("1 second"))),
         Effect.ensuring(Effect.sync(() => unsubscribe())),
       );
-      const flushPartialLine = Effect.suspend(() => {
-        const partial = lineBuffer;
-        lineBuffer = "";
-        return handleLine(partial);
-      });
-      const abandon = settle(null).pipe(
-        Effect.andThen(Deferred.succeed(promptReturned, undefined)),
-      );
-      return { completion, unsubscribe, flushPartialLine, abandon };
-    },
-  );
-
-  const watchShellReadiness = Effect.fn("ProjectSetupScriptRunner.watchShellReadiness")(
-    function* (input: {
-      readonly threadId: string;
-      readonly terminalId: string;
-      readonly onStartupPrompt: Effect.Effect<void>;
-    }) {
-      const outcome = yield* Deferred.make<"ready" | "exited">();
-      let reading = false;
-      let carry = "";
-      let busy = false;
-      let activity = 0;
-      const unsubscribe = yield* terminalManager.subscribe((event) => {
-        if (event.threadId !== input.threadId || event.terminalId !== input.terminalId) {
-          return Effect.void;
-        }
-        activity += 1;
-        if (event.type === "started" || event.type === "restarted") {
-          busy = false;
-          reading = false;
-          carry = "";
-        }
-        if (event.type === "activity") busy = event.hasRunningSubprocess;
-        if (event.type === "output") {
-          const text = carry + event.data;
-          carry = text.slice(-(BRACKETED_PASTE_ON.length - 1));
-          reading = lineEditorReading(text, reading);
-        }
-        if (event.type === "exited" || event.type === "closed") {
-          return Deferred.succeed(outcome, "exited").pipe(Effect.asVoid);
-        }
-        return reading ? Deferred.succeed(outcome, "ready").pipe(Effect.asVoid) : Effect.void;
-      });
-      const quiet = Effect.gen(function* () {
-        while (true) {
-          const seen = activity;
-          yield* Effect.sleep(SHELL_QUIET_FALLBACK);
-          if (activity !== seen) continue;
-          if (!busy) return "ready" as const;
-          yield* input.onStartupPrompt;
-        }
-      });
-      const wait = Deferred.await(outcome).pipe(Effect.raceFirst(quiet));
-      return { wait, unsubscribe };
+      return { completion, unsubscribe };
     },
   );
 
@@ -357,18 +303,6 @@ export const make = Effect.gen(function* () {
       ...(input.projectId === undefined ? {} : { projectId: input.projectId }),
       ...(input.projectCwd === undefined ? {} : { projectCwd: input.projectCwd }),
     };
-    const thread = yield* threads.getThreadShell(ThreadId.make(input.threadId)).pipe(
-      Effect.mapError(
-        (cause) =>
-          new ProjectSetupScriptOperationError({
-            ...errorContext,
-            operation: "readThread",
-            cause,
-          }),
-      ),
-    );
-    if (thread?.linkOrigin !== undefined && linkOriginIsFenced(thread.linkOrigin))
-      return { status: "skipped-for-link" } as const;
     const suppliedProject = input.project;
     const projectById =
       suppliedProject ??
@@ -438,6 +372,8 @@ export const make = Effect.gen(function* () {
         project: { cwd: project.workspaceRoot },
         worktreePath: input.worktreePath,
       }),
+      // Setup can run before a client attaches. Truecolor probes in tools such
+      // as Vite+ wait for terminal replies that nobody can send at that point.
       COLORTERM: "",
     };
     const observe = input.observeCompletion;
@@ -452,26 +388,6 @@ export const make = Effect.gen(function* () {
             completionSentinel(completionToken),
           )
         : script.command;
-
-    const observed =
-      observe && completionToken
-        ? yield* observeTerminalCompletion({
-            threadId: input.threadId,
-            terminalId,
-            sentinel: completionSentinel(completionToken),
-            sentinelPattern: completionSentinelPattern(completionToken),
-            echoedWrapperLines: commandLine.split("\r").filter((line) => line.length > 0),
-            onOutputLine: observe.onOutputLine,
-          })
-        : undefined;
-    const readiness =
-      completionShell === "powershell"
-        ? undefined
-        : yield* watchShellReadiness({
-            threadId: input.threadId,
-            terminalId,
-            onStartupPrompt: observed?.flushPartialLine ?? Effect.void,
-          });
 
     yield* terminalManager
       .open({
@@ -490,13 +406,20 @@ export const make = Effect.gen(function* () {
               cause,
             }),
         ),
-        Effect.onError(() =>
-          Effect.sync(() => {
-            observed?.unsubscribe();
-            readiness?.unsubscribe();
-          }),
-        ),
       );
+    // Subscribe before writing so the sentinel cannot race past the listener.
+    const observed =
+      observe && completionToken
+        ? yield* observeTerminalCompletion({
+            threadId: input.threadId,
+            terminalId,
+            sentinel: completionSentinel(completionToken),
+            sentinelPattern: completionSentinelPattern(completionToken),
+            echoedWrapperLines: commandLine.split("\r").filter((line) => line.length > 0),
+            onOutputLine: observe.onOutputLine,
+          })
+        : undefined;
+
     const writeCommand = Effect.suspend(() =>
       terminalManager.write({
         threadId: input.threadId,
@@ -514,37 +437,21 @@ export const make = Effect.gen(function* () {
       ),
     );
     const cleanupUnusedTerminal = Effect.sync(() => observed?.unsubscribe()).pipe(
-      Effect.andThen(observed?.abandon ?? Effect.void),
       Effect.andThen(
         Effect.suspend(() => terminalManager.closeIdle({ threadId: input.threadId, terminalId })),
       ),
     );
-    const writeWhenReady = (readiness?.wait ?? Effect.succeed("ready" as const)).pipe(
-      Effect.flatMap((shell) =>
-        shell === "exited"
-          ? Effect.succeed(false)
-          : input.withCommandWriteGuard
-            ? input.withCommandWriteGuard(writeCommand)
-            : writeCommand.pipe(Effect.as(true)),
-      ),
+    const commandWritten = yield* (
+      input.withCommandWriteGuard
+        ? input.withCommandWriteGuard(writeCommand)
+        : writeCommand.pipe(Effect.as(true))
+    ).pipe(
       Effect.onExit((exit) =>
         Exit.isSuccess(exit) && exit.value ? Effect.void : cleanupUnusedTerminal,
       ),
-      Effect.ensuring(Effect.sync(() => readiness?.unsubscribe())),
     );
-    if (input.withCommandWriteGuard) {
-      if (!(yield* writeWhenReady)) return { status: "skipped" } as const;
-    } else {
-      yield* writeWhenReady.pipe(
-        Effect.catchCause((cause) =>
-          Effect.logWarning("project script command was not written", {
-            ...errorContext,
-            terminalId,
-            cause,
-          }),
-        ),
-        Effect.forkIn(serviceScope),
-      );
+    if (!commandWritten) {
+      return { status: "skipped" } as const;
     }
 
     const completion = observed?.completion.pipe(

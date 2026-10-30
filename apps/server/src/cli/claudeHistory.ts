@@ -3,7 +3,11 @@ import { Argument, Command } from "effect/cli";
 
 import { runClaudeHistoryWorker } from "../claudeHistoryWorker.ts";
 
-/** Single-executable builds lack Node, so they use this subcommand instead of claudeHistoryWorker.mjs. */
+/**
+ * The npm bundle runs it as a sibling `claudeHistoryWorker.mjs` under the host
+ * Node; the single-executable has no Node to run a script with, so the adapter
+ * invokes this hidden subcommand on its own executable instead.
+ */
 export const claudeHistoryCommand = Command.make("__claude-history", {
   method: Argument.String("method"),
   sessionId: Argument.String("session-id"),

@@ -40,7 +40,7 @@ export function useEnvironmentQuery<A, E>(
   const result = useAtomValue(selectedAtom);
   const refresh = useAtomRefresh(selectedAtom);
   return {
-    data: AsyncResult.getOrElse(result, () => null),
+    data: Option.getOrNull(AsyncResult.value(result)),
     dataUpdatedAt: queryUpdatedAt(result),
     error: result._tag === "Failure" ? formatEnvironmentQueryError(result.cause) : null,
     failure:
@@ -51,7 +51,12 @@ export function useEnvironmentQuery<A, E>(
   };
 }
 
-/** Keep select outside the component; a new function rebuilds the derived atom on every render. */
+/**
+ * Reads one part of a query's result. Every refetch publishes a new result (a
+ * new timestamp, `waiting` on and off), and this re-renders only when the
+ * selected part changes. `select` must be defined outside the component: a new
+ * function per render would rebuild the derived atom every render.
+ */
 export function useEnvironmentQuerySelector<A, E, B>(
   atom: Atom.Atom<AsyncResult.AsyncResult<A, E>> | null,
   select: (result: AsyncResult.AsyncResult<A, E>) => B,
@@ -60,6 +65,7 @@ export function useEnvironmentQuerySelector<A, E, B>(
 }
 
 type QueryResultAtom = Atom.Atom<AsyncResult.AsyncResult<unknown, unknown>>;
+// Lives as long as both queries do, so a row keeps the same comparison atom across renders.
 const queryIsNewerAtoms = new WeakMap<
   QueryResultAtom,
   WeakMap<QueryResultAtom, Atom.Atom<boolean>>
@@ -78,6 +84,7 @@ function queryIsNewerAtom(query: QueryResultAtom, than: QueryResultAtom): Atom.A
   return atom;
 }
 
+/** Whether `query` last succeeded no earlier than `than`, without re-rendering on every refetch. */
 export function useEnvironmentQueryIsNewer(
   query: QueryResultAtom | null,
   than: QueryResultAtom | null,
@@ -87,7 +94,10 @@ export function useEnvironmentQueryIsNewer(
   );
 }
 
-/** Returns refresh and call-time pending state without subscribing to it. */
+/**
+ * The query's refresh, plus its pending state read when called rather than
+ * subscribed to, for callers that only gate a refresh on it.
+ */
 export function useEnvironmentQueryRefresh<A, E>(
   atom: Atom.Atom<AsyncResult.AsyncResult<A, E>> | null,
 ): { readonly refresh: () => void; readonly isPending: () => boolean } {

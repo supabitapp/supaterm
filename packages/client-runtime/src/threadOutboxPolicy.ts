@@ -3,7 +3,6 @@ import {
   clampFileAttachmentUploadBytes,
   fileAttachmentTooLargeMessage,
 } from "./state/attachments.ts";
-import type { ThreadFamilyRead } from "./state/threadFamilies.ts";
 import type { EnvironmentShellStatus } from "./state/shell.ts";
 
 export function threadOutboxRetryDelayMs(attempt: number): number {
@@ -40,19 +39,12 @@ export type ThreadOutboxDeliveryAction = "wait" | "remove" | "send";
 export function resolveThreadOutboxDeliveryAction(input: {
   readonly isCreation: boolean;
   readonly threadExists: boolean;
-  readonly threadFamilyRead?: ThreadFamilyRead;
   readonly shellStatus: EnvironmentShellStatus;
   readonly environmentConnected: boolean;
   readonly threadBusy: boolean;
   /** The thread's creation was delivered but its shell has not arrived yet. */
   readonly awaitingCreatedThread: boolean;
 }): ThreadOutboxDeliveryAction {
-  if (
-    !input.threadExists &&
-    input.threadFamilyRead !== undefined &&
-    input.threadFamilyRead !== "settled"
-  )
-    return "wait";
   if (input.isCreation) {
     // A pending task creates its thread on delivery. If the thread already
     // exists the creation command went through and only cleanup remains.

@@ -27,9 +27,9 @@ import {
   profileMissingError,
 } from "./errors.ts";
 import {
-  PullRequestRoutingPermissions,
-  pullRequestRoutingConnectionKey,
-} from "./pullRequestRoutingPermissions.ts";
+  GitHubRoutingPermissions,
+  gitHubRoutingConnectionKey,
+} from "./githubRoutingPermissions.ts";
 import type {
   BearerConnectionTarget,
   ConnectionTarget,
@@ -170,7 +170,11 @@ const makeBearerBroker = Effect.fn("clientRuntime.connection.broker.makeBearer")
       connectionMethod,
     });
     return {
-      ...authorized,
+      environmentId: authorized.environmentId,
+      label: authorized.label,
+      httpBaseUrl: authorized.httpBaseUrl,
+      socketUrl: authorized.socketUrl,
+      httpAuthorization: authorized.httpAuthorization,
       connectionMethod,
       target,
     } satisfies PreparedConnection;
@@ -224,10 +228,10 @@ const makeSshBroker = Effect.fn("clientRuntime.connection.broker.makeSsh")(funct
       target: prepared.bootstrap.target,
     });
     if (
-      pullRequestRoutingConnectionKey(entry) !==
-      pullRequestRoutingConnectionKey({ ...entry, profile: Option.some(preparedProfile) })
+      gitHubRoutingConnectionKey(entry) !==
+      gitHubRoutingConnectionKey({ ...entry, profile: Option.some(preparedProfile) })
     ) {
-      const permissions = yield* PullRequestRoutingPermissions;
+      const permissions = yield* GitHubRoutingPermissions;
       yield* permissions.forget(target.environmentId);
     }
     yield* profiles.put(preparedProfile);
@@ -239,14 +243,19 @@ const makeSshBroker = Effect.fn("clientRuntime.connection.broker.makeSsh")(funct
       connectionMethod: "ssh",
     });
     return {
-      ...authorized,
+      environmentId: authorized.environmentId,
+      label: authorized.label,
+      httpBaseUrl: authorized.httpBaseUrl,
+      socketUrl: authorized.socketUrl,
+      httpAuthorization: authorized.httpAuthorization,
       connectionMethod: "ssh",
       target,
     } satisfies PreparedConnection;
   });
 });
 
-const make = Effect.gen(function* () {
+/** @public Service construction is part of the canonical Effect module API. */
+export const make = Effect.gen(function* () {
   const primary = yield* makePrimaryBroker();
   const bearer = yield* makeBearerBroker();
   const ssh = yield* makeSshBroker();
@@ -260,9 +269,7 @@ const make = Effect.gen(function* () {
       "connection.environment.id": target.environmentId,
       "connection.target.kind": target._tag,
     });
-    const authorized: PreparedConnection & {
-      readonly descriptor?: ExecutionEnvironmentDescriptor;
-    } = yield* (() => {
+    const prepared = yield* (() => {
       switch (target._tag) {
         case "PrimaryConnectionTarget":
           return primary(target);
@@ -272,15 +279,12 @@ const make = Effect.gen(function* () {
           return ssh({ ...entry, target });
       }
     })();
-    const { descriptor: authorizedDescriptor, ...prepared } = authorized;
-    const descriptor =
-      authorizedDescriptor ??
-      (yield* fetchRemoteEnvironmentDescriptor({
-        httpBaseUrl: prepared.httpBaseUrl,
-      }).pipe(
-        Effect.mapError((error) => mapRemoteEnvironmentError(error, prepared.connectionMethod)),
-        Effect.provideService(HttpClient.HttpClient, httpClient),
-      ));
+    const descriptor = yield* fetchRemoteEnvironmentDescriptor({
+      httpBaseUrl: prepared.httpBaseUrl,
+    }).pipe(
+      Effect.mapError((error) => mapRemoteEnvironmentError(error, prepared.connectionMethod)),
+      Effect.provideService(HttpClient.HttpClient, httpClient),
+    );
     if (descriptor.environmentId !== target.environmentId) {
       return yield* environmentMismatchError({
         expected: target.environmentId,

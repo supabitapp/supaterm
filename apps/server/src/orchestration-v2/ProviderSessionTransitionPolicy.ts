@@ -91,5 +91,6 @@ export function decideProviderSessionTransition(input: {
     }
   }
 
+  // Interaction mode is turn-scoped and is applied when the next turn starts.
   return { type: "reuse" };
 }

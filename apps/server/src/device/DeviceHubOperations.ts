@@ -193,11 +193,6 @@ export const makeDeviceHubOperations = (options: {
                 android: available.has("android") ? listAndroidAvds(run) : Effect.succeed(empty),
               },
               { concurrency: "unbounded" },
-            ).pipe(
-              Effect.map((discovered) => ({
-                ...discovered,
-                androidAvailable: available.has("android"),
-              })),
             );
           }),
         ),
@@ -214,7 +209,6 @@ export const makeDeviceHubOperations = (options: {
     }
     const warnings = hubList.errors?.filter(
       (error) =>
-        !(!supplemental.androidAvailable && error.message.startsWith("[android-utils] ")) &&
         // CoreSimulator can retain deleted devices; their optional usage timestamps are absent.
         !(
           error.message.startsWith("[apple-utils] Failed to read CoreSimulator plist at ") &&

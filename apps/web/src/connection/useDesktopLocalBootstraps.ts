@@ -5,13 +5,16 @@ import { readDesktopSecondaryBootstraps } from "./desktopLocal";
 
 const DESKTOP_LOCAL_BOOTSTRAP_POLL_MS = 2_000;
 
-/** The bridge has no change event. Poll, retaining the snapshot on failure and clearing on empty reads. */
+/**
+ * The bridge exposes no change event, so we re-read on an interval; failed
+ * reads retain the latest successful snapshot, while a successful empty read
+ * clears it.
+ */
 export function useDesktopLocalBootstraps(): ReadonlyArray<DesktopEnvironmentBootstrap> {
   const [bootstraps, setBootstraps] = useState<ReadonlyArray<DesktopEnvironmentBootstrap>>(
     readDesktopSecondaryBootstraps,
   );
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- refreshes desktop bootstrap state from the native connection events
   useEffect(() => {
     const read = () => setBootstraps(readDesktopSecondaryBootstraps());
     read();

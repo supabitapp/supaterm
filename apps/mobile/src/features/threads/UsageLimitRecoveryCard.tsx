@@ -4,10 +4,9 @@ import { AsyncResult } from "effect/reactivity";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import type { EnvironmentId } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { AppText as Text } from "../../components/ui/AppText";
-import { useDeadlinePassed } from "../../lib/clock";
 import { threadEnvironment } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
 export function UsageLimitRecoveryCard({
@@ -21,10 +20,36 @@ export function UsageLimitRecoveryCard({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const resetAt = thread.runtime?.usageLimitResetAt ?? null;
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const resetMs = Date.parse(resetAt ?? "");
+    if (!Number.isFinite(resetMs) || nowMs >= resetMs) return;
+    const timer = setTimeout(
+      () => setNowMs(Date.now()),
+      Math.min(Math.max(0, resetMs - Date.now()) + 1, 2_147_483_647),
+    );
+    return () => clearTimeout(timer);
+  }, [resetAt, nowMs]);
   const canSchedule =
     resetAt !== null &&
     Date.parse(resetAt) > Date.parse(thread.latestRun?.completedAt ?? thread.updatedAt);
-  const resetPassed = useDeadlinePassed(resetAt === null ? null : Date.parse(resetAt));
+
+  const resetAtMs = resetAt === null ? null : Date.parse(resetAt);
+  const [resetPassedFor, setResetPassedFor] = useState<number | null>(null);
+  const resetPassed = resetAtMs !== null && resetPassedFor === resetAtMs;
+  useEffect(() => {
+    if (resetAtMs === null || Number.isNaN(resetAtMs)) return;
+    const flip = () => setResetPassedFor(resetAtMs);
+    const delay = resetAtMs - Date.now();
+    if (delay <= 0) {
+      flip();
+      return;
+    }
+
+    if (delay > 2_147_483_647) return;
+    const timer = setTimeout(flip, delay);
+    return () => clearTimeout(timer);
+  }, [resetAtMs]);
   const runId = thread.latestRun?.runId;
   const recovery = thread.limitRecovery;
   const scheduled =

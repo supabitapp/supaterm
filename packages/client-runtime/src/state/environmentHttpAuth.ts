@@ -30,6 +30,12 @@ export function withOrchestrationProtocolHeader(
 }
 
 /**
+ * Primary/local environments with no bearer credential authenticate the
+ * browser via a session cookie. A cross-origin `fetch` does not send cookies by
+ * default, so those requests must opt into credentialed mode; bearer
+ * connections carry their credential in a header and need no cookies. Applied
+ * per-request via `FetchHttpClient.RequestInit`, which the fetch client reads
+ * from the fiber context at request time.
  */
 const withEnvironmentCredentials = <A, E, R>(
   authorization: PreparedHttpAuthorization | null,

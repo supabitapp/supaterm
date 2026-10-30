@@ -3,7 +3,6 @@ import { createEnvironmentThreadShellAtoms } from "@supaterm/client-runtime/stat
 import {
   applyShellStreamEvent,
   createEnvironmentSnapshotAtom,
-  EMPTY_SHELL_STATE,
   type EnvironmentShellState,
   type EnvironmentShellStatus,
 } from "@supaterm/client-runtime/state/shell";
@@ -89,12 +88,7 @@ import {
   DraftId,
 } from "./composerDraftStore";
 import { insertInlineContextReference } from "./lib/composerContextReferences";
-import {
-  buildMessageContext,
-  environmentContextRecord,
-  terminalContextReference,
-} from "./lib/composerContextRecords";
-import { threadContextRecord } from "@supaterm/shared/composerContextReferences";
+import { terminalContextReference, threadContextRecord } from "./lib/composerContextRecords";
 import {
   copiedComposerAttachmentFile,
   rememberCopiedComposerAttachments,
@@ -524,42 +518,6 @@ describe("composerDraftStore file attachments", () => {
     expect(draft?.files.map((file) => file.id)).toEqual(["file-accepted"]);
   });
 
-  it("reattaches a DNG with an older generic-MIME marker at attachment capacity", () => {
-    const store = useComposerDraftStore.getState();
-    const file = new File(["raw"], "photo.DNG", { type: "image/x-adobe-dng" });
-    const marker: ComposerFileAttachment = {
-      type: "file",
-      id: "dng-marker",
-      name: file.name,
-      mimeType: "application/octet-stream",
-      sizeBytes: file.size,
-      file: null,
-    };
-    store.addFiles(threadRef, [marker]);
-    store.addImages(
-      threadRef,
-      Array.from({ length: PROVIDER_SEND_TURN_MAX_ATTACHMENTS - 1 }, (_, index) =>
-        makeImage({
-          id: `image-${index}`,
-          name: `image-${index}.png`,
-          previewUrl: `blob:image-${index}`,
-        }),
-      ),
-    );
-
-    const repicked: ComposerFileAttachment = {
-      ...marker,
-      id: "dng-repicked",
-      mimeType: file.type,
-      file,
-    };
-    store.addFiles(threadRef, [repicked]);
-
-    const files = store.getComposerDraft(threadRef)?.files;
-    expect(files).toEqual([repicked]);
-    expect(files?.some(composerFileNeedsReattach)).toBe(false);
-  });
-
   it("replaces a needs-reattach marker when the same file is picked again", () => {
     const store = useComposerDraftStore.getState();
     const marker: ComposerFileAttachment = { ...makeFile("file-marker"), file: null };
@@ -747,63 +705,6 @@ describe("composerDraftStore thread contexts", () => {
       attached,
     ]);
     expect(hydrated.draftsByThreadKey[scopedThreadKey(threadRef)]?.prompt).toBe(draft?.prompt);
-  });
-});
-
-describe("composerDraftStore environment contexts", () => {
-  const threadId = ThreadId.make("thread-with-machine");
-  const threadRef = scopeThreadRef(TEST_ENVIRONMENT_ID, threadId);
-  const vps = environmentContextRecord(EnvironmentId.make("environment-vps"), "Hetzner [vps]");
-
-  beforeEach(resetComposerDraftStore);
-
-  it("mentions a machine once, survives persistence, and sends only its identity", () => {
-    const store = useComposerDraftStore.getState();
-    store.setPrompt(threadRef, "Run it on");
-    store.addEnvironmentContexts(threadRef, [vps]);
-    store.addEnvironmentContexts(threadRef, [{ ...vps, label: "renamed" }]);
-
-    const draft = draftFor(threadId, TEST_ENVIRONMENT_ID);
-    expect(draft?.environmentContexts).toEqual([vps]);
-    expect(vps.label).toBe("Hetzner vps");
-    expect(draft?.prompt).toBe(
-      `Run it on [${vps.label}](supaterm-context://v1/environment/${vps.contextId}) `,
-    );
-
-    const merge = useComposerDraftStore.persist.getOptions().merge!;
-    const hydrated = merge(
-      JSON.parse(
-        JSON.stringify(partializeComposerDraftStoreState(useComposerDraftStore.getState())),
-      ),
-      useComposerDraftStore.getInitialState(),
-    );
-    const restored = hydrated.draftsByThreadKey[scopedThreadKey(threadRef)];
-    expect(restored?.environmentContexts).toEqual([vps]);
-    expect(restored?.prompt).toBe(draft?.prompt);
-
-    expect(
-      buildMessageContext({
-        terminalContexts: [],
-        reviewComments: [],
-        previewAnnotations: [],
-        environmentContexts: restored?.environmentContexts ?? [],
-      })?.records,
-    ).toEqual([
-      {
-        version: 1,
-        kind: "environment",
-        contextId: vps.contextId,
-        label: "Hetzner vps",
-        environmentId: "environment-vps",
-      },
-    ]);
-  });
-
-  it("drops the chip with the record and removes an otherwise empty draft", () => {
-    const store = useComposerDraftStore.getState();
-    store.addEnvironmentContexts(threadRef, [vps]);
-    store.setEnvironmentContexts(threadRef, []);
-    expect(draftFor(threadId, TEST_ENVIRONMENT_ID)).toBeUndefined();
   });
 });
 
@@ -1337,9 +1238,9 @@ function modelReconciliationHarness(
     ],
   };
   const shellStateAtom = Atom.make<EnvironmentShellState>({
-    ...EMPTY_SHELL_STATE,
     snapshot: Option.some(initialSnapshot),
     status: initialStatus,
+    error: Option.none(),
   });
   const shellResultAtom = Atom.map(shellStateAtom, AsyncResult.success);
   const snapshotAtom = createEnvironmentSnapshotAtom(() => shellResultAtom)(environmentId);

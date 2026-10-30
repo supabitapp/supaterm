@@ -177,13 +177,11 @@ export function DraftProjectPicker({
   );
   const scratchWorkspaceRoot = scratchWorkspaceRootFor(scratchTargetEnvironmentId);
   const isScratchDraft =
-    activeProject !== null &&
-    isScratchProject(activeProject, scratchWorkspaceRootFor(activeProject.environmentId));
+    activeProject !== null && isScratchProject(activeProject, scratchWorkspaceRoot);
 
   // The draft can move elsewhere while the no-project home is still being
   // opened; a stale continuation must not retarget it again.
   const latestTargetRef = useRef({ draftId, activeProjectKey, scratchTargetEnvironmentId });
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Bind the in-flight scratch-open continuation to the currently committed draft and project.
   useEffect(() => {
     latestTargetRef.current = { draftId, activeProjectKey, scratchTargetEnvironmentId };
   }, [activeProjectKey, scratchTargetEnvironmentId, draftId]);

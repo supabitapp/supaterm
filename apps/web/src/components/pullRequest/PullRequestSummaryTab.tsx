@@ -1,7 +1,4 @@
-import {
-  capitalizeTerm,
-  sourceControlClients,
-} from "@supaterm/client-runtime/source-control-clients";
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { useAtomCommand } from "~/state/use-atom-command";
 import type {
   EnvironmentId,
@@ -50,7 +47,6 @@ import {
   PullRequestLabelChip,
   PullRequestReviewOutcomeBadge,
   pullRequestReviewOutcomeLabel,
-  PullRequestReviewOutcomeAvatarBadge,
   pullRequestReviewOutcomeRingClassName,
   pullRequestReviewOutcomeStaleLabel,
 } from "./pullRequestPresentation";
@@ -74,7 +70,7 @@ import {
 import {
   canEditPullRequestChangeRequest,
   canEditPullRequestComment,
-} from "@supaterm/client-runtime/pull-request-editing";
+} from "./pullRequestEditing.logic";
 import { PullRequestMarkdown } from "./PullRequestMarkdown";
 import { PullRequestCommentBody } from "./PullRequestCommentBody";
 import { PullRequestMoreReplies } from "./PullRequestMoreReplies";
@@ -335,7 +331,8 @@ function Section({
           sectionTop: section.getBoundingClientRect().top,
           headingTop: heading.getBoundingClientRect().top,
         });
-        // Adjust before paint to keep the collapsed heading in place.
+        // Synchronous with the press: React commits the collapsed height before the browser
+        // paints, so the reader sees the heading they pressed stay put rather than a jump first.
         if (target !== null) scroller.scrollTop = target;
       }
     }
@@ -408,7 +405,6 @@ export function PullRequestSummaryTab({
   onRefresh: () => void;
   onRefreshChecks?: () => void;
 }) {
-  const terminology = sourceControlClients.get(detail.provider).changeRequest;
   const [shown, setShown] = useState({ url: detail.url, count: COMMENT_PAGE });
   const shownConversations = shown.url === detail.url ? shown.count : COMMENT_PAGE;
   const [commentFilter, setCommentFilter] = useLocalStorage(
@@ -446,15 +442,20 @@ export function PullRequestSummaryTab({
         {hiddenConversationCount === 1 ? "" : "s"} ({hiddenConversationCount} hidden)
       </Button>
     ) : null;
-  // Verdicts outside the visible comment window still count.
+  // Read from the whole conversation, not the window shown below it: a verdict older than the
+  // visible comments still stands.
   const reviewOutcomes = latestPullRequestReviewOutcomes(detail.comments, detail.commits);
-  // Host login casing varies; normalize to preserve verdicts and deduplicate reviewers.
+  // Hosts do not promise one casing for a login across two fields of the same response, and
+  // none of them lets `Octocat` and `octocat` be two people — so matching on the literal string
+  // would show one reviewer twice and drop the verdict off both.
   const outcomeByLogin = new Map(
     reviewOutcomes.flatMap((entry) =>
       entry.actor ? [[reviewerKey(entry.actor.login), entry] as const] : [],
     ),
   );
-  // Hosts remove reviewed actors from requests; include submitted verdicts.
+  // Everyone whose face belongs on this row: the people a review was asked of, then anyone who
+  // ruled without being on that list. A host drops a reviewer from the requested set once they
+  // have reviewed, and their verdict is the thing this row now exists to show.
   const reviewerEntries = [
     ...detail.reviewers.map((actor) => ({
       key: actor.login,
@@ -492,7 +493,10 @@ export function PullRequestSummaryTab({
   });
   const [bodyScope, setBodyScope] = useState<string | null>(null);
   const [bodySaving, setBodySaving] = useState(false);
-  // Hosts can reuse comment ids across pull requests.
+  // The remark being rewritten, named with the pull request it belongs to: a comment id is the
+  // host's own, and two hosts — or two pull requests on Azure DevOps, which numbers a remark
+  // inside its thread — hand out the same one. Without the pull request beside it, opening a
+  // different one would leave its like-numbered remark sitting open in an editor.
   const [commentScope, setCommentScope] = useState<{
     readonly pullRequest: string;
     readonly commentId: string;
@@ -571,6 +575,8 @@ export function PullRequestSummaryTab({
     return (
       <article
         key={`${detail.url}:${comment.id}`}
+        // Offscreen comments skip style, layout and paint. Bot comments carry pages of
+        // highlighted code, and the conversation is below the description either way.
         className="group rounded-lg border border-border/60 bg-background [contain-intrinsic-block-size:160px] [content-visibility:auto]"
       >
         <div className="flex flex-wrap items-baseline gap-2 rounded-t-lg bg-muted/25 px-3 py-2.5">
@@ -691,22 +697,16 @@ export function PullRequestSummaryTab({
                             variant="avatar"
                           />
                           {entry.outcome ? (
-                            <>
-                              <PullRequestReviewOutcomeAvatarBadge
-                                outcome={entry.outcome}
-                                stale={entry.stale}
-                              />
-                              <span className="sr-only">
-                                {entry.stale
-                                  ? pullRequestReviewOutcomeStaleLabel(entry.outcome)
-                                  : pullRequestReviewOutcomeLabel(entry.outcome)}
-                              </span>
-                            </>
+                            <span className="sr-only">
+                              {entry.stale
+                                ? pullRequestReviewOutcomeStaleLabel(entry.outcome)
+                                : pullRequestReviewOutcomeLabel(entry.outcome)}
+                            </span>
                           ) : null}
                         </TooltipTrigger>
                         <TooltipPopup side="bottom">
                           {entry.outcome
-                            ? `${named}: ${
+                            ? `${named} — ${
                                 entry.stale
                                   ? pullRequestReviewOutcomeStaleLabel(entry.outcome)
                                   : pullRequestReviewOutcomeLabel(entry.outcome)
@@ -718,7 +718,10 @@ export function PullRequestSummaryTab({
                   })}
                 </span>
               )}
-              {/* Azure DevOps accepts reviewers but cannot list candidates. */}
+              {/*
+               * Azure DevOps is the exception — it takes a reviewer but will not
+                  say who could be one, so there is nothing to open.
+               */}
               {detail.capabilities.reviewers.request &&
               detail.capabilities.reviewers.listCandidates ? (
                 <PullRequestReviewerPicker
@@ -766,8 +769,8 @@ export function PullRequestSummaryTab({
               cwd={detail.workspaceRoot}
               environmentId={environmentId}
               threadRef={threadRef}
-              label={`${capitalizeTerm(terminology.singular)} description`}
-              placeholder={`Describe this ${terminology.singular}`}
+              label="Pull request description"
+              placeholder="Describe this pull request"
               saving={bodySaving}
               onSave={(body) => void saveBody(body)}
               onCancel={() => setBodyScope(null)}
@@ -904,14 +907,9 @@ export function PullRequestSummaryTab({
         }
       >
         {activityPending ? (
-          <PullRequestConversationGhost terminology={terminology} />
+          <PullRequestConversationGhost />
         ) : activityError ? (
-          <PullRequestActivityUnavailableState
-            compact
-            error={activityError}
-            term={terminology.singular}
-            onRetry={onRefresh}
-          />
+          <PullRequestActivityUnavailableState compact error={activityError} onRetry={onRefresh} />
         ) : (
           <>
             {detail.commentsTruncated ? (

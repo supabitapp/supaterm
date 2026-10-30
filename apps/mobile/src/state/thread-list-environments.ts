@@ -25,7 +25,6 @@ function selectEnvironment(config: ServerConfig) {
       }),
     ),
     machineKind: resolveEnvironmentMachineKind(config),
-    snoozePresets: config.settings.snoozePresets,
   };
 }
 
@@ -53,19 +52,13 @@ function sameProviders(
 
 function collectEnvironments(environments: ReadonlyMap<EnvironmentId, ListEnvironment>) {
   const providersByEnvironmentId = new Map<EnvironmentId, ReadonlyArray<ThreadListProvider>>();
-  const snoozePresetsByEnvironmentId = new Map<
-    EnvironmentId,
-    ServerConfig["settings"]["snoozePresets"]
-  >();
   const machineByEnvironmentId = new Map<EnvironmentId, EnvironmentMachineKind>();
-  for (const [id, { providers, machineKind, snoozePresets }] of environments) {
+  for (const [id, { providers, machineKind }] of environments) {
     providersByEnvironmentId.set(id, providers);
-    snoozePresetsByEnvironmentId.set(id, snoozePresets);
     machineByEnvironmentId.set(id, machineKind);
   }
   return {
     providersByEnvironmentId,
-    snoozePresetsByEnvironmentId,
     machineByEnvironmentId,
     loadedEnvironmentIds: new Set(environments.keys()),
   };
@@ -86,14 +79,10 @@ export function createThreadListEnvironmentsAtom(
       if (prior && sameProviders(prior.providers, selected.providers)) {
         selected.providers = prior.providers;
       }
-      if (prior && JSON.stringify(prior.snoozePresets) === JSON.stringify(selected.snoozePresets)) {
-        selected.snoozePresets = prior.snoozePresets;
-      }
       const unchanged =
         prior &&
         prior.providers === selected.providers &&
-        prior.machineKind === selected.machineKind &&
-        prior.snoozePresets === selected.snoozePresets;
+        prior.machineKind === selected.machineKind;
       next.set(id, unchanged ? prior : selected);
       if (!unchanged) changed = true;
     }

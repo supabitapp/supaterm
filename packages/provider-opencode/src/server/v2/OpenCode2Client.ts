@@ -50,6 +50,10 @@ export type OpenCode2StreamEvent =
   | OpenCode2UnreadableTerminal
   | OpenCode2UnreadableStart;
 
+/**
+ * `events` succeeds once the server accepted the subscription: the stream is
+ * volatile, so callers subscribe before they start work whose events they need.
+ */
 export interface OpenCode2Api {
   readonly client: OpenCodeClient;
   readonly events: Effect.Effect<
@@ -71,6 +75,10 @@ export class OpenCode2Client extends Context.Service<
   }
 >()("@supaterm/provider-opencode/server/v2/OpenCode2Client") {}
 
+/**
+ * OpenCode writes a `: heartbeat` comment every 10 to 15 seconds, so this long
+ * without a single byte means the server is stuck, not idle.
+ */
 const SILENT_STREAM_TIMEOUT = "45 seconds";
 
 const decodeEvent = Schema.decodeUnknownResult(Schema.fromJsonString(OpenCodeEvent));
@@ -134,15 +142,20 @@ const readEvents = HttpClient.get("/api/event", {
   ),
 );
 
+/**
+ * OpenCode decodes Basic credentials as UTF-8. `HttpClientRequest.basicAuth`
+ * encodes them as Latin-1 (`btoa`), which gets non-ASCII passwords rejected.
+ */
 const basicAuthorization = (password: string | Redacted.Redacted) => {
   const plain = Redacted.isRedacted(password) ? Redacted.value(password) : password;
   return `Basic ${Buffer.from(`${OPENCODE_USERNAME}:${plain}`, "utf8").toString("base64")}`;
 };
 
+/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const httpClient = yield* HttpClient.HttpClient;
   return OpenCode2Client.of({
-    connect: Effect.fn("OpenCode2Client.connect")(function ({ baseUrl, password }) {
+    connect: ({ baseUrl, password }) => {
       const authenticated = HttpClient.mapRequest(
         httpClient,
         HttpClientRequest.setHeader("Authorization", basicAuthorization(password)),
@@ -159,12 +172,17 @@ export const make = Effect.gen(function* () {
           ),
         })),
       );
-    }),
+    },
   });
 });
 
 export const layer = Layer.effect(OpenCode2Client, make);
 
+/**
+ * The first request carries the caller's input (including `order`); later
+ * requests send only the cursor, because OpenCode rejects a cursor combined
+ * with `order`.
+ */
 export const paginate = <Input extends { readonly cursor?: unknown }, Item, E, R>(
   input: Input,
   list: (

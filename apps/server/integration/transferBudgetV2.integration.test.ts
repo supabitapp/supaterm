@@ -16,9 +16,7 @@ import {
   EnvironmentAuthenticatedPrincipal,
   ORCHESTRATION_V2_WS_METHODS,
   OrchestrationV2RpcSchemas,
-  OrchestrationV2ThreadBoundedSnapshot,
   OrchestrationV2ThreadDetailSnapshot,
-  OrchestrationV2ThreadHistoryPage,
   OrchestrationV2ShellSnapshot,
   OrchestrationV2GetThreadProjectionError,
   OrchestrationV2GetShellSnapshotError,
@@ -56,7 +54,6 @@ import { subscribeOrchestrationV2Thread, subscribeOrchestrationV2Shell } from ".
 import {
   measureHttpGet,
   openMeasuredWsClient,
-  type HttpTransferMeasurement,
   type MeasuredWsClient,
 } from "./NetworkTransferMeasurement.integration.ts";
 import { makeSqlStatementCounter } from "./SqlStatementCounter.integration.ts";
@@ -68,29 +65,14 @@ import {
 } from "./TransferBudgetReport.integration.ts";
 import { TRANSFER_HISTORY_TURN_COUNT } from "./fixtures/transferBudget.ts";
 import {
-  LONG_TURN_THREAD_ID,
-  longTurnThreadBatches,
-  SHELL_IDLE_SUBAGENTS,
-  SHELL_DONE_THREADS,
-  shellFleetEvents,
   THREAD_ID,
   threadCreated,
   threadVisited,
   turnEvents,
 } from "./TransferBudgetV2Fixture.integration.ts";
 
-const CLIENT_BOUNDED_QUERY = "compactTurnItems=1&dedupeBodies=1&compactIds=1";
-const CLIENT_HISTORY_QUERY = "compactIds=1";
-const CLIENT_SHELL_QUERY = "omitIdleSubagents=1&omitOlderSettled=1";
-
 const decodeThreadSnapshot = Schema.decodeUnknownEffect(
   Schema.fromJsonString(Schema.toCodecJson(OrchestrationV2ThreadDetailSnapshot)),
-);
-const decodeBoundedSnapshot = Schema.decodeUnknownEffect(
-  Schema.fromJsonString(Schema.toCodecJson(OrchestrationV2ThreadBoundedSnapshot)),
-);
-const decodeHistoryPage = Schema.decodeUnknownEffect(
-  Schema.fromJsonString(Schema.toCodecJson(OrchestrationV2ThreadHistoryPage)),
 );
 const decodeShellSnapshot = Schema.decodeUnknownEffect(
   Schema.fromJsonString(Schema.toCodecJson(OrchestrationV2ShellSnapshot)),
@@ -110,15 +92,8 @@ const layerManagement = Layer.unwrap(
       getThreadSnapshot: (id) => projections.getThreadSnapshot(id).pipe(Effect.orDie),
       getThreadSnapshotWindow: (id, options) =>
         projections.getThreadSnapshotWindow(id, options).pipe(Effect.orDie),
-      getThreadHistoryPage: (id, cursor, throughEntryId, conversationOnly) =>
-        projections
-          .getThreadHistoryPage(id, cursor, throughEntryId, conversationOnly)
-          .pipe(Effect.orDie),
       getThreadShell: (id) => projections.getThreadShell(id).pipe(Effect.orDie),
       getShellSnapshot: (options) => projections.getShellSnapshot(options).pipe(Effect.orDie),
-      listActiveShellIndex: () => projections.listActiveShellIndex().pipe(Effect.orDie),
-      listActiveSubagentThreadIds: () =>
-        projections.listActiveSubagentThreadIds().pipe(Effect.orDie),
       readShellSnapshot: (options) =>
         projections.readShellSnapshot(options).pipe(Effect.map(Effect.orDie), Effect.orDie),
       streamStoredEventsFrom: (input) =>
@@ -230,15 +205,10 @@ const subscribe = Effect.fn("transfer.subscribe")(function* (
           afterSequence,
           requestCompletionMarker: true,
           acceptBoundedSnapshot: true,
-          acceptCompactTurnItems: true,
-          acceptCompactIds: true,
-          acceptDedupedBodies: true,
         })
       : client.client[ORCHESTRATION_V2_WS_METHODS.subscribeShell]({
           afterSequence,
           requestCompletionMarker: true,
-          omitIdleSubagents: true,
-          omitOlderSettled: true,
         });
   yield* stream.pipe(
     Stream.runForEach((item) => Queue.offer(queue, item)),
@@ -331,7 +301,9 @@ it.live("reports V2 thread HTTP and WebSocket transfer budgets", () =>
                   queue,
                   (item) => "sequence" in item && item.sequence >= last.sequence,
                 );
-
+              // Shell items carry the shell read when their batch is projected, and unchanged
+              // shells are skipped, so a turn split across batches may never yield an item at
+              // the last sequence. Wait for the final shell instead.
               const finalShell = yield* projection.getThreadShell(THREAD_ID);
               for (const queue of [sq, ssq])
                 yield* collectUntil(
@@ -341,7 +313,10 @@ it.live("reports V2 thread HTTP and WebSocket transfer budgets", () =>
                     NodeUtil.isDeepStrictEqual(item.thread, finalShell),
                 );
             });
-
+          // The completion marker is sent before the live subscription attaches,
+          // so a turn written right after it can arrive through one-at-a-time
+          // catch-up replay and split into different frames. A warm-up event
+          // reaching every stream proves each one is live before the baseline.
           yield* writeUntilDelivered([threadVisited(provider)]);
           const threadBefore = thread.recorder.totals();
           const shellBefore = shell.recorder.totals();
@@ -372,55 +347,7 @@ it.live("reports V2 thread HTTP and WebSocket transfer budgets", () =>
           const shellMode = yield* synchronized(rsq);
           const reconnectThread = { ...resumedThread.recorder.totals(), mode: threadMode };
           const reconnectShell = { ...resumedShell.recorder.totals(), mode: shellMode };
-          const reconnectSqlStatements = counter.count() - reconnectSqlStart;
           assert.equal(threadMode, "snapshot");
-
-          for (const events of longTurnThreadBatches(provider)) yield* sink.write({ events });
-          const get = (path: string) =>
-            measureHttpGet({
-              url: `${base}${path}`,
-              headers: { [ORCHESTRATION_PROTOCOL_HEADER]: String(ORCHESTRATION_PROTOCOL_VERSION) },
-            }).pipe(Effect.tap((http) => Effect.sync(() => assert.equal(http.status, 200))));
-          const decoded = (http: HttpTransferMeasurement) =>
-            Buffer.from(http.decodedBody).toString();
-          const longTurnPath = `/api/orchestration/threads/${LONG_TURN_THREAD_ID}`;
-          const readColdOpen = (query: string) =>
-            Effect.gen(function* () {
-              const http = yield* get(`${longTurnPath}/bounded?${query}`);
-              const snapshot = yield* decodeBoundedSnapshot(decoded(http));
-              const rows = snapshot.projection.visibleTurnItems.length;
-              return { http, rows, cursor: snapshot.historyCursor };
-            });
-          const readHistoryPage = (cursor: string, query: string) =>
-            Effect.gen(function* () {
-              const http = yield* get(
-                `${longTurnPath}/history?cursor=${encodeURIComponent(cursor)}&${query}`,
-              );
-              const page = yield* decodeHistoryPage(decoded(http));
-              assert.isTrue(page.hasMoreHistory);
-              return { http, rows: page.items.length };
-            });
-          const readShell = (query: string) =>
-            Effect.gen(function* () {
-              const http = yield* get(`/api/orchestration/shell?${query}`);
-              return { http, rows: (yield* decodeShellSnapshot(decoded(http))).threads.length };
-            });
-
-          const { cursor: _, ...longTurnColdOpenLegacy } =
-            yield* readColdOpen("compactTurnItems=1");
-          const { cursor, ...longTurnColdOpen } = yield* readColdOpen(CLIENT_BOUNDED_QUERY);
-          if (cursor === null) return yield* Effect.die("Expected older long-turn history");
-          const longTurnHistoryPageLegacy = yield* readHistoryPage(cursor, "");
-          const longTurnHistoryPage = yield* readHistoryPage(cursor, CLIENT_HISTORY_QUERY);
-
-          const earlierThreads = decodedShell.threads.length + 1;
-          yield* sink.write({ events: shellFleetEvents(provider) });
-          const fleetShellLegacy = yield* readShell("");
-          const fleetShell = yield* readShell(CLIENT_SHELL_QUERY);
-          assert.equal(
-            fleetShellLegacy.rows,
-            earlierThreads + SHELL_DONE_THREADS + SHELL_IDLE_SUBAGENTS,
-          );
           return {
             provider,
             threadSnapshot,
@@ -431,13 +358,7 @@ it.live("reports V2 thread HTTP and WebSocket transfer budgets", () =>
             measuredTurnSqlStatements,
             reconnectThread,
             reconnectShell,
-            reconnectSqlStatements,
-            longTurnColdOpenLegacy,
-            longTurnColdOpen,
-            longTurnHistoryPageLegacy,
-            longTurnHistoryPage,
-            fleetShellLegacy,
-            fleetShell,
+            reconnectSqlStatements: counter.count() - reconnectSqlStart,
           } satisfies TransferBudgetRun;
         }).pipe(
           Effect.provide(Layer.fresh(layerServices).pipe(Layer.provideMerge(NodeServices.layer))),

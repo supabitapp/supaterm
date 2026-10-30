@@ -402,14 +402,8 @@ export function makeMcpAppHost(options: McpAppHostOptions): McpAppHost {
       else handleNotification(method, params);
     },
     setToolCall: (call) => {
-      if (toolCall === undefined || !toolCallSent) {
-        if (toolCall?.result === undefined) toolCall = call;
-        sendToolCall();
-        return;
-      }
-      if (toolCall.result !== undefined || call.result === undefined) return;
-      toolCall = { arguments: toolCall.arguments, result: call.result };
-      notify("ui/notifications/tool-result", normalizeMcpAppToolResult(call.result));
+      toolCall ??= call;
+      sendToolCall();
     },
     updateHostContext: () => {
       if (!initialized || sentContext === undefined) return;

@@ -66,7 +66,6 @@ The most common defect in this repo is a change that works on the path you teste
 ## Dev servers
 
 - `vp i` installs. Worktrees get this from the `supaterm.json` setup script; if module resolution looks broken, it probably did not run.
-- In the main checkout, pass `--home-dir "$PWD/.supaterm"` to isolate development from the live install.
 - `vp run dev` starts server and web. In a worktree, state defaults to that worktree's gitignored `.supaterm`, which deliberately outranks an ambient `SUPATERM_HOME` so you cannot land on shared state by accident. An explicit `--home-dir` still wins.
 - Ports derive from the worktree path and are stable across restarts, but read the real ones from the `[dev-runner]` line since occupied ports shift.
 - Sharing over the tailnet is three steps: run `vp run dev --share` in the background, wait for the `pairingUrl:` line in its output, then give that full URL to an unpaired browser. Do not wire up `tailscale serve` by hand, open the URL yourself, or consume the user's pairing link. A browser with the reusable dev cookie can use the bare origin. If a normal one-time token was consumed, mint a fresh one with `node apps/server/src/bin.ts pair --no-relay`. Like the startup URL, it carries the default scopes, which include the access scopes Connections settings need.
@@ -78,7 +77,7 @@ The most common defect in this repo is a change that works on the path you teste
 
 An empty database is a bad test. Seed your worktree's `.supaterm` with a copy of real data instead of pointing at live state:
 
-- The first `vp run dev` in a worktree seeds a missing database when the source is at most 500 MiB. Larger sources warn and start empty. `--no-seed` or `SUPATERM_DEV_SEED=0` skips seeding. Manual migration accepts larger sources and needs room for the copy before pruning.
+- The first `vp run dev` in a worktree does this for you when its database is missing. `--no-seed` or `SUPATERM_DEV_SEED=0` skips it.
 - Run `vp run migrate-dev-db` with your dev server stopped to refresh. It rebuilds `<worktree>/.supaterm/userdata/statev2.sqlite` from a read-only snapshot of `~/.supaterm/userdata/statev2.sqlite`, the developer's real data. It keeps recent projects and their stopped threads, and drops scheduled tasks, pending work, and auth sessions, so your dev server never runs the developer's agents. Raise `--projects` and `--threads-per-project` for more data.
 - Bring `secrets` and `settings.json` only if the flow under test needs them.
 - Copy in, never symlink. Data flows one way: into your sandbox, never back out.
@@ -90,8 +89,6 @@ An empty database is a bad test. Seed your worktree's `.supaterm` with a copy of
 - Use `vp run typecheck`, not `npx tsc`; it caches per package. Both run tsc-rs (`typescript` is the `@tsc-rs/typescript` drop-in).
 - Run `node -e` snippets from `apps/server` or the owning package. The repo root resolves only its own few devDependencies.
 - Test meaningful logic or observable behavior. Do not render components to static markup to assert props or attributes, or add tests that merely assert callback wiring or mirror the implementation.
-- Extend an existing test case or table when it covers the behavior. Add a new case only when none fits.
-- Test the lowest layer that exposes the regression. Do not repeat the same assertion through wrappers or web and mobile copies of shared logic. Review guidance lives in [Testing](docs/internals/testing.md).
 - **Do not run repo-wide checks.** No `vp check`, no `vp run -r test`, no `vp run -r typecheck` unless I ask. CI owns the full suite.
 - Backend behavior changes ship with focused tests for that behavior.
 - Proof for a bug fix depends on the bug. Logic, data, state, and protocol bugs get a failing test first (the fewest that fail on `main` for that reason, in the module's existing test file), then the fix. Purely visual bugs (spacing, colour, alignment, a layout shift) get before/after captures as their proof and no test: do not add UI tests for nitpicks, and do not ask for one in review when a capture already shows it. A server-only fix with no visible surface ships the test plus a short runtime transcript.
@@ -106,9 +103,7 @@ An empty database is a bad test. Seed your worktree's `.supaterm` with a copy of
   - Lint enforces this: `supaterm/no-test-timeout-or-retry`, `supaterm/no-frame-waits-in-browser-tests`, `supaterm/no-wall-clock-in-tests`, `supaterm/no-real-time-wait-in-tests`, `supaterm/no-polling-loop-in-tests`, `vitest/no-disabled-tests`, `vitest/no-focused-tests`.
 - Upon request, user-visible frontend changes should get one integrated pass in a real client: `test-supaterm-app` for web, `test-supaterm-mobile` for mobile. The primary agent does this once after integrating. Subagents do not launch their own dev servers.
 
-For turn-rendering checks, use the free `Replay (dev)` provider described in [test-supaterm-app](.agents/skills/test-supaterm-app/SKILL.md). Use a real provider when the behavior under test depends on it.
-
-For authorized mobile verification, a missing or outdated native client is a build step, not a blocker. Run `vp run mobile:install <ios|android> [device-id]` on the device host before starting Metro. It installs a client matching the native fingerprint from cache or builds one. Omit the device ID only when exactly one target is available. Its JSON result names the build log and any next step. See `test-supaterm-mobile` for the full workflow.
+For authorized mobile verification, a missing or outdated native client is a build step, not a blocker. Run `node scripts/mobile-native-client.ts ensure <ios|android> <device-id>` on the simulator host before starting Metro. It checks the local Expo fingerprint and builds/installs when needed. See `test-supaterm-mobile` for the full workflow.
 
 ## Pull requests
 
@@ -116,7 +111,7 @@ For authorized mobile verification, a missing or outdated native client is a bui
 - Body: the problem in a sentence or two, then how you fixed it. End with the model and harness that did the work.
 - UI changes need before/after images. Motion or timing needs a short video.
 - Upload PR evidence to GitHub. Never commit PR-only screenshots or assets such as `.github/pr-assets/`.
-- One request is one PR. Split it only when the maintainer asks. Outside contributions follow the stricter [one problem per PR](CONTRIBUTING.md#solve-one-underlying-problem-per-pr) rule.
+- One request is one PR. Split it only when the maintainer asks. Outside contributions follow the stricter [one problem per PR](CONTRIBUTING.md#one-problem) rule.
 - When babysitting: call `watch_pull_request` and end your turn. Supaterm wakes you on checks, comments, or conflicts. Do not poll or sleep. Verify each bot finding against the source, fix real ones, dismiss false positives with a written reason. Stay quiet when nothing is new. Stop when the bots are green on the latest commit.
 
 ## Documentation
@@ -159,8 +154,7 @@ Architecture and its constraints: `docs/internals/overview.md`. Glossary: `docs/
 - Server features are services; transports stay thin. A `ws.ts` RPC handler, HTTP route, or MCP tool decodes input, calls one service method, and maps errors. See [Effect services](docs/internals/effect-services.md).
 - `apps/web/src/components/ui` exports own their look. Pick a `variant` or `size`; do not restyle one with `className`. If none fits and the look is a generic concept, add a variant to the component; a look that belongs to one feature stays in that feature's own component, not in `components/ui`. Layout classes (width, flex, margin, position) belong on the parent. `shadcn/no-restyle` fails lint on violations. See [Web UI](docs/internals/web-ui.md).
 - Inferred types over annotations. `any` is the enemy.
-- Default to no comment. Keep required compiler, lint, and license directives. A necessary constraint or external quirk takes at most four lines; do not narrate steps, signatures, or delivery history. `supaterm/no-low-value-comments` enforces the mechanical cases.
-- React effects synchronize with something outside React. Derive state during render and act in event handlers. A required effect states its reason with `// oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- <why>`. Do not hide lifecycle work in refs or stores to evade the rule.
+- Comments say why: a constraint, an external quirk, or an invariant the code can't show. Don't restate names or signatures, narrate steps, or record history. `supaterm/no-low-value-comments` catches the mechanical cases.
 - Our users drive agents all day and notice a dropped frame, a lying spinner, and a stale label. No continuously repainting animations; they peg the GPU on high-refresh displays.
 - If a rule here fights the task in front of you, say so loudly and get a human sign-off before breaking it.
 

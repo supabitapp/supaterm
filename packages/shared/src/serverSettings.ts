@@ -13,7 +13,7 @@ import {
   type ModelSelection,
   type ProjectId,
   type ProjectScopedServerSettingKey,
-  ProjectSettingsOverrides,
+  type ProjectSettingsOverrides,
   type ProjectSettingsOverridesPatchEntry,
   ProviderDriverKind,
   ProviderInstanceId,
@@ -59,8 +59,13 @@ const TEXT_GENERATION_FALLBACK_DRIVERS = [
   "antigravity",
 ].map((driver) => ProviderDriverKind.make(driver));
 
-/** Project-scoped fallback includes custom instances when built-ins are disabled.
- * Machine-scoped callers omit this option to preserve their candidate set. */
+/**
+ * `includeConfiguredInstances` is for the project-scoped caller only: a
+ * project that disabled every built-in instance should still be able to
+ * fall back to one it configured itself. The machine-level caller leaves it
+ * unset, since widening the candidates there would change behavior for
+ * every user regardless of project scope.
+ */
 export function fallbackTextGenerationModelSelection(
   providerInstances: ServerSettings["providerInstances"],
   isEnabled: (instanceId: ProviderInstanceId, driver: ProviderDriverKind) => boolean,
@@ -92,15 +97,13 @@ export function fallbackTextGenerationModelSelection(
   ) {
     return threadDefault;
   }
-  return { instanceId, model: defaultTextGenerationModel(driver) };
-}
-
-function defaultTextGenerationModel(driver: ProviderDriverKind): string {
-  return (
-    DEFAULT_TEXT_GENERATION_MODEL_BY_PROVIDER[driver] ??
-    DEFAULT_MODEL_BY_PROVIDER[driver] ??
-    DEFAULT_TEXT_GENERATION_MODEL
-  );
+  return {
+    instanceId,
+    model:
+      DEFAULT_TEXT_GENERATION_MODEL_BY_PROVIDER[driver] ??
+      DEFAULT_MODEL_BY_PROVIDER[driver] ??
+      DEFAULT_TEXT_GENERATION_MODEL,
+  };
 }
 
 export function resolveSourceControlWriterModelSelection(
@@ -241,11 +244,8 @@ function mergeSettingsEntries<Value>(
 }
 
 /** Override keys added after clients already round-tripped a project's whole entry. */
-const knownProjectOverrideKeys = new Set(Object.keys(ProjectSettingsOverrides.fields));
-
 const OVERRIDE_KEYS_OLDER_CLIENTS_OMIT = [
   "providerInstances",
-  "threadTitleInstructions",
   "reviewGuideModelSelection",
   "reviewGuideInstructions",
   "sidebarAutoMarkDoneKeepPullRequests",
@@ -266,8 +266,15 @@ function withStoredWorktreeRules(
   return { mode: "custom", rules: { ...incoming.rules, worktreeKeepWhen, worktreeDoneAfterDays } };
 }
 
-/** Older clients resend whole entries without recently added fields.
- * Preserve their stored values until an explicit empty value or removal clears them. */
+/**
+ * `projectSettingsOverrides` entries otherwise replace whole (see the field's
+ * doc comment in contracts), but some keys were added after clients already
+ * round-trip a project's entry on every edit. A client built before one of
+ * them sends an entry that never mentions it, and a whole replace would
+ * silently wipe it. When an incoming entry omits such a key, keep what is
+ * stored; a client that means to clear one says so explicitly, with
+ * `providerInstances: {}` or by listing the key in `removals`.
+ */
 function mergeProjectSettingsOverridesPatch(
   current: Readonly<Record<string, ProjectSettingsOverrides>>,
   patch: Readonly<Record<string, ProjectSettingsOverridesPatchEntry | null>>,
@@ -282,13 +289,8 @@ function mergeProjectSettingsOverridesPatch(
     const stored = current[projectId];
     const { worktreeCleanup, ...rest } = entry;
     next.set(projectId, {
-      ...Object.fromEntries(
-        Object.entries(stored ?? {}).filter(([key]) => !knownProjectOverrideKeys.has(key)),
-      ),
       ...(stored === undefined ? {} : Struct.pick(stored, OVERRIDE_KEYS_OLDER_CLIENTS_OMIT)),
-      ...Object.fromEntries(
-        Object.entries(rest).filter(([key]) => knownProjectOverrideKeys.has(key)),
-      ),
+      ...rest,
       ...(worktreeCleanup === undefined
         ? {}
         : {
@@ -318,7 +320,6 @@ export function applyServerSettingsPatch(
     backgroundActivityProfile,
     backgroundActivity,
     worktreeCleanup: worktreeCleanupPatch,
-    secretProviders: secretProvidersPatch,
     sourceControlHosts: hostSettingsPatch,
     usagePriceOverrides: usagePriceOverridesPatch,
     usageModelAliases: usageModelAliasesPatch,
@@ -385,17 +386,13 @@ export function applyServerSettingsPatch(
       ModelPreferences["providerModelPreferences"][ProviderInstanceId]
     > = { ...initialModelPreferences };
     for (const change of setModelsHidden ?? []) {
-      const preferences = (Object.hasOwn(edited, change.provider)
-        ? edited[change.provider]
-        : undefined) ?? { hiddenModels: [], modelOrder: [] };
+      const preferences = edited[change.provider] ?? { hiddenModels: [], modelOrder: [] };
       const hiddenModels = preferences.hiddenModels.filter((model) => model !== change.model);
       if (change.hidden) hiddenModels.push(change.model);
       edited[change.provider] = { ...preferences, hiddenModels };
     }
     if (setProviderModelOrder !== undefined) {
-      const preferences = (Object.hasOwn(edited, setProviderModelOrder.provider)
-        ? edited[setProviderModelOrder.provider]
-        : undefined) ?? {
+      const preferences = edited[setProviderModelOrder.provider] ?? {
         hiddenModels: [],
         modelOrder: [],
       };
@@ -493,14 +490,8 @@ export function applyServerSettingsPatch(
     ...(patch.defaultModelSelection !== undefined
       ? { defaultModelSelection: patch.defaultModelSelection }
       : {}),
-    ...(patch.fallbackModelSelection !== undefined
-      ? { fallbackModelSelection: patch.fallbackModelSelection }
-      : {}),
     ...(patch.defaultProjectScripts !== undefined
       ? { defaultProjectScripts: patch.defaultProjectScripts }
-      : {}),
-    ...(secretProvidersPatch !== undefined
-      ? { secretProviders: mergeSettingsEntries(current.secretProviders, secretProvidersPatch) }
       : {}),
     ...(usagePriceOverridesPatch !== undefined
       ? {

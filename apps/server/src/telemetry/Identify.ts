@@ -263,6 +263,17 @@ const readProviderLogins = Effect.fn("TelemetryIdentity.readProviderLogins")(fun
   return { codexTokens, claudeJson };
 });
 
+/**
+ * `distinctId` keeps the rule every earlier build used, so analytics stay
+ * continuous: the hashed Codex `account_id`, else the Claude machine `userID`,
+ * else the install's anonymous id. It can change when someone logs in, and a
+ * Codex Team shares one. `installId` is the hashed anonymous id, which never
+ * changes for an install; count installs and people with it.
+ *
+ * A null `distinctId` turns telemetry off. A missing file falls through quietly,
+ * and so does an API-key-only Codex auth.json. Only unreadable or malformed
+ * files warn.
+ */
 export const getTelemetryIdentityForHome = Effect.fn("getTelemetryIdentityForHome")(function* (
   homeDirectory: string,
 ) {

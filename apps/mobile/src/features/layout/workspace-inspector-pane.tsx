@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Animated, {
-  cubicBezier,
   runOnJS,
   useAnimatedStyle,
-  useReducedMotion,
   useSharedValue,
   withTiming,
   type SharedValue,
@@ -14,8 +12,10 @@ import { RenderErrorBoundary, RenderFailureView } from "../../components/RenderE
 import { WORKSPACE_PANE_TIMING } from "./workspace-pane-animation";
 import { WorkspacePaneDivider } from "./workspace-pane-divider";
 
-const PANE_EASING = cubicBezier(0.65, 0, 0.35, 1);
-
+/**
+ * Receives the pane layout via props (not the workspace context hook) so this module stays
+ * import-cycle-free with AdaptiveWorkspaceLayout.
+ */
 export function WorkspaceInspectorPane(props: {
   readonly pathname: string;
   readonly renderedInspectorWidth: SharedValue<number>;
@@ -35,10 +35,9 @@ export function WorkspaceInspectorPane(props: {
 
   const inspectorProgress = useSharedValue(inspectorVisible ? 1 : 0);
   const { renderedInspectorWidth } = props;
-  const reduceMotion = useReducedMotion();
+  const renderedContentWidth = useSharedValue(inspectorWidth ?? 0);
 
   const onClosed = props.onClosed;
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- animates the Reanimated inspector progress and width shared values when visibility or width changes
   useEffect(() => {
     inspectorProgress.set(
       withTiming(inspectorVisible ? 1 : 0, WORKSPACE_PANE_TIMING, (finished) => {
@@ -60,6 +59,15 @@ export function WorkspaceInspectorPane(props: {
     resizing,
   ]);
 
+  useEffect(() => {
+    const targetWidth = inspectorWidth ?? 0;
+    if (!inspectorVisible || resizing) {
+      renderedContentWidth.set(targetWidth);
+      return;
+    }
+    renderedContentWidth.set(withTiming(targetWidth, WORKSPACE_PANE_TIMING));
+  }, [inspectorVisible, inspectorWidth, renderedContentWidth, resizing]);
+
   const inspectorStyle = useAnimatedStyle(
     () => ({
       opacity: inspectorProgress.value,
@@ -68,14 +76,7 @@ export function WorkspaceInspectorPane(props: {
     }),
     [],
   );
-
-  const inspectorContentStyle = {
-    width: inspectorWidth ?? 0,
-    transitionProperty: "width",
-    transitionDuration:
-      !inspectorVisible || resizing || reduceMotion ? 0 : WORKSPACE_PANE_TIMING.duration,
-    transitionTimingFunction: PANE_EASING,
-  } as const;
+  const inspectorContentStyle = useAnimatedStyle(() => ({ width: renderedContentWidth.value }), []);
   const beginResize = () => {
     resizeStartWidth.current = inspectorWidth ?? 0;
     setResizing(true);
@@ -129,6 +130,8 @@ export function WorkspaceInspectorPane(props: {
   );
 }
 
+// The render callback must run inside the boundary's child, not while its
+// parent constructs the boundary element.
 function InspectorRenderer(props: { readonly render?: () => ReactNode }) {
   return <>{props.render?.()}</>;
 }

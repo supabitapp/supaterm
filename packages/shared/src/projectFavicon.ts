@@ -1,4 +1,4 @@
-import { WORKSPACE_IMAGE_PREVIEW_EXTENSIONS } from "./mediaPreview.ts";
+import { WORKSPACE_IMAGE_PREVIEW_EXTENSIONS } from "./filePreview.ts";
 
 export const PROJECT_FAVICON_FALLBACK_MARKER = "project-favicon-missing";
 

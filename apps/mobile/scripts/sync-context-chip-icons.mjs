@@ -29,7 +29,6 @@ const chipIcons = [
   "messages-square",
   "mouse-pointer-click",
   "terminal",
-  "server",
 ];
 
 const exportName = (token) =>

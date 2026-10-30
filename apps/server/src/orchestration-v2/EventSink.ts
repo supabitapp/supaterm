@@ -77,6 +77,10 @@ export interface EventSinkV2Shape {
     readonly events: ReadonlyArray<OrchestrationV2DomainEvent>;
   }) => Effect.Effect<ReadonlyArray<OrchestrationV2StoredEvent>, EventSinkV2Error>;
   readonly writeWithEffects: (input: {
+    /**
+     * Rebuilds each run.updated from the stored row with only its delegatedCompletion replaced.
+     * The batch must not also change that run's lifecycle.
+     */
     readonly updateDelegatedCompletionOnly?: boolean;
     readonly unlessNativeThreadOwned?: Pick<
       OrchestrationV2ProviderThread,
@@ -103,7 +107,12 @@ export interface EventSinkV2Shape {
     },
     EventSinkV2Error
   >;
-
+  /**
+   * Atomically commit only when the provider thread is still owned by the
+   * expected run attempt and ordinal. Used for late post-terminal
+   * provider_thread updates so a completed or superseded attempt cannot clobber
+   * a newer attempt that already claimed the thread.
+   */
   readonly writeIfProviderThreadOwner: (input: {
     readonly guardPendingUserInputCancellations?: boolean;
     readonly commandId?: CommandId;
@@ -119,7 +128,12 @@ export interface EventSinkV2Shape {
     },
     EventSinkV2Error
   >;
-
+  /**
+   * Atomically commit only while the stored provider thread still equals
+   * `expected`, the row its writer read, so a read-modify-write of the row
+   * cannot overwrite an update published in between. The whole row is
+   * compared because not every writer moves `updatedAt`.
+   */
   readonly writeIfProviderThreadUnchanged: (input: {
     readonly expected: OrchestrationV2ProviderThread;
     readonly events: ReadonlyArray<OrchestrationV2DomainEvent>;
@@ -141,8 +155,6 @@ export interface EventSinkV2Shape {
       readonly effectTypes: ReadonlyArray<EffectOutbox.OrchestrationEffectRequestV2["type"]>;
       readonly reason: string;
     };
-
-    readonly updateDelegatedCompletionOnlyRunId?: RunId;
   }) => Effect.Effect<
     {
       readonly receipt: CommandReceiptStore.CommandReceiptV2;
@@ -180,7 +192,7 @@ export interface EventSinkV2Shape {
     readonly threadId?: ThreadId;
     readonly afterSequence?: number;
     readonly eventType?: OrchestrationV2DomainEvent["type"];
-
+    /** Bound RPC subscribers; internal workers must not drop their subscription under load. */
     readonly bounded?: boolean;
   }) => Stream.Stream<OrchestrationV2StoredEvent, EventSinkV2Error>;
   readonly latestSequence: (input?: {
@@ -220,23 +232,24 @@ const layerBase: Layer.Layer<
       OrchestrationV2DomainEvent["type"],
       PubSub.PubSub<OrchestrationV2StoredEvent>
     >();
-    const publishLiveEvents = Effect.fnUntraced(function* (
-      events: ReadonlyArray<OrchestrationV2StoredEvent>,
-    ) {
-      yield* PubSub.publishAll(liveEvents, events);
-      for (const [type, pubsub] of liveEventsByType) {
-        yield* PubSub.publishAll(
-          pubsub,
-          events.filter((stored) => stored.event.type === type),
-        );
-      }
-    });
+    const publishLiveEvents =
+      /* This helper runs for individual orchestration events; the enclosing operation owns the span. */
+      Effect.fnUntraced(function* (events: ReadonlyArray<OrchestrationV2StoredEvent>) {
+        yield* PubSub.publishAll(liveEvents, events);
+        for (const [type, pubsub] of liveEventsByType) {
+          yield* PubSub.publishAll(
+            pubsub,
+            events.filter((stored) => stored.event.type === type),
+          );
+        }
+      });
     const runOutcomes = makeRunOutcomeRecorder((threadId) =>
+      // One payload row; unlike the shell, it still resolves a deleted child thread.
       projectionStore
         .getThread(threadId)
         .pipe(Effect.map((thread) => thread.lineage.relationshipToParent === "subagent")),
     );
-
+    // Recorded before publication, so an interrupted publish cannot lose a committed outcome.
     const publishStoredEvents = (
       events: ReadonlyArray<OrchestrationV2StoredEvent>,
       outcomes: ReadonlyArray<RunOutcome>,
@@ -248,12 +261,16 @@ const layerBase: Layer.Layer<
           Effect.andThen(publishLiveEvents(events)),
         );
 
+    // Transactions commit one at a time, but each writer publishes after its
+    // commit. If a writer is descheduled in between, a later commit reaches
+    // subscribers first, and clients drop any event at or below the newest
+    // sequence they have applied.
     const publishLane = yield* Semaphore.make(1);
     const commitThenPublish = <A, E, R>(
       transaction: Effect.Effect<A, E, R>,
       publish: (committed: A) => Effect.Effect<void>,
     ) =>
-      Effect.uninterruptibleMask((restore) => {
+      Effect.suspend(() => {
         let holdsLane = false;
         const takeLane = publishLane.take(1).pipe(
           Effect.andThen(
@@ -263,9 +280,8 @@ const layerBase: Layer.Layer<
           ),
           Effect.uninterruptible,
         );
-
         return sql
-          .withTransaction(Effect.tap(restore(transaction), () => takeLane))
+          .withTransaction(Effect.tap(transaction, () => takeLane))
           .pipe(
             Effect.tap(publish),
             Effect.ensuring(
@@ -274,46 +290,51 @@ const layerBase: Layer.Layer<
           );
       });
 
-    const guardUserInputCancellations = Effect.fnUntraced(function* (
-      events: ReadonlyArray<OrchestrationV2DomainEvent>,
-    ) {
-      const staleRequests = new Set<RuntimeRequestId>();
-      const staleNodes = new Set<NodeId>();
-      for (const event of events) {
-        if (
-          event.type !== "runtime-request.updated" ||
-          event.payload.kind !== "user_input" ||
-          event.payload.status !== "cancelled"
-        )
-          continue;
-        const current = yield* projectionStore.getRuntimeRequest(event.threadId, event.payload.id);
-        if (
-          current?.status !== "pending" ||
-          current.kind !== "user_input" ||
-          current.providerTurnId !== event.payload.providerTurnId ||
-          current.responseCapability.type === "message"
-        ) {
-          staleRequests.add(event.payload.id);
-          staleNodes.add(event.payload.nodeId);
+    // A user can answer after terminal normalization reads the pending request.
+    // Recheck inside the write transaction so stale cleanup cannot erase answers.
+    const guardUserInputCancellations =
+      /* This helper runs for individual orchestration events; the enclosing operation owns the span. */
+      Effect.fnUntraced(function* (events: ReadonlyArray<OrchestrationV2DomainEvent>) {
+        const staleRequests = new Set<RuntimeRequestId>();
+        const staleNodes = new Set<NodeId>();
+        for (const event of events) {
+          if (
+            event.type !== "runtime-request.updated" ||
+            event.payload.kind !== "user_input" ||
+            event.payload.status !== "cancelled"
+          )
+            continue;
+          const current = yield* projectionStore.getRuntimeRequest(
+            event.threadId,
+            event.payload.id,
+          );
+          if (
+            current?.status !== "pending" ||
+            current.kind !== "user_input" ||
+            current.providerTurnId !== event.payload.providerTurnId ||
+            current.responseCapability.type === "message"
+          ) {
+            staleRequests.add(event.payload.id);
+            staleNodes.add(event.payload.nodeId);
+          }
         }
-      }
-      return events.filter((event) => {
-        switch (event.type) {
-          case "runtime-request.updated":
-            return event.payload.status !== "cancelled" || !staleRequests.has(event.payload.id);
-          case "node.updated":
-            return event.payload.status !== "cancelled" || !staleNodes.has(event.payload.id);
-          case "turn-item.updated":
-            return (
-              event.payload.type !== "user_input_request" ||
-              event.payload.status !== "cancelled" ||
-              !staleRequests.has(event.payload.requestId)
-            );
-          default:
-            return true;
-        }
+        return events.filter((event) => {
+          switch (event.type) {
+            case "runtime-request.updated":
+              return event.payload.status !== "cancelled" || !staleRequests.has(event.payload.id);
+            case "node.updated":
+              return event.payload.status !== "cancelled" || !staleNodes.has(event.payload.id);
+            case "turn-item.updated":
+              return (
+                event.payload.type !== "user_input_request" ||
+                event.payload.status !== "cancelled" ||
+                !staleRequests.has(event.payload.requestId)
+              );
+            default:
+              return true;
+          }
+        });
       });
-    });
 
     const normalizeEvents = (events: ReadonlyArray<OrchestrationV2DomainEvent>) => {
       const runOrdinals = new Map(
@@ -338,16 +359,16 @@ const layerBase: Layer.Layer<
       );
     };
 
-    const applyStoredEvents = Effect.fnUntraced(function* (
-      storedEvents: ReadonlyArray<OrchestrationV2StoredEvent>,
-    ) {
-      yield* Effect.forEach(storedEvents, (stored) => projectionStore.apply(stored.event), {
-        concurrency: 1,
-      });
-      const sequence = storedEvents.at(-1)?.sequence;
-      if (sequence !== undefined) {
-        const now = DateTime.formatIso(yield* DateTime.now);
-        yield* sql`
+    const applyStoredEvents =
+      /* This helper runs for individual orchestration events; the enclosing operation owns the span. */
+      Effect.fnUntraced(function* (storedEvents: ReadonlyArray<OrchestrationV2StoredEvent>) {
+        yield* Effect.forEach(storedEvents, (stored) => projectionStore.apply(stored.event), {
+          concurrency: 1,
+        });
+        const sequence = storedEvents.at(-1)?.sequence;
+        if (sequence !== undefined) {
+          const now = DateTime.formatIso(yield* DateTime.now);
+          yield* sql`
             INSERT INTO orchestration_v2_projection_metadata (
               projection_name,
               schema_version,
@@ -366,31 +387,10 @@ const layerBase: Layer.Layer<
               last_sequence = excluded.last_sequence,
               updated_at = excluded.updated_at
           `;
-      }
-
-      return yield* runOutcomes.prepare(storedEvents);
-    });
-
-    const updateDelegatedCompletionOnly = Effect.fnUntraced(function* (
-      events: ReadonlyArray<OrchestrationV2DomainEvent>,
-      includesRun: (runId: RunId) => boolean,
-    ) {
-      return yield* Effect.forEach(events, (event) =>
-        Effect.gen(function* () {
-          if (event.type !== "run.updated" || !includesRun(event.payload.id)) return event;
-          const { runs } = yield* projectionStore.getThreadRecords(event.threadId, ["runs"], {
-            runIds: [event.payload.id],
-          });
-          const current = runs[0];
-          return current === undefined
-            ? event
-            : {
-                ...event,
-                payload: { ...current, delegatedCompletion: event.payload.delegatedCompletion },
-              };
-        }),
-      );
-    });
+        }
+        // Read lineage here, on the connection this transaction holds; see makeRunOutcomeRecorder.
+        return yield* runOutcomes.prepare(storedEvents);
+      });
 
     const writeEffect = Effect.fn("orchestrationV2.EventSink.write")(function* (
       input: Parameters<EventSinkV2Shape["writeWithEffects"]>[0],
@@ -416,9 +416,29 @@ const layerBase: Layer.Layer<
             `;
             if (owners.length > 0) return { committed: [], outcomes: [] };
           }
-
+          // Checkpoint capture can finish after a cohort writer reads its parent run.
+          // Merge in this transaction so the event log and projection keep that completion.
           const events = input.updateDelegatedCompletionOnly
-            ? yield* updateDelegatedCompletionOnly(input.events, () => true)
+            ? yield* Effect.forEach(input.events, (event) =>
+                Effect.gen(function* () {
+                  if (event.type !== "run.updated") return event;
+                  const { runs } = yield* projectionStore.getThreadRecords(
+                    event.threadId,
+                    ["runs"],
+                    { runIds: [event.payload.id] },
+                  );
+                  const current = runs[0];
+                  return current === undefined
+                    ? event
+                    : {
+                        ...event,
+                        payload: {
+                          ...current,
+                          delegatedCompletion: event.payload.delegatedCompletion,
+                        },
+                      };
+                }),
+              )
             : input.events;
           const normalized = yield* normalizeEvents(
             input.guardPendingUserInputCancellations === true
@@ -599,19 +619,21 @@ const layerBase: Layer.Layer<
       );
     });
 
-    const existingCommandResult = Effect.fnUntraced(function* (commandId: CommandId) {
-      const existing = yield* commandReceipts.getByCommandId(commandId);
-      if (Option.isNone(existing)) {
-        return yield* Effect.die(
-          new Error(`Command receipt ${commandId} disappeared during its transaction.`),
+    const existingCommandResult =
+      /* This helper runs for individual orchestration events; the enclosing operation owns the span. */
+      Effect.fnUntraced(function* (commandId: CommandId) {
+        const existing = yield* commandReceipts.getByCommandId(commandId);
+        if (Option.isNone(existing)) {
+          return yield* Effect.die(
+            new Error(`Command receipt ${commandId} disappeared during its transaction.`),
+          );
+        }
+        const storedEvents = yield* eventStore.readByCommandId({ commandId }).pipe(
+          Stream.runCollect,
+          Effect.map((events): ReadonlyArray<OrchestrationV2StoredEvent> => Array.from(events)),
         );
-      }
-      const storedEvents = yield* eventStore.readByCommandId({ commandId }).pipe(
-        Stream.runCollect,
-        Effect.map((events): ReadonlyArray<OrchestrationV2StoredEvent> => Array.from(events)),
-      );
-      return { receipt: existing.value, storedEvents };
-    });
+        return { receipt: existing.value, storedEvents };
+      });
 
     const commitCommandEffect = Effect.fn("orchestrationV2.EventSink.commitCommand")(function* (
       input: Parameters<EventSinkV2Shape["commitCommand"]>[0],
@@ -632,22 +654,12 @@ const layerBase: Layer.Layer<
             return { ...existing, committed: false as const, cancelledEffectIds: [] };
           }
 
-          const runId = input.updateDelegatedCompletionOnlyRunId;
-          const normalized = yield* normalizeEvents(
-            runId === undefined
-              ? input.events
-              : yield* updateDelegatedCompletionOnly(input.events, (id) => id === runId),
-          );
+          const normalized = yield* normalizeEvents(input.events);
           const storedEvents = yield* eventStore.append({
             commandId: input.commandId,
             events: normalized,
           });
-
-          const sequence =
-            storedEvents.at(-1)?.sequence ??
-            (input.effects.length === 0
-              ? undefined
-              : yield* eventStore.latestSequence({ threadId: input.threadId }));
+          const sequence = storedEvents.at(-1)?.sequence;
           if (sequence === undefined) {
             return yield* Effect.die(
               new Error(`Command ${input.commandId} produced no orchestration events.`),
@@ -981,6 +993,10 @@ const layerBase: Layer.Layer<
   }),
 );
 
+/**
+ * Keeping the outbox instance shared with the worker is important because enqueue notifications
+ * are in-memory wakeups backed by the durable SQL queue.
+ */
 export const layerFromStores = layerBase;
 
 export const layer: Layer.Layer<

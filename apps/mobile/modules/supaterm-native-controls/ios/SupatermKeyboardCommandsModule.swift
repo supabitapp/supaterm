@@ -21,6 +21,7 @@ public final class SupatermKeyboardCommandsView: ExpoView {
 
   public override var canBecomeFirstResponder: Bool { true }
 
+  // This responder handles hardware shortcuts, so reclaiming it must not show a software keyboard.
   public override var inputView: UIView? { shortcutInputView }
 
   public override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
@@ -53,7 +54,7 @@ public final class SupatermKeyboardCommandsView: ExpoView {
         input: "c",
         modifiers: [.command, .shift],
         action: #selector(copyThreadReference),
-        title: "Copy PR Link or Thread"
+        title: "Copy PR Link or Thread ID"
       ),
       enabledCommand("toggleSidebar", input: "\\", modifiers: .command, action: #selector(handleToggleSidebar), title: "Toggle Sidebar"),
       enabledCommand("cycleHost", input: "h", modifiers: [.command, .shift], action: #selector(cycleHost), title: "Next Machine"),

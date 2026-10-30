@@ -5,13 +5,10 @@ import * as Dialog from "./ui/Dialog";
 import type { ComposerContextRecord, EnvironmentId } from "@supaterm/contracts";
 import { Pressable, View } from "react-native";
 import { Image } from "expo-image";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type { DraftComposerAttachment } from "../lib/composerImages";
 import { composerAttachmentInlineUri, isFileBackedComposerAttachment } from "../lib/composerImages";
-import {
-  loadLocalAttachmentPreview,
-  useLocalAttachmentPreview,
-} from "../lib/localAttachmentPreview";
+import { loadLocalAttachmentPreview } from "../lib/localAttachmentPreview";
 import { downloadAndShareAttachment } from "../lib/attachmentDownload";
 import { assetImageSource } from "../lib/assetImageSource";
 import { useAssetUrlState, useRefreshAssetUrl } from "../state/assets";
@@ -44,13 +41,31 @@ export function ComposerContextAttachment(props: {
   const remoteEnvironmentId = local || inlineUri ? null : (props.environmentId ?? null);
   const asset = useAssetUrlState(remoteEnvironmentId, resource);
   const refresh = useRefreshAssetUrl(remoteEnvironmentId, resource);
-  const localPreview = useLocalAttachmentPreview(local ?? null);
-  const error = localPreview.error ? "The local file is unavailable. Attach it again." : null;
+  const [localUri, setLocalUri] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const uri = local
-    ? localPreview.uri
-    : (inlineUri ?? (asset._tag === "Success" ? asset.url : null));
+  useEffect(() => {
+    if (!local) return;
+    const controller = new AbortController();
+    let dispose: (() => void) | undefined;
+    void loadLocalAttachmentPreview(local, controller.signal)
+      .then((preview) => {
+        if (!preview) return;
+        if (controller.signal.aborted) return preview.dispose();
+        dispose = preview.dispose;
+        setLocalUri(preview.uri);
+        setError(null);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setError("The local file is unavailable. Attach it again.");
+      });
+    return () => {
+      controller.abort();
+      dispose?.();
+    };
+  }, [local]);
+  const uri = local ? localUri : (inlineUri ?? (asset._tag === "Success" ? asset.url : null));
   const share = async () => {
     if (sharing) return;
     setSharing(true);

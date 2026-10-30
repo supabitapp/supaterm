@@ -1,15 +1,7 @@
 import type { InlineSkill } from "@supaterm/shared/inlineSkills";
 import type { OrchestrationV2SearchThreadResult, ScopedThreadRef } from "@supaterm/contracts";
 import { scopedThreadKey } from "@supaterm/client-runtime/environment";
-import {
-  useEffect,
-  useEffectEvent,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type RefObject,
-} from "react";
-import { useStore } from "zustand";
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { useStableCallback } from "~/hooks/useStableCallback";
 import { orchestrationEnvironment } from "~/state/orchestration";
 import { useThreadProjection } from "~/state/entities";
@@ -20,14 +12,9 @@ import {
   type ThreadFindStart,
   stepThreadFindIndex,
 } from "./threadFind";
-import {
-  getThreadFindStore,
-  openThreadFind,
-  closeThreadFind,
-  attachThreadFindTimeline,
-} from "./threadFindStore";
+import { subscribeThreadFindOpen } from "./threadFindActionBus";
 import { toastManager } from "../ui/toast";
-import { usePaneScope } from "../../chatPanes/paneScope";
+import { usePaneInputOwner } from "../../chatPanes/paneScope";
 
 const EMPTY_SKILLS: readonly InlineSkill[] = [];
 
@@ -53,13 +40,11 @@ export function useThreadFind({
   enabled,
   progressive = false,
   skills = EMPTY_SKILLS,
-  onOpen,
 }: {
   thread: ScopedThreadRef | null;
   enabled: boolean;
   progressive?: boolean;
   skills?: readonly InlineSkill[];
-  onOpen?: (() => void) | undefined;
 }) {
   // Read here rather than passed in: a streamed delta re-renders only the find
   // provider, which refreshes open results from it.
@@ -72,24 +57,7 @@ export function useThreadFind({
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshAfterSearchRef = useRef(false);
   const threadKey = thread ? scopedThreadKey(thread) : null;
-  const scope = usePaneScope()?.paneId ?? "root";
-  const store = getThreadFindStore(scope);
-  const state = useStore(store);
-  const setState = store.setState;
-  const notifyOpen = useEffectEvent(() => onOpen?.());
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Listen for explicit open actions from every entrypoint while this pane owns the find controls.
-  useLayoutEffect(
-    () =>
-      store.subscribe((current, previous) => {
-        if (
-          enabled &&
-          current.threadKey === threadKey &&
-          current.focusRequestId !== previous.focusRequestId
-        )
-          notifyOpen();
-      }),
-    [enabled, store, threadKey],
-  );
+  const [state, setState] = useState(CLOSED_FIND);
   if (state.threadKey !== null && (!enabled || state.threadKey !== threadKey))
     setState(CLOSED_FIND);
   const isOpen = enabled && threadKey !== null && state.threadKey === threadKey;
@@ -103,17 +71,37 @@ export function useThreadFind({
       });
       return;
     }
-    openThreadFind(threadKey, scope);
+    const start =
+      state.threadKey === threadKey && state.query.trim()
+        ? positionReader.current?.(state.query.trim())
+        : undefined;
+    setState((previous) => {
+      const current = previous.threadKey === threadKey ? previous : CLOSED_FIND;
+      return {
+        ...current,
+        threadKey,
+        focusRequestId: previous.focusRequestId + 1,
+        ...(current.query.trim()
+          ? {
+              start,
+              offset: 0,
+              localSelection: null,
+              navigationId: current.navigationId + 1,
+              requestId: current.navigationId + 1,
+            }
+          : {}),
+      };
+    });
   });
-  const close = useStableCallback(() => closeThreadFind(scope));
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Register this pane's position reader only while its timeline can receive find requests.
-  useLayoutEffect(() => {
-    if (!threadKey || !enabled) return;
-    return attachThreadFindTimeline(
-      { threadKey, readPosition: (query) => positionReader.current?.(query) },
-      scope,
-    );
-  }, [threadKey, enabled, positionReader, scope]);
+  const close = useStableCallback(() => setState(CLOSED_FIND));
+  const isPaneInputOwner = usePaneInputOwner();
+  useEffect(
+    () =>
+      subscribeThreadFindOpen(() => {
+        if (isPaneInputOwner()) open();
+      }),
+    [isPaneInputOwner, open],
+  );
 
   const remote = useServerResults(
     isOpen ? thread : null,
@@ -227,51 +215,51 @@ export function useThreadFind({
     });
   };
 
-  const refreshLiveResults = useEffectEvent(() => {
-    if (!isOpen || !state.query.trim()) return;
+  const refreshLiveResultsRef = useRef(() => {});
+  useLayoutEffect(() => {
+    refreshLiveResultsRef.current = () => {
+      if (!isOpen || !state.query.trim()) return;
 
-    if (progressive && remote.isPending) {
-      refreshAfterSearchRef.current = true;
-      return;
-    }
-    if (!match || state.navigationId !== navigationId) {
-      remote.refresh();
-      return;
-    }
-    const start = { entryId: match.entryId, occurrence: match.occurrence };
-    if (
-      state.offset === 0 &&
-      state.start?.entryId === start.entryId &&
-      state.start.occurrence === start.occurrence &&
-      state.requestId === state.navigationId
-    ) {
-      remote.refresh();
-    } else {
-      setState((previous) => ({
-        ...previous,
-        start,
-        offset: 0,
-        requestId: previous.navigationId,
-      }));
-    }
+      if (progressive && remote.isPending) {
+        refreshAfterSearchRef.current = true;
+        return;
+      }
+      if (!match || state.navigationId !== navigationId) {
+        remote.refresh();
+        return;
+      }
+      const start = { entryId: match.entryId, occurrence: match.occurrence };
+      if (
+        state.offset === 0 &&
+        state.start?.entryId === start.entryId &&
+        state.start.occurrence === start.occurrence &&
+        state.requestId === state.navigationId
+      ) {
+        remote.refresh();
+      } else {
+        setState((previous) => ({
+          ...previous,
+          start,
+          offset: 0,
+          requestId: previous.navigationId,
+        }));
+      }
+    };
   });
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Resume the deferred live-query refresh after its progressive network scan settles.
   useEffect(() => {
     if (!refreshAfterSearchRef.current || remote.isPending) return;
     refreshAfterSearchRef.current = false;
-    if (!remote.error) refreshLiveResults();
+    if (!remote.error) refreshLiveResultsRef.current();
   }, [remote.isPending, remote.error]);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Debounce remote find refreshes as streamed timeline pages arrive.
   useEffect(() => {
     if (lastContentRef.current === content) return;
     lastContentRef.current = content;
     if (!isOpen || !state.query.trim() || refreshTimerRef.current !== null) return;
     refreshTimerRef.current = setTimeout(() => {
       refreshTimerRef.current = null;
-      refreshLiveResults();
+      refreshLiveResultsRef.current();
     }, 300);
   }, [content, isOpen, state.query]);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the pending refresh timer when the thread, open state or query changes
   useEffect(() => {
     if (!isOpen || threadKey === null || !state.query.trim()) return;
     return () => {

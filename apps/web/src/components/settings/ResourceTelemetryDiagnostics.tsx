@@ -28,7 +28,7 @@ import type {
 } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
@@ -516,7 +516,7 @@ function ProcessActions({
   onSignal: (process: ResourceTelemetryProcess, signal: ServerProcessSignal) => void;
 }) {
   if (!canSignalProcess(process)) {
-    return <span className="text-3xs text-muted-foreground/35">-</span>;
+    return <span className="text-3xs text-muted-foreground/35">—</span>;
   }
   const isSignaling = signalingKeys.has(processIdentityKey(process));
   return (
@@ -809,17 +809,6 @@ export function ResourceTelemetryDiagnostics({
 }: {
   environmentId: EnvironmentId | null;
 }) {
-  // Pending signals and retries belong to one environment, so a switch starts fresh.
-  return (
-    <ResourceTelemetryDiagnosticsBody key={environmentId ?? ""} environmentId={environmentId} />
-  );
-}
-
-function ResourceTelemetryDiagnosticsBody({
-  environmentId,
-}: {
-  environmentId: EnvironmentId | null;
-}) {
   const [windowMs, setWindowMs] = useState(15 * 60_000);
   const selectedWindow =
     HISTORY_WINDOWS.find((option) => option.windowMs === windowMs) ?? HISTORY_WINDOWS[1];
@@ -833,12 +822,6 @@ function ResourceTelemetryDiagnosticsBody({
     },
     environmentId,
   );
-  const refreshHistory = history.refresh;
-  const selectedHistoryRef = useRef({ environmentId, windowMs, refreshHistory });
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- keeps retry completion pointed at the currently committed telemetry window
-  useEffect(() => {
-    selectedHistoryRef.current = { environmentId, windowMs, refreshHistory };
-  }, [environmentId, windowMs, refreshHistory]);
   const signalServerProcess = useAtomCommand(serverEnvironment.signalProcess, {
     reportFailure: false,
   });
@@ -905,14 +888,6 @@ function ResourceTelemetryDiagnosticsBody({
       return;
     setIsRetrying(true);
     void retryTelemetry()
-      .then(() => {
-        const selectedHistory = selectedHistoryRef.current;
-        refreshHistory();
-        if (selectedHistory.environmentId !== environmentId) return;
-        if (selectedHistory.windowMs !== windowMs) {
-          selectedHistory.refreshHistory();
-        }
-      })
       .catch((error: unknown) => {
         toastManager.add({
           type: "error",

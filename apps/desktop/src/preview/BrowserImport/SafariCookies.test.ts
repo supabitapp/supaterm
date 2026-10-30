@@ -1,5 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off - Hand-builds Safari's binary jar
-
+// format byte by byte.
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
@@ -158,6 +158,8 @@ describe("parseBinaryCookies", () => {
   });
 
   it("rejects a page that runs past the end of the file", () => {
+    // `Buffer.subarray` clamps rather than throwing, so an overlong first page
+    // swallows the second one's bytes and advances the cursor past the end.
     const first = encodeBinaryCookies([
       { domain: "a.test", name: "one", path: "/", value: "1", flags: 0, expiry: 1 },
     ]);
@@ -213,6 +215,9 @@ describe("parseBinaryCookies", () => {
 describe("readSafariCookies", () => {
   it.effect("reports a TCC denial as a permission the user can grant", () =>
     Effect.gen(function* () {
+      // What Full Disk Access actually looks like: the file is there, the read
+      // is refused with EPERM. Effect tags that `Unknown`, not
+      // `PermissionDenied`, so the reader has to look at the errno.
       const denied = PlatformError.systemError({
         _tag: "Unknown",
         module: "FileSystem",

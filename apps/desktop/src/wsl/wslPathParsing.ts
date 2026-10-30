@@ -8,6 +8,7 @@ export interface WslConfig {
   readonly distro: string | null;
 }
 
+// Literal space — \s would also match \n/\t/\r and corrupt UNC paths like \\wsl.localhost\<distro>\...
 const DISTRO_NAME_PATTERN = /^\w(?:[\w \-.]*\w)?$/;
 
 export function parseWslDistroList(stdout: Buffer): readonly WslDistro[] {
@@ -36,6 +37,9 @@ export function parseWslDistroList(stdout: Buffer): readonly WslDistro[] {
   return distros;
 }
 
+// Recognizes \\wsl.localhost\<distro>\... and the legacy \\wsl$\<distro>\... so
+// `wslpath` can be invoked inside the distro that actually owns the path,
+// rather than whichever distro is configured for the desktop backend.
 export function extractDistroFromUncPath(windowsPath: string): string | null {
   const match = /^\\\\(?:wsl\.localhost|wsl\$)\\([^\\]+)/i.exec(windowsPath);
   if (!match) return null;

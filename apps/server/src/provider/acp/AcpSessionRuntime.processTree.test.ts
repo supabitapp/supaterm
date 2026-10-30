@@ -64,12 +64,12 @@ describe("terminatePosixOwnedProcessTree", () => {
     expect(AcpSessionRuntime.isSafeCgroupPath("/user.slice/../escape")).toBe(false);
     expect(AcpSessionRuntime.isSafeCgroupPath("/user.slice/app.scope (deleted)")).toBe(false);
     expect(
-      AcpSessionRuntime.parseCgroup2Mounts(
+      AcpSessionRuntime.parseCgroup2Mount(
         "42 31 0:37 /user.slice /sys/fs/cgroup/user\\040mount rw - cgroup2 cgroup2 rw\n",
-      )[0],
+      ),
     ).toEqual({ mountPoint: "/sys/fs/cgroup/user mount", root: "/user.slice" });
     expect(
-      AcpSessionRuntime.parseCgroup2Mounts("42 31 0:37 / /sys/fs/cgroup rw - tmpfs tmpfs rw\n")[0],
+      AcpSessionRuntime.parseCgroup2Mount("42 31 0:37 / /sys/fs/cgroup rw - tmpfs tmpfs rw\n"),
     ).toBeUndefined();
     expect(
       AcpSessionRuntime.parseCgroup2Mounts(
@@ -84,7 +84,9 @@ describe("terminatePosixOwnedProcessTree", () => {
       const scratchRoot = NodePath.join(process.cwd(), "tmp");
       NodeFS.mkdirSync(scratchRoot, { recursive: true });
       const parent = NodeFS.mkdtempSync(NodePath.join(scratchRoot, "acp-cgroup-stale-siblings-"));
-
+      // Temp dirs are not cgroupfs: rmdir fails when control files exist, so the
+      // test injects populated/remove while still exercising the real selection
+      // and path-safety logic against a real parent directory tree.
       const populatedByPath = new Map<string, "0" | "1">();
       const writeSibling = (name: string, populated: "0" | "1" | null) => {
         const path = NodePath.join(parent, name);
@@ -158,12 +160,13 @@ describe("terminatePosixOwnedProcessTree", () => {
       expect(AcpSessionRuntime.resolveLinuxCgroupTargetCommand("grok", scratch, { PATH: "" })).toBe(
         bareGrok,
       );
-
+      // Undefined PATH uses Node's default search path (/usr/bin:/bin), not cwd alone
+      // (bareGrok lives only in cwd / PATH=scratch).
       expect(
         AcpSessionRuntime.resolveLinuxCgroupTargetCommand("grok", scratch, { PATH: undefined }),
       ).toBeUndefined();
       expect(
-        AcpSessionRuntime.resolveLinuxCgroupTargetCommand("sh", scratch, { PATH: undefined }),
+        AcpSessionRuntime.resolveLinuxCgroupTargetCommand("node", scratch, { PATH: undefined }),
       ).toBeDefined();
       expect(
         AcpSessionRuntime.resolveLinuxCgroupTargetCommand("grok", scratch, {
@@ -416,6 +419,8 @@ describe("terminatePosixOwnedProcessTree", () => {
 
   it.live("rotates more than 64 live parents without scanning retained tombstones", () =>
     Effect.gen(function* () {
+      // The server fixture's process group is the runner's real pid, so a synthetic
+      // parent sharing it would be skipped as the server's own group.
       const parentPidBase = process.pid < 500_000 ? 500_000 : 1_000;
       const parents = Array.from({ length: 130 }, (_, index) =>
         identity(parentPidBase + index, 100, parentPidBase + index, parentPidBase + index),
@@ -641,6 +646,7 @@ describe("terminatePosixOwnedProcessTree", () => {
         grace: 0,
         rootPid: 100,
       });
+      // Zombies remain visible but must not fail residual teardown.
       expect(fixture.processes.get(100)?.state).toBe("Z");
       expect(fixture.processes.get(110)?.state).toBe("Z");
     }),

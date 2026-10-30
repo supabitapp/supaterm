@@ -10,11 +10,6 @@ import {
   UsersIcon,
 } from "@supaterm/icons";
 import type { ReactNode } from "react";
-import {
-  capitalizeTerm,
-  sourceControlClients,
-  type ChangeRequestTerminology,
-} from "@supaterm/client-runtime/source-control-clients";
 
 import { readLocalApi } from "~/localApi";
 import { cn } from "~/lib/utils";
@@ -51,29 +46,30 @@ const DEFAULT_DETAIL_TABS = [
 
 export function PullRequestListGhost({ rows = 7, caption }: { rows?: number; caption?: string }) {
   return (
-    <div role="status" aria-label={caption ?? "Loading pull requests"} className="space-y-0.5">
-      {/* Outside the pulse so the explanation stays readable. */}
+    <div
+      role="status"
+      aria-label={caption ?? "Loading pull requests"}
+      className="motion-safe:animate-skeleton space-y-0.5"
+    >
       {caption ? (
         <p className="px-3 pb-1 text-xs font-medium text-muted-foreground/70">{caption}</p>
       ) : null}
-      <div className="motion-safe:animate-skeleton space-y-0.5">
-        {Array.from({ length: rows }, (_, index) => (
-          <div
-            key={index}
-            className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md px-3 py-2.5"
-          >
-            <GhostBar className="size-4 rounded-full" />
-            <div className="min-w-0 space-y-1.5">
-              <GhostBar className={cn("h-4", TITLE_WIDTHS[index % TITLE_WIDTHS.length])} />
-              <GhostBar className={cn("h-3.5", META_WIDTHS[index % META_WIDTHS.length])} />
-            </div>
-            <div className="flex flex-col items-end gap-1.5">
-              <GhostBar className="w-12" />
-              <GhostBar className="w-16" />
-            </div>
+      {Array.from({ length: rows }, (_, index) => (
+        <div
+          key={index}
+          className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md px-3 py-2.5"
+        >
+          <GhostBar className="size-4 rounded-full" />
+          <div className="min-w-0 space-y-1.5">
+            <GhostBar className={cn("h-4", TITLE_WIDTHS[index % TITLE_WIDTHS.length])} />
+            <GhostBar className={cn("h-3.5", META_WIDTHS[index % META_WIDTHS.length])} />
           </div>
-        ))}
-      </div>
+          <div className="flex flex-col items-end gap-1.5">
+            <GhostBar className="w-12" />
+            <GhostBar className="w-16" />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -108,14 +104,13 @@ export function PullRequestDetailGhost({
         isDraft: summary.isDraft ?? entry?.isDraft,
       }
     : entry;
-  const terminology = sourceControlClients.get(seed?.provider).changeRequest;
   const statePresentation = seed
     ? resolvePullRequestState({
         state: seed.state,
         isDraft: seed.isDraft ?? false,
       })
     : null;
-  // Passing list rollups can omit workflows awaiting approval; wait for detail.
+  // Passing list rollups can omit workflows awaiting approval; wait for detail to claim success.
   const checksPresentation =
     seed?.checksState === "failing" || seed?.checksState === "pending"
       ? pullRequestChecksStatePresentation(seed.checksState)
@@ -128,7 +123,7 @@ export function PullRequestDetailGhost({
   return (
     <div
       role="status"
-      aria-label={`Loading ${terminology.singular}`}
+      aria-label="Loading pull request"
       className={cn(
         "flex h-full min-h-0 flex-col overflow-hidden bg-background",
         !seed && "motion-safe:animate-skeleton",
@@ -153,7 +148,7 @@ export function PullRequestDetailGhost({
                 <span className="min-w-0 truncate font-medium">{seed.repository}</span>
                 <InlineButton
                   onClick={() => void readLocalApi()?.shell.openExternal(seed.url)}
-                  aria-label={`Open ${terminology.singular} #${seed.number} on host`}
+                  aria-label={`Open pull request #${seed.number} on host`}
                 >
                   <span className={statePresentation?.toneClassName}>#{seed.number}</span>
                   <ExternalLinkIcon aria-hidden className="size-2.5" />
@@ -169,19 +164,14 @@ export function PullRequestDetailGhost({
         </div>
         <div className="mr-4 flex h-7 shrink-0 items-center justify-end gap-1">
           {actions ?? <GhostBar className="h-6 w-16 rounded-md" />}
-          <Button
-            size="icon-xs"
-            variant="ghost"
-            disabled
-            aria-label={`${capitalizeTerm(terminology.singular)} actions loading`}
-          >
+          <Button size="icon-xs" variant="ghost" disabled aria-label="Pull request actions loading">
             <EllipsisIcon aria-hidden className="size-4" />
           </Button>
           {onClose ? (
             <Button
               size="icon-xs"
               variant="ghost"
-              aria-label={`Collapse ${terminology.singular} panel`}
+              aria-label="Collapse pull request panel"
               onClick={onClose}
             >
               <PanelRightIcon aria-hidden className="size-3.5" />
@@ -225,7 +215,7 @@ export function PullRequestDetailGhost({
                   <PullRequestCopyableCode
                     key={checkout}
                     value={checkout}
-                    target={`${terminology.singular} checkout command`}
+                    target="pull request checkout command"
                     copyLabel="Copy checkout command"
                     copiedLabel="Checkout command copied"
                     className="ml-auto font-mono"
@@ -251,7 +241,7 @@ export function PullRequestDetailGhost({
                     key={seed.headBranch}
                     value={seed.headBranch}
                     target="branch name"
-                    copyLabel={`Copy ${terminology.singular} branch`}
+                    copyLabel="Copy pull request branch"
                     copiedLabel="Branch name copied"
                     className="min-w-0 font-mono"
                   />
@@ -407,17 +397,11 @@ export function PullRequestTimelineGhost({ rows = 6 }: { rows?: number }) {
   );
 }
 
-export function PullRequestConversationGhost({
-  rows = 3,
-  terminology,
-}: {
-  rows?: number;
-  terminology: ChangeRequestTerminology;
-}) {
+export function PullRequestConversationGhost({ rows = 3 }: { rows?: number }) {
   return (
     <div
       role="status"
-      aria-label={`Loading ${terminology.singular} conversation`}
+      aria-label="Loading pull request conversation"
       className="motion-safe:animate-skeleton space-y-4 py-2"
     >
       {Array.from({ length: rows }, (_, index) => (

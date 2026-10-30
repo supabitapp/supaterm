@@ -43,20 +43,6 @@ export function cursorSdkFailureMessage(error: CursorAgentSdkRunnerError): strin
     : `Cursor Agent SDK ${error.method} failed: ${reason}`;
 }
 
-const CURSOR_USAGE_LIMIT_CODE =
-  /^(?:resource_exhausted|rate_limited(?:_changeable)?|\w*_usage_limit|\w*_rate_limit(?:_exceeded)?)$/i;
-
-export function isCursorUsageLimitError(cause: unknown): boolean {
-  const error = isCursorAgentSdkRunnerError(cause) ? cause.cause : cause;
-  if (typeof error !== "object" || error === null) return false;
-  const code = Reflect.get(error, "code");
-  return (
-    Reflect.get(error, "name") === "RateLimitError" ||
-    Reflect.get(error, "status") === 429 ||
-    (typeof code === "string" && CURSOR_USAGE_LIMIT_CODE.test(code))
-  );
-}
-
 const GENERIC_SDK_ERROR_CODES = new Set(["", "error", "unknown"]);
 
 function sdkErrorReason(cause: unknown): string | undefined {
@@ -342,6 +328,13 @@ export const makeCursorAgentSdkRunner = Effect.fn("makeCursorAgentSdkRunner")(fu
   const { Agent, createAgentPlatform } = yield* CursorSdk.CursorSdk;
   const scope = yield* Effect.scope;
 
+  /**
+   * The Cursor SDK decides once per process whether local sandboxing works, and
+   * caches the answer the first time any run starts. Only sandboxed runs point it
+   * at its `cursorsandbox` helper first, so after an unsandboxed (Full access)
+   * run it caches "unsupported" and rejects every later sandboxed run until the
+   * server restarts.
+   */
   const sandboxSupportPrimeStarted = yield* Ref.make(false);
   const sandboxSupportPrimed = yield* Deferred.make<void>();
   const primeCursorSandboxSupport = Effect.fn("CursorAgentSdkRunner.primeSandboxSupport")(

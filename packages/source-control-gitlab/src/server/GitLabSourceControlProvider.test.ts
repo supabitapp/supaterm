@@ -1,5 +1,9 @@
 import { SourceControlProviderKind } from "@supaterm/contracts";
-import { normalizeGitRemoteUrl } from "@supaterm/shared/git";
+import { changeRequestUrlFor } from "@supaterm/shared/changeRequestUrl";
+import {
+  detectSourceControlProviderFromGitRemoteUrl,
+  normalizeGitRemoteUrl,
+} from "@supaterm/shared/git";
 import { refineUnknownRemoteProvider } from "@supaterm/source-control-core/server/discovery";
 import { processOutput } from "@supaterm/source-control-testing/TestSourceControlHost";
 import { assert, it } from "@effect/vitest";
@@ -12,7 +16,6 @@ import * as TestSourceControlHost from "@supaterm/source-control-testing/TestSou
 import * as GitLabCli from "./GitLabCli.ts";
 import { parseGitLabAuthStatusHosts } from "./gitLabAuthStatus.ts";
 import * as GitLabSourceControlProvider from "./GitLabSourceControlProvider.ts";
-import { definition } from "../shared/definition.ts";
 
 function makeProvider(gitlab: Partial<GitLabCli.GitLabCli["Service"]>) {
   return GitLabSourceControlProvider.make.pipe(
@@ -124,10 +127,7 @@ it.effect.each([
         canonicalKey: normalizeGitRemoteUrl(remoteUrl),
         locator: { source: "git-remote" as const, remoteName: "upstream", remoteUrl },
         rootPath: "/repo",
-
-        provider: SourceControlProviderKind.make(
-          expectedProvider === "github" ? "github" : "unknown",
-        ),
+        provider: detectSourceControlProviderFromGitRemoteUrl(remoteUrl)?.kind ?? "unknown",
       };
       let authCalls = 0;
       const refined = yield* (
@@ -165,21 +165,16 @@ it.effect.each([
             ),
         }) ?? Effect.succeed(identity)
       );
-      if (expectedProvider === "gitlab") {
-        const [host, ...repository] = refined.canonicalKey.split("/");
-        assert.strictEqual(
-          definition.changeRequestUrl({
-            host: host!,
-            repository: repository.join("/"),
-            number: 42,
-          }),
-          "https://code.example.test/team/repo/-/merge_requests/42",
-        );
-      }
-      assert.deepStrictEqual(refined, {
-        ...identity,
-        provider: SourceControlProviderKind.make(expectedProvider),
-      });
+      const [host, ...repository] = refined.canonicalKey.split("/");
+      assert.strictEqual(
+        changeRequestUrlFor(refined.provider, host!, repository.join("/"), 42),
+        expectedProvider === "gitlab"
+          ? "https://code.example.test/team/repo/-/merge_requests/42"
+          : expectedProvider === "github"
+            ? "https://github.com/team/repo/pull/42"
+            : null,
+      );
+      assert.deepStrictEqual(refined, { ...identity, provider: expectedProvider });
       if (expectedProvider === "github") assert.strictEqual(authCalls, 0);
     }),
 );
@@ -233,15 +228,13 @@ it.effect.each(["merge_requests", "issues"])(
         title: "Pairing expiry",
         body: "Preserve remote access",
       });
-      for (const url of [
-        "https://gitlab.com/owner/repo",
-        "https://gitlab.attacker.test/team/project/-/issues/1",
-      ]) {
-        assert.strictEqual(
-          provider.resolveLink?.({ cwd: "/unrelated", url: new URL(url) }),
-          undefined,
-        );
-      }
+      assert.strictEqual(
+        provider.resolveLink?.({
+          cwd: "/unrelated",
+          url: new URL("https://gitlab.com/owner/repo"),
+        }),
+        undefined,
+      );
     }),
 );
 

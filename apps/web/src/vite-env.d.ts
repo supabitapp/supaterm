@@ -1,9 +1,8 @@
 /// <reference types="vite-plus/client" />
 
-import type { DesktopBridge, ThreadId } from "@supaterm/contracts";
+import type { DesktopBridge } from "@supaterm/contracts";
 
 interface ImportMetaEnv {
-  readonly SUPATERM_FEATURE_SECRETS?: string;
   readonly VITE_HTTP_URL: string;
   readonly VITE_WS_URL: string;
   readonly VITE_HOSTED_APP_URL: string;
@@ -19,10 +18,5 @@ interface ImportMeta {
 declare global {
   interface Window {
     desktopBridge?: DesktopBridge;
-    /** Dev builds only, from DevReplayHost. Agents call these from the browser console. */
-    supatermDev?: {
-      readonly replayScenarios: () => ReadonlyArray<string>;
-      readonly replay: (scenario?: string) => Promise<ThreadId>;
-    };
   }
 }

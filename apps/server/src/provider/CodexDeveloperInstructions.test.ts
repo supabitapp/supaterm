@@ -4,7 +4,6 @@ import {
   SUPATERM_ORCHESTRATION_INSTRUCTIONS,
   SUPATERM_ORCHESTRATION_SECTIONS,
 } from "@supaterm/provider-core/server/orchestrationInstructions";
-import { SUPATERM_DEVICE_TOOL_INSTRUCTIONS } from "@supaterm/provider-core/server/orchestrationInstructions";
 import { describe, it } from "vite-plus/test";
 
 import {
@@ -60,20 +59,7 @@ describe("buildCodexAdditionalContext", () => {
   });
 });
 
-describe("Codex runtime context", () => {
-  it("describes Markdown media support in the runtime context in both modes", () => {
-    {
-      const instructions = runtimeInstructions({
-        model: "gpt-5.3-codex",
-        reasoningEffort: "high",
-      });
-      NodeAssert.match(
-        instructions,
-        /<runtime_info>.*embed images, video, and audio.*Markdown image syntax with absolute file paths.*Link any other file.*absolute path.*files viewer.*<\/runtime_info>/,
-      );
-    }
-  });
-
+describe("buildCodexDeveloperInstructions", () => {
   it("flattens multiline metadata into single-line runtime info", () => {
     const instructions = runtimeInstructions({
       model: "gpt\n5.3\ncodex",
@@ -82,46 +68,6 @@ describe("Codex runtime context", () => {
 
     NodeAssert.match(instructions, /as gpt 5\.3 codex with high effort reasoning effort/);
     NodeAssert.doesNotMatch(instructions, /<runtime_info>[^<]*\n/);
-  });
-});
-
-describe("Codex orchestration context", () => {
-  it("preserves model, options and isolation requirements for subagents", () => {
-    const orchestration = Object.entries(buildCodexAdditionalContext({ model: "gpt-6.1-sol" }))
-      .filter(([key]) => key.startsWith("supaterm_orchestration_"))
-      .map(([, entry]) => entry.value)
-      .join("\n");
-
-    const requiredPolicies = [
-      "Use native delegation for the same provider only when it supports the selected model and no options are requested or inherited.",
-      "Otherwise use `delegate_task` with the selected provider instance and model.",
-      "Use it also for cross-provider or explicitly Supaterm-owned child work.",
-      'A separate checkout requires `delegate_task` with `isolation:"worktree"`.',
-      "Every independent review or re-check needs a new `delegate_task`",
-      "Ordinary same-conversation follow-ups may use `supaterm_thread_send` on `childThreadId`; independent review rounds may not.",
-      "While an async delegate runs, end your turn and await its notification.",
-      "Model options go in `target.options` after reading the selected model's descriptors.",
-      "Nonempty inherited options for the same provider instance and model require `delegate_task` too.",
-      "Never translate max to high or ignore unsupported settings: report the mismatch.",
-      "Verify the returned providerInstanceId, model, and options.",
-    ];
-    for (const policy of requiredPolicies) {
-      NodeAssert.ok(orchestration.includes(policy), policy);
-    }
-
-    NodeAssert.ok(!orchestration.includes("acp-mcp-call"));
-  });
-});
-
-describe("Codex device context", () => {
-  it("adds the shared device block only when the session holds device access", () => {
-    const tools = (device: boolean) =>
-      buildCodexAdditionalContext({ model: "gpt-6.1-sol" }, { browser: true, device })
-        .supaterm_tools?.value ?? "";
-
-    NodeAssert.ok(tools(true).includes(SUPATERM_DEVICE_TOOL_INSTRUCTIONS));
-    NodeAssert.ok(!tools(true).includes("ToolSearch"));
-    NodeAssert.ok(!tools(false).includes("## Supaterm devices"));
   });
 });
 

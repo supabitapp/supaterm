@@ -107,9 +107,14 @@ export interface PairingFallback {
   }>;
 }
 
-// Private addresses can identify different machines on different networks.
-// Without an expected environment, a fallback needs exactly one saved owner;
-// the pairing token is accepted on every address of that server.
+/**
+ * The saved addresses to pair through when a pairing link's own address is out
+ * of reach, such as a LAN address from cellular. A pairing token is accepted on
+ * every address of its server. The link is for the expected environment when
+ * the user named one; otherwise its address must already be a route of exactly
+ * one saved environment, since a private address can belong to a different
+ * machine on each network.
+ */
 export function pairingFallbackRoutes(
   entries: ReadonlyMap<EnvironmentId, ConnectionCatalogEntry>,
   httpBaseUrl: string,
@@ -487,8 +492,11 @@ function credentialRoute(
   return routes.find((route) => connectionRouteId(route.target) === credentialId);
 }
 
-// Plain HTTP must not downgrade a token's paired transport. A relay token stays
-// encrypted through its tunnel even when the host also has a plain HTTP tailnet route.
+// A paired token goes to a plain HTTP address outside the tailnet only when it
+// was paired that way, so a token paired over HTTPS, loopback, the tailnet, or
+// the relay keeps to the transports it was issued for. A relay-paired token
+// stays off plain HTTP tailnet addresses too: its direct path to the host is
+// the relay's own end-to-end encrypted tunnel, never a bare HTTP request.
 function plainHttpAllowed(
   routes: ReadonlyArray<ConnectionRoute>,
   credentialId: string,
@@ -534,9 +542,13 @@ function isTailnetUrl(httpBaseUrl: string): boolean {
   }
 }
 
-// Moved routes retain no pairing history. Keep relay tokens on relay addresses
-// so successive edits cannot downgrade them through HTTPS to plain HTTP.
-// Loopback remains available for SSH forwards.
+/**
+ * Whether a token paired over `credential` may go to `httpBaseUrl`, where the
+ * user moves that route. Loopback stays open for SSH forwards. A moved route
+ * owns its token and the catalog keeps no record of how it was paired, so a
+ * relay-paired route stays on relay addresses: moving it to HTTPS first would
+ * let a later edit take the token to plain HTTP.
+ */
 export function credentialAllowsAddress(credential: ConnectionRoute, httpBaseUrl: string): boolean {
   let url: URL;
   try {

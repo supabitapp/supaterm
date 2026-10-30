@@ -3,7 +3,6 @@ import * as Schema from "effect/Schema";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import { resolveAttachmentPath } from "../attachmentStore.ts";
-import * as DocumentText from "./DocumentText.ts";
 class UserInputAttachmentError extends Schema.TaggedError<UserInputAttachmentError>()(
   "UserInputAttachmentError",
   {
@@ -24,7 +23,6 @@ export const appendUserInputAttachmentPaths = Effect.fn("appendUserInputAttachme
   }) {
     const answers = new Map(Object.entries(input.answers));
     const fs = yield* FileSystem.FileSystem;
-    const documents = yield* DocumentText.DocumentText;
     for (const [questionId, attachments] of Object.entries(input.attachmentsByQuestionId ?? {})) {
       if (attachments.length === 0) continue;
       const references: string[] = [];
@@ -48,9 +46,8 @@ export const appendUserInputAttachmentPaths = Effect.fn("appendUserInputAttachme
             issue: `Attachment '${attachment.name}' is no longer available. Attach it again.`,
           });
         }
-        const extracted = yield* documents.ensure(path);
         references.push(
-          `Attached ${attachment.type} ${quoteReference(attachment.name)}: ${quoteReference(path)}${extracted ? ` (text extracted to: ${quoteReference(extracted)})` : ""}`,
+          `Attached ${attachment.type} ${quoteReference(attachment.name)}: ${quoteReference(path)}`,
         );
       }
       const answer = answers.get(questionId);

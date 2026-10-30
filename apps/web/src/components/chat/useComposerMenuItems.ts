@@ -1,12 +1,4 @@
-import { useAtomValue } from "@effect/atom-react";
-import { useEnvironmentIdentities, useEnvironmentMachines } from "../../state/environments";
-import { offersLinkedEnvironmentsAtom } from "../../state/peerLinks";
-import type { DraftId } from "../../composerDraftStore";
-import {
-  matchComposerEnvironmentItems,
-  matchComposerThreadItems,
-} from "@supaterm/client-runtime/composerThreadItems";
-import { useState } from "react";
+import { matchComposerThreadItems } from "@supaterm/client-runtime/composerThreadItems";
 import type {
   EnvironmentId,
   ProjectId,
@@ -36,7 +28,7 @@ import {
   type EnvironmentQueryTarget,
 } from "~/state/pullRequests";
 import { useEnvironmentQuery } from "~/state/query";
-import { useComposerPathSearch, useDebouncedValue, useThreadSearch } from "~/state/queries";
+import { useComposerPathSearch, useDebouncedValue } from "~/state/queries";
 import {
   matchesPullRequestQuery,
   rankPullRequestMatches,
@@ -53,7 +45,6 @@ const EMPTY_PULL_REQUEST_LIST_TARGETS: ReadonlyArray<EnvironmentQueryTarget<Pull
 export function useComposerMenuItems({
   composerTrigger,
   environmentId,
-  linkedEnvironments,
   gitCwd,
   activeThreadId,
   pullRequestProjectId,
@@ -64,11 +55,9 @@ export function useComposerMenuItems({
   selectedProviderSkills,
   selectedProviderSlashCommands,
   showSkillsInSlashMenu,
-  questionAttachmentTarget,
 }: {
   readonly composerTrigger: ComposerTrigger | null;
   readonly environmentId: EnvironmentId;
-  readonly linkedEnvironments: ReadonlyMap<EnvironmentId, string>;
   readonly gitCwd: string | null;
   readonly activeThreadId: ThreadId | null;
   readonly pullRequestProjectId: ProjectId | null;
@@ -79,10 +68,7 @@ export function useComposerMenuItems({
   readonly selectedProviderSkills: ServerProvider["skills"];
   readonly selectedProviderSlashCommands: ServerProvider["slashCommands"];
   readonly showSkillsInSlashMenu: boolean;
-  readonly questionAttachmentTarget: DraftId | null;
 }) {
-  // Thread mentions rank by recency as of when the composer mounted.
-  const [now] = useState(() => Date.now());
   const composerTriggerKind = composerTrigger?.kind ?? null;
   const pathTriggerQuery = composerTrigger?.kind === "path" ? composerTrigger.query : "";
   const pullRequestTriggerQuery =
@@ -98,15 +84,6 @@ export function useComposerMenuItems({
     pullRequestTextQuery === debouncedPullRequestTextQuery ? pullRequestTextQuery : null;
   const isPathTrigger = composerTriggerKind === "path";
   const environmentThreadShells = useThreadShells(isPathTrigger);
-  // Mounts older settled threads matching the mention, which shells may leave out.
-  useThreadSearch(isPathTrigger ? [environmentId] : [], pathTriggerQuery, { titlesOnly: true });
-  const environmentIdentities = useEnvironmentIdentities();
-  const environmentMachines = useEnvironmentMachines();
-  const offersMachines = useAtomValue(offersLinkedEnvironmentsAtom(environmentId));
-  const mentionableEnvironments = environmentIdentities.map((identity) => ({
-    ...identity,
-    machine: environmentMachines.get(identity.environmentId) ?? ("server" as const),
-  }));
   const workspaceEntries = useComposerPathSearch({
     environmentId,
     cwd: isPathTrigger ? gitCwd : null,
@@ -178,18 +155,9 @@ export function useComposerMenuItems({
         ...matchComposerThreadItems({
           shells: environmentThreadShells,
           environmentId,
-          linkedEnvironments,
           excludeThreadId: activeThreadId,
           query: composerTrigger.query,
-          now,
         }),
-        ...(questionAttachmentTarget === null && offersMachines
-          ? matchComposerEnvironmentItems({
-              environments: mentionableEnvironments,
-              environmentId,
-              query: composerTrigger.query,
-            })
-          : []),
         ...workspaceEntries.entries.map((entry) => ({
           id: `path:${entry.kind}:${entry.path}`,
           type: "path" as const,

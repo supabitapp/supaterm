@@ -1,11 +1,6 @@
-import type { ChangeRequestTerminology } from "@supaterm/client-runtime/source-control-clients";
 import type { PullRequestRef, PullRequestStack, ThreadPullRequestLink } from "@supaterm/contracts";
 
-export function pullRequestStackMerge(
-  stack: PullRequestStack,
-  number: number,
-  terminology: ChangeRequestTerminology,
-) {
+export function pullRequestStackMerge(stack: PullRequestStack, number: number) {
   const position = stack.layers.findIndex((layer) => layer.number === number);
   const layers = stack.layers.slice(0, position + 1).filter((layer) => layer.state !== "merged");
   const heads = layers.flatMap((layer) =>
@@ -13,9 +8,9 @@ export function pullRequestStackMerge(
   );
   const reason =
     position < 0
-      ? `This ${terminology.singular} is no longer in the stack. Refresh it.`
+      ? "This pull request is no longer in the stack. Refresh it."
       : stack.layers[position]?.state !== "open" || layers.length === 0
-        ? `There are no open layers to merge through this ${terminology.singular}.`
+        ? "There are no open layers to merge through this pull request."
         : layers.some((layer) => layer.state !== "open")
           ? "Reopen the closed layers before merging this stack."
           : layers.some((layer) => layer.isDraft)
@@ -26,6 +21,7 @@ export function pullRequestStackMerge(
   return { position: position + 1, layers, heads, reason };
 }
 
+/** Saved membership supplies navigation while offline, never revisions for a merge. */
 export function savedPullRequestStack(
   links: readonly ThreadPullRequestLink[],
   reference: PullRequestRef,

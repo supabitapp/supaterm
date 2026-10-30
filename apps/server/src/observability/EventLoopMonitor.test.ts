@@ -25,6 +25,7 @@ const stalled: EventLoopMonitor.EventLoopReadings = {
 
 describe("EventLoopMonitor", () => {
   it("ignores delay the loop spent idle, such as a system sleep", () => {
+    // Waking from sleep reads as a long gap, but the loop was idle in poll for it.
     const asleep: EventLoopMonitor.EventLoopReadings = {
       ...stalled,
       delayMaxNs: ms(600_000),

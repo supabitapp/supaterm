@@ -38,15 +38,6 @@ export interface SourceControlRefSelector {
 
 const MAX_ERROR_TRANSPORT_VALUE_LENGTH = 256;
 
-export function userFacingSourceControlDetail(cause: unknown): string | undefined {
-  return typeof cause === "object" &&
-    cause !== null &&
-    "userFacingDetail" in cause &&
-    typeof cause.userFacingDetail === "string"
-    ? cause.userFacingDetail
-    : undefined;
-}
-
 export function transportSafeSourceControlErrorValue(value: string): string {
   let printable = "";
   for (const character of value) {
@@ -113,7 +104,10 @@ export class SourceControlProvider extends Context.Service<
   SourceControlProvider,
   {
     readonly kind: SourceControlProviderKind;
-
+    /**
+     * The caller checks the owner against what comes back, so a host that cannot search
+     * `owner:branch` can drop those selectors without losing anything.
+     */
     readonly headBranchProbe?: (input: {
       readonly headSelectors: ReadonlyArray<string>;
       readonly state: "open" | "all";
@@ -122,7 +116,10 @@ export class SourceControlProvider extends Context.Service<
       readonly cwd: string;
       readonly treeish: string;
     }) => Effect.Effect<Option.Option<string>>;
-
+    /**
+     * The repository's `owner/name` from a remote URL, for a host whose remote paths can carry
+     * more than that (Forgejo's HTTP installation mount). Absent means the whole path.
+     */
     readonly repositoryNameFromRemoteUrl?: (url: string) => string | null;
     readonly refineRepositoryIdentity?: (input: {
       readonly identity: RepositoryIdentity;
@@ -131,28 +128,7 @@ export class SourceControlProvider extends Context.Service<
         readonly context: SourceControlProviderContext;
       }) => Effect.Effect<SourceControlProviderContext | null, SourceControlProviderError>;
     }) => Effect.Effect<RepositoryIdentity, SourceControlProviderError>;
-
-    readonly resolveRemoteWebHost?: (input: {
-      readonly cwd: string;
-      readonly context: SourceControlProviderContext;
-      readonly resolveContext: (input: {
-        readonly cwd: string;
-        readonly context: SourceControlProviderContext;
-      }) => Effect.Effect<SourceControlProviderContext | null, SourceControlProviderError>;
-    }) => Effect.Effect<string | null, SourceControlProviderError>;
     readonly resolveLink?: ResolveSourceControlLink;
-
-    readonly createsChangeRequestsIn?: (input: {
-      readonly cwd: string;
-      readonly context: SourceControlProviderContext;
-      readonly repository: string | null;
-    }) => Effect.Effect<boolean>;
-
-    readonly recordBranchBase?: (input: {
-      readonly cwd: string;
-      readonly branch: string;
-      readonly baseBranch: string;
-    }) => Effect.Effect<void>;
     readonly listChangeRequests: (input: {
       readonly cwd: string;
       readonly context?: SourceControlProviderContext;

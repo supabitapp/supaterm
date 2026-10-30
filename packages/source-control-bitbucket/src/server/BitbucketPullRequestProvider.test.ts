@@ -1,9 +1,7 @@
-import { SourceControlProviderKind } from "@supaterm/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Result from "effect/Result";
-import * as SourceControlRateLimit from "@supaterm/source-control-core/server/SourceControlRateLimit";
 
 import * as BitbucketApi from "./BitbucketApi.ts";
 import * as BitbucketPullRequestApi from "./BitbucketPullRequestApi.ts";
@@ -189,16 +187,6 @@ describe("bitbucketProviderFailure", () => {
 
     expect(bitbucketProviderFailure(responseError(401)).reason).toBe("unauthenticated");
     expect(bitbucketProviderFailure(responseError(403)).reason).toBe("failed");
-  });
-
-  it("reports a request held back by the host-wide pause as rate limited until it ends", () => {
-    const paused = new SourceControlRateLimit.SourceControlRateLimitPausedError({
-      provider: SourceControlProviderKind.make("bitbucket"),
-      host: "bitbucket.org",
-      retryAt: 120_000,
-    });
-
-    expect(bitbucketProviderFailure(paused)).toEqual({ reason: "rate-limited", retryAt: 120_000 });
   });
 });
 

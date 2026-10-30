@@ -20,6 +20,8 @@ import {
 } from "./LinkedPullRequestList";
 import { useLinkedPullRequestActions } from "./useLinkedPullRequestActions";
 
+const TITLE = "Linked pull requests";
+
 export function ThreadPullRequestsSheet(
   _props: StaticScreenProps<{ readonly environmentId: string; readonly threadId: string }>,
 ) {
@@ -45,12 +47,9 @@ export function ThreadPullRequestsSheet(
     runtime: selectedEnvironmentRuntime,
   });
   const rowInputs = useMemo(() => ({ lines, actions }), [lines, actions]);
-  const { singular } = actions.terminology;
-  const title = `Linked ${actions.terminology.plural}`;
 
   const content = (
     <View className="flex-1 android:bg-sheet-solid ios:bg-screen">
-      {/* oxlint-disable-next-line supaterm/require-registered-list-scroll -- This sheet owns its native header and scroll handling outside workspace columns. */}
       <LegendList
         data={lines}
         keyExtractor={linkedPullRequestKey}
@@ -83,7 +82,7 @@ export function ThreadPullRequestsSheet(
         }
         ListEmptyComponent={
           <Text className="pt-6 text-center text-sm text-foreground-muted">
-            No linked {actions.terminology.plural}.
+            No linked pull requests.
           </Text>
         }
       />
@@ -93,12 +92,12 @@ export function ThreadPullRequestsSheet(
   if (Platform.OS === "ios") {
     return (
       <View collapsable={false} className="flex-1 bg-sheet">
-        <SheetHeader presentation="native" title={title} onClose={() => navigation.goBack()} />
+        <SheetHeader presentation="native" title={TITLE} onClose={() => navigation.goBack()} />
         {actions.canLink ? (
           <Toolbar placement="right">
             <Toolbar.Button
               icon="plus"
-              accessibilityLabel={`Link ${singular}`}
+              accessibilityLabel="Link pull request"
               onPress={actions.promptLink}
             />
           </Toolbar>
@@ -112,14 +111,14 @@ export function ThreadPullRequestsSheet(
     <View collapsable={false} className="flex-1 bg-header">
       <NativeStackScreenOptions options={{ sheetCornerRadius: 28 }} />
       <AndroidSheetHeader
-        title={title}
+        title={TITLE}
         hideBottomBorder
         onBack={() => navigation.goBack()}
         actions={
           actions.canLink
             ? [
                 {
-                  accessibilityLabel: `Link ${singular}`,
+                  accessibilityLabel: "Link pull request",
                   icon: "plus",
                   onPress: actions.promptLink,
                 },

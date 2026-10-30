@@ -1,8 +1,4 @@
 import {
-  capitalizeTerm,
-  sourceControlClients,
-} from "@supaterm/client-runtime/source-control-clients";
-import {
   pullRequestLinkProject,
   resolveLinkPullRequestInput,
 } from "@supaterm/client-runtime/pull-request-link-input";
@@ -40,7 +36,6 @@ export function useLinkedPullRequestActions(input: {
   readonly runtime: EnvironmentRuntimeState | null;
 }) {
   const { thread, project, runtime } = input;
-  const terminology = sourceControlClients.get(project?.repositoryIdentity?.provider).changeRequest;
   const canOperate = useEnvironmentScope(
     thread?.environmentId ?? null,
     AuthOrchestrationOperateScope,
@@ -73,9 +68,7 @@ export function useLinkedPullRequestActions(input: {
       const { environmentId, id: threadId } = thread;
       const key = normalizeThreadPullRequestKey(reference);
       void run(
-        linked
-          ? `Couldn't link this ${terminology.singular}`
-          : `Couldn't unlink this ${terminology.singular}`,
+        linked ? "Couldn't link this pull request" : "Couldn't unlink this pull request",
         linked
           ? link({
               environmentId,
@@ -84,15 +77,14 @@ export function useLinkedPullRequestActions(input: {
           : unlink({ environmentId, input: { threadId, ...key } }),
       );
     },
-    [link, run, terminology, thread, unlink],
+    [link, run, thread, unlink],
   );
 
   const promptLink = useCallback(() => {
-    const { singular } = terminology;
     Dialog.prompt({
-      title: `Link ${singular}`,
-      message: `Paste a ${singular} URL, or enter 123 / #123 for this thread's repository.`,
-      placeholder: `${capitalizeTerm(singular)} URL or #42`,
+      title: "Link pull request",
+      message: "Paste a pull request URL, or enter 123 / #123 for this thread's repository.",
+      placeholder: "Pull request URL or #42",
       initialValue: "",
       confirmText: "Link",
       onConfirm: (reference) => {
@@ -102,17 +94,17 @@ export function useLinkedPullRequestActions(input: {
           hasProject: () => true,
         });
         if (resolved === null) {
-          Dialog.alert(`Couldn't link this ${singular}`, `Use a ${singular} URL, 123, or #123.`);
+          Dialog.alert("Couldn't link this pull request", "Use a pull request URL, 123, or #123.");
           return;
         }
         if ("error" in resolved) {
-          Dialog.alert(`Couldn't link this ${singular}`, resolved.error);
+          Dialog.alert("Couldn't link this pull request", resolved.error);
           return;
         }
         setLinked(resolved.link, true);
       },
     });
-  }, [project, setLinked, terminology]);
+  }, [project, setLinked]);
 
   const menuActions = useCallback(
     (link: ThreadPullRequestLink): MenuAction[] => {
@@ -150,13 +142,7 @@ export function useLinkedPullRequestActions(input: {
       if (action === "copy") void Clipboard.setStringAsync(link.url);
       else if (action === "browser")
         void tryOpenExternalUrl(link.url, "pull-request").then((opened) => {
-          if (!opened) {
-            const { shortLabel, singular } = (
-              sourceControlClients.findByChangeRequestUrl(link.url) ??
-              sourceControlClients.get(undefined)
-            ).changeRequest;
-            Dialog.alert(`Unable to open ${shortLabel}`, `The ${singular} could not be opened.`);
-          }
+          if (!opened) Dialog.alert("Unable to open PR", "The pull request could not be opened.");
         });
       else if (action === "watch" && thread !== null)
         void run(
@@ -178,8 +164,8 @@ export function useLinkedPullRequestActions(input: {
   );
 
   return useMemo(
-    () => ({ canLink: canEdit, terminology, promptLink, menuActions, onMenuAction }),
-    [canEdit, terminology, promptLink, menuActions, onMenuAction],
+    () => ({ canLink: canEdit, promptLink, menuActions, onMenuAction }),
+    [canEdit, promptLink, menuActions, onMenuAction],
   );
 }
 

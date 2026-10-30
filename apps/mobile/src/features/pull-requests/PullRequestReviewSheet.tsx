@@ -79,7 +79,7 @@ export function PullRequestReviewSheet({
   const target = pullRequestTarget(params);
   const result = useEnvironmentQuery(composerPullRequests.detail(target));
   const { refresh: refreshDetail } = result;
-  useFocusEffect(refreshDetail);
+  useFocusEffect(() => refreshDetail());
   const permissions = usePullRequestPermissions(params, result.data);
   const submission = useActionSubmission(params);
   const review = useAtomCommand(composerPullRequests.submitReview, {
@@ -108,7 +108,7 @@ export function PullRequestReviewSheet({
   const verdict = offered.find((option) => option.value === requestedVerdict) ?? offered[0];
   const reviewing = params.mode === "review";
   const canSubmitComments = !store.draft.comments.length || permissions.canInlineComment;
-
+  // Forgejo requires a summary when requesting changes, even with inline comments.
   const summaryRequired =
     verdict !== undefined && result.data
       ? sourceControlClients.get(result.data.provider).reviewSummaryRequired(verdict.value)
@@ -276,9 +276,7 @@ export function PullRequestReviewSheet({
       ) : null}
       {reviewing && !canSubmitComments ? (
         <Text className="text-sm text-danger-foreground">
-          You can no longer submit line comments on this{" "}
-          {sourceControlClients.get(result.data?.provider).changeRequest.singular}. Your drafts are
-          kept here.
+          You can no longer submit line comments on this pull request. Your drafts are kept here.
         </Text>
       ) : null}
       {submission.error || result.error || store.error ? (

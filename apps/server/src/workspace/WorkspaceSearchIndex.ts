@@ -27,6 +27,10 @@ import type {
 } from "@supaterm/contracts";
 import { isProjectFaviconPath } from "@supaterm/shared/projectFavicon";
 
+// fff-node stays external to the CLI bundle because it dlopens a native
+// library. A static `import` of an external package is a hard error inside a
+// Node single-executable (only built-ins resolve there), so load it through
+// `require`, which reads from the real filesystem in every runtime.
 const requireForFff = NodeModule.createRequire(import.meta.url);
 const { FileFinder } = requireForFff("@ff-labs/fff-node") as typeof import("@ff-labs/fff-node");
 
@@ -253,6 +257,11 @@ function mapContentMatchRanges(
   }));
 }
 
+/**
+ * Whole-word filtering happens after the grep rather than by wrapping the pattern in boundary
+ * regex: consuming boundaries such as `(?:^|\W)` swallow the separator between adjacent matches
+ * and widen the reported ranges, and `\b` cannot match punctuation-edged queries at all.
+ */
 function isWholeWordRange(
   line: string,
   range: { readonly start: number; readonly end: number },
@@ -294,6 +303,9 @@ const createFinder = Effect.fn("WorkspaceSearchIndex.createFinder")(function* (
       FileFinder.create({
         basePath: cwd,
         disableMmapCache: true,
+        // Content indexing costs scan CPU and memory, so only the on-demand
+        // content-search index pays for it; path-only consumers (file tree,
+        // composer path search, file picker) keep the lightweight index.
         disableContentIndexing: variant !== "content",
         aiMode: false,
         enableFsRootScanning: true,
@@ -478,6 +490,8 @@ export const make = Effect.fn("WorkspaceSearchIndex.make")(function* (
   )(function* (input) {
     const { searchQuery, regexMode } = buildContentSearchQuery(input);
     const deadline = performance.now() + CONTENT_SEARCH_TIME_BUDGET_MS;
+    // Grep cursors advance by file, so whole-word post-filtering needs enough
+    // raw candidates from the current file before moving to the next one.
     const rawPageSize = input.wholeWord
       ? Math.max(input.limit, CONTENT_SEARCH_MAX_MATCHES_PER_FILE)
       : input.limit;
@@ -541,7 +555,9 @@ function parseWorkspaceSearchIndexKey(key: string): {
   };
 }
 
-/** @public */
+/**
+ * @public Service construction is part of the canonical Effect module API.
+ */
 export const layer = (key: string) => {
   const { cwd, variant } = parseWorkspaceSearchIndexKey(key);
   return Layer.effect(WorkspaceSearchIndex, make(cwd, variant));

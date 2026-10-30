@@ -22,10 +22,10 @@ import {
   ConnectionBlockedError,
   CredentialStore,
   ProfileStore,
-  PullRequestRoutingPermissions,
-  StoredPullRequestRoutingPermission,
-  pullRequestRoutingConnectionKey,
-  pullRequestRoutingPermissionFor,
+  GitHubRoutingPermissions,
+  StoredGitHubRoutingPermission,
+  gitHubRoutingConnectionKey,
+  gitHubRoutingPermissionFor,
 } from "@supaterm/client-runtime/connection";
 import { EnvironmentId, ServerConfig, ThreadId, VcsListRefsResult } from "@supaterm/contracts";
 import * as Context from "effect/Context";
@@ -193,7 +193,11 @@ const makeDatabaseHandle = Effect.fn("web.connectionStorage.makeDatabaseHandle")
   return { handle, close };
 });
 
-// Browsers can omit close events; retry InvalidStateError with a fresh connection.
+/**
+ * A connection the browser already closed throws InvalidStateError even when no
+ * close event reached this tab, so drop it and retry once on a fresh one
+ * instead of failing every later operation.
+ */
 function withDatabase<A>(
   database: DatabaseHandle,
   use: (opened: IDBDatabase) => Effect.Effect<A, ConnectionTransientError>,
@@ -244,7 +248,8 @@ function writeDatabaseValueOnConnection(
   return Effect.callback<void, ConnectionTransientError>((resume) => {
     try {
       const transaction = database.transaction(storeName, "readwrite");
-      // Commit failures can fire abort without error; every failed write fires abort.
+      // Every failed write fires "abort". A failed commit, such as
+      // QuotaExceededError, fires only "abort" and no "error".
       transaction.addEventListener("abort", () => {
         resume(
           Effect.fail(catalogError("write", transaction.error ?? "Unknown IndexedDB write error")),
@@ -492,38 +497,36 @@ export const makeCatalogStore = Effect.fn("web.connectionStorage.makeCatalogStor
   return { read, update } satisfies CatalogStore;
 });
 
-// The stored names predate the rename and stay, so a tab still on an older version and an
-// updated one read and revoke the same grants.
-const PULL_REQUEST_ROUTING_KEY_PREFIX = "supaterm:github-routing:";
-const PULL_REQUEST_ROUTING_CHANGED = "supaterm:github-routing-changed";
-const isStoredPullRequestRoutingPermission = Schema.is(StoredPullRequestRoutingPermission);
-const encodeStoredPullRequestRoutingPermission = Schema.encodeSync(
-  Schema.fromJsonString(StoredPullRequestRoutingPermission),
+const GITHUB_ROUTING_KEY_PREFIX = "supaterm:github-routing:";
+const GITHUB_ROUTING_CHANGED = "supaterm:github-routing-changed";
+const isStoredGitHubRoutingPermission = Schema.is(StoredGitHubRoutingPermission);
+const encodeStoredGitHubRoutingPermission = Schema.encodeSync(
+  Schema.fromJsonString(StoredGitHubRoutingPermission),
 );
 
 /** Each grant has its own key so stale tabs and unrelated catalog saves cannot restore trust. */
-export function makeBrowserPullRequestRoutingPermissions(
+export function makeBrowserGitHubRoutingPermissions(
   browser: Pick<Window, "localStorage"> & EventTarget = window,
 ) {
-  const read = (key: string): StoredPullRequestRoutingPermission | null => {
+  const read = (key: string): StoredGitHubRoutingPermission | null => {
     try {
       const raw = browser.localStorage.getItem(key);
       const value: unknown = raw === null ? null : JSON.parse(raw);
-      return isStoredPullRequestRoutingPermission(value) &&
-        key === `${PULL_REQUEST_ROUTING_KEY_PREFIX}${value.environmentId}`
+      return isStoredGitHubRoutingPermission(value) &&
+        key === `${GITHUB_ROUTING_KEY_PREFIX}${value.environmentId}`
         ? value
         : null;
     } catch {
       return null;
     }
   };
-  const readAll = (): ReadonlyArray<StoredPullRequestRoutingPermission> => {
+  const readAll = (): ReadonlyArray<StoredGitHubRoutingPermission> => {
     try {
-      const values: StoredPullRequestRoutingPermission[] = [];
+      const values: StoredGitHubRoutingPermission[] = [];
       const storage = browser.localStorage;
       for (let index = 0; index < storage.length; index++) {
         const key = storage.key(index);
-        if (key?.startsWith(PULL_REQUEST_ROUTING_KEY_PREFIX)) {
+        if (key?.startsWith(GITHUB_ROUTING_KEY_PREFIX)) {
           const value = read(key);
           if (value !== null) values.push(value);
         }
@@ -533,53 +536,54 @@ export function makeBrowserPullRequestRoutingPermissions(
       return [];
     }
   };
-  const write = (environmentId: EnvironmentId, value: StoredPullRequestRoutingPermission | null) =>
+  const write = (environmentId: EnvironmentId, value: StoredGitHubRoutingPermission | null) =>
     Effect.try({
       try: () => {
-        const key = `${PULL_REQUEST_ROUTING_KEY_PREFIX}${environmentId}`;
+        const key = `${GITHUB_ROUTING_KEY_PREFIX}${environmentId}`;
         if (value === null) browser.localStorage.removeItem(key);
-        else browser.localStorage.setItem(key, encodeStoredPullRequestRoutingPermission(value));
-        browser.dispatchEvent(new Event(PULL_REQUEST_ROUTING_CHANGED));
+        else browser.localStorage.setItem(key, encodeStoredGitHubRoutingPermission(value));
+        browser.dispatchEvent(new Event(GITHUB_ROUTING_CHANGED));
       },
-      catch: (cause) => catalogError("save pull request routing permissions in", cause),
+      catch: (cause) => catalogError("save GitHub routing permissions in", cause),
     });
-  return PullRequestRoutingPermissions.of({
-    get: Effect.fn("get")((entry) =>
+  return GitHubRoutingPermissions.of({
+    get: (entry) =>
       Effect.sync(() => {
-        const value = read(`${PULL_REQUEST_ROUTING_KEY_PREFIX}${entry.target.environmentId}`);
-        return pullRequestRoutingPermissionFor(entry, value === null ? [] : [value]);
+        const value = read(`${GITHUB_ROUTING_KEY_PREFIX}${entry.target.environmentId}`);
+        return gitHubRoutingPermissionFor(entry, value === null ? [] : [value]);
       }),
-    ),
-    changes: Stream.callback<ReadonlyArray<StoredPullRequestRoutingPermission>>((queue) =>
+    changes: Stream.callback<ReadonlyArray<StoredGitHubRoutingPermission>>((queue) =>
       Effect.acquireRelease(
         Effect.sync(() => {
           const listener = (event: Event) => {
             if (event.type === "storage") {
               const key = (event as StorageEvent).key;
-              if (key !== null && !key?.startsWith(PULL_REQUEST_ROUTING_KEY_PREFIX)) return;
+              if (key !== null && !key?.startsWith(GITHUB_ROUTING_KEY_PREFIX)) return;
             }
             Queue.offerUnsafe(queue, readAll());
           };
           browser.addEventListener("storage", listener);
-          browser.addEventListener(PULL_REQUEST_ROUTING_CHANGED, listener);
+          browser.addEventListener(GITHUB_ROUTING_CHANGED, listener);
           Queue.offerUnsafe(queue, readAll());
           return listener;
         }),
         (listener) =>
           Effect.sync(() => {
             browser.removeEventListener("storage", listener);
-            browser.removeEventListener(PULL_REQUEST_ROUTING_CHANGED, listener);
+            browser.removeEventListener(GITHUB_ROUTING_CHANGED, listener);
           }),
       ).pipe(Effect.asVoid),
     ),
-    set: Effect.fn("PullRequestRoutingPermissions.set")(function* (entry, permission) {
-      const connectionKey = pullRequestRoutingConnectionKey(entry);
+    set: (entry, permission) => {
+      const connectionKey = gitHubRoutingConnectionKey(entry);
       if (connectionKey === null)
-        return yield* new ConnectionBlockedError({
-          reason: "configuration",
-          detail: "This environment does not have a saved connection endpoint.",
-        });
-      return yield* write(
+        return Effect.fail(
+          new ConnectionBlockedError({
+            reason: "configuration",
+            detail: "This environment does not have a saved connection endpoint.",
+          }),
+        );
+      return write(
         entry.target.environmentId,
         permission === "off"
           ? null
@@ -589,12 +593,14 @@ export function makeBrowserPullRequestRoutingPermissions(
               permission,
             },
       );
-    }),
-    forget: Effect.fn("forget")((environmentId) => write(environmentId, null)),
+    },
+    forget: (environmentId) => write(environmentId, null),
   });
 }
 
-// MessageChannel yields without nested-timer clamping or background throttling.
+// A posted message resumes in a fresh task, so input and rendering get a turn between
+// encoding chunks. A zero-delay timer would not do: browsers clamp nested timers to
+// 4 ms and throttle them to once a second or less in a background tab.
 const yieldToBrowserTask = Effect.callback<void>((resume) => {
   const { port1, port2 } = new MessageChannel();
   port1.addEventListener(
@@ -618,7 +624,7 @@ export const layer = Layer.effectContext(
       (owned) => owned.close,
     );
     const catalog = yield* makeCatalogStore(makeCatalogBackend(database));
-    const pullRequestRoutingPermissions = makeBrowserPullRequestRoutingPermissions();
+    const githubRoutingPermissions = makeBrowserGitHubRoutingPermissions();
     // Remembers each thread row's encoding, so a save only encodes rows that changed.
     const encodeStoredShellSnapshot = makeStoredShellSnapshotEncoder({
       yieldToHost: yieldToBrowserTask,
@@ -639,34 +645,29 @@ export const layer = Layer.effectContext(
       ),
     });
     const registrationStore = Persistence.ConnectionRegistrationStore.of({
-      setPlatformLabel: Effect.fn("setPlatformLabel")((environmentId, label) =>
+      setPlatformLabel: (environmentId, label) =>
         catalog
           .update((document) => setPlatformLabelInCatalog(document, environmentId, label))
           .pipe(Effect.mapError((cause) => persistenceError("set-platform-label", cause))),
-      ),
-      register: Effect.fn("register")((registration, routes) =>
+      register: (registration, routes) =>
         catalog
           .update((document) => registerConnectionInCatalog(document, registration, routes))
           .pipe(Effect.mapError((cause) => persistenceError("register-connection", cause))),
-      ),
-      setRoutes: Effect.fn("setRoutes")((environmentId, routes, profiles) =>
+      setRoutes: (environmentId, routes, profiles) =>
         catalog
           .update((document) => setRoutesInCatalog(document, environmentId, routes, profiles))
           .pipe(Effect.mapError((cause) => persistenceError("set-connection-routes", cause))),
-      ),
-      remove: Effect.fn("remove")((target) =>
+      remove: (target) =>
         catalog
           .update((document) => removeConnectionFromCatalog(document, target))
           .pipe(Effect.mapError((cause) => persistenceError("remove-connection", cause))),
-      ),
-      setEnabled: Effect.fn("setEnabled")((environmentId, enabled) =>
+      setEnabled: (environmentId, enabled) =>
         catalog
           .update((document) => setConnectionEnabledInCatalog(document, environmentId, enabled))
           .pipe(Effect.mapError((cause) => persistenceError("set-connection-enabled", cause))),
-      ),
     });
     const profileStore = ProfileStore.make({
-      get: Effect.fn("get")((connectionId) =>
+      get: (connectionId) =>
         catalog.read.pipe(
           Effect.map((document) =>
             Option.fromUndefinedOr(
@@ -674,13 +675,12 @@ export const layer = Layer.effectContext(
             ),
           ),
         ),
-      ),
       put: (profile) =>
         catalog.update((document) => ({
           ...document,
           profiles: replaceCatalogValue(document.profiles, (value) => value.connectionId, profile),
         })),
-      remove: Effect.fn("remove")((connectionId) =>
+      remove: (connectionId) =>
         catalog.update((document) => ({
           ...document,
           profiles: removeCatalogValue(
@@ -689,10 +689,9 @@ export const layer = Layer.effectContext(
             connectionId,
           ),
         })),
-      ),
     });
     const credentialStore = CredentialStore.make({
-      get: Effect.fn("get")((connectionId) =>
+      get: (connectionId) =>
         catalog.read.pipe(
           Effect.map((document) =>
             Option.fromUndefinedOr(
@@ -700,7 +699,6 @@ export const layer = Layer.effectContext(
             ),
           ),
         ),
-      ),
       put: (connectionId, credential) =>
         catalog.update((document) => ({
           ...document,
@@ -709,7 +707,7 @@ export const layer = Layer.effectContext(
             credential,
           }),
         })),
-      remove: Effect.fn("remove")((connectionId) =>
+      remove: (connectionId) =>
         catalog.update((document) => ({
           ...document,
           credentials: removeCatalogValue(
@@ -718,10 +716,9 @@ export const layer = Layer.effectContext(
             connectionId,
           ),
         })),
-      ),
     });
     const cacheStore = Persistence.EnvironmentCacheStore.of({
-      loadShell: Effect.fn("loadShell")((environmentId) =>
+      loadShell: (environmentId) =>
         readDatabaseValue(database, SHELL_STORE_NAME, environmentId).pipe(
           Effect.tap(() => Effect.promise(() => projectFaviconCache.hydrate())),
           Effect.flatMap((raw) => {
@@ -742,7 +739,6 @@ export const layer = Layer.effectContext(
           }),
           Effect.mapError((cause) => persistenceError("load-shell", cause)),
         ),
-      ),
       saveShell: Effect.fn("storage.saveShell")(
         function* (environmentId, snapshot) {
           const encoded = yield* encodeStoredShellSnapshot({
@@ -758,7 +754,7 @@ export const layer = Layer.effectContext(
             : persistenceError("save-shell", cause),
         ),
       ),
-      loadServerConfig: Effect.fn("loadServerConfig")((environmentId) =>
+      loadServerConfig: (environmentId) =>
         readDatabaseValue(database, SERVER_CONFIG_STORE_NAME, environmentId).pipe(
           Effect.flatMap((raw) => {
             if (typeof raw !== "string") {
@@ -777,7 +773,6 @@ export const layer = Layer.effectContext(
               : persistenceError("load-server-config", cause),
           ),
         ),
-      ),
       saveServerConfig: Effect.fn("storage.saveServerConfig")(
         function* (environmentId, config) {
           const encoded = yield* encodeStoredServerConfig({
@@ -793,7 +788,7 @@ export const layer = Layer.effectContext(
             : persistenceError("save-server-config", cause),
         ),
       ),
-      loadThread: Effect.fn("loadThread")((environmentId, threadId) =>
+      loadThread: (environmentId, threadId) =>
         readDatabaseValue(
           database,
           THREAD_STORE_NAME,
@@ -821,7 +816,6 @@ export const layer = Layer.effectContext(
           }),
           Effect.mapError((cause) => persistenceError("load-thread", cause)),
         ),
-      ),
       saveThread: Effect.fn("storage.saveThread")(
         function* (environmentId, snapshot) {
           const encoded = yield* encodeStoredThreadSnapshot({
@@ -843,7 +837,7 @@ export const layer = Layer.effectContext(
             : persistenceError("save-thread", cause),
         ),
       ),
-      loadVcsRefs: Effect.fn("loadVcsRefs")((environmentId, cwd) =>
+      loadVcsRefs: (environmentId, cwd) =>
         readDatabaseValue(database, VCS_REFS_STORE_NAME, vcsRefsCacheKey(environmentId, cwd)).pipe(
           Effect.flatMap((raw) => {
             if (typeof raw !== "string") {
@@ -864,7 +858,6 @@ export const layer = Layer.effectContext(
               : persistenceError("load-vcs-refs", cause),
           ),
         ),
-      ),
       saveVcsRefs: Effect.fn("storage.saveVcsRefs")(
         function* (environmentId, cwd, refs) {
           const encoded = yield* encodeStoredVcsRefs({
@@ -886,28 +879,25 @@ export const layer = Layer.effectContext(
             : persistenceError("save-vcs-refs", cause),
         ),
       ),
-      removeVcsRefs: Effect.fn("removeVcsRefs")((environmentId, cwd) =>
+      removeVcsRefs: (environmentId, cwd) =>
         removeDatabaseValue(
           database,
           VCS_REFS_STORE_NAME,
           vcsRefsCacheKey(environmentId, cwd),
         ).pipe(Effect.mapError((cause) => persistenceError("remove-vcs-refs", cause))),
-      ),
-      clearVcsRefs: Effect.fn("clearVcsRefs")((environmentId) =>
+      clearVcsRefs: (environmentId) =>
         removeDatabaseValuesInRange(
           database,
           VCS_REFS_STORE_NAME,
           IDBKeyRange.bound(`${environmentId}:`, `${environmentId}:\uffff`),
         ).pipe(Effect.mapError((cause) => persistenceError("clear-vcs-refs", cause))),
-      ),
-      removeThread: Effect.fn("removeThread")((environmentId, threadId) =>
+      removeThread: (environmentId, threadId) =>
         removeDatabaseValue(
           database,
           THREAD_STORE_NAME,
           threadCacheKey(environmentId, threadId),
         ).pipe(Effect.mapError((cause) => persistenceError("remove-thread", cause))),
-      ),
-      clear: Effect.fn("clear")((environmentId) =>
+      clear: (environmentId) =>
         Effect.all(
           [
             Effect.promise(() => projectFaviconCache.clearEnvironment(environmentId)),
@@ -926,11 +916,10 @@ export const layer = Layer.effectContext(
           ],
           { concurrency: "unbounded", discard: true },
         ).pipe(Effect.mapError((cause) => persistenceError("clear-environment", cause))),
-      ),
     });
 
     return Context.make(Persistence.ConnectionTargetStore, targetStore).pipe(
-      Context.add(PullRequestRoutingPermissions, pullRequestRoutingPermissions),
+      Context.add(GitHubRoutingPermissions, githubRoutingPermissions),
       Context.add(Persistence.ConnectionRegistrationStore, registrationStore),
       Context.add(ProfileStore.ConnectionProfileStore, profileStore),
       Context.add(CredentialStore.ConnectionCredentialStore, credentialStore),

@@ -14,8 +14,6 @@ export interface EnvironmentThreadState {
    * disconnect path.
    */
   readonly history: ThreadHistoryMeta;
-
-  readonly sequence: number;
 }
 
 export const EMPTY_ENVIRONMENT_THREAD_STATE: EnvironmentThreadState = {
@@ -23,16 +21,4 @@ export const EMPTY_ENVIRONMENT_THREAD_STATE: EnvironmentThreadState = {
   status: "empty",
   error: Option.none(),
   history: EMPTY_THREAD_HISTORY_META,
-  sequence: 0,
 };
-
-export function threadHasCaughtUpTo(
-  write: { readonly messageId: string; readonly sequence?: number | undefined },
-  thread: {
-    readonly sequence: number;
-    readonly messages: ReadonlyArray<{ readonly id: string }> | undefined;
-  },
-): boolean {
-  if (write.sequence !== undefined && thread.sequence >= write.sequence) return true;
-  return thread.messages?.some((entry) => entry.id === write.messageId) ?? false;
-}

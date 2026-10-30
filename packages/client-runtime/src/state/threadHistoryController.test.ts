@@ -7,12 +7,10 @@ import * as ThreadHistoryController from "./threadHistoryController.ts";
 const ENV = "env-history" as EnvironmentId;
 const THREAD = "thread-history" as ThreadId;
 
-function handler(tag: string): ThreadHistoryController.ThreadHistoryHandler & {
-  readonly tag: string;
-  readonly calls: number;
-  readonly workCalls: number;
-} {
-  const state = { tag, calls: 0, workCalls: 0 };
+function handler(
+  tag: string,
+): ThreadHistoryController.ThreadHistoryHandler & { readonly tag: string; readonly calls: number } {
+  const state = { tag, calls: 0 };
   return {
     get tag() {
       return state.tag;
@@ -20,20 +18,12 @@ function handler(tag: string): ThreadHistoryController.ThreadHistoryHandler & {
     get calls() {
       return state.calls;
     },
-    get workCalls() {
-      return state.workCalls;
-    },
     loadEarlier: () => {
       state.calls += 1;
       return Effect.succeed({
         _tag: "loaded",
       } satisfies ThreadHistoryController.ThreadHistoryLoadEarlierResult);
     },
-    expandWork: () => {
-      state.workCalls += 1;
-      return Effect.succeed({ _tag: "loaded" } as const);
-    },
-    reconcilePendingWork: () => Effect.void,
   };
 }
 
@@ -53,13 +43,9 @@ describe("ThreadHistoryController", () => {
       expect(result).toEqual({ _tag: "loaded" });
       expect(newer.calls).toBe(1);
       expect(older.calls).toBe(0);
-      expect(yield* controller.expandWork(ENV, THREAD, "anchor")).toEqual({ _tag: "loaded" });
-      expect(newer.workCalls).toBe(1);
-      expect(older.workCalls).toBe(0);
 
       yield* controller.unregister(newerRegistration);
       expect(yield* controller.loadEarlier(ENV, THREAD)).toEqual({ _tag: "noop" });
-      expect(yield* controller.expandWork(ENV, THREAD, "anchor")).toEqual({ _tag: "noop" });
     }).pipe(Effect.provide(ThreadHistoryController.layer)),
   );
 });

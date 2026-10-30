@@ -20,7 +20,6 @@ export function ThreadLinkPrompt({ threadRef }: { readonly threadRef: ScopedThre
     structuralSharing: true,
   });
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- places a ?prompt link into the composer once per location and strips it from the URL via the router
   useEffect(() => {
     if (!isThreadRoutePathname(location.pathname, threadRef)) return;
     if (!new URLSearchParams(location.search).has("prompt")) return;

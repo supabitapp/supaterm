@@ -123,21 +123,3 @@ Host videos can change in place. Their [HTTP
 responses](../../apps/server/src/http.ts) omit cache validators because file
 metadata cannot prove byte-for-byte identity for `If-Range`. Adding weak
 validators would turn native-player seeks into full downloads.
-
-## Route-specific WebSocket tickets
-
-RPC and media tickets name their audience. An RPC ticket bound to a proof key cannot open a
-media stream or be replayed with another key. Apply the proof and replay checks at upgrade,
-before RPC dispatch. Older clients keep the legacy ticket path; newer clients need a fallback
-when an older server lacks the audience-specific endpoint, including device media.
-
-## Guest isolation
-
-A guest session authorizes one shared thread through its restricted encrypted transport. It
-never becomes an owner RPC session. Expiry, revocation, archiving, and the environment's guest
-sharing setting apply to both subscriptions and file requests.
-
-Only owner-approved guest text enters the normal turn pipeline. Keep pending guest files and
-published assistant images scoped to their share. A path in Markdown is not permission to read
-an arbitrary host file. Guests do not receive file diffs; reasoning and command output remain
-part of the explicitly shared conversation.

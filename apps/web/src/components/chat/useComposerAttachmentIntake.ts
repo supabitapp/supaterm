@@ -1,8 +1,3 @@
-import {
-  addPreparingComposerImages,
-  isPreparingComposerImage,
-  removePreparingComposerImages,
-} from "./preparingComposerImages";
 import type { RefObject } from "react";
 import type { ChatComposerProps } from "./ChatComposer";
 import type { AttachmentExits } from "./composerAttachmentMotion";
@@ -23,7 +18,6 @@ import {
 } from "@supaterm/client-runtime/text-paste";
 import { useRef } from "react";
 import {
-  type ComposerThreadDraftState,
   type ComposerFileAttachment,
   type ComposerImageAttachment,
   type DraftId,
@@ -37,7 +31,6 @@ import {
 } from "@supaterm/client-runtime/state/attachments";
 import {
   classifyComposerAttachmentFile,
-  composerFileAttachmentMimeType,
   normalizeComposerImageFileMimeType,
 } from "./composerAttachmentFiles";
 import type { ComposerPromptEditorHandle } from "../ComposerPromptEditor";
@@ -50,6 +43,7 @@ import { fileContextReference, imageContextReference } from "~/lib/composerConte
 import { requestConfirmDialog } from "~/confirmDialog";
 import { isMacPlatform, randomUUID } from "~/lib/utils";
 import { toastManager } from "../ui/toast";
+import { videoMimeType } from "../../types";
 import type { PendingUserInput } from "../../session-logic";
 
 /**
@@ -58,10 +52,6 @@ import type { PendingUserInput } from "../../session-logic";
  * referenced image before its tile plays its exit.
  */
 export function useComposerAttachmentIntake(input: {
-  readonly readAttachments: () => Pick<
-    ComposerThreadDraftState,
-    "images" | "files" | "terminalContexts"
-  >;
   readonly activeThreadId: ChatComposerProps["activeThreadId"];
   readonly activePendingProgress: ChatComposerProps["activePendingProgress"];
   readonly activePendingIsResponding: boolean;
@@ -74,8 +64,11 @@ export function useComposerAttachmentIntake(input: {
   readonly attachmentTargetKey: string;
   readonly fileStagingLimit: number | null;
   readonly promptRef: ChatComposerProps["promptRef"];
+  readonly composerImagesRef: ChatComposerProps["composerImagesRef"];
+  readonly composerFilesRef: ChatComposerProps["composerFilesRef"];
   readonly composerEditorRef: RefObject<ComposerPromptEditorHandle | null>;
   readonly isRevertingCheckpointRef: RefObject<boolean>;
+  readonly pendingImageCompressionsRef: RefObject<Map<string, number>>;
   readonly setThreadError: ChatComposerProps["setThreadError"];
   readonly countReservedAttachments: () => number;
   readonly addComposerImage: (image: ComposerImageAttachment) => string[];
@@ -89,7 +82,6 @@ export function useComposerAttachmentIntake(input: {
   ) => boolean;
 }) {
   const {
-    readAttachments,
     activeThreadId,
     activePendingProgress,
     activePendingIsResponding,
@@ -102,8 +94,11 @@ export function useComposerAttachmentIntake(input: {
     attachmentTargetKey,
     fileStagingLimit,
     promptRef,
+    composerImagesRef,
+    composerFilesRef,
     composerEditorRef,
     isRevertingCheckpointRef,
+    pendingImageCompressionsRef,
     setThreadError,
     countReservedAttachments,
     addComposerImage,
@@ -152,13 +147,14 @@ export function useComposerAttachmentIntake(input: {
         stripInlineContextReferences(promptRef.current).trim().length > 0);
 
     // Validation happens synchronously so concurrent pastes see each other:
-    // accepted files reserve their attachment slots (as preparing images)
+    // accepted files reserve their attachment slots (via the pending counter)
     // before the first await, keeping the total under the limit.
+    const pendingCount = pendingImageCompressionsRef.current.get(attachmentTargetKey) ?? 0;
     let reservedCount = countReservedAttachments();
     // A pick that matches a needs-reattach marker replaces it in the draft, so
     // it must not consume a slot; a draft full of markers would otherwise hit
     // the capacity error before the replacement path could run.
-    const reattachMarkers = readAttachments().files.filter(composerFileNeedsReattach);
+    const reattachMarkers = composerFilesRef.current.filter(composerFileNeedsReattach);
     const replacedReattachMarkerIds = new Set<string>();
     const acceptedImages: File[] = [];
     const acceptedFiles: ComposerFileAttachment[] = [];
@@ -166,7 +162,10 @@ export function useComposerAttachmentIntake(input: {
     for (const file of files) {
       const attachmentKind = classifyComposerAttachmentFile(file);
       const fileMimeType =
-        attachmentKind === "file" ? composerFileAttachmentMimeType(file) : file.type;
+        attachmentKind === "file"
+          ? (videoMimeType({ name: file.name, mimeType: file.type }) ??
+            (file.type || "application/octet-stream"))
+          : file.type;
       const matchingReattachMarker =
         attachmentKind === "file"
           ? reattachMarkers.find(
@@ -246,88 +245,82 @@ export function useComposerAttachmentIntake(input: {
     }
     if (acceptedImages.length === 0) return insertedAny;
 
-    const preparingImages = acceptedImages.map((file) => ({
-      id: randomUUID(),
-      name: file.name || "image",
-      file,
-    }));
-    addPreparingComposerImages(attachmentTargetKey, preparingImages);
+    pendingImageCompressionsRef.current.set(
+      attachmentTargetKey,
+      pendingCount + acceptedImages.length,
+    );
     if (questionAttachmentTarget)
       changeQuestionAttachmentPreparation(questionAttachmentTarget, acceptedImages.length);
-    const compressed: { id: string; file: File }[] = [];
-    const compressionErrors = new Map<string, string>();
-    for (const { id, file } of preparingImages) {
-      if (!isPreparingComposerImage(attachmentTargetKey, id)) continue;
-      const result = await prepareImageForAttachment(
-        file,
-        PROVIDER_SEND_TURN_MAX_IMAGE_BYTES,
-      ).catch(() => ({ ok: false, reason: "unreadable" }) as const);
-      if (!result.ok) {
-        compressionErrors.set(
-          id,
-          result.reason === "unreadable"
-            ? `'${file.name}' could not be read as an image.`
-            : `'${file.name}' is too large to attach, even after compression.`,
+    const compressAndStoreImages = async () => {
+      const nextImages: ComposerImageAttachment[] = [];
+      let compressionError: string | null = null;
+      for (const file of acceptedImages) {
+        const compressed = await prepareImageForAttachment(
+          file,
+          PROVIDER_SEND_TURN_MAX_IMAGE_BYTES,
         );
-        continue;
+        if (!compressed.ok) {
+          compressionError =
+            compressed.reason === "unreadable"
+              ? `'${file.name}' could not be read as an image.`
+              : `'${file.name}' is too large to attach, even after compression.`;
+          continue;
+        }
+        const attachmentFile = compressed.file;
+        const previewUrl = URL.createObjectURL(attachmentFile);
+        nextImages.push({
+          type: "image",
+          id: randomUUID(),
+          name: attachmentFile.name || "image",
+          mimeType: attachmentFile.type,
+          sizeBytes: attachmentFile.size,
+          previewUrl,
+          file: attachmentFile,
+        });
       }
-      compressed.push({ id, file: result.file });
-    }
-    const questionDiscarded =
-      questionAttachmentTarget !== null &&
-      !useQuestionAttachmentPreparation.getState().counts[questionAttachmentTarget];
-    const stillPreparingIds = removePreparingComposerImages(
-      attachmentTargetKey,
-      new Set(preparingImages.map((image) => image.id)),
-    );
-    if (questionAttachmentTarget)
-      changeQuestionAttachmentPreparation(questionAttachmentTarget, -stillPreparingIds.size);
-    if (questionDiscarded) return false;
-    const nextImages: ComposerImageAttachment[] = [];
-    for (const { id, file } of compressed) {
-      if (!stillPreparingIds.has(id)) continue;
-      nextImages.push({
-        type: "image",
-        id,
-        name: file.name || "image",
-        mimeType: file.type,
-        sizeBytes: file.size,
-        previewUrl: URL.createObjectURL(file),
-        file,
-      });
-    }
-    const storedImageIds = new Set(
-      nextImages.length === 1 && nextImages[0]
-        ? addComposerImage(nextImages[0])
-        : nextImages.length > 1
-          ? addComposerImagesToDraft(nextImages)
-          : [],
-    );
-    const storedImages = nextImages.filter((image) => storedImageIds.has(image.id));
-    for (const image of nextImages) {
-      if (!storedImageIds.has(image.id)) URL.revokeObjectURL(image.previewUrl);
-    }
-    if (storedImages.length > 0 && imageAttachmentsGetChips) {
-      insertedAny =
-        insertAttachmentReferences(storedImages.map(imageContextReference)) || insertedAny;
-    }
-    let compressionError: string | undefined;
-    for (const [id, message] of compressionErrors) {
-      if (stillPreparingIds.has(id)) compressionError = message;
-    }
-    if (compressionError !== undefined) {
-      setThreadError(threadId, compressionError);
-    }
-    return insertedAny;
+      if (
+        questionAttachmentTarget &&
+        !useQuestionAttachmentPreparation.getState().counts[questionAttachmentTarget]
+      ) {
+        for (const image of nextImages) URL.revokeObjectURL(image.previewUrl);
+        return false;
+      }
+      const storedImageIds = new Set(
+        nextImages.length === 1 && nextImages[0]
+          ? addComposerImage(nextImages[0])
+          : nextImages.length > 1
+            ? addComposerImagesToDraft(nextImages)
+            : [],
+      );
+      const storedImages = nextImages.filter((image) => storedImageIds.has(image.id));
+      const insertedImageReferences =
+        storedImages.length > 0 &&
+        imageAttachmentsGetChips &&
+        insertAttachmentReferences(storedImages.map(imageContextReference));
+      // Only failures are reported here. Success must not pass `null`: by
+      // now other work (a failed send, an overlapping paste) may have set a
+      // thread error this call knows nothing about, and clearing it would
+      // swallow that message.
+      if (compressionError !== null) {
+        setThreadError(threadId, compressionError);
+      }
+      return insertedImageReferences || insertedAny;
+    };
+    return compressAndStoreImages().finally(() => {
+      if (questionAttachmentTarget)
+        changeQuestionAttachmentPreparation(questionAttachmentTarget, -acceptedImages.length);
+      const remaining =
+        (pendingImageCompressionsRef.current.get(attachmentTargetKey) ?? 0) - acceptedImages.length;
+      if (remaining > 0) {
+        pendingImageCompressionsRef.current.set(attachmentTargetKey, remaining);
+      } else {
+        pendingImageCompressionsRef.current.delete(attachmentTargetKey);
+      }
+    });
   };
 
   const removeComposerImage = (imageId: string) => {
-    if (removePreparingComposerImages(attachmentTargetKey, new Set([imageId])).size > 0) {
-      if (questionAttachmentTarget)
-        changeQuestionAttachmentPreparation(questionAttachmentTarget, -1);
-      return;
-    }
-    const image = readAttachments().images.find((candidate) => candidate.id === imageId);
+    const image = composerImagesRef.current.find((candidate) => candidate.id === imageId);
     const remove = () => exitImage(imageId, () => removeComposerImageFromDraft(imageId));
     const referenced = collectInlineContextIds(promptRef.current).includes(
       image ? imageContextReference(image).contextId : "",
@@ -401,7 +394,7 @@ export function useComposerAttachmentIntake(input: {
       pastedTextFileNamesRef.current = { targetKey: attachmentTargetKey, names: new Set() };
     }
     const reservedNames = pastedTextFileNamesRef.current.names;
-    for (const file of readAttachments().files) reservedNames.add(file.name);
+    for (const file of composerFilesRef.current) reservedNames.add(file.name);
     const foldedFileName = nextPastedTextFileName([...reservedNames]);
     reservedNames.add(foldedFileName);
     const foldedFile = new File([plainText], foldedFileName, {

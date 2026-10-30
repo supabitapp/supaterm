@@ -205,19 +205,17 @@ export const UpdatePullRequest = GraphQL.mutation("UpdatePullRequest", {
     variables: [
       { name: "pullRequestId", body: "ID!" },
       { name: "title", body: "String" },
-      { name: "body", body: "String" },
-      { name: "maintainerCanModify", body: "Boolean" }
+      { name: "body", body: "String" }
     ],
     selections: [
-      { name: "updatePullRequest", body: ["(input:{pullRequestId:$", "pullRequestId", " title:$", "title", " body:$", "body", " maintainerCanModify:$", "maintainerCanModify", "}){pullRequest{id}}"] }
+      { name: "updatePullRequest", body: ["(input:{pullRequestId:$", "pullRequestId", " title:$", "title", " body:$", "body", "}){pullRequest{id}}"] }
     ],
     fragments: []
   },
   variables: {
     pullRequestId: Shared.ID,
     title: Schema.optional(Schema.NullOr(Schema.String)),
-    body: Schema.optional(Schema.NullOr(Schema.String)),
-    maintainerCanModify: Schema.optional(Schema.NullOr(Schema.Boolean))
+    body: Schema.optional(Schema.NullOr(Schema.String))
   },
   result: Schema.Struct({
     /** Update a pull request */

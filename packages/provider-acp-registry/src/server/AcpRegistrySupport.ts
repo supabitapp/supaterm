@@ -55,7 +55,6 @@ const MAX_PACKAGE_MANIFEST_BYTES = 1024 * 1024;
 // Older clients omit the limit and validate responses against a 20-agent cap.
 const DEFAULT_SEARCH_LIMIT = 20;
 const REGISTRY_REQUEST_TIMEOUT = "30 seconds";
-const REGISTRY_SEARCH_MAX_AGE_MS = 5 * 60 * 1_000;
 const ARCHIVE_REQUEST_TIMEOUT = "20 minutes";
 const PACKAGE_INSTALL_TIMEOUT = "20 minutes";
 const PACKAGE_QUERY_TIMEOUT = "30 seconds";
@@ -246,6 +245,8 @@ function resolveAcpRegistryPlatformTargetCandidates(
   platformTarget: AcpRegistryPlatformTarget | undefined,
 ): ReadonlyArray<AcpRegistryPlatformTarget> {
   if (platformTarget === undefined) return [];
+  // Windows 11 on ARM executes windows-x86_64 binaries under Prism emulation
+  // when an agent does not publish a native windows-aarch64 binary.
   if (platformTarget === "windows-aarch64") {
     return ["windows-aarch64", "windows-x86_64"];
   }
@@ -659,7 +660,6 @@ export const makeAcpRegistryCatalog = Effect.fn("AcpRegistryCatalog.make")(funct
       : path.join(packageInstallRoot(agent, distribution), "bin");
   const packageReceiptsDirectory = path.join(registryDirectory, "package-installs");
   const registryRef = yield* Ref.make<AcpRegistryIndex | undefined>(undefined);
-  const registryFetchedAtMs = yield* Ref.make<number | undefined>(undefined);
   const registryRevision = yield* Ref.make(0);
   const registrySemaphore = yield* Semaphore.make(1);
   const installSemaphore = yield* Semaphore.make(1);
@@ -673,6 +673,9 @@ export const makeAcpRegistryCatalog = Effect.fn("AcpRegistryCatalog.make")(funct
     const target = path.isAbsolute(linkedTarget.value)
       ? linkedTarget.value
       : path.resolve(path.dirname(runner), linkedTarget.value);
+    // Some service installs expose npm/uv through a wrapper symlink into the
+    // actual toolchain bin directory. Do not mistake npm's internal
+    // `npm-cli.js` directory for the global command directory.
     return path.basename(target) === path.basename(runner)
       ? path.dirname(target)
       : path.dirname(runner);
@@ -848,40 +851,23 @@ export const makeAcpRegistryCatalog = Effect.fn("AcpRegistryCatalog.make")(funct
         const current = yield* Ref.get(registryRef);
         if (current !== undefined && currentRevision !== observedRevision) return current;
 
-        const { registry, fetched } = yield* fetchRegistry().pipe(
-          Effect.map((registry) => ({ registry, fetched: true })),
+        const registry = yield* fetchRegistry().pipe(
           Effect.catch((networkError) =>
             readCachedRegistry.pipe(
               Effect.flatMap(
                 Option.match({
                   onNone: () => Effect.fail(networkError),
-                  onSome: (registry) => Effect.succeed({ registry, fetched: false }),
+                  onSome: Effect.succeed,
                 }),
               ),
             ),
           ),
         );
         yield* Ref.set(registryRef, registry);
-        yield* Ref.set(registryFetchedAtMs, fetched ? yield* Clock.currentTimeMillis : undefined);
         yield* Ref.update(registryRevision, (revision) => revision + 1);
         return registry;
       }),
     );
-  });
-
-  const recentRegistry = Effect.fn("AcpRegistryCatalog.recentRegistry")(function* () {
-    const current = yield* Ref.get(registryRef);
-    const fetchedAtMs = yield* Ref.get(registryFetchedAtMs);
-    const now = yield* Clock.currentTimeMillis;
-    if (
-      current !== undefined &&
-      fetchedAtMs !== undefined &&
-      now >= fetchedAtMs &&
-      now - fetchedAtMs < REGISTRY_SEARCH_MAX_AGE_MS
-    ) {
-      return current;
-    }
-    return yield* refreshRegistry();
   });
 
   const loadCachedRegistry = Effect.fn("AcpRegistryCatalog.loadCachedRegistry")(function* () {
@@ -941,6 +927,8 @@ export const makeAcpRegistryCatalog = Effect.fn("AcpRegistryCatalog.make")(funct
           detail: `ACP Registry install command '${command}' exited with code ${Number(exitCode)}: ${stderr.text.trim()}`,
         });
       }
+      // Archive listings feed validateArchiveEntries; a truncated listing would let
+      // unvalidated entries past the traversal check, so oversized output is fatal.
       if (stdout.truncated) {
         return yield* new AcpRegistryError({
           reason: options.truncatedOutputReason ?? "archive_invalid",
@@ -1310,9 +1298,8 @@ export const makeAcpRegistryCatalog = Effect.fn("AcpRegistryCatalog.make")(funct
     for (let attempt = 0; attempt < INSTALL_LOCK_RETRY_COUNT; attempt += 1) {
       const acquired = yield* fileSystem.writeFileString(lockPath, "", { flag: "wx" }).pipe(
         Effect.as(true),
-        Effect.catchIf(
-          (error) => isAlreadyExists(error),
-          () => Effect.succeed(false),
+        Effect.catch((error) =>
+          isAlreadyExists(error) ? Effect.succeed(false) : Effect.fail(error),
         ),
       );
       if (acquired) return;
@@ -1459,6 +1446,8 @@ export const makeAcpRegistryCatalog = Effect.fn("AcpRegistryCatalog.make")(funct
             ),
         }),
       );
+      // Hash while streaming: archives can be up to MAX_ARCHIVE_BYTES, and
+      // Effect's Crypto only digests a whole buffer.
       const hash = sha256.create();
       let downloadedBytes = 0;
       yield* response.stream.pipe(
@@ -1604,7 +1593,7 @@ export const makeAcpRegistryCatalog = Effect.fn("AcpRegistryCatalog.make")(funct
 
   const search: AcpRegistryCatalog["Service"]["search"] = Effect.fn("AcpRegistryCatalog.search")(
     function* (input) {
-      const registry = yield* recentRegistry();
+      const registry = yield* refreshRegistry();
       const ranked = registry.agents.flatMap((agent) => {
         const distribution = resolveAcpRegistryDistribution({
           agent,
@@ -1655,6 +1644,8 @@ export const makeAcpRegistryCatalog = Effect.fn("AcpRegistryCatalog.make")(funct
       const agent = yield* findAgent(registry, input.agentId);
       const distribution = yield* compatibleDistribution(agent, "auto");
       if (distribution.kind === "binary") {
+        // A PATH executable can be a different version with different ACP
+        // capabilities. Only an explicit command override opts into that copy.
         yield* installSemaphore.withPermits(1)(
           installBinary(agent, distribution.binaryTarget!).pipe(
             Effect.tap(() => reservePreparedBinary(agent.id)),

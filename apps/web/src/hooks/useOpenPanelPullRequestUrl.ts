@@ -5,7 +5,7 @@ import {
   readPullRequestDetailSnapshot,
   resolvePullRequestReferenceHost,
 } from "../components/pullRequest/pullRequestDetail.logic";
-import { projectChangeRequestUrl } from "@supaterm/client-runtime/change-request-links";
+import { gitHubPullRequestBrowserUrl } from "../lib/openPullRequestLink";
 import { selectActiveRightPanelSurface, useRightPanelStore } from "../rightPanelStore";
 import { useProject } from "../state/entities";
 import { pullRequestEnvironment } from "../state/pullRequests";
@@ -59,7 +59,11 @@ export function useOpenPanelPullRequestUrl(threadRef: ScopedThreadRef | null) {
       : null;
   const fallbackUrl = reference
     ? (requestedReference?.url ??
-      projectChangeRequestUrl(project?.repositoryIdentity, reference.repository, reference.number))
+      gitHubPullRequestBrowserUrl(
+        project?.repositoryIdentity,
+        reference.repository,
+        reference.number,
+      ))
     : undefined;
   const detail = useEnvironmentQuery(
     reference && environmentId

@@ -1,54 +1,52 @@
-import type { ReferenceAutolink } from "@supaterm/client-runtime/source-control-clients";
+import {
+  findAndReplaceText,
+  type MarkdownNode,
+  type TextMatch,
+} from "~/vendor/mdast-find-and-replace";
 
 export {
   splitPullRequestBody,
   type PullRequestBodySegment,
 } from "@supaterm/client-runtime/pull-request-markdown";
 
-type MarkdownNode = {
-  type: string;
-  value?: string;
-  children?: MarkdownNode[];
-  url?: string;
-  data?: unknown;
-};
-
+const AUTOLINK_CANDIDATE_PATTERN = /#[1-9]\d*|[0-9a-f]{40}/giu;
+const AUTOLINK_WORD_CHARACTER_PATTERN = /[A-Za-z0-9_]/u;
+const AUTOLINK_COMMIT_PREFIX_PATTERN = /[\s([{]/u;
 const AUTOLINK_IGNORED_TYPES = new Set(["link", "linkReference"]);
 
-export function remarkPullRequestAutolinks(options: {
-  readonly autolinks: (text: string) => ReadonlyArray<ReferenceAutolink>;
-}) {
-  const visit = (node: MarkdownNode): void => {
-    const children = node.children;
-    if (children === undefined) return;
-    for (let index = 0; index < children.length; index += 1) {
-      const child = children[index]!;
-      if (AUTOLINK_IGNORED_TYPES.has(child.type)) continue;
-      if (child.type !== "text" || child.value === undefined) {
-        visit(child);
-        continue;
-      }
-      const value = child.value;
-      const links = options.autolinks(value);
-      if (links.length === 0) continue;
-      const replacements: MarkdownNode[] = [];
-      let start = 0;
-      for (const link of links) {
-        if (start < link.index) {
-          replacements.push({ type: "text", value: value.slice(start, link.index) });
+export function remarkPullRequestAutolinks(options: { readonly repositoryUrl: string }) {
+  const repositoryUrl = options.repositoryUrl.replace(/\/+$/u, "");
+  return (tree: MarkdownNode) => {
+    findAndReplaceText(
+      tree,
+      AUTOLINK_CANDIDATE_PATTERN,
+      (matched: string, match: TextMatch) => {
+        const reference = matched.startsWith("#");
+        const before = match.input[match.index - 1];
+        const after = match.input[match.index + matched.length];
+        if (
+          (before !== undefined &&
+            (reference
+              ? AUTOLINK_WORD_CHARACTER_PATTERN.test(before)
+              : !AUTOLINK_COMMIT_PREFIX_PATTERN.test(before))) ||
+          (after !== undefined && AUTOLINK_WORD_CHARACTER_PATTERN.test(after))
+        ) {
+          return false;
         }
-        replacements.push({
+        return {
           type: "link",
-          url: link.url,
-          data: { hProperties: { dataPullRequestAutolink: link.kind } },
-          children: [{ type: "text", value: link.label }],
-        });
-        start = link.index + link.text.length;
-      }
-      if (start < value.length) replacements.push({ type: "text", value: value.slice(start) });
-      children.splice(index, 1, ...replacements);
-      index += replacements.length - 1;
-    }
+          url: reference
+            ? `${repositoryUrl}/issues/${matched.slice(1)}`
+            : `${repositoryUrl}/commit/${matched}`,
+          data: {
+            hProperties: {
+              dataPullRequestAutolink: reference ? "reference" : "commit",
+            },
+          },
+          children: [{ type: "text", value: reference ? matched : matched.slice(0, 7) }],
+        };
+      },
+      AUTOLINK_IGNORED_TYPES,
+    );
   };
-  return (tree: MarkdownNode) => visit(tree);
 }

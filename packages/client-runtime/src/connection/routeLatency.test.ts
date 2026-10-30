@@ -218,17 +218,10 @@ function relayRoute(relayUrl?: string): ConnectionRoute {
 const checkRoute = (route: ConnectionRoute) =>
   Effect.gen(function* () {
     const driver = yield* Driver.make;
-    const result = yield* driver.preflight({ ...route, enabled: true }, route);
-    return result._tag === "unprepared" || result._tag === "ready" ? "answered" : result._tag;
+    return yield* driver.checkRoute({ ...route, enabled: true }, route);
   }).pipe(
     Effect.provideService(Resolver.ConnectionResolver, {
-      prepare: () =>
-        Effect.fail(
-          new ConnectionTransientError({
-            reason: "transport",
-            detail: "No authorization in reachability test",
-          }),
-        ),
+      prepare: () => Effect.die("Unexpected authenticated preparation"),
       prepareForUpdate: () => Effect.die("Unexpected update preparation"),
     }),
     Effect.provideService(RpcSession.RpcSessionFactory, {

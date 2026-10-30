@@ -1,21 +1,15 @@
-import {
-  NavigationContext,
-  NavigationRouteContext,
-  type ParamListBase,
-} from "@react-navigation/native";
+import { useNavigation, type ParamListBase } from "@react-navigation/native";
 import type {
   NativeStackNavigationOptions,
   NativeStackNavigationProp,
 } from "@react-navigation/native-stack";
 import { isValidElement, use, useEffect, useLayoutEffect, useMemo, useRef } from "react";
-import {
-  NativeWorkspaceTabActivityContext,
-  WorkspaceSlotOptionsContext,
-} from "./v5-workspace-context";
+import { NativeWorkspaceTabActivityContext } from "./v5-workspace-context";
 import type { ColorValue } from "react-native";
 
 export {
   nativeHeaderScrollEdgeEffects,
+  nativeTopScrollEdgeEffect,
   type NativeHeaderScrollEdgeEffects,
   type NativeTopScrollEdgeEffect,
 } from "./scrollEdgeEffects";
@@ -32,12 +26,10 @@ export type AppNativeStackNavigationOptions = Omit<
   readonly unstable_headerSubtitle?: unknown;
   readonly unstable_headerToolbarItems?: unknown;
   readonly unstable_navigationItemStyle?: unknown;
-  readonly unstable_headerMinimizationBehavior?: unknown;
 };
 
 function useNativeStackNavigation(): NativeStackNavigationProp<ParamListBase> | null {
-  const navigation = use(NavigationContext);
-  return navigation ? (navigation as NativeStackNavigationProp<ParamListBase>) : null;
+  return useNavigation<NativeStackNavigationProp<ParamListBase>>();
 }
 
 function normalizeScreenOptions(
@@ -61,6 +53,10 @@ function normalizeScreenOptions(
   return normalized as NativeStackNavigationOptions;
 }
 
+// React tags elements, component types and contexts with `$$typeof`; their other
+// fields are React internals. In development an element's `_owner` is a fiber that
+// reaches the whole tree, including contexts that hold their default value outside
+// render, and React Navigation's NavigationStateContext default throws when read.
 function isReactObject(value: object): boolean {
   return "$$typeof" in value;
 }
@@ -90,6 +86,9 @@ function optionsSignature(value: unknown, seen = new WeakSet<object>()): string 
     case "undefined":
       return "undefined";
     case "function":
+      // Header factories are frequently recreated inline. Their source is
+      // stable across equivalent renders, while a reference comparison would
+      // make navigation.setOptions re-enter the navigator indefinitely.
       return `function:${Function.prototype.toString.call(value)}`;
     case "symbol":
       return `symbol:${String(value)}`;
@@ -98,6 +97,7 @@ function optionsSignature(value: unknown, seen = new WeakSet<object>()): string 
     case "object": {
       const object = value as object;
       if (isValidElement(object)) {
+        // Elements are recreated on every render, so compare what they render.
         return `element:${identitySignature(object.type)}:${String(object.key)}:${optionsSignature(object.props, seen)}`;
       }
       if (isReactObject(object)) return identitySignature(object);
@@ -109,7 +109,8 @@ function optionsSignature(value: unknown, seen = new WeakSet<object>()): string 
       if (Array.isArray(value)) {
         return `[${value.map((entry) => optionsSignature(entry, seen)).join(",")}]`;
       }
-
+      // React refs carry mutable native instances that must not make static
+      // screen options appear different after every render.
       if ("current" in object) return "[ref]";
       return `{${Object.keys(value as Record<string, unknown>)
         .sort()
@@ -162,59 +163,49 @@ function stabilizeOptionFunctions(
   return value;
 }
 
-export function useScreenOptionsWriter() {
-  const navigation = useNativeStackNavigation();
-  const setSlotOptions = use(WorkspaceSlotOptionsContext)?.set;
-  const routeKey = use(NavigationRouteContext)?.key;
-  return useMemo(() => {
-    if (setSlotOptions && routeKey !== undefined)
-      return (options: NativeStackNavigationOptions) => setSlotOptions(routeKey, options);
-    return navigation
-      ? (options: NativeStackNavigationOptions) => navigation.setOptions(options)
-      : null;
-  }, [navigation, routeKey, setSlotOptions]);
-}
-
 export function NativeStackScreenOptions(props: {
   readonly options?: AppNativeStackNavigationOptions;
-
+  /**
+   * Causes dynamic native header factories to be reapplied when their closed-over
+   * menu content changes. Factory functions are intentionally stabilized, so
+   * their source alone cannot capture a menu that was initially empty while
+   * asynchronous data was loading.
+   */
   readonly optionsVersion?: unknown;
   readonly listeners?: Record<string, (event: never) => void>;
   readonly name?: string;
 }) {
   const navigation = useNativeStackNavigation();
-  const setOptions = useScreenOptionsWriter();
   const tabActive = use(NativeWorkspaceTabActivityContext)?.active ?? true;
   const lastAppliedOptionsSignatureRef = useRef<string | undefined>(undefined);
   const latestOptionFunctionsRef = useRef(new Map<string, (...args: unknown[]) => unknown>());
   const optionFunctionWrappersRef = useRef(new Map<string, (...args: unknown[]) => unknown>());
+  const normalizedOptions = useMemo(() => normalizeScreenOptions(props.options), [props.options]);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- writes stabilized header options to the navigator after commit so discarded renders leave no closures
   useLayoutEffect(() => {
-    const normalizedOptions = normalizeScreenOptions(props.options);
-    const stableOptions = normalizedOptions
-      ? stabilizeOptionFunctions(
-          normalizedOptions,
-          "options",
-          latestOptionFunctionsRef.current,
-          optionFunctionWrappersRef.current,
-        )
-      : undefined;
     if (!tabActive) {
       lastAppliedOptionsSignatureRef.current = undefined;
       return;
     }
-    if (!setOptions || !normalizedOptions) {
+    if (!navigation || !normalizedOptions) {
       return;
     }
+    const stableOptions = stabilizeOptionFunctions(
+      normalizedOptions,
+      "options",
+      latestOptionFunctionsRef.current,
+      optionFunctionWrappersRef.current,
+    ) as NativeStackNavigationOptions;
     const signature = optionsSignature([stableOptions, props.optionsVersion]);
     if (lastAppliedOptionsSignatureRef.current === signature) {
       return;
     }
     lastAppliedOptionsSignatureRef.current = signature;
-
+    // React Navigation keeps a screen's descriptor while its options are shallowly equal. The
+    // stabilized factories keep their identity, so one whose output changed needs a new wrapper
+    // to reach the header.
     optionFunctionWrappersRef.current = new Map();
-    setOptions(
+    navigation.setOptions(
       stabilizeOptionFunctions(
         normalizedOptions,
         "options",
@@ -222,9 +213,8 @@ export function NativeStackScreenOptions(props: {
         optionFunctionWrappersRef.current,
       ) as NativeStackNavigationOptions,
     );
-  }, [setOptions, props.options, props.optionsVersion, tabActive]);
+  }, [navigation, normalizedOptions, props.optionsVersion, tabActive]);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes the given listeners to navigator events for the screen's lifetime
   useEffect(() => {
     if (!navigation || !props.listeners) {
       return;

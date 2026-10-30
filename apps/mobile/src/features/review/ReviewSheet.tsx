@@ -8,7 +8,14 @@ import type { AppBarMenuItem } from "../../components/ui/AppBar.types";
 import type { ReviewSectionItem } from "./reviewModel";
 import { useReviewHeaderPresentation } from "./useReviewHeaderPresentation";
 import { Screen, ScreenStack, ScreenStackHeaderConfig } from "react-native-screens";
-import { type Ref, type ReactElement, useImperativeHandle, useRef, useState } from "react";
+import {
+  type Ref,
+  type ReactElement,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import {
   FlatList,
   Platform,
@@ -59,7 +66,6 @@ import { resolveReviewAvailability } from "./reviewAvailability";
 import { resolveSelectedReviewFileId } from "./reviewPaneSelection";
 import { buildReviewSectionMenu } from "./review-section-menu";
 import { reportShowcaseSceneRendered } from "../showcase/showcaseRenderSignal";
-import { useSelectWorkspaceDetail } from "../workspace/useSelectWorkspaceDetail";
 
 function ReviewHeader(
   props: Parameters<typeof useReviewHeaderPresentation>[0] & {
@@ -417,6 +423,14 @@ function ReviewFileNavigator({
   );
 }
 
+function RevealInspectorPane() {
+  const { showAuxiliaryPane } = useAdaptiveWorkspaceLayout();
+  useEffect(() => {
+    showAuxiliaryPane("inspector");
+  }, [showAuxiliaryPane]);
+  return null;
+}
+
 type ReviewSheetProps = StaticScreenProps<{
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
@@ -427,7 +441,6 @@ export function ReviewSheet(props: ReviewSheetProps) {
   useAdaptiveWorkspacePaneRole("inspector");
   const { panes } = useAdaptiveWorkspaceLayout();
   const navigation = useNavigation();
-  const selectDetail = useSelectWorkspaceDetail();
   const insets = useSafeAreaInsets();
   const { themeAppearance: selectedTheme } = useAppearancePreferences();
   const headerIcon = String(useUniwindTheme()["--color-icon"]);
@@ -451,6 +464,7 @@ export function ReviewSheet(props: ReviewSheetProps) {
     refreshSelectedSection,
     selectSection,
     isSelectedSectionPending,
+    diffPreviewRevision,
   } = useReviewSections({
     enabled: isEnvironmentReady,
     environmentId,
@@ -474,9 +488,13 @@ export function ReviewSheet(props: ReviewSheetProps) {
     environmentId,
     cwd: selectedThreadCwd,
     selectedSection,
+    revision: diffPreviewRevision,
     draftMessage,
   });
-
+  // Resolution returns null while Expo registers the native view (or forever
+  // when the binary lacks it). Rendering a null component type crashes the
+  // app, so callers must fall back — ThreadFeed's ReviewCommentCard does the
+  // same check.
   const [NativeReviewDiffView] = useState(() => resolveNativeReviewDiffView());
   const nativeReviewDiffViewRef = useRef<NativeReviewDiffViewHandle>(null);
   const showcasedReviewDrawRef = useRef<string | null>(null);
@@ -599,9 +617,9 @@ export function ReviewSheet(props: ReviewSheetProps) {
       navigation.goBack();
       return;
     }
-    selectDetail({
-      name: "Thread",
-      params: { environmentId: String(environmentId), threadId: String(threadId) },
+    navigation.navigate("Thread", {
+      environmentId: String(environmentId),
+      threadId: String(threadId),
     });
   };
   const androidHeaderSubtitle = [
@@ -661,6 +679,7 @@ export function ReviewSheet(props: ReviewSheetProps) {
 
   return (
     <>
+      <RevealInspectorPane key={`${environmentId}:${threadId}`} />
       <ReviewHeader
         environmentId={environmentId}
         threadId={threadId}
@@ -757,6 +776,10 @@ export function ReviewSheet(props: ReviewSheetProps) {
               showsVerticalScrollIndicator={false}
               className="flex-1"
               refreshControl={
+                // The native diff surface owns pull-to-refresh via onPullToRefresh;
+                // the raw fallback (and empty states) need an explicit control —
+                // iOS has no other refresh affordance here (the explicit
+                // "Refresh current diff" menu is Android-only).
                 <RefreshControl
                   refreshing={isPullRefreshing || isSelectedSectionPending || areFilePatchesPending}
                   onRefresh={() => void handlePullToRefresh()}

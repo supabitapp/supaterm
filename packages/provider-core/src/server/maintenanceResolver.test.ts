@@ -36,6 +36,8 @@ import {
 import { symlinksSupported } from "@supaterm/shared/testing/symlinks";
 
 const driver = (value: string) => ProviderDriverKind.make(value);
+// These write `#!/bin/sh` stubs and evaluate them with darwin/linux path
+// semantics; a Windows temp path cannot be split on `:`.
 const windowsHost = HostProcess.Platform.defaultValue() === "win32";
 const makeTempDir = (name: string) =>
   Crypto.Crypto.pipe(
@@ -331,38 +333,10 @@ it.layer(NodeServices.layer)("providerMaintenance", (it) => {
     ).toBeNull();
   });
 
-  it.effect("resolves native update environment from the executable owning home", () =>
-    Effect.gen(function* () {
-      const real = "/home/owner/.codex/packages/standalone/release/bin/codex";
-      const visible = "/home/account/.local/bin/codex";
-      const capabilities = yield* resolvePackageManagedProviderMaintenance(
-        {
-          provider: driver("codex"),
-          npmPackageName: "@openai/codex",
-          nativeUpdate: {
-            args: ["update"],
-            isCommandPath: () => true,
-            env: (context) => ({
-              CODEX_HOME: context.realCommandPath,
-              COMMAND: context.resolvedCommandPath,
-            }),
-          },
-        },
-        {
-          binaryPath: "codex",
-          resolvedCommandPath: visible,
-          realCommandPath: real,
-          env: {},
-          platform: "linux",
-        },
-      ).pipe(Effect.provideService(HostProcess.Platform, "linux"));
-      expect(capabilities.update).toMatchObject({
-        executable: visible,
-        env: { CODEX_HOME: real, COMMAND: visible },
-      });
-    }),
-  );
-
+  // The Codex Windows installer exposes `%LOCALAPPDATA%\\Programs\\OpenAI\\Codex\\bin`
+  // as a junction into `%CODEX_HOME%\\packages\\standalone\\current\\bin`. Node's
+  // realpath follows junctions, so the real path carries the standalone marker
+  // even though the visible path does not.
   it.effect("recognizes a Windows standalone install through its junctioned bin dir", () =>
     Effect.gen(function* () {
       const visiblePath =
@@ -836,6 +810,7 @@ it.layer(NodeServices.layer)("providerMaintenance", (it) => {
     "prefers npm ownership over the Node keg the package lives under",
     () =>
       Effect.gen(function* () {
+        // `brew install node` keeps npm globals inside the node keg.
         const tempDir = yield* makeTempDir("supaterm-homebrew-node-capabilities");
         const keg = NodePath.join(tempDir, "Cellar", "node", "22.1.0");
         const target = NodePath.join(
@@ -930,6 +905,7 @@ it.layer(NodeServices.layer)("providerMaintenance", (it) => {
       name: "codex",
       prefix: "/usr/local",
     });
+    // A plain /usr/local/bin binary is not evidence of Homebrew (#8832).
     expect(homebrewOwnershipFromCommandPath("/usr/local/bin/codex")).toBeNull();
     expect(homebrewOwnershipFromCommandPath("/srv/Cellar/claude/1.0.0/bin/claude")).toMatchObject({
       prefix: "/srv",

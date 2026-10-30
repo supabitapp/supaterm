@@ -1,5 +1,3 @@
-// @effect-diagnostics-next-line nodeBuiltinImport:off -- Vite config runs before any Effect runtime.
-import * as NodeFSP from "node:fs/promises";
 import * as NodeZlib from "node:zlib";
 
 import react from "@vitejs/plugin-react";
@@ -11,7 +9,6 @@ import "vite-plus/test/config";
 import { defineConfig, type Connect, type Plugin } from "vite-plus";
 import * as Hash from "effect/Hash";
 import pkg from "./package.json" with { type: "json" };
-import pdfjsPkg from "pdfjs-dist/package.json" with { type: "json" };
 
 import {
   DEV_PROXIED_ORIGIN_PRESERVING_PREFIXES,
@@ -25,7 +22,10 @@ import { warmBundledDevPlugin } from "./vite/warmBundledDev";
 
 Object.assign(process.env, loadRepoEnv());
 
-// Signal single-origin dev explicitly; loadRepoEnv can restore deleted URL keys from .env.
+// Single-origin dev is signalled positively, because it cannot be inferred from
+// the absence of VITE_HTTP_URL/VITE_WS_URL: the runner deletes those keys but
+// `loadRepoEnv` merges `.env`/`.env.local` *underneath* the process env, so a
+// developer with either URL in their `.env` gets it back here.
 const isSingleOriginDev = process.env.SUPATERM_SINGLE_ORIGIN_DEV === "1";
 
 const port = Number(process.env.PORT ?? 5733);
@@ -71,7 +71,12 @@ const unitTestProject = {
   },
 } satisfies TestProjectInlineConfiguration;
 
-// Hash checkout paths to ports 61000-64999; Vitest's fixed port collides under inherited strictPort.
+// Anything that renders React or touches the DOM is named *.browser.test.{ts,tsx} and runs
+// in headless Chromium through the same plugins as the app, so it exercises compiled code.
+// Vitest's fixed browser API port (63315) collides when two checkouts run
+// browser tests at once, and `server.strictPort` above is inherited, so the
+// second run fails instead of moving on. Hash the checkout path like
+// scripts/dev-runner.ts does, into 61000-64999 (above Linux's ephemeral range).
 const browserTestApiPort = 61_000 + ((Hash.string(import.meta.dirname) >>> 0) % 4_000);
 
 const browserTestProject = {
@@ -79,28 +84,7 @@ const browserTestProject = {
   // Pre-bundled so a late first import does not trigger a mid-run reload. The
   // dependency scan misses autocomplete because tests reach it only through lazy imports.
   optimizeDeps: {
-    include: [
-      "vite-plus/test/browser",
-      "@base-ui/react/autocomplete",
-      "@supaterm/mermaid > pele",
-      "saxes",
-      "@betteroffice/docx/editor",
-      "@betteroffice/docx/layout",
-      "@betteroffice/docx/layout/render",
-      "@betteroffice/docx/yrs",
-      "@betteroffice/fonts",
-      "@betteroffice/pptx",
-      "@betteroffice/xlsx",
-      "@betteroffice/xlsx/headless",
-      "fast-xml-parser",
-      "entities",
-      "dompurify",
-      "heic-to/next",
-      "jszip",
-      "pdfjs-dist",
-      "sql.js",
-      "tiff",
-    ],
+    include: ["vite-plus/test/browser", "@base-ui/react/autocomplete", "@supaterm/mermaid > pele"],
   },
   test: {
     name: "browser",
@@ -126,34 +110,6 @@ const browserTestProject = {
   },
 } satisfies TestProjectInlineConfiguration;
 
-// Render scenarios count React commits; they run only through scripts/render-metrics.ts,
-// which reads the per-scenario reports this command writes.
-const renderScenariosProject = {
-  ...browserTestProject,
-  test: {
-    ...browserTestProject.test,
-    name: "renders",
-    include: ["test/*.renders.tsx"],
-    // App scenarios mount the whole app per test, which outlasts 15s on a loaded machine.
-    hookTimeout: 60_000,
-    testTimeout: 60_000,
-    setupFiles: ["./test/renderCounter.ts", ...browserTestProject.test.setupFiles],
-    browser: {
-      ...browserTestProject.test.browser,
-      // Vitest names each instance in place, so a shared array would clash with the browser project.
-      instances: [{ browser: "chromium" }],
-      commands: {
-        ...browserTestProject.test.browser.commands,
-        writeRenderReport: async (_context, scenario: string, json: string) => {
-          const directory = process.env.SUPATERM_RENDER_REPORT_DIR;
-          if (!directory) throw new Error("SUPATERM_RENDER_REPORT_DIR is not set");
-          await NodeFSP.writeFile(`${directory}/${scenario}.json`, json);
-        },
-      },
-    },
-  },
-} satisfies TestProjectInlineConfiguration;
-
 function resolveDevProxyTarget(
   backendPort: string | undefined,
   wsUrl: string | undefined,
@@ -163,7 +119,8 @@ function resolveDevProxyTarget(
     return `http://localhost:${port}/`;
   }
 
-  // dev:desktop connects directly to the backend; derive its target from the explicit WebSocket URL.
+  // dev:desktop still points the renderer straight at the backend, so fall
+  // back to deriving the target from the explicit websocket URL.
   if (!wsUrl) {
     return undefined;
   }
@@ -186,7 +143,8 @@ function resolveDevProxyTarget(
 
 const devProxyTarget = resolveDevProxyTarget(process.env.SUPATERM_PORT, configuredWsUrl);
 
-// Brotli quality 5 encodes in hundreds of ms; default quality 11 would replace transfer stalls with encode stalls.
+// Brotli quality 5 keeps encode time in the hundreds of ms; the default
+// (quality 11) would trade the transfer stall for an equally long encode stall.
 function devCompressionPlugin(): Plugin {
   return {
     name: "supaterm:dev-compression",
@@ -201,34 +159,14 @@ function devCompressionPlugin(): Plugin {
   };
 }
 
-// Allow Tailnet hosts for sharing; Tailscale-controlled DNS prevents attacker rebinding.
+// Vite rejects requests whose Host header isn't localhost, which blocks sharing
+// a dev server over Tailscale/LAN. Tailnet names are safe to allow wholesale:
+// the DNS is controlled by tailscale, so they can't be rebound by an attacker.
 const configuredAllowedHosts = (process.env.SUPATERM_DEV_ALLOWED_HOSTS ?? "")
   .split(",")
   .map((entry) => entry.trim())
   .filter((entry) => entry.length > 0);
 const allowedHosts = [".ts.net", ...configuredAllowedHosts];
-
-function chunkCycleGuardPlugin(): Plugin {
-  return {
-    name: "supaterm:chunk-cycle-guard",
-    apply: "build",
-    generateBundle(_options, bundle) {
-      const done = new Set<string>();
-      const visit = (fileName: string, path: string[]) => {
-        if (done.has(fileName)) return;
-        const start = path.indexOf(fileName);
-        if (start !== -1) {
-          this.error(`Chunk import cycle: ${[...path.slice(start), fileName].join(" -> ")}`);
-        }
-        const chunk = bundle[fileName];
-        if (chunk?.type !== "chunk") return;
-        for (const imported of chunk.imports) visit(imported, [...path, fileName]);
-        done.add(fileName);
-      };
-      for (const fileName of Object.keys(bundle)) visit(fileName, []);
-    },
-  };
-}
 
 export default defineConfig(() => {
   return {
@@ -244,7 +182,6 @@ export default defineConfig(() => {
     assetsInclude: ["**/*.wasm"],
     plugins: [
       devCompressionPlugin(),
-      chunkCycleGuardPlugin(),
       builtDev
         ? undefined
         : thirdPartyLicensesPlugin({
@@ -274,26 +211,19 @@ export default defineConfig(() => {
     },
     define: {
       "import.meta.env.VITE_WS_URL": JSON.stringify(configuredWsUrl ?? ""),
-      // Override .env URLs with empty values in single-origin dev so clients use window.location.origin.
+      // Pinned explicitly rather than left to Vite's automatic VITE_ exposure:
+      // under single-origin dev this must stay empty even when a `.env`
+      // supplies it, so the client falls back to window.location.origin.
       "import.meta.env.VITE_HTTP_URL": JSON.stringify(configuredHttpUrl ?? ""),
       "import.meta.env.VITE_HOSTED_APP_URL": JSON.stringify(configuredHostedAppUrl ?? ""),
       "import.meta.env.VITE_HOSTED_APP_CHANNEL": JSON.stringify(configuredHostedAppChannel),
       "import.meta.env.SUPATERM_DESKTOP_UPDATE_REPOSITORY": JSON.stringify(
         configuredDesktopUpdateRepository,
       ),
-      "import.meta.env.SUPATERM_FEATURE_SECRETS": JSON.stringify(
-        process.env.SUPATERM_FEATURE_SECRETS ?? "",
-      ),
       "import.meta.env.APP_VERSION": JSON.stringify(configuredAppVersion),
     },
     resolve: {
       tsconfigPaths: true,
-      alias: {
-        "@betteroffice/fonts-cjk": new URL(
-          "./src/components/files/office/fonts-cjk.ts",
-          import.meta.url,
-        ).pathname,
-      },
       dedupe: ["react", "react-dom"],
     },
     experimental: {
@@ -304,14 +234,18 @@ export default defineConfig(() => {
       port,
       strictPort: true,
       allowedHosts,
-      // Warm the module graph before first request to avoid serial import transforms over tailnet.
-      // Bundled dev ignores this; warmBundledDevPlugin handles it there.
+      // Transform the whole module graph at server start instead of on the
+      // first request. Without this, a cold worktree discovers and transforms
+      // modules one import-level at a time while the browser waits — which
+      // over a tailnet origin turns into minutes of waterfall. Bundled dev
+      // ignores this; warmBundledDevPlugin covers it there.
       warmup: {
         clientFiles: ["./src/main.tsx"],
       },
       ...(devProxyTarget
         ? {
-            // Share prefixes with the backend catch-all so the proxy and 404 lists cannot drift.
+            // One entry per shared prefix; the server's dev catch-all 404s the
+            // same list, so the two sides cannot drift.
             proxy: Object.fromEntries(
               DEV_PROXIED_PATH_PREFIXES.map((prefix) => [
                 prefix,
@@ -324,7 +258,11 @@ export default defineConfig(() => {
             ),
           }
         : {}),
-      // Electron needs an explicit HMR host; elsewhere derive it from page origin for Tailscale/LAN.
+      // Electron's BrowserWindow needs the HMR socket pinned to an explicit
+      // host to connect reliably; dev:desktop is the only mode that sets HOST.
+      // Everywhere else, leaving this unset lets the client derive it from the
+      // page origin, which is what makes HMR work over Tailscale/LAN instead of
+      // failing an attempt against the wrong machine's localhost first.
       ...(explicitHost
         ? {
             hmr: {
@@ -335,7 +273,8 @@ export default defineConfig(() => {
           }
         : {}),
     },
-    // Tailwind needs devSourcemap to avoid Rolldown SOURCEMAP_BROKEN on sourcemapped builds.
+    // @tailwindcss/vite only emits a CSS sourcemap when devSourcemap is on; without it
+    // rolldown flags the transform as SOURCEMAP_BROKEN on every sourcemapped build.
     css: {
       devSourcemap: buildSourcemap !== false,
     },
@@ -344,22 +283,10 @@ export default defineConfig(() => {
       outDir: "dist",
       emptyOutDir: true,
       manifest: true,
-      rolldownOptions: {
-        output: {
-          assetFileNames: (asset) =>
-            asset.originalFileNames.some((path) => /[/\\]pdfjs-dist[/\\]wasm[/\\]/.test(path))
-              ? `assets/pdfjs-${pdfjsPkg.version}/[name][extname]`
-              : "assets/[name]-[hash][extname]",
-        },
-      },
       sourcemap: buildSourcemap,
     },
     test: {
-      projects: [
-        defineProject(unitTestProject),
-        defineProject(browserTestProject),
-        defineProject(renderScenariosProject),
-      ],
+      projects: [defineProject(unitTestProject), defineProject(browserTestProject)],
     },
   };
 });

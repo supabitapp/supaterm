@@ -10,7 +10,8 @@ import { useAtomCommand } from "../state/use-atom-command";
 export const FileMetadataThreadContext = createContext<ScopedThreadRef | null>(null);
 const EMPTY_RETENTION = Atom.make(undefined);
 
-/** Keeps fetched metadata across virtualized message-row unmounts. */
+/** The chat view owns this lifetime, so virtualized message rows can unmount
+ * without losing the metadata they already fetched. */
 export function FileMetadataThreadProvider(props: {
   threadRef: ScopedThreadRef | null;
   cwd: string | undefined;
@@ -29,7 +30,6 @@ export function FileMetadataThreadProvider(props: {
     checkpoints: OrchestrationV2ThreadProjection["checkpoints"];
   } | null>(null);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- invalidates the server file metadata cache for files whose checkpoints changed
   useEffect(() => {
     if (!threadRef || !cwd || !checkpoints) {
       previous.current = null;

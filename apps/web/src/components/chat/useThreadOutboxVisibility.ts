@@ -14,7 +14,6 @@ export function useThreadOutboxVisibility(
     setVisibility({ scope, hasPending, open: needsAttention });
   }
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Holds the grace-period timer while this scope has pending messages.
   useEffect(() => {
     if (!hasPending) return;
     const timeout = setTimeout(() => setVisibility({ scope, hasPending, open: true }), 1_000);

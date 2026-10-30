@@ -51,13 +51,12 @@ export const make = Effect.fn("ProviderLatestVersions.make")(function* (
       );
       return version;
     }),
-    invalidate: Effect.fn("ProviderLatestVersions.invalidate")(function (key) {
-      return Ref.update(entries, (current) => {
+    invalidate: (key) =>
+      Ref.update(entries, (current) => {
         const next = new Map(current);
         next.delete(key);
         return next;
-      });
-    }),
+      }),
   });
 });
 

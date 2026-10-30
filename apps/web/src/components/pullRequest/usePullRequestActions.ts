@@ -14,11 +14,6 @@ import type {
   ScopedThreadRef,
 } from "@supaterm/contracts";
 import { useRef, useState } from "react";
-import {
-  capitalizeTerm,
-  sourceControlClients,
-  type ChangeRequestTerminology,
-} from "@supaterm/client-runtime/source-control-clients";
 import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
 import { useEnvironmentSettings } from "~/hooks/useSettings";
 
@@ -29,7 +24,7 @@ import type { ReviewCommentContext } from "~/reviewCommentContext";
 import { pullRequestEnvironment } from "~/state/pullRequests";
 
 import { toastManager } from "../ui/toast";
-import { offHeadPullRequestCheckoutToast } from "./pullRequestCheckoutToast";
+import { OFF_HEAD_PULL_REQUEST_CHECKOUT_TOAST } from "./pullRequestCheckoutToast";
 import {
   checkoutFailureDescription,
   handoffPrompt,
@@ -51,35 +46,35 @@ export function usePullRequestDefaultMergeMethod(
   );
 }
 
-const actionSuccessLabels = (term: string): Record<PullRequestAction, string> => ({
+const ACTION_SUCCESS_LABELS: Record<PullRequestAction, string> = {
   merge: "Merge requested",
   ready: "Marked ready for review",
   draft: "Converted to draft",
-  close: `${capitalizeTerm(term)} closed`,
-  reopen: `${capitalizeTerm(term)} reopened`,
+  close: "Pull request closed",
+  reopen: "Pull request reopened",
   "update-branch": "Branch updated with the base branch",
   "enable-auto-merge": "Auto-merge enabled",
   "disable-auto-merge": "Auto-merge disabled",
-  revert: `Revert ${term} opened`,
+  revert: "Revert pull request opened",
   "delete-branch": "Branch deleted",
   "approve-workflows": "Workflows approved",
-});
+};
 
-const actionFailureLabels = (term: string): Record<PullRequestAction, string> => ({
-  merge: `Could not merge this ${term}`,
+const ACTION_FAILURE_LABELS: Record<PullRequestAction, string> = {
+  merge: "Could not merge this pull request",
   ready: "Could not mark this ready for review",
   draft: "Could not convert this to a draft",
-  close: `Could not close this ${term}`,
-  reopen: `Could not reopen this ${term}`,
+  close: "Could not close this pull request",
+  reopen: "Could not reopen this pull request",
   "update-branch": "Could not update this branch",
   "enable-auto-merge": "Could not enable auto-merge",
   "disable-auto-merge": "Could not disable auto-merge",
-  revert: `Could not open a revert ${term}`,
+  revert: "Could not open a revert pull request",
   "delete-branch": "Could not delete this branch",
   "approve-workflows": "Could not approve workflows",
-});
+};
 
-const actionFailureHints = (term: string): Record<PullRequestAction, string> => ({
+const ACTION_FAILURE_HINTS: Record<PullRequestAction, string> = {
   merge:
     "The host refused the merge. Check that you have write access, that the checks it requires have passed, and that the branch is not conflicting.",
   ready: "The host refused it. Check that you have write access to this repository.",
@@ -92,25 +87,24 @@ const actionFailureHints = (term: string): Record<PullRequestAction, string> => 
   "enable-auto-merge":
     "The host refused it. Check that auto-merge is enabled for this repository and that you have write access.",
   "disable-auto-merge": "The host refused it. Check that you have write access to this repository.",
-  revert: `The host refused it. Check that you have write access and that this ${term} was merged on the host.`,
+  revert:
+    "The host refused it. Check that you have write access and that this pull request was merged on the host.",
   "delete-branch":
     "The host refused it. Check that you have write access to the source repository and that the branch has not moved since this page loaded.",
   "approve-workflows":
     "The host refused it. Check that you have Actions write access and that these workflow runs are still awaiting approval.",
-});
+};
 
 export function usePullRequestActionRunner({
   environmentId,
   reference,
-  terminology,
   onSuccess,
   resolveMergeMethod,
 }: {
   environmentId: EnvironmentId;
   reference: PullRequestRef | null;
-  terminology: ChangeRequestTerminology;
   onSuccess?: (action: PullRequestAction) => void;
-  /** Resolve repository settings on click to avoid per-row reads. */
+  /** Small surfaces resolve repository settings on the click, not for every visible row. */
   resolveMergeMethod?: (detail: PullRequestDetail) => PullRequestMergeMethod;
 }) {
   const runAction = useAtomCommand(pullRequestEnvironment.runAction, {
@@ -136,15 +130,15 @@ export function usePullRequestActionRunner({
     if (result._tag === "Failure") {
       toastManager.add({
         type: "error",
-        title: actionFailureLabels(terminology.singular)[action],
+        title: ACTION_FAILURE_LABELS[action],
         description: readableFailure(
           squashAtomCommandFailure(result),
-          actionFailureHints(terminology.singular)[action],
+          ACTION_FAILURE_HINTS[action],
         ),
       });
       return false;
     }
-    toastManager.add({ type: "success", title: actionSuccessLabels(terminology.singular)[action] });
+    toastManager.add({ type: "success", title: ACTION_SUCCESS_LABELS[action] });
     onSuccess?.(action);
     return true;
   };
@@ -182,7 +176,7 @@ export function usePullRequestCloseBatch(onClosed: (entry: EnvironmentPullReques
         setClosingKeys(new Set(pending.current));
         if (result._tag === "Failure") {
           failures.push(
-            `#${entry.number}: ${readableFailure(squashAtomCommandFailure(result), actionFailureHints(sourceControlClients.get(entry.provider).changeRequest.singular).close)}`,
+            `#${entry.number}: ${readableFailure(squashAtomCommandFailure(result), ACTION_FAILURE_HINTS.close)}`,
           );
           return;
         }
@@ -213,6 +207,12 @@ export type PullRequestHandoffDetail = Pick<
   "projectId" | "workspaceRoot" | "url"
 >;
 
+/**
+ * What the last hand-off wrote into each draft, kept outside React because the surface that wrote
+ * it may be gone by the time the next one arrives. It is how a prompt the reader has since edited
+ * is told apart from the one they were handed: only the sentence still exactly as written may be
+ * replaced.
+ */
 const lastHandoffPromptByDraft = new Map<string, string>();
 
 export function writePullRequestTaskToComposer(
@@ -267,15 +267,13 @@ export function usePullRequestHandoffs({
     environmentId,
     cwd: detail?.workspaceRoot ?? null,
   });
-  // Serialize all handoffs because they check out the same pull request.
+  // One at a time whatever the key: they all check the same pull request out.
   const [handoff, setHandoff] = useState<string | null>(null);
-  // Prompt links hand over a URL alone, so the URL is what names the host.
-  const terminology = (
-    (detail && sourceControlClients.findByChangeRequestUrl(detail.url)) ||
-    sourceControlClients.get(undefined)
-  ).changeRequest;
 
-  // Questions must not change checkouts or create worktrees.
+  /**
+   * Nothing is checked out: asking a question is not a reason to move somebody's working tree
+   * or to make a worktree they did not ask for.
+   */
   const openThreadWithTask = async (
     projectRef: ReturnType<typeof scopeProjectRef>,
     task: PullRequestThreadTask | null,
@@ -311,8 +309,8 @@ export function usePullRequestHandoffs({
       title: "Asked in a thread",
       description:
         task.prompt.length > 0
-          ? "The question is in the composer. Read it over, then send."
-          : `The ${terminology.singular} is in the composer. Type your question, then send.`,
+          ? "The question is in the composer — read it over, then send."
+          : "The pull request is in the composer — type your question, then send.",
     });
   };
 
@@ -323,13 +321,16 @@ export function usePullRequestHandoffs({
   ) => {
     if (!detail || handoff !== null) return;
     setHandoff(kind);
-    // Explicit timeouts survive toast updates and would pin the result after loading.
+    // It carries no timeout of its own: a loading toast never expires, and an explicit one
+    // would survive the update and pin the result on screen.
     const toastId = toastManager.add({
       type: "loading",
-      title: `Preparing the ${terminology.singular} checkout...`,
+      title: "Preparing the pull request checkout...",
     });
     const projectRef = scopeProjectRef(environmentId, detail.projectId);
-    // Checkout setup requires the thread to exist first.
+    // The thread is opened before the checkout rather than after it, because the project's setup
+    // script only runs for a checkout that knows which thread it is for — and a worktree with no
+    // dependencies installed is not something anyone can test.
     const opened = await newThread(projectRef).then(
       (session) => session,
       () => null,
@@ -352,7 +353,7 @@ export function usePullRequestHandoffs({
       setHandoff(null);
       toastManager.update(toastId, {
         type: "error",
-        title: `Could not prepare the ${terminology.singular} checkout`,
+        title: "Could not prepare the pull request checkout",
         description: checkoutFailureDescription(
           isAtomCommandInterrupted(prepared) ? undefined : squashAtomCommandFailure(prepared),
         ),
@@ -386,10 +387,10 @@ export function usePullRequestHandoffs({
               title: mode === "local" ? "Checked out here" : "Checked out",
               description:
                 mode === "local"
-                  ? `This repository is on the ${terminology.singular}'s branch, with a thread open on it.`
-                  : `The ${terminology.singular} is in its own worktree, with a thread open on it.`,
+                  ? "This repository is on the pull request's branch, with a thread open on it."
+                  : "The pull request is in its own worktree, with a thread open on it.",
             }
-          : offHeadPullRequestCheckoutToast(terminology),
+          : OFF_HEAD_PULL_REQUEST_CHECKOUT_TOAST,
       );
       return;
     }
@@ -400,9 +401,9 @@ export function usePullRequestHandoffs({
         ? {
             type: "success",
             title: "Checkout ready",
-            description: "The task is in the composer. Read it over, then send.",
+            description: "The task is in the composer — read it over, then send.",
           }
-        : offHeadPullRequestCheckoutToast(terminology),
+        : OFF_HEAD_PULL_REQUEST_CHECKOUT_TOAST,
     );
   };
 

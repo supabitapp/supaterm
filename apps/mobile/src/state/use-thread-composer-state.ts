@@ -1,5 +1,3 @@
-import { selectPendingAcknowledgedMessages } from "../features/threads/pending-thread-feed";
-import type { ServerProvider } from "@supaterm/contracts";
 import { useComposerAttachmentActions } from "./use-composer-attachment-actions";
 import * as Dialog from "../components/ui/Dialog";
 import { AuthOrchestrationOperateScope } from "@supaterm/contracts";
@@ -15,7 +13,7 @@ import {
   deriveThreadRuntime,
   threadRuntimeHasInterruptibleRun,
 } from "@supaterm/client-runtime/state/thread-execution";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   CommandId,
@@ -71,9 +69,9 @@ import {
   countComposerDraftAttachmentsAfterSelection,
   insertComposerDraftText,
   insertComposerDraftContext,
-  clearComposerDraft,
   clearComposerDraftContent,
   composerContextImportsAtom,
+  ensureComposerDraftsLoaded,
   getComposerDraftSnapshot,
   mergeComposerDraftContent,
   removeComposerDraftAttachment,
@@ -100,7 +98,6 @@ import {
   queuedEditDraftKey,
   removeQueuedRunEditAttachment,
   resolveQueuedEditPayload,
-  startQueuedRunEditSave,
   useQueuedRunEdit,
 } from "./queued-run-edit";
 import { setPendingConnectionError } from "../state/use-remote-environment-registry";
@@ -119,7 +116,6 @@ const EMPTY_QUEUE_WORKFLOW_ATOM = Atom.make<null>(null).pipe(
   Atom.withLabel("mobile-thread-queue-workflow:empty"),
 );
 const EMPTY_CHECKPOINT_SUMMARIES_ATOM = Atom.make<ReadonlyArray<ThreadCheckpointSummary>>([]);
-const EMPTY_THREAD_SEQUENCE_ATOM = Atom.make(0);
 
 export function appendReviewCommentToDraft(input: {
   readonly environmentId: EnvironmentId;
@@ -179,21 +175,6 @@ export function useThreadDraftForThread(input: {
   };
 }
 
-/** A provider without the interaction-mode toggle runs in the default mode. */
-export function updateThreadDraftModelSelection(
-  threadKey: string,
-  value: ModelSelection,
-  providers: ReadonlyArray<ServerProvider>,
-): void {
-  const provider = providers.find((candidate) => candidate.instanceId === value.instanceId);
-  updateComposerDraftSettings(threadKey, {
-    modelSelection: value,
-    ...(provider?.showInteractionModeToggle === false
-      ? { interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE }
-      : {}),
-  });
-}
-
 export function useThreadComposerState() {
   const {
     selectedThread: selectedThreadShell,
@@ -233,6 +214,10 @@ export function useThreadComposerState() {
     return nextName;
   };
 
+  useEffect(() => {
+    ensureComposerDraftsLoaded();
+  }, []);
+
   const selectedThreadKey = selectedThreadShell
     ? scopedThreadKey(selectedThreadShell.environmentId, selectedThreadShell.id)
     : null;
@@ -254,11 +239,6 @@ export function useThreadComposerState() {
   const selectedThreadMessages = selectedThreadProjection?.projection.messages;
   const selectedThreadAttempts = selectedThreadProjection?.projection.attempts;
   const selectedThreadNodes = selectedThreadProjection?.projection.nodes;
-  const selectedThreadSequence = useAtomValue(
-    selectedThreadRef === null
-      ? EMPTY_THREAD_SEQUENCE_ATOM
-      : environmentThreadDetails.sequenceAtom(selectedThreadRef),
-  );
   const checkpointSummaries = useAtomValue(
     selectedThreadRef === null
       ? EMPTY_CHECKPOINT_SUMMARIES_ATOM
@@ -289,12 +269,11 @@ export function useThreadComposerState() {
         (message) => message.messageId === pendingCreationMessage?.messageId,
       ),
     );
-    const pendingAcknowledgments = selectPendingAcknowledgedMessages(acknowledgedMessages, {
-      threadKey: selectedThreadKey,
-      queuedMessages: selectedThreadQueuedMessages,
-      sequence: selectedThreadSequence,
-      projectedMessages: selectedThreadMessages,
-    });
+    const pendingAcknowledgments = acknowledgedMessages.filter(
+      (message) =>
+        scopedThreadKey(message.environmentId, message.threadId) === selectedThreadKey &&
+        !selectedThreadQueuedMessages.some((queued) => queued.messageId === message.messageId),
+    );
     if (pendingAcknowledgments.length === 0) return feed;
     return appendPendingThreadMessages(feed, feed, pendingAcknowledgments).map((entry) =>
       entry.pendingMessage ? { ...entry, acknowledged: true } : entry,
@@ -402,6 +381,40 @@ export function useThreadComposerState() {
     ? deriveProviderSubagentStatus(selectedThreadProjection.projection)
     : null;
 
+  const selectedThreadRuns = selectedThreadProjection?.projection.runs;
+  const editedRunId = queuedRunEdit?.runId ?? null;
+  useEffect(() => {
+    if (selectedThreadKey === null || editedRunId === null || selectedThreadRuns === undefined) {
+      return;
+    }
+    if (savingQueuedEditRef.current) return;
+    const stillQueued = selectedThreadRuns.some(
+      (run) => run.id === editedRunId && run.status === "queued",
+    );
+    if (stillQueued) return;
+    const editDraftKey = queuedEditDraftKey(selectedThreadKey, editedRunId);
+    const editDraft = getComposerDraftSnapshot(editDraftKey);
+    const threadDraft = getComposerDraftSnapshot(selectedThreadKey);
+    const keepable =
+      editDraft.text.trim().length > 0 &&
+      threadDraft.text.trim().length === 0 &&
+      threadDraft.attachments.length === 0;
+    if (keepable) {
+      void mergeComposerDraftContent(selectedThreadKey, {
+        text: editDraft.text,
+        attachments: editDraft.attachments,
+        ...(editDraft.context ? { context: editDraft.context } : {}),
+      });
+    }
+    endQueuedRunEdit(selectedThreadKey, { deferAttachmentCleanup: keepable });
+    setThreadComposerError(
+      selectedThreadKey,
+      keepable
+        ? "That message already started. Your edit is back in the composer."
+        : "That message already started, so the edit was discarded.",
+    );
+  }, [editedRunId, selectedThreadKey, selectedThreadRuns]);
+
   const activeThreadBusy = threadRuntimeIsActive(selectedThreadRuntime);
   const interruptibleRunId = threadRuntimeHasInterruptibleRun(selectedThreadRuntime)
     ? (selectedThreadRuntime?.activeRunId ?? null)
@@ -440,8 +453,6 @@ export function useThreadComposerState() {
       );
       return;
     }
-    const finishSave = startQueuedRunEditSave(threadKey);
-    if (finishSave === null) return;
     savingQueuedEditRef.current = true;
     setIsSavingQueuedEdit(true);
     const prepared = await settlePromise(() =>
@@ -453,7 +464,6 @@ export function useThreadComposerState() {
     if (AsyncResult.isFailure(prepared)) {
       savingQueuedEditRef.current = false;
       setIsSavingQueuedEdit(false);
-      finishSave(false);
       const error = squashAtomCommandFailure(prepared);
       Dialog.alert(
         "Could not save the queued message",
@@ -464,7 +474,6 @@ export function useThreadComposerState() {
     if (prepared.value.status !== "ready") {
       savingQueuedEditRef.current = false;
       setIsSavingQueuedEdit(false);
-      finishSave(false);
       return;
     }
     const payload = resolveQueuedEditPayload({
@@ -489,29 +498,19 @@ export function useThreadComposerState() {
     savingQueuedEditRef.current = false;
     setIsSavingQueuedEdit(false);
     if (result._tag !== "Success") {
-      // The run left the queue during the save; its exit already told the composer what happened.
-      if (!finishSave(false)) return;
       Dialog.alert(
         "Could not save the queued message",
         "It may have already started. Your edit is still in the composer.",
       );
       return;
     }
-    // False when the edit was cancelled or begun again meanwhile; its draft is the newer edit's.
-    if (finishSave(true)) {
-      clearComposerDraft(queuedEditDraftKey(threadKey, edit.runId), {
-        deferAttachmentCleanup: true,
-      });
-    }
+    endQueuedRunEdit(threadKey, { deferAttachmentCleanup: true });
     scheduleUnusedComposerAttachmentCleanup(draft.attachments);
   };
 
   const onSendMessage = async (
     followUpOverride?: ActiveTurnComposerAction,
-    beforeDispatch?: (
-      text: string,
-      hasAttachmentsOrContext: boolean,
-    ) => Promise<boolean | "responded">,
+    beforeDispatch?: () => Promise<boolean>,
   ) => {
     if (
       selectedThreadShell &&
@@ -629,11 +628,7 @@ export function useThreadComposerState() {
     }
 
     if (beforeDispatch !== undefined) {
-      const response = await beforeDispatch(
-        text,
-        attachments.length > 0 || draft.context !== undefined,
-      );
-      if (!response) return null;
+      if (!(await beforeDispatch())) return null;
       // A context paste still landing, or any draft or settings change while approvals were
       // declined, means this snapshot is no longer what the user sent.
       if (appAtomRegistry.get(composerContextImportsAtom)[threadKey]) return null;
@@ -647,12 +642,14 @@ export function useThreadComposerState() {
         current.attachments.some((attachment, index) => attachment.id !== attachments[index]?.id)
       )
         return null;
-      if (response === "responded") {
-        clearComposerDraftContent(threadKey);
-        return null;
-      }
     }
 
+    // Resolved here rather than at drain time: the outbox can deliver minutes
+    // later, and the choice belongs to the moment the user pressed send.
+    // Steering travels as "auto" so a turn that ends in the meantime degrades
+    // to a queued run on the server instead of failing the delivery and
+    // bouncing the message back into the draft.
+    // A redirect declined approvals to steer the waiting turn, not to queue behind it.
     const activeTurnDefault = beforeDispatch !== undefined ? "steer" : followUpBehavior;
     const followUpAction = resolveComposerDispatchMode({
       running: activeThreadBusy && canSteerActiveTurn,

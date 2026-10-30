@@ -1,6 +1,6 @@
 import { createContext, useContext } from "react";
 import type { ChatCanvasPreview, resolveChatCanvasLayout } from "./chatCanvasLayout";
-import type { DetailsCardMeasurement, resolveChatCanvasModel } from "./canvasStore";
+import type { PreviewMiniPlayerObstacles } from "../preview/previewMiniPlayerLayout";
 
 export const ChatCanvasContext = createContext<{
   container: { width: number; height: number };
@@ -10,10 +10,7 @@ export const ChatCanvasContext = createContext<{
   reportPreview: (preview: ChatCanvasPreview) => void;
   clearPreview: (key: string) => void;
   registerTimeline: (element: HTMLElement | null) => void;
-  measureDetailsCard: (card: DetailsCardMeasurement) => void;
-  preferredDetailsCard: ReturnType<typeof resolveChatCanvasModel>["preferredDetailsCard"];
-  detailsCardPlacement: ReturnType<typeof resolveChatCanvasModel>["detailsCardPlacement"];
-  detailsCardMode: ReturnType<typeof resolveChatCanvasModel>["detailsCardMode"];
+  reportDetailsCard: (card: PreviewMiniPlayerObstacles["detailsCard"]) => void;
 
   detailsCardTopInset: number;
 } | null>(null);

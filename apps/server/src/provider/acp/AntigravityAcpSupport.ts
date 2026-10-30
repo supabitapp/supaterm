@@ -31,15 +31,15 @@ export interface AntigravityAcpRuntimeInput extends Omit<
   | "authenticateEagerly"
   | "cancelBehavior"
   | "clientCapabilities"
-  | "clientInfo"
   | "onStderr"
   | "resumeMethod"
   | "transformSessionUpdate"
   | "transformStdout"
 > {
+  readonly agentDeviceEnvironment?: Readonly<Record<string, string>>;
   readonly childProcessSpawner: ChildProcessSpawner.ChildProcessSpawner["Service"];
   readonly onAuthorizationUrl?: (url: string) => Effect.Effect<void, EffectAcpErrors.AcpError>;
-  readonly clientFileReads?: boolean;
+  readonly clientFileSystem?: boolean;
   readonly authMethod?: AntigravityAuthMethod;
 }
 
@@ -57,9 +57,11 @@ export const makeAntigravityAcpRuntime = Effect.fn("makeAntigravityAcpRuntime")(
       authenticateEagerly: true,
       resumeMethod: "resume",
       cancelBehavior: "wait-for-prompt",
-      clientInfo: { name: "supaterm", version: "0.0.0" },
       clientCapabilities: {
-        fs: { readTextFile: input.clientFileReads === true, writeTextFile: false },
+        fs: {
+          readTextFile: input.clientFileSystem === true,
+          writeTextFile: input.clientFileSystem === true,
+        },
         terminal: false,
       },
       transformStdout: makeAntigravityStdoutTransform(
@@ -90,29 +92,12 @@ export function antigravityPermissionMode(runtimeMode: RuntimeMode): string {
   }
 }
 
-export function antigravityModelOptions(
+function antigravityModelOptions(
   configOptions: ReadonlyArray<EffectAcpSchema.SessionConfigOption>,
 ) {
   const model = configOptions.find((option) => option.id === "model");
   if (model?.type !== "select") return [];
   return model.options.flatMap((entry) => ("value" in entry ? [entry] : entry.options));
-}
-
-export function antigravityThinkingConfig(
-  configOptions: ReadonlyArray<EffectAcpSchema.SessionConfigOption> | null | undefined,
-) {
-  const option = configOptions?.find((candidate) => candidate.category === "thought_level");
-  return option?.type === "select" ? option : undefined;
-}
-
-function legacyAntigravityFamily(
-  configOptions: ReadonlyArray<EffectAcpSchema.SessionConfigOption>,
-  model: string,
-) {
-  return antigravityModelOptions(configOptions)
-    .map((option) => option.value)
-    .filter((family) => model.startsWith(`${family}-`))
-    .toSorted((left, right) => right.length - left.length)[0];
 }
 
 function resolveAntigravityModel(input: {
@@ -124,9 +109,7 @@ function resolveAntigravityModel(input: {
   const current = modelConfig?.type === "select" ? modelConfig.currentValue : undefined;
   if (input.model && input.model !== ANTIGRAVITY_DEFAULT_MODEL) return input.model;
   const options = antigravityModelOptions(input.configOptions);
-  return input.defaultModel &&
-    (options.some((option) => option.value === input.defaultModel) ||
-      legacyAntigravityFamily(input.configOptions, input.defaultModel) !== undefined)
+  return input.defaultModel && options.some((option) => option.value === input.defaultModel)
     ? input.defaultModel
     : current;
 }
@@ -136,7 +119,7 @@ export const applyAntigravityAcpModelSelection = Effect.fn("applyAntigravityAcpM
   function* <E>(input: {
     readonly runtime: Pick<
       AcpSessionRuntime.AcpSessionRuntime["Service"],
-      "getConfigOptions" | "setModel" | "setConfigOption"
+      "getConfigOptions" | "setModel"
     >;
     readonly model: string | null | undefined;
     readonly defaultModel?: string | undefined;
@@ -153,15 +136,6 @@ export const applyAntigravityAcpModelSelection = Effect.fn("applyAntigravityAcpM
     const explicit = Boolean(input.model) && input.model !== ANTIGRAVITY_DEFAULT_MODEL;
     if (resolved === undefined || (!explicit && resolved === current)) return current;
     const options = antigravityModelOptions(configOptions);
-    const legacyFamily = options.some((option) => option.value === resolved)
-      ? undefined
-      : legacyAntigravityFamily(configOptions, resolved);
-    if (legacyFamily !== undefined) {
-      yield* input.runtime
-        .setConfigOption("model", resolved, { allowUnlistedValue: true })
-        .pipe(Effect.mapError(input.mapError));
-      return legacyFamily;
-    }
     if (!options.some((option) => option.value === resolved)) {
       return yield* Effect.fail(
         input.mapError(
@@ -257,7 +231,6 @@ export const buildAntigravityPrompt = Effect.fn("buildAntigravityPrompt")(functi
   readonly input: ProviderSendTurnInput["input"];
   readonly attachments: ProviderSendTurnInput["attachments"];
   readonly attachmentsDir: string;
-  readonly promptCapabilities: EffectAcpSchema.AgentCapabilities["promptCapabilities"];
 }): Effect.fn.Return<
   ReadonlyArray<EffectAcpSchema.ContentBlock>,
   EffectAcpErrors.AcpError,
@@ -275,7 +248,9 @@ export const buildAntigravityPrompt = Effect.fn("buildAntigravityPrompt")(functi
       attachment.type === "file" &&
       "source" in attachment &&
       attachment.source?._tag === "pasted-text";
-
+    // ProviderService has already put the file path in the text block. Keep a
+    // folded clipboard paste lazy so the agent can search or sample it rather
+    // than paying to embed the entire resource in context immediately.
     const mimeType = attachment.mimeType.toLowerCase().split(";", 1)[0] ?? "";
     const image = attachment.type === "image" && IMAGE_MIME_TYPES.has(mimeType);
     const audio = attachment.type === "file" && AUDIO_MIME_TYPES.has(mimeType);
@@ -286,14 +261,12 @@ export const buildAntigravityPrompt = Effect.fn("buildAntigravityPrompt")(functi
         TEXT_MIME_TYPES.has(mimeType) ||
         TEXT_FILE_EXTENSIONS.has(path.extname(attachment.name).toLowerCase()));
     const isPathOnly =
-      (attachment.type === "image" && (!image || input.promptCapabilities?.image !== true)) ||
-      (attachment.type === "file" &&
-        (isPastedText ||
-          (audio
-            ? input.promptCapabilities?.audio !== true
-            : pdf || textFile
-              ? input.promptCapabilities?.embeddedContext !== true
-              : true)));
+      attachment.type === "file" && (isPastedText || (!audio && !pdf && !textFile));
+    if (attachment.type === "image" && !image) {
+      return yield* EffectAcpErrors.AcpRequestError.invalidParams(
+        `Antigravity does not support '${attachment.name}' (${attachment.mimeType}). Attach a BMP, JPEG, PNG, WebP, PDF, audio, or text file.`,
+      );
+    }
     const attachmentPath = resolveAttachmentPath({
       attachmentsDir: input.attachmentsDir,
       attachment,

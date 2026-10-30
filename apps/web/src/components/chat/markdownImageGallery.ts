@@ -1,4 +1,4 @@
-import { mediaKindFromPath } from "@supaterm/shared/mediaPreview";
+import { mediaKindFromPath } from "@supaterm/shared/filePreview";
 import { mediaUrlReference } from "@supaterm/client-runtime/media-reference";
 import type { ExpandedImageItem, ExpandedImagePreview } from "./ExpandedImagePreview";
 import { resolveExternalWebLinkHost } from "./externalLinkContextMenu";

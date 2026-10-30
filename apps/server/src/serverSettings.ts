@@ -1,7 +1,6 @@
 import {
   DEFAULT_SERVER_SETTINGS,
   ModelSelection,
-  isKnownSecretProviderKind,
   ProjectScript,
   ProjectSettingsOverrides,
   type ProviderInstanceConfig,
@@ -20,7 +19,6 @@ import * as Duration from "effect/Duration";
 import * as Equal from "effect/Equal";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
-import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -58,13 +56,18 @@ const decodeServerSettings = Schema.decodeUnknownEffect(ServerSettings);
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
-// Conflicting flags resolve to false to preserve user disables.
+/**
+ * Old settings files can hold both flags with conflicting values; an explicit false on either
+ * side wins so a user's disable is never silently undone.
+ */
 const foldProviderInstanceEnabledFlags = (settings: ServerSettings): ServerSettings => {
   let changed = false;
   const providerInstances: Record<string, ProviderInstanceConfig> = {};
   for (const [instanceId, instance] of Object.entries(settings.providerInstances)) {
     const config = instance.config;
-    // Leave malformed flags for driver schema validation rather than silently repairing them.
+    // Only fold boolean flags: a malformed `enabled` (e.g. `"false"`) must
+    // stay in the blob so driver schema validation flags it instead of the
+    // fold silently repairing the config.
     if (
       config === null ||
       typeof config !== "object" ||
@@ -114,21 +117,11 @@ const normalizeServerSettings = (
   );
 
 export function redactServerSettingsForClient(settings: ServerSettings) {
-  const redacted = mapSettingsSecrets(settings, (secret) =>
+  return mapSettingsSecrets(settings, (secret) =>
     secret.sensitive
       ? { value: "", redacted: secret.redacted || secret.value.length > 0 }
       : { value: secret.value, redacted: false },
   );
-  return {
-    ...redacted,
-    secretProviders: Object.fromEntries(
-      Object.entries(redacted.secretProviders).map(([id, entry]) => {
-        if (isKnownSecretProviderKind(entry.kind)) return [id, entry];
-        const { config: _config, ...envelope } = entry;
-        return [id, envelope];
-      }),
-    ),
-  };
 }
 
 export function applyProviderInstanceMutation(
@@ -290,7 +283,6 @@ const ATOMIC_SETTINGS_KEYS: ReadonlySet<string> = new Set([
   "sourceControlWriterModelSelection",
   "reviewGuideModelSelection",
   "textGenerationModelSelection",
-  "fallbackModelSelection",
   "pullRequestMergeMethod",
 ]);
 
@@ -523,7 +515,6 @@ const make = Effect.gen(function* () {
           FROM projection_projects
           WHERE deleted_at IS NULL
         `.pipe(
-            NodeSqliteClient.readOnly,
             Effect.mapError(
               (cause) =>
                 new ServerSettingsError({
@@ -591,28 +582,6 @@ const make = Effect.gen(function* () {
         redacted: secret.sensitive && secret.kind === "environment" && secret.redacted,
       }));
     },
-  );
-
-  let materialized: { readonly source: ServerSettings; readonly value: ServerSettings } | null =
-    null;
-  let secretWriteGeneration = 0;
-  const invalidateMaterialized = Effect.sync(() => {
-    secretWriteGeneration++;
-    materialized = null;
-  });
-  const getMaterializedSettings = getSettingsFromCache.pipe(
-    Effect.flatMap((source) => {
-      if (materialized?.source === source) return Effect.succeed(materialized.value);
-      const generation = secretWriteGeneration;
-      return materializeSettingsSecrets(source).pipe(
-        Effect.map(resolveTextGenerationProvider),
-        Effect.tap((value) =>
-          Effect.sync(() => {
-            if (generation === secretWriteGeneration) materialized = { source, value };
-          }),
-        ),
-      );
-    }),
   );
 
   const materializeChanges = (changes: Stream.Stream<ServerSettings>) =>
@@ -790,9 +759,8 @@ const make = Effect.gen(function* () {
         const updated = yield* update(current);
         const persisted = yield* persistSettingsSecrets(current, updated);
         const next = yield* normalizeServerSettings(persisted.settings);
-        const materializedNext = yield* Effect.uninterruptibleMask(() =>
+        const materialized = yield* Effect.uninterruptibleMask(() =>
           Effect.gen(function* () {
-            yield* invalidateMaterialized;
             const rollbackSecretChanges = yield* applySettingsSecretChanges(persisted.changes);
             const materializedExit = yield* Effect.exit(materializeSettingsSecrets(next));
             if (Exit.isFailure(materializedExit)) {
@@ -805,18 +773,22 @@ const make = Effect.gen(function* () {
               return yield* Effect.failCause(writeExit.cause);
             }
             return materializedExit.value;
-          }).pipe(Effect.ensuring(invalidateMaterialized)),
+          }),
         );
         yield* Cache.set(settingsCache, cacheKey, { settings: next, parseFailure: Option.none() });
-        const resolved = resolveTextGenerationProvider(materializedNext);
-        materialized = { source: next, value: resolved };
         yield* emitChange(next);
-        return resolved;
+        return resolveTextGenerationProvider(materialized);
       }),
     );
 
   const withSettingsSnapshot: ServerSettingsService["Service"]["withSettingsSnapshot"] = (use) =>
-    writeSemaphore.withPermits(1)(getMaterializedSettings.pipe(Effect.flatMap(use)));
+    writeSemaphore.withPermits(1)(
+      getSettingsFromCache.pipe(
+        Effect.flatMap(materializeSettingsSecrets),
+        Effect.map(resolveTextGenerationProvider),
+        Effect.flatMap(use),
+      ),
+    );
 
   const revalidateAndEmit = writeSemaphore.withPermits(1)(
     Effect.gen(function* () {
@@ -857,7 +829,9 @@ const make = Effect.gen(function* () {
 
     const revalidateAndEmitSafely = revalidateAndEmit.pipe(Effect.ignoreCause({ log: true }));
 
-    // Watch symlink targets' directories for rewrites; re-resolve link changes to follow repointing.
+    // A symlinked settings file is rewritten in its destination's directory,
+    // which a watch on the link's directory never sees. The link is resolved
+    // again whenever it changes, so repointing it moves the watch along.
     const watchLinkTarget = Effect.gen(function* () {
       const linkTargetPath = yield* resolveSymlinkTarget(settingsPath).pipe(
         Effect.provideService(FileSystem.FileSystem, fs),
@@ -885,7 +859,8 @@ const make = Effect.gen(function* () {
       ),
     );
 
-    // Saves emit multiple events; fs.watch may fire before content is flushed.
+    // Editors emit multiple events per save (truncate, write, rename) and
+    // `fs.watch` can fire before the content has been flushed to disk.
     const debouncedSettingsEvents = Stream.merge(
       watchFileChanges(settingsPath),
       linkTargetEvents,
@@ -921,7 +896,10 @@ const make = Effect.gen(function* () {
   return {
     start,
     ready: Deferred.await(startedDeferred),
-    getSettings: getMaterializedSettings,
+    getSettings: getSettingsFromCache.pipe(
+      Effect.flatMap(materializeSettingsSecrets),
+      Effect.map(resolveTextGenerationProvider),
+    ),
     updateSettings: (patch) =>
       updateAndPersistSettings((current) =>
         Effect.succeed(applyServerSettingsPatch(current, patch)),

@@ -1,6 +1,6 @@
 import type { ContextMenuItem } from "@supaterm/contracts";
 import {
-  type SourceControlDefinition,
+  type SourceControlClientDefinition,
   UNKNOWN_SOURCE_CONTROL_CLIENT,
 } from "@supaterm/client-runtime/source-control-clients";
 
@@ -11,7 +11,7 @@ import { toastManager } from "../ui/toast";
 
 export type PullRequestLinkContextMenuAction = "copy-link" | "open-external" | "show-linked";
 
-export const openOnHostLabel = (host: SourceControlDefinition, number?: number): string => {
+export const openOnHostLabel = (host: SourceControlClientDefinition, number?: number): string => {
   const verb = number === undefined ? "Open" : `Open #${number}`;
   return host === UNKNOWN_SOURCE_CONTROL_CLIENT ? `${verb} on host` : `${verb} on ${host.label}`;
 };
@@ -21,7 +21,7 @@ function pullRequestLinkContextMenuItems({
   number,
   showLinked,
 }: {
-  readonly host: SourceControlDefinition;
+  readonly host: SourceControlClientDefinition;
   readonly number: number | undefined;
   readonly showLinked: boolean;
 }): readonly ContextMenuItem<PullRequestLinkContextMenuAction>[] {
@@ -47,7 +47,7 @@ export async function showPullRequestLinkContextMenu({
   onShowLinked,
 }: {
   readonly url: string;
-  readonly host: SourceControlDefinition;
+  readonly host: SourceControlClientDefinition;
   readonly position: { readonly x: number; readonly y: number };
   /** Names the pull request in the labels, for triggers that do not show which one they mean. */
   readonly number?: number | undefined;

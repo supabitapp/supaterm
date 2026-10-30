@@ -1,4 +1,3 @@
-import { NativeScrollView } from "../../native/NativeScrollViewMarker";
 import { SearchField } from "../../components/ui/SearchField";
 import { Toolbar } from "../../components/ui/Toolbar";
 import { ScreenScrollView as ScrollView } from "../../components/ui/ScreenScrollView";
@@ -11,7 +10,7 @@ import {
   thirdPartyLicenseEntryKey,
   type ThirdPartyLicenseEntry,
 } from "@supaterm/shared/thirdPartyLicenses";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Linking, Platform, Pressable, type TextInputInstance, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -61,16 +60,26 @@ export function SettingsOpenSourceLicensesRouteScreen() {
   const usesNativeMailSearchToolbar = useNativeMailSearchToolbar();
   const manifest = useMobileThirdPartyLicenses();
   const entries = manifest?.entries ?? [];
-  const filteredEntries = filterThirdPartyLicenseEntries(entries, query);
-  const renderItem = ({ item }: { readonly item: ThirdPartyLicenseEntry }) => (
-    <LicenseRow
-      entry={item}
-      onPress={() =>
-        navigation.navigate("SettingsOpenSourceLicense", {
-          entryKey: thirdPartyLicenseEntryKey(item),
-        })
-      }
-    />
+  const filteredEntries = useMemo(
+    () => filterThirdPartyLicenseEntries(entries, query),
+    [entries, query],
+  );
+  const renderItem = useCallback(
+    ({ item }: { readonly item: ThirdPartyLicenseEntry }) => (
+      <LicenseRow
+        entry={item}
+        onPress={() =>
+          navigation.navigate("SettingsSheet", {
+            screen: "SettingsContent",
+            params: {
+              screen: "SettingsOpenSourceLicense",
+              params: { entryKey: thirdPartyLicenseEntryKey(item) },
+            },
+          })
+        }
+      />
+    ),
+    [navigation],
   );
 
   if (!manifest) {
@@ -122,7 +131,6 @@ export function SettingsOpenSourceLicensesRouteScreen() {
       ) : null}
 
       <LegendList
-        renderScrollComponent={Platform.OS === "ios" ? NativeScrollView : undefined}
         className="flex-1"
         contentContainerStyle={{
           paddingBottom: usesNativeMailSearchToolbar

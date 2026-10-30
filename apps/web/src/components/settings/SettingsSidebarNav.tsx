@@ -1,6 +1,3 @@
-import { revealSettingsSearchTarget } from "./settingsSearch";
-import { workspaceAreaProps } from "../../lib/workspaceFocus";
-import { useSettingsSectionNavigation } from "./useSettingsSectionNavigation";
 import { useEffect, useRef, useState, type ComponentType, type KeyboardEvent } from "react";
 import {
   ArchiveIcon,
@@ -20,7 +17,6 @@ import {
 import { useLocation, useNavigate } from "@tanstack/react-router";
 
 import { CodexMicroIcon } from "../codexMicro/CodexMicroIcon";
-import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import { Kbd } from "../ui/kbd";
 import {
@@ -30,6 +26,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
   SidebarInput,
 } from "../ui/sidebar";
 import { SidebarBackToApp, SidebarUtilityMenu } from "../sidebar/SidebarChrome";
@@ -38,7 +35,6 @@ import {
   searchSettings,
   isSettingsSectionAvailable,
   SETTINGS_SECTION_LABELS,
-  SETTINGS_NAV_GROUPS,
   type SettingsPath,
   type SettingsSearchItem,
 } from "./settingsSearch";
@@ -72,17 +68,6 @@ const SETTINGS_SECTION_ICONS: Readonly<
   "/settings/source-control": GitBranchIcon,
   "/settings/storage": HardDriveIcon,
   "/settings/connections": LinkHorizontalIcon,
-  "/settings/chat": SlidersHorizontalIcon,
-  "/settings/diffs": SlidersHorizontalIcon,
-  "/settings/threads": SlidersHorizontalIcon,
-  "/settings/browser": SlidersHorizontalIcon,
-  "/settings/devices": HardDriveIcon,
-  "/settings/worktrees": SlidersHorizontalIcon,
-  "/settings/access": SlidersHorizontalIcon,
-  "/settings/secrets": SlidersHorizontalIcon,
-  "/settings/maintenance": HardDriveIcon,
-  "/settings/labs": SlidersHorizontalIcon,
-  "/settings/about": SlidersHorizontalIcon,
   "/settings/archived": ArchiveIcon,
 };
 
@@ -98,26 +83,19 @@ const SETTINGS_NAV_ITEMS: ReadonlyArray<{
     icon: SETTINGS_SECTION_ICONS[to],
   }));
 
-// Attached only to the highlighted result, so it runs whenever the highlight lands on a row.
-function scrollResultIntoView(row: HTMLElement | null) {
-  row?.scrollIntoView({ block: "nearest" });
-}
-
 function SettingsSectionIcon({ to }: { to: SettingsPath }) {
   const Icon = SETTINGS_SECTION_ICONS[to];
   return <Icon className="size-3.5 h-5 shrink-0 text-sidebar-muted-foreground/60" />;
 }
 
 export function SettingsSidebarNav({ pathname }: { pathname: string }) {
-  const sectionNavigation = useSettingsSectionNavigation(pathname);
   const navigate = useNavigate();
   const currentHash = useLocation({ select: (location) => location.hash });
   const currentSearch = useLocation({ select: (location) => location.search });
   const scopeSearch = validateSettingsScopeSearch(currentSearch);
+  const { isMobile, setOpenMobile, open, setOpen } = useSidebar();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
-  // Below md the nav is an icon rail; searching expands it over the page.
-  const [compactSearchOpen, setCompactSearchOpen] = useState(false);
   const [activeResultIndex, setActiveResultIndex] = useState(0);
   const searchableItems = useAvailableSettingsSearchItems(scopeSearch);
   const results = searchSettings(query, searchableItems);
@@ -129,7 +107,14 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
     setActiveResultIndex(maxResultIndex);
   }
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- window keydown listener for the find and slash search shortcuts
+  useEffect(() => {
+    const result = results[activeResultIndex];
+    if (!result) return;
+    document
+      .getElementById(`settings-search-result-${result.id}`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [activeResultIndex, results]);
+
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.defaultPrevented || event.isComposing) return;
@@ -150,27 +135,31 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
             target.tagName === "TEXTAREA" ||
             target.isContentEditable)) ||
           target.closest(
-            '[role="dialog"]:not([data-app-modal]), [aria-modal="true"]:not([data-app-modal]), [data-slot$="popup"]:not([data-app-modal]), [data-keybinding-capture]',
+            '[role="dialog"], [aria-modal="true"], [data-slot$="popup"], [data-keybinding-capture]',
           ) !== null)
       ) {
         return;
       }
 
       event.preventDefault();
-      setCompactSearchOpen(true);
-      searchInputRef.current?.focus();
-      searchInputRef.current?.select();
+      if (isMobile) {
+        setOpenMobile(true);
+      } else if (!open) {
+        setOpen(true);
+      }
+      requestAnimationFrame(() => {
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      });
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
-
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- focuses the search input DOM node after the compact search opens
-  useEffect(() => {
-    if (compactSearchOpen) searchInputRef.current?.focus();
-  }, [compactSearchOpen]);
+  }, [isMobile, open, setOpen, setOpenMobile]);
 
   const handleSectionClick = (to: SettingsPath) => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
     void navigate({
       to,
       hash: "",
@@ -185,9 +174,10 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
   };
   const handleSearchResultClick = (item: SettingsSearchItem) => {
     clearSearch();
-    setCompactSearchOpen(false);
+    if (isMobile) {
+      setOpenMobile(false);
+    }
     const targetId = item.targetId ?? item.id;
-    revealSettingsSearchTarget(targetId);
     if (pathname === item.to && currentHash.replace(/^#/, "") === targetId) {
       scrollToSettingsTarget(targetId);
       return;
@@ -228,10 +218,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
 
   return (
     <>
-      <SidebarContent
-        {...workspaceAreaProps("settings-nav", 0, "Settings sections")}
-        className="overflow-x-hidden"
-      >
+      <SidebarContent className="overflow-x-hidden">
         <SidebarGroup>
           <div className="flex flex-col gap-2">
             <SidebarBackToApp />
@@ -247,10 +234,6 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                   setActiveResultIndex(0);
                 }}
                 onKeyDown={handleSearchKeyDown}
-                onFocus={() => setCompactSearchOpen(true)}
-                onBlur={() => {
-                  if (!isSearching) setCompactSearchOpen(false);
-                }}
                 placeholder="Search"
                 aria-label="Search settings"
                 role="combobox"
@@ -297,11 +280,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                 aria-label={hasResults ? "Settings search results" : undefined}
               >
                 {results.map((item, index) => (
-                  <SidebarMenuItem
-                    key={item.id}
-                    role="presentation"
-                    ref={index === activeResultIndex ? scrollResultIntoView : undefined}
-                  >
+                  <SidebarMenuItem key={item.id} role="presentation">
                     <SidebarMenuButton
                       id={`settings-search-result-${item.id}`}
                       role="option"
@@ -327,55 +306,29 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                 ))}
               </SidebarMenu>
             ) : (
-              <div
-                {...sectionNavigation.containerProps}
-                {...workspaceAreaProps("settings-nav", 0, "Settings")}
-                role="tree"
-                className="space-y-4"
-              >
-                {SETTINGS_NAV_GROUPS.map((group) => (
-                  <SidebarMenu
-                    key={group.heading ?? group.paths[0]}
-                    aria-label={group.heading ?? undefined}
-                  >
-                    {group.heading ? (
-                      <li className="px-2 text-xs text-sidebar-muted-foreground">
-                        {group.heading}
-                      </li>
-                    ) : null}
-                    {SETTINGS_NAV_ITEMS.flatMap((item) => {
-                      if (!group.paths.includes(item.to)) return [];
-                      const Icon = item.icon;
-                      const isGeneralDetailPage =
-                        item.to === "/settings/general" &&
-                        pathname === "/settings/open-source-licenses";
-                      const isActive =
-                        isGeneralDetailPage ||
-                        pathname === item.to ||
-                        pathname.startsWith(`${item.to}/`);
-                      return (
-                        <SidebarMenuItem key={item.to}>
-                          <SidebarMenuButton
-                            role="treeitem"
-                            aria-current={isActive ? "page" : undefined}
-                            data-settings-section={item.to}
-                            tabIndex={sectionNavigation.tabIndexFor(item.to)}
-                            isActive={isActive}
-                            onClick={() => handleSectionClick(item.to)}
-                          >
-                            <Icon />
-                            <span
-                              className={cn("truncate", !compactSearchOpen && "max-md:sr-only")}
-                            >
-                              {item.label}
-                            </span>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      );
-                    })}
-                  </SidebarMenu>
-                ))}
-              </div>
+              <SidebarMenu>
+                {SETTINGS_NAV_ITEMS.map((item) => {
+                  const Icon = item.icon;
+                  const isGeneralDetailPage =
+                    item.to === "/settings/general" &&
+                    pathname === "/settings/open-source-licenses";
+                  const isActive =
+                    isGeneralDetailPage ||
+                    pathname === item.to ||
+                    pathname.startsWith(`${item.to}/`);
+                  return (
+                    <SidebarMenuItem key={item.to}>
+                      <SidebarMenuButton
+                        isActive={isActive}
+                        onClick={() => handleSectionClick(item.to)}
+                      >
+                        <Icon />
+                        <span className="truncate">{item.label}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
             )}
           </div>
         </SidebarGroup>

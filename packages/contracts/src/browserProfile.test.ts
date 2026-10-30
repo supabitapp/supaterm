@@ -4,6 +4,7 @@ import {
   BUILT_IN_BROWSER_PROFILES,
   DEFAULT_BROWSER_PROFILE_ID,
   INCOGNITO_BROWSER_PROFILE_ID,
+  findBrowserProfile,
   resolveBrowserProfiles,
   type BrowserProfile,
 } from "./browserProfile.ts";
@@ -19,6 +20,12 @@ describe("resolveBrowserProfiles", () => {
     ]);
 
     expect(resolved).toEqual([...BUILT_IN_BROWSER_PROFILES, work]);
+  });
+
+  it("keeps incognito ephemeral", () => {
+    const incognito = findBrowserProfile(resolveBrowserProfiles([]), INCOGNITO_BROWSER_PROFILE_ID);
+
+    expect(incognito?.kind).toBe("incognito");
   });
 });
 

@@ -24,8 +24,7 @@ export interface MuseSdkHost {
     | "onProtocolError"
     | "closed"
   >;
-  readonly initializeResult: Pick<SpawnedMspConnection["initializeResult"], "grantedCapabilities"> &
-    Partial<Pick<SpawnedMspConnection["initializeResult"], "museHome">>;
+  readonly initializeResult: Pick<SpawnedMspConnection["initializeResult"], "grantedCapabilities">;
   readonly exited: Promise<ProcessExit>;
 
   readonly stderrTail?: () => ReadonlyArray<string>;
@@ -50,7 +49,6 @@ export interface MuseSdkHostOptions {
   readonly sessionLogging?: boolean;
   readonly signal?: AbortSignal;
   readonly startupTimeoutMs?: number;
-  readonly onProcessExit?: (exit: ProcessExit) => void;
 }
 
 export function makeMuseEnvironment(
@@ -71,6 +69,13 @@ export function museVerbatimPath(path: string): string {
   return path.startsWith("\\\\") ? `\\\\?\\UNC\\${path.slice(2)}` : `\\\\?\\${path}`;
 }
 
+/**
+ * On Windows Muse rejects anything but the verbatim canonical path, true case
+ * and long names included, so resolve with the native realpath, which unlike
+ * FileSystem.realPath fixes case and expands 8.3 names. Muse itself still
+ * starts in the plain path: the `muse.cmd` launcher runs under cmd.exe, which
+ * cannot use a verbatim directory.
+ */
 export const museWorkspaceRoot = Effect.fn("museWorkspaceRoot")(function* (path: string) {
   if ((yield* HostProcess.Platform) !== "win32") return path;
   const canonical = yield* Effect.tryPromise(() => NodeFSP.realpath(path)).pipe(
@@ -87,6 +92,13 @@ function windowsEnvironmentValue(environment: NodeJS.ProcessEnv, name: string) {
   return key === undefined ? undefined : environment[key];
 }
 
+/**
+ * The SDK spawns without a shell, which finds the `muse` launcher on PATH
+ * everywhere but Windows. There Node neither looks a bare `muse` up with
+ * PATHEXT (ENOENT) nor runs a `.cmd` file such as Muse's own launcher (EINVAL)
+ * without a shell, so resolve the binary like any other command and run a
+ * `.cmd` or `.bat` under cmd.exe.
+ */
 export const museLaunch = Effect.fn("museLaunch")(function* (
   binaryPath: string,
   environment?: NodeJS.ProcessEnv,
@@ -101,6 +113,9 @@ export const museLaunch = Effect.fn("museLaunch")(function* (
     command:
       windowsEnvironmentValue(env, "ComSpec") ??
       (systemRoot ? `${systemRoot}\\System32\\cmd.exe` : "cmd.exe"),
+    // /d skips cmd's AutoRun commands, which could write into Muse's stdout. cmd /c drops
+    // the quotes from a command that starts with one and holds `&`, `@`, `^` or a
+    // parenthesis, so a quoted path follows a bare `@` (echo off), which keeps them.
     args: [
       "/d",
       "/c",
@@ -152,7 +167,6 @@ export async function createMuseSdkHost(
     env: options.environment ?? makeMuseEnvironment(),
 
     shutdownTimeoutMs: 10_000,
-    ...(options.onProcessExit ? { onProcessExit: options.onProcessExit } : {}),
   });
   let closePromise: Promise<void> | undefined;
   const close = () => {

@@ -3,7 +3,6 @@ import {
   createEnvironmentShellSummaryAtom,
   createEnvironmentSnapshotAtom,
   createShellEnvironmentAtoms,
-  EMPTY_SHELL_STATE,
   type EnvironmentShellState,
 } from "@supaterm/client-runtime/state/shell";
 import { useAtomValue } from "@effect/atom-react";
@@ -22,12 +21,14 @@ export const environmentShellSummaryAtom = createEnvironmentShellSummaryAtom({
   shellStateValueAtom: environmentShell.stateValueAtom,
 });
 
-const EMPTY_ENVIRONMENT_SHELL_STATE_ATOM = Atom.make<EnvironmentShellState>(EMPTY_SHELL_STATE);
+const EMPTY_ENVIRONMENT_SHELL_STATE_ATOM = Atom.make<EnvironmentShellState>({
+  snapshot: Option.none(),
+  status: "empty",
+  error: Option.none(),
+});
 
 const shellStatus = (state: EnvironmentShellState) => state.status;
 const shellHasError = (state: EnvironmentShellState) => Option.isSome(state.error);
-// The empty placeholder stands until the environment has read its cached shell.
-const shellCacheRead = (state: EnvironmentShellState) => state !== EMPTY_SHELL_STATE;
 
 export function useEnvironmentShellReadiness(environmentId: EnvironmentId | null) {
   const atom =
@@ -37,6 +38,5 @@ export function useEnvironmentShellReadiness(environmentId: EnvironmentId | null
   return {
     status: useAtomValue(atom, shellStatus),
     hasError: useAtomValue(atom, shellHasError),
-    cacheRead: useAtomValue(atom, shellCacheRead),
   };
 }

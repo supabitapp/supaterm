@@ -3,10 +3,9 @@ import {
   CommandId,
   OrchestratorMcpFailure,
   type ProjectId,
-  type ProviderInstanceId,
   type ProviderInteractionMode,
   type RuntimeMode,
-  ThreadId,
+  type ThreadId,
   type OrchestrationV2ThreadShell,
 } from "@supaterm/contracts";
 import * as Crypto from "effect/Crypto";
@@ -14,24 +13,8 @@ import * as Effect from "effect/Effect";
 
 import type { OrchestratorV2Error } from "../orchestration-v2/Orchestrator.ts";
 import * as ThreadManagement from "../orchestration-v2/ThreadManagementService.ts";
-import { resolveRuntimeMode, resolveInteractionMode } from "./delegatedTaskModes.ts";
+import * as OrchestrationMcp from "./OrchestratorMcpService.ts";
 import * as McpInvocationContext from "./McpInvocationContext.ts";
-
-export const threadNotFound = Effect.fn("OrchestratorMcpService.threadNotFound")(function* (
-  threads: Pick<ThreadManagement.ThreadManagementService["Service"], "getThreadShell">,
-  threadId: ThreadId,
-  message: string,
-) {
-  const prefixed = ThreadId.make(`mcp:${threadId}`);
-  const shell = yield* threads.getThreadShell(prefixed).pipe(Effect.orElseSucceed(() => null));
-  return yield* new OrchestratorMcpFailure({
-    code: "thread_not_found",
-    message:
-      shell === null || shell.deletedAt !== null
-        ? message
-        : `${message} Did you mean \`${prefixed}\`?`,
-  });
-});
 
 export const unavailable = () =>
   new OrchestratorMcpFailure({
@@ -85,7 +68,10 @@ export const loadCaller = Effect.fn("mcp.loadCaller")(function* () {
       scope,
       threads,
       caller: undefined,
-      limits: McpInvocationContext.clientModeCeiling(scope.client),
+      limits: {
+        runtimeMode: McpInvocationContext.clientRuntimeModeCeiling(scope.client),
+        interactionMode: "default",
+      },
     } satisfies Caller;
   }
   const caller = yield* threads
@@ -109,8 +95,10 @@ export const assertTargetWithinLimits = (
   limits: CallerLimits,
   target: { readonly runtimeMode: RuntimeMode; readonly interactionMode: ProviderInteractionMode },
 ) =>
-  resolveRuntimeMode(limits.runtimeMode, target.runtimeMode).pipe(
-    Effect.andThen(resolveInteractionMode(limits.interactionMode, target.interactionMode)),
+  OrchestrationMcp.resolveRuntimeMode(limits.runtimeMode, target.runtimeMode).pipe(
+    Effect.andThen(
+      OrchestrationMcp.resolveInteractionMode(limits.interactionMode, target.interactionMode),
+    ),
     Effect.asVoid,
   );
 
@@ -120,25 +108,9 @@ export const assertTargetWithinLimits = (
  * token that outlived its session cannot act. An OAuth client has no run; its
  * session and ceiling are its authority.
  */
-export const isLiveCallerShell = (
-  shell: Pick<
-    OrchestrationV2ThreadShell,
-    "archivedAt" | "activeRunId" | "providerInstanceId" | "pendingBackgroundTasks"
-  > | null,
-  providerInstanceId: ProviderInstanceId | undefined,
-) =>
-  shell !== null &&
-  shell.archivedAt === null &&
-  shell.providerInstanceId === providerInstanceId &&
-  (shell.activeRunId !== null ||
-    (shell.pendingBackgroundTasks?.some(
-      (task) => task.kind === "subagent" && task.providerInstanceId === providerInstanceId,
-    ) ??
-      false));
-
 export function assertLiveCaller({ caller, scope }: Caller) {
   if (caller === undefined) return Effect.void;
-  return isLiveCallerShell(caller, scope.thread?.providerInstanceId)
+  return OrchestrationMcp.isLiveCallerShell(caller, scope.thread?.providerInstanceId)
     ? Effect.void
     : Effect.fail(
         new OrchestratorMcpFailure({
@@ -184,7 +156,11 @@ export const readThread = Effect.fn("mcp.readThread")(function* <
   const targetId = yield* resolveThreadId(context, threadId);
   const shell = yield* context.threads.getThreadShell(targetId).pipe(Effect.mapError(unavailable));
   if (shell === null || shell.deletedAt !== null) {
-    return yield* threadNotFound(context.threads, targetId, "The thread was not found.");
+    return yield* OrchestrationMcp.threadNotFound(
+      context.threads,
+      targetId,
+      "The thread was not found.",
+    );
   }
   const projection = yield* context.threads
     .getProjectThreadRecords({ projectId: shell.projectId, threadId: targetId }, fields, {

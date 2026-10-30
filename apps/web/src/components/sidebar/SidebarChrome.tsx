@@ -34,7 +34,7 @@ import { toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { readPullRequestListPreferences } from "../pullRequest/pullRequestListPreferences";
 import { useEnvironmentStageLabel } from "./environmentIdentification";
-import { isSidebarUtilityPage, useCloseAppModal, useNavigateToMainApp } from "./mainAppLocation";
+import { isSidebarUtilityPage, useNavigateToMainApp } from "./mainAppLocation";
 import { SidebarThreadUndoNotice } from "./SidebarThreadUndoNotice";
 import { SidebarProviderUpdatePill } from "./SidebarProviderUpdatePill";
 import { SidebarUpdateArchitectureWarning, SidebarUpdatePill } from "./SidebarUpdatePill";
@@ -192,11 +192,11 @@ function SidebarHelpItem({ closeMobileSidebar }: { closeMobileSidebar: () => voi
 }
 
 export function SidebarBackToApp() {
-  const closeAppModal = useCloseAppModal();
+  const navigateToMainApp = useNavigateToMainApp();
   const { isMobile, setOpenMobile } = useSidebar();
   const handleClick = () => {
     if (isMobile) setOpenMobile(false);
-    void closeAppModal();
+    void navigateToMainApp();
   };
 
   return (

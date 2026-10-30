@@ -1,4 +1,3 @@
-import type { EnvironmentContextRecord } from "@supaterm/contracts";
 import type {
   EnvironmentId,
   PreviewAnnotationPayload,
@@ -69,7 +68,6 @@ import { useStableCallback } from "../../hooks/useStableCallback";
 import type { ReviewCommentContext } from "../../reviewCommentContext";
 import type { ChatComposerProps } from "./ChatComposer";
 import { useInputsChanged, useInputsChangedWhileActive } from "./useInputsChanged";
-import { useIsPaneInputOwner } from "../../chatPanes/paneScope";
 
 /**
  * The prompt stash: saving the draft aside, restoring or deleting an entry, sending every
@@ -78,14 +76,13 @@ import { useIsPaneInputOwner } from "../../chatPanes/paneScope";
  */
 export function useComposerStash(input: {
   readonly environmentId: EnvironmentId;
-  readonly readAttachments: () => Pick<
-    ComposerThreadDraftState,
-    "images" | "files" | "terminalContexts"
-  >;
   readonly composerDraftTarget: ChatComposerProps["composerDraftTarget"];
   readonly attachmentDraftTarget: ScopedThreadRef | DraftId;
   readonly composerDraft: ComposerThreadDraftState;
   readonly promptRef: ChatComposerProps["promptRef"];
+  readonly composerImagesRef: ChatComposerProps["composerImagesRef"];
+  readonly composerFilesRef: ChatComposerProps["composerFilesRef"];
+  readonly composerTerminalContextsRef: ChatComposerProps["composerTerminalContextsRef"];
   readonly keybindings: ChatComposerProps["keybindings"];
   readonly terminalOpen: boolean;
   readonly isPaneInputOwner: () => boolean;
@@ -107,7 +104,6 @@ export function useComposerStash(input: {
   readonly composerPreviewAnnotations: ReadonlyArray<PreviewAnnotationPayload>;
   readonly composerReviewComments: ReadonlyArray<ReviewCommentContext>;
   readonly composerThreadContexts: ReadonlyArray<ThreadContextRecord>;
-  readonly composerEnvironmentContexts: ReadonlyArray<EnvironmentContextRecord>;
   readonly attachmentTargetKeyRef: RefObject<string>;
   readonly composerDraftTargetKeyRef: RefObject<string>;
   readonly composerEditorRef: RefObject<ComposerPromptEditorHandle | null>;
@@ -127,12 +123,14 @@ export function useComposerStash(input: {
   ) => Promise<void> | null;
 }) {
   const {
-    readAttachments,
     environmentId,
     composerDraftTarget,
     attachmentDraftTarget,
     composerDraft,
     promptRef,
+    composerImagesRef,
+    composerFilesRef,
+    composerTerminalContextsRef,
     keybindings,
     terminalOpen,
     isPaneInputOwner,
@@ -154,7 +152,6 @@ export function useComposerStash(input: {
     composerPreviewAnnotations,
     composerReviewComments,
     composerThreadContexts,
-    composerEnvironmentContexts,
     attachmentTargetKeyRef,
     composerDraftTargetKeyRef,
     composerEditorRef,
@@ -183,7 +180,6 @@ export function useComposerStash(input: {
     (store) => store.clearComposerPromptAndImages,
   );
   const setComposerDraftThreadContexts = useComposerDraftStore((store) => store.setThreadContexts);
-  const ownsInput = useIsPaneInputOwner();
   const [isStashMenuOpen, setIsStashMenuOpen] = useState(false);
   const [isSendingAllStash, setIsSendingAllStash] = useState(false);
   const [stashPulse, setStashPulse] = useState<{ key: number; active: boolean }>({
@@ -199,7 +195,6 @@ export function useComposerStash(input: {
   const takeStashEntry = usePromptStashStore((state) => state.takeEntry);
   const finalizeStashEntryImages = usePromptStashStore((state) => state.finalizeEntryImages);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Cancels the stash badge's pending pulse timeout when the composer unmounts.
   useEffect(() => {
     return () => {
       if (stashPulseTimeoutRef.current !== null) {
@@ -221,7 +216,6 @@ export function useComposerStash(input: {
   };
 
   const composerMountedRef = useRef(true);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Bounds asynchronous stash restoration to this mounted composer so it cannot edit a disposed pane.
   useEffect(() => {
     composerMountedRef.current = true;
     return () => {
@@ -311,7 +305,7 @@ export function useComposerStash(input: {
     let restoredFileCount = 0;
     const stashedFiles = entry.files ?? [];
     if (stashedFiles.length > 0) {
-      const composerFilesNow = readAttachments().files;
+      const composerFilesNow = composerFilesRef.current;
       const existingFileIds = new Set(composerFilesNow.map((file) => file.id));
       const retainedUploadIds = new Set(
         composerFilesNow.flatMap((file) =>
@@ -377,7 +371,7 @@ export function useComposerStash(input: {
         appendedFiles.push(restored);
       }
       const capacity = remainingComposerAttachmentSlots(
-        readAttachments().images.length + composerFilesNow.length,
+        composerImagesRef.current.length + composerFilesNow.length,
         pendingThreadImportsRef.current.get(composerTargetKey(composerDraftTarget)) ?? 0,
       );
       const filesToAppend = appendedFiles.slice(0, capacity);
@@ -421,18 +415,18 @@ export function useComposerStash(input: {
 
     let unrestoredImageNames: string[] = [];
     if (entry.attachments.length > 0) {
-      const existingIds = new Set(readAttachments().images.map((image) => image.id));
+      const existingIds = new Set(composerImagesRef.current.map((image) => image.id));
       // The draft store also dedupes by mimeType+sizeBytes+name, so filter
       // on the same key here. Counting a duplicate against capacity would
       // burn a slot the store then refuses to fill, pushing a genuinely
       // unique image into the overflow list for nothing.
       const existingDedupKeys = new Set(
-        readAttachments().images.map(
+        composerImagesRef.current.map(
           (image) => `${image.mimeType}\0${image.sizeBytes}\0${image.name}`,
         ),
       );
       const capacity = remainingComposerAttachmentSlots(
-        readAttachments().images.length + readAttachments().files.length + restoredFileCount,
+        composerImagesRef.current.length + composerFilesRef.current.length + restoredFileCount,
         pendingThreadImportsRef.current.get(composerTargetKey(composerDraftTarget)) ?? 0,
       );
       const pending = entry.attachments.filter(
@@ -631,12 +625,11 @@ export function useComposerStash(input: {
       return;
     }
     const prompt = promptRef.current.trim();
-    const images = [...readAttachments().images];
-    const files = [...readAttachments().files];
+    const images = [...composerImagesRef.current];
+    const files = [...composerFilesRef.current];
     const stashedRecords: ComposerContextRecord[] = [
       ...composerThreadContexts,
-      ...composerEnvironmentContexts,
-      ...readAttachments().terminalContexts.map(terminalContextRecord),
+      ...composerTerminalContextsRef.current.map(terminalContextRecord),
       ...composerReviewComments.map(reviewCommentContextRecord),
       ...composerPreviewAnnotations.map((annotation) =>
         previewAnnotationContextRecord(annotation, {
@@ -683,6 +676,11 @@ export function useComposerStash(input: {
         ...(file.source ? { source: file.source } : {}),
       });
     }
+    // A repeat ⌘S on the *same* still-unencoded snapshot would stash it
+    // twice. Guard on the snapshot itself rather than a bare boolean: once
+    // the composer has been cleared the user can type something genuinely
+    // new (or switch threads) while encoding continues, and that deserves its
+    // own entry.
     const attachmentKey = images
       .map((image) => `image:${image.id}`)
       .concat(files.map((file) => `file:${file.id}`))
@@ -694,6 +692,11 @@ export function useComposerStash(input: {
     const stashTarget = composerDraftTarget;
     const entryId = randomUUID();
     const persistStash = async () => {
+      // Persist the text-only entry *first*, then clear. Ordering matters in
+      // both directions: writing before clearing means a crash or closed tab
+      // mid-encode still leaves the prompt recoverable, while clearing before
+      // the async image work means edits typed during encoding are not wiped.
+      // Images are appended to the stored entry as they finish encoding.
       const { evicted, written, durable } = stashEntryToQueue({
         id: entryId,
         createdAt: new Date().toISOString(),
@@ -835,12 +838,11 @@ export function useComposerStash(input: {
   const promptChangedWhileStashOpen = useInputsChangedWhileActive(isStashMenuOpen, [prompt]);
   if (
     isStashMenuOpen &&
-    (!ownsInput || (composerMenuOpenChanged && composerMenuOpen) || promptChangedWhileStashOpen)
+    ((composerMenuOpenChanged && composerMenuOpen) || promptChangedWhileStashOpen)
   ) {
     setIsStashMenuOpen(false);
   }
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Owns the stash shortcut's capture listener while this pane is mounted.
   useEffect(() => {
     const handler = (event: globalThis.KeyboardEvent) => {
       if (!isPaneInputOwner()) return;

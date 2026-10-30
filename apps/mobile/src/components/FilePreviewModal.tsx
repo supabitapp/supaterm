@@ -1,7 +1,16 @@
 import * as Dialog from "./ui/Dialog";
-import { useCallback, useContext, useEffect, useEffectEvent, useState, useMemo } from "react";
+import { useNavigation } from "@react-navigation/native";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useEffectEvent,
+  useState,
+  useSyncExternalStore,
+  useMemo,
+} from "react";
+import { Keyboard } from "react-native";
 
-import { usePreviewPresentation } from "../lib/previewPresentation";
 import { loadLocalAttachmentPreview } from "../lib/localAttachmentPreview";
 import { useRefreshAssetUrl } from "../state/assets";
 import {
@@ -35,42 +44,60 @@ function PreviewItemResolver(props: {
     environmentId,
     "resource" in source ? source.resource : null,
   );
+  // Resolve once per presentation; background URL refreshes must not reopen the native viewer.
+  const [uri, setUri] = useState<string | null>("uri" in source ? source.uri : null);
   const onResolutionError = useEffectEvent(props.onFailed);
-  const onResolved = useEffectEvent(props.onResolved);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- resolves and leases the native preview URL for this keyed presentation
+  useEffect(() => Keyboard.dismiss(), []);
   useEffect(() => {
+    if (environmentId === null || uri !== null) return;
+    let cancelled = false;
+    // A cached URL may have expired while the app was suspended. Await reauthorization
+    // before handing a URL to Quick Look or ACTION_VIEW, which retain that URL.
+    void refreshAssetUrl()
+      .then((url) => {
+        if (cancelled) return;
+        if (!url) throw new Error("Reconnect to this environment and try again.");
+        setUri(url + (source.srcFragment ?? ""));
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        onResolutionError(
+          error,
+          "Reconnect to this environment and try again. The file may have been moved or deleted.",
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [environmentId, uri, refreshAssetUrl, source.srcFragment]);
+  useEffect(() => {
+    if (!("attachment" in source)) return;
     const controller = new AbortController();
     let release: (() => void) | undefined;
-    const resolve = async () => {
-      if ("uri" in source) return source.uri;
-      if ("attachment" in source) {
-        const file = await loadLocalAttachmentPreview(source.attachment, controller.signal);
-        if (!file) throw new Error("Attach the file again and retry.");
-        release = file.dispose;
-        return file.uri;
-      }
-      const url = await refreshAssetUrl();
-      if (!url) throw new Error("Reconnect to this environment and try again.");
-      return url + (source.srcFragment ?? "");
-    };
-    void resolve().then(
-      (uri) => {
+    void loadLocalAttachmentPreview(source.attachment, controller.signal)
+      .then((file) => {
+        if (!file) return;
         if (controller.signal.aborted) {
-          release?.();
+          file.dispose();
           return;
         }
-        onResolved({ ...source, name: filePreviewName(source), uri });
-      },
-      (error: unknown) => {
-        if (!controller.signal.aborted)
-          onResolutionError(error, "Reconnect to this environment or attach the file again.");
-      },
-    );
+        release = file.dispose;
+        setUri(file.uri);
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        onResolutionError(error, "Attach the file again and retry.");
+      });
     return () => {
       controller.abort();
       release?.();
     };
-  }, [source, refreshAssetUrl]);
+  }, [source]);
+
+  const onResolved = useEffectEvent(props.onResolved);
+  useEffect(() => {
+    if (uri !== null) onResolved({ ...source, name: filePreviewName(source), uri });
+  }, [uri, source]);
   return null;
 }
 
@@ -79,6 +106,7 @@ function ResolvedFilePreview(props: {
   readonly onRequestClose: () => void;
   readonly onOpenError?: (error: unknown) => void;
 }) {
+  // Freeze the group at opening; streaming messages and URL refreshes must not reopen the viewer.
   const [items] = useState(() => filePreviewGallery(props.source, []));
   const [resolved, setResolved] = useState<Record<string, ResolvedFilePreviewSource>>({});
   const [failedKeys, setFailedKeys] = useState<ReadonlySet<string>>(() => new Set());
@@ -86,7 +114,7 @@ function ResolvedFilePreview(props: {
     setResolved((current) => ({ ...current, [key]: item }));
   }, []);
   const selectedKey = filePreviewKey(props.source);
-
+  // A sibling that moved or was deleted drops out of the gallery; only the tapped item closes it.
   const onFailed = (key: string, error: unknown, fallbackMessage: string) => {
     if (key !== selectedKey) {
       setFailedKeys((current) => new Set(current).add(key));
@@ -142,8 +170,32 @@ export function FilePreviewModal(props: {
           },
     [props.source, group],
   );
-  usePreviewPresentation(source ? filePreviewKey(source) : null, props.onRequestClose);
-  if (!source) return null;
+  const navigation = useNavigation();
+  const subscribeToFocus = useCallback(
+    (listener: () => void) => {
+      const offFocus = navigation.addListener("focus", listener);
+      const offBlur = navigation.addListener("blur", listener);
+      return () => {
+        offFocus();
+        offBlur();
+      };
+    },
+    [navigation],
+  );
+  // The v5 card host sits inside a legacy presentation envelope whose focus context
+  // can describe a different route. The preview belongs to this navigation route.
+  const isFocused = useSyncExternalStore(
+    subscribeToFocus,
+    navigation.isFocused,
+    navigation.isFocused,
+  );
+  const hasSource = props.source !== null;
+  const onRequestClose = useEffectEvent(props.onRequestClose);
+  useEffect(() => {
+    if (!isFocused && hasSource) onRequestClose();
+  }, [isFocused, hasSource]);
+
+  if (!source || !isFocused) return null;
   return (
     <ResolvedFilePreview
       key={filePreviewKey(source)}

@@ -299,7 +299,7 @@
       "generatedNotices": [
         {
           "licenseId": "Apache-2.0",
-          "copyrights": ["Copyright 2009, 2010, 2013 André Berg"]
+          "copyrights": ["Copyright 2009, 2010, 2013 Andr\u00e9 Berg"]
         }
       ]
     },
@@ -361,64 +361,9 @@
           ]
         }
       ]
-    },
-    {
-      "bundles": ["desktop", "web"],
-      "license": "MIT",
-      "name": "Office viewer helpers",
-      "noticeFiles": ["apps/web/src/components/files/office/LICENSE.office-helpers"]
-    },
-    {
-      "bundles": ["ios", "android", "mobile"],
-      "license": "Apache-2.0",
-      "name": "wasm2c runtime (WABT)",
-      "version": "1.0.42",
-      "noticeFile": "apps/mobile/modules/supaterm-highlights/Vendor/wasm2c/LICENSE",
-      "sourceUrl": "https://github.com/WebAssembly/wabt/tree/1.0.42/wasm2c"
-    },
-    {
-      "bundles": ["ios", "android", "mobile"],
-      "license": "MIT",
-      "name": "SIMD Everywhere",
-      "version": "0.8.2",
-      "noticeFile": "apps/mobile/modules/supaterm-highlights/Vendor/simde/LICENSE",
-      "sourceUrl": "https://github.com/simd-everywhere/simde/tree/v0.8.2"
     }
   ],
   "packageOverrides": [
-    {
-      "name": "@nodable/entities",
-      "version": "2.2.0",
-      "license": "MIT",
-      "sourceUrl": "https://github.com/nodable/val-parsers/blob/1a2c08a483b5b6428f1b3d01974875c97f3b3953/LICENSE",
-      "generatedNotice": {
-        "licenseId": "MIT",
-        "copyrights": ["Copyright (c) 2026 Nodable"]
-      }
-    },
-    {
-      "name": "character-entities",
-      "version": "2.0.2",
-      "license": "MIT",
-      "sourceUrl": "https://github.com/wooorm/character-entities",
-      "generatedNotice": {
-        "licenseId": "MIT",
-        "copyrights": ["Copyright (c) 2015 Titus Wormer <tituswormer@gmail.com>"]
-      }
-    },
-    {
-      "name": "saxes",
-      "version": "6.0.0",
-      "license": "ISC",
-      "sourceUrl": "https://github.com/lddubeau/saxes",
-      "generatedNotice": {
-        "licenseId": "ISC",
-        "copyrights": [
-          "Copyright (c) Contributors",
-          "Copyright (c) Isaac Z. Schlueter and Contributors"
-        ]
-      }
-    },
     {
       "name": "remark-math",
       "version": "6.0.0",

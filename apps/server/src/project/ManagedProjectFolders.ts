@@ -98,6 +98,10 @@ export class ManagedProjectFolders extends Context.Service<
       readonly text: string;
     }) => Effect.Effect<Option.Option<string>, ScratchFolderError>;
     readonly namedProjectsRoot: string;
+    /**
+     * The folder is removed when the create fails or is cancelled before the
+     * project exists, never once another project owns it.
+     */
     readonly createNamedProject: (input: { readonly name: string }) => Effect.Effect<
       {
         readonly projectId: ProjectId;
@@ -147,6 +151,10 @@ function escapeXml(value: string): string {
     .replaceAll('"', "&quot;");
 }
 
+/**
+ * It lives at `assets/icon.svg`, a path ProjectFaviconResolver already checks,
+ * so every machine that clones the project shows the same icon.
+ */
 function namedProjectIconSvg(name: string): string {
   const words = name.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
   const initials =
@@ -193,6 +201,7 @@ function describeCommitFailure(stderr: string): string {
 
 const isVcsProcessSpawnError = Schema.is(VcsProcessSpawnError);
 
+// Spawning a `git` that is not on PATH fails with NotFound, on Windows too.
 const isGitMissing = (error: GitManagerServiceError) =>
   error._tag === "GitManagerError" &&
   isVcsProcessSpawnError(error.cause) &&
@@ -208,6 +217,10 @@ const make = Effect.gen(function* () {
   const projects = yield* ProjectService.ProjectService;
   const crypto = yield* Crypto.Crypto;
 
+  /**
+   * Each folder is created without `recursive`, so creating it is the claim: of
+   * two racers for one name, one gets AlreadyExists and moves on to the next.
+   */
   const claimFreeFolder = Effect.fnUntraced(function* <E>(
     folderFor: (attempt: number) => Effect.Effect<Option.Option<string>, E>,
     onError: (folder: string, cause: PlatformError.PlatformError) => E,
@@ -271,6 +284,8 @@ const make = Effect.gen(function* () {
           workspaceRoot,
         })
         .pipe(
+          // bootstrap looks the root up before taking the workspace lock, so a
+          // racing create loses with a conflict that names the winner.
           Effect.catchTags({
             ProjectConflictError: (conflict) =>
               Effect.succeed({
@@ -328,9 +343,9 @@ const make = Effect.gen(function* () {
     return yield* claimFreeFolder(
       (attempt) =>
         attempt === 1
-          ? Effect.succeedSome(folderFor(id.slice(-8)))
+          ? Effect.succeed(Option.some(folderFor(id.slice(-8))))
           : attempt === 2
-            ? Effect.succeedSome(fullFolder)
+            ? Effect.succeed(Option.some(fullFolder))
             : crypto.randomUUIDv4().pipe(
                 Effect.map((uuid) => Option.some(`${fullFolder}-${uuid.slice(0, 8)}`)),
                 Effect.mapError((cause) => new ScratchFolderError({ folder: fullFolder, cause })),
@@ -393,6 +408,7 @@ const make = Effect.gen(function* () {
       path.join(cwd, "assets", "icon.svg"),
       namedProjectIconSvg(name),
     );
+    // Named and forced so a global ignore rule (say `*.svg`) cannot drop one.
     yield* git.execute({
       operation: "ManagedProjectFolders.add",
       cwd,
@@ -437,6 +453,11 @@ const make = Effect.gen(function* () {
         workspaceRoot,
       })
       .pipe(
+        // A rejected create leaves the folder unused, so remove it. An
+        // interrupt can land after the create is committed, and a conflict
+        // means another project owns the folder, so it stays then; the owner
+        // is checked again first, since deleting another project's files is
+        // never acceptable.
         Effect.tapError((error) =>
           error._tag === "ProjectConflictError"
             ? Effect.void

@@ -3,7 +3,8 @@ import { ComposerContextId } from "@supaterm/contracts";
 import { useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/reactivity";
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
-import { useEffect, useState } from "react";
+import { useNavigation } from "@react-navigation/native";
+import { useEffect, useRef, useState } from "react";
 import type { EnvironmentId } from "@supaterm/contracts";
 import { encodeComposerContextFragment } from "@supaterm/shared/composerContextClipboard";
 import { collectComposerContextReferences } from "@supaterm/shared/composerContextReferences";
@@ -11,7 +12,6 @@ import { ComposerEditor as NativeComposerEditor } from "../native/SupatermCompos
 import type { ComposerEditorProps as NativeComposerEditorProps } from "../native/SupatermComposerEditor";
 import {
   appendComposerDraftAttachments,
-  composerContextImportsAtom,
   createComposerDraftContextHistory,
   getComposerDraftAfterSelection,
   getComposerDraftSnapshot,
@@ -23,11 +23,7 @@ import {
   useComposerDraft,
 } from "../state/use-composer-drafts";
 import { importComposerContextClipboard } from "../lib/composerContextClipboard";
-import { startComposerDraftOperation } from "../state/composerDraftOperations";
-import { appAtomRegistry } from "../state/atom-registry";
 import { mobilePreferencesAtom } from "../state/preferences";
-import { useOpenLinkedThread } from "../features/threads/useOpenLinkedThread";
-import { useLinkedEnvironments } from "../state/peerLinks";
 import { ComposerContextSheet } from "./ComposerContextSheet";
 import { AppText as Text } from "./ui/AppText";
 import {
@@ -70,7 +66,6 @@ export function ComposerEditor({
     });
   }
   const contextHistory = contextHistoryEntry.history;
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Releases retained context-history attachments when the editor unmounts.
   useEffect(() => () => contextHistory.dispose(), [contextHistory]);
   const changeText = (text: string) => {
     const restored = contextHistory.restore(
@@ -85,37 +80,49 @@ export function ComposerEditor({
       });
     }
   };
-  const [selected, setSelected] = useState<{ source: string; start: number; end: number } | null>(
-    null,
+  const [selected, setSelected] = useState<{
+    source: string;
+    start: number;
+    end: number;
+  } | null>(null);
+  const importRef = useRef<{
+    readonly draftKey: string;
+    readonly controller: AbortController;
+  } | null>(null);
+  const [importing, setImporting] = useState(false);
+  useEffect(
+    () => () => {
+      const pendingImport = importRef.current;
+      if (pendingImport !== null && pendingImport.draftKey === draftKey) {
+        pendingImport.controller.abort();
+      }
+    },
+    [draftKey],
   );
-  const linkedEnvironments = useLinkedEnvironments(environmentId ?? null);
-  const contextImports = useAtomValue(composerContextImportsAtom);
-  const importing = draftKey ? contextImports[draftKey] === true : false;
   const pasteContext = async (
     clipboard: Parameters<NonNullable<NativeComposerEditorProps["onPasteContext"]>>[0],
   ) => {
-    if (
-      !draftKey ||
-      appAtomRegistry.get(composerContextImportsAtom)[draftKey] ||
-      props.readOnly ||
-      props.editable === false
-    )
-      return;
-    const insertion = { text: clipboard.value, ...clipboard.selection };
-    const operation = startComposerDraftOperation(draftKey);
-    const { signal } = operation;
+    if (!draftKey || importRef.current || props.readOnly || props.editable === false) return;
+    const insertion = {
+      text: clipboard.value,
+      ...clipboard.selection,
+    };
+    const controller = new AbortController();
+    importRef.current = {
+      draftKey,
+      controller,
+    };
+    setImporting(true);
     setComposerContextImporting(draftKey, true);
     const settled = await settlePromise(async () => {
       const retained = getComposerDraftAfterSelection(draftKey, insertion);
       const result = await importComposerContextClipboard(
         clipboard,
         retained.attachments.length,
-        signal,
+        controller.signal,
         retained.context?.records.length ?? 0,
         environmentId,
-        linkedEnvironments,
       );
-      if (signal.aborted) return;
       if (!result) {
         insertComposerDraftText(draftKey, clipboard.text, insertion);
         return;
@@ -142,9 +149,10 @@ export function ComposerEditor({
           [...warnings, "Those references are marked unavailable."].join("\n\n"),
         );
     });
-    operation.finish();
     setComposerContextImporting(draftKey, false);
-    if (AsyncResult.isFailure(settled) && !signal.aborted) {
+    importRef.current = null;
+    setImporting(false);
+    if (AsyncResult.isFailure(settled) && !controller.signal.aborted) {
       const error = squashAtomCommandFailure(settled);
       Dialog.alert(
         "Could not paste context",
@@ -172,7 +180,7 @@ export function ComposerEditor({
           }),
         })
       : "";
-  const openLinkedThread = useOpenLinkedThread();
+  const navigation = useNavigation();
   const selectedReference = selected
     ? collectComposerContextReferences(selected.source)[0]
     : undefined;
@@ -258,7 +266,7 @@ export function ComposerEditor({
             : {})}
           onOpenThread={(thread) => {
             setSelected(null);
-            openLinkedThread({
+            navigation.navigate("Thread", {
               environmentId: String(thread.environmentId),
               threadId: String(thread.threadId),
             });

@@ -3,7 +3,11 @@ import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 
-/** Skip symlink fixtures when unsupported; Windows requires Developer Mode or elevation. */
+/**
+ * Windows refuses without Developer Mode or elevation, so tests that plant a
+ * symlink to prove containment or escape detection should
+ * `skipIf(!symlinksSupported)` rather than fail at setup.
+ */
 export const symlinksSupported: boolean = (() => {
   let directory: string | undefined;
   try {
@@ -13,7 +17,8 @@ export const symlinksSupported: boolean = (() => {
   } catch {
     return false;
   } finally {
-    // Cleanup EPERM/EBUSY must not fail module initialization or decide symlink support.
+    // Cleanup must not decide the answer: a transient EPERM/EBUSY on the
+    // probe directory would otherwise throw out of module initialisation.
     try {
       if (directory !== undefined) NodeFS.rmSync(directory, { recursive: true, force: true });
     } catch {}

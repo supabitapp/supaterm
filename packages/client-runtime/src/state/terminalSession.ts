@@ -24,16 +24,9 @@ export {
 } from "./terminalOutput.ts";
 export { DEFAULT_MAX_TERMINAL_BUFFER_BYTES } from "@supaterm/contracts";
 
-export interface TerminalGrid {
-  readonly cols: number;
-  readonly rows: number;
-}
-
 export interface TerminalSessionState {
   readonly summary: TerminalSummary | null;
   readonly output: TerminalOutputState;
-
-  readonly grid: TerminalGrid | null;
   readonly status: TerminalSessionSnapshot["status"] | "closed";
   readonly error: string | null;
   readonly hasRunningSubprocess: boolean;
@@ -44,7 +37,6 @@ export interface TerminalSessionState {
 
 export interface TerminalBufferState {
   readonly output: TerminalOutputState;
-  readonly grid: TerminalGrid | null;
   readonly status: TerminalSessionSnapshot["status"] | "closed";
   readonly error: string | null;
   readonly updatedAt: string | null;
@@ -73,7 +65,6 @@ export function selectRunningSubprocessTerminalIds(
 
 export const EMPTY_TERMINAL_BUFFER_STATE = Object.freeze<TerminalBufferState>({
   output: EMPTY_TERMINAL_OUTPUT_STATE,
-  grid: null,
   status: "closed",
   error: null,
   updatedAt: null,
@@ -84,7 +75,6 @@ export const EMPTY_TERMINAL_BUFFER_STATE = Object.freeze<TerminalBufferState>({
 export const EMPTY_TERMINAL_SESSION_STATE = Object.freeze<TerminalSessionState>({
   summary: null,
   output: EMPTY_TERMINAL_OUTPUT_STATE,
-  grid: null,
   status: "closed",
   error: null,
   hasRunningSubprocess: false,
@@ -113,23 +103,12 @@ function terminalBufferStateFromSnapshot(
 ): TerminalBufferState {
   return {
     output: resetOutput(current.output, snapshot.history, maxBufferBytes),
-    grid: nextGrid(current.grid, snapshot),
     status: snapshot.status,
     error: null,
     updatedAt: snapshot.updatedAt,
     version: current.version + 1,
     lifecycleVersion: current.lifecycleVersion,
   };
-}
-
-function nextGrid(
-  current: TerminalGrid | null,
-  source: { readonly cols?: number | undefined; readonly rows?: number | undefined },
-): TerminalGrid | null {
-  if (source.cols === undefined || source.rows === undefined) return current;
-  return current?.cols === source.cols && current.rows === source.rows
-    ? current
-    : { cols: source.cols, rows: source.rows };
 }
 
 function latestTimestamp(left: string | null, right: string | null): string | null {
@@ -145,7 +124,6 @@ export function combineTerminalSessionState(
   return {
     summary,
     output: buffer.output,
-    grid: buffer.grid,
     status: buffer.version > 0 ? buffer.status : (summary?.status ?? buffer.status),
     error: buffer.error,
     hasRunningSubprocess: summary?.hasRunningSubprocess ?? false,
@@ -208,10 +186,8 @@ export function applyTerminalAttachStreamEvent(
         error: event.message,
         version: current.version + 1,
       };
-    case "activity": {
-      const grid = nextGrid(current.grid, event);
-      return grid === current.grid ? current : { ...current, grid };
-    }
+    case "activity":
+      return current;
   }
 }
 

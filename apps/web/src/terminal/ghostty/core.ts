@@ -176,7 +176,13 @@ function sameColor(left: GhosttyColor, right: GhosttyColor): boolean {
   return left.r === right.r && left.g === right.g && left.b === right.b;
 }
 
-/** A cell can exceed the engine's argument limit, so convert its codepoints in bounded chunks. */
+/**
+ * A terminal program can print one base character followed by a huge run of
+ * combining marks, packing hundreds of thousands of codepoints into a single
+ * cell that still fits the scrollback buffer. Engines cap spread-call
+ * arguments far below that, so convert in bounded chunks instead of spreading
+ * every codepoint into String.fromCodePoint at once.
+ */
 export function ghosttyCellText(codepointView: DataView, graphemeLength: number): string {
   if (graphemeLength === 1) return String.fromCodePoint(codepointView.getUint32(0, true));
   const CHUNK_SIZE = 4_096;
@@ -1078,7 +1084,7 @@ export class GhosttyTerminalCore {
         }
       }
       let wide = 0;
-      if (text.length === 0 && (cells.at(-1)?.text.length || cells.length === cols - 1)) {
+      if (text.length === 0 && cells.at(-1)?.text.length) {
         this.assertSuccess(
           "ghostty_render_state_row_cells_get(raw)",
           this.runtime.call(

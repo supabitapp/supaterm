@@ -28,6 +28,7 @@ export const BRAND_ASSET_PATHS = {
   developmentDesktopIconPng: "assets/dev/blueprint-macos-1024.png",
   developmentDesktopDarkIconPng: "assets/dev/blueprint-macos-dark-512.png",
 
+  // Brands differ only in the bolt, which this render switches off.
   macUnlitIconPng: "assets/prod/black-macos-unlit-1024.png",
   macUnlitDarkIconPng: "assets/prod/black-macos-unlit-dark-512.png",
   developmentWindowsIconIco: "assets/dev/blueprint-windows.ico",
@@ -47,6 +48,10 @@ export type WebAssetChannel = (typeof WEB_ASSET_CHANNELS)[number];
 
 export function resolveWebAssetBrandForChannel(channel: WebAssetChannel): WebAssetBrand {
   return channel === "nightly" ? "nightly" : "production";
+}
+
+export function resolveWebAssetBrandForPackageVersion(version: string): WebAssetBrand {
+  return /^[^-+]+-(?:nightly|preview)\./.test(version) ? "nightly" : "production";
 }
 
 export interface IconOverride {

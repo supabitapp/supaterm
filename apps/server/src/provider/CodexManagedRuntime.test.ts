@@ -1,9 +1,3 @@
-// @effect-diagnostics nodeBuiltinImport:off - checks the host's default Codex directory without writing to it.
-import * as NodeURL from "node:url";
-import * as HostProcess from "@supaterm/shared/HostProcess";
-import * as Stream from "effect/Stream";
-import { ChildProcess, ChildProcessSpawner } from "effect/process";
-import * as CodexManagedTokenBroker from "./CodexManagedTokenBroker.ts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import { CodexSettings, EnvironmentId, ProviderInstanceId } from "@supaterm/contracts";
@@ -25,10 +19,7 @@ import { codexAppServerArgs } from "./codexLaunchArgs.ts";
 
 const encodeJson = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));
 const decodeSettings = Schema.decodeSync(CodexSettings);
-const decodeCommand = Schema.decodeUnknownSync(
-  Schema.fromJsonString(Schema.Tuple([Schema.String, Schema.Array(Schema.String)])),
-);
-it.live.each(
+it.effect.each(
   (["managed", "local"] as const).flatMap((source) =>
     (["primary", "additional"] as const).map((account) => ({ source, account })),
   ),
@@ -45,7 +36,6 @@ it.live.each(
       yield* fs.writeFileString(path.join(sharedHome, "auth.json"), "native-auth-unchanged");
       yield* fs.writeFileString(path.join(sharedHome, "config.toml"), "# shared config\n");
       const data = new Map<string, Uint8Array>();
-      let renewals = 0;
       const secrets = ServerSecretStore.ServerSecretStore.of({
         get: (key) => Effect.sync(() => Option.fromUndefinedOr(data.get(key))),
         set: (key, value) =>
@@ -101,13 +91,10 @@ it.live.each(
         yield* store.set(new TextEncoder().encode(json));
         const ambient = {
           CODEX_HOME: "/user/.codex",
-          ACCESS_TOKEN: "ambient-bearer",
-          SUPATERM_HOME: path.join(sharedHome, "wrong-server-home"),
           OPENAI_API_KEY: "dummy-global-key",
           OPENAI_BASE_URL: "https://user-proxy.test",
           SUPATERM_CODEX_LAUNCH_ARGS: "--config model_provider=global-proxy",
-          PATH: process.env.PATH,
-          SystemRoot: process.env.SystemRoot,
+          PATH: "/usr/bin",
         };
         const runtime = yield* makeCodexManagedRuntime({
           instanceId,
@@ -138,83 +125,27 @@ it.live.each(
             );
             assert.isFalse(yield* fs.exists(path.join(effective.config.homePath, "auth.json")));
           }
-          assert.isUndefined(effective.environment.ACCESS_TOKEN);
+          assert.strictEqual(effective.environment.ACCESS_TOKEN, "dummy-owned-access");
           assert.isUndefined(effective.environment.OPENAI_API_KEY);
           assert.isUndefined(effective.environment.OPENAI_BASE_URL);
           assert.isUndefined(effective.environment.SUPATERM_CODEX_LAUNCH_ARGS);
           const args = codexAppServerArgs(effective.config.launchArgs);
-          assert.include(args, 'model_provider="openai_token_sharing"');
-          const provider = args.find((arg) =>
-            arg.startsWith("model_providers.openai_token_sharing="),
-          )!;
-          assert.include(provider, 'base_url="https://api.openai.com/v1"');
-          assert.include(provider, 'model_catalog_url="https://api.openai.com/v1/models"');
-          assert.notInclude(provider, "env_key");
-          assert.include(provider, "refresh_interval_ms=0");
-
-          if (source === "managed" && account === "primary") {
-            const commandMatch = /auth=\{command=(.*),args=(\[.*\]),timeout_ms=/u.exec(provider);
-            assert.isNotNull(commandMatch);
-            const [command, helperArgs] = decodeCommand(
-              `[${commandMatch![1]},${commandMatch![2]}]`,
-            );
-            const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-            const runHelper = Effect.gen(function* () {
-              const child = yield* spawner.spawn(
-                ChildProcess.make(command, helperArgs, {
-                  extendEnv: false,
-                  env: effective.environment,
-                }),
-              );
-              const [stdout, stderr, code] = yield* Effect.all(
-                [
-                  child.stdout.pipe(Stream.decodeText(), Stream.mkString),
-                  child.stderr.pipe(Stream.decodeText(), Stream.mkString),
-                  child.exitCode,
-                ],
-                { concurrency: "unbounded" },
-              );
-              return { stdout, stderr, code: Number(code) };
-            }).pipe(Effect.scoped);
-            assert.deepEqual(yield* runHelper, {
-              stdout: "dummy-owned-access",
-              stderr: "",
-              code: 0,
-            });
-            const saved = Option.getOrThrow(yield* runtime.auth.read);
-            const expired = yield* encodeJson({
-              activeClientId: saved.clientId,
-              sessions: [{ ...saved, expiresAt: 0 }],
-            });
-            yield* store.set(new TextEncoder().encode(expired));
-            assert.deepEqual(yield* runHelper, { stdout: "renewed-access", stderr: "", code: 0 });
-            assert.equal(renewals, 1);
-            assert.equal(
-              Option.getOrThrow(yield* runtime.auth.read).refreshToken,
-              "renewed-refresh",
-            );
-            assert.equal((yield* runtime.resolve).revision, effective.revision);
-            const replaced = yield* encodeJson({
-              activeClientId: saved.clientId,
-              sessions: [{ ...saved, subject: "replacement-user" }],
-            });
-            yield* store.set(new TextEncoder().encode(replaced));
-            const refused = yield* runHelper;
-            assert.equal(refused.code, 1);
-            assert.equal(refused.stdout, "");
-            assert.isFalse(yield* fs.exists(ambient.SUPATERM_HOME));
-          }
+          assert.include(
+            args,
+            'model_providers.openai_token_sharing.base_url="https://api.openai.com/v1"',
+          );
+          assert.include(
+            args,
+            'model_providers.openai_token_sharing.model_catalog_url="https://api.openai.com/v1/models"',
+          );
           assert.include(args, "features.api_key_model_discovery=true");
           assert.include(args, "features.multi_agent=false");
           assert.include(args, "features.multi_agent_v2=false");
           assert.notInclude(effective.config.launchArgs, "model_catalog_json");
           assert.notInclude(effective.config.launchArgs, "x-openai-chatpass-test");
-          assert.include(provider, "supports_websockets=false");
-          assert.include(provider, "requires_openai_auth=false");
-          for (const secret of ["dummy-owned-access", "dummy-refresh", "ambient-bearer"]) {
-            assert.notInclude(effective.config.launchArgs, secret);
-            assert.notInclude(JSON.stringify(effective.environment), secret);
-          }
+          assert.include(args, "model_providers.openai_token_sharing.supports_websockets=false");
+          assert.include(args, "model_providers.openai_token_sharing.requires_openai_auth=false");
+          assert.notInclude(effective.config.launchArgs, "dummy-owned-access");
           assert.strictEqual(ambient.CODEX_HOME, "/user/.codex");
         }).pipe(Effect.scoped);
         assert.strictEqual(leases, 0);
@@ -224,11 +155,6 @@ it.live.each(
           "native-auth-unchanged",
         );
       }).pipe(
-        Effect.provide(CodexManagedTokenBroker.layer),
-        Effect.provideService(HostProcess.Arguments, [
-          process.execPath,
-          NodeURL.fileURLToPath(new URL("../bin.ts", import.meta.url)),
-        ]),
         Effect.provideService(ServerSecretStore.ServerSecretStore, secrets),
         Effect.provideService(ServerEnvironment.ServerEnvironmentIdentity, {
           getEnvironmentId: Effect.succeed(
@@ -244,22 +170,8 @@ it.live.each(
                 [
                   "https://auth.openai.com/.well-known/openid-configuration",
                   "https://auth.openai.com/revoke",
-                  "https://auth.openai.com/api/accounts/oauth/token",
                 ].includes(request.url),
               );
-              if (request.url.endsWith("/token")) {
-                renewals++;
-                return HttpClientResponse.fromWeb(
-                  request,
-                  Response.json({
-                    access_token: "renewed-access",
-                    refresh_token: "renewed-refresh",
-                    token_type: "Bearer",
-                    expires_in: 3600,
-                    scope: "chatgpt.tokens.use.direct",
-                  }),
-                );
-              }
               return HttpClientResponse.fromWeb(
                 request,
                 request.url.endsWith("/revoke")

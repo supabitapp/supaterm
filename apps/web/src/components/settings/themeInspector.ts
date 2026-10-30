@@ -306,7 +306,8 @@ function withThemeTokenProbeSession<Result>(run: () => Result): Result {
   try {
     return run();
   } finally {
-    // Flush restored tokens before re-enabling transitions; no paint may occur during probing.
+    // Flush every restored token while transitions are still suppressed. The
+    // browser never gets a paint opportunity between the probe and restore.
     void window.getComputedStyle(root).color;
     if (!wasAlreadyProbing) root.removeAttribute(THEME_TOKEN_PROBE_ATTRIBUTE);
   }
@@ -441,8 +442,9 @@ export function inspectThemeRoleAtElement(initialElement: Element): ThemeElement
 
   const candidates = themeInspectionCandidates(initialElement);
 
-  // Semantic Tailwind utilities reveal token dependencies without forced style recalculations per
-  // pointerdown.
+  // Most app paint comes from Tailwind's semantic color utilities. Those class
+  // names express the token dependency directly and avoid dozens of forced
+  // style recalculations on every pointer-down.
   const utilityInspection = inspectThemeRoleFromUtilitiesAtElement(initialElement);
   if (utilityInspection) return utilityInspection;
 

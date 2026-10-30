@@ -161,6 +161,7 @@ describe("decideThreadResume", () => {
     expect(snapshot.historyCursor).not.toBeNull();
     expect(snapshot.hasMoreHistory).toBe(true);
     expect(snapshot.latestLocalTurnOrdinal).toBe(80);
+    expect(snapshot.payloadBudgetExceeded).toBe(false);
   });
 
   it("rejects a 10 MiB raw replay even when its projected form fits the wire budget", () => {

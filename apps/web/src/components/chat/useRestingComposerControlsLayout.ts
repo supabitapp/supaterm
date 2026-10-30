@@ -45,7 +45,6 @@ export function useRestingComposerControlsLayout(
     });
   };
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- observes control resize, DOM mutations and font loading to measure which controls fit
   useLayoutEffect(() => {
     const currentHost = useControlsAsHost ? controls : host;
     if (!currentHost || !controls) return;

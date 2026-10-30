@@ -232,22 +232,7 @@ export const provisionDesktopSshEnvironment = Effect.fn(
   }
   const access = yield* Effect.tryPromise({
     try: () => bridge.bootstrapSshBearerSession(bootstrap.httpBaseUrl, pairingToken),
-    catch: (cause) => {
-      const error = sshPreparationError(cause);
-      // A reused remote server on another build can fail to decode the grant
-      // the desktop's runner just minted, and answers 500 on every retry.
-      if (
-        error._tag === "ConnectionBlockedError" ||
-        descriptor.serverVersion === APP_VERSION ||
-        !error.detail.includes("[ssh_http:500]")
-      ) {
-        return error;
-      }
-      return new ConnectionBlockedError({
-        reason: "configuration",
-        detail: `${descriptor.label} runs T3 Code ${descriptor.serverVersion}, but this desktop is ${APP_VERSION}, and that server could not accept its pairing. Restart the T3 server on ${descriptor.label} so it runs ${APP_VERSION}, then retry.`,
-      });
-    },
+    catch: sshPreparationError,
   });
   return {
     environmentId: descriptor.environmentId,
@@ -579,7 +564,13 @@ export interface RejectedSecondaryBootstrap {
   readonly delayMs: number;
 }
 
-/** Back off rejected credentials, but retry because a restarted backend may reuse its endpoint. */
+/**
+ * A backend that rejected a bootstrap token will usually keep rejecting it, so
+ * the poll backs off on that exact signature instead of re-presenting a dead
+ * credential every few seconds. It still retries on a capped backoff: a backend
+ * that restarts on the same port seeds a fresh grant for the same token, and
+ * nothing in the topology says it restarted.
+ */
 export function isRejectedSecondaryBootstrap(
   rejected: RejectedSecondaryBootstrap | undefined,
   signature: string,
@@ -799,20 +790,19 @@ const layerPlatformConnectionSource = Layer.effect(
 const layerEnvironmentOwnedDataCleanup = Layer.succeed(
   Persistence.EnvironmentOwnedDataCleanup,
   Persistence.EnvironmentOwnedDataCleanup.of({
-    clear: Effect.fn("clear")((environmentId) =>
+    clear: (environmentId) =>
       Effect.promise(async () => {
         const { clearThreadOutboxEnvironment } = await import("../state/threadOutbox");
         await clearThreadOutboxEnvironment(environmentId);
         clearComposerDraftsEnvironment(environmentId);
       }),
-    ),
   }),
 );
 
 const layerRpcRequestObserver = Layer.succeed(
   EnvironmentRpcRequestObserver,
   EnvironmentRpcRequestObserver.of({
-    observe: Effect.fn("observe")(({ environmentId, environmentLabel, method }) =>
+    observe: ({ environmentId, environmentLabel, method }) =>
       Effect.sync(() => {
         nextObservedRpcRequestId += 1;
         const requestId = `${environmentId}:${nextObservedRpcRequestId}`;
@@ -821,7 +811,6 @@ const layerRpcRequestObserver = Layer.succeed(
           acknowledgeRpcRequest(requestId);
         });
       }),
-    ),
   }),
 );
 

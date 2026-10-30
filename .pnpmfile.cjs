@@ -1,6 +1,8 @@
-// Windows and WSL share node_modules in dev, so Windows installs also need Linux
-// x64 glibc binaries. Other platforms keep native-only installs to avoid ~2.2 GB
-// of unused binaries; release scripts stage their own explicit architectures.
+// Windows WSL dev mode runs the server under Linux from the same node_modules
+// as the Windows client, so Windows installs also need Linux x64 glibc native
+// modules. Other platforms install only their own binaries; setting this
+// everywhere added ~2.2 GB of foreign binaries to every macOS install.
+// Release scripts stage their own installs with explicit architectures.
 module.exports = {
   hooks: {
     // `typescript` is @tsc-rs/typescript (the catalog entry). Its npm version (0.8.x) is outside

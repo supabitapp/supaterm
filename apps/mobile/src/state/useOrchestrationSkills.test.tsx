@@ -133,27 +133,6 @@ afterEach(async () => {
 });
 
 describe("orchestration skill permissions", () => {
-  it("waits for the initial status query before accepting actions and does not repeat it on render", async () => {
-    const initial = Promise.withResolvers<{
-      _tag: "Success";
-      value: OrchestrationSkillsStatus;
-    }>();
-    statusCommand.mockImplementation(() => initial.promise);
-    testState.permissions.add(String(local.environmentId));
-    await act(() => {
-      renderer = create(<Probe />);
-    });
-    expect(current().pending).toBe("Status");
-    await act(async () => current().request("Install"));
-    expect(installCommand).not.toHaveBeenCalled();
-
-    await act(() => initial.resolve({ _tag: "Success", value: installedStatus }));
-    expect(current().pending).toBeNull();
-    expect(current().installed).toBe(true);
-    await act(() => renderer?.update(<Probe />));
-    expect(statusCommand).toHaveBeenCalledTimes(2);
-  });
-
   it("runs only on permitted environments and preserves denied environments' status", async () => {
     testState.permissions.add(String(local.environmentId));
     testState.statuses.set(String(local.environmentId), skillsStatus(false));

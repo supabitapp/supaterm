@@ -99,7 +99,9 @@ function formatValue(key: keyof ServerSettings, value: unknown): string {
   return "Custom";
 }
 
-/** Matches resolveProjectSettings order. */
+/**
+ * Same order as `resolveProjectSettings`.
+ */
 export function settingInheritanceLayers(
   target: ScopedSettingsTarget,
   environmentSettings: ServerSettings,
@@ -135,7 +137,8 @@ export function settingInheritanceLayers(
       set: source === "supaterm.json",
     });
   }
-  // File-backed defaults come from the resolver, not the schema's decoded null.
+  // For a file-backed key the built-in is what the resolver produced with
+  // nothing set, not the null the schema decodes to.
   const builtIn = fileBacked
     ? PROJECT_FILE_BACKED_SETTINGS[key].builtIn
     : DEFAULT_SERVER_SETTINGS[key];

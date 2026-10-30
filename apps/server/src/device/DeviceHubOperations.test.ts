@@ -202,30 +202,3 @@ it.effect.each([
     expect(listed.detail).toContain(warning);
   }),
 );
-
-it.effect.each([false, true])("filters only unavailable Android SDK warnings (%s)", (available) =>
-  Effect.gen(function* () {
-    const warning = "[android-utils] Failed to run avdmanager list avd:";
-    const operations = makeDeviceHubOperations({
-      hostId: LOCAL_DEVICE_HOST_ID,
-      origin: "http://device.test",
-      platforms: Effect.succeed([{ platform: "android", available }]),
-      http: HttpClient.make((request) =>
-        Effect.succeed(
-          HttpClientResponse.fromWeb(
-            request,
-            Response.json({
-              simulators: [],
-              emulators: [],
-              errors: [{ message: warning }, { message: "iOS discovery failed." }],
-            }),
-          ),
-        ),
-      ),
-      run: () => Effect.succeed({ code: 0, stdout: "", stderr: "" }),
-    });
-    expect((yield* operations.list).detail).toBe(
-      available ? `${warning}\niOS discovery failed.` : "iOS discovery failed.",
-    );
-  }),
-);

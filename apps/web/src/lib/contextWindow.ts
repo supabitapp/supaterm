@@ -27,7 +27,8 @@ export type ContextWindowSnapshot = NullableContextWindowUsage & {
   readonly updatedAt: string;
 };
 
-/** Newest report by timestamp; snapshots order turns by provider thread. */
+/** Newest usage report across a thread's provider turns. Snapshots order turns
+    by provider thread, not time, so pick by timestamp. */
 export function latestProviderTurnTokenUsage(
   turns: ReadonlyArray<Pick<OrchestrationV2ProviderTurn, "tokenUsage">>,
   projection?: Pick<ThreadStructure, "thread" | "contextTransfers"> | null,

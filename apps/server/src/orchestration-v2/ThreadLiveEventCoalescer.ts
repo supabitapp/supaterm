@@ -21,54 +21,63 @@ const MAX_PENDING_UPDATES = 512;
 type ThreadLiveEvent = Extract<OrchestrationV2ThreadStreamItem, { readonly kind: "event" }>;
 export type ThreadLiveInput = ThreadLiveEvent | { readonly kind: "synchronized" };
 
-function coalescibleUpdateKey(input: ThreadLiveEvent): string | null {
-  const { event } = input;
-  const prefix = `${event.threadId}\u0000${event.runId ?? ""}\u0000${event.type}`;
-  if (event.type === "message.updated") {
-    return event.payload.role === "assistant" && event.payload.streaming
-      ? `${prefix}\u0000${event.payload.id}`
-      : null;
-  }
-  if (event.type !== "turn-item.updated" || event.payload.status !== "running") return null;
-  switch (event.payload.type) {
-    case "assistant_message":
-    case "reasoning":
-      if (!event.payload.streaming) return null;
-      break;
+function isToolUpdated(input: ThreadLiveEvent): boolean {
+  if (input.event.type !== "turn-item.updated" || input.event.payload.status !== "running")
+    return false;
+  switch (input.event.payload.type) {
     case "command_execution":
     case "file_change":
     case "file_search":
     case "web_search":
     case "dynamic_tool":
-      break;
+      return true;
     default:
-      return null;
+      return false;
   }
-  return `${prefix}\u0000${event.payload.type}\u0000${event.payload.id}`;
 }
 
-export function coalesceLiveUpdatedEvents(
+function stableToolCallIdentity(input: ThreadLiveEvent): string | null {
+  return input.event.type === "turn-item.updated" ? input.event.payload.id : null;
+}
+
+export function coalesceLiveToolUpdatedEvents(
   events: ReadonlyArray<ThreadLiveEvent>,
 ): ReadonlyArray<ThreadLiveEvent> {
-  const latestUpdates = new Map<string, number>();
-  const superseded = new Set<number>();
-  const pendingKeys = new Map<ThreadLiveEvent["event"]["type"], string>();
+  const survivors: Array<ThreadLiveEvent> = [];
+  let pendingUpdates: Array<ThreadLiveEvent> = [];
 
-  for (const [index, event] of events.entries()) {
-    const key = coalescibleUpdateKey(event);
-    if (key === null) {
-      latestUpdates.clear();
-      pendingKeys.clear();
+  const flushUpdates = () => {
+    const seen = new Set<string>();
+    const latestUpdates: Array<ThreadLiveEvent> = [];
+    for (let index = pendingUpdates.length - 1; index >= 0; index -= 1) {
+      const event = pendingUpdates[index]!;
+      const identity = stableToolCallIdentity(event);
+      const key = identity
+        ? `${event.event.threadId}\u0000${event.event.runId ?? ""}\u0000${identity}`
+        : null;
+      if (key && seen.has(key)) {
+        continue;
+      }
+      if (key) {
+        seen.add(key);
+      }
+      latestUpdates.push(event);
+    }
+    latestUpdates.reverse();
+    survivors.push(...latestUpdates);
+    pendingUpdates = [];
+  };
+
+  for (const event of events) {
+    if (isToolUpdated(event)) {
+      pendingUpdates.push(event);
       continue;
     }
-    const pendingKey = pendingKeys.get(event.event.type);
-    if (pendingKey !== undefined && pendingKey !== key) latestUpdates.clear();
-    pendingKeys.set(event.event.type, key);
-    const previous = latestUpdates.get(key);
-    if (previous !== undefined) superseded.add(previous);
-    latestUpdates.set(key, index);
+    flushUpdates();
+    survivors.push(event);
   }
-  return events.filter((_, index) => !superseded.has(index));
+  flushUpdates();
+  return survivors;
 }
 
 export const makeThreadLiveEventCoalescer = Effect.fn(
@@ -107,7 +116,7 @@ export const makeThreadLiveEventCoalescer = Effect.fn(
     }
     const items = yield* budget.replace(
       pendingUpdates,
-      coalesceLiveUpdatedEvents(pendingUpdates.map((item) => item.value)),
+      coalesceLiveToolUpdatedEvents(pendingUpdates.map((item) => item.value)),
     );
     pendingUpdates = [];
     yield* Queue.offerAll(output, items);
@@ -147,7 +156,7 @@ export const makeThreadLiveEventCoalescer = Effect.fn(
                 Effect.uninterruptible,
               );
             }
-            if (input.kind === "event" && coalescibleUpdateKey(input) !== null) {
+            if (input.kind === "event" && isToolUpdated(input)) {
               if (pendingUpdates.length === 1) {
                 const generation = ++windowGeneration;
                 windowFiber = yield* Effect.forkIn(flushWindow(generation), coalescerScope);

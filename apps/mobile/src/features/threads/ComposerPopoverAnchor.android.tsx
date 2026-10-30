@@ -26,7 +26,6 @@ export function ComposerPopoverAnchor(props: { readonly children: ReactNode }) {
     });
   };
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Publishes the measured popover into its native host while mounted.
   useEffect(() => {
     measure();
     host?.setContent(
@@ -49,7 +48,6 @@ export function ComposerPopoverAnchor(props: { readonly children: ReactNode }) {
   });
 
   const setHostContent = host?.setContent;
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the popover host's content and shared height value when the anchor unmounts
   useEffect(
     () => () => {
       setHostContent?.(null);

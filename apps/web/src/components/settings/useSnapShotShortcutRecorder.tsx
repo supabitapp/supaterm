@@ -73,7 +73,6 @@ export function useSnapShotShortcutRecorder({
       onError(error instanceof Error ? error.message : "Could not start shortcut recording.");
     }
   };
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- releases the desktop bridge's SnapShot shortcut suppression on unmount
   useEffect(
     () => () => {
       requests.clear();

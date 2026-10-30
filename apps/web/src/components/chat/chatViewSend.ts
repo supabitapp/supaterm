@@ -1,6 +1,5 @@
 import {
   CommandId,
-  DEFAULT_SERVER_SETTINGS,
   type EnvironmentId,
   type ModelSelection,
   type ScopedThreadRef,
@@ -30,37 +29,16 @@ import {
 } from "../ChatView.logic";
 import { ATTACHMENT_ONLY_BOOTSTRAP_PROMPT } from "@supaterm/shared/composerContextReferences";
 import { createModelSelection } from "@supaterm/shared/model";
-import {
-  createProviderModelSelectionsAtom,
-  providerInstanceEntriesFor,
-  type ProviderInstanceEntry,
-} from "../../providerInstances";
-import { parseScopedThreadKey } from "@supaterm/client-runtime/environment";
-import { providersIgnoringCheckedAtAtom, serverEnvironment } from "../../state/server";
+import type { ProviderInstanceEntry } from "../../providerInstances";
 import { getComposerPromptInjectionState, getComposerProviderState } from "./composerProviderState";
 import { readPreparedConnection } from "../../state/session";
 import { recallableComposerPrompt } from "./composerPromptHistory";
 
 // Kept per route so a send in flight, and the multiple-model selections, survive
 // ChatView remounting while the user navigates.
-export const draftFanoutSelectionsAtom = Atom.family((routeKey: string) => {
-  const ref = parseScopedThreadKey(routeKey);
-  const draftAtom = Atom.make((get) => {
-    const read = () => (ref ? useComposerDraftStore.getState().getDraftSessionByRef(ref) : null);
-    get.addFinalizer(useComposerDraftStore.subscribe(() => get.setSelf(read())));
-    return read();
-  });
-  const entries = Atom.make((get) => {
-    const draft = get(draftAtom);
-    if (!ref || !draft || draft.promotedTo) return null;
-    return providerInstanceEntriesFor(
-      get(providersIgnoringCheckedAtAtom(ref.environmentId)),
-      get(serverEnvironment.settingsValueAtom(ref.environmentId)) ?? DEFAULT_SERVER_SETTINGS,
-      draft.projectId,
-    );
-  });
-  return createProviderModelSelectionsAtom(entries).pipe(Atom.keepAlive);
-});
+export const draftFanoutSelectionsAtom = Atom.family((_routeKey: string) =>
+  Atom.make<ReadonlyArray<ModelSelection> | null>(null).pipe(Atom.keepAlive),
+);
 const draftSendStateByRouteKey = new Map<string, { readonly sendInFlight: { current: boolean } }>();
 export function draftSendState(routeKey: string) {
   let state = draftSendStateByRouteKey.get(routeKey);

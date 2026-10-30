@@ -46,8 +46,14 @@ export function resolveDeviceMiniPlayerSourceSize(
   return landscape ? { width: long, height: short } : { width: short, height: long };
 }
 
-/** Android frames include black corner wedges; clip at a matching radius. iOS streams rectangles and
- * retains the frame radius. */
+/**
+ * The Android emulator composites the skin's rounded corners into its
+ * framebuffer as black wedges (measured at ~13% of the short side on a
+ * Pixel 9), so its player clips at a matching phone-like radius; the sliver
+ * lost under the curve is status-bar padding. iOS simulators stream an
+ * edge-to-edge rectangle and keep the frame radius, which matters for iPads
+ * whose real corners are far tighter than a phone's.
+ */
 export function resolveDeviceMiniPlayerCornerRadius(
   platform: DevicePlatform,
   player: PreviewMiniPlayerSize,
@@ -221,7 +227,10 @@ export function clampPreviewMiniPlayerPosition(
   return best;
 }
 
-/** Clamp per layout without persisting so narrow containers preserve the chosen width. */
+/**
+ * Clamping happens here on every layout pass instead of being written back to the store, so a
+ * temporarily narrow container never destroys the user's chosen width.
+ */
 export function resolvePreviewMiniPlayerFrame(input: {
   readonly width: number | null;
   readonly position: PreviewMiniPlayerPosition | null;
@@ -299,8 +308,8 @@ export function resizePreviewMiniPlayer(input: {
   const horizontal = east || west;
   const vertical = north || south;
   const aspectRatio = source.width / source.height;
-  // Project onto the aspect-ratio diagonal; dominant-axis switching jumps when axes move in opposite
-  // directions.
+  // Project corner motion onto the aspect-ratio diagonal. Switching between
+  // dominant axes jumps when one axis grows while the other shrinks.
   const desired =
     horizontal && vertical
       ? (desiredWidth + desiredHeight / aspectRatio) / (1 + 1 / aspectRatio ** 2)

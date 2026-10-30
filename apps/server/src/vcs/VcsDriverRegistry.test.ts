@@ -21,8 +21,6 @@ const processOutput = (stdout: string): VcsProcess.VcsProcessOutput => ({
 const normalizeGitArgs = (args: ReadonlyArray<string>): ReadonlyArray<string> =>
   args[0] === "-C" && args.length >= 2 ? args.slice(2) : args;
 
-const DETECT_COMMAND = "rev-parse --is-inside-work-tree --show-toplevel --git-common-dir";
-
 describe("VcsDriverRegistry", () => {
   const makeDiskBackedLayer = (rootDir: string, calls: string[]) =>
     Layer.effect(VcsDriverRegistry.VcsDriverRegistry, VcsDriverRegistry.make).pipe(
@@ -51,10 +49,10 @@ describe("VcsDriverRegistry", () => {
                   stderr: "fatal: not a git repository",
                 };
               }
-              if (command === DETECT_COMMAND) {
-                return processOutput(
-                  `true\n${repoDir}\n${path.relative(input.cwd, path.join(repoDir, ".git"))}\n`,
-                );
+              if (command === "rev-parse --is-inside-work-tree") return processOutput("true\n");
+              if (command === "rev-parse --show-toplevel") return processOutput(`${repoDir}\n`);
+              if (command === "rev-parse --git-common-dir") {
+                return processOutput(`${path.relative(input.cwd, path.join(repoDir, ".git"))}\n`);
               }
               return processOutput("");
             }).pipe(Effect.provide(NodeServices.layer), Effect.orDie),
@@ -77,7 +75,7 @@ describe("VcsDriverRegistry", () => {
         yield* fs.remove(path.join(repoDir, ".git"), { recursive: true });
 
         assert.equal(yield* registry.detect({ cwd: repoDir }), null);
-        assert.equal(calls.filter((call) => call === DETECT_COMMAND).length, 2);
+        assert.equal(calls.filter((call) => call === "rev-parse --is-inside-work-tree").length, 2);
       }).pipe(Effect.provide(makeDiskBackedLayer(repoDir, calls)));
     }).pipe(Effect.provide(NodeServices.layer)),
   );
@@ -120,7 +118,7 @@ describe("VcsDriverRegistry", () => {
         yield* fs.makeDirectory(path.join(repoDir, ".git"));
 
         assert.equal((yield* registry.detect({ cwd: repoDir }))?.repository.rootPath, repoDir);
-        assert.equal(calls.filter((call) => call === DETECT_COMMAND).length, 2);
+        assert.equal(calls.filter((call) => call === "rev-parse --is-inside-work-tree").length, 2);
       }).pipe(Effect.provide(makeDiskBackedLayer(repoDir, calls)));
     }).pipe(Effect.provide(NodeServices.layer)),
   );

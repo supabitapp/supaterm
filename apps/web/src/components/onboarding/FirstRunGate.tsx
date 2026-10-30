@@ -154,7 +154,6 @@ export function FirstRunGate({
     if (nextGateState !== gateState) setGateState(nextGateState);
   }
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Persists onboarding completion to client settings after workspace evidence resolves.
   useEffect(() => {
     if (decision === "wizard" || !hydrated) return;
 
@@ -163,7 +162,6 @@ export function FirstRunGate({
     }
   }, [decision, hydrated, onboardingCompletedAt, persistCompletion]);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Owns the connection timeout while the first-run decision is pending.
   useEffect(() => {
     if (!enabled || decision !== "pending" || !hydrated) return;
     const timer = window.setTimeout(
@@ -173,7 +171,6 @@ export function FirstRunGate({
     return () => window.clearTimeout(timer);
   }, [decision, enabled, hydrated]);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Synchronizes the router with the resolved first-run wizard.
   useEffect(() => {
     if (decision === "wizard" && pathname !== "/welcome") {
       void navigate({ to: "/welcome", replace: true });

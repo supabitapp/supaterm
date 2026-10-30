@@ -12,6 +12,10 @@ import * as DesktopConfig from "../app/DesktopConfig.ts";
 import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
 import * as DesktopWslServerTree from "./DesktopWslServerTree.ts";
 
+// The service reads packaged Windows roots through the (asar-aware, in
+// Electron) fs, so a plain directory named server.asar exercises the full
+// extraction path under plain Node.
+
 const layerEnvironment = (input: {
   readonly baseDir: string;
   readonly resourcesPath: string;

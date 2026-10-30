@@ -19,12 +19,8 @@ export function PullRequestDiffUnavailableState({
   url: string;
   onRetry: () => void;
 }) {
-  const { providerName, terminology } = getSourceControlPresentationForKind(provider);
-  const { title, description } = describePullRequestDiffError(
-    error,
-    providerName,
-    terminology.singular,
-  );
+  const { providerName } = getSourceControlPresentationForKind(provider);
+  const { title, description } = describePullRequestDiffError(error, providerName);
 
   return (
     <Empty size="compact" className="min-h-full" role="status">

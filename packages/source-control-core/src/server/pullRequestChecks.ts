@@ -45,6 +45,13 @@ export function sortChecks(
   );
 }
 
+/**
+ * A host's rollup is a list of runs, not a list of checks: while a workflow is being re-run — or
+ * while a second run of it is already live — the same check arrives twice, and both copies reach
+ * the reader as what looks like a duplicate. Nothing in a check carries an id, so the name is what
+ * identifies it, qualified by the workflow it belongs to since two workflows are free to name a
+ * job the same thing.
+ */
 export function dedupeChecks(
   entries: ReadonlyArray<{
     readonly check: PullRequestCheck;

@@ -16,7 +16,6 @@ export function derivePendingUserInputMaxHeight(input: {
   readonly navigationHeaderHeight: number;
   readonly composerOverlapHeight: number;
 }): number {
-  "worklet";
   const availableHeight =
     input.windowHeight -
     Math.max(0, input.keyboardHeight) -

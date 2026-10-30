@@ -4,6 +4,7 @@ import type {
   ResourceMonitorSnapshotEvent,
   ResourceTelemetryHealth,
   ResourceTelemetryHistoryInput,
+  ResourceTelemetryProcessIdentity,
   ResourceTelemetryRetryResult,
   ResourceTelemetrySnapshot,
 } from "@supaterm/contracts";
@@ -66,6 +67,9 @@ export class ResourceTelemetry extends Context.Service<
       input: ResourceTelemetryHistoryInput,
     ) => Effect.Effect<ResourceTelemetryHistoryWithLegacyBuckets>;
     readonly refresh: Effect.Effect<ResourceTelemetrySnapshot, ResourceTelemetryRefreshFailed>;
+    readonly validateProcessIdentity: (
+      identity: ResourceTelemetryProcessIdentity,
+    ) => Effect.Effect<boolean, ResourceTelemetryRefreshFailed>;
     readonly retry: Effect.Effect<ResourceTelemetryRetryResult>;
   }
 >()("supaterm/resourceTelemetry/ResourceTelemetry") {}
@@ -138,7 +142,7 @@ function buildHealth(input: {
   };
 }
 
-/** @public */
+/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.fn("resourceTelemetry.resourceTelemetry.make")(function* () {
   const nativeClient = yield* NativeTelemetryClient.NativeTelemetryClient;
   const desktopReceiver = yield* DesktopTelemetryReceiver.DesktopTelemetryReceiver;
@@ -461,12 +465,31 @@ export const make = Effect.fn("resourceTelemetry.resourceTelemetry.make")(functi
     ),
   );
 
+  const validateProcessIdentity: ResourceTelemetry["Service"]["validateProcessIdentity"] = (
+    identity,
+  ) =>
+    nativeClient.sampleNow.pipe(
+      Effect.map(({ snapshot }) =>
+        snapshot.processes.some(
+          (process) => process.pid === identity.pid && process.startTimeMs === identity.startTimeMs,
+        ),
+      ),
+      Effect.mapError(
+        (cause) =>
+          new ResourceTelemetryRefreshFailed({
+            operation: "validateProcessIdentity",
+            cause,
+          }),
+      ),
+    );
+
   return ResourceTelemetry.of({
     latest,
     changes: liveChanges,
     subscribe,
     readHistory,
     refresh,
+    validateProcessIdentity,
     retry: nativeClient.retry.pipe(
       Effect.zip(Ref.get(state)),
       Effect.map(([accepted, current]): ResourceTelemetryRetryResult => ({

@@ -31,7 +31,6 @@ To try it once without installing, run npx supaterm@latest instead.
 The [documentation index](./docs/README.md) for all pages.
 
 - [Install and first run](./docs/user/install.md)
-- [Frequently asked questions](./docs/user/faq.md)
 - [Permission modes](./docs/user/permission-modes.md)
 - [Keyboard shortcuts](./docs/user/keybindings.md)
 - [Project settings](./docs/user/project-settings.md)

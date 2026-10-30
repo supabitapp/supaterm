@@ -11,7 +11,10 @@ function toThreadRef(
     : null;
 }
 
-/** Key by ids: streaming shell identity changes must not retrigger effects. */
+/**
+ * Takes the thread object but keys on its ids: the shell changes identity on every update
+ * during a run, and effects keyed on this ref must not re-run for that.
+ */
 export function useActiveThreadRef(
   thread: { readonly environmentId: EnvironmentId; readonly id: ThreadId } | null | undefined,
 ): ScopedThreadRef | null {

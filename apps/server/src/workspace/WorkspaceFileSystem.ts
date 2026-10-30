@@ -28,6 +28,8 @@ import { fileHeaderMimeType } from "./fileHeaderMimeType.ts";
 
 const PROJECT_READ_FILE_MAX_BYTES = 1024 * 1024;
 
+// Windows also reaches `.git` through trailing dots or spaces, a `:` stream
+// suffix, or the 8.3 short name `GIT~1`. Names compare upcased, as NTFS does.
 const isGitMetadataName = (segment: string) => {
   const name = (segment.split(":")[0] ?? "").replace(/[. ]+$/, "").toUpperCase();
   return name === ".GIT" || name === "GIT~1";
@@ -131,7 +133,7 @@ export class WorkspaceFileSystem extends Context.Service<
   }
 >()("supaterm/workspace/WorkspaceFileSystem") {}
 
-/** @public */
+/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -166,7 +168,7 @@ export const make = Effect.gen(function* () {
           }
         },
         catch: () => undefined,
-      }).pipe(Effect.orElseSucceed(() => undefined));
+      }).pipe(Effect.catch(() => Effect.succeed(undefined)));
     }
     return {
       kind: "file",
@@ -194,6 +196,13 @@ export const make = Effect.gen(function* () {
     );
   };
 
+  /**
+   * Git runs config and hooks from its own folders, so a write never lands in one:
+   * a `.git` entry, or a repository folder under another name such as `.bare`.
+   * Folders are checked upward to a linked worktree's top, which holds a `.git`
+   * file, since worktrees can sit inside a bare repository. `absolutePath` must
+   * be normalized.
+   */
   const isInGitFolder = async (absolutePath: string) => {
     if (absolutePath.split(path.sep).some(isGitMetadataName)) return true;
     for (let folder = path.dirname(absolutePath); ; folder = path.dirname(folder)) {
@@ -206,6 +215,8 @@ export const make = Effect.gen(function* () {
           }),
         ),
       );
+      // What git reads as a repository: HEAD, plus objects and refs here or in
+      // the folder a `commondir` file names, as in a linked worktree's git folder.
       if (head && (commondir || (objects && refs))) return true;
       if (dotGit?.isFile() || path.dirname(folder) === folder) return false;
     }
@@ -346,6 +357,8 @@ export const make = Effect.gen(function* () {
 
     return yield* Effect.acquireUseRelease(
       Effect.tryPromise({
+        // Non-blocking so a FIFO cannot hang the open; the stat below rejects
+        // it. Regular files ignore the flag. Windows lacks it.
         try: () =>
           NodeFSP.open(
             realTargetPath,
@@ -438,6 +451,12 @@ export const make = Effect.gen(function* () {
     );
   });
 
+  /**
+   * Resolves the file a write targets. The deepest existing ancestor resolves to
+   * its real path before the root check, so neither the file nor the directories
+   * created for it can follow a symlink out of the root. A dangling symlink is
+   * rejected rather than written through.
+   */
   const resolveWriteTarget = Effect.fn("WorkspaceFileSystem.resolveWriteTarget")(function* (
     input: ProjectWriteFileInput,
   ) {

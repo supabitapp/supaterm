@@ -96,41 +96,6 @@ const agentFixture = Effect.fn("agentFixture")(function* (
 });
 
 describe("AgentDevice startup", () => {
-  it.effect.each(["0.1.0", AGENT_DEVICE_VERSION])(
-    "reuses only the matching daemon version %s",
-    (version) =>
-      Effect.gen(function* () {
-        let starts = 0;
-        const fs = yield* FileSystem.FileSystem;
-        const { host, stateDir } = yield* agentFixture((directory) =>
-          Effect.gen(function* () {
-            starts++;
-            yield* fs
-              .writeFileString(
-                `${directory}/daemon.json`,
-                JSON.stringify({
-                  httpPort: 12345,
-                  token: "new-token",
-                  version: AGENT_DEVICE_VERSION,
-                }),
-              )
-              .pipe(Effect.orDie);
-            return processOutput(0);
-          }),
-        );
-        yield* fs.makeDirectory(stateDir, { recursive: true });
-        yield* fs.writeFileString(
-          `${stateDir}/daemon.json`,
-          JSON.stringify({ httpPort: 12345, token: "old-token", version }),
-        );
-        const ready = yield* host.ensureAgentReady(() => Effect.void);
-        expect(starts).toBe(version === AGENT_DEVICE_VERSION ? 0 : 1);
-        expect(ready.agentDevice?.token).toBe(
-          version === AGENT_DEVICE_VERSION ? "old-token" : "new-token",
-        );
-      }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
-  );
-
   it.effect("reports an incompatible lock immediately and retains it for manual repair", () =>
     Effect.gen(function* () {
       const result = processOutput(

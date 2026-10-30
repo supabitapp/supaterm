@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import { sendPageCommand, toKeyboardInputEvents } from "./GuestInput.ts";
 
+/** A guest whose page reports `focusedDocument` for the focus probe. */
 const makeGuest = ({
   focused,
   focusedDocument = true,

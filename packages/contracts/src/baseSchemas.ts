@@ -4,21 +4,20 @@ import * as Schema from "effect/Schema";
 import * as SchemaGetter from "effect/SchemaGetter";
 import * as SchemaTransformation from "effect/SchemaTransformation";
 
-const trim = (value: string) => {
-  const trimmed = value.trim();
-  return trimmed.length === value.length ? value : trimmed;
-};
-
 export const TrimmedString = Schema.String.pipe(
   Schema.decodeTo(
     Schema.String,
     SchemaTransformation.transformEffect({
-      decode: (value) => Effect.succeed(trim(value)),
-      encode: (value) => Effect.succeed(trim(value)),
+      decode: (value) => Effect.succeed(value.trim()),
+      encode: (value) => Effect.succeed(value.trim()),
     }),
   ),
 );
-
+/**
+ * A `TrimmedString` only trims when decoding or encoding, so `make` and encode see the untrimmed
+ * value: a plain `isNonEmpty` would accept `" "` there and encode it to `""`, which no longer
+ * decodes.
+ */
 const isNonBlank = Schema.makeFilter((value: string) => value.trim().length > 0, {
   expected: "a non-blank string",
   toJsonSchema: () => [{ minLength: 1 }, true],
@@ -29,16 +28,6 @@ export const TrimmedNonEmptyString = TrimmedString.check(isNonBlank);
 export const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 export const PositiveInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(1));
 export const PortSchema = Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 65535 }));
-
-export const DpopFailureReason = Schema.Literals([
-  "time_window",
-  "key_mismatch",
-  "request_mismatch",
-  "token_mismatch",
-  "replay",
-  "invalid_proof",
-]);
-export type DpopFailureReason = typeof DpopFailureReason.Type;
 
 export const IsoDateTime = Schema.String;
 export type IsoDateTime = typeof IsoDateTime.Type;
@@ -72,6 +61,12 @@ export const ForwardCompatibleNullable = <Value extends Schema.Top>(value: Value
   );
 };
 
+/**
+ * A nullable setting whose null is "unset" and never crosses the wire: it
+ * decodes from a missing or unknown key and encodes back to a missing key.
+ * For a field that older clients decode as a required literal, so a null
+ * on the wire would fail their whole settings snapshot.
+ */
 export const OmittedWhenNull = <Value extends Schema.Top>(value: Value) => {
   const decodeValue = Schema.decodeUnknownOption(value as never);
   return Schema.optionalKey(Schema.Unknown).pipe(
@@ -91,6 +86,10 @@ export const OmittedWhenNull = <Value extends Schema.Top>(value: Value) => {
   );
 };
 
+/**
+ * For a tagged union, prefer {@link ForwardCompatibleUnion}: it drops only values whose tag this
+ * build does not know, so a known member with a broken payload still fails loudly.
+ */
 export const ForwardCompatibleArray = <Element extends Schema.Top>(element: Element) =>
   Schema.Array(
     Schema.UndefinedOr(element).pipe(
@@ -104,8 +103,12 @@ export const ForwardCompatibleArray = <Element extends Schema.Top>(element: Elem
           Schema.catchEncoding(() => Effect.succeedSome(undefined)),
         ),
       ).check(
+        // The holes above are an encoding detail: a decoded value has none, so
+        // `Schema.is` and `make` still reject an array that does. Aborts, so a
+        // later check on the array never sees a hole.
         Schema.makeFilter(
           (values) => {
+            // Every index, not `every`, which skips the holes of a sparse array.
             for (let index = 0; index < values.length; index++) {
               if (values[index] === undefined) return false;
             }
@@ -131,6 +134,10 @@ export type ForwardCompatibleArray<Element extends Schema.Top> = Schema.Codec<
   Element["EncodingServices"]
 >;
 
+/**
+ * A class, so only the codec can make one: no decoded payload, however it is shaped, is ever
+ * mistaken for it.
+ */
 export class UnknownUnionMember<Tag extends string = string> {
   readonly tag: Tag;
   readonly value: string;
@@ -140,6 +147,9 @@ export class UnknownUnionMember<Tag extends string = string> {
   }
 }
 
+/**
+ * Unknown members are decode-only; encoding one fails.
+ */
 export const ForwardCompatibleUnion = <
   const Members extends ReadonlyArray<Schema.Top & { readonly fields: object }>,
   const Tag extends string,
@@ -302,7 +312,8 @@ export const ProviderThreadId = makeEntityId("ProviderThreadId");
 export type ProviderThreadId = typeof ProviderThreadId.Type;
 export const ProviderTurnId = makeEntityId("ProviderTurnId");
 export type ProviderTurnId = typeof ProviderTurnId.Type;
-
+export const RuntimeSessionId = makeEntityId("RuntimeSessionId");
+export type RuntimeSessionId = typeof RuntimeSessionId.Type;
 export const RuntimeItemId = makeEntityId("RuntimeItemId");
 export type RuntimeItemId = typeof RuntimeItemId.Type;
 export const TurnItemId = makeEntityId("TurnItemId");
@@ -312,7 +323,6 @@ export type RuntimeRequestId = typeof RuntimeRequestId.Type;
 export const RuntimeTaskId = makeEntityId("RuntimeTaskId");
 export type RuntimeTaskId = typeof RuntimeTaskId.Type;
 export const ScheduledTaskId = makeEntityId("ScheduledTaskId");
-
 export type ScheduledTaskId = typeof ScheduledTaskId.Type;
 export const ApprovalRequestId = makeEntityId("ApprovalRequestId");
 export type ApprovalRequestId = typeof ApprovalRequestId.Type;

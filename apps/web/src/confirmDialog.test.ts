@@ -3,13 +3,11 @@ import { beforeEach, describe, expect, it } from "vite-plus/test";
 import {
   completeConfirmDialogClose,
   readConfirmDialogState,
+  registerConfirmDialogHost,
   requestConfirmDialog,
   resetConfirmDialogForTests,
   respondToConfirmDialog,
-  subscribeConfirmDialogHost,
 } from "./confirmDialog";
-
-const mountHost = () => subscribeConfirmDialogHost(() => {});
 
 function requireConfirmation(confirmation: Promise<boolean> | undefined): Promise<boolean> {
   if (!confirmation) {
@@ -24,7 +22,7 @@ describe("confirm dialog coordinator", () => {
   });
 
   it("serializes concurrent confirmations", async () => {
-    const unregister = mountHost();
+    const unregister = registerConfirmDialogHost();
     const first = requireConfirmation(requestConfirmDialog("Delete the project?"));
     const second = requireConfirmation(requestConfirmDialog("Delete the worktree too?"));
 
@@ -51,7 +49,7 @@ describe("confirm dialog coordinator", () => {
   });
 
   it("cancels active and queued confirmations if the last host unmounts", async () => {
-    const unregister = mountHost();
+    const unregister = registerConfirmDialogHost();
     const active = requireConfirmation(requestConfirmDialog("Delete the thread?"));
     const queued = requireConfirmation(requestConfirmDialog("Delete the worktree too?"));
 
@@ -61,16 +59,8 @@ describe("confirm dialog coordinator", () => {
     expect(readConfirmDialogState()).toEqual({ status: "idle" });
   });
 
-  it("has no host until one subscribes", () => {
-    expect(requestConfirmDialog("Continue?")).toBeUndefined();
-    const unsubscribe = mountHost();
-    expect(requestConfirmDialog("Continue?")).toBeDefined();
-    unsubscribe();
-    expect(requestConfirmDialog("Continue?")).toBeUndefined();
-  });
-
   it("ignores responses after the active dialog has been closed", () => {
-    const unregister = mountHost();
+    const unregister = registerConfirmDialogHost();
     const confirmation = requireConfirmation(requestConfirmDialog("Continue?"));
 
     respondToConfirmDialog(true);

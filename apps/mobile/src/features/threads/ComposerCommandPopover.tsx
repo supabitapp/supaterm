@@ -3,8 +3,6 @@ import {
   type ProviderSkillSourceKind,
 } from "@supaterm/client-runtime/providerSkills";
 import type {
-  EnvironmentId,
-  EnvironmentMachineKind,
   PullRequestContextMetadata,
   ScopedThreadRef,
   ServerProviderSkill,
@@ -16,7 +14,6 @@ import { Pressable, ScrollView, StyleSheet, View, type ViewStyle } from "react-n
 
 import { SymbolView, type AppSymbolName } from "../../components/ui/AppSymbol";
 import { AppText as Text } from "../../components/ui/AppText";
-import { ENVIRONMENT_MACHINE_SYMBOLS } from "../../components/EnvironmentMachineSymbol";
 import { GlassSurface } from "../../components/ui/GlassSurface";
 import { PierreEntryIcon } from "../../components/PierreEntryIcon";
 import { pullRequestStatus } from "../pull-requests/pullRequestStatus";
@@ -40,14 +37,6 @@ export type ComposerCommandItem =
       readonly id: string;
       readonly type: "thread";
       readonly thread: ScopedThreadRef;
-      readonly label: string;
-      readonly description: string;
-    }
-  | {
-      readonly id: string;
-      readonly type: "environment";
-      readonly environmentId: EnvironmentId;
-      readonly machine: EnvironmentMachineKind;
       readonly label: string;
       readonly description: string;
     }
@@ -121,8 +110,6 @@ function itemIcon(item: ComposerCommandItem): AppSymbolName | null {
       return null;
     case "thread":
       return "text.bubble";
-    case "environment":
-      return ENVIRONMENT_MACHINE_SYMBOLS[item.machine];
   }
 }
 

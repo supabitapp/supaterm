@@ -25,7 +25,6 @@ export function ExpandedPreviewDialog(props: {
   const [zoom, setZoom] = useState(1);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const reportOpen = use(ExpandedPreviewHostContext);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Pins the mounted dialog's virtualized timeline row until the preview unmounts.
   useEffect(() => {
     reportOpen?.(true);
     return () => reportOpen?.(false);

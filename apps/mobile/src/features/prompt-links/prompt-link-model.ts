@@ -1,6 +1,6 @@
 import type { PromptLinkRepository } from "@supaterm/shared/promptLinks";
 
-const PROMPT_LINK_PARAM_KEYS = ["prompt", "repo", "pr", "provider", "model"] as const;
+export const PROMPT_LINK_PARAM_KEYS = ["prompt", "repo", "pr", "provider", "model"] as const;
 
 type RouteParams = Readonly<Record<string, unknown>> | undefined;
 
@@ -17,12 +17,8 @@ export function promptLinkSearchFromParams(
   return search.size > 0 ? search.toString() : null;
 }
 
-export function withoutPromptLinkParams(params: object | undefined): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(params ?? {}).filter(
-      ([key]) => !(PROMPT_LINK_PARAM_KEYS as ReadonlyArray<string>).includes(key),
-    ),
-  );
+export function clearedPromptLinkParams(keys: ReadonlyArray<string> = PROMPT_LINK_PARAM_KEYS) {
+  return Object.fromEntries(keys.map((key) => [key, undefined]));
 }
 
 export function promptLinkNotice(input: {
@@ -77,12 +73,3 @@ export function latestThreadEnvironmentIds<Id extends string>(
 
 export const promptLinkRepositoryName = (repository: PromptLinkRepository) =>
   `${repository.owner}/${repository.name}`;
-
-export function stepPendingPromptLink<Link>(
-  link: Link,
-  input: { readonly screenOnStack: boolean; readonly ready: boolean },
-): { readonly pending: Link | null; readonly resolve: Link | null } {
-  if (!input.screenOnStack) return { pending: null, resolve: null };
-  if (input.ready) return { pending: null, resolve: link };
-  return { pending: link, resolve: null };
-}

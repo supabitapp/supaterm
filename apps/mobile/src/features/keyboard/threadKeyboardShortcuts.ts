@@ -1,5 +1,6 @@
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import { THREAD_JUMP_KEYBINDING_COMMANDS } from "@supaterm/contracts";
+import { useCallback } from "react";
 
 import type { ThreadListV2ListItem } from "../threads/threadListV2";
 import {
@@ -30,10 +31,13 @@ export function useThreadJumpShortcuts(
   items: ReadonlyArray<ThreadShortcutListItem>,
   onSelectThread: (thread: EnvironmentThreadShell) => void,
 ) {
-  const jumpToThread = (command: HardwareKeyboardCommand) => {
-    const thread = threadJumpTarget(items, command);
-    if (thread !== null) onSelectThread(thread);
-    return true;
-  };
+  const jumpToThread = useCallback(
+    (command: HardwareKeyboardCommand) => {
+      const thread = threadJumpTarget(items, command);
+      if (thread !== null) onSelectThread(thread);
+      return true;
+    },
+    [items, onSelectThread],
+  );
   useHardwareKeyboardCommand(THREAD_JUMP_KEYBINDING_COMMANDS, jumpToThread);
 }

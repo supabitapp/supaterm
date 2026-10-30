@@ -1,21 +1,10 @@
 import UIKit
 
-struct ReviewDiffCodeLineStarts: RandomAccessCollection {
-  let startIndex = 0
-  let endIndex: Int
-  let columns: Int
-
-  init(length: Int, columns: Int?) {
-    self.columns = Swift.max(1, columns ?? length)
-    endIndex = (Swift.max(1, length) - 1) / self.columns + 1
-  }
-
-  subscript(index: Int) -> Int { index * columns }
-}
-
+/// ASCII uses fixed-pitch columns. TextKit handles shaping, tabs, and Unicode highlights.
 final class ReviewDiffCodeLayout: NSObject {
   static let unboundedWidth = CGFloat.greatestFiniteMagnitude
 
+  // Measurement reuses one engine; only recently drawn rows retain a full TextKit layout.
   private static var measurer: ReviewDiffTextLayout {
     let key = "SupatermReviewDiff.textMeasurer"
     if let layout = Thread.current.threadDictionary[key] as? ReviewDiffTextLayout { return layout }
@@ -29,7 +18,7 @@ final class ReviewDiffCodeLayout: NSObject {
     return cache
   }()
   let text: String
-  let starts: ReviewDiffCodeLineStarts
+  let starts: [Int]
   let lineHeight: CGFloat
   let firstLineHeight: CGFloat
   let extraHeight: CGFloat
@@ -45,10 +34,10 @@ final class ReviewDiffCodeLayout: NSObject {
     self.width = width
     self.characterWidth = characterWidth
     lineHeight = ceil(font.lineHeight)
-    if Self.isPrintableASCII(text) {
+    if text.utf8.allSatisfy({ $0 >= 32 && $0 <= 126 }) {
       let length = max(1, text.utf8.count)
       let columns = max(1, Int(min(width / characterWidth, CGFloat(length))))
-      starts = ReviewDiffCodeLineStarts(length: length, columns: columns)
+      starts = Array(stride(from: 0, to: length, by: columns))
       firstLineHeight = font.lineHeight
       extraHeight = CGFloat(starts.count - 1) * lineHeight
       usedWidth = CGFloat(min(text.utf8.count, columns)) * characterWidth
@@ -59,17 +48,13 @@ final class ReviewDiffCodeLayout: NSObject {
       let manager = layout.manager
       let container = layout.container
       usesNativeLayout = true
-      starts = ReviewDiffCodeLineStarts(length: 0, columns: nil)
+      starts = [0]
       firstLineHeight = manager.numberOfGlyphs > 0
         ? manager.lineFragmentRect(forGlyphAt: 0, effectiveRange: nil).height : font.lineHeight
       let used = manager.usedRect(for: container)
       extraHeight = max(0, used.height - firstLineHeight)
       usedWidth = ceil(used.width)
     }
-  }
-
-  static func isPrintableASCII(_ text: String) -> Bool {
-    text.utf8.allSatisfy { $0 >= 32 && $0 <= 126 }
   }
 
   private func nativeLayout() -> ReviewDiffTextLayout {
@@ -80,6 +65,7 @@ final class ReviewDiffCodeLayout: NSObject {
     return layout
   }
 
+  /// Only colors change when syntax tokens arrive; the measured text and font stay intact.
   func decorate(text: NSAttributedString, highlights: [NSRange], color: UIColor, version: Int) {
     guard usesNativeLayout else { return }
     let layout = nativeLayout()

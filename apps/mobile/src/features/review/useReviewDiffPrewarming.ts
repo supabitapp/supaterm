@@ -35,7 +35,7 @@ function cancelIdle(handle: number): void {
   clearTimeout(handle);
 }
 
-function prewarmReviewDiffSection(input: {
+export function prewarmReviewDiffSection(input: {
   readonly threadKey: string;
   readonly section: ReviewSectionItem;
 }): void {
@@ -52,7 +52,7 @@ function prewarmReviewDiffSection(input: {
   getCachedNativeReviewDiffData({ parsedDiff, comments: [] });
 }
 
-function getReviewDiffPrewarmSections(input: {
+export function getReviewDiffPrewarmSections(input: {
   readonly threadKey: string;
   readonly sections: ReadonlyArray<ReviewSectionItem>;
   readonly selectedSectionId: string | null;
@@ -105,7 +105,6 @@ export function useReviewDiffPrewarming(input: {
 }): void {
   const { sections, selectedSectionId, threadKey } = input;
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- prewarms pending review diff sections in idle callbacks and cancels the idle handle on cleanup
   useEffect(() => {
     if (!threadKey) {
       return;

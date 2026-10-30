@@ -88,7 +88,7 @@ const connectWithRealResolver = Effect.fnUntraced(function* (
     Layer.succeed(
       ConnectionCredentialStore.ConnectionCredentialStore,
       ConnectionCredentialStore.ConnectionCredentialStore.of({
-        get: () => Effect.succeedSome(new BearerConnectionCredential({ token: "t" })),
+        get: () => Effect.succeed(Option.some(new BearerConnectionCredential({ token: "t" }))),
         put: () => Effect.void,
         remove: () => Effect.void,
       }),
@@ -143,7 +143,6 @@ const connectWithRealResolver = Effect.fnUntraced(function* (
             subscribeServerConfig: () => Stream.empty,
             ready: Effect.void,
             probe: Effect.void,
-            inboundFrames: Effect.succeed(0),
             closed: Effect.never,
           } satisfies RpcSession.RpcSession),
       }),

@@ -1,7 +1,6 @@
 import { EnvironmentId, ForwardCompatibleArray } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import * as SchemaGetter from "effect/SchemaGetter";
 
 import {
   type ConnectionRegistration,
@@ -9,7 +8,7 @@ import {
   ConnectionProfile,
 } from "../connection/catalog.ts";
 import { type ConnectionTarget, PersistedConnectionTarget } from "../connection/model.ts";
-import { StoredPullRequestRoutingPermission } from "../connection/pullRequestRoutingPermissions.ts";
+import { StoredGitHubRoutingPermission } from "../connection/githubRoutingPermissions.ts";
 
 export const StoredConnectionCredential = Schema.Struct({
   connectionId: Schema.String,
@@ -23,36 +22,19 @@ export const StoredPlatformLabel = Schema.Struct({
 });
 export type StoredPlatformLabel = typeof StoredPlatformLabel.Type;
 
-const connectionCatalogFields = {
+export const ConnectionCatalogDocument = Schema.Struct({
   schemaVersion: Schema.Literal(1),
   targets: ForwardCompatibleArray(PersistedConnectionTarget),
   profiles: Schema.Array(ConnectionProfile),
   credentials: Schema.Array(StoredConnectionCredential),
-  pullRequestRoutingPermissions: Schema.optionalKey(
-    Schema.Array(StoredPullRequestRoutingPermission),
-  ),
+  githubRoutingPermissions: Schema.optionalKey(Schema.Array(StoredGitHubRoutingPermission)),
   platformLabels: Schema.Array(StoredPlatformLabel).pipe(
     Schema.withDecodingDefaultKey(Effect.succeed([])),
   ),
   disabledEnvironmentIds: Schema.Array(EnvironmentId).pipe(
     Schema.withDecodingDefaultKey(Effect.succeed([])),
   ),
-};
-
-export const ConnectionCatalogDocument = Schema.Struct({
-  ...connectionCatalogFields,
-  githubRoutingPermissions: Schema.optionalKey(Schema.Array(StoredPullRequestRoutingPermission)),
-}).pipe(
-  Schema.decodeTo(Schema.toType(Schema.Struct(connectionCatalogFields)), {
-    decode: SchemaGetter.transform(({ githubRoutingPermissions, ...document }) => {
-      const permissions = document.pullRequestRoutingPermissions ?? githubRoutingPermissions;
-      return permissions === undefined
-        ? document
-        : { ...document, pullRequestRoutingPermissions: permissions };
-    }),
-    encode: SchemaGetter.transform((document) => document),
-  }),
-);
+});
 export type ConnectionCatalogDocument = typeof ConnectionCatalogDocument.Type;
 
 export const EMPTY_CONNECTION_CATALOG_DOCUMENT: ConnectionCatalogDocument = Object.freeze({
@@ -212,10 +194,10 @@ export function removeConnectionFromCatalog(
       (value) => value,
       environmentId,
     ),
-    ...(next.pullRequestRoutingPermissions === undefined
+    ...(next.githubRoutingPermissions === undefined
       ? {}
       : {
-          pullRequestRoutingPermissions: next.pullRequestRoutingPermissions.filter(
+          githubRoutingPermissions: next.githubRoutingPermissions.filter(
             (permission) => permission.environmentId !== environmentId,
           ),
         }),

@@ -1,6 +1,7 @@
 import { useRelativeTimeState } from "../hooks/useRelativeTimeState";
 
-// Use a live clock because the compiler caches inline formatting on the timestamp.
+// A "5m ago" label that keeps counting. Formatting the label inline in render
+// does not: the React Compiler caches it on the timestamp alone.
 export function RelativeTime(props: { timestamp: string }) {
   const relative = useRelativeTimeState(props.timestamp);
   if (relative.status !== "relative") return null;

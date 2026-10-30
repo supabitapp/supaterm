@@ -1,6 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
 import type {
-  ApplicationStoredEvent,
   OrchestrationV2ShellSnapshot,
   OrchestrationV2ShellStreamItem,
   OrchestrationV2ThreadShell,
@@ -17,15 +16,11 @@ import * as Stream from "effect/Stream";
 import * as TestClock from "effect/testing/TestClock";
 
 import {
-  activeShellRowsForSubscriber,
   bufferShellLiveStream,
   composeShellStreamWithEnrichment,
   dedupeShellEnrichment,
-  omitIdleSubagentShells,
-  omitOlderSettledShells,
   shellStreamItemFromEnrichmentRefresh,
   shellStreamItemsFromInitialSnapshot,
-  shouldPublishShellApplicationEvent,
   skipUnchangedThreadShells,
 } from "./ShellStream.ts";
 
@@ -36,49 +31,6 @@ const emptyShellSnapshot = {
   threads: [],
   archivedThreads: [],
 } as OrchestrationV2ShellSnapshot;
-
-describe("subagent shell events", () => {
-  const stored = (threadId: string, type: string) =>
-    ({ event: { threadId, type } }) as ApplicationStoredEvent;
-
-  it("keeps regular threads and subagent state changes while omitting subagent transcript updates", () => {
-    const subagents = new Set(["child"]);
-    expect(
-      shouldPublishShellApplicationEvent(stored("parent", "turn-item.updated"), subagents),
-    ).toBe(true);
-    expect(
-      shouldPublishShellApplicationEvent(stored("child", "turn-item.updated"), subagents),
-    ).toBe(false);
-    expect(shouldPublishShellApplicationEvent(stored("child", "node.updated"), subagents)).toBe(
-      false,
-    );
-    expect(
-      shouldPublishShellApplicationEvent(stored("child", "runtime-request.updated"), subagents),
-    ).toBe(true);
-    expect(shouldPublishShellApplicationEvent(stored("child", "run.updated"), subagents)).toBe(
-      true,
-    );
-  });
-
-  it("tracks subagents created after the subscription starts", () => {
-    const subagents = new Set<string>();
-    const created = {
-      event: {
-        threadId: "new-child",
-        type: "thread.created",
-        payload: { lineage: { relationshipToParent: "subagent" } },
-      },
-    } as ApplicationStoredEvent;
-    expect(shouldPublishShellApplicationEvent(created, subagents)).toBe(true);
-    expect(
-      shouldPublishShellApplicationEvent(stored("new-child", "message.updated"), subagents),
-    ).toBe(false);
-    expect(
-      shouldPublishShellApplicationEvent(stored("new-child", "thread.deleted"), subagents),
-    ).toBe(true);
-    expect(subagents.has("new-child")).toBe(true);
-  });
-});
 
 it.effect("coalesces a slow shell subscriber by identity and location in sequence order", () =>
   Effect.scoped(
@@ -131,7 +83,7 @@ it.effect("coalesces a slow shell subscriber by identity and location in sequenc
       expect(yield* pull).toEqual([initial]);
       yield* Queue.offerAll(input, updates);
       yield* Queue.end(input);
-
+      // Finish producing the burst while the first batch is still awaiting its ACK.
       yield* Deferred.await(drained);
       expect(yield* pull).toEqual([updates[3], updates[4], updates[7], updates[8], updates[9]]);
     }),
@@ -141,156 +93,6 @@ it.effect("coalesces a slow shell subscriber by identity and location in sequenc
 function shellFixture(overrides: Partial<OrchestrationV2ThreadShell>): OrchestrationV2ThreadShell {
   return { id: "thread-a", archivedAt: null, ...overrides } as OrchestrationV2ThreadShell;
 }
-
-describe("omitIdleSubagentShells", () => {
-  const row = (
-    id: string,
-    parent: string | null,
-    overrides: Partial<OrchestrationV2ThreadShell> = {},
-  ) =>
-    shellFixture({
-      id: ThreadId.make(id),
-      lineage: {
-        parentThreadId: parent === null ? null : ThreadId.make(parent),
-        relationshipToParent: parent === null ? null : "subagent",
-        rootThreadId: ThreadId.make("root"),
-      },
-      status: "completed",
-      activityRunStatus: null,
-      pendingRuntimeRequest: null,
-      pendingBackgroundTasks: [],
-      ...overrides,
-    });
-
-  it("drops idle leaf children but keeps live ones and the middle of nested chains", () => {
-    const threads = [
-      row("root", null),
-      row("idle", "root"),
-      row("running", "root", { activityRunStatus: "running" }),
-      row("queued", "root", { status: "queued" }),
-      row("asking", "root", {
-        pendingRuntimeRequest: {
-          id: "request" as never,
-          kind: "user_input",
-          createdAt: DateTime.makeUnsafe(0),
-        },
-      }),
-      row("background", "root", {
-        pendingBackgroundTasks: [{ kind: "subagent" } as never],
-      }),
-
-      row("middle", "root"),
-      row("grandchild", "middle"),
-    ];
-    expect(omitIdleSubagentShells(threads).map((thread) => thread.id)).toEqual([
-      "root",
-      "running",
-      "queued",
-      "asking",
-      "background",
-      "middle",
-    ]);
-  });
-
-  it("still filters the transcript events of omitted children for a subscriber that opts in", () => {
-    const threads = [row("root", null), row("idle", "root")];
-    const omitted = activeShellRowsForSubscriber(threads, true);
-    expect(omitted.threads.map((thread) => thread.id)).toEqual(["root"]);
-    expect(
-      shouldPublishShellApplicationEvent(
-        { event: { threadId: "idle", type: "turn-item.updated" } } as ApplicationStoredEvent,
-        omitted.subagentThreadIds,
-      ),
-    ).toBe(false);
-  });
-});
-
-describe("omitOlderSettledShells", () => {
-  const DAY = 24 * 60 * 60 * 1000;
-  const now = DateTime.makeUnsafe(100 * DAY);
-  const row = (
-    id: string,
-    settledDaysAgo: number | null,
-    overrides: Partial<OrchestrationV2ThreadShell> = {},
-  ) =>
-    shellFixture({
-      id: ThreadId.make(id),
-      projectId: ProjectId.make(id.startsWith("b-") ? "project-b" : "project-a"),
-      lineage: {
-        parentThreadId: null,
-        relationshipToParent: null,
-        rootThreadId: ThreadId.make(id),
-      },
-      status: "completed",
-      activityRunStatus: null,
-      pendingRuntimeRequest: null,
-      pendingBackgroundTasks: [],
-      doneOverride: settledDaysAgo === null ? null : "done",
-      doneAt:
-        settledDaysAgo === null ? null : DateTime.makeUnsafe(100 * DAY - settledDaysAgo * DAY),
-      ...overrides,
-    });
-  const newest = Array.from({ length: 25 }, (_, index) => row(`new-${index}`, index / 10));
-  const omit = (threads: ReadonlyArray<OrchestrationV2ThreadShell>) =>
-    omitOlderSettledShells({ threads, snapshotSequence: 7, now });
-
-  it("keeps the 25 newest settled threads and counts the rest per project", () => {
-    const result = omit([...newest, row("old", 30), row("b-old", 40), row("unsettled", null)]);
-    expect(result.threads.map((thread) => thread.id)).toEqual([
-      ...newest.map((thread) => thread.id),
-      "unsettled",
-    ]);
-    expect(result.olderSettled).toEqual({
-      before: DateTime.formatIso(DateTime.makeUnsafe(100 * DAY - 2.4 * DAY)),
-      asOfSequence: 7,
-      counts: [
-        { projectId: "project-a", count: 1 },
-        { projectId: "project-b", count: 1 },
-      ],
-    });
-  });
-
-  it("keeps threads tied with the 25th newest", () => {
-    const result = omit([...newest, row("tie", 2.4), row("older", 2.5)]);
-    expect(result.threads.map((thread) => thread.id).slice(25)).toEqual(["tie"]);
-  });
-
-  it("omits nothing with fewer than 25 settled threads, however old", () => {
-    const old = Array.from({ length: 5 }, (_, index) => row(`old-${index}`, 300 + index));
-    const result = omit(old);
-    expect(result.threads).toEqual(old);
-    expect(result.olderSettled.counts).toEqual([]);
-  });
-
-  it("keeps older rows that are snoozed, live, or above a kept subagent, and still counts them", () => {
-    const threads = [
-      ...newest,
-      row("snoozed", 30, { snoozedUntil: DateTime.makeUnsafe(101 * DAY) }),
-      row("woke", 30, { snoozedUntil: DateTime.makeUnsafe(99 * DAY) }),
-      row("running", 30, { activityRunStatus: "running" }),
-      row("parent", 30),
-      shellFixture({
-        id: ThreadId.make("child"),
-        projectId: ProjectId.make("project-a"),
-        lineage: {
-          parentThreadId: ThreadId.make("parent"),
-          relationshipToParent: "subagent",
-          rootThreadId: ThreadId.make("parent"),
-        },
-        doneOverride: null,
-        doneAt: null,
-      }),
-    ];
-    const result = omit(threads);
-    expect(result.threads.map((thread) => thread.id).slice(25)).toEqual([
-      "snoozed",
-      "running",
-      "parent",
-      "child",
-    ]);
-    expect(result.olderSettled.counts).toEqual([{ projectId: "project-a", count: 4 }]);
-  });
-});
 
 describe("shellStreamItemsFromInitialSnapshot", () => {
   it("keeps thread rows out of the metadata-only enrichment frame", () => {
@@ -327,6 +129,7 @@ describe("composeShellStreamWithEnrichment", () => {
   it.effect("preserves pending repository resolutions while an enrichment ACK is withheld", () =>
     Effect.scoped(
       Effect.gen(function* () {
+        // Match ProjectEnrichmentService's sliding notifications and the WS batching path.
         const changes = yield* Effect.acquireRelease(
           PubSub.sliding<{ readonly workspaceRoot: string }>(256),
           PubSub.shutdown,
@@ -355,6 +158,7 @@ describe("composeShellStreamWithEnrichment", () => {
         );
         expect(yield* pull).toMatchObject([{ resolvedRepositoryIdentityRoots: firstRoots }]);
 
+        // The next completion can be batched before the client acknowledges the first.
         yield* PubSub.publish(changes, { workspaceRoot: "/workspace/pending" });
         yield* Effect.yieldNow;
         yield* TestClock.adjust(Duration.millis(25));
@@ -406,7 +210,7 @@ describe("composeShellStreamWithEnrichment", () => {
           }),
         );
         expect(yield* pull).toEqual([initial]);
-
+        // Let the merge producer run while the client still withholds its ACK.
         yield* Effect.yieldNow;
         yield* Deferred.succeed(update, undefined);
         yield* Deferred.await(closed);

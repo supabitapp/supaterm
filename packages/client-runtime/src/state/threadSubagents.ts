@@ -12,8 +12,6 @@ type RunId = Projection["runs"][number]["id"];
 export interface ThreadTurnSubagents {
   readonly runId: RunId | null;
   readonly turnActive: boolean;
-
-  readonly latestTurn: boolean;
   readonly subagents: ReadonlyArray<Subagent>;
   readonly liveCount: number;
   readonly settledCount: number;
@@ -28,6 +26,13 @@ function orderKey(subagent: Subagent): number {
   return DateTime.toEpochMillis(subagent.startedAt ?? subagent.updatedAt);
 }
 
+/**
+ * The agents behind the thread's agents pill and sheet: every agent of the active run (or, once
+ * the thread is idle, of the run the most recently updated agent belongs to), plus any agent
+ * still working from another run. A background agent outlives the turn that launched it, and the
+ * Waiting strip counts it, so the pill has to count it and the sheet has to reach it too. Agents
+ * of rolled-back runs stay out, as they do from the strip.
+ */
 export function deriveThreadTurnSubagents(
   projection: Pick<Projection, "runs" | "subagents">,
 ): ThreadTurnSubagents | null {
@@ -47,27 +52,10 @@ export function deriveThreadTurnSubagents(
         : latest,
     first,
   );
-
-  const latestStartedRun = projection.runs.reduce<Projection["runs"][number] | null>(
-    (latest, run) =>
-      run.startedAt !== null &&
-      !rolledBackRunIds.has(run.id) &&
-      (latest === null || run.ordinal > latest.ordinal)
-        ? run
-        : latest,
-    null,
-  );
-  const latestStartedRunHasAgents =
-    latestStartedRun !== null &&
-    eligible.some((subagent) => subagent.runId === latestStartedRun.id);
-  const runId =
-    activeRun?.id ?? (latestStartedRunHasAgents ? latestStartedRun.id : latestUpdated.runId);
+  const runId = activeRun?.id ?? latestUpdated.runId;
   const subagents = copySorted(
     eligible.filter(
-      (subagent) =>
-        subagent.runId === runId ||
-        isActiveSubagentStatus(subagent.status) ||
-        subagent.workflow !== undefined,
+      (subagent) => subagent.runId === runId || isActiveSubagentStatus(subagent.status),
     ),
     (left, right) => orderKey(left) - orderKey(right) || left.id.localeCompare(right.id),
   );
@@ -79,29 +67,14 @@ export function deriveThreadTurnSubagents(
     if (isActiveSubagentStatus(subagent.status)) liveCount += 1;
     else if (isTerminalSubagentStatus(subagent.status)) settledCount += 1;
   }
-  return {
-    runId,
-    turnActive: activeRun !== null,
-    latestTurn: runId === null || latestStartedRun === null || runId === latestStartedRun.id,
-    subagents,
-    liveCount,
-    settledCount,
-  };
+  return { runId, turnActive: activeRun !== null, subagents, liveCount, settledCount };
 }
 
 export function resolveSubagentPillSegment(
   turn: ThreadTurnSubagents | null,
 ): SubagentPillSegment | null {
   if (turn === null) return null;
-
-  if (
-    !turn.turnActive &&
-    !turn.latestTurn &&
-    turn.liveCount === 0 &&
-    !turn.subagents.some((subagent) => subagent.workflow !== undefined)
-  ) {
-    return null;
-  }
+  if (!turn.turnActive && turn.liveCount === 0) return null;
   const total = turn.subagents.length;
   if (turn.liveCount > 0) {
     return {
@@ -110,7 +83,7 @@ export function resolveSubagentPillSegment(
     };
   }
   return {
-    label: `${turn.settledCount} Done`,
-    accessibilityLabel: `${turn.settledCount} ${turn.settledCount === 1 ? "agent" : "agents"} Done`,
+    label: `${total} Done`,
+    accessibilityLabel: `${total} ${total === 1 ? "agent" : "agents"} Done`,
   };
 }

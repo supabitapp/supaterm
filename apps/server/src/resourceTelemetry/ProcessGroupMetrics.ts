@@ -1,9 +1,7 @@
 import type { ResourceTelemetryProcess } from "@supaterm/contracts";
-import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Metric from "effect/Metric";
-import * as Ref from "effect/Ref";
 
 import * as ServerConfig from "../config.ts";
 import { metricAttributes } from "../observability/Metrics.ts";
@@ -115,26 +113,10 @@ export const layer = Layer.effectDiscard(
         yield* Metric.update(Metric.withAttributes(processCount, attributes), total.count);
       }
     });
-    const failing = yield* Ref.make(false);
-    const recordSuccess = Ref.getAndSet(failing, false).pipe(
-      Effect.flatMap((wasFailing) =>
-        wasFailing ? Effect.logInfo("process group metrics sample recovered") : Effect.void,
-      ),
-    );
-    const recordFailure = (error: ResourceTelemetry.ResourceTelemetryRefreshFailed) => {
-      const cause = Cause.fail(error);
-      return Ref.getAndSet(failing, true).pipe(
-        Effect.flatMap((wasFailing) =>
-          wasFailing
-            ? Effect.logDebug("process group metrics sample failed", cause)
-            : Effect.logWarning("process group metrics are not exported: sample failed", cause),
-        ),
-        Effect.annotateLogs({ operation: error.operation }),
-      );
-    };
     yield* sample().pipe(
-      Effect.andThen(recordSuccess),
-      Effect.catch(recordFailure),
+      Effect.catch((error) =>
+        Effect.logDebug("process group metrics sample failed", { error: error.message }),
+      ),
       Effect.andThen(Effect.sleep(SAMPLE_INTERVAL)),
       Effect.forever,
       Effect.forkScoped,

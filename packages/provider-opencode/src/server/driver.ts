@@ -105,6 +105,11 @@ function byOpenCodeRuntime<A, E, R, PE>(
   );
 }
 
+/**
+ * Capability and selection reads are hot, so they use the last successful probe (1.x before one
+ * lands) and never wait on a slow server. Opening a session waits for a probe, so each server is
+ * spoken to in its own protocol.
+ */
 function selectOpenCodeRuntimeAdapter(input: {
   readonly probe: OpenCodeRuntimeProbe;
   readonly v1: ProviderAdapter.ProviderAdapterV2["Service"];
@@ -347,9 +352,6 @@ export const OpenCodeDriver: ProviderDriver<
           host.paths.cwd,
           runtimeProbe.refresh,
           loadOpenCode2Models,
-        ).pipe(
-          Effect.annotateLogs({ providerInstanceId: instanceId }),
-          Effect.annotateSpans({ providerInstanceId: instanceId }),
         ),
         usageLimits: readOpenCodeGoUsageLimits({
           enabled: effectiveConfig.enabled,
@@ -440,13 +442,7 @@ export const OpenCodeDriver: ProviderDriver<
       streamSettings: snapshotSettings.streamSettings,
       haveSettingsChanged: haveProviderSnapshotSettingsChanged,
       checkProviderOnSettingsChange: () => false,
-      // A failed or still-loading catalog must recover without a manual
-      // refresh. Healthy instances need no recurring server starts.
-      refreshOnInterval: (snapshot) =>
-        snapshot.enabled &&
-        snapshot.installed &&
-        snapshot.status !== "ready" &&
-        snapshot.auth.status === "unknown",
+      refreshOnInterval: false,
       initialSnapshot: (settings) =>
         makePendingOpenCodeProvider(settings.provider).pipe(Effect.map(stampIdentity)),
       checkProvider,

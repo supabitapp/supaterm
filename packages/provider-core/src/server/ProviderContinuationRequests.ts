@@ -23,6 +23,11 @@ export interface ProviderContinuationRequest {
     readonly generation: number;
     readonly messageId: MessageId;
   };
+  /**
+   * `adapter_buffered` (default) is the provider-native wake: the adapter has already buffered the
+   * CLI's wake output, and the dispatched message only triggers ingestion. `message_text` is for
+   * app-owned work with no buffered provider output, such as a delegated child finishing.
+   */
   readonly delivery?: "adapter_buffered" | "message_text";
   readonly messageId?: MessageId;
   readonly dispatchIfCurrent?: <A, E, R>(
@@ -31,6 +36,10 @@ export interface ProviderContinuationRequest {
   readonly clearIfCurrent?: () => Effect.Effect<void>;
 }
 
+/**
+ * The default reference drops requests, keeping adapter construction dependency-free in tests; the
+ * live layer must be shared with the ProviderContinuationService worker that drains it.
+ */
 export class ProviderContinuationRequests extends Context.Reference<{
   readonly offer: (request: ProviderContinuationRequest) => Effect.Effect<void>;
   readonly take: Effect.Effect<ProviderContinuationRequest>;
@@ -43,11 +52,8 @@ export const layer = Layer.effect(
   Effect.gen(function* () {
     const queue = yield* Queue.unbounded<ProviderContinuationRequest>();
     return {
-      offer: Effect.fn("ProviderContinuationRequests.offer")(function (
-        request: ProviderContinuationRequest,
-      ) {
-        return Queue.offer(queue, request).pipe(Effect.asVoid);
-      }),
+      offer: (request: ProviderContinuationRequest) =>
+        Queue.offer(queue, request).pipe(Effect.asVoid),
       take: Queue.take(queue),
     };
   }),

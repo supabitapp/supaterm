@@ -25,17 +25,13 @@ export function useVoiceInputController(input: {
   readonly onSubmit?: () => void;
 }) {
   const global = useGlobalVoiceInput();
-  const { session } = global;
-  const setOwnerFocused = (ownerKey: string, focused: boolean) =>
-    session.setOwnerFocused(ownerKey, focused);
+  const { setOwnerFocused, session } = global;
   const latestInput = useRef(input);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Keeps session callbacks aligned with the mounted composer target.
   useLayoutEffect(() => {
     latestInput.current = input;
   });
   const mounted = useRef(true);
   const submission = useRef<{ ownerKey: string; text: string } | null>(null);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Invalidates pending native dictation submission when its composer unmounts.
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -81,7 +77,6 @@ export function useVoiceInputController(input: {
   }, [session]);
   const state = global.ownerKey === input.ownerKey ? global.state : IDLE_STATE;
   const isBusy = voiceInputBlocksSubmission(state);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Submits the committed native transcript only after the recording session settles.
   useEffect(() => {
     if (isBusy) return;
     const pending = submission.current;

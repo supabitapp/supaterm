@@ -1,12 +1,5 @@
 import { ChevronRightIcon, ExternalLinkIcon, SearchIcon } from "@supaterm/icons";
-import { useAtomRefresh, useAtomValue } from "@effect/atom-react";
-import * as Cause from "effect/Cause";
-import * as Data from "effect/Data";
-import * as Effect from "effect/Effect";
-import * as Option from "effect/Option";
-import { FetchHttpClient, HttpClient } from "effect/http";
-import { Atom } from "effect/reactivity";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   decodeThirdPartyLicenseManifest,
@@ -14,6 +7,7 @@ import {
   formatLicenseBundles,
   thirdPartyLicenseEntryKey,
   type ThirdPartyLicenseEntry,
+  type ThirdPartyLicenseManifest,
 } from "@supaterm/shared/thirdPartyLicenses";
 
 import { Button } from "../ui/button";
@@ -22,45 +16,41 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group"
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { SettingsPageContainer, SettingsSection } from "./settingsLayout";
 
-class LicenseManifestLoadError extends Data.TaggedError("LicenseManifestLoadError")<{
-  readonly message: string;
-}> {}
+type LicenseManifestState =
+  | { readonly status: "loading" }
+  | { readonly status: "error"; readonly message: string }
+  | { readonly status: "ready"; readonly manifest: ThirdPartyLicenseManifest };
 
-// Not keepAlive: a failed load must not stick for the session, so each visit to the page loads
-// the manifest again (a static asset the HTTP cache serves).
-const licenseManifestAtom = Atom.make(
-  Effect.gen(function* () {
-    const response = yield* HttpClient.get(
+let licenseManifestPromise: Promise<ThirdPartyLicenseManifest> | undefined;
+
+async function fetchLicenseManifest(): Promise<ThirdPartyLicenseManifest> {
+  const signal = AbortSignal.timeout(30_000);
+  try {
+    const response = await fetch(
       `${import.meta.env.BASE_URL.replace(/\/$/, "")}/third-party-licenses.json`,
+      { signal },
     );
-    if (response.status < 200 || response.status >= 300) {
-      return yield* new LicenseManifestLoadError({
-        message: `The license manifest request failed with status ${String(response.status)}.`,
-      });
+    if (!response.ok) {
+      throw new Error(
+        `The license manifest request failed with status ${String(response.status)}.`,
+      );
     }
-    const body = yield* response.json;
-    return yield* Effect.try({
-      try: () => decodeThirdPartyLicenseManifest(body),
-      catch: (error) =>
-        new LicenseManifestLoadError({
-          message: error instanceof Error ? error.message : "The license manifest could not load.",
-        }),
-    });
-  }).pipe(
-    Effect.catchTags({
-      HttpClientError: (error) =>
-        Effect.fail(new LicenseManifestLoadError({ message: error.message })),
-    }),
-    Effect.timeoutOrElse({
-      duration: "30 seconds",
-      orElse: () =>
-        Effect.fail(
-          new LicenseManifestLoadError({ message: "The license manifest took too long to load." }),
-        ),
-    }),
-    Effect.provide(FetchHttpClient.layer),
-  ),
-).pipe(Atom.withLabel("settings:open-source-licenses"));
+    return decodeThirdPartyLicenseManifest((await response.json()) as unknown);
+  } catch (error) {
+    if (signal.aborted) {
+      throw new Error("The license manifest took too long to load.", { cause: error });
+    }
+    throw error;
+  }
+}
+
+function loadLicenseManifest(): Promise<ThirdPartyLicenseManifest> {
+  licenseManifestPromise ??= fetchLicenseManifest().catch((error: unknown) => {
+    licenseManifestPromise = undefined;
+    throw error;
+  });
+  return licenseManifestPromise;
+}
 
 function LicenseNoticeRow({
   entry,
@@ -221,28 +211,43 @@ function LicenseManifestError({ message, onRetry }: { message: string; onRetry: 
 }
 
 export function OpenSourceLicensesPanel() {
-  const result = useAtomValue(licenseManifestAtom);
-  const retry = useAtomRefresh(licenseManifestAtom);
+  const [state, setState] = useState<LicenseManifestState>({ status: "loading" });
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [openEntryKey, setOpenEntryKey] = useState<string | null>(null);
-  const manifest = result._tag === "Success" ? result.value : null;
-  const entries = manifest?.entries ?? [];
+
+  const loading = state.status === "loading";
+
+  useEffect(() => {
+    if (!loading) return;
+    let cancelled = false;
+    void loadLicenseManifest().then(
+      (manifest) => {
+        if (!cancelled) setState({ status: "ready", manifest });
+      },
+      (error: unknown) => {
+        if (cancelled) return;
+        setState({
+          status: "error",
+          message: error instanceof Error ? error.message : "The license manifest could not load.",
+        });
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [loading]);
+
+  const entries = state.status === "ready" ? state.manifest.entries : [];
   const filteredEntries = filterThirdPartyLicenseEntries(entries, query);
-  const errorMessage =
-    result._tag === "Failure" && !result.waiting
-      ? Option.match(Cause.findErrorOption(result.cause), {
-          onNone: () => "The license manifest could not load.",
-          onSome: (error) => error.message,
-        })
-      : null;
+  const retry = () => setState({ status: "loading" });
 
   return (
     <SettingsPageContainer>
       <SettingsSection
         title="Third-party notices"
         headerAction={
-          manifest ? (
+          state.status === "ready" ? (
             <LicenseHeaderAction
               query={query}
               onQueryChange={setQuery}
@@ -254,7 +259,7 @@ export function OpenSourceLicensesPanel() {
           ) : null
         }
       >
-        {manifest ? (
+        {state.status === "ready" ? (
           <div className="text-base sm:text-sm">
             {filteredEntries.length > 0 ? (
               filteredEntries.map((entry) => {
@@ -274,8 +279,8 @@ export function OpenSourceLicensesPanel() {
               </p>
             )}
           </div>
-        ) : errorMessage !== null ? (
-          <LicenseManifestError message={errorMessage} onRetry={retry} />
+        ) : state.status === "error" ? (
+          <LicenseManifestError message={state.message} onRetry={retry} />
         ) : (
           <p className="px-3 py-5 text-sm/6 text-muted-foreground sm:px-4">
             Loading open-source notices…

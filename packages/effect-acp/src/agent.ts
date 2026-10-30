@@ -190,6 +190,7 @@ interface AcpCoreAgentRequestHandlers {
 
 const decodeCancelNotification = Schema.decodeUnknownEffect(AcpSchema.CancelNotification);
 
+/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.fn("effect-acp/AcpAgent.make")(function* (
   stdio: Stdio.Stdio,
   options: AcpAgentOptions = {},
@@ -418,135 +419,109 @@ export const make = Effect.fn("effect-acp/AcpAgent.make")(function* (
       extRequest: transport.request,
       extNotification: transport.notify,
     },
-    handleInitialize: Effect.fn("AcpAgent.handleInitialize")(function (handler) {
-      return Effect.suspend(() => {
+    handleInitialize: (handler) =>
+      Effect.suspend(() => {
         coreHandlers.initialize = handler;
         return Effect.void;
-      });
-    }),
-    handleAuthenticate: Effect.fn("AcpAgent.handleAuthenticate")(function (handler) {
-      return Effect.suspend(() => {
+      }),
+    handleAuthenticate: (handler) =>
+      Effect.suspend(() => {
         coreHandlers.authenticate = handler;
         return Effect.void;
-      });
-    }),
-    handleLogout: Effect.fn("AcpAgent.handleLogout")(function (handler) {
-      return Effect.suspend(() => {
+      }),
+    handleLogout: (handler) =>
+      Effect.suspend(() => {
         coreHandlers.logout = handler;
         return Effect.void;
-      });
-    }),
-    handleCreateSession: Effect.fn("AcpAgent.handleCreateSession")(function (handler) {
-      return Effect.suspend(() => {
+      }),
+    handleCreateSession: (handler) =>
+      Effect.suspend(() => {
         coreHandlers.createSession = handler;
         return Effect.void;
-      });
-    }),
-    handleLoadSession: Effect.fn("AcpAgent.handleLoadSession")(function (handler) {
-      return Effect.suspend(() => {
+      }),
+    handleLoadSession: (handler) =>
+      Effect.suspend(() => {
         coreHandlers.loadSession = handler;
         return Effect.void;
-      });
-    }),
-    handleListSessions: Effect.fn("AcpAgent.handleListSessions")(function (handler) {
-      return Effect.suspend(() => {
+      }),
+    handleListSessions: (handler) =>
+      Effect.suspend(() => {
         coreHandlers.listSessions = handler;
         return Effect.void;
-      });
-    }),
-    handleForkSession: Effect.fn("AcpAgent.handleForkSession")(function (handler) {
-      return Effect.suspend(() => {
+      }),
+    handleForkSession: (handler) =>
+      Effect.suspend(() => {
         coreHandlers.forkSession = handler;
         return Effect.void;
-      });
-    }),
-    handleResumeSession: Effect.fn("AcpAgent.handleResumeSession")(function (handler) {
-      return Effect.suspend(() => {
+      }),
+    handleResumeSession: (handler) =>
+      Effect.suspend(() => {
         coreHandlers.resumeSession = handler;
         return Effect.void;
-      });
-    }),
-    handleCloseSession: Effect.fn("AcpAgent.handleCloseSession")(function (handler) {
-      return Effect.suspend(() => {
+      }),
+    handleCloseSession: (handler) =>
+      Effect.suspend(() => {
         coreHandlers.closeSession = handler;
         return Effect.void;
-      });
-    }),
-    handleDeleteSession: Effect.fn("AcpAgent.handleDeleteSession")(function (handler) {
-      return Effect.suspend(() => {
+      }),
+    handleDeleteSession: (handler) =>
+      Effect.suspend(() => {
         coreHandlers.deleteSession = handler;
         return Effect.void;
-      });
-    }),
-    handleListProviders: Effect.fn("AcpAgent.handleListProviders")(function (handler) {
-      return Effect.suspend(() => {
+      }),
+    handleListProviders: (handler) =>
+      Effect.suspend(() => {
         coreHandlers.listProviders = handler;
         return Effect.void;
-      });
-    }),
-    handleSetProvider: Effect.fn("AcpAgent.handleSetProvider")(function (handler) {
-      return Effect.suspend(() => {
+      }),
+    handleSetProvider: (handler) =>
+      Effect.suspend(() => {
         coreHandlers.setProvider = handler;
         return Effect.void;
-      });
-    }),
-    handleDisableProvider: Effect.fn("AcpAgent.handleDisableProvider")(function (handler) {
-      return Effect.suspend(() => {
+      }),
+    handleDisableProvider: (handler) =>
+      Effect.suspend(() => {
         coreHandlers.disableProvider = handler;
         return Effect.void;
-      });
-    }),
-    handleSetSessionConfigOption: Effect.fn("AcpAgent.handleSetSessionConfigOption")(
-      function (handler) {
-        return Effect.suspend(() => {
-          coreHandlers.setSessionConfigOption = handler;
-          return Effect.void;
-        });
-      },
-    ),
-    handlePrompt: Effect.fn("AcpAgent.handlePrompt")(function (handler) {
-      return Effect.suspend(() => {
+      }),
+    handleSetSessionConfigOption: (handler) =>
+      Effect.suspend(() => {
+        coreHandlers.setSessionConfigOption = handler;
+        return Effect.void;
+      }),
+    handlePrompt: (handler) =>
+      Effect.suspend(() => {
         coreHandlers.prompt = handler;
         return Effect.void;
-      });
-    }),
-    handleCancel: Effect.fn("AcpAgent.handleCancel")(function (handler) {
-      return Effect.suspend(() => {
+      }),
+    handleCancel: (handler) =>
+      Effect.suspend(() => {
         cancelHandlers.push(handler);
         return Effect.void;
-      });
-    }),
-    handleUnknownExtRequest: Effect.fn("AcpAgent.handleUnknownExtRequest")(function (handler) {
-      return Effect.suspend(() => {
+      }),
+    handleUnknownExtRequest: (handler) =>
+      Effect.suspend(() => {
         unknownExtRequestHandler = handler;
         return Effect.void;
-      });
-    }),
-    handleUnknownExtNotification: Effect.fn("AcpAgent.handleUnknownExtNotification")(
-      function (handler) {
-        return Effect.suspend(() => {
-          unknownExtNotificationHandler = handler;
-          return Effect.void;
-        });
-      },
-    ),
-    handleExtRequest: Effect.fn("AcpAgent.handleExtRequest")(function (method, payload, handler) {
-      return Effect.suspend(() => {
+      }),
+    handleUnknownExtNotification: (handler) =>
+      Effect.suspend(() => {
+        unknownExtNotificationHandler = handler;
+        return Effect.void;
+      }),
+    handleExtRequest: (method, payload, handler) =>
+      Effect.suspend(() => {
         extRequestHandlers.set(method, decodeExtRequestRegistration(method, payload, handler));
         return Effect.void;
-      });
-    }),
-    handleExtNotification: Effect.fn("AcpAgent.handleExtNotification")(
-      function (method, payload, handler) {
-        return Effect.suspend(() => {
-          extNotificationHandlers.set(
-            method,
-            decodeExtNotificationRegistration(method, payload, handler),
-          );
-          return Effect.void;
-        });
-      },
-    ),
+      }),
+    handleExtNotification: (method, payload, handler) =>
+      Effect.suspend(() => {
+        extNotificationHandlers.set(
+          method,
+          decodeExtNotificationRegistration(method, payload, handler),
+        );
+        return Effect.void;
+      }),
   });
 });
 

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { AppState } from "react-native";
 import { scheduleOnUI } from "react-native-worklets";
 
@@ -8,9 +9,11 @@ function collectUiRuntimeGarbage() {
   if (typeof gc === "function") gc();
 }
 
-export function installUiRuntimeMemoryWarningGc(): () => void {
-  const subscription = AppState.addEventListener("memoryWarning", () => {
-    scheduleOnUI(collectUiRuntimeGarbage);
-  });
-  return () => subscription.remove();
+export function useUiRuntimeMemoryWarningGc() {
+  useEffect(() => {
+    const subscription = AppState.addEventListener("memoryWarning", () => {
+      scheduleOnUI(collectUiRuntimeGarbage);
+    });
+    return () => subscription.remove();
+  }, []);
 }

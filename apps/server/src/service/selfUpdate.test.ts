@@ -26,7 +26,6 @@ interface HarnessOptions {
   readonly beforeDownload?: Effect.Effect<void>;
   readonly requestUpdate?: ServiceLauncherClient.ServiceLauncherClient["Service"]["requestUpdate"];
   readonly desktopAppUpdate?: DesktopAppUpdate.DesktopAppUpdate["Service"];
-  readonly onPreflight?: (args: ReadonlyArray<string>) => void;
 }
 
 // The staged runtime is a release archive: the fake client serves SHA256SUMS
@@ -81,7 +80,6 @@ const makeHarness = Effect.fn("test.make_self_update_harness")(function* (
           };
         }
         order.push("preflight");
-        options.onPreflight?.(input.args);
         const result =
           options.preflight === "blocked"
             ? { status: "blocked", version: "1.1.0", reason: "local update required" }
@@ -124,7 +122,6 @@ const makeHarness = Effect.fn("test.make_self_update_harness")(function* (
       options.desktopAppUpdate ?? {
         available: false,
         run: () => Effect.die("unexpected desktop app update run"),
-        commit: () => Effect.never,
       },
     ),
     Effect.provideService(HttpClient.HttpClient, releaseHttpClient(order, options.beforeDownload)),
@@ -136,34 +133,6 @@ const makeHarness = Effect.fn("test.make_self_update_harness")(function* (
 });
 
 it.layer(NodeServices.layer)("server self update", (it) => {
-  it.effect("checks the staged database only for an explicit track selection", () =>
-    Effect.gen(function* () {
-      for (const channel of [undefined, "latest"] as const) {
-        let args: ReadonlyArray<string> = [];
-        const { selfUpdate } = yield* makeHarness({
-          onPreflight: (value) => {
-            args = value;
-          },
-        });
-        yield* selfUpdate.update({
-          targetVersion: "1.1.0",
-          ...(channel === undefined ? {} : { channel }),
-        });
-        expect(args.includes("--database-path")).toBe(channel !== undefined);
-      }
-    }),
-  );
-
-  it.effect("rejects an unchecked crossing before downloading", () =>
-    Effect.gen(function* () {
-      const { selfUpdate, order } = yield* makeHarness();
-      const error = yield* selfUpdate
-        .update({ targetVersion: "1.1.0-nightly.20261029.1", channel: "nightly" })
-        .pipe(Effect.flip);
-      expect(error.reason).toContain("Cannot confirm");
-      expect(order).toEqual([]);
-    }),
-  );
   it.effect("rejects invalid versions and desktop-managed servers before staging", () =>
     Effect.gen(function* () {
       const web = yield* makeHarness();

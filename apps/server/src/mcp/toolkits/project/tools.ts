@@ -5,33 +5,25 @@ import {
   TrimmedNonEmptyString,
   ThreadId,
   RunId,
-  OrchestrationV2DelegatedFrom,
   OrchestrationV2RunStatus,
   OrchestrationV2ThreadLaunchWorkspaceStrategy,
   RuntimeMode,
   ProviderInteractionMode,
   Project,
-  ProjectCreateFromThreadInput,
-  ProjectCreateFromThreadResult,
   ProjectCreatePayload,
   ProjectUpdatePayload,
   ProjectId,
   OrchestratorMcpFailure,
-  OrchestratorMcpEnvironmentTarget,
-  OrchestratorMcpClientRequestId,
   SourceControlCloneRepositoryInput,
   SourceControlCloneRepositoryResult,
 } from "@supaterm/contracts";
 import * as FileSystem from "effect/FileSystem";
-import * as DocumentText from "../../../provider/DocumentText.ts";
 import * as ServerConfig from "../../../config.ts";
-import * as ProviderRegistry from "../../../provider/ProviderRegistry.ts";
 import * as ServerSettings from "../../../serverSettings.ts";
 import * as ThreadLaunchService from "../../../orchestration-v2/ThreadLaunchService.ts";
 import * as Crypto from "effect/Crypto";
 import * as Schema from "effect/Schema";
 import { Tool, Toolkit } from "effect/ai";
-import * as ScratchThreadPromotion from "../../../project/ScratchThreadPromotion.ts";
 import * as ProjectService from "../../../project/ProjectService.ts";
 import * as ManagedProjectFolders from "../../../project/ManagedProjectFolders.ts";
 import * as ThreadManagementService from "../../../orchestration-v2/ThreadManagementService.ts";
@@ -55,7 +47,6 @@ const ProjectListTool = Tool.make("supaterm_project_list", {
   description:
     "List registered projects in this environment. Pages use the current project snapshot and may shift between calls.",
   parameters: Schema.Struct({
-    environmentId: OrchestratorMcpEnvironmentTarget,
     cursor: Schema.optional(NonNegativeInt),
     limit: Schema.optional(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 100 }))),
   }),
@@ -70,10 +61,7 @@ const ProjectReadTool = Tool.make("supaterm_project_read", {
   ...shared,
   description:
     "Read a registered project in this environment, including its workspace and saved scripts.",
-  parameters: Schema.Struct({
-    environmentId: OrchestratorMcpEnvironmentTarget,
-    projectId: ProjectId,
-  }),
+  parameters: Schema.Struct({ projectId: ProjectId }),
 })
   .annotate(Tool.Readonly, true)
   .annotate(Tool.Destructive, false);
@@ -82,7 +70,6 @@ const ProjectCreateTool = Tool.make("supaterm_project_create", {
   description:
     "Register a project directory through the existing project service. Set createWorkspaceRootIfMissing to create a directory. Omit workspaceRoot to start a new project from just its title: the app makes a Git repository for it in its own projects folder, with a README, an icon, and a first commit (commitError says why a commit failed; the project exists either way). Each call creates a new request; an existing registered workspace is rejected. Clone separately with supaterm_project_clone when needed.",
   parameters: Schema.Struct({
-    environmentId: OrchestratorMcpEnvironmentTarget,
     ...ProjectCreatePayload.fields,
     workspaceRoot: Schema.optional(ProjectCreatePayload.fields.workspaceRoot),
   }),
@@ -93,30 +80,19 @@ const ProjectUpdateTool = Tool.make("supaterm_project_update", {
   ...shared,
   description:
     "Update a registered project's settings. Omitted fields are preserved. Uses the same project service as the app.",
-  parameters: Schema.Struct({
-    environmentId: OrchestratorMcpEnvironmentTarget,
-    projectId: ProjectId,
-    ...ProjectUpdatePayload.fields,
-  }),
+  parameters: Schema.Struct({ projectId: ProjectId, ...ProjectUpdatePayload.fields }),
 }).annotate(Tool.Destructive, true);
 const ProjectDeleteTool = Tool.make("supaterm_project_delete", {
   ...shared,
   description:
     "Delete a project using the existing project deletion lifecycle. Nonempty projects require force=true. This does not delete the repository directory or promise a deleted-thread count.",
-  parameters: Schema.Struct({
-    environmentId: OrchestratorMcpEnvironmentTarget,
-    projectId: ProjectId,
-    force: Schema.optionalKey(Schema.Boolean),
-  }),
+  parameters: Schema.Struct({ projectId: ProjectId, force: Schema.optionalKey(Schema.Boolean) }),
 }).annotate(Tool.Destructive, true);
 const ProjectCloneTool = Tool.make("supaterm_project_clone", {
   ...shared,
   description:
     "Clone a repository using the app's source-control service. This only clones; register the returned cwd with supaterm_project_create. An existing destination is not adopted or removed on failure.",
-  parameters: Schema.Struct({
-    environmentId: OrchestratorMcpEnvironmentTarget,
-    ...SourceControlCloneRepositoryInput.fields,
-  }),
+  parameters: SourceControlCloneRepositoryInput,
   success: SourceControlCloneRepositoryResult,
   dependencies: [
     ...shared.dependencies,
@@ -128,9 +104,8 @@ const ProjectCloneTool = Tool.make("supaterm_project_clone", {
 const ThreadLaunchTool = Tool.make("supaterm_thread_launch", {
   ...shared,
   description:
-    'Create an ordinary TOP-LEVEL thread with an explicit workspace binding before its agent starts. Use this when the user requests independent work, a new thread, or a PR stack in its own worktree; use delegate_task for child subagents. Set workspaceStrategy to {type:"worktree",baseRef:"parent-branch",branch:"new-branch",startFromOrigin:false} for a new worktree based on local commits, or {type:"existing_worktree",worktreePath:"/absolute/path",branch:"existing-branch"} to use an existing checkout. To fetch and start from the base branch\'s remote, set startFromOrigin:true. Omitted workspaceStrategy means the project root, NOT the caller\'s worktree. Omit projectId/modelSelection/modes to inherit those settings from the calling thread; a caller outside a Supaterm thread must pass projectId and gets the project\'s default model. Set scratch:true instead of projectId for a thread without a project: it runs in a fresh folder of its own, outside any repository. Put the task in message. Do not ask the agent to create its own worktree via shell: that does not update the thread binding. After an error or lost reply, retry with the same clientRequestId. Retain threadId and use supaterm_thread_read/supaterm_thread_wait to follow preparation. To link a thread for the user, write `[title](supaterm-thread://v1/<threadId>)` with the threadId exactly as returned, not URL-encoded; Supaterm shows the thread\'s current title. Attachments must be pending uploads. The new thread may not run with broader runtime or interaction modes than the caller: the calling Supaterm thread\'s own modes, or the permission mode an outside agent was approved with.',
+    'Create an ordinary TOP-LEVEL thread with an explicit workspace binding before its agent starts. Use this when the user requests independent work, a new thread, or a PR stack in its own worktree; use delegate_task for child subagents. Set workspaceStrategy to {type:"worktree",baseRef:"parent-branch",branch:"new-branch",startFromOrigin:false} for a new worktree based on local commits, or {type:"existing_worktree",worktreePath:"/absolute/path",branch:"existing-branch"} to use an existing checkout. To fetch and start from the base branch\'s remote, set startFromOrigin:true. Omitted workspaceStrategy means the project root, NOT the caller\'s worktree. Omit projectId/modelSelection/modes to inherit those settings from the calling thread; a caller outside a Supaterm thread must pass projectId and gets the project\'s default model. Set scratch:true instead of projectId for a thread without a project: it runs in a fresh folder of its own, outside any repository. Put the task in message. Do not ask the agent to create its own worktree via shell: that does not update the thread binding. Each call creates a new launch with no retry key; retain threadId and use supaterm_thread_read/supaterm_thread_wait to follow preparation. To link a thread for the user, write `[title](supaterm-thread://v1/<threadId>)` with the threadId exactly as returned, not URL-encoded; Supaterm shows the thread\'s current title. After errors or lost responses, inspect supaterm_thread_list before retrying. Attachments must be pending uploads. The new thread may not run with broader runtime or interaction modes than the caller: the calling Supaterm thread\'s own modes, or the permission mode an outside agent was approved with.',
   parameters: Schema.Struct({
-    environmentId: OrchestratorMcpEnvironmentTarget,
     projectId: Schema.optional(ProjectId),
     scratch: Schema.optional(
       Schema.Boolean.annotate({
@@ -138,7 +113,6 @@ const ThreadLaunchTool = Tool.make("supaterm_thread_launch", {
           "Launch without a project, in its own folder under the environment's Scratch project. Not with projectId or workspaceStrategy.",
       }),
     ),
-    clientRequestId: Schema.optional(OrchestratorMcpClientRequestId),
     title: TrimmedNonEmptyString,
     modelSelection: Schema.optional(ModelSelection),
     runtimeMode: Schema.optional(RuntimeMode),
@@ -156,12 +130,9 @@ const ThreadLaunchTool = Tool.make("supaterm_thread_launch", {
       }),
     ),
     attachments: Schema.optional(Schema.Array(McpAttachmentInput).check(Schema.isMaxLength(8))),
-
-    delegatedFrom: Schema.optional(OrchestrationV2DelegatedFrom),
   }),
   success: Schema.Struct({
     threadId: ThreadId,
-    link: Schema.optional(Schema.String),
     projectId: ProjectId,
     modelSelection: ModelSelection,
     runId: Schema.NullOr(RunId),
@@ -175,27 +146,12 @@ const ThreadLaunchTool = Tool.make("supaterm_thread_launch", {
     FileSystem.FileSystem,
     ServerConfig.ServerConfig,
     ServerSettings.ServerSettingsService,
-    ProviderRegistry.ProviderRegistry,
-    DocumentText.DocumentText,
   ],
 })
   .annotate(Tool.Destructive, true)
   .annotate(Tool.OpenWorld, true);
 
-const ProjectFromThreadTool = Tool.make("supaterm_project_from_thread", {
-  ...shared,
-  description:
-    "Turn a stopped No project thread and its existing folder into a project. Other threads in that folder must also be stopped. The folder stays in place. Requires full access.",
-  parameters: Schema.Struct({
-    environmentId: OrchestratorMcpEnvironmentTarget,
-    ...ProjectCreateFromThreadInput.fields,
-  }),
-  success: ProjectCreateFromThreadResult,
-  dependencies: [...shared.dependencies, ScratchThreadPromotion.ScratchThreadPromotion],
-}).annotate(Tool.Destructive, true);
-
 export const ProjectToolkit = Toolkit.make(
-  ProjectFromThreadTool,
   ThreadLaunchTool,
   ProjectListTool,
   ProjectReadTool,

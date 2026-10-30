@@ -15,6 +15,7 @@ import android.text.style.UnderlineSpan
 import kotlin.math.ceil
 import kotlin.math.max
 
+/** Text layout is independent of comment heights and vertical row offsets. */
 internal class CodeLines(
   val starts: IntArray,
   val height: Int,
@@ -34,29 +35,14 @@ internal class CodeLines(
 
 internal class CodeWrapLayout(
   val enabled: Boolean,
-  private val linesByRowId: Map<String, CodeLines>,
-  private val asciiColumns: Int = Int.MAX_VALUE,
-  private val asciiLineHeight: Int = 0
+  private val linesByRowId: Map<String, CodeLines>
 ) {
-  fun needsTokenLayout(
-    previous: Map<String, List<DiffToken>>,
-    next: Map<String, List<DiffToken>>
-  ): Boolean = linesByRowId.keys.any { previous[it] != next[it] }
-
-  fun lines(row: DiffRow): CodeLines = linesByRowId[row.id] ?: if (enabled) {
-    CodeLines(IntArray(asciiLineCount(row)) { it * asciiColumns }, asciiLineHeight)
-  } else {
-    SINGLE_LINE
+  fun lines(rowId: String): CodeLines = linesByRowId[rowId] ?: SINGLE_LINE
+  fun extraHeight(rowId: String): Int = lines(rowId).extraHeight
+  fun rowHeight(rowId: String, base: Int): Int = lines(rowId).let {
+    it.firstHeight(base) +
+      it.extraHeight
   }
-
-  private fun asciiLineCount(row: DiffRow): Int = max(
-    1,
-    (row.content.length - 1) / asciiColumns + 1
-  )
-
-  fun rowHeight(row: DiffRow, base: Int): Int = linesByRowId[row.id]?.let {
-    it.firstHeight(base) + it.extraHeight
-  } ?: (base + if (enabled) (asciiLineCount(row) - 1) * asciiLineHeight else 0)
 
   companion object {
     private val SINGLE_LINE = CodeLines(intArrayOf(0), 0)
@@ -64,6 +50,7 @@ internal class CodeWrapLayout(
   }
 }
 
+/** ASCII is fixed-pitch; other text needs the same shaping for measurement and drawing. */
 internal fun createCodeLines(text: CharSequence, paint: TextPaint, width: Int): CodeLines {
   val characterWidth = paint.measureText("M")
   val lineHeight = ceil(paint.fontMetrics.run { descent - ascent }).toInt()
@@ -92,6 +79,7 @@ internal class CodeLayoutCache {
   private var previousTheme: DiffTheme? = null
   private var previousWidth = 0
 
+  /** Entries are immutable; a worker can reuse them without changing the displayed cache. */
   fun copyForPreparation(): CodeLayoutCache = CodeLayoutCache().also {
     it.entries = entries
     it.previousStyle = previousStyle
@@ -99,15 +87,14 @@ internal class CodeLayoutCache {
     it.previousWidth = previousWidth
   }
 
-  @Suppress("LongParameterList", "ReturnCount")
+  @Suppress("LongParameterList")
   fun layout(
     rows: List<DiffRow>,
     tokens: Map<String, List<DiffToken>>,
     paint: Paint,
     style: DiffStyle,
     theme: DiffTheme,
-    width: Int,
-    isCancelled: () -> Boolean = { false }
+    width: Int
   ): CodeWrapLayout {
     if (!style.wordWrap || width < paint.measureText("M")) {
       entries = emptyMap()
@@ -119,14 +106,10 @@ internal class CodeLayoutCache {
       previousTheme = theme
       previousWidth = width
     }
-    val characterWidth = paint.measureText("M")
-    val columns = max(1, (width / characterWidth).toInt())
-    val lineHeight = ceil(paint.fontMetrics.run { descent - ascent }).toInt()
     val next = HashMap<String, Entry>()
     val layouts = HashMap<String, CodeLines>()
     for (row in rows) {
-      if (isCancelled()) return CodeWrapLayout.NONE
-      if (row.kind != "line" || row.isPlainAscii) continue
+      if (row.kind != "line") continue
       val rowTokens = tokens[row.id]
       val cached = entries[row.id]
       val entry = if (cached?.row == row && cached.tokens == rowTokens) {
@@ -139,10 +122,12 @@ internal class CodeLayoutCache {
       layouts[row.id] = entry.lines
     }
     entries = next
-    return CodeWrapLayout(true, layouts, columns, lineHeight)
+    return CodeWrapLayout(true, layouts)
   }
 
   private fun styledCode(row: DiffRow, tokens: List<DiffToken>?, theme: DiffTheme): CharSequence {
+    // The ASCII path uses the existing token drawing and rounded highlight rectangles.
+    if (row.content.all { it in ' '..'~' }) return row.content
     val text = SpannableString(row.content)
     var offset = 0
     for (token in tokens.orEmpty()) {

@@ -34,7 +34,6 @@ let enumerationState: FontEnumerationState = supportsFontEnumeration()
 const enumerationListeners = new Set<() => void>();
 
 function subscribeToEnumeration(listener: () => void): () => void {
-  probeAlreadyGrantedPermission();
   enumerationListeners.add(listener);
   return () => enumerationListeners.delete(listener);
 }
@@ -60,7 +59,11 @@ export function discoverInstalledFonts(): void {
 
 let grantedProbeStarted = false;
 
-/** Electron and previously granted browsers need no user gesture to enumerate fonts. */
+/**
+ * Electron's default permission handler approves silently (it has no prompt
+ * UI), and a browser that granted once reports "granted" on later visits — in
+ * both, no user gesture is needed.
+ */
 function probeAlreadyGrantedPermission(): void {
   if (grantedProbeStarted || enumerationState.status !== "unknown") return;
   grantedProbeStarted = true;
@@ -75,6 +78,7 @@ function probeAlreadyGrantedPermission(): void {
 }
 
 export function useFontEnumeration(): FontEnumerationState {
+  useEffect(probeAlreadyGrantedPermission, []);
   return useSyncExternalStore(subscribeToEnumeration, readEnumerationState);
 }
 
@@ -95,12 +99,13 @@ export function FontFamilyPicker({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  // Base UI needs an initial closed commit; mounting open loses exit transitionend and leaves the popup
-  // stuck.
+  // Open after mount rather than mounting open: a popup that first renders in
+  // its open state never receives Base UI's entrance style baseline, so the
+  // exit transition on close has no style delta, never fires transitionend,
+  // and the popup lingers on screen forever.
   const openIfRequestedAtMount = useEffectEvent(() => {
     if (initialOpen) setOpen(true);
   });
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- opens the Base UI popup after its initial closed DOM commit
   useEffect(() => {
     // oxlint-disable-next-line react/set-state-in-effect -- opens the picker on mount when the caller asked for it
     openIfRequestedAtMount();

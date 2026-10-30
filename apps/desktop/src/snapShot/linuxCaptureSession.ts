@@ -4,6 +4,9 @@ import * as NodeURL from "node:url";
 import type { SnapShotKeyChord } from "@supaterm/contracts";
 import { nativeImage } from "electron";
 
+// Linux helpers that need no D-Bus. Keep this module free of dbus-next so the main
+// process can answer "which desktop is this" and read a PNG without loading it.
+
 export const HYPRLAND_CAPTURE_ACTION = "capture-window";
 export const NIRI_CAPTURE_PATH = "/com/supaterm/SnapShot";
 export const NIRI_CAPTURE_INTERFACE = "com.supaterm.SnapShot";
@@ -128,6 +131,7 @@ export function resizeLinuxCapture(png: Buffer): Buffer {
 }
 
 export async function readPortalPng(uri: string): Promise<Buffer> {
+  // fileURLToPath rejects network schemes/hosts. Never delete a portal-owned file.
   const file = await NodeFSP.open(NodeURL.fileURLToPath(uri), "r");
   try {
     const stat = await file.stat();

@@ -404,15 +404,9 @@ function closeThreadTerminal(
   }
 
   const closedTerminalIndex = normalized.terminalIds.indexOf(terminalId);
-  const groupTerminalIds =
-    normalized.terminalGroups.find((group) => group.terminalIds.includes(terminalId))
-      ?.terminalIds ?? [];
-  const groupIndex = groupTerminalIds.indexOf(terminalId);
   const nextActiveTerminalId =
     normalized.activeTerminalId === terminalId
-      ? (groupTerminalIds[groupIndex + 1] ??
-        groupTerminalIds[groupIndex - 1] ??
-        remainingTerminalIds[Math.min(closedTerminalIndex, remainingTerminalIds.length - 1)] ??
+      ? (remainingTerminalIds[Math.min(closedTerminalIndex, remainingTerminalIds.length - 1)] ??
         remainingTerminalIds[0] ??
         "")
       : normalized.activeTerminalId;

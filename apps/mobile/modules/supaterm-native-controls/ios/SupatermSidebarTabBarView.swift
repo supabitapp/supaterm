@@ -4,9 +4,7 @@ import UIKit
 final class SupatermSidebarTabBarView: ExpoView, UITabBarDelegate {
   let onSelectionChange = EventDispatcher()
   private let tabBar = UITabBar()
-  var tabs = ["threads", "pullRequests", "usage", "settings"] { didSet { updateItems() } }
-  var selectedTab = "threads" { didSet { updateSelection() } }
-  var selectedIndex = 0 { didSet { if tabs.indices.contains(selectedIndex) { selectedTab = tabs[selectedIndex] } } }
+  var selectedIndex = 0 { didSet { updateSelection() } }
   var selectedColor: UIColor = .systemBlue { didSet { tabBar.tintColor = selectedColor } }
   var appearance = "light" {
     didSet { overrideUserInterfaceStyle = appearance == "dark" ? .dark : .light }
@@ -14,7 +12,14 @@ final class SupatermSidebarTabBarView: ExpoView, UITabBarDelegate {
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
-    updateItems()
+    let iconBundle = Bundle(for: Self.self).url(forResource: "SupatermNativeControlIcons", withExtension: "bundle").flatMap(Bundle.init(url:))
+    let pullRequestIcon = UIImage(named: "pull-request", in: iconBundle, compatibleWith: nil)?.withRenderingMode(.alwaysTemplate)
+    tabBar.items = [
+      UITabBarItem(title: "Threads", image: tabIcon(UIImage(systemName: "text.bubble")), tag: 0),
+      UITabBarItem(title: "Pulls", image: tabIcon(pullRequestIcon), tag: 1),
+    ]
+    tabBar.items?.last?.accessibilityLabel = "Pull requests"
+    tabBar.items?.first?.selectedImage = tabIcon(UIImage(systemName: "text.bubble.fill"))
     tabBar.itemPositioning = .fill
     tabBar.delegate = self
     addSubview(tabBar)
@@ -32,6 +37,7 @@ final class SupatermSidebarTabBarView: ExpoView, UITabBarDelegate {
     updateSelection()
   }
 
+  // Give symbols and bitmap assets the same image box; UIKit otherwise scales symbols independently.
   private func tabIcon(_ image: UIImage?) -> UIImage? {
     guard let image else { return nil }
     let canvas = CGSize(width: 28, height: 28)
@@ -42,29 +48,13 @@ final class SupatermSidebarTabBarView: ExpoView, UITabBarDelegate {
     }.withRenderingMode(.alwaysTemplate)
   }
 
-  private func updateItems() {
-    let iconBundle = Bundle(for: Self.self).url(forResource: "SupatermNativeControlIcons", withExtension: "bundle").flatMap(Bundle.init(url:))
-    let pullRequestIcon = UIImage(named: "pull-request", in: iconBundle, compatibleWith: nil)?.withRenderingMode(.alwaysTemplate)
-    let titles = ["threads": "Threads", "pullRequests": "Pulls", "usage": "Usage", "settings": "Settings"]
-    let symbols = ["threads": "text.bubble", "usage": "chart.bar.xaxis", "settings": "gearshape"]
-    tabBar.items = tabs.enumerated().map { index, tab in
-      let image = tab == "pullRequests" ? pullRequestIcon : symbols[tab].flatMap(UIImage.init(systemName:))
-      let item = UITabBarItem(title: titles[tab] ?? tab, image: tabIcon(image), tag: index)
-      item.accessibilityLabel = tab == "pullRequests" ? "Pull requests" : titles[tab]
-      if tab == "threads" { item.selectedImage = tabIcon(UIImage(systemName: "text.bubble.fill")) }
-      return item
-    }
-    updateSelection()
-  }
-
   private func updateSelection() {
-    guard let items = tabBar.items, let index = tabs.firstIndex(of: selectedTab), items.indices.contains(index) else { return }
-    guard tabBar.selectedItem !== items[index] else { return }
-    tabBar.selectedItem = items[index]
+    guard let items = tabBar.items, items.indices.contains(selectedIndex) else { return }
+    guard tabBar.selectedItem !== items[selectedIndex] else { return }
+    tabBar.selectedItem = items[selectedIndex]
   }
 
   func tabBar(_ tabBar: UITabBar, didSelect item: UITabBarItem) {
-    guard tabs.indices.contains(item.tag) else { return }
-    onSelectionChange(["index": item.tag, "tab": tabs[item.tag]])
+    onSelectionChange(["index": item.tag])
   }
 }

@@ -1,66 +1,33 @@
-import { selectedNavigationTab, visibleNavigationTabs } from "./navigation-tab-order";
 import { requireNativeView } from "expo";
 import type { NativeSyntheticEvent, ViewProps } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useControlTheme } from "../../components/ui/useControlTheme";
-import { useNavigationTabOrder, useHiddenNavigationTabs } from "./navigation-tabs";
 import { useWorkspaceTabs } from "./WorkspaceTabsContext";
-import { useSelectWorkspaceTab } from "./useSelectWorkspaceTab";
+import { useWorkspaceTabSelection } from "./useWorkspaceTabSelection";
 
 const NativeSidebarTabBar = requireNativeView<
   ViewProps & {
-    tabs: readonly string[];
-    selectedTab: string;
+    selectedIndex: number;
     selectedColor: string;
     appearance: string;
-    onSelectionChange: (event: NativeSyntheticEvent<{ tab: string }>) => void;
+    onSelectionChange: (event: NativeSyntheticEvent<{ index: number }>) => void;
   }
 >("SupatermNativeControls", "SidebarTabBar");
 
-export function WorkspaceSidebarTabs(props: {
-  readonly onNewTask?: () => void;
-  readonly compact?: boolean;
-  readonly reserveComposeSpace?: boolean;
-}) {
+export function WorkspaceSidebarTabs() {
   const workspace = useWorkspaceTabs()!;
-  const order = useNavigationTabOrder();
-  const hidden = useHiddenNavigationTabs();
-  const tabs = [...visibleNavigationTabs(order, hidden), "settings" as const];
-  const selectTab = useSelectWorkspaceTab();
+  const selectTab = useWorkspaceTabSelection();
+  const insets = useSafeAreaInsets();
   const { colors, colorScheme } = useControlTheme();
-
-  const tabBarKey = tabs.join(":");
   return (
     <NativeSidebarTabBar
-      key={tabBarKey}
-      tabs={tabs}
-      selectedTab={selectedNavigationTab(
-        order,
-        workspace.state.selectedTab,
-        workspace.settingsOpen,
-        hidden,
-      )}
+      selectedIndex={workspace.state.selectedTab === "threads" ? 0 : 1}
       selectedColor={colors["--color-primary"]}
       appearance={colorScheme}
-      onSelectionChange={({ nativeEvent }) => {
-        const tab = tabs.find((candidate) => candidate === nativeEvent.tab);
-        if (tab === "settings") selectTab("settings");
-        else if (tab) selectTab(tab);
-      }}
-
-      style={{
-        position: "absolute",
-        bottom: 0,
-        left: props.compact ? 8 : 0,
-
-        right:
-          (props.compact ? 12 : 0) +
-          ((props.reserveComposeSpace ?? props.compact) && !props.onNewTask
-            ? props.compact
-              ? 64
-              : 76
-            : 0),
-        height: 128,
-      }}
+      onSelectionChange={({ nativeEvent }) =>
+        selectTab(nativeEvent.index === 0 ? "threads" : "pullRequests")
+      }
+      style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 64 + insets.bottom }}
     />
   );
 }

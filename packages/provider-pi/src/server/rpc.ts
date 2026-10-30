@@ -1,3 +1,8 @@
+/**
+ * Framing follows Pi's spec: LF-delimited only, with a trailing `\r` stripped.
+ * Lines are split manually (never with `readline`, which also splits on
+ * U+2028/U+2029 and would corrupt frames).
+ */
 import * as Clock from "effect/Clock";
 import * as Deferred from "effect/Deferred";
 import * as Duration from "effect/Duration";
@@ -88,6 +93,9 @@ interface PendingPiRequest {
   readonly deferred: Deferred.Deferred<unknown, PiRpcError>;
 }
 
+// MCP completion events carry images in both model content and the script
+// CallToolResult. Allow the shared image budget twice, plus bounded JSON/text
+// overhead, before dropping an extension's oversized record.
 const MAX_PI_RECORD_CHARS =
   2 * MAX_TOOL_OUTPUT_IMAGES * MAX_TOOL_OUTPUT_IMAGE_BASE64_LENGTH + 8 * 1024 * 1024;
 
@@ -134,6 +142,10 @@ function summarizePiError(error: unknown): string {
     : text;
 }
 
+/**
+ * Stdout closure is not enough to diagnose an early crash: Pi 0.84+ can exit 1
+ * on import before writing any protocol line.
+ */
 function describePiStdoutClosure(exitCode: number | undefined): string {
   if (exitCode === undefined || !Number.isFinite(exitCode)) {
     return "pi process closed stdout";
@@ -213,6 +225,11 @@ export const makePiRpcConnection = Effect.fnUntraced(function* (options: PiRpcSp
     }
   };
 
+  /**
+   * Windows has no process groups, so `process.kill` reaches only pi itself
+   * and leaves extension subprocesses running with inherited stdio handles.
+   * `taskkill /T` reaps the whole tree.
+   */
   const terminateWindowsTree = Effect.gen(function* () {
     if (hasExited()) return;
     const taskkill = yield* spawner.spawn(
@@ -224,6 +241,9 @@ export const makePiRpcConnection = Effect.fnUntraced(function* (options: PiRpcSp
   const terminateProcess =
     platform === "win32" ? terminateWindowsTree : terminatePiProcess(killProcessGroup, hasExited);
 
+  // Registered before any further setup: an interrupt or failure between the
+  // spawn and the rest of this constructor would otherwise leak a detached
+  // pi process with no finalizer to reap it.
   yield* Scope.addFinalizer(scope, terminateProcess.pipe(Effect.ignore, Effect.uninterruptible));
 
   const pendingRequests = new Map<string, PendingPiRequest>();
@@ -269,6 +289,8 @@ export const makePiRpcConnection = Effect.fnUntraced(function* (options: PiRpcSp
       yield* Queue.offer(events, record);
     });
 
+  // Watch exit before the reader so an immediate crash can populate
+  // `exitDeferred` before stdout-close diagnosis runs.
   yield* child.exitCode.pipe(
     Effect.matchEffect({
       onFailure: (cause) =>
@@ -309,28 +331,34 @@ export const makePiRpcConnection = Effect.fnUntraced(function* (options: PiRpcSp
   }).pipe(
     Effect.matchCauseEffect({
       onFailure: (cause) => failTransport(new PiRpcError({ operation: "read", cause })),
-      onSuccess: Effect.fnUntraced(function* () {
-        diagnosingStdoutClose = true;
-        const polled = yield* Deferred.poll(exitDeferred);
-        const maybeExitCode = Option.isSome(polled)
-          ? yield* polled.value.pipe(
-              Effect.asSome,
-              Effect.orElseSucceed(() => Option.none<number>()),
-            )
-          : yield* Deferred.await(exitDeferred).pipe(
-              Effect.timeoutOption(Duration.millis(250)),
-              Effect.provideService(Clock.Clock, Clock.Clock.defaultValue()),
-              Effect.orElseSucceed(() => Option.none<number>()),
-            );
-        return yield* failTransport(
-          new PiRpcError({
-            operation: "read",
-            detail: describePiStdoutClosure(
-              Option.isSome(maybeExitCode) ? maybeExitCode.value : undefined,
-            ),
-          }),
-        );
-      }),
+      onSuccess: () =>
+        Effect.gen(function* () {
+          // Claim the stdout-close path before waiting so a broken stdin
+          // writer cannot replace the exit diagnosis with a write error.
+          diagnosingStdoutClose = true;
+          const polled = yield* Deferred.poll(exitDeferred);
+          const maybeExitCode = Option.isSome(polled)
+            ? yield* polled.value.pipe(
+                Effect.map(Option.some),
+                Effect.orElseSucceed(() => Option.none<number>()),
+              )
+            : yield* Deferred.await(exitDeferred).pipe(
+                Effect.timeoutOption(Duration.millis(250)),
+                // Adapter tests run under TestClock. A planned stdout close
+                // without an exit, for example Stop-with-restart, must not wait
+                // on that clock or the transport never fails.
+                Effect.provideService(Clock.Clock, Clock.Clock.defaultValue()),
+                Effect.orElseSucceed(() => Option.none<number>()),
+              );
+          return yield* failTransport(
+            new PiRpcError({
+              operation: "read",
+              detail: describePiStdoutClosure(
+                Option.isSome(maybeExitCode) ? maybeExitCode.value : undefined,
+              ),
+            }),
+          );
+        }),
     }),
     Effect.forkIn(scope),
   );
@@ -340,12 +368,16 @@ export const makePiRpcConnection = Effect.fnUntraced(function* (options: PiRpcSp
     Stream.runForEach((chunk) =>
       chunk.trim().length === 0
         ? Effect.void
-        : Effect.logDebug("pi stderr", { stderrLength: chunk.length }),
+        : // Length only: pi's stderr is unbounded remote output and can carry
+          // credentials or prompt text, so it never enters a log annotation.
+          Effect.logDebug("pi stderr", { stderrLength: chunk.length }),
     ),
     Effect.ignore,
     Effect.forkIn(scope),
   );
 
+  // Writer starts after the reader so an already-closed stdout can mark
+  // diagnosis before a broken-pipe stdin claims the transport.
   yield* Stream.fromQueue(outgoing).pipe(
     Stream.run(child.stdin),
     Effect.catchCause((cause) =>

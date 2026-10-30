@@ -80,6 +80,7 @@ describe("pi Supaterm MCP injection", () => {
       "--extension",
       "/tmp/cache/pi-supaterm-mcp-extension.ts",
     ]);
+    assert.isFalse(permissionOnly.hasSupatermMcp);
     assert.isUndefined(permissionOnly.env[SUPATERM_MCP_URL_ENV]);
     assert.isUndefined(permissionOnly.env[SUPATERM_MCP_BEARER_ENV]);
     assert.equal(permissionOnly.env[SUPATERM_PI_RUNTIME_MODE_ENV], "auto-accept-edits");
@@ -117,6 +118,7 @@ describe("pi Supaterm MCP injection", () => {
       "--no-extensions",
       "--no-tools",
     ]);
+    assert.isFalse(launch.hasSupatermMcp);
     assert.deepInclude(resolvePiLaunchArgs("--mode text"), {
       ok: false,
       message: "Pi launch argument '--mode' is controlled by Supaterm and cannot be overridden.",

@@ -2,7 +2,7 @@ import { Platform } from "react-native";
 
 import { AndroidHeaderIconButton } from "../../components/ui/AndroidScreenHeader";
 
-import { useAdaptiveWorkspaceLayout } from "./adaptive-workspace-context";
+import { useAdaptiveWorkspaceLayout } from "./AdaptiveWorkspaceLayout";
 
 export function AndroidWorkspaceSidebarButton() {
   const { layout, panes, togglePrimarySidebar } = useAdaptiveWorkspaceLayout();

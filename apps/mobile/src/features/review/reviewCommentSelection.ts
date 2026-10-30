@@ -36,128 +36,43 @@ export type ReviewCommentMessageSegment =
       readonly comment: ReviewInlineComment;
     };
 
-export interface PendingReviewCommentRange extends Pick<
-  ReviewCommentTarget,
-  "sectionId" | "sectionTitle" | "filePath" | "lines"
-> {
-  readonly lineIndex: number;
-  readonly rowId: string;
-}
-
-export interface ReviewCommentSelectionScope {
-  readonly key: string;
-
-  readonly content: string | null;
-}
-
-export interface ReviewCommentSelection {
-  readonly scope: ReviewCommentSelectionScope | null;
-  readonly target: ReviewCommentTarget | null;
-  readonly pending: PendingReviewCommentRange | null;
-}
-
-const EMPTY_SELECTION: ReviewCommentSelection = { scope: null, target: null, pending: null };
-let selection = EMPTY_SELECTION;
+let currentTarget: ReviewCommentTarget | null = null;
 const listeners = new Set<() => void>();
 const REVIEW_COMMENT_BLOCK_PATTERN = /<review_comment\b([^>]*)>\s*([\s\S]*?)<\/review_comment>/g;
 const REVIEW_COMMENT_ATTRIBUTE_PATTERN = /([a-zA-Z][a-zA-Z0-9_-]*)="([^"]*)"/g;
 const REVIEW_COMMENT_FENCE_PATTERN = /(`{3,})([^\s`]*)[^\n]*\n([\s\S]*?)\n\1/g;
 
-function setSelection(next: ReviewCommentSelection) {
-  selection = next;
+function emitChange() {
   listeners.forEach((listener) => listener());
 }
 
-function subscribeReviewCommentSelection(listener: () => void): () => void {
+export function subscribeReviewCommentTarget(listener: () => void): () => void {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
   };
 }
 
-export function getReviewCommentSelection(): ReviewCommentSelection {
-  return selection;
+export function getReviewCommentTarget(): ReviewCommentTarget | null {
+  return currentTarget;
 }
 
-let lastReviewSheetId = 0;
-
-export function nextReviewSheetId(): number {
-  lastReviewSheetId += 1;
-  return lastReviewSheetId;
-}
-
-export function reviewCommentSelectionScope(
-  sheetId: number,
-  threadKey: string | null,
-  section: { readonly id: string; readonly content: string | null } | null,
-): ReviewCommentSelectionScope | null {
-  return threadKey === null || section === null
-    ? null
-    : { key: JSON.stringify([sheetId, threadKey, section.id]), content: section.content };
-}
-
-function isSameScope(
-  a: ReviewCommentSelectionScope | null,
-  b: ReviewCommentSelectionScope | null,
-): boolean {
-  return a !== null && b !== null && a.key === b.key && a.content === b.content;
-}
-
-export function setReviewCommentTarget(
-  scope: ReviewCommentSelectionScope,
-  target: ReviewCommentTarget,
-) {
-  setSelection({ scope, target, pending: null });
-}
-
-export function completeReviewCommentRange(
-  scope: ReviewCommentSelectionScope,
-  target: ReviewCommentTarget,
-) {
-  setSelection({
-    scope,
-    target,
-    pending: isSameScope(selection.scope, scope) ? selection.pending : null,
-  });
-}
-
-export function startReviewCommentRange(
-  scope: ReviewCommentSelectionScope,
-  pending: PendingReviewCommentRange,
-) {
-  setSelection({ scope, target: null, pending });
+export function setReviewCommentTarget(target: ReviewCommentTarget | null) {
+  currentTarget = target;
+  emitChange();
 }
 
 export function clearReviewCommentTarget() {
-  setSelection(EMPTY_SELECTION);
-}
-
-export function selectReviewCommentSelection(
-  current: ReviewCommentSelection,
-  scope: ReviewCommentSelectionScope | null,
-): ReviewCommentSelection {
-  return isSameScope(current.scope, scope) ? current : EMPTY_SELECTION;
-}
-
-export function useReviewCommentSelection(
-  scope: ReviewCommentSelectionScope | null,
-): ReviewCommentSelection {
-  return selectReviewCommentSelection(
-    useSyncExternalStore(
-      subscribeReviewCommentSelection,
-      getReviewCommentSelection,
-      getReviewCommentSelection,
-    ),
-    scope,
-  );
+  currentTarget = null;
+  emitChange();
 }
 
 export function useReviewCommentTarget(): ReviewCommentTarget | null {
   return useSyncExternalStore(
-    subscribeReviewCommentSelection,
-    getReviewCommentSelection,
-    getReviewCommentSelection,
-  ).target;
+    subscribeReviewCommentTarget,
+    getReviewCommentTarget,
+    getReviewCommentTarget,
+  );
 }
 
 export function getSelectedReviewCommentLines(
@@ -170,7 +85,7 @@ export function getReviewUnifiedLineNumber(line: ReviewRenderableLineRow): numbe
   return line.newLineNumber ?? line.oldLineNumber;
 }
 
-function getReviewChangeMarker(change: ReviewRenderableLineRow["change"]): string {
+export function getReviewChangeMarker(change: ReviewRenderableLineRow["change"]): string {
   if (change === "add") return "+";
   if (change === "delete") return "-";
   return " ";
@@ -355,7 +270,8 @@ export function countReviewCommentContexts(value: string): number {
 
 export function parseReviewInlineComments(value: string): ReadonlyArray<ReviewInlineComment> {
   const comments: ReviewInlineComment[] = [];
-
+  // Match on masked delimiters, as `parseReviewCommentMessageSegments` does: a chip label may
+  // contain `</review_comment>`, which would otherwise end the block early and truncate it.
   const masked = replaceComposerContextReferences(value, (reference) =>
     " ".repeat(reference.source.length),
   );

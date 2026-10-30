@@ -1,4 +1,3 @@
-import { NativeScrollView } from "../../native/NativeScrollViewMarker";
 import { Button } from "../../components/ui/Button";
 import { LegendList } from "@legendapp/list/react-native";
 import type { ProjectEntry } from "@supaterm/contracts";
@@ -30,6 +29,15 @@ function cachedFileTree(entries: ReadonlyArray<ProjectEntry>): ReadonlyArray<Fil
   const tree = buildFileTree(entries);
   fileTreeCache.set(entries, tree);
   return tree;
+}
+
+function ancestorPaths(path: string): ReadonlyArray<string> {
+  const parts = path.split("/").filter(Boolean);
+  const ancestors: string[] = [];
+  for (let index = 1; index < parts.length; index += 1) {
+    ancestors.push(parts.slice(0, index).join("/"));
+  }
+  return ancestors;
 }
 
 const FileTreeRow = function FileTreeRow(props: {
@@ -98,11 +106,6 @@ const FileTreeRow = function FileTreeRow(props: {
 };
 
 export function FileTreeBrowser(props: {
-  readonly revealSelection: (path: string | null) => void;
-  readonly expandedPaths: ReadonlySet<string>;
-  readonly setExpandedPaths: (
-    update: (current: ReadonlySet<string>) => ReadonlySet<string>,
-  ) => void;
   readonly entries: ReadonlyArray<ProjectEntry>;
   readonly error: string | null;
   readonly isPending: boolean;
@@ -112,12 +115,12 @@ export function FileTreeBrowser(props: {
   readonly searchTruncated: boolean;
   readonly selectedPath: string | null;
   readonly loadingDirectories: ReadonlySet<string>;
-  readonly onLoadDirectory: (path: string, retry?: boolean) => void;
+  readonly onLoadDirectory: (path: string) => void;
   readonly onPreviewFile?: (path: string) => void;
   readonly onRefresh: () => void;
   readonly onSelectFile: (path: string) => void;
 }) {
-  const { expandedPaths, setExpandedPaths } = props;
+  const [expandedPaths, setExpandedPaths] = useState<ReadonlySet<string>>(() => new Set());
   const [pendingSelection, setPendingSelection] = useState<{
     readonly path: string;
     readonly selectedPathAtPress: string | null;
@@ -145,25 +148,28 @@ export function FileTreeBrowser(props: {
     searchResultPaths: props.searchResultPaths,
   });
 
-  const { revealSelection } = props;
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- expands the controlled selection's ancestor directories in the file tree state
-  useEffect(() => {
-    revealSelection(controlledSelectedPath);
-  }, [controlledSelectedPath, revealSelection]);
+  const [revealedSelectedPath, setRevealedSelectedPath] = useState<string | null>(null);
+  if (revealedSelectedPath !== controlledSelectedPath) {
+    setRevealedSelectedPath(controlledSelectedPath);
+    if (controlledSelectedPath) {
+      setExpandedPaths((current) => {
+        const ancestors = ancestorPaths(controlledSelectedPath);
+        if (ancestors.every((ancestor) => current.has(ancestor))) {
+          return current;
+        }
+        const next = new Set(current);
+        for (const ancestor of ancestors) {
+          next.add(ancestor);
+        }
+        return next;
+      });
+    }
+  }
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- requests listings for expanded directories that are not yet loaded or pending
   useEffect(() => {
-    const visit = (nodes: ReadonlyArray<FileTreeNode>) => {
-      for (const node of nodes) {
-        if (node.kind !== "directory" || !expandedPaths.has(node.path)) continue;
-        onLoadDirectory(node.path);
-        visit(node.children);
-      }
-    };
-    visit(tree);
-  }, [tree, expandedPaths, onLoadDirectory]);
+    for (const path of expandedPaths) onLoadDirectory(path);
+  }, [expandedPaths, onLoadDirectory]);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the pending selection timer on unmount
   useEffect(
     () => () => {
       if (pendingSelectionTimeoutRef.current !== null) {
@@ -174,7 +180,7 @@ export function FileTreeBrowser(props: {
   );
 
   const toggleDirectory = (path: string, expand: boolean) => {
-    if (expand) onLoadDirectory(path, true);
+    if (expand) onLoadDirectory(path);
     setExpandedPaths((current) => {
       const next = new Set(current);
       if (next.has(path)) {
@@ -215,7 +221,6 @@ export function FileTreeBrowser(props: {
 
   return (
     <LegendList
-      renderScrollComponent={Platform.OS === "ios" ? NativeScrollView : undefined}
       contentInsetStartAdjustment={headerInset}
       alwaysBounceVertical
       className="flex-1"

@@ -15,7 +15,7 @@ agent can use this endpoint to:
 - wait for or interrupt ordinary thread runs.
 
 These are Supaterm orchestration operations, not provider-native sub-agent APIs.
-Delegated tasks create a child thread and run on the selected environment. The child receives
+Delegated tasks always create a Supaterm child thread and run. The child receives
 only the supplied task prompt, plus an optional role instruction supplied in
 the same tool call. Parent conversation history is not copied into the child.
 
@@ -121,8 +121,9 @@ Each provider instance names an agent from the official ACP Registry. Settings
 searches the registry through the connected server, then prepares a compatible
 distribution before persisting the provider instance. Binary distributions use
 a managed, versioned cache; declared checksums are verified when present.
-Version-pinned `npx` and `uvx` packages install into Supaterm-owned tool directories. ACP
-launches the managed executable directly, and new server terminals can use it for authentication. A local executable may
+Version-pinned `npx` packages install globally through `npm`; `uvx` packages use
+`uv tool install`. ACP launches the resulting global command directly, so the
+same command is available for terminal authentication. A local executable may
 override the installed command without changing the registry-declared arguments
 or environment.
 
@@ -219,13 +220,26 @@ any catalog model.
 Creates a Supaterm-owned child thread and immediately dispatches the supplied task
 prompt.
 
+```ts
+type DelegateTaskInput = {
+  task: string;
+  target?: {
+    providerInstanceId?: string;
+    driverKind?: string;
+    model?: string;
+  };
+  title?: string;
+  role?: "implementation" | "research" | "review" | "design" | "test" | "general";
+  mode?: "async" | "wait";
+  timeoutMs?: number;
+  clientRequestId?: string;
+  runtimeMode?: "inherit" | "approval-required" | "auto-accept-edits" | "full-access";
+  interactionMode?: "inherit" | "plan" | "default";
+};
+```
+
 Provider, model, runtime mode, and interaction mode inherit from the parent
-when omitted. Model options inherit only for the same provider instance and model. Read
-`inheritedOptions` and the selected model's descriptors from `orchestrator_capabilities`; pass
-changes through `target.options`. Explicit entries override individual values, while `[]` or
-`{}` clears them. Use `delegate_task` when options are requested or inherited, even if a native
-subagent tool supports the model. Verify the returned provider instance, model, and options;
-never substitute a different effort or service tier. A driver-only target inherits the parent's provider instance
+when omitted. A driver-only target inherits the parent's provider instance
 when it can run child tasks, and otherwise selects an available instance of
 that driver; an explicit `providerInstanceId` is honored exactly and fails
 when unavailable. Selecting a different provider without a model uses that
@@ -242,9 +256,9 @@ Each delegated review round uses a new `delegate_task` call with the original br
 prior findings, responses, and unresolved objections. Track each round by its own `taskId` and use
 a distinct `clientRequestId` per round, stable across retries of that round.
 `childThreadId` is backing storage, not a target for another review round through
-`supaterm_thread_send`. A continuation that depends on the same conversation can use `supaterm_thread_send` with
-`childThreadId`; it does not reopen a completed delegated task. Independent review rounds always
-use a fresh `delegate_task`, with full context and a new retry key.
+`supaterm_thread_send`. Ordinary thread messaging remains available for user-requested
+conversations; it does not reopen a completed task. There is no task-level follow-up
+API for preserving the same reviewer session.
 
 Delegation requires an active parent run owned by the MCP credential's
 provider session. The request becomes the V2 command
@@ -255,12 +269,40 @@ provider session. The request becomes the V2 command
 the timeout expires. A wait timeout does not cancel the child; the result sets
 `waitTimedOut: true`, and the caller can continue with `task_status`. A pending blocking
 question also ends the wait with `hasPendingQuestion: true` and `waitTimedOut: false`.
-If `hasPendingQuestion`, inspect the child's pending request and answer through the available
-request tools, or ask the user; the task's completion still wakes this thread. A pending live approval for the
+If `hasPendingQuestion`, pass `threadId=childThreadId` to `supaterm_pending_request_list`,
+`supaterm_pending_request_read` (with `requestId`) and `supaterm_pending_request_respond`, or ask
+the user; the task's completion still wakes this thread. A pending live approval for the
 task's own unfinished work also ends the wait. Its identity appears in `pendingApproval`;
 it grants no approval authority. Read the fresh full request in the child thread before
 responding, since the durable record can outlive its provider callback. Async questions
 do not end the wait.
+
+```ts
+type DelegateTaskResult = {
+  taskId: string;
+  childThreadId: string;
+  childRunId: string | null;
+  childNodeId: string;
+  status: "queued" | "running" | "waiting" | "completed" | "failed" | "cancelled" | "interrupted";
+  workState: "working" | "waiting_for_children" | "result_available";
+  hasPendingChildRuns: boolean;
+  providerInstanceId: string;
+  model: string | null;
+  summary: string | null;
+  resultContextTransferId: string | null;
+  latestTerminalRunId: string | null;
+  latestTerminalStatus: "completed" | "failed" | "cancelled" | "interrupted" | null;
+  latestTerminalSummary: string | null;
+  latestTerminalResultContextTransferId: string | null;
+  hasPendingQuestion: boolean;
+  pendingApproval: {
+    requestId: string;
+    kind: "command" | "file-read" | "file-change" | "mcp-elicitation" | "permission";
+    runId: string;
+  } | null;
+  waitTimedOut: boolean;
+};
+```
 
 ### `task_status`
 
@@ -286,6 +328,23 @@ optional cancellation reason.
 ### `create_threads`
 
 Creates between one and twenty ordinary top-level Supaterm threads:
+
+```ts
+type CreateThreadsInput = {
+  threads: Array<{
+    prompt?: string;
+    title?: string;
+    target?: {
+      providerInstanceId?: string;
+      driverKind?: string;
+      model?: string;
+    };
+    runtimeMode?: "inherit" | "approval-required" | "auto-accept-edits" | "full-access";
+    interactionMode?: "inherit" | "plan" | "default";
+  }>;
+  clientRequestId?: string;
+};
+```
 
 Each entry independently resolves provider, model, and modes. The new threads
 inherit the parent's project, branch, and worktree path, but they have no
@@ -331,11 +390,11 @@ and `creationSource: "mcp"`; provider output uses `creationSource: "provider"`.
 Actor and ingress are separate so agent-authored user-role messages remain
 distinguishable from human-authored messages.
 
-Thread results include a ready link scoped to its environment. Reuse that link without
-constructing one from a title or encoding its identifiers. Clients resolve the current title
-from the environment and thread identity; old `supaterm-thread://v1/<threadId>` links remain
-readable. Outside OAuth clients receive a web link based on their request origin. In-app agents
-keep the Supaterm URI scheme.
+Agents mention another thread as `[title](supaterm-thread://v1/<threadId>)`. The
+link carries only the id. Clients first resolve it in the message's environment,
+then use a unique match in another enabled environment. Ambiguous matches stay
+unresolved. Web and desktop show the resolved thread’s current title. Mobile
+relabels local matches; cross-environment links can retain the written label.
 
 List and read results report `snoozed` and `snoozedUntil`, and
 `supaterm_thread_list` filters on `snoozed`. The server's `isSnoozed` follows the
@@ -392,17 +451,6 @@ Stops one running Claude workflow, phases and members included, through the
 provider's task stop. The target is the coordinator's `subagentId` from
 `supaterm_thread_read` with `view='activity'`. It leaves the parent thread and
 other workflows running, and it cannot stop a single phase or member.
-
-## Tool contracts
-
-The schemas in [orchestratorMcp.ts](../../packages/contracts/src/orchestratorMcp.ts) and the
-[MCP toolkits](../../apps/server/src/mcp/toolkits/) own exact arguments and result fields.
-Related queue, question, transfer, schedule, and preview operations use action tools. Their
-short advertised schemas do not relax server validation or per-action authorization.
-
-Agents must register every PR they create or work on with `link_pull_request`, immediately
-after creation or starting work on it. Before finishing, call `list_thread_pull_requests` and
-link any missing PR. Automatic shell detection is supplementary and does not replace this rule.
 
 ## Delegated Task Lifecycle
 

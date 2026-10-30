@@ -1,9 +1,3 @@
-import {
-  focusActiveDrawerTerminal,
-  focusActivePanelTerminal,
-  focusTerminal,
-} from "../../lib/terminalFocus";
-import { usePaneScope } from "../../chatPanes/paneScope";
 import type {
   EnvironmentProject,
   EnvironmentThreadShell,
@@ -76,6 +70,7 @@ interface ChatTerminalActionsInput {
   readonly panelTerminalIds: ReadonlySet<string>;
   readonly canReuseTerminal: boolean;
   readonly gitCwd: string | null;
+  readonly setTerminalFocusRequestId: Dispatch<SetStateAction<number>>;
   readonly setTerminalUiLaunchContext: Dispatch<SetStateAction<TerminalLaunchContext | null>>;
   readonly setThreadError: ReturnType<typeof makeThreadErrorSetter>;
 }
@@ -85,7 +80,6 @@ interface ChatTerminalActionsInput {
  * code blocks, which run in a reused or new drawer terminal.
  */
 export function useChatTerminalActions(input: ChatTerminalActionsInput) {
-  const paneId = usePaneScope()?.paneId ?? null;
   const {
     environmentId,
     composerRef,
@@ -102,6 +96,7 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
     panelTerminalIds,
     canReuseTerminal,
     gitCwd,
+    setTerminalFocusRequestId,
     setTerminalUiLaunchContext,
     setThreadError,
   } = input;
@@ -139,7 +134,6 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
   const setTerminalOpen = (open: boolean) => {
     if (!activeThreadRef) return;
     storeSetTerminalOpen(activeThreadRef, open);
-    if (open) focusActiveDrawerTerminal(activeThreadRef, paneId);
   };
   const toggleTerminalVisibility = () => {
     if (!activeThreadRef) return;
@@ -158,13 +152,11 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
         activeServerOrderedTerminalIds.find((id) => !panelTerminalIds.has(id));
       if (existingTerminalId !== undefined) {
         storeEnsureTerminal(activeThreadRef, existingTerminalId, { open: true, active: true });
-        focusActiveDrawerTerminal(activeThreadRef, paneId);
         return;
       }
       void terminalActions.launchTerminal({
         place: (terminalId) => storeEnsureTerminal(activeThreadRef, terminalId, { open: true }),
       })?.result;
-      focusActiveDrawerTerminal(activeThreadRef, paneId);
       return;
     }
     setTerminalOpen(nextOpen);
@@ -179,7 +171,7 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
           : storeSplitTerminal(activeThreadRef, terminalId),
     });
     if (!launched) return;
-    focusTerminal(activeThreadRef, launched.terminalId, paneId);
+    setTerminalFocusRequestId((value) => value + 1);
     void launched.result;
   };
   const createNewTerminal = () => {
@@ -188,14 +180,14 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
       place: (terminalId) => storeNewTerminal(activeThreadRef, terminalId),
     });
     if (!launched) return;
-    focusTerminal(activeThreadRef, launched.terminalId, paneId);
+    setTerminalFocusRequestId((value) => value + 1);
     void launched.result;
   };
   const closeTerminal = (terminalId: string) => {
     if (!hasTerminalWriteAccess() || !activeThreadRef) return;
     terminalActions.closeTerminalSession(terminalId);
     storeCloseTerminal(activeThreadRef, terminalId);
-    focusActiveDrawerTerminal(activeThreadRef, paneId);
+    setTerminalFocusRequestId((value) => value + 1);
   };
   const runProjectScript = async (
     script: ProjectScript,
@@ -240,6 +232,7 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
     if (!activeThreadRef) {
       return;
     }
+    setTerminalFocusRequestId((value) => value + 1);
 
     const launched = terminalActions.launchTerminal({
       place: (terminalId) =>
@@ -254,7 +247,6 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
     });
     if (!launched) return;
     const targetTerminalId = launched.terminalId;
-    focusTerminal(activeThreadRef, targetTerminalId, paneId);
     const openResult = await launched.result;
     if (openResult._tag === "Failure") {
       if (!isAtomCommandInterrupted(openResult)) {
@@ -353,7 +345,7 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
         useRightPanelStore.getState().openTerminal(activeThreadRef, terminalId),
     });
     if (!launched) return;
-    focusTerminal(activeThreadRef, launched.terminalId, paneId);
+    setTerminalFocusRequestId((value) => value + 1);
     void launched.result;
   };
   const addTerminalSurfaceStable = useStableCallback(addTerminalSurface);
@@ -373,7 +365,7 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
           .splitTerminal(activeThreadRef, surfaceId, terminalId, direction),
     });
     if (!launched) return;
-    focusTerminal(activeThreadRef, launched.terminalId, paneId);
+    setTerminalFocusRequestId((value) => value + 1);
     void launched.result;
   };
   const splitPanelTerminalStable = useStableCallback(splitPanelTerminal);
@@ -386,7 +378,7 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
     useRightPanelStore
       .getState()
       .activateTerminal(activeThreadRef, activeRightPanelSurface.id, terminalId);
-    focusTerminal(activeThreadRef, terminalId, paneId);
+    setTerminalFocusRequestId((value) => value + 1);
   };
   const activatePanelTerminalStable = useStableCallback(activatePanelTerminal);
   const closePanelTerminal = (terminalId: string) => {
@@ -401,7 +393,7 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
     useRightPanelStore
       .getState()
       .closeTerminal(activeThreadRef, activeRightPanelSurface.id, terminalId);
-    focusActivePanelTerminal(activeThreadRef, paneId);
+    setTerminalFocusRequestId((value) => value + 1);
   };
   const closePanelTerminalStable = useStableCallback(closePanelTerminal);
   const terminalCloseTarget = (terminalId: string) => ({

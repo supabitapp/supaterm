@@ -65,7 +65,7 @@ export class ElectronSafeStorage extends Context.Service<
   }
 >()("@supaterm/desktop/electron/ElectronSafeStorage") {}
 
-/** @public */
+/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const platform = yield* HostProcess.Platform;
 
@@ -74,18 +74,16 @@ export const make = Effect.gen(function* () {
       try: () => Electron.safeStorage.isEncryptionAvailable(),
       catch: (cause) => new ElectronSafeStorageAvailabilityError({ cause }),
     }),
-    encryptString: Effect.fn("ElectronSafeStorage.encryptString")(function (value) {
-      return Effect.try({
+    encryptString: (value) =>
+      Effect.try({
         try: () => Electron.safeStorage.encryptString(value),
         catch: (cause) => new ElectronSafeStorageEncryptError({ cause }),
-      });
-    }),
-    decryptString: Effect.fn("ElectronSafeStorage.decryptString")(function (value) {
-      return Effect.try({
+      }),
+    decryptString: (value) =>
+      Effect.try({
         try: () => Electron.safeStorage.decryptString(Buffer.from(value)),
         catch: (cause) => new ElectronSafeStorageDecryptError({ cause }),
-      });
-    }),
+      }),
     selectedStorageBackend: Effect.sync(() => {
       if (platform !== "linux") {
         return Option.none();

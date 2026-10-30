@@ -53,7 +53,7 @@ export class DesktopPreReadyElectronOptions extends Context.Service<
   }
 >()("@supaterm/desktop/app/DesktopPreReadyPlatform/DesktopPreReadyElectronOptions") {}
 
-/** @public */
+/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const platform = yield* HostProcess.Platform;
   const homeDirectory = yield* HostProcess.HomeDirectory;
@@ -77,7 +77,8 @@ export const make = Effect.gen(function* () {
           NodeFS.writeFileSync(path, value, "utf8");
         },
       });
-
+      // The portal also requires a valid desktop entry. An AppImage update may
+      // have removed the executable referenced by the previous launch's entry.
       try {
         const applicationsDir = NodePath.posix.join(
           process.env.XDG_DATA_HOME?.trim() ||
@@ -112,23 +113,21 @@ export const make = Effect.gen(function* () {
               isDevelopment: linux.isDevelopment,
               appVersion: Electron.app.getVersion(),
             }).displayName,
-            execTarget:
-              process.env.SUPATERM_DESKTOP_LAUNCHER_PATH?.trim() ||
-              process.env.APPIMAGE?.trim() ||
-              process.execPath,
+            execTarget: process.env.APPIMAGE?.trim() || process.execPath,
             scheme: ElectronProtocol.getDesktopScheme(linux.isDevelopment),
             ...(iconPath === undefined ? {} : { iconPath }),
           }),
           "utf8",
         );
       } catch {}
-
+      // Chromium caches its portal registration during startup. Set the identity
+      // before any asynchronous work can initialize it with Electron's default.
       Electron.app.setDesktopName(linux.linuxDesktopEntryName);
       Electron.app.commandLine.appendSwitch("class", linux.linuxWmClass);
       if (linux.passwordStore !== null && linuxPasswordStoreCommandLine === null) {
         Electron.app.commandLine.appendSwitch("password-store", linux.passwordStore);
       }
-
+      // Chromium keeps only the last --disable-features value, so pass the merged list.
       const disableFeatures = DesktopEarlyElectronStartup.resolveLinuxDisableFeaturesSwitch({
         env: process.env,
         ozonePlatform: readCommandLineSwitchValue(Electron.app.commandLine, "ozone-platform"),
@@ -151,6 +150,8 @@ export const make = Effect.gen(function* () {
   });
 }).pipe(Effect.withSpan("desktop.electron.configureBeforeReady"));
 
+// Keep Electron's strict pre-ready setup isolated so later runtime layers cannot
+// observe app readiness before scheme privileges and command-line switches exist.
 export const layer = Layer.mergeAll(
   ElectronProtocol.layerSchemePrivileges,
   Layer.effect(DesktopPreReadyElectronOptions, make),

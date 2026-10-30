@@ -1,13 +1,7 @@
 import { AsyncResult } from "effect/reactivity";
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import * as Dialog from "../../components/ui/Dialog";
-import {
-  StackActions,
-  useNavigation,
-  useNavigationState,
-  useRoute,
-} from "@react-navigation/native";
-
+import { useNavigation, useNavigationState, useRoute } from "@react-navigation/native";
 import {
   AuthOrchestrationOperateScope,
   AuthSourceControlWriteScope,
@@ -16,11 +10,11 @@ import {
   type PullRequestLinkedThreadsResult,
 } from "@supaterm/contracts";
 import { formatComposerContextReference } from "@supaterm/shared/composerContextReferences";
-import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
-import { normalizeThreadPullRequestKey } from "@supaterm/client-runtime/thread-pull-requests";
+import { parseChangeRequestUrl } from "@supaterm/shared/changeRequestUrl";
+import { normalizeThreadPullRequestKey } from "@supaterm/shared/threadPullRequests";
 import { useRef, useState } from "react";
 import { Platform } from "react-native";
-import { useSelectWorkspaceDetail } from "../workspace/useSelectWorkspaceDetail";
+import { useAndroidWorkspaceSelection } from "../workspace/useAndroidWorkspaceSelection";
 import { pullRequestComposerContext } from "../../lib/composerContext";
 import { scopedThreadKey } from "../../lib/scopedEntities";
 import { uuidv4 } from "../../lib/uuid";
@@ -52,7 +46,7 @@ export function usePullRequestThreads(
   const target = pullRequestTarget(params);
   const config = useEnvironmentServerConfig(target.environmentId);
   const supported = config != null;
-  const parsed = pr ? sourceControlClients.parseChangeRequestUrl(pr.url)?.link : undefined;
+  const parsed = pr ? parseChangeRequestUrl(pr.url) : null;
   const reference = {
     ...target,
     input: {
@@ -62,7 +56,8 @@ export function usePullRequestThreads(
   };
   const key = JSON.stringify(reference);
   const route = useRoute();
-
+  // The iOS split host projects detail screens beneath a synthetic workspace
+  // route. Its parent's focus flag is not the visible detail's focus flag.
   const focused = useNavigationState((state) => state.routes[state.index]?.key === route.key);
   const relations = useEnvironmentQuery(
     pr && supported && focused ? composerPullRequests.linkedThreads(reference) : null,
@@ -83,28 +78,29 @@ export function usePullRequestThreads(
   const canAsk = !connected || canOperate;
   const canCheckout = useEnvironmentScope(target.environmentId, AuthSourceControlWriteScope);
   const navigation = useNavigation();
-  const selectDetail = useSelectWorkspaceDetail();
+  const selectAndroidWorkspace = useAndroidWorkspaceSelection();
   const pending = useRef(false);
   const previousPrompts = useRef(new Map<string, string>());
   const openThread = (thread: LinkedThread) => {
-    openThreadRoute({ environmentId: params.environmentId, threadId: thread.id });
-  };
-
-  const openThreadRoute = (destination: ReactNavigation.RootParamList["Thread"]) => {
-    if (Platform.OS === "android") selectDetail({ name: "Thread", params: destination });
-    else navigation.dispatch(StackActions.push("Thread", destination));
+    const destination = {
+      environmentId: params.environmentId,
+      threadId: thread.id,
+    };
+    if (Platform.OS === "android")
+      selectAndroidWorkspace({
+        name: "Thread",
+        params: destination,
+      });
+    else navigation.navigate("Thread", destination);
   };
   const [busy, setBusy] = useState(false);
   const ask = async (thread?: LinkedThread, task: PullRequestAgentTask = "ask") => {
     if (!pr || !canAsk || pending.current) return;
-    const terminology = sourceControlClients.get(pr.provider).changeRequest;
     pending.current = true;
     setBusy(true);
     const result = await settlePromise(async () => {
       if (connected && !thread && !canCheckout)
-        throw new Error(
-          `Starting work from this ${terminology.shortLabel} requires source control write access.`,
-        );
+        throw new Error("Starting work from this PR requires source control write access.");
       await waitForComposerDraftsLoaded();
       const draftKey = thread
         ? scopedThreadKey(target.environmentId, ThreadId.make(thread.id))
@@ -165,16 +161,14 @@ export function usePullRequestThreads(
       const withContext = getComposerDraftSnapshot(draftKey);
       setComposerDraftText(
         draftKey,
-        appendPullRequestAgentPrompt(
-          withContext.text,
-          task,
-          terminology,
-          previousPrompts.current.get(draftKey),
-        ),
+        appendPullRequestAgentPrompt(withContext.text, task, previousPrompts.current.get(draftKey)),
       );
-      previousPrompts.current.set(draftKey, pullRequestAgentPrompt(task, terminology));
+      previousPrompts.current.set(draftKey, pullRequestAgentPrompt(task));
       if (thread) openThread(thread);
-      else openThreadRoute({ draft: { draftId: draftKey, title: `Ask about #${pr.number}` } });
+      else
+        navigation.navigate("Thread", {
+          draft: { draftId: draftKey, title: `Ask about #${pr.number}` },
+        });
     });
     pending.current = false;
     setBusy(false);

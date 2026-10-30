@@ -26,6 +26,13 @@ const WINDOWS: Readonly<
   seven_day: { kind: "weekly", label: "Weekly", windowDurationMins: WEEK_MINS },
 };
 
+/**
+ * The streamed event names the overage-included bucket by type
+ * (`seven_day_overage_included`), while `get_usage` names it by the model's
+ * `display_name`. Which model that is changes over time, so the probe records
+ * the name it saw and the event mapper reuses it; the mid-turn update then
+ * lands on the row the probe drew instead of opening a second one.
+ */
 const OVERAGE_INCLUDED_EVENT_TYPE = "seven_day_overage_included";
 
 // The SDK does not yet type the spend budget returned by `get_usage`.
@@ -150,6 +157,11 @@ function makeWindow(
   };
 }
 
+/**
+ * Utilization is a 0–1 fraction on the streamed event. An overage-included
+ * event before any probe has named the bucket is dropped: guessing a name
+ * would draw a row the next probe cannot reconcile.
+ */
 export function claudeRateLimitEventToUpdate(
   info: SDKRateLimitInfo,
   names: ClaudeScopedLimitNames,
@@ -169,6 +181,9 @@ export function claudeRateLimitEventToUpdate(
   return undefined;
 }
 
+/**
+ * Percentages on the `get_usage` response are already 0–100.
+ */
 export function claudeUsageResponseToLimits(input: {
   readonly response: Pick<SDKControlGetUsageResponse, "rate_limits_available" | "rate_limits">;
   readonly checkedAt: string;
@@ -189,7 +204,8 @@ export function claudeUsageResponseToLimits(input: {
     if (!window || typeof window.utilization !== "number") continue;
     windows.push(makeWindow(id, window.utilization, isoFromString(window.resets_at)));
   }
-
+  // The CLI filters `model_scoped` to the overage-included allowlist, which
+  // today holds one model; the first entry is the one the event refers to.
   let overageIncluded: string | undefined;
   for (const entry of readModelScoped(response.rate_limits)) {
     if (typeof entry.utilization !== "number") continue;

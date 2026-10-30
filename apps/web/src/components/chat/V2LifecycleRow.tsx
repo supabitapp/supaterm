@@ -20,7 +20,6 @@ import { formatSubagentDisplayTitle } from "@supaterm/client-runtime/state/subag
 import {
   ProviderDriverKind,
   type OrchestrationV2Notification,
-  type OrchestrationV2RemoteTaskChild,
   type OrchestrationV2TurnItem,
   type OrchestrationV2Subagent,
   type ProviderInstanceId,
@@ -308,25 +307,14 @@ function SubagentAvatar({
 export function EnvironmentSubagentAvatar({
   environmentId,
   providerInstanceId,
-  driver,
-  remote,
   ...props
 }: {
   environmentId: EnvironmentId;
   providerInstanceId: ProviderInstanceId;
   driver?: ProviderDriverKind | undefined;
-  /** A task in a linked environment runs a provider instance there; its driver here is only a label. */
-  remote?: OrchestrationV2RemoteTaskChild | undefined;
   status?: OrchestrationV2TurnItem["status"] | undefined;
 }) {
-  const providersAtom = serverEnvironment.providersValueAtom(
-    remote?.environmentId ?? environmentId,
-  );
-  const providerDriver = useAtomValue(
-    providersAtom,
-    (providers) =>
-      providers?.find((provider) => provider.instanceId === providerInstanceId)?.driver,
-  );
+  const providersAtom = serverEnvironment.providersValueAtom(environmentId);
   const displayName = useAtomValue(
     providersAtom,
     (providers) =>
@@ -337,14 +325,7 @@ export function EnvironmentSubagentAvatar({
     (providers) =>
       providers?.find((provider) => provider.instanceId === providerInstanceId)?.iconUrl,
   );
-  return (
-    <SubagentAvatar
-      {...props}
-      driver={providerDriver ?? (remote === undefined ? driver : undefined)}
-      displayName={displayName}
-      iconUrl={iconUrl}
-    />
-  );
+  return <SubagentAvatar {...props} displayName={displayName} iconUrl={iconUrl} />;
 }
 
 const NOTIFICATION_OUTCOME_STATUS: Record<
@@ -438,7 +419,6 @@ function SubagentTimelineLink(props: {
     environmentThreadDetails.threadAtom(props.parentRef),
     (thread) => thread?.projection.subagents.find((agent) => agent.id === props.subagentId) ?? null,
   );
-  const remote = agent?.remoteChild;
   const threadId = props.threadId;
   const liveStatus = agent?.status ?? props.status;
   const status = props.event ? props.event.status : liveStatus;
@@ -461,11 +441,24 @@ function SubagentTimelineLink(props: {
         environmentId={props.parentRef.environmentId}
         providerInstanceId={props.providerInstanceId}
         driver={props.driver}
-        remote={remote}
         status={status ?? undefined}
       />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-xs font-medium text-foreground">{props.title}</span>
+        <span className="flex items-baseline gap-2">
+          <span className="min-w-0 truncate text-xs font-medium text-foreground">
+            {props.title}
+          </span>
+          {detail !== null && (props.event !== undefined || status !== "completed") ? (
+            <span
+              className={cn(
+                "shrink-0 text-3xs",
+                failed ? "text-destructive" : "text-muted-foreground",
+              )}
+            >
+              {statusLabel}
+            </span>
+          ) : null}
+        </span>
         <span
           className={cn(
             "block text-2xs leading-relaxed",
@@ -481,13 +474,6 @@ function SubagentTimelineLink(props: {
           )}
         </span>
       </span>
-      {detail !== null && (props.event !== undefined || status !== "completed") ? (
-        <span
-          className={cn("shrink-0 text-xs", failed ? "text-destructive" : "text-muted-foreground")}
-        >
-          {statusLabel}
-        </span>
-      ) : null}
       <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
         {props.event ? props.event.timestamp : <SubagentElapsed agent={timing} />}
       </span>

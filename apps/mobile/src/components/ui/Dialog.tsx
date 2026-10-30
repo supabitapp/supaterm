@@ -3,6 +3,7 @@ import type { ConfirmDialogRequest, TextInputDialogRequest } from "./Dialog.type
 
 export type { ConfirmDialogRequest, TextInputDialogRequest } from "./Dialog.types";
 
+/** Informational and multi-action alerts share the same platform presenter. */
 export function alert(...args: Parameters<typeof Alert.alert>): void {
   Alert.alert(...args);
 }
@@ -31,6 +32,7 @@ export function prompt(request: TextInputDialogRequest): void {
   );
 }
 
+/** iOS alerts are presented directly by React Native. */
 export function Host() {
   return null;
 }
