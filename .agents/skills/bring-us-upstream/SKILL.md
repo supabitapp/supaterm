@@ -27,6 +27,7 @@ Show the user:
 - proposed ports, behavior, affected surfaces, dependencies, and tests;
 - skipped items with reasons;
 - open decisions and non-goals;
+- what features are being put under Labs/Feature Flags under upstream
 - the exact implementation boundary.
 
 ## Implement after approval
