@@ -7,6 +7,7 @@ import {
   GuestMessageId,
   GuestLinkPayload,
   type GuestRedeemRequest,
+  type GuestStreamError,
   type GuestShareView,
   type GuestThreadModel,
   type OrchestrationV2ThreadProjection,
@@ -255,7 +256,7 @@ function GuestSession({ shareId }: { readonly shareId: string }) {
   }));
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- persists the awaiting row ids to sessionStorage so a reload keeps them
   useEffect(() => writeAwaitingRowIds(stream.awaitingRowIds), [stream.awaitingRowIds]);
-  const [rejected, setRejected] = useState(false);
+  const [rejected, setRejected] = useState<GuestStreamError["reason"] | "unavailable" | null>(null);
 
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- sets document.title to the shared thread's title
   useEffect(() => {
@@ -273,11 +274,19 @@ function GuestSession({ shareId }: { readonly shareId: string }) {
         dispatch(event);
         if (event.type === "ended") source.close();
       },
-      () => setRejected(true),
+      (reason) => setRejected(reason ?? "unavailable"),
     );
     return () => source.close();
   }, [shareId, transport]);
 
+  if (rejected === "event_too_large") {
+    return (
+      <Notice
+        title="This thread is too large to share"
+        detail="Ask the owner to share a smaller thread."
+      />
+    );
+  }
   if (stream.ended || (rejected && stream.view !== null)) {
     return <Notice title="This link has ended" detail="The owner stopped sharing this thread." />;
   }

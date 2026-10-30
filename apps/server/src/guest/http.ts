@@ -1,5 +1,7 @@
 import {
   GUEST_ATTACHMENT_ROUTE,
+  GUEST_STREAM_MAX_EVENT_BYTES,
+  GUEST_STREAM_ERROR_EVENT,
   GUEST_COMMAND_OUTPUT_ROUTE,
   GUEST_ITEM_ROUTE,
   GUEST_MEDIA_ROUTE,
@@ -31,6 +33,7 @@ import { tunnelConnectionMethod } from "../relay/RelayIngress.ts";
 import type { GuestUpload } from "./guestAttachments.ts";
 import { GuestShareAccessError, GuestShareService } from "./GuestShareService.ts";
 const HEARTBEAT_INTERVAL = Duration.seconds(20);
+const OVERSIZED_EVENT = `event: ${GUEST_STREAM_ERROR_EVENT}\ndata: {"reason":"event_too_large"}\n\n`;
 const NO_STORE = { "cache-control": "no-store" };
 const FILE_HEADERS = {
   ...NO_STORE,
@@ -86,14 +89,18 @@ const itemParam = Effect.map(HttpServerRequest.HttpServerRequest, (request) =>
   new URLSearchParams(request.url.split("?", 2)[1] ?? "").get("item"),
 );
 
-const eventStreamResponse = <A>(
+export const eventStreamResponse = <A>(
   events: Stream.Stream<A>,
   encode: (event: A) => Effect.Effect<string, Schema.SchemaError>,
 ) => {
   const data = events.pipe(
     Stream.mapEffect((event) =>
       encode(event).pipe(
-        Effect.map((json) => [`data: ${json}\n\n`]),
+        Effect.map((json) => {
+          const frame = `data: ${json}\n\n`;
+          const oversized = Buffer.byteLength(frame, "utf8") > GUEST_STREAM_MAX_EVENT_BYTES;
+          return [{ data: oversized ? OVERSIZED_EVENT : frame, terminal: oversized }];
+        }),
         Effect.catch(() =>
           Effect.logWarning("Dropped a guest stream event that failed to encode.").pipe(
             Effect.as([]),
@@ -102,6 +109,8 @@ const eventStreamResponse = <A>(
       ),
     ),
     Stream.flattenIterable,
+    Stream.takeUntil((frame) => frame.terminal),
+    Stream.map((frame) => frame.data),
   );
   const heartbeat = Stream.tick(HEARTBEAT_INTERVAL).pipe(Stream.map(() => ": ping\n\n"));
   return HttpServerResponse.stream(

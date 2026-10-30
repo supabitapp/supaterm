@@ -71,10 +71,17 @@ export const guestTurnItemSource = (shareId: string, transport: GuestTransport):
                 Queue.endUnsafe(queue);
               }
             },
-            () =>
+            (reason) =>
               Queue.failCauseUnsafe(
                 queue,
-                Cause.fail(new GuestItemReadError({ message: "Output is no longer available." })),
+                Cause.fail(
+                  new GuestItemReadError({
+                    message:
+                      reason === "event_too_large"
+                        ? "This output is too large to share."
+                        : "Output is no longer available.",
+                  }),
+                ),
               ),
           );
           return source;
