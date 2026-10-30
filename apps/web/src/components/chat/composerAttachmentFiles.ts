@@ -10,7 +10,8 @@ import {
 
 import type { ComposerFileAttachment, ComposerImageAttachment } from "../../composerDraftStore";
 import { isHeicImageFile } from "../../lib/imageCompression";
-import { isVideoAttachment } from "../../types";
+import { isVideoAttachment, videoMimeType } from "../../types";
+import { isSvgAttachment } from "@supaterm/shared/image";
 
 type ComposerAttachmentFileKind = "image" | "file" | "unsupported-image";
 
@@ -59,9 +60,31 @@ export function normalizeComposerImageFileMimeType(file: File): File {
   });
 }
 
+function isDngFile(file: Pick<File, "name" | "type">): boolean {
+  const mimeType = file.type.split(";", 1)[0]?.trim().toLowerCase();
+  return (
+    file.name.toLowerCase().endsWith(".dng") ||
+    mimeType === "image/dng" ||
+    mimeType === "image/x-dng" ||
+    mimeType === "image/x-adobe-dng"
+  );
+}
+
+export function composerFileAttachmentMimeType(file: Pick<File, "name" | "type">): string {
+  // Downstream image detection uses MIME, even for attachments staged as files.
+  if (isDngFile(file)) return "image/x-adobe-dng";
+  if (isSvgAttachment({ name: file.name, mimeType: file.type })) return "image/svg+xml";
+  return (
+    videoMimeType({ name: file.name, mimeType: file.type }) ??
+    (file.type || "application/octet-stream")
+  );
+}
+
 export function classifyComposerAttachmentFile(
   file: Pick<File, "name" | "type">,
 ): ComposerAttachmentFileKind {
+  if (isSvgAttachment({ name: file.name, mimeType: file.type })) return "file";
+  if (isDngFile(file)) return "file";
   if (isHeicImageFile(file)) {
     return "image";
   }
@@ -147,8 +170,13 @@ export function shouldHandleComposerAttachmentPaste(input: {
 }): boolean {
   if (
     input.files.some((file) => {
+      if (isDngFile(file)) return true;
       const classification = classifyComposerAttachmentFile(file);
-      return classification === "image" || classification === "unsupported-image";
+      return (
+        classification === "image" ||
+        classification === "unsupported-image" ||
+        isSvgAttachment({ name: file.name, mimeType: file.type })
+      );
     })
   ) {
     return true;

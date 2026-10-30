@@ -1,3 +1,4 @@
+import { userEvent } from "vite-plus/test/browser";
 import { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import { AsyncResult } from "effect/reactivity";
 import { type ReactElement } from "react";
@@ -575,6 +576,22 @@ describe("ChatMarkdown headings", () => {
       "user-content-install",
       "user-content-install-2",
     ]);
+  });
+});
+
+describe("ChatMarkdown inline code selection", () => {
+  it("selects the whole inline code span on double-click, but only a word in fenced code", async () => {
+    setup();
+    await using screen = await renderText(
+      "Run `migration-gate --dry-run` first.\n\n```txt\nfenced-block word\n```",
+    );
+    await userEvent.dblClick(screen.getByText("migration-gate --dry-run"));
+    expect(window.getSelection()?.toString()).toBe("migration-gate --dry-run");
+
+    window.getSelection()?.removeAllRanges();
+    const fenced = screen.container.querySelector("pre code")!;
+    await userEvent.dblClick(fenced, { position: { x: 4, y: 4 } });
+    expect(window.getSelection()?.toString()).toBe("fenced");
   });
 });
 

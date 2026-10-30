@@ -1,3 +1,5 @@
+import { queuedRunEditBlockedReason } from "@supaterm/client-runtime/queued-run-edit";
+import { derivePendingThreadRequests } from "@supaterm/client-runtime/state/thread-requests";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { deriveThreadQueueWorkflowState } from "@supaterm/client-runtime/state/thread-workflows";
 import { assistantCitationsToPlainText } from "@supaterm/shared/assistantCitations";
@@ -91,6 +93,9 @@ export function QueuedRunsControl({
     queuedImageAttachmentResources,
   );
   const workflow = projection ? deriveThreadQueueWorkflowState(projection) : null;
+  const editBlockedReason = queuedRunEditBlockedReason({
+    openQuestionCount: projection ? derivePendingThreadRequests(projection).userInputs.length : 0,
+  });
   const queued = workflow?.queuedRuns ?? [];
   const activeRun = workflow?.activeRun ?? null;
   const canSend = workflow?.canSendNow === true || workflow?.canPromoteToSteer === true;
@@ -168,7 +173,7 @@ export function QueuedRunsControl({
     // older message than the one shown last.
     editLatest(repeat) {
       const latest = items.at(-1);
-      if (!latest) return false;
+      if (!latest || editBlockedReason !== null) return false;
       if (!repeat && latest.runId !== null && latest.messageId !== null && busyRunId === null) {
         setExpanded(true);
         props.onEditQueuedRun({
@@ -325,7 +330,11 @@ export function QueuedRunsControl({
                                     size="icon-xs"
                                     variant="ghost-muted"
                                     aria-label="Edit queued message"
-                                    disabled={item.runId === null || busyRunId !== null}
+                                    disabled={
+                                      item.runId === null ||
+                                      busyRunId !== null ||
+                                      editBlockedReason !== null
+                                    }
                                     onClick={() => {
                                       if (item.runId !== null && item.messageId !== null) {
                                         props.onEditQueuedRun({
@@ -344,7 +353,7 @@ export function QueuedRunsControl({
                               <TooltipPopup
                                 shortcut={item === items.at(-1) ? props.editShortcutLabel : null}
                               >
-                                Edit in the composer
+                                {editBlockedReason ?? "Edit in the composer"}
                               </TooltipPopup>
                             </Tooltip>
                             <InlineConfirmButton

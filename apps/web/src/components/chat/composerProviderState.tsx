@@ -63,6 +63,9 @@ type TraitsRenderInput = {
   triggerClassName?: string;
   isComposerOwned?: boolean;
   shortcutLabel?: string | null;
+  extraMenuContent?: ReactNode;
+  extraMenuHint?: string;
+  extraMenuOwnsModeShortcut?: boolean;
 };
 
 export function getComposerPromptInjectionState(prompt: string): ComposerPromptInjectionState {
@@ -242,6 +245,9 @@ function renderTraitsControl(
     triggerClassName,
     isComposerOwned,
     shortcutLabel,
+    extraMenuContent,
+    extraMenuHint,
+    extraMenuOwnsModeShortcut,
   } = input;
   const hasTarget = threadRef !== undefined || draftId !== undefined;
   const { selections: resolvedModelOptions } = resolveComposerOptionSelections(
@@ -279,6 +285,9 @@ function renderTraitsControl(
       {...(triggerClassName !== undefined ? { triggerClassName } : {})}
       {...(isComposerOwned ? { isComposerOwned } : {})}
       {...(shortcutLabel ? { shortcutLabel } : {})}
+      {...(extraMenuContent ? { extraMenuContent } : {})}
+      {...(extraMenuHint ? { extraMenuHint } : {})}
+      {...(extraMenuOwnsModeShortcut !== undefined ? { extraMenuOwnsModeShortcut } : {})}
     />
   );
 }

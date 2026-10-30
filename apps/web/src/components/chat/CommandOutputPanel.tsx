@@ -1,3 +1,5 @@
+import type { TurnItemSource } from "./timelineRowContext";
+import type { CommandOutputView } from "@supaterm/client-runtime/state/command-output";
 import type {
   EnvironmentId,
   OrchestrationV2ProjectedTurnItem,
@@ -26,16 +28,22 @@ const FOLLOW_SLACK_PX = 8;
 export function useCommandOutputStreaming(
   environmentId: EnvironmentId,
   projectedItem: OrchestrationV2ProjectedTurnItem,
+  source?: TurnItemSource,
 ): boolean {
   const isCommand = projectedItem.item.type === "command_execution";
   // Shares the panel's subscription, and re-renders only when availability changes.
   const unavailable = useAtomValue(
-    isCommand
-      ? orchestrationEnvironment.v2.commandOutput({
-          environmentId,
-          input: { threadId: projectedItem.sourceThreadId, itemId: projectedItem.sourceItemId },
+    isCommand && source
+      ? source.commandOutput({
+          threadId: projectedItem.sourceThreadId,
+          itemId: projectedItem.sourceItemId,
         })
-      : NO_COMMAND_OUTPUT,
+      : isCommand
+        ? orchestrationEnvironment.v2.commandOutput({
+            environmentId,
+            input: { threadId: projectedItem.sourceThreadId, itemId: projectedItem.sourceItemId },
+          })
+        : NO_COMMAND_OUTPUT,
     commandOutputUnavailable,
   );
   return isCommand && !unavailable;
@@ -50,12 +58,13 @@ export function CommandOutputPanel(props: {
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
   readonly itemId: TurnItemId;
+  readonly source?: TurnItemSource["commandOutput"] | undefined;
 }) {
-  const { data, error } = useEnvironmentQuery(
-    orchestrationEnvironment.v2.commandOutput({
-      environmentId: props.environmentId,
-      input: { threadId: props.threadId, itemId: props.itemId },
-    }),
+  const input = { threadId: props.threadId, itemId: props.itemId };
+  const { data, error } = useEnvironmentQuery<CommandOutputView, unknown>(
+    props.source
+      ? props.source(input)
+      : orchestrationEnvironment.v2.commandOutput({ environmentId: props.environmentId, input }),
   );
   const scrollRef = useRef<HTMLDivElement>(null);
   // Follow new output until the reader scrolls up; scrolling back down resumes.

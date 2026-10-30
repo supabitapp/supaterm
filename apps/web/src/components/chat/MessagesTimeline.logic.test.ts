@@ -702,6 +702,139 @@ describe("deriveMessagesTimelineRows", () => {
     expect(computeStableMessagesTimelineRows(settledRows, stable).result).toEqual(settledRows);
   });
 
+  it.each(["/compact", "Continue"])(
+    "keeps a completed compaction divider visible while other settled work folds for %s",
+    (promptText) => {
+      const fixture = makeStreamingTimelineFixture();
+      const [, , , liveUser, liveWork, liveAssistant] = fixture.visibleTurnItems;
+      if (
+        liveUser?.item.type !== "user_message" ||
+        liveAssistant?.item.type !== "assistant_message" ||
+        !liveWork
+      )
+        throw new Error("Expected live fixture items");
+      const rows = deriveMessagesTimelineRows({
+        timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
+          visibleTurnItems: [
+            { ...liveUser, item: { ...liveUser.item, text: promptText } },
+            liveWork,
+            {
+              ...liveAssistant,
+              item: {
+                ...liveAssistant.item,
+                type: "compaction",
+                driver: null,
+                status: "completed",
+                beforeTokenCount: 100_000,
+                afterTokenCount: 20_000,
+              },
+            },
+          ],
+          optimisticMessages: [],
+        }),
+        isWorking: false,
+        latestRun: {
+          runId: fixture.runId,
+          status: "completed",
+          startedAt: fixture.time(5),
+          completedAt: fixture.time(8),
+        },
+        turnDiffSummaries: [],
+        supportsConversationRollback: false,
+      });
+      expect(rows.filter((row) => row.kind === "turn-fold")).toHaveLength(1);
+      expect(rows.some((row) => row.kind === "work")).toBe(false);
+      expect(rows.filter((row) => row.kind === "context-compaction")).toMatchObject([
+        { active: false, tokenCounts: { before: "100K", after: "20K" } },
+      ]);
+      if (promptText === "/compact") {
+        expect(rows.some((row) => row.kind === "message")).toBe(false);
+      }
+    },
+  );
+
+  it("folds an answered compact-on-return question into its compaction row", () => {
+    const fixture = makeStreamingTimelineFixture();
+    const [history0, history1, history2, liveUser, liveWork, liveAssistant] =
+      fixture.visibleTurnItems;
+    if (liveWork?.item.type !== "dynamic_tool" || liveAssistant?.item.type !== "assistant_message")
+      throw new Error("Expected live fixture items");
+    const { toolName: _toolName, input: _input, output: _output, ...workBase } = liveWork.item;
+    const question =
+      "This session is 1h 5m old and uses 412,000 tokens. Compact it before continuing?";
+    const requestId = RuntimeRequestId.make("resume-compaction");
+    const answered = {
+      ...liveWork,
+      item: {
+        ...workBase,
+        type: "user_input_request" as const,
+        requestId,
+        questions: [],
+        questionAnswer: {
+          requestId,
+          questionTextById: { resume: question },
+          answers: { resume: "Compact and continue" },
+          attachmentsByQuestionId: {},
+        },
+      },
+    };
+    const assistantItem = liveAssistant.item;
+    const compactionAt = (status: "running" | "completed") => ({
+      ...liveAssistant,
+      item: { ...assistantItem, type: "compaction" as const, status, driver: null },
+    });
+    const rowsFor = (status: "running" | "completed", laterCompaction = false) =>
+      deriveMessagesTimelineRows({
+        timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
+          visibleTurnItems: [
+            history0!,
+            history1!,
+            history2!,
+            liveUser!,
+            answered,
+            compactionAt(laterCompaction ? "completed" : status),
+            ...(laterCompaction
+              ? [
+                  {
+                    ...compactionAt(status),
+                    item: {
+                      ...compactionAt(status).item,
+                      id: TurnItemId.make("later-compaction"),
+                    },
+                  },
+                ]
+              : []),
+          ],
+          optimisticMessages: [],
+        }),
+        isWorking: status === "running",
+        runningRunId: fixture.runId,
+        activeTurnStartedAt: fixture.time(5),
+        turnDiffSummaries: [],
+        supportsConversationRollback: false,
+      });
+    const liveRows = (status: "running" | "completed") => {
+      const rows = rowsFor(status);
+      return rows.slice(rows.findIndex((row) => row.id.includes("live-user")) + 1);
+    };
+    expect(liveRows("running")).toMatchObject([{ kind: "working", compacting: "Compacting…" }]);
+    expect(liveRows("completed")).toMatchObject([
+      { kind: "context-compaction", title: "Context compacted after 1h 5m idle" },
+    ]);
+    const laterRows = rowsFor("running", true);
+    const dividers = laterRows.filter((row) => row.kind === "context-compaction");
+    expect(dividers).toHaveLength(2);
+    expect(dividers[0]).toMatchObject({
+      title: "Context compacted after 1h 5m idle",
+      active: false,
+    });
+    expect(dividers[1]).toMatchObject({ active: true });
+    expect(dividers[1]).not.toHaveProperty("title");
+    expect(laterRows.some((row) => row.kind === "working" && row.compacting !== undefined)).toBe(
+      false,
+    );
+  });
+
   it("only enables assistant copy for the terminal assistant message in a turn", () => {
     const rows = deriveMessagesTimelineRows({
       timelineEntries: [
@@ -4781,9 +4914,15 @@ it("keeps the working header in place across worktree setup handoff", () => {
 });
 
 describe("failed turn transcript", () => {
-  it.each(["provider_error", "usage_limit"] as const)(
-    "keeps historical %s failures and preceding work visible without disclosures",
-    (failureClass) => {
+  it.each([
+    { position: "historical", failureClass: "provider_error" },
+    { position: "historical", failureClass: "usage_limit" },
+    { position: "latest", failureClass: "usage_limit" },
+  ] as const)(
+    "keeps $position $failureClass failures visible with preceding work grouped appropriately",
+    ({ position, failureClass }) => {
+      const isLatest = position === "latest";
+      const commands = isLatest ? ["pwd", "ls", "false"] : ["pwd"];
       const runId = RunId.make("failed-run");
       const threadId = ThreadId.make("failed-thread");
       const at = DateTime.makeUnsafe("2026-09-20T12:00:00Z");
@@ -4820,23 +4959,24 @@ describe("failed turn transcript", () => {
             attachments: [],
           },
         },
-        {
-          position: 1,
+        ...commands.map((input, index): OrchestrationV2ProjectedTurnItem => ({
+          position: index + 1,
           visibility: "local",
           sourceThreadId: threadId,
-          sourceItemId: TurnItemId.make("command"),
+          sourceItemId: TurnItemId.make(index === 0 ? "command" : `command-${index}`),
           item: {
             ...base,
-            id: TurnItemId.make("command"),
+            id: TurnItemId.make(index === 0 ? "command" : `command-${index}`),
+            ordinal: index + 1,
             type: "command_execution",
             status: "completed",
-            input: "pwd",
+            input,
             output: "",
             exitCode: 0,
           },
-        },
+        })),
         {
-          position: 2,
+          position: commands.length + 1,
           visibility: "local",
           sourceThreadId: threadId,
           sourceItemId: TurnItemId.make("failure"),
@@ -4858,20 +4998,24 @@ describe("failed turn transcript", () => {
         timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
           visibleTurnItems: items,
           optimisticMessages: [],
-        }).map((entry) => ({
-          ...entry,
-          attempt: {
-            id: RunAttemptId.make("superseded-attempt"),
-            runId,
-            attemptOrdinal: 1,
-            rootNodeId: NodeId.make("superseded-root"),
-            status: "superseded" as const,
-            completedAt: null,
-          },
-        })),
+        }).map((entry) =>
+          isLatest
+            ? entry
+            : {
+                ...entry,
+                attempt: {
+                  id: RunAttemptId.make("superseded-attempt"),
+                  runId,
+                  attemptOrdinal: 1,
+                  rootNodeId: NodeId.make("superseded-root"),
+                  status: "superseded" as const,
+                  completedAt: null,
+                },
+              },
+        ),
         latestRun: {
-          runId: RunId.make("newer-run"),
-          status: "completed",
+          runId: isLatest ? runId : RunId.make("newer-run"),
+          status: isLatest ? "failed" : "completed",
           startedAt: DateTime.formatIso(at),
           completedAt: DateTime.formatIso(at),
         },
@@ -4879,16 +5023,19 @@ describe("failed turn transcript", () => {
         turnDiffSummaries: [],
         supportsConversationRollback: false,
       });
-      expect(
-        rows.some(
-          (row) =>
-            row.kind === "turn-fold" || row.kind === "attempt-fold" || row.kind === "work-toggle",
-        ),
-      ).toBe(false);
+      expect(rows.some((row) => row.kind === "turn-fold" || row.kind === "attempt-fold")).toBe(
+        false,
+      );
       const work = rows.flatMap((row) => (row.kind === "work" ? row.groupedEntries : []));
-      expect(work.map((entry) => entry.id)).toEqual(["command", "failure"]);
+      expect(rows.find((row) => row.kind === "work-toggle")).toEqual(
+        isLatest ? expect.objectContaining({ hiddenCount: 3, expanded: false }) : undefined,
+      );
+      expect(work.map((entry) => entry.id)).toEqual(
+        isLatest ? ["failure"] : ["command", "failure"],
+      );
       expect(work.at(-1)?.detail).toBe("The provider stopped this turn.\nRetry later.");
       expect(work.at(-1)?.createdAt).toBe("2026-09-20T12:00:00.000Z");
+      if (isLatest) return;
       const entriesWithoutTools = deriveTimelineEntriesFromVisibleTurnItems({
         visibleTurnItems: items.filter((row) => row.item.type !== "command_execution"),
         optimisticMessages: [],

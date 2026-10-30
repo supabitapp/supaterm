@@ -1,4 +1,4 @@
-import { useAtomValue } from "@effect/atom-react";
+import { useAtomMount, useAtomValue } from "@effect/atom-react";
 import { scopedThreadKey } from "@supaterm/client-runtime/environment";
 import {
   isAtomCommandInterrupted,
@@ -83,7 +83,8 @@ import { readLocalApi } from "~/localApi";
 import { confirmTerminalClose } from "~/lib/terminalCloseConfirm";
 import { useClientSettings } from "../hooks/useSettings";
 import { useLocalStorage } from "../hooks/useLocalStorage";
-import { useAttachedTerminalSession } from "../state/terminalSessions";
+import { attachedTerminalSessionAtom } from "../state/terminalSessions";
+import { appAtomRegistry } from "../rpc/atomRegistry";
 import { serverEnvironment } from "../state/server";
 import { previewEnvironment } from "../state/preview";
 import { readEnvironmentScope } from "../state/session";
@@ -143,7 +144,10 @@ function readDrawerLayout(column: HTMLElement | null): Omit<DrawerLayout, "compo
   };
 }
 
-function writeSystemMessage(terminal: GhosttyTerminalSurface, message: string): void {
+function writeSystemMessage(
+  terminal: Pick<GhosttyTerminalSurface, "write">,
+  message: string,
+): void {
   terminal.write(`\r\n[terminal] ${message}\r\n`);
 }
 
@@ -168,6 +172,31 @@ export function synchronizeTerminalOutput(
   writeTerminalOutputUpdate(terminal, update);
   terminal.clearSelection();
   return update.cursor;
+}
+
+export function synchronizeTerminalSession(
+  terminal: Pick<GhosttyTerminalSurface, "resetAndWrite" | "write" | "clearSelection">,
+  previous: Pick<TerminalSessionState, "output" | "version" | "error">,
+  session: Pick<TerminalSessionState, "output" | "version" | "error">,
+  cursor: TerminalOutputCursor,
+): TerminalOutputCursor {
+  const nextCursor =
+    session.version === previous.version && session.output === previous.output
+      ? cursor
+      : synchronizeTerminalOutput(terminal, session, cursor);
+  if (session.error !== null && session.error !== previous.error) {
+    writeSystemMessage(terminal, session.error);
+  }
+  return nextCursor;
+}
+
+function writableSessionGeneration(
+  session: TerminalSessionState,
+  canOperate: boolean,
+): number | null {
+  return canOperate && session.version > 0 && session.status === "running"
+    ? session.output.generation
+    : null;
 }
 
 function parseTerminalColor(value: string, fallback: GhosttyColor): GhosttyColor {
@@ -532,20 +561,20 @@ function TerminalSessionViewport({
     }),
   );
   const terminalFontRef = useRef({ family: terminalFontFamily, size: terminalFontSize });
-  const terminalSession = useAttachedTerminalSession({
-    environmentId,
-    terminal: {
-      threadId,
-      terminalId,
-      cwd,
-      ...(worktreePath !== undefined ? { worktreePath } : {}),
-      ...(runtimeEnv ? { env: runtimeEnv } : {}),
-      ...(providerInstanceId ? { providerInstanceId } : {}),
-    },
+  const terminalSessionAtom = attachedTerminalSessionAtom(environmentId, {
+    threadId,
+    terminalId,
+    cwd,
+    ...(worktreePath !== undefined ? { worktreePath } : {}),
+    ...(runtimeEnv ? { env: runtimeEnv } : {}),
+    ...(providerInstanceId ? { providerInstanceId } : {}),
   });
-  const canResizeTerminal =
-    canOperateTerminal && terminalSession.version > 0 && terminalSession.status === "running";
-  const resizeSessionGeneration = canResizeTerminal ? terminalSession.output.generation : null;
+  useAtomMount(terminalSessionAtom);
+  const readTerminalSession = useEffectEvent(() => appAtomRegistry.get(terminalSessionAtom));
+  const subscribeTerminalSession = useEffectEvent(
+    (listener: (session: TerminalSessionState) => void) =>
+      appAtomRegistry.subscribe(terminalSessionAtom, listener),
+  );
   const writeTerminal = useEffectEvent((data: string) =>
     runTerminalWrite({
       environmentId,
@@ -553,15 +582,12 @@ function TerminalSessionViewport({
     }),
   );
   const resizeTerminal = useEffectEvent((cols: number, rows: number) => {
-    if (!canResizeTerminal || !hasTerminalWriteAccess()) return;
+    if (writableSessionGeneration(readTerminalSession(), hasTerminalWriteAccess()) === null) return;
     return runTerminalResize({
       environmentId,
       input: { threadId, terminalId, cols, rows },
     });
   });
-  const terminalOutput = terminalSession.output;
-  const terminalError = terminalSession.error;
-  const terminalStatus = terminalSession.status;
   const outputCursorRef = useRef<TerminalOutputCursor>(INITIAL_TERMINAL_OUTPUT_CURSOR);
   const synchronizedStatusRef = useRef<TerminalSessionState["status"]>("closed");
   const synchronizeTerminalStatus = useEffectEvent(
@@ -583,26 +609,18 @@ function TerminalSessionViewport({
       if (version > 0) synchronizedStatusRef.current = status;
     },
   );
-  const terminalVersion = terminalSession.version;
-  const previousSessionRef = useRef({
-    output: terminalOutput,
-    error: terminalError,
-    status: terminalStatus,
-    version: terminalVersion,
-  });
-  const readLatestSession = useEffectEvent(() => ({
-    output: terminalOutput,
-    error: terminalError,
-    status: terminalStatus,
-    version: terminalVersion,
-  }));
   const openTerminalLink = useEffectEvent(
     (url: string, fallbackToBrowser: () => void, forceBrowser: boolean) =>
       openTerminalLinkInPreview({ url, threadRef, openPreview, fallbackToBrowser, forceBrowser }),
   );
 
   useLayoutEffect(() => {
-    if (terminalRef.current) terminalRef.current.input.readOnly = !canOperateTerminal;
+    const terminal = terminalRef.current;
+    if (!terminal) return;
+    terminal.input.readOnly = !canOperateTerminal;
+    if (writableSessionGeneration(readTerminalSession(), canOperateTerminal) !== null) {
+      terminal.resendSize();
+    }
   }, [canOperateTerminal]);
 
   // Links re-read the grant on activation; only the hovered link's styling needs a nudge.
@@ -612,13 +630,6 @@ function TerminalSessionViewport({
     linkActivationScopeRef.current = canOpenHostEditor;
     terminalRef.current?.refreshLinkActivation();
   }, [canOpenHostEditor]);
-
-  useEffect(() => {
-    if (resizeSessionGeneration === null) return;
-    // The first fit can finish before authorization or the attach snapshot.
-    // Replay its grid once this writable session exists, including reconnects.
-    terminalRef.current?.resendSize();
-  }, [resizeSessionGeneration]);
 
   useLayoutEffect(() => {
     visibleRef.current = visible;
@@ -680,8 +691,8 @@ function TerminalSessionViewport({
       if (currentFont.family !== setupFont.family || currentFont.size !== setupFont.size) {
         void terminal.setFont(terminalFontOptions(currentFont.family, currentFont.size));
       }
-      const latestSession = readLatestSession();
-      previousSessionRef.current = latestSession;
+      const latestSession = readTerminalSession();
+      terminal.setSharedGrid(latestSession.grid);
       const initialOutput = readTerminalOutputUpdate(
         latestSession.output,
         INITIAL_TERMINAL_OUTPUT_CURSOR,
@@ -693,6 +704,27 @@ function TerminalSessionViewport({
       if (latestSession.error !== null) writeSystemMessage(terminal, latestSession.error);
       synchronizedStatusRef.current = "closed";
       synchronizeTerminalStatus(terminal, latestSession.status, latestSession.version);
+      let previousSession = latestSession;
+      let resizeGeneration = writableSessionGeneration(latestSession, hasTerminalWriteAccess());
+      setupCleanups.push(
+        subscribeTerminalSession((session) => {
+          terminal.setSharedGrid(session.grid);
+          const nextResizeGeneration = writableSessionGeneration(session, hasTerminalWriteAccess());
+          if (nextResizeGeneration !== resizeGeneration) {
+            resizeGeneration = nextResizeGeneration;
+            if (nextResizeGeneration !== null) terminal.resendSize();
+          }
+          const previous = previousSession;
+          previousSession = session;
+          synchronizeTerminalStatus(terminal, session.status, session.version);
+          outputCursorRef.current = synchronizeTerminalSession(
+            terminal,
+            previous,
+            session,
+            outputCursorRef.current,
+          );
+        }),
+      );
       setupCleanups.push(
         registerTerminalScriptPasteSurface({ environmentId, threadId, terminalId }, terminal),
       );
@@ -1076,7 +1108,7 @@ function TerminalSessionViewport({
         if (cancelled) return;
         const message =
           error instanceof Error ? error.message : "Unable to initialize libghostty-vt";
-        mount.textContent = `${message} — close and reopen the terminal to retry.`;
+        mount.textContent = `${message}. Close and reopen the terminal to retry.`;
       });
 
     return () => {
@@ -1088,34 +1120,6 @@ function TerminalSessionViewport({
       }
     };
   }, [cwd, environmentId, threadId, terminalId]);
-
-  useEffect(() => {
-    const terminal = terminalRef.current;
-    const current = {
-      output: terminalOutput,
-      error: terminalError,
-      status: terminalStatus,
-      version: terminalVersion,
-    };
-    if (!terminal) {
-      previousSessionRef.current = current;
-      return;
-    }
-
-    const previous = previousSessionRef.current;
-    synchronizeTerminalStatus(terminal, current.status, current.version);
-    if (current.version === previous.version && current.output === previous.output) {
-      return;
-    }
-
-    outputCursorRef.current = synchronizeTerminalOutput(terminal, current, outputCursorRef.current);
-
-    if (current.error !== null && current.error !== previous.error) {
-      writeSystemMessage(terminal, current.error);
-    }
-
-    previousSessionRef.current = current;
-  }, [terminalOutput, terminalError, terminalStatus, terminalVersion]);
 
   // Each new request focuses again, even when nothing else changed.
   const focusRequest = autoFocus && canOperateTerminal && visible ? focusRequestId : null;

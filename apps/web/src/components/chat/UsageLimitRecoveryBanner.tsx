@@ -3,9 +3,11 @@ import {
   type OrchestrationV2LimitRecoveryUpdate,
   type RunId,
 } from "@supaterm/contracts";
+import { type TimestampFormat } from "@supaterm/contracts/settings";
 import { GaugeIcon } from "@supaterm/icons";
 import { useEffect, useState } from "react";
 import { Button } from "../ui/button";
+import { formatUpcomingTimestamp } from "../../timestampFormat";
 import { toastManager } from "../ui/toast";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
 
@@ -15,11 +17,12 @@ type RecoveryProps = {
   stoppedAt: string;
   snoozedUntil: string | null;
   recovery: OrchestrationV2LimitRecovery | null;
+  timestampFormat: TimestampFormat;
   onChange: (recovery: OrchestrationV2LimitRecoveryUpdate) => Promise<void>;
 };
 
 export function usageLimitRecoveryBannerItem(props: RecoveryProps): ComposerBannerStackItem {
-  const { runId, resetAt, stoppedAt } = props;
+  const { runId, resetAt, stoppedAt, timestampFormat } = props;
   const canSchedule = resetAt !== null && Date.parse(resetAt) > Date.parse(stoppedAt);
   return {
     id: `usage-limit-recovery:${runId}`,
@@ -29,7 +32,7 @@ export function usageLimitRecoveryBannerItem(props: RecoveryProps): ComposerBann
     icon: <GaugeIcon />,
     title: "Usage limit reached",
     description: resetAt
-      ? `Resets ${new Date(resetAt).toLocaleString()}`
+      ? `Resets ${formatUpcomingTimestamp(resetAt, timestampFormat)}`
       : "Reset time unavailable; retry manually",
     actions: canSchedule ? <RecoveryActions key={`${runId}:${resetAt}`} {...props} /> : null,
   };
@@ -47,13 +50,17 @@ function RecoveryActions({ runId, resetAt, recovery, snoozedUntil, onChange }: R
 
   const scheduled =
     recovery?.runId === runId && recovery.resetAt === resetAt && recovery.autoResume;
+  // The server leaves snoozedUntil in place after the timer wakes the thread,
+  // so a snooze whose reset has passed is no longer active.
+  const resetPassed = Date.parse(resetAt ?? "") <= nowMs;
   const snoozed =
     recovery?.snooze === true &&
     recovery.runId === runId &&
     recovery.resetAt === resetAt &&
     resetAt !== null &&
     snoozedUntil !== null &&
-    Date.parse(snoozedUntil) === Date.parse(resetAt);
+    Date.parse(snoozedUntil) === Date.parse(resetAt) &&
+    !resetPassed;
   async function toggle(action: "resume" | "snooze") {
     if (resetAt === null) return;
     if (action === "snooze" && !snoozed && Date.parse(resetAt) <= Date.now()) {
@@ -87,16 +94,14 @@ function RecoveryActions({ runId, resetAt, recovery, snoozedUntil, onChange }: R
       <Button size="xs" variant="ghost" disabled={pending} onClick={() => void toggle("resume")}>
         {pending ? "Saving..." : scheduled ? "Cancel auto-resume" : "Resume at reset"}
       </Button>
-      {!snoozed ? (
-        <Button
-          size="xs"
-          variant="ghost"
-          disabled={pending || Date.parse(resetAt!) <= nowMs}
-          onClick={() => void toggle("snooze")}
-        >
-          {pending ? "Saving..." : "Snooze until reset"}
-        </Button>
-      ) : null}
+      <Button
+        size="xs"
+        variant="ghost"
+        disabled={pending || (!snoozed && resetPassed)}
+        onClick={() => void toggle("snooze")}
+      >
+        {pending ? "Saving..." : snoozed ? "Wake now" : "Snooze until reset"}
+      </Button>
     </>
   );
 }

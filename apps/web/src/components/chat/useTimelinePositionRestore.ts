@@ -1,8 +1,51 @@
+import type { TimelineViewport } from "./timelineViewport";
 import { useLayoutEffect, useRef } from "react";
 import type { LegendListRef } from "@legendapp/list/react";
 import type { AssistantCitationRequest } from "./AssistantCitationSource";
 import type { MessagesTimelineRow } from "./MessagesTimeline.logic";
 import type { RememberedTimelinePosition } from "./timelineScrollAnchoring";
+
+// A streaming reply moves the end every frame, so the target may never hold
+// still. Past this many frames the list's own end maintenance takes over.
+const SETTLE_MAX_FRAMES = 60;
+
+/**
+ * Index and end scrolling start from estimated row sizes, so they can stop
+ * short of a tall row. Corrects against the DOM until the viewport holds the
+ * target for two layout frames, the frame budget runs out, the caller cancels,
+ * or the target disappears.
+ */
+export function settleListScroll(
+  list: Pick<LegendListRef, "getScrollableNode" | "scrollToOffset">,
+  target: (element: HTMLElement) => number | undefined,
+  isCancelled: () => boolean,
+): Promise<void> {
+  return new Promise((resolve) => {
+    let stableFrames = 0;
+    let frames = 0;
+    const reconcile = () => {
+      if (isCancelled()) return resolve();
+      const element = list.getScrollableNode();
+      const offset = element ? target(element) : undefined;
+      frames += 1;
+      if (!element || offset === undefined || frames > SETTLE_MAX_FRAMES) return resolve();
+      if (Math.abs(element.scrollTop - offset) > 1) {
+        stableFrames = 0;
+        void list.scrollToOffset({ offset, animated: false }).then(() => {
+          requestAnimationFrame(reconcile);
+        });
+        return;
+      }
+      stableFrames += 1;
+      if (stableFrames >= 2) resolve();
+      else requestAnimationFrame(reconcile);
+    };
+    requestAnimationFrame(reconcile);
+  });
+}
+
+export const measuredEndOffset = (element: HTMLElement) =>
+  element.scrollHeight - element.clientHeight;
 
 /**
  * Scrolls a newly shown thread back to where the user left it, or to its end,
@@ -18,6 +61,7 @@ export function useTimelinePositionRestore({
   cancelPositionRestoreRef,
   onManualNavigation,
   onPositioned,
+  viewportRef,
 }: {
   readonly listRef: React.RefObject<LegendListRef | null>;
   readonly listIdentityKey: string;
@@ -28,6 +72,7 @@ export function useTimelinePositionRestore({
   readonly cancelPositionRestoreRef: React.RefObject<(() => void) | null> | undefined;
   readonly onManualNavigation: () => void;
   readonly onPositioned: (identity: string) => void;
+  readonly viewportRef?: React.RefObject<TimelineViewport | null>;
 }) {
   // Preserve initialScrollAtEnd's measured target until the list is reused
   // for another thread; scrollToEnd would replace it with an estimated offset.
@@ -55,12 +100,10 @@ export function useTimelinePositionRestore({
       return;
     }
     let cancelled = false;
-    let settleFrame: number | null = null;
     const viewport: HTMLElement | null = list.getScrollableNode();
     const cancelRestoration = () => {
       if (cancelled) return;
       cancelled = true;
-      if (settleFrame !== null) cancelAnimationFrame(settleFrame);
       if (viewport) void list.scrollToOffset({ offset: viewport.scrollTop, animated: false });
       onPositioned(listIdentityKey);
     };
@@ -78,10 +121,15 @@ export function useTimelinePositionRestore({
       )
         cancelForNavigation();
     };
-    viewport?.addEventListener("wheel", cancelForNavigation, { passive: true });
-    viewport?.addEventListener("touchmove", cancelForNavigation, { passive: true });
-    viewport?.addEventListener("pointerdown", cancelForNavigation, { passive: true });
-    viewport?.ownerDocument.addEventListener("keydown", onScrollKey);
+    const navigation = viewportRef?.current;
+    const releaseHold = navigation?.holdProgrammaticScroll();
+    const unsubscribeNavigation = navigation?.subscribe(cancelForNavigation);
+    if (!navigation) {
+      viewport?.addEventListener("wheel", cancelForNavigation, { passive: true });
+      viewport?.addEventListener("touchmove", cancelForNavigation, { passive: true });
+      viewport?.addEventListener("pointerdown", cancelForNavigation, { passive: true });
+      viewport?.ownerDocument.addEventListener("keydown", onScrollKey);
+    }
     const position = rememberedPosition;
     const index = position ? rows.findIndex((row) => row.id === position.rowId) : -1;
     if (position?.atEnd === false) onManualNavigation();
@@ -99,54 +147,44 @@ export function useTimelinePositionRestore({
         : listOpenedOnRef.current?.identity === listIdentityKey
           ? undefined
           : list.scrollToEnd({ animated: false });
-    void Promise.resolve(scrolling).then(() => {
+    const settlesAtEnd = position?.atEnd !== false && scrolling !== undefined;
+    void Promise.resolve(scrolling).then(async () => {
       if (cancelled) return;
-      if (position?.atEnd !== false || index < 0) {
-        onPositioned(listIdentityKey);
-        return;
-      }
-      // Index scrolling starts from estimates. Keep the saved row mounted
-      // until its measured position and the DOM agree for two layout frames.
-      let stableFrames = 0;
-      const reconcile = () => {
-        if (cancelled) return;
-        const state = list.getState();
-        const rowIndex = state.indexByKey(position.rowId);
-        const row = rowIndex === undefined ? undefined : state.elementAtIndex(rowIndex);
-        const element = list.getScrollableNode();
-        if (!row || !element) return;
-        const offset = Math.max(
-          0,
-          Math.min(
-            element.scrollTop +
-              row.getBoundingClientRect().top -
-              element.getBoundingClientRect().top +
-              position.offsetWithinRow,
-            element.scrollHeight - element.clientHeight,
-          ),
+      if (settlesAtEnd) {
+        await settleListScroll(list, measuredEndOffset, () => cancelled);
+      } else if (position?.atEnd === false && index >= 0) {
+        // Keep the saved row mounted until its measured position and the DOM agree.
+        await settleListScroll(
+          list,
+          (element) => {
+            const state = list.getState();
+            const rowIndex = state.indexByKey(position.rowId);
+            const row = rowIndex === undefined ? undefined : state.elementAtIndex(rowIndex);
+            if (!row) return undefined;
+            return Math.max(
+              0,
+              Math.min(
+                element.scrollTop +
+                  row.getBoundingClientRect().top -
+                  element.getBoundingClientRect().top +
+                  position.offsetWithinRow,
+                measuredEndOffset(element),
+              ),
+            );
+          },
+          () => cancelled,
         );
-        if (Math.abs(element.scrollTop - offset) > 1) {
-          stableFrames = 0;
-          void list.scrollToOffset({ offset, animated: false }).then(() => {
-            if (!cancelled) settleFrame = requestAnimationFrame(reconcile);
-          });
-          return;
-        }
-        stableFrames += 1;
-        if (stableFrames >= 2) {
-          onPositioned(listIdentityKey);
-        } else {
-          settleFrame = requestAnimationFrame(reconcile);
-        }
-      };
-      settleFrame = requestAnimationFrame(reconcile);
+      }
+      releaseHold?.();
+      if (!cancelled) onPositioned(listIdentityKey);
     });
     return () => {
       cancelled = true;
       if (cancelPositionRestoreRef?.current === cancelRestoration) {
         cancelPositionRestoreRef.current = null;
       }
-      if (settleFrame !== null) cancelAnimationFrame(settleFrame);
+      releaseHold?.();
+      unsubscribeNavigation?.();
       viewport?.removeEventListener("wheel", cancelForNavigation);
       viewport?.removeEventListener("touchmove", cancelForNavigation);
       viewport?.removeEventListener("pointerdown", cancelForNavigation);
@@ -162,5 +200,6 @@ export function useTimelinePositionRestore({
     rememberedPosition,
     restoringThreadPosition,
     rows,
+    viewportRef,
   ]);
 }

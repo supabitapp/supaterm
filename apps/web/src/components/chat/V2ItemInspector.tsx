@@ -1,3 +1,4 @@
+import type { TurnItemSource } from "./timelineRowContext";
 import type {
   EnvironmentId,
   OrchestrationV2ProjectedTurnItem,
@@ -34,12 +35,13 @@ import type { ExpandedImagePreview } from "./ExpandedImagePreview";
 import { ShellCommandBlock } from "./ShellCommandBlock";
 
 interface V2ItemInspectorProps {
+  readonly source?: TurnItemSource | undefined;
   readonly projectedItem: OrchestrationV2ProjectedTurnItem;
   readonly environmentId: EnvironmentId;
   readonly cwd?: string | undefined;
   readonly workspaceRoot?: string | undefined;
   readonly onOpenThread: (threadId: ThreadId) => void;
-  readonly onOpenTurnDiff: (runId: RunId, filePath?: string) => void;
+  readonly onOpenTurnDiff?: ((runId: RunId, filePath?: string) => void) | undefined;
   readonly onImageExpand?: ((preview: ExpandedImagePreview) => void) | undefined;
 }
 
@@ -109,6 +111,7 @@ function StructuredValue({
 function useFetchedTurnItem(
   projectedItem: OrchestrationV2ProjectedTurnItem,
   environmentId: EnvironmentId,
+  source?: TurnItemSource,
   skip = false,
 ) {
   const wireItem = projectedItem.item;
@@ -122,6 +125,7 @@ function useFetchedTurnItem(
           revision: turnItemDetailRevision(wireItem),
         }
       : null,
+    source?.detail,
   );
   const fetchedItem = detail.data?.item;
   const item = fetchedItem?.type === wireItem.type ? fetchedItem : wireItem;
@@ -185,8 +189,9 @@ export function FetchedToolOutput(props: {
   readonly projectedItem: OrchestrationV2ProjectedTurnItem;
   readonly environmentId: EnvironmentId;
   readonly onImageExpand?: ((preview: ExpandedImagePreview) => void) | undefined;
+  readonly source?: TurnItemSource | undefined;
 }) {
-  const { output } = useFetchedTurnItem(props.projectedItem, props.environmentId);
+  const { output } = useFetchedTurnItem(props.projectedItem, props.environmentId, props.source);
   return (
     <div className={cn("mt-1.5 space-y-1.5", monoClassName)}>
       <ToolOutput {...output} onImageExpand={props.onImageExpand} />
@@ -233,8 +238,17 @@ function ToolCallBody(
 
 export const V2ItemInspector = memo(function V2ItemInspector(props: V2ItemInspectorProps) {
   // Command rows stream their output, including the final output, from the server.
-  const streamsOutput = useCommandOutputStreaming(props.environmentId, props.projectedItem);
-  const fetched = useFetchedTurnItem(props.projectedItem, props.environmentId, streamsOutput);
+  const streamsOutput = useCommandOutputStreaming(
+    props.environmentId,
+    props.projectedItem,
+    props.source,
+  );
+  const fetched = useFetchedTurnItem(
+    props.projectedItem,
+    props.environmentId,
+    props.source,
+    streamsOutput,
+  );
   const item = fetched.item;
   const outputState = fetched.output;
   const support = useV2ItemSupport({
@@ -270,13 +284,14 @@ export const V2ItemInspector = memo(function V2ItemInspector(props: V2ItemInspec
                 environmentId={props.environmentId}
                 threadId={props.projectedItem.sourceThreadId}
                 itemId={props.projectedItem.sourceItemId}
+                source={props.source?.commandOutput}
               />
             ) : undefined
           }
         />
       ) : null}
 
-      {item.type === "file_change" ? (
+      {item.type === "file_change" && props.onOpenTurnDiff ? (
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-muted-foreground">
@@ -288,11 +303,11 @@ export const V2ItemInspector = memo(function V2ItemInspector(props: V2ItemInspec
                 <span className="text-diff-deletion">-{formatDiffCount(item.deletions ?? 0)}</span>
               </span>
             ) : null}
-            {item.runId !== null ? (
+            {item.runId !== null && props.onOpenTurnDiff ? (
               <Button
                 size="xs"
                 variant="outline"
-                onClick={() => props.onOpenTurnDiff(item.runId!, item.fileName)}
+                onClick={() => props.onOpenTurnDiff?.(item.runId!, item.fileName)}
               >
                 Open diff
               </Button>

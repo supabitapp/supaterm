@@ -8,9 +8,9 @@ import {
 } from "@supaterm/contracts";
 import { useLayoutEffect, useRef, type ComponentProps } from "react";
 import { expect, it, vi } from "vite-plus/test";
+import { userEvent } from "vite-plus/test/browser";
 
-vi.mock(import("../ChatMarkdown"), async (importOriginal) => ({
-  ...(await importOriginal()),
+vi.mock(import("../ChatMarkdown"), () => ({
   default: (({ text }: { text: string }) => <p>{text}</p>) as never,
 }));
 
@@ -78,10 +78,12 @@ function PendingRequestsProbe({
   environmentId,
   projection,
   loading = false,
+  interactive = false,
 }: {
   environmentId: EnvironmentId;
   projection: OrchestrationV2ThreadProjection;
   loading?: boolean;
+  interactive?: boolean;
 }) {
   const promptRef = useRef("");
   const composerRef = useRef(null);
@@ -100,7 +102,20 @@ function PendingRequestsProbe({
   useLayoutEffect(() => {
     requests = state;
   });
-  return null;
+  return interactive ? (
+    <>
+      <output>Question {state.activePendingQuestionIndex + 1}</output>
+      <button
+        type="button"
+        onClick={() => state.onSelectActivePendingUserInputOption("question-0", "Incremental")}
+      >
+        Choose Incremental
+      </button>
+      <button type="button" onClick={() => state.onAdvanceActivePendingUserInput()}>
+        Submit
+      </button>
+    </>
+  ) : null;
 }
 
 it("retains answers, selections and question position after leaving chat, including while the projection reloads", async () => {
@@ -179,4 +194,20 @@ it("isolates drafts by environment, thread and request and discards only resolve
       index === 0 ? undefined : `Answer ${index}`,
     );
   }
+});
+
+it("keeps an unanswered question visible when the composer submits", async () => {
+  await using screen = await render(
+    <PendingRequestsProbe
+      interactive
+      environmentId={EnvironmentId.make("unanswered-env")}
+      projection={questionProjection(threadRef.threadId)}
+    />,
+  );
+  const submit = screen.getByRole("button", { name: "Submit" });
+  await userEvent.click(submit);
+  await expect.element(screen.getByRole("status")).toHaveTextContent("Question 1");
+  await userEvent.click(screen.getByRole("button", { name: "Choose Incremental" }));
+  await userEvent.click(submit);
+  await expect.element(screen.getByRole("status")).toHaveTextContent("Question 2");
 });

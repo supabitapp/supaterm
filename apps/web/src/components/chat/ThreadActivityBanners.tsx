@@ -70,9 +70,10 @@ export function goalBannerItem(input: {
         ? presentation.title
         : `${presentation.title} · ${presentation.usage}`,
     description: presentation.objective,
-    actions: isWorking ? undefined : (
+    // Clear stops goal work; Resume would stop unrelated work, so it waits.
+    actions: (
       <>
-        {presentation.canResume ? (
+        {presentation.canResume && !isWorking ? (
           <Button
             size="xs"
             variant="ghost"
@@ -180,7 +181,7 @@ export function branchMismatchBannerItem(input: {
     icon: <GitBranchIcon />,
     title: (
       <span className="flex min-w-0 items-baseline gap-1.5">
-        <span className="shrink-0 font-normal text-muted-foreground">Branch changed — was</span>
+        <span className="shrink-0 font-normal text-muted-foreground">Branch changed from</span>
         <Tooltip>
           <TooltipTrigger
             render={

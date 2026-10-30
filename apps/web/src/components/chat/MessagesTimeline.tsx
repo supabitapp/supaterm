@@ -1,3 +1,8 @@
+import { TimelinePendingApprovalRow } from "./TimelinePendingApprovalRow";
+import { attachTimelineViewport, type TimelineViewport } from "./timelineViewport";
+import { usePaneInputOwner } from "../../chatPanes/paneScope";
+import { CircleAlertIcon } from "@supaterm/icons";
+import type { TurnItemSource } from "./timelineRowContext";
 import { TimelineMinimap } from "./TimelineMinimap";
 import {
   type WorkGroupViewState,
@@ -72,7 +77,7 @@ import {
   type LegendListRef,
   LegendList,
 } from "@legendapp/list/react";
-import type { TimelineEntry } from "../../session-logic";
+import type { PendingApproval, TimelineEntry } from "../../session-logic";
 import type { CodexArtifactTemplate } from "@supaterm/shared/codexArtifactTemplates";
 import type { ChatFileAttachment, TurnDiffSummary } from "../../types";
 import { ArrowRightIcon, BotIcon, ShrinkIcon } from "@supaterm/icons";
@@ -90,7 +95,8 @@ import {
 import { AssistantSelectionToolbar } from "./AssistantSelectionToolbar";
 import type { AssistantCitationSourceAnchor } from "~/lib/assistantTextSelection";
 import type { AssistantCitationRequest } from "./AssistantCitationSource";
-import { type CitationHistoryPage, useAssistantCitationTarget } from "./useAssistantCitationTarget";
+import { useAssistantCitationTarget } from "./useAssistantCitationTarget";
+import { resolveCitationPhase, type CitedHistory } from "./citationProcedure";
 import {
   type TimelineLatestRun,
   resolveTimelineIsAtEnd,
@@ -174,6 +180,7 @@ const TIMELINE_MAINTAIN_SCROLL_AT_END = {
   },
 } as const satisfies MaintainScrollAtEndOptions;
 
+const CITED_HISTORY_LOADING: CitedHistory = { _tag: "loading" };
 const EMPTY_RUN_IDS: ReadonlySet<RunId> = new Set();
 const EMPTY_PINNED_MESSAGES: ReadonlyArray<ThreadPinnedMessage> = [];
 const NOOP_MESSAGE_JUMP_FAILED = () => {};
@@ -184,16 +191,24 @@ const TIMELINE_MAINTAIN_SCROLL_AT_END_SMOOTH = {
 
 export type MessagesTimelineHistoryControls = ThreadHistoryControls;
 
+const EMPTY_PENDING_APPROVALS: ReadonlyArray<PendingApproval> = [];
+const EMPTY_RESPONDING_REQUEST_IDS: TimelineRowSharedState["respondingRequestIds"] = [];
 interface MessagesTimelineProps {
+  pendingApprovals?: ReadonlyArray<PendingApproval>;
+  heldApprovalRequestIds?: ReadonlySet<string> | undefined;
+  respondingRequestIds?: TimelineRowSharedState["respondingRequestIds"];
+  canOperateThread?: boolean;
+  onRespondToApproval?: TimelineRowSharedState["onRespondToApproval"];
+
   citationRequest?: AssistantCitationRequest | null;
-  citationHistoryLoading?: boolean;
+  citationHistory?: CitedHistory;
   onCiteAssistantText?: (
     citation: AssistantCitation,
     sourceAnchor: AssistantCitationSourceAnchor,
   ) => boolean;
   isWorking: boolean;
   runlessWorkActive?: boolean;
-  activeTurnInProgress: boolean;
+  activeTurnInProgress?: boolean;
   activeTurnStartedAt?: string | null;
   worktreeSetup?: WorktreeSetupSnapshot | null;
   onCancelWorktreeSetup?: () => void;
@@ -215,7 +230,9 @@ interface MessagesTimelineProps {
   routeThreadKey: string;
   displayThreadKey?: string;
   paintOnly?: boolean;
-  onOpenTurnDiff: (runId: RunId, filePath?: string) => void;
+  onOpenTurnDiff?: (runId: RunId, filePath?: string) => void;
+  renderHtmlRender?: (row: Extract<TimelineRow, { kind: "html-render" }>) => ReactNode;
+  turnItemSource?: TurnItemSource;
   onOpenThread: (threadId: OrchestrationV2TurnItem["threadId"]) => void;
   parentThreadLink?: {
     readonly threadId: ThreadId;
@@ -223,7 +240,7 @@ interface MessagesTimelineProps {
   } | null;
   /** Set on a workflow coordinator's thread: its script message renders as this opening. */
   workflowOpening?: WorkflowOpening | null;
-  onForkFromRun: (input: {
+  onForkFromRun?: (input: {
     readonly sourceThreadId: ThreadId;
     readonly runId: RunId;
   }) => Promise<void>;
@@ -258,7 +275,8 @@ interface MessagesTimelineProps {
   liveFollowEnabled: boolean;
   onContentOverflowChange?: (overflows: boolean) => void;
   onToolOutputCollapsedAtEnd?: () => void;
-  onManualNavigation: () => void;
+  onManualNavigation?: () => void;
+  onViewportAttach?: (viewport: TimelineViewport) => () => void;
   findOpen?: boolean;
   cancelPositionRestoreRef?: React.RefObject<(() => void) | null> | undefined;
   hideEmptyPlaceholder?: boolean;
@@ -267,7 +285,6 @@ interface MessagesTimelineProps {
   emptyPlaceholderInset: number;
   topFadeEnabled?: boolean;
   historyControls?: MessagesTimelineHistoryControls | undefined;
-  loadEarlier?: CitationHistoryPage | null;
   pinnedMessages?: ReadonlyArray<ThreadPinnedMessage>;
   onTogglePinnedMessage?: (projectedItem: PinnableProjectedItem, pinned: boolean) => void;
   messageJump?: MessageJump | null;
@@ -282,7 +299,7 @@ interface MessagesTimelineProps {
 export function MessagesTimeline(props: MessagesTimelineProps) {
   const find = useContext(ThreadFindTimelineContext);
   const findOpen = find?.findOpen ?? props.findOpen;
-  const { onManualNavigation } = props;
+  const { onManualNavigation = NOOP_MESSAGE_JUMP_FAILED } = props;
   useEffect(() => {
     if (findOpen) onManualNavigation();
   }, [findOpen, onManualNavigation]);
@@ -296,12 +313,17 @@ export function MessagesTimeline(props: MessagesTimelineProps) {
 }
 
 const ConversationTimeline = memo(function ConversationTimeline({
+  pendingApprovals = EMPTY_PENDING_APPROVALS,
+  heldApprovalRequestIds,
+  respondingRequestIds = EMPTY_RESPONDING_REQUEST_IDS,
+  canOperateThread = false,
+  onRespondToApproval,
   citationRequest = null,
-  citationHistoryLoading = false,
+  citationHistory = CITED_HISTORY_LOADING,
   onCiteAssistantText,
   isWorking,
   runlessWorkActive = false,
-  activeTurnInProgress,
+  activeTurnInProgress = isWorking,
   activeTurnStartedAt = null,
   worktreeSetup = null,
   footer = null,
@@ -327,6 +349,8 @@ const ConversationTimeline = memo(function ConversationTimeline({
   displayThreadKey,
   paintOnly = false,
   onOpenTurnDiff,
+  renderHtmlRender,
+  turnItemSource,
   onOpenThread,
   parentThreadLink = null,
   workflowOpening = null,
@@ -357,14 +381,14 @@ const ConversationTimeline = memo(function ConversationTimeline({
   onContentOverflowChange,
   liveFollowEnabled,
   onToolOutputCollapsedAtEnd,
-  onManualNavigation,
+  onManualNavigation = NOOP_MESSAGE_JUMP_FAILED,
+  onViewportAttach,
   cancelPositionRestoreRef,
   hideEmptyPlaceholder = false,
   loading = false,
   emptyPlaceholderInset,
   topFadeEnabled = false,
   historyControls,
-  loadEarlier = null,
   pinnedMessages = EMPTY_PINNED_MESSAGES,
   onTogglePinnedMessage,
   messageJump = null,
@@ -568,6 +592,42 @@ const ConversationTimeline = memo(function ConversationTimeline({
       );
     }
   }
+  const [citationExpandedFor, setCitationExpandedFor] = useState<string | null>(null);
+  if (!citationRequest && citationExpandedFor !== null) setCitationExpandedFor(null);
+  const citedEntry =
+    citationRequest &&
+    citationExpandedFor !== citationRequest.key &&
+    citationHistory._tag !== "failed"
+      ? timelineEntries.find(
+          (entry) =>
+            entry.kind === "message" &&
+            entry.message.role === "assistant" &&
+            entry.message.id === citationRequest.citation.messageId,
+        )
+      : undefined;
+  if (citationRequest && citedEntry) {
+    const runId = (
+      findFoldRunIds ??
+      timelineTurnFoldRunIdsByEntryId({
+        timelineEntries,
+        latestRun,
+        runningRunId,
+        isWorking,
+        runlessWorkActive,
+      })
+    ).get(citedEntry.id);
+    setCitationExpandedFor(citationRequest.key);
+    if (runId)
+      setExpandedRunIds((previous) =>
+        previous.has(runId) ? previous : new Set(previous).add(runId),
+      );
+    if (citedEntry.attempt?.status === "superseded") {
+      const attemptId = citedEntry.attempt.id;
+      setExpandedAttemptIds((previous) =>
+        previous.has(attemptId) ? previous : new Set(previous).add(attemptId),
+      );
+    }
+  }
   const visibleExpandedRunIds =
     !activeFindRunId || paintedExpandedRunIds.has(activeFindRunId)
       ? paintedExpandedRunIds
@@ -590,8 +650,15 @@ const ConversationTimeline = memo(function ConversationTimeline({
       ? new Set(paintedExpandedAttemptIds).add(activeFindAttemptId)
       : paintedExpandedAttemptIds;
 
+  const pendingApprovalsByRequestId = new Map(
+    pendingApprovals
+      .filter((approval) => !heldApprovalRequestIds?.has(approval.requestId))
+      .map((approval) => [approval.requestId, approval]),
+  );
+  const pendingApprovalRequestIds = new Set(pendingApprovalsByRequestId.keys());
   const rawRows = useIncrementalTimelineRows(`${listIdentityKey}\0${workspaceRoot ?? ""}`, {
     timelineEntries,
+    pendingApprovalRequestIds,
     latestRun,
     runningRunId,
     expandedRunIds: visibleExpandedRunIds,
@@ -607,6 +674,15 @@ const ConversationTimeline = memo(function ConversationTimeline({
     worktreeSetup,
   });
   const rows = useStableRows(rawRows, listIdentityKey);
+  const unmatchedPendingApprovals = new Map(pendingApprovalsByRequestId);
+  for (const row of rows) {
+    const entries =
+      row.kind === "work" ? row.groupedEntries : row.kind === "work-live" ? [row.entry] : [];
+    for (const entry of entries) {
+      const item = entry.projectedItem?.item;
+      if (item?.type === "approval_request") unmatchedPendingApprovals.delete(item.requestId);
+    }
+  }
   // Run status/timestamps churn on every stream event; the shared row context
   // must not change with them or every timeline row re-renders per event.
   const runs = useStableHandoffRuns(runsProp);
@@ -620,7 +696,9 @@ const ConversationTimeline = memo(function ConversationTimeline({
       : -1;
   const restoringAlwaysRender =
     restoringThreadPosition && restoreRowIndex >= 0 ? { indices: [restoreRowIndex] } : undefined;
+  const viewportRef = useRef<TimelineViewport | null>(null);
   useTimelinePositionRestore({
+    viewportRef,
     listRef,
     listIdentityKey,
     restoringThreadPosition,
@@ -654,14 +732,15 @@ const ConversationTimeline = memo(function ConversationTimeline({
     alwaysRender: citationAlwaysRender,
   } = useAssistantCitationTarget({
     request: citationRequest,
-    entries: timelineEntries,
-    rows,
-    listRef,
+    phase: citationRequest
+      ? resolveCitationPhase({
+          history: citationHistory,
+          messageId: citationRequest.citation.messageId,
+          entries: timelineEntries,
+          rows,
+        })
+      : null,
     viewport: timelineViewportElement,
-    historyLoading: citationHistoryLoading,
-    loadEarlier,
-    getTurnFoldRunId: turnFoldRunIdOf,
-    onExpandTurn: expandCitedRun,
     onManualNavigation,
   });
   const [findListReady, setFindListReady] = useState(false);
@@ -733,11 +812,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
     size: true,
     shouldRestorePosition: shouldRestoreVisibleContentPosition,
   };
-  const timelineListFooter = (
-    <TimelineListFooter composerInset={anchoredEndSpace ? 0 : contentInsetEndAdjustment}>
-      {footer}
-    </TimelineListFooter>
-  );
 
   const measureContentOverflow = () =>
     timelineContentOverflowsViewport(listRef.current?.getState?.(), {
@@ -869,7 +943,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
         minimapRefreshFrameRef.current = null;
       }
     },
-    [],
+    [minimapRefreshFrameRef],
   );
 
   useEffect(() => {
@@ -918,6 +992,10 @@ const ConversationTimeline = memo(function ConversationTimeline({
   }, [timelineViewportElement, rows.length, reportContentOverflow, chatWidth]);
 
   const sharedState: TimelineRowSharedState = {
+    pendingApprovals: pendingApprovalsByRequestId,
+    respondingRequestIds,
+    canOperateThread,
+    onRespondToApproval,
     citationRequest: readyCitationRequest,
     listRef,
     timestampFormat,
@@ -940,6 +1018,8 @@ const ConversationTimeline = memo(function ConversationTimeline({
     onFileDownload,
     openPullRequest,
     onOpenTurnDiff,
+    renderHtmlRender,
+    turnItemSource,
     onOpenThread,
     workflowOpening,
     onForkFromRun,
@@ -957,7 +1037,12 @@ const ConversationTimeline = memo(function ConversationTimeline({
     workGroupViewState,
   };
   const compactionAwaitingRow =
-    isCompacting && !rows.some((row) => row.kind === "context-compaction" && row.active);
+    isCompacting &&
+    !rows.some(
+      (row) =>
+        (row.kind === "context-compaction" && row.active) ||
+        (row.kind === "working" && row.compacting),
+    );
   const backgroundWorktreeSetup =
     worktreeSetup !== null &&
     worktreeSetup.phase === "running" &&
@@ -1005,10 +1090,22 @@ const ConversationTimeline = memo(function ConversationTimeline({
 
   const canvas = useChatCanvas();
   const registerTimeline = canvas?.registerTimeline;
-  const setTimelineList = (list: LegendListRef | null) => {
+  const isPaneInputOwner = usePaneInputOwner();
+  const setTimelineList = useStableCallback((list: LegendListRef | null) => {
     listRef.current = list;
-    registerTimeline?.(list?.getScrollableNode() ?? null);
-  };
+    const scrollNode = list?.getScrollableNode() ?? null;
+    registerTimeline?.(scrollNode);
+    const viewport = scrollNode ? attachTimelineViewport(scrollNode, isPaneInputOwner) : null;
+    viewportRef.current = viewport;
+    const detach = viewport ? onViewportAttach?.(viewport) : undefined;
+    return () => {
+      detach?.();
+      viewport?.dispose();
+      if (viewportRef.current === viewport) viewportRef.current = null;
+      registerTimeline?.(null);
+      if (listRef.current === list) listRef.current = null;
+    };
+  });
   const endFollowAllowed = !(
     citationPositioning ||
     (restoringThreadPosition && rememberedPosition?.atEnd === false) ||
@@ -1099,6 +1196,27 @@ const ConversationTimeline = memo(function ConversationTimeline({
     </TimelineRowCtx>
   );
   const listExtraData = { identity: listIdentityKey, rowCount: rows.length, sharedState };
+  const timelineListFooter = (
+    <TimelineListFooter composerInset={anchoredEndSpace ? 0 : contentInsetEndAdjustment}>
+      {footer}
+      {unmatchedPendingApprovals.size > 0 ? (
+        <TimelineRowCtx value={sharedState}>
+          <div className="messages-timeline-row-frame">
+            <div
+              className="@container/chat-lane chat-content-lane overflow-x-clip"
+              data-timeline-root="true"
+            >
+              <WorkLogBlock>
+                {[...unmatchedPendingApprovals.values()].map((approval) => (
+                  <TimelinePendingApprovalRow key={approval.requestId} approval={approval} />
+                ))}
+              </WorkLogBlock>
+            </div>
+          </div>
+        </TimelineRowCtx>
+      ) : null}
+    </TimelineListFooter>
+  );
 
   const forwardMinimapWheel = (event: WheelEvent) => {
     const scrollNode = listRef.current?.getScrollableNode();
@@ -1338,7 +1456,7 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
       {row.kind === "proposed-plan" ? <ProposedPlanTimelineRow row={row} /> : null}
       {row.kind === "html-render" ? <HtmlRenderTimelineRow row={row} /> : null}
       {row.kind === "mcp-app" ? <McpAppTimelineRow row={row} /> : null}
-      {row.kind === "working" ? <WorkingTimelineRow /> : null}
+      {row.kind === "working" ? <WorkingTimelineRow row={row} /> : null}
       {row.kind === "worktree-setup" ? <WorktreeSetupTimelineRow row={row} /> : null}
       {row.kind === "event" ? <V2EventTimelineRow row={row} /> : null}
     </div>
@@ -1372,35 +1490,49 @@ function ContextCompactionTimelineRow({
 }: {
   row: Extract<TimelineRow, { kind: "context-compaction" }>;
 }) {
+  const label =
+    row.title && row.label.startsWith("Context compacted")
+      ? row.title + row.label.slice("Context compacted".length)
+      : row.label;
   const content = (
-    <span className="flex items-center gap-1.5">
-      <ShrinkIcon aria-hidden="true" className="size-3" />
+    <span className="flex min-w-0 items-center gap-1.5">
+      {row.failed ? (
+        <CircleAlertIcon aria-hidden="true" className="size-3 shrink-0" />
+      ) : (
+        <ShrinkIcon aria-hidden="true" className="size-3" />
+      )}
       {row.tokenCounts ? (
         <>
-          Context compacted {row.tokenCounts.before}
+          {row.title ?? "Context compacted"} {row.tokenCounts.before}
           <ArrowRightIcon aria-hidden="true" className="size-3" />
           {row.tokenCounts.after} tokens
         </>
       ) : (
-        row.label
+        label
       )}
+      {row.failure ? (
+        <span className="min-w-0 truncate opacity-80">&middot; {row.failure}</span>
+      ) : null}
     </span>
   );
   return (
     <div
       role="separator"
-      aria-label={row.label}
-      className="mx-auto flex w-full max-w-(--chat-content-max-width) items-center gap-3 py-1 text-muted-foreground text-xs"
+      aria-label={row.failure ? `${label}: ${row.failure}` : label}
+      className={cn(
+        "mx-auto flex w-full max-w-(--chat-content-max-width) items-center gap-3 py-1 text-xs",
+        row.failed ? "text-destructive" : "text-muted-foreground",
+      )}
     >
-      <span className="h-px flex-1 bg-border/70" />
+      <span className={cn("h-px flex-1", row.failed ? "bg-destructive/30" : "bg-border/70")} />
       <span
         ref={row.active ? observeVisibleAnimation : undefined}
-        className="relative shrink-0 overflow-hidden"
+        className="relative min-w-0 overflow-hidden"
       >
         {content}
         {row.active ? <ActivityShimmerOverlay>{content}</ActivityShimmerOverlay> : null}
       </span>
-      <span className="h-px flex-1 bg-border/70" />
+      <span className={cn("h-px flex-1", row.failed ? "bg-destructive/30" : "bg-border/70")} />
     </div>
   );
 }

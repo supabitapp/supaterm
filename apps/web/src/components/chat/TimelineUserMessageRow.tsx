@@ -1,3 +1,4 @@
+import { GuestMessageName, guestBubbleClassName } from "./guestMessageStyle";
 import { TimelineRowCtx, type TimelineRow, TimelineRowActivityCtx } from "./timelineRowContext";
 import {
   MessageAuthorHeading,
@@ -303,7 +304,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
       ? { environmentId: ctx.activeThreadEnvironmentId, threadId: senderThreadId }
       : null,
   );
-  const resolvedContext = resolveUserMessageContext(row.message);
+  const resolvedContext = resolveUserMessageContext({ ...row.message, text: userMessage.text });
   const previewImages = userImages.filter((image) => image.name.startsWith("preview-annotation-"));
   const revertTurnCount = row.revertTurnCount;
   const pinned = useMessagePinned(row.projectedItem);
@@ -420,6 +421,11 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
       className="group flex flex-col items-end gap-1"
       data-user-message-attribution={folded ? "agent" : undefined}
     >
+      {userMessage.guestName !== undefined ? (
+        <div aria-hidden>
+          <GuestMessageName name={userMessage.guestName} />
+        </div>
+      ) : null}
       {userMessage.attribution === "supaterm" ? (
         <p
           className="me-1 text-2xs text-muted-foreground/70"
@@ -434,7 +440,8 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
       ) : null}
       <div
         className={cn(
-          "relative min-w-0 max-w-[80%] rounded-2xl bg-message text-message-foreground",
+          "relative min-w-0 max-w-[80%] rounded-2xl text-message-foreground",
+          userMessage.attribution === "guest" ? guestBubbleClassName(false) : "bg-message",
           !folded && "p-3",
           folded && expanded && "w-full",
         )}
@@ -458,7 +465,9 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
               folded && !ctx.findActive && "max-h-96 overflow-auto",
             )}
           >
-            <MessageAuthorHeading>You</MessageAuthorHeading>
+            <MessageAuthorHeading>
+              {userMessage.guestName === undefined ? "You" : `${userMessage.guestName} (guest)`}
+            </MessageAuthorHeading>
             {(regularImages.length > 0 || userVideos.length > 0) && (
               <div className="mb-2 grid max-w-[210px] grid-cols-2 gap-2">
                 {regularImages.map((image) => (

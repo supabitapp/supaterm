@@ -285,13 +285,14 @@ function ExpandedWorkGroupEntries({
 
 const workEntryKey = (entry: TimelineWorkEntry) => entry.id;
 
-export function WorkingTimelineRow() {
+export function WorkingTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "working" }> }) {
   const { isCompacting, isPreparingWorktree, backgroundWorktreeSetup } =
     use(TimelineRowActivityCtx);
+  const compacting = row.compacting ?? (isCompacting ? "Compacting…" : undefined);
   const label = isPreparingWorktree ? (
     "Setting up worktree…"
-  ) : isCompacting ? (
-    <CompactingLabel />
+  ) : compacting !== undefined ? (
+    <CompactingLabel label={compacting} />
   ) : null;
   if (!label && !backgroundWorktreeSetup) return null;
   return (
@@ -350,11 +351,11 @@ function BackgroundWorktreeSetupChip({ snapshot }: { snapshot: WorktreeSetupSnap
   );
 }
 
-function CompactingLabel() {
+function CompactingLabel({ label }: { label: string }) {
   return (
     <span className="inline-flex items-center gap-1.5">
       <ShrinkIcon aria-hidden="true" className="size-3" />
-      Compacting…
+      {label}
     </span>
   );
 }

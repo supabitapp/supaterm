@@ -1,3 +1,6 @@
+import { shallow } from "zustand/vanilla/shallow";
+import { useCitedHistory } from "./chat/citationProcedure";
+import { GuestPendingMessages } from "./chat/GuestShareControls";
 import { canQueueComposerMessageAtom } from "../state/composerQueue";
 import {
   pendingThreadCreationMessage,
@@ -295,12 +298,7 @@ import type { MessageJump, MessageJumpFailure } from "@supaterm/client-runtime/m
 import { ThreadTimeline } from "./chat/ThreadTimeline";
 import { ProviderSubagentBar } from "./chat/ProviderSubagentBar";
 import { getTriggerDisplayModelName } from "./chat/providerIconUtils";
-import {
-  overlayComposerIsResting,
-  resolveComposerTimelineInset,
-  resolveComposerUsageMeterSlot,
-  resolveScrollToEndClearance,
-} from "./composerFooterLayout";
+import { resolveComposerUsageMeterSlot, resolveScrollToEndClearance } from "./composerFooterLayout";
 import { ChatHeader } from "./chat/ChatHeader";
 import { useRemoteOpenState } from "~/remoteOpen";
 import { shouldShowOpenInPicker } from "./chat/OpenInPicker.logic";
@@ -678,6 +676,7 @@ export default function ChatView(props: ChatViewProps) {
       ? { citation, key: citationLocation.key ?? citationLocation.href }
       : null;
   })();
+  const citationHistory = useCitedHistory(citationRequest);
   const { resolvedTheme } = useTheme();
   const composerRuntimeMode = useComposerDraftStore(
     (store) => store.getComposerDraft(composerDraftTarget)?.runtimeMode ?? null,
@@ -714,9 +713,6 @@ export default function ChatView(props: ChatViewProps) {
   const composerFilesRef = useRef<ComposerFileAttachment[]>([]);
   const composerTerminalContextsRef = useRef<TerminalContextDraft[]>([]);
   const branchToolbarRef = useRef<BranchToolbarHandle>(null);
-  const [restingComposerControlsHost, setRestingComposerControlsHost] =
-    useState<HTMLDivElement | null>(null);
-  const [restingComposerControlsVisible, setRestingComposerControlsVisible] = useState(false);
   const citeAssistantText = (
     citation: AssistantCitation,
     sourceAnchor: AssistantCitationSourceAnchor,
@@ -780,19 +776,14 @@ export default function ChatView(props: ChatViewProps) {
   const [terminalUiLaunchContext, setTerminalUiLaunchContext] =
     useState<TerminalLaunchContext | null>(null);
   const legendListRef = useRef<LegendListRef | null>(null);
-  const getTimelineScrollableNode = () => legendListRef.current?.getScrollableNode() ?? null;
-  const getTimelineScrollableNodeStable = useStableCallback(getTimelineScrollableNode);
   const [composerOverlayElement, setComposerOverlayElement] = useState<HTMLDivElement | null>(null);
   const [composerTimelineInset, setComposerTimelineInset] = useState(0);
   const composerTimelineInsetRef = useRef(0);
   const [composerReservedHeight, setComposerReservedHeight] = useState(0);
   const composerReservedHeightRef = useRef(0);
   const composerExpandedHeightRef = useRef(0);
-  const composerRestingRef = useRef(false);
-  const [composerResting, setComposerResting] = useState(false);
   const composerMountedRef = useRef(true);
   const [scrollToEndClearance, setScrollToEndClearance] = useState(0);
-  const [timelineOverflows, setTimelineOverflows] = useState(false);
   const fanoutSelectionsAtom = draftFanoutSelectionsAtom(routeThreadKey);
   const { sendInFlight: sendInFlightRef } = draftSendState(routeThreadKey);
   const isSendInFlight = useEffectEvent(() => sendInFlightRef.current);
@@ -1443,6 +1434,12 @@ export default function ChatView(props: ChatViewProps) {
     composerRef,
     setThreadError,
   });
+  const [heldApprovalRequestIds, setHeldApprovalRequestIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const onHeldRequestIdsChange = useStableCallback((requestIds: ReadonlySet<string>) => {
+    setHeldApprovalRequestIds((current) => (shallow(current, requestIds) ? current : requestIds));
+  });
   // A pending approval or question is part of the key: once it is answered,
   // from this client or any other, the agent resumes and spends quota.
   const usageLimitsKey =
@@ -1802,10 +1799,8 @@ export default function ChatView(props: ChatViewProps) {
   };
   const mountComposerContextStrip = shouldShowComposerContextStrip({
     ...composerContextStripInput,
-    hostsRestingComposerControls: routeKind === "server",
+    hostsRestingComposerControls: false,
   });
-  const mountComposerModelStrip =
-    routeKind === "server" && !mountComposerContextStrip && !showProviderSubagentBar;
   const composerUsageWindows = headlineUsageWindows(activeProviderStatus);
   const composerUsageMeterSlot = resolveComposerUsageMeterSlot({
     hasUsageWindows: composerUsageWindows.length > 0,
@@ -1817,10 +1812,8 @@ export default function ChatView(props: ChatViewProps) {
   const showComposerContextStrip =
     shouldShowComposerContextStrip({
       ...composerContextStripInput,
-      hostsRestingComposerControls: routeKind === "server" && restingComposerControlsVisible,
-    }) ||
-    (composerUsageMeterSlot === "context-strip" && !composerResting);
-  const showComposerModelStrip = mountComposerModelStrip && restingComposerControlsVisible;
+      hostsRestingComposerControls: false,
+    }) || composerUsageMeterSlot === "context-strip";
   const composerUsageMeter = <ComposerUsageMeter windows={composerUsageWindows} />;
   const terminalShortcutLabelOptions = {
     context: {
@@ -2180,11 +2173,11 @@ export default function ChatView(props: ChatViewProps) {
   };
 
   const {
+    attachTimelineViewport,
     shortcuts: timelineFollowShortcuts,
     showScrollToBottom,
     timelineLiveFollowEnabled,
     cancelPositionRestoreRef,
-    isTimelineAtLogicalEndStable,
     cancelTimelineLiveFollowForUserNavigationStable,
     onComposerPageScrollKeyDownStable,
     onComposerPageScrollKeyUpStable,
@@ -2197,7 +2190,6 @@ export default function ChatView(props: ChatViewProps) {
     anchorNewTurn,
   } = useTimelineFollow({
     legendListRef,
-    composerRef,
     composerOverlayElement,
     composerTimelineInset,
     routeThreadKey,
@@ -2348,20 +2340,6 @@ export default function ChatView(props: ChatViewProps) {
   const publishComposerOverlayHeight = (height: number) => {
     const nextHeight = Math.ceil(height);
     if (nextHeight <= 0) return;
-    const isResting = overlayComposerIsResting({
-      composerMounted: composerMountedRef.current,
-      composerReportedResting: composerRestingRef.current,
-    });
-    const modelStrip = composerOverlayElement?.querySelector<HTMLElement>(
-      '[data-composer-model-strip="true"]',
-    );
-    const restingOnlyHeight =
-      modelStrip && isResting
-        ? Math.max(
-            0,
-            modelStrip.offsetHeight + Number.parseFloat(getComputedStyle(modelStrip).marginTop),
-          )
-        : 0;
     const noticeStack = composerOverlayElement?.querySelector<HTMLElement>(
       '[data-composer-banner-stack="true"]',
     );
@@ -2372,13 +2350,7 @@ export default function ChatView(props: ChatViewProps) {
             Number.parseFloat(getComputedStyle(noticeStack).minHeight),
         )
       : 0;
-    const nextInset = resolveComposerTimelineInset({
-      currentInset: composerTimelineInsetRef.current,
-      overlayHeight: height,
-      isResting,
-      restingOnlyHeight,
-      expandedNoticesHeight,
-    });
+    const nextInset = Math.max(0, Math.ceil(height - expandedNoticesHeight));
     if (composerTimelineInsetRef.current !== nextInset) {
       composerTimelineInsetRef.current = nextInset;
       setComposerTimelineInset(nextInset);
@@ -2430,14 +2402,6 @@ export default function ChatView(props: ChatViewProps) {
     setScrollToEndClearance(clearance);
   };
   const publishComposerOverlayHeightStable = useStableCallback(publishComposerOverlayHeight);
-  // The composer reports its resting flag from a layout effect, which runs
-  // before this component's own layout effects and before any resize
-  // observation, so every measurement below sees the flag for its layout.
-  const onComposerRestingChange = (resting: boolean) => {
-    composerRestingRef.current = resting;
-    setComposerResting(resting);
-  };
-  const onComposerRestingChangeStable = useStableCallback(onComposerRestingChange);
   const composerTimelineInsetOwnerRef = useRef<{
     readonly threadKey: string | null;
     readonly overlay: HTMLDivElement;
@@ -2707,6 +2671,7 @@ export default function ChatView(props: ChatViewProps) {
           stoppedAt: activeThreadShell.latestRun.completedAt ?? activeThreadShell.updatedAt,
           recovery: activeThreadShell.limitRecovery ?? null,
           snoozedUntil: activeThreadShell.snoozedUntil,
+          timestampFormat,
           onChange: async (limitRecovery) => {
             const result = await updateThreadMetadata({
               environmentId,
@@ -3094,6 +3059,14 @@ export default function ChatView(props: ChatViewProps) {
   const sendPreviewAnnotationStable = useStableCallback(sendPreviewAnnotation);
   const onComposerResumeStable = useStableCallback(onResume);
   const onComposerCompactContextStable = useStableCallback(onCompactContext);
+  const guestPendingMessages =
+    isServerThread && activeThread ? (
+      <GuestPendingMessages
+        threadRef={scopeThreadRef(activeThread.environmentId, activeThread.id)}
+        onImageExpand={(preview) => openExpandedImagePreview(routeThreadKey, preview)}
+        onFileOpen={openFileAttachmentStable}
+      />
+    ) : null;
   const queuedRunsControl = (
     <>
       <ThreadOutboxControl
@@ -3328,7 +3301,6 @@ export default function ChatView(props: ChatViewProps) {
           : undefined
       }
       availableEnvironments={logicalProjectEnvironments}
-      composerControlsHostRef={setRestingComposerControlsHost}
       contextStripVisible={showComposerContextStrip}
       contextStripPlacement={composerContextStripPlacement}
       usageMeter={composerUsageMeterSlot === "context-strip" ? composerUsageMeter : null}
@@ -3508,6 +3480,11 @@ export default function ChatView(props: ChatViewProps) {
                 />
                 <div className="relative flex min-h-0 flex-1 flex-col bg-background">
                   <ThreadTimeline
+                    pendingApprovals={pendingApprovals}
+                    heldApprovalRequestIds={heldApprovalRequestIds}
+                    respondingRequestIds={respondingRequestIds}
+                    onRespondToApproval={onRespondToApprovalStable}
+                    canOperateThread={canOperateThread}
                     threadDetailRef={routeThreadDetailRef}
                     entriesInput={timelineEntriesInput}
                     draftEntries={isServerThread ? null : draftTimelineEntries}
@@ -3518,7 +3495,7 @@ export default function ChatView(props: ChatViewProps) {
                     readyWorkspaceRoot={activeWorkspaceRoot ?? null}
                     timelineScope={paneScope?.paneId}
                     citationRequest={paintOnlyDisplayedTimeline ? null : citationRequest}
-                    citationHistoryLoading={threadDetailLoading}
+                    citationHistory={citationHistory}
                     {...(!paintOnlyDisplayedTimeline
                       ? {
                           onCiteAssistantText: citeAssistantTextStable,
@@ -3553,7 +3530,10 @@ export default function ChatView(props: ChatViewProps) {
                     isPreparingWorktree={!paintOnlyDisplayedTimeline && isPreparingWorktree}
                     footer={
                       paintOnlyDisplayedTimeline ? null : pendingHandoff === null ? (
-                        threadStatusLine
+                        <>
+                          {guestPendingMessages}
+                          {threadStatusLine}
+                        </>
                       ) : (
                         <>
                           <div className="chat-content-lane">
@@ -3564,6 +3544,7 @@ export default function ChatView(props: ChatViewProps) {
                               pending
                             />
                           </div>
+                          {guestPendingMessages}
                           {threadStatusLine}
                         </>
                       )
@@ -3634,9 +3615,9 @@ export default function ChatView(props: ChatViewProps) {
                     emptyPlaceholderInset={composerReservedHeight}
                     liveFollowEnabled={!paintOnlyDisplayedTimeline && timelineLiveFollowEnabled}
                     onIsAtEndChange={onIsAtEndChangeStable}
-                    onContentOverflowChange={setTimelineOverflows}
                     onToolOutputCollapsedAtEnd={onToolOutputCollapsedAtEndStable}
                     onManualNavigation={cancelTimelineLiveFollowForUserNavigationStable}
+                    onViewportAttach={attachTimelineViewport}
                     cancelPositionRestoreRef={cancelPositionRestoreRef}
                     hideEmptyPlaceholder={isDraftHeroState}
                     loading={!isDraftHeroState && threadDetailLoading}
@@ -3664,7 +3645,6 @@ export default function ChatView(props: ChatViewProps) {
                     show={showScrollToBottom && !isThreadFindActive}
                     bottom={scrollToEndClearance + 4}
                     onScrollToEnd={() => {
-                      composerRef.current?.restoreAfterTimelineReachedEnd();
                       scrollToEnd(true);
                     }}
                   />
@@ -3696,9 +3676,7 @@ export default function ChatView(props: ChatViewProps) {
                       >
                         <ComposerSurface.Shell
                           bottomStrip={
-                            (composerContextStripPlacement === "bottom" &&
-                              showComposerContextStrip) ||
-                            showComposerModelStrip
+                            composerContextStripPlacement === "bottom" && showComposerContextStrip
                           }
                         >
                           <ComposerSurface.Host
@@ -3806,6 +3784,7 @@ export default function ChatView(props: ChatViewProps) {
                                   activePendingApproval={
                                     queuedRunEdit.outbox.isEditing ? null : activePendingApproval
                                   }
+                                  onHeldRequestIdsChange={onHeldRequestIdsChange}
                                   pendingApprovals={
                                     queuedRunEdit.outbox.isEditing ? [] : pendingApprovals
                                   }
@@ -3825,6 +3804,8 @@ export default function ChatView(props: ChatViewProps) {
                                     activeEnvironmentUnavailable ? null : threadSyncPhase
                                   }
                                   runtimeMode={runtimeMode}
+                                  defaultRuntimeMode={defaultRuntimeMode}
+                                  permissionsShownInStrip={false}
                                   lockedProvider={lockedProvider}
                                   providerStatuses={providerStatuses as ServerProvider[]}
                                   providerCatalogKnown={serverConfig !== null}
@@ -3852,16 +3833,7 @@ export default function ChatView(props: ChatViewProps) {
                                   threadPullRequests={
                                     (activeThreadShell ?? activeThread)?.pullRequests
                                   }
-                                  restingControlsHost={restingComposerControlsHost}
-                                  restingControlsHaveLeadingContext={showDraftProjectPicker}
-                                  onRestingControlsVisibilityChange={
-                                    setRestingComposerControlsVisible
-                                  }
-                                  getTimelineScrollableNode={getTimelineScrollableNodeStable}
-                                  isTimelineAtLogicalEnd={isTimelineAtLogicalEndStable}
-                                  timelineOverflows={timelineOverflows}
                                   onComposerOverlayHeightChange={publishComposerOverlayHeightStable}
-                                  onRestingChange={onComposerRestingChangeStable}
                                   promptRef={promptRef}
                                   composerImagesRef={composerImagesRef}
                                   composerFilesRef={composerFilesRef}
@@ -3873,7 +3845,6 @@ export default function ChatView(props: ChatViewProps) {
                                   onSend={onComposerSendStable}
                                   onResume={onComposerResumeStable}
                                   onInterrupt={onInterruptStable}
-                                  onRespondToApproval={onRespondToApprovalStable}
                                   onSelectActivePendingUserInputOption={
                                     onSelectActivePendingUserInputOptionStable
                                   }
@@ -3911,24 +3882,6 @@ export default function ChatView(props: ChatViewProps) {
                               data-terminal-open={terminalUiState.terminalOpen ? "true" : undefined}
                               className="relative z-0"
                             >
-                              {mountComposerModelStrip ? (
-                                <ComposerSurface.ContextStrip
-                                  data-composer-model-strip="true"
-                                  aria-hidden={showComposerModelStrip ? undefined : true}
-                                  inert={showComposerModelStrip ? undefined : true}
-                                  className={cn(
-                                    "group-data-model-strip-transition/composer-surface:before:backdrop-blur-(--glass-blur) group-data-model-strip-transition/composer-surface:before:bg-(--chat-composer-glass-surface)/(--glass-opacity)",
-
-                                    !showComposerModelStrip &&
-                                      "pointer-events-none invisible absolute inset-x-0 top-full",
-                                  )}
-                                >
-                                  <div
-                                    ref={setRestingComposerControlsHost}
-                                    className="min-w-0 flex-1"
-                                  />
-                                </ComposerSurface.ContextStrip>
-                              ) : null}
                               {composerContextStripPlacement === "bottom"
                                 ? composerContextStrip
                                 : null}

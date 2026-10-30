@@ -1,3 +1,4 @@
+import { GuestShareIndicator } from "./GuestShareControls";
 import {
   AuthOrchestrationOperateScope,
   type EnvironmentId,
@@ -440,6 +441,7 @@ export const ChatHeader = memo(function ChatHeader({
           )}
         </WorkspaceBreadcrumbItem>
       </WorkspaceBreadcrumb>
+      {isServerThread ? <GuestShareIndicator threadRef={activeThreadRef} /> : null}
       <PinnedMessagesMenu
         pins={pinnedMessages}
         timestampFormat={timestampFormat}
