@@ -75,6 +75,29 @@ it.layer(NodeServices.layer)("PairingGrantStore.layer", (it) => {
     ),
   );
 
+  it.effect("preserves a code after an all-scopes rejection and consumes one allowed retry", () =>
+    Effect.gen(function* () {
+      const store = yield* PairingGrantStore.PairingGrantStore;
+      const issued = yield* store.issueOneTimeToken({ scopes: ["orchestration:read"] });
+      const denied = yield* store
+        .consume(issued.credential, {
+          requiredScopes: ["orchestration:read", "orchestration:operate"],
+        })
+        .pipe(Effect.flip);
+      expect(denied._tag).toBe("BootstrapCredentialScopeNotGrantedError");
+      const retried = yield* Effect.all(
+        Array.from({ length: 8 }, () =>
+          store
+            .consume(issued.credential.toLowerCase(), { requiredScopes: ["orchestration:read"] })
+            .pipe(Effect.result),
+        ),
+        { concurrency: "unbounded" },
+      );
+      expect(retried.filter((result) => result._tag === "Success")).toHaveLength(1);
+      expect(retried.filter((result) => result._tag === "Failure")).toHaveLength(7);
+    }).pipe(Effect.provide(layerPairingGrantStore())),
+  );
+
   it.effect("atomically consumes a one-time token when multiple requests race", () =>
     Effect.gen(function* () {
       const bootstrapCredentials = yield* PairingGrantStore.PairingGrantStore;
