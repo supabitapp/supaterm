@@ -15,8 +15,7 @@ function progress(animation: Animation) {
     : (animation.effect?.getComputedTiming().progress ?? 0);
 }
 
-/** The list must be
- * positioned so every direct child's offsetTop has the same origin. */
+/** Position the list so all direct children's offsetTop share an origin. */
 export function createSidebarListMotion(parent: HTMLUListElement) {
   let positions: Map<HTMLElement, RowPosition> | null = null;
   let disposed = false;
@@ -250,8 +249,8 @@ export function createSidebarListMotion(parent: HTMLUListElement) {
             continue;
           }
           const delta = movedDelta.get(node);
-          // Computed progress includes the effect's easing. Only our own
-          // translate is carried forward; dnd-kit's transforms are never read.
+          // Computed progress includes easing; carry forward only our translation, never dnd-kit's
+          // transforms.
           if (delta !== undefined) move(node, delta);
         }
       }

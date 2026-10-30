@@ -65,12 +65,8 @@ export interface SkippedMachine {
   readonly reason: string;
 }
 
-/**
- * Two kinds are in neither list: servers already on the target, and servers this app hosts,
- * which would relaunch the app mid-run and update with the app's own install anyway. A
- * desktop-managed server follows its own app's update feed, so the channel rule does not apply
- * to it.
- */
+/** Skip current and app-hosted servers; the latter update with the app and would relaunch mid-run.
+ * Desktop-managed servers use their own feed. */
 export function collectServerUpdateTargets(
   machines: ReadonlyArray<UpdateEverythingMachine>,
   targetVersion: string,
@@ -127,11 +123,9 @@ function unavailableReason(machine: UpdateEverythingMachine): string | null {
   return null;
 }
 
-/** The latest release on the track a fleet switches to, as npm reports it. */
 export interface ChannelSwitchRelease {
   readonly channel: DesktopUpdateChannel;
   readonly version: string;
-  readonly databaseMigration: number | undefined;
 }
 
 export const channelSwitchLabel = (channel: DesktopUpdateChannel) =>
@@ -145,20 +139,9 @@ const crossesTrack = (fromVersion: string, release: ChannelSwitchRelease) =>
 function channelSwitchBlockReason(
   fromVersion: string,
   release: ChannelSwitchRelease,
-  currentMigration: number | undefined,
 ): string | null {
   if (!crossesTrack(fromVersion, release)) return null;
-  const from = channelSwitchLabel(desktopUpdateChannelOf(fromVersion));
-  // Servers and releases from before this check report no migration number.
-  if (currentMigration === undefined) {
-    return `its server predates database checks; update it on ${from} first`;
-  }
-  if (release.databaseMigration === undefined) {
-    return `${release.version} predates database checks; wait for a newer ${channelSwitchLabel(release.channel)} release`;
-  }
-  return currentMigration > release.databaseMigration
-    ? `its database has changes ${release.version} does not support yet; stay on ${from} until ${channelSwitchLabel(release.channel)} has them`
-    : null;
+  return "database compatibility for this release has not been verified; switch this machine manually";
 }
 
 /** This app's reinstall restarts every server it hosts, so each of their databases must allow the
@@ -169,7 +152,6 @@ export function localSwitchBlockReason(
   release: ChannelSwitchRelease,
   hosted: ReadonlyArray<{
     readonly connected: boolean;
-    readonly databaseMigration: number | undefined;
   }>,
   backendCount: number,
 ): string | null {
@@ -181,11 +163,7 @@ export function localSwitchBlockReason(
   ) {
     return "its server is not connected, so its database cannot be checked";
   }
-  return (
-    hosted
-      .map((server) => channelSwitchBlockReason(appVersion, release, server.databaseMigration))
-      .find((reason) => reason !== null) ?? null
-  );
+  return channelSwitchBlockReason(appVersion, release);
 }
 
 /** Servers move to the release; desktop-managed hosts reinstall their app on its track. A desktop
@@ -212,9 +190,6 @@ export function collectChannelSwitchTargets(
       desktopAppUpdate: config !== null && supportsDesktopAppUpdate(config),
       targetVersion,
       ...(selfUpdate === "desktop-managed" ? { channel: release.channel } : {}),
-      ...(release.databaseMigration === undefined
-        ? {}
-        : { targetDatabaseMigration: release.databaseMigration }),
     });
     const serverVersion = config?.environment.serverVersion;
     const sameTrack = serverVersion !== undefined && isOnTrack(serverVersion, release.channel);
@@ -243,11 +218,7 @@ export function collectChannelSwitchTargets(
       skip(move.skip);
       continue;
     }
-    const blocked = channelSwitchBlockReason(
-      serverVersion,
-      release,
-      config.environment.databaseMigration,
-    );
+    const blocked = channelSwitchBlockReason(serverVersion, release);
     if (blocked !== null) {
       skip(blocked);
       continue;
@@ -258,7 +229,7 @@ export function collectChannelSwitchTargets(
       compareSemverVersions(release.version, serverVersion) <= 0
     ) {
       skip(
-        `run \`t3 update --channel ${release.channel === "nightly" ? "nightly" : "stable"} --allow-downgrade\` there`,
+        `run \`supaterm update --channel ${release.channel === "nightly" ? "nightly" : "stable"} --allow-downgrade\` there`,
       );
       continue;
     }
@@ -312,10 +283,8 @@ export interface UpdateEverythingSteps<Providers, Servers> {
   readonly updateServers: () => Promise<Servers>;
 }
 
-/**
- * Providers finish before any server restarts, so no install is cut off. The caller installs this app afterwards when `localReady`, because
- * the relaunch ends the run; a failed download skips only that install.
- */
+/** Finish provider installs before server restarts. Install this app last when localReady; failed
+ * downloads skip only that install. */
 export async function runUpdateEverything<Providers, Servers>(
   steps: UpdateEverythingSteps<Providers, Servers>,
 ): Promise<{

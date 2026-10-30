@@ -10,7 +10,6 @@ import {
   AuthProvidersManageScope,
   ProviderInstanceId,
   ProviderDriverKind,
-  type EnvironmentId,
   type ProviderInstanceConfig,
   type ProviderInstanceEnvironmentVariable,
 } from "@supaterm/contracts";
@@ -49,16 +48,13 @@ import {
   type WizardNavigation,
 } from "./AddProviderInstanceDialog.logic";
 import { AddProviderInstanceWizardSteps } from "./AddProviderInstanceWizardSteps";
-import { AcpRegistrySearchStep } from "./AcpRegistrySearchStep";
+import { AcpRegistrySearchStep, useAcpRegistrySearch } from "./AcpRegistrySearchStep";
 import { ProviderWizardAuthenticationStep } from "./ProviderWizardAuthenticationStep";
 import { resolveOfficialAcpRegistryIconUrl } from "./AcpRegistryIcon";
 import { AddManagedCodexAccountDialog } from "./CodexSetupSection";
 import { ProviderEnvironmentSection } from "./ProviderInstanceCard";
 
-/**
- * Output is trimmed to 48 chars so the final composed id stays under the 64-char slug cap
- * enforced by `ProviderInstanceId` in `@supaterm/contracts`.
- */
+/** Limit the slug to 48 chars so the composed ProviderInstanceId fits its 64-char cap. */
 function slugifyLabel(value: string): string {
   return value
     .trim()
@@ -83,10 +79,6 @@ const DRIVER_OPTIONS = providerClients.definitions.filter(
 const FEATURED_DRIVER_OPTIONS = DRIVER_OPTIONS.filter((option) => option.featured !== false);
 const MORE_DRIVER_OPTIONS = DRIVER_OPTIONS.filter((option) => option.featured === false);
 const EMPTY_CONFIG_DRAFT: Record<string, unknown> = {};
-/**
- * Validate an instance id against the same slug rules the server applies in
- * `ProviderInstanceId` (see `packages/contracts/src/providerInstance.ts`).
- */
 function validateInstanceId(id: string, existing: ReadonlySet<string>): string | null {
   if (id.length === 0) return "Instance ID is required.";
   if (id.length > 64) return "Instance ID must be 64 characters or fewer.";
@@ -150,14 +142,6 @@ function ProviderOptionGrid({
   );
 }
 
-interface AddProviderInstanceDialogProps {
-  readonly open: boolean;
-  readonly environmentId: EnvironmentId;
-  readonly environmentLabel: string;
-  readonly onOpenChange: (open: boolean) => void;
-  readonly onCreated?: (instanceId: ProviderInstanceId) => void;
-}
-
 export function AddProviderInstanceDialog({
   open,
   environmentId,
@@ -180,9 +164,7 @@ export function AddProviderInstanceDialog({
     ReadonlyArray<ProviderInstanceEnvironmentVariable>
   >([]);
   const [isManualAcpConfiguration, setIsManualAcpConfiguration] = useState(false);
-  const [isRegistryLoading, setIsRegistryLoading] = useState(false);
   const [showMoreProviders, setShowMoreProviders] = useState(false);
-  const [isPreparingRegistryAgent, setIsPreparingRegistryAgent] = useState(false);
   const [configByDriver, setConfigByDriver] = useState<Record<string, Record<string, unknown>>>({});
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -196,6 +178,12 @@ export function AddProviderInstanceDialog({
 
   const driverOption = providerClients.get(driver) ?? DEFAULT_DRIVER_OPTION;
   const isAcpRegistry = driver === ACP_REGISTRY_DRIVER_KIND;
+  const showRegistrySearch = wizardStep === 0 && !(isAcpRegistry && isManualAcpConfiguration);
+  const registry = useAcpRegistrySearch(
+    environmentId,
+    wizardStep === 0 && !(isAcpRegistry && isManualAcpConfiguration),
+  );
+  const isPreparingRegistryAgent = registry.preparingId !== null;
   const defaultIdentity: ProviderIdentityDraft = {
     label: driverOption.label,
     accentColor: "",
@@ -459,7 +447,7 @@ export function AddProviderInstanceDialog({
           <>
             <WizardPanel
               className={cn(isAcpRegistry && wizardStep === identityStep && "min-h-72")}
-              holdHeight={wizardStep === 0 && !isManualAcpConfiguration && isRegistryLoading}
+              holdHeight={showRegistrySearch && registry.search.isPending}
             >
               <div className={cn("grid gap-2", wizardStep !== 0 && "hidden")}>
                 <div id="add-instance-driver-label" className="text-sm font-medium text-foreground">
@@ -546,8 +534,7 @@ export function AddProviderInstanceDialog({
                         onPrepared={handleAcpPrepared}
                         onManualConfiguration={handleManualAcpConfiguration}
                         onLocalConfiguration={handleLocalAcpConfiguration}
-                        onLoadingChange={setIsRegistryLoading}
-                        onPreparingChange={setIsPreparingRegistryAgent}
+                        registry={registry}
                       />
                       {isAcpRegistry && hasAttemptedSubmit && acpSelectionError ? (
                         <p className="mt-2 text-2xs text-destructive">{acpSelectionError}</p>

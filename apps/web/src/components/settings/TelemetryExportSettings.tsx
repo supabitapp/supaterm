@@ -135,6 +135,7 @@ function TelemetryExportForm() {
       if (check?.result === null) void sendCheck(key, signal, check.url);
     }
   });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- sends pending endpoint check requests once the environment can run them
   useEffect(() => {
     // oxlint-disable-next-line react/set-state-in-effect -- State changes only after the response arrives.
     if (canCheck) sendPendingChecks();
@@ -208,8 +209,7 @@ function TelemetryExportForm() {
                   disabled={saving || !canEdit}
                   onChange={(event) => {
                     const value = event.target.value;
-                    // Restoring the saved value drops the draft, so a later save can't resend it
-                    // over another client's change.
+                    // Clear restored drafts so later saves cannot overwrite another client's changes.
                     setDraft((previous) => {
                       const next = { ...previous, [key]: value };
                       if (value.trim() === saved[key]) delete next[key];

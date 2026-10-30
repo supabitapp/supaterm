@@ -38,7 +38,11 @@ import { EnvironmentId, ProjectId, ProviderInstanceId, RunId, ThreadId } from "@
 
 import { DEFAULT_RUNTIME_MODE, type Project, type Thread } from "../types";
 import { makeThreadFixture, type ThreadFixtureOverrides } from "../test-fixtures";
-import { completeSidebarRouteReveal, pendingSidebarRouteReveal } from "./sidebar/routeReveal";
+import {
+  completeSidebarRouteReveal,
+  pendingSidebarRouteReveal,
+  resolveSidebarRouteReveal,
+} from "./sidebar/routeReveal";
 
 const localEnvironmentId = EnvironmentId.make("environment-local");
 
@@ -243,6 +247,19 @@ describe("resolveSidebarThreadStatus", () => {
         runtime,
       }),
     ).toBe("approval");
+  });
+
+  it("shows a waiting guest message as a Request, below the agent's own requests", () => {
+    expect(resolveSidebarThreadStatus({ ...idle, pendingGuestMessageCount: 1, runtime })).toBe(
+      "request",
+    );
+    expect(
+      resolveSidebarThreadStatus({
+        ...idle,
+        hasPendingUserInput: true,
+        pendingGuestMessageCount: 1,
+      }),
+    ).toBe("input");
   });
 
   it("keeps usage-limit stops Limited and visible until the thread recovers", () => {
@@ -520,7 +537,9 @@ describe("resolveThreadStatusPill", () => {
       resolveThreadStatusPill({
         thread: {
           ...baseThread,
-          pendingBackgroundTasks: [{ taskId: "bg-1", description: "Watch build", kind: "monitor" }],
+          pendingBackgroundTasks: [
+            { taskId: "bg-1", description: "Watch build", kind: "monitor", awaited: true },
+          ],
           runtime: {
             ...baseThread.runtime,
             status: "idle",
@@ -852,7 +871,7 @@ describe("sortSidebarV2ProjectGroups", () => {
     ];
 
     expect(
-      sortSidebarV2ProjectGroups(projects, threads, "updated_at").map(
+      sortSidebarV2ProjectGroups(projects, threads, "updated_at", new Set()).map(
         (project) => project.projectKey,
       ),
     ).toEqual(["logical-newer", "logical-older"]);
@@ -1020,7 +1039,12 @@ describe("Working shelf", () => {
     lastError: null,
     updatedAt: "2026-03-09T10:00:00.000Z",
   };
-  const backgroundTask = { taskId: "bg-1", description: "Watch build", kind: "monitor" as const };
+  const backgroundTask = {
+    taskId: "bg-1",
+    description: "Watch build",
+    kind: "monitor" as const,
+    awaited: true as const,
+  };
   const idle = {
     interactionMode: "default" as const,
     hasActionableProposedPlan: false,
@@ -1255,5 +1279,69 @@ describe("pendingSidebarRouteReveal", () => {
     pendingSidebarRouteReveal(reveal, "env:a1");
     expect(pendingSidebarRouteReveal(reveal, null)).toBeNull();
     expect(pendingSidebarRouteReveal(reveal, "env:a1")).toBe("env:a1");
+  });
+});
+
+describe("resolveSidebarRouteReveal", () => {
+  const scopedProjectKeys = new Set(["environment-test:project-scoped"]);
+  const hidden = makeThreadFixture({ projectId: ProjectId.make("project-other") });
+  const hiddenKey = "environment-test:thread-test";
+  const findThread = (key: string) => (key === hiddenKey ? hidden : undefined);
+
+  it("widens the scope for a newly opened thread the scope hides", () => {
+    expect(
+      resolveSidebarRouteReveal({
+        reveal: { observedKey: "environment-test:other", pendingKey: null },
+        routeKey: hiddenKey,
+        isSearching: false,
+        scopedProjectKeys,
+        delegatedUnderParent: new Set(),
+        findThread,
+      }),
+    ).toEqual({ pendingKey: hiddenKey, widensScope: true });
+  });
+
+  it("never widens for a thread whose reveal already completed", () => {
+    // A remount's once-per-mount scroll must keep the scope the user chose.
+    expect(
+      resolveSidebarRouteReveal({
+        reveal: { observedKey: hiddenKey, pendingKey: null },
+        routeKey: hiddenKey,
+        isSearching: false,
+        scopedProjectKeys,
+        delegatedUnderParent: new Set(),
+        findThread,
+      }),
+    ).toEqual({ pendingKey: null, widensScope: false });
+  });
+
+  it("widens again for a thread reopened before the thread between them listed its row", () => {
+    // The user scoped away from the open thread, then went to a thread whose row
+    // never mounted, then came back.
+    const reveal = { observedKey: hiddenKey, pendingKey: null };
+    const resolve = (routeKey: string) =>
+      resolveSidebarRouteReveal({
+        reveal,
+        routeKey,
+        isSearching: false,
+        scopedProjectKeys,
+        delegatedUnderParent: new Set(),
+        findThread,
+      });
+    resolve("environment-test:unlisted");
+    expect(resolve(hiddenKey)).toEqual({ pendingKey: hiddenKey, widensScope: true });
+  });
+
+  it("holds a pending reveal without widening while searching", () => {
+    expect(
+      resolveSidebarRouteReveal({
+        reveal: { observedKey: hiddenKey, pendingKey: hiddenKey },
+        routeKey: hiddenKey,
+        isSearching: true,
+        scopedProjectKeys,
+        delegatedUnderParent: new Set(),
+        findThread,
+      }),
+    ).toEqual({ pendingKey: hiddenKey, widensScope: false });
   });
 });

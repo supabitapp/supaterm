@@ -39,6 +39,7 @@ const environmentId = EnvironmentId.make("environment");
 type Detail = Parameters<typeof PullRequestActionsMenu>[0]["detail"];
 
 const openDetail: Detail = {
+  repository: "owner/repo",
   url: "https://github.com/owner/repo/pull/7",
   state: "open",
   isDraft: false,
@@ -94,11 +95,13 @@ function setup() {
       actingEnvironmentId={environmentId}
       onActingEnvironmentChange={() => {}}
       can={() => false}
-      autoMergeArmed={false}
-      showsDraftToggle={false}
-      showsMergeNow={false}
-      showsAutoMerge={false}
-      showsMergeMethods={false}
+      mergeMenuActions={{
+        showsDraftToggle: false,
+        showsMergeNow: false,
+        showsAutoMerge: false,
+        showsMergeMethods: false,
+        showsDisableAutoMerge: false,
+      }}
       allowedMergeMethods={[]}
       selectedMergeMethod="squash"
       onSelectMergeMethod={() => {}}
@@ -106,7 +109,6 @@ function setup() {
       environmentConnected={true}
       canWriteSourceControl={true}
       onMaintainerEditsSaved={() => {}}
-      confirmDeleteBranch={async () => {}}
       pendingAction={null}
       perform={async () => true}
       openOnHostText="Open on GitHub"

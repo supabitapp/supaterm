@@ -1,3 +1,4 @@
+import { UpdateTrackSwitchDialog } from "./UpdateTrackSwitchDialog";
 import { StorageSettingsPanel } from "./StorageSettings";
 import { ThreadTitleInstructionsSettings } from "./ThreadTitleInstructionsSettings";
 import { SnoozePresetsRow } from "./SnoozePresetsSettings";
@@ -60,11 +61,7 @@ import {
   getCustomModelOptionsByInstance,
   resolveAppModelSelectionState,
 } from "../../modelSelection";
-import {
-  applyProviderInstanceSettings,
-  deriveProviderInstanceEntries,
-  sortProviderInstanceEntries,
-} from "../../providerInstances";
+import { providerInstanceEntriesFor } from "../../providerInstances";
 import { ensureLocalApi, readLocalApi } from "../../localApi";
 import { isMacPlatform } from "../../lib/utils";
 import { useEnvironmentProviders } from "../../state/environments";
@@ -131,7 +128,8 @@ function AboutVersionTitle() {
 
 function AboutVersionSection() {
   const updateState = useDesktopUpdateState();
-  const [isChangingUpdateChannel, setIsChangingUpdateChannel] = useState(false);
+  const [switchingChannel, setSwitchingChannel] = useState<DesktopUpdateChannel | null>(null);
+  const isChangingUpdateChannel = switchingChannel !== null;
   const [isUpdateActionPending, setIsUpdateActionPending] = useState(false);
 
   const hasDesktopBridge = typeof window !== "undefined" && Boolean(window.desktopBridge);
@@ -148,21 +146,7 @@ function AboutVersionSection() {
       return;
     }
 
-    setIsChangingUpdateChannel(true);
-    void bridge
-      .setUpdateChannel(channel)
-      .catch((error: unknown) => {
-        toastManager.add(
-          stackedThreadToast({
-            type: "error",
-            title: "Could not change update track",
-            description: error instanceof Error ? error.message : "Update track change failed.",
-          }),
-        );
-      })
-      .finally(() => {
-        setIsChangingUpdateChannel(false);
-      });
+    setSwitchingChannel(channel);
   };
 
   const handleButtonClick = async () => {
@@ -272,6 +256,12 @@ function AboutVersionSection() {
 
   return (
     <>
+      {switchingChannel !== null ? (
+        <UpdateTrackSwitchDialog
+          channel={switchingChannel}
+          onClose={() => setSwitchingChannel(null)}
+        />
+      ) : null}
       <SettingsRow
         id={searchableSetting("app-version").id}
         title={<AboutVersionTitle />}
@@ -505,11 +495,8 @@ export function useSettingsRestore(onRestored?: () => void) {
     );
     if (!confirmed) return;
 
-    // Only touch the theme keys that are actually dirty, so a theme-storage
-    // failure cannot block restoring unrelated settings. Preferences are
-    // re-read after the confirmation dialog: they may have changed (another
-    // tab, an OS flip) while it was open, and rollback must restore the live
-    // values rather than the ones captured at render time.
+    // Reset only dirty theme keys so storage failures cannot block other settings; re-read after confirmation
+    // for safe rollback.
     let previousTheme = theme;
     try {
       previousTheme = readThemePreference();
@@ -527,9 +514,7 @@ export function useSettingsRestore(onRestored?: () => void) {
         }),
       );
     };
-    // Rollback restores the base preference first (which clears any mix) and
-    // then re-applies the captured mix on top, so no failure path can leave
-    // the pair of keys half-restored.
+    // Restore the base preference before the mix because restoring the base clears the mix.
     const previousHalves = liveHalves;
     const rollbackThemeState = () => {
       if (needsThemeReset) setTheme(previousTheme);
@@ -669,12 +654,10 @@ function ConcernSettingsPanel({ concern }: { concern: SettingsConcern }) {
   const textGenInstanceId = textGenerationModelSelection.instanceId;
   const textGenModel = textGenerationModelSelection.model;
   const textGenModelOptions = textGenerationModelSelection.options;
-  const textGenerationModelInstanceEntries = sortProviderInstanceEntries(
-    applyProviderInstanceSettings(
-      deriveProviderInstanceEntries(textGenerationProviders),
-      settings,
-      target?.projectId ?? null,
-    ),
+  const textGenerationModelInstanceEntries = providerInstanceEntriesFor(
+    textGenerationProviders,
+    settings,
+    target?.projectId ?? null,
   );
   const hasTextGenerationProvider = textGenerationModelInstanceEntries.some(
     (entry) => entry.enabled && entry.isAvailable,

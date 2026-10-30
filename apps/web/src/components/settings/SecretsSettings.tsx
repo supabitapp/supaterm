@@ -1,3 +1,4 @@
+import { isSecretsFeatureEnabled } from "../../env";
 import type { SecretProviderConfig, SecretProviderId } from "@supaterm/contracts";
 import { KeyIcon, PlusIcon } from "@supaterm/icons";
 import type { ComponentType } from "react";
@@ -26,6 +27,7 @@ const SECRET_PROVIDER_KINDS: Readonly<
 export function SecretsSettingsPanel() {
   const { scope, environment } = useSettingsScope();
   const connected = environment?.connection.phase === "connected";
+  if (!isSecretsFeatureEnabled) return null;
   return (
     <SettingsPageContainer>
       {connected &&

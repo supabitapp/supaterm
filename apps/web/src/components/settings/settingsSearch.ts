@@ -1,3 +1,6 @@
+import { TYPOGRAPHY_ADVANCED_STORAGE_KEY } from "../../appearanceFonts";
+import { writeLocalStorageValue } from "../../hooks/useLocalStorage";
+import * as Schema from "effect/Schema";
 import { HOSTED_APP_CHANNEL } from "~/branding";
 import { isElectron, isSecretsFeatureEnabled } from "~/env";
 import { isMacPlatform, isWindowsPlatform, normalizeSearchText } from "~/lib/utils";
@@ -450,7 +453,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "provider-update-checks",
     title: "Provider update checks",
     to: "/settings/maintenance",
-    searchTerms: ["installed cli versions newer available codex claude cursor grok opencode"],
+    searchTerms: ["installed cli versions newer available codex claude cursor grok fx opencode"],
     scope: "environment-defaults",
   },
   {
@@ -644,7 +647,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     title: "Providers",
     to: "/settings/providers",
     searchTerms: [
-      "agents cli codex claude cursor grok opencode antigravity google sign in sign out install subscription instances authentication api key models configuration binary path config directory endpoint arguments environment variables display name accent color custom favorite hidden auto compact",
+      "agents cli codex claude cursor grok fx opencode antigravity google sign in sign out install subscription instances authentication api key models configuration binary path config directory endpoint arguments environment variables display name accent color custom favorite hidden auto compact",
     ],
   },
   {
@@ -1182,6 +1185,26 @@ export function searchSettings(
         left.index - right.index,
     )
     .map(({ item }) => item);
+}
+
+// Font smoothing only renders on macOS, so a search jump to it elsewhere
+// must not flip the section - the target would never mount to be scrolled to.
+const ADVANCED_TYPOGRAPHY_TARGET_IDS: ReadonlySet<string> = new Set([
+  "prompt-font",
+  "terminal-font",
+  ...(typeof navigator !== "undefined" && isMacPlatform(navigator.platform)
+    ? ["font-smoothing"]
+    : []),
+]);
+
+export function isAdvancedTypographyTarget(targetId: string): boolean {
+  return ADVANCED_TYPOGRAPHY_TARGET_IDS.has(targetId);
+}
+
+export function revealSettingsSearchTarget(targetId: string): void {
+  if (isAdvancedTypographyTarget(targetId)) {
+    writeLocalStorageValue(TYPOGRAPHY_ADVANCED_STORAGE_KEY, true, false, Schema.Boolean);
+  }
 }
 
 export const SETTINGS_NAV_GROUPS: ReadonlyArray<{

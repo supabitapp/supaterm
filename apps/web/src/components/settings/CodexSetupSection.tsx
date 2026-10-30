@@ -64,11 +64,6 @@ const noop = () => undefined;
 const prefersClientCallback = (local: boolean) =>
   !local || window.desktopBridge?.receiveProviderAuthCallback !== undefined;
 
-/**
- * How a sign-in started now reaches the provider. Read at use time, because a
- * sign-in can start minutes after the click that asked for it (once an install
- * finishes), and the primary environment may have connected in between.
- */
 function readSignInRouting(environmentId: EnvironmentId) {
   const local = isLocalProviderAuthConnection(readPreparedConnection(environmentId));
   const clientCallback = prefersClientCallback(local);
@@ -320,6 +315,7 @@ function ManagedCodexSetup({
   };
   const abortOperation = () => operation.current?.abort();
   // Once the card unmounts, nothing may start a sign-in or open a page on its behalf.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- aborts the in-flight setup or sign-in AbortController on unmount
   useEffect(() => () => operation.current?.abort(), []);
   const [autoStartHandled, setAutoStartHandled] = useState(false);
   const installed = installation?.installedVersion != null;
@@ -342,6 +338,7 @@ function ManagedCodexSetup({
   }
   // The server does not refresh the provider snapshot when a sign-in flow
   // succeeds, and the flow can finish elsewhere (callback, pasted redirect URL).
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- asks the server to refresh the provider snapshot once the sign-in flow succeeds
   useEffect(() => {
     if (awaitingProvider && auth?.phase === "succeeded") {
       void refreshProviders({ environmentId, input: { instanceId } });
@@ -411,6 +408,7 @@ function ManagedCodexSetup({
   const transferFinishedProfile = useEffectEvent((profile: ChatGptTransferredProfile) =>
     transferProfile(profile),
   );
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- imports the finished handoff profile to the server once per attempt when the handoff query completes
   useEffect(() => {
     if (!handoff || handoffQuery.data?.phase !== "finished") return;
     const attemptId = handoff.input.attemptId;
@@ -577,11 +575,13 @@ function ManagedCodexSetup({
     onAutoStartConsumed();
     void setup();
   });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- dispatches the automatic setup server command after the auto-start flag commits
   useEffect(() => {
     // oxlint-disable-next-line react/set-state-in-effect -- Starting setup dispatches a server command, which marks itself pending before it awaits.
     if (autoStartHandled) startAutomatically();
   }, [autoStartHandled]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the desktop bridge provider auth callback when the URL changes or the card unmounts
   useEffect(() => {
     if (!clientCallback || !url || !window.desktopBridge?.cancelProviderAuthCallback) return;
     return () => {

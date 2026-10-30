@@ -143,11 +143,7 @@ export function deriveProviderSettingsFields(
 }
 
 let commandArgumentDraftId = 0;
-/**
- * Editable rows seeded from a configured value. `seen` is the value the rows
- * were last reconciled against; `lastPublished` is what the rows last sent to
- * the owner, so its echo does not reseed rows (and drop their ids) mid-edit.
- */
+
 export interface RowsDraft<V, R> {
   readonly rows: ReadonlyArray<R>;
   readonly seen: V;

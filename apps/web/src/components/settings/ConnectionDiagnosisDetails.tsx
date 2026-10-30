@@ -1,3 +1,5 @@
+import { useDeadlinePassed } from "../../hooks/useDeadline";
+import { useNowSecond } from "../../hooks/useNowSecond";
 import { useAtomValue } from "@effect/atom-react";
 import {
   AVAILABLE_CONNECTION_STATE,
@@ -7,7 +9,6 @@ import {
   presentConnectionDiagnosis,
   usableRoutes,
 } from "@supaterm/client-runtime/connection";
-import * as Option from "effect/Option";
 import { AsyncResult } from "effect/reactivity";
 import { ChevronRightIcon } from "@supaterm/icons";
 
@@ -19,15 +20,10 @@ import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 
-/**
- * What failed on the way to an environment, or null while it is connected, off,
- * or has not failed. Reads the supervisor state itself so callers that only need
- * the headline do not re-render on every attempt.
- */
 export function useConnectionDiagnosis(environment: EnvironmentPresentation) {
   const environmentId = environment.environmentId;
-  const state = Option.getOrElse(
-    AsyncResult.value(useAtomValue(environmentCatalog.stateAtom(environmentId))),
+  const state = AsyncResult.getOrElse(
+    useAtomValue(environmentCatalog.stateAtom(environmentId)),
     () => AVAILABLE_CONNECTION_STATE,
   );
   const routes = usableRoutes(environment.entry);

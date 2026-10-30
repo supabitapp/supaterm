@@ -143,8 +143,6 @@ export function PullRequestStateGlyph({
   const presentation = resolvePullRequestState({ state, isDraft });
   return (
     <Tooltip>
-      {/* The list row is itself a button, so the trigger stays a span: an interactive one would
-          nest a control inside that button and steal the row's click target. */}
       <TooltipTrigger render={<span className="inline-flex shrink-0" />}>
         <presentation.Icon
           role="img"
@@ -386,12 +384,7 @@ export function pullRequestReviewOutcomeToneClassName(outcome: PullRequestReview
   return REVIEW_OUTCOME_PRESENTATION[outcome].toneClassName;
 }
 
-/**
- * A faded verdict is mixed into the background rather than made translucent. The ring is the only
- * separator an avatar carrying one has — the summary drops the opaque `ring-background` where a
- * verdict is drawn — and the stack overlaps by 4px, so an alpha ring would let the neighbour show
- * straight through it and the two faces would merge.
- */
+// Mix rings with the background to prevent avatars showing through their overlap.
 export function pullRequestReviewOutcomeRingClassName(
   outcome: PullRequestReviewOutcome,
   stale = false,

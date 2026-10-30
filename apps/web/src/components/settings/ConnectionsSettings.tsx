@@ -137,9 +137,7 @@ import { AddEnvironmentDialog } from "./AddEnvironmentDialog";
 const DEFAULT_TAILSCALE_SERVE_PORT = 443;
 const EMPTY_ADVERTISED_ENDPOINTS: ReadonlyArray<AdvertisedEndpoint> = [];
 
-// Sentinels for the consolidated WSL backend picker. The colon is
-// rejected by DISTRO_NAME_PATTERN (validated on the desktop side) so
-// neither can collide with a real distro name.
+// Colons are invalid in distro names, keeping picker sentinels collision-free.
 const BACKEND_VALUE_DEFAULT_WSL = "backend:default-wsl";
 const BACKEND_VALUE_WSL_OFF = "backend:wsl-off";
 
@@ -699,6 +697,11 @@ export function ConnectionsSettings({
       aria-label="Enable network access"
     />
   );
+  const linkedEnvironments = loadBalancingEnvironments.filter(
+    (environment) =>
+      environment.connection.phase === "connected" &&
+      environment.serverConfig?.settings.linkedEnvironmentsEnabled,
+  );
   const renderEndpointRows = (presentation: AccessSectionPresentation) =>
     isAdvertisedEndpointListExpanded
       ? visibleDesktopNetworkAdvertisedEndpoints.map((endpoint) => {
@@ -762,10 +765,7 @@ export function ConnectionsSettings({
     const defaultDistroName =
       desktopWslState.distros.find((distro) => distro.isDefault)?.name ?? null;
     if (value === BACKEND_VALUE_WSL_OFF) {
-      // Match the recovery row's visibility (`enabled || wslOnly`): when WSL
-      // went unavailable while wsl-only was persisted, `enabled` can be false
-      // while `wslOnly` is true, and the "Switch to Windows" button must
-      // still clear that state instead of silently no-op'ing.
+      // Unavailable WSL can remain wslOnly while disabled; switching to Windows must clear both.
       if (!desktopWslState.enabled && !desktopWslState.wslOnly) return;
       const wasWslOnly = desktopWslState.wslOnly;
       if (hasWslRegistrationToLose || wasWslOnly) {
@@ -1604,22 +1604,14 @@ export function ConnectionsSettings({
             ))}
             {savedEnvironments.length === 0 ? <EmptyRemoteEnvironments /> : null}
           </SettingsSection>
-          {loadBalancingEnvironments
-            .values()
-            .filter(
-              (environment) =>
-                environment.connection.phase === "connected" &&
-                environment.serverConfig?.settings.linkedEnvironmentsEnabled,
-            )
-            .map((environment, index) => (
-              <LinkedEnvironmentsSettings
-                key={environment.environmentId}
-                environmentId={environment.environmentId}
-                environmentLabel={environment.label}
-                isSearchTarget={index === 0}
-              />
-            ))
-            .toArray()}
+          {linkedEnvironments.map((environment, index) => (
+            <LinkedEnvironmentsSettings
+              key={environment.environmentId}
+              environmentId={environment.environmentId}
+              environmentLabel={environment.label}
+              isSearchTarget={index === 0}
+            />
+          ))}
           <LoadBalancingSettings environments={loadBalancingEnvironments} />
           <PullRequestRoutingSettings environments={loadBalancingEnvironments} />
         </>

@@ -183,6 +183,7 @@ export function usePullRequestScope(search: PullRequestsSearch) {
 
 export function usePullRequestQueryFilters(search: PullRequestsSearch, typedQuery: string) {
   const [sentQuery, setSentQuery] = useState(typedQuery);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- debounce timer that sends the typed query after SEARCH_DEBOUNCE_MS
   useEffect(() => {
     const timer = window.setTimeout(() => setSentQuery(typedQuery), SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);

@@ -1,3 +1,4 @@
+import { ThreadDetailsItemsRow } from "./ThreadDetailsItemsRow";
 import type { CSSProperties } from "react";
 import { useState } from "react";
 import {
@@ -304,6 +305,9 @@ export function AppearanceSettingsPanel() {
         />
       </SettingsSection>
 
+      <SettingsSection title="Thread details">
+        <ThreadDetailsItemsRow />
+      </SettingsSection>
       <TypographySection />
     </SettingsPageContainer>
   );

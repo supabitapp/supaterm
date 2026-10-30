@@ -3,6 +3,7 @@ import { preloadPatchFile } from "@pierre/diffs/ssr";
 import { useAtomValue } from "@effect/atom-react";
 import * as Effect from "effect/Effect";
 import { AsyncResult, Atom } from "effect/reactivity";
+
 import { useEffect, useRef, useState } from "react";
 import { ComposerPromptEditor, type ComposerPromptEditorHandle } from "../ComposerPromptEditor";
 import { EMPTY_COMPOSER_CONTEXT_RECORDS } from "../composerContextPresentation";
@@ -63,10 +64,7 @@ const DIFF_PREVIEW_PATCH = [
   "",
 ].join("\n");
 
-// The interactive FileDiff's mount lifecycle can race that highlighter when the typography views
-// remount it (toggling Advanced) and lock in an unhighlighted frame; a static preview needs none
-// of that lifecycle, so it uses the deterministic renderer and injects the finished HTML into a
-// shadow root, exactly as FileDiff would.
+// FileDiff remounts can retain unhighlighted frames after a race; use static highlighted HTML in shadow DOM.
 function loadDiffPreviewHtml(theme: DiffThemeName): Promise<readonly string[]> {
   return preloadPatchFile({
     patch: DIFF_PREVIEW_PATCH,
@@ -74,11 +72,7 @@ function loadDiffPreviewHtml(theme: DiffThemeName): Promise<readonly string[]> {
   }).then((results) => results.map((result) => result.prerenderedHTML));
 }
 
-// Pierre's prerendered stylesheet bakes its own light/dark surface colors
-// into the shadow root's @layer rules. These unlayered rules win the cascade
-// without !important and re-point the surfaces at the app's code tokens
-// (custom properties inherit across the shadow boundary), so the preview
-// follows the active theme exactly like the real diff panel does.
+// Unlayered shadow-root rules override Pierre surfaces with app code tokens to match the diff panel.
 const DIFF_PREVIEW_THEME_BRIDGE = `
   :host {
     color: var(--code-foreground);
@@ -146,7 +140,7 @@ const TERMINAL_PREVIEW_TRANSCRIPT =
   "\r\n" +
   "  \x1b[32m✓ 85 passed\x1b[0m   \x1b[33m△ 2 warnings\x1b[0m   \x1b[31m✗ 0 failed\x1b[0m\r\n" +
   "\r\n" +
-  "  \x1b[42;30m READY \x1b[0m \x1b[2mwatching for changes — press\x1b[0m \x1b[1mq\x1b[0m \x1b[2mto quit\x1b[0m\r\n" +
+  "  \x1b[42;30m READY \x1b[0m \x1b[2mwatching for changes, press\x1b[0m \x1b[1mq\x1b[0m \x1b[2mto quit\x1b[0m\r\n" +
   "\r\n" +
   TERMINAL_PROMPT;
 
@@ -164,6 +158,7 @@ export function TerminalFontPreview({ family, size }: { family: string; size: nu
   const { theme, resolvedTheme } = useTheme();
 
   // The box grows with the font so the whole transcript shows without scrolling.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- applies the font to the Ghostty preview surface and resizes its DOM box to fit the rows
   useEffect(() => {
     if (!surface) return;
     void surface.setFont(previewTerminalFont(family, size)).then(() => {
@@ -177,6 +172,7 @@ export function TerminalFontPreview({ family, size }: { family: string; size: nu
   }, [surface, family, size]);
 
   // Palette changes may preserve light/dark mode; re-read terminal tokens for every theme change.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- pushes theme tokens read from the DOM's computed styles into the Ghostty preview surface
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount || !surface) return;

@@ -309,9 +309,7 @@ function retireMergedTheme(retired: ThemeDefinition, mergeTarget: ThemeDefinitio
   try {
     removeCustomTheme(retired.id);
   } catch (cause) {
-    // The merge already persisted. Leaving it while the edited theme
-    // survives would collide on every retry, so the target goes back to
-    // its pre-merge palettes before the failure surfaces.
+    // Restore the pre-merge target on retirement failure; leaving the persisted merge would collide on retry.
     try {
       updateCustomTheme(mergeTarget);
     } catch {}
@@ -373,9 +371,7 @@ export function ThemeEditorPanel({
     width: number;
     height: number;
   } | null>(null);
-  // Seeded during render so the first open commit already holds this
-  // session's draft; seeding in an effect would preview the previous
-  // session's colors for a frame.
+  // Seed during render so the first open frame cannot preview the previous session's colors.
   const [seededOpen, setSeededOpen] = useState(false);
   if (seededOpen !== open) {
     setSeededOpen(open);
@@ -397,9 +393,7 @@ export function ThemeEditorPanel({
 
       setName(editingTheme?.label ?? seedName ?? "");
       setActiveAppearance(nextAppearance);
-      // Themes saved by the guided editor carry the managed flag; anything else
-      // (imports, hand-edited files, older saves) opens in advanced mode so
-      // guided regeneration cannot silently discard hand-tuned colors.
+      // Open unmanaged themes in advanced mode to preserve imported or hand-tuned colors.
       setIsAdvanced(sourceTheme !== null && sourceTheme.managed !== true);
       setSimpleColorsDirtyByAppearance({ light: false, dark: false });
       setShouldRegenerateGuidedColors(sourceTheme !== null && sourceTheme.managed !== true);
@@ -434,7 +428,6 @@ export function ThemeEditorPanel({
     return null;
   };
 
-  // Moves off a palette the merge target already has, once per target change.
   const mergeKey =
     isEditing || mergeTarget === null ? null : `${mergeTarget.id}:${takenAppearances.join(",")}`;
   const [appliedMergeKey, setAppliedMergeKey] = useState<string | null>(null);
@@ -449,11 +442,13 @@ export function ThemeEditorPanel({
     }
   }
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- applies the edited colors to the document as a live theme preview while the editor is open
   useEffect(() => {
     if (!open) return;
     applyThemeColorPreview(colorsByAppearance[activeAppearance], activeAppearance);
   }, [activeAppearance, colorsByAppearance, open]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- restores the document theme when the editor closes or unmounts
   useEffect(() => {
     if (!open) return;
     return () => {
@@ -525,6 +520,7 @@ export function ThemeEditorPanel({
     : [];
   const selectedHighlightRolesKey = selectedHighlightRoles.join(",");
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- highlights role usage in the DOM, refreshed by a MutationObserver and resize and scroll listeners
   useEffect(() => {
     clearThemeInspectorHighlights();
     if (!open || selectedRole === null || isInspecting) return;
@@ -532,10 +528,7 @@ export function ThemeEditorPanel({
     const highlightedRoles = selectedHighlightRolesKey.split(",") as Array<ThemeColorRole>;
     const refreshHighlights = () => setUsageCount(highlightThemeRoleUsage(highlightedRoles));
     refreshHighlights();
-    // A refresh snapshots computed styles for the whole tree twice, so it is
-    // throttled rather than run per frame: a streaming reply or a virtualized
-    // list mutates the DOM continuously and would otherwise stall the main
-    // thread for as long as the inspector is open.
+    // Each refresh snapshots the whole tree twice; throttle streaming and virtualization mutations.
     const MIN_REFRESH_INTERVAL_MS = 500;
     let refreshFrame: number | null = null;
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -588,6 +581,7 @@ export function ThemeEditorPanel({
     };
   }, [isInspecting, open, selectedHighlightRolesKey, selectedRole]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- document pointer, click and key listeners that drive the inspect-mode hover overlay
   useEffect(() => {
     if (!open || !isInspecting) {
       clearThemeInspectorHover();
@@ -882,8 +876,7 @@ export function ThemeEditorPanel({
 
   const renderAppearanceButton = (appearance: ThemeAppearance) => {
     const lockReason = appearanceLockReason(appearance);
-    // A locked mode stays hoverable so the tooltip can say why it is off;
-    // a real disabled attribute would swallow the pointer events.
+    // Use aria-disabled so locked modes remain hoverable for explanatory tooltips.
     const button = (
       <Toggle aria-disabled={lockReason !== null} value={appearance}>
         {appearance === "light" ? "Light" : "Dark"}
@@ -1057,9 +1050,7 @@ export function ThemeEditorPanel({
     const rect = panelRef.current?.getBoundingClientRect();
     if (!rect) return;
     event.preventDefault();
-    // The grip drags the bottom-right corner, so the top-left must hold
-    // still; the default parking spot is anchored bottom-right and would
-    // slide, so it converts to an explicit position first.
+    // Convert bottom-right parking to explicit position before resizing so the top-left corner stays fixed.
     const next = clampPanelPosition(readWindowViewport(), rect.x, rect.y, rect.width);
     setPosition({ ...next, width: rect.width });
     resizeStartRef.current = {

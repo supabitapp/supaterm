@@ -41,8 +41,7 @@ export function loadCachedAcpRegistryIcon(iconUrl: string): Promise<Blob> {
       try {
         cache = await caches.open(ACP_REGISTRY_ICON_CACHE);
       } catch {
-        // Some privacy modes expose CacheStorage but reject access. Icons can
-        // still load normally from the allowlisted registry CDN.
+        // Privacy modes may expose CacheStorage but reject access; icons still load from the allowlisted CDN.
       }
     }
     if (cache !== null) {
@@ -126,9 +125,8 @@ export function AcpRegistryAgentIcon({
         className,
       )}
     >
-      {/* Recolor their alpha rather than
-          inverting RGB values; external images cannot inherit currentColor.
-          A local SVG filter also works when CDN CORS prevents CSS masks. */}
+      {/* Recolor alpha because external images cannot inherit currentColor; local SVG filters work despite
+       * CDN mask CORS restrictions. */}
       <svg aria-hidden className="pointer-events-none absolute size-0" focusable="false">
         <defs>
           <filter id={colorFilterId} colorInterpolationFilters="sRGB">

@@ -9,7 +9,7 @@ import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import { expect, it, vi } from "vite-plus/test";
 
 import { guideRunKey, useGuideRunStore } from "./guideRunStore";
-import { startGuideRunNotifications } from "./PullRequestGuideRunCoordinator";
+import { startPullRequestGuideRunNotifications } from "./PullRequestGuideRunCoordinator";
 
 const guides = vi.hoisted(() => ({
   family: null as unknown as (key: string) => unknown,
@@ -51,7 +51,10 @@ function setup() {
         atom === guideAtom(`${environmentId}:${number}`) ? [String(number)] : [],
       ),
     );
-  const stop = startGuideRunNotifications(registry, { navigate: vi.fn() } as unknown as AnyRouter);
+  const stop = startPullRequestGuideRunNotifications(
+    { navigate: vi.fn() } as unknown as AnyRouter,
+    registry,
+  );
   const watch = (number: number, since = 0) =>
     useGuideRunStore.getState().watch({
       environmentId,

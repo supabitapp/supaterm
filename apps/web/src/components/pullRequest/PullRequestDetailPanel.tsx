@@ -1,3 +1,4 @@
+import { projectChangeRequestUrl } from "@supaterm/client-runtime/change-request-links";
 import { changeRequestReferenceAutolinker } from "@supaterm/client-runtime/pull-request-markdown";
 import { useAtomValue } from "@effect/atom-react";
 import { usePullRequestStackGate } from "~/state/usePullRequestStack";
@@ -11,6 +12,7 @@ import {
   AuthSourceControlWriteScope,
   type EnvironmentId,
   type PullRequestAction,
+  type PullRequestDetail,
   type PullRequestMergeMethod,
   type PullRequestListEntry,
   type PullRequestUpdateMethod,
@@ -159,7 +161,7 @@ const ACTION_SUCCESS_LABELS: Record<PullRequestAction, string> = {
   // True whichever it did: a pull request that was already mergeable merges the moment this is
   // armed, and the client has no way to tell that apart from one still waiting on something.
   "enable-auto-merge":
-    "Auto-merge turned on — merges as soon as this is ready, sooner if it already is",
+    "Auto-merge turned on. merges as soon as this is ready, sooner if it already is",
   "disable-auto-merge": "Auto-merge turned off",
   revert: "Revert pull request opened",
   "delete-branch": "Branch deleted",
@@ -189,7 +191,7 @@ const actionFailureHints = (term: string): Record<PullRequestAction, string> => 
   reopen:
     "The host refused it. Check that you have write access, and that the branch still exists.",
   "update-branch":
-    "The host refused it. Check that you have write access to the branch — one from a fork also needs its author to allow edits from maintainers — and that it does not conflict with the base.",
+    "The host refused it. Check that you have write access to the branch (a fork branch also needs its author to allow edits from maintainers), and that it does not conflict with the base.",
   "enable-auto-merge":
     "The host refused it. Check that this repository allows auto-merge, that you have write access, and that there is something left for it to wait on.",
   "disable-auto-merge":
@@ -354,7 +356,7 @@ export function PullRequestDetailPanel({
     key: tabScopeKey,
     tabs: new Set<PullRequestDetailTab>([tab]),
   }));
-  // A previously visited Code tab must not fetch diffs for every later PR while hidden.
+  // Hidden Code tabs must not fetch later pull requests' diffs.
   const mountedTabs =
     tabMountState.key === tabScopeKey ? tabMountState.tabs : new Set<PullRequestDetailTab>([tab]);
   if (tabMountState.key !== tabScopeKey) {
@@ -390,6 +392,7 @@ export function PullRequestDetailPanel({
     target: number;
   } | null>(null);
   const compensatedCondensedRef = useRef(condensed);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- compensates the scroll container after the header changes height
   useLayoutEffect(() => {
     if (compensatedCondensedRef.current === condensed) return;
     compensatedCondensedRef.current = condensed;
@@ -446,6 +449,7 @@ export function PullRequestDetailPanel({
     event.stopPropagation();
     if (!event.repeat) copyReference(`#${reference.number}`, `${terminology.shortLabel} number`);
   });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- window keydown capture listener for the copy-number shortcut
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => copyFromShortcut(event);
     window.addEventListener("keydown", onKeyDown, true);
@@ -525,14 +529,14 @@ export function PullRequestDetailPanel({
     if (!shouldRefreshPullRequestActivity(activityRevision, next)) {
       setActivityRevision(next);
     } else if (!activityQuery.isPending) {
-      // Let an existing read settle before revalidating the new revision. Interrupting a
-      // mutation's activity refresh can leave SWR displaying its previous value.
+      // Interrupting a mutation's activity refresh can leave SWR displaying stale data.
       setActivityRevision(next);
       setActivityRevalidations((count) => count + 1);
       setRefreshToken((token) => token + 1);
     }
   }
   const revalidateActivity = useEffectEvent(() => activityQuery.refresh());
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- refreshes the activity query after commit when render counts a new detail revision
   useEffect(() => {
     if (activityRevalidations > 0) revalidateActivity();
   }, [activityRevalidations]);
@@ -547,7 +551,7 @@ export function PullRequestDetailPanel({
   const refreshing = isInvalidating || detailQuery.isPending;
   const refreshFromHost = async () => {
     setIsInvalidating(true);
-    // Atom commands settle instead of throwing, so the reset below always runs.
+    // Atom commands settle without throwing, so reset always runs.
     await invalidate({ environmentId, input: { reference } });
     refreshDetail();
     setRefreshToken((token) => token + 1);
@@ -555,6 +559,7 @@ export function PullRequestDetailPanel({
   };
   const refreshFromHostOnRequest = useEffectEvent(() => void refreshFromHost());
   const appliedForcedToken = useRef(forcedRefreshToken);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- a new forced refresh token invalidates the host cache and refetches
   useEffect(() => {
     if (appliedForcedToken.current === forcedRefreshToken) return;
     appliedForcedToken.current = forcedRefreshToken;
@@ -616,9 +621,7 @@ export function PullRequestDetailPanel({
     });
     setPendingAction(null);
     if (result._tag === "Failure") {
-      // A merge strategy a branch policy forbids is refused at completion and nowhere earlier —
-      // Azure DevOps publishes no per-strategy availability to hide the control with — so
-      // "action failed" would leave the reader pressing the same button again.
+      // Azure DevOps provides no strategy availability; explain policy failures after the attempt.
       const failure = squashAtomCommandFailure(result);
       const hint =
         updateMethod === "rebase"
@@ -665,8 +668,7 @@ export function PullRequestDetailPanel({
       return { commentPosted: false };
     }
     const actionSucceeded = await finishAction(action);
-    // The comment is durable even if the state change was refused, so make it visible while the
-    // shared action failure explains why the pull request stayed where it was.
+    // Refresh the posted comment even if the subsequent state change fails.
     if (!actionSucceeded) refreshDetail();
     return { commentPosted: true };
   };
@@ -715,8 +717,8 @@ export function PullRequestDetailPanel({
         title: "Added to the composer",
         description:
           task.prompt.length > 0
-            ? "The question is in the composer — read it over, then send."
-            : "The pull request is in the composer — type your question, then send.",
+            ? "The question is in the composer. Read it over, then send."
+            : `The ${terminology.singular} is in the composer. Type your question, then send.`,
       });
       return;
     }
@@ -753,8 +755,8 @@ export function PullRequestDetailPanel({
       title: "Asked in a thread",
       description:
         task.prompt.length > 0
-          ? "The question is in the composer — read it over, then send."
-          : "The pull request is in the composer — type your question, then send.",
+          ? "The question is in the composer. Read it over, then send."
+          : `The ${terminology.singular} is in the composer. Type your question, then send.`,
     });
   };
 
@@ -769,7 +771,7 @@ export function PullRequestDetailPanel({
       toastManager.add({
         type: "success",
         title: "Added to the composer",
-        description: "The task is in the composer — read it over, then send.",
+        description: "The task is in the composer. Read it over, then send.",
       });
       return;
     }
@@ -795,9 +797,7 @@ export function PullRequestDetailPanel({
       actingEnvironmentId,
       acting?.projectId ?? handoffSummary.projectId,
     );
-    // The thread is opened before the checkout rather than after it, because the project's setup
-    // script only runs for a checkout that knows which thread it is for — and a worktree with no
-    // dependencies installed is not something anyone can test.
+    // Checkout setup requires the thread to exist first.
     const opened = await newThread(projectRef).then(
       (session) => session,
       () => null,
@@ -837,9 +837,7 @@ export function PullRequestDetailPanel({
     );
     if (!pointed) {
       setHandoff(null);
-      // The checkout is on disk; only the thread failed to move onto it. Writing the task now
-      // would send the agent at whatever the thread was already open on — which is the one
-      // outcome worth stopping for, since it reads as success and is not.
+      // Sending after failed rebinding would use the previous checkout.
       toastManager.update(toastId, {
         type: "error",
         title: "Checked out, but the thread stayed where it was",
@@ -871,7 +869,7 @@ export function PullRequestDetailPanel({
         ? {
             type: "success",
             title: "Checkout ready",
-            description: "The task is in the composer — read it over, then send.",
+            description: "The task is in the composer. Read it over, then send.",
           }
         : offHeadPullRequestCheckoutToast(terminology),
     );
@@ -1236,6 +1234,7 @@ export function PullRequestDetailPanel({
                 environmentId={environmentId}
                 reference={reference}
                 detail={detail}
+
                 linkThreadRef={
                   threadRef ??
                   (typeof composerDraftTarget === "object" ? composerDraftTarget : null)
@@ -1507,7 +1506,7 @@ export function PullRequestDetailPanel({
                   >
                     <MessageSquareIcon aria-hidden className="size-3" />
                     {activityError
-                      ? "—"
+                      ? "-"
                       : activityPending
                         ? "…"
                         : detail.commentCount.toLocaleString()}
@@ -1524,7 +1523,7 @@ export function PullRequestDetailPanel({
                   >
                     <GitCommitIcon aria-hidden className="size-3" />
                     {activityError
-                      ? "—"
+                      ? "-"
                       : activityPending
                         ? "…"
                         : detail.commits.length.toLocaleString()}
@@ -1571,7 +1570,6 @@ export function PullRequestDetailPanel({
           const scroller = scrollerByTab.current[tab];
           if (event.target !== scroller || scroller === null || scroller === undefined) return;
           const top = scroller.scrollTop;
-          // Decided here, not in a state updater, which React may run during render.
           const previous = condensedByTab[tab] ?? false;
           const foldHeight = foldRef.current?.scrollHeight ?? 0;
           let next = previous;

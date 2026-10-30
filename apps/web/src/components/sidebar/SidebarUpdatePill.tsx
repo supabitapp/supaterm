@@ -1,6 +1,6 @@
 import type { DesktopBridge, DesktopUpdateState } from "@supaterm/contracts";
 import { TriangleAlertIcon } from "@supaterm/icons";
-import { type ComponentProps, useEffect, useId, useRef, useState } from "react";
+import { type ComponentProps, useId, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import { isElectron } from "../../env";
@@ -242,17 +242,15 @@ function SidebarUpdateControl() {
   const showReleaseNotesPopover =
     !isRunningEverything && showUpdateDetails && shouldUseSidebarUpdateReleaseNotesPopover(state);
 
-  useEffect(() => {
-    if (!showReleaseNotesPopover) {
-      releaseNotesPopoverHandle.close();
-      return;
-    }
-
-    const trigger = document.getElementById(releaseNotesTriggerId);
-    if (trigger?.matches(":focus-visible")) {
-      releaseNotesPopoverHandle.open(releaseNotesTriggerId);
-    }
-  }, [releaseNotesPopoverHandle, releaseNotesTriggerId, showReleaseNotesPopover]);
+  const [releaseNotesOpen, setReleaseNotesOpen] = useState(false);
+  const [releaseNotesTriggerFocusVisible, setReleaseNotesTriggerFocusVisible] = useState(false);
+  // Release notes close when they stop applying, and open when they start
+  // applying while the trigger already holds keyboard focus.
+  const [releaseNotesShownBefore, setReleaseNotesShownBefore] = useState(showReleaseNotesPopover);
+  if (releaseNotesShownBefore !== showReleaseNotesPopover) {
+    setReleaseNotesShownBefore(showReleaseNotesPopover);
+    setReleaseNotesOpen(showReleaseNotesPopover && releaseNotesTriggerFocusVisible);
+  }
 
   const handleAction = async () => {
     const bridge = window.desktopBridge;
@@ -446,9 +444,12 @@ function SidebarUpdateControl() {
       onClick={handleAction}
       onBlur={() => {
         suppressReleaseNotesFocusOpen.current = false;
+        setReleaseNotesTriggerFocusVisible(false);
       }}
       onFocus={(event) => {
-        if (!showReleaseNotesPopover || !event.currentTarget.matches(":focus-visible")) return;
+        const focusVisible = event.currentTarget.matches(":focus-visible");
+        setReleaseNotesTriggerFocusVisible(focusVisible);
+        if (!showReleaseNotesPopover || !focusVisible) return;
         if (suppressReleaseNotesFocusOpen.current) {
           suppressReleaseNotesFocusOpen.current = false;
           return;
@@ -472,12 +473,15 @@ function SidebarUpdateControl() {
     <SidebarMenuItem className="shrink-0">
       <Popover
         handle={releaseNotesPopoverHandle}
+        open={releaseNotesOpen && showReleaseNotesPopover}
+        triggerId={releaseNotesTriggerId}
         onOpenChange={(open, details) => {
           if (open && !showReleaseNotesPopover) {
             details.cancel();
             return;
           }
           handleSidebarUpdateReleaseNotesPopoverOpenChange(open, details);
+          if (!details.isCanceled) setReleaseNotesOpen(open);
         }}
       >
         <Tooltip disabled={showReleaseNotesPopover}>
@@ -520,7 +524,7 @@ function SidebarUpdateControl() {
         {showReleaseNotesPopover && state ? (
           <PopoverPopup
             align="center"
-            aria-label="Nightly update release notes"
+            aria-label="Update release notes"
             initialFocus={false}
             onKeyDownCapture={(event) => {
               if (

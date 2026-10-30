@@ -83,7 +83,6 @@ function SwitchPlan({
     release,
     environments.filter(isHostedByThisApp).map((environment) => ({
       connected: environment.connection.phase === "connected",
-      databaseMigration: environment.serverConfig?.environment.databaseMigration,
     })),
     window.desktopBridge?.getLocalEnvironmentBootstraps().length ?? 0,
   );

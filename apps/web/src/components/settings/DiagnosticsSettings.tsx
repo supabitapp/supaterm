@@ -704,6 +704,12 @@ function DiagnosticsRefreshButton({
 
 export function DiagnosticsSettingsPanel() {
   const { environment } = useSettingsScope();
+  // Signals and pending UI state belong to one environment, so a scope switch starts fresh.
+  return <DiagnosticsSettingsBody key={environment?.environmentId ?? ""} />;
+}
+
+function DiagnosticsSettingsBody() {
+  const { environment } = useSettingsScope();
   const environmentId = environment?.environmentId ?? null;
   const canMaintainEnvironment = useEnvironmentScope(environmentId, AuthEnvironmentMaintainScope);
   const observability = environment?.serverConfig?.observability;
@@ -790,8 +796,7 @@ export function DiagnosticsSettingsPanel() {
   const isInitialLoading = isPending && data === null;
   const isProcessInitialLoading = isProcessPending && processData === null;
   const isResourceInitialLoading = isResourcePending && resourceData === null;
-  // The export form waits for each environment's first tables so a search target below them
-  // stays in view. Later loads, such as a new resource window, must not remount it and drop drafts.
+  // Wait for initial tables to stabilize search targets; later loads must preserve export drafts.
   const [exportFormEnvironmentId, setExportFormEnvironmentId] =
     useState<typeof environmentId>(null);
   if (

@@ -14,10 +14,8 @@ import {
   resolveEffectiveDefaultModelSelection,
 } from "../../modelSelection";
 import {
-  applyProviderInstanceSettings,
-  deriveProviderInstanceEntries,
+  providerInstanceEntriesFor,
   resolveDefaultProviderModelSelection,
-  sortProviderInstanceEntries,
 } from "../../providerInstances";
 import { useEnvironmentProviders, useEnvironments } from "../../state/environments";
 import { EMPTY_SERVER_PROVIDERS } from "../../state/server";
@@ -71,13 +69,7 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
   const selection = storedSelection
     ? resolveEffectiveDefaultModelSelection(settings, providers, storedSelection)
     : null;
-  const entries = sortProviderInstanceEntries(
-    applyProviderInstanceSettings(
-      deriveProviderInstanceEntries(providers),
-      settings,
-      target?.projectId ?? null,
-    ),
-  );
+  const entries = providerInstanceEntriesFor(providers, settings, target?.projectId ?? null);
   const modelOptions = getCustomModelOptionsByInstance(
     settings,
     providers,

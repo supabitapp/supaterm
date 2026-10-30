@@ -13,6 +13,7 @@ export function PullRequestActivityUnavailableState({
   error: string;
   /** The host's word for a change request, as in "pull request". */
   term: string;
+  /** The host's word for a change request, as in "pull request". */
   onRetry: () => void;
   compact?: boolean;
 }) {

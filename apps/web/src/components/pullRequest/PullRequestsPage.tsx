@@ -130,11 +130,6 @@ function getShortcutContext() {
   };
 }
 
-/**
- * One whole page from the host and no more: every provider asks for one row beyond the page as
- * its "is there more" probe, and GitHub serves a hundred per request — so asking for ninety-nine
- * costs one round trip where a hundred costs two.
- */
 const PAGE_SIZE = 99;
 const MAX_PAGE_SIZE = 500;
 const EMPTY_VIEWERS: PullRequestListResult["viewers"] = {};
@@ -288,11 +283,7 @@ export function PullRequestsPage() {
     key: string;
     size: number;
     cursors: Readonly<Record<string, PullRequestListCursors>> | null;
-    /**
-     * An environment can say it has more without saying where to carry on from — its provider has
-     * no cursor to give — and a continuation naming only the others would strand its rows on the
-     * host forever.
-     */
+
     regrown: ReadonlyArray<string>;
     /** The turn refreshes a continuation was read under; a later turn makes its cursors stale. */
     turn: string;
@@ -335,11 +326,6 @@ export function PullRequestsPage() {
   });
   const listQuery = usePullRequestList(listTargets);
 
-  /**
-   * Kept as its own read rather than remembered from an earlier answer because an answer cannot
-   * say which question it belongs to: mid-switch the text has already changed and the data has
-   * not, and a search's answer would file itself under the workspace.
-   */
   const baselineTargets = environmentQueries.map(({ environmentId, projectIds }) => ({
     environmentId,
     input: {
@@ -772,6 +758,7 @@ export function PullRequestsPage() {
     statsByRow,
     pending: statsQuery.isPending,
   }));
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- queues eager stats batches for the rows, reading known stats and visible keys held outside render
   useEffect(() => {
     if (statsPolicy !== "eager") return;
     const { statsByRow: known } = readStatsProgress();
@@ -791,6 +778,7 @@ export function PullRequestsPage() {
   }, [filterKey, entriesByStatsKey, statsPolicy]);
   // The observer outlives the rows it watches, so it reads the rows held at the time it fires.
   const readStatsRows = useEffectEvent(() => entriesByStatsKey);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- IntersectionObserver on rows requests stats for rows that scroll into view
   useEffect(() => {
     if (statsPolicy !== "visible" || typeof IntersectionObserver === "undefined") return;
     visibleStatsKeys.current = { key: filterKey, values: new Set() };
@@ -840,6 +828,7 @@ export function PullRequestsPage() {
       if (statsObserver.current === observer) statsObserver.current = null;
     };
   }, [filterKey, statsPolicy]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- prunes stats batches to the observer's visible rows once a stats request settles
   useEffect(() => {
     if (statsPolicy !== "visible" || statsQuery.isPending) return;
     const visible = visibleStatsKeys.current;
@@ -926,6 +915,7 @@ export function PullRequestsPage() {
     closeBatch,
     hostActionsOf,
   }));
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the pointer close-sweep sensor when the list changes or on unmount
   useEffect(
     () => () => closeSensorRef.current?.cancel(),
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- The pointer sensor lives outside React; a new list under a sweep in progress must end it.
@@ -1021,6 +1011,7 @@ export function PullRequestsPage() {
     if (rightPanelState.isOpen) setMaximized((value) => !value);
   };
   const onGuideShown = () => setMaximized(true);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- opens the URL-linked pull request in the right panel store
   useEffect(() => {
     if (!pullRequestsSupported || rightPanelRef === null || linkedSelection === null) return;
     useRightPanelStore.getState().openPullRequest(rightPanelRef, linkedSelection);
@@ -1437,6 +1428,7 @@ export function PullRequestsPage() {
     event.stopPropagation();
     if (!event.repeat) toggleRightPanelMaximized();
   });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- document keydown listener for the right panel and copy-reference shortcuts
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || isCommandPaletteOpen()) return;
@@ -1554,12 +1546,6 @@ export function PullRequestsPage() {
                   }
                   refreshToken={detailRefreshToken}
                   onActed={(action, phase = "done") => {
-                    // An action that only moves a row's state is written onto the row as it is
-                    // sent, and taken back if the host refuses; the host invalidates its caches,
-                    // so the next scheduled read confirms it. The rest change what the counts and
-                    // checks say, and those need the reads once they are done.
-                    // From every row held, not the ones on screen: a pull request closed from an
-                    // open list has left the screen, and reopening it has to find it anyway.
                     const acted = heldPullRequestsBySurface.get(
                       pullRequestListEntryId(renderedPullRequestSurface),
                     );

@@ -1,3 +1,4 @@
+import { pipe } from "effect/Function";
 import { ACP_REGISTRY_MAX_AGENTS, AuthProvidersManageScope } from "@supaterm/contracts";
 import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
 import {
@@ -50,12 +51,6 @@ function applyAcpRegistryPrepareResult(
   };
 }
 
-/**
- * Registry search and agent preparation. Owned by the dialog, which needs the
- * loading and preparing state for its layout and navigation, and rendered by
- * AcpRegistrySearchStep. Pass `enabled: false` while the step is hidden so the
- * search is not kept subscribed.
- */
 export function useAcpRegistrySearch(environmentId: EnvironmentId, enabled: boolean) {
   const [input, setInput] = useState<{
     readonly text: string;
@@ -111,7 +106,7 @@ export function useAcpRegistrySearch(environmentId: EnvironmentId, enabled: bool
         return;
       }
       if (!isAtomCommandInterrupted(result)) {
-        setPrepareError(errorMessage(squashAtomCommandFailure(result)));
+        pipe(squashAtomCommandFailure(result), errorMessage, setPrepareError);
       }
     },
   };

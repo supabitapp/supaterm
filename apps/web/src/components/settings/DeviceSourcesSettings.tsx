@@ -593,14 +593,13 @@ const PLATFORMS = [
 function SourcePlatforms(props: { row: SourceRow }) {
   const added = props.row.environments.filter((environment) => environment.added);
   const known = added.filter((environment) => environment.platforms !== undefined);
-  return PLATFORMS.values()
-    .filter(({ platform }) =>
-      known.some((environment) =>
-        environment.platforms?.some((candidate) => candidate.platform === platform),
-      ),
+  return PLATFORMS.flatMap((entry) =>
+    known.some((environment) =>
+      environment.platforms?.some((candidate) => candidate.platform === entry.platform),
     )
-    .map((entry) => <PlatformIcon key={entry.platform} {...entry} row={props.row} known={known} />)
-    .toArray();
+      ? [<PlatformIcon key={entry.platform} {...entry} row={props.row} known={known} />]
+      : [],
+  );
 }
 
 function PlatformIcon(props: {

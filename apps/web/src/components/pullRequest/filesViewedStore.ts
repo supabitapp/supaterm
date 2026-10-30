@@ -8,7 +8,6 @@ import type {
   PullRequestFilesViewedResult,
   PullRequestRef,
 } from "@supaterm/contracts";
-import * as Option from "effect/Option";
 import { AsyncResult } from "effect/reactivity";
 
 import { appAtomRegistry } from "~/rpc/atomRegistry";
@@ -64,19 +63,10 @@ interface FilesViewedScope {
   requests: number;
   timer: ReturnType<typeof setTimeout> | null;
   answer: PullRequestFilesViewedResult | null;
-  /**
-   * The host's answer as it stood when a completed write was acknowledged, per path. The first
-   * answer that differs from it is the first read that could have seen the write, which is what
-   * retires the press rather than the host happening to agree with it.
-   */
+
   readonly answeredFrom: Map<string, PullRequestFilesViewedResult | null>;
 }
 
-/**
- * Presses on one change request on one environment. The environment is part of the scope: two of
- * them can hand out the same project id, and a press made against one must never be answered for
- * by the other.
- */
 export function createFilesViewedStore(deps: FilesViewedStoreDeps) {
   const scopes = new Map<string, FilesViewedScope>();
   const handles = new Map<string, FilesViewedScopeHandle>();
@@ -238,7 +228,7 @@ const filesViewedStore = createFilesViewedStore({
   subscribeAnswers: (target, onAnswer) =>
     appAtomRegistry.subscribe(
       filesViewedAtom(target),
-      (result) => onAnswer(Option.getOrNull(AsyncResult.value(result))),
+      (result) => onAnswer(AsyncResult.getOrElse(result, () => null)),
       { immediate: true },
     ),
   send: ({ environmentId, reference }, files) =>

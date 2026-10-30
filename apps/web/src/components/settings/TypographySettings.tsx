@@ -306,6 +306,7 @@ export function TypographySection() {
   // rows without it would make terminal font edits do nothing. The rows follow the target
   // directly so its row mounts in the first commit; the target clears once handled.
   const searchTargetId = useSettingsSearchTargetId();
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- writes the advanced typography flag to localStorage when a search target needs it
   useEffect(() => {
     if (searchTargetId !== null) revealSettingsSearchTarget(searchTargetId);
   }, [searchTargetId]);
@@ -377,6 +378,7 @@ function FontFamilySettingsRow({
     setDraftSettled(true);
   }
   const timerValueRef = useRef(value);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the pending input debounce when an external font value supersedes it
   useLayoutEffect(() => {
     if (timerValueRef.current === value) return;
     timerValueRef.current = value;
@@ -385,6 +387,7 @@ function FontFamilySettingsRow({
       commitTimerRef.current = null;
     }
   }, [value]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- releases the pending font input timer on unmount
   useEffect(
     () => () => {
       if (commitTimerRef.current !== null) window.clearTimeout(commitTimerRef.current);

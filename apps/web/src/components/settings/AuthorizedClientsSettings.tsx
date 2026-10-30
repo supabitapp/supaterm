@@ -1,3 +1,4 @@
+import { useNowSecond } from "../../hooks/useNowSecond";
 import { relayName } from "@supaterm/shared/relay/name";
 import { QrCodeIcon } from "@supaterm/icons";
 import { type ReactNode, type RefObject, memo, useId, useState } from "react";
@@ -28,7 +29,7 @@ import {
   isHostedAppPairingUrl,
   endpointShareHint,
 } from "./ConnectionsSettings.logic";
-import { useRelativeTimeTick } from "./settingsLayout";
+import { useNowSecond } from "../../hooks/useNowSecond";
 import {
   Dialog,
   DialogFooter,
@@ -201,7 +202,7 @@ const PairingLinkListRow = memo(function PairingLinkListRow({
     preparedRelay,
     relaySettings,
   );
-  const nowMs = useRelativeTimeTick(1_000);
+  const nowMs = useNowSecond();
   const expiresAtMs = new Date(pairingLink.expiresAt).getTime();
   const [isRevealDialogOpen, setIsRevealDialogOpen] = useState(false);
   const [isQrPanelOpen, setIsQrPanelOpen] = useState(false);
@@ -426,7 +427,7 @@ const PairingLinkListRow = memo(function PairingLinkListRow({
                       size={132}
                       level="M"
                       marginSize={2}
-                      title="Pairing link — scan to open on another device"
+                      title="Pairing link. Scan to open on another device"
                     />
                   </div>
                 ) : null}
@@ -529,7 +530,7 @@ const PairingLinkListRow = memo(function PairingLinkListRow({
                 size={168}
                 level="M"
                 marginSize={1}
-                title="Pairing link — scan to open on another device"
+                title="Pairing link. Scan to open on another device"
               />
             </div>
           ) : (
@@ -561,7 +562,7 @@ const ConnectedClientListRow = memo(function ConnectedClientListRow({
   onRevokeSession,
   canRevoke,
 }: ConnectedClientListRowProps) {
-  const nowMs = useRelativeTimeTick(1_000);
+  const nowMs = useNowSecond();
   const isLive = clientSession.current || clientSession.connected;
   const lastConnectedAt = clientSession.lastConnectedAt;
   const statusTooltip = isLive

@@ -1,3 +1,4 @@
+import { useDeadlinePassed } from "../../hooks/useDeadline";
 import { SIDEBAR_SORTABLE_DRAG_DISABLED } from "./SidebarListMarkers";
 import { ThreadHoverCard, ThreadHoverCardPopup } from "../ThreadHoverCard";
 import { discardComposerDraft } from "../../lib/discardComposerDraft";
@@ -104,7 +105,7 @@ import { type SnoozePreset } from "../Sidebar.snooze";
 import { ProjectFavicon, type ProjectFaviconProject } from "../ProjectFavicon";
 import { makeWorkspaceFileDropHandlers } from "../chat/workspaceFileDrop";
 import { ProviderInstanceIcon } from "../chat/ProviderInstanceIcon";
-import { getTriggerDisplayModelLabel } from "../chat/providerIconUtils";
+import { getTriggerDisplayModelName } from "../chat/providerIconUtils";
 import { shouldShowInstanceBadge, type ProviderInstanceEntry } from "../../providerInstances";
 import { useThreadRunningTerminalIds } from "../../state/terminalSessions";
 import { InlineButton } from "../ui/button";
@@ -150,12 +151,6 @@ function CompactRelativeTimeLabel(props: { timestamp: string | null }) {
       );
 }
 
-// Floats at the row's right edge, vertically centered, while the jump
-// modifier is held. An overlay pill instead of an inline slot: the hint
-// must neither displace the status/time label (holding ⌘ used to blank
-// out "Working") nor shift any layout when it appears. pointer-events-none
-// so it never swallows clicks meant for the mark-done/reopen buttons it
-// can overlap.
 function JumpHintBadge(props: { label: string }) {
   return (
     <span
@@ -545,6 +540,7 @@ const dropVerbBadge: Record<SidebarDropVerb, ReactNode> = {
 };
 
 type SidebarThreadRowProps = {
+  revealRef?: ((row: HTMLElement, threadKey: string) => void) | undefined;
   thread: SidebarThreadSummary;
   // Done rows reopen, snoozed rows wake, and active rows become done.
   variantAction: SidebarSweepAction;
@@ -646,6 +642,7 @@ function ThreadRenameInput(props: {
   );
 }
 
+// Mounted only while renaming, so each rename starts uncommitted.
 const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowProps) {
   const {
     isRenaming,
@@ -731,13 +728,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   const isUnread = hasUnseenCompletion({ ...thread, lastVisitedAt });
   const status = resolveSidebarThreadStatus(thread);
   const showDuration = environmentConnected && shouldShowSidebarV2Duration(status);
-  // A woken thread reappears at its original position (the sort is
-  // deliberately static), so the pill has to carry the weight. Snoozing is
-  // an explicit act, so the pill clears only when the user re-engages:
-  // reading a completion-triggered wake, clicking the pill, sending a
-  // message, marking done, archiving, or a change request state that completes the
-  // thread. Timer wakes survive a mere visit. An unparseable visit timestamp
-  // counts as never-visited, so corrupt local data cannot eat the wake signal.
   const lastVisitedDate = lastVisitedAt === undefined ? null : parseTimestampDate(lastVisitedAt);
   const wokeAtDate = props.wokeAt === null ? null : parseTimestampDate(props.wokeAt);
   const isWoke =
@@ -794,31 +784,33 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                     icon: "input" as const,
                     className: "text-indigo-600 dark:text-indigo-300",
                   }
-                : topStatusKind === "limited"
-                  ? {
-                      label: "Limited",
-                      icon: "failed" as const,
-                      className: "text-warning",
-                    }
-                  : topStatusKind === "failed"
+                : topStatusKind === "request"
+                  ? { label: "Request", icon: "input" as const, className: "text-guest-foreground" }
+                  : topStatusKind === "limited"
                     ? {
-                        label: "Failed",
+                        label: "Limited",
                         icon: "failed" as const,
-                        className: "text-error",
+                        className: "text-warning",
                       }
-                    : topStatusKind === "woke"
+                    : topStatusKind === "failed"
                       ? {
-                          label: "Woke",
-                          icon: "woke" as const,
-                          className: "text-warning",
+                          label: "Failed",
+                          icon: "failed" as const,
+                          className: "text-error",
                         }
-                      : topStatusKind === "ready"
+                      : topStatusKind === "woke"
                         ? {
-                            label: "Ready",
-                            icon: "done" as const,
-                            className: "text-success",
+                            label: "Woke",
+                            icon: "woke" as const,
+                            className: "text-warning",
                           }
-                        : null;
+                        : topStatusKind === "ready"
+                          ? {
+                              label: "Ready",
+                              icon: "done" as const,
+                              className: "text-success",
+                            }
+                          : null;
   const isWokeStatus = topStatus?.icon === "woke";
 
   const branchMismatch = resolveLocalCheckoutBranchMismatch({
@@ -838,7 +830,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     (model) => model.slug === thread.modelSelection.model,
   );
   const modelLabel = selectedModel
-    ? getTriggerDisplayModelLabel(selectedModel)
+    ? getTriggerDisplayModelName(selectedModel, providerEntry?.driverKind)
     : thread.modelSelection.model;
 
   const isRemote = thread.environmentId !== props.currentEnvironmentId;
@@ -1086,7 +1078,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                 "truncate",
                 shouldRecede
                   ? "text-secondary-label"
-                  : isUnread || isWoke || status === "input"
+                  : isUnread || isWoke || status === "input" || status === "request"
                     ? "text-foreground"
                     : status === "failed"
                       ? "text-foreground/95"
@@ -1096,7 +1088,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                 "truncate group-focus-within/sidebar-row:text-foreground group-hover/sidebar-row:text-foreground",
                 shouldRecede
                   ? "text-secondary-label/70"
-                  : props.isActive || isWoke || status === "input"
+                  : props.isActive || isWoke || status === "input" || status === "request"
                     ? "text-foreground"
                     : isUnread
                       ? "text-muted-foreground"
