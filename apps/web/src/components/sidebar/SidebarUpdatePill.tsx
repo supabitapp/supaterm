@@ -53,7 +53,7 @@ type SidebarUpdatePopoverHandle = ReturnType<typeof PopoverCreateHandle>;
 export function shouldUseSidebarUpdateReleaseNotesPopover(
   state: DesktopUpdateState | null,
 ): boolean {
-  return state?.channel === "nightly" && state.releaseNotes.length > 0;
+  return (state?.releaseNotes.length ?? 0) > 0;
 }
 
 function handleSidebarUpdateReleaseNotesPopoverOpenChange(
@@ -520,7 +520,7 @@ function SidebarUpdateControl() {
         {showReleaseNotesPopover && state ? (
           <PopoverPopup
             align="center"
-            aria-label="Nightly update release notes"
+            aria-label="Update release notes"
             initialFocus={false}
             onKeyDownCapture={(event) => {
               if (

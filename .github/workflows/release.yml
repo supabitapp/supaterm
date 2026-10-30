@@ -817,6 +817,64 @@ jobs:
           fail_on_unmatched_files: true
           token: ${{ github.token }}
 
+  # Replaces the published body with a short model summary over GitHub's list.
+  # It runs after publish so that nothing waits on it: a failed or empty summary
+  # leaves GitHub's generated notes in place.
+  release_notes:
+    name: Write release notes
+    needs: [preflight, release]
+    if: ${{ !cancelled() && needs.release.result == 'success' && needs.preflight.outputs.release_channel != 'preview' && needs.preflight.outputs.previous_tag != '' }}
+    runs-on: depot-ubuntu-24.04
+    timeout-minutes: 15
+    environment: release
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ needs.preflight.outputs.ref }}
+          # The summary reads history back to the previous tag, not file contents.
+          fetch-depth: 0
+          filter: blob:none
+
+      - name: Setup Mise
+        uses: ./.github/actions/setup-mise
+        with:
+          cache: false
+      - name: Install workspace dependencies
+        run: mise exec -- vp install --filter=@supaterm/scripts...
+
+      - name: Load release notes credentials
+        uses: ./.github/actions/load-release-secrets
+        with:
+          profile: release-notes
+          service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+
+      - name: Write release notes
+        continue-on-error: true
+        timeout-minutes: 8
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/generate-release-notes.ts \
+            --repository "${{ github.repository }}" \
+            --tag "${{ needs.preflight.outputs.tag }}" \
+            --ref "${{ needs.preflight.outputs.ref }}" \
+            --previous-tag "${{ needs.preflight.outputs.previous_tag }}" \
+            --version "${{ needs.preflight.outputs.version }}" \
+            --output release-notes.md
+
+      - name: Update release notes
+        if: hashFiles('release-notes.md') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release edit "${{ needs.preflight.outputs.tag }}" --repo "${{ github.repository }}" --notes-file release-notes.md
+          cat release-notes.md >> "$GITHUB_STEP_SUMMARY"
+
   # The `supaterm` npm package is a launcher that downloads this version's CLI
   # archive from the GitHub Release, so it publishes only once that release
   # exists. Preview publishes too, under the `preview` dist-tag, which
