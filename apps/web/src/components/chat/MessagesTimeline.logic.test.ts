@@ -1347,7 +1347,7 @@ describe("deriveMessagesTimelineRows", () => {
           message: {
             id: "assistant-next" as never,
             role: "assistant" as const,
-            text: "One down — adjusting.",
+            text: "One down. Adjusting.",
             runId: "turn-2" as never,
             createdAt: "2026-01-01T00:00:17Z",
             updatedAt: "2026-01-01T00:00:17Z",

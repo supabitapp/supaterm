@@ -132,13 +132,8 @@ export function useTimelineFollow(input: TimelineFollowInput) {
       anchorScrollRestoreFrameRef.current = null;
     }
     if (wasProgrammaticScrollMode) {
-      // While following or anchoring, our scrollToEnd/scrollToOffset calls can
-      // sit in LegendList's pending-imperative-scroll queue (it defers them
-      // while layout settles) and fire seconds later with stale targets,
-      // yanking the view away after the user scrolled. Starting a new
-      // imperative scroll cancels everything queued; targeting an item that
-      // is not in the data makes the new request itself resolve without ever
-      // scrolling, so this is a pure cancel.
+      // An absent item cancels LegendList's pending imperative scrolls without
+      // moving the viewport after the user takes over.
       void legendListRef.current?.scrollToItem({
         item: TIMELINE_SCROLL_CANCEL_SENTINEL,
         animated: false,
@@ -224,6 +219,7 @@ export function useTimelineFollow(input: TimelineFollowInput) {
       cancelTimelineLiveFollowForUserNavigationStable();
     }
   });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Own the page-scroll controller's animation frames and hold timer for this mounted viewport, disposing them on cleanup.
   useEffect(() => {
     const controller = createPageScrollController({
       getContainer: () => legendListRef.current?.getScrollableNode() ?? null,
@@ -262,8 +258,7 @@ export function useTimelineFollow(input: TimelineFollowInput) {
     showScrollDebouncer.current.cancel();
     setShowScrollToBottom(false);
     setTimelineAnchor(releaseChatTimelineAnchor);
-    // The anchored end space must be gone before the scroll measures, or the
-    // list lands short of the real end (#6519).
+    // Remove the anchor spacer before measuring the real end.
     requestAnimationFrame(() => {
       const list = legendListRef.current;
       if (!list) return;
@@ -445,6 +440,7 @@ export function useTimelineFollow(input: TimelineFollowInput) {
     serverProjection?.visibleTurnItems.some(
       (row) => row.item.type === "reasoning" && row.item.runId === activeRunningTurnId,
     ) === true;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Scroll the mounted viewport to its live end once tool activity replaces the new-turn anchor.
   useLayoutEffect(() => {
     if (timelineScrollModeRef.current !== "anchoring-new-turn") return;
     if (

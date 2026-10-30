@@ -1,7 +1,5 @@
 import { useDeferredWorkLoading } from "./useDeferredWorkLoading";
 import { AudioPreviewUnmountContext } from "../files/AudioPreview";
-import { threadEnvironment } from "../../state/threads";
-import { useAtomCommand } from "../../state/use-atom-command";
 import { Skeleton } from "../ui/skeleton";
 import { TimelinePendingApprovalRow } from "./TimelinePendingApprovalRow";
 import { attachTimelineViewport, type TimelineViewport } from "./timelineViewport";
@@ -17,7 +15,7 @@ import {
   TimelineRowActivityCtx,
   type TimelineRow,
 } from "./timelineRowContext";
-import { ActivityShimmerOverlay, TimelineRowTimestamp } from "./TimelineRowParts";
+import { TimelineRowTimestamp } from "./TimelineRowParts";
 import {
   WorkGroupSection,
   LiveWorkEntryTimelineRow,
@@ -66,13 +64,11 @@ import type { WorkflowOpening } from "@supaterm/client-runtime/state/subagentRun
 import { observeResize } from "~/lib/observeResize";
 import { useStableCallback } from "~/hooks/useStableCallback";
 import { resolveChatListAnchoredEndSpace } from "@supaterm/shared/chatList";
-import { observeVisibleAnimation } from "../../lib/visibleAnimation";
 import {
   type ReactNode,
   type SyntheticEvent,
   useContext,
   useEffect,
-  useEffectEvent,
   memo,
   useState,
   useRef,
@@ -470,11 +466,12 @@ const ConversationTimeline = memo(function ConversationTimeline({
     readonly cancel: () => void;
     readonly followingEnd: boolean;
   } | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Cancel the disclosure's pending DOM measurements when its timeline unmounts.
   useEffect(() => () => disclosureSettleRef.current?.cancel(), []);
-  const endFollowAllowedRef = useRef(false);
   const normalizedFindQuery = findQuery.trim();
   const findActive = findExpanded;
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Keep animated end-follow off until the newly mounted virtual list has completed its initial layout frames.
   useEffect(() => {
     if (settlingListIdentity === null) return;
     let second: number | null = null;
@@ -515,7 +512,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
         if (!collapsed) return;
         const list = listRef.current;
         let atEnd = resolveTimelineIsAtEnd(list?.getState()) === true;
-        if (!atEnd && followingEnd && endFollowAllowedRef.current && list) {
+        if (!atEnd && followingEnd && isEndFollowAllowed() && list) {
           void list.scrollToEnd({ animated: false });
           atEnd = true;
         }
@@ -572,32 +569,44 @@ const ConversationTimeline = memo(function ConversationTimeline({
     });
   };
 
-  const previousLatestRunRef = useRef({ identity: listIdentityKey, run: latestRun });
-  useEffect(() => {
-    const { identity, run: previous } = previousLatestRunRef.current;
-    previousLatestRunRef.current = { identity: listIdentityKey, run: latestRun };
-    if (identity !== listIdentityKey || !latestRun || previous?.runId === undefined) {
-      return;
-    }
-    if (latestRun.runId === previous.runId) {
-      if (previous.status === "running" && latestRun.status === "interrupted") {
-        setExpandedRunIds((existing) => {
-          const next = new Set(existing);
-          next.add(latestRun.runId);
-          return next;
-        });
-      }
-      return;
-    }
-    setExpandedRunIds((existing) => {
-      if (!existing.has(previous.runId)) {
-        return existing;
-      }
-      const next = new Set(existing);
-      next.delete(previous.runId);
-      return next;
+  const [previousLatestRun, setPreviousLatestRun] = useState({
+    identity: listIdentityKey,
+    runId: latestRun?.runId,
+    status: latestRun?.status,
+  });
+  if (
+    previousLatestRun.identity !== listIdentityKey ||
+    previousLatestRun.runId !== latestRun?.runId ||
+    previousLatestRun.status !== latestRun?.status
+  ) {
+    setPreviousLatestRun({
+      identity: listIdentityKey,
+      runId: latestRun?.runId,
+      status: latestRun?.status,
     });
-  }, [latestRun, listIdentityKey]);
+    if (
+      previousLatestRun.identity === listIdentityKey &&
+      latestRun &&
+      previousLatestRun.runId !== undefined
+    ) {
+      if (
+        latestRun.runId === previousLatestRun.runId &&
+        previousLatestRun.status === "running" &&
+        latestRun.status === "interrupted"
+      ) {
+        paintedExpandedRunIds = new Set(paintedExpandedRunIds).add(latestRun.runId);
+        setExpandedRunIds(paintedExpandedRunIds);
+      } else if (
+        latestRun.runId !== previousLatestRun.runId &&
+        paintedExpandedRunIds.has(previousLatestRun.runId)
+      ) {
+        const next = new Set(paintedExpandedRunIds);
+        next.delete(previousLatestRun.runId);
+        paintedExpandedRunIds = next;
+        setExpandedRunIds(next);
+      }
+    }
+  }
 
   const findFoldRunIds = findActive
     ? timelineTurnFoldRunIdsByEntryId({
@@ -784,6 +793,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
       return;
     prefetchHistory(listIdentityKey, historyControls, state);
   };
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Prefetch from the virtual list's committed viewport measurements after its layout settles.
   useEffect(() => {
     const frame = requestAnimationFrame(handleHistoryPrefetch);
     return () => cancelAnimationFrame(frame);
@@ -800,7 +810,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   const alwaysRenderIndices = restoringAlwaysRender?.indices ?? [];
   const alwaysRenderKeys = [
     ...new Set(
-      [...playingAudioRows].filter(([audio]) => audio.isConnected).map(([, rowId]) => rowId),
+      [...playingAudioRows].flatMap(([audio, rowId]) => (audio.isConnected ? [rowId] : [])),
     ),
     ...(citationAlwaysRender?.keys ?? []),
     ...(fullscreenAppRowId === null ? [] : [fullscreenAppRowId]),
@@ -864,7 +874,9 @@ const ConversationTimeline = memo(function ConversationTimeline({
       onContentOverflowChange(measureContentOverflow());
     });
   };
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Cancel the queued DOM overflow measurement when its callback is replaced or the timeline unmounts.
   useEffect(() => cancelContentOverflowFrame, [cancelContentOverflowFrame]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Report overflow from the committed virtual list's measured viewport and content sizes.
   useLayoutEffect(() => {
     cancelContentOverflowFrame();
     onContentOverflowChange?.(measureContentOverflow());
@@ -966,6 +978,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     scheduleMinimapRefresh();
   };
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Cancel the minimap's queued DOM measurement when its timeline unmounts.
   useEffect(
     () => () => {
       if (minimapRefreshFrameRef.current !== null) {
@@ -976,18 +989,21 @@ const ConversationTimeline = memo(function ConversationTimeline({
     [minimapRefreshFrameRef],
   );
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Read the virtual list's committed DOM position to refresh scroll persistence, overflow, and minimap indicators.
   useEffect(() => {
     const frame = requestAnimationFrame(handleScroll);
     return () => cancelAnimationFrame(frame);
   }, [handleScroll]);
 
   const savedLiveFollowEnabledRef = useRef(liveFollowEnabled);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Save the measured viewport position as imperative end-follow releases its scroll ownership.
   useLayoutEffect(() => {
     const wasFollowing = savedLiveFollowEnabledRef.current;
     savedLiveFollowEnabledRef.current = liveFollowEnabled;
     if (wasFollowing && !liveFollowEnabled) handleScroll();
   }, [handleScroll, liveFollowEnabled]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Observe the mounted viewport's size to keep the minimap gutter and overflow measurements current.
   useEffect(() => {
     if (!timelineViewportElement) {
       return;
@@ -1142,9 +1158,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     anchoredEndSpace ||
     !liveFollowEnabled
   );
-  useLayoutEffect(() => {
-    endFollowAllowedRef.current = endFollowAllowed;
-  }, [endFollowAllowed]);
+  const isEndFollowAllowed = useStableCallback(() => endFollowAllowed);
 
   useThreadFindPositionReader({
     threadKey: routeThreadKey,
@@ -1207,11 +1221,8 @@ const ConversationTimeline = memo(function ConversationTimeline({
     contentInsetEndAdjustment,
   });
 
-  // Each row carries its own provider. LegendList moves rows into their
-  // containers one commit after this component renders, so a provider around
-  // the list would re-render the outgoing thread's rows with the incoming
-  // thread's context just before they unmount. extraData hands a changed
-  // sharedState to the rows that stay.
+  // Row-local providers keep recycled rows on their original thread's context
+  // until LegendList moves them on its next commit.
   const onAudioPlaybackChange = (rowId: string, event: SyntheticEvent) => {
     const audio = event.target;
     if (!(audio instanceof HTMLAudioElement)) return;

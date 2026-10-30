@@ -80,6 +80,7 @@ export function useTimelinePositionRestore({
     readonly list: LegendListRef;
     identity: string | null;
   } | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Track which mounted list owns initialScrollAtEnd's measured target before restoring a reused viewport.
   useLayoutEffect(() => {
     const list = listRef.current;
     const opened = listOpenedOnRef.current;
@@ -90,6 +91,7 @@ export function useTimelinePositionRestore({
       opened.identity = null;
     }
   });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Restore the mounted list's DOM scroll position and release its navigation listeners and programmatic-scroll hold on cleanup.
   useLayoutEffect(() => {
     if (!restoringThreadPosition || rows.length === 0) return;
     const list = listRef.current;

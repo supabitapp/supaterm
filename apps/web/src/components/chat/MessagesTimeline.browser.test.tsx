@@ -128,6 +128,77 @@ const TASK_ID = ScheduledTaskId.make("task-1");
 const AUTOMATION_PROMPT = "Triage the inbox\n\nLabel every new issue and close duplicates.";
 
 describe("MessagesTimeline messages", () => {
+  it("opens interrupted work and folds it again when the next run starts", async () => {
+    const props = baseProps();
+    const runId = RunId.make("interrupted-run");
+    const entries: Entry[] = [
+      {
+        id: "interrupted-work",
+        kind: "work",
+        createdAt: CREATED_AT,
+        entry: {
+          id: "interrupted-work",
+          createdAt: CREATED_AT,
+          runId,
+          label: "Read interruption fixture",
+          tone: "tool",
+        },
+      },
+    ];
+    const timeline = (
+      latestRun: NonNullable<TimelineProps["latestRun"]>,
+      routeThreadKey = props.routeThreadKey,
+    ) => (
+      <MessagesTimeline
+        {...props}
+        routeThreadKey={routeThreadKey}
+        timelineEntries={
+          latestRun.runId === runId
+            ? entries
+            : [...entries, message("Next request", { runId: latestRun.runId }, "next-user")]
+        }
+        latestRun={latestRun}
+        isWorking={latestRun.status === "running"}
+      />
+    );
+    const running: NonNullable<TimelineProps["latestRun"]> = {
+      runId,
+      status: "running",
+      startedAt: CREATED_AT,
+      completedAt: null,
+    };
+    const interrupted: NonNullable<TimelineProps["latestRun"]> = {
+      ...running,
+      status: "interrupted",
+      completedAt: "2026-03-17T19:12:30.000Z",
+    };
+    await using screen = await renderElement(timeline(running));
+    await expect
+      .element(screen.getByText("Read interruption fixture", { exact: true }))
+      .toBeVisible();
+
+    await screen.rerender(timeline(interrupted));
+    await expect
+      .element(screen.getByText("Read interruption fixture", { exact: true }))
+      .toBeVisible();
+    await expect
+      .element(screen.getByRole("button", { name: "You stopped after 2.0s" }))
+      .toHaveAttribute("aria-expanded", "true");
+
+    await screen.rerender(timeline({ ...running, runId: RunId.make("next-run") }));
+    await expect
+      .element(screen.getByText("Read interruption fixture", { exact: true }))
+      .not.toBeInTheDocument();
+
+    await screen.rerender(timeline(interrupted, `${props.routeThreadKey}-other`));
+    await expect
+      .element(screen.getByText("Read interruption fixture", { exact: true }))
+      .not.toBeInTheDocument();
+    await expect
+      .element(screen.getByRole("button", { name: "You stopped after 2.0s" }))
+      .toHaveAttribute("aria-expanded", "false");
+  });
+
   it("settles when equally long messages have very different rendered heights", async () => {
     const props = baseProps();
     const tall = message("a\n\n".repeat(6000), { role: "assistant" }, "tall");

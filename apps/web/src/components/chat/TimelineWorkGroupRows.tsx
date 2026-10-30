@@ -145,6 +145,7 @@ function ExpandedWorkGroupEntries({
   // A closed row keeps its room while its panel animates shut, and no longer:
   // a recycled row's last size stays cached after it scrolls out mid-close.
   const closingEntryTimersRef = useRef(new Map<string, number>());
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Clear this work group's pending collapse timers when its virtualized list unmounts.
   useEffect(() => {
     const timers = closingEntryTimersRef.current;
     return () => timers.forEach((timer) => window.clearTimeout(timer));

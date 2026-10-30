@@ -26,6 +26,7 @@ export const ThreadActivityAnnouncer = memo(function ThreadActivityAnnouncer({
   const regionRef = useRef<HTMLDivElement>(null);
   const memoryRef = useRef<{ threadKey: string; memory: ThreadAnnouncementMemory } | null>(null);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Write thread activity transitions into the mounted screen-reader live region without rerendering the timeline.
   useEffect(() => {
     const region = regionRef.current;
     if (threadKey === null) {
