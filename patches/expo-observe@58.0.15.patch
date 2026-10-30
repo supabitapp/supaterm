@@ -1,0 +1,96 @@
+diff --git a/android/src/main/java/expo/modules/observe/Constants.kt b/android/src/main/java/expo/modules/observe/Constants.kt
+--- a/android/src/main/java/expo/modules/observe/Constants.kt
++++ b/android/src/main/java/expo/modules/observe/Constants.kt
+@@ -1,6 +1,6 @@
+ package expo.modules.observe
+ 
+ internal const val OBSERVE_TAG = "EasObserve"
+-internal const val OBSERVE_DEFAULT_BASE_URL = "https://o.expo.dev/"
++internal const val OBSERVE_DEFAULT_BASE_URL = "https://observe.invalid/"
+ 
+ internal const val DISPATCH_CHUNK_SIZE = 200
+diff --git a/android/src/main/java/expo/modules/observe/ObservabilityManager.kt b/android/src/main/java/expo/modules/observe/ObservabilityManager.kt
+--- a/android/src/main/java/expo/modules/observe/ObservabilityManager.kt
++++ b/android/src/main/java/expo/modules/observe/ObservabilityManager.kt
+@@ -1,6 +1,7 @@
+ package expo.modules.observe
+ 
+ import android.content.Context
++import android.net.Uri
+ import android.util.Log
+ import expo.modules.easclient.EASClientID
+ import expo.modules.appmetrics.storage.SessionManager
+@@ -376,14 +377,17 @@
+ 
+   private fun shouldDispatch(): Boolean {
+     val config = ObservePreferences.getConfig(context)
+-    val dispatchingEnabled = config?.dispatchingEnabled ?: true
++    val dispatchingEnabled = config?.dispatchingEnabled ?: false
+     val dispatchInDebug = config?.dispatchInDebug ?: false
+     // `isDev` is the OR of the JS-bundle dev flag (pushed via `setBundleDefaults` on JS
+     // package import) and the native build's debug flag. Either being true means the
+     // bundle should be treated as dev for dispatch-gating.
+     val isJsDev = ObservePreferences.getBundleDefaults(context)?.isJsDev ?: false
+     val isDev = isDebugBuild || isJsDev
+-    return dispatchingEnabled && isInSample() && (!isDev || dispatchInDebug)
++    val endpoint = Uri.parse(baseUrl)
++    val hasReceiver = (endpoint.scheme == "https" || endpoint.scheme == "http") &&
++      !endpoint.host.isNullOrEmpty() && endpoint.host != "observe.invalid"
++    return hasReceiver && dispatchingEnabled && isInSample() && (!isDev || dispatchInDebug)
+   }
+ 
+   suspend fun cleanup() {
+diff --git a/ios/Observability.swift b/ios/Observability.swift
+--- a/ios/Observability.swift
++++ b/ios/Observability.swift
+@@ -346,11 +346,15 @@
+   }
+ 
+   internal nonisolated static func setEndpointUrl(_ urlString: String?, projectId: String) {
+-    let defaultUrl = "https://o.expo.dev"
+-    let urlString = urlString ?? defaultUrl
+-
+-    guard let url = URL(string: urlString) else {
+-      observeLogger.warn("[EAS Observe] Unable to set the endpoint url with string: \(urlString)")
++    guard let urlString, let url = URL(string: urlString),
++      ["http", "https"].contains(url.scheme ?? ""),
++      let host = url.host, !host.isEmpty, host != "observe.invalid"
++    else {
++      AppMetricsActor.isolated {
++        self.metricsEndpointUrl = nil
++        self.logsEndpointUrl = nil
++        self.tracesEndpointUrl = nil
++      }
+       return
+     }
+     AppMetricsActor.isolated {
+@@ -366,7 +370,7 @@
+     isDev: Bool,
+     isInSample: Bool
+   ) -> Bool {
+-    let dispatchingEnabled = config?.dispatchingEnabled ?? true
++    let dispatchingEnabled = config?.dispatchingEnabled ?? false
+     let dispatchInDebug = config?.dispatchInDebug ?? false
+     return dispatchingEnabled && isInSample && (!isDev || dispatchInDebug)
+   }
+diff --git a/ios/Tests/ObservabilityTests.swift b/ios/Tests/ObservabilityTests.swift
+--- a/ios/Tests/ObservabilityTests.swift
++++ b/ios/Tests/ObservabilityTests.swift
+@@ -65,12 +65,15 @@
+   }
+ 
+   @Test
+-  func `nil config defaults dispatchingEnabled true and dispatchInDebug false`() {
++  func `nil or omitted dispatchingEnabled remains disabled`() {
+     #expect(
+-      ObservabilityManager.shouldDispatch(config: nil, isDev: false, isInSample: true) == true
++      ObservabilityManager.shouldDispatch(config: nil, isDev: false, isInSample: true) == false
+     )
+     #expect(
+       ObservabilityManager.shouldDispatch(config: nil, isDev: true, isInSample: true) == false
+     )
++    #expect(
++      ObservabilityManager.shouldDispatch(config: PersistedConfig(), isDev: false, isInSample: true) == false
++    )
+   }
+ }
