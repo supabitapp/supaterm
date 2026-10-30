@@ -3,6 +3,7 @@ import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import { expect, it } from "@effect/vitest";
 import { ScheduledTaskUpsertInput } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
@@ -162,4 +163,61 @@ it.effect("keeps the task list order when a toggle or edit rewrites updated_at",
       expect(yield* listedIds).toEqual(order);
     }).pipe(Effect.provide(ScheduledTaskService.layer.pipe(Layer.provide(layerDependencies))));
   }).pipe(Effect.provide(SqlitePersistence.layerMemory)),
+);
+
+it.effect(
+  "idle polls still wake for tasks saved later, recorded due times, and beside far-future tasks",
+  () =>
+    Effect.gen(function* () {
+      yield* TestClock.setTime(Date.parse("2026-07-01T09:00:00.000Z"));
+      const launched = yield* Deferred.make<string>();
+      const layerDependencies = Layer.mergeAll(
+        NodeCrypto.layer,
+        Scheduler.layer,
+        Layer.mock(ThreadLaunchService.ThreadLaunchService)({
+          launch: (input) =>
+            Deferred.succeed(launched, input.title).pipe(
+              Effect.as({ threadId: "thread-idle-poll", resumed: false } as never),
+            ),
+        }),
+        Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
+          namedProjectsRoot: "/projects",
+          isScratchProject: () => Effect.succeed(false),
+        }),
+        Layer.mock(ThreadManagementService.ThreadManagementService)({}),
+      );
+      yield* Effect.gen(function* () {
+        const service = yield* ScheduledTaskService.ScheduledTaskService;
+        yield* TestClock.adjust("6 seconds");
+        yield* service.upsert(
+          yield* decodeUpsertInput({
+            title: "Far future",
+            prompt: "Review the open pull requests.",
+            enabled: true,
+            schedule: { type: "interval", everyMs: 3e14 },
+            projectId: "project-idle-poll",
+            workspaceStrategy: { type: "root" },
+            modelSelection: { instanceId: "codex", model: "gpt-5.4" },
+            runtimeMode: "full-access",
+            interactionMode: "default",
+          }),
+        );
+        const created = yield* service.upsert(
+          yield* decodeUpsertInput({
+            title: "Idle poll",
+            prompt: "Review the open pull requests.",
+            enabled: true,
+            schedule: { type: "interval", everyMs: 60_000 },
+            projectId: "project-idle-poll",
+            workspaceStrategy: { type: "root" },
+            modelSelection: { instanceId: "codex", model: "gpt-5.4" },
+            runtimeMode: "full-access",
+            interactionMode: "default",
+          }),
+        );
+        yield* TestClock.adjust("6 seconds");
+        yield* TestClock.adjust("60 seconds");
+        expect(yield* Deferred.await(launched)).toBe(created.task.title);
+      }).pipe(Effect.provide(ScheduledTaskService.layer.pipe(Layer.provide(layerDependencies))));
+    }).pipe(Effect.provide(SqlitePersistence.layerMemory)),
 );

@@ -103,6 +103,33 @@ function shell(overrides: Partial<SettlementShell> = {}): SettlementShell {
   };
 }
 
+function persistedLink(
+  state: "open" | null,
+  linkedAt: DateTime.Utc,
+): NonNullable<SettlementShell["pullRequests"]>[number] {
+  return {
+    host: "example.test",
+    repository: "owner/repository",
+    number: 42,
+    url: "https://example.test/owner/repository/pull/42",
+    source: "manual",
+    linkedAt: DateTime.formatIso(linkedAt),
+    snapshot:
+      state === null
+        ? null
+        : {
+            state,
+            title: "Pull request",
+            headBranch: "feature",
+            baseBranch: "main",
+            isDraft: false,
+            updatedAt: DateTime.formatIso(linkedAt),
+            syncedAt: DateTime.formatIso(linkedAt),
+          },
+    stack: null,
+  };
+}
+
 describe("isAutoMarkDoneCandidate", () => {
   it("marks done a thread whose only background work is a command left running", () => {
     expect(
@@ -212,6 +239,50 @@ describe("resolveAutoMarkDoneAt", () => {
         autoMarkDoneKeepPullRequests: true,
       }),
     ).toEqual(at(-4 * DAY_MS));
+  });
+
+  it("settles an idle thread with an open persisted link only while retention is off", () => {
+    const input = {
+      thread: shell({
+        latestUserMessageAt: at(-4 * DAY_MS),
+        pullRequests: [persistedLink("open", at(-5 * DAY_MS))],
+      }),
+      pullRequest: null,
+      nowMs: NOW_MS,
+      autoMarkDoneAfterDays: 3,
+      autoMarkDoneOnMerge: true,
+      autoMarkDoneKeepPullRequests: false,
+    };
+    expect(ThreadDoneService.resolveAutoMarkDoneAt(input)).toEqual(at(-4 * DAY_MS));
+    expect(
+      ThreadDoneService.resolveAutoMarkDoneAt({
+        ...input,
+        autoMarkDoneKeepPullRequests: true,
+      }),
+    ).toBeNull();
+    expect(
+      ThreadDoneService.resolveAutoMarkDoneAt({
+        ...input,
+        pullRequest: { state: "merged", mergedAt: DateTime.formatIso(at(-1)) },
+        autoMarkDoneAfterDays: null,
+      }),
+    ).toBeNull();
+  });
+
+  it("keeps an idle thread whose persisted link was never synced", () => {
+    expect(
+      ThreadDoneService.resolveAutoMarkDoneAt({
+        thread: shell({
+          latestUserMessageAt: at(-4 * DAY_MS),
+          pullRequests: [persistedLink(null, at(-5 * DAY_MS))],
+        }),
+        pullRequest: null,
+        nowMs: NOW_MS,
+        autoMarkDoneAfterDays: 3,
+        autoMarkDoneOnMerge: true,
+        autoMarkDoneKeepPullRequests: false,
+      }),
+    ).toBeNull();
   });
 
   it("uses the latest activity time when the inactivity window elapses", () => {
@@ -629,9 +700,12 @@ const makeHarness = Effect.fn("makeThreadDoneHarness")(function* (options: Harne
       return next;
     });
 
-  const branchPullRequest: GitManager.GitManager["Service"]["branchPullRequest"] = (input) =>
+  const branchPullRequest: GitManager.GitManager["Service"]["branchPullRequest"] = (
+    input,
+    lookupOptions,
+  ) =>
     Ref.update(branchCalls, (calls) => [...calls, input]).pipe(
-      Effect.andThen(options.branchPullRequest?.(input) ?? Effect.succeed(null)),
+      Effect.andThen(options.branchPullRequest?.(input, lookupOptions) ?? Effect.succeed(null)),
     );
   const pullRequestSummary: PullRequestService.PullRequestService["Service"]["summary"] = (
     input,
@@ -879,6 +953,32 @@ describe("ThreadDoneServiceV2 worker", () => {
     ),
   );
 
+  it.effect("settles an idle thread with an open persisted link on the inactivity sweep", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        yield* TestClock.setTime(Date.parse(NOW));
+        const thread = makeThread("open-link", {
+          pullRequests: [persistedLink("open", DateTime.makeUnsafe("2026-08-20T00:00:00.000Z"))],
+        });
+        const fixture = yield* makeHarness({
+          snapshot: makeSnapshot([thread]),
+          settings: {
+            ...DEFAULT_SERVER_SETTINGS,
+            sidebarAutoMarkDoneAfterDays: 3,
+            sidebarAutoMarkDoneKeepPullRequests: false,
+          },
+        });
+        yield* Effect.gen(function* () {
+          const service = yield* ThreadDoneService.ThreadDoneServiceV2;
+          yield* startHarness(service, fixture.activation, fixture.snapshotReads);
+          expect((yield* Ref.get(fixture.commands)).map((command) => command.threadId)).toEqual([
+            thread.id,
+          ]);
+        }).pipe(Effect.provide(fixture.layer));
+      }),
+    ),
+  );
+
   it.effect("marks done only the project opted in while environment completion is disabled", () =>
     Effect.scoped(
       Effect.gen(function* () {
@@ -945,6 +1045,28 @@ describe("ThreadDoneServiceV2 worker", () => {
           assert.deepStrictEqual(yield* Ref.get(fixture.commands), []);
           assert.strictEqual((yield* Ref.get(fixture.summaryCalls)).length, 1);
           assert.deepStrictEqual(yield* Ref.get(fixture.branchCalls), []);
+        }).pipe(Effect.provide(fixture.layer));
+      }),
+    ),
+  );
+
+  it.effect("stops settling the rest of a sweep once auto-settlement is turned off", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        yield* TestClock.setTime(Date.parse(NOW));
+        const threads = Array.from({ length: 9 }, (_, index) => makeThread(`idle-${index}`));
+        let disable: Effect.Effect<unknown> = Effect.void;
+        const fixture = yield* makeHarness({
+          snapshot: makeSnapshot(threads),
+          settings: { ...DEFAULT_SERVER_SETTINGS, sidebarAutoMarkDoneAfterDays: 3 },
+          onDispatch: () => disable,
+        });
+        disable = fixture.updateSettings({ sidebarAutoMarkDoneAfterDays: null });
+        yield* Effect.gen(function* () {
+          const service = yield* ThreadDoneService.ThreadDoneServiceV2;
+          yield* startHarness(service, fixture.activation, fixture.snapshotReads);
+          const settled = (yield* Ref.get(fixture.commands)).map((command) => command.threadId);
+          expect(settled).not.toContain(threads[8]!.id);
         }).pipe(Effect.provide(fixture.layer));
       }),
     ),

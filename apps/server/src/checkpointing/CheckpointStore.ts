@@ -63,10 +63,6 @@ export class CheckpointStore extends Context.Service<
       input: DiffCheckpointsInput,
     ) => Effect.Effect<string, CheckpointStoreError>;
 
-    /**
-     * Returns null when HEAD did not move or a checkpoint does not record HEAD.
-     * Then every changed path belongs to the turn.
-     */
     readonly listAuthoredPaths: (
       input: ListAuthoredPathsInput,
     ) => Effect.Effect<ReadonlySet<string> | null, CheckpointStoreError>;

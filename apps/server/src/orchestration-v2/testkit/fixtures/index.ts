@@ -816,8 +816,6 @@ export const ORCHESTRATOR_REPLAY_FIXTURES: ReadonlyArray<OrchestratorReplayFixtu
           "./tool_call_restricted_granular/codex_transcript.ndjson",
           import.meta.url,
         ),
-        // gpt-6 models write through the shell; gpt-5.6-terra's apply_patch raises the
-        // file-change approval this fixture covers.
         modelSelection: { ...CODEX_MODEL_SELECTION, model: "gpt-5.6-terra" },
         runtimePolicyOverride: RESTRICTED_GRANULAR_POLICY,
         assertOutput: assertToolCallRestrictedGranularOutput,

@@ -97,10 +97,6 @@ function hasOpenAwaitedWork(
   );
 }
 
-/**
- * A settled run needs a live session, so stale records from an older crash
- * never wake it.
- */
 export function restartContinuationRun(
   projection: Pick<
     ProjectionRuntimeRecoveryState,
@@ -150,8 +146,6 @@ export function restartContinuationRun(
   const session = projection.providerSessions.find(
     (candidate) => candidate.id === providerThread.providerSessionId,
   );
-  // Most adapters keep a live session "ready" through its turns, so only a
-  // stopped or failed session rules out a live turn.
   if (
     session === undefined ||
     session.providerInstanceId !== run.providerInstanceId ||
@@ -290,11 +284,6 @@ export const continueRestartedRun = Effect.fn("RestartContinuation.continueResta
         restartContinuationOfRunId: input.sourceRunId,
       })
       .pipe(
-        // The project turned this instance off since the restart. No turn
-        // resumes, and the success path below still runs so a delegated
-        // child waiting on this run is recovered immediately instead of
-        // after EffectWorker exhausts its retries on a refusal that will
-        // not change.
         Effect.catchTags({
           ThreadManagementProviderInstanceDisabledError: (error) =>
             Effect.logInfo("orchestration-v2.restart-continuation.instance-disabled", {
@@ -306,8 +295,6 @@ export const continueRestartedRun = Effect.fn("RestartContinuation.continueResta
         }),
       );
   },
-  // A delegated child this declined to continue still owes its parent a
-  // result. Once a continuation run exists this is a no-op; that run settles it.
   (effect, input) =>
     effect.pipe(
       Effect.andThen(

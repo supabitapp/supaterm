@@ -12,10 +12,6 @@ import {
 } from "../shared.ts";
 import { GROK_MONITOR_PROMPT, GROK_MONITOR_TICKS } from "./input.ts";
 
-// Grok streams each monitor tick as an in_progress Bash result that already
-// carries exit_code 0 and ends the monitor only through `_x.ai/task_completed`.
-// Run 1 is held open until that end; Grok's own reply to the finished monitor
-// then arrives as a continuation run, like Claude and Codex background wakes.
 export function assertGrokMonitorOutput(
   result: OrchestratorV2ScenarioResult,
   transcript: ProviderReplayTranscript,

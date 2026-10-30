@@ -12,10 +12,8 @@ import * as CommandOutputHub from "../CommandOutputHub.ts";
 import type * as EventSink from "../EventSink.ts";
 import type * as ProjectionStore from "../ProjectionStore.ts";
 
-/** What one command streamed through the hub during a replay. */
 export interface RecordedCommandOutput {
   readonly chunks: number;
-  /** The live tail as a viewer would have seen it. */
   readonly output: TerminalOutputState;
 }
 

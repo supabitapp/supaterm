@@ -53,8 +53,6 @@ export function assertToolCallReadOnlyOnRequestOutput(
     writes.some((item) => item.status === "completed"),
     "the approved write must complete",
   );
-  // Grok's write reports an ACP v1 diff ({ path, oldText, newText }); the
-  // file_change must still carry it, like the v2 patch form.
   for (const item of writes) {
     const content = writtenContent(item);
     assert.isDefined(content, `the approved ${item.type} must carry what it wrote`);

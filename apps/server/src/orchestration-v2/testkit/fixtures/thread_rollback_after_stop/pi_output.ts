@@ -25,10 +25,6 @@ function outboundOfType(transcript: ProviderReplayTranscript, type: string) {
   );
 }
 
-/**
- * Stop terminates Pi (Stop-with-restart), so the stopped turn's session-tree
- * user entry has to be read before the kill.
- */
 export function assertPiThreadRollbackAfterStopOutput(
   result: OrchestratorV2ScenarioResult,
   transcript: ProviderReplayTranscript,

@@ -853,11 +853,6 @@ describe("OpenCode 2 through the orchestrator", () => {
     "settles a background subagent whose report OpenCode delivers into the launching turn",
     () =>
       Effect.gen(function* () {
-        // The recorded background run, reordered as 2.0.18 ran it live when the
-        // child ended first: the parent's execution is still answering when the
-        // child's report is queued and delivered into it, and that one
-        // execution then answers the report and ends.
-
         const cwd = yield* checkpointWorkspace("opencode2-background-in-turn");
         const recorded = yield* readProviderReplayTranscript(
           new URL(

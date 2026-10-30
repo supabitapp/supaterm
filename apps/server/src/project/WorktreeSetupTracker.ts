@@ -56,10 +56,6 @@ export class WorktreeSetupTracker extends Context.Service<
       phase: "done" | "failed" | "cancelled",
       error?: string | null,
     ) => Effect.Effect<WorktreeSetupSnapshot | null>;
-    /**
-     * Called right before the turn is dispatched so a late cancel cannot roll
-     * back a thread whose agent has already started.
-     */
     readonly markUncancellable: (threadId: ThreadId) => Effect.Effect<void>;
     readonly cancel: (threadId: ThreadId) => Effect.Effect<boolean>;
     readonly get: (threadId: ThreadId) => Effect.Effect<WorktreeSetupSnapshot | null>;
@@ -103,8 +99,6 @@ export const make = Effect.gen(function* () {
     readonly snapshot: WorktreeSetupSnapshot | null;
   }>();
   const retentionFibers = new Map<ThreadId, Fiber.Fiber<void, never>>();
-  // Sequences keep increasing across setups of the same thread so a stream
-  // opened during a previous setup still accepts the next one's first snapshot.
   const lastSequenceByThread = new Map<ThreadId, number>();
 
   const publish = (threadId: ThreadId, snapshot: WorktreeSetupSnapshot | null) =>
@@ -142,8 +136,6 @@ export const make = Effect.gen(function* () {
       return next;
     }).pipe(
       Effect.andThen(publish(threadId, null)),
-      // A subscriber that outlives retention sees `null` here and accepts any
-      // sequence after it, so the counter can start over for this thread.
       Effect.tap(() => Effect.sync(() => lastSequenceByThread.delete(threadId))),
     );
 
@@ -300,19 +292,12 @@ export const make = Effect.gen(function* () {
   const get: WorktreeSetupTracker["Service"]["get"] = (threadId) =>
     Ref.get(setups).pipe(Effect.map((current) => current.get(threadId)?.snapshot ?? null));
 
-  /**
-   * Each subscriber gets a one-slot sliding mailbox: a slow WebSocket only ever
-   * holds the newest snapshot, so a chatty setup script cannot grow the server
-   * heap.
-   */
   const stream: WorktreeSetupTracker["Service"]["stream"] = (threadId) =>
     Stream.callback<WorktreeSetupSnapshot | null>(
       (mailbox) =>
         Effect.gen(function* () {
           const subscription = yield* PubSub.subscribe(changes);
           const initial = yield* get(threadId);
-          // Changes published between subscribing and reading `initial` are
-          // already folded into it. Drop them so the client never steps back.
           let lastSequence = initial?.sequence ?? -1;
           Queue.offerUnsafe(mailbox, initial);
           yield* Stream.fromSubscription(subscription).pipe(

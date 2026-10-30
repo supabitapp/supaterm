@@ -156,8 +156,6 @@ it.effect.each(deliveries)(
                   Effect.sync(() => {
                     offers.push(message);
                     nativeQueue.push(message);
-                    // Claude Code 2.1.289's queue watcher aborts when a now-priority
-                    // command arrives, including while Bash blocks pending reads.
                     if (nativeQueue.some((command) => command.priority === "now")) {
                       batchAbort.abort({ kind: "interrupt" });
                     }
@@ -374,8 +372,6 @@ it.effect.each(deliveries)(
               queuedRunId: queuedRun.id,
               targetRunId: parent.id,
             });
-            // Promotion cancels the queued run and moves its message into the
-            // running run as a steer that remembers where it came from.
             const promoted = yield* orchestrator.getThreadProjection(threadId);
             assert.equal(promoted.runs.find((run) => run.id === queuedRun.id)?.status, "cancelled");
             assert.equal(

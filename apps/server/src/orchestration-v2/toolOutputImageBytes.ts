@@ -101,12 +101,6 @@ function strip(
   return next ?? record;
 }
 
-/**
- * Tools that read or capture an image return the whole file as base64, and a turn item is stored
- * twice: in the event log and in the projection. Only the blocks `toolOutputImageBlocks` finds,
- * within the asset size limit, are ever read back; previews of a read file load from
- * `viewedImagePath`, and context handoff skips tool items.
- */
 export function stripUnservedToolOutputImageBytes(
   item: OrchestrationV2TurnItem,
 ): OrchestrationV2TurnItem {
