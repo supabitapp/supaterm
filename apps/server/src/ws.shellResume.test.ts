@@ -143,8 +143,8 @@ it.live("resumed shells filter a child transcript flood before projecting parent
     const cursor = yield* insertResumeEvent("thread", parent);
     const reads: ThreadId[] = [];
     const publish = Effect.gen(function* () {
-      for (let index = 0; index < 1100; index++) {
-        yield* insertOrchestrationEventRow({
+      const insertChildMessage = (index: number) =>
+        insertOrchestrationEventRow({
           aggregateKind: "thread",
           streamId: child,
           eventType: "message.updated",
@@ -163,12 +163,14 @@ it.live("resumed shells filter a child transcript flood before projecting parent
             updatedAt: "2026-01-05T00:00:00.000Z",
           }),
         });
-      }
-      yield* insertResumeEvent("thread", parent);
+      for (let index = 0; index < 1100; index++) yield* insertChildMessage(index);
+      const throughSequence = yield* insertResumeEvent("thread", parent);
+      yield* insertChildMessage(1100);
       const stored = yield* events
-        .readApplicationEvents({ afterSequence: cursor })
+        .readApplicationEvents({ afterSequence: cursor, throughSequence })
         .pipe(Stream.runCollect);
       assert.equal(stored.length, 1101);
+      assert.equal(stored.at(-1)?.sequence, throughSequence);
       yield* events.publishCommitted(stored);
     }).pipe(Effect.provideService(SqlClient.SqlClient, sql), Effect.orDie);
     const items = yield* collectShellResume({
