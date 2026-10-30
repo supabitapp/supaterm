@@ -142,8 +142,7 @@ const withRepository = <A, E>(
     });
   }).pipe(
     Effect.scoped,
-    Effect.provide(TestSourceControlHost.layerWithRealGit()),
-    Effect.provide(NodeServices.layer),
+    Effect.provide(Layer.merge(TestSourceControlHost.layerWithRealGit(), NodeServices.layer)),
   );
 
 const DEFAULT_TEMPLATE = ".gitlab/merge_request_templates/Default.md";

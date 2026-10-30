@@ -917,8 +917,8 @@ export const make = Effect.gen(function* () {
             : readLineStats(input, pull).pipe(Effect.orElseSucceed(() => null)),
           // Reviewers need `pr:review:read`, which a contents-only token lacks.
           readPages("getChangeRequest", input, `${path}/reviewers`, Json.GitCafeActorEntries).pipe(
-            Effect.catch((error) =>
-              isForbidden(error) ? Effect.succeed({ items: [], next: null }) : Effect.fail(error),
+            Effect.catchIf<PullRequestProviderError, Paged<never>, never, never>(isForbidden, () =>
+              Effect.succeed({ items: [], next: null }),
             ),
           ),
           readPages("getChangeRequest", input, `${path}/labels`, Json.GitCafeLabels),
@@ -996,10 +996,9 @@ export const make = Effect.gen(function* () {
             pull.headOid === null
               ? Effect.succeed({ items: [], next: null })
               : readPages(operation, input, `${path}/commits`, Json.GitCafeCommits).pipe(
-                  Effect.catch((error) =>
-                    error.reason === "not-found"
-                      ? Effect.succeed({ items: [], next: null })
-                      : Effect.fail(error),
+                  Effect.catchIf<PullRequestProviderError, Paged<never>, never, never>(
+                    (error) => error.reason === "not-found",
+                    () => Effect.succeed({ items: [], next: null }),
                   ),
                 ),
             readPages(operation, input, `${path}/reactions/`, Json.GitCafeReactions).pipe(
