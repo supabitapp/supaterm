@@ -1,11 +1,21 @@
-import { SecretRequestError } from "@supaterm/contracts";
+import {
+  SecretRequestAnswerInput,
+  SecretRequestError,
+  ThreadId,
+  TurnItemId,
+} from "@supaterm/contracts";
+import * as Schema from "effect/Schema";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  secretRequestAnswerInput,
   secretRequestDisplay,
   secretRequestFailureMessage,
   secretRequestPrivacyNote,
 } from "./secretRequest.ts";
+
+const decodeAnswer = Schema.decodeUnknownSync(SecretRequestAnswerInput);
+const encodeAnswer = Schema.encodeSync(SecretRequestAnswerInput);
 
 describe("secretRequestDisplay", () => {
   it("never offers the form for a request inherited from another thread", () => {
@@ -16,6 +26,24 @@ describe("secretRequestDisplay", () => {
     expect(secretRequestDisplay({ secretStatus: "saved" }, "inherited")).toMatchObject({
       outcome: "saved",
     });
+  });
+});
+
+describe("secretRequestAnswerInput", () => {
+  it("keeps surrounding whitespace through the contract and refuses blank values", () => {
+    const item = { threadId: ThreadId.make("thread-1"), id: TurnItemId.make("request-1") };
+    const input = secretRequestAnswerInput(item, { type: "save", secret: "  a b λ  " });
+    if (input === null) throw new Error("A nonblank secret must be accepted.");
+    expect(input.answer).toEqual({ type: "save", secret: "  a b λ  " });
+    expect(decodeAnswer(encodeAnswer(input))).toEqual(input);
+    expect(secretRequestAnswerInput(item, { type: "save", secret: " \n " })).toBeNull();
+    expect(() =>
+      decodeAnswer({
+        threadId: item.threadId,
+        turnItemId: item.id,
+        answer: { type: "save", secret: "\t\r\n" },
+      }),
+    ).toThrow();
   });
 });
 
