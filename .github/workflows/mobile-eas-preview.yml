@@ -39,15 +39,15 @@ jobs:
       MOBILE_VERSION_POLICY: fingerprint
       MOBILE_PLATFORM: ${{ matrix.platform }}
       PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EXPO_TOKEN: ${{ secrets.EXPO_PREVIEW_TOKEN }}
     steps:
       - id: expo-token
-        name: Check for EXPO_TOKEN
+        name: Check for EXPO_PREVIEW_TOKEN
         run: |
           if [ -n "$EXPO_TOKEN" ]; then
             echo "present=true" >> "$GITHUB_OUTPUT"
           else
-            echo "EXPO_TOKEN is not available; skipping mobile preview."
+            echo "EXPO_PREVIEW_TOKEN is not available; skipping mobile preview."
           fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         if: steps.expo-token.outputs.present == 'true'
@@ -58,7 +58,7 @@ jobs:
       - uses: ./.github/actions/setup-mobile-release
         if: steps.expo-token.outputs.present == 'true'
         with:
-          token: ${{ secrets.EXPO_TOKEN }}
+          token: ${{ secrets.EXPO_PREVIEW_TOKEN }}
           environment: preview
       - id: config
         name: Resolve native fingerprint and app version
