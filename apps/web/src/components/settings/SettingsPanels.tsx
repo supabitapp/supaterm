@@ -1235,12 +1235,12 @@ function ConcernSettingsPanel({ concern }: { concern: SettingsConcern }) {
               serverScoped
               settingKeys={["nextPromptSuggestionsEnabled"]}
               {...searchableSetting("next-prompt-suggestions")}
-              description="After the agent replies, suggests what you might send next. Press Tab to use it. Claude predicts its own; other providers use the text generation model."
+              description="After Claude replies, suggests what you might send next. Press Tab to use it. Threads on other providers get no suggestions."
               resetAction={
                 settings.nextPromptSuggestionsEnabled !==
                 DEFAULT_UNIFIED_SETTINGS.nextPromptSuggestionsEnabled ? (
                   <SettingResetButton
-                    label="next prompt suggestions"
+                    label="Claude prompt suggestions"
                     onClick={() =>
                       updateSettings({
                         nextPromptSuggestionsEnabled:
@@ -1257,7 +1257,7 @@ function ConcernSettingsPanel({ concern }: { concern: SettingsConcern }) {
                   onCheckedChange={(checked) =>
                     updateSettings({ nextPromptSuggestionsEnabled: Boolean(checked) })
                   }
-                  aria-label="Next prompt suggestions"
+                  aria-label="Claude prompt suggestions"
                 />
               }
             />

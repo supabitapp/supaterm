@@ -27,8 +27,6 @@ export type {
   BranchNameGenerationResult,
   CommitMessageGenerationInput,
   CommitMessageGenerationResult,
-  NextPromptGenerationInput,
-  NextPromptGenerationResult,
   PrContentGenerationInput,
   PrContentGenerationResult,
   ReviewGuideGenerationInput,
@@ -46,7 +44,6 @@ type TextGenerationOp =
   | "generatePrContent"
   | "generateBranchName"
   | "generateThreadTitle"
-  | "generateNextPrompt"
   | "generateReviewGuide";
 
 const resolveInstance = (
@@ -147,11 +144,6 @@ export const make = Effect.gen(function* () {
     generateBranchName: Effect.fn("TextGeneration.generateBranchName")(function (input) {
       return generate("generateBranchName", input.modelSelection, (service, modelSelection) =>
         service.generateBranchName({ ...input, modelSelection }),
-      );
-    }),
-    generateNextPrompt: Effect.fn("TextGeneration.generateNextPrompt")(function (input) {
-      return generate("generateNextPrompt", input.modelSelection, (service, modelSelection) =>
-        service.generateNextPrompt({ ...input, modelSelection }),
       );
     }),
     generateReviewGuide: Effect.fn("TextGeneration.generateReviewGuide")(function (input) {

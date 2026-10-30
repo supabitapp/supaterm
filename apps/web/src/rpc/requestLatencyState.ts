@@ -1,4 +1,4 @@
-import { WS_METHODS } from "@supaterm/contracts";
+import { ORCHESTRATION_V2_WS_METHODS, WS_METHODS } from "@supaterm/contracts";
 import { Atom } from "effect/reactivity";
 
 import { appAtomRegistry } from "./atomRegistry";
@@ -26,13 +26,14 @@ interface PendingRpcAckRequest {
 }
 
 const pendingRpcAckRequests = new Map<string, PendingRpcAckRequest>();
-// Background reports nobody waits on. A busy host delays them first, and warning
+// Background requests nobody waits on. A busy host delays them first, and warning
 // about a request the user never made does not say what is wrong. A sign-in wait
 // lasts as long as the user takes on the forge.
 const untrackedRpcAckMethods = new Set<string>([
   WS_METHODS.serverGetUsageSummary,
   WS_METHODS.serverReportClientActivity,
   WS_METHODS.sourceControlSignInWait,
+  ORCHESTRATION_V2_WS_METHODS.suggestNextPrompt,
 ]);
 const longRunningRpcAckMethods = new Set<string>([
   WS_METHODS.serverUpdateProvider,
