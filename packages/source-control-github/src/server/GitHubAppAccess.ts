@@ -71,7 +71,7 @@ function ownerAndName(repository: string): string {
     .join("/");
 }
 
-export const make = Effect.gen(function* () {
+const make = Effect.gen(function* () {
   const api = yield* GitHubRest.GitHubRest;
   const appSignIn = yield* GitHubAppSignIn.GitHubAppSignIn;
 

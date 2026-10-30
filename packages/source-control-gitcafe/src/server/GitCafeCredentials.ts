@@ -88,7 +88,7 @@ function credentialPassword(output: string): string | null {
   return null;
 }
 
-export const make = Effect.gen(function* () {
+const make = Effect.gen(function* () {
   const sourceControlHost = yield* SourceControlHost.SourceControlHost;
   const { process } = sourceControlHost;
   const environment = yield* HostProcess.Environment;

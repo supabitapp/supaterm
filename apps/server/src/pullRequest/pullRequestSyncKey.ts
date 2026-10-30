@@ -44,7 +44,7 @@ export function pullRequestSyncKey(
       });
 }
 
-export function repositoryMatchesPullRequest(
+function repositoryMatchesPullRequest(
   identity: RepositoryIdentity | null | undefined,
   target: Pick<ThreadPullRequestKey, "host" | "repository">,
 ) {

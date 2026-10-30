@@ -628,7 +628,7 @@ const responseError = Effect.fn("BitbucketApi.responseError")(function* (
   });
 });
 
-export const make = Effect.gen(function* () {
+const make = Effect.gen(function* () {
   const config = yield* BitbucketApiEnvConfig;
   const host = yield* SourceControlHost.SourceControlHost;
   const git = host.git;

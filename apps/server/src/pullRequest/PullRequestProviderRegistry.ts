@@ -24,7 +24,7 @@ export function fromProviders(
   };
 }
 
-export const make = Effect.gen(function* () {
+const make = Effect.gen(function* () {
   const drivers = yield* BuiltInDrivers.SourceControlDrivers;
   return fromProviders(drivers.flatMap(({ instance }) => instance.pullRequests ?? []));
 });

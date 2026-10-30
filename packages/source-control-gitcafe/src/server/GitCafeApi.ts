@@ -108,7 +108,7 @@ const redirectTarget = (
     : null;
 };
 
-export const make = Effect.gen(function* () {
+const make = Effect.gen(function* () {
   const httpClient = yield* HttpClient.HttpClient;
   const credentials = yield* GitCafeCredentials.GitCafeCredentials;
 

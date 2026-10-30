@@ -101,7 +101,7 @@ interface PendingSignIn {
 const signInError = (host: string, reason: SourceControlSignInFailure, detail: string) =>
   new SourceControlSignInError({ provider: KIND, host, reason, detail });
 
-export const make = Effect.gen(function* () {
+const make = Effect.gen(function* () {
   const sourceControlHost = yield* SourceControlHost.SourceControlHost;
   const httpClient = yield* HttpClient.HttpClient;
   const environment = yield* HostProcess.Environment;

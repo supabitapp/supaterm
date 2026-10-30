@@ -417,7 +417,7 @@ const classifyGlabFailure = (stderr: string): VcsProcessExitFailureKind | null =
   return null;
 };
 
-export const make = Effect.gen(function* () {
+const make = Effect.gen(function* () {
   const { process } = yield* SourceControlHost.SourceControlHost;
 
   const run = (

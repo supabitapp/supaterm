@@ -362,7 +362,7 @@ const classifyAzFailure = (stderr: string): VcsProcessExitFailureKind | null => 
     : null;
 };
 
-export const make = Effect.gen(function* () {
+const make = Effect.gen(function* () {
   const { process } = yield* SourceControlHost.SourceControlHost;
 
   const execute: AzureDevOpsCli["Service"]["execute"] = (input) =>
