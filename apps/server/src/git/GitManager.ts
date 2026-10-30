@@ -247,8 +247,16 @@ export function pullRequestRepositoryKey(value: string): string | null {
     : sourceControlDefinitions.repositoryKeyFromRemote(repositoryUrl);
 }
 
-function resolveHeadRepositoryNameWithOwner(pullRequest: PullRequestHeadRemoteInfo): string | null {
-  return normalizeOptionalString(pullRequest.headRepositoryNameWithOwner);
+function resolveHeadRepositoryNameWithOwner(
+  pullRequest: PullRequestHeadRemoteInfo & Pick<ResolvedPullRequest, "url">,
+): string | null {
+  const explicit = normalizeOptionalString(pullRequest.headRepositoryNameWithOwner);
+  if (explicit !== null || pullRequest.isCrossRepository !== true) return explicit;
+  const owner = normalizeOptionalString(pullRequest.headRepositoryOwnerLogin);
+  const parsed = sourceControlDefinitions.parseChangeRequestUrl(pullRequest.url);
+  if (owner === null || parsed?.definition.kind !== "github") return null;
+  const name = parsed.link.repository.split("/").at(-1);
+  return name ? `${owner}/${name}` : null;
 }
 
 function resolvePullRequestWorktreeLocalBranchName(

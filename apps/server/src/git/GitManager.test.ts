@@ -4471,61 +4471,76 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
     }),
   );
 
-  it.effect("derives fork repository identity from PR URL when GitHub omits nameWithOwner", () =>
-    Effect.gen(function* () {
-      const repoDir = yield* makeTempDir("supaterm-git-manager-");
-      yield* initRepo(repoDir);
-      const originDir = yield* createBareRemote();
-      const forkDir = yield* createBareRemote();
-      yield* runGit(repoDir, ["remote", "add", "origin", originDir]);
-      yield* runGit(repoDir, ["push", "-u", "origin", "main"]);
-      yield* runGit(repoDir, ["remote", "add", "binbandit-seed", forkDir]);
-      yield* runGit(repoDir, ["checkout", "-b", "fix/git-action-default-without-origin"]);
-      NodeFS.writeFileSync(NodePath.join(repoDir, "derived-fork.txt"), "derived fork\n");
-      yield* runGit(repoDir, ["add", "derived-fork.txt"]);
-      yield* runGit(repoDir, ["commit", "-m", "Derived fork PR branch"]);
-      yield* runGit(repoDir, [
-        "push",
-        "-u",
-        "binbandit-seed",
-        "fix/git-action-default-without-origin",
-      ]);
-      yield* runGit(repoDir, ["checkout", "main"]);
-      yield* runGit(repoDir, ["branch", "-D", "fix/git-action-default-without-origin"]);
+  it.effect.each(["local", "worktree"] as const)(
+    "derives fork repository identity from PR URL when GitHub omits nameWithOwner (%s)",
+    (mode) =>
+      Effect.gen(function* () {
+        const repoDir = yield* makeTempDir("supaterm-git-manager-");
+        yield* initRepo(repoDir);
+        const originDir = yield* createBareRemote();
+        const forkDir = yield* createBareRemote();
+        yield* runGit(repoDir, ["remote", "add", "origin", originDir]);
+        yield* runGit(repoDir, ["push", "-u", "origin", "main"]);
+        yield* runGit(repoDir, ["remote", "add", "binbandit-seed", forkDir]);
+        yield* runGit(repoDir, ["checkout", "-b", "fix/git-action-default-without-origin"]);
+        NodeFS.writeFileSync(NodePath.join(repoDir, "derived-fork.txt"), "derived fork\n");
+        yield* runGit(repoDir, ["add", "derived-fork.txt"]);
+        yield* runGit(repoDir, ["commit", "-m", "Derived fork PR branch"]);
+        yield* runGit(repoDir, [
+          "push",
+          "-u",
+          "binbandit-seed",
+          "fix/git-action-default-without-origin",
+        ]);
+        yield* runGit(repoDir, ["checkout", "main"]);
+        yield* runGit(repoDir, ["branch", "-D", "fix/git-action-default-without-origin"]);
 
-      const { manager } = yield* makeManager({
-        providerScenario: {
-          pullRequest: {
-            number: 642,
-            title: "fix: use commit as the default git action without origin",
-            url: "https://github.com/supabitapp/supaterm/pull/642",
-            baseRefName: "main",
-            headRefName: "fix/git-action-default-without-origin",
-            state: "open",
-            isCrossRepository: true,
-            headRepositoryOwnerLogin: "binbandit",
-          },
-          repositoryCloneUrls: {
-            "binbandit/supaterm": {
-              url: forkDir,
-              sshUrl: forkDir,
+        const { manager, providerCalls } = yield* makeManager({
+          providerScenario: {
+            pullRequest: {
+              number: 642,
+              title: "fix: use commit as the default git action without origin",
+              url: "https://github.com/supabitapp/supaterm/pull/642",
+              baseRefName: "main",
+              headRefName: "fix/git-action-default-without-origin",
+              state: "open",
+              isCrossRepository: true,
+              headRepositoryOwnerLogin: "binbandit",
+            },
+            repositoryCloneUrls: {
+              "binbandit/supaterm": {
+                url: forkDir,
+                sshUrl: forkDir,
+              },
             },
           },
-        },
-      });
+        });
 
-      const result = yield* preparePullRequestThread(manager, {
-        cwd: repoDir,
-        reference: "642",
-        mode: "local",
-      });
+        const result = yield* preparePullRequestThread(manager, {
+          cwd: repoDir,
+          reference: "642",
+          mode,
+        });
 
-      expect(result.branch).toBe("fix/git-action-default-without-origin");
-      expect(result.worktreePath).toBeNull();
-      expect(
-        (yield* runGit(repoDir, ["rev-parse", "--abbrev-ref", "@{upstream}"])).stdout.trim(),
-      ).toBe("binbandit-seed/fix/git-action-default-without-origin");
-    }),
+        expect(result.branch).toBe(
+          mode === "local"
+            ? "fix/git-action-default-without-origin"
+            : "supaterm/pr-642/fix/git-action-default-without-origin",
+        );
+        if (mode === "local") expect(result.worktreePath).toBeNull();
+        else expect(result.worktreePath).not.toBeNull();
+        expect(providerCalls).toContainEqual({
+          operation: "getRepositoryCloneUrls",
+          repository: "binbandit/supaterm",
+        });
+        expect(
+          (yield* runGit(result.worktreePath ?? repoDir, [
+            "rev-parse",
+            "--abbrev-ref",
+            "@{upstream}",
+          ])).stdout.trim(),
+        ).toBe("binbandit-seed/fix/git-action-default-without-origin");
+      }),
   );
 
   it.effect("refreshes a reused PR worktree onto the updated pull request head", () =>
