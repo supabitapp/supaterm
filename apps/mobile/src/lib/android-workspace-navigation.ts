@@ -12,7 +12,6 @@ function androidWorkspaceBackReturnsToThread(state: NavigationState) {
   );
 }
 
-/** The root stack with only the workspace list. */
 export function androidWorkspaceNavigationState(state: NavigationState) {
   const home = state.routes.find((route) => route.name === "Home") ?? { name: "Home" };
   return { ...state, index: 0, routes: [home] };
@@ -36,10 +35,6 @@ export function parentThreadIsBelow(
   );
 }
 
-/**
- * How a thread link opened from inside a thread reaches its target. `navigate` would reuse the
- * current Thread route, so Back would skip the thread the link was in and land on the list.
- */
 export function linkedThreadStep(
   state: NavigationState,
   target: ReactNavigation.RootParamList["Thread"],
@@ -67,8 +62,6 @@ export function returnToAndroidWorkspaceList(
   resetAndroidWorkspace(navigation);
 }
 
-// In the split view these destinations swap the detail pane beside the sidebar instead of
-// stacking over Home, so the default slide-in would show a layer that is not there.
 export function androidWorkspaceDestinationAnimation(routeName: string, usesSplitView: boolean) {
   return usesSplitView && (routeName === "Thread" || routeName === "PullRequest")
     ? ("none" as const)

@@ -14,20 +14,17 @@ export const NativeScrollEdgeEffectsContext = createContext<ScrollEdgeEffects>(u
 function resolveScrollEdgeBleed() {
   try {
     const module = requireOptionalNativeModule<{
-      readonly ViewPrototypes?: { readonly T3NativeControls_ScrollEdgeBleed?: unknown };
-    }>("T3NativeControls");
-    if (!module?.ViewPrototypes?.T3NativeControls_ScrollEdgeBleed) return null;
-    return requireNativeView<ViewProps>("T3NativeControls", "ScrollEdgeBleed");
+      readonly ViewPrototypes?: { readonly SupatermNativeControls_ScrollEdgeBleed?: unknown };
+    }>("SupatermNativeControls");
+    if (!module?.ViewPrototypes?.SupatermNativeControls_ScrollEdgeBleed) return null;
+    return requireNativeView<ViewProps>("SupatermNativeControls", "ScrollEdgeBleed");
   } catch {
     return null;
   }
 }
-// Widens the scroll view under the side safe areas its column pads away (the Duo's vertical bar),
-// so the header's scroll-edge blur, which UIKit draws inside the scroll view, reaches the bar
-// while the content stays in the safe area. Every header scroll view comes through here.
+
 const ScrollEdgeBleed = Platform.OS === "ios" ? resolveScrollEdgeBleed() : null;
 
-/** Registers a screen's scroll view with its header. The only way to do so: see the lint rule. */
 export function NativeScrollViewMarker(props: ComponentProps<typeof ScrollViewMarker>) {
   const effects = use(NativeScrollEdgeEffectsContext);
   const marker = (

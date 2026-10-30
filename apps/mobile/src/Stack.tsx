@@ -167,22 +167,16 @@ const GLASS_HEADER_OPTIONS: AppScreenOptions = {
   unstable_navigationItemStyle: NATIVE_LIQUID_GLASS_SUPPORTED ? "editor" : undefined,
 };
 
-// Hiding Android's native header after mount can leave detail panes measured short.
-// These screens render their own Material toolbar, so hide it from the first layout.
 const DETAIL_HEADER_OPTIONS: AppScreenOptions = {
   ...GLASS_HEADER_OPTIONS,
   headerShown: Platform.OS !== "android",
 };
 
-// Like Messages on the Duo: reading back through history (scrolling up) minimizes the
-// header, and reversing toward the latest message restores it. Other devices ignore it.
 const THREAD_HEADER_OPTIONS: AppScreenOptions = {
   ...DETAIL_HEADER_OPTIONS,
   unstable_headerMinimizationBehavior: "onScrollUp",
 };
 
-// The Duo minimizes headers on scroll down by default. Home and the pull request lists
-// stutter against it on hardware (not reproducible in the simulator), so they keep theirs.
 const FIXED_DUO_HEADER: AppScreenOptions = { unstable_headerMinimizationBehavior: "never" };
 
 const SOLID_HEADER_OPTIONS: AppScreenOptions = {
@@ -214,8 +208,6 @@ const LEGAL_DOCUMENT_HEADER_OPTIONS: AppScreenOptions = {
   presentation: "fullScreenModal",
 };
 
-// Thread settings keep the Duo's vertical bar so cancel, search, filter and confirm sit in the
-// rail. The picker stack spans the sheet so its header reaches the rail, and insets its content.
 const THREAD_SETTINGS_SHEET_OPTIONS = {
   presentation: "formSheet" as const,
   sheetAllowedDetents: [1],
@@ -223,8 +215,6 @@ const THREAD_SETTINGS_SHEET_OPTIONS = {
   nativeContentInsetHorizontally: false,
 };
 
-// Settings pages are root routes so they share the workspace's columns and header. The
-// `Settings` route marks the Settings tab as open (see settings-navigation.ts).
 const SETTINGS_PAGE_OPTIONS = SHEET_GLASS_HEADER_OPTIONS;
 
 const SETTINGS_SCREENS = {
@@ -235,8 +225,7 @@ const SETTINGS_SCREENS = {
       ...SETTINGS_PAGE_OPTIONS,
       title: "Settings",
       ...(Platform.OS === "android" ? { animation: "none" as const } : {}),
-      // Android draws its own app bar here. Hidden only from inside the screen, the native one
-      // showed for the first frame of the Settings tab and pushed the page down.
+
       headerShown: Platform.OS !== "android",
       headerBackVisible: false,
     },
@@ -254,7 +243,7 @@ const SETTINGS_SCREENS = {
     linking: "settings/environments/:environmentId",
     options: { ...SETTINGS_PAGE_OPTIONS, title: "Environment" },
   }),
-  // Old links to New threads and Agent behavior open Threads, which absorbed them.
+
   SettingsEnvironmentNewThreads: createNativeStackScreen({
     screen: SettingsThreadsRouteScreen,
     linking: "settings/new-threads",
@@ -419,8 +408,7 @@ const SETTINGS_SCREENS = {
       title: "Diagnostics",
     },
   }),
-  // These params snapshot the tap time, local filters, and freshly aggregated pools.
-  // A linking path would round-trip them as URL query strings and preserve stale values.
+
   SettingsUsageAccount: createNativeStackScreen({
     screen: UsageLimitAccountScreen,
     options: { ...SETTINGS_PAGE_OPTIONS, title: "Account" },
@@ -451,7 +439,6 @@ const SETTINGS_SCREENS = {
   }),
 };
 
-// iOS 26 header morphing requires one UINavigationBar; nested stacks make the whole screen slide.
 const THREAD_LINKING_PREFIX = "threads/:environmentId/:threadId";
 
 export function workspaceLocationFromState(state: NavigationState) {
@@ -475,9 +462,6 @@ export function rootPathnameFromState(state: NavigationState): string {
   return path.startsWith("/") ? path : `/${path}`;
 }
 
-// Keep mounted across backgrounding so foreground recovery also catches up
-// threads that stopped while the app was suspended.
-
 function RootStackLayout(props: {
   readonly children: React.ReactNode;
   readonly state: NavigationState;
@@ -489,8 +473,7 @@ function RootStackLayout(props: {
       .slice(0, props.state.index + 1)
       .filter((route) => !isWorkspaceOverlayRoute(route.name)),
   );
-  // The flow follows the draft route even while a pushed Thread covers it, so
-  // its state lives exactly as long as the route.
+
   const draftRoute = props.state.routes.findLast(isDraftThreadRoute);
   const draftRouteOnTop =
     draftRoute !== undefined &&
@@ -575,7 +558,7 @@ function NotFoundScreen() {
 const RootStackConfig = createWorkspaceStackNavigator({
   initialRouteName: "Home",
   UNSTABLE_router: workspaceDetailRouter,
-  // React Navigation calls layouts inline; compiled components would share the navigator's memo cache.
+
   layout: (props) => <RootStackLayout {...props} />,
   screenOptions: {
     headerShown: false,
@@ -646,7 +629,7 @@ const RootStackConfig = createWorkspaceStackNavigator({
     }),
     PullRequestLabels: createNativeStackScreen({
       screen: PullRequestLabelsScreen,
-      // Presented like PullRequestFilterSearch, whose search sheet it shares.
+
       options:
         Platform.OS === "android"
           ? { presentation: "card", headerShown: false }
@@ -660,8 +643,7 @@ const RootStackConfig = createWorkspaceStackNavigator({
     }),
     PullRequestFilterSearch: createNativeStackScreen({
       screen: PullRequestFilterSearchScreen,
-      // Android pushes it like the branch picker; a formSheet there leaves the list's header
-      // peeking above it once the keyboard opens.
+
       options:
         Platform.OS === "android"
           ? { presentation: "card", headerShown: false }
@@ -822,7 +804,6 @@ const RootStackConfig = createWorkspaceStackNavigator({
       screen: ReviewCommentComposerSheet,
       linking: `${THREAD_LINKING_PREFIX}/review-comment`,
       options: {
-        // Android formSheets cannot host the keyboard-driven comment composer.
         ...(Platform.OS === "android"
           ? { presentation: "fullScreenModal" as const }
           : HORIZONTAL_FORM_SHEET_OPTIONS),
@@ -978,7 +959,6 @@ const RootStackConfig = createWorkspaceStackNavigator({
       screen: ConnectionsNewRouteScreen,
       linking: PAIRING_FORM_LINK_PATHS.ConnectionsNew,
       options: {
-        // Mount the iOS header immediately to avoid remounting the pairing form.
         ...(Platform.OS === "ios" ? SHEET_GLASS_HEADER_OPTIONS : undefined),
         title: "Add Environment",
         ...HORIZONTAL_FORM_SHEET_OPTIONS,
@@ -1011,19 +991,12 @@ function GuardedScreenLayout(props: GuardedScreenLayoutProps) {
   );
 }
 
-// React Navigation calls screen layouts as plain functions inside its own render. Passing a
-// compiled component directly would put its memo cache among the navigator's hooks.
-function renderGuardedScreenLayout(props: GuardedScreenLayoutProps) {
-  return <GuardedScreenLayout {...props} />;
-}
-
 function ScreenRenderFallback(props: RenderFailureProps & { readonly routeName: string }) {
   const navigation = useNavigation();
   const exit = navigation.canGoBack()
     ? { label: "Go back", onPress: () => navigation.goBack() }
     : props.routeName === "Home"
-      ? // Home itself failed, and the Settings list renders inside it; open a Settings page.
-        {
+      ? {
           label: "Open settings",
           onPress: () => openSettings(navigation, DEFAULT_SETTINGS_PAGE),
         }

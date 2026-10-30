@@ -62,7 +62,6 @@ export class RenderErrorBoundary extends Component<
   }
 
   override componentDidCatch(error: unknown, info: { componentStack?: string }) {
-    // A caught render error never reaches Observe's global handler.
     reportCrash(error);
     this.setState({ componentStack: info.componentStack });
   }

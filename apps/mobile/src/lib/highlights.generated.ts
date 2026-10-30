@@ -214,7 +214,6 @@ export const HIGHLIGHTS_LANGUAGE_IDS: Readonly<Record<string, number>> = {
   zon: 80,
 };
 
-/** `[color, fontStyle]` by token ID. fontStyle bits: italic 1, bold 2. */
 export const HIGHLIGHTS_THEME_STYLES: Readonly<
   Record<"light" | "dark", ReadonlyArray<readonly [string, number]>>
 > = {

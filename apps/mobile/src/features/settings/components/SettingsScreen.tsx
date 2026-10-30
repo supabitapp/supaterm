@@ -32,13 +32,11 @@ export function SettingsScreen(
   const compactTabs = useCompactWorkspaceTabs();
   const { layout } = useAdaptiveWorkspaceLayout();
   const cover = deviceType === "duo-folded";
-  // Android opens Settings as a workspace tab; its root page has nothing to go back to.
+
   const workspaceRoot =
     props.workspaceRoot ||
     (Platform.OS === "android" && workspace !== null && route.name === "Settings");
 
-  // Settings' grouped cards only lift off the screen surface, so the folded Duo doesn't take
-  // the workspace's drawer surface here.
   const surfaceClassName = cover ? "bg-screen" : workspaceRoot ? surface.className : "bg-sheet";
 
   return (

@@ -1,6 +1,5 @@
 import type { DeviceServiceState, ThreadId } from "@supaterm/contracts";
 
-/** Host identity is part of the selection because Android serials repeat across hosts. */
 export function threadDevicePreviews(state: DeviceServiceState | null, threadId: ThreadId) {
   return (state?.sessions ?? [])
     .filter((session) => session.threadId === threadId)

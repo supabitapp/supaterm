@@ -13,14 +13,11 @@ import { ControlPill } from "./ui/ControlPill";
 
 const preparedPdfAtom = Atom.family((uri: string) =>
   Atom.make(
-    // The downloaded copy lives as long as a viewer reads it; Retry refreshes the atom,
-    // which closes the scope and discards the copy before downloading again. Acquisition
-    // stays interruptible so closing the viewer aborts the download.
     Effect.acquireRelease(
       Effect.tryPromise({
         try: (signal) => {
           const prepared = preparePdfPreview(uri, signal);
-          // An interrupt can land after the copy exists but before acquireRelease owns it.
+
           signal.addEventListener("abort", () => {
             void prepared.then(
               (file) => file?.dispose(),
@@ -43,7 +40,7 @@ export function PdfPreview(props: { readonly uri: string }) {
   const atom = preparedPdfAtom(props.uri);
   const prepared = useAtomValue(atom);
   const refresh = useAtomRefresh(atom);
-  // A render failure belongs to the downloaded copy that failed; Retry replaces it.
+
   const [unrenderable, setUnrenderable] = useState<unknown>(null);
   const file = prepared._tag === "Success" && !prepared.waiting ? prepared.value : null;
   const error =

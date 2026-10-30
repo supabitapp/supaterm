@@ -1,5 +1,3 @@
-// Avoid RN/navigation imports so node checks do not load their untranspiled Flow.
-
 export type NativeTopScrollEdgeEffect = "automatic" | "soft";
 export type NativeHeaderScrollEdgeEffects = {
   readonly top: NativeTopScrollEdgeEffect;
@@ -16,7 +14,6 @@ function nativeTopScrollEdgeEffect(
     return "automatic";
   }
 
-  // On iOS 27, soft uses a local overlay rather than sampling edge-to-edge app content.
   return "automatic";
 }
 

@@ -1,18 +1,18 @@
-import { useNavigation } from "@react-navigation/native";
+import { useAtomSet } from "@effect/atom-react";
 import { View } from "react-native";
 import { EmptyState } from "../../components/ui/EmptyState";
-import { openSettings } from "../settings/settings-navigation";
+import { updateMobilePreferencesAtom } from "../../state/preferences";
 
 export function WorkspaceNoTabs() {
-  const navigation = useNavigation();
+  const save = useAtomSet(updateMobilePreferencesAtom);
   return (
     <View className="flex-1 items-center justify-center bg-screen">
       <EmptyState
         title="All sections are hidden"
         detail="Show a section to add it back to navigation."
-        actionLabel="Edit navigation tabs"
+        actionLabel="Show all sections"
         variant="plain"
-        onAction={() => openSettings(navigation, "Settings")}
+        onAction={() => save({ hiddenNavigationTabs: [] })}
       />
     </View>
   );

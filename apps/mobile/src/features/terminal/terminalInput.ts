@@ -3,7 +3,6 @@ import type { ExecutionEnvironmentPlatformOs } from "@supaterm/contracts";
 export type PendingModifier = "ctrl" | "meta";
 export type HostPlatform = "mac" | "linux" | "windows" | "unknown";
 
-/** Upper bound of `TerminalWriteInput.data`; longer writes are rejected by the server. */
 export const TERMINAL_WRITE_MAX_LENGTH = 65_536;
 
 export type ModifiedTerminalInput =
@@ -34,7 +33,6 @@ function applyCtrlModifier(input: string): string {
   return input;
 }
 
-/** Use the device clipboard for host paste chords; forwarding Ctrl+V to PowerShell pastes the host clipboard. */
 export function resolveModifiedTerminalInput(input: {
   readonly data: string;
   readonly modifier: PendingModifier;
@@ -59,7 +57,6 @@ export function resolveModifiedTerminalInput(input: {
   };
 }
 
-/** No DECSET 2004 state, so omit bracket markers. Strip unsafe controls and use CR; raw-mode TUIs read LF as Ctrl+J. */
 export function encodeTerminalPaste(text: string): string {
   return text.replace(UNSAFE_PASTE_BYTES, " ").replace(/\r\n|\n/g, "\r");
 }
@@ -79,7 +76,6 @@ export function chunkTerminalWrite(data: string): ReadonlyArray<string> {
   return chunks;
 }
 
-/** Returns null for unknown OSes so callers can try weaker signals. */
 export function hostPlatformFromOs(os: ExecutionEnvironmentPlatformOs | null): HostPlatform | null {
   if (os === "darwin") return "mac";
   if (os === "linux") return "linux";

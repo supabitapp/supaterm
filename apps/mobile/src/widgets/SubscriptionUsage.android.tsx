@@ -18,7 +18,7 @@ import type { SubscriptionUsageSnapshot as SubscriptionUsageProps } from "./subs
 
 export function SubscriptionUsage(props: SubscriptionUsageProps, environment: WidgetEnvironment) {
   "widget";
-  // The widget runtime evaluates this function without the app's module scope.
+
   const now = Date.now();
   const limit = 2;
   const mode = props.theme?.mode;
@@ -57,7 +57,6 @@ export function SubscriptionUsage(props: SubscriptionUsageProps, environment: Wi
     },
   ];
   return (
-    // Android lacks widgetURL; one card Button routes taps to the app listener opening props.url.
     <Button
       colors={{ containerColor: colors.surface }}
       modifiers={[fillMaxSize()]}

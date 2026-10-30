@@ -15,7 +15,6 @@ interface VideoThumbnailTarget {
   readonly source: string | DraftComposerFileAttachment;
 }
 
-// Plain-object keys compare structurally (Effect `Equal`/`Hash`).
 const videoThumbnailAtom = Atom.family((target: VideoThumbnailTarget) =>
   Atom.make(
     Effect.promise((signal) =>
@@ -41,7 +40,7 @@ export function VideoThumbnailImage(props: {
   readonly contentFit?: "cover" | "contain";
 }) {
   const { cacheKey, source } = props;
-  // Extraction runs only while the screen is focused; leaving it interrupts the load.
+
   const isFocused = useIsFocused();
   const loaded = useAtomValue(
     source && isFocused ? videoThumbnailAtom({ cacheKey, source }) : noVideoThumbnail,

@@ -75,12 +75,6 @@ const layerConnectivity = Connectivity.layer({
   ),
 });
 
-/**
- * Wakes connections when the device moves between networks while staying
- * online, such as Wi-Fi to cellular. Connectivity only reports online or
- * offline, so leaving home on cellular would otherwise go unnoticed until the
- * LAN socket times out.
- */
 const networkPathChanges = Stream.callback<"network-changed">((queue) =>
   Effect.acquireRelease(
     Effect.sync(() => {
@@ -93,8 +87,7 @@ const networkPathChanges = Stream.callback<"network-changed">((queue) =>
         }
         previous = type ?? previous;
       };
-      // The listener reports changes only, so seed the current type; without
-      // it the first Wi-Fi to cellular move would go unnoticed.
+
       void Network.getNetworkStateAsync()
         .then((state) => {
           if (active && previous === undefined && state.isConnected === true) {
@@ -122,8 +115,16 @@ const layerWakeups = Wakeups.layer({
         Effect.acquireRelease(
           Effect.sync(() => {
             let previous = AppState.currentState;
+            let backgroundedAt = previous === "background" ? Date.now() : null;
             return AppState.addEventListener("change", (state) => {
-              const reason = mobileApplicationStateWakeup(previous, state);
+              const now = Date.now();
+              if (state === "background" && previous !== state) backgroundedAt = now;
+              const reason = mobileApplicationStateWakeup(
+                previous,
+                state,
+                backgroundedAt === null ? 0 : now - backgroundedAt,
+              );
+              if (state === "active") backgroundedAt = null;
               previous = state;
               if (reason !== null) Queue.offerUnsafe(queue, reason);
             });

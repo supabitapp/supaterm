@@ -24,10 +24,6 @@ import { useSelectWorkspaceDetail } from "../workspace/useSelectWorkspaceDetail"
 
 const CLI_COMMAND = "npx supaterm triage";
 
-/**
- * In-app `supaterm triage`, as on web: the server writes the session files and
- * clones the matching source, then a No project draft opens with the prompt.
- */
 export function useStartTriage() {
   const navigation = useNavigation();
   const selectDetail = useSelectWorkspaceDetail();
@@ -48,7 +44,7 @@ export function useStartTriage() {
     if (prepared._tag === "Failure") return prepared;
     const opened = await settlePromise(async () => {
       await waitForComposerDraftsLoaded();
-      // The user went elsewhere while this waited; leave them there.
+
       if (!navigation.isFocused()) return;
       const draftId = createNewTaskDraft({ environmentId, projectId: scratch.value.id });
       setComposerDraftText(draftId, prepared.value.prompt);

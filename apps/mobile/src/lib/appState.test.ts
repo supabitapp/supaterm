@@ -26,10 +26,9 @@ describe("reduce motion store", () => {
     expect(readReduceMotionEnabled()).toBe(false);
     unsubscribe();
 
-    // Changed while nobody listened: no event reaches the store.
     native.enabled = true;
     const unsubscribeAgain = subscribeReduceMotion(() => undefined);
-    // Unknown until the reseed lands, which reads as reduced, not the stale false.
+
     expect(readReduceMotionEnabled()).toBe(true);
     await Promise.resolve();
     expect(readReduceMotionEnabled()).toBe(true);

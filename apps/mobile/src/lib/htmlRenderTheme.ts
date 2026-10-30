@@ -9,7 +9,6 @@ import {
   type MobileThemeVariables,
 } from "./mobileTheme";
 
-/** WebViews cannot load bundled app fonts; use system stacks. */
 export function mobileHtmlRenderTheme(input: {
   readonly themeId: MobileThemeId;
   readonly appearance: MobileThemeAppearance;

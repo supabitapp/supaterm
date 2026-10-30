@@ -1,5 +1,3 @@
-/** Android never repositions children after maxWidth clamps; wide blocks and ordered lists need definite width. */
-
 const FENCED_CODE_BLOCK = /^ {0,3}(?:```|~~~)/m;
 const ORDERED_LIST_ITEM = /^ {0,3}\d{1,9}[.)](?:[ \t]+|$)/;
 const INDENTED_ORDERED_LIST_ITEM = /^( {4,})\d{1,9}[.)](?:[ \t]+|$)/;
@@ -25,7 +23,6 @@ function hasIndentedCodeBlock(text: string): boolean {
     let column = 0;
     let index = 0;
 
-    // Markdown tabs advance to the next four-column stop.
     while (index < line.length) {
       if (line[index] === " ") {
         column += 1;

@@ -20,8 +20,7 @@ export function SettingsDragHandle(props: SettingsDragHandleProps) {
   const onEnd = useEffectEvent((translation: number, cancelled: boolean) =>
     props.onEnd(translation, cancelled),
   );
-  // The worklets plugin copies the values these callbacks close over when the gesture is built,
-  // so the drop reads its translation from the final event rather than a tracked variable.
+
   const [gesture] = useState(() =>
     Gesture.Pan()
       .minDistance(0)

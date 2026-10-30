@@ -8,12 +8,10 @@ import {
 import type { WorkspaceTab } from "./workspace-tabs-state";
 import { rememberedSettingsPage, workspaceSelectionsIn } from "./workspace-tab-navigation";
 
-/** Settings joins the two list tabs as a top-level Android destination. */
 export type AndroidWorkspaceNavigationTab = WorkspaceTab | "settings";
 
 const WORKSPACE_ROUTES = new Set(["Home", "Thread", "PullRequest"]);
 
-/** The Settings tab resets over Home alone so stale chat and PR history is dropped. */
 export function androidWorkspaceTabNavigationState(
   state: NavigationState,
   tab: AndroidWorkspaceNavigationTab,
@@ -28,7 +26,6 @@ export function androidWorkspaceTabNavigationState(
   return settingsNavigationState(state, page, current?.params);
 }
 
-/** Settings stays selected while one of its pages is the topmost workspace route. */
 export function androidWorkspaceSettingsOpen(state: NavigationState): boolean {
   return settingsOpenIn(
     state.routes

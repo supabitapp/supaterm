@@ -70,7 +70,7 @@ const WINDOW_OPTIONS = [
 
 const CHART_HEIGHT = 180;
 const WIDE_CHART_HEIGHT = 260;
-// Below this the page keeps the phone's single column.
+
 const WIDE_WIDTH = 600;
 const MAX_CONTENT_WIDTH = 1080;
 const providerLabel = (provider: UsageProviderKind) => PROVIDER_LABEL[provider];
@@ -265,7 +265,6 @@ function UsageScreen(props: {
         <NativeStackScreenOptions
           optionsVersion={JSON.stringify({ showEnvironmentFilter, filterIcon, environmentActions })}
           options={{
-            // A native menu item, unlike a custom view, moves into the Duo's vertical bar.
             unstable_headerRightItems: () =>
               showEnvironmentFilter
                 ? [
@@ -456,7 +455,7 @@ function UsageUpdating({
   readonly children: ReactNode;
 }) {
   const reduceMotion = useReduceMotionEnabled();
-  // The delay keeps a quick refresh from flashing the content.
+
   const dimStyle = {
     opacity: dimmed ? 0.5 : 1,
     transitionProperty: "opacity",
@@ -595,9 +594,9 @@ function ChartCard(props: {
   readonly isPast24Hours: boolean;
   readonly timeZone: string;
   readonly height: number;
-  /** Replaces the summary when it sits beside the chart. */
+
   readonly title?: string;
-  /** Grows the chart past `height` to match a taller neighbouring column. */
+
   readonly fill?: boolean;
 }) {
   const { merged, metric } = props;
@@ -618,13 +617,12 @@ function ChartCard(props: {
       className={`gap-4 rounded-[24px] border-continuous bg-grouped-card p-4${props.fill ? " flex-1" : ""}`}
     >
       {props.title ? (
-        <Text className="text-sm font-t3-medium text-foreground">{props.title}</Text>
+        <Text className="text-sm font-supaterm-medium text-foreground">{props.title}</Text>
       ) : (
         <UsageSummary merged={merged} metric={metric} />
       )}
 
       {props.fill ? (
-        // Absolute so the measured slot can shrink again when the neighbour gets shorter.
         <View
           className="flex-1"
           style={{ minHeight: props.height }}
@@ -674,7 +672,7 @@ function UsageSummary(props: { readonly merged: MergedUsage; readonly metric: Us
       <Text className="text-sm text-foreground-muted">
         {metric === "cost" ? "Raw token cost" : "Processed tokens"}
       </Text>
-      <Text className="text-4xl font-t3-bold tabular-nums text-foreground">
+      <Text className="text-4xl font-supaterm-bold tabular-nums text-foreground">
         {metric === "cost" ? `${formatUsd(merged.costUsd)}*` : formatTokens(merged.totalTokens)}
       </Text>
       <Text className="text-sm text-foreground-muted">
@@ -692,14 +690,13 @@ function ProviderSection(props: {
   readonly cursorAccessEnvironments: readonly EnvironmentUsageStatus[];
   readonly showCursorEnvironment: boolean;
   readonly onCursorEnabled: () => void;
-  /** Drops the share bar so the list fits beside the chart. */
+
   readonly compact: boolean;
 }) {
   const { merged, metric } = props;
   const colors = useProviderColors();
   if (merged.providers.length === 0 && props.cursorAccessEnvironments.length === 0) return null;
 
-  // Hermes lacks toSorted.
   const ordered = [...merged.providers].sort((a, b) =>
     metric === "cost" ? b.costUsd - a.costUsd : b.totalTokens - a.totalTokens,
   );
@@ -862,8 +859,7 @@ function CostSection(props: { readonly merged: MergedUsage; readonly wide: boole
     { label: "Cache read", value: categoryCost.cacheRead, color: colors.cacheRead },
     { label: "Cache write", value: categoryCost.cacheWrite, color: colors.cacheWrite },
     { label: "Output", value: categoryCost.output, color: colors.output },
-    // Reported cost with no rates to split it, or from older servers. Below a
-    // cent it is rounding, not usage.
+
     {
       label: "Other",
       value: categoryCost.unsplit >= 0.005 ? categoryCost.unsplit : 0,
@@ -967,7 +963,6 @@ function ModelsSection(props: {
   const colors = useProviderColors();
   if (merged.models.length === 0) return null;
 
-  // Hermes lacks toSorted.
   const ordered = [...merged.models].sort((a, b) =>
     metric === "cost"
       ? b.costUsd - a.costUsd || b.totalTokens - a.totalTokens

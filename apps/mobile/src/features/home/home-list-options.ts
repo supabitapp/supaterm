@@ -52,8 +52,7 @@ export function HomeListOptionsProvider({
   const [optionsAtom] = useState(() => Atom.make(defaultHomeListOptions(savedFilters)));
   const options = useAtomValue(optionsAtom);
   const savePreferences = useAtomSet(updateMobilePreferencesAtom);
-  // Only the scope persists; the sort order is per session. Updates read the
-  // registry, so several in one event each build on the last and save it.
+
   const updateOptions = (patch: Partial<HomeListOptions>) => {
     const current = registry.get(optionsAtom);
     const next = { ...current, ...patch };

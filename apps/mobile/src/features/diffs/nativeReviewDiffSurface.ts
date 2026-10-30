@@ -125,7 +125,7 @@ export interface NativeReviewDiffViewProps extends ViewProps {
   readonly themeJson: string;
   readonly styleJson?: string;
   readonly rowHeight: number;
-  /** Android ignores this and measures the widest row. */
+
   readonly contentWidth: number;
   readonly initialRowIndex?: number;
   readonly initialFileId?: string;
@@ -234,7 +234,7 @@ function useNativeReviewDiffPayload(
         })
         .then((accepted) => {
           if (cancelled) return;
-          // This promise resolves after native decode, reset validation, and merge.
+
           if (method === "setTokensPatchJson" && accepted !== true) {
             throw new Error("Native token patch was not accepted");
           }
@@ -255,7 +255,6 @@ function useNativeReviewDiffPayload(
         });
     };
 
-    // Expo registers native tags after Fabric attaches refs; dispatch next frame.
     frame = requestAnimationFrame(dispatch);
 
     return () => {
@@ -338,7 +337,6 @@ function NativeReviewDiffContent(
   const reportedMountRef = useRef(false);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reports the native surface mount to the debug callback once per mount
   useEffect(() => {
-    // Effect replay keeps the same native content; only a new mount loses tokens.
     if (reportedMountRef.current) return;
     reportedMountRef.current = true;
     onDebugRef.current?.({

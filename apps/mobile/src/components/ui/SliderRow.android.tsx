@@ -12,7 +12,7 @@ import type { SliderRowProps } from "./SliderRow.types";
 
 export function SliderRow(props: SliderRowProps) {
   const { colors } = useControlTheme();
-  // The value of the drag in progress; null between drags.
+
   const draft = useRef<number | null>(null);
   const commit = (value: number) => {
     if (props.disabled) return;

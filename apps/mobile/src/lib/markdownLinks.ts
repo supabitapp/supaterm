@@ -231,7 +231,6 @@ const FILE_ICON_BY_EXTENSION: Readonly<Record<string, MarkdownFileIcon>> = {
   zsh: "bash",
 };
 
-/** Native link and media APIs have no document scheme to inherit from protocol-relative URLs. */
 export function normalizeNativeMarkdownUrl(value: string): string {
   return value.startsWith("//") ? `https:${value}` : value;
 }

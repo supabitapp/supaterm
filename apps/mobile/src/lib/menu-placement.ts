@@ -1,13 +1,12 @@
 import type { VerticalHinge } from "./layout";
 
-/** Keep menus on their anchor's side of a creased hinge. */
 export function deriveMenuHorizontalPlacement(input: {
   readonly anchorX: number;
   readonly anchorWidth: number;
   readonly overlayWidth: number;
   readonly desiredWidth: number;
   readonly margin: number;
-  /** In the overlay's coordinates. */
+
   readonly hinge: VerticalHinge | null;
 }) {
   const center = input.anchorX + input.anchorWidth / 2;

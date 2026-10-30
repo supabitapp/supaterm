@@ -2,12 +2,6 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import type { MarkdownImageOccurrence, MarkdownImageSource } from "react-native-enriched-markdown";
 import type { MarkdownImageSourceResolver } from "./SelectableMarkdownText.types";
 
-/**
- * Enriched asks about each image once and reads `resolveImageSource` like an
- * event handler, so a failed image would keep its placeholder until remount.
- * Our resolver fails while the environment is unreachable and is replaced when
- * that changes, so a failed image stays pending and asks the next resolver.
- */
 export function useRetryingImageSource(resolve: MarkdownImageSourceResolver | undefined) {
   const latestRef = useRef(resolve);
   const retriesRef = useRef(new Set<() => void>());

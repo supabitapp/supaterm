@@ -51,10 +51,6 @@ const ROUTE_ICONS: Record<ConnectionRouteKind, AppSymbolName> = {
   ssh: "terminal",
 };
 
-/**
- * The ways this device reaches an environment, preferred first. Edit shows
- * drag handles and remove buttons; Add route pairs this machine over another address.
- */
 export function EnvironmentRoutesSection({
   environmentId,
   connected,
@@ -86,7 +82,7 @@ export function EnvironmentRoutesSection({
     null,
   );
   const [heights, setHeights] = useState<ReadonlyMap<string, number>>(() => new Map());
-  // Remount dropped rows so data order and cleared drag offsets change together without flashing.
+
   const [drops, setDrops] = useState(0);
   if (entry === undefined) return null;
 
@@ -240,8 +236,7 @@ export function EnvironmentRoutesSection({
               if (!cancelled) move(index, dropIndex(index, translation));
             }}
             onStep={(direction) => move(index, direction === "up" ? index - 1 : index + 1)}
-            // Learned routes are refreshed from the server unless a connect
-            // skips them; paired routes can be removed.
+
             onRemove={
               routes.length > 1 && (!isLearned(route) || unused)
                 ? () => confirmRemove(route)
@@ -274,7 +269,7 @@ function RouteRow(props: {
   const { route, lifted, offset } = props;
   const label = connectionRouteLabel(route);
   const address = connectionRouteAddress(route);
-  // A route a connect skips has no speed worth measuring.
+
   const latency = useAtomValue(
     props.unused ? NO_LATENCY : environmentSession.routeLatencyAtoms(route).labelAtom,
   );

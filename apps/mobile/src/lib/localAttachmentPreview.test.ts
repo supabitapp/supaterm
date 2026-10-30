@@ -122,7 +122,7 @@ describe("localAttachmentPreviewAtom", () => {
     mocks.retain.mockReturnValueOnce(release);
     const registry = AtomRegistry.make();
     const first = settled(registry, attachment);
-    // A metadata update on the same draft file reads the same lease.
+
     const renamed = settled(registry, { ...attachment, name: "renamed.mov" });
     expect((await first.state).uri).toContain("/Documents/");
     expect((await renamed.state).uri).toBe((await first.state).uri);
@@ -130,7 +130,7 @@ describe("localAttachmentPreviewAtom", () => {
     first.unsubscribe();
     expect(release).not.toHaveBeenCalled();
     renamed.unsubscribe();
-    // The scope finalizer runs on the Effect scheduler; await the release itself.
+
     await released.promise;
     expect(release).toHaveBeenCalledTimes(1);
     registry.dispose();

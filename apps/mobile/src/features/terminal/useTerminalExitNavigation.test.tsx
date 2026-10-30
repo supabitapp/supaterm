@@ -11,7 +11,9 @@ vi.mock("@react-navigation/native", async () => {
     createRequire(import.meta.url).resolve("@react-navigation/native/package.json"),
   );
   return {
-    StackActions: requireNavigation("@react-navigation/routers").StackActions,
+    StackActions: createRequire(requireNavigation.resolve("@react-navigation/core/package.json"))(
+      "@react-navigation/routers",
+    ).StackActions,
     useNavigation: () => harness.navigation,
   };
 });
@@ -21,9 +23,9 @@ import { useTerminalExitNavigation } from "./useTerminalExitNavigation";
 const requireNavigation = NodeModule.createRequire(
   NodeModule.createRequire(import.meta.url).resolve("@react-navigation/native/package.json"),
 );
-const { StackRouter, StackActions, CommonActions } = requireNavigation(
-  "@react-navigation/routers",
-) as {
+const { StackRouter, StackActions, CommonActions } = NodeModule.createRequire(
+  requireNavigation.resolve("@react-navigation/core/package.json"),
+)("@react-navigation/routers") as {
   StackRouter: typeof import("@react-navigation/native").StackRouter;
   StackActions: typeof import("@react-navigation/native").StackActions;
   CommonActions: typeof import("@react-navigation/native").CommonActions;
@@ -50,8 +52,7 @@ function setup(fallbackTerminalId: string | null) {
   apply(StackActions.push("ThreadTerminal", { ...thread, terminalId: "second" }));
   const terminalKey = state.routes.at(-1)!.key;
   const focusListeners = new Set<() => void>();
-  // A screen's navigation object stamps its route as the source but leaves the
-  // target unset, as React Navigation's screen navigation does.
+
   const dispatch = (action: Action) => apply({ source: terminalKey, ...action } as Action);
   harness.navigation = {
     dispatch,

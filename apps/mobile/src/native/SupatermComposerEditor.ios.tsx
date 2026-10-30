@@ -111,9 +111,6 @@ interface NativeComposerEditorProps extends ViewProps {
 
 const NativeView = requireNativeView<NativeComposerEditorProps>(NATIVE_MODULE_NAME);
 
-// A view command rejects with "Unable to find the view" when the composer's native view is
-// unmounted, which can happen while an open question hides the composer slot. There is nothing
-// to act on then.
 function settleViewCommand(command: Promise<void> | undefined): void {
   command?.catch(() => undefined);
 }
@@ -144,7 +141,7 @@ export function ComposerEditor({
   const mostRecentEventCountRef = useRef(0);
   const [mostRecentEventCount, setMostRecentEventCount] = useState(0);
   const [, forceNativeEventRender] = useState(0);
-  // Start history empty so restored drafts or recycled views receive a non-echo controlled payload.
+
   const nativeEventSnapshotsRef = useRef<ComposerNativeEventSnapshot[]>([]);
   const [confirmedTokens, setConfirmedTokens] = useState(() => ({
     value: props.value,
@@ -209,10 +206,7 @@ export function ComposerEditor({
       }),
     );
   }, [inlineTokens, props.value, props.context, skillLabels, theme, chipTextColor]);
-  // Every render resolves against the snapshot history, so a render whose
-  // (value, selection) lags the acknowledged native state is stamped behind
-  // the native revision and rejected by the editor instead of re-applying a
-  // stale caret or stale text mid-typing.
+
   /* oxlint-disable react/refs -- Native controlled edits must reconcile against the last acknowledged native event before sending the next payload. */
   const controlledEventCount = resolveComposerControlledEventCount(
     props.value,
@@ -248,12 +242,11 @@ export function ComposerEditor({
   }, [acknowledgesLatestNativeEvent, mostRecentEventCount, nativeEventSnapshotsRef]);
   const assumedValue = props.value;
   const assumedControlledDocumentRef = useRef<string | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- records only committed controlled payloads in the native editor revision history
   useEffect(() => {
     if (assumedControlledDocumentRef.current === controlledDocumentJson) return;
     assumedControlledDocumentRef.current = controlledDocumentJson;
-    // A native event that arrived after this render was committed moves the
-    // acknowledged revision forward; the editor rejects this payload, so the
-    // snapshot history must not assume it applied.
+
     if (isNativeEcho || controlledEventCount !== mostRecentEventCountRef.current) return;
     nativeEventSnapshotsRef.current = assumeComposerControlledState(
       nativeEventSnapshotsRef.current,
@@ -264,7 +257,6 @@ export function ComposerEditor({
     assumedValue,
     controlledEventCount,
     isNativeEcho,
-    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Every changed native payload, including selection-only changes, must update the assumed native snapshot.
     controlledDocumentJson,
     nativeEventSnapshotsRef,
   ]);
@@ -343,7 +335,7 @@ export function ComposerEditor({
           event.nativeEvent.selection,
         );
         if (acknowledgedEventCount === false) return;
-        // Selection events may carry post-edit text; publish it with its revision or stale drafts can overwrite native text.
+
         if (event.nativeEvent.value !== props.value) {
           onChangeText(event.nativeEvent.value);
         }
@@ -375,7 +367,7 @@ export function ComposerEditor({
           paste.selection,
         );
         if (acknowledgedEventCount === false) return;
-        // Sync before capturing async paste targets; props may lag the last native keystroke.
+
         onChangeText(paste.value);
         onSelectionChange?.(paste.selection);
         onPasteText?.(paste);

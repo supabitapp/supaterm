@@ -1,10 +1,5 @@
 #!/usr/bin/env node
 
-// Hermes has no WebAssembly, so wasm2c supplies C for SupatermHighlights.
-// Token and language IDs are an ABI; generate native code and JS tables from the same version.
-// After bumping @pierre/highlights:
-// WASM2C=/path/to/wabt-1.0.42/bin/wasm2c vp run --filter @supaterm/mobile generate:highlights
-
 import * as NodeChildProcess from "node:child_process";
 import * as NodeCrypto from "node:crypto";
 import * as NodeFS from "node:fs";
@@ -44,7 +39,6 @@ function resolveHighlightsPackage() {
 }
 
 function importDist<T>(root: string, file: string): Promise<T> {
-  // The package exports neither its language table nor its theme resolver.
   return import(NodeURL.pathToFileURL(NodePath.join(root, "dist", file)).href);
 }
 
@@ -70,7 +64,7 @@ export async function computeHighlightsData() {
       `themes/${name}.js`,
     );
     const { fg, styles } = prepareTheme(theme);
-    // Mirrors `lineRecordsToTokens`: unstyled tokens take the theme foreground.
+
     themeStyles[scheme] = styles.map((style, tokenId) => {
       const color = style?.color ?? fg;
       if (!/^#[0-9a-f]{6}([0-9a-f]{2})?$/iu.test(color)) {
@@ -96,8 +90,6 @@ function renderHighlightsData(data: Awaited<ReturnType<typeof computeHighlightsD
   ].join("\n");
 }
 
-// The lexers ask the host whether a non-ASCII code point can start or continue
-// an identifier. These are the classes the JavaScript glue tests with regexes.
 function renderIdRanges(): string {
   const classes = [
     ["id_start", /^\p{ID_Start}$/u],
@@ -163,7 +155,6 @@ async function generate() {
     NodeFS.rmSync(scratch, { recursive: true, force: true });
   }
 
-  // The runtime must come from the same wabt release as the generated code.
   const runtime = [
     ["include/wasm-rt.h", "wasm-rt.h"],
     ["share/wabt/wasm2c/wasm-rt-impl.h", "wasm-rt-impl.h"],

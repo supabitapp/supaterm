@@ -1,4 +1,3 @@
-import { isDuoDevice } from "../../lib/device-type";
 import { Platform } from "react-native";
 import { NATIVE_LIQUID_GLASS_SUPPORTED } from "../../native/native-glass";
 import { useAdaptiveWorkspaceLayout } from "../layout/adaptive-workspace-context";
@@ -20,7 +19,7 @@ export function useSidebarWorkspaceTabs(): "picker" | "toolbar" | null {
   const page = useWorkspacePage();
   if (Platform.OS !== "ios" || !layout.usesSplitView || page) return null;
   if (deviceType === "pad") return null;
-  // Portrait Duo has no system rail; keep its tabs in the sidebar like iPad.
+
   if (deviceType === "duo-unfolded" && (metrics?.verticalBarEdge ?? "none") === "none")
     return "picker";
   return (metrics?.verticalBarEdge ?? "none") === "none" ? "toolbar" : null;
@@ -31,8 +30,6 @@ export function useCompactWorkspaceTabs() {
   return Platform.OS === "ios" && layout.primarySidebarOverlaysContent;
 }
 
-/** The workspace tab bar floats with compose beside it. Before iOS 26 UITabBar is opaque and
- * full width, so it sits flush and compose stays in the header. */
 export function useFloatingWorkspaceTabs() {
   const { layout } = useAdaptiveWorkspaceLayout();
   const deviceType = useDeviceType();

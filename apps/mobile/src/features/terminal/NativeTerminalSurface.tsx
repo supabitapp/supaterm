@@ -37,7 +37,6 @@ interface TerminalResizeEvent {
 }
 
 export interface TerminalSurfaceHandle {
-  /** The text fallback focuses its input; the native view follows `keyboardFocusRequest`. */
   readonly focusKeyboard: () => void;
 }
 
@@ -98,7 +97,7 @@ const FallbackTerminalSurface = memo(function FallbackTerminalSurface({
   useImperativeHandle(ref, () => ({
     focusKeyboard: () => {
       if (props.readOnly) return;
-      // Blur first so a focused input still raises the keyboard; focus lands after the blur commits.
+
       inputRef.current?.blur();
       requestAnimationFrame(() => inputRef.current?.focus());
     },
@@ -169,7 +168,6 @@ const FallbackTerminalSurface = memo(function FallbackTerminalSurface({
           onSubmitEditing={(event) => {
             const text = event.nativeEvent.text;
             if (text.length > 0) {
-              // Terminal Enter is CR. LF is Ctrl+J and raw-mode TUIs can treat it as J.
               props.onInput(`${text}\r`);
             }
           }}
@@ -243,7 +241,6 @@ const ReadyTerminalSurface = memo(function ReadyTerminalSurface(props: ReadyTerm
     onInput(event.nativeEvent.data);
   };
   const handleNativeResize = (event: NativeSyntheticEvent<TerminalResizeEvent>) => {
-    // The first grid event comes from the mounted native surface, after registration.
     setNativeReady(true);
     onResize({
       cols: event.nativeEvent.cols,

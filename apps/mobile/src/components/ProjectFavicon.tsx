@@ -55,8 +55,7 @@ export const ProjectFavicon = memo(function ProjectFavicon(props: {
     () => (isProjectFaviconFallbackUrl(faviconUrl) ? null : faviconUrl),
     [faviconUrl],
   );
-  // Inline images are self-contained; remote URLs key on their revision so signed-token
-  // rotation reuses the disk cache while a changed icon starts from the loading state.
+
   const cacheKey = useMemo(
     () =>
       renderableFaviconUrl && props.workspaceRoot
@@ -156,6 +155,7 @@ function ProjectFaviconImage(props: {
     () => createProjectFaviconRequest(props.cacheKey, props.faviconUrl),
     [props.cacheKey, props.faviconUrl],
   );
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- owns the favicon image request until this image unmounts
   useLayoutEffect(() => {
     if (faviconRequest === null) return;
 

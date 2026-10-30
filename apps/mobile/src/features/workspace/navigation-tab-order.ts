@@ -17,7 +17,6 @@ function isNavigationTab(value: unknown): value is NavigationTab {
   return NAVIGATION_TAB_ORDER.some((tab) => tab === value);
 }
 
-/** Complete older preferences without losing their order or retaining removed sections. */
 export function resolveNavigationTabOrder(saved?: readonly unknown[]): readonly NavigationTab[] {
   if (!saved?.length) return NAVIGATION_TAB_ORDER;
   return [...new Set([...saved.filter(isNavigationTab), ...NAVIGATION_TAB_ORDER])];

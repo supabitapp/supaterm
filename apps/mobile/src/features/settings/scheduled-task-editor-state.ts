@@ -62,10 +62,6 @@ export function updateScheduledTaskEditor(
   });
 }
 
-/**
- * A saved task is the new baseline. Without it a later new-task link reads the saved edits as
- * unsaved, keeps them under "New", and saving there would overwrite the task.
- */
 export function markScheduledTaskEditorSaved(): void {
   newTaskLinkAwaitsDiscard = false;
   const session = appAtomRegistry.get(scheduledTaskEditorSessionAtom);
@@ -83,11 +79,6 @@ export function readScheduledTaskEditor(
   return session ? session.current : defaultEditor;
 }
 
-/**
- * A new-task link starts a fresh editor, or a warm app reopens the last task's draft under
- * "New" and saves over it. Links parse before the open editor's removal guard runs, so
- * unsaved changes stay until the user discards them there.
- */
 export function takeScheduledTaskNewLink(
   state: PartialState<NavigationState> | undefined,
 ): PartialState<NavigationState> | undefined {
@@ -102,7 +93,6 @@ export function takeScheduledTaskNewLink(
   return state;
 }
 
-/** Drops unsaved changes; a new-task link that waited on them then opens a fresh editor. */
 export function discardScheduledTaskEditor(): void {
   if (newTaskLinkAwaitsDiscard) {
     newTaskLinkAwaitsDiscard = false;

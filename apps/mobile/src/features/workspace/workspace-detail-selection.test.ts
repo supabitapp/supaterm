@@ -49,7 +49,7 @@ const pullRequest = {
 function apply(state: State, action: Parameters<typeof base.getStateForAction>[1]) {
   const next = router.getStateForAction(state, action, options);
   if (!next) throw new Error(`Router rejected ${action.type}`);
-  // React Navigation rehydrates every state a router returns, as a stale RESET needs.
+
   return base.getRehydratedState(next as State, options);
 }
 

@@ -24,7 +24,7 @@ vi.mock("expo-file-system", () => ({
 it("leaves the filesystem untouched when Release tracing is disabled", async () => {
   vi.resetModules();
   sink.opened.mockClear();
-  vi.stubEnv("EXPO_PUBLIC_T3_DIFF_TRACE", "0");
+  vi.stubEnv("EXPO_PUBLIC_SUPATERM_DIFF_TRACE", "0");
   try {
     const { traceDiffHighlight } = await import("./nativeReviewDiffTrace");
     traceDiffHighlight("viewport-start", { rows: 80 });
@@ -36,7 +36,7 @@ it("leaves the filesystem untouched when Release tracing is disabled", async () 
 
 it("keeps object, function, and primitive identities stable without collisions", async () => {
   vi.resetModules();
-  vi.stubEnv("EXPO_PUBLIC_T3_DIFF_TRACE", "1");
+  vi.stubEnv("EXPO_PUBLIC_SUPATERM_DIFF_TRACE", "1");
   try {
     const { diffHighlightTraceId } = await import("./nativeReviewDiffTrace");
     const values = [{}, {}, () => {}, () => {}, null, undefined, "file", 1, "1", false];
@@ -66,7 +66,7 @@ it("serializes appends to a retrievable file and bounds a process to 1000 events
     if (seq === 1000) finished.resolve();
   });
   using warning = vi.spyOn(console, "warn").mockImplementation(() => {});
-  vi.stubEnv("EXPO_PUBLIC_T3_DIFF_TRACE", "1");
+  vi.stubEnv("EXPO_PUBLIC_SUPATERM_DIFF_TRACE", "1");
   try {
     const { diffHighlightTraceId, traceDiffHighlight } = await import("./nativeReviewDiffTrace");
     const request = {};
@@ -77,7 +77,7 @@ it("serializes appends to a retrievable file and bounds a process to 1000 events
     expect(sink.written).toHaveBeenCalledTimes(1);
     releaseFirst.resolve();
     await finished.promise;
-    expect(sink.opened.mock.calls).toEqual([["documents", "t3-diff-highlight-trace.jsonl"]]);
+    expect(sink.opened.mock.calls).toEqual([["documents", "supaterm-diff-highlight-trace.jsonl"]]);
     expect(sink.created.mock.calls).toEqual([[{ overwrite: true, intermediates: true }]]);
     expect(sink.written).toHaveBeenCalledTimes(1000);
     expect(warning).toHaveBeenCalledTimes(1000);

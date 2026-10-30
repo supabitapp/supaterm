@@ -1,4 +1,3 @@
-/** Settings pages a Settings row opens. */
 export const SETTINGS_PAGE_TARGETS = [
   "SettingsEnvironments",
   "SettingsThreads",

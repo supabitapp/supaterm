@@ -7,22 +7,19 @@ import { NativeLayoutObserver } from "./NativeLayoutObserver";
 const IS_PAD = Platform.OS === "ios" && Platform.isPad;
 
 const NativeLayoutContext = createContext<NativeLayoutMetrics | null>(null);
-// Separate from the metrics so device checks skip every resize and safe-area update.
+
 const DeviceTypeContext = createContext<DeviceType>(
   deriveDeviceType({ isPad: IS_PAD, metrics: null }),
 );
-// Binaries without the native no-hinge fallback never report metrics on ordinary
-// iPhones running iOS 27.1 or later; consumers stop waiting at this deadline.
+
 export const NATIVE_METRICS_TIMEOUT_MS = 1000;
 const NativeLayoutMetricsDeadlineContext = createContext<number>(0);
-// Column reservations come from UIKit's layout, outside the resizing navigator.
+
 export const NativeColumnLayoutMetricsContext = createContext<NativeLayoutMetrics | null>(null);
 
-// The latest metrics outside React, for decisions made before the first screen renders.
 let latestMetrics: NativeLayoutMetrics | null = null;
 const metricsWaiters = new Set<(metrics: NativeLayoutMetrics) => void>();
 
-/** Resolves with the first native layout metrics, or null after `timeoutMs` without any. */
 export function firstNativeLayoutMetrics(timeoutMs: number) {
   if (latestMetrics) return Promise.resolve(latestMetrics);
   return new Promise<NativeLayoutMetrics | null>((resolve) => {
@@ -65,7 +62,6 @@ export function useNativeLayoutMetrics() {
   return use(NativeLayoutContext);
 }
 
-/** Epoch ms after which a consumer still waiting for the first metrics gives up. */
 export function useNativeLayoutMetricsDeadline() {
   return use(NativeLayoutMetricsDeadlineContext);
 }
@@ -78,14 +74,9 @@ export function useDeviceType() {
   return use(DeviceTypeContext);
 }
 
-/**
- * Where the Duo's floating bottom controls end in this column. Its tab bar floats below the safe
- * area, and the controls beside it sit on the same line.
- */
 export function useDuoBottomBarInset() {
   const deviceType = useDeviceType();
-  // Sheets have no rail to align with and can report zero for the bar region.
-  // Their controls must keep using the sheet's bottom safe area.
+
   const inset = use(NativeColumnLayoutMetricsContext)?.bottomBarInset;
   return isDuoDevice(deviceType) && inset !== undefined && inset > 0 ? inset : undefined;
 }

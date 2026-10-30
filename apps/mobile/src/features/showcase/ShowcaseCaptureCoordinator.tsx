@@ -56,7 +56,7 @@ import { settingsNavigationState } from "../settings/settings-navigation";
 import { selectWorkspaceDetail } from "../workspace/workspace-detail-selection";
 
 const SHOWCASE_ENABLED = process.env.EXPO_PUBLIC_SHOWCASE === "1";
-// Native launch requests (pairing links, scene switches) have no change event.
+
 const NATIVE_POLL_MS = 250;
 const READY_SETTLE_MS = 500;
 
@@ -108,11 +108,6 @@ function showcaseNavigationAction(
   }
 }
 
-/**
- * Drives a showcase capture: pairs servers, seeds the fixture, applies theme and
- * orientation, and navigates to each scene the native harness requests. Inputs
- * are read from their stores on each step, so nothing depends on render timing.
- */
 export function installShowcaseCapture(
   pathnameFromState: (state: NavigationState) => string,
 ): () => void {
@@ -132,7 +127,7 @@ export function installShowcaseCapture(
     closeMenu(): void;
     setToolsButtonVisible(visible: boolean): void;
   }>("ExpoDevMenu");
-  // The dev menu can open after bundle loading and block orientation requests.
+
   const devMenuTimer = setInterval(() => {
     devMenu?.closeMenu();
     devMenu?.setToolsButtonVisible(false);
@@ -180,7 +175,7 @@ export function installShowcaseCapture(
     const scene = getNativeShowcaseScene();
     if (scene && scene !== requestedScene) {
       requestedScene = scene;
-      // Draws belong to their scene request; revisiting review must wait for its new surface.
+
       clearShowcaseRenderSignal();
     }
   };
@@ -221,7 +216,7 @@ export function installShowcaseCapture(
     }
     if (scene === "terminal") Keyboard.dismiss();
     let frame: number | null = null;
-    // Two frames after the settle delay so the scene has been drawn, not just committed.
+
     const settleTimer = setTimeout(() => {
       frame = requestAnimationFrame(() => {
         frame = requestAnimationFrame(() => {
@@ -247,9 +242,7 @@ export function installShowcaseCapture(
     const storedPreferences = AsyncResult.isSuccess(preferences) ? preferences.value : null;
     const themeIds = resolveMobileThemeIds(storedPreferences ?? {});
     const themeApplied = isShowcaseThemeApplied({ launchRequestRead, requestedTheme, themeIds });
-    // The write patches preferences optimistically, so the step it triggers
-    // already sees the theme applied. A failed save rolls the patch back, and
-    // the next step writes again.
+
     if (requestedTheme !== null && !themeApplied && storedPreferences) {
       appAtomRegistry.set(
         updateMobilePreferencesAtom,
@@ -277,7 +270,7 @@ export function installShowcaseCapture(
 
     if (requestedScene !== null && hasFixture && showcaseThread && rootState) {
       const navigation = { requestedScene, scene, thread: showcaseThread };
-      // Arriving forgets the target, so leaving the scene again navigates back.
+
       if (scene === requestedScene) {
         lastNavigation = null;
       } else if (shouldNavigateToShowcaseScene(lastNavigation, navigation)) {
@@ -309,8 +302,6 @@ export function installShowcaseCapture(
     );
   };
 
-  // Steps write atoms they also observe; a nested change reruns the step once
-  // the current one finishes instead of interleaving with it.
   let stepping = false;
   let stepAgain = false;
   function evaluate() {
@@ -356,7 +347,6 @@ export function installShowcaseCapture(
   };
 }
 
-/** The capture harness waits for this marker before taking a screenshot. */
 export function ShowcaseReadyMarker() {
   const scene = useSyncExternalStore(subscribeToReadyScene, getReadyScene, getReadyScene);
   if (scene === null) return null;

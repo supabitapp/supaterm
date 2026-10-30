@@ -19,7 +19,7 @@ export function UsageDailyChart({ days, daily, metric, height }: UsageDailyChart
 
   return (
     <View style={{ height }} className="flex-row items-end gap-px">
-      {/* Use column-reverse: provider values are bottom-first and Hermes lacks toReversed. */}
+      {}
       {chartDays.map((day) => (
         <View
           key={day.day}

@@ -8,7 +8,7 @@ import { SYSTEM_FONT_FAMILY } from "../lib/fonts";
 import { contextChipIconSource } from "../lib/contextChipIconSource";
 import { markdownFileIconSource } from "../lib/markdownFileIcons";
 import { markdownLinkIcon } from "../lib/markdownLinkIcons";
-import { useUniwindTheme } from "../lib/useUniwindTheme";
+import { useAppearancePreferences } from "../features/settings/appearance/AppearancePreferencesProvider";
 import { resolveMarkdownFileIcon, resolveMarkdownLinkPresentation } from "../lib/markdownLinks";
 import type {
   MarkdownLinkCustomization,
@@ -95,7 +95,7 @@ export function useEnrichedLinkVariants(
   fileHrefs: ReadonlySet<string>,
 ) {
   const { linkCustomization, skills, textStyle, fileEmbedLabel } = props;
-  const theme = useUniwindTheme();
+  const { themeVariables: theme } = useAppearancePreferences();
   const links = useMemo(() => {
     const byUrl = new Map<string, MarkdownLinkCustomization>();
     for (const url of urls) {

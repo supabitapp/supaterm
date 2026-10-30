@@ -96,7 +96,6 @@ describe("inline code that names a file", () => {
   });
 });
 
-// Freeze the pre-optimization passes so shared transform regressions cannot change the oracle.
 const parser = unified().use(remarkParse).use(remarkGfm);
 type MarkdownNode = Root | RootContent;
 const INLINE_CODE_SPAN = /`+([^`\r\n]+)`+/g;
@@ -130,7 +129,6 @@ function previousFileLinks(markdown: string, fileLink: RegExp): string {
   return markdown;
 }
 
-// A delimiter row such as `|---|:--:|`, possibly inside a blockquote or list item.
 function isTableDelimiterRow(line: string): boolean {
   if (!line.includes("-")) return false;
   const row = line.replace(/^[ \t>]+/, "").trim();
@@ -140,7 +138,6 @@ function isTableDelimiterRow(line: string): boolean {
     .every((cell) => /^:?-+:?$/.test(cell.trim()));
 }
 
-// Cheap pre-check for a delimiter row two lines below text, so most messages skip the parse.
 function mayHaveTableUnderText(markdown: string): boolean {
   if (!markdown.includes("|")) return false;
   const lines = markdown.split(/\r\n|\r|\n/);
@@ -150,11 +147,6 @@ function mayHaveTableUnderText(markdown: string): boolean {
   return false;
 }
 
-/**
- * GFM lets a table interrupt a paragraph, but the native parser (md4c) only starts a table
- * on a paragraph's first line, so a table right under a line of text renders as one
- * run-on paragraph. Insert the blank line md4c needs before each such table.
- */
 function previousTableBreaks(markdown: string): string {
   if (!mayHaveTableUnderText(markdown)) return markdown;
   const lineStarts: number[] = [];
@@ -180,8 +172,6 @@ function previousTableBreaks(markdown: string): string {
   };
   visit(parser.parse(markdown));
   for (const lineStart of lineStarts.toReversed()) {
-    // The header row may be a lazy line without its container markers (`>` or list indent),
-    // so copy the delimiter row's markers onto the blank line and the header row.
     const [, header = "", cells = "", ending = "\n", markers = ""] =
       /^([ \t>]*)([^\r\n]*)(\r\n|\r|\n)([ \t>]*)/.exec(markdown.slice(lineStart)) ?? [];
     markdown =

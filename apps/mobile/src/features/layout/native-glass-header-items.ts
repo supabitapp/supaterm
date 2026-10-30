@@ -8,7 +8,6 @@ type NativeGlassHeaderItem = {
   readonly width?: number;
 };
 
-/** Normal glassEffect items become custom UIButtons in react-native-screens, creating a second skinny capsule. */
 export function withNativeGlassHeaderItem<T extends NativeGlassHeaderItem>(
   item: T,
   options: {

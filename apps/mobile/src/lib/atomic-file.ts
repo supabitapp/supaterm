@@ -3,7 +3,6 @@ import type { File } from "expo-file-system";
 
 let tempFileSequence = 0;
 
-/** Use distinct staging files for concurrent writes and remove them on failure. */
 export async function writeFileAtomically(file: File, contents: string): Promise<void> {
   const { File: FileConstructor } = await loadExpoFileSystem();
   tempFileSequence += 1;

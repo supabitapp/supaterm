@@ -4,7 +4,6 @@ import { useAdaptiveWorkspaceLayout } from "../layout/adaptive-workspace-context
 import { useWorkspaceTabs } from "./WorkspaceTabsContext";
 import type { WorkspaceTab } from "./workspace-tabs-state";
 
-/** Opens a workspace tab, Settings included, from a tab bar, rail, toolbar or command. */
 export function useSelectWorkspaceTab() {
   const dispatch = useWorkspaceTabs()?.dispatch;
   const { openWorkspaceTab } = useAdaptiveWorkspaceLayout();

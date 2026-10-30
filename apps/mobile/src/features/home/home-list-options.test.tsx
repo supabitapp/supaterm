@@ -5,6 +5,9 @@ import { expect, it, vi } from "vite-plus/test";
 
 const harness = vi.hoisted(() => ({ saved: [] as unknown[] }));
 
+vi.mock("../../state/thread-grouping", () => ({
+  useMobileThreadGrouping: () => ({ grouping: "project", setGrouping: vi.fn() }),
+}));
 vi.mock("../../state/preferences", () => ({ updateMobilePreferencesAtom: {} }));
 vi.mock("@effect/atom-react", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@effect/atom-react")>()),
@@ -17,6 +20,7 @@ const ENVIRONMENT = "env-1" as EnvironmentId;
 const AVAILABLE = new Set([ENVIRONMENT]);
 
 it("saves the scope from every update made in one event", async () => {
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   harness.saved = [];
   let controls: ReturnType<typeof useHomeListOptions> | undefined;
   function Probe() {

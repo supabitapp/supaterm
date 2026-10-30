@@ -49,10 +49,7 @@ const PullRequestListPreferences = Schema.Struct({
 export type PullRequestListPreferences = typeof PullRequestListPreferences.Type;
 
 const isThreadGrouping = Schema.is(SidebarThreadGrouping);
-/**
- * The page each workspace tab last showed, reopened when the tab returns with columns. `key` is
- * that page's route key: reopening under the same key reuses the screen a tab kept mounted.
- */
+
 const WorkspaceSelections = Schema.Struct({
   threads: Schema.optional(
     Schema.Struct({
@@ -73,7 +70,7 @@ const WorkspaceSelections = Schema.Struct({
   ),
   settings: Schema.optional(Schema.String),
   settingsKey: Schema.optional(Schema.String),
-  /** A draft the threads tab showed after its last chat; only meaningful in its session. */
+
   threadsDraft: Schema.optional(Schema.Struct({ key: Schema.String, params: Schema.Unknown })),
 });
 export type WorkspaceSelections = typeof WorkspaceSelections.Type;
@@ -104,7 +101,7 @@ export interface Preferences {
   readonly crashReportsEnabled?: boolean;
   readonly collapsedProjectGroups?: readonly string[];
   readonly dismissedDatabaseStorageNotices?: readonly string[];
-  /** Hardware Return behavior is iOS-only. */
+
   readonly composerEnterBehavior?: ComposerEnterBehavior;
   readonly showSkillsInSlashMenu?: boolean;
   readonly followUpBehavior?: FollowUpBehavior;

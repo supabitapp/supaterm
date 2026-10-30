@@ -1,7 +1,4 @@
-import {
-  navigationCustomizationAvailable,
-  overflowNavigationTabs,
-} from "../workspace/navigation-tab-order";
+import { overflowNavigationTabs } from "../workspace/navigation-tab-order";
 import {
   NAVIGATION_TAB_ICONS,
   WORKSPACE_TAB_LABELS,
@@ -14,7 +11,7 @@ import { useSelectWorkspaceTab } from "../workspace/useSelectWorkspaceTab";
 import { useWorkspaceTabs } from "../workspace/WorkspaceTabsContext";
 import { ScreenScrollView as ScrollView } from "../../components/ui/ScreenScrollView";
 import { EmptyState } from "../../components/ui/EmptyState";
-import { useNavigation, useNavigationState } from "@react-navigation/native";
+import { useNavigationState } from "@react-navigation/native";
 import { use, type ComponentProps } from "react";
 import { Platform, View } from "react-native";
 import { useWorkspaceSurface } from "../workspace/useWorkspaceSurface";
@@ -39,9 +36,7 @@ import { NativePrimaryColumnContext } from "../../native/v5-workspace-context";
 export function SettingsRouteScreen() {
   const { layout } = useAdaptiveWorkspaceLayout();
   const inSidebar = use(NativePrimaryColumnContext) !== null && layout.usesSplitView;
-  // The page open beside the list: the route right above the Settings tab's route. While
-  // another tab is open this list stays mounted, hidden, and must keep showing the page Settings
-  // reopens on; otherwise returning shows it unselected for a frame before the page arrives.
+
   const selected = useNavigationState((state) => {
     const list = state.routes.findIndex((route) => route.name === "Settings");
     return list < 0
@@ -116,12 +111,9 @@ function environmentsRow(count: number): SettingsListRow {
 }
 
 function SettingsList(props: { readonly connections: readonly SettingsListRow[] }) {
-  // UIKit's scroll-edge material takes the scroll view's own color; like the chat list, match
-  // the sidebar's surface so the bar doesn't darken over content at rest.
-  // Grouped cards only lift off the screen surface; the drawer is as dark as they are.
   const listSurface = use(SettingsSidebarContext) ? "bg-drawer" : "bg-screen";
   const insets = useSafeAreaInsets();
-  // UIKit insets the scroll view by its column's safe area, which this context can report as 0.
+
   const bottomSafeArea = useNativeColumnLayoutMetrics()?.safeArea.bottom ?? insets.bottom;
   const workspace = useWorkspaceTabs();
   const query = workspace?.state.tabs.settings.query ?? "";
@@ -141,7 +133,6 @@ function SettingsList(props: { readonly connections: readonly SettingsListRow[] 
         className={`flex-1 ${listSurface}`}
         contentContainerClassName="gap-4 px-5 pt-4"
         contentContainerStyle={{
-          // The workspace's clearance keeps the last row above its search field and keyboard.
           paddingBottom:
             Platform.OS === "ios"
               ? Math.max(Math.max(bottomSafeArea, 18) + 18, workspace?.bottomClearance ?? 0) -
@@ -194,7 +185,7 @@ function useSettingsIndexSections(): SettingsListSection[] {
   ): SettingsListRow => ({ id: target, icon, label, target, ...extra });
   const serverPage = (target: SettingsPageTarget, icon: SettingsListRow["icon"], label: string) =>
     page(target, icon, label, { disabled: noServerTargets });
-  // The same pages and groups as Settings on web, minus what mobile has no setting for.
+
   return [
     {
       rows: [

@@ -39,7 +39,7 @@ export function withUploadedMobileAttachmentReferences(input: {
 }): ReadonlyArray<DraftComposerAttachment> {
   return input.attachments.map((attachment, index) => {
     const uploaded = input.uploadedAttachments[index];
-    // Files-picked images upload as images; compare wire types to retain uploaded ids and avoid re-uploading.
+
     const uploadedAs = isComposerImageAttachment(attachment) ? "image" : attachment.type;
     if (
       !uploaded ||
@@ -113,7 +113,6 @@ export type PrepareTurnAttachmentsResult =
   | PreparedTurnAttachments
   | { readonly status: "abandoned" };
 
-/** Promote Files-picked images consistently in headers, payloads and references or ChatImageAttachment rejects them. */
 function composerAttachmentWireMimeType(attachment: DraftComposerAttachment): string {
   if (!isComposerImageAttachment(attachment)) return attachment.mimeType;
   return supportedImageWireMimeType(attachment);
@@ -205,7 +204,6 @@ async function uploadFileBytes(
   }
 }
 
-/** persistUploadedReferences runs only for new uploaded ids; save them to their owner so crash retries reuse bytes. */
 export async function prepareTurnAttachments(input: {
   readonly environmentId: EnvironmentId;
   readonly attachments: ReadonlyArray<DraftComposerAttachment>;
@@ -281,7 +279,7 @@ export async function prepareTurnAttachments(input: {
         remove: attachmentEnvironment.remove,
         environmentId,
         upload: attachmentUploadInput(attachment),
-        // Resolve at transfer time; reconnects may change the base URL.
+
         resolveUploadUrl: (relativeUrl) => {
           requireUploadAccess();
           const currentConnection = appAtomRegistry.get(

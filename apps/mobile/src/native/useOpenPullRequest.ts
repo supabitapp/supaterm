@@ -10,20 +10,18 @@ import { environmentServerConfigsAtom } from "../state/server";
 
 type PullRequestContext = { readonly environmentId: string; readonly projectId: string };
 
-// Avoid useRoute so layouts without route context can open any thread's pull requests.
 export function useNavigateToPullRequest(options?: { readonly replace?: boolean }) {
   const navigation = useNavigation();
   const selectDetail = useSelectWorkspaceDetail();
   const projects = useProjects();
   const replace = options?.replace;
   return async (url: string, context: PullRequestContext | null) => {
-    // Read at press time so a config push does not hand every link a new handler.
     const serverConfigs = appAtomRegistry.get(environmentServerConfigsAtom);
     const params = nativePullRequestDestination(url, context, projects, (environmentId) =>
       serverConfigs.has(environmentId),
     );
     if (!params) return tryOpenExternalUrl(url, "pull-request");
-    // Android shows one page at a time; iOS opens it over the current page, so Back returns.
+
     if (Platform.OS === "android") selectDetail({ name: "PullRequest", params });
     else if (replace) navigation.dispatch(StackActions.replace("PullRequest", params));
     else navigation.dispatch(StackActions.push("PullRequest", params));

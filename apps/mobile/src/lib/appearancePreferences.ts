@@ -162,7 +162,6 @@ export function resolveMarkdownFontSizes(baseFontSize: number): ResolvedMarkdown
   };
 }
 
-/** Keep text-variable roles in sync with global.css and MOBILE_TYPOGRAPHY. */
 const TEXT_SCALE_VARIABLE_ROLES = {
   "--text-3xs": MOBILE_TYPOGRAPHY.micro,
   "--text-2xs": MOBILE_TYPOGRAPHY.caption,

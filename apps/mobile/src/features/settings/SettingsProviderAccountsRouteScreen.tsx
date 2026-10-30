@@ -21,7 +21,6 @@ import { AppText as Text } from "../../components/ui/AppText";
 import { ControlPill } from "../../components/ui/ControlPill";
 import { Menu } from "../../components/ui/Menu";
 import { ScreenScrollView } from "../../components/ui/ScreenScrollView";
-import { cn } from "../../lib/cn";
 import { environmentPresentations } from "../../state/presentation";
 import { useEnvironmentQuery } from "../../state/query";
 import { serverEnvironment } from "../../state/server";
@@ -35,10 +34,6 @@ import {
 import { SettingsScreen } from "./components/SettingsScreen";
 import { SettingsSection } from "./components/SettingsSection";
 import { useSettingsEnvironmentFilter, type SettingsTarget } from "./settings-environment-filter";
-const TERMINAL_CONTROL_SEQUENCE = new RegExp(
-  `${String.fromCharCode(0x1b)}\\[[0-?]*[ -/]*[@-~]`,
-  "g",
-);
 export function SettingsProviderAccountsRouteScreen() {
   const { selectedTargets } = useSettingsEnvironmentFilter();
   const permittedEnvironments = useEnvironmentsWithScope(selectedTargets, AuthProvidersManageScope);
@@ -136,7 +131,7 @@ function ProviderAccount({
   const complete = useAtomCommand(serverEnvironment.completeProviderAuth, options);
   const cancel = useAtomCommand(serverEnvironment.cancelProviderAuth, options);
   const logout = useAtomCommand(serverEnvironment.logoutProviderAuth, options);
-  // Matches ListRowLayout: large text stacks the action below instead of squeezing the status.
+
   const stacked = useWindowDimensions().fontScale >= 1.5;
   const [pending, setPending] = useState(false);
   const pendingRef = useRef(false);
@@ -170,33 +165,6 @@ function ProviderAccount({
       ? interaction.url
       : state?.authorizationUrl;
   const disabled = pending || auth.error !== null || isDiscovering;
-  const unavailable = !provider.enabled || !provider.installed;
-  const loading = !unavailable && !auth.error && (state === null || isDiscovering);
-  const showSignIn =
-    !active &&
-    !unavailable &&
-    !needsExternalSetup &&
-    provider.setup?.canAuthenticate !== false &&
-    !loading &&
-    !auth.error;
-  function signInLabel() {
-    if (pending) return "Working…";
-    if (signedIn) return "Change account";
-    if (state?.phase === "failed" || state?.phase === "cancelled") return "Retry sign-in";
-    return "Sign in";
-  }
-  function accountDescription() {
-    if (active) return state.message;
-    if (!provider.enabled) return "Enable in web or desktop Settings → Providers.";
-    if (!provider.installed)
-      return "Install on this environment in web or desktop Settings → Providers.";
-    if (auth.error) return "Couldn’t load account status.";
-    if (loading) return isDiscovering ? "Finding sign-in methods…" : "Loading account…";
-    if (state?.phase === "failed" || state?.phase === "cancelled") return state.message;
-    if (signedIn) return "Signed in.";
-    if (needsExternalSetup) return "Follow the provider’s setup guide to sign in.";
-    return "Not signed in.";
-  }
   async function run(command: () => Promise<AtomCommandResult<unknown, unknown>>) {
     if (pendingRef.current) return false;
     pendingRef.current = true;
@@ -257,7 +225,7 @@ function ProviderAccount({
   const name = provider.displayName ?? provider.driver;
   const email = signedIn && !active && provider.enabled ? provider.auth.email?.trim() : undefined;
   const methods = state?.methods ?? [];
-  // The status line says why a provider that is missing or turned off can't sign in.
+
   const canSignIn =
     !active &&
     !needsExternalSetup &&
@@ -283,7 +251,7 @@ function ProviderAccount({
               : !provider.installed
                 ? "Not installed"
                 : "Not signed in";
-  // A provider with several sign-in methods picks one from a menu on the same control.
+
   const methodActions: MenuAction[] = methods.map((method) => ({
     id: `method:${method.id}`,
     title: method.name,
@@ -309,7 +277,6 @@ function ProviderAccount({
   }
   function onMenuAction(id: string) {
     if (id === "signOut") signOut();
-    // iOS keeps a disabled submenu's children selectable, so sign-in guards here too.
     else if (signInDisabled) return;
     else if (id.startsWith("method:")) startSignIn(id.slice("method:".length));
     else if (id === "change") startSignIn();

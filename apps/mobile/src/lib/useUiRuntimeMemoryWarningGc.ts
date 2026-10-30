@@ -8,7 +8,6 @@ function collectUiRuntimeGarbage() {
   if (typeof gc === "function") gc();
 }
 
-/** iOS memory warnings collect only RN's heap; collect worklets too to release shadow nodes and serializables. */
 export function installUiRuntimeMemoryWarningGc(): () => void {
   const subscription = AppState.addEventListener("memoryWarning", () => {
     scheduleOnUI(collectUiRuntimeGarbage);

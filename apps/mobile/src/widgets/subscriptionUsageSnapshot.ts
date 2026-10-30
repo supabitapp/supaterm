@@ -20,7 +20,6 @@ export interface SubscriptionUsageSnapshot {
   }>;
 }
 
-// Snapshots expire after 15 minutes; suspended refresh requires a separate authenticated transport.
 const SNAPSHOT_MAX_AGE = 15 * 60_000;
 export const WIDGET_REFRESH_INTERVAL = 5 * 60_000;
 
@@ -135,7 +134,7 @@ export function buildSubscriptionUsageSnapshot(
   const configuredDrivers = new Set(
     [...presentations.values()].flatMap((presentation) =>
       (presentation.serverConfig?.providers ?? [])
-        // Servers report default-enabled drivers even when their CLI is missing.
+
         .filter(
           (provider) =>
             provider.enabled &&

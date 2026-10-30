@@ -101,10 +101,9 @@ export function SettingsMicrophoneRouteScreen() {
     null,
   );
   const [rowHeight, setRowHeight] = useState(0);
-  // Each drop remounts the rows so the new order and the cleared offsets land in one frame.
+
   const [drops, setDrops] = useState(0);
 
-  // Transforms apply to the stored order, so a device recorded meanwhile is kept.
   const move = (key: string, steps: number) =>
     savePreferences({
       transform: (current) => {
@@ -235,7 +234,6 @@ function MicrophoneRow(props: {
     zIndex: lifted ? 1 : 0,
   }));
   const row = (
-    // Opaque so the swipe actions stay hidden until the row slides over them.
     <View className="flex-row items-center bg-grouped-card">
       <View
         accessible
@@ -282,7 +280,7 @@ function MicrophoneRow(props: {
           onDelete={onForget}
           primaryAction={{
             accessibilityLabel: `Forget ${title}`,
-            destructive: true,
+            tone: "danger",
             icon: "trash",
             label: "Forget",
             onPress: onForget,

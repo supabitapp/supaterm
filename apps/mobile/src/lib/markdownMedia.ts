@@ -39,7 +39,7 @@ export function resolveMarkdownMediaPreview(
     readonly environmentId: EnvironmentId;
     readonly threadId: ThreadId | undefined;
     readonly workspaceRoot: string | null | undefined;
-    /** Bounds network paths when `workspaceRoot` is a nested directory relative images resolve from. */
+
     readonly projectRoot?: string | null | undefined;
     readonly captured?: boolean;
     readonly imageEmbed?: boolean;

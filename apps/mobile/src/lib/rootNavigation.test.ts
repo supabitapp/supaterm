@@ -28,7 +28,6 @@ function fakeContainer() {
 }
 
 it("keeps the newer container when an older root unmounts after it attached", () => {
-  // Android activity replacement mounts the new root before the old one unmounts.
   const detachPrevious = attachRootNavigation(fakeContainer());
   const current = fakeContainer();
   const detachCurrent = attachRootNavigation(current);

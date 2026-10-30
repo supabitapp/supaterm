@@ -21,7 +21,7 @@ export function Sheet(props: SheetProps) {
       onNativeDismiss={props.onClose}
     >
       <RoutedFormSheetContext value={false}>
-        {/* Android FormSheet does not bound flex children. Material drags target the first scroll view, so place content before the header. */}
+        {}
         <View collapsable={false} className="absolute inset-0 flex-col-reverse bg-header">
           <ScreenContent>{props.children}</ScreenContent>
           <AndroidSheetHeader

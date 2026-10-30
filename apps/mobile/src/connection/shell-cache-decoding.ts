@@ -7,7 +7,6 @@ import * as Schema from "effect/Schema";
 const decodeJson = Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Unknown));
 const decodeStoredShell = Schema.decodeUnknownEffect(StoredOrchestrationShellSnapshot);
 
-/** Defer pull request decoding until after the thread list can paint. */
 export const decodeStoredShellSnapshot = Effect.fnUntraced(function* (raw: string) {
   const parsed = yield* decodeJson(raw);
   const rawLinks = Predicate.isObject(parsed) ? detachPullRequests(parsed.snapshot) : [];

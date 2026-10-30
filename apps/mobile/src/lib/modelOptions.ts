@@ -136,7 +136,6 @@ function normalizeSelectionOptions(
       };
 }
 
-/** Require explicit projectId or null so omissions cannot bypass project provider disablement. */
 export function isModelSelectionUnavailable(
   config: SupatermServerConfig | null | undefined,
   selection: ModelSelection | null | undefined,

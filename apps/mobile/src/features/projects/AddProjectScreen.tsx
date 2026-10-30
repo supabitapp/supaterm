@@ -158,7 +158,6 @@ function AddProjectShell(props: { readonly children: ReactNode; readonly title: 
   const insets = useSafeAreaInsets();
 
   return (
-    // A collapsible wrapper lets formSheet resizing mistake the full-height view for a header and collapse the ScrollView.
     <SettingsScreen title={props.title}>
       <ScrollView
         keyboardShouldPersistTaps="handled"
@@ -294,9 +293,7 @@ function useBrowsePathInput(environment: EnvironmentOption | null, pinnedDirecto
     getAddProjectInitialQuery(environmentBaseDirectory),
     pinnedDirectoryName,
   );
-  // Each host keeps the path last typed or browsed for it, and shows its own default until then,
-  // so switching hosts and back loses nothing. With no host selected (one dropping out briefly),
-  // the field keeps the last path typed anywhere.
+
   const [paths, setPaths] = useState<{
     readonly byHost: ReadonlyMap<EnvironmentId, string>;
     readonly last: string;
@@ -482,7 +479,7 @@ function SourceControlRow(props: {
       />
     ) : (
       <SourceControlIcon
-        icon={sourceControlClients.get(props.source).icon}
+        kind={sourceControlClients.get(props.source).kind}
         size={Platform.OS === "android" ? 24 : 18}
         colorClassName="accent-icon"
       />
@@ -684,7 +681,7 @@ function useOpenNewTaskDraft() {
     originRoute: NavigationState<ParamListBase>["routes"][number] | undefined,
   ) => {
     const activeRoute = getActiveRoute(navigation);
-    // A warm link can change the task without replacing its native route key.
+
     if (
       !originRoute ||
       activeRoute?.key !== originRoute.key ||
@@ -757,8 +754,7 @@ function useCreateProject(environment: EnvironmentOption | null) {
     if (AsyncResult.isFailure(result)) {
       return result;
     }
-    // A successful command can precede its project in the client store. The
-    // draft treats a missing project as a reason to return to the chooser.
+
     const project = await waitForProject(
       { environmentId: environment.environmentId, projectId },
       15_000,
@@ -985,10 +981,6 @@ function FolderBrowser(props: {
   );
 }
 
-/**
- * New project: a name, then the server makes the folder, README, icon, and
- * first commit. Optionally publishes it to a ready host as a private repository.
- */
 export function AddProjectNewScreen(props: { readonly environmentId?: string | string[] }) {
   const openNewTaskDraft = useOpenNewTaskDraft();
   const navigation = useNavigation();
@@ -1065,7 +1057,6 @@ export function AddProjectNewScreen(props: { readonly environmentId?: string | s
     </ListSection>
   ) : null;
 
-  // State lags a render behind, so a double tap could start a second create.
   const submittingRef = useRef(false);
   const submit = async () => {
     if (!environment || trimmedName.length === 0 || submittingRef.current) return;
@@ -1107,12 +1098,12 @@ export function AddProjectNewScreen(props: { readonly environmentId?: string | s
             checkPublishedAppAccess,
             environment.environmentId,
             publishResult.value.remoteUrl,
+            discoveryState.data?.sourceControlProviders ?? [],
           );
         }
       });
     }
-    // The draft screen resolves its project from the client store, so it
-    // must not open before the create event has arrived.
+
     const project = await waitForProject(
       { environmentId: environment.environmentId, projectId },
       15_000,
@@ -1171,7 +1162,7 @@ export function AddProjectNewScreen(props: { readonly environmentId?: string | s
                 }
                 icon={
                   <SourceControlIcon
-                    icon={publishTarget.definition.icon}
+                    kind={publishTarget.definition.kind}
                     size={Platform.OS === "android" ? 24 : 18}
                     colorClassName="accent-icon"
                   />
@@ -1195,7 +1186,7 @@ export function AddProjectNewScreen(props: { readonly environmentId?: string | s
                         title={target.definition.label}
                         icon={
                           <SourceControlIcon
-                            icon={target.definition.icon}
+                            kind={target.definition.kind}
                             size={Platform.OS === "android" ? 24 : 17}
                             colorClassName="accent-icon"
                           />
@@ -1334,6 +1325,12 @@ export function AddProjectDestinationScreen(props: {
   });
   const navigation = useNavigation();
   const environment = useEnvironmentFromParam(props.environmentId);
+  const discoveryState = useEnvironmentQuery(
+    environment
+      ? sourceControlEnvironment.discovery({ environmentId: environment.environmentId, input: {} })
+      : null,
+  );
+
   const canWriteSourceControl = useEnvironmentScope(
     environment?.environmentId ?? null,
     AuthSourceControlWriteScope,
@@ -1393,8 +1390,13 @@ export function AddProjectDestinationScreen(props: {
     if (AsyncResult.isFailure(startResult)) {
       setError(errorMessage(Cause.squash(startResult.cause)));
     } else {
-      void suggestAppAccessForRemote(checkAppAccess, environment.environmentId, remoteUrl);
-      // Wait for the create event; the client store otherwise falls back to the project picker and loses clone controls.
+      void suggestAppAccessForRemote(
+        checkAppAccess,
+        environment.environmentId,
+        remoteUrl,
+        discoveryState.data?.sourceControlProviders ?? [],
+      );
+
       const project = await waitForProject(
         { environmentId: environment.environmentId, projectId },
         15_000,

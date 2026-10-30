@@ -9,7 +9,7 @@ export type ShowcaseRenderSignal = Readonly<{
 const listeners = new Set<() => void>();
 export type ShowcaseRenderSnapshot = Readonly<{
   signal: ShowcaseRenderSignal | null;
-  // A redraw can repeat the same scene and theme; counting reports lets it restart the settle delay.
+
   reports: number;
 }>;
 

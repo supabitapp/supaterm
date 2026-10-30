@@ -39,9 +39,9 @@ export function ConnectionsNewRouteScreen({
   route,
 }: StaticScreenProps<ConnectionsNewRouteParams | undefined>) {
   const params = route.params ?? {};
-  // Dev-only prefill prevents production links from supplying an attacker-chosen host and token.
+
   const routePairingUrl = __DEV__ ? (params.pairingUrl?.trim() ?? "") : "";
-  // A new prefill link replaces whatever the form held.
+
   return (
     <PairingForm
       key={routePairingUrl}
@@ -71,7 +71,7 @@ function PairingForm({
   const [codeInput, setCodeInput] = useState(initialPairing.code);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  // The user's own edit or submit dismisses the dev auto-connect report.
+
   const [ownAttempt, setOwnAttempt] = useState(false);
   const autoConnect = autoConnectReport(
     useAtomValue(devAutoConnectAttemptAtom),

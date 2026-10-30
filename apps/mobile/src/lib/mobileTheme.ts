@@ -112,7 +112,6 @@ function oklabToSrgb(lightness: number, a: number, b: number) {
   return [linearToSrgb(red), linearToSrgb(green), linearToSrgb(blue)] as const;
 }
 
-/** React Native does not accept OKLCH ColorValues, so palettes cross the app boundary as sRGB. */
 export function themeColorToNativeColor(value: string): string {
   const match = OKLCH_PATTERN.exec(value);
   if (!match) return value;
@@ -150,7 +149,6 @@ function rgbChannels(color: string): readonly [number, number, number] | null {
   return [Number.parseInt(red, 16), Number.parseInt(green, 16), Number.parseInt(blue, 16)];
 }
 
-/** Native chips require opaque hex; flatten translucent roles. */
 export function flattenThemeColor(color: string, surface: string): string {
   const alphaHex = /^#([\da-f]{6})([\da-f]{2})$/i.exec(color);
   if (alphaHex) {
@@ -259,18 +257,16 @@ export function themeColorWithContrast(
   return `#${readable.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
 }
 
-/**
- * Unlike `themeColorWithContrast`, which blends toward black or white and greys the color out,
- * this moves only OKLCH lightness and takes the most chroma sRGB allows at each step, so a vivid
- * accent stays vivid at the contrast it needs.
- */
 export function themeAccentWithContrast(
   accent: string,
   surfaces: ReadonlyArray<string>,
   minimum = 4.5,
 ): string {
   const accentChannels = rgbChannels(accent);
-  const surfaceChannels = surfaces.map(rgbChannels).filter((channels) => channels !== null);
+  const surfaceChannels = surfaces.flatMap((surface) => {
+    const channels = rgbChannels(surface);
+    return channels === null ? [] : [channels];
+  });
   const minimumContrast = (channels: readonly [number, number, number]) =>
     Math.min(...surfaceChannels.map((surface) => contrastRatio(channels, surface)));
   if (

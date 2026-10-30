@@ -34,7 +34,6 @@ export interface MarkdownImageRequest {
   readonly title: string | null;
 }
 
-/** Host apps resolve workspace-relative images. Return null to retain Enriched's native media rendering. */
 export type MarkdownImageRenderer = (image: MarkdownImageRequest) => import("react").ReactNode;
 
 export type MarkdownImageSourceResolver = (

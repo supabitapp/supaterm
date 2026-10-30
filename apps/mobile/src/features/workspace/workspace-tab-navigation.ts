@@ -14,7 +14,6 @@ type RouteLike = {
 type ThreadSelection = NonNullable<WorkspaceSelections["threads"]>;
 type PullRequestSelection = NonNullable<WorkspaceSelections["pullRequests"]>;
 
-/** Opened when Settings has columns and none of its pages has been opened yet. */
 export const DEFAULT_SETTINGS_PAGE = "SettingsEnvironments" satisfies SettingsPageTarget;
 
 export function workspaceTabColumns(
@@ -25,8 +24,6 @@ export function workspaceTabColumns(
   return columns && (platform === "ios" || (platform === "android" && tab === "settings"));
 }
 
-// Pages a Settings row opens, minus Project overview: it shows the project chosen in the
-// Settings scope, which resets whenever Settings closes.
 const REMEMBERED_SETTINGS_PAGES: ReadonlySet<string> = new Set(
   SETTINGS_PAGE_TARGETS.filter((page) => page !== "SettingsProjectOverview"),
 );
@@ -37,7 +34,6 @@ export function rememberedSettingsPage(selections: WorkspaceSelections): Setting
     : DEFAULT_SETTINGS_PAGE;
 }
 
-/** Whether a remembered chat or pull request can still be opened. */
 export interface WorkspaceSelectionCheck {
   readonly thread: (selection: ThreadSelection) => boolean;
   readonly pullRequest: (selection: PullRequestSelection) => boolean;
@@ -82,10 +78,6 @@ function samePullRequest(
   );
 }
 
-/**
- * The page each tab shows in a root route chain: the newest chat, the newest pull request, and
- * the Settings page directly above the Settings route. Returns `previous` when nothing changed.
- */
 export function workspaceSelectionsIn(
   routes: readonly RouteLike[],
   previous: WorkspaceSelections,
@@ -138,7 +130,6 @@ function identityOf({ key: _key, ...identity }: PullRequestSelection) {
 
 let routeKeys = 0;
 
-/** New routes get their key here, so the caller knows which route it is about to show. */
 function keyed<Route extends RouteLike>(route: Route): Route & { readonly key: string } {
   if (route.key !== undefined) return route as Route & { readonly key: string };
   routeKeys += 1;
@@ -188,12 +179,6 @@ function detailRoute(
   );
 }
 
-/**
- * The root stack for opening a workspace tab. With columns the detail column must show
- * something, so the tab reopens the page it last showed (Settings falls back to its default);
- * without columns the tab opens on its list. Routes already on screen keep their keys, and
- * `overlays` (open sheets) stay on top.
- */
 export function workspaceTabNavigationState<
   State extends { readonly routes: readonly RouteLike[] },
 >(

@@ -1,7 +1,6 @@
 import { type ReactNode, useEffect, useState, useSyncExternalStore } from "react";
 import { View } from "react-native";
 
-// RN Modals move native window focus and close the keyboard. Keep composer menus in-window.
 type Entries = ReadonlyMap<number, ReactNode>;
 
 let nextKey = 0;
@@ -34,18 +33,12 @@ function getSnapshot() {
 export function OverlayPortal(props: { readonly children: ReactNode }) {
   const [key] = useState(allocateKey);
 
-  // RN has no createPortal, so projecting into the out-of-tree host has to
-  // happen after commit. No dependency array: re-project after every render so
-  // the host always shows the current content (menus re-render while open —
-  // drill-in, theme).
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- projects children into the out-of-tree overlay host store after every commit
   useEffect(() => {
     entries.set(key, props.children);
     emit();
   });
 
-  // Removal is unmount-only: deleting on every re-projection would move the
-  // entry to the end of the map and restack it above overlays opened later.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- removes this entry from the overlay host store on unmount
   useEffect(
     () => () => {

@@ -1,5 +1,5 @@
 import { useEvent } from "expo";
-import { useVideoPlayer, VideoView, type VideoPlayer } from "expo-video";
+import { useVideoPlayer, VideoView } from "expo-video";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 
@@ -22,7 +22,7 @@ function LoadedMediaVideo(props: {
   readonly onPlaybackStart?: () => void;
 }) {
   const [attempt, setAttempt] = useState(0);
-  // Expo's Android player also reports completed playback as idle.
+
   const [loadState, setLoadState] = useState<"pending" | "complete" | "error">("pending");
   const player = useVideoPlayer(null, (player) => {
     player.staysActiveInBackground = false;
@@ -80,7 +80,7 @@ function LoadedMediaVideo(props: {
     const controller = new AbortController();
     // oxlint-disable-next-line react/set-state-in-effect -- Starting a native media load publishes pending before its async result.
     setLoadState("pending");
-    // A renewed signature is used on Retry, not as a reason to reset the native player.
+
     void loadSource(controller.signal).then(
       () => {
         if (!controller.signal.aborted) setLoadState("complete");
@@ -148,7 +148,7 @@ interface MediaVideoPlayerProps {
 function MediaVideoPlayerContent(props: MediaVideoPlayerProps) {
   const mediaActions = useMediaActions(props.actionsSource);
   const [playbackUri, setPlaybackUri] = useState<string | null>(props.expanded ? props.uri : null);
-  // Keep an opened player mounted while signing or reconnecting temporarily has no usable URL.
+
   if (playbackUri === null && props.expanded && props.uri !== null) setPlaybackUri(props.uri);
 
   return (
@@ -175,7 +175,7 @@ function MediaVideoPlayerContent(props: MediaVideoPlayerProps) {
               mediaActions.actions.length > 0 ? "Touch and hold for media actions" : undefined
             }
             accessibilityState={{ disabled: props.uri === null || props.unavailable === true }}
-            // Stays pressable so the long-press menu still opens on a failed or unsigned tile.
+
             onPress={() => {
               if (props.uri !== null && !props.unavailable) {
                 props.onPlaybackStart?.();

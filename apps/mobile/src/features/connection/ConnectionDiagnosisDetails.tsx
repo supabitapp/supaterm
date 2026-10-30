@@ -22,7 +22,6 @@ import { copyTextWithHaptic } from "../../lib/copyTextWithHaptic";
 const HOP_MARK = { ok: "✓", failed: "✕", unchecked: "–" } as const;
 const HOP_NOTE = { ok: "", failed: " · Failed", unchecked: " · Not checked" } as const;
 
-/** Same model as the web Settings row; null while connected, off, or not failed. */
 export function useConnectionDiagnosis(
   environmentId: EnvironmentId,
   presentation: EnvironmentPresentation | null,

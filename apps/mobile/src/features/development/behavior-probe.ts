@@ -1,5 +1,3 @@
-// Read by evals/mobile-behavior through the Hermes inspector; product modules load lazily so import order is unchanged.
-
 interface Fiber {
   readonly tag: number;
   readonly type: unknown;
@@ -31,7 +29,6 @@ interface Atom {
   readonly _atom: true;
 }
 
-// Every root React has committed; LogBox and other overlays commit their own.
 const roots = new Set<{ current: Fiber }>();
 
 function installCommitHook() {
@@ -50,7 +47,6 @@ function installCommitHook() {
   };
 }
 
-/** Visits every mounted fiber; `enter` returns the context passed to the fiber's children. */
 function walk<C>(fiber: Fiber | null, context: C, enter: (fiber: Fiber, context: C) => C) {
   let node = fiber;
   while (node) {
@@ -67,7 +63,6 @@ const readAtom = <T>(atom: Atom): T => {
   return appAtomRegistry.get(atom) as T;
 };
 
-/** Mounted thread feeds, the composer text the native editor was given, and the status pill. */
 function scanTree() {
   const feeds = new Map<string, Feed>();
   const editors: Array<{ value: string; expanded: boolean }> = [];
@@ -155,7 +150,7 @@ function feedState(feed: Feed) {
     atEnd: state.isAtEnd,
     following: feed.following,
     count: state.data.length,
-    /** Screen y of each visible row, keyed by row id. */
+
     rows,
   };
 }
@@ -204,9 +199,8 @@ function snapshot() {
     environmentThreadShells.threadShellsAtom,
   );
   return {
-    /** Saved environments the app has threads from. */
     environments: [...new Set(shells.map((shell) => shell.environmentId))],
-    /** The app's own status for every thread it knows, including rows folded into a shelf. */
+
     threads: Object.fromEntries(
       shells.map((shell) => [shell.id, resolveThreadListV2Status(shell)]),
     ),
@@ -258,7 +252,6 @@ function uiFramesStop() {
 let samples: Array<Record<string, unknown>> = [];
 let sampled: Feed | null = null;
 
-// The feed is found once per recording; a tree walk on every frame would itself cause jank.
 function sampleFeed(time: number) {
   if (!sampled) return;
   const { following: _following, ...state } = feedState(sampled);
@@ -280,14 +273,14 @@ Object.assign(globalThis, {
       void Linking.openURL(url);
       return true;
     },
-    /** Restarts the JS app; deferred so the inspector call can reply first. */
+
     reload() {
       const { DevSettings } = require("react-native") as typeof import("react-native");
       setTimeout(() => DevSettings.reload(), 100);
       return true;
     },
     state: () => JSON.stringify(snapshot()),
-    /** Removes these saved environments (and their cached threads) through the app's own command. */
+
     async forgetEnvironments(ids: ReadonlyArray<string>) {
       const { runAtomCommand } = require("@supaterm/client-runtime/state/runtime") as {
         runAtomCommand: (
@@ -309,7 +302,7 @@ Object.assign(globalThis, {
         });
       return true;
     },
-    /** Records JS and UI frame times, and the visible feed on every JS frame. */
+
     recordStart(withFeed: boolean) {
       const { scheduleOnUI } =
         require("react-native-worklets") as typeof import("react-native-worklets");

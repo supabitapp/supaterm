@@ -25,7 +25,6 @@ function firstRouteParam(value: string | string[] | undefined): string | null {
   return value ?? null;
 }
 
-/** Never throw: malformed deep-link or restored ids can fail schema constructors during root-stack render. */
 export function activeThreadRef(state: NavigationState): ScopedThreadRef | null {
   const route = state.routes[state.index];
   if (route?.name !== "Thread") {
@@ -59,7 +58,6 @@ function threadShortcutLabel(thread: RecentThreadShortcut): string {
   return title.length > 0 ? title : "Thread";
 }
 
-/** Launcher shortcuts survive updates; allowlist destinations so malformed or stale paths cannot navigate. */
 export function shortcutHref(action: Action): string | null {
   const href = action.params?.href;
   if (typeof href !== "string") {
@@ -97,7 +95,6 @@ export function buildShortcutActions(recents: ReadonlyArray<RecentThreadShortcut
       params: { href: NEW_TASK_SHORTCUT_HREF },
     },
     ...recents.slice(0, MAX_RECENT_THREAD_SHORTCUTS).map((thread): Action => ({
-      // URI-encoded hrefs avoid env/thread id collisions that plain hyphen joins allow.
       id: `thread:${threadShortcutHref(thread)}`,
       title: threadShortcutLabel(thread),
       icon: SHORTCUT_ICON,

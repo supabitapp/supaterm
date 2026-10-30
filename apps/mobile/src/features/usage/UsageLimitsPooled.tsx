@@ -55,7 +55,6 @@ function accountHue(email: string) {
   return Math.abs(hash) % 360;
 }
 
-// Same hashed hue as the web account chip, so an account keeps its color across clients.
 function AccountChip({ email }: { readonly email: string }) {
   const hue = accountHue(email);
   return (
@@ -63,14 +62,13 @@ function AccountChip({ email }: { readonly email: string }) {
       className="size-5 items-center justify-center rounded-full"
       style={{ backgroundColor: `hsl(${hue}, 45%, 82%)` }}
     >
-      <Text className="text-[9px] font-t3-bold" style={{ color: `hsl(${hue}, 45%, 28%)` }}>
+      <Text className="text-[9px] font-supaterm-bold" style={{ color: `hsl(${hue}, 45%, 28%)` }}>
         {emailInitials(email)}
       </Text>
     </View>
   );
 }
 
-// Same gap-and-tick as the Limits rows: two clipped copies of the segment leave a see-through gap.
 function PaceGap({
   timeLeft,
   children,
@@ -180,7 +178,7 @@ function PoolWindowCard({
 }) {
   const navigation = useNavigation();
   const [barWidth, setBarWidth] = useState(0);
-  // Each segment needs room for its account, percent and reset to label itself.
+
   const segmentWidth = barWidth / Math.max(pool.columns.length, 1);
   const inlineLabels = wide && segmentWidth >= 96;
   const inlineReset = wide && segmentWidth >= 150;
@@ -269,12 +267,12 @@ function PoolWindowCard({
                   {account.email && !(account.displayName && inlineName) ? null : (
                     <Text
                       numberOfLines={1}
-                      className="min-w-0 shrink text-xs font-t3-medium text-foreground"
+                      className="min-w-0 shrink text-xs font-supaterm-medium text-foreground"
                     >
                       {accountName(account)}
                     </Text>
                   )}
-                  <Text className="text-sm font-t3-bold tabular-nums text-foreground">
+                  <Text className="text-sm font-supaterm-bold tabular-nums text-foreground">
                     {remainingPercent(window)}%
                   </Text>
                 </View>
@@ -295,7 +293,7 @@ function PoolWindowCard({
                     {credits ? (
                       <>
                         <SymbolView name="ticket" size={12} tintColorClassName="accent-icon" />
-                        <Text className="text-xs font-t3-medium tabular-nums text-foreground">
+                        <Text className="text-xs font-supaterm-medium tabular-nums text-foreground">
                           {credits}
                         </Text>
                       </>
@@ -337,17 +335,17 @@ function PoolWindowCard({
             className="min-h-[44px] flex-row items-center gap-2 active:opacity-60"
           >
             <View className="size-5 items-center justify-center overflow-hidden rounded-md bg-subtle-strong">
-              <Text className="text-xs font-t3-medium tabular-nums text-foreground">
+              <Text className="text-xs font-supaterm-medium tabular-nums text-foreground">
                 {index + 1}
               </Text>
             </View>
             <Text
               numberOfLines={1}
-              className="min-w-0 flex-1 text-sm font-t3-medium text-foreground"
+              className="min-w-0 flex-1 text-sm font-supaterm-medium text-foreground"
             >
               {accountName(account)}
             </Text>
-            <Text className="text-sm font-t3-medium tabular-nums text-foreground">
+            <Text className="text-sm font-supaterm-medium tabular-nums text-foreground">
               {remainingPercent(window)}%
             </Text>
             <View className="flex-row items-center gap-1">
@@ -367,7 +365,7 @@ function PoolWindowCard({
                 <>
                   {resetsIn ? <Text className="text-xs text-foreground-tertiary">·</Text> : null}
                   <SymbolView name="ticket" size={13} tintColorClassName="accent-icon" />
-                  <Text className="text-xs font-t3-medium tabular-nums text-foreground">
+                  <Text className="text-xs font-supaterm-medium tabular-nums text-foreground">
                     {credits}
                   </Text>
                 </>

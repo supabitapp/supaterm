@@ -65,12 +65,12 @@ export function SettingsProjectOverviewRouteScreen() {
     selectProject,
     getSelectedProjectKey,
   } = useSettingsEnvironmentFilter();
-  // The filter can move to another project while a removal is still running.
+
   const finishProjectRemoval = (projectKey: string | null) => {
     if (getSelectedProjectKey() !== projectKey) return;
     if (navigation.isFocused())
       leaveSettingsPage(navigation, workspaceHasColumns(), DEFAULT_SETTINGS_PAGE);
-    // Otherwise the filter keeps pointing at the removed project as an unavailable one.
+
     selectProject(null);
   };
   const group = projectGroups.find((entry) => entry.key === selectedProjectKey);
@@ -229,7 +229,7 @@ function ProjectOverviewContent(props: {
                 console.warn("[project-removal] could not clear composer drafts", error);
               });
           }
-          // Nothing is left to show once the whole project is gone.
+
           if (plan.targetKind === "project") props.onProjectRemoved(projectKey);
         })().finally(finishRemoval);
       },

@@ -14,10 +14,8 @@ import { RenderErrorBoundary, RenderFailureView } from "../../components/RenderE
 import { WORKSPACE_PANE_TIMING } from "./workspace-pane-animation";
 import { WorkspacePaneDivider } from "./workspace-pane-divider";
 
-// CSS form of WORKSPACE_PANE_TIMING's Easing.inOut(Easing.cubic).
 const PANE_EASING = cubicBezier(0.65, 0, 0.35, 1);
 
-/** Pass layout props to avoid an import cycle with AdaptiveWorkspaceLayout. */
 export function WorkspaceInspectorPane(props: {
   readonly pathname: string;
   readonly renderedInspectorWidth: SharedValue<number>;
@@ -70,7 +68,7 @@ export function WorkspaceInspectorPane(props: {
     }),
     [],
   );
-  // A hidden or resizing pane takes its width at once; a visible one eases with the column.
+
   const inspectorContentStyle = {
     width: inspectorWidth ?? 0,
     transitionProperty: "width",

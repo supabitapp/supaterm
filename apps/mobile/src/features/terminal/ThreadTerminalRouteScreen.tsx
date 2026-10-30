@@ -284,9 +284,7 @@ export function ThreadTerminalRouteScreen(props: ThreadTerminalRouteScreenProps)
     threadId: selectedThread?.id ?? null,
   });
   const requestedTerminalId = firstRouteParam(params.terminalId);
-  // A route without a terminal shows the thread's running one. The choice is
-  // made once, from the first session list that has one, so the terminal shown
-  // does not change under the user as sessions come and go.
+
   const [bootstrapTerminalId, setBootstrapTerminalId] = useState<string | null>(null);
   const runningSession = knownSessions.sessions
     ? (pickRunningTerminalSessionForBootstrap(knownSessions.sessions) ??
@@ -352,8 +350,6 @@ function readLiveTerminalSessions(
     }));
 }
 
-// `useKeyboardState` only flips on willShow and didHide; the accessory must
-// leave as soon as the keyboard starts hiding, so it follows the will-events.
 let keyboardShowing = KeyboardController.isVisible();
 function subscribeKeyboardShowing(onChange: () => void) {
   keyboardShowing = KeyboardController.isVisible();
@@ -408,7 +404,7 @@ function ThreadTerminal(props: {
   const routeThreadId = routeThreadIdRaw ? ThreadId.make(routeThreadIdRaw) : null;
   const environment = useEnvironmentPresentation(routeEnvironmentId);
   const isEnvironmentReady = environment.presentation?.connection.phase === "connected";
-  // Any new positive value triggers capture, even on remount. Pass one only while pending and keep increasing it.
+
   const captureSequenceRef = useRef(0);
   const [captureRequest, setCaptureRequest] = useState(0);
   const [capturedOutput, setCapturedOutput] = useState<string | null>(null);
@@ -591,15 +587,14 @@ function ThreadTerminal(props: {
     isVisible: state.isVisible,
   }));
   const keyboardShowing = useSyncExternalStore(subscribeKeyboardShowing, getKeyboardShowing);
-  // The accessory follows the keyboard, except that the dismiss and show
-  // buttons flip it ahead of the keyboard animation.
+
   const [accessory, setAccessory] = useState({ keyboardShowing, dismissed: false });
   if (accessory.keyboardShowing !== keyboardShowing) {
     setAccessory({ keyboardShowing, dismissed: !keyboardShowing });
   }
   const isAccessoryDismissed = accessory.dismissed;
   const isAccessoryVisible = canOperateTerminal && keyboardState.isVisible && !isAccessoryDismissed;
-  // Android's terminal owns an EditText; turning off autoFocus also clears its native focus.
+
   const terminalAutoFocus =
     Platform.OS === "android"
       ? !isAccessoryDismissed &&
@@ -858,7 +853,7 @@ function ThreadTerminal(props: {
               Platform.OS === "android"
                 ? themeVariables["--color-card-alt"]
                 : terminalTheme.background,
-            // Measured top reservation is zero when UIKit already inset the body or moved the bar.
+
             paddingTop:
               Platform.OS === "ios" ? (nativeColumnMetrics?.safeArea.top ?? insets.top) : 0,
             paddingBottom:

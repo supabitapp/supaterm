@@ -1,4 +1,3 @@
-/** Hold in-place route changes while a workspace mutation is still running. */
 export function createDeferredNavigation() {
   let pending = 0;
   let latest: (() => void) | null = null;
@@ -21,8 +20,4 @@ export function createDeferredNavigation() {
   };
 }
 
-/**
- * The app's one thread-selection gate: a new-task branch checkout holds
- * split-view thread selection until the draft route can be left.
- */
 export const threadSelectionDeferral = createDeferredNavigation();

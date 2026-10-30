@@ -23,7 +23,6 @@ export interface ToastProps {
   readonly onDismiss?: () => void;
 }
 
-/** The owning screen places and dismisses feedback; actions are never implicit. */
 export function Toast(props: ToastProps) {
   const { fontScale } = useWindowDimensions();
   const { colorScheme } = useControlTheme();
@@ -31,15 +30,14 @@ export function Toast(props: ToastProps) {
     props.singleLine && props.description
       ? `${props.message}: ${props.description}`
       : props.message;
-  // A one-line message keeps its action on the same row. Descriptions and
-  // accessibility text sizes need the full width, so the action moves below.
+
   const inlineAction = props.singleLine || (!props.description && fontScale < 1.5);
   const action = props.action ? (
     <Button label={props.action.label} onPress={props.action.onPress} />
   ) : null;
-  // A capsule hugs its content and keeps the action's pill concentric with its
-  // edge. When the action moves below, it falls back to the card.
+
   const capsule = props.variant === "capsule" && inlineAction;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- announces the toast through the native accessibility service
   useEffect(() => {
     if (Platform.OS === "ios") AccessibilityInfo.announceForAccessibility(props.message);
   }, [props.message]);

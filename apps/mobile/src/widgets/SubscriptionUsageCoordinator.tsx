@@ -10,7 +10,6 @@ import { publishSubscriptionUsage } from "./publishSubscriptionUsage";
 import { buildSubscriptionUsageSnapshot } from "./subscriptionUsageSnapshot";
 import { createWidgetTheme } from "./widgetTheme";
 
-// Isolate quota changes from the much busier thread/config presentation stream.
 const snapshotAtom = Atom.make((get) =>
   buildSubscriptionUsageSnapshot(
     get(environmentPresentations.presentationsWithProvidersAtom),

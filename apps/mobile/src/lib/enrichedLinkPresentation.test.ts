@@ -51,7 +51,10 @@ describe("Enriched link presentation", () => {
   });
 
   it("presents thread links as thread chips and leaves other links alone", () => {
-    for (const href of ["t3-thread://v1/thread%3Aproject%3A1", "t3-thread://v2/env/thread_1"]) {
+    for (const href of [
+      "supaterm-thread://v1/thread%3Aproject%3A1",
+      "supaterm-thread://v2/env/thread_1",
+    ]) {
       expect(enrichedThreadLinkPresentation(href), href).toEqual({
         accent: "#009c96",
         icon: { kind: "chip", name: "messages-square" },
@@ -60,7 +63,7 @@ describe("Enriched link presentation", () => {
     for (const href of [
       "https://github.com/example/repo/pull/7",
       "https://example.com",
-      "t3-context://v1/thread/thread_1",
+      "supaterm-context://v1/thread/thread_1",
     ]) {
       expect(enrichedThreadLinkPresentation(href), href).toBeUndefined();
     }
@@ -72,7 +75,7 @@ describe("Enriched link presentation", () => {
     expect(
       threadChipTargets(
         here,
-        "See [A](t3-thread://v1/thread_a), [A again](t3-thread://v1/thread_a), [B](t3-thread://v1/thread_b) and [D](t3-thread://v2/env-there/thread_d).",
+        "See [A](supaterm-thread://v1/thread_a), [A again](supaterm-thread://v1/thread_a), [B](supaterm-thread://v1/thread_b) and [D](supaterm-thread://v2/env-there/thread_d).",
         [
           {
             version: 1,
@@ -86,16 +89,26 @@ describe("Enriched link presentation", () => {
         ],
       ),
     ).toEqual([
-      { href: "t3-thread://v1/thread_a", environmentId: here, threadId: "thread_a", link: true },
-      { href: "t3-thread://v1/thread_b", environmentId: here, threadId: "thread_b", link: true },
       {
-        href: "t3-thread://v2/env-there/thread_d",
+        href: "supaterm-thread://v1/thread_a",
+        environmentId: here,
+        threadId: "thread_a",
+        link: true,
+      },
+      {
+        href: "supaterm-thread://v1/thread_b",
+        environmentId: here,
+        threadId: "thread_b",
+        link: true,
+      },
+      {
+        href: "supaterm-thread://v2/env-there/thread_d",
         environmentId: there,
         threadId: "thread_d",
         link: true,
       },
       {
-        href: "t3-context://v1/thread/thr1",
+        href: "supaterm-context://v1/thread/thr1",
         environmentId: there,
         threadId: "thread_c",
         link: false,

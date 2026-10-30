@@ -68,7 +68,6 @@ async function resolvedPayloadsForFiles(): Promise<ReadonlyArray<ResolvedSharePa
   try {
     return await getResolvedSharedPayloadsAsync();
   } catch (error) {
-    // Raw iOS copied file URLs remain usable; Android's File API can read content URIs when resolution fails.
     console.warn("[incoming-share] could not resolve shared file metadata", error);
     return [];
   }
@@ -102,10 +101,7 @@ async function removeOwnedFile(uri: string): Promise<void> {
   }
   try {
     const { File, Paths } = await loadExpoFileSystem();
-    // Only delete files in directories this app owns: its documents and cache
-    // sandbox and its share-extension App Group container. An iOS
-    // open-in-place share points at the sender's own storage; deleting that
-    // URI would destroy the user's document.
+
     const ownedRootUris = [
       Paths.document.uri,
       Paths.cache.uri,
@@ -146,7 +142,6 @@ async function removeReplayedPayloadFiles(payloads: ReadonlyArray<SharePayload>)
   await Promise.all([...uris].map(removeOwnedFile));
 }
 
-// Share the queue across remounts so lifecycle notifications cannot ingest one handoff twice.
 const incomingShareInbox = new IncomingShareInbox({
   loadDrafts: loadIncomingShareDrafts,
   writeDraft: writeIncomingShareDraft,
@@ -245,8 +240,6 @@ function reportRefreshFailure(cause: unknown) {
   ]);
 }
 
-// A resume while a refresh runs may carry a native handoff that refresh already
-// passed, so it queues one more refresh instead of joining the running one.
 const refreshIncomingShares = coalescedRun(async () => {
   const enabled = receiveSharingEnabled();
   try {
@@ -258,10 +251,6 @@ const refreshIncomingShares = coalescedRun(async () => {
   }
 });
 
-/**
- * Opens the oldest pending share as a new-task draft unless the user already
- * dismissed it. Runs whenever the inbox or the root navigation state changes.
- */
 export function presentPendingIncomingShare(): void {
   if (!rootNavigationRef.isReady()) return;
   const state = rootNavigationRef.getRootState();
@@ -280,7 +269,6 @@ export function presentPendingIncomingShare(): void {
   );
 }
 
-/** App-lifetime: loads the inbox and re-ingests native handoffs on every resume. */
 export function startIncomingShareInbox(): () => void {
   void refreshIncomingShares();
   return receiveSharingEnabled()
@@ -303,7 +291,6 @@ async function releaseShareReservation(
   publish(await incomingShareInbox.releaseReservation(shareId, expectedDestination));
 }
 
-/** Moves shares into new-task drafts; see makeIncomingShareImports. */
 export const incomingShareImports = makeIncomingShareImports({
   registry: appAtomRegistry,
   getShare: (shareId) => snapshot.drafts.find((draft) => draft.id === shareId) ?? null,
@@ -359,7 +346,6 @@ export const incomingShareImports = makeIncomingShareImports({
   },
 });
 
-/** Abandons the share imports of draft routes that left the stack. */
 export function pruneIncomingShareImports(state: Parameters<typeof liveNewTaskFlowKeys>[0]) {
   void incomingShareImports.prune(liveNewTaskFlowKeys(state));
 }

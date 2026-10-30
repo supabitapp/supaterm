@@ -34,7 +34,6 @@ export function parseCredentials(
   return { endpoint: url.toString(), ...(token ? { token } : {}) };
 }
 
-/** One map per update `eas update --emit-metadata` published, next to the bundle `metadata.json` names. */
 export function otaSourceMapUploads(distDir: string): ReadonlyArray<SourceMapUpload> {
   const metadata = readJson(NodePath.join(distDir, "metadata.json"));
   const easMetadata = readJson(NodePath.join(distDir, "eas-update-metadata.json"));
@@ -59,7 +58,6 @@ export function otaSourceMapUploads(distDir: string): ReadonlyArray<SourceMapUpl
   });
 }
 
-/** Android's Gradle plugin writes the map under the release variant; iOS to `SOURCEMAP_FILE` (eas.json). */
 export function buildSourceMapUpload(
   env: Readonly<Record<string, string | undefined>>,
   projectDir: string,
@@ -84,10 +82,6 @@ export function buildSourceMapUpload(
   };
 }
 
-/**
- * EAS writes the app's debug symbols next to the `.ipa`, so native frames in iOS crash
- * reports can be read with `atos`. Undefined when the build left none.
- */
 export function buildDsymUpload(
   env: Readonly<Record<string, string | undefined>>,
   projectDir: string,
@@ -101,7 +95,6 @@ export function buildDsymUpload(
   return { key: `ios/dsym/${env.EAS_BUILD_ID}.zip`, path: NodePath.join(buildDir, dsym) };
 }
 
-/** Only what the relay reads: source text stays out of the bucket, and the rest is dead weight. */
 function stripToMappings(text: string): string {
   const map: unknown = JSON.parse(text);
   if (!isRecord(map)) throw new Error("Source map is not a JSON object.");

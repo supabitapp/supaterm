@@ -13,7 +13,6 @@ const nativeControls = requireOptionalNativeModule<{
 export const NATIVE_WORKSPACE_COLUMNS_SUPPORTED =
   Platform.OS === "ios" && Platform.isPad && nativeControls?.supportsWorkspaceColumns === true;
 
-/** Whether a window with these metrics lays the workspace out in UIKit columns. */
 export function nativeWorkspaceColumnsSupportedFor(metrics: NativeLayoutMetrics | null) {
   return (
     NATIVE_WORKSPACE_COLUMNS_SUPPORTED ||
@@ -28,7 +27,7 @@ export function useNativeWorkspaceColumnsReady() {
     !(Platform.OS === "ios" && Platform.isPad) &&
     !!nativeControls?.ViewPrototypes?.SupatermNativeControls_LayoutMetrics &&
     metrics === null;
-  // Without metrics by the deadline, use the compact navigator rather than staying blank.
+
   const timedOut = useDeadlinePassed(waiting ? metricsDeadline : null);
   return !waiting || timedOut;
 }

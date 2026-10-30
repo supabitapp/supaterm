@@ -1,5 +1,3 @@
-// Load before React to wrap commits. Skip bailed-out child === alternate.child subtrees; PerformedWork marks rendered fibers.
-
 interface Fiber {
   readonly tag: number;
   readonly type: unknown;
@@ -12,7 +10,7 @@ interface Fiber {
 }
 interface HookSlot {
   readonly memoizedState: unknown;
-  /** Non-null only for useState and useReducer, the hooks that can schedule a render. */
+
   readonly queue: unknown;
   readonly next: HookSlot | null;
 }
@@ -65,7 +63,7 @@ function changedStateSlot(alternate: Fiber, node: Fiber): number {
   for (let index = 0; a && b && index < 800; index++) {
     const before = a.memoizedState;
     const after = b.memoizedState;
-    // Only state updates cause renders; memo, callback and ref changes are consequences.
+
     if (b.queue !== null && !isEffect(after) && !Object.is(before, after)) return index;
     a = a.next;
     b = b.next;
@@ -141,7 +139,7 @@ Object.assign(globalThis, {
     void Linking.openURL(url);
     return true;
   },
-  /** Restarts the JS app on Home; deferred so the inspector call can reply first. */
+
   __t3RenderCounterReload() {
     const { DevSettings } = require("react-native") as typeof import("react-native");
     setTimeout(() => DevSettings.reload(), 100);

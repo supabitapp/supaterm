@@ -14,9 +14,9 @@ const SPLIT_SIDEBAR_DEFAULT_MAX_WIDTH = 380;
 
 const AUXILIARY_PANE_MIN_CONTENT_WIDTH = 960;
 export const CHAT_CONTENT_MAX_WIDTH = 960;
-// Limit Android reading width for wide foldables and keyboard-open split views.
+
 export const ANDROID_READING_MAX_WIDTH = 640;
-// min-h-8 uses the 14px rem configured in metro.config.js.
+
 export const THREAD_WORK_ROW_MIN_HEIGHT = 28;
 
 export function deriveThreadWorkLogSizing(input: {
@@ -30,7 +30,7 @@ export function deriveThreadWorkLogSizing(input: {
       THREAD_WORK_ROW_MIN_HEIGHT,
       Math.ceil(lineHeight * input.fontScale),
     ),
-    // Accessibility scaling can exceed authored line heights; leave those rows measured.
+
     fixedRowHeight:
       input.fontScale <= 1 && lineHeight <= THREAD_WORK_ROW_MIN_HEIGHT
         ? THREAD_WORK_ROW_MIN_HEIGHT
@@ -57,7 +57,7 @@ export interface Layout {
 
 export interface WorkspacePaneLayout {
   readonly primarySidebarVisible: boolean;
-  /** Whether the sidebar shows once a collapsed split expands; independent of the current width. */
+
   readonly primarySidebarWhenExpanded: boolean;
   readonly primarySidebarSuppressedByAuxiliary: boolean;
   readonly contentPaneWidth: number;
@@ -94,10 +94,7 @@ export function deriveLayout(input: {
   const { width, height } = input;
   const metrics = input.nativeMetrics;
   const usableWidth = width - (metrics?.safeArea.left ?? 0) - (metrics?.safeArea.right ?? 0);
-  // UIKit retains split columns below the generic tablet breakpoint. Native
-  // columns follow its size class while reserving room for both column minimums.
-  // Unfolded in portrait, the inner display reports neither a side bar nor a
-  // fold, only its hinge.
+
   const hasDuoGeometry =
     metrics &&
     (metrics.hasHinge === true ||
@@ -145,7 +142,6 @@ export interface VerticalHinge {
   readonly width: number;
 }
 
-/** Moves the list/detail split onto a book-posture hinge so neither pane straddles the crease. */
 export function alignListPaneToHinge(input: {
   readonly layout: Layout;
   readonly hinge: VerticalHinge | null;
@@ -164,13 +160,6 @@ export function alignListPaneToHinge(input: {
   return { ...layout, listPaneWidth, listPaneGap: hinge.width };
 }
 
-/**
- * Whether the workspace root must keep the primary sidebar open. Native split
- * columns keep a sidebar toggle in the empty detail header, so only they may
- * collapse it there. Compact layouts stay pinned so a reveal request (such as
- * focusing search) cannot flip the saved preference for a later split view.
- */
-/** Home's list, or the Settings list in its place, with no detail selected. */
 export function isWorkspaceListPath(pathname: string): boolean {
   return pathname === "/" || pathname === "/settings";
 }

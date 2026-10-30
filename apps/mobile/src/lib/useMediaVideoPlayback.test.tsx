@@ -160,8 +160,7 @@ function setup(kind: "thread" | "PR", compact = false) {
   mocks.thumbnail.mockReset().mockResolvedValue(null);
   const container = document.createElement("div");
   const root = createRoot(container);
-  // Configured like the app's registry: the React default keeps unmounted atoms for 400ms,
-  // which would hold thumbnail loads open across renders and tests.
+
   const registry = AtomRegistry.make();
   const environmentId = EnvironmentId.make("test");
   return {

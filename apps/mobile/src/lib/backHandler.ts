@@ -2,11 +2,6 @@ import { useIsFocused } from "@react-navigation/native";
 import { useEffect, useEffectEvent } from "react";
 import { BackHandler } from "react-native";
 
-/**
- * Android hardware back while `active` and the owning screen is focused.
- * Keyed on those alone, not `onBack`: BackHandler calls the newest listener
- * first, so re-registering per render lets a covered screen consume Back.
- */
 export function useHardwareBack(active: boolean, onBack: () => boolean) {
   const focused = useIsFocused();
   const handleBack = useEffectEvent(onBack);

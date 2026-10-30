@@ -61,10 +61,6 @@ function normalizeScreenOptions(
   return normalized as NativeStackNavigationOptions;
 }
 
-// React tags elements, component types and contexts with `$$typeof`; their other
-// fields are React internals. In development an element's `_owner` is a fiber that
-// reaches the whole tree, including contexts that hold their default value outside
-// render, and React Navigation's NavigationStateContext default throws when read.
 function isReactObject(value: object): boolean {
   return "$$typeof" in value;
 }
@@ -94,7 +90,6 @@ function optionsSignature(value: unknown, seen = new WeakSet<object>()): string 
     case "undefined":
       return "undefined";
     case "function":
-      // Compare factory source; inline references change every render and would loop setOptions.
       return `function:${Function.prototype.toString.call(value)}`;
     case "symbol":
       return `symbol:${String(value)}`;
@@ -103,7 +98,6 @@ function optionsSignature(value: unknown, seen = new WeakSet<object>()): string 
     case "object": {
       const object = value as object;
       if (isValidElement(object)) {
-        // Elements are recreated on every render, so compare what they render.
         return `element:${identitySignature(object.type)}:${String(object.key)}:${optionsSignature(object.props, seen)}`;
       }
       if (isReactObject(object)) return identitySignature(object);
@@ -115,7 +109,7 @@ function optionsSignature(value: unknown, seen = new WeakSet<object>()): string 
       if (Array.isArray(value)) {
         return `[${value.map((entry) => optionsSignature(entry, seen)).join(",")}]`;
       }
-      // Ignore mutable native refs when comparing static screen options.
+
       if ("current" in object) return "[ref]";
       return `{${Object.keys(value as Record<string, unknown>)
         .sort()
@@ -168,10 +162,6 @@ function stabilizeOptionFunctions(
   return value;
 }
 
-/**
- * Sets the current screen's options. Inside a workspace tab slot they're kept for that slot, so
- * slots rendering the same route never overwrite each other's header.
- */
 export function useScreenOptionsWriter() {
   const navigation = useNativeStackNavigation();
   const setSlotOptions = use(WorkspaceSlotOptionsContext)?.set;
@@ -187,7 +177,7 @@ export function useScreenOptionsWriter() {
 
 export function NativeStackScreenOptions(props: {
   readonly options?: AppNativeStackNavigationOptions;
-  /** Reapply factories when captured data changes; source equality misses asynchronous menu content. */
+
   readonly optionsVersion?: unknown;
   readonly listeners?: Record<string, (event: never) => void>;
   readonly name?: string;
@@ -199,10 +189,6 @@ export function NativeStackScreenOptions(props: {
   const latestOptionFunctionsRef = useRef(new Map<string, (...args: unknown[]) => unknown>());
   const optionFunctionWrappersRef = useRef(new Map<string, (...args: unknown[]) => unknown>());
 
-  // Stabilizing records each factory's latest closure, so it runs in the commit
-  // phase: a render React discards must not leak its closures into the header.
-  // It runs before the tab check so wrappers already installed in an inactive
-  // tab's header still call the newest closures.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- writes stabilized header options to the navigator after commit so discarded renders leave no closures
   useLayoutEffect(() => {
     const normalizedOptions = normalizeScreenOptions(props.options);
@@ -226,9 +212,7 @@ export function NativeStackScreenOptions(props: {
       return;
     }
     lastAppliedOptionsSignatureRef.current = signature;
-    // React Navigation keeps a screen's descriptor while its options are shallowly equal. The
-    // stabilized factories keep their identity, so one whose output changed needs a new wrapper
-    // to reach the header.
+
     optionFunctionWrappersRef.current = new Map();
     setOptions(
       stabilizeOptionFunctions(

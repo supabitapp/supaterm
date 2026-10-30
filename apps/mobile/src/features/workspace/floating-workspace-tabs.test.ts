@@ -4,20 +4,12 @@ import { floatingTabsMetrics } from "./floating-workspace-tabs";
 import { resolveAndroidNavigationStyle } from "../../lib/androidNavigationStyle";
 
 it.each([
-  [undefined, "Samsung", false, "one-ui"],
-  [undefined, "samsung", false, "one-ui"],
-  [undefined, "Google", false, "material"],
-  [undefined, null, false, "material"],
-  [undefined, "Google", true, "one-ui"],
-  ["material", "Samsung", false, "material"],
-  ["one-ui", "Google", false, "one-ui"],
-  ["material", "Google", true, "material"],
-] as const)(
-  "resolves navigation preference %s on %s with preview %s",
-  (preference, manufacturer, preview, expected) => {
-    expect(resolveAndroidNavigationStyle(preference, manufacturer, preview)).toBe(expected);
-  },
-);
+  [undefined, "material"],
+  ["material", "material"],
+  ["one-ui", "one-ui"],
+] as const)("uses saved navigation preference %s", (preference, expected) => {
+  expect(resolveAndroidNavigationStyle(preference)).toBe(expected);
+});
 
 it.each([
   [475, 1, 56],

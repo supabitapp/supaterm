@@ -12,11 +12,10 @@ export function resolveWorkspaceTabOrder(saved: readonly unknown[] | undefined) 
 }
 
 export type WorkspaceTab = NavigationTab;
-/** Lists with their own search: the searchable tabs and the Settings list. */
+
 export type WorkspaceSearchTab = WorkspaceTab | "settings";
 export type WorkspaceSearchMode = "resting" | "active" | "expanded";
 
-/** Settings, Chats and pull requests pair a list with a detail column; Usage is one page. */
 export function workspaceUsesColumns(tab: WorkspaceTab, settingsOpen = false) {
   return settingsOpen || tab === "threads" || tab === "pullRequests";
 }
@@ -122,7 +121,7 @@ export function workspaceSearchBottomClearance(input: {
   readonly keyboardHeight: number;
 }) {
   const bottom = input.bottomBarInset ?? Math.max(input.bottomInset, 12);
-  // AboveKeyboard lifts the field to an 8-point gap above the keyboard.
+
   return (
     Math.max(bottom, input.keyboardHeight > 0 ? input.keyboardHeight + 8 : 0) +
     WORKSPACE_TOOLBAR.height +

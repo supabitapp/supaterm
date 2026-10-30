@@ -22,7 +22,7 @@ export function SettingsRow(props: {
 }) {
   const navigation = useNavigation();
   const sidebar = use(SettingsSidebarContext);
-  // The Settings list opens pages in place of the detail column; a page's own rows push below.
+
   const inList = ["Home", "Settings"].includes(useRoute().name);
   const valueBelow =
     props.valuePosition === "below" ||

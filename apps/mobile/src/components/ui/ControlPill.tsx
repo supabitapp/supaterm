@@ -27,7 +27,6 @@ export function ControlPill(props: {
     props.onPress?.();
   };
   const handlePressOut = () => {
-    // Defer reset: Pressability calls onPressOut before onPress for the same gesture.
     setTimeout(() => {
       activatedOnPressInRef.current = false;
     }, 0);

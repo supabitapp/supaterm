@@ -13,14 +13,13 @@ export async function publishSubscriptionUsage(snapshot: SubscriptionUsageSnapsh
   ]);
   tapUrl = snapshot.url;
   if (!listening) {
-    // expo-widgets lacks Android widgetURL. Button events need a live JS runtime to open the app.
     listening = true;
     addUserInteractionListener((event) => {
       if (event.source === "SubscriptionUsage" && tapUrl) void Linking.openURL(tapUrl);
     });
   }
   widget.updateSnapshot(snapshot);
-  // Android lacks timelines; alarms re-render snapshots at expiry to mark readings stale.
+
   requireOptionalNativeModule<{ schedule: (name: string, deadlines: number[]) => void }>(
     "SupatermWidgetExpiry",
   )?.schedule(

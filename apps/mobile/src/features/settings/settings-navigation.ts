@@ -9,27 +9,19 @@ import {
 
 type RootParams = ReactNavigation.RootParamList;
 
-/** Settings routes that open as modals over whatever is on screen, not as Settings pages. */
 const SETTINGS_MODAL_ROUTES = new Set(["SettingsLegal", "SettingsAuth", "SettingsWaitlist"]);
 
-/** Root routes that make up the Settings tab: its list and the pages it opens. */
 export type SettingsRouteName = Exclude<
   Extract<keyof RootParams, `Settings${string}`>,
   "SettingsLegal" | "SettingsAuth" | "SettingsWaitlist"
 >;
 
-/** A page in the Settings tab's detail column. */
 export type SettingsPageName = Exclude<SettingsRouteName, "Settings">;
 
 export function isSettingsRoute(name: string): boolean {
   return name.startsWith("Settings") && !SETTINGS_MODAL_ROUTES.has(name);
 }
 
-/**
- * Settings is open while its `Settings` route is under the topmost workspace page and that
- * page is a Settings page. A Settings page pushed without it, such as a usage account opened
- * from the Usage tab, stays a detail of the current tab.
- */
 export function settingsOpenIn(workspaceRoutes: readonly { readonly name: string }[]): boolean {
   return (
     workspaceRoutes.some((route) => route.name === "Settings") &&
@@ -37,10 +29,6 @@ export function settingsOpenIn(workspaceRoutes: readonly { readonly name: string
   );
 }
 
-/**
- * A `settings/...` link names only its page, so put the Settings tab's route under it. A bare
- * `settings` link opens `page` beside the list when the window has columns.
- */
 export function restoreSettingsLinkState(
   state: PartialState<NavigationState> | undefined,
   page: SettingsPageName | undefined,
@@ -64,12 +52,6 @@ type SettingsPageArgs<Name extends SettingsPageName> = undefined extends RootPar
 
 type RouteLike = { readonly name: string; readonly key?: string; readonly params?: object };
 
-/**
- * Settings pages sit on the root stack above Home, under a `Settings` route that keeps the
- * Settings list as the workspace's primary content. Opening a page replaces whatever was above
- * Home, so the tab always starts from its list and Back returns there. Routes already on screen
- * keep their keys, so reopening the open page doesn't rebuild it.
- */
 export function settingsNavigationState<State extends { readonly routes: readonly RouteLike[] }>(
   state: State,
   page: SettingsPageName | undefined,
@@ -91,7 +73,6 @@ export function settingsNavigationState<State extends { readonly routes: readonl
   return { ...state, index: routes.length - 1, routes };
 }
 
-/** Opens one Settings page in the Settings tab, from anywhere outside it. */
 export function openSettings<Name extends SettingsPageName>(
   navigation: RootStackNavigation,
   page: Name,
@@ -100,10 +81,6 @@ export function openSettings<Name extends SettingsPageName>(
   resetRootStack(navigation, (state) => settingsNavigationState(state, page, params));
 }
 
-/**
- * Closes a Settings page that finished its job. The first page beside the list is replaced with
- * `fallback` when the window has columns, since going back would leave the detail column empty.
- */
 export function leaveSettingsPage(
   navigation: RootStackNavigation & { readonly goBack: () => void },
   columns: boolean,

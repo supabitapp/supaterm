@@ -40,7 +40,7 @@ export function SplitButton(props: SplitButtonProps) {
     disabledContainerColor: colors["--color-subtle-strong"],
     disabledContentColor: colors["--color-foreground-muted"],
   };
-  // A usable menu beside a disabled action still takes the disabled palette, so the pair reads as one control.
+
   const trailingColors = enabled
     ? buttonColors
     : {
@@ -60,7 +60,7 @@ export function SplitButton(props: SplitButtonProps) {
         </>
       ) : props.icon ? (
         <>
-          {/* The glyph host consumes touches, so it runs the action itself. */}
+          {}
           <RNHostView matchContents modifiers={[size(mediumIconSize, mediumIconSize)]}>
             <Pressable
               accessible={false}

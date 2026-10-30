@@ -61,11 +61,11 @@ export function PullRequestRoutingSettings() {
                 onPress={() => setExpanded(expanded === environmentId ? null : environmentId)}
               >
                 <View className="min-w-0 flex-1 gap-0.5">
-                  <Text className="text-base font-t3-bold text-foreground">
+                  <Text className="text-base font-supaterm-bold text-foreground">
                     {entry.target.label}
                   </Text>
                   <Text className="text-xs text-foreground-muted" numberOfLines={1}>
-                    {connectionCatalogDisplayUrl(entry) ?? "T3 Connect"}
+                    {connectionCatalogDisplayUrl(entry) ?? "Supaterm connection"}
                   </Text>
                 </View>
                 <Text className="text-sm text-foreground-muted">

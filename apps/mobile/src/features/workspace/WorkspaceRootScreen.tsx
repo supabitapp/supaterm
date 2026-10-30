@@ -97,7 +97,7 @@ function WorkspaceRootContent() {
   const keyboardHeight = useKeyboardState((keyboard) => keyboard.height);
   const workspace = useWorkspaceTabs()!;
   const { state } = workspace;
-  // Settings is a workspace tab too; its list takes the place of the selected tab's.
+
   const settingsOpen = workspace.settingsOpen;
   const renderHeaderTitle = () => (
     <WorkspaceRootTitle
@@ -110,8 +110,7 @@ function WorkspaceRootContent() {
     layout.primarySidebarOverlaysContent && state.selectedTab === "usage"
       ? workspaceDockBottomClearance({ bottomInset: insets.bottom, keyboardHeight })
       : Platform.OS === "ios" && isDuoDevice(deviceType)
-        ? // The column's safe area already holds the Duo's search toolbar and keyboard.
-          Math.max(insets.bottom, keyboardHeight) + 16
+        ? Math.max(insets.bottom, keyboardHeight) + 16
         : compactTabs || deviceType === "pad"
           ? workspaceDockBottomClearance({ bottomInset: insets.bottom, keyboardHeight })
           : Platform.OS === "ios"
@@ -155,8 +154,7 @@ function WorkspaceRootContent() {
                 ? { headerSearchBarOptions: undefined, unstable_headerRightItems: () => [] }
                 : {}),
               unstable_headerLeftItems: () => [],
-              // Beside a detail column the tab bar names the tab and the detail header the page,
-              // so the sidebar keeps the brand.
+
               headerTitle:
                 sidebarNavigation || (!settingsOpen && state.selectedTab !== "usage")
                   ? renderHeaderTitle
@@ -204,7 +202,7 @@ function WorkspaceRootContent() {
         {deviceType !== "pad" && deviceType !== "phone" && sidebarPicker ? (
           <WorkspaceSidebarTabs />
         ) : null}
-        {/* Android's Settings list carries its own search in its app bar. */}
+        {}
         {enabled.length === 0 && !settingsOpen ? null : (
             settingsOpen
               ? Platform.OS === "ios"

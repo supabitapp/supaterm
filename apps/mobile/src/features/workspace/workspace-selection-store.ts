@@ -30,11 +30,8 @@ import {
   type WorkspaceSelectionCheck,
 } from "./workspace-tab-navigation";
 
-// Only iOS columns reopen a remembered page; Android always opens a tab on its list.
 const REMEMBERS = Platform.OS === "ios";
 
-// Read synchronously when a tab opens, so it lives in memory and is saved when the app leaves
-// the foreground rather than on every chat switch.
 let selections: WorkspaceSelections = {};
 let saved = selections;
 let hydration: Promise<void> | null = null;
@@ -42,7 +39,7 @@ let hydration: Promise<void> | null = null;
 function save() {
   const writing = selections;
   if (saved === writing) return;
-  // Marked saved only once written, so a failed write is retried on the next background.
+
   void savePreferencesPatch({ workspaceSelections: writing })
     .then(() => {
       saved = writing;
@@ -50,8 +47,6 @@ function save() {
     .catch(() => undefined);
 }
 
-// Route keys only name routes of the session that wrote them; a saved one would make a tab rebuild
-// its page under a stale key, which UIKit animates as a pop and a push.
 function withoutRouteKeys(saved: WorkspaceSelections | undefined): WorkspaceSelections {
   const omitKey = <Selection extends { readonly key?: string }>({ key: _, ...rest }: Selection) =>
     rest;
@@ -63,7 +58,6 @@ function withoutRouteKeys(saved: WorkspaceSelections | undefined): WorkspaceSele
   };
 }
 
-/** Loads the saved selections once; pages visited before it resolves win over saved ones. */
 export function hydrateWorkspaceSelections() {
   if (!REMEMBERS) return Promise.resolve();
   hydration ??= loadPreferences()
@@ -82,10 +76,6 @@ export function currentWorkspaceSelections() {
   return selections;
 }
 
-/**
- * The navigation container's `onReady` and `onStateChange`: remembers the page each tab is
- * showing. The initial state, such as a cold start's reopened chat, reaches only `onReady`.
- */
 export function recordWorkspaceSelections(state: NavigationState | undefined) {
   if (!REMEMBERS || !state) return;
   selections = workspaceSelectionsIn(state.routes.slice(0, state.index + 1), selections);
@@ -101,10 +91,6 @@ function environmentRemoved(environmentId: string) {
   );
 }
 
-/**
- * A remembered chat is gone once its environment was removed, or once that environment's
- * snapshot has loaded without it. Before it loads there is nothing to contradict it.
- */
 export const workspaceSelectionCheck: WorkspaceSelectionCheck = {
   thread: (selection) => {
     if (environmentRemoved(selection.environmentId)) return false;
@@ -117,7 +103,6 @@ export const workspaceSelectionCheck: WorkspaceSelectionCheck = {
   pullRequest: (selection) => !environmentRemoved(selection.environmentId),
 };
 
-/** Whether the window lays the workspace out in columns, by the rule the layout itself uses. */
 export function workspaceHasColumns() {
   const metrics = currentNativeLayoutMetrics();
   const { width, height } = metrics ?? Dimensions.get("window");
@@ -129,22 +114,16 @@ export function workspaceHasColumns() {
   }).usesSplitView;
 }
 
-/** The Settings page a bare `settings` link opens beside the list when there are columns. */
 export function settingsLinkPage() {
   return REMEMBERS && workspaceHasColumns() ? rememberedSettingsPage(selections) : undefined;
 }
 
-/**
- * Where a cold start without a link opens. A window that starts with columns reopens the last
- * chat beside the list instead of an empty detail column; a compact window opens on the list.
- * It waits for the first layout metrics as long as the workspace itself does.
- */
 export async function launchWorkspaceURL(): Promise<string | null> {
   if (!REMEMBERS) return null;
   const metrics = firstNativeLayoutMetrics(NATIVE_METRICS_TIMEOUT_MS);
   await hydrateWorkspaceSelections();
   const thread = selections.threads;
-  // Read the chat's cached copy while the layout metrics are still on their way.
+
   if (thread) {
     startOpeningEnvironmentThread(
       thread.environmentId as EnvironmentId,
@@ -158,7 +137,6 @@ export async function launchWorkspaceURL(): Promise<string | null> {
   );
 }
 
-/** Whether the workspace shows its first detail page, directly above its list. */
 export function firstWorkspaceDetailOpen(navigation: RootStackNavigation) {
   const state = rootStackState(navigation);
   if (!state) return false;

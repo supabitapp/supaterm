@@ -26,7 +26,6 @@ import {
   type StartupCrashRecord,
 } from "./crash-log-model";
 
-// expo-updates retains only seven days of logs.
 const LOG_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 type CrashLogState =
@@ -34,7 +33,6 @@ type CrashLogState =
   | { readonly status: "unavailable" }
   | { readonly status: "ready"; readonly records: ReadonlyArray<StartupCrashRecord> };
 
-// Not kept alive: each visit to the screen re-reads the log.
 const crashLogAtom = Atom.make(
   Effect.tryPromise(() => Updates.readLogEntriesAsync(LOG_WINDOW_MS)).pipe(
     Effect.map((entries): CrashLogState => ({
@@ -138,7 +136,7 @@ export function SettingsDiagnosticsRouteScreen() {
 function CrashReportsSetting() {
   const preferences = useAtomValue(mobilePreferencesAtom);
   const savePreferences = useAtomSet(updateMobilePreferencesAtom, { mode: "promiseExit" });
-  // One change at a time, so a slow save never turns sending back on after a later opt-out.
+
   const [saving, setSaving] = useState(false);
   const ready = AsyncResult.isSuccess(preferences) && !preferences.waiting;
   const enabled = AsyncResult.isSuccess(preferences)
@@ -147,13 +145,13 @@ function CrashReportsSetting() {
 
   const change = (value: boolean) => {
     setSaving(true);
-    // Sending stops before the save and starts only after it.
+
     if (!value) void setCrashReportsEnabled(false);
     savePreferences({ crashReportsEnabled: value })
       .then((exit) => {
         if (Exit.isFailure(exit)) {
           console.warn("[diagnostics] could not save the crash report setting", exit.cause);
-          return value ? undefined : setCrashReportsEnabled(true);
+          return;
         }
         return value ? setCrashReportsEnabled(true) : undefined;
       })

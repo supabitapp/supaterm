@@ -2,8 +2,7 @@ import type { NativeReviewDiffSource } from "./nativeReviewDiffTypes";
 import { diffHighlightTraceId, traceDiffHighlight } from "./nativeReviewDiffTrace";
 
 const MAX_SOURCE_FILES = 4;
-// Bound retained UTF-16 text across files without discarding an already-fetched
-// authoritative source just because it is large. Provider response limits still apply.
+
 const MAX_CACHED_SOURCE_CHARACTERS = 8_000_000;
 
 function isWeakKey(value: unknown): value is object {
@@ -14,7 +13,7 @@ function permanentSourceFailureReason(error: unknown): string | undefined {
   for (let depth = 0; depth < 8 && typeof error === "object" && error !== null; depth++) {
     const reason = "reason" in error ? error.reason : undefined;
     const name = "name" in error ? error.name : undefined;
-    // Defect serialization preserves error names and causes, but drops custom fields.
+
     if (name === "GitCafeDiffSourceUnavailableError") return "gitcafe-source-unavailable";
     if (name === "GitHubDiffFileContentsUnavailableError") return "github-source-unavailable";
     for (const permanent of [
@@ -28,7 +27,7 @@ function permanentSourceFailureReason(error: unknown): string | undefined {
     }
     if ("status" in error && error.status === 413) return "http-413";
     if ("status" in error && error.status === 501) return "http-501";
-    // Older servers have no structured reason for an unsupported contents RPC.
+
     if (
       "detail" in error &&
       error.detail === "This host cannot expand unchanged pull request lines."
@@ -70,7 +69,7 @@ export function createNativeReviewDiffSourceLoader<FileId>(
   const cached = new Map<FileId, NativeReviewDiffSource>();
   let cachedCharacters = 0;
   type Failure = { attempts: number; unavailable: boolean };
-  // Request closures can own parsed rows; failed versions must not retain them.
+
   const objectFailures = new WeakMap<object, Failure>();
   const primitiveFailures = new Map<FileId, Failure>();
   const pending = new Map<
@@ -80,8 +79,7 @@ export function createNativeReviewDiffSourceLoader<FileId>(
       readonly subscribers: Set<AbortSignal | undefined>;
     }
   >();
-  // RPC commands cannot abort a request already sent. Serialize source fetches
-  // and drop queued requests whose viewports have all been cancelled.
+
   let tail = Promise.resolve();
   const loader = diffHighlightTraceId(cached);
 
@@ -113,7 +111,6 @@ export function createNativeReviewDiffSourceLoader<FileId>(
       const promise = tail
         .then(async () => {
           if ([...subscribers].every((subscriber) => subscriber?.aborted)) {
-            // A cancelled request must stop being shareable before its promise settles.
             pending.delete(fileId);
             traceDiffHighlight("source-dropped", { loader, file });
             return null;
@@ -166,7 +163,7 @@ export function createNativeReviewDiffSourceLoader<FileId>(
               });
               return null;
             }
-            // Only a later viewport request retries; never loop inside this request.
+
             throw error;
           }
         })

@@ -2,7 +2,6 @@ import { resolveChangeRequestLinkTarget } from "@supaterm/client-runtime/change-
 import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
 import { EnvironmentId, ProjectId } from "@supaterm/contracts";
 
-/** The PullRequest route for a change request link from a project, or null for the browser. */
 export function nativePullRequestDestination(
   url: string,
   context: { environmentId: string; projectId: string } | null,

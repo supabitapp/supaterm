@@ -1,6 +1,5 @@
 #!/usr/bin/env node
-// Usage: `ota <dist>` after `eas update --emit-metadata`, or `build` from eas-build-on-success.
-// Problems are warnings, never failures: an unreadable stack is not worth failing a release over.
+
 import {
   buildDsymUpload,
   buildSourceMapUpload,
@@ -12,7 +11,6 @@ import {
 } from "./sourcemap-upload.mts";
 
 const warn = (message: string) => {
-  // GitHub Actions shows this as an annotation; elsewhere it is a log line.
   console.warn(process.env.GITHUB_ACTIONS ? `::warning::${message}` : `warning: ${message}`);
 };
 

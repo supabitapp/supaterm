@@ -51,7 +51,6 @@ vi.mock("../state/session", () => ({
   },
 }));
 
-// Cuts the expo-crypto -> react-native import chain out of the test graph.
 vi.mock("./uuid", () => ({
   uuidv4: () => "uuid",
   randomHex: () => "0000",

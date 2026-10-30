@@ -74,7 +74,7 @@ export function AndroidScreenHeader(props: {
   readonly onBack?: () => void;
   readonly embedded?: boolean;
   readonly hideBottomBorder?: boolean;
-  /** One row with the subtitle after the title, for screens short on height. */
+
   readonly compact?: boolean;
 }) {
   const { colors } = useControlTheme();

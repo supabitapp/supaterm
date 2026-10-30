@@ -56,7 +56,6 @@ export function hotSwappableAtomRuntime<R, E>(options: {
     );
   }
 
-  // Keep the AtomRuntime stable across HMR while replacing its Layer.
   options.hotModule.accept();
   return entry.runtime as Atom.AtomRuntime<R, E>;
 }

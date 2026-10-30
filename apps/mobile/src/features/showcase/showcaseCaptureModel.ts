@@ -16,7 +16,6 @@ function sceneFromPathname(pathname: string): ShowcaseScene | null {
   return null;
 }
 
-/** Agent activity is staged on the threads list, so that route counts as the scene. */
 export function showcaseSceneOnScreen(
   requestedScene: ShowcaseScene | null,
   pathname: string,
@@ -28,15 +27,10 @@ export function showcaseSceneOnScreen(
 export interface ShowcaseNavigationTarget {
   readonly requestedScene: ShowcaseScene;
   readonly scene: ShowcaseScene | null;
-  /** The showcase thread shell; a new shell (or environment) is a new target to navigate to. */
+
   readonly thread: object;
 }
 
-/**
- * Whether to dispatch the navigation for `next`, given the target last dispatched. A target is
- * dispatched once, and again whenever any part of it changes, so a dispatch that did not move
- * the route is retried when the thread shell or route updates.
- */
 export function shouldNavigateToShowcaseScene(
   last: ShowcaseNavigationTarget | null,
   next: ShowcaseNavigationTarget,
@@ -69,14 +63,10 @@ export interface ShowcaseReadinessInput {
   readonly themeApplied: boolean;
   readonly themeId: MobileThemeId;
   readonly renderSignal: ShowcaseRenderSignal | null;
-  /** Counts render-signal changes; a redraw report restarts the settle delay. */
+
   readonly renderReports: number;
 }
 
-/**
- * The capture key for a scene that is ready to be marked, or null while any
- * precondition is missing. A changed key restarts the settle delay.
- */
 export function showcaseReadinessKey(input: ShowcaseReadinessInput): string | null {
   const { scene } = input;
   if (

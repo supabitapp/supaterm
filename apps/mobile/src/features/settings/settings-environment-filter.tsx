@@ -20,8 +20,6 @@ export type SettingsTarget = EnvironmentPresentation & {
   readonly serverConfig: NonNullable<EnvironmentPresentation["serverConfig"]>;
 };
 
-// Several mounted Settings components read the scope at once (the list, its header, a page and
-// its editor), so share the derived lists across them for the same inputs.
 const targetsCache = new WeakMap<readonly EnvironmentPresentation[], readonly SettingsTarget[]>();
 const groupsCache = new WeakMap<object, Map<string, ReturnType<typeof buildProjectGroups>>>();
 
@@ -59,7 +57,7 @@ interface SettingsEnvironmentSelection {
   readonly selectedProjectKey: string | null;
   readonly setSelectedIds: Dispatch<SetStateAction<ReadonlySet<EnvironmentId> | null>>;
   readonly selectProject: (projectKey: string | null) => void;
-  /** The selection as of now, for async work that outlives the render it started in. */
+
   readonly getSelectedProjectKey: () => string | null;
 }
 
@@ -67,21 +65,13 @@ const SettingsEnvironmentSelectionContext = createContext<SettingsEnvironmentSel
   null,
 );
 
-/**
- * Holds the Settings scope selection across Settings pages, which are separate root routes.
- * It stays mounted for the whole app, so it keeps only the selection; the environment and
- * project data is derived in the hook, by the Settings pages that are mounted. The selection
- * resets when Settings closes.
- */
 export function SettingsEnvironmentFilterProvider(props: {
   readonly open: boolean;
   readonly children: ReactNode;
 }) {
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<EnvironmentId> | null>(null);
   const [selectedProjectKey, setSelectedProjectKey] = useState<string | null>(null);
-  // Written only by selectProject, so it can keep a key that the close reset below cleared.
-  // Its one reader, a project removal that finishes after Settings closed, then clears an
-  // already empty selection, which is harmless.
+
   const currentProjectKey = useRef<string | null>(null);
   if (!props.open && (selectedIds !== null || selectedProjectKey !== null)) {
     setSelectedIds(null);

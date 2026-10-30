@@ -72,7 +72,6 @@ function getRegisteredCommandsSnapshot(): ReadonlySet<HardwareKeyboardCommand> {
   return registeredCommandsSnapshot.commands;
 }
 
-/** Render inside the workspace so palette actions share its navigation and pane state. */
 export function HardwareKeyboardCommandOverlay() {
   return use(CommandPaletteContext);
 }
@@ -203,7 +202,12 @@ export function HardwareKeyboardCommandProvider({
               );
               return;
             }
-            navigation.navigate("Thread", { environmentId, threadId: targetThreadId });
+            navigation.dispatch(
+              selectWorkspaceDetail({
+                name: "Thread",
+                params: { environmentId, threadId: targetThreadId },
+              }),
+            );
           })
           .finally(() => {
             forkInFlight.current = false;
@@ -240,7 +244,6 @@ export function HardwareKeyboardCommandProvider({
         return;
       }
       if (command === "back") {
-        // Beside a visible list, the first detail page has nothing to go back to.
         if (Platform.OS === "ios" && workspaceHasColumns() && firstWorkspaceDetailOpen(navigation))
           return;
         if (navigation.canGoBack()) {

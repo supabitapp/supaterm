@@ -14,18 +14,14 @@ export interface HighlightedToken {
 export type HighlightedLines = ReadonlyArray<ReadonlyArray<HighlightedToken>>;
 
 const LINE_END = 0xffffffff;
-// Longer lines stay one plain token so a minified line does not become
-// thousands of native text runs.
+
 const MAX_HIGHLIGHTED_LINE_LENGTH = 1_000;
 
-// @pierre/highlights compiled to native code (modules/supaterm-highlights). Missing
-// from binaries built before it shipped, where code renders as plain text.
 const nativeHighlights = requireOptionalNativeModule<{
   tokenize(source: string, language: number): ArrayBuffer | null;
 }>("SupatermHighlights");
 
 export interface TokenizedCode {
-  /** Retained UTF-16 source, compact native records, and line indexes. */
   readonly byteLength: number;
   readonly lineCount: number;
   readonly highlightLine: (
@@ -34,7 +30,6 @@ export interface TokenizedCode {
   ) => ReadonlyArray<HighlightedToken> | undefined;
 }
 
-/** Keep native records compact; expand only lines a client will display. */
 export function tokenizeCode(code: string, language: string): TokenizedCode {
   const id = highlightLanguageId(language);
   const buffer = id === 0 ? null : (nativeHighlights?.tokenize(code, id) ?? null);
@@ -81,7 +76,6 @@ export function tokenizeCode(code: string, language: string): TokenizedCode {
   };
 }
 
-/** LF and CRLF split lines; a trailing line break yields a final empty line. */
 export function highlightCode(
   code: string,
   language: string,

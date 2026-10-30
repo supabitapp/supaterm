@@ -46,10 +46,6 @@ export function SettingsLabsRouteScreen() {
 
 const AUTO_MARK_DONE_DEFAULT_DAYS = DEFAULT_SERVER_SETTINGS.sidebarAutoMarkDoneAfterDays ?? 3;
 
-/**
- * Usage-limit and auto-mark Done rows. The Threads page owns their writes, so they share its queue
- * with the page's other project overrides, and their project override reset.
- */
 export function AutoMarkDoneSettingsRows(props: {
   readonly write: (patch: ServerSettingsPatch) => void;
   readonly pending: boolean;
@@ -66,7 +62,7 @@ export function AutoMarkDoneSettingsRows(props: {
     selectedTargets.filter(supportsSharedSettingsSync),
     projectMembers,
   );
-  // The page saves to all its targets, so any read-only one blocks the save.
+
   const canWriteSettings =
     displayTargets.length > 0 &&
     resolveMobileSettingsTargets(selectedTargets, projectMembers).every((target) =>
@@ -198,7 +194,6 @@ export function NewThreadSettingsSection() {
   );
 }
 
-/** Per machine, since each machine's own setting decides whether it links and answers links. */
 function BetaSettingsSection() {
   const { environments } = useEnvironments();
   const supported = environments.filter(

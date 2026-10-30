@@ -13,12 +13,6 @@ export interface EnvironmentReleaseCheck {
 const asError = (cause: unknown) =>
   cause instanceof Error ? cause : new Error("Could not check for updates.");
 
-/**
- * Looks up the newest T3 Code release for one environment. The atom is not
- * kept alive, so leaving the screen interrupts the lookup and aborts its fetch.
- * The argument reads the server version, which an outdated server only
- * reports through a separate description request.
- */
 export const environmentReleaseCheckAtom = Atom.family((environmentId: EnvironmentId) =>
   Atom.fn((readServerVersion: () => Promise<string>) =>
     Effect.gen(function* () {

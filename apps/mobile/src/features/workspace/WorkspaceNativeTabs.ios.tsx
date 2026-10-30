@@ -36,14 +36,13 @@ import { useSelectWorkspaceTab } from "./useSelectWorkspaceTab";
 
 const PULL_REQUEST_ICON = require("../../../modules/supaterm-native-controls/ios/Resources/pull-request.png");
 
-/** Retain each native controller tree; removing its root can leave RNS's stack empty. */
 function RetainedWorkspaceTab(props: {
   readonly tab: WorkspaceTab;
   readonly active: boolean;
   readonly children: ReactNode;
 }) {
   const workspace = useWorkspaceTabs()!;
-  // Whether this slot is the visible one, read by cleanups after the switch has committed.
+
   const activeRef = useRef(props.active);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes the committed active flag to a ref that header cleanups read after the tab switch commits
   useLayoutEffect(() => {
@@ -55,7 +54,7 @@ function RetainedWorkspaceTab(props: {
     isActive,
   };
   const [optionsByRoute, setOptionsByRoute] = useState<ReadonlyMap<string, object>>(new Map());
-  // Stable, so writers and the cleanups that depend on them don't re-run on every write.
+
   const setRouteOptions = (routeKey: string, options: object) =>
     setOptionsByRoute((current) =>
       new Map(current).set(routeKey, { ...current.get(routeKey), ...options }),
@@ -132,7 +131,6 @@ export function WorkspaceNativeTabs(props: {
           if (!tab) return null;
           return (
             <Tabs.Screen
-              // Stable slot controllers keep UIKit's stacks attached when a section moves into Settings.
               key={slot}
               screenKey={slot}
               title=""
@@ -185,7 +183,7 @@ export function WorkspaceNativeTabs(props: {
             position: "absolute",
             left: 0,
             bottom: 0,
-            // UIKit can shrink the sidebar to 280pt independently of its preferred width.
+
             width:
               deviceType === "pad" && (floatingTabs || layout.usesSplitView)
                 ? Math.min(280, layout.listPaneWidth ?? width, width)

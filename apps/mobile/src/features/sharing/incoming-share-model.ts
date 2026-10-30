@@ -52,7 +52,6 @@ export function decodeIncomingShareDraft(value: unknown): IncomingShareDraft {
   return decodeIncomingShareDraftSync(value);
 }
 
-/** Strip iOS /private so /var and /private/var paths compare equally. */
 function normalizedFileUriPath(uri: string): string | null {
   try {
     const url = new URL(uri);
@@ -60,7 +59,7 @@ function normalizedFileUriPath(uri: string): string | null {
       return null;
     }
     const path = decodeURIComponent(url.pathname);
-    // URL parsing leaves encoded separators; reject decoded .. segments before lexical containment checks.
+
     if (path.split("/").includes("..")) {
       return null;
     }
@@ -70,7 +69,6 @@ function normalizedFileUriPath(uri: string): string | null {
   }
 }
 
-/** Delete only inside app-owned roots; iOS shares may reference the sender's original. */
 export function isShareFileUriUnderOwnedRoots(
   uri: string,
   ownedRootUris: ReadonlyArray<string>,
@@ -315,7 +313,7 @@ export async function buildIncomingShareDraft(input: {
         }
         if (persistedFileUri === undefined && input.fileReader.persistFile) {
           persistedFileUri = await input.fileReader.persistFile(uri, name);
-          // Android content sources can misreport size; record the stored copy's measured size.
+
           const storedSize = (await input.fileReader.readSize?.(persistedFileUri)) ?? null;
           if (storedSize !== null) {
             sizeBytes = storedSize;
@@ -379,7 +377,7 @@ export async function buildIncomingShareDraft(input: {
 
     try {
       const sharedBase64 = await input.fileReader.readBase64(uri);
-      // Use already-read bytes because native image loaders may not read the provider's file.
+
       const fitted = await fitComposerImage({
         uri: `data:${mimeType};base64,${sharedBase64}`,
         mimeType,
@@ -403,7 +401,7 @@ export async function buildIncomingShareDraft(input: {
         mimeType,
         sizeBytes,
         dataUrl,
-        // Data-backed previews outlive temporary share files and App Group entries.
+
         previewUri: dataUrl,
       });
     } catch {

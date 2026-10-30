@@ -305,7 +305,7 @@ describe("ThreadInlineFilePreview playback", () => {
     audio.setActive.mockImplementation(async (enabled) => {
       audio.enabled = enabled;
     });
-    // Expo's play() silently does nothing while its global gate is disabled.
+
     audio.player.play.mockImplementation(() => {
       if (audio.enabled) audio.played();
     });
@@ -481,7 +481,6 @@ describe("ThreadInlineFilePreview playback", () => {
       expect(audio.navigate).not.toHaveBeenCalled();
       await act(async () => {
         if (playback === "native resume") {
-          // Native resume requests playback before buffering advances the clock.
           audio.video.playbackRequested = true;
           for (const listener of audio.videoRequestListeners)
             listener({ isPlaybackRequested: true });
@@ -585,7 +584,7 @@ describe("ThreadInlineFilePreview playback", () => {
       expect(audio.played).toHaveBeenCalledOnce();
       let sessionActive = true;
       const deactivated = vi.fn();
-      // Match expo-audio iOS: the queued callback checks ownership at execution time.
+
       const queueDeactivation = () =>
         setTimeout(() => {
           if (audio.sessionOwned) return;
@@ -614,7 +613,6 @@ describe("ThreadInlineFilePreview playback", () => {
               .click(),
           );
         } else if (release === "finish") {
-          // Native completion queues deactivation before JS receives didJustFinish.
           queueDeactivation();
           audio.status = { ...audio.status, playing: false, didJustFinish: true };
           await act(async () => render());
@@ -632,7 +630,7 @@ describe("ThreadInlineFilePreview playback", () => {
         });
         if (successor !== "recording") expect(audio.video.playing).toBe(true);
         expect(audio.player.pause).toHaveBeenCalled();
-        // Cleanup of the old native ref must not interrupt the successor either.
+
         await act(async () => render(successor === "video", false));
         await vi.advanceTimersByTimeAsync(200);
         expect(sessionActive).toBe(true);
@@ -913,7 +911,7 @@ describe("ThreadInlineFilePreview playback", () => {
         ),
       );
       audio.video.pause.mockClear();
-      // iOS can keep readyToPlay during a seek's evaluatingBufferingRate wait.
+
       if (transition === "buffering") {
         audio.video.status = "loading";
         for (const listener of audio.videoStatusListeners) listener({ status: "loading" });
@@ -921,7 +919,7 @@ describe("ThreadInlineFilePreview playback", () => {
       audio.video.playing = false;
       for (const listener of audio.videoListeners) listener({ isPlaying: false });
       expect(audio.video.pause).not.toHaveBeenCalled();
-      // Buffer readiness can precede the native playing=true event.
+
       audio.video.status = "readyToPlay";
       for (const listener of audio.videoStatusListeners) listener({ status: "readyToPlay" });
       expect(audio.video.pause).not.toHaveBeenCalled();
@@ -1147,7 +1145,7 @@ describe("ThreadInlineFilePreview playback", () => {
       expect(audio.player.play).toHaveBeenCalledTimes(phase === "playing" ? 1 : 0);
       await releaseAudioSession(recording);
       audio.status = { ...audio.status, isLoaded: true };
-      // Refresh the native status before the next tap.
+
       await act(async () =>
         root!.render(
           createElement(ThreadInlineFilePreview, {
@@ -1353,7 +1351,7 @@ describe("ThreadFeed previews", () => {
       },
     ];
     const container = document.createElement("div");
-    // Records what each commit shows before passive effects get a chance to run.
+
     const committedPreviews: Array<string | null> = [];
     function CommitProbe() {
       useLayoutEffect(() => {
@@ -1406,7 +1404,6 @@ describe("ThreadFeed previews", () => {
       await act(async () => root.render(element(ThreadId.make("thread-2"))));
       expect(committedPreviews[0]).toBeNull();
 
-      // A preview hidden by a presentation change stays closed when the content comes back.
       await act(async () =>
         container.querySelector<HTMLButtonElement>('[aria-label="Open report.pdf"]')!.click(),
       );

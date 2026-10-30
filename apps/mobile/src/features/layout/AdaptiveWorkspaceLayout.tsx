@@ -113,7 +113,6 @@ export function useAdaptiveWorkspacePaneRole(role: WorkspaceAuxiliaryPaneRole) {
   useFocusEffect(() => activateAuxiliaryPaneRole(role));
 }
 
-/** Capture inspector navigation contexts. Register on focus events because frozen blurred screens may never clean up. */
 export function useRegisterWorkspaceInspector(render: (() => ReactNode) | undefined) {
   const { registerWorkspaceInspector } = useAdaptiveWorkspaceLayout();
   const navigation = use(NavigationContext);
@@ -130,9 +129,6 @@ export function useRegisterWorkspaceInspector(render: (() => ReactNode) | undefi
     );
   })();
 
-  // useFocusEffect re-runs when the renderer changes while focused, so the
-  // pane always shows this render's content, and its cleanup deactivates on
-  // blur and unmount.
   useFocusEffect(() =>
     wrappedRender === undefined ? undefined : registerWorkspaceInspector(wrappedRender),
   );
@@ -187,7 +183,7 @@ function AdaptiveWorkspaceLayoutContent(
   const { width: viewportWidth, height } = nativeMetrics ?? windowDimensions;
   const pathname = props.pathname;
   const workspace = useWorkspaceTabs();
-  // Settings and Usage occupy the workspace rather than a list/detail pair.
+
   const androidSettingsOpen = useAndroidWorkspaceRoot()?.settingsOpen ?? false;
   const safeAreaInsets = useSafeAreaInsets();
   const workspacePage =
@@ -207,16 +203,12 @@ function AdaptiveWorkspaceLayoutContent(
   const [primarySidebarSearchQuery, setPrimarySidebarSearchQuery] = useState("");
   const [focusedAuxiliaryPaneRole, setFocusedAuxiliaryPaneRole] =
     useState<WorkspaceAuxiliaryPaneRole | null>(null);
-  // The compiler can't memoize these derivations: they stay live across later hook calls. Fresh
-  // objects here change the workspace context on every render, so every workspace screen
-  // re-renders on any layout state change, and the inspector registration then loops: each
-  // re-register re-renders its screen, which hands over a new inspector renderer.
+
   const baseLayout = useMemo(
     () => deriveLayout({ width: viewportWidth, height, nativeMetrics, nativeWorkspace }),
     [height, viewportWidth, nativeMetrics, nativeWorkspace],
   );
-  // The overlay sidebar closes when a page opens from it, and stays open on a list or on the
-  // page a tab switch opened (`keepOpenFor`, set by that switch).
+
   const [overlaySidebar, setOverlaySidebar] = useState({
     active: baseLayout.primarySidebarOverlaysContent,
     pathname,
@@ -247,9 +239,7 @@ function AdaptiveWorkspaceLayoutContent(
   });
   const [composerEditing, setComposerEditing] = useState(false);
   const softKeyboardVisible = useKeyboardState((state) => state.isVisible);
-  // Keyed on the soft keyboard, not focus: a hardware keyboard leaves room for the sidebar, and
-  // Back closes the keyboard while the editor keeps focus. Deferred so the composer commits its
-  // keyboard render first; relaying out in the same commit held it behind the keyboard.
+
   const composerKeyboardActive = useDeferredValue(
     Platform.OS === "android" && baseLayout.usesSplitView && composerEditing && softKeyboardVisible,
   );
@@ -297,7 +287,7 @@ function AdaptiveWorkspaceLayoutContent(
     floatingTabsEnabled,
   ]);
   const width = viewportWidth - navigationRailWidth;
-  // The sidebar stays mounted under a workspace page, so its list is ready on the way back.
+
   const shouldRenderPrimarySidebar = layout.usesSplitView;
   const fileInspector = useMemo(
     () =>
@@ -346,7 +336,7 @@ function AdaptiveWorkspaceLayoutContent(
       layout,
       nativeWorkspace,
       showPrimarySidebar,
-      viewportWidth,
+      width,
     ],
   );
   const activeThread = parseActiveThreadPath(pathname);
@@ -370,11 +360,9 @@ function AdaptiveWorkspaceLayoutContent(
       ? null
       : scopedThreadKey(selectedThreadRef.environmentId, selectedThreadRef.threadId);
   const isFilesRoute = props.workspaceRouteName === "ThreadFiles";
-  // Same resolution the Files screen uses: without a cwd it shows "Files unavailable" and
-  // registers no inspector, so revealing would only hide the sidebar beside that screen.
+
   const filesCwd = useThreadCwd(isFilesRoute && fileInspector.supported ? selectedThreadRef : null);
-  // Opening a review or the files route reveals its inspector once per route and thread.
-  // Routes still on the stack remember their reveal, so going back to one keeps the user's choice.
+
   const revealsInspector =
     props.workspaceRouteName === "ThreadReview" || (isFilesRoute && filesCwd !== null);
   const [revealedInspectors, setRevealedInspectors] = useState<ReadonlyMap<string, string>>(
@@ -409,7 +397,6 @@ function AdaptiveWorkspaceLayoutContent(
     setWorkspaceInspector({ render, active: true });
 
     return () => {
-      // Outgoing screens deactivate after incoming registration; only the current owner may deactivate.
       if (workspaceInspectorOwner.current !== owner) {
         return;
       }
@@ -443,8 +430,7 @@ function AdaptiveWorkspaceLayoutContent(
     if (primarySidebarPinned) {
       return;
     }
-    // A sidebar the keyboard set aside returns with the keyboard; the user's preference stays
-    // intact. One the user had hidden still opens.
+
     if (composerKeyboardActive) {
       void KeyboardController.dismiss();
       if (primarySidebarPreferredVisible) return;
@@ -505,11 +491,7 @@ function AdaptiveWorkspaceLayoutContent(
     }
     setSupplementaryPanePreferredWidth(nextWidth);
   };
-  /**
-   * The one way to open a workspace tab: replaces the workspace with the tab's list and, when the
-   * window has columns, the page it last showed, keeping any sheet on top. An overlay sidebar
-   * stays open over that page.
-   */
+
   const openWorkspaceTab = (
     tab: WorkspaceTab | "settings",
     options?: { readonly columns?: boolean },
@@ -535,7 +517,6 @@ function AdaptiveWorkspaceLayoutContent(
   };
   const handleOpenSettings = () => openWorkspaceTab("settings");
 
-  /** The one way to show a page in the detail column; see `selectWorkspaceDetail`. */
   function handleSelectDetail(detail: WorkspaceDetail, sheet?: WorkspaceDetailSheet) {
     threadSelectionDeferral.run(() => {
       if (Platform.OS === "android") Keyboard.dismiss();
@@ -555,7 +536,7 @@ function AdaptiveWorkspaceLayoutContent(
   const projects = useProjects();
   const compactAndroidSettings =
     Platform.OS === "android" && androidSettingsOpen && !layout.usesSplitView;
-  // Reads the open page when pressed, so the layout context doesn't change on every navigation.
+
   const handleStartNewTask = () => {
     const state = rootStackState(navigation);
     const currentRoute = workspaceRoutesOf(
@@ -569,7 +550,7 @@ function AdaptiveWorkspaceLayoutContent(
       Array.isArray(value) ? value[0] : value;
     const environmentId = first(params?.environmentId);
     const threadId = first(params?.threadId);
-    // The full index, not the sidebar list: subagent and archived threads are current threads too.
+
     const projectId =
       environmentId && threadId
         ? appAtomRegistry
@@ -596,7 +577,6 @@ function AdaptiveWorkspaceLayoutContent(
     return true;
   });
 
-  // Create at root: the iOS sidebar renders in an independent navigation tree.
   const handleOpenEnvironmentSettings = () => {
     openSettings(navigation, "SettingsEnvironments");
   };
@@ -632,7 +612,7 @@ function AdaptiveWorkspaceLayoutContent(
     workspaceInspector !== null && workspaceInspector.active && panes.auxiliaryPaneVisible
       ? (panes.auxiliaryPaneWidth ?? 0)
       : 0;
-  // Android's split content is a rounded card: keep it off the screen edge like the list card.
+
   const contentEndGap = Platform.OS === "android" && layout.usesSplitView ? 4 : 0;
   const contentTargetWidth = layout.usesSplitView
     ? Math.max(0, panes.contentPaneWidth - inspectorColumnTargetWidth - contentEndGap)
@@ -651,7 +631,6 @@ function AdaptiveWorkspaceLayoutContent(
       listPaneSizing.sidebarVisible !== panes.primarySidebarVisible ||
       listPaneSizing.listPaneTarget !== layout.listPaneWidth)
   ) {
-    // A book-posture hinge resizes the visible list pane instead of revealing it.
     const resizingSidebar =
       listPaneSizing.viewportWidth === viewportWidth &&
       listPaneSizing.sidebarVisible &&
@@ -661,7 +640,7 @@ function AdaptiveWorkspaceLayoutContent(
       viewportWidth,
       sidebarVisible: panes.primarySidebarVisible,
       listPaneTarget: layout.listPaneWidth,
-      // Retargets widen the list-width span because the animated hinge edge may still be inside it.
+
       listPaneFloor: resizingSidebar
         ? Math.min(listPaneSizing.listPaneFloor ?? 0, layout.listPaneWidth ?? 0)
         : layout.listPaneWidth,
@@ -687,10 +666,7 @@ function AdaptiveWorkspaceLayoutContent(
   const listPaneFloor = listPaneSizing.listPaneFloor ?? 0;
   const listPaneCeiling = listPaneSizing.listPaneCeiling ?? 0;
   const listPaneRevision = listPaneSizing.revision;
-  // Android lays the content out at its new width as soon as a pane toggles, then holds it
-  // against the edge that stays put while the other one slides, so nothing reflows after the
-  // panes land. A sliding sidebar uncovers the strip it is about to fill, or covers the content
-  // until it is gone.
+
   const contentLeftTarget =
     shouldRenderPrimarySidebar && panes.primarySidebarVisible
       ? (layout.listPaneWidth ?? 0) + (layout.listPaneGap ?? 0)
@@ -726,8 +702,7 @@ function AdaptiveWorkspaceLayoutContent(
   useEffect(() => {
     if (nativeWorkspace) return;
     renderedRailWidth.set(withTiming(navigationRailWidth, WORKSPACE_PANE_TIMING));
-    // A workspace page hides the sidebar through React instead, in the same commit that mounts
-    // the page. Animating it here would hide it a few frames before the page appears.
+
     if (workspacePage) {
       leavingWorkspacePage.current = true;
       return;
@@ -737,7 +712,7 @@ function AdaptiveWorkspaceLayoutContent(
     const targetWidth = panes.primarySidebarVisible
       ? (layout.listPaneWidth ?? 0) + (layout.listPaneGap ?? 0)
       : 0;
-    // The content beside it already took its final width when the page closed.
+
     renderedSidebarWidth.set(
       withTiming(targetWidth, snap ? { duration: 0 } : WORKSPACE_PANE_TIMING, (finished) => {
         if (finished && Platform.OS === "android") runOnJS(settleListPane)(listPaneRevision);
@@ -756,8 +731,7 @@ function AdaptiveWorkspaceLayoutContent(
     workspacePage,
   ]);
   const railAnimatedStyle = useAnimatedStyle(() => ({ width: renderedRailWidth.value }));
-  // Showing or hiding the sidebar clips a fixed-width list. A hinge resize instead tracks the
-  // animated edge, so the header actions slide with it rather than jumping or being covered.
+
   const listPaneGap = layout.listPaneGap ?? 0;
   const listPaneAnimatedStyle = useAnimatedStyle(() => ({
     width: Math.min(
@@ -766,7 +740,6 @@ function AdaptiveWorkspaceLayoutContent(
     ),
   }));
   const sidebarAnimatedStyle = useAnimatedStyle(() => ({
-    // Fading a UIKit glass ancestor can leave remounted header effects missing.
     opacity:
       Platform.OS === "ios" || floatingTabsEnabled
         ? 1
@@ -774,7 +747,6 @@ function AdaptiveWorkspaceLayoutContent(
     width: renderedSidebarWidth.value,
   }));
 
-  // Clip the navigator at its settled width so native headers and markdown reflow only once per pane toggle.
   const renderedInspectorWidth = useSharedValue(inspectorColumnTargetWidth);
   const renderedContentWidth = useDerivedValue(() =>
     Math.max(0, viewportWidth - renderedSidebarWidth.value - renderedInspectorWidth.value),
@@ -787,10 +759,9 @@ function AdaptiveWorkspaceLayoutContent(
     });
   };
 
-  // Rotating flips the overlay; until the new size reaches JS, predict the reset above.
   const sidebarOverRotates =
     nativeWorkspace && nativeMetrics?.hasHinge === true && layout.usesSplitView;
-  // The current orientation's panes already account for an inspector that needs the sidebar's room.
+
   const sidebarInLandscape = baseLayout.primarySidebarOverlaysContent
     ? primarySidebarPinned || primarySidebarPreferredVisible
     : panes.primarySidebarVisible;
@@ -860,9 +831,7 @@ function AdaptiveWorkspaceLayoutContent(
             !workspacePage && panes.primarySidebarVisible ? "auto" : "no-hide-descendants"
           }
           pointerEvents={!workspacePage && panes.primarySidebarVisible ? "auto" : "none"}
-          // Under a workspace page the sidebar leaves the row but keeps its size, so its
-          // lists never lay out at zero size and are ready, unchanged, on the way back. The
-          // content pane, laid out after it, covers it, in the same mount as the page.
+
           style={[
             workspacePage ? { position: "absolute", top: 0, bottom: 0, left: 0 } : null,
             sidebarAnimatedStyle,
@@ -906,7 +875,7 @@ function AdaptiveWorkspaceLayoutContent(
                 </AndroidHomeFabLayout>
               </AndroidWorkspaceSidebar>
             </RenderErrorBoundary>
-            {/* Keep the pill under the content throughout the sidebar's clipping animation. */}
+            {}
             {floatingTabsEnabled && !workspacePage ? (
               <FloatingWorkspaceTabs
                 paneWidth={layout.listPaneWidth}
@@ -938,14 +907,14 @@ function AdaptiveWorkspaceLayoutContent(
               : { flex: 1 }
           }
         >
-          {/* Android holds the content still, so its floating controls keep its width. */}
+          {}
           <WorkspaceContentWidthContext
             value={layout.usesSplitView && Platform.OS !== "android" ? renderedContentWidth : null}
           >
             <WorkspaceSettledContentWidthContext
               value={Platform.OS === "android" && layout.usesSplitView ? contentTargetWidth : null}
             >
-              {/* Compact Settings keeps the bottom navigation under all of its pages. */}
+              {}
               <SafeAreaInsetsContext
                 value={
                   floatingTabsEnabled &&
@@ -991,8 +960,6 @@ function AdaptiveWorkspaceLayoutContent(
         onClosed={handleWorkspaceInspectorClosed}
       />
       {shouldRenderNavigationRail && navigationRailWidth > 0 ? (
-        // The rail reserves its slot above and draws over the panes, so it can widen over
-        // the list in place. It takes the whole workspace only while it is open.
         <View
           className="absolute inset-y-0 left-0"
           style={railOverlay ? { right: 0 } : { width: navigationRailWidth }}

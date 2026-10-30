@@ -16,7 +16,6 @@ import {
   type ScheduledTaskEditor,
 } from "./scheduled-task-editor-state";
 
-/** The form draft lives in an atom, so it survives while its native picker routes are on top. */
 export function useScheduledTaskEditor() {
   const { selectedTargets, selectedProjectKey, projectGroups } = useSettingsEnvironmentFilter();
   const selectedGroup = projectGroups.find((group) => group.key === selectedProjectKey);
@@ -45,7 +44,7 @@ export function useScheduledTaskEditor() {
     },
     [configs, projects, selectedGroup],
   );
-  // Direct links can open the new-task form before environments have connected.
+
   const defaultEditor = useMemo(
     () =>
       defaultTarget

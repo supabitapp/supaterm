@@ -2,11 +2,6 @@ import { Atom } from "effect/reactivity";
 
 import { subscribeAppActive } from "./appState";
 
-/**
- * A system permission as the app last saw it. Reads it when first mounted and
- * again each time the app returns to the foreground, where the user may have
- * changed it in system Settings. Writing stores the outcome of a request.
- */
 export function makePermissionStatusAtom<S>(options: {
   readonly label: string;
   readonly initial: S;
@@ -14,7 +9,6 @@ export function makePermissionStatusAtom<S>(options: {
 }): Atom.Writable<S, S> {
   return Atom.writable(
     (get) => {
-      // A read that settles after unmount is dropped: setSelf on a disposed lifetime is a no-op.
       const refresh = () => {
         void options.read().then((status) => get.setSelf(status));
       };

@@ -30,12 +30,6 @@ let pendingLink: PendingThreadLink | null = null;
 let stopWaitingForShell: (() => void) | null = null;
 let stopWaitingForDetail: (() => void) | null = null;
 
-/**
- * `threads/<environment>/<thread>?prompt=…` fills that thread's composer draft. The param is
- * dropped as the link arrives, so the thread screen never sees it and a later visit cannot apply
- * it again. The draft is written only once the thread's screen shows a thread that exists: a
- * screen for an unknown thread replaces itself with a new-thread draft, which drops the link.
- */
 export function takeThreadPromptLink(
   state: PartialState<NavigationState> | undefined,
 ): PartialState<NavigationState> | undefined {
@@ -45,7 +39,7 @@ export function takeThreadPromptLink(
   const params = route?.params as Readonly<Record<string, unknown>> | undefined;
   const search = promptLinkSearchFromParams(params, THREAD_LINK_KEYS);
   if (!route || !params || search === null) return state;
-  // A newer link replaces a waiting one even when it turns out to be invalid.
+
   dropPendingLink();
   const { prompt: _prompt, ...rest } = params;
   const routes = state.routes.slice();
@@ -69,16 +63,13 @@ export function takeThreadPromptLink(
   return nextState;
 }
 
-/** Wired to the navigation container's state changes. */
 export function resolvePendingThreadPromptLink(state: NavigationState | undefined): void {
   if (pendingLink === null) return;
   const { ref } = pendingLink;
-  // A subagent thread the environment's list leaves out gets a shell once the screen mounts its
-  // family. An archived thread never does; the screen shows it from its detail.
+
   const shellAtom = environmentThreadShells.threadShellAtom(ref);
   const detailAtom = environmentThreads.stateAtom(ref.environmentId, ref.threadId);
-  // Read detail only while the screen holds it: opening it here for an unknown thread would keep
-  // retrying with no screen to close it.
+
   const screenHoldsDetail = appAtomRegistry.getNodes().has(detailAtom);
   const step = stepPendingPromptLink(pendingLink, {
     screenOnStack:

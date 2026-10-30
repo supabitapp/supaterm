@@ -1,11 +1,5 @@
 import type { NavigationState, PartialState } from "@react-navigation/native";
 
-/**
- * The Expo dev client launches the app via
- * <scheme>://expo-development-client/?url=<packager> — that URL addresses
- * the launcher, not app navigation. Without this filter it falls through
- * to the NotFound wildcard route on every dev launch.
- */
 export function shouldHandleAppLink(url: string): boolean {
   return (
     !url.includes("expo-development-client") &&
@@ -14,7 +8,6 @@ export function shouldHandleAppLink(url: string): boolean {
   );
 }
 
-/** Keep the published draft URLs while using the root thread screen. */
 export function restoreDraftLinkState(
   state: PartialState<NavigationState> | undefined,
   path: string,
@@ -37,7 +30,6 @@ function isLinkState(value: unknown): value is LinkState {
   return typeof value === "object" && value !== null && Array.isArray((value as LinkState).routes);
 }
 
-/** The first route named one of `names`, at any nesting depth of a parsed link. */
 export function findLinkedRoute(
   state: LinkState | undefined,
   names: ReadonlyArray<string>,
@@ -50,11 +42,6 @@ export function findLinkedRoute(
   return undefined;
 }
 
-/**
- * The last route named `name` (and accepted by `accept`, when given) at any depth of a live
- * navigation state, with the key of the navigator holding it, so an action can be dispatched as
- * that screen would. `focused` says whether it is that navigator's current route.
- */
 export function findStackRoute(
   state: NavigationState | undefined,
   name: string,
@@ -73,7 +60,7 @@ export function findStackRoute(
       return { navigatorKey: state.key, routeKey: route.key, focused: index === state.index };
     }
     const nested = route.state;
-    // Mounted navigators always have keys; a partial state from a link has not been mounted yet.
+
     if (typeof nested?.key === "string") {
       const found = findStackRoute(nested as NavigationState, name, accept);
       if (found) return found;
@@ -82,7 +69,6 @@ export function findStackRoute(
   return undefined;
 }
 
-/** Rewrites the first route named one of `names`, keeping every untouched branch of the state. */
 export function updateLinkedRoute(
   state: LinkState | undefined,
   names: ReadonlyArray<string>,

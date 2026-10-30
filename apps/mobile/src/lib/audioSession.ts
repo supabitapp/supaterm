@@ -10,8 +10,6 @@ type AudioSessionToken = {
 let owner: AudioSessionToken | null = null;
 let pending = Promise.resolve();
 
-// Native session calls are async. Finish an old activation before releasing it
-// or configuring its successor, so it cannot reactivate a released session.
 function enqueue<T>(operation: () => Promise<T>): Promise<T> {
   const result = pending.then(operation);
   pending = result.then(
@@ -22,8 +20,6 @@ function enqueue<T>(operation: () => Promise<T>): Promise<T> {
 }
 
 export function pauseAudioPlayer(player: { pause(deactivateSession?: boolean): void }): void {
-  // Expo Audio otherwise deactivates iOS's shared session 100 ms after pause,
-  // even when a video or recorder has already taken ownership.
   if (owner && !owner.released) player.pause(false);
   else player.pause();
 }
@@ -49,7 +45,7 @@ export function acquireAudioSession(
   const token: AudioSessionToken = { kind, onCancel, onRelease, released: false };
   if (kind === "playback" && owner?.kind === "recording" && !owner.released) return token;
   const previous = owner;
-  // Publish before cancelling the old player, including callbacks already queued by Expo.
+
   AudioModule.setAudioSessionOwner?.(true);
   owner = token;
   if (previous && !previous.released) previous.onCancel?.();
@@ -66,7 +62,7 @@ export function activateAudioSession(
 ): Promise<boolean> {
   return enqueue(async () => {
     if (!isAudioSessionOwner(token)) return false;
-    // Video configures and activates its own native session, including moviePlayback on iOS.
+
     if (nativePlayback) return true;
     await setAudioModeAsync({
       allowsRecording: token.kind === "recording",
@@ -89,8 +85,7 @@ export function releaseAudioSession(token: AudioSessionToken): Promise<void> {
     } finally {
       if (owner === token) {
         if (token.kind === "recording") await setIsAudioActiveAsync(false);
-        // Expo pause releases the native session without disabling its global playback gate.
-        // Repeat it after any pending activation, even if playback never started.
+
         token.onRelease?.();
         if (owner === token) {
           AudioModule.setAudioSessionOwner?.(false);
@@ -108,7 +103,6 @@ export function createAudioPlaybackSession(
 ) {
   let token: AudioSessionToken | null = null;
   const stopPlayer = () => {
-    // useAudioPlayer/useVideoPlayer may have disposed the native ref during unmount.
     try {
       if (nativePlayback) player.pause();
       else pauseAudioPlayer(player);
@@ -149,8 +143,7 @@ export function createAudioPlaybackSession(
         throw error;
       }
     },
-    // A stopped clock is also reported during buffering and seeks. Native
-    // pause intent must call pause() separately from playingChange.
+
     playingChanged(playing: boolean) {
       if (playing && token === null) acquire();
     },

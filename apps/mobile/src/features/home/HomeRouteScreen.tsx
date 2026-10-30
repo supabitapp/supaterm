@@ -6,7 +6,7 @@ import { NativePrimaryColumnContext } from "../../native/v5-workspace-context";
 import * as Arr from "effect/Array";
 import * as Order from "effect/Order";
 import { useNavigation } from "@react-navigation/native";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Platform, useWindowDimensions } from "react-native";
 
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
@@ -206,9 +206,7 @@ export function HomeRouteScreen() {
   return (
     <AndroidHomeFabLayout onStartNewTask={startNewTask}>
       <>
-        {/* Restore the header after leaving split view; screen options are
-            shallow-merged. Connection status appears beneath the brand
-            while an environment reconnects. */}
+        {}
         {workspace !== null && Platform.OS === "ios" ? null : (
           <NativeStackScreenOptions
             optionsVersion={headerWidth}

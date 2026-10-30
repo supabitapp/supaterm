@@ -74,7 +74,6 @@ const isPullRequestRoute = (route: Route) =>
   route.name === "PullRequestFile" ||
   route.name === "PullRequestFiles";
 
-/** Beside the list, the first Settings page shows on one native screen that swaps its content. */
 const SETTINGS_DETAIL_SCREEN = "settings-detail";
 
 function ColumnScreen(props: {
@@ -90,7 +89,7 @@ function ColumnScreen(props: {
   readonly navigation: ViewProps["navigation"];
 }) {
   const { descriptor } = props;
-  // Options a screen set inside this workspace tab slot, over its route's.
+
   const options = slotScreenOptions(
     use(WorkspaceSlotOptionsContext),
     descriptor.route.key,
@@ -151,7 +150,7 @@ function ColumnScreen(props: {
             }
           >
             <NativePrimaryColumnContext value={primaryColumn}>
-              {/* The Settings slot swaps pages here; its column keeps its measured insets. */}
+              {}
               <Fragment key={key}>{descriptor.render()}</Fragment>
             </NativePrimaryColumnContext>
           </ColumnContent>
@@ -186,7 +185,7 @@ function WorkspaceColumns(
   const resizeStartWidth = useRef(inspectorWidth);
   const settingsDetailIn = (detail: readonly Route[]) =>
     layout.usesSplitView && detail[0] && isSettingsRoute(detail[0].name) ? detail[0] : undefined;
-  // Split screens must remain mounted while UIKit animates a detached route away.
+
   const [screens, setScreens] = useState({
     routes: props.detail,
     descriptors: props.descriptors,
@@ -201,7 +200,6 @@ function WorkspaceColumns(
     const active = new Set(props.detail.map((route) => route.key));
     const settingsSlot = settingsDetailIn(props.detail);
     const routes = reconcileStackScreens(screens.routes, props.detail, screens.completed).filter(
-      // The slot's native screen stays; the pages it showed, and any above them, just go.
       (route) => !settingsSlot || active.has(route.key) || !isSettingsRoute(route.name),
     );
     const retained = new Set(routes.map((route) => route.key));
@@ -222,8 +220,7 @@ function WorkspaceColumns(
   const selectedTab = workspaceTabs?.state.selectedTab;
   const settingsOpen = workspaceTabs?.settingsOpen ?? false;
   const openNewTask = startNewTask;
-  // The cover detail rail needs room for thread tools above the fixed tabs.
-  // The unfolded Duo keeps compose in its detail bar.
+
   const detailCompose =
     deviceType === "duo-unfolded" && selectedTab !== "pullRequests" && !settingsOpen
       ? openNewTask
@@ -289,8 +286,6 @@ function WorkspaceColumns(
 
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- tells the native split host which column to show while collapsed
   useEffect(() => {
-    // The initial column is a native prop applied before the host attaches; commands only
-    // handle later navigation changes.
     if (layout.usesSplitView || collapsedColumn.current.visible === compactColumn) return;
     collapsedColumn.current = { ...collapsedColumn.current, visible: compactColumn };
     hostRef.current?.show(compactColumn);
@@ -319,8 +314,7 @@ function WorkspaceColumns(
       onExpand={() => {
         collapsed.current = false;
         setNativelyPoppingWorkspaceRoute(null);
-        // Native callbacks can outlive the render that created them, so decide from the live
-        // router state. An expanded split has columns, so its tab gets a page beside the list.
+
         const live = props.navigation.getState();
         const { workspace } = workspaceRoutesOf(live.routes.slice(0, live.index + 1));
         if (workspace.some((route) => route.name !== "Home" && route.name !== "Settings")) return;
@@ -335,8 +329,6 @@ function WorkspaceColumns(
         sidebarByOrientation
           ? sidebarDisplayMode(sidebarByOrientation.landscape, false)
           : sidebarDisplayMode(
-              // UIKit applies the mode as a collapsed split expands, before the new width reaches
-              // JS, so a collapsed split already carries the sidebar the expanded one will show.
               (layout.usesSplitView
                 ? panes.primarySidebarVisible
                 : panes.primarySidebarWhenExpanded) ||
@@ -360,7 +352,7 @@ function WorkspaceColumns(
         maximumPrimaryColumnWidth: Math.max(380, layout.listPaneWidth ?? 0),
         preferredPrimaryColumnWidthOrFraction: layout.listPaneWidth ?? 320,
         minimumSecondaryColumnWidth: 320,
-        // UIKit can retain its automatic width despite a new preference; constrain both edges.
+
         minimumInspectorColumnWidth: inspectorWidth,
         maximumInspectorColumnWidth: inspectorWidth,
         preferredInspectorColumnWidthOrFraction: inspectorWidth,
@@ -405,10 +397,7 @@ function WorkspaceColumns(
             <ColumnContent>
               <WorkspaceEmptyDetail
                 tab={settingsOpen ? "settings" : selectedTab}
-                onStartNewTask={
-                  // Duo provides compose in the detail bar; iPad uses the empty-state action.
-                  detailCompose ? undefined : openNewTask
-                }
+                onStartNewTask={detailCompose ? undefined : openNewTask}
               />
             </ColumnContent>
           </Split.Screen>
@@ -433,8 +422,7 @@ function WorkspaceColumns(
       </Split.Column>
       <Split.Inspector>
         <Split.HeaderConfig hidden />
-        {/* Inspector panes host their own native stacks, which UIKit insets for the Duo's
-            vertical bar wherever they sit, so each pane insets its own content instead. */}
+        {}
         <ColumnContent insetHorizontally={false}>
           <View className="flex-1 bg-screen">
             {inspector.render?.()}
@@ -484,23 +472,21 @@ function WorkspaceColumns(
 function WorkspaceStackView(props: ViewProps & { readonly nativeColumns: boolean }) {
   const { layout } = useAdaptiveWorkspaceLayout();
   const workspace = useWorkspaceTabs()!;
-  // Native dismiss commits the route pop after the transition. Restore the dock
-  // when the primary screen starts appearing, including interactive back gestures.
+
   const [primaryVisible, setPrimaryVisible] = useState(false);
   const metrics = useNativeLayoutMetrics();
   const projection = projectWorkspaceStack(props.state, (route) => {
     const presentation = props.descriptors[route.key]?.options.presentation;
     return presentation !== undefined && presentation !== "card";
   });
-  // The root's willDisappear reaches JS frames into the push, so hide the dock in the commit that
-  // pushes; the native events still own every later change, including back gestures.
+
   const topDetailKey = projection.detail.at(-1)?.key;
   const [pushedDetailKey, setPushedDetailKey] = useState(topDetailKey);
   if (pushedDetailKey !== topDetailKey) {
     setPushedDetailKey(topDetailKey);
     if (topDetailKey !== undefined && primaryVisible) setPrimaryVisible(false);
   }
-  // Detail-only histories must stay single-stack: placeholder descriptors cannot own sidebar actions or setOptions.
+
   const primaryRoute = projection.primary;
   if (!primaryRoute) return <V5StackView {...props} />;
   const primaryDescriptor = props.descriptors[primaryRoute.key]!;
@@ -511,7 +497,7 @@ function WorkspaceStackView(props: ViewProps & { readonly nativeColumns: boolean
   const baseDescriptor: Descriptor = {
     ...primaryDescriptor,
     navigation: props.descriptors[visibleRoute.key]!.navigation,
-    // Identify the real visible route under the stable envelope key, or useIsFocused closes media viewers.
+
     route: visibleRoute,
     options: { headerShown: false },
     render: () => (

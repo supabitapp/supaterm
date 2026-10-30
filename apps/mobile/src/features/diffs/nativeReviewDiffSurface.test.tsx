@@ -43,7 +43,7 @@ function RawView({
       mocks.rows(value);
       if (mocks.registrationFailures > 0) {
         mocks.registrationFailures -= 1;
-        throw new Error("Unable to find the 'T3ReviewDiffSurface' view for this native tag");
+        throw new Error("Unable to find the 'SupatermReviewDiffSurface' view for this native tag");
       }
       setContent({ resetKey: contentResetKey, rows: value });
       if (mocks.autoViewport) {
@@ -395,18 +395,18 @@ it("recognizes registration races for the installed native view name", async () 
 
   expect(
     isPendingNativeViewRegistration(
-      new Error("Unable to find the 'T3ReviewDiffSurface' view for this native tag"),
+      new Error("Unable to find the 'SupatermReviewDiffSurface' view for this native tag"),
     ),
   ).toBe(true);
   expect(
     isPendingNativeViewRegistration(
-      new Error("Unable to find the 'T3ReviewDiffView' view for this native tag"),
+      new Error("Unable to find the 'SupatermReviewDiffView' view for this native tag"),
     ),
   ).toBe(false);
   expect(
     isPendingNativeViewRegistration(
       new Error(
-        "Unable to find the class expo.modules.t3reviewdiff.T3ReviewDiffView view with tag 1150",
+        "Unable to find the class expo.modules.t3reviewdiff.SupatermReviewDiffView view with tag 1150",
       ),
     ),
   ).toBe(true);

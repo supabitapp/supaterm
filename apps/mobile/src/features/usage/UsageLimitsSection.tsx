@@ -98,7 +98,7 @@ function WindowRow(props: {
           bar
         ) : (
           <View className="h-1.5">
-            {/* Clip the same full-width bar so neither fill proportions nor corner radii change. */}
+            {}
             {(
               [
                 [0, tickX - 3],
@@ -330,17 +330,17 @@ export function useRefreshLimits(
     ([environmentId]) =>
       selectedEnvironmentIds === null || selectedEnvironmentIds.has(environmentId),
   );
-  const connectedIds = selected
-    .filter(([, presentation]) => presentation.connection.phase === "connected")
-    .map(([environmentId]) => environmentId);
+  const connectedIds = selected.flatMap(([environmentId, presentation]) =>
+    presentation.connection.phase === "connected" ? [environmentId] : [],
+  );
   const connectedKey = environmentIdsKey(connectedIds);
   useAtomMount(active && connectedKey !== "" ? limitsAutoRefreshSetAtom(connectedKey) : IDLE_ATOM);
   const failedIds = new Set(
     useAtomValue(limitsRefreshFailuresAtom(environmentIdsKey(selected.map(([id]) => id)))),
   );
-  const failedLabels = selected
-    .filter(([environmentId]) => failedIds.has(environmentId))
-    .map(([, presentation]) => presentation.entry.target.label);
+  const failedLabels = selected.flatMap(([environmentId, presentation]) =>
+    failedIds.has(environmentId) ? [presentation.entry.target.label] : [],
+  );
 
   const refresh = (afterPending: boolean) =>
     Promise.all(
@@ -348,7 +348,7 @@ export function useRefreshLimits(
         refreshEnvironmentLimits(registry, environmentId, { afterPending }),
       ),
     );
-  // Android RefreshControl needs a true-to-false cycle to stop, even with nothing to probe.
+
   const refreshManually = async () => {
     if (refreshingRef.current) return;
     refreshingRef.current = true;

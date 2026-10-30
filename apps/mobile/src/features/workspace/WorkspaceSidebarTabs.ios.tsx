@@ -27,7 +27,7 @@ export function WorkspaceSidebarTabs(props: {
   const tabs = [...visibleNavigationTabs(order, hidden), "settings" as const];
   const selectTab = useSelectWorkspaceTab();
   const { colors, colorScheme } = useControlTheme();
-  // UIKit loses accessible names when updating nil-titled items in place.
+
   const tabBarKey = tabs.join(":");
   return (
     <NativeSidebarTabBar
@@ -46,12 +46,12 @@ export function WorkspaceSidebarTabs(props: {
         if (tab === "settings") selectTab("settings");
         else if (tab) selectTab(tab);
       }}
-      // Keep the host stable while UIKit updates the bars' intrinsic size and safe area together.
+
       style={{
         position: "absolute",
         bottom: 0,
         left: props.compact ? 8 : 0,
-        // Keep the tab icons in place when Compose disappears on other destinations.
+
         right:
           (props.compact ? 12 : 0) +
           ((props.reserveComposeSpace ?? props.compact) && !props.onNewTask

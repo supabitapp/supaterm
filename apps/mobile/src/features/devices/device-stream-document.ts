@@ -6,7 +6,7 @@ export interface DeviceStreamConfiguration {
   readonly access: DeviceHubAccess;
   readonly platform: DevicePlatform;
   readonly deviceId: string;
-  /** See `DeviceStreamTarget.serveSimOnly`. */
+
   readonly serveSimOnly?: boolean;
   readonly colors: {
     readonly background: string;

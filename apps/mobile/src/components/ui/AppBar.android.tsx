@@ -196,7 +196,7 @@ export function AppBar(props: AppBarProps) {
           {searching ? (
             <View
               className="absolute inset-0 bg-header"
-              // Match Material TopAppBar's navigation inset so the back button stays put.
+
               style={{ paddingTop, paddingBottom, paddingHorizontal: 4 }}
             >
               <View className="flex-1 flex-row items-center gap-1">

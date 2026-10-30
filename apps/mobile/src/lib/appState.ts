@@ -12,7 +12,6 @@ export function isAppActive(): boolean {
   return AppState.currentState === "active";
 }
 
-/** Runs `onActive` each time the app returns to the foreground. */
 export function subscribeAppActive(onActive: Listener): () => void {
   const subscription = AppState.addEventListener("change", (state) => {
     if (state === "active") onActive();
@@ -28,17 +27,10 @@ function isAppForeground(): boolean {
   return AppState.currentState !== "background";
 }
 
-/**
- * True unless the app is backgrounded. Unlike useAppActive, the transient
- * "inactive" state (Control Center, the app switcher, a system prompt) still
- * counts as foreground, so live streams do not reconnect around it.
- */
 export function useAppForeground(): boolean {
   return useSyncExternalStore(subscribeAppState, isAppForeground);
 }
 
-// Null until the native seed resolves; read as reduced so animated consumers
-// never start motion a reduce-motion user has turned off.
 let reduceMotionEnabled: boolean | null = null;
 const reduceMotionListeners = new Set<Listener>();
 let reduceMotionSubscription: { remove: () => void } | null = null;
@@ -57,8 +49,7 @@ export function subscribeReduceMotion(onChange: Listener): () => void {
       setReduceMotionEnabled,
     );
     reduceMotionSubscription = subscription;
-    // The native event only reports changes; seed the current value once per
-    // observation, and drop a seed that resolves after observation stopped.
+
     void AccessibilityInfo.isReduceMotionEnabled().then(
       (enabled) => {
         if (reduceMotionSubscription === subscription) setReduceMotionEnabled(enabled);
@@ -71,8 +62,7 @@ export function subscribeReduceMotion(onChange: Listener): () => void {
     if (reduceMotionListeners.size === 0) {
       reduceMotionSubscription?.remove();
       reduceMotionSubscription = null;
-      // Changes made while nobody observed were never reported, so the cached
-      // value can be stale; the next subscriber reseeds from native.
+
       reduceMotionEnabled = null;
     }
   };

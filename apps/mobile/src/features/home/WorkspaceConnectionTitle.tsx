@@ -21,18 +21,11 @@ import {
 const FADE_IN_MS = 250;
 
 type ConnectionStatus = WorkspaceConnectionStatusPresentation & {
-  /** Only while the status first appears. A header that shows it later shows it at once. */
   readonly fadeIn: boolean;
 };
 
 const ConnectionStatusContext = createContext<ConnectionStatus | null>(null);
 
-/**
- * The delay hides brief reconnects, so it is the workspace's, not each header's: every header
- * shows the status from the same moment. Headers read it from context instead of subscribing
- * themselves, because a hidden Android tab drops its subscriptions and showed a stale status for
- * a moment when it came back, while context still reaches it.
- */
 export function WorkspaceConnectionStatusProvider(props: { readonly children: ReactNode }) {
   const { state } = useWorkspaceState();
   const presentation = workspaceConnectionStatusPresentation(state);
@@ -45,7 +38,6 @@ export function WorkspaceConnectionStatusProvider(props: { readonly children: Re
   return <ConnectionStatusContext value={status}>{props.children}</ConnectionStatusContext>;
 }
 
-/** Native-driver animation blanks views re-hosted in RNSScreenStackHeaderSubview; use the JS style path. */
 function StatusFadeIn(props: {
   readonly children: ReactNode;
   readonly animate: boolean;
@@ -74,7 +66,7 @@ function StatusFadeIn(props: {
           alignItems: "center",
           flexDirection: "row",
           maxWidth: props.maxWidth,
-          // A hidden tab never runs the fade, so its value would still be 0 when the tab returns.
+
           opacity: animate ? opacity : 1,
         },
         props.grow ? { flex: 1, minWidth: 0 } : null,

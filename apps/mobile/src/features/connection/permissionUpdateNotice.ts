@@ -37,10 +37,6 @@ async function loadDismissedEnvironmentIds(): Promise<Set<string>> {
   }
 }
 
-/**
- * Tells the user, once per environment, that a paired session still carries
- * the legacy permission set. App-lifetime; presents one dialog at a time.
- */
 export function installPermissionUpdateNotice(): () => void {
   let dismissed: Set<string> | null = null;
   const shownThisLaunch = new Set<string>();

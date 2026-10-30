@@ -27,7 +27,7 @@ vi.mock("../../state/threads", async () => {
   const Option = await import("effect/Option");
   const shell = Atom.make<object | null>(null);
   const detailSource = Atom.make(AsyncResult.success({ data: Option.none() }));
-  // Computing the real detail atom opens the thread's server stream.
+
   const detail = Atom.make((get) => {
     fixture.detailOpens += 1;
     return get(detailSource);
@@ -87,7 +87,7 @@ describe("takeThreadPromptLink", () => {
     expect(fixture.applied).toEqual([]);
 
     resolvePendingThreadPromptLink(threadRoute);
-    // An unknown thread's screen replaces itself with a new-thread draft.
+
     resolvePendingThreadPromptLink(
       stack([{ key: "draft", name: "Thread", params: { draft: { draftId: "d" } } }]),
     );
@@ -112,7 +112,7 @@ describe("takeThreadPromptLink", () => {
     setup();
     takeThreadPromptLink(linkedState());
     fixture.root = threadRoute;
-    // Archived threads have no shell; the open screen subscribes to their detail instead.
+
     using _screen = { [Symbol.dispose]: appAtomRegistry.mount(fixtureDetail) };
     resolvePendingThreadPromptLink(threadRoute);
     expect(fixture.applied).toEqual([]);

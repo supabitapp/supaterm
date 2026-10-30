@@ -76,7 +76,6 @@ describe("HTML in native Markdown", () => {
   });
 
   it("treats an unclosed fence in an HTML block as code through the end", () => {
-    // Sized so the quadratic rescan cannot finish within the test timeout.
     const fences = Array.from({ length: 40_000 }, () => "```x y").join("\n");
     const markdown = `<details>\n<img src="before.png">\n${fences}\n<img src="after.png">\n</details>`;
     const result = markdownHtmlContent(markdown);
@@ -310,7 +309,6 @@ describe("file embeds in native thread and file Markdown", () => {
 });
 
 describe("Windows paths in native Markdown", () => {
-  // regression: #23722 Markdown escapes ate the separator before `.t3` and `_build`
   it("keeps backslashes in Windows image and link destinations", async () => {
     const image = String.raw`C:\work\.t3\_build\shot.png`;
     const link = String.raw`\\server\share\.t3\notes.md`;

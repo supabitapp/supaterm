@@ -19,7 +19,7 @@ import {
   squashAtomCommandFailure,
   type AtomCommandResult,
 } from "@supaterm/client-runtime/state/runtime";
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useFocusEffect, useNavigation, usePreventRemove } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AppState, Platform, Pressable, TextInput as RNTextInput, View } from "react-native";
@@ -371,8 +371,6 @@ export function SettingsScheduledTasksRouteScreen() {
   );
 }
 
-// The "New task" action and takeScheduledTaskNewLink clear the editor before
-// this screen opens, so it starts from the default target.
 export function SettingsScheduledTaskNewRouteScreen() {
   return <SettingsScheduledTaskEditorScreen title="New scheduled task" />;
 }
@@ -388,7 +386,7 @@ function SettingsScheduledTaskEditorScreen({ title }: { readonly title: string }
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const [saving, setSaving] = useState(false);
-  // Set once the save lands, so the removal guard lets the editor close.
+
   const saved = useRef(false);
   const ownerKey = editor ? `${voiceOwnerKey}:${editor.environmentId}` : null;
   const prompt = editor?.draft.prompt ?? "";
@@ -458,8 +456,7 @@ function SettingsScheduledTaskEditorScreen({ title }: { readonly title: string }
           options={{
             headerBackVisible: false,
             gestureEnabled: !preventRemove,
-            // The system back button begins its native pop before the removal
-            // guard runs. Dispatch from a bar action so the guard runs first.
+
             unstable_headerLeftItems: () => [
               withNativeGlassHeaderItem({
                 type: "button",

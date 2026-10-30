@@ -100,7 +100,6 @@ const appLinking = {
     state: Parameters<typeof getActionFromState>[0],
     options: Parameters<typeof getActionFromState>[1],
   ): ReturnType<typeof getActionFromState> =>
-    // Our router handles the selection; React Navigation's type only lists its own actions.
     (workspaceDetailLinkAction(state) as ReturnType<typeof getActionFromState>) ??
     pairingFormLinkAction(
       state,
@@ -196,7 +195,7 @@ function AppContent() {
         <KeyboardProvider statusBarTranslucent>
           <SafeAreaProvider>
             <StatusBar barStyle={themeAppearance === "dark" ? "light-content" : "dark-content"} />
-            {/* native-stack needs the theme's dark flag to select dark native headers. */}
+            {}
             <VoiceInputProvider>
               <GlobalVoiceInputControl>
                 <NativeLayoutMetricsProvider>

@@ -7,10 +7,10 @@ import {
   type MobileThemeVariables,
 } from "./mobileTheme";
 
-import { T3_CHAT_THEME } from "@supaterm/shared/themePalettes";
+import { SUPATERM_LIGHT_THEME_COLORS } from "@supaterm/shared/themePalettes";
 
 const MOBILE_THEME_VARIABLE_NAMES = Object.keys(
-  createMobileThemeVariables(T3_CHAT_THEME.colors, "light"),
+  createMobileThemeVariables(SUPATERM_LIGHT_THEME_COLORS, "light"),
 ) as ReadonlyArray<MobileThemeVariable>;
 
 export function readDefaultMobileThemeVariables(

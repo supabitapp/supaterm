@@ -18,7 +18,6 @@ export function Notice(props: {
   const danger = props.tone === "danger";
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- announces the message to VoiceOver through AccessibilityInfo
   useEffect(() => {
-    // Live regions reach TalkBack; VoiceOver needs an explicit announcement.
     if (Platform.OS === "ios") AccessibilityInfo.announceForAccessibility(props.message);
   }, [props.message]);
 

@@ -1,4 +1,3 @@
-import { OrchestrationSkillsSection } from "./components/OrchestrationSkillsSection";
 import { useNavigation } from "@react-navigation/native";
 import { SettingsRow } from "./components/SettingsRow";
 import { AuthSettingsWriteScope } from "@supaterm/contracts";
@@ -132,7 +131,6 @@ const STREAMING_CHOICES: ReadonlyArray<{
   },
 ];
 
-// Only servers with thread auto-mark Donement store these, so other targets get the rest of a patch.
 const AUTO_SETTLE_SETTING_KEYS: ReadonlySet<string> = new Set([
   "sidebarAutoMarkDoneOnMerge",
   "sidebarAutoMarkDoneAfterDays",
@@ -187,7 +185,7 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
   );
   const [pendingWrites, setPendingWrites] = useState(0);
   const writeInFlight = useRef(false);
-  // Closing views can save after controls disable; queue those patches behind the pending write.
+
   const queuedPatch = useRef<{ key: string; patch: ServerSettingsPatch } | null>(null);
   const targetsKey = targets
     .map((target) => `${target.environment.environmentId}:${target.projectId}`)
@@ -203,7 +201,7 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
   const reference = displayTargets[0] ?? null;
   const uniform = <K extends keyof ServerSettings>(key: K) =>
     uniformMobileSetting(displayTargets, key);
-  // `uniform` folds a real null into "mixed"; nullable keys need the distinction.
+
   const isMixed = (key: keyof ServerSettings) =>
     reference === null ||
     displayTargets.some((entry) => entry.settings[key] !== reference.settings[key]);
@@ -433,22 +431,23 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
                       ) : null
                     }
                   >
-                    {SUBMODULE_CHOICES.filter(
-                      (choice) => choice.mode !== null || !projectSelected,
-                    ).map((choice, index) => (
-                      <SettingsChoiceRow
-                        key={choice.mode ?? "inherit"}
-                        label={choice.label}
-                        description={choice.description}
-                        selected={
-                          !isMixed("worktreeSubmodules") &&
-                          uniform("worktreeSubmodules") === choice.mode
-                        }
-                        separated={index > 0}
-                        disabled={disabledFor("worktreeSubmodules")}
-                        onPress={() => write({ worktreeSubmodules: choice.mode })}
-                      />
-                    ))}
+                    {SUBMODULE_CHOICES.values()
+                      .filter((choice) => choice.mode !== null || !projectSelected)
+                      .map((choice, index) => (
+                        <SettingsChoiceRow
+                          key={choice.mode ?? "inherit"}
+                          label={choice.label}
+                          description={choice.description}
+                          selected={
+                            !isMixed("worktreeSubmodules") &&
+                            uniform("worktreeSubmodules") === choice.mode
+                          }
+                          separated={index > 0}
+                          disabled={disabledFor("worktreeSubmodules")}
+                          onPress={() => write({ worktreeSubmodules: choice.mode })}
+                        />
+                      ))
+                      .toArray()}
                   </SettingsSection>
                   <BranchNamingSettings
                     key={targetsKey}

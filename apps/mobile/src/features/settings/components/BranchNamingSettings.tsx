@@ -37,7 +37,6 @@ export function BranchNamingSettings(props: {
   disabled: boolean;
   onChange: (patch: ServerSettingsPatch) => void;
 }) {
-  // Save on exit too: Android Back hides the keyboard without ending editing.
   type Field = "branchNamePrefix" | "branchNameInstructions";
   const drafts = useRef<Partial<Record<Field, { text: string; over: string | null }>>>({});
   const savedValue = (field: Field) =>
@@ -45,12 +44,12 @@ export function BranchNamingSettings(props: {
   const edit = (field: Field, text: string) => {
     drafts.current[field] = { text, over: savedValue(field) };
   };
-  // Drop a draft typed over an older saved value: the updated value has already remounted its input.
+
   const take = (field: Field): ServerSettingsPatch => {
     const draft = drafts.current[field];
     delete drafts.current[field];
     const saved = savedValue(field);
-    // Save even while disabled; the route queues behind pending writes and checks access.
+
     if (draft === undefined || draft.over !== saved) return {};
     const value = draft.text.trim();
     return saved === null || value !== saved ? { [field]: value } : {};

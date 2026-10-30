@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import {
   clearShowcaseRenderSignal,
-  getShowcaseRenderSignal,
+  getShowcaseRenderSnapshot,
   isShowcaseNativeContentReady,
   reportShowcaseSceneRendered,
   subscribeToShowcaseRenderSignal,
@@ -46,9 +46,12 @@ describe("showcase native content readiness", () => {
     const unsubscribe = subscribeToShowcaseRenderSignal(listener);
 
     reportShowcaseSceneRendered({ scene: "review", themeId: "catppuccin-latte" });
-    expect(getShowcaseRenderSignal()).toEqual({ scene: "review", themeId: "catppuccin-latte" });
+    expect(getShowcaseRenderSnapshot().signal).toEqual({
+      scene: "review",
+      themeId: "catppuccin-latte",
+    });
     clearShowcaseRenderSignal();
-    expect(getShowcaseRenderSignal()).toBeNull();
+    expect(getShowcaseRenderSnapshot().signal).toBeNull();
     expect(listener).toHaveBeenCalledTimes(2);
 
     unsubscribe();

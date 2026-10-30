@@ -2,7 +2,6 @@ import { foldSearchQuery, rankSearchItems, scoreSearchTerms } from "@supaterm/sh
 
 import type { SettingsPageTarget } from "./components/settings-page-targets";
 
-/** What each page holds besides its row's label, so search finds a setting by its own name. */
 const SETTINGS_SEARCH_TERMS = {
   SettingsEnvironments: [
     "servers",
@@ -107,10 +106,6 @@ export interface SettingsSearchSection<Row extends SettingsSearchRow> {
   readonly rows: readonly Row[];
 }
 
-/**
- * Keeps the rows whose label, section, or page contents match `query`, in list order, and drops
- * sections left empty. Matching is the command palette's, so both searches agree.
- */
 export function filterSettingsSections<
   Row extends SettingsSearchRow,
   Section extends SettingsSearchSection<Row>,

@@ -53,8 +53,6 @@ import {
   withoutPromptLinkParams,
 } from "./prompt-link-model";
 
-// Found at any depth, both in the parsed link and on the live stack, so the two never disagree on
-// whether the link has landed.
 const NEW_TASK_ROUTE = "NewTaskProject";
 const NEW_TASK_ROUTES = [NEW_TASK_ROUTE];
 
@@ -65,15 +63,11 @@ type LinkedDraftRequest = {
   readonly pullRequest: PromptLinkPullRequest | null;
 };
 
-// A cold launch from a link has no projects or threads yet. Matching then would offer to clone a
-// repository the user already has.
 const shellsSettledAtom = Atom.make((get) => {
   const workspace = get(workspaceStateAtom);
   return !(
     workspace.isLoadingConnections ||
     workspace.hasPendingShellSnapshot ||
-    // A machine still connecting may hold the repository or thread. One that keeps failing to
-    // reconnect has settled offline, and must not hold every link.
     workspace.connectingEnvironments.some(
       (environment) =>
         environment.connectionState === "connecting" || environment.connectionError === null,
@@ -84,11 +78,6 @@ const shellsSettledAtom = Atom.make((get) => {
 let pendingLink: string | null = null;
 let stopWaitingForShells: (() => void) | null = null;
 
-/**
- * `new?prompt=…&repo=…` drops its params as it arrives, so the screen never sees them and each
- * opening resolves once. It resolves when its screen is on the navigation state that follows and
- * the shells have settled; a newer link replaces one still waiting.
- */
 export function takeNewTaskPromptLink(
   state: PartialState<NavigationState> | undefined,
 ): PartialState<NavigationState> | undefined {
@@ -104,12 +93,9 @@ export function takeNewTaskPromptLink(
   }));
 }
 
-/** Wired to the navigation container's state changes. */
 export function resolvePendingNewTaskPromptLink(state: NavigationState | undefined): void {
   if (pendingLink === null) return;
   const step = stepPendingPromptLink(pendingLink, {
-    // A screen pushed above New task (such as Add project) drops the link, so it never lands
-    // over the wrong screen.
     screenOnStack: findStackRoute(state, NEW_TASK_ROUTE)?.focused === true,
     ready: appAtomRegistry.get(shellsSettledAtom),
   });
@@ -129,7 +115,6 @@ function dropPendingLink(): void {
   stopWaitingForShells = null;
 }
 
-/** Dispatches as the new-task screen would, so `replace` swaps that screen out. */
 function dispatchFromNewTask(action: StackActionType): void {
   const root = rootNavigationRef.getRootState();
   const screen = findStackRoute(root, NEW_TASK_ROUTE);
@@ -182,8 +167,6 @@ function openThread(
   }
 }
 
-// A pull request's thread can be an older settled thread no shell holds, so ask every
-// connected environment with the repository. A lookup on another one would wait forever.
 async function findServerPullRequestThread(
   projects: ReadonlyArray<EnvironmentProject>,
   pullRequest: PromptLinkPullRequest,
@@ -195,6 +178,7 @@ async function findServerPullRequestThread(
       .map((environment) => environment.environmentId),
   );
   const lookups = projects
+    .values()
     .filter((project) => connected.has(project.environmentId))
     .map(async (project) => {
       const linked = await runQuery(
@@ -212,8 +196,9 @@ async function findServerPullRequestThread(
           ? linked.value.threads.find((candidate) => candidate.archivedAt === null)
           : undefined;
       return thread && { environmentId: project.environmentId, id: thread.id };
-    });
-  // The most recent project wins without waiting for the lookups after it.
+    })
+    .toArray();
+
   for (const lookup of lookups) {
     const thread = await lookup;
     if (thread) return thread;
@@ -322,7 +307,6 @@ async function openScratchDraft(request: LinkedDraftRequest) {
 }
 
 function cloneRepository(repository: PromptLinkRepository, request: LinkedDraftRequest) {
-  // The clone screen lets the user pick another environment before cloning.
   const environmentId =
     appAtomRegistry.get(environmentProjects.projectsAtom)[0]?.environmentId ??
     appAtomRegistry.get(workspaceConnections.environmentsAtom)[0]?.environmentId ??

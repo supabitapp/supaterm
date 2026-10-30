@@ -84,7 +84,7 @@ describe("installSubscriptionUsageRefresh", () => {
 
     const dispose = installSubscriptionUsageRefresh();
     registry.set(catalogAtom, { isReady: true });
-    // Backgrounded: nothing refreshes yet.
+
     expect(fixture.refreshed).toEqual([]);
 
     fixture.appState = "active";

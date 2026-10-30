@@ -1,12 +1,6 @@
 import { StackActions, useNavigation } from "@react-navigation/native";
 import { useEffect, useEffectEvent, useRef } from "react";
 
-/**
- * Leaves a terminal screen whose shell exited: to another live terminal of the
- * thread, else back. Screen navigation acts on the top route of the stack, so
- * a shell that exits while another screen is on top waits until its own screen
- * is focused again.
- */
 export function useTerminalExitNavigation(target: {
   readonly environmentId: string;
   readonly threadId: string;
@@ -58,7 +52,7 @@ export function useTerminalExitNavigation(target: {
       }
       pendingRef.current = true;
     },
-    /** A shell that runs again before the screen regains focus keeps the screen. */
+
     restarted: () => {
       pendingRef.current = false;
     },

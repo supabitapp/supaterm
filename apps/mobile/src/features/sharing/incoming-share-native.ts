@@ -9,7 +9,6 @@ function errorCode(error: unknown): string | null {
   return typeof error.code === "string" ? error.code : null;
 }
 
-/** Personal Teams cannot include expo-sharing's App Group. */
 export function createIncomingSharePayloadReader(input: {
   readonly platform: string;
   readonly readPayloads: () => ReadonlyArray<SharePayload>;

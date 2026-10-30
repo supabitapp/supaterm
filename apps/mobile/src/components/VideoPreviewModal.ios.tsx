@@ -45,8 +45,7 @@ function NativeVideoPreview(props: {
     source.type === "media" && "environmentId" in source ? source.environmentId : null;
   const preparedConnection = usePreparedConnection(environmentId);
   const name = source.type === "media" ? source.name : source.attachment.name;
-  // Mints a fresh URL for each presentation: AVKit retains the URL and offers no retry,
-  // so a cached link that expired while the app was suspended would fail to play.
+
   const resolvePlaybackUrl = useEffectEvent(async (): Promise<string> => {
     if (source.type !== "media") throw new Error("Could not load this video.");
     if (!("resource" in source)) return source.uri;
@@ -115,7 +114,7 @@ function NativeVideoPreview(props: {
       const presented = await settlePromise(() =>
         NativeControls.presentVideo(uri, name, source.sourceIdentifier ?? "", identifier),
       );
-      // Native completion follows dismissal, so local playback keeps its file lease.
+
       file?.dispose();
       release();
       if (AsyncResult.isFailure(presented)) throw squashAtomCommandFailure(presented);
@@ -123,7 +122,7 @@ function NativeVideoPreview(props: {
     })().catch((error: unknown) => {
       release();
       if (controller.signal.aborted) return;
-      // AVKit gives no retry, so re-mint now; the minted URL may already be unusable.
+
       if (ready) reauthorize();
       Dialog.alert(
         "Could not open video",

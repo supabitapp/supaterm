@@ -215,7 +215,6 @@ function collectToolbarItems(children: ReactNode, register: RegisterHandler): Na
     const item = convertToolbarChild(child, register);
     if (item) {
       if (item.type === "spacing") {
-        // Native defaults missing spacing-item indices to zero, moving spacers before earlier siblings.
         (item as { index?: number }).index = items.length;
       }
       items.push(item);
@@ -242,8 +241,7 @@ function NativeHeaderToolbarRoot(props: {
     };
     return { items: collectToolbarItems(props.children, register), handlers };
   }, [props.children, committedHandlers]);
-  // Native retains actions when unchanged presentation skips re-registration.
-  // Publish only committed handlers; abandoned renders must not replace them.
+
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes committed toolbar handlers to the ref native actions call; discarded renders must not leak
   useLayoutEffect(() => {
     committedHandlers.current = handlers;
@@ -251,7 +249,7 @@ function NativeHeaderToolbarRoot(props: {
       committedHandlers.current = [];
     };
   }, [handlers, committedHandlers]);
-  // UIKit's search placement item belongs to the toolbar, never a header group.
+
   const headerItems = items.filter(
     (item): item is NativeStackHeaderItem => item.type !== "searchBarPlacement",
   );

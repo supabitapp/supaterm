@@ -34,7 +34,7 @@ export function OutdatedServerUpdateSection({
   const [checkResult, startCheck] = useAtom(environmentReleaseCheckAtom(environmentId));
   const release = releaseCheckValue(checkResult);
   const checking = checkResult.waiting;
-  // Starting an update replaces a failed check's message with the update's own state.
+
   const [checkErrorDismissed, setCheckErrorDismissed] = useState(false);
   const error = checkErrorDismissed ? null : releaseCheckError(checkResult);
   const busy = checking || state.status === "running";

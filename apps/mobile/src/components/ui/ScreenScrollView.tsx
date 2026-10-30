@@ -4,10 +4,7 @@ import { cn } from "../../lib/cn";
 import { NativeScrollView as ScrollView } from "../../native/NativeScrollViewMarker";
 
 export const ScreenScrollViewBottomInset = createContext(0);
-/**
- * The screen's surface class. UIKit's scroll-edge material under the header takes the scroll
- * view's own color; a clear scroll view gets the system's near-white bar over the screen's surface.
- */
+
 export const ScreenScrollViewSurface = createContext<string | undefined>(undefined);
 
 export function ScreenScrollView(props: ComponentProps<typeof ScrollView>) {

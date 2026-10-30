@@ -19,7 +19,7 @@ export type { SliderRowProps } from "./SliderRow.types";
 
 export function SliderRow(props: SliderRowProps) {
   const { colors } = useControlTheme();
-  // The value of the drag in progress; null until the drag moves.
+
   const draft = useRef<number | null>(null);
   const editing = useRef(false);
   const commit = (value: number) => {
@@ -58,7 +58,6 @@ export function SliderRow(props: SliderRowProps) {
               accessibilityValue(props.valueLabel),
             ]}
             onValueChange={(value) => {
-              // Accessibility adjustments do not begin a touch editing session.
               if (editing.current) draft.current = value;
               else commit(value);
             }}

@@ -52,7 +52,7 @@ export function createNativeThemeColors(colors: MobileThemeVariables): MaterialC
     onTertiaryFixed: colors["--color-primary-foreground"],
     onTertiaryFixedVariant: colors["--color-primary-foreground"],
   } satisfies Record<keyof MaterialColors, string>;
-  // Material scheme roles are opaque. Composite translucent RN fills onto the canvas.
+
   return Object.fromEntries(
     Object.entries(roles).map(([role, color]) => [
       role,

@@ -1,5 +1,5 @@
 import type { Root, RootContent } from "mdast";
-import { unified, type Processor } from "unified";
+import { unified } from "unified";
 import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
 import {
@@ -21,7 +21,7 @@ function applyMarkdownEdits(markdown: string, edits: MarkdownEdit[]): string {
   if (edits.length === 0) return markdown;
   const parts: string[] = [];
   let offset = 0;
-  // AST traversal emits disjoint edits in source order.
+
   for (const edit of edits) {
     parts.push(markdown.slice(offset, edit.start), edit.content);
     offset = edit.end;
@@ -85,10 +85,8 @@ function markdownDestination(url: string): string {
 
 const ANCHOR_TAG = /^<\/?a[\s/>]/i;
 
-/** Replacements for the anchor tags still ahead, and how many emitted links are open. */
 type AnchorState = { readonly pending: string[]; open: number };
 
-// Code spans keep their text; an odd trailing backslash would escape the closing "]".
 function escapeLinkLabel(text: string): string {
   return text
     .replace(/(`+)[\s\S]*?\1|\\*[[\]]/g, (match) =>
@@ -99,7 +97,6 @@ function escapeLinkLabel(text: string): string {
     .replace(/\\+$/, (slashes) => (slashes.length % 2 ? `${slashes}\\` : slashes));
 }
 
-// An unescaped "!" before the inserted "[" would turn the link into an image.
 function bangBefore(text: string, index: number): boolean {
   if (text[index - 1] !== "!") return false;
   let backslashes = 0;
@@ -107,10 +104,6 @@ function bangBefore(text: string, index: number): boolean {
   return backslashes % 2 === 0;
 }
 
-/**
- * Pairs `<a>` tags in order. Only a closed anchor with an http(s) or mailto href becomes a
- * Markdown link; any other anchor keeps its text unlinked.
- */
 function anchorMarkdown(tags: readonly string[]): AnchorState {
   const replacements = tags.map(() => "");
   const open: Array<{ index: number; href: string | undefined }> = [];
@@ -129,7 +122,6 @@ function anchorMarkdown(tags: readonly string[]): AnchorState {
 }
 
 function markdownHtmlTags(content: string): RegExpExecArray[] {
-  // An HTML block such as <details> can also contain Markdown fences and code spans.
   const codeRanges: Array<{ start: number; end: number }> = [];
   const tags = [...content.matchAll(HTML_TAG)];
   let tagIndex = 0;
@@ -167,7 +159,7 @@ function markdownHtmlTags(content: string): RegExpExecArray[] {
     }
     if (closingIndex === -1) {
       if (!fenced) continue;
-      // An unclosed fence runs to the end of the content, so no later opener matters.
+
       codeRanges.push({ start: opening.index, end: content.length });
       break;
     }
@@ -180,10 +172,6 @@ function markdownHtmlTags(content: string): RegExpExecArray[] {
   );
 }
 
-/**
- * Called only for parsed HTML nodes, so Markdown code examples keep their literal tags.
- * `anchors` is shared across sibling inline HTML nodes because each of those carries a single tag.
- */
 export function markdownHtmlContent(
   content: string,
   options: { readonly anchors?: AnchorState; readonly inTableCell?: boolean } = {},
@@ -228,11 +216,11 @@ function htmlTagMarkdown(
     const alt = (attribute(tag, "alt") ?? "").replace(/[\\[\]&]/g, "\\$&");
     return `![${alt}](${markdownDestination(src)})`;
   }
-  // A blank line inside an open link label would end the paragraph before its "]".
+
   const blockBreak = anchors.open === 0 ? "\n\n" : " ";
   if (/^<summary\b/i.test(tag)) return `${blockBreak}**`;
   if (/^<\/summary\s*>/i.test(tag)) return `**${blockBreak}`;
-  // A line break would end the table row, so a cell keeps its content on one line.
+
   if (/^<br\b/i.test(tag)) return options.inTableCell ? " " : "  \n";
   if (/^<\/?(?:p|div|details)\b/i.test(tag)) return blockBreak;
   return "";
@@ -245,7 +233,7 @@ export function markdownWithHtml(markdown: string): string {
     if (!("children" in node)) return;
     inTableCell ||= node.type === "tableCell";
     const children: readonly MarkdownNode[] = node.children;
-    // Inline HTML arrives one tag per node, so anchors pair across phrasing siblings.
+
     const anchors =
       node.type === "root" || node.type === "blockquote" || node.type === "listItem"
         ? undefined
@@ -275,7 +263,7 @@ export function markdownWithHtml(markdown: string): string {
       }
       const content = markdownHtmlContent(child.value, { anchors, inTableCell });
       if (start === undefined || end === undefined) continue;
-      // Text before an outermost link is never edited, so this edit cannot overlap another.
+
       if (content.startsWith("[") && !linkLabel && bangBefore(markdown, start))
         edits.push({ start: start - 1, end: start, content: "\\!" });
       edits.push({ start, end, content });
@@ -288,7 +276,6 @@ export function markdownWithHtml(markdown: string): string {
   return markdown;
 }
 
-// Start only at the beginning of a backtick run to avoid retrying every suffix.
 const INLINE_CODE_SPAN = /(?<!`)`+([^`\r\n]+)`+/g;
 
 export function markdownWithInlineFileLinks(markdown: string, fileLink: RegExp): string {
@@ -347,7 +334,7 @@ function transformNativeMarkdown(
         ) {
           let lineStart = start.offset;
           while (lineStart > 0 && !/[\r\n]/.test(markdown[lineStart - 1]!)) lineStart -= 1;
-          // Replace only the container prefix, leaving cell edits disjoint from the table break.
+
           const [, header = "", , ending = "\n", markers = ""] =
             /^([ \t>]*)([^\r\n]*)(\r\n|\r|\n)([ \t>]*)/.exec(markdown.slice(lineStart)) ?? [];
           edits.push({
@@ -360,13 +347,12 @@ function transformNativeMarkdown(
       });
   };
   visit(parser.parse(markdown));
-  // Rewritten pipes can change table structure, so preserve the original pass ordering.
+
   if (breakTables && rewritesPipe)
     return markdownWithTableBreaks(applyMarkdownEdits(markdown, fileEdits));
   return applyMarkdownEdits(markdown, edits);
 }
 
-// A delimiter row such as `|---|:--:|`, possibly inside a blockquote or list item.
 function isTableDelimiterRow(line: string): boolean {
   if (!line.includes("-")) return false;
   const row = line.replace(/^[ \t>]+/, "").trim();
@@ -385,12 +371,10 @@ function mayHaveTableUnderText(markdown: string): boolean {
   return false;
 }
 
-/** md4c starts tables only at paragraph starts; insert breaks to match GFM. */
 export function markdownWithTableBreaks(markdown: string): string {
   return transformNativeMarkdown(markdown, undefined, true);
 }
 
-// `>` covers a destination continued on a blockquote line.
 export function markdownForNativeParsing(markdown: string): string {
   return markdownWithAuthoredWindowsPaths(markdownWithHtml(markdown));
 }
@@ -403,7 +387,6 @@ export function markdownForNativeRendering(markdown: string, fileLink: RegExp): 
   return transformNativeMarkdown(markdownForNativeParsing(markdown), fileLink, true);
 }
 
-/** Native media slots only cover standalone images; nested file embeds must become links. */
 export function markdownWithFileEmbeds(
   markdown: string,
   label: (href: string, standalone: boolean) => string | null,

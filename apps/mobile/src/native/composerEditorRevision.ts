@@ -36,7 +36,6 @@ export function resolveComposerControlledEventCount(
     }
   }
 
-  // Mismatched native text/selection pairs are intermediate renders; keep their revision behind to avoid moving the caret.
   if (newestValueEventCount !== null && mostRecentEventCount > 0) {
     return Math.min(newestValueEventCount, mostRecentEventCount - 1);
   }
@@ -44,7 +43,6 @@ export function resolveComposerControlledEventCount(
   return mostRecentEventCount;
 }
 
-// Null-selection snapshots allow assumed bounded carets; echoes must not use that wildcard or drop caret moves.
 function snapshotSelectionMatches(
   snapshot: ComposerNativeEventSnapshot,
   selection: ComposerEditorSelection,
@@ -76,7 +74,6 @@ export function isComposerNativeEcho(
   return false;
 }
 
-/** Replace history with assumed controlled state so returning to old native values counts as fresh parent edits. */
 export function assumeComposerControlledState(
   snapshots: ReadonlyArray<ComposerNativeEventSnapshot>,
   eventCount: number,
@@ -92,7 +89,6 @@ export function pruneAcknowledgedComposerNativeEvents(
   snapshots: ReadonlyArray<ComposerNativeEventSnapshot>,
   acknowledgedEventCount: number,
 ): ComposerNativeEventSnapshot[] {
-  // Retain the latest acknowledgement so unrelated renders stay echoes and do not reset caret or iOS autocorrect.
   let latestAcknowledgedIndex = -1;
   for (let index = snapshots.length - 1; index >= 0; index -= 1) {
     const snapshot = snapshots[index];

@@ -5,12 +5,8 @@ import { Platform } from "react-native";
 import { WorkspaceTabsProvider } from "./WorkspaceTabsContext";
 
 interface AndroidWorkspaceRoot {
-  /**
-   * The rail's `useNavigation()` dispatches to the focused navigator, which may be nested Settings.
-   * Target the root stack's key (and read `rootNavigationRef`'s state) so a tab press resets the root.
-   */
   readonly key: string;
-  /** Settings is derived from navigation rather than kept in the tab reducer. */
+
   readonly settingsOpen: boolean;
   readonly settingsRoute: NavigationState["routes"][number] | undefined;
   readonly settingsPage: string | null;
@@ -22,7 +18,6 @@ export function useAndroidWorkspaceRoot() {
   return use(AndroidWorkspaceRootContext);
 }
 
-/** Android keeps one tab controller above the root navigator and split sidebar. */
 export function AndroidWorkspaceTabsProvider(props: {
   readonly state: NavigationState;
   readonly children: ReactNode;

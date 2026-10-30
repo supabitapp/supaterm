@@ -20,7 +20,7 @@ interface AdaptiveWorkspaceContextValue {
   readonly fileInspector: FileInspectorPaneLayout;
   readonly primarySidebarSearchQuery: string;
   readonly startNewTask: () => void;
-  /** Use `useSelectWorkspaceDetail`, which also works outside the layout. */
+
   readonly selectDetail?: (detail: WorkspaceDetail, sheet?: WorkspaceDetailSheet) => void;
   readonly activateAuxiliaryPaneRole: (role: WorkspaceAuxiliaryPaneRole) => () => void;
   readonly registerWorkspaceInspector: (render: () => ReactNode) => () => void;
@@ -29,23 +29,17 @@ interface AdaptiveWorkspaceContextValue {
   readonly toggleAuxiliaryPane: () => void;
   readonly togglePrimarySidebar: () => void;
   readonly setPrimarySidebarVisible: (visible: boolean) => void;
-  /** Opens a workspace tab with its list and, with columns, the page it last showed. */
+
   readonly openWorkspaceTab: (
     tab: WorkspaceTab | "settings",
     options?: { readonly columns?: boolean },
   ) => void;
   readonly setAuxiliaryPaneWidth: (width: number) => void;
-  /**
-   * Android split view while the thread composer has the soft keyboard: the
-   * sidebar and rail step aside and the thread header drops to one line.
-   */
+
   readonly composerKeyboardActive: boolean;
-  /**
-   * Whether the sidebar shows in each orientation, where it floats over the content in portrait
-   * (the unfolded Duo). The native split switches between them as a rotation starts.
-   */
+
   readonly sidebarByOrientation: { readonly landscape: boolean; readonly portrait: boolean } | null;
-  /** The thread composer reports its focus so the layout can make room for typing. */
+
   readonly setComposerEditing: (editing: boolean) => void;
 }
 
