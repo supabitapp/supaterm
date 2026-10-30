@@ -417,10 +417,12 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "next-prompt-suggestions",
-    title: "Next prompt suggestions",
+    title: "Claude prompt suggestions",
     to: "/settings/general",
     scope: "environment-defaults",
-    searchTerms: ["suggested reply ghost text composer predict tab autocomplete follow up"],
+    searchTerms: [
+      "next prompt suggested reply ghost text composer predict tab autocomplete follow up",
+    ],
   },
   {
     id: "provider-update-checks",

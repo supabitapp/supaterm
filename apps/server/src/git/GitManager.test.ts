@@ -362,7 +362,6 @@ function createTextGeneration(
       Effect.succeed({
         title: "Update workflow",
       }),
-    generateNextPrompt: () => Effect.succeed({ suggestion: null }),
     generateReviewGuide: () => Effect.succeed({ stops: [] }),
     ...overrides,
   };
@@ -412,7 +411,6 @@ function createTextGeneration(
             }),
         ),
       ),
-    generateNextPrompt: (input) => implementation.generateNextPrompt(input),
     generateReviewGuide: (input) => implementation.generateReviewGuide(input),
   };
 }

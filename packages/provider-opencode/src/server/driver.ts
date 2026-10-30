@@ -155,11 +155,6 @@ function selectOpenCodeRuntimeTextGeneration(
         v1: v1.generateThreadTitle(input),
         v2: v2.generateThreadTitle(input),
       }),
-    generateNextPrompt: (input) =>
-      byOpenCodeRuntime(probe.get, {
-        v1: v1.generateNextPrompt(input),
-        v2: v2.generateNextPrompt(input),
-      }),
     generateReviewGuide: (input) =>
       byOpenCodeRuntime(probe.get, {
         v1: v1.generateReviewGuide(input),

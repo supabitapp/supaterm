@@ -76,21 +76,6 @@ export interface ThreadTitleGenerationResult {
   needsRefinement?: boolean | undefined;
 }
 
-export interface NextPromptGenerationInput {
-  cwd: string;
-  /** The thread so far, ending on the assistant reply the user is about to answer. */
-  conversation: string;
-  /** What the agent did in its latest turn: commands and their results, edits, its todo list. */
-  activity?: string | undefined;
-
-  modelSelection: ModelSelection;
-}
-
-export interface NextPromptGenerationResult {
-  /** Null when the conversation gives no clear next message to predict. */
-  suggestion: string | null;
-}
-
 export interface ReviewGuideStackLayer {
   readonly number: number;
   readonly title: string | null;
@@ -133,10 +118,6 @@ export interface ProviderTextGeneration {
   readonly generateThreadTitle: (
     input: ThreadTitleGenerationInput,
   ) => Effect.Effect<ThreadTitleGenerationResult, TextGenerationError>;
-
-  readonly generateNextPrompt: (
-    input: NextPromptGenerationInput,
-  ) => Effect.Effect<NextPromptGenerationResult, TextGenerationError>;
 
   readonly generateReviewGuide: (
     input: ReviewGuideGenerationInput,
