@@ -163,6 +163,9 @@ function adjacentModelPickerProvider(input: {
 
 const EMPTY_MODEL_JUMP_LABELS = new Map<string, string>();
 const MODEL_LIST_ESTIMATED_ITEM_SIZE = 52;
+const MODEL_LIST_ROW_UNITS = 11.25;
+const MODEL_LIST_SEPARATOR_UNITS = 0.5;
+const MODEL_LIST_CHROME_UNITS = 15.5;
 
 function ModelListSeparator() {
   return <div className="h-0.5" />;
@@ -244,8 +247,6 @@ function ModelPickerProviderNotices({
   );
 }
 
-// Owns the list's measured height and scroll fades, which change on every scroll and
-// resize without touching the picker's model lists.
 function ModelPickerList({
   listRef,
   itemKeys,
@@ -259,11 +260,6 @@ function ModelPickerList({
 }) {
   const [showTopScrollFade, setShowTopScrollFade] = useState(false);
   const [showBottomScrollFade, setShowBottomScrollFade] = useState(false);
-  const [contentSize, setContentSize] = useState(
-    () => itemKeys.length * MODEL_LIST_ESTIMATED_ITEM_SIZE,
-  );
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Subscribes to the virtual list's measured total height while the list is mounted.
-  useLayoutEffect(() => listRef.current?.getState().listen("totalSize", setContentSize), [listRef]);
   const updateScrollFades = () => {
     const scrollElement = listRef.current?.getScrollableNode();
     if (!(scrollElement instanceof HTMLElement)) {
@@ -300,10 +296,10 @@ function ModelPickerList({
 
   return (
     <div
-      className="relative min-h-0 overflow-hidden pr-px"
-      style={{
-        height: itemKeys.length === 0 ? 0 : `calc(${contentSize}px + var(--spacing) * 5)`,
-      }}
+      className={cn(
+        "relative min-h-0 overflow-hidden pr-px",
+        itemKeys.length > 0 ? "flex-1" : "h-0",
+      )}
     >
       <ComboboxListVirtualized>
         <LegendList<string>
@@ -582,6 +578,28 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
 
   const isLocked = lockedProvider !== null;
   const isSearching = searchQuery.trim().length > 0;
+  const tallestTabRows = (() => {
+    const rowsByTab = new Map<ProviderInstanceId | "favorites", number>();
+    const addRow = (tab: ProviderInstanceId | "favorites") => {
+      rowsByTab.set(tab, (rowsByTab.get(tab) ?? 0) + 1);
+    };
+    const tabsWithLegacyRow = new Set<ProviderInstanceId>();
+    for (const model of flatModels) {
+      if (!matchesLockedProvider(model)) continue;
+      const isFavorite = favoritesSet.has(providerModelKey(model.instanceId, model.slug));
+      if (isFavorite) addRow("favorites");
+      if (model.isLegacy && !isFavorite) {
+        tabsWithLegacyRow.add(model.instanceId);
+      } else {
+        addRow(model.instanceId);
+      }
+    }
+    for (const instanceId of tabsWithLegacyRow) addRow(instanceId);
+    return Math.max(0, ...rowsByTab.values());
+  })();
+  const tallestTabUnits =
+    tallestTabRows * MODEL_LIST_ROW_UNITS +
+    Math.max(0, tallestTabRows - 1) * MODEL_LIST_SEPARATOR_UNITS;
   const lockedDisabledInstanceIds = (() => {
     if (!isLocked) {
       return undefined;
@@ -804,7 +822,13 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
       <div
         ref={pickerContentRef}
         className="relative flex max-h-86.5 w-screen max-w-90 flex-row overflow-hidden"
-        style={isSearching ? { height: searchHeight } : undefined}
+        style={
+          isSearching
+            ? { height: searchHeight }
+            : {
+                minHeight: `min(calc(var(--spacing) * ${tallestTabUnits + MODEL_LIST_CHROME_UNITS} + 1px), calc(var(--spacing) * 86.5))`,
+              }
+        }
         data-model-picker-content="true"
       >
         {showSidebar && (
