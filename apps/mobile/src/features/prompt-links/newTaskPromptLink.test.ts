@@ -123,7 +123,9 @@ it("opens a linked draft with the project-enabled provider rather than the machi
       },
     ],
   };
-  takeNewTaskPromptLink({ routes: state.navigation.routes });
+  takeNewTaskPromptLink({
+    routes: state.navigation.routes.map(({ name, params }) => ({ name, params })),
+  });
   resolvePendingNewTaskPromptLink(state.navigation);
   await vi.waitFor(() => expect(state.dispatch).toHaveBeenCalled());
   expect(state.setText).toHaveBeenCalledWith("draft", "Review this");

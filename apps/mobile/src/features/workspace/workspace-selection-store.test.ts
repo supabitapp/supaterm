@@ -1,11 +1,13 @@
 import { AsyncResult } from "effect/reactivity";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
+type DetailResult = AsyncResult.AsyncResult<{ status: string }>;
+
 const atoms = await vi.hoisted(async () => {
   const { Atom, AtomRegistry, AsyncResult } = await import("effect/reactivity");
   return {
     registry: AtomRegistry.make(),
-    detail: Atom.make(AsyncResult.success<{ status: string }>({ status: "live" })),
+    detail: Atom.make<DetailResult>(AsyncResult.success({ status: "live" })),
     presentations: Atom.make(new Map<string, object>([["environment", {}]])),
   };
 });
