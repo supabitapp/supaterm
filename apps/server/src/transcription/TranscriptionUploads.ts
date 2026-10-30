@@ -25,7 +25,7 @@ import * as Path from "effect/Path";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
-import type * as Stream from "effect/Stream";
+import * as Stream from "effect/Stream";
 
 import { signUploadToken, verifyUploadToken, writeUploadBody } from "../assets/AttachmentUpload.ts";
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
@@ -304,7 +304,12 @@ const make = Effect.gen(function* () {
     const { uploadId } = claims;
     const request = encodeRequest(claims.request);
     const known = (yield* storeLock.withPermits(1)(liveEntries)).get(uploadId);
-    if (known !== undefined) return yield* joinEntry(known, request);
+    if (known !== undefined) {
+      // A client sending the audio again can't read the answer until its body is taken, so
+      // waiting on the work with the body unread would stall that upload.
+      if (body !== undefined) yield* Stream.runDrain(body).pipe(Effect.ignore);
+      return yield* joinEntry(known, request);
+    }
     if (body === undefined || claims.expiresAt <= (yield* Clock.currentTimeMillis)) {
       return yield* new TranscriptionError({ reason: "uploadExpired" });
     }

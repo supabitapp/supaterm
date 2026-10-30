@@ -184,8 +184,14 @@ describe("TranscriptionUploads", () => {
         const again = yield* prepare({ submit: submit("command-2") });
         const pending = yield* Effect.forkChild(upload(tokenOf(first.relativeUrl), AUDIO_BODY));
         yield* Queue.take(harness.transcribing);
-        const repeated = yield* Effect.forkChild(upload(tokenOf(first.relativeUrl), AUDIO_BODY));
+        // A client sending the audio again can't read the answer until its body is taken.
+        const resentRead = yield* Deferred.make<void>();
+        const resent = AUDIO_BODY.pipe(
+          Stream.concat(Stream.fromEffectDrain(Deferred.succeed(resentRead, undefined))),
+        );
+        const repeated = yield* Effect.forkChild(upload(tokenOf(first.relativeUrl), resent));
         const reprepared = yield* Effect.forkChild(upload(tokenOf(again.relativeUrl), AUDIO_BODY));
+        yield* Deferred.await(resentRead);
 
         yield* Queue.offer(harness.transcripts, Effect.succeed({ text: "ship it" }));
         yield* Queue.take(harness.dispatches);
