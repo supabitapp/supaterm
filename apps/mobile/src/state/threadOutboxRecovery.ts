@@ -1,4 +1,4 @@
-import { PROVIDER_SEND_TURN_MAX_ATTACHMENTS, type MessageId } from "@supaterm/contracts";
+import { PROVIDER_SEND_TURN_MAX_ATTACHMENTS } from "@supaterm/contracts";
 import { createDebugLogger } from "../lib/debugLog";
 import { scopedThreadKey } from "../lib/scopedEntities";
 import { appAtomRegistry } from "./atom-registry";
@@ -77,16 +77,12 @@ export async function completeQueuedMessageDelivery(
   }
 }
 
-export async function removeAcknowledgedExistingThreadMessage(
+export async function removeAcknowledgedQueuedMessage(
   queuedMessage: QueuedThreadMessage,
-  acknowledgedMessageIds: Set<MessageId>,
-): Promise<boolean> {
+): Promise<"removed" | "retry"> {
   try {
     const removed = await removeThreadOutboxMessage(queuedMessage);
-    if (removed) {
-      acknowledgedMessageIds.delete(queuedMessage.messageId);
-    }
-    return removed;
+    return removed ? "removed" : "retry";
   } catch (error) {
     console.warn("[thread-outbox] failed to remove acknowledged queued message", {
       environmentId: queuedMessage.environmentId,
@@ -94,22 +90,22 @@ export async function removeAcknowledgedExistingThreadMessage(
       messageId: queuedMessage.messageId,
       error,
     });
-    return false;
+    return "retry";
   }
 }
 
 export async function recoverEditedCreationAfterDelivery(
   queuedMessage: QueuedThreadMessage,
-): Promise<boolean> {
+): Promise<"recovered" | "deferred" | "retry"> {
   const kept = Object.values(appAtomRegistry.get(threadOutboxManager.queuedMessagesByThreadKeyAtom))
     .flat()
     .find((candidate) => candidate.messageId === queuedMessage.messageId);
   if (!kept) {
-    return true;
+    return "recovered";
   }
   const keptRevision = threadOutboxRevision(kept.messageId);
   if (appAtomRegistry.get(editingQueuedMessageIdsAtom)[kept.messageId]) {
-    return true;
+    return "deferred";
   }
   const draftKey = scopedThreadKey(kept.environmentId, kept.threadId);
   try {
@@ -123,10 +119,10 @@ export async function recoverEditedCreationAfterDelivery(
       attachments: [],
     });
     if (appAtomRegistry.get(editingQueuedMessageIdsAtom)[kept.messageId]) {
-      return true;
+      return "deferred";
     }
     if (threadOutboxRevision(kept.messageId) !== keptRevision) {
-      return false;
+      return "retry";
     }
     const existingAttachmentIds = new Set(
       getComposerDraftSnapshot(draftKey).attachments.map((attachment) => attachment.id),
@@ -145,20 +141,22 @@ export async function recoverEditedCreationAfterDelivery(
     await flushComposerDrafts();
   } catch (error) {
     console.warn("[thread-outbox] could not hand an edited pending task to the composer", error);
-    return false;
+    return "retry";
   }
   if (appAtomRegistry.get(editingQueuedMessageIdsAtom)[kept.messageId]) {
-    return true;
+    return "deferred";
   }
   try {
-    return await removeThreadOutboxMessage(
+    return (await removeThreadOutboxMessage(
       kept,
       keptRevision,
       () => !appAtomRegistry.get(editingQueuedMessageIdsAtom)[kept.messageId],
-    );
+    ))
+      ? "recovered"
+      : "retry";
   } catch (error) {
     console.warn("[thread-outbox] could not remove recovered pending task", error);
-    return false;
+    return "retry";
   }
 }
 

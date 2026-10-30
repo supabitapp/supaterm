@@ -11,27 +11,20 @@ import { harness, queuedMessage, remainingMessages } from "./threadOutbox.test-s
 import {
   completeQueuedMessageDelivery,
   recoverEditedCreationAfterDelivery,
-  removeAcknowledgedExistingThreadMessage,
+  removeAcknowledgedQueuedMessage,
 } from "./threadOutboxRecovery";
 
 describe("thread outbox drain delivery cleanup", () => {
   it("retries only cleanup after an acknowledged send removal fails", async () => {
     const message = queuedMessage({ messageId: "message-acknowledged", text: "delivered" });
-    const acknowledged = new Set([message.messageId]);
     harness.removeOutboxMessage.mockRejectedValueOnce(new Error("storage unavailable"));
     await harness.manager.enqueue(message);
 
-    await expect(removeAcknowledgedExistingThreadMessage(message, acknowledged)).resolves.toBe(
-      false,
-    );
+    await expect(removeAcknowledgedQueuedMessage(message)).resolves.toBe("retry");
     expect(remainingMessages()).toEqual([message]);
-    expect(acknowledged).toEqual(new Set([message.messageId]));
 
-    await expect(removeAcknowledgedExistingThreadMessage(message, acknowledged)).resolves.toBe(
-      true,
-    );
+    await expect(removeAcknowledgedQueuedMessage(message)).resolves.toBe("removed");
     expect(remainingMessages()).toEqual([]);
-    expect(acknowledged).toEqual(new Set());
   });
 
   it("keeps an edited message and its files when delivery cleanup loses the revision race", async () => {
@@ -145,7 +138,7 @@ describe("thread outbox delivered creation recovery", () => {
       await harness.manager.update(newer);
 
       releaseRecovery.resolve();
-      await expect(recovery).resolves.toBe(false);
+      await expect(recovery).resolves.toBe("retry");
 
       expect(remainingMessages()).toEqual([newer]);
       expect(
@@ -183,7 +176,7 @@ describe("thread outbox delivered creation recovery", () => {
       appAtomRegistry.set(editingQueuedMessageIdsAtom, { [message.messageId]: "editing" });
 
       releaseRecovery.resolve();
-      await expect(recovery).resolves.toBe(true);
+      await expect(recovery).resolves.toBe("deferred");
 
       expect(remainingMessages()).toEqual([message]);
       expect(
@@ -210,10 +203,10 @@ describe("thread outbox delivered creation recovery", () => {
     try {
       await harness.manager.enqueue(message);
 
-      await expect(recoverEditedCreationAfterDelivery(message)).resolves.toBe(false);
+      await expect(recoverEditedCreationAfterDelivery(message)).resolves.toBe("retry");
       expect(remainingMessages()).toEqual([message]);
 
-      await expect(recoverEditedCreationAfterDelivery(message)).resolves.toBe(true);
+      await expect(recoverEditedCreationAfterDelivery(message)).resolves.toBe("recovered");
 
       const draft = composerDrafts.getComposerDraftSnapshot(draftKey);
       expect(draft.text).toBe(message.text);
@@ -233,7 +226,7 @@ describe("thread outbox delivered creation recovery", () => {
     await harness.manager.enqueue(message);
     harness.draftFile.setWriteError(new Error("disk full"));
 
-    await expect(recoverEditedCreationAfterDelivery(message)).resolves.toBe(false);
+    await expect(recoverEditedCreationAfterDelivery(message)).resolves.toBe("retry");
 
     expect(remainingMessages()).toEqual([message]);
   });

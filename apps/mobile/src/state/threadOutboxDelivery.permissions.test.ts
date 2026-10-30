@@ -10,7 +10,7 @@ import {
 import * as Cause from "effect/Cause";
 import { AsyncResult, type Atom } from "effect/reactivity";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
-import type { QueuedThreadMessage } from "./thread-outbox-model";
+import { threadOutboxRetryDelayMs, type QueuedThreadMessage } from "./thread-outbox-model";
 
 const state = vi.hoisted(() => ({
   draftText: "Keep this draft separate",
@@ -363,6 +363,39 @@ afterEach(() => {
 });
 
 describe("queued task operation access", () => {
+  it.each([false, true])(
+    "retries only the failed step after turn acceptance: %s",
+    async (accepted) => {
+      vi.useFakeTimers();
+      using _clock = {
+        [Symbol.dispose]: () => {
+          state.delivery?.dispose();
+          vi.useRealTimers();
+        },
+      };
+      setOperateGrant("secondary", true);
+      const queued = message();
+      await state.manager.enqueue(queued);
+      using remove = vi.spyOn(state.manager, "remove");
+      if (accepted) remove.mockRejectedValueOnce(new Error("storage unavailable"));
+      else
+        state.start.mockResolvedValueOnce(
+          AsyncResult.failure(Cause.fail(new Error("Socket is not connected"))),
+        );
+      await runDrain();
+      expect(remaining()).toEqual([queued]);
+      expect(state.start).toHaveBeenCalledOnce();
+      const retried = runDrain();
+      await vi.advanceTimersByTimeAsync(threadOutboxRetryDelayMs(1));
+      await retried;
+      expect(remaining()).toEqual([]);
+      expect(state.start).toHaveBeenCalledTimes(accepted ? 1 : 2);
+      expect(
+        state.start.mock.calls.every(([input]) => input.input.commandId === queued.commandId),
+      ).toBe(true);
+    },
+  );
+
   it("parks a connected read-only target, then delivers its unchanged queue after a grant", async () => {
     const queued = message();
     await state.manager.enqueue(queued);
