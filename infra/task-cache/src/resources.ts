@@ -36,7 +36,6 @@ export const Artifacts = cacheName.pipe(
   ),
 );
 
-                                                                                                    
 export const NativeClients = cacheName.pipe(
   Effect.flatMap((name) =>
     Cloudflare.R2.Bucket("NativeClients", {

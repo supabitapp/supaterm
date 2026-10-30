@@ -17,12 +17,12 @@ export default function start({ root }: { readonly root: string }) {
   const finish = async () => {
     if (!stop) return;
     stop();
-                                                                               
+
     if (process.env.GITHUB_ACTIONS === "true") {
       await flushTelemetry();
       return;
     }
-                                                                                     
+
     const child = NodeChildProcess.spawn(
       process.execPath,
       [NodeURL.fileURLToPath(new URL("./flush.ts", import.meta.url))],
@@ -36,6 +36,7 @@ export default function start({ root }: { readonly root: string }) {
     child.unref();
   };
   return Object.assign(finish, {
-    remoteCache: process.env.VP_REMOTE_CACHE || process.env.VP_SUPATERM_TASK_CACHE_MODE || "read-write",
+    remoteCache:
+      process.env.VP_REMOTE_CACHE || process.env.VP_SUPATERM_TASK_CACHE_MODE || "read-write",
   });
 }

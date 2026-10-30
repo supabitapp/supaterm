@@ -105,7 +105,7 @@ export function observeSummaries(
       const contents = NodeFS.readFileSync(file, "utf8");
       const after = NodeFS.statSync(file, { bigint: true });
       if (before.ino !== after.ino || before.mtimeNs !== after.mtimeNs) return;
-                                                                                              
+
       const id = NodeCrypto.createHash("sha256")
         .update(`${host}\0${root}\0${before.ino}\0${before.mtimeNs}\0${contents}`)
         .digest("hex");
@@ -141,7 +141,7 @@ export function observeSummaries(
   try {
     NodeFS.mkdirSync(cache, { recursive: true });
     scan(false);
-                                                                            
+
     const watcher = NodeFS.watch(cache, { recursive: true }, (_event, file) => {
       if (file?.endsWith("last-summary.json")) snapshot(NodePath.join(cache, file), true);
     });
@@ -163,8 +163,7 @@ export async function flushTelemetry(home = NodeOS.homedir(), env = process.env)
   const queue = NodePath.join(home, ".cache/supaterm-task-cache/telemetry");
   const deadline = Date.now() + 15_000;
   const skipped = new Set<string>();
-                                                                                                 
-                                                                                           
+
   try {
     while (
       (await drainTelemetry(queue, home, env, deadline, skipped)) &&
@@ -203,14 +202,14 @@ async function drainTelemetry(
           NodeFS.statSync(NodePath.join(queue, a)).mtimeMs -
           NodeFS.statSync(NodePath.join(queue, b)).mtimeMs,
       );
-                                                                                
+
     for (const file of files.slice(0, Math.max(0, files.length - 2000)))
       NodeFS.rmSync(NodePath.join(queue, file), { force: true });
     const credentialsFile = NodePath.join(home, ".config/supaterm-task-cache/credentials.json");
     const credentials = NodeFS.existsSync(credentialsFile)
       ? JSON.parse(NodeFS.readFileSync(credentialsFile, "utf8"))
       : {};
-                                                                                      
+
     for (let sent = 0; sent < 100 && Date.now() < deadline;) {
       const file = NodeFS.readdirSync(queue)
         .filter((entry) => entry.endsWith(".json") && !skipped.has(entry))

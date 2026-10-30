@@ -65,7 +65,7 @@ const make = Effect.gen(function* () {
         });
         for (const [name, value] of entries)
           yield* fs.writeFileString(`${directory}/${name}.json`, value + "\n", { mode: 0o600 });
-                                                                                
+
         for (const [name] of entries)
           yield* fs.rename(`${directory}/${name}.json`, `${state}/${name}.json`);
       }),
@@ -84,7 +84,7 @@ const make = Effect.gen(function* () {
     return yield* Effect.scoped(
       Effect.gen(function* () {
         yield* fs.makeDirectory(state, { recursive: true, mode: 0o700 });
-                                                                                          
+
         yield* Effect.acquireRelease(
           fs.makeDirectory(`${state}/writers.lock`).pipe(
             Effect.mapError((error) =>

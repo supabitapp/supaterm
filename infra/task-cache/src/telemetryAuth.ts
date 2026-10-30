@@ -12,7 +12,7 @@ function audienceScope(request: Request, scope: Scope, telemetry = false) {
   } catch {
     throw new HttpError(401, "invalid_token");
   }
-                                                                                           
+
   const branch =
     telemetry && payload.event_name === "pull_request" && typeof payload.base_ref === "string"
       ? `refs/heads/${payload.base_ref}`
@@ -23,7 +23,7 @@ function audienceScope(request: Request, scope: Scope, telemetry = false) {
       const audience = new URL(payload.aud);
       audience.username = "";
       audience.password = "";
-                                                                                         
+
       if (audience.href.replace(/\/$/, "") === scope.endpoint.replace(/\/$/, ""))
         endpoint = payload.aud;
     } catch {

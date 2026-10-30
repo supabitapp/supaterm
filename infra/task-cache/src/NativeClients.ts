@@ -38,7 +38,6 @@ const CompleteBody = Schema.fromJsonString(
 );
 const decodeComplete = Schema.decodeUnknownEffect(CompleteBody);
 
-                                                                               
 const route =
   /^((?:ios|android)\/[a-z0-9_-]{1,32}\/[a-f0-9]{40,64})(?:\/uploads(?:\/([^/]{1,1024})(?:\/(complete|[1-9][0-9]?))?)?)?$/;
 const digestPattern = /^[a-f0-9]{64}$/;
@@ -163,7 +162,7 @@ const make = Effect.gen(function* () {
         );
         return Response.json({ etag: uploaded.etag });
       }
-                                                                    
+
       const length = request.headers.get("content-length");
       if (length === null || !(Number(length) <= 64 * 1024))
         return yield* new NativeClientsError({ status: 413, reason: "parts_too_large" });
@@ -175,12 +174,11 @@ const make = Effect.gen(function* () {
       return new Response(null, { status: 204 });
     },
     Effect.catchTags({
-      NativeClientsError: (error) =>
-        Effect.gen(function* () {
-          if (error.status >= 500)
-            yield* Effect.logWarning("Native client request failed", { reason: error.reason });
-          return Response.json({ error: error.reason }, { status: error.status });
-        }),
+      NativeClientsError: Effect.fn("NativeClientsError")(function* (error) {
+        if (error.status >= 500)
+          yield* Effect.logWarning("Native client request failed", { reason: error.reason });
+        return Response.json({ error: error.reason }, { status: error.status });
+      }),
     }),
   );
 

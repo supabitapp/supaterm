@@ -42,7 +42,7 @@ const make = Effect.gen(function* () {
   const bindings = yield* Bindings;
   const admission = yield* Admission.Admission;
   const savings = yield* Savings.Savings;
-                                                                                                           
+
   const {
     authorizeCacheWrite,
     authorizeTelemetry,
@@ -61,7 +61,6 @@ const make = Effect.gen(function* () {
     Observations,
   } = yield* Effect.promise(() => import("./protocol.ts"));
 
-                                                                                      
   const protocol = <A>(run: (signal: AbortSignal) => Promise<A>) =>
     Effect.tryPromise({
       try: run,
@@ -225,12 +224,11 @@ const make = Effect.gen(function* () {
         );
     },
     Effect.catchTags({
-      CacheError: (error) =>
-        Effect.gen(function* () {
-          if (error.status >= 500)
-            yield* Effect.logWarning("Cache request failed", { reason: error.reason });
-          return errorResponse(new HttpError(error.status, error.reason));
-        }),
+      CacheError: Effect.fn("CacheError")(function* (error) {
+        if (error.status >= 500)
+          yield* Effect.logWarning("Cache request failed", { reason: error.reason });
+        return errorResponse(new HttpError(error.status, error.reason));
+      }),
     }),
   );
 

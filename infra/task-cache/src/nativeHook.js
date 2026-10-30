@@ -1,4 +1,3 @@
-                             
 export function patchNativeCli(source) {
   if (source.includes('import { startRunHook } from "./run-hook.js";')) return source;
   const start = "\tconst exitCode = await run({";

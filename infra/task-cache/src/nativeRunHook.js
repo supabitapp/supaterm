@@ -11,7 +11,6 @@ async function readJson(file) {
   }
 }
 
-                                                                                
 export async function startRunHook(command, cwd = process.cwd(), resolveWorkspaceRoot) {
   if (command !== "run") return;
   try {
@@ -30,7 +29,6 @@ export async function startRunHook(command, cwd = process.cwd(), resolveWorkspac
         }
       }
       if (typeof hook === "string") {
-                                                                                            
         if (resolveWorkspaceRoot) {
           const workspace = await resolveWorkspaceRoot();
           if (!workspace || (await NodeFSP.realpath(workspace)) !== (await NodeFSP.realpath(root)))
@@ -53,7 +51,7 @@ export async function startRunHook(command, cwd = process.cwd(), resolveWorkspac
       if (parent === root) break;
       root = parent;
     }
-                                                                                       
+
     if (
       process.env.VP_SUPATERM_TASK_CACHE_MODE &&
       process.env.VP_REMOTE_CACHE === process.env.VP_SUPATERM_TASK_CACHE_MODE

@@ -116,5 +116,5 @@ export const layer = Worker.make(
     ]),
   ),
 );
-                                                                                    
+
 export default layer;

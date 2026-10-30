@@ -56,7 +56,7 @@ const make = Effect.gen(function* () {
     const local = summary.tasks.filter((task) => task.source === "local");
     const unspecified = summary.tasks.filter((task) => task.source === "unspecified");
     const remote = summary.tasks.filter((task) => task.source === "remote");
-                                                                                                   
+
     yield* Effect.tryPromise({
       try: () =>
         database.batch([

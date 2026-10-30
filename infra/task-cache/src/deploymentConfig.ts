@@ -12,7 +12,6 @@ const encodeWriters = Schema.encodeEffect(
   Schema.fromJsonString(Schema.Record(Schema.String, Schema.String)),
 );
 
-                                                                                    
 export const WriterSecrets = ConfigProvider.layerAdd(
   Effect.gen(function* () {
     const configured = yield* Config.Redacted("DEVELOPER_KEYS").pipe(Config.option);

@@ -184,8 +184,7 @@ it("delivers an event queued while the previous flusher releases its lock", asyn
     const rmdirSync = vi.mocked(NodeFS.rmdirSync);
     const release = rmdirSync.getMockImplementation()!;
     let competing: Promise<void> | undefined;
-                                                                                            
-                                               
+
     rmdirSync.mockImplementationOnce((path, options) => {
       NodeFS.writeFileSync(
         NodePath.join(queue, "late.json"),

@@ -3,8 +3,6 @@ import * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
 import { cacheName } from "./resources.ts";
 
-                                                                                          
-                                                                                                       
 export const savingsQuery = (
   dataset: string,
   group?: "developer" | "host" | "ci",
@@ -23,7 +21,6 @@ export const savingsQuery = (
 
 const summaryRows = (dataset: string) => savingsQuery(dataset).split("\n").slice(0, -1).join("\n");
 
-                                                                                                         
 const nativeInstalls = (dataset: string) =>
   [
     `['${dataset}']`,

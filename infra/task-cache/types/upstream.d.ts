@@ -1,4 +1,3 @@
-                                                                                              
 import type * as Cloudflare from "@cloudflare/workers-types";
 import type { ProtocolBindings } from "../src/protocolTypes.ts";
 

@@ -49,7 +49,7 @@ if (process.argv.includes("--uninstall")) {
     recursive: true,
     force: true,
   });
-                                                                                              
+
   await NodeFSP.mkdir(installed, { recursive: true });
   await NodeFSP.writeFile(
     NodePath.join(installed, "preload.mjs"),
@@ -286,7 +286,7 @@ for (const file of profiles) {
   }
   if (file === ".bash_profile" || file === ".bash_login") {
     if (!original) continue;
-                                                                                         
+
     if (file === ".bash_profile" && [sourceLine, legacySourceLine].includes(original.trim())) {
       await NodeFSP.unlink(path);
       continue;

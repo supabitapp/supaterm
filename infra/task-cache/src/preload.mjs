@@ -1,13 +1,11 @@
 import * as NodeModule from "node:module";
 
-                                                                                         
 if (
   process.env.VP_SUPATERM_TASK_CACHE_MODE &&
   process.env.VP_REMOTE_CACHE === process.env.VP_SUPATERM_TASK_CACHE_MODE
 )
   delete process.env.VP_REMOTE_CACHE;
 
-                                                                                      
 if (
   typeof NodeModule.registerHooks === "function" &&
   Number(process.versions.node.split(".")[0]) >= 24

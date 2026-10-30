@@ -237,7 +237,8 @@ it.effect("keeps artifacts private and limits CI reader credentials to reads", (
   Effect.gen(function* () {
     const cache = yield* Cache.Cache;
     const context = { waitUntil: () => {} };
-    const blob = "https://cache.example/projects/supaterm/blob/12345678-1234-1234-1234-123456789abc";
+    const blob =
+      "https://cache.example/projects/supaterm/blob/12345678-1234-1234-1234-123456789abc";
     for (const url of [blob, "https://cache.example/projects/supaterm/fetch"]) {
       const method = url === blob ? "GET" : "POST";
       expect((yield* cache.handle(new Request(url, { method }), context)).status).toBe(401);

@@ -4,7 +4,10 @@ import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 import * as NodeURL from "node:url";
 
-if (process.env.GITHUB_REPOSITORY !== "supabitapp/supaterm" || process.env.GITHUB_ACTIONS !== "true")
+if (
+  process.env.GITHUB_REPOSITORY !== "supabitapp/supaterm" ||
+  process.env.GITHUB_ACTIONS !== "true"
+)
   throw new Error("This setup is only for the maintainer repository's GitHub Actions.");
 const root = NodePath.resolve(import.meta.dirname, "../../..");
 const hookConfig = NodePath.join(NodeOS.homedir(), ".config/vite-plus/run-hook.json");
@@ -21,7 +24,10 @@ const { endpoint } = JSON.parse(
 );
 const token = process.env.SUPATERM_TASK_CACHE_READ_TOKEN;
 if (!token || token.length < 32) throw new Error("Missing task-cache read credential");
-const credentialFile = NodePath.join(NodeOS.homedir(), ".config/supaterm-task-cache/credentials.json");
+const credentialFile = NodePath.join(
+  NodeOS.homedir(),
+  ".config/supaterm-task-cache/credentials.json",
+);
 await NodeFSP.mkdir(NodePath.dirname(credentialFile), { recursive: true, mode: 0o700 });
 await NodeFSP.writeFile(
   credentialFile,
@@ -35,7 +41,7 @@ if (!directory) throw new Error("Missing GitHub Actions temporary directory");
 const shellSetup = NodePath.join(directory, "supaterm-task-cache.sh");
 const quote = (value: string) => "'" + value.replaceAll("'", "'\"'\"'") + "'";
 const preload = NodeURL.pathToFileURL(NodePath.join(root, "infra/task-cache/src/preload.mjs")).href;
-                                                                                             
+
 await NodeFSP.writeFile(
   shellSetup,
   [
