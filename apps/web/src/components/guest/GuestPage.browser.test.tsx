@@ -1,3 +1,4 @@
+import { encodeBase64 } from "@supaterm/shared/relay/protocol";
 import {
   EventId,
   GUEST_COMMAND_OUTPUT_ROUTE,
@@ -227,13 +228,15 @@ function visit(path: string): Disposable {
   const previous = `${window.location.pathname}${window.location.search}`;
   const address =
     "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.relay.supaterm.alt/";
-  const link = btoa(
-    JSON.stringify({
-      version: 1,
-      address,
-      relayUrl: "wss://relay.example",
-      credential: `${SHARE_ID}.signature`,
-    }),
+  const link = encodeBase64(
+    new TextEncoder().encode(
+      JSON.stringify({
+        version: 1,
+        address,
+        relayUrl: "wss://relay.example",
+        credential: `${SHARE_ID}.signature`,
+      }),
+    ),
   );
   sessionStorage.setItem(`supaterm:guest-link:?share=${SHARE_ID}`, link);
   sessionStorage.setItem(`supaterm:guest:${address}:${SHARE_ID}`, "session");
