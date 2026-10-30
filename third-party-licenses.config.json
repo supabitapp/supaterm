@@ -387,6 +387,16 @@
   ],
   "packageOverrides": [
     {
+      "name": "@nodable/entities",
+      "version": "2.2.0",
+      "license": "MIT",
+      "sourceUrl": "https://github.com/nodable/val-parsers/blob/1a2c08a483b5b6428f1b3d01974875c97f3b3953/LICENSE",
+      "generatedNotice": {
+        "licenseId": "MIT",
+        "copyrights": ["Copyright (c) 2026 Nodable"]
+      }
+    },
+    {
       "name": "character-entities",
       "version": "2.0.2",
       "license": "MIT",
