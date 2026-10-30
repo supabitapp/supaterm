@@ -63,6 +63,7 @@ const ThreadOrganizeTool = Tool.make("supaterm_thread_organize", {
   ],
 })
   .annotate(Tool.Title, "Organize a thread")
+  .annotate(Tool.Strict, true)
   .annotate(Tool.Destructive, true);
 
 const queueTarget = { threadId: Schema.optional(ThreadId), queuedRunId: RunId };
