@@ -62,11 +62,7 @@ export function startDefaultThemeAdoption(): () => void {
     });
     if (generation === null || definition === null) return;
 
-    // Clicking a card is a user choosing one half of their own mix; a set theme
-    // is the environment saying what this client opens on, so it takes the base
-    // preference and, for a single-appearance theme, the matching mode --
-    // otherwise a dark-only theme on a light client is recorded as applied
-    // while nothing changes.
+    // Single-appearance defaults need a matching mode before their generation is marked applied.
     if (!setTheme(defaultTheme)) return;
     const half = singleAppearanceOf(definition);
     // Recorded only once both land: marking the generation applied while the

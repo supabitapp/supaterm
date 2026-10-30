@@ -199,6 +199,7 @@ export function PreviewView({
   const [serverToolbarWidth, setServerToolbarWidth] = useState(0);
   const serverToolbarShown =
     snapshot?.runtime === "server" && (snapshot.viewport ?? FILL_PREVIEW_VIEWPORT)._tag !== "fill";
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- measures the mounted browser body for its responsive device toolbar
   useEffect(() => {
     const element = serverBodyRef.current;
     if (!element || !serverToolbarShown) return;
@@ -770,11 +771,7 @@ export function PreviewView({
         submitted = true;
       }
       const { annotation: picked, submission, screenshotFailed = false } = result;
-      // The structured annotation is still sendable when its optional crop
-      // stalls or fails, so tell the user what they lost and keep going
-      // instead of holding the composer for an attachment that never lands.
-      // The stored copy drops the screenshot on failure, otherwise the prompt
-      // would tell the agent a crop is attached when none was sent.
+      // A failed optional crop must not leave a nonexistent attachment in the annotation prompt.
       const capture = capturePreviewAnnotationScreenshot(picked);
       const cropDropped = screenshotFailed || capture.status === "failed";
       const annotation = capture.status === "failed" ? { ...picked, screenshot: null } : picked;
@@ -813,6 +810,7 @@ export function PreviewView({
     }).then(finishPick);
   };
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- keeps the active native picker send action in sync with destination permissions
   useEffect(() => {
     if (!pickActive || !previewBridge || !runtimeTabId) return;
     void previewBridge
@@ -820,6 +818,7 @@ export function PreviewView({
       .catch(() => undefined);
   }, [canSendAnnotation, pickActive, runtimeTabId]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the native picker when its tab changes or its view unmounts
   useEffect(() => {
     return () => {
       if (!pickActiveRef.current) return;
@@ -859,6 +858,7 @@ export function PreviewView({
       }
     },
   );
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers preview commands only while this pane is visible
   useEffect(() => {
     if (!visible) return;
     return subscribePreviewAction((action) => onPreviewAction(action));
@@ -896,7 +896,7 @@ export function PreviewView({
         pickActive={pickActive}
         pickDisabled={!tabId || isUnreachable}
         pickDisabledReason={
-          isUnreachable ? "Page didn't load — pick unavailable until the page renders" : undefined
+          isUnreachable ? "Page didn't load. Pick unavailable until the page renders" : undefined
         }
         leadingActions={
           activeProfileId !== browserDefaults.profileId ? (
