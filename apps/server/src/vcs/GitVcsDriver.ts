@@ -812,6 +812,45 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
     return path.resolve(physicalCwd, gitCommonDir);
   });
 
+  // --verify prints HEAD after the paths; --quiet leaves only paths for an unborn HEAD.
+  const resolveCaptureRepository = Effect.fn("GitVcsDriver.resolveCaptureRepository")(function* (
+    cwd: string,
+  ) {
+    const result = yield* execute({
+      operation: VcsProcess.CHECKPOINT_CAPTURE_OPERATION,
+      cwd,
+      args: [
+        "rev-parse",
+        "--path-format=absolute",
+        "--git-common-dir",
+        "--git-path",
+        "index",
+        "--verify",
+        "--quiet",
+        "HEAD",
+      ],
+      allowNonZeroExit: true,
+    });
+    const headExists = result.exitCode === 0;
+    const headChecked = headExists || result.exitCode === 1;
+    const lines = result.stdout.split("\n");
+    const [gitCommonDir = "", indexPath = ""] = lines;
+    if (headChecked && lines.length === (headExists ? 4 : 3) && lines.at(-1) === "") {
+      return {
+        gitCommonDir: gitCommonDir.trim(),
+        indexPath: indexPath.trim(),
+        headExists,
+      };
+    }
+    // Git before 2.31 echoes --path-format, and a path containing a newline spans lines.
+    // Separate commands read the paths as before and report a failure the same way.
+    return {
+      gitCommonDir: yield* resolveGitCommonDir(cwd),
+      indexPath: undefined,
+      headExists: headChecked ? headExists : yield* hasHeadCommit(cwd),
+    };
+  });
+
   // Git renames loose objects and refs into place without fsync by default, so
   // an unclean restart can leave 0-byte files under refs/supaterm/** that break every
   // later fetch and push. Checkpoint writes flush before they are published;
@@ -845,7 +884,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
         "-c",
         "splitIndex.sharedIndexExpire=never",
       ];
-      const gitCommonDir = yield* resolveGitCommonDir(input.cwd);
+      const { gitCommonDir, indexPath, headExists } = yield* resolveCaptureRepository(input.cwd);
       const indexId = yield* crypto.randomUUIDv4().pipe(Effect.orDie);
       const tempIndexPath = path.join(gitCommonDir, `supaterm-checkpoint-index-${indexId}`);
       const commitEnv: NodeJS.ProcessEnv = {
@@ -864,7 +903,6 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
       );
 
       yield* Effect.gen(function* () {
-        const headExists = yield* hasHeadCommit(input.cwd);
         const sparseConfig = yield* execute({
           operation,
           cwd: input.cwd,
@@ -883,17 +921,19 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
         }
         if (headExists) {
           const reusedIndex = yield* Effect.gen(function* () {
-            const indexPath = yield* execute({
-              operation,
-              cwd: input.cwd,
-              args: ["rev-parse", "--path-format=absolute", "--git-path", "index"],
-            });
-            const { mtime } = yield* fileSystem.stat(indexPath.stdout.trim());
+            const userIndexPath =
+              indexPath ??
+              (yield* execute({
+                operation,
+                cwd: input.cwd,
+                args: ["rev-parse", "--path-format=absolute", "--git-path", "index"],
+              })).stdout.trim();
+            const { mtime } = yield* fileSystem.stat(userIndexPath);
             if (Option.isNone(mtime)) return false;
             // Stay below the source timestamp even if Date rounded up, preserving Git's racy check.
             const indexTime = Math.floor((mtime.value.getTime() - 1) / 1000);
             if (indexTime <= 0) return false;
-            yield* fileSystem.copyFile(indexPath.stdout.trim(), tempIndexPath);
+            yield* fileSystem.copyFile(userIndexPath, tempIndexPath);
             yield* execute({
               operation,
               cwd: input.cwd,
