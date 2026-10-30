@@ -327,6 +327,13 @@ export function spawnClaudeProcessGroup(
   return child as ClaudeSpawnedProcess;
 }
 
+export const ClaudeNativeGoalPolicy: ProviderAdapter.ProviderAdapterV2NativeGoalPolicy = {
+  operations: ["show", "set", "clear"],
+  requiresSeparateTurn: true,
+  unsupportedOperationMessage:
+    "Claude goals cannot be paused or resumed. Send /goal clear to remove the goal.",
+};
+
 export const ClaudeProviderCapabilitiesV2 = {
   sessions: {
     supportsMultipleProviderThreadsPerSession: false,
@@ -4453,6 +4460,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
   return ProviderAdapter.ProviderAdapterV2.of({
     instanceId: adapterOptions.instanceId,
     driver: CLAUDE_PROVIDER,
+    nativeGoalPolicy: ClaudeNativeGoalPolicy,
     getCapabilities: Effect.fn("ClaudeAdapterV2.getCapabilities")(function () {
       return Effect.succeed(ClaudeProviderCapabilitiesV2);
     }),
@@ -10652,6 +10660,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
         const runtime: ProviderAdapter.ProviderAdapterV2SessionRuntime = {
           instanceId: adapterOptions.instanceId,
           driver: CLAUDE_PROVIDER,
+          nativeGoalPolicy: ClaudeNativeGoalPolicy,
           providerSessionId: input.providerSessionId,
           providerSession: session,
           getModelContextWindow: (selection) =>

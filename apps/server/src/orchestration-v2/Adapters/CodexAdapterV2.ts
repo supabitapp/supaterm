@@ -235,6 +235,12 @@ const CODEX_CLIENT_CAPABILITIES = {
   extensions: { [MCP_APP_EXTENSION_ID]: { mimeTypes: [MCP_APP_MIME_TYPE] } },
 } as const;
 
+export const CodexNativeGoalPolicy: ProviderAdapter.ProviderAdapterV2NativeGoalPolicy = {
+  operations: ["show", "set", "clear", "pause", "resume"],
+  requiresSeparateTurn: true,
+  unsupportedOperationMessage: "This provider does not support that goal operation.",
+};
+
 export const CodexProviderCapabilitiesV2 = {
   sessions: {
     supportsMultipleProviderThreadsPerSession: true,
@@ -1645,6 +1651,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
   return ProviderAdapter.ProviderAdapterV2.of({
     instanceId: adapterOptions.instanceId,
     driver: CODEX_PROVIDER,
+    nativeGoalPolicy: CodexNativeGoalPolicy,
     getCapabilities: Effect.fn("CodexAdapterV2.getCapabilities")(function () {
       return Effect.succeed(CodexProviderCapabilitiesV2);
     }),
@@ -6780,6 +6787,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
         const runtime: ProviderAdapter.ProviderAdapterV2SessionRuntime = {
           instanceId: adapterOptions.instanceId,
           driver: CODEX_PROVIDER,
+          nativeGoalPolicy: CodexNativeGoalPolicy,
           providerSessionId: input.providerSessionId,
           providerSession: session,
           events: Stream.fromEffectRepeat(Queue.take(events)),

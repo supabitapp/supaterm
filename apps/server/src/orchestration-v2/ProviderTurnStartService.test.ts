@@ -3,6 +3,7 @@ import { expect, it, vi } from "vite-plus/test";
 import { it as effectIt } from "@effect/vitest";
 import {
   CheckpointScopeId,
+  ContextHandoffId,
   GitCommandError,
   MessageId,
   NodeId,
@@ -270,6 +271,9 @@ function makeLocalCommandHarness(input: {
   readonly fileSystem?: FileSystem.FileSystem;
   readonly previousNativeSession?: boolean;
   readonly previousMessages?: ReadonlyArray<string>;
+  readonly nativeGoalPolicy?: ProviderAdapter.ProviderAdapterV2NativeGoalPolicy;
+  readonly driver?: ProviderDriverKind;
+  readonly startProviderTurn?: boolean;
   readonly logoutFailure?: string;
   readonly openFailure?: unknown;
   readonly ensureThreadFailure?: unknown;
@@ -319,7 +323,7 @@ function makeLocalCommandHarness(input: {
   };
   const providerThread: OrchestrationV2ThreadProjection["providerThreads"][number] = {
     id: providerThreadId,
-    driver: ProviderDriverKind.make("codex"),
+    driver: input.driver ?? ProviderDriverKind.make("codex"),
     providerInstanceId: newInstanceId,
     providerSessionId,
     appThreadId: threadId,
@@ -578,6 +582,9 @@ function makeLocalCommandHarness(input: {
       ),
     ensureThread: () => Effect.succeed(providerThread),
   };
+  const startTurn = vi.fn<
+    (input: ProviderAdapter.ProviderAdapterV2TurnInput) => Effect.Effect<void>
+  >(() => Effect.void);
   const open = vi.fn(() =>
     input.interruptOpen === true
       ? Effect.interrupt
@@ -599,9 +606,13 @@ function makeLocalCommandHarness(input: {
                   ),
                 ),
               )
-            : input.failReadsAfterRunning === true || input.previousTurn !== undefined
+            : input.failReadsAfterRunning === true ||
+                input.previousTurn !== undefined ||
+                input.startProviderTurn === true
               ? Effect.succeed({
                   driver: providerThread.driver,
+                  nativeGoalPolicy: input.nativeGoalPolicy,
+                  startTurn,
                   providerSession: {
                     id: providerSessionId,
                     driver: providerThread.driver,
@@ -621,12 +632,22 @@ function makeLocalCommandHarness(input: {
   );
   const startRootRun = vi.fn<
     (input: RunExecutionService.RunExecutionServiceV2StartRootRunInput) => Effect.Effect<void>
-  >(() =>
-    input.failReadsAfterRunning === true || input.previousTurn !== undefined
-      ? Effect.suspend(() =>
-          providerBusy ? Effect.die("The previous provider turn is still running.") : Effect.void,
-        )
-      : Effect.die("A local command must not start a native turn."),
+  >((turnInput) =>
+    input.startProviderTurn === true
+      ? turnInput.session
+          .startTurn({
+            ...turnInput,
+            threadId: turnInput.appThread.id,
+            runId: turnInput.run.id,
+            runOrdinal: turnInput.run.ordinal,
+            rootNodeId: turnInput.rootNode.id,
+          })
+          .pipe(Effect.orDie)
+      : input.failReadsAfterRunning === true || input.previousTurn !== undefined
+        ? Effect.suspend(() =>
+            providerBusy ? Effect.die("The previous provider turn is still running.") : Effect.void,
+          )
+        : Effect.die("A local command must not start a native turn."),
   );
   const failReadIfRunning = Effect.suspend(() =>
     input.failReadsAfterRunning === true &&
@@ -638,7 +659,7 @@ function makeLocalCommandHarness(input: {
   );
   const tryHandlePromptCommand = vi.fn(() =>
     input.logoutFailure === undefined
-      ? Effect.succeed(true)
+      ? Effect.succeed(input.startProviderTurn !== true)
       : Effect.fail(
           new ProviderSetupError({
             instanceId: oldInstanceId,
@@ -698,7 +719,17 @@ function makeLocalCommandHarness(input: {
         Layer.mock(ContextHandoffService.ContextHandoffServiceV2)({
           prepareProviderHandoff: () => Effect.die("history read must fail first"),
         }),
-        Layer.mock(EventSink.EventSinkV2)({ writeIfRunCurrent }),
+        Layer.mock(EventSink.EventSinkV2)({
+          writeIfRunCurrent,
+          write: ({ events: incoming }) =>
+            Effect.sync(() => {
+              for (const event of incoming) {
+                events.push(event);
+                projection = ProjectionStore.applyToProjection(projection, event);
+              }
+              return [];
+            }),
+        }),
         IdAllocator.layer,
         layerWorktreeLocation(input.worktreesDir),
         input.fileSystem === undefined
@@ -732,12 +763,14 @@ function makeLocalCommandHarness(input: {
               ),
             }),
           getTurnStartHistory: () =>
-            Effect.fail(
-              new ProjectionStore.ProjectionStoreReadError({
-                threadId,
-                cause: input.historyReadFailureAfterFallback,
-              }),
-            ),
+            input.startProviderTurn === true
+              ? Effect.succeed([])
+              : Effect.fail(
+                  new ProjectionStore.ProjectionStoreReadError({
+                    threadId,
+                    cause: input.historyReadFailureAfterFallback,
+                  }),
+                ),
         }),
         Layer.mock(ProviderSessionManager.ProviderSessionManagerV2)({
           open,
@@ -770,6 +803,7 @@ function makeLocalCommandHarness(input: {
     open,
     writeIfRunCurrent,
     startRootRun,
+    startTurn,
     interruptTurn,
     tryHandlePromptCommand,
     events,
@@ -1460,4 +1494,59 @@ effectIt.effect("loads the recorded interrupt reason after startup for terminal 
     });
     expect(yield* controls.loadRunInterruptReason()).toBe(message);
   }).pipe(Effect.provide(IdAllocator.layer)),
+);
+
+effectIt.effect.each([false, true])(
+  "uses the session native goal policy for history delivery: %s",
+  (nativeGoals) =>
+    Effect.gen(function* () {
+      const harness = makeLocalCommandHarness({
+        text: "/goal ship it",
+        driver: ProviderDriverKind.make(nativeGoals ? "fx" : "codex"),
+        ...(nativeGoals
+          ? {
+              nativeGoalPolicy: {
+                operations: ["show", "set", "clear", "pause", "resume"],
+                requiresSeparateTurn: true,
+                unsupportedOperationMessage: "Unsupported goal operation",
+              },
+            }
+          : {}),
+        startProviderTurn: true,
+      });
+      const projection = harness.projection();
+      const run = projection.runs.at(-1)!;
+      const now = yield* DateTime.now;
+      harness.setProjection({
+        ...projection,
+        providerThreads: projection.providerThreads.map((thread) => ({
+          ...thread,
+          nativeThreadRef: null,
+        })),
+        contextHandoffs: [
+          {
+            id: ContextHandoffId.make("goal-policy-handoff"),
+            threadId: run.threadId,
+            targetRunId: run.id,
+            fromProviderThreadIds: [],
+            toProviderThreadId: run.providerThreadId!,
+            coveredRunOrdinals: { from: 1, to: 1 },
+            strategy: "manual_context",
+            status: "ready",
+            summaryMessageId: null,
+            summaryText: "Prior work context",
+            createdByProviderInstanceId: null,
+            createdAt: now,
+            updatedAt: now,
+          },
+        ],
+      });
+      yield* harness.start;
+      expect(harness.projection().turnItems.filter((item) => item.type === "error")).toEqual([]);
+      expect(harness.startRootRun).toHaveBeenCalledOnce();
+      expect(harness.startTurn).toHaveBeenCalledOnce();
+      const prompt = harness.startTurn.mock.calls[0]?.[0].message.text;
+      if (nativeGoals) expect(prompt).toBe("/goal ship it");
+      else expect(prompt).toContain("Prior work context");
+    }),
 );

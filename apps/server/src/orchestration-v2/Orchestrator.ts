@@ -1065,14 +1065,14 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
   const threadForkService = yield* ThreadForkServiceV2;
   const threadDispatch = yield* ThreadCommandExecutor.ThreadCommandExecutor;
 
-  const goalDriverFor = Effect.fn("Orchestrator.goalDriverFor")(function* (
+  const nativeGoalPolicyFor = Effect.fn("Orchestrator.nativeGoalPolicyFor")(function* (
     command: OrchestrationV2ServerCommand,
     providerInstanceId: ProviderInstanceId,
   ) {
-    const { driver } = yield* providerAdapters
+    const { nativeGoalPolicy } = yield* providerAdapters
       .get(providerInstanceId)
       .pipe(mapDispatchError(command));
-    return driver === "codex" || driver === "claudeAgent" ? driver : undefined;
+    return nativeGoalPolicy;
   });
 
   const ensureGoalCommandSupported = Effect.fn("Orchestrator.ensureGoalCommandSupported")(
@@ -1082,12 +1082,13 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       providerInstanceId: ProviderInstanceId,
     ) {
       const goalCommand = parseGoalCommand(message);
-      if (goalCommand?.type !== "pause" && goalCommand?.type !== "resume") return;
-      if ((yield* goalDriverFor(command, providerInstanceId)) !== "claudeAgent") return;
+      if (goalCommand === null) return;
+      const policy = yield* nativeGoalPolicyFor(command, providerInstanceId);
+      if (policy === undefined || policy.operations.includes(goalCommand.type)) return;
       return yield* new OrchestratorDispatchError({
         commandId: command.commandId,
         commandType: command.type,
-        cause: "Claude goals cannot be paused or resumed. Send /goal clear to remove the goal.",
+        cause: policy.unsupportedOperationMessage,
       });
     },
   );
@@ -4527,7 +4528,11 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
             : "Signing out must run as a separate turn. Queue it or wait for the active turn to finish.",
       });
     }
-    if (parseGoalCommand(input) !== null) {
+    if (
+      parseGoalCommand(input) !== null &&
+      (yield* nativeGoalPolicyFor(input.command, targetRun.providerInstanceId))
+        ?.requiresSeparateTurn === true
+    ) {
       return yield* new OrchestratorDispatchError({
         commandId: input.command.commandId,
         commandType: input.command.type,
@@ -5439,7 +5444,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     const parsedGoalCommand = parseGoalCommand(command);
     const goalCommand =
       parsedGoalCommand === null ||
-      (yield* goalDriverFor(command, modelSelection.instanceId)) === undefined
+      (yield* nativeGoalPolicyFor(command, modelSelection.instanceId)) === undefined
         ? null
         : parsedGoalCommand;
     let goalStopRunId: RunId | undefined;
@@ -9206,7 +9211,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     const parsedGoalCommand = parseGoalCommand(queuedMessage);
     const goalCommand =
       parsedGoalCommand === null ||
-      (yield* goalDriverFor(command, queuedRun.providerInstanceId)) === undefined
+      (yield* nativeGoalPolicyFor(command, queuedRun.providerInstanceId)) === undefined
         ? null
         : parsedGoalCommand;
     const target = projection.runs.find((run) => run.id === command.targetRunId);

@@ -746,8 +746,8 @@ export const layer: Layer.Layer<
         text: message.text,
         records: message.context?.records ?? [],
       });
-      const goalDriver = session.driver === "codex" || session.driver === "claudeAgent";
-      const goalCommand = goalDriver && parseGoalCommand(message) !== null;
+      const hasNativeGoals = session.nativeGoalPolicy !== undefined;
+      const goalCommand = hasNativeGoals && parseGoalCommand(message) !== null;
       const noteContinuation = isRestartNoteContinuation(
         run,
         projection.runs,
@@ -762,7 +762,7 @@ export const layer: Layer.Layer<
             .filter(
               (candidate) =>
                 isCompactionCommandMessage(candidate) ||
-                (goalDriver && parseGoalCommand(candidate) !== null),
+                (hasNativeGoals && parseGoalCommand(candidate) !== null),
             )
             .map((candidate) => candidate.id),
         ),

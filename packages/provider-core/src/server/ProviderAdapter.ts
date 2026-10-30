@@ -1,4 +1,7 @@
-import type { OrchestrationV2HistoricalMessage } from "@supaterm/contracts";
+import type {
+  OrchestrationV2GoalCommand,
+  OrchestrationV2HistoricalMessage,
+} from "@supaterm/contracts";
 import {
   ChatAttachment,
   CheckpointId,
@@ -560,7 +563,14 @@ export type ProviderAdapterV2SubagentOutcome = {
   readonly result: OrchestrationV2Subagent["result"];
 };
 
+export interface ProviderAdapterV2NativeGoalPolicy {
+  readonly operations: ReadonlyArray<OrchestrationV2GoalCommand["type"]>;
+  readonly requiresSeparateTurn: boolean;
+  readonly unsupportedOperationMessage: string;
+}
+
 export interface ProviderAdapterV2SessionRuntime {
+  readonly nativeGoalPolicy?: ProviderAdapterV2NativeGoalPolicy;
   readonly instanceId: ProviderInstanceId;
   readonly driver: ProviderDriverKind;
   readonly providerSessionId: ProviderSessionId;
@@ -648,6 +658,7 @@ export class ProviderAdapterV2 extends Context.Service<
   {
     readonly instanceId: ProviderInstanceId;
     readonly driver: ProviderDriverKind;
+    readonly nativeGoalPolicy?: ProviderAdapterV2NativeGoalPolicy;
     readonly getCapabilities: () => Effect.Effect<
       OrchestrationV2ProviderCapabilities,
       ProviderAdapterV2Error
