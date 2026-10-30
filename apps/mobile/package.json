@@ -46,7 +46,8 @@
     "test": "vp test run --project unit --project react",
     "typecheck": "tsc --noEmit",
     "sync:chip-icons": "node scripts/sync-context-chip-icons.mjs",
-    "generate:highlights": "node scripts/generate-highlights.mts"
+    "generate:highlights": "node scripts/generate-highlights.mts",
+    "eas-build-on-success": "node scripts/upload-sourcemaps.mts build"
   },
   "dependencies": {
     "@effect/atom-react": "catalog:",
