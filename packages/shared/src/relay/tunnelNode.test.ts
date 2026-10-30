@@ -21,7 +21,7 @@ afterEach(async () => {
   open.mockReset();
 });
 
-it("delivers a large WebSocket write across flow-control windows", async () => {
+it("keeps large socket batches pending through the final nonempty write", async () => {
   const identity = NodeCrypto.randomBytes(32);
   const handshake = createClientHandshake(relayPublicKey(identity), NodeCrypto.randomBytes);
   const accepted = acceptClientHandshake(handshake.hello, identity, NodeCrypto.randomBytes);
@@ -59,11 +59,15 @@ it("delivers a large WebSocket write across flow-control windows", async () => {
   socket.cork();
   socket.write(header);
   socket.write(payload);
+  socket.write(Buffer.alloc(0));
+  socket.uncork();
+  const pendingBytes = socket.writableLength;
   socket.end();
   await written;
   expect(await received.promise).toBe(
     NodeCrypto.createHash("sha256").update(header).update(payload).digest("hex"),
   );
+  expect(pendingBytes).toBe(header.length + payload.length);
   expect(host.closed).toBe(false);
 });
 
