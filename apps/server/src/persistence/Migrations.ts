@@ -33,13 +33,6 @@ const loader = Migrator.fromRecord(
   ),
 );
 
-/**
- * The migrator compares ids only, so it would silently skip any of this
- * build's migrations at or below the highest recorded id that the ledger holds
- * under another name. Refuse that. Recorded ids this build does not know, such
- * as those a newer Supaterm added, are left in place so older builds keep
- * opening the database.
- */
 const assertKnownMigrationHistory = Effect.fn("assertKnownMigrationHistory")(function* () {
   const sql = yield* SqlClient.SqlClient;
   const tables = yield* sql`
