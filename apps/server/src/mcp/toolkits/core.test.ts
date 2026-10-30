@@ -940,3 +940,51 @@ it.effect("only the caller that prepared a pending upload can discard it", () =>
     ),
   ),
 );
+
+it.effect(
+  "supaterm_thread_list done:false with an empty statuses list lists the threads not done",
+  () => {
+    const open = McpToolAccessTestkit.liveThreadShell(ThreadId.make("open-thread"));
+    const done = {
+      ...McpToolAccessTestkit.liveThreadShell(ThreadId.make("done-thread")),
+      doneOverride: "done",
+    } as const;
+    return Effect.gen(function* () {
+      const server = yield* McpServer.McpServer;
+      const result = yield* server
+        .callTool({
+          name: "supaterm_thread_list",
+          arguments: { projectId: open.projectId, done: false, statuses: [] },
+        })
+        .pipe(
+          Effect.provideService(
+            McpInvocationContext.McpInvocationContext,
+            clientScope("full-access"),
+          ),
+          Effect.provideService(McpSchema.McpServerClient, client),
+        );
+      expect(result.isError).toBe(false);
+      expect(result.structuredContent).toMatchObject({
+        threads: [{ threadId: open.id, done: false }],
+        total: 1,
+      });
+    }).pipe(
+      Effect.provide(
+        layerOrchestratorToolkit.pipe(
+          Layer.provideMerge(McpServer.McpServer.layer),
+          Layer.provide(NodeCrypto.layer),
+          Layer.provide(
+            Layer.mock(ThreadManagement.ThreadManagementService)({
+              listProjectThreads: () => Effect.succeed([open, done]),
+            }),
+          ),
+          Layer.provide(ServerSettings.layerTest()),
+          Layer.provide(Layer.mock(ProviderRegistry.ProviderRegistry)({})),
+          Layer.provide(Layer.mock(ProviderAdapterRegistry.ProviderAdapterRegistryV2)({})),
+          Layer.provide(Layer.mock(ScheduledTaskService.ScheduledTaskService)({})),
+          Layer.provide(Layer.mock(ProjectService.ProjectService)({})),
+        ),
+      ),
+    );
+  },
+);
