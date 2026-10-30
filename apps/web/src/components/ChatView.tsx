@@ -308,6 +308,8 @@ import type { AssistantCitationRequest } from "./chat/AssistantCitationSource";
 import type { MessagesTimelineHistoryControls } from "./chat/MessagesTimeline";
 import type { PinnableProjectedItem } from "./chat/PinnedMessages";
 import type { MessageJump, MessageJumpFailure } from "@supaterm/client-runtime/message-jump";
+import { useThreadMessageNavigation } from "./chat/useThreadMessageNavigation";
+import { openThreadFindOnQuery } from "./chat/threadFindStore";
 import { ThreadTimeline } from "./chat/ThreadTimeline";
 import { ProviderSubagentBar } from "./chat/ProviderSubagentBar";
 import { getTriggerDisplayModelName } from "./chat/providerIconUtils";
@@ -533,7 +535,7 @@ export default function ChatView(props: ChatViewProps) {
   const serverProjection = serverThreadProjection?.projection ?? null;
   const pinnedMessages = serverProjection?.thread.pinnedMessages ?? EMPTY_PINNED_MESSAGES;
   const [pinnedMessageJump, setPinnedMessageJump] = useState<
-    (MessageJump & { readonly threadKey: string }) | null
+    (MessageJump & { readonly threadKey: string; readonly source?: "search" }) | null
   >(null);
   const togglePinnedMessageStable = useStableCallback(
     (projectedItem: PinnableProjectedItem, pinned: boolean) => {
@@ -546,18 +548,26 @@ export default function ChatView(props: ChatViewProps) {
   });
   const reportPinnedMessageJumpFailureStable = useStableCallback(
     (jump: MessageJump, failure: MessageJumpFailure) => {
+      const fromSearch =
+        pinnedMessageJump?.key === jump.key && pinnedMessageJump.source === "search";
       if (failure === "history-error") {
         toastManager.add({
           type: "error",
-          title: "Could not load the pinned message",
-          description: "Check the connection, then select the pin again.",
+          title: fromSearch
+            ? "Could not load the search result"
+            : "Could not load the pinned message",
+          description: fromSearch
+            ? "Check the connection, then select the result again."
+            : "Check the connection, then select the pin again.",
         });
         return;
       }
-      const pin = pinnedMessages.find((candidate) => candidate.messageId === jump.messageId);
+      const pin = fromSearch
+        ? undefined
+        : pinnedMessages.find((candidate) => candidate.messageId === jump.messageId);
       const id = toastManager.add({
         type: "warning",
-        title: "Pinned message not found",
+        title: fromSearch ? "Search result not found" : "Pinned message not found",
         description: "It may have been reverted.",
         ...(pin && canOperateThread
           ? {
@@ -1319,6 +1329,24 @@ export default function ChatView(props: ChatViewProps) {
   const serverConfig = activeThread
     ? (activeEnvironment?.serverConfig ?? null)
     : (primaryEnvironment?.serverConfig ?? null);
+  useThreadMessageNavigation(
+    routeKind === "server" && serverConfig !== null ? routeThreadRef : null,
+    (request) => {
+      setPinnedMessageJump((previous) => ({
+        threadKey: routeThreadKey,
+        key: (previous?.key ?? 0) + 1,
+        messageId: request.messageId,
+        source: "search",
+      }));
+      if (serverConfig?.threadFind === true && request.query.trim() !== "") {
+        openThreadFindOnQuery(
+          routeThreadKey,
+          { query: request.query, start: { entryId: request.messageId, occurrence: 0 } },
+          paneScope?.paneId ?? "root",
+        );
+      }
+    },
+  );
   const providerEnvironmentId = (activeThread ? activeEnvironment : primaryEnvironment)
     ?.environmentId;
   const providerStatuses =
