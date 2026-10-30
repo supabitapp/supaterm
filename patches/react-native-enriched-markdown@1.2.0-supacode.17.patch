@@ -284,7 +284,7 @@ diff --git a/ios/internals/EnrichedMarkdownShadowNode.mm b/ios/internals/Enriche
  
    MeasurementCacheKey key = buildMeasurementCacheKey(props, maxWidth, fontScale, MarkdownFlavor::GitHub,
 -                                                     ENRMWrappedCodeBlocksFingerprint(wrappedCodeBlocks));
-+                                                     ENRMWrappedCodeBlocksFingerprint(unwrappedCodeBlocks));
++                                                     ENRMCodeBlockWrapStateFingerprint(unwrappedCodeBlocks));
    if (slotMeasurementMatches(slots, key, receivedCounter, maxWidth, layoutContext, layoutConstraints.layoutDirection)) {
      return slotMeasurement_.size;
    }
