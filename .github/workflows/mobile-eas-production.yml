@@ -326,7 +326,8 @@ jobs:
               version: process.env.MOBILE_VERSION, fingerprint: process.env.MOBILE_FINGERPRINT,
               sha: process.env.MOBILE_SOURCE_SHA, url: process.env.MOBILE_ARTIFACT_URL,
             });
-      - name: Publish compatible OTA update
+      - id: ota
+        name: Publish compatible OTA update
         if: github.event_name == 'push' || inputs.mode == 'update'
         working-directory: apps/mobile
         env:
@@ -342,6 +343,17 @@ jobs:
           message="${UPDATE_MESSAGE:-$(git log -1 --pretty=%s | head -c 120) ($(git rev-parse --short=9 HEAD))}"
           eas update --channel production --environment production --platform "$MOBILE_PLATFORM" \
             --message "$message" --emit-metadata --non-interactive
+          echo "published=true" >> "$GITHUB_OUTPUT"
+
+      - name: Upload OTA source maps
+        if: steps.ota.outputs.published == 'true' && vars.SUPATERM_MOBILE_SYMBOL_UPLOAD_URL != ''
+        continue-on-error: true
+        timeout-minutes: 5
+        working-directory: apps/mobile
+        env:
+          SUPATERM_MOBILE_SYMBOL_UPLOAD_URL: ${{ vars.SUPATERM_MOBILE_SYMBOL_UPLOAD_URL }}
+          SUPATERM_MOBILE_SYMBOL_UPLOAD_TOKEN: ${{ secrets.SUPATERM_MOBILE_SYMBOL_UPLOAD_TOKEN }}
+        run: node scripts/upload-sourcemaps.mts ota dist
 
   testflight:
     name: Submit iOS public beta

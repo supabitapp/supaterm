@@ -66,6 +66,8 @@ jobs:
     # Capturing every palette multiplies the device matrix, and only the one
     # native build is shared between them.
     timeout-minutes: ${{ inputs.theme == 'all' && 350 || 120 }}
+    env:
+      AGENT_DEVICE_PATH: ${{ github.workspace }}/scripts/node_modules/.bin/agent-device
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -91,7 +93,7 @@ jobs:
 
       - name: Verify foldable simulator controls
         working-directory: scripts
-        run: vp exec agent-device --version
+        run: '"$AGENT_DEVICE_PATH" --version'
 
       - name: Capture iOS showcase
         run: |
