@@ -1,4 +1,4 @@
-import { type RefObject, useLayoutEffect, useMemo, useRef } from "react";
+import { useEffectEvent, useState } from "react";
 import { View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 
@@ -14,28 +14,23 @@ type SettingsDragHandleProps = {
   readonly onStep: (direction: "up" | "down") => void;
 };
 
-// Gesture callbacks are separate worklets with their own copies of captured
-// variables, so the drop reads its translation from the event, not a closure.
-function createDragPan(latest: RefObject<SettingsDragHandleProps>) {
-  return Gesture.Pan()
-    .minDistance(0)
-    .shouldCancelWhenOutside(false)
-    .runOnJS(true)
-    .onStart(() => latest.current.onStart())
-    .onUpdate((event) => latest.current.onMove(event.translationY))
-    .onFinalize((event, success) => latest.current.onEnd(event.translationY, !success));
-}
-
-function useDragPan(latest: RefObject<SettingsDragHandleProps>) {
-  return useMemo(() => createDragPan(latest), [latest]);
-}
-
 export function SettingsDragHandle(props: SettingsDragHandleProps) {
-  const latest = useRef(props);
-  useLayoutEffect(() => {
-    latest.current = props;
-  });
-  const gesture = useDragPan(latest);
+  const onStart = useEffectEvent(() => props.onStart());
+  const onMove = useEffectEvent((translation: number) => props.onMove(translation));
+  const onEnd = useEffectEvent((translation: number, cancelled: boolean) =>
+    props.onEnd(translation, cancelled),
+  );
+  // The worklets plugin copies the values these callbacks close over when the gesture is built,
+  // so the drop reads its translation from the final event rather than a tracked variable.
+  const [gesture] = useState(() =>
+    Gesture.Pan()
+      .minDistance(0)
+      .shouldCancelWhenOutside(false)
+      .runOnJS(true)
+      .onStart(() => onStart())
+      .onUpdate((event) => onMove(event.translationY))
+      .onFinalize((event, success) => onEnd(event.translationY, !success)),
+  );
   return (
     <GestureDetector gesture={gesture}>
       <View

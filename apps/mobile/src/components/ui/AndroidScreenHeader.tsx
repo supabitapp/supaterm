@@ -15,6 +15,7 @@ import { useControlTheme } from "./useControlTheme";
 
 export interface AndroidHeaderAction {
   readonly accessibilityLabel: string;
+  readonly subtitle?: string;
   readonly icon: AppSymbolName;
   readonly onPress: () => void;
   readonly disabled?: boolean;
@@ -42,10 +43,11 @@ export function AndroidHeaderOverflowMenu(props: {
       actions={props.actions.map((action, index) => ({
         id: String(index),
         title: action.accessibilityLabel,
+        subtitle: action.subtitle,
+        state: action.selected ? "on" : undefined,
         attributes: {
           disabled: Boolean(action.disabled),
           destructive: action.destructive,
-          state: action.selected ? "on" : undefined,
         },
       }))}
       onPressAction={({ nativeEvent }) => props.actions[Number(nativeEvent.event)]?.onPress()}

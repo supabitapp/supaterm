@@ -1,4 +1,5 @@
 import type { ExpoConfig } from "expo/config";
+import { crashReportingEndpoint } from "./src/lib/crashReportingConfig.ts";
 
 import { BRAND_ASSET_PATHS } from "../../scripts/lib/brand-assets.ts";
 import { loadRepoEnv } from "../../scripts/lib/public-config.ts";
@@ -6,6 +7,7 @@ import { loadRepoEnv } from "../../scripts/lib/public-config.ts";
 type AppVariant = "development" | "preview" | "production";
 
 const repoEnv = loadRepoEnv();
+const crashEndpointUrl = crashReportingEndpoint(repoEnv.SUPATERM_MOBILE_CRASH_REPORT_URL);
 Object.assign(process.env, repoEnv);
 
 const APP_VARIANT = resolveAppVariant(repoEnv.APP_VARIANT);
@@ -416,8 +418,10 @@ const config: ExpoConfig = {
   extra: {
     appVariant: APP_VARIANT,
     iosPersonalTeamBuild: isIosPersonalTeamBuild,
+    crashReporting: { endpointUrl: crashEndpointUrl },
     eas: {
       projectId: "c96e633c-2940-4aab-a40a-44777a9600c6",
+      observe: { endpointUrl: crashEndpointUrl ?? "https://observe.invalid" },
     },
   },
   owner: "supabitapp",

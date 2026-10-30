@@ -12,8 +12,8 @@ import {
   ConnectionTransientError,
   CredentialStore,
   ProfileStore,
-  GitHubRoutingPermissions,
-  makeGitHubRoutingPermissions,
+  PullRequestRoutingPermissions,
+  makePullRequestRoutingPermissions,
 } from "@supaterm/client-runtime/connection";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -43,10 +43,12 @@ function targetPersistenceError(
 export const layer = Layer.effectContext(
   Effect.gen(function* () {
     const catalog = yield* CatalogStore.make();
-    const githubRoutingPermissions = yield* makeGitHubRoutingPermissions({
-      read: catalog.read.pipe(Effect.map((document) => document.githubRoutingPermissions ?? [])),
-      write: (githubRoutingPermissions) =>
-        catalog.update((document) => ({ ...document, githubRoutingPermissions })),
+    const pullRequestRoutingPermissions = yield* makePullRequestRoutingPermissions({
+      read: catalog.read.pipe(
+        Effect.map((document) => document.pullRequestRoutingPermissions ?? []),
+      ),
+      write: (pullRequestRoutingPermissions) =>
+        catalog.update((document) => ({ ...document, pullRequestRoutingPermissions })),
     });
 
     const targetStore = Persistence.ConnectionTargetStore.of({
@@ -139,7 +141,7 @@ export const layer = Layer.effectContext(
         })),
     });
     return Context.make(Persistence.ConnectionTargetStore, targetStore).pipe(
-      Context.add(GitHubRoutingPermissions, githubRoutingPermissions),
+      Context.add(PullRequestRoutingPermissions, pullRequestRoutingPermissions),
       Context.add(Persistence.ConnectionRegistrationStore, registrationStore),
       Context.add(ProfileStore.ConnectionProfileStore, profileStore),
       Context.add(CredentialStore.ConnectionCredentialStore, credentialStore),

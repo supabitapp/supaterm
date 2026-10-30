@@ -10,7 +10,7 @@ import { useId, useState } from "react";
 import { resolveOfficialAcpRegistryIconUrl } from "@supaterm/contracts";
 import { useAppearancePreferences } from "../features/settings/appearance/AppearancePreferencesProvider";
 import { AppText as Text } from "./ui/AppText";
-import { getProviderClient } from "../lib/providerClients";
+import { getProviderClient } from "@supaterm/client-runtime/provider-clients";
 
 type ProviderIconProps = {
   readonly provider: string | null | undefined;
@@ -167,6 +167,7 @@ export function ProviderInstanceIcon(props: {
         <ProviderIcon iconUrl={props.iconUrl} provider={props.provider} size={props.size} />
       </View>
       {props.showBadge ? (
+        // An absolute badge alone is capped at icon width and clips initials.
         <View
           pointerEvents="none"
           style={{ position: "absolute", right: -3, bottom: -3, width: 32, alignItems: "flex-end" }}

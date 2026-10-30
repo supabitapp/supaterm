@@ -1,4 +1,4 @@
-import { SymbolView } from "./ui/AppSymbol";
+import { useProjectIdentity } from "../lib/projectIdentity";
 import { AppText } from "./ui/AppText";
 import { NodeIcon } from "./ui/NodeIcon";
 import { Image } from "expo-image";
@@ -168,6 +168,12 @@ function ProjectFaviconImage(props: {
       : "loading",
   );
 
+  const identity = useProjectIdentity(props.projectTitle);
+  const fallbackGlyph: ProjectIconGlyph = {
+    kind: "monogram",
+    text: identity.monogram,
+    color: identity.color,
+  };
   const requestIsActive = faviconRequest !== null;
   const showImage = requestIsActive && status === "loaded";
 
@@ -180,14 +186,7 @@ function ProjectFaviconImage(props: {
         justifyContent: "center",
       }}
     >
-      {!showImage ? (
-        <SymbolView
-          name={{ ios: "folder.fill", android: props.open ? "folder_open" : "folder" }}
-          size={props.size}
-          tintColorClassName={"accent-icon-subtle"}
-          type="monochrome"
-        />
-      ) : null}
+      {!showImage ? <ProjectIconGlyphView glyph={fallbackGlyph} size={props.size} /> : null}
 
       {requestIsActive ? (
         <Image

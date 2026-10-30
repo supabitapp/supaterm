@@ -7,7 +7,6 @@ export const MOBILE_SHAPE = {
   glass: 32,
 } as const;
 
-/** Finite transitions only; each animation must honor useReducedMotionPreference. */
 export const MOBILE_MOTION = {
   adjust: 120,
   enter: MOTION_ENTER_DURATION_MS,

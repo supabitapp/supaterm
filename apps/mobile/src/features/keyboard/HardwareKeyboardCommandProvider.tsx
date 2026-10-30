@@ -1,6 +1,6 @@
 import * as Dialog from "../../components/ui/Dialog";
 import { StackActions, useNavigation } from "@react-navigation/native";
-import { resolveThreadReferenceCopyTarget } from "@supaterm/shared/threadReference";
+import { resolveThreadReferenceCopyTarget } from "@supaterm/client-runtime/thread-reference";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { resolveThreadForkSource } from "@supaterm/client-runtime/state/thread-workflows";
 import { AuthOrchestrationOperateScope, ThreadId } from "@supaterm/contracts";
@@ -17,7 +17,12 @@ import {
   type ReactNode,
 } from "react";
 
-import { tryCopyTextWithHaptic } from "../../lib/copyTextWithHaptic";
+import { copyThreadReference } from "../../lib/copyThreadReference";
+import { Platform } from "react-native";
+import {
+  firstWorkspaceDetailOpen,
+  workspaceHasColumns,
+} from "../workspace/workspace-selection-store";
 import { suppressKeyboardMotion } from "../../lib/motionInput";
 import { SupatermKeyboardCommands } from "../../native/SupatermKeyboardCommands";
 import { useThreadShell } from "../../state/entities";
@@ -43,6 +48,7 @@ import {
   subscribeToHardwareKeyboardCommandRegistrations,
   type HardwareKeyboardCommand,
 } from "./hardwareKeyboardCommands";
+import { selectWorkspaceDetail } from "../workspace/workspace-detail-selection";
 
 const EMPTY_COPY_FEEDBACK: GitActionProgress = {
   phase: "idle",
@@ -91,7 +97,8 @@ export function HardwareKeyboardCommandProvider({
       activeThreadRef === null
         ? null
         : resolveThreadReferenceCopyTarget({
-            threadId: activeThread?.id ?? activeThreadRef.threadId,
+            threadRef: activeThreadRef,
+            title: activeThread?.title ?? "",
             pullRequests: activeThread?.pullRequests,
             linkedPullRequestUrl:
               (activeThread?.linkedPullRequest ?? activeThread?.branchPullRequest)?.url ?? null,
@@ -118,6 +125,7 @@ export function HardwareKeyboardCommandProvider({
       setCopyFeedback(EMPTY_COPY_FEEDBACK);
     }, COPY_FEEDBACK_DISMISS_MS);
   }, []);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the copy feedback timer on unmount
   useEffect(
     () => () => {
       if (copyFeedbackTimerRef.current !== null) {
@@ -206,16 +214,14 @@ export function HardwareKeyboardCommandProvider({
       if (command === "copyThreadReference") {
         if (copyTarget === null) return;
         const requestId = ++copyRequestIdRef.current;
-        void tryCopyTextWithHaptic(copyTarget.value, {
-          target: copyTarget.clipboardTarget,
-        }).then((didCopy) => {
+        void copyThreadReference(copyTarget).then((didCopy) => {
           if (requestId !== copyRequestIdRef.current) return;
           showCopyFeedback(
             didCopy
               ? {
                   phase: "success",
                   label: copyTarget.successTitle,
-                  description: copyTarget.value,
+                  description: copyTarget.description,
                 }
               : {
                   phase: "error",
@@ -229,11 +235,14 @@ export function HardwareKeyboardCommandProvider({
 
       if (command === "newTask") {
         void readStartNewTaskDestination(uuidv4()).then((params) =>
-          navigation.navigate("Thread", params),
+          navigation.dispatch(selectWorkspaceDetail({ name: "Thread", params })),
         );
         return;
       }
       if (command === "back") {
+        // Beside a visible list, the first detail page has nothing to go back to.
+        if (Platform.OS === "ios" && workspaceHasColumns() && firstWorkspaceDetailOpen(navigation))
+          return;
         if (navigation.canGoBack()) {
           navigation.goBack();
         } else {

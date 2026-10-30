@@ -34,11 +34,17 @@ function expectVisibleSelection(colors: ReturnType<typeof androidWorkspaceNaviga
 }
 
 describe("Android workspace navigation colors", () => {
-  it.each(MOBILE_THEME_IDS)("keeps %s selection visible", (themeId) => {
+  it.each(MOBILE_THEME_IDS)("keeps %s selection visible in every navigation layout", (themeId) => {
     for (const appearance of ["light", "dark"] as const) {
       const variables = getMobileThemeRuntimeVariables(themeId, appearance, "android");
       const snapshot = { ...variables };
-      expectVisibleSelection(androidWorkspaceNavigationColors(variables));
+      for (const [rail, floating] of [
+        [false, false],
+        [true, false],
+        [false, true],
+      ] as const) {
+        expectVisibleSelection(androidWorkspaceNavigationColors(variables, rail, floating));
+      }
       expect(variables).toEqual(snapshot);
     }
   });
@@ -85,7 +91,13 @@ describe("Android workspace navigation colors", () => {
           appearance,
           getMobileThemeRuntimeVariables("material-you", appearance, "android"),
         );
-        expectVisibleSelection(androidWorkspaceNavigationColors(variables));
+        for (const [rail, floating] of [
+          [false, false],
+          [true, false],
+          [false, true],
+        ] as const) {
+          expectVisibleSelection(androidWorkspaceNavigationColors(variables, rail, floating));
+        }
       }
     },
   );

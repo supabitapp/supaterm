@@ -104,9 +104,7 @@ export function Menu(props: MenuProps) {
     menuProps.onCloseMenu = () => {
       menuPress.current.isPreparing = false;
       menuPress.current.isOpen = false;
-      // Keep this gesture cancelled even if dismissal precedes finger-up.
-      // A separate JS long-press timer would also swallow holds that never
-      // open the native menu.
+      // Keep cancellation through finger-up even if the menu dismisses first.
       const press = pendingPress.current;
       pendingPress.current = null;
       props.onCloseMenu?.();

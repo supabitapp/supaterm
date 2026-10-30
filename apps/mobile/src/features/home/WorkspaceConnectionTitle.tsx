@@ -1,7 +1,9 @@
 import type { NativeStackNavigationOptions } from "@react-navigation/native-stack";
-import { useEffect, useState, type ReactNode } from "react";
-import { Animated, Pressable, View } from "react-native";
+import { createContext, use, useEffect, useState, type ReactNode } from "react";
+import { Animated, Platform, Pressable, View } from "react-native";
 
+import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
+import { SymbolView } from "../../components/ui/AppSymbol";
 import { AppText as Text } from "../../components/ui/AppText";
 import { useAndroidControlSizing } from "../../components/ui/useAndroidControlSizing";
 import {
@@ -9,9 +11,9 @@ import {
   CompactBrandTitle,
   getCompactBrandHeaderOptions,
 } from "../../components/CompactBrandTitle";
-import { useWorkspaceState } from "../../state/workspace";
-import { useReducedMotionPreference } from "../../lib/useReducedMotionPreference";
 import { useConnectionStatusVisibility } from "../../connection/useConnectionStatusVisibility";
+import { useReducedMotionPreference } from "../../lib/useReducedMotionPreference";
+import { useWorkspaceState } from "../../state/workspace";
 import {
   workspaceConnectionStatusPresentation,
   type WorkspaceConnectionStatusPresentation,
@@ -19,7 +21,20 @@ import {
 
 const FADE_IN_MS = 250;
 
-function useDelayedConnectionStatus(): WorkspaceConnectionStatusPresentation | null {
+type ConnectionStatus = WorkspaceConnectionStatusPresentation & {
+  /** Only while the status first appears. A header that shows it later shows it at once. */
+  readonly fadeIn: boolean;
+};
+
+const ConnectionStatusContext = createContext<ConnectionStatus | null>(null);
+
+/**
+ * The delay hides brief reconnects, so it is the workspace's, not each header's: every header
+ * shows the status from the same moment. Headers read it from context instead of subscribing
+ * themselves, because a hidden Android tab drops its subscriptions and showed a stale status for
+ * a moment when it came back, while context still reaches it.
+ */
+export function WorkspaceConnectionStatusProvider(props: { readonly children: ReactNode }) {
   const { state } = useWorkspaceState();
   const presentation = workspaceConnectionStatusPresentation(state);
   const visible = useConnectionStatusVisibility(
@@ -27,26 +42,23 @@ function useDelayedConnectionStatus(): WorkspaceConnectionStatusPresentation | n
     presentation !== null,
     state.connectionState === "error" || state.connectionState === "unsupported",
   );
-
-  return visible ? presentation : null;
+  const status = visible && presentation ? { ...presentation, fadeIn: false } : null;
+  return <ConnectionStatusContext value={status}>{props.children}</ConnectionStatusContext>;
 }
 
-/**
- * Deliberately JS-driven: this can mount inside a native header item
- * (RNSScreenStackHeaderSubview), where native-driver animated nodes blank the
- * re-hosted view entirely. The JS driver updates opacity through the ordinary
- * style path, which those subviews handle.
- */
-function StatusFadeIn(props: { readonly children: ReactNode }) {
+/** Native-driver animation blanks views re-hosted in RNSScreenStackHeaderSubview; use the JS style path. */
+function StatusFadeIn(props: {
+  readonly children: ReactNode;
+  readonly animate: boolean;
+  readonly grow?: boolean;
+  readonly maxWidth?: number;
+}) {
   const reducedMotion = useReducedMotionPreference();
-  const [opacity] = useState(() => new Animated.Value(reducedMotion ? 1 : 0));
-
+  const animate = props.animate && !reducedMotion;
+  const [opacity] = useState(() => new Animated.Value(0));
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- runs the Animated opacity fade-in and stops it on cleanup
   useEffect(() => {
-    if (reducedMotion) {
-      opacity.stopAnimation();
-      opacity.setValue(1);
-      return;
-    }
+    if (!animate) return;
     const animation = Animated.timing(opacity, {
       duration: FADE_IN_MS,
       toValue: 1,
@@ -54,21 +66,27 @@ function StatusFadeIn(props: { readonly children: ReactNode }) {
     });
     animation.start();
     return () => animation.stop();
-  }, [opacity, reducedMotion]);
+  }, [animate, opacity]);
 
   return (
-    <Animated.View style={{ alignItems: "center", flexDirection: "row", flexShrink: 1, opacity }}>
+    <Animated.View
+      style={[
+        {
+          alignItems: "center",
+          flexDirection: "row",
+          maxWidth: props.maxWidth,
+          // A hidden tab never runs the fade, so its value would still be 0 when the tab returns.
+          opacity: animate ? opacity : 1,
+        },
+        props.grow ? { flex: 1, minWidth: 0 } : null,
+      ]}
+    >
       {props.children}
     </Animated.View>
   );
 }
 
-/**
- * Keeps the thread-list title visible, with connection status beneath it.
- * Both lines stay inside the header so reconnects never shift the list below.
- */
 export function WorkspaceConnectionTitle(props: {
-  /** Persistent brand lockup or screen title. */
   readonly brand: ReactNode;
   readonly onPress?: () => void;
   readonly grow?: boolean;
@@ -76,60 +94,60 @@ export function WorkspaceConnectionTitle(props: {
   readonly statusOffset?: number;
   readonly maxWidth?: number;
 }) {
-  const status = useDelayedConnectionStatus();
+  const status = use(ConnectionStatusContext);
   const size = props.size ?? "navbar";
   const { scale } = useAndroidControlSizing();
 
+  if (status === null) {
+    return props.grow ? (
+      <View style={{ alignItems: "center", flex: 1, flexDirection: "row", minWidth: 0 }}>
+        {props.brand}
+      </View>
+    ) : (
+      <>{props.brand}</>
+    );
+  }
+
   return (
-    <View
-      style={[
-        {
-          alignItems: "flex-start",
-          gap: 2 * scale,
-          justifyContent: "center",
-          maxWidth: props.maxWidth,
-          minHeight: 44 * scale,
-          minWidth: 0,
-        },
-        props.grow ? { flex: 1 } : null,
-      ]}
-    >
-      {props.brand}
-      {status !== null ? (
-        <StatusFadeIn>
-          <Pressable
-            accessibilityHint="Opens environment settings"
-            accessibilityLabel={status.label}
-            accessibilityRole="button"
-            disabled={props.onPress === undefined}
-            hitSlop={8}
-            onPress={props.onPress}
-            className="flex-row items-center"
-            style={{ flexShrink: 1, marginLeft: props.statusOffset ?? 0 }}
-          >
-            <Text
-              className="text-foreground-muted"
-              numberOfLines={1}
-              style={{
-                flexShrink: 1,
-                fontSize: (size === "pageTitle" ? 13 : 12) * scale,
-                lineHeight: 16 * scale,
-              }}
-            >
-              {status.label}
-            </Text>
-          </Pressable>
-        </StatusFadeIn>
-      ) : null}
-    </View>
+    <StatusFadeIn animate={status.fadeIn} grow={props.grow} maxWidth={props.maxWidth}>
+      <Pressable
+        accessibilityHint="Opens environment settings"
+        accessibilityLabel={status.label}
+        accessibilityRole="button"
+        disabled={props.onPress === undefined}
+        hitSlop={8}
+        onPress={props.onPress}
+        className="flex-row items-center gap-2"
+        style={[
+          { flexShrink: 1, marginLeft: props.statusOffset ?? 0 },
+          Platform.OS === "android" && { gap: 7 * scale },
+        ]}
+      >
+        {status.showsProgress ? (
+          <AppActivityIndicator
+            colorClassName={"accent-icon-muted"}
+            size={Platform.OS === "android" ? Math.round(20 * scale) : "small"}
+          />
+        ) : (
+          <SymbolView
+            name="wifi.slash"
+            size={Math.round((size === "pageTitle" ? 17 : 15) * scale)}
+            tintColorClassName={"accent-icon-muted"}
+            type="monochrome"
+          />
+        )}
+        <Text
+          className="font-t3-bold text-foreground-muted"
+          numberOfLines={1}
+          style={{ flexShrink: 1, fontSize: (size === "pageTitle" ? 20 : 16) * scale }}
+        >
+          {status.label}
+        </Text>
+      </Pressable>
+    </StatusFadeIn>
   );
 }
 
-/**
- * getCompactBrandHeaderOptions with the brand slot upgraded to the
- * connection subtitle. Screens with an environment-settings callback apply
- * this over the static brand options at mount.
- */
 export function getConnectionAwareBrandHeaderOptions(opts: {
   readonly headerWidth: number;
   readonly trailingItemCount?: number;

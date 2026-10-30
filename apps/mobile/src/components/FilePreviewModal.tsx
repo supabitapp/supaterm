@@ -1,16 +1,8 @@
 import * as Dialog from "./ui/Dialog";
-import { useNavigation } from "@react-navigation/native";
-import {
-  useCallback,
-  useContext,
-  useEffect,
-  useEffectEvent,
-  useState,
-  useSyncExternalStore,
-  useMemo,
-} from "react";
+import { useCallback, useContext, useEffect, useEffectEvent, useState, useMemo } from "react";
 import { Keyboard } from "react-native";
 
+import { usePreviewPresentation } from "../lib/previewPresentation";
 import { loadLocalAttachmentPreview } from "../lib/localAttachmentPreview";
 import { useRefreshAssetUrl } from "../state/assets";
 import {
@@ -170,32 +162,8 @@ export function FilePreviewModal(props: {
           },
     [props.source, group],
   );
-  const navigation = useNavigation();
-  const subscribeToFocus = useCallback(
-    (listener: () => void) => {
-      const offFocus = navigation.addListener("focus", listener);
-      const offBlur = navigation.addListener("blur", listener);
-      return () => {
-        offFocus();
-        offBlur();
-      };
-    },
-    [navigation],
-  );
-  // The v5 card host sits inside a legacy presentation envelope whose focus context
-  // can describe a different route. The preview belongs to this navigation route.
-  const isFocused = useSyncExternalStore(
-    subscribeToFocus,
-    navigation.isFocused,
-    navigation.isFocused,
-  );
-  const hasSource = props.source !== null;
-  const onRequestClose = useEffectEvent(props.onRequestClose);
-  useEffect(() => {
-    if (!isFocused && hasSource) onRequestClose();
-  }, [isFocused, hasSource]);
-
-  if (!source || !isFocused) return null;
+  usePreviewPresentation(source ? filePreviewKey(source) : null, props.onRequestClose);
+  if (!source) return null;
   return (
     <ResolvedFilePreview
       key={filePreviewKey(source)}
