@@ -55,6 +55,31 @@ describe("settingInheritanceLayers", () => {
     ]);
   });
 
+  it("identifies the background activity profile supplied by each layer", () => {
+    const settings = {
+      ...DEFAULT_SERVER_SETTINGS,
+      backgroundActivity: {
+        schemaVersion: 1 as const,
+        profile: "performance" as const,
+        overrides: {},
+      },
+    };
+    const layers = settingInheritanceLayers(
+      {
+        environmentId,
+        label: "Laptop",
+        projectId: null,
+        ...resolveProjectSettings(settings, projectId),
+      },
+      settings,
+      "backgroundActivity",
+    );
+    expect(layers.map((layer) => [layer.key, layer.value, layer.effective])).toEqual([
+      ["environment", "Performance", true],
+      ["built-in", "Balanced", false],
+    ]);
+  });
+
   it("shows the checkout's supaterm.json as a layer for file-backed keys", () => {
     const file = { defaultThreadEnvMode: "worktree" as const };
     const fromFile = settingInheritanceLayers(
