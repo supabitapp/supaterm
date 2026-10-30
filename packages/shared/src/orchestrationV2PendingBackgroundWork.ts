@@ -221,24 +221,9 @@ export function pendingBackgroundTurnItems<Item extends PendingBackgroundWorkTur
   );
 }
 
-/**
- * Derive one normalized pending-background-work list for post-settlement UI.
- *
- * Sources:
- * - Provider-thread roster (Claude SDK background tasks)
- * - Active command_execution / dynamic_tool / subagent turn items
- * - Pull request and workflow run watches, as monitors: a watch wakes the
- *   agent, so the thread stays working between wakes instead of returning to
- *   the inbox. Callers that pick a run to interrupt leave the watches out;
- *   Stop ends watches on its own.
- *
- * Gated on latest root run settlement. Dedupes by native task ID. Excludes
- * the roster while any interruptible foreground run remains active. Excludes
- * Grok persistent monitors (`dynamic_tool` input with `persistent: true`).
- * Excludes turn items whose run resolves to `rolled_back` (abandoned work);
- * items with a null or absent run id stay eligible (matches SQL shell path).
- * Does not consult subagent entities (those double-count turn items).
- */
+/** Reconcile roster, active items, and watches after root-run settlement, deduped by native id.
+ * Exclude foreground work, persistent monitors, and rolled-back runs.
+ * Subagent entities duplicate turn items; Stop handles watches separately. */
 export function derivePendingBackgroundWork(input: {
   readonly latestRun: PendingBackgroundWorkRun | null | undefined;
   readonly providerThreads: ReadonlyArray<PendingBackgroundWorkProviderThread>;

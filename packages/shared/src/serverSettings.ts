@@ -59,13 +59,8 @@ const TEXT_GENERATION_FALLBACK_DRIVERS = [
   "antigravity",
 ].map((driver) => ProviderDriverKind.make(driver));
 
-/**
- * `includeConfiguredInstances` is for the project-scoped caller only: a
- * project that disabled every built-in instance should still be able to
- * fall back to one it configured itself. The machine-level caller leaves it
- * unset, since widening the candidates there would change behavior for
- * every user regardless of project scope.
- */
+/** Project-scoped fallback includes custom instances when built-ins are disabled.
+ * Machine-scoped callers omit this option to preserve their candidate set. */
 export function fallbackTextGenerationModelSelection(
   providerInstances: ServerSettings["providerInstances"],
   isEnabled: (instanceId: ProviderInstanceId, driver: ProviderDriverKind) => boolean,
@@ -271,15 +266,8 @@ function withStoredWorktreeRules(
   return { mode: "custom", rules: { ...incoming.rules, worktreeKeepWhen, worktreeDoneAfterDays } };
 }
 
-/**
- * `projectSettingsOverrides` entries otherwise replace whole (see the field's
- * doc comment in contracts), but some keys were added after clients already
- * round-trip a project's entry on every edit. A client built before one of
- * them sends an entry that never mentions it, and a whole replace would
- * silently wipe it. When an incoming entry omits such a key, keep what is
- * stored; a client that means to clear one says so explicitly, with
- * `providerInstances: {}` or by listing the key in `removals`.
- */
+/** Older clients resend whole entries without recently added fields.
+ * Preserve their stored values until an explicit empty value or removal clears them. */
 function mergeProjectSettingsOverridesPatch(
   current: Readonly<Record<string, ProjectSettingsOverrides>>,
   patch: Readonly<Record<string, ProjectSettingsOverridesPatchEntry | null>>,
