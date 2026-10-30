@@ -23,6 +23,7 @@ import {
   resolveComposerDispatchMode,
   type ComposerDispatchMode,
 } from "@supaterm/client-runtime/state/composer-dispatch";
+import { useStableCallback } from "../../hooks/useStableCallback";
 import type { ReviewCommentContext } from "../../reviewCommentContext";
 
 /**
@@ -30,7 +31,7 @@ import type { ReviewCommentContext } from "../../reviewCommentContext";
  * Escape cancelling a queued-message edit, ArrowUp editing the latest queued message before
  * prompt history, and list continuation.
  */
-export function composerCommandKeyHandler(input: {
+export function useComposerCommandKey(input: {
   readonly keybindings: ChatComposerProps["keybindings"];
   readonly sendShortcut: ChatComposerProps["settings"]["sendShortcut"];
   readonly routeKind: ChatComposerProps["routeKind"];
@@ -123,11 +124,7 @@ export function composerCommandKeyHandler(input: {
     onEditLatestQueuedMessage,
     onCancelQueuedMessageEdit,
   } = input;
-  // Entries are built on the keypress, not per render: the timeline changes
-  // on every streamed delta and ArrowUp is rare.
-  // The composer persists across threads. A recall from thread A must not
-  // be treated as active in thread B, where the text-match fallback could
-  // otherwise turn B's own draft into a browsing position.
+  // A recall from another thread must not consume the current draft as prompt history.
   const promptHistoryTargetKey = composerTargetKey(composerDraftTarget);
 
   const replacePromptFromHistory = (nextPrompt: string) => {
@@ -293,9 +290,9 @@ export function composerCommandKeyHandler(input: {
   };
 
   return {
-    onComposerCommandKey,
-    acceptPromptSuggestion: () => {
+    onComposerCommandKey: useStableCallback(onComposerCommandKey),
+    acceptPromptSuggestion: useStableCallback(() => {
       if (promptSuggestion !== null) replacePromptFromHistory(promptSuggestion.text);
-    },
+    }),
   };
 }

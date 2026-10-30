@@ -11,6 +11,7 @@ import { act, fakeTimers, render } from "../../../test/render";
 import { useThreadFind } from "./useThreadFind";
 import { orchestrationEnvironment } from "~/state/orchestration";
 import { requestThreadFindOpen } from "./threadFindActionBus";
+import { closeThreadFind } from "./threadFindStore";
 
 const queries = vi.hoisted(() => ({
   results: new Map<string, OrchestrationV2SearchThreadResult>(),
@@ -73,6 +74,7 @@ function Probe({
   return null;
 }
 function setup() {
+  closeThreadFind("root");
   queries.results.clear();
   queries.pending = false;
   threadDetail.content = undefined;

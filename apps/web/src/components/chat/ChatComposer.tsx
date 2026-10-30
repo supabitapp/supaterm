@@ -127,7 +127,7 @@ import { useComposerStash } from "./useComposerStash";
 import { useComposerContextImport } from "./useComposerContextImport";
 import { useComposerAttachmentIntake } from "./useComposerAttachmentIntake";
 import { ComposerControlsBar } from "./ComposerControlsBar";
-import { composerCommandKeyHandler } from "./composerCommandKey";
+import { useComposerCommandKey } from "./composerCommandKey";
 import { useNextPromptSuggestion } from "./useNextPromptSuggestion";
 import { useInputsChanged, useInputsChangedWhileActive } from "./useInputsChanged";
 import { useComposerMultilinePrompt } from "./useComposerMultilinePrompt";
@@ -1077,6 +1077,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     isRevertingCheckpointRef.current = isRevertingCheckpoint;
   });
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Listen for native-menu and keyboard paste-as-text actions while this composer owns input.
   useEffect(() => {
     const armPasteAsTextShortcut = () => {
       // Electron can deliver its native menu action just before the paste
@@ -1495,16 +1496,21 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     setProviderInputSubmissionError(null);
     setIsDragOverComposer(false);
   }
-  const editorResetTargetRef = useRef({ draftId, activeThreadId });
-  useEffect(() => {
-    const previous = editorResetTargetRef.current;
-    if (previous.draftId === draftId && previous.activeThreadId === activeThreadId) return;
-    editorResetTargetRef.current = { draftId, activeThreadId };
-    const { cursor, trigger } = composerStateAtPromptEnd(promptRef.current, isLiteralPendingAnswer);
+  const editorSessionKey = `${draftId ?? ""}:${activeThreadId ?? ""}:${isLiteralPendingAnswer}`;
+  const [shownEditorSessionKey, setShownEditorSessionKey] = useState(editorSessionKey);
+  if (shownEditorSessionKey !== editorSessionKey) {
+    setShownEditorSessionKey(editorSessionKey);
+    const pendingAnswer = activePendingProgress?.customAnswer;
+    const { cursor, trigger } = composerStateAtPromptEnd(
+      typeof pendingAnswer === "string" ? pendingAnswer : prompt,
+      isLiteralPendingAnswer,
+    );
     setComposerCursor(cursor);
     resetComposerTrigger(trigger);
-  }, [draftId, activeThreadId, isLiteralPendingAnswer, promptRef, resetComposerTrigger]);
+    setComposerHighlightedItemId(null);
+  }
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Measure the committed composer form and observe width changes for its compact footer.
   useLayoutEffect(() => {
     const composerForm = composerFormRef.current;
     if (!composerForm) return;
@@ -1537,6 +1543,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     });
   }, [composerFooterHasWideActions]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Persist local image File bytes for draft recovery, cancelling stale writes after a draft switch.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -2222,7 +2229,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       ? { text: nextPrompt.suggestion, dismiss: nextPrompt.dismiss }
       : null;
 
-  const { onComposerCommandKey, acceptPromptSuggestion } = composerCommandKeyHandler({
+  const { onComposerCommandKey, acceptPromptSuggestion } = useComposerCommandKey({
     readAttachments,
     keybindings,
     sendShortcut: settings.sendShortcut,

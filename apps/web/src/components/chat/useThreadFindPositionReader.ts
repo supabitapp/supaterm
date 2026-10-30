@@ -39,6 +39,7 @@ export function useThreadFindPositionReader({
 }) {
   // Layout effect so a find opened right after a thread switch reads this viewport.
   const scope = usePaneScope()?.paneId ?? "root";
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Register the committed viewport reader for this pane and unregister it before a replacement mounts.
   useLayoutEffect(() => {
     if (!timelineViewportElement) return;
     const read: ThreadFindPositionReader = (query) => {
