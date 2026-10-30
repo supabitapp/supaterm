@@ -87,6 +87,9 @@ Supaterm keeps conversation history and file diffs, but Antigravity cannot rewin
 its conversation. Reverting a thread or editing and resubmitting an earlier turn
 is unavailable. Continue with a follow-up message or start a new thread.
 
+Manual context compaction is unavailable through Antigravity's ACP runtime, even
+though its CLI has `/compact`. Start a new thread when you need a fresh context.
+
 ### Skills and attachments
 
 Put project skills in `.agents/skills`. Supaterm also reads `.gemini/skills` and the
