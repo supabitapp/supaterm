@@ -3,6 +3,7 @@ import { expect, it } from "@effect/vitest";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
+import * as Layer from "effect/Layer";
 import * as ServerConfig from "../config.ts";
 import { pruneExpiredReplayMarkers } from "./replayMarkers.ts";
 
@@ -29,7 +30,10 @@ it.effect("prunes expired replay markers while preserving live proofs and unrela
       ["dpop-proof-live.bin", "dpop-proof-temp.bin.tmp", "ordinary-secret.bin"].toSorted(),
     );
   }).pipe(
-    Effect.provide(ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-replay-marker-" })),
-    Effect.provide(NodeServices.layer),
+    Effect.provide(
+      ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-replay-marker-" }).pipe(
+        Layer.provideMerge(NodeServices.layer),
+      ),
+    ),
   ),
 );
