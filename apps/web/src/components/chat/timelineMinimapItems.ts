@@ -1,5 +1,6 @@
 import type { MessageId, ThreadPinnedMessage } from "@supaterm/contracts";
 import { parseThreadLinkHref } from "@supaterm/shared/threadLinks";
+import { isAttachmentOnlyBootstrapPrompt } from "@supaterm/shared/composerContextReferences";
 import type { Nodes } from "mdast";
 import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
@@ -34,7 +35,7 @@ export function deriveTimelineMinimapItems(
     items.push({
       id: row.id,
       rowIndex: index,
-      userText: row.message.text,
+      userText: isAttachmentOnlyBootstrapPrompt(row.message.text) ? "" : row.message.text,
       assistantText:
         turnPin?.pin.role === "assistant"
           ? turnPin.text

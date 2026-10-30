@@ -5,6 +5,7 @@ import * as SqlClient from "effect/sql/SqlClient";
 import Migration0001 from "./Migrations/001_Baseline.ts";
 import Migration0002 from "./Migrations/002_ThreadMessageSearch.ts";
 import Migration0003 from "./Migrations/003_ActiveTurnItemIndexes.ts";
+import Migration0004 from "./Migrations/004_ExcludeAttachmentPlaceholdersFromSearch.ts";
 
 /**
  * Add a schema change as a new entry with the next id. Never edit, renumber, or
@@ -15,6 +16,7 @@ const migrationEntries = [
   [1, "Baseline", Migration0001],
   [2, "ThreadMessageSearch", Migration0002],
   [3, "ActiveTurnItemIndexes", Migration0003],
+  [4, "ExcludeAttachmentPlaceholdersFromSearch", Migration0004],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);

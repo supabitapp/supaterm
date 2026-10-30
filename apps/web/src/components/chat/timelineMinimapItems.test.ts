@@ -1,5 +1,6 @@
 import { MessageId, RunId, ThreadId, TurnItemId } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
+import { ATTACHMENT_ONLY_BOOTSTRAP_PROMPT } from "@supaterm/shared/composerContextReferences";
 
 import type { TimelineEntry } from "../../session-logic";
 import { deriveMessagesTimelineRows } from "./MessagesTimeline.logic";
@@ -61,6 +62,40 @@ describe("deriveTimelineMinimapItems", () => {
       }),
     ]);
   });
+
+  it.each(["", "Ultrathink:\n"])(
+    "omits bootstrap text from the minimap label and tooltip (%j)",
+    (prefix) => {
+      const at = "2026-10-01T00:00:00Z";
+      const items = deriveTimelineMinimapItems(
+        [
+          {
+            kind: "message",
+            id: "image-only",
+            createdAt: at,
+            showAssistantMeta: false,
+            showAssistantCopyButton: false,
+            assistantCopyStreaming: false,
+            message: {
+              id: MessageId.make("image-only"),
+              role: "user",
+              text: prefix + ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
+              runId: null,
+              streaming: false,
+              createdAt: at,
+              updatedAt: at,
+            },
+          },
+        ],
+        [],
+        [],
+      );
+      expect(items).toEqual([
+        { id: "image-only", rowIndex: 0, userText: "", assistantText: null, pin: null },
+      ]);
+      expect(resolveTimelineMinimapPreview(items[0]!)?.userText).toBeNull();
+    },
+  );
 });
 
 describe("resolveTimelineMinimapPreview", () => {
