@@ -455,10 +455,6 @@ export function terminalNavigationShortcutData(
     return null;
   }
 
-  if (event.ctrlKey && !event.metaKey && !event.altKey) {
-    return moveWord;
-  }
-
   if (event.altKey && !event.metaKey && !event.ctrlKey) {
     return moveWord;
   }
