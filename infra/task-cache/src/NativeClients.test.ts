@@ -3,9 +3,13 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as NativeClients from "./NativeClients.ts";
 
-const tokenDigest = "210eb3d2c67a7207923e1999751300a87a2dd22839b258b80c3d805a6fe64984";
+const token = "fixture-token-012345678901234567890123456789";
+const tokenDigest = Array.from(
+  new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token))),
+  (byte) => byte.toString(16).padStart(2, "0"),
+).join("");
 const auth = (name: string) => ({
-  authorization: `Basic ${btoa(`${name}:fixture-token-012345678901234567890123456789`)}`,
+  authorization: `Basic ${btoa(`${name}:${token}`)}`,
 });
 const key = `ios/development/${"a".repeat(40)}`;
 const base = `https://cache.example${NativeClients.routePrefix}${key}`;
