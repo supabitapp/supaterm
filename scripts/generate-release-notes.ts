@@ -11,6 +11,7 @@ import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
+import * as Stream from "effect/Stream";
 import { Command, Flag } from "effect/cli";
 import { FetchHttpClient, HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
@@ -63,9 +64,21 @@ class EmptyReleaseRangeError extends Schema.TaggedError<EmptyReleaseRangeError>(
   { range: Schema.String },
 ) {}
 
+class CommandFailedError extends Schema.TaggedError<CommandFailedError>()("CommandFailedError", {
+  command: Schema.String,
+  exitCode: Schema.Number,
+  stdout: Schema.String,
+  stderr: Schema.String,
+}) {
+  override get message(): string {
+    return `${this.command} exited with code ${this.exitCode}: ${this.stderr.trim()}`;
+  }
+}
+
 interface ReleaseCommit {
   readonly subject: string;
-  readonly authorName: string;
+  /** Absent on merge commits, whose git author only merged the PR. */
+  readonly authorName?: string;
 }
 
 const PullRequest = Schema.Struct({
@@ -116,7 +129,8 @@ export function parseReleaseCommits(log: string): ReadonlyArray<ReleaseCommit> {
     if (subject === "") return [];
     const number = MERGE_COMMIT_SUBJECT.exec(subject)?.[1];
     const title = body.trim().split("\n")[0]?.trim();
-    return [{ subject: number && title ? `${title} (#${number})` : subject, authorName }];
+    if (number && title) return [{ subject: `${title} (#${number})` }];
+    return [{ subject, authorName }];
   });
 }
 
@@ -167,12 +181,12 @@ export function countContributors(
     const number = pullRequestNumber(commit.subject);
     const author = number === undefined ? undefined : pullRequests.get(number)?.author;
     if (!author) {
-      directAuthors.push(commit.authorName);
+      if (commit.authorName) directAuthors.push(commit.authorName);
       continue;
     }
     if (author.__typename === "Bot" || author.login.endsWith("[bot]")) continue;
     people.add(author.login);
-    prAuthorNames.add(commit.authorName);
+    if (commit.authorName) prAuthorNames.add(commit.authorName);
     if (author.name) prAuthorNames.add(author.name);
   }
   for (const name of directAuthors) {
@@ -197,8 +211,20 @@ const run = Effect.fn("generateReleaseNotes.run")(function* (
   args: ReadonlyArray<string>,
 ) {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-  return yield* spawner.string(ChildProcess.make(command, args));
-});
+  const child = yield* spawner.spawn(ChildProcess.make(command, args));
+  const [stdout, stderr, exitCode] = yield* Effect.all(
+    [
+      Stream.mkString(Stream.decodeText(child.stdout)),
+      Stream.mkString(Stream.decodeText(child.stderr)),
+      Effect.map(child.exitCode, Number),
+    ],
+    { concurrency: "unbounded" },
+  );
+  if (exitCode !== 0) {
+    return yield* new CommandFailedError({ command, exitCode, stdout, stderr });
+  }
+  return stdout;
+}, Effect.scoped);
 
 const decodeJson = <S extends Schema.Top>(schema: S) =>
   Schema.decodeUnknownEffect(Schema.fromJsonString(schema));
@@ -243,7 +269,10 @@ const readPullRequests = Effect.fn("generateReleaseNotes.readPullRequests")(func
         `owner=${owner}`,
         "-f",
         `name=${name}`,
-      ]),
+      ]).pipe(
+        // gh exits 1 when a number in the batch is not a PR here, such as an issue, yet still prints the rest.
+        Effect.catchTags({ CommandFailedError: (error) => Effect.succeed(error.stdout) }),
+      ),
     );
     for (const [alias, pullRequest] of Object.entries(response.data.repository)) {
       if (pullRequest) pullRequests.set(Number(alias.slice(2)), pullRequest);
@@ -336,7 +365,6 @@ const command = Command.make(
     Effect.gen(function* () {
       // The header counts every commit in the range; the summary skips mobile-only work.
       const allCommits = yield* readCommits(previousTag, ref);
-      // The spawner ignores exit codes, so a failed git log shows up as an empty range.
       if (allCommits.length === 0) {
         return yield* new EmptyReleaseRangeError({ range: `${previousTag}..${ref}` });
       }

@@ -33,7 +33,7 @@ it("reads merge commits as their PR title and number, like squashed ones", () =>
   ].join("");
 
   assert.deepStrictEqual(parseReleaseCommits(log), [
-    { subject: "chore(mobile): remove the end-to-end suite (#603)", authorName: "Khoi" },
+    { subject: "chore(mobile): remove the end-to-end suite (#603)" },
     { subject: "fix(web): pinned messages scroll into view (#592)", authorName: "Khoi" },
     { subject: "new skill", authorName: "Khoi" },
     { subject: "Merge pull request #7 from fork/branch", authorName: "Khoi" },
@@ -62,6 +62,18 @@ it("counts each person once and leaves out bots", () => {
   assert.equal(countContributors(commits, pullRequests), 4);
 });
 
+it("does not take whoever merged a PR for its author", () => {
+  const commits = parseReleaseCommits(
+    "Merge pull request #8 from ada/fix\x1fGrace Hopper\x1ffix(web): contributed fix\x1e\n" +
+      "fix: direct push by the maintainer who merged #8\x1fGrace Hopper\x1f\x1e",
+  );
+  const pullRequests = new Map([
+    [8, pullRequest({ __typename: "User", login: "ada", name: "Ada Lovelace" })],
+  ]);
+
+  assert.equal(countContributors(commits, pullRequests), 2);
+});
+
 it("leaves mobile-only scopes out and keeps shared ones", () => {
   const subjects = {
     "fix(mobile): a": false,
@@ -72,7 +84,7 @@ it("leaves mobile-only scopes out and keeps shared ones", () => {
     "fix(server): e": true,
   };
   for (const [subject, kept] of Object.entries(subjects)) {
-    assert.equal(isReleaseNoteCommit({ subject, authorName: "" }), kept, subject);
+    assert.equal(isReleaseNoteCommit({ subject }), kept, subject);
   }
 });
 

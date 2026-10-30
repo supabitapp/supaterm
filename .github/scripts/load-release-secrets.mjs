@@ -56,9 +56,9 @@ const mask = (value) =>
 for (const name of names) {
   const value = secrets[name];
   mask(value);
-  // Network errors name a URL's bare host, which the whole-value mask does not cover.
+  // Network errors name a URL's bare hostname, which the whole-value mask does not cover.
   const url = URL.parse(value);
-  if (url?.protocol === "https:" || url?.protocol === "http:") mask(url.host);
+  if (url?.protocol === "https:" || url?.protocol === "http:") mask(url.hostname);
   const delimiter = `fnox_${NodeCrypto.randomUUID()}`;
   NodeFS.appendFileSync(process.env.GITHUB_ENV, `${name}<<${delimiter}\n${value}\n${delimiter}\n`);
 }
