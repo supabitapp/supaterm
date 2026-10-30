@@ -105,7 +105,6 @@ import {
   type ChatFileAttachment,
   isProviderNativeSubagentThread,
   type EnvironmentId,
-  type MessageId,
   type ModelSelection,
   type PreviewAnnotationPayload,
   type ServerProvider,
@@ -1067,35 +1066,6 @@ export default function ChatView(props: ChatViewProps) {
       ? null
       : visibleThreadError;
 
-  const [timelineAnchor, setTimelineAnchor] = useState<{
-    readonly threadKey: string | null;
-    readonly messageId: MessageId | null;
-  }>({ threadKey: activeThreadKey, messageId: null });
-  if (timelineAnchor.threadKey !== activeThreadKey) {
-    setTimelineAnchor({ threadKey: activeThreadKey, messageId: null });
-  }
-  const timelineAnchorMessageId = timelineAnchor.messageId;
-  // LegendList sizes the anchored end-space filler for the geometry at anchor
-  // time and never recomputes it, so a lingering anchor leaves stale filler
-  // height behind the composer — phantom scroll range on threads whose content
-  // fits.
-  const anchorRunSettled = (() => {
-    if (timelineAnchorMessageId === null) return false;
-    const anchorRun = serverProjection?.runs.find(
-      (run) => run.userMessageId === timelineAnchorMessageId,
-    );
-    if (anchorRun === undefined) return false;
-    return (
-      anchorRun.status !== "preparing" &&
-      anchorRun.status !== "queued" &&
-      anchorRun.status !== "starting" &&
-      anchorRun.status !== "running" &&
-      anchorRun.status !== "waiting"
-    );
-  })();
-  if (anchorRunSettled) {
-    setTimelineAnchor({ threadKey: activeThreadKey, messageId: null });
-  }
   const activeRightPanelKind = useRightPanelStore((state) =>
     selectActiveRightPanel(state.byThreadKey, activeThreadRef),
   );
@@ -2235,6 +2205,7 @@ export default function ChatView(props: ChatViewProps) {
     shortcuts: timelineFollowShortcuts,
     showScrollToBottom,
     timelineLiveFollowEnabled,
+    timelineAnchorMessageId,
     cancelPositionRestoreRef,
     cancelTimelineLiveFollowForUserNavigationStable,
     onComposerPageScrollKeyDownStable,
@@ -2253,15 +2224,12 @@ export default function ChatView(props: ChatViewProps) {
     composerTimelineInset,
     routeThreadKey,
     activeThreadKey,
-    activeThreadId: activeThread?.id,
     isServerThread,
     serverProjection,
     threadStatus,
     activeActivityRun,
     activeRunningTurnId,
     timelineEntries,
-    timelineAnchorMessageId,
-    setTimelineAnchor,
   });
 
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- schedules a frame to focus the composer DOM element when a thread opens with the terminal closed

@@ -729,6 +729,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   const restoringAlwaysRender =
     restoringThreadPosition && restoreRowIndex >= 0 ? { indices: [restoreRowIndex] } : undefined;
   const viewportRef = useRef<TimelineViewport | null>(null);
+  const [timelineViewport, setTimelineViewport] = useState<TimelineViewport | null>(null);
   useTimelinePositionRestore({
     viewportRef,
     listRef,
@@ -804,7 +805,11 @@ const ConversationTimeline = memo(function ConversationTimeline({
     setFullscreenAppRowId((current) => (fullscreen ? rowId : current === rowId ? null : current));
   };
   const alwaysRenderIndices = restoringAlwaysRender?.indices ?? [];
+  const firstMessageRow = rows.find(isMessageRow);
+  const lastMessageRow = rows.findLast(isMessageRow);
   const alwaysRenderKeys = [
+    ...(firstMessageRow ? [firstMessageRow.id] : []),
+    ...(lastMessageRow && lastMessageRow !== firstMessageRow ? [lastMessageRow.id] : []),
     ...new Set(
       [...playingAudioRows].flatMap(([audio, rowId]) => (audio.isConnected ? [rowId] : [])),
     ),
@@ -1139,15 +1144,19 @@ const ConversationTimeline = memo(function ConversationTimeline({
     registerTimeline?.(scrollNode);
     const viewport = scrollNode ? attachTimelineViewport(scrollNode, isPaneInputOwner) : null;
     viewportRef.current = viewport;
-    const detach = viewport ? onViewportAttach?.(viewport) : undefined;
+    setTimelineViewport(viewport);
     return () => {
-      detach?.();
+      setTimelineViewport((current) => (current === viewport ? null : current));
       viewport?.dispose();
       if (viewportRef.current === viewport) viewportRef.current = null;
       registerTimeline?.(null);
       if (listRef.current === list) listRef.current = null;
     };
   });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Register this viewport with its thread's follow controller and detach the subscription when either owner changes.
+  useLayoutEffect(() => {
+    if (timelineViewport) return onViewportAttach?.(timelineViewport);
+  }, [onViewportAttach, timelineViewport]);
   const endFollowAllowed = !(
     citationPositioning ||
     (restoringThreadPosition && rememberedPosition?.atEnd === false) ||
@@ -1436,6 +1445,10 @@ function TimelineHistoryControl(props: MessagesTimelineHistoryControls) {
       </div>
     </div>
   );
+}
+
+function isMessageRow(row: MessagesTimelineRow) {
+  return row.kind === "message" && row.message.role !== "system";
 }
 
 function keyExtractor(item: MessagesTimelineRow) {
