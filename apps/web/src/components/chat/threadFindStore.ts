@@ -9,7 +9,7 @@ import {
   messagePhrase,
   messageSearchTokens,
 } from "@supaterm/shared/paletteSearch";
-import { create } from "zustand";
+import { create, useStore, type StoreApi } from "zustand";
 import { useChatPaneStore } from "../../chatPanes/store";
 import type { ThreadFindPositionReader, ThreadFindStart } from "./threadFind";
 
@@ -50,7 +50,7 @@ const scopedStores = new Map<string, ReturnType<typeof makeStore>>();
 function currentThreadFindScope(): string {
   return useChatPaneStore.getState().layout?.focusedPaneId ?? "root";
 }
-export function getThreadFindStore(scope = currentThreadFindScope()) {
+export function getThreadFindStore(scope = currentThreadFindScope()): StoreApi<ThreadFindState> {
   if (scope === "root") return useThreadFindStore;
   let store = scopedStores.get(scope);
   if (!store) {
@@ -58,6 +58,10 @@ export function getThreadFindStore(scope = currentThreadFindScope()) {
     scopedStores.set(scope, store);
   }
   return store;
+}
+
+export function useIsThreadFindActive(threadKey: string | null, scope: string): boolean {
+  return useStore(getThreadFindStore(scope), (state) => state.threadKey === threadKey);
 }
 interface ThreadFindTimeline {
   readonly threadKey: string;

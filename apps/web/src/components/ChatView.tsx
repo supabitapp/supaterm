@@ -301,7 +301,7 @@ import type { MessagesTimelineHistoryControls } from "./chat/MessagesTimeline";
 import type { PinnableProjectedItem } from "./chat/PinnedMessages";
 import type { MessageJump, MessageJumpFailure } from "@supaterm/client-runtime/message-jump";
 import { useThreadMessageNavigation } from "./chat/useThreadMessageNavigation";
-import { getThreadFindStore, openThreadFindOnQuery } from "./chat/threadFindStore";
+import { openThreadFindOnQuery, useIsThreadFindActive } from "./chat/threadFindStore";
 import { ThreadTimeline } from "./chat/ThreadTimeline";
 import { ProviderSubagentBar } from "./chat/ProviderSubagentBar";
 import { getTriggerDisplayModelName } from "./chat/providerIconUtils";
@@ -2830,9 +2830,7 @@ export default function ChatView(props: ChatViewProps) {
     ? resolveProviderSkillsForCwd(activeProviderStatus, gitCwd)
     : EMPTY_PROVIDER_SKILLS;
   const threadFindControlsRef = useRef<ThreadFindControls | null>(null);
-  const isThreadFindActive = getThreadFindStore(paneScope?.paneId ?? "root")(
-    (state) => state.threadKey === activeThreadKey,
-  );
+  const isThreadFindActive = useIsThreadFindActive(activeThreadKey, paneScope?.paneId ?? "root");
   const openThreadFind = () => threadFindControlsRef.current?.open();
   const openThreadFindStable = useStableCallback(openThreadFind);
   const closeThreadFind = () => threadFindControlsRef.current?.close();

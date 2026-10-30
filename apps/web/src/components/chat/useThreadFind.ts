@@ -9,6 +9,7 @@ import {
   useState,
   type RefObject,
 } from "react";
+import { useStore } from "zustand";
 import { useStableCallback } from "~/hooks/useStableCallback";
 import { orchestrationEnvironment } from "~/state/orchestration";
 import { useThreadProjection } from "~/state/entities";
@@ -73,7 +74,7 @@ export function useThreadFind({
   const threadKey = thread ? scopedThreadKey(thread) : null;
   const scope = usePaneScope()?.paneId ?? "root";
   const store = getThreadFindStore(scope);
-  const state = store();
+  const state = useStore(store);
   const setState = store.setState;
   const notifyOpen = useEffectEvent(() => onOpen?.());
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Listen for explicit open actions from every entrypoint while this pane owns the find controls.

@@ -11,7 +11,8 @@ import { act, fakeTimers, render } from "../../../test/render";
 import { useThreadFind } from "./useThreadFind";
 import { orchestrationEnvironment } from "~/state/orchestration";
 import { requestThreadFindOpen } from "./threadFindActionBus";
-import { closeThreadFind } from "./threadFindStore";
+import { closeThreadFind, openThreadFind, useIsThreadFindActive } from "./threadFindStore";
+import { useStableCallback } from "../../hooks/useStableCallback";
 
 const queries = vi.hoisted(() => ({
   results: new Map<string, OrchestrationV2SearchThreadResult>(),
@@ -83,6 +84,37 @@ function setup() {
   threadDetail.content = undefined;
   vi.clearAllMocks();
 }
+
+function FindVisibilityProbe({ scope, label }: { scope: string; label: string }) {
+  const active = useIsThreadFindActive("environment:a:shared-thread", scope);
+  const toggle = useStableCallback(() =>
+    active ? closeThreadFind(scope) : openThreadFind("environment:a:shared-thread", scope),
+  );
+  return (
+    <button type="button" onClick={toggle}>
+      {label}: {active ? "open" : "closed"}
+    </button>
+  );
+}
+
+it("keeps compiled Find visibility subscribed through rerenders and pane changes", async () => {
+  closeThreadFind("visibility-left");
+  closeThreadFind("visibility-right");
+  await using screen = await render(<FindVisibilityProbe scope="visibility-left" label="First" />);
+  await screen.rerender(<FindVisibilityProbe scope="visibility-left" label="Second" />);
+  await act(() => openThreadFind("environment:a:shared-thread", "visibility-left"));
+  await expect.element(screen.getByRole("button", { name: "Second: open" })).toBeVisible();
+  await screen.getByRole("button", { name: "Second: open" }).click();
+  await expect.element(screen.getByRole("button", { name: "Second: closed" })).toBeVisible();
+  await act(() => openThreadFind("environment:a:shared-thread", "visibility-right"));
+  await expect.element(screen.getByRole("button", { name: "Second: closed" })).toBeVisible();
+  await screen.rerender(<FindVisibilityProbe scope="visibility-right" label="Right" />);
+  await expect.element(screen.getByRole("button", { name: "Right: open" })).toBeVisible();
+  await act(() => closeThreadFind("visibility-left"));
+  await expect.element(screen.getByRole("button", { name: "Right: open" })).toBeVisible();
+  await act(() => closeThreadFind("visibility-right"));
+  await expect.element(screen.getByRole("button", { name: "Right: closed" })).toBeVisible();
+});
 
 describe("V2 find state", () => {
   function messageResult(index: number, snapshotSequence = 9): OrchestrationV2SearchThreadResult {
