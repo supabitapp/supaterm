@@ -30,6 +30,7 @@ import { resolveDiscoveredServerUrl } from "../../browser/browserTargetResolver"
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { confirmTerminalClose } from "../../lib/terminalCloseConfirm";
 import { findReusableProjectScriptTerminal } from "../../lib/projectScriptTerminal";
+import { encodeTerminalScriptPaste } from "../../terminal/scriptPaste";
 import { type TerminalContextSelection } from "../../lib/terminalContext";
 import { useTerminalUiStateStore } from "../../terminalUiStateStore";
 import {
@@ -196,7 +197,8 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
       worktreePath?: string | null;
       preferNewTerminal?: boolean;
       rememberAsLastInvoked?: boolean;
-      shellHistory?: "preserve" | "suppress";
+      /** Chat code blocks enter the shell as the user would; project scripts stay out of history. */
+      shellInput?: "typed" | "pasted";
     },
   ) => {
     if (!hasTerminalWriteAccess() || !activeThreadId || !activeProject || !activeThread) return;
@@ -257,12 +259,25 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
       return;
     }
 
-    const writeResult = await terminalActions.writeToTerminal(
-      targetTerminalId,
-      options?.shellHistory === "preserve"
+    let data =
+      options?.shellInput === "typed"
         ? `${script.command}\r`
-        : projectScriptTerminalInput(script.command),
-    );
+        : projectScriptTerminalInput(script.command);
+    if (options?.shellInput === "pasted") {
+      try {
+        data = await encodeTerminalScriptPaste(
+          { ...activeThreadRef, terminalId: targetTerminalId },
+          script.command,
+        );
+      } catch (error) {
+        setThreadError(
+          activeThreadId,
+          error instanceof Error ? error.message : "Failed to prepare script paste.",
+        );
+        return;
+      }
+    }
+    const writeResult = await launched.write(data);
     if (!writeResult) return;
     if (writeResult._tag === "Failure") {
       if (!isAtomCommandInterrupted(writeResult)) {
@@ -316,7 +331,10 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
         icon: "play",
         runOnWorktreeCreate: false,
       },
-      { rememberAsLastInvoked: false, shellHistory: "preserve" },
+      {
+        rememberAsLastInvoked: false,
+        shellInput: command.includes("\n") ? "pasted" : "typed",
+      },
     );
   };
   const runShellCommandStable = useStableCallback(runShellCommand);

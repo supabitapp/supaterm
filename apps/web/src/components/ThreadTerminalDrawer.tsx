@@ -59,6 +59,7 @@ import {
   type GhosttyTerminalSurfaceOptions,
 } from "~/terminal/ghostty/surface";
 import { type GhosttyColor, type GhosttyTheme } from "~/terminal/ghostty/core";
+import { registerTerminalScriptPasteSurface } from "~/terminal/scriptPaste";
 import { useOpenInPreferredEditor } from "../editorPreferences";
 import { resolvePathLinkTarget } from "@supaterm/shared/fileLinks";
 import { isTerminalUrl } from "../terminal-links";
@@ -692,6 +693,9 @@ function TerminalSessionViewport({
       if (latestSession.error !== null) writeSystemMessage(terminal, latestSession.error);
       synchronizedStatusRef.current = "closed";
       synchronizeTerminalStatus(terminal, latestSession.status, latestSession.version);
+      setupCleanups.push(
+        registerTerminalScriptPasteSurface({ environmentId, threadId, terminalId }, terminal),
+      );
       if (
         hasTerminalWriteAccess() &&
         visibleRef.current &&
@@ -1083,7 +1087,7 @@ function TerminalSessionViewport({
         mount.focus({ preventScroll: true });
       }
     };
-  }, [cwd, environmentId, terminalId]);
+  }, [cwd, environmentId, threadId, terminalId]);
 
   useEffect(() => {
     const terminal = terminalRef.current;

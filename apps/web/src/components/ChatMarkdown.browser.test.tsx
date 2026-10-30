@@ -91,10 +91,11 @@ function renderText(text: string, props: Partial<Parameters<typeof ChatMarkdown>
   return render(<ChatMarkdown cwd="/tmp/project" text={text} {...props} />);
 }
 
-function buttonsLabelled(container: HTMLElement, label: string) {
-  return [...container.querySelectorAll<HTMLButtonElement>("button")].filter(
-    (button) => button.getAttribute("aria-label") === label,
-  );
+function buttonsLabelled(container: HTMLElement, label: string | RegExp) {
+  return [...container.querySelectorAll<HTMLButtonElement>("button")].filter((button) => {
+    const ariaLabel = button.getAttribute("aria-label") ?? "";
+    return typeof label === "string" ? ariaLabel === label : label.test(ariaLabel);
+  });
 }
 
 describe("ChatMarkdown favicon privacy", () => {
@@ -145,16 +146,15 @@ describe("ChatMarkdown streaming", () => {
       "````bash\necho four\n````",
       "- Command\n\n  ```bash\n  echo list\n  ```",
       "```bash\r\necho crlf\r\n```\r",
+      "```bash\necho trailing blank\n\n```",
     ]) {
       await rerender(message(text));
       expect(runButtons()).toHaveLength(1);
     }
 
     for (const text of [
-      "```bash\necho one\necho two\n```",
       "```typescript\necho hello\n```",
       "```bash\n\n```",
-      "```bash\necho hello\n\n```",
       "```bash\necho hello\\\n```",
       "```bash\necho safe \u202e#\n```",
       "```bash\necho incomplete",
@@ -163,8 +163,72 @@ describe("ChatMarkdown streaming", () => {
       '<pre><code class="language-bash">echo html</code></pre>',
     ]) {
       await rerender(message(text));
-      expect(runButtons()).toHaveLength(0);
+      expect(buttonsLabelled(container, /^Run /)).toHaveLength(0);
     }
+  });
+
+  describe("multi-line shell scripts", () => {
+    const onRunShellCommand = vi.fn();
+    const script = (code: string) => (
+      <ChatMarkdown
+        cwd="/tmp/project"
+        text={`\`\`\`bash\n${code}\n\`\`\``}
+        onRunShellCommand={onRunShellCommand}
+      />
+    );
+    const dialog = () => document.querySelector('[role="alertdialog"]');
+    const dialogButton = (label: string) =>
+      [...(dialog()?.querySelectorAll("button") ?? [])].find(
+        (button) => button.textContent === label,
+      );
+
+    async function openDialog(code: string) {
+      setup();
+      onRunShellCommand.mockReset();
+      const screen = await render(script(code));
+      const [runButton] = buttonsLabelled(screen.container, /^Run \d+ lines in terminal$/);
+      await act(async () => runButton!.click());
+      return screen;
+    }
+
+    it("runs the script only after the dialog confirms it", async () => {
+      const code = "vp i\ncat > .env <<'EOF'\nA=1\nEOF";
+      await using _screen = await openDialog(code);
+      await vi.waitFor(() => expect(dialog()?.textContent).toContain("Run 4 lines in terminal?"));
+      expect(onRunShellCommand).not.toHaveBeenCalled();
+
+      await act(async () => dialogButton("Run")!.click());
+      expect(onRunShellCommand).toHaveBeenCalledExactlyOnceWith(code);
+    });
+
+    it("does not run the script when the dialog is cancelled", async () => {
+      await using _screen = await openDialog("echo one\necho two");
+      await vi.waitFor(() => expect(dialogButton("Cancel")).toBeDefined());
+      await act(async () => dialogButton("Cancel")!.click());
+      await vi.waitFor(() => expect(dialog()).toBeNull());
+      expect(onRunShellCommand).not.toHaveBeenCalled();
+    });
+
+    it("drops the confirmation when the script changes while it is open", async () => {
+      await using screen = await openDialog("echo one\necho two");
+      await vi.waitFor(() => expect(dialog()).not.toBeNull());
+      await screen.rerender(script("echo one\necho three"));
+      await vi.waitFor(() => expect(dialog()).toBeNull());
+      await screen.rerender(script("echo one\necho two"));
+      expect(dialog()).toBeNull();
+      expect(onRunShellCommand).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      "echo one\necho two\\",
+      "$ echo one\noutput",
+      "echo one\necho \u202etwo",
+      "echo\tone",
+    ])("does not offer to run %j", async (code) => {
+      setup();
+      await using screen = await render(script(code));
+      expect(buttonsLabelled(screen.container, /^Run /)).toHaveLength(0);
+    });
   });
 
   function spyOnStreamChunks(highlighter: Awaited<ReturnType<typeof getSyntaxHighlighterPromise>>) {
