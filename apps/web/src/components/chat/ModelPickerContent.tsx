@@ -41,6 +41,7 @@ import {
 } from "../ui/combobox";
 import { ModelEsque } from "./providerIconUtils";
 import { isCommandPaletteOpen } from "../../commandPaletteBus";
+import { registerModelPickerContent } from "../../modelPickerVisibility";
 import { primaryServerKeybindingsAtom } from "../../state/server";
 import {
   modelPickerJumpCommandForIndex,
@@ -820,7 +821,15 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
     <TooltipProvider delay={0}>
       <WindowKeyDownListener onKeyDown={onWindowKeyDown} />
       <div
-        ref={pickerContentRef}
+        ref={(element) => {
+          pickerContentRef.current = element;
+          if (!element) return;
+          const unregister = registerModelPickerContent();
+          return () => {
+            pickerContentRef.current = null;
+            unregister();
+          };
+        }}
         className="relative flex max-h-86.5 w-screen max-w-90 flex-row overflow-hidden"
         style={
           isSearching

@@ -1,11 +1,12 @@
 import { ProviderDriverKind, ProviderInstanceId, type ServerProvider } from "@supaterm/contracts";
 import { DEFAULT_RESOLVED_KEYBINDINGS } from "@supaterm/shared/keybindings";
-import { useRef } from "react";
+import { StrictMode, useRef } from "react";
 import { expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 
 import { render } from "../../../test/render";
 import { deriveProviderInstanceEntries } from "../../providerInstances";
+import { isModelPickerOpen } from "../../modelPickerVisibility";
 import "../../index.css";
 import { ModelPickerContent } from "./ModelPickerContent";
 
@@ -63,6 +64,28 @@ function Picker({
     </div>
   );
 }
+
+it("keeps shortcut visibility registered until the last picker root unmounts", async () => {
+  expect(isModelPickerOpen()).toBe(false);
+  const pickers = (showFirst: boolean, showSecond: boolean) => (
+    <StrictMode>
+      {showFirst && <Picker key="first" count={4} activeInstanceId={longInstanceId} />}
+      {showSecond && <Picker key="second" count={1} activeInstanceId={shortInstanceId} />}
+    </StrictMode>
+  );
+  await using screen = await render(pickers(true, true));
+  expect(isModelPickerOpen()).toBe(true);
+  await screen.rerender(pickers(true, true));
+  expect(isModelPickerOpen()).toBe(true);
+  await screen.rerender(pickers(false, true));
+  expect(isModelPickerOpen()).toBe(true);
+  await screen.rerender(pickers(false, false));
+  expect(isModelPickerOpen()).toBe(false);
+  await screen.rerender(pickers(true, false));
+  expect(isModelPickerOpen()).toBe(true);
+  await screen.unmount();
+  expect(isModelPickerOpen()).toBe(false);
+});
 
 it.each([
   { count: 4, activeInstanceId: longInstanceId },
