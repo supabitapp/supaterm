@@ -2537,7 +2537,7 @@ export default function ChatView(props: ChatViewProps) {
     sendInFlightRef,
     setThreadError,
     clearUsageLimitsFor,
-    scheduleComposerFocus,
+    focusComposer: focusComposerStable,
     scrollToEnd,
   });
   const activeThreadHasCompactableConversation = serverVisibleTurnItems.some(
