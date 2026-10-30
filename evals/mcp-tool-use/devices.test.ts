@@ -17,17 +17,10 @@ import {
   makeDeviceTools,
   type ShellCall,
 } from "./devices.ts";
-import {
-  buildBase,
-  buildMessages,
-  cannedOutput,
-  makeSample,
-  McpToolUseCase,
-  shellRequest,
-  supatermSubagentContext,
-  supatermSystemAppend,
-  withDevices,
-} from "./run.ts";
+import { buildBase } from "./claude.ts";
+import { buildMessages, cannedOutput, makeSample, shellRequest, withDevices } from "./world.ts";
+import { McpToolUseCase } from "./types.ts";
+import { supatermSubagentContext, supatermSystemAppend } from "./prompts.ts";
 import { DeviceOperationError, LOCAL_DEVICE_HOST_ID } from "@supaterm/contracts";
 
 const MAC = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
