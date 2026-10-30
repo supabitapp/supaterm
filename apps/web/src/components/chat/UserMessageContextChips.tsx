@@ -27,6 +27,7 @@ import {
 import { PREFERRED_HIGHLIGHTER } from "../../lib/syntaxHighlighting";
 import ChatMarkdown, { type ChatMarkdownContextReference } from "../ChatMarkdown";
 import { ThreadContextChip } from "../ThreadContextChip";
+import { EnvironmentContextChip } from "../EnvironmentContextChip";
 import { MessageCircleIcon, MousePointerClickIcon, PaintbrushIcon } from "@supaterm/icons";
 import { buildExpandedImagePreview } from "./ExpandedImagePreview";
 import { WorkspaceEntryIcon, WorkspaceEntryTooltip } from "./WorkspaceEntryIcon";
@@ -330,6 +331,16 @@ const userMessageContextPresentationRegistry = createContextPresentationRegistry
       render: (record, context) =>
         record.kind === "thread" ? (
           <ThreadContextChip record={record} copyMarkdown={context.copyMarkdown} />
+        ) : (
+          <UnavailableUserMessageContextChip {...context} />
+        ),
+    },
+    {
+      kind: "environment",
+      canRender: (record) => record.kind === "environment",
+      render: (record, context) =>
+        record.kind === "environment" ? (
+          <EnvironmentContextChip record={record} copyMarkdown={context.copyMarkdown} />
         ) : (
           <UnavailableUserMessageContextChip {...context} />
         ),
