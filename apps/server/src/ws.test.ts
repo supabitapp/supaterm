@@ -1,3 +1,10 @@
+import * as SourceControlSignIn from "./sourceControl/SourceControlSignIn.ts";
+import * as SecretRequests from "./secrets/SecretRequests.ts";
+import * as PeerLinkRequests from "./peer/PeerLinkRequests.ts";
+import * as PeerLinks from "./peer/PeerLinks.ts";
+import * as GuestShareService from "./guest/GuestShareService.ts";
+import * as DocumentText from "./provider/DocumentText.ts";
+import * as ScratchThreadPromotion from "./project/ScratchThreadPromotion.ts";
 import * as RelayAccess from "./relay/RelayAccess.ts";
 import * as DirectTunnel from "./relay/DirectTunnel.ts";
 import * as OrchestrationSkills from "./provider/OrchestrationSkills.ts";
@@ -230,7 +237,7 @@ it.effect("resends the snapshot only when the tunnel endpoints change", () =>
       Stream.empty,
       {
         resolveAvailableEditors: () => Effect.succeed([]),
-        resolveFileManagerRevealKind: () => Effect.void,
+        resolveFileManagerRevealKind: () => Effect.undefined,
       },
       Stream.make(Option.none(), Option.some(endpoints), Option.some(endpoints), Option.none()),
     ).pipe(Stream.runCollect);
@@ -255,7 +262,7 @@ it.effect.each([relayAdvertisement, null])(
         Stream.make({ version: 1, type: "relayAdvertisementUpdated", payload }),
         {
           resolveAvailableEditors: () => Deferred.await(sent).pipe(Effect.as(["file-manager"])),
-          resolveFileManagerRevealKind: () => Effect.void,
+          resolveFileManagerRevealKind: () => Effect.undefined,
         },
         Stream.empty,
       ).pipe(
@@ -352,6 +359,7 @@ it.live.each(["thread", "shell"] as const)(
       });
       const items = yield* subscription.pipe(
         Effect.provideService(ThreadManagement.ThreadManagementService, {
+          listActiveSubagentThreadIds: () => Effect.succeed([]),
           streamStoredEventsFrom: (
             input: Parameters<
               ThreadManagement.ThreadManagementService["Service"]["streamStoredEventsFrom"]
@@ -392,6 +400,13 @@ it.live.each(["thread", "shell"] as const)(
 
 // Build the production RPC layer; unrelated capabilities fail if this test calls them.
 const layerUnusedConfigRpcServices = Layer.mergeAll(
+  Layer.mock(SourceControlSignIn.SourceControlSignIn)({}),
+  Layer.mock(SecretRequests.SecretRequests)({}),
+  Layer.mock(PeerLinkRequests.PeerLinkRequests)({}),
+  Layer.mock(PeerLinks.PeerLinks)({}),
+  Layer.mock(GuestShareService.GuestShareService)({}),
+  Layer.mock(DocumentText.DocumentText)({}),
+  Layer.mock(ScratchThreadPromotion.ScratchThreadPromotion)({}),
   Layer.succeed(ShellSyncGeneration.ShellSyncGeneration, { id: "generation:config-test" }),
   Layer.mock(ServerSecretStore.ServerSecretStore)({}),
   Layer.mock(WorkspacePaths.WorkspacePaths)({}),
@@ -511,7 +526,7 @@ it.effect(
               Effect.andThen(Deferred.await(finishDiscovery)),
               Effect.as([]),
             ),
-          resolveFileManagerRevealKind: () => Effect.void,
+          resolveFileManagerRevealKind: () => Effect.undefined,
         }),
         Layer.mock(ProviderRegistry.ProviderRegistry)({
           getProviders: Effect.succeed([]),
@@ -701,7 +716,7 @@ it.effect("thread resume across compacted history keeps message order and final 
         )
       `;
     }
-    assert.equal((yield* maintenance.compactEventStore).deletedEventCount, 1);
+    assert.equal((yield* maintenance.compactEventStore()).deletedEventCount, 1);
 
     const items = yield* subscribeOrchestrationV2Thread({
       threadId,

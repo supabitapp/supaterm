@@ -321,6 +321,12 @@ const make = Effect.gen(function* () {
             ),
           );
           if (intent.taskId !== null) return { taskId: intent.taskId };
+          if (intent.remote === null && !(yield* links.enabled)) {
+            return yield* new OrchestratorMcpFailure({
+              code: "orchestration_error",
+              message: "The pending launch is waiting for Linked environments to be enabled.",
+            });
+          }
           const limits = {
             runtimeMode: intent.runtimeMode,
             interactionMode: intent.interactionMode,

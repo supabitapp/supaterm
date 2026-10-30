@@ -142,12 +142,6 @@ const make = Effect.gen(function* () {
 
   const call: PeerMcpClient["Service"]["call"] = Effect.fn("PeerMcpClient.call")(
     function* (input) {
-      if (!(yield* links.enabled)) {
-        return yield* new OrchestratorMcpFailure({
-          code: "capability_denied",
-          message: PeerLinks.LINKED_ENVIRONMENTS_OFF,
-        });
-      }
       const resolved = yield* links
         .resolve(input.environmentId)
         .pipe(Effect.mapError(fromLinkError));

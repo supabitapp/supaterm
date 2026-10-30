@@ -32,6 +32,7 @@ import {
   type ServedPeer,
 } from "./PeerLinks.testkit.ts";
 import * as PeerMcpClient from "./PeerMcpClient.ts";
+import type * as RelayCompanion from "../relay/RelayCompanion.ts";
 
 const Probe = Schema.Struct({ caller: Schema.String, modes: Schema.String });
 
@@ -76,8 +77,9 @@ const serveB = (descriptor: ExecutionEnvironmentDescriptor) =>
 const makeA = (
   descriptor: ExecutionEnvironmentDescriptor,
   secrets?: typeof ServerSecretStore.layer,
+  companion?: RelayCompanion.RelayCompanion["Service"],
 ) =>
-  layerLinkingEnvironment(descriptor, secrets).pipe(
+  layerLinkingEnvironment(descriptor, secrets, companion).pipe(
     Layer.build,
     Effect.map((context) => ({
       links: Context.get(context, PeerLinks.PeerLinks),
@@ -103,6 +105,48 @@ const probe = (
   });
 
 const linkedSessions = (b: ServedPeer) => b.linkedSessions;
+
+it.effect("keeps the relay identity without storing its temporary loopback route", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const b = yield* serveB(box);
+      const relay = {
+        relayEndpoint: `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.alt/`,
+        relayUrl: "wss://relay.example.test",
+      };
+      const opened: Array<readonly [string, string | undefined]> = [];
+      const open = (address: string, relayUrl?: string) =>
+        Effect.sync(() => {
+          opened.push([address, relayUrl]);
+          return b.url;
+        });
+      const a = yield* makeA(laptop, undefined, {
+        open: (address, _owner, relayUrl) => open(address, relayUrl),
+        close: () => Effect.void,
+        session: Effect.succeed({ open, close: () => Effect.void }),
+      });
+      const pairing = yield* b.auth.issuePairingCredential();
+      const linked = yield* a.links.link({
+        relay,
+        pairingCode: pairing.credential,
+        access: "auto",
+      });
+      expect(linked.urls).toEqual([]);
+      expect(linked.relay).toEqual(relay);
+      const [row] = yield* a.sql<{
+        urls_json: string;
+        relay_json: string;
+      }>`SELECT urls_json, relay_json FROM peer_environment_links`;
+      expect(JSON.parse(row!.urls_json)).toEqual([]);
+      expect(JSON.parse(row!.relay_json)).toEqual(relay);
+      expect(yield* probe(a)).toEqual({ caller: "Supaterm · Laptop", modes: "auto/default" });
+      expect(opened).toEqual([
+        [relay.relayEndpoint, relay.relayUrl],
+        [relay.relayEndpoint, relay.relayUrl],
+      ]);
+    }),
+  ).pipe(Effect.provide(NodeHttpServer.layerTest)),
+);
 
 const serveApart = (descriptor: ExecutionEnvironmentDescriptor) =>
   Layer.build(Layer.fresh(NodeHttpServer.layerTest)).pipe(
@@ -177,11 +221,6 @@ it.effect(
 
         yield* b.settings.updateSettings({ linkedEnvironmentsEnabled: true });
         yield* link;
-        yield* a.settings.updateSettings({ linkedEnvironmentsEnabled: false });
-        const before = yield* Ref.get(b.bearers);
-        expect((yield* probe(a).pipe(Effect.flip)).code).toBe("capability_denied");
-        expect(yield* Ref.get(b.bearers)).toEqual(before);
-        yield* a.settings.updateSettings({ linkedEnvironmentsEnabled: true });
         yield* b.settings.updateSettings({ linkedEnvironmentsEnabled: false });
         const waiting = yield* probe(a).pipe(Effect.flip);
         expect(waiting.code).toBe("orchestration_error");

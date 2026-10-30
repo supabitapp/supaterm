@@ -1,3 +1,4 @@
+import * as RemoteLaunchJournal from "./RemoteLaunchJournal.ts";
 import * as RelayCompanion from "../relay/RelayCompanion.ts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import {
@@ -143,9 +144,19 @@ export type ServedPeer = Effect.Success<ReturnType<typeof servePeer>>;
 export const layerLinkingEnvironment = (
   descriptor: ExecutionEnvironmentDescriptor,
   secrets: typeof ServerSecretStore.layer = ServerSecretStore.layer,
+  companion?: RelayCompanion.RelayCompanion["Service"],
 ) =>
   PeerMcpClient.layer.pipe(
-    Layer.provideMerge(PeerLinks.layer.pipe(Layer.provide(RelayCompanion.layer()))),
+    Layer.provideMerge(RemoteLaunchJournal.layer),
+    Layer.provideMerge(
+      PeerLinks.layer.pipe(
+        Layer.provide(
+          companion === undefined
+            ? RelayCompanion.layer()
+            : Layer.succeed(RelayCompanion.RelayCompanion, companion),
+        ),
+      ),
+    ),
     Layer.provideMerge(ServerSettings.layerTest({ linkedEnvironmentsEnabled: true })),
     Layer.provideMerge(Sqlite.layerMemory),
     Layer.provide(Layer.mergeAll(secrets, FetchHttpClient.layer)),
