@@ -841,11 +841,13 @@ export function useComposerSend(input: ComposerSendInput) {
       dispatchMode: dispatchMode === "steer" ? ("auto" as const) : dispatchMode,
       createdAt: new Date().toISOString(),
     };
+    const branch = localCheckoutBranchMismatch?.currentBranch;
     return async (recording: VoiceRecording) => {
       await enqueueThreadOutboxTurn({
         environmentId,
         input,
         voice: { audio: recording.audio, durationMs: recording.durationMs, language },
+        ...(branch === undefined ? {} : { branch }),
       });
     };
   };
