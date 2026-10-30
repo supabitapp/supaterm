@@ -1,3 +1,4 @@
+export { threadContextRecord } from "@supaterm/shared/composerContextReferences";
 import {
   capitalizeTerm,
   sourceControlClients,

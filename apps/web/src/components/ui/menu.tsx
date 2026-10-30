@@ -1,9 +1,10 @@
 import { Menu as MenuPrimitive } from "@base-ui/react/menu";
-import { CheckIcon, ChevronRightIcon } from "@supaterm/icons";
+import { CheckIcon, ChevronRightIcon, SearchIcon } from "@supaterm/icons";
 import type * as React from "react";
 
 import { cn } from "~/lib/utils";
 import { buttonVariants } from "./button";
+import { Spinner } from "./spinner";
 import { POPUP_MOTION_CLASS } from "./popup-styles";
 
 const Menu = MenuPrimitive.Root;
@@ -67,6 +68,35 @@ function MenuPopup({
         </MenuPrimitive.Popup>
       </MenuPrimitive.Positioner>
     </MenuPrimitive.Portal>
+  );
+}
+
+function MenuSearchInput({
+  busy = false,
+  onKeyDown,
+  ...props
+}: Omit<React.ComponentProps<"input">, "className" | "size"> & { busy?: boolean }) {
+  return (
+    <div className="min-w-0 shrink-0 px-2 pt-1.5 pb-1">
+      <div className="relative border-b border-border/70 pb-1.5 focus-within:border-ring">
+        <span className="pointer-events-none absolute top-1.5 left-0 text-muted-foreground">
+          {busy ? (
+            <Spinner aria-hidden size="md" tone="muted" />
+          ) : (
+            <SearchIcon aria-hidden className="size-4" />
+          )}
+        </span>
+        <input
+          {...props}
+          data-slot="menu-search-input"
+          className="h-6.5 w-full min-w-0 bg-transparent ps-5 font-sans text-sm leading-6.5 text-foreground outline-none placeholder:text-placeholder"
+          onKeyDown={(event) => {
+            if (event.key !== "ArrowDown" && event.key !== "Escape") event.stopPropagation();
+            onKeyDown?.(event);
+          }}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -347,6 +377,7 @@ export {
   MenuTrigger as DropdownMenuTrigger,
   MenuPopup,
   MenuPopup as DropdownMenuContent,
+  MenuSearchInput,
   MenuGroup,
   MenuGroup as DropdownMenuGroup,
   MenuItem,

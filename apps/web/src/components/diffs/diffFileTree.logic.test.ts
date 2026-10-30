@@ -1,7 +1,11 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { describe, expect, it } from "vite-plus/test";
 
-import { buildDiffFileTreeUpdates, diffFileTreeEntries } from "./diffFileTree.logic";
+import {
+  buildDiffFileTreeUpdates,
+  diffFileTreeEntries,
+  orderDiffFilesLikeTree,
+} from "./diffFileTree.logic";
 
 function file(type: FileDiffMetadata["type"], name: string, prevName = name): FileDiffMetadata {
   return { type, name, prevName } as FileDiffMetadata;
@@ -37,6 +41,26 @@ describe("buildDiffFileTreeUpdates", () => {
     expect(buildDiffFileTreeUpdates(["src/lib/a.ts", "src/b.ts"], ["src/b.ts"])).toEqual([
       { type: "remove", path: "src/lib/a.ts" },
       { type: "remove", path: "src/lib/", recursive: true },
+    ]);
+  });
+});
+
+describe("orderDiffFilesLikeTree", () => {
+  it("pulls a test listed last into its directory, keeping the first-seen order", () => {
+    expect(
+      orderDiffFilesLikeTree([
+        file("change", "server/device/Host.ts"),
+        file("change", "web/settings.ts"),
+        file("change", "server/ws.ts"),
+        file("change", "server/device/Host.test.ts"),
+        file("change", "web/settings.test.ts"),
+      ]).map((entry) => entry.name),
+    ).toEqual([
+      "server/device/Host.ts",
+      "server/device/Host.test.ts",
+      "server/ws.ts",
+      "web/settings.ts",
+      "web/settings.test.ts",
     ]);
   });
 });
