@@ -540,6 +540,22 @@ it.layer(
   );
 
   // Client retries resend the first attach's size, which a later resize may have replaced.
+  it.effect("retains the attached grid when a terminal restarts", () =>
+    Effect.gen(function* () {
+      const { manager, ptyAdapter } = yield* createManager();
+      const stop = yield* manager.attachStream(
+        openInput({ cols: 54, rows: 15 }),
+        () => Effect.void,
+        undefined,
+        "narrow",
+      );
+      yield* Effect.addFinalizer(() => Effect.sync(stop));
+      const restarted = yield* manager.restart(restartInput({ cols: 130, rows: 40 }));
+      expect(restarted).toMatchObject({ cols: 54, rows: 15 });
+      expect(ptyAdapter.spawnInputs.at(-1)).toMatchObject({ cols: 54, rows: 15 });
+    }).pipe(Effect.scoped),
+  );
+
   it.effect("keeps a viewer's resized grid when the same viewer attaches again", () =>
     Effect.gen(function* () {
       const { manager, ptyAdapter } = yield* createManager();
@@ -1024,6 +1040,7 @@ it.layer(
       const charCodeAt = String.prototype.charCodeAt;
       let largeStringReads = 0;
       yield* Effect.gen(function* () {
+        // eslint-disable-next-line no-extend-native -- Count character reads without retaining spy call records.
         String.prototype.charCodeAt = function (this: string, index: number) {
           if (this.length > 4_096) largeStringReads += 1;
           return charCodeAt.call(this, index);
@@ -1039,6 +1056,7 @@ it.layer(
       }).pipe(
         Effect.ensuring(
           Effect.sync(() => {
+            // eslint-disable-next-line no-extend-native -- Restore the native method after counting reads.
             String.prototype.charCodeAt = charCodeAt;
           }),
         ),
