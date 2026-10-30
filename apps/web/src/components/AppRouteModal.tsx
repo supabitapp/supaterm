@@ -2,7 +2,7 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { XIcon } from "@supaterm/icons";
 import { useRef, useState, type ReactNode } from "react";
 
-import { useNavigateToMainApp } from "./sidebar/mainAppLocation";
+import { useCloseAppModal } from "./sidebar/mainAppLocation";
 import { Button } from "./ui/button";
 import { DialogBackdrop } from "./ui/dialog";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
@@ -12,7 +12,7 @@ export function isAppRouteModalOpen(): boolean {
 }
 
 export function AppRouteModal({ label, children }: { label: string; children: ReactNode }) {
-  const close = useNavigateToMainApp();
+  const close = useCloseAppModal();
   const [open, setOpen] = useState(true);
   const backdropPress = useRef(false);
   const popupRef = useRef<HTMLDivElement>(null);
