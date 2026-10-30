@@ -62,13 +62,15 @@ export function buildZipTree(entries: ReadonlyArray<ZipEntry>): ReadonlyArray<Zi
   for (const entry of entries) {
     const parts = entry.path.split("/").filter(Boolean);
     let current = root;
+    let path = "";
     parts.forEach((part, index) => {
+      path = path ? `${path}/${part}` : part;
       const leaf = index === parts.length - 1 && !entry.isDirectory;
       const key = leaf ? part : `${part}/`;
       let child = current.children.get(key);
       if (!child) {
         child = {
-          path: parts.slice(0, index + 1).join("/"),
+          path,
           name: part,
           entry: leaf ? entry : null,
           children: new Map(),
@@ -81,30 +83,6 @@ export function buildZipTree(entries: ReadonlyArray<ZipEntry>): ReadonlyArray<Zi
   return freeze(root).children;
 }
 
-function flatten(
-  output: ZipTreeRow[],
-  node: ZipTreeNode,
-  depth: number,
-  collapsed: ReadonlySet<string>,
-  query: string,
-): boolean {
-  if (node.entry) {
-    if (query && !node.entry.path.toLowerCase().includes(query)) return false;
-    output.push({ node, depth });
-    return true;
-  }
-  const children: ZipTreeRow[] = [];
-  let visible = !query;
-  if (query || !collapsed.has(node.path)) {
-    for (const child of node.children) {
-      if (flatten(children, child, depth + 1, collapsed, query)) visible = true;
-    }
-  }
-  if (!visible) return false;
-  output.push({ node, depth }, ...children);
-  return true;
-}
-
 export function flattenZipTree(
   nodes: ReadonlyArray<ZipTreeNode>,
   collapsed: ReadonlySet<string>,
@@ -112,7 +90,35 @@ export function flattenZipTree(
 ): ReadonlyArray<ZipTreeRow> {
   const output: ZipTreeRow[] = [];
   const normalized = query.trim().toLowerCase();
-  for (const node of nodes) flatten(output, node, 0, collapsed, normalized);
+  const stack: Array<
+    | { readonly kind: "visit"; readonly node: ZipTreeNode; readonly depth: number }
+    | { readonly kind: "prune"; readonly start: number }
+  > = [];
+  for (let index = nodes.length - 1; index >= 0; index--) {
+    stack.push({ kind: "visit", node: nodes[index]!, depth: 0 });
+  }
+  while (stack.length > 0) {
+    const frame = stack.pop()!;
+    if (frame.kind === "prune") {
+      if (output.length === frame.start + 1) output.length = frame.start;
+      continue;
+    }
+    const { node, depth } = frame;
+    if (node.entry) {
+      if (!normalized || node.entry.path.toLowerCase().includes(normalized)) {
+        output.push({ node, depth });
+      }
+      continue;
+    }
+    const start = output.length;
+    output.push({ node, depth });
+    if (normalized) stack.push({ kind: "prune", start });
+    if (normalized || !collapsed.has(node.path)) {
+      for (let index = node.children.length - 1; index >= 0; index--) {
+        stack.push({ kind: "visit", node: node.children[index]!, depth: depth + 1 });
+      }
+    }
+  }
   return output;
 }
 
@@ -136,4 +142,30 @@ export function zipDownloadTimeLeft(input: {
   return seconds < 60
     ? `About ${seconds} ${seconds === 1 ? "second" : "seconds"} left`
     : `About ${Math.ceil(seconds / 60)} minutes left`;
+}
+
+export function isZipFile(file: { readonly name: string; readonly mimeType: string }) {
+  const mime = file.mimeType.split(";", 1)[0]?.trim().toLowerCase();
+  return (
+    mime === "application/zip" ||
+    mime === "application/x-zip-compressed" ||
+    file.name.toLowerCase().endsWith(".zip")
+  );
+}
+
+export function zipEntryAttachmentName(name: string) {
+  const uuidPrefixBytes = 36 + 1;
+  const maximumBytes = 255 - uuidPrefixBytes;
+  const encoder = new TextEncoder();
+  if (encoder.encode(name).length <= maximumBytes) return name;
+  const extension = /\.[a-z0-9]{1,16}$/i.exec(name)?.[0] ?? "";
+  let remaining = maximumBytes - encoder.encode(extension).length;
+  let stem = "";
+  for (const character of name.slice(0, name.length - extension.length)) {
+    const bytes = encoder.encode(character).length;
+    if (bytes > remaining) break;
+    stem += character;
+    remaining -= bytes;
+  }
+  return `${stem}${extension}`;
 }

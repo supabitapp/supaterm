@@ -1,3 +1,5 @@
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
+import { pullRequestFileJumpScope, subscribePullRequestFileJump } from "./pullRequestFileJump";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Toolbar } from "../../components/ui/Toolbar";
 import { guideFocusedRows, type GuideDiffFocus } from "./guide/guideDiffFocus";

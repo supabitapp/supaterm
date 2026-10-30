@@ -8,7 +8,7 @@ import {
   clampFileAttachmentUploadBytes,
   formatAttachmentSize,
 } from "@supaterm/client-runtime/state/attachments";
-import { useRef, useState } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
 import { Platform, View } from "react-native";
 
 import {
@@ -27,8 +27,14 @@ import { useEnvironmentServerConfig } from "../../state/entities";
 import { useRefreshAssetUrl } from "../../state/assets";
 import { scopedThreadKey } from "../../lib/scopedEntities";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
-import { isZipFile, ZipArchiveView } from "./ZipArchiveView";
+import { isZipFile } from "./zipTree";
+import { FilePreviewLoading } from "../../components/FilePreviewFeedback";
+
 import { AttachmentDocumentBody, nativeViewerKind } from "./AttachmentDocumentBody";
+
+const ZipArchiveView = lazy(async () => ({
+  default: (await import("./ZipArchiveView")).ZipArchiveView,
+}));
 
 export type AttachmentFileRouteParams = {
   readonly environmentId?: string;
@@ -240,25 +246,27 @@ export function AttachmentFileScreen(props: AttachmentFileScreenProps) {
         ? scopedThreadKey(environmentId, ThreadId.make(params.threadId))
         : null;
     return (
-      <ZipArchiveView
-        name={params.name}
-        subtitle={subtitle}
-        tintColor={iconColor}
-        sizeBytes={sizeBytes}
-        uri={uri}
-        isLocal={localAttachment !== null}
-        refresh={refresh}
-        environmentId={environmentId}
+      <Suspense fallback={<FilePreviewLoading message="Opening archive..." />}>
+        <ZipArchiveView
+          name={params.name}
+          subtitle={subtitle}
+          tintColor={iconColor}
+          sizeBytes={sizeBytes}
+          uri={uri}
+          isLocal={localAttachment !== null}
+          refresh={refresh}
+          environmentId={environmentId}
 
-        draftKey={threadDraftKey ?? draftKey}
-        maxAttachmentBytes={
-          capabilities?.fileAttachments
-            ? clampFileAttachmentUploadBytes(capabilities.fileAttachments.maxUploadBytes)
-            : undefined
-        }
-        onSave={() => void share()}
-        onRemove={draftKey ? removeFromDraft : null}
-      />
+          draftKey={threadDraftKey ?? draftKey}
+          maxAttachmentBytes={
+            capabilities?.fileAttachments
+              ? clampFileAttachmentUploadBytes(capabilities.fileAttachments.maxUploadBytes)
+              : undefined
+          }
+          onSave={() => void share()}
+          onRemove={draftKey ? removeFromDraft : null}
+        />
+      </Suspense>
     );
   }
 

@@ -492,7 +492,6 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
                       icon: "pencil" as const,
                       selected: maintainerEdits.value,
                       disabled: maintainerEdits.saving,
-                      subtitle: maintainerEdits.subtitle,
                       overflowOnly: true,
                       onPress: maintainerEdits.toggle,
                     },

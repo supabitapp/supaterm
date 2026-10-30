@@ -41,8 +41,8 @@ export function SourceControlAppAccessNotice(props: {
   return (
     <View className="mb-4 gap-1 rounded-2xl bg-grouped-card px-4 py-3">
       <Text className="text-sm text-foreground-muted">
-        {appSignIn.appName} isn't installed on {owner}, so requests here use your own GitHub login
-        and its lower rate limit.
+        {appSignIn.appName} isn't installed on {owner}. Requests use your configured account
+        credentials until you grant the app repository access.
       </Text>
       <Pressable
         accessibilityRole="link"

@@ -360,7 +360,6 @@ export function PullRequestListFilters(props: {
       {Platform.OS === "android" ? null : (
         <ListFilterMenu
           label={count ? String(count) : "Filters"}
-          icon
           active={count > 0}
           accessibilityLabel={count ? `Filters, ${count} active` : "More filters"}
           actions={[...more, reset(false)]}
@@ -370,6 +369,7 @@ export function PullRequestListFilters(props: {
       {props.filters.environmentLabel !== null ? (
         <ListFilterMenu
           label={props.filters.environmentLabel}
+          active={false}
           accessibilityLabel="Choose pull request environment"
           actions={props.filters.environmentActions}
           onSelect={select}

@@ -434,7 +434,7 @@ export function PullRequestsScreen(
                   onPressAction: ({ nativeEvent }) =>
                     filters.headerMenu?.onSelect(nativeEvent.event),
                 }
-              : null
+              : undefined
           }
         />
       ) : null}

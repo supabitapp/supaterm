@@ -50,18 +50,10 @@ import {
   flattenZipTree,
   zipDownloadTimeLeft,
   zipFolderLabel,
+  zipEntryAttachmentName,
   type ZipEntry,
   type ZipTreeRow,
 } from "./zipTree";
-
-export function isZipFile(file: { readonly name: string; readonly mimeType: string }) {
-  const mime = file.mimeType.split(";", 1)[0]?.trim().toLowerCase();
-  return (
-    mime === "application/zip" ||
-    mime === "application/x-zip-compressed" ||
-    file.name.toLowerCase().endsWith(".zip")
-  );
-}
 
 interface ZipArchive {
   readonly entries: ReadonlyArray<ZipEntry>;
@@ -191,12 +183,16 @@ function useZipArchive(input: {
       if (isLocal) {
         const file = new File(uri);
         if ((file.size ?? 0) > ARCHIVE_MAX_BYTES) throw new ZipFailureError(TOO_LARGE);
-        return openArchive(await file.arrayBuffer());
+        const bytes = await file.arrayBuffer();
+        abort.signal.throwIfAborted();
+        return openArchive(bytes);
       }
       const url = (await refresh()) ?? uri;
+      abort.signal.throwIfAborted();
       const response = await fetch(url, { signal: abort.signal });
       if (!response.ok || !response.body) throw new ZipFailureError(NETWORK);
-      const bytes = await readArchiveBody(response.body, (receivedBytes) =>
+      const bytes = await readArchiveBody(response.body, (receivedBytes) => {
+        if (abort.signal.aborted) return;
         setState({
           status: "loading",
           receivedBytes,
@@ -205,8 +201,8 @@ function useZipArchive(input: {
             totalBytes: sizeBytes,
             elapsedMs: Date.now() - startedAt,
           }),
-        }),
-      );
+        });
+      });
       abort.signal.throwIfAborted();
       return openArchive(bytes);
     })()
@@ -589,15 +585,17 @@ async function addZipEntryToDraft(input: {
   readonly signal: AbortSignal;
 }) {
   const { entry, signal } = input;
+  const name = zipEntryAttachmentName(entry.name);
+  signal.throwIfAborted();
   const file = await writeGeneratedAttachmentFile({
     bytes: entry.bytes,
-    attachment: { name: entry.name, mimeType: entry.mimeType },
+    attachment: { name, mimeType: entry.mimeType },
   });
   try {
     signal.throwIfAborted();
     const attachment = await createComposerFileAttachment({
       uri: file.uri,
-      name: entry.name,
+      name,
       mimeType: entry.mimeType,
       sizeBytes: entry.sizeBytes,
       maxBytes: input.maxBytes,
@@ -691,19 +689,21 @@ function ZipEntryView(props: {
   }, [entry, isText, mimeType, tooBig, revision]);
 
   const run = (kind: "save" | "attach", task: (signal: AbortSignal) => Promise<unknown>) => {
-    if (busy) return;
+    if (busy || action.current !== null) return;
     setBusy(kind);
     const controller = new AbortController();
     action.current = controller;
     void task(controller.signal).then(
       () => {
         if (controller.signal.aborted) return;
+        action.current = null;
         setBusy(null);
         if (kind === "attach")
           Dialog.alert("Added to chat", `${entry.name} is attached to your message.`);
       },
       (cause: unknown) => {
         if (controller.signal.aborted) return;
+        action.current = null;
         setBusy(null);
         Dialog.alert(
           kind === "save" ? "Could not save file" : "Could not add file to chat",
