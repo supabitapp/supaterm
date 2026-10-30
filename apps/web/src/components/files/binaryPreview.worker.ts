@@ -1,6 +1,6 @@
 import type { Database } from "sql.js";
 
-import { boundedZip } from "@supaterm/client-runtime/zip/bounded-zip";
+import { openBoundedZip, type BoundedZipArchive } from "@supaterm/client-runtime/zip/bounded-zip";
 import {
   ARCHIVE_ENTRY_MAX_BYTES,
   ARCHIVE_MAX_ENTRIES,
@@ -12,11 +12,25 @@ import {
   type BinaryWorkerResult,
 } from "./binaryPreviewProtocol";
 
+let zipArchive: BoundedZipArchive | null = null;
+let entryRead: AbortController | null = null;
+let generation = 0;
 let database: Database | null = null;
 let tables: string[] = [];
 let files = new Map<string, Uint8Array<ArrayBuffer>>();
 const reply = (result: BinaryWorkerResult) => self.postMessage(result, { transfer: [] });
 const quote = (name: string) => `"${name.replaceAll('"', '""')}"`;
+
+function dispose() {
+  entryRead?.abort();
+  entryRead = null;
+  zipArchive?.close();
+  zipArchive = null;
+  database?.close();
+  database = null;
+  tables = [];
+  files = new Map();
+}
 
 async function gunzip(bytes: ArrayBuffer) {
   const reader = new Blob([bytes])
@@ -138,13 +152,25 @@ function tarEntries(bytes: Uint8Array<ArrayBuffer>) {
   return entries;
 }
 
-async function handle(input: BinaryWorkerRequest) {
+async function handle(input: Exclude<BinaryWorkerRequest, { type: "dispose" }>, revision: number) {
   if (input.type === "entry") {
-    const bytes = files.get(input.path);
-    if (!bytes) throw new Error("This archive entry is unavailable.");
-    if (bytes.length > ARCHIVE_ENTRY_MAX_BYTES)
-      throw new Error("Entry previews are limited to 10 MB.");
-    reply({ type: "entry", path: input.path, bytes });
+    entryRead?.abort();
+    const request = new AbortController();
+    entryRead = request;
+    try {
+      const bytes = zipArchive
+        ? (await zipArchive.read(input.path, { signal: request.signal })).bytes
+        : files.get(input.path);
+      if (request.signal.aborted || revision !== generation) return;
+      if (!bytes) throw new Error("This archive entry is unavailable.");
+      if (bytes.length > ARCHIVE_ENTRY_MAX_BYTES)
+        throw new Error("Entry previews are limited to 10 MB.");
+      reply({ type: "entry", path: input.path, bytes });
+    } catch (cause) {
+      if (!request.signal.aborted) throw cause;
+    } finally {
+      if (entryRead === request) entryRead = null;
+    }
     return;
   }
   if (input.type === "rows") {
@@ -187,6 +213,7 @@ async function handle(input: BinaryWorkerRequest) {
       import("sql.js/dist/sql-wasm.wasm?url"),
     ]);
     const SQL = await initSqlJs({ locateFile: () => wasmUrl });
+    if (revision !== generation) return;
     database = new SQL.Database(new Uint8Array(input.bytes));
     database.run("PRAGMA query_only=ON; PRAGMA trusted_schema=OFF;");
     tables =
@@ -213,18 +240,21 @@ async function handle(input: BinaryWorkerRequest) {
       (input.bytes.byteLength >= 4 &&
         [0x04034b50, 0x06054b50].includes(new DataView(input.bytes).getUint32(0, true)))
     ) {
-      const archive = await boundedZip(input.bytes, BINARY_PREVIEW_MAX_BYTES);
-      entries = [...archive].map(([path, file]) => {
-        files.set(path, file.bytes);
-        return {
-          path,
-          size: file.bytes.length,
-          directory: file.directory,
-          modified: Number.isNaN(file.date.getTime()) ? null : file.date.toISOString(),
-        };
-      });
+      const archive = await openBoundedZip(input.bytes);
+      if (revision !== generation) {
+        archive.close();
+        return;
+      }
+      zipArchive = archive;
+      entries = archive.entries.map((file) => ({
+        path: file.path,
+        size: file.size,
+        directory: file.directory,
+        modified: Number.isNaN(file.date.getTime()) ? null : file.date.toISOString(),
+      }));
     } else if (/\.(gz|tgz)$/i.test(input.name) || new Uint8Array(input.bytes)[0] === 0x1f) {
       const bytes = await gunzip(input.bytes);
+      if (revision !== generation) return;
       if (/\.(tar\.gz|tgz)$/i.test(input.name)) entries = tarEntries(bytes);
       else {
         const path = input.name.replace(/\.gz$/i, "") || "contents";
@@ -240,10 +270,18 @@ async function handle(input: BinaryWorkerRequest) {
 }
 
 self.addEventListener("message", (event: MessageEvent<BinaryWorkerRequest>) => {
-  void handle(event.data).catch((cause: unknown) =>
+  const input = event.data;
+  if (input.type === "open" || input.type === "dispose") {
+    generation++;
+    dispose();
+  }
+  if (input.type === "dispose") return;
+  const revision = generation;
+  void handle(input, revision).catch((cause: unknown) => {
+    if (revision !== generation) return;
     reply({
       type: "error",
       message: cause instanceof Error ? cause.message : "Could not preview this file.",
-    }),
-  );
+    });
+  });
 });

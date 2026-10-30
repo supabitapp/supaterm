@@ -120,6 +120,7 @@ export default function BinaryViewer(props: {
       setError(message);
       setBusy(false);
       controller.abort();
+      worker.postMessage({ type: "dispose" } satisfies BinaryWorkerRequest, []);
       worker.terminate();
       workerRef.current = null;
       if (timerRef.current) clearTimeout(timerRef.current);
@@ -161,6 +162,7 @@ export default function BinaryViewer(props: {
       );
     return () => {
       controller.abort();
+      worker.postMessage({ type: "dispose" } satisfies BinaryWorkerRequest, []);
       worker.terminate();
       workerRef.current = null;
       if (timerRef.current) clearTimeout(timerRef.current);
