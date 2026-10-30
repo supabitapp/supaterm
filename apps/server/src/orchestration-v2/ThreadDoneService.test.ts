@@ -1293,7 +1293,7 @@ describe("ThreadDoneServiceV2 terminals", () => {
         const second = appThread("ready-done-shell", "done", "/repo/second");
         const waiting = yield* Deferred.make<void>();
         const release = yield* Deferred.make<void>();
-        const written = yield* Queue.unbounded<ThreadId>();
+        const written = yield* Queue.unbounded<string>();
         const fixture = yield* makeHarness({
           snapshot: makeSnapshot([]),
           currentThreads: [first, second],
@@ -1327,7 +1327,7 @@ describe("ThreadDoneServiceV2 terminals", () => {
         const thread = appThread("cancel-done-shell", "done", "/repo/cancel");
         const waiting = yield* Deferred.make<void>();
         const cancelled = yield* Deferred.make<void>();
-        const written = yield* Queue.unbounded<ThreadId>();
+        const written = yield* Queue.unbounded<string>();
         const fixture = yield* makeHarness({
           snapshot: makeSnapshot([]),
           currentThreads: [thread],

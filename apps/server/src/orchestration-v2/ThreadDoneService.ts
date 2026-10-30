@@ -633,13 +633,13 @@ export const make = Effect.gen(function* () {
     },
     (effect, threadId) =>
       effect.pipe(
-        Effect.catchCauseIf(
-          (cause) => !Cause.hasInterruptsOnly(cause),
-          (cause) =>
-            Effect.logWarning("cleaning up a done thread failed", {
-              threadId,
-              cause: Cause.pretty(cause),
-            }),
+        Effect.catchCause((cause) =>
+          Cause.hasInterruptsOnly(cause)
+            ? Effect.interrupt
+            : Effect.logWarning("cleaning up a done thread failed", {
+                threadId,
+                cause: Cause.pretty(cause),
+              }),
         ),
       ),
   );
