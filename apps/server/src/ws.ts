@@ -1,3 +1,4 @@
+import * as SourceControlSignIn from "./sourceControl/SourceControlSignIn.ts";
 import * as GuestShareService from "./guest/GuestShareService.ts";
 import * as SecretRequests from "./secrets/SecretRequests.ts";
 import * as PeerLinks from "./peer/PeerLinks.ts";
@@ -6,7 +7,11 @@ import { tunnelConnectionMethod } from "./relay/RelayIngress.ts";
 import * as RelayAccess from "./relay/RelayAccess.ts";
 import * as DirectTunnel from "./relay/DirectTunnel.ts";
 import * as OrchestrationSkills from "./provider/OrchestrationSkills.ts";
-import type { ApplicationStoredEvent, OrchestrationV2ThreadStreamItem } from "@supaterm/contracts";
+import type {
+  ApplicationStoredEvent,
+  OrchestrationV2ThreadStreamItem,
+  ServerProvider,
+} from "@supaterm/contracts";
 import { OrchestrationDispatchCommandError } from "@supaterm/contracts";
 import * as Crypto from "effect/Crypto";
 import * as Context from "effect/Context";
@@ -224,6 +229,7 @@ import * as ProjectEnrichmentService from "./project/ProjectEnrichmentService.ts
 import * as ProjectService from "./project/ProjectService.ts";
 import { threadWorkspaceRoot } from "./project/threadWorkspaceRoot.ts";
 import * as ManagedProjectFolders from "./project/ManagedProjectFolders.ts";
+import * as ScratchThreadPromotion from "./project/ScratchThreadPromotion.ts";
 import { projectMutationOperation } from "./project/ProjectMutation.ts";
 import * as ProjectCloneTracker from "./project/ProjectCloneTracker.ts";
 import * as RepositoryIdentityResolver from "./project/RepositoryIdentityResolver.ts";
@@ -243,7 +249,7 @@ import * as ProcessResourceMonitor from "./diagnostics/ProcessResourceMonitor.ts
 import * as ResourceTelemetry from "./resourceTelemetry/ResourceTelemetry.ts";
 import * as HostResources from "./resourceTelemetry/HostResources.ts";
 import * as AnalyticsService from "./telemetry/AnalyticsService.ts";
-import { featureUsage } from "./telemetry/FeatureUsage.ts";
+import { commandFeatureUsage, featureUsage } from "./telemetry/FeatureUsage.ts";
 import type { TelemetryOwner } from "./telemetry/Identify.ts";
 import * as UsageService from "./usage/UsageService.ts";
 import * as TraceDiagnostics from "./diagnostics/TraceDiagnostics.ts";
@@ -1244,6 +1250,7 @@ export const layerWsRpc = (
       const projectStore = yield* ProjectStore.ProjectStoreV2;
       const projectService = yield* ProjectService.ProjectService;
       const managedFolders = yield* ManagedProjectFolders.ManagedProjectFolders;
+      const scratchThreadPromotion = yield* ScratchThreadPromotion.ScratchThreadPromotion;
       const eventLoopMonitor = yield* EventLoopMonitor.EventLoopMonitor;
       const threadSearch = yield* ThreadSearch.ThreadSearch;
       const nextPromptSuggestions = yield* NextPromptSuggestionService.NextPromptSuggestionService;
@@ -1253,12 +1260,18 @@ export const layerWsRpc = (
       const analytics = yield* AnalyticsService.AnalyticsService;
       const originProps = clientAnalyticsProps;
       const recordClientCommandAnalytics = (command: OrchestrationV2Command) => {
-        switch (command.type) {
-          case "message.dispatch":
-            return analytics.record("client.turn.requested", originProps).pipe(Effect.ignore);
-          default:
-            return Effect.void;
+        if (command.type === "message.dispatch") {
+          return analytics.record("client.turn.requested", originProps).pipe(Effect.ignore);
         }
+        const usage = commandFeatureUsage(command);
+        return usage === undefined
+          ? Effect.void
+          : analytics
+              .record("feature.used", {
+                ...usage,
+                ...(originProps.surface === undefined ? {} : { surface: originProps.surface }),
+              })
+              .pipe(Effect.ignore);
       };
       const threadLaunch = yield* ThreadLaunchService.ThreadLaunchService;
       const commandOutputHub = yield* CommandOutputHub.CommandOutputHub;
@@ -1278,6 +1291,9 @@ export const layerWsRpc = (
       const orchestrationEngine = yield* Orchestrator.OrchestratorV2;
       const crypto = yield* Crypto.Crypto;
       const shellSyncGeneration = yield* ShellSyncGeneration.ShellSyncGeneration;
+      const terminalViewerPrefix = yield* crypto.randomUUIDv4().pipe(Effect.orDie);
+      const terminalViewerId = (metadata: { readonly client: { readonly id: number } }) =>
+        `${terminalViewerPrefix}:${metadata.client.id}`;
       const serverCommandId = (tag: string) =>
         crypto.randomUUIDv4().pipe(
           Effect.orDie,
@@ -1357,6 +1373,7 @@ export const layerWsRpc = (
       const otlpEndpointCheck = yield* OtlpEndpointCheck.OtlpEndpointCheck;
       const sourceControlRepositories =
         yield* SourceControlRepositoryService.SourceControlRepositoryService;
+      const sourceControlSignIn = yield* SourceControlSignIn.SourceControlSignIn;
       const bootstrapCredentials = yield* PairingGrantStore.PairingGrantStore;
       const sessions = yield* SessionStore.SessionStore;
       const processDiagnostics = yield* ProcessDiagnostics.ProcessDiagnostics;
@@ -1707,12 +1724,16 @@ export const layerWsRpc = (
 
       const loadServerConfig = Effect.fn("ws.loadServerConfig")(function* (options: {
         readonly usageLimitsCommand: boolean;
+        readonly workspaceSnapshotsOnDemand: boolean;
       }) {
         const keybindingsConfig = yield* keybindings.loadConfigState;
         const currentProviders = yield* providerRegistry.getProviders;
-        const providers = options.usageLimitsCommand
+        const commandProviders = options.usageLimitsCommand
           ? withUsageLimitsCommands(currentProviders)
           : currentProviders;
+        const providers = options.workspaceSnapshotsOnDemand
+          ? withoutWorkspaceSnapshots(commandProviders)
+          : commandProviders;
         const settings = ServerSettings.redactServerSettingsForClient(
           yield* serverSettings.getSettings,
         );
@@ -1917,7 +1938,9 @@ export const layerWsRpc = (
                   ).pipe(Effect.provide(intakeContext)),
                 )
                 .pipe(
-                  Effect.tap(() => recordClientCommandAnalytics(command)),
+                  Effect.tap((result) =>
+                    result.replayed ? Effect.void : recordClientCommandAnalytics(command),
+                  ),
                   Effect.map((result) => ({ sequence: result.sequence })),
                   Effect.mapError((cause) => {
                     const detail = userFacingDispatchErrorMessage(cause);
@@ -2098,17 +2121,22 @@ export const layerWsRpc = (
                   }).pipe(Effect.provide(intakeContext)),
                 )
                 .pipe(
-                  Effect.tap(() =>
-                    analytics
-                      .record("client.thread.started", originProps)
-                      .pipe(
-                        Effect.andThen(
-                          input.initialMessage === undefined
-                            ? Effect.void
-                            : analytics.record("client.turn.requested", originProps),
-                        ),
-                        Effect.ignore,
-                      ),
+                  Effect.tap((result) =>
+                    result.resumed
+                      ? Effect.void
+                      : analytics
+                          .record("client.thread.started", {
+                            ...originProps,
+                            workspaceStrategy: input.workspaceStrategy.type,
+                          })
+                          .pipe(
+                            Effect.andThen(
+                              input.initialMessage === undefined
+                                ? Effect.void
+                                : analytics.record("client.turn.requested", originProps),
+                            ),
+                            Effect.ignore,
+                          ),
                   ),
                   Effect.map((result) => ({
                     ...result,
@@ -2179,7 +2207,8 @@ export const layerWsRpc = (
             Effect.andThen(scheduledTasks.runNow(input)),
           ),
         [WS_METHODS.serverProbe]: (_input) => Effect.succeed({}),
-        [WS_METHODS.serverGetConfig]: (_input) => loadServerConfig({ usageLimitsCommand: false }),
+        [WS_METHODS.serverGetConfig]: (_input) =>
+          loadServerConfig({ usageLimitsCommand: false, workspaceSnapshotsOnDemand: false }),
         [WS_METHODS.serverSearchAcpRegistry]: (input) =>
           acpRegistryCatalog
             .search(input)
@@ -2556,6 +2585,7 @@ export const layerWsRpc = (
         [WS_METHODS.serverGetBackgroundPolicy]: (_input) => backgroundPolicy.snapshot,
         [WS_METHODS.pullRequestsList]: (input) => pullRequests.list(input),
         [WS_METHODS.pullRequestsListStats]: (input) => pullRequests.listStats(input),
+        [WS_METHODS.pullRequestsFilterOptions]: (input) => pullRequests.filterOptions(input),
         [WS_METHODS.pullRequestsRoutingIdentity]: (input) => pullRequests.routingIdentity(input),
         [WS_METHODS.pullRequestsRouting]: (input) => pullRequests.routing(input),
         [WS_METHODS.pullRequestsSummary]: (input) =>
@@ -2649,6 +2679,10 @@ export const layerWsRpc = (
           sourceControlRepositories.lookupRepository(input),
         [WS_METHODS.sourceControlCloneRepository]: (input) =>
           sourceControlRepositories.cloneRepository(input),
+        [WS_METHODS.sourceControlSignInStart]: (input) => sourceControlSignIn.start(input),
+        [WS_METHODS.sourceControlSignInWait]: (input) => sourceControlSignIn.wait(input),
+        [WS_METHODS.sourceControlSignInCancel]: (input) => sourceControlSignIn.cancel(input),
+        [WS_METHODS.sourceControlAppAccess]: (input) => sourceControlSignIn.access(input),
         [WS_METHODS.projectCloneStart]: (input) =>
           projectCloneTracker.start(input, {
             createProject: (project) =>
@@ -2695,6 +2729,14 @@ export const layerWsRpc = (
         [WS_METHODS.projectsCreateNew]: (input) =>
           managedFolders
             .createNamedProject(input)
+            .pipe(
+              Effect.mapError(
+                (cause) => new OrchestrationDispatchCommandError({ message: cause.message, cause }),
+              ),
+            ),
+        [WS_METHODS.projectsCreateFromThread]: (input) =>
+          scratchThreadPromotion
+            .promote(input)
             .pipe(
               Effect.mapError(
                 (cause) => new OrchestrationDispatchCommandError({ message: cause.message, cause }),
@@ -2977,15 +3019,11 @@ export const layerWsRpc = (
         [WS_METHODS.reviewGetDiffPreview]: (input) => review.getDiffPreview(input),
         [WS_METHODS.reviewGetDiffFileContents]: (input) => review.getDiffFileContents(input),
         [WS_METHODS.terminalOpen]: (input) => terminalManager.open(input),
-        [WS_METHODS.terminalAttach]: (input) =>
-          terminalOutputStream(
-            (listener, registerCleanup) =>
-              terminalManager.attachStream(input, listener, registerCleanup),
-            (listener, registerCleanup) =>
-              terminalManager.resyncStream(input, listener, registerCleanup),
-          ),
+        [WS_METHODS.terminalAttach]: (input, metadata) =>
+          terminalManager.attachOutputStream(input, terminalViewerId(metadata)),
         [WS_METHODS.terminalWrite]: (input) => terminalManager.write(input),
-        [WS_METHODS.terminalResize]: (input) => terminalManager.resize(input),
+        [WS_METHODS.terminalResize]: (input, metadata) =>
+          terminalManager.resize(input, terminalViewerId(metadata)),
         [WS_METHODS.terminalClear]: (input) => terminalManager.clear(input),
         [WS_METHODS.terminalRestart]: (input) => terminalManager.restart(input),
         [WS_METHODS.terminalClose]: (input) => terminalManager.close(input),
@@ -3019,6 +3057,7 @@ export const layerWsRpc = (
         [WS_METHODS.deviceConfigure]: (input) => deviceService.configure(input),
         [WS_METHODS.deviceTestHost]: (input) => deviceService.testHost(input),
         [WS_METHODS.deviceEasAccount]: (input) => deviceService.easAccount(input),
+        [WS_METHODS.deviceSimlockIdentity]: (input) => deviceService.simlockIdentity(input),
         [WS_METHODS.deviceList]: (input) =>
           input.inspectOnly && !input.updateTool
             ? deviceService.inspect
@@ -3039,6 +3078,7 @@ export const layerWsRpc = (
         [WS_METHODS.deviceDetail]: (input) => deviceService.detail(input),
         [WS_METHODS.deviceAction]: (input) => deviceService.action(input),
         [WS_METHODS.subscribeDeviceState]: (_input) => DeviceService.stateStream(deviceService),
+        [WS_METHODS.previewStopLocalServer]: (input) => portDiscovery.stopServer(input),
         [WS_METHODS.subscribeDiscoveredLocalServers]: (input) =>
           Stream.callback<DiscoveredLocalServerList>((queue) =>
             Effect.gen(function* () {
@@ -3070,7 +3110,11 @@ export const layerWsRpc = (
             Effect.gen(function* () {
               const keybindingsChanges = yield* keybindings.subscribeChanges;
               const settingsChanges = yield* serverSettings.subscribeChanges;
-              const config = yield* loadServerConfig({ usageLimitsCommand: true });
+              const workspaceSnapshotsOnDemand = input.workspaceSnapshotsOnDemand === true;
+              const config = yield* loadServerConfig({
+                usageLimitsCommand: true,
+                workspaceSnapshotsOnDemand,
+              });
               const keybindingsUpdates = keybindingsChanges.pipe(
                 Stream.map((event) => ({
                   version: 1 as const,
@@ -3089,7 +3133,12 @@ export const layerWsRpc = (
                 Stream.fromEffect(providerRegistry.getProviders),
                 providerRegistry.streamChanges,
               ).pipe(
-                Stream.map(withUsageLimitsCommands),
+                Stream.map((providers) => {
+                  const withCommands = withUsageLimitsCommands(providers);
+                  return workspaceSnapshotsOnDemand
+                    ? withoutWorkspaceSnapshots(withCommands)
+                    : withCommands;
+                }),
                 (updates) => Stream.concat(rpcInitialItems([config.providers]), updates),
                 Stream.changesWith(
                   (previous, next) => JSON.stringify(previous) === JSON.stringify(next),
@@ -3274,7 +3323,6 @@ export const layer = Layer.unwrap(
         const clientOrigin = readClientConnectionOrigin(request);
         const clientAnalyticsProps = readClientAnalyticsProps(request);
         yield* sessions.recordClientConnection(session.sessionId, clientOrigin);
-        yield* analytics.record("client.connected", clientAnalyticsProps);
         yield* analytics.recordOwners(readClientOwners(request), "client");
         const rpcWebSocketHttpEffect = yield* Effect.gen(function* () {
           const { protocol, httpEffect } = yield* RpcServer.makeProtocolWithHttpEffectWebsocket;

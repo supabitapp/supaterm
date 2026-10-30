@@ -1,6 +1,7 @@
 import {
   DEFAULT_SERVER_SETTINGS,
   ModelSelection,
+  isKnownSecretProviderKind,
   ProjectScript,
   ProjectSettingsOverrides,
   type ProviderInstanceConfig,
@@ -19,6 +20,7 @@ import * as Duration from "effect/Duration";
 import * as Equal from "effect/Equal";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
+import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -117,11 +119,21 @@ const normalizeServerSettings = (
   );
 
 export function redactServerSettingsForClient(settings: ServerSettings) {
-  return mapSettingsSecrets(settings, (secret) =>
+  const redacted = mapSettingsSecrets(settings, (secret) =>
     secret.sensitive
       ? { value: "", redacted: secret.redacted || secret.value.length > 0 }
       : { value: secret.value, redacted: false },
   );
+  return {
+    ...redacted,
+    secretProviders: Object.fromEntries(
+      Object.entries(redacted.secretProviders).map(([id, entry]) => {
+        if (isKnownSecretProviderKind(entry.kind)) return [id, entry];
+        const { config: _config, ...envelope } = entry;
+        return [id, envelope];
+      }),
+    ),
+  };
 }
 
 export function applyProviderInstanceMutation(
@@ -516,6 +528,7 @@ const make = Effect.gen(function* () {
           FROM projection_projects
           WHERE deleted_at IS NULL
         `.pipe(
+            NodeSqliteClient.readOnly,
             Effect.mapError(
               (cause) =>
                 new ServerSettingsError({
@@ -585,9 +598,6 @@ const make = Effect.gen(function* () {
     },
   );
 
-  // Background sweeps read settings every few seconds; reading secret files each time is wasted.
-  // Every secret write rewrites the settings file, so a new cached object implies fresh secrets.
-  // A read that overlaps a secret write may see files a rollback then restores, so it is not kept.
   let materialized: { readonly source: ServerSettings; readonly value: ServerSettings } | null =
     null;
   let secretWriteGeneration = 0;

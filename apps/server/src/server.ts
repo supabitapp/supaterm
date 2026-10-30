@@ -1,3 +1,4 @@
+import * as ScratchThreadPromotion from "./project/ScratchThreadPromotion.ts";
 import * as DocumentText from "./provider/DocumentText.ts";
 import * as CodexManagedTokenBroker from "./provider/CodexManagedTokenBroker.ts";
 import * as PreviewAgentActivity from "./preview/PreviewAgentActivity.ts";
@@ -653,6 +654,7 @@ const layerPeerServices = Layer.effectDiscard(
 const layerRuntimeDependencies = Layer.mergeAll(
   GuestShareService.layer,
   SecretRequests.layer,
+  ScratchThreadPromotion.layer,
   layerPeerServices,
 ).pipe(
   Layer.provideMerge(layerRuntimeCoreDependencies),
