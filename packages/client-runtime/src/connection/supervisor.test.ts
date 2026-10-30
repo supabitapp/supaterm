@@ -1631,6 +1631,37 @@ describe("EnvironmentSupervisor", () => {
     }),
   );
 
+  it.effect(
+    "shortens a pending remote probe for a long resume without extending it on later wakeups",
+    () =>
+      Effect.gen(function* () {
+        const started = yield* Deferred.make<void>();
+        const harness = yield* makeHarness({
+          probe: () => Deferred.succeed(started, undefined).pipe(Effect.andThen(Effect.never)),
+        });
+        const supervisor = yield* EnvironmentSupervisor.make(
+          { ...RELAY_ROUTE, enabled: true },
+          { initiallyDesired: true },
+        ).pipe(Effect.provide(harness.dependencies));
+        yield* awaitState(supervisor.state, (state) => state.phase === "connected");
+        yield* harness.wake("application-resumed");
+        yield* Deferred.await(started);
+        yield* TestClock.adjust("1 second");
+        yield* harness.wake("application-active-long");
+        yield* TestClock.adjust("1 second");
+        yield* harness.wake("application-active");
+        yield* TestClock.adjust("1999 millis");
+        expect(yield* Ref.get(harness.sessionCount)).toBe(1);
+
+        yield* TestClock.adjust("1 millis");
+        yield* awaitState(
+          supervisor.state,
+          (state) => state.phase === "connected" && state.generation === 2,
+        );
+        expect(yield* Ref.get(harness.sessionCount)).toBe(2);
+      }),
+  );
+
   it.effect("leaves the web foreground probe free of fresh host checks", () =>
     Effect.gen(function* () {
       const checks = yield* Ref.make(0);
@@ -1652,6 +1683,101 @@ describe("EnvironmentSupervisor", () => {
       expect(yield* Ref.get(checks)).toBe(0);
       expect(yield* Ref.get(harness.sessionCount)).toBe(1);
       yield* Deferred.succeed(answer, undefined);
+    }),
+  );
+
+  it.effect("cancels an in-flight host check when the connected app goes into the background", () =>
+    Effect.gen(function* () {
+      const checking = yield* Deferred.make<void>();
+      const cancelled = yield* Deferred.make<void>();
+      const harness = yield* makeHarness({
+        probe: () => Effect.never,
+        checkHost: () =>
+          Deferred.succeed(checking, undefined).pipe(
+            Effect.andThen(Effect.never),
+            Effect.onInterrupt(() => Deferred.succeed(cancelled, undefined)),
+          ),
+      });
+      const supervisor = yield* EnvironmentSupervisor.make(TARGET_ENTRY, {
+        initiallyDesired: true,
+      }).pipe(Effect.provide(harness.dependencies));
+      yield* awaitState(supervisor.state, (state) => state.phase === "connected");
+      yield* harness.wake("application-resumed");
+      yield* TestClock.adjust("500 millis");
+      yield* Deferred.await(checking);
+
+      yield* harness.wake("application-background");
+      yield* Deferred.await(cancelled);
+      yield* TestClock.adjust("20 seconds");
+      expect(yield* Ref.get(harness.sessionCount)).toBe(1);
+      expect(yield* Ref.get(harness.releaseCount)).toBe(0);
+      expect(yield* SubscriptionRef.get(supervisor.state)).toMatchObject({ phase: "connected" });
+    }),
+  );
+
+  it.effect("rechecks a remote socket when its network changes during a pending health check", () =>
+    Effect.gen(function* () {
+      const checking = yield* Ref.make(0);
+      const started = yield* Deferred.make<void>();
+      const harness = yield* makeHarness({
+        probe: () => Deferred.succeed(started, undefined).pipe(Effect.andThen(Effect.never)),
+        checkHost: () => Ref.update(checking, (count) => count + 1).pipe(Effect.as("answered")),
+      });
+      const supervisor = yield* EnvironmentSupervisor.make(
+        { ...RELAY_ROUTE, enabled: true },
+        { initiallyDesired: true },
+      ).pipe(Effect.provide(harness.dependencies));
+      yield* awaitState(supervisor.state, (state) => state.phase === "connected");
+      yield* harness.wake("application-resumed");
+      yield* Deferred.await(started);
+      yield* TestClock.adjust("1 second");
+      yield* harness.receiveFrame;
+      yield* harness.wake("network-changed");
+
+      yield* TestClock.adjust("3999 millis");
+      expect(yield* Ref.get(checking)).toBe(2);
+      expect(yield* Ref.get(harness.sessionCount)).toBe(1);
+      yield* TestClock.adjust("1 millis");
+      yield* awaitState(
+        supervisor.state,
+        (state) => state.phase === "connected" && state.generation === 2,
+      );
+      expect(yield* Ref.get(harness.sessionCount)).toBe(2);
+    }),
+  );
+
+  it.effect("keeps wakeups during a health probe from starting extra preferred-route checks", () =>
+    Effect.gen(function* () {
+      const started = yield* Deferred.make<void>();
+      const preferredChecked = yield* Deferred.make<void>();
+      const hostChecked = yield* Deferred.make<void>();
+      const checks = yield* Ref.make(0);
+      const harness = yield* makeHarness({
+        prepare: (_attempt, target) =>
+          target === LAN_TARGET ? Effect.fail(transient()) : Effect.succeed(PREPARED_CONNECTION),
+        checkRoute: (route) => Effect.succeed(route.target === LAN_TARGET ? "silent" : "answered"),
+        preflight: () =>
+          Ref.update(checks, (count) => count + 1).pipe(
+            Effect.andThen(Deferred.succeed(preferredChecked, undefined)),
+            Effect.as({ _tag: "unprepared" }),
+          ),
+        probe: () => Deferred.succeed(started, undefined).pipe(Effect.andThen(Effect.never)),
+        checkHost: () => Deferred.succeed(hostChecked, undefined).pipe(Effect.as("silent")),
+      });
+      const supervisor = yield* EnvironmentSupervisor.make(
+        { ...LAN_ROUTE, alternateRoutes: [RELAY_ROUTE], enabled: true },
+        { initiallyDesired: true },
+      ).pipe(Effect.provide(harness.dependencies));
+      yield* awaitState(supervisor.state, (state) => state.phase === "connected");
+      yield* harness.wake("application-active");
+      yield* Deferred.await(started);
+      yield* Deferred.await(preferredChecked);
+
+      yield* harness.wake("network-changed");
+      yield* TestClock.adjust("500 millis");
+      yield* Deferred.await(hostChecked);
+      expect(yield* Ref.get(checks)).toBe(1);
+      expect(yield* Ref.get(harness.sessionCount)).toBe(1);
     }),
   );
 
