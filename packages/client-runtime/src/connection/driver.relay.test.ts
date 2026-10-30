@@ -143,6 +143,7 @@ const connectWithRealResolver = Effect.fnUntraced(function* (
             subscribeServerConfig: () => Stream.empty,
             ready: Effect.void,
             probe: Effect.void,
+            inboundFrames: Effect.succeed(0),
             closed: Effect.never,
           } satisfies RpcSession.RpcSession),
       }),

@@ -67,6 +67,7 @@ const makeHarness = Effect.fnUntraced(function* () {
           subscribeServerConfig: () => Stream.empty,
           ready: Effect.void,
           probe: Effect.void,
+          inboundFrames: Effect.succeed(0),
           closed: Effect.never,
         } satisfies RpcSession.RpcSession),
       ),
@@ -103,7 +104,9 @@ describe("route preflight preparation", () => {
     () =>
       Effect.gen(function* () {
         const harness = yield* makeHarness();
-        const preflight = Option.getOrThrow(yield* harness.driver.preflight(entry, route));
+        const result = yield* harness.driver.preflight(entry, route);
+        if (result._tag !== "ready") throw new Error("Expected a prepared route");
+        const preflight = result.prepared;
         expect(yield* Ref.get(harness.connections)).toEqual([]);
         const lease = yield* harness.driver.connect(entry, () => Effect.void, preflight);
         expect(lease.prepared).toBe(preflight.prepared);
@@ -116,7 +119,9 @@ describe("route preflight preparation", () => {
   it.effect("renews expired preparation before opening a socket", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness();
-      const preflight = Option.getOrThrow(yield* harness.driver.preflight(entry, route));
+      const result = yield* harness.driver.preflight(entry, route);
+      if (result._tag !== "ready") throw new Error("Expected a prepared route");
+      const preflight = result.prepared;
       yield* TestClock.adjust("10 seconds");
       const lease = yield* harness.driver.connect(entry, () => Effect.void, preflight);
       expect(lease.prepared.socketUrl).toContain("ticket-2");
@@ -128,7 +133,9 @@ describe("route preflight preparation", () => {
   it.effect("prepares again when a route with the same ID changes address", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness();
-      const preflight = Option.getOrThrow(yield* harness.driver.preflight(entry, route));
+      const result = yield* harness.driver.preflight(entry, route);
+      if (result._tag !== "ready") throw new Error("Expected a prepared route");
+      const preflight = result.prepared;
       const changed: ConnectionCatalogEntry = {
         ...entry,
         profile: Option.some(
@@ -170,7 +177,7 @@ describe("route preflight preparation", () => {
         ),
       };
       const both: ConnectionCatalogEntry = { ...learned, enabled: true, alternateRoutes: [relay] };
-      expect(yield* harness.driver.preflight(both, learned)).toEqual(Option.none());
+      expect(yield* harness.driver.preflight(both, learned)).toEqual({ _tag: "silent" });
       const lease = yield* harness.driver.connect(both, () => Effect.void);
       expect(lease.prepared.target).toEqual(relayTarget);
       expect(yield* Ref.get(harness.prepared)).toEqual(["relay"]);

@@ -369,7 +369,8 @@ const makeHarness = Effect.fn("TestEnvironmentRegistry.makeHarness")(function* (
   });
   const driver = ConnectionDriver.ConnectionDriver.of({
     checkRoute: () => Effect.succeed("unchecked"),
-    preflight: () => Effect.succeedNone,
+    preflight: () => Effect.succeed({ _tag: "unchecked" }),
+    checkHost: () => Effect.succeed("silent"),
     connect: (entry, reportProgress) =>
       Effect.gen(function* () {
         const target = entry.target;
@@ -405,6 +406,7 @@ const makeHarness = Effect.fn("TestEnvironmentRegistry.makeHarness")(function* (
               Stream.die(new Error("Config is not used by registry tests.")),
             ready: Effect.void,
             probe: Effect.void,
+            inboundFrames: Effect.succeed(0),
             closed: Deferred.await(closed),
           } satisfies RpcSession.RpcSession),
           () => Ref.update(releasedSessions, (count) => count + 1),

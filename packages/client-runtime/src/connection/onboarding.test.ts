@@ -319,7 +319,8 @@ function layerPairingOnboarding(options?: Parameters<typeof pairingServer>[0]) {
     ),
     Layer.mock(ConnectionDriver.ConnectionDriver)({
       checkRoute: () => Effect.succeed("unchecked"),
-      preflight: () => Effect.succeedNone,
+      preflight: () => Effect.succeed({ _tag: "unchecked" }),
+      checkHost: () => Effect.succeed("silent"),
       connect: () => Effect.never,
     }),
     Layer.succeed(

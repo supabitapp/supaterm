@@ -312,6 +312,7 @@ describe("RpcSessionFactory", () => {
       yield* Fiber.join(readyFiber);
 
       const config = yield* session.initialConfig;
+      expect(yield* session.inboundFrames).toBe(1);
       expect(config).toEqual(SERVER_CONFIG);
       expect(socket.sent.map((message) => decodeJson(message)).filter(isRpcRequest)).toHaveLength(
         1,
@@ -335,6 +336,7 @@ describe("RpcSessionFactory", () => {
         }),
       );
       yield* Fiber.join(probeFiber);
+      expect(yield* session.inboundFrames).toBe(2);
 
       expect(
         socket.sent
