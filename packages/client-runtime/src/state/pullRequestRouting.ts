@@ -426,6 +426,7 @@ export function createPullRequestRouter() {
           // Route only to an environment signed in to the same account on this host.
           const alternateProbe = request(WS_METHODS.pullRequestsRoutingIdentity, {
             host: identity.host,
+            repository: ref.repository,
           }).pipe(
             Effect.timeout("2 seconds"),
             Effect.catchCause((cause) =>
@@ -436,7 +437,14 @@ export function createPullRequestRouter() {
             .run(
               id,
               reads.has(tag)
-                ? shareMetadataRead(pendingIdentities, identity.host.toLowerCase(), alternateProbe)
+                ? shareMetadataRead(
+                    pendingIdentities,
+                    encodeKey([
+                      identity.host.trim().toLowerCase(),
+                      ref.repository.trim().toLowerCase(),
+                    ]),
+                    alternateProbe,
+                  )
                 : alternateProbe,
             )
             .pipe(

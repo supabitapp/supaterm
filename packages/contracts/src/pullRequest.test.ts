@@ -8,9 +8,22 @@ import {
   PullRequestDetail,
   PullRequestListResult,
   PullRequestViewerPermissions,
+  PullRequestRoutingIdentityInput,
   pullRequestActionAllowed,
   resolvePullRequestAuthorFilter,
 } from "./pullRequest.ts";
+
+describe("PullRequestRoutingIdentityInput", () => {
+  it("keeps repository context while accepting older host-only callers", () => {
+    const decode = Schema.decodeUnknownSync(Schema.toCodecJson(PullRequestRoutingIdentityInput));
+    expect(decode({ host: "github.com" })).toEqual({ host: "github.com" });
+    expect(decode({ host: "github.com", repository: "acme/private" })).toEqual({
+      host: "github.com",
+      repository: "acme/private",
+    });
+    expect(() => decode({ host: "github.com", repository: "   " })).toThrow();
+  });
+});
 
 const decodeListResult = Schema.decodeUnknownSync(Schema.toCodecJson(PullRequestListResult));
 const decodeDetail = Schema.decodeUnknownSync(Schema.toCodecJson(PullRequestDetail));

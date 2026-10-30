@@ -107,7 +107,7 @@ for (const scenario of [
               input: unknown,
             ) =>
               Effect.gen(function* () {
-                if (local) expect(input).toEqual({ host: "github.com" });
+                if (local) expect(input).toEqual({ host: "github.com", repository: "acme/web" });
                 calls.push(`${name}:identity`);
                 if (
                   local &&
@@ -602,6 +602,110 @@ const makeTestRuntime = Effect.fn("makeTestRuntime")(function* (
   );
   return { runtime, atoms, registry, environmentRegistry, supervisor, localSupervisor };
 });
+
+it.effect.each([false, true])(
+  "routes covered and uncovered repositories with their actual account (concurrent: %s)",
+  (concurrent) =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const covered = "acme/covered";
+        const uncovered = "acme/uncovered";
+        const firstStarted = yield* Deferred.make<void>();
+        const secondOriginStarted = yield* Deferred.make<void>();
+        const releaseFirst = yield* Deferred.make<void>();
+        const probes: Array<{ host: string; repository?: string }> = [];
+        const executions: Array<{
+          environment: string;
+          repository: string;
+          accountId: string | undefined;
+        }> = [];
+        const identity = (repository?: string) => ({
+          host: "GitHub.COM",
+          provider: "github",
+          viewer: repository?.toLowerCase() === uncovered ? "personal" : "app",
+          accountId: repository?.toLowerCase() === uncovered ? "202" : "101",
+        });
+        const client = (local: boolean) =>
+          ({
+            [WS_METHODS.pullRequestsRouting]: (input: { repository: string }) =>
+              Effect.gen(function* () {
+                if (input.repository === uncovered)
+                  yield* Deferred.succeed(secondOriginStarted, undefined);
+                return identity(input.repository);
+              }),
+            [WS_METHODS.pullRequestsRoutingIdentity]: (input: {
+              host: string;
+              repository?: string;
+            }) =>
+              Effect.gen(function* () {
+                probes.push(input);
+                if (concurrent && probes.length === 1) {
+                  yield* Deferred.succeed(firstStarted, undefined);
+                  yield* Deferred.await(releaseFirst);
+                }
+                return identity(input.repository);
+              }),
+            [WS_METHODS.pullRequestsSummary]: (input: {
+              repository: string;
+              expectedAccountId?: string;
+            }) =>
+              Effect.gen(function* () {
+                if (local && input.expectedAccountId !== identity(input.repository).accountId)
+                  return yield* new PullRequestOperationError({
+                    operation: "routeIdentity",
+                    detail: "The account does not match the repository credential.",
+                  });
+                executions.push({
+                  environment: local ? "local" : "origin",
+                  repository: input.repository,
+                  accountId: input.expectedAccountId,
+                });
+                return null;
+              }),
+          }) as unknown as WsRpcProtocolClient;
+        const { environmentRegistry, supervisor } = yield* makeTestRuntime(
+          client(false),
+          client(true),
+        );
+        const route = createPullRequestRouter();
+        const read = (repository: string) =>
+          route(WS_METHODS.pullRequestsSummary, {
+            projectId: ProjectId.make("project"),
+            host: "github.com",
+            repository,
+            number: 7,
+          }).pipe(
+            Effect.provideService(EnvironmentRegistry.EnvironmentRegistry, environmentRegistry),
+            Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor),
+            Effect.provideService(PullRequestRoutingPermissions, trustedRouting),
+          );
+        if (concurrent) {
+          const first = yield* read(covered).pipe(Effect.forkChild);
+          yield* Deferred.await(firstStarted);
+          const second = yield* read(uncovered).pipe(Effect.forkChild);
+          yield* Deferred.await(secondOriginStarted);
+          yield* Effect.yieldNow;
+          yield* Deferred.succeed(releaseFirst, undefined);
+          yield* Fiber.join(first);
+          yield* Fiber.join(second);
+        } else {
+          yield* read(covered);
+          yield* read(uncovered);
+        }
+        expect(probes).toEqual([
+          { host: "GitHub.COM", repository: covered },
+          { host: "GitHub.COM", repository: uncovered },
+        ]);
+        expect(executions).toEqual(
+          expect.arrayContaining([
+            { environment: "local", repository: covered, accountId: "101" },
+            { environment: "local", repository: uncovered, accountId: "202" },
+          ]),
+        );
+        expect(executions).toHaveLength(2);
+      }),
+    ),
+);
 
 it.effect.each([
   "default",

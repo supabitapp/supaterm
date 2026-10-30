@@ -431,6 +431,7 @@ export type PullRequestWorkflowRun = typeof PullRequestWorkflowRun.Type;
 
 export const PullRequestRoutingIdentityInput = Schema.Struct({
   host: TrimmedNonEmptyString,
+  repository: Schema.optionalKey(TrimmedNonEmptyString),
 });
 export type PullRequestRoutingIdentityInput = typeof PullRequestRoutingIdentityInput.Type;
 
