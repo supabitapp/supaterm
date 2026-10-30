@@ -521,12 +521,8 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
 });
 
 /**
- * Same precedence as dev-runner: without --base-dir, a CLI running from a linked
- * worktree's own source uses only that worktree's `.supaterm`. Commands that open
- * the target database run this checkout's migrations, so falling back to the
- * shared home could migrate the live install with unreleased schema. An installed
- * CLI invoked inside some project's worktree carries released migrations and
- * keeps the normal home.
+ * CLIs run from linked-worktree source use its state to keep unreleased migrations
+ * out of the live install. Installed CLIs retain the normal home; --base-dir overrides both.
  */
 export const resolveCliWorktreeHome = Effect.fn("config.resolveCliWorktreeHome")(function* (
   explicitBaseDir: Option.Option<string>,
