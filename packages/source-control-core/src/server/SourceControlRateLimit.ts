@@ -20,11 +20,6 @@ export const CredentialScope = Context.Reference<string>(
   },
 );
 
-/**
- * A host may let requests made under it spend a reserved quota and go through a rate-limit
- * pause: a user acting on a change request should not be refused because a background read
- * exhausted the quota.
- */
 export const Interactive = Context.Reference<boolean>(
   "@supaterm/source-control-core/server/SourceControlRateLimit/Interactive",
   { defaultValue: () => false },
@@ -99,7 +94,6 @@ export function retryAtFromHeader(value: string | undefined, now: number): numbe
   return Number.isFinite(retryAt) && retryAt > now ? retryAt : undefined;
 }
 
-/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const entries = yield* Ref.make<ReadonlyMap<string, RateLimitEntry>>(new Map());
 

@@ -1,18 +1,26 @@
 import { SourceControlProviderKind } from "@supaterm/contracts";
 import {
+  changeRequestUrlBelow,
+  type ChangeRequestHostIdentity,
   type ChangeRequestProjectIdentity,
-  defineSourceControlClient,
+  defineSourceControl,
   isChangeRequestAuthorityOfProject,
   isChangeRequestInProjectRepository,
   isChangeRequestOnProjectHost,
-  isChangeRequestPath,
-} from "@supaterm/source-control-core/client/definition";
+  parseChangeRequestPath,
+  projectChangeRequestHost,
+  remoteWebOrigin,
+} from "@supaterm/source-control-core/shared/definition";
 
 const CHECKOUT_COMMAND = /^tea\s+(?:pr|pulls)\s+checkout\s+(.+)$/i;
 const CHANGE_REQUEST_REFERENCE =
   /^https?:\/\/[^/\s]+\/(?:[^/\s]+\/)+[^/\s]+\/pulls\/(\d+)(?:[/?#].*)?$/i;
 
+const CHANGE_REQUEST_PATH = /^\/([^/]+(?:\/[^/]+)+)\/pulls\/(\d+)(?:\/|$)/u;
+
 const KIND = SourceControlProviderKind.make("forgejo");
+
+const changeRequestHeadRef = (number: number) => `refs/pull/${number}/head`;
 
 /**
  * The repository's browser URL the server resolved from the signed-in account, which is the
@@ -28,53 +36,76 @@ function resolvedWebUrl(identity: ChangeRequestProjectIdentity): URL | null {
   }
 }
 
-export const definition = defineSourceControlClient({
+function changeRequestHost(identity: ChangeRequestHostIdentity): string {
+  try {
+    const remote = new URL(identity?.locator?.remoteUrl ?? "");
+    if (remote.protocol === "http:" || remote.protocol === "https:") {
+      return remote.host.toLowerCase();
+    }
+  } catch {}
+  return projectChangeRequestHost(identity, KIND);
+}
+
+export const definition = defineSourceControl({
   kind: KIND,
   label: "Forgejo",
   pickerLabel: "Forgejo / Gitea",
-  icon: "forgejo",
-  changeRequest: { shortLabel: "PR", singular: "pull request" },
+  searchKeywords: ["gitea", "tea", "codeberg"],
+  changeRequest: {
+    shortLabel: "PR",
+    shortLabelWithArticle: "a PR",
+    singular: "pull request",
+    plural: "pull requests",
+  },
   repositoryPathHint: "owner/repo",
-  // Forgejo and Gitea are self-hosted, so no hostname names them.
-  publicHost: null,
+
+  publicHost: "codeberg.org",
   publishDescription: "Your signed-in server",
   publishHost: (signedInHost) => signedInHost ?? "your server",
   newRepositoryOwner: (account) => (account ? { owner: account } : null),
   defaultCloneTransport: "https",
   // The server's resolved web URL wins; otherwise an HTTP remote on the same host names the
   // origin, which may carry a port. SSH remotes say nothing about the web origin.
-  changeRequestUrl: ({ host, repository, number, remoteUrl, webUrl }) => {
-    if (webUrl) return `${webUrl.replace(/\/+$/, "")}/pulls/${number}`;
-    try {
-      const remote = new URL(remoteUrl ?? "");
-      if (
-        (remote.protocol === "http:" || remote.protocol === "https:") &&
-        (remote.hostname.toLowerCase() === host.toLowerCase() ||
-          remote.host.toLowerCase() === host.toLowerCase())
-      ) {
-        return `${remote.origin}/${repository}/pulls/${number}`;
-      }
-    } catch {}
-    return `https://${host}/${repository}/pulls/${number}`;
+  changeRequestUrl: ({ host, repository, number, remoteUrl, webUrl }) =>
+    webUrl
+      ? changeRequestUrlBelow(webUrl, `pulls/${number}`)
+      : `${remoteWebOrigin(host, remoteUrl)}/${repository}/pulls/${number}`,
+
+  parseChangeRequestUrl: (url) => {
+    const link = parseChangeRequestPath(url, CHANGE_REQUEST_PATH);
+    return link === null ? null : { ...link, authority: url.host.toLowerCase() };
   },
+  changeRequestUrlFromReferenceAutolink: () => null,
   changeRequestActions: new Set(["merge", "close", "reopen", "update-branch"] as const),
-  // Neither `fj` nor `tea` checks out by number, so fetch the pull ref from the repository itself.
+
   checkoutCommand: ({ number, repositoryUrl }) =>
     repositoryUrl
-      ? `git fetch '${repositoryUrl.replaceAll("'", "'\\''")}' refs/pull/${number}/head && git checkout -B pulls/${number} FETCH_HEAD`
+      ? `git fetch '${repositoryUrl.replaceAll("'", "'\\''")}' ${changeRequestHeadRef(number)} && git checkout -B pulls/${number} FETCH_HEAD`
       : null,
+  changeRequestCloseCommand: /\b(?:tea\s+(?:pr|pulls)|fj\s+pr)\s+(?:merge|close)\b/u,
   authorProfileUrl: () => null,
   // Forgejo refuses a change request review without a summary, even with inline comments.
-  referenceAutolinkRepositoryUrl: () => null,
   reviewSummaryRequired: (verdict) => verdict === "request-changes",
   checkoutCommandArgument: (input) => CHECKOUT_COMMAND.exec(input)?.[1]?.trim() ?? null,
   isChangeRequestReference: (url) => CHANGE_REQUEST_REFERENCE.test(url),
-  changeRequestUrlHost: (url) => url.host,
   checkoutChangeRequestHost: () => null,
+  changeRequestHeadRef,
+  recognizeRemote: ({ remoteUrl, host, hostname }) =>
+    hostname === "codeberg.org" ||
+    hostname.split(".").includes("forgejo") ||
+    hostname.split(".").includes("gitea")
+      ? {
+          kind: KIND,
+          name: "Forgejo",
+          baseUrl: /^https?:/iu.test(remoteUrl) ? new URL(remoteUrl).origin : `https://${host}`,
+        }
+      : null,
+  changeRequestHost,
   isChangeRequestInRepository: (identity, link) => {
     if (!isChangeRequestAuthorityOfProject(identity, link)) return false;
     const web = resolvedWebUrl(identity);
-    if (!web) return isChangeRequestInProjectRepository(KIND, identity, link);
+    if (!web)
+      return isChangeRequestInProjectRepository(changeRequestHost(identity), identity, link);
     return (
       web.host.toLowerCase() === (link.authority ?? link.host).toLowerCase() &&
       web.pathname.replace(/^\/+|\/+$/g, "").toLowerCase() === link.repository.toLowerCase()
@@ -83,7 +114,7 @@ export const definition = defineSourceControlClient({
   // A server mounted below a path serves only repositories under that mount.
   canReadChangeRequestOnHost: (identity, link) => {
     const web = resolvedWebUrl(identity);
-    if (!web) return isChangeRequestOnProjectHost(KIND, identity, link);
+    if (!web) return isChangeRequestOnProjectHost(changeRequestHost(identity), identity, link);
     const mount = web.pathname
       .replace(/^\/+|\/+$/g, "")
       .split("/")
@@ -94,5 +125,4 @@ export const definition = defineSourceControlClient({
       (!mount || link.repository.toLowerCase().startsWith(`${mount.toLowerCase()}/`))
     );
   },
-  isChangeRequestUrl: (url) => isChangeRequestPath(url, "/pulls/"),
 });

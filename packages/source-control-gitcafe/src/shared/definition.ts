@@ -1,0 +1,105 @@
+import {
+  makeProviderSettingsSchema,
+  secretSetting,
+  SourceControlProviderKind,
+  TrimmedString,
+} from "@supaterm/contracts";
+import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
+import {
+  changeRequestUrlBelow,
+  defineSourceControl,
+  isChangeRequestInProjectRepository,
+  isChangeRequestOnProjectHost,
+  parseChangeRequestPath,
+  projectChangeRequestHost,
+} from "@supaterm/source-control-core/shared/definition";
+
+/** GitCafe has no self-hosted installs: production and staging are its only hosts. */
+const GITCAFE_HOSTS = new Set(["git.cafe", "staging.git.cafe"]);
+
+const CHANGE_REQUEST_PATH = /^\/([^/]+\/[^/]+)\/pulls?\/(\d+)(?:\/|$)/u;
+
+function parseChangeRequestUrl(url: URL) {
+  return GITCAFE_HOSTS.has(url.hostname.toLowerCase())
+    ? parseChangeRequestPath(url, CHANGE_REQUEST_PATH)
+    : null;
+}
+
+const KIND = SourceControlProviderKind.make("gitcafe");
+
+export const settings = makeProviderSettingsSchema({
+  token: TrimmedString.pipe(
+    secretSetting,
+    Schema.withDecodingDefault(Effect.succeed("")),
+    Schema.annotateKey({
+      title: "Token",
+      description:
+        "A git.cafe token, used before CAFE_TOKEN and the cafe login, so GitCafe works without the CLI signed in.",
+      providerSettingsForm: { control: "password" },
+    }),
+  ),
+});
+export type GitCafeSettings = typeof settings.Type;
+
+export const definition = defineSourceControl({
+  kind: KIND,
+  label: "GitCafe",
+  pickerLabel: "GitCafe",
+  changeRequest: {
+    shortLabel: "PR",
+    shortLabelWithArticle: "a PR",
+    singular: "pull request",
+    plural: "pull requests",
+  },
+  repositoryPathHint: "owner/repo",
+  publicHost: "git.cafe",
+  publishDescription: "git.cafe",
+  publishHost: () => "git.cafe",
+  newRepositoryOwner: (account) => (account ? { owner: account } : null),
+  defaultCloneTransport: "ssh",
+  changeRequestUrl: ({ host, repository, number, webUrl }) =>
+    webUrl
+      ? changeRequestUrlBelow(webUrl, `pulls/${number}`)
+      : `https://${host}/${repository}/pulls/${number}`,
+
+  parseChangeRequestUrl,
+  changeRequestUrlFromReferenceAutolink: () => null,
+  changeRequestActions: new Set([
+    "ready",
+    "draft",
+    "close",
+    "reopen",
+    "merge",
+    "update-branch",
+  ] as const),
+  checkoutCommand: ({ number }) => `cafe pr checkout ${number}`,
+  changeRequestCloseCommand: /\bcafe\s+(?:pr|stack)\s+(?:merge|close)\b/u,
+  authorProfileUrl: () => null,
+  reviewSummaryRequired: () => false,
+  checkoutCommandArgument: () => null,
+  isChangeRequestReference: (url) => parsePullRequestUrl(url) !== null,
+  checkoutChangeRequestHost: () => null,
+  recognizeRemote: ({ hostname }) =>
+    GITCAFE_HOSTS.has(hostname)
+      ? { kind: KIND, name: "GitCafe", baseUrl: `https://${hostname}` }
+      : null,
+  isChangeRequestInRepository: (identity, link) =>
+    isChangeRequestInProjectRepository(projectChangeRequestHost(identity, KIND), identity, link),
+  canReadChangeRequestOnHost: (identity, link) =>
+    isChangeRequestOnProjectHost(projectChangeRequestHost(identity, KIND), identity, link),
+  settings,
+});
+
+export function parsePullRequestUrl(value: string) {
+  try {
+    return parseChangeRequestUrl(new URL(value));
+  } catch {
+    return null;
+  }
+}
+
+export function canonicalizePullRequestUrl(value: string): string {
+  const link = parsePullRequestUrl(value);
+  return link === null ? value : definition.changeRequestUrl(link);
+}

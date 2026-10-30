@@ -64,7 +64,6 @@ const logVcsProjectConfigError = (error: VcsProjectConfigError) =>
     }),
   );
 
-/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;

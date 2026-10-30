@@ -58,10 +58,7 @@ export type SourceControlApiDiscoverySpec = SourceControlDiscoverySpecBase & {
 export type SourceControlManagedCliDiscoverySpec = SourceControlDiscoverySpecBase & {
   readonly type: "managed-cli";
   readonly probe: (cwd: string) => Effect.Effect<SourceControlProviderDiscoveryItem>;
-  /**
-   * `null` when the integration holds nothing for the remote, which includes its CLI not being
-   * installed. A failure means it could not tell, and the registry does not keep that answer.
-   */
+
   readonly refineUnknownRemote: (input: {
     readonly cwd: string;
     readonly context: SourceControlProvider.SourceControlProviderContext;
@@ -78,6 +75,8 @@ type SourceControlCliRemoteRefinementSpec = SourceControlCliDiscoverySpec & {
 };
 
 const DEFAULT_PROBE_TIMEOUT_MS = 5_000;
+
+const API_PROBE_TIMEOUT = "3 seconds";
 
 function probeTimeoutMs(spec: SourceControlCliDiscoverySpec): number {
   return spec.probeTimeoutMs ?? DEFAULT_PROBE_TIMEOUT_MS;
@@ -239,6 +238,12 @@ export function probeSourceControlProvider(input: {
   if (input.spec.type === "managed-cli") return input.spec.probe(input.cwd);
   if (input.spec.type === "api") {
     return input.spec.probeAuth.pipe(
+      Effect.timeoutOption(API_PROBE_TIMEOUT),
+      Effect.map(
+        Option.getOrElse(() =>
+          unknownAuth("The hosting service did not answer in time. Refresh to try again."),
+        ),
+      ),
       Effect.map(
         (auth) =>
           ({
@@ -256,20 +261,14 @@ export function probeSourceControlProvider(input: {
 
   const spec = input.spec;
 
-  return probeCli({
-    spec,
-    process: input.process,
-    cwd: input.cwd,
-  }).pipe(
-    Effect.flatMap((item) => {
-      if (item.status !== "available") {
-        return Effect.succeed({
-          ...item,
-          auth: unknownAuth("Hosting integration command was not found on the server PATH."),
-        } satisfies SourceControlProviderDiscoveryItem);
-      }
-
-      return input.process
+  return Effect.all(
+    [
+      probeCli({
+        spec,
+        process: input.process,
+        cwd: input.cwd,
+      }),
+      input.process
         .run({
           operation: "source-control.discovery.auth",
           command: spec.executable,
@@ -281,30 +280,29 @@ export function probeSourceControlProvider(input: {
           appendTruncationMarker: true,
         })
         .pipe(
-          Effect.map(
-            (result) =>
-              ({
-                ...item,
-                auth: spec.parseAuth(result),
-              }) satisfies SourceControlProviderDiscoveryItem,
-          ),
+          Effect.map(spec.parseAuth),
           Effect.catch((cause) =>
-            Effect.succeed({
-              ...item,
-              auth: unknownAuth(Option.getOrUndefined(detailFromCause(cause))),
-            } satisfies SourceControlProviderDiscoveryItem),
+            Effect.succeed(unknownAuth(Option.getOrUndefined(detailFromCause(cause)))),
           ),
-        );
-    }),
+        ),
+    ],
+    { concurrency: "unbounded" },
+  ).pipe(
+    Effect.map(
+      ([item, auth]) =>
+        ({
+          ...item,
+          auth:
+            item.status === "available"
+              ? auth
+              : unknownAuth("Hosting integration command was not found on the server PATH."),
+        }) satisfies SourceControlProviderDiscoveryItem,
+    ),
   );
 }
 
 const isVcsProcessSpawnError = Schema.is(VcsProcessSpawnError);
 
-/**
- * A hosting CLI that is not installed claims no remote. The spawner checks the cwd before the
- * executable, so only the executable's own ENOENT comes from `ChildProcess`.
- */
 export function isMissingExecutable(error: unknown): boolean {
   return (
     isVcsProcessSpawnError(error) &&
@@ -368,8 +366,7 @@ export const refineUnknownRemoteProvider = Effect.fn("refineUnknownRemoteProvide
     const results = yield* Effect.forEach(input.specs, (spec) =>
       refineWithSpec({ ...input, spec }).pipe(Effect.result),
     );
-    // A claim reached after another integration could not answer is not settled: that one might
-    // have claimed the host first.
+
     let settled = true;
     for (const result of results) {
       if (Result.isFailure(result)) settled = false;

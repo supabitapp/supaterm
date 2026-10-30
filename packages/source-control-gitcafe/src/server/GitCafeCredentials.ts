@@ -1,3 +1,4 @@
+import { normalizeHost } from "@supaterm/source-control-core/server/pullRequestUtils";
 import * as Cache from "effect/Cache";
 import * as Context from "effect/Context";
 import * as Duration from "effect/Duration";
@@ -10,9 +11,9 @@ import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as SourceControlHost from "@supaterm/source-control-core/server/SourceControlHost";
-import { readSourceControlHostSettings } from "@supaterm/source-control-core/client/definition";
+import { readSourceControlHostSettings } from "@supaterm/source-control-core/shared/definition";
 
-import * as GitCafeClient from "../client/definition.ts";
+import * as GitCafeClient from "../shared/definition.ts";
 
 const TOKEN_TTL = Duration.minutes(5);
 const MISSING_TTL = Duration.seconds(10);
@@ -66,13 +67,8 @@ export class GitCafeCredentials extends Context.Service<
   }
 >()("@supaterm/source-control-gitcafe/server/GitCafeCredentials") {}
 
-const normalizeHost = (host: string) => host.trim().toLowerCase();
 const DEFAULT_HOST = "git.cafe";
 
-/**
- * `CAFE_TOKEN`, but only for the host `cafe` itself would send it to (`CAFE_HOST`, git.cafe by
- * default): a remote URL picks the host, and must not steer a production token to staging.
- */
 export function environmentToken(
   host: string,
   env: Readonly<Record<string, string | undefined>>,
@@ -92,18 +88,12 @@ function credentialPassword(output: string): string | null {
   return null;
 }
 
-/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const sourceControlHost = yield* SourceControlHost.SourceControlHost;
   const { process } = sourceControlHost;
   const environment = yield* HostProcess.Environment;
   const workingDirectory = yield* HostProcess.WorkingDirectory;
 
-  /**
-   * `cafe` has no `auth token` command; its Git credential helper is the supported way to hand
-   * the stored login to another program, and answers over stdin/stdout so the token never
-   * reaches an argument list or a log.
-   */
   const fromCafe = (host: string) =>
     process
       .run({
@@ -167,8 +157,8 @@ export const make = Effect.gen(function* () {
   });
 
   return GitCafeCredentials.of({
-    get: (host) =>
-      fromSettings(host).pipe(
+    get: Effect.fn("GitCafeCredentials.get")(function (host) {
+      return fromSettings(host).pipe(
         Effect.flatMap(
           (saved): Effect.Effect<GitCafeCredential, GitCafeCredentialUnavailableError> =>
             saved === null
@@ -179,10 +169,16 @@ export const make = Effect.gen(function* () {
                   source: "settings",
                 }),
         ),
-      ),
-    invalidate: (host) => Cache.invalidate(cache, normalizeHost(host)),
-    cliEnv: (host) =>
-      fromSettings(host).pipe(Effect.map((saved) => (saved === null ? {} : { CAFE_TOKEN: saved }))),
+      );
+    }),
+    invalidate: Effect.fn("GitCafeCredentials.invalidate")(function (host) {
+      return Cache.invalidate(cache, normalizeHost(host));
+    }),
+    cliEnv: Effect.fn("GitCafeCredentials.cliEnv")(function (host) {
+      return fromSettings(host).pipe(
+        Effect.map((saved) => (saved === null ? {} : { CAFE_TOKEN: saved })),
+      );
+    }),
   });
 });
 

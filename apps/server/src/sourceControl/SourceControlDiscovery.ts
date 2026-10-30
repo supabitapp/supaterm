@@ -64,29 +64,16 @@ export class SourceControlDiscovery extends Context.Service<
   }
 >()("supaterm/sourceControl/SourceControlDiscovery") {}
 
-/** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const config = yield* ServerConfig.ServerConfig;
   const process = yield* VcsProcess.VcsProcess;
   const sourceControlProviders = yield* SourceControlProviderRegistry.SourceControlProviderRegistry;
 
   const probe = <Kind extends VcsDriverKind>(
-    input: DiscoveryProbe & { readonly kind: Kind },
+    input: VcsProbe & { readonly kind: Kind },
   ): Effect.Effect<DiscoveryProbeResult<Kind>> => {
     const executable = input.executable;
     const versionArgs = input.versionArgs;
-
-    if (!executable || !versionArgs) {
-      return Effect.succeed({
-        kind: input.kind,
-        label: input.label,
-        implemented: input.implemented,
-        status: "missing" as const,
-        version: Option.none<string>(),
-        installHint: input.installHint,
-        detail: Option.some(input.installHint),
-      } satisfies DiscoveryProbeResult<Kind>);
-    }
 
     return process
       .run({

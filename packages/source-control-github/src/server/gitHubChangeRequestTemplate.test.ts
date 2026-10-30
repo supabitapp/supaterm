@@ -6,11 +6,11 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 
-import * as ServerConfig from "../config.ts";
-import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
-import * as VcsProcess from "../vcs/VcsProcess.ts";
-import * as GitHubChangeRequestTemplate from "@supaterm/source-control-github/server/gitHubChangeRequestTemplate";
 import { symlinksSupported } from "@supaterm/shared/testing/symlinks";
+import * as SourceControlHost from "@supaterm/source-control-core/server/SourceControlHost";
+import * as TestSourceControlHost from "@supaterm/source-control-testing/TestSourceControlHost";
+
+import * as GitHubChangeRequestTemplate from "./gitHubChangeRequestTemplate.ts";
 
 const TEMPLATE_DIRECTORIES = [
   ".github/PULL_REQUEST_TEMPLATE",
@@ -18,19 +18,14 @@ const TEMPLATE_DIRECTORIES = [
   "docs/PULL_REQUEST_TEMPLATE",
 ] as const;
 
-const layerPrTemplateDetectionTest = GitVcsDriver.layer.pipe(
-  Layer.provide(
-    ServerConfig.layerTest(process.cwd(), {
-      prefix: "supaterm-pr-template-test-",
-    }),
-  ),
-  Layer.provideMerge(VcsProcess.layer),
-  Layer.provideMerge(NodeServices.layer),
+const layerPrTemplateDetectionTest = Layer.merge(
+  TestSourceControlHost.layerWithRealGit(),
+  NodeServices.layer,
 );
 
 const runGit = (cwd: string, args: ReadonlyArray<string>) =>
   Effect.gen(function* () {
-    const git = yield* GitVcsDriver.GitVcsDriver;
+    const { git } = yield* SourceControlHost.SourceControlHost;
     return yield* git.execute({
       operation: "PrTemplateDetection.test.runGit",
       cwd,
@@ -70,7 +65,7 @@ const commitTemplates = (cwd: string) =>
 
 const detectTemplate = (cwd: string, treeish = "HEAD") =>
   Effect.gen(function* () {
-    const git = yield* GitVcsDriver.GitVcsDriver;
+    const { git } = yield* SourceControlHost.SourceControlHost;
     return yield* GitHubChangeRequestTemplate.detect(cwd, treeish, git.execute);
   });
 
@@ -229,6 +224,44 @@ it.effect("bounds template reads and marks truncated content", () =>
       assert.strictEqual(template, `${prefix}\n\n[truncated]`);
       assert.lengthOf(template.match(/\[truncated\]/g) ?? [], 1);
       assert.notInclude(template, "SECRET_SENTINEL");
+    }),
+  ),
+);
+
+it.effect.each([
+  ".github/pull_request_template.txt",
+  "PULL_REQUEST_TEMPLATE.TXT",
+  "docs/PuLl_ReQuEsT_TeMpLaTe.Md",
+  ".github/PULL_REQUEST_TEMPLATE/template.TxT",
+])("reads committed text and mixed-case template $0 from a subdirectory", (relativePath) =>
+  runWithTempDirectory((cwd) =>
+    Effect.gen(function* () {
+      const path = yield* Path.Path;
+      yield* runGit(cwd, ["config", "grep.patternType", "fixed"]);
+      yield* runGit(cwd, ["config", "color.grep", "always"]);
+      yield* writeTemplate(cwd, relativePath, "committed template");
+      yield* writeTemplate(cwd, "nested/README.md", "project");
+      for (let index = 0; index < 600; index += 1) {
+        yield* writeTemplate(cwd, `docs/${index}-${"a".repeat(180)}.md`, "guide");
+      }
+      yield* commitTemplates(cwd);
+      yield* writeTemplate(cwd, relativePath, "uncommitted template");
+
+      assert.strictEqual(
+        Option.getOrUndefined(yield* detectTemplate(path.join(cwd, "nested"))),
+        "committed template",
+      );
+    }),
+  ),
+);
+
+it.effect("does not guess between Markdown and text directory templates", () =>
+  runWithTempDirectory((cwd) =>
+    Effect.gen(function* () {
+      yield* writeTemplate(cwd, ".github/PULL_REQUEST_TEMPLATE/a.md", "markdown");
+      yield* writeTemplate(cwd, ".github/PULL_REQUEST_TEMPLATE/b.TXT", "text");
+      yield* commitTemplates(cwd);
+      assert.isTrue(Option.isNone(yield* detectTemplate(cwd)));
     }),
   ),
 );

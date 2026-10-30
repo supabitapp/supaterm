@@ -98,6 +98,7 @@ const makeRepositories = Effect.gen(function* () {
 
 const detail = (workspaceRoot: string, headSha: string): PullRequestDetail =>
   ({
+    provider: "github",
     number: 7,
     title: "Add the feature",
     body: "Adds the feature.",
@@ -438,13 +439,7 @@ it.layer(layerBase, { excludeTestServices: true })("PullRequestReviewGuideServic
       name: "a head no source has",
       reportedHead: () => "e".repeat(40),
       shadow: "none",
-      expected: [
-        "local objects:",
-        "the commit:",
-        "branch feature:",
-        "refs/pull/7/head:",
-        "refs/merge-requests/7/head:",
-      ],
+      expected: ["local objects:", "the commit:", "branch feature:", "refs/pull/7/head:"],
     },
   ])("refuses to write a guide for $name", ({ reportedHead, shadow, expected }) =>
     Effect.scoped(
@@ -468,6 +463,8 @@ it.layer(layerBase, { excludeTestServices: true })("PullRequestReviewGuideServic
           Deferred.await(run.stored).pipe(Effect.andThen(Effect.die("a guide was written"))),
         );
         for (const part of expected) assert.include(detail, part);
+
+        assert.notInclude(detail, "refs/merge-requests/");
         assert.deepStrictEqual(run.observed, []);
         assert.isFalse(run.fetchedRefs.some((ref) => ref.startsWith("-")));
         const fs = yield* FileSystem.FileSystem;

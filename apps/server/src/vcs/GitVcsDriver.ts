@@ -55,13 +55,11 @@ export interface ExecuteGitInput {
   readonly forceKillAfterMs?: number;
   readonly maxOutputBytes?: number;
   readonly appendTruncationMarker?: boolean;
-  /**
-   * With `appendTruncationMarker`, keep invoking the line callbacks after the
-   * buffered copy is full. For long-running commands whose output is only
-   * consumed through `progress`.
-   */
+
   readonly keepLineCallbacksAfterTruncation?: boolean;
   readonly progress?: ExecuteGitProgress;
+
+  readonly writesSharedConfig?: boolean;
 }
 
 export interface ExecuteGitResult {
@@ -122,10 +120,6 @@ export interface ExecuteGitProgress {
 }
 
 export interface CreateWorktreeProgress {
-  /**
-   * Git refuses an existing path, so a path reported here belongs to this call and is safe to
-   * remove on cancel.
-   */
   readonly onWorktreeClaimed?: (path: string) => Effect.Effect<void, never>;
   readonly onCheckoutProgress?: (input: {
     percent: number;
@@ -145,10 +139,7 @@ export interface CreateWorktreeProgress {
 
 export interface CreateWorktreeOptions {
   readonly progress?: CreateWorktreeProgress;
-  /**
-   * Null (or omitted, for callers without settings access) defers to the
-   * checkout's own supaterm.json.
-   */
+
   readonly submodules?: WorktreeSubmodules | null;
   readonly worktreesDirectory?: string;
 }
@@ -202,15 +193,10 @@ export interface GitRenameBranchResult {
   branch: string;
 }
 
-export interface GitFetchPullRequestBranchInput {
+export interface GitFetchRefInput {
   cwd: string;
-  prNumber: number;
-  branch: string;
-}
 
-export interface GitFetchPullRequestHeadCommitInput {
-  cwd: string;
-  prNumber: number;
+  ref: string;
 }
 
 export interface GitResolveCommitInput {
@@ -225,10 +211,7 @@ export interface GitResolveCommitResult {
 export interface GitRefreshCheckedOutBranchInput {
   cwd: string;
   targetCommit: string;
-  /**
-   * Commit the checkout is allowed to be hard-reset away from: the upstream commit read before
-   * the fetch. HEAD sitting there means the checkout holds no work of its own.
-   */
+
   resetWhenHeadCommit?: string | null | undefined;
 }
 
@@ -288,6 +271,18 @@ export interface GitFetchWorktreeBaseCommitInput {
   refName: string;
 }
 
+export interface GitCreateBranchInput {
+  readonly cwd: string;
+  readonly branch: string;
+  readonly startPoint: string;
+}
+
+export interface GitWriteConfigValueInput {
+  readonly cwd: string;
+  readonly key: string;
+  readonly value: string;
+}
+
 export interface GitSetBranchUpstreamInput {
   cwd: string;
   branch: string;
@@ -343,6 +338,11 @@ export class GitVcsDriver extends Context.Service<
       cwd: string,
       key: string,
     ) => Effect.Effect<string | null, GitCommandError>;
+
+    readonly readBranchBase: (
+      cwd: string,
+      branch: string,
+    ) => Effect.Effect<string | null, GitCommandError>;
     readonly resolveBranchName: (
       cwd: string,
       refName: string,
@@ -355,11 +355,12 @@ export class GitVcsDriver extends Context.Service<
       input: VcsCreateWorktreeInput,
       options?: CreateWorktreeOptions,
     ) => Effect.Effect<VcsCreateWorktreeResult, GitCommandError>;
-    readonly fetchPullRequestBranch: (
-      input: GitFetchPullRequestBranchInput,
+
+    readonly fetchRefIntoBranch: (
+      input: GitFetchRefInput & { readonly branch: string },
     ) => Effect.Effect<void, GitCommandError>;
-    readonly fetchPullRequestHeadCommit: (
-      input: GitFetchPullRequestHeadCommitInput,
+    readonly fetchRefCommit: (
+      input: GitFetchRefInput,
     ) => Effect.Effect<GitResolveCommitResult, GitCommandError>;
     readonly resolveCommit: (
       input: GitResolveCommitInput,
@@ -396,6 +397,11 @@ export class GitVcsDriver extends Context.Service<
     ) => Effect.Effect<void, GitCommandError>;
     readonly setBranchUpstream: (
       input: GitSetBranchUpstreamInput,
+    ) => Effect.Effect<void, GitCommandError>;
+
+    readonly createBranch: (input: GitCreateBranchInput) => Effect.Effect<void, GitCommandError>;
+    readonly writeConfigValue: (
+      input: GitWriteConfigValueInput,
     ) => Effect.Effect<void, GitCommandError>;
     readonly removeWorktree: (
       input: VcsRemoveWorktreeInput,
@@ -513,15 +519,6 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
   const vcsProcess = yield* VcsProcess.VcsProcess;
   const crypto = yield* Crypto.Crypto;
   const hostPlatform = yield* HostProcess.Platform;
-  const capabilities = {
-    kind: "git" as const,
-    supportsWorktrees: true,
-    supportsBookmarks: false,
-    supportsAtomicSnapshot: false,
-    supportsPushDefaultRemote: true,
-    ignoreClassifier: "native" as const,
-  };
-
   const isInsideWorkTree: VcsDriver.VcsDriver["Service"]["isInsideWorkTree"] = (cwd) =>
     gitCommand(
       vcsProcess,
@@ -554,25 +551,42 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
   const detectRepository: VcsDriver.VcsDriver["Service"]["detectRepository"] = Effect.fn(
     "detectRepository",
   )(function* (cwd) {
-    if (!(yield* isInsideWorkTree(cwd))) {
-      return null;
-    }
-
-    const root = yield* gitCommand(vcsProcess, "GitVcsDriver.detectRepository.root", cwd, [
-      "rev-parse",
-      "--show-toplevel",
-    ]);
-    const gitCommonDir = yield* gitCommand(
+    const result = yield* gitCommand(
       vcsProcess,
-      "GitVcsDriver.detectRepository.commonDir",
+      "GitVcsDriver.detectRepository",
       cwd,
-      ["rev-parse", "--git-common-dir"],
-    ).pipe(Effect.orElseSucceed(() => null));
+      ["rev-parse", "--is-inside-work-tree", "--show-toplevel", "--git-common-dir"],
+      {
+        allowNonZeroExit: true,
+        timeoutMs: 5_000,
+        maxOutputBytes: 16_384,
+      },
+    ).pipe(Effect.catchIf(isMissingExecutable, () => Effect.succeed(null)));
+    if (result === null || result.exitCode !== 0) return null;
+    const lines = result.stdout.replace(/\r?\n$/u, "").split(/\r?\n/u);
+    if (lines[0]?.trim() !== "true") return null;
+
+    if (lines.length !== 3) {
+      const root = yield* gitCommand(vcsProcess, "GitVcsDriver.detectRepository", cwd, [
+        "rev-parse",
+        "--show-toplevel",
+      ]);
+      const gitCommonDir = yield* gitCommand(vcsProcess, "GitVcsDriver.detectRepository", cwd, [
+        "rev-parse",
+        "--git-common-dir",
+      ]).pipe(Effect.orElseSucceed(() => null));
+      return {
+        kind: "git" as const,
+        rootPath: root.stdout.trim(),
+        metadataPath: gitCommonDir?.stdout.trim() || null,
+        freshness: yield* nowFreshness(),
+      };
+    }
 
     return {
       kind: "git" as const,
-      rootPath: root.stdout.trim(),
-      metadataPath: gitCommonDir?.stdout.trim() || null,
+      rootPath: lines[1]!.trim(),
+      metadataPath: lines[2]!.trim() || null,
       freshness: yield* nowFreshness(),
     };
   });
@@ -775,11 +789,6 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
     return path.resolve(physicalCwd, gitCommonDir);
   });
 
-  // Git renames loose objects and refs into place without fsync by default, so
-  // an unclean restart can leave 0-byte files under refs/supaterm/** that break every
-  // later fetch and push. Checkpoint writes flush before they are published;
-  // macOS defaults to writeout-only, which does not reach the disk either.
-
   const durableWrite = [
     "-c",
     "core.fsync=objects,reference",
@@ -868,7 +877,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
             let specialFlags = false;
             let recordStart = true;
             let skipped = false;
-            let skippedRecord: number[] = [];
+            let skippedRecord: Uint8Array[] = [];
             const skippedPaths: string[] = [];
             yield* vcsProcess.run({
               operation,
@@ -878,27 +887,35 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
               env: commitEnv,
               maxOutputBytes: 4_096,
               outputMode: "truncate",
+
               onStdoutChunk: (chunk) => {
-                for (const byte of chunk) {
-                  if (recordStart) skipped = byte === 83;
+                let start = 0;
+                while (start < chunk.length) {
+                  const end = chunk.indexOf(0, start);
+                  if (recordStart) {
+                    const tag = chunk[start]!;
+                    skipped = tag === 83;
+                    if ((tag >= 97 && tag <= 122) || (!sparseCheckout && tag === 83)) {
+                      specialFlags = true;
+                    }
+                  }
                   if (skipped && sparseCheckout) {
-                    if (byte !== 0) skippedRecord.push(byte);
-                    else {
-                      if (skippedRecord.at(-1) !== 47) {
-                        const name = Buffer.from(skippedRecord).subarray(2);
+                    skippedRecord.push(
+                      Buffer.from(chunk.subarray(start, end === -1 ? undefined : end)),
+                    );
+                    if (end !== -1) {
+                      const record = Buffer.concat(skippedRecord);
+                      if (record.at(-1) !== 47) {
+                        const name = record.subarray(2);
                         if (!NodeBuffer.isUtf8(name)) specialFlags = true;
                         else skippedPaths.push(name.toString("utf8"));
                       }
                       skippedRecord = [];
                     }
                   }
-                  if (
-                    recordStart &&
-                    ((byte >= 97 && byte <= 122) || (!sparseCheckout && byte === 83))
-                  ) {
-                    specialFlags = true;
-                  }
-                  recordStart = byte === 0;
+                  recordStart = end !== -1;
+                  if (!recordStart) break;
+                  start = end + 1;
                 }
               },
             });
@@ -1028,8 +1045,6 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
           Effect.catchTags({
             VcsProcessExitError: (error) =>
               Effect.gen(function* () {
-                // Git cannot stage an embedded repository until it has a commit. Discover these
-                // only after staging fails so ordinary checkpoints do not need another file scan.
                 const untracked = yield* execute({
                   operation,
                   cwd: input.cwd,
@@ -1325,8 +1340,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
           maxOutputBytes: VcsDriver.CHECKPOINT_DIFF_MAX_OUTPUT_BYTES,
           outputMode: "error",
         }).pipe(Effect.map((result) => result.stdout.split("\0")));
-      // Remerge diff lists a merge's paths only where the result differs from Git's
-      // automatic merge, so a merge keeps its conflict fixes and drops clean upstream changes.
+
       const pathLists = yield* Effect.all(
         [
           listPaths(["diff", startHead, `${input.fromCheckpointRef}^{commit}`]),
@@ -1363,7 +1377,6 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
   };
 
   return {
-    capabilities,
     execute,
     checkpoints,
     detectRepository,
