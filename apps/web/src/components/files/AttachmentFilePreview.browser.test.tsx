@@ -375,7 +375,10 @@ describe("bounded binary previews", () => {
     const many = new JSZip();
     for (let i = 0; i < 2049; i++) many.file(`file-${i}`, "");
     const crowded = await many.generateAsync({ type: "arraybuffer" });
-    new DataView(crowded).setUint16(crowded.byteLength - 12, 1, true);
+    const crowdedDirectory = new DataView(crowded);
+    const crowdedEnd = crowded.byteLength - 22;
+    crowdedDirectory.setUint16(crowdedEnd + 8, 1, true);
+    crowdedDirectory.setUint16(crowdedEnd + 10, 1, true);
     await expect(boundedZip(crowded)).rejects.toThrow("more than 2,048 entries");
   });
 
