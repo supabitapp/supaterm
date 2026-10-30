@@ -10,6 +10,7 @@ import {
   makeThreadErrorSetter,
 } from "../ChatView.logic";
 import { useStableCallback } from "../../hooks/useStableCallback";
+import { useNowAfter } from "../../hooks/useDeadline";
 import type { usePendingThreadRequests } from "./usePendingThreadRequests";
 import {
   AuthOrchestrationOperateScope,
@@ -25,7 +26,7 @@ import { markDoneAndAdvance } from "../../markDoneAndAdvance";
 import type { ChatShortcutCommands } from "./useChatShortcuts";
 import { useNowMinute } from "../../hooks/useNowMinute";
 import { scopedThreadKey, scopeThreadRef } from "@supaterm/client-runtime/environment";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import {
   isAtomCommandInterrupted,
@@ -150,43 +151,13 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
   const supportsSnooze = serverConfig != null;
   const supportsPinning = serverConfig != null;
   const activeThreadPinned = supportsPinning && activeThreadShell?.pinnedAt != null;
-  // The compiler caches render results on their inputs, so a clock read in render
-  // stays frozen until the shell changes. The clock is state: reset with the shell,
-  // and moved by the wake timer.
-  const [snoozeClockState, setSnoozeClockState] = useState(() => ({
-    shell: activeThreadShell,
-    now: new Date().toISOString(),
-  }));
-  if (snoozeClockState.shell !== activeThreadShell) {
-    // oxlint-disable-next-line react/purity -- A new shell restarts the clock; the wake timer moves it after that.
-    setSnoozeClockState({ shell: activeThreadShell, now: new Date().toISOString() });
-  }
-  const snoozeClock = snoozeClockState.now;
+  const snoozeClock = new Date(
+    useNowAfter(Date.parse(activeThreadShell?.snoozedUntil ?? "") || null),
+  ).toISOString();
   const activeThreadSnoozed =
     activeThreadShell !== null &&
     supportsSnooze &&
     effectiveSnoozed(activeThreadShell, { now: snoozeClock });
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- owns the wake timer for the current snoozed thread and cancels it when the deadline changes
-  useEffect(() => {
-    if (!activeThreadSnoozed) return;
-    const wakeAtMs = Date.parse(activeThreadShell?.snoozedUntil ?? "");
-    if (!Number.isFinite(wakeAtMs)) return;
-    let id = 0;
-    const scheduleWake = () => {
-      id = window.setTimeout(
-        () => {
-          if (Date.now() < wakeAtMs) {
-            scheduleWake();
-            return;
-          }
-          setSnoozeClockState((clock) => ({ ...clock, now: new Date().toISOString() }));
-        },
-        Math.min(Math.max(0, wakeAtMs - Date.now()) + 50, 2_147_483_647),
-      );
-    };
-    scheduleWake();
-    return () => window.clearTimeout(id);
-  }, [activeThreadShell?.snoozedUntil, activeThreadSnoozed]);
   const activeThreadWokeAt =
     activeThreadShell !== null && supportsSnooze
       ? threadWokeAt(activeThreadShell, { now: snoozeClock })
