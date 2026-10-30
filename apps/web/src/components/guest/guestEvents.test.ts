@@ -2,10 +2,20 @@ import { expect, it } from "vite-plus/test";
 import { openGuestEvents } from "./guestEvents";
 import type { GuestTransport } from "./guestTransport";
 
+function completion() {
+  let resolve!: () => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<void>((complete, fail) => {
+    resolve = complete;
+    reject = fail;
+  });
+  return { promise, resolve, reject };
+}
+
 it("decodes split UTF-8 frames and cancels the encrypted stream on close", async () => {
   const received: string[] = [];
-  const complete = Promise.withResolvers<void>();
-  const canceled = Promise.withResolvers<void>();
+  const complete = completion();
+  const canceled = completion();
   const bytes = new TextEncoder().encode(': ping\n\ndata: {"text":"café"}\n\ndata: done\n\n');
   const transport: GuestTransport = {
     setToken() {},
@@ -41,7 +51,7 @@ it("decodes split UTF-8 frames and cancels the encrypted stream on close", async
 });
 
 it("reports rejected guest access without reconnecting", async () => {
-  const complete = Promise.withResolvers<void>();
+  const complete = completion();
   let requests = 0;
   const transport: GuestTransport = {
     setToken() {},

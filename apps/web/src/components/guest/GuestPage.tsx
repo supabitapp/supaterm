@@ -34,13 +34,16 @@ import {
   type KeyboardEvent,
 } from "react";
 
-import { useIncrementalTimelineEntries } from "~/hooks/useIncrementalTimelineEntries";
 import { useNowMinute } from "~/hooks/useNowMinute";
 import { useStableCallback } from "~/hooks/useStableCallback";
 import { useTheme } from "~/hooks/useTheme";
 import { observeResize } from "~/lib/observeResize";
 import { cn } from "~/lib/utils";
-import { deriveActiveWorkStartedAt, derivePhase } from "~/session-logic";
+import {
+  createTimelineEntriesProjector,
+  deriveActiveWorkStartedAt,
+  derivePhase,
+} from "~/session-logic";
 import { ComposerControl, ComposerControlIcon } from "../chat/ComposerControl";
 import type { ExpandedImagePreview } from "../chat/ExpandedImagePreview";
 import { GuestMessageAttachments } from "../chat/GuestMessageAttachments";
@@ -398,14 +401,18 @@ function GuestThread({
       return url ? [[id, url] as const] : [];
     }),
   );
-  const entries = useIncrementalTimelineEntries(threadKey, {
-    visibleTurnItems: items,
-    optimisticMessages: NO_OPTIMISTIC_MESSAGES,
-    attachmentUrlById,
-    attempts: projection.attempts,
-    nodes: projection.nodes,
-    plans: projection.plans,
-  });
+  const [projectTimelineEntries] = useState(createTimelineEntriesProjector);
+  const entries = projectTimelineEntries(
+    {
+      visibleTurnItems: items,
+      optimisticMessages: NO_OPTIMISTIC_MESSAGES,
+      attachmentUrlById,
+      attempts: projection.attempts,
+      nodes: projection.nodes,
+      plans: projection.plans,
+    },
+    threadKey,
+  );
   const openFile = useStableCallback((file: { readonly id: string }) =>
     openGuestFile(transport, guestAttachmentUrl(shareId, file.id)),
   );
@@ -568,6 +575,7 @@ function UnplacedGuestMessage({
   readonly shareId: GuestShareView["shareId"];
   readonly message: ThreadGuestMessage;
 }) {
+  const transport = useGuestTransport();
   const served = message.status !== "dismissed";
   const url = (attachment: { readonly id: string }) =>
     assets.get(guestAttachmentUrl(shareId, attachment.id));
@@ -588,7 +596,13 @@ function UnplacedGuestMessage({
             const target = url(attachment);
             if (target) openInNewTab(target);
           }}
-          {...(served ? { fileHref: url } : {})}
+          {...(served
+            ? {
+                onOpenFile: (attachment) => {
+                  void openGuestFile(transport, guestAttachmentUrl(shareId, attachment.id));
+                },
+              }
+            : {})}
         />
         {message.text ? <span>{message.text}</span> : null}
       </div>

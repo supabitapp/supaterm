@@ -8,6 +8,7 @@ import {
   GUEST_SHARE_PARAM,
   OrchestrationV2CommandOutputFrame,
   OrchestrationV2GetTurnItemResult,
+  type OrchestrationV2GetTurnItemInput,
 } from "@supaterm/contracts";
 import * as Cause from "effect/Cause";
 import * as Data from "effect/Data";
@@ -46,7 +47,7 @@ async function fetchGuestItemDetail(
 }
 export const guestTurnItemSource = (shareId: string, transport: GuestTransport): TurnItemSource => {
   const detail = Atom.family((key: string) => {
-    const [itemId] = JSON.parse(key) as [string, number];
+    const [itemId] = JSON.parse(key) as [string, string | undefined];
     return Atom.make(
       Effect.tryPromise({
         try: () => fetchGuestItemDetail(transport, shareId, itemId),
@@ -89,7 +90,8 @@ export const guestTurnItemSource = (shareId: string, transport: GuestTransport):
     );
   });
   return {
-    detail: ({ itemId, revision }) => detail(JSON.stringify([itemId, revision])),
+    detail: ({ itemId, revision }: OrchestrationV2GetTurnItemInput) =>
+      detail(JSON.stringify([itemId, revision])),
     commandOutput: ({ itemId }) => commandOutput(itemId),
   };
 };
