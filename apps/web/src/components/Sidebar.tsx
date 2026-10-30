@@ -84,6 +84,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
@@ -161,7 +162,11 @@ import { environmentProjects } from "../state/projects";
 import { threadEnvironment } from "../state/threads";
 import { useOrchestrationCommand } from "../state/use-orchestration-command";
 import { readEnvironmentScope, useEnvironmentScope } from "../state/session";
-import { buildThreadRouteParams, resolveActiveThreadRouteRef } from "../threadRoutes";
+import {
+  buildThreadRouteParams,
+  resolveActiveThreadRouteRef,
+  resolveThreadRouteTarget,
+} from "../threadRoutes";
 import type { SidebarThreadSummary } from "../types";
 import { isScratchProject } from "@supaterm/client-runtime/state/projects";
 import { cn } from "~/lib/utils";
@@ -178,7 +183,6 @@ import {
   deleteSelectedThreadEntries,
   firstValidTimestampMs,
   isSidebarNestedLinkClick,
-  isSidebarThreadWorking,
   isTrailingDoubleClick,
   orderItemsByPreferredIds,
   planSidebarThreadDrop,
@@ -207,7 +211,7 @@ import {
   restrictBelowSidebarLabel,
   sidebarProjectGroupBlocks,
 } from "./Sidebar.drag";
-import { SidebarDragLifecycle, SidebarPointerSensor } from "./Sidebar.pointer";
+import { SidebarPointerSensor } from "./Sidebar.pointer";
 import { createSidebarListMotion } from "./Sidebar.motion";
 import {
   pickSnoozePreset,
@@ -321,6 +325,7 @@ type SidebarOptimisticDrop = {
 };
 
 interface SidebarThreadPartitionInput {
+  readonly delegatedUnderParent: ReadonlySet<string>;
   readonly threads: readonly EnvironmentThreadShell[];
   readonly scopedProjectKeys: ReadonlySet<string> | null;
   readonly serverThreadKeys: ReadonlySet<string>;
@@ -374,8 +379,14 @@ function useSidebarThreads(input: {
   readonly selectedProjectGroupKeys: ReadonlySet<string>;
   readonly groupingProjects: readonly ThreadGroupingProject[];
 }) {
-  const { projectScopeKey, scopedProjectKeys, serverConfigs, optimisticDrop, routeThreadRef } =
-    input;
+  const {
+    projectScopeKey,
+    scopedProjectKeys,
+    delegatedUnderParent,
+    serverConfigs,
+    optimisticDrop,
+    routeThreadRef,
+  } = input;
   const threads = useQuietSidebarThreadShells();
   const serverThreadRefs = useThreadRefs();
   const routeRowThreadKey =
@@ -391,6 +402,7 @@ function useSidebarThreads(input: {
             ),
           ),
         );
+  useSyncExternalStore(inboxReturns.subscribe, inboxReturns.getSnapshot, inboxReturns.getSnapshot);
   const nowMinute = useNowMinute();
   // Snooze wake times are second-precise, so classifying with the quantized
   // minute would hold a woken thread on the shelf for up to a minute. The
@@ -443,6 +455,7 @@ function useSidebarThreads(input: {
   const partition = partitionSidebarThreads({
     threads,
     scopedProjectKeys,
+    delegatedUnderParent,
     serverThreadKeys,
     serverConfigs,
     optimisticDrop,
@@ -566,22 +579,29 @@ function useSidebarThreads(input: {
 }
 
 function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
-  const { threads, scopedProjectKeys, serverThreadKeys, serverConfigs, optimisticDrop } = input;
+  const {
+    threads,
+    scopedProjectKeys,
+    delegatedUnderParent,
+    serverThreadKeys,
+    serverConfigs,
+    optimisticDrop,
+  } = input;
   // Snooze classification uses a real clock, not the quantized minute: wake
   // times are second-precise and a woken thread must not linger on the
   // shelf for the rest of the minute.
   const preciseNow = new Date(
     Math.max(Date.now(), Date.parse(`${input.nowMinute}:00.000Z`), input.snoozeWakeTickAt),
   ).toISOString();
-  const visible = filterSidebarV2VisibleThreads(threads, scopedProjectKeys);
-  inboxReturns.observe(threads);
+  const visible = filterSidebarV2VisibleThreads(threads, scopedProjectKeys, delegatedUnderParent);
+  const placements = inboxReturns.observe(threads);
   const pinned: EnvironmentThreadShell[] = [];
   const active: EnvironmentThreadShell[] = [];
   const working: EnvironmentThreadShell[] = [];
   // Only inbox threads fold into Working. Pins stay where the user put them,
   // and snoozed or done threads keep their shelves.
   const inbox = (thread: EnvironmentThreadShell) =>
-    isSidebarThreadWorking(thread) ? working : active;
+    placements.isWorking(thread) ? working : active;
   const snoozed: EnvironmentThreadShell[] = [];
   const done: EnvironmentThreadShell[] = [];
   const draggable = new Set<string>();
@@ -1219,8 +1239,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     if (
       pendingKey !== null &&
       scopedProjectKeys !== null &&
-      filterSidebarV2VisibleThreads([thread], scopedProjectKeys).length === 0 &&
-      filterSidebarV2VisibleThreads([thread], null).length === 1
+      filterSidebarV2VisibleThreads([thread], scopedProjectKeys, delegatedUnderParent).length ===
+        0 &&
+      filterSidebarV2VisibleThreads([thread], null, delegatedUnderParent).length === 1
     ) {
       // The row renders under the widened scope; scroll on that pass.
       setProjectScopeKey(null);
@@ -2814,7 +2835,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                   : handleThreadDragEnd(event)
               }
             >
-              <SidebarDragLifecycle onUnmount={cancelThreadDrag} />
               <SortableContext items={sortableIds} strategy={sidebarSortingStrategy}>
                 <ul
                   ref={attachTreeRef}

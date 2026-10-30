@@ -1,3 +1,4 @@
+import { revealSettingsSearchTarget } from "./settingsSearch";
 import { workspaceAreaProps } from "../../lib/workspaceFocus";
 import { useSettingsSectionNavigation } from "./useSettingsSectionNavigation";
 import { useEffect, useRef, useState, type ComponentType, type KeyboardEvent } from "react";

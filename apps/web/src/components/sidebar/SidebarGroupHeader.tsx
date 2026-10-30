@@ -12,6 +12,13 @@ import {
 import { CollapsibleSectionHeader } from "../ui/collapsible-section-header";
 import { SIDEBAR_SORTABLE_DRAG_DISABLED } from "./SidebarListMarkers";
 
+const FOLDER_DOT = {
+  attention: { className: "bg-warning", label: "Needs you" },
+  failed: { className: "bg-error", label: "Failed" },
+  unread: { className: "bg-success", label: "Done" },
+  working: { className: "bg-info", label: "Working" },
+};
+
 export function SidebarGroupHeader({
   item,
   project,
@@ -66,6 +73,13 @@ export function SidebarGroupHeader({
             data-testid={`sidebar-group-toggle-${item.key}`}
           >
             {item.collapsed ? `${item.label} (${item.count})` : item.label}
+            {item.dot ? (
+              <span
+                className={cn("size-1.5 shrink-0 rounded-full", FOLDER_DOT[item.dot].className)}
+              >
+                <span className="sr-only">{FOLDER_DOT[item.dot].label}</span>
+              </span>
+            ) : null}
           </CollapsibleSectionHeader>
         </div>
         {onNewThread ? (

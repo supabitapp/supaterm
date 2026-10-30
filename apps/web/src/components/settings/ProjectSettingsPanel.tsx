@@ -17,7 +17,7 @@ import {
   type EnvironmentId,
   type ProjectIconOverride,
 } from "@supaterm/contracts";
-import { Navigate, useLocation } from "@tanstack/react-router";
+import { Navigate, useLocation, useNavigate } from "@tanstack/react-router";
 import * as Cause from "effect/Cause";
 import { InfoIcon, TrashIcon } from "@supaterm/icons";
 import { lazy, Suspense, useRef, useState, type ReactNode } from "react";
@@ -62,24 +62,6 @@ const ProjectIconPickerDialog = lazy(() =>
 );
 
 export type ProjectSettingsCategory = "general" | "source-control" | "project";
-
-interface ProjectSelection {
-  readonly key: string;
-  readonly environmentId: EnvironmentId | null;
-  readonly checkoutKey: string | null;
-  readonly memberKeys: ReadonlyArray<string>;
-}
-
-function sameProjectSelection(a: ProjectSelection | null, b: ProjectSelection): boolean {
-  return (
-    a !== null &&
-    a.key === b.key &&
-    a.environmentId === b.environmentId &&
-    a.checkoutKey === b.checkoutKey &&
-    a.memberKeys.length === b.memberKeys.length &&
-    a.memberKeys.every((key, index) => key === b.memberKeys[index])
-  );
-}
 
 interface ProjectSelection {
   readonly key: string;
@@ -198,6 +180,7 @@ function ProjectDetail({
   group: SidebarProjectSnapshot;
   hasOtherMembers: boolean;
 }) {
+  const navigate = useNavigate();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const { environments } = useEnvironments();
   const environmentById = new Map(

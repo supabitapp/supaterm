@@ -1,6 +1,11 @@
 import { AnimatedHeight } from "~/components/AnimatedHeight";
 import { DeviceHostDiagnostics } from "../device/DeviceSetup";
-import { PlatformStatus } from "../device/DeviceSetup";
+import {
+  PlatformStatus,
+  platformSetupStatus,
+  deviceHubDescription,
+  agentDeviceDescription,
+} from "../device/DeviceSetup";
 import { DeviceHostUpdates } from "../device/DeviceHostUpdates";
 import { DeviceToolVersions } from "../device/DeviceToolVersions";
 import { useScopedSettings, useUpdateScopedSettings } from "./useScopedSettings";
@@ -827,7 +832,14 @@ function DeviceIntegrationControls({
   const [pending, setPending] = useState<
     "hub" | "check" | "agent" | "update-hub" | "update-agent" | null
   >(null);
-  const { busy } = deviceHubReadiness(state);
+  const { ready: hubReady, busy } = deviceHubReadiness(state);
+  const localPlatformsUnavailable = state.hosts.some(
+    (host) => host.kind === "local" && !host.platforms.some((platform) => platform.available),
+  );
+  const [platformsRevealed, setPlatformsRevealed] = useState(false);
+  if (platformsRevealed && !enabled) setPlatformsRevealed(false);
+  if (enabled && !platformsRevealed && (hubReady || localPlatformsUnavailable) && pending !== "hub")
+    setPlatformsRevealed(true);
 
   const update = async (
     kind: NonNullable<typeof pending>,

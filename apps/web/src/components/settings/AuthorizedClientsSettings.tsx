@@ -29,7 +29,7 @@ import {
   isHostedAppPairingUrl,
   endpointShareHint,
 } from "./ConnectionsSettings.logic";
-import { useNowSecond } from "../../hooks/useNowSecond";
+
 import {
   Dialog,
   DialogFooter,

@@ -217,6 +217,7 @@ export type SidebarListItem =
       readonly projectKey: string | null;
       readonly count: number;
       readonly collapsed: boolean;
+      readonly dot?: ReturnType<typeof resolveSidebarFolderDot>;
     }
   | { readonly kind: "marker"; readonly marker: SidebarListMarker };
 
@@ -888,8 +889,7 @@ type SidebarThreadStatusInput = Pick<
   | "pendingGuestMessageCount"
   | "runtime"
   | "blockedOnThreadWait"
-  | "pendingBackgroundTasks"
->;
+> & { readonly pendingBackgroundTasks?: SidebarThreadSummary["pendingBackgroundTasks"] };
 
 export function resolveSidebarThreadStatus(thread: SidebarThreadStatusInput): SidebarThreadStatus {
   if (thread.hasPendingApprovals || thread.pendingSubagentRequest === "approval") {
@@ -1274,4 +1274,26 @@ export function sortScopedProjectsForSidebar<
       left.environmentId.localeCompare(right.environmentId) ||
       left.id.localeCompare(right.id),
   );
+}
+
+export function resolveSidebarFolderDot(
+  threads: ReadonlyArray<ThreadStatusInput & SidebarThreadStatusInput>,
+): "attention" | "failed" | "unread" | "working" | null {
+  const statuses = new Set(threads.map(resolveSidebarThreadStatus));
+  if (
+    statuses.has("input") ||
+    statuses.has("approval") ||
+    statuses.has("request") ||
+    statuses.has("limited")
+  ) {
+    return "attention";
+  }
+  if (statuses.has("failed")) return "failed";
+  // Rows show Done only for ready threads, so the dot follows the same rule.
+  const hasUnread = threads.some(
+    (thread) => resolveSidebarThreadStatus(thread) === "ready" && hasUnseenCompletion(thread),
+  );
+  if (hasUnread) return "unread";
+  if (statuses.has("working")) return "working";
+  return null;
 }

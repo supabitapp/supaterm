@@ -61,7 +61,10 @@ import {
   getCustomModelOptionsByInstance,
   resolveAppModelSelectionState,
 } from "../../modelSelection";
-import { providerInstanceEntriesFor } from "../../providerInstances";
+import {
+  applyProviderInstanceSettings,
+  deriveProviderInstanceEntries,
+} from "../../providerInstances";
 import { ensureLocalApi, readLocalApi } from "../../localApi";
 import { isMacPlatform } from "../../lib/utils";
 import { useEnvironmentProviders } from "../../state/environments";
@@ -394,9 +397,6 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.sidebarThreadGrouping !== DEFAULT_UNIFIED_SETTINGS.sidebarThreadGrouping
       ? ["Thread grouping"]
       : []),
-    ...(settings.sidebarThreadPreviewCount !== DEFAULT_UNIFIED_SETTINGS.sidebarThreadPreviewCount
-      ? ["Visible threads"]
-      : []),
     ...(settings.sidebarProjectGroupingMode !== DEFAULT_UNIFIED_SETTINGS.sidebarProjectGroupingMode
       ? ["Project Grouping"]
       : []),
@@ -554,7 +554,6 @@ export function useSettingsRestore(onRestored?: () => void) {
       sendShortcut: DEFAULT_UNIFIED_SETTINGS.sendShortcut,
       followUpBehavior: DEFAULT_UNIFIED_SETTINGS.followUpBehavior,
       glassOpacity: DEFAULT_UNIFIED_SETTINGS.glassOpacity,
-      sidebarThreadPreviewCount: DEFAULT_UNIFIED_SETTINGS.sidebarThreadPreviewCount,
       sidebarThreadGrouping: DEFAULT_UNIFIED_SETTINGS.sidebarThreadGrouping,
       sidebarProjectGroupingMode: DEFAULT_UNIFIED_SETTINGS.sidebarProjectGroupingMode,
       sidebarProjectSortOrder: DEFAULT_UNIFIED_SETTINGS.sidebarProjectSortOrder,
@@ -654,8 +653,8 @@ function ConcernSettingsPanel({ concern }: { concern: SettingsConcern }) {
   const textGenInstanceId = textGenerationModelSelection.instanceId;
   const textGenModel = textGenerationModelSelection.model;
   const textGenModelOptions = textGenerationModelSelection.options;
-  const textGenerationModelInstanceEntries = providerInstanceEntriesFor(
-    textGenerationProviders,
+  const textGenerationModelInstanceEntries = applyProviderInstanceSettings(
+    deriveProviderInstanceEntries(textGenerationProviders),
     settings,
     target?.projectId ?? null,
   );

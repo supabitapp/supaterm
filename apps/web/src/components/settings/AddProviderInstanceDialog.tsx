@@ -7,6 +7,7 @@ import { squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime
 import type { ProviderClientDefinition } from "@supaterm/provider-core/client";
 import {
   type AcpRegistrySearchAgent,
+  type EnvironmentId,
   AuthProvidersManageScope,
   ProviderInstanceId,
   ProviderDriverKind,
@@ -140,6 +141,14 @@ function ProviderOptionGrid({
       ))}
     </RadioGroup>
   );
+}
+
+interface AddProviderInstanceDialogProps {
+  readonly open: boolean;
+  readonly environmentId: EnvironmentId;
+  readonly environmentLabel: string;
+  readonly onOpenChange: (open: boolean) => void;
+  readonly onCreated?: (instanceId: ProviderInstanceId) => void;
 }
 
 export function AddProviderInstanceDialog({

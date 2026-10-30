@@ -987,6 +987,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     to: "/settings/archived",
     searchTerms: ["restore reopen deleted history projects"],
   },
+  {
+    id: "fallback-model",
+    title: "Fallback model",
+    to: "/settings/threads",
+    searchTerms: ["provider usage limits exhausted default model"],
+  },
   { id: "thread-title-instructions", title: "Thread title instructions", to: "/settings/threads" },
   { id: "snooze-options", title: "Snooze options", to: "/settings/threads" },
   { id: "boring-sidebar", title: "Project folders", to: "/settings/labs" },

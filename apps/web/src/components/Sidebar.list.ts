@@ -14,6 +14,7 @@ import type { SidebarThreadGrouping } from "@supaterm/contracts/settings";
 import {
   applySidebarThreadDrop,
   sidebarListItemId,
+  resolveSidebarFolderDot,
   type SidebarListItem,
   type SidebarSection,
 } from "./Sidebar.logic";
@@ -77,6 +78,7 @@ export function buildSidebarInboxItems(input: SidebarInboxInput): SidebarListIte
     if (unavailable)
       groups.push({ ...unavailable, threads: sortWorkingThreadsBySend(unavailable.threads) });
   }
+  const groupsByKey = new Map(groups.map((group) => [group.key, group]));
   return collapseThreadGroups(
     groups,
     input.collapsedGroups,
@@ -89,6 +91,9 @@ export function buildSidebarInboxItems(input: SidebarInboxInput): SidebarListIte
       projectKey: group.projectKey,
       count: group.count,
       collapsed: group.collapsed,
+      ...(input.folderMode && group.collapsed
+        ? { dot: resolveSidebarFolderDot(groupsByKey.get(group.key)?.threads ?? []) }
+        : {}),
     },
     ...group.threads.map((thread): SidebarListItem => {
       const key = threadShellKey(thread);

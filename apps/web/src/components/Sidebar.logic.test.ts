@@ -32,6 +32,7 @@ import {
   type SidebarListMarker,
   type SidebarSection,
   resolveSidebarDropVerb,
+  resolveSidebarFolderDot,
 } from "./Sidebar.logic";
 
 import { EnvironmentId, ProjectId, ProviderInstanceId, RunId, ThreadId } from "@supaterm/contracts";
@@ -997,8 +998,30 @@ describe("navigation after parking a thread", () => {
 
 describe("unseen completion with background work", () => {
   it.each([
-    { kind: "command", status: "ready", topStatus: "ready", receded: false, pill: "Completed" },
-    { kind: "monitor", status: "waiting", topStatus: "waiting", receded: true, pill: "Waiting" },
+    {
+      kind: "command",
+      awaited: false,
+      status: "ready",
+      topStatus: "ready",
+      receded: false,
+      pill: "Completed",
+    },
+    {
+      kind: "monitor",
+      awaited: false,
+      status: "ready",
+      topStatus: "ready",
+      receded: false,
+      pill: "Completed",
+    },
+    {
+      kind: "monitor",
+      awaited: true,
+      status: "waiting",
+      topStatus: "waiting",
+      receded: true,
+      pill: "Waiting",
+    },
   ] as const)("presents a completed thread with a $kind roster", (expected) => {
     const thread = presentThreadShell(localEnvironmentId, {
       ...makeThreadFixture().source,
@@ -1006,7 +1029,9 @@ describe("unseen completion with background work", () => {
       status: "completed",
       latestRunCompletedAt: DateTime.makeUnsafe("2026-06-20T01:00:00.000Z"),
       lastVisitedAt: DateTime.makeUnsafe("2026-06-20T00:59:00.000Z"),
-      pendingBackgroundTasks: [{ taskId: "background-work", kind: expected.kind }],
+      pendingBackgroundTasks: [
+        { taskId: "background-work", kind: expected.kind, awaited: expected.awaited },
+      ],
     });
     const status = resolveSidebarThreadStatus(thread);
     const isUnread = hasUnseenCompletion(thread);
@@ -1343,5 +1368,26 @@ describe("resolveSidebarRouteReveal", () => {
         findThread,
       }),
     ).toEqual({ pendingKey: hiddenKey, widensScope: false });
+  });
+});
+
+describe("closed folder status", () => {
+  const thread = (overrides: Partial<ReturnType<typeof presentThreadShell>> = {}) => ({
+    ...presentThreadShell(localEnvironmentId, makeThreadFixture().source),
+    ...overrides,
+  });
+  it("keeps guest and provider requests visible above ongoing work", () => {
+    expect(resolveSidebarFolderDot([thread({ pendingGuestMessageCount: 1 })])).toBe("attention");
+    expect(resolveSidebarFolderDot([thread({ hasPendingApprovals: true })])).toBe("attention");
+  });
+  it("does not report idle monitors as work", () => {
+    expect(
+      resolveSidebarFolderDot([
+        thread({
+          runtime: null,
+          pendingBackgroundTasks: [{ taskId: "monitor", kind: "monitor" }],
+        }),
+      ]),
+    ).not.toBe("working");
   });
 });

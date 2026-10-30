@@ -20,7 +20,10 @@ import {
 } from "./useScopedSettings";
 import { useScopedModelDisabledReason } from "./useScopedModelAvailability";
 import { useSettingsScope } from "./SettingsScopeContext";
-import { providerInstanceEntriesFor } from "../../providerInstances";
+import {
+  applyProviderInstanceSettings,
+  deriveProviderInstanceEntries,
+} from "../../providerInstances";
 import {
   getCustomModelOptionsByInstance,
   resolveAppModelSelectionState,
@@ -105,8 +108,8 @@ export function SourceControlWritingSettingsSection() {
   const textGenerationProviders = serverProviders.filter(
     (provider) => provider.supportsTextGeneration !== false,
   );
-  const instanceEntries = providerInstanceEntriesFor(
-    textGenerationProviders,
+  const instanceEntries = applyProviderInstanceSettings(
+    deriveProviderInstanceEntries(textGenerationProviders),
     settings,
     target?.projectId ?? null,
   );

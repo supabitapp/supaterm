@@ -50,7 +50,7 @@ export function resolveSidebarRouteReveal<T extends RevealableThread>(input: {
   readonly routeKey: string | null;
   readonly isSearching: boolean;
   readonly scopedProjectKeys: ReadonlySet<string> | null;
-  readonly delegatedUnderParent: ReadonlySet<string>;
+  readonly delegatedUnderParent?: ReadonlySet<string>;
   readonly findThread: (key: string) => T | undefined;
 }): { readonly pendingKey: string | null; readonly widensScope: boolean } {
   const { reveal, routeKey, isSearching, scopedProjectKeys, delegatedUnderParent, findThread } =

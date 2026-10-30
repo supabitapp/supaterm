@@ -43,6 +43,19 @@ export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
     <MenuSub open={open} onOpenChange={onOpenChange}>
       <MenuSubTrigger>
         <span className="flex-1">Project</span>
+        {selected.length > 1 ? (
+          <span aria-hidden className="flex items-center -space-x-1">
+            {selected.slice(0, 2).map((item) => {
+              const project = projects.get(item.value);
+              return project ? (
+                <ProjectFavicon key={item.value} project={project} className="size-4 shrink-0" />
+              ) : null;
+            })}
+            {selected.length > 2 ? (
+              <span className="pl-1 text-xs">+{selected.length - 2}</span>
+            ) : null}
+          </span>
+        ) : null}
         <span className="ml-6 max-w-32 truncate text-muted-foreground">
           {selected.length === 0 ? items[0]?.label : selected.map((item) => item.label).join(", ")}
         </span>
