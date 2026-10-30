@@ -53,7 +53,11 @@ const THREAD_PALETTE_COMMANDS: Record<
   find: { icon: TextSearchIcon, searchTerms: ["find", "search", "thread"] },
   "turn-into-project": { icon: FolderPlusIcon, searchTerms: ["create", "project", "scratch"] },
   "share-guest": { icon: UserIcon, searchTerms: ["share", "guest"] },
-  "copy-thread": { icon: MessageSquareIcon, searchTerms: ["copy", "thread", "link"] },
+  "copy-thread": {
+    title: "Copy thread",
+    icon: MessageSquareIcon,
+    searchTerms: ["copy", "thread", "link"],
+  },
   "open-beside": null,
   "filter-by-project": null,
   "project-settings": null,
