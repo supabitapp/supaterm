@@ -246,6 +246,7 @@ function ThemeColorPicker({
   onInteract?: () => void;
 }) {
   const [committer] = useState(createFrameCommitter);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- flushes the pending animation-frame color commit when the picker unmounts
   useEffect(() => committer.flush, [committer]);
   return (
     <Popover

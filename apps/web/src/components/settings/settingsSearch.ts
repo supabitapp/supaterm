@@ -587,7 +587,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "word-wrap",
     title: "Word wrap",
     to: "/settings/appearance",
-    searchTerms: ["long lines code blocks tables diffs file previews"],
+    searchTerms: ["long lines code blocks diffs file previews"],
   },
   {
     id: "usage-limits",
@@ -992,6 +992,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     title: "Fallback model",
     to: "/settings/threads",
     searchTerms: ["provider usage limits exhausted default model"],
+  },
+  {
+    id: "effort-display",
+    title: "Effort display",
+    to: "/settings/appearance",
+    searchTerms: ["reasoning effort thinking bars word label composer"],
   },
   { id: "thread-title-instructions", title: "Thread title instructions", to: "/settings/threads" },
   { id: "snooze-options", title: "Snooze options", to: "/settings/threads" },

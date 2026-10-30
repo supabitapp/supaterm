@@ -84,7 +84,12 @@ export function usePullRequestDetail(
   } else if (detailQuery.data !== null && detailQuery.data !== cachedDetail) {
     setCachedDetail(detailQuery.data);
   }
-  const observedSummary = useSharedPullRequestSummary(environmentId, reference);
+  const observedSummary = useSharedPullRequestSummary(
+    environmentId,
+    reference,
+    detailQuery.data,
+    detailQuery.data === null ? null : detailQuery.dataUpdatedAt,
+  );
   const activity = activityQuery.data;
   const resolvedCoreDetail = resolveDisplayedPullRequestDetail({
     live: liveDetail,

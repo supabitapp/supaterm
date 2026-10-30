@@ -113,7 +113,7 @@ export function PullRequestStackMenu({
       });
     }
   };
-  const mergeCountLabel = `${mergeLayers.length} ${mergeLayers.length === 1 ? "pull request" : "pull requests"}`;
+  const mergeCountLabel = `${mergeLayers.length} ${mergeLayers.length === 1 ? terminology.singular : terminology.plural}`;
   return (
     <>
       <Menu open={open} onOpenChange={setOpen}>

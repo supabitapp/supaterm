@@ -1,3 +1,4 @@
+import { observeIntersection } from "../lib/observeIntersection";
 const EMPTY_DELEGATED_THREAD_KEYS: ReadonlySet<string> = new Set();
 import { deadlineStore } from "@supaterm/client-runtime/clock";
 import type { ThreadId, EnvironmentId } from "@supaterm/contracts";
@@ -67,36 +68,20 @@ const SIDEBAR_ROW_SUBSCRIPTION_OVERSCAN_PX = 160;
 
 export function useSidebarRowSubscriptionLease(isActive: boolean): {
   readonly leaseLiveStatus: boolean;
-  readonly rowRef: React.Dispatch<React.SetStateAction<HTMLElement | null>>;
+  readonly rowRef: (row: HTMLElement | null) => (() => void) | undefined;
 } {
-  const [row, setRow] = React.useState<HTMLElement | null>(null);
   const [isNearViewport, setIsNearViewport] = React.useState(isActive);
-  if (
-    !isNearViewport &&
-    (isActive || (row !== null && typeof IntersectionObserver === "undefined"))
-  ) {
-    setIsNearViewport(true);
-  }
-
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- observes row visibility to lease live status only near the viewport
-  React.useEffect(() => {
-    if (isActive || row === null || typeof IntersectionObserver === "undefined") return;
-
-    const scrollRoot = row.closest<HTMLElement>('[data-slot="scroll-area-viewport"]');
-    const observer = new IntersectionObserver(
-      ([entry]) => setIsNearViewport(entry?.isIntersecting === true),
-      {
-        root: scrollRoot,
-        rootMargin: `${SIDEBAR_ROW_SUBSCRIPTION_OVERSCAN_PX}px 0px`,
-      },
-    );
-    observer.observe(row);
-    return () => observer.disconnect();
-  }, [isActive, row]);
-
+  if (isActive && !isNearViewport) setIsNearViewport(true);
+  const canObserve = typeof IntersectionObserver !== "undefined";
   return {
-    leaseLiveStatus: isActive || isNearViewport,
-    rowRef: setRow,
+    leaseLiveStatus: isActive || isNearViewport || !canObserve,
+    rowRef: (row) => {
+      if (row === null || isActive || !canObserve) return undefined;
+      return observeIntersection(row, (entry) => setIsNearViewport(entry.isIntersecting), {
+        root: row.closest('[data-slot="scroll-area-viewport"]'),
+        rootMargin: `${SIDEBAR_ROW_SUBSCRIPTION_OVERSCAN_PX}px 0px`,
+      });
+    },
   };
 }
 

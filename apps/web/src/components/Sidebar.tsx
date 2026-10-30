@@ -3001,7 +3001,16 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                 : (projectGroupByScopeKey.get(item.projectKey) ?? null)
                             }
                             onNewThread={
-                              folderMode && item.projectKey !== null
+                              folderMode &&
+                              item.projectKey !== null &&
+                              projectGroupByScopeKey
+                                .get(item.projectKey)
+                                ?.memberProjectRefs.some((ref) =>
+                                  readEnvironmentScope(
+                                    ref.environmentId,
+                                    AuthOrchestrationOperateScope,
+                                  ),
+                                )
                                 ? () => {
                                     const project = projectGroupByScopeKey.get(item.projectKey!);
                                     const target = project?.memberProjectRefs.find((ref) =>

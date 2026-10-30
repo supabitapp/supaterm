@@ -802,7 +802,7 @@ function PullRequestCodeTab({
         : buildDiffReviewComment({
             id: `pull-request-selection:${anchor.fileKey}:${anchor.range.start}:${anchor.range.end}`,
             sectionId: `pull-request:${detail.number}`,
-            sectionTitle: `PR #${detail.number} review`,
+            sectionTitle: `${sourceControlClients.get(detail.provider).changeRequest.shortLabel} #${detail.number} review`,
             filePath: anchor.path,
             fileDiff: file,
             range: anchor.range,

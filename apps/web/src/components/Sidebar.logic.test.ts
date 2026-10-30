@@ -1030,7 +1030,11 @@ describe("unseen completion with background work", () => {
       latestRunCompletedAt: DateTime.makeUnsafe("2026-06-20T01:00:00.000Z"),
       lastVisitedAt: DateTime.makeUnsafe("2026-06-20T00:59:00.000Z"),
       pendingBackgroundTasks: [
-        { taskId: "background-work", kind: expected.kind, awaited: expected.awaited },
+        {
+          taskId: "background-work",
+          kind: expected.kind,
+          ...(expected.awaited ? { awaited: true as const } : {}),
+        },
       ],
     });
     const status = resolveSidebarThreadStatus(thread);

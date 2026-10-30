@@ -18,6 +18,7 @@ const state = vi.hoisted(() => ({
   projects: [] as Array<Record<string, unknown>>,
   permissions: new Set<string>(),
   tasks: new Map<string, ScheduledTask[]>(),
+  pendingEnvironments: new Set<string>(),
   search: {} as Record<string, unknown>,
   navigate: vi.fn(),
   upsert: vi.fn(),
@@ -114,7 +115,9 @@ vi.mock(import("@effect/atom-react"), async (original) => {
     }) =>
       typeof atom?.read === "function"
         ? atom.read(({ environmentId }) =>
-            AsyncResult.success({ tasks: state.tasks.get(environmentId) ?? [] }),
+            state.pendingEnvironments.has(environmentId)
+              ? AsyncResult.initial()
+              : AsyncResult.success({ tasks: state.tasks.get(environmentId) ?? [] }),
           )
         : []) as never,
   };
@@ -229,6 +232,7 @@ describe("automation permissions", () => {
     ];
     state.permissions = new Set([primaryId, remoteId]);
     state.tasks = new Map();
+    state.pendingEnvironments = new Set();
     state.search = {};
     state.navigate.mockReset();
     state.upsert.mockReset().mockResolvedValue({ _tag: "Success" });
@@ -268,6 +272,22 @@ describe("automation permissions", () => {
     state.permissions.add(remoteId);
     await click(createButton);
     expect(environmentSelect()?.textContent).toContain("Remote");
+  });
+
+  it("keeps a new draft when a linked task arrives after the editor opens", async () => {
+    await using _test = await setupTest();
+    state.pendingEnvironments.add(remoteId);
+    state.search = { environmentId: remoteId, taskId };
+    await renderPage();
+    await click(buttonNamed("New automation")!);
+    expect(pageText()).toContain("New automation");
+
+    state.tasks.set(remoteId, [task(remoteProjectId)]);
+    state.pendingEnvironments.delete(remoteId);
+    await renderPage();
+
+    expect(pageText()).toContain("New automation");
+    expect(pageText()).not.toContain("Edit automation");
   });
 
   it("opens a read-only editor for a deep-linked task without enabling edits", async () => {

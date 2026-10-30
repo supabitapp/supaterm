@@ -109,10 +109,7 @@ export function AutomationsPage() {
   if (link === null && openedLink !== null) setOpenedLink(null);
   if (linkedState && linkedTask && link !== null && openedLink !== link) {
     setOpenedLink(link);
-    if (
-      editor === null &&
-      readEnvironmentScope(linkedState.environment.environmentId, AuthOrchestrationOperateScope)
-    ) {
+    if (editor === null) {
       setEditor({ environmentId: linkedState.environment.environmentId, task: linkedTask });
     }
   }

@@ -24,6 +24,7 @@ export function SortableSidebarMarker(
     disabled: SIDEBAR_SORTABLE_DRAG_DISABLED,
     animateLayoutChanges: animateSidebarLayoutChanges,
   });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- keeps the translated drop hint inside the sidebar scroll viewport
   useLayoutEffect(() => {
     if (props.revealOverflow && transform?.y !== undefined)
       node.current?.firstElementChild?.scrollIntoView({ block: "nearest", inline: "nearest" });

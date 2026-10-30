@@ -151,22 +151,22 @@ import { guideRunKey, useGuideRunStore } from "./guide/guideRunStore";
 import { useReviewGuideWriter } from "./guide/useReviewGuideWriter";
 import { usePaneInputOwner } from "../../chatPanes/paneScope";
 
-const ACTION_SUCCESS_LABELS: Record<PullRequestAction, string> = {
-  merge: "Pull request merged",
+const actionSuccessLabels = (term: string): Record<PullRequestAction, string> => ({
+  merge: `${capitalizeTerm(term)} merged`,
   ready: "Marked ready for review",
   draft: "Converted to draft",
-  close: "Pull request closed",
-  reopen: "Pull request reopened",
+  close: `${capitalizeTerm(term)} closed`,
+  reopen: `${capitalizeTerm(term)} reopened`,
   "update-branch": "Branch updated with the base branch",
   // True whichever it did: a pull request that was already mergeable merges the moment this is
   // armed, and the client has no way to tell that apart from one still waiting on something.
   "enable-auto-merge":
-    "Auto-merge turned on. merges as soon as this is ready, sooner if it already is",
+    "Auto-merge turned on. Merges as soon as this is ready, sooner if it already is",
   "disable-auto-merge": "Auto-merge turned off",
-  revert: "Revert pull request opened",
+  revert: `Revert ${term} opened`,
   "delete-branch": "Branch deleted",
   "approve-workflows": "Workflows approved",
-};
+});
 
 const actionFailureLabels = (term: string): Record<PullRequestAction, string> => ({
   merge: `Could not merge this ${term}`,
@@ -635,7 +635,7 @@ export function PullRequestDetailPanel({
       onActed?.(action, "failed");
       return false;
     }
-    toastManager.add({ type: "success", title: ACTION_SUCCESS_LABELS[action] });
+    toastManager.add({ type: "success", title: actionSuccessLabels(terminology.singular)[action] });
     if (pullRequestActionNeedsHostRefresh(action)) {
       void refreshFromHost();
     } else {
@@ -1165,7 +1165,7 @@ export function PullRequestDetailPanel({
           openOnHostText={openOnHostText}
           onBack={onBack}
         />
-        <div className="mr-4 flex h-7 shrink-0 items-center justify-end gap-1">
+        <div className="mr-4 flex h-7 shrink-0 select-none items-center justify-end gap-1">
           {detail ? (
             <TooltipProvider delay={150} closeDelay={150} timeout={400}>
               {!nativeStack && supportsStackActions && nativeStackQuery.error ? (
