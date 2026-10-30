@@ -77,7 +77,7 @@ const makeHarness = Effect.fnUntraced(function* () {
   });
   const client = HttpClient.make((request) =>
     Effect.gen(function* () {
-      const init = yield* FetchHttpClient.RequestInit;
+      const init = Option.getOrThrow(yield* Effect.serviceOption(FetchHttpClient.RequestInit));
       yield* Ref.update(cacheModes, (modes) => [...modes, init.cache]);
       yield* Ref.update(authorizationHeaders, (headers) => [
         ...headers,

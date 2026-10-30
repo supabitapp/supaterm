@@ -119,10 +119,14 @@ describe("environment RPC", () => {
 
   it.effect("binds finite streaming commands to one active session", () =>
     Effect.gen(function* () {
+      const subscribed = yield* Deferred.make<void>();
       const firstEvents = yield* Queue.unbounded<ServerSelfUpdateProgressEvent>();
       const secondEvents = yield* Queue.unbounded<ServerSelfUpdateProgressEvent>();
       const firstClient = {
-        [WS_METHODS.serverUpdateServerWithProgress]: () => Stream.fromQueue(firstEvents),
+        [WS_METHODS.serverUpdateServerWithProgress]: () => {
+          Deferred.doneUnsafe(subscribed, Effect.void);
+          return Stream.fromQueue(firstEvents);
+        },
       } as unknown as WsRpcProtocolClient;
       const secondClient = {
         [WS_METHODS.serverUpdateServerWithProgress]: () => Stream.fromQueue(secondEvents),
@@ -138,7 +142,7 @@ describe("environment RPC", () => {
         Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor),
         Effect.forkChild,
       );
-      yield* Effect.yieldNow;
+      yield* Deferred.await(subscribed);
 
       yield* Queue.offer(firstEvents, UPDATE_DOWNLOADING);
       yield* SubscriptionRef.set(activeSession, Option.some(session(secondClient)));

@@ -1459,6 +1459,14 @@ describe("EnvironmentSupervisor", () => {
       yield* Ref.set(checks, 0);
       yield* TestClock.adjust("10 minutes");
       expect(yield* Ref.get(checks)).toBe(3);
+      yield* TestClock.adjust("21 minutes");
+      expect(yield* Ref.get(checks)).toBe(5);
+      yield* TestClock.adjust("29 minutes");
+      expect(yield* Ref.get(checks)).toBe(5);
+      yield* TestClock.adjust("1 minute");
+      expect(yield* Ref.get(checks)).toBe(6);
+      yield* TestClock.adjust("30 minutes");
+      expect(yield* Ref.get(checks)).toBe(7);
       yield* Ref.set(reachable, true);
       yield* harness.wake("network-changed");
       yield* awaitState(
