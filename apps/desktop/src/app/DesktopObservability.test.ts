@@ -318,7 +318,7 @@ describe("DesktopObservability", () => {
     return Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;
       const baseDir = yield* fileSystem.makeTempDirectoryScoped({
-        prefix: "t3-desktop-observability-test-",
+        prefix: "supaterm-desktop-observability-test-",
       });
       const layerEnvironment = layerEnvironmentFor(baseDir);
       yield* writeObservabilitySettings(layerEnvironment, {
@@ -349,7 +349,7 @@ describe("DesktopObservability", () => {
       return Effect.gen(function* () {
         const fileSystem = yield* FileSystem.FileSystem;
         const baseDir = yield* fileSystem.makeTempDirectoryScoped({
-          prefix: "t3-desktop-observability-test-",
+          prefix: "supaterm-desktop-observability-test-",
         });
         const layerEnvironment = layerEnvironmentFor(baseDir);
         yield* writeObservabilitySettings(layerEnvironment, {

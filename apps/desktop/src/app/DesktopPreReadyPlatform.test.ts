@@ -183,7 +183,7 @@ describe("DesktopPreReadyPlatform", () => {
           ),
         );
         const entry = writeFileSyncMock.mock.calls.find(
-          ([path]) => path === "/xdg/applications/com.t3tools.T3Code.desktop",
+          ([path]) => path === "/xdg/applications/com.supaterm.desktop.desktop",
         )?.[1];
         assert.include(entry, 'Exec="/opt/Supaterm/supaterm" %U');
       }),
