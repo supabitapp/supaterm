@@ -1,6 +1,10 @@
 import { useAtomValue } from "@effect/atom-react";
 import { resolveAssetUrl } from "@supaterm/client-runtime/state/assets";
-import { runAtomCommand, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
+import {
+  runAtomCommand,
+  squashAtomCommandFailure,
+  type AtomCommand,
+} from "@supaterm/client-runtime/state/runtime";
 import {
   createTranscriptionEnvironmentAtoms,
   resolveVoiceTranscriptionSource,
@@ -14,15 +18,12 @@ import { appAtomRegistry } from "../rpc/atomRegistry";
 import { environmentServerConfigsAtom } from "./server";
 import { readPreparedConnection } from "./session";
 
-export const transcriptionEnvironment = createTranscriptionEnvironmentAtoms(connectionAtomRuntime);
+const transcriptionEnvironment = createTranscriptionEnvironmentAtoms(connectionAtomRuntime);
 
 // A recording upload stays open until the environment has transcribed, and sent, it.
 const UPLOAD_TIMEOUT_MS = 7 * 60_000;
 
-async function command<A, E, Input>(
-  operation: import("@supaterm/client-runtime/state/runtime").AtomCommand<Input, A, E>,
-  input: Input,
-) {
+async function command<A, E, Input>(operation: AtomCommand<Input, A, E>, input: Input) {
   const result = await runAtomCommand(appAtomRegistry, operation, input, { reportFailure: false });
   if (result._tag === "Failure") throw squashAtomCommandFailure(result);
   return result.value;
