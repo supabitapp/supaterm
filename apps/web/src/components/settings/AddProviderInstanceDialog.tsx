@@ -188,10 +188,7 @@ export function AddProviderInstanceDialog({
   const driverOption = providerClients.get(driver) ?? DEFAULT_DRIVER_OPTION;
   const isAcpRegistry = driver === ACP_REGISTRY_DRIVER_KIND;
   const showRegistrySearch = wizardStep === 0 && !(isAcpRegistry && isManualAcpConfiguration);
-  const registry = useAcpRegistrySearch(
-    environmentId,
-    wizardStep === 0 && !(isAcpRegistry && isManualAcpConfiguration),
-  );
+  const registry = useAcpRegistrySearch(environmentId, showRegistrySearch);
   const isPreparingRegistryAgent = registry.preparingId !== null;
   const defaultIdentity: ProviderIdentityDraft = {
     label: driverOption.label,
@@ -469,88 +466,88 @@ export function AddProviderInstanceDialog({
                   onValueChange={selectDriver}
                   aria-labelledby="add-instance-driver-label"
                 />
-                <Collapsible open={showMoreProviders} onOpenChange={setShowMoreProviders}>
-                  <CollapsibleTrigger render={<Button variant="ghost" size="sm" />}>
-                    Show more <ChevronDownIcon />
-                  </CollapsibleTrigger>
-                  <CollapsiblePanel>
-                    <ProviderOptionGrid
-                      options={MORE_DRIVER_OPTIONS}
-                      value={driver}
-                      disabled={isPreparingRegistryAgent}
-                      onValueChange={selectDriver}
-                      aria-labelledby="add-instance-driver-label"
-                    />
-                  </CollapsiblePanel>
-                </Collapsible>
               </div>
 
               {wizardStep === 0 ? (
-                <div className="space-y-4 pt-4">
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <div aria-hidden className="flex-1 border-t border-border/70" />
-                    <span>Or choose from ACP Registry</span>
-                    <div aria-hidden className="flex-1 border-t border-border/70" />
-                  </div>
-                  {isAcpRegistry && isManualAcpConfiguration ? (
-                    <div className="grid gap-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <h3 className="text-sm font-medium text-foreground">
-                            {isLocalAcp ? "Local ACP command" : "Enter manually"}
-                          </h3>
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            {isLocalAcp
-                              ? `Run an installed ACP executable on ${environmentLabel}.`
-                              : "Enter an official registry ID and any local executable or auth override."}
-                          </p>
-                        </div>
-                        <Button
-                          onClick={() => {
-                            setIsManualAcpConfiguration(false);
-                            setHasAttemptedSubmit(false);
-                          }}
-                          size="xs"
-                          variant="ghost"
-                        >
-                          Search registry
-                        </Button>
-                      </div>
-                      <SettingsGroup variant="plain">
-                        <ProviderSettingsForm
-                          definition={driverOption}
-                          value={configDraft}
-                          idPrefix="add-provider-acpRegistry-manual"
-                          variant="settings"
-                          onChange={setConfigDraft}
-                        />
-                        {isLocalAcp ? (
-                          <ProviderEnvironmentSection
-                            environment={localEnvironment}
-                            onChange={setLocalEnvironment}
-                          />
-                        ) : null}
-                      </SettingsGroup>
-                      {isAcpRegistry && hasAttemptedSubmit && acpSelectionError ? (
-                        <p className="text-2xs text-destructive">{acpSelectionError}</p>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <>
-                      <AcpRegistrySearchStep
-                        environmentId={environmentId}
-                        providerInstances={settings.providerInstances}
-                        onPrepared={handleAcpPrepared}
-                        onManualConfiguration={handleManualAcpConfiguration}
-                        onLocalConfiguration={handleLocalAcpConfiguration}
-                        registry={registry}
+                <Collapsible open={showMoreProviders} onOpenChange={setShowMoreProviders}>
+                  <CollapsibleTrigger render={<Button variant="ghost" size="sm" />}>
+                    {showMoreProviders ? "Show less" : "Show more"} <ChevronDownIcon />
+                  </CollapsibleTrigger>
+                  <CollapsiblePanel animate={false}>
+                    <div className="space-y-4 pt-4">
+                      <ProviderOptionGrid
+                        options={MORE_DRIVER_OPTIONS}
+                        value={driver}
+                        disabled={isPreparingRegistryAgent}
+                        onValueChange={selectDriver}
+                        aria-label="More providers"
                       />
-                      {isAcpRegistry && hasAttemptedSubmit && acpSelectionError ? (
-                        <p className="mt-2 text-2xs text-destructive">{acpSelectionError}</p>
-                      ) : null}
-                    </>
-                  )}
-                </div>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        <div aria-hidden className="flex-1 border-t border-border/70" />
+                        <span>Or choose from ACP Registry</span>
+                        <div aria-hidden className="flex-1 border-t border-border/70" />
+                      </div>
+                      {isAcpRegistry && isManualAcpConfiguration ? (
+                        <div className="grid gap-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <h3 className="text-sm font-medium text-foreground">
+                                {isLocalAcp ? "Local ACP command" : "Enter manually"}
+                              </h3>
+                              <p className="mt-0.5 text-xs text-muted-foreground">
+                                {isLocalAcp
+                                  ? `Run an installed ACP executable on ${environmentLabel}.`
+                                  : "Enter an official registry ID and any local executable or auth override."}
+                              </p>
+                            </div>
+                            <Button
+                              onClick={() => {
+                                setIsManualAcpConfiguration(false);
+                                setHasAttemptedSubmit(false);
+                              }}
+                              size="xs"
+                              variant="ghost"
+                            >
+                              Search registry
+                            </Button>
+                          </div>
+                          <SettingsGroup variant="plain">
+                            <ProviderSettingsForm
+                              definition={driverOption}
+                              value={configDraft}
+                              idPrefix="add-provider-acpRegistry-manual"
+                              variant="settings"
+                              onChange={setConfigDraft}
+                            />
+                            {isLocalAcp ? (
+                              <ProviderEnvironmentSection
+                                environment={localEnvironment}
+                                onChange={setLocalEnvironment}
+                              />
+                            ) : null}
+                          </SettingsGroup>
+                          {isAcpRegistry && hasAttemptedSubmit && acpSelectionError ? (
+                            <p className="text-2xs text-destructive">{acpSelectionError}</p>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <>
+                          <AcpRegistrySearchStep
+                            environmentId={environmentId}
+                            providerInstances={settings.providerInstances}
+                            onPrepared={handleAcpPrepared}
+                            onManualConfiguration={handleManualAcpConfiguration}
+                            onLocalConfiguration={handleLocalAcpConfiguration}
+                            registry={registry}
+                          />
+                          {isAcpRegistry && hasAttemptedSubmit && acpSelectionError ? (
+                            <p className="mt-2 text-2xs text-destructive">{acpSelectionError}</p>
+                          ) : null}
+                        </>
+                      )}
+                    </div>
+                  </CollapsiblePanel>
+                </Collapsible>
               ) : null}
 
               {isAcpRegistry && wizardStep === 1 && selectedAcp ? (
