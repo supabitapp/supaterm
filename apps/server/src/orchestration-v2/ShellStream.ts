@@ -59,7 +59,7 @@ export const bufferShellLiveStream = <E, R>(
     limits,
   );
 
-export function buildActiveShellSnapshot(input: {
+function buildActiveShellSnapshot(input: {
   readonly projects: ReadonlyArray<OrchestrationProjectShell>;
   readonly threads: OrchestrationV2ThreadShellSnapshot;
   readonly snapshotSequence: number;

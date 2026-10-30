@@ -134,7 +134,7 @@ function toPersistenceSqlOrDecodeError(
         });
 }
 
-export const make = Effect.gen(function* () {
+const make = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
 
   const upsertRuntimeRow = SqlSchema.void({
