@@ -39,7 +39,7 @@ import { groupBy } from "effect/Array";
 import * as DateTime from "effect/DateTime";
 import { useNavigate } from "@tanstack/react-router";
 import { BotIcon, CornerLeftUpIcon, GitForkIcon, PlusIcon, SquareIcon } from "@supaterm/icons";
-import { useId, useState, type ReactNode } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 
 import { useArchivedThreadSnapshots } from "../../lib/archivedThreadsState";
 import { buildThreadRouteParams } from "../../threadRoutes";
@@ -235,6 +235,7 @@ export function ThreadRelationshipsPanel(props: {
     orchestrationEnvironment.stopWorkflow.permissionAtom(props.environmentId),
   );
   const [isMerging, setIsMerging] = useState(false);
+  const mergeErrorToastId = useRef<string | null>(null);
   const [stoppingId, setStoppingId] = useState<string | null>(null);
   // Derive graphs after hooks to preserve their compiler cache.
   const providers = providersByEnvironment.get(props.environmentId);
@@ -341,6 +342,10 @@ export function ThreadRelationshipsPanel(props: {
 
   const merge = async () => {
     if (!latestMergeBackRun || mergeTargetThreadId === null || isMerging) return;
+    if (mergeErrorToastId.current !== null) {
+      toastManager.close(mergeErrorToastId.current);
+      mergeErrorToastId.current = null;
+    }
     setIsMerging(true);
     const result = await mergeBack({
       environmentId: props.environmentId,
@@ -351,7 +356,14 @@ export function ThreadRelationshipsPanel(props: {
       },
     });
     setIsMerging(false);
-    if (result._tag === "Success") openThread(mergeTargetThreadId);
+    if (result._tag === "Failure") {
+      mergeErrorToastId.current = toastManager.add({
+        type: "error",
+        title: "Could not merge back",
+      });
+      return;
+    }
+    openThread(mergeTargetThreadId);
   };
 
   const stopSubagent = async (
