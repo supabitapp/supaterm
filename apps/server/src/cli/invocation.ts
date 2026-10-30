@@ -6,7 +6,7 @@ import * as Schema from "effect/Schema";
 
 import type { ServerInstallation } from "@supaterm/contracts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
-import { isCommandAvailable } from "@supaterm/shared/shell";
+import { resolveCommandPath } from "@supaterm/shared/shell";
 import { resolveSelfInvocation } from "@supaterm/shared/nodeRuntime";
 
 import packageJson from "../../package.json" with { type: "json" };
@@ -178,9 +178,9 @@ const resolveInstallLauncher = Effect.gen(function* () {
 });
 
 /**
- * `supaterm <subcommand> <args>` for a person to run on this host, via PATH, the package runner
- * this process came from, or this install's launcher path. `args` are quoted for the host's
- * shell: POSIX, or PowerShell on Windows.
+ * `supaterm <subcommand> <args>` for a person to run on this host, via this install's
+ * `supaterm` on PATH, the package runner this process came from, or this install's launcher
+ * path. `args` are quoted for the host's shell: POSIX, or PowerShell on Windows.
  */
 export const resolveHostCliCommand = Effect.fn("invocation.resolveHostCliCommand")(function* (
   subcommand: string,
@@ -191,7 +191,16 @@ export const resolveHostCliCommand = Effect.fn("invocation.resolveHostCliCommand
     [prefix, ...args.map((arg) => hostShellWord(platform, arg))].join(" ");
   const command = yield* resolveCliCommand(subcommand);
   if (command !== `supaterm ${subcommand}`) return { command: withArgs(command), launcher: false };
-  if (yield* isCommandAvailable("supaterm")) return { command: withArgs(command), launcher: false };
+  const onPath = yield* resolveCommandPath("supaterm");
+  if (onPath !== null) {
+    const shim = (yield* HostProcess.Environment).SUPATERM_CLI_SHIM_PATH?.trim();
+    const fs = yield* FileSystem.FileSystem;
+    const real = (file: string) => fs.realPath(file).pipe(Effect.orElseSucceed(() => null));
+    const shimReal = shim ? yield* real(shim) : null;
+    if (shimReal === null || shimReal === (yield* real(onPath))) {
+      return { command: withArgs(command), launcher: false };
+    }
+  }
   const launcher = yield* resolveInstallLauncher;
   if (Option.isNone(launcher)) return { command: withArgs(command), launcher: false };
   const quoted = launcher.value.words.map((word) => hostShellWord(platform, word)).join(" ");
