@@ -93,13 +93,6 @@ function grokAcpRuntimeProcessOwnership(
 
 export const GROK_ACP_CANCEL_META = { cancelTrigger: "ctrl_c" } as const;
 
-/**
- * Grok's Auto mode asks the client about an action its classifier blocks only
- * when the client declares a type that can show a prompt; the default
- * (`generic`) gets a silent denial instead. `extension` is the prompting type
- * that keeps the permission options Supaterm already maps (no always-approve row,
- * no per-command persistent grants).
- */
 export const GROK_ACP_INITIALIZE_META = { clientType: "extension" } as const;
 
 const GROK_ALLOW_EDITS_SESSION_OPTION_ID = "allow-edits-session";

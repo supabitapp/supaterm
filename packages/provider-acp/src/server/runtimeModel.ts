@@ -1060,15 +1060,6 @@ function acpMcpFallbackInput(value: string | undefined): Record<string, unknown>
   return undefined;
 }
 
-/**
- * Agents flatten injected MCP tools into model-facing function names with no
- * shared convention (survey of the 2026-08 registry builds): Kilo and
- * opencode use `supaterm_<tool>`, claude-acp, qwen, and Amp
- * `mcp__supaterm__<tool>`, droid `supaterm___<tool>`, Copilot `supaterm-<tool>`,
- * cline appends `: <args json>`. Supaterm always injects its server as
- * "supaterm", and matches are additionally gated on the known Supaterm tool
- * inventory, so the separator match can stay loose.
- */
 const SUPATERM_MCP_TITLE_CALL =
   /^(?:mcp[-_]{1,2})?supaterm[-_.:/ ]{1,3}(?<tool>[A-Za-z0-9][A-Za-z0-9_.-]*)(?::.*)?$/i;
 
