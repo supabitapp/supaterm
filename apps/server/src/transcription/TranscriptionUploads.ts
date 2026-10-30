@@ -75,12 +75,14 @@ type Entry =
   | {
       readonly _tag: "Transcribing" | "Submitting";
       readonly request: string;
+      readonly providerInstanceId: ProviderInstanceId;
       readonly work: Work;
       readonly retainUntil: number;
     }
   | {
       readonly _tag: "Settled";
       readonly request: string;
+      readonly providerInstanceId: ProviderInstanceId;
       readonly retainUntil: number;
       readonly outcome: Outcome;
     }
@@ -191,6 +193,7 @@ const make = Effect.gen(function* () {
         const next = new Map(entries).set(uploadId, {
           _tag: "Settled",
           request: entry.request,
+          providerInstanceId: entry.providerInstanceId,
           retainUntil: Math.max(entry.retainUntil, settledAt + OUTCOME_TTL_MS),
           outcome,
         });
@@ -289,6 +292,7 @@ const make = Effect.gen(function* () {
       new Map(entries).set(uploadId, {
         _tag: "Transcribing",
         request,
+        providerInstanceId: claims.providerInstanceId,
         work: { result, fiber },
         retainUntil: claims.expiresAt,
       }),
@@ -340,19 +344,23 @@ const make = Effect.gen(function* () {
   const prepare: TranscriptionUploads["Service"]["prepare"] = Effect.fn(
     "TranscriptionUploads.prepare",
   )(function* (input) {
-    const providerInstanceId = yield* transcription.checkSource(input);
     const uploadId = input.submit?.commandId ?? (yield* randomId);
     const expiresAt = (yield* Clock.currentTimeMillis) + ATTACHMENT_UPLOAD_URL_TTL_MS;
-    yield* storeLock.withPermits(1)(
+    const known = yield* storeLock.withPermits(1)(
       Effect.flatMap(liveEntries, (live) => {
         const entry = live.get(uploadId);
-        if (entry === undefined || entry.retainUntil >= expiresAt) return Effect.void;
+        if (entry === undefined || entry.retainUntil >= expiresAt) return Effect.succeed(entry);
         return Ref.set(
           entriesRef,
           new Map(live).set(uploadId, { ...entry, retainUntil: expiresAt }),
-        );
+        ).pipe(Effect.as(entry));
       }),
     );
+    // Recovering an upload's recorded outcome needs no usable provider; new work does.
+    const providerInstanceId =
+      known !== undefined && "providerInstanceId" in known
+        ? known.providerInstanceId
+        : yield* transcription.checkSource(input);
     const token = yield* signUploadToken(
       encodeUploadClaims({
         version: 1,
