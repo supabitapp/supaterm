@@ -30,6 +30,7 @@ import { resolveDiscoveredServerUrl } from "../../browser/browserTargetResolver"
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { confirmTerminalClose } from "../../lib/terminalCloseConfirm";
 import { findReusableProjectScriptTerminal } from "../../lib/projectScriptTerminal";
+import { encodeTerminalScriptPaste } from "../../terminal/scriptPaste";
 import { type TerminalContextSelection } from "../../lib/terminalContext";
 import { useTerminalUiStateStore } from "../../terminalUiStateStore";
 import {
@@ -197,6 +198,7 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
       preferNewTerminal?: boolean;
       rememberAsLastInvoked?: boolean;
       shellHistory?: "preserve" | "suppress";
+      pasteScript?: boolean;
     },
   ) => {
     if (!hasTerminalWriteAccess() || !activeThreadId || !activeProject || !activeThread) return;
@@ -257,12 +259,25 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
       return;
     }
 
-    const writeResult = await terminalActions.writeToTerminal(
-      targetTerminalId,
+    let data =
       options?.shellHistory === "preserve"
         ? `${script.command}\r`
-        : projectScriptTerminalInput(script.command),
-    );
+        : projectScriptTerminalInput(script.command);
+    if (options?.pasteScript) {
+      try {
+        data = await encodeTerminalScriptPaste(
+          { ...activeThreadRef, terminalId: targetTerminalId },
+          script.command,
+        );
+      } catch (error) {
+        setThreadError(
+          activeThreadId,
+          error instanceof Error ? error.message : "Failed to prepare script paste.",
+        );
+        return;
+      }
+    }
+    const writeResult = await terminalActions.writeToTerminal(targetTerminalId, data);
     if (!writeResult) return;
     if (writeResult._tag === "Failure") {
       if (!isAtomCommandInterrupted(writeResult)) {
@@ -316,7 +331,11 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
         icon: "play",
         runOnWorktreeCreate: false,
       },
-      { rememberAsLastInvoked: false, shellHistory: "preserve" },
+      {
+        rememberAsLastInvoked: false,
+        shellHistory: "preserve",
+        pasteScript: command.includes("\n"),
+      },
     );
   };
   const runShellCommandStable = useStableCallback(runShellCommand);
