@@ -93,6 +93,8 @@ export {
 
 const DEFAULT_HISTORY_LINE_LIMIT = 5_000;
 const DEFAULT_HISTORY_BYTE_LIMIT = 8 * 1024 * 1024;
+// eCryptfs permits 143-byte names.
+const MAX_HISTORY_FILENAME_BYTES = 143;
 const MAX_HISTORY_CHUNK_LENGTH = 16 * 1024;
 const DEFAULT_PERSIST_DEBOUNCE_MS = 250;
 const DEFAULT_SUBPROCESS_POLL_INTERVAL_MS = 1_000;
@@ -1298,8 +1300,6 @@ function sanitizeTerminalHistoryChunk(
   return { visibleText, pendingControlSequence: "" };
 }
 
-const MAX_FILE_NAME_BYTES = 255;
-
 function encodedHistoryThreadPart(threadId: string): string {
   return `terminal_${Base64Url.encode(threadId)}`;
 }
@@ -1668,21 +1668,38 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
       }
     });
 
-  // Nested subagent thread ids can encode past the filename limit. Only names that would not fit
-  // switch to hashed ids, so every history file that already exists keeps its path.
-  const historyPath = (threadId: string, terminalId: string) => {
-    const isDefault = terminalId === DEFAULT_TERMINAL_ID;
-    const encodedName = joinHistoryFileName(
-      encodedHistoryThreadPart(threadId),
-      isDefault ? null : Base64Url.encode(terminalId),
+  const encodedHistoryPath = (threadId: string, terminalId: string) =>
+    path.join(
+      logsDir,
+      joinHistoryFileName(
+        encodedHistoryThreadPart(threadId),
+        terminalId === DEFAULT_TERMINAL_ID ? null : Base64Url.encode(terminalId),
+      ),
     );
-    if (encodedName.length <= MAX_FILE_NAME_BYTES) {
-      return path.join(logsDir, encodedName);
-    }
+
+  const historyPath = (threadId: string, terminalId: string) => {
+    const encoded = encodedHistoryPath(threadId, terminalId);
+    if (path.basename(encoded).length <= MAX_HISTORY_FILENAME_BYTES) return encoded;
     return path.join(
       logsDir,
-      joinHistoryFileName(hashedHistoryThreadPart(threadId), isDefault ? null : hashId(terminalId)),
+      joinHistoryFileName(
+        hashedHistoryThreadPart(threadId),
+        terminalId === DEFAULT_TERMINAL_ID ? null : hashId(terminalId),
+      ),
     );
+  };
+
+  const historyPaths = (threadId: string, terminalId: string) => [
+    ...new Set([historyPath(threadId, terminalId), encodedHistoryPath(threadId, terminalId)]),
+  ];
+
+  const historyExists = (filePath: string) => {
+    const name = path.basename(filePath);
+    // An oversized old path can itself fail on access. Directory entries also
+    // preserve migration of such histories on filesystems with a larger limit.
+    return name.length <= MAX_HISTORY_FILENAME_BYTES
+      ? fileSystem.exists(filePath)
+      : fileSystem.readDirectory(logsDir).pipe(Effect.map((entries) => entries.includes(name)));
   };
 
   const readManagerState = SynchronizedRef.get(managerStateRef);
@@ -2012,36 +2029,61 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     terminalId: string,
   ) {
     const nextPath = historyPath(threadId, terminalId);
-    if (
-      yield* fileSystem
-        .exists(nextPath)
-        .pipe(
+    for (const sourcePath of historyPaths(threadId, terminalId)) {
+      const migrating = sourcePath !== nextPath;
+      const operation = migrating ? "migrate" : "read";
+      if (
+        !(yield* historyExists(sourcePath).pipe(
           Effect.mapError(
-            (cause) => new TerminalHistoryError({ operation: "read", threadId, terminalId, cause }),
+            (cause) => new TerminalHistoryError({ operation, threadId, terminalId, cause }),
           ),
-        )
-    ) {
-      const { history: raw, truncated } = yield* readHistoryTail(nextPath).pipe(
+        ))
+      )
+        continue;
+      const { history: raw, truncated } = yield* readHistoryTail(sourcePath).pipe(
         Effect.scoped,
         Effect.mapError(
-          (cause) => new TerminalHistoryError({ operation: "read", threadId, terminalId, cause }),
+          (cause) => new TerminalHistoryError({ operation, threadId, terminalId, cause }),
         ),
       );
       const history = new BoundedTerminalHistory(historyLineLimit, raw, historyByteLimit);
       const capped = history.value();
-      if (truncated || capped !== raw) {
-        yield* fileSystem
-          .writeFileString(nextPath, capped)
-          .pipe(
-            Effect.mapError(
-              (cause) =>
-                new TerminalHistoryError({ operation: "truncate", threadId, terminalId, cause }),
-            ),
-          );
+      if (migrating || truncated || capped !== raw) {
+        const write = migrating
+          ? Effect.gen(function* () {
+              const temporaryPath = yield* fileSystem.makeTempFileScoped({
+                directory: logsDir,
+                prefix: ".history-",
+              });
+              yield* fileSystem.writeFileString(temporaryPath, capped);
+              yield* fileSystem.rename(temporaryPath, nextPath);
+            }).pipe(Effect.scoped)
+          : fileSystem.writeFileString(nextPath, capped);
+        yield* write.pipe(
+          Effect.mapError(
+            (cause) =>
+              new TerminalHistoryError({
+                operation: migrating ? "migrate" : "truncate",
+                threadId,
+                terminalId,
+                cause,
+              }),
+          ),
+        );
+      }
+      if (migrating) {
+        yield* fileSystem.remove(sourcePath, { force: true }).pipe(
+          Effect.catch((error) =>
+            Effect.logWarning("failed to remove legacy terminal history", {
+              threadId,
+              terminalId,
+              error,
+            }),
+          ),
+        );
       }
       return history;
     }
-
     return new BoundedTerminalHistory(historyLineLimit, "", historyByteLimit);
   });
 
@@ -2049,14 +2091,23 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     threadId: string,
     terminalId: string,
   ) {
-    yield* fileSystem.remove(historyPath(threadId, terminalId), { force: true }).pipe(
-      Effect.catch((error) =>
-        Effect.logWarning("failed to delete terminal history", {
-          threadId,
-          terminalId,
-          error,
-        }),
-      ),
+    yield* Effect.forEach(
+      historyPaths(threadId, terminalId),
+      (filePath) =>
+        Effect.gen(function* () {
+          if (yield* historyExists(filePath)) {
+            yield* fileSystem.remove(filePath, { force: true });
+          }
+        }).pipe(
+          Effect.catch((error) =>
+            Effect.logWarning("failed to delete terminal history", {
+              threadId,
+              terminalId,
+              error,
+            }),
+          ),
+        ),
+      { discard: true },
     );
   });
 
