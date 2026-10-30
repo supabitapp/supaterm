@@ -641,15 +641,15 @@ const make = Effect.gen(function* () {
     return commandOutputs.subscribe({ threadId: thread.id, itemId: item.id }).pipe(
       Stream.catchCause(() => Stream.empty),
       Stream.interruptWhen(
-        Effect.raceFirst(
-          untilRevoked(session),
-          Effect.sleep(
-            Math.max(
+        untilRevoked(session).pipe(
+          Effect.timeoutOrElse({
+            duration: Math.max(
               0,
               Date.parse(thread.guestShare!.expiresAt) -
                 DateTime.toEpochMillis(yield* DateTime.now),
             ),
-          ),
+            orElse: () => Effect.void,
+          }),
         ),
       ),
     );

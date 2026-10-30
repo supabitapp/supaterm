@@ -52,6 +52,8 @@ import * as ProviderAdapterRegistry from "../orchestration-v2/ProviderAdapterReg
 import * as ResourceCleanupService from "../orchestration-v2/ResourceCleanupService.ts";
 import * as ProviderReplayHarness from "../orchestration-v2/testkit/ProviderReplayHarness.ts";
 import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
+import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
+import * as PreviewAgentActivity from "../preview/PreviewAgentActivity.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as AnalyticsService from "../telemetry/AnalyticsService.ts";
 import * as GuestShareService from "./GuestShareService.ts";
@@ -74,6 +76,9 @@ const layerOrchestration = Layer.mergeAll(
     ProviderAdapterRegistry.layerFromAdapters([adapter]),
     { databaseLayer: layerDatabase, runEffectWorker: false },
   ),
+).pipe(
+  Layer.provide(ProviderInstanceRegistry.layer<never>({ drivers: [], configMap: {} })),
+  Layer.provide(PreviewAgentActivity.layer),
 );
 const RELAY_ADDRESS =
   "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.relay.supaterm.alt/";
@@ -105,7 +110,7 @@ const layerRelay = Layer.effectContext(
             ),
           ),
           advertisements: SubscriptionRef.changes(address).pipe(
-            Effect.map((value) =>
+            Stream.map((value) =>
               value ? { relayEndpoint: value, relayUrl: "wss://relay.example" } : null,
             ),
           ),
@@ -585,27 +590,46 @@ it.effect("gives the guest a command's detail and output, but no file diffs", ()
   }).pipe(Effect.provide(layerTest)),
 );
 
-it.effect("ends a running command's output once the owner stops sharing", () =>
-  Effect.gen(function* () {
-    const { orchestrator, guestShares, credential } = yield* shareThread;
-    const { token: session } = yield* guestShares.redeem({ credential, name: "Sam" });
-    const command = yield* writeItem("item:running", {
-      type: "command_execution",
-      status: "running",
-      input: "ls /work/src",
-    });
-    const collecting = yield* Stream.runCollect(
-      yield* guestShares.commandOutput(session, command),
-    ).pipe(Effect.forkChild);
-    yield* orchestrator.dispatch({
-      type: "thread.guest-share.close",
-      commandId: CommandId.make("close-during-command"),
-      threadId,
-    });
-    const frames = Array.from(yield* Fiber.join(collecting));
-    assert.isTrue(frames.every((frame) => frame.running));
-    assert.isTrue(Exit.isFailure(yield* Effect.exit(guestShares.commandOutput(session, command))));
-  }).pipe(Effect.provide(layerTest)),
+it.effect.each(["owner", "expiry", "consumer"] as const)(
+  "ends a running command's output on %s termination",
+  (termination) =>
+    Effect.gen(function* () {
+      const { orchestrator, guestShares, credential } = yield* shareThread;
+      const { token: session } = yield* guestShares.redeem({ credential, name: "Sam" });
+      const command = yield* writeItem("item:running", {
+        type: "command_execution",
+        status: "running",
+        input: "ls /work/src",
+      });
+      const receivedFrame = yield* Deferred.make<void>();
+      const collecting = yield* (yield* guestShares.commandOutput(session, command)).pipe(
+        Stream.tap(() => Deferred.succeed(receivedFrame, undefined)),
+        Stream.runCollect,
+        Effect.forkChild,
+      );
+      yield* Deferred.await(receivedFrame);
+      if (termination === "consumer") {
+        yield* Fiber.interrupt(collecting);
+        assert.isTrue(Exit.hasInterrupts(yield* Fiber.await(collecting)));
+        assert.isTrue(Exit.isSuccess(yield* Effect.exit(guestShares.check(session))));
+        return;
+      }
+      if (termination === "expiry") {
+        yield* TestClock.adjust("25 hours");
+      } else {
+        yield* orchestrator.dispatch({
+          type: "thread.guest-share.close",
+          commandId: CommandId.make("close-during-command"),
+          threadId,
+        });
+      }
+      const frames = Array.from(yield* Fiber.join(collecting));
+      assert.isNotEmpty(frames);
+      assert.isTrue(frames.every((frame) => frame.running));
+      assert.isTrue(
+        Exit.isFailure(yield* Effect.exit(guestShares.commandOutput(session, command))),
+      );
+    }).pipe(Effect.provide(layerTest)),
 );
 
 const PNG = Uint8Array.of(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13);

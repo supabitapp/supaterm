@@ -101,7 +101,8 @@ describe("AgentDevice startup", () => {
     (version) =>
       Effect.gen(function* () {
         let starts = 0;
-        const { host, fs, stateDir } = yield* agentFixture((directory) =>
+        const fs = yield* FileSystem.FileSystem;
+        const { host, stateDir } = yield* agentFixture((directory) =>
           Effect.gen(function* () {
             starts++;
             yield* fs

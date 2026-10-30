@@ -281,15 +281,15 @@ it.effect("keeps a pairing credential available after a required-scope rejection
         }),
       ),
     );
-    const results = yield* Effect.all(
-      [1, 2].map(() =>
+    const results = yield* Effect.forEach(
+      [1, 2],
+      () =>
         links.consumeAvailable({
           credential: "scope-check-token",
           requiredScopes: ["access:read"],
           consumedAt: now,
           now,
         }),
-      ),
       { concurrency: "unbounded" },
     );
     assert.equal(results.filter(Option.isSome).length, 1);

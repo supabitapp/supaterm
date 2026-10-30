@@ -70,6 +70,7 @@ import * as HostProcess from "@supaterm/shared/HostProcess";
 
 export const ASSET_ROUTE_PREFIX = "/api/assets";
 
+const isAssetWorkspaceAssetNotFoundError = Schema.is(AssetWorkspaceAssetNotFoundError);
 const SIGNING_SECRET_NAME = "asset-access-signing-key";
 const ASSET_TOKEN_TTL_MS = 60 * 60 * 1000;
 const PROJECT_FAVICON_TOKEN_BUCKET_MS = 30 * 60 * 1000;
@@ -519,7 +520,7 @@ const finalizeWorkspaceFileAsset = Effect.fn("AssetAccess.finalizeWorkspaceFileA
     }).pipe(
       Effect.scoped,
       Effect.mapError((cause) =>
-        cause instanceof AssetWorkspaceAssetNotFoundError
+        isAssetWorkspaceAssetNotFoundError(cause)
           ? cause
           : new AssetWorkspaceAssetInspectionError({ resource: input.resource, cause }),
       ),

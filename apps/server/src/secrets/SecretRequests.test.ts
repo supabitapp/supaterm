@@ -8,6 +8,7 @@ import {
   type OrchestrationV2ServerCommand,
 } from "@supaterm/contracts";
 import * as Deferred from "effect/Deferred";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
@@ -356,7 +357,8 @@ it.effect(
         yield* fs.makeDirectory(`${directory}/files`, { recursive: true });
         const partial = `${directory}/files/${"a".repeat(32)}.partial`;
         yield* fs.writeFileString(partial, "partial-value");
-        yield* fs.utimes(partial, new Date(0), new Date(0));
+        const epoch = DateTime.toDateUtc(DateTime.makeUnsafe(0));
+        yield* fs.utimes(partial, epoch, epoch);
         yield* TestClock.adjust("25 hours");
         yield* store.create(
           `secret-request-${"b".repeat(32)}`,
@@ -376,7 +378,8 @@ it.effect("hourly cleanup removes expired delivered files using a completion sig
     Effect.gen(function* () {
       yield* service.answer(save);
       const file = yield* service.saveToFile({ threadId, turnItemId });
-      yield* fs.utimes(file, new Date(-25 * 60 * 60 * 1000), new Date(-25 * 60 * 60 * 1000));
+      const expired = DateTime.toDateUtc(DateTime.makeUnsafe(-25 * 60 * 60 * 1000));
+      yield* fs.utimes(file, expired, expired);
       yield* TestClock.adjust("1 hour");
       assert.equal(yield* Deferred.await(removedFile), file);
       assert.isFalse(yield* fs.exists(file));
