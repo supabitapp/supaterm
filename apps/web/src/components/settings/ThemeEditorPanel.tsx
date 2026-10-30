@@ -1,6 +1,12 @@
 import { MousePointerIcon, PaintbrushIcon, PlusIcon, XIcon } from "@supaterm/icons";
 import { ChevronDown, ChevronUp } from "@supaterm/icons/nodes";
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import {
   applyThemeColorPreview,
   THEME_COLOR_ROLES,
@@ -271,21 +277,32 @@ function getManagedEditorColors(
   );
 }
 
+const PANEL_MARGIN = 8;
+const PANEL_MIN_WIDTH = 280;
+const PANEL_MIN_HEIGHT = 220;
+
 function clampPanelPosition(
-  panel: HTMLElement | null,
+  viewport: { readonly width: number; readonly height: number },
   x: number,
   y: number,
-  widthOverride?: number,
+  width: number,
 ) {
-  const margin = 8;
-  // The caller passes a width when it has just shrunk the panel: the DOM
-  // still reports the old one until React commits.
-  const width = widthOverride ?? panel?.offsetWidth ?? 0;
   return {
-    x: Math.min(Math.max(x, margin), Math.max(margin, window.innerWidth - width - margin)),
-    y: Math.min(Math.max(y, margin), Math.max(margin, window.innerHeight - 48)),
+    x: Math.min(
+      Math.max(x, PANEL_MARGIN),
+      Math.max(PANEL_MARGIN, viewport.width - width - PANEL_MARGIN),
+    ),
+    y: Math.min(Math.max(y, PANEL_MARGIN), Math.max(PANEL_MARGIN, viewport.height - 48)),
   };
 }
+
+const readWindowViewport = () => ({ width: window.innerWidth, height: window.innerHeight });
+const subscribeToViewport = (onChange: () => void) => {
+  window.addEventListener("resize", onChange);
+  return () => window.removeEventListener("resize", onChange);
+};
+const readViewportWidth = () => window.innerWidth;
+const readViewportHeight = () => window.innerHeight;
 
 // Kept out of the component: the compiler cannot lower a throw inside try/catch.
 function retireMergedTheme(retired: ThemeDefinition, mergeTarget: ThemeDefinition) {
@@ -344,10 +361,10 @@ export function ThemeEditorPanel({
   const [isInspecting, setIsInspecting] = useState(false);
   const [selectedRole, setSelectedRole] = useState<ThemeColorRole | null>(null);
   const [usageCount, setUsageCount] = useState<number | null>(null);
-  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const [position, setPosition] = useState<{ x: number; y: number; width: number } | null>(null);
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const dragOffsetRef = useRef<{ dx: number; dy: number } | null>(null);
+  const dragOffsetRef = useRef<{ dx: number; dy: number; width: number } | null>(null);
   const resizeStartRef = useRef<{
     pointerX: number;
     pointerY: number;
@@ -356,32 +373,6 @@ export function ThemeEditorPanel({
     width: number;
     height: number;
   } | null>(null);
-  useEffect(() => {
-    if (!open) return;
-    const clamp = () => {
-      const margin = 8;
-      let clampedWidth: number | undefined;
-      let clampedHeight: number | undefined;
-      setSize((current) => {
-        if (!current) return current;
-        clampedWidth = Math.max(280, Math.min(current.width, window.innerWidth - margin * 2));
-        clampedHeight = Math.max(220, Math.min(current.height, window.innerHeight - margin * 2));
-        return { width: clampedWidth, height: clampedHeight };
-      });
-      setPosition((current) => {
-        if (!current) return current;
-        const clamped = clampPanelPosition(panelRef.current, current.x, current.y, clampedWidth);
-        const height = isMinimized
-          ? (panelRef.current?.offsetHeight ?? 0)
-          : (clampedHeight ?? panelRef.current?.offsetHeight ?? 0);
-        const maxY = Math.max(margin, window.innerHeight - height - margin);
-        return { x: clamped.x, y: Math.min(clamped.y, maxY) };
-      });
-    };
-    window.addEventListener("resize", clamp);
-    return () => window.removeEventListener("resize", clamp);
-  }, [isMinimized, open]);
-
   // Seeded during render so the first open commit already holds this
   // session's draft; seeding in an effect would preview the previous
   // session's colors for a frame.
@@ -1022,20 +1013,40 @@ export function ThemeEditorPanel({
     );
   };
 
-  const clampPosition = (x: number, y: number) => clampPanelPosition(panelRef.current, x, y);
+  const viewport = {
+    width: useSyncExternalStore(subscribeToViewport, readViewportWidth),
+    height: useSyncExternalStore(subscribeToViewport, readViewportHeight),
+  };
+  const shownSize = size && {
+    width: Math.max(PANEL_MIN_WIDTH, Math.min(size.width, viewport.width - PANEL_MARGIN * 2)),
+    height: Math.max(PANEL_MIN_HEIGHT, Math.min(size.height, viewport.height - PANEL_MARGIN * 2)),
+  };
+  const shownPosition =
+    position &&
+    clampPanelPosition(viewport, position.x, position.y, shownSize?.width ?? position.width);
 
   const handleDragPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if ((event.target as HTMLElement).closest("button, input, a")) return;
     const rect = panelRef.current?.getBoundingClientRect();
     if (!rect) return;
-    dragOffsetRef.current = { dx: event.clientX - rect.x, dy: event.clientY - rect.y };
+    dragOffsetRef.current = {
+      dx: event.clientX - rect.x,
+      dy: event.clientY - rect.y,
+      width: rect.width,
+    };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
   const handleDragPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     const offset = dragOffsetRef.current;
     if (!offset) return;
-    setPosition(clampPosition(event.clientX - offset.dx, event.clientY - offset.dy));
+    const next = clampPanelPosition(
+      readWindowViewport(),
+      event.clientX - offset.dx,
+      event.clientY - offset.dy,
+      offset.width,
+    );
+    setPosition({ ...next, width: offset.width });
   };
 
   const endDrag = () => {
@@ -1049,7 +1060,8 @@ export function ThemeEditorPanel({
     // The grip drags the bottom-right corner, so the top-left must hold
     // still; the default parking spot is anchored bottom-right and would
     // slide, so it converts to an explicit position first.
-    if (position === null) setPosition(clampPosition(rect.x, rect.y));
+    const next = clampPanelPosition(readWindowViewport(), rect.x, rect.y, rect.width);
+    setPosition({ ...next, width: rect.width });
     resizeStartRef.current = {
       pointerX: event.clientX,
       pointerY: event.clientY,
@@ -1064,15 +1076,15 @@ export function ThemeEditorPanel({
   const handleResizePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     const start = resizeStartRef.current;
     if (!start) return;
-    const margin = 8;
-    const MIN_WIDTH = 280;
-    const MIN_HEIGHT = 220;
-    const maxWidth = Math.max(MIN_WIDTH, window.innerWidth - margin - start.left);
-    const maxHeight = Math.max(MIN_HEIGHT, window.innerHeight - margin - start.top);
+    const maxWidth = Math.max(PANEL_MIN_WIDTH, window.innerWidth - PANEL_MARGIN - start.left);
+    const maxHeight = Math.max(PANEL_MIN_HEIGHT, window.innerHeight - PANEL_MARGIN - start.top);
     setSize({
-      width: Math.min(Math.max(start.width + event.clientX - start.pointerX, MIN_WIDTH), maxWidth),
+      width: Math.min(
+        Math.max(start.width + event.clientX - start.pointerX, PANEL_MIN_WIDTH),
+        maxWidth,
+      ),
       height: Math.min(
-        Math.max(start.height + event.clientY - start.pointerY, MIN_HEIGHT),
+        Math.max(start.height + event.clientY - start.pointerY, PANEL_MIN_HEIGHT),
         maxHeight,
       ),
     });
@@ -1094,9 +1106,11 @@ export function ThemeEditorPanel({
       ref={panelRef}
       role="dialog"
       style={{
-        ...(position ? { left: position.x, top: position.y } : {}),
-        ...(size ? { width: size.width } : {}),
-        ...(size && !isMinimized ? { height: size.height, maxHeight: "calc(100dvh - 1rem)" } : {}),
+        ...(shownPosition ? { left: shownPosition.x, top: shownPosition.y } : {}),
+        ...(shownSize ? { width: shownSize.width } : {}),
+        ...(shownSize && !isMinimized
+          ? { height: shownSize.height, maxHeight: "calc(100dvh - 1rem)" }
+          : {}),
       }}
     >
       <div

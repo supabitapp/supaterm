@@ -28,7 +28,7 @@ import type {
 } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
@@ -822,6 +822,11 @@ export function ResourceTelemetryDiagnostics({
     },
     environmentId,
   );
+  const refreshHistory = history.refresh;
+  const selectedHistoryRef = useRef({ environmentId, windowMs, refreshHistory });
+  useEffect(() => {
+    selectedHistoryRef.current = { environmentId, windowMs, refreshHistory };
+  }, [environmentId, windowMs, refreshHistory]);
   const signalServerProcess = useAtomCommand(serverEnvironment.signalProcess, {
     reportFailure: false,
   });
@@ -888,6 +893,14 @@ export function ResourceTelemetryDiagnostics({
       return;
     setIsRetrying(true);
     void retryTelemetry()
+      .then(() => {
+        const selectedHistory = selectedHistoryRef.current;
+        if (selectedHistory.environmentId !== environmentId) return;
+        refreshHistory();
+        if (selectedHistory.windowMs !== windowMs) {
+          selectedHistory.refreshHistory();
+        }
+      })
       .catch((error: unknown) => {
         toastManager.add({
           type: "error",

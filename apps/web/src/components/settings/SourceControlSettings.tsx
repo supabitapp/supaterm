@@ -128,13 +128,13 @@ function isProviderDiscoveryItem(
 
 function authPresentation(auth: SourceControlProviderAuth): {
   readonly label: string;
-  readonly badge: "warning" | null;
+  readonly badge: "secondary" | null;
 } {
   if (auth.status === "authenticated") {
     return { label: "Authenticated", badge: null };
   }
   if (auth.status === "unauthenticated") {
-    return { label: "Not authenticated", badge: "warning" };
+    return { label: "Not authenticated", badge: "secondary" };
   }
   return { label: "Status unknown", badge: null };
 }
@@ -151,8 +151,12 @@ function RedactedAccount(props: { readonly account: string | null }) {
 }
 
 function itemStatusDot(item: VcsDiscoveryItem | SourceControlProviderDiscoveryItem): string {
+  if (isProviderDiscoveryItem(item)) {
+    return item.status === "available" && item.auth.status === "authenticated"
+      ? "bg-success"
+      : "bg-muted-foreground/40";
+  }
   if (item.status !== "available") return "bg-warning";
-  if (isProviderDiscoveryItem(item) && item.auth.status !== "authenticated") return "bg-warning";
   return "bg-success";
 }
 
