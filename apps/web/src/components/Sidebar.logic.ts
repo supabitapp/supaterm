@@ -1,4 +1,5 @@
 import type { ThreadId, EnvironmentId } from "@supaterm/contracts";
+import { scopeThreadRef, scopedThreadKey } from "@supaterm/client-runtime/environment";
 import { backgroundWorkHoldsCompletion } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 import { threadPullRequestSearchTerms } from "@supaterm/shared/threadPullRequests";
 import * as React from "react";
@@ -336,6 +337,29 @@ export function sidebarThreadKeyAtY(list: HTMLElement, y: number): string | null
   return key;
 }
 
+export function resolveSidebarReorderableThreadKeys(input: {
+  readonly threads: ReadonlyArray<Pick<SidebarThreadSummary, "environmentId" | "id">>;
+  /** Threads the server holds; optimistic rows have nothing to write to yet. */
+  readonly serverThreadKeys: ReadonlySet<string>;
+  readonly serverConfigs: ReadonlyMap<EnvironmentId, unknown>;
+  readonly connectedEnvironmentIds: readonly EnvironmentId[];
+}) {
+  const connectedEnvironmentIds = new Set(input.connectedEnvironmentIds);
+  const draggableThreadKeys = new Set<string>();
+  for (const thread of input.threads) {
+    // Config is cached for offline rendering, so its presence does not make a row writable.
+    if (
+      !connectedEnvironmentIds.has(thread.environmentId) ||
+      !input.serverConfigs.has(thread.environmentId)
+    ) {
+      continue;
+    }
+    const threadKey = scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id));
+    if (input.serverThreadKeys.has(threadKey)) draggableThreadKeys.add(threadKey);
+  }
+  return { draggableThreadKeys };
+}
+
 export function planSidebarThreadDrop(input: {
   readonly activeKey: string;
   readonly activeSection: SidebarSection;
@@ -374,7 +398,16 @@ export function planSidebarThreadDrop(input: {
       keysById,
       movedId: activeKey,
     });
-    return assignments.every(({ id }) => writable.has(id)) ? assignments : null;
+    if (assignments.some(({ id }) => !writable.has(id))) return null;
+    // Keyless pinned rows sort after keyed rows, so a row materialized after a frozen keyless row
+    // cannot persist that position.
+    const assignedIds = new Set(assignments.map(({ id }) => id));
+    let hasFrozenKeylessBefore = false;
+    for (const id of order) {
+      if (hasFrozenKeylessBefore && assignedIds.has(id)) return null;
+      hasFrozenKeylessBefore ||= !writable.has(id) && keysById.get(id) == null;
+    }
+    return assignments;
   };
   switch (target.section) {
     case "active":

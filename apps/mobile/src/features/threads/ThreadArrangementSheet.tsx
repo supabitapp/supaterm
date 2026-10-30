@@ -24,6 +24,7 @@ import { AppText as Text } from "../../components/ui/AppText";
 import { SymbolView } from "../../components/ui/AppSymbol";
 import { scopedThreadKey } from "../../lib/scopedEntities";
 import { environmentServerConfigsAtom } from "../../state/server";
+import { threadListEnvironmentsAtom } from "../../state/presentation";
 import { environmentThreadShells } from "../../state/threads";
 import { sortDoneThreads } from "@supaterm/client-runtime/state/thread-sort";
 import { useOlderDoneShelf, useOlderDoneShelfGrowth } from "../../state/olderDoneShelf";
@@ -180,6 +181,7 @@ function DragHandle(props: DragHandleProps) {
 function ThreadArrangementSheet(props: { onClose: () => void }) {
   const threads = useAtomValue(environmentThreadShells.navigationThreadShellsAtom);
   const configs = useAtomValue(environmentServerConfigsAtom);
+  const listEnvironments = useAtomValue(threadListEnvironmentsAtom);
   const queuedThreadKeys = useAtomValue(queuedThreadKeysAtom);
   const pendingOrder = useAtomValue(pendingThreadOrderAtom);
   const dropBusy = useAtomValue(threadDropBusyAtom);
@@ -222,9 +224,9 @@ function ThreadArrangementSheet(props: { onClose: () => void }) {
         ordered: sections.pinned,
         allThreads: threads,
         section: "pinned",
-        reorderableEnvironmentIds: new Set(configs.keys()),
+        reorderableEnvironmentIds: listEnvironments.reorderEnvironmentIds,
       }),
-    [sections, threads, configs],
+    [sections, threads, listEnvironments],
   );
   const listedDone = sections.done.filter(olderDoneShelf.isListed);
   useOlderDoneShelfGrowth(olderDoneShelf, listedDone);
@@ -481,7 +483,12 @@ function ThreadArrangementSheet(props: { onClose: () => void }) {
                             </Text>
                             <DragHandle
                               title={thread.title}
-                              disabled={dropBusy || pendingOrder !== null || !loaded}
+                              disabled={
+                                dropBusy ||
+                                pendingOrder !== null ||
+                                !loaded ||
+                                !listEnvironments.reorderEnvironmentIds.has(thread.environmentId)
+                              }
                               sectionActions={sectionActions}
                               onSectionMove={(section) => {
                                 void moveThread(thread, {

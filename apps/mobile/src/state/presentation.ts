@@ -3,20 +3,34 @@ import {
   environmentConnectionAddress,
   type EnvironmentPresentation,
 } from "@supaterm/client-runtime/connection";
-import { createEnvironmentPresentationAtoms } from "@supaterm/client-runtime/state/presentation";
+import {
+  createEnvironmentPresentationAtoms,
+  createEnvironmentSummaryAtoms,
+} from "@supaterm/client-runtime/state/presentation";
 import type { EnvironmentId } from "@supaterm/contracts";
 import { Atom } from "effect/reactivity";
 import * as Option from "effect/Option";
 
 import { environmentCatalog } from "../connection/catalog";
-import { serverEnvironment } from "./server";
+import { environmentServerConfigsAtom, serverEnvironment } from "./server";
 import { environmentSession } from "./session";
+import { createThreadListEnvironmentsAtom } from "./thread-list-environments";
 
 export const environmentPresentations = createEnvironmentPresentationAtoms({
   catalogValueAtom: environmentCatalog.catalogValueAtom,
   stateAtom: environmentCatalog.stateAtom,
   serverConfigValueAtom: serverEnvironment.configValueAtom,
 });
+
+export const { connectedEnvironmentIdsAtom } = createEnvironmentSummaryAtoms({
+  catalogValueAtom: environmentCatalog.catalogValueAtom,
+  presentationAtom: environmentPresentations.presentationAtom,
+});
+
+export const threadListEnvironmentsAtom = createThreadListEnvironmentsAtom(
+  environmentServerConfigsAtom,
+  connectedEnvironmentIdsAtom,
+);
 
 export const environmentConnectionAddressAtom = Atom.family((environmentId: EnvironmentId) =>
   Atom.make((get) => {

@@ -139,6 +139,7 @@ import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { useNowMinute } from "../hooks/useNowMinute";
 import {
+  useConnectedEnvironmentIds,
   useEnvironmentIdentities,
   useEnvironmentMachines,
   usePrimaryEnvironmentId,
@@ -187,6 +188,7 @@ import {
   resolveSidebarSweepKeys,
   resolveSidebarDropTarget,
   resolveSidebarDropVerb,
+  resolveSidebarReorderableThreadKeys,
   resolveSidebarThreadSection,
   resolveSidebarRowThreadId,
   type SidebarSweepAction,
@@ -330,6 +332,7 @@ interface SidebarThreadPartitionInput {
   readonly scopedProjectKeys: ReadonlySet<string> | null;
   readonly serverThreadKeys: ReadonlySet<string>;
   readonly serverConfigs: ReadonlyMap<EnvironmentId, EnvironmentServerConfig>;
+  readonly connectedEnvironmentIds: readonly EnvironmentId[];
   readonly optimisticDrop: SidebarOptimisticDrop | null;
   // Snooze wakes and the Working shelf's exit grace depend on the clock, so the
   // minute tick, the precise snooze-wake tick and the inbox tracker's expiry
@@ -374,6 +377,7 @@ function useSidebarThreads(input: {
   readonly projectScopeKey: string | null;
   readonly scopedProjectKeys: ReadonlySet<string> | null;
   readonly serverConfigs: ReadonlyMap<EnvironmentId, EnvironmentServerConfig>;
+  readonly connectedEnvironmentIds: readonly EnvironmentId[];
   readonly optimisticDrop: SidebarOptimisticDrop | null;
   readonly threads: readonly EnvironmentThreadShell[];
   readonly routeRowThreadKey: string | null;
@@ -385,6 +389,7 @@ function useSidebarThreads(input: {
     projectScopeKey,
     scopedProjectKeys,
     serverConfigs,
+    connectedEnvironmentIds,
     optimisticDrop,
     threads,
     routeRowThreadKey,
@@ -447,6 +452,7 @@ function useSidebarThreads(input: {
     scopedProjectKeys,
     serverThreadKeys,
     serverConfigs,
+    connectedEnvironmentIds,
     optimisticDrop,
     nowMinute,
     snoozeWakeTickAt,
@@ -607,15 +613,16 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
       : active;
   const snoozed: EnvironmentThreadShell[] = [];
   const done: EnvironmentThreadShell[] = [];
-  const draggable = new Set<string>();
+  const { draggableThreadKeys } = resolveSidebarReorderableThreadKeys({
+    threads: visible,
+    serverThreadKeys,
+    serverConfigs,
+    connectedEnvironmentIds: input.connectedEnvironmentIds,
+  });
   for (const thread of visible) {
-    // Until the environment's config loads, threads never classify as
-    // done or snoozed and cannot be dragged: the user could not act on them.
+    // Until the environment's config loads, threads never classify as done or snoozed.
     const loaded = serverConfigs.has(thread.environmentId);
     const threadKey = threadShellKey(thread);
-    if (serverThreadKeys.has(threadKey) && loaded) {
-      draggable.add(threadKey);
-    }
     if (optimisticDrop?.key === threadKey) {
       const projected = applySidebarThreadDrop(
         thread,
@@ -659,7 +666,7 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
             preferredIds: optimisticDrop.order,
             getId: threadShellKey,
           }),
-    draggableThreadKeys: draggable,
+    draggableThreadKeys,
     activeThreads: sortInboxThreadsByReturn(active, inboxObservation.returnedAt),
     workingThreads: sortWorkingThreadsBySend(working),
     snoozedThreads: snoozed.toSorted(
@@ -1156,6 +1163,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     },
   );
 
+  const connectedEnvironmentIds = useConnectedEnvironmentIds();
   const {
     serverThreadKeys,
     pinnedThreads,
@@ -1200,6 +1208,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     projectScopeKey,
     scopedProjectKeys,
     serverConfigs,
+    connectedEnvironmentIds,
     optimisticDrop,
     threads,
     routeRowThreadKey,
