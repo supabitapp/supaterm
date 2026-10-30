@@ -37,7 +37,11 @@ const Actor = Schema.Union([
     actorId: Schema.String,
     login: TrimmedNonEmptyString,
     avatarUrl: Schema.NullOr(Schema.String),
-    linkedProfile: Schema.optional(Schema.NullOr(Schema.Struct({ handle: TrimmedNonEmptyString }))),
+    linkedProfile: Schema.optional(
+      Schema.NullOr(
+        Schema.Struct({ handle: TrimmedNonEmptyString, actorId: Schema.optional(Schema.String) }),
+      ),
+    ),
   }),
   Schema.Struct({ kind: Schema.Literal("unavailable"), actorId: Schema.String }),
 ]);
@@ -81,6 +85,8 @@ export const GitCafePullDetail = Schema.Struct({
   observedBaseOid: Schema.optional(Schema.NullOr(Schema.String)),
   mergeRoute: Schema.optional(Schema.Literals(["native", "provider", "unsupported"])),
   lockedAt: Schema.optional(Schema.NullOr(IsoDateTime)),
+  viewerActorId: Schema.optional(Schema.NullOr(Schema.String)),
+  providerMerge: Schema.optional(Schema.NullOr(Schema.Struct({ mergedAt: IsoDateTime }))),
   capabilities: Schema.Struct({
     comment: Schema.Boolean,
     review: Schema.Boolean,
@@ -334,6 +340,16 @@ export function toChangeRequest(
   };
 }
 
+function isViewerAuthor(detail: GitCafePullDetail): boolean {
+  const viewer = detail.viewerActorId;
+  if (viewer == null) return false;
+  const { author } = detail;
+  return (
+    author.actorId === viewer ||
+    (author.kind === "github" && author.linkedProfile?.actorId === viewer)
+  );
+}
+
 export function toViewerPermissions(detail: GitCafePullDetail): PullRequestViewerPermissions {
   const { comment, edit, review, merge, moderate } = detail.capabilities;
   const open = comment && (detail.lockedAt == null || moderate);
@@ -349,7 +365,11 @@ export function toViewerPermissions(detail: GitCafePullDetail): PullRequestViewe
     stackRebase: merge,
     comment: open,
     resolve: open,
-    verdicts: review ? ["approve", "request-changes", "comment"] : [],
+    verdicts: !review
+      ? []
+      : isViewerAuthor(detail)
+        ? ["comment"]
+        : ["approve", "request-changes", "comment"],
     requestReviewers: edit && detail.state === "open",
     labels: edit && detail.state === "open",
     editChangeRequest: edit,
