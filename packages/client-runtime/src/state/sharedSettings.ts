@@ -64,10 +64,6 @@ export function filterSharedServerPatch(
   return settings ? patch : Struct.omit(patch, ["continueThreadsAfterServerUpdate"]);
 }
 
-export function pickSharedServerSettings(settings: ServerSettings): ServerSettingsPatch {
-  return filterSharedServerPatch(Struct.pick(settings, SHARED_SERVER_SETTING_KEYS), settings);
-}
-
 /** Whether an environment can participate in shared-settings sync right now. */
 export function supportsSharedSettingsSync(environment: {
   readonly connection: { readonly phase: EnvironmentConnectionPhase };

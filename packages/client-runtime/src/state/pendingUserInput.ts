@@ -36,7 +36,7 @@ function resolvePendingUserInputOptionValue(
     : null;
 }
 
-export function normalizeSelectedOptionValues(
+function normalizeSelectedOptionValues(
   question: PendingUserInputQuestion,
   value: ReadonlyArray<string> | undefined,
 ): ReadonlyArray<string> {
