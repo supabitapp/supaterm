@@ -26,6 +26,7 @@ it.effect("preserves installed status after probes and cleans failed agent activ
     let forwards = 0;
     let failForward = true;
     let rejectConfig = true;
+    const releases: Array<string | undefined> = [];
     const spawner = ChildProcessSpawner.make((command) =>
       Effect.gen(function* () {
         if (command._tag !== "StandardCommand") return yield* Effect.die("Unexpected command");
@@ -123,14 +124,18 @@ it.effect("preserves installed status after probes and cleans failed agent activ
       Effect.provideService(
         HttpClient.HttpClient,
         HttpClient.make((request) =>
-          Effect.succeed(
-            HttpClientResponse.fromWeb(
+          Effect.sync(() => {
+            if (request.url.endsWith("/rpc")) {
+              releases.push(request.headers.authorization);
+              return HttpClientResponse.fromWeb(request, Response.json({ result: { ok: true } }));
+            }
+            return HttpClientResponse.fromWeb(
               request,
               request.url.endsWith("/api/devices")
                 ? Response.json({ simulators: [], emulators: [] })
                 : new Response("ok"),
-            ),
-          ),
+            );
+          }),
         ),
       ),
     );
@@ -171,6 +176,10 @@ it.effect("preserves installed status after probes and cleans failed agent activ
     yield* host.ensureAgentReady(() => Effect.void);
     yield* host.platformAvailability("ios");
     expect((yield* host.summary).agentDeviceInstalled).toBe(true);
+    // Close releases agent sessions through the forwarded daemon.
+    const agentReady = yield* host.current;
+    yield* agentReady!.releaseAgentSession!("supaterm-session", "device");
+    expect(releases).toEqual(["Bearer fixture"]);
     yield* host.stopAgent;
     expect(forwards).toBe(1);
     const multiplexingOff = ["ControlMaster=no", "ControlPath=none", "ControlPersist=no"];
