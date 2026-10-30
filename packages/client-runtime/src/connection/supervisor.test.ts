@@ -272,8 +272,6 @@ const makeHarness = Effect.fn("TestConnectionHarness.make")(function* (options?:
       ConnectionDriver.ConnectionDriver.of({
         connect,
         checkHost: () => options?.checkHost?.() ?? Effect.succeed("silent"),
-        checkRoute: (_entry, route) =>
-          options?.checkRoute?.(route) ?? Effect.succeed<ConnectionDriver.RouteCheck>("unchecked"),
         preflight: Effect.fnUntraced(
           function* (_entry, route): Effect.fn.Return<ConnectionDriver.RoutePreflight> {
             if (options?.preflight !== undefined) return yield* options.preflight(route);

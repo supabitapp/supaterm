@@ -83,16 +83,6 @@ export class ConnectionDriver extends Context.Service<
       reportProgress: (progress: ConnectionDriverProgress) => Effect.Effect<void>,
       preflight?: PreparedRoute,
     ) => Effect.Effect<EnvironmentConnectionLease, ConnectionAttemptError, Scope.Scope>;
-    /** Whether a route answers as the entry's environment, without credentials. */
-    readonly checkRoute: (
-      entry: ConnectionCatalogEntry,
-      route: ConnectionRoute,
-    ) => Effect.Effect<RouteCheck>;
-    /**
-     * Whether a route answers and accepts this client's credential,
-     * without opening a socket. Switching to a route that fails this would
-     * drop a working connection for nothing.
-     */
     readonly checkHost: (prepared: PreparedConnection) => Effect.Effect<RouteCheck>;
     readonly preflight: (
       entry: ConnectionCatalogEntry,
@@ -356,7 +346,6 @@ export const make = Effect.gen(function* () {
   return ConnectionDriver.of({
     connect,
     checkHost,
-    checkRoute: (entry, route) => Effect.scoped(checkRoute(entry, route, ROUTE_CHECK_TIMEOUT_MS)),
     preflight,
   });
 });
