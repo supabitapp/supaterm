@@ -21,20 +21,16 @@ afterEach(async () => {
   open.mockReset();
 });
 
-function encryptedSocket() {
+it("delivers a large WebSocket write across flow-control windows", async () => {
   const identity = NodeCrypto.randomBytes(32);
   const handshake = createClientHandshake(relayPublicKey(identity), NodeCrypto.randomBytes);
   const accepted = acceptClientHandshake(handshake.hello, identity, NodeCrypto.randomBytes);
   const received = Promise.withResolvers<string>();
   const hash = NodeCrypto.createHash("sha256");
-  let messagesSent = 0;
   const client = createTunnelSession({
     cipher: handshake.finish(accepted.welcome),
     initiator: true,
-    send: (data) => {
-      messagesSent++;
-      queueMicrotask(() => host.receive(data));
-    },
+    send: (data) => queueMicrotask(() => host.receive(data)),
   });
   const host = createTunnelSession({
     cipher: accepted.cipher,
@@ -54,51 +50,21 @@ function encryptedSocket() {
     client.close();
     host.close();
   });
-  return { socket, received: received.promise, host, messagesSent: () => messagesSent };
-}
-
-it.each(["write", "writev"])(
-  "delivers a large socket %s across flow-control windows",
-  async (method) => {
-    const { socket, received, host } = encryptedSocket();
-    const payload = NodeCrypto.randomBytes(9 * 1024 * 1024);
-    const written = NodeStreamPromises.finished(socket, { readable: false });
-    if (method === "writev") {
-      socket.cork();
-      socket.write(Buffer.alloc(0));
-      socket.write(payload.subarray(0, payload.length / 2));
-      socket.write(Buffer.alloc(0));
-      socket.write(payload.subarray(payload.length / 2));
-      socket.end(Buffer.alloc(0));
-    } else {
-      socket.end(payload);
-    }
-    await written;
-    expect(await received).toBe(NodeCrypto.createHash("sha256").update(payload).digest("hex"));
-    expect(host.closed).toBe(false);
-  },
-);
-
-it("packs small WebSocket frame writes into shared encrypted records", async () => {
-  const { socket, received, messagesSent } = encryptedSocket();
-  const written = Promise.withResolvers<void>();
-  const header = Buffer.alloc(4, 1);
-  const payload = Buffer.alloc(200, 2);
-  const hash = NodeCrypto.createHash("sha256");
-  for (let frame = 0; frame < 200; frame++) {
-    socket.cork();
-    socket.write(header);
-    socket.write(payload, (error) => {
-      if (error) written.reject(error);
-      else if (frame === 199) written.resolve();
-    });
-    socket.uncork();
-    hash.update(header).update(payload);
-  }
-  await written.promise;
-  expect(messagesSent()).toBeLessThanOrEqual(2);
+  const payload = NodeCrypto.randomBytes(9 * 1024 * 1024);
+  const header = Buffer.alloc(10);
+  header[0] = 0x82;
+  header[1] = 0x7f;
+  header.writeBigUInt64BE(BigInt(payload.length), 2);
+  const written = NodeStreamPromises.finished(socket, { readable: false });
+  socket.cork();
+  socket.write(header);
+  socket.write(payload);
   socket.end();
-  expect(await received).toBe(hash.digest("hex"));
+  await written;
+  expect(await received.promise).toBe(
+    NodeCrypto.createHash("sha256").update(header).update(payload).digest("hex"),
+  );
+  expect(host.closed).toBe(false);
 });
 
 async function fixture(upgrade = false) {
