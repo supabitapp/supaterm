@@ -37,12 +37,15 @@ export interface ProviderClientDefinition {
   readonly label: string;
 
   readonly icon?: ProviderIcon;
+  readonly modelFamilies?: ReadonlyArray<string>;
   readonly settingsSchema: ProviderSettingsSchema;
   readonly environmentFields?: ReadonlyArray<ProviderEnvironmentField>;
 
   readonly hasDefaultInstance?: boolean;
 
   readonly badgeLabel?: string;
+  readonly featured?: boolean;
+  readonly acpRegistryAgentIds?: ReadonlyArray<string>;
 }
 
 export function defineProviderClient<const Definition extends ProviderClientDefinition>(

@@ -3,7 +3,6 @@ import type { ModelCapabilities } from "@supaterm/contracts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { createModelCapabilities } from "@supaterm/shared/model";
 import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
 import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
 import * as ChildProcess from "effect/process/ChildProcess";
@@ -136,7 +135,7 @@ describe("ProviderCommandNotFoundError", () => {
         "C:\\tools\\codex.cmd",
         ChildProcess.make("codex", ["--version"]),
       ).pipe(
-        Effect.provide(Layer.succeed(ChildProcessSpawner.ChildProcessSpawner, spawner)),
+        Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
         Effect.provideService(HostProcess.Platform, "win32"),
         Effect.flip,
       );
