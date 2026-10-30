@@ -2,6 +2,8 @@ import type { NavigationState } from "@react-navigation/native";
 import type { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import * as Linking from "expo-linking";
 import { AppState, Dimensions, Platform } from "react-native";
+import * as Option from "effect/Option";
+import { AsyncResult } from "effect/reactivity";
 
 import { environmentCatalog } from "../../connection/catalog";
 import { deriveLayout } from "../../lib/layout";
@@ -19,11 +21,7 @@ import { workspaceRoutesOf } from "../layout/workspace-overlay-routes";
 import type { WorkspaceSelections } from "../../persistence/mobile-preferences";
 import { appAtomRegistry } from "../../state/atom-registry";
 import { environmentPresentations } from "../../state/presentation";
-import {
-  environmentThreadShells,
-  startOpeningEnvironmentThread,
-  threadEnvironment,
-} from "../../state/threads";
+import { environmentThreads, startOpeningEnvironmentThread } from "../../state/threads";
 import {
   rememberedSettingsPage,
   workspaceSelectionsIn,
@@ -95,10 +93,10 @@ export const workspaceSelectionCheck: WorkspaceSelectionCheck = {
   thread: (selection) => {
     if (environmentRemoved(selection.environmentId)) return false;
     const environmentId = selection.environmentId as EnvironmentId;
-    if (!appAtomRegistry.get(threadEnvironment.snapshotAtom(environmentId))) return true;
-    return appAtomRegistry
-      .get(environmentThreadShells.environmentThreadIndexAtom(environmentId))
-      .has(selection.threadId as ThreadId);
+    const detail = appAtomRegistry.get(
+      environmentThreads.stateAtom(environmentId, selection.threadId as ThreadId),
+    );
+    return Option.getOrNull(AsyncResult.value(detail))?.status !== "deleted";
   },
   pullRequest: (selection) => !environmentRemoved(selection.environmentId),
 };
