@@ -24,6 +24,7 @@ import {
   useCollapsiblePanel,
 } from "~/components/ui/resizable";
 import { useMediaQuery } from "~/hooks/useMediaQuery";
+import { announce } from "~/lib/announce";
 import { resolveSidebarState, type ResponsiveSidebarState } from "./sidebarState";
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
@@ -94,6 +95,9 @@ function SidebarProvider({
       setOpenProp(openState);
     } else {
       _setOpen(openState);
+    }
+    if (!isMobile && openState !== open) {
+      announce(`Sidebar ${openState ? "shown" : "hidden"}`, "sidebar-visibility");
     }
 
     await cookieStore.set({
