@@ -84,12 +84,7 @@ export function usePullRequestDetail(
   } else if (detailQuery.data !== null && detailQuery.data !== cachedDetail) {
     setCachedDetail(detailQuery.data);
   }
-  const observedSummary = useSharedPullRequestSummary(
-    environmentId,
-    reference,
-    detailQuery.data,
-    detailQuery.data === null ? null : detailQuery.dataUpdatedAt,
-  );
+  const observedSummary = useSharedPullRequestSummary(environmentId, reference);
   const activity = activityQuery.data;
   const resolvedCoreDetail = resolveDisplayedPullRequestDetail({
     live: liveDetail,
@@ -99,8 +94,7 @@ export function usePullRequestDetail(
   // Every hook runs above this line: a hook between the merge and the panel's plain readers of
   // `detail` would cost it its cache scope.
   const listSummary = listEntry === null ? null : pullRequestListEntryToSummary(listEntry);
-  // The list row is also published to the shared cache, but only after this commit's layout
-  // effects run, so it is compared directly rather than trusted to be there already.
+  // The row can come from the page's stored snapshot, which no answer has published yet.
   const sharedSummary = newestPullRequestSummary(
     resolvedCoreDetail,
     newestPullRequestSummary(observedSummary, listSummary),

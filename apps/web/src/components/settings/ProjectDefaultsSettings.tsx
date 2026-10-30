@@ -14,8 +14,7 @@ import {
   resolveEffectiveDefaultModelSelection,
 } from "../../modelSelection";
 import {
-  applyProviderInstanceSettings,
-  deriveProviderInstanceEntries,
+  providerInstanceEntriesFor,
   resolveDefaultProviderModelSelection,
 } from "../../providerInstances";
 import { useEnvironmentProviders, useEnvironments } from "../../state/environments";
@@ -70,11 +69,7 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
   const selection = storedSelection
     ? resolveEffectiveDefaultModelSelection(settings, providers, storedSelection)
     : null;
-  const entries = applyProviderInstanceSettings(
-    deriveProviderInstanceEntries(providers),
-    settings,
-    target?.projectId ?? null,
-  );
+  const entries = providerInstanceEntriesFor(providers, settings, target?.projectId ?? null);
   const modelOptions = getCustomModelOptionsByInstance(
     settings,
     providers,
@@ -112,8 +107,8 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
       );
       const providers = providersByEnvironment.get(candidate.environmentId);
       if (!environment?.serverConfig || !providers) continue;
-      const entry = applyProviderInstanceSettings(
-        deriveProviderInstanceEntries(providers),
+      const entry = providerInstanceEntriesFor(
+        providers,
         candidate.settings,
         candidate.projectId,
       ).find((option) => option.instanceId === instanceId);

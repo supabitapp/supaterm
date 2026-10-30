@@ -9,7 +9,7 @@ import type { EnvironmentId, ScheduledTask } from "@supaterm/contracts";
 import { AuthOrchestrationOperateScope, resolveEnvironmentMachineKind } from "@supaterm/contracts";
 
 import { isElectron } from "../../env";
-import { useNowMinuteMs } from "../../hooks/useNowMinute";
+import { useNowMinute } from "../../hooks/useNowMinute";
 import { projectGroupMemberKeys, type SidebarProjectSnapshot } from "../../sidebarProjectGrouping";
 import {
   useEnvironments,
@@ -413,7 +413,7 @@ function AutomationRows({
   readonly projectByKey: ReadonlyMap<string, SidebarProjectSnapshot>;
   readonly onEdit: (environmentId: EnvironmentId, task: ScheduledTask) => void;
 }) {
-  const now = useNowMinuteMs();
+  const now = Date.parse(`${useNowMinute()}:00.000Z`);
   return tasks.map((task) => (
     <AutomationRow
       key={task.id}

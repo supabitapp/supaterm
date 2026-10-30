@@ -104,7 +104,7 @@ vi.mock(import("../settings/useSettingsProjectGroups"), async (original) => ({
 }));
 vi.mock(import("../../hooks/useNowMinute"), async (original) => ({
   ...(await original()),
-  useNowMinuteMs: () => Date.parse("2026-10-07T12:00:00Z"),
+  useNowMinute: () => "2026-10-07T12:00",
 }));
 vi.mock(import("@effect/atom-react"), async (original) => {
   const { AsyncResult } = await import("effect/reactivity");
