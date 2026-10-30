@@ -378,18 +378,14 @@ export const make = Effect.gen(function* () {
     options?: SourceControlCloneOptions,
   ) {
     const httpsUrl = httpsFallbackUrl(input, prepared);
-    const remoteUrl = yield* runClone(
-      input,
-      prepared.destinationPath,
-      prepared.cloneUrl,
-      options,
-    ).pipe(
+    const clone = runClone(input, prepared.destinationPath, prepared.cloneUrl, options).pipe(
       Effect.as(prepared.remoteUrl),
-
-      Effect.catch((sshError) =>
-        httpsUrl === null || !isSshRejection(sshError)
-          ? Effect.fail(sshError)
-          : runClone(input, prepared.destinationPath, httpsUrl, options).pipe(
+    );
+    const remoteUrl = yield* httpsUrl === null
+      ? clone
+      : clone.pipe(
+          Effect.catchIf(isSshRejection, (sshError) =>
+            runClone(input, prepared.destinationPath, httpsUrl, options).pipe(
               Effect.as(redactRemoteUrl(httpsUrl)),
               Effect.mapError(
                 (httpsError) =>
@@ -401,8 +397,8 @@ export const make = Effect.gen(function* () {
                   }),
               ),
             ),
-      ),
-    );
+          ),
+        );
 
     return {
       cwd: prepared.destinationPath,

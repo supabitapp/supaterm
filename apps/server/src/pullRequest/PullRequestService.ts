@@ -3715,7 +3715,7 @@ export const make = Effect.gen(function* () {
     refreshAfterTurn,
     detail: credentialCached(detail),
     checks: credentialCached((input) => Cache.get(checksCache, refCacheKey(input))),
-    workflowRun: (input, options) => {
+    workflowRun: Effect.fn("PullRequestService.workflowRun")((input, options) => {
       const key = JSON.stringify({
         projectId: input.projectId,
         host: input.host?.toLowerCase(),
@@ -3727,7 +3727,7 @@ export const make = Effect.gen(function* () {
             Effect.andThen(Cache.get(workflowRunCache, key)),
           )
         : Cache.get(workflowRunCache, key);
-    },
+    }),
     watchFingerprint: credentialCached((input) =>
       Cache.get(watchFingerprintCache, refCacheKey(input)),
     ),
