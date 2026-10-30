@@ -129,7 +129,7 @@ describe("effectiveSnoozed", () => {
     },
   );
 
-  it("stays snoozed while the session keeps working — snooze never pauses the agent", () => {
+  it("stays snoozed while the session keeps working; snooze never pauses the agent", () => {
     expect(
       effectiveSnoozed(makeShell({ snoozedUntil: FUTURE_WAKE, sessionStatus: "running" }), {
         now: NOW,
@@ -188,7 +188,7 @@ describe("canSnooze", () => {
     ).toBe(false);
   });
 
-  it("refuses a queued turn start — same invisible-pending-work rule as settle", () => {
+  it("refuses a queued turn start; same invisible-pending-work rule as settle", () => {
     expect(
       canSnooze(
         { ...makeShell({}), latestUserMessageAt: "2026-04-10T11:59:30.000Z" },

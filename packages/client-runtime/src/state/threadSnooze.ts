@@ -99,15 +99,6 @@ function failureEdgeAt(shell: ThreadSnoozeShell): string | null | undefined {
   return runtime.updatedAt ?? null;
 }
 
-/**
- * A thread may be snoozed unless the agent or one of its subagents is blocked
- * on the user: hiding a pending approval or user-input request defeats the
- * request, and a queued turn start (a message no turn has adopted yet) is
- * invisible pending work the same way it is for marking done. A running
- * session IS snoozable — snooze only affects visibility, never the agent.
- * Client-side twin of the server invariants so the UI can reject before a
- * round trip.
- */
 export function canSnooze(
   shell: Pick<
     ThreadSnoozeShell,

@@ -117,14 +117,6 @@ export function getThreadSortTimestamp(
   return getLatestUserMessageTimestamp(thread);
 }
 
-/**
- * Sort anchor for the active thread list: creation time, re-anchored to
- * reopenedAt when the thread last re-entered the active list (an explicit
- * reopen, or a done thread waking on activity). The list stays static
- * between lifecycle transitions, but an un-done thread surfaces at the
- * top instead of sinking back to its creation-order slot. Shared by web and
- * mobile so both render the same order. Malformed timestamps sink to 0.
- */
 function activeThreadAnchorTimestampMs(thread: {
   readonly createdAt: string;
   readonly reopenedAt?: string | null | undefined;

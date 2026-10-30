@@ -1,13 +1,3 @@
-/**
- * Shared server settings.
- *
- * Every server keeps its own `settings.json`, but some keys are user
- * preferences that only live on the server because the server has to act on
- * them (automatic completion runs with no client attached). A user does not want
- * those to differ per machine. Clients write these keys to every shared-settings
- * sync target, and warn when another target still holds a different value so
- * the user can push their current value out.
- */
 import type { ServerSettings, ServerSettingsPatch } from "@supaterm/contracts";
 import { isModelSelectionProviderEnabled } from "@supaterm/shared/serverSettings";
 import * as Struct from "effect/Struct";
