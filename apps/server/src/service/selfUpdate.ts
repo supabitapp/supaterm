@@ -45,7 +45,7 @@ import { isExactServiceVersion, SERVICE_LAUNCHER_PROTOCOL } from "./serviceProto
 
 const PREFLIGHT_TIMEOUT = Duration.seconds(30);
 
-export function trackSwitchBlockReason(input: {
+function trackSwitchBlockReason(input: {
   readonly serverVersion: string;
   readonly targetVersion: string;
   readonly targetDatabaseMigration: number | undefined;
