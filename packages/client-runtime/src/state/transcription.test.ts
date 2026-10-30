@@ -122,8 +122,9 @@ describe("uploadVoiceRecording", () => {
     ])
       .upload()
       .catch((error: unknown) => error);
+    // The server keeps this outcome for the upload id, so only a new attempt can clear it.
     expect(limited).toMatchObject({
-      retryable: true,
+      retryable: false,
       message: "Transcription is rate limited. Try again soon. Try again in 3 s.",
     });
 
@@ -140,6 +141,16 @@ describe("uploadVoiceRecording", () => {
       retryable: false,
       message: "This provider can't transcribe that language.",
     });
+
+    const classified = await uploadVoiceRecording({
+      request,
+      prepare: async () => {
+        throw new VoiceUploadError("signedOut", "Sign in again.", false);
+      },
+      post: async () => ({ status: 200, body: { text: "never" } }),
+      cancel: async () => undefined,
+    }).catch((error: unknown) => error);
+    expect(classified).toMatchObject({ reason: "signedOut", retryable: false });
 
     const dropped = await harness([new TypeError("network")])
       .upload()

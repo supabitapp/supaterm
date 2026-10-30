@@ -113,13 +113,15 @@ const decodeError = Schema.decodeUnknownOption(TranscriptionError);
 
 export type VoiceUploadResponse = { readonly status: number; readonly body: unknown };
 
+// The server keeps a refusal as the outcome of its upload id, so sending the same upload
+// again only replays it; the user retries under a new id.
 function refusal(error: TranscriptionError): VoiceUploadError {
   return new VoiceUploadError(
     error.reason,
     error.retryAfterMs === undefined
       ? error.message
       : `${error.message} Try again in ${Math.ceil(error.retryAfterMs / 1000)} s.`,
-    error.reason === "rateLimited",
+    false,
   );
 }
 
@@ -146,6 +148,7 @@ async function prepareUpload(
   try {
     return await prepare();
   } catch (error) {
+    if (error instanceof VoiceUploadError) throw error;
     const refused = Option.getOrUndefined(decodeError(error));
     if (refused) throw refusal(refused);
     throw unreachable(error);
