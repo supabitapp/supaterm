@@ -3,7 +3,10 @@ import {
   type ResolvedKeybindingsConfig,
   type ScopedThreadRef,
 } from "@supaterm/contracts";
-import { DEFAULT_RESOLVED_KEYBINDINGS } from "@supaterm/shared/keybindings";
+import {
+  compileResolvedKeybindingsConfig,
+  DEFAULT_RESOLVED_KEYBINDINGS,
+} from "@supaterm/shared/keybindings";
 import * as Cause from "effect/Cause";
 import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it, vi } from "vite-plus/test";
@@ -271,9 +274,39 @@ describe("root reopen shortcut", () => {
     setup();
     await using _view = await renderShortcut();
     expect(state.setShortcuts).toHaveBeenLastCalledWith([
+      ...[false, true].flatMap((shiftKey) =>
+        [true, false].map((modKey) =>
+          expect.objectContaining({
+            command: shiftKey ? "workspace.focusPrevious" : "workspace.focusNext",
+            shortcut: expect.objectContaining({ key: "f6", modKey, shiftKey }),
+          }),
+        ),
+      ),
       expect.objectContaining({ command: "sidebar.toggle" }),
       expect.objectContaining({ command: "rightPanel.toggle" }),
       ...PANE_FOCUS_KEYBINDING_COMMANDS.map((command) => expect.objectContaining({ command })),
     ]);
+  });
+
+  it("forwards custom pane cycling and maximization even without closed views", async () => {
+    setup();
+    const commands = [
+      "rightPanel.toggleMaximized",
+      "pane.focusNext",
+      "pane.focusPrevious",
+    ] as const;
+    state.keybindings = compileResolvedKeybindingsConfig(
+      commands.map((command, index) => ({ key: `mod+alt+${index + 5}`, command })),
+    );
+    await using _view = await renderShortcut();
+
+    expect(state.setShortcuts).toHaveBeenLastCalledWith(
+      commands.map((command, index) =>
+        expect.objectContaining({
+          command,
+          shortcut: expect.objectContaining({ key: String(index + 5), modKey: true, altKey: true }),
+        }),
+      ),
+    );
   });
 });
