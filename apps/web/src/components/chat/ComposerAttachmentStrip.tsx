@@ -82,6 +82,7 @@ function SnapShotAttachmentFrame({
 }) {
   const frameRef = useRef<HTMLDivElement>(null);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- scrolls the mounted tile into view and registers it as the SnapShot animation destination
   useLayoutEffect(() => {
     const frame = frameRef.current;
     if (!frame || (!animationId && !arrival)) return;

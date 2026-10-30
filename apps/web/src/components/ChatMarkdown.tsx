@@ -169,12 +169,9 @@ import {
   stripRepeatedWorkspacePrefix,
   WORKSPACE_BASENAME_LOOKUP_LIMIT,
 } from "@supaterm/client-runtime/workspace-basename-lookup";
-import {
-  parseChangeRequestUrl,
-  pullRequestCandidateUrlFromReferenceAutolink,
-  resolvePullRequestPreviewTarget,
-  useOpenChangeRequestLink,
-} from "~/lib/openPullRequestLink";
+import { resolvePullRequestPreviewTarget } from "@supaterm/client-runtime/change-request-links";
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
+import { useOpenChangeRequestLink } from "~/lib/openPullRequestLink";
 import { useOpenLink } from "../browser/useOpenLink";
 import { writeTextToClipboard } from "../hooks/useCopyToClipboard";
 import { isPreviewAvailableFor } from "../browser/previewRuntime";
@@ -681,14 +678,14 @@ function useChatMarkdownState({
       !pullRequestLinking.canLink(href)
     )
       return null;
-    const parsed = parseChangeRequestUrl(href);
-    return parsed === null ? null : { ...parsed, url: href };
+    const parsed = sourceControlClients.parseChangeRequestUrl(href)?.link;
+    return parsed === undefined ? null : { ...parsed, url: href };
   };
   const linkedThreadPullRequestFor = (href: string) => {
     if (threadRef === undefined || !pullRequestLinking.isLinked(readThreadShell(threadRef), href))
       return null;
-    const parsed = parseChangeRequestUrl(href);
-    return parsed === null ? null : { ...parsed, url: href };
+    const parsed = sourceControlClients.parseChangeRequestUrl(href)?.link;
+    return parsed === undefined ? null : { ...parsed, url: href };
   };
   const updateThreadPullRequestLink = async (href: string, linked: boolean) => {
     if (threadRef === undefined || (!linked && linkedThreadPullRequestFor(href) === null)) return;
@@ -1113,7 +1110,9 @@ const CHAT_MARKDOWN_COMPONENTS = {
       const isPullRequestAutolink = pullRequestCopy !== undefined;
       const confirmBeforeOpen = pullRequestAutolink === "reference";
       const pullRequestCandidateUrl =
-        confirmBeforeOpen && href ? pullRequestCandidateUrlFromReferenceAutolink(href) : href;
+        confirmBeforeOpen && href
+          ? sourceControlClients.changeRequestUrlFromReferenceAutolink(href)
+          : href;
       const pullRequestPreviewTarget = pullRequestCandidateUrl
         ? resolvePullRequestPreviewTarget({
             environmentId,
