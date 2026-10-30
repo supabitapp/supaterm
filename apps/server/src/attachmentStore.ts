@@ -43,8 +43,6 @@ export function toSafeThreadAttachmentSegment(threadId: string): string | null {
 
 export function attachmentFileExtension(fileName: string): string {
   const extension = NodePath.extname(fileName).toLowerCase();
-  // ".part" is reserved for in-flight uploads; a stored "archive.part" would
-  // look stale to sweepStalePendingAttachments and get deleted.
   if (extension === ".part" || !/^\.[a-z0-9]{1,10}$/.test(extension)) {
     return ".bin";
   }
@@ -103,12 +101,6 @@ export function createDeterministicAttachmentId(
   return `${threadSegment}-${uuid}`;
 }
 
-/**
- * A retry resends the same bytes and keeps its id. Editing a queued message
- * reuses the message id, so the bytes also stop a new image from taking an
- * earlier image's id and file. Clients cache attachment images by id, which
- * relies on ids never changing bytes.
- */
 export function chatAttachmentStableKey(
   messageId: string,
   index: number,
@@ -274,7 +266,9 @@ export function sweepStalePendingAttachments(input: {
   for (const entry of entries) {
     const isPartial = entry.endsWith(".part");
     if (!isPartial) {
-      const attachmentId = parseAttachmentIdFromRelativePath(entry);
+      const attachmentId = parseAttachmentIdFromRelativePath(
+        entry.endsWith(".txt") && entry.slice(0, -4).includes(".") ? entry.slice(0, -4) : entry,
+      );
       if (
         !attachmentId ||
         parseThreadSegmentFromAttachmentId(attachmentId) !== PENDING_ATTACHMENT_THREAD_SEGMENT
