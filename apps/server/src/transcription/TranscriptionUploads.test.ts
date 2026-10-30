@@ -62,6 +62,7 @@ const makeHarness = Effect.gen(function* () {
     Layer.provide(
       Layer.mergeAll(
         Layer.mock(Transcription.Transcription)({
+          checkSource: (input) => Effect.succeed(input.providerInstanceId ?? INSTANCE),
           transcribeFile: (input) =>
             Ref.update(transcriptions, (current) => [...current, input]).pipe(
               Effect.andThen(Queue.offer(transcribing, NodeFS.readFileSync(input.path, "hex"))),

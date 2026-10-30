@@ -28,6 +28,7 @@ import { createPendingAttachmentId } from "../attachmentStore.ts";
 import * as ServerConfig from "../config.ts";
 import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
 import * as ProjectService from "../project/ProjectService.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
 import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
 import * as Transcription from "./Transcription.ts";
@@ -128,7 +129,11 @@ const makeHarness = Effect.gen(function* () {
     branch: "supaterm/voice-transcription",
     worktreePath: "/worktrees/voice",
   } as unknown as OrchestrationV2ThreadShell;
-  const project = { id: PROJECT, title: "Supaterm", workspaceRoot: "/repo" } as unknown as Project;
+  const project = {
+    id: PROJECT,
+    title: "Supaterm",
+    workspaceRoot: "/code/supaterm-app",
+  } as unknown as Project;
 
   const layer = Transcription.layer.pipe(
     Layer.provide(
@@ -146,6 +151,9 @@ const makeHarness = Effect.gen(function* () {
         Layer.mock(ProjectService.ProjectService)({
           getById: (projectId) =>
             Effect.succeed(projectId === PROJECT ? Option.some(project) : Option.none()),
+        }),
+        ServerSettings.ServerSettingsService.layerTest({
+          transcriptionProviderInstanceId: INSTANCE,
         }),
       ),
     ),
@@ -474,8 +482,9 @@ describe("Transcription", () => {
         const [call] = yield* Ref.get(harness.calls);
         expect(call?.language).toBe("no");
         expect(call?.durationMs).toBe(1_500);
-        expect(call?.keyterms.slice(0, 4)).toEqual([
+        expect(call?.keyterms.slice(0, 5)).toEqual([
           "Supaterm",
+          "supaterm-app",
           "supaterm",
           "voice",
           "transcription",
@@ -486,6 +495,30 @@ describe("Transcription", () => {
         expect(call?.keyterms).not.toContain("kstack");
         expect(call?.keyterms.some((term) => term.includes("emil"))).toBe(false);
         expect(call?.keyterms.some((term) => term.includes("security"))).toBe(false);
+      }).pipe(Effect.provide(harness.layer));
+    }),
+  );
+
+  it.effect("uses the environment's provider by default and checks it before any audio", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness;
+      yield* Effect.gen(function* () {
+        const service = yield* Transcription.Transcription;
+        expect(yield* service.checkSource({ language: "en-US" })).toBe(INSTANCE);
+        expect(yield* reason(service.checkSource({ language: "vi" }))).toBe("unsupportedLanguage");
+        expect(yield* reason(service.checkSource({ providerInstanceId: OTHER_INSTANCE }))).toBe(
+          "sourceUnavailable",
+        );
+        yield* Ref.set(harness.transcriptionStatus, { status: "unavailable", reason: "signedOut" });
+        expect(yield* reason(service.checkSource({}))).toBe("signedOut");
+        yield* Ref.set(harness.transcriptionStatus, { status: "ready" });
+
+        const audio = yield* upload(wav({ durationMs: 1_000 }));
+        yield* Queue.offer(harness.responses, Effect.succeed({ text: "default" }));
+        expect(yield* service.transcribe({ audioAttachmentId: audio.attachmentId })).toEqual({
+          text: "default",
+        });
+        expect(yield* Ref.get(harness.calls)).toHaveLength(1);
       }).pipe(Effect.provide(harness.layer));
     }),
   );

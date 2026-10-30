@@ -1356,7 +1356,11 @@ const WsTranscriptionCancelRpc = Rpc.make(WS_METHODS.transcriptionCancel, {
 const WsTranscriptionPrepareUploadRpc = Rpc.make(WS_METHODS.transcriptionPrepareUpload, {
   payload: TranscriptionPrepareUploadInput,
   success: TranscriptionPrepareUploadResult,
-  error: Schema.Union([AttachmentUploadSigningKeyError, EnvironmentAuthorizationError]),
+  error: Schema.Union([
+    TranscriptionError,
+    AttachmentUploadSigningKeyError,
+    EnvironmentAuthorizationError,
+  ]),
 });
 
 const WsTranscriptionCancelUploadRpc = Rpc.make(WS_METHODS.transcriptionCancelUpload, {

@@ -2,6 +2,7 @@ import {
   ATTACHMENT_UPLOAD_URL_TTL_MS,
   type AttachmentUploadSigningKeyError,
   type OrchestrationV2Command,
+  ProviderInstanceId,
   type TranscriptionCancelUploadInput,
   type TranscriptionCancelUploadResult,
   TranscriptionError,
@@ -47,6 +48,8 @@ const UploadClaims = Schema.Struct({
   bootId: Schema.String,
   uploadId: Schema.String,
   expiresAt: Schema.Number,
+  /** Resolved when prepared, so a settings change can't move a replay to another account. */
+  providerInstanceId: ProviderInstanceId,
   request: TranscriptionPrepareUploadInput,
 });
 const uploadClaimsJson = Schema.fromJsonString(UploadClaims);
@@ -119,7 +122,10 @@ export class TranscriptionUploads extends Context.Service<
   {
     readonly prepare: (
       input: TranscriptionPrepareUploadInput,
-    ) => Effect.Effect<TranscriptionPrepareUploadResult, AttachmentUploadSigningKeyError>;
+    ) => Effect.Effect<
+      TranscriptionPrepareUploadResult,
+      AttachmentUploadSigningKeyError | TranscriptionError
+    >;
     /**
      * Once the body is stored the work belongs to the service, so interrupting the caller
      * only stops its wait. Without a body it recovers the outcome of an earlier upload.
@@ -230,14 +236,15 @@ const make = Effect.gen(function* () {
 
   const run = (
     uploadId: string,
-    request: TranscriptionPrepareUploadInput,
+    claims: typeof UploadClaims.Type,
     audioPath: string,
     result: Result,
-  ) =>
-    transcription
+  ) => {
+    const { request } = claims;
+    return transcription
       .transcribeFile({
         path: audioPath,
-        providerInstanceId: request.providerInstanceId,
+        providerInstanceId: claims.providerInstanceId,
         language: request.language,
         context: request.context ?? (request.submit && { threadId: request.submit.threadId }),
       })
@@ -251,6 +258,7 @@ const make = Effect.gen(function* () {
         Effect.exit,
         Effect.flatMap((exit) => settle(uploadId, result, exit)),
       );
+  };
 
   // Runs under the store lock and uninterruptibly: once the audio is in place the work
   // is registered and running, so a disconnect after this can't strand the upload.
@@ -276,9 +284,7 @@ const make = Effect.gen(function* () {
       );
     }
     const result = yield* Deferred.make<TranscriptionUploadResult, TranscriptionError>();
-    const fiber = yield* run(uploadId, claims.request, audioPath, result).pipe(
-      Effect.forkIn(serviceScope),
-    );
+    const fiber = yield* run(uploadId, claims, audioPath, result).pipe(Effect.forkIn(serviceScope));
     yield* Ref.update(entriesRef, (entries) =>
       new Map(entries).set(uploadId, {
         _tag: "Transcribing",
@@ -334,6 +340,7 @@ const make = Effect.gen(function* () {
   const prepare: TranscriptionUploads["Service"]["prepare"] = Effect.fn(
     "TranscriptionUploads.prepare",
   )(function* (input) {
+    const providerInstanceId = yield* transcription.checkSource(input);
     const uploadId = input.submit?.commandId ?? (yield* randomId);
     const expiresAt = (yield* Clock.currentTimeMillis) + ATTACHMENT_UPLOAD_URL_TTL_MS;
     yield* storeLock.withPermits(1)(
@@ -353,6 +360,7 @@ const make = Effect.gen(function* () {
         bootId,
         uploadId,
         expiresAt,
+        providerInstanceId,
         request: input,
       }),
     ).pipe(Effect.provideService(ServerSecretStore.ServerSecretStore, secretStore));

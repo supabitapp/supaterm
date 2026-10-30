@@ -1204,6 +1204,10 @@ export const ServerSettings = Schema.Struct({
   nextPromptSuggestionsEnabled: Schema.Boolean.pipe(
     Schema.withDecodingDefault(Effect.succeed(true)),
   ),
+  /** Its login transcribes voice input sent to this environment, and is charged for it. */
+  transcriptionProviderInstanceId: ProviderInstanceId.pipe(
+    Schema.withDecodingDefault(Effect.succeed(ProviderInstanceId.make("claudeAgent"))),
+  ),
   branchNamingMode: BranchNamingMode.pipe(
     Schema.withDecodingDefault(Effect.succeed("static" as const)),
   ),
@@ -1465,6 +1469,7 @@ export const ServerSettingsPatch = Schema.Struct({
   addProjectBaseDirectory: Schema.optionalKey(TrimmedString),
   textGenerationModelSelection: Schema.optionalKey(ModelSelectionPatch),
   nextPromptSuggestionsEnabled: Schema.optionalKey(Schema.Boolean),
+  transcriptionProviderInstanceId: Schema.optionalKey(ProviderInstanceId),
   branchNamingMode: Schema.optionalKey(BranchNamingMode),
   branchNamePrefix: Schema.optionalKey(TrimmedString),
   branchNamePrefixFromRepository: Schema.optionalKey(Schema.Boolean),

@@ -32,6 +32,7 @@ import {
 import * as ServerConfig from "../config.ts";
 import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
 import * as ProjectService from "../project/ProjectService.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
 import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
 import { keytermCandidates } from "./TranscriptionKeyterms.ts";
@@ -112,6 +113,14 @@ export class Transcription extends Context.Service<
       input: TranscriptionTranscribeInput,
     ) => Effect.Effect<TranscriptionTranscribeResult, TranscriptionError>;
     readonly cancel: (input: TranscriptionCancelInput) => Effect.Effect<void>;
+    /**
+     * The instance a request would transcribe with, checked before any audio exists,
+     * so a refusal never costs an upload. Omitted means the environment's setting.
+     */
+    readonly checkSource: (input: {
+      readonly providerInstanceId?: ProviderInstanceId | undefined;
+      readonly language?: string | undefined;
+    }) => Effect.Effect<ProviderInstanceId, TranscriptionError>;
     /** One run on audio the caller owns: no joining, recorded outcome, or deletion. */
     readonly transcribeFile: (
       input: TranscribeFileInput,
@@ -127,6 +136,7 @@ const make = Effect.gen(function* () {
   const providerRegistry = yield* ProviderRegistry.ProviderRegistry;
   const projections = yield* ProjectionStore.ProjectionStoreV2;
   const projects = yield* ProjectService.ProjectService;
+  const settings = yield* ServerSettings.ServerSettingsService;
   const entriesRef = yield* Ref.make<ReadonlyMap<string, Entry>>(new Map());
   const storeLock = yield* Semaphore.make(1);
   const limitersRef = yield* Ref.make<ReadonlyMap<ProviderInstanceId, Semaphore.Semaphore>>(
@@ -190,27 +200,46 @@ const make = Effect.gen(function* () {
       : undefined;
     return keytermCandidates({
       projectTitle: project?.title,
+      projectFolder: project?.workspaceRoot.split(/[\\/]/).findLast((part) => part !== ""),
       branch: shell?.branch ?? undefined,
       skills: workspaceSkills ?? provider?.skills ?? [],
     });
   });
 
+  // Never another account: an unusable instance is refused, not substituted.
+  const resolveInputs = Effect.fnUntraced(function* (input: {
+    readonly providerInstanceId?: ProviderInstanceId | undefined;
+    readonly language?: string | undefined;
+  }) {
+    const providerInstanceId =
+      input.providerInstanceId ??
+      (yield* settings.getSettings.pipe(
+        Effect.mapError((cause) => new TranscriptionError({ reason: "sourceUnavailable", cause })),
+      )).transcriptionProviderInstanceId;
+    return { providerInstanceId, language: normalizeLanguage(input.language) } satisfies RunInputs;
+  });
+
+  const resolveSource = Effect.fnUntraced(function* (inputs: RunInputs) {
+    const instance = yield* providerInstances.getInstance(inputs.providerInstanceId);
+    const backend = instance?.enabled ? instance.transcription : undefined;
+    if (!instance || !backend) {
+      return yield* new TranscriptionError({ reason: "sourceUnavailable" });
+    }
+    // The backend reads whatever subscription login is on disk. When the check found that
+    // the CLI runs with a different login, using it would bill another account.
+    const checked = (yield* instance.snapshot.getSnapshot).transcription;
+    if (checked?.status === "unavailable") {
+      return yield* new TranscriptionError({ reason: checked.reason ?? "unsupportedLogin" });
+    }
+    if (inputs.language !== undefined && !backend.supportsLanguage(inputs.language)) {
+      return yield* new TranscriptionError({ reason: "unsupportedLanguage" });
+    }
+    return { instance, backend };
+  });
+
   const run = Effect.fn("Transcription.run")(
     function* (path: string, inputs: RunInputs, context: TranscriptionTranscribeInput["context"]) {
-      const instance = yield* providerInstances.getInstance(inputs.providerInstanceId);
-      const backend = instance?.enabled ? instance.transcription : undefined;
-      if (!instance || !backend) {
-        return yield* new TranscriptionError({ reason: "sourceUnavailable" });
-      }
-      // The backend reads whatever subscription login is on disk. When the check found that
-      // the CLI runs with a different login, using it would bill another account.
-      const checked = (yield* instance.snapshot.getSnapshot).transcription;
-      if (checked?.status === "unavailable") {
-        return yield* new TranscriptionError({ reason: checked.reason ?? "unsupportedLogin" });
-      }
-      if (inputs.language !== undefined && !backend.supportsLanguage(inputs.language)) {
-        return yield* new TranscriptionError({ reason: "unsupportedLanguage" });
-      }
+      const { instance, backend } = yield* resolveSource(inputs);
       const audio = yield* readAudio(path);
       const keyterms = backend.acceptsKeyterms
         ? yield* readKeyterms(inputs.providerInstanceId, context)
@@ -340,10 +369,7 @@ const make = Effect.gen(function* () {
       if (!isPendingWav(input.audioAttachmentId)) {
         return yield* new TranscriptionError({ reason: "audioMissing" });
       }
-      const inputs = {
-        providerInstanceId: input.providerInstanceId,
-        language: normalizeLanguage(input.language),
-      };
+      const inputs = yield* resolveInputs(input);
       const outcome = yield* storeLock.withPermits(1)(claim(input, inputs));
       return yield* outcome;
     },
@@ -393,7 +419,15 @@ const make = Effect.gen(function* () {
       input.context,
     );
 
-  return Transcription.of({ transcribe, cancel, transcribeFile });
+  const checkSource: Transcription["Service"]["checkSource"] = Effect.fn(
+    "Transcription.checkSource",
+  )(function* (input) {
+    const inputs = yield* resolveInputs(input);
+    yield* resolveSource(inputs);
+    return inputs.providerInstanceId;
+  });
+
+  return Transcription.of({ transcribe, cancel, checkSource, transcribeFile });
 });
 
 export const layer = Layer.effect(Transcription, make);
