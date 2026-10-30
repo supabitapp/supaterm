@@ -127,7 +127,7 @@ export function selectLanIpv4Address(addresses: ReadonlyArray<NetworkAddress>): 
   );
 }
 
-export function lanIpv4Address(): string {
+function lanIpv4Address(): string {
   const address = selectLanIpv4Address(
     Object.values(NodeOS.networkInterfaces()).flatMap((addresses) => addresses ?? []),
   );
@@ -926,7 +926,7 @@ async function iosSimulatorDataPath(udid: string): Promise<string> {
 // every boot until the user dismisses it. Stamping the readiness marker before
 // boot makes the daemon skip the post, and dropping the CoreFollowUp store
 // clears a banner that a previous boot already queued.
-export async function suppressIosSystemFollowUps(udid: string): Promise<void> {
+async function suppressIosSystemFollowUps(udid: string): Promise<void> {
   const dataPath = await iosSimulatorDataPath(udid);
   const preferences = NodePath.join(dataPath, "Library/Preferences");
   await NodeFSP.mkdir(preferences, { recursive: true });
@@ -948,10 +948,7 @@ export async function suppressIosSystemFollowUps(udid: string): Promise<void> {
   });
 }
 
-export async function normalizeIosSimulator(
-  appearance: ShowcaseAppearance,
-  udid: string,
-): Promise<void> {
+async function normalizeIosSimulator(appearance: ShowcaseAppearance, udid: string): Promise<void> {
   await runCommand("xcrun", ["simctl", "ui", udid, "appearance", appearance]);
   await runCommand("xcrun", [
     "simctl",
@@ -974,7 +971,7 @@ export async function normalizeIosSimulator(
 // iPadOS 26 windowing ("Chamois") runs UIRequiresFullScreen apps in a fixed
 // portrait compatibility window, which defeats the in-app landscape rotation
 // the capture build relies on.
-export async function ensureIosFullScreenAppsMode(udid: string): Promise<void> {
+async function ensureIosFullScreenAppsMode(udid: string): Promise<void> {
   const current = await commandOutput("xcrun", [
     "simctl",
     "spawn",
@@ -1155,7 +1152,7 @@ async function captureIos(
   }
 }
 
-export function androidSdkTool(relativePath: string): string {
+function androidSdkTool(relativePath: string): string {
   return NodePath.join(ANDROID_SDK_ROOT, relativePath);
 }
 
