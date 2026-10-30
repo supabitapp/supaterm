@@ -801,6 +801,21 @@ export function deriveComposerSendState(options: {
   };
 }
 
+/** Nothing would go out with a message, so a recording can be the whole message. */
+export function isComposerDraftEmpty(draft: {
+  prompt: string;
+  attachmentCount: number;
+  terminalContextCount: number;
+  elementContextCount: number;
+}): boolean {
+  return (
+    draft.prompt.trim().length === 0 &&
+    draft.attachmentCount === 0 &&
+    draft.terminalContextCount === 0 &&
+    draft.elementContextCount === 0
+  );
+}
+
 export function buildExpiredTerminalContextToastCopy(
   expiredTerminalContextCount: number,
   variant: "omitted" | "empty",

@@ -525,7 +525,11 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
           voiceMessage: {
             accepts: () => {
               const draft = getComposerDraftSnapshot(composerDraftKey);
-              return draft.text.trim().length === 0 && draft.attachments.length === 0;
+              return (
+                draft.text.trim().length === 0 &&
+                draft.attachments.length === 0 &&
+                (draft.context?.records.length ?? 0) === 0
+              );
             },
             send: onSendVoiceMessage,
           },

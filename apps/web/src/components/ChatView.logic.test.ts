@@ -50,6 +50,7 @@ import {
   createLocalDispatchSnapshot,
   deriveCommittedServerUserMessageIds,
   deriveComposerSendState,
+  isComposerDraftEmpty,
   deriveLockedProvider,
   hasServerAcknowledgedLocalDispatch,
   resolveDraftPromotionNavigationTarget,
@@ -167,6 +168,28 @@ describe("resolveDraftPromotionNavigationTarget", () => {
         backgroundSubmissionPending: true,
       }),
     ).toBeNull();
+  });
+});
+
+describe("isComposerDraftEmpty", () => {
+  const empty = {
+    prompt: "  ",
+    attachmentCount: 0,
+    terminalContextCount: 0,
+    elementContextCount: 0,
+  };
+
+  it("counts every context chip as draft content, so a recording can't drop it", () => {
+    expect(isComposerDraftEmpty(empty)).toBe(true);
+    expect(isComposerDraftEmpty({ ...empty, terminalContextCount: 1 })).toBe(false);
+    expect(isComposerDraftEmpty({ ...empty, elementContextCount: 1 })).toBe(false);
+    expect(isComposerDraftEmpty({ ...empty, attachmentCount: 1 })).toBe(false);
+    expect(
+      isComposerDraftEmpty({
+        ...empty,
+        prompt: "[Thread](supaterm-context://v1/thread/ctx-1)",
+      }),
+    ).toBe(false);
   });
 });
 

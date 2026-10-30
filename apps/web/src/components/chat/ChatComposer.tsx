@@ -78,6 +78,7 @@ import {
 import { DISCONNECTED_COMPOSER_PLACEHOLDER } from "../../composerPlaceholder";
 import {
   deriveComposerSendState,
+  isComposerDraftEmpty,
   getAntigravitySendBlockReason,
   readFileAsDataUrl,
 } from "../ChatView.logic";
@@ -1916,9 +1917,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       !isEditingQueuedMessage &&
       activePendingProgress === null &&
       pendingUserInputs.length === 0 &&
-      prompt.trim().length === 0 &&
-      composerImages.length === 0 &&
-      composerFiles.length === 0,
+      isComposerDraftEmpty({
+        prompt,
+        attachmentCount:
+          composerImages.length + composerFiles.length + composerDraft.persistedAttachments.length,
+        terminalContextCount: composerTerminalContexts.length,
+        elementContextCount: composerPreviewAnnotations.length + composerReviewComments.length,
+      }),
     prepareVoiceSend: () => onPrepareVoiceSend(voiceDispatchMode(), voiceLanguage.tag),
     submit: () => void submitComposerStable(),
   });
