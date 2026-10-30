@@ -12,7 +12,7 @@ import { useWorkspaceTabs } from "./WorkspaceTabsContext";
 import { useSelectWorkspaceTab } from "./useSelectWorkspaceTab";
 import { useCompactWorkspaceTabs, useSidebarWorkspaceTabs } from "./useSystemWorkspaceTabBar";
 
-const PULL_REQUEST_ICON = require("../../../assets/icons/pull-request.png");
+const PULL_REQUEST_ICON = require("../../../modules/supaterm-native-controls/ios/Resources/pull-request.png");
 
 export function WorkspaceTabToolbarButtons() {
   const order = useNavigationTabOrder();
