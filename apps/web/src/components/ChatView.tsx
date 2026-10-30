@@ -151,14 +151,7 @@ import { sourceControlRepositorySelector } from "@supaterm/shared/sourceControl"
 import { resolveThreadReferenceCopyTarget } from "@supaterm/shared/threadReference";
 import { resolveTerminalSessionLabel } from "@supaterm/shared/terminalLabels";
 import { useAtomValue } from "@effect/atom-react";
-import {
-  type SetStateAction,
-  useEffect,
-  useEffectEvent,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { type SetStateAction, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { assistantCitationFromLocation } from "../lib/assistantCitationNavigation";
 import type { AssistantCitationSourceAnchor } from "~/lib/assistantTextSelection";
@@ -742,7 +735,6 @@ export default function ChatView(props: ChatViewProps) {
     return draft ? composerDraftHasUserContent({ ...draft, prompt: "" }) : false;
   });
   const setComposerDraftPrompt = useComposerDraftStore((store) => store.setPrompt);
-  const setDraftThreadContext = useComposerDraftStore((store) => store.setDraftThreadContext);
   const branchToolbarRef = useRef<BranchToolbarHandle>(null);
   const citeAssistantText = (
     citation: AssistantCitation,
@@ -774,10 +766,6 @@ export default function ChatView(props: ChatViewProps) {
     setHeldOptimisticUserMessages(optimisticState);
   }
   const optimisticUserMessages = optimisticState.messages;
-  const [workLocallyResendDraftId, setWorkLocallyResendDraftId] = useState<DraftId | null>(null);
-  if (workLocallyResendDraftId !== null && workLocallyResendDraftId !== draftId) {
-    setWorkLocallyResendDraftId(null);
-  }
   const [feedbackSubmissionsByThreadKey, setFeedbackSubmissionsByThreadKey] = useState<
     Record<string, ReadonlyArray<CodexFeedbackSubmission>>
   >({});
@@ -830,7 +818,6 @@ export default function ChatView(props: ChatViewProps) {
   const [scrollToEndClearance, setScrollToEndClearance] = useState(0);
   const fanoutSelectionsAtom = draftFanoutSelectionsAtom(routeThreadKey);
   const { sendInFlight: sendInFlightRef } = draftSendState(routeThreadKey);
-  const isSendInFlight = useEffectEvent(() => sendInFlightRef.current);
   const isSendInFlightStable = useStableCallback(() => sendInFlightRef.current);
   const multipleModelSelections = useAtomValue(fanoutSelectionsAtom);
   const setMultipleModelSelections = (
@@ -1388,17 +1375,6 @@ export default function ChatView(props: ChatViewProps) {
     settings,
     activeProject?.id ?? null,
   );
-  useEffect(() => {
-    if (!isLocalDraftThread) return;
-    const disabled = new Set(
-      providerInstanceEntries.filter((entry) => !entry.enabled).map((entry) => entry.instanceId),
-    );
-    appAtomRegistry.update(fanoutSelectionsAtom, (current) => {
-      if (current === null) return current;
-      const next = current.filter((selection) => !disabled.has(selection.instanceId));
-      return next.length === current.length ? current : next;
-    });
-  }, [fanoutSelectionsAtom, isLocalDraftThread, providerInstanceEntries]);
   const { selectedProviderEntry, requestedDriverKind } = resolveComposerProviderSelection({
     entries: providerInstanceEntries,
     candidateInstanceIds: [
@@ -1674,10 +1650,12 @@ export default function ChatView(props: ChatViewProps) {
     retryableRunIds: retryableWorkspacePreparationRunIds,
     begin: beginWorktreeSetup,
     cancel: cancelWorktreeSetup,
+    workLocally: worktreeSetupWorkLocally,
     retryPreparation: onRetryWorkspacePreparationStable,
     openSetupTerminal: onOpenWorktreeSetupTerminal,
   } = useWorktreeSetup({
     routeThreadRef,
+    currentRouteThreadKeyRef,
     ownerKey: draftId ?? routeThreadKey,
     activeThread,
     threadRef: activeThreadRef,
@@ -2115,11 +2093,6 @@ export default function ChatView(props: ChatViewProps) {
     visiblePullRequestCount,
     onDiffPanelOpen,
   });
-  useEffect(() => {
-    if (!canMaximizeRightPanel || !activeThreadRef) return;
-    if (useRightPanelStore.getState().consumeMaximizeRequest(activeThreadRef))
-      useRightPanelStore.getState().setMaximized(activeThreadRef, true);
-  }, [canMaximizeRightPanel, activeThreadRef]);
   const {
     closeSurface: closeRightPanelSurfaceStable,
     closeOtherSurfaces: closeOtherRightPanelSurfacesStable,
@@ -3056,11 +3029,11 @@ export default function ChatView(props: ChatViewProps) {
   });
 
   const onWorktreeSetupWorkLocally = () => {
-    if (!worktreeSetup || worktreeSetup.phase !== "running" || !draftId) {
-      return;
-    }
-    void cancelWorktreeSetup().then((cancelled) => {
-      if (cancelled) setWorkLocallyResendDraftId(draftId);
+    void worktreeSetupWorkLocally().catch((error: unknown) => {
+      setThreadError(
+        threadId,
+        error instanceof Error ? error.message : "Could not retry in the current checkout.",
+      );
     });
   };
   const onWorktreeSetupWorkLocallyStable = useStableCallback(onWorktreeSetupWorkLocally);
@@ -3151,44 +3124,6 @@ export default function ChatView(props: ChatViewProps) {
         {hasQueuedTurns ? queuedRunsControl : null}
       </>
     );
-  const workLocallyResendReady =
-    workLocallyResendDraftId !== null &&
-    workLocallyResendDraftId === draftId &&
-    isLocalDraftThread &&
-    !isSendBusy &&
-    !isConnecting &&
-    !isRevertingCheckpoint &&
-    !threadDetailLoading &&
-    clientSettingsHydrated &&
-    !needsLoadBalancing &&
-    !activeEnvironmentUnavailable &&
-    !activePendingProgress &&
-    !feedbackUploading;
-  useEffect(() => {
-    if (
-      !workLocallyResendReady ||
-      isSendInFlight() ||
-      feedbackUploadsInFlightRef.current.has(routeThreadKey)
-    ) {
-      return;
-    }
-    if (sendEnvMode !== "local") {
-      setDraftThreadContext(composerDraftTarget, { envMode: "local", startFromOrigin: false });
-      return;
-    }
-    // oxlint-disable-next-line react/set-state-in-effect -- consumes the resend request before sending it
-    setWorkLocallyResendDraftId(null);
-    void onComposerSendStable();
-  }, [
-    composerDraftTarget,
-    feedbackUploadsInFlightRef,
-    onComposerSendStable,
-    routeThreadKey,
-    sendEnvMode,
-    setDraftThreadContext,
-    workLocallyResendReady,
-  ]);
-
   const onExpandTimelineImage = (preview: ExpandedImagePreview) => {
     openExpandedImagePreview(routeThreadKey, preview);
   };

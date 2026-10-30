@@ -1,4 +1,6 @@
 import { pipe } from "effect/Function";
+import * as Option from "effect/Option";
+import { Atom } from "effect/reactivity";
 import {
   DEFAULT_MODEL_BY_PROVIDER,
   defaultInstanceIdForDriver,
@@ -19,6 +21,35 @@ import {
 } from "@supaterm/client-runtime/state/provider-instance-display";
 
 export { normalizeProviderAccentColor, shouldShowInstanceBadge };
+
+export function createProviderModelSelectionsAtom(
+  entries: Atom.Atom<ReadonlyArray<ProviderInstanceEntry> | null>,
+) {
+  type Selections = ReadonlyArray<ModelSelection> | null;
+  const prune = (
+    selections: Selections,
+    providers: ReadonlyArray<ProviderInstanceEntry> | null,
+  ) => {
+    if (selections === null || providers === null) return selections;
+    const disabled = new Set(
+      providers.filter((entry) => !entry.enabled).map((entry) => entry.instanceId),
+    );
+    const next = selections.filter((selection) => !disabled.has(selection.instanceId));
+    return next.length === selections.length ? selections : next;
+  };
+  return Atom.writable<Selections, Selections>(
+    (get) => {
+      const selections = Option.getOrNull(get.self<Selections>());
+      return selections === null || selections.length === 0
+        ? selections
+        : prune(selections, get(entries));
+    },
+    (ctx, selections) => {
+      ctx.setSelf(selections === null ? null : prune(selections, ctx.get(entries)));
+      ctx.refreshSelf();
+    },
+  );
+}
 
 /**
  * Local-only placeholder used while a draft has no provider it can safely

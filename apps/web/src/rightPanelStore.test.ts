@@ -40,6 +40,31 @@ async function reloadRightPanelStore() {
 }
 
 describe("rightPanelStore", () => {
+  it("persists a requested maximize without opening or affecting another thread", async () => {
+    const store = useRightPanelStore.getState();
+    store.requestMaximize(refA);
+    expect(
+      selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA),
+    ).toMatchObject({
+      isOpen: false,
+      maximized: true,
+    });
+    expect(
+      selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refB).maximized,
+    ).toBeUndefined();
+    await reloadRightPanelStore();
+    useRightPanelStore.getState().open(refA, "diff");
+    expect(
+      selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA).maximized,
+    ).toBe(true);
+    useRightPanelStore.getState().setMaximized(refA, false);
+    useRightPanelStore.getState().close(refA);
+    useRightPanelStore.getState().show(refA);
+    expect(
+      selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA).maximized,
+    ).toBeUndefined();
+  });
+
   it("records single and bulk tab closes, newest first", () => {
     const store = useRightPanelStore.getState();
     const pr = pullRequestSurface({
