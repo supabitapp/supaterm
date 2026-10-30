@@ -236,6 +236,7 @@ export const layer = HttpApiBuilder.group(
             const previousCredential = EnvironmentAuth.selectRequestCredential(
               request,
               sessions.cookieName,
+              sessions.previousLoopbackCookieName,
             );
             const result = yield* serverAuth.createBrowserSession(
               args.payload.credential,

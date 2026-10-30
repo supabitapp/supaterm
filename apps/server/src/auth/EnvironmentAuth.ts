@@ -532,6 +532,7 @@ function parseBearerToken(request: HttpServerRequest.HttpServerRequest): string 
 export function selectRequestCredential(
   request: HttpServerRequest.HttpServerRequest,
   cookieName: string,
+  previousLoopbackCookieName?: string,
 ) {
   const cookieToken = request.cookies[cookieName];
   if (cookieToken !== undefined) {
@@ -541,6 +542,13 @@ export function selectRequestCredential(
   const bearerToken = parseBearerToken(request);
   if (bearerToken !== null) {
     return { token: bearerToken, source: "bearer" } as const;
+  }
+
+  if (request.headers.authorization === undefined && previousLoopbackCookieName !== undefined) {
+    const previousCookieToken = request.cookies[previousLoopbackCookieName];
+    if (previousCookieToken !== undefined) {
+      return { token: previousCookieToken, source: "cookie" } as const;
+    }
   }
 
   return undefined;
@@ -617,7 +625,11 @@ export const make = Effect.gen(function* () {
     );
 
   const resolveRequestCredential = (request: HttpServerRequest.HttpServerRequest) => {
-    const selectedCredential = selectRequestCredential(request, sessions.cookieName);
+    const selectedCredential = selectRequestCredential(
+      request,
+      sessions.cookieName,
+      sessions.previousLoopbackCookieName,
+    );
     const hasAuthorization = request.headers.authorization !== undefined;
     const devCookieToken = devAuth ? request.cookies[devAuth.cookieName] : undefined;
     return (

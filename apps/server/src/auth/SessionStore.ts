@@ -375,6 +375,7 @@ export class SessionStore extends Context.Service<
   SessionStore,
   {
     readonly cookieName: string;
+    readonly previousLoopbackCookieName?: string;
     readonly issue: (input?: {
       readonly ttl?: Duration.Duration;
       readonly subject?: string;
@@ -512,6 +513,9 @@ const make = Effect.gen(function* () {
     development: serverConfig.devUrl !== undefined,
   } as const;
   const cookieName = resolveSessionCookieName(cookieInput);
+  const loopbackCookieName = resolveSessionCookieName({ ...cookieInput, host: "127.0.0.1" });
+  const previousLoopbackCookieName =
+    loopbackCookieName === cookieName ? undefined : loopbackCookieName;
   const devAuth = resolveReusableDevAuth(serverConfig);
   if (devAuth) {
     yield* authSessions
@@ -1087,6 +1091,7 @@ const make = Effect.gen(function* () {
 
   return SessionStore.of({
     cookieName,
+    ...(previousLoopbackCookieName === undefined ? {} : { previousLoopbackCookieName }),
     issue,
     verify,
     issueWebSocketToken,

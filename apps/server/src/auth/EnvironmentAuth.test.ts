@@ -1,11 +1,15 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { authScopeResponse, AuthStandardClientScopes } from "@supaterm/contracts";
 import { expect, it } from "@effect/vitest";
+import * as Context from "effect/Context";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Clock from "effect/Clock";
 import { currentDesktopBootstrapToken } from "@supaterm/shared/desktopBootstrapToken";
 import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
+import * as TestClock from "effect/testing/TestClock";
+import * as Headers from "effect/http/Headers";
 
 import * as ServerConfig from "../config.ts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
@@ -72,7 +76,184 @@ const requestMetadata = {
   ipAddress: "192.168.1.23",
 };
 
+const makeBindMigration = Effect.gen(function* () {
+  const dependencies = yield* Layer.build(
+    Layer.mergeAll(
+      SqlitePersistence.layerMemory,
+      ServerSecretStore.layer,
+      ServerEnvironment.layerIdentity,
+    ).pipe(
+      Layer.provideMerge(layerServerConfig({ mode: "web", host: "127.0.0.1", devUrl: undefined })),
+    ),
+  );
+  const original = yield* Layer.build(
+    EnvironmentAuth.layer.pipe(Layer.provideMerge(Layer.succeedContext(dependencies))),
+  );
+  const config = Context.get(dependencies, ServerConfig.ServerConfig);
+  const migrated = yield* Layer.build(
+    EnvironmentAuth.layer.pipe(
+      Layer.provideMerge(
+        Layer.succeedContext(
+          Context.add(dependencies, ServerConfig.ServerConfig, { ...config, host: "0.0.0.0" }),
+        ),
+      ),
+    ),
+  );
+  return {
+    originalAuth: Context.get(original, EnvironmentAuth.EnvironmentAuth),
+    originalSessions: Context.get(original, SessionStore.SessionStore),
+    migratedAuth: Context.get(migrated, EnvironmentAuth.EnvironmentAuth),
+    migratedSessions: Context.get(migrated, SessionStore.SessionStore),
+  };
+});
+
 it.layer(NodeServices.layer)("EnvironmentAuth.layer", (it) => {
+  it.effect(
+    "keeps browser sessions authenticated after the listener moves from loopback to LAN",
+    () =>
+      Effect.gen(function* () {
+        const { originalAuth, originalSessions, migratedAuth, migratedSessions } =
+          yield* makeBindMigration;
+        const pairing = yield* originalAuth.issuePairingCredential({
+          scopes: ["orchestration:read"],
+        });
+        const exchanged = yield* originalAuth.createBrowserSession(
+          pairing.credential,
+          requestMetadata,
+        );
+        const original = yield* originalSessions.verify(exchanged.sessionToken);
+        expect(migratedSessions.cookieName).not.toBe(originalSessions.cookieName);
+        const request = {
+          ...makeCookieRequest(originalSessions.cookieName, exchanged.sessionToken),
+          url: "/ws",
+          headers: Headers.fromInput({
+            host: `localhost:${TEST_SERVER_PORT}`,
+            origin: `http://localhost:${TEST_SERVER_PORT}`,
+          }),
+        };
+
+        for (const authenticate of [
+          migratedAuth.authenticateHttpRequest,
+          migratedAuth.authenticateWebSocketUpgrade,
+        ]) {
+          const authenticated = yield* authenticate(request);
+          expect(authenticated.sessionId).toBe(original.sessionId);
+          expect(authenticated.scopes).toEqual(["orchestration:read"]);
+        }
+        expect((yield* migratedAuth.getSessionState(request)).authenticated).toBe(true);
+        expect((yield* migratedSessions.listActive()).map((session) => session.sessionId)).toEqual([
+          original.sessionId,
+        ]);
+      }),
+  );
+
+  it.effect("validates migrated cookies against signatures, expiry and revocation", () =>
+    Effect.gen(function* () {
+      const { originalSessions, migratedAuth } = yield* makeBindMigration;
+      const revoked = yield* originalSessions.issue({ method: "browser-session-cookie" });
+      const expired = yield* originalSessions.issue({
+        method: "browser-session-cookie",
+        ttl: Duration.seconds(1),
+      });
+      const foreign = yield* Effect.gen(function* () {
+        const sessions = yield* SessionStore.SessionStore;
+        return yield* sessions.issue({ method: "browser-session-cookie" });
+      }).pipe(Effect.provide(layerEnvironmentAuth({ mode: "web", devUrl: undefined })));
+      yield* originalSessions.revoke(revoked.sessionId);
+      yield* TestClock.adjust(Duration.seconds(2));
+
+      for (const token of [
+        revoked.token,
+        expired.token,
+        foreign.token,
+        `${revoked.token}invalid`,
+      ]) {
+        const error = yield* Effect.flip(
+          migratedAuth.authenticateHttpRequest(
+            makeCookieRequest(originalSessions.cookieName, token),
+          ),
+        );
+        expect(error._tag).toBe("ServerAuthInvalidCredentialError");
+      }
+    }),
+  );
+
+  it.effect(
+    "keeps current cookies and explicit credentials authoritative during bind migration",
+    () =>
+      Effect.gen(function* () {
+        const { originalSessions, migratedAuth, migratedSessions } = yield* makeBindMigration;
+        const previous = yield* originalSessions.issue({ method: "browser-session-cookie" });
+        const current = yield* migratedSessions.issue({
+          method: "browser-session-cookie",
+          scopes: ["orchestration:read"],
+        });
+        const bearer = yield* migratedSessions.issue({ method: "bearer-access-token" });
+        const previousRequest = makeCookieRequest(originalSessions.cookieName, previous.token);
+        const bothCookies = {
+          ...previousRequest,
+          cookies: { ...previousRequest.cookies, [migratedSessions.cookieName]: current.token },
+        };
+        expect((yield* migratedAuth.authenticateHttpRequest(bothCookies)).sessionId).toBe(
+          current.sessionId,
+        );
+        expect(
+          (yield* migratedAuth.authenticateHttpRequest({
+            ...previousRequest,
+            headers: Headers.fromInput({ authorization: `Bearer ${bearer.token}` }),
+          })).sessionId,
+        ).toBe(bearer.sessionId);
+
+        for (const request of [
+          {
+            ...bothCookies,
+            cookies: { ...bothCookies.cookies, [migratedSessions.cookieName]: "invalid" },
+            headers: Headers.fromInput({ authorization: `Bearer ${bearer.token}` }),
+          },
+          ...["Bearer invalid", "", "Basic invalid"].map((authorization) => ({
+            ...previousRequest,
+            headers: Headers.fromInput({ authorization }),
+          })),
+        ]) {
+          const error = yield* Effect.flip(migratedAuth.authenticateHttpRequest(request));
+          expect(EnvironmentAuth.isServerAuthCredentialError(error)).toBe(true);
+        }
+      }),
+  );
+
+  it.effect("limits bind migration to the exact old cookie and the app's own origins", () =>
+    Effect.gen(function* () {
+      const { originalSessions, migratedAuth } = yield* makeBindMigration;
+      const session = yield* originalSessions.issue({ method: "browser-session-cookie" });
+      for (const cookieName of [
+        "supaterm_session",
+        originalSessions.cookieName.replace(`_${TEST_SERVER_PORT}_`, `_${TEST_SERVER_PORT + 1}_`),
+        `supaterm_session_${TEST_SERVER_PORT}_other-environment`,
+      ]) {
+        const error = yield* Effect.flip(
+          migratedAuth.authenticateHttpRequest(makeCookieRequest(cookieName, session.token)),
+        );
+        expect(error._tag).toBe("ServerAuthMissingCredentialError");
+      }
+      for (const authenticate of [
+        migratedAuth.authenticateHttpRequest,
+        migratedAuth.authenticateWebSocketUpgrade,
+      ]) {
+        const error = yield* Effect.flip(
+          authenticate({
+            ...makeCookieRequest(originalSessions.cookieName, session.token),
+            url: "/ws",
+            headers: Headers.fromInput({
+              host: `localhost:${TEST_SERVER_PORT}`,
+              origin: "http://localhost:8080",
+            }),
+          }),
+        );
+        expect(error._tag).toBe("ServerAuthInvalidCredentialError");
+      }
+    }),
+  );
+
   it.effect("uses the reusable dev cookie without overriding a normal scoped cookie", () =>
     Effect.gen(function* () {
       const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;
