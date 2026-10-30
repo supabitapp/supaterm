@@ -104,11 +104,6 @@ function parseAgent(entry: unknown): OrchestrationV2WorkflowAgent | null {
   };
 }
 
-/**
- * A background launch answers the model with an acknowledgement rather than the run's output, and
- * that acknowledgement is the only place the run's filesystem handles appear — nothing later on
- * the event stream repeats them.
- */
 export function parseClaudeWorkflowRunHandles(
   toolUseResult: unknown,
 ): OrchestrationV2WorkflowRunHandles | undefined {
@@ -141,12 +136,6 @@ function parseClaudeWorkflowProgress(message: unknown): {
   return phases.length === 0 && agents.length === 0 ? null : { phases, agents };
 }
 
-/**
- * Returns undefined when nothing identifies the task as a workflow. Progress frames do not repeat
- * `task_type`, so this is the single place that decides whether a task is a coordinator; without
- * it every ordinary subagent's usage frame would mint an empty workflow and render as a
- * coordinator.
- */
 export function mergeClaudeWorkflowProgress(input: {
   readonly previous: OrchestrationV2SubagentWorkflow | undefined;
   readonly name?: string | undefined;

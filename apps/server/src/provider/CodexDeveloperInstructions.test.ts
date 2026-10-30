@@ -4,6 +4,7 @@ import {
   SUPATERM_ORCHESTRATION_INSTRUCTIONS,
   SUPATERM_ORCHESTRATION_SECTIONS,
 } from "@supaterm/provider-core/server/orchestrationInstructions";
+import { SUPATERM_DEVICE_TOOL_INSTRUCTIONS } from "@supaterm/provider-core/server/orchestrationInstructions";
 import { describe, it } from "vite-plus/test";
 
 import {
@@ -59,7 +60,20 @@ describe("buildCodexAdditionalContext", () => {
   });
 });
 
-describe("buildCodexDeveloperInstructions", () => {
+describe("Codex runtime context", () => {
+  it("describes Markdown media support in the runtime context in both modes", () => {
+    {
+      const instructions = runtimeInstructions({
+        model: "gpt-5.3-codex",
+        reasoningEffort: "high",
+      });
+      NodeAssert.match(
+        instructions,
+        /<runtime_info>.*embed images, video, and audio.*Markdown image syntax with absolute file paths.*Link any other file.*absolute path.*files viewer.*<\/runtime_info>/,
+      );
+    }
+  });
+
   it("flattens multiline metadata into single-line runtime info", () => {
     const instructions = runtimeInstructions({
       model: "gpt\n5.3\ncodex",
@@ -68,6 +82,39 @@ describe("buildCodexDeveloperInstructions", () => {
 
     NodeAssert.match(instructions, /as gpt 5\.3 codex with high effort reasoning effort/);
     NodeAssert.doesNotMatch(instructions, /<runtime_info>[^<]*\n/);
+  });
+});
+
+describe("Codex orchestration context", () => {
+  it("routes subagents native first, delegate_task for the rest", () => {
+    const orchestration = Object.entries(buildCodexAdditionalContext({ model: "gpt-6.1-sol" }))
+      .filter(([key]) => key.startsWith("supaterm_orchestration_"))
+      .map(([, entry]) => entry.value)
+      .join("\n");
+
+    NodeAssert.ok(orchestration.includes("use your native tool when the child uses your provider"));
+    NodeAssert.ok(orchestration.includes("`run_in_background:false`"));
+    NodeAssert.ok(orchestration.includes("A native type running another provider's model"));
+    NodeAssert.ok(
+      orchestration.includes("Every new delegate review or re-check is a new `delegate_task`"),
+    );
+    NodeAssert.ok(orchestration.includes("never a `supaterm_thread_send`"));
+    NodeAssert.ok(!orchestration.includes("inheritedOptions"));
+    NodeAssert.ok(!orchestration.includes("Prefer native"));
+
+    NodeAssert.ok(!orchestration.includes("acp-mcp-call"));
+  });
+});
+
+describe("Codex device context", () => {
+  it("adds the shared device block only when the session holds device access", () => {
+    const tools = (device: boolean) =>
+      buildCodexAdditionalContext({ model: "gpt-6.1-sol" }, { browser: true, device })
+        .supaterm_tools?.value ?? "";
+
+    NodeAssert.ok(tools(true).includes(SUPATERM_DEVICE_TOOL_INSTRUCTIONS));
+    NodeAssert.ok(!tools(true).includes("ToolSearch"));
+    NodeAssert.ok(!tools(false).includes("## Supaterm devices"));
   });
 });
 

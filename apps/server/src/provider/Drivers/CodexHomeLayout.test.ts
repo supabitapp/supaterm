@@ -263,8 +263,8 @@ it.layer(NodeServices.layer)("CodexHomeLayout", (it) => {
         Effect.gen(function* () {
           const fileSystem = yield* FileSystem.FileSystem;
           const path = yield* Path.Path;
-          const sharedHome = yield* makeTempDir("t3code-codex-shared-");
-          const shadowRoot = yield* makeTempDir("t3code-codex-shadow-root-");
+          const sharedHome = yield* makeTempDir("supaterm-codex-shared-");
+          const shadowRoot = yield* makeTempDir("supaterm-codex-shadow-root-");
           const shadowHome = path.join(shadowRoot, "shadow");
           const shadowLocks = path.join(shadowHome, "thread-writer-locks");
           const threadLock = path.join(shadowLocks, "019a0000-0000-7000-8000-000000000000.lock");

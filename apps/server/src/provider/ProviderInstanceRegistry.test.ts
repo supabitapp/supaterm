@@ -19,6 +19,7 @@ import * as McpProviderSessions from "@supaterm/provider-core/server/McpProvider
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
+import * as Stream from "effect/Stream";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";

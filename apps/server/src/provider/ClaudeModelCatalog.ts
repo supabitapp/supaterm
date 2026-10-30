@@ -60,23 +60,20 @@ function tryResolveClaudeModelCatalog(
   };
 }
 
-const BUNDLED_CLAUDE_PROVIDER_CATALOG =
-  resolveProviderCatalog(BUNDLED_MODEL_MANIFEST, CLAUDE) ?? undefined;
-
 export function resolveClaudeModelCatalog(
   catalog: ModelCatalog.ProviderCatalog | undefined,
 ): ClaudeModelCatalog {
   return (
     tryResolveClaudeModelCatalog(catalog) ??
-    tryResolveClaudeModelCatalog(BUNDLED_CLAUDE_PROVIDER_CATALOG) ?? {
+    tryResolveClaudeModelCatalog(
+      resolveProviderCatalog(BUNDLED_MODEL_MANIFEST, CLAUDE) ?? undefined,
+    ) ?? {
       models: [],
     }
   );
 }
 
-export const BUNDLED_CLAUDE_MODEL_CATALOG = resolveClaudeModelCatalog(
-  BUNDLED_CLAUDE_PROVIDER_CATALOG,
-);
+export const BUNDLED_CLAUDE_MODEL_CATALOG = resolveClaudeModelCatalog(undefined);
 
 export function scopeClaudeModelCatalog(
   catalog: ClaudeModelCatalog,

@@ -146,7 +146,6 @@ describe("Antigravity subscription limits", () => {
       expect(byId.get("3p-5h")?.usedPercent).toBeCloseTo(56);
       yield* probe;
       expect(requests.filter((request) => request.url.endsWith("/token"))).toHaveLength(1);
-
       expect(
         requests.filter((request) => request.url.endsWith(":retrieveUserQuotaSummary")),
       ).toHaveLength(4);
@@ -179,7 +178,6 @@ describe("Antigravity subscription limits", () => {
       ]);
       const byId = new Map(limits.windows.map((window) => [window.id, window]));
       expect(byId.get("gemini-weekly")?.label).toBe("Gemini · Weekly");
-
       expect(byId.get("3p-5h")?.usedPercent).toBeCloseTo(70);
       expect(byId.get("3p-weekly")?.usedPercent).toBe(100);
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),

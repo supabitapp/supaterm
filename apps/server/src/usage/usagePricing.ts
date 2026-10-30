@@ -14,10 +14,6 @@ export interface TokenRates {
   readonly cacheCreationCostPerToken: number;
 }
 
-/**
- * LiteLLM also publishes `*_above_272k_tokens`, `*_flex`, and `*_batches` variants. Transcripts
- * don't record those, so we don't price them.
- */
 export interface ModelRate extends TokenRates {
   readonly fast: TokenRates | null;
   readonly ultrafast: TokenRates | null;
@@ -51,10 +47,6 @@ function finiteNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-/**
- * Anthropic bills cache reads at a discount and cache writes at a premium. When the standard
- * tier omits them, cached input is priced as plain input rather than as free.
- */
 function readTokenRates(
   entry: LiteLlmEntry,
   suffix: string,
@@ -95,10 +87,6 @@ function fastMultiplier(entry: LiteLlmEntry): number | null {
   return fast !== null && fast > 0 ? fast : null;
 }
 
-/**
- * Entries without both an input and an output rate are dropped: a half-priced model would
- * silently under-report cost, which is worse than reporting the model as unpriced.
- */
 export function parseRateTable(document: unknown): RateTable {
   const table = new Map<string, ModelRate>();
   if (typeof document !== "object" || document === null) return table;
@@ -177,21 +165,11 @@ function bareModelName(key: string): string {
   return slash === -1 ? key : key.slice(slash + 1);
 }
 
-/**
- * Drops a bracketed variant suffix such as `claude-fable-5-1[1m]`, which
- * Claude Code writes for the 1M context tier. The rate table only knows the
- * base name, and we price at the base tier anyway.
- */
 function stripVariantSuffix(key: string): string {
   const bracket = key.indexOf("[");
   return bracket === -1 ? key : key.slice(0, bracket);
 }
 
-/**
- * `<synthetic>` marks locally generated messages that were never billed. Bare family names
- * ("opus", "sonnet") are genuinely ambiguous across generations, so we report them as unpriced
- * instead of guessing a generation.
- */
 const UNPRICEABLE_MODELS = new Set([
   "<synthetic>",
   "synthetic",
@@ -201,10 +179,6 @@ const UNPRICEABLE_MODELS = new Set([
   "fable",
 ]);
 
-/**
- * A scan prices every record twice against a few dozen models, and tables are
- * never mutated once built.
- */
 const resolvedRates = new WeakMap<RateTable, Map<string, ModelRate | null>>();
 
 export function lookupRate(table: RateTable, model: string): ModelRate | null {
@@ -253,10 +227,6 @@ function sumCategories(cost: UsageCategoryCost): number {
   return cost.input + cost.cacheRead + cost.cacheWrite + cost.output;
 }
 
-/**
- * `reasoningTokens` is intentionally not charged separately: it is already
- * counted inside `outputTokens`.
- */
 export function priceUsage(
   table: RateTable,
   record: PricedRecord,

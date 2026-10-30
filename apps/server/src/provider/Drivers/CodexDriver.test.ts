@@ -339,8 +339,7 @@ it.layer(layerTest)("CodexDriver", (it) => {
         ),
       );
     }).pipe(Effect.scoped);
-  
-  
+
   it.effect.each(["unchanged", "during-probe"] as const)(
     "managed catalog keeps its account label and token together: %s",
     checkManagedAccount,
@@ -393,11 +392,9 @@ it.layer(layerTest)("CodexDriver", (it) => {
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const tempDir = yield* fs
-          .makeTempDirectoryScoped({ prefix: "t3-codex-driver-" })
+          .makeTempDirectoryScoped({ prefix: "supaterm-codex-driver-" })
           .pipe(Effect.flatMap((directory) => fs.realPath(directory)));
-        
-        
-        
+
         const installHome = NodePath.join(tempDir, "codex-İnstall");
         const realBinaryPath = NodePath.join(
           installHome,
@@ -448,13 +445,13 @@ it.layer(layerTest)("CodexDriver", (it) => {
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
       const tempDir = yield* fs
-        .makeTempDirectoryScoped({ prefix: "t3-codex-update-home-" })
+        .makeTempDirectoryScoped({ prefix: "supaterm-codex-update-home-" })
         .pipe(Effect.flatMap((directory) => fs.realPath(directory)));
       const linkedInstallHome = NodePath.join(tempDir, "install");
       const fixtures = [
         { binary: "codex", realPath: "/packages/standalone/bin/codex", home: "/" },
         { binary: "codex", realPath: "C:\\Packages\\Standalone\\bin\\codex.exe", home: "C:\\" },
-        
+
         {
           binary: NodePath.join("install", "packages", "standalone", "bin", "codex"),
           realPath: "/disk/codex/releases/0.163.0/bin/codex",
@@ -474,7 +471,6 @@ it.layer(layerTest)("CodexDriver", (it) => {
           environment: [],
           config: { ...CodexDriver.defaultConfig(), binaryPath, homePath: tempDir },
         }).pipe(
-          
           Effect.provideService(FileSystem.FileSystem, {
             ...fs,
             realPath: (path) =>

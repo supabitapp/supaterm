@@ -234,23 +234,17 @@ export function buildClaudeCapabilitiesProbeQueryOptions(input: {
     pathToClaudeCodeExecutable: input.executablePath,
     abortController: input.abortController,
     settingSources: [...CLAUDE_CAPABILITIES_PROBE_SETTING_SOURCES],
-    // The probe keeps filesystem setting sources for slash-command discovery,
-    // but must not run the user's hooks: it fires every few minutes, so
-    // SessionStart hooks would run on every health check.
+
     settings: { disableAllHooks: true },
     allowedTools: [],
-    // Ignore MCP definitions from every filesystem setting source above. The
-    // SDK combines this empty explicit map with --strict-mcp-config, which
-    // Claude refuses next to a managed-mcp.json that already excludes them.
+
     mcpServers: {},
     ...(input.managedMcpConfig ? {} : { strictMcpConfig: true }),
     env: {
       ...input.environment,
-      // Connected claude.ai MCP servers are discovered outside filesystem
-      // config; disable them independently for this health check.
+
       ENABLE_CLAUDEAI_MCP_SERVERS: "false",
-      // Skipping it also avoids Claude spawning a Windows `tasklist | findstr` process tree on
-      // every periodic refresh.
+
       FORCE_CODE_TERMINAL: undefined,
       CLAUDE_CODE_AUTO_CONNECT_IDE: "0",
       CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL: "1",
@@ -272,19 +266,11 @@ export type ClaudeCapabilitiesProbe = {
   readonly tokenSource: string | undefined;
 
   readonly apiKeySource: string | undefined;
-  /**
-   * Active API backend reported by the SDK's `AccountInfo`. Anthropic OAuth
-   * login only applies when `"firstParty"`; for Amazon Bedrock (`"bedrock"`)
-   * the subscription/token fields are absent and auth is external AWS creds.
-   */
+
   readonly apiProvider: string | undefined;
   readonly fastModeDisabledReason?: string;
   readonly slashCommands: ReadonlyArray<ServerProviderSlashCommand>;
-  /**
-   * Subscription windows from the SDK's `get_usage` control request, or
-   * `undefined` when the request itself failed. Absent windows on an
-   * otherwise successful response mean the account has none (API key).
-   */
+
   readonly usage?: Pick<SDKControlGetUsageResponse, "rate_limits_available" | "rate_limits">;
   readonly usageCheckedAt?: string;
 };
@@ -361,12 +347,6 @@ function waitForAbortSignal(signal: AbortSignal): Promise<void> {
   });
 }
 
-/**
- * We pass a never-yielding AsyncIterable as the prompt so that no user message is ever written
- * to the subprocess stdin. This means the Claude Code subprocess completes its local
- * initialization IPC (returning account info and slash commands) but never starts an API
- * request to Anthropic.
- */
 const probeClaudeCapabilities = (
   claudeSettings: ClaudeSettings,
   environment?: NodeJS.ProcessEnv,
@@ -383,9 +363,7 @@ const probeClaudeCapabilities = (
     const managedMcpConfig = yield* hasClaudeManagedMcpConfig();
     return yield* Effect.tryPromise(async () => {
       const q = claudeQuery({
-        // Never yield — we only need initialization data, not a conversation.
-        // This prevents any prompt from reaching the Anthropic API.
-        // oxlint-disable-next-line require-yield
+        // oxlint-disable-next-line require-yield -- never yields, so no prompt reaches the API
         prompt: (async function* (): AsyncGenerator<SDKUserMessage> {
           await waitForAbortSignal(abort.signal);
         })(),
@@ -529,9 +507,14 @@ export const probeClaudeWorkspaceSnapshot = Effect.fn("probeClaudeWorkspaceSnaps
 ): Effect.fn.Return<ProviderWorkspaceSnapshot, never, FileSystem.FileSystem | Path.Path> {
   if (!claudeSettings.enabled) return machineSnapshot;
   const skills = yield* discoverClaudeSkills(claudeSettings, cwd, environment);
-  const capabilities = yield* probeClaudeCapabilities(claudeSettings, environment, cwd, false).pipe(
-    Effect.orElseSucceed(() => undefined),
-  );
+  const fileSystem = yield* FileSystem.FileSystem;
+
+  const cwdExists = yield* fileSystem.exists(cwd).pipe(Effect.orElseSucceed(() => true));
+  const probeResult = cwdExists
+    ? yield* probeClaudeCapabilities(claudeSettings, environment, cwd, false).pipe(Effect.result)
+    : undefined;
+  const capabilities =
+    probeResult && Result.isSuccess(probeResult) ? probeResult.success : undefined;
   return {
     ...machineSnapshot,
     skills,
@@ -539,7 +522,7 @@ export const probeClaudeWorkspaceSnapshot = Effect.fn("probeClaudeWorkspaceSnaps
       COMPACT_SLASH_COMMAND,
       ...(capabilities?.slashCommands ?? []),
     ]),
-    slashCommandsPending: !capabilities,
+    slashCommandsPending: cwdExists && !capabilities,
   };
 });
 
