@@ -101,6 +101,7 @@ import { authEnvironment } from "~/state/auth";
 import { environmentCatalog } from "~/connection/catalog";
 import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
 import { useEnvironmentQuery } from "~/state/query";
+import { usePeerLinkHosts } from "~/state/peerLinks";
 import {
   desktopNetworkAccessStateAtom,
   refreshDesktopNetworkAccessState,
@@ -697,11 +698,7 @@ export function ConnectionsSettings({
       aria-label="Enable network access"
     />
   );
-  const linkedEnvironments = loadBalancingEnvironments.filter(
-    (environment) =>
-      environment.connection.phase === "connected" &&
-      environment.serverConfig?.settings.linkedEnvironmentsEnabled,
-  );
+  const linkedEnvironments = usePeerLinkHosts();
   const renderEndpointRows = (presentation: AccessSectionPresentation) =>
     isAdvertisedEndpointListExpanded
       ? visibleDesktopNetworkAdvertisedEndpoints.map((endpoint) => {

@@ -34,6 +34,10 @@ type SessionResult = AsyncResult.AsyncResult<AuthSessionState, Error>;
 const state = vi.hoisted(() => ({
   sessions: new Map<EnvironmentId, Atom.Writable<SessionResult>>(),
   projects: [] as Project[],
+  olderSettled: new Map<
+    EnvironmentId,
+    ReturnType<typeof import("~/state/threads").olderSettledThreads.olderSettledAtom>
+  >(),
   update:
     vi.fn<
       (request: {
@@ -78,6 +82,18 @@ vi.mock(import("~/state/entities"), async (original) => ({
   useThreadShells: () => [],
   waitForProjectRemoval: async () => true,
 }));
+vi.mock(import("~/state/threads"), async (original) => {
+  const actual = await original();
+  const { Atom } = await import("effect/reactivity");
+  const empty = Atom.make(null);
+  return {
+    ...actual,
+    olderSettledThreads: {
+      ...actual.olderSettledThreads,
+      olderSettledAtom: (id: EnvironmentId) => state.olderSettled.get(id) ?? empty,
+    },
+  };
+});
 vi.mock(import("~/state/projects"), async (original) => {
   const actual = await original();
   return {
@@ -170,6 +186,7 @@ function deferred<T>() {
 function setup() {
   vi.clearAllMocks();
   state.sessions.clear();
+  state.olderSettled.clear();
   for (const id of [primaryId, remoteId])
     state.sessions.set(id, Atom.make<SessionResult>(writable()).pipe(Atom.keepAlive));
   state.projects = [primaryId, remoteId].map((environmentId) => ({
@@ -391,6 +408,38 @@ describe("project settings permissions", () => {
     await vi.waitFor(() => expect(state.releaseUploads).toHaveBeenCalledOnce());
     expect(state.clearDraft).toHaveBeenCalledOnce();
     expect(screen.router.state.location.href).toBe(initialHref);
+  });
+
+  it("counts unloaded settled threads for the selected checkout and the whole group", async () => {
+    setup();
+    const before = "2026-01-01T00:00:00.000Z";
+    for (const [index, project] of state.projects.entries()) {
+      state.olderSettled.set(
+        project.environmentId,
+        Atom.make({
+          before,
+          beforeMs: Date.parse(before),
+          counts: new Map([
+            [project.id, index === 0 ? 7 : 11],
+            [ProjectId.make("unrelated"), 100],
+          ]),
+        }),
+      );
+    }
+    state.confirm.mockResolvedValue(false);
+    await using screen = await mountPanel();
+
+    await userEvent.click(removeCheckout(screen, "/work/primary"));
+    expect(state.confirm).toHaveBeenLastCalledWith(
+      expect.stringContaining('Remove checkout "Shared repo" and delete its 7 threads?'),
+      { variant: "destructive" },
+    );
+    await userEvent.click(removeAll(screen));
+    expect(state.confirm).toHaveBeenLastCalledWith(
+      expect.stringContaining('Remove project "Shared repo" and delete its 18 threads?'),
+      { variant: "destructive" },
+    );
+    expect(state.delete).not.toHaveBeenCalled();
   });
 
   it("rechecks every removal target after confirmation before deleting or clearing drafts", async () => {

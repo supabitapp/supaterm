@@ -11,6 +11,7 @@ import {
 } from "@supaterm/client-runtime/state/runtime";
 import { scopeProjectRef, scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { planProjectRemoval } from "@supaterm/client-runtime/state/projects";
+import { readUnloadedThreadCount } from "../../state/olderSettledShelf";
 import { AsyncResult } from "effect/reactivity";
 import {
   isProjectSymbolIcon,
@@ -339,6 +340,7 @@ function ProjectDetail({
       hasOtherMembers,
       displayName: group.displayName,
       threads,
+      unloadedThreadCount: readUnloadedThreadCount(members, threads),
     });
     const confirmed = await settlePromise(() =>
       api.dialogs.confirm(confirmationMessage, { variant: "destructive" }),
