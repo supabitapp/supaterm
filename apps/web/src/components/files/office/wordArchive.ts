@@ -19,7 +19,7 @@ const WORD_BUDGET = {
   mediaEntryBytes: 8 * 1024 * 1024,
 } as const;
 
-interface WordPreview {
+export interface WordPreview {
   documents: string[];
   truncated: boolean;
 }
