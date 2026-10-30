@@ -250,6 +250,7 @@ const knownProjectOverrideKeys = new Set(Object.keys(ProjectSettingsOverrides.fi
 
 const OVERRIDE_KEYS_OLDER_CLIENTS_OMIT = [
   "providerInstances",
+  "threadTitleInstructions",
   "reviewGuideModelSelection",
   "reviewGuideInstructions",
   "sidebarAutoMarkDoneKeepPullRequests",

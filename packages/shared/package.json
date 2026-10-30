@@ -526,6 +526,10 @@
     "./releaseResource": {
       "types": "./src/releaseResource.ts",
       "import": "./src/releaseResource.ts"
+    },
+    "./mobileSourceMaps": {
+      "types": "./src/mobileSourceMaps.ts",
+      "import": "./src/mobileSourceMaps.ts"
     }
   },
   "scripts": {

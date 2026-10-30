@@ -553,6 +553,7 @@ describe("serverSettings helpers", () => {
       "gpt-5.4",
     );
     const addedSinceV26_10_1 = {
+      threadTitleInstructions: "Keep titles concise",
       sidebarAutoMarkDoneKeepPullRequests: true,
     } satisfies ProjectSettingsOverrides;
     const rulesAddedSinceV26_10_1 = {
