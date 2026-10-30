@@ -1,3 +1,8 @@
+import {
+  addPreparingComposerImages,
+  isPreparingComposerImage,
+  removePreparingComposerImages,
+} from "./preparingComposerImages";
 import type { RefObject } from "react";
 import type { ChatComposerProps } from "./ChatComposer";
 import type { AttachmentExits } from "./composerAttachmentMotion";
@@ -68,7 +73,6 @@ export function useComposerAttachmentIntake(input: {
   readonly composerFilesRef: ChatComposerProps["composerFilesRef"];
   readonly composerEditorRef: RefObject<ComposerPromptEditorHandle | null>;
   readonly isRevertingCheckpointRef: RefObject<boolean>;
-  readonly pendingImageCompressionsRef: RefObject<Map<string, number>>;
   readonly setThreadError: ChatComposerProps["setThreadError"];
   readonly countReservedAttachments: () => number;
   readonly addComposerImage: (image: ComposerImageAttachment) => string[];
@@ -98,7 +102,6 @@ export function useComposerAttachmentIntake(input: {
     composerFilesRef,
     composerEditorRef,
     isRevertingCheckpointRef,
-    pendingImageCompressionsRef,
     setThreadError,
     countReservedAttachments,
     addComposerImage,
@@ -147,9 +150,8 @@ export function useComposerAttachmentIntake(input: {
         stripInlineContextReferences(promptRef.current).trim().length > 0);
 
     // Validation happens synchronously so concurrent pastes see each other:
-    // accepted files reserve their attachment slots (via the pending counter)
+    // accepted files reserve their attachment slots (as preparing images)
     // before the first await, keeping the total under the limit.
-    const pendingCount = pendingImageCompressionsRef.current.get(attachmentTargetKey) ?? 0;
     let reservedCount = countReservedAttachments();
     // A pick that matches a needs-reattach marker replaces it in the draft, so
     // it must not consume a slot; a draft full of markers would otherwise hit
@@ -242,81 +244,85 @@ export function useComposerAttachmentIntake(input: {
     }
     if (acceptedImages.length === 0) return insertedAny;
 
-    pendingImageCompressionsRef.current.set(
-      attachmentTargetKey,
-      pendingCount + acceptedImages.length,
-    );
+    const preparingImages = acceptedImages.map((file) => ({
+      id: randomUUID(),
+      name: file.name || "image",
+      file,
+    }));
+    addPreparingComposerImages(attachmentTargetKey, preparingImages);
     if (questionAttachmentTarget)
       changeQuestionAttachmentPreparation(questionAttachmentTarget, acceptedImages.length);
-    const compressAndStoreImages = async () => {
-      const nextImages: ComposerImageAttachment[] = [];
-      let compressionError: string | null = null;
-      for (const file of acceptedImages) {
-        const compressed = await prepareImageForAttachment(
-          file,
-          PROVIDER_SEND_TURN_MAX_IMAGE_BYTES,
+    const compressed: { id: string; file: File }[] = [];
+    const compressionErrors = new Map<string, string>();
+    for (const { id, file } of preparingImages) {
+      if (!isPreparingComposerImage(attachmentTargetKey, id)) continue;
+      const result = await prepareImageForAttachment(
+        file,
+        PROVIDER_SEND_TURN_MAX_IMAGE_BYTES,
+      ).catch(() => ({ ok: false, reason: "unreadable" }) as const);
+      if (!result.ok) {
+        compressionErrors.set(
+          id,
+          result.reason === "unreadable"
+            ? `'${file.name}' could not be read as an image.`
+            : `'${file.name}' is too large to attach, even after compression.`,
         );
-        if (!compressed.ok) {
-          compressionError =
-            compressed.reason === "unreadable"
-              ? `'${file.name}' could not be read as an image.`
-              : `'${file.name}' is too large to attach, even after compression.`;
-          continue;
-        }
-        const attachmentFile = compressed.file;
-        const previewUrl = URL.createObjectURL(attachmentFile);
-        nextImages.push({
-          type: "image",
-          id: randomUUID(),
-          name: attachmentFile.name || "image",
-          mimeType: attachmentFile.type,
-          sizeBytes: attachmentFile.size,
-          previewUrl,
-          file: attachmentFile,
-        });
+        continue;
       }
-      if (
-        questionAttachmentTarget &&
-        !useQuestionAttachmentPreparation.getState().counts[questionAttachmentTarget]
-      ) {
-        for (const image of nextImages) URL.revokeObjectURL(image.previewUrl);
-        return false;
-      }
-      const storedImageIds = new Set(
-        nextImages.length === 1 && nextImages[0]
-          ? addComposerImage(nextImages[0])
-          : nextImages.length > 1
-            ? addComposerImagesToDraft(nextImages)
-            : [],
-      );
-      const storedImages = nextImages.filter((image) => storedImageIds.has(image.id));
-      const insertedImageReferences =
-        storedImages.length > 0 &&
-        imageAttachmentsGetChips &&
-        insertAttachmentReferences(storedImages.map(imageContextReference));
-      // Only failures are reported here. Success must not pass `null`: by
-      // now other work (a failed send, an overlapping paste) may have set a
-      // thread error this call knows nothing about, and clearing it would
-      // swallow that message.
-      if (compressionError !== null) {
-        setThreadError(threadId, compressionError);
-      }
-      return insertedImageReferences || insertedAny;
-    };
-    return compressAndStoreImages().finally(() => {
-      if (questionAttachmentTarget)
-        changeQuestionAttachmentPreparation(questionAttachmentTarget, -acceptedImages.length);
-      const remaining =
-        (pendingImageCompressionsRef.current.get(attachmentTargetKey) ?? 0) - acceptedImages.length;
-      if (remaining > 0) {
-        pendingImageCompressionsRef.current.set(attachmentTargetKey, remaining);
-      } else {
-        pendingImageCompressionsRef.current.delete(attachmentTargetKey);
-      }
-    });
+      compressed.push({ id, file: result.file });
+    }
+    const questionDiscarded =
+      questionAttachmentTarget !== null &&
+      !useQuestionAttachmentPreparation.getState().counts[questionAttachmentTarget];
+    const stillPreparingIds = removePreparingComposerImages(
+      attachmentTargetKey,
+      new Set(preparingImages.map((image) => image.id)),
+    );
+    if (questionAttachmentTarget)
+      changeQuestionAttachmentPreparation(questionAttachmentTarget, -stillPreparingIds.size);
+    if (questionDiscarded) return false;
+    const nextImages: ComposerImageAttachment[] = compressed
+      .filter(({ id }) => stillPreparingIds.has(id))
+      .map(({ id, file }) => ({
+        type: "image",
+        id,
+        name: file.name || "image",
+        mimeType: file.type,
+        sizeBytes: file.size,
+        previewUrl: URL.createObjectURL(file),
+        file,
+      }));
+    const storedImageIds = new Set(
+      nextImages.length === 1 && nextImages[0]
+        ? addComposerImage(nextImages[0])
+        : nextImages.length > 1
+          ? addComposerImagesToDraft(nextImages)
+          : [],
+    );
+    const storedImages = nextImages.filter((image) => storedImageIds.has(image.id));
+    for (const image of nextImages) {
+      if (!storedImageIds.has(image.id)) URL.revokeObjectURL(image.previewUrl);
+    }
+    if (storedImages.length > 0 && imageAttachmentsGetChips) {
+      insertedAny =
+        insertAttachmentReferences(storedImages.map(imageContextReference)) || insertedAny;
+    }
+    const compressionError = [...compressionErrors]
+      .filter(([id]) => stillPreparingIds.has(id))
+      .map(([, message]) => message)
+      .at(-1);
+    if (compressionError !== undefined) {
+      setThreadError(threadId, compressionError);
+    }
+    return insertedAny;
   };
 
   const removeComposerImage = (imageId: string) => {
+    if (removePreparingComposerImages(attachmentTargetKey, new Set([imageId])).size > 0) {
+      if (questionAttachmentTarget)
+        changeQuestionAttachmentPreparation(questionAttachmentTarget, -1);
+      return;
+    }
     const image = composerImagesRef.current.find((candidate) => candidate.id === imageId);
     const remove = () => exitImage(imageId, () => removeComposerImageFromDraft(imageId));
     const referenced = collectInlineContextIds(promptRef.current).includes(

@@ -1,3 +1,6 @@
+import { ThreadNow } from "./chat/ThreadNow";
+import { useDelayedStatus } from "../hooks/useDelayedStatus";
+import { getUserQueuedThreadRuns } from "@supaterm/client-runtime/state/thread-workflows";
 import { ComposerContextPermissions } from "./ComposerContextPermissions";
 import { useStore } from "zustand";
 import { createChatCanvasStore, resolveChatCanvasModel } from "./chat/canvasStore";
@@ -367,7 +370,11 @@ import {
 import { useComposerHandleContext } from "../composerHandleContext";
 import { clampFileAttachmentUploadBytes } from "@supaterm/client-runtime/state/attachments";
 import { appAtomRegistry } from "../rpc/atomRegistry";
-import { enqueueThreadOutboxTurns, usePendingThreadCreation } from "../state/threadOutbox";
+import {
+  enqueueThreadOutboxTurns,
+  usePendingThreadCreation,
+  useThreadOutbox,
+} from "../state/threadOutbox";
 import { ThreadOutboxControl, type ThreadOutboxControlHandle } from "./chat/ThreadOutboxControl";
 import { assetEnvironment } from "../state/assets";
 import { readEnvironmentScope, readPreparedConnection } from "../state/session";
@@ -621,6 +628,8 @@ export default function ChatView(props: ChatViewProps) {
     status: threadStatus,
   });
   const threadDetailLoading = threadSyncPhase === "loading";
+  const delayedThreadSyncPhase = useDelayedStatus(routeThreadKey, threadSyncPhase);
+  const outboxTurns = useThreadOutbox();
   const activeProviderThread = serverProjection?.providerThreads.find(
     (thread) => thread.id === serverProjection.thread.activeProviderThreadId,
   );
@@ -2169,6 +2178,7 @@ export default function ChatView(props: ChatViewProps) {
     onTimelineAnchorReadyStable,
     onTimelineAnchorSizeChangedStable,
     onToolOutputCollapsedAtEndStable,
+    onTimelineFooterGrowStable,
     onIsAtEndChangeStable,
     anchorNewTurn,
   } = useTimelineFollow({
@@ -2621,9 +2631,6 @@ export default function ChatView(props: ChatViewProps) {
       : null;
   const composerBannerItems = ((): ComposerBannerStackItem[] => {
     const limitRecoveryItems = limitRecoveryBanner === null ? [] : [limitRecoveryBanner];
-    const backgroundWorkItems = [childInputBanner, goalBanner, backgroundWorkBanner].filter(
-      (item) => item !== null,
-    );
     const usageLimitsItems = usageLimitsBanner === null ? [] : [usageLimitsBanner];
     const projectCloneItems = projectCloneBannerItem === null ? [] : [projectCloneBannerItem];
     if (!localCheckoutBranchMismatch || !showBranchMismatchBanner || !activeBranchMismatchKey) {
@@ -2633,7 +2640,6 @@ export default function ChatView(props: ChatViewProps) {
         ...usageLimitsItems,
         ...projectCloneItems,
         ...systemComposerBannerItems,
-        ...backgroundWorkItems,
       ];
     }
     return [
@@ -2642,7 +2648,6 @@ export default function ChatView(props: ChatViewProps) {
       ...usageLimitsItems,
       ...projectCloneItems,
       ...systemComposerBannerItems,
-      ...backgroundWorkItems,
       branchMismatchBannerItem({
         mismatchKey: activeBranchMismatchKey,
         mismatch: localCheckoutBranchMismatch,
@@ -3017,6 +3022,45 @@ export default function ChatView(props: ChatViewProps) {
       ) : null}
     </>
   );
+  const hasQueuedTurns =
+    outboxTurns.some((entry) => entry.scope === routeThreadKey && entry.status !== "delivered") ||
+    (serverProjection !== null && getUserQueuedThreadRuns(serverProjection).length > 0) ||
+    optimisticUserMessages.some((message) => message.inputIntent === "queued_turn");
+  const shownThreadSyncPhase = activeEnvironmentUnavailable ? null : delayedThreadSyncPhase;
+  const hasThreadNow =
+    childInputBanner !== null ||
+    backgroundWorkBanner !== null ||
+    goalBanner !== null ||
+    shownThreadSyncPhase !== null;
+  const timelineFooter =
+    !hasThreadNow &&
+    !hasQueuedTurns &&
+    pendingHandoff === null &&
+    threadStatusLine === null &&
+    guestPendingMessages === null ? null : (
+      <>
+        {pendingHandoff === null ? null : (
+          <div className="chat-content-lane">
+            <HandoffRow
+              environmentId={environmentId}
+              endpoints={pendingHandoff}
+              providers={providerStatuses}
+              pending
+            />
+          </div>
+        )}
+        <ThreadNow
+          key={routeThreadKey}
+          attention={childInputBanner}
+          work={backgroundWorkBanner}
+          goal={goalBanner}
+          syncPhase={shownThreadSyncPhase}
+        />
+        {threadStatusLine}
+        {guestPendingMessages}
+        {hasQueuedTurns ? queuedRunsControl : null}
+      </>
+    );
   const workLocallyResendReady =
     workLocallyResendDraftId !== null &&
     workLocallyResendDraftId === draftId &&
@@ -3488,27 +3532,8 @@ export default function ChatView(props: ChatViewProps) {
                       : {})}
                     {...(onOpenWorktreeSetupTerminal ? { onOpenWorktreeSetupTerminal } : {})}
                     isPreparingWorktree={!paintOnlyDisplayedTimeline && isPreparingWorktree}
-                    footer={
-                      paintOnlyDisplayedTimeline ? null : pendingHandoff === null ? (
-                        <>
-                          {guestPendingMessages}
-                          {threadStatusLine}
-                        </>
-                      ) : (
-                        <>
-                          <div className="chat-content-lane">
-                            <HandoffRow
-                              environmentId={environmentId}
-                              endpoints={pendingHandoff}
-                              providers={providerStatuses}
-                              pending
-                            />
-                          </div>
-                          {guestPendingMessages}
-                          {threadStatusLine}
-                        </>
-                      )
-                    }
+                    footer={paintOnlyDisplayedTimeline ? null : timelineFooter}
+                    onFooterGrow={onTimelineFooterGrowStable}
                     listRef={legendListRef}
                     runs={paintOnlyDisplayedTimeline ? [] : (serverProjection?.runs ?? [])}
                     latestRun={paintOnlyDisplayedTimeline ? null : activeActivityRun}
@@ -3731,7 +3756,6 @@ export default function ChatView(props: ChatViewProps) {
                                       ? composerContextStrip
                                       : null
                                   }
-                                  queuedRunsControl={queuedRunsControl}
                                   bannerItems={composerBannerItems}
                                   onUsageLimitsCommand={
                                     usageLimitsOffered &&
@@ -3760,9 +3784,7 @@ export default function ChatView(props: ChatViewProps) {
                                   activePendingDraftAnswers={activePendingDraftAnswers}
                                   activePendingQuestionIndex={activePendingQuestionIndex}
                                   respondingRequestIds={respondingRequestIds}
-                                  threadSyncPhase={
-                                    activeEnvironmentUnavailable ? null : threadSyncPhase
-                                  }
+                                  threadSyncPhase={null}
                                   runtimeMode={runtimeMode}
                                   defaultRuntimeMode={defaultRuntimeMode}
                                   permissionsShownInStrip={

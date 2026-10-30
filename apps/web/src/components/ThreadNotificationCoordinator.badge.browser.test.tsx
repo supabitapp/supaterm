@@ -16,10 +16,17 @@ const state = vi.hoisted(() => ({
   badge: vi.fn(),
   listeners: new Set<() => void>(),
 }));
-vi.mock(import("./ui/toast"), () => ({ toastManager: { add: state.toast, close: vi.fn() } }));
-vi.mock(import("../state/shell"), () => ({
-  environmentShell: { stateValueAtom: (id: string) => shellAtom(id) },
-}));
+vi.mock(
+  import("./ui/toast"),
+  () => ({ toastManager: { add: state.toast, close: vi.fn() } }) as never,
+);
+vi.mock(
+  import("../state/shell"),
+  () =>
+    ({
+      environmentShell: { stateValueAtom: (id: string) => shellAtom(id) },
+    }) as never,
+);
 vi.mock(import("../state/presentation"), async () => {
   const { Atom } = await import("effect/reactivity");
   return { environmentSummaries: { environmentIdsAtom: Atom.make(["one", "two"]) } } as never;
@@ -33,16 +40,20 @@ vi.mock(import("../state/threads"), async () => {
     },
   } as never;
 });
-vi.mock(import("../hooks/useSettings"), () => ({
-  getClientSettings: () => ({
-    notificationMode: state.mode,
-    inAppNotificationsEnabled: state.inApp,
-  }),
-  subscribeClientSettings: (callback: () => void) => {
-    state.listeners.add(callback);
-    return () => state.listeners.delete(callback);
-  },
-}));
+vi.mock(
+  import("../hooks/useSettings"),
+  () =>
+    ({
+      getClientSettings: () => ({
+        notificationMode: state.mode,
+        inAppNotificationsEnabled: state.inApp,
+      }),
+      subscribeClientSettings: (callback: () => void) => {
+        state.listeners.add(callback);
+        return () => state.listeners.delete(callback);
+      },
+    }) as never,
+);
 vi.mock(import("../threadNotifications"), async (original) => ({
   ...(await original()),
   playNotificationSound: state.sound,

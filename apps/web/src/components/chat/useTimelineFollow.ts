@@ -281,6 +281,9 @@ export function useTimelineFollow(input: TimelineFollowInput) {
     });
   };
   const scrollToEndStable = useStableCallback(scrollToEnd);
+  const onTimelineFooterGrowStable = useStableCallback(() => {
+    if (timelineScrollModeRef.current === "following-end") scrollToEndStable();
+  });
   const scrollConversation = (direction: 1 | -1) => {
     const node = legendListRef.current?.getScrollableNode();
     if (!(node instanceof HTMLElement)) return false;
@@ -524,6 +527,7 @@ export function useTimelineFollow(input: TimelineFollowInput) {
     onTimelineAnchorReadyStable,
     onTimelineAnchorSizeChangedStable,
     onToolOutputCollapsedAtEndStable,
+    onTimelineFooterGrowStable,
     onIsAtEndChangeStable,
     anchorNewTurn,
   };

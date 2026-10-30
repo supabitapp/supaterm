@@ -1,3 +1,4 @@
+import { useDeferredWorkLoading } from "./useDeferredWorkLoading";
 import { AudioPreviewUnmountContext } from "../files/AudioPreview";
 import { threadEnvironment } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
@@ -161,14 +162,28 @@ const TIMELINE_LIST_FADE_HEADER = (
 );
 function TimelineListFooter({
   composerInset,
+  onGrow,
   children,
 }: {
   readonly composerInset: number;
+  readonly onGrow?: (() => void) | undefined;
   readonly children?: ReactNode;
 }) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Footer growth is outside the virtual list's item measurements; notify its follow controller after DOM resize.
+  useLayoutEffect(() => {
+    const element = contentRef.current;
+    if (!element || !onGrow) return;
+    let height = element.offsetHeight;
+    return observeResize(element, () => {
+      const next = element.offsetHeight;
+      if (next > height) onGrow();
+      height = next;
+    });
+  }, [onGrow]);
   return (
     <div>
-      {children}
+      <div ref={contentRef}>{children}</div>
       <div aria-hidden style={{ height: composerInset }} />
       <div aria-hidden className="h-3 sm:h-4" />
     </div>
@@ -283,6 +298,7 @@ interface MessagesTimelineProps {
   onToolOutputCollapsedAtEnd?: () => void;
   onManualNavigation?: () => void;
   onViewportAttach?: (viewport: TimelineViewport) => () => void;
+  onFooterGrow?: () => void;
   findOpen?: boolean;
   cancelPositionRestoreRef?: React.RefObject<(() => void) | null> | undefined;
   hideEmptyPlaceholder?: boolean;
@@ -389,6 +405,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   onToolOutputCollapsedAtEnd,
   onManualNavigation = NOOP_MESSAGE_JUMP_FAILED,
   onViewportAttach,
+  onFooterGrow,
   cancelPositionRestoreRef,
   hideEmptyPlaceholder = false,
   loading = false,
@@ -1238,7 +1255,10 @@ const ConversationTimeline = memo(function ConversationTimeline({
   );
   const listExtraData = { identity: listIdentityKey, rowCount: rows.length, sharedState };
   const timelineListFooter = (
-    <TimelineListFooter composerInset={anchoredEndSpace ? 0 : contentInsetEndAdjustment}>
+    <TimelineListFooter
+      composerInset={anchoredEndSpace ? 0 : contentInsetEndAdjustment}
+      onGrow={onFooterGrow}
+    >
       {footer}
       {unmatchedPendingApprovals.size > 0 ? (
         <TimelineRowCtx value={sharedState}>
@@ -1572,45 +1592,6 @@ function ContextCompactionTimelineRow({
   );
 }
 
-function useDeferredWorkLoading(
-  row: { expanded: boolean; deferredWorkItemIds?: ReadonlyArray<string> },
-  onToggle: () => void,
-) {
-  const ctx = use(TimelineRowCtx);
-  const loadWork = useAtomCommand(threadEnvironment.loadEarlierHistory, { reportFailure: false });
-  const ref = parseScopedThreadKey(ctx.routeThreadKey);
-  const environmentId = ref?.environmentId;
-  const threadId = ref?.threadId;
-  const anchorsKey = row.deferredWorkItemIds?.join("\n") ?? "";
-  const [failed, setFailed] = useState(false);
-  const load = () => {
-    if (!anchorsKey || environmentId === undefined || threadId === undefined) return;
-    void Promise.all(
-      anchorsKey
-        .split("\n")
-        .map((workAnchorId) => loadWork({ environmentId, input: { threadId, workAnchorId } })),
-    ).then((results) =>
-      setFailed(
-        results.some((result) => result._tag === "Failure" || result.value._tag === "error"),
-      ),
-    );
-  };
-  const loadOnExpand = useEffectEvent(load);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Restored expanded folds load their deferred server history on mount.
-  useEffect(() => {
-    if (row.expanded && anchorsKey && environmentId && threadId) loadOnExpand();
-  }, [row.expanded, anchorsKey, environmentId, threadId]);
-  const error = anchorsKey && failed ? "Couldn't load work. Click to retry." : null;
-  const loading = ref !== null && row.expanded && anchorsKey !== "" && !failed;
-  const toggle = () => {
-    setFailed(false);
-    if (error && row.expanded) load();
-    else onToggle();
-  };
-
-  return { loading, error, toggle };
-}
-
 function WorkHistorySkeleton() {
   return (
     <div role="status" aria-label="Loading work history" className="space-y-2 px-1 pb-1 pt-3">
@@ -1629,8 +1610,10 @@ function WorkHistorySkeleton() {
 
 function TurnFoldTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "turn-fold" }> }) {
   const ctx = use(TimelineRowCtx);
-  const { loading, error, toggle } = useDeferredWorkLoading(row, () =>
-    ctx.onToggleTurnFold(row.runId),
+  const { loading, error, toggle } = useDeferredWorkLoading(
+    parseScopedThreadKey(ctx.routeThreadKey),
+    row,
+    () => ctx.onToggleTurnFold(row.runId),
   );
 
   return (
@@ -1663,8 +1646,10 @@ function TurnFoldTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "turn-
 
 function AttemptFoldTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "attempt-fold" }> }) {
   const ctx = use(TimelineRowCtx);
-  const { loading, error, toggle } = useDeferredWorkLoading(row, () =>
-    ctx.onToggleAttemptFold(row.attemptId),
+  const { loading, error, toggle } = useDeferredWorkLoading(
+    parseScopedThreadKey(ctx.routeThreadKey),
+    row,
+    () => ctx.onToggleAttemptFold(row.attemptId),
   );
 
   return (

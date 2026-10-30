@@ -348,7 +348,7 @@ export function ComposerBannerStack({ className, items }: ComposerBannerStackPro
   );
 }
 
-function NoticeText({
+export function NoticeText({
   children,
   className,
   detailsLabel,
