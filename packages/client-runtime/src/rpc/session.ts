@@ -148,9 +148,7 @@ function socketFailureLocation(via: "relay" | "direct") {
   return { hop: via === "relay" ? "tunnel" : "server", via } as const;
 }
 
-export const make = Effect.fn("RpcSessionFactory.make")(function* (
-  options: RpcSessionOptions = {},
-) {
+const make = Effect.fn("RpcSessionFactory.make")(function* (options: RpcSessionOptions = {}) {
   const webSocketConstructor = yield* Socket.WebSocketConstructor;
   const serverConfigInput: ServerConfigSubscriptionInput =
     options.environmentThemes === true ? { environmentThemes: true } : {};

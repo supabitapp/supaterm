@@ -400,7 +400,7 @@ const registerSshConnection = Effect.fn(
   return registration.target.environmentId;
 });
 
-export const make = Effect.gen(function* () {
+const make = Effect.gen(function* () {
   const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
   const presentation = yield* ClientCapabilities.ClientPresentation;
   const httpClient = yield* HttpClient.HttpClient;
