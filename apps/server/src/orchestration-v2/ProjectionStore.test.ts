@@ -6302,6 +6302,9 @@ it.effect(
         "running",
         "waiting",
         "completed",
+        "failed",
+        "interrupted",
+        "cancelled",
         "rolled_back",
       ] as const) {
         yield* sql`UPDATE orchestration_v2_projection_runs
@@ -6309,9 +6312,21 @@ it.effect(
         WHERE run_id = ${runId}`;
         const projection = yield* store.getThreadProjection(threadId);
         const shell = yield* store.getThreadShell(threadId);
-        const terminal = status === "completed" || status === "rolled_back";
-        for (const item of [shell, ProjectionStore.threadShellFromProjection(projection)]) {
-          assert.equal(item?.pendingRuntimeRequest?.id, terminal ? requestId : "secret:b");
+        const terminal =
+          status === "completed" ||
+          status === "failed" ||
+          status === "interrupted" ||
+          status === "cancelled" ||
+          status === "rolled_back";
+        for (const [source, item] of [
+          ["SQL", shell],
+          ["memory", ProjectionStore.threadShellFromProjection(projection)],
+        ] as const) {
+          assert.equal(
+            item?.pendingRuntimeRequest?.id,
+            terminal ? requestId : "secret:b",
+            `${source} shell for ${status} run`,
+          );
           assert.equal(item?.pendingRuntimeRequest?.blocking, !terminal);
         }
       }

@@ -1652,12 +1652,7 @@ export function threadShellFromProjection(
     pendingRuntimeRequest =
       secretRequestAsPendingInput(
         projection.turnItems
-          .filter(
-            (item) =>
-              (item.type === "secret_request"
-                ? item.status === "pending"
-                : item.status === "waiting") && waitsOnUser(item, liveRunIds),
-          )
+          .filter((item) => item.status === "waiting" && waitsOnUser(item, liveRunIds))
           .toSorted(
             (left, right) =>
               DateTime.toEpochMillis(right.updatedAt) - DateTime.toEpochMillis(left.updatedAt),
