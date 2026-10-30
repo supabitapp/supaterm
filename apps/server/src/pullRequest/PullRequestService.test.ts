@@ -1416,6 +1416,7 @@ it.effect("checks and deletes a branch inside one verified credential", () =>
               calls.push(`permissions pinned=${pinned}`);
               return {
                 actions: [],
+                deleteBranch: true,
                 comment: true,
                 resolve: true,
                 verdicts: [],
