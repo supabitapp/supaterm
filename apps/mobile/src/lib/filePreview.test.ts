@@ -473,6 +473,7 @@ describe("ThreadInlineFilePreview playback", () => {
           createElement(ThreadFeed, {
             environmentId,
             threadId,
+            detailRef: { environmentId, threadId },
             creatingThread: false,
             agentLabel: "Agent",
             threadTitle: "preview",
@@ -1411,6 +1412,7 @@ describe("ThreadFeed previews", () => {
         createElement(ThreadFeed, {
           environmentId,
           threadId,
+          detailRef: { environmentId, threadId },
           creatingThread: false,
           agentLabel: "Agent",
           threadTitle: "preview",
