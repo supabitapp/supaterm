@@ -339,7 +339,7 @@ const config: ExpoConfig = {
       "expo-audio",
       {
         microphonePermission: "Allow Supaterm to use your microphone for voice input.",
-        recordAudioAndroid: false,
+        recordAudioAndroid: true,
         enableBackgroundPlayback: false,
         enableBackgroundRecording: false,
       },

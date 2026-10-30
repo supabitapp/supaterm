@@ -1,11 +1,11 @@
 import { RegistryContext, useAtomMount } from "@effect/atom-react";
 import {
   AudioModule,
-  RecordingPresets,
+  AudioQuality,
+  IOSOutputFormat,
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
   setIsAudioActiveAsync,
-  type RecordingStatus,
 } from "expo-audio";
 import { File } from "expo-file-system";
 import * as Haptics from "expo-haptics";
@@ -29,6 +29,7 @@ import {
   preferredMicrophoneInput,
   rememberMicrophones,
 } from "../../lib/microphonePriority";
+import { createPcmVoiceRecorder } from "../../native/pcmVoiceRecorder";
 import { getLocalVoiceTranscriber } from "../../native/voiceTranscription";
 import { mobilePreferencesAtom, updateMobilePreferencesAtom } from "../../state/preferences";
 import { getNativeShowcaseScene } from "../showcase/nativeShowcaseScene";
@@ -37,24 +38,37 @@ import {
   voiceInputBlocksSubmission,
   type VoiceInputState,
 } from "@supaterm/client-runtime/voice-input";
-import { createLazyVoiceRecorder } from "./lazyVoiceRecorder";
+import {
+  createLazyVoiceRecorder,
+  type NativeVoiceRecorder,
+  type VoiceRecordingState,
+  type VoiceRecordingStatusEvent,
+} from "./lazyVoiceRecorder";
 import { normalizeVoiceInputDecibels, VOICE_WAVEFORM_SAMPLE_COUNT } from "./voiceInputMetering";
 import { VoiceInputSession } from "./voiceInputSession";
 
 const INITIAL_STATE: VoiceInputState = { phase: "idle", error: null, errorAction: null };
 const VOICE_METERING_INTERVAL_MS = 80;
-// The native constructor takes platform-flattened options, as `useAudioRecorder`
-// builds them with expo-audio's internal `createRecordingOptions`.
-const { ios: IOS_RECORDING_OPTIONS, android: ANDROID_RECORDING_OPTIONS } =
-  RecordingPresets.HIGH_QUALITY;
-const VOICE_RECORDING_OPTIONS = {
-  extension: RecordingPresets.HIGH_QUALITY.extension,
-  sampleRate: RecordingPresets.HIGH_QUALITY.sampleRate,
-  numberOfChannels: RecordingPresets.HIGH_QUALITY.numberOfChannels,
-  bitRate: RecordingPresets.HIGH_QUALITY.bitRate,
+// The format environments transcribe, which Apple's on-device transcriber reads too. The
+// native constructor takes the platform-flattened options `useAudioRecorder` would build.
+const IOS_VOICE_RECORDING_OPTIONS = {
+  extension: ".wav",
+  sampleRate: 16_000,
+  numberOfChannels: 1,
+  bitRate: 256_000,
   isMeteringEnabled: true,
-  ...(Platform.OS === "ios" ? IOS_RECORDING_OPTIONS : ANDROID_RECORDING_OPTIONS),
+  outputFormat: IOSOutputFormat.LINEARPCM,
+  audioQuality: AudioQuality.HIGH,
+  linearPCMBitDepth: 16,
+  linearPCMIsBigEndian: false,
+  linearPCMIsFloat: false,
 };
+
+const createNativeVoiceRecorder =
+  Platform.OS === "ios"
+    ? (): NativeVoiceRecorder<VoiceRecordingStatusEvent, VoiceRecordingState> =>
+        new AudioModule.AudioRecorder(IOS_VOICE_RECORDING_OPTIONS)
+    : createPcmVoiceRecorder;
 
 async function releaseVoiceRecordingAudio(): Promise<void> {
   try {
@@ -123,8 +137,11 @@ function useVoiceInputRuntime() {
   const audioLevels = useSharedValue(initialAudioLevels);
   const [{ session, recorder }] = useState(() => {
     const recorder = createLazyVoiceRecorder({
-      create: () => new AudioModule.AudioRecorder(VOICE_RECORDING_OPTIONS),
-      onStatus: (status: RecordingStatus) => {
+      create: () => {
+        if (!createNativeVoiceRecorder) throw new Error("This device can't record voice input.");
+        return createNativeVoiceRecorder();
+      },
+      onStatus: (status: VoiceRecordingStatusEvent) => {
         session.controller.handleRecorderStatus({
           isFinished: status.isFinished,
           hasError: status.hasError || status.mediaServicesDidReset === true,
