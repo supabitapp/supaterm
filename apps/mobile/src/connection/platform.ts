@@ -17,9 +17,6 @@ import { AppState } from "react-native";
 
 import { authClientMetadata } from "../lib/authClientMetadata";
 import * as Runtime from "../lib/runtime";
-import { clearThreadOutboxEnvironment } from "../state/thread-outbox-removal";
-import { clearComposerDraftsEnvironment } from "../state/use-composer-drafts";
-import { clearThreadComposerErrorsForEnvironment } from "../state/thread-composer-error";
 import { mobileApplicationStateWakeup } from "./app-state-wakeups";
 import * as ConnectionStorage from "./storage";
 
@@ -193,9 +190,19 @@ const layerEnvironmentOwnedDataCleanup = Layer.succeed(
     clear: (environmentId) =>
       Effect.all(
         [
-          Effect.promise(() => clearThreadOutboxEnvironment(environmentId)),
-          Effect.promise(() => clearComposerDraftsEnvironment(environmentId)),
-          Effect.sync(() => clearThreadComposerErrorsForEnvironment(environmentId)),
+          Effect.promise(async () => {
+            const { clearThreadOutboxEnvironment } = await import("../state/thread-outbox-removal");
+            await clearThreadOutboxEnvironment(environmentId);
+          }),
+          Effect.promise(async () => {
+            const { clearComposerDraftsEnvironment } = await import("../state/use-composer-drafts");
+            await clearComposerDraftsEnvironment(environmentId);
+          }),
+          Effect.promise(async () => {
+            const { clearThreadComposerErrorsForEnvironment } =
+              await import("../state/thread-composer-error");
+            clearThreadComposerErrorsForEnvironment(environmentId);
+          }),
         ],
         { concurrency: "unbounded", discard: true },
       ).pipe(
