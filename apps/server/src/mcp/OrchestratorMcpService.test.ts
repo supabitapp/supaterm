@@ -1,3 +1,4 @@
+import * as RemoteDelegation from "../peer/RemoteDelegation.ts";
 import * as DelegatedTaskModes from "./delegatedTaskModes.ts";
 import * as SecretRequests from "../secrets/SecretRequests.ts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -64,6 +65,7 @@ import type * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAd
 const decodeTarget = Schema.decodeUnknownEffect(OrchestratorMcpTarget);
 
 const layerOrchestratorService = OrchestratorMcpService.layer.pipe(
+  Layer.provide(Layer.mock(RemoteDelegation.RemoteDelegation)({})),
   Layer.provide(Layer.mock(SecretRequests.SecretRequests)({})),
   Layer.provide(Layer.mock(ThreadLaunchService.ThreadLaunchService)({})),
   Layer.provide(Layer.mock(GitVcsDriver.GitVcsDriver)({})),
@@ -2651,6 +2653,7 @@ describe("OrchestratorMcpService private secret files", () => {
               .slice(-1),
           }) as unknown as OrchestrationV2ThreadProjection;
         const layer = OrchestratorMcpService.layer.pipe(
+          Layer.provide(Layer.mock(RemoteDelegation.RemoteDelegation)({})),
           Layer.provide(
             Layer.mergeAll(
               NodeServices.layer,
@@ -2813,5 +2816,159 @@ describe("OrchestratorMcpService private secret files", () => {
         assert.equal(files.length, 0);
       }),
     ),
+  );
+});
+
+describe("OrchestratorMcpService thread list", () => {
+  const client: McpInvocationScope = {
+    environmentId: EnvironmentId.make("environment:thread-list"),
+    requestNamespace: "client:thread-list",
+    thread: undefined,
+    client: { sessionId: "thread-list", label: "Claude Code", access: "full-access" },
+    capabilities: new Set(["orchestration"]),
+    issuedAt: 1,
+  };
+  const shell = (id: string, projectId: string, snoozed: boolean) => ({
+    ...liveThreadShell(ThreadId.make(id)),
+    projectId: ProjectId.make(projectId),
+    status: "completed" as const,
+    snoozedUntil: snoozed ? DateTime.makeUnsafe("2099-01-01T00:00:00Z") : null,
+  });
+  const shells = [
+    shell("thread:a-snoozed", "project:a", true),
+    shell("thread:a-awake", "project:a", false),
+    shell("thread:b-snoozed", "project:b", true),
+  ];
+  const service = layerOrchestratorService.pipe(
+    Layer.provide(
+      Layer.mergeAll(
+        NodeServices.layer,
+        Layer.mock(ThreadManagementService.ThreadManagementService)({
+          listProjectThreads: (input) =>
+            Effect.succeed(
+              shells.filter(
+                (thread) => input.projectId === undefined || thread.projectId === input.projectId,
+              ),
+            ),
+        }),
+        ServerSettings.layerTest(),
+        Layer.mock(ProviderRegistry.ProviderRegistry)({ getProviders: Effect.succeed([]) }),
+        Layer.mock(ProviderAdapterRegistry.ProviderAdapterRegistryV2)({
+          list: () => Effect.succeed([]),
+        }),
+        Layer.mock(ProjectService.ProjectService)({}),
+        Layer.mock(SecretRequests.SecretRequests)({}),
+        Layer.mock(RemoteDelegation.RemoteDelegation)({}),
+        Layer.mock(ScheduledTaskService.ScheduledTaskService)({}),
+      ),
+    ),
+  );
+
+  it.effect("lists snoozed threads across every project with allProjects", () =>
+    Effect.gen(function* () {
+      const mcp = yield* OrchestratorMcpService.OrchestratorMcpService;
+      const listed = yield* mcp.listThreads(client, {
+        allProjects: true,
+        projectId: ProjectId.make("project:a"),
+        snoozed: true,
+      });
+      assert.equal(listed.projectId, null);
+      assert.deepStrictEqual(
+        listed.threads.map((thread) => [thread.threadId, thread.projectId]),
+        [
+          ["thread:a-snoozed", "project:a"],
+          ["thread:b-snoozed", "project:b"],
+        ],
+      );
+    }).pipe(Effect.provide(service)),
+  );
+});
+
+describe("OrchestratorMcpService remote results", () => {
+  it.effect.each(["delegated", "recovered"] as const)(
+    "keeps the remote identity and selection in %s results",
+    (phase) =>
+      Effect.gen(function* () {
+        const scope: McpInvocationScope = {
+          environmentId: EnvironmentId.make("local-env"),
+          requestNamespace: "remote-result",
+          thread: {
+            threadId: ThreadId.make("parent-thread"),
+            providerSessionId: "provider",
+            providerInstanceId: ProviderInstanceId.make("codex"),
+          },
+          client: undefined,
+          capabilities: new Set(["orchestration"]),
+          issuedAt: 0,
+        };
+        const taskId = NodeId.make("remote-task");
+        const modelSelection = {
+          instanceId: ProviderInstanceId.make("remote-provider"),
+          model: "remote-model",
+          options: [{ id: "reasoningEffort", value: "max" }],
+        };
+        const task = {
+          id: taskId,
+          threadId: scope.thread!.threadId,
+          origin: "app_owned",
+          childThreadId: null,
+          remoteChild: {
+            environmentId: EnvironmentId.make("remote-env"),
+            threadId: ThreadId.make("remote-thread"),
+            label: "Remote",
+          },
+          status: phase === "recovered" ? "completed" : "running",
+          result: phase === "recovered" ? "Recovered result" : null,
+          providerInstanceId: modelSelection.instanceId,
+          model: modelSelection.model,
+          modelSelection,
+        };
+        const result = yield* OrchestratorMcpService.OrchestratorMcpService.pipe(
+          Effect.flatMap((mcp) =>
+            phase === "recovered"
+              ? mcp.taskStatus(scope, taskId)
+              : mcp.delegateTask(scope, {
+                  task: "Review",
+                  target: { environmentId: EnvironmentId.make("remote-env") },
+                  mode: "async",
+                }),
+          ),
+          Effect.provide(
+            OrchestratorMcpService.layer.pipe(
+              Layer.provide(
+                Layer.mergeAll(
+                  NodeServices.layer,
+                  ServerSettings.layerTest(),
+                  Layer.mock(RemoteDelegation.RemoteDelegation)({
+                    delegate: () => Effect.succeed({ taskId }),
+                  }),
+                  Layer.mock(SecretRequests.SecretRequests)({}),
+                  Layer.mock(ThreadLaunchService.ThreadLaunchService)({}),
+                  Layer.mock(GitVcsDriver.GitVcsDriver)({}),
+                  Layer.mock(ProviderRegistry.ProviderRegistry)({}),
+                  Layer.mock(ProviderAdapterRegistry.ProviderAdapterRegistryV2)({}),
+                  Layer.mock(ProjectService.ProjectService)({}),
+                  Layer.mock(ScheduledTaskService.ScheduledTaskService)({}),
+                  Layer.mock(ThreadManagementService.ThreadManagementService)({
+                    getThreadRecords: () =>
+                      Effect.succeed({
+                        thread: liveThreadShell(scope.thread!.threadId),
+                        runs: [],
+                        subagents: [task],
+                        contextTransfers: [],
+                      } as unknown as OrchestrationV2ThreadProjection),
+                    dispatch: () => Effect.succeed({} as never),
+                  }),
+                ),
+              ),
+            ),
+          ),
+        );
+        assert.equal(result.link, "<supaterm-thread://v2/remote-env/remote-thread>");
+        assert.equal(result.providerInstanceId, modelSelection.instanceId);
+        assert.equal(result.model, modelSelection.model);
+        assert.deepEqual(result.options, modelSelection.options);
+        assert.equal(result.summary, task.result);
+      }),
   );
 });

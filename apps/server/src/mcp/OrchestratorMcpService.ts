@@ -1,3 +1,4 @@
+import { formatThreadLink } from "@supaterm/shared/threadLinks";
 import { isLiveCallerShell, threadNotFound } from "./threadAccess.ts";
 import { resolveRuntimeMode, resolveInteractionMode, taskPrompt } from "./delegatedTaskModes.ts";
 export { taskPrompt } from "./delegatedTaskModes.ts";
@@ -1690,7 +1691,15 @@ const make = Effect.gen(function* () {
     return {
       taskId: task.id,
       childThreadId: null,
-      ...(task.remoteChild === undefined ? {} : { remoteChild: task.remoteChild }),
+      ...(task.remoteChild === undefined
+        ? {}
+        : {
+            remoteChild: task.remoteChild,
+            link: formatThreadLink({
+              environmentId: task.remoteChild.environmentId,
+              threadId: task.remoteChild.threadId,
+            }),
+          }),
       childRunId: null,
       childNodeId: task.id,
       status,
@@ -2964,12 +2973,16 @@ const make = Effect.gen(function* () {
             type: "thread.stop",
             commandId,
             threadId: input.threadId,
-            ...(input.reason === undefined ? {} : { reason: input.reason }),
+            reason: agentStopReason(input.reason),
           })
           .pipe(Effect.catch(stopFailed));
         // A retry with the same clientRequestId repeats only the stops that failed.
         yield* threadManagement
-          .stopDelegatedTasks({ threadId: input.threadId, commandId, reason: input.reason })
+          .stopDelegatedTasks({
+            threadId: input.threadId,
+            commandId,
+            reason: agentStopReason(input.reason),
+          })
           .pipe(Effect.catch(stopFailed));
         // The run this stop interrupted, from its own events, so a retry
         // reports the same run even if another has started since. Stop also
