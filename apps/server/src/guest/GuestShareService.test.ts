@@ -261,6 +261,32 @@ it.effect("spends an invite once and ends the guest stream when the owner stops 
   }).pipe(Effect.provide(layerTest)),
 );
 
+it.effect.each(["replace", "thread.archive", "thread.delete"] as const)(
+  "ends a prepared guest stream on %s without exposing a replacement share",
+  (termination) =>
+    Effect.gen(function* () {
+      const { orchestrator, guestShares, credential } = yield* shareThread;
+      const { token: session, shareId } = yield* guestShares.redeem({ credential, name: "Sam" });
+      const events = yield* guestShares.stream(session);
+      if (termination === "replace") {
+        yield* guestShares.create({ threadId, guestPageUrl: GUEST_PAGE_URL });
+      } else {
+        yield* orchestrator.dispatch({
+          type: termination,
+          commandId: CommandId.make(`end-stream:${termination}`),
+          threadId,
+        });
+      }
+      const received = Array.from(yield* Stream.runCollect(events));
+      assert.equal(received.at(-1)?.type, "ended");
+      assert.deepEqual(
+        received.flatMap((event) => (event.type === "view" ? [event.view.shareId] : [])),
+        [shareId],
+      );
+      assert.isTrue(Exit.isFailure(yield* Effect.exit(guestShares.check(session))));
+    }).pipe(Effect.provide(layerTest)),
+);
+
 it.effect("counts a guest joining and sending, without their name or text", () =>
   Effect.gen(function* () {
     const { guestShares, credential } = yield* shareThread;

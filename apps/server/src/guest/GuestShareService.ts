@@ -476,6 +476,17 @@ const make = Effect.gen(function* () {
     Effect.scoped,
     Effect.ignore(),
   );
+  const untilSharingPaused = Effect.fn("GuestShareService.untilSharingPaused")(function* (
+    host: string,
+  ) {
+    const changes = yield* serverSettings.subscribeChanges;
+    yield* Stream.fromEffect(sharingEnabled).pipe(
+      Stream.concat(changes.pipe(Stream.map((settings) => settings.guestSharingEnabled))),
+      Stream.merge(relay.advertisements.pipe(Stream.map((value) => value?.relayEndpoint === host))),
+      Stream.filter((available) => !available),
+      Stream.runHead,
+    );
+  }, Effect.scoped);
   const sentImageReplies = new Map<
     GuestShareId,
     { openStreams: number; readonly replies: Map<string, SentReply> }
@@ -557,8 +568,10 @@ const make = Effect.gen(function* () {
         Stream.flattenIterable,
         Stream.catchCause(() => Stream.empty),
       );
-    const untilExpiry = Effect.sleep(
-      Math.max(0, Date.parse(share.expiresAt) - DateTime.toEpochMillis(yield* DateTime.now)),
+    const untilExpiry = DateTime.now.pipe(
+      Effect.flatMap((now) =>
+        Effect.sleep(Math.max(0, Date.parse(share.expiresAt) - DateTime.toEpochMillis(now))),
+      ),
     );
     const openingSnapshot = buildBoundedThreadStreamSnapshot({
       snapshotSequence: snapshot.snapshotSequence,
@@ -575,7 +588,7 @@ const make = Effect.gen(function* () {
         }),
       ),
       Stream.takeUntil((event) => event.type === "ended"),
-      Stream.interruptWhen(untilRevoked(session)),
+      Stream.interruptWhen(untilSharingPaused(share.host)),
     );
     return Stream.unwrap(
       Effect.acquireRelease(
