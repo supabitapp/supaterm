@@ -36,7 +36,6 @@ class SupatermComposerEditorView(context: Context, appContext: AppContext) : Exp
   context,
   appContext
 ) {
-  // React Native ignores the editor's requestLayout(), which makes TextView defer caret scrolls.
   override val shouldUseAndroidLayout = true
 
   private val editor = SelectionAwareEditText(context)
@@ -363,8 +362,7 @@ class SupatermComposerEditorView(context: Context, appContext: AppContext) : Exp
     val textLength = editor.text?.length ?: 0
     val safeStart = start.coerceIn(0, textLength)
     val safeEnd = end.coerceIn(0, textLength)
-    // Re-applying an unchanged selection resets the keyboard's suggestion
-    // state, so a no-op assignment must be skipped.
+
     if (editor.selectionStart == safeStart && editor.selectionEnd == safeEnd) return
     editor.setSelection(safeStart, safeEnd)
   }
@@ -413,9 +411,6 @@ class SupatermComposerEditorView(context: Context, appContext: AppContext) : Exp
     )
 
   private fun emitSelectionChange(start: Int, end: Int) {
-    // Caret moves advance the revision counter like text edits do: a
-    // controlled payload computed before this move is stale and must fail the
-    // revision guard instead of yanking the caret back mid-typing.
     nativeEventCount += 1
     onComposerSelectionChange(
       mapOf(
@@ -427,10 +422,6 @@ class SupatermComposerEditorView(context: Context, appContext: AppContext) : Exp
   }
 
   private fun emitContentSizeIfNeeded() {
-    // The laid-out text without insets. A one-line draft reports its natural width, so
-    // JS can tell whether it fits a narrower row than the one it is laid out in; past
-    // one line only the height matters. Trailing whitespace hangs past a line without
-    // wrapping it, so getLineMax leaves it out.
     val layout = editor.layout
     val contentHeight = layout?.height ?: editor.measuredHeight
     val contentWidth = if (layout?.lineCount == 1) layout.getLineMax(0).toInt() else 0
@@ -533,8 +524,7 @@ private class ComposerChipSpan(
       it.descent = base.descent
       it.bottom = base.bottom
     }
-    // toInt() truncates; a fractional pixel would leave the span narrower than the chip
-    // draws and clip its right-hand border.
+
     return kotlin.math.ceil(chip.width).toInt()
   }
 
@@ -584,12 +574,6 @@ internal class SelectionAwareEditText(context: Context) : EditText(context) {
   var maxInputChars = Int.MAX_VALUE
   var clipboardFragment = ""
 
-  /**
-   * Placeholder shown while the draft is empty. An editable TextView never ellipsizes its hint,
-   * so a long placeholder wraps once a wide system font or a large font scale (Samsung defaults)
-   * runs out of width, and the resting composer grows to two lines. The hint is instead cut to
-   * one line with an ellipsis for whatever width the editor is measured at.
-   */
   var placeholder = ""
     set(value) {
       field = value
@@ -742,12 +726,10 @@ internal class SelectionAwareEditText(context: Context) : EditText(context) {
     if (shouldIntercept) {
       pasteTextListener?.invoke(text, start, end)
     }
-    // Let EditText perform ordinary pastes, retaining its native undo history.
+
     return shouldIntercept
   }
 
-  // Match native paste's newlines, including empty items.
-  // URI-backed clips stay native: coerceToText can read a provider synchronously.
   private fun ClipData.plainText(): String? {
     var joined: StringBuilder? = null
     for (index in 0 until itemCount) {

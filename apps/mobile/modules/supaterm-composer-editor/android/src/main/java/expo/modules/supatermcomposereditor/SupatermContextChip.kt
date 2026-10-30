@@ -19,7 +19,6 @@ class SupatermContextChip(
   maximumWidth: Float,
   density: Float
 ) {
-  /** What the chip says: its name, the size beside it, and the glyph that leads it. */
   data class Content(
     val label: String,
     val detail: String = "",
@@ -34,8 +33,6 @@ class SupatermContextChip(
   }
   private val em = fontSize
 
-  // The size reads as metadata beside the name, so it draws a step down from the label the
-  // way the web chip does.
   private val detailPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
     textSize = fontSize * 0.84f
     typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
@@ -92,7 +89,6 @@ class SupatermContextChip(
       value: String,
       fallback: Int
     ): Int = runCatching {
-      // React Native hex colors put alpha last; Android's parser puts it first.
       val androidColor = if (value.length == 9 && value.startsWith("#")) {
         "#${value.takeLast(2)}${value.substring(1, 7)}"
       } else {

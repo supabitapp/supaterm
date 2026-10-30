@@ -85,9 +85,7 @@ private final class ComposerTextView: UITextView {
   var textPasteThresholdBytes = 0
   var maxInputChars = Int.max
   var enterBehavior: ComposerEnterBehavior = .send
-  /// Shortcut HUD titles. JS supplies what the two sends actually do right now
-  /// ("Queue Message" / "Steer Message"), so the iPad Command-hold list names
-  /// the outcome rather than a generic "Send".
+
   var submitTitle = "Send Message"
   var alternateSubmitTitle = "Send Message"
   private var bypassTextPasteInterception = false
@@ -95,9 +93,6 @@ private final class ComposerTextView: UITextView {
   override var keyCommands: [UIKeyCommand]? {
     var commands = super.keyCommands ?? []
     guard !isReadOnly, markedTextRange == nil else { return commands }
-    // The plainer chord always performs the configured follow-up behavior and
-    // the more-modified one performs its opposite, so Command is the "other
-    // way" modifier whichever Return behavior is configured.
     if enterBehavior == .send {
       let submitOnReturn = UIKeyCommand(
         input: "\r",
@@ -240,8 +235,7 @@ private final class ComposerTextView: UITextView {
     if pastedLength >= textPasteThresholdBytes || text.utf8.count >= textPasteThresholdBytes {
       return true
     }
-    // Chips occupy one display character but expand to their source in the
-    // submitted message. Measure that source, including the replaced selection.
+
     let sourceLength = sourceOffset(forDisplayOffset: attributedText.length)
     let selectedLength = sourceOffset(forDisplayOffset: NSMaxRange(selectedRange)) -
       sourceOffset(forDisplayOffset: selectedRange.location)
@@ -524,7 +518,6 @@ public final class SupatermComposerEditorView: ExpoView, UITextViewDelegate, UIT
     guard let (index, attachment) = contextAttachment(at: recognizer.location(in: textView)) else {
       textView.becomeFirstResponder()
       if selectionBeforeFocusingTap != nil {
-        // UIKit places the caret from its own tap recognizer during this same touch.
         DispatchQueue.main.async { [weak self] in
           self?.restoreSelectionBeforeFocusingTap()
         }
@@ -567,8 +560,6 @@ public final class SupatermComposerEditorView: ExpoView, UITextViewDelegate, UIT
   }
 
   public func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-    // The collapsed editor only shows the draft's first line, so a tap that expands an
-    // overflowing draft returns to the caret it was left at instead of moving it there.
     let collapsedOverflow = !textView.isFirstResponder && !textView.isScrollEnabled && draftOverflowsBounds()
     selectionBeforeFocusingTap = collapsedOverflow ? (sourceSelection(), value) : nil
     return true
@@ -579,7 +570,6 @@ public final class SupatermComposerEditorView: ExpoView, UITextViewDelegate, UIT
   }
 
   public func textView(_ textView: UITextView, shouldInteractWith textAttachment: NSTextAttachment, in characterRange: NSRange, interaction: UITextItemInteraction) -> Bool {
-    // A chip is text context, not an image to save to the camera roll.
     !(textAttachment is ComposerTextAttachment)
   }
 
@@ -727,8 +717,6 @@ public final class SupatermComposerEditorView: ExpoView, UITextViewDelegate, UIT
   func setScrollEnabled(_ scrollEnabled: Bool) {
     guard textView.isScrollEnabled != scrollEnabled else { return }
     if !scrollEnabled {
-      // Disabling scrolling discards UITextView's offset. Restore it after
-      // expansion has laid out the text, regardless of prop update order.
       pendingContentOffset = pendingContentOffset ?? textView.contentOffset
     }
     textView.isScrollEnabled = scrollEnabled
@@ -793,9 +781,7 @@ public final class SupatermComposerEditorView: ExpoView, UITextViewDelegate, UIT
       return
     }
     restoreBaseTypingAttributes()
-    // UIKit moves the selection before textViewDidChange runs. Emitting here
-    // would pair the post-edit text with a pre-edit revision counter, so let
-    // the change event that follows carry both; only pure caret moves emit.
+
     guard self.textView.serializedText() == value else {
       return
     }
@@ -822,8 +808,6 @@ public final class SupatermComposerEditorView: ExpoView, UITextViewDelegate, UIT
       return drop.suggestedProposal
     }
 
-    // The composer owns image drops so UIKit does not insert NSTextAttachments
-    // that the controlled plain-text value cannot represent.
     let proposal = UITextDropProposal(operation: .copy)
     proposal.dropAction = .insert
     proposal.dropPerformer = .delegate
@@ -975,8 +959,7 @@ public final class SupatermComposerEditorView: ExpoView, UITextViewDelegate, UIT
       string: label,
       attributes: [.font: font, .foregroundColor: color, .paragraphStyle: paragraph]
     )
-    // The size reads as metadata, not part of the name, so it renders a step down from the
-    // label the way the web chip does.
+
     if let detail, !detail.isEmpty {
       let detailFont = font.withSize(font.pointSize * 0.84)
       attributedLabel.append(
@@ -990,9 +973,7 @@ public final class SupatermComposerEditorView: ExpoView, UITextViewDelegate, UIT
     let iconSlot: CGFloat = icon == nil ? 0 : iconSide * 1.25
     let padding: CGFloat = 5
     let height = ceil(font.ascender - font.descender)
-    // A long path would otherwise draw a chip wider than the composer and clip. Cap the label
-    // to the text the editor can actually show and truncate inside it, as Android's
-    // `maximumWidth` does, so the chip always fits the line it sits on.
+
     let availableWidth = textView.textContainer.size.width > 0
       ? textView.textContainer.size.width - textView.textContainer.lineFragmentPadding * 2
       : (textView.window?.bounds.width ?? bounds.width)
@@ -1011,8 +992,7 @@ public final class SupatermComposerEditorView: ExpoView, UITextViewDelegate, UIT
           in: CGRect(x: padding, y: (height - iconSide) / 2, width: iconSide, height: iconSide)
         )
       }
-      // Exactly the measured width: a spare pixel here would let a capped label draw past
-      // the cap instead of truncating inside it.
+
       attributedLabel.draw(
         in: CGRect(x: padding + iconSlot, y: 0, width: labelWidth, height: height)
       )
@@ -1113,9 +1093,6 @@ public final class SupatermComposerEditorView: ExpoView, UITextViewDelegate, UIT
   }
 
   private func emitSelection() {
-    // Caret moves advance the revision counter like text edits do: a
-    // controlled payload computed before this move is stale and must fail the
-    // revision guard instead of yanking the caret back mid-typing.
     let currentValue = textView.serializedText()
     let selection = sourceSelection()
     nativeEventCount += 1
@@ -1161,9 +1138,7 @@ public final class SupatermComposerEditorView: ExpoView, UITextViewDelegate, UIT
       return
     }
     self.requestedSelection = nil
-    // Programmatically assigning selectedRange resets the keyboard's
-    // autocorrect and predictive-text context even when the range is
-    // unchanged, so a no-op assignment must be skipped.
+
     guard !NSEqualRanges(nextRange, textView.selectedRange) else {
       return
     }
@@ -1178,7 +1153,7 @@ public final class SupatermComposerEditorView: ExpoView, UITextViewDelegate, UIT
       return
     }
     selectionBeforeFocusingTap = nil
-    // A draft that changed during the touch, such as a transcript landing, owns the caret now.
+
     guard textView.isFirstResponder, textView.markedTextRange == nil, value == snapshot.value else {
       return
     }
@@ -1211,11 +1186,6 @@ public final class SupatermComposerEditorView: ExpoView, UITextViewDelegate, UIT
   }
 
   private func emitContentSizeIfNeeded() {
-    // The laid-out text without insets. A one-line draft reports its natural width, so
-    // JS can tell whether it fits a narrower row than the one it is laid out in; past
-    // one line only the height matters, so layout stops at the second line. The width
-    // comes from the line fragment because usedRect spans the container once the view
-    // scrolls. A trailing newline's empty line only exists as the extra fragment.
     let layout = textView.layoutManager
     let container = textView.textContainer
     var lines = 0
