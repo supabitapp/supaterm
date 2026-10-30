@@ -182,7 +182,7 @@ it("app-stream-assistant-turn", async () => {
   const counted = await measure(async () => {
     let text = "";
     for (let delta = 0; delta < STREAM_DELTAS; delta++) {
-      text += `word${delta} `;
+      text += `word${delta}\n\n`;
       await act(() =>
         emitThreadEvent(LIVE, {
           type: "turn-item.updated",
