@@ -846,6 +846,9 @@ importers:
       '@supaterm/source-control-core':
         specifier: workspace:*
         version: link:../../packages/source-control-core
+      '@supaterm/source-control-definitions':
+        specifier: workspace:*
+        version: link:../../packages/source-control-definitions
       '@supaterm/source-control-forgejo':
         specifier: workspace:*
         version: link:../../packages/source-control-forgejo
