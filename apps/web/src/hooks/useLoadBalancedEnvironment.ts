@@ -5,13 +5,13 @@ import * as Clock from "effect/Clock";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import { AsyncResult, Atom } from "effect/reactivity";
-import { useContext } from "react";
+import { useContext, useEffect } from "react";
 
 import { serverEnvironment } from "../state/server";
 
 class LoadBalancingRequest extends Data.Class<{
   readonly candidatesKey: string;
-  readonly onResolved: (environmentId: EnvironmentId) => void;
+  readonly scopeKey: string;
 }> {}
 
 const loadBalancingAtom = Atom.family((request: LoadBalancingRequest) => {
@@ -55,7 +55,6 @@ const loadBalancingAtom = Atom.family((request: LoadBalancingRequest) => {
         resources,
         evaluatedAt,
       ) as EnvironmentId | null;
-      if (environmentId !== null) request.onResolved(environmentId);
       return {
         environmentId,
         failed: environmentId === null && resources.some((resource) => resource.failed),
@@ -68,16 +67,23 @@ export function useLoadBalancedEnvironment(
   environmentIds: readonly EnvironmentId[],
   weights: Readonly<Record<string, number>>,
   onResolved: (environmentId: EnvironmentId) => void,
+  scopeKey = "",
 ) {
   const registry = useContext(RegistryContext);
   const result = useAtomValue(
     loadBalancingAtom(
       new LoadBalancingRequest({
         candidatesKey: JSON.stringify(environmentIds.map((id) => [id, weights[id] ?? 50])),
-        onResolved,
+        scopeKey,
       }),
     ),
   );
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Delivers a resolved host request only from its committed React owner, after queued scope changes can discard stale work.
+  useEffect(() => {
+    if (result._tag === "Success" && !result.waiting && result.value.environmentId !== null) {
+      onResolved(result.value.environmentId);
+    }
+  }, [onResolved, result]);
   const refresh = (ids: readonly EnvironmentId[]) => {
     for (const environmentId of ids) {
       registry.refresh(serverEnvironment.hostResources({ environmentId, input: {} }));

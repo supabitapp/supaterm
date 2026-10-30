@@ -443,3 +443,75 @@ it("a live send flag blocks an already queued completion", async () => {
       ?.loadBalancedEnvironmentId ?? null,
   ).toBeNull();
 });
+
+it("unmounting while host completion is queued discards the choice", async () => {
+  using test = setup();
+  await using screen = await render(
+    <RegistryContext value={test.registry}>
+      <Routing automatic />
+    </RegistryContext>,
+    { router: false },
+  );
+  await act(async () => {
+    test.registry.set(resources.get(originalEnvironmentId)!, ready(0.8));
+    test.registry.set(resources.get(targetEnvironmentId)!, ready(0.1));
+    await screen.unmount();
+  });
+  expect(
+    useComposerDraftStore.getState().getDraftSession(DraftId.make("first"))
+      ?.loadBalancedEnvironmentId ?? null,
+  ).toBeNull();
+});
+
+it("changing scope while host completion is queued discards the old choice", async () => {
+  using test = setup();
+  await using screen = await render(
+    <RegistryContext value={test.registry}>
+      <Routing automatic />
+    </RegistryContext>,
+    { router: false },
+  );
+  await act(async () => {
+    test.registry.set(resources.get(originalEnvironmentId)!, ready(0.8));
+    test.registry.set(resources.get(targetEnvironmentId)!, ready(0.1));
+    await screen.rerender(
+      <RegistryContext value={test.registry}>
+        <Routing scope="second" />
+      </RegistryContext>,
+    );
+  });
+  expect(
+    useComposerDraftStore.getState().getDraftSession(DraftId.make("first"))
+      ?.loadBalancedEnvironmentId ?? null,
+  ).toBeNull();
+});
+
+it.each(["environment lock", "provider availability"] as const)(
+  "a committed %s change revokes queued routing delivery",
+  async (change) => {
+    using test = setup();
+    await using screen = await render(
+      <RegistryContext value={test.registry}>
+        <Routing automatic />
+      </RegistryContext>,
+      { router: false },
+    );
+    await act(async () => {
+      test.registry.set(resources.get(originalEnvironmentId)!, ready(0.8));
+      test.registry.set(resources.get(targetEnvironmentId)!, ready(0.1));
+      await screen.rerender(
+        <RegistryContext value={test.registry}>
+          <Routing
+            automatic
+            envLocked={change === "environment lock"}
+            providerAvailable={change !== "provider availability"}
+          />
+        </RegistryContext>,
+      );
+    });
+    expect(
+      useComposerDraftStore.getState().getDraftSession(DraftId.make("first"))
+        ?.loadBalancedEnvironmentId ?? null,
+    ).toBeNull();
+  },
+);

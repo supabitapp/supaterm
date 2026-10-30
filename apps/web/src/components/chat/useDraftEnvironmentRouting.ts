@@ -137,6 +137,7 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
     loadBalancingCandidates,
     loadBalancingSettings.loadBalancingWeights,
     onLoadBalancingResolved,
+    JSON.stringify([draftId, activeProjectKey]),
   );
   const refreshLoadBalancing = loadBalancing.refresh;
   const onAutoEnvironment = () => {
