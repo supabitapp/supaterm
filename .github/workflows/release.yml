@@ -7,7 +7,7 @@ on:
       - "!v*-nightly.*"
       - "!v*-preview.*"
   schedule:
-    - cron: "8 */4 * * *"
+    - cron: "8 8 * * *"
   workflow_dispatch:
     inputs:
       channel:
