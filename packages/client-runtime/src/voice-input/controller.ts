@@ -1,10 +1,20 @@
 import { replaceTextRange } from "@supaterm/shared/composerTrigger";
 
-import type { PreparedVoiceTranscription, VoiceTranscriber } from "./transcription.ts";
+import {
+  VoiceTranscriptionError,
+  type PreparedVoiceTranscription,
+  type VoiceTranscriber,
+} from "./transcription.ts";
 
 export const VOICE_RECORDING_LIMIT_SECONDS = 5 * 60;
 
-export type VoiceInputPhase = "idle" | "preparing" | "recording" | "transcribing" | "error";
+export type VoiceInputPhase =
+  | "idle"
+  | "preparing"
+  | "recording"
+  | "transcribing"
+  | "sending"
+  | "error";
 
 export type VoiceInputState = {
   readonly phase: VoiceInputPhase;
@@ -14,7 +24,10 @@ export type VoiceInputState = {
 
 export function voiceInputBlocksSubmission(state: VoiceInputState): boolean {
   return (
-    state.phase === "preparing" || state.phase === "recording" || state.phase === "transcribing"
+    state.phase === "preparing" ||
+    state.phase === "recording" ||
+    state.phase === "transcribing" ||
+    state.phase === "sending"
   );
 }
 
@@ -59,6 +72,12 @@ export type VoiceInputControllerDependencies = {
     selection: { readonly start: number; readonly end: number },
   ) => void;
   readonly onStateChange: (state: VoiceInputState) => void;
+  /**
+   * Takes over a finished recording instead of transcribing it here, as a voice message
+   * the server transcribes and sends. It must keep its own copy: the recording is deleted
+   * once this settles.
+   */
+  readonly sendRecording?: (uri: string) => Promise<void>;
 };
 
 type TranscriptCommitResult =
@@ -178,6 +197,9 @@ function transcriptionErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message === "voice-operation-busy") {
     return "Voice transcription is still finishing. Try again shortly.";
   }
+  if (error instanceof VoiceTranscriptionError && error.code === "refused") {
+    return error.message;
+  }
   return "Could not transcribe this recording.";
 }
 
@@ -291,7 +313,14 @@ export class VoiceInputController {
 
   stop(): Promise<void> {
     if (this.state.phase !== "recording") return Promise.resolve();
-    return this.finishRecording(false, null);
+    return this.finishRecording(false, null, "transcribe");
+  }
+
+  send(): Promise<void> {
+    if (this.state.phase !== "recording" || !this.dependencies.sendRecording) {
+      return Promise.resolve();
+    }
+    return this.finishRecording(false, null, "send");
   }
 
   cancel(): void {
@@ -311,6 +340,9 @@ export class VoiceInputController {
       case "transcribing":
         this.invalidateOperation();
         this.setState(IDLE_STATE);
+        return;
+      // Saving takes a moment and can't be taken back halfway; the queued message can be.
+      case "sending":
         return;
     }
   }
@@ -346,7 +378,7 @@ export class VoiceInputController {
       if (!status.url) {
         return this.interruptRecording();
       }
-      return this.finishRecording(true, status.url);
+      return this.finishRecording(true, status.url, "transcribe");
     }
   }
 
@@ -369,11 +401,16 @@ export class VoiceInputController {
   private async finishRecording(
     alreadyStopped: boolean,
     completedUri: string | null,
+    mode: "transcribe" | "send",
   ): Promise<void> {
     if (this.finishing || this.state.phase !== "recording") return;
     this.finishing = true;
     const operationToken = this.operationToken;
-    this.setState({ phase: "transcribing", error: null, errorAction: null });
+    this.setState({
+      phase: mode === "send" ? "sending" : "transcribing",
+      error: null,
+      errorAction: null,
+    });
 
     try {
       if (!alreadyStopped) await this.dependencies.recorder.stop();
@@ -381,6 +418,17 @@ export class VoiceInputController {
       this.recordingUri = completedUri ?? this.dependencies.recorder.uri ?? this.recordingUri;
       this.rememberRecordingUri(this.recordingUri);
       if (!this.isCurrent(operationToken)) return;
+      if (mode === "send" && this.recordingUri && this.dependencies.sendRecording) {
+        try {
+          await this.dependencies.sendRecording(this.recordingUri);
+        } catch {
+          if (this.isCurrent(operationToken))
+            this.setError("Could not save this recording.", "retry");
+          return;
+        }
+        if (this.isCurrent(operationToken)) this.setState(IDLE_STATE);
+        return;
+      }
       if (
         !this.recordingUri ||
         !this.transcription ||

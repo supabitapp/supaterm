@@ -61,5 +61,14 @@ export function resolveVoiceComposerPresentation(
         statusLabel: "Transcribing",
         confirmationEnabled: false,
       };
+    case "sending":
+      return {
+        leadingAction: null,
+        trailingAction: "confirm",
+        showsSend: false,
+        statusKind: "active",
+        statusLabel: "Saving",
+        confirmationEnabled: false,
+      };
   }
 }

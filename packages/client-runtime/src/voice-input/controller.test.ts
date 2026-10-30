@@ -110,6 +110,61 @@ describe("resolveTranscriptCommit", () => {
 describe("VoiceInputController", () => {
   beforeEach(() => resetVoiceInputGlobalsForTests());
 
+  it("hands a sent recording over before deleting its own copy, without transcribing", async () => {
+    const transcribe = vi.fn(async () => "never");
+    const handedOver: string[] = [];
+    const saving = deferred<void>();
+    const harness = createHarness({
+      getTranscriber: () => ({ prepare: async () => preparedTranscription(transcribe) }),
+      sendRecording: async (uri) => {
+        handedOver.push(uri);
+        await saving.promise;
+      },
+    });
+    await harness.controller.start();
+    const sending = harness.controller.send();
+    await vi.waitFor(() => expect(handedOver).toEqual(["file:///voice.m4a"]));
+
+    expect(harness.controller.currentState.phase).toBe("sending");
+    harness.controller.cancel();
+    expect(harness.deleted).toEqual([]);
+    saving.resolve();
+    await sending;
+
+    expect(harness.controller.currentState.phase).toBe("idle");
+    expect(harness.deleted).toEqual(["file:///voice.m4a"]);
+    expect(transcribe).not.toHaveBeenCalled();
+    expect(harness.commits).toEqual([]);
+  });
+
+  it("reports a recording it could not save, and stops at the time limit for review instead", async () => {
+    const failing = createHarness({
+      sendRecording: async () => {
+        throw new Error("quota");
+      },
+    });
+    await failing.controller.start();
+    await failing.controller.send();
+    expect(failing.controller.currentState).toEqual({
+      phase: "error",
+      error: "Could not save this recording.",
+      errorAction: "retry",
+    });
+
+    resetVoiceInputGlobalsForTests();
+    const sendRecording = vi.fn(async () => undefined);
+    const limited = createHarness({ sendRecording });
+    await limited.controller.start();
+    await limited.controller.handleRecorderStatus({
+      isFinished: true,
+      hasError: false,
+      error: null,
+      url: "file:///voice.m4a",
+    });
+    expect(sendRecording).not.toHaveBeenCalled();
+    expect(limited.commits).toHaveLength(1);
+  });
+
   it("checks support and permission before recording", async () => {
     const unsupported = createHarness({ getTranscriber: () => null });
     await unsupported.controller.start();
