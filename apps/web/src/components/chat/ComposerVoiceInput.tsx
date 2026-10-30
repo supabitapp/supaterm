@@ -91,7 +91,7 @@ function VoiceLevelMeter(props: { readonly recorder: WebVoiceRecorder }) {
         const bars = Array.from(element.children) as HTMLElement[];
         props.recorder.setLevelListener((levels) => {
           bars.forEach((bar, index) => {
-            bar.style.transform = `scaleY(${Math.max(0.15, levels[index] ?? 0)})`;
+            bar.style.scale = `1 ${Math.max(0.15, levels[index] ?? 0)}`;
           });
         });
         return () => props.recorder.setLevelListener(null);
