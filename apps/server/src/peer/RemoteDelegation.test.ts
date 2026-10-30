@@ -1,3 +1,6 @@
+import { ProjectToolkit } from "../mcp/toolkits/project/tools.ts";
+import * as ProjectHandlers from "../mcp/toolkits/project/handlers.ts";
+import * as ScratchThreadPromotion from "../project/ScratchThreadPromotion.ts";
 import * as DocumentText from "../provider/DocumentText.ts";
 import { NodeHttpServer } from "@effect/platform-node";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
@@ -63,6 +66,7 @@ import * as PeerLinks from "./PeerLinks.ts";
 import { descriptorOf, layerLinkingEnvironment, linkTo, servePeer } from "./PeerLinks.testkit.ts";
 import * as RemoteDelegation from "./RemoteDelegation.ts";
 import * as PeerLinkRequests from "./PeerLinkRequests.ts";
+import * as RemoteLaunchJournal from "./RemoteLaunchJournal.ts";
 
 const laptop = descriptorOf("environment-laptop", "Laptop");
 const box = descriptorOf("environment-box", "Box");
@@ -78,6 +82,7 @@ type LaunchedWith = Pick<
 
 interface BoxThread {
   readonly launched: Ref.Ref<ThreadId | null>;
+  readonly launches: Ref.Ref<ReadonlyArray<ThreadId>>;
 
   readonly linkOrigin: Ref.Ref<{ readonly sessionId: string; readonly label: string } | null>;
 
@@ -126,6 +131,7 @@ interface BoxThread {
 const makeBoxThread = Effect.gen(function* () {
   return {
     launched: yield* Ref.make<ThreadId | null>(null),
+    launches: yield* Ref.make<ReadonlyArray<ThreadId>>([]),
     linkOrigin: yield* Ref.make<{ readonly sessionId: string; readonly label: string } | null>(
       null,
     ),
@@ -410,6 +416,7 @@ const boxToolkitLayer = (thread: BoxThread) => {
       Ref.get(thread.runless).pipe(
         Effect.flatMap((runless) =>
           Ref.set(thread.launched, input.threadId!).pipe(
+            Effect.andThen(Ref.update(thread.launches, (values) => [...values, input.threadId!])),
             Effect.andThen(Ref.set(thread.linkOrigin, input.linkOrigin ?? null)),
             Effect.andThen(Ref.set(thread.delegatedFrom, input.delegatedFrom ?? null)),
             Effect.andThen(Ref.set(thread.message, input.initialMessage?.text ?? null)),
@@ -449,7 +456,7 @@ const boxToolkitLayer = (thread: BoxThread) => {
   });
   return Layer.merge(
     McpHttpServer.layerOrchestratorToolkit,
-    McpHttpServer.layerProjectRegistration,
+    McpHttpServer.toolkitRegistration(ProjectToolkit, ProjectHandlers.layer),
   ).pipe(
     Layer.provide(DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer))),
     Layer.provide(NodeCrypto.layer),
@@ -482,6 +489,7 @@ const boxToolkitLayer = (thread: BoxThread) => {
           }),
       }),
     ),
+    Layer.provide(Layer.mock(ScratchThreadPromotion.ScratchThreadPromotion)({})),
     Layer.provide(Layer.mock(SecretRequests.SecretRequests)({})),
     Layer.provide(ServerSettings.layerTest()),
     Layer.provide(NodeServices.layer),
@@ -516,6 +524,7 @@ const makeLaptop = (
   >,
 
   kept?: Context.Context<Layer.Success<ReturnType<typeof layerLinkingEnvironment>>>,
+  journal?: RemoteLaunchJournal.RemoteLaunchJournal["Service"],
 ) =>
   Effect.gen(function* () {
     const linking = kept ?? (yield* layerLinkingEnvironment(laptop).pipe(Layer.build));
@@ -544,6 +553,11 @@ const makeLaptop = (
       Layer.provideMerge(McpServer.McpServer.layer),
       Layer.provideMerge(
         RemoteDelegation.layer.pipe(
+          Layer.provide(
+            journal === undefined
+              ? Layer.empty
+              : Layer.succeed(RemoteLaunchJournal.RemoteLaunchJournal, journal),
+          ),
           Layer.provideMerge(PeerForwarding.layer),
           Layer.provide(
             Layer.mock(ProjectService.ProjectService)({
@@ -574,6 +588,7 @@ const makeLaptop = (
       Layer.provide(Layer.mock(ProviderAdapterRegistry.ProviderAdapterRegistryV2)({})),
       Layer.provide(Layer.mock(ScheduledTaskService.ScheduledTaskService)({})),
       Layer.provide(Layer.mock(ProjectService.ProjectService)({})),
+      Layer.provide(Layer.mock(ScratchThreadPromotion.ScratchThreadPromotion)({})),
       Layer.provide(Layer.mock(SecretRequests.SecretRequests)({})),
       Layer.provide(Layer.mock(ThreadLaunch.ThreadLaunchService)({})),
       Layer.provide(Layer.mock(GitVcsDriver.GitVcsDriver)({})),
@@ -952,6 +967,85 @@ it.effect("follows an open task again after the laptop restarts", () =>
       yield* after.remote.start();
       const task = yield* taskResult(after, delegated.taskId);
       expect(task).toMatchObject({ status: "completed", result: "Finished while you were away." });
+    }),
+  ).pipe(Effect.provide(NodeHttpServer.layerTest)),
+);
+
+it.effect("replays a launch whose acknowledgement could not be journaled before restart", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const thread = yield* makeBoxThread;
+      const b = yield* serveBox(thread);
+      const offers = yield* SubscriptionRef.make<
+        ReadonlyArray<ProviderContinuationRequests.ProviderContinuationRequest>
+      >([]);
+      const database = yield* SqlitePersistence.layerMemory.pipe(Layer.build);
+      const linking = yield* layerLinkingEnvironment(laptop).pipe(Layer.build);
+      const journal = Context.get(linking, RemoteLaunchJournal.RemoteLaunchJournal);
+      yield* Effect.scoped(
+        Effect.gen(function* () {
+          const a = yield* makeLaptop(database, offers, linking, {
+            ...journal,
+            recordLaunch: () =>
+              Effect.fail(
+                new RemoteLaunchJournal.RemoteLaunchJournalError({
+                  operation: "write",
+                  cause: "simulated acknowledgement write failure",
+                }),
+              ),
+          });
+          yield* linkTo(a.links, b, "full-access");
+          yield* seedParent(a);
+          const failed = yield* a.remote
+            .delegate(parentScope as McpInvocationContext.McpThreadInvocationScope, {
+              task: "Run the full suite on the box.",
+              target: {
+                environmentId: box.environmentId,
+                providerInstanceId: instanceId,
+                model: "gpt-5.4",
+                options: [{ id: "reasoningEffort", value: "high" }],
+              },
+              mode: "async",
+              clientRequestId: "recovery-suite",
+            })
+            .pipe(Effect.flip);
+          expect(failed.code).toBe("orchestration_error");
+          expect(yield* journal.pending).toHaveLength(1);
+          expect(
+            (yield* a.orchestrator.getThreadProjection(parentThreadId)).subagents,
+          ).toHaveLength(0);
+        }),
+      );
+      const a = yield* makeLaptop(database, offers, linking);
+      yield* a.remote.start();
+      const recorded = yield* a.orchestrator
+        .streamStoredEventsFrom({
+          threadId: parentThreadId,
+          afterSequence: 0,
+          eventType: "subagent.updated",
+        })
+        .pipe(
+          Stream.filter(
+            (stored) =>
+              stored.event.type === "subagent.updated" &&
+              stored.event.payload.remoteChild !== undefined,
+          ),
+          Stream.runHead,
+        );
+      expect(Option.isSome(recorded)).toBe(true);
+      const projection = yield* a.orchestrator.getThreadProjection(parentThreadId);
+      expect(projection.subagents).toHaveLength(1);
+      expect(projection.subagents[0]?.modelSelection?.options).toEqual([
+        { id: "reasoningEffort", value: "high" },
+      ]);
+      expect(new Set(yield* Ref.get(thread.launches)).size).toBe(1);
+      yield* Ref.set(thread.reply, "Recovered completion.");
+      yield* Ref.set(thread.status, "completed");
+      yield* Deferred.succeed(thread.finished, undefined);
+      expect(yield* taskResult(a, projection.subagents[0]!.id)).toMatchObject({
+        status: "completed",
+      });
+      expect(yield* journal.pending).toEqual([]);
     }),
   ).pipe(Effect.provide(NodeHttpServer.layerTest)),
 );

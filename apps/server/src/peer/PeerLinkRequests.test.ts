@@ -469,7 +469,7 @@ it.live("the agent asks without waiting, and the user links the box after its tu
           yield* a.orchestrator.getThreadProjection(threadId),
         ).pendingRuntimeRequest,
       ).toMatchObject({ kind: "user_input" });
-      expect(yield* a.projections.getSettlementCandidates(threadId)).toEqual([]);
+      expect(yield* a.projections.getAutoMarkDoneCandidates(threadId)).toEqual([]);
       const pairing = yield* b.auth.issuePairingCredential();
       yield* a.requests.answer({
         threadId,

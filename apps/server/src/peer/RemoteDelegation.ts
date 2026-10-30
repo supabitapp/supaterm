@@ -828,11 +828,19 @@ const make = Effect.gen(function* () {
           Effect.ignoreCause({ log: true }),
           Effect.forkIn(followers, { startImmediately: true }),
         );
-        const pending = yield* journal.pending;
-        yield* Effect.forEach(
-          pending,
-          (intent) => recoverLaunch(intent).pipe(Effect.forkIn(followers)),
-          { discard: true },
+        yield* Effect.gen(function* () {
+          const pending = yield* journal.pending;
+          yield* Effect.forEach(
+            pending,
+            (intent) => recoverLaunch(intent).pipe(Effect.forkIn(followers)),
+            { discard: true },
+          );
+        }).pipe(
+          Effect.tapError((cause) =>
+            Effect.logWarning("remote-delegation.recovery-read-failed", { cause }),
+          ),
+          Effect.retry({ schedule: followRetry }),
+          Effect.forkIn(followers),
         );
         const open = yield* projections.getOpenRemoteDelegatedTasks;
         yield* Effect.forEach(

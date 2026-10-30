@@ -658,6 +658,8 @@ const layerRuntimeDependencies = Layer.mergeAll(
   layerPeerServices,
 ).pipe(
   Layer.provideMerge(layerRuntimeCoreDependencies),
+  Layer.provideMerge(ProjectionStoreV2.layer),
+  Layer.provideMerge(layerPortScanner),
   Layer.provideMerge(layerUsage),
   Layer.provideMerge(layerBackground),
   Layer.provideMerge(layerResourceDiagnostics),
