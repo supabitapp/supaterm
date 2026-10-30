@@ -390,6 +390,7 @@ describe("document preview contents", () => {
     expect(result.type).toBe("document");
     if (result.type !== "document") throw new Error("Expected document");
     expect(result.pages.map((page) => page.title)).toEqual(["Second", "First"]);
+    // oxlint-disable-next-line supaterm/no-em-dash-copy -- Verify the EPUB entity decodes to the document's original punctuation.
     expect(result.pages[0]!.html).toContain("A\u00a0B © — ≂̸ &amp;lt;");
     expect(result.pages[0]!.html).toContain('alt="© ≂̸"');
     expect(result.pages[1]!.html).toContain('src="data:image/png;base64,');
