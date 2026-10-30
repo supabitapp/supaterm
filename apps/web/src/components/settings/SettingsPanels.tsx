@@ -26,6 +26,14 @@ import { createModelSelection } from "@supaterm/shared/model";
 import * as Equal from "effect/Equal";
 import * as Schema from "effect/Schema";
 import { APP_VERSION, HOSTED_APP_CHANNEL, HOSTED_APP_CHANNEL_LABEL } from "../../branding";
+import { desktopUpdateChannelOf } from "@supaterm/shared/cliRelease";
+import { canUpdateServer } from "../ServerUpdateAction";
+import { environmentIdsKey } from "../../state/environmentAtomList";
+import { environmentSessionStatesAtom } from "../../state/session";
+import { awaitsTrackSwitch, channelSwitchLabel } from "../sidebar/updateEverything.logic";
+import { useUpdateEverythingRun } from "../sidebar/updateEverythingRun";
+import { isHostedByThisApp } from "../sidebar/useUpdateEverything";
+import { useAtomValue } from "@effect/atom-react";
 import { CliCommandSettingsRow } from "./CliCommandSettingsRow";
 import { MobileAppSettingsRow } from "./MobileAppSettingsRow";
 import { DaysField } from "./DaysField";
@@ -64,7 +72,7 @@ import {
 import { providerInstanceEntriesFor } from "../../providerInstances";
 import { ensureLocalApi, readLocalApi } from "../../localApi";
 import { isMacPlatform } from "../../lib/utils";
-import { useEnvironmentProviders } from "../../state/environments";
+import { useEnvironmentProviders, useEnvironments } from "../../state/environments";
 import { EMPTY_SERVER_PROVIDERS } from "../../state/server";
 import { Button } from "../ui/button";
 import { DraftInput } from "../ui/draft-input";
@@ -131,17 +139,41 @@ function AboutVersionSection() {
   const [switchingChannel, setSwitchingChannel] = useState<DesktopUpdateChannel | null>(null);
   const isChangingUpdateChannel = switchingChannel !== null;
   const [isUpdateActionPending, setIsUpdateActionPending] = useState(false);
+  const { environments } = useEnvironments();
+  const sessionStates = useAtomValue(
+    environmentSessionStatesAtom(
+      environmentIdsKey(environments.map(({ environmentId }) => environmentId)),
+    ),
+  );
+  const updateRun = useUpdateEverythingRun();
 
   const hasDesktopBridge = typeof window !== "undefined" && Boolean(window.desktopBridge);
   const selectedUpdateChannel = updateState?.channel ?? "latest";
   const selectedHostedAppChannel = hasDesktopBridge ? null : HOSTED_APP_CHANNEL;
+  const appOffTrack =
+    updateState?.enabled !== false && desktopUpdateChannelOf(APP_VERSION) !== selectedUpdateChannel;
+  const unswitchedMachines =
+    (appOffTrack ? 1 : 0) +
+    environments.filter(
+      (environment, index) =>
+        environment.connection.phase === "connected" &&
+        canUpdateServer(sessionStates[index]!) &&
+        awaitsTrackSwitch(
+          {
+            serverConfig: environment.serverConfig,
+            hostedByThisApp: isHostedByThisApp(environment),
+          },
+          selectedUpdateChannel,
+        ),
+    ).length;
 
   const handleUpdateChannelChange = (channel: DesktopUpdateChannel) => {
     const bridge = window.desktopBridge;
     if (
       !bridge ||
       typeof bridge.setUpdateChannel !== "function" ||
-      channel === selectedUpdateChannel
+      channel === selectedUpdateChannel ||
+      updateRun !== null
     ) {
       return;
     }
@@ -287,6 +319,24 @@ function AboutVersionSection() {
       {hasDesktopBridge ? (
         <SettingsRow
           {...searchableSetting("update-track")}
+          description={
+            unswitchedMachines > 0 ? (
+              <>
+                {unswitchedMachines === 1
+                  ? "1 machine still runs"
+                  : `${unswitchedMachines} machines still run`}{" "}
+                {channelSwitchLabel(selectedUpdateChannel === "nightly" ? "latest" : "nightly")}.{" "}
+                <Button
+                  size="xs"
+                  variant="link"
+                  disabled={isChangingUpdateChannel || updateRun !== null}
+                  onClick={() => setSwitchingChannel(selectedUpdateChannel)}
+                >
+                  Review
+                </Button>
+              </>
+            ) : null
+          }
           control={
             <Select
               value={selectedUpdateChannel}
@@ -298,7 +348,7 @@ function AboutVersionSection() {
                 size="sm"
                 className="w-full sm:w-40"
                 aria-label="Update track"
-                disabled={isChangingUpdateChannel}
+                disabled={isChangingUpdateChannel || updateRun !== null}
               >
                 <SelectValue>
                   {selectedUpdateChannel === "nightly" ? "Nightly" : "Stable"}

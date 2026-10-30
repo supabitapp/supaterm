@@ -2,7 +2,7 @@ import { useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 
 /** Settings and Usage open as modals over the last main-app view. */
-export function isAppModalPage(pathname: string) {
+function isAppModalPage(pathname: string) {
   return pathname === "/settings" || pathname.startsWith("/settings/") || pathname === "/usage";
 }
 

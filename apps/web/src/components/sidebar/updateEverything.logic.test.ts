@@ -6,6 +6,7 @@ import {
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  awaitsTrackSwitch,
   collectChannelSwitchTargets,
   collectRestartingMachines,
   localSwitchBlockReason,
@@ -227,5 +228,25 @@ describe("describeUpdateEverything", () => {
       ["alvin", null, "needs a manual update", ["Claude"]],
       ["TheoRoom", null, "not connected", []],
     ]);
+  });
+});
+
+describe("partial track switch review", () => {
+  it("retains off-track hosts for review while compatibility still blocks their update", () => {
+    const offTrack = machine("remote", "0.0.49", "boot-service");
+    const alreadySwitched = machine("current", "0.0.50-nightly.20261029.1", "boot-service");
+    const hosted = machine("hosted", "0.0.49", "desktop-managed", { hostedByThisApp: true });
+    const manual = machine("manual", "0.0.49", undefined);
+    expect(
+      [offTrack, alreadySwitched, hosted, manual].flatMap((entry) =>
+        awaitsTrackSwitch(entry, "nightly") ? [entry.label] : [],
+      ),
+    ).toEqual(["remote"]);
+    const plan = collectChannelSwitchTargets([offTrack], {
+      channel: "nightly",
+      version: "0.0.50-nightly.20261029.1",
+    });
+    expect(plan.targets).toEqual([]);
+    expect(plan.skipped[0]?.reason).toContain("database compatibility");
   });
 });

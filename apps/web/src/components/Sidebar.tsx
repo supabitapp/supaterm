@@ -222,8 +222,8 @@ import {
 import { deriveProviderEntriesByEnvironment } from "../providerInstances";
 import { useStableCallback } from "../hooks/useStableCallback";
 import {
-  completeSidebarRouteReveal,
-  pendingSidebarRouteReveal,
+  resolveSidebarRouteReveal,
+  useActiveRowReveal,
   type SidebarRouteReveal,
 } from "./sidebar/routeReveal";
 import { stackedThreadToast, toastManager } from "./ui/toast";
@@ -1225,36 +1225,21 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     );
   });
 
-  // History, the command palette, and links can open a thread the project
-  // scope hides or the list has scrolled away. A remount starts the list at
-  // the top, so each mount also scrolls to the open thread once, without
-  // widening the scope.
-  const mountRevealOwed = useRef(true);
-  const revealRouteRow = useStableCallback(() => {
-    const pendingKey = pendingSidebarRouteReveal(routeReveal, routeRowThreadKey);
-    const revealKey = pendingKey ?? (mountRevealOwed.current ? routeRowThreadKey : null);
-    if (revealKey === null) return;
-    const thread = threads.find((candidate) => threadShellKey(candidate) === revealKey);
-    if (thread === undefined) return;
-    if (
-      pendingKey !== null &&
-      scopedProjectKeys !== null &&
-      filterSidebarV2VisibleThreads([thread], scopedProjectKeys, delegatedUnderParent).length ===
-        0 &&
-      filterSidebarV2VisibleThreads([thread], null, delegatedUnderParent).length === 1
-    ) {
-      // The row renders under the widened scope; scroll on that pass.
-      setProjectScopeKey(null);
-      return;
-    }
-    const activeRow = document.querySelector('[data-sidebar="content"] [aria-current="page"]');
-    if (!activeRow) return;
-    completeSidebarRouteReveal(routeReveal);
-    mountRevealOwed.current = false;
-    activeRow.scrollIntoView({ block: "nearest" });
+  const { widensScope: revealWidensScope } = resolveSidebarRouteReveal({
+    reveal: routeReveal,
+    routeKey: routeRowThreadKey,
+    isSearching: false,
+    scopedProjectKeys,
+    delegatedUnderParent,
+    findThread: (key) => threads.find((thread) => threadShellKey(thread) === key),
   });
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- scrolls the routed thread into the mounted sidebar viewport
-  useEffect(revealRouteRow, [revealRouteRow, routeRowThreadKey, threads, projectScopeKey]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- a routed thread must be visible before its row can perform the pending reveal
+  useEffect(() => {
+    if (!revealWidensScope) return;
+    clearSelection();
+    setPersistedProjectScopeKeys([]);
+  }, [clearSelection, revealWidensScope, setPersistedProjectScopeKeys]);
+  const revealActiveRow = useActiveRowReveal(routeReveal, routeRowThreadKey);
 
   const orderedThreadKeysRef = useRef(orderedThreadKeys);
   // Read changing maps/sets through refs so streamed events preserve row callbacks.
@@ -2913,6 +2898,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                           // rows resolve to null on their own.
                           wokeAt={threadWokeAt(thread, { now: snoozeNow })}
                           isActive={isActive}
+                          revealRef={isActive ? revealActiveRow : undefined}
                           isRouteThread={routeThreadKey === threadKey}
                           pinShortcut={routeThreadKey === threadKey ? pinShortcut : null}
                           doneShortcut={routeThreadKey === threadKey ? doneShortcut : null}
