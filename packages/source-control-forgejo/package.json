@@ -10,6 +10,14 @@
     "./server/driver": {
       "types": "./src/server/driver.ts",
       "import": "./src/server/driver.ts"
+    },
+    "./server/ForgejoCli": {
+      "types": "./src/server/ForgejoCli.ts",
+      "import": "./src/server/ForgejoCli.ts"
+    },
+    "./server/forgejoPullRequestJson": {
+      "types": "./src/server/forgejoPullRequestJson.ts",
+      "import": "./src/server/forgejoPullRequestJson.ts"
     }
   },
   "scripts": {

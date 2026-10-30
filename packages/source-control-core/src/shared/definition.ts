@@ -1,5 +1,6 @@
 import {
   type PullRequestAction,
+  type SourceControlAppSignIn,
   type PullRequestListedAction,
   type PullRequestReviewVerdict,
   type RepositoryIdentity,
@@ -104,15 +105,6 @@ export interface SourceControlHostCredentials {
   readonly newTokenUrl: (host: string) => string;
 
   readonly appSignIn?: SourceControlAppSignIn;
-}
-
-export interface SourceControlAppSignIn {
-  readonly appName: string;
-  readonly hosts: ReadonlyArray<string>;
-
-  readonly installUrl: string;
-
-  readonly revokeUrl: string;
 }
 
 export const SourceControlHostName = TrimmedNonEmptyString.pipe(

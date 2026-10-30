@@ -10,6 +10,14 @@
     "./server/driver": {
       "types": "./src/server/driver.ts",
       "import": "./src/server/driver.ts"
+    },
+    "./server/GitCafeApi": {
+      "types": "./src/server/GitCafeApi.ts",
+      "import": "./src/server/GitCafeApi.ts"
+    },
+    "./server/GitCafeCredentials": {
+      "types": "./src/server/GitCafeCredentials.ts",
+      "import": "./src/server/GitCafeCredentials.ts"
     }
   },
   "scripts": {

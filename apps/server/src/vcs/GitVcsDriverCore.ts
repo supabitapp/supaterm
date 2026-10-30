@@ -1733,7 +1733,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       input.cwd,
       ["remote", "-v"],
     ).pipe(Effect.map((stdout) => parseGitRemoteFetchUrls(stdout)));
-    const findMatchingRemote = (remoteFetchUrls: Map<string, string>) =>
+    const findMatchingRemote = (remoteFetchUrls: ReadonlyMap<string, string>) =>
       Array.from(remoteFetchUrls.entries()).find(
         ([, remoteUrl]) =>
           sourceControlDefinitions.repositoryKeyFromRemote(remoteUrl) === normalizedTargetUrl,

@@ -10,6 +10,34 @@
     "./server/driver": {
       "types": "./src/server/driver.ts",
       "import": "./src/server/driver.ts"
+    },
+    "./server/GitHubRest": {
+      "types": "./src/server/GitHubRest.ts",
+      "import": "./src/server/GitHubRest.ts"
+    },
+    "./server/gitHubConditionalChecks": {
+      "types": "./src/server/gitHubConditionalChecks.ts",
+      "import": "./src/server/gitHubConditionalChecks.ts"
+    },
+    "./server/GitHubCredentials": {
+      "types": "./src/server/GitHubCredentials.ts",
+      "import": "./src/server/GitHubCredentials.ts"
+    },
+    "./server/GitHubRequestPolicy": {
+      "types": "./src/server/GitHubRequestPolicy.ts",
+      "import": "./src/server/GitHubRequestPolicy.ts"
+    },
+    "./server/GitHubPullRequestApi": {
+      "types": "./src/server/GitHubPullRequestApi.ts",
+      "import": "./src/server/GitHubPullRequestApi.ts"
+    },
+    "./server/GitHubPullRequestProvider": {
+      "types": "./src/server/GitHubPullRequestProvider.ts",
+      "import": "./src/server/GitHubPullRequestProvider.ts"
+    },
+    "./server/GitHubQuota": {
+      "types": "./src/server/GitHubQuota.ts",
+      "import": "./src/server/GitHubQuota.ts"
     }
   },
   "scripts": {

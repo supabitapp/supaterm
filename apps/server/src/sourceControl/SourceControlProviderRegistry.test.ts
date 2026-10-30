@@ -393,7 +393,9 @@ function makeRegistryWithGhLogin(isSignedIn: () => boolean) {
     discovery: [
       {
         ...claimingCli("github"),
-        refineUnknownRemote: ({ context }) => {
+        refineUnknownRemote: ({
+          context,
+        }: Parameters<NonNullable<SourceControlCliDiscoverySpec["refineUnknownRemote"]>>[0]) => {
           spawns++;
           return isSignedIn()
             ? { kind: kind("github"), name: "GitHub", baseUrl: context.provider.baseUrl }

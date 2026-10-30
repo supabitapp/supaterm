@@ -10,6 +10,14 @@
     "./server/driver": {
       "types": "./src/server/driver.ts",
       "import": "./src/server/driver.ts"
+    },
+    "./server/BitbucketApi": {
+      "types": "./src/server/BitbucketApi.ts",
+      "import": "./src/server/BitbucketApi.ts"
+    },
+    "./server/BitbucketPullRequestApi": {
+      "types": "./src/server/BitbucketPullRequestApi.ts",
+      "import": "./src/server/BitbucketPullRequestApi.ts"
     }
   },
   "scripts": {

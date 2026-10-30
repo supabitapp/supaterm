@@ -10,6 +10,14 @@
     "./server/driver": {
       "types": "./src/server/driver.ts",
       "import": "./src/server/driver.ts"
+    },
+    "./server/GitLabCli": {
+      "types": "./src/server/GitLabCli.ts",
+      "import": "./src/server/GitLabCli.ts"
+    },
+    "./server/GitLabPullRequestCli": {
+      "types": "./src/server/GitLabPullRequestCli.ts",
+      "import": "./src/server/GitLabPullRequestCli.ts"
     }
   },
   "scripts": {
@@ -23,6 +31,7 @@
     "effect": "catalog:"
   },
   "devDependencies": {
+    "@effect/platform-node": "catalog:",
     "@effect/vitest": "catalog:",
     "@supaterm/source-control-testing": "workspace:*",
     "@types/node": "catalog:",

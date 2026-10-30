@@ -1,3 +1,4 @@
+import { SourceControlProviderKind } from "@supaterm/contracts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import * as Context from "effect/Context";
@@ -42,7 +43,7 @@ const ACME_APP = {
     remoteName: "origin",
     remoteUrl: "https://github.com/acme/app.git",
   },
-  provider: "github",
+  provider: SourceControlProviderKind.make("github"),
   displayName: "acme/app",
   owner: "acme",
   name: "app",
@@ -98,7 +99,7 @@ const makeRepositories = Effect.gen(function* () {
 
 const detail = (workspaceRoot: string, headSha: string): PullRequestDetail =>
   ({
-    provider: "github",
+    provider: SourceControlProviderKind.make("github"),
     number: 7,
     title: "Add the feature",
     body: "Adds the feature.",

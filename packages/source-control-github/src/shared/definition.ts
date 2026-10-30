@@ -1,4 +1,8 @@
-import { makeProviderSettingsSchema, SourceControlProviderKind } from "@supaterm/contracts";
+import {
+  makeProviderSettingsSchema,
+  SourceControlProviderKind,
+  type SourceControlAppSignIn,
+} from "@supaterm/contracts";
 import {
   changeRequestUrlBelow,
   defineSourceControl,
@@ -8,7 +12,6 @@ import {
   parseChangeRequestPath,
   projectChangeRequestHost,
   remoteWebOrigin,
-  type SourceControlAppSignIn,
 } from "@supaterm/source-control-core/shared/definition";
 
 import { gitHubMediaUrl } from "./gitHubMedia.ts";

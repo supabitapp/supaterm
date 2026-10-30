@@ -134,7 +134,7 @@ it.effect("keeps branch deletion on the credential that passed source repository
           ...reference,
           includeUpdateBranch: false,
         });
-        assert.include(permissions.actions, "delete-branch");
+        assert.isTrue(permissions.deleteBranch);
         yield* provider.runAction({ ...reference, action: "delete-branch" });
       }),
     );

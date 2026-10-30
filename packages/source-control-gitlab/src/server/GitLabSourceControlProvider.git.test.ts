@@ -1,6 +1,6 @@
-import * as NodeFS from "node:fs";
-import * as NodeOS from "node:os";
-import * as NodePath from "node:path";
+import * as NodeServices from "@effect/platform-node/NodeServices";
+import * as FileSystem from "effect/FileSystem";
+import * as Path from "effect/Path";
 
 import type { GitCommandError } from "@supaterm/contracts";
 
@@ -112,21 +112,20 @@ const withRepository = <A, E>(
 ) =>
   Effect.gen(function* () {
     const host = yield* SourceControlHost.SourceControlHost;
-    const cwd = yield* Effect.acquireRelease(
-      Effect.sync(() =>
-        NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "supaterm-gitlab-template-")),
-      ),
-      (directory) => Effect.sync(() => NodeFS.rmSync(directory, { recursive: true, force: true })),
-    );
+    const fileSystem = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const cwd = yield* fileSystem.makeTempDirectoryScoped({ prefix: "supaterm-gitlab-template-" });
     const git = (...args: string[]) =>
       host.git
         .execute({ operation: "GitLabTemplate.test", cwd, args })
         .pipe(Effect.map((result) => result.stdout.trim()));
-    const write = (path: string, contents: string) =>
-      Effect.sync(() => {
-        NodeFS.mkdirSync(NodePath.dirname(NodePath.join(cwd, path)), { recursive: true });
-        NodeFS.writeFileSync(NodePath.join(cwd, path), contents);
-      });
+    const write = (relativePath: string, contents: string) =>
+      fileSystem
+        .makeDirectory(path.dirname(path.join(cwd, relativePath)), { recursive: true })
+        .pipe(
+          Effect.andThen(fileSystem.writeFileString(path.join(cwd, relativePath), contents)),
+          Effect.orDie,
+        );
     yield* git("init", "--initial-branch=main");
     yield* git("config", "user.email", "test@example.com");
     yield* git("config", "user.name", "Test User");
@@ -141,7 +140,11 @@ const withRepository = <A, E>(
       write,
       readTemplate: (treeish = "HEAD") => provider.readChangeRequestTemplate!({ cwd, treeish }),
     });
-  }).pipe(Effect.scoped, Effect.provide(TestSourceControlHost.layerWithRealGit()));
+  }).pipe(
+    Effect.scoped,
+    Effect.provide(TestSourceControlHost.layerWithRealGit()),
+    Effect.provide(NodeServices.layer),
+  );
 
 const DEFAULT_TEMPLATE = ".gitlab/merge_request_templates/Default.md";
 

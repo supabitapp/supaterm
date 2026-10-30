@@ -108,7 +108,7 @@ function makeLayer(input: {
       remotes: [
         {
           name: "origin",
-          url: "git@bitbucket.org:pingdotgg/supaterm.git",
+          url: "git@bitbucket.org:supabitapp/supacode-next.git",
           pushUrl: Option.none(),
           isPrimary: true,
         },

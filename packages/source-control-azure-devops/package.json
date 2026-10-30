@@ -10,6 +10,14 @@
     "./server/driver": {
       "types": "./src/server/driver.ts",
       "import": "./src/server/driver.ts"
+    },
+    "./server/AzureDevOpsCli": {
+      "types": "./src/server/AzureDevOpsCli.ts",
+      "import": "./src/server/AzureDevOpsCli.ts"
+    },
+    "./server/AzureDevOpsPullRequestCli": {
+      "types": "./src/server/AzureDevOpsPullRequestCli.ts",
+      "import": "./src/server/AzureDevOpsPullRequestCli.ts"
     }
   },
   "scripts": {
