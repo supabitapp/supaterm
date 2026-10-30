@@ -17,6 +17,8 @@ import {
 import type { ComposerEnterBehavior } from "../lib/composerEnterBehavior";
 import type { FollowUpBehavior } from "../lib/followUpBehavior";
 import { isMicrophoneKind, type MicrophoneEntry } from "../lib/microphonePriority";
+import type { VoiceTranscriptionEngine } from "../lib/voiceEngine";
+import { normalizeVoiceLanguage } from "../lib/voiceLanguage";
 import { MOBILE_THEME_IDS, type MobileThemeId, type MobileThemeMode } from "../lib/mobileTheme";
 import * as MobileDatabase from "./mobile-database";
 import * as MobileSecureStorage from "./mobile-secure-storage";
@@ -70,6 +72,10 @@ export interface Preferences {
   readonly showSkillsInSlashMenu?: boolean;
   readonly followUpBehavior?: FollowUpBehavior;
   readonly microphones?: ReadonlyArray<MicrophoneEntry>;
+  /** Who transcribes this device's voice input. Unset means the thread's environment. */
+  readonly voiceTranscriptionEngine?: VoiceTranscriptionEngine;
+  /** BCP 47 tag environments transcribe in. Null or unset means the system language. */
+  readonly voiceLanguage?: string | null;
   readonly projectGroupingMode?: SidebarProjectGroupingMode;
   readonly threadGrouping?: SidebarThreadGrouping;
   readonly threadListPinnedShelfExpanded?: boolean;
@@ -137,6 +143,8 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     showSkillsInSlashMenu?: boolean;
     followUpBehavior?: FollowUpBehavior;
     microphones?: ReadonlyArray<MicrophoneEntry>;
+    voiceTranscriptionEngine?: VoiceTranscriptionEngine;
+    voiceLanguage?: string | null;
     projectGroupingMode?: SidebarProjectGroupingMode;
     threadGrouping?: SidebarThreadGrouping;
     threadListPinnedShelfExpanded?: boolean;
@@ -217,6 +225,18 @@ function sanitizePreferences(parsed: Preferences): Preferences {
         ? [{ kind: entry.kind, uid: entry.uid, name: entry.name }]
         : [];
     });
+  }
+  if (
+    parsed.voiceTranscriptionEngine === "environment" ||
+    parsed.voiceTranscriptionEngine === "device"
+  ) {
+    preferences.voiceTranscriptionEngine = parsed.voiceTranscriptionEngine;
+  }
+  if (parsed.voiceLanguage === null) {
+    preferences.voiceLanguage = null;
+  } else if (typeof parsed.voiceLanguage === "string") {
+    const language = normalizeVoiceLanguage(parsed.voiceLanguage);
+    if (language !== null) preferences.voiceLanguage = language;
   }
   if (
     parsed.projectGroupingMode === "repository" ||
