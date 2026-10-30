@@ -17,6 +17,7 @@ import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 
@@ -84,6 +85,12 @@ export class RemoteLaunchJournal extends Context.Service<
       remote: typeof LaunchResult.Type,
     ) => Effect.Effect<RemoteLaunchIntent, RemoteLaunchJournalError>;
     readonly pending: Effect.Effect<ReadonlyArray<RemoteLaunchIntent>, RemoteLaunchJournalError>;
+    readonly getTaskLaunch: (input: {
+      readonly parentThreadId: ThreadId;
+      readonly taskId: NodeId;
+      readonly environmentId: EnvironmentId;
+      readonly threadId: ThreadId;
+    }) => Effect.Effect<Option.Option<RemoteLaunchIntent>, RemoteLaunchJournalError>;
     readonly complete: (
       intent: RemoteLaunchIntent,
       taskId: NodeId,
@@ -103,6 +110,21 @@ const make = Effect.gen(function* () {
   const platform = yield* HostProcess.Platform;
   const directory = path.join(config.stateDir, "remote-launches");
   const locks = yield* KeyedLock.make<string>();
+  const taskLaunches = new Map<string, RemoteLaunchIntent>();
+  const taskKey = (parentThreadId: ThreadId, taskId: NodeId) => `${parentThreadId}\0${taskId}`;
+  const remoteLaunches = new Map<string, RemoteLaunchIntent>();
+  const remoteKey = (parentThreadId: ThreadId, environmentId: EnvironmentId, threadId: ThreadId) =>
+    `${parentThreadId}\0${environmentId}\0${threadId}`;
+  let indexed = false;
+  const remember = (intent: RemoteLaunchIntent) => {
+    if (intent.taskId !== null)
+      taskLaunches.set(taskKey(intent.parentThreadId, intent.taskId), intent);
+    if (intent.remote !== null)
+      remoteLaunches.set(
+        remoteKey(intent.parentThreadId, intent.targetEnvironmentId, intent.remote.threadId),
+        intent,
+      );
+  };
   const filename = (id: string) => path.join(directory, `${id}.json`);
   const read = (id: string) => fs.readFileString(filename(id)).pipe(Effect.flatMap(decode));
   const syncDirectory =
@@ -167,26 +189,58 @@ const make = Effect.gen(function* () {
           if (saved.remote !== null) return saved;
           const next = { ...saved, remote };
           yield* write(next, false);
+          remember(next);
           return next;
         }),
       ),
     Effect.mapError((cause) => new RemoteLaunchJournalError({ operation: "write", cause })),
   );
 
-  const pending = Effect.gen(function* () {
+  const entries = Effect.gen(function* () {
     if (!(yield* fs.exists(directory))) return [];
     const files = yield* fs.readDirectory(directory);
     const entries = yield* Effect.forEach(
       files.filter((name) => /^[a-f0-9]{64}\.json$/.test(name)),
       (name) => fs.readFileString(path.join(directory, name)).pipe(Effect.flatMap(decode)),
     );
-    return entries.filter((entry) => entry.taskId === null);
+    for (const entry of entries) remember(entry);
+    indexed = true;
+    return entries;
   }).pipe(Effect.mapError((cause) => new RemoteLaunchJournalError({ operation: "read", cause })));
+
+  const pending = entries.pipe(
+    Effect.map((entries) => entries.filter((entry) => entry.taskId === null)),
+  );
+
+  const getTaskLaunch: RemoteLaunchJournal["Service"]["getTaskLaunch"] = Effect.fn(
+    "RemoteLaunchJournal.getTaskLaunch",
+  )(function* (input) {
+    const matches = (intent: RemoteLaunchIntent) =>
+      intent.parentThreadId === input.parentThreadId &&
+      (intent.taskId === input.taskId || intent.taskId === null) &&
+      intent.targetEnvironmentId === input.environmentId &&
+      intent.remote?.threadId === input.threadId;
+    if (!indexed)
+      yield* locks.withLock(
+        "index",
+        Effect.suspend(() => (indexed ? Effect.void : entries.pipe(Effect.asVoid))),
+      );
+    const recorded =
+      taskLaunches.get(taskKey(input.parentThreadId, input.taskId)) ??
+      remoteLaunches.get(remoteKey(input.parentThreadId, input.environmentId, input.threadId));
+    return recorded !== undefined && matches(recorded) ? Option.some(recorded) : Option.none();
+  });
 
   const complete: RemoteLaunchJournal["Service"]["complete"] = Effect.fn(
     "RemoteLaunchJournal.complete",
   )(
-    (intent, taskId) => locks.withLock(intent.id, write({ ...intent, taskId }, false)),
+    (intent, taskId) => {
+      const completed = { ...intent, taskId };
+      return locks.withLock(
+        intent.id,
+        write(completed, false).pipe(Effect.tap(() => Effect.sync(() => remember(completed)))),
+      );
+    },
     Effect.mapError((cause) => new RemoteLaunchJournalError({ operation: "write", cause })),
   );
 
@@ -194,11 +248,28 @@ const make = Effect.gen(function* () {
     (id) =>
       locks.withLock(
         id,
-        fs.remove(filename(id), { force: true }).pipe(Effect.andThen(syncDirectory)),
+        fs.remove(filename(id), { force: true }).pipe(
+          Effect.andThen(syncDirectory),
+          Effect.tap(() =>
+            Effect.sync(() => {
+              for (const [key, intent] of taskLaunches)
+                if (intent.id === id) taskLaunches.delete(key);
+              for (const [key, intent] of remoteLaunches)
+                if (intent.id === id) remoteLaunches.delete(key);
+            }),
+          ),
+        ),
       ),
     Effect.mapError((cause) => new RemoteLaunchJournalError({ operation: "remove", cause })),
   );
-  return RemoteLaunchJournal.of({ prepare, recordLaunch, pending, complete, remove });
+  return RemoteLaunchJournal.of({
+    prepare,
+    recordLaunch,
+    pending,
+    getTaskLaunch,
+    complete,
+    remove,
+  });
 });
 
 export const layer = Layer.effect(RemoteLaunchJournal, make);

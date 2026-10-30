@@ -88,10 +88,6 @@ export class RemoteDelegation extends Context.Service<
 
 const isOrchestratorMcpFailure = Schema.is(OrchestratorMcpFailure);
 
-const isModeRefusal = (error: OrchestratorMcpFailure) =>
-  error.code === "runtime_mode_escalation_denied" ||
-  error.code === "interaction_mode_escalation_denied";
-
 const isFinal = (error: OrchestratorMcpFailure) =>
   error.code === "capability_denied" ||
   error.code === "thread_not_found" ||
@@ -540,6 +536,55 @@ const make = Effect.gen(function* () {
       })
       .pipe(Effect.asVoid);
 
+  const stopRecordedTask = Effect.fn("RemoteDelegation.stopRecordedTask")(function* (
+    parentThreadId: ThreadId,
+    task: OrchestrationV2Subagent,
+  ) {
+    const remote = task.remoteChild;
+    if (remote === undefined)
+      return yield* new OrchestratorMcpFailure({
+        code: "task_not_found",
+        message: "The task has no recorded remote child to stop.",
+      });
+    const intent = yield* journal
+      .getTaskLaunch({
+        parentThreadId,
+        taskId: task.id,
+        environmentId: remote.environmentId,
+        threadId: remote.threadId,
+      })
+      .pipe(
+        Effect.mapError(
+          () =>
+            new OrchestratorMcpFailure({
+              code: "orchestration_error",
+              message:
+                "The original remote launch authorization could not be read. Cleanup remains pending.",
+            }),
+        ),
+      );
+    if (Option.isNone(intent))
+      return yield* new OrchestratorMcpFailure({
+        code: "capability_denied",
+        message: "The original remote launch authorization is missing. Cleanup remains pending.",
+      });
+    yield* peers.call({
+      environmentId: remote.environmentId,
+      credentialId: intent.value.credentialId,
+      limits: {
+        runtimeMode: intent.value.runtimeMode,
+        interactionMode: intent.value.interactionMode,
+      },
+      tool: "supaterm_thread_interrupt",
+      arguments: {
+        threadId: remote.threadId,
+        stop: true,
+        clientRequestId: `cleanup:${intent.value.id}:${remote.stopCount ?? 0}`,
+      },
+      success: OrchestratorMcpThreadInterruptResult,
+    });
+  });
+
   const lastReply = Effect.fn("RemoteDelegation.lastReply")(function* (
     scope: ThreadScope,
     remote: OrchestrationV2RemoteTaskChild,
@@ -611,8 +656,18 @@ const make = Effect.gen(function* () {
           const reason = yield* finalReason(parentThreadId, taskId, error);
           if (reason === undefined) return yield* error;
           const { task } = yield* readTask(parentThreadId, taskId);
-          const stopCount = task?.remoteChild?.stopCount;
-          yield* complete(parentThreadId, taskId, "failed", reason, "stopped", stopCount);
+          if (task?.remoteChild === undefined) return;
+          const stopCount = task.remoteChild.stopCount;
+          yield* stopRecordedTask(parentThreadId, task);
+          yield* complete(
+            parentThreadId,
+            taskId,
+            task.result === null ? "failed" : terminalStatus(task.status),
+            task.result ?? reason,
+            "stopped",
+            stopCount,
+          );
+          if (!(yield* settled(parentThreadId, taskId))) return yield* error;
         }),
       }),
       Effect.retry(followRetry),
@@ -627,6 +682,19 @@ const make = Effect.gen(function* () {
     const { thread, task } = yield* readTask(parentThreadId, taskId);
     if (task?.remoteChild === undefined) return true;
     const remote = task.remoteChild;
+    if (task.result !== null && remote.stoppedThere === true) return true;
+    if (thread.deletedAt !== null) {
+      yield* stopRecordedTask(parentThreadId, task);
+      yield* complete(
+        parentThreadId,
+        taskId,
+        task.result === null ? "cancelled" : terminalStatus(task.status),
+        task.result ?? "Stopped because its parent was deleted.",
+        "stopped",
+        remote.stopCount,
+      );
+      return yield* settled(parentThreadId, taskId);
+    }
     const scope = followScope(
       { threadId: parentThreadId, providerInstanceId: thread.providerInstanceId },
       remote,
@@ -637,15 +705,7 @@ const make = Effect.gen(function* () {
         ((task.status === "cancelled" || task.status === "interrupted") &&
           remote.stoppedThere !== true)
       ) {
-        const key = remote.stopCount === undefined ? "stop" : `stop-${remote.stopCount}`;
-        yield* stopThere(scope, remote, key).pipe(
-          Effect.catchIf(isModeRefusal, (error) =>
-            Effect.logWarning("A linked environment refused to stop a delegated task", {
-              taskId,
-              reason: error.message,
-            }),
-          ),
-        );
+        yield* stopRecordedTask(parentThreadId, task);
         yield* complete(
           parentThreadId,
           taskId,
@@ -658,24 +718,30 @@ const make = Effect.gen(function* () {
       }
       return true;
     }
-    const endedHere = threads
-      .streamStoredEventsFrom({
+    const endedHere = Stream.merge(
+      threads.streamStoredEventsFrom({
+        threadId: parentThreadId,
+        afterSequence: sequence,
+        eventType: "thread.deleted",
+      }),
+      threads.streamStoredEventsFrom({
         threadId: parentThreadId,
         afterSequence: sequence,
         eventType: "subagent.updated",
-      })
-      .pipe(
-        Stream.filter(
-          (stored) =>
-            stored.event.type === "subagent.updated" &&
+      }),
+    ).pipe(
+      Stream.filter(
+        (stored) =>
+          stored.event.type === "thread.deleted" ||
+          (stored.event.type === "subagent.updated" &&
             stored.event.payload.id === taskId &&
-            stored.event.payload.result !== null,
-        ),
-        Stream.runHead,
-        Effect.flatMap((ended) =>
-          Option.isSome(ended) ? Effect.succeed({ endedHere: true } as const) : Effect.never,
-        ),
-      );
+            stored.event.payload.result !== null),
+      ),
+      Stream.runHead,
+      Effect.flatMap((ended) =>
+        Option.isSome(ended) ? Effect.succeed({ endedHere: true } as const) : Effect.never,
+      ),
+    );
     const waited = yield* forwarding
       .waitForThread(scope, remote.environmentId, {
         threadId: remote.threadId,
