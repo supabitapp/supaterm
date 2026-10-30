@@ -13,6 +13,7 @@ import {
   ProviderInstanceId,
   ThreadId,
 } from "@supaterm/contracts";
+import { VoiceUploadError } from "@supaterm/client-runtime/state/transcription";
 import { AtomRegistry } from "effect/reactivity";
 import * as RpcClientError from "effect/rpc/RpcClientError";
 import * as Socket from "effect/socket/Socket";
@@ -79,6 +80,7 @@ import {
   decodeQueuedThreadMessage,
   encodeQueuedThreadMessage,
   groupQueuedThreadMessages,
+  resolveVoiceDeliveryStep,
   isQueuedThreadCreationSendable,
   modelSelectionsEqual,
   resolveThreadOutboxDeliveryAction,
@@ -318,7 +320,7 @@ describe("thread outbox", () => {
     });
   });
 
-  it.each([1, 2, 3, 4] as const)(
+  it.each([1, 2, 3, 4, 5] as const)(
     "decodes persisted schema version %s into the current message",
     (schemaVersion) => {
       const message = queuedMessage({
@@ -347,7 +349,20 @@ describe("thread outbox", () => {
         environmentId: "environment-1",
       }),
     ).toThrow();
-    expect(() => decodeQueuedThreadMessage({ schemaVersion: 5, ...message })).toThrow();
+    expect(() => decodeQueuedThreadMessage({ schemaVersion: 6, ...message })).toThrow();
+  });
+
+  it("persists a voice message and the failure that holds it", () => {
+    const message = {
+      ...queuedMessage({ messageId: "message-voice", createdAt: "2026-10-30T10:00:01.000Z" }),
+      text: "",
+      voice: { durationMs: 4_200, sizeBytes: 134_444, language: "en-US" },
+      failure: "No speech was detected.",
+    } satisfies QueuedThreadMessage;
+
+    const stored = JSON.parse(JSON.stringify(encodeQueuedThreadMessage(message)));
+    expect(stored).toMatchObject({ schemaVersion: 5 });
+    expect(decodeQueuedThreadMessage(stored)).toEqual(message);
   });
 
   it("loads a schema v3 file without rewriting it eagerly", async () => {
@@ -1587,5 +1602,67 @@ describe("thread outbox", () => {
         interrupted: false,
       }),
     ).toBe("restore");
+  });
+});
+
+describe("voice message delivery", () => {
+  const voiceMessage = {
+    ...queuedMessage({ messageId: "voice-1", createdAt: "2026-10-30T10:00:00.000Z" }),
+    text: "",
+    voice: { durationMs: 3_000, sizeBytes: 96_044, language: "en-US" },
+  } satisfies QueuedThreadMessage;
+  const rotated = CommandId.make("command-rotated");
+  const step = (outcome: Parameters<typeof resolveVoiceDeliveryStep>[1]) =>
+    resolveVoiceDeliveryStep(voiceMessage, outcome, () => rotated);
+
+  it("retires a sent message with the transcript the server sent", () => {
+    expect(
+      step({ result: { text: "ship it", submission: { status: "sent", sequence: 7 } } }),
+    ).toEqual({ step: "delivered", transcript: "ship it" });
+  });
+
+  it("holds a recording without speech under a fresh command id", () => {
+    expect(step({ result: { text: "", submission: { status: "noSpeech" } } })).toEqual({
+      step: "hold",
+      message: { ...voiceMessage, commandId: rotated, failure: "No speech was detected." },
+    });
+  });
+
+  it("turns a transcript the thread refused into text the user can edit, never sent again", () => {
+    const { voice: _, ...textMessage } = voiceMessage;
+    expect(step({ result: { text: "ship it", submission: { status: "failed" } } })).toEqual({
+      step: "hold",
+      message: {
+        ...textMessage,
+        text: "ship it",
+        commandId: rotated,
+        failure: expect.stringContaining("couldn't be sent"),
+      },
+    });
+  });
+
+  it("holds a refused recording with the reason, keeping it for a retry", () => {
+    const refusal = new VoiceUploadError(
+      "signedOut",
+      "Sign in to this provider again to transcribe.",
+      false,
+    );
+    expect(step({ error: refusal })).toEqual({
+      step: "hold",
+      message: {
+        ...voiceMessage,
+        commandId: rotated,
+        failure: "Sign in to this provider again to transcribe.",
+      },
+    });
+  });
+
+  it("retries a dropped upload or a rate limit under the same ids", () => {
+    expect(
+      step({ error: new VoiceUploadError("disconnected", "The recording couldn't reach.", true) }),
+    ).toEqual({ step: "retry" });
+    expect(
+      step({ error: new VoiceUploadError("rateLimited", "Transcription is rate limited.", true) }),
+    ).toEqual({ step: "retry" });
   });
 });

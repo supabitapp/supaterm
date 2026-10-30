@@ -12,6 +12,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import * as Cause from "effect/Cause";
 import { AsyncResult } from "effect/reactivity";
+import { VoiceUploadError } from "@supaterm/client-runtime/state/transcription";
 
 import type { PreparedTurnAttachments } from "../lib/attachmentUpload";
 
@@ -24,6 +25,9 @@ const harness = vi.hoisted(() => ({
   removeOutboxMessage: vi.fn(async (_message: QueuedThreadMessage) => undefined),
   writeOutboxMessage: vi.fn(async (_message: QueuedThreadMessage) => undefined),
   prepareTurnAttachments: vi.fn<typeof import("../lib/attachmentUpload").prepareTurnAttachments>(),
+  uploadVoice: vi.fn<typeof import("./transcription").uploadEnvironmentVoiceRecording>(),
+  audioExists: true,
+  releaseVoiceRecordings: vi.fn(async () => undefined),
   draftFile: (() => {
     let document = "";
     let writeError: Error | null = null;
@@ -79,6 +83,16 @@ vi.mock("../lib/uuid", () => ({
 
 vi.mock("../lib/attachmentUpload", () => ({
   prepareTurnAttachments: harness.prepareTurnAttachments,
+}));
+
+vi.mock("./transcription", () => ({ uploadEnvironmentVoiceRecording: harness.uploadVoice }));
+
+vi.mock("./thread-outbox-audio", () => ({
+  queuedVoiceRecordingFile: async (messageId: string) => ({
+    exists: harness.audioExists,
+    uri: `file:///documents/thread-outbox-audio/${messageId}.wav`,
+  }),
+  releaseUnusedQueuedVoiceRecordings: harness.releaseVoiceRecordings,
 }));
 
 vi.mock("./entities", () => ({
@@ -166,6 +180,7 @@ import { recoverFailedThreadDraft } from "./recover-failed-thread-draft";
 import { editingQueuedMessageIdsAtom } from "./use-thread-outbox";
 import {
   completeQueuedMessageDelivery,
+  deliverQueuedVoiceMessage,
   prepareQueuedMessageAttachments,
   recoverEditedCreationAfterDelivery,
   removeAcknowledgedExistingThreadMessage,
@@ -238,6 +253,9 @@ afterEach(() => {
   harness.removeOutboxMessage.mockClear();
   harness.writeOutboxMessage.mockReset();
   harness.prepareTurnAttachments.mockReset();
+  harness.uploadVoice.mockReset();
+  harness.releaseVoiceRecordings.mockClear();
+  harness.audioExists = true;
 });
 
 describe("queued worktree branch resolution", () => {
@@ -1157,5 +1175,98 @@ describe("thread outbox recovery rollback", () => {
     );
     expect(remainingMessages()).toEqual([]);
     expect(appAtomRegistry.get(threadComposerErrorsAtom)[draftKey]?.message).toBe("too large");
+  });
+});
+
+describe("queued voice message delivery", () => {
+  const modelSelection = { instanceId: ProviderInstanceId.make("claudeAgent"), model: "opus" };
+  const voiceMessage = (): QueuedThreadMessage => ({
+    ...queuedMessage({ messageId: "voice-1", text: "" }),
+    dispatchMode: "queue",
+    voice: { durationMs: 3_000, sizeBytes: 96_044, language: "en-US" },
+  });
+  const enqueue = async (message: QueuedThreadMessage) => {
+    await harness.manager.enqueue(message);
+    return message;
+  };
+
+  it("has the environment send the recording under the message's own ids", async () => {
+    const message = await enqueue(voiceMessage());
+    harness.uploadVoice.mockResolvedValue({
+      text: "ship it",
+      submission: { status: "sent", sequence: 3 },
+    });
+
+    const delivery = await deliverQueuedVoiceMessage(message, modelSelection);
+
+    expect(harness.uploadVoice).toHaveBeenCalledWith({
+      environmentId: message.environmentId,
+      uri: "file:///documents/thread-outbox-audio/voice-1.wav",
+      request: {
+        sizeBytes: 96_044,
+        language: "en-US",
+        submit: {
+          threadId: message.threadId,
+          commandId: message.commandId,
+          messageId: message.messageId,
+          modelSelection,
+          delivery: "queue",
+          creationSource: "mobile",
+        },
+      },
+    });
+    const { voice: _, ...sent } = message;
+    expect(delivery).toMatchObject({ status: "delivered", message: { ...sent, text: "ship it" } });
+  });
+
+  it("holds a refused recording under a fresh command id and keeps its audio", async () => {
+    const message = await enqueue(voiceMessage());
+    harness.uploadVoice.mockRejectedValue(
+      new VoiceUploadError("signedOut", "Sign in to this provider again to transcribe.", false),
+    );
+
+    expect(await deliverQueuedVoiceMessage(message, modelSelection)).toEqual({ status: "held" });
+
+    const [held] = remainingMessages();
+    expect(held).toMatchObject({
+      voice: message.voice,
+      failure: "Sign in to this provider again to transcribe.",
+    });
+    expect(held?.commandId).not.toBe(message.commandId);
+    expect(harness.releaseVoiceRecordings).not.toHaveBeenCalled();
+  });
+
+  it("keeps a transcript the thread refused as held text and deletes the recording", async () => {
+    const message = await enqueue(voiceMessage());
+    harness.uploadVoice.mockResolvedValue({ text: "ship it", submission: { status: "failed" } });
+
+    expect(await deliverQueuedVoiceMessage(message, modelSelection)).toEqual({ status: "held" });
+
+    const [held] = remainingMessages();
+    expect(held).toMatchObject({ messageId: message.messageId, text: "ship it" });
+    expect(held?.voice).toBeUndefined();
+    expect(held?.failure).toBeDefined();
+    expect(harness.releaseVoiceRecordings).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves a dropped upload queued unchanged for the backoff", async () => {
+    const message = await enqueue(voiceMessage());
+    harness.uploadVoice.mockRejectedValue(
+      new VoiceUploadError("disconnected", "The recording couldn't reach the environment.", true),
+    );
+
+    expect(await deliverQueuedVoiceMessage(message, modelSelection)).toEqual({ status: "retry" });
+    expect(remainingMessages()).toEqual([message]);
+  });
+
+  it("holds a message whose recording is gone without uploading", async () => {
+    harness.audioExists = false;
+    const message = await enqueue(voiceMessage());
+
+    expect(await deliverQueuedVoiceMessage(message, modelSelection)).toEqual({ status: "held" });
+    expect(harness.uploadVoice).not.toHaveBeenCalled();
+    expect(remainingMessages()[0]?.failure).toBe(
+      "The recording is no longer available. Record it again.",
+    );
   });
 });

@@ -28,17 +28,24 @@ type ComposerVoiceEngineResolution =
   | { readonly status: "ready"; readonly engine: VoiceInputEngine }
   | Extract<VoiceEngineResolution, { readonly status: "unavailable" }>;
 
+function readPreferences() {
+  const stored = appAtomRegistry.get(mobilePreferencesAtom);
+  return AsyncResult.isSuccess(stored) ? stored.value : {};
+}
+
+function readVoiceLanguage(): string {
+  return resolveVoiceLanguage(readPreferences().voiceLanguage, systemVoiceLanguage());
+}
+
 /** Read when recording starts, so a settings change never re-renders every composer. */
 export function resolveComposerVoiceEngine(input: {
   readonly environmentId: EnvironmentId | null;
   readonly context?: VoiceTranscriptionContext;
   readonly preference?: VoiceTranscriptionEngine;
 }): ComposerVoiceEngineResolution {
-  const stored = appAtomRegistry.get(mobilePreferencesAtom);
-  const preferences = AsyncResult.isSuccess(stored) ? stored.value : {};
-  const preference = input.preference ?? preferences.voiceTranscriptionEngine;
+  const preference = input.preference ?? readPreferences().voiceTranscriptionEngine;
   const device = getLocalVoiceTranscriber();
-  const language = resolveVoiceLanguage(preferences.voiceLanguage, systemVoiceLanguage());
+  const language = readVoiceLanguage();
   const { environmentId } = input;
   if (environmentId === null && preference !== "device") {
     return {
@@ -72,7 +79,7 @@ export function resolveComposerVoiceEngine(input: {
       offersDevice: false,
     };
   }
-  return { status: "ready", engine: { ...resolution.engine, transcriber } };
+  return { status: "ready", engine: { ...resolution.engine, transcriber, language } };
 }
 
 /**

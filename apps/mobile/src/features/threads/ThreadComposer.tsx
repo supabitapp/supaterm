@@ -192,7 +192,7 @@ export interface ThreadComposerProps {
   readonly onResumeQueue: (() => Promise<void>) | null;
   /** `stillSendable` reports whether the draft is unchanged after any wait before sending. */
   /** Queues a recording from an empty draft as the message, for the environment to transcribe. */
-  readonly onSendVoiceMessage?: (recordingUri: string) => Promise<void>;
+  readonly onSendVoiceMessage?: (recordingUri: string, language: string) => Promise<void>;
   readonly onSendMessage: (
     followUp?: ActiveTurnComposerAction,
     stillSendable?: () => boolean,

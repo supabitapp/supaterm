@@ -8,7 +8,11 @@ import {
 
 import type { VoiceEngine } from "../../lib/voiceEngine";
 
-export type VoiceInputEngine = VoiceEngine & { readonly transcriber: VoiceTranscriber };
+export type VoiceInputEngine = VoiceEngine & {
+  readonly transcriber: VoiceTranscriber;
+  /** BCP 47, what an environment is asked to transcribe in. */
+  readonly language: string;
+};
 
 export type VoiceInputTarget = {
   readonly ownerKey: string;

@@ -16,6 +16,7 @@ const engine = (): VoiceInputEngine => ({
   kind: "device",
   label: "This iPhone",
   transcriber: { prepare },
+  language: "en-US",
 });
 
 function createTarget(

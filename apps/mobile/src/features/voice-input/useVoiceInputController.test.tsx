@@ -35,7 +35,7 @@ vi.mock("@react-navigation/native", () => ({
 vi.mock("./composerVoiceEngine", () => ({
   resolveComposerVoiceEngine: () => ({
     status: "ready",
-    engine: { kind: engineKind, label: "Claude · English", transcriber },
+    engine: { kind: engineKind, label: "Claude · English", transcriber, language: "en-US" },
   }),
   presentUnavailableVoiceEngine: vi.fn(),
 }));
@@ -61,7 +61,7 @@ let state: VoiceInputState;
 let session: VoiceInputSession;
 let engineKind: "environment" | "device";
 let transcriber: VoiceTranscriber;
-const voiceSends = vi.fn<(uri: string) => Promise<void>>();
+const voiceSends = vi.fn<(uri: string, language: string) => Promise<void>>();
 let control: ReturnType<typeof useVoiceInputController>;
 let root: Root;
 let ownerKey: string;
@@ -196,7 +196,7 @@ describe("dictation submission", () => {
       control.stopAndSubmit();
       await settled.promise;
     });
-    expect(voiceSends.mock.calls).toEqual([["file:///recording.wav"]]);
+    expect(voiceSends.mock.calls).toEqual([["file:///recording.wav", "en-US"]]);
     expect(sends).not.toHaveBeenCalled();
     expect(state.phase).toBe("idle");
   });

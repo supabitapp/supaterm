@@ -80,5 +80,5 @@ export async function readVoiceRecording(
       false,
     );
   }
-  return check;
+  return { durationMs: check.durationMs, sizeBytes: check.sizeBytes };
 }

@@ -40,7 +40,7 @@ export function useVoiceInputController(input: {
    */
   readonly voiceMessage?: {
     readonly accepts: () => boolean;
-    readonly send: (recordingUri: string) => Promise<void>;
+    readonly send: (recordingUri: string, language: string) => Promise<void>;
   };
 }) {
   const global = useGlobalVoiceInput();
@@ -138,9 +138,11 @@ export function useVoiceInputController(input: {
       session.controller.currentState.phase !== "recording"
     )
       return;
-    if (session.engine?.kind === "environment" && current.voiceMessage?.accepts()) {
+    const { engine } = session;
+    const { voiceMessage } = current;
+    if (engine?.kind === "environment" && voiceMessage?.accepts()) {
       submission.current = null;
-      void session.send(current.voiceMessage.send);
+      void session.send((uri) => voiceMessage.send(uri, engine.language));
       return;
     }
     if (!current.onSubmit) return;
