@@ -13,7 +13,7 @@ import {
   type ModelSelection,
   type ProjectId,
   type ProjectScopedServerSettingKey,
-  type ProjectSettingsOverrides,
+  ProjectSettingsOverrides,
   type ProjectSettingsOverridesPatchEntry,
   ProviderDriverKind,
   ProviderInstanceId,
@@ -97,13 +97,15 @@ export function fallbackTextGenerationModelSelection(
   ) {
     return threadDefault;
   }
-  return {
-    instanceId,
-    model:
-      DEFAULT_TEXT_GENERATION_MODEL_BY_PROVIDER[driver] ??
-      DEFAULT_MODEL_BY_PROVIDER[driver] ??
-      DEFAULT_TEXT_GENERATION_MODEL,
-  };
+  return { instanceId, model: defaultTextGenerationModel(driver) };
+}
+
+export function defaultTextGenerationModel(driver: ProviderDriverKind): string {
+  return (
+    DEFAULT_TEXT_GENERATION_MODEL_BY_PROVIDER[driver] ??
+    DEFAULT_MODEL_BY_PROVIDER[driver] ??
+    DEFAULT_TEXT_GENERATION_MODEL
+  );
 }
 
 export function resolveSourceControlWriterModelSelection(
@@ -244,6 +246,8 @@ function mergeSettingsEntries<Value>(
 }
 
 /** Override keys added after clients already round-tripped a project's whole entry. */
+const knownProjectOverrideKeys = new Set(Object.keys(ProjectSettingsOverrides.fields));
+
 const OVERRIDE_KEYS_OLDER_CLIENTS_OMIT = [
   "providerInstances",
   "reviewGuideModelSelection",
@@ -289,8 +293,13 @@ function mergeProjectSettingsOverridesPatch(
     const stored = current[projectId];
     const { worktreeCleanup, ...rest } = entry;
     next.set(projectId, {
+      ...Object.fromEntries(
+        Object.entries(stored ?? {}).filter(([key]) => !knownProjectOverrideKeys.has(key)),
+      ),
       ...(stored === undefined ? {} : Struct.pick(stored, OVERRIDE_KEYS_OLDER_CLIENTS_OMIT)),
-      ...rest,
+      ...Object.fromEntries(
+        Object.entries(rest).filter(([key]) => knownProjectOverrideKeys.has(key)),
+      ),
       ...(worktreeCleanup === undefined
         ? {}
         : {
@@ -320,6 +329,7 @@ export function applyServerSettingsPatch(
     backgroundActivityProfile,
     backgroundActivity,
     worktreeCleanup: worktreeCleanupPatch,
+    secretProviders: secretProvidersPatch,
     sourceControlHosts: hostSettingsPatch,
     usagePriceOverrides: usagePriceOverridesPatch,
     usageModelAliases: usageModelAliasesPatch,
@@ -386,13 +396,17 @@ export function applyServerSettingsPatch(
       ModelPreferences["providerModelPreferences"][ProviderInstanceId]
     > = { ...initialModelPreferences };
     for (const change of setModelsHidden ?? []) {
-      const preferences = edited[change.provider] ?? { hiddenModels: [], modelOrder: [] };
+      const preferences = (Object.hasOwn(edited, change.provider)
+        ? edited[change.provider]
+        : undefined) ?? { hiddenModels: [], modelOrder: [] };
       const hiddenModels = preferences.hiddenModels.filter((model) => model !== change.model);
       if (change.hidden) hiddenModels.push(change.model);
       edited[change.provider] = { ...preferences, hiddenModels };
     }
     if (setProviderModelOrder !== undefined) {
-      const preferences = edited[setProviderModelOrder.provider] ?? {
+      const preferences = (Object.hasOwn(edited, setProviderModelOrder.provider)
+        ? edited[setProviderModelOrder.provider]
+        : undefined) ?? {
         hiddenModels: [],
         modelOrder: [],
       };
@@ -490,8 +504,14 @@ export function applyServerSettingsPatch(
     ...(patch.defaultModelSelection !== undefined
       ? { defaultModelSelection: patch.defaultModelSelection }
       : {}),
+    ...(patch.fallbackModelSelection !== undefined
+      ? { fallbackModelSelection: patch.fallbackModelSelection }
+      : {}),
     ...(patch.defaultProjectScripts !== undefined
       ? { defaultProjectScripts: patch.defaultProjectScripts }
+      : {}),
+    ...(secretProvidersPatch !== undefined
+      ? { secretProviders: mergeSettingsEntries(current.secretProviders, secretProvidersPatch) }
       : {}),
     ...(usagePriceOverridesPatch !== undefined
       ? {
