@@ -513,12 +513,13 @@ function PairingForm({
           </div>
           <CollapsiblePanel>
             <p className="pt-3 text-sm text-muted-foreground">
-              Run this on the computer with your code.
+              On the computer with your code, start Supaterm or run{" "}
+              <code className="font-mono">supaterm serve</code>, then run:
             </p>
             <CommandBlock command="supaterm pair" className="mt-2" />
             <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-              Start Supaterm first, or run <code className="font-mono">supaterm serve</code>. Add{" "}
-              <code className="font-mono">--tailscale</code> to use your tailnet.
+              On a tailnet, run <code className="font-mono">supaterm pair --tailscale</code>{" "}
+              instead.
             </p>
           </CollapsiblePanel>
         </Collapsible>
