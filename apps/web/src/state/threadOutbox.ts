@@ -143,10 +143,11 @@ function voiceDelivery(dispatchMode: OutboxTurn["input"]["dispatchMode"]) {
 }
 
 async function deliverVoiceTurn(
-  payload: OutboxTurn & { readonly voice: typeof OutboxVoice.Type },
+  payload: OutboxTurn,
+  voice: typeof OutboxVoice.Type,
   savePayload: (payload: OutboxTurn) => Promise<void>,
 ) {
-  const { input, voice } = payload;
+  const { input } = payload;
   const result = await uploadVoiceAudio({
     environmentId: payload.environmentId,
     audio: voice.audio,
@@ -211,7 +212,7 @@ export const webThreadOutbox = createBrowserThreadOutbox<OutboxTurn>({
     const { environmentId } = payload;
     const config = appAtomRegistry.get(environmentServerConfigsAtom).get(environmentId);
     if (!config) throw new Error("Environment is not connected.");
-    if (payload.voice) return deliverVoiceTurn({ ...payload, voice: payload.voice }, savePayload);
+    if (payload.voice) return deliverVoiceTurn(payload, payload.voice, savePayload);
     if (payload.pendingWorktree) {
       const refs = await command(fetchVcsRefs, {
         environmentId,

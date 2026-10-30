@@ -134,6 +134,11 @@ function uploadFailure(response: VoiceUploadResponse): VoiceUploadError {
       );
 }
 
+const unreachable = (cause: unknown) =>
+  new VoiceUploadError("disconnected", "The recording couldn't reach the environment.", true, {
+    cause,
+  });
+
 // A failed RPC surfaces as a tagged value, not necessarily a decoded class instance.
 async function prepareUpload(
   prepare: () => Promise<TranscriptionPrepareUploadResult>,
@@ -143,12 +148,7 @@ async function prepareUpload(
   } catch (error) {
     const refused = Option.getOrUndefined(decodeError(error));
     if (refused) throw refusal(refused);
-    throw new VoiceUploadError(
-      "disconnected",
-      "The recording couldn't reach the environment.",
-      true,
-      { cause: error },
-    );
+    throw unreachable(error);
   }
 }
 
@@ -178,12 +178,7 @@ export async function uploadVoiceRecording(input: {
         await input.cancel(prepared.uploadId).catch(() => undefined);
         throwIfVoiceTranscriptionAborted(signal);
       }
-      throw new VoiceUploadError(
-        "disconnected",
-        "The recording couldn't reach the environment.",
-        true,
-        { cause: error },
-      );
+      throw unreachable(error);
     }
     if (response.status === 200) return decodeResult(response.body);
     if (response.status === 410 && attempt === 0) continue;

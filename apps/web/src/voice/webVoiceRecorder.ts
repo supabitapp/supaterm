@@ -25,13 +25,9 @@ function fakeMicrophoneSource(): string | null {
   }
 }
 
-function usesFakeMicrophone(): boolean {
-  return fakeMicrophoneSource() !== null;
-}
-
 export function canRecordVoice(): boolean {
   return (
-    usesFakeMicrophone() ||
+    fakeMicrophoneSource() !== null ||
     (window.isSecureContext &&
       typeof navigator.mediaDevices?.getUserMedia === "function" &&
       typeof MediaRecorder !== "undefined")

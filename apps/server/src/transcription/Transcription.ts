@@ -206,7 +206,6 @@ const make = Effect.gen(function* () {
     });
   });
 
-  // Never another account: an unusable instance is refused, not substituted.
   const resolveInputs = Effect.fnUntraced(function* (input: {
     readonly providerInstanceId?: ProviderInstanceId | undefined;
     readonly language?: string | undefined;
@@ -219,6 +218,7 @@ const make = Effect.gen(function* () {
     return { providerInstanceId, language: normalizeLanguage(input.language) } satisfies RunInputs;
   });
 
+  // Never another account: an unusable instance is refused, not substituted.
   const resolveSource = Effect.fnUntraced(function* (inputs: RunInputs) {
     const instance = yield* providerInstances.getInstance(inputs.providerInstanceId);
     const backend = instance?.enabled ? instance.transcription : undefined;
