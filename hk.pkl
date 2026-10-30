@@ -11,6 +11,8 @@ steps {
   }
   ["large-files"] {
     glob = List("**/*")
+    // Vendored native sources and prebuilt libraries are committed whole.
+    exclude = List("apps/mobile/modules/*/Vendor/**")
     check = "hk util check-added-large-files --maxkb=2048 {{files}}"
   }
   ["merge-conflicts"] = Builtins.check_merge_conflict
