@@ -32,6 +32,7 @@ const layerSetup = Layer.effectDiscard(
     // Checkpoints are now the only sync, and macOS fsync() does not flush the
     // drive cache. F_FULLFSYNC makes them reach disk; other platforms ignore it.
     yield* sql`PRAGMA checkpoint_fullfsync = ON;`;
+    yield* sql`PRAGMA temp_store = MEMORY;`;
     // PASSIVE checkpoints never shrink the -wal file, so it otherwise keeps its
     // largest size until the last connection closes.
     yield* sql.unsafe(`PRAGMA journal_size_limit = ${WAL_SIZE_LIMIT_BYTES};`);
