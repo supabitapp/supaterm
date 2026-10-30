@@ -345,7 +345,9 @@ export function ComposerBannerStack({ className, items }: ComposerBannerStackPro
   );
 }
 
-function NoticeText({
+const SUBPIXEL_ROUNDING = 0.001;
+
+export function NoticeText({
   children,
   className,
   detailsLabel,
@@ -362,6 +364,7 @@ function NoticeText({
   useLayoutEffect(() => {
     const text = textRef.current;
     if (!text) return;
+    const range = document.createRange();
     const measure = () => {
       // Ignore the space taken by the details button itself so it cannot
       // sustain its own overflow after the text would otherwise fit.
@@ -369,9 +372,17 @@ function NoticeText({
       const hidden = getComputedStyle(text).position === "absolute";
       setShowDetails(
         hidden ||
-          [text, ...text.querySelectorAll("*")].some(
-            (element) => element.scrollWidth > element.clientWidth + recoveredWidth,
-          ),
+          [text, ...text.querySelectorAll("*")].some((element) => {
+            // A range spans laid-out content only; scrollWidth also counts positioned layers
+            // such as a link's touch hit area, which overflow without cutting any text.
+            // The two rects can disagree by float rounding (~0.00001px on phones); real
+            // overflow is at least one layout unit, 1/64 of a device pixel.
+            range.selectNodeContents(element);
+            return (
+              range.getBoundingClientRect().width >
+              element.getBoundingClientRect().width + recoveredWidth + SUBPIXEL_ROUNDING
+            );
+          }),
       );
     };
     measure();
