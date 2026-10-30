@@ -28,6 +28,7 @@ allowBuilds:
   sharp: true
   "@tsc-rs/typescript": true
   utf-8-validate: false
+  workerd: true
 
 catalog:
   "@effect/atom-react": 4.0.5
