@@ -1,3 +1,4 @@
+import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import type { OlderDoneScope } from "@supaterm/client-runtime/state/threads";
 import type { EnvironmentId } from "@supaterm/contracts";
 import { useMemo, useSyncExternalStore } from "react";
@@ -24,6 +25,8 @@ function useKeySet(newlineSeparatedKeys: string): ReadonlySet<string> {
 }
 
 type LayoutInput = Parameters<typeof buildThreadListV2Items>[0];
+
+const NO_LISTED_DONE: ReadonlyArray<EnvironmentThreadShell> = [];
 
 /**
  * Home's and the iPad sidebar's thread list, so both keep the same partition. Its result is
@@ -109,7 +112,10 @@ export function useThreadListV2(input: {
     doneShelfExpanded: input.doneShelfExpanded,
     selectedThreadKey: input.selectedThreadKey,
   });
-  useOlderDoneShelfGrowth(olderDoneShelf, layout.listedDoneThreads);
+  useOlderDoneShelfGrowth(
+    olderDoneShelf,
+    layout.kind === "shelves" ? layout.listedDoneThreads : NO_LISTED_DONE,
+  );
   const contentOnlyThreadKeys = useKeySet([...layout.contentOnlyThreadKeys].sort().join("\n"));
   const scopedProjectKeys =
     input.projectRefs === null
