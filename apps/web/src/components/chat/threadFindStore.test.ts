@@ -1,24 +1,21 @@
-import { scopeThreadRef } from "@supaterm/client-runtime/environment";
-import { EnvironmentId, MessageId, ThreadId } from "@supaterm/contracts";
+import { MessageId } from "@supaterm/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import {
   attachThreadFindTimeline,
-  closeThreadFind,
   findForMessageMatch,
   openThreadFind,
   openThreadFindOnQuery,
-  retainThreadFindForRoute,
   setThreadFindQuery,
   useThreadFindStore,
 } from "./threadFindStore";
 
-const threadRef = scopeThreadRef(EnvironmentId.make("env-1"), ThreadId.make("thread-1"));
-const otherRef = scopeThreadRef(EnvironmentId.make("env-1"), ThreadId.make("thread-2"));
 const threadKey = "env-1:thread-1";
+const otherKey = "env-1:thread-2";
+const findIn = (key: string) => useThreadFindStore.getState().finds.get(key);
 
 function setup() {
-  closeThreadFind();
+  useThreadFindStore.setState({ finds: new Map() });
   const navigate = vi.fn();
   const readPosition = vi.fn(() => ({ entryId: "entry-9", occurrence: 1 }));
   return { navigate, readPosition, timeline: { threadKey, navigate, readPosition } };
@@ -31,14 +28,14 @@ describe("thread find store", () => {
     openThreadFind(threadKey);
     // Opening find is manual navigation; reopening it is not.
     expect(navigate).toHaveBeenCalledTimes(1);
-    expect(useThreadFindStore.getState()).toMatchObject({ threadKey, focusRequestId: 1 });
+    expect(findIn(threadKey)).toMatchObject({ focusRequestId: 1 });
 
     setThreadFindQuery(threadKey, " needle ");
     expect(readPosition).toHaveBeenLastCalledWith("needle");
     // Opening again refocuses and restarts the search from where the viewport is.
     openThreadFind(threadKey);
     expect(navigate).toHaveBeenCalledTimes(1);
-    expect(useThreadFindStore.getState()).toMatchObject({
+    expect(findIn(threadKey)).toMatchObject({
       query: " needle ",
       focusRequestId: 2,
       start: { entryId: "entry-9", occurrence: 1 },
@@ -50,10 +47,9 @@ describe("thread find store", () => {
 
   it("opens a search result's find for a thread before its timeline shows it", () => {
     const { navigate, readPosition, timeline } = setup();
-    const detach = attachThreadFindTimeline({ ...timeline, threadKey: "env-1:thread-2" });
+    const detach = attachThreadFindTimeline({ ...timeline, threadKey: otherKey });
     openThreadFindOnQuery(threadKey, { query: "Café", start: { entryId: "m", occurrence: 0 } });
-    expect(useThreadFindStore.getState()).toMatchObject({
-      threadKey,
+    expect(findIn(threadKey)).toMatchObject({
       query: "Café",
       start: { entryId: "m", occurrence: 0 },
     });
@@ -62,21 +58,6 @@ describe("thread find store", () => {
     expect(readPosition).not.toHaveBeenCalled();
     expect(navigate).not.toHaveBeenCalled();
     detach();
-  });
-
-  it("keeps find over Settings and Usage, and closes it on any other route", () => {
-    setup();
-    openThreadFindOnQuery(threadKey, { query: "x" });
-    retainThreadFindForRoute({ modalPage: false, threadRef });
-    retainThreadFindForRoute({ modalPage: true, threadRef: null });
-    expect(useThreadFindStore.getState()).toMatchObject({ threadKey, query: "x" });
-
-    retainThreadFindForRoute({ modalPage: false, threadRef: otherRef });
-    expect(useThreadFindStore.getState()).toMatchObject({ threadKey: null, query: "" });
-
-    openThreadFindOnQuery(threadKey, { query: "x" });
-    retainThreadFindForRoute({ modalPage: false, threadRef: null });
-    expect(useThreadFindStore.getState().threadKey).toBeNull();
   });
 });
 

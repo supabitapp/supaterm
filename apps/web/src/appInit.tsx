@@ -1,12 +1,10 @@
-import { scopedThreadKey, scopeThreadRef } from "@supaterm/client-runtime/environment";
 import type { ClientSettings } from "@supaterm/contracts/settings";
 import { createBrowserHistory, createHashHistory } from "@tanstack/react-router";
 
 import { applyAppearanceContrast } from "./appearanceContrast";
 import { applyAppearanceFontVariables } from "./appearanceFonts";
 import { startElectronBrowserHost } from "./browser/ElectronBrowserHost";
-import { useChatPaneStore } from "./chatPanes/store";
-import { retainThreadOverlaysFor } from "./components/chat/threadOverlayRetention";
+import { startThreadOverlayRetention } from "./components/chat/threadOverlayRetention";
 import { startBrowserProfileReporting } from "./browser/BrowserProfileReporter";
 import { startPreviewTitleRecording } from "./browserHistoryStore";
 import { startBackgroundThreadAnnouncements } from "./components/BackgroundThreadAnnouncer";
@@ -21,7 +19,7 @@ import { startThreadNotifications } from "./components/ThreadNotificationCoordin
 import { APP_DISPLAY_NAME } from "./branding";
 import { startGuideRunNotifications } from "./components/pullRequest/guide/PullRequestGuideRunCoordinator";
 import { isElectron } from "./env";
-import { subscribeDraftThreadPromotion, useComposerDraftStore } from "./composerDraftStore";
+import { subscribeDraftThreadPromotion } from "./composerDraftStore";
 import { startDefaultThemeAdoption } from "./hooks/useDefaultTheme";
 import { startEnvironmentThemeRepaint } from "./hooks/useEnvironmentTheme";
 import { getClientSettings, subscribeClientSettings } from "./hooks/useSettings";
@@ -34,7 +32,6 @@ import {
 import { startProviderAuthDelivery } from "./providerAuthDelivery";
 import { getRouter, type AppRouter } from "./router";
 import { appAtomRegistry } from "./rpc/atomRegistry";
-import { resolveThreadRouteTarget, type ThreadRouteTarget } from "./threadRoutes";
 import { installCommandPaletteCommands } from "./shortcuts/commandPaletteCommands";
 import { registerOpenFavoriteEditorCommand } from "./components/chat/OpenInPickerShortcut";
 import { environmentThreadShells } from "./state/threads";
@@ -88,18 +85,6 @@ function startClientAppearance(): void {
   apply();
 }
 
-/** The thread a route or pane shows, as the key its chat overlays were opened under. */
-function shownThreadKey(target: ThreadRouteTarget | null): string | null {
-  if (target?.kind === "server") return scopedThreadKey(target.threadRef);
-  const draftSession =
-    target?.kind === "draft"
-      ? useComposerDraftStore.getState().getDraftSession(target.draftId)
-      : null;
-  return draftSession
-    ? scopedThreadKey(scopeThreadRef(draftSession.environmentId, draftSession.threadId))
-    : null;
-}
-
 /**
  * Each route paints its own surface, which the browser chrome samples once it is on screen.
  * onRendered only fires for a new href; onResolved also covers `router.invalidate()`, which
@@ -109,24 +94,6 @@ function startBrowserChromeThemeSync(router: AppRouter): void {
   const resync = () => window.requestAnimationFrame(syncBrowserChromeTheme);
   router.subscribe("onRendered", resync);
   router.subscribe("onResolved", resync);
-}
-
-/** Chat overlays belong to the thread they were opened in, so a thread no route or pane shows drops them. */
-function startThreadOverlayRetention(router: AppRouter): void {
-  const retain = () => {
-    const shown = new Set<string>();
-    const routeKey = shownThreadKey(
-      resolveThreadRouteTarget(router.state.matches.at(-1)?.params ?? {}),
-    );
-    if (routeKey !== null) shown.add(routeKey);
-    for (const cell of useChatPaneStore.getState().layout?.cells ?? []) {
-      const paneKey = shownThreadKey(cell.target);
-      if (paneKey !== null) shown.add(paneKey);
-    }
-    retainThreadOverlaysFor(shown);
-  };
-  router.subscribe("onResolved", retain);
-  useChatPaneStore.subscribe(retain);
 }
 
 /**

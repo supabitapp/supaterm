@@ -2854,7 +2854,7 @@ export default function ChatView(props: ChatViewProps) {
       branchPicker: isGitRepo && showDraftProjectPicker,
     },
     closeThreadFind: () => {
-      closeThreadFind();
+      if (activeThreadKey !== null) closeThreadFind(activeThreadKey);
       focusComposerStable();
     },
     commands: {

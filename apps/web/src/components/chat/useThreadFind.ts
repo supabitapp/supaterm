@@ -11,7 +11,7 @@ import {
   CLOSED_THREAD_FIND,
   closeThreadFind,
   setThreadFindQuery,
-  useThreadFindOpen,
+  updateThreadFind,
   useThreadFindStore,
   type ThreadFindLocalSelection,
   type ThreadFindState,
@@ -37,13 +37,14 @@ export function useThreadFind({
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshAfterSearchRef = useRef(false);
   const threadKey = thread ? scopedThreadKey(thread) : null;
-  const isOpen = useThreadFindOpen(thread, enabled);
-  const stored = useThreadFindStore();
+  const stored = useThreadFindStore((store) =>
+    threadKey === null ? undefined : store.finds.get(threadKey),
+  );
+  const isOpen = enabled && stored !== undefined;
   const state = isOpen ? stored : CLOSED_THREAD_FIND;
-  const setState = (update: (previous: ThreadFindState) => Partial<ThreadFindState>) =>
-    useThreadFindStore.setState((previous) =>
-      previous.threadKey === threadKey ? update(previous) : previous,
-    );
+  const setState = (update: (previous: ThreadFindState) => ThreadFindState) => {
+    if (threadKey !== null) updateThreadFind(threadKey, update);
+  };
 
   const remote = useServerResults(
     isOpen ? thread : null,
@@ -218,7 +219,9 @@ export function useThreadFind({
       },
       onNext: () => step(1),
       onPrevious: () => step(-1),
-      onClose: closeThreadFind,
+      onClose: () => {
+        if (threadKey !== null) closeThreadFind(threadKey);
+      },
     },
     timelineProps: timeline,
   };
