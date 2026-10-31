@@ -1,4 +1,4 @@
-import { registerCommands } from "../../shortcuts/dispatcher";
+import { observeKeyDown } from "../../shortcuts/dispatcher";
 import {
   eventPathContainsSelector,
   TYPE_TO_FOCUS_EDITABLE_SELECTOR,
@@ -142,7 +142,7 @@ export function attachTimelineViewport(
   scrollNode.addEventListener("wheel", handleWheel, { passive: true });
   scrollNode.addEventListener("touchmove", handleTouchMove, { passive: true });
   scrollNode.addEventListener("pointerdown", handlePointerDown, { passive: true });
-  const unregisterKeyDown = registerCommands({}, { observe: handleKeyDown });
+  const unregisterKeyDown = observeKeyDown(handleKeyDown);
   return {
     scrollNode,
     subscribe: (listener) => {

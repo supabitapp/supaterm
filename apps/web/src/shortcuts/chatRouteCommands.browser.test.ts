@@ -6,12 +6,22 @@ import { installChatRouteCommands } from "./chatRouteCommands";
 
 type Match = { readonly routeId: string; readonly pathname: string };
 
-function routerAt(matches: Match[]) {
-  const state = { matches: matches.map((match) => ({ ...match, params: {} })) };
+function routerAt(matches: Match[], historyIndex = 0) {
+  const locationOf = (next: Match[]) => ({
+    pathname: next.at(-1)?.pathname ?? "/",
+    state: { __TSR_index: historyIndex },
+  });
+  const state = {
+    matches: matches.map((match) => ({ ...match, params: {} })),
+    location: locationOf(matches),
+  };
+  const routerNavigate = vi.fn(async () => {});
   return {
-    router: { state } as unknown as AnyRouter,
+    router: { state, navigate: routerNavigate } as unknown as AnyRouter,
+    routerNavigate,
     navigate: (next: Match[]) => {
       state.matches = next.map((match) => ({ ...match, params: {} }));
+      state.location = locationOf(next);
     },
   };
 }
@@ -57,6 +67,31 @@ describe("chat route commands", () => {
     expect(useThreadSelectionStore.getState().selectedThreadKeys.size).toBe(0);
     // With nothing selected, Escape is left for other handlers.
     expect(pressEscape().defaultPrevented).toBe(false);
+  });
+
+  it("leaves the pull requests page on an Escape nothing else took, a selection first", () => {
+    const { router, routerNavigate } = routerAt([
+      ...CHAT,
+      { routeId: "/_chat/pull-requests", pathname: "/pull-requests" },
+    ]);
+    using stack = new DisposableStack();
+    stack.defer(installChatRouteCommands(router));
+    stack.defer(() => useThreadSelectionStore.getState().clearSelection());
+    const dialog = document.createElement("div");
+    dialog.addEventListener("keydown", (event) => event.preventDefault());
+    document.body.append(dialog);
+    stack.defer(() => dialog.remove());
+
+    dialog.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", cancelable: true, bubbles: true }),
+    );
+    selectThread("env:thread-1");
+    pressEscape();
+    expect(useThreadSelectionStore.getState().selectedThreadKeys.size).toBe(0);
+    expect(routerNavigate).not.toHaveBeenCalled();
+
+    expect(pressEscape().defaultPrevented).toBe(true);
+    expect(routerNavigate).toHaveBeenCalledWith({ to: "/" });
   });
 
   it("stays out of the way off the chat route and under modal pages", () => {

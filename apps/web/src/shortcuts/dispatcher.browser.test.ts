@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import {
   type CommandInvocation,
   dispatchMenuAction,
+  observeKeyDown,
   registerCommands,
   registerMenuAction,
   runCommand,
@@ -139,20 +140,26 @@ describe("command dispatcher", () => {
     expect(command).toHaveBeenCalledOnce();
   });
 
-  it("tells observers whether a scope consumed the key, after the scopes ran", () => {
+  it("tells live observers whether a scope consumed the key, after the scopes ran", () => {
     const calls: Array<string> = [];
+    let observing = true;
     using stack = new DisposableStack();
     stack.defer(
-      registerCommands({}, { observe: (_event, consumed) => calls.push(`observe:${consumed}`) }),
+      observeKeyDown((_event, consumed) => void calls.push(`observe:${consumed}`), {
+        when: () => observing,
+      }),
     );
     stack.defer(
       registerCommands({ "chat.new": () => void calls.push("command") }, { keybindings }),
     );
 
     press("k");
-    press("x");
+    const unconsumed = press("x");
+    observing = false;
+    press("k");
 
-    expect(calls).toEqual(["command", "observe:true", "observe:false"]);
+    expect(calls).toEqual(["command", "observe:true", "observe:false", "command"]);
+    expect(unconsumed.defaultPrevented).toBe(false);
   });
 
   it("routes a menu action to its newest handler", () => {

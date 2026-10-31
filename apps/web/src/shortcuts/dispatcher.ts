@@ -50,12 +50,6 @@ export interface CommandScopeOptions {
    * themselves (the terminal encodes Ctrl+Shift+T and stops propagation).
    */
   readonly capture?: boolean;
-  /**
-   * Hear every bubbling keydown after the scopes ran, with whether one of them
-   * (or the page) consumed it. Observers never consume. For listeners that react to keys other
-   * scopes may also handle, such as scroll keys.
-   */
-  readonly observe?: (event: KeyboardEvent, consumed: boolean) => void;
 }
 
 interface CommandScope {
@@ -63,10 +57,18 @@ interface CommandScope {
   readonly options: CommandScopeOptions;
 }
 
+/** Hears a keydown after the bubbling scopes ran; it must not consume the key. */
+export type KeyObserver = (event: KeyboardEvent, consumed: boolean) => void;
+
+interface KeyObserverScope {
+  readonly observe: KeyObserver;
+  readonly when: (() => boolean) | undefined;
+}
+
 // Within each list the newest scope wins.
 const globalScopes: CommandScope[] = [];
 const captureScopes: CommandScope[] = [];
-const observerScopes: CommandScope[] = [];
+const observerScopes: KeyObserverScope[] = [];
 
 const isKeybindingCommand = Schema.is(KeybindingCommand);
 
@@ -146,7 +148,9 @@ function dispatchCaptureKeyDown(event: KeyboardEvent): void {
 
 function dispatchKeyDown(event: KeyboardEvent): void {
   const consumed = runKeyScopes(globalScopes, event) || event.defaultPrevented;
-  for (const scope of observerScopes.slice()) scope.options.observe?.(event, consumed);
+  for (const scope of observerScopes.slice()) {
+    if (scope.when?.() ?? true) scope.observe(event, consumed);
+  }
 }
 
 type MenuActionHandler = () => void;
@@ -188,7 +192,7 @@ export function registerCommands(
   commands: CommandHandlers | CommandRunner,
   options: CommandScopeOptions = {},
 ): () => void {
-  const scopes = options.observe ? observerScopes : options.capture ? captureScopes : globalScopes;
+  const scopes = options.capture ? captureScopes : globalScopes;
   const run: CommandRunner =
     typeof commands === "function"
       ? commands
@@ -197,6 +201,17 @@ export function registerCommands(
           return handler ? handler(invocation) : false;
         };
   return pushScope(scopes, { run, options });
+}
+
+/**
+ * Hears every bubbling keydown after the scopes ran, with whether one of them (or the page)
+ * consumed it. For listeners that react to keys other scopes may also handle, such as scroll keys.
+ */
+export function observeKeyDown(
+  observe: KeyObserver,
+  options: Pick<CommandScopeOptions, "when"> = {},
+): () => void {
+  return pushScope(observerScopes, { observe, when: options.when });
 }
 
 /** Desktop menu actions that are not keybinding commands; the newest handler for an action wins. */

@@ -33,6 +33,13 @@ const PREVIEW_ACTION_BY_COMMAND: Partial<Record<KeybindingCommand, PreviewAction
   "preview.resetZoom": "reset-zoom",
 };
 
+function leavePullRequestsPage(router: AnyRouter) {
+  const activeElement = document.activeElement;
+  if (activeElement instanceof HTMLElement) activeElement.blur();
+  if (router.state.location.state.__TSR_index !== 0) window.history.back();
+  else void router.navigate({ to: "/" });
+}
+
 /**
  * New-thread, project picker and preview commands, live while a chat route shows
  * without a modal page over it. Everything is read at event time, so the scope
@@ -145,12 +152,20 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
         previewOpen: readPreviewOpen(),
       };
     },
+    // The oldest Escape scope on chat routes, so a dialog, a drag or the
+    // pull request list claims the key first.
     onKeyDown: (event) => {
       if (event.key !== "Escape") return false;
       const selection = useThreadSelectionStore.getState();
-      if (selection.selectedThreadKeys.size === 0) return false;
+      if (selection.selectedThreadKeys.size > 0) {
+        event.preventDefault();
+        selection.clearSelection();
+        return;
+      }
+      if (event.repeat || event.isComposing) return false;
+      if (router.state.location.pathname !== "/pull-requests") return false;
       event.preventDefault();
-      selection.clearSelection();
+      leavePullRequestsPage(router);
     },
   });
 }
