@@ -44,10 +44,9 @@ session-wide choice, because Grok would remember that command for the whole proj
 ACP Registry agents run their own tools in their own mode; Supaterm answers their approval requests
 by the permission mode. See [ACP Registry permissions](./providers-acp.md#permissions-and-terminals).
 
-In **Full access**, Supaterm approves everything Claude asks about: its own safety checks (such as
-deleting a path it can't verify), actions that match an ask rule in your Claude settings, and every
-action when your Claude settings turn off bypass permissions. In other modes, a Claude approval
-shows Claude's reason when it gives one.
+In **Full access**, Supaterm approves every permission request from Claude, including its own
+safety checks and actions that match an ask rule in your Claude settings. In other modes, a Claude
+approval shows Claude's reason when it gives one.
 While a Claude approval is pending, type a text reply to decline that request and give feedback
 directly to the agent that asked, including a subagent. Other pending requests stay unanswered.
 

@@ -512,7 +512,7 @@ try {
     ...(queryPolicy.allowDangerouslySkipPermissions === undefined
       ? {}
       : { allowDangerouslySkipPermissions: queryPolicy.allowDangerouslySkipPermissions }),
-    ...(queryPolicy.installPermissionCallback ? { enablePermissionCallback: true } : {}),
+    ...(queryPolicy.requiresApproval ? { enablePermissionCallback: true } : {}),
     ...("permissionDecision" in recording
       ? { permissionDecision: recording.permissionDecision }
       : {}),

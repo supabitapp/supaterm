@@ -409,7 +409,7 @@ describe("ClaudeAdapterV2 runtime query policy", () => {
       permissionMode: "dontAsk",
       tools: ClaudeAdapterV2.CLAUDE_READ_ONLY_ALLOWED_TOOLS,
       allowedTools: ClaudeAdapterV2.CLAUDE_READ_ONLY_ALLOWED_TOOLS,
-      installPermissionCallback: false,
+      requiresApproval: false,
     });
   });
 
@@ -435,7 +435,7 @@ describe("ClaudeAdapterV2 runtime query policy", () => {
     assert.deepEqual(queryPolicy, {
       permissionMode: "dontAsk",
       tools: ClaudeAdapterV2.CLAUDE_READ_ONLY_ALLOWED_TOOLS,
-      installPermissionCallback: false,
+      requiresApproval: false,
     });
   });
 
@@ -451,7 +451,7 @@ describe("ClaudeAdapterV2 runtime query policy", () => {
     assert.deepEqual(queryPolicy, {
       permissionMode: "bypassPermissions",
       allowDangerouslySkipPermissions: true,
-      installPermissionCallback: false,
+      requiresApproval: false,
     });
   });
 
@@ -469,7 +469,7 @@ describe("ClaudeAdapterV2 runtime query policy", () => {
 
     assert.deepEqual(queryPolicy, {
       permissionMode: "default",
-      installPermissionCallback: true,
+      requiresApproval: true,
     });
   });
 });
@@ -2774,7 +2774,6 @@ describe("ClaudeAdapterV2 background wake turns", () => {
   const makeWakeHarnessWithOptions = (options?: {
     readonly close?: (sdkMessages: Queue.Queue<SDKMessage>) => Effect.Effect<void>;
     readonly interrupt?: Effect.Effect<void>;
-    readonly setPermissionMode?: ClaudeAdapterV2.ClaudeAgentSdkQuerySession["setPermissionMode"];
     readonly stopTask?: (
       taskId: string,
     ) => Effect.Effect<void, ClaudeAdapterV2.ClaudeAgentSdkQueryRunnerError>;
@@ -2914,9 +2913,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
                   setPermissionMode: (mode) =>
                     Effect.sync(() => {
                       permissionModeChanges.push(mode);
-                    }).pipe(
-                      Effect.andThen(() => options?.setPermissionMode?.(mode) ?? Effect.void),
-                    ),
+                    }),
                   backgroundTasks: options?.backgroundTasks ?? (() => Effect.succeed(false)),
                   stopTask: options?.stopTask ?? (() => Effect.void),
                   interrupt: Effect.void,
@@ -2941,7 +2938,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
                 setPermissionMode: (mode) =>
                   Effect.sync(() => {
                     permissionModeChanges.push(mode);
-                  }).pipe(Effect.andThen(() => options?.setPermissionMode?.(mode) ?? Effect.void)),
+                  }),
                 backgroundTasks: options?.backgroundTasks ?? (() => Effect.succeed(false)),
                 stopTask: options?.stopTask ?? (() => Effect.void),
                 interrupt: options?.interrupt ?? Effect.void,

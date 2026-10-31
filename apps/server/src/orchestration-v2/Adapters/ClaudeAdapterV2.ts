@@ -2535,7 +2535,7 @@ export interface ClaudeRuntimeQueryPolicy {
   readonly tools?: ClaudeAgentSdkQueryTools;
   readonly allowedTools?: ReadonlyArray<string>;
   readonly allowDangerouslySkipPermissions?: true;
-  readonly installPermissionCallback: boolean;
+  readonly requiresApproval: boolean;
 }
 
 export function claudeRuntimeQueryPolicyForRuntimePolicy(
@@ -2551,29 +2551,21 @@ export function claudeRuntimeQueryPolicyForRuntimePolicy(
       ? readOnlyTools
       : undefined;
   // acceptEdits approves edits before the callback runs; everything else it
-  // leaves to the callback, which must ask rather than allow.
-  const installPermissionCallback =
-    runtimePolicy.approvalPolicy === undefined
+  // leaves to the callback, which must ask rather than allow. Claude routes
+  // Plan-mode writes to the callback even in Auto or Full access.
+  const requiresApproval =
+    permissionMode === "plan" ||
+    (runtimePolicy.approvalPolicy === undefined
       ? runtimePolicy.runtimeMode === "approval-required" ||
         runtimePolicy.runtimeMode === "auto-accept-edits"
-      : runtimePolicy.approvalPolicy !== "never";
-
-  if (permissionMode === "plan") {
-    return {
-      permissionMode,
-      ...(readOnlyTools === undefined ? {} : { tools: readOnlyTools }),
-      ...(allowedTools === undefined ? {} : { allowedTools }),
-      // Claude routes Plan-mode writes to the callback even in Auto or Full access.
-      installPermissionCallback: true,
-    };
-  }
+      : runtimePolicy.approvalPolicy !== "never");
 
   return {
     permissionMode,
     ...(readOnlyTools === undefined ? {} : { tools: readOnlyTools }),
     ...(allowedTools === undefined ? {} : { allowedTools }),
     ...(permissionMode === "bypassPermissions" ? { allowDangerouslySkipPermissions: true } : {}),
-    installPermissionCallback,
+    requiresApproval,
   };
 }
 
@@ -2602,7 +2594,7 @@ function claudeRuntimeQueryPolicyKey(policy: ClaudeRuntimeQueryPolicy): string {
     tools: policy.tools,
     allowedTools: policy.allowedTools,
     allowDangerouslySkipPermissions: policy.allowDangerouslySkipPermissions,
-    installPermissionCallback: policy.installPermissionCallback,
+    requiresApproval: policy.requiresApproval,
   });
 }
 
@@ -9499,7 +9491,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           if (
             heldForEcho &&
             toolName !== "ExitPlanMode" &&
-            (toolName === "AskUserQuestion" || context.queryPolicy.installPermissionCallback)
+            (toolName === "AskUserQuestion" || context.queryPolicy.requiresApproval)
           ) {
             // The SDK blocks on the answer and the prompt echo cannot arrive until the held turn
             // goes on, so the request is raised now with the held output. ExitPlanMode is
@@ -9621,7 +9613,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             } satisfies PermissionResult;
           }
 
-          if (!context.queryPolicy.installPermissionCallback) {
+          if (!context.queryPolicy.requiresApproval) {
             return {
               behavior: "allow",
               updatedInput: toolInput,
