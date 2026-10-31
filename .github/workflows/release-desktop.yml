@@ -257,7 +257,8 @@ jobs:
 
       # tsdown downloads the target Node with one fetch and no retry, and
       # nodejs.org drops that download often enough to fail releases. Seed
-      # tsdown's cache with a retried, checksum-verified copy instead.
+      # tsdown's cache with a retried, checksum-verified copy instead. A transfer
+      # under 100 KB/s for 30s counts as failed, so a stall retries.
       - name: Download target Node.js for the CLI executable
         if: inputs.cli_archive && inputs.platform == 'win'
         shell: bash
@@ -268,8 +269,9 @@ jobs:
           dest="${XDG_CACHE_HOME:-$HOME/.cache}/tsdown/node/v$version/win-${INPUTS_ARCH}"
           dir="$RUNNER_TEMP/node-download"
           mkdir -p "$dir" "$dest"
-          curl -fsSL --retry 5 --retry-all-errors -o "$dir/$name.zip" "https://nodejs.org/dist/v$version/$name.zip"
-          curl -fsSL --retry 5 --retry-all-errors -o "$dir/SHASUMS256.txt" "https://nodejs.org/dist/v$version/SHASUMS256.txt"
+          fetch=(curl -fsSL --retry 5 --retry-all-errors --connect-timeout 10 --speed-limit 102400 --speed-time 30)
+          "${fetch[@]}" -o "$dir/$name.zip" "https://nodejs.org/dist/v$version/$name.zip"
+          "${fetch[@]}" -o "$dir/SHASUMS256.txt" "https://nodejs.org/dist/v$version/SHASUMS256.txt"
           (cd "$dir" && grep " $name.zip\$" SHASUMS256.txt | sha256sum -c -)
           unzip -p "$dir/$name.zip" "$name/node.exe" > "$dest/node.exe"
 
