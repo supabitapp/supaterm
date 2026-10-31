@@ -1,4 +1,4 @@
-import { memo, type MouseEventHandler, type PointerEventHandler } from "react";
+import { memo, type ComponentProps, type MouseEventHandler, type PointerEventHandler } from "react";
 import {
   CheckIcon,
   ChevronLeftIcon,
@@ -81,8 +81,14 @@ const formatPendingPrimaryActionLabel = (input: {
 const messageActionPillClassName =
   "inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-message-action font-medium text-base text-message-action-foreground shadow-xs shadow-message-action/24 outline-none hover:bg-message-action-hover focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-64 disabled:shadow-none sm:text-sm";
 
-export const composerSendButtonClassName =
-  "flex h-9 w-9 items-center justify-center rounded-full bg-message-action text-message-action-foreground shadow-xs transition-[scale,background-color] duration-150 ease-out motion-reduce:transition-none enabled:cursor-pointer enabled:shadow-message-action/24 enabled:inset-shadow-control-highlight hover:scale-105 hover:bg-message-action-hover active:inset-shadow-control-pressed active:shadow-none disabled:pointer-events-none disabled:opacity-64 disabled:shadow-none disabled:hover:scale-100 sm:h-8 sm:w-8 [&_svg]:pointer-events-none";
+export function ComposerSendButton(props: ComponentProps<"button">) {
+  return (
+    <button
+      {...props}
+      className="flex h-9 w-9 items-center justify-center rounded-full bg-message-action text-message-action-foreground shadow-xs transition-[scale,background-color] duration-150 ease-out motion-reduce:transition-none enabled:cursor-pointer enabled:shadow-message-action/24 enabled:inset-shadow-control-highlight hover:scale-105 hover:bg-message-action-hover active:inset-shadow-control-pressed active:shadow-none disabled:pointer-events-none disabled:opacity-64 disabled:shadow-none disabled:hover:scale-100 sm:h-8 sm:w-8 [&_svg]:pointer-events-none"
+    />
+  );
+}
 
 export function ComposerSendArrowIcon() {
   return (
@@ -310,9 +316,8 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
             : null));
 
   const sendButton = (
-    <button
+    <ComposerSendButton
       type={showResume ? "button" : "submit"}
-      className={composerSendButtonClassName}
       {...pointerFocusProps}
       onClick={showResume ? onResume : onSubmitMessage}
       disabled={
@@ -340,7 +345,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
       ) : (
         <ComposerSendArrowIcon />
       )}
-    </button>
+    </ComposerSendButton>
   );
 
   return (

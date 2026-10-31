@@ -190,17 +190,9 @@ async function runTranscriptionOperation<T>(operation: () => Promise<T>): Promis
   }
 }
 
-function errorCode(error: unknown): string | null {
-  if (typeof error !== "object" || error === null || !("code" in error)) return null;
-  return typeof error.code === "string" ? error.code : null;
-}
-
 function preparationErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message === "voice-operation-busy") {
     return "Voice transcription is still finishing. Try again shortly.";
-  }
-  if (errorCode(error) === "unsupported-locale") {
-    return "Voice transcription is not available for this language.";
   }
   return "Could not prepare voice transcription.";
 }

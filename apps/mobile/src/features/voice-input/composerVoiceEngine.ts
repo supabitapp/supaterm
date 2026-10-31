@@ -1,7 +1,6 @@
 import { resolveVoiceTranscriptionSource } from "@supaterm/client-runtime/state/transcription";
 import type { EnvironmentId, ProjectId, ThreadId } from "@supaterm/contracts";
 
-import * as Dialog from "../../components/ui/Dialog";
 import { systemVoiceLanguage } from "../../lib/voiceLanguage";
 import { appAtomRegistry } from "../../state/atom-registry";
 import { serverEnvironment } from "../../state/server";
@@ -39,8 +38,4 @@ export function resolveComposerVoiceEngine(input: {
     ...(input.context ? { context: input.context } : {}),
   });
   return { status: "ready", engine: { transcriber, language } };
-}
-
-export function presentUnavailableVoiceEngine(message: string): void {
-  Dialog.alert("Voice input unavailable", message);
 }

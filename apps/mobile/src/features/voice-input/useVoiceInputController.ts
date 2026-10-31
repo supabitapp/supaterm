@@ -10,11 +10,8 @@ import {
 import type { EnvironmentId } from "@supaterm/contracts";
 
 import type { ComposerEditorSelection } from "../../components/ComposerEditor";
-import {
-  presentUnavailableVoiceEngine,
-  resolveComposerVoiceEngine,
-  type VoiceTranscriptionContext,
-} from "./composerVoiceEngine";
+import * as Dialog from "../../components/ui/Dialog";
+import { resolveComposerVoiceEngine, type VoiceTranscriptionContext } from "./composerVoiceEngine";
 import { useGlobalVoiceInput } from "./VoiceInputProvider";
 import { createVoiceInputTarget } from "./voiceInputSession";
 
@@ -78,7 +75,7 @@ export function useVoiceInputController(input: {
       ...(captured.context ? { context: captured.context } : {}),
     });
     if (resolution.status === "unavailable") {
-      presentUnavailableVoiceEngine(resolution.message);
+      Dialog.alert("Voice input unavailable", resolution.message);
       return;
     }
     submission.current = null;

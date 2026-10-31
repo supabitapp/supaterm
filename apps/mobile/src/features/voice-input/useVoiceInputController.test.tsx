@@ -37,7 +37,6 @@ vi.mock("./composerVoiceEngine", () => ({
     status: "ready",
     engine: { transcriber, language: "en-US" },
   }),
-  presentUnavailableVoiceEngine: vi.fn(),
 }));
 vi.mock("./VoiceInputProvider", () => ({
   useGlobalVoiceInput: () => {

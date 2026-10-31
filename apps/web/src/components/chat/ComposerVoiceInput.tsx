@@ -9,13 +9,12 @@ import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
-import { ComposerSendArrowIcon, composerSendButtonClassName } from "./ComposerPrimaryActions";
+import { ComposerSendArrowIcon, ComposerSendButton } from "./ComposerPrimaryActions";
 
 const keepComposerFocus = (event: PointerEvent) => event.preventDefault();
 
 const VOICE_BAR_INDEXES = Array.from({ length: VOICE_LEVEL_HISTORY }, (_, index) => index);
 
-/** Starts voice input; while a recording is open, {@link ComposerVoiceSession} takes its place. */
 export function ComposerVoiceButton(props: {
   readonly voice: ComposerVoiceInput;
   readonly disabled: boolean;
@@ -144,7 +143,6 @@ function VoiceSessionAction(props: {
   );
 }
 
-/** Replaces the microphone and send buttons while a recording is open or on its way. */
 export function ComposerVoiceSession(props: {
   readonly voice: ComposerVoiceInput;
   readonly shortcutLabel: string | null;
@@ -174,9 +172,8 @@ export function ComposerVoiceSession(props: {
       </div>
       <Tooltip>
         <TooltipTrigger render={<span className="inline-flex" />}>
-          <button
+          <ComposerSendButton
             type="button"
-            className={composerSendButtonClassName}
             aria-label={sendLabel}
             disabled={
               state.phase !== "recording" || !(availability.canSend || availability.canReview)
@@ -185,7 +182,7 @@ export function ComposerVoiceSession(props: {
             onClick={() => void voice.send()}
           >
             {capturing ? <ComposerSendArrowIcon /> : <Spinner size="sm" aria-hidden="true" />}
-          </button>
+          </ComposerSendButton>
         </TooltipTrigger>
         <TooltipPopup side="top">{sendLabel}</TooltipPopup>
       </Tooltip>
