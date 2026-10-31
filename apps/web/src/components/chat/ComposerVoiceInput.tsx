@@ -1,4 +1,4 @@
-import { CircleAlertIcon, MicIcon, SquareIcon } from "@supaterm/icons";
+import { CircleAlertIcon, MicIcon, SquareIcon, XIcon } from "@supaterm/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type PointerEvent } from "react";
 
@@ -9,37 +9,28 @@ import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
+import { ComposerSendArrowIcon, composerSendButtonClassName } from "./ComposerPrimaryActions";
 
 const keepComposerFocus = (event: PointerEvent) => event.preventDefault();
 
 const VOICE_BAR_INDEXES = Array.from({ length: VOICE_LEVEL_HISTORY }, (_, index) => index);
 
+/** Starts voice input; while a recording is open, {@link ComposerVoiceSession} takes its place. */
 export function ComposerVoiceButton(props: {
   readonly voice: ComposerVoiceInput;
   readonly disabled: boolean;
   readonly shortcutLabel: string | null;
 }) {
   const { voice } = props;
-  const { availability, state } = voice;
+  const { availability } = voice;
   const navigate = useNavigate();
-  const unavailable = availability.unavailableReason !== null && state.phase === "idle";
-  const recording = state.phase === "recording";
-  const busy =
-    state.phase === "preparing" || state.phase === "transcribing" || state.phase === "sending";
-  const label = unavailable
-    ? "Voice input unavailable"
-    : recording
-      ? availability.canReview
-        ? "Stop and review"
-        : "Send voice message"
-      : "Voice input";
+  const unavailable = availability.unavailableReason !== null;
+  const label = unavailable ? "Voice input unavailable" : "Voice input";
   const detail = unavailable
     ? availability.unavailableReason
-    : recording || busy
-      ? null
-      : availability.canReview
-        ? `Transcribed with ${availability.label}`
-        : "Records now; sends once the environment is reachable.";
+    : availability.canReview
+      ? `Transcribed with ${availability.label}`
+      : "Records now; sends once the environment is reachable.";
   return (
     <Tooltip>
       <TooltipTrigger
@@ -49,22 +40,22 @@ export function ComposerVoiceButton(props: {
             variant="ghost"
             size="icon-sm"
             aria-label={label}
-            disabled={props.disabled || busy || (unavailable && !availability.opensSettings)}
+            disabled={props.disabled || (unavailable && !availability.opensSettings)}
             onPointerDown={keepComposerFocus}
             onClick={() => {
               if (unavailable) {
                 void navigate({ to: "/settings/general" });
                 return;
               }
-              voice.toggle();
+              voice.start();
             }}
           />
         }
       >
-        {busy ? <Spinner /> : recording ? <SquareIcon /> : <MicIcon />}
+        <MicIcon />
       </TooltipTrigger>
       <TooltipPopup>
-        {props.shortcutLabel && !busy ? `${label} (${props.shortcutLabel})` : label}
+        {props.shortcutLabel ? `${label} (${props.shortcutLabel})` : label}
         {detail ? <span className="block text-muted-foreground">{detail}</span> : null}
       </TooltipPopup>
     </Tooltip>
@@ -111,104 +102,125 @@ function canOpenMicrophoneSettings(): boolean {
   return typeof window.desktopBridge?.openSystemSettings === "function";
 }
 
-export function composerVoiceBannerItem(voice: ComposerVoiceInput): ComposerBannerStackItem | null {
-  const { state, availability } = voice;
-  switch (state.phase) {
-    case "idle":
-      return null;
-    case "preparing":
-      return {
-        id: "voice-input",
-        variant: "default",
-        priority: "urgent",
-        icon: <Spinner />,
-        title: "Opening the microphone…",
-        actions: (
-          <Button size="xs" variant="ghost" onClick={voice.cancel}>
-            Cancel
-          </Button>
-        ),
-      };
-    case "recording":
-      return {
-        id: "voice-input",
-        variant: "default",
-        priority: "urgent",
-        icon: <span aria-hidden className="size-2 rounded-full bg-destructive" />,
-        title: (
-          <span className="flex min-w-0 items-center gap-2.5 pe-1.5">
+function VoiceSessionAction(props: {
+  readonly voice: ComposerVoiceInput;
+  readonly shortcutLabel: string | null;
+}) {
+  const { voice } = props;
+  const { phase } = voice.state;
+  if (phase === "sending") {
+    return (
+      <span className="flex size-6 shrink-0 items-center justify-center">
+        <Spinner size="sm" />
+      </span>
+    );
+  }
+  const reviews = phase === "recording" && voice.availability.canReview;
+  const label = reviews ? "Stop and review" : phase === "recording" ? "Discard" : "Cancel";
+  const capturing = phase === "preparing" || phase === "recording";
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            aria-label={label}
+            className="relative flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-foreground outline-none transition-[background-color,scale] duration-150 ease-out before:absolute before:-inset-2 hover:bg-foreground/8 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring active:scale-[0.96] motion-reduce:transition-none"
+            onPointerDown={keepComposerFocus}
+            onClick={reviews ? voice.stop : voice.cancel}
+          />
+        }
+      >
+        {reviews ? (
+          <SquareIcon aria-hidden className="size-3 fill-current" />
+        ) : (
+          <XIcon aria-hidden className="size-3.5" />
+        )}
+      </TooltipTrigger>
+      <TooltipPopup shortcut={reviews ? props.shortcutLabel : capturing ? "Esc" : null}>
+        {label}
+      </TooltipPopup>
+    </Tooltip>
+  );
+}
+
+/** Replaces the microphone and send buttons while a recording is open or on its way. */
+export function ComposerVoiceSession(props: {
+  readonly voice: ComposerVoiceInput;
+  readonly shortcutLabel: string | null;
+}) {
+  const { voice } = props;
+  const { availability, state } = voice;
+  const capturing = state.phase === "preparing" || state.phase === "recording";
+  const sendLabel = availability.canSend ? "Send voice message" : "Transcribe and send";
+  return (
+    <>
+      <div
+        role="group"
+        aria-label="Voice input"
+        className="flex h-8 shrink-0 items-center gap-2 rounded-full bg-foreground/6 ps-1 pe-3 text-foreground text-sm"
+      >
+        <VoiceSessionAction voice={voice} shortcutLabel={props.shortcutLabel} />
+        {capturing ? (
+          <>
             <VoiceElapsed recorder={voice.recorder} />
             <VoiceLevelMeter recorder={voice.recorder} />
-          </span>
-        ),
-        description: availability.label,
-        actions: (
-          <>
-            <Button size="xs" variant="ghost" onClick={voice.cancel}>
-              Discard
-            </Button>
-            {availability.canReview ? (
-              <Button size="xs" variant="outline" onClick={voice.stop}>
-                Stop and review
-              </Button>
-            ) : null}
-            {availability.canSend || availability.canReview ? (
-              <Button size="xs" onClick={() => void voice.send()}>
-                Send
-              </Button>
-            ) : null}
           </>
-        ),
-      };
-    case "transcribing":
-      return {
-        id: "voice-input",
-        variant: "default",
-        priority: "urgent",
-        icon: <Spinner />,
-        title: "Transcribing…",
-        description: availability.label,
-        actions: (
-          <Button size="xs" variant="ghost" onClick={voice.cancel}>
-            Cancel
-          </Button>
-        ),
-      };
-    case "sending":
-      return {
-        id: "voice-input",
-        variant: "default",
-        priority: "urgent",
-        icon: <Spinner />,
-        title: "Saving the voice message…",
-      };
-    case "error":
-      return {
-        id: "voice-input",
-        variant: "error",
-        priority: "urgent",
-        icon: <CircleAlertIcon />,
-        title: state.error ?? "Voice input stopped.",
-        description:
-          state.errorAction === "settings" && !canOpenMicrophoneSettings()
-            ? "Allow microphone access for this site in your browser, then try again."
-            : undefined,
-        actions:
-          state.errorAction === "settings" && canOpenMicrophoneSettings() ? (
-            <Button
-              size="xs"
-              variant="ghost"
-              onClick={() => void window.desktopBridge?.openSystemSettings?.("microphone")}
-            >
-              Open settings
-            </Button>
-          ) : state.errorAction !== null ? (
-            <Button size="xs" variant="ghost" onClick={voice.start}>
-              Record again
-            </Button>
-          ) : null,
-        dismissLabel: "Dismiss",
-        onDismiss: voice.cancel,
-      };
-  }
+        ) : (
+          <span aria-live="polite" className="text-muted-foreground">
+            {state.phase === "transcribing" ? "Transcribing…" : "Saving…"}
+          </span>
+        )}
+      </div>
+      <Tooltip>
+        <TooltipTrigger render={<span className="inline-flex" />}>
+          <button
+            type="button"
+            className={composerSendButtonClassName}
+            aria-label={sendLabel}
+            disabled={
+              state.phase !== "recording" || !(availability.canSend || availability.canReview)
+            }
+            onPointerDown={keepComposerFocus}
+            onClick={() => void voice.send()}
+          >
+            {capturing ? <ComposerSendArrowIcon /> : <Spinner size="sm" aria-hidden="true" />}
+          </button>
+        </TooltipTrigger>
+        <TooltipPopup side="top">{sendLabel}</TooltipPopup>
+      </Tooltip>
+    </>
+  );
+}
+
+export function composerVoiceBannerItem(voice: ComposerVoiceInput): ComposerBannerStackItem | null {
+  const { state } = voice;
+  if (state.phase !== "error") return null;
+  return {
+    id: "voice-input",
+    variant: "error",
+    priority: "urgent",
+    icon: <CircleAlertIcon />,
+    title: state.error ?? "Voice input stopped.",
+    description:
+      state.errorAction === "settings" && !canOpenMicrophoneSettings()
+        ? "Allow microphone access for this site in your browser, then try again."
+        : undefined,
+    actions:
+      state.errorAction === "settings" && canOpenMicrophoneSettings() ? (
+        <Button
+          size="xs"
+          variant="ghost"
+          onClick={() => void window.desktopBridge?.openSystemSettings?.("microphone")}
+        >
+          Open settings
+        </Button>
+      ) : state.errorAction !== null ? (
+        <Button size="xs" variant="ghost" onClick={voice.start}>
+          Record again
+        </Button>
+      ) : null,
+    dismissLabel: "Dismiss",
+    onDismiss: voice.cancel,
+  };
 }
