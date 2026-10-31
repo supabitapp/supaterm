@@ -1,6 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import type { EasDeviceHostConfig } from "@supaterm/contracts";
+import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
@@ -452,6 +453,24 @@ describe("EAS Simulator host", () => {
       const failure = yield* ready.devices.boot(catalogDevice!).pipe(Effect.flip);
       expect(failure.message).toContain("Choose one for this host in Settings");
       expect(expo.named("SupatermCreateEasSimulatorSession")).toHaveLength(0);
+    }).pipe(Effect.scoped, Effect.provide(layer)),
+  );
+
+  it.effect("reports iOS unavailable on a server with no Expo credential", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const home = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-expo-home-" });
+      const host = yield* makeHost(
+        fakeExpo(),
+        config({ accessToken: "" }),
+        yield* Scope.make(),
+      ).pipe(
+        Effect.provideService(HostProcess.HomeDirectory, home),
+        Effect.provideService(HostProcess.Environment, {}),
+      );
+      const [ios] = (yield* host.summary).platforms;
+      expect(ios).toMatchObject({ platform: "ios", available: false });
+      expect(ios?.reason).toContain("No Expo credential on the server");
     }).pipe(Effect.scoped, Effect.provide(layer)),
   );
 
