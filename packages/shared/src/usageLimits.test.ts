@@ -871,6 +871,7 @@ describe("/usage-limits", () => {
         provider({
           instanceId: ProviderInstanceId.make("codex-work"),
           displayName: "Work",
+          accentColor: "#2563eb",
           usageLimits: { ...limits, resetCredits: { availableCount: 2 } },
         }),
         provider({
@@ -885,6 +886,7 @@ describe("/usage-limits", () => {
     expect(report?.accounts.map((account) => account.instanceId)).toEqual(["codex", "codex-work"]);
     expect(report?.accounts[1]).toMatchObject({
       displayName: "Work",
+      accentColor: "#2563eb",
       limits: { resetCredits: { availableCount: 2 } },
     });
   });

@@ -709,6 +709,7 @@ export function collectProviderUsageLimits(
       ...(provider.auth.label ? { plan: provider.auth.label } : {}),
       resetCreditInput: { instanceId: credits?.provider.instanceId ?? provider.instanceId },
       ...(provider.displayName ? { displayName: provider.displayName } : {}),
+      ...(provider.accentColor ? { accentColor: provider.accentColor } : {}),
       limits: shownCredits ? { ...limits, resetCredits: shownCredits } : limits,
     });
   }

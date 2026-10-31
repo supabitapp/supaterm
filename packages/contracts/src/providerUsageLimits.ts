@@ -79,6 +79,7 @@ export const UsageLimitsReport = Schema.Struct({
       driver: ProviderDriverKind,
       plan: Schema.optional(TrimmedNonEmptyString),
       displayName: Schema.optional(Schema.String),
+      accentColor: Schema.optional(Schema.String),
       limits: ServerProviderUsageLimits,
     }),
   ),
