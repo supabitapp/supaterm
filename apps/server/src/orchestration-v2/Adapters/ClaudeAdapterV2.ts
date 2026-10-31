@@ -10018,12 +10018,28 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             );
             live.selection = compiledSelection;
           }
+          // Also keep a process a transient settings read opened downgraded from bypass: its
+          // stricter mode beats killing its background work, and the next idle turn reopens
+          // in bypass.
           if (
             existing !== null &&
             existing.nativeThreadId === nativeThreadId &&
-            existing.queryPolicyKey === queryPolicyKey &&
             !existing.stopping &&
-            existing.selection.queryIdentity === compiledSelection.queryIdentity
+            existing.selection.queryIdentity === compiledSelection.queryIdentity &&
+            (existing.queryPolicyKey === queryPolicyKey ||
+              (queryPolicy.permissionMode === "bypassPermissions" &&
+                [false, true].some(
+                  (autoDisabled) =>
+                    existing.queryPolicyKey ===
+                    claudeEffectiveQueryPolicyKey(
+                      claudeRuntimeQueryPolicyForRuntimePolicy(turnInput.runtimePolicy, {
+                        bypassDisabled: true,
+                        autoDisabled,
+                      }),
+                      mcpOverrides,
+                    ),
+                ) &&
+                (yield* liveProcessRunsBackgroundWork(existing))))
           ) {
             if (existing.permissionMode === "plan" && existing.openedPermissionMode !== "plan") {
               existing.permissionMode = yield* existing.query
