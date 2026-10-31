@@ -15,7 +15,7 @@
 // scripts/lib/changed-packages.ts.
 // The steps run side by side within a budget derived from the machine's cores
 // and available memory, and each prints its output when it finishes. A step
-// running past the timeout is killed with its process group and reported as
+// running past the timeout is killed with every process it started and reported as
 // TIMEOUT. A rerun on exactly the files of the last passing run prints that
 // run's summary.
 import * as NodeChildProcess from "node:child_process";
@@ -412,10 +412,21 @@ const runStep = (step: (typeof steps)[number]) =>
     const timer = setTimeout(() => {
       timedOut = true;
       try {
-        if (child.pid !== undefined) process.kill(-child.pid, "SIGKILL");
+        // Windows rejects process-group signals; taskkill /T reaps the tree.
+        // oxlint-disable-next-line supaterm/no-global-process-runtime -- This script runs without an Effect runtime.
+        if (NodeOS.platform() === "win32") {
+          NodeChildProcess.spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
+            stdio: "ignore",
+          });
+        } else if (child.pid !== undefined) process.kill(-child.pid, "SIGKILL");
       } catch {
         child.kill("SIGKILL");
       }
+      // A surviving descendant can hold the pipes open, so "close" may never come.
+      child.stdout.destroy();
+      child.stderr.destroy();
+      child.unref();
+      finish("TIMEOUT");
     }, timeoutSeconds * 1000);
     child.stdout.on("data", (chunk: Buffer) => output.push(chunk));
     child.stderr.on("data", (chunk: Buffer) => output.push(chunk));
@@ -423,8 +434,7 @@ const runStep = (step: (typeof steps)[number]) =>
     child.on("error", (error) => output.push(Buffer.from(`${error.message}\n`)));
     child.on("close", (status) => {
       clearTimeout(timer);
-      if (timedOut) finish("TIMEOUT");
-      else finish(status === 0 ? "pass" : "FAIL", Buffer.concat(output));
+      if (!timedOut) finish(status === 0 ? "pass" : "FAIL", Buffer.concat(output));
     });
   });
 
