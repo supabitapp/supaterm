@@ -1,15 +1,14 @@
 import * as Dialog from "./ui/Dialog";
-import { useIsFocused } from "@react-navigation/native";
 import { requireNativeModule } from "expo";
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import { AsyncResult } from "effect/reactivity";
-import { useEffect, useEffectEvent, useId, useState } from "react";
-import { Keyboard } from "react-native";
+import { useEffect, useEffectEvent, useId } from "react";
 
 import { loadLocalAttachmentPreview } from "../lib/localAttachmentPreview";
+import { usePreviewPresentation, videoPreviewKey } from "../lib/previewPresentation";
 import { fullscreenVideoClosed, fullscreenVideoOpened } from "../lib/videoAudioSession";
 import { mediaVideoPreviewUri, type VideoPreviewSource } from "../lib/videoPreviewSource";
-import { useAssetUrlState, useRefreshAssetUrl } from "../state/assets";
+import { refreshAssetUrl } from "../state/assets";
 import { usePreparedConnection } from "../state/session";
 import {
   acquireAudioSession,
@@ -44,45 +43,30 @@ function NativeVideoPreview(props: {
   const onRequestClose = useEffectEvent(props.onRequestClose);
   const environmentId =
     source.type === "media" && "environmentId" in source ? source.environmentId : null;
-  const resource = source.type === "media" && "resource" in source ? source.resource : null;
   const preparedConnection = usePreparedConnection(environmentId);
-  const assetUrl = useAssetUrlState(environmentId, resource);
-  const refreshAssetUrl = useEffectEvent(useRefreshAssetUrl(environmentId, resource));
   const name = source.type === "media" ? source.name : source.attachment.name;
-  // The first minted URL is kept so a background refresh does not restart playback.
-  const resolvedUrl =
-    source.type === "media"
-      ? mediaVideoPreviewUri(source, assetUrl._tag === "Success" ? assetUrl.url : null)
-      : null;
-  const [playbackUrl, setPlaybackUrl] = useState<string | null>(resolvedUrl);
-  const loadError =
-    resource !== null && playbackUrl === null
-      ? preparedConnection._tag === "None"
+  // Mints a fresh URL for each presentation: AVKit retains the URL and offers no retry,
+  // so a cached link that expired while the app was suspended would fail to play.
+  const resolvePlaybackUrl = useEffectEvent(async (): Promise<string> => {
+    if (source.type !== "media") throw new Error("Could not load this video.");
+    if (!("resource" in source)) return source.uri;
+    const url = await refreshAssetUrl(source.environmentId, source.resource);
+    const playbackUrl = mediaVideoPreviewUri(source, url);
+    if (playbackUrl !== null) return playbackUrl;
+    throw new Error(
+      preparedConnection._tag === "None"
         ? "Reconnect to this environment and open the video again."
-        : assetUrl._tag === "Failure"
-          ? "Could not load this video. Check the connection and try again."
-          : null
-      : null;
-
-  if (playbackUrl === null && resolvedUrl !== null) setPlaybackUrl(resolvedUrl);
-
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- dismisses the native keyboard when the fullscreen video opens
-  useEffect(() => Keyboard.dismiss(), []);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- counts this preview in the module-level fullscreen video store while it is mounted
-  useEffect(() => {
-    fullscreenVideoOpened();
-    return () => fullscreenVideoClosed();
-  }, []);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- shows the native load-error alert and closes the preview when the video URL cannot resolve
-  useEffect(() => {
-    if (!loadError) return;
-    Dialog.alert("Could not open video", loadError);
-    onRequestClose();
-  }, [loadError]);
+        : "Could not load this video. Check the connection and try again.",
+    );
+  });
+  const reauthorize = useEffectEvent(() => {
+    if (source.type === "media" && "resource" in source) {
+      void refreshAssetUrl(source.environmentId, source.resource);
+    }
+  });
 
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- presents the native fullscreen video and owns its audio session and file lease until cleanup
   useEffect(() => {
-    if (localAttachment === null && playbackUrl === null) return;
     const controller = new AbortController();
     let token: ReturnType<typeof acquireAudioSession> | null = null;
     const release = () => {
@@ -108,12 +92,14 @@ function NativeVideoPreview(props: {
       } else release();
     });
     let ready = false;
+    fullscreenVideoOpened();
     void (async () => {
       const file =
         localAttachment !== null
           ? await loadLocalAttachmentPreview(localAttachment, controller.signal)
           : null;
       if (localAttachment !== null && !file) return;
+      const uri = file?.uri ?? (await resolvePlaybackUrl());
       if (controller.signal.aborted) {
         file?.dispose();
         return;
@@ -127,12 +113,7 @@ function NativeVideoPreview(props: {
       }
       ready = true;
       const presented = await settlePromise(() =>
-        NativeControls.presentVideo(
-          file?.uri ?? playbackUrl!,
-          name,
-          source.sourceIdentifier ?? "",
-          identifier,
-        ),
+        NativeControls.presentVideo(uri, name, source.sourceIdentifier ?? "", identifier),
       );
       // Native completion follows dismissal, so local playback keeps its file lease.
       file?.dispose();
@@ -142,8 +123,8 @@ function NativeVideoPreview(props: {
     })().catch((error: unknown) => {
       release();
       if (controller.signal.aborted) return;
-      // AVKit gives no retry, so re-mint now; the cached URL may simply have expired.
-      if (ready) void refreshAssetUrl();
+      // AVKit gives no retry, so re-mint now; the minted URL may already be unusable.
+      if (ready) reauthorize();
       Dialog.alert(
         "Could not open video",
         ready
@@ -156,11 +137,12 @@ function NativeVideoPreview(props: {
     });
     return () => {
       controller.abort();
+      fullscreenVideoClosed();
       subscription.remove();
       release();
       void NativeControls.dismissVideo(identifier).catch(() => undefined);
     };
-  }, [localAttachment, name, source.sourceIdentifier, playbackUrl, identifier]);
+  }, [localAttachment, name, source.sourceIdentifier, identifier]);
 
   return null;
 }
@@ -169,14 +151,10 @@ export function VideoPreviewModal(props: {
   readonly source: VideoPreviewSource | null;
   readonly onRequestClose: () => void;
 }) {
-  const isFocused = useIsFocused();
-  const hasSource = props.source !== null;
-  const onRequestClose = useEffectEvent(props.onRequestClose);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- requests close when navigation blurs the screen so returning does not re-present the native video
-  useEffect(() => {
-    if (!isFocused && hasSource) onRequestClose();
-  }, [isFocused, hasSource]);
-
-  if (!props.source || !isFocused) return null;
+  usePreviewPresentation(
+    props.source === null ? null : videoPreviewKey(props.source),
+    props.onRequestClose,
+  );
+  if (!props.source) return null;
   return <NativeVideoPreview source={props.source} onRequestClose={props.onRequestClose} />;
 }
