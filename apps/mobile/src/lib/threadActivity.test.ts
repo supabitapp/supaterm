@@ -29,7 +29,6 @@ import { describe, expect, it } from "vite-plus/test";
 import { getReviewSectionIdForCheckpoint } from "../features/review/reviewModel";
 
 import {
-  workEntryRowLabel,
   isContextHandoffActivityGroup,
   buildThreadFeed,
   workEntryRowLabel,
