@@ -849,7 +849,9 @@ const makeHarness = Effect.fn("makeThreadDoneHarness")(function* (options: Harne
       number: 42,
       mergedAt: NOW,
     }),
-    layer: ThreadDoneService.layer.pipe(Layer.provide(layerDependencies)),
+    layer: Layer.effect(ThreadDoneService.ThreadDoneServiceV2, ThreadDoneService.make).pipe(
+      Layer.provide(layerDependencies),
+    ),
   };
 });
 

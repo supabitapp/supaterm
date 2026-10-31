@@ -348,10 +348,6 @@ export interface ThreadManagementServiceShape {
     ProjectionRecords<K>,
     ThreadManagementProjectionLoadError | ThreadManagementThreadNotFoundError
   >;
-  readonly getProjectThread: (input: {
-    readonly projectId: ProjectId;
-    readonly threadId: ThreadId;
-  }) => Effect.Effect<OrchestrationV2ThreadProjection, ThreadManagementError>;
   readonly getShellSnapshot: (
     options?: Pick<
       ShellSnapshotOptions,
@@ -626,27 +622,6 @@ const make = Effect.gen(function* () {
 
   const dispatch: ThreadManagementServiceShape["dispatch"] = (command) =>
     assertDispatchTargetEnabled(command).pipe(Effect.andThen(orchestrator.dispatch(command)));
-
-  const getProjectThread: ThreadManagementServiceShape["getProjectThread"] = (input) =>
-    getThreadProjection(input.threadId).pipe(
-      Effect.mapError(
-        (cause) =>
-          new ThreadManagementProjectionLoadError({
-            projectId: input.projectId,
-            threadId: input.threadId,
-            cause,
-          }),
-      ),
-      Effect.filterOrFail(
-        (projection) =>
-          projection.thread.projectId === input.projectId && projection.thread.deletedAt === null,
-        (_projection) =>
-          new ThreadManagementThreadNotFoundError({
-            projectId: input.projectId,
-            threadId: input.threadId,
-          }),
-      ),
-    );
 
   const getProjectThreadRecords: ThreadManagementServiceShape["getProjectThreadRecords"] = (
     input,
@@ -1300,7 +1275,6 @@ const make = Effect.gen(function* () {
     getThreadTranscript,
     getThreadSnapshotWindow: orchestrator.getThreadSnapshotWindow,
     getProjectThreadRecords,
-    getProjectThread,
     getShellSnapshot: orchestrator.getShellSnapshot,
     listActiveSubagentThreadIds: orchestrator.listActiveSubagentThreadIds,
     countThreads: orchestrator.countThreads,

@@ -387,12 +387,11 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
       ORCHESTRATION_V2_WS_METHODS.subscribeShell,
       Effect.fn("EnvironmentShellState.makeSubscribeInput")(function* (session) {
         const config = Option.getOrUndefined(yield* session.initialConfig.pipe(Effect.option));
-        const supportsCompletionMarker = config?.shellResumeCompletionMarker === true;
         const generation = config?.shellSyncGeneration ?? null;
         const omitIdleSubagents = config?.shellThreadFamilies === true;
         const omitOlderDone = config?.shellOlderDone === true && omitIdleSubagents;
         yield* Ref.set(activeSubscription, { session, generation });
-        yield* Ref.set(awaitingCompletion, supportsCompletionMarker);
+        yield* Ref.set(awaitingCompletion, true);
         yield* setSynchronizing;
 
         // A resubscription on the same live session, or a new session to the
@@ -454,22 +453,12 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
           ...(omitOlderDone ? { omitOlderDone: true as const } : {}),
         };
         if (!canResume || Option.isNone(current.snapshot)) {
-          return {
-            ...omission,
-            ...(supportsCompletionMarker ? { requestCompletionMarker: true as const } : {}),
-          };
-        }
-        if (!supportsCompletionMarker) {
-          yield* SubscriptionRef.update(state, (value) => ({
-            ...value,
-            status: "live" as const,
-            error: Option.none(),
-          }));
+          return { ...omission, requestCompletionMarker: true as const };
         }
         return {
           afterSequence: current.snapshot.value.snapshotSequence,
           ...omission,
-          ...(supportsCompletionMarker ? { requestCompletionMarker: true as const } : {}),
+          requestCompletionMarker: true as const,
         };
       }),
       {

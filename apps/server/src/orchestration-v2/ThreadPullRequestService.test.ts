@@ -143,7 +143,6 @@ describe("ThreadPullRequestServiceV2 reads", () => {
           }),
           // No client holds an activity lease.
           Layer.mock(BackgroundPolicy.BackgroundPolicy)({
-            hasDemand: () => Effect.succeed(false),
             shouldRunScopeWork: () => Effect.succeed(false),
             shouldRunOpportunisticWork: Effect.succeed(false),
           }),
@@ -457,7 +456,6 @@ describe("ThreadPullRequestServiceV2 reads", () => {
           Layer.mock(RepositoryIdentityResolver.RepositoryIdentityResolver)({}),
           // A foreground client keeps periodic discovery running.
           Layer.mock(BackgroundPolicy.BackgroundPolicy)({
-            hasDemand: () => Effect.succeed(true),
             shouldRunScopeWork: () => Effect.succeed(true),
             shouldRunOpportunisticWork: Effect.succeed(true),
           }),

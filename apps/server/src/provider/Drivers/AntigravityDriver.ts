@@ -1,4 +1,3 @@
-import { withAgentDeviceEnvironment } from "@supaterm/provider-core/server/mcpSession";
 import * as McpProviderSessions from "@supaterm/provider-core/server/McpProviderSessions";
 import { AntigravitySettings, ProviderDriverKind, ProviderSetupError } from "@supaterm/contracts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
@@ -244,7 +243,7 @@ export const AntigravityDriver: ProviderDriver<
           installation: executable,
           profile,
           cwd: input.cwd,
-          baseEnv: withAgentDeviceEnvironment(processEnvironment, input),
+          baseEnv: processEnvironment,
           auth,
           runtimeTempDirectory,
         }),

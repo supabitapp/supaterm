@@ -1,14 +1,12 @@
 import type {
   ApplicationStoredEvent,
   OrchestrationProjectShell,
-  OrchestrationV2ArchivedShellStreamItem,
   OrchestrationV2OlderDoneCount,
   OrchestrationV2OlderDoneThreads,
   OrchestrationV2ShellSnapshot,
   OrchestrationV2ThreadShell,
   OrchestrationV2ThreadShellSnapshot,
   OrchestrationV2ShellStreamItem,
-  OrchestrationV2StoredEvent,
   ProjectId,
 } from "@supaterm/contracts";
 import {
@@ -667,18 +665,6 @@ export function skipUnchangedThreadShells<A extends OrchestrationV2ShellStreamIt
   });
 }
 
-export function coalesceStoredThreadEvents(
-  events: ReadonlyArray<OrchestrationV2StoredEvent>,
-): ReadonlyArray<OrchestrationV2StoredEvent> {
-  const latestByThreadId = new Map<string, OrchestrationV2StoredEvent>();
-  for (const stored of events) {
-    latestByThreadId.set(stored.event.threadId, stored);
-  }
-  return Array.from(latestByThreadId.values()).sort(
-    (left, right) => left.sequence - right.sequence,
-  );
-}
-
 export function shellStreamItemFromThreadShell(input: {
   readonly stored: ChangedApplicationAggregate;
   readonly shell: OrchestrationV2ThreadShell | null;
@@ -709,28 +695,4 @@ export function shellStreamItemFromThreadShell(input: {
     location: "active",
     threadId: ThreadId.make(input.stored.aggregateId),
   };
-}
-
-export function archivedShellStreamItemFromThreadShell(input: {
-  readonly stored: OrchestrationV2StoredEvent;
-  readonly shell: OrchestrationV2ThreadShell | null;
-}): Exclude<OrchestrationV2ArchivedShellStreamItem, { readonly kind: "snapshot" }> | null {
-  if (input.shell !== null && input.shell.archivedAt !== null) {
-    return {
-      kind: "thread.updated",
-      sequence: input.stored.sequence,
-      thread: input.shell,
-    };
-  }
-  if (
-    input.stored.event.type === "thread.unarchived" ||
-    (input.stored.event.type === "thread.deleted" && input.stored.event.payload.archivedAt !== null)
-  ) {
-    return {
-      kind: "thread.removed",
-      sequence: input.stored.sequence,
-      threadId: input.stored.event.threadId,
-    };
-  }
-  return null;
 }

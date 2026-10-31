@@ -140,12 +140,9 @@ const createItem = Effect.fn(function* (
   });
 });
 
-it.effect.each([
-  ["sql", layerSql],
-  ["memory", ProjectionStore.layerMemory],
-] as const)(
-  "%s: discovers completion work with the same activity and background semantics as the shell",
-  ([, testLayer]) =>
+it.effect(
+  "sql: discovers completion work with the same activity and background semantics as the shell",
+  () =>
     Effect.gen(function* () {
       const store = yield* ProjectionStore.ProjectionStoreV2;
       const idle = yield* createThread("idle");
@@ -295,13 +292,10 @@ it.effect.each([
         (yield* store.getThread(ThreadId.make("missing")).pipe(Effect.flip))._tag,
         "ProjectionStoreThreadNotFoundError",
       );
-    }).pipe(Effect.provide(testLayer)),
+    }).pipe(Effect.provide(layerSql)),
 );
 
-it.effect.each([
-  ["sql", layerSql],
-  ["memory", ProjectionStore.layerMemory],
-] as const)("%s: the user-authored message time ignores agent notifications", ([, testLayer]) =>
+it.effect("sql: the user-authored message time ignores agent notifications", () =>
   Effect.gen(function* () {
     const store = yield* ProjectionStore.ProjectionStoreV2;
     const threadId = yield* createThread("agent-woken");
@@ -350,7 +344,7 @@ it.effect.each([
       DateTime.formatIso(shellThread!.latestUserAuthoredMessageAt!),
       DateTime.formatIso(written),
     );
-  }).pipe(Effect.provide(testLayer)),
+  }).pipe(Effect.provide(layerSql)),
 );
 
 const pullRequestLink = (number: number) => ({
@@ -364,49 +358,41 @@ const pullRequestLink = (number: number) => ({
   stack: null,
 });
 
-it.effect.each([
-  ["sql", layerSql],
-  ["memory", ProjectionStore.layerMemory],
-] as const)(
-  "%s: lists only active threads with pull request links, oldest first",
-  ([, testLayer]) =>
-    Effect.gen(function* () {
-      const store = yield* ProjectionStore.ProjectionStoreV2;
-      yield* createThread("no-links");
-      yield* createThread("empty-links", { pullRequests: [] });
-      yield* createThread("archived-link", {
-        archivedAt: old,
-        pullRequests: [pullRequestLink(1)],
-      });
-      const done = yield* createThread("done-link", {
-        doneOverride: "done",
-        doneAt: old,
-        updatedAt: DateTime.subtract(now, { days: 12 }),
-        pullRequests: [pullRequestLink(2)],
-      });
-      const open = yield* createThread("open-link", {
-        pullRequests: [pullRequestLink(3), pullRequestLink(4)],
-      });
+it.effect("sql: lists only active threads with pull request links, oldest first", () =>
+  Effect.gen(function* () {
+    const store = yield* ProjectionStore.ProjectionStoreV2;
+    yield* createThread("no-links");
+    yield* createThread("empty-links", { pullRequests: [] });
+    yield* createThread("archived-link", {
+      archivedAt: old,
+      pullRequests: [pullRequestLink(1)],
+    });
+    const done = yield* createThread("done-link", {
+      doneOverride: "done",
+      doneAt: old,
+      updatedAt: DateTime.subtract(now, { days: 12 }),
+      pullRequests: [pullRequestLink(2)],
+    });
+    const open = yield* createThread("open-link", {
+      pullRequests: [pullRequestLink(3), pullRequestLink(4)],
+    });
 
-      const threads = yield* store.getThreadsWithPullRequests();
-      assert.deepEqual(
-        threads.map((thread) => [thread.id, thread.doneOverride, thread.pullRequests?.length]),
-        [
-          [done, "done", 1],
-          [open, null, 2],
-        ],
-      );
-      assert.deepEqual(
-        (yield* store.getThreadsWithPullRequests(open)).map((thread) => thread.id),
-        [open],
-      );
-    }).pipe(Effect.provide(testLayer)),
+    const threads = yield* store.getThreadsWithPullRequests();
+    assert.deepEqual(
+      threads.map((thread) => [thread.id, thread.doneOverride, thread.pullRequests?.length]),
+      [
+        [done, "done", 1],
+        [open, null, 2],
+      ],
+    );
+    assert.deepEqual(
+      (yield* store.getThreadsWithPullRequests(open)).map((thread) => thread.id),
+      [open],
+    );
+  }).pipe(Effect.provide(layerSql)),
 );
 
-it.effect.each([
-  ["sql", layerSql],
-  ["memory", ProjectionStore.layerMemory],
-] as const)("%s: an reopened-only shell read skips done threads", ([, testLayer]) =>
+it.effect("sql: an reopened-only shell read skips done threads", () =>
   Effect.gen(function* () {
     const store = yield* ProjectionStore.ProjectionStoreV2;
     const open = yield* createThread("reopened-open");
@@ -420,7 +406,7 @@ it.effect.each([
     assert.equal(shell.archivedThreads.length, 0);
     const all = yield* store.getShellSnapshot({ location: "active" });
     assert.equal(all.threads.length, 4);
-  }).pipe(Effect.provide(testLayer)),
+  }).pipe(Effect.provide(layerSql)),
 );
 
 it.effect(

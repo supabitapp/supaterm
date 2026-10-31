@@ -16,7 +16,6 @@ export interface ClaudeSkillDispatch {
   readonly leadingText: string | undefined;
   /** `/name` plus the trailing text, ready to be the message's last text block. */
   readonly commandText: string;
-  readonly skillName: string;
 }
 
 export function planClaudeSkillDispatch(
@@ -54,6 +53,5 @@ export function planClaudeSkillDispatch(
     leadingText:
       prompt.slice(0, last.start).trim().length > 0 ? promptWithInlineSlashes : undefined,
     commandText: `/${last.name}${prompt.slice(last.end)}`.trimEnd(),
-    skillName: last.name,
   };
 }

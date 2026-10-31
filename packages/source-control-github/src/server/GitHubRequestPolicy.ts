@@ -1,3 +1,4 @@
+import { normalizeHost } from "@supaterm/source-control-core/server/pullRequestUtils";
 import { SourceControlProviderKind } from "@supaterm/contracts";
 import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
@@ -91,10 +92,6 @@ export type GitHubApiError =
   | GitHubApiNotFoundError
   | GitHubApiResponseError
   | SourceControlRateLimit.SourceControlRateLimitPausedError;
-
-export function normalizeHost(host: string): string {
-  return host.trim().toLowerCase();
-}
 
 export function gitHubApiUrls(host: string): { readonly rest: string; readonly graphql: string } {
   const normalized = normalizeHost(host);

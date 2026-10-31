@@ -1,3 +1,4 @@
+import { trimOptionalString as trimmed } from "@supaterm/source-control-core/server/pullRequestUtils";
 import * as Cause from "effect/Cause";
 import * as Exit from "effect/Exit";
 import * as Result from "effect/Result";
@@ -50,7 +51,6 @@ import {
   PullRequestSearch,
 } from "./pullRequestListings.graphql.ts";
 import type {
-  ActorAvatars,
   CheckContext,
   LabelCandidates,
   PullRequestActivity,
@@ -91,7 +91,7 @@ interface ListItemFields {
   readonly number: number;
   readonly title: string;
   readonly url: string;
-  readonly author?: (ActorFields & { readonly id?: string | null | undefined }) | null | undefined;
+  readonly author?: ActorFields | null | undefined;
   readonly headRefName: string;
   readonly baseRefName: string;
   readonly state?: string | null | undefined;
@@ -263,18 +263,6 @@ const RawPullRequestFileSchema = Schema.Struct({
   deletions: Schema.optional(Schema.NullOr(Schema.Int)),
 });
 
-/** A listing's authors' avatars by login, from their node ids. */
-export function toActorAvatars(result: ActorAvatars.Result): ReadonlyMap<string, string> {
-  const avatarsByLogin = new Map<string, string>();
-  for (const node of result.nodes) {
-    if (node === null || !("login" in node)) continue;
-    const login = trimmed(node.login);
-    const avatarUrl = trimmed(node.avatarUrl);
-    if (login !== null && avatarUrl !== null) avatarsByLogin.set(login, avatarUrl);
-  }
-  return avatarsByLogin;
-}
-
 /** Null for a number that names no pull request the viewer can see. */
 export function toPullRequestPreview(
   result: PullRequestPreviewQuery.Result,
@@ -390,7 +378,6 @@ export function buildReviewSubmission(input: {
 
 export interface GitHubPullRequestListItem {
   readonly stack?: PullRequestStackMembership;
-  readonly authorId: string | null;
   readonly number: number;
   readonly title: string;
   readonly url: string;
@@ -442,11 +429,6 @@ export interface GitHubPullRequestActivity {
   readonly author: PullRequestActor | null;
   readonly comments: ReadonlyArray<PullRequestComment>;
   readonly commits: ReadonlyArray<PullRequestCommit>;
-}
-
-function trimmed(value: string | null | undefined): string | null {
-  const text = value?.trim() ?? "";
-  return text.length > 0 ? text : null;
 }
 
 /**
@@ -800,7 +782,6 @@ function toCommits(
 
 function toListItem(raw: ListItemFields): GitHubPullRequestListItem {
   return {
-    authorId: trimmed(raw.author?.id),
     number: raw.number,
     title: raw.title,
     url: raw.url,
@@ -858,18 +839,6 @@ function toDetail(raw: DetailFields): GitHubPullRequestDetail {
 }
 
 const decodeUnknownList = decodeJsonResult(Schema.Array(Schema.Unknown));
-const decodeDetail = decodeJsonResult(
-  Schema.Struct({
-    number: Schema.Int,
-    title: Schema.String,
-    url: Schema.String,
-    headRefName: Schema.String,
-    baseRefName: Schema.String,
-    state: Schema.optional(Schema.String),
-    createdAt: Schema.String,
-    updatedAt: Schema.String,
-  }),
-);
 const decodeWorkflowRuns = decodeJsonResult(RawWorkflowRunsSchema);
 const decodeWorkflowRunJobs = decodeJsonResult(RawWorkflowRunJobsSchema);
 const decodeWorkflowRun = decodeJsonResult(RawWorkflowRunSchema);
@@ -1138,8 +1107,6 @@ export function toPullRequestCore(result: PullRequestCore.Result): GitHubPullReq
     ),
     ...toDetail({
       ...pr,
-      author:
-        pr.author === null ? null : { ...pr.author, id: "id" in pr.author ? pr.author.id : null },
       latestReviews: [],
       reviewRequests: nodesOf(pr.reviewRequests).flatMap(
         ({ requestedReviewer }: NonNullable<CoreRequestedReviewer>) =>
@@ -1192,16 +1159,6 @@ export function toPullRequestCore(result: PullRequestCore.Result): GitHubPullReq
           },
     checksTruncated: contexts?.pageInfo.hasNextPage === true,
   };
-}
-
-/** A detail as a REST pull request names it, for the provider's tests and fixtures. */
-export function decodePullRequestDetailJson(
-  raw: string,
-): Result.Result<GitHubPullRequestDetail, DecodeFailure> {
-  const decoded = decodeDetail(raw);
-  return Result.isSuccess(decoded)
-    ? Result.succeed(toDetail(decoded.success))
-    : Result.fail(decoded.failure);
 }
 
 export interface GitHubWorkflowRunPage {

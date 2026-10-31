@@ -23,7 +23,6 @@ import * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
 import { provideDeterministicTestRuntime } from "./DeterministicRuntime.ts";
 import {
   CODEX_MODEL_SELECTION,
-  THREAD_MERGE_BACK_FORK_PROMPT,
   THREAD_MERGE_BACK_SIBLINGS_FIRST_FORK_PROMPT,
   THREAD_MERGE_BACK_SIBLINGS_FIRST_HANDOFF_PROMPT,
   THREAD_MERGE_BACK_SIBLINGS_RECALL,
@@ -64,7 +63,6 @@ const CodexHistoryReplayHarness: typeof CodexOrchestratorReplayHarness = {
                           assert.lengthOf(userTexts, 1);
                           assert.include(
                             [
-                              THREAD_MERGE_BACK_FORK_PROMPT,
                               THREAD_MERGE_BACK_SIBLINGS_FIRST_FORK_PROMPT,
                               THREAD_MERGE_BACK_SIBLINGS_SECOND_FORK_PROMPT,
                             ],

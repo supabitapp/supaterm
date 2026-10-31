@@ -1,3 +1,4 @@
+import { isCommitSha } from "@supaterm/source-control-core/server/pullRequestUtils";
 import * as Cache from "effect/Cache";
 import * as Context from "effect/Context";
 import * as Duration from "effect/Duration";
@@ -303,10 +304,6 @@ function repositoryPathOf(segments: { readonly workspace: string; readonly slug:
   return `/repositories/${encodeURIComponent(segments.workspace)}/${encodeURIComponent(
     segments.slug,
   )}`;
-}
-
-function isCommitSha(value: string): boolean {
-  return /^[0-9a-f]{7,64}$/i.test(value);
 }
 
 /**

@@ -250,7 +250,6 @@ export function buildPiRpcLaunch(input: {
 }): {
   readonly args: ReadonlyArray<string>;
   readonly env: NodeJS.ProcessEnv;
-  readonly hasSupatermMcp: boolean;
 } {
   const hasSupatermExtension =
     input.disableExtensions !== true && input.extensionPath !== undefined;
@@ -309,6 +308,5 @@ export function buildPiRpcLaunch(input: {
           }
         : {}),
     },
-    hasSupatermMcp,
   };
 }

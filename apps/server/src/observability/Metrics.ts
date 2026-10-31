@@ -89,10 +89,6 @@ export const terminalSessionsTotal = Metric.counter("supaterm_terminal_sessions_
   description: "Total terminal sessions started.",
 });
 
-export const terminalRestartsTotal = Metric.counter("supaterm_terminal_restarts_total", {
-  description: "Total terminal restart requests handled.",
-});
-
 export const metricAttributes = (
   attributes: Readonly<Record<string, unknown>>,
 ): ReadonlyArray<[string, string]> => Object.entries(compactMetricAttributes(attributes));

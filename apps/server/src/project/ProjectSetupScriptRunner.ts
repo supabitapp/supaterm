@@ -57,7 +57,6 @@ export interface ProjectSetupScriptRunnerInput {
   readonly projectId?: string;
   readonly projectCwd?: string;
   readonly worktreePath: string;
-  readonly preferredTerminalId?: string;
   readonly trigger?: "setup" | "done";
   readonly project?: {
     readonly id: ProjectId;
@@ -425,10 +424,9 @@ export const make = Effect.gen(function* () {
     // A thread can be marked done again after it is resumed, and an earlier script shell
     // may still be busy; typing into it would feed its foreground program.
     const terminalId =
-      input.preferredTerminalId ??
-      (trigger === "done"
+      trigger === "done"
         ? `done-${script.id}-${(yield* crypto.randomUUIDv4().pipe(Effect.orDie)).slice(0, 8)}`
-        : `setup-${script.id}`);
+        : `setup-${script.id}`;
     const cwd = input.worktreePath;
     const env = {
       ...projectScriptRuntimeEnv({

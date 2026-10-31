@@ -23,8 +23,6 @@ const SHARED_SERVER_SETTING_KEYS = [
   "textGenerationModelSelection",
 ] as const satisfies ReadonlyArray<keyof ServerSettings & keyof ServerSettingsPatch>;
 
-export type SharedServerSettingKey = (typeof SHARED_SERVER_SETTING_KEYS)[number];
-
 const SHARED_KEY_SET = new Set<string>(SHARED_SERVER_SETTING_KEYS);
 
 export function splitSharedServerPatch(patch: ServerSettingsPatch): {

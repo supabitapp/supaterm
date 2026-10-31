@@ -918,7 +918,7 @@ describe("connection onboarding", () => {
     Effect.gen(function* () {
       const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
       const onboarding = yield* ConnectionOnboarding;
-      yield* registry.registerPlatform(
+      yield* registry.reconcilePlatform([
         new PrimaryConnectionRegistration({
           target: new PrimaryConnectionTarget({
             environmentId: PAIRED_ENVIRONMENT_ID,
@@ -927,7 +927,7 @@ describe("connection onboarding", () => {
             wsBaseUrl: "ws://127.0.0.1:3773",
           }),
         }),
-      );
+      ]);
       yield* registry.setCompatibility(PAIRED_ENVIRONMENT_ID, UNSUPPORTED_ERROR);
       const before = yield* SubscriptionRef.get(registry.entries);
       expect(before.get(PAIRED_ENVIRONMENT_ID)).toMatchObject({

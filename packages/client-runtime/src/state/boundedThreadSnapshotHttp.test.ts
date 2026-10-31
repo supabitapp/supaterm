@@ -194,26 +194,15 @@ describe("boundedThreadSnapshotLoader", () => {
   it.effect(
     "uses socket fallback directly when the bounded endpoint has a transient failure",
     () => {
-      let fullCalls = 0;
       const fetchFn = ((input: RequestInfo | URL) => {
-        const url = String(input);
-        if (url.includes("/bounded")) {
-          return Promise.resolve(new Response("Service Unavailable", { status: 503 }));
-        }
-        fullCalls += 1;
-        return Promise.resolve(
-          new Response(JSON.stringify(FULL_SNAPSHOT_BODY), {
-            status: 200,
-            headers: { "content-type": "application/json" },
-          }),
-        );
+        expect(String(input)).toContain("/bounded");
+        return Promise.resolve(new Response("Service Unavailable", { status: 503 }));
       }) satisfies typeof fetch;
 
       return Effect.gen(function* () {
         const loader = yield* ThreadSnapshotLoader.ThreadSnapshotLoader;
         const result = yield* loader.load(PREPARED, THREAD_ID);
         expect(result).toEqual({ _tag: "unavailable" });
-        expect(fullCalls).toBe(0);
       }).pipe(
         Effect.provide(
           Layer.provide(BoundedThreadSnapshotHttp.layer, RpcHttp.layerRemoteHttpClient(fetchFn)),

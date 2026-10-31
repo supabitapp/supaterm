@@ -1,3 +1,4 @@
+import { normalizeHost } from "@supaterm/source-control-core/server/pullRequestUtils";
 import * as Cache from "effect/Cache";
 import * as Context from "effect/Context";
 import * as Crypto from "effect/Crypto";
@@ -92,10 +93,6 @@ export class GitHubCredentials extends Context.Service<
     readonly invalidateAll: Effect.Effect<void>;
   }
 >()("@supaterm/source-control-github/server/GitHubCredentials") {}
-
-function normalizeHost(host: string): string {
-  return host.trim().toLowerCase();
-}
 
 const HOSTNAME =
   /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*(?::\d{1,5})?$/;

@@ -1,3 +1,4 @@
+import { ClaudeSettings } from "@supaterm/contracts";
 import {
   forkSession,
   query,
@@ -47,6 +48,8 @@ import type { ProviderReplayGate } from "@supaterm/provider-testing/replayGate";
 export const CLAUDE_AGENT_SDK_REPLAY_PROTOCOL = "claude-agent-sdk.query" as const;
 export const claudeBackgroundWakeResultLabel = (wakeNumber: number) =>
   `result:background-wake:${wakeNumber}`;
+
+const DEFAULT_CLAUDE_SETTINGS = Schema.decodeSync(ClaudeSettings)({});
 
 const ClaudeAgentSdkReplayTranscript = Schema.Struct({
   provider: Schema.Literal(ClaudeAdapterV2.CLAUDE_PROVIDER),
@@ -1020,11 +1023,11 @@ function layerClaudeProviderAdapterRegistryReplay(
     writeReplayTaskOutputFiles(transcript).pipe(
       Effect.orDie,
       Effect.map((tmpRoot) =>
-        ProviderAdapterRegistry.layerFromDrivers({
-          drivers: [ClaudeAdapterV2.ClaudeAdapterV2Driver],
-          configMap: {
-            [ClaudeAdapterV2.CLAUDE_DEFAULT_INSTANCE_ID]: {
-              driver: ClaudeAdapterV2.CLAUDE_PROVIDER,
+        ProviderAdapterRegistry.layerFromAdaptersEffect(
+          ClaudeAdapterV2.createClaudeAdapterV2(
+            {
+              instanceId: ClaudeAdapterV2.CLAUDE_DEFAULT_INSTANCE_ID,
+              displayName: undefined,
               environment: [
                 { name: "CLAUDE_CODE_TMPDIR", value: tmpRoot, sensitive: false },
                 // Recorded session ids also name the recorder's real transcripts,
@@ -1035,9 +1038,12 @@ function layerClaudeProviderAdapterRegistryReplay(
                   sensitive: false,
                 },
               ],
+              enabled: true,
+              config: DEFAULT_CLAUDE_SETTINGS,
             },
-          },
-        }),
+            {},
+          ).pipe(Effect.map((adapter) => [adapter])),
+        ),
       ),
       Effect.provide(NodeServices.layer),
     ),
@@ -1679,7 +1685,6 @@ async function recordClaudeActiveSteeringQuery(input: {
   }
 
   const promptQueue = new RecordingPromptQueue();
-  const offeredPrompts = new Set<number>();
   const offerPrompt = (index: number, priority?: SDKUserMessage["priority"]) => {
     const message = ClaudeAdapterV2.makeClaudeUserMessage({
       text: input.prompts[index]!,
@@ -1691,13 +1696,10 @@ async function recordClaudeActiveSteeringQuery(input: {
       frame: makeClaudePromptOfferFrame(message),
     });
     promptQueue.offer(message);
-    offeredPrompts.add(index);
   };
   const offerSteeringPrompts = () => {
     for (let index = 1; index < input.prompts.length; index += 1) {
-      if (!offeredPrompts.has(index)) {
-        offerPrompt(index, "now");
-      }
+      offerPrompt(index, "now");
     }
   };
 
@@ -1771,9 +1773,6 @@ async function recordClaudeActiveSteeringQuery(input: {
     });
     if (!completed) {
       throw new Error("Claude active steering query ended before the turn completed.");
-    }
-    if (offeredPrompts.size < input.prompts.length) {
-      throw new Error("Claude active steering prompts were not all offered before completion.");
     }
     promptQueue.close();
     queryRuntime.close();
@@ -2594,9 +2593,6 @@ export async function recordClaudeAgentSdkReplayTranscript(input: {
     | "resume_at_cursor"
     | "fork_session"
     | "fork_session_prior_turn"
-    | "fork_session_continue"
-    | "fork_session_siblings"
-    | "fork_session_merge_back"
     | "fork_session_merge_back_siblings"
     | "active_steering"
     | "interrupt"
@@ -2714,9 +2710,6 @@ export async function recordClaudeAgentSdkReplayTranscript(input: {
   } else if (
     queryMode === "fork_session" ||
     queryMode === "fork_session_prior_turn" ||
-    queryMode === "fork_session_continue" ||
-    queryMode === "fork_session_siblings" ||
-    queryMode === "fork_session_merge_back" ||
     queryMode === "fork_session_merge_back_siblings"
   ) {
     await recordClaudeForkSessionQuery({
@@ -2728,20 +2721,6 @@ export async function recordClaudeAgentSdkReplayTranscript(input: {
       entries,
       metadata: recordingMetadata,
       ...(queryMode === "fork_session_prior_turn" ? { forkFromPromptIndex: 1 as const } : {}),
-      ...(queryMode === "fork_session_continue" ? { sourcePromptCount: 1 } : {}),
-      ...(queryMode === "fork_session_siblings"
-        ? {
-            sourcePromptCount: 1,
-            forkPromptGroups: [[input.prompts[1]!], [input.prompts[2]!]],
-          }
-        : {}),
-      ...(queryMode === "fork_session_merge_back"
-        ? {
-            sourcePromptCount: 1,
-            forkPromptGroups: [[input.prompts[1]!]],
-            sourceContinuationPromptCount: 2,
-          }
-        : {}),
       ...(queryMode === "fork_session_merge_back_siblings"
         ? {
             sourcePromptCount: 1,

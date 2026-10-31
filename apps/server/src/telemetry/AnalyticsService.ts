@@ -93,20 +93,7 @@ export class AnalyticsService extends Context.Service<
       observedBy: "server" | "client",
     ) => Effect.Effect<void>;
   }
->()("supaterm/telemetry/AnalyticsService") {
-  static readonly layerTest = Layer.succeed(
-    AnalyticsService,
-    AnalyticsService.of({
-      record: Effect.fn("AnalyticsService.record")(function () {
-        return Effect.void;
-      }),
-      flush: Effect.void,
-      recordOwners: Effect.fn("AnalyticsService.recordOwners")(function () {
-        return Effect.void;
-      }),
-    }),
-  );
-}
+>()("supaterm/telemetry/AnalyticsService") {}
 
 function serverOsFromNodePlatform(platform: string): ClientOs {
   switch (platform) {
