@@ -170,16 +170,18 @@ export function useAcknowledgeThreadWoke() {
   };
 }
 
-/** A No project thread that already has its own folder. */
+/** A No project thread that already has its own folder, on a server that can promote it. */
 export function canTurnThreadIntoProject(threadRef: ScopedThreadRef): boolean {
   const thread = readThreadShell(threadRef);
-  if (!thread?.worktreePath) return false;
   const config = appAtomRegistry.get(environmentServerConfigsAtom).get(threadRef.environmentId);
+  if (!thread?.worktreePath || config?.environment.capabilities.threadProjectFromScratch !== true) {
+    return false;
+  }
   const project = readProject({
     environmentId: threadRef.environmentId,
     projectId: thread.projectId,
   });
-  return project !== null && isScratchProject(project, config?.scratchWorkspaceRoot);
+  return project !== null && isScratchProject(project, config.scratchWorkspaceRoot);
 }
 
 function threadOperationFailure(target: ScopedThreadRef) {

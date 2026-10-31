@@ -10,11 +10,14 @@ import * as Haptics from "expo-haptics";
 import * as Dialog from "../../components/ui/Dialog";
 import { appAtomRegistry } from "../../state/atom-registry";
 import { environmentProjects, projectEnvironment } from "../../state/projects";
+import { environmentServerConfigsAtom } from "../../state/server";
 import { readEnvironmentScope } from "../../state/session";
 
-/** A No project thread that already has its own folder. */
+/** A No project thread that already has its own folder, on a server that can promote it. */
 export function canTurnThreadIntoProject(thread: EnvironmentThreadShell): boolean {
   if (thread.worktreePath === null) return false;
+  const config = appAtomRegistry.get(environmentServerConfigsAtom).get(thread.environmentId);
+  if (config?.environment.capabilities.threadProjectFromScratch !== true) return false;
   const project = appAtomRegistry.get(
     environmentProjects.projectAtom({
       environmentId: thread.environmentId,

@@ -222,6 +222,7 @@ export const make = Effect.gen(function* () {
       queuedRunStart: true,
       ignoredFileListing: true,
       triage: true,
+      threadProjectFromScratch: true,
       ...(serverSelfUpdate === null ? {} : { serverSelfUpdate }),
       ...(serverInstallation === null ? {} : { serverInstallation }),
       ...(serverSelfUpdate === "boot-service" || desktopAppUpdate
