@@ -27,6 +27,7 @@ import {
   SettingsEnvironmentFilterHeader,
 } from "./components/SettingsEnvironmentFilterHeader";
 import { BranchNamingSettings } from "./components/BranchNamingSettings";
+import { ThreadTitleInstructionsSettings } from "./components/ThreadTitleInstructionsSettings";
 import { DatabaseStorageNotice } from "./components/DatabaseStorageNotice";
 import { SettingsChoiceRow } from "./components/SettingsChoiceRow";
 import { SettingsSection } from "./components/SettingsSection";
@@ -58,6 +59,7 @@ const PAGE_PROJECT_KEYS: Record<SettingsPage, readonly ProjectScopedServerSettin
     "defaultRuntimeMode",
     "responseStreamingMode",
     "enableAgentBrowserAccess",
+    "threadTitleInstructions",
     ...AUTO_MARK_DONE_KEYS,
   ],
   "source-control": ["defaultAutoPull", "removeAgentCreditsOnMerge"],
@@ -329,6 +331,12 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
                       />
                     ))}
                   </SettingsSection>
+                  <ThreadTitleInstructionsSettings
+                    key={targetsKey}
+                    instructions={uniform("threadTitleInstructions")}
+                    disabled={disabledFor("threadTitleInstructions")}
+                    onChange={write}
+                  />
                   <SettingsSection
                     title="Response streaming"
                     trailing={

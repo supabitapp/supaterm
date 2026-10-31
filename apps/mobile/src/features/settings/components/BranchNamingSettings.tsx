@@ -6,12 +6,12 @@ import {
   type BranchNamingMode,
   type ServerSettingsPatch,
 } from "@supaterm/contracts";
-import { useEffect, useEffectEvent, useRef } from "react";
 import { View } from "react-native";
 
 import { AppText as Text, AppTextInput } from "../../../components/ui/AppText";
 import { SettingsChoiceRow } from "./SettingsChoiceRow";
 import { SettingsSection } from "./SettingsSection";
+import { useSettingTextDrafts } from "./useSettingTextDrafts";
 
 const MODES = {
   static: { label: "Static prefix", description: "Add your prefix to the generated branch name." },
@@ -37,31 +37,10 @@ export function BranchNamingSettings(props: {
   disabled: boolean;
   onChange: (patch: ServerSettingsPatch) => void;
 }) {
-  type Field = "branchNamePrefix" | "branchNameInstructions";
-  const drafts = useRef<Partial<Record<Field, { text: string; over: string | null }>>>({});
-  const savedValue = (field: Field) =>
-    field === "branchNamePrefix" ? props.prefix : props.instructions;
-  const edit = (field: Field, text: string) => {
-    drafts.current[field] = { text, over: savedValue(field) };
-  };
-
-  const take = (field: Field): ServerSettingsPatch => {
-    const draft = drafts.current[field];
-    delete drafts.current[field];
-    const saved = savedValue(field);
-
-    if (draft === undefined || draft.over !== saved) return {};
-    const value = draft.text.trim();
-    return saved === null || value !== saved ? { [field]: value } : {};
-  };
-  const send = (patch: ServerSettingsPatch) => {
-    if (Object.keys(patch).length > 0) props.onChange(patch);
-  };
-
-  const saveDrafts = useEffectEvent(() =>
-    send({ ...take("branchNamePrefix"), ...take("branchNameInstructions") }),
+  const { edit, save } = useSettingTextDrafts(
+    { branchNamePrefix: props.prefix, branchNameInstructions: props.instructions },
+    props.onChange,
   );
-  useEffect(() => () => saveDrafts(), []);
   const choice =
     props.mode === null || props.prefixFromRepository === null
       ? null
@@ -99,7 +78,7 @@ export function BranchNamingSettings(props: {
             autoCapitalize="none"
             autoCorrect={false}
             className="min-h-10 rounded-xl px-3 py-2 text-base text-foreground"
-            onEndEditing={() => send(take("branchNamePrefix"))}
+            onEndEditing={() => save("branchNamePrefix")}
           />
         </View>
       ) : null}
@@ -122,7 +101,7 @@ export function BranchNamingSettings(props: {
             multiline
             autoCapitalize="sentences"
             className="min-h-24 rounded-xl px-3 py-2 text-base text-foreground"
-            onEndEditing={() => send(take("branchNameInstructions"))}
+            onEndEditing={() => save("branchNameInstructions")}
           />
         </View>
       ) : null}
