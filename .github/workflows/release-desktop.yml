@@ -255,6 +255,24 @@ jobs:
             echo "APPLE_API_KEY=$key_path" >> "$GITHUB_ENV"
           fi
 
+      # tsdown downloads the target Node with one fetch and no retry, and
+      # nodejs.org drops that download often enough to fail releases. Seed
+      # tsdown's cache with a retried, checksum-verified copy instead.
+      - name: Download target Node.js for the CLI executable
+        if: inputs.cli_archive && inputs.platform == 'win'
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p 'require("./apps/server/scripts/seaNodeVersion.ts").SEA_NODE_VERSION')"
+          name="node-v$version-win-${INPUTS_ARCH}"
+          dest="${XDG_CACHE_HOME:-$HOME/.cache}/tsdown/node/v$version/win-${INPUTS_ARCH}"
+          dir="$RUNNER_TEMP/node-download"
+          mkdir -p "$dir" "$dest"
+          curl -fsSL --retry 5 --retry-all-errors -o "$dir/$name.zip" "https://nodejs.org/dist/v$version/$name.zip"
+          curl -fsSL --retry 5 --retry-all-errors -o "$dir/SHASUMS256.txt" "https://nodejs.org/dist/v$version/SHASUMS256.txt"
+          (cd "$dir" && grep " $name.zip\$" SHASUMS256.txt | sha256sum -c -)
+          unzip -p "$dir/$name.zip" "$name/node.exe" > "$dest/node.exe"
+
       # build-exe runs the pack on SEA_NODE_VERSION
       # (apps/server/scripts/seaNodeVersion.ts) while the repo stays on the mise
       # Node. Native builds embed that executable; cross-target builds download
