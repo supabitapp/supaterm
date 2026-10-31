@@ -256,9 +256,9 @@ export const continueRestartedRun = Effect.fn("RestartContinuation.continueResta
       lineage.parentThreadId !== null &&
       taskId !== undefined
     ) {
-      const task = (yield* threads.getThreadRecords(lineage.parentThreadId, ["subagents"], {
-        subagentIds: [taskId],
-      })).subagents.find((candidate) => candidate.id === taskId);
+      const task = (yield* threads.getThreadRecords(lineage.parentThreadId, [
+        "subagents",
+      ])).subagents.find((candidate) => candidate.id === taskId);
       // A settled task no longer owns later work in its thread.
       const parentRunId =
         task !== undefined && task.result === null && isOrchestrationV2WorkActive(task.status)
