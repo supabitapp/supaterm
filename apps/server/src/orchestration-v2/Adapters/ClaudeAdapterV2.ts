@@ -94,7 +94,6 @@ import {
   type OrchestrationV2TurnItem,
   type OrchestrationV2WebSearchResult,
   type ProviderApprovalDecision,
-  type ProviderApprovalFullAccessOverride,
   type ProviderApprovalOption,
   ProviderDriverKind,
   type ProviderInstanceId,
@@ -2539,27 +2538,10 @@ export interface ClaudeRuntimeQueryPolicy {
   readonly installPermissionCallback: boolean;
 }
 
-interface ClaudeBypassAvailability {
-  readonly bypassDisabled: boolean;
-  readonly autoDisabled: boolean;
-}
-
-const CLAUDE_BYPASS_FULLY_AVAILABLE: ClaudeBypassAvailability = {
-  bypassDisabled: false,
-  autoDisabled: false,
-};
-
 export function claudeRuntimeQueryPolicyForRuntimePolicy(
   runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy,
-  availability: ClaudeBypassAvailability = CLAUDE_BYPASS_FULLY_AVAILABLE,
 ): ClaudeRuntimeQueryPolicy {
-  const requestedMode = permissionModeForClaudeRuntimePolicy(runtimePolicy);
-  const downgraded = requestedMode === "bypassPermissions" && availability.bypassDisabled;
-  const permissionMode = downgraded
-    ? availability.autoDisabled
-      ? "default"
-      : "auto"
-    : requestedMode;
+  const permissionMode = permissionModeForClaudeRuntimePolicy(runtimePolicy);
   const readOnlyTools =
     sandboxPolicyKindForClaudeRuntimePolicy(runtimePolicy) === "readOnly"
       ? CLAUDE_READ_ONLY_ALLOWED_TOOLS
@@ -2571,11 +2553,10 @@ export function claudeRuntimeQueryPolicyForRuntimePolicy(
   // acceptEdits approves edits before the callback runs; everything else it
   // leaves to the callback, which must ask rather than allow.
   const installPermissionCallback =
-    downgraded ||
-    (runtimePolicy.approvalPolicy === undefined
+    runtimePolicy.approvalPolicy === undefined
       ? runtimePolicy.runtimeMode === "approval-required" ||
         runtimePolicy.runtimeMode === "auto-accept-edits"
-      : runtimePolicy.approvalPolicy !== "never");
+      : runtimePolicy.approvalPolicy !== "never";
 
   if (permissionMode === "plan") {
     return {
@@ -2596,26 +2577,6 @@ export function claudeRuntimeQueryPolicyForRuntimePolicy(
   };
 }
 
-const ClaudeBypassSettings = Schema.StructWithRest(
-  Schema.Struct({
-    disableAutoMode: Schema.optionalKey(Schema.Literal("disable")),
-    permissions: Schema.optionalKey(
-      Schema.StructWithRest(
-        Schema.Struct({
-          disableBypassPermissionsMode: Schema.optionalKey(Schema.Literal("disable")),
-          disableAutoMode: Schema.optionalKey(Schema.Literal("disable")),
-        }),
-        [Schema.Record(Schema.String, Schema.Unknown)],
-      ),
-    ),
-  }),
-  [Schema.Record(Schema.String, Schema.Unknown)],
-);
-const decodeClaudeBypassSettings = Schema.decodeUnknownEffect(
-  fromLenientJson(ClaudeBypassSettings),
-);
-const decodeClaudeLaunchArgBypassSettings = Schema.decodeUnknownEffect(ClaudeBypassSettings);
-
 const ClaudePromptCacheTtl = Schema.Literals(["5m", "1h"]);
 const decodeClaudePromptCacheTtl = Schema.decodeUnknownOption(ClaudePromptCacheTtl);
 const decodeClaudeSubagentCacheSettings = Schema.decodeUnknownEffect(
@@ -2634,23 +2595,6 @@ const decodeClaudeEnvSettings = Schema.decodeUnknownEffect(
     ),
   ),
 );
-
-function claudeBypassAvailability(
-  settings: typeof ClaudeBypassSettings.Type,
-): ClaudeBypassAvailability {
-  return {
-    bypassDisabled: settings.permissions?.disableBypassPermissionsMode === "disable",
-    autoDisabled:
-      settings.disableAutoMode === "disable" || settings.permissions?.disableAutoMode === "disable",
-  };
-}
-
-function requiresClaudeApproval(context: ActiveClaudeTurnContext): boolean {
-  // CLI-forwarded requests need a person's decision even under bypass (ask rules,
-  // safety checks, or settings fallback). Do not wait for queued init/status updates.
-  const policy = context.queryPolicy;
-  return policy.installPermissionCallback || policy.permissionMode === "bypassPermissions";
-}
 
 function claudeRuntimeQueryPolicyKey(policy: ClaudeRuntimeQueryPolicy): string {
   return JSON.stringify({
@@ -3347,33 +3291,21 @@ const CLAUDE_NO_STANDING_GRANT_OPTIONS = [
 ] satisfies ReadonlyArray<ProviderApprovalOption>;
 
 export function claudeApprovalPresentation(input: {
-  readonly permissionMode: PermissionMode;
   readonly prompt: string;
   readonly callbackOptions: Pick<
     Parameters<CanUseTool>[2],
-    "decisionReason" | "matchedAskRule" | "suppressAlwaysAllowRule"
+    "decisionReason" | "suppressAlwaysAllowRule"
   >;
 }): {
   readonly reason?: string;
-  readonly fullAccessOverride?: ProviderApprovalFullAccessOverride;
   readonly options?: ReadonlyArray<ProviderApprovalOption>;
 } {
   // The reason can carry terminal escapes from the CLI's own prompt renderer.
   const reason = NodeUtil.stripVTControlCharacters(
     input.callbackOptions.decisionReason ?? "",
   ).trim();
-  // Bypass auto-allows everything it can, so any ask that still reaches the
-  // callback is one bypass refused. The SDK drops the CLI's decision_reason_type,
-  // leaving the matched ask rule as the only way to tell the two causes apart.
-  const fullAccessOverride: ProviderApprovalFullAccessOverride | undefined =
-    input.permissionMode !== "bypassPermissions"
-      ? undefined
-      : input.callbackOptions.matchedAskRule === undefined
-        ? "provider_check"
-        : "ask_rule";
   return {
     ...(reason === "" || reason === input.prompt ? {} : { reason }),
-    ...(fullAccessOverride === undefined ? {} : { fullAccessOverride }),
     ...(input.callbackOptions.suppressAlwaysAllowRule === true
       ? { options: CLAUDE_NO_STANDING_GRANT_OPTIONS }
       : {}),
@@ -4421,42 +4353,6 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
   const customHome =
     adapterOptions.settings.homePath.trim().length > 0 ||
     adapterOptions.environment.CLAUDE_CONFIG_DIR !== hostEnvironment.CLAUDE_CONFIG_DIR;
-  const announcedBypassDowngrades = new Set<ThreadId>();
-  const readBypassSettings = (filePath: string) =>
-    fileSystem.readFileString(filePath).pipe(
-      Effect.flatMap(decodeClaudeBypassSettings),
-      Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed({})),
-    );
-  const resolveBypassAvailability = Effect.fn("ClaudeAdapterV2.resolveBypassAvailability")(
-    function* (cwd: string | null) {
-      // resolveSettings does not initialize remote-cache eligibility in the SDK host.
-      // Keep the payload intact so the SDK also honors managedSourcesBehavior.
-      const remote = yield* readBypassSettings(path.join(homePath, "remote-settings.json"));
-      const home = customHome
-        ? yield* readBypassSettings(path.join(homePath, "settings.json"))
-        : {};
-      const resolved = yield* Effect.tryPromise(() =>
-        resolveClaudeSettings({
-          ...(cwd === null ? {} : { cwd }),
-          settingSources: customHome ? ["project", "local"] : ["user", "project", "local"],
-          serverManagedSettings: remote,
-        }),
-      );
-      const launchArgSettings = yield* readClaudeLaunchArgSettings({
-        settings: adapterOptions.settings,
-        cwd,
-        fileSystem,
-        path,
-      });
-      const launch = yield* decodeClaudeLaunchArgBypassSettings(launchArgSettings ?? {});
-      const sources = [resolved.effective, home, remote, launch].map(claudeBypassAvailability);
-      return {
-        bypassDisabled: sources.some((source) => source.bypassDisabled),
-        autoDisabled: sources.some((source) => source.autoDisabled),
-      };
-    },
-  );
-
   // Claude Code's own subagent TTL setting, in its precedence order. Unset or unreadable means
   // Anthropic's default applies.
   const resolveSubagentPromptCacheTtl = Effect.fn("ClaudeAdapterV2.resolveSubagentPromptCacheTtl")(
@@ -4643,33 +4539,6 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
         const interruptedTurns = yield* Ref.make(new Set<OrchestrationV2ProviderTurn["id"]>());
         const steeredTurns = yield* Ref.make(new Set<OrchestrationV2ProviderTurn["id"]>());
         const queryContext = yield* Ref.make<ClaudeLiveQueryContext | null>(null);
-        // A worktree handoff changes the project settings even within one session.
-        let bypassCache: { cwd: string | null; availability: ClaudeBypassAvailability } | null =
-          null;
-        const queryPolicyForTurn = Effect.fnUntraced(function* (
-          turnInput: ProviderAdapter.ProviderAdapterV2TurnInput,
-        ) {
-          if (
-            permissionModeForClaudeRuntimePolicy(turnInput.runtimePolicy) !== "bypassPermissions"
-          ) {
-            return claudeRuntimeQueryPolicyForRuntimePolicy(turnInput.runtimePolicy);
-          }
-          const cwd = turnInput.runtimePolicy.cwd;
-          if (bypassCache === null || bypassCache.cwd !== cwd) {
-            const resolved = yield* resolveBypassAvailability(cwd).pipe(Effect.option);
-            if (Option.isNone(resolved)) {
-              return claudeRuntimeQueryPolicyForRuntimePolicy(turnInput.runtimePolicy, {
-                bypassDisabled: true,
-                autoDisabled: false,
-              });
-            }
-            bypassCache = { cwd, availability: resolved.value };
-          }
-          return claudeRuntimeQueryPolicyForRuntimePolicy(
-            turnInput.runtimePolicy,
-            bypassCache.availability,
-          );
-        });
         const openedNativeThreads = yield* Ref.make(new Set<string>());
         const pdfBudgets = new Map<string, ReturnType<typeof makeClaudeAttachmentBudget>>();
         const latestPlanByKind = yield* Ref.make(new Map<string, OrchestrationV2PlanArtifact>());
@@ -9630,7 +9499,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           if (
             heldForEcho &&
             toolName !== "ExitPlanMode" &&
-            (toolName === "AskUserQuestion" || requiresClaudeApproval(context))
+            (toolName === "AskUserQuestion" || context.queryPolicy.installPermissionCallback)
           ) {
             // The SDK blocks on the answer and the prompt echo cannot arrive until the held turn
             // goes on, so the request is raised now with the held output. ExitPlanMode is
@@ -9752,7 +9621,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             } satisfies PermissionResult;
           }
 
-          if (!requiresClaudeApproval(context)) {
+          if (!context.queryPolicy.installPermissionCallback) {
             return {
               behavior: "allow",
               updatedInput: toolInput,
@@ -9776,7 +9645,6 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             requestKind,
             prompt,
             presentation: claudeApprovalPresentation({
-              permissionMode: context.queryPolicy.permissionMode,
               prompt,
               callbackOptions,
             }),
@@ -9951,7 +9819,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           turnInput: ProviderAdapter.ProviderAdapterV2TurnInput,
           nativeThreadId: string,
         ) {
-          const queryPolicy = yield* queryPolicyForTurn(turnInput);
+          const queryPolicy = claudeRuntimeQueryPolicyForRuntimePolicy(turnInput.runtimePolicy);
           const mcpSession = yield* mcpSessions.read(turnInput.threadId);
           const mcpOverrides = claudeMcpQueryOverrides({
             mcpSession,
@@ -10360,51 +10228,6 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             const attachTurn = Effect.gen(function* () {
               querySession.lastTurn = context;
               yield* Ref.set(activeTurn, context);
-              if (
-                !isClaudeProviderContinuationTurn(turnInput) &&
-                permissionModeForClaudeRuntimePolicy(turnInput.runtimePolicy) ===
-                  "bypassPermissions" &&
-                context.queryPolicy.permissionMode !== "bypassPermissions" &&
-                !announcedBypassDowngrades.has(turnInput.threadId)
-              ) {
-                announcedBypassDowngrades.add(turnInput.threadId);
-                if (announcedBypassDowngrades.size > 1000) {
-                  const oldest = announcedBypassDowngrades.values().next().value;
-                  if (oldest !== undefined) announcedBypassDowngrades.delete(oldest);
-                }
-                const nativeItemId = `bypass-policy-downgrade:${context.providerTurnId}`;
-                const notice =
-                  "Supaterm could not confirm Claude bypass permissions here, so Full access is running with approval checks.";
-                yield* emitProviderEvent({
-                  type: "turn_item.updated",
-                  driver: CLAUDE_PROVIDER,
-                  turnItem: {
-                    id: idAllocator.derive.turnItemFromProviderItem({
-                      driver: CLAUDE_PROVIDER,
-                      nativeItemId,
-                    }),
-                    threadId: turnInput.threadId,
-                    runId: turnInput.runId,
-                    nodeId: turnInput.rootNodeId,
-                    providerThreadId: turnInput.providerThread.id,
-                    providerTurnId: context.providerTurnId,
-                    nativeItemRef: {
-                      driver: CLAUDE_PROVIDER,
-                      nativeId: nativeItemId,
-                      strength: "weak",
-                    },
-                    parentItemId: null,
-                    ordinal: yield* resolveItemOrdinal(context, nativeItemId),
-                    type: "system_notice",
-                    status: "completed",
-                    title: notice,
-                    message: notice,
-                    startedAt,
-                    completedAt: startedAt,
-                    updatedAt: startedAt,
-                  },
-                });
-              }
               yield* emitProviderEvent({
                 type: "provider_turn.updated",
                 driver: CLAUDE_PROVIDER,
