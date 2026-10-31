@@ -49,7 +49,7 @@ import type {
   RunAttemptId,
   ThreadPinnedMessage,
 } from "@supaterm/contracts";
-import { deriveTimelineMinimapItems } from "./timelineMinimapItems";
+import { deriveTimelineMinimapItems, type TimelineMinimapItem } from "./timelineMinimapItems";
 import { parseScopedThreadKey } from "@supaterm/client-runtime/environment";
 import { resolveWorkGroupScrollAnchor } from "@supaterm/client-runtime/work-log/scroll-anchor";
 import type { WorkflowOpening } from "@supaterm/client-runtime/state/subagentRuntime";
@@ -270,6 +270,7 @@ interface MessagesTimelineProps {
   loadEarlier?: CitationHistoryPage | null;
   pinnedMessages?: ReadonlyArray<ThreadPinnedMessage>;
   onTogglePinnedMessage?: (projectedItem: PinnableProjectedItem, pinned: boolean) => void;
+  onJumpToPinnedMessage: (pin: ThreadPinnedMessage) => void;
   messageJump?: MessageJump | null;
   onMessageJumpFailed?: MessageJumpHandlers["fail"];
   findPositionReaderRef?: React.RefObject<ThreadFindPositionReader | null>;
@@ -367,6 +368,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   loadEarlier = null,
   pinnedMessages = EMPTY_PINNED_MESSAGES,
   onTogglePinnedMessage,
+  onJumpToPinnedMessage,
   messageJump = null,
   onMessageJumpFailed = NOOP_MESSAGE_JUMP_FAILED,
 }: MessagesTimelineProps) {
@@ -611,7 +613,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   // must not change with them or every timeline row re-renders per event.
   const runs = useStableHandoffRuns(runsProp);
   const pinnedItemIds = new Set(pinnedMessages.map((pin) => pin.itemId));
-  const minimapItems = deriveTimelineMinimapItems(rows, pinnedItemIds);
+  const minimapItems = deriveTimelineMinimapItems(rows, timelineEntries, pinnedMessages);
   const minimapRowIndices = minimapItems.map((item) => item.rowIndex);
 
   const restoreRowIndex =
@@ -1100,6 +1102,15 @@ const ConversationTimeline = memo(function ConversationTimeline({
   );
   const listExtraData = { identity: listIdentityKey, rowCount: rows.length, sharedState };
 
+  const scrollToMinimapTurn = (item: TimelineMinimapItem) => {
+    onManualNavigation();
+    void listRef.current?.scrollToIndex({
+      index: item.rowIndex,
+      animated: !prefersReducedMotion,
+      viewOffset: 24,
+    });
+  };
+
   const forwardMinimapWheel = (event: WheelEvent) => {
     const scrollNode = listRef.current?.getScrollableNode();
     if (scrollNode) forwardWheelToTimeline(event, scrollNode);
@@ -1203,13 +1214,13 @@ const ConversationTimeline = memo(function ConversationTimeline({
               stripMap={minimapStripMap}
               onWheel={forwardMinimapWheel}
               onSelect={(item) => {
-                onManualNavigation();
-                void listRef.current?.scrollToIndex({
-                  index: item.rowIndex,
-                  animated: !prefersReducedMotion,
-                  viewOffset: 24,
-                });
+                if (item.pin) {
+                  onJumpToPinnedMessage(item.pin);
+                } else {
+                  scrollToMinimapTurn(item);
+                }
               }}
+              onStep={scrollToMinimapTurn}
             />
           </TooltipScrollDismissArea>
         </TimelineDisclosureContext>

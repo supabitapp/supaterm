@@ -49,6 +49,7 @@ export function TimelineMinimap({
   stripMap,
   onWheel,
   onSelect,
+  onStep,
 }: {
   hasPersistentGutter: boolean;
   hitStripWidth: number;
@@ -57,6 +58,7 @@ export function TimelineMinimap({
   stripMap: Map<string, HTMLSpanElement>;
   onWheel: (event: WheelEvent) => void;
   onSelect: (item: TimelineMinimapItem) => void;
+  onStep: (item: TimelineMinimapItem) => void;
 }) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const wheelTargetRef = (node: HTMLDivElement | null) => {
@@ -159,11 +161,15 @@ export function TimelineMinimap({
             disabled={previousItem === null}
             interactive={navigationInteractive}
             onClick={() => {
-              if (previousItem) onSelect(previousItem);
+              if (previousItem) onStep(previousItem);
             }}
           />
           <button
-            aria-label={`Jump to message: ${activeItem?.userText ?? "User message"}`}
+            aria-label={
+              activeItem?.pin
+                ? `Jump to pinned message: ${activeItem.pin.preview}`
+                : `Jump to message: ${activeItem?.userText ?? "User message"}`
+            }
             className="absolute inset-y-0 left-0 w-full cursor-pointer bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70"
             onBlur={() => setActiveIndex(null)}
             onClick={(event) => {
@@ -224,7 +230,7 @@ export function TimelineMinimap({
                   aria-hidden="true"
                   className={cn(
                     "group/strip pointer-events-none absolute left-0 h-0.5 w-6 origin-left -translate-y-1/2 rounded-full transition-transform duration-150",
-                    item.pinned
+                    item.pin
                       ? activeDistance === 0
                         ? "bg-info"
                         : "bg-info/60"
@@ -254,7 +260,7 @@ export function TimelineMinimap({
                   <span
                     className={cn(
                       "absolute inset-0 rounded-full opacity-0 transition-opacity duration-150 group-data-[in-view=true]/strip:opacity-100",
-                      item.pinned ? "bg-info" : "bg-foreground/90",
+                      item.pin ? "bg-info" : "bg-foreground/90",
                     )}
                   />
                 </span>
@@ -301,7 +307,7 @@ export function TimelineMinimap({
             disabled={nextItem === null}
             interactive={navigationInteractive}
             onClick={() => {
-              if (nextItem) onSelect(nextItem);
+              if (nextItem) onStep(nextItem);
             }}
           />
         </div>

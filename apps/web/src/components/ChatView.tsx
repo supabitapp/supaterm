@@ -3637,6 +3637,7 @@ export default function ChatView(props: ChatViewProps) {
                     onContentOverflowChange={setTimelineOverflows}
                     onToolOutputCollapsedAtEnd={onToolOutputCollapsedAtEndStable}
                     onManualNavigation={cancelTimelineLiveFollowForUserNavigationStable}
+                    onJumpToPinnedMessage={jumpToPinnedMessageStable}
                     cancelPositionRestoreRef={cancelPositionRestoreRef}
                     hideEmptyPlaceholder={isDraftHeroState}
                     loading={!isDraftHeroState && threadDetailLoading}
