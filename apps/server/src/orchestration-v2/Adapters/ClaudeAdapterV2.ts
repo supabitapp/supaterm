@@ -3903,6 +3903,9 @@ interface ClaudeLiveQueryContext {
   // ("early") or only on its result. "acknowledged": the CLI confirmed it took a prompt's uuid
   // before any echo, so it echoes, but a resume's own turns can still run ahead of that prompt.
   promptEchoMode: "unknown" | "acknowledged" | "early" | "result_only";
+  // The mode this process asked for, launch arguments included. Claude can start in another,
+  // which init reports as openedPermissionMode.
+  readonly requestedPermissionMode: PermissionMode;
   openedPermissionMode: PermissionMode;
   receivedInit: boolean;
   permissionMode: PermissionMode;
@@ -9850,9 +9853,9 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             existing.selection.queryIdentity !== compiledSelection.queryIdentity &&
             canApplyClaudeSelectionLive(existing.selection, compiledSelection) &&
             // Auto depends on the model, so a new model reopens to ask for it again.
-            // Bypass Claude refused stays refused whatever the model.
+            // Other modes Claude refused stay refused whatever the model.
             (existing.selection.apiModelId === compiledSelection.apiModelId ||
-              queryPolicy.permissionMode !== "auto" ||
+              existing.requestedPermissionMode !== "auto" ||
               existing.openedPermissionMode === "auto")
           ) {
             const live = existing;
@@ -10035,6 +10038,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             promptSuggestions: queryOptions.promptSuggestions === true,
             lastTurn: null,
             promptEchoMode: "unknown",
+            requestedPermissionMode: queryOptions.permissionMode,
             openedPermissionMode: queryOptions.permissionMode,
             receivedInit: false,
             permissionMode: queryOptions.permissionMode,

@@ -6520,6 +6520,52 @@ describe("ClaudeAdapterV2 background wake turns", () => {
       ),
   );
 
+  it.effect("renegotiates Auto that launch arguments request after fallback to default", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeWakeHarnessWithOptions({
+        freshQueueOnReopen: true,
+        settings: { ...DEFAULT_CLAUDE_SETTINGS, launchArgs: "--permission-mode auto" },
+      });
+      const haiku = {
+        instanceId: ClaudeAdapterV2.CLAUDE_DEFAULT_INSTANCE_ID,
+        model: "claude-haiku-4-5-20251001",
+      };
+      const now = yield* DateTime.now;
+      const turn = (ordinal: number, model: string) =>
+        makeClaudeTestTurnInput({
+          threadId: harness.threadId,
+          providerThread: harness.providerThread,
+          now,
+          attemptId: RunAttemptId.make(`attempt-claude-launch-auto:${ordinal}`),
+          text: `Request ${ordinal}`,
+          attachments: [],
+          providerTurnOrdinal: ordinal,
+          modelSelection: { ...haiku, model },
+          runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({
+            ...CLAUDE_TEST_RUNTIME_POLICY,
+            runtimeMode: "auto-accept-edits",
+          }),
+        });
+      yield* harness.runtime.startTurn(turn(1, haiku.model));
+      const openedOptions = harness.getOpenedOptions();
+      assert.equal(openedOptions?.permissionMode, "auto");
+      yield* harness.offerAndWait(claudeSdkFrame({ ...wakeTurnInit, permissionMode: "default" }));
+      yield* Queue.offer(harness.sdkMessages, turnOneResult);
+      yield* Queue.take(harness.terminalReceipts);
+
+      yield* harness.runtime.startTurn(turn(2, "claude-sonnet-4-6"));
+      const reopenedOptions = harness.getOpenedOptions();
+      assert.notStrictEqual(reopenedOptions, openedOptions);
+      assert.equal(reopenedOptions?.model, "claude-sonnet-4-6");
+      assert.equal(reopenedOptions?.permissionMode, "auto");
+    }).pipe(
+      Effect.scoped,
+      Effect.provide(
+        Layer.mergeAll(IdAllocator.layer, McpProviderSessions.layer, NodeServices.layer),
+      ),
+    ),
+  );
+
   it.effect("preserves typed Claude plans and todos through generic tool completion", () =>
     Effect.scoped(
       Effect.gen(function* () {
