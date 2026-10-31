@@ -1,11 +1,6 @@
 import { type OrchestrationV2CheckpointFileTotals, type RunId } from "@supaterm/contracts";
 import { type MouseEvent, type ReactNode, memo, useLayoutEffect, useRef, useState } from "react";
 import { type TurnDiffFileChange } from "../../types";
-import {
-  buildTurnDiffTree,
-  summarizeTurnDiffStats,
-  type TurnDiffTreeNode,
-} from "../../lib/turnDiffTree";
 import { DiffIcon } from "@supaterm/icons";
 import { ChevronsDownUp, ChevronsUpDown, Folder, FolderOpen } from "@supaterm/icons/nodes";
 import { buildTurnDiffTree, type TurnDiffTreeNode } from "../../lib/turnDiffTree";
