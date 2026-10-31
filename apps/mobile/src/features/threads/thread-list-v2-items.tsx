@@ -752,10 +752,12 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   const threadKey = scopedThreadKey(thread.environmentId, thread.id);
   // The selected thread shows its own composer in the detail pane.
   const hasUnsentDraft = useThreadHasUnsentDraft(threadKey) && !selected;
+  const isRegeneratingTitle = thread.titleRegeneration != null;
   const rowAccessibilityLabel = [
     thread.title,
     hasUnsentDraft ? "unsent draft" : null,
     props.hasQueuedMessages ? "messages queued to send" : null,
+    isRegeneratingTitle ? "regenerating title" : null,
   ]
     .filter((part) => part !== null)
     .join(", ");
@@ -940,7 +942,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
       { id: "rename", title: "Rename", image: "square.and.pencil" },
       ...buildThreadTitleRegenerationMenuItems({
         supported: props.titleRegenerationSupported,
-        isRegenerating: thread.titleRegeneration != null,
+        isRegenerating: isRegeneratingTitle,
       }),
       ...(canTurnIntoProject
         ? [
@@ -953,12 +955,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
           ]
         : []),
     ],
-    [
-      canTurnIntoProject,
-      props.titleRegenerationSupported,
-      thread.runtime,
-      thread.titleRegeneration,
-    ],
+    [canTurnIntoProject, props.titleRegenerationSupported, thread.runtime, isRegeneratingTitle],
   );
   const snoozableCardMenuActions = useMemo<MenuAction[]>(
     () => [
@@ -1181,6 +1178,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
             selected
               ? selectedThreadRowColors.foregroundClassName
               : rowAppearance.foregroundClassName,
+            isRegeneratingTitle && "opacity-55",
           )}
           numberOfLines={2}
         >
@@ -1470,6 +1468,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
                 selected
                   ? selectedThreadRowColors.foregroundClassName
                   : rowAppearance.mutedForegroundClassName,
+                isRegeneratingTitle && "opacity-55",
               )}
               numberOfLines={1}
             >
