@@ -164,7 +164,7 @@ export function QuestionAttachments(props: {
       {canAttach ? (
         <ComposerAttachmentButton
           disabled={props.disabled}
-          supportsFiles={Boolean(capabilities?.fileAttachments)}
+          supportsFiles
           onPickMedia={() => pick("media")}
           onPickFiles={() => pick("files")}
         />

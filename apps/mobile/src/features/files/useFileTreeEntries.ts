@@ -6,7 +6,7 @@ import {
   type ProjectEntry,
 } from "@supaterm/contracts";
 import * as Cause from "effect/Cause";
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Atom } from "effect/reactivity";
 
 import { environmentCatalog } from "../../connection/catalog";
@@ -166,21 +166,16 @@ export function useFileTreeEntries(input: {
     if (workspaces.size > 8) workspaces.delete(workspaces.keys().next().value!);
     setCache({ key: workspaceKey, workspaces });
   }
-  const setDirectories = useCallback(
-    (
-      update: (
-        current: ReturnType<typeof createDirectories>,
-      ) => ReturnType<typeof createDirectories>,
-    ) =>
-      setCache((current) => {
-        const previous = current.workspaces.get(workspaceKey);
-        if (!previous) return current;
-        const next = boundDirectories(update(previous));
-        if (next === previous) return current;
-        return { ...current, workspaces: new Map(current.workspaces).set(workspaceKey, next) };
-      }),
-    [workspaceKey],
-  );
+  const setDirectories = (
+    update: (current: ReturnType<typeof createDirectories>) => ReturnType<typeof createDirectories>,
+  ) =>
+    setCache((current) => {
+      const previous = current.workspaces.get(workspaceKey);
+      if (!previous) return current;
+      const next = boundDirectories(update(previous));
+      if (next === previous) return current;
+      return { ...current, workspaces: new Map(current.workspaces).set(workspaceKey, next) };
+    });
   const { target } = directories;
   const requestsByTarget = useRef(new WeakMap<object, ReturnType<typeof createRequests>>());
   // Cancel the old target before consumers' passive effects start new directory loads.
@@ -542,16 +537,13 @@ export function useFileTreeEntries(input: {
     });
   };
 
-  const setExpandedPaths = useCallback(
-    (update: (current: ReadonlySet<string>) => ReadonlySet<string>) =>
-      setDirectories((current) => {
-        const expandedPaths = update(current.expandedPaths);
-        return expandedPaths === current.expandedPaths
-          ? current
-          : { ...current, expandedPaths: new Set(expandedPaths) };
-      }),
-    [setDirectories],
-  );
+  const setExpandedPaths = (update: (current: ReadonlySet<string>) => ReadonlySet<string>) =>
+    setDirectories((current) => {
+      const expandedPaths = update(current.expandedPaths);
+      return expandedPaths === current.expandedPaths
+        ? current
+        : { ...current, expandedPaths: new Set(expandedPaths) };
+    });
 
   return {
     revealSelection,

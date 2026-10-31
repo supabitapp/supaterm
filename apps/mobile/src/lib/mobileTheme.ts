@@ -456,10 +456,6 @@ export function createMobileThemeVariables(
   };
 }
 
-export const MOBILE_THEME_VARIABLE_NAMES = Object.keys(
-  createMobileThemeVariables(SUPATERM_LIGHT_THEME_COLORS, "light"),
-) as ReadonlyArray<MobileThemeVariable>;
-
 export function getMobileThemeColors(
   themeId: SharedMobileThemeId,
   appearance: MobileThemeAppearance,

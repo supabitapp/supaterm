@@ -1,14 +1,6 @@
 import type { EnvironmentId } from "@supaterm/contracts";
 import { buildProjectGroups } from "@supaterm/client-runtime/state/project-grouping";
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { useEnvironments, type EnvironmentPresentation } from "../../state/environments";
 import { useProjects } from "../../state/entities";
@@ -49,11 +41,11 @@ export function SettingsEnvironmentFilterProvider(props: { readonly children: Re
   const [selectedProjectKey, setSelectedProjectKey] = useState<string | null>(null);
   // Written only by selectProject, so async work can read the selection after its render.
   const currentProjectKey = useRef<string | null>(null);
-  const selectProject = useCallback((projectKey: string | null) => {
+  const selectProject = (projectKey: string | null) => {
     currentProjectKey.current = projectKey;
     setSelectedProjectKey(projectKey);
-  }, []);
-  const getSelectedProjectKey = useCallback(() => currentProjectKey.current, []);
+  };
+  const getSelectedProjectKey = () => currentProjectKey.current;
   const projectGroups = useMemo(
     () =>
       buildProjectGroups({

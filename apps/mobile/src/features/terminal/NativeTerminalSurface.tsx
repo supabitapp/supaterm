@@ -1,15 +1,6 @@
 import { CODE_FONT_FAMILY } from "../../lib/fonts";
 import type { TerminalGrid, TerminalOutputState } from "@supaterm/client-runtime/state/terminal";
-import {
-  memo,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-  useState,
-  type Ref,
-} from "react";
+import { memo, useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
 import {
   Pressable,
   ScrollView,
@@ -25,7 +16,6 @@ import { AppText as Text } from "../../components/ui/AppText";
 import { MOBILE_TYPOGRAPHY } from "../../lib/typography";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import {
-  getNativeTerminalHardwareKeyRevision,
   resolveNativeTerminalSurfaceView,
   supportsNativeTerminalOutput,
   type NativeTerminalSurfaceHandle,
@@ -35,7 +25,6 @@ import {
   getMobileTerminalTheme,
   type TerminalTheme,
 } from "./terminalTheme";
-import { terminalDebugLog } from "./terminalDebugLog";
 import { useTerminalSurfaceBuffer } from "./useTerminalSurfaceBuffer";
 import { createTerminalOutputWriter } from "./terminalOutputWriter";
 
@@ -217,7 +206,6 @@ const ReadyTerminalSurface = memo(function ReadyTerminalSurface(props: ReadyTerm
   const theme = props.theme ?? getMobileTerminalTheme(themeId, themeAppearance);
   const { onInput, onResize } = props;
   const [NativeTerminalSurfaceView] = useState(() => resolveNativeTerminalSurfaceView());
-  const hasNativeSurface = Boolean(NativeTerminalSurfaceView);
   const gridCols = props.grid?.cols;
   const gridRows = props.grid?.rows;
   const sharedGrid = useMemo(
@@ -249,39 +237,20 @@ const ReadyTerminalSurface = memo(function ReadyTerminalSurface(props: ReadyTerm
     });
   }, [nativeReady, props.output, streaming]);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- writes the native surface state to the terminal debug log after each relevant commit
-  useEffect(() => {
-    terminalDebugLog("native:surface", {
-      terminalKey: props.terminalKey,
-      native: hasNativeSurface,
-      hardwareKeyRevision: getNativeTerminalHardwareKeyRevision(),
-      bufferLen: props.buffer.length,
-      isRunning: props.isRunning,
+  const handleNativeInput = (event: NativeSyntheticEvent<TerminalInputEvent>) => {
+    if (!props.isRunning || props.readOnly) {
+      return;
+    }
+    onInput(event.nativeEvent.data);
+  };
+  const handleNativeResize = (event: NativeSyntheticEvent<TerminalResizeEvent>) => {
+    // The first grid event comes from the mounted native surface, after registration.
+    setNativeReady(true);
+    onResize({
+      cols: event.nativeEvent.cols,
+      rows: event.nativeEvent.rows,
     });
-  }, [hasNativeSurface, props.buffer.length, props.isRunning, props.terminalKey]);
-  const handleNativeInput = useCallback(
-    (event: NativeSyntheticEvent<TerminalInputEvent>) => {
-      if (!props.isRunning || props.readOnly) {
-        return;
-      }
-      terminalDebugLog("native:onInput", {
-        codes: Array.from(event.nativeEvent.data, (char) => char.codePointAt(0)),
-      });
-      onInput(event.nativeEvent.data);
-    },
-    [onInput, props.isRunning, props.readOnly],
-  );
-  const handleNativeResize = useCallback(
-    (event: NativeSyntheticEvent<TerminalResizeEvent>) => {
-      // The first grid event comes from the mounted native surface, after registration.
-      setNativeReady(true);
-      onResize({
-        cols: event.nativeEvent.cols,
-        rows: event.nativeEvent.rows,
-      });
-    },
-    [onResize],
-  );
+  };
 
   if (NativeTerminalSurfaceView) {
     return (

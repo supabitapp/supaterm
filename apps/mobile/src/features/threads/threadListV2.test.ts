@@ -2,7 +2,7 @@ import { createInboxReturnTracker } from "@supaterm/client-runtime/state/thread-
 import { presentThreadShell } from "@supaterm/client-runtime/state/models";
 import * as DateTime from "effect/DateTime";
 import * as Schema from "effect/Schema";
-import { planPinnedMove } from "@supaterm/client-runtime/state/thread-sort";
+import { planPinnedReorder } from "@supaterm/client-runtime/state/thread-sort";
 import {
   createPendingThreadOrder,
   createThreadMovePlanner,
@@ -1539,11 +1539,10 @@ describe("pending mobile thread moves", () => {
     const ordered = getThreadListV2OrderedSection({ threads: rows, section, now: NOW });
     const orderedIds = ordered.map((row) => `${row.environmentId}:${row.id}`);
     const movedId = orderedIds[2]!;
-    const assignments = planPinnedMove({
-      orderedIds,
+    const assignments = planPinnedReorder({
+      orderedIds: orderedIds.toSpliced(2, 1).toSpliced(1, 0, movedId),
       keysById: new Map(orderedIds.map((id) => [id, null])),
       movedId,
-      direction: "up",
     })!;
     const pending = createPendingThreadOrder({
       section,

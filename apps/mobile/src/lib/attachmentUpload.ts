@@ -114,7 +114,7 @@ export type PrepareTurnAttachmentsResult =
   | { readonly status: "abandoned" };
 
 /** Promote Files-picked images consistently in headers, payloads and references or ChatImageAttachment rejects them. */
-export function composerAttachmentWireMimeType(attachment: DraftComposerAttachment): string {
+function composerAttachmentWireMimeType(attachment: DraftComposerAttachment): string {
   if (!isComposerImageAttachment(attachment)) return attachment.mimeType;
   return supportedImageWireMimeType(attachment);
 }

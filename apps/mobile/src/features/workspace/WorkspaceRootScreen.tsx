@@ -1,5 +1,5 @@
 import { useNavigation } from "@react-navigation/native";
-import { use, useCallback, useMemo } from "react";
+import { use } from "react";
 import { Platform, View, useWindowDimensions } from "react-native";
 import { useKeyboardState } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -74,19 +74,16 @@ function WorkspaceRootContent() {
   const keyboardHeight = useKeyboardState((keyboard) => keyboard.height);
   const workspace = useWorkspaceTabs()!;
   const { state } = workspace;
-  const renderHeaderTitle = useCallback(
-    () => (
-      <WorkspaceRootTitle
-        columnWidth={width}
-        onOpenEnvironments={() =>
-          navigation.navigate("SettingsSheet", {
-            screen: "SettingsContent",
-            params: { screen: "SettingsEnvironments" },
-          })
-        }
-      />
-    ),
-    [width, navigation],
+  const renderHeaderTitle = () => (
+    <WorkspaceRootTitle
+      columnWidth={width}
+      onOpenEnvironments={() =>
+        navigation.navigate("SettingsSheet", {
+          screen: "SettingsContent",
+          params: { screen: "SettingsEnvironments" },
+        })
+      }
+    />
   );
   const tab = state.tabs[state.selectedTab];
   const bottomClearance =
@@ -98,7 +95,7 @@ function WorkspaceRootContent() {
         : keyboardHeight > 0 && tab.searchMode !== "resting"
           ? keyboardHeight + 64
           : Math.max(insets.bottom, 12) + workspaceToolbarHeight(tab.searchMode) + 16;
-  const context = useMemo(() => ({ ...workspace, bottomClearance }), [workspace, bottomClearance]);
+  const context = { ...workspace, bottomClearance };
 
   return (
     <WorkspaceTabsContext value={context}>

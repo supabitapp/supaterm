@@ -55,11 +55,7 @@ const pullRequestSummaryAtom = createLinkedPullRequestSummaryAtomFamily(
     ),
 );
 
-export {
-  presentThreadPr,
-  type ThreadPr,
-  type ThreadPrPresentation,
-} from "./thread-pr-presentation";
+export { type ThreadPr, type ThreadPrPresentation } from "./thread-pr-presentation";
 
 export function useThreadPr(thread: EnvironmentThreadShell): ThreadPrPresentation | null {
   const { linkedPresentation, pullRequestRef } = useMemo(
@@ -89,16 +85,13 @@ export function useThreadPr(thread: EnvironmentThreadShell): ThreadPrPresentatio
   );
   const summary = pullRequestRef === null ? undefined : (pullRequestSummary.data ?? snapshot);
   // Rows pass `pr` into callbacks; a fresh object per render would invalidate them.
-  const summaryPresentation = useMemo(
-    () =>
-      summary === undefined
-        ? null
-        : presentThreadPr(pullRequestDetailToVcsStatus(summary), {
-            kind: summary.provider,
-            name: summary.provider,
-            baseUrl: "",
-          }),
-    [summary],
-  );
+  const summaryPresentation =
+    summary === undefined
+      ? null
+      : presentThreadPr(pullRequestDetailToVcsStatus(summary), {
+          kind: summary.provider,
+          name: summary.provider,
+          baseUrl: "",
+        });
   return linkedPresentation ?? summaryPresentation;
 }

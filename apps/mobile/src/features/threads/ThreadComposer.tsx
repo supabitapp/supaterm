@@ -144,7 +144,6 @@ export interface ThreadComposerProps {
   readonly bottomInset?: number;
   readonly connectionState: RemoteClientConnectionState;
   readonly environmentLabel: string | null;
-  readonly threadSyncPhase?: "loading" | "syncing" | null;
   readonly selectedThread: EnvironmentThreadShell;
   readonly reportedModelSelection?: ModelSelection | null;
   readonly hasCompactableConversation: boolean;
@@ -270,9 +269,8 @@ function SendActionButton(props: {
 /**
  * The pill / card container — renders with Expo's native GlassView on supported
  * iOS 26+ devices, with a frosted blur fallback where supported.
- * Exported so NewTaskDraftScreen can render the same composer chrome.
  */
-export function ComposerSurface(props: {
+function ComposerSurface(props: {
   readonly children: ReactNode;
   readonly style: ViewStyle;
   readonly animateLayout?: boolean;
@@ -869,9 +867,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
               <ComposerAttachmentButton
                 size={rowControlSize}
                 disabled={isSubmissionLocked}
-                supportsFiles={Boolean(
-                  props.serverConfig?.environment.capabilities.fileAttachments,
-                )}
+                supportsFiles={props.serverConfig !== null}
                 onPickMedia={props.onPickDraftMedia}
                 onPickFiles={props.onPickDraftFiles}
               />
@@ -1017,12 +1013,8 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                       insertPaste();
                     } else {
                       Dialog.alert(
-                        wouldExceedInputLimit
-                          ? "Pasted text is too large for this message"
-                          : "Could not attach pasted text",
-                        wouldExceedInputLimit
-                          ? "Remove some text or an attachment, then paste again."
-                          : "Remove an attachment or use a smaller paste, then try again.",
+                        "Pasted text is too large for this message",
+                        "Remove some text or an attachment, then paste again.",
                       );
                     }
                     return;
@@ -1142,9 +1134,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                   <>
                     <ComposerAttachmentButton
                       disabled={isSubmissionLocked}
-                      supportsFiles={Boolean(
-                        props.serverConfig?.environment.capabilities.fileAttachments,
-                      )}
+                      supportsFiles={props.serverConfig !== null}
                       onPickMedia={props.onPickDraftMedia}
                       onPickFiles={props.onPickDraftFiles}
                     />

@@ -164,7 +164,6 @@ vi.mock("./use-composer-drafts", async () => {
 });
 vi.mock("../lib/composerImages", () => ({
   convertPastedImagesToAttachments: vi.fn(),
-  pasteComposerClipboard: vi.fn(),
   pickComposerFiles: vi.fn(),
   pickComposerMedia: vi.fn(),
 }));

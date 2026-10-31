@@ -51,8 +51,6 @@ import {
   type PendingThreadOrder,
 } from "./threadOrder";
 
-export { snoozeWakeLabel };
-
 /** When this device saw each thread leave the Working shelf. One instance for
     Home and the iPad sidebar, so both lists order the inbox the same way and
     the order survives screens that unmount. */

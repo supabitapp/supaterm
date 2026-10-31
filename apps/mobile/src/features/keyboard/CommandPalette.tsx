@@ -21,7 +21,7 @@ import {
   pickedQuery,
   threadRecentUse,
 } from "@supaterm/shared/paletteSearch";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -235,7 +235,7 @@ export function CommandPalette(props: {
   const runCommand = props.onCommand;
   const projects = useProjects();
   const threads = useThreadShells();
-  const activeThreadRef = useMemo(() => parseActiveThreadPath(props.pathname), [props.pathname]);
+  const activeThreadRef = parseActiveThreadPath(props.pathname);
   const activeThread = useThreadShell(activeThreadRef);
   const projection = useThreadProjection({
     environmentId: activeThreadRef?.environmentId ?? null,
@@ -301,14 +301,10 @@ export function CommandPalette(props: {
     useAtomValue(serverEnvironment.prepareTriage.permissionAtom(triageEnvironmentId)) &&
     triageEnvironmentId !== null &&
     serverConfigs.get(triageEnvironmentId)?.environment.capabilities.triage === true;
-  const contentMatchByKey = useMemo(
-    () =>
-      new Map(
-        search.matches
-          .filter((match) => match.source === "user" || match.source === "assistant")
-          .map((match) => [scopedThreadKey(match.environmentId, match.threadId), match]),
-      ),
-    [search.matches],
+  const contentMatchByKey = new Map(
+    search.matches
+      .filter((match) => match.source === "user" || match.source === "assistant")
+      .map((match) => [scopedThreadKey(match.environmentId, match.threadId), match]),
   );
   const items = useMemo(() => {
     const actions: CommandPaletteItem[] = [
@@ -602,7 +598,7 @@ export function CommandPalette(props: {
 
   const dismissed = useRef(false);
   const dismissFallback = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const handleDismissed = useCallback(() => {
+  const handleDismissed = () => {
     if (dismissFallback.current !== null) clearTimeout(dismissFallback.current);
     dismissFallback.current = null;
     if (dismissed.current) return;
@@ -610,7 +606,7 @@ export function CommandPalette(props: {
     // Present navigation sheets only after UIKit has dismissed this modal.
     props.onClose();
     pendingAction.current?.();
-  }, [props]);
+  };
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the dismiss fallback timer on unmount
   useEffect(
     () => () => {

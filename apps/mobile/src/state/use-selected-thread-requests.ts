@@ -308,80 +308,83 @@ export function useSelectedThreadRequests() {
     ],
   );
 
-  const onSelectUserInputOption = useCallback(
-    (requestId: RuntimeRequestId, question: ThreadUserInputQuestion, value: string) => {
+  const onSelectUserInputOption = (
+    requestId: RuntimeRequestId,
+    question: ThreadUserInputQuestion,
+    value: string,
+  ) => {
+    pauseQuestionTimer(requestId);
+    if (!selectedThreadShell) {
+      return;
+    }
+
+    const requestKey = userInputDraftKey(
+      selectedThreadShell.environmentId,
+      selectedThreadShell.id,
+      requestId,
+    );
+    setUserInputDraftOption(requestKey, question, value);
+  };
+
+  const onChangeUserInputCustomAnswer = (
+    requestId: RuntimeRequestId,
+    questionId: string,
+    customAnswer: string,
+  ) => {
+    const question = activePendingUserInputs
+      .find((request) => request.requestId === requestId)
+      ?.questions.find((entry) => entry.id === questionId);
+    if (!selectedThreadShell || !question) {
+      return;
+    }
+
+    const requestKey = userInputDraftKey(
+      selectedThreadShell.environmentId,
+      selectedThreadShell.id,
+      requestId,
+    );
+    if (
+      customAnswer !==
+      (appAtomRegistry.get(userInputDraftsByRequestKeyAtom)[requestKey]?.[questionId]
+        ?.customAnswer ?? "")
+    )
       pauseQuestionTimer(requestId);
-      if (!selectedThreadShell) {
-        return;
-      }
+    setUserInputDraftCustomAnswer(requestKey, question, customAnswer);
+  };
 
-      const requestKey = userInputDraftKey(
-        selectedThreadShell.environmentId,
-        selectedThreadShell.id,
+  const onRespondToApproval = async (
+    requestId: RuntimeRequestId,
+    decision: ProviderApprovalDecision,
+    feedback?: string,
+  ) => {
+    if (
+      !selectedThreadShell ||
+      !readEnvironmentScope(selectedThreadShell.environmentId, AuthOrchestrationOperateScope)
+    ) {
+      return;
+    }
+    if (
+      activePendingApprovals.find((approval) => approval.requestId === requestId)
+        ?.responseCapability !== "live"
+    ) {
+      return;
+    }
+
+    setRespondingApprovalId(requestId);
+    const result = await respondToApproval({
+      environmentId: selectedThreadShell.environmentId,
+      input: {
+        threadId: selectedThreadShell.id,
         requestId,
-      );
-      setUserInputDraftOption(requestKey, question, value);
-    },
-    [selectedThreadShell, pauseQuestionTimer],
-  );
+        decision,
+        ...(feedback === undefined ? {} : { feedback }),
+      },
+    });
+    setRespondingApprovalId((current) => (current === requestId ? null : current));
+    return result;
+  };
 
-  const onChangeUserInputCustomAnswer = useCallback(
-    (requestId: RuntimeRequestId, questionId: string, customAnswer: string) => {
-      const question = activePendingUserInputs
-        .find((request) => request.requestId === requestId)
-        ?.questions.find((entry) => entry.id === questionId);
-      if (!selectedThreadShell || !question) {
-        return;
-      }
-
-      const requestKey = userInputDraftKey(
-        selectedThreadShell.environmentId,
-        selectedThreadShell.id,
-        requestId,
-      );
-      if (
-        customAnswer !==
-        (appAtomRegistry.get(userInputDraftsByRequestKeyAtom)[requestKey]?.[questionId]
-          ?.customAnswer ?? "")
-      )
-        pauseQuestionTimer(requestId);
-      setUserInputDraftCustomAnswer(requestKey, question, customAnswer);
-    },
-    [activePendingUserInputs, selectedThreadShell, pauseQuestionTimer],
-  );
-
-  const onRespondToApproval = useCallback(
-    async (requestId: RuntimeRequestId, decision: ProviderApprovalDecision, feedback?: string) => {
-      if (
-        !selectedThreadShell ||
-        !readEnvironmentScope(selectedThreadShell.environmentId, AuthOrchestrationOperateScope)
-      ) {
-        return;
-      }
-      if (
-        activePendingApprovals.find((approval) => approval.requestId === requestId)
-          ?.responseCapability !== "live"
-      ) {
-        return;
-      }
-
-      setRespondingApprovalId(requestId);
-      const result = await respondToApproval({
-        environmentId: selectedThreadShell.environmentId,
-        input: {
-          threadId: selectedThreadShell.id,
-          requestId,
-          decision,
-          ...(feedback === undefined ? {} : { feedback }),
-        },
-      });
-      setRespondingApprovalId((current) => (current === requestId ? null : current));
-      return result;
-    },
-    [activePendingApprovals, respondToApproval, selectedThreadShell],
-  );
-
-  const onSubmitUserInput = useCallback(async () => {
+  const onSubmitUserInput = async () => {
     if (
       !selectedThreadShell ||
       !activePendingUserInput ||
@@ -462,14 +465,9 @@ export function useSelectedThreadRequests() {
       );
     }
     return result;
-  }, [
-    activePendingUserInput,
-    activePendingUserInputAnswers,
-    respondToUserInput,
-    selectedThreadShell,
-  ]);
+  };
 
-  const onDismissUserInput = useCallback(async () => {
+  const onDismissUserInput = async () => {
     if (
       !selectedThreadShell ||
       !activePendingUserInput ||
@@ -497,7 +495,7 @@ export function useSelectedThreadRequests() {
       );
     }
     return result;
-  }, [activePendingUserInput, dismissUserInput, selectedThreadShell]);
+  };
 
   return {
     activePendingApproval,

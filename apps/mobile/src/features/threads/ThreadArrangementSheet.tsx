@@ -177,7 +177,7 @@ function DragHandle(props: DragHandleProps) {
   );
 }
 
-export function ThreadArrangementSheet(props: { onClose: () => void }) {
+function ThreadArrangementSheet(props: { onClose: () => void }) {
   const threads = useAtomValue(environmentThreadShells.navigationThreadShellsAtom);
   const configs = useAtomValue(environmentServerConfigsAtom);
   const queuedThreadKeys = useAtomValue(queuedThreadKeysAtom);

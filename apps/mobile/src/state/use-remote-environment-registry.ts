@@ -3,7 +3,6 @@ import { useAtomValue } from "@effect/atom-react";
 import type { EnvironmentId } from "@supaterm/contracts";
 import * as Cause from "effect/Cause";
 import { AsyncResult, Atom } from "effect/reactivity";
-import { useCallback } from "react";
 import { runAtomCommand } from "@supaterm/client-runtime/state/runtime";
 
 import { useConnectionController } from "../features/connection/useConnectionController";
@@ -147,58 +146,44 @@ export function useRemoteConnections() {
   const connectionPairingUrl = useAtomValue(connectionPairingUrlAtom);
   const { connectedEnvironments, connectionError, connectionState } = useRemoteConnectionStatus();
 
-  const onChangeConnectionPairingUrl = useCallback((pairingUrl: string) => {
+  const onChangeConnectionPairingUrl = (pairingUrl: string) => {
     appAtomRegistry.set(connectionPairingUrlAtom, pairingUrl);
-  }, []);
+  };
 
-  const onConnectPress = useCallback(
-    (pairingUrl?: string, expectedEnvironmentId?: EnvironmentId) =>
-      pairEnvironment(pairingUrl ?? connectionPairingUrl, expectedEnvironmentId),
-    [connectionPairingUrl],
-  );
+  const onConnectPress = (pairingUrl?: string, expectedEnvironmentId?: EnvironmentId) =>
+    pairEnvironment(pairingUrl ?? connectionPairingUrl, expectedEnvironmentId);
 
-  const onReconnectEnvironment = useCallback(
-    (environmentId: EnvironmentId) => controller.retryEnvironment(environmentId),
-    [controller],
-  );
-  const onSetEnvironmentEnabled = useCallback(
-    (environmentId: EnvironmentId, enabled: boolean) =>
-      controller.setEnvironmentEnabled(environmentId, enabled),
-    [controller],
-  );
-  const onUpdateEnvironment = useCallback(
-    (
-      environmentId: EnvironmentId,
-      updates: { readonly label: string; readonly displayUrl: string },
-    ) => controller.updateEnvironment(environmentId, updates),
-    [controller],
-  );
+  const onReconnectEnvironment = (environmentId: EnvironmentId) =>
+    controller.retryEnvironment(environmentId);
+  const onSetEnvironmentEnabled = (environmentId: EnvironmentId, enabled: boolean) =>
+    controller.setEnvironmentEnabled(environmentId, enabled);
+  const onUpdateEnvironment = (
+    environmentId: EnvironmentId,
+    updates: { readonly label: string; readonly displayUrl: string },
+  ) => controller.updateEnvironment(environmentId, updates);
 
-  const onRemoveEnvironmentPress = useCallback(
-    (environmentId: EnvironmentId) => {
-      const environment = connectedEnvironments.find(
-        (candidate) => candidate.environmentId === environmentId,
-      );
-      if (!environment) {
-        return;
-      }
-      Dialog.alert(
-        "Remove from this device?",
-        `Forget ${environment.environmentLabel} and its cached threads on this device. Switch it off instead to keep it saved.`,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Remove",
-            style: "destructive",
-            onPress: () => {
-              void controller.removeEnvironment(environmentId);
-            },
+  const onRemoveEnvironmentPress = (environmentId: EnvironmentId) => {
+    const environment = connectedEnvironments.find(
+      (candidate) => candidate.environmentId === environmentId,
+    );
+    if (!environment) {
+      return;
+    }
+    Dialog.alert(
+      "Remove from this device?",
+      `Forget ${environment.environmentLabel} and its cached threads on this device. Switch it off instead to keep it saved.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: () => {
+            void controller.removeEnvironment(environmentId);
           },
-        ],
-      );
-    },
-    [connectedEnvironments, controller],
-  );
+        },
+      ],
+    );
+  };
 
   return {
     connectionPairingUrl,

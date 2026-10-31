@@ -140,23 +140,5 @@ export function mergeUnavailableReason(
   return null;
 }
 
-export function mergeSummary(
-  pr: ActionDetail & Pick<PullRequestDetail, "autoMergeMethod">,
-  connectionAllowsWrites: boolean,
-  terminology: ChangeRequestTerminology,
-) {
-  if (pr.state === "merged") return "Merged";
-  if (pr.state === "closed") return "Closed";
-  if (pr.isDraft) return "Draft";
-  if (pr.mergeability === "conflicting") return "Has conflicts";
-  if (!connectionAllowsWrites) return "Read-only connection";
-  const allowed = allowedMergeMethods(pr);
-  const method = pr.autoMergeMethod ?? (allowed.includes("squash") ? "squash" : allowed[0]);
-  const methodLabel = method ? `${method[0]?.toUpperCase()}${method.slice(1)}` : "Merge";
-  if (pr.autoMergeEnabled) return `${methodLabel} · auto-merge on`;
-  if (mergeUnavailableReason(pr, connectionAllowsWrites, terminology)) return "Unavailable";
-  return `${methodLabel}${pr.autoMergeEnabled === false ? " · auto-merge off" : ""}`;
-}
-
 export const openOnProviderLabel = (provider: SourceControlProviderKind) =>
   `Open on ${sourceControlClients.get(provider).label}`;

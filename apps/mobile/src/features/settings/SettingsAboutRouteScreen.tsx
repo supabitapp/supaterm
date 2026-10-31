@@ -22,7 +22,7 @@ import {
 import { SettingsRow } from "./components/SettingsRow";
 import { SettingsSection } from "./components/SettingsSection";
 import { SettingsScreen } from "./components/SettingsScreen";
-import { SettingsActionRow } from "./components/SettingsActionRow";
+import { ListActionRow as SettingsActionRow } from "../../components/ui/ListActionRow";
 import type { SettingsTarget } from "./settings-environment-filter";
 import { useStartTriage } from "../triage/useStartTriage";
 import { Menu } from "../../components/ui/Menu";

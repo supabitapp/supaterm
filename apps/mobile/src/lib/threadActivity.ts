@@ -239,19 +239,6 @@ export interface ThreadFeedLatestRun {
   readonly turnEnded?: boolean;
 }
 
-export interface AgentSpawnSummary {
-  readonly title: string;
-  readonly status: string;
-  readonly tone: "working" | "completed" | "failed" | "stopped";
-  readonly members: ReadonlyArray<{
-    readonly title: string;
-    readonly status: string;
-    readonly tone: "working" | "completed" | "failed" | "stopped";
-    readonly detail: string | undefined;
-    readonly updatedAt: string;
-  }>;
-}
-
 const WORK_LOG_LABEL_MAX_LENGTH = 200;
 
 function compactWorkEntryText(value: string): string {
@@ -1567,7 +1554,7 @@ function isWorkLogFeedRow(row: ThreadFeedEntry | undefined): boolean {
   );
 }
 
-export const LIVE_ACTIVITY_ROW_ID = "live-activity-row";
+const LIVE_ACTIVITY_ROW_ID = "live-activity-row";
 
 function thinkingRow(createdAt: string, runId: RunId | null) {
   if (cachedThinkingRow?.createdAt !== createdAt || cachedThinkingRow.runId !== runId) {

@@ -26,7 +26,6 @@ import {
 import { projectColorKey } from "@supaterm/shared/projectIdentity";
 import * as Schema from "effect/Schema";
 import { AsyncResult, Atom } from "effect/reactivity";
-import { useMemo } from "react";
 
 import { threadChipTargets } from "../lib/enrichedLinkPresentation";
 import { resolveProjectChipIcon } from "../lib/projectIcon";
@@ -202,10 +201,7 @@ export function useLiveThreadLinkLabels(markdown: string, environmentId: Environ
       ? threadLinkTitlesAtom(JSON.stringify(threadLinkRefs(markdown, environmentId).map(threadKey)))
       : EMPTY_THREAD_LINK_TITLES_ATOM,
   );
-  return useMemo(
-    () => relabelThreadLinks(markdown, environmentId, (ref) => titles.get(threadKey(ref))),
-    [environmentId, markdown, titles],
-  );
+  return relabelThreadLinks(markdown, environmentId, (ref) => titles.get(threadKey(ref)));
 }
 
 /** Keyed reads; every thread is read only to place a v1 link its message's environment lacks. */

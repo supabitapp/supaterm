@@ -2,7 +2,7 @@ import { SymbolView } from "./ui/AppSymbol";
 import { AppText } from "./ui/AppText";
 import { NodeIcon } from "./ui/NodeIcon";
 import { Image } from "expo-image";
-import { memo, useLayoutEffect, useMemo, useState } from "react";
+import { memo, useLayoutEffect, useState } from "react";
 import { View } from "react-native";
 import { useResolveClassNames } from "uniwind";
 import type { EnvironmentId, ProjectIconOverride } from "@supaterm/contracts";
@@ -54,28 +54,14 @@ export const ProjectFavicon = memo(function ProjectFavicon(props: {
           faviconPath: props.faviconPath,
         }),
   );
-  const renderableFaviconUrl = useMemo(
-    () => (isProjectFaviconFallbackUrl(faviconUrl) ? null : faviconUrl),
-    [faviconUrl],
-  );
+  const renderableFaviconUrl = isProjectFaviconFallbackUrl(faviconUrl) ? null : faviconUrl;
   // Key remote images by revision so token rotation reuses the cache while changed icons reload.
-  const cacheKey = useMemo(
-    () =>
-      renderableFaviconUrl && props.workspaceRoot
-        ? renderableFaviconUrl.startsWith("data:")
-          ? getProjectFaviconResourceKey(
-              props.environmentId,
-              props.workspaceRoot,
-              props.faviconPath,
-            )
-          : getProjectFaviconCacheKey(
-              props.environmentId,
-              props.workspaceRoot,
-              renderableFaviconUrl,
-            )
-        : null,
-    [renderableFaviconUrl, props.environmentId, props.workspaceRoot, props.faviconPath],
-  );
+  const cacheKey =
+    renderableFaviconUrl && props.workspaceRoot
+      ? renderableFaviconUrl.startsWith("data:")
+        ? getProjectFaviconResourceKey(props.environmentId, props.workspaceRoot, props.faviconPath)
+        : getProjectFaviconCacheKey(props.environmentId, props.workspaceRoot, renderableFaviconUrl)
+      : null;
 
   if (glyph !== null) {
     return <ProjectIconGlyphView glyph={glyph} size={size} />;
@@ -154,10 +140,7 @@ function ProjectFaviconImage(props: {
   readonly projectTitle: string;
   readonly size: number;
 }) {
-  const faviconRequest = useMemo(
-    () => createProjectFaviconRequest(props.cacheKey, props.faviconUrl),
-    [props.cacheKey, props.faviconUrl],
-  );
+  const faviconRequest = createProjectFaviconRequest(props.cacheKey, props.faviconUrl);
   // Registers with the module-level loader before the Image's native onLoad/onError can fire,
   // so stale loads for a superseded URL under the same cacheKey are ignored.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- marks this favicon URL as the current request in the module registry before the native Image reports load or error

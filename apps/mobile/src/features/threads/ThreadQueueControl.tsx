@@ -41,7 +41,7 @@ const QUEUE_ACTION_WIDTH = 76;
 
 type QueueTarget = { readonly environmentId: EnvironmentId; readonly threadId: ThreadId };
 
-export function useThreadQueueWorkflow(target: QueueTarget) {
+function useThreadQueueWorkflow(target: QueueTarget) {
   return useAtomValue(environmentThreadDetails.queueWorkflowAtom(target));
 }
 

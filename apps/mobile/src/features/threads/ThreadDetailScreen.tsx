@@ -494,7 +494,6 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
   const windowMetrics = useNativeLayoutMetrics();
   const nativeMetrics = usesNativeWorkspaceColumns ? columnMetrics : screenMetrics;
   const controlInsets = deriveBottomControlInsets(nativeMetrics);
-  const agentLabel = `${props.selectedThread.modelSelection.instanceId} agent`;
   const selectedThreadKey = scopedThreadKey(props.environmentId, props.selectedThread.id);
   const childThreadInputs = useChildThreadInputs({
     environmentId: props.environmentId,
@@ -950,9 +949,9 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
   // Android lays the screen out below its opaque header and reports a zero
   // header height, so the window height overstates the room by the header.
   const [screenHeight, setScreenHeight] = useState<number | null>(null);
-  const handleScreenLayout = useCallback((event: LayoutChangeEvent) => {
+  const handleScreenLayout = (event: LayoutChangeEvent) => {
     setScreenHeight(event.nativeEvent.layout.height);
-  }, []);
+  };
   const screenAreaHeight = screenHeight ?? windowHeight;
   // The question card reads the keyboard frame on the UI thread, in the same frame the sticky
   // view translates, so it gets the full height while the keyboard is closed and never crosses
@@ -971,21 +970,18 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
   // so typing in the composer does not re-render the screen.
   const usageLimitsOpen = usageLimitsReport !== null && activeUserInputRequestId === null;
   const [usageLimitsLayout, setUsageLimitsLayout] = useState({ overlay: 0, panel: 0 });
-  const handleComposerOverlayLayout = useCallback(
-    (event: LayoutChangeEvent) => {
-      onComposerLayout(event);
-      if (!usageLimitsOpen) return;
-      const overlay = event.nativeEvent.layout.height;
-      setUsageLimitsLayout((current) =>
-        current.overlay === overlay ? current : { ...current, overlay },
-      );
-    },
-    [onComposerLayout, usageLimitsOpen],
-  );
-  const handleUsageLimitsLayout = useCallback((event: LayoutChangeEvent) => {
+  const handleComposerOverlayLayout = (event: LayoutChangeEvent) => {
+    onComposerLayout(event);
+    if (!usageLimitsOpen) return;
+    const overlay = event.nativeEvent.layout.height;
+    setUsageLimitsLayout((current) =>
+      current.overlay === overlay ? current : { ...current, overlay },
+    );
+  };
+  const handleUsageLimitsLayout = (event: LayoutChangeEvent) => {
     const panel = event.nativeEvent.layout.height;
     setUsageLimitsLayout((current) => (current.panel === panel ? current : { ...current, panel }));
-  }, []);
+  };
   const overlayBesideUsageLimits =
     usageLimitsLayout.overlay > 0
       ? usageLimitsLayout.overlay - usageLimitsLayout.panel
@@ -1442,7 +1438,6 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
                 isProviderSubagent || pendingMessageEditBlocked ? null : handleEditPendingMessage
               }
               contentPresentation={props.contentPresentation}
-              agentLabel={agentLabel}
               threadTitle={props.selectedThread.title}
               latestRun={props.activityRun}
               activeWorkStartedAt={props.activeWorkStartedAt}

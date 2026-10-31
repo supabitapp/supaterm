@@ -1,7 +1,7 @@
 import { useNavigation, type StaticScreenProps } from "@react-navigation/native";
 import { TextInputWrapper } from "expo-paste-input";
 import type { EnvironmentId, ThreadId } from "@supaterm/contracts";
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Platform, Pressable, ScrollView, View, useWindowDimensions } from "react-native";
 import { KeyboardAvoidingView, KeyboardStickyView } from "react-native-keyboard-controller";
 import Animated, { FadeOut } from "react-native-reanimated";
@@ -83,10 +83,10 @@ export function ReviewCommentComposerSheet(props: ReviewCommentComposerSheetProp
     codeSurface.rowHeight,
   );
   const previewViewportWidth = Math.max(width - 40, 280);
-  const dismissComposer = useCallback(() => {
+  const dismissComposer = () => {
     clearReviewCommentTarget();
     navigation.goBack();
-  }, [navigation]);
+  };
   const handleNativePaste = useNativePaste((uris) => {
     void (async () => {
       try {
@@ -113,7 +113,7 @@ export function ReviewCommentComposerSheet(props: ReviewCommentComposerSheetProp
     }
   }
 
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = () => {
     if (!target || !environmentId || !threadId || commentText.trim().length === 0) {
       return;
     }
@@ -126,7 +126,7 @@ export function ReviewCommentComposerSheet(props: ReviewCommentComposerSheetProp
     });
     setAttachments([]);
     dismissComposer();
-  }, [attachments, commentText, dismissComposer, environmentId, target, threadId]);
+  };
 
   return (
     <View className="flex-1 bg-sheet">

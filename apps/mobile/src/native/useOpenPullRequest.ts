@@ -1,6 +1,5 @@
 import { useNavigation, useRoute, StackActions } from "@react-navigation/native";
 import { nativePullRequestDestination } from "../lib/pullRequestNavigation";
-import { useCallback } from "react";
 import { Platform } from "react-native";
 import { resetAndroidWorkspace } from "../lib/android-workspace-navigation";
 import { EnvironmentId, ThreadId } from "@supaterm/contracts";
@@ -16,22 +15,19 @@ export function useNavigateToPullRequest(options?: { readonly replace?: boolean 
   const navigation = useNavigation();
   const projects = useProjects();
   const replace = options?.replace;
-  return useCallback(
-    async (url: string, context: PullRequestContext | null) => {
-      // Read at press time so a config push does not hand every link a new handler.
-      const serverConfigs = appAtomRegistry.get(environmentServerConfigsAtom);
-      const params = nativePullRequestDestination(url, context, projects, (environmentId) =>
-        serverConfigs.has(environmentId),
-      );
-      if (!params) return tryOpenExternalUrl(url, "pull-request");
-      if (Platform.OS === "android")
-        resetAndroidWorkspace(navigation, { name: "PullRequest", params });
-      else if (replace) navigation.dispatch(StackActions.replace("PullRequest", params));
-      else navigation.navigate("PullRequest", params);
-      return true;
-    },
-    [navigation, projects, replace],
-  );
+  return async (url: string, context: PullRequestContext | null) => {
+    // Read at press time so a config push does not hand every link a new handler.
+    const serverConfigs = appAtomRegistry.get(environmentServerConfigsAtom);
+    const params = nativePullRequestDestination(url, context, projects, (environmentId) =>
+      serverConfigs.has(environmentId),
+    );
+    if (!params) return tryOpenExternalUrl(url, "pull-request");
+    if (Platform.OS === "android")
+      resetAndroidWorkspace(navigation, { name: "PullRequest", params });
+    else if (replace) navigation.dispatch(StackActions.replace("PullRequest", params));
+    else navigation.navigate("PullRequest", params);
+    return true;
+  };
 }
 
 export function useOpenPullRequest(options?: {
@@ -60,14 +56,11 @@ export function useOpenPullRequest(options?: {
   const projectId =
     options?.context?.projectId ?? first(routeContext?.projectId) ?? thread?.projectId;
   const navigateToPullRequest = useNavigateToPullRequest({ replace: options?.replace });
-  return useCallback(
-    (url: string) =>
-      navigateToPullRequest(
-        url,
-        environmentId && projectId
-          ? { environmentId: String(environmentId), projectId: String(projectId) }
-          : null,
-      ),
-    [environmentId, projectId, navigateToPullRequest],
-  );
+  return (url: string) =>
+    navigateToPullRequest(
+      url,
+      environmentId && projectId
+        ? { environmentId: String(environmentId), projectId: String(projectId) }
+        : null,
+    );
 }

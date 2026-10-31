@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { useWindowDimensions, View } from "react-native";
 import { SafeAreaInsetsContext, useSafeAreaInsets } from "react-native-safe-area-context";
 import { NativeStackScreenOptions } from "../../native/StackHeader";
@@ -33,7 +32,7 @@ export function WorkspaceRootScreen() {
     : threadsTab
       ? fabClearance + 16
       : 16;
-  const context = useMemo(() => ({ ...workspace, bottomClearance }), [workspace, bottomClearance]);
+  const context = { ...workspace, bottomClearance };
 
   if (layout.usesSplitView) {
     return workspace.state.selectedTab === "threads" ? (

@@ -30,10 +30,6 @@ export interface ThreadDetailTarget {
   readonly threadId: ThreadId | null;
 }
 
-export function useThreadDetail(target: ThreadDetailTarget) {
-  return useEnvironmentThread(target.environmentId, target.threadId);
-}
-
 export function useSelectedThreadDetailState() {
   const { selectedThreadRef } = useThreadSelection();
   return useEnvironmentThread(
@@ -98,7 +94,7 @@ export function useSelectedThreadComposerMetadata() {
   return { reportedModelSelection, queuedCount, turnSubagents };
 }
 
-export function useThreadVisibleTurnItems(
+function useThreadVisibleTurnItems(
   target: ThreadDetailTarget,
 ): OrchestrationV2ThreadProjection["visibleTurnItems"] {
   return useAtomValue(

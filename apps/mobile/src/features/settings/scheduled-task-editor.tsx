@@ -85,30 +85,21 @@ export function ScheduledTaskEditorProvider({ children }: { readonly children: R
   const editor = session ? session.current : defaultEditor;
   const initial = session ? session.initial : defaultEditor;
   const hasChanges = scheduledTaskEditorHasChanges(initial, editor);
-  const setEditor = useCallback<Dispatch<SetStateAction<ScheduledTaskEditor | null>>>(
-    (update) => {
-      updateScheduledTaskEditor(update, defaultEditor);
-    },
-    [defaultEditor],
-  );
-  const resetEditor = useCallback(() => startScheduledTaskEditor(defaultEditor), [defaultEditor]);
-  const readEditor = useCallback(
-    () => readScheduledTaskEditor(voiceOwnerKey, defaultEditor),
-    [defaultEditor, voiceOwnerKey],
-  );
-  const value = useMemo(
-    () => ({
-      editor,
-      voiceOwnerKey,
-      readEditor,
-      setEditor,
-      startEditor: startScheduledTaskEditor,
-      hasChanges,
-      resetEditor,
-      draftForEnvironment,
-    }),
-    [editor, voiceOwnerKey, readEditor, setEditor, hasChanges, resetEditor, draftForEnvironment],
-  );
+  const setEditor: Dispatch<SetStateAction<ScheduledTaskEditor | null>> = (update) => {
+    updateScheduledTaskEditor(update, defaultEditor);
+  };
+  const resetEditor = () => startScheduledTaskEditor(defaultEditor);
+  const readEditor = () => readScheduledTaskEditor(voiceOwnerKey, defaultEditor);
+  const value = {
+    editor,
+    voiceOwnerKey,
+    readEditor,
+    setEditor,
+    startEditor: startScheduledTaskEditor,
+    hasChanges,
+    resetEditor,
+    draftForEnvironment,
+  };
   return <ScheduledTaskEditorContext value={value}>{children}</ScheduledTaskEditorContext>;
 }
 

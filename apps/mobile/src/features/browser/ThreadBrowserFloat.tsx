@@ -3,7 +3,7 @@ import { shouldShowFloatingBrowser } from "@supaterm/client-runtime/preview/floa
 import type { EnvironmentId, PreviewSessionSnapshot, ThreadId } from "@supaterm/contracts";
 import { previewPdfAssetUrl } from "@supaterm/shared/preview";
 import * as Option from "effect/Option";
-import { type ComponentProps, useCallback, useEffect, useRef, useState } from "react";
+import { type ComponentProps, useEffect, useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 
 import { SymbolView } from "../../components/ui/AppSymbol";
@@ -44,12 +44,12 @@ export function ThreadBrowserFloat(props: {
   const foreground = useAppForeground();
   const tab = props.tabs.find((entry) => entry.tabId === tabId) ?? null;
   const onOpen = props.onOpen;
-  const open = useCallback(() => {
+  const open = () => {
     if (tabId === null) return;
     setTabId(null);
     onOpen(tabId);
-  }, [onOpen, tabId]);
-  const close = useCallback(() => setTabId(null), []);
+  };
+  const close = () => setTabId(null);
   if (!tab || !focused) return null;
   return (
     <FloatingBrowserPlayer

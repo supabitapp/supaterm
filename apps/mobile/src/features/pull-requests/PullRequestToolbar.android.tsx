@@ -1,5 +1,5 @@
 import { useNavigation } from "@react-navigation/native";
-import { useCallback, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { BackHandler, Keyboard, View, type TextInputInstance } from "react-native";
 import { SearchField } from "../../components/ui/SearchField";
 import { useToolbarLayout } from "../../components/ui/useToolbarLayout";
@@ -25,7 +25,7 @@ export function PullRequestToolbar(props: {
   const tab = workspace.state.tabs.pullRequests;
   const input = useRef<TextInputInstance>(null);
   const searching = tab.searchMode !== "resting";
-  const openSearch = useCallback(() => {
+  const openSearch = () => {
     onRequestVisibility?.();
     dispatch({
       type: "scroll",
@@ -35,13 +35,13 @@ export function PullRequestToolbar(props: {
     dispatch({ type: "search", tab: "pullRequests" });
     input.current?.focus();
     return true;
-  }, [dispatch, getScrollOffset, onRequestVisibility]);
+  };
   useHardwareKeyboardCommand("focusSearch", openSearch);
-  const closeSearch = useCallback(() => {
+  const closeSearch = () => {
     Keyboard.dismiss();
     recordScrollOffset("pullRequests", tab.searchEntryOffset);
     dispatch({ type: "cancel", tab: "pullRequests" });
-  }, [dispatch, recordScrollOffset, tab.searchEntryOffset]);
+  };
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to BackHandler while searching to close the PR search on Android back
   useEffect(() => {
     if (!searching) return;

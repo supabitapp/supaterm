@@ -6,7 +6,7 @@ import {
 import { WorkspaceHeaderActions } from "../workspace/WorkspaceHeaderActions";
 import { LegendList, type LegendListRef } from "@legendapp/list/react-native";
 import { useNavigation } from "@react-navigation/native";
-import { use, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { use, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { sortProjectsByGroupOrder } from "@supaterm/client-runtime/state/project-grouping";
 import { useAtomValue } from "@effect/atom-react";
 import {
@@ -104,13 +104,10 @@ export function PullRequestsScreen(
   const [initialAnchor] = useState(() => workspace.getScrollAnchor("pullRequests"));
   const listRef = useRef<LegendListRef>(null);
   const tab = workspace.state.tabs.pullRequests;
-  const maintainVisiblePosition = useMemo(
-    () => ({
-      data: tab.searchMode === "resting",
-      shouldRestorePosition: () => workspace.getScrollOffset("pullRequests") > 0,
-    }),
-    [tab.searchMode, workspace],
-  );
+  const maintainVisiblePosition = {
+    data: tab.searchMode === "resting",
+    shouldRestorePosition: () => workspace.getScrollOffset("pullRequests") > 0,
+  };
   const debouncedQuery = useDebouncedValue(tab.query.trim(), 180);
   const query = tab.searchMode === "resting" ? "" : debouncedQuery;
   const typedQuery = tab.searchMode === "resting" ? "" : tab.query;
@@ -121,22 +118,19 @@ export function PullRequestsScreen(
     ? selectedEnvironmentId
     : null;
   const selectAndroidWorkspace = useAndroidWorkspaceSelection();
-  const selectPullRequest = useCallback(
-    (item: EnvironmentPullRequestListEntry) => {
-      Keyboard.dismiss();
-      const params = {
-        environmentId: String(item.environmentId),
-        projectId: String(item.projectId),
-        repository: item.repository,
-        number: item.number,
-        host: item.host,
-        initialSummary: item,
-      };
-      if (Platform.OS === "android") selectAndroidWorkspace({ name: "PullRequest", params });
-      else navigation.navigate("PullRequest", params);
-    },
-    [navigation, selectAndroidWorkspace],
-  );
+  const selectPullRequest = (item: EnvironmentPullRequestListEntry) => {
+    Keyboard.dismiss();
+    const params = {
+      environmentId: String(item.environmentId),
+      projectId: String(item.projectId),
+      repository: item.repository,
+      number: item.number,
+      host: item.host,
+      initialSummary: item,
+    };
+    if (Platform.OS === "android") selectAndroidWorkspace({ name: "PullRequest", params });
+    else navigation.navigate("PullRequest", params);
+  };
   const allProjects = useProjects();
   const savedControls = listControls.controlsFor(environmentId);
   const controls = useMemo(
@@ -187,7 +181,7 @@ export function PullRequestsScreen(
       ),
     [result.entries, controls, query, result.data, connectedKey],
   );
-  const facets = useMemo(() => pullRequestListFacets(result.entries), [result.entries]);
+  const facets = pullRequestListFacets(result.entries);
   const [knownFacets, setKnownFacets] = useState({ environmentId, source: facets, ...facets });
   if (knownFacets.environmentId !== environmentId || knownFacets.source !== facets) {
     setKnownFacets((previous) => ({
@@ -229,19 +223,16 @@ export function PullRequestsScreen(
       ),
     [allProjects, environmentId, controls, environments, projectOrder],
   );
-  const renderPullRequest = useCallback(
-    ({ item }: { readonly item: EnvironmentPullRequestListEntry }) => (
-      <PullRequestListRow
-        item={item}
-        onSelect={selectPullRequest}
-        getActions={actions}
-        onAction={select}
-        busy={busyKey === pullRequestKey(item)}
-        selected={selectedKey === pullRequestKey(item)}
-        sidebar={sidebar}
-      />
-    ),
-    [selectPullRequest, selectedKey, actions, select, busyKey, sidebar],
+  const renderPullRequest = ({ item }: { readonly item: EnvironmentPullRequestListEntry }) => (
+    <PullRequestListRow
+      item={item}
+      onSelect={selectPullRequest}
+      getActions={actions}
+      onAction={select}
+      busy={busyKey === pullRequestKey(item)}
+      selected={selectedKey === pullRequestKey(item)}
+      sidebar={sidebar}
+    />
   );
   const previousSearchMode = useRef(tab.searchMode);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- scrolls the list to the offset saved when search opened once the tab returns to resting

@@ -11,7 +11,6 @@ import { executeAtomQuery } from "@supaterm/client-runtime/state/runtime";
 import type { AssetResource, EnvironmentId } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import { Atom, AsyncResult } from "effect/reactivity";
-import { useCallback } from "react";
 
 import { connectionAtomRuntime } from "../connection/runtime";
 import { projectFaviconDatabaseCache } from "../lib/projectFaviconDatabaseCache";
@@ -87,14 +86,14 @@ export function useRefreshAssetUrl(
     refresh: true,
     reportFailure: false,
   });
-  return useCallback(async () => {
+  return async () => {
     if (environmentId === null || resource === null || httpBaseUrl === null) return null;
     const state = assetUrlStateFromResult(
       await createUrl({ environmentId, input: { resource } }),
       httpBaseUrl,
     );
     return state._tag === "Success" ? state.url : null;
-  }, [createUrl, environmentId, httpBaseUrl, resource]);
+  };
 }
 
 /** {@link useRefreshAssetUrl} for async tasks that resolve several resources at once. */

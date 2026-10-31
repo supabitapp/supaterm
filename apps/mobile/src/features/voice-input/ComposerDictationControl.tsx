@@ -1,5 +1,5 @@
 import type { VoiceInputPhase, VoiceInputState } from "@supaterm/client-runtime/voice-input";
-import { memo, useCallback, useState, type ReactNode } from "react";
+import { memo, useState, type ReactNode } from "react";
 import {
   Linking,
   Platform,
@@ -256,7 +256,7 @@ const VoiceWaveform = memo(function VoiceWaveform(props: {
   readonly audioLevels: SharedValue<ReadonlyArray<number>>;
 }) {
   const [barCount, setBarCount] = useState(0);
-  const handleLayout = useCallback((event: LayoutChangeEvent) => {
+  const handleLayout = (event: LayoutChangeEvent) => {
     setBarCount(
       Math.max(
         1,
@@ -266,7 +266,7 @@ const VoiceWaveform = memo(function VoiceWaveform(props: {
         ),
       ),
     );
-  }, []);
+  };
 
   return (
     <View

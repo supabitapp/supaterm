@@ -7,7 +7,8 @@ import { EnvironmentId } from "@supaterm/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as Option from "effect/Option";
 
-import { projectWorkspaceEnvironment, projectWorkspaceState } from "./workspaceModel";
+import { projectWorkspaceState } from "./workspaceModel";
+import { projectEnvironmentConnectionSummary as projectWorkspaceEnvironment } from "@supaterm/client-runtime/state/presentation";
 import type { EnvironmentPresentation } from "./environments";
 
 const ENVIRONMENT_ID = EnvironmentId.make("environment-1");

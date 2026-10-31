@@ -22,7 +22,6 @@ import {
   sourceControlClients,
 } from "@supaterm/client-runtime/source-control-clients";
 import * as Clipboard from "expo-clipboard";
-import { useCallback, useMemo } from "react";
 
 import * as Dialog from "../../components/ui/Dialog";
 import { tryOpenExternalUrl } from "../../lib/openExternalUrl";
@@ -57,37 +56,37 @@ export function useLinkedPullRequestActions(input: {
   const unlink = useAtomCommand(threadEnvironment.unlinkPullRequest, { reportFailure: false });
   const watch = useAtomCommand(threadEnvironment.watchPullRequest, { reportFailure: false });
 
-  const run = useCallback(
-    async (failureTitle: string, pending: Promise<AtomCommandResult<unknown, unknown>>) => {
-      const result = await pending;
-      if (result._tag === "Success" || isAtomCommandInterrupted(result)) return;
-      const cause = squashAtomCommandFailure(result);
-      Dialog.alert(failureTitle, cause instanceof Error ? cause.message : "Try again.");
-    },
-    [],
-  );
+  const run = async (
+    failureTitle: string,
+    pending: Promise<AtomCommandResult<unknown, unknown>>,
+  ) => {
+    const result = await pending;
+    if (result._tag === "Success" || isAtomCommandInterrupted(result)) return;
+    const cause = squashAtomCommandFailure(result);
+    Dialog.alert(failureTitle, cause instanceof Error ? cause.message : "Try again.");
+  };
 
-  const setLinked = useCallback(
-    (reference: ThreadPullRequestKey & { readonly url: string }, linked: boolean) => {
-      if (thread === null) return;
-      const { environmentId, id: threadId } = thread;
-      const key = normalizeThreadPullRequestKey(reference);
-      void run(
-        linked
-          ? `Couldn't link this ${terminology.singular}`
-          : `Couldn't unlink this ${terminology.singular}`,
-        linked
-          ? link({
-              environmentId,
-              input: { threadId, ...reference, ...key, source: "manual" },
-            })
-          : unlink({ environmentId, input: { threadId, ...key } }),
-      );
-    },
-    [link, run, terminology, thread, unlink],
-  );
+  const setLinked = (
+    reference: ThreadPullRequestKey & { readonly url: string },
+    linked: boolean,
+  ) => {
+    if (thread === null) return;
+    const { environmentId, id: threadId } = thread;
+    const key = normalizeThreadPullRequestKey(reference);
+    void run(
+      linked
+        ? `Couldn't link this ${terminology.singular}`
+        : `Couldn't unlink this ${terminology.singular}`,
+      linked
+        ? link({
+            environmentId,
+            input: { threadId, ...reference, ...key, source: "manual" },
+          })
+        : unlink({ environmentId, input: { threadId, ...key } }),
+    );
+  };
 
-  const promptLink = useCallback(() => {
+  const promptLink = () => {
     const { singular } = terminology;
     Dialog.prompt({
       title: `Link ${singular}`,
@@ -112,75 +111,66 @@ export function useLinkedPullRequestActions(input: {
         setLinked(resolved.link, true);
       },
     });
-  }, [project, setLinked, terminology]);
+  };
 
-  const menuActions = useCallback(
-    (link: ThreadPullRequestLink): MenuAction[] => {
-      const open = link.snapshot === null || link.snapshot.state === "open";
-      const watching = link.watch !== undefined;
-      return [
-        { id: "copy", title: "Copy link", image: "link" },
-        { id: "browser", title: "Open in browser", image: "safari" },
-        ...((watching ? canEdit : canStartWatch) && open
-          ? [
-              {
-                id: "watch",
-                title: watching ? "Stop watching" : "Watch for changes",
-                image: watching ? "eye.slash" : "eye",
-              },
-            ]
-          : []),
-        ...(canEdit
-          ? [
-              {
-                id: "unlink",
-                title: link.source === "stack" ? "Dismiss from thread" : "Unlink from thread",
-                image: "xmark",
-                attributes: { destructive: true },
-              },
-            ]
-          : []),
-      ];
-    },
-    [canEdit, canStartWatch],
-  );
-
-  const onMenuAction = useCallback(
-    (link: ThreadPullRequestLink, action: string) => {
-      if (action === "copy") void Clipboard.setStringAsync(link.url);
-      else if (action === "browser")
-        void tryOpenExternalUrl(link.url, "pull-request").then((opened) => {
-          if (!opened) {
-            const { shortLabel, singular } = (
-              sourceControlClients.findByChangeRequestUrl(link.url) ??
-              sourceControlClients.get(undefined)
-            ).changeRequest;
-            Dialog.alert(`Unable to open ${shortLabel}`, `The ${singular} could not be opened.`);
-          }
-        });
-      else if (action === "watch" && thread !== null)
-        void run(
-          "Couldn't change watching",
-          watch({
-            environmentId: thread.environmentId,
-            input: {
-              threadId: thread.id,
-              host: link.host,
-              repository: link.repository,
-              number: link.number,
-              watching: link.watch === undefined,
+  const menuActions = (link: ThreadPullRequestLink): MenuAction[] => {
+    const open = link.snapshot === null || link.snapshot.state === "open";
+    const watching = link.watch !== undefined;
+    return [
+      { id: "copy", title: "Copy link", image: "link" },
+      { id: "browser", title: "Open in browser", image: "safari" },
+      ...((watching ? canEdit : canStartWatch) && open
+        ? [
+            {
+              id: "watch",
+              title: watching ? "Stop watching" : "Watch for changes",
+              image: watching ? "eye.slash" : "eye",
             },
-          }),
-        );
-      else if (action === "unlink") setLinked(link, false);
-    },
-    [run, setLinked, thread, watch],
-  );
+          ]
+        : []),
+      ...(canEdit
+        ? [
+            {
+              id: "unlink",
+              title: link.source === "stack" ? "Dismiss from thread" : "Unlink from thread",
+              image: "xmark",
+              attributes: { destructive: true },
+            },
+          ]
+        : []),
+    ];
+  };
 
-  return useMemo(
-    () => ({ canLink: canEdit, terminology, promptLink, menuActions, onMenuAction }),
-    [canEdit, terminology, promptLink, menuActions, onMenuAction],
-  );
+  const onMenuAction = (link: ThreadPullRequestLink, action: string) => {
+    if (action === "copy") void Clipboard.setStringAsync(link.url);
+    else if (action === "browser")
+      void tryOpenExternalUrl(link.url, "pull-request").then((opened) => {
+        if (!opened) {
+          const { shortLabel, singular } = (
+            sourceControlClients.findByChangeRequestUrl(link.url) ??
+            sourceControlClients.get(undefined)
+          ).changeRequest;
+          Dialog.alert(`Unable to open ${shortLabel}`, `The ${singular} could not be opened.`);
+        }
+      });
+    else if (action === "watch" && thread !== null)
+      void run(
+        "Couldn't change watching",
+        watch({
+          environmentId: thread.environmentId,
+          input: {
+            threadId: thread.id,
+            host: link.host,
+            repository: link.repository,
+            number: link.number,
+            watching: link.watch === undefined,
+          },
+        }),
+      );
+    else if (action === "unlink") setLinked(link, false);
+  };
+
+  return { canLink: canEdit, terminology, promptLink, menuActions, onMenuAction };
 }
 
 export type LinkedPullRequestActions = ReturnType<typeof useLinkedPullRequestActions>;
