@@ -1,11 +1,13 @@
 import { type StaticScreenProps, useNavigation } from "@react-navigation/native";
 import { useAtomValue } from "@effect/atom-react";
+import { makeQueuedRunsAtom } from "@supaterm/client-runtime/queued-run-edit";
 import {
   AuthOrchestrationOperateScope,
   type EnvironmentId,
   type RunId,
   type ThreadId,
 } from "@supaterm/contracts";
+import { Atom } from "effect/reactivity";
 import * as Haptics from "expo-haptics";
 import { type RefObject, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Animated, Platform, Pressable, ScrollView, useWindowDimensions, View } from "react-native";
@@ -154,13 +156,24 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
       }
       const entry = queuedRuns[index]!;
       void Haptics.selectionAsync();
-      beginQueuedRunEdit(threadKey, {
-        runId,
-        messageId: entry.messageId,
-        originalText: entry.text,
-        existingAttachments: entry.attachments,
-        ...(entry.context ? { context: entry.context } : {}),
-      });
+      beginQueuedRunEdit(
+        threadKey,
+        {
+          runId,
+          messageId: entry.messageId,
+          originalText: entry.text,
+          existingAttachments: entry.attachments,
+          ...(entry.context ? { context: entry.context } : {}),
+        },
+        makeQueuedRunsAtom({
+          threadId: target.threadId,
+          snapshot: threadEnvironment.snapshotAtom(target.environmentId),
+          detailStatus: environmentThreadDetails.statusAtom(target),
+          runs: Atom.make(
+            (get) => get(environmentThreadDetails.quietThreadAtom(target))?.projection.runs ?? null,
+          ),
+        }),
+      );
       navigation.goBack();
       return;
     }

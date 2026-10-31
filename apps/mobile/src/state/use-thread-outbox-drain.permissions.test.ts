@@ -78,8 +78,8 @@ vi.mock("./threads", async () => {
       setRuntimeMode: state.runtime,
       setInteractionMode: state.interaction,
     },
-    environmentThreadDetails: { threadAtom: Atom.family(() => Atom.make(null)) },
     environmentThreadShells: { threadShellsAtom: Atom.make([state.thread]) },
+    environmentThreadDetails: { threadAtom: Atom.family((_key: unknown) => Atom.make(null)) },
   };
 });
 vi.mock("./vcs", () => ({ fetchVcsRefs: vi.fn() }));

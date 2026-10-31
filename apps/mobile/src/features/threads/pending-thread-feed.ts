@@ -2,12 +2,31 @@ import { isCompactionCommandMessage } from "@supaterm/contracts";
 import type { DraftComposerAttachment } from "../../lib/composerImages";
 import { finalizeThreadFeedPresentation, type ThreadFeedEntry } from "../../lib/threadActivity";
 import type { QueuedThreadMessage } from "../../state/thread-outbox-model";
+import { scopedThreadKey } from "../../lib/scopedEntities";
 
 export type PendingThreadFeedEntry = ThreadFeedEntry & {
   readonly pendingMessage?: QueuedThreadMessage;
   readonly acknowledged?: boolean;
   readonly draftAttachments?: ReadonlyArray<DraftComposerAttachment>;
 };
+
+// An acknowledged row stops being pending once the projection holds its message,
+// even when the feed hides that message (a rolled-back or cancelled run).
+export function selectPendingAcknowledgedMessages(
+  acknowledged: ReadonlyArray<QueuedThreadMessage>,
+  thread: {
+    readonly threadKey: string | null;
+    readonly queuedMessages: ReadonlyArray<QueuedThreadMessage>;
+    readonly projectedMessages: ReadonlyArray<{ readonly id: string }> | undefined;
+  },
+): ReadonlyArray<QueuedThreadMessage> {
+  return acknowledged.filter(
+    (message) =>
+      scopedThreadKey(message.environmentId, message.threadId) === thread.threadKey &&
+      !thread.queuedMessages.some((queued) => queued.messageId === message.messageId) &&
+      !thread.projectedMessages?.some((projected) => projected.id === message.messageId),
+  );
+}
 
 export function retainPendingCreationAttachments(
   feed: ReadonlyArray<ThreadFeedEntry>,
