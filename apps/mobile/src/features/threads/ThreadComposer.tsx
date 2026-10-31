@@ -15,7 +15,6 @@ import {
   type EnvironmentId,
   type MessageId,
   type ModelSelection,
-  type RuntimeMode,
   type ServerConfig as SupatermServerConfig,
   type UsageLimitsReport,
 } from "@supaterm/contracts";
@@ -26,7 +25,7 @@ import {
 } from "@supaterm/shared/usageLimits";
 import { StackActions, useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { ReactNode } from "react";
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useEffectEvent, useRef, useState, type RefObject } from "react";
 import * as Haptics from "expo-haptics";
 import { Keyboard, Platform, View, type ViewStyle } from "react-native";
 import { composerImageGallery } from "../../lib/composerImageGallery";
@@ -80,11 +79,7 @@ import {
   composerStripAttachments,
   type DraftComposerFileAttachment,
 } from "../../lib/composerImages";
-import {
-  buildModelOptions,
-  groupByProvider,
-  isModelSelectionUnavailable,
-} from "../../lib/modelOptions";
+import { buildModelOptions, isModelSelectionUnavailable } from "../../lib/modelOptions";
 import { useScaledTextRole, type ScaledTextRole } from "../settings/appearance/useScaledTextRole";
 import type { RemoteClientConnectionState } from "../../lib/connection";
 import { MOBILE_TYPOGRAPHY } from "../../lib/typography";
@@ -113,14 +108,7 @@ import {
 } from "../voice-input/ComposerDictationControl";
 import { useVoiceInputController } from "../voice-input/useVoiceInputController";
 import { resolveVoiceComposerPresentation } from "../voice-input/voiceInputPresentation";
-import {
-  rememberModelOptions,
-  withRememberedModelOptions,
-} from "../../state/use-model-option-memory";
-import {
-  type ExistingThreadSettingsRouteSession,
-  useExistingThreadSettingsRoutePresentation,
-} from "./ThreadSettingsSheet";
+import type { ExistingThreadSettingsRouteParams } from "./ThreadSettingsSheet";
 import {
   useThreadSettingsSheetPresentation,
   type NavigationWithFinishTransitioning,
@@ -200,7 +188,6 @@ export interface ThreadComposerProps {
   readonly onShowUsageLimits: (report: UsageLimitsReport | null) => void;
   readonly canSwitchProvider: boolean;
   readonly onUpdateModelSelection: (modelSelection: ModelSelection) => void;
-  readonly onUpdateRuntimeMode: (runtimeMode: RuntimeMode) => void;
   readonly onExpandedChange?: (expanded: boolean) => void;
   readonly onHeightChange?: (height: number) => void;
   readonly onEditorFocusChange?: (focused: boolean) => void;
@@ -370,12 +357,25 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   const pendingPastedTextAttachmentCountRef = useRef(0);
   const pendingNativeImagePasteCountRef = useRef(0);
   const [pendingPastedTextAttachmentCount, setPendingPastedTextAttachmentCount] = useState(0);
+  const settingsRoutePresentedRef = useRef(false);
   const settingsSheetPresentation = useThreadSettingsSheetPresentation({
     editorRef: inputRef,
-    isEditorFocused: isFocused,
+    onPresent: () => {
+      if (settingsRoutePresentedRef.current) return;
+      settingsRoutePresentedRef.current = true;
+      // The draft composer edits the new-task flow, which owns its own settings route.
+      navigation.dispatch(
+        props.isDraft
+          ? StackActions.push("NewTaskThreadSettings")
+          : StackActions.push("ThreadSettingsSheet", {
+              environmentId: props.environmentId,
+              threadId: props.selectedThread.id,
+              draftKey: composerDraftKey,
+            } satisfies ExistingThreadSettingsRouteParams),
+      );
+    },
   });
-  const settingsRoutePresentation = useExistingThreadSettingsRoutePresentation();
-  const settingsRoutePresentedRef = useRef(false);
+  const disposeSettingsSheetPresentation = useEffectEvent(settingsSheetPresentation.dispose);
   const wasExpandedBeforePreviewRef = useRef(false);
   const inFlightThreadIdsRef = useRef(new Set<string>());
   const { onExpandedChange } = props;
@@ -439,7 +439,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   });
   const sendLabel = sendPresentation.label;
   const currentModelSelection = props.selectedThread.modelSelection;
-  const currentRuntimeMode = props.selectedThread.runtimeMode;
   const modelUnavailable =
     props.connectionState === "connected" &&
     isModelSelectionUnavailable(
@@ -575,6 +574,8 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   }, [isExpanded, onExpandedChange]);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the workspace layout's composer-editing flag when the composer unmounts
   useEffect(() => () => setComposerEditing(false), [setComposerEditing]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels a pending sheet presentation or focus restore when the composer unmounts
+  useEffect(() => () => disposeSettingsSheetPresentation(), []);
 
   const commandMenuTrigger =
     !isSubmissionLocked &&
@@ -623,6 +624,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   const onEditorFocusChange = props.onEditorFocusChange;
   const handleFocus = () => {
     setIsFocused(true);
+    settingsSheetPresentation.onEditorFocusChange(true);
     onExpandedChange?.(true);
     onEditorFocusChange?.(true);
     setComposerEditing(true);
@@ -630,6 +632,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
 
   const handleBlur = () => {
     setIsFocused(false);
+    settingsSheetPresentation.onEditorFocusChange(false);
     if (!settingsSheetPresentation.keepsComposerExpanded) {
       onExpandedChange?.(false);
     }
@@ -678,7 +681,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     lockedProviderInstanceId,
     props.selectedThread.projectId,
   );
-  const threadProviderGroups = groupByProvider(modelOptions);
   const currentModelOption =
     modelOptions.find(
       (option) =>
@@ -689,57 +691,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     capabilities: currentModelOption?.capabilities,
     selections: currentModelSelection.options,
   });
-  const settingsOwnerId = composerOwnerKey;
-  const onUpdateModelSelection = props.onUpdateModelSelection;
-  const settingsRouteSession = {
-    ownerId: settingsOwnerId,
-    environmentId: props.environmentId,
-    projectId: props.selectedThread.projectId,
-    providerInstanceId: currentModelSelection.instanceId,
-    ...(lockedProviderInstanceId ? { lockedProviderInstanceId } : {}),
-    providerGroups: threadProviderGroups,
-    selectedModel: currentModelSelection,
-    prompt: draftMessage,
-    onPromptChange: (text) => setComposerDraftText(composerDraftKey, text),
-    reportedModelSelection: props.reportedModelSelection,
-    onSelectModel: (option) => onUpdateModelSelection(withRememberedModelOptions(option.selection)),
-    restoreSelection: withRememberedModelOptions,
-    optionDescriptors: providerOptionDescriptors,
-    onUpdateOptionSelections: (options) => {
-      rememberModelOptions(
-        currentModelSelection.instanceId,
-        currentModelSelection.model,
-        options ?? [],
-      );
-      onUpdateModelSelection({ ...currentModelSelection, options });
-    },
-    runtimeMode: currentRuntimeMode,
-    onUpdateRuntimeMode: props.onUpdateRuntimeMode,
-  } satisfies ExistingThreadSettingsRouteSession;
-  const { clear: clearSettingsRoute, present: presentSettingsRoute } = settingsRoutePresentation;
-  const { onDismissed: onSettingsSheetDismissed, open: openSettingsSheet } =
-    settingsSheetPresentation;
-  const openSettings = () => {
-    presentSettingsRoute(settingsRouteSession);
-    openSettingsSheet();
-  };
-
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- keeps the separate ThreadSettingsSheet route's session current while this composer's sheet is active
-  useEffect(() => {
-    if (settingsSheetPresentation.isActive) {
-      presentSettingsRoute(settingsRouteSession);
-    }
-  }, [presentSettingsRoute, settingsRouteSession, settingsSheetPresentation.isActive]);
-
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- pushes the ThreadSettingsSheet native-stack route once the sheet presentation turns visible
-  useEffect(() => {
-    if (!settingsSheetPresentation.isVisible || settingsRoutePresentedRef.current) {
-      return;
-    }
-
-    settingsRoutePresentedRef.current = true;
-    navigation.dispatch(StackActions.push("ThreadSettingsSheet"));
-  }, [navigation, settingsSheetPresentation.isVisible]);
+  const { onDismissed: onSettingsSheetDismissed, open: openSettings } = settingsSheetPresentation;
 
   useFocusEffect(() => {
     if (!settingsRoutePresentedRef.current) {
@@ -748,7 +700,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
 
     settingsRoutePresentedRef.current = false;
     onSettingsSheetDismissed();
-    clearSettingsRoute(settingsOwnerId);
   });
 
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to the native stack's finishTransitioning event to restore the keyboard after a sheet dismisses

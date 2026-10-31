@@ -1054,7 +1054,6 @@ export function NewTaskDraftScreen(props: {
         onUpdateThreadModelSelection={(selection) =>
           flow.setSelectedModelKey(`${selection.instanceId}:${selection.model}`, selection.options)
         }
-        onUpdateThreadRuntimeMode={flow.setRuntimeMode}
         onRespondToApproval={async () => {}}
         onSelectUserInputOption={() => {}}
         onChangeUserInputCustomAnswer={() => {}}

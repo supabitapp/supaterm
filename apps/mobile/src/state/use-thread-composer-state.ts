@@ -13,7 +13,7 @@ import {
   deriveThreadRuntime,
   threadRuntimeHasInterruptibleRun,
 } from "@supaterm/client-runtime/state/thread-execution";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 import {
   CommandId,
@@ -23,7 +23,6 @@ import {
   PROVIDER_SEND_TURN_MAX_INPUT_CHARS,
   type EnvironmentId,
   type ModelSelection,
-  type RuntimeMode,
   type ThreadId,
 } from "@supaterm/contracts";
 import { clampFileAttachmentUploadBytes } from "@supaterm/client-runtime/state/attachments";
@@ -73,7 +72,6 @@ import {
   clearComposerDraft,
   clearComposerDraftContent,
   composerContextImportsAtom,
-  ensureComposerDraftsLoaded,
   getComposerDraftSnapshot,
   mergeComposerDraftContent,
   removeComposerDraftAttachment,
@@ -218,11 +216,6 @@ export function useThreadComposerState() {
     names.add(nextName);
     return nextName;
   };
-
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- starts the one-time load of persisted composer drafts from device storage into the app atom registry
-  useEffect(() => {
-    ensureComposerDraftsLoaded();
-  }, []);
 
   const selectedThreadKey = selectedThreadShell
     ? scopedThreadKey(selectedThreadShell.environmentId, selectedThreadShell.id)
@@ -884,13 +877,6 @@ export function useThreadComposerState() {
     updateComposerDraftSettings(selectedThreadKey, { modelSelection: value });
   };
 
-  const onUpdateRuntimeMode = (value: RuntimeMode) => {
-    if (!selectedThreadKey) {
-      return;
-    }
-    updateComposerDraftSettings(selectedThreadKey, { runtimeMode: value });
-  };
-
   return {
     feedbackSubmissions,
     dismissFeedback,
@@ -927,6 +913,5 @@ export function useThreadComposerState() {
     onSendMessage,
     onSendVoiceMessage,
     onUpdateModelSelection,
-    onUpdateRuntimeMode,
   };
 }

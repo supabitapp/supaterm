@@ -84,7 +84,6 @@ import {
   NewTaskEnvironmentPickerRouteScreen,
 } from "./features/threads/NewTaskContextPickerScreens";
 import {
-  ExistingThreadSettingsRouteProvider,
   ExistingThreadSettingsRouteScreen,
   NewTaskThreadSettingsRouteScreen,
 } from "./features/threads/ThreadSettingsSheet";
@@ -537,20 +536,18 @@ function RootStackLayout(props: {
       <HardwareKeyboardCommandProvider pathname={pathname}>
         <RunningThreadKeepAlive />
         <ShowcaseReadyMarker />
-        <ExistingThreadSettingsRouteProvider>
-          <AndroidWorkspaceTabsProvider>
-            <AdaptiveWorkspaceLayout
-              pathname={workspaceLocation.pathname}
-              workspaceRouteKey={workspaceLocation.routeKey}
-              workspaceRouteName={workspaceLocation.routeName}
-              workspaceRouteKeys={workspaceLocation.routeKeys}
-              selectedPullRequestKey={selectedPullRequestKey(props.state)}
-            >
-              {props.children}
-              <HardwareKeyboardCommandOverlay />
-            </AdaptiveWorkspaceLayout>
-          </AndroidWorkspaceTabsProvider>
-        </ExistingThreadSettingsRouteProvider>
+        <AndroidWorkspaceTabsProvider>
+          <AdaptiveWorkspaceLayout
+            pathname={workspaceLocation.pathname}
+            workspaceRouteKey={workspaceLocation.routeKey}
+            workspaceRouteName={workspaceLocation.routeName}
+            workspaceRouteKeys={workspaceLocation.routeKeys}
+            selectedPullRequestKey={selectedPullRequestKey(props.state)}
+          >
+            {props.children}
+            <HardwareKeyboardCommandOverlay />
+          </AdaptiveWorkspaceLayout>
+        </AndroidWorkspaceTabsProvider>
       </HardwareKeyboardCommandProvider>
     </NewTaskFlowProvider>
   );

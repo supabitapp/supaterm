@@ -43,7 +43,6 @@ import type {
   EnvironmentId,
   MessageId,
   ModelSelection,
-  RuntimeMode,
   RuntimeRequestId,
   ScopedThreadRef,
   ServerConfig as SupatermServerConfig,
@@ -291,7 +290,6 @@ export interface ThreadDetailScreenProps {
   readonly onReconnectEnvironment: () => void;
   readonly canSwitchThreadProvider: boolean;
   readonly onUpdateThreadModelSelection: (modelSelection: ModelSelection) => void;
-  readonly onUpdateThreadRuntimeMode: (runtimeMode: RuntimeMode) => void;
   readonly onRespondToApproval: ApprovalResponder;
   readonly onSelectUserInputOption: (
     requestId: RuntimeRequestId,
@@ -1772,7 +1770,6 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
                         onShowUsageLimits={showUsageLimits}
                         canSwitchProvider={props.canSwitchThreadProvider}
                         onUpdateModelSelection={props.onUpdateThreadModelSelection}
-                        onUpdateRuntimeMode={props.onUpdateThreadRuntimeMode}
                         onExpandedChange={setComposerExpanded}
                         onHeightChange={setComposerHeight}
                         onEditorFocusChange={handleOwnedInputFocusChange}

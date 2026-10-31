@@ -2,6 +2,7 @@ import { useAtomValue } from "@effect/atom-react";
 import type { PendingThreadRequests } from "@supaterm/client-runtime/state/thread-requests";
 import { deriveReportedModelSelection } from "@supaterm/client-runtime/state/thread-execution";
 import type { ThreadTurnSubagents } from "@supaterm/client-runtime/state/thread-subagents";
+import type { EnvironmentThreadStructure } from "@supaterm/client-runtime/state/models";
 import type { EnvironmentThread } from "@supaterm/client-runtime/state/shell";
 import type {
   EnvironmentId,
@@ -16,6 +17,9 @@ import { useThreadSelection } from "./use-thread-selection";
 
 const EMPTY_THREAD_PROJECTION_ATOM = Atom.make<EnvironmentThread | null>(null).pipe(
   Atom.withLabel("mobile-thread-projection:empty"),
+);
+const EMPTY_THREAD_STRUCTURE_ATOM = Atom.make<EnvironmentThreadStructure | null>(null).pipe(
+  Atom.withLabel("mobile-thread-structure:empty"),
 );
 const EMPTY_VISIBLE_TURN_ITEMS_ATOM = Atom.make<
   OrchestrationV2ThreadProjection["visibleTurnItems"]
@@ -49,6 +53,15 @@ export function useThreadProjection(target: ThreadDetailTarget): EnvironmentThre
   );
 }
 
+/** Keeps its value through streamed text; runs, sessions, and item status still update. */
+export function useQuietThreadStructure(
+  ref: ScopedThreadRef | null,
+): EnvironmentThreadStructure | null {
+  return useAtomValue(
+    ref === null ? EMPTY_THREAD_STRUCTURE_ATOM : environmentThreadDetails.quietThreadAtom(ref),
+  );
+}
+
 export function useSelectedThreadProjection(): EnvironmentThread | null {
   const { selectedThreadRef } = useThreadSelection();
   return useThreadProjection({
@@ -62,14 +75,16 @@ const selectReportedModelSelection = (thread: EnvironmentThread | null) =>
 const EMPTY_QUEUED_COUNT_ATOM = Atom.make(0);
 const EMPTY_TURN_SUBAGENTS_ATOM = Atom.make<ThreadTurnSubagents | null>(null);
 
-export function useSelectedThreadComposerMetadata() {
-  const { selectedThreadRef } = useThreadSelection();
-  const reportedModelSelection = useAtomValue(
-    selectedThreadRef === null
-      ? EMPTY_THREAD_PROJECTION_ATOM
-      : environmentThreadDetails.threadAtom(selectedThreadRef),
+export function useThreadReportedModelSelection(ref: ScopedThreadRef | null) {
+  return useAtomValue(
+    ref === null ? EMPTY_THREAD_PROJECTION_ATOM : environmentThreadDetails.threadAtom(ref),
     selectReportedModelSelection,
   );
+}
+
+export function useSelectedThreadComposerMetadata() {
+  const { selectedThreadRef } = useThreadSelection();
+  const reportedModelSelection = useThreadReportedModelSelection(selectedThreadRef);
   const queuedCount = useAtomValue(
     selectedThreadRef === null
       ? EMPTY_QUEUED_COUNT_ATOM
