@@ -3,12 +3,12 @@ import { effectiveSnoozed } from "@supaterm/client-runtime/state/thread-snooze";
 import type { AnyRouter } from "@tanstack/react-router";
 import type { AtomRegistry } from "effect/reactivity";
 
+import { readShownThreadKeys } from "../chatPanes/shownThreads";
 import { useChatPaneStore } from "../chatPanes/store";
 import { useComposerDraftStore } from "../composerDraftStore";
 import { createLiveRegion } from "../hooks/useLiveRegion";
 import { liveShellEnvironmentIdsAtom } from "../state/shell";
 import { environmentThreadShells } from "../state/threads";
-import { resolveActiveThreadRouteRef, resolveThreadRouteTarget } from "../threadRoutes";
 import {
   type BackgroundThreadMemory,
   type BackgroundThreadSnapshot,
@@ -19,30 +19,13 @@ import {
 const backgroundThreadLiveRegion = createLiveRegion();
 const attachBackgroundThreadRegion = backgroundThreadLiveRegion.attach;
 
-/** The route's thread and every split-pane thread, in a stable order for comparison. */
-function readOpenThreadKeys(router: AnyRouter): ReadonlyArray<string> {
-  const target = resolveThreadRouteTarget(router.state.matches.at(-1)?.params ?? {});
-  const draft =
-    target?.kind === "draft"
-      ? useComposerDraftStore.getState().getDraftSession(target.draftId)
-      : null;
-  const ref = resolveActiveThreadRouteRef(target, draft);
-  const keys = new Set(
-    (useChatPaneStore.getState().layout?.cells ?? []).flatMap((cell) =>
-      cell.target.kind === "server" ? [scopedThreadKey(cell.target.threadRef)] : [],
-    ),
-  );
-  if (ref !== null) keys.add(scopedThreadKey(ref));
-  return [...keys].toSorted();
-}
-
 /** Speaks status changes for threads no open pane shows, for the life of the app. */
 export function startBackgroundThreadAnnouncements(
   registry: AtomRegistry.AtomRegistry,
   router: AnyRouter,
 ): () => void {
   let memory: BackgroundThreadMemory = new Map();
-  let openThreadKeys = readOpenThreadKeys(router);
+  let openThreadKeys = readShownThreadKeys(router);
 
   const update = () => {
     const threads = registry.get(environmentThreadShells.quietThreadShellsAtom);
@@ -64,15 +47,16 @@ export function startBackgroundThreadAnnouncements(
         snoozed: effectiveSnoozed(thread, { now }),
       });
     }
-    const next = nextBackgroundThreadAnnouncement(memory, snapshots, new Set(openThreadKeys));
+    const next = nextBackgroundThreadAnnouncement(memory, snapshots, openThreadKeys);
     memory = next.memory;
     if (next.announcement !== null) backgroundThreadLiveRegion.announce(next.announcement);
   };
 
   // The draft and pane stores change often; only a new set of open threads matters here.
   const updateOpenThreads = () => {
-    const next = readOpenThreadKeys(router);
-    if (next.join("\n") === openThreadKeys.join("\n")) return;
+    const next = readShownThreadKeys(router);
+    if (next.size === openThreadKeys.size && [...next].every((key) => openThreadKeys.has(key)))
+      return;
     openThreadKeys = next;
     update();
   };

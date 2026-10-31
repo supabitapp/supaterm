@@ -1,10 +1,7 @@
-import { scopedThreadKey, scopeThreadRef } from "@supaterm/client-runtime/environment";
 import type { AnyRouter } from "@tanstack/react-router";
 
+import { readShownThreadKeys } from "../../chatPanes/shownThreads";
 import { useChatPaneStore } from "../../chatPanes/store";
-import { useComposerDraftStore } from "../../composerDraftStore";
-import { isAppModalPage } from "../sidebar/mainAppLocation";
-import { resolveThreadRouteTarget, type ThreadRouteTarget } from "../../threadRoutes";
 
 /**
  * Chat overlays (dialogs, media previews) are opened for one thread and must not
@@ -19,31 +16,10 @@ export function registerThreadOverlay(
   retainers.push(retain);
 }
 
-/** The thread a route or pane shows, as the key its chat overlays were opened under. */
-function shownThreadKey(target: ThreadRouteTarget | null): string | null {
-  if (target?.kind === "server") return scopedThreadKey(target.threadRef);
-  if (target?.kind !== "draft") return null;
-  const draftSession = useComposerDraftStore.getState().getDraftSession(target.draftId);
-  return draftSession
-    ? scopedThreadKey(scopeThreadRef(draftSession.environmentId, draftSession.threadId))
-    : null;
-}
-
-/**
- * Chat overlays and find belong to the thread they were opened in, so a thread no
- * route or pane shows drops them. The pane layout outlives pages without panes,
- * so its threads count only on a thread route or under Settings and Usage.
- */
+/** Chat overlays and find belong to the thread they were opened in, so a thread off screen drops them. */
 export function startThreadOverlayRetention(router: AnyRouter): () => void {
   const retain = () => {
-    const routeTarget = resolveThreadRouteTarget(router.state.matches.at(-1)?.params ?? {});
-    const panesShown = routeTarget !== null || isAppModalPage(router.state.location.pathname);
-    const paneCells = panesShown ? (useChatPaneStore.getState().layout?.cells ?? []) : [];
-    const shown = new Set<string>();
-    for (const target of [routeTarget, ...paneCells.map((cell) => cell.target)]) {
-      const threadKey = shownThreadKey(target);
-      if (threadKey !== null) shown.add(threadKey);
-    }
+    const shown = readShownThreadKeys(router);
     for (const retainOverlays of retainers) retainOverlays(shown);
   };
   const unsubscribes = [router.subscribe("onResolved", retain), useChatPaneStore.subscribe(retain)];
