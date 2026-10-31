@@ -72,9 +72,9 @@ export const make = (tracer: Tracer.Tracer, heapUsed: () => number = readHeapUse
       cooldown = SPIKE_COOLDOWN_SAMPLES;
       const suspects = [
         // Spans open since before the window, such as subscriptions, would claim all of its growth.
-        ...[...open.values()]
-          .filter(({ startTick }) => tick - startTick <= samples.length)
-          .map(({ name, startHeap }) => ({ name, growthBytes: heap - startHeap })),
+        ...[...open.values()].flatMap(({ name, startHeap, startTick }) =>
+          tick - startTick <= samples.length ? [{ name, growthBytes: heap - startHeap }] : [],
+        ),
         ...recent.filter(({ endTick }) => tick - endTick <= samples.length),
       ]
         .filter((suspect) => suspect.growthBytes >= SPAN_GROWTH_ATTRIBUTE_BYTES)
