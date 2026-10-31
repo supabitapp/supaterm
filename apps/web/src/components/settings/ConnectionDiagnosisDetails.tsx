@@ -10,7 +10,6 @@ import {
 import * as Option from "effect/Option";
 import { AsyncResult } from "effect/reactivity";
 import { ChevronRightIcon } from "@supaterm/icons";
-import { useEffect, useState } from "react";
 
 import { APP_VERSION } from "~/branding";
 import { environmentCatalog } from "~/connection/catalog";
