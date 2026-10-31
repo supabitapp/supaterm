@@ -100,6 +100,6 @@ send prompts, authentication material, raw provider payloads, user-assigned devi
 names, or conversation identifiers. Client metadata is best effort; invalid values
 must not reject a connection. PostHog person profiles remain disabled.
 
-Dev-runner servers and the CI archive smoke test turn telemetry off, which also
-stops relay tracing, because each would count as a new install. Set
-`SUPATERM_TELEMETRY_ENABLED=true` to test analytics or relay tracing from a dev server.
+Dev-runner servers and the CI archive smoke test turn telemetry off, because each
+would count as a new install. Set `SUPATERM_TELEMETRY_ENABLED=true` to test
+analytics from a dev server.
