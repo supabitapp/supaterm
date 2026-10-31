@@ -12,6 +12,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useStableCallback } from "../hooks/useStableCallback";
 import { threadOutboxDeliverableAtom } from "../state/threadOutbox";
 import { uploadVoiceAudio, useVoiceTranscriptionSource } from "../state/transcription";
+import { useDiscardOnEscape } from "./useDiscardOnEscape";
 import {
   canRecordVoice,
   readVoiceRecording,
@@ -179,18 +180,6 @@ export function useComposerVoiceInput(options: ComposerVoiceInputOptions) {
     if (state.phase === "idle" && current.ownerKey === ownerKey) current.submit();
   }, [runtime, state]);
 
-  const capturing = state.phase === "preparing" || state.phase === "recording";
-  useEffect(() => {
-    if (!capturing) return;
-    const cancelOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
-      event.preventDefault();
-      controller.cancel();
-    };
-    window.addEventListener("keydown", cancelOnEscape);
-    return () => window.removeEventListener("keydown", cancelOnEscape);
-  }, [capturing, controller]);
-
   const start = useStableCallback(() => {
     if (!availability.canReview && !availability.canSend) return;
     void controller.start();
@@ -202,6 +191,7 @@ export function useComposerVoiceInput(options: ComposerVoiceInputOptions) {
     submitAfterReview.current = null;
     controller.cancel();
   });
+  useDiscardOnEscape(state.phase === "preparing" || state.phase === "recording", cancel);
   const send = useStableCallback(async () => {
     if (controller.currentState.phase !== "recording") return;
     if (availability.canSend) {
