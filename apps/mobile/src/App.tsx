@@ -20,6 +20,7 @@ import {
   type NavigationAction,
   type NavigationState,
 } from "@react-navigation/native";
+import { pipe } from "effect/Function";
 
 import { RegistryContext } from "@effect/atom-react";
 import { ProjectChipIconRasterizer } from "./native/ProjectChipIconImages";
@@ -92,14 +93,14 @@ const linkingConfig = {
 } as const;
 
 function getAppStateFromPath(path: string, options: Parameters<typeof getStateFromPath>[1]) {
-  return takeScheduledTaskNewLink(
-    startDevAutoConnect(
-      withoutPairingTarget(
-        takeNewTaskPromptLink(
-          takeThreadPromptLink(restoreDraftLinkState(getStateFromPath(path, options), path)),
-        ),
-      ),
-    ),
+  return pipe(
+    getStateFromPath(path, options),
+    (state) => restoreDraftLinkState(state, path),
+    takeThreadPromptLink,
+    takeNewTaskPromptLink,
+    withoutPairingTarget,
+    startDevAutoConnect,
+    takeScheduledTaskNewLink,
   );
 }
 
