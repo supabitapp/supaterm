@@ -1400,6 +1400,10 @@ body {
   padding: 0;
 }
 
+[data-preview-url-input] {
+  font-variant-ligatures: none;
+}
+
 html,
 body {
   min-height: calc(100svh + env(safe-area-inset-top));
