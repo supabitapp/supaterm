@@ -324,9 +324,7 @@ type ThreadListV2ShelfLayout = ThreadListV2Rows &
   ThreadListV2Shelves & { readonly kind: "shelves" };
 
 /** `items` are one ranked list of search matches; a search has no shelves. */
-type ThreadListV2SearchLayout = ThreadListV2Rows & { readonly kind: "search" } & {
-  readonly [Field in keyof ThreadListV2Shelves]?: never;
-};
+type ThreadListV2SearchLayout = ThreadListV2Rows & { readonly kind: "search" };
 
 export type ThreadListV2Layout = ThreadListV2ShelfLayout | ThreadListV2SearchLayout;
 
@@ -534,7 +532,7 @@ interface ThreadListV2ListOptions {
 }
 
 type ThreadListV2ShelfListInput = ThreadListV2ListOptions &
-  Partial<Omit<ThreadListV2Shelves, "listedDoneThreads">> & { readonly kind?: "shelves" };
+  Omit<ThreadListV2Shelves, "listedDoneThreads"> & { readonly kind: "shelves" };
 
 export function buildThreadListV2ListItems(
   input: ThreadListV2ShelfListInput | (ThreadListV2ListOptions & { readonly kind: "search" }),
@@ -593,19 +591,21 @@ function buildShelfListItems(
   draftItems: ReadonlyArray<ThreadListV2PendingListItem>,
   pendingItems: ReadonlyArray<ThreadListV2PendingListItem>,
 ): ThreadListV2ListItem[] {
-  const workingCount = input.workingCount ?? 0;
-  const workingShelfHeaderIndex = input.workingShelfHeaderIndex ?? null;
-  const snoozedCount = input.snoozedCount ?? 0;
-  const snoozedShelfHeaderIndex = input.snoozedShelfHeaderIndex ?? null;
-  const doneCount = input.doneCount ?? 0;
-  const doneShelfHeaderIndex = input.doneShelfHeaderIndex ?? null;
-  const hiddenDoneCount = input.hiddenDoneCount ?? 0;
+  const {
+    pinnedCount,
+    activeCount,
+    workingCount,
+    workingShelfHeaderIndex,
+    snoozedCount,
+    snoozedShelfHeaderIndex,
+    doneCount,
+    doneShelfHeaderIndex,
+    hiddenDoneCount,
+  } = input;
   const snoozedEnd = doneShelfHeaderIndex ?? threadItems.length;
   const workingEnd = snoozedShelfHeaderIndex ?? snoozedEnd;
   const activeEnd = workingShelfHeaderIndex ?? workingEnd;
   const pinnedEnd = input.items.filter((item) => item.pinned).length;
-  const pinnedCount = input.pinnedCount ?? pinnedEnd;
-  const activeCount = input.activeCount ?? activeEnd - pinnedEnd;
   const shelfDisabled = input.shelfPreferencesLoading === true;
   const result: ThreadListV2ListItem[] = [];
   if (pinnedCount > 0) {
@@ -628,7 +628,7 @@ function buildShelfListItems(
       disabled: shelfDisabled,
     });
     if (input.activeShelfExpanded !== false) result.push(...pendingItems);
-    if (input.inboxGroups == null) {
+    if (input.inboxGroups === null) {
       result.push(...threadItems.slice(pinnedEnd, activeEnd));
     } else {
       let index = pinnedEnd;

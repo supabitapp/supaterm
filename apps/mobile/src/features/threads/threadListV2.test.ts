@@ -56,6 +56,12 @@ function makeThread(
 
 const NOW = "2026-06-02T00:00:00.000Z";
 
+function buildShelfLayout(input: Parameters<typeof buildThreadListV2Items>[0]) {
+  const layout = buildThreadListV2Items(input);
+  if (layout.kind !== "shelves") throw new Error(`Expected a shelf layout, got ${layout.kind}`);
+  return layout;
+}
+
 const linkedPullRequest = {
   projectId: ProjectId.make("project-1"),
   repository: "supabitapp/supaterm",
@@ -164,7 +170,7 @@ describe("queued messages keep a done thread active", () => {
   const queuedThreadKeys = new Set([`${environmentId}:done-queued`]);
 
   it("lists the thread in the active block instead of the done shelf", () => {
-    const layout = buildThreadListV2Items({
+    const layout = buildShelfLayout({
       threads,
       environmentId: null,
       searchQuery: "",
@@ -231,6 +237,7 @@ describe("search lists ranked matches", () => {
       doneShelfExpanded: false,
       now: NOW,
     });
+    expect(layout.kind).toBe("search");
     // The exact title leads even from a collapsed Done shelf, and keeps its look.
     expect(layout.items.map((item) => [item.thread.id, item.variant])).toEqual([
       ["exact", "slim"],
@@ -334,7 +341,7 @@ describe("buildThreadListV2Items", () => {
       },
     ]);
     expect(threadJumpTarget(list, "thread.jump.1")).toBeNull();
-    const selected = buildThreadListV2Items({
+    const selected = buildShelfLayout({
       ...input,
       activeShelfExpanded: false,
       selectedThreadKey: `${environmentId}:active-two`,
@@ -358,7 +365,7 @@ describe("buildThreadListV2Items", () => {
       doneOverride: "done",
       doneAt: NOW,
     });
-    const layout = buildThreadListV2Items({
+    const layout = buildShelfLayout({
       threads: [thread],
       environmentId: null,
       searchQuery: "",
@@ -370,7 +377,7 @@ describe("buildThreadListV2Items", () => {
   });
 
   it("hides snoozed threads and counts them — visibility parity with web", () => {
-    const layout = buildThreadListV2Items({
+    const layout = buildShelfLayout({
       threads: [
         makeThread({ id: ThreadId.make("active"), title: "Active" }),
         makeThread({
@@ -396,7 +403,7 @@ describe("buildThreadListV2Items", () => {
   });
 
   it("places done pinned threads in the done shelf", () => {
-    const layout = buildThreadListV2Items({
+    const layout = buildShelfLayout({
       threads: [
         makeThread({ id: ThreadId.make("active"), title: "Active" }),
         makeThread({
@@ -434,7 +441,7 @@ describe("buildThreadListV2Items", () => {
       }),
     ];
     const input = { threads, environmentId: null, searchQuery: "", now: NOW };
-    const expanded = buildThreadListV2Items(input);
+    const expanded = buildShelfLayout(input);
     expect(expanded.pinnedCount).toBe(2);
     expect(expanded.items.map((item) => item.thread.id)).toEqual(["first", "later", "active"]);
     const collapsed = buildThreadListV2Items({ ...input, pinnedShelfExpanded: false });
@@ -491,7 +498,7 @@ describe("buildThreadListV2Items", () => {
       title: "Pinned thread",
       pinnedAt: "2026-06-01T12:00:00.000Z",
     });
-    const layout = buildThreadListV2Items({
+    const layout = buildShelfLayout({
       threads: [pinned],
       environmentId: null,
       searchQuery: "",
@@ -507,7 +514,7 @@ describe("buildThreadListV2Items", () => {
   });
 
   it("moves a done pinned thread into the done shelf — parity with web (#7969)", () => {
-    const layout = buildThreadListV2Items({
+    const layout = buildShelfLayout({
       threads: [
         makeThread({ id: ThreadId.make("active"), title: "Active" }),
         makeThread({
@@ -547,18 +554,18 @@ describe("buildThreadListV2Items", () => {
       searchQuery: "",
     };
 
-    const whileSnoozed = buildThreadListV2Items({ ...snoozedInput, now: NOW });
+    const whileSnoozed = buildShelfLayout({ ...snoozedInput, now: NOW });
     expect(whileSnoozed.items.map((item) => item.thread.id)).toEqual(["active"]);
     expect(whileSnoozed.snoozedCount).toBe(1);
 
-    const afterWake = buildThreadListV2Items({ ...snoozedInput, now: "2026-06-03T10:00:00.000Z" });
+    const afterWake = buildShelfLayout({ ...snoozedInput, now: "2026-06-03T10:00:00.000Z" });
     expect(afterWake.items.map((item) => item.thread.id)).toEqual(["pinned-snoozed", "active"]);
     expect(afterWake.items[0]?.pinned).toBe(true);
     expect(afterWake.snoozedCount).toBe(0);
   });
 
   it("classifies snooze with the second-precise clock and reports the next wake", () => {
-    const layout = buildThreadListV2Items({
+    const layout = buildShelfLayout({
       threads: [
         makeThread({
           id: ThreadId.make("just-woke"),
@@ -584,7 +591,7 @@ describe("buildThreadListV2Items", () => {
   });
 
   it("builds snoozed rows between active and done when the shelf is expanded", () => {
-    const layout = buildThreadListV2Items({
+    const layout = buildShelfLayout({
       threads: [
         makeThread({ id: ThreadId.make("active"), title: "Active" }),
         makeThread({
@@ -624,7 +631,7 @@ describe("buildThreadListV2Items", () => {
   });
 
   it("collapses to a header-only shelf", () => {
-    const layout = buildThreadListV2Items({
+    const layout = buildShelfLayout({
       threads: [
         makeThread({
           id: ThreadId.make("snoozed"),
@@ -644,7 +651,7 @@ describe("buildThreadListV2Items", () => {
   });
 
   it("keeps the selected thread on a collapsed shelf", () => {
-    const layout = buildThreadListV2Items({
+    const layout = buildShelfLayout({
       threads: [
         makeThread({
           id: ThreadId.make("open"),
@@ -671,7 +678,7 @@ describe("buildThreadListV2Items", () => {
   });
 
   it("classifies snoozed threads without environment configuration", () => {
-    const layout = buildThreadListV2Items({
+    const layout = buildShelfLayout({
       threads: [
         makeThread({
           id: ThreadId.make("snoozed"),
@@ -690,7 +697,7 @@ describe("buildThreadListV2Items", () => {
   });
 
   it("partitions done threads into a slim shelf", () => {
-    const layout = buildThreadListV2Items({
+    const layout = buildShelfLayout({
       threads: [
         makeThread({ id: ThreadId.make("active"), title: "Active" }),
         makeThread({
@@ -722,7 +729,7 @@ describe("buildThreadListV2Items", () => {
   });
 
   it("collapses done threads to a counted shelf header", () => {
-    const layout = buildThreadListV2Items({
+    const layout = buildShelfLayout({
       threads: [
         makeThread({ id: ThreadId.make("active"), title: "Active" }),
         makeThread({
@@ -744,7 +751,7 @@ describe("buildThreadListV2Items", () => {
   });
 
   it("keeps the selected done thread visible when its shelf is collapsed", () => {
-    const layout = buildThreadListV2Items({
+    const layout = buildShelfLayout({
       threads: [
         makeThread({
           id: ThreadId.make("selected"),
@@ -948,7 +955,7 @@ describe("buildThreadListV2Items done paging", () => {
       ),
     ];
 
-    const layout = buildThreadListV2Items({
+    const layout = buildShelfLayout({
       threads,
       environmentId: null,
       searchQuery: "",
@@ -971,7 +978,7 @@ describe("buildThreadListV2Items done paging", () => {
       }),
     );
 
-    const layout = buildThreadListV2Items({
+    const layout = buildShelfLayout({
       threads,
       environmentId: null,
       searchQuery: "",
@@ -993,7 +1000,7 @@ describe("buildThreadListV2Items done paging", () => {
         doneAt: `2026-06-0${index}T00:00:00.000Z`,
       });
     const threads = [settled(1), settled(2), settled(3)];
-    const layout = buildThreadListV2Items({
+    const layout = buildShelfLayout({
       threads,
       environmentId: null,
       searchQuery: "",
@@ -1013,7 +1020,7 @@ describe("buildThreadListV2Items done paging", () => {
     expect(layout.hiddenDoneCount).toBe(40);
 
     // A scope whose done threads are all older still shows its Done header.
-    const unloadedOnly = buildThreadListV2Items({
+    const unloadedOnly = buildShelfLayout({
       threads: [],
       environmentId: null,
       searchQuery: "",
@@ -1238,7 +1245,7 @@ describe("buildThreadListV2ListItems", () => {
 
   it("leads the list with unsent drafts and queued tasks, preserving section dividers", () => {
     const items = buildThreadListV2ListItems({
-      items: layout.items,
+      ...layout,
       pendingTasks: [
         {
           kind: "draft",
@@ -1259,8 +1266,6 @@ describe("buildThreadListV2ListItems", () => {
         makePendingTask("queued-1"),
         makePendingTask("queued-2"),
       ],
-      doneCount: layout.doneCount,
-      doneShelfHeaderIndex: layout.doneShelfHeaderIndex,
     });
 
     expect(
@@ -1298,7 +1303,7 @@ describe("buildThreadListV2ListItems", () => {
       now: NOW,
     });
     const items = buildThreadListV2ListItems({
-      items: activeOnly.items,
+      ...activeOnly,
       pendingTasks: [makePendingTask("queued-1")],
     });
 
@@ -1365,10 +1370,8 @@ describe("buildThreadListV2ListItems", () => {
 
   it("puts Drafts above Active when nothing is pinned", () => {
     const items = buildThreadListV2ListItems({
-      items: layout.items,
+      ...layout,
       pendingTasks: [makeDraftTask("draft"), makePendingTask("queued")],
-      doneCount: layout.doneCount,
-      doneShelfHeaderIndex: layout.doneShelfHeaderIndex,
     });
 
     expect(
@@ -1384,10 +1387,8 @@ describe("buildThreadListV2ListItems", () => {
 
   it("places Done below Active when nothing is queued", () => {
     const items = buildThreadListV2ListItems({
-      items: layout.items,
+      ...layout,
       pendingTasks: [],
-      doneCount: layout.doneCount,
-      doneShelfHeaderIndex: layout.doneShelfHeaderIndex,
     });
 
     expect(items.map((item) => item.key)).toEqual([
@@ -1420,13 +1421,9 @@ describe("buildThreadListV2ListItems", () => {
       now: NOW,
     });
     const items = buildThreadListV2ListItems({
-      items: snoozedLayout.items,
+      ...snoozedLayout,
       pendingTasks: [makePendingTask("queued")],
-      snoozedCount: snoozedLayout.snoozedCount,
       snoozedShelfExpanded: false,
-      snoozedShelfHeaderIndex: snoozedLayout.snoozedShelfHeaderIndex,
-      doneCount: snoozedLayout.doneCount,
-      doneShelfHeaderIndex: snoozedLayout.doneShelfHeaderIndex,
     });
 
     expect(items.map((item) => item.type)).toEqual([
@@ -1996,16 +1993,10 @@ function buildTickList(
     snoozedShelfExpanded: true,
   });
   return buildThreadListV2ListItems({
-    items: layout.items,
+    ...layout,
     pendingTasks,
-    workingCount: layout.workingCount,
     workingShelfExpanded: true,
-    workingShelfHeaderIndex: layout.workingShelfHeaderIndex,
-    snoozedCount: layout.snoozedCount,
     snoozedShelfExpanded: true,
-    snoozedShelfHeaderIndex: layout.snoozedShelfHeaderIndex,
-    doneCount: layout.doneCount,
-    doneShelfHeaderIndex: layout.doneShelfHeaderIndex,
     snoozeLabelNow: now,
     ...(options?.loadedEnvironmentIds
       ? { loadedEnvironmentIds: options.loadedEnvironmentIds }
@@ -2038,7 +2029,7 @@ describe("threadListV2ListItemsAreEqual", () => {
   const queued = makePendingTask("eq-queued");
   const build = () =>
     buildThreadListV2ListItems({
-      items: layout.items,
+      ...layout,
       pendingTasks: [queued],
       snoozeLabelNow: NOW,
     });
@@ -2062,7 +2053,7 @@ describe("threadListV2ListItemsAreEqual", () => {
       now: NOW,
     });
     const next = buildThreadListV2ListItems({
-      items: rebuilt.items,
+      ...rebuilt,
       pendingTasks: [],
       snoozeLabelNow: NOW,
     });
@@ -2087,13 +2078,13 @@ describe("threadListV2ListItemsAreEqual", () => {
       snoozedShelfExpanded: true,
     });
     const earlier = buildThreadListV2ListItems({
-      items: snoozedLayout.items,
+      ...snoozedLayout,
       pendingTasks: [],
       snoozedShelfExpanded: true,
       snoozeLabelNow: NOW,
     });
     const later = buildThreadListV2ListItems({
-      items: snoozedLayout.items,
+      ...snoozedLayout,
       pendingTasks: [],
       snoozedShelfExpanded: true,
       snoozeLabelNow: isoAt(BASE_MS + MINUTE_MS),
@@ -2136,12 +2127,12 @@ describe("threadListV2ListItemsAreEqual", () => {
     const threadA = makeThread({ id: ThreadId.make("flip-a"), title: "flip a" });
     const threadB = makeThread({ id: ThreadId.make("flip-b"), title: "flip b" });
     const bare = buildThreadListV2ListItems({
-      items: buildThreadListV2Items({
+      ...buildThreadListV2Items({
         threads: [threadA, threadB],
         environmentId: null,
         searchQuery: "",
         now: NOW,
-      }).items,
+      }),
       pendingTasks: [],
       snoozeLabelNow: NOW,
     });
@@ -2155,15 +2146,13 @@ describe("threadListV2ListItemsAreEqual", () => {
       doneAt: NOW,
     });
     const withDone = buildThreadListV2ListItems({
-      items: buildThreadListV2Items({
+      ...buildThreadListV2Items({
         threads: [threadA, doneB],
         environmentId: null,
         searchQuery: "",
         now: NOW,
-      }).items,
+      }),
       pendingTasks: [],
-      doneCount: 1,
-      doneShelfHeaderIndex: 1,
       snoozeLabelNow: NOW,
     });
     const firstA = bare.find(
@@ -2362,7 +2351,7 @@ describe("buildThreadListV2ListItems trailing dividers", () => {
       now: NOW,
     });
     const items = buildThreadListV2ListItems({
-      items: layout.items,
+      ...layout,
       pendingTasks: [makePendingTask("div-q1"), makePendingTask("div-q2")],
       snoozeLabelNow: NOW,
     });
@@ -2490,7 +2479,7 @@ describe("Working section", () => {
     }),
   ];
   const build = (input: Partial<Parameters<typeof buildThreadListV2Items>[0]> = {}) =>
-    buildThreadListV2Items({
+    buildShelfLayout({
       threads,
       environmentId: null,
       searchQuery: "",
@@ -2574,16 +2563,10 @@ describe("Working section", () => {
       snoozedShelfExpanded: true,
     });
     const items = buildThreadListV2ListItems({
-      items: layout.items,
+      ...layout,
       pendingTasks: [makePendingTask("queued")],
-      workingCount: layout.workingCount,
       workingShelfExpanded: true,
-      workingShelfHeaderIndex: layout.workingShelfHeaderIndex,
-      snoozedCount: layout.snoozedCount,
       snoozedShelfExpanded: true,
-      snoozedShelfHeaderIndex: layout.snoozedShelfHeaderIndex,
-      doneCount: layout.doneCount,
-      doneShelfHeaderIndex: layout.doneShelfHeaderIndex,
     });
     expect(
       items.map((item) =>
@@ -2639,7 +2622,7 @@ describe("grouped inbox", () => {
         },
       ],
     };
-    const layout = buildThreadListV2Items(input);
+    const layout = buildShelfLayout(input);
     expect(layout.activeCount).toBe(2);
     expect(layout.workingShelfHeaderIndex).toBeNull();
     expect(
@@ -2651,7 +2634,7 @@ describe("grouped inbox", () => {
     expect(list.filter((row) => row.type === "v2-done-shelf")).toHaveLength(1);
     expect(list.filter((row) => row.type === "v2-working-shelf")).toHaveLength(0);
     expect(list.filter((row) => row.type === "v2-group-header")).toHaveLength(1);
-    const collapsed = buildThreadListV2Items({
+    const collapsed = buildShelfLayout({
       ...input,
       activeShelfExpanded: false,
       selectedThreadKey: `${environmentId}:${working.id}`,
