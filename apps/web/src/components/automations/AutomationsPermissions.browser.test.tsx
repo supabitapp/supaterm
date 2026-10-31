@@ -5,6 +5,7 @@ import {
   ProjectId,
   ProviderInstanceId,
   ScheduledTaskId,
+  ThreadId,
   type ScheduledTask,
 } from "@supaterm/contracts";
 import { type ReactNode } from "react";
@@ -65,10 +66,20 @@ vi.mock(import("../../state/entities"), async (original) => ({
   useProjects: (() => state.projects) as never,
   useThreadShell: () => null,
 }));
+vi.mock(import("../../state/threads"), async (original) => {
+  const actual = await original();
+  return {
+    ...actual,
+    threadFamilies: { ...actual.threadFamilies, familyAtom: (() => threadFamilyRead) as never },
+  };
+});
 vi.mock(import("../../state/query"), async (original) => ({
   ...(await original()),
-  useEnvironmentQuery: ((query: { environmentId: string } | null) => ({
-    data: query === null ? null : { tasks: state.tasks.get(query.environmentId) ?? [] },
+  useEnvironmentQuery: ((query: { environmentId: string } | typeof threadFamilyRead | null) => ({
+    data:
+      query === null || query === threadFamilyRead
+        ? query
+        : { tasks: state.tasks.get((query as { environmentId: string }).environmentId) ?? [] },
     error: null,
   })) as never,
 }));
@@ -154,6 +165,13 @@ const primaryProjectId = ProjectId.make("project-primary");
 const remoteProjectId = ProjectId.make("project-remote");
 const taskId = ScheduledTaskId.make("task");
 const instanceId = ProviderInstanceId.make("codex");
+const boundThreadId = ThreadId.make("older-thread");
+
+// Stands in for the thread family read the editor makes when the shell lacks the bound thread.
+const threadFamilyRead = {
+  snapshotSequence: 1,
+  threads: [{ id: boundThreadId, title: "Fix login bug" }],
+};
 
 const environment = (environmentId: EnvironmentId, label: string) => ({
   environmentId,
@@ -288,9 +306,10 @@ describe("automation permissions", () => {
 
   it("keeps a linked automation's unsaved edits across a disconnect and reconnect", async () => {
     await using _test = await setupTest();
-    state.tasks.set(primaryId, [task(primaryProjectId)]);
+    state.tasks.set(primaryId, [{ ...task(primaryProjectId), threadId: boundThreadId }]);
     state.search = { environmentId: primaryId, taskId };
     await renderPage();
+    await expect.element(page.getByRole("dialog").getByText("Fix login bug")).toBeVisible();
     const name = page.getByRole("dialog").getByRole("textbox", { name: "Name" });
     await expect.element(name).toHaveValue("Read only automation");
     await userEvent.fill(name, "Review stale changes");
