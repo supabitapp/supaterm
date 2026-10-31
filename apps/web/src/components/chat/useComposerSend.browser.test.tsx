@@ -109,7 +109,6 @@ function sendInput(
     isRevertingCheckpoint: false,
     threadDetailLoading: false,
     activeEnvironmentUnavailable: false,
-    isSendBusy: false,
     sendQueuesBehindSetup: false,
     isDraftHeroState: false,
     panelAnimationsActive: false,

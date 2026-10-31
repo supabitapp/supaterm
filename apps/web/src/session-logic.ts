@@ -1,5 +1,4 @@
 import type { ThreadStructure, ThreadStructureRuntime } from "@supaterm/client-runtime/state/shell";
-import { resolveThreadWorkingStartedAt } from "@supaterm/client-runtime/state/models";
 import {
   type AssetResource,
   type OrchestrationV2Checkpoint,
@@ -226,18 +225,6 @@ export function isLatestRunSettled(
   )
     return false;
   return runtime?.activeRunId !== latestRun.runId;
-}
-
-export function deriveActiveWorkStartedAt(
-  latestRun: Pick<
-    ThreadRunSummary,
-    "runId" | "startedAt" | "requestedAt" | "completedAt" | "status"
-  > | null,
-  runtime: Pick<ThreadRuntimeSummary, "status" | "activeRunId" | "activityStartedAt"> | null,
-  sendStartedAt: string | null,
-): string | null {
-  const startedAt = resolveThreadWorkingStartedAt({ latestRun, runtime });
-  return startedAt ?? (runtime?.activeRunId == null ? sendStartedAt : null);
 }
 
 export function derivePendingApprovals(

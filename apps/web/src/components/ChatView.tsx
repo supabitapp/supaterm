@@ -52,7 +52,6 @@ import {
 } from "./chat/useSystemComposerBanners";
 import { usePasteToFocusComposer } from "./chat/usePasteToFocusComposer";
 import { useDraftHeroLayoutTransition } from "./chat/useDraftHeroLayoutTransition";
-import { useLocalDispatchState } from "./chat/useLocalDispatchState";
 import { draftFanoutSelectionsAtom, draftSendState } from "./chat/chatViewSend";
 import { recallCheckoutIsRepo, rememberCheckoutIsRepo } from "./ChatView.logic";
 import { useAddProjectTargets } from "../hooks/useAddProjectTargets";
@@ -158,11 +157,11 @@ import {
   createTimelineEntriesProjector,
   deriveActivePlanState,
   selectComposerTasksPlan,
-  deriveActiveWorkStartedAt,
   deriveCanInterruptRunningThread,
   findRevertCheckpoint,
   isLatestRunSettled,
 } from "../session-logic";
+import { resolveThreadWorkingStartedAt } from "@supaterm/client-runtime/state/models";
 import { type LegendListRef } from "@legendapp/list/react";
 import { useWorkspaceMutationRefresh } from "../hooks/useWorkspaceMutationRefresh";
 import { DEFAULT_INTERACTION_MODE, type ChatMessage } from "../types";
@@ -1455,22 +1454,6 @@ export default function ChatView(props: ChatViewProps) {
     providerDriver: activeProviderStatus?.driver ?? null,
     providers: providerStatuses,
   });
-  const {
-    resetLocalDispatch,
-    localDispatchStartedAt,
-    isPreparingWorktree: isLocallyPreparingWorktree,
-    isSendBusy,
-    backgroundSubmissionPending,
-  } = useLocalDispatchState({
-    activeThread,
-    activeLatestRun,
-    latestUserMessageId:
-      serverProjection?.messages.findLast((message) => message.role === "user")?.id ?? null,
-    phase,
-    activePendingApproval: activePendingApproval?.requestId ?? null,
-    activePendingUserInput: activePendingUserInput?.requestId ?? null,
-    threadError,
-  });
   const latestServerUserItem = serverVisibleTurnItems.findLast(
     (row) => row.item.type === "user_message",
   )?.item;
@@ -1497,10 +1480,9 @@ export default function ChatView(props: ChatViewProps) {
       item.status === "running",
   );
   const isCompacting =
-    (isSendBusy || phase === "connecting" || phase === "running") &&
+    (phase === "connecting" || phase === "running") &&
     (compactionRunning || (compactRequestIsActive && !compactionSettled));
-  const isWorking =
-    phase === "running" || isSendBusy || isCompacting || runlessWorkStartedAt !== null;
+  const isWorking = phase === "running" || isCompacting || runlessWorkStartedAt !== null;
   const activeContextWindow = deriveLatestContextWindowSnapshot(
     serverVisibleTurnItems ?? [],
     activeThreadLiveTokenUsage,
@@ -1508,7 +1490,7 @@ export default function ChatView(props: ChatViewProps) {
   );
   const pendingBackgroundTasks = deriveThreadPendingBackgroundTasks(serverProjection);
   const activeWorkStartedAt =
-    deriveActiveWorkStartedAt(activeActivityRun, activeRuntime, localDispatchStartedAt) ??
+    resolveThreadWorkingStartedAt({ latestRun: activeActivityRun, runtime: activeRuntime }) ??
     runlessWorkStartedAt;
   const activeRunPreparing = activeActivityRun?.status === "preparing";
   // The server queues a message behind a run that is still preparing its
@@ -1613,7 +1595,6 @@ export default function ChatView(props: ChatViewProps) {
     threadRef: activeThreadRef,
     serverProjection,
     activityRun: activeActivityRun,
-    localPreparing: isLocallyPreparingWorktree,
     sendQueuesBehindSetup,
     followUpSent: timelineMessages.filter((message) => message.role === "user").length > 1,
   });
@@ -1629,7 +1610,6 @@ export default function ChatView(props: ChatViewProps) {
     hasTimelineEntries: !timelineEmpty,
     isWorking,
     draftHeroDockRequested,
-    backgroundSubmissionPending,
     hasWorktreeSetupCard: worktreeSetup !== null,
   });
   const {
@@ -2249,15 +2229,6 @@ export default function ChatView(props: ChatViewProps) {
     terminalUiState.terminalOpen,
   ]);
 
-  // Keyed on the thread, not the draft: a draft's promotion to its server
-  // route keeps this instance and drops `draftId`, and the send it is still
-  // dispatching must survive that swap.
-  const [localDispatchThreadId, setLocalDispatchThreadId] = useState(threadId);
-  if (localDispatchThreadId !== threadId) {
-    setLocalDispatchThreadId(threadId);
-    resetLocalDispatch();
-  }
-
   const activeWorktreePath = activeThread?.worktreePath ?? null;
   const envMode: DraftThreadEnvMode = resolveEffectiveEnvMode({
     activeWorktreePath,
@@ -2818,7 +2789,6 @@ export default function ChatView(props: ChatViewProps) {
     isServerThread,
     timelineMessages,
     phase,
-    isSendBusy,
     isRevertingCheckpoint,
     threadDetailLoading,
     supportsConversationRollback,
@@ -2976,7 +2946,6 @@ export default function ChatView(props: ChatViewProps) {
     activeThread,
     resumableRunId,
     hasHeldQueuedRuns,
-    isSendBusy,
     isRevertingCheckpoint,
     threadDetailLoading,
     activeEnvironmentUnavailable,
@@ -3017,7 +2986,6 @@ export default function ChatView(props: ChatViewProps) {
     isRevertingCheckpoint,
     threadDetailLoading,
     activeEnvironmentUnavailable,
-    isSendBusy,
     sendQueuesBehindSetup,
     isDraftHeroState,
     panelAnimationsActive,
@@ -3099,7 +3067,6 @@ export default function ChatView(props: ChatViewProps) {
     workLocallyResendDraftId !== null &&
     workLocallyResendDraftId === draftId &&
     isLocalDraftThread &&
-    !isSendBusy &&
     !isRevertingCheckpoint &&
     !threadDetailLoading &&
     clientSettingsHydrated &&
@@ -3708,7 +3675,7 @@ export default function ChatView(props: ChatViewProps) {
                                   phase={phase}
                                   isCompacting={isCompacting}
                                   canInterrupt={canInterruptRunningThread}
-                                  isSendBusy={isSendBusy || queuedRunEdit.isSaving || isResuming}
+                                  isSendBusy={queuedRunEdit.isSaving || isResuming}
                                   canResume={resumableRunId !== null || hasHeldQueuedRuns}
                                   isRevertingCheckpoint={isRevertingCheckpoint}
                                   sendDisabledReason={
@@ -3977,7 +3944,7 @@ export default function ChatView(props: ChatViewProps) {
                             ...(manualCompactionProviderAvailable
                               ? { onCompact: onCompactContext }
                               : {}),
-                            compactDisabled: compactDisabled || isSendBusy,
+                            compactDisabled,
                             compactDisabledReason,
                           }
                         : null

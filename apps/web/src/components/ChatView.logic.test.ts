@@ -45,12 +45,10 @@ import {
   resetHeldThreadTimeline,
   resolveThreadSwitchTimeline,
   timelineHasEphemeralPreviewUrls,
-  createLocalDispatchSnapshot,
   deriveCommittedServerUserMessageIds,
   deriveComposerSendState,
   isComposerDraftEmpty,
   deriveLockedProvider,
-  hasServerAcknowledgedLocalDispatch,
   shouldRequireWorktreeBaseBranch,
   waitForRevertedMessage,
 } from "./ChatView.logic";
@@ -85,15 +83,6 @@ function makeThread(overrides: Partial<Thread> = {}): Thread {
     ...overrides,
   });
 }
-
-const completedTurn = {
-  runId: RunId.make("turn-1"),
-  status: "completed" as const,
-  requestedAt: now,
-  startedAt: "2026-03-29T00:00:01.000Z",
-  completedAt: "2026-03-29T00:00:10.000Z",
-  assistantMessageId: null,
-};
 
 const readySession = {
   status: "completed" as const,
@@ -194,131 +183,6 @@ describe("shouldRequireWorktreeBaseBranch", () => {
   it("does not block an explicit branch or an unavailable environment", () => {
     expect(shouldRequireWorktreeBaseBranch({ ...base, activeThreadBranch: "main" })).toBe(false);
     expect(shouldRequireWorktreeBaseBranch({ ...base, environmentUnavailable: true })).toBe(false);
-  });
-});
-
-describe("hasServerAcknowledgedLocalDispatch", () => {
-  it("acknowledges a settled newer background turn", () => {
-    const localDispatch = createLocalDispatchSnapshot(
-      makeThread({ latestRun: completedTurn, runtime: readySession }),
-      { submissionIntent: "background" },
-    );
-    const newerTurn = {
-      ...completedTurn,
-      runId: RunId.make("turn-2"),
-      requestedAt: "2026-03-29T00:01:00.000Z",
-      startedAt: "2026-03-29T00:01:01.000Z",
-      completedAt: "2026-03-29T00:01:30.000Z",
-    };
-
-    expect(
-      hasServerAcknowledgedLocalDispatch({
-        localDispatch,
-        phase: "ready",
-        latestRun: newerTurn,
-        runtime: { ...readySession, updatedAt: newerTurn.completedAt },
-        hasPendingApproval: false,
-        hasPendingUserInput: false,
-        threadError: null,
-      }),
-    ).toBe(true);
-  });
-
-  it("holds a first send while the thread shell still reports a preparing run", () => {
-    const localDispatch = createLocalDispatchSnapshot(makeThread());
-    const preparingRun = {
-      ...completedTurn,
-      status: "preparing" as const,
-      startedAt: null,
-      completedAt: null,
-    };
-
-    expect(
-      hasServerAcknowledgedLocalDispatch({
-        localDispatch,
-        phase: "disconnected",
-        latestRun: preparingRun,
-        runtime: { ...readySession, status: "preparing", activeRunId: preparingRun.runId },
-        hasPendingApproval: false,
-        hasPendingUserInput: false,
-        threadError: null,
-      }),
-    ).toBe(false);
-  });
-
-  it("waits for the matching running turn before acknowledging", () => {
-    const localDispatch = createLocalDispatchSnapshot(
-      makeThread({ latestRun: completedTurn, runtime: readySession }),
-    );
-    const runningTurn = {
-      ...completedTurn,
-      runId: RunId.make("turn-2"),
-      status: "running" as const,
-      requestedAt: "2026-03-29T00:01:00.000Z",
-      startedAt: "2026-03-29T00:01:01.000Z",
-      completedAt: null,
-    };
-
-    expect(
-      hasServerAcknowledgedLocalDispatch({
-        localDispatch,
-        phase: "running",
-        latestRun: runningTurn,
-        runtime: {
-          ...readySession,
-          status: "running",
-          activeRunId: RunId.make("turn-other"),
-        },
-        hasPendingApproval: false,
-        hasPendingUserInput: false,
-        threadError: null,
-      }),
-    ).toBe(false);
-    expect(
-      hasServerAcknowledgedLocalDispatch({
-        localDispatch,
-        phase: "running",
-        latestRun: runningTurn,
-        runtime: {
-          ...readySession,
-          status: "running",
-          activeRunId: runningTurn.runId,
-        },
-        hasPendingApproval: false,
-        hasPendingUserInput: false,
-        threadError: null,
-      }),
-    ).toBe(true);
-  });
-
-  it("acknowledges a steering message projected onto the current running run", () => {
-    const runningRun = {
-      ...completedTurn,
-      status: "running" as const,
-      completedAt: null,
-    };
-    const runningRuntime = {
-      ...readySession,
-      status: "running" as const,
-      activeRunId: runningRun.runId,
-    };
-    const localDispatch = createLocalDispatchSnapshot(
-      makeThread({ latestRun: runningRun, runtime: runningRuntime }),
-      { latestUserMessageId: MessageId.make("message-before-steer") },
-    );
-
-    expect(
-      hasServerAcknowledgedLocalDispatch({
-        localDispatch,
-        phase: "running",
-        latestRun: runningRun,
-        latestUserMessageId: MessageId.make("message-steer"),
-        runtime: runningRuntime,
-        hasPendingApproval: false,
-        hasPendingUserInput: false,
-        threadError: null,
-      }),
-    ).toBe(true);
   });
 });
 
@@ -824,7 +688,6 @@ describe("worktree setup visibility", () => {
     const resolve = (latest: WorktreeSetupSnapshot | null, held: WorktreeSetupSnapshot | null) =>
       resolveWorktreeSetupProgress({
         threadId,
-        localPreparing: false,
         runStatus: "running",
         latest,
         held,

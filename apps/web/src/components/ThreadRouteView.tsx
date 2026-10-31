@@ -49,11 +49,6 @@ export function ThreadRouteView({ target, paneId }: { target: ThreadRouteTarget;
   const serverThreadShell = useQuietThreadShell(serverThreadRef);
   const pendingCreation = usePendingThreadCreation(serverThreadRef ?? draftThreadRef);
   const outboxLoaded = useThreadOutboxLoaded();
-  const backgroundSubmissionPending = useComposerDraftStore(
-    (store) =>
-      draftThreadRef !== null &&
-      store.backgroundSubmissionThreadKeys[scopedThreadKey(draftThreadRef)] === true,
-  );
   // A send queued while the host is offline opens its thread before the host creates it; the
   // draft stays until the store promotes it.
   const pendingRedirect =
@@ -61,7 +56,6 @@ export function ThreadRouteView({ target, paneId }: { target: ThreadRouteTarget;
       ? resolveDraftPromotionNavigationTarget({
           serverThreadRef: null,
           serverThread: null,
-          backgroundSubmissionPending,
           pendingThreadRef: scopeThreadRef(
             pendingCreation.payload.environmentId,
             pendingCreation.payload.input.threadId,

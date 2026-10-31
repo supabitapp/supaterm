@@ -82,7 +82,7 @@ import { filterTerminalContextsWithText, type TerminalContextDraft } from "../li
 import { stripInlineContextReferences } from "~/lib/composerContextReferences";
 import type { DraftThreadEnvMode } from "../composerDraftStore";
 import { type ComposerSubmissionIntent } from "../composer-logic";
-import { derivePhase, type TimelineEntry } from "../session-logic";
+import { type TimelineEntry } from "../session-logic";
 import type { PreviewMiniPlayerSource } from "../previewMiniPlayerStore";
 import type { RightPanelSurface } from "../rightPanelStore";
 import {
@@ -258,7 +258,6 @@ export { resolveVisibleWorktreeSetup } from "@supaterm/client-runtime/worktree-s
 
 export function resolveWorktreeSetupProgress(input: {
   threadId: ThreadId;
-  localPreparing: boolean;
   runStatus: NonNullable<Thread["latestRun"]>["status"] | undefined;
   latest: WorktreeSetupSnapshot | null | undefined;
   held: WorktreeSetupSnapshot | null;
@@ -269,7 +268,6 @@ export function resolveWorktreeSetupProgress(input: {
   return {
     snapshot,
     isPreparingWorktree:
-      input.localPreparing ||
       input.runStatus === "preparing" ||
       (snapshot?.phase === "running" && !worktreeSetupAgentStarted(snapshot)),
   };
@@ -280,14 +278,10 @@ export function resolveDraftHeroState(input: {
   hasTimelineEntries: boolean;
   isWorking: boolean;
   draftHeroDockRequested: boolean;
-  backgroundSubmissionPending: boolean;
   hasWorktreeSetupCard?: boolean;
 }): boolean {
   if (input.hasWorktreeSetupCard) {
     return false;
-  }
-  if (input.backgroundSubmissionPending) {
-    return true;
   }
   return (
     input.isLocalDraftThread &&
@@ -934,43 +928,6 @@ export async function waitForRevertedMessage(
   });
 }
 
-export interface LocalDispatchSnapshot {
-  startedAt: string;
-  preparingWorktree: boolean;
-  submissionIntent: ComposerSubmissionIntent;
-  latestUserMessageId: ChatMessage["id"] | null;
-  latestRunId: RunId | null;
-  latestRunRequestedAt: string | null;
-  latestRunStartedAt: string | null;
-  latestRunCompletedAt: string | null;
-  runtimeStatus: NonNullable<Thread["runtime"]>["status"] | null;
-  runtimeUpdatedAt: string | null;
-}
-
-export function createLocalDispatchSnapshot(
-  activeThread: Thread | undefined,
-  options?: {
-    preparingWorktree?: boolean;
-    latestUserMessageId?: ChatMessage["id"] | null;
-    submissionIntent?: ComposerSubmissionIntent;
-  },
-): LocalDispatchSnapshot {
-  const latestRun = activeThread?.latestRun ?? null;
-  const runtime = activeThread?.runtime ?? null;
-  return {
-    startedAt: new Date().toISOString(),
-    preparingWorktree: Boolean(options?.preparingWorktree),
-    submissionIntent: options?.submissionIntent ?? "foreground",
-    latestUserMessageId: options?.latestUserMessageId ?? null,
-    latestRunId: latestRun?.runId ?? null,
-    latestRunRequestedAt: latestRun?.requestedAt ?? null,
-    latestRunStartedAt: latestRun?.startedAt ?? null,
-    latestRunCompletedAt: latestRun?.completedAt ?? null,
-    runtimeStatus: runtime?.status ?? null,
-    runtimeUpdatedAt: runtime?.updatedAt ?? null,
-  };
-}
-
 /**
  * The timeline renders committed user rows from `visibleTurnItems`, but
  * `message.updated` can land in `projection.messages` one event earlier than
@@ -984,63 +941,6 @@ export function deriveCommittedServerUserMessageIds(
     visibleTurnItems.flatMap((row) =>
       row.item.type === "user_message" ? [row.item.messageId] : [],
     ),
-  );
-}
-
-export function hasServerAcknowledgedLocalDispatch(input: {
-  localDispatch: LocalDispatchSnapshot | null;
-  phase: SessionPhase;
-  latestRun: Thread["latestRun"] | null;
-  latestUserMessageId?: ChatMessage["id"] | null;
-  runtime: Thread["runtime"] | null;
-  hasPendingApproval: boolean;
-  hasPendingUserInput: boolean;
-  threadError: string | null | undefined;
-}): boolean {
-  if (!input.localDispatch) {
-    return false;
-  }
-  if (input.hasPendingApproval || input.hasPendingUserInput || Boolean(input.threadError)) {
-    return true;
-  }
-  if (input.phase === "connecting" || derivePhase(input.runtime ?? null) === "connecting") {
-    return false;
-  }
-
-  const latestRun = input.latestRun ?? null;
-  const runtime = input.runtime ?? null;
-  const latestUserMessageChanged =
-    input.localDispatch.latestUserMessageId !== (input.latestUserMessageId ?? null);
-  const latestRunChanged =
-    input.localDispatch.latestRunId !== (latestRun?.runId ?? null) ||
-    input.localDispatch.latestRunRequestedAt !== (latestRun?.requestedAt ?? null) ||
-    input.localDispatch.latestRunStartedAt !== (latestRun?.startedAt ?? null) ||
-    input.localDispatch.latestRunCompletedAt !== (latestRun?.completedAt ?? null);
-
-  if (input.phase === "running") {
-    if (latestUserMessageChanged) {
-      return true;
-    }
-    if (!latestRunChanged) {
-      return false;
-    }
-    if (latestRun?.startedAt === null || latestRun === null) {
-      return false;
-    }
-    if (
-      runtime?.activeRunId !== null &&
-      runtime?.activeRunId !== undefined &&
-      latestRun?.runId !== runtime.activeRunId
-    ) {
-      return false;
-    }
-    return true;
-  }
-
-  return (
-    latestRunChanged ||
-    input.localDispatch.runtimeStatus !== (runtime?.status ?? null) ||
-    input.localDispatch.runtimeUpdatedAt !== (runtime?.updatedAt ?? null)
   );
 }
 

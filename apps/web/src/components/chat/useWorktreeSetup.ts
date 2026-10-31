@@ -38,7 +38,6 @@ export function useWorktreeSetup(input: {
   readonly threadRef: ScopedThreadRef | null;
   readonly serverProjection: ThreadStructure | null;
   readonly activityRun: Thread["latestRun"] | null;
-  readonly localPreparing: boolean;
   // A send the server queues behind the setup run, or the outbox behind the pending task.
   readonly sendQueuesBehindSetup: boolean;
   readonly followUpSent: boolean;
@@ -50,7 +49,6 @@ export function useWorktreeSetup(input: {
     threadRef,
     serverProjection,
     activityRun,
-    localPreparing,
     sendQueuesBehindSetup,
     followUpSent,
   } = input;
@@ -77,7 +75,7 @@ export function useWorktreeSetup(input: {
   const snapshotQuery = useEnvironmentQuery(
     started ||
       (activeThread?.id === routeThreadRef.threadId &&
-        (localPreparing || runPreparing || activeThread.worktreePath !== null))
+        (runPreparing || activeThread.worktreePath !== null))
       ? vcsEnvironment.worktreeSetup({
           environmentId: target.environmentId,
           input: { threadId: target.threadId },
@@ -104,7 +102,6 @@ export function useWorktreeSetup(input: {
   }
   const { snapshot: liveSnapshot, isPreparingWorktree } = resolveWorktreeSetupProgress({
     threadId: target.threadId,
-    localPreparing,
     runStatus: activityRun?.status,
     latest: latestSnapshot,
     held: heldSnapshot,

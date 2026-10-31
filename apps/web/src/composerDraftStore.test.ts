@@ -64,8 +64,6 @@ import {
   subscribeComposerDraftModelReconciliation,
   deriveEffectiveComposerModelState,
   clearComposerDraftsEnvironment,
-  beginBackgroundDraftSubmissionByRef,
-  clearBackgroundDraftSubmissionByRef,
   finalizePromotedDraftThreadByRef,
   markPromotedDraftThreadByRef,
   resolveDraftPromotionNavigationTarget,
@@ -154,7 +152,6 @@ function resetComposerDraftStore() {
     draftsByThreadKey: {},
     draftThreadsByThreadKey: {},
     logicalProjectDraftThreadKeyByLogicalProjectKey: {},
-    backgroundSubmissionThreadKeys: {},
     promotedDraftRedirects: {},
     stickyModelSelectionByProvider: {},
     stickyOptionsByModelByProvider: {},
@@ -975,22 +972,6 @@ describe("composerDraftStore project draft thread mapping", () => {
     expect(draftByKey(remoteDraftId)?.prompt).toBe("remote draft");
   });
 
-  it("keeps background submission pending until navigation or failure releases it", () => {
-    const store = useComposerDraftStore.getState();
-    store.setProjectDraftThreadId(projectRef, draftId, { threadId });
-    const ref = scopeThreadRef(TEST_ENVIRONMENT_ID, threadId);
-    const key = scopedThreadKey(ref);
-    beginBackgroundDraftSubmissionByRef(ref);
-    expect(useComposerDraftStore.getState().backgroundSubmissionThreadKeys[key]).toBe(true);
-    clearBackgroundDraftSubmissionByRef(ref);
-    expect(useComposerDraftStore.getState().backgroundSubmissionThreadKeys[key]).toBeUndefined();
-    expect(useComposerDraftStore.getState().getDraftSession(draftId)).not.toBeNull();
-    beginBackgroundDraftSubmissionByRef(ref);
-    finalizePromotedDraftThreadByRef(ref);
-    expect(useComposerDraftStore.getState().backgroundSubmissionThreadKeys[key]).toBeUndefined();
-    expect(useComposerDraftStore.getState().getDraftSession(draftId)).toBeNull();
-  });
-
   it("restores a failed draft without changing the fresh draft", () => {
     const store = useComposerDraftStore.getState();
     store.setProjectDraftThreadId(projectRef, draftId, { threadId });
@@ -1396,14 +1377,12 @@ describe("composerDraftStore draft promotion", () => {
       resolveDraftPromotionNavigationTarget({
         serverThreadRef: threadRef,
         serverThread: { latestRun: preparingRun, latestUserMessageAt: null },
-        backgroundSubmissionPending: false,
       }),
     ).toBeNull();
     expect(
       resolveDraftPromotionNavigationTarget({
         serverThreadRef: threadRef,
         serverThread: { latestRun: null, latestUserMessageAt: null },
-        backgroundSubmissionPending: false,
       }),
     ).toBeNull();
     const persisted = { latestRun: preparingRun, latestUserMessageAt: "2026-03-29T00:00:00.000Z" };
@@ -1411,16 +1390,8 @@ describe("composerDraftStore draft promotion", () => {
       resolveDraftPromotionNavigationTarget({
         serverThreadRef: threadRef,
         serverThread: persisted,
-        backgroundSubmissionPending: false,
       }),
     ).toBe(threadRef);
-    expect(
-      resolveDraftPromotionNavigationTarget({
-        serverThreadRef: threadRef,
-        serverThread: persisted,
-        backgroundSubmissionPending: true,
-      }),
-    ).toBeNull();
   });
 
   it("opens a persisted pending creation before the offline host creates the thread", () => {
@@ -1429,17 +1400,8 @@ describe("composerDraftStore draft promotion", () => {
         serverThreadRef: null,
         serverThread: null,
         pendingThreadRef: threadRef,
-        backgroundSubmissionPending: false,
       }),
     ).toBe(threadRef);
-    expect(
-      resolveDraftPromotionNavigationTarget({
-        serverThreadRef: null,
-        serverThread: null,
-        pendingThreadRef: threadRef,
-        backgroundSubmissionPending: true,
-      }),
-    ).toBeNull();
   });
 
   it("marks a draft promoting when its reserved thread arrives, then finalizes into it", async () => {
@@ -1465,26 +1427,6 @@ describe("composerDraftStore draft promotion", () => {
     expect(state.getDraftSession(draftId)).toBeNull();
     expect(state.getPromotedDraftRedirect(draftId)).toEqual(threadRef);
     expect(draftFor(threadId, TEST_ENVIRONMENT_ID)?.prompt).toBe("typed during setup");
-  });
-
-  it("holds a background submission on its draft until the send settles", async () => {
-    const h = draftPromotionHarness();
-    const store = useComposerDraftStore.getState();
-    store.setProjectDraftThreadId(projectRef, draftId, { threadId });
-    beginBackgroundDraftSubmissionByRef(threadRef);
-    h.arrive(threadRef, {
-      latestRun: preparingRun,
-      latestUserMessageAt: "2026-03-29T00:00:00.000Z",
-    });
-    await waitForDraftHeroTransition();
-    expect(useComposerDraftStore.getState().getDraftSession(draftId)?.promotedTo).toEqual(
-      threadRef,
-    );
-
-    clearBackgroundDraftSubmissionByRef(threadRef);
-    h.flush();
-    await waitForDraftHeroTransition();
-    expect(useComposerDraftStore.getState().getDraftSession(draftId)).toBeNull();
   });
 
   it("does not finalize a draft whose send failed and was restored", async () => {

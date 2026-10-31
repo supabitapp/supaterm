@@ -382,7 +382,6 @@ interface ComposerDraftStoreState {
   draftsByThreadKey: Record<string, ComposerThreadDraftState>;
   draftThreadsByThreadKey: Record<string, DraftThreadState>;
   logicalProjectDraftThreadKeyByLogicalProjectKey: Record<string, string>;
-  backgroundSubmissionThreadKeys: Record<string, true>;
   /**
    * Where each finalized draft went, so `/draft/<id>` keeps leading to its thread (Back, an
    * "Open draft" toast) after the draft is gone. In memory only, one small entry per sent draft.
@@ -1851,7 +1850,6 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
         draftsByThreadKey: {},
         draftThreadsByThreadKey: {},
         logicalProjectDraftThreadKeyByLogicalProjectKey: {},
-        backgroundSubmissionThreadKeys: {},
         promotedDraftRedirects: {},
         rewindingThreadKeys: new Set<string>(),
         stickyModelSelectionByProvider: {},
@@ -3601,25 +3599,6 @@ export function subscribeComposerDraftModelReconciliation(input: {
   };
 }
 
-export function beginBackgroundDraftSubmissionByRef(threadRef: ScopedThreadRef): void {
-  const threadKey = scopedThreadKey(threadRef);
-  useComposerDraftStore.setState((state) => ({
-    backgroundSubmissionThreadKeys: { ...state.backgroundSubmissionThreadKeys, [threadKey]: true },
-  }));
-}
-
-export function clearBackgroundDraftSubmissionByRef(threadRef: ScopedThreadRef): void {
-  const threadKey = scopedThreadKey(threadRef);
-  useComposerDraftStore.setState((state) => {
-    if (!state.backgroundSubmissionThreadKeys[threadKey]) {
-      return state;
-    }
-    const backgroundSubmissionThreadKeys = { ...state.backgroundSubmissionThreadKeys };
-    delete backgroundSubmissionThreadKeys[threadKey];
-    return { backgroundSubmissionThreadKeys };
-  });
-}
-
 export function clearComposerDraftsEnvironment(environmentId: EnvironmentId): void {
   useComposerDraftStore.setState((state) => {
     const removedThreadKeys = new Set<string>();
@@ -3664,11 +3643,6 @@ export function clearComposerDraftsEnvironment(environmentId: EnvironmentId): vo
         return false;
       }),
     ) as Record<string, ComposerThreadDraftState>;
-    const nextBackgroundSubmissionThreadKeys = Object.fromEntries(
-      Object.entries(state.backgroundSubmissionThreadKeys).filter(
-        ([threadKey]) => parseScopedThreadKey(threadKey)?.environmentId !== environmentId,
-      ),
-    ) as Record<string, true>;
     const nextPromotedDraftRedirects = Object.fromEntries(
       Object.entries(state.promotedDraftRedirects).filter(
         ([, promotedTo]) => promotedTo.environmentId !== environmentId,
@@ -3679,7 +3653,6 @@ export function clearComposerDraftsEnvironment(environmentId: EnvironmentId): vo
       draftsByThreadKey: nextDrafts,
       draftThreadsByThreadKey: nextDraftThreads,
       logicalProjectDraftThreadKeyByLogicalProjectKey: nextLogicalMappings,
-      backgroundSubmissionThreadKeys: nextBackgroundSubmissionThreadKeys,
       promotedDraftRedirects: nextPromotedDraftRedirects,
       rewindingThreadKeys: new Set(
         [...state.rewindingThreadKeys].filter(
@@ -3763,7 +3736,6 @@ export function finalizePromotedDraftThreadByRef(threadRef: ScopedThreadRef): vo
       draftStore.finalizePromotedDraftThread(target);
     }
   }
-  clearBackgroundDraftSubmissionByRef(threadRef);
 }
 
 type DraftPromotionShell = Pick<EnvironmentThreadShell, "latestRun" | "latestUserMessageAt">;
@@ -3772,13 +3744,9 @@ type DraftPromotionShell = Pick<EnvironmentThreadShell, "latestRun" | "latestUse
 export function resolveDraftPromotionNavigationTarget(input: {
   serverThreadRef: ScopedThreadRef | null;
   serverThread: DraftPromotionShell | null | undefined;
-  backgroundSubmissionPending: boolean;
   /** A creation persisted in the outbox opens its thread before an offline host creates it. */
   pendingThreadRef?: ScopedThreadRef | null;
 }): ScopedThreadRef | null {
-  if (input.backgroundSubmissionPending) {
-    return null;
-  }
   if (input.pendingThreadRef) return input.pendingThreadRef;
   const latestRun = input.serverThread?.latestRun ?? null;
   const runStarted = latestRun?.startedAt != null;
@@ -3804,14 +3772,10 @@ export function subscribeDraftThreadPromotion(input: {
   // Only the promotion slices: prompt edits replace the store state on every keystroke.
   const promotionSlices = (state: ComposerDraftStoreState) => ({
     draftThreadsByThreadKey: state.draftThreadsByThreadKey,
-    backgroundSubmissionThreadKeys: state.backgroundSubmissionThreadKeys,
   });
   const draftsAtom = Atom.make(promotionSlices(composerDraftStore.getState()));
   const unsubscribeDrafts = composerDraftStore.subscribe((state, previous) => {
-    if (
-      state.draftThreadsByThreadKey === previous.draftThreadsByThreadKey &&
-      state.backgroundSubmissionThreadKeys === previous.backgroundSubmissionThreadKeys
-    ) {
+    if (state.draftThreadsByThreadKey === previous.draftThreadsByThreadKey) {
       return;
     }
     input.registry.set(draftsAtom, promotionSlices(state));
@@ -3837,7 +3801,6 @@ export function subscribeDraftThreadPromotion(input: {
       const target = resolveDraftPromotionNavigationTarget({
         serverThreadRef: ref,
         serverThread: get(input.threadShellAtom(ref)),
-        backgroundSubmissionPending: state.backgroundSubmissionThreadKeys[threadKey] === true,
       });
       if (target) owned.push([DraftId.make(draftId), target]);
     }

@@ -37,7 +37,6 @@ interface TimelineRewindInput {
   readonly isServerThread: boolean;
   readonly timelineMessages: ReadonlyArray<ChatMessage>;
   readonly phase: SessionPhase;
-  readonly isSendBusy: boolean;
   readonly isRevertingCheckpoint: boolean;
   readonly threadDetailLoading: boolean;
   readonly supportsConversationRollback: boolean;
@@ -65,7 +64,6 @@ export function useTimelineRewind(input: TimelineRewindInput) {
     isServerThread,
     timelineMessages,
     phase,
-    isSendBusy,
     isRevertingCheckpoint,
     threadDetailLoading,
     supportsConversationRollback,
@@ -115,7 +113,7 @@ export function useTimelineRewind(input: TimelineRewindInput) {
       );
       return;
     }
-    if (phase === "running" || isSendBusy) {
+    if (phase === "running") {
       setThreadError(activeThread.id, "Interrupt the current turn before reverting checkpoints.");
       return;
     }

@@ -131,7 +131,6 @@ interface ComposerSendInput {
   readonly isRevertingCheckpoint: boolean;
   readonly threadDetailLoading: boolean;
   readonly activeEnvironmentUnavailable: boolean;
-  readonly isSendBusy: boolean;
   readonly sendQueuesBehindSetup: boolean;
   readonly isDraftHeroState: boolean;
   readonly panelAnimationsActive: boolean;
@@ -193,7 +192,6 @@ export function useComposerSend(input: ComposerSendInput) {
     isRevertingCheckpoint,
     threadDetailLoading,
     activeEnvironmentUnavailable,
-    isSendBusy,
     sendQueuesBehindSetup,
     isDraftHeroState,
     panelAnimationsActive,
@@ -282,7 +280,6 @@ export function useComposerSend(input: ComposerSendInput) {
     if (
       !readCanQueueComposerMessage(environmentId) ||
       !activeThread ||
-      isSendBusy ||
       isRevertingCheckpoint ||
       !clientSettingsHydrated ||
       (threadDetailLoading && !activeEnvironmentUnavailable) ||
