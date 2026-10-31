@@ -1861,13 +1861,14 @@ describe("standalone Mermaid previews", () => {
       .spyOn(HTMLImageElement.prototype, "src", "set")
       .mockImplementation(() => {});
     await using screen = await render(<MermaidFilePreview text={`flowchart LR\n${node}`} />);
-    await vi.waitFor(() =>
-      expect(
-        screen.container.querySelector("[data-markdown-mermaid] svg, .text-destructive"),
-      ).not.toBeNull(),
+    // Pele lays these out in a worker, so the diagram has to be on screen before its absence of
+    // resource references means anything.
+    await vi.waitFor(
+      () => expect(screen.container.querySelector("[data-markdown-mermaid] svg")).not.toBeNull(),
+      { timeout: 10_000 },
     );
     expect(imageSource).not.toHaveBeenCalled();
-    expect(screen.container.querySelector("img, image, foreignObject")).toBeNull();
+    expect(screen.container.querySelector("img, image, foreignObject, [*|href], [src]")).toBeNull();
   });
 
   it.each(["<-->", "<==>", "<-.->", "-->"])("renders the %s arrow", async (arrow) => {
