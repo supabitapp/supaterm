@@ -134,7 +134,7 @@ export async function uploadEnvironmentVoiceRecording(input: {
     if (error instanceof VoiceUploadError && error.reason === "unsupportedLanguage") {
       throw new VoiceUploadError(
         error.reason,
-        `${error.message} Choose a voice language in Settings.`,
+        `${error.message} Choose another provider under Voice transcription in Settings.`,
         false,
         { cause: error },
       );

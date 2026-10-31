@@ -1,4 +1,3 @@
-import { RegistryContext, useAtomMount } from "@effect/atom-react";
 import {
   AudioModule,
   AudioQuality,
@@ -21,16 +20,10 @@ import {
   type ReactNode,
 } from "react";
 import { AppState, Platform } from "react-native";
-import { AsyncResult } from "effect/reactivity";
 import { useSharedValue } from "react-native-reanimated";
 
-import {
-  microphoneOrder,
-  preferredMicrophoneInput,
-  rememberMicrophones,
-} from "../../lib/microphonePriority";
+import { preferredMicrophoneInput } from "../../lib/microphonePriority";
 import { createPcmVoiceRecorder } from "../../native/pcmVoiceRecorder";
-import { mobilePreferencesAtom, updateMobilePreferencesAtom } from "../../state/preferences";
 import { getNativeShowcaseScene } from "../showcase/nativeShowcaseScene";
 import {
   VOICE_RECORDING_LIMIT_SECONDS,
@@ -49,8 +42,8 @@ import { VoiceInputSession } from "./voiceInputSession";
 
 const INITIAL_STATE: VoiceInputState = { phase: "idle", error: null, errorAction: null };
 const VOICE_METERING_INTERVAL_MS = 80;
-// The format environments transcribe, which Apple's on-device transcriber reads too. The
-// native constructor takes the platform-flattened options `useAudioRecorder` would build.
+// The format environments transcribe. The native constructor takes the platform-flattened
+// options `useAudioRecorder` would build.
 const IOS_VOICE_RECORDING_OPTIONS = {
   extension: ".wav",
   sampleRate: 16_000,
@@ -111,14 +104,10 @@ export function useGlobalVoiceInput() {
 }
 
 function useVoiceInputRuntime() {
-  const registry = use(RegistryContext);
-  useAtomMount(mobilePreferencesAtom);
-  useAtomMount(updateMobilePreferencesAtom);
-  const [{ state, ownerKey, label, engineLabel }, setState] = useState({
+  const [{ state, ownerKey, label }, setState] = useState({
     state: INITIAL_STATE,
     ownerKey: null as string | null,
     label: null as string | null,
-    engineLabel: null as string | null,
   });
   const [focusedOwners, setFocusedOwners] = useState<ReadonlySet<string>>(new Set());
   const setOwnerFocused = useCallback((key: string, focused: boolean) => {
@@ -152,21 +141,7 @@ function useVoiceInputRuntime() {
           url: status.url,
         });
       },
-      // Read when recording starts so preference changes do not re-render every composer.
-      selectInput: (inputs) => {
-        const preferences = registry.get(mobilePreferencesAtom);
-        if (!AsyncResult.isSuccess(preferences)) return null;
-        const known = microphoneOrder(preferences.value.microphones);
-        const order = rememberMicrophones(known, inputs);
-        if (order !== known) {
-          registry.set(updateMobilePreferencesAtom, {
-            transform: (current) => ({
-              microphones: rememberMicrophones(microphoneOrder(current.microphones), inputs),
-            }),
-          });
-        }
-        return preferredMicrophoneInput(inputs, order);
-      },
+      selectInput: preferredMicrophoneInput,
     });
     let phase = INITIAL_STATE.phase;
     const session = new VoiceInputSession({
@@ -184,12 +159,7 @@ function useVoiceInputRuntime() {
           void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         }
         phase = nextState.phase;
-        setState({
-          state: nextState,
-          ownerKey: session.ownerKey,
-          label: session.label,
-          engineLabel: session.engine?.label ?? null,
-        });
+        setState({ state: nextState, ownerKey: session.ownerKey, label: session.label });
       },
     });
     return { session, recorder };
@@ -278,7 +248,6 @@ function useVoiceInputRuntime() {
     isBusy: voiceInputBlocksSubmission(state),
     ownerKey,
     label,
-    engineLabel,
     focusedOwners,
     setOwnerFocused,
     session,

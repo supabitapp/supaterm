@@ -35,7 +35,7 @@ vi.mock("@react-navigation/native", () => ({
 vi.mock("./composerVoiceEngine", () => ({
   resolveComposerVoiceEngine: () => ({
     status: "ready",
-    engine: { kind: engineKind, label: "Claude · English", transcriber, language: "en-US" },
+    engine: { transcriber, language: "en-US" },
   }),
   presentUnavailableVoiceEngine: vi.fn(),
 }));
@@ -59,7 +59,6 @@ import { useVoiceInputController } from "./useVoiceInputController";
 
 let state: VoiceInputState;
 let session: VoiceInputSession;
-let engineKind: "environment" | "device";
 let transcriber: VoiceTranscriber;
 const voiceSends = vi.fn<(uri: string, language: string) => Promise<void>>();
 let control: ReturnType<typeof useVoiceInputController>;
@@ -140,7 +139,6 @@ beforeEach(() => {
   transcribing = Promise.withResolvers<void>();
   settled = Promise.withResolvers<void>();
   transcript = Promise.withResolvers<string>();
-  engineKind = "environment";
   voiceSends.mockReset();
   voiceSends.mockResolvedValue(undefined);
   transcriber = {
@@ -199,16 +197,6 @@ describe("dictation submission", () => {
     expect(voiceSends.mock.calls).toEqual([["file:///recording.wav", "en-US"]]);
     expect(sends).not.toHaveBeenCalled();
     expect(state.phase).toBe("idle");
-  });
-
-  it("transcribes on this device before sending, even from an empty draft", async () => {
-    drafts.set("first", "");
-    engineKind = "device";
-    await start();
-    await send();
-    await finish();
-    expect(voiceSends).not.toHaveBeenCalled();
-    expect(sends.mock.calls).toEqual([["spoken words"]]);
   });
 
   it("stops for review without sending", async () => {

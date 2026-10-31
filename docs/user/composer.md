@@ -218,16 +218,17 @@ and use **Attach again** or remove the missing file before sending.
 ## Voice input
 
 Press the microphone in the composer, or `mod+shift+space` on web and desktop, to record a
-prompt of up to five minutes. On web and desktop, while you record:
+prompt of up to five minutes. On web and desktop, the recording stays in the composer
+while you speak:
 
-- **Stop and review** transcribes the recording into the draft where your cursor was, so
-  you can edit it before sending.
-- **Send** sends the recording as your next message. With an empty draft in a thread that
-  has started, it waits in the [queue](#queued-messages) like a typed message, even while
-  you are offline, and the environment transcribes and sends it once it is reachable. With
-  text or attachments in the draft, Send transcribes the recording, adds it, and sends
-  everything together.
-- **Discard**, or `Escape`, throws the recording away and keeps your draft.
+- **Stop and review**, or `mod+shift+space` again, transcribes the recording into the
+  draft where your cursor was, so you can edit it before sending.
+- **Send**, or `Enter`, sends the recording as your next message. With an empty draft in a
+  thread that has started, it waits in the [queue](#queued-messages) like a typed message,
+  even while you are offline, and the environment transcribes and sends it once it is
+  reachable. With text or attachments in the draft, Send transcribes the recording, adds
+  it, and sends everything together.
+- `Escape` throws the recording away and keeps your draft.
 
 The environment transcribes with the provider chosen under **Settings → General → Voice
 transcription** (**Settings → Voice transcription** on mobile), Claude by default, and that
@@ -238,8 +239,8 @@ another account. A Claude instance that runs on an API key, a gateway's
 Claude instance with its own
 [config directory](./providers-claude.md#separate-accounts-or-configurations) signed in to
 your subscription. Choose the language you speak under **Settings → General → Voice
-language** (**Settings → Voice input → Voice language** on mobile); it follows your system
-language by default.
+language**; it follows your system language by default. On iPhone and Android, voice input
+always uses your phone's language.
 
 Recording in a browser needs HTTPS or `localhost`. A remote browser on a plain `http://`
 address can't use the microphone. The first time you record, allow microphone access; on
@@ -264,21 +265,13 @@ you can retry or discard it. A transcript the thread couldn't accept stays as te
 edit or retry. With text in the draft, the up arrow transcribes, adds the text, and
 sends.
 
-On iPhones with iOS 26 or later, **Settings → Voice input → Transcribe on → This iPhone**
-uses Apple's on-device recognition instead of the environment. It works offline once its
-speech model has downloaded, and only the message text leaves your phone.
-
 Canceling or an audio interruption discards the recording and preserves your existing
 draft. Leaving the screen keeps voice input available in the floating control, but
 cancels a pending send. While recording, the screen stays awake; it can sleep normally
 once recording stops.
 
-On iPhone, voice input records from the first connected microphone in **Settings →
-Voice input**. The list mixes kinds (built-in, other wired, other Bluetooth, CarPlay)
-with wired and Bluetooth devices you have dictated with, listed by name. Drag to rank
-them together: for example, put **Other Bluetooth** above your AirPods so a new headset
-is preferred while the AirPods microphone stays low. By default, CarPlay comes after the
-built-in microphone.
+On iPhone, voice input records from a connected wired microphone first, then Bluetooth,
+then the built-in microphone, then CarPlay.
 
 ## Queued messages
 

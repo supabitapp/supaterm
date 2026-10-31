@@ -13,8 +13,6 @@ import {
 let prepare: Mock<() => Promise<PreparedVoiceTranscription>>;
 
 const engine = (): VoiceInputEngine => ({
-  kind: "device",
-  label: "This iPhone",
   transcriber: { prepare },
   language: "en-US",
 });

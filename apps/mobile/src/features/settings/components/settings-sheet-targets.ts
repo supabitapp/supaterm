@@ -13,7 +13,6 @@ export type SettingsSheetTarget =
   | "SettingsEnvironmentVoiceTranscription"
   | "SettingsProviderAccounts"
   | "SettingsKeyboard"
-  | "SettingsMicrophone"
   | "SettingsFollowUp"
   | "SettingsScheduledTasks"
   | "SettingsProjectGrouping"

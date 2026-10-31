@@ -7,9 +7,7 @@ import {
   type VoiceTranscriber,
 } from "@supaterm/client-runtime/voice-input";
 
-import type { VoiceEngine } from "../../lib/voiceEngine";
-
-export type VoiceInputEngine = VoiceEngine & {
+export type VoiceInputEngine = {
   readonly transcriber: VoiceTranscriber;
   /** BCP 47, what an environment is asked to transcribe in. */
   readonly language: string;

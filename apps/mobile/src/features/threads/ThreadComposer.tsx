@@ -1179,7 +1179,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                   <ComposerDictationStatus
                     audioLevels={voiceInput.audioLevels}
                     elapsedSeconds={voiceInput.elapsedSeconds}
-                    engineLabel={voiceInput.engineLabel}
                     phase={voiceInput.state.phase}
                     presentation={voicePresentation}
                     onDismissError={voiceInput.cancel}

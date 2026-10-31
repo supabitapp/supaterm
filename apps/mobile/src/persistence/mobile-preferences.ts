@@ -16,9 +16,6 @@ import {
 } from "@supaterm/contracts";
 import type { ComposerEnterBehavior } from "../lib/composerEnterBehavior";
 import type { FollowUpBehavior } from "../lib/followUpBehavior";
-import { isMicrophoneKind, type MicrophoneEntry } from "../lib/microphonePriority";
-import type { VoiceTranscriptionEngine } from "../lib/voiceEngine";
-import { normalizeVoiceLanguage } from "../lib/voiceLanguage";
 import { MOBILE_THEME_IDS, type MobileThemeId, type MobileThemeMode } from "../lib/mobileTheme";
 import * as MobileDatabase from "./mobile-database";
 import * as MobileSecureStorage from "./mobile-secure-storage";
@@ -71,11 +68,6 @@ export interface Preferences {
   readonly composerEnterBehavior?: ComposerEnterBehavior;
   readonly showSkillsInSlashMenu?: boolean;
   readonly followUpBehavior?: FollowUpBehavior;
-  readonly microphones?: ReadonlyArray<MicrophoneEntry>;
-  /** Who transcribes this device's voice input. Unset means the thread's environment. */
-  readonly voiceTranscriptionEngine?: VoiceTranscriptionEngine;
-  /** BCP 47 tag environments transcribe in. Null or unset means the system language. */
-  readonly voiceLanguage?: string | null;
   readonly projectGroupingMode?: SidebarProjectGroupingMode;
   readonly threadGrouping?: SidebarThreadGrouping;
   readonly threadListPinnedShelfExpanded?: boolean;
@@ -142,9 +134,6 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     composerEnterBehavior?: ComposerEnterBehavior;
     showSkillsInSlashMenu?: boolean;
     followUpBehavior?: FollowUpBehavior;
-    microphones?: ReadonlyArray<MicrophoneEntry>;
-    voiceTranscriptionEngine?: VoiceTranscriptionEngine;
-    voiceLanguage?: string | null;
     projectGroupingMode?: SidebarProjectGroupingMode;
     threadGrouping?: SidebarThreadGrouping;
     threadListPinnedShelfExpanded?: boolean;
@@ -216,27 +205,6 @@ function sanitizePreferences(parsed: Preferences): Preferences {
   }
   if (parsed.followUpBehavior === "queue" || parsed.followUpBehavior === "steer") {
     preferences.followUpBehavior = parsed.followUpBehavior;
-  }
-  if (Array.isArray(parsed.microphones)) {
-    preferences.microphones = parsed.microphones.flatMap((entry): MicrophoneEntry[] => {
-      if (typeof entry !== "object" || entry === null || !isMicrophoneKind(entry.kind)) return [];
-      if (!("uid" in entry)) return [{ kind: entry.kind }];
-      return typeof entry.uid === "string" && typeof entry.name === "string"
-        ? [{ kind: entry.kind, uid: entry.uid, name: entry.name }]
-        : [];
-    });
-  }
-  if (
-    parsed.voiceTranscriptionEngine === "environment" ||
-    parsed.voiceTranscriptionEngine === "device"
-  ) {
-    preferences.voiceTranscriptionEngine = parsed.voiceTranscriptionEngine;
-  }
-  if (parsed.voiceLanguage === null) {
-    preferences.voiceLanguage = null;
-  } else if (typeof parsed.voiceLanguage === "string") {
-    const language = normalizeVoiceLanguage(parsed.voiceLanguage);
-    if (language !== null) preferences.voiceLanguage = language;
   }
   if (
     parsed.projectGroupingMode === "repository" ||

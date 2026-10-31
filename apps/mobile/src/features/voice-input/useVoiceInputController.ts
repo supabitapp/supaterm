@@ -10,7 +10,6 @@ import {
 import type { EnvironmentId } from "@supaterm/contracts";
 
 import type { ComposerEditorSelection } from "../../components/ComposerEditor";
-import type { VoiceTranscriptionEngine } from "../../lib/voiceEngine";
 import {
   presentUnavailableVoiceEngine,
   resolveComposerVoiceEngine,
@@ -31,7 +30,7 @@ export function useVoiceInputController(input: {
   readonly onChangeDraftMessage: (value: string) => void;
   readonly onChangeSelection: (selection: ComposerEditorSelection) => void;
   readonly onSubmit?: () => void;
-  /** Whose environment transcribes, unless this device was chosen to. */
+  /** Whose environment transcribes. */
   readonly environmentId: EnvironmentId | null;
   readonly context?: VoiceTranscriptionContext;
   /**
@@ -71,24 +70,17 @@ export function useVoiceInputController(input: {
     }, [input.ownerKey, setOwnerFocused]),
   );
 
-  const begin = useCallback(async () => {
-    const resolve = (preference?: VoiceTranscriptionEngine) => {
-      const current = latestInput.current;
-      return resolveComposerVoiceEngine({
-        environmentId: current.environmentId,
-        ...(current.context ? { context: current.context } : {}),
-        ...(preference ? { preference } : {}),
-      });
-    };
-    if (!latestInput.current.ownerKey || latestInput.current.disabled) return;
-    let resolution = resolve();
-    if (resolution.status === "unavailable") {
-      if (!(await presentUnavailableVoiceEngine(resolution))) return;
-      resolution = resolve("device");
-      if (resolution.status === "unavailable") return;
-    }
+  const start = useCallback(() => {
     const captured = latestInput.current;
     if (!captured.ownerKey || captured.disabled) return;
+    const resolution = resolveComposerVoiceEngine({
+      environmentId: captured.environmentId,
+      ...(captured.context ? { context: captured.context } : {}),
+    });
+    if (resolution.status === "unavailable") {
+      presentUnavailableVoiceEngine(resolution.message);
+      return;
+    }
     submission.current = null;
     Keyboard.dismiss();
     // Played before the microphone opens; iOS mutes haptics while recording.
@@ -110,7 +102,6 @@ export function useVoiceInputController(input: {
       engine: resolution.engine,
     });
   }, [session]);
-  const start = useCallback(() => void begin(), [begin]);
   const state = global.ownerKey === input.ownerKey ? global.state : IDLE_STATE;
   const isBusy = voiceInputBlocksSubmission(state);
   useEffect(() => {
@@ -140,7 +131,7 @@ export function useVoiceInputController(input: {
       return;
     const { engine } = session;
     const { voiceMessage } = current;
-    if (engine?.kind === "environment" && voiceMessage?.accepts()) {
+    if (engine && voiceMessage?.accepts()) {
       submission.current = null;
       void session.send((uri) => voiceMessage.send(uri, engine.language));
       return;
@@ -157,7 +148,6 @@ export function useVoiceInputController(input: {
     state,
     audioLevels: global.audioLevels,
     elapsedSeconds: global.elapsedSeconds,
-    engineLabel: global.ownerKey === input.ownerKey ? global.engineLabel : null,
     isBusy,
     freezesEditor: isBusy,
     blocksSubmission: isBusy,

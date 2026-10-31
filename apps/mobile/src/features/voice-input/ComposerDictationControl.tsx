@@ -359,8 +359,6 @@ function SessionCapsuleButton(props: {
 export function ComposerDictationStatus(props: {
   readonly audioLevels: SharedValue<number[]>;
   readonly elapsedSeconds: number;
-  /** Who transcribes this recording, such as "Claude · English". */
-  readonly engineLabel?: string | null;
   readonly phase: VoiceInputPhase;
   readonly presentation: VoiceComposerPresentation;
   readonly onDismissError: () => void;
@@ -406,11 +404,7 @@ export function ComposerDictationStatus(props: {
       ) : (
         <GlassSurface
           accessible
-          accessibilityLabel={
-            props.engineLabel
-              ? `${props.presentation.statusLabel}, ${props.engineLabel}`
-              : props.presentation.statusLabel
-          }
+          accessibilityLabel={props.presentation.statusLabel}
           accessibilityLiveRegion={props.phase === "recording" ? "none" : "polite"}
           style={SESSION_CAPSULE_STYLE}
         >
@@ -418,17 +412,10 @@ export function ComposerDictationStatus(props: {
             className="absolute inset-0 min-w-0 flex-row items-center gap-2.5 px-4"
             style={waveformStyle}
           >
-            <View className="min-w-0 max-w-[75%] shrink justify-center">
-              <DictationElapsedTime
-                className="text-2xl font-semibold text-foreground"
-                seconds={props.elapsedSeconds}
-              />
-              {props.engineLabel ? (
-                <Text className="text-2xs text-foreground-muted" numberOfLines={1}>
-                  {props.engineLabel}
-                </Text>
-              ) : null}
-            </View>
+            <DictationElapsedTime
+              className="text-2xl font-semibold text-foreground"
+              seconds={props.elapsedSeconds}
+            />
             <VoiceWaveform audioLevels={props.audioLevels} />
           </Animated.View>
           <Animated.View className="absolute inset-0 justify-center px-2" style={labelStyle}>
