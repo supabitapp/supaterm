@@ -28,6 +28,7 @@ const reactTests = [
   "src/features/threads/NewTaskDraftRouteScreen.test.tsx",
   "src/features/voice-input/useVoiceInputController.test.tsx",
   "src/native/NativeHeaderToolbar.test.tsx",
+  "src/native/V5StackHeader.ios.test.tsx",
   "src/native/useRetryingImageSource.test.tsx",
   "src/state/queries.debounce.test.tsx",
   "src/state/use-composer-attachment-actions.test.tsx",
