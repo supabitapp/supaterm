@@ -116,8 +116,14 @@ export function WorkspaceToolbar(props: {
   );
   useHardwareKeyboardCommand("focusSearch", focusSearch);
   const restoreSearch = useCallback(() => {
-    if (isTabActive(selectedTab) && tab.searchMode !== "resting")
-      searchRef.current?.setText(tab.query);
+    if (!isTabActive(selectedTab) || tab.searchMode === "resting") return;
+    searchRef.current?.setText(tab.query);
+    // Integrated search collapses to its button when its screen reappears,
+    // which would hide the query that still filters the list.
+    if (NATIVE_LIQUID_GLASS_SUPPORTED) {
+      searchRef.current?.setActive(true);
+      if (tab.searchMode === "active") searchRef.current?.focus();
+    }
   }, [isTabActive, selectedTab, tab.searchMode, tab.query]);
   useFocusEffect(
     useCallback(() => {
