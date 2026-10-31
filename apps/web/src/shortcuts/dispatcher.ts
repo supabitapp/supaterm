@@ -27,13 +27,7 @@ export type CommandHandler = (invocation: CommandInvocation) => boolean | void;
 export type CommandHandlers = Partial<Record<KeybindingCommand, CommandHandler>>;
 
 /** Runs any command a scope owns, returning `false` for the rest; for sets that change, such as project scripts. */
-export type CommandRunner = (
-  command: KeybindingCommand,
-  invocation: CommandInvocation,
-) => boolean | void;
-
-/** Return `false` to let the scope look the key up as a command. */
-export type KeyHandler = (event: KeyboardEvent) => boolean | void;
+type CommandRunner = (command: KeybindingCommand, invocation: CommandInvocation) => boolean | void;
 
 export interface CommandScopeOptions {
   /** Read when a key or command arrives; a scope whose guard fails is skipped. */
@@ -43,8 +37,11 @@ export interface CommandScopeOptions {
   readonly keybindings?: () => ResolvedKeybindingsConfig;
   /** Project script bindings; a key resolves to a script command only through these. */
   readonly scriptKeybindings?: () => ResolvedKeybindingsConfig;
-  /** For keys that are not keybinding commands (Escape, "/"); runs before command lookup. */
-  readonly onKeyDown?: KeyHandler;
+  /**
+   * For keys that are not keybinding commands (Escape, "/"); runs before command lookup.
+   * Return `false` to let the scope look the key up as a command.
+   */
+  readonly onKeyDown?: (event: KeyboardEvent) => boolean | void;
   /**
    * Run in the capture phase, ahead of focused widgets that consume the key
    * themselves (the terminal encodes Ctrl+Shift+T and stops propagation).
@@ -57,18 +54,12 @@ interface CommandScope {
   readonly options: CommandScopeOptions;
 }
 
-/** Hears a keydown after the bubbling scopes ran; it must not consume the key. */
-export type KeyObserver = (event: KeyboardEvent, consumed: boolean) => void;
-
-interface KeyObserverScope {
-  readonly observe: KeyObserver;
-  readonly when: (() => boolean) | undefined;
-}
+type KeyObserver = (event: KeyboardEvent, consumed: boolean) => void;
 
 // Within each list the newest scope wins.
 const globalScopes: CommandScope[] = [];
 const captureScopes: CommandScope[] = [];
-const observerScopes: KeyObserverScope[] = [];
+const observerScopes: KeyObserver[] = [];
 
 const isKeybindingCommand = Schema.is(KeybindingCommand);
 
@@ -148,9 +139,7 @@ function dispatchCaptureKeyDown(event: KeyboardEvent): void {
 
 function dispatchKeyDown(event: KeyboardEvent): void {
   const consumed = runKeyScopes(globalScopes, event) || event.defaultPrevented;
-  for (const scope of observerScopes.slice()) {
-    if (scope.when?.() ?? true) scope.observe(event, consumed);
-  }
+  for (const observe of observerScopes.slice()) observe(event, consumed);
 }
 
 type MenuActionHandler = () => void;
@@ -205,13 +194,11 @@ export function registerCommands(
 
 /**
  * Hears every bubbling keydown after the scopes ran, with whether one of them (or the page)
- * consumed it. For listeners that react to keys other scopes may also handle, such as scroll keys.
+ * consumed it, and never consumes it. For listeners that react to keys other scopes may also
+ * handle, such as scroll keys.
  */
-export function observeKeyDown(
-  observe: KeyObserver,
-  options: Pick<CommandScopeOptions, "when"> = {},
-): () => void {
-  return pushScope(observerScopes, { observe, when: options.when });
+export function observeKeyDown(observe: KeyObserver): () => void {
+  return pushScope(observerScopes, observe);
 }
 
 /** Desktop menu actions that are not keybinding commands; the newest handler for an action wins. */

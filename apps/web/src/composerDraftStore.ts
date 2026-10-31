@@ -3769,27 +3769,23 @@ export function subscribeDraftThreadPromotion(input: {
   readonly threadRefsAtom: Atom.Atom<ReadonlyArray<ScopedThreadRef>>;
   readonly threadShellAtom: (ref: ScopedThreadRef) => Atom.Atom<DraftPromotionShell | null>;
 }): () => void {
-  // Only the promotion slices: prompt edits replace the store state on every keystroke.
-  const promotionSlices = (state: ComposerDraftStoreState) => ({
-    draftThreadsByThreadKey: state.draftThreadsByThreadKey,
-  });
-  const draftsAtom = Atom.make(promotionSlices(composerDraftStore.getState()));
+  // Only the draft threads: prompt edits replace the store state on every keystroke.
+  const draftThreadsAtom = Atom.make(composerDraftStore.getState().draftThreadsByThreadKey);
   const unsubscribeDrafts = composerDraftStore.subscribe((state, previous) => {
     if (state.draftThreadsByThreadKey === previous.draftThreadsByThreadKey) {
       return;
     }
-    input.registry.set(draftsAtom, promotionSlices(state));
+    input.registry.set(draftThreadsAtom, state.draftThreadsByThreadKey);
   });
   const threadKeysAtom = Atom.map(
     input.threadRefsAtom,
     (refs) => new Set(refs.map(scopedThreadKey)),
   );
   const milestonesAtom = Atom.make((get) => {
-    const state = get(draftsAtom);
     const threadKeys = get(threadKeysAtom);
     const arrived: Array<readonly [DraftId, ScopedThreadRef]> = [];
     const owned: Array<readonly [DraftId, ScopedThreadRef]> = [];
-    for (const [draftId, draftThread] of Object.entries(state.draftThreadsByThreadKey)) {
+    for (const [draftId, draftThread] of Object.entries(get(draftThreadsAtom))) {
       const ref =
         draftThread.promotedTo ?? scopeThreadRef(draftThread.environmentId, draftThread.threadId);
       const threadKey = scopedThreadKey(ref);

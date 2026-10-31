@@ -140,25 +140,18 @@ describe("command dispatcher", () => {
     expect(command).toHaveBeenCalledOnce();
   });
 
-  it("tells live observers whether a scope consumed the key, after the scopes ran", () => {
+  it("tells observers whether a scope consumed the key, after the scopes ran", () => {
     const calls: Array<string> = [];
-    let observing = true;
     using stack = new DisposableStack();
-    stack.defer(
-      observeKeyDown((_event, consumed) => void calls.push(`observe:${consumed}`), {
-        when: () => observing,
-      }),
-    );
+    stack.defer(observeKeyDown((_event, consumed) => void calls.push(`observe:${consumed}`)));
     stack.defer(
       registerCommands({ "chat.new": () => void calls.push("command") }, { keybindings }),
     );
 
     press("k");
     const unconsumed = press("x");
-    observing = false;
-    press("k");
 
-    expect(calls).toEqual(["command", "observe:true", "observe:false", "command"]);
+    expect(calls).toEqual(["command", "observe:true", "observe:false"]);
     expect(unconsumed.defaultPrevented).toBe(false);
   });
 

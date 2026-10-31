@@ -91,10 +91,8 @@ const idleBranchCheckoutAtom = Atom.make(AsyncResult.initial<BranchCheckoutResul
 export function NewTaskDraftRouteScreen({ route }: StaticScreenProps<NewTaskDraftRouteParams>) {
   const currentRoute = useRoute();
   const params = route.params ?? {};
-  const pendingTaskId = Array.isArray(params.pendingTaskId)
-    ? params.pendingTaskId[0]
-    : params.pendingTaskId;
-  const draftId = Array.isArray(params.draftId) ? params.draftId[0] : params.draftId;
+  const flowRoute = draftFlowRoute(currentRoute.key, params);
+  const { pendingTaskId, draftId } = flowRoute;
   const projects = useProjects();
   const { state: catalogState } = useWorkspaceState();
 
@@ -141,7 +139,6 @@ export function NewTaskDraftRouteScreen({ route }: StaticScreenProps<NewTaskDraf
 
   // The checkout is keyed by its request, so a reconnect that drops and
   // restores the project reads the same checkout instead of running another.
-  const flowRoute = draftFlowRoute(currentRoute.key, params);
   const checkoutKey =
     needsPreparation && initialProjectRef.branch && !waitingForProject
       ? branchCheckoutRequestKey({

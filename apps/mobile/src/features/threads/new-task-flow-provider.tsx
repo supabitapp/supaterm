@@ -256,9 +256,8 @@ export function ServedNewTaskRouteProvider(
   const route = props.route === undefined ? undefined : newTaskFlowRoute(props.route);
   const flow = useAtomValue(newTaskFlowStateAtom(route?.flowKey ?? INACTIVE_FLOW_KEY));
   const served = route === undefined ? null : { route, active: props.active };
-  const pendingKey =
-    route !== undefined && props.active ? newTaskPendingKey(route, flow) : undefined;
-  const activeNewTask = pendingKey === undefined ? null : { pendingKey };
+  const activeNewTask =
+    route !== undefined && props.active ? { pendingKey: newTaskPendingKey(route, flow) } : null;
   return (
     <ServedNewTaskRouteContext value={served}>
       <ActiveNewTaskContext value={activeNewTask}>{props.children}</ActiveNewTaskContext>

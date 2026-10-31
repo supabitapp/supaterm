@@ -110,12 +110,10 @@ export function QueuedRunsControl({
       return url && resource ? [[resource.attachmentId, url] as const] : [];
     }),
   );
-  const items = queued.map(({ run, text, attachments, message }, serverIndex) => ({
-    key: run.id,
+  const items = queued.map(({ run, text, attachments, message }) => ({
     message,
     runId: run.id,
     messageId: run.userMessageId,
-    serverIndex,
     text,
     attachments,
     thumbnails: attachments
@@ -207,7 +205,7 @@ export function QueuedRunsControl({
           <CollapsiblePanel keepMounted>
             <ComposerBanner.Scroll className="max-h-32">
               <ComposerBanner.Children render={<ol />} id={queueListId}>
-                {items.map((item) => {
+                {items.map((item, index) => {
                   const previewText = isAttachmentOnlyBootstrapPrompt(item.text)
                     ? ""
                     : assistantCitationsToPlainText(
@@ -221,7 +219,7 @@ export function QueuedRunsControl({
                   return (
                     <ComposerBanner.Row
                       render={<li />}
-                      key={item.key}
+                      key={item.runId}
                       aria-current={isEditing ? "true" : undefined}
                       className={cn(
                         "relative rounded-sm",
@@ -288,7 +286,7 @@ export function QueuedRunsControl({
                                 </Button>
                               </TooltipTrigger>
                               <TooltipPopup
-                                shortcut={item.serverIndex === 0 ? props.steerShortcutLabel : null}
+                                shortcut={index === 0 ? props.steerShortcutLabel : null}
                               >
                                 {workflow?.canSendNow
                                   ? "Start a turn with this message"
