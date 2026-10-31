@@ -1670,7 +1670,6 @@ export default function ChatView(props: ChatViewProps) {
   useOpenFavoriteEditorShortcut({
     enabled: showOpenInPicker && !backgroundThread,
     environmentId: activeThread?.environmentId ?? environmentId,
-    keybindings,
     availableEditors,
     openInCwd: gitCwd,
   });

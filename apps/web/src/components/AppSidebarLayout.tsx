@@ -17,14 +17,8 @@ import {
   threadUndoClaimsShortcut,
   undoLatestThreadAction,
 } from "../hooks/showThreadUndoNotice";
-import {
-  isRichTextBoldShortcut,
-  resolveShortcutCommand,
-  shortcutLabelForCommand,
-} from "../keybindings";
+import { isRichTextBoldShortcut, shortcutLabelForCommand } from "../keybindings";
 import { isEditableFocused } from "../lib/editableFocus";
-import { isPreviewFocused } from "../lib/previewFocus";
-import { isTerminalFocused } from "../lib/terminalFocus";
 import { isModelPickerOpen } from "../modelPickerVisibility";
 import { selectActiveRightPanel, useRightPanelStore } from "../rightPanelStore";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
@@ -54,7 +48,6 @@ import {
   useSidebar,
 } from "./ui/sidebar";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
-import { appAtomRegistry } from "../rpc/atomRegistry";
 import { type CommandHandler, registerCommands, registerMenuAction } from "../shortcuts/dispatcher";
 import { resolveThreadRouteRef } from "../threadRoutes";
 
@@ -181,48 +174,45 @@ function registerThreadUndoCommands(
   readSidebarVisible: () => boolean,
 ): () => void {
   const threadSidebarShown = () => !isAppModalPage(router.state.location.pathname);
-  const unregister = registerCommands(
+  // Registered first, so it hears only keys the undo command left: any other
+  // keypress hands mod+z back to text fields. A modifier tapped mid-hold leaves
+  // the held key repeating.
+  const unregisterRelease = registerCommands(
     {},
     {
       capture: true,
       when: threadSidebarShown,
       onKeyDown: (event) => {
-        // Cancel a held key's repeats so they cannot fall through to the
-        // editor's own undo, even after the last notice is gone.
-        if (event.repeat) {
-          if (event.code !== heldUndoKey) return false;
-          event.preventDefault();
-          event.stopPropagation();
-          return true;
-        }
-        // A modifier tapped mid-hold leaves the held key repeating.
-        if (!MODIFIER_KEYS.has(event.key)) heldUndoKey = null;
-        const command = resolveShortcutCommand(
-          event,
-          appAtomRegistry.get(primaryServerKeybindingsAtom),
-          {
-            context: {
-              terminalFocus: isTerminalFocused(),
-              previewFocus: isPreviewFocused(),
-              ...readRoutePanelsOpen(router),
-              // A collapsed sidebar hides the notice, so text fields keep their own undo.
-              editableFocus:
-                isEditableFocused(event.target) &&
-                !(readSidebarVisible() && threadUndoClaimsShortcut()),
-              modelPickerOpen: isModelPickerOpen(),
-            },
-          },
-        );
-        if (command !== "thread.undo") {
-          if (!MODIFIER_KEYS.has(event.key)) releaseThreadUndoShortcut();
-          return false;
-        }
-        if (isCommandPaletteOpen() || isModelPickerOpen()) return false;
+        if (event.repeat || MODIFIER_KEYS.has(event.key)) return false;
+        heldUndoKey = null;
+        releaseThreadUndoShortcut();
+        return false;
+      },
+    },
+  );
+  const unregisterUndo = registerCommands(
+    {
+      "thread.undo": ({ event, repeat }) => {
+        if (repeat || isCommandPaletteOpen() || isModelPickerOpen()) return false;
         if (!undoLatestThreadAction()) return false;
-        heldUndoKey = event.code;
+        heldUndoKey = event?.code ?? null;
+      },
+    },
+    {
+      capture: true,
+      when: threadSidebarShown,
+      context: (event) => ({
+        ...readRoutePanelsOpen(router),
+        // A collapsed sidebar hides the notice, so text fields keep their own undo.
+        editableFocus:
+          isEditableFocused(event.target) && !(readSidebarVisible() && threadUndoClaimsShortcut()),
+      }),
+      // Cancel a held key's repeats so they cannot fall through to the
+      // editor's own undo, even after the last notice is gone.
+      onKeyDown: (event) => {
+        if (!event.repeat || event.code !== heldUndoKey) return false;
         event.preventDefault();
         event.stopPropagation();
-        return true;
       },
     },
   );
@@ -232,7 +222,8 @@ function registerThreadUndoCommands(
   };
   window.addEventListener("input", onInput, true);
   return () => {
-    unregister();
+    unregisterUndo();
+    unregisterRelease();
     window.removeEventListener("input", onInput, true);
   };
 }

@@ -358,17 +358,6 @@ export function isDiffToggleShortcut(
   return matchesCommandShortcut(event, keybindings, "diff.toggle", options);
 }
 
-export function isOpenFavoriteEditorShortcut(
-  event: ShortcutEventLike,
-  keybindings: ResolvedKeybindingsConfig,
-  options?: ShortcutMatchOptions,
-): boolean {
-  return (
-    event.repeat !== true &&
-    matchesCommandShortcut(event, keybindings, "editor.openFavorite", options)
-  );
-}
-
 /**
  * Whether the keypress should bold text in the rich-text composer: Mod+B
  * without extra modifiers, with text selected. Tiptap binds the same chord, so
