@@ -321,7 +321,12 @@ export const make = Effect.fn("SshDeviceHost.make")(function* (
         origin: hubOrigin,
         http,
         run,
-        platforms: platformAvailabilities,
+        // Keep probing negative reports so an SDK installed after connecting is still found.
+        platforms: Effect.suspend(() =>
+          summary.platforms.some((p) => p.platform === "android" && p.available)
+            ? Effect.succeed(summary.platforms)
+            : platformAvailabilities,
+        ),
       }),
       ...(remote.daemonPort !== undefined &&
       remote.token !== undefined &&
