@@ -15,7 +15,7 @@ function setup(availability: { draftProjectControls: boolean; branchPicker: bool
     availability,
   );
   const run = (command: keyof typeof commands, repeat = false) =>
-    commands[command]?.({ repeat, terminalFocusOwner: null });
+    commands[command]?.({ repeat, terminalFocusOwner: null, event: null });
   return { run, openControl, openBranchPicker };
 }
 

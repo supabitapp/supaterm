@@ -21,6 +21,8 @@ import { composerShortcutCommands, type ComposerShortcutAvailability } from "./c
 export type ChatShortcutHandler = (context: {
   readonly repeat: boolean;
   readonly terminalFocusOwner: TerminalFocusOwner | null;
+  /** The key press behind a keyboard command; null for menus and devices. */
+  readonly event: KeyboardEvent | null;
 }) => boolean | void;
 
 export type ChatShortcutCommands = Partial<Record<KeybindingCommand, ChatShortcutHandler>>;
@@ -93,7 +95,11 @@ export function useChatShortcuts(input: ChatShortcutsInput) {
       )[command] ??
       input.fallback(command);
     return run
-      ? run({ repeat: invocation.repeat, terminalFocusOwner: getTerminalFocusOwner() })
+      ? run({
+          repeat: invocation.repeat,
+          terminalFocusOwner: getTerminalFocusOwner(),
+          event: invocation.event,
+        })
       : false;
   });
   const readShortcutContext = useEffectEvent((event: KeyboardEvent) =>

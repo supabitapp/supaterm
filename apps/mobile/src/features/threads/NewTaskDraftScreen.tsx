@@ -16,6 +16,7 @@ import * as Dialog from "../../components/ui/Dialog";
 import { useAtomValue } from "@effect/atom-react";
 import * as Cause from "effect/Cause";
 import { AsyncResult } from "effect/reactivity";
+import { pickableProjectGroups } from "@supaterm/client-runtime/state/project-grouping";
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import {
   CommonActions,
@@ -460,10 +461,15 @@ export function NewTaskDraftScreen(props: {
       return;
     }
 
-    const selection = resolveDraftProjectSelection(selectedProjectKey, projects, projectScopes, {
-      incomingShareId: props.incomingShareId,
-      pickerClosed: initialPickerRef.current === "open" && focused,
-    });
+    const selection = resolveDraftProjectSelection(
+      selectedProjectKey,
+      projects,
+      pickableProjectGroups(projectScopes),
+      {
+        incomingShareId: props.incomingShareId,
+        pickerClosed: initialPickerRef.current === "open" && focused,
+      },
+    );
     if (selection.kind === "preserve") {
       initialPickerRef.current = null;
       return;

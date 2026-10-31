@@ -40,6 +40,7 @@ import {
 } from "@supaterm/client-runtime/state/runtime";
 import { CircleCheckIcon, ClockSnoozeIcon } from "@supaterm/icons";
 import { stackedThreadToast, toastManager } from "../ui/toast";
+import { isInOpenProjectList } from "../ProjectPinButton";
 import { newMessageId } from "~/lib/utils";
 import { buildThreadRouteParams } from "../../threadRoutes";
 import { composerDraftHasUserContent, useComposerDraftStore } from "../../composerDraftStore";
@@ -588,7 +589,9 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
         toastThreadActionFailure("Failed to mark thread as Done"),
       );
     },
-    "thread.pin": () => {
+    "thread.pin": ({ event }) => {
+      // An open project list pins its highlighted project with this key instead.
+      if (isInOpenProjectList(event?.target ?? null)) return false;
       if (!readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)) return false;
       if (!isServerThread || !activeThreadRef || !serverConfigLoaded) return;
       void (

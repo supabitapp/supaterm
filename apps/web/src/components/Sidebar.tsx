@@ -108,6 +108,7 @@ import { readLocalApi } from "../localApi";
 import { useSidebarPendingFileDropStore } from "../sidebarPendingFileDropStore";
 import {
   getProjectOrderKey,
+  pickableProjectGroups,
   selectProjectGroupingSettings,
 } from "@supaterm/client-runtime/state/project-grouping";
 import {
@@ -128,6 +129,8 @@ import {
 } from "../hooks/useThreadActions";
 import { useThreadUndoNotice } from "../hooks/showThreadUndoNotice";
 import { useNewThreadHandler } from "../hooks/useHandleNewThread";
+import { useOrderWhileOpen } from "../hooks/useOrderWhileOpen";
+import { useProjectPin } from "../hooks/useProjectGroupUpdate";
 import { useSidebarProjectGroups } from "../hooks/useSidebarProjectGroups";
 import { useTerminalFocus } from "../hooks/useTerminalFocus";
 import { type CommandInvocation, registerCommands } from "../shortcuts/dispatcher";
@@ -762,7 +765,10 @@ function useSidebarLookups() {
   );
   const projectScopeItems = [
     { value: "all", label: "All" },
-    ...projectGroups.map((project) => ({ value: project.projectKey, label: project.displayName })),
+    ...pickableProjectGroups(projectGroups).map((project) => ({
+      value: project.projectKey,
+      label: project.displayName,
+    })),
   ];
   return {
     projects,
@@ -840,7 +846,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     projectByKey,
     projectDisplayNameByKey,
     projectGroupByScopeKey,
-    projectScopeItems,
+    projectScopeItems: lookupProjectScopeItems,
   } = useSidebarLookups();
   const router = useRouter();
   const { isMobile, setOpenMobile } = useSidebar();
@@ -1103,6 +1109,12 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     }
     return environmentLabelById.get(thread.environmentId) ?? null;
   };
+  // Pinning from a row keeps rows in place while the menu is open.
+  const projectScopeItems = useOrderWhileOpen(
+    lookupProjectScopeItems,
+    (item) => item.value,
+    projectFilterOpen,
+  );
   const projectScopeJumpLabels = usePickerShortcuts({
     picker: "project",
     open: projectFilterOpen,
@@ -1153,6 +1165,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       });
     },
   );
+  const { canPinProjectGroup, toggleProjectGroupPin } = useProjectPin();
   const handleProjectSettings = useStableCallback(
     (event: ReactMouseEvent<HTMLElement>, projectGroup: SidebarProjectSnapshot) => {
       event.preventDefault();
@@ -2408,12 +2421,14 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                 AuthOrchestrationOperateScope,
               ),
               branch: thread.branch ?? null,
-              projectFilter: threadProjectGroup
-                ? {
-                    label: threadProjectGroup.displayName,
-                    isActive: projectScopeKeys.includes(threadProjectGroup.projectKey),
-                  }
-                : null,
+              // An archived project is not a filter choice.
+              projectFilter:
+                threadProjectGroup && !threadProjectGroup.archived
+                  ? {
+                      label: threadProjectGroup.displayName,
+                      isActive: projectScopeKeys.includes(threadProjectGroup.projectKey),
+                    }
+                  : null,
               isPinned,
               isDone,
               autoMarkDoneEnabled: thread.autoMarkDoneDisabledAt == null,
@@ -2743,6 +2758,11 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                           }}
                           onToggle={toggleProjectScopeKey}
                           onProjectSettings={handleProjectSettings}
+                          pin={{
+                            canPin: canPinProjectGroup,
+                            toggle: toggleProjectGroupPin,
+                            keybindings,
+                          }}
                         />
                       }
                     />

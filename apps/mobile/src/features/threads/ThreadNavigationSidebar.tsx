@@ -2,7 +2,10 @@ import { useActiveNewTask } from "../../state/active-new-task";
 import { ThreadUndoNotice } from "../home/ThreadUndoNotice";
 import { useThreadListV2 } from "./useThreadListV2";
 import { useAndroidControlSizing } from "../../components/ui/useAndroidControlSizing";
-import { resolveScratchProjectScopeKey } from "@supaterm/client-runtime/state/project-grouping";
+import {
+  pickableProjectGroups,
+  resolveScratchProjectScopeKey,
+} from "@supaterm/client-runtime/state/project-grouping";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import type {
   EnvironmentProject,
@@ -212,7 +215,7 @@ function ThreadNavigationSidebarPane(
       }),
     [projects, options.selectedEnvironmentId, options.projectGroupingMode],
   );
-  const projectFilterOptions = projectScopes.map((scope) => ({
+  const projectFilterOptions = pickableProjectGroups(projectScopes).map((scope) => ({
     key: scope.key,
     label: scope.title,
   }));
@@ -231,8 +234,9 @@ function ThreadNavigationSidebarPane(
       ),
     [projectScopes],
   );
+  // An archived project's filter reads as all projects, matching the filter menu.
   const selectedProjectScope =
-    projectScopes.find((scope) => scope.key === resolvedProjectKey) ?? null;
+    pickableProjectGroups(projectScopes).find((scope) => scope.key === resolvedProjectKey) ?? null;
   const threadSearch = useThreadSearch(
     searchEnvironmentIds,
     props.searchQuery,

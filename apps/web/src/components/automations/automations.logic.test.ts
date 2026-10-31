@@ -17,6 +17,7 @@ import type {
 import { deriveProviderInstanceEntries } from "../../providerInstances";
 import { resolveSettingsScope, type SettingsScopeSearch } from "../settings/settingsScope";
 import {
+  defaultAutomationProjectId,
   lastRunLabel,
   matchesAutomationScope,
   nextRunLabel,
@@ -74,6 +75,8 @@ function group(
     allRemoteMembersAreDesktopLocal: false,
     allRemoteMembersAreWsl: false,
     remoteEnvironmentLabels: [],
+    pinned: false,
+    archived: false,
   };
 }
 
@@ -128,6 +131,22 @@ describe("automations scope", () => {
       environments,
     );
     expect(matchesAutomationScope(serverScope, laptopId, stale.id)).toBe(false);
+  });
+
+  it("defaults a new automation to a pinned open project, and to an archived one only when scoped to it", () => {
+    const at = "2026-01-01T00:00:00.000Z";
+    const project = (id: string, pinnedAt: string | null, archivedAt: string | null) => ({
+      id: ProjectId.make(id),
+      pinnedAt,
+      archivedAt,
+    });
+    const all = resolveSettingsScope({}, groups, environments);
+    const scoped = resolveSettingsScope({ project: "supaterm" }, groups, environments);
+    expect(
+      defaultAutomationProjectId([project("a", null, null), project("b", at, null)], all),
+    ).toBe("b");
+    expect(defaultAutomationProjectId([project("x", null, at)], all)).toBe("");
+    expect(defaultAutomationProjectId([project("x", null, at)], scoped)).toBe("x");
   });
 
   it("keeps tasks of removed projects when no project is selected", () => {

@@ -221,6 +221,7 @@ export const make = Effect.gen(function* () {
       threadForceStop: true,
       ...(hostPlatform === "win32" ? {} : { localServerStop: true }),
       queuedRunStart: true,
+      projectOrganization: true,
       ignoredFileListing: true,
       triage: true,
       threadProjectFromScratch: true,

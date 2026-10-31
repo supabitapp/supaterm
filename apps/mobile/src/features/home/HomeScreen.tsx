@@ -11,6 +11,7 @@ import {
   type EnvironmentProject,
   type EnvironmentThreadShell,
 } from "@supaterm/client-runtime/state/shell";
+import { pickableProjectGroups } from "@supaterm/client-runtime/state/project-grouping";
 import { threadSearchMatchKey } from "@supaterm/client-runtime/state/thread-search";
 import { type EnvironmentId, type SidebarProjectGroupingMode } from "@supaterm/contracts";
 import { useAtomValue } from "@effect/atom-react";
@@ -384,7 +385,11 @@ export function HomeScreen(props: HomeScreenProps) {
   })();
 
   const v2ProjectScopeKey = props.selectedProjectKey;
-  const v2ScopedProjectGroup = findHomeProjectScope(projectScopes, v2ProjectScopeKey);
+  // An archived project's filter reads as all projects, matching the filter menu.
+  const v2ScopedProjectGroup = findHomeProjectScope(
+    pickableProjectGroups(projectScopes),
+    v2ProjectScopeKey,
+  );
   const threadSearch = useThreadSearch(
     searchEnvironmentIds,
     tabActivity?.active === false ? "" : props.searchQuery,

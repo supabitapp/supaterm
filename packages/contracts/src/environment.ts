@@ -99,6 +99,8 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   /** Manual commands must update this install, not the host's default global prefix. */
   serverInstallation: ForwardCompatibleOptional(ServerInstallation),
   serverSelfUpdateProgress: Schema.optionalKey(Schema.Boolean),
+  /** Server keeps `pinned` and `archived` from project.update. Older servers drop them. */
+  projectOrganization: Schema.optionalKey(Schema.Boolean),
   ignoredFileListing: Schema.optionalKey(Schema.Boolean),
   /** The desktop app supervising this server can be driven over RPC:
       server.updateServer runs its check -> download -> relaunch. Absent on

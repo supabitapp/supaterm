@@ -58,6 +58,7 @@ import { ToggleGroup, Toggle } from "../ui/toggle-group";
 import type { ResolvedSettingsScope } from "../settings/settingsScope";
 import { settingsScopeEnvironmentLabels } from "../settings/settingsScopeAxis";
 import {
+  defaultAutomationProjectId,
   matchesAutomationScope,
   scheduledTaskDefaultModel,
   taskToDraft,
@@ -195,11 +196,11 @@ export function AutomationEditorDialog({
     connected ? serverEnvironment.scheduledTasksLive({ environmentId, input: {} }) : null,
   );
   const allProjects = useProjects();
-  const projects = allProjects.filter(
-    (project) =>
-      project.environmentId === environmentId &&
-      matchesAutomationScope(scope, environmentId, project.id),
-  );
+  const projectsOn = (id: EnvironmentId) =>
+    allProjects.filter(
+      (project) => project.environmentId === id && matchesAutomationScope(scope, id, project.id),
+    );
+  const scopedProjects = projectsOn(environmentId);
   const settings = useEnvironmentSettings(environmentId);
   const providers =
     useAtomValue(serverEnvironment.providersValueAtom(environmentId)) ?? EMPTY_SERVER_PROVIDERS;
@@ -207,8 +208,19 @@ export function AutomationEditorDialog({
     label: "scheduled task upsert",
   });
   const [draft, setDraft] = useState<DraftState>(() =>
-    task ? taskToDraft(task) : { ...EMPTY_DRAFT, projectId: projects[0]?.id ?? "" },
+    task
+      ? taskToDraft(task)
+      : { ...EMPTY_DRAFT, projectId: defaultAutomationProjectId(scopedProjects, scope) },
   );
+  // Pinned first. The chosen project stays listed after it is archived.
+  const projects = scopedProjects
+    .filter(
+      (project) =>
+        project.archivedAt == null ||
+        project.id === draft.projectId ||
+        project.id === task?.projectId,
+    )
+    .toSorted((left, right) => Number(right.pinnedAt != null) - Number(left.pinnedAt != null));
   const [saving, setSaving] = useState(false);
   const submissionPending = useRef(false);
   const editingTaskMissing =
@@ -366,7 +378,7 @@ export function AutomationEditorDialog({
                   setEnvironmentId(next.environmentId);
                   setDraft((current) => ({
                     ...current,
-                    projectId: "",
+                    projectId: defaultAutomationProjectId(projectsOn(next.environmentId), scope),
                     modelKey: "",
                     baseModelSelection: null,
                     baseRef: "main",
