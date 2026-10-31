@@ -9849,8 +9849,11 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             !existing.stopping &&
             existing.selection.queryIdentity !== compiledSelection.queryIdentity &&
             canApplyClaudeSelectionLive(existing.selection, compiledSelection) &&
+            // Auto depends on the model, so a new model reopens to ask for it again.
+            // Bypass Claude refused stays refused whatever the model.
             (existing.selection.apiModelId === compiledSelection.apiModelId ||
-              existing.openedPermissionMode === queryPolicy.permissionMode)
+              queryPolicy.permissionMode !== "auto" ||
+              existing.openedPermissionMode === "auto")
           ) {
             const live = existing;
             yield* live.query.setModel(compiledSelection.apiModelId).pipe(

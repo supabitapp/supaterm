@@ -4209,6 +4209,54 @@ describe("ClaudeAdapterV2 background wake turns", () => {
       ),
   );
 
+  it.effect(
+    "switches models live in Full access when Claude settings keep it in default mode",
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const harness = yield* makeWakeHarness;
+          const now = yield* DateTime.now;
+          const opus = {
+            instanceId: ClaudeAdapterV2.CLAUDE_DEFAULT_INSTANCE_ID,
+            model: "claude-opus-5-5",
+          } satisfies ModelSelection;
+          const turn = (ordinal: number, modelSelection: ModelSelection) =>
+            makeClaudeTestTurnInput({
+              threadId: harness.threadId,
+              providerThread: harness.providerThread,
+              now,
+              attemptId: RunAttemptId.make(`attempt-bypass-disabled-model:${ordinal}`),
+              text: `Request ${ordinal}`,
+              attachments: [],
+              providerTurnOrdinal: ordinal,
+              modelSelection,
+            });
+          yield* harness.runtime.startTurn(turn(1, opus));
+          const openedOptions = harness.getOpenedOptions();
+          assert.equal(openedOptions?.permissionMode, "bypassPermissions");
+          yield* harness.offerAndWait(
+            claudeSdkFrame({ ...wakeTurnInit, permissionMode: "default" }),
+          );
+          yield* harness.offerAndWait(wakeTaskStarted);
+          yield* harness.offerAndWait(turnOneResult);
+          yield* Queue.take(harness.terminalReceipts);
+          assert.isTrue(yield* harness.hasPendingBackgroundWork);
+
+          const switched = yield* harness.runtime
+            .startTurn(turn(2, { ...opus, model: "claude-sonnet-4-6" }))
+            .pipe(Effect.result);
+          assert.equal(switched._tag, "Success");
+          assert.strictEqual(harness.getOpenedOptions(), openedOptions);
+          assert.deepInclude(harness.liveSelectionChanges, { model: "claude-sonnet-4-6" });
+          assert.lengthOf(harness.offeredMessages, 2);
+        }).pipe(
+          Effect.provide(
+            Layer.mergeAll(IdAllocator.layer, McpProviderSessions.layer, NodeServices.layer),
+          ),
+        ),
+      ),
+  );
+
   it.effect.each(["completed", "interrupted"] as const)(
     "projects Claude thinking blocks when %s",
     (status) =>
