@@ -60,7 +60,6 @@ import {
   setStickyNewTaskProject,
   updateComposerDraftSettings,
   scheduleUnusedComposerAttachmentCleanup,
-  waitForComposerDraftsLoaded,
 } from "../../state/use-composer-drafts";
 import { useEnvironmentServerConfig, useProjects } from "../../state/entities";
 import { useProjectClone } from "../../state/projectClones";
@@ -94,6 +93,7 @@ import {
 import { incomingShareImports, useIncomingShare } from "../sharing/IncomingShareProvider";
 import { idleShareFlagAtom, idleShareImportPhaseAtom } from "./incomingShareImport";
 import { newTaskFlowKey } from "./new-task-flow-state";
+import { scopedProjectKey } from "../../lib/scopedEntities";
 import { appAtomRegistry } from "../../state/atom-registry";
 
 import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
@@ -225,11 +225,6 @@ export function NewTaskDraftScreen(props: {
     }
   };
   const deleteProject = useAtomCommand(projectEnvironment.delete, { reportFailure: false });
-  const selectedProjectRef = useRef(selectedProject);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes the committed selected project to a ref the async project removal checks before navigating
-  useEffect(() => {
-    selectedProjectRef.current = selectedProject;
-  }, [selectedProject]);
   const removeClonedProject = async () => {
     if (!selectedProject) return;
     const removed = selectedProject;
@@ -245,8 +240,7 @@ export function NewTaskDraftScreen(props: {
       );
       return;
     }
-    const current = selectedProjectRef.current;
-    if (current?.id === removed.id && current.environmentId === removed.environmentId) {
+    if (flow.getSelectedProjectKey() === scopedProjectKey(removed.environmentId, removed.id)) {
       navigation.dispatch(StackActions.replace("Home"));
     }
   };
@@ -296,8 +290,12 @@ export function NewTaskDraftScreen(props: {
   } else if (isReturningToProjectPicker && requestedInitialProjectAvailable) {
     setIsReturningToProjectPicker(false);
   }
+  // A route naming a draft that is gone, or whose project is gone, also
+  // returns to the picker.
+  const isRouteDraftMissing =
+    props.draftId !== undefined && flow.missingRouteDraftId === props.draftId;
   const isProjectPickerReturnActive =
-    isReturningToProjectPicker && !requestedInitialProjectAvailable;
+    (isReturningToProjectPicker && !requestedInitialProjectAvailable) || isRouteDraftMissing;
   const isIncomingShareAwaitingServerConfig = Boolean(
     incomingShare?.attachments.some((attachment) => attachment.type === "file") &&
     selectedEnvironmentServerConfig === null,
@@ -401,41 +399,17 @@ export function NewTaskDraftScreen(props: {
     });
     return () => cancelAnimationFrame(frame);
   }, [isProjectPickerReturnActive, navigation, props.incomingShareId]);
-  const { beginEditingPendingTask, cancelEditingPendingTask, editingPendingTask, openDraft } = flow;
-  // Cold launches load drafts and projects separately; wait for hydration and retry while shells load.
-  const attemptedDraftIdRef = useRef<string | null>(null);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- opens the route's draft once persisted drafts load, else navigates to the project picker
-  useEffect(() => {
-    if (!props.draftId || props.pendingTaskId) {
-      return;
-    }
-    const draftId = props.draftId;
-    if (attemptedDraftIdRef.current === draftId) {
-      return;
-    }
-    let cancelled = false;
-    void waitForComposerDraftsLoaded().then(() => {
-      if (cancelled || attemptedDraftIdRef.current === draftId) {
-        return;
-      }
-      if (openDraft(draftId)) {
-        attemptedDraftIdRef.current = draftId;
-        return;
-      }
-      if (getComposerDraftSnapshot(draftId).project !== undefined && projects.length === 0) {
-        return;
-      }
-      attemptedDraftIdRef.current = draftId;
-      navigation.dispatch(CommonActions.navigate("NewTaskProject"));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [navigation, openDraft, projects, props.draftId, props.pendingTaskId]);
-
+  const { beginEditingPendingTask, editingPendingTask } = flow;
+  // A covered draft route sees the topmost route's flow; only the served route edits its task.
+  const servesThisRoute = flowKey !== undefined && flow.flowKey === flowKey;
   const attemptedPendingTaskIdRef = useRef<string | null>(null);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- starts editing the route's pending task once, or navigates to the project picker when it is gone
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- starts editing the route's pending task each time the flow serves this route, or navigates to the project picker when it is gone
   useEffect(() => {
+    if (!servesThisRoute) {
+      // The provider saved this route's edit when it moved on; resume it on return.
+      attemptedPendingTaskIdRef.current = null;
+      return;
+    }
     if (!props.pendingTaskId || editingPendingTask?.messageId === props.pendingTaskId) {
       return;
     }
@@ -446,16 +420,13 @@ export function NewTaskDraftScreen(props: {
     if (!beginEditingPendingTask(props.pendingTaskId)) {
       navigation.dispatch(CommonActions.navigate("NewTaskProject"));
     }
-  }, [beginEditingPendingTask, editingPendingTask?.messageId, navigation, props.pendingTaskId]);
-
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the pending task edit in the new-task flow when the route's task changes or the screen unmounts
-  useEffect(() => {
-    if (!props.pendingTaskId) return;
-    return () => {
-      attemptedPendingTaskIdRef.current = null;
-      cancelEditingPendingTask();
-    };
-  }, [props.pendingTaskId, cancelEditingPendingTask]);
+  }, [
+    beginEditingPendingTask,
+    editingPendingTask?.messageId,
+    navigation,
+    props.pendingTaskId,
+    servesThisRoute,
+  ]);
 
   const lastInitialProjectRefRef = useRef(props.initialProjectRef);
   const initialPickerRef = useRef<"open" | "dismissed" | null>(null);

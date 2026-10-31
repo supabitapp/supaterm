@@ -76,6 +76,7 @@ import {
   linkToRootPath,
   rootNavigationRef,
 } from "./lib/rootNavigation";
+import { pruneNewTaskFlowStates } from "./features/threads/new-task-flow-state";
 import { pruneNewTaskBranchCheckouts } from "./features/threads/NewTaskDraftRouteScreen";
 import { installAppUpdateChecks } from "./features/updates/app-updates";
 
@@ -137,6 +138,7 @@ function handleNavigationStateChange(state: NavigationState | undefined): void {
   resolvePendingThreadPromptLink(state);
   if (!state) return;
   recordAppShortcutNavigationState(state);
+  pruneNewTaskFlowStates(state);
   pruneNewTaskBranchCheckouts(state);
   pruneIncomingShareImports(state);
 }

@@ -32,7 +32,6 @@ const harness = vi.hoisted(() => {
       return () => listeners.delete(listener);
     },
     route: { key: "thread-route", name: "Thread", params: {} as object },
-    reset: () => undefined,
     checkout: vi.fn(),
     draftProjectRefs: [] as unknown[],
     // Hook results stay stable across renders, as the real hooks' are. Only
@@ -66,9 +65,6 @@ vi.mock("./NewTaskDraftScreen", () => ({
 }));
 vi.mock("./new-task-context-presentation", () => ({
   resolveNewTaskBranchWorktreePath: () => null,
-}));
-vi.mock("./new-task-flow-provider", () => ({
-  useNewTaskFlow: () => harness,
 }));
 vi.mock("./checkout-new-task-branch", () => ({ checkoutNewTaskBranch: harness.checkout }));
 // Main-comparison mocks: this screen no longer uses them, but main's screen

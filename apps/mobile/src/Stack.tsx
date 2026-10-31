@@ -88,6 +88,7 @@ import {
   NewTaskThreadSettingsRouteScreen,
 } from "./features/threads/ThreadSettingsSheet";
 import { NewTaskFlowProvider } from "./features/threads/new-task-flow-provider";
+import { newTaskFlowKey } from "./features/threads/new-task-flow-state";
 import { NewTaskRouteScreen } from "./features/threads/NewTaskRouteScreen";
 import { SettingsAppearanceRouteScreen } from "./features/settings/SettingsAppearanceRouteScreen";
 import { useAppearancePreferences } from "./features/settings/appearance/AppearancePreferencesProvider";
@@ -514,7 +515,12 @@ function RootStackLayout(props: {
   // thread beneath overlay sheets.
   const pathname = rootPathnameFromState(props.state);
   const workspaceLocation = workspaceLocationFromState(props.state);
-  const draftRoute = props.state.routes.findLast((route) => route.name === "Thread");
+  // The flow follows the draft route even while a pushed Thread covers it, so
+  // its state lives exactly as long as the route.
+  const draftRoute = props.state.routes.findLast(isDraftThreadRoute);
+  const draftRouteOnTop =
+    draftRoute !== undefined &&
+    props.state.routes.findLast((route) => route.name === "Thread") === draftRoute;
   const draftParams = (
     draftRoute?.params as
       | { draft?: { draftId?: string | string[]; pendingTaskId?: string | string[] } }
@@ -529,7 +535,8 @@ function RootStackLayout(props: {
 
   return (
     <NewTaskFlowProvider
-      active={isDraftThreadRoute(draftRoute)}
+      active={draftRouteOnTop}
+      flowKey={draftRoute === undefined ? undefined : newTaskFlowKey(draftRoute)}
       routeDraftId={routeDraftId}
       routePendingTaskId={routePendingTaskId}
     >

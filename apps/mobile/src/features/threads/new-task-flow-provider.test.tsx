@@ -30,6 +30,7 @@ import {
 import { buildPendingQueuedTasks } from "../../state/pending-new-tasks-model";
 import { usePendingTaskListActions } from "../home/usePendingTaskListActions";
 import { NewTaskFlowProvider, useNewTaskFlow } from "./new-task-flow-provider";
+import { pruneNewTaskFlowStates } from "./new-task-flow-state";
 
 const transport = vi.hoisted(() => ({
   openScratch: vi.fn(),
@@ -56,7 +57,14 @@ vi.mock("@react-navigation/native", () => ({
 vi.mock("../home/home-thread-navigation", () => ({
   useHomeThreadRouteSelection: () => (params: object) => transport.navigate("Thread", params),
 }));
-vi.mock("../../state/shell", () => ({ environmentShell: {} }));
+vi.mock("../../state/shell", () => ({
+  environmentShell: {},
+  useEnvironmentShellReadiness: () => ({ status: "live", hasError: false, cacheRead: true }),
+}));
+vi.mock("../../state/workspace", () => ({
+  useConnectionsReady: () => true,
+  useWorkspaceEnvironments: () => [],
+}));
 vi.mock("../../state/project-has-threads", () => ({ useProjectHasThreads: () => false }));
 vi.mock("../../state/entities", () => ({
   useProjects: () => useAtomValue(projectsAtom),
@@ -148,6 +156,9 @@ vi.mock("../../state/use-composer-drafts", async (importOriginal) => ({
   get composerDraftsAtom() {
     return draftsAtom;
   },
+  get composerDraftsLoadedAtom() {
+    return draftsLoadedAtom;
+  },
   useComposerDraft: (key: string | null) => useAtomValue(draftsAtom)[key ?? ""] ?? emptyDraft,
   getComposerDraftSnapshot: (key: string) => readDraft(key),
   createNewTaskDraft: (project: { environmentId: EnvironmentId; projectId: ProjectId }) =>
@@ -223,6 +234,7 @@ const repositoryProject = project(firstEnvironment!, false);
 const sessionAtom = Atom.make(AsyncResult.initial());
 const projectsAtom = Atom.make<ReadonlyArray<EnvironmentProject>>([]).pipe(Atom.keepAlive);
 const draftsAtom = Atom.make<Record<string, ComposerDraft>>({}).pipe(Atom.keepAlive);
+const draftsLoadedAtom = Atom.make(true).pipe(Atom.keepAlive);
 const queueAtom = Atom.make<Record<string, ReadonlyArray<QueuedThreadMessage>>>({}).pipe(
   Atom.keepAlive,
 );
@@ -277,8 +289,23 @@ function Probe() {
   }, [actions, current]);
   return null;
 }
+let routeCount = 0;
+function draftRoute(routeDraftId?: string, flowKey = `route-${++routeCount}`) {
+  return (
+    <RegistryContext.Provider value={appAtomRegistry}>
+      <NewTaskFlowProvider flowKey={flowKey} {...(routeDraftId ? { routeDraftId } : {})}>
+        <Probe />
+      </NewTaskFlowProvider>
+    </RegistryContext.Provider>
+  );
+}
+// The provider serves the topmost draft route; pushing another one moves it to a new flow.
+function serveNextDraftRoute(routeDraftId?: string) {
+  renderer!.update(draftRoute(routeDraftId));
+}
 beforeEach(async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  pruneNewTaskFlowStates({ routes: [] });
   transport.openScratch.mockReset();
   transport.navigate.mockReset();
   transport.goBack.mockReset();
@@ -296,13 +323,7 @@ beforeEach(async () => {
   appAtomRegistry.set(queueAtom, {});
   appAtomRegistry.set(editingQueuedMessageIdsAtom, {});
   await act(() => {
-    renderer = create(
-      <RegistryContext.Provider value={appAtomRegistry}>
-        <NewTaskFlowProvider>
-          <Probe />
-        </NewTaskFlowProvider>
-      </RegistryContext.Provider>,
-    );
+    renderer = create(draftRoute());
   });
   await act(() => flow.setPrompt("Work in the selected environment"));
 });
@@ -354,7 +375,7 @@ describe("pending task editor dismissal", () => {
   });
 
   it("leaves the local thread after cancelling its pending creation", async () => {
-    await act(() => flow.cancelEditingPendingTask());
+    await act(() => serveNextDraftRoute());
     transport.navigationState.mockReturnValue({
       routes: [
         {
@@ -370,7 +391,7 @@ describe("pending task editor dismissal", () => {
   it("deletes a closed editor's unsendable draft without delivering the old prompt", async () => {
     const draftKey = flow.draftKey!;
     await act(() => flow.setPrompt(""));
-    await act(() => flow.cancelEditingPendingTask());
+    await act(() => serveNextDraftRoute());
 
     expect(flow.editingPendingTask).toBeNull();
     expect(readDraft(draftKey).text).toBe("");
@@ -394,10 +415,9 @@ describe("pending task editor dismissal", () => {
     expect(flow.prompt).toBe(pendingTask.text);
   });
 
-  // The next draft resets the shared flow before this editor's cleanup runs.
-  it("saves an edited pending task when the next draft resets the flow", async () => {
+  it("saves an edited pending task when the provider moves to the next draft route", async () => {
     await act(() => flow.setPrompt("Changed prompt"));
-    await act(() => flow.reset());
+    await act(() => serveNextDraftRoute());
 
     expect(flow.editingPendingTask).toBeNull();
     expect(transport.editorWrite).toHaveBeenCalledWith(
@@ -405,9 +425,9 @@ describe("pending task editor dismissal", () => {
     );
   });
 
-  it("keeps a cleared pending task held when the next draft resets the flow", async () => {
+  it("keeps a cleared pending task held when the provider moves to the next draft route", async () => {
     await act(() => flow.setPrompt(""));
-    await act(() => flow.reset());
+    await act(() => serveNextDraftRoute());
 
     expect(flow.editingPendingTask).toBeNull();
     expect(transport.editorWrite).not.toHaveBeenCalled();
@@ -417,7 +437,7 @@ describe("pending task editor dismissal", () => {
   it("reopens retained edits after a failed save", async () => {
     transport.editorWrite.mockResolvedValueOnce(false);
     await act(() => flow.setPrompt("Changed prompt"));
-    await act(() => flow.cancelEditingPendingTask());
+    await act(() => serveNextDraftRoute());
     expect(appAtomRegistry.get(editingQueuedMessageIdsAtom)[pendingTask.messageId]).toBe("paused");
 
     await act(() => {
@@ -425,14 +445,14 @@ describe("pending task editor dismissal", () => {
     });
     expect(flow.prompt).toBe("Changed prompt");
     expect(holdDeletingQueuedMessage(pendingTask.messageId)).toBe(false);
-    await act(() => flow.cancelEditingPendingTask());
+    await act(() => serveNextDraftRoute());
     expect(appAtomRegistry.get(editingQueuedMessageIdsAtom)[pendingTask.messageId]).toBeUndefined();
   });
 
   it("does not let a dismissed editor's save release a deletion in progress", async () => {
     const save = Promise.withResolvers<boolean>();
     transport.editorWrite.mockReturnValueOnce(save.promise);
-    await act(() => flow.cancelEditingPendingTask());
+    await act(() => serveNextDraftRoute());
     expect(holdDeletingQueuedMessage(pendingTask.messageId)).toBe(true);
     expect(flow.beginEditingPendingTask(pendingTask.messageId)).toBe(false);
     await act(() => save.resolve(true));
@@ -445,7 +465,7 @@ describe("pending task editor dismissal", () => {
   it("restores the stale-send hold when deleting retained edits fails", async () => {
     transport.removePendingTask.mockRejectedValueOnce(new Error("Outbox storage unavailable"));
     await act(() => flow.setPrompt(""));
-    await act(() => flow.cancelEditingPendingTask());
+    await act(() => serveNextDraftRoute());
     await act(async () => deletePendingTask());
     expect(appAtomRegistry.get(editingQueuedMessageIdsAtom)[pendingTask.messageId]).toBe("paused");
     expect(appAtomRegistry.get(queueAtom).queued).toEqual([pendingTask]);
@@ -455,6 +475,19 @@ describe("pending task editor dismissal", () => {
     });
     expect(flow.prompt).toBe("");
   });
+});
+
+it("returns to a covered draft route's own project and draft", async () => {
+  const coveredRoute = `route-${routeCount}`;
+  await act(() => flow.setProject(repositoryProject));
+  const coveredDraft = flow.draftKey;
+  await act(() => serveNextDraftRoute());
+  expect(flow.draftKey).not.toBe(coveredDraft);
+
+  await act(() => renderer!.update(draftRoute(undefined, coveredRoute)));
+  expect(flow.selectedProject).toBe(repositoryProject);
+  expect(flow.draftKey).toBe(coveredDraft);
+  expect(flow.prompt).toBe("Work in the selected environment");
 });
 
 describe("new-task environment switching", () => {
@@ -473,7 +506,7 @@ describe("new-task environment switching", () => {
     expect(readDraft(flow.draftKey!).text).toBe("Work in the selected environment");
   });
 
-  it.each(["reset", "project", "draft", "pending-task", "submission"] as const)(
+  it.each(["next route", "project", "route draft", "pending-task", "submission"] as const)(
     "does not retarget after %s replaces the pending switch",
     async (action) => {
       const originalDraft = flow.draftKey!;
@@ -483,19 +516,19 @@ describe("new-task environment switching", () => {
       });
       await act(() => {
         switch (action) {
-          case "reset":
-            flow.reset();
+          case "next route":
+            serveNextDraftRoute();
             break;
           case "project":
             flow.setProject(repositoryProject);
             break;
-          case "draft": {
+          case "route draft": {
             const other = createDraft({
               environmentId: firstEnvironment!,
               projectId: repositoryProject.id,
             });
             updateDraft(other, { text: "Other draft" });
-            expect(flow.openDraft(other)).toBe(true);
+            serveNextDraftRoute(other);
             break;
           }
           case "pending-task":
