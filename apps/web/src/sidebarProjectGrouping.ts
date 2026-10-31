@@ -108,6 +108,7 @@ export function resolveSidebarProjectScope(input: {
   readonly groups: ReadonlyArray<SidebarProjectSnapshot>;
   readonly keys: ReadonlyArray<string>;
   readonly settings?: ProjectGroupingSettings;
+  readonly canClearMissingScope?: boolean;
 }): {
   readonly keys: ReadonlyArray<string>;
   readonly groups: ReadonlyArray<SidebarProjectSnapshot>;
