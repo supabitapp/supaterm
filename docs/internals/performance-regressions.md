@@ -17,8 +17,9 @@ The v2 checks pin these invariants:
   Any other window, including the inside of one turn longer than 500 rows, stops at 75 rows. The
   snapshot query applies the same rule before it decodes payloads. Clients can opt into deferring
   large work groups until expansion. Messages and items outside those groups remain in normal
-  history paging. Required control records and the at-least-one-row rule can exceed the byte
-  target; it is not a hard cap.
+  history paging. Required control records, including interrupt requests and background work
+  still running from before the window, and the at-least-one-row rule can exceed the byte target;
+  it is not a hard cap.
 - The bounded snapshot does not retain the full duplicate conversation-message table.
 - Older activity is fetched in bounded HTTP pages and merged without disturbing the live scroll
   window.

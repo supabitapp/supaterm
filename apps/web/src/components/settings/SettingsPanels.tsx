@@ -90,6 +90,7 @@ import {
   SettingsSection,
 } from "./settingsLayout";
 import { searchableSetting } from "./settingsSearch";
+import { VoiceLanguageSettingRow, VoiceTranscriptionSettingRow } from "./VoiceSettings";
 import { BackgroundActivitySettingsRow } from "./BackgroundActivitySettings";
 import { PullRequestLinksOpenInAppSetting } from "./IntegrationsSettings";
 import { OrchestrationSkillsSettings } from "./OrchestrationSkillsSettings";
@@ -487,6 +488,9 @@ export function useSettingsRestore(onRestored?: () => void) {
       ? ["Rich text composer"]
       : []),
     ...(settings.sendShortcut !== DEFAULT_UNIFIED_SETTINGS.sendShortcut ? ["Send shortcut"] : []),
+    ...(settings.voiceLanguage !== DEFAULT_UNIFIED_SETTINGS.voiceLanguage
+      ? ["Voice language"]
+      : []),
     ...(settings.followUpBehavior !== DEFAULT_UNIFIED_SETTINGS.followUpBehavior
       ? ["Follow-up behavior"]
       : []),
@@ -599,6 +603,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       showSkillsInSlashMenu: DEFAULT_UNIFIED_SETTINGS.showSkillsInSlashMenu,
       composerRichTextEnabled: DEFAULT_UNIFIED_SETTINGS.composerRichTextEnabled,
       sendShortcut: DEFAULT_UNIFIED_SETTINGS.sendShortcut,
+      voiceLanguage: DEFAULT_UNIFIED_SETTINGS.voiceLanguage,
       followUpBehavior: DEFAULT_UNIFIED_SETTINGS.followUpBehavior,
       glassOpacity: DEFAULT_UNIFIED_SETTINGS.glassOpacity,
       sidebarThreadPreviewCount: DEFAULT_UNIFIED_SETTINGS.sidebarThreadPreviewCount,
@@ -1048,6 +1053,7 @@ export function ChatSettingsPanel() {
             </Select>
           }
         />
+        <VoiceLanguageSettingRow />
         <SettingsRow
           {...searchableSetting("skills-in-slash-menu")}
           description="Skills always appear when you type $."
@@ -1604,6 +1610,7 @@ export function ThreadsSettingsPanel() {
             )
           }
         />
+        <VoiceTranscriptionSettingRow providers={serverProviders} />
         <SettingsRow
           serverScoped
           settingKeys={["nextPromptSuggestionsEnabled"]}

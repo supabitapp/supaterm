@@ -200,6 +200,8 @@ const sharingPlugin: NonNullable<ExpoConfig["plugins"]>[number] = [
   },
 ];
 
+const MICROPHONE_PERMISSION = "Allow Supaterm to use your microphone for voice input.";
+
 const config: ExpoConfig = {
   name: variant.appName,
   slug: "supaterm",
@@ -336,8 +338,8 @@ const config: ExpoConfig = {
     [
       "expo-audio",
       {
-        microphonePermission: "Allow Supaterm to use your microphone for voice input.",
-        recordAudioAndroid: false,
+        microphonePermission: MICROPHONE_PERMISSION,
+        recordAudioAndroid: true,
         enableBackgroundPlayback: false,
         enableBackgroundRecording: false,
       },
@@ -351,7 +353,8 @@ const config: ExpoConfig = {
         recordAudioAndroid: false,
       },
     ],
-    ["expo-image-picker", { photosPermission: false, microphonePermission: false }],
+    // `false` here would block RECORD_AUDIO on Android, which voice input needs.
+    ["expo-image-picker", { photosPermission: false, microphonePermission: MICROPHONE_PERMISSION }],
     [
       "expo-splash-screen",
       {

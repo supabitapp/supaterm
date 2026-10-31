@@ -36,6 +36,7 @@ import * as McpToolAccessTestkit from "../mcp/McpToolAccess.testkit.ts";
 import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
 import * as ProjectService from "../project/ProjectService.ts";
 import * as DocumentText from "../provider/DocumentText.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
 import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
 import * as Transcription from "../transcription/Transcription.ts";
@@ -132,6 +133,7 @@ const withServer = <A, E, R>(
               Layer.mock(ProviderRegistry.ProviderRegistry)({}),
               Layer.mock(ProjectionStore.ProjectionStoreV2)({}),
               Layer.mock(ProjectService.ProjectService)({}),
+              ServerSettings.ServerSettingsService.layerTest(),
             ),
           ),
         ),

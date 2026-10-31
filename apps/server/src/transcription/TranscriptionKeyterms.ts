@@ -18,6 +18,10 @@ const FIXED_TERMS = [
   "worktree",
 ];
 
+// What people name while directing agents here, which a speech model hears as "super term",
+// "cloud", or "code X".
+const SUPATERM_TERMS = ["Supaterm", "Claude", "Codex", "Opus", "Sonnet", "Haiku", "GPT"];
+
 const isWordLength = (word: string) => word.length > 2 && word.length <= 20;
 
 const splitWords = (value: string) =>
@@ -34,15 +38,23 @@ const splitWords = (value: string) =>
 const isSingleWordSkill = (skill: ServerProviderSkill) =>
   skill.enabled && isWordLength(skill.name) && !/[\s\-_.:]/.test(skill.name);
 
+const isProjectName = (name: string | undefined): name is string =>
+  name !== undefined && name.length > 2 && name.length <= 50;
+
 export function keytermCandidates(input: {
   readonly projectTitle: string | undefined;
+  /** The project root's folder name, which Claude Code sends; a renamed title loses it. */
+  readonly projectFolder: string | undefined;
   readonly branch: string | undefined;
   readonly skills: ReadonlyArray<ServerProviderSkill>;
 }): ReadonlyArray<string> {
-  const projectTitle = input.projectTitle?.trim();
+  const projectNames = [input.projectTitle?.trim(), input.projectFolder?.trim()].filter(
+    isProjectName,
+  );
   return [
-    ...(projectTitle && projectTitle.length > 2 && projectTitle.length <= 50 ? [projectTitle] : []),
+    ...projectNames,
     ...(input.branch ? splitWords(input.branch) : []),
+    ...SUPATERM_TERMS,
     ...FIXED_TERMS,
     ...input.skills.filter(isSingleWordSkill).map((skill) => skill.name),
   ];

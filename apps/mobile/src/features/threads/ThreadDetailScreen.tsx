@@ -284,6 +284,10 @@ export interface ThreadDetailScreenProps {
       hasAttachmentsOrContext: boolean,
     ) => Promise<boolean | "responded">,
   ) => Promise<MessageId | null>;
+  readonly onSendVoiceMessage?: (
+    recordingUri: string,
+    language: string,
+  ) => Promise<MessageId | null>;
   readonly onReconnectEnvironment: () => void;
   readonly canSwitchThreadProvider: boolean;
   readonly onUpdateThreadModelSelection: (modelSelection: ModelSelection) => void;
@@ -1237,7 +1241,15 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
     if (messageId === null || scope.aborted) {
       return messageId;
     }
-
+    revealSubmittedMessage(scope, targetThreadKey, messageId, hasUserMessage);
+    return messageId;
+  };
+  const revealSubmittedMessage = (
+    scope: AbortSignal,
+    targetThreadKey: string,
+    messageId: MessageId,
+    hasUserMessage: boolean,
+  ) => {
     clearUsageLimitsFor(targetThreadKey);
 
     const nextAnchorMessageId = resolveThreadFeedSubmissionAnchor({
@@ -1270,8 +1282,23 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
           });
       });
     }
-    return messageId;
   };
+  const { onSendVoiceMessage } = props;
+  // Declining approvals to redirect the agent is the text send path's job.
+  const handleSendVoiceMessage =
+    onSendVoiceMessage && clientCreation === null && props.activePendingApprovals.length === 0
+      ? async (recordingUri: string, language: string) => {
+          const scope = threadScope.current.signal;
+          const targetThreadKey = selectedThreadKey;
+          const hasUserMessage = selectedThreadFeed.some(
+            (entry) => entry.type === "message" && entry.message.role === "user",
+          );
+          const messageId = await onSendVoiceMessage(recordingUri, language);
+          if (messageId !== null && !scope.aborted) {
+            revealSubmittedMessage(scope, targetThreadKey, messageId, hasUserMessage);
+          }
+        }
+      : undefined;
 
   const handleEditPendingMessage = async (message: QueuedThreadMessage) => {
     if (pendingMessageEditBlocked) return;
@@ -1741,6 +1768,7 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
                         onStopThread={props.onStopThread}
                         onResumeQueue={props.onResumeQueue}
                         onSendMessage={handleSendMessage}
+                        onSendVoiceMessage={props.draftMode ? undefined : handleSendVoiceMessage}
                         onShowUsageLimits={showUsageLimits}
                         canSwitchProvider={props.canSwitchThreadProvider}
                         onUpdateModelSelection={props.onUpdateThreadModelSelection}

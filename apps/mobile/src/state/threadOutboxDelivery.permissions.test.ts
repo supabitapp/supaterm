@@ -84,6 +84,7 @@ vi.mock("./server", async () => {
     environmentServerConfigsAtom: Atom.make(new Map([["secondary", state.config]])),
   };
 });
+vi.mock("./transcription", () => ({ uploadEnvironmentVoiceRecording: vi.fn() }));
 vi.mock("./threads", async () => {
   const { Atom, AsyncResult } = await import("effect/reactivity");
   state.threadShells = Atom.make<ReadonlyArray<unknown>>([state.thread]).pipe(Atom.keepAlive);

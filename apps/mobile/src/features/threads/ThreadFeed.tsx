@@ -239,6 +239,7 @@ import {
   isCompactionCommandFeedEntry,
   type PendingThreadFeedEntry,
 } from "./pending-thread-feed";
+import { PendingMessageActions, PendingVoiceMessageBody } from "./PendingVoiceMessage";
 import type { QueuedThreadMessage } from "../../state/thread-outbox-model";
 import {
   resolveThreadFeedFixedItemSize,
@@ -1619,6 +1620,7 @@ function renderFeedEntry(
       // Images sent without words show as images, not as a bubble around them.
       const mediaOnly =
         foldRowId === null &&
+        !entry.pendingMessage?.voice &&
         presentation.text.trim() === "" &&
         visibleAttachments.length + (entry.pendingMessage?.attachments.length ?? 0) > 0 &&
         visibleAttachments.every(isImageAttachment) &&
@@ -1672,6 +1674,9 @@ function renderFeedEntry(
                   !mediaOnly && foldRowId === null && "pt-2.5",
                 )}
               >
+                {entry.pendingMessage?.voice ? (
+                  <PendingVoiceMessageBody voice={entry.pendingMessage.voice} />
+                ) : null}
                 {entry.pendingMessage?.attachments.map((attachment) =>
                   attachment.type === "image" && attachment.uploadedAttachmentId ? (
                     <MessageAttachmentImage
@@ -1795,11 +1800,26 @@ function renderFeedEntry(
                   ·
                 </Text>
               ) : null}
-              <Text className="font-supaterm-medium text-xs tabular-nums text-foreground-secondary">
-                {entry.pendingMessage && !entry.acknowledged ? "Pending" : timestampLabel}
+              <Text
+                className={cn(
+                  "font-supaterm-medium text-xs tabular-nums text-foreground-secondary",
+                  entry.pendingMessage?.failure !== undefined && "text-danger-foreground",
+                )}
+              >
+                {entry.pendingMessage && !entry.acknowledged
+                  ? entry.pendingMessage.failure !== undefined
+                    ? "Not sent"
+                    : "Pending"
+                  : timestampLabel}
               </Text>
+              {entry.pendingMessage &&
+              !entry.acknowledged &&
+              entry.pendingMessage.messageId !== props.dispatchingMessageId ? (
+                <PendingMessageActions message={entry.pendingMessage} iconColor={iconSubtleColor} />
+              ) : null}
               {props.onEditPendingMessage !== null &&
               entry.pendingMessage &&
+              !entry.pendingMessage.voice &&
               !entry.acknowledged &&
               entry.pendingMessage.messageId !== props.dispatchingMessageId ? (
                 <Pressable
@@ -1849,6 +1869,13 @@ function renderFeedEntry(
                 />
               ) : null}
             </View>
+          ) : null}
+          {bubbleBodyVisible &&
+          entry.pendingMessage?.failure !== undefined &&
+          !entry.acknowledged ? (
+            <Text className="max-w-[85%] pr-0.5 text-right text-xs text-danger-foreground">
+              {entry.pendingMessage.failure}
+            </Text>
           ) : null}
         </Animated.View>
       );
@@ -2884,7 +2911,7 @@ export const ThreadFeed = memo(function ThreadFeed({
   const [prefetchHistory] = useState(createThreadHistoryPrefetcher);
   const handleHistoryPrefetch = () => {
     const state = listRef.current?.getState();
-    if (props.freeze || feedLoading || state?.data !== presentedFeed) return;
+    if (props.freeze.value || feedLoading || state?.data !== presentedFeed) return;
     prefetchHistory(feedThreadKey, props.historyControls, state);
   };
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reads the native list's imperative state on the next frame after each commit to prefetch older history

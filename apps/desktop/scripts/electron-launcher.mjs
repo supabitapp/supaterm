@@ -271,6 +271,8 @@ function resolveMacBundleInfoPlistStrings(executableName) {
     NSScreenCaptureUsageDescription:
       "Supaterm captures the active window when you use the snapshot shortcut.",
     NSDocumentsFolderUsageDescription: "Supaterm reads project files you open in the desktop app.",
+    NSMicrophoneUsageDescription:
+      "Supaterm records voice input for your prompts and lets commands run by terminals and coding agents use the microphone.",
   };
 }
 

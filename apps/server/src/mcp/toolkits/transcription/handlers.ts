@@ -23,6 +23,7 @@ const FAILURE_CODES = {
   audioTooLong: "invalid_request",
   unsupportedLanguage: "invalid_request",
   requestConflict: "invalid_request",
+  uploadExpired: "invalid_request",
   cancelled: "orchestration_error",
   failed: "orchestration_error",
 } satisfies Record<TranscriptionErrorReason, OrchestratorMcpFailure["code"]>;

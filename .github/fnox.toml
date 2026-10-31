@@ -21,6 +21,10 @@ APPLE_API_ISSUER = { provider = "op", value = "dxvzgzlnmd4fen4c7ltqdre76m/APPLE_
 [profiles.cloudflare.secrets]
 CLOUDFLARE_API_TOKEN = { provider = "op", value = "7p7xugt7rb7bwia3gucpeqb7di/CLOUDFLARE_API_TOKEN" }
 
+[profiles.release-notes.secrets]
+ANTHROPIC_BASE_URL = { provider = "op", value = "release-notes-llm/ANTHROPIC_BASE_URL" }
+ANTHROPIC_AUTH_TOKEN = { provider = "op", value = "release-notes-llm/ANTHROPIC_AUTH_TOKEN" }
+
 [profiles.mobile.secrets]
 EXPO_TOKEN = { provider = "op", value = "t2yimao5k2nhpryu5bc7omrqiq/EXPO_TOKEN" }
 

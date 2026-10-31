@@ -127,7 +127,7 @@ export function selectLanIpv4Address(addresses: ReadonlyArray<NetworkAddress>): 
   );
 }
 
-export function lanIpv4Address(): string {
+function lanIpv4Address(): string {
   const address = selectLanIpv4Address(
     Object.values(NodeOS.networkInterfaces()).flatMap((addresses) => addresses ?? []),
   );
@@ -510,7 +510,7 @@ function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-export async function stopProcess(child: NodeChildProcess.ChildProcess): Promise<void> {
+async function stopProcess(child: NodeChildProcess.ChildProcess): Promise<void> {
   if (child.exitCode !== null || child.signalCode !== null) return;
 
   const exited = new Promise<void>((resolve) => {
@@ -524,11 +524,7 @@ export async function stopProcess(child: NodeChildProcess.ChildProcess): Promise
   await Promise.race([exited, delay(1_000)]);
 }
 
-export async function waitForPort(
-  port: number,
-  label = "Process",
-  timeoutMs = 60_000,
-): Promise<void> {
+async function waitForPort(port: number, label = "Process", timeoutMs = 60_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const open = await new Promise<boolean>((resolve) => {
@@ -566,7 +562,7 @@ async function waitForFileContent(
   throw new Error(`${label} was not written to ${filePath} within ${timeoutMs}ms.`);
 }
 
-export async function reserveAvailablePort(): Promise<number> {
+async function reserveAvailablePort(): Promise<number> {
   return await new Promise<number>((resolve, reject) => {
     const server = NodeNet.createServer();
     server.once("error", reject);
@@ -681,20 +677,19 @@ function startShowcaseServer(
   );
 }
 
-export interface ShowcaseEnvironment {
+interface ShowcaseEnvironment {
   readonly baseDir: string;
   readonly environmentId: string;
   readonly label: string;
   readonly port: number;
 }
 
-export async function startShowcaseEnvironments(
+async function startShowcaseEnvironments(
   rootDir: string,
   track: (server: NodeChildProcess.ChildProcess) => void,
-  environments: ReadonlyArray<(typeof SHOWCASE_ENVIRONMENTS)[number]> = SHOWCASE_ENVIRONMENTS,
 ): Promise<ShowcaseEnvironment[]> {
   const started: ShowcaseEnvironment[] = [];
-  for (const environment of environments) {
+  for (const environment of SHOWCASE_ENVIRONMENTS) {
     const projectId = environment.projectIds[0];
     const project = SHOWCASE_PROJECTS.find((candidate) => candidate.id === projectId);
     if (!project) throw new Error(`Showcase environment '${environment.id}' has no project.`);
@@ -755,7 +750,7 @@ export function parsePairingCredentialOutput(output: string): string {
   return parsed.credential;
 }
 
-export async function issuePairingCredential(baseDir: string): Promise<string> {
+async function issuePairingCredential(baseDir: string): Promise<string> {
   const output = await commandOutput(
     "node",
     ["apps/server/src/bin.ts", "auth", "pairing", "create", "--base-dir", baseDir, "--json"],
@@ -764,7 +759,7 @@ export async function issuePairingCredential(baseDir: string): Promise<string> {
   return parsePairingCredentialOutput(output);
 }
 
-export function buildShowcasePairingUrl(host: string, port: number, credential: string): string {
+function buildShowcasePairingUrl(host: string, port: number, credential: string): string {
   const url = new URL(`http://${host}:${port}/`);
   url.hash = new URLSearchParams([["token", credential]]).toString();
   return url.toString();
@@ -788,7 +783,7 @@ function startMetro(config: ShowcaseConfig): NodeChildProcess.ChildProcess {
   );
 }
 
-export async function warmMetroBundle(
+async function warmMetroBundle(
   platform: ShowcaseDevice["platform"],
   host: string,
   metroPort: number,
@@ -929,7 +924,7 @@ async function iosSimulatorDataPath(udid: string): Promise<string> {
 // generativeexperiencesd posts a "Ready for Apple Intelligence" banner on first boot and
 // CoreFollowUp re-surfaces it every boot until dismissed. The readiness marker makes the daemon
 // skip the post; dropping the CoreFollowUp store clears one a previous boot queued.
-export async function suppressIosSystemFollowUps(udid: string): Promise<void> {
+async function suppressIosSystemFollowUps(udid: string): Promise<void> {
   const dataPath = await iosSimulatorDataPath(udid);
   const preferences = NodePath.join(dataPath, "Library/Preferences");
   await NodeFSP.mkdir(preferences, { recursive: true });
@@ -951,10 +946,7 @@ export async function suppressIosSystemFollowUps(udid: string): Promise<void> {
   });
 }
 
-export async function normalizeIosSimulator(
-  appearance: ShowcaseAppearance,
-  udid: string,
-): Promise<void> {
+async function normalizeIosSimulator(appearance: ShowcaseAppearance, udid: string): Promise<void> {
   await runCommand("xcrun", ["simctl", "ui", udid, "appearance", appearance]);
   await runCommand("xcrun", [
     "simctl",
@@ -977,7 +969,7 @@ export async function normalizeIosSimulator(
 // iPadOS 26 windowing ("Chamois") runs UIRequiresFullScreen apps in a fixed
 // portrait compatibility window, which defeats the in-app landscape rotation
 // the capture build relies on.
-export async function ensureIosFullScreenAppsMode(udid: string): Promise<void> {
+async function ensureIosFullScreenAppsMode(udid: string): Promise<void> {
   const current = await commandOutput("xcrun", [
     "simctl",
     "spawn",
@@ -1182,7 +1174,7 @@ async function captureIos(
   }
 }
 
-export function androidSdkTool(relativePath: string): string {
+function androidSdkTool(relativePath: string): string {
   return NodePath.join(ANDROID_SDK_ROOT, relativePath);
 }
 

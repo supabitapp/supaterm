@@ -392,6 +392,7 @@ export const ComposerBanner = {
   Peek,
   Attachment,
   Drawer,
+  LastOpenContent,
   Dock,
   Column,
   Root,

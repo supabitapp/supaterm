@@ -105,10 +105,85 @@ describe("resolveTranscriptCommit", () => {
       kind: "stale",
     });
   });
+
+  it("reports an empty or whitespace-only transcript without committing anything", () => {
+    const captured = draft();
+    expect(resolveTranscriptCommit(captured, captured, "", "en-US")).toEqual({ kind: "empty" });
+    expect(resolveTranscriptCommit(captured, captured, " \n\t ", "en-US")).toEqual({
+      kind: "empty",
+    });
+  });
 });
 
 describe("VoiceInputController", () => {
   beforeEach(() => resetVoiceInputGlobalsForTests());
+
+  it("hands a sent recording over before deleting its own copy, without transcribing", async () => {
+    const transcribe = vi.fn(async () => "never");
+    const handedOver: string[] = [];
+    const saving = deferred<void>();
+    const harness = createHarness({
+      getTranscriber: () => ({ prepare: async () => preparedTranscription(transcribe) }),
+    });
+    await harness.controller.start();
+    const sending = harness.controller.send(async (uri) => {
+      handedOver.push(uri);
+      await saving.promise;
+    });
+    await vi.waitFor(() => expect(handedOver).toEqual(["file:///voice.m4a"]));
+
+    expect(harness.controller.currentState.phase).toBe("sending");
+    harness.controller.cancel();
+    expect(harness.deleted).toEqual([]);
+    saving.resolve();
+    await sending;
+
+    expect(harness.controller.currentState.phase).toBe("idle");
+    expect(harness.deleted).toEqual(["file:///voice.m4a"]);
+    expect(transcribe).not.toHaveBeenCalled();
+    expect(harness.commits).toEqual([]);
+  });
+
+  it("delivers to the destination bound when Send was pressed, after the draft moves on", async () => {
+    const stopping = deferred<undefined>();
+    const harness = createHarness();
+    harness.recorder.stop.mockImplementation(() => stopping.promise);
+    await harness.controller.start();
+    const delivered: string[] = [];
+    const sending = harness.controller.send(async () => {
+      delivered.push("thread A");
+    });
+    harness.controller.ownerChanged();
+    stopping.resolve(undefined);
+    await sending;
+
+    expect(delivered).toEqual(["thread A"]);
+    expect(harness.controller.currentState.phase).toBe("idle");
+  });
+
+  it("reports a recording it could not save, and stops at the time limit for review instead", async () => {
+    const failing = createHarness();
+    await failing.controller.start();
+    await failing.controller.send(async () => {
+      throw new Error("quota");
+    });
+    expect(failing.controller.currentState).toEqual({
+      phase: "error",
+      error: "Could not save this recording.",
+      errorAction: "retry",
+    });
+
+    resetVoiceInputGlobalsForTests();
+    const limited = createHarness();
+    await limited.controller.start();
+    await limited.controller.handleRecorderStatus({
+      isFinished: true,
+      hasError: false,
+      error: null,
+      url: "file:///voice.m4a",
+    });
+    expect(limited.commits).toHaveLength(1);
+  });
 
   it("checks support and permission before recording", async () => {
     const unsupported = createHarness({ getTranscriber: () => null });
@@ -122,6 +197,19 @@ describe("VoiceInputController", () => {
     await denied.controller.start();
     expect(denied.controller.currentState.errorAction).toBe("settings");
     expect(denied.recorder.record).not.toHaveBeenCalled();
+
+    const missing = createHarness({
+      requestPermission: async () => ({
+        granted: false,
+        canAskAgain: true,
+        reason: "No microphone was found.",
+      }),
+    });
+    await missing.controller.start();
+    expect(missing.controller.currentState).toMatchObject({
+      error: "No microphone was found.",
+      errorAction: "retry",
+    });
   });
 
   it.each(["permission", "transcription"] as const)(
@@ -530,5 +618,17 @@ describe("VoiceInputController", () => {
 
     expect(harness.recorder.record).not.toHaveBeenCalled();
     expect(harness.controller.currentState.error).toContain("background");
+  });
+
+  it("keeps preparing while the system asks for microphone access", async () => {
+    const permission = deferred<{ granted: boolean; canAskAgain: boolean }>();
+    const harness = createHarness({ requestPermission: () => permission.promise });
+    const starting = harness.controller.start();
+    harness.controller.appMovedToBackground();
+    permission.resolve({ granted: true, canAskAgain: true });
+    await starting;
+
+    expect(harness.recorder.record).toHaveBeenCalled();
+    expect(harness.controller.currentState.phase).toBe("recording");
   });
 });

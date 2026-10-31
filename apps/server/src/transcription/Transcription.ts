@@ -32,6 +32,7 @@ import {
 import * as ServerConfig from "../config.ts";
 import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
 import * as ProjectService from "../project/ProjectService.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
 import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
 import { keytermCandidates } from "./TranscriptionKeyterms.ts";
@@ -53,6 +54,13 @@ const UNUSABLE_AUDIO: ReadonlySet<TranscriptionErrorReason | undefined> = new Se
 interface RunInputs {
   readonly providerInstanceId: ProviderInstanceId;
   readonly language: string | undefined;
+}
+
+export interface TranscribeFileInput {
+  readonly path: string;
+  readonly providerInstanceId: ProviderInstanceId;
+  readonly language?: string | undefined;
+  readonly context?: TranscriptionTranscribeInput["context"];
 }
 
 type Entry =
@@ -105,6 +113,18 @@ export class Transcription extends Context.Service<
       input: TranscriptionTranscribeInput,
     ) => Effect.Effect<TranscriptionTranscribeResult, TranscriptionError>;
     readonly cancel: (input: TranscriptionCancelInput) => Effect.Effect<void>;
+    /**
+     * The instance a request would transcribe with, checked before any audio exists,
+     * so a refusal never costs an upload. Omitted means the environment's setting.
+     */
+    readonly checkSource: (input: {
+      readonly providerInstanceId?: ProviderInstanceId | undefined;
+      readonly language?: string | undefined;
+    }) => Effect.Effect<ProviderInstanceId, TranscriptionError>;
+    /** One run on audio the caller owns: no joining, recorded outcome, or deletion. */
+    readonly transcribeFile: (
+      input: TranscribeFileInput,
+    ) => Effect.Effect<TranscriptionTranscribeResult, TranscriptionError>;
   }
 >()("supaterm/transcription/Transcription") {}
 
@@ -116,6 +136,7 @@ const make = Effect.gen(function* () {
   const providerRegistry = yield* ProviderRegistry.ProviderRegistry;
   const projections = yield* ProjectionStore.ProjectionStoreV2;
   const projects = yield* ProjectService.ProjectService;
+  const settings = yield* ServerSettings.ServerSettingsService;
   const entriesRef = yield* Ref.make<ReadonlyMap<string, Entry>>(new Map());
   const storeLock = yield* Semaphore.make(1);
   const limitersRef = yield* Ref.make<ReadonlyMap<ProviderInstanceId, Semaphore.Semaphore>>(
@@ -139,9 +160,7 @@ const make = Effect.gen(function* () {
     });
   });
 
-  const readAudio = Effect.fn("Transcription.readAudio")(function* (attachmentId: string) {
-    const path = resolveAttachmentPathById({ attachmentsDir: config.attachmentsDir, attachmentId });
-    if (!path) return yield* new TranscriptionError({ reason: "audioMissing" });
+  const readAudio = Effect.fn("Transcription.readAudio")(function* (path: string) {
     const missing = (cause: unknown) => new TranscriptionError({ reason: "audioMissing", cause });
     const info = yield* fileSystem.stat(path).pipe(Effect.mapError(missing));
     if (Number(info.size) > TRANSCRIPTION_MAX_AUDIO_BYTES) {
@@ -181,15 +200,26 @@ const make = Effect.gen(function* () {
       : undefined;
     return keytermCandidates({
       projectTitle: project?.title,
+      projectFolder: project?.workspaceRoot.split(/[\\/]/).findLast((part) => part !== ""),
       branch: shell?.branch ?? undefined,
       skills: workspaceSkills ?? provider?.skills ?? [],
     });
   });
 
-  const run = Effect.fn("Transcription.run")(function* (
-    input: TranscriptionTranscribeInput,
-    inputs: RunInputs,
-  ) {
+  const resolveInputs = Effect.fnUntraced(function* (input: {
+    readonly providerInstanceId?: ProviderInstanceId | undefined;
+    readonly language?: string | undefined;
+  }) {
+    const providerInstanceId =
+      input.providerInstanceId ??
+      (yield* settings.getSettings.pipe(
+        Effect.mapError((cause) => new TranscriptionError({ reason: "sourceUnavailable", cause })),
+      )).transcriptionProviderInstanceId;
+    return { providerInstanceId, language: normalizeLanguage(input.language) } satisfies RunInputs;
+  });
+
+  // Never another account: an unusable instance is refused, not substituted.
+  const resolveSource = Effect.fnUntraced(function* (inputs: RunInputs) {
     const instance = yield* providerInstances.getInstance(inputs.providerInstanceId);
     const backend = instance?.enabled ? instance.transcription : undefined;
     if (!instance || !backend) {
@@ -204,21 +234,32 @@ const make = Effect.gen(function* () {
     if (inputs.language !== undefined && !backend.supportsLanguage(inputs.language)) {
       return yield* new TranscriptionError({ reason: "unsupportedLanguage" });
     }
-    const audio = yield* readAudio(input.audioAttachmentId);
-    const keyterms = backend.acceptsKeyterms
-      ? yield* readKeyterms(inputs.providerInstanceId, input.context)
-      : [];
-    yield* Effect.annotateCurrentSpan({
-      instanceId: inputs.providerInstanceId,
-      driver: instance.driverKind,
-      audioSeconds: Math.round(audio.durationMs / 1000),
-      keytermCount: keyterms.length,
-    });
-    const limiter = yield* limiterFor(inputs.providerInstanceId);
-    return yield* limiter.withPermits(1)(
-      backend.transcribe({ audio, language: inputs.language, keyterms }),
-    );
+    return { instance, backend };
   });
+
+  const run = Effect.fn("Transcription.run")(
+    function* (path: string, inputs: RunInputs, context: TranscriptionTranscribeInput["context"]) {
+      const { instance, backend } = yield* resolveSource(inputs);
+      const audio = yield* readAudio(path);
+      const keyterms = backend.acceptsKeyterms
+        ? yield* readKeyterms(inputs.providerInstanceId, context)
+        : [];
+      yield* Effect.annotateCurrentSpan({
+        instanceId: inputs.providerInstanceId,
+        driver: instance.driverKind,
+        audioSeconds: Math.round(audio.durationMs / 1000),
+        keytermCount: keyterms.length,
+      });
+      const limiter = yield* limiterFor(inputs.providerInstanceId);
+      return yield* limiter.withPermits(1)(
+        backend.transcribe({ audio, language: inputs.language, keyterms }),
+      );
+    },
+    Effect.timeoutOrElse({
+      duration: RUN_TIMEOUT_MS,
+      orElse: () => Effect.fail(new TranscriptionError({ reason: "failed" })),
+    }),
+  );
 
   // An expired failure takes its upload with it, so a late recovery gets
   // `audioMissing` instead of a second vendor run. Callers hold the store lock.
@@ -301,12 +342,10 @@ const make = Effect.gen(function* () {
       );
     }
 
+    const path = resolveAttachmentPathById({ attachmentsDir: config.attachmentsDir, attachmentId });
+    if (!path) return Effect.fail(new TranscriptionError({ reason: "audioMissing" }));
     const result = yield* Deferred.make<TranscriptionTranscribeResult, TranscriptionError>();
-    const fiber = yield* run(input, inputs).pipe(
-      Effect.timeoutOrElse({
-        duration: RUN_TIMEOUT_MS,
-        orElse: () => Effect.fail(new TranscriptionError({ reason: "failed" })),
-      }),
+    const fiber = yield* run(path, inputs, input.context).pipe(
       Effect.exit,
       Effect.flatMap((exit) => settle(attachmentId, result, inputs, exit)),
       Effect.forkIn(serviceScope),
@@ -328,10 +367,7 @@ const make = Effect.gen(function* () {
       if (!isPendingWav(input.audioAttachmentId)) {
         return yield* new TranscriptionError({ reason: "audioMissing" });
       }
-      const inputs = {
-        providerInstanceId: input.providerInstanceId,
-        language: normalizeLanguage(input.language),
-      };
+      const inputs = yield* resolveInputs(input);
       const outcome = yield* storeLock.withPermits(1)(claim(input, inputs));
       return yield* outcome;
     },
@@ -371,7 +407,25 @@ const make = Effect.gen(function* () {
     Effect.forkIn(serviceScope),
   );
 
-  return Transcription.of({ transcribe, cancel });
+  const transcribeFile: Transcription["Service"]["transcribeFile"] = (input) =>
+    run(
+      input.path,
+      {
+        providerInstanceId: input.providerInstanceId,
+        language: normalizeLanguage(input.language),
+      },
+      input.context,
+    );
+
+  const checkSource: Transcription["Service"]["checkSource"] = Effect.fn(
+    "Transcription.checkSource",
+  )(function* (input) {
+    const inputs = yield* resolveInputs(input);
+    yield* resolveSource(inputs);
+    return inputs.providerInstanceId;
+  });
+
+  return Transcription.of({ transcribe, cancel, checkSource, transcribeFile });
 });
 
 export const layer = Layer.effect(Transcription, make);

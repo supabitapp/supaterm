@@ -81,7 +81,7 @@ function history(thread: string): Entry[] {
 
 // Props that some trees under comparison have dropped. A JSX spread is not checked for
 // excess properties, so this file type-checks on trees with and without them.
-const versionedProps = { onManualNavigation: () => {} };
+const versionedProps = { onManualNavigation: () => {}, onJumpToPinnedMessage: () => {} };
 
 // One list handle per mounted timeline, as ChatView keeps one: the timeline compares the
 // handle across renders, and a new one per render would skip its scroll-to-end and settle work.

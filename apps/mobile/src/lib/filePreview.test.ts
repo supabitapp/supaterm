@@ -246,6 +246,10 @@ vi.mock("../components/ui/NativePresentation", () => ({
 vi.mock("../components/ui/Menu", () => ({
   Menu: ({ children }: { children?: ReactNode }) => children,
 }));
+vi.mock("../features/threads/PendingVoiceMessage", () => ({
+  PendingMessageActions: () => null,
+  PendingVoiceMessageBody: () => null,
+}));
 vi.mock("../components/FilePreviewGallery", () => ({
   FilePreviewGallery: ({ children }: { children?: ReactNode }) => children,
 }));

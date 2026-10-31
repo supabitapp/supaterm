@@ -49,6 +49,7 @@ import {
   createLocalDispatchSnapshot,
   deriveCommittedServerUserMessageIds,
   deriveComposerSendState,
+  isComposerDraftEmpty,
   deriveLockedProvider,
   hasServerAcknowledgedLocalDispatch,
   shouldRequireWorktreeBaseBranch,
@@ -103,6 +104,28 @@ const readySession = {
   lastError: null,
   updatedAt: "2026-03-29T00:00:10.000Z",
 };
+
+describe("isComposerDraftEmpty", () => {
+  const empty = {
+    prompt: "  ",
+    attachmentCount: 0,
+    terminalContextCount: 0,
+    elementContextCount: 0,
+  };
+
+  it("counts every context chip as draft content, so a recording can't drop it", () => {
+    expect(isComposerDraftEmpty(empty)).toBe(true);
+    expect(isComposerDraftEmpty({ ...empty, terminalContextCount: 1 })).toBe(false);
+    expect(isComposerDraftEmpty({ ...empty, elementContextCount: 1 })).toBe(false);
+    expect(isComposerDraftEmpty({ ...empty, attachmentCount: 1 })).toBe(false);
+    expect(
+      isComposerDraftEmpty({
+        ...empty,
+        prompt: "[Thread](supaterm-context://v1/thread/ctx-1)",
+      }),
+    ).toBe(false);
+  });
+});
 
 describe("deriveComposerSendState", () => {
   it("treats expired terminal pills as non-sendable content", () => {

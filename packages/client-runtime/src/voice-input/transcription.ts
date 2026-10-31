@@ -13,11 +13,8 @@ export type VoiceTranscriber = {
 };
 
 export type VoiceTranscriptionErrorCode =
-  | "unavailable"
-  | "unsupported-locale"
-  | "preparation-failed"
-  | "transcription-failed"
-  | "cancelled";
+  /** The environment declined with a reason the user can act on, carried in the message. */
+  "refused" | "cancelled";
 
 export class VoiceTranscriptionError extends Error {
   readonly code: VoiceTranscriptionErrorCode;

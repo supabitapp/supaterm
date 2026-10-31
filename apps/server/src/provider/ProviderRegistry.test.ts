@@ -2436,11 +2436,7 @@ it.layer(
     it.effect.each([
       {
         login: "a claude.ai subscription",
-        capabilities: {
-          tokenSource: "claude.ai",
-          subscriptionType: "max",
-          apiProvider: "firstParty",
-        },
+        capabilities: { subscriptionType: "Claude Max", apiProvider: "firstParty" },
         expected: { status: "ready" },
       },
       {
@@ -2451,6 +2447,11 @@ it.layer(
       {
         login: "an API key",
         capabilities: { tokenSource: "none", apiKeySource: "ANTHROPIC_API_KEY" },
+        expected: { status: "unavailable", reason: "unsupportedLogin" },
+      },
+      {
+        login: "an API key beside a claude.ai login",
+        capabilities: { tokenSource: "claude.ai", apiKeySource: "ANTHROPIC_API_KEY" },
         expected: { status: "unavailable", reason: "unsupportedLogin" },
       },
       {
@@ -2503,7 +2504,7 @@ it.layer(
       Effect.gen(function* () {
         const status = yield* checkClaudeProviderStatus(
           defaultClaudeSettings,
-          claudeCapabilities({ tokenSource: "claude.ai", subscriptionType: "max" }),
+          claudeCapabilities({ subscriptionType: "Claude Max" }),
           { ANTHROPIC_BASE_URL: "https://proxy.example/api" },
         );
         assert.deepStrictEqual(status.transcription, {

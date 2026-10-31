@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { beforeEach, describe, expect, it, vi, type Mock } from "vite-plus/test";
 import type { PreparedVoiceTranscription } from "@supaterm/client-runtime/voice-input";
 import { Atom, AtomRegistry } from "effect/reactivity";
 import { resetVoiceInputGlobalsForTests } from "../../../../../packages/client-runtime/src/voice-input/controller";
@@ -23,17 +23,28 @@ import {
   createVoiceInputTarget,
   VoiceInputSession,
   type VoiceInputSessionDependencies,
+  type VoiceInputEngine,
   type VoiceInputTarget,
   type VoiceRecordingSample,
 } from "./voiceInputSession";
+
+let prepare: Mock<() => Promise<PreparedVoiceTranscription>>;
+
+const engine = (): VoiceInputEngine => ({
+  transcriber: { prepare },
+  language: "en-US",
+});
 
 function createTarget(
   ownerKey: string,
   readText: () => string | null,
   commit: VoiceInputTarget["commitDraft"],
   selection: { start: number; end: number },
-) {
-  return createVoiceInputTarget(ownerKey, readText, commit, selection, () => () => {});
+): VoiceInputTarget {
+  return {
+    ...createVoiceInputTarget(ownerKey, readText, commit, selection, () => () => {}),
+    engine: engine(),
+  };
 }
 
 function createSession(
@@ -48,18 +59,17 @@ function createSession(
   const keepAwake = vi.fn(() => releaseKeepAwake);
   const publishAudioLevels = vi.fn();
   const recorder = {
-    uri: "file:///voice.m4a",
+    uri: "file:///voice.wav",
     prepareToRecordAsync: vi.fn(async () => {}),
     record: vi.fn(),
     stop: vi.fn(async () => {}),
   };
-  const prepare = vi.fn(async (): Promise<PreparedVoiceTranscription> => ({
+  prepare = vi.fn(async (): Promise<PreparedVoiceTranscription> => ({
     locale: "en-US",
     transcribe: async () => "spoken text",
   }));
   const session = new VoiceInputSession({
     recorder,
-    getTranscriber: () => ({ prepare }),
     requestPermission: async () => ({ granted: true, canAskAgain: true }),
     configureRecording: async () => {},
     releaseRecording: vi.fn(async () => {}),
@@ -275,19 +285,22 @@ describe("global voice input", () => {
     const unsubscribe = vi.fn();
     const { session } = createSession();
     const commit = vi.fn();
-    const target = createVoiceInputTarget(
-      "first",
-      () => registry.get(draft),
-      commit,
-      { start: 6, end: 6 },
-      (onChange) => {
-        const stop = registry.subscribe(draft, onChange);
-        return () => {
-          stop();
-          unsubscribe();
-        };
-      },
-    );
+    const target = {
+      ...createVoiceInputTarget(
+        "first",
+        () => registry.get(draft),
+        commit,
+        { start: 6, end: 6 },
+        (onChange) => {
+          const stop = registry.subscribe(draft, onChange);
+          return () => {
+            stop();
+            unsubscribe();
+          };
+        },
+      ),
+      engine: engine(),
+    };
     await session.start(target);
     registry.set(draft, "changed");
     registry.set(draft, "hello world");

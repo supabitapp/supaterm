@@ -67,6 +67,7 @@ function baseProps(): Omit<TimelineProps, "timelineEntries"> {
     contentInsetEndAdjustment: 0,
     liveFollowEnabled: true,
     onIsAtEndChange: () => {},
+    onJumpToPinnedMessage: () => {},
   };
 }
 

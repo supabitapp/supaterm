@@ -1,18 +1,74 @@
 // @effect-diagnostics nodeBuiltinImport:off - verifies loopback request boundaries on real TCP sockets.
+import * as NodeCrypto from "node:crypto";
 import * as NodeHttp from "node:http";
 import * as NodeNet from "node:net";
 import type * as NodeStream from "node:stream";
+import * as NodeStreamPromises from "node:stream/promises";
 import { afterEach, expect, it, vi } from "vite-plus/test";
-import type { TunnelStream } from "./tunnel.ts";
-import { openLoopbackRelay } from "./tunnelNode.ts";
+import { acceptClientHandshake, createClientHandshake, relayPublicKey } from "./protocol.ts";
+import { createTunnelSession, type TunnelStream } from "./tunnel.ts";
+import { openLoopbackRelay, TunnelSocket } from "./tunnelNode.ts";
 
 const { open } = vi.hoisted(() => ({ open: vi.fn<() => Promise<TunnelStream>>() }));
-vi.mock("./tunnel.ts", () => ({ createTunnelConnector: () => ({ open, close: () => {} }) }));
+vi.mock("./tunnel.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./tunnel.ts")>()),
+  createTunnelConnector: () => ({ open, close: () => {} }),
+}));
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).toReversed()) await cleanup();
   open.mockReset();
+});
+
+it("keeps large socket batches pending through the final nonempty write", async () => {
+  const identity = NodeCrypto.randomBytes(32);
+  const handshake = createClientHandshake(relayPublicKey(identity), NodeCrypto.randomBytes);
+  const accepted = acceptClientHandshake(handshake.hello, identity, NodeCrypto.randomBytes);
+  const received = Promise.withResolvers<string>();
+  const hash = NodeCrypto.createHash("sha256");
+  const client = createTunnelSession({
+    cipher: handshake.finish(accepted.welcome),
+    initiator: true,
+    send: (data) => queueMicrotask(() => host.receive(data)),
+  });
+  const host = createTunnelSession({
+    cipher: accepted.cipher,
+    initiator: false,
+    send: (data) => queueMicrotask(() => client.receive(data)),
+    onStream: (stream) => {
+      stream.onData = (data) => {
+        hash.update(data);
+        stream.consumed(data.length);
+      };
+      stream.onEnd = () => received.resolve(hash.digest("hex"));
+    },
+  });
+  const socket = new TunnelSocket(client.open());
+  cleanups.push(async () => {
+    socket.destroy();
+    client.close();
+    host.close();
+  });
+  const payload = NodeCrypto.randomBytes(9 * 1024 * 1024);
+  const header = Buffer.alloc(10);
+  header[0] = 0x82;
+  header[1] = 0x7f;
+  header.writeBigUInt64BE(BigInt(payload.length), 2);
+  const written = NodeStreamPromises.finished(socket, { readable: false });
+  socket.cork();
+  socket.write(header);
+  socket.write(payload);
+  socket.write(Buffer.alloc(0));
+  socket.uncork();
+  const pendingBytes = socket.writableLength;
+  socket.end();
+  await written;
+  expect(await received.promise).toBe(
+    NodeCrypto.createHash("sha256").update(header).update(payload).digest("hex"),
+  );
+  expect(pendingBytes).toBe(header.length + payload.length);
+  expect(host.closed).toBe(false);
 });
 
 async function fixture(upgrade = false) {

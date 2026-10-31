@@ -19,9 +19,12 @@ import {
   DEFAULT_PROVIDER_INTERACTION_MODE,
   DEFAULT_RUNTIME_MODE,
   PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
+  TranscriptionError,
   type EnvironmentId,
   type MessageId,
+  type ModelSelection,
 } from "@supaterm/contracts";
+import { VoiceUploadError } from "@supaterm/client-runtime/state/transcription";
 import { buildTemporaryWorktreeBranchName } from "@supaterm/shared/git";
 import * as Cause from "effect/Cause";
 import { AsyncResult, Atom } from "effect/reactivity";
@@ -32,6 +35,7 @@ import { buildProjectThreadStartTurnInput } from "../lib/projectThreadStartTurn"
 import { serializeComposerMessageForServer, uploadedComposerContext } from "../lib/composerContext";
 import { prepareTurnAttachments, type PreparedTurnAttachments } from "../lib/attachmentUpload";
 import { randomHex } from "../lib/uuid";
+import { makeQueuedMessageMetadata } from "../lib/commandMetadata";
 import {
   describeUnavailableModelSelection,
   isModelSelectionUnavailable,
@@ -61,11 +65,17 @@ import {
 } from "./thread-outbox";
 import { removeThreadOutboxMessage } from "./thread-outbox-removal";
 import {
+  queuedVoiceRecordingFile,
+  releaseUnusedQueuedVoiceRecordings,
+} from "./thread-outbox-audio";
+import { uploadEnvironmentVoiceRecording } from "./transcription";
+import {
   isQueuedThreadCreationSendable,
   resolveThreadOutboxDeliveryAction,
   resolveThreadOutboxDispatchStep,
   resolveThreadOutboxFailureAction,
   resolveQueuedThreadSettings,
+  resolveVoiceDeliveryStep,
   shouldRetryThreadOutboxDelivery,
   threadOutboxRetryDelayMs,
   type QueuedThreadMessage,
@@ -617,6 +627,113 @@ async function preserveUploadedAttachmentsForEditor(
   }
 }
 
+function releaseVoiceRecordingsQuietly(): void {
+  void releaseUnusedQueuedVoiceRecordings().catch((error: unknown) => {
+    console.warn("[thread-outbox] failed to delete unused voice recordings", error);
+  });
+}
+
+const freshCommandId = () => CommandId.make(makeQueuedMessageMetadata().commandId);
+
+/** Stops delivering a message that only the user can continue; its thread's queue waits. */
+async function holdQueuedMessage(
+  queuedMessage: QueuedThreadMessage,
+  failure: string,
+): Promise<void> {
+  const revision = threadOutboxRevision(queuedMessage.messageId);
+  if (!isQueuedMessagePayloadCurrent(queuedMessage, revision)) return;
+  await updateThreadOutboxMessage(
+    { ...queuedMessage, commandId: freshCommandId(), failure },
+    revision,
+    () => !appAtomRegistry.get(editingQueuedMessageIdsAtom)[queuedMessage.messageId],
+  );
+}
+
+/**
+ * Uploads a queued recording for the environment to transcribe and send. Re-preparing under
+ * the same command id joins the server's work, so a retry after a dropped connection never
+ * sends twice. A delivered message comes back with its transcript for the caller to retire.
+ */
+export async function deliverQueuedVoiceMessage(
+  queuedMessage: QueuedThreadMessage,
+  modelSelection: ModelSelection,
+): Promise<
+  | {
+      readonly status: "delivered";
+      readonly message: QueuedThreadMessage;
+      readonly revision: number;
+      readonly sequence: number | undefined;
+    }
+  | { readonly status: "held" | "retry" | "abandoned" }
+> {
+  const voice = queuedMessage.voice;
+  if (!voice || !(await confirmThreadOutboxMessageQueued(queuedMessage))) {
+    return { status: "abandoned" };
+  }
+  const revision = threadOutboxRevision(queuedMessage.messageId);
+  if (!isQueuedMessagePayloadCurrent(queuedMessage, revision)) return { status: "abandoned" };
+  const file = await queuedVoiceRecordingFile(queuedMessage.messageId);
+  let outcome: Parameters<typeof resolveVoiceDeliveryStep>[1];
+  if (!file.exists) {
+    outcome = {
+      error: new VoiceUploadError(
+        "audioMissing",
+        new TranscriptionError({ reason: "audioMissing" }).message,
+        false,
+      ),
+    };
+  } else {
+    try {
+      outcome = {
+        result: await uploadEnvironmentVoiceRecording({
+          environmentId: queuedMessage.environmentId,
+          uri: file.uri,
+          request: {
+            sizeBytes: voice.sizeBytes,
+            language: voice.language,
+            submit: {
+              threadId: queuedMessage.threadId,
+              commandId: queuedMessage.commandId,
+              messageId: queuedMessage.messageId,
+              modelSelection,
+              delivery: queuedMessage.dispatchMode ?? "auto",
+              creationSource: "mobile",
+            },
+          },
+        }),
+      };
+    } catch (error) {
+      outcome = { error };
+    }
+  }
+  const step = resolveVoiceDeliveryStep(queuedMessage, outcome, freshCommandId);
+  if (step.step === "retry") {
+    threadOutboxDebug.log("voice message delivery failed; retrying", {
+      environmentId: queuedMessage.environmentId,
+      messageId: queuedMessage.messageId,
+      error: "error" in outcome ? outcome.error : null,
+    });
+    return { status: "retry" };
+  }
+  if (step.step === "hold") {
+    const held = await updateThreadOutboxMessage(
+      step.message,
+      revision,
+      () => !appAtomRegistry.get(editingQueuedMessageIdsAtom)[queuedMessage.messageId],
+    );
+    if (held && step.message.voice === undefined) releaseVoiceRecordingsQuietly();
+    return { status: "held" };
+  }
+  const { voice: _, ...delivered } = queuedMessage;
+  const submission = "result" in outcome ? outcome.result.submission : undefined;
+  return {
+    status: "delivered",
+    message: { ...delivered, text: step.transcript },
+    revision,
+    sequence: submission?.status === "sent" ? submission.sequence : undefined,
+  };
+}
+
 // Everything a drain pass decides from. Each queued environment's session is
 // read here so a granted or revoked operate scope re-runs the drain.
 const deliveryInputsAtom = Atom.make((get) => {
@@ -827,6 +944,11 @@ export function createThreadOutboxDelivery(): {
         settings.modelSelection,
         thread.projectId,
       );
+      // A recording has no text to put back in the composer.
+      if (queuedMessage.voice) {
+        await holdQueuedMessage(queuedMessage, `${title}. ${detail}`);
+        return true;
+      }
       return restoreQueuedMessage(queuedMessage, `${title}. ${detail}`);
     }
 
@@ -862,6 +984,23 @@ export function createThreadOutboxDelivery(): {
         reportCommandFailure(queuedMessage, interactionResult, "settings-sync");
         return false;
       }
+    }
+
+    if (queuedMessage.voice) {
+      if (!hasAccess()) return true;
+      const voiceDelivery = await deliverQueuedVoiceMessage(queuedMessage, settings.modelSelection);
+      if (voiceDelivery.status !== "delivered") return voiceDelivery.status !== "retry";
+      acknowledgedExistingThreadMessageIds.add(queuedMessage.messageId);
+      const delivered =
+        (await completeQueuedMessageDelivery(
+          voiceDelivery.message,
+          voiceDelivery.revision,
+          voiceDelivery.sequence,
+        )) === "removed";
+      if (delivered) {
+        acknowledgedExistingThreadMessageIds.delete(queuedMessage.messageId);
+      }
+      return delivered;
     }
 
     let prepared: PreparedTurnAttachments;
@@ -1230,7 +1369,7 @@ export function createThreadOutboxDelivery(): {
         );
         return;
       }
-      if (editingQueuedMessageIds[messageId]) {
+      if (nextQueuedMessage.failure !== undefined || editingQueuedMessageIds[messageId]) {
         continue;
       }
       const blockedRecovery = blockedRecoveries.get(messageId);
@@ -1449,7 +1588,11 @@ export function createThreadOutboxDelivery(): {
 
 function loadThreadOutbox(isActive: () => boolean): void {
   void threadOutboxManager.load().then((loaded) => {
-    if (loaded || !isActive()) return;
+    if (loaded) {
+      releaseVoiceRecordingsQuietly();
+      return;
+    }
+    if (!isActive()) return;
     Dialog.alert(
       "Some queued messages could not be loaded",
       "Unreadable records and attachment files are still saved. Other messages can still be sent.",

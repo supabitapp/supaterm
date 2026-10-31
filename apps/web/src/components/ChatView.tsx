@@ -3010,6 +3010,10 @@ export default function ChatView(props: ChatViewProps) {
         if (!composerRef.current) return false;
         if (!repeat) composerRef.current.submit();
       },
+      "composer.voice": ({ repeat }) => {
+        if (!composerRef.current) return false;
+        if (!repeat) composerRef.current.toggleVoiceInput();
+      },
       "composer.toggleFastMode": ({ repeat }) => {
         if (repeat) return;
         const level = composerRef.current?.toggleFastMode() ?? null;
@@ -3066,7 +3070,7 @@ export default function ChatView(props: ChatViewProps) {
     scrollToEnd,
     setThreadError,
   });
-  const { onSend } = useComposerSend({
+  const { onSend, prepareVoiceSend } = useComposerSend({
     environmentId,
     routeThreadKey,
     currentRouteThreadKeyRef,
@@ -3131,6 +3135,7 @@ export default function ChatView(props: ChatViewProps) {
   };
   const onWorktreeSetupWorkLocallyStable = useStableCallback(onWorktreeSetupWorkLocally);
   const onComposerSendStable = useStableCallback(onSend);
+  const onComposerPrepareVoiceSendStable = useStableCallback(prepareVoiceSend);
   const sendPreviewAnnotation = (
     annotation: PreviewAnnotationPayload,
     image: ComposerImageAttachment | null,
@@ -3666,6 +3671,7 @@ export default function ChatView(props: ChatViewProps) {
                     onContentOverflowChange={setTimelineOverflows}
                     onToolOutputCollapsedAtEnd={onToolOutputCollapsedAtEndStable}
                     onViewportAttach={attachTimelineViewport}
+                    onJumpToPinnedMessage={jumpToPinnedMessageStable}
                     hideEmptyPlaceholder={isDraftHeroState}
                     loading={!isDraftHeroState && threadDetailLoading}
                     topFadeEnabled={!hasTimelineTopBanner}
@@ -3895,6 +3901,7 @@ export default function ChatView(props: ChatViewProps) {
                                   onPageScrollRelease={onComposerPageScrollReleaseStable}
                                   onCompactContext={onComposerCompactContextStable}
                                   onSend={onComposerSendStable}
+                                  onPrepareVoiceSend={onComposerPrepareVoiceSendStable}
                                   onResume={onComposerResumeStable}
                                   onInterrupt={onInterruptStable}
                                   onRespondToApproval={onRespondToApprovalStable}

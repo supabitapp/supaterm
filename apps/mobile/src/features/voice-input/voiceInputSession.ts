@@ -6,6 +6,8 @@ import {
   type VoiceInputControllerDependencies,
   type VoiceInputPhase,
   type VoiceInputState,
+  type VoiceRecordingDelivery,
+  type VoiceTranscriber,
 } from "@supaterm/client-runtime/voice-input";
 
 import { normalizeVoiceInputDecibels, VOICE_WAVEFORM_SAMPLE_COUNT } from "./voiceInputMetering";
@@ -14,9 +16,17 @@ const VOICE_METERING_INTERVAL_MS = 80;
 const IDLE_STATE: VoiceInputState = { phase: "idle", error: null, errorAction: null };
 const SILENT_LEVELS: ReadonlyArray<number> = Array<number>(VOICE_WAVEFORM_SAMPLE_COUNT).fill(0);
 
+export type VoiceInputEngine = {
+  readonly transcriber: VoiceTranscriber;
+  /** BCP 47, what an environment is asked to transcribe in. */
+  readonly language: string;
+};
+
 export type VoiceInputTarget = {
   readonly ownerKey: string;
   readonly label?: string;
+  /** Chosen when recording starts, so a settings change never moves a recording elsewhere. */
+  readonly engine?: VoiceInputEngine;
   readonly readDraft: () => VoiceDraftSnapshot | null;
   readonly commitDraft: VoiceInputControllerDependencies["commitDraft"];
   readonly subscribe: () => () => void;
@@ -37,7 +47,7 @@ export type VoiceRecordingSample = {
 
 export type VoiceInputSessionDependencies = Omit<
   VoiceInputControllerDependencies,
-  "readDraft" | "commitDraft" | "onStateChange"
+  "readDraft" | "commitDraft" | "onStateChange" | "getTranscriber"
 > & {
   /** Reads the live recorder, or null when it is not capturing. */
   readonly sampleRecording: () => VoiceRecordingSample | null;
@@ -103,6 +113,7 @@ export class VoiceInputSession {
     this.controller = new VoiceInputController({
       ...dependencies,
       onStateChange: (state) => this.handleStateChange(state),
+      getTranscriber: () => this.target?.engine?.transcriber ?? null,
       readDraft: () => this.target?.readDraft() ?? null,
       commitDraft: (text, selection) => {
         this.target?.commitDraft(text, selection);
@@ -117,6 +128,10 @@ export class VoiceInputSession {
 
   get label(): string | null {
     return this.target?.label ?? null;
+  }
+
+  get engine(): VoiceInputEngine | null {
+    return this.target?.engine ?? null;
   }
 
   readonly subscribe = (listener: () => void): (() => void) => {
@@ -146,6 +161,11 @@ export class VoiceInputSession {
     if (this.controller.currentState.phase !== "recording") return Promise.resolve();
     this.onCommit = onCommit;
     return this.controller.stop();
+  }
+
+  /** Hands the finished recording to `deliver` as the user's message, untranscribed. */
+  send(deliver: VoiceRecordingDelivery): Promise<void> {
+    return this.controller.send(deliver);
   }
 
   start(target: VoiceInputTarget): Promise<void> {

@@ -429,6 +429,10 @@ export const ClientSettingsSchema = Schema.Struct({
   followUpBehavior: Schema.Literals(["queue", "steer"]).pipe(
     Schema.withDecodingDefault(Effect.succeed("steer")),
   ),
+  /** BCP 47 tag voice input is spoken in. Null follows the system language. */
+  voiceLanguage: Schema.NullOr(TrimmedNonEmptyString.check(Schema.isMaxLength(35))).pipe(
+    Schema.withDecodingDefault(Effect.succeed(null)),
+  ),
   proactivePanelsEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   showSkillsInSlashMenu: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   // Sparse show/hide overrides for thread details card items. Missing ids use the client's
@@ -1261,6 +1265,10 @@ export const ServerSettings = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed(true)),
   ),
   threadTitleInstructions: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
+  /** Its login transcribes voice input sent to this environment, and is charged for it. */
+  transcriptionProviderInstanceId: ProviderInstanceId.pipe(
+    Schema.withDecodingDefault(Effect.succeed(ProviderInstanceId.make("claudeAgent"))),
+  ),
   branchNamingMode: BranchNamingMode.pipe(
     Schema.withDecodingDefault(Effect.succeed("static" as const)),
   ),
@@ -1519,6 +1527,7 @@ export const ServerSettingsPatch = Schema.Struct({
   textGenerationModelSelection: Schema.optionalKey(ModelSelectionPatch),
   nextPromptSuggestionsEnabled: Schema.optionalKey(Schema.Boolean),
   threadTitleInstructions: Schema.optionalKey(TrimmedString),
+  transcriptionProviderInstanceId: Schema.optionalKey(ProviderInstanceId),
   branchNamingMode: Schema.optionalKey(BranchNamingMode),
   branchNamePrefix: Schema.optionalKey(TrimmedString),
   branchNamePrefixFromRepository: Schema.optionalKey(Schema.Boolean),
@@ -1648,6 +1657,9 @@ export const ClientSettingsPatch = Schema.Struct({
   composerRichTextEnabled: Schema.optionalKey(Schema.Boolean),
   sendShortcut: Schema.optionalKey(Schema.Literals(["enter", "mod-enter-multiline", "mod-enter"])),
   followUpBehavior: Schema.optionalKey(Schema.Literals(["queue", "steer"])),
+  voiceLanguage: Schema.optionalKey(
+    Schema.NullOr(TrimmedNonEmptyString.check(Schema.isMaxLength(35))),
+  ),
   proactivePanelsEnabled: Schema.optionalKey(Schema.Boolean),
   showSkillsInSlashMenu: Schema.optionalKey(Schema.Boolean),
   threadDetailsItems: Schema.optionalKey(Schema.Record(Schema.String, Schema.Boolean)),

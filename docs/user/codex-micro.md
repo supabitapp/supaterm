@@ -46,8 +46,9 @@ comes back when you use the keyboard or a thread changes state.
 
 ## Keys, stick, and knob
 
-By default the keys toggle Fast mode, approve, decline, fork the thread, and send the message.
-Approve, decline, send, and Fast mode act on the focused thread. The analog stick opens the
+By default the keys toggle Fast mode, approve, decline, fork the thread, start and stop
+[voice input](./composer.md#voice-input), and send the message. Approve, decline, voice input,
+send, and Fast mode act on the focused thread. The analog stick opens the
 right panel, moves back and forward, and toggles the sidebar. Turning the knob scrolls the
 conversation, and clicking it jumps to the latest message. Choose **Reasoning effort** under
 **Knob** to change effort instead, or **Custom** to pick your own actions. In the built-in modes,
@@ -58,4 +59,6 @@ if you like, a different action. Each keycap comes once in the box, so choosing 
 already on another key swaps the two. **Reset layout** restores the keys, stick, and knob without
 changing your agent keys.
 
-The microphone keycaps start unassigned. You can assign them to a supported action like any other key.
+The microphone key works like `mod+shift+space`: press it to start recording, and press it again
+to stop and review the transcript in the draft. With **Use separate microphone keys** on, the **MIC1**
+keycap does the same.

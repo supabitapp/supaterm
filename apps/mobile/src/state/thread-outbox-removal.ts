@@ -3,6 +3,7 @@ import type { EnvironmentId } from "@supaterm/contracts";
 import { scopedThreadKey } from "../lib/scopedEntities";
 import { appAtomRegistry } from "./atom-registry";
 import { threadOutboxManager } from "./thread-outbox";
+import { releaseUnusedQueuedVoiceRecordings } from "./thread-outbox-audio";
 import type { QueuedThreadMessage } from "./thread-outbox-model";
 import {
   clearComposerDraft,
@@ -15,6 +16,11 @@ import {
 async function cleanUpRemovedMessages(
   removedMessages: ReadonlyArray<QueuedThreadMessage>,
 ): Promise<void> {
+  if (removedMessages.some((message) => message.voice !== undefined)) {
+    void releaseUnusedQueuedVoiceRecordings().catch((error: unknown) => {
+      console.warn("[thread-outbox] failed to delete removed voice recordings", error);
+    });
+  }
   const attachments = removedMessages.flatMap((message) => message.attachments);
   const removedCreations = removedMessages.filter((message) => message.creation !== undefined);
   if (removedCreations.length === 0) {

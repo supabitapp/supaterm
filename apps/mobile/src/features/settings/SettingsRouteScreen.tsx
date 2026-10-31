@@ -106,10 +106,7 @@ function SettingsIndexSections() {
         <SettingsRow icon="paintbrush" label="Appearance" target="SettingsAppearance" />
         <SettingsRow icon="bubble.left.and.bubble.right" label="Chat" target="SettingsFollowUp" />
         {Platform.OS === "ios" ? (
-          <>
-            <SettingsRow icon="keyboard" label="Keyboard" target="SettingsKeyboard" />
-            <SettingsRow icon="mic" label="Microphone" target="SettingsMicrophone" />
-          </>
+          <SettingsRow icon="keyboard" label="Keyboard" target="SettingsKeyboard" />
         ) : null}
       </SettingsSection>
 
@@ -151,6 +148,12 @@ function SettingsIndexSections() {
       </SettingsSection>
 
       <SettingsSection>
+        <SettingsRow
+          icon="mic"
+          label="Voice transcription"
+          target="SettingsEnvironmentVoiceTranscription"
+          disabled={noServerTargets}
+        />
         <SettingsRow
           icon="arrow.clockwise"
           label="Maintenance"

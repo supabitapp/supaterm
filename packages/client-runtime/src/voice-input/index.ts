@@ -9,10 +9,9 @@ export {
   type VoiceInputState,
   type VoiceRecorder,
   type VoiceRecorderStatus,
+  type VoiceRecordingDelivery,
 } from "./controller.ts";
 export {
-  VoiceTranscriptionError,
-  throwIfVoiceTranscriptionAborted,
   type PreparedVoiceTranscription,
   type VoiceTranscriber,
   type VoiceTranscriptionErrorCode,
