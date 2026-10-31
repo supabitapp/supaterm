@@ -52,8 +52,7 @@ export function collectRestartingMachines(
     return [
       {
         environmentId: machine.environmentId,
-        continuesThreads:
-          config != null && config.settings.continueThreadsAfterServerUpdate === true,
+        continuesThreads: config.settings.continueThreadsAfterServerUpdate === true,
       },
     ];
   });

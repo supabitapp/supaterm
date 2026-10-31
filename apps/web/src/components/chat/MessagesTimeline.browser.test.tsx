@@ -67,7 +67,6 @@ type Entry = TimelineProps["timelineEntries"][number];
 function baseProps(): Omit<TimelineProps, "timelineEntries"> {
   return {
     isWorking: false,
-    activeTurnInProgress: false,
     listRef: createRef<LegendListRef | null>(),
     latestRun: null,
     turnDiffSummaries: [],
@@ -1023,7 +1022,6 @@ it("renders a typed /compact as one live divider that finishes with its token de
       timelineEntries={entries(completed)}
       isWorking={!completed}
       isCompacting={!completed}
-      activeTurnInProgress={!completed}
       activeTurnStartedAt={fixture.time(5)}
       latestRun={{
         runId: fixture.runId,

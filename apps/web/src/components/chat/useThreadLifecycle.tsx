@@ -160,10 +160,8 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
   const interruptThreadTurn = useOrchestrationCommand(threadEnvironment.interruptTurn, {
     reportFailure: false,
   });
-  const supportsMarkDone = serverConfig != null;
-  const supportsSnooze = serverConfig != null;
-  const supportsPinning = serverConfig != null;
-  const activeThreadPinned = supportsPinning && activeThreadShell?.pinnedAt != null;
+  const serverConfigLoaded = serverConfig !== null;
+  const activeThreadPinned = serverConfigLoaded && activeThreadShell?.pinnedAt != null;
   // A clock read in render would stay frozen in the compiler's cache, so the
   // snooze checks read a snapshot that moves when the wake time changes or passes.
   const snoozeClock = new Date(
@@ -171,10 +169,10 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
   ).toISOString();
   const activeThreadSnoozed =
     activeThreadShell !== null &&
-    supportsSnooze &&
+    serverConfigLoaded &&
     effectiveSnoozed(activeThreadShell, { now: snoozeClock });
   const activeThreadWokeAt =
-    activeThreadShell !== null && supportsSnooze
+    activeThreadShell !== null && serverConfigLoaded
       ? threadWokeAt(activeThreadShell, { now: snoozeClock })
       : null;
   const acknowledgeThreadWoke = useAcknowledgeThreadWoke();
@@ -191,7 +189,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     latestRunCompletedAt: activeLatestRun?.completedAt ?? null,
   });
   const activeThreadDone =
-    supportsMarkDone && !activeThreadSnoozed && activeThreadShell?.doneOverride === "done";
+    serverConfigLoaded && !activeThreadSnoozed && activeThreadShell?.doneOverride === "done";
   const reopenThreadMutation = useOrchestrationCommand(threadEnvironment.reopen, {
     reportFailure: false,
   });
@@ -562,7 +560,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
   const shortcuts = {
     "thread.mark-done": () => {
       if (!readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)) return false;
-      if (!isServerThread || !activeThreadRef || !supportsMarkDone) return;
+      if (!isServerThread || !activeThreadRef || !serverConfigLoaded) return;
       if (activeThreadDone) {
         void handleReopenActiveThread();
         return;
@@ -574,7 +572,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     },
     "thread.pin": () => {
       if (!readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)) return false;
-      if (!isServerThread || !activeThreadRef || !supportsPinning) return;
+      if (!isServerThread || !activeThreadRef || !serverConfigLoaded) return;
       void (
         activeThreadPinned ? confirmAndUnpinThread(activeThreadRef) : pinThread(activeThreadRef)
       ).then(

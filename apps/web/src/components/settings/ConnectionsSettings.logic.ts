@@ -1,7 +1,7 @@
 import * as DateTime from "effect/DateTime";
 
 import { resolveDesktopPairingUrl, resolveHostedPairingUrl } from "./pairingUrls";
-import { setPairingTokenOnUrl } from "../../pairingUrl";
+import { setPairingTokenOnUrl } from "@supaterm/shared/remote";
 import {
   type ServerClientSessionRecord,
   type ServerPairingLinkRecord,

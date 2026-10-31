@@ -25,7 +25,7 @@ export type ChatShortcutHandler = (context: {
 
 export type ChatShortcutCommands = Partial<Record<KeybindingCommand, ChatShortcutHandler>>;
 
-export interface ChatShortcutsInput {
+interface ChatShortcutsInput {
   readonly enabled: boolean;
   /** Whether this chat's pane receives window input; only one pane in a split does. */
   readonly isInputOwner: () => boolean;

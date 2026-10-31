@@ -12,7 +12,7 @@ import {
   undoLatestThreadAction,
   useThreadUndoNotice,
 } from "./showThreadUndoNotice";
-import * as ThreadUndo from "./threadUndo";
+import * as ThreadUndo from "@supaterm/client-runtime/state/thread-undo";
 
 vi.mock("../lib/announce", () => ({ announce: vi.fn(), cancelAnnouncement: vi.fn() }));
 

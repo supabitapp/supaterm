@@ -23,7 +23,7 @@ import type { ReviewCommentContext } from "../reviewCommentContext";
 import type { SetStateAction } from "react";
 import { applyClaudePromptEffortPrefix, resolvePromptInjectedEffort } from "@supaterm/shared/model";
 import { getProviderModelCapabilities } from "../providerModels";
-import { sanitizeThreadErrorMessage } from "~/rpc/transportError";
+import { sanitizeThreadErrorMessage } from "@supaterm/client-runtime/errors";
 import type { EnvironmentThread, ThreadStructure } from "@supaterm/client-runtime/state/shell";
 import {
   ANTIGRAVITY_DEFAULT_MODEL,
@@ -254,10 +254,7 @@ export function shouldReleaseTimelineAnchorForToolActivity(input: {
   });
 }
 
-export {
-  findRecordedWorktreeSetup,
-  resolveVisibleWorktreeSetup,
-} from "@supaterm/client-runtime/worktree-setup";
+export { resolveVisibleWorktreeSetup } from "@supaterm/client-runtime/worktree-setup";
 
 export function resolveWorktreeSetupProgress(input: {
   threadId: ThreadId;
@@ -831,7 +828,6 @@ export function deriveLockedProvider(input: {
 }
 
 export function getStartedThreadModelChangeBlockReason(input: {
-  providers: ReadonlyArray<Pick<ServerProvider, "instanceId" | "requiresNewThreadForModelChange">>;
   hasStartedSession: boolean;
   supportsProviderSwitchingViaHandoff?: boolean;
   currentModelSelection: ModelSelection;
@@ -846,35 +842,14 @@ export function getStartedThreadModelChangeBlockReason(input: {
     instanceId: input.currentProviderInstanceId ?? input.currentModelSelection.instanceId,
   };
   if (
-    currentModelSelection.instanceId === input.nextModelSelection.instanceId &&
-    currentModelSelection.model === input.nextModelSelection.model
-  ) {
-    return null;
-  }
-  if (currentModelSelection.instanceId !== input.nextModelSelection.instanceId) {
-    if (input.supportsProviderSwitchingViaHandoff === true) {
-      return null;
-    }
-    return {
-      title: "Start a new chat to switch providers",
-      description: "This thread does not support switching providers after it has started.",
-    };
-  }
-  const currentProvider = input.providers.find(
-    (snapshot) => snapshot.instanceId === currentModelSelection.instanceId,
-  );
-  const nextProvider = input.providers.find(
-    (snapshot) => snapshot.instanceId === input.nextModelSelection.instanceId,
-  );
-  if (
-    currentProvider?.requiresNewThreadForModelChange !== true &&
-    nextProvider?.requiresNewThreadForModelChange !== true
+    currentModelSelection.instanceId === input.nextModelSelection.instanceId ||
+    input.supportsProviderSwitchingViaHandoff === true
   ) {
     return null;
   }
   return {
-    title: "Start a new chat to change models",
-    description: "This provider does not allow switching models after a conversation has started.",
+    title: "Start a new chat to switch providers",
+    description: "This thread does not support switching providers after it has started.",
   };
 }
 

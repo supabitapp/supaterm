@@ -1280,9 +1280,6 @@ export function ThreadsSettingsPanel() {
     (environment?.serverConfig
       ? providersByEnvironment.get(environment.environmentId)
       : undefined) ?? EMPTY_SERVER_PROVIDERS;
-  const supportsAutoMarkDone =
-    connectedEnvironments.length > 0 &&
-    connectedEnvironments.every((target) => target.serverConfig != null);
   const textGenerationProviders = serverProviders.filter(
     (provider) => provider.supportsTextGeneration !== false,
   );
@@ -1400,7 +1397,7 @@ export function ThreadsSettingsPanel() {
         />
       </SettingsSection>
 
-      {supportsAutoMarkDone ? (
+      {hasServerTargets ? (
         <SettingsSection id="auto-mark-done" title="Auto-mark as Done">
           <SettingsRow
             serverScoped
@@ -1697,9 +1694,7 @@ export function MaintenanceSettingsPanel() {
   const updateSettings = useUpdateScopedSettings();
   const { environment, connectedEnvironments } = useSettingsScope();
   const environmentId = environment?.environmentId ?? null;
-  const supportsRestartContinuation =
-    connectedEnvironments.length > 0 &&
-    connectedEnvironments.every((target) => target.serverConfig != null);
+  const hasServerTargets = connectedEnvironments.length > 0;
 
   return (
     <SettingsPageContainer>
@@ -1738,12 +1733,12 @@ export function MaintenanceSettingsPanel() {
           settingKeys={["continueThreadsAfterServerUpdate"]}
           description="Resume interrupted threads after an update, crash, or restart."
           status={
-            !supportsRestartContinuation
+            !hasServerTargets
               ? "All selected connected environments must support restart continuation."
               : undefined
           }
           resetAction={
-            supportsRestartContinuation &&
+            hasServerTargets &&
             settings.continueThreadsAfterServerUpdate !==
               DEFAULT_UNIFIED_SETTINGS.continueThreadsAfterServerUpdate ? (
               <SettingResetButton
@@ -1761,7 +1756,7 @@ export function MaintenanceSettingsPanel() {
             <ScopedSwitch
               settingKeys={["continueThreadsAfterServerUpdate"]}
               checked={settings.continueThreadsAfterServerUpdate}
-              disabled={!supportsRestartContinuation}
+              disabled={!hasServerTargets}
               onCheckedChange={(checked) =>
                 updateSettings({ continueThreadsAfterServerUpdate: Boolean(checked) })
               }

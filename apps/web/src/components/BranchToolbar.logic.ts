@@ -7,12 +7,8 @@ import type {
 } from "@supaterm/contracts";
 import * as Schema from "effect/Schema";
 import { sanitizeNewRefName } from "@supaterm/shared/git";
-import { toSortableTimestamp } from "../lib/threadSort";
-export {
-  dedupeRemoteBranchesWithLocalMatches,
-  deriveLocalBranchNameFromRemoteRef,
-  sanitizeNewRefName,
-} from "@supaterm/shared/git";
+import { toSortableTimestamp } from "@supaterm/client-runtime/state/thread-sort";
+export { deriveLocalBranchNameFromRemoteRef, sanitizeNewRefName } from "@supaterm/shared/git";
 
 export interface EnvironmentOption {
   environmentId: EnvironmentId;

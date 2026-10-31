@@ -18,10 +18,10 @@ import { act, fakeTimers, render } from "../../test/render";
 
 import { isMacPlatform } from "~/lib/utils";
 import {
-  ComposerPromptEditor,
+  ComposerPromptEditorTiptap as ComposerPromptEditor,
   type ComposerPromptEditorHandle,
   type ComposerPromptEditorProps,
-} from "./ComposerPromptEditor";
+} from "./ComposerPromptEditorTiptap";
 
 const babysit: ServerProviderSkill = {
   name: "babysit",

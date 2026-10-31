@@ -1,7 +1,7 @@
 import { type VcsRef } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
+import { dedupeRemoteBranchesWithLocalMatches } from "@supaterm/shared/git";
 import {
-  dedupeRemoteBranchesWithLocalMatches,
   deriveLocalBranchNameFromRemoteRef,
   resolveBranchSelectionTarget,
   resolveDraftEnvModeAfterBranchChange,

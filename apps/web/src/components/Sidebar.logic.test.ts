@@ -1,4 +1,5 @@
 import { presentThreadShell } from "@supaterm/client-runtime/state/models";
+import { isThreadWorking as isSidebarThreadWorking } from "@supaterm/client-runtime/state/thread-inbox";
 import * as DateTime from "effect/DateTime";
 import { describe, expect, it, vi } from "vite-plus/test";
 import * as Cause from "effect/Cause";
@@ -10,7 +11,6 @@ import {
   getFallbackThreadIdAfterDelete,
   hasUnseenCompletion,
   resolveSidebarRowThreadId,
-  isSidebarThreadWorking,
   pinOrderKeyBetween,
   resolveSidebarSweepKeys,
   resolveSidebarThreadStatus,

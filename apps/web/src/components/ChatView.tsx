@@ -233,7 +233,7 @@ import { focusTerminalOnThreadEnter, getTerminalFocusOwner } from "../lib/termin
 import {
   deriveLogicalProjectKeyFromSettings,
   selectProjectGroupingSettings,
-} from "../logicalProject";
+} from "@supaterm/client-runtime/state/project-grouping";
 import {
   isSameSidebarThreadRef,
   useSidebarPendingFileDropStore,
@@ -753,7 +753,6 @@ export default function ChatView(props: ChatViewProps) {
   const [localServerErrorsByThreadKey, setLocalServerErrorsByThreadKey] = useState<
     Record<string, LocalThreadErrorEntry>
   >({});
-  const [isConnecting, _setIsConnecting] = useState(false);
   const isRevertingCheckpoint = useComposerDraftStore((store) =>
     store.rewindingThreadKeys.has(routeThreadKey),
   );
@@ -1501,11 +1500,7 @@ export default function ChatView(props: ChatViewProps) {
     (isSendBusy || phase === "connecting" || phase === "running") &&
     (compactionRunning || (compactRequestIsActive && !compactionSettled));
   const isWorking =
-    phase === "running" ||
-    isSendBusy ||
-    isConnecting ||
-    isCompacting ||
-    runlessWorkStartedAt !== null;
+    phase === "running" || isSendBusy || isCompacting || runlessWorkStartedAt !== null;
   const activeContextWindow = deriveLatestContextWindowSnapshot(
     serverVisibleTurnItems ?? [],
     activeThreadLiveTokenUsage,
@@ -2823,7 +2818,6 @@ export default function ChatView(props: ChatViewProps) {
     isServerThread,
     timelineMessages,
     phase,
-    isConnecting,
     isSendBusy,
     isRevertingCheckpoint,
     threadDetailLoading,
@@ -2983,7 +2977,6 @@ export default function ChatView(props: ChatViewProps) {
     resumableRunId,
     hasHeldQueuedRuns,
     isSendBusy,
-    isConnecting,
     isRevertingCheckpoint,
     threadDetailLoading,
     activeEnvironmentUnavailable,
@@ -3021,7 +3014,6 @@ export default function ChatView(props: ChatViewProps) {
     promptRef,
     feedbackUploadsInFlightRef,
     queuedRunEdit,
-    isConnecting,
     isRevertingCheckpoint,
     threadDetailLoading,
     activeEnvironmentUnavailable,
@@ -3108,7 +3100,6 @@ export default function ChatView(props: ChatViewProps) {
     workLocallyResendDraftId === draftId &&
     isLocalDraftThread &&
     !isSendBusy &&
-    !isConnecting &&
     !isRevertingCheckpoint &&
     !threadDetailLoading &&
     clientSettingsHydrated &&
@@ -3509,7 +3500,6 @@ export default function ChatView(props: ChatViewProps) {
                     {...(activeProject ? { onRunShellCommand: runShellCommandStable } : {})}
                     isWorking={isWorking}
                     runlessWorkActive={runlessWorkStartedAt !== null}
-                    activeTurnInProgress={isWorking || !latestRunSettled}
                     isCompacting={isCompacting}
                     awaitingUser={
                       activePendingApproval !== null
@@ -3704,7 +3694,6 @@ export default function ChatView(props: ChatViewProps) {
                                   routeThreadRef={routeThreadRef}
                                   draftId={draftId}
                                   activeThreadId={activeThreadId}
-                                  activeThreadEnvironmentId={activeThread?.environmentId}
                                   activeThread={activeThread}
                                   activeThreadShell={activeThreadShell}
                                   promptHistoryMessages={timelineMessages}
@@ -3719,7 +3708,6 @@ export default function ChatView(props: ChatViewProps) {
                                   phase={phase}
                                   isCompacting={isCompacting}
                                   canInterrupt={canInterruptRunningThread}
-                                  isConnecting={isConnecting}
                                   isSendBusy={isSendBusy || queuedRunEdit.isSaving || isResuming}
                                   canResume={resumableRunId !== null || hasHeldQueuedRuns}
                                   isRevertingCheckpoint={isRevertingCheckpoint}
@@ -3989,7 +3977,7 @@ export default function ChatView(props: ChatViewProps) {
                             ...(manualCompactionProviderAvailable
                               ? { onCompact: onCompactContext }
                               : {}),
-                            compactDisabled: compactDisabled || isSendBusy || isConnecting,
+                            compactDisabled: compactDisabled || isSendBusy,
                             compactDisabledReason,
                           }
                         : null

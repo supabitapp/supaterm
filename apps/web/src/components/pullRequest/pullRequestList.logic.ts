@@ -19,7 +19,7 @@ import type {
   PullRequestState,
 } from "@supaterm/contracts";
 
-import { toSortableTimestamp } from "../../lib/threadSort";
+import { toSortableTimestamp } from "@supaterm/client-runtime/state/thread-sort";
 import type { PullRequestListSort } from "./pullRequestListPreferences";
 
 export interface EnvironmentPullRequestEntry extends PullRequestListEntry {

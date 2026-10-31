@@ -24,7 +24,7 @@ import { useEnvironmentSettings } from "~/hooks/useSettings";
 
 import { composerTargetKey, type DraftId, useComposerDraftStore } from "~/composerDraftStore";
 import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
-import { usePreparePullRequestThreadAction } from "~/lib/sourceControlActions";
+import { usePreparePullRequestThreadAction } from "~/state/sourceControlActions";
 import type { ReviewCommentContext } from "~/reviewCommentContext";
 import { pullRequestEnvironment } from "~/state/pullRequests";
 

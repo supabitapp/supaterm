@@ -127,7 +127,6 @@ import { useAtomQueryRunner } from "../state/use-atom-query-runner";
 import { useScratchProject } from "../hooks/useScratchProject";
 import { useStartTriage, useTriageEnvironmentId } from "../hooks/useStartTriage";
 import { useNewProject } from "../hooks/useNewProject";
-import { isScratchProject } from "@supaterm/client-runtime/state/projects";
 import {
   useEnvironmentProviders,
   useEnvironments,
@@ -149,9 +148,10 @@ import {
   hasTrailingPathSeparator,
   inferProjectTitleFromPath,
   isExplicitRelativeProjectPath,
+  isScratchProject,
   isUnsupportedWindowsProjectPath,
   resolveProjectPathForDispatch,
-} from "../lib/projectPaths";
+} from "@supaterm/client-runtime/state/projects";
 import { useComposerDraftStore } from "../composerDraftStore";
 import {
   dispatchCommandPalette,
@@ -160,7 +160,7 @@ import {
   useCommandPaletteStore,
 } from "../commandPaletteStore";
 import { PULL_REQUESTS_PANEL_REF, useRightPanelStore } from "../rightPanelStore";
-import { getLatestThreadForProject, sortThreads } from "../lib/threadSort";
+import { getLatestThreadForProject, sortThreads } from "@supaterm/client-runtime/state/thread-sort";
 import {
   cn,
   getLocalFileManagerName,

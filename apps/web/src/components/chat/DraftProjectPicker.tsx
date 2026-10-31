@@ -28,7 +28,7 @@ import { moveDraftToProject, resolveNewDraftWorkspace } from "~/lib/newDraftWork
 import {
   deriveLogicalProjectKeyFromSettings,
   selectProjectGroupingSettings,
-} from "~/logicalProject";
+} from "@supaterm/client-runtime/state/project-grouping";
 import {
   buildSidebarProjectPickerEntries,
   buildSidebarProjectSnapshots,

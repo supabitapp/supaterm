@@ -228,15 +228,6 @@ describe("auto-mark-done search availability", () => {
     ]);
   });
 
-  it("offers connected environments when other targets are unavailable", () => {
-    expect(
-      getThreadAutoMarkDoneSearchAvailability(environments, {
-        kind: "all",
-        environmentIds: environments.map((entry) => entry.environmentId),
-      }),
-    ).toEqual({ eligibleEnvironmentIds: [capable.environmentId], isTargetAvailable: true });
-  });
-
   it.each([offline, loading])(
     "does not render the target on $environmentId or silently fall back",
     (selected) => {

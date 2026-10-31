@@ -1560,8 +1560,8 @@ function BrowserProfilesSetting({ disabled }: { readonly disabled: boolean }) {
           }
           onRefreshSource={() => refreshImportSource(importSession.source.id)}
           onCheckFullDiskAccess={
-            window.desktopBridge?.checkSystemPermission
-              ? () => window.desktopBridge!.checkSystemPermission!("full-disk-access")
+            window.desktopBridge
+              ? () => window.desktopBridge!.checkSystemPermission("full-disk-access")
               : undefined
           }
           onOpenFullDiskAccessSettings={async () => {

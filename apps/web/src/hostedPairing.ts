@@ -8,7 +8,7 @@ import type {
   PairingRouteHints,
 } from "@supaterm/shared/remote";
 
-import { setPairingTokenOnUrl } from "./pairingUrl";
+import { setPairingTokenOnUrl } from "@supaterm/shared/remote";
 
 export interface HostedPairingRequest extends SharedHostedPairingRequest {
   readonly pairingUrl: string;

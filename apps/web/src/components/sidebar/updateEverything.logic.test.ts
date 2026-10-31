@@ -231,12 +231,7 @@ describe("collectRestartingMachines", () => {
       return {
         ...base,
         serverConfig: {
-          environment: {
-            ...base.serverConfig!.environment,
-            capabilities: {
-              ...base.serverConfig!.environment.capabilities,
-            },
-          },
+          environment: base.serverConfig!.environment,
           settings: { continueThreadsAfterServerUpdate: enabled },
         },
       };

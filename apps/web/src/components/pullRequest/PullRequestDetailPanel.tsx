@@ -56,7 +56,7 @@ import {
   writePullRequestTaskToComposer,
 } from "./usePullRequestActions";
 import { offHeadPullRequestCheckoutToast } from "./pullRequestCheckoutToast";
-import { usePreparePullRequestThreadAction } from "~/lib/sourceControlActions";
+import { usePreparePullRequestThreadAction } from "~/state/sourceControlActions";
 import { cn } from "~/lib/utils";
 import { useProjects, useServerConfigs } from "~/state/entities";
 import { useEnvironments } from "~/state/environments";
@@ -124,6 +124,7 @@ import {
   pullRequestFindingKey,
   pullRequestHandoffLabels,
   PULL_REQUEST_MERGE_METHOD_LABELS,
+  allowedPullRequestMergeMethods,
   checkoutFailureDescription,
   readableFailure,
   resolvePullRequestReferenceHost,
@@ -1032,9 +1033,7 @@ export function PullRequestDetailPanel({
   };
   const selectActingEnvironment = (next: EnvironmentId) =>
     setActingScope({ pullRequestKey, environmentId: next });
-  const allowedMergeMethods = detail
-    ? detail.capabilities.mergeMethods.filter((method) => detail.mergeCapabilities[method])
-    : [];
+  const allowedMergeMethods = allowedPullRequestMergeMethods(detail);
   const currentMergeMethod =
     mergeMethodSelection?.pullRequestKey === pullRequestKey ? mergeMethodSelection.method : null;
   const selectedMergeMethod = resolvePullRequestMergeMethod(

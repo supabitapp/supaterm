@@ -162,8 +162,6 @@ export class DesktopUpdateUnexpectedActionError extends Schema.TaggedError<Deskt
   }
 }
 
-export type DesktopUpdateConfigureError = never;
-
 export const DesktopUpdateSetChannelError = Schema.Union([
   DesktopUpdateActionInProgressError,
   DesktopUpdateChannelPersistenceError,
@@ -186,7 +184,7 @@ export class DesktopUpdates extends Context.Service<
     >;
     readonly emitState: Effect.Effect<void>;
     readonly disabledReason: Effect.Effect<Option.Option<string>>;
-    readonly configure: Effect.Effect<void, DesktopUpdateConfigureError, Scope.Scope>;
+    readonly configure: Effect.Effect<void, never, Scope.Scope>;
     /** `minimumVersion` is a track switch's checked release; nothing older is offered after. */
     readonly setChannel: (
       channel: DesktopUpdateChannel,

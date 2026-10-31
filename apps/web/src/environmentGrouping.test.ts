@@ -1,7 +1,7 @@
 import { EnvironmentId, ProjectId, ProviderInstanceId } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import { deriveLogicalProjectKeyFromSettings } from "./logicalProject";
+import { deriveLogicalProjectKeyFromSettings } from "@supaterm/client-runtime/state/project-grouping";
 import {
   buildSidebarProjectPickerEntries,
   buildSidebarProjectSnapshots,

@@ -45,9 +45,6 @@ const CODEX_DRIVER = ProviderDriverKind.make("codex");
 const CLAUDE_AGENT_DRIVER = ProviderDriverKind.make("claudeAgent");
 const CURSOR_DRIVER = ProviderDriverKind.make("cursor");
 
-type ProviderOptionSelectionBag = ReadonlyArray<ProviderOptionSelection>;
-type ProviderOptionSelectionsByProvider = Partial<Record<string, ProviderOptionSelectionBag>>;
-
 function toSelections(
   options: Record<string, string | boolean | undefined> | undefined,
 ): ReadonlyArray<ProviderOptionSelection> {
@@ -61,17 +58,6 @@ function toSelections(
   return result;
 }
 
-function selectionsByProvider(
-  options: Partial<Record<ProviderDriverKind, Record<string, string | boolean | undefined>>>,
-): ProviderOptionSelectionsByProvider {
-  const result: ProviderOptionSelectionsByProvider = {};
-  for (const [provider, bag] of Object.entries(options) as Array<
-    [ProviderDriverKind, Record<string, string | boolean | undefined>]
-  >) {
-    result[provider] = toSelections(bag);
-  }
-  return result;
-}
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vite-plus/test";
 
 import {
@@ -182,12 +168,6 @@ function modelSelection(
   options?: Record<string, string | boolean | undefined>,
 ): ModelSelection {
   return createModelSelection(defaultInstanceIdForDriver(provider), model, toSelections(options));
-}
-
-function providerModelOptions(
-  options: Partial<Record<string, Record<string, string | boolean | undefined>>>,
-): ProviderOptionSelectionsByProvider {
-  return selectionsByProvider(options);
 }
 
 const TEST_ENVIRONMENT_ID = EnvironmentId.make("environment-local");
@@ -695,7 +675,7 @@ describe("composerDraftStore context persistence", () => {
       threadId: threadRef.threadId,
     };
     const store = useComposerDraftStore.getState();
-    store.addTerminalContext(threadRef, terminal);
+    store.addTerminalContexts(threadRef, [terminal]);
     store.addPreviewAnnotation(threadRef, annotation);
     const terminalLink = formatTerminalContextReference(terminal);
     const prompt = `Inspect ${terminalLink}. Apply [Retry note](supaterm-context://v1/preview-annotation/preview-annotation_retry-note). Compare ${terminalLink} again.`;
@@ -1725,33 +1705,6 @@ describe("composerDraftStore modelSelection", () => {
     expect(
       draftFor(threadId, TEST_ENVIRONMENT_ID)?.modelSelectionByProvider[CODEX_INSTANCE],
     ).toEqual(modelSelection(CODEX_DRIVER, "gpt-5.4", { reasoningEffort: "xhigh" }));
-  });
-
-  it("does not clear other provider options when setting options for a single provider", () => {
-    const store = useComposerDraftStore.getState();
-
-    store.setModelOptions(
-      threadRef,
-      providerModelOptions({
-        codex: { fastMode: true },
-        claudeAgent: { effort: "max" },
-      }),
-    );
-
-    store.setModelOptions(threadRef, providerModelOptions({ codex: { reasoningEffort: "xhigh" } }));
-
-    const draft = draftFor(threadId, TEST_ENVIRONMENT_ID);
-    expect(draft?.modelSelectionByProvider[CODEX_INSTANCE]?.options).toEqual(
-      createModelSelection(CODEX_INSTANCE, "gpt-5.4", toSelections({ reasoningEffort: "xhigh" }))
-        .options,
-    );
-    expect(draft?.modelSelectionByProvider[CLAUDE_AGENT_INSTANCE]?.options).toEqual(
-      createModelSelection(
-        CLAUDE_AGENT_INSTANCE,
-        "claude-opus-4-6",
-        toSelections({ effort: "max" }),
-      ).options,
-    );
   });
 
   it("stores provider option changes on a selected custom instance", () => {

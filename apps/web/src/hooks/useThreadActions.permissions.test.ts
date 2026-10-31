@@ -96,10 +96,7 @@ vi.mock("../state/vcs", () => ({
   vcsEnvironment: { removeWorktree: "removeWorktree", refreshStatus: "refreshStatus" },
 }));
 vi.mock("../state/entities", () => ({
-  readEnvironmentSupportsPinning: () => true,
-  readEnvironmentSupportsPinReorder: () => true,
-  readEnvironmentSupportsMarkDone: () => true,
-  readEnvironmentSupportsSnooze: () => true,
+  readEnvironmentServerConfigLoaded: () => true,
   readThreadShell: (ref: ScopedThreadRef) =>
     state.threads.find(
       (thread) => thread.environmentId === ref.environmentId && thread.id === ref.threadId,

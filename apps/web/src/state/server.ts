@@ -11,7 +11,7 @@ import {
 } from "@supaterm/contracts";
 import {
   AVAILABLE_CONNECTION_STATE,
-  presentEnvironmentConnection,
+  presentConnectionState,
   type EnvironmentPresentation,
 } from "@supaterm/client-runtime/connection";
 import { createServerEnvironmentAtoms } from "@supaterm/client-runtime/state/server";
@@ -131,7 +131,7 @@ const environmentConnectionsAtom = Atom.make((get) => {
     environments.set(environmentId, {
       connection:
         entry.unsupportedReason === undefined
-          ? presentEnvironmentConnection(state)
+          ? presentConnectionState(state)
           : { phase: "unsupported", error: entry.unsupportedReason, traceId: null },
       serverConfig: get(serverEnvironment.configValueAtom(environmentId)),
     });

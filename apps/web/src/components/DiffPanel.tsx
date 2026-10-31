@@ -29,8 +29,7 @@ import { useFileContextMenuHandler } from "../fileContextMenu";
 import { type DraftId } from "../composerDraftStore";
 import { openDiffFilePrimaryAction, resolveDiffPathForWorkspace } from "../diffFileActions";
 import { toolCallDiff } from "../lib/toolCallDiff";
-import { useCheckpointDiff } from "~/lib/checkpointDiffState";
-import { useTurnItemDetail } from "~/state/queries";
+import { useCheckpointDiff, useTurnItemDetail } from "~/state/queries";
 import { revisionedQuery } from "~/state/revisionedQuery";
 import { cn } from "~/lib/utils";
 import {

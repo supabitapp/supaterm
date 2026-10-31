@@ -9,7 +9,10 @@ import {
 } from "../../desktopAppActivation";
 import { connectPairing } from "../../connection/onboarding";
 import { useNewThreadHandler } from "../../hooks/useHandleNewThread";
-import { findProjectByPath, inferProjectTitleFromPath } from "../../lib/projectPaths";
+import {
+  findProjectByPath,
+  inferProjectTitleFromPath,
+} from "@supaterm/client-runtime/state/projects";
 import { newProjectId } from "../../lib/utils";
 import { readProjects, waitForProject } from "../../state/entities";
 import { usePrimaryEnvironment } from "../../state/environments";

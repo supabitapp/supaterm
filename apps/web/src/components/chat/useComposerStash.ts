@@ -51,7 +51,7 @@ import { isCommandPaletteOpen } from "../../commandPaletteBus";
 import { getTerminalFocusOwner } from "../../lib/terminalFocus";
 import { registerCommands } from "../../shortcuts/dispatcher";
 import { replaceComposerContextReferences } from "@supaterm/shared/composerContextReferences";
-import type { ComposerPromptEditorHandle } from "../ComposerPromptEditor";
+import type { ComposerPromptEditorHandle } from "../ComposerPromptEditorTiptap";
 import { formatInlineContextReference } from "~/lib/composerContextReferences";
 import {
   previewAnnotationContextRecord,
@@ -97,7 +97,6 @@ export function useComposerStash(input: {
   readonly canQueueMessage: boolean;
   readonly canQueueSelectedProvider: boolean;
   readonly isSendBusy: boolean;
-  readonly isConnecting: boolean;
   readonly sendDisabledReason: string | null;
   readonly prompt: string;
   readonly composerMenuOpen: boolean;
@@ -145,7 +144,6 @@ export function useComposerStash(input: {
     canQueueMessage,
     canQueueSelectedProvider,
     isSendBusy,
-    isConnecting,
     sendDisabledReason,
     prompt,
     composerMenuOpen,
@@ -512,7 +510,7 @@ export function useComposerStash(input: {
           ? "Answer the pending question first"
           : !canQueueMessage || !canQueueSelectedProvider
             ? "Sending is unavailable right now"
-            : isSendBusy || isConnecting
+            : isSendBusy
               ? "Wait for the current send to finish"
               : sendDisabledReason;
   const stashSendAllBlockedReason = isSendingAllStash

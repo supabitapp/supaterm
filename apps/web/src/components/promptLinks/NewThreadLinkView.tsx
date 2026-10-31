@@ -187,7 +187,7 @@ export function NewThreadLinkView({ link }: { readonly link: NewThreadLink }) {
     const environmentId = lastActiveEnvironmentId();
     const environment = environments.find((entry) => entry.environmentId === environmentId);
     const newProjectsRoot = environment?.serverConfig?.newProjectsRoot ?? null;
-    if (environmentId === null || newProjectsRoot === null || environment?.serverConfig == null) {
+    if (environmentId === null || newProjectsRoot === null) {
       setState({
         status: "failed",
         message:

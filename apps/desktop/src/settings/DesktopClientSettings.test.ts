@@ -34,7 +34,6 @@ const clientSettings: ClientSettings = {
   confirmThreadDelete: false,
   confirmThreadUnpin: false,
   composerCollapseOnScroll: true,
-  dismissedProviderUpdateNotificationKeys: [],
   diffFilesCollapsed: true,
   diffIgnoreWhitespace: true,
   diffLayout: "stacked",

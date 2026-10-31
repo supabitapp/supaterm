@@ -42,7 +42,7 @@ import { Menu, MenuPopup } from "../ui/menu";
 
 const GitActionsControl = memo(BaseGitActionsControl);
 
-export interface ThreadDetailsPanelProps extends Pick<
+interface ThreadDetailsPanelProps extends Pick<
   ComponentProps<typeof ThreadDetailsCard>,
   "anchor" | "handle"
 > {
@@ -237,7 +237,6 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
                     ) : null}
                     {show.git ? (
                       <GitActionsControl
-                        displayMode="panel"
                         compact={density !== "full"}
                         showActions={visible.gitActions}
                         showChanges={visible.changes}

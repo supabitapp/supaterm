@@ -43,9 +43,6 @@ function environment(
         ? null
         : {
             settings: { ...DEFAULT_SERVER_SETTINGS, ...options.settings },
-            environment: {
-              capabilities: {},
-            },
           },
   };
 }

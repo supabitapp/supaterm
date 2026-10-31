@@ -186,8 +186,8 @@ import {
 import {
   type ComposerCitationCommentRequest,
   type ComposerPromptEditorHandle,
-  ComposerPromptEditor,
-} from "../ComposerPromptEditor";
+  ComposerPromptEditorTiptap as ComposerPromptEditor,
+} from "../ComposerPromptEditorTiptap";
 import {
   ComposerContextActionsContext,
   composerContextRecordsFromDraft,
@@ -372,7 +372,6 @@ export interface ChatComposerHandle {
     reviewComments: ReviewCommentContext[];
     threadContexts: ThreadContextRecord[];
     selectedPromptEffort: string | null;
-    selectedModelOptionsForDispatch: unknown;
     selectedModelSelection: ModelSelection;
     multipleModelSelections: ReadonlyArray<ModelSelection> | null;
     providerAvailable: boolean;
@@ -405,7 +404,6 @@ export interface ChatComposerProps {
   >;
 
   activeThreadId: ThreadId | null;
-  activeThreadEnvironmentId: EnvironmentId | undefined;
   activeThread: Thread | undefined;
   activeThreadShell: ThreadShell | null;
   promptHistoryMessages: ReadonlyArray<ChatMessage>;
@@ -416,7 +414,6 @@ export interface ChatComposerProps {
 
   phase: SessionPhase;
   canInterrupt: boolean;
-  isConnecting: boolean;
   isSendBusy: boolean;
   canResume: boolean;
   isRevertingCheckpoint?: boolean;
@@ -573,7 +570,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     supportsMultipleModels,
     onMultipleModelSelectionsChange: setMultipleModelSelections,
     activeThreadId,
-    activeThreadEnvironmentId: _activeThreadEnvironmentId,
     activeThread,
     activeThreadShell,
     promptHistoryMessages,
@@ -583,7 +579,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     projectSelectionRequired,
     phase,
     canInterrupt,
-    isConnecting,
     isSendBusy,
     canResume,
     isRevertingCheckpoint = false,
@@ -1298,7 +1293,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     phase === "running" ||
     isSendBusy ||
     isSendDisabled ||
-    isConnecting ||
     !canQueueSelectedProvider ||
     projectSelectionRequired ||
     (environmentUnavailable !== null && showResumeAction) ||
@@ -2134,7 +2128,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     if (
       isSendBusy ||
       isSendDisabled ||
-      isConnecting ||
       !canQueueSelectedProvider ||
       (environmentUnavailable !== null && activePendingProgress !== null) ||
       phase === "running"
@@ -2261,7 +2254,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       pendingUserInputs.length > 0 ||
       phase === "running" ||
       isSendBusy ||
-      isConnecting ||
       !activeThreadId
     ) {
       return;
@@ -2307,8 +2299,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     !isComposerApprovalState &&
     activePendingProgress === null &&
     !projectSelectionRequired &&
-    !showProviderUnavailable &&
-    !isConnecting
+    !showProviderUnavailable
       ? { text: nextPrompt.suggestion, dismiss: nextPrompt.dismiss }
       : null;
 
@@ -2386,7 +2377,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     canQueueMessage,
     canQueueSelectedProvider,
     isSendBusy,
-    isConnecting,
     sendDisabledReason,
     prompt,
     composerMenuOpen,
@@ -2769,7 +2759,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   ): boolean => {
     if (
       text.length === 0 ||
-      isConnecting ||
       activePendingIsResponding ||
       (pendingUserInputs.length > 0 && !activePendingProgress?.activeQuestion) ||
       projectSelectionRequired ||
@@ -2842,7 +2831,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       pendingUserInputs,
       supportsQuestionAttachments,
       isLiteralPendingAnswer,
-      isConnecting,
       projectSelectionRequired,
       questionAttachmentTarget,
       attachmentTargetKey,
@@ -3065,7 +3053,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     if (questionAttachmentTarget !== null) {
       const canAnswer =
         canOperateThread &&
-        !isConnecting &&
         !activePendingIsResponding &&
         activePendingProgress?.activeQuestion?.allowCustomAnswer !== false;
       const text = `${records.map((record) => formatInlineContextReference(threadContextReference(record))).join(" ")} `;
@@ -3406,7 +3393,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         reviewComments: composerReviewComments,
         threadContexts: composerThreadContexts,
         selectedPromptEffort,
-        selectedModelOptionsForDispatch,
         selectedModelSelection,
         multipleModelSelections:
           routeKind === "draft" && multipleModelSelections !== null
@@ -3462,7 +3448,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       focusComposer,
       environmentId,
       primaryEnvironmentId,
-      isConnecting,
       isChoiceOnlyPendingQuestion,
       isLiteralPendingAnswer,
       pendingUserInputs.length,
@@ -3476,7 +3461,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       selectedModel,
       selectedInstanceId,
       reportedModelSelection,
-      selectedModelOptionsForDispatch,
       selectedModelSelection,
       multipleModelSelections,
       setMultipleModelSelections,
@@ -3756,7 +3740,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                             canInterrupt={false}
                             isSendBusy={isSendBusy}
                             sendDisabledReason={sendDisabledReason}
-                            isConnecting={isConnecting}
                             isEnvironmentUnavailable={
                               environmentUnavailable !== null ||
                               noProviderAvailable ||
@@ -4034,7 +4017,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                                   : "Ask anything, @tag files/folders, $use skills, or / for commands"
                     }
                     disabled={
-                      isConnecting ||
                       projectSelectionRequired ||
                       isChoiceOnlyPendingQuestion ||
                       activePendingIsResponding
@@ -4057,7 +4039,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                       canInterrupt={false}
                       isSendBusy={isSendBusy}
                       sendDisabledReason={sendDisabledReason}
-                      isConnecting={isConnecting}
                       isEnvironmentUnavailable={
                         environmentUnavailable !== null ||
                         noProviderAvailable ||
@@ -4125,7 +4106,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                       {showComposerAttachAction ? (
                         <ComposerVoiceButton
                           voice={voice}
-                          disabled={!canOperateThread || isConnecting}
+                          disabled={!canOperateThread}
                           shortcutLabel={shortcutLabelForCommand(keybindings, "composer.voice")}
                         />
                       ) : null}
@@ -4141,7 +4122,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                         canSteer={!isCompacting}
                         isSendBusy={isSendBusy}
                         sendDisabledReason={sendDisabledReason}
-                        isConnecting={isConnecting}
                         isEnvironmentUnavailable={
                           (environmentUnavailable !== null &&
                             (activePendingProgress !== null || showResumeAction)) ||
@@ -4160,9 +4140,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                         onResume={onResume}
                         onPreviousPendingQuestion={onPreviousActivePendingUserInputQuestion}
                         onInterrupt={handleInterruptPrimaryActionStable}
-                        compactDisabled={
-                          compactDisabled || noProviderAvailable || isSendBusy || isConnecting
-                        }
+                        compactDisabled={compactDisabled || noProviderAvailable || isSendBusy}
                         compactDisabledReason={resolvedCompactDisabledReason}
                         {...(compactCommandAvailable
                           ? { onCompactContext: compactThreadContextStable }

@@ -106,7 +106,10 @@ import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../termina
 import { isMacPlatform } from "~/lib/utils";
 import { readLocalApi } from "../localApi";
 import { useSidebarPendingFileDropStore } from "../sidebarPendingFileDropStore";
-import { getProjectOrderKey, selectProjectGroupingSettings } from "../logicalProject";
+import {
+  getProjectOrderKey,
+  selectProjectGroupingSettings,
+} from "@supaterm/client-runtime/state/project-grouping";
 import {
   projectGroupsSpanEnvironments,
   resolveSidebarProjectScope,

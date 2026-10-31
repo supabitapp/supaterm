@@ -116,8 +116,8 @@ import {
   resolveTimelineMinimapCurrentIndex,
   resolveTimelineMinimapHasPersistentGutter,
   resolveTimelineMinimapHitStripWidth,
-  worktreeSetupAgentStarted,
 } from "./MessagesTimeline.logic";
+import { worktreeSetupAgentStarted } from "@supaterm/client-runtime/worktree-setup";
 import type { ThreadFindMatch } from "./threadFind";
 import { useThreadFindNavigation } from "./useThreadFindNavigation";
 import { useTimelineMessageJump } from "./useTimelineMessageJump";
@@ -211,7 +211,6 @@ interface MessagesTimelineProps {
   ) => boolean;
   isWorking: boolean;
   runlessWorkActive?: boolean;
-  activeTurnInProgress: boolean;
   activeTurnStartedAt?: string | null;
   worktreeSetup?: WorktreeSetupSnapshot | null;
   onCancelWorktreeSetup?: () => void;
@@ -322,7 +321,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
   onCiteAssistantText,
   isWorking,
   runlessWorkActive = false,
-  activeTurnInProgress,
   activeTurnStartedAt = null,
   worktreeSetup = null,
   footer = null,
@@ -1109,7 +1107,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
     isCompacting: compactionAwaitingRow,
     isRevertingCheckpoint,
     backgroundWorktreeSetup,
-    activeTurnInProgress,
     awaitingUser: awaitingUser !== null,
     isPreparingWorktree,
     latestRunId: latestRun?.runId ?? null,

@@ -120,7 +120,6 @@ export const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryA
   canSteer: boolean;
   isSendBusy: boolean;
   sendDisabledReason: string | null;
-  isConnecting: boolean;
   isEnvironmentUnavailable: boolean;
   hasSendableContent: boolean;
   sendShortcut?: UnifiedSettings["sendShortcut"] | undefined;
@@ -151,7 +150,6 @@ export const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryA
         canSteer={props.canSteer}
         isSendBusy={props.isSendBusy}
         sendDisabledReason={props.sendDisabledReason}
-        isConnecting={props.isConnecting}
         isEnvironmentUnavailable={props.isEnvironmentUnavailable}
         isPreparingWorktree={props.isPreparingWorktree}
         hasSendableContent={props.hasSendableContent}

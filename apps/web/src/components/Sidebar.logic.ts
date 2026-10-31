@@ -10,17 +10,17 @@ import { defaultAnimateLayoutChanges, type AnimateLayoutChanges } from "@dnd-kit
 import type { ContextMenuItem } from "@supaterm/contracts";
 import type { SidebarProjectSortOrder, SidebarThreadSortOrder } from "@supaterm/contracts/settings";
 import type { AsyncResult } from "effect/reactivity";
-import { planPinnedReorder } from "@supaterm/client-runtime/state/thread-sort";
 import {
   effectiveSnoozed,
   type ThreadSnoozeShell,
 } from "@supaterm/client-runtime/state/thread-snooze";
 import {
   getThreadSortTimestamp,
+  planPinnedReorder,
   sortThreads,
   toSortableTimestamp,
   type ThreadSortInput,
-} from "../lib/threadSort";
+} from "@supaterm/client-runtime/state/thread-sort";
 import type { SidebarThreadSummary, Thread } from "../types";
 import { normalizeSearchText } from "../lib/utils";
 import { observeIntersection } from "../lib/observeIntersection";
@@ -237,7 +237,7 @@ function sectionAtSidebarSlot(items: readonly SidebarListItem[], index: number):
 /** Resolve the destination section and pointer order from an arrayMove across
  * the separators. Only the pinned order is kept on drop. The working and
  * snoozed shelves are never destinations. */
-export type SidebarDropTarget = {
+type SidebarDropTarget = {
   readonly section: "pinned" | "active" | "done";
   readonly pinnedOrder: readonly string[];
   readonly activeOrder: readonly string[];
@@ -275,7 +275,7 @@ export function resolveSidebarDropTarget(
   return { section, pinnedOrder, activeOrder };
 }
 
-export type SidebarThreadDropPlan =
+type SidebarThreadDropPlan =
   | { readonly kind: "none" }
   | {
       readonly kind: "reorder-pinned";
@@ -479,7 +479,7 @@ type LogicalSidebarProject = SidebarProject & {
   }[];
 };
 
-export type ThreadTraversalDirection = "previous" | "next";
+type ThreadTraversalDirection = "previous" | "next";
 
 /**
  * Shared-worktree checks must exclude only successful deletions, never the
@@ -860,7 +860,6 @@ export function firstValidTimestampMs(
 
 // The Working section folds and orders the inbox the same way on mobile.
 export {
-  isThreadWorking as isSidebarThreadWorking,
   sortInboxThreadsByReturn,
   sortWorkingThreadsBySend,
 } from "@supaterm/client-runtime/state/thread-inbox";

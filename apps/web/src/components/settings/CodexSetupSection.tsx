@@ -61,8 +61,7 @@ const noop = () => undefined;
 
 // A loopback server can receive the provider's callback itself, unless the
 // desktop shell offers to catch it on the client.
-const prefersClientCallback = (local: boolean) =>
-  !local || window.desktopBridge?.receiveProviderAuthCallback !== undefined;
+const prefersClientCallback = (local: boolean) => !local || window.desktopBridge !== undefined;
 
 /**
  * How a sign-in started now reaches the provider. Read at use time, because a
@@ -84,7 +83,7 @@ function readSignInRouting(environmentId: EnvironmentId) {
       : null;
   return {
     clientCallback,
-    remoteWeb: clientCallback && !window.desktopBridge?.receiveProviderAuthCallback,
+    remoteWeb: clientCallback && !window.desktopBridge,
     primaryAuthEnvironmentId,
   };
 }
@@ -293,7 +292,7 @@ function ManagedCodexSetup({
   const reconnectProfile = useAtomCommand(serverEnvironment.chatGptReconnectProfile, options);
   const importProfile = useAtomCommand(serverEnvironment.chatGptImportProfile, options);
   const clientCallback = !handoff && prefersClientCallback(local);
-  const remoteWeb = clientCallback && !window.desktopBridge?.receiveProviderAuthCallback;
+  const remoteWeb = clientCallback && !window.desktopBridge;
   const returnUrl = new URL(window.location.href);
   if (returnUrl.pathname === "/welcome") returnUrl.hash = `agents:${environmentId}`;
   if (returnUrl.pathname === "/settings/providers")
@@ -587,10 +586,10 @@ function ManagedCodexSetup({
 
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the desktop bridge provider auth callback when the URL changes or the card unmounts
   useEffect(() => {
-    if (!clientCallback || !url || !window.desktopBridge?.cancelProviderAuthCallback) return;
+    if (!clientCallback || !url || !window.desktopBridge) return;
     return () => {
       if (receivingCallback.current === url) receivingCallback.current = null;
-      void window.desktopBridge?.cancelProviderAuthCallback?.(url).catch(() => undefined);
+      void window.desktopBridge?.cancelProviderAuthCallback(url).catch(() => undefined);
     };
   }, [clientCallback, url]);
 

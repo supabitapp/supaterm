@@ -10,7 +10,7 @@ import {
 } from "../../composer-logic";
 import { listContinuationForEnter, listIndentForTab } from "../../composer-list-continuation";
 import { composerTargetKey } from "../../composerDraftStore";
-import type { ComposerPromptEditorHandle } from "../ComposerPromptEditor";
+import type { ComposerPromptEditorHandle } from "../ComposerPromptEditorTiptap";
 import type { ComposerCommandItem } from "./ComposerCommandMenu";
 import {
   buildComposerPromptHistoryEntries,

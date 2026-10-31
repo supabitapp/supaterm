@@ -201,7 +201,7 @@ vi.mock("../lib/utils", () => ({
   newDraftId: () => "draft-delayed",
   newThreadId: () => "thread-delayed",
 }));
-vi.mock("../logicalProject", () => ({
+vi.mock("@supaterm/client-runtime/state/project-grouping", () => ({
   deriveLogicalProjectKeyFromSettings: () => "remote-project",
   getProjectOrderKey: () => "remote-project",
   selectProjectGroupingSettings: () => ({}),

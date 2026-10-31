@@ -81,10 +81,6 @@ export function useEnvironmentHttpBaseUrl(environmentId: EnvironmentId | null): 
   const prepared = usePreparedConnection(environmentId);
   return Option.isSome(prepared) ? prepared.value.httpBaseUrl : null;
 }
-export function useEnvironmentIds() {
-  return useAtomValue(environmentSummaries.environmentIdsAtom);
-}
-
 export function useEnvironmentIdentities() {
   return useAtomValue(environmentSummaries.identitiesAtom);
 }

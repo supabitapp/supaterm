@@ -3,9 +3,9 @@ import type { EnvironmentId, ScopedProjectRef } from "@supaterm/contracts";
 import {
   buildProjectGroups,
   derivePhysicalProjectKey,
+  resolveScratchProjectScopeKey,
   type ProjectGroupingSettings,
-} from "./logicalProject";
-import { resolveScratchProjectScopeKey } from "@supaterm/client-runtime/state/project-grouping";
+} from "@supaterm/client-runtime/state/project-grouping";
 import type { Project } from "./types";
 
 export type EnvironmentPresence = "local-only" | "remote-only" | "mixed";

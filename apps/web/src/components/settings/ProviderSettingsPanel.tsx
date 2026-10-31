@@ -441,7 +441,7 @@ function ProviderSettingsPanelContent(target: ProviderSettingsTarget) {
       ) : null}
 
       {selectedEnvironment ? (
-        <SelectedEnvironmentProviderSettings
+        <RemoteSessionGatedProviderSettings
           key={selectedEnvironment.environmentId}
           environment={selectedEnvironment}
           deviceTabs={deviceTabs}
@@ -455,27 +455,6 @@ function ProviderSettingsPanelContent(target: ProviderSettingsTarget) {
         />
       ) : null}
     </>
-  );
-}
-
-function SelectedEnvironmentProviderSettings({
-  environment,
-  deviceTabs,
-  targetInstanceId,
-  projectIds,
-}: {
-  readonly environment: EnvironmentPresentation;
-  readonly deviceTabs?: ReactNode;
-  readonly targetInstanceId?: ProviderInstanceId | undefined;
-  readonly projectIds: readonly ProjectId[];
-}) {
-  return (
-    <RemoteSessionGatedProviderSettings
-      environment={environment}
-      deviceTabs={deviceTabs}
-      targetInstanceId={targetInstanceId}
-      projectIds={projectIds}
-    />
   );
 }
 
@@ -1420,10 +1399,8 @@ function ProviderInstanceRow({
       modelOrder={modelOrder}
       onHiddenModelsChange={(next, affectedModels) => {
         const hidden = new Set(next);
-        const models =
-          affectedModels ?? modelListChanges(hiddenModels, next).map((change) => change.model);
         void actions.updateModelPreferences({
-          setModelsHidden: models.map((model) => ({
+          setModelsHidden: affectedModels.map((model) => ({
             provider: instanceId,
             model,
             hidden: hidden.has(model),

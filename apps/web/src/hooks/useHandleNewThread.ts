@@ -19,7 +19,7 @@ import {
   deriveLogicalProjectKeyFromSettings,
   getProjectOrderKey,
   selectProjectGroupingSettings,
-} from "../logicalProject";
+} from "@supaterm/client-runtime/state/project-grouping";
 import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
 import {
   readProject,

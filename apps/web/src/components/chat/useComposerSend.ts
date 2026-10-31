@@ -128,7 +128,6 @@ interface ComposerSendInput {
   readonly promptRef: { current: string };
   readonly feedbackUploadsInFlightRef: { readonly current: Set<string> };
   readonly queuedRunEdit: ReturnType<typeof useQueuedRunEditWithOutbox>;
-  readonly isConnecting: boolean;
   readonly isRevertingCheckpoint: boolean;
   readonly threadDetailLoading: boolean;
   readonly activeEnvironmentUnavailable: boolean;
@@ -191,7 +190,6 @@ export function useComposerSend(input: ComposerSendInput) {
     promptRef,
     feedbackUploadsInFlightRef,
     queuedRunEdit,
-    isConnecting,
     isRevertingCheckpoint,
     threadDetailLoading,
     activeEnvironmentUnavailable,
@@ -285,7 +283,6 @@ export function useComposerSend(input: ComposerSendInput) {
       !readCanQueueComposerMessage(environmentId) ||
       !activeThread ||
       isSendBusy ||
-      isConnecting ||
       isRevertingCheckpoint ||
       !clientSettingsHydrated ||
       (threadDetailLoading && !activeEnvironmentUnavailable) ||

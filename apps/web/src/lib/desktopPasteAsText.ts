@@ -11,6 +11,6 @@ export function installDesktopPasteAsText(
 ): () => void {
   return registerMenuAction("paste-as-text", () => {
     target.dispatchEvent(new Event(DESKTOP_PASTE_AS_TEXT_EVENT));
-    void bridge?.pasteAsText?.();
+    void bridge?.pasteAsText();
   });
 }

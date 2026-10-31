@@ -38,7 +38,7 @@ import {
   deriveLogicalProjectKeyFromSettings,
   derivePhysicalProjectKey,
   selectProjectGroupingSettings,
-} from "../logicalProject";
+} from "@supaterm/client-runtime/state/project-grouping";
 import { buildPhysicalToLogicalProjectKeyMap } from "../sidebarProjectGrouping";
 import { threadRuntimeCanArchive } from "@supaterm/client-runtime/state/models";
 import { useCopyToClipboard } from "./useCopyToClipboard";

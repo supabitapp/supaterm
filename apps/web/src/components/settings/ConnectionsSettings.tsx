@@ -122,14 +122,13 @@ import {
   type ServerUpdateTarget,
 } from "../ServerUpdateAction";
 import {
-  type AccessSectionPresentation,
   AdvertisedEndpointListRow,
   AuthorizedClientsHeaderAction,
   type CreatedPairingCredential,
   NetworkAccessDescription,
   PairingClientsList,
-  accessRowClassName,
 } from "./AuthorizedClientsSettings";
+import { ITEM_ROW_CLASSNAME } from "./itemRows";
 import { EmptyRemoteEnvironments, SavedBackendListRow } from "./SavedEnvironmentRows";
 import { AddEnvironmentDialog } from "./AddEnvironmentDialog";
 
@@ -696,7 +695,7 @@ export function ConnectionsSettings({ view }: { readonly view: "environments" | 
       aria-label="Enable network access"
     />
   );
-  const renderEndpointRows = (presentation: AccessSectionPresentation) =>
+  const renderEndpointRows = () =>
     isAdvertisedEndpointListExpanded
       ? visibleDesktopNetworkAdvertisedEndpoints.map((endpoint) => {
           const endpointKey = endpointDefaultPreferenceKey(endpoint);
@@ -705,7 +704,6 @@ export function ConnectionsSettings({ view }: { readonly view: "environments" | 
               key={endpoint.id}
               endpoint={endpoint}
               isDefault={endpointKey === defaultDesktopAdvertisedEndpointKey}
-              presentation={presentation}
               onSetDefault={handleSetDefaultAdvertisedEndpoint}
               onSetupTailscaleServe={handleStartTailscaleServeSetup}
               onDisableTailscaleServe={handleStartTailscaleServeDisable}
@@ -990,10 +988,10 @@ export function ConnectionsSettings({ view }: { readonly view: "environments" | 
       />
     );
   };
-  const renderAuthorizedClients = (presentation: AccessSectionPresentation) => (
+  const renderAuthorizedClients = () => (
     <>
       {desktopAccessManagementError ? (
-        <div className={accessRowClassName(presentation)}>
+        <div className={ITEM_ROW_CLASSNAME}>
           <p className="text-xs text-destructive">{desktopAccessManagementError}</p>
         </div>
       ) : null}
@@ -1003,7 +1001,6 @@ export function ConnectionsSettings({ view }: { readonly view: "environments" | 
         endpointUrl={desktopServerExposureState?.endpointUrl}
         endpoints={visibleDesktopAdvertisedEndpoints}
         defaultEndpointKey={defaultDesktopAdvertisedEndpointKey}
-        presentation={presentation}
         isLoading={isLoadingDesktopAccessManagement}
         pairingLinks={visibleDesktopPairingLinks}
         createdPairingCredentials={createdPairingCredentials}
@@ -1151,7 +1148,7 @@ export function ConnectionsSettings({ view }: { readonly view: "environments" | 
             {canManageLocalBackend && desktopBridge ? (
               <>
                 {renderNetworkAccessRow()}
-                {renderEndpointRows("endpoint-rail")}
+                {renderEndpointRows()}
                 {renderTailscaleRow()}
                 {renderWslRow()}
               </>
@@ -1253,7 +1250,7 @@ export function ConnectionsSettings({ view }: { readonly view: "environments" | 
                 data-testid="authorized-clients-scroll-area"
               >
                 {canReadAccess ? (
-                  renderAuthorizedClients("current")
+                  renderAuthorizedClients()
                 ) : (
                   <p className="px-4 py-3 text-xs text-muted-foreground">
                     This connection can create access links but cannot view authorized clients.
@@ -1561,7 +1558,7 @@ export function ConnectionsSettings({ view }: { readonly view: "environments" | 
 
   return (
     <SettingsPageContainer>
-      {desktopBridge?.setLocalEnvironmentEnabled ? (
+      {desktopBridge ? (
         <SettingsSection id="this-app" title="This app">
           <LocalEnvironmentSetting />
         </SettingsSection>
