@@ -127,7 +127,21 @@ it.effect.each([
   ([, testLayer]) =>
     Effect.gen(function* () {
       const store = yield* ProjectionStore.ProjectionStoreV2;
-      const parentThread = { ...makeParentThread(), pinnedAt: parentCreatedAt, pinOrderKey: "a0" };
+      const parentThread = {
+        ...makeParentThread(),
+        pinnedAt: parentCreatedAt,
+        pinOrderKey: "a0",
+        pinnedMessages: [
+          {
+            itemId: TurnItemId.make("item:parent-pin"),
+            messageId: MessageId.make("message:parent-pin"),
+            sourceThreadId: parentThreadId,
+            role: "user" as const,
+            preview: "Pinned in the parent",
+            sentAt: DateTime.formatIso(parentCreatedAt),
+          },
+        ],
+      };
       const childThread = makeSubagentChildThread({
         parentThread,
         childThreadId,
@@ -145,6 +159,7 @@ it.effect.each([
       assert.equal(parentThread.pinOrderKey, "a0");
       assert.isNull(childThread.pinnedAt);
       assert.isNull(childThread.pinOrderKey);
+      assert.deepEqual(childThread.pinnedMessages, []);
 
       for (const thread of [parentThread, childThread]) {
         yield* store.apply({
