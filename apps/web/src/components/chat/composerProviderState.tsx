@@ -172,7 +172,7 @@ export function getComposerSpeedToggleChange(input: {
 
 /**
  * `cursor` is an expanded caret in `prompt`; the result's `cursor` keeps it on
- * the same character when the Ultrathink prefix is added or removed.
+ * the same character when stepping strips a typed Ultrathink prefix.
  */
 export function getComposerReasoningStep(input: {
   provider: ProviderDriverKind;
@@ -187,7 +187,7 @@ export function getComposerReasoningStep(input: {
 }): {
   prompt: string;
   cursor: number;
-  modelOptions?: ReadonlyArray<ProviderOptionSelection>;
+  modelOptions: ReadonlyArray<ProviderOptionSelection>;
 } | null {
   const { prompt, cursor } = input;
   const { selections } = resolveComposerOptionSelections(
@@ -207,18 +207,10 @@ export function getComposerReasoningStep(input: {
     direction: input.direction,
   });
   if (!step) return null;
-  const modelOptions = "modelOptions" in step ? { modelOptions: step.modelOptions } : {};
-  if (step.prompt === prompt) return { prompt, cursor, ...modelOptions };
-  // Adding the prefix also trims the prompt, so the kept text starts right after the prefix.
-  const keptStart = "modelOptions" in step ? 0 : step.prompt.length - prompt.trim().length;
-  const offset =
-    "modelOptions" in step
-      ? step.prompt.length - prompt.length
-      : keptStart - (prompt.length - prompt.trimStart().length);
   return {
     prompt: step.prompt,
-    cursor: Math.min(step.prompt.length, Math.max(keptStart, cursor + offset)),
-    ...modelOptions,
+    cursor: Math.max(0, cursor + step.prompt.length - prompt.length),
+    modelOptions: step.modelOptions,
   };
 }
 
