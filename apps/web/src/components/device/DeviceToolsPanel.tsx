@@ -1,7 +1,6 @@
 import type { DeviceHubAccess } from "@supaterm/client-runtime/state/deviceHubAccess";
 import type { DevicePermission, DeviceSummary, DeviceTextSize } from "@supaterm/contracts";
 import { ChevronDownIcon, XIcon } from "@supaterm/icons";
-import { useEffect, useState } from "react";
 import { useAtomValue } from "@effect/atom-react";
 import { useState } from "react";
 

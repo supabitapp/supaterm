@@ -12,7 +12,6 @@ import {
   SmartphoneIcon,
   XIcon,
 } from "@supaterm/icons";
-import { type ReactNode, useEffect, useState } from "react";
 import { useAtomMount } from "@effect/atom-react";
 import { type ReactNode, useState } from "react";
 
