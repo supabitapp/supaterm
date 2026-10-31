@@ -54,6 +54,7 @@ import { IconButton } from "../../components/ui/IconButton";
 import { ProviderIcon } from "../../components/ProviderIcon";
 import { ThemedSwitch } from "../../components/ui/ThemedSwitch";
 import { cn } from "../../lib/cn";
+import { useReducedMotionPreference } from "../../lib/useReducedMotionPreference";
 import {
   buildModelOptions,
   groupByProvider,
@@ -952,7 +953,8 @@ function ThreadSettingsMainContent(props: {
   const [listLoaded, setListLoaded] = useState(false);
   // Android can drop the first frame of a reduced-motion fade, leaving rows invisible.
   const reducedMotion = useReducedMotion();
-  const animationsReady = listLoaded && !reducedMotion;
+  const reduceMotionEnabled = useReducedMotionPreference();
+  const animationsReady = listLoaded && !reducedMotion && !reduceMotionEnabled;
   const catalogItems = buildThreadSettingsCatalogItems(session);
   const hasActiveCatalogFilter =
     session.providerFilter !== null || session.searchQuery.trim().length > 0;
