@@ -160,7 +160,7 @@ describe("describeUpdateEverything", () => {
         {
           environmentId: id("npm"),
           serverLabel: "bb-1",
-          selfUpdate: "respawn",
+          selfUpdate: "boot-service",
           targetVersion: "1.1.0",
         },
       ],

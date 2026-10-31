@@ -1,7 +1,7 @@
 import { useAtomValue } from "@effect/atom-react";
 import { EnvironmentId } from "@supaterm/contracts";
 import { Atom } from "effect/reactivity";
-import { ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon } from "@supaterm/icons";
 import { Fragment, type RefObject, useRef } from "react";
 
 import { environmentThreadShells } from "~/state/threads";
