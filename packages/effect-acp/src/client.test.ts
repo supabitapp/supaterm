@@ -1490,7 +1490,10 @@ it.layer(NodeServices.layer)("effect-acp client", (it) => {
         Array.from(received, (event) =>
           event._tag === "SessionUpdate" ? event.params.update : undefined,
         ),
-        [notice, { sessionUpdate: "_supaterm_unknown", originalSessionUpdate: "notice", raw: untitled }],
+        [
+          notice,
+          { sessionUpdate: "_supaterm_unknown", originalSessionUpdate: "notice", raw: untitled },
+        ],
       );
       yield* Scope.close(scope, Exit.void);
     }),
