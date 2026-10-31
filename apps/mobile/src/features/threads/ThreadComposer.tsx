@@ -26,7 +26,7 @@ import {
 } from "@supaterm/shared/usageLimits";
 import { StackActions, useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { ReactNode } from "react";
-import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import * as Haptics from "expo-haptics";
 import { Keyboard, Platform, View, type ViewStyle } from "react-native";
 import { composerImageGallery } from "../../lib/composerImageGallery";
@@ -42,7 +42,7 @@ import Animated, {
   FadeOut,
   ReduceMotion,
   useAnimatedStyle,
-  useSharedValue,
+  useDerivedValue,
   withTiming,
 } from "react-native-reanimated";
 import {
@@ -294,19 +294,15 @@ export function ComposerSurface(props: {
   const colors = useUniwindTheme();
   const targetBorderRadius =
     typeof props.style.borderRadius === "number" ? props.style.borderRadius : 0;
-  const animatedBorderRadius = useSharedValue(targetBorderRadius);
   const shouldAnimate = props.animateLayout !== false && Platform.OS !== "android";
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- animates the Reanimated border radius value to the surface's new corner radius before paint
-  useLayoutEffect(() => {
-    animatedBorderRadius.set(
-      shouldAnimate
-        ? withTiming(targetBorderRadius, {
-            duration: COMPOSER_TRANSITION_DURATION_MS,
-            reduceMotion: ReduceMotion.System,
-          })
-        : targetBorderRadius,
-    );
-  }, [animatedBorderRadius, shouldAnimate, targetBorderRadius]);
+  const animatedBorderRadius = useDerivedValue(() =>
+    shouldAnimate
+      ? withTiming(targetBorderRadius, {
+          duration: COMPOSER_TRANSITION_DURATION_MS,
+          reduceMotion: ReduceMotion.System,
+        })
+      : targetBorderRadius,
+  );
   const animatedShapeStyle = useAnimatedStyle(() => ({
     borderRadius: animatedBorderRadius.value,
   }));

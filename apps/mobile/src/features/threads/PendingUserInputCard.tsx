@@ -490,6 +490,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
               </View>
               {question.allowCustomAnswer !== false ? (
                 <QuestionAttachments
+                  key={`${requestId}:${question.id}`}
                   requestId={requestId}
                   question={question}
                   questions={questions}
