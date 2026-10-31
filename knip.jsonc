@@ -20,8 +20,9 @@
     },
     "scripts": {
       // Knip loads its preprocessor through a CLI option; native verification and
-      // worktree setup and cleanup (from supaterm.json) run directly, and
-      // electron-builder loads the macOS signer by path.
+      // worktree setup and cleanup (from supaterm.json) run directly, electron-builder
+      // loads the macOS signer by path, and release-desktop.yml runs the desktop launch
+      // check through xvfb-run, which knip does not trace.
       "entry": [
         "check-commit-message.ts",
         "clean-worktree.ts",
@@ -31,6 +32,7 @@
         "mobile-native-client.ts",
         "setup-worktree.ts",
         "sign-macos.ts",
+        "smoke-desktop-app.ts",
         "verify-windows-desktop-artifact.ts",
       ],
       "ignoreDependencies": ["esbuild"],
