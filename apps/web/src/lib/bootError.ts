@@ -1,4 +1,11 @@
 import type { DesktopBridge } from "@supaterm/contracts";
+import {
+  Check,
+  Copy,
+  ICON_SVG_ROOT_ATTRIBUTES,
+  iconSvgElements,
+  type IconNode,
+} from "@supaterm/icons/nodes";
 
 const FALLBACK_TRIAGE_COMMAND = "npx supaterm triage";
 
@@ -28,12 +35,11 @@ export async function resolveTriageCommand(bridge: DesktopBridge | undefined) {
   return FALLBACK_TRIAGE_COMMAND;
 }
 
-const icon = (paths: string) =>
-  `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
-const COPY_ICON = icon(
-  '<rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
-);
-const CHECK_ICON = icon('<path d="M20 6 9 17l-5-5"/>');
+// The boot screen renders before React, so it takes the icons as SVG markup.
+const icon = (node: IconNode) =>
+  `<svg width="14" height="14" viewBox="0 0 24 24" ${ICON_SVG_ROOT_ATTRIBUTES} aria-hidden="true">${iconSvgElements(node)}</svg>`;
+const COPY_ICON = icon(Copy);
+const CHECK_ICON = icon(Check);
 
 export function showBootError(error: unknown) {
   console.error("Supaterm failed to start.", error);
