@@ -270,7 +270,7 @@ interface MessagesTimelineProps {
   loadEarlier?: CitationHistoryPage | null;
   pinnedMessages?: ReadonlyArray<ThreadPinnedMessage>;
   onTogglePinnedMessage?: (projectedItem: PinnableProjectedItem, pinned: boolean) => void;
-  onJumpToPinnedMessage?: (pin: ThreadPinnedMessage) => void;
+  onJumpToPinnedMessage: (pin: ThreadPinnedMessage) => void;
   messageJump?: MessageJump | null;
   onMessageJumpFailed?: MessageJumpHandlers["fail"];
   findPositionReaderRef?: React.RefObject<ThreadFindPositionReader | null>;
@@ -1214,7 +1214,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
               stripMap={minimapStripMap}
               onWheel={forwardMinimapWheel}
               onSelect={(item) => {
-                if (item.pin && onJumpToPinnedMessage) {
+                if (item.pin) {
                   onJumpToPinnedMessage(item.pin);
                 } else {
                   scrollToMinimapTurn(item);
