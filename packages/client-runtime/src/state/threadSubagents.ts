@@ -85,7 +85,7 @@ export function resolveSubagentPillSegment(
     };
   }
   return {
-    label: `${turn.doneCount} Done`,
-    accessibilityLabel: `${turn.doneCount} ${turn.doneCount === 1 ? "agent" : "agents"} Done`,
+    label: `${turn.settledCount} Done`,
+    accessibilityLabel: `${turn.settledCount} ${turn.settledCount === 1 ? "agent" : "agents"} Done`,
   };
 }

@@ -199,8 +199,8 @@ describe("deriveThreadTurnSubagents", () => {
 
     expect(turn?.subagents.map((entry) => entry.id)).toEqual(["idle", "workflow"]);
     expect(resolveSubagentPillSegment(turn)).toEqual({
-      label: "1 done",
-      accessibilityLabel: "1 agent done",
+      label: "1 Done",
+      accessibilityLabel: "1 agent Done",
     });
   });
 });
