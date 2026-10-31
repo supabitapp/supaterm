@@ -35,7 +35,6 @@ import { WorkspaceEntryIcon, WorkspaceEntryTooltip } from "./WorkspaceEntryIcon"
 import { TerminalContextInlineChip } from "./TerminalContextInlineChip";
 import { Tooltip, TooltipTrigger, TooltipPopup } from "../ui/tooltip";
 import {
-  ContextChipShell,
   PullRequestChip,
   UnresolvedChip,
   ImageChipButton,
@@ -51,7 +50,6 @@ import {
 } from "~/lib/composerContextRecords";
 import { ContextChip, ContextChipLabel, type ContextChipKind } from "../ContextChip";
 import { createContextPresentationRegistry } from "../contextPresentationRegistry";
-import { SkillChipIcon } from "./SkillInlineText";
 import {
   SkillChipPopover,
   skillInstructionsOpener,
