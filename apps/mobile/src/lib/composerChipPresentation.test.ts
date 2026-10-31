@@ -13,14 +13,14 @@ describe("contextChipPresentation image detection", () => {
     const { contextChipPresentation } = await import("./composerChipPresentation");
     expect(
       contextChipPresentation("file", { kind: "file", name: "IMG_4997.PNG", mimeType: "" }),
-    ).toEqual({ accent: "#d55665", icon: "image" });
+    ).toEqual({ accent: "#0090cd", icon: "image" });
     expect(
       contextChipPresentation("file", {
         kind: "file",
         name: "shot",
         mimeType: "image/jpeg",
       }),
-    ).toEqual({ accent: "#d55665", icon: "image" });
+    ).toEqual({ accent: "#0090cd", icon: "image" });
   });
 
   it("leaves genuine documents and videos alone", async () => {
