@@ -26,6 +26,7 @@ import { ProjectChipIconRasterizer } from "./native/ProjectChipIconImages";
 import { ThreadArrangementHost } from "./features/threads/ThreadArrangementSheet";
 import * as Dialog from "./components/ui/Dialog";
 import { prepareNativeShowcaseCapture } from "./features/showcase/nativeShowcaseScene";
+import { installShowcaseCapture } from "./features/showcase/ShowcaseCaptureCoordinator";
 import {
   presentPendingIncomingShare,
   pruneIncomingShareImports,
@@ -40,7 +41,7 @@ import {
   installAppearanceRuntime,
   useAppearancePreferences,
 } from "./features/settings/appearance/AppearancePreferencesProvider";
-import { RootStack } from "./Stack";
+import { RootStack, rootPathnameFromState } from "./Stack";
 import { appAtomRegistry } from "./state/atom-registry";
 import { subscribeComposerDraftModelReconciliation } from "./state/use-composer-drafts";
 import { environmentThreadShells } from "./state/threads";
@@ -161,6 +162,7 @@ const appServiceDisposers = [
   startIncomingShareInbox(),
   installAppShortcuts(linkToAppPath),
   installAppUpdateChecks(),
+  installShowcaseCapture(rootPathnameFromState),
 ];
 disposeOnFoundationReplace(typeof module === "undefined" ? undefined : module.hot, () => {
   for (const dispose of appServiceDisposers) dispose();

@@ -128,7 +128,7 @@ import { UsageRouteScreen } from "./features/usage/UsageRouteScreen";
 import { SettingsAboutRouteScreen } from "./features/settings/SettingsAboutRouteScreen";
 import { SettingsRouteScreen } from "./features/settings/SettingsRouteScreen";
 import { SettingsEnvironmentFilterProvider } from "./features/settings/settings-environment-filter";
-import { ShowcaseCaptureCoordinator } from "./features/showcase/ShowcaseCaptureCoordinator";
+import { ShowcaseReadyMarker } from "./features/showcase/ShowcaseCaptureCoordinator";
 import {
   SettingsLegalDocumentCloseHeaderButton,
   SettingsLegalDocumentExternalHeaderButton,
@@ -495,6 +495,11 @@ function workspaceLocationFromState(state: NavigationState) {
   };
 }
 
+export function rootPathnameFromState(state: NavigationState): string {
+  const path = getPathFromState(state, navigationPathConfig);
+  return path.startsWith("/") ? path : `/${path}`;
+}
+
 // Keep mounted across backgrounding so foreground recovery also catches up
 // threads that stopped while the app was suspended.
 function RunningThreadKeepAlive() {
@@ -508,8 +513,7 @@ function RootStackLayout(props: {
 }) {
   // Keyboard commands follow the top route; the workspace layout follows the
   // thread beneath overlay sheets.
-  const path = getPathFromState(props.state, navigationPathConfig);
-  const pathname = path.startsWith("/") ? path : `/${path}`;
+  const pathname = rootPathnameFromState(props.state);
   const workspaceLocation = workspaceLocationFromState(props.state);
   const draftRoute = props.state.routes.findLast((route) => route.name === "Thread");
   const draftParams = (
@@ -532,7 +536,7 @@ function RootStackLayout(props: {
     >
       <HardwareKeyboardCommandProvider pathname={pathname}>
         <RunningThreadKeepAlive />
-        <ShowcaseCaptureCoordinator pathname={pathname} />
+        <ShowcaseReadyMarker />
         <ExistingThreadSettingsRouteProvider>
           <AndroidWorkspaceTabsProvider>
             <AdaptiveWorkspaceLayout

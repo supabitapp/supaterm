@@ -4,6 +4,8 @@ import {
   isShowcaseThemeApplied,
   showcaseReadinessKey,
   showcaseSceneOnScreen,
+  showcaseThemePatch,
+  shouldNavigateToShowcaseScene,
   type ShowcaseReadinessInput,
 } from "./showcaseCaptureModel";
 
@@ -81,5 +83,38 @@ describe("showcaseReadinessKey", () => {
     const firstDraw = showcaseReadinessKey({ ...drawn, renderReports: 1 });
     expect(firstDraw).not.toBeNull();
     expect(showcaseReadinessKey({ ...drawn, renderReports: 2 })).not.toBe(firstDraw);
+  });
+});
+
+describe("showcaseThemePatch", () => {
+  const supaterm = { light: "supaterm", dark: "supaterm" } as const;
+
+  it("follows the system appearance before applying the requested theme", () => {
+    expect(
+      showcaseThemePatch({ themeMode: "dark", themeIds: supaterm, requestedTheme: "dracula" }),
+    ).toEqual({ themeMode: "system" });
+    expect(
+      showcaseThemePatch({ themeMode: "system", themeIds: supaterm, requestedTheme: null }),
+    ).toBeNull();
+  });
+
+  it("stops writing once the stored pair can no longer move toward a single-appearance theme", () => {
+    const patch = { themeMode: "system", themeIds: supaterm, requestedTheme: "dracula" } as const;
+    expect(showcaseThemePatch(patch)).toEqual({ lightThemeId: "supaterm", darkThemeId: "dracula" });
+    expect(
+      showcaseThemePatch({ ...patch, themeIds: { light: "supaterm", dark: "dracula" } }),
+    ).toBeNull();
+  });
+});
+
+describe("shouldNavigateToShowcaseScene", () => {
+  it("dispatches again when the thread shell changes while the scene is still not on screen", () => {
+    const shell = { id: "offline-reason" };
+    const first = { requestedScene: "review", scene: "threads", thread: shell } as const;
+    expect(shouldNavigateToShowcaseScene(null, first)).toBe(true);
+    expect(shouldNavigateToShowcaseScene(first, { ...first })).toBe(false);
+    expect(shouldNavigateToShowcaseScene(first, { ...first, thread: { ...shell } })).toBe(true);
+    expect(shouldNavigateToShowcaseScene(first, { ...first, scene: "thread" })).toBe(true);
+    expect(shouldNavigateToShowcaseScene(first, { ...first, scene: "review" })).toBe(false);
   });
 });

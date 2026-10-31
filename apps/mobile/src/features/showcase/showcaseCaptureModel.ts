@@ -1,4 +1,9 @@
-import type { MobileThemeId } from "../../lib/mobileTheme";
+import {
+  createMobileThemePairPatch,
+  type MobileThemeId,
+  type MobileThemeIds,
+  type MobileThemeMode,
+} from "../../lib/mobileTheme";
 import type { ShowcaseScene } from "./nativeShowcaseScene";
 import { isShowcaseNativeContentReady, type ShowcaseRenderSignal } from "./showcaseRenderSignal";
 
@@ -16,6 +21,31 @@ export function showcaseSceneOnScreen(pathname: string): ShowcaseScene | null {
   return null;
 }
 
+export interface ShowcaseNavigationTarget {
+  readonly requestedScene: ShowcaseScene;
+  readonly scene: ShowcaseScene | null;
+  /** The showcase thread shell; a new shell (or environment) is a new target to navigate to. */
+  readonly thread: object;
+}
+
+/**
+ * Whether to dispatch the navigation for `next`, given the target last dispatched. A target is
+ * dispatched once, and again whenever any part of it changes, so a dispatch that did not move
+ * the route is retried when the thread shell or route updates.
+ */
+export function shouldNavigateToShowcaseScene(
+  last: ShowcaseNavigationTarget | null,
+  next: ShowcaseNavigationTarget,
+): boolean {
+  return (
+    next.scene !== next.requestedScene &&
+    (last === null ||
+      last.requestedScene !== next.requestedScene ||
+      last.scene !== next.scene ||
+      last.thread !== next.thread)
+  );
+}
+
 /** Captures follow the system appearance, so both appearances must use the requested theme. */
 export function isShowcaseThemeApplied(input: {
   readonly preferencesReady: boolean;
@@ -28,6 +58,23 @@ export function isShowcaseThemeApplied(input: {
   return input.requestedTheme === null
     ? input.launchRequestRead
     : input.themeId === input.requestedTheme;
+}
+
+/**
+ * The preference write that moves toward the capture theme, or null when a write would change
+ * nothing. Writing only changes keeps a theme the appearance lacks from rewriting forever.
+ */
+export function showcaseThemePatch(input: {
+  readonly themeMode: MobileThemeMode;
+  readonly themeIds: MobileThemeIds;
+  readonly requestedTheme: MobileThemeId | null;
+}) {
+  if (input.themeMode !== "system") return { themeMode: "system" } as const;
+  if (input.requestedTheme === null) return null;
+  const patch = createMobileThemePairPatch(input.themeIds, input.requestedTheme);
+  return patch.lightThemeId === input.themeIds.light && patch.darkThemeId === input.themeIds.dark
+    ? null
+    : patch;
 }
 
 export interface ShowcaseReadinessInput {
