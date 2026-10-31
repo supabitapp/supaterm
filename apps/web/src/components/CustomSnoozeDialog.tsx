@@ -8,8 +8,7 @@ import {
   type CustomSnoozeInput,
 } from "@supaterm/client-runtime/state/thread-snooze";
 import { Button } from "./ui/button";
-import { CalendarIcon } from "@supaterm/icons";
-import { CalendarIcon, Settings2Icon } from "lucide-react";
+import { CalendarIcon, SlidersHorizontalIcon } from "@supaterm/icons";
 import { Calendar } from "./ui/calendar";
 import { useNowMinuteMs } from "../hooks/useNowMinute";
 import { weekStartsOn } from "../timestampFormat";
@@ -235,7 +234,7 @@ function CustomSnoozeDialog() {
                 });
               }}
             >
-              <Settings2Icon />
+              <SlidersHorizontalIcon />
               Edit snooze options
             </Button>
             <Button type="button" variant="outline" onClick={() => finish(null)}>

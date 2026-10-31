@@ -1,5 +1,5 @@
 import type { SnoozePresetSetting } from "@supaterm/contracts/settings";
-import { resolveSnoozePreset } from "@supaterm/client-runtime/state/thread-settled";
+import { resolveSnoozePreset } from "@supaterm/client-runtime/state/thread-snooze";
 import * as Equal from "effect/Equal";
 
 /**
