@@ -1,4 +1,4 @@
-import { resolvePathLinkTarget } from "@supaterm/shared/fileLinks";
+import { joinPath, resolvePathLinkTarget } from "@supaterm/shared/fileLinks";
 import {
   isWorkspaceAudioPreviewPath,
   isWorkspaceVideoPreviewPath,
@@ -19,14 +19,6 @@ export function fileRoutePathSegments(path: string): string[] {
 
 function isWindowsPathStyle(value: string): boolean {
   return isWindowsAbsolutePath(value) || /^[A-Za-z]:\\/.test(value);
-}
-
-function joinPath(base: string, next: string, separator: "/" | "\\"): string {
-  const cleanBase = base.replace(/[\\/]+$/, "");
-  if (separator === "\\") {
-    return `${cleanBase}\\${next.replaceAll("/", "\\")}`;
-  }
-  return `${cleanBase}/${next.replace(/^\/+/, "")}`;
 }
 
 export function basename(path: string): string {

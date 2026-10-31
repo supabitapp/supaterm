@@ -1,10 +1,9 @@
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import * as Dialog from "../components/ui/Dialog";
 import { startAcknowledgedThreadMessageCleanup } from "./acknowledgedThreadMessageCleanup";
-import {
-  threadRuntimeIsActive,
-  type EnvironmentProject,
-  type EnvironmentThreadShell,
+import type {
+  EnvironmentProject,
+  EnvironmentThreadShell,
 } from "@supaterm/client-runtime/state/shell";
 import {
   type AtomCommand,
@@ -1439,7 +1438,6 @@ export function createThreadOutboxDelivery(): {
         threadExists: thread !== undefined,
         shellStatus,
         environmentConnected: environment?.connectionState === "connected",
-        threadBusy: threadRuntimeIsActive(thread?.runtime),
         awaitingCreatedThread,
         ...(familyRead === undefined ? {} : { familyRead }),
       });
@@ -1536,7 +1534,6 @@ export function createThreadOutboxDelivery(): {
             threadExists: liveThread !== undefined,
             shellStatus,
             environmentConnected: environment?.connectionState === "connected",
-            threadBusy: threadRuntimeIsActive(liveThread?.runtime),
             awaitingCreatedThread,
           });
           if (liveDeliveryAction !== "send") {

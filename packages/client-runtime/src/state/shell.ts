@@ -495,16 +495,12 @@ function shellStateChanges(environmentId: EnvironmentId) {
 export interface EnvironmentShellSummary {
   readonly hasSnapshot: boolean;
   readonly hasSynchronizingShell: boolean;
-  readonly hasCachedShell: boolean;
-  readonly hasLiveShell: boolean;
   readonly firstError: string | null;
 }
 
 const EMPTY_ENVIRONMENT_SHELL_SUMMARY: EnvironmentShellSummary = Object.freeze({
   hasSnapshot: false,
   hasSynchronizingShell: false,
-  hasCachedShell: false,
-  hasLiveShell: false,
   firstError: null,
 });
 
@@ -517,8 +513,6 @@ function shellSummariesEqual(
   return (
     left.hasSnapshot === right.hasSnapshot &&
     left.hasSynchronizingShell === right.hasSynchronizingShell &&
-    left.hasCachedShell === right.hasCachedShell &&
-    left.hasLiveShell === right.hasLiveShell &&
     left.firstError === right.firstError
   );
 }
@@ -543,15 +537,11 @@ export function createEnvironmentShellSummaryAtom(input: {
   return Atom.make((get) => {
     let hasSnapshot = false;
     let hasSynchronizingShell = false;
-    let hasCachedShell = false;
-    let hasLiveShell = false;
     let firstError: string | null = null;
 
     for (const environmentId of enabledEnvironmentIds(get(input.catalogValueAtom))) {
       const state = get(input.shellStateValueAtom(environmentId));
       hasSynchronizingShell ||= state.status === "synchronizing";
-      hasCachedShell ||= state.status === "cached";
-      hasLiveShell ||= state.status === "live";
       if (firstError === null) {
         firstError = Option.getOrNull(state.error);
       }
@@ -564,8 +554,6 @@ export function createEnvironmentShellSummaryAtom(input: {
     const next: EnvironmentShellSummary = {
       hasSnapshot,
       hasSynchronizingShell,
-      hasCachedShell,
-      hasLiveShell,
       firstError,
     };
     if (shellSummariesEqual(previousSummary, next)) {

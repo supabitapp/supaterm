@@ -42,7 +42,6 @@ export function resolveThreadOutboxDeliveryAction(input: {
   readonly threadExists: boolean;
   readonly shellStatus: EnvironmentShellStatus;
   readonly environmentConnected: boolean;
-  readonly threadBusy: boolean;
   /** The thread's creation was delivered but its shell has not arrived yet. */
   readonly awaitingCreatedThread: boolean;
   /**

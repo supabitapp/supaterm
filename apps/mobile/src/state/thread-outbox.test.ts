@@ -1325,7 +1325,6 @@ describe("thread outbox", () => {
         threadExists: false,
         shellStatus: "synchronizing",
         environmentConnected: true,
-        threadBusy: false,
         awaitingCreatedThread: false,
       }),
     ).toBe("wait");
@@ -1335,7 +1334,6 @@ describe("thread outbox", () => {
         threadExists: false,
         shellStatus: "live",
         environmentConnected: true,
-        threadBusy: false,
         awaitingCreatedThread: false,
       }),
     ).toBe("remove");
@@ -1345,7 +1343,6 @@ describe("thread outbox", () => {
         threadExists: true,
         shellStatus: "live",
         environmentConnected: true,
-        threadBusy: false,
         awaitingCreatedThread: false,
       }),
     ).toBe("send");
@@ -1358,7 +1355,6 @@ describe("thread outbox", () => {
         threadExists: false,
         shellStatus: "live",
         environmentConnected: true,
-        threadBusy: false,
         awaitingCreatedThread: true,
       }),
     ).toBe("wait");
@@ -1370,7 +1366,6 @@ describe("thread outbox", () => {
       threadExists: false,
       shellStatus: "live",
       environmentConnected: true,
-      threadBusy: false,
       awaitingCreatedThread: false,
     } as const;
     expect(resolveThreadOutboxDeliveryAction({ ...missing, familyRead: "pending" })).toBe("wait");
@@ -1385,7 +1380,6 @@ describe("thread outbox", () => {
         threadExists: true,
         shellStatus: "live",
         environmentConnected: true,
-        threadBusy: true,
         awaitingCreatedThread: false,
       }),
     ).toBe("send");
@@ -1395,7 +1389,6 @@ describe("thread outbox", () => {
         threadExists: true,
         shellStatus: "live",
         environmentConnected: false,
-        threadBusy: true,
         awaitingCreatedThread: false,
       }),
     ).toBe("wait");
@@ -1408,7 +1401,6 @@ describe("thread outbox", () => {
         threadExists: false,
         shellStatus: "cached",
         environmentConnected: false,
-        threadBusy: false,
         awaitingCreatedThread: false,
       }),
     ).toBe("wait");
@@ -1418,7 +1410,6 @@ describe("thread outbox", () => {
         threadExists: false,
         shellStatus: "synchronizing",
         environmentConnected: true,
-        threadBusy: false,
         awaitingCreatedThread: false,
       }),
     ).toBe("wait");
@@ -1428,7 +1419,6 @@ describe("thread outbox", () => {
         threadExists: false,
         shellStatus: "live",
         environmentConnected: true,
-        threadBusy: false,
         awaitingCreatedThread: false,
       }),
     ).toBe("send");
@@ -1438,7 +1428,6 @@ describe("thread outbox", () => {
         threadExists: true,
         shellStatus: "live",
         environmentConnected: true,
-        threadBusy: true,
         awaitingCreatedThread: false,
       }),
     ).toBe("remove");

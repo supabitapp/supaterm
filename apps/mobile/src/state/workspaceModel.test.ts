@@ -50,8 +50,6 @@ function environment(
 const EMPTY_SHELL_SUMMARY: EnvironmentShellSummary = {
   hasSnapshot: false,
   hasSynchronizingShell: false,
-  hasCachedShell: false,
-  hasLiveShell: false,
   firstError: null,
 };
 
@@ -59,7 +57,6 @@ const CACHED_SHELL_SUMMARY: EnvironmentShellSummary = {
   ...EMPTY_SHELL_SUMMARY,
   hasSnapshot: true,
   hasSynchronizingShell: true,
-  hasCachedShell: true,
 };
 
 describe("mobile workspace projection", () => {
