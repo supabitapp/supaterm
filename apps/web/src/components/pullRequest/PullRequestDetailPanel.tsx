@@ -1,6 +1,5 @@
 import { projectChangeRequestUrl } from "@supaterm/client-runtime/change-request-links";
 import { normalizeThreadPullRequestKey } from "@supaterm/client-runtime/thread-pull-requests";
-import { changeRequestReferenceAutolinker } from "@supaterm/client-runtime/pull-request-markdown";
 import { useAtomValue } from "@effect/atom-react";
 import { usePullRequestStackGate } from "~/state/usePullRequestStack";
 import { scopeProjectRef, scopeThreadRef } from "@supaterm/client-runtime/environment";
@@ -104,6 +103,7 @@ import { PullRequestsUnavailableState } from "./PullRequestsUnavailableState";
 import type { PullRequestAgentSelectionInput } from "./PullRequestCodeTab";
 import { openOnHostLabel } from "./pullRequestLinkContextMenu";
 import { PullRequestMarkdownContext } from "./PullRequestMarkdown";
+import { pullRequestAutolinkPlugins } from "./pullRequestMarkdown.logic";
 import { PullRequestComposer } from "./PullRequestComposer";
 import { PullRequestSummaryTab } from "./PullRequestSummaryTab";
 import { PullRequestTimelineTab } from "./PullRequestTimelineTab";
@@ -232,7 +232,7 @@ function pullRequestMarkdownContext(
   threadRef: ScopedThreadRef | null,
 ) {
   return {
-    autolinks: changeRequestReferenceAutolinker(detail),
+    remarkPlugins: pullRequestAutolinkPlugins(detail),
     lineBreaks: sourceControlClients.find(detail?.provider ?? "")?.hardLineBreaks ?? false,
     threadRef,
   };

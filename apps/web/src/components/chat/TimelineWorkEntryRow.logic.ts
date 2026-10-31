@@ -1,3 +1,4 @@
+import type { PluggableList } from "unified";
 import type { TimelineRow, TimelineWorkEntry } from "./timelineRowContext";
 import type { WorkEntryIconName } from "./TimelineToolActivityIcon";
 import type { Root, RootContent } from "mdast";
@@ -236,3 +237,6 @@ export function remarkThoughtPreview(fallback: string) {
       : [{ type: "text", value: fallback }];
   };
 }
+
+export const THOUGHT_PREVIEW_PLUGINS: PluggableList = [[remarkThoughtPreview, "Thought"]];
+export const THINKING_PREVIEW_PLUGINS: PluggableList = [[remarkThoughtPreview, "Thinking"]];
