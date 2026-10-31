@@ -56,9 +56,9 @@ import {
   isPendingUserInputOptionSelected,
   isPendingUserInputQuestionAnswered,
   resumePendingUserInputQuestionIndex,
-  type PendingUserInput,
   type PendingUserInputDraftAnswer,
-} from "../../lib/threadActivity";
+} from "@supaterm/client-runtime/state/pending-user-input";
+import type { PendingUserInput } from "../../lib/threadActivity";
 
 export interface PendingUserInputCardProps {
   readonly environmentId: EnvironmentId;

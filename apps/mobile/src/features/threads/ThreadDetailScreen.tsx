@@ -148,11 +148,11 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import { orchestrationEnvironment } from "../../state/orchestration";
 import { useDelayedStatus } from "../../lib/useDelayedStatus";
 import type { RunStopPresentation } from "@supaterm/client-runtime/state/thread-execution";
+import type { PendingUserInputDraftAnswer } from "@supaterm/client-runtime/state/pending-user-input";
 import {
   threadFeedRunIsUnsettled,
   type PendingApproval,
   type PendingUserInput,
-  type PendingUserInputDraftAnswer,
   type ThreadFeedEntry,
   type ThreadFeedLatestRun,
 } from "../../lib/threadActivity";
