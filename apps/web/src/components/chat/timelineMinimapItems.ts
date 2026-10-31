@@ -5,7 +5,6 @@ import remarkParse from "remark-parse";
 import { unified } from "unified";
 
 import type { TimelineEntry } from "../../session-logic";
-import type { ChatMessage } from "../../types";
 import type { MessagesTimelineRow } from "./MessagesTimeline.logic";
 
 export interface TimelineMinimapItem {
@@ -36,8 +35,8 @@ export function deriveTimelineMinimapItems(
       rowIndex: index,
       userText: row.message.text,
       assistantText:
-        turnPin?.message.role === "assistant"
-          ? turnPin.message.text
+        turnPin?.pin.role === "assistant"
+          ? turnPin.text
           : resolveFinalAssistantTextForTurn(rows, index),
       pin: turnPin?.pin ?? null,
     });
@@ -51,7 +50,7 @@ function resolveTurnPins(
   entries: ReadonlyArray<TimelineEntry>,
   pinnedMessages: ReadonlyArray<ThreadPinnedMessage>,
 ) {
-  const turnPins = new Map<MessageId, { pin: ThreadPinnedMessage; message: ChatMessage }>();
+  const turnPins = new Map<MessageId, { pin: ThreadPinnedMessage; text: string }>();
   if (pinnedMessages.length === 0) return turnPins;
   const pinsByMessageId = new Map(pinnedMessages.map((pin) => [pin.messageId, pin]));
   let promptId: MessageId | null = null;
@@ -60,7 +59,7 @@ function resolveTurnPins(
     if (entry.message.role === "user") promptId = entry.message.id;
     const pin = pinsByMessageId.get(entry.message.id);
     if (pin && promptId !== null && !turnPins.has(promptId)) {
-      turnPins.set(promptId, { pin, message: entry.message });
+      turnPins.set(promptId, { pin, text: entry.message.text });
     }
   }
   return turnPins;
