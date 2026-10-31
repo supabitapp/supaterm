@@ -249,7 +249,9 @@ describe("pull request list answers across a reload", () => {
           detail: null,
         },
       ],
-      errors: [{ projectId: ProjectId.make("project-1"), projectTitle: "supaterm", message: "boom" }],
+      errors: [
+        { projectId: ProjectId.make("project-1"), projectTitle: "supaterm", message: "boom" },
+      ],
       truncated: true,
       nextCursors: { "supabitapp/supaterm": "cursor-1" },
     }) as PullRequestListResult;
