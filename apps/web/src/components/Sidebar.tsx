@@ -248,6 +248,7 @@ import { useThreadRouteTarget } from "../hooks/useThreadRouteTarget";
 import { useChatPaneStore } from "../chatPanes/store";
 import { useShallow } from "zustand/react/shallow";
 import { openThreadBeside } from "../chatPanes/actions";
+import { threadDeleteConfirmation } from "../lib/threadDeleteConfirmation";
 import { SortableThreadRow, type SidebarProviderEntry } from "./sidebar/SidebarThreadRow";
 import { SidebarDraftBlock } from "./sidebar/SidebarDraftBlock";
 
@@ -1158,7 +1159,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const visibleDraftSessionCount = useComposerDraftStore((store) => {
     let count = 0;
     for (const [draftKey, session] of Object.entries(store.draftThreadsByThreadKey)) {
-      if (session.promotedTo != null) {
+      if (session.promotedTo != null || session.sideChatOf !== undefined) {
         continue;
       }
       if (!composerDraftHasUserContent(store.draftsByThreadKey[draftKey])) {
@@ -2308,10 +2309,13 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       if (confirmThreadDelete) {
         const confirmed = await settlePromise(() =>
           api.dialogs.confirm(
-            [
-              `Delete ${count} thread${count === 1 ? "" : "s"}?`,
-              "This permanently clears conversation history for these threads.",
-            ].join("\n"),
+            threadDeleteConfirmation({
+              title: null,
+              threadRefs: threadKeys.flatMap((threadKey) => {
+                const thread = threadByKeyRef.current.get(threadKey);
+                return thread ? [scopeThreadRef(thread.environmentId, thread.id)] : [];
+              }),
+            }),
             { variant: "destructive" },
           ),
         );
@@ -2662,10 +2666,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
             if (confirmThreadDelete) {
               const confirmed = await settlePromise(() =>
                 api.dialogs.confirm(
-                  [
-                    `Delete thread "${thread.title}"?`,
-                    "This permanently clears conversation history for this thread.",
-                  ].join("\n"),
+                  threadDeleteConfirmation({ title: thread.title, threadRefs: [threadRef] }),
                   { variant: "destructive" },
                 ),
               );

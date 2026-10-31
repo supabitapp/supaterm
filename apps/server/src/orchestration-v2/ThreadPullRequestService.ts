@@ -1,5 +1,6 @@
 import {
   CommandId,
+  isListedThreadLineage,
   type OrchestrationProjectShell,
   type OrchestrationV2DomainEvent,
   type OrchestrationV2ThreadShell,
@@ -147,12 +148,11 @@ export const make = Effect.gen(function* () {
       readThreadSnapshot(request),
       projectStore.listShells(),
     ]);
-    // Subagent children refresh after their own runs; sweeping them costs a lookup each per minute.
+    // Subagents refresh after their own runs, and side chats share their parent's links;
+    // sweeping either costs a lookup each per minute.
     const snapshotThreads =
       request.threadId === null
-        ? threadSnapshot.threads.filter(
-            (thread) => thread.lineage.relationshipToParent !== "subagent",
-          )
+        ? threadSnapshot.threads.filter((thread) => isListedThreadLineage(thread.lineage))
         : threadSnapshot.threads;
     const projects = new Map(projectShells.map((project) => [project.id, project]));
     if (request.backfill) {

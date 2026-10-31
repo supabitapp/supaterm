@@ -218,6 +218,12 @@ export interface ForkThreadFromRunInput extends CommandMetadata {
   readonly title?: string;
 }
 
+export interface ForkSideChatInput extends CommandMetadata {
+  readonly sourceThreadId: ThreadId;
+  readonly targetThreadId: ThreadId;
+  readonly title?: string;
+}
+
 export interface MergeThreadBackInput extends CommandMetadata {
   readonly sourceThreadId: ThreadId;
   readonly targetThreadId: ThreadId;
@@ -941,6 +947,23 @@ export const forkThreadFromRun = Effect.fn("EnvironmentCommands.forkThreadFromRu
     sourceThreadId: input.sourceThreadId,
     targetThreadId: input.targetThreadId,
     sourcePoint: { type: "run", runId: input.runId },
+    ...(input.title === undefined ? {} : { title: input.title }),
+  });
+});
+
+/** Forks the thread's latest stable point into a hidden side chat; works while it runs. */
+export const forkSideChat = Effect.fn("EnvironmentCommands.forkSideChat")(function* (
+  input: ForkSideChatInput,
+) {
+  return yield* dispatch({
+    type: "thread.fork",
+    commandId: yield* allocateCommandId(input),
+    createdBy: "user",
+    creationSource: input.creationSource ?? "web",
+    sourceThreadId: input.sourceThreadId,
+    targetThreadId: input.targetThreadId,
+    sourcePoint: { type: "latest_stable" },
+    sideChat: true,
     ...(input.title === undefined ? {} : { title: input.title }),
   });
 });

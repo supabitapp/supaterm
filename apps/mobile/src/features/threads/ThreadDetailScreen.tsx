@@ -196,6 +196,7 @@ import {
 } from "./ThreadFeed";
 import type { MessageJump, MessageJumpHandlers } from "@supaterm/client-runtime/message-jump";
 import { ComposerQueuedEditBanner } from "./ComposerQueuedEdit";
+import { ThreadSideChatsRow } from "./ThreadSideChatsRow";
 import type { ThreadContentPresentation } from "./threadContentPresentation";
 import { resolveThreadFeedSubmissionAnchor } from "./thread-feed-live-follow";
 import { useOpenLinkedThread } from "./useOpenLinkedThread";
@@ -1629,6 +1630,12 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
                     key={`chatgpt-limit:${props.selectedThread.latestRun?.runId}`}
                     thread={props.selectedThread}
                   />
+                  {props.draftMode ? null : (
+                    <ThreadSideChatsRow
+                      environmentId={props.environmentId}
+                      threadId={props.selectedThread.id}
+                    />
+                  )}
                   {props.feedbackSubmissions.map((submission) => (
                     <ComposerFeedback
                       key={submission.id}

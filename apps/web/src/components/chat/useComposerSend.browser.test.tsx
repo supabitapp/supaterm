@@ -14,7 +14,23 @@ import { act, render } from "../../../test/render";
 import type { ChatComposerHandle } from "./ChatComposer";
 import { useComposerSend } from "./useComposerSend";
 
-const send = vi.hoisted(() => ({ events: [] as string[], enqueued: [] as unknown[] }));
+const send = vi.hoisted(() => ({
+  events: [] as string[],
+  enqueued: [] as unknown[],
+  forkError: null as string | null,
+}));
+vi.mock(import("./useSideChat"), () => ({
+  useEnsureSideChat: () => async (parentRef, targetThreadId) => {
+    send.events.push(`fork:${parentRef.threadId}->${targetThreadId}`);
+    return send.forkError;
+  },
+}));
+vi.mock(import("../../chatPanes/paneScope"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  usePaneThreadNavigation: () => async (target) => {
+    send.events.push(`open:${target.kind}`);
+  },
+}));
 vi.mock(import("../../state/threadOutbox"), async (importOriginal) => ({
   ...(await importOriginal()),
   enqueueThreadOutboxTurns: (async (turns: ReadonlyArray<unknown>) => {
@@ -140,6 +156,8 @@ function sendInput(
     setThreadError: () => {},
     anchorNewTurn: () => {},
     handleNewThreadInActiveProject: () => {},
+    sideChatDisabledReason: null,
+    sideChatDraftParentRef: null,
   };
 }
 
@@ -166,6 +184,52 @@ async function sendOverApproval(decline: "Success" | "Failure") {
     await onSend?.(undefined, "steer");
   });
 }
+
+async function sendFromSideChatDraft() {
+  send.events = [];
+  send.enqueued = [];
+  const errors: Array<string | null> = [];
+  let onSend: ReturnType<typeof useComposerSend>["onSend"] | undefined;
+  function Probe() {
+    const current = useComposerSend({
+      ...sendInput(async () => AsyncResult.success({ sequence: 1 })),
+      isServerThread: false,
+      isLocalDraftThread: true,
+      phase: "ready",
+      pendingApprovals: [],
+      setThreadError: (_threadId, error) => errors.push(error),
+      sideChatDraftParentRef: scopeThreadRef(environmentId, ThreadId.make("parent")),
+    });
+    useLayoutEffect(() => {
+      onSend = current.onSend;
+    });
+    return null;
+  }
+  await using _screen = await render(<Probe />);
+  await act(async () => {
+    await onSend?.();
+  });
+  return errors;
+}
+
+describe("useComposerSend from a side chat draft", () => {
+  it("forks the parent first, then sends the message to the side chat it opens", async () => {
+    send.forkError = null;
+    await sendFromSideChatDraft();
+
+    expect(send.events).toEqual([`fork:parent->${threadId}`, "enqueue", "open:server"]);
+    expect(send.enqueued).toMatchObject([{ input: { threadId, message: { text: prompt } } }]);
+    expect(send.enqueued[0]).not.toHaveProperty("input.bootstrap");
+  });
+
+  it("keeps the draft when the fork fails", async () => {
+    send.forkError = "Thread parent has no worktree yet.";
+    const errors = await sendFromSideChatDraft();
+
+    expect(send.events).toEqual([`fork:parent->${threadId}`]);
+    expect(errors).toContain("Thread parent has no worktree yet.");
+  });
+});
 
 describe("useComposerSend over a pending approval", () => {
   it("declines the shown approval before the message enters the outbox", async () => {

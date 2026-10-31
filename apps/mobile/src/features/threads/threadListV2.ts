@@ -38,7 +38,7 @@ import {
   sortPinnedThreadsByOrderKey,
   sortDoneThreads,
 } from "@supaterm/client-runtime/state/thread-sort";
-import type { EnvironmentId, ProjectId } from "@supaterm/contracts";
+import { isListedThreadLineage, type EnvironmentId, type ProjectId } from "@supaterm/contracts";
 
 import type { ThreadListProvider } from "../../state/thread-list-environments";
 
@@ -245,8 +245,7 @@ export function getThreadListV2OrderedSection(input: {
 }): EnvironmentThreadShell[] {
   const queuedThreadKeys = input.queuedThreadKeys?.size ? input.queuedThreadKeys : undefined;
   const threads = input.threads.filter((thread) => {
-    if (thread.archivedAt !== null || thread.lineage.relationshipToParent === "subagent")
-      return false;
+    if (thread.archivedAt !== null || !isListedThreadLineage(thread.lineage)) return false;
     if (
       thread.doneOverride === "done" &&
       queuedThreadKeys?.has(`${thread.environmentId}:${thread.id}`) !== true
@@ -827,7 +826,7 @@ export function buildThreadListV2Items(input: ThreadListV2ItemsInput): ThreadLis
   const listedThreads = input.threads.filter(
     (thread) =>
       thread.archivedAt === null &&
-      thread.lineage.relationshipToParent !== "subagent" &&
+      isListedThreadLineage(thread.lineage) &&
       (input.environmentId === null || thread.environmentId === input.environmentId) &&
       (projectKeys === null || projectKeys.has(`${thread.environmentId}:${thread.projectId}`)),
   );

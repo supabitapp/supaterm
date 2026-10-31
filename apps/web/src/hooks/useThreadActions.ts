@@ -56,6 +56,7 @@ import { stackedThreadToast, toastManager } from "../components/ui/toast";
 import { useClientSettings } from "./useSettings";
 import * as ThreadUndo from "@supaterm/client-runtime/state/thread-undo";
 import { showThreadUndoNotice } from "./showThreadUndoNotice";
+import { threadDeleteConfirmation } from "../lib/threadDeleteConfirmation";
 import { useAtomCommand } from "../state/use-atom-command";
 import { useOrchestrationCommand } from "../state/use-orchestration-command";
 import { useAtomQueryRunner } from "../state/use-atom-query-runner";
@@ -782,13 +783,12 @@ export function useThreadActions() {
     const resolved = resolveThreadTarget(target);
 
     if (confirmThreadDelete && localApi) {
-      const title = resolved?.thread.title ?? "this thread";
       const confirmationResult = await settlePromise(() =>
         localApi.dialogs.confirm(
-          [
-            `Delete thread "${title}"?`,
-            "This permanently clears conversation history for this thread.",
-          ].join("\n"),
+          threadDeleteConfirmation({
+            title: resolved?.thread.title ?? null,
+            threadRefs: [target],
+          }),
           { variant: "destructive" },
         ),
       );

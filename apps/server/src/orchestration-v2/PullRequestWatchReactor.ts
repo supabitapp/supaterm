@@ -1,5 +1,6 @@
 import {
   CommandId,
+  isListedThreadLineage,
   MessageId,
   type OrchestrationV2Notification,
   type PullRequestActivity,
@@ -401,7 +402,7 @@ export const make = Effect.gen(function* () {
       ? "merged"
       : thread.doneOverride === "done" || thread.doneAt !== null
         ? "done"
-        : thread.lineage.relationshipToParent === "subagent"
+        : !isListedThreadLineage(thread.lineage)
           ? "subagent"
           : undefined;
 

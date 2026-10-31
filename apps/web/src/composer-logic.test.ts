@@ -22,6 +22,7 @@ import {
   expandCollapsedComposerCursor,
   formatAssistantCitationForComposer,
   isPathSuggestionCurrent,
+  parseSideChatCommand,
 } from "./composer-logic";
 import { carryDisplacedCustomAnswerIntoPrompt } from "./pendingUserInput";
 import { formatTerminalContextReference } from "./lib/terminalContext";
@@ -518,5 +519,22 @@ describe("literal editor answer cursor state", () => {
       });
     }
     expect(composerStateAtPromptEnd("Use $my").trigger?.kind).toBe("skill");
+  });
+});
+
+describe("parseSideChatCommand", () => {
+  it("reads an optional prompt after /side or /btw", () => {
+    expect(parseSideChatCommand("/side")).toEqual({ prompt: "" });
+    expect(parseSideChatCommand("  /SIDE  why does this fail?\nline two ")).toEqual({
+      prompt: "why does this fail?\nline two",
+    });
+    expect(parseSideChatCommand("/btw check @src/a.ts")).toEqual({ prompt: "check @src/a.ts" });
+  });
+
+  it("ignores other commands and inline mentions, which the menu does not offer", () => {
+    expect(parseSideChatCommand("/sidebar")).toBeNull();
+    expect(parseSideChatCommand("/btwx")).toBeNull();
+    expect(parseSideChatCommand("ask /side later")).toBeNull();
+    expect(detectComposerTrigger("ask /si", 7)?.kind).toBe("slash-skill");
   });
 });

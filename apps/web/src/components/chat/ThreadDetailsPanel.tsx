@@ -274,10 +274,12 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
                 />
               ) : null}
 
-              {show.details && visible.lineage ? (
+              {show.details && (visible.lineage || visible.sideChats) ? (
                 <ThreadRelationshipsPanel
                   environmentId={props.environmentId}
                   threadId={props.threadId}
+                  showLineage={visible.lineage}
+                  showSideChats={visible.sideChats}
                 />
               ) : null}
 

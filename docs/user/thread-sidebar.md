@@ -342,6 +342,29 @@ between them, and restores the split when there is room again. Each browser tab
 remembers its own arrangement; a new tab or a restarted desktop app starts from the
 most recent one.
 
+## Side chats
+
+A side chat lets you ask a question about a thread without adding to it. It starts
+with what the thread knows, and the thread keeps working while you ask.
+
+On web and desktop, start a message with `/side` or `/btw`, then your question. The
+side chat opens in a pane beside the thread, or in place of it when the window has
+no room for another pane. A bare `/side` opens an empty side chat; nothing is
+created until you send its first message. Side chats do not show in the sidebar.
+Find one again under **Side chats** in thread details.
+
+A side chat works in the same folder as the thread. It asks before it edits files
+or runs commands.
+
+To use what you learned, choose **Bring back**. The thread gets the side chat with
+your next message there. Bring back is available while the thread is idle.
+
+Side chats stay until you delete them. Choose **Delete** at the top of the side
+chat. Deleting a thread also deletes its side chats.
+
+On mobile, a thread lists its side chats above the composer. Tap one to open it and
+answer its questions.
+
 ## Snooze until later
 
 To change the choices in the snooze menu, open **Settings → Threads → Snooze options**.

@@ -154,7 +154,7 @@ export function buildSearchSnippet(text: string, matchStart: number): string {
   return `${start > 0 ? "…" : ""}${shown.slice(0, end)}${cut ? "…" : ""}`;
 }
 
-// Filters apply before the hit limit so hidden subagent threads never crowd out a visible match.
+// Filters apply before the hit limit so hidden subagents and side chats never crowd out a match.
 // Without FTS5 trigrams, or for two-character CJK words, the query scans the newest messages
 // instead; that scan folds case for ASCII only and keeps accents ("cafe" misses "café").
 // Exported so a test can check the query plan.
@@ -174,6 +174,7 @@ export const messageHitsQuery = (
         AND threads.thread_id NOT IN (SELECT value FROM json_each(${excludedThreadIds}))
         AND json_extract(threads.payload_json, '$.lineage.relationshipToParent')
           IS NOT 'subagent'
+        AND json_extract(threads.payload_json, '$.lineage.sideChat') IS NOT 1
     )
     ${
       match === null
@@ -331,6 +332,7 @@ export const make = Effect.gen(function* () {
         AND projects.deleted_at IS NULL
         AND json_extract(threads.payload_json, '$.lineage.relationshipToParent')
           IS NOT 'subagent'
+        AND json_extract(threads.payload_json, '$.lineage.sideChat') IS NOT 1
         AND (${projectId} IS NULL OR threads.project_id = ${projectId})
     `,
   });
@@ -360,6 +362,7 @@ export const make = Effect.gen(function* () {
         AND projects.deleted_at IS NULL
         AND json_extract(threads.payload_json, '$.lineage.relationshipToParent')
           IS NOT 'subagent'
+        AND json_extract(threads.payload_json, '$.lineage.sideChat') IS NOT 1
         AND json_extract(threads.payload_json, '$.doneOverride') = 'done'
         AND json_extract(threads.payload_json, '$.doneAt') < ${before}
         AND (${projectIds} IS NULL
@@ -382,6 +385,7 @@ export const make = Effect.gen(function* () {
         AND json_extract(threads.payload_json, '$.archivedAt') IS NULL
         AND json_extract(threads.payload_json, '$.lineage.relationshipToParent')
           IS NOT 'subagent'
+        AND json_extract(threads.payload_json, '$.lineage.sideChat') IS NOT 1
         AND json_extract(threads.payload_json, '$.doneOverride') = 'done'
         AND json_extract(threads.payload_json, '$.doneAt') < ${before}
         AND (${projectIds} IS NULL

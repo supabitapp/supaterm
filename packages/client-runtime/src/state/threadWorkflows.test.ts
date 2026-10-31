@@ -31,13 +31,19 @@ const capabilities = (input?: {
     context: { supportsFullThreadHandoff: input?.portableFork ?? false },
   }) as never;
 
+const topLevelLineage = (threadId: ThreadId) => ({
+  parentThreadId: null,
+  relationshipToParent: null,
+  rootThreadId: threadId,
+});
+
 describe("thread workflows", () => {
   it("forks the newest finished run while newer work is running", () => {
     const threadId = ThreadId.make("thread:fork-source");
     const finishedRunId = RunId.make("run:fork-finished");
     expect(
       resolveThreadForkSource({
-        thread: { id: threadId, forkedFrom: null },
+        thread: { id: threadId, forkedFrom: null, lineage: topLevelLineage(threadId) },
         runs: [
           { id: RunId.make("run:fork-running"), ordinal: 3, status: "running" },
           { id: finishedRunId, ordinal: 2, status: "waiting" },
@@ -55,6 +61,11 @@ describe("thread workflows", () => {
     const thread = {
       id: forkThreadId,
       forkedFrom: { type: "run" as const, threadId: sourceThreadId, runId: sourceRunId },
+      lineage: {
+        parentThreadId: sourceThreadId,
+        relationshipToParent: "fork" as const,
+        rootThreadId: sourceThreadId,
+      },
     };
     expect(resolveThreadForkSource({ thread, runs: [] })).toEqual({
       sourceThreadId,
@@ -74,13 +85,23 @@ describe("thread workflows", () => {
     ).toEqual({ sourceThreadId: forkThreadId, runId: localRunId });
   });
 
-  it("has no fork source before the first provider-finished run", () => {
-    const thread = { id: ThreadId.make("thread:new"), forkedFrom: null };
+  it("has no fork source before the first provider-finished run, or in a side chat", () => {
+    const threadId = ThreadId.make("thread:new");
+    const thread = { id: threadId, forkedFrom: null, lineage: topLevelLineage(threadId) };
     expect(resolveThreadForkSource({ thread, runs: [] })).toBeNull();
     expect(
       resolveThreadForkSource({
         thread,
         runs: [{ id: RunId.make("run:first"), ordinal: 1, status: "running" }],
+      }),
+    ).toBeNull();
+    expect(
+      resolveThreadForkSource({
+        thread: {
+          ...thread,
+          lineage: { ...thread.lineage, relationshipToParent: "fork", sideChat: true },
+        },
+        runs: [{ id: RunId.make("run:first"), ordinal: 1, status: "completed" }],
       }),
     ).toBeNull();
   });

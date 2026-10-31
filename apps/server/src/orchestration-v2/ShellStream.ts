@@ -10,6 +10,7 @@ import type {
   ProjectId,
 } from "@supaterm/contracts";
 import {
+  isListedThreadLineage,
   isLiveSubagentShell,
   isOlderDoneThreadShell,
   OrchestrationProjectShell as ProjectShellSchema,
@@ -99,7 +100,11 @@ function shellTrimFacts(rows: ReadonlyArray<ShellTrimRow>): ShellTrimFacts {
     if (row.lineage.relationshipToParent === "subagent") {
       subagentThreadIds.add(row.id);
       if (row.lineage.parentThreadId) subagentParentIds.add(row.lineage.parentThreadId);
-    } else if (row.doneOverride === "done" && row.doneAt !== null) {
+    } else if (
+      isListedThreadLineage(row.lineage) &&
+      row.doneOverride === "done" &&
+      row.doneAt !== null
+    ) {
       doneTimes.push(DateTime.toEpochMillis(row.doneAt));
     }
   }
@@ -122,10 +127,12 @@ function shellTrimFacts(rows: ReadonlyArray<ShellTrimRow>): ShellTrimFacts {
   };
 }
 
-function subagentAncestorIds(threads: ReadonlyArray<Pick<OrchestrationV2ThreadShell, "lineage">>) {
+function hiddenChildAncestorIds(
+  threads: ReadonlyArray<Pick<OrchestrationV2ThreadShell, "lineage">>,
+) {
   const ancestorIds = new Set<string>();
   for (const thread of threads) {
-    if (thread.lineage.relationshipToParent !== "subagent") continue;
+    if (isListedThreadLineage(thread.lineage)) continue;
     if (thread.lineage.parentThreadId !== null) ancestorIds.add(thread.lineage.parentThreadId);
     ancestorIds.add(thread.lineage.rootThreadId);
   }
@@ -157,7 +164,7 @@ function omitOlderDoneShellsWith(
 } {
   const nowMs = DateTime.toEpochMillis(input.now);
   const beforeMs = facts.olderDoneBeforeMs ?? nowMs;
-  const ancestorIds = subagentAncestorIds(input.threads);
+  const ancestorIds = hiddenChildAncestorIds(input.threads);
   const threads = input.threads.filter(
     (thread) =>
       !isOlderDoneThreadShell(thread, beforeMs) ||
@@ -208,7 +215,8 @@ export function activeShellRowsForSubscriber(
 /**
  * Opted-in snapshots keep the 25 newest done top-level threads (and ties) and count the rest per
  * project in `olderDone`; clients page them with `getOlderDoneThreads`. Older rows stay while
- * pinned, snoozed, live, or above a kept subagent, so walks over shell rows still find them.
+ * pinned, snoozed, live, or above a kept subagent or side chat, so walks over shell rows still find
+ * them.
  */
 export function omitOlderDoneShells(input: {
   readonly threads: ReadonlyArray<OrchestrationV2ThreadShell>;
@@ -256,7 +264,10 @@ function shellSubscriberThreadIds(
       entry.lineage.relationshipToParent === "subagent" &&
       (!options.omitIdleSubagents || entry.mayBeLive || facts.subagentParentIds.has(entry.id)),
   );
-  const ancestorIds = subagentAncestorIds(subagents);
+  const ancestorIds = hiddenChildAncestorIds([
+    ...subagents,
+    ...index.filter((entry) => entry.lineage.sideChat === true),
+  ]);
   const keptSubagentIds = new Set(subagents.map((entry) => entry.id));
   const beforeMs = facts.olderDoneBeforeMs;
   return index.flatMap((entry) =>

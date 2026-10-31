@@ -165,6 +165,16 @@ export function useChildThreadInputs(ref: ScopedThreadRef | null) {
   );
 }
 
+export function useSideChats(ref: ScopedThreadRef | null) {
+  return useAtomValue(
+    ref === null ? EMPTY_THREAD_SHELLS_ATOM : environmentThreadShells.sideChatsAtom(ref),
+  );
+}
+
+export function readSideChats(ref: ScopedThreadRef): ReadonlyArray<EnvironmentThreadShell> {
+  return appAtomRegistry.get(environmentThreadShells.sideChatsAtom(ref));
+}
+
 export function useThreadProjection(ref: ScopedThreadRef | null): EnvironmentThread | null {
   return useAtomValue(
     ref === null ? EMPTY_THREAD_PROJECTION_ATOM : environmentThreadDetails.threadAtom(ref),

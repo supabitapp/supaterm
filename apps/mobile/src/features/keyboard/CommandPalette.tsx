@@ -10,6 +10,7 @@ import {
 } from "@supaterm/client-runtime/state/thread-search";
 import {
   AuthOrchestrationOperateScope,
+  isListedThreadLineage,
   THREAD_JUMP_KEYBINDING_COMMANDS,
 } from "@supaterm/contracts";
 import { resolveThreadForkSource } from "@supaterm/client-runtime/state/thread-workflows";
@@ -456,10 +457,7 @@ export function CommandPalette(props: {
         }),
     }));
     const threadItems: CommandPaletteItem[] = threads
-      .filter(
-        (thread) =>
-          thread.archivedAt === null && thread.lineage.relationshipToParent !== "subagent",
-      )
+      .filter((thread) => thread.archivedAt === null && isListedThreadLineage(thread.lineage))
       .map((thread) => {
         const project = projectByKey.get(scopedProjectKey(thread.environmentId, thread.projectId));
         const environment =

@@ -38,9 +38,17 @@ import {
 import { groupBy } from "effect/Array";
 import * as DateTime from "effect/DateTime";
 import { useNavigate } from "@tanstack/react-router";
-import { BotIcon, CornerLeftUpIcon, GitForkIcon, PlusIcon, SquareIcon } from "@supaterm/icons";
+import {
+  BotIcon,
+  CornerLeftUpIcon,
+  GitForkIcon,
+  MessagesSquareIcon,
+  PlusIcon,
+  SquareIcon,
+} from "@supaterm/icons";
 import { useId, useRef, useState, type ReactNode } from "react";
 
+import { openThreadBeside } from "../../chatPanes/actions";
 import { useArchivedThreadSnapshots } from "../../lib/archivedThreadsState";
 import { buildThreadRouteParams } from "../../threadRoutes";
 import {
@@ -204,6 +212,8 @@ function currentSubagent<Agent extends RuntimeSubagent>(
 export function ThreadRelationshipsPanel(props: {
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
+  readonly showLineage: boolean;
+  readonly showSideChats: boolean;
 }) {
   const ref = scopeThreadRef(props.environmentId, props.threadId);
   const projection = useThreadProjection(ref)?.projection ?? null;
@@ -312,8 +322,10 @@ export function ThreadRelationshipsPanel(props: {
     transfers = [],
     active = [],
     previous = [],
-  } = groupBy(relationshipRows, ({ edge }) => {
+    sideChats = [],
+  } = groupBy(relationshipRows, ({ threadId, edge }) => {
     if (isParentThreadRelationship(edge, props.threadId)) return "parent";
+    if (graph.nodes.get(threadId)?.thread?.lineage.sideChat === true) return "sideChats";
     if (edge.kind === "fork") return "forks";
     if (edge.kind === "transfer") return "transfers";
     return ["completed", "failed", "error", "cancelled", "interrupted", "idle"].includes(
@@ -328,30 +340,52 @@ export function ThreadRelationshipsPanel(props: {
     ).length ?? 0;
   const runningCount =
     pendingRunningCount + active.filter(({ edge }) => edge.status === "running").length;
+  const lineageGroups = props.showLineage
+    ? [
+        { id: "parent", label: "Parent", rows: parent, expanded: true },
+        { id: "forks", label: "Forks", rows: forks, expanded: true },
+        { id: "transfers", label: "Context transfers", rows: transfers, expanded: true },
+        {
+          id: "active",
+          label: "Subagents",
+          rows: active,
+          expanded: true,
+          runningCount,
+          pendingCount: pendingRunningCount,
+        },
+        { id: "previous", label: "Previous agents", rows: previous, expanded: false },
+      ]
+    : [];
   const groups = [
-    { id: "parent", label: "Parent", rows: parent, expanded: true },
-    { id: "forks", label: "Forks", rows: forks, expanded: true },
-    { id: "transfers", label: "Context transfers", rows: transfers, expanded: true },
-    {
-      id: "active",
-      label: "Subagents",
-      rows: active,
-      expanded: true,
-      runningCount,
-      pendingCount: pendingRunningCount,
-    },
-    { id: "previous", label: "Previous agents", rows: previous, expanded: false },
+    ...lineageGroups,
+    ...(props.showSideChats
+      ? [
+          {
+            id: "sideChats",
+            label: "Side chats",
+            rows: sideChats,
+            expanded: true,
+            runningCount: sideChats.filter(({ edge }) => edge.status === "running").length,
+          },
+        ]
+      : []),
   ];
 
-  if (relationshipRows.length === 0 && runningCount === 0) {
+  if (
+    groups.every((group) => group.rows.length === 0) &&
+    (!props.showLineage || runningCount === 0)
+  ) {
     return null;
   }
 
   // Idle children can be omitted from the shell; opening one loads its own detail.
   const openThread = (threadId: ThreadId) => {
+    const threadRef = scopeThreadRef(props.environmentId, threadId);
+    const sideChat = graph.nodes.get(threadId)?.thread?.lineage.sideChat === true;
+    if (sideChat && openThreadBeside({ kind: "server", threadRef }, "right")) return;
     void navigate({
       to: "/$environmentId/$threadId",
-      params: buildThreadRouteParams(scopeThreadRef(props.environmentId, threadId)),
+      params: buildThreadRouteParams(threadRef),
     });
   };
 
@@ -438,7 +472,9 @@ export function ThreadRelationshipsPanel(props: {
                 ? CornerLeftUpIcon
                 : isSubagent
                   ? BotIcon
-                  : GitForkIcon;
+                  : node?.thread?.lineage.sideChat === true
+                    ? MessagesSquareIcon
+                    : GitForkIcon;
               const relationship = relationshipLabel(edge, props.threadId);
               const projectedAgent =
                 isSubagent && !isParent ? subagentsByThreadId.get(threadId) : undefined;

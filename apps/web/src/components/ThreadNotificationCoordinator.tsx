@@ -5,7 +5,12 @@ import {
 } from "@supaterm/client-runtime/state/models";
 import { pendingSubagentRequestsByThread } from "@supaterm/client-runtime/state/threads";
 import type { AnyRouter } from "@tanstack/react-router";
-import type { EnvironmentId, OrchestrationV2ThreadShell, ThreadId } from "@supaterm/contracts";
+import {
+  isListedThreadLineage,
+  type EnvironmentId,
+  type OrchestrationV2ThreadShell,
+  type ThreadId,
+} from "@supaterm/contracts";
 import type { ClientSettings } from "@supaterm/contracts/settings";
 import * as Option from "effect/Option";
 import type { AtomRegistry } from "effect/reactivity";
@@ -177,7 +182,7 @@ export function startThreadNotifications(
     const subagentRequests = pendingSubagentRequestsByThread(threads);
     const changed: Array<[NotificationState | undefined, NotificationState]> = [];
     for (const rawThread of threads) {
-      if (rawThread.lineage.relationshipToParent === "subagent") continue;
+      if (!isListedThreadLineage(rawThread.lineage)) continue;
       const prior = previous.get(rawThread.id);
       const subagentRequest = subagentRequests.get(rawThread.id) ?? null;
       if (

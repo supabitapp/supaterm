@@ -13,6 +13,7 @@ import {
 } from "@supaterm/client-runtime/state/runtime";
 import {
   AuthOrchestrationOperateScope,
+  isListedThreadLineage,
   type ThreadPullRequestKey,
   type ThreadPullRequestLink,
 } from "@supaterm/contracts";
@@ -51,7 +52,7 @@ export function useLinkedPullRequestActions(input: {
     thread.archivedAt === null &&
     thread.doneAt === null &&
     thread.doneOverride !== "done" &&
-    thread.lineage.relationshipToParent !== "subagent";
+    isListedThreadLineage(thread.lineage);
   const link = useAtomCommand(threadEnvironment.linkPullRequest, { reportFailure: false });
   const unlink = useAtomCommand(threadEnvironment.unlinkPullRequest, { reportFailure: false });
   const watch = useAtomCommand(threadEnvironment.watchPullRequest, { reportFailure: false });

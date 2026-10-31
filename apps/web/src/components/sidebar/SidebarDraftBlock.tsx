@@ -212,7 +212,11 @@ export const SidebarDraftBlock = memo(function SidebarDraftBlock(props: {
       const session = draftThreadsByThreadKey[draftId];
       const composer = draftsByThreadKey[draftId];
       row =
-        session && session.promotedTo == null && composer && composerDraftHasUserContent(composer)
+        session &&
+        session.promotedTo == null &&
+        session.sideChatOf === undefined &&
+        composer &&
+        composerDraftHasUserContent(composer)
           ? { draftId, session, composer }
           : null;
     }
@@ -221,7 +225,8 @@ export const SidebarDraftBlock = memo(function SidebarDraftBlock(props: {
   const drafts = (() => {
     const rows: SidebarDraftRowData[] = [];
     for (const [draftKey, session] of Object.entries(draftThreadsByThreadKey)) {
-      if (session.promotedTo != null) {
+      // Side chat drafts live in their parent's panes, like the side chats they become.
+      if (session.promotedTo != null || session.sideChatOf !== undefined) {
         continue;
       }
       if (

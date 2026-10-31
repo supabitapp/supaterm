@@ -235,6 +235,8 @@ it.each([
       <ThreadRelationshipsPanel
         environmentId={EnvironmentId.make("test")}
         threadId={ThreadId.make("parent")}
+        showLineage
+        showSideChats
       />
     );
     await render(panel);
@@ -346,6 +348,8 @@ it("shows the matching child agent details and refreshes them when the agent set
     <ThreadRelationshipsPanel
       environmentId={EnvironmentId.make("test")}
       threadId={ThreadId.make("parent")}
+      showLineage
+      showSideChats
     />
   );
   await render(panel);
@@ -485,7 +489,12 @@ it("separates relationship kinds and collapses each group independently", async 
     },
   ].map((source) => ({ environmentId, source }));
   await render(
-    <ThreadRelationshipsPanel environmentId={environmentId} threadId={ThreadId.make("current")} />,
+    <ThreadRelationshipsPanel
+      environmentId={environmentId}
+      threadId={ThreadId.make("current")}
+      showLineage
+      showSideChats
+    />,
   );
   const rows = (label: string) =>
     container.querySelector(`ul[aria-label="${label}"]`)?.textContent ?? "";

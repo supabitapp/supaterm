@@ -46,6 +46,8 @@ import {
   type DesktopWslState,
   type EnvironmentId,
   type FilesystemBrowseResult,
+  isListedThreadLineage,
+  orchestrationV2WorktreePending,
   SourceControlProviderKind,
   PRIMARY_LOCAL_ENVIRONMENT_ID,
   resolveEnvironmentMachineKind,
@@ -69,6 +71,7 @@ import {
   MessageSquareIcon,
   MessageSquareMoreIcon,
   MessageSquareTextIcon,
+  MessagesSquareIcon,
   MicIcon,
   PaletteIcon,
   RotateCcwIcon,
@@ -102,6 +105,7 @@ import { useDesktopLocalBootstraps } from "../connection/useDesktopLocalBootstra
 import { useHandleNewThread } from "../hooks/useHandleNewThread";
 import { useActiveThreadRef } from "../hooks/useActiveThreadRef";
 import { useForkThread } from "../hooks/useForkThread";
+import { useSideChat } from "./chat/useSideChat";
 import { useThreadActionMenu } from "../hooks/useThreadActionMenu";
 import { useOpenPanelPullRequestUrl } from "../hooks/useOpenPanelPullRequestUrl";
 import { copyThreadReference } from "../lib/copyThreadReference";
@@ -494,6 +498,31 @@ function OpenCommandPaletteDialog(props: {
   const activeThreadServerConfig = useServerConfigs().get(
     activeThread?.environmentId ?? ("" as EnvironmentId),
   );
+  const canOperateActiveThread = useEnvironmentScope(
+    activeThread?.environmentId ?? null,
+    AuthOrchestrationOperateScope,
+  );
+  const sideChatParent =
+    activeThread &&
+    activeThreadProjection !== null &&
+    canOperateActiveThread &&
+    activeThreadServerConfig?.environment.capabilities.sideChats === true &&
+    isListedThreadLineage(activeThread.lineage) &&
+    !orchestrationV2WorktreePending(
+      activeThread.worktreePath,
+      activeThreadProjection.projection.runs,
+    )
+      ? activeThread
+      : null;
+  const sideChat = useSideChat({
+    parent: sideChatParent,
+    onError: (message) =>
+      toastManager.add({
+        type: "error",
+        title: "Could not start a side chat",
+        description: message,
+      }),
+  });
   const activeThreadReferenceCopyTarget =
     referenceThreadRef === null || (pathname === "/pull-requests" && !openPanelPullRequestUrl)
       ? null
@@ -1501,6 +1530,19 @@ function OpenCommandPaletteDialog(props: {
           run: () => onForkFromRun(forkSource),
         };
   if (forkThreadItem !== null) actionItems.push(forkThreadItem);
+
+  const sideChatItem: CommandPaletteActionItem | null = sideChat.available
+    ? {
+        kind: "action",
+        value: "action:side-chat",
+        searchTerms: ["side chat", "btw", "aside", "question", "ask"],
+        title: "Start side chat",
+        icon: <MessagesSquareIcon className={ITEM_ICON_CLASS} />,
+        shortcutCommand: "thread.sideChat",
+        run: async () => sideChat.openDraft(),
+      }
+    : null;
+  if (sideChatItem !== null) actionItems.push(sideChatItem);
 
   if (activeThread !== null && activeThreadServerConfig != null) {
     const threadRef = scopeThreadRef(activeThread.environmentId, activeThread.id);
@@ -2614,6 +2656,13 @@ function OpenCommandPaletteDialog(props: {
       event.preventDefault();
       event.stopPropagation();
       if (!event.repeat) executeItem(forkThreadItem);
+      return;
+    }
+
+    if (command === "thread.sideChat" && sideChatItem !== null) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!event.repeat) executeItem(sideChatItem);
       return;
     }
 

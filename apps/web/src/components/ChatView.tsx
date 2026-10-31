@@ -43,6 +43,8 @@ import { useComposerSelection } from "./chat/useComposerSelection";
 import { useRightPanelActions } from "./chat/useRightPanelActions";
 import { useThreadLifecycle } from "./chat/useThreadLifecycle";
 import { useComposerSend } from "./chat/useComposerSend";
+import { useSideChat } from "./chat/useSideChat";
+import { SideChatHeaderActions } from "./chat/SideChatHeaderActions";
 import { useComposerResume } from "./chat/useComposerResume";
 import { type TerminalLaunchContext, useChatTerminalActions } from "./chat/useChatTerminalActions";
 import { useDraftEnvironmentRouting } from "./chat/useDraftEnvironmentRouting";
@@ -77,6 +79,7 @@ import {
   type AssistantCitation,
   type ChatFileAttachment,
   isProviderNativeSubagentThread,
+  orchestrationV2WorktreePending,
   type EnvironmentId,
   type MessageId,
   type ModelSelection,
@@ -855,6 +858,20 @@ export default function ChatView(props: ChatViewProps) {
     : undefined;
   const isServerThread = serverThread !== null;
   const activeThread = serverThread ?? pendingThreadCreation?.message.shell ?? localDraftThread;
+  // A side chat's parent: its lineage parent once forked, or the thread its draft will fork.
+  const sideChatParentRef = (() => {
+    const parentThreadId =
+      activeThread?.lineage.sideChat === true
+        ? activeThread.lineage.parentThreadId
+        : isServerThread
+          ? null
+          : (draftThread?.sideChatOf ?? null);
+    return activeThread && parentThreadId !== null
+      ? scopeThreadRef(activeThread.environmentId, parentThreadId)
+      : null;
+  })();
+  const isSideChat = sideChatParentRef !== null;
+  const sideChatParent = useQuietThreadShell(sideChatParentRef);
   const serverLatestRun =
     serverProjection === null ? null : deriveLatestThreadRun(serverProjection);
   const serverActivityRun =
@@ -914,12 +931,18 @@ export default function ChatView(props: ChatViewProps) {
           parentSubagents: workflowOpeningParentProjection?.projection.subagents ?? null,
         });
   const parentThreadLink =
-    parentSubagentThreadRef === null
-      ? null
-      : {
+    parentSubagentThreadRef !== null
+      ? {
           threadId: parentSubagentThreadRef.threadId,
           title: parentSubagentThread?.title ?? "Parent thread",
-        };
+        }
+      : sideChatParentRef !== null
+        ? {
+            threadId: sideChatParentRef.threadId,
+            title: sideChatParent?.title ?? "Parent thread",
+            sideChat: true,
+          }
+        : null;
   const threadError = isServerThread
     ? (localServerError ?? serverRuntime?.lastError ?? null)
     : localDraftError;
@@ -942,7 +965,8 @@ export default function ChatView(props: ChatViewProps) {
     defaultRuntimeMode;
   const isLocalDraftThread =
     !isServerThread && !pendingThreadCreation && localDraftThread !== undefined;
-  const canCheckoutPullRequestIntoThread = canWriteSourceControl && isLocalDraftThread;
+  const canCheckoutPullRequestIntoThread =
+    canWriteSourceControl && isLocalDraftThread && !isSideChat;
   const activeThreadId = activeThread?.id ?? null;
   // Prefer the larger of turn-item-committed ids and projection messages so
   // env lock does not unlock while turn items lag projection hydration.
@@ -1281,7 +1305,9 @@ export default function ChatView(props: ChatViewProps) {
     advertisedFileAttachmentBytes === null
       ? null
       : clampFileAttachmentUploadBytes(advertisedFileAttachmentBytes);
-  const envLocked = Boolean(activeThread && (activeMessageCount > 0 || activeRuntime !== null));
+  // A side chat runs in its parent's checkout, so it never picks its own.
+  const envLocked =
+    isSideChat || Boolean(activeThread && (activeMessageCount > 0 || activeRuntime !== null));
 
   const canChangeEnvironment =
     hasMultipleEnvironments && !envLocked && draftId !== null && !draftThread?.promotedTo;
@@ -1370,6 +1396,37 @@ export default function ChatView(props: ChatViewProps) {
     setLocalServerErrorsByThreadKey,
     setLocalDraftErrorsByDraftId,
   });
+  const isSubagentThread = activeThread?.lineage.relationshipToParent === "subagent";
+  // Side chats do not nest or start from subagents, and older servers would fork a listed thread.
+  const sideChatsOffered =
+    canOperateThread &&
+    !isSideChat &&
+    !isSubagentThread &&
+    serverConfig?.environment.capabilities.sideChats === true;
+  const sideChat = useSideChat({
+    parent: sideChatsOffered && isServerThread && activeThread ? activeThread : null,
+    onError: (message) => {
+      if (activeThread) setThreadError(activeThread.id, message);
+    },
+  });
+  // Main-thread surfaces show this reason; `/side` sent anyway gets it as a toast.
+  const sideChatDisabledReason = isSideChat
+    ? "Side chats cannot start side chats."
+    : isSubagentThread
+      ? "Subagent threads cannot start side chats."
+      : serverConfig === null
+        ? "Side chats are not ready yet. Try again in a moment."
+        : serverConfig.environment.capabilities.sideChats !== true
+          ? "Update this environment's Supaterm server to use side chats."
+          : sideChatsOffered && !isServerThread
+            ? "Side chats start after the first message."
+            : sideChat.available &&
+                orchestrationV2WorktreePending(
+                  activeThread?.worktreePath ?? null,
+                  serverProjection?.runs ?? [],
+                )
+              ? "Available once the thread's worktree is set up."
+              : null;
   const {
     pendingApprovals,
     pendingUserInputs,
@@ -1714,7 +1771,7 @@ export default function ChatView(props: ChatViewProps) {
           providerSubagentModels,
           reportedModelSelection,
         );
-  const showDraftProjectPicker = isDraftHeroState && !showProviderSubagentBar;
+  const showDraftProjectPicker = isDraftHeroState && !showProviderSubagentBar && !isSideChat;
   const composerContextStripPlacement = showDraftProjectPicker ? "top" : "bottom";
   const composerContextStripInput = {
     showProjectPicker: showDraftProjectPicker,
@@ -2773,6 +2830,7 @@ export default function ChatView(props: ChatViewProps) {
     composerDraftTarget,
     setThreadError,
     focusComposer: focusComposerStable,
+    sideChat: isSideChat,
   });
 
   const getShortcutContext = (eventTarget: EventTarget | null = document.activeElement) => ({
@@ -2853,6 +2911,10 @@ export default function ChatView(props: ChatViewProps) {
       "pane.focus.4": () => focusPaneIndexFromKeyboard(3),
       "thread.copyReference": ({ repeat }) => {
         if (!repeat) copyActiveThreadReferenceStable();
+      },
+      "thread.sideChat": ({ repeat }) => {
+        if (!sideChat.available || sideChatDisabledReason !== null) return false;
+        if (!repeat) sideChat.openDraft();
       },
       "chat.find": () => {
         if (!isServerThread || serverConfig?.threadFind !== true || activeThreadKey === null)
@@ -2983,6 +3045,9 @@ export default function ChatView(props: ChatViewProps) {
     setThreadError,
     anchorNewTurn,
     handleNewThreadInActiveProject,
+    onSideChat: sideChat.available ? sideChat.send : undefined,
+    sideChatDisabledReason,
+    sideChatDraftParentRef: isServerThread ? null : sideChatParentRef,
   });
 
   const onWorktreeSetupWorkLocally = () => {
@@ -3230,7 +3295,9 @@ export default function ChatView(props: ChatViewProps) {
       {...(canCheckoutPullRequestIntoThread
         ? { onCheckoutPullRequestRequest: openPullRequestDialogStable }
         : {})}
-      {...(hasMultipleEnvironments ? { onEnvironmentChange: onEnvironmentChangeStable } : {})}
+      {...(hasMultipleEnvironments && !isSideChat
+        ? { onEnvironmentChange: onEnvironmentChangeStable }
+        : {})}
       autoEnvironmentLabel={autoEnvironmentLabel}
       onAutoEnvironment={
         draftId &&
@@ -3373,6 +3440,14 @@ export default function ChatView(props: ChatViewProps) {
                     ? { onOpenProjectSettings: handleOpenDraftProjectSettingsStable }
                     : {})}
                   {...(threadFindEnabled ? { onFindInThread: openThreadFindStable } : {})}
+                  trailing={
+                    isServerThread && activeThreadRef && sideChatParentRef ? (
+                      <SideChatHeaderActions
+                        threadRef={activeThreadRef}
+                        parentRef={sideChatParentRef}
+                      />
+                    ) : null
+                  }
                 />
               </TooltipProvider>
             </header>
@@ -3502,7 +3577,8 @@ export default function ChatView(props: ChatViewProps) {
                     onOpenThread={onOpenRelatedThreadStable}
                     parentThreadLink={parentThreadLink}
                     workflowOpening={workflowOpening}
-                    onForkFromRun={onForkFromRunStable}
+                    // Forking a side chat would drop its parent's history on portable providers.
+                    {...(isSideChat ? {} : { onForkFromRun: onForkFromRunStable })}
                     supportsConversationRollback={supportsConversationRollback}
                     threadStartCheckpointReady={threadStartCheckpointReady}
                     availableRevertTurnCounts={availableRevertTurnCounts}
@@ -3623,7 +3699,7 @@ export default function ChatView(props: ChatViewProps) {
                                   multipleModelSelections={
                                     queuedRunEdit.outbox.isEditing ? null : multipleModelSelections
                                   }
-                                  supportsMultipleModels={serverConfig != null}
+                                  supportsMultipleModels={serverConfig != null && !isSideChat}
                                   onMultipleModelSelectionsChange={setMultipleModelSelectionsStable}
                                   composerRef={composerRef}
                                   composerDraftTarget={composerDraftTarget}
@@ -3689,6 +3765,8 @@ export default function ChatView(props: ChatViewProps) {
                                       ? openUsageLimits
                                       : undefined
                                   }
+                                  sideChatAvailable={sideChat.available}
+                                  sideChatDisabledReason={sideChatDisabledReason}
                                   environmentUnavailable={activeEnvironmentUnavailableState}
                                   activePendingApproval={
                                     queuedRunEdit.outbox.isEditing ? null : activePendingApproval
@@ -3926,7 +4004,7 @@ export default function ChatView(props: ChatViewProps) {
                           }
                         : null
                     }
-                    forkSource={forkSource}
+                    forkSource={isSideChat ? null : forkSource}
                     forkDisabled={forkDisabled}
                     onForkFromRun={onForkFromRunStable}
                     usage={{

@@ -4,7 +4,7 @@ import { backgroundWorkHoldsCompletion } from "@supaterm/shared/orchestrationV2P
 import { threadPullRequestSearchTerms } from "@supaterm/shared/threadPullRequests";
 import * as React from "react";
 import { defaultAnimateLayoutChanges, type AnimateLayoutChanges } from "@dnd-kit/sortable";
-import type { ContextMenuItem } from "@supaterm/contracts";
+import { isListedThreadLineage, type ContextMenuItem } from "@supaterm/contracts";
 import type { EnvironmentConnectionPhase } from "@supaterm/client-runtime/connection";
 import type { SidebarProjectSortOrder, SidebarThreadSortOrder } from "@supaterm/contracts/settings";
 import {
@@ -560,8 +560,8 @@ export async function archiveSelectedThreadEntries<
   return { archivedThreadKeys, mutationFailure: null, followupFailures };
 }
 
-export function isSidebarSubagentThread(thread: Pick<SidebarThreadSummary, "lineage">): boolean {
-  return thread.lineage.relationshipToParent === "subagent";
+export function isSidebarHiddenThread(thread: Pick<SidebarThreadSummary, "lineage">): boolean {
+  return !isListedThreadLineage(thread.lineage);
 }
 
 export function resolveSidebarRowThreadId(
@@ -573,7 +573,7 @@ export function resolveSidebarRowThreadId(
     threads.find((thread) => thread.id === id && thread.environmentId === environmentId);
   const visited = new Set<ThreadId>();
   let thread = findThread(threadId);
-  while (thread !== undefined && isSidebarSubagentThread(thread)) {
+  while (thread !== undefined && isSidebarHiddenThread(thread)) {
     if (thread.lineage.parentThreadId === null || visited.has(thread.id)) return threadId;
     visited.add(thread.id);
     thread = findThread(thread.lineage.parentThreadId);
@@ -590,7 +590,7 @@ export function filterSidebarV2VisibleThreads<
   return threads.filter(
     (thread) =>
       thread.archivedAt === null &&
-      !isSidebarSubagentThread(thread) &&
+      !isSidebarHiddenThread(thread) &&
       (scopedProjectKeys === null ||
         scopedProjectKeys.has(`${thread.environmentId}:${thread.projectId}`)),
   );

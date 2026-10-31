@@ -10,7 +10,9 @@ import {
   markPromotedDraftThreadByRef,
   useComposerDraftStore,
 } from "../../composerDraftStore";
-import { type ComposerSubmissionIntent } from "../../composer-logic";
+import { type ComposerSubmissionIntent, parseSideChatCommand } from "../../composer-logic";
+import { filterTerminalContextsWithText } from "../../lib/terminalContext";
+import { useEnsureSideChat } from "./useSideChat";
 import { type MultipleModelTarget, resolveMultipleModelTargets } from "./chatViewSend";
 import {
   buildExpiredTerminalContextToastCopy,
@@ -58,7 +60,7 @@ import {
   type DraftThreadEnvMode,
   type ComposerThreadTarget,
 } from "../../composerDraftStore";
-import type { EnvironmentId, RuntimeMode } from "@supaterm/contracts";
+import type { EnvironmentId, RuntimeMode, ScopedThreadRef } from "@supaterm/contracts";
 import type { CodexFeedbackSubmission } from "@supaterm/client-runtime/state/threads";
 import { type Dispatch, type SetStateAction, useLayoutEffect, useRef } from "react";
 import type { ComposerHandleRef } from "../../composerHandleContext";
@@ -156,6 +158,12 @@ interface ComposerSendInput {
   readonly setThreadError: ReturnType<typeof makeThreadErrorSetter>;
   readonly anchorNewTurn: TimelineFollow["anchorNewTurn"];
   readonly handleNewThreadInActiveProject: () => void;
+  /** Resolves true once the side chat started and got the prompt. */
+  readonly onSideChat?: ((prompt: string) => Promise<boolean>) | undefined;
+  /** Refuses `/side` with this reason and keeps the draft. */
+  readonly sideChatDisabledReason: string | null;
+  /** The thread a side chat draft forks on its first send. */
+  readonly sideChatDraftParentRef: ScopedThreadRef | null;
 }
 
 /**
@@ -215,7 +223,11 @@ export function useComposerSend(input: ComposerSendInput) {
     setThreadError,
     anchorNewTurn,
     handleNewThreadInActiveProject,
+    onSideChat,
+    sideChatDisabledReason,
+    sideChatDraftParentRef,
   } = input;
+  const ensureSideChat = useEnsureSideChat();
   const openPaneThread = usePaneThreadNavigation();
   const clientSettingsHydrated = useClientSettingsHydrated();
   const uploadThreadFeedback = useOrchestrationCommand(threadEnvironment.uploadFeedback, {
@@ -305,7 +317,56 @@ export function useComposerSend(input: ComposerSendInput) {
       return;
     }
     const sendCtx = composerRef.current?.getSendContext();
-    if (activePendingProgress && sendCtx?.answeringPendingUserInput !== false) {
+    // `/side` beats an open question and a plan follow-up, which would send the text to main.
+    const sideChatCommand =
+      sendCtx && !directAnnotation && !queuedRunEdit.isEditing
+        ? parseSideChatCommand(promptAtSend)
+        : null;
+    const answeringQuestion =
+      Boolean(activePendingProgress) && sendCtx?.answeringPendingUserInput !== false;
+    // Where side chats are unavailable, `/side` text can still be a literal answer.
+    if (sideChatDisabledReason !== null && sideChatCommand && !answeringQuestion) {
+      toastManager.add(
+        stackedThreadToast({
+          type: "warning",
+          title: "Side chat not started",
+          description: sideChatDisabledReason,
+        }),
+      );
+      return;
+    }
+    if (onSideChat && sendCtx && sideChatCommand && sideChatDisabledReason === null) {
+      if (
+        sendCtx.images.length > 0 ||
+        sendCtx.files.length > 0 ||
+        filterTerminalContextsWithText(sendCtx.terminalContexts).length > 0 ||
+        sendCtx.previewAnnotations.length > 0 ||
+        sendCtx.reviewComments.length > 0 ||
+        sendCtx.threadContexts.length > 0
+      ) {
+        toastManager.add(
+          stackedThreadToast({
+            type: "warning",
+            title: "Side chats take text only",
+            description: "Remove the attachments and context, then send it again.",
+          }),
+        );
+        return;
+      }
+      const started = await onSideChat(sideChatCommand.prompt);
+      // Clear only what was sent; the user may have edited the draft or left meanwhile.
+      if (
+        started &&
+        currentRouteThreadKeyRef.current === routeThreadKey &&
+        promptRef.current === promptAtSend
+      ) {
+        promptRef.current = "";
+        setComposerDraftPrompt(composerDraftTarget, "");
+        composerRef.current?.resetCursorState();
+      }
+      return;
+    }
+    if (answeringQuestion) {
       if (directAnnotation || !readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)) {
         notifyDirectAnnotationAttached();
         return;
@@ -711,6 +772,16 @@ export function useComposerSend(input: ComposerSendInput) {
         return;
       }
     }
+    // A side chat draft becomes its fork first; its message then goes out like any other.
+    const forkSideChatFirst = isLocalDraftThread ? sideChatDraftParentRef : null;
+    if (forkSideChatFirst !== null) {
+      const error = await ensureSideChat(forkSideChatFirst, threadIdForSend);
+      if (error !== null) {
+        setThreadError(threadIdForSend, error);
+        sendInFlightRef.current = false;
+        return;
+      }
+    }
     const savedDraft = useComposerDraftStore.getState().getComposerDraft(composerDraftTarget);
     // Anything thrown while saving to the outbox shows on the thread; the send flag still clears.
     const sendResult = await settlePromise(async () => {
@@ -750,29 +821,31 @@ export function useComposerSend(input: ComposerSendInput) {
               }
             : undefined;
           const pendingWorktree = worktree && !activeThreadBranch ? worktree : undefined;
-          const bootstrap = isLocalDraftThread
-            ? {
-                createThread: {
-                  projectId: activeProject.id,
-                  title,
-                  modelSelection: target.selection,
-                  runtimeMode,
-                  interactionMode: target.interactionMode,
-                  branch: activeThreadBranch,
-                  worktreePath: multipleModelSelections === null ? activeThread.worktreePath : null,
-                  createdAt: activeThread.createdAt,
-                },
-                ...(worktree && activeThreadBranch
-                  ? {
-                      prepareWorktree: {
-                        ...worktree,
-                        baseBranch: activeThreadBranch,
-                      },
-                      runSetupScript: true,
-                    }
-                  : {}),
-              }
-            : undefined;
+          const bootstrap =
+            isLocalDraftThread && forkSideChatFirst === null
+              ? {
+                  createThread: {
+                    projectId: activeProject.id,
+                    title,
+                    modelSelection: target.selection,
+                    runtimeMode,
+                    interactionMode: target.interactionMode,
+                    branch: activeThreadBranch,
+                    worktreePath:
+                      multipleModelSelections === null ? activeThread.worktreePath : null,
+                    createdAt: activeThread.createdAt,
+                  },
+                  ...(worktree && activeThreadBranch
+                    ? {
+                        prepareWorktree: {
+                          ...worktree,
+                          baseBranch: activeThreadBranch,
+                        },
+                        runSetupScript: true,
+                      }
+                    : {}),
+                }
+              : undefined;
           return {
             environmentId,
             input: {

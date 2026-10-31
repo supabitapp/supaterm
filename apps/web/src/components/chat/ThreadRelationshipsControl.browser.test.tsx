@@ -63,7 +63,12 @@ it("reports a rejected merge-back and clears the busy state", async () => {
   setup();
   await using screen = await render(
     <ToastProvider timeout={0}>
-      <ThreadRelationshipsPanel environmentId={environmentId} threadId={threadId} />
+      <ThreadRelationshipsPanel
+        environmentId={environmentId}
+        threadId={threadId}
+        showLineage
+        showSideChats
+      />
     </ToastProvider>,
   );
   const mergeButton = screen.getByRole("button", { name: "Merge back to source conversation" });
@@ -78,7 +83,12 @@ it("clears the previous merge-back error after a successful retry", async () => 
   setup();
   await using screen = await render(
     <ToastProvider timeout={0}>
-      <ThreadRelationshipsPanel environmentId={environmentId} threadId={threadId} />
+      <ThreadRelationshipsPanel
+        environmentId={environmentId}
+        threadId={threadId}
+        showLineage
+        showSideChats
+      />
     </ToastProvider>,
     { router: "/environment/fork" },
   );
@@ -131,7 +141,12 @@ it("opens an idle child from Lineage when its shell has not been loaded", async 
     ],
   };
   await using screen = await render(
-    <ThreadRelationshipsPanel environmentId={environmentId} threadId={projection.thread.id} />,
+    <ThreadRelationshipsPanel
+      environmentId={environmentId}
+      threadId={projection.thread.id}
+      showLineage
+      showSideChats
+    />,
   );
   await screen.getByRole("button", { name: /Previous agents/ }).click();
   const child = screen.getByRole("button", { name: /Idle child/ });

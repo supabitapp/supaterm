@@ -48,9 +48,11 @@ export function resolveActiveThreadRun(projection: Pick<Projection, "runs">): Ru
 
 /** Newer work does not prevent forking the last provider-finished conversation. */
 export function resolveThreadForkSource(projection: {
-  readonly thread: Pick<Projection["thread"], "id" | "forkedFrom">;
+  readonly thread: Pick<Projection["thread"], "id" | "forkedFrom" | "lineage">;
   readonly runs: ReadonlyArray<Pick<Run, "id" | "ordinal" | "status">>;
 }) {
+  // A fork of a side chat would keep its parent's history only on providers that fork natively.
+  if (projection.thread.lineage.sideChat === true) return null;
   const run = latestForkableRun(projection.runs);
   if (run !== null) return { sourceThreadId: projection.thread.id, runId: run.id };
 

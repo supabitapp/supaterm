@@ -49,10 +49,10 @@ export interface TimelineRowSharedState {
   onOpenToolDiff: ((target: ToolCallDiffTarget) => void) | undefined;
   onOpenThread: (threadId: OrchestrationV2TurnItem["threadId"]) => void;
   workflowOpening: WorkflowOpening | null;
-  onForkFromRun: (input: {
-    readonly sourceThreadId: ThreadId;
-    readonly runId: RunId;
-  }) => Promise<void>;
+  /** Null where forking is not offered, as in a side chat. */
+  onForkFromRun:
+    | ((input: { readonly sourceThreadId: ThreadId; readonly runId: RunId }) => Promise<void>)
+    | null;
   pinnedItemIds: ReadonlySet<TurnItemId>;
   onTogglePinnedMessage: ((projectedItem: PinnableProjectedItem, pinned: boolean) => void) | null;
   onToggleTurnFold: (runId: RunId) => void;

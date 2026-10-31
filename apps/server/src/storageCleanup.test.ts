@@ -807,6 +807,7 @@ describe("subagent worktree ownership", () => {
     "pending",
     "unrelated",
     "fork",
+    "side-chat",
     "recent-activity",
     "recent-inactive",
     "recent-grace",
@@ -860,7 +861,12 @@ describe("subagent worktree ownership", () => {
           rootThreadId:
             scenario === "wrong-root" ? ThreadId.make("other-root") : root.lineage.rootThreadId,
           relationshipToParent:
-            scenario === "fork" ? "fork" : scenario === "unrelated" ? null : "subagent",
+            scenario === "fork" || scenario === "side-chat"
+              ? "fork"
+              : scenario === "unrelated"
+                ? null
+                : "subagent",
+          ...(scenario === "side-chat" ? { sideChat: true } : {}),
         },
         status: scenario === "running" ? "running" : "completed",
         pendingBackgroundTasks: scenario === "pending" ? [{ taskId: "task", kind: "command" }] : [],
@@ -894,7 +900,9 @@ describe("subagent worktree ownership", () => {
           root,
         ]);
       const report = yield* fixture.service.runNow;
-      const removed = ["idle", "grandchild", "isolated-owner", "fork-owner"].includes(scenario);
+      const removed = ["idle", "grandchild", "isolated-owner", "fork-owner", "side-chat"].includes(
+        scenario,
+      );
       const shared = [
         "unrelated",
         "fork",
