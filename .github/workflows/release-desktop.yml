@@ -286,6 +286,10 @@ jobs:
           # The executable bundles the server again, so it needs the same stamp
           # as release.yml's JS bundle.
           SUPATERM_TELEMETRY_CHANNEL: ${{ github.repository == 'supabitapp/supaterm' && inputs.release_channel || 'dev' }}
+          # vp gives each download of that Node 10 minutes by default, so one
+          # stalled stream holds the job that long. It retries 3 times and resumes
+          # partial bytes, so a shorter limit costs a slow download only a retry.
+          VP_DOWNLOAD_TIMEOUT: "120"
         run: |
           args=(build-exe --verbose)
           if [[ "$INPUTS_PLATFORM" == "win" ]]; then
