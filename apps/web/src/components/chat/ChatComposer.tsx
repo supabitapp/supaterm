@@ -1107,11 +1107,15 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     false,
     Schema.Boolean,
   );
+  // Set by the voice session, which starts later in this component, so its controls in the
+  // footer stay on screen while recording.
+  const [voiceSessionOpen, setVoiceSessionOpen] = useState(false);
   const isComposerCollapsedMobile =
     isMobileViewport &&
     !forceExpandedOnMobile &&
     !isComposerFocused &&
     !hasMultilinePrompt &&
+    !voiceSessionOpen &&
     pendingUserInputs.length === 0;
 
   const composerEditorRef = useRef<ComposerPromptEditorHandle>(null);
@@ -1321,7 +1325,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     (!composerSendState.hasSendableContent && !showResumeAction);
   const collapsedComposerPrimaryActionLabel = showResumeAction ? "Resume thread" : "Send message";
   const showMobilePendingAnswerActions =
-    isMobileViewport && !isComposerCollapsedMobile && pendingPrimaryAction !== null;
+    isMobileViewport &&
+    !isComposerCollapsedMobile &&
+    !voiceSessionOpen &&
+    pendingPrimaryAction !== null;
 
   const setPrompt = (nextPrompt: string) => {
     setComposerDraftPrompt(composerDraftTarget, nextPrompt);
@@ -1929,8 +1936,11 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         terminalContextCount: composerTerminalContexts.length,
         elementContextCount: composerPreviewAnnotations.length + composerReviewComments.length,
       }),
-    prepareVoiceSend: () => onPrepareVoiceSend(voiceDispatchMode(), voiceLanguage.tag),
-    submit: () => void submitComposerStable(),
+    prepareVoiceSend: (submission) =>
+      onPrepareVoiceSend(submission.dispatchMode ?? voiceDispatchMode(), voiceLanguage.tag),
+    submit: (submission) =>
+      void submitComposerStable(undefined, submission.dispatchMode, submission.intent),
+    onBusyChange: setVoiceSessionOpen,
   });
 
   const readComposerSnapshot = (): {
@@ -2157,7 +2167,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   ): Promise<void> | null => {
     if (voice.state.phase === "recording") {
       event?.preventDefault();
-      void voice.send();
+      void voice.send({ dispatchMode, intent: submissionIntent });
       return null;
     }
     if (

@@ -1,11 +1,11 @@
 import { useEffect } from "react";
 
-const ESCAPE_OWNERS = '[role="dialog"], [role="menu"], [role="listbox"]';
+const ESCAPE_OWNERS = '[role="dialog"], [role="menu"], [role="listbox"], [aria-activedescendant]';
 
 /**
  * Listens in the capture phase: the composer's editor keeps focus while recording and marks
  * Escape handled itself, so a bubbling listener would never see it. Escape inside an open
- * menu or dialog still belongs to that menu or dialog.
+ * menu or dialog, or in a field driving a suggestion list, still belongs to that.
  */
 export function useDiscardOnEscape(active: boolean, discard: () => void) {
   useEffect(() => {

@@ -1,7 +1,8 @@
 import { CircleAlertIcon, MicIcon, SquareIcon, XIcon } from "@supaterm/icons";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useState, type PointerEvent } from "react";
+import { useEffect, useState, type PointerEvent, type ReactNode } from "react";
 
+import { cn } from "~/lib/utils";
 import { formatVoiceDuration } from "~/voice/formatVoiceDuration";
 import type { ComposerVoiceInput } from "~/voice/useComposerVoiceInput";
 import { VOICE_LEVEL_HISTORY, type WebVoiceRecorder } from "~/voice/webVoiceRecorder";
@@ -101,44 +102,30 @@ function canOpenMicrophoneSettings(): boolean {
   return typeof window.desktopBridge?.openSystemSettings === "function";
 }
 
-function VoiceSessionAction(props: {
-  readonly voice: ComposerVoiceInput;
-  readonly shortcutLabel: string | null;
+function VoicePillButton(props: {
+  readonly label: string;
+  readonly shortcut: string | null;
+  readonly disabled?: boolean;
+  readonly onClick: () => void;
+  readonly children: ReactNode;
 }) {
-  const { voice } = props;
-  const { phase } = voice.state;
-  if (phase === "sending") {
-    return (
-      <span className="flex size-6 shrink-0 items-center justify-center">
-        <Spinner size="sm" />
-      </span>
-    );
-  }
-  const reviews = phase === "recording" && voice.availability.canReview;
-  const label = reviews ? "Stop and review" : phase === "recording" ? "Discard" : "Cancel";
-  const capturing = phase === "preparing" || phase === "recording";
   return (
     <Tooltip>
       <TooltipTrigger
         render={
           <button
             type="button"
-            aria-label={label}
-            className="relative flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-foreground outline-none transition-[background-color,scale] duration-150 ease-out before:absolute before:-inset-2 hover:bg-foreground/8 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring active:scale-[0.96] motion-reduce:transition-none"
+            aria-label={props.label}
+            disabled={props.disabled}
+            className="relative flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full outline-none transition-[background-color,scale] duration-150 ease-out before:absolute before:-inset-2 hover:bg-foreground/8 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring active:scale-[0.96] disabled:pointer-events-none disabled:opacity-64 motion-reduce:transition-none"
             onPointerDown={keepComposerFocus}
-            onClick={reviews ? voice.stop : voice.cancel}
+            onClick={props.onClick}
           />
         }
       >
-        {reviews ? (
-          <SquareIcon aria-hidden className="size-3 fill-current" />
-        ) : (
-          <XIcon aria-hidden className="size-3.5" />
-        )}
+        {props.children}
       </TooltipTrigger>
-      <TooltipPopup shortcut={reviews ? props.shortcutLabel : capturing ? "Esc" : null}>
-        {label}
-      </TooltipPopup>
+      <TooltipPopup shortcut={props.shortcut}>{props.label}</TooltipPopup>
     </Tooltip>
   );
 }
@@ -149,25 +136,50 @@ export function ComposerVoiceSession(props: {
 }) {
   const { voice } = props;
   const { availability, state } = voice;
-  const capturing = state.phase === "preparing" || state.phase === "recording";
+  const { phase } = state;
+  const capturing = phase === "preparing" || phase === "recording";
+  const reviews = capturing && availability.canReview;
   const sendLabel = availability.canSend ? "Send voice message" : "Transcribe and send";
   return (
     <>
       <div
         role="group"
         aria-label="Voice input"
-        className="flex h-8 shrink-0 items-center gap-2 rounded-full bg-foreground/6 ps-1 pe-3 text-foreground text-sm"
+        className={cn(
+          "flex h-8 shrink-0 items-center gap-2 rounded-full bg-foreground/6 text-foreground text-sm",
+          reviews ? "ps-1" : "ps-3",
+          phase === "sending" ? "pe-3" : "pe-1",
+        )}
       >
-        <VoiceSessionAction voice={voice} shortcutLabel={props.shortcutLabel} />
+        {reviews ? (
+          <VoicePillButton
+            label="Stop and review"
+            shortcut={props.shortcutLabel}
+            disabled={phase !== "recording"}
+            onClick={voice.stop}
+          >
+            <SquareIcon aria-hidden className="size-3 fill-current" />
+          </VoicePillButton>
+        ) : null}
         {capturing ? (
           <>
             <VoiceElapsed recorder={voice.recorder} />
             <VoiceLevelMeter recorder={voice.recorder} />
           </>
         ) : (
-          <span aria-live="polite" className="text-muted-foreground">
-            {state.phase === "transcribing" ? "Transcribing…" : "Saving…"}
+          <span aria-live="polite" className="flex items-center gap-2 text-muted-foreground">
+            {phase === "sending" ? <Spinner size="sm" /> : null}
+            {phase === "transcribing" ? "Transcribing…" : "Saving…"}
           </span>
+        )}
+        {phase === "sending" ? null : (
+          <VoicePillButton
+            label={phase === "recording" ? "Discard" : "Cancel"}
+            shortcut={capturing ? "Esc" : null}
+            onClick={voice.cancel}
+          >
+            <XIcon aria-hidden className="size-3.5 text-muted-foreground" />
+          </VoicePillButton>
         )}
       </div>
       <Tooltip>
@@ -175,9 +187,7 @@ export function ComposerVoiceSession(props: {
           <ComposerSendButton
             type="button"
             aria-label={sendLabel}
-            disabled={
-              state.phase !== "recording" || !(availability.canSend || availability.canReview)
-            }
+            disabled={phase !== "recording" || !(availability.canSend || availability.canReview)}
             onPointerDown={keepComposerFocus}
             onClick={() => void voice.send()}
           >
