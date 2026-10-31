@@ -45,7 +45,12 @@ export const startup = Promise.resolve().then(() => globalThis.onStarted(Shared(
       publicDir: NodeURL.fileURLToPath(new URL("../public", import.meta.url)),
       logLevel: "silent",
       resolve: {
-        alias: { react: NodePath.dirname(NodeURL.fileURLToPath(import.meta.resolve("react"))) },
+        alias: {
+          react: NodePath.dirname(NodeURL.fileURLToPath(import.meta.resolve("react"))),
+          "@supaterm/icons/nodes": NodeURL.fileURLToPath(
+            import.meta.resolve("@supaterm/icons/nodes"),
+          ),
+        },
       },
       experimental: { bundledDev: true },
       plugins: [
