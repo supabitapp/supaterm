@@ -1,9 +1,11 @@
-import type { TurnItemId } from "@supaterm/contracts";
+import type { MessageId, ThreadPinnedMessage } from "@supaterm/contracts";
 import type { Nodes } from "mdast";
 import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 
+import type { TimelineEntry } from "../../session-logic";
+import type { ChatMessage } from "../../types";
 import type { MessagesTimelineRow } from "./MessagesTimeline.logic";
 
 export interface TimelineMinimapItem {
@@ -11,14 +13,16 @@ export interface TimelineMinimapItem {
   readonly rowIndex: number;
   readonly userText: string | null;
   readonly assistantText: string | null;
-  /** The prompt or a message answering it is pinned. */
-  readonly pinned: boolean;
+  /** The turn's first pinned message, which may be its prompt. */
+  readonly pin: ThreadPinnedMessage | null;
 }
 
 export function deriveTimelineMinimapItems(
   rows: ReadonlyArray<MessagesTimelineRow>,
-  pinnedItemIds: ReadonlySet<TurnItemId>,
+  entries: ReadonlyArray<TimelineEntry>,
+  pinnedMessages: ReadonlyArray<ThreadPinnedMessage>,
 ): TimelineMinimapItem[] {
+  const turnPins = resolveTurnPins(entries, pinnedMessages);
   const items: TimelineMinimapItem[] = [];
   for (let index = 0; index < rows.length; index += 1) {
     const row = rows[index];
@@ -26,29 +30,40 @@ export function deriveTimelineMinimapItems(
       continue;
     }
 
+    const turnPin = turnPins.get(row.message.id);
     items.push({
       id: row.id,
       rowIndex: index,
       userText: row.message.text,
-      assistantText: resolveFinalAssistantTextForTurn(rows, index),
-      pinned: pinnedItemIds.size > 0 && turnHasPinnedMessage(rows, index, pinnedItemIds),
+      assistantText:
+        turnPin?.message.role === "assistant"
+          ? turnPin.message.text
+          : resolveFinalAssistantTextForTurn(rows, index),
+      pin: turnPin?.pin ?? null,
     });
   }
   return items;
 }
 
-function turnHasPinnedMessage(
-  rows: ReadonlyArray<MessagesTimelineRow>,
-  userRowIndex: number,
-  pinnedItemIds: ReadonlySet<TurnItemId>,
+// Reads entries rather than rows because a collapsed turn fold hides the
+// replies before its final one, and those can be pinned too.
+function resolveTurnPins(
+  entries: ReadonlyArray<TimelineEntry>,
+  pinnedMessages: ReadonlyArray<ThreadPinnedMessage>,
 ) {
-  for (let index = userRowIndex; index < rows.length; index += 1) {
-    const row = rows[index];
-    if (row?.kind !== "message") continue;
-    if (index > userRowIndex && row.message.role === "user") return false;
-    if (row.projectedItem && pinnedItemIds.has(row.projectedItem.sourceItemId)) return true;
+  const turnPins = new Map<MessageId, { pin: ThreadPinnedMessage; message: ChatMessage }>();
+  if (pinnedMessages.length === 0) return turnPins;
+  const pinsByMessageId = new Map(pinnedMessages.map((pin) => [pin.messageId, pin]));
+  let promptId: MessageId | null = null;
+  for (const entry of entries) {
+    if (entry.kind !== "message") continue;
+    if (entry.message.role === "user") promptId = entry.message.id;
+    const pin = pinsByMessageId.get(entry.message.id);
+    if (pin && promptId !== null && !turnPins.has(promptId)) {
+      turnPins.set(promptId, { pin, message: entry.message });
+    }
   }
-  return false;
+  return turnPins;
 }
 
 function resolveFinalAssistantTextForTurn(

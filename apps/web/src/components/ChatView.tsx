@@ -3651,6 +3651,7 @@ export default function ChatView(props: ChatViewProps) {
                           ...(canOperateThread
                             ? { onTogglePinnedMessage: togglePinnedMessageStable }
                             : {}),
+                          onJumpToPinnedMessage: jumpToPinnedMessageStable,
                           messageJump:
                             pinnedMessageJump?.threadKey === routeThreadKey
                               ? pinnedMessageJump
