@@ -100,7 +100,7 @@ function VoiceLevelMeter(props: { readonly recorder: WebVoiceRecorder }) {
 }
 
 function canOpenMicrophoneSettings(): boolean {
-  return typeof window.desktopBridge?.openSystemSettings === "function";
+  return window.desktopBridge !== undefined;
 }
 
 function VoicePillButton(props: {
@@ -219,7 +219,7 @@ export function composerVoiceBannerItem(voice: ComposerVoiceInput): ComposerBann
         <Button
           size="xs"
           variant="ghost"
-          onClick={() => void window.desktopBridge?.openSystemSettings?.("microphone")}
+          onClick={() => void window.desktopBridge?.openSystemSettings("microphone")}
         >
           Open settings
         </Button>

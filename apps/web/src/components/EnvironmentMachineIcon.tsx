@@ -5,7 +5,7 @@ import { LinuxIcon } from "./Icons";
 
 // Read once per renderer, not per icon: long environment lists do no native IPC work.
 const nativeMachineIcons =
-  typeof window === "undefined" ? {} : (window.desktopBridge?.getEnvironmentMachineIcons?.() ?? {});
+  typeof window === "undefined" ? {} : (window.desktopBridge?.getEnvironmentMachineIcons() ?? {});
 
 // SVG fallbacks follow the icon set's 24 unit grid and prop surface so every client
 // can draw Apple hardware even when native symbols are unavailable.
