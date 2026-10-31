@@ -186,7 +186,7 @@ describe("deriveThreadTurnSubagents", () => {
       ],
     });
 
-    expect(resolveSubagentPillSegment(turn)?.label).toBe("2 done");
+    expect(resolveSubagentPillSegment(turn)?.label).toBe("2 Done");
   });
 
   it("drops finished agents from the pill once a later turn ran without any", () => {
@@ -204,7 +204,7 @@ describe("deriveThreadTurnSubagents", () => {
       subagents: [subagent({ id: "a", status: "completed" })],
     });
 
-    expect(resolveSubagentPillSegment(turn)?.label).toBe("1 done");
+    expect(resolveSubagentPillSegment(turn)?.label).toBe("1 Done");
   });
 
   it("keeps finished agents while a later turn is only queued or was cancelled before starting", () => {
@@ -217,7 +217,7 @@ describe("deriveThreadTurnSubagents", () => {
         subagents: [subagent({ id: "a", status: "completed" })],
       });
 
-      expect(resolveSubagentPillSegment(turn)?.label).toBe("1 done");
+      expect(resolveSubagentPillSegment(turn)?.label).toBe("1 Done");
     }
   });
 
@@ -227,7 +227,7 @@ describe("deriveThreadTurnSubagents", () => {
       subagents: [subagent({ id: "a", status: "completed" })],
     });
 
-    expect(resolveSubagentPillSegment(turn)?.label).toBe("1 done");
+    expect(resolveSubagentPillSegment(turn)?.label).toBe("1 Done");
   });
 
   it("keeps the latest turn's agents when an earlier turn's background agent finishes later", () => {
@@ -245,7 +245,7 @@ describe("deriveThreadTurnSubagents", () => {
     });
 
     expect(turn?.subagents.map((entry) => entry.id)).toEqual(["latest"]);
-    expect(resolveSubagentPillSegment(turn)?.label).toBe("1 done");
+    expect(resolveSubagentPillSegment(turn)?.label).toBe("1 Done");
   });
 
   it("counts only terminal agents as done while a held agent remains", () => {
@@ -257,7 +257,7 @@ describe("deriveThreadTurnSubagents", () => {
       ],
     });
 
-    expect(resolveSubagentPillSegment(turn)?.label).toBe("1 done");
+    expect(resolveSubagentPillSegment(turn)?.label).toBe("1 Done");
   });
 
   it("counts idle as neither working nor done", () => {
