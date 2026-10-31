@@ -1013,7 +1013,7 @@ export const ProjectSettingsOverrides = Schema.Struct({
 export type ProjectSettingsOverrides = typeof ProjectSettingsOverrides.Type;
 
 // Whole-entry writers must round-trip unknown keys; keep the type closed to catch misspellings.
-export const keepUnknownOverrideKeys = <Entry extends Schema.Struct<Schema.Struct.Fields>>(
+const keepUnknownOverrideKeys = <Entry extends Schema.Struct<Schema.Struct.Fields>>(
   entry: Entry,
 ): Schema.Codec<
   Entry["Type"],
