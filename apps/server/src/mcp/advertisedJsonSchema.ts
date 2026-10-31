@@ -1,17 +1,16 @@
 import * as Predicate from "effect/Predicate";
 import { Tool } from "effect/ai";
 
-type Json = unknown;
-type JsonObject = { [key: string]: Json };
+type JsonObject = { [key: string]: unknown };
 
-const isNullSchema = (value: Json) =>
+const isNullSchema = (value: unknown) =>
   Predicate.isObject(value) && value.type === "null" && Object.keys(value).length === 1;
 
-const isBareAnyOf = (value: Json): value is { anyOf: Array<Json> } =>
+const isBareAnyOf = (value: unknown): value is { anyOf: Array<unknown> } =>
   Predicate.isObject(value) && Array.isArray(value.anyOf) && Object.keys(value).length === 1;
 
 // A `Schema.fromJsonString` fallback. Advertised beside object shapes, it invites stringified input.
-const isJsonStringSchema = (value: Json) =>
+const isJsonStringSchema = (value: unknown) =>
   Predicate.isObject(value) &&
   value.type === "string" &&
   value.contentMediaType === "application/json";
@@ -21,7 +20,7 @@ const SAFE_INTEGER_BOUNDS: Record<string, number> = {
   minimum: Number.MIN_SAFE_INTEGER,
 };
 
-const tagOf = (branch: JsonObject, key: string): Json => {
+const tagOf = (branch: JsonObject, key: string): unknown => {
   const property = Predicate.isObject(branch.properties) ? branch.properties[key] : undefined;
   return Predicate.isObject(property) && Array.isArray(property.enum) && property.enum.length === 1
     ? property.enum[0]
@@ -29,7 +28,7 @@ const tagOf = (branch: JsonObject, key: string): Json => {
 };
 
 /** One object for a tagged union of objects: each property once, the tag listing every value. */
-const mergeTaggedObjects = (branches: ReadonlyArray<Json>): JsonObject | undefined => {
+const mergeTaggedObjects = (branches: ReadonlyArray<unknown>): JsonObject | undefined => {
   if (branches.length < 2) return undefined;
   const objects = branches.filter(
     (branch): branch is JsonObject & { properties: JsonObject } =>
@@ -67,7 +66,7 @@ const mergeTaggedObjects = (branches: ReadonlyArray<Json>): JsonObject | undefin
   return { type: "object", properties, required: [tag, ...requiredByAll] };
 };
 
-const compact = (schema: Json, optional: boolean): Json => {
+const compact = (schema: unknown, optional: boolean): unknown => {
   if (Array.isArray(schema)) return schema.map((item) => compact(item, false));
   if (!Predicate.isObject(schema)) return schema;
   const required = new Set(Array.isArray(schema.required) ? schema.required : []);
