@@ -65,6 +65,7 @@ const promptDelayMs = Number(process.env.SUPATERM_ACP_PROMPT_DELAY_MS ?? "0");
 const terminalOutputBytes = Number(process.env.SUPATERM_ACP_EMIT_TERMINAL_OUTPUT_BYTES ?? "0");
 const supportsSessionLifecycle = process.env.SUPATERM_ACP_SESSION_LIFECYCLE === "1";
 const supportsAcpMcp = process.env.SUPATERM_ACP_MCP_ACP === "1";
+const supportsHttpMcp = process.env.SUPATERM_ACP_MCP_HTTP === "1";
 const supportsV2Management = process.env.SUPATERM_ACP_V2_MANAGEMENT === "1";
 const advertisedAuthMethodId = process.env.SUPATERM_ACP_AUTH_METHOD_ID?.trim();
 const initializeAuthMethodId =
@@ -506,7 +507,14 @@ const program = Effect.gen(function* () {
           session: {
             ...(supportsSessionLifecycle ? { fork: {}, additionalDirectories: {} } : {}),
             ...(supportsV2Management ? { delete: {} } : {}),
-            ...(supportsAcpMcp ? { mcp: { acp: {} } } : {}),
+            ...(supportsAcpMcp || supportsHttpMcp
+              ? {
+                  mcp: {
+                    ...(supportsAcpMcp ? { acp: {} } : {}),
+                    ...(supportsHttpMcp ? { http: {} } : {}),
+                  },
+                }
+              : {}),
           },
           ...(supportsV2Management ? { providers: {} } : {}),
         },
