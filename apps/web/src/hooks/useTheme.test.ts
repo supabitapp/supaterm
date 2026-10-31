@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
+// The theme palette reads published themes from server state, whose connection graph is several
+// hundred modules. Importing it inside the test spent the test's whole timeout on a loaded run.
+vi.mock(import("../state/server"), async () => {
+  const { Atom } = await import("effect/reactivity");
+  return { primaryServerEnvironmentThemesAtom: Atom.make([]) } as never;
+});
+
 function createStorage(overrides: Partial<Storage> = {}): Storage {
   const store = new Map<string, string>();
   return {
