@@ -49,7 +49,7 @@ import {
 } from "../../lib/attachmentUploadQueue";
 import { isCommandPaletteOpen } from "../../commandPaletteBus";
 import { getTerminalFocusOwner } from "../../lib/terminalFocus";
-import { resolveShortcutCommand } from "../../keybindings";
+import { registerCommands } from "../../shortcuts/dispatcher";
 import { replaceComposerContextReferences } from "@supaterm/shared/composerContextReferences";
 import type { ComposerPromptEditorHandle } from "../ComposerPromptEditor";
 import { formatInlineContextReference } from "~/lib/composerContextReferences";
@@ -820,50 +820,39 @@ export function useComposerStash(input: {
     setIsStashMenuOpen(false);
   }
 
+  const handleStashShortcut = useStableCallback(() => {
+    // Always claim the shortcut so the browser save dialog never opens,
+    // even when the composer is in a state that can't stash.
+    if (isCommandPaletteOpen() || isRevertingCheckpoint) return;
+    if (pendingUserInputs.length > 0) {
+      setIsStashMenuOpen((open) => !open);
+      return;
+    }
+    if (projectSelectionRequired || activePendingProgress !== null) return;
+    void stashCurrentPromptStable();
+  });
+  const readShortcutContext = useStableCallback(() => ({
+    terminalFocus: getTerminalFocusOwner() !== null,
+    terminalOpen,
+    modelPickerOpen: isComposerModelPickerOpen,
+  }));
+  const readKeybindings = useStableCallback(() => keybindings);
+  const ownsPaneInput = useStableCallback(() => isPaneInputOwner());
+
   const backgroundThread = use(BackgroundThreadContext);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- capture-phase window keydown listener for the stash shortcut while the composer owns pane input
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers the stash shortcut with the dispatcher while this composer owns pane input
   useEffect(() => {
     if (backgroundThread) return;
-    const handler = (event: globalThis.KeyboardEvent) => {
-      if (!isPaneInputOwner()) return;
-      const command = resolveShortcutCommand(event, keybindings, {
-        context: {
-          terminalFocus: getTerminalFocusOwner() !== null,
-          terminalOpen,
-          modelPickerOpen: isComposerModelPickerOpen,
-        },
-      });
-      if (command !== "composer.stash") return;
-      // Always claim the shortcut so the browser save dialog never opens,
-      // even when the composer is in a state that can't stash.
-      event.preventDefault();
-      event.stopPropagation();
-      if (isCommandPaletteOpen() || isRevertingCheckpoint) {
-        return;
-      }
-      if (pendingUserInputs.length > 0) {
-        setIsStashMenuOpen((open) => !open);
-        return;
-      }
-      if (projectSelectionRequired || activePendingProgress !== null) {
-        return;
-      }
-      void stashCurrentPromptStable();
-    };
-    window.addEventListener("keydown", handler, true);
-    return () => window.removeEventListener("keydown", handler, true);
-  }, [
-    activePendingProgress,
-    backgroundThread,
-    isComposerModelPickerOpen,
-    keybindings,
-    pendingUserInputs.length,
-    projectSelectionRequired,
-    stashCurrentPromptStable,
-    isRevertingCheckpoint,
-    isPaneInputOwner,
-    terminalOpen,
-  ]);
+    return registerCommands(
+      { "composer.stash": handleStashShortcut },
+      {
+        capture: true,
+        when: ownsPaneInput,
+        context: readShortcutContext,
+        keybindings: readKeybindings,
+      },
+    );
+  }, [backgroundThread, handleStashShortcut, ownsPaneInput, readKeybindings, readShortcutContext]);
 
   return {
     stashQueue,
