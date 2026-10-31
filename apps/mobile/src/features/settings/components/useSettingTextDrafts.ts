@@ -16,10 +16,10 @@ export function useSettingTextDrafts<Field extends TextSetting>(
   const take = (field: Field): ServerSettingsPatch => {
     const draft = drafts.current[field];
     delete drafts.current[field];
-    const value = saved[field];
-    if (draft === undefined || draft.over !== value) return {};
+    const savedValue = saved[field];
+    if (draft === undefined || draft.over !== savedValue) return {};
     const text = draft.text.trim();
-    return value === null || text !== value ? { [field]: text } : {};
+    return text !== savedValue ? { [field]: text } : {};
   };
   const send = (patch: ServerSettingsPatch) => {
     if (Object.keys(patch).length > 0) onChange(patch);

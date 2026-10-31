@@ -22,10 +22,8 @@ export function registerThreadOverlay(
 /** The thread a route or pane shows, as the key its chat overlays were opened under. */
 function shownThreadKey(target: ThreadRouteTarget | null): string | null {
   if (target?.kind === "server") return scopedThreadKey(target.threadRef);
-  const draftSession =
-    target?.kind === "draft"
-      ? useComposerDraftStore.getState().getDraftSession(target.draftId)
-      : null;
+  if (target?.kind !== "draft") return null;
+  const draftSession = useComposerDraftStore.getState().getDraftSession(target.draftId);
   return draftSession
     ? scopedThreadKey(scopeThreadRef(draftSession.environmentId, draftSession.threadId))
     : null;
@@ -38,14 +36,13 @@ function shownThreadKey(target: ThreadRouteTarget | null): string | null {
  */
 export function startThreadOverlayRetention(router: AnyRouter): () => void {
   const retain = () => {
-    const shown = new Set<string>();
     const routeTarget = resolveThreadRouteTarget(router.state.matches.at(-1)?.params ?? {});
-    const routeKey = shownThreadKey(routeTarget);
-    if (routeKey !== null) shown.add(routeKey);
     const panesShown = routeTarget !== null || isAppModalPage(router.state.location.pathname);
-    for (const cell of panesShown ? (useChatPaneStore.getState().layout?.cells ?? []) : []) {
-      const paneKey = shownThreadKey(cell.target);
-      if (paneKey !== null) shown.add(paneKey);
+    const paneCells = panesShown ? (useChatPaneStore.getState().layout?.cells ?? []) : [];
+    const shown = new Set<string>();
+    for (const target of [routeTarget, ...paneCells.map((cell) => cell.target)]) {
+      const threadKey = shownThreadKey(target);
+      if (threadKey !== null) shown.add(threadKey);
     }
     for (const retainOverlays of retainers) retainOverlays(shown);
   };

@@ -50,14 +50,8 @@ function threadFind(threadKey: string): ThreadFindState | undefined {
   return useThreadFindStore.getState().finds.get(threadKey);
 }
 
-function writeThreadFind(threadKey: string, find: ThreadFindState | null): void {
-  useThreadFindStore.setState((state) => {
-    if (find === null && !state.finds.has(threadKey)) return state;
-    const finds = new Map(state.finds);
-    if (find === null) finds.delete(threadKey);
-    else finds.set(threadKey, find);
-    return { finds };
-  });
+function writeThreadFind(threadKey: string, find: ThreadFindState): void {
+  useThreadFindStore.setState((state) => ({ finds: new Map(state.finds).set(threadKey, find) }));
 }
 
 /** What find needs from the timeline that shows a thread. */
@@ -168,7 +162,12 @@ export function setThreadFindQuery(threadKey: string, query: string): void {
 }
 
 export function closeThreadFind(threadKey: string): void {
-  writeThreadFind(threadKey, null);
+  useThreadFindStore.setState((state) => {
+    if (!state.finds.has(threadKey)) return state;
+    const finds = new Map(state.finds);
+    finds.delete(threadKey);
+    return { finds };
+  });
 }
 
 registerThreadOverlay((shownThreadKeys) => {
