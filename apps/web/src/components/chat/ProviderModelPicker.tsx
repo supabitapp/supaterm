@@ -252,7 +252,11 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
               />
             ) : null}
             <span
-              className="min-w-0 flex-1 overflow-hidden truncate"
+              className={cn(
+                "min-w-0 flex-1 overflow-hidden truncate",
+                // A long model name would otherwise push the other composer controls out.
+                props.isComposerOwned && "max-w-56",
+              )}
               data-chat-provider-model-picker-label="true"
             >
               {props.triggerLabel ?? multipleLabel ?? triggerTitle}

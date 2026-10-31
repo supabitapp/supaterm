@@ -359,13 +359,19 @@ describe("getComposerReasoningStep", () => {
     }
   });
 
-  it("steps Antigravity's thinking_level like other effort controls", () => {
+  it("steps Antigravity's thinking_level and agent-marked reasoning selects like other effort controls", () => {
     expect(
       step({
         provider: ProviderDriverKind.make("antigravity"),
         models: modelWith([selectDescriptor("thinking_level", LEVELS)]),
       })?.modelOptions,
     ).toStrictEqual(selections(["thinking_level", "high"]));
+    expect(
+      step({
+        provider: ProviderDriverKind.make("acpRegistry"),
+        models: modelWith([{ ...selectDescriptor("thought_level", LEVELS), role: "reasoning" }]),
+      })?.modelOptions,
+    ).toStrictEqual(selections(["thought_level", "high"]));
   });
 
   it("never steps into Ultrathink and strips a typed prefix with the caret on the same character", () => {
