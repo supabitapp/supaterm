@@ -39,7 +39,6 @@ function workEntry(item: OrchestrationV2TurnItem) {
         item,
       },
     ],
-    optimisticMessages: [],
   });
   if (entry?.kind !== "work") throw new Error("Expected a work-log entry");
   return entry.entry;
@@ -109,7 +108,6 @@ describe("runtime diagnostics in the v2 work log", () => {
         sourceItemId: item.id,
         item,
       })),
-      optimisticMessages: [],
     });
     const rows = deriveMessagesTimelineRows({
       timelineEntries: entries,

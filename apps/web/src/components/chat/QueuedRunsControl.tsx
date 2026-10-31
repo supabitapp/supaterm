@@ -16,7 +16,6 @@ import { resolveUserMessagePresentation } from "@supaterm/client-runtime/user-me
 import {
   ArrowUpIcon,
   CalendarClockIcon,
-  Clock3Icon,
   ListOrderedIcon,
   MessagesSquareIcon,
   PencilIcon,
@@ -29,7 +28,7 @@ import { useAssetUrls } from "../../assets/assetUrls";
 import { threadEnvironment } from "../../state/threads";
 import { useQuietThreadShell, useThreadProjection } from "../../state/entities";
 import { useAtomCommand } from "../../state/use-atom-command";
-import { isImageAttachment, type ChatMessage } from "../../types";
+
 import { cn } from "~/lib/utils";
 import { ComposerBanner } from "./ComposerBanner";
 import { InlineConfirmButton } from "../InlineConfirm";
@@ -79,9 +78,6 @@ export function QueuedRunsControl({
   readonly editShortcutLabel?: string | null;
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
-  readonly optimisticMessages: ReadonlyArray<
-    Pick<ChatMessage, "id" | "inputIntent" | "text" | "attachments">
-  >;
   readonly editingRunId: RunId | null;
   /** Set while something else holds the composer, such as an open question. */
   readonly editBlockedReason: string | null;
@@ -99,10 +95,6 @@ export function QueuedRunsControl({
   const queueListId = useId();
   const [busyRunId, setBusyRunId] = useState<RunId | null>(null);
   const steerInFlightRef = useRef(false);
-  // Once the projection holds the message the optimistic copy is stale no
-  // matter what happened to its run — keying on still-queued runs alone would
-  // resurrect a phantom "pending" row after the run is cancelled or started.
-  const acknowledgedMessageIds = new Set((projection?.messages ?? []).map((message) => message.id));
   const queuedImageAttachmentResources = queuedImageResources(projection);
   const queuedImageAttachmentUrls = useAssetUrls(
     props.environmentId,
@@ -118,45 +110,22 @@ export function QueuedRunsControl({
       return url && resource ? [[resource.attachmentId, url] as const] : [];
     }),
   );
-  const optimisticQueued = props.optimisticMessages.filter(
-    (message) => message.inputIntent === "queued_turn" && !acknowledgedMessageIds.has(message.id),
-  );
-  const items = [
-    ...queued.map(({ run, text, attachments, message }, serverIndex) => ({
-      key: run.id,
-      message,
-      runId: run.id,
-      messageId: run.userMessageId,
-      serverIndex,
-      text,
-      attachments,
-      thumbnails: attachments
-        .filter((attachment) => attachment.type === "image")
-        .map<QueuedRowThumbnail>((attachment) => ({
-          key: attachment.id,
-          name: attachment.name,
-          url: queuedImageUrlById.get(attachment.id) ?? null,
-        })),
-      pending: false,
-    })),
-    ...optimisticQueued.map((message) => ({
-      key: message.id,
-      message: undefined,
-      runId: null,
-      messageId: null,
-      serverIndex: null,
-      text: message.text,
-      attachments: [] as ReadonlyArray<ContractChatAttachment>,
-      thumbnails: (message.attachments ?? [])
-        .filter(isImageAttachment)
-        .map<QueuedRowThumbnail>((attachment) => ({
-          key: attachment.id,
-          name: attachment.name,
-          url: attachment.previewUrl ?? null,
-        })),
-      pending: true,
-    })),
-  ];
+  const items = queued.map(({ run, text, attachments, message }, serverIndex) => ({
+    key: run.id,
+    message,
+    runId: run.id,
+    messageId: run.userMessageId,
+    serverIndex,
+    text,
+    attachments,
+    thumbnails: attachments
+      .filter((attachment) => attachment.type === "image")
+      .map<QueuedRowThumbnail>((attachment) => ({
+        key: attachment.id,
+        name: attachment.name,
+        url: queuedImageUrlById.get(attachment.id) ?? null,
+      })),
+  }));
 
   const sendQueuedMessage = async (queuedRunId: RunId) => {
     if (!canSend || steerInFlightRef.current) return;
@@ -184,12 +153,10 @@ export function QueuedRunsControl({
       if (!repeat && busyRunId === null) void sendQueuedMessage(next.run.id);
       return true;
     },
-    // Takes the key while the last row is still saving rather than editing an
-    // older message than the one shown last.
     editLatest(repeat) {
       const latest = items.at(-1);
       if (!latest || props.editBlockedReason !== null) return false;
-      if (!repeat && latest.runId !== null && latest.messageId !== null && busyRunId === null) {
+      if (!repeat && busyRunId === null) {
         setExpanded(true);
         props.onEditQueuedRun({
           runId: latest.runId,
@@ -250,7 +217,7 @@ export function QueuedRunsControl({
                             : reference.label,
                         ),
                       ).trim();
-                  const isEditing = item.runId !== null && item.runId === props.editingRunId;
+                  const isEditing = item.runId === props.editingRunId;
                   return (
                     <ComposerBanner.Row
                       render={<li />}
@@ -265,12 +232,6 @@ export function QueuedRunsControl({
                       <ComposerBanner.Content className="text-foreground/80">
                         {isEditing ? (
                           <span className="sr-only">Editing queued message: </span>
-                        ) : null}
-                        {item.pending ? (
-                          <Clock3Icon
-                            aria-label="Saving queued message"
-                            className="size-3 shrink-0 text-muted-foreground/60"
-                          />
                         ) : null}
                         {item.thumbnails.length > 0 ? (
                           <span className="flex shrink-0 items-center gap-0.5">
@@ -319,12 +280,8 @@ export function QueuedRunsControl({
                                 <Button
                                   size="xs"
                                   variant="ghost-muted"
-                                  disabled={item.runId === null || busyRunId !== null}
-                                  onClick={() => {
-                                    if (item.runId !== null) {
-                                      void sendQueuedMessage(item.runId);
-                                    }
-                                  }}
+                                  disabled={busyRunId !== null}
+                                  onClick={() => void sendQueuedMessage(item.runId)}
                                 >
                                   <ArrowUpIcon />
                                   Send now
@@ -361,21 +318,15 @@ export function QueuedRunsControl({
                                   size="icon-xs"
                                   variant="ghost-muted"
                                   aria-label="Edit queued message"
-                                  disabled={
-                                    item.runId === null ||
-                                    busyRunId !== null ||
-                                    props.editBlockedReason !== null
+                                  disabled={busyRunId !== null || props.editBlockedReason !== null}
+                                  onClick={() =>
+                                    props.onEditQueuedRun({
+                                      runId: item.runId,
+                                      messageId: item.messageId,
+                                      text: item.text,
+                                      attachments: item.attachments,
+                                    })
                                   }
-                                  onClick={() => {
-                                    if (item.runId !== null && item.messageId !== null) {
-                                      props.onEditQueuedRun({
-                                        runId: item.runId,
-                                        messageId: item.messageId,
-                                        text: item.text,
-                                        attachments: item.attachments,
-                                      });
-                                    }
-                                  }}
                                 >
                                   <PencilIcon />
                                 </Button>
@@ -393,15 +344,13 @@ export function QueuedRunsControl({
                             <InlineConfirmButton
                               size="icon-xs"
                               variant="ghost"
-                              disabled={item.runId === null || busyRunId !== null}
+                              disabled={busyRunId !== null}
                               icon={<XIcon className="size-3.5" />}
                               label="Remove queued message"
                               confirmLabel="Confirm remove"
                               tooltip="Remove from queue"
                               confirmTooltip="Click again to remove from the queue and discard the message"
-                              onConfirm={() => {
-                                if (item.runId !== null) void remove(item.runId);
-                              }}
+                              onConfirm={() => void remove(item.runId)}
                             />
                           </>
                         )}

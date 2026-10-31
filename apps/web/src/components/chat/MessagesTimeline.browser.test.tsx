@@ -1015,7 +1015,6 @@ it("renders a typed /compact as one live divider that finishes with its token de
           },
         },
       ],
-      optimisticMessages: [],
     });
   const props = baseProps();
   const ui = (completed: boolean) => (

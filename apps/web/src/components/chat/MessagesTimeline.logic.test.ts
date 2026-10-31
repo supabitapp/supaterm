@@ -307,7 +307,6 @@ describe("deriveMessagesTimelineRows", () => {
       };
       const entries = deriveTimelineEntriesFromVisibleTurnItems({
         visibleTurnItems: [{ ...source, item }],
-        optimisticMessages: [],
       });
       const work = entries.find((entry) => entry.kind === "work");
       expect(work?.kind === "work" && workEntryDisplayLabel(work.entry, undefined)).toBe(
@@ -345,7 +344,6 @@ describe("deriveMessagesTimelineRows", () => {
     };
     const entries = deriveTimelineEntriesFromVisibleTurnItems({
       visibleTurnItems: [{ ...source, item }],
-      optimisticMessages: [],
     });
     const entry = entries.find((row) => row.kind === "work");
     expect(entry?.kind === "work" && workEntryDisplayLabel(entry.entry, undefined)).toBe(
@@ -400,7 +398,6 @@ describe("deriveMessagesTimelineRows", () => {
         position,
         sourceItemId: item.id,
       })),
-      optimisticMessages: [],
     });
     const work = entries.flatMap((entry) => (entry.kind === "work" ? [entry.entry] : []));
     expect(workEntryDisplayLabel(work[0]!, undefined)).toBe("Listed projects");
@@ -471,7 +468,6 @@ describe("deriveMessagesTimelineRows", () => {
           position,
           sourceItemId: item.id,
         })),
-        optimisticMessages: [],
       });
       expect(entries.map((entry) => entry.kind)).toEqual(["work", "work", "work"]);
       const rows = deriveMessagesTimelineRows({
@@ -534,7 +530,6 @@ describe("deriveMessagesTimelineRows", () => {
       };
       const [notice] = deriveTimelineEntriesFromVisibleTurnItems({
         visibleTurnItems: [source],
-        optimisticMessages: [],
       });
       if (notice?.kind !== "work") throw new Error("Expected a notice work entry");
       expect(notice.entry.projectedItem).toBe(source);
@@ -663,7 +658,6 @@ describe("deriveMessagesTimelineRows", () => {
       };
       const runningEntries = deriveTimelineEntriesFromVisibleTurnItems({
         visibleTurnItems: [...fixture.visibleTurnItems.slice(0, -1), compact],
-        optimisticMessages: [],
       });
       const runningRows = deriveMessagesTimelineRows({
         ...input,
@@ -691,7 +685,6 @@ describe("deriveMessagesTimelineRows", () => {
               item: { ...compact.item, status: "completed", afterTokenCount: 19_000 },
             },
           ],
-          optimisticMessages: [],
         }),
       });
       expect(completedRows.find((row) => row.kind === "context-compaction")).toMatchObject({
@@ -736,7 +729,6 @@ describe("deriveMessagesTimelineRows", () => {
       deriveMessagesTimelineRows({
         timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
           visibleTurnItems: [history0!, history1!, history2!, ...visibleTurnItems],
-          optimisticMessages: [],
         }),
         isWorking,
         runningRunId: fixture.runId,
@@ -831,7 +823,6 @@ describe("deriveMessagesTimelineRows", () => {
               },
             },
           ],
-          optimisticMessages: [],
         }),
         isWorking: false,
         latestRun: {
@@ -886,7 +877,6 @@ describe("deriveMessagesTimelineRows", () => {
       const rows = deriveMessagesTimelineRows({
         timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
           visibleTurnItems: [history0!, history1!, history2!, ...visibleTurnItems],
-          optimisticMessages: [],
         }),
         isWorking: false,
         latestRun: {
@@ -2153,7 +2143,6 @@ describe("deriveMessagesTimelineRows", () => {
       deriveMessagesTimelineRows({
         timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
           visibleTurnItems: items(input.resume),
-          optimisticMessages: [],
         }),
         latestRun: null,
         isWorking: input.working,
@@ -2292,7 +2281,6 @@ describe("deriveMessagesTimelineRows", () => {
       deriveMessagesTimelineRows({
         timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
           visibleTurnItems: items(settled),
-          optimisticMessages: [],
         }),
         latestRun: {
           runId,
@@ -4228,7 +4216,7 @@ it.each([
 describe("streaming v2 row projection", () => {
   function fixture(text = "") {
     const source = makeStreamingTimelineFixture(text);
-    const timelineInput = { visibleTurnItems: source.visibleTurnItems, optimisticMessages: [] };
+    const timelineInput = { visibleTurnItems: source.visibleTurnItems };
     const timeline = deriveTimelineEntriesFromVisibleTurnItemsWithState(timelineInput);
     const input = {
       timelineEntries: timeline.entries,
@@ -4321,8 +4309,8 @@ describe("streaming v2 row projection", () => {
     }
   });
 
-  it.each(["file", "image", "handoff", "streaming-image"] as const)(
-    "keeps history references with %s previews through the v2 materializer",
+  it.each(["file", "image", "streaming-image"] as const)(
+    "keeps history references with %s attachments through the v2 materializer",
     (kind) => {
       const initial = fixture("Partial");
       const image = {
@@ -4352,9 +4340,6 @@ describe("streaming v2 row projection", () => {
               }
             : row,
         ),
-        attachmentUrlById: new Map([
-          [image.id, kind === "handoff" ? "blob:handoff" : "https://server.test/image"],
-        ]),
       };
       const timeline = deriveTimelineEntriesFromVisibleTurnItemsWithState(timelineInput);
       const input = { ...initial.input, timelineEntries: timeline.entries };
@@ -4362,7 +4347,6 @@ describe("streaming v2 row projection", () => {
       const nextTimelineInput = {
         ...timelineInput,
         visibleTurnItems: updateText(timelineInput.visibleTurnItems, "Next token"),
-        attachmentUrlById: new Map(timelineInput.attachmentUrlById),
       };
       const nextTimeline = deriveTimelineEntriesFromVisibleTurnItemsWithState(
         nextTimelineInput,
@@ -4378,22 +4362,6 @@ describe("streaming v2 row projection", () => {
         )
           continue;
         expect(next.rows[index]).toBe(row);
-      }
-      const renewedInput = {
-        ...nextTimelineInput,
-        attachmentUrlById: new Map([[image.id, "https://renewed.test/image"]]),
-      };
-      const renewedTimeline = deriveTimelineEntriesFromVisibleTurnItemsWithState(
-        renewedInput,
-        nextTimeline,
-      );
-      const renewedRowsInput = { ...input, timelineEntries: renewedTimeline.entries };
-      const renewed = deriveMessagesTimelineRowsWithState(renewedRowsInput, next);
-      expect(renewed.rows).toEqual(deriveMessagesTimelineRows(renewedRowsInput));
-      if (kind !== "file") {
-        expect(renewed.rows.find((row) => row.id === "history-user")).toMatchObject({
-          message: { attachments: [{ previewUrl: "https://renewed.test/image" }, file] },
-        });
       }
     },
   );
@@ -4837,7 +4805,6 @@ it.each([true, false])(
       visibleTurnItems: fixture.visibleTurnItems.map((row) =>
         row === source ? notification : row,
       ),
-      optimisticMessages: [],
     });
     const rows = deriveMessagesTimelineRows({
       timelineEntries: entries,
@@ -5155,7 +5122,6 @@ describe("failed turn transcript", () => {
       const rows = deriveMessagesTimelineRows({
         timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
           visibleTurnItems: items,
-          optimisticMessages: [],
         }).map((entry) =>
           isLatest
             ? entry
@@ -5196,7 +5162,6 @@ describe("failed turn transcript", () => {
       if (isLatest) return;
       const entriesWithoutTools = deriveTimelineEntriesFromVisibleTurnItems({
         visibleTurnItems: items.filter((row) => row.item.type !== "command_execution"),
-        optimisticMessages: [],
       });
       entriesWithoutTools.splice(1, 0, {
         kind: "message",
@@ -5322,7 +5287,6 @@ describe("live subagents after their parent turn settles", () => {
             },
           ] satisfies OrchestrationV2TurnItem[]
         ).map(projected),
-        optimisticMessages: [],
       }),
       latestRun: {
         runId,
@@ -5380,7 +5344,6 @@ describe("live subagents after their parent turn settles", () => {
           child("child", 3, "running"),
         ] satisfies OrchestrationV2TurnItem[]
       ).map(projected),
-      optimisticMessages: [],
     }).map((entry) => ({ ...entry, attempt }));
     const rows = deriveMessagesTimelineRows({
       timelineEntries: entries,
@@ -5485,7 +5448,6 @@ describe("subagent continued by a later turn", () => {
           sourceItemId: item.id,
           item,
         })),
-        optimisticMessages: [],
       }),
       latestRun: {
         runId: run2,

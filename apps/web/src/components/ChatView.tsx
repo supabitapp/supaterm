@@ -25,7 +25,6 @@ import {
   deriveThreadPendingBackgroundTasks,
   deriveWorkspaceMutationId,
   presentThreadShellFromProjection,
-  isCompactCommandMessage,
   type LocalThreadErrorEntry,
   makeThreadErrorSetter,
   resolveDraftHeroState,
@@ -36,7 +35,6 @@ import { ChatTerminalDrawers } from "./chat/ChatTerminalDrawers";
 import { ChatRightPanel } from "./chat/ChatRightPanel";
 import { ChatBannerLane } from "./chat/ChatBannerLane";
 import { useProjectCloneBanner } from "./chat/useProjectCloneBanner";
-import { useAttachmentPreviewHandoff } from "./chat/useAttachmentPreviewHandoff";
 import { usePullRequestDraftThread } from "./chat/usePullRequestDraftThread";
 import { useTimelineFollow } from "./chat/useTimelineFollow";
 import { useTimelineRewind } from "./chat/useTimelineRewind";
@@ -353,7 +351,6 @@ import { ScrollToEndPill } from "./chat/ScrollToEndPill";
 import { WorkspaceDropOverlay } from "./WorkspaceDropOverlay";
 import {
   buildLocalDraftThread,
-  collectUserMessageBlobPreviewUrls,
   deriveCommittedServerUserMessageIds,
   dismissBranchMismatchForSession,
   shouldRenderPreviewMiniPlayer,
@@ -362,7 +359,6 @@ import {
   resolveComposerProviderSelection,
   resolveThreadMetadataUpdateForNextTurn,
   resolveSendEnvMode,
-  revokeUserMessagePreviewUrls,
   startNewThreadForProject,
   codexArtifactTemplatePromptToAppend,
   shouldRefocusComposerOnWindowFocus,
@@ -663,16 +659,6 @@ export default function ChatView(props: ChatViewProps) {
     };
   })();
   const committedServerMessageIds = deriveCommittedServerUserMessageIds(serverVisibleTurnItems);
-  // Queued messages have no turn item until their run starts, so the
-  // turn-item-derived set alone can never retire their optimistic rows —
-  // cancelling such a run would leave a phantom "pending" queue row behind.
-  const serverAcknowledgedUserMessageIds = (() => {
-    const ids = new Set(committedServerMessageIds);
-    for (const message of serverProjection?.messages ?? []) {
-      if (message.role === "user") ids.add(message.id);
-    }
-    return ids;
-  })();
   const settings = useEnvironmentSettings(environmentId);
   const clientSettingsHydrated = useClientSettingsHydrated();
   const timestampFormat = settings.timestampFormat;
@@ -749,7 +735,6 @@ export default function ChatView(props: ChatViewProps) {
   };
   const citeAssistantTextStable = useStableCallback(citeAssistantText);
   const [isWorkspaceFileDragActive, setIsWorkspaceFileDragActive] = useState(false);
-  const [optimisticUserMessages, setOptimisticUserMessages] = useState<ChatMessage[]>([]);
   const [workLocallyResendDraftId, setWorkLocallyResendDraftId] = useState<DraftId | null>(null);
   if (workLocallyResendDraftId !== null && workLocallyResendDraftId !== draftId) {
     setWorkLocallyResendDraftId(null);
@@ -1487,19 +1472,15 @@ export default function ChatView(props: ChatViewProps) {
     activePendingUserInput: activePendingUserInput?.requestId ?? null,
     threadError,
   });
-  const optimisticCompactionMessage = optimisticUserMessages.at(-1);
   const latestServerUserItem = serverVisibleTurnItems.findLast(
     (row) => row.item.type === "user_message",
   )?.item;
   const compactRequestIsActive =
-    (isSendBusy &&
-      optimisticCompactionMessage !== undefined &&
-      isCompactCommandMessage(optimisticCompactionMessage)) ||
-    (latestServerUserItem?.type === "user_message" &&
-      latestServerUserItem.text.trim().toLowerCase() === "/compact" &&
-      latestServerUserItem.attachments.length === 0 &&
-      latestServerUserItem.runId === activeActivityRun?.runId &&
-      !isLatestRunSettled(activeActivityRun, activeRuntime));
+    latestServerUserItem?.type === "user_message" &&
+    latestServerUserItem.text.trim().toLowerCase() === "/compact" &&
+    latestServerUserItem.attachments.length === 0 &&
+    latestServerUserItem.runId === activeActivityRun?.runId &&
+    !isLatestRunSettled(activeActivityRun, activeRuntime);
   const compactionSettled = serverVisibleTurnItems.some(
     ({ item }) =>
       item.type === "compaction" &&
@@ -1576,8 +1557,6 @@ export default function ChatView(props: ChatViewProps) {
     }
   };
   const openFileAttachmentStable = useStableCallback(openFileAttachment);
-  const { handoffAttachmentPreviewsStable, timelineAttachmentUrlById } =
-    useAttachmentPreviewHandoff({ environmentId, serverVisibleTurnItems, optimisticUserMessages });
   const anchoredTimelineMessages = feedbackSubmissions.flatMap((submission) =>
     submission.status === "interrupted"
       ? []
@@ -1587,9 +1566,7 @@ export default function ChatView(props: ChatViewProps) {
         ],
   );
   const timelineEntriesInput = {
-    optimisticMessages: optimisticUserMessages,
     anchoredMessages: [...pendingCreationMessages, ...anchoredTimelineMessages],
-    attachmentUrlById: timelineAttachmentUrlById,
     ...(serverProjection === null
       ? {}
       : {
@@ -1609,7 +1586,7 @@ export default function ChatView(props: ChatViewProps) {
     { ...timelineEntriesInput, visibleTurnItems: serverTimelineRows },
     activeThreadKey,
   );
-  const draftTimelineEntries = [...pendingCreationMessages, ...optimisticUserMessages].map(
+  const draftTimelineEntries = pendingCreationMessages.map(
     (message) =>
       ({
         id: message.id,
@@ -2277,54 +2254,12 @@ export default function ChatView(props: ChatViewProps) {
     terminalUiState.terminalOpen,
   ]);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- drops server-acknowledged optimistic messages on a timer and hands off or revokes their blob preview URLs
-  useEffect(() => {
-    if (!activeThread?.id) return;
-    if (activeMessageCount === 0) {
-      return;
-    }
-    const removedMessages = optimisticUserMessages.filter((message) =>
-      serverAcknowledgedUserMessageIds.has(message.id),
-    );
-    if (removedMessages.length === 0) {
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      setOptimisticUserMessages((existing) =>
-        existing.filter((message) => !serverAcknowledgedUserMessageIds.has(message.id)),
-      );
-    }, 0);
-    for (const removedMessage of removedMessages) {
-      const previewUrls = collectUserMessageBlobPreviewUrls(removedMessage);
-      if (previewUrls.length > 0) {
-        handoffAttachmentPreviewsStable(removedMessage.id, previewUrls);
-        continue;
-      }
-      revokeUserMessagePreviewUrls(removedMessage);
-    }
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [
-    activeMessageCount,
-    activeThread?.id,
-    serverAcknowledgedUserMessageIds,
-    handoffAttachmentPreviewsStable,
-    optimisticUserMessages,
-  ]);
-
   // Keyed on the thread, not the draft: a draft's promotion to its server
   // route keeps this instance and drops `draftId`, and the send it is still
   // dispatching must survive that swap.
-  const [optimisticUserMessagesThreadId, setOptimisticUserMessagesThreadId] = useState(threadId);
-  if (optimisticUserMessagesThreadId !== threadId) {
-    setOptimisticUserMessagesThreadId(threadId);
-    setOptimisticUserMessages((existing) => {
-      for (const message of existing) {
-        revokeUserMessagePreviewUrls(message);
-      }
-      return [];
-    });
+  const [localDispatchThreadId, setLocalDispatchThreadId] = useState(threadId);
+  if (localDispatchThreadId !== threadId) {
+    setLocalDispatchThreadId(threadId);
     resetLocalDispatch();
   }
 
@@ -3157,7 +3092,6 @@ export default function ChatView(props: ChatViewProps) {
           })}
           environmentId={activeThread.environmentId}
           threadId={activeThread.id}
-          optimisticMessages={optimisticUserMessages}
           editingRunId={queuedRunEdit.editingRunId}
           editBlockedReason={queuedRunEditBlockedReason({
             openQuestionCount: pendingUserInputs.length,

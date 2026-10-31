@@ -602,9 +602,7 @@ function projectedWorkEntry(row: OrchestrationV2ProjectedTurnItem): WorkLogEntry
 /** Preserve visibleTurnItems' committed order; interleave client messages by timestamp. */
 export interface TimelineEntriesInput {
   readonly visibleTurnItems: ReadonlyArray<OrchestrationV2ProjectedTurnItem>;
-  readonly optimisticMessages: ReadonlyArray<ChatMessage>;
   readonly anchoredMessages?: ReadonlyArray<ChatMessage>;
-  readonly attachmentUrlById?: ReadonlyMap<string, string>;
   readonly attempts?: ReadonlyArray<OrchestrationV2RunAttempt>;
   readonly nodes?: ReadonlyArray<OrchestrationV2ExecutionNode>;
   readonly plans?: ReadonlyArray<OrchestrationV2PlanArtifact>;
@@ -689,14 +687,7 @@ export function deriveTimelineEntriesFromVisibleTurnItems(
         role: item.type === "user_message" ? "user" : "assistant",
         text: item.text,
         ...(item.type === "user_message" && item.context ? { context: item.context } : {}),
-        ...((item.attachments?.length ?? 0) > 0
-          ? {
-              attachments: (item.attachments ?? []).map((attachment) => {
-                const previewUrl = input.attachmentUrlById?.get(attachment.id);
-                return previewUrl ? { ...attachment, previewUrl } : attachment;
-              }),
-            }
-          : {}),
+        ...(item.attachments?.length ? { attachments: item.attachments } : {}),
         runId: item.runId,
         streaming: item.type === "assistant_message" && item.streaming,
         ...(item.type === "user_message"
@@ -817,18 +808,6 @@ export function deriveTimelineEntriesFromVisibleTurnItems(
     }
   }
 
-  for (const message of input.optimisticMessages) {
-    if (message.inputIntent !== "queued_turn" && !retainedMessageIds.has(message.id)) {
-      retainedMessageIds.add(message.id);
-      entries.push({
-        id: message.id,
-        kind: "message",
-        createdAt: message.createdAt,
-        message,
-      });
-    }
-  }
-
   return entries;
 }
 
@@ -844,23 +823,6 @@ export function selectMessageImageResources(
     const previewUrl = attachment.previewUrl;
     if (previewUrl?.startsWith("blob:") || previewUrl?.startsWith("data:")) continue;
     attachmentIds.add(attachment.id);
-  }
-  return attachmentIds.size === 0
-    ? EMPTY_IMAGE_RESOURCES
-    : Array.from(attachmentIds, (attachmentId) => ({ _tag: "attachment", attachmentId }));
-}
-
-export function selectHandoffImageResources(
-  messages: ReadonlyArray<Pick<ChatMessage, "id" | "role" | "attachments">> | undefined,
-  handoffs: Readonly<Record<string, ReadonlyArray<string>>>,
-): ReadonlyArray<AttachmentResource> {
-  if (Object.keys(handoffs).length === 0) return EMPTY_IMAGE_RESOURCES;
-  const attachmentIds = new Set<string>();
-  for (const message of messages ?? []) {
-    if (message.role !== "user" || !handoffs[message.id]?.length) continue;
-    for (const attachment of message.attachments ?? []) {
-      if (isImageAttachment(attachment)) attachmentIds.add(attachment.id);
-    }
   }
   return attachmentIds.size === 0
     ? EMPTY_IMAGE_RESOURCES
@@ -978,9 +940,7 @@ function reuseTimelineEntries(
   const before = previous.input;
   if (
     input.visibleTurnItems.length < before.visibleTurnItems.length ||
-    !shallow(input.optimisticMessages, before.optimisticMessages) ||
     !shallow(input.anchoredMessages, before.anchoredMessages) ||
-    !shallow(input.attachmentUrlById, before.attachmentUrlById) ||
     !shallow(input.attempts, before.attempts) ||
     !shallow(input.nodes, before.nodes) ||
     !shallow(input.plans, before.plans)
@@ -988,13 +948,8 @@ function reuseTimelineEntries(
     return null;
   }
   const appended = input.visibleTurnItems.length > before.visibleTurnItems.length;
-  // Keep full projection until committed items interleave and deduplicate anchored/optimistic messages.
-  if (
-    appended &&
-    (input.optimisticMessages.length > 0 || (input.anchoredMessages?.length ?? 0) > 0)
-  ) {
-    return null;
-  }
+  // Keep full projection until committed items interleave and deduplicate anchored messages.
+  if (appended && (input.anchoredMessages?.length ?? 0) > 0) return null;
   // Answer rows can replace a message already present in the retained prefix.
   if (
     appended &&
@@ -1030,7 +985,6 @@ function reuseTimelineEntries(
       : deriveTimelineEntriesFromVisibleTurnItems({
           ...input,
           visibleTurnItems: changedItems,
-          optimisticMessages: [],
           anchoredMessages: [],
         });
   if (
@@ -1084,9 +1038,7 @@ export function deriveTimelineEntriesFromVisibleTurnItemsWithState(
   const reused = previous === null ? null : reuseTimelineEntries(input, previous);
   if (reused !== null) return { input, entries: reused };
   const entries = deriveTimelineEntriesFromVisibleTurnItems(input);
-  if (previous === null || !shallow(input.attachmentUrlById, previous.input.attachmentUrlById)) {
-    return { input, entries };
-  }
+  if (previous === null) return { input, entries };
   const previousMessages = new Map(
     previous.entries.flatMap((entry) =>
       entry.kind === "message" ? [[entry.id, entry] as const] : [],

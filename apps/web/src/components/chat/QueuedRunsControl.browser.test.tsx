@@ -54,7 +54,6 @@ function setup() {
 
 const baseProps = {
   environmentId: "environment:test" as never,
-  optimisticMessages: [],
   threadId: "thread:test" as never,
   editingRunId: null,
   editBlockedReason: null,
@@ -138,31 +137,6 @@ describe("QueuedRunsControl attachments and edit mode", () => {
     expect(screen.container.querySelector("[draggable='true']")).toBeNull();
   });
 
-  it("drops the optimistic pending row once the projection holds its message", async () => {
-    setup();
-    state.projection = {
-      projection: { messages: [{ id: "message:acknowledged", text: "hello" }] },
-    };
-    state.workflow = {
-      activeRun: { id: "run:active" },
-      canPromoteToSteer: true,
-      queuedRuns: [],
-    };
-
-    await using screen = await renderQueue({
-      optimisticMessages: [
-        {
-          id: "message:acknowledged" as never,
-          inputIntent: "queued_turn",
-          text: "hello",
-          attachments: [],
-        },
-      ],
-    });
-
-    expect(screen.container.childElementCount).toBe(0);
-  });
-
   it("keeps the original queued message visible while editing", async () => {
     setup();
     state.projection = { projection: { messages: [] } };
@@ -188,15 +162,8 @@ describe("QueuedRunsControl send", () => {
     };
     const ref = createRef<QueuedRunsControlHandle>();
 
-    await using _screen = await renderQueue({
-      ref,
-      optimisticMessages: [
-        { id: "message:outbox" as never, inputIntent: "queued_turn", text: "In the outbox" },
-      ],
-    });
-    const sendNow = page.getByRole("button", { name: "Send now" });
-    await expect.element(sendNow.nth(0)).toBeEnabled();
-    await expect.element(sendNow.nth(1)).toBeDisabled();
+    await using _screen = await renderQueue({ ref });
+    await expect.element(page.getByRole("button", { name: "Send now" })).toBeEnabled();
     await act(async () => {
       ref.current?.steerNext(false);
     });
@@ -243,32 +210,6 @@ describe("QueuedRunsControl editLatest", () => {
       text: "second",
       attachments: [],
     });
-  });
-
-  it("does not fall back to an older message while the newest is still saving", async () => {
-    state.projection = { projection: { messages: [] } };
-    state.workflow = {
-      activeRun: { id: "run:active" },
-      canPromoteToSteer: true,
-      queuedRuns: [queuedRun("first", "first")],
-    };
-    const ref = createRef<QueuedRunsControlHandle>();
-    const onEditQueuedRun = vi.fn();
-
-    await using _screen = await renderQueue({
-      ref,
-      onEditQueuedRun,
-      optimisticMessages: [
-        { id: "message:saving" as never, inputIntent: "queued_turn", text: "saving" },
-      ],
-    });
-    let handled = false;
-    await act(async () => {
-      handled = ref.current?.editLatest(false) ?? false;
-    });
-
-    expect(handled).toBe(true);
-    expect(onEditQueuedRun).not.toHaveBeenCalled();
   });
 
   it("leaves the key alone when nothing is queued", async () => {
