@@ -2,14 +2,14 @@ import { ActiveNewTaskContext } from "../../state/active-new-task";
 import { resolveNewThreadModelSelection } from "@supaterm/shared/usageLimits";
 import { useNowMinuteMs } from "../../lib/clock";
 import * as Dialog from "../../components/ui/Dialog";
-import React, { useEffect, useLayoutEffect, useRef } from "react";
+import { CommonActions, useNavigation } from "@react-navigation/native";
+import React, { useEffect, useEffectEvent, useLayoutEffect } from "react";
 
 import type {
   EnvironmentId,
   ModelSelection,
   ProviderOptionSelection,
   RuntimeMode,
-  ServerProvider,
 } from "@supaterm/contracts";
 import {
   CommandId,
@@ -40,8 +40,6 @@ import { projectEnvironment } from "../../state/projects";
 import { useEnvironmentQuery } from "../../state/query";
 import { useAtomCommand } from "../../state/use-atom-command";
 import {
-  appendComposerDraftAttachments,
-  type ComposerDraftInsertion,
   type ComposerDraftWorkspaceSelection,
   clearComposerDraft,
   composerDraftsLoadedAtom,
@@ -110,8 +108,11 @@ import { useNewTaskProjectDefaults } from "./use-new-task-project-defaults";
 import {
   INACTIVE_FLOW_KEY,
   type NewTaskEnvironmentSwitch,
+  type NewTaskFlowRoute,
   type NewTaskFlowState,
+  newTaskFlowRoute,
   newTaskFlowStateAtom,
+  newTaskPendingKey,
   readNewTaskFlowState,
   resolveRouteDraft,
   type RouteDraftResolution,
@@ -164,31 +165,10 @@ function canMoveEditedPendingTask(
   return false;
 }
 
-export function branchBadgeLabel(input: {
-  readonly branch: VcsRef;
-  readonly project: EnvironmentProject | null;
-}): string | null {
-  if (input.branch.current) {
-    return "current";
-  }
-  if (input.branch.worktreePath && input.branch.worktreePath !== input.project?.workspaceRoot) {
-    return "worktree";
-  }
-  if (input.branch.isRemote) {
-    return "remote";
-  }
-  if (input.branch.isDefault) {
-    return "default";
-  }
-  return null;
-}
-
 type NewTaskFlowContextValue = {
-  readonly activeNewTask: { readonly pendingKey: string | null } | null;
   readonly projectScopes: ReadonlyArray<HomeProjectScope>;
   readonly selectedEnvironmentId: EnvironmentId | null;
   readonly selectedProjectKey: string | null;
-  readonly selectedModelKey: string | null;
   readonly workspaceMode: WorkspaceMode;
   readonly isGitRepo: boolean;
   readonly isGitRepoKnown: boolean;
@@ -196,9 +176,6 @@ type NewTaskFlowContextValue = {
   readonly selectedBranchName: string | null;
   readonly defaultBaseBranchName: string | null;
   readonly selectedWorktreePath: string | null;
-  readonly resolveWorkspaceSelection: (
-    selection: ComposerDraftWorkspaceSelection | undefined,
-  ) => ComposerDraftWorkspaceSelection;
   readonly startFromOrigin: boolean;
   readonly pullRequestReference: string | undefined;
   readonly draftKey: string | null;
@@ -210,30 +187,23 @@ type NewTaskFlowContextValue = {
   readonly availableBranches: ReadonlyArray<VcsRef>;
   readonly currentCheckoutBranchName: string | null;
   readonly runtimeMode: RuntimeMode;
-  readonly expandedProvider: string | null;
   readonly environments: ReadonlyArray<{
     readonly environmentId: EnvironmentId;
     readonly environmentLabel: string;
   }>;
   readonly selectedProject: EnvironmentProject | null;
   readonly isScratchDraft: boolean;
-  readonly modelOptions: ReadonlyArray<ModelOption>;
   readonly selectedModel: ModelSelection | null;
   readonly selectedModelOption: ModelOption | null;
-  readonly selectedProviderStatus: ServerProvider | null;
   readonly providerGroups: ReadonlyArray<ProviderGroup>;
-  /** The flow key of the draft route this provider serves. */
   readonly flowKey: string;
+  /** Whether the stack serves this flow's route: it is the topmost draft route. */
+  readonly served: boolean;
   readonly setProject: (project: EnvironmentProject) => void;
   /** The flow's project, read when a continuation resumes after an await. */
   readonly getSelectedProjectKey: () => string | null;
-  /**
-   * The draft id of the route this flow serves when that draft, or its
-   * project, is gone. Only the topmost draft route is served, so a screen
-   * compares this with its own draft id.
-   */
-  readonly missingRouteDraftId: string | null;
-  readonly selectEnvironment: (environmentId: EnvironmentId) => void;
+  /** The route names a draft that is gone, or whose project is gone. */
+  readonly routeDraftMissing: boolean;
   readonly switchEnvironment: (environmentId: EnvironmentId) => Promise<boolean>;
   readonly switchingToEnvironmentId: EnvironmentId | null;
   /** An edited pending task with follow-ups queued behind it stays on its machine. */
@@ -245,7 +215,6 @@ type NewTaskFlowContextValue = {
   readonly setWorkspaceMode: (mode: WorkspaceMode) => void;
   readonly selectBranch: (branch: VcsRef) => void;
   readonly setStartFromOrigin: (value: boolean) => void;
-  readonly beginEditingPendingTask: (messageId: string) => boolean;
   readonly finishEditingPendingTask: () => void;
   readonly buildPendingTaskMessage: (
     metadata: TurnCommandMetadata,
@@ -255,34 +224,89 @@ type NewTaskFlowContextValue = {
     },
   ) => QueuedThreadMessage | null;
   readonly setPrompt: (value: string) => void;
-  readonly replaceAttachments: (attachments: ReadonlyArray<DraftComposerAttachment>) => void;
-  /** Appends draft attachments; returns how many the live cap rejected. */
-  readonly appendAttachments: (
-    attachments: ReadonlyArray<DraftComposerAttachment>,
-    insertion?: ComposerDraftInsertion,
-  ) => number;
   readonly removeAttachment: (imageId: string) => void;
-  readonly clearAttachments: () => void;
   readonly setSubmitting: (value: boolean) => void;
   readonly loadBranches: () => void;
   readonly setRuntimeMode: (value: RuntimeMode) => void;
   readonly setSelectedModelOptions: (
     value: ReadonlyArray<ProviderOptionSelection> | undefined,
   ) => void;
-  readonly setExpandedProvider: (value: string | null) => void;
 };
 
 const NewTaskFlowContext = React.createContext<NewTaskFlowContextValue | null>(null);
 
-export function NewTaskFlowProvider(
+interface ServedNewTaskRoute {
+  readonly route: NewTaskFlowRoute;
+  /** No live Thread covers the route. */
+  readonly active: boolean;
+}
+
+const ServedNewTaskRouteContext = React.createContext<ServedNewTaskRoute | null>(null);
+
+/**
+ * Names the topmost draft route on the stack. Its flow backs the pickers and
+ * overlays above it, and the thread list highlights it while it is active.
+ */
+export function ServedNewTaskRouteProvider(
   props: React.PropsWithChildren<{
-    active?: boolean;
-    /** Identifies the draft route this flow serves; a new key starts a fresh flow. */
-    flowKey?: string;
-    routeDraftId?: string;
-    routePendingTaskId?: string;
+    readonly route: { readonly key: string; readonly params?: object } | undefined;
+    readonly active: boolean;
   }>,
 ) {
+  const route = props.route === undefined ? undefined : newTaskFlowRoute(props.route);
+  const flow = useAtomValue(newTaskFlowStateAtom(route?.flowKey ?? INACTIVE_FLOW_KEY));
+  const served = route === undefined ? null : { route, active: props.active };
+  const pendingKey =
+    route !== undefined && props.active ? newTaskPendingKey(route, flow) : undefined;
+  const activeNewTask = pendingKey === undefined ? null : { pendingKey };
+  return (
+    <ServedNewTaskRouteContext value={served}>
+      <ActiveNewTaskContext value={activeNewTask}>{props.children}</ActiveNewTaskContext>
+    </ServedNewTaskRouteContext>
+  );
+}
+
+/** The flow of one draft Thread route, which owns its draft and pending-task edit. */
+export function NewTaskFlowProvider(
+  props: React.PropsWithChildren<{ readonly route: NewTaskFlowRoute }>,
+) {
+  const servedRoute = React.use(ServedNewTaskRouteContext);
+  const served = servedRoute?.route.flowKey === props.route.flowKey;
+  const value = useNewTaskFlowValue(props.route, {
+    owner: true,
+    served,
+    active: served && servedRoute?.active === true,
+  });
+  return <NewTaskFlowContext value={value}>{props.children}</NewTaskFlowContext>;
+}
+
+/** The draft route's own flow. */
+export function useNewTaskFlow() {
+  const value = React.use(NewTaskFlowContext);
+  if (value === null) {
+    throw new Error("useNewTaskFlow must be used within NewTaskFlowProvider.");
+  }
+  return value;
+}
+
+/** The served draft route's flow, for the pickers and overlays stacked above it. */
+export function useServedNewTaskFlow() {
+  const servedRoute = React.use(ServedNewTaskRouteContext);
+  return useNewTaskFlowValue(servedRoute?.route, {
+    owner: false,
+    served: servedRoute !== null,
+    active: servedRoute?.active === true,
+  });
+}
+
+/**
+ * Derives a flow from its stored state. Only the route's own provider owns the
+ * flow: it creates the draft and holds the pending-task edit while served.
+ */
+function useNewTaskFlowValue(
+  route: NewTaskFlowRoute | undefined,
+  instance: { readonly owner: boolean; readonly served: boolean; readonly active: boolean },
+): NewTaskFlowContextValue {
   const projects = useProjects();
   const threads = useThreadShells();
   const { savedConnectionsById } = useSavedRemoteConnections();
@@ -299,9 +323,12 @@ export function NewTaskFlowProvider(
     projectSortOrder: "updated_at",
   });
 
-  const flowKey = props.flowKey ?? INACTIVE_FLOW_KEY;
+  const flowKey = route?.flowKey ?? INACTIVE_FLOW_KEY;
+  const routePendingTaskId = route?.pendingTaskId;
   // A route editing a queued task never binds a draft by id.
-  const routeDraftId = props.routePendingTaskId === undefined ? props.routeDraftId : undefined;
+  const routeDraftId = routePendingTaskId === undefined ? route?.draftId : undefined;
+  const ownsSession = instance.owner && instance.served;
+  const createsDraft = instance.owner && instance.active;
   const storedFlowState = useAtomValue(newTaskFlowStateAtom(flowKey));
   const draftsLoaded = useAtomValue(composerDraftsLoadedAtom);
   // A draft route opened from a list row, a deep link, or restored state binds
@@ -346,7 +373,6 @@ export function NewTaskFlowProvider(
     projectKey: selectedProjectKey,
     draftKey: activeDraftKey,
     submitting,
-    expandedProvider,
   } = flowState;
   const editingPendingTask = flowState.editingPendingTask?.message ?? null;
   const switchingToEnvironmentId = flowState.environmentSwitch?.environmentId ?? null;
@@ -370,7 +396,6 @@ export function NewTaskFlowProvider(
     projects.some((project) => project.environmentId === selectedEnvironmentIdOverride)
       ? selectedEnvironmentIdOverride
       : (projects[0]?.environmentId ?? null);
-  const editingFlushRef = useRef<(() => void) | null>(null);
 
   const cancelEnvironmentSwitch = () => updateFlow({ environmentSwitch: null });
   const setSubmitting = (value: boolean) =>
@@ -495,21 +520,21 @@ export function NewTaskFlowProvider(
     : null;
   // A request belongs to the draft/project that started it, including when
   // catalog changes or unmounting replace that owner without a user action.
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- abandons the in-flight environment switch when its owning draft or project changes or the provider unmounts
-  useLayoutEffect(
-    () => () => {
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- abandons the in-flight environment switch when its owning draft or project changes, or the route stops being served or unmounts
+  useLayoutEffect(() => {
+    if (!ownsSession) return;
+    return () => {
       const request = readNewTaskFlowState(flowKey).environmentSwitch;
       if (request?.draftKey === selectedProjectDraftKey && request.projectKey === draftProjectKey) {
         updateNewTaskFlowState(flowKey, { environmentSwitch: null });
       }
-    },
-    [flowKey, selectedProjectDraftKey, draftProjectKey],
-  );
+    };
+  }, [flowKey, ownsSession, selectedProjectDraftKey, draftProjectKey]);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- creates the persistent draft in the new-task flow store once a project is selected
   useEffect(() => {
     // A route that names a draft binds that draft, or returns to the picker.
     if (
-      props.active === false ||
+      !createsDraft ||
       routeDraftId !== undefined ||
       activeDraftKey !== null ||
       editingPendingTask !== null ||
@@ -523,20 +548,7 @@ export function NewTaskFlowProvider(
         projectId: selectedProject.id,
       }),
     });
-  }, [activeDraftKey, editingPendingTask, flowKey, selectedProject, props.active, routeDraftId]);
-  const activePendingKey =
-    props.active === false
-      ? null
-      : props.routePendingTaskId
-        ? `pending-task:${props.routePendingTaskId}`
-        : routeDraftId
-          ? `draft-task:${routeDraftId}`
-          : editingPendingTask
-            ? `pending-task:${editingPendingTask.messageId}`
-            : selectedProjectDraftKey
-              ? `draft-task:${selectedProjectDraftKey}`
-              : null;
-  const activeNewTask = props.active === false ? null : { pendingKey: activePendingKey };
+  }, [activeDraftKey, createsDraft, editingPendingTask, flowKey, selectedProject, routeDraftId]);
   const selectedProjectDraft = useComposerDraft(selectedProjectDraftKey);
   const prompt = selectedProjectDraft.text;
   const attachments = selectedProjectDraft.attachments;
@@ -640,9 +652,6 @@ export function NewTaskFlowProvider(
     projectId: selectedProject?.id ?? null,
     now: modelSelectionNow,
   }).selection;
-  const selectedModelKey = selectedModel
-    ? `${selectedModel.instanceId}:${selectedModel.model}`
-    : null;
 
   const selectedModelOption =
     modelOptions.find(
@@ -650,10 +659,6 @@ export function NewTaskFlowProvider(
         selectedModel &&
         option.selection.instanceId === selectedModel.instanceId &&
         option.selection.model === selectedModel.model,
-    ) ?? null;
-  const selectedProviderStatus =
-    selectedEnvironmentServerConfig?.providers.find(
-      (provider) => provider.instanceId === selectedModel?.instanceId,
     ) ?? null;
   const setSelectedModelKey = (
     key: string | null,
@@ -698,35 +703,11 @@ export function NewTaskFlowProvider(
     }
     setComposerDraftText(selectedProjectDraftKey, value);
   };
-  const replaceAttachments = (nextAttachments: ReadonlyArray<DraftComposerAttachment>) => {
-    if (!selectedProjectDraftKey) {
-      return;
-    }
-    replaceComposerDraftAttachments(selectedProjectDraftKey, nextAttachments);
-  };
-  const appendAttachments = (
-    nextAttachments: ReadonlyArray<DraftComposerAttachment>,
-    insertion?: ComposerDraftInsertion,
-  ): number => {
-    if (!selectedProjectDraftKey) {
-      return 0;
-    }
-    return appendComposerDraftAttachments(selectedProjectDraftKey, nextAttachments, {
-      appendReference: true,
-      insertion,
-    });
-  };
   const removeAttachment = (imageId: string) => {
     if (!selectedProjectDraftKey) {
       return;
     }
     removeComposerDraftAttachment(selectedProjectDraftKey, imageId);
-  };
-  const clearAttachments = () => {
-    if (!selectedProjectDraftKey) {
-      return;
-    }
-    replaceComposerDraftAttachments(selectedProjectDraftKey, []);
   };
 
   // An edited pending task keeps its own draft; anything else gets a new-task draft.
@@ -1024,7 +1005,7 @@ export function NewTaskFlowProvider(
     hasQueuedFollowUps(queuedMessagesByThreadKey, editingPendingTask);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- ends the pending task edit once the thread outbox no longer holds the queued message
   useEffect(() => {
-    if (!editingPendingTask) {
+    if (!ownsSession || !editingPendingTask) {
       return;
     }
     const stillQueued = flattenQueuedThreadMessages(queuedMessagesByThreadKey).some(
@@ -1033,79 +1014,77 @@ export function NewTaskFlowProvider(
     if (!stillQueued) {
       finishEditingPendingTask();
     }
-  }, [editingPendingTask, finishEditingPendingTask, queuedMessagesByThreadKey]);
+  }, [editingPendingTask, finishEditingPendingTask, ownsSession, queuedMessagesByThreadKey]);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes a flush closure over the committed message builder to a ref read when the served route changes
-  useEffect(() => {
-    editingFlushRef.current = () => {
-      const session = readFlow().editingPendingTask;
-      if (!session) {
-        return;
-      }
-      const editing = session.message;
-      updateFlow({ editingPendingTask: null });
-      if (activeEditingMessageId === editing.messageId) {
-        activeEditingMessageId = null;
-      }
-      pauseEditingQueuedMessage(editing.messageId);
+  const navigation = useNavigation();
+  const openEditingSession = useEffectEvent((messageId: string) => {
+    if (!beginEditingPendingTask(messageId)) {
+      navigation.dispatch(CommonActions.navigate("NewTaskProject"));
+    }
+  });
+  const saveEditingSession = useEffectEvent(() => {
+    const session = readFlow().editingPendingTask;
+    if (!session) {
+      return;
+    }
+    const editing = session.message;
+    updateFlow({ editingPendingTask: null });
+    if (activeEditingMessageId === editing.messageId) {
+      activeEditingMessageId = null;
+    }
+    pauseEditingQueuedMessage(editing.messageId);
 
-      const message = buildPendingTaskMessage({
-        threadId: editing.threadId,
-        commandId: editing.commandId,
-        messageId: editing.messageId,
-        createdAt: editing.createdAt,
-      });
+    const message = buildPendingTaskMessage({
+      threadId: editing.threadId,
+      commandId: editing.commandId,
+      messageId: editing.messageId,
+      createdAt: editing.createdAt,
+    });
 
-      if (!message) {
-        // The edits are currently unsendable (e.g. the prompt was cleared).
-        // Keep both the draft and the drain lock: the stale queued payload
-        // must not auto-send content the user just removed, and reopening the
-        // task resumes from the saved draft.
-        return;
-      }
+    if (!message) {
+      // The edits are currently unsendable (e.g. the prompt was cleared).
+      // Keep both the draft and the drain lock: the stale queued payload
+      // must not auto-send content the user just removed, and reopening the
+      // task resumes from the saved draft.
+      return;
+    }
 
-      // The write handoff lets a reopened editor follow this editor's pending
-      // save. Its CAS still rejects unrelated queue edits, deletes, and
-      // deliveries, so the flush cannot resurrect or overwrite them.
-      void flushPendingTaskEditorWrite({
-        message,
-        baseline: session.baseline,
-        draftKey: pendingTaskDraftKey(editing.messageId),
+    // The write handoff lets a reopened editor follow this editor's pending
+    // save. Its CAS still rejects unrelated queue edits, deletes, and
+    // deliveries, so the flush cannot resurrect or overwrite them.
+    void flushPendingTaskEditorWrite({
+      message,
+      baseline: session.baseline,
+      draftKey: pendingTaskDraftKey(editing.messageId),
+    })
+      .then((savedDraftStillCurrent) => {
+        if (activeEditingMessageId === editing.messageId) {
+          return;
+        }
+        if (!savedDraftStillCurrent) {
+          return;
+        }
+        clearComposerDraft(pendingTaskDraftKey(editing.messageId));
+        releaseEditingQueuedMessage(editing.messageId);
+        scheduleUnusedComposerAttachmentCleanup(editing.attachments);
       })
-        .then((savedDraftStillCurrent) => {
-          if (activeEditingMessageId === editing.messageId) {
-            return;
-          }
-          if (!savedDraftStillCurrent) {
-            return;
-          }
-          clearComposerDraft(pendingTaskDraftKey(editing.messageId));
-          releaseEditingQueuedMessage(editing.messageId);
-          scheduleUnusedComposerAttachmentCleanup(editing.attachments);
-        })
-        .catch((error) => {
-          // Keep the drain lock and the draft: delivering the stale payload
-          // would silently drop the newer edits. Reopening the task retries.
-          console.warn("[new-task] failed to save edited pending task", error);
-        });
-    };
-  }, [buildPendingTaskMessage, readFlow, updateFlow]);
-  // Only the served route holds an editing session: moving to another draft
-  // route or unmounting saves it as leaving the editor would.
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- saves the served route's pending task edit to the thread outbox when the provider serves another route or unmounts
+      .catch((error) => {
+        // Keep the drain lock and the draft: delivering the stale payload
+        // would silently drop the newer edits. Reopening the task retries.
+        console.warn("[new-task] failed to save edited pending task", error);
+      });
+  });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- edits the route's queued task while the stack serves the route, saving it when another draft route covers this one or it leaves, and resuming when it is served again
   useEffect(() => {
-    const servedFlowKey = flowKey;
-    return () => {
-      if (readNewTaskFlowState(servedFlowKey).editingPendingTask) editingFlushRef.current?.();
-    };
-  }, [flowKey]);
+    if (!ownsSession || !routePendingTaskId) return;
+    openEditingSession(routePendingTaskId);
+    return () => saveEditingSession();
+  }, [ownsSession, routePendingTaskId]);
 
-  const value = {
-    activeNewTask,
+  return {
     projectScopes,
     selectedEnvironmentId,
     selectedProjectKey,
-    selectedModelKey,
     workspaceMode,
     isGitRepo,
     isGitRepoKnown: knownIsGitRepo !== null,
@@ -1113,7 +1092,6 @@ export function NewTaskFlowProvider(
     selectedBranchName,
     defaultBaseBranchName,
     selectedWorktreePath,
-    resolveWorkspaceSelection,
     startFromOrigin,
     draftKey: selectedProjectDraftKey,
     pullRequestReference: selectedProjectDraft.workspaceSelection?.pullRequestReference,
@@ -1125,20 +1103,17 @@ export function NewTaskFlowProvider(
     availableBranches,
     currentCheckoutBranchName,
     runtimeMode,
-    expandedProvider,
     environments,
     selectedProject,
     isScratchDraft,
-    modelOptions,
     selectedModel,
     selectedModelOption,
-    selectedProviderStatus,
     providerGroups,
     flowKey,
+    served: instance.served,
     setProject,
     getSelectedProjectKey: () => readFlow().projectKey,
-    missingRouteDraftId: routeDraftResolution.kind === "missing" ? (routeDraftId ?? null) : null,
-    selectEnvironment,
+    routeDraftMissing: routeDraftResolution.kind === "missing",
     switchEnvironment,
     switchingToEnvironmentId,
     environmentPinned,
@@ -1146,32 +1121,13 @@ export function NewTaskFlowProvider(
     setWorkspaceMode,
     selectBranch,
     setStartFromOrigin,
-    beginEditingPendingTask,
     finishEditingPendingTask,
     buildPendingTaskMessage,
     setPrompt,
-    replaceAttachments,
-    appendAttachments,
     removeAttachment,
-    clearAttachments,
     setSubmitting,
     loadBranches,
     setRuntimeMode,
     setSelectedModelOptions,
-    setExpandedProvider: (value: string | null) => updateFlow({ expandedProvider: value }),
-  } satisfies NewTaskFlowContextValue;
-
-  return (
-    <ActiveNewTaskContext value={activeNewTask}>
-      <NewTaskFlowContext.Provider value={value}>{props.children}</NewTaskFlowContext.Provider>
-    </ActiveNewTaskContext>
-  );
-}
-
-export function useNewTaskFlow() {
-  const value = React.use(NewTaskFlowContext);
-  if (value === null) {
-    throw new Error("useNewTaskFlow must be used within NewTaskFlowProvider.");
-  }
-  return value;
+  };
 }

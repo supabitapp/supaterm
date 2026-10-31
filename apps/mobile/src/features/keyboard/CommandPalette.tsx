@@ -64,7 +64,7 @@ import { useWorkspaceEnvironments } from "../../state/workspace";
 import { useSavedRemoteConnections } from "../../state/use-remote-environment-registry";
 import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
-import { useNewTaskFlow } from "../threads/new-task-flow-provider";
+import { useServedNewTaskFlow } from "../threads/new-task-flow-provider";
 import { ThreadSearchMatchExcerpt } from "../threads/thread-search-match";
 import { pickTriageEnvironment } from "../triage/triageTarget";
 import { useStartTriage } from "../triage/useStartTriage";
@@ -287,7 +287,7 @@ export function CommandPalette(props: {
   );
   const serverConfigs = useServerConfigs();
   const { startTriage } = useStartTriage();
-  const newTaskFlow = useNewTaskFlow();
+  const newTaskFlow = useServedNewTaskFlow();
   const draftEnvironmentId =
     useActiveNewTask() === null ? null : (newTaskFlow.selectedProject?.environmentId ?? null);
   const triageEnvironmentId = pickTriageEnvironment({

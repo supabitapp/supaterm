@@ -41,7 +41,7 @@ import {
   NATIVE_MAIL_SEARCH_TOOLBAR_CONTENT_INSET,
 } from "../layout/native-mail-search-toolbar";
 import { useNativeMailSearchToolbar } from "../../native/use-native-mail-search-toolbar";
-import { branchBadgeLabel, useNewTaskFlow } from "./new-task-flow-provider";
+import { useServedNewTaskFlow } from "./new-task-flow-provider";
 import { checkoutNewTaskBranch } from "./checkout-new-task-branch";
 import { filterNewTaskBranches } from "./new-task-context-presentation";
 import { useDebouncedValue, usePaginatedBranches } from "../../state/queries";
@@ -183,7 +183,7 @@ function PickerSurface(props: { readonly children: ReactNode }) {
 }
 
 export function NewTaskEnvironmentPickerRouteScreen() {
-  const flow = useNewTaskFlow();
+  const flow = useServedNewTaskFlow();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   return (
@@ -236,7 +236,7 @@ export function NewTaskEnvironmentPickerRouteScreen() {
 }
 
 export function NewTaskBranchPickerRouteScreen() {
-  const flow = useNewTaskFlow();
+  const flow = useServedNewTaskFlow();
   const canWriteSourceControl = useEnvironmentScope(
     flow.selectedProject?.environmentId ?? null,
     AuthSourceControlWriteScope,
@@ -347,6 +347,25 @@ export function NewTaskBranchPickerRouteScreen() {
       }
     />
   );
+}
+
+function branchBadgeLabel(input: {
+  readonly branch: VcsRef;
+  readonly project: EnvironmentProject | null;
+}): string | null {
+  if (input.branch.current) {
+    return "current";
+  }
+  if (input.branch.worktreePath && input.branch.worktreePath !== input.project?.workspaceRoot) {
+    return "worktree";
+  }
+  if (input.branch.isRemote) {
+    return "remote";
+  }
+  if (input.branch.isDefault) {
+    return "default";
+  }
+  return null;
 }
 
 export function BranchPickerScreen(props: {

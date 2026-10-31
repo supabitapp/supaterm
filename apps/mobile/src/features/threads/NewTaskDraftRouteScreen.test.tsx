@@ -57,6 +57,9 @@ vi.mock("../../native/StackHeader", () => ({ NativeStackScreenOptions: () => nul
 vi.mock("./ThreadScreenHost", () => ({
   ThreadScreenFallback: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
+vi.mock("./new-task-flow-provider", () => ({
+  NewTaskFlowProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
 vi.mock("./NewTaskDraftScreen", () => ({
   NewTaskDraftScreen: (props: { initialProjectRef: { branch?: string | null } }) => {
     harness.draftProjectRefs.push(props.initialProjectRef);

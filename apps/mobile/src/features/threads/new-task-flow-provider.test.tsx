@@ -29,12 +29,17 @@ import {
 } from "../../state/use-thread-outbox";
 import { buildPendingQueuedTasks } from "../../state/pending-new-tasks-model";
 import { usePendingTaskListActions } from "../home/usePendingTaskListActions";
-import { NewTaskFlowProvider, useNewTaskFlow } from "./new-task-flow-provider";
-import { pruneNewTaskFlowStates } from "./new-task-flow-state";
+import {
+  NewTaskFlowProvider,
+  ServedNewTaskRouteProvider,
+  useNewTaskFlow,
+} from "./new-task-flow-provider";
+import { draftFlowRoute, pruneNewTaskFlowStates } from "./new-task-flow-state";
 
 const transport = vi.hoisted(() => ({
   openScratch: vi.fn(),
   navigate: vi.fn(),
+  dispatch: vi.fn(),
   goBack: vi.fn(),
   navigationState: vi.fn(),
   openScratchCommand: Symbol(),
@@ -47,8 +52,10 @@ vi.mock("expo-haptics", () => ({
   ImpactFeedbackStyle: { Light: "light" },
 }));
 vi.mock("@react-navigation/native", () => ({
+  CommonActions: { navigate: (name: string) => ({ type: "NAVIGATE", payload: { name } }) },
   useNavigation: () => ({
     navigate: transport.navigate,
+    dispatch: transport.dispatch,
     getState: transport.navigationState,
     goBack: transport.goBack,
     canGoBack: () => true,
@@ -277,37 +284,73 @@ const pendingTask: QueuedThreadMessage = {
   },
 };
 
+type NewTaskFlow = ReturnType<typeof useNewTaskFlow>;
+interface TestDraftRoute {
+  readonly key: string;
+  readonly draft: {
+    readonly requestId: string;
+    readonly draftId?: string;
+    readonly pendingTaskId?: string;
+  };
+}
+
 let renderer: ReactTestRenderer | null = null;
-let flow: ReturnType<typeof useNewTaskFlow>;
+let stack: ReadonlyArray<TestDraftRoute> = [];
+const routeFlows = new Map<string, NewTaskFlow>();
+/** The topmost draft route's flow. */
+let flow: NewTaskFlow;
 let pendingActions: ReturnType<typeof usePendingTaskListActions>;
-function Probe() {
+function Probe(props: { readonly routeKey: string; readonly top: boolean }) {
   const current = useNewTaskFlow();
   const actions = usePendingTaskListActions();
   useLayoutEffect(() => {
-    flow = current;
-    pendingActions = actions;
-  }, [actions, current]);
+    routeFlows.set(props.routeKey, current);
+    if (props.top) {
+      flow = current;
+      pendingActions = actions;
+    }
+  }, [actions, current, props.routeKey, props.top]);
   return null;
 }
-let routeCount = 0;
-function draftRoute(routeDraftId?: string, flowKey = `route-${++routeCount}`) {
+// Draft routes stay mounted under the ones pushed above them, as on the native stack.
+function draftStack(routes: ReadonlyArray<TestDraftRoute>) {
+  stack = routes;
+  const top = routes.at(-1);
   return (
     <RegistryContext.Provider value={appAtomRegistry}>
-      <NewTaskFlowProvider flowKey={flowKey} {...(routeDraftId ? { routeDraftId } : {})}>
-        <Probe />
-      </NewTaskFlowProvider>
+      <ServedNewTaskRouteProvider
+        route={top && { key: top.key, params: { draft: top.draft } }}
+        active
+      >
+        {routes.map((route) => (
+          <NewTaskFlowProvider key={route.key} route={draftFlowRoute(route.key, route.draft)}>
+            <Probe routeKey={route.key} top={route === top} />
+          </NewTaskFlowProvider>
+        ))}
+      </ServedNewTaskRouteProvider>
     </RegistryContext.Provider>
   );
 }
-// The provider serves the topmost draft route; pushing another one moves it to a new flow.
-function serveNextDraftRoute(routeDraftId?: string) {
-  renderer!.update(draftRoute(routeDraftId));
+let routeCount = 0;
+function draftRoute(draft?: { readonly draftId?: string; readonly pendingTaskId?: string }) {
+  const key = `route-${++routeCount}`;
+  return { key, draft: { requestId: key, ...draft } };
+}
+function pushDraftRoute(draft?: Parameters<typeof draftRoute>[0]) {
+  renderer!.update(draftStack([...stack, draftRoute(draft)]));
+}
+function popDraftRoute() {
+  renderer!.update(draftStack(stack.slice(0, -1)));
+}
+function coveredFlow(index = stack.length - 2): NewTaskFlow {
+  return routeFlows.get(stack[index]!.key)!;
 }
 beforeEach(async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   pruneNewTaskFlowStates({ routes: [] });
   transport.openScratch.mockReset();
   transport.navigate.mockReset();
+  transport.dispatch.mockReset();
   transport.goBack.mockReset();
   transport.navigationState.mockReset();
   transport.editorWrite.mockReset().mockResolvedValue(true);
@@ -323,7 +366,7 @@ beforeEach(async () => {
   appAtomRegistry.set(queueAtom, {});
   appAtomRegistry.set(editingQueuedMessageIdsAtom, {});
   await act(() => {
-    renderer = create(draftRoute());
+    renderer = create(draftStack([draftRoute()]));
   });
   await act(() => flow.setPrompt("Work in the selected environment"));
 });
@@ -359,10 +402,9 @@ function deletePendingTask() {
 
 describe("pending task editor dismissal", () => {
   beforeEach(async () => {
-    await act(() => {
-      appAtomRegistry.set(queueAtom, { queued: [pendingTask] });
-      expect(flow.beginEditingPendingTask(pendingTask.messageId)).toBe(true);
-    });
+    appAtomRegistry.set(queueAtom, { queued: [pendingTask] });
+    await act(() => pushDraftRoute({ pendingTaskId: pendingTask.messageId }));
+    expect(flow.editingPendingTask?.messageId).toBe(pendingTask.messageId);
   });
 
   it("opens a queued creation's reserved thread from the list", () => {
@@ -375,7 +417,7 @@ describe("pending task editor dismissal", () => {
   });
 
   it("leaves the local thread after cancelling its pending creation", async () => {
-    await act(() => serveNextDraftRoute());
+    await act(() => pushDraftRoute());
     transport.navigationState.mockReturnValue({
       routes: [
         {
@@ -391,9 +433,9 @@ describe("pending task editor dismissal", () => {
   it("deletes a closed editor's unsendable draft without delivering the old prompt", async () => {
     const draftKey = flow.draftKey!;
     await act(() => flow.setPrompt(""));
-    await act(() => serveNextDraftRoute());
+    await act(() => pushDraftRoute());
 
-    expect(flow.editingPendingTask).toBeNull();
+    expect(coveredFlow().editingPendingTask).toBeNull();
     expect(readDraft(draftKey).text).toBe("");
     expect(appAtomRegistry.get(editingQueuedMessageIdsAtom)[pendingTask.messageId]).toBe("paused");
     expect(appAtomRegistry.get(queueAtom).queued).toEqual([pendingTask]);
@@ -415,21 +457,21 @@ describe("pending task editor dismissal", () => {
     expect(flow.prompt).toBe(pendingTask.text);
   });
 
-  it("saves an edited pending task when the provider moves to the next draft route", async () => {
+  it("saves an edited pending task when another draft route covers it", async () => {
     await act(() => flow.setPrompt("Changed prompt"));
-    await act(() => serveNextDraftRoute());
+    await act(() => pushDraftRoute());
 
-    expect(flow.editingPendingTask).toBeNull();
+    expect(coveredFlow().editingPendingTask).toBeNull();
     expect(transport.editorWrite).toHaveBeenCalledWith(
       expect.objectContaining({ message: expect.objectContaining({ text: "Changed prompt" }) }),
     );
   });
 
-  it("keeps a cleared pending task held when the provider moves to the next draft route", async () => {
+  it("keeps a cleared pending task held when another draft route covers it", async () => {
     await act(() => flow.setPrompt(""));
-    await act(() => serveNextDraftRoute());
+    await act(() => pushDraftRoute());
 
-    expect(flow.editingPendingTask).toBeNull();
+    expect(coveredFlow().editingPendingTask).toBeNull();
     expect(transport.editorWrite).not.toHaveBeenCalled();
     expect(appAtomRegistry.get(editingQueuedMessageIdsAtom)[pendingTask.messageId]).toBe("paused");
   });
@@ -437,24 +479,27 @@ describe("pending task editor dismissal", () => {
   it("reopens retained edits after a failed save", async () => {
     transport.editorWrite.mockResolvedValueOnce(false);
     await act(() => flow.setPrompt("Changed prompt"));
-    await act(() => serveNextDraftRoute());
+    await act(() => pushDraftRoute());
     expect(appAtomRegistry.get(editingQueuedMessageIdsAtom)[pendingTask.messageId]).toBe("paused");
 
-    await act(() => {
-      expect(flow.beginEditingPendingTask(pendingTask.messageId)).toBe(true);
-    });
+    await act(() => popDraftRoute());
+    expect(flow.editingPendingTask?.messageId).toBe(pendingTask.messageId);
     expect(flow.prompt).toBe("Changed prompt");
     expect(holdDeletingQueuedMessage(pendingTask.messageId)).toBe(false);
-    await act(() => serveNextDraftRoute());
+    await act(() => pushDraftRoute());
     expect(appAtomRegistry.get(editingQueuedMessageIdsAtom)[pendingTask.messageId]).toBeUndefined();
   });
 
   it("does not let a dismissed editor's save release a deletion in progress", async () => {
     const save = Promise.withResolvers<boolean>();
     transport.editorWrite.mockReturnValueOnce(save.promise);
-    await act(() => serveNextDraftRoute());
+    await act(() => pushDraftRoute());
     expect(holdDeletingQueuedMessage(pendingTask.messageId)).toBe(true);
-    expect(flow.beginEditingPendingTask(pendingTask.messageId)).toBe(false);
+    await act(() => popDraftRoute());
+    expect(flow.editingPendingTask).toBeNull();
+    expect(transport.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ payload: { name: "NewTaskProject" } }),
+    );
     await act(() => save.resolve(true));
     expect(holdEditingQueuedMessage(pendingTask.messageId)).toBe(false);
 
@@ -465,29 +510,40 @@ describe("pending task editor dismissal", () => {
   it("restores the stale-send hold when deleting retained edits fails", async () => {
     transport.removePendingTask.mockRejectedValueOnce(new Error("Outbox storage unavailable"));
     await act(() => flow.setPrompt(""));
-    await act(() => serveNextDraftRoute());
+    await act(() => pushDraftRoute());
     await act(async () => deletePendingTask());
     expect(appAtomRegistry.get(editingQueuedMessageIdsAtom)[pendingTask.messageId]).toBe("paused");
     expect(appAtomRegistry.get(queueAtom).queued).toEqual([pendingTask]);
     expect(vi.mocked(Alert.alert).mock.calls.at(-1)?.[0]).toBe("Could not delete pending task");
-    await act(() => {
-      expect(flow.beginEditingPendingTask(pendingTask.messageId)).toBe(true);
-    });
+    await act(() => popDraftRoute());
+    expect(flow.editingPendingTask?.messageId).toBe(pendingTask.messageId);
     expect(flow.prompt).toBe("");
   });
 });
 
-it("returns to a covered draft route's own project and draft", async () => {
-  const coveredRoute = `route-${routeCount}`;
+it("keeps a covered draft route on its own draft, project, and submission", async () => {
   await act(() => flow.setProject(repositoryProject));
   const coveredDraft = flow.draftKey;
-  await act(() => serveNextDraftRoute());
+  await act(() => pushDraftRoute());
+  await act(() => {
+    flow.setProject(secondProject);
+    flow.setSubmitting(true);
+  });
   expect(flow.draftKey).not.toBe(coveredDraft);
+  expect(coveredFlow()).toMatchObject({
+    served: false,
+    draftKey: coveredDraft,
+    selectedProject: repositoryProject,
+    submitting: false,
+    prompt: "Work in the selected environment",
+  });
 
-  await act(() => renderer!.update(draftRoute(undefined, coveredRoute)));
-  expect(flow.selectedProject).toBe(repositoryProject);
-  expect(flow.draftKey).toBe(coveredDraft);
-  expect(flow.prompt).toBe("Work in the selected environment");
+  await act(() => popDraftRoute());
+  expect(flow).toMatchObject({
+    served: true,
+    draftKey: coveredDraft,
+    selectedProject: repositoryProject,
+  });
 });
 
 describe("new-task environment switching", () => {
@@ -517,7 +573,7 @@ describe("new-task environment switching", () => {
       await act(() => {
         switch (action) {
           case "next route":
-            serveNextDraftRoute();
+            pushDraftRoute();
             break;
           case "project":
             flow.setProject(repositoryProject);
@@ -528,12 +584,12 @@ describe("new-task environment switching", () => {
               projectId: repositoryProject.id,
             });
             updateDraft(other, { text: "Other draft" });
-            serveNextDraftRoute(other);
+            pushDraftRoute({ draftId: other });
             break;
           }
           case "pending-task":
             appAtomRegistry.set(queueAtom, { queued: [pendingTask] });
-            expect(flow.beginEditingPendingTask(pendingTask.messageId)).toBe(true);
+            pushDraftRoute({ pendingTaskId: pendingTask.messageId });
             break;
           case "submission":
             flow.setSubmitting(true);

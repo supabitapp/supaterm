@@ -84,7 +84,7 @@ import { useThreadSelection } from "../../state/use-thread-selection";
 import { threadAllowsProviderSwitch } from "../../state/thread-provider-switching";
 import { environmentServerConfigsAtom, serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
-import { useNewTaskFlow } from "./new-task-flow-provider";
+import { useServedNewTaskFlow } from "./new-task-flow-provider";
 import { ScreenContent } from "../../components/ui/ScreenContent";
 import {
   createProviderCatalogRefreshRunner,
@@ -1581,7 +1581,7 @@ export function ExistingThreadSettingsRouteScreen({
  * while choice submenus remain regular pushes inside this navigator.
  */
 export function NewTaskThreadSettingsRouteScreen() {
-  const flow = useNewTaskFlow();
+  const flow = useServedNewTaskFlow();
   const navigation = useNavigation<NativeStackNavigationProp<Record<string, object | undefined>>>();
   const optionDescriptors = resolveProviderOptionDescriptors({
     capabilities: flow.selectedModelOption?.capabilities,

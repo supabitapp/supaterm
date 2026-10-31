@@ -92,7 +92,6 @@ import {
 } from "./new-task-context-presentation";
 import { incomingShareImports, useIncomingShare } from "../sharing/IncomingShareProvider";
 import { idleShareFlagAtom, idleShareImportPhaseAtom } from "./incomingShareImport";
-import { newTaskFlowKey } from "./new-task-flow-state";
 import { scopedProjectKey } from "../../lib/scopedEntities";
 import { appAtomRegistry } from "../../state/atom-registry";
 
@@ -169,9 +168,8 @@ export function NewTaskDraftScreen(props: {
     [heldDraftKey],
   );
   const currentRoute = useRoute();
-  const flowKey = newTaskFlowKey(currentRoute);
   const { getShare, isLoading: isIncomingShareInboxLoading } = useIncomingShare();
-  const { projectScopes, selectedProject, selectedProjectKey, setProject } = flow;
+  const { flowKey, projectScopes, selectedProject, selectedProjectKey, setProject } = flow;
   const selectedProjectLabel = (() => {
     if (!selectedProject) return null;
     const scope = projectScopes.find((candidate) =>
@@ -292,16 +290,14 @@ export function NewTaskDraftScreen(props: {
   }
   // A route naming a draft that is gone, or whose project is gone, also
   // returns to the picker.
-  const isRouteDraftMissing =
-    props.draftId !== undefined && flow.missingRouteDraftId === props.draftId;
   const isProjectPickerReturnActive =
-    (isReturningToProjectPicker && !requestedInitialProjectAvailable) || isRouteDraftMissing;
+    (isReturningToProjectPicker && !requestedInitialProjectAvailable) || flow.routeDraftMissing;
   const isIncomingShareAwaitingServerConfig = Boolean(
     incomingShare?.attachments.some((attachment) => attachment.type === "file") &&
     selectedEnvironmentServerConfig === null,
   );
   const routeImportedShare = useAtomValue(
-    flowKey !== undefined && props.incomingShareId
+    props.incomingShareId
       ? incomingShareImports.importedAtom(flowKey, props.incomingShareId)
       : idleShareFlagAtom,
   );
@@ -318,7 +314,7 @@ export function NewTaskDraftScreen(props: {
     !hasImportedIncomingShare,
   );
   const shareImportTarget = (() => {
-    if (!props.incomingShareId || flowKey === undefined || !flow.draftKey) return null;
+    if (!props.incomingShareId || !flow.draftKey) return null;
     if (!selectedProject || !incomingShare || isIncomingShareAwaitingServerConfig) return null;
     const initialEnvironmentId = props.initialProjectRef?.environmentId;
     const initialProjectId = props.initialProjectRef?.projectId;
@@ -348,9 +344,7 @@ export function NewTaskDraftScreen(props: {
   );
   // Locks on the route, not the target: the target turns null when server config
   // drops or the project stops matching, while the import keeps writing the draft.
-  const isImportingShare = useAtomValue(
-    flowKey === undefined ? idleShareFlagAtom : incomingShareImports.inFlightAtom(flowKey),
-  );
+  const isImportingShare = useAtomValue(incomingShareImports.inFlightAtom(flowKey));
   const isIncomingShareTransferPending = Boolean(
     incomingShare && shareImportPhase !== "cancelled" && !isIncomingShareAwaitingServerConfig,
   );
@@ -372,7 +366,9 @@ export function NewTaskDraftScreen(props: {
     if (next !== null) void switchEnvironment(next);
     return true;
   };
-  const cycleEnvironmentCommands = environments.length > 1 ? (["cycleHost"] as const) : [];
+  // Covered draft routes stay mounted; only the served one takes the shortcut.
+  const cycleEnvironmentCommands =
+    flow.served && environments.length > 1 ? (["cycleHost"] as const) : [];
   useHardwareKeyboardCommand(cycleEnvironmentCommands, cycleEnvironment);
   const composerWorkspaceCwd =
     (flow.workspaceMode === "worktree"
@@ -399,35 +395,6 @@ export function NewTaskDraftScreen(props: {
     });
     return () => cancelAnimationFrame(frame);
   }, [isProjectPickerReturnActive, navigation, props.incomingShareId]);
-  const { beginEditingPendingTask, editingPendingTask } = flow;
-  // A covered draft route sees the topmost route's flow; only the served route edits its task.
-  const servesThisRoute = flowKey !== undefined && flow.flowKey === flowKey;
-  const attemptedPendingTaskIdRef = useRef<string | null>(null);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- starts editing the route's pending task each time the flow serves this route, or navigates to the project picker when it is gone
-  useEffect(() => {
-    if (!servesThisRoute) {
-      // The provider saved this route's edit when it moved on; resume it on return.
-      attemptedPendingTaskIdRef.current = null;
-      return;
-    }
-    if (!props.pendingTaskId || editingPendingTask?.messageId === props.pendingTaskId) {
-      return;
-    }
-    if (attemptedPendingTaskIdRef.current === props.pendingTaskId) {
-      return;
-    }
-    attemptedPendingTaskIdRef.current = props.pendingTaskId;
-    if (!beginEditingPendingTask(props.pendingTaskId)) {
-      navigation.dispatch(CommonActions.navigate("NewTaskProject"));
-    }
-  }, [
-    beginEditingPendingTask,
-    editingPendingTask?.messageId,
-    navigation,
-    props.pendingTaskId,
-    servesThisRoute,
-  ]);
-
   const lastInitialProjectRefRef = useRef(props.initialProjectRef);
   const initialPickerRef = useRef<"open" | "dismissed" | null>(null);
 

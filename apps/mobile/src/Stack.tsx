@@ -87,8 +87,7 @@ import {
   ExistingThreadSettingsRouteScreen,
   NewTaskThreadSettingsRouteScreen,
 } from "./features/threads/ThreadSettingsSheet";
-import { NewTaskFlowProvider } from "./features/threads/new-task-flow-provider";
-import { newTaskFlowKey } from "./features/threads/new-task-flow-state";
+import { ServedNewTaskRouteProvider } from "./features/threads/new-task-flow-provider";
 import { NewTaskRouteScreen } from "./features/threads/NewTaskRouteScreen";
 import { SettingsAppearanceRouteScreen } from "./features/settings/SettingsAppearanceRouteScreen";
 import { useAppearancePreferences } from "./features/settings/appearance/AppearancePreferencesProvider";
@@ -515,31 +514,14 @@ function RootStackLayout(props: {
   // thread beneath overlay sheets.
   const pathname = rootPathnameFromState(props.state);
   const workspaceLocation = workspaceLocationFromState(props.state);
-  // The flow follows the draft route even while a pushed Thread covers it, so
-  // its state lives exactly as long as the route.
+  // The topmost draft route stays served while a pushed live Thread covers it.
   const draftRoute = props.state.routes.findLast(isDraftThreadRoute);
   const draftRouteOnTop =
     draftRoute !== undefined &&
     props.state.routes.findLast((route) => route.name === "Thread") === draftRoute;
-  const draftParams = (
-    draftRoute?.params as
-      | { draft?: { draftId?: string | string[]; pendingTaskId?: string | string[] } }
-      | undefined
-  )?.draft;
-  const routeDraftId = Array.isArray(draftParams?.draftId)
-    ? draftParams.draftId[0]
-    : draftParams?.draftId;
-  const routePendingTaskId = Array.isArray(draftParams?.pendingTaskId)
-    ? draftParams.pendingTaskId[0]
-    : draftParams?.pendingTaskId;
 
   return (
-    <NewTaskFlowProvider
-      active={draftRouteOnTop}
-      flowKey={draftRoute === undefined ? undefined : newTaskFlowKey(draftRoute)}
-      routeDraftId={routeDraftId}
-      routePendingTaskId={routePendingTaskId}
-    >
+    <ServedNewTaskRouteProvider route={draftRoute} active={draftRouteOnTop}>
       <HardwareKeyboardCommandProvider pathname={pathname}>
         <RunningThreadKeepAlive />
         <ShowcaseReadyMarker />
@@ -556,7 +538,7 @@ function RootStackLayout(props: {
           </AdaptiveWorkspaceLayout>
         </AndroidWorkspaceTabsProvider>
       </HardwareKeyboardCommandProvider>
-    </NewTaskFlowProvider>
+    </ServedNewTaskRouteProvider>
   );
 }
 

@@ -24,7 +24,7 @@ describe("new task flow state", () => {
     const flowA = newTaskFlowKey(routeA)!;
     const flowB = newTaskFlowKey(routeB)!;
 
-    // The provider subscribes to A, writes its selection, then moves to B.
+    // A's flow outlives its subscriber while B is pushed above it.
     const unmountA = appAtomRegistry.mount(newTaskFlowStateAtom(flowA));
     updateNewTaskFlowState(flowA, { projectKey: "env:project-a", draftKey: "draft-a" });
     unmountA();

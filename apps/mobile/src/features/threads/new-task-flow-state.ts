@@ -13,16 +13,46 @@ import {
   type NewTaskDraftRouteParams,
 } from "./thread-route-state";
 
-/** The flow a provider serves while no draft route is on the stack. */
+/** The flow the shared pickers read while no draft route is on the stack. */
 export const INACTIVE_FLOW_KEY = "inactive";
 
-/** The flow key for a draft Thread route: its key plus the draft it opened. */
+/** A draft Thread route as its new-task flow sees it. */
+export interface NewTaskFlowRoute {
+  /** The route key plus the draft it opened; a new draft starts a fresh flow. */
+  readonly flowKey: string;
+  readonly draftId: string | undefined;
+  readonly pendingTaskId: string | undefined;
+}
+
+export function draftFlowRoute(routeKey: string, draft: NewTaskDraftRouteParams): NewTaskFlowRoute {
+  const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
+  return {
+    flowKey: `${routeKey}:${draftRouteIdentity(draft)}`,
+    draftId: first(draft.draftId),
+    pendingTaskId: first(draft.pendingTaskId),
+  };
+}
+
+export function newTaskFlowRoute(route: {
+  readonly key: string;
+  readonly params?: object;
+}): NewTaskFlowRoute | undefined {
+  const draft = (route.params as { draft?: NewTaskDraftRouteParams } | undefined)?.draft;
+  return draft ? draftFlowRoute(route.key, draft) : undefined;
+}
+
 export function newTaskFlowKey(route: {
   readonly key: string;
   readonly params?: object;
 }): string | undefined {
-  const draft = (route.params as { draft?: NewTaskDraftRouteParams } | undefined)?.draft;
-  return draft ? `${route.key}:${draftRouteIdentity(draft)}` : undefined;
+  return newTaskFlowRoute(route)?.flowKey;
+}
+
+/** The thread list row a draft route stands for. */
+export function newTaskPendingKey(route: NewTaskFlowRoute, flow: NewTaskFlowState): string | null {
+  if (route.pendingTaskId) return `pending-task:${route.pendingTaskId}`;
+  if (route.draftId) return `draft-task:${route.draftId}`;
+  return flow.draftKey ? `draft-task:${flow.draftKey}` : null;
 }
 
 export interface PendingTaskEditSession {
@@ -43,7 +73,6 @@ export interface NewTaskFlowState {
   readonly projectKey: string | null;
   readonly draftKey: string | null;
   readonly submitting: boolean;
-  readonly expandedProvider: string | null;
   readonly editingPendingTask: PendingTaskEditSession | null;
   readonly environmentSwitch: NewTaskEnvironmentSwitch | null;
 }
@@ -53,7 +82,6 @@ export const INITIAL_NEW_TASK_FLOW_STATE: NewTaskFlowState = {
   projectKey: null,
   draftKey: null,
   submitting: false,
-  expandedProvider: null,
   editingPendingTask: null,
   environmentSwitch: null,
 };

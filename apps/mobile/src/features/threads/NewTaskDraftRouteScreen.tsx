@@ -29,7 +29,8 @@ import {
   branchCheckoutRequestKey,
   makeNewTaskBranchCheckouts,
 } from "./new-task-branch-checkout";
-import { liveNewTaskFlowKeys, newTaskFlowKey } from "./new-task-flow-state";
+import { draftFlowRoute, liveNewTaskFlowKeys } from "./new-task-flow-state";
+import { NewTaskFlowProvider } from "./new-task-flow-provider";
 import { NativeStackScreenOptions } from "../../native/StackHeader";
 
 import { ThreadScreenFallback } from "./ThreadScreenHost";
@@ -140,11 +141,11 @@ export function NewTaskDraftRouteScreen({ route }: StaticScreenProps<NewTaskDraf
 
   // The checkout is keyed by its request, so a reconnect that drops and
   // restores the project reads the same checkout instead of running another.
-  const flowKey = newTaskFlowKey(currentRoute);
+  const flowRoute = draftFlowRoute(currentRoute.key, params);
   const checkoutKey =
-    needsPreparation && initialProjectRef.branch && !waitingForProject && flowKey !== undefined
+    needsPreparation && initialProjectRef.branch && !waitingForProject
       ? branchCheckoutRequestKey({
-          flowKey,
+          flowKey: flowRoute.flowKey,
           routeKey: currentRoute.key,
           environmentId: checkoutProject?.environmentId ?? null,
           workspaceRoot: checkoutProject?.workspaceRoot ?? null,
@@ -198,7 +199,7 @@ export function NewTaskDraftRouteScreen({ route }: StaticScreenProps<NewTaskDraf
   const preparingBranch = checkoutPending || (needsPreparation && result?._tag !== "Success");
 
   return (
-    <>
+    <NewTaskFlowProvider route={flowRoute}>
       {preparingBranch ? (
         <ThreadScreenFallback>
           <NativeStackScreenOptions options={{ title: "New thread" }} />
@@ -218,6 +219,6 @@ export function NewTaskDraftRouteScreen({ route }: StaticScreenProps<NewTaskDraf
           draftId={draftId}
         />
       )}
-    </>
+    </NewTaskFlowProvider>
   );
 }
