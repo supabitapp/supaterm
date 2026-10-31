@@ -86,20 +86,6 @@ export function resolveNativeTerminalSurfaceView(): ComponentType<NativeTerminal
   return cachedNativeTerminalSurfaceView ?? null;
 }
 
-export function getNativeTerminalHardwareKeyRevision(): number | null {
-  try {
-    if (typeof requireOptionalNativeModule !== "function") {
-      return null;
-    }
-    const module = requireOptionalNativeModule<{ readonly hardwareKeyRevision?: number }>(
-      NATIVE_TERMINAL_MODULE_NAME,
-    );
-    return module?.hardwareKeyRevision ?? null;
-  } catch {
-    return null;
-  }
-}
-
 export function hasNativeTerminalSurface() {
   return resolveNativeTerminalSurfaceView() !== null;
 }

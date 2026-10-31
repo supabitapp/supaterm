@@ -569,9 +569,7 @@ export function buildReviewSectionItems(input: {
   return [...turnItems, ...visibleGitItems];
 }
 
-export function getDefaultReviewSectionId(
-  sections: ReadonlyArray<ReviewSectionItem>,
-): string | null {
+function getDefaultReviewSectionId(sections: ReadonlyArray<ReviewSectionItem>): string | null {
   return (sections.find((section) => section.id === CHANGES_SECTION_ID) ?? sections[0])?.id ?? null;
 }
 

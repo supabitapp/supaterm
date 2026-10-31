@@ -62,7 +62,6 @@ import {
   type PullRequestDiffParams,
 } from "./usePullRequestDiff";
 import { PullRequestReadStatus } from "./PullRequestPresentation";
-export { PullRequestFilesSheet as PullRequestFilesRouteScreen } from "./PullRequestFiles";
 
 import { usePullRequestToolbarHeight } from "./usePullRequestToolbarHeight";
 

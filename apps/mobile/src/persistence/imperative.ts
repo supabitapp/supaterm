@@ -25,9 +25,6 @@ const runPreferences = <A, E>(
 export const loadPreferences = () => runPreferences((store) => store.load);
 export const savePreferencesPatch = (patch: Partial<MobilePreferences.Preferences>) =>
   runPreferences((store) => store.savePatch(patch));
-export const updatePreferences = (
-  transform: (current: MobilePreferences.Preferences) => Partial<MobilePreferences.Preferences>,
-) => runPreferences((store) => store.update(transform));
 
 export const loadRecentThreadShortcuts = () =>
   runStorage((storage) => storage.loadRecentThreadShortcuts);

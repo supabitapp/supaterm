@@ -5,18 +5,15 @@ import {
   doneShelfFrontier,
   unloadedOlderDoneCount,
   wantedOlderDonePages,
-  type OlderDone,
   type OlderDoneScope,
 } from "@supaterm/client-runtime/state/threads";
 import type { EnvironmentId, ProjectId } from "@supaterm/contracts";
-import { Atom } from "effect/reactivity";
 import { useEffect, useState } from "react";
 
 import { appAtomRegistry } from "./atom-registry";
 import { olderDoneThreads, threadFamilies } from "./threads";
 
 const NO_PAGES: ReadonlyMap<EnvironmentId, number> = new Map();
-const NO_OLDER_DONE: Atom.Atom<OlderDone | null> = Atom.make(null);
 
 /**
  * The Done shelf for one scope when shells leave older done threads out: which rows it may
@@ -122,14 +119,4 @@ export function readUnloadedThreadCount(
       ),
     ),
   });
-}
-
-/** How many older done threads one project has, loaded or not, kept current for render. */
-export function useOlderDoneCount(
-  project: { readonly environmentId: EnvironmentId; readonly id: ProjectId } | null,
-): number {
-  const older = useAtomValue(
-    project === null ? NO_OLDER_DONE : olderDoneThreads.olderDoneAtom(project.environmentId),
-  );
-  return project === null ? 0 : (older?.counts.get(project.id) ?? 0);
 }
