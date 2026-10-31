@@ -179,6 +179,24 @@ describe("ServerLoggerLive", () => {
     }),
   );
 
+  it.effect("exports logged request failures without their connection tickets", () =>
+    Effect.gen(function* () {
+      const { requests } = yield* logInSpanThrough(
+        { otlpLogsUrl: "https://collector.example.com/v1/logs" },
+        Effect.logError(
+          Cause.die(
+            new Error("RequestParseError (GET /ws?wsTicket=ticket-secret&dpop=proof-secret)"),
+          ),
+        ),
+      );
+
+      const body = requests.map((request) => request.body).join("\n");
+      assert.include(body, "wsTicket=<redacted>&dpop=<redacted>");
+      assert.notInclude(body, "ticket-secret");
+      assert.notInclude(body, "proof-secret");
+    }),
+  );
+
   it.effect("prints a cause passed as a log field instead of collapsing it", () =>
     Effect.gen(function* () {
       const output = yield* printThroughConsole({
@@ -189,6 +207,17 @@ describe("ServerLoggerLive", () => {
       assert.include(output, "threadId: 'thread-1'");
       assert.include(output, "gh: HTTP 502 from api.github.com");
       assert.notInclude(output, "[Object]");
+    }),
+  );
+
+  it.effect("prints a cause field without its connection ticket", () =>
+    Effect.gen(function* () {
+      const output = yield* printThroughConsole({
+        cause: Cause.die(new Error("RequestParseError (GET /ws?wsTicket=ticket-secret)")),
+      });
+
+      assert.include(output, "wsTicket=<redacted>");
+      assert.notInclude(output, "ticket-secret");
     }),
   );
 

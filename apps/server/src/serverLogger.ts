@@ -11,8 +11,14 @@ import * as OtlpLogger from "effect/observability/OtlpLogger";
 
 import * as ServerConfig from "./config.ts";
 
+// HTTP errors logged with --log-ws-events carry the request URL and its connection ticket.
+const redactingCredentials = <Output>(logger: Logger.Logger<unknown, Output>) =>
+  Logger.make<unknown, Output>((options) =>
+    logger.log({ ...options, cause: SharedObservability.redactCauseCredentials(options.cause) }),
+  );
+
 const consolePretty = (): Logger.Logger<unknown, void> => {
-  const pretty = Logger.consolePretty();
+  const pretty = redactingCredentials(Logger.consolePretty());
   return Logger.make((options) =>
     pretty.log({
       ...options,
@@ -34,7 +40,7 @@ function prettyCauseFields(value: unknown): unknown {
   let changed = false;
   for (const descriptor of Object.values(descriptors)) {
     if ("value" in descriptor && Cause.isCause(descriptor.value)) {
-      descriptor.value = Cause.pretty(descriptor.value);
+      descriptor.value = SharedObservability.redactUrlCredentials(Cause.pretty(descriptor.value));
       changed = true;
     }
   }
@@ -55,7 +61,7 @@ export const layer = Effect.gen(function* () {
           exportInterval: `${logs.exportIntervalMs} millis`,
           headers: logs.headers,
           resource: ServerConfig.otlpResource(config, hostName),
-        });
+        }).pipe(Effect.map(redactingCredentials));
 
   // `Logger.layer` replaces the whole logger set, so every logger is named in this one call. The
   // OTLP logger is a superset of `Logger.tracerLogger` (it stamps trace and span ids on every
