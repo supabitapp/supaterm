@@ -228,6 +228,14 @@ describe("search", () => {
     expect(groups.map((group) => group.label)).toEqual(["Panels"]);
     expect(groups[0]?.options.map((option) => option.label)).toEqual(["Toggle terminal"]);
   });
+
+  it("lets any key be assigned to voice input", () => {
+    const options = filterCodexMicroCommandGroups("voice").flatMap((group) => group.options);
+    expect(options.map((option) => option.action)).toContainEqual({
+      type: "command",
+      command: "composer.voice",
+    });
+  });
 });
 
 describe("codexMicroThreadChoices", () => {

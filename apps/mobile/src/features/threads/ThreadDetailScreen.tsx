@@ -260,6 +260,10 @@ export interface ThreadDetailScreenProps {
     followUp?: ActiveTurnComposerAction,
     beforeDispatch?: () => Promise<boolean>,
   ) => Promise<MessageId | null>;
+  readonly onSendVoiceMessage?: (
+    recordingUri: string,
+    language: string,
+  ) => Promise<MessageId | null>;
   readonly onReconnectEnvironment: () => void;
   readonly canSwitchThreadProvider: boolean;
   readonly onUpdateThreadModelSelection: (modelSelection: ModelSelection) => void;
@@ -1300,7 +1304,14 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
     if (messageId === null || selectedThreadKeyRef.current !== targetThreadKey) {
       return messageId;
     }
-
+    revealSubmittedMessage(targetThreadKey, messageId, hasUserMessage);
+    return messageId;
+  };
+  const revealSubmittedMessage = (
+    targetThreadKey: string,
+    messageId: MessageId,
+    hasUserMessage: boolean,
+  ) => {
     clearUsageLimitsFor(targetThreadKey);
 
     setSubmittedMessageId(messageId);
@@ -1315,8 +1326,22 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
       }),
     );
     composerEditorRef.current?.blur();
-    return messageId;
   };
+  const { onSendVoiceMessage } = props;
+  // Declining approvals to redirect the agent is the text send path's job.
+  const handleSendVoiceMessage =
+    onSendVoiceMessage && clientCreation === null && props.activePendingApprovals.length === 0
+      ? async (recordingUri: string, language: string) => {
+          const targetThreadKey = selectedThreadKey;
+          const hasUserMessage = selectedThreadFeed.some(
+            (entry) => entry.type === "message" && entry.message.role === "user",
+          );
+          const messageId = await onSendVoiceMessage(recordingUri, language);
+          if (messageId !== null && selectedThreadKeyRef.current === targetThreadKey) {
+            revealSubmittedMessage(targetThreadKey, messageId, hasUserMessage);
+          }
+        }
+      : undefined;
 
   const handleEditPendingMessage = async (message: QueuedThreadMessage) => {
     if (message.creation) {
@@ -1790,6 +1815,7 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
                         onStopThread={props.onStopThread}
                         onResumeQueue={props.onResumeQueue}
                         onSendMessage={handleSendMessage}
+                        onSendVoiceMessage={props.draftMode ? undefined : handleSendVoiceMessage}
                         onShowUsageLimits={showUsageLimits}
                         canSwitchProvider={props.canSwitchThreadProvider}
                         onUpdateModelSelection={props.onUpdateThreadModelSelection}

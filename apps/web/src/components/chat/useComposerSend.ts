@@ -30,7 +30,8 @@ import {
 import { captureOutboxAttachments } from "../../state/threadOutboxEditing";
 import { declinePendingApprovals } from "@supaterm/client-runtime/state/thread-requests";
 import { deriveThreadTitleSeed } from "@supaterm/client-runtime/operations";
-import { enqueueThreadOutboxTurns } from "../../state/threadOutbox";
+import { enqueueThreadOutboxTurn, enqueueThreadOutboxTurns } from "../../state/threadOutbox";
+import type { VoiceRecording } from "../../voice/webVoiceRecorder";
 import { ensureInlineContextReferences } from "../../lib/composerContextReferences";
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import { isUsageLimitsCommand } from "@supaterm/shared/usageLimits";
@@ -822,5 +823,34 @@ export function useComposerSend(input: ComposerSendInput) {
     sendInFlightRef.current = false;
   };
 
-  return { onSend };
+  /**
+   * Snapshots this thread's next turn when Send is pressed, so the recording keeps that
+   * destination; the environment transcribes it and sends the text.
+   */
+  const prepareVoiceSend = (dispatchMode: ComposerDispatchMode, language: string) => {
+    const sendCtx = composerRef.current?.getSendContext();
+    if (!activeThread || !isServerThread || isLocalDraftThread || !sendCtx) {
+      throw new Error("Voice messages need a thread that has started.");
+    }
+    const input = {
+      threadId: activeThread.id,
+      message: { messageId: newMessageId(), role: "user" as const, text: "", attachments: [] },
+      modelSelection: sendCtx.selectedModelSelection,
+      runtimeMode,
+      interactionMode: sendCtx.interactionMode,
+      dispatchMode: dispatchMode === "steer" ? ("auto" as const) : dispatchMode,
+      createdAt: new Date().toISOString(),
+    };
+    const branch = localCheckoutBranchMismatch?.currentBranch;
+    return async (recording: VoiceRecording) => {
+      await enqueueThreadOutboxTurn({
+        environmentId,
+        input,
+        voice: { audio: recording.audio, durationMs: recording.durationMs, language },
+        ...(branch === undefined ? {} : { branch }),
+      });
+    };
+  };
+
+  return { onSend, prepareVoiceSend };
 }

@@ -89,7 +89,7 @@ import { Atom } from "effect/reactivity";
 import { AsyncResult } from "effect/reactivity";
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import { prepareTurnAttachments } from "../lib/attachmentUpload";
-import { DEFAULT_FOLLOW_UP_BEHAVIOR } from "../lib/followUpBehavior";
+import { DEFAULT_FOLLOW_UP_BEHAVIOR, type FollowUpBehavior } from "../lib/followUpBehavior";
 import { mobilePreferencesAtom } from "./preferences";
 import { environmentThreadDetails } from "./threads";
 import {
@@ -108,6 +108,7 @@ import {
 } from "../state/use-thread-detail";
 import { useThreadSelection } from "../state/use-thread-selection";
 import { enqueueThreadOutboxMessage } from "./thread-outbox";
+import { enqueueVoiceThreadOutboxMessage } from "./thread-outbox-audio";
 import { dispatchingQueuedMessageIdAtom, useThreadOutboxMessages } from "./use-thread-outbox";
 import { threadEnvironment } from "./threads";
 import { useAtomCommand } from "./use-atom-command";
@@ -508,6 +509,86 @@ export function useThreadComposerState() {
     scheduleUnusedComposerAttachmentCleanup(draft.attachments);
   };
 
+  // Resolved here rather than at drain time: the outbox can deliver minutes
+  // later, and the choice belongs to the moment the user pressed send.
+  // Steering travels as "auto" so a turn that ends in the meantime degrades
+  // to a queued run on the server instead of failing the delivery and
+  // bouncing the message back into the draft.
+  const resolveFollowUpDispatchMode = (
+    activeTurnDefault: FollowUpBehavior,
+    followUpOverride?: ActiveTurnComposerAction,
+  ) => {
+    const followUpAction = resolveComposerDispatchMode({
+      running: activeThreadBusy && canSteerActiveTurn,
+      alternateModifier: followUpOverride !== undefined && followUpOverride !== activeTurnDefault,
+      activeTurnDefault,
+    });
+    // A send while the thread is still being created or its worktree set up
+    // waits behind that work, so the server can hold it if the setup ends
+    // without a worktree. Before detail loads, the shell's latest run can be
+    // a queued follow-up while its runtime still reports the setup.
+    const setupRunning =
+      selectedThreadCreation !== null ||
+      [selectedThreadActivityRun?.status, selectedThreadRuntime?.status].some(
+        (status) => status === "preparing" || status === "starting",
+      );
+    return setupRunning
+      ? "queue"
+      : followUpAction === "auto"
+        ? null
+        : followUpAction === "queue"
+          ? "queue"
+          : "auto";
+  };
+
+  /** Queues a recording as the message; it is moved into the outbox before it shows as queued. */
+  const onSendVoiceMessage = async (
+    recordingUri: string,
+    language: string,
+  ): Promise<MessageId | null> => {
+    const thread = selectedThreadShell;
+    if (!thread) return null;
+    const threadKey = scopedThreadKey(thread.environmentId, thread.id);
+    if (
+      selectedEnvironmentRuntime?.connectionState === "connected" &&
+      !readEnvironmentScope(thread.environmentId, AuthOrchestrationOperateScope)
+    ) {
+      setThreadComposerError(threadKey, "This connection cannot control this task.");
+      return null;
+    }
+    const draft = getComposerDraftSnapshot(threadKey);
+    const dispatchMode = resolveFollowUpDispatchMode(followUpBehavior);
+    const metadata = makeQueuedMessageMetadata();
+    const messageId = MessageId.make(metadata.messageId);
+    clearThreadComposerError(threadKey);
+    return enqueueVoiceThreadOutboxMessage(
+      recordingUri,
+      {
+        environmentId: thread.environmentId,
+        threadId: thread.id,
+        messageId,
+        commandId: CommandId.make(metadata.commandId),
+        text: "",
+        attachments: [],
+        modelSelection: draft.modelSelection ?? thread.modelSelection,
+        runtimeMode: draft.runtimeMode ?? thread.runtimeMode,
+        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        ...(dispatchMode === null ? {} : { dispatchMode }),
+        createdAt: metadata.createdAt,
+      },
+      language,
+    ).then(
+      () => messageId,
+      (error: unknown) => {
+        setThreadComposerError(
+          threadKey,
+          error instanceof Error ? error.message : "The recording couldn't be queued.",
+        );
+        return null;
+      },
+    );
+  };
+
   const onSendMessage = async (
     followUpOverride?: ActiveTurnComposerAction,
     beforeDispatch?: () => Promise<boolean>,
@@ -644,34 +725,11 @@ export function useThreadComposerState() {
         return null;
     }
 
-    // Resolved here rather than at drain time: the outbox can deliver minutes
-    // later, and the choice belongs to the moment the user pressed send.
-    // Steering travels as "auto" so a turn that ends in the meantime degrades
-    // to a queued run on the server instead of failing the delivery and
-    // bouncing the message back into the draft.
     // A redirect declined approvals to steer the waiting turn, not to queue behind it.
-    const activeTurnDefault = beforeDispatch !== undefined ? "steer" : followUpBehavior;
-    const followUpAction = resolveComposerDispatchMode({
-      running: activeThreadBusy && canSteerActiveTurn,
-      alternateModifier: followUpOverride !== undefined && followUpOverride !== activeTurnDefault,
-      activeTurnDefault,
-    });
-    // A send while the thread is still being created or its worktree set up
-    // waits behind that work, so the server can hold it if the setup ends
-    // without a worktree. Before detail loads, the shell's latest run can be
-    // a queued follow-up while its runtime still reports the setup.
-    const setupRunning =
-      selectedThreadCreation !== null ||
-      [selectedThreadActivityRun?.status, selectedThreadRuntime?.status].some(
-        (status) => status === "preparing" || status === "starting",
-      );
-    const followUpDispatchMode = setupRunning
-      ? "queue"
-      : followUpAction === "auto"
-        ? null
-        : followUpAction === "queue"
-          ? "queue"
-          : "auto";
+    const followUpDispatchMode = resolveFollowUpDispatchMode(
+      beforeDispatch !== undefined ? "steer" : followUpBehavior,
+      followUpOverride,
+    );
 
     const metadata = makeQueuedMessageMetadata();
     const messageId = MessageId.make(metadata.messageId);
@@ -871,6 +929,7 @@ export function useThreadComposerState() {
     onNativePasteText,
     onRemoveDraftImage,
     onSendMessage,
+    onSendVoiceMessage,
     onUpdateModelSelection,
     onUpdateRuntimeMode,
   };

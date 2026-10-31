@@ -109,8 +109,9 @@ export const transcribeCommand = Command.make("transcribe", {
   ),
   provider: Flag.String("provider").pipe(
     Flag.withDescription(
-      "Provider instance whose login transcribes, such as codex or claudeAgent. Its account is charged.",
+      "Provider instance whose login transcribes, such as codex or claudeAgent. Its account is charged. Defaults to the server's voice transcription setting.",
     ),
+    Flag.optional,
   ),
   language: Flag.String("language").pipe(
     Flag.withDescription(
@@ -141,14 +142,18 @@ export const transcribeCommand = Command.make("transcribe", {
           detail: `${flags.recording} is not a 16 kHz mono 16-bit WAV file. Convert it with: ffmpeg -i <input> -ar 16000 -ac 1 -c:a pcm_s16le out.wav`,
         });
       }
-      const providerInstanceId = yield* decodeProviderInstanceId(flags.provider.trim()).pipe(
-        Effect.mapError(
-          () =>
-            new TranscribeUsageError({
-              detail: `'${flags.provider}' is not a provider instance id.`,
-            }),
-        ),
-      );
+      const provider = Option.getOrUndefined(flags.provider);
+      const providerInstanceId =
+        provider === undefined
+          ? undefined
+          : yield* decodeProviderInstanceId(provider.trim()).pipe(
+              Effect.mapError(
+                () =>
+                  new TranscribeUsageError({
+                    detail: `'${provider}' is not a provider instance id.`,
+                  }),
+              ),
+            );
       const thread = Option.getOrUndefined(flags.thread);
       const threadId =
         thread === undefined
@@ -169,7 +174,7 @@ export const transcribeCommand = Command.make("transcribe", {
               ? undefined
               : yield* resolveProject(tools, projectIdentifier);
           const { text } = yield* transcribeRecording(tools, audio, {
-            providerInstanceId,
+            ...(providerInstanceId && { providerInstanceId }),
             ...(language && { language }),
             context: {
               ...(project && { projectId: project.id }),

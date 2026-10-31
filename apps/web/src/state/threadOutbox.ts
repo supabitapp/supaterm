@@ -1,4 +1,8 @@
-import { resolveThreadOutboxDispatchStep } from "@supaterm/client-runtime/thread-outbox";
+import {
+  resolveThreadOutboxDispatchStep,
+  shouldRetryThreadOutboxDelivery,
+} from "@supaterm/client-runtime/thread-outbox";
+import { VoiceUploadError } from "@supaterm/client-runtime/state/transcription";
 import { createBrowserThreadOutbox, type ThreadOutboxEntry } from "./threadOutboxDelivery";
 import { scopedThreadKey, scopeThreadRef } from "@supaterm/client-runtime/environment";
 import type { StartThreadTurnInput } from "@supaterm/client-runtime/operations";
@@ -35,11 +39,12 @@ import { environmentShell } from "./shell";
 import { environmentServerConfigsAtom } from "./server";
 import { directThreadEnvironment } from "./threadCommands";
 import { readPreparedConnection } from "./session";
-import { OutboxTurn, OutboxAttachment } from "./threadOutboxSchema";
+import { OutboxTurn, OutboxAttachment, type OutboxVoice } from "./threadOutboxSchema";
 import { browserThreadOutboxStorage } from "./threadOutboxStorage";
 import { randomUUID, newThreadId } from "../lib/utils";
 import { assetEnvironment } from "./assets";
 import { fetchVcsRefs } from "./vcs";
+import { uploadVoiceAudio } from "./transcription";
 
 const decodeUpload = Schema.decodeUnknownSync(AttachmentCreateUploadUrlInput);
 const decodeAttachment = Schema.decodeSync(ChatAttachment);
@@ -131,6 +136,94 @@ export const threadOutboxDeliverableAtom = Atom.family((environmentId: Environme
   Atom.make((get) => isThreadOutboxDeliverable(environmentId, get)),
 );
 
+function voiceDelivery(dispatchMode: OutboxTurn["input"]["dispatchMode"]) {
+  return dispatchMode === "queue" || dispatchMode === "steer" || dispatchMode === "restart"
+    ? dispatchMode
+    : "auto";
+}
+
+// The composer's branch and modes for this turn, which the thread itself must carry.
+async function applyThreadSettings(payload: OutboxTurn) {
+  const { environmentId } = payload;
+  const thread = appAtomRegistry
+    .get(directThreadEnvironment.snapshotAtom(environmentId))
+    ?.threads.find((candidate) => candidate.id === payload.input.threadId);
+  if (!thread || payload.input.bootstrap?.createThread) return;
+  const target = { environmentId };
+  if (payload.branch !== undefined && payload.branch !== thread.branch) {
+    await command(directThreadEnvironment.updateMetadata, {
+      ...target,
+      input: {
+        threadId: thread.id,
+        commandId: CommandId.make(`${payload.input.commandId}:branch`),
+        branch: payload.branch,
+      },
+    });
+  }
+  if (thread.runtimeMode !== payload.input.runtimeMode) {
+    await command(directThreadEnvironment.setRuntimeMode, {
+      ...target,
+      input: {
+        threadId: thread.id,
+        commandId: CommandId.make(`${payload.input.commandId}:runtime`),
+        runtimeMode: payload.input.runtimeMode,
+      },
+    });
+  }
+  if (thread.interactionMode !== payload.input.interactionMode) {
+    await command(directThreadEnvironment.setInteractionMode, {
+      ...target,
+      input: {
+        threadId: thread.id,
+        commandId: CommandId.make(`${payload.input.commandId}:interaction`),
+        interactionMode: payload.input.interactionMode,
+      },
+    });
+  }
+}
+
+async function deliverVoiceTurn(
+  payload: OutboxTurn,
+  voice: typeof OutboxVoice.Type,
+  savePayload: (payload: OutboxTurn) => Promise<void>,
+) {
+  const { input } = payload;
+  const result = await uploadVoiceAudio({
+    environmentId: payload.environmentId,
+    audio: voice.audio,
+    request: {
+      ...(voice.language ? { language: voice.language } : {}),
+      submit: {
+        threadId: input.threadId,
+        commandId: input.commandId,
+        messageId: input.message.messageId,
+        ...(input.modelSelection ? { modelSelection: input.modelSelection } : {}),
+        delivery: voiceDelivery(input.dispatchMode),
+        creationSource: input.creationSource === "mobile" ? "mobile" : "web",
+      },
+    },
+  });
+  switch (result.submission?.status) {
+    case "sent":
+      return;
+    case "noSpeech":
+      throw new Error("No speech was detected in this recording.");
+    default: {
+      // The transcript exists but the thread refused it, under a command id it now remembers.
+      const { voice: _, ...rest } = payload;
+      await savePayload({
+        ...rest,
+        input: {
+          ...input,
+          commandId: CommandId.make(randomUUID()),
+          message: { ...input.message, text: result.text },
+        },
+      });
+      throw new Error("The transcript couldn't be sent. Edit or retry it.");
+    }
+  }
+}
+
 export const webThreadOutbox = createBrowserThreadOutbox<OutboxTurn>({
   storage: browserThreadOutboxStorage,
   registry: appAtomRegistry,
@@ -152,11 +245,17 @@ export const webThreadOutbox = createBrowserThreadOutbox<OutboxTurn>({
   },
   canDeliver: (entry) =>
     isThreadOutboxDeliverable(entry.payload.environmentId, (atom) => appAtomRegistry.get(atom)),
+  shouldRetry: (error) =>
+    error instanceof VoiceUploadError ? error.retryable : shouldRetryThreadOutboxDelivery(error),
   deliver: async (entry, savePayload) => {
     let payload = { ...entry.payload, localAttachments: [...entry.payload.localAttachments] };
     const { environmentId } = payload;
     const config = appAtomRegistry.get(environmentServerConfigsAtom).get(environmentId);
     if (!config) throw new Error("Environment is not connected.");
+    if (payload.voice) {
+      await applyThreadSettings(payload);
+      return deliverVoiceTurn(payload, payload.voice, savePayload);
+    }
     if (payload.pendingWorktree) {
       const refs = await command(fetchVcsRefs, {
         environmentId,
@@ -240,42 +339,8 @@ export const webThreadOutbox = createBrowserThreadOutbox<OutboxTurn>({
             })),
             attachments.map((attachment, index) => ({ id: attachment.id ?? local[index]!.id })),
           );
-    const thread = appAtomRegistry
-      .get(directThreadEnvironment.snapshotAtom(environmentId))
-      ?.threads.find((candidate) => candidate.id === payload.input.threadId);
+    await applyThreadSettings(payload);
     const target = { environmentId };
-    if (thread && !payload.input.bootstrap?.createThread) {
-      if (payload.branch !== undefined && payload.branch !== thread.branch) {
-        await command(directThreadEnvironment.updateMetadata, {
-          ...target,
-          input: {
-            threadId: thread.id,
-            commandId: CommandId.make(`${payload.input.commandId}:branch`),
-            branch: payload.branch,
-          },
-        });
-      }
-      if (thread.runtimeMode !== payload.input.runtimeMode) {
-        await command(directThreadEnvironment.setRuntimeMode, {
-          ...target,
-          input: {
-            threadId: thread.id,
-            commandId: CommandId.make(`${payload.input.commandId}:runtime`),
-            runtimeMode: payload.input.runtimeMode,
-          },
-        });
-      }
-      if (thread.interactionMode !== payload.input.interactionMode) {
-        await command(directThreadEnvironment.setInteractionMode, {
-          ...target,
-          input: {
-            threadId: thread.id,
-            commandId: CommandId.make(`${payload.input.commandId}:interaction`),
-            interactionMode: payload.input.interactionMode,
-          },
-        });
-      }
-    }
     if (!appAtomRegistry.get(environmentServerConfigsAtom).has(environmentId))
       throw new Error("Environment is not connected.");
     const { context: _, ...message } = payload.input.message;
@@ -302,6 +367,7 @@ function prepareThreadOutboxTurn(target: {
   readonly environmentId: EnvironmentId;
   readonly input: StartThreadTurnInput;
   readonly localAttachments?: ReadonlyArray<typeof OutboxAttachment.Type>;
+  readonly voice?: typeof OutboxVoice.Type;
   readonly pendingWorktree?: OutboxTurn["pendingWorktree"];
   readonly branch?: string;
   readonly draftId?: DraftId;
@@ -312,6 +378,7 @@ function prepareThreadOutboxTurn(target: {
     environmentId: target.environmentId,
     input: { ...target.input, commandId },
     localAttachments: target.localAttachments ?? [],
+    ...(target.voice ? { voice: target.voice } : {}),
     ...(target.pendingWorktree ? { pendingWorktree: target.pendingWorktree } : {}),
     ...(target.branch === undefined ? {} : { branch: target.branch }),
     ...(target.draftId === undefined ? {} : { draftId: target.draftId }),

@@ -191,6 +191,8 @@ export interface ThreadComposerProps {
   readonly onStopThread: () => void;
   readonly onResumeQueue: (() => Promise<void>) | null;
   /** `stillSendable` reports whether the draft is unchanged after any wait before sending. */
+  /** Queues a recording from an empty draft as the message, for the environment to transcribe. */
+  readonly onSendVoiceMessage?: (recordingUri: string, language: string) => Promise<void>;
   readonly onSendMessage: (
     followUp?: ActiveTurnComposerAction,
     stillSendable?: () => boolean,
@@ -468,7 +470,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
       draftKey: composerDraftKey,
     });
   };
-  const { onSendMessage, onChangeDraftMessage, onShowUsageLimits } = props;
+  const { onSendMessage, onSendVoiceMessage, onChangeDraftMessage, onShowUsageLimits } = props;
   const usageLimitsOffered =
     selectedProviderStatus !== null &&
     hasProviderUsageLimits(selectedProviderStatus.driver, props.serverConfig?.providers ?? []);
@@ -514,6 +516,25 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     onSubmit: () => {
       if (canSend) void handleSend();
     },
+    environmentId: props.environmentId,
+    context: props.isDraft
+      ? { projectId: props.selectedThread.projectId }
+      : { threadId: props.selectedThread.id },
+    ...(onSendVoiceMessage && queuedEdit === null
+      ? {
+          voiceMessage: {
+            accepts: () => {
+              const draft = getComposerDraftSnapshot(composerDraftKey);
+              return (
+                draft.text.trim().length === 0 &&
+                draft.attachments.length === 0 &&
+                (draft.context?.records.length ?? 0) === 0
+              );
+            },
+            send: onSendVoiceMessage,
+          },
+        }
+      : {}),
   });
   const isSubmissionLocked =
     props.interactionLocked === true || queuedEdit?.saving === true || voiceInput.blocksSubmission;

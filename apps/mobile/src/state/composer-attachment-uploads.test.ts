@@ -124,6 +124,7 @@ vi.mock("./server", async () => {
 });
 vi.mock("./vcs", () => ({ fetchVcsRefs: Symbol("fetchVcsRefs") }));
 vi.mock("./git", () => ({ gitEnvironment: {} }));
+vi.mock("./transcription", () => ({ uploadEnvironmentVoiceRecording: vi.fn() }));
 vi.mock("./threads", () => ({ threadEnvironment: {} }));
 vi.mock("./use-atom-command", () => ({ useAtomCommand: () => async () => undefined }));
 vi.mock("./session", async () => {

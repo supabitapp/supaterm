@@ -16,7 +16,6 @@ import {
 } from "@supaterm/contracts";
 import type { ComposerEnterBehavior } from "../lib/composerEnterBehavior";
 import type { FollowUpBehavior } from "../lib/followUpBehavior";
-import { isMicrophoneKind, type MicrophoneEntry } from "../lib/microphonePriority";
 import { MOBILE_THEME_IDS, type MobileThemeId, type MobileThemeMode } from "../lib/mobileTheme";
 import * as MobileDatabase from "./mobile-database";
 import * as MobileSecureStorage from "./mobile-secure-storage";
@@ -69,7 +68,6 @@ export interface Preferences {
   readonly composerEnterBehavior?: ComposerEnterBehavior;
   readonly showSkillsInSlashMenu?: boolean;
   readonly followUpBehavior?: FollowUpBehavior;
-  readonly microphones?: ReadonlyArray<MicrophoneEntry>;
   readonly projectGroupingMode?: SidebarProjectGroupingMode;
   readonly threadGrouping?: SidebarThreadGrouping;
   readonly threadListPinnedShelfExpanded?: boolean;
@@ -136,7 +134,6 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     composerEnterBehavior?: ComposerEnterBehavior;
     showSkillsInSlashMenu?: boolean;
     followUpBehavior?: FollowUpBehavior;
-    microphones?: ReadonlyArray<MicrophoneEntry>;
     projectGroupingMode?: SidebarProjectGroupingMode;
     threadGrouping?: SidebarThreadGrouping;
     threadListPinnedShelfExpanded?: boolean;
@@ -208,15 +205,6 @@ function sanitizePreferences(parsed: Preferences): Preferences {
   }
   if (parsed.followUpBehavior === "queue" || parsed.followUpBehavior === "steer") {
     preferences.followUpBehavior = parsed.followUpBehavior;
-  }
-  if (Array.isArray(parsed.microphones)) {
-    preferences.microphones = parsed.microphones.flatMap((entry): MicrophoneEntry[] => {
-      if (typeof entry !== "object" || entry === null || !isMicrophoneKind(entry.kind)) return [];
-      if (!("uid" in entry)) return [{ kind: entry.kind }];
-      return typeof entry.uid === "string" && typeof entry.name === "string"
-        ? [{ kind: entry.kind, uid: entry.uid, name: entry.name }]
-        : [];
-    });
   }
   if (
     parsed.projectGroupingMode === "repository" ||

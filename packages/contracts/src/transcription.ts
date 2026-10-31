@@ -32,7 +32,8 @@ const TranscriptionContext = Schema.Struct({
 });
 
 export const TranscriptionTranscribeInput = Schema.Struct({
-  providerInstanceId: ProviderInstanceId,
+  /** Defaults to the environment's transcription provider setting. */
+  providerInstanceId: Schema.optionalKey(ProviderInstanceId),
   audioAttachmentId: AudioAttachmentId,
   language: Schema.optionalKey(TranscriptionLanguage),
   context: Schema.optionalKey(TranscriptionContext),
@@ -65,7 +66,8 @@ export type TranscriptionUploadSubmit = typeof TranscriptionUploadSubmit.Type;
  * thread as the user's message, even when the uploader disconnects first.
  */
 export const TranscriptionPrepareUploadInput = Schema.Struct({
-  providerInstanceId: ProviderInstanceId,
+  /** Defaults to the environment's transcription provider setting. */
+  providerInstanceId: Schema.optionalKey(ProviderInstanceId),
   sizeBytes: NonNegativeInt.check(
     Schema.isGreaterThanOrEqualTo(1),
     Schema.isLessThanOrEqualTo(TRANSCRIPTION_MAX_AUDIO_BYTES),
@@ -110,7 +112,8 @@ export type TranscriptionCancelUploadResult = typeof TranscriptionCancelUploadRe
 
 const TRANSCRIPTION_ERROR_MESSAGES = {
   sourceUnavailable: "This provider can't transcribe audio.",
-  unsupportedLogin: "This provider's login can't be used for transcription.",
+  unsupportedLogin:
+    "Transcription needs this provider's subscription login, not an API key or gateway.",
   signedOut: "Sign in to this provider again to transcribe.",
   credentialsLocked:
     "The login keychain is locked on the machine running Supaterm. Unlock it and try again.",

@@ -305,6 +305,11 @@ const systemPermissionCheck = Effect.fnUntraced(function* (pane: SystemSettingsP
       return () =>
         runPromise(inputMonitoring.status.pipe(Effect.map((status) => status === "granted")));
     }
+    case "microphone":
+      return () =>
+        Promise.resolve(
+          Electron.systemPreferences.getMediaAccessStatus("microphone") === "granted",
+        );
   }
 });
 
@@ -318,7 +323,8 @@ export const openSystemSettings = DesktopIpc.makeIpcMethod({
     if (environment.platform !== "darwin") return false;
     const owner = Electron.BrowserWindow.getFocusedWindow();
     const opened = yield* shell.openSystemSettings(pane);
-    if (opened && environment.isPackaged) {
+    // macOS lists an app under Microphone once it has asked, so there is nothing to drag in.
+    if (opened && environment.isPackaged && pane !== "microphone") {
       const permissions = yield* MacPermissions.MacPermissions;
       const isGranted = yield* systemPermissionCheck(pane);
       yield* permissions.showHelper(pane, owner, isGranted);

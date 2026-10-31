@@ -74,10 +74,17 @@ describe("codexMicroVisibleSlots", () => {
 });
 
 describe("resolveCodexMicroSlotAction", () => {
-  it("keeps cleared assignments and microphone keycaps unassigned", () => {
+  it("keeps a cleared assignment unassigned", () => {
     expect(resolveCodexMicroSlotAction({ keycapId: "FAST", action: null })).toBeNull();
-    expect(resolveCodexMicroSlotAction({ keycapId: "MIC" })).toBeNull();
-    expect(resolveCodexMicroSlotAction({ keycapId: "MIC1" })).toBeNull();
+    expect(resolveCodexMicroSlotAction({ keycapId: "MIC", action: null })).toBeNull();
+  });
+
+  it("starts and stops voice input from either microphone keycap", () => {
+    const voice = { type: "command", command: "composer.voice" };
+    expect(resolveCodexMicroSlotAction(DEFAULT_CODEX_MICRO_LAYOUT.slots.ACT10_ACT11)).toEqual(
+      voice,
+    );
+    expect(resolveCodexMicroSlotAction(DEFAULT_CODEX_MICRO_LAYOUT.slots.ACT10)).toEqual(voice);
   });
 
   it("uses the keycap's default unless the key has its own action", () => {

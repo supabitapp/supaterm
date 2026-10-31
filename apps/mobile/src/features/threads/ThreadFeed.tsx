@@ -229,6 +229,7 @@ import {
   WORK_GROUP_TOGGLE_HEIGHT,
 } from "./thread-work-log";
 import { appendPendingThreadMessages, type PendingThreadFeedEntry } from "./pending-thread-feed";
+import { PendingMessageActions, PendingVoiceMessageBody } from "./PendingVoiceMessage";
 import type { QueuedThreadMessage } from "../../state/thread-outbox-model";
 import {
   resolveThreadFeedFixedItemSize,
@@ -1532,6 +1533,9 @@ function renderFeedEntry(
             ) : null}
             {bubbleBodyVisible ? (
               <View className={cn("gap-2 px-3.5 pb-2.5", foldRowId === null && "pt-2.5")}>
+                {entry.pendingMessage?.voice ? (
+                  <PendingVoiceMessageBody voice={entry.pendingMessage.voice} />
+                ) : null}
                 {entry.pendingMessage?.attachments.map((attachment) =>
                   attachment.type === "image" && attachment.uploadedAttachmentId ? (
                     <MessageAttachmentImage
@@ -1648,11 +1652,26 @@ function renderFeedEntry(
                   ·
                 </Text>
               ) : null}
-              <Text className="font-supaterm-medium text-xs tabular-nums text-foreground-secondary">
-                {entry.pendingMessage && !entry.acknowledged ? "Pending" : timestampLabel}
+              <Text
+                className={cn(
+                  "font-supaterm-medium text-xs tabular-nums text-foreground-secondary",
+                  entry.pendingMessage?.failure !== undefined && "text-danger-foreground",
+                )}
+              >
+                {entry.pendingMessage && !entry.acknowledged
+                  ? entry.pendingMessage.failure !== undefined
+                    ? "Not sent"
+                    : "Pending"
+                  : timestampLabel}
               </Text>
+              {entry.pendingMessage &&
+              !entry.acknowledged &&
+              entry.pendingMessage.messageId !== props.dispatchingMessageId ? (
+                <PendingMessageActions message={entry.pendingMessage} iconColor={iconSubtleColor} />
+              ) : null}
               {props.onEditPendingMessage !== null &&
               entry.pendingMessage &&
+              !entry.pendingMessage.voice &&
               !entry.acknowledged &&
               entry.pendingMessage.messageId !== props.dispatchingMessageId ? (
                 <Pressable
@@ -1702,6 +1721,13 @@ function renderFeedEntry(
                 />
               ) : null}
             </View>
+          ) : null}
+          {bubbleBodyVisible &&
+          entry.pendingMessage?.failure !== undefined &&
+          !entry.acknowledged ? (
+            <Text className="max-w-[85%] pr-0.5 text-right text-xs text-danger-foreground">
+              {entry.pendingMessage.failure}
+            </Text>
           ) : null}
         </Animated.View>
       );

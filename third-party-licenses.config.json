@@ -615,17 +615,6 @@
       }
     },
     {
-      "name": "@react-native-ai/apple",
-      "sourceUrl": "https://github.com/callstackincubator/ai",
-      "generatedNotice": {
-        "licenseId": "MIT",
-        "copyrights": [
-          "Copyright (c) 2024-2025 Szymon Rybczak",
-          "Copyright (c) 2025-present Callstack"
-        ]
-      }
-    },
-    {
       "name": "react-remove-scroll-bar",
       "generatedNotice": {
         "licenseId": "MIT",

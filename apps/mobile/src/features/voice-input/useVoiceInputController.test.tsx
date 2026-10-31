@@ -1,7 +1,8 @@
 import { act, useEffect, useLayoutEffect, useSyncExternalStore } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
-import type { VoiceInputState } from "@supaterm/client-runtime/voice-input";
+import type { VoiceInputState, VoiceTranscriber } from "@supaterm/client-runtime/voice-input";
+import { EnvironmentId } from "@supaterm/contracts";
 import { resetVoiceInputGlobalsForTests } from "../../../../../packages/client-runtime/src/voice-input/controller";
 
 import { VoiceInputSession } from "./voiceInputSession";
@@ -31,6 +32,12 @@ vi.mock("@react-navigation/native", () => ({
     useEffect(() => (store.focused ? callback() : undefined), [callback, store.focused]);
   },
 }));
+vi.mock("./composerVoiceEngine", () => ({
+  resolveComposerVoiceEngine: () => ({
+    status: "ready",
+    engine: { transcriber, language: "en-US" },
+  }),
+}));
 vi.mock("./VoiceInputProvider", () => ({
   useGlobalVoiceInput: () => {
     useSyncExternalStore(store.subscribe, store.snapshot);
@@ -51,6 +58,8 @@ import { useVoiceInputController } from "./useVoiceInputController";
 
 let state: VoiceInputState;
 let session: VoiceInputSession;
+let transcriber: VoiceTranscriber;
+const voiceSends = vi.fn<(uri: string, language: string) => Promise<void>>();
 let control: ReturnType<typeof useVoiceInputController>;
 let root: Root;
 let ownerKey: string;
@@ -80,6 +89,11 @@ function Probe() {
     onChangeSelection: () => {},
     onSubmit: () => {
       if (allowed && !control.blocksSubmission) sends(text);
+    },
+    environmentId: EnvironmentId.make("environment-1"),
+    voiceMessage: {
+      accepts: () => (drafts.get(key) ?? "") === "",
+      send: voiceSends,
     },
   });
   useLayoutEffect(() => {
@@ -124,22 +138,24 @@ beforeEach(() => {
   transcribing = Promise.withResolvers<void>();
   settled = Promise.withResolvers<void>();
   transcript = Promise.withResolvers<string>();
+  voiceSends.mockReset();
+  voiceSends.mockResolvedValue(undefined);
+  transcriber = {
+    prepare: async () => ({
+      locale: "en-US",
+      transcribe: () => {
+        transcribing.resolve();
+        return transcript.promise;
+      },
+    }),
+  };
   session = new VoiceInputSession({
     recorder: {
-      uri: "file:///recording.m4a",
+      uri: "file:///recording.wav",
       prepareToRecordAsync: async () => {},
       record: () => {},
       stop: async () => {},
     },
-    getTranscriber: () => ({
-      prepare: async () => ({
-        locale: "en-US",
-        transcribe: () => {
-          transcribing.resolve();
-          return transcript.promise;
-        },
-      }),
-    }),
     requestPermission: async () => ({ granted: true, canAskAgain: true }),
     configureRecording: async () => {},
     releaseRecording: async () => {},
@@ -168,6 +184,18 @@ describe("dictation submission", () => {
     expect(sends).not.toHaveBeenCalled();
     await finish();
     expect(sends.mock.calls).toEqual([["Draft spoken words"]]);
+  });
+
+  it("sends an empty draft's recording as the message for the environment to transcribe", async () => {
+    drafts.set("first", "");
+    await start();
+    await act(async () => {
+      control.stopAndSubmit();
+      await settled.promise;
+    });
+    expect(voiceSends.mock.calls).toEqual([["file:///recording.wav", "en-US"]]);
+    expect(sends).not.toHaveBeenCalled();
+    expect(state.phase).toBe("idle");
   });
 
   it("stops for review without sending", async () => {

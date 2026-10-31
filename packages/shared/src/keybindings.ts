@@ -181,6 +181,7 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "mod+alt+shift+a", command: "appearance.cycle", when: "!terminalFocus" },
   { key: "mod+alt+shift+t", command: "themeEditor.toggle" },
   { key: "mod+s", command: "composer.stash", when: "!terminalFocus" },
+  { key: "mod+shift+space", command: "composer.voice", when: "!terminalFocus" },
   {
     key: "ctrl+c",
     command: "thread.stop",

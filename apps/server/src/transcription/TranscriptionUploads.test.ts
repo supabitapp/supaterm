@@ -58,10 +58,17 @@ const makeHarness = Effect.gen(function* () {
   const dispatches = yield* Queue.unbounded<OrchestrationV2ServerCommand>();
   const dispatchReplies =
     yield* Queue.unbounded<Effect.Effect<OrchestratorV2DispatchResult, OrchestratorV2Error>>();
+  const sourceUsable = yield* Ref.make(true);
   const layer = TranscriptionUploads.layer.pipe(
     Layer.provide(
       Layer.mergeAll(
         Layer.mock(Transcription.Transcription)({
+          checkSource: (input) =>
+            Effect.flatMap(Ref.get(sourceUsable), (usable) =>
+              usable
+                ? Effect.succeed(input.providerInstanceId ?? INSTANCE)
+                : Effect.fail(new TranscriptionError({ reason: "signedOut" })),
+            ),
           transcribeFile: (input) =>
             Ref.update(transcriptions, (current) => [...current, input]).pipe(
               Effect.andThen(Queue.offer(transcribing, NodeFS.readFileSync(input.path, "hex"))),
@@ -79,7 +86,15 @@ const makeHarness = Effect.gen(function* () {
       ),
     ),
   );
-  return { transcriptions, transcribing, transcripts, dispatches, dispatchReplies, layer };
+  return {
+    transcriptions,
+    transcribing,
+    transcripts,
+    dispatches,
+    dispatchReplies,
+    sourceUsable,
+    layer,
+  };
 });
 
 const tokenOf = (relativeUrl: string) =>
@@ -172,6 +187,33 @@ describe("TranscriptionUploads", () => {
           submission: { status: "sent", sequence: 7 },
         });
         expect(yield* Ref.get(harness.transcriptions)).toHaveLength(1);
+      }).pipe(Effect.provide(harness.layer));
+    }).pipe(Effect.provide(environment)),
+  );
+
+  it.effect("recovers a sent outcome after its provider can no longer transcribe", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness;
+      yield* Effect.gen(function* () {
+        const target = submit("command-recover");
+        const prepared = yield* prepare({ submit: target });
+        const pending = yield* Effect.forkChild(upload(tokenOf(prepared.relativeUrl), AUDIO_BODY));
+        yield* Queue.offer(harness.transcripts, Effect.succeed({ text: "ship it" }));
+        yield* Queue.take(harness.dispatches);
+        yield* Queue.offer(
+          harness.dispatchReplies,
+          Effect.succeed({ sequence: 9, storedEvents: [] }),
+        );
+        yield* Fiber.join(pending);
+
+        yield* Ref.set(harness.sourceUsable, false);
+        const again = yield* prepare({ submit: target });
+        expect(yield* upload(tokenOf(again.relativeUrl), undefined)).toEqual({
+          text: "ship it",
+          submission: { status: "sent", sequence: 9 },
+        });
+        const refused = yield* Effect.flip(prepare({ submit: submit("command-new") }));
+        expect(refused).toMatchObject({ reason: "signedOut" });
       }).pipe(Effect.provide(harness.layer));
     }).pipe(Effect.provide(environment)),
   );

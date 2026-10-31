@@ -69,6 +69,7 @@ vi.mock("./server", async () => {
     serverEnvironment: { configValueAtom: Atom.family((_id: string) => Atom.make(state.config)) },
   };
 });
+vi.mock("./transcription", () => ({ uploadEnvironmentVoiceRecording: vi.fn() }));
 vi.mock("./threads", async () => {
   const { Atom } = await import("effect/reactivity");
   return {

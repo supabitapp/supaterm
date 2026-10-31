@@ -1074,6 +1074,7 @@ function ThreadRouteContent(
           onStopThread={awaitingBootstrapTurn ? handleCancelWorktreeSetup : handleStopThread}
           onResumeQueue={composer.queueHeld && canOperateThread ? handleResumeQueue : null}
           onSendMessage={composer.onSendMessage}
+          onSendVoiceMessage={composer.onSendVoiceMessage}
           onReconnectEnvironment={handleReconnectEnvironment}
           canSwitchThreadProvider={composer.canSwitchThreadProvider}
           onUpdateThreadModelSelection={composer.onUpdateModelSelection}

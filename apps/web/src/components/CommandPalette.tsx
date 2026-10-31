@@ -70,6 +70,7 @@ import {
   MessageSquareIcon,
   MessageSquareMoreIcon,
   MessageSquareTextIcon,
+  MicIcon,
   PaletteIcon,
   RotateCcwIcon,
   RowsIcon,
@@ -520,6 +521,7 @@ function OpenCommandPaletteDialog(props: {
 }) {
   const navigate = useNavigate();
   const pathname = useLocation({ select: (location) => location.pathname });
+  const composerHandleRef = useComposerHandleContext();
   const { clearOpenIntent, openIntent, openChildSearch, setOpen } = props;
   const initialSearch = props.initialContext ?? {
     query: openIntent?.kind === "search" ? openIntent.query : "",
@@ -583,6 +585,7 @@ function OpenCommandPaletteDialog(props: {
       ? null
       : resolveThreadForkSource(activeThreadProjection.projection);
   const paletteRouteTarget = useThreadRouteTarget();
+  const toggleVoiceInput = useStableCallback(() => composerHandleRef?.current?.toggleVoiceInput());
   const paneSplit = useChatPaneStore((state) => (state.layout?.cells.length ?? 1) > 1);
   const projects = useProjects();
   const referenceThreadRef =
@@ -1414,6 +1417,18 @@ function OpenCommandPaletteDialog(props: {
       icon: <MessageSquareMoreIcon className={ITEM_ICON_CLASS} />,
       shortcutCommand: "chat.newWithoutProject",
       run: () => startScratchThread(scratchTargetEnvironmentId),
+    });
+  }
+
+  if (paletteRouteTarget !== null && composerHandleRef !== null) {
+    actionItems.push({
+      kind: "action",
+      value: "action:voice-input",
+      searchTerms: ["voice", "dictate", "dictation", "microphone", "speak", "record", "transcribe"],
+      title: "Start voice input",
+      icon: <MicIcon className={ITEM_ICON_CLASS} />,
+      shortcutCommand: "composer.voice",
+      run: async () => toggleVoiceInput(),
     });
   }
 

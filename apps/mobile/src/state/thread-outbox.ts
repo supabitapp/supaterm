@@ -41,6 +41,13 @@ export function updateThreadOutboxMessage(
   return threadOutboxManager.update(message, expectedRevision, canUpdate);
 }
 
+/** Lets the drain deliver a held message again, under the command id its hold minted. */
+export function retryHeldThreadOutboxMessage(message: QueuedThreadMessage): Promise<boolean> {
+  if (message.failure === undefined) return Promise.resolve(false);
+  const { failure: _, ...retried } = message;
+  return threadOutboxManager.update(retried, threadOutboxManager.revisionOf(message.messageId));
+}
+
 export function threadOutboxRevision(messageId: QueuedThreadMessage["messageId"]): number {
   return threadOutboxManager.revisionOf(messageId);
 }

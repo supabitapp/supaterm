@@ -1,10 +1,20 @@
 import { replaceTextRange } from "@supaterm/shared/composerTrigger";
 
-import type { PreparedVoiceTranscription, VoiceTranscriber } from "./transcription.ts";
+import {
+  VoiceTranscriptionError,
+  type PreparedVoiceTranscription,
+  type VoiceTranscriber,
+} from "./transcription.ts";
 
 export const VOICE_RECORDING_LIMIT_SECONDS = 5 * 60;
 
-export type VoiceInputPhase = "idle" | "preparing" | "recording" | "transcribing" | "error";
+export type VoiceInputPhase =
+  | "idle"
+  | "preparing"
+  | "recording"
+  | "transcribing"
+  | "sending"
+  | "error";
 
 export type VoiceInputState = {
   readonly phase: VoiceInputPhase;
@@ -14,7 +24,10 @@ export type VoiceInputState = {
 
 export function voiceInputBlocksSubmission(state: VoiceInputState): boolean {
   return (
-    state.phase === "preparing" || state.phase === "recording" || state.phase === "transcribing"
+    state.phase === "preparing" ||
+    state.phase === "recording" ||
+    state.phase === "transcribing" ||
+    state.phase === "sending"
   );
 }
 
@@ -49,6 +62,8 @@ export type VoiceInputControllerDependencies = {
   readonly requestPermission: () => Promise<{
     readonly granted: boolean;
     readonly canAskAgain: boolean;
+    /** Why there is no microphone to grant, when asking cannot fix it. */
+    readonly reason?: string;
   }>;
   readonly configureRecording: () => Promise<void>;
   readonly releaseRecording: () => Promise<void>;
@@ -60,6 +75,13 @@ export type VoiceInputControllerDependencies = {
   ) => void;
   readonly onStateChange: (state: VoiceInputState) => void;
 };
+
+/**
+ * Takes over a finished recording instead of transcribing it here, as a voice message the
+ * server transcribes and sends. It must keep its own copy: the recording is deleted once
+ * this settles. Bound when Send is pressed, so the message keeps that destination.
+ */
+export type VoiceRecordingDelivery = (uri: string) => Promise<void>;
 
 type TranscriptCommitResult =
   | {
@@ -130,9 +152,18 @@ type VoiceInputSession = {
 let activeSession: VoiceInputSession | null = null;
 let activeTranscriptionOperation: Promise<unknown> | null = null;
 
+// Not `Promise.withResolvers`: the web client targets a runtime library without it.
+function deferred(): { readonly promise: Promise<void>; readonly resolve: () => void } {
+  let resolve: () => void = () => undefined;
+  const promise = new Promise<void>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
 function acquireSession(): VoiceInputSession | null {
   if (activeSession) return null;
-  const { promise, resolve } = Promise.withResolvers<void>();
+  const { promise, resolve } = deferred();
   const token = { abandoned: false, released: promise, release: resolve };
   activeSession = token;
   return token;
@@ -159,17 +190,9 @@ async function runTranscriptionOperation<T>(operation: () => Promise<T>): Promis
   }
 }
 
-function errorCode(error: unknown): string | null {
-  if (typeof error !== "object" || error === null || !("code" in error)) return null;
-  return typeof error.code === "string" ? error.code : null;
-}
-
 function preparationErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message === "voice-operation-busy") {
     return "Voice transcription is still finishing. Try again shortly.";
-  }
-  if (errorCode(error) === "unsupported-locale") {
-    return "Voice transcription is not available for this language.";
   }
   return "Could not prepare voice transcription.";
 }
@@ -177,6 +200,9 @@ function preparationErrorMessage(error: unknown): string {
 function transcriptionErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message === "voice-operation-busy") {
     return "Voice transcription is still finishing. Try again shortly.";
+  }
+  if (error instanceof VoiceTranscriptionError && error.code === "refused") {
+    return error.message;
   }
   return "Could not transcribe this recording.";
 }
@@ -195,6 +221,7 @@ export class VoiceInputController {
   private readonly ownedRecordingUris = new Set<string>();
   private recordingConfigured = false;
   private finishing = false;
+  private askingPermission = false;
 
   constructor(dependencies: VoiceInputControllerDependencies) {
     this.dependencies = dependencies;
@@ -239,11 +266,14 @@ export class VoiceInputController {
         return;
       }
 
-      const permission = await this.dependencies.requestPermission();
+      this.askingPermission = true;
+      const permission = await this.dependencies
+        .requestPermission()
+        .finally(() => (this.askingPermission = false));
       if (!this.isCurrent(operationToken)) return;
       if (!permission.granted) {
         this.setError(
-          "Microphone access is required for voice input.",
+          permission.reason ?? "Microphone access is required for voice input.",
           permission.canAskAgain ? "retry" : "settings",
         );
         return;
@@ -294,6 +324,11 @@ export class VoiceInputController {
     return this.finishRecording(false, null);
   }
 
+  send(deliver: VoiceRecordingDelivery): Promise<void> {
+    if (this.state.phase !== "recording") return Promise.resolve();
+    return this.finishRecording(false, null, deliver);
+  }
+
   cancel(): void {
     switch (this.state.phase) {
       case "idle":
@@ -312,6 +347,9 @@ export class VoiceInputController {
         this.invalidateOperation();
         this.setState(IDLE_STATE);
         return;
+      // Saving takes a moment and can't be taken back halfway; the queued message can be.
+      case "sending":
+        return;
     }
   }
 
@@ -326,6 +364,8 @@ export class VoiceInputController {
   }
 
   appMovedToBackground(): Promise<void> | void {
+    // Android backgrounds the app while its own microphone permission dialog is open.
+    if (this.askingPermission) return;
     if (this.state.phase === "preparing") {
       this.invalidateOperation();
       this.setError("Voice input stopped when the app moved to the background.", "retry");
@@ -369,11 +409,16 @@ export class VoiceInputController {
   private async finishRecording(
     alreadyStopped: boolean,
     completedUri: string | null,
+    deliver?: VoiceRecordingDelivery,
   ): Promise<void> {
     if (this.finishing || this.state.phase !== "recording") return;
     this.finishing = true;
     const operationToken = this.operationToken;
-    this.setState({ phase: "transcribing", error: null, errorAction: null });
+    this.setState({
+      phase: deliver ? "sending" : "transcribing",
+      error: null,
+      errorAction: null,
+    });
 
     try {
       if (!alreadyStopped) await this.dependencies.recorder.stop();
@@ -381,6 +426,17 @@ export class VoiceInputController {
       this.recordingUri = completedUri ?? this.dependencies.recorder.uri ?? this.recordingUri;
       this.rememberRecordingUri(this.recordingUri);
       if (!this.isCurrent(operationToken)) return;
+      if (deliver && this.recordingUri) {
+        try {
+          await deliver(this.recordingUri);
+        } catch {
+          if (this.isCurrent(operationToken))
+            this.setError("Could not save this recording.", "retry");
+          return;
+        }
+        if (this.isCurrent(operationToken)) this.setState(IDLE_STATE);
+        return;
+      }
       if (
         !this.recordingUri ||
         !this.transcription ||

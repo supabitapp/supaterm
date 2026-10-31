@@ -215,29 +215,63 @@ Stashes containing uploaded files must be restored in their original environment
 Those files are retained for 24 hours. After an upload expires, restore the prompt
 and use **Attach again** or remove the missing file before sending.
 
-## Voice input on iPhone
+## Voice input
 
-On supported iPhones with iOS 26 or later, use the composer's microphone to record.
-Stop to transcribe and review the text, or tap the up arrow to transcribe and send.
-Text is inserted where your selection was when recording started. In scheduled-task
-prompts, confirming only updates the draft; save the schedule separately.
+Press the microphone in the composer, or `mod+shift+space` on web and desktop, to record a
+prompt of up to five minutes. On web and desktop, the recording stays in the composer
+while you speak:
 
-The first use may download Apple's speech model and needs a network connection.
-Later transcription works offline for that language. Recordings can be up to five
-minutes long. Canceling or an audio interruption discards the recording and preserves
-your existing draft. Leaving the screen keeps dictation available in the floating
-control, but cancels a pending send. While recording, the screen stays
-awake; it can sleep normally once recording stops.
+- **Stop and review**, or `mod+shift+space` again, transcribes the recording into the
+  draft where your cursor was, so you can edit it before sending.
+- **Send**, or your send shortcut, sends the recording as your next message. With an empty draft in a
+  thread that has started, it waits in the [queue](#queued-messages) like a typed message,
+  even while you are offline, and the environment transcribes and sends it once it is
+  reachable. With text or attachments in the draft, Send transcribes the recording, adds
+  it, and sends everything together.
+- **Discard**, or `Escape`, throws the recording away and keeps your draft.
 
-Voice input records from the first connected microphone in **Settings → Microphone**.
-The list mixes kinds (built-in, other wired, other Bluetooth, CarPlay) with wired and
-Bluetooth devices you have dictated with, listed by name. Drag to rank them together:
-for example, put **Other Bluetooth** above your AirPods so a new headset is preferred
-while the AirPods microphone stays low. By default, CarPlay comes after the built-in
-microphone.
+The environment transcribes with the provider chosen under **Settings → General → Voice
+transcription** (**Settings → Voice transcription** on mobile), Claude by default, and that
+login is charged for it. Claude needs a Claude subscription login and Codex a ChatGPT login.
+If the chosen login can't transcribe, the microphone says why; Supaterm never switches to
+another account. A Claude instance that runs on an API key, a gateway's
+`ANTHROPIC_BASE_URL` and token, or Amazon Bedrock can't transcribe; choose Codex, or add a
+Claude instance with its own
+[config directory](./providers-claude.md#separate-accounts-or-configurations) signed in to
+your subscription. Choose the language you speak under **Settings → General → Voice
+language**; it follows your system language by default. On iPhone and Android, voice input
+always uses your phone's language.
 
-Transcription runs on your device. Supaterm deletes the temporary audio after
-transcription or cancellation; only the message text is sent when you submit.
+Recording in a browser needs HTTPS or `localhost`. A remote browser on a plain `http://`
+address can't use the microphone. The first time you record, allow microphone access; on
+macOS you can change it later in System Settings → Privacy & Security → Microphone.
+
+If no speech is heard, the message isn't sent. If the thread refuses a transcribed message,
+the transcript stays in the queue as text so you can edit or retry it. Recordings stay on
+your device until they are sent or discarded.
+
+### On iPhone and Android
+
+Use the composer's microphone to record. Stop to transcribe and review the text, or tap
+the up arrow to send. Text is inserted where your selection was when recording started.
+In scheduled-task prompts, voice input only updates the draft; save the schedule
+separately.
+
+With an empty draft in a thread that has already started, the up arrow sends the
+recording itself as your message. It waits in the thread like a queued message, even
+offline, and the environment transcribes and sends it once connected. If no speech is
+found or the environment refuses it, the message stays in the thread with the reason so
+you can retry or discard it. A transcript the thread couldn't accept stays as text to
+edit or retry. With text in the draft, the up arrow transcribes, adds the text, and
+sends.
+
+Canceling or an audio interruption discards the recording and preserves your existing
+draft. Leaving the screen keeps voice input available in the floating control, but
+cancels a pending send. While recording, the screen stays awake; it can sleep normally
+once recording stops.
+
+On iPhone, voice input records from a connected wired microphone first, then Bluetooth,
+then the built-in microphone, then CarPlay.
 
 ## Queued messages
 

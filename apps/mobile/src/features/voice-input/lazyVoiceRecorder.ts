@@ -8,6 +8,21 @@ export interface VoiceRecordingInput {
   readonly type: string;
 }
 
+/** The subset of expo-audio's recording events that both recorders report. */
+export interface VoiceRecordingStatusEvent {
+  readonly isFinished: boolean;
+  readonly hasError: boolean;
+  readonly error: string | null;
+  readonly url: string | null;
+  readonly mediaServicesDidReset?: boolean;
+}
+
+export interface VoiceRecordingState {
+  readonly isRecording: boolean;
+  readonly durationMillis: number;
+  readonly metering?: number;
+}
+
 export interface NativeVoiceRecorder<TStatus, TRecorderState> {
   readonly uri: string | null;
   prepareToRecordAsync(): Promise<void>;
