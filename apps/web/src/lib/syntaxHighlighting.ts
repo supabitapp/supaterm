@@ -1,3 +1,4 @@
+import "@supaterm/client-runtime/assembly-highlighting";
 import {
   canUseWASM,
   getSharedHighlighter,
