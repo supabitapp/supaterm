@@ -3,6 +3,7 @@ import type * as NodeHttp from "node:http";
 import * as NodeOS from "node:os";
 import WebSocket, { WebSocketServer } from "ws";
 import { MAX_DIRECT_TUNNEL_URLS, type ServerTunnelEndpoints } from "@supaterm/contracts";
+import * as HostProcess from "@supaterm/shared/HostProcess";
 import { TUNNEL_MAX_PLAIN_BYTES } from "@supaterm/shared/relay/tunnel";
 import * as Context from "effect/Context";
 import * as Deferred from "effect/Deferred";
@@ -84,6 +85,7 @@ const peerKey = (address: string | undefined) =>
 
 const make = Effect.fn("DirectTunnel.make")(function* (limits: DirectTunnelLimits) {
   const config = yield* ServerConfig.ServerConfig;
+  const platform = yield* HostProcess.Platform;
   const identity = yield* RelayIdentity.RelayIdentity;
   const ingress = yield* RelayIngress;
   // The host's shared WebSocket server negotiates permessage-deflate and
@@ -223,6 +225,7 @@ const make = Effect.fn("DirectTunnel.make")(function* (limits: DirectTunnelLimit
   ): Option.Option<ServerTunnelEndpoints> =>
     Option.flatMap(found, ({ address }) => {
       const urls = resolveBoundEndpoints({
+        platform,
         host: config.host,
         port: config.port,
         interfaces: NodeOS.networkInterfaces(),
