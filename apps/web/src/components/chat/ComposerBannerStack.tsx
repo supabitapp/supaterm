@@ -512,7 +512,7 @@ function ComposerBannerStackAlert({
             ) : null}
           </ComposerBanner.Content>
           {item.actions || item.onDismiss ? (
-            <ComposerBanner.Actions>
+            <ComposerBanner.Actions className="min-w-14 sm:min-w-12">
               {item.actions}
               {item.onDismiss ? (
                 <ComposerBanner.Dismiss
