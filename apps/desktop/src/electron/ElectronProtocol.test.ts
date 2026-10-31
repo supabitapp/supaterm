@@ -142,7 +142,6 @@ describe("ElectronProtocol", () => {
           yield* protocol.registerDesktopProtocol({
             scheme: "supaterm-dev",
             targetOrigin: new URL("http://127.0.0.1:5733/"),
-            clerkFrontendApiHostname: undefined,
           });
           yield* Effect.promise(() =>
             handler!(new Request("supaterm-dev://app//example.com/src/main.tsx?t=1")),
