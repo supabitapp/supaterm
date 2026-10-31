@@ -6,6 +6,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as References from "effect/References";
 import * as Tracer from "effect/Tracer";
+import * as UrlParams from "effect/http/UrlParams";
 import * as OtlpExporter from "effect/observability/OtlpExporter";
 import * as OtlpMetrics from "effect/observability/OtlpMetrics";
 import * as OtlpTracer from "effect/observability/OtlpTracer";
@@ -33,6 +34,19 @@ export const layer = Layer.unwrap(
       Layer.succeed(References.TracerTimingEnabled, config.traceTimingEnabled),
       // Preserve SQL spans while awaiting connections so lock waits can be recorded on them.
       Layer.succeed(Statement.SpanPropagationEnabled, true),
+      // Socket tickets, pairing tokens, and OAuth codes travel in query strings.
+      Layer.effect(
+        UrlParams.CurrentRedactedNames,
+        Effect.map(UrlParams.CurrentRedactedNames, (names) => [
+          ...names,
+          "wsTicket",
+          "token",
+          "pairingUrl",
+          "code",
+          "state",
+          "challenge",
+        ]),
+      ),
     );
 
     const layerTracer = Layer.unwrap(

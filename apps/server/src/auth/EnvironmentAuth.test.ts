@@ -699,19 +699,25 @@ it.layer(NodeServices.layer)("EnvironmentAuth.layer", (it) => {
         );
 
       const rpc = yield* serverAuth.issueWebSocketTicket(bearer, { use: "rpc" });
-      expect((yield* upgrade(rpc.ticket, "rpc")).sessionId).toBe(bearer.sessionId);
-      const rpcOnMedia = yield* Effect.flip(upgrade(rpc.ticket, "media"));
+      expect((yield* upgrade(Redacted.value(rpc.ticket), "rpc")).sessionId).toBe(bearer.sessionId);
+      const rpcOnMedia = yield* Effect.flip(upgrade(Redacted.value(rpc.ticket), "media"));
       expect(rpcOnMedia._tag).toBe("ServerAuthInvalidCredentialError");
 
       const media = yield* serverAuth.issueWebSocketTicket(bearer, { use: "media" });
-      expect((yield* upgrade(media.ticket, "media")).sessionId).toBe(bearer.sessionId);
-      const mediaOnRpc = yield* Effect.flip(upgrade(media.ticket, "rpc"));
+      expect((yield* upgrade(Redacted.value(media.ticket), "media")).sessionId).toBe(
+        bearer.sessionId,
+      );
+      const mediaOnRpc = yield* Effect.flip(upgrade(Redacted.value(media.ticket), "rpc"));
       expect(mediaOnRpc._tag).toBe("ServerAuthInvalidCredentialError");
 
       // Clients that predate ticket audiences, and the relay tunnel, mint at the bare path.
       const legacy = yield* serverAuth.issueWebSocketTicket(bearer);
-      expect((yield* upgrade(legacy.ticket, "rpc")).sessionId).toBe(bearer.sessionId);
-      expect((yield* upgrade(legacy.ticket, "media")).sessionId).toBe(bearer.sessionId);
+      expect((yield* upgrade(Redacted.value(legacy.ticket), "rpc")).sessionId).toBe(
+        bearer.sessionId,
+      );
+      expect((yield* upgrade(Redacted.value(legacy.ticket), "media")).sessionId).toBe(
+        bearer.sessionId,
+      );
     }).pipe(Effect.provide(layerEnvironmentAuth({ mode: "web", host: "192.168.1.50" }))),
   );
 });

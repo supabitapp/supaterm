@@ -16,7 +16,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
-import { FetchHttpClient, Headers, HttpClient, HttpClientError } from "effect/http";
+import { FetchHttpClient, Headers, HttpClient, HttpClientError, UrlParams } from "effect/http";
 import * as HttpApiClient from "effect/http-api/HttpApiClient";
 
 const isEnvironmentHttpCommonError = Schema.is(EnvironmentHttpCommonError);
@@ -80,10 +80,27 @@ export type RemoteEnvironmentRequestError =
   | RemoteEnvironmentAuthUndeclaredStatusError
   | RemoteEnvironmentAuthTimeoutError;
 
+// Socket tickets, pairing tokens, and OAuth codes travel in query strings.
+const layerRedactedUrlParams = Layer.effect(
+  UrlParams.CurrentRedactedNames,
+  Effect.map(UrlParams.CurrentRedactedNames, (names) => [
+    ...names,
+    "wsTicket",
+    "token",
+    "pairingUrl",
+    "code",
+    "state",
+    "challenge",
+  ]),
+);
+
 export const layerRemoteHttpClient = (
   fetchFn: typeof globalThis.fetch,
 ): Layer.Layer<HttpClient.HttpClient> =>
-  FetchHttpClient.layer.pipe(Layer.provide(Layer.succeed(FetchHttpClient.Fetch, fetchFn)));
+  Layer.merge(
+    FetchHttpClient.layer.pipe(Layer.provide(Layer.succeed(FetchHttpClient.Fetch, fetchFn))),
+    layerRedactedUrlParams,
+  );
 
 const remoteApiBaseUrl = (httpBaseUrl: string): string => {
   const url = new URL(httpBaseUrl);

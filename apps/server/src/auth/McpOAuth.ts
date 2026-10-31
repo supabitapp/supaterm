@@ -21,6 +21,7 @@ import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Redacted from "effect/Redacted";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import { HttpServerRequest } from "effect/http";
@@ -156,7 +157,7 @@ export class McpOAuthRedirectError extends Schema.TaggedError<McpOAuthRedirectEr
     error: Schema.Literals(["invalid_request", "unsupported_response_type", "invalid_target"]),
     description: Schema.String,
     redirectUri: Schema.String,
-    state: Schema.optional(Schema.String),
+    state: Schema.optional(Schema.RedactedFromValue(Schema.String)),
   },
 ) {}
 
@@ -164,7 +165,7 @@ export interface AuthorizationRequest {
   readonly client: McpOAuthClient;
   readonly redirectUri: string;
   readonly codeChallenge: string;
-  readonly state: string | undefined;
+  readonly state: Redacted.Redacted<string> | undefined;
   readonly resource: string;
   readonly issuer: string;
 }
@@ -213,10 +214,15 @@ export class McpOAuth extends Context.Service<
   }
 >()("supaterm/auth/McpOAuth") {}
 
-const redirectWith = (redirectUri: string, params: Record<string, string | undefined>) => {
+const redirectWith = (
+  redirectUri: string,
+  params: Record<string, string | Redacted.Redacted<string> | undefined>,
+) => {
   const url = new URL(redirectUri);
   for (const [name, value] of Object.entries(params)) {
-    if (value !== undefined) url.searchParams.set(name, value);
+    if (value !== undefined) {
+      url.searchParams.set(name, Redacted.isRedacted(value) ? Redacted.value(value) : value);
+    }
   }
   return url.toString();
 };
@@ -453,8 +459,9 @@ const make = Effect.gen(function* () {
       if (token.grant_type !== "authorization_code") {
         return yield* fail("unsupported_grant_type", "Only authorization_code is supported.");
       }
-      const { code, redirect_uri: redirectUri, client_id: clientId } = token;
-      const verifier = token.code_verifier;
+      const { redirect_uri: redirectUri, client_id: clientId } = token;
+      const code = token.code && Redacted.value(token.code);
+      const verifier = token.code_verifier && Redacted.value(token.code_verifier);
       if (!code || !redirectUri || !clientId || !verifier) {
         return yield* fail(
           "invalid_request",
