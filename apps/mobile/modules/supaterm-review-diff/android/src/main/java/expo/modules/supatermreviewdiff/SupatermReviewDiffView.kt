@@ -486,6 +486,7 @@ class SupatermReviewDiffView(
       )
       postInvalidateOnAnimation()
     } else {
+      verticalScroller.forceFinished(true)
       canvasView.setVerticalOffset(target)
     }
   }
