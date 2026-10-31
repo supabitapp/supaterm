@@ -84,7 +84,6 @@ export function CompactBrandTitle(
           <Text
             allowFontScaling={props.allowFontScaling}
             maxFontSizeMultiplier={BRAND_MAX_FONT_SCALE}
-            maxFontSizeMultiplier={BRAND_MAX_FONT_SCALE}
             className="font-supaterm-bold text-foreground-muted uppercase"
             style={{ fontSize: 9 * scale, letterSpacing: 0.9 * scale }}
           >
