@@ -664,7 +664,9 @@ describe("auth pairing create --base-url", () => {
     "rejects %s before issuing a token",
     (baseUrl) =>
       Effect.gen(function* () {
-        const baseDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "supaterm-cli-base-url-test-"));
+        const baseDir = NodeFS.mkdtempSync(
+          NodePath.join(NodeOS.tmpdir(), "supaterm-cli-base-url-test-"),
+        );
         const error = yield* runCli([
           "auth",
           "pairing",
@@ -696,7 +698,9 @@ describe("auth pairing create --base-url", () => {
     "prints a pair URL for %s",
     (baseUrl) =>
       Effect.gen(function* () {
-        const baseDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "supaterm-cli-base-url-test-"));
+        const baseDir = NodeFS.mkdtempSync(
+          NodePath.join(NodeOS.tmpdir(), "supaterm-cli-base-url-test-"),
+        );
         const output = yield* captureStdout(
           runCli([
             "auth",
