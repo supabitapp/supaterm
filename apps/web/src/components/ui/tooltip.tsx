@@ -160,7 +160,7 @@ function TooltipPopup({
           data-slot="tooltip-popup"
           {...props}
         >
-          <div className="px-2 py-1" data-slot="tooltip-viewport">
+          <div className="min-w-0 px-2 py-1" data-slot="tooltip-viewport">
             {shortcut ? (
               <TooltipShortcutLabel shortcut={shortcut}>{children}</TooltipShortcutLabel>
             ) : (
