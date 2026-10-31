@@ -76,6 +76,7 @@ import { PlusIcon } from "@supaterm/icons";
 import type { OlderDoneScope } from "@supaterm/client-runtime/state/threads";
 import {
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -93,7 +94,6 @@ import {
 } from "@supaterm/client-runtime/state/runtime";
 import { isElectron } from "../env";
 import {
-  resolveShortcutCommand,
   shortcutLabelForCommand,
   shouldShowThreadJumpHintsForModifiers,
   threadJumpCommandForIndex,
@@ -101,7 +101,6 @@ import {
   threadTraversalDirectionFromCommand,
 } from "../keybindings";
 import { useShortcutModifierState } from "../shortcutModifierState";
-import { isTerminalFocused } from "../lib/terminalFocus";
 import { isModelPickerOpen } from "../modelPickerVisibility";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
 import { isMacPlatform } from "~/lib/utils";
@@ -129,7 +128,7 @@ import { useThreadUndoNotice } from "../hooks/showThreadUndoNotice";
 import { useNewThreadHandler } from "../hooks/useHandleNewThread";
 import { useSidebarProjectGroups } from "../hooks/useSidebarProjectGroups";
 import { useTerminalFocus } from "../hooks/useTerminalFocus";
-import { registerAppCommandHandler } from "../appCommandBus";
+import { type CommandInvocation, registerCommands } from "../shortcuts/dispatcher";
 import { isCommandPaletteOpen, openCommandPalette } from "../commandPaletteBus";
 import { registerMarkDoneAndAdvance } from "../markDoneAndAdvance";
 import { updateClientSettings, useClientSettings } from "../hooks/useSettings";
@@ -2658,64 +2657,36 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     },
   );
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to window keydown for thread navigation shortcuts using the current thread list
-  useEffect(() => {
-    const navigateToThreadKey = (targetThreadKey: string | null) => {
-      if (!targetThreadKey) return false;
-      const targetThread = threadByKey.get(targetThreadKey);
+  const navigateForCommand = useEffectEvent(
+    (command: KeybindingCommand, { repeat }: CommandInvocation) => {
+      if (repeat) return false;
+      const traversalDirection = threadTraversalDirectionFromCommand(command);
+      const jumpIndex = threadJumpIndexFromCommand(command);
+      const targetThreadKey =
+        traversalDirection !== null
+          ? resolveAdjacentThreadId({
+              threadIds: orderedThreadKeys,
+              currentThreadId: routeRowThreadKey,
+              direction: traversalDirection,
+            })
+          : jumpIndex !== null
+            ? (orderedThreadKeys[jumpIndex] ?? null)
+            : null;
+      const targetThread = targetThreadKey ? threadByKey.get(targetThreadKey) : undefined;
       if (!targetThread) return false;
       navigateToThread(scopeThreadRef(targetThread.environmentId, targetThread.id));
-      return true;
-    };
-    const navigateForCommand = (command: KeybindingCommand | null) => {
-      const traversalDirection = threadTraversalDirectionFromCommand(command);
-      if (traversalDirection !== null) {
-        return navigateToThreadKey(
-          resolveAdjacentThreadId({
-            threadIds: orderedThreadKeys,
-            currentThreadId: routeRowThreadKey,
-            direction: traversalDirection,
-          }),
-        );
-      }
-      const jumpIndex = threadJumpIndexFromCommand(command ?? "");
-      if (jumpIndex === null) return false;
-      return navigateToThreadKey(orderedThreadKeys[jumpIndex] ?? null);
-    };
-    const onWindowKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.repeat || isCommandPaletteOpen() || isModelPickerOpen()) {
-        return;
-      }
-      const command = resolveShortcutCommand(event, keybindings, {
-        platform: navigator.platform,
-        context: {
-          terminalFocus: isTerminalFocused(),
-          terminalOpen: routeTerminalOpen,
-          modelPickerOpen: isModelPickerOpen(),
-          isWeb: !isElectron,
-          isDesktop: isElectron,
-        },
-      });
-      if (!navigateForCommand(command)) return;
-      event.preventDefault();
-      event.stopPropagation();
-    };
-    window.addEventListener("keydown", onWindowKeyDown);
-    const unregister = registerAppCommandHandler(
-      (command) => !isCommandPaletteOpen() && !isModelPickerOpen() && navigateForCommand(command),
-    );
-    return () => {
-      window.removeEventListener("keydown", onWindowKeyDown);
-      unregister();
-    };
-  }, [
-    keybindings,
-    navigateToThread,
-    orderedThreadKeys,
-    routeRowThreadKey,
-    routeTerminalOpen,
-    threadByKey,
-  ]);
+    },
+  );
+  const readRouteTerminalOpen = useEffectEvent(() => routeTerminalOpen);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers thread traversal and jump commands with the dispatcher for the sidebar's lifetime
+  useEffect(
+    () =>
+      registerCommands((command, invocation) => navigateForCommand(command, invocation), {
+        when: () => !isCommandPaletteOpen() && !isModelPickerOpen(),
+        context: () => ({ terminalOpen: readRouteTerminalOpen() }),
+      }),
+    [],
+  );
 
   const shouldShowJumpHintsNow = shouldShowThreadJumpHintsForModifiers(
     shortcutModifiers,

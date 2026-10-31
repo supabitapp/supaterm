@@ -1,15 +1,14 @@
 import { useAtomValue } from "@effect/atom-react";
 import {
   useEffect,
+  useEffectEvent,
   useState,
   useSyncExternalStore,
   type CSSProperties,
   type ReactNode,
 } from "react";
 import { useLocation, useRouter, type AnyRouter } from "@tanstack/react-router";
-import type { KeybindingCommand } from "@supaterm/contracts";
 
-import { registerAppCommandHandler } from "../appCommandBus";
 import { moveWorkspaceFocus, workspaceAreaProps } from "../lib/workspaceFocus";
 import { isCommandPaletteOpen } from "../commandPaletteBus";
 import { isElectron } from "../env";
@@ -56,7 +55,7 @@ import {
 } from "./ui/sidebar";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { appAtomRegistry } from "../rpc/atomRegistry";
-import { registerCommands, registerMenuAction } from "../shortcuts/dispatcher";
+import { type CommandHandler, registerCommands, registerMenuAction } from "../shortcuts/dispatcher";
 import { resolveThreadRouteRef } from "../threadRoutes";
 
 const MACOS_TRAFFIC_LIGHTS_LEFT_INSET = "var(--desktop-window-controls-inset, 90px)";
@@ -101,10 +100,6 @@ function readUsagePageOpen(router: AnyRouter) {
   return router.state.location.pathname === "/usage";
 }
 
-function isKeybindingCaptureTarget(event: KeyboardEvent) {
-  return event.target instanceof HTMLElement && event.target.closest("[data-keybinding-capture]");
-}
-
 function readRoutePanelsOpen(router: AnyRouter) {
   const routeThreadRef = resolveThreadRouteRef(router.state.matches.at(-1)?.params ?? {});
   if (!routeThreadRef) return { terminalOpen: false, previewOpen: false };
@@ -119,73 +114,35 @@ function readRoutePanelsOpen(router: AnyRouter) {
   };
 }
 
-function navigateHistory(command: KeybindingCommand | null): boolean {
-  switch (command) {
-    case "navigation.back":
-      window.history.back();
-      return true;
-    case "navigation.forward":
-      window.history.forward();
-      return true;
-    default:
-      return false;
-  }
-}
-
 export function registerNavigationHistoryCommands(router: AnyRouter): () => void {
-  const unregisterCommands = registerCommands(
+  return registerCommands(
     {
-      "navigation.back": (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        window.history.back();
-      },
-      "navigation.forward": (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        window.history.forward();
-      },
+      "navigation.back": () => window.history.back(),
+      "navigation.forward": () => window.history.forward(),
     },
     {
-      when: (event) => !isKeybindingCaptureTarget(event),
       context: () => ({
         ...readRoutePanelsOpen(router),
         usagePageOpen: readUsagePageOpen(router),
       }),
     },
   );
-  const unregisterAppCommand = registerAppCommandHandler(navigateHistory);
-  return () => {
-    unregisterCommands();
-    unregisterAppCommand();
-  };
 }
 
 // Capture phase, so F6 also leaves widgets that swallow keys, such as the terminal.
 function registerWorkspaceFocusCommands(router: AnyRouter): () => void {
-  const move = (direction: 1 | -1) => (event: KeyboardEvent) => {
-    if (event.isComposing) return false;
-    // Inside a dialog the move is refused, but the key is still consumed.
-    event.preventDefault();
-    event.stopPropagation();
-    moveWorkspaceFocus(direction);
-  };
-  const disposers = [
-    registerCommands(
-      { "workspace.focusNext": move(1), "workspace.focusPrevious": move(-1) },
-      {
-        capture: true,
-        when: (event) => !isKeybindingCaptureTarget(event),
-        context: () => readRoutePanelsOpen(router),
-      },
-    ),
-    // A focused desktop browser forwards the keys; its renderer focus is stale.
-    registerMenuAction("workspace.focusNext", () => moveWorkspaceFocus(1, "panel")),
-    registerMenuAction("workspace.focusPrevious", () => moveWorkspaceFocus(-1, "panel")),
-  ];
-  return () => {
-    for (const dispose of disposers) dispose();
-  };
+  // Inside a dialog the move is refused, but the key is still consumed. A focused
+  // desktop browser forwards the keys as menu actions; its renderer focus is stale.
+  const move =
+    (direction: 1 | -1): CommandHandler =>
+    ({ source, event }) => {
+      if (event?.isComposing) return false;
+      moveWorkspaceFocus(direction, source === "menu" ? "panel" : undefined);
+    };
+  return registerCommands(
+    { "workspace.focusNext": move(1), "workspace.focusPrevious": move(-1) },
+    { capture: true, context: () => readRoutePanelsOpen(router) },
+  );
 }
 
 // Escape leaves the pull requests page when no scope (a selection, a dialog,
@@ -280,6 +237,27 @@ function registerThreadUndoCommands(
   };
 }
 
+function registerSidebarToggleCommand(router: AnyRouter, toggleSidebar: () => void): () => void {
+  return registerCommands(
+    {
+      "sidebar.toggle": ({ event }) => {
+        // The rich-text composer claims Mod+B only to bold selected text;
+        // the toggle stays available everywhere else.
+        if (
+          event &&
+          isRichTextBoldShortcut(event, window.getSelection()) &&
+          event.target instanceof HTMLElement &&
+          event.target.closest('[data-composer-rich-text="true"]')
+        ) {
+          return false;
+        }
+        toggleSidebar();
+      },
+    },
+    { capture: true, context: () => ({ usagePageOpen: readUsagePageOpen(router) }) },
+  );
+}
+
 /** Keyboard and menu commands that live as long as the app shell. */
 function registerAppShellCommands(router: AnyRouter, shellElement: Element): () => void {
   // The provider mirrors the visibility it renders onto its wrapper, so the
@@ -311,52 +289,9 @@ function SidebarControl() {
     context: { usagePageOpen },
   });
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- window keydown listener that toggles the sidebar on its shortcut
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented) return;
-      if (
-        event.target instanceof HTMLElement &&
-        event.target.closest("[data-keybinding-capture]")
-      ) {
-        return;
-      }
-      if (
-        isRichTextBoldShortcut(event, window.getSelection()) &&
-        event.target instanceof HTMLElement &&
-        event.target.closest('[data-composer-rich-text="true"]')
-      ) {
-        // The rich-text composer claims Mod+B only to bold selected text;
-        // the toggle stays available everywhere else.
-        return;
-      }
-      if (
-        resolveShortcutCommand(event, keybindings, { context: { usagePageOpen } }) !==
-        "sidebar.toggle"
-      )
-        return;
-
-      event.preventDefault();
-      event.stopPropagation();
-      toggleSidebar();
-    };
-
-    window.addEventListener("keydown", onKeyDown, true);
-
-    const unsubscribe = window.desktopBridge?.onMenuAction((action) => {
-      if (action === "sidebar.toggle") toggleSidebar();
-    });
-    const unregister = registerAppCommandHandler((command) => {
-      if (command !== "sidebar.toggle") return false;
-      toggleSidebar();
-      return true;
-    });
-    return () => {
-      window.removeEventListener("keydown", onKeyDown, true);
-      unsubscribe?.();
-      unregister();
-    };
-  }, [keybindings, toggleSidebar, usagePageOpen]);
+  const toggleSidebarFromCommand = useEffectEvent(() => toggleSidebar());
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers the sidebar toggle with the command dispatcher for the control's lifetime
+  useEffect(() => registerSidebarToggleCommand(router, () => toggleSidebarFromCommand()), [router]);
 
   // The control lives as long as the shell, so it carries the shell's commands. Created
   // once so re-renders never re-register them.

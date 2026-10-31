@@ -27,13 +27,12 @@ export const OPEN_FAVORITE_EDITOR_ATTRIBUTE = "data-open-favorite-editor";
 export function registerOpenFavoriteEditorCommand(): () => void {
   return registerCommands(
     {
-      "editor.openFavorite": (event) => {
-        if (event.repeat) return false;
+      "editor.openFavorite": ({ repeat }) => {
+        if (repeat) return false;
         const button = [
           ...document.querySelectorAll<HTMLButtonElement>(`[${OPEN_FAVORITE_EDITOR_ATTRIBUTE}]`),
         ].at(-1);
         if (button === undefined || button.disabled) return false;
-        event.preventDefault();
         button.click();
       },
     },

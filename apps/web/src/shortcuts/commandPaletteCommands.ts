@@ -1,7 +1,6 @@
 import type { KeybindingCommand } from "@supaterm/contracts";
 import type { AnyRouter } from "@tanstack/react-router";
 
-import { registerAppCommandHandler } from "../appCommandBus";
 import {
   dispatchCommandPalette,
   isCommandPaletteMounted,
@@ -13,31 +12,15 @@ import { toggleThemeEditorForTheme } from "../components/settings/themeEditorSto
 import { toastManager } from "../components/ui/toast";
 import { getThemeSnapshot, setAppearanceMode } from "../hooks/useTheme";
 import { selectActiveRightPanel, useRightPanelStore } from "../rightPanelStore";
-import { type CommandHandlers, type CommandScopeOptions, registerCommands } from "./dispatcher";
+import { type CommandScopeOptions, registerCommands } from "./dispatcher";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
 import { resolveThreadRouteTarget } from "../threadRoutes";
-
-function consume(event: KeyboardEvent): void {
-  event.preventDefault();
-  event.stopPropagation();
-}
 
 // Shortcuts that open a page work from anywhere the palette is mounted.
 const PAGE_BY_COMMAND = {
   "usage.open": "/usage",
   "automations.open": "/automations",
 } as const;
-
-const PALETTE_COMMANDS = [
-  "appearance.cycle",
-  "theme.select",
-  "themeEditor.toggle",
-  "usage.open",
-  "automations.open",
-  "commandPalette.toggle",
-  "filePicker.toggle",
-  "projectSearch.toggle",
-] as const satisfies ReadonlyArray<KeybindingCommand>;
 
 /** Returns false when the command is not a palette command. */
 function runCommandPaletteCommand(
@@ -85,8 +68,8 @@ function runCommandPaletteCommand(
 }
 
 /**
- * Palette, theme and page shortcuts. They read the route, panels and theme
- * when the key is pressed, and are live only while the palette is mounted.
+ * Palette, theme and page commands. They read the route, panels and theme
+ * when they run, and are live only while the palette is mounted.
  */
 export function installCommandPaletteCommands(
   router: AnyRouter,
@@ -108,50 +91,39 @@ export function installCommandPaletteCommands(
         if (event.isComposing || event.key !== "Escape") return false;
         const { open, mode } = useCommandPaletteStore.getState();
         if (!open || mode === "command") return false;
-        consume(event);
+        event.preventDefault();
+        event.stopPropagation();
         dispatchCommandPalette({ _tag: "BackToCommand" });
       },
     },
   );
 
-  const handlers: CommandHandlers = Object.fromEntries(
-    PALETTE_COMMANDS.map((command) => [
-      command,
-      (event: KeyboardEvent) => {
-        if (!runCommandPaletteCommand(router, command, event.repeat)) return false;
-        consume(event);
+  const disposeCommands = registerCommands(
+    (command, { repeat }) => runCommandPaletteCommand(router, command, repeat),
+    {
+      ...options,
+      when: isCommandPaletteMounted,
+      context: () => {
+        const threadRef = readRouteThreadRef();
+        return {
+          terminalOpen: threadRef
+            ? selectThreadTerminalUiState(
+                useTerminalUiStateStore.getState().terminalUiStateByThreadKey,
+                threadRef,
+              ).terminalOpen
+            : false,
+          previewOpen: threadRef
+            ? selectActiveRightPanel(useRightPanelStore.getState().byThreadKey, threadRef) ===
+              "preview"
+            : false,
+          usagePageOpen: router.state.location.pathname === "/usage",
+        };
       },
-    ]),
-  );
-  const disposeCommands = registerCommands(handlers, {
-    ...options,
-    when: isCommandPaletteMounted,
-    context: () => {
-      const threadRef = readRouteThreadRef();
-      return {
-        terminalOpen: threadRef
-          ? selectThreadTerminalUiState(
-              useTerminalUiStateStore.getState().terminalUiStateByThreadKey,
-              threadRef,
-            ).terminalOpen
-          : false,
-        previewOpen: threadRef
-          ? selectActiveRightPanel(useRightPanelStore.getState().byThreadKey, threadRef) ===
-            "preview"
-          : false,
-        usagePageOpen: router.state.location.pathname === "/usage",
-      };
     },
-  });
-
-  // Commands that arrive without a key press, such as from a connected device.
-  const disposeAppCommands = registerAppCommandHandler(
-    (command) => isCommandPaletteMounted() && runCommandPaletteCommand(router, command, false),
   );
 
   return () => {
     disposeEscape();
     disposeCommands();
-    disposeAppCommands();
   };
 }

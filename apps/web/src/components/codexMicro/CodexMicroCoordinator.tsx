@@ -13,7 +13,6 @@ import { scopedThreadKey } from "@supaterm/client-runtime/environment";
 import { useRouter } from "@tanstack/react-router";
 import { useEffect, useRef, useSyncExternalStore } from "react";
 
-import { dispatchAppCommand } from "../../appCommandBus";
 import { useComposerHandleContext } from "../../composerHandleContext";
 import { useClientSettings } from "../../hooks/useSettings";
 import { useNowMinute } from "../../hooks/useNowMinute";
@@ -28,6 +27,7 @@ import {
   buildCodexMicroSlotViews,
   selectCodexMicroSlotBindings,
 } from "./codexMicroSlots";
+import { runCommand } from "../../shortcuts/dispatcher";
 import { getCodexMicroBridge } from "./codexMicroBridge";
 import { publishCodexMicroInput, publishCodexMicroSlots } from "./codexMicroStore";
 
@@ -114,7 +114,7 @@ function ActiveCodexMicroCoordinator({ bridge }: { readonly bridge: DesktopCodex
     if (action === null) return;
     switch (action.type) {
       case "command":
-        dispatchAppCommand(action.command);
+        runCommand(action.command, "device");
         return;
       case "composer-text":
         composerHandleRef?.current?.insertTextAtEnd(action.text, { ensureLeadingBoundary: true });

@@ -2,7 +2,6 @@ import { AuthPreviewOperateScope, type KeybindingCommand } from "@supaterm/contr
 import type { AnyRouter } from "@tanstack/react-router";
 
 import { stackedThreadToast, toastManager } from "~/components/ui/toast";
-import { registerAppCommandHandler } from "../appCommandBus";
 import { isPreviewAvailableFor } from "../browser/previewRuntime";
 import { isCommandPaletteOpen, openCommandPalette } from "../commandPaletteBus";
 import { dispatchPreviewAction, type PreviewAction } from "../components/preview/previewActionBus";
@@ -22,22 +21,9 @@ import { readEnvironmentScope } from "../state/session";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
 import { useThreadSelectionStore } from "../threadSelectionStore";
 import { resolveThreadRouteTarget } from "../threadRoutes";
-import { type CommandHandlers, registerCommands } from "./dispatcher";
+import { registerCommands } from "./dispatcher";
 
 const CHAT_ROUTE_ID = "/_chat";
-
-const CHAT_ROUTE_COMMANDS = [
-  "chat.new",
-  "chat.newLocal",
-  "chat.newWithoutProject",
-  "projectPicker.toggle",
-  "preview.toggle",
-  "preview.refresh",
-  "preview.focusUrl",
-  "preview.zoomIn",
-  "preview.zoomOut",
-  "preview.resetZoom",
-] as const satisfies ReadonlyArray<KeybindingCommand>;
 
 const PREVIEW_ACTION_BY_COMMAND: Partial<Record<KeybindingCommand, PreviewAction>> = {
   "preview.refresh": "refresh",
@@ -86,7 +72,7 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
   };
 
   /** Returns false when the command is not one of these, or cannot run right now. */
-  const runCommand = (command: KeybindingCommand, repeat: boolean): boolean => {
+  const runChatRouteCommand = (command: KeybindingCommand, repeat: boolean): boolean => {
     switch (command) {
       case "chat.new":
       case "chat.newLocal":
@@ -140,23 +126,13 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
     }
   };
 
-  const isLive = () =>
+  const when = () =>
     router.state.matches.some((match) => match.routeId === CHAT_ROUTE_ID) &&
     !router.state.matches.some((match) => isAppModalPage(match.pathname)) &&
     !isCommandPaletteOpen();
 
-  const commands: CommandHandlers = Object.fromEntries(
-    CHAT_ROUTE_COMMANDS.map((command) => [
-      command,
-      (event: KeyboardEvent) => {
-        if (!runCommand(command, event.repeat)) return false;
-        event.preventDefault();
-        event.stopPropagation();
-      },
-    ]),
-  );
-  const disposeCommands = registerCommands(commands, {
-    when: isLive,
+  return registerCommands((command, { repeat }) => runChatRouteCommand(command, repeat), {
+    when,
     context: () => {
       const threadRef = readRouteThreadRef();
       return {
@@ -177,12 +153,4 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
       selection.clearSelection();
     },
   });
-  // Commands that arrive without a key press, such as from a connected device.
-  const disposeAppCommands = registerAppCommandHandler(
-    (command) => isLive() && runCommand(command, false),
-  );
-  return () => {
-    disposeCommands();
-    disposeAppCommands();
-  };
 }

@@ -1,7 +1,13 @@
 import type { KeybindingCommand, ResolvedKeybindingsConfig } from "@supaterm/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
 
-import { dispatchMenuAction, registerCommands, registerMenuAction } from "./dispatcher";
+import {
+  type CommandInvocation,
+  dispatchMenuAction,
+  registerCommands,
+  registerMenuAction,
+  runCommand,
+} from "./dispatcher";
 
 function bindings(entries: ReadonlyArray<[string, KeybindingCommand]>): ResolvedKeybindingsConfig {
   return entries.map(([key, command]) => ({
@@ -39,7 +45,7 @@ describe("command dispatcher", () => {
     stack.defer(registerCommands({ "chat.new": outer }, { keybindings }));
     stack.defer(registerCommands({ "chat.new": inner }, { keybindings }));
 
-    press("k");
+    expect(press("k").defaultPrevented).toBe(true);
 
     expect(inner).toHaveBeenCalledOnce();
     expect(outer).not.toHaveBeenCalled();
@@ -65,8 +71,8 @@ describe("command dispatcher", () => {
 
   it("stops once a handler prevents default, and unregisters on cleanup", () => {
     const lower = vi.fn();
-    const upper = vi.fn((event: KeyboardEvent) => {
-      event.preventDefault();
+    const upper = vi.fn(({ event }: CommandInvocation) => {
+      event?.preventDefault();
       return false;
     });
     using stack = new DisposableStack();
@@ -80,6 +86,44 @@ describe("command dispatcher", () => {
     press("k");
     expect(upper).toHaveBeenCalledOnce();
     expect(lower).toHaveBeenCalledOnce();
+  });
+
+  it("leaves keys typed into a shortcut recorder alone", () => {
+    const command = vi.fn();
+    using stack = new DisposableStack();
+    stack.defer(registerCommands({ "chat.new": command }, { keybindings }));
+    const recorder = document.createElement("input");
+    recorder.dataset.keybindingCapture = "";
+    document.body.append(recorder);
+    stack.defer(() => recorder.remove());
+
+    const event = new KeyboardEvent("keydown", { key: "k", cancelable: true, bubbles: true });
+    recorder.dispatchEvent(event);
+
+    expect(command).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it("runs commands without a key through the same scopes and guards, capture scopes first", () => {
+    const calls: Array<string> = [];
+    let captureLive = false;
+    using stack = new DisposableStack();
+    stack.defer(
+      registerCommands({ "chat.new": ({ source }) => void calls.push(`global:${source}`) }),
+    );
+    stack.defer(
+      registerCommands(
+        { "chat.new": ({ source }) => void calls.push(`capture:${source}`) },
+        { capture: true, when: () => captureLive },
+      ),
+    );
+
+    expect(runCommand("chat.new", "device")).toBe(true);
+    captureLive = true;
+    dispatchMenuAction("chat.new");
+
+    expect(calls).toEqual(["global:device", "capture:menu"]);
+    expect(runCommand("chat.newLocal", "device")).toBe(false);
   });
 
   it("lets a scope claim raw keys before command lookup", () => {

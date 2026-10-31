@@ -3033,15 +3033,6 @@ export default function ChatView(props: ChatViewProps) {
     },
   });
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to desktop bridge menu actions that toggle or maximize the right panel
-  useEffect(() => {
-    return window.desktopBridge?.onMenuAction((action) => {
-      if (!isPaneInputOwner()) return;
-      if (action === "rightPanel.toggle") toggleRightPanelStable();
-      else if (action === "rightPanel.toggleMaximized") toggleRightPanelMaximizedStable();
-    });
-  }, [isPaneInputOwner, toggleRightPanelStable, toggleRightPanelMaximizedStable]);
-
   usePasteToFocusComposer(activeThreadId, composerRef);
 
   const onCompactContext = () => {

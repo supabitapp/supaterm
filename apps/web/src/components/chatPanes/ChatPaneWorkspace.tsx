@@ -26,7 +26,7 @@ import { ChatPaneDropOverlay } from "./ChatPaneDropOverlay";
 import { LinkPullRequestDialogHost } from "../pullRequest/LinkPullRequestDialog";
 import { cn } from "~/lib/utils";
 import { useStableCallback } from "~/hooks/useStableCallback";
-import { runPaneMenuAction, trackChatPaneWorkspaceMount } from "../../chatPanes/actions";
+import { trackChatPaneWorkspaceMount } from "../../chatPanes/actions";
 
 function useNavigateToPaneTarget() {
   const navigate = useNavigate();
@@ -85,8 +85,6 @@ export function ChatPaneWorkspace({
 
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- counts this workspace in the module-level mount tracker that decides whether focus follows the URL
   useEffect(() => trackChatPaneWorkspaceMount(), []);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to desktop menu actions for pane focus shortcuts
-  useEffect(() => window.desktopBridge?.onMenuAction(runPaneMenuAction), []);
 
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- measures the container and observes its resizes before paint

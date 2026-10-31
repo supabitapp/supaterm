@@ -1,6 +1,11 @@
-import type { KeybindingCommand, ResolvedKeybindingsConfig } from "@supaterm/contracts";
+import { KeybindingCommand, type ResolvedKeybindingsConfig } from "@supaterm/contracts";
+import * as Schema from "effect/Schema";
 
-import { resolveShortcutCommand, type ShortcutMatchContext } from "../keybindings";
+import {
+  resolveChatShortcutCommand,
+  resolveShortcutCommand,
+  type ShortcutMatchContext,
+} from "../keybindings";
 import { isEditableFocused } from "../lib/editableFocus";
 import { isPreviewFocused } from "../lib/previewFocus";
 import { isTerminalFocused } from "../lib/terminalFocus";
@@ -8,19 +13,38 @@ import { isModelPickerOpen } from "../modelPickerVisibility";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { primaryServerKeybindingsAtom } from "../state/server";
 
-/** Return `false` to let the next scope handle the event. */
-export type CommandHandler = (event: KeyboardEvent) => boolean | void;
+export interface CommandInvocation {
+  /** `menu` includes keys a focused desktop browser forwards; `device` is hardware like Codex Micro. */
+  readonly source: "keyboard" | "menu" | "device";
+  /** The key press behind a keyboard command. */
+  readonly event: KeyboardEvent | null;
+  readonly repeat: boolean;
+}
+
+/** Return `false` to let the next scope have the command; a key that ran one is consumed. */
+export type CommandHandler = (invocation: CommandInvocation) => boolean | void;
 
 export type CommandHandlers = Partial<Record<KeybindingCommand, CommandHandler>>;
 
+/** Runs any command a scope owns, returning `false` for the rest; for sets that change, such as project scripts. */
+export type CommandRunner = (
+  command: KeybindingCommand,
+  invocation: CommandInvocation,
+) => boolean | void;
+
+/** Return `false` to let the scope look the key up as a command. */
+export type KeyHandler = (event: KeyboardEvent) => boolean | void;
+
 export interface CommandScopeOptions {
-  /** Read at event time; a scope whose guard fails is skipped. */
-  readonly when?: (event: KeyboardEvent) => boolean;
+  /** Read when a key or command arrives; a scope whose guard fails is skipped. */
+  readonly when?: () => boolean;
   /** When-clause context the dispatcher cannot know (terminalOpen, previewOpen), read at event time. */
-  readonly context?: () => Partial<ShortcutMatchContext>;
+  readonly context?: (event: KeyboardEvent) => Partial<ShortcutMatchContext>;
   readonly keybindings?: () => ResolvedKeybindingsConfig;
-  /** For shortcuts that are not keybinding commands (Escape, "/"); runs before command lookup. */
-  readonly onKeyDown?: CommandHandler;
+  /** Project script bindings; a key resolves to a script command only through these. */
+  readonly scriptKeybindings?: () => ResolvedKeybindingsConfig;
+  /** For keys that are not keybinding commands (Escape, "/"); runs before command lookup. */
+  readonly onKeyDown?: KeyHandler;
   /**
    * Run in the capture phase, ahead of focused widgets that consume the key
    * themselves (the terminal encodes Ctrl+Shift+T and stops propagation).
@@ -35,7 +59,7 @@ export interface CommandScopeOptions {
 }
 
 interface CommandScope {
-  readonly commands: CommandHandlers;
+  readonly run: CommandRunner;
   readonly options: CommandScopeOptions;
 }
 
@@ -43,6 +67,8 @@ interface CommandScope {
 const globalScopes: CommandScope[] = [];
 const captureScopes: CommandScope[] = [];
 const observerScopes: CommandScope[] = [];
+
+const isKeybindingCommand = Schema.is(KeybindingCommand);
 
 function readFocusContext(event: KeyboardEvent): Partial<ShortcutMatchContext> {
   return {
@@ -53,47 +79,103 @@ function readFocusContext(event: KeyboardEvent): Partial<ShortcutMatchContext> {
   };
 }
 
-function runScope(scope: CommandScope, event: KeyboardEvent): boolean {
-  const { commands, options } = scope;
-  if (options.when && !options.when(event)) return false;
-  if (options.onKeyDown && options.onKeyDown(event) !== false) return true;
-  const command = resolveShortcutCommand(
-    event,
-    options.keybindings?.() ?? appAtomRegistry.get(primaryServerKeybindingsAtom),
-    { context: { ...readFocusContext(event), ...options.context?.() } },
-  );
-  const handler = command === null ? undefined : commands[command];
-  return handler !== undefined && handler(event) !== false;
+function isLive(scope: CommandScope): boolean {
+  return scope.options.when?.() ?? true;
 }
 
-function runScopes(scopes: readonly CommandScope[], event: KeyboardEvent): boolean {
+function resolveKeyCommand(scope: CommandScope, event: KeyboardEvent): KeybindingCommand | null {
+  const { options } = scope;
+  const keybindings = options.keybindings?.() ?? appAtomRegistry.get(primaryServerKeybindingsAtom);
+  const match = { context: { ...readFocusContext(event), ...options.context?.(event) } };
+  return options.scriptKeybindings
+    ? resolveChatShortcutCommand(event, keybindings, options.scriptKeybindings(), match)
+    : resolveShortcutCommand(event, keybindings, match);
+}
+
+function runKeyScope(scope: CommandScope, event: KeyboardEvent): boolean {
+  if (!isLive(scope)) return false;
+  if (scope.options.onKeyDown && scope.options.onKeyDown(event) !== false) return true;
+  const command = resolveKeyCommand(scope, event);
+  if (command === null) return false;
+  if (scope.run(command, { source: "keyboard", event, repeat: event.repeat }) === false) {
+    return false;
+  }
+  event.preventDefault();
+  event.stopPropagation();
+  return true;
+}
+
+// Keys typed into a shortcut recorder are being recorded, not run.
+function isKeybindingCaptureTarget(event: KeyboardEvent): boolean {
+  return (
+    event.target instanceof Element && event.target.closest("[data-keybinding-capture]") !== null
+  );
+}
+
+function runKeyScopes(scopes: readonly CommandScope[], event: KeyboardEvent): boolean {
+  if (isKeybindingCaptureTarget(event)) return false;
   for (let index = scopes.length - 1; index >= 0; index -= 1) {
     if (event.defaultPrevented) return true;
     const scope = scopes[index];
-    if (scope && runScope(scope, event)) return true;
+    if (scope && runKeyScope(scope, event)) return true;
+  }
+  return false;
+}
+
+/**
+ * Runs a command without a key press, for menu and device input. Capture
+ * scopes go first, as they would for the key. Returns whether a scope ran it.
+ */
+export function runCommand(
+  command: KeybindingCommand,
+  source: Exclude<CommandInvocation["source"], "keyboard">,
+): boolean {
+  for (const scopes of [captureScopes, globalScopes]) {
+    for (let index = scopes.length - 1; index >= 0; index -= 1) {
+      const scope = scopes[index];
+      if (!scope || !isLive(scope)) continue;
+      if (scope.run(command, { source, event: null, repeat: false }) !== false) return true;
+    }
   }
   return false;
 }
 
 function dispatchCaptureKeyDown(event: KeyboardEvent): void {
-  runScopes(captureScopes, event);
+  runKeyScopes(captureScopes, event);
 }
 
 function dispatchKeyDown(event: KeyboardEvent): void {
-  const consumed = runScopes(globalScopes, event) || event.defaultPrevented;
+  const consumed = runKeyScopes(globalScopes, event) || event.defaultPrevented;
   for (const scope of observerScopes.slice()) scope.options.observe?.(event, consumed);
 }
 
-let keydownInstalled = false;
-function ensureKeydownListener() {
-  if (keydownInstalled || typeof window === "undefined") return;
-  keydownInstalled = true;
-  window.addEventListener("keydown", dispatchCaptureKeyDown, true);
-  window.addEventListener("keydown", dispatchKeyDown);
+type MenuActionHandler = () => void;
+const menuActionHandlers = new Map<string, MenuActionHandler[]>();
+
+/** Desktop menu actions; one named after a keybinding command runs that command. */
+export function dispatchMenuAction(action: string): void {
+  const handler = menuActionHandlers.get(action)?.at(-1);
+  if (handler) handler();
+  else if (isKeybindingCommand(action)) runCommand(action, "menu");
 }
 
-function pushScope(list: CommandScope[], scope: CommandScope): () => void {
-  ensureKeydownListener();
+let keydownInstalled = false;
+let menuActionInstalled = false;
+function ensureListeners() {
+  if (typeof window === "undefined") return;
+  if (!keydownInstalled) {
+    keydownInstalled = true;
+    window.addEventListener("keydown", dispatchCaptureKeyDown, true);
+    window.addEventListener("keydown", dispatchKeyDown);
+  }
+  const bridge = window.desktopBridge;
+  if (menuActionInstalled || typeof bridge?.onMenuAction !== "function") return;
+  menuActionInstalled = true;
+  bridge.onMenuAction(dispatchMenuAction);
+}
+
+function pushScope<T>(list: T[], scope: T): () => void {
+  ensureListeners();
   list.push(scope);
   return () => {
     const index = list.lastIndexOf(scope);
@@ -101,40 +183,25 @@ function pushScope(list: CommandScope[], scope: CommandScope): () => void {
   };
 }
 
-/** App-global commands, registered once at module level or bootstrap. */
+/** Commands for keys, menus and devices; the handlers and their guard are registered once. */
 export function registerCommands(
-  commands: CommandHandlers,
+  commands: CommandHandlers | CommandRunner,
   options: CommandScopeOptions = {},
 ): () => void {
   const scopes = options.observe ? observerScopes : options.capture ? captureScopes : globalScopes;
-  return pushScope(scopes, { commands, options });
+  const run: CommandRunner =
+    typeof commands === "function"
+      ? commands
+      : (command, invocation) => {
+          const handler = commands[command];
+          return handler ? handler(invocation) : false;
+        };
+  return pushScope(scopes, { run, options });
 }
 
-type MenuActionHandler = () => void;
-const menuActionHandlers = new Map<string, MenuActionHandler[]>();
-let menuActionInstalled = false;
-
-export function dispatchMenuAction(action: string): void {
-  const handlers = menuActionHandlers.get(action);
-  handlers?.at(-1)?.();
-}
-
-function ensureMenuActionListener() {
-  if (menuActionInstalled || typeof window === "undefined") return;
-  const bridge = window.desktopBridge;
-  if (typeof bridge?.onMenuAction !== "function") return;
-  menuActionInstalled = true;
-  bridge.onMenuAction(dispatchMenuAction);
-}
-
-/** Desktop menu actions; the newest handler for an action wins. */
+/** Desktop menu actions that are not keybinding commands; the newest handler for an action wins. */
 export function registerMenuAction(action: string, handler: MenuActionHandler): () => void {
-  ensureMenuActionListener();
   const handlers = menuActionHandlers.get(action) ?? [];
-  handlers.push(handler);
   menuActionHandlers.set(action, handlers);
-  return () => {
-    const index = handlers.lastIndexOf(handler);
-    if (index !== -1) handlers.splice(index, 1);
-  };
+  return pushScope(handlers, handler);
 }
