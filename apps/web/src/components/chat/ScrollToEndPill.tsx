@@ -22,9 +22,7 @@ export function ScrollToEndPill({
     bottom,
     animation: null,
   });
-  // The composer publishes its destination height and then starts its height animation in a
-  // microtask, so the pill holds its old position until it can share that animation's timing.
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- syncs a WAAPI transform with the composer's height animation before paint
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- the composer starts its height animation in a microtask after publishing its destination, so the pill holds its old position until it can share that animation's timing
   useLayoutEffect(() => {
     const follow = followRef.current;
     const shift = bottom - follow.bottom;
@@ -35,7 +33,7 @@ export function ScrollToEndPill({
     follow.animation?.cancel();
     const offset = shift + animatedTop - element.getBoundingClientRect().top;
     const keyframes = [{ transform: `translateY(${String(offset)}px)` }, { transform: "none" }];
-    const hold = element.animate(keyframes);
+    const hold = element.animate(keyframes, { duration: 1 });
     hold.pause();
     follow.animation = hold;
     queueMicrotask(() => {
