@@ -229,7 +229,6 @@ export function HomeRouteScreen() {
           {...threadListFilters}
           searchQuery={searchQuery}
           onOpenEnvironments={() => openSettings(navigation, "SettingsEnvironments")}
-          onOpenSettings={() => selectTab("settings")}
           onSearchQueryChange={setSearchQuery}
         />
 

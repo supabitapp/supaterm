@@ -9,5 +9,4 @@ export interface HomeHeaderProps extends HomeListFilterMenuInput {
   readonly searchQuery: string;
   readonly onSearchQueryChange: (query: string) => void;
   readonly onOpenEnvironments: () => void;
-  readonly onOpenSettings: () => void;
 }
