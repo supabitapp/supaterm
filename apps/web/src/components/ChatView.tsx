@@ -959,7 +959,7 @@ export default function ChatView(props: ChatViewProps) {
     localServerError === null && visibleThreadError === serverRuntime?.lastError;
   const defaultRuntimeMode = resolveProjectSettings(settings, activeThread?.projectId ?? null)
     .settings.defaultRuntimeMode;
-  const runtimeMode: RuntimeMode = isSideChat
+  const runtimeMode = isSideChat
     ? "approval-required"
     : (composerRuntimeMode ??
       (isServerThread || pendingThreadCreation ? activeThread?.runtimeMode : undefined) ??

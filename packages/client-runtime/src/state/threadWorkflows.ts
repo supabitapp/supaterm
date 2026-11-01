@@ -7,7 +7,11 @@ import {
 import { latestForkableRun } from "@supaterm/contracts";
 import { copySorted } from "@supaterm/shared/Array";
 
-import type { ThreadStructure } from "./models.ts";
+import {
+  type ThreadStructure,
+  type ThreadStructureRuntime,
+  threadRuntimeIsActive,
+} from "./models.ts";
 
 type Projection = ThreadStructure;
 type Run = Projection["runs"][number];
@@ -84,6 +88,17 @@ export function resolveLatestMergeBackRun(projection: Projection): Run | null {
       MERGE_BACK_BLOCKING_RUN_STATUSES.has(run.status),
   );
   return hasNewerActiveRun ? null : latestProviderFinishedRun;
+}
+
+export function sideChatBringBackBlockedReason(input: {
+  readonly canOperate: boolean;
+  readonly parentRuntime: ThreadStructureRuntime | null | undefined;
+  readonly mergeRun: Run | null;
+}) {
+  if (!input.canOperate) return "This connection cannot change threads.";
+  // A pending merge-back would fail the main thread's queued message, so the server refuses it.
+  if (threadRuntimeIsActive(input.parentRuntime)) return "Available when the main thread is idle.";
+  return input.mergeRun === null ? "Available after a finished reply." : null;
 }
 
 function resolveThreadProviderSession(projection: Projection): ProviderSession | null {

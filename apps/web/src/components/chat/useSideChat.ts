@@ -45,14 +45,6 @@ export function useEnsureSideChat() {
   );
 }
 
-/** Opens a side chat beside the focused pane, or in place where the window has no room. */
-function useOpenSideChat() {
-  const openPaneThread = usePaneThreadNavigation();
-  return (target: ThreadRouteTarget) => {
-    if (!openThreadBeside(target, "right")) void openPaneThread(target);
-  };
-}
-
 /**
  * Side chats of `parent`, or none when it is null. `openDraft` opens an empty side chat whose
  * first send forks the parent. `send` forks and sends `prompt` at once; it resolves false when
@@ -67,8 +59,12 @@ export function useSideChat(input: {
 }) {
   const pendingRef = useRef(false);
   const ensureSideChat = useEnsureSideChat();
-  const openSideChat = useOpenSideChat();
+  const openPaneThread = usePaneThreadNavigation();
   const createSideChatDraft = useComposerDraftStore((store) => store.createSideChatDraft);
+
+  const openSideChat = (target: ThreadRouteTarget) => {
+    if (!openThreadBeside(target, "right")) void openPaneThread(target);
+  };
 
   const openDraft = () => {
     const { parent } = input;

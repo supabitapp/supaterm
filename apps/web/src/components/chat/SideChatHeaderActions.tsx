@@ -1,5 +1,7 @@
-import { threadRuntimeIsActive } from "@supaterm/client-runtime/state/shell";
-import { resolveLatestMergeBackRun } from "@supaterm/client-runtime/state/thread-workflows";
+import {
+  resolveLatestMergeBackRun,
+  sideChatBringBackBlockedReason,
+} from "@supaterm/client-runtime/state/thread-workflows";
 import {
   isAtomCommandInterrupted,
   settlePromise,
@@ -35,16 +37,13 @@ export function SideChatHeaderActions(props: {
     reportFailure: false,
   });
   const confirmThreadDelete = useClientSettings((settings) => settings.confirmThreadDelete);
-  const [busy, setBusy] = useState<"bring-back" | "promote" | "delete" | null>(null);
+  const [busy, setBusy] = useState(false);
   const mergeRun = projection ? resolveLatestMergeBackRun(projection) : null;
-  // A pending merge-back would fail the main thread's queued message, so the server refuses it.
-  const bringBackBlockedReason = !canOperate
-    ? "This connection cannot change threads."
-    : threadRuntimeIsActive(parent?.runtime)
-      ? "Available when the main thread is idle."
-      : mergeRun === null
-        ? "Available after a finished reply."
-        : null;
+  const bringBackBlockedReason = sideChatBringBackBlockedReason({
+    canOperate,
+    parentRuntime: parent?.runtime,
+    mergeRun,
+  });
 
   const failureToast = (title: string, result: Parameters<typeof squashAtomCommandFailure>[0]) => {
     const error = squashAtomCommandFailure(result);
@@ -56,8 +55,8 @@ export function SideChatHeaderActions(props: {
   };
 
   const bringBack = async () => {
-    if (bringBackBlockedReason !== null || mergeRun === null || busy !== null) return;
-    setBusy("bring-back");
+    if (bringBackBlockedReason !== null || mergeRun === null || busy) return;
+    setBusy(true);
     const result = await mergeBack({
       environmentId: threadRef.environmentId,
       input: {
@@ -66,7 +65,7 @@ export function SideChatHeaderActions(props: {
         runId: mergeRun.id,
       },
     });
-    setBusy(null);
+    setBusy(false);
     if (result._tag === "Success") {
       toastManager.add({
         type: "success",
@@ -79,20 +78,20 @@ export function SideChatHeaderActions(props: {
   };
 
   const promote = async () => {
-    if (!canOperate || busy !== null) return;
-    setBusy("promote");
+    if (!canOperate || busy) return;
+    setBusy(true);
     const result = await promoteSideChat({
       environmentId: threadRef.environmentId,
       input: { threadId: threadRef.threadId },
     });
-    setBusy(null);
+    setBusy(false);
     if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
       failureToast("Could not promote the side chat", result);
     }
   };
 
   const deleteSideChat = async () => {
-    if (!canOperate || shell === null || busy !== null) return;
+    if (!canOperate || shell === null || busy) return;
     if (confirmThreadDelete) {
       const api = readLocalApi();
       if (!api) return;
@@ -107,12 +106,12 @@ export function SideChatHeaderActions(props: {
       );
       if (confirmed._tag === "Failure" || !confirmed.value) return;
     }
-    setBusy("delete");
+    setBusy(true);
     const result = await deleteThread({
       environmentId: threadRef.environmentId,
       input: { threadId: threadRef.threadId },
     });
-    setBusy(null);
+    setBusy(false);
     if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
       failureToast("Could not delete the side chat", result);
     }
@@ -126,7 +125,7 @@ export function SideChatHeaderActions(props: {
             <Button
               variant="ghost"
               size="xs"
-              aria-disabled={bringBackBlockedReason !== null || busy !== null || undefined}
+              aria-disabled={bringBackBlockedReason !== null || busy || undefined}
               onClick={() => void bringBack()}
             >
               Bring back
@@ -143,7 +142,7 @@ export function SideChatHeaderActions(props: {
             <Button
               variant="ghost"
               size="xs"
-              disabled={!canOperate || busy !== null}
+              disabled={!canOperate || busy}
               onClick={() => void promote()}
             >
               Promote
@@ -161,7 +160,7 @@ export function SideChatHeaderActions(props: {
               variant="ghost-destructive"
               size="icon-xs"
               aria-label="Delete side chat"
-              disabled={!canOperate || shell === null || busy !== null}
+              disabled={!canOperate || shell === null || busy}
               onClick={() => void deleteSideChat()}
             >
               <TrashIcon />

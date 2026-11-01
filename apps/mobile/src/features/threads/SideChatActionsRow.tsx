@@ -7,8 +7,10 @@ import {
   squashAtomCommandFailure,
   type AtomCommandResult,
 } from "@supaterm/client-runtime/state/runtime";
-import { threadRuntimeIsActive } from "@supaterm/client-runtime/state/shell";
-import { resolveLatestMergeBackRun } from "@supaterm/client-runtime/state/thread-workflows";
+import {
+  resolveLatestMergeBackRun,
+  sideChatBringBackBlockedReason,
+} from "@supaterm/client-runtime/state/thread-workflows";
 import { AuthOrchestrationOperateScope, type ThreadId } from "@supaterm/contracts";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
@@ -66,13 +68,11 @@ export function SideChatActionsRow(props: {
   const promote = useAtomCommand(threadEnvironment.promoteSideChat, { reportFailure: false });
   const deleteThread = useAtomCommand(threadEnvironment.delete, { reportFailure: false });
   const [busy, setBusy] = useState(false);
-  const bringBackBlockedReason = !canOperate
-    ? "This connection cannot change threads."
-    : threadRuntimeIsActive(parent?.runtime)
-      ? "Available when the main thread is idle."
-      : mergeRun === null
-        ? "Available after a finished reply."
-        : null;
+  const bringBackBlockedReason = sideChatBringBackBlockedReason({
+    canOperate,
+    parentRuntime: parent?.runtime,
+    mergeRun,
+  });
 
   const run = async (
     failureTitle: string,
