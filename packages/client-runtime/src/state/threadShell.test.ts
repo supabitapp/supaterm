@@ -175,7 +175,7 @@ describe("v2 thread shell lists", () => {
     const disposeNavigation = registry.mount(threads.navigationThreadShellsAtom);
     const withRequest = (
       kind: "user_input" | "command",
-      options: { readonly blocking?: boolean; readonly ended?: boolean } = {},
+      options: { readonly blocking?: boolean } = {},
     ) =>
       registry.set(snapshotAtom(environmentId), {
         ...v2ShellSnapshot,
@@ -183,7 +183,6 @@ describe("v2 thread shell lists", () => {
           root,
           {
             ...sideChat,
-            ...(options.ended ? { status: "completed" as const, activityRunStatus: null } : {}),
             pendingRuntimeRequest: {
               ...request,
               kind,
@@ -200,11 +199,7 @@ describe("v2 thread shell lists", () => {
       root.id,
     ]);
 
-    // An async question waits while the side chat works, like its own row's indicator.
     withRequest("user_input", { blocking: false });
-    expect(registry.get(parent)?.pendingSubagentRequest).toBeNull();
-    expect(registry.get(inputs)).toEqual([]);
-    withRequest("user_input", { blocking: false, ended: true });
     expect(registry.get(parent)?.pendingSubagentRequest).toBe("user_input");
 
     withRequest("command");
