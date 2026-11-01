@@ -57,8 +57,8 @@ verify process ownership. Concurrent screenshot harnesses in different worktrees
 collide or attach to the wrong Metro process.
 
 Every configured device defaults to dark appearance and the `supaterm` palette, so plain
-`pnpm screenshots:mobile` produces 45 dark PNGs. Pass `--appearance light`, `--appearance dark`, or
-`--appearance both` to override the configured appearance; `both` produces 90 PNGs.
+`pnpm screenshots:mobile` produces 35 dark PNGs. Pass `--appearance light`, `--appearance dark`, or
+`--appearance both` to override the configured appearance; `both` produces 70 PNGs.
 
 Pass `--theme <id>` (repeatable) or `--theme all` to capture the app's other palettes: `supaterm`,
 `supaterm-chat`, `grove`, `ocean`, `ember`, `iris`, and `zenbones`. The runner hands the palette to
@@ -68,25 +68,23 @@ itself ready once the requested palette is active — so a capture can never sho
 
 The default matrix is:
 
-| Output folder                            | Capture target                 | Upload dimensions | Store slot                                |
-| ---------------------------------------- | ------------------------------ | ----------------- | ----------------------------------------- |
-| `apple/iphone-6.9/dark/supaterm/`        | disposable iPhone 17 Pro Max   | 1320×2868         | App Store Connect iPhone 6.9-inch         |
-| `apple/iphone-6.3/dark/supaterm/`        | disposable iPhone 17 Pro       | 1206×2622         | App Store Connect iPhone 6.3-inch         |
-| `apple/iphone-6.5/dark/supaterm/`        | disposable iPhone 14 Plus      | 1284×2778         | App Store Connect iPhone 6.5-inch         |
-| `apple/ipad-13/dark/supaterm/`           | iPad Pro 13-inch (M5)          | 2752×2064         | App Store Connect iPad 13-inch, landscape |
-| `google-play/phone/dark/supaterm/`       | Pixel AVD at 420 dpi           | 1080×1920         | Google Play phone, portrait 9:16          |
-| `google-play/tablet-7/dark/supaterm/`    | Pixel AVD at 600dp width       | 1080×1920         | Google Play 7-inch tablet, portrait 9:16  |
-| `google-play/tablet-10/dark/supaterm/`   | Pixel AVD at 800dp width       | 1440×2560         | Google Play 10-inch tablet, portrait 9:16 |
-| `apple/iphone-duo-closed/dark/supaterm/` | iPhone Duo, folded portrait    | 1398×2034         | App Store Connect iPhone Duo              |
-| `apple/iphone-duo-open/dark/supaterm/`   | iPhone Duo, unfolded landscape | 2853×2007         | App Store Connect iPhone Duo              |
+| Output folder                          | Capture target               | Upload dimensions | Store slot                                |
+| -------------------------------------- | ---------------------------- | ----------------- | ----------------------------------------- |
+| `apple/iphone-6.9/dark/supaterm/`      | disposable iPhone 17 Pro Max | 1320×2868         | App Store Connect iPhone 6.9-inch         |
+| `apple/iphone-6.3/dark/supaterm/`      | disposable iPhone 17 Pro     | 1206×2622         | App Store Connect iPhone 6.3-inch         |
+| `apple/iphone-6.5/dark/supaterm/`      | disposable iPhone 14 Plus    | 1284×2778         | App Store Connect iPhone 6.5-inch         |
+| `apple/ipad-13/dark/supaterm/`         | iPad Pro 13-inch (M5)        | 2752×2064         | App Store Connect iPad 13-inch, landscape |
+| `google-play/phone/dark/supaterm/`     | Pixel AVD at 420 dpi         | 1080×1920         | Google Play phone, portrait 9:16          |
+| `google-play/tablet-7/dark/supaterm/`  | Pixel AVD at 600dp width     | 1080×1920         | Google Play 7-inch tablet, portrait 9:16  |
+| `google-play/tablet-10/dark/supaterm/` | Pixel AVD at 800dp width     | 1440×2560         | Google Play 10-inch tablet, portrait 9:16 |
 
 Each target captures thread, terminal, review, thread list, and environments. Each palette folder's
 five screenshots satisfy the configured Apple limit of 1–10, Google phone requirement of 2–8, and
 Google tablet recommendation/slot minimum of 4 with a maximum of 8.
-The two Duo folders each contain five scenes and upload to the same iPhone Duo slot (ten images
-total). Duo capture requires an installed iOS runtime that supports iPhone Duo and `agent-device` on
-PATH, or `AGENT_DEVICE_PATH` pointing to its executable; it sets and verifies the simulator fold pose
-before launching the app.
+The iPhone Duo is not in the matrix: on CI runners its simulator slows the host until scenes time
+out, and App Store Connect accepts submissions with an empty Duo slot. The harness keeps its fold
+support (`fold` on an iOS device, which needs `agent-device` on PATH or `AGENT_DEVICE_PATH`) so the
+two Duo targets can return to the config once a runner can capture them.
 
 Every palette gets its own leaf folder so one upload slot never mixes themes and each folder keeps a
 store-legal screenshot count.
@@ -98,8 +96,6 @@ The generated tree is deliberately aligned with the store upload fields:
     │   ├── iphone-6.9/dark/supaterm/{thread,terminal,review,threads,environments}.png
     │   ├── iphone-6.3/dark/supaterm/{thread,terminal,review,threads,environments}.png
     │   ├── iphone-6.5/dark/supaterm/{thread,terminal,review,threads,environments}.png
-    │   ├── iphone-duo-closed/dark/supaterm/{thread,terminal,review,threads,environments}.png
-    │   ├── iphone-duo-open/dark/supaterm/{thread,terminal,review,threads,environments}.png
     │   └── ipad-13/dark/supaterm/{thread,terminal,review,threads,environments}.png
     └── google-play/
         ├── phone/dark/supaterm/{thread,terminal,review,threads,environments}.png
@@ -149,7 +145,6 @@ artifacts into `artifacts/app-store/captures/<apple|google-play>/` to start from
 
 Capture one scene or device:
 
-    pnpm screenshots:mobile --device iphone-duo-closed --device iphone-duo-open
     pnpm screenshots:mobile --device iphone-6.9 --scene thread
     pnpm screenshots:mobile --platform android --scene review
 
