@@ -178,6 +178,16 @@ function relationshipThreadTitle(input: {
   return formatSubagentDisplayTitle(input.title);
 }
 
+/** The full title, since the row truncates it, with what a click does. */
+function LineageTooltipContent(props: { readonly title: string; readonly hint: string }) {
+  return (
+    <>
+      <span className="block font-medium">{props.title}</span>
+      <span className="block text-muted-foreground">{props.hint}</span>
+    </>
+  );
+}
+
 function currentSubagent<Agent extends RuntimeSubagent>(
   agent: Agent | undefined,
   childThread: OrchestrationV2ThreadShell | null | undefined,
@@ -552,7 +562,7 @@ export function ThreadRelationshipsPanel(props: {
                   childProject={project}
                 />
               ) : (
-                relationshipHint
+                <LineageTooltipContent title={threadTitle} hint={relationshipHint} />
               );
               const relationshipContent = (
                 <>
