@@ -1259,7 +1259,7 @@ effectIt.effect.each([
     runtimeMode: "approval-required",
     context: "SIDE_CHAT_CONTEXT",
   },
-  { contextRun: "delivered", runtimeMode: "full-access", context: "" },
+  { contextRun: "delivered", runtimeMode: "approval-required", context: "" },
 ] as const)(
   "sends side chat context inline once, for the first turn that reaches the provider: %j",
   ({ runtimeMode, context, ...sideChat }) =>
@@ -1271,7 +1271,7 @@ effectIt.effect.each([
 
       yield* harness.start;
 
-      // The turn that delivers the context is clamped; a later one follows the thread's mode.
+      // Every side chat turn asks before acting, though the thread itself says full access.
       expect(harness.open).toHaveBeenCalledWith(
         expect.objectContaining({ runtimePolicy: expect.objectContaining({ runtimeMode }) }),
       );

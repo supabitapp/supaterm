@@ -1059,6 +1059,45 @@ it.effect("a side chat of an idle parent still starts with the framing note", ()
   }).pipe(Effect.provide(forkCases[0]!.layer)),
 );
 
+it.effect("a side chat stays supervised: its runtime mode cannot be raised", () =>
+  Effect.gen(function* () {
+    const orchestrator = yield* Orchestrator.OrchestratorV2;
+    const parentId = ThreadId.make("side-chat-mode-parent");
+    const sideChatId = ThreadId.make("side-chat-mode-child");
+    yield* createParent(parentId);
+    yield* writeParentRun({
+      threadId: parentId,
+      runId: RunId.make("side-chat-mode-parent-run"),
+      ordinal: 1,
+      status: "completed",
+      text: "Parent work",
+      stable: true,
+    });
+    yield* forkSideChat("side-chat-mode-fork", parentId, sideChatId);
+    const setMode = (runtimeMode: "full-access" | "approval-required") =>
+      orchestrator.dispatch({
+        type: "thread.runtime-mode.set",
+        commandId: CommandId.make(`side-chat-mode:${runtimeMode}`),
+        threadId: sideChatId,
+        runtimeMode,
+      });
+
+    const raised = yield* setMode("full-access").pipe(Effect.flip);
+    assert.include(String(raised.cause), "is a side chat");
+    yield* setMode("approval-required");
+    yield* orchestrator.dispatch({
+      type: "thread.runtime-mode.set",
+      commandId: CommandId.make("side-chat-mode:parent"),
+      threadId: parentId,
+      runtimeMode: "auto",
+    });
+    assert.equal(
+      (yield* orchestrator.getThreadProjection(sideChatId)).thread.runtimeMode,
+      "approval-required",
+    );
+  }).pipe(Effect.provide(forkCases[0]!.layer)),
+);
+
 it.effect("a side chat waits for the parent's new worktree, also after its setup ended", () =>
   Effect.gen(function* () {
     for (const status of ["preparing", "failed", "interrupted"] as const) {

@@ -543,6 +543,8 @@ export interface ChatComposerProps {
   onOpenProviderSetup: (instanceId: ProviderInstanceId) => void;
   getModelDisabledReason: (instanceId: ProviderInstanceId, model: string) => string | null;
   handleRuntimeModeChange: (mode: RuntimeMode) => void;
+  /** Keeps the thread supervised; the mode control shows this reason instead of a menu. */
+  runtimeModeLockedReason?: string | null;
 
   focusComposer: () => void;
   scheduleComposerFocus: () => void;
@@ -958,10 +960,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const resolvedCompactDisabledReason =
     compactDisabledReason ?? (noProviderAvailable ? "Compacting is unavailable right now" : null);
   const supportedRuntimeModes = selectedProviderEntry?.snapshot.supportedRuntimeModes;
+  const runtimeModeLockedReason = props.runtimeModeLockedReason ?? null;
   const compatibleRuntimeModeOptions =
-    supportedRuntimeModes && supportedRuntimeModes.length > 0
-      ? runtimeModeOptions.filter((option) => supportedRuntimeModes.includes(option.mode))
-      : runtimeModeOptions;
+    runtimeModeLockedReason !== null
+      ? runtimeModeOptions.filter((option) => option.mode === "approval-required")
+      : supportedRuntimeModes && supportedRuntimeModes.length > 0
+        ? runtimeModeOptions.filter((option) => supportedRuntimeModes.includes(option.mode))
+        : runtimeModeOptions;
   const compatibleRuntimeMode = compatibleRuntimeModeOptions.some(
     (option) => option.mode === runtimeMode,
   )
@@ -2677,6 +2682,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       onPromptEdit={editPromptFromTraitsStable}
       compatibleRuntimeMode={compatibleRuntimeMode}
       compatibleRuntimeModeOptions={compatibleRuntimeModeOptions}
+      runtimeModeLockedReason={runtimeModeLockedReason}
       handleRuntimeModeChange={handleRuntimeModeChange}
       composerControlsCollapsed={composerControlsCollapsed}
       composerControlsHidden={composerControlsHidden}
