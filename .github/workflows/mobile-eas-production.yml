@@ -241,16 +241,21 @@ jobs:
           MOBILE_FINGERPRINT: ${{ steps.config.outputs.fingerprint }}
         with:
           script: |
-            const { findBuilds } = require('./.github/scripts/mobile-build-history.cjs');
+            const { findBuilds, findAppStoreReview } = require('./.github/scripts/mobile-build-history.cjs');
+            const { MOBILE_PLATFORM: platform, MOBILE_VERSION: version, MOBILE_FINGERPRINT: fingerprint } = process.env;
             const { versionBuild, compatibleBuild } = await findBuilds({
-              github, context, profile: 'production', platform: process.env.MOBILE_PLATFORM,
-              version: process.env.MOBILE_VERSION, fingerprint: process.env.MOBILE_FINGERPRINT,
+              github, context, profile: 'production', platform, version, fingerprint,
             });
-            core.setOutput('version_exists', Boolean(versionBuild));
+            const versionClosed = Boolean(versionBuild) && !compatibleBuild && platform === 'ios' &&
+              await findAppStoreReview({ github, context, version });
+            if (versionClosed) {
+              core.warning(`iOS ${version} was sent for App Store review, and Apple rejects new builds of a live version. Bump the app version to ship native fingerprint ${fingerprint}.`);
+            }
+            core.setOutput('build', !versionBuild || (!compatibleBuild && !versionClosed));
             core.setOutput('compatible', Boolean(compatibleBuild));
       - id: build
         name: Compile and sign
-        if: inputs.mode == 'build' || (github.event_name == 'push' && steps.history.outputs.version_exists != 'true')
+        if: inputs.mode == 'build' || (github.event_name == 'push' && steps.history.outputs.build == 'true')
         uses: ./.github/actions/build-mobile
         with:
           platform: ${{ matrix.platform }}
