@@ -106,11 +106,44 @@ function rehypePreserveBareAnchorPlaceholders() {
   };
 }
 
+const COLOR_SCHEME_MEDIA = /^\(\s*prefers-color-scheme\s*:\s*(dark|light)\s*\)$/i;
+
+/**
+ * The renderer resolves an `<img>`'s `src` (workspace files, host media) but never a `<source>`'s
+ * `srcset`, which would load unresolved whenever its media matched. A color-scheme source moves
+ * onto the `<img>` for the renderer to pick by theme; every source is then dropped.
+ */
+function moveColorSchemeSourcesToImage(picture: MarkdownImageHastNode) {
+  if (!picture.children) return;
+  const image = picture.children.find((child) => child.tagName === "img");
+  for (const source of picture.children) {
+    if (source.tagName !== "source" || !image) continue;
+    const media = source.properties?.media;
+    const scheme = typeof media === "string" ? COLOR_SCHEME_MEDIA.exec(media)?.[1] : undefined;
+    const srcSet = source.properties?.srcSet;
+    const candidate = Array.isArray(srcSet) ? srcSet[0] : srcSet;
+    // A candidate's URL runs to the first space (a descriptor such as `2x` may follow).
+    const url =
+      typeof candidate === "string" ? candidate.trim().split(/\s/, 1)[0]?.replace(/,+$/, "") : "";
+    const key = scheme?.toLowerCase() === "dark" ? "dataDarkSrc" : "dataLightSrc";
+    // As in a browser, the first source that matches a scheme is the one shown.
+    if (scheme && url && image.properties?.[key] === undefined) {
+      // The sanitizer reads a drive letter as a protocol; as a file URL it resolves to the same path.
+      const value = isWindowsDrivePathHref(url) ? `file:///${url.replaceAll("\\", "/")}` : url;
+      image.properties = { ...image.properties, [key]: value };
+    }
+  }
+  picture.children = picture.children.filter((child) => child.tagName !== "source");
+}
+
 function rehypePreserveImageSourceMeta() {
   return (tree: MarkdownImageHastNode) => {
     const visit = (node: MarkdownImageHastNode) => {
       const src = node.properties?.src;
       const title = node.properties?.title;
+      if (node.type === "element" && node.tagName === "picture") {
+        moveColorSchemeSourcesToImage(node);
+      }
       if (node.type === "element" && node.tagName === "img") {
         node.properties = {
           ...node.properties,
@@ -125,6 +158,8 @@ function rehypePreserveImageSourceMeta() {
     markStandaloneImages(tree);
   };
 }
+
+const IMAGE_SRC_PROTOCOLS = [...(defaultSchema.protocols?.src ?? []), "file", "supaterm-context"];
 
 const CHAT_MARKDOWN_SANITIZE_SCHEMA = {
   ...defaultSchema,
@@ -142,6 +177,8 @@ const CHAT_MARKDOWN_SANITIZE_SCHEMA = {
     a: [...(defaultSchema.attributes?.a ?? []), "dataPullRequestAutolink"],
     img: [
       ...(defaultSchema.attributes?.img ?? []),
+      "dataDarkSrc",
+      "dataLightSrc",
       "dataLocalSrc",
       "dataMarkdownTitle",
       "dataStandalone",
@@ -156,7 +193,9 @@ const CHAT_MARKDOWN_SANITIZE_SCHEMA = {
       "supaterm-context",
       THREAD_LINK_PROTOCOL,
     ],
-    src: [...(defaultSchema.protocols?.src ?? []), "file", "supaterm-context"],
+    src: IMAGE_SRC_PROTOCOLS,
+    dataDarkSrc: IMAGE_SRC_PROTOCOLS,
+    dataLightSrc: IMAGE_SRC_PROTOCOLS,
   },
 } satisfies Parameters<typeof rehypeSanitize>[0];
 
