@@ -8,12 +8,10 @@ import {
 } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
-import * as SubscriptionRef from "effect/SubscriptionRef";
 import { AsyncResult, Atom, type AtomRegistry } from "effect/reactivity";
 
-import * as EnvironmentSupervisor from "../connection/supervisor.ts";
 import type * as EnvironmentRegistry from "../connection/registry.ts";
-import { EnvironmentRpcUnavailableError, request } from "../rpc/client.ts";
+import { request } from "../rpc/client.ts";
 import { arrayElementsEqual } from "./entities.ts";
 import { createEnvironmentQueryAtomFamily, selectEnvironmentQueryData } from "./runtime.ts";
 import type { EnvironmentShellState } from "./shell.ts";
@@ -94,14 +92,6 @@ export function createThreadFamilyAtoms<R, ER, E>(
       readonly threadId: ThreadId;
       readonly generation: number;
     }) {
-      const supervisor = yield* EnvironmentSupervisor.EnvironmentSupervisor;
-      const session = yield* SubscriptionRef.get(supervisor.session);
-      if (Option.isNone(session)) {
-        return yield* new EnvironmentRpcUnavailableError({
-          environmentId: supervisor.target.environmentId,
-          message: "The environment has no session.",
-        });
-      }
       return yield* request(ORCHESTRATION_V2_WS_METHODS.getThreadFamily, {
         threadId: input.threadId,
       });
