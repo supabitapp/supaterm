@@ -17,7 +17,9 @@ and modes you choose in a draft keep their permissions.
 
 Approve or reject requests in the conversation to let the agent continue. You can also send a
 message instead: it declines the waiting requests and redirects the agent with your message.
-Permission modes do not prevent the agent from asking questions about the task.
+Permission modes do not prevent the agent from asking questions about the task. Subagent approval
+requests appear in the parent conversation with the subagent's name, so you can respond without
+switching threads.
 
 Unanswered Codex and Claude questions close automatically after two minutes. The question
 shows its remaining time, with a warning in the final 20 seconds. Start typing or select an
