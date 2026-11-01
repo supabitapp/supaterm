@@ -3421,7 +3421,7 @@ it.effect("routes projection node lookups to the reader connection", () =>
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
 
-it.effect("loads a shell snapshot while the writer connection is occupied", () =>
+it.effect("loads shell snapshots and thread records while the writer connection is occupied", () =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
@@ -3443,9 +3443,13 @@ it.effect("loads a shell snapshot while the writer connection is occupied", () =
         .pipe(Effect.forkChild);
       yield* Deferred.await(held);
       const snapshot = yield* projections.getShellSnapshot();
+      const recordsError = yield* projections
+        .getThreadRecords(ThreadId.make("thread:reader-records"), ["runs"])
+        .pipe(Effect.flip);
       yield* Deferred.succeed(release, undefined);
       yield* Fiber.join(writer);
       assert.deepEqual(snapshot.threads, []);
+      assert.equal(recordsError._tag, "ProjectionStoreThreadNotFoundError");
     }).pipe(Effect.provide(projectionLayer));
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
