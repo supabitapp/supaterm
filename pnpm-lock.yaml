@@ -319,7 +319,7 @@ patchedDependencies:
   '@expo/ui@58.0.20': 64559cb60723e19a8a72256d4c78d1315d937a7af3b32d19860ea596f88736ce
   '@ff-labs/fff-node@0.11.0': 921980ae26fa7d5c70f0415e333eb1f05991f75d6f4beafdfd3f319af81f0112
   '@legendapp/list@3.3.5': b2b35b7d69770415d5d0169a802149303e47529471571b5b17d0fbe9cdf69626
-  '@pierre/diffs@1.6.1': aabbbf0de51c7f61aba18979740c8a971ef93492c4aeab5bf887d6f21794e72a
+  '@pierre/diffs@1.6.1': acc0a0f47a94ca3e812f5fbdb3e0eb8f80188e4f17b1358133384ec05427f662
   '@react-native-menu/menu@2.0.0': 3fc9a44538aba7fcc69b832bd838e4afaf28f32527a072e2be29279bf33a9c12
   '@react-navigation/native-stack@7.21.0': 990d575444c4af2ce8218b3b7a8280fe244c03abbdb32b822a2e862f791dbf42
   app-builder-lib@26.17.0: 65c8343198108861190501b3aca64068d687ad6cde497e1f5c9ca39516d9627c
@@ -494,7 +494,7 @@ importers:
         version: 0.3.0
       '@pierre/diffs':
         specifier: 1.6.1
-        version: 1.6.1(patch_hash=aabbbf0de51c7f61aba18979740c8a971ef93492c4aeab5bf887d6f21794e72a)(@shikijs/themes@4.2.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        version: 1.6.1(patch_hash=acc0a0f47a94ca3e812f5fbdb3e0eb8f80188e4f17b1358133384ec05427f662)(@shikijs/themes@4.2.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@pierre/highlights':
         specifier: 'catalog:'
         version: 0.2.0
@@ -988,7 +988,7 @@ importers:
         version: 1.8.0
       '@pierre/diffs':
         specifier: 1.6.1
-        version: 1.6.1(patch_hash=aabbbf0de51c7f61aba18979740c8a971ef93492c4aeab5bf887d6f21794e72a)(@shikijs/themes@4.2.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        version: 1.6.1(patch_hash=acc0a0f47a94ca3e812f5fbdb3e0eb8f80188e4f17b1358133384ec05427f662)(@shikijs/themes@4.2.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@pierre/trees':
         specifier: 1.0.0-beta.6
         version: 1.0.0-beta.6(@pierre/theme@2.0.0)(@shikijs/themes@4.2.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(shiki@4.2.0)
@@ -1251,7 +1251,7 @@ importers:
     dependencies:
       '@pierre/diffs':
         specifier: 1.6.1
-        version: 1.6.1(patch_hash=aabbbf0de51c7f61aba18979740c8a971ef93492c4aeab5bf887d6f21794e72a)(@shikijs/themes@4.2.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        version: 1.6.1(patch_hash=acc0a0f47a94ca3e812f5fbdb3e0eb8f80188e4f17b1358133384ec05427f662)(@shikijs/themes@4.2.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@supaterm/contracts':
         specifier: workspace:*
         version: link:../contracts
@@ -14214,7 +14214,7 @@ snapshots:
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
 
-  '@pierre/diffs@1.6.1(patch_hash=aabbbf0de51c7f61aba18979740c8a971ef93492c4aeab5bf887d6f21794e72a)(@shikijs/themes@4.2.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
+  '@pierre/diffs@1.6.1(patch_hash=acc0a0f47a94ca3e812f5fbdb3e0eb8f80188e4f17b1358133384ec05427f662)(@shikijs/themes@4.2.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
     dependencies:
       '@pierre/highlights': 0.2.0
       '@pierre/theme': 2.0.0
