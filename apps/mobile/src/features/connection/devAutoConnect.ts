@@ -17,6 +17,11 @@ export const devAutoConnectAttemptAtom = Atom.make<DevAutoConnectAttempt | null>
   Atom.withLabel("mobile:dev-auto-connect-attempt"),
 );
 
+/** Production builds ignore a link's pairing URL so it never prefills an attacker-chosen host and token. */
+export function linkedPairingUrl(pairingUrl: string | undefined): string {
+  return __DEV__ ? (pairingUrl?.trim() ?? "") : "";
+}
+
 /**
  * What the form opened by `routePairingUrl` shows of the dev auto-connect. Editing or submitting
  * (`dismissed`) hides a failure, but a pairing still running keeps Connect busy, so the user

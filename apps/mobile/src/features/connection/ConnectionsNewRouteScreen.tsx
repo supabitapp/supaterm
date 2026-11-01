@@ -23,7 +23,7 @@ import { AppText as Text, AppTextInput, type AppTextInputProps } from "../../com
 import { FrostedCutout } from "../../components/ui/FrostedCutout";
 import { pairingUrlForFields, extractPairingUrlFromQrPayload, parsePairingUrl } from "./pairing";
 import { useRemoteConnections } from "../../state/use-remote-environment-registry";
-import { autoConnectReport, devAutoConnectAttemptAtom } from "./devAutoConnect";
+import { autoConnectReport, devAutoConnectAttemptAtom, linkedPairingUrl } from "./devAutoConnect";
 import { SymbolView } from "../../components/ui/AppSymbol";
 
 type ConnectionsNewRouteParams = {
@@ -36,18 +36,35 @@ type ConnectionsNewRouteParams = {
 export function ConnectionsNewRouteScreen({
   route,
 }: StaticScreenProps<ConnectionsNewRouteParams | undefined>) {
+  const params = route.params ?? {};
+  const routePairingUrl = linkedPairingUrl(params.pairingUrl);
+  // A fresh pairing link replaces the form, including the previous attempt's error and progress.
+  return (
+    <PairingForm
+      key={routePairingUrl}
+      routePairingUrl={routePairingUrl}
+      routeFor={params.routeFor}
+    />
+  );
+}
+
+function PairingForm({
+  routePairingUrl,
+  routeFor,
+}: {
+  readonly routePairingUrl: string;
+  readonly routeFor: EnvironmentId | undefined;
+}) {
   const { connectionPairingUrl, onChangeConnectionPairingUrl, onConnectPress } =
     useRemoteConnections();
   const navigation = useNavigation();
   const routeName = useRoute().name;
-  const params = route.params ?? {};
-  // Deep-link prefill exists for development automation only. A production
-  // link must not arrive with attacker-chosen host and token already filled.
-  const routePairingUrl = __DEV__ ? (params.pairingUrl?.trim() ?? "") : "";
   const insets = useSafeAreaInsets();
-  const [hostInput, setHostInput] = useState("");
-  const [codeInput, setCodeInput] = useState("");
-  const [originalPairingUrl, setOriginalPairingUrl] = useState("");
+  const [originalPairingUrl, setOriginalPairingUrl] = useState(
+    () => routePairingUrl || connectionPairingUrl,
+  );
+  const [hostInput, setHostInput] = useState(() => parsePairingUrl(originalPairingUrl).host);
+  const [codeInput, setCodeInput] = useState(() => parsePairingUrl(originalPairingUrl).code);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   // The user's own edit or submit dismisses the dev auto-connect report.
@@ -69,27 +86,14 @@ export function ConnectionsNewRouteScreen({
 
   const connectDisabled = connecting || hostInput.trim().length === 0;
 
-  const [syncedPairingUrls, setSyncedPairingUrls] = useState<{
-    readonly connection: string;
-    readonly route: string;
-  } | null>(null);
-  if (
-    syncedPairingUrls?.connection !== connectionPairingUrl ||
-    syncedPairingUrls.route !== routePairingUrl
-  ) {
-    setSyncedPairingUrls({ connection: connectionPairingUrl, route: routePairingUrl });
-    const prefillUrl =
-      syncedPairingUrls?.route !== routePairingUrl && routePairingUrl.length > 0
-        ? routePairingUrl
-        : syncedPairingUrls?.connection !== connectionPairingUrl
-          ? connectionPairingUrl
-          : null;
-    if (prefillUrl !== null) {
-      setOriginalPairingUrl(prefillUrl);
-      const { host, code } = parsePairingUrl(prefillUrl);
-      setHostInput(host);
-      setCodeInput(code);
-    }
+  const [syncedConnectionPairingUrl, setSyncedConnectionPairingUrl] =
+    useState(connectionPairingUrl);
+  if (syncedConnectionPairingUrl !== connectionPairingUrl) {
+    setSyncedConnectionPairingUrl(connectionPairingUrl);
+    setOriginalPairingUrl(connectionPairingUrl);
+    const { host, code } = parsePairingUrl(connectionPairingUrl);
+    setHostInput(host);
+    setCodeInput(code);
   }
 
   const clearError = () => {
@@ -139,7 +143,7 @@ export function ConnectionsNewRouteScreen({
     setIsSubmitting(true);
     onChangeConnectionPairingUrl(pairingUrl);
     const connect = async () => {
-      const outcome = await onConnectPress(pairingUrl, params.routeFor);
+      const outcome = await onConnectPress(pairingUrl, routeFor);
       setSubmitError(outcome.error);
       void Haptics.notificationAsync(
         outcome.ok
@@ -194,7 +198,7 @@ export function ConnectionsNewRouteScreen({
   return (
     <SettingsScreen
       formSheet={routeName === "ConnectionsNew"}
-      title={params.routeFor ? "Add route" : "Add environment"}
+      title={routeFor ? "Add route" : "Add environment"}
       actions={[
         {
           accessibilityLabel: connecting ? "Connecting" : "Add environment",
