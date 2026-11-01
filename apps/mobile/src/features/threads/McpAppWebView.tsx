@@ -90,10 +90,20 @@ export function ThreadMcpApp(props: {
   readonly height?: number;
 }) {
   const [height, setHeight] = useState(MCP_APP_INLINE_MAX_HEIGHT);
+  const [documentKey, setDocumentKeyState] = useState(0);
+  const [uri, setUri] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [navigatedAway, setNavigatedAway] = useState(false);
+  // A different app needs a new document even when its asset URL is unchanged,
+  // so the WebView key moves on with the document key, not only the URL.
   const [app, setApp] = useState(props.app);
   if (!mcpAppReferencesEqual(app, props.app)) {
     setApp(props.app);
     setHeight(MCP_APP_INLINE_MAX_HEIGHT);
+    setUri(null);
+    setLoaded(false);
+    setNavigatedAway(false);
+    setDocumentKeyState((value) => value + 1);
   }
   const fullscreen = props.displayMode === "fullscreen";
   const navigation = useNavigation();
@@ -102,8 +112,6 @@ export function ThreadMcpApp(props: {
   const [closed, setClosed] = useState(false);
 
   const [presentedFullscreen, setPresentedFullscreen] = useState(false);
-
-  const [documentKey, setDocumentKeyState] = useState(0);
 
   const { themeId, themeAppearance, themeVariables, systemColorsActive } =
     useAppearancePreferences();
@@ -124,10 +132,7 @@ export function ThreadMcpApp(props: {
   };
   const asset = useAssetUrlState(props.environmentId, resource);
 
-  const [uri, setUri] = useState<string | null>(null);
   if (uri === null && asset._tag === "Success") setUri(asset.url);
-  const [loaded, setLoaded] = useState(false);
-  const [navigatedAway, setNavigatedAway] = useState(false);
 
   const [generation, setGeneration] = useState(0);
   const [crashed, setCrashed] = useState(false);
@@ -442,7 +447,7 @@ export function ThreadMcpApp(props: {
         </View>
       ) : uri !== null && !crashed ? (
         <WebView<object>
-          key={`${documentKey}:${generation}`}
+          key={`${documentKey}:${generation}:${uri}`}
           ref={webView}
           onContentProcessDidTerminate={restart}
           onRenderProcessGone={restart}
