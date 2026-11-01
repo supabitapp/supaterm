@@ -1561,7 +1561,11 @@ export const layer: Layer.Layer<
             sideChatHandoff === undefined || compact || goalCommand
               ? ""
               : sideChatHandoff.summaryText;
-          const context = [delivery.context, sideChatContext, restartNote]
+          const sideChatNote =
+            sideChatHandoff !== undefined || compact || goalCommand
+              ? ""
+              : ContextHandoffService.sideChatTurnNote(projection.thread);
+          const context = [delivery.context, sideChatContext, sideChatNote, restartNote]
             .filter((part) => part !== "")
             .join("\n\n");
           const { restartContinuationOfRunId: _resumedRunId, ...promptedInput } = turnInput;
@@ -1628,6 +1632,7 @@ export const layer: Layer.Layer<
         effectiveHandoffs.length === 0 &&
         retryHandoff.length === 0 &&
         sideChatHandoff === undefined &&
+        projection.thread.lineage.sideChat !== true &&
         restartNote === "" &&
         !noteContinuation
           ? session

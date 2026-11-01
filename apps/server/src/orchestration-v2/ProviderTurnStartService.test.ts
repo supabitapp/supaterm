@@ -1259,9 +1259,9 @@ effectIt.effect.each([
     runtimeMode: "approval-required",
     context: "SIDE_CHAT_CONTEXT",
   },
-  { contextRun: "delivered", runtimeMode: "approval-required", context: "" },
+  { contextRun: "delivered", runtimeMode: "approval-required", context: "SIDE_CHAT_NOTE" },
 ] as const)(
-  "sends side chat context inline once, for the first turn that reaches the provider: %j",
+  "sends side chat context inline once, then only the side chat note: %j",
   ({ runtimeMode, context, ...sideChat }) =>
     Effect.gen(function* () {
       const harness = makeLocalCommandHarness({
@@ -1275,8 +1275,13 @@ effectIt.effect.each([
       expect(harness.open).toHaveBeenCalledWith(
         expect.objectContaining({ runtimePolicy: expect.objectContaining({ runtimeMode }) }),
       );
+      const sent =
+        context === "SIDE_CHAT_NOTE"
+          ? ContextHandoffService.sideChatTurnNote(harness.projection().thread)
+          : context;
+      expect(sent).not.toBe("");
       expect(harness.startTurn.mock.calls.map(([turn]) => turn.message.text)).toEqual([
-        withInlineContext(context, "What is the main thread doing?"),
+        withInlineContext(sent, "What is the main thread doing?"),
       ]);
       expect(harness.projection().contextHandoffs).toMatchObject([
         {

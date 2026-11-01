@@ -278,6 +278,19 @@ export function makeSideChatContext(input: {
   ].join("\n");
 }
 
+/**
+ * Prepended to every side chat turn after the one that carried its context. The digest went once;
+ * this only keeps the boundary in view.
+ */
+export function sideChatTurnNote(thread: Pick<OrchestrationV2AppThread, "lineage">): string {
+  const { parentThreadId } = thread.lineage;
+  if (thread.lineage.sideChat !== true || parentThreadId === null) return "";
+  return [
+    `You are still in a side chat beside main thread ${parentThreadId}, which may be working in the same worktree.`,
+    "Answer here and ask before acting; do not continue or redo the main thread's task.",
+  ].join("\n");
+}
+
 /** Side chat context is prepended to the provider prompt, never replayed as budgeted history. */
 export const isSideChatContextHandoff = (handoff: OrchestrationV2ContextHandoff): boolean =>
   handoff.strategy === "manual_context" && handoff.transferId != null;
