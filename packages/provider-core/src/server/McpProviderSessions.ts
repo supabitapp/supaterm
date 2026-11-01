@@ -18,6 +18,8 @@ const MAX_KEPT_HTML_RENDERS = 64;
 const BOUNDED_TEXT_MARKER = "[Earlier output truncated]\n\n";
 const KEPT_HTML_END_LENGTH = 8_000;
 const BOUNDED_SPEC_PREFIX = "[Spec sha256 ";
+// A published spec nests about seven levels; deeper input cannot match one.
+const MAX_SPEC_DEPTH = 16;
 
 interface HtmlRenderInput {
   readonly html?: unknown;
@@ -38,12 +40,25 @@ interface KeptHtmlRender {
 
 const sha256 = (text: string) => NodeCrypto.createHash("sha256").update(text).digest("hex");
 
+// Iterative, so provider input of any depth cannot overflow the stack before it is hashed.
+const nestsDeeperThan = (value: unknown, limit: number) => {
+  const pending: Array<readonly [unknown, number]> = [[value, 0]];
+  for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
+    const [current, depth] = next;
+    if (depth > limit) return true;
+    if (Predicate.isObject(current)) {
+      for (const child of Object.values(current)) pending.push([child, depth + 1]);
+    }
+  }
+  return false;
+};
+
 /** Key order is ignored: a provider may report the spec it sent with its keys reordered. */
-export const htmlRenderSpecDigest = (spec: unknown) => sha256(stableStringify(spec));
+export const htmlRenderSpecDigest = (spec: unknown) =>
+  nestsDeeperThan(spec, MAX_SPEC_DEPTH) ? undefined : sha256(stableStringify(spec));
 
 /** Stands in for a spec a provider's payload bounds would cut, keeping only what matching needs. */
-export const boundHtmlRenderSpec = (spec: unknown) =>
-  `${BOUNDED_SPEC_PREFIX}${htmlRenderSpecDigest(spec)}]`;
+export const htmlRenderSpecMarker = (digest: string) => `${BOUNDED_SPEC_PREFIX}${digest}]`;
 
 const specHashOf = (spec: unknown) => {
   if (Predicate.isObject(spec)) return htmlRenderSpecDigest(spec);
@@ -96,22 +111,28 @@ const matchesSpec = (spec: unknown) => {
   return specHash === undefined ? undefined : (page: KeptHtmlRender) => page.specHash === specHash;
 };
 
+// A call with both sources was rejected, so it must not take a page published by another call.
+const matchesSource = (input: HtmlRenderInput) => {
+  if (input.html == null) return matchesSpec(input.spec);
+  if (input.spec != null || typeof input.html !== "string" || input.html.length === 0) {
+    return undefined;
+  }
+  return matchesHtml(input.html);
+};
+
 const matchingPageIndex = (kept: ReadonlyArray<KeptHtmlRender>, input: HtmlRenderInput): number => {
-  const matchesSource =
-    typeof input.html === "string" && input.html.length > 0
-      ? matchesHtml(input.html)
-      : matchesSpec(input.spec);
-  if (matchesSource === undefined) {
+  const matches = matchesSource(input);
+  if (matches === undefined) {
     return -1;
   }
   const height =
     typeof input.height === "string" && input.height.trim() !== ""
       ? Number(input.height)
       : input.height;
-  const matches = kept.flatMap((page, index) =>
-    page.title === input.title && page.height === height && matchesSource(page) ? [index] : [],
+  const found = kept.flatMap((page, index) =>
+    page.title === input.title && page.height === height && matches(page) ? [index] : [],
   );
-  return matches.length === 1 ? matches[0]! : -1;
+  return found.length === 1 ? found[0]! : -1;
 };
 
 const make = Effect.gen(function* () {

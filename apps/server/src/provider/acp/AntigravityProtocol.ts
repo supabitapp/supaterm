@@ -4,8 +4,8 @@ import type {
   UserInputQuestion,
 } from "@supaterm/contracts";
 import {
-  boundHtmlRenderSpec,
   htmlRenderSpecDigest,
+  htmlRenderSpecMarker,
 } from "@supaterm/provider-core/server/McpProviderSessions";
 import { isWorkspaceImagePreviewPath } from "@supaterm/shared/filePreview";
 import * as Option from "effect/Option";
@@ -234,12 +234,13 @@ function sanitizeAntigravityToolInput(rawInput: unknown): unknown {
   const { spec, ...rest } = rawInput;
   const bounded = sanitizeAntigravityToolPayload(spec);
   const sanitized = sanitizeAntigravityToolPayload(rest);
+  const digest = htmlRenderSpecDigest(spec);
   return {
     ...(Predicate.isObject(sanitized) ? sanitized : {}),
     spec:
-      htmlRenderSpecDigest(bounded) === htmlRenderSpecDigest(spec)
+      digest === undefined || digest === htmlRenderSpecDigest(bounded)
         ? bounded
-        : boundHtmlRenderSpec(spec),
+        : htmlRenderSpecMarker(digest),
   };
 }
 

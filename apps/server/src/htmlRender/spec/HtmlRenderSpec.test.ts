@@ -231,6 +231,15 @@ describe("compileHtmlRenderSpec", () => {
     expect(html).toContain('style="left:0%;width:25%"');
   });
 
+  it.each([
+    ["a flat line", [5, 5]],
+    ["values a float step apart", [1e12, 1e12 + 1]],
+  ])("scales %s", (_name, values) => {
+    const data = values.map((value, index) => ({ label: `P${index}`, value }));
+    const html = compiled({ root: "a", elements: { a: { type: "LineChart", props: { data } } } });
+    expect(html).not.toMatch(/NaN|Infinity/);
+  });
+
   it("scales a flat line and labels evenly spaced points", () => {
     const html = compiled({
       root: "a",

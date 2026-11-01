@@ -79,10 +79,12 @@ const niceScale = (min: number, max: number) => {
   const step = (residual > 5 ? 10 : residual > 2 ? 5 : residual > 1 ? 2 : 1) * magnitude;
   const first = Math.floor(low / step);
   const count = Math.ceil(high / step) - first;
-  const ticks = Array.from({ length: count + 1 }, (_, index) =>
-    Number(((first + index) * step).toPrecision(12)),
-  );
-  return { low: ticks[0]!, high: ticks[ticks.length - 1]!, ticks };
+  const ticks = Array.from({ length: count + 1 }, (_, index) => (first + index) * step);
+  const scale = { low: ticks[0]!, high: ticks[ticks.length - 1]!, ticks };
+  // Near the float limit a step can vanish into its value, leaving no span to scale.
+  return scale.high > scale.low
+    ? scale
+    : { low: low - 1, high: high + 1, ticks: [low - 1, high + 1] };
 };
 
 type Props<T extends HtmlRenderSpecElement["type"]> = Extract<

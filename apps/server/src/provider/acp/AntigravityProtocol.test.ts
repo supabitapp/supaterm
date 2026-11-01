@@ -417,6 +417,8 @@ describe("Antigravity tool results", () => {
       spec: expect.stringMatching(/^\[Spec sha256 [0-9a-f]{64}\]$/),
     });
     expect(rawInputOf({ spec }).spec).toMatchObject({ root: "a" });
+    const deep = JSON.parse(`${'{"a":'.repeat(3_000)}0${"}".repeat(3_000)}`);
+    expect(rawInputOf({ spec: deep, title: "Deep", height: 200 }).spec).toMatchObject({ a: {} });
   });
 
   it("bounds nested tool data and drops image blobs and data URLs", () => {

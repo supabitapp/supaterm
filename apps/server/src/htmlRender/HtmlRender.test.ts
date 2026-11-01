@@ -310,7 +310,7 @@ describe("HtmlRender", () => {
       const directory = yield* fileSystem.makeTempDirectoryScoped({
         prefix: "supaterm-html-spec-images-",
       });
-      const logo = path.join(directory, "R&D.png");
+      const logo = path.join(directory, "R&D's.png");
       yield* fileSystem.writeFile(logo, PNG_BYTES);
       const spec = {
         root: "page",
@@ -341,9 +341,10 @@ describe("HtmlRender", () => {
         },
         root: "page",
       };
-      expect(
-        yield* mcpSessions.takeHtmlRender(threadId, { ...page, html: JSON.stringify(spec) }),
-      ).toBe(undefined);
+      // A rejected call that also passed html must not take this call's page.
+      for (const html of ["", "<p>Revenue</p>"]) {
+        expect(yield* mcpSessions.takeHtmlRender(threadId, { ...page, html })).toBe(undefined);
+      }
       expect(yield* mcpSessions.takeHtmlRender(threadId, { ...page, spec: reordered })).toEqual(
         reference,
       );
