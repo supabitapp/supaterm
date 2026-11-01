@@ -64,6 +64,21 @@ export interface OlderDoneShelfEnvironment {
 }
 
 /**
+ * Scopes in one order, so a shelf keyed on them keeps its pages when the caller's project order
+ * changes. Loading a page can reorder the sidebar's projects, which would otherwise drop the page.
+ */
+export function sortOlderDoneScopes(
+  scopes: ReadonlyArray<OlderDoneScope>,
+): ReadonlyArray<OlderDoneScope> {
+  return scopes
+    .map((scope) => ({
+      environmentId: scope.environmentId,
+      projectIds: scope.projectIds === null ? null : [...scope.projectIds].sort(),
+    }))
+    .sort((left, right) => left.environmentId.localeCompare(right.environmentId));
+}
+
+/**
  * Changes whenever the older count can: any removal (by largest sequence, so a repeat counts), an
  * older row that arrives or changes, or an old row arriving outside the set (unsettled). Threads
  * created after the cut never enter it, as threads are marked done after creation. Archived-thread events
