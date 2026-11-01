@@ -2,14 +2,9 @@ import type { ThreadId, EnvironmentId } from "@supaterm/contracts";
 import { backgroundWorkHoldsCompletion } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 import { threadPullRequestSearchTerms } from "@supaterm/shared/threadPullRequests";
 import * as React from "react";
-import {
-  isAtomCommandInterrupted,
-  type AtomCommandResult,
-} from "@supaterm/client-runtime/state/runtime";
 import { defaultAnimateLayoutChanges, type AnimateLayoutChanges } from "@dnd-kit/sortable";
 import type { ContextMenuItem } from "@supaterm/contracts";
 import type { SidebarProjectSortOrder, SidebarThreadSortOrder } from "@supaterm/contracts/settings";
-import type { AsyncResult } from "effect/reactivity";
 import {
   effectiveSnoozed,
   type ThreadSnoozeShell,
@@ -480,36 +475,6 @@ type LogicalSidebarProject = SidebarProject & {
 };
 
 type ThreadTraversalDirection = "previous" | "next";
-
-/**
- * Shared-worktree checks must exclude only successful deletions, never the
- * whole batch.
- */
-export async function deleteSelectedThreadEntries<
-  TEntry extends { readonly threadKey: string },
->(input: {
-  entries: readonly TEntry[];
-  delete: (
-    entry: TEntry,
-    deletedThreadKeys: ReadonlySet<string>,
-  ) => Promise<AtomCommandResult<unknown, unknown> | null>;
-}) {
-  const deletedThreadKeys = new Set<string>();
-  let firstFailure: AsyncResult.Failure<unknown, unknown> | null = null;
-
-  for (const entry of input.entries) {
-    const result = await input.delete(entry, deletedThreadKeys);
-    if (result === null) continue;
-    if (result._tag === "Failure") {
-      if (isAtomCommandInterrupted(result)) break;
-      firstFailure ??= result;
-      continue;
-    }
-    deletedThreadKeys.add(entry.threadKey);
-  }
-
-  return { deletedThreadKeys, firstFailure };
-}
 
 export async function archiveSelectedThreadEntries<
   TEntry extends { readonly threadKey: string },
