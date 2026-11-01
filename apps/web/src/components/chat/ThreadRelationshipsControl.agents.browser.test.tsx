@@ -194,7 +194,7 @@ it.each([
     const { render, update, click, allByLabel, byLabel } = fixture;
     const parent = {
       id: "parent",
-      lineage: { relationshipToParent: null },
+      lineage: { parentThreadId: null, relationshipToParent: null },
       activeProviderThreadId: null,
     };
     const child = {
@@ -328,7 +328,7 @@ it("shows the matching child agent details and refreshes them when the agent set
   const projection = {
     thread: {
       id: "parent",
-      lineage: { relationshipToParent: null },
+      lineage: { parentThreadId: null, relationshipToParent: null },
       activeProviderThreadId: null,
     },
     runs: [],
