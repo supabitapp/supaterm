@@ -80,9 +80,9 @@ bumps require a new store binary under the existing OTA fingerprint policy.
 
 [Mobile Production](../../.github/workflows/mobile-eas-production.yml) automatically uploads newly built
 production binaries to TestFlight and Google Play internal testing. A push to `main` compiles a new binary
-when no recorded build matches its app version or native fingerprint; otherwise it publishes an OTA update
-to the matching binary. Production OTAs reach only binaries with the same fingerprint, so skipping the
-build after a native change would strand every later update. After a successful upload, it records
+when its app version is unrecorded or no recorded build matches its native fingerprint, and publishes an OTA
+update whenever a fingerprint-compatible binary exists. Production OTAs reach only binaries with the same
+native fingerprint. After a successful upload, it records
 the source commit, app version, and native build number from the signed binary. On `main`, the workflow
 submits each uploaded iOS build for external beta review and adds it to `Supaterm Public Beta`, with
 tester notifications enabled after approval. The beta job uses the `release` environment's existing
