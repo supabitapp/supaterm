@@ -27,6 +27,7 @@ import {
   type OrchestrationV2ThreadShell,
   type OrchestrationV2ThreadStreamItem,
   type OrchestrationV2TurnItem,
+  type TerminalMetadataStreamEvent,
 } from "@supaterm/contracts";
 import type {
   ConnectionAttemptError,
@@ -308,6 +309,7 @@ const json = (body: unknown, status = 200) =>
 
 // Keyed by thread id: a live thread subscription's queue, for pushing events to it.
 const threadSubscribers = new Map<string, Queue.Queue<OrchestrationV2ThreadStreamItem>>();
+let terminalMetadataSubscriber: Queue.Queue<TerminalMetadataStreamEvent> | null = null;
 let threads: ReadonlyArray<FakeThread> = [];
 let sequence = 1;
 
@@ -333,6 +335,13 @@ const shellSnapshot = (): OrchestrationV2ShellSnapshot => ({
 });
 
 const handlers: Record<string, (input: never) => unknown> = {
+  [WS_METHODS.subscribeTerminalMetadata]: () =>
+    subscribe<TerminalMetadataStreamEvent>([{ type: "snapshot", terminals: [] }], (queue) => {
+      terminalMetadataSubscriber = queue;
+      return () => {
+        if (terminalMetadataSubscriber === queue) terminalMetadataSubscriber = null;
+      };
+    }),
   [ORCHESTRATION_V2_WS_METHODS.subscribeShell]: () =>
     subscribe<OrchestrationV2ShellStreamItem>([
       { kind: "snapshot", snapshot: shellSnapshot() },
@@ -459,6 +468,11 @@ export function installFakeEnvironment(fixtures: ReadonlyArray<FakeThread>): Dis
 }
 
 type ThreadEvent = Extract<OrchestrationV2ThreadStreamItem, { readonly kind: "event" }>["event"];
+
+export async function emitTerminalMetadata(event: TerminalMetadataStreamEvent): Promise<void> {
+  if (terminalMetadataSubscriber === null) throw new Error("No terminal metadata subscription");
+  await Effect.runPromise(Queue.offer(terminalMetadataSubscriber, event));
+}
 
 /** Whether the app holds a live subscription to the thread, so events reach it. */
 export function isThreadSubscribed(threadId: ThreadId): boolean {
