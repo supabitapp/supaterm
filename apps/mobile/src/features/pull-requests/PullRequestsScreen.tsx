@@ -6,7 +6,7 @@ import {
 import { WorkspaceHeaderActions } from "../workspace/WorkspaceHeaderActions";
 import { LegendList, type LegendListRef } from "@legendapp/list/react-native";
 import { useNavigation } from "@react-navigation/native";
-import { use, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { use, useMemo, useRef, useState, type ReactNode } from "react";
 import { sortProjectsByGroupOrder } from "@supaterm/client-runtime/state/project-grouping";
 import { useAtomValue } from "@effect/atom-react";
 import {
@@ -49,6 +49,7 @@ import {
 } from "./pullRequestList";
 import { useDebouncedValue } from "../../state/queries";
 import { useWorkspaceTabs } from "../workspace/WorkspaceTabsContext";
+import { useSearchScrollRestoration } from "../workspace/useSearchScrollRestoration";
 import { useSelectWorkspaceDetail } from "../workspace/useSelectWorkspaceDetail";
 
 function PullRequestScrollView(props: ScrollViewProps) {
@@ -233,18 +234,12 @@ export function PullRequestsScreen(
       sidebar={sidebar}
     />
   );
-  const previousSearchMode = useRef(tab.searchMode);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- scrolls the list to the offset saved when search opened once the tab returns to resting
-  useEffect(() => {
-    const restoringSearch =
-      previousSearchMode.current !== "resting" && tab.searchMode === "resting";
-    previousSearchMode.current = tab.searchMode;
-    if (restoringSearch)
-      void listRef.current?.scrollToOffset({
-        offset: tab.scrollOffset - (Platform.OS === "ios" ? insets.top : 0),
-        animated: false,
-      });
-  }, [tab.searchMode, tab.scrollOffset, insets.top]);
+  useSearchScrollRestoration(tab.searchMode, () => {
+    void listRef.current?.scrollToOffset({
+      offset: tab.scrollOffset - (Platform.OS === "ios" ? insets.top : 0),
+      animated: false,
+    });
+  });
   const initialIndex = initialAnchor
     ? entries.findIndex((entry) => pullRequestKey(entry) === initialAnchor.key)
     : -1;
