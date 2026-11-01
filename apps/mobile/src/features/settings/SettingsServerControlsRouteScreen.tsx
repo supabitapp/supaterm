@@ -43,6 +43,7 @@ import {
   type ScopedMobileSettingsTarget,
 } from "./settings-scoped-server";
 import { PullRequestGlyph } from "../pull-requests/pullRequestGlyphs";
+import { resolveProductUsageDataControl } from "@supaterm/client-runtime/product-usage-data";
 
 type SettingsPage = "threads" | "source-control" | "worktrees" | "maintenance";
 
@@ -536,19 +537,11 @@ function ProductUsageDataSection(props: {
   readonly disabled: boolean;
   readonly onValueChange: (value: boolean) => void;
 }) {
-  // Older servers ignore the setting, so a switch there would claim an opt-out that never happens.
-  if (
-    !props.targets.every(
-      (target) => target.serverConfig.environment.capabilities.telemetrySetting === true,
-    )
-  ) {
-    return null;
-  }
-  const overrides = props.targets.flatMap((target) => {
-    const value = target.serverConfig.observability.telemetryEnabledByEnvironment;
-    return value === undefined ? [] : [{ label: target.label, value }];
-  });
-  const lockedEverywhere = props.targets.length > 0 && overrides.length === props.targets.length;
+  const control = resolveProductUsageDataControl(props.targets);
+  if (control === null) return null;
+  const description =
+    control.status ??
+    "Send product usage events from this environment. They never include prompts, responses, or file contents.";
   return (
     <SettingsSection title="Privacy">
       <SettingsSwitchRow
@@ -557,16 +550,10 @@ function ProductUsageDataSection(props: {
         subtitle={
           props.projectSelected
             ? "Environment-wide setting. Select All projects to change it."
-            : overrides.length > 0
-              ? overrides
-                  .map(
-                    ({ label, value }) => `Set by SUPATERM_TELEMETRY_ENABLED=${value} on ${label}.`,
-                  )
-                  .join(" ")
-              : "Send product usage events from this environment. They never include prompts, responses, or file contents."
+            : description
         }
-        value={lockedEverywhere ? overrides.every(({ value }) => value) : props.value}
-        disabled={lockedEverywhere || props.disabled}
+        value={control.lockedValue ?? props.value}
+        disabled={control.lockedValue !== undefined || props.disabled}
         onValueChange={props.onValueChange}
       />
     </SettingsSection>
