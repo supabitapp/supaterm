@@ -114,14 +114,14 @@ connection nor overwrite newer live data during a reconnect. Loading and
 resuming snapshots belongs to the shared state services, so every view agrees
 on which data is current.
 
-Clients always ask shell snapshots to leave rows out (servers still advertise
-`shellThreadFamilies` and `shellOlderDone` for older clients). The shell leaves
-out idle subagent children: a child stays while it has a live or queued run, a
-pending request or background work, or a subagent child of its own, so badge and
-working walks never meet a gap. It also keeps only the 25 newest done top-level
-threads (and any tied with the 25th, pinned, snoozed, live, or above a kept
-child); the snapshot's `olderDone` names that cut and counts the rest per
-project. Left-out rows load on demand and merge behind shell rows
+Shell snapshots can leave rows out when the client asks. Servers that advertise
+`shellThreadFamilies` leave out idle subagent children: a child stays while it
+has a live or queued run, a pending request or background work, or a subagent
+child of its own, so badge and working walks never meet a gap. Servers that also
+advertise `shellOlderDone` keep only the 25 newest done top-level threads
+(and any tied with the 25th, pinned, snoozed, live, or above a kept child); the
+snapshot's `olderDone` names that cut and counts the rest per project. Left-out
+rows load on demand and merge behind shell rows
 ([thread families](../../packages/client-runtime/src/state/threadFamilies.ts)):
 the family a thread view or a queued message mounts holds every active thread
 sharing the thread's root, so it also brings back an old done thread opened by

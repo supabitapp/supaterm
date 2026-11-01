@@ -52,9 +52,6 @@ export type EnvironmentShellStatus = "empty" | "cached" | "synchronizing" | "liv
 // younger than this, and otherwise reloads it.
 const SHELL_RESUME_MAX_SNAPSHOT_AGE_MS = 6 * 60 * 60 * 1000;
 
-// HTTP and the socket must agree, or omitted children would return through the socket.
-const SHELL_OMISSION = { omitIdleSubagents: true, omitOlderDone: true } as const;
-
 export interface EnvironmentShellState {
   readonly snapshot: Option.Option<OrchestrationV2ShellSnapshot>;
   readonly status: EnvironmentShellStatus;
@@ -391,6 +388,8 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
       Effect.fn("EnvironmentShellState.makeSubscribeInput")(function* (session) {
         const config = Option.getOrUndefined(yield* session.initialConfig.pipe(Effect.option));
         const generation = config?.shellSyncGeneration ?? null;
+        const omitIdleSubagents = config?.shellThreadFamilies === true;
+        const omitOlderDone = config?.shellOlderDone === true && omitIdleSubagents;
         yield* Ref.set(activeSubscription, { session, generation });
         yield* Ref.set(awaitingCompletion, true);
         yield* setSynchronizing;
@@ -423,7 +422,11 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
               }),
             ),
           );
-          const httpSnapshot = yield* snapshotLoader.load(prepared, SHELL_OMISSION);
+          // HTTP and the socket must agree, or omitted children would return through the socket.
+          const httpSnapshot = yield* snapshotLoader.load(prepared, {
+            omitIdleSubagents,
+            omitOlderDone,
+          });
           if (Option.isSome(httpSnapshot)) {
             yield* cancelActiveFill;
             const previous = yield* SubscriptionRef.get(state);
@@ -445,12 +448,16 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
           }
         }
 
+        const omission = {
+          ...(omitIdleSubagents ? { omitIdleSubagents: true as const } : {}),
+          ...(omitOlderDone ? { omitOlderDone: true as const } : {}),
+        };
         if (!canResume || Option.isNone(current.snapshot)) {
-          return { ...SHELL_OMISSION, requestCompletionMarker: true as const };
+          return { ...omission, requestCompletionMarker: true as const };
         }
         return {
           afterSequence: current.snapshot.value.snapshotSequence,
-          ...SHELL_OMISSION,
+          ...omission,
           requestCompletionMarker: true as const,
         };
       }),

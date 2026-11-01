@@ -802,10 +802,18 @@ describe("environment shell synchronization", () => {
             Deferred.succeed(subscribeInput, input).pipe(Effect.as(Stream.fromQueue(events))),
           ),
       } as unknown as WsRpcProtocolClient;
+      const familySession: RpcSession.RpcSession = {
+        ...session(client),
+        initialConfig: Effect.succeed({
+          shellResumeCompletionMarker: true,
+          shellThreadFamilies: true,
+          shellOlderDone: true,
+        } as never),
+      };
       const supervisor = EnvironmentSupervisor.EnvironmentSupervisor.of({
         target: TARGET,
         state: yield* SubscriptionRef.make(AVAILABLE_CONNECTION_STATE),
-        session: yield* SubscriptionRef.make(Option.some(session(client))),
+        session: yield* SubscriptionRef.make(Option.some(familySession)),
         prepared: yield* SubscriptionRef.make(Option.some(PREPARED)),
         connect: Effect.void,
         disconnect: Effect.void,

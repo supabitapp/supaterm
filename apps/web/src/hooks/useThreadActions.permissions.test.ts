@@ -66,17 +66,14 @@ vi.mock("../state/use-atom-command", () => ({
     },
 }));
 vi.mock("../state/use-atom-query-runner", () => ({
-  useAtomQueryRunner: (query: unknown) =>
-    query === "session"
-      ? async (environmentId: string) =>
-          state.sessionLookupFails
-            ? AsyncResult.failure(Cause.fail(new Error("Session lookup failed")))
-            : AsyncResult.success({
-                authenticated: true,
-                scopes: [...(state.scopes.get(environmentId) ?? [])],
-                auth: { serverUpdateScope: "environment:maintain" },
-              })
-      : async () => AsyncResult.success({ threadIds: [] }),
+  useAtomQueryRunner: () => async (environmentId: string) =>
+    state.sessionLookupFails
+      ? AsyncResult.failure(Cause.fail(new Error("Session lookup failed")))
+      : AsyncResult.success({
+          authenticated: true,
+          scopes: [...(state.scopes.get(environmentId) ?? [])],
+          auth: { serverUpdateScope: "environment:maintain" },
+        }),
 }));
 vi.mock("../state/threads", () => ({
   threadEnvironment: Object.fromEntries(

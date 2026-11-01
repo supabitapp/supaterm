@@ -30,8 +30,8 @@ import { markDoneAndAdvance } from "../../markDoneAndAdvance";
 import type { ChatShortcutCommands } from "./useChatShortcuts";
 import { useNowMinute } from "../../hooks/useNowMinute";
 import { scopedThreadKey, scopeThreadRef } from "@supaterm/client-runtime/environment";
-import { useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useRef, useState } from "react";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import {
   isAtomCommandInterrupted,
   settlePromise,
@@ -47,9 +47,11 @@ import { useEnvironmentScope } from "~/state/session";
 import { threadEnvironment } from "../../state/threads";
 import { enqueueThreadOutboxTurns } from "../../state/threadOutbox";
 import { vcsEnvironment } from "../../state/vcs";
-import { useChildThreadInputs, readThreadShell } from "../../state/entities";
+import { useChildThreadInputs, readThreadShell, waitForThreadShell } from "../../state/entities";
+import { environmentShell } from "../../state/shell";
 import { ThreadStatusLine } from "./ThreadStatusLine";
 import { formatRelativeTimeLabel } from "../../timestampFormat";
+import { appAtomRegistry } from "../../rpc/atomRegistry";
 import { readEnvironmentScope } from "../../state/session";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { useOrchestrationCommand } from "../../state/use-orchestration-command";
@@ -67,6 +69,7 @@ import type { RunStopPresentation } from "@supaterm/client-runtime/state/thread-
 import { Atom } from "effect/reactivity";
 import { environmentThreadDetails } from "../../state/threads";
 
+const RELATED_THREAD_SHELL_WAIT_MS = 1_000;
 const NO_RUN_STOP_ATOM = Atom.make<RunStopPresentation | null>(null).pipe(
   Atom.withLabel("web-thread-run-stop:empty"),
 );
@@ -76,6 +79,7 @@ type PendingThreadRequests = ReturnType<typeof usePendingThreadRequests>;
 interface ThreadLifecycleInput {
   readonly environmentId: EnvironmentId;
   readonly routeThreadKey: string;
+  readonly currentRouteThreadKeyRef: { readonly current: string | null };
   readonly canOperateThread: boolean;
   readonly clientSettingsHydrated: boolean;
   readonly activeThread: EnvironmentThreadShell | undefined;
@@ -117,6 +121,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
   const {
     environmentId,
     routeThreadKey,
+    currentRouteThreadKeyRef,
     canOperateThread,
     clientSettingsHydrated,
     activeThread,
@@ -146,6 +151,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     scrollToEnd,
   } = input;
   const navigate = useNavigate();
+  const router = useRouter();
   const canWriteSourceControl = useEnvironmentScope(environmentId, AuthSourceControlWriteScope);
   const switchGitRef = useAtomCommand(vcsEnvironment.switchRef, { reportFailure: false });
   const updateThreadMetadata = useOrchestrationCommand(threadEnvironment.updateMetadata, {
@@ -378,12 +384,29 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     }
   };
   const handleStopBackgroundWorkStable = useStableCallback(handleStopBackgroundWork);
-  const onOpenRelatedThread = (threadId: ThreadId) => {
+  const openRelatedThreadGenerationRef = useRef(0);
+  const onOpenRelatedThread = async (threadId: ThreadId) => {
+    const generation = ++openRelatedThreadGenerationRef.current;
     const threadRef = scopeThreadRef(environmentId, threadId);
-    // The shell leaves idle subagent children out, so absence is not deletion: the route decides
-    // from the thread's own detail.
+    const isEnvironmentLive = () =>
+      appAtomRegistry.get(environmentShell.stateValueAtom(environmentId)).status === "live";
+    // The shell can leave idle subagent children out, so absence is not deletion there: the
+    // route decides from the thread's own detail.
+    const shellOmitsChildren = serverConfig?.shellThreadFamilies === true;
+    // A just-launched child can reach this timeline before its shell syncs.
+    if (!shellOmitsChildren && isEnvironmentLive() && readThreadShell(threadRef) === null) {
+      const location = router.latestLocation;
+      await waitForThreadShell(threadRef, RELATED_THREAD_SHELL_WAIT_MS);
+      if (
+        generation !== openRelatedThreadGenerationRef.current ||
+        currentRouteThreadKeyRef.current !== routeThreadKey ||
+        router.latestLocation !== location
+      ) {
+        return;
+      }
+    }
     const shell = readThreadShell(threadRef);
-    if (shell?.deletedAt != null) {
+    if (shell === null ? !shellOmitsChildren && isEnvironmentLive() : shell.deletedAt != null) {
       toastManager.add({ type: "info", title: "This thread is no longer available" });
       return;
     }

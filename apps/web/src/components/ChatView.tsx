@@ -2524,6 +2524,7 @@ export default function ChatView(props: ChatViewProps) {
   } = useThreadLifecycle({
     environmentId,
     routeThreadKey,
+    currentRouteThreadKeyRef,
     canOperateThread,
     clientSettingsHydrated,
     activeThread,

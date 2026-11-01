@@ -130,6 +130,7 @@ describe("createThreadFamilyAtoms", () => {
         } as unknown as WsRpcProtocolClient;
         const session = {
           client,
+          initialConfig: Effect.succeed({ shellThreadFamilies: true } as never),
           ready: Effect.void,
           probe: Effect.void,
           closed: Effect.never,

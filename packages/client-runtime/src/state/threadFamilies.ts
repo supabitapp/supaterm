@@ -8,14 +8,17 @@ import {
 } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
+import * as SubscriptionRef from "effect/SubscriptionRef";
 import { AsyncResult, Atom, type AtomRegistry } from "effect/reactivity";
 
+import * as EnvironmentSupervisor from "../connection/supervisor.ts";
 import type * as EnvironmentRegistry from "../connection/registry.ts";
-import { request } from "../rpc/client.ts";
+import { EnvironmentRpcUnavailableError, request } from "../rpc/client.ts";
 import { arrayElementsEqual } from "./entities.ts";
 import { createEnvironmentQueryAtomFamily, selectEnvironmentQueryData } from "./runtime.ts";
 import type { EnvironmentShellState } from "./shell.ts";
 
+const EMPTY_FAMILY: OrchestrationV2ThreadFamily = { snapshotSequence: 0, threads: [] };
 const EMPTY_READS: ReadonlyArray<OrchestrationV2ThreadFamily> = [];
 
 interface MountedRows {
@@ -92,6 +95,18 @@ export function createThreadFamilyAtoms<R, ER, E>(
       readonly threadId: ThreadId;
       readonly generation: number;
     }) {
+      const supervisor = yield* EnvironmentSupervisor.EnvironmentSupervisor;
+      const session = yield* SubscriptionRef.get(supervisor.session);
+      if (Option.isNone(session)) {
+        return yield* new EnvironmentRpcUnavailableError({
+          environmentId: supervisor.target.environmentId,
+          message: "The environment has no session.",
+        });
+      }
+      // A config failure fails the read: an empty family would read as "the thread is gone".
+      const config = yield* session.value.initialConfig;
+      // Servers without families send every child in the shell, so absent means gone.
+      if (config.shellThreadFamilies !== true) return EMPTY_FAMILY;
       return yield* request(ORCHESTRATION_V2_WS_METHODS.getThreadFamily, {
         threadId: input.threadId,
       });
