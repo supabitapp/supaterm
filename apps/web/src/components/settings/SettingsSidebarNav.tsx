@@ -34,6 +34,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarInput,
+  useSidebar,
 } from "../ui/sidebar";
 import { scrollToSettingsTarget } from "./settingsLayout";
 import {
@@ -105,6 +106,8 @@ function SettingsSectionIcon({ to }: { to: SettingsPath }) {
 export function SettingsSidebarNav({ pathname }: { pathname: string }) {
   const navArea = workspaceAreaProps("settings-nav", 0, "Settings sections");
   const navigate = useNavigate();
+  const { isMobile } = useSidebar();
+  const navRowSize = isMobile ? "default" : "compact";
   const currentHash = useLocation({ select: (location) => location.hash });
   const currentSearch = useLocation({ select: (location) => location.search });
   const scopeSearch = validateSettingsScopeSearch(currentSearch);
@@ -358,14 +361,14 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                   {...sectionNavigation.containerProps}
                   role="tree"
                   aria-label="Settings sections"
-                  className="flex flex-col gap-4"
+                  className="flex flex-col gap-3"
                 >
                   {SETTINGS_NAV_SECTIONS.map((group, index) => (
                     <div
                       key={group.heading ?? index}
                       role="group"
                       aria-label={group.heading ?? undefined}
-                      className="flex flex-col gap-1 max-md:border-t max-md:border-sidebar-border max-md:pt-4 max-md:first:border-t-0 max-md:first:pt-0"
+                      className="flex flex-col gap-1 max-md:border-t max-md:border-sidebar-border max-md:pt-3 max-md:first:border-t-0 max-md:first:pt-0"
                     >
                       {group.heading ? (
                         // The group carries this label; a heading is not a valid tree child.
@@ -379,7 +382,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                           {group.heading}
                         </h3>
                       ) : null}
-                      <SidebarMenu role="presentation">
+                      <SidebarMenu role="presentation" size={navRowSize}>
                         {group.paths.map((to) => {
                           const Icon = SETTINGS_SECTION_ICONS[to];
                           const isActive = activePath === to || activePath.startsWith(`${to}/`);
@@ -391,6 +394,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                                 tabIndex={sectionNavigation.tabIndexFor(to)}
                                 aria-selected={isActive}
                                 aria-current={isActive ? "page" : undefined}
+                                size={navRowSize}
                                 isActive={isActive}
                                 onClick={() => handleSectionClick(to)}
                               >
