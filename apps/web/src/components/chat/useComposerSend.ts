@@ -13,7 +13,7 @@ import {
 import { type ComposerSubmissionIntent } from "../../composer-logic";
 import { resolveSideChatCommand } from "@supaterm/client-runtime/state/side-chats";
 import { filterTerminalContextsWithText } from "../../lib/terminalContext";
-import { useEnsureSideChat } from "./useSideChat";
+import { sendSideChatDraftMessage } from "./useSideChat";
 import { type MultipleModelTarget, resolveMultipleModelTargets } from "./chatViewSend";
 import {
   buildExpiredTerminalContextToastCopy,
@@ -228,7 +228,6 @@ export function useComposerSend(input: ComposerSendInput) {
     sideChatDisabledReason,
     sideChatDraftParentRef,
   } = input;
-  const ensureSideChat = useEnsureSideChat();
   const openPaneThread = usePaneThreadNavigation();
   const clientSettingsHydrated = useClientSettingsHydrated();
   const uploadThreadFeedback = useOrchestrationCommand(threadEnvironment.uploadFeedback, {
@@ -775,17 +774,8 @@ export function useComposerSend(input: ComposerSendInput) {
     }
     // A side chat draft becomes its fork first; its message then goes out like any other.
     const forkSideChatFirst = isLocalDraftThread ? sideChatDraftParentRef : null;
-    if (forkSideChatFirst !== null) {
-      const error = await ensureSideChat(forkSideChatFirst, threadIdForSend);
-      if (error !== null) {
-        setThreadError(threadIdForSend, error);
-        sendInFlightRef.current = false;
-        return;
-      }
-    }
     const savedDraft = useComposerDraftStore.getState().getComposerDraft(composerDraftTarget);
-    // Anything thrown while saving to the outbox shows on the thread; the send flag still clears.
-    const sendResult = await settlePromise(async () => {
+    const saveTurn = async () => {
       const title = deriveThreadTitleSeed({
         text: trimmed,
         attachments: composerAttachmentsSnapshot.map((attachment) => ({
@@ -924,7 +914,22 @@ export function useComposerSend(input: ComposerSendInput) {
           { replace: true },
         );
       }
-    });
+    };
+    // Anything thrown while saving to the outbox shows on the thread; the send flag still clears.
+    const sent =
+      forkSideChatFirst === null
+        ? { kind: "queued" as const, value: await settlePromise(saveTurn) }
+        : await sendSideChatDraftMessage({
+            parentRef: forkSideChatFirst,
+            targetThreadId: threadIdForSend,
+            enqueue: () => settlePromise(saveTurn),
+          });
+    if (sent.kind !== "queued") {
+      if (sent.kind === "failed") setThreadError(threadIdForSend, sent.reason);
+      sendInFlightRef.current = false;
+      return;
+    }
+    const sendResult = sent.value;
     if (sendResult._tag === "Failure") {
       const error = squashAtomCommandFailure(sendResult);
       setThreadError(

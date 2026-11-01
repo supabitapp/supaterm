@@ -7,12 +7,22 @@ import { ScrollView, TextInput, View } from "react-native";
 import { AppText as Text } from "../../components/ui/AppText";
 import { Button } from "../../components/ui/Button";
 import { useQuietThreadShell } from "../../state/entities";
-import { useSideChatDisabledReason, useStartSideChat } from "./useSideChat";
+import { uuidv4 } from "../../lib/uuid";
+import { alertSideChatQueued, startSideChat, useSideChatDisabledReason } from "./useSideChat";
 
-/** An empty side chat of the route's thread. Nothing exists on the server until its first send. */
+/**
+ * A side chat draft of the route's thread. Nothing exists on the server until its first send,
+ * which forks under the route's side chat id, so a retry here never forks twice.
+ */
 export function SideChatDraftRouteScreen() {
   const navigation = useNavigation();
-  const route = useRoute<Route<string, { environmentId?: string; threadId?: string }>>();
+  const route =
+    useRoute<
+      Route<
+        string,
+        { environmentId?: string; threadId?: string; sideChatId?: string; prompt?: string }
+      >
+    >();
   const parentRef =
     route.params?.environmentId && route.params.threadId
       ? scopeThreadRef(
@@ -22,22 +32,28 @@ export function SideChatDraftRouteScreen() {
       : null;
   const parent = useQuietThreadShell(parentRef);
   const disabledReason = useSideChatDisabledReason(parentRef?.environmentId ?? null, parent);
-  const startSideChat = useStartSideChat();
-  const [text, setText] = useState("");
+  const [sideChatId] = useState(() => ThreadId.make(route.params?.sideChatId ?? uuidv4()));
+  const [text, setText] = useState(route.params?.prompt ?? "");
   const [sending, setSending] = useState(false);
 
   const send = async () => {
     if (parent === null || disabledReason !== null || sending || text.trim() === "") return;
     setSending(true);
-    const threadId = await startSideChat({
+    const started = await startSideChat({
       environmentId: parent.environmentId,
       parentThreadId: parent.id,
+      targetThreadId: sideChatId,
       text: text.trim(),
     });
     setSending(false);
-    if (threadId === null) return;
+    if (started === null) return;
+    if (started === "queued") {
+      alertSideChatQueued();
+      navigation.goBack();
+      return;
+    }
     navigation.dispatch(
-      StackActions.replace("Thread", { environmentId: parent.environmentId, threadId }),
+      StackActions.replace("Thread", { environmentId: parent.environmentId, threadId: sideChatId }),
     );
   };
 

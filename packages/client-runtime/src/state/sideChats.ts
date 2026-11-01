@@ -1,5 +1,21 @@
-import type { OrchestrationV2AppThreadLineage } from "@supaterm/contracts";
+import type {
+  EnvironmentId,
+  OrchestrationV2AppThreadLineage,
+  OrchestrationV2CreationSource,
+  ScopedThreadRef,
+  ThreadId,
+} from "@supaterm/contracts";
 import { parseSideChatCommand } from "@supaterm/shared/composerTrigger";
+import type { AtomRegistry } from "effect/reactivity";
+
+import { scopedThreadKey, scopeThreadRef } from "../environment/scoped.ts";
+import type { ForkSideChatInput } from "../operations/commands.ts";
+import {
+  type AtomCommand,
+  isAtomCommandInterrupted,
+  runAtomCommand,
+  squashAtomCommandFailure,
+} from "./runtime.ts";
 
 export type SideChatParent =
   /** A thread that exists only on this client until its first send. */
@@ -56,4 +72,81 @@ export function resolveSideChatCommand(
   return blockedReason === null
     ? { kind: "start", prompt: command.prompt }
     : { kind: "refuse", reason: blockedReason };
+}
+
+export type SideChatFirstMessageResult<A> =
+  | { readonly kind: "queued"; readonly value: A }
+  /** Another send of this side chat's first message is still running. */
+  | { readonly kind: "busy" }
+  | { readonly kind: "failed"; readonly reason: string };
+
+const firstMessagesInFlight = new Set<string>();
+
+/**
+ * Sends a side chat's first message: forks `parentRef` into `targetThreadId` unless that side
+ * chat already exists, then queues the message with `enqueue`. Callers keep the target id and the
+ * message until this resolves "queued", so a retry forks at most once and a fork that succeeded
+ * always gets its message, even when its shell is slow to reach this client.
+ */
+export async function sendSideChatFirstMessage<A>(input: {
+  readonly registry: AtomRegistry.AtomRegistry;
+  readonly forkSideChat: AtomCommand<
+    { readonly environmentId: EnvironmentId; readonly input: ForkSideChatInput },
+    unknown,
+    unknown
+  >;
+  readonly readThread: (
+    ref: ScopedThreadRef,
+  ) => { readonly lineage: Pick<OrchestrationV2AppThreadLineage, "parentThreadId"> } | null;
+  /** Gives the shell a moment to land so navigation finds it; the send goes on either way. */
+  readonly waitForThread: (ref: ScopedThreadRef) => Promise<unknown>;
+  readonly parentRef: ScopedThreadRef;
+  readonly targetThreadId: ThreadId;
+  readonly creationSource: OrchestrationV2CreationSource;
+  readonly enqueue: () => Promise<A>;
+}): Promise<SideChatFirstMessageResult<A>> {
+  const targetRef = scopeThreadRef(input.parentRef.environmentId, input.targetThreadId);
+  const key = scopedThreadKey(targetRef);
+  if (firstMessagesInFlight.has(key)) return { kind: "busy" };
+  firstMessagesInFlight.add(key);
+  const forked = () =>
+    input.readThread(targetRef)?.lineage.parentThreadId === input.parentRef.threadId;
+  try {
+    if (!forked()) {
+      const fork = await runAtomCommand(
+        input.registry,
+        input.forkSideChat,
+        {
+          environmentId: input.parentRef.environmentId,
+          input: {
+            sourceThreadId: input.parentRef.threadId,
+            targetThreadId: input.targetThreadId,
+            title: "Side chat",
+            creationSource: input.creationSource,
+          },
+        },
+        { reportFailure: false },
+      );
+      // A retry whose earlier fork landed is refused as a duplicate; its shell says so.
+      if (fork._tag === "Failure" && !forked()) {
+        if (isAtomCommandInterrupted(fork)) {
+          return { kind: "failed", reason: "Starting the side chat was cancelled." };
+        }
+        const error = squashAtomCommandFailure(fork);
+        return {
+          kind: "failed",
+          reason: error instanceof Error ? error.message : "Could not start a side chat.",
+        };
+      }
+      if (!forked()) await input.waitForThread(targetRef);
+    }
+    return { kind: "queued", value: await input.enqueue() };
+  } catch (error) {
+    return {
+      kind: "failed",
+      reason: error instanceof Error ? error.message : "Could not send the side chat's message.",
+    };
+  } finally {
+    firstMessagesInFlight.delete(key);
+  }
 }

@@ -20,10 +20,15 @@ const send = vi.hoisted(() => ({
   forkError: null as string | null,
 }));
 vi.mock(import("./useSideChat"), () => ({
-  useEnsureSideChat: () => async (parentRef, targetThreadId) => {
-    send.events.push(`fork:${parentRef.threadId}->${targetThreadId}`);
-    return send.forkError;
-  },
+  sendSideChatDraftMessage: (async (input: {
+    parentRef: { threadId: string };
+    targetThreadId: string;
+    enqueue: () => Promise<unknown>;
+  }) => {
+    send.events.push(`fork:${input.parentRef.threadId}->${input.targetThreadId}`);
+    if (send.forkError !== null) return { kind: "failed", reason: send.forkError };
+    return { kind: "queued", value: await input.enqueue() };
+  }) as never,
 }));
 vi.mock(import("../../chatPanes/paneScope"), async (importOriginal) => ({
   ...(await importOriginal()),

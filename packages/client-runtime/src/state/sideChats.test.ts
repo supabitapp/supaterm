@@ -1,7 +1,12 @@
+import { EnvironmentId, ThreadId } from "@supaterm/contracts";
+import * as Cause from "effect/Cause";
+import { AsyncResult, AtomRegistry } from "effect/reactivity";
 import { describe, expect, it } from "vite-plus/test";
 
+import { scopedThreadKey } from "../environment/scoped.ts";
 import {
   resolveSideChatCommand,
+  sendSideChatFirstMessage,
   type SideChatParent,
   sideChatStartBlockedReason,
 } from "./sideChats.ts";
@@ -107,5 +112,90 @@ describe("resolveSideChatCommand", () => {
 
   it("leaves other messages alone", () => {
     expect(resolveSideChatCommand("fix /side effects", "Blocked.")).toEqual({ kind: "none" });
+  });
+});
+
+describe("sendSideChatFirstMessage", () => {
+  const environmentId = EnvironmentId.make("env-1");
+  const parentRef = { environmentId, threadId: ThreadId.make("parent") };
+  const targetThreadId = ThreadId.make("side-chat");
+
+  const harness = (options: { readonly refuse?: string; readonly landsOnFork?: boolean } = {}) => {
+    const shells = new Map<string, { lineage: { parentThreadId: ThreadId } }>();
+    const forks: Array<ThreadId> = [];
+    const enqueued: Array<string> = [];
+    const send = (text: string) =>
+      sendSideChatFirstMessage({
+        registry: AtomRegistry.make(),
+        forkSideChat: {
+          label: "fork-side-chat",
+          run: async (_registry, { input }) => {
+            forks.push(input.targetThreadId);
+            if (options.refuse !== undefined) {
+              return AsyncResult.failure(Cause.fail(new Error(options.refuse)));
+            }
+            if (options.landsOnFork === true) {
+              shells.set(scopedThreadKey({ environmentId, threadId: input.targetThreadId }), {
+                lineage: { parentThreadId: input.sourceThreadId },
+              });
+            }
+            return AsyncResult.success(undefined);
+          },
+        },
+        readThread: (ref) => shells.get(scopedThreadKey(ref)) ?? null,
+        waitForThread: async () => false,
+        parentRef,
+        targetThreadId,
+        creationSource: "web",
+        enqueue: async () => {
+          enqueued.push(text);
+          return text;
+        },
+      });
+    return { send, forks, enqueued, shells };
+  };
+
+  it("queues the message once the fork succeeds, even before the side chat reaches the client", async () => {
+    const { send, forks, enqueued } = harness();
+    await expect(send("why is CI red?")).resolves.toEqual({
+      kind: "queued",
+      value: "why is CI red?",
+    });
+    expect(forks).toEqual([targetThreadId]);
+    expect(enqueued).toEqual(["why is CI red?"]);
+  });
+
+  it("does not fork again for a side chat that already exists", async () => {
+    const { send, forks, enqueued } = harness({ landsOnFork: true });
+    await send("first");
+    await send("retry");
+    expect(forks).toEqual([targetThreadId]);
+    expect(enqueued).toEqual(["first", "retry"]);
+  });
+
+  it("queues nothing when the server refuses the fork", async () => {
+    const { send, enqueued } = harness({ refuse: "Thread parent has no worktree yet." });
+    await expect(send("hi")).resolves.toEqual({
+      kind: "failed",
+      reason: "Thread parent has no worktree yet.",
+    });
+    expect(enqueued).toEqual([]);
+  });
+
+  it("sends a refused retry whose earlier fork landed", async () => {
+    const { send, enqueued, shells } = harness({ refuse: "Thread side-chat already exists." });
+    shells.set(scopedThreadKey({ environmentId, threadId: targetThreadId }), {
+      lineage: { parentThreadId: parentRef.threadId },
+    });
+    await expect(send("hi")).resolves.toEqual({ kind: "queued", value: "hi" });
+    expect(enqueued).toEqual(["hi"]);
+  });
+
+  it("forks once when the same first message is sent twice at once", async () => {
+    const { send, forks, enqueued } = harness();
+    const [first, second] = await Promise.all([send("hi"), send("hi")]);
+    expect([first.kind, second.kind]).toEqual(["queued", "busy"]);
+    expect(forks).toHaveLength(1);
+    expect(enqueued).toEqual(["hi"]);
   });
 });
