@@ -59,16 +59,14 @@ describe("useHoldSpaceToTalk", () => {
     expect(draft().text).toBe("hello ");
   });
 
-  it.each([
-    { before: { text: "hello", selection: { start: 5, end: 5 } }, typed: "hello " },
-    { before: { text: "hello world", selection: { start: 6, end: 11 } }, typed: "hello  " },
-  ])("takes back the space a held Space typed over $before.text", async ({ before, typed }) => {
+  it("takes back the space a held Space typed", async () => {
+    const before = { text: "hello world", selection: { start: 5, end: 5 } };
     const { screen, handlers, release, key, type, draft } = await setup(before);
     await using _screen = screen;
     using _timers = fakeTimers();
 
     key("keydown");
-    type(typed);
+    type("hello  world");
     expect(key("keydown", { repeat: true })).toBe(false);
     vi.advanceTimersByTime(KEY_HOLD_MS);
 
@@ -95,6 +93,20 @@ describe("useHoldSpaceToTalk", () => {
     expect(handlers.restoreDraft).not.toHaveBeenCalled();
     expect(draft().text).toBe("hello world");
     expect(handlers.start).toHaveBeenCalledOnce();
+  });
+
+  it("leaves Space typing over a selection", async () => {
+    const { screen, handlers, key } = await setup({
+      text: "old text",
+      selection: { start: 0, end: 3 },
+    });
+    await using _screen = screen;
+    using _timers = fakeTimers();
+
+    key("keydown");
+    expect(key("keydown", { repeat: true })).toBe(true);
+    vi.advanceTimersByTime(KEY_HOLD_MS);
+    expect(handlers.start).not.toHaveBeenCalled();
   });
 
   it("treats Space as typing when another key follows it, while composing, or when voice can't start", async () => {

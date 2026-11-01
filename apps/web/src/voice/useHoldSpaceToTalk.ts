@@ -18,7 +18,7 @@ export interface HoldSpaceToTalk {
 }
 
 function withSpaceTyped({ text, selection }: ComposerDraft): string {
-  return `${text.slice(0, selection.start)} ${text.slice(selection.end)}`;
+  return `${text.slice(0, selection.start)} ${text.slice(selection.start)}`;
 }
 
 /**
@@ -56,6 +56,8 @@ export function useHoldSpaceToTalk(
       }
       if (!canStart()) return;
       const before = readDraft();
+      // A space typed over a selection can delete context chips, which restoring text can't bring back.
+      if (before.selection.start !== before.selection.end) return;
       press = followPress(() => {
         if (readDraft().text === withSpaceTyped(before)) restoreDraft(before);
         start();
