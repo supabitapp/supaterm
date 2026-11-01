@@ -702,8 +702,6 @@ export function ThreadRowLeadingStatus({ thread }: { thread: SidebarThreadSummar
     thread.pullRequests,
     thread.branchPullRequest,
     leaseLiveStatus,
-    thread.pullRequests,
-    thread.branchPullRequest,
   );
   const gitStatus = useEnvironmentQuery(
     leaseLiveStatus &&
