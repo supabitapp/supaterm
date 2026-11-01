@@ -1111,7 +1111,7 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
     endFollowEnabledRef.current = enabled;
     setEndFollowEnabled(enabled);
   };
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- aborts the thread scope, clears its timers and ends a pending message jump when the thread changes
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- arms a fresh thread scope when shown, then aborts it and clears its timers when the screen hides or unmounts
   useEffect(() => {
     if (threadScope.current.signal.aborted) threadScope.current = new AbortController();
     const scope = threadScope.current;
