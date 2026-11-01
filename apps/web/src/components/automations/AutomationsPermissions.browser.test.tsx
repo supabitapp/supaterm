@@ -179,7 +179,7 @@ const environment = (environmentId: EnvironmentId, label: string) => ({
   connection: { phase: "connected" },
   serverConfig: {
     settings: DEFAULT_SERVER_SETTINGS,
-    environment: { platform: { machine: "server" } },
+    environment: { platform: { machine: "server" }, capabilities: {} },
   },
 });
 
