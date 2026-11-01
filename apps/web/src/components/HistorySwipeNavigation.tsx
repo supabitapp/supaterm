@@ -8,7 +8,7 @@ const SWIPE_TRIGGER_DISTANCE = 120;
 // Movement needed before the gesture picks an axis; first events are often diagonal.
 const SWIPE_AXIS_LOCK_DISTANCE = 8;
 const MOMENTUM_SAMPLE_SIZE = 5;
-// The terminal and browser previews take horizontal wheel input themselves.
+// Dialogs, the terminal and browser previews keep horizontal wheel input for themselves.
 const SWIPE_EXCLUDED =
   '[role="dialog"], [data-terminal-owner], [data-preview-viewport], [data-server-browser-surface]';
 

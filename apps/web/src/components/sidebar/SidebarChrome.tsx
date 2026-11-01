@@ -106,13 +106,15 @@ export function SidebarBrandWidthProbe({
   );
 }
 
+const HISTORY_BUTTONS = {
+  back: { label: "Go back", command: "navigation.back", Icon: ArrowLeftIcon },
+  forward: { label: "Go forward", command: "navigation.forward", Icon: ArrowRightIcon },
+} as const;
+
 function HistoryNavigationButton({ direction }: { direction: HistoryDirection }) {
+  const { label, command, Icon } = HISTORY_BUTTONS[direction];
   const enabled = useCanNavigateHistory(direction);
-  const shortcut = useShortcutLabel(
-    direction === "back" ? "navigation.back" : "navigation.forward",
-  );
-  const label = direction === "back" ? "Go back" : "Go forward";
-  const Icon = direction === "back" ? ArrowLeftIcon : ArrowRightIcon;
+  const shortcut = useShortcutLabel(command);
   return (
     <Tooltip>
       <TooltipTrigger
