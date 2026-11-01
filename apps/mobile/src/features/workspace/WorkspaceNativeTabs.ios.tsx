@@ -1,6 +1,10 @@
-import { useDeviceType, useNativeLayoutMetrics } from "../../native/native-layout-metrics";
-import { useState, type ReactNode } from "react";
-import { Keyboard, Platform, View, type NativeSyntheticEvent } from "react-native";
+import {
+  WORKSPACE_TAB_LABELS,
+  NAVIGATION_TAB_ICONS,
+  useEnabledNavigationTabs,
+} from "./navigation-tabs";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { View, useWindowDimensions, type NativeSyntheticEvent } from "react-native";
 import {
   Tabs,
   type TabSelectedEvent,
@@ -9,11 +13,24 @@ import {
 } from "react-native-screens";
 
 import { WorkspaceTabsContext, useWorkspaceTabs } from "./WorkspaceTabsContext";
-import type { WorkspaceTab } from "./workspace-tabs-state";
-import { NativeWorkspaceTabActivityContext } from "../../native/v5-workspace-context";
-import { useSystemWorkspaceTabBar } from "./useSystemWorkspaceTabBar";
+import {
+  NATIVE_WORKSPACE_TAB_SLOTS,
+  workspaceTabForNativeSlot,
+  workspaceUsesColumns,
+  type WorkspaceTab,
+} from "./workspace-tabs-state";
+import {
+  NativeWorkspaceTabActivityContext,
+  WorkspaceSlotOptionsContext,
+} from "../../native/v5-workspace-context";
+import { useFloatingWorkspaceTabs, useSystemWorkspaceTabBar } from "./useSystemWorkspaceTabBar";
+import { useControlTheme } from "../../components/ui/useControlTheme";
+import { useDeviceType, useNativeLayoutMetrics } from "../../native/native-layout-metrics";
+import { WorkspaceSidebarTabs } from "./WorkspaceSidebarTabs";
+import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
+import { useSelectWorkspaceTab } from "./useSelectWorkspaceTab";
 
-const PULL_REQUEST_ICON = require("../../../modules/supaterm-native-controls/ios/Resources/pull-request.png");
+const PULL_REQUEST_ICON = require("../../../modules/supaterm-native-controls/ios/Resources/Icons/pull-request.png");
 const COMPOSE_TAB = "compose";
 
 /** Retain each native controller tree; removing its root can leave RNS's stack empty. */
@@ -23,12 +40,24 @@ function RetainedWorkspaceTab(props: {
   readonly children: ReactNode;
 }) {
   const workspace = useWorkspaceTabs()!;
-  const { isTabActive } = workspace;
-  const isActive = () => isTabActive(props.tab);
+  // Whether this slot is the visible one, read by cleanups after the switch has committed.
+  const activeRef = useRef(props.active);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes the committed active flag to a ref that header cleanups read after the tab switch commits
+  useLayoutEffect(() => {
+    activeRef.current = props.active;
+  }, [props.active]);
+  const isActive = () => activeRef.current;
   const activity = {
     active: props.active,
     isActive,
   };
+  const [optionsByRoute, setOptionsByRoute] = useState<ReadonlyMap<string, object>>(new Map());
+  // Stable, so writers and the cleanups that depend on them don't re-run on every write.
+  const setRouteOptions = (routeKey: string, options: object) =>
+    setOptionsByRoute((current) =>
+      new Map(current).set(routeKey, { ...current.get(routeKey), ...options }),
+    );
+  const slotOptions = { byRoute: optionsByRoute, set: setRouteOptions };
   const [content, setContent] = useState(
     props.active ? { workspace, children: props.children } : null,
   );
@@ -36,7 +65,9 @@ function RetainedWorkspaceTab(props: {
     setContent({ workspace, children: props.children });
   return content ? (
     <NativeWorkspaceTabActivityContext value={activity}>
-      <WorkspaceTabsContext value={content.workspace}>{content.children}</WorkspaceTabsContext>
+      <WorkspaceSlotOptionsContext value={slotOptions}>
+        <WorkspaceTabsContext value={content.workspace}>{content.children}</WorkspaceTabsContext>
+      </WorkspaceSlotOptionsContext>
     </NativeWorkspaceTabActivityContext>
   ) : null;
 }
@@ -44,73 +75,95 @@ function RetainedWorkspaceTab(props: {
 export function WorkspaceNativeTabs(props: {
   readonly children: ReactNode;
   readonly hidden: boolean;
-  readonly onSelect: () => void;
-  readonly onNewTask: () => void;
 }) {
   const workspace = useWorkspaceTabs()!;
-  const metrics = useNativeLayoutMetrics();
-  const deviceType = useDeviceType();
-  const phoneBar =
-    Platform.OS === "ios" &&
-    deviceType !== "pad" &&
-    (metrics?.verticalBarEdge ?? "none") === "none";
+  const order = useEnabledNavigationTabs();
+  const primaryTabs = order.slice(0, 4);
+  const overflow = order[4];
+  const selectTab = useSelectWorkspaceTab();
   const [provenance, setProvenance] = useState(0);
   const systemTabBar = useSystemWorkspaceTabBar();
+  const deviceType = useDeviceType();
+  const metrics = useNativeLayoutMetrics();
+  const phoneBar = deviceType === "phone" && (metrics?.verticalBarEdge ?? "none") === "none";
+  const { layout, startNewTask } = useAdaptiveWorkspaceLayout();
+  const floatingTabs = useFloatingWorkspaceTabs();
+  const { width } = useWindowDimensions();
+  const { colors } = useControlTheme();
   const selectedTab = workspace.state.selectedTab;
-  const request = { selectedScreenKey: selectedTab, baseProvenance: provenance };
+  const selectedSlot = workspace.settingsOpen ? -1 : primaryTabs.indexOf(selectedTab);
+  const request = {
+    selectedScreenKey: selectedSlot === -1 ? "settings" : NATIVE_WORKSPACE_TAB_SLOTS[selectedSlot]!,
+    baseProvenance: provenance,
+  };
   return (
     <View style={{ flex: 1 }}>
       <Tabs.Host
         navStateRequest={request}
         rejectStaleNavStateUpdates
         tabBarHidden={props.hidden || !systemTabBar}
-        ios={{ tabBarControllerMode: "tabBar", tabBarMinimizeBehavior: "never" }}
+        ios={{
+          tabBarControllerMode: "tabBar",
+          tabBarMinimizeBehavior: "never",
+          tabBarTintColor: colors["--color-primary"],
+        }}
         onTabSelectionPrevented={({
           nativeEvent,
         }: NativeSyntheticEvent<TabSelectionPreventedEvent>) => {
-          if (nativeEvent.preventedScreenKey === COMPOSE_TAB) props.onNewTask();
+          if (nativeEvent.preventedScreenKey === COMPOSE_TAB) startNewTask();
         }}
         onTabSelectionRejected={({
           nativeEvent,
         }: NativeSyntheticEvent<TabSelectionRejectedEvent>) => {
           setProvenance(nativeEvent.provenance);
-          if (
-            nativeEvent.selectedScreenKey === "threads" ||
-            nativeEvent.selectedScreenKey === "pullRequests"
-          )
-            workspace.dispatch({ type: "select", tab: nativeEvent.selectedScreenKey });
+          // The native selection is newer than the rejected request, so the workspace follows it.
+          if (nativeEvent.selectedScreenKey === request.selectedScreenKey) return;
+          const tab = workspaceTabForNativeSlot(primaryTabs, nativeEvent.selectedScreenKey);
+          if (tab) selectTab(tab);
         }}
         onTabSelected={({ nativeEvent }: NativeSyntheticEvent<TabSelectedEvent>) => {
-          const tab = nativeEvent.selectedScreenKey;
-          if (tab !== "threads" && tab !== "pullRequests") return;
           setProvenance(nativeEvent.provenance);
-          if (nativeEvent.actionOrigin === "programmatic-js" || nativeEvent.isRepeated) return;
-          Keyboard.dismiss();
-          props.onSelect();
-          workspace.dispatch({ type: "select", tab });
+          if (nativeEvent.actionOrigin === "programmatic-js") return;
+          const tab = workspaceTabForNativeSlot(primaryTabs, nativeEvent.selectedScreenKey);
+          if (tab) selectTab(tab);
         }}
       >
-        {(["threads", "pullRequests"] as const).map((tab: WorkspaceTab) => (
-          <Tabs.Screen
-            key={tab}
-            screenKey={tab}
-            title={tab === "threads" ? "Threads" : "Pulls"}
-            tabBarItemAccessibilityLabel={tab === "threads" ? "Threads" : "Pull requests"}
-            ios={{
-              icon:
-                tab === "threads"
-                  ? { type: "sfSymbol", name: "text.bubble" }
-                  : { type: "templateSource", templateSource: PULL_REQUEST_ICON },
-              selectedIcon:
-                tab === "threads" ? { type: "sfSymbol", name: "text.bubble.fill" } : undefined,
-              overrideScrollViewContentInsetAdjustmentBehavior: false,
-            }}
-          >
-            <RetainedWorkspaceTab tab={tab} active={selectedTab === tab}>
-              {props.children}
-            </RetainedWorkspaceTab>
-          </Tabs.Screen>
-        ))}
+        {NATIVE_WORKSPACE_TAB_SLOTS.map((slot, index) => {
+          const settings = slot === "settings";
+          const tab = settings ? (overflow ?? selectedTab) : primaryTabs[index];
+          if (!tab) return null;
+          const label = settings ? "Settings" : WORKSPACE_TAB_LABELS[tab];
+          return (
+            <Tabs.Screen
+              // Stable slot controllers keep UIKit's stacks attached when a section moves into Settings.
+              key={slot}
+              screenKey={slot}
+              title={phoneBar ? label : ""}
+              tabBarItemAccessibilityLabel={
+                !settings && tab === "pullRequests" ? "Pull requests" : label
+              }
+              ios={{
+                icon: settings
+                  ? { type: "sfSymbol", name: "gearshape" }
+                  : tab === "pullRequests"
+                    ? { type: "templateSource", templateSource: PULL_REQUEST_ICON }
+                    : { type: "sfSymbol", name: NAVIGATION_TAB_ICONS[tab] },
+                selectedIcon:
+                  !settings && tab === "threads"
+                    ? { type: "sfSymbol", name: "text.bubble.fill" }
+                    : undefined,
+                overrideScrollViewContentInsetAdjustmentBehavior: false,
+              }}
+            >
+              <RetainedWorkspaceTab
+                tab={tab}
+                active={settings ? selectedSlot === -1 : selectedSlot === index}
+              >
+                {props.children}
+              </RetainedWorkspaceTab>
+            </Tabs.Screen>
+          );
+        })}
         {phoneBar ? (
           <Tabs.Screen
             key={COMPOSE_TAB}
@@ -127,6 +180,35 @@ export function WorkspaceNativeTabs(props: {
           </Tabs.Screen>
         ) : null}
       </Tabs.Host>
+      {(deviceType === "pad" ||
+        (layout.primarySidebarOverlaysContent &&
+          !workspaceUsesColumns(selectedTab, workspace.settingsOpen))) &&
+      !props.hidden ? (
+        <View
+          pointerEvents="box-none"
+          style={{
+            position: "absolute",
+            left: 0,
+            bottom: 0,
+            // UIKit can shrink the sidebar to 280pt independently of its preferred width.
+            width:
+              deviceType === "pad" && (floatingTabs || layout.usesSplitView)
+                ? Math.min(280, layout.listPaneWidth ?? width, width)
+                : (layout.listPaneWidth ?? width),
+            height: 128,
+          }}
+        >
+          <WorkspaceSidebarTabs
+            compact={floatingTabs}
+            reserveComposeSpace={floatingTabs}
+            onNewTask={
+              floatingTabs && !workspace.settingsOpen && selectedTab === "threads"
+                ? startNewTask
+                : undefined
+            }
+          />
+        </View>
+      ) : null}
     </View>
   );
 }

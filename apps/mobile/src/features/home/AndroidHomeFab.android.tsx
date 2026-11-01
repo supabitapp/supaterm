@@ -15,32 +15,37 @@ import { useWorkspaceState } from "../../state/workspace";
 import { FabScrollContext } from "./FabScrollContext";
 import { updateFabScroll } from "./fab-scroll";
 import { useAndroidControlSizing } from "../../components/ui/useAndroidControlSizing";
+import { useEnabledNavigationTabs } from "../workspace/navigation-tabs";
+import { WorkspaceTabsContext, useWorkspaceTabs } from "../workspace/WorkspaceTabsContext";
+import { FLOATING_TABS, floatingTabsMetrics } from "../workspace/floating-workspace-tabs";
 import {
-  FLOATING_TABS,
-  floatingTabsMetrics,
-  WORKSPACE_TAB_COUNT,
-} from "../workspace/floating-workspace-tabs";
-import {
-  useAndroidFloatingTabs,
   useAppearancePreferences,
+  useAndroidFloatingTabs,
 } from "../settings/appearance/AppearancePreferencesProvider";
 
 export function AndroidHomeFabLayout(props: ComponentProps<typeof SharedAndroidHomeFabLayout>) {
+  const floatingTabsEnabled = useAndroidFloatingTabs();
   const insets = useSafeAreaInsets();
   const { appearance } = useAppearancePreferences();
   const { fontScale } = useWindowDimensions();
   const [layoutWidth, setLayoutWidth] = useState<number | null>(null);
   const { state } = useWorkspaceState();
   const [expanded, setExpanded] = useState(true);
-  // One UI keeps compose beside the floating tabs; the sidebar has no tabs to share a row with.
-  const floatingTabsEnabled = useAndroidFloatingTabs() && !props.sidebar;
   const { scale, fabSize } = useAndroidControlSizing();
+  const tabs = useEnabledNavigationTabs();
   const floating = floatingTabsMetrics(
-    WORKSPACE_TAB_COUNT,
+    tabs.length + 1,
     scale,
     fabSize,
-    layoutWidth ?? undefined,
+    props.paneWidth ?? layoutWidth ?? undefined,
   );
+  const workspace = useWorkspaceTabs();
+  const bottomClearance =
+    insets.bottom +
+    FLOATING_TABS.bottom +
+    FLOATING_TABS.edge +
+    Math.max(floating.height, floating.fabOffset + fabSize);
+  const context = floatingTabsEnabled && workspace ? { ...workspace, bottomClearance } : workspace;
   const scrollState = useRef({ anchor: 0, expanded: true });
   const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
@@ -54,10 +59,16 @@ export function AndroidHomeFabLayout(props: ComponentProps<typeof SharedAndroidH
   };
 
   // Remount only the FAB when its font or pane changes to clear the cached expanded width.
+  // Floating navigation shares this row; Material split views put New thread in the rail.
   return (
     <View className="flex-1" onLayout={(event) => setLayoutWidth(event.nativeEvent.layout.width)}>
-      <FabScrollContext value={onScroll}>{props.children}</FabScrollContext>
-      {state.hasConnections && layoutWidth !== null ? (
+      <WorkspaceTabsContext value={context}>
+        <FabScrollContext value={onScroll}>{props.children}</FabScrollContext>
+      </WorkspaceTabsContext>
+      {!props.disabled &&
+      (!props.sidebar || floatingTabsEnabled) &&
+      state.hasConnections &&
+      layoutWidth !== null ? (
         <NewThreadButton
           key={`${appearance.baseFontSize}:${fontScale}:${layoutWidth}`}
           extended

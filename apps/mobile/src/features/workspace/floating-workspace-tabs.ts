@@ -1,9 +1,6 @@
 // Keep the native drawing inset out of the visible size and edge margins.
 export const FLOATING_TABS = { edge: 16, bottom: 6, gap: 12, shadow: 8 };
 
-/** Threads and Pull requests. */
-export const WORKSPACE_TAB_COUNT = 2;
-
 export function floatingTabsMetrics(
   count: number,
   scale: number,

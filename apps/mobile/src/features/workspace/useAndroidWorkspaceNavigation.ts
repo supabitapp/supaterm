@@ -8,7 +8,7 @@ import {
 import { useWorkspaceTabs } from "./WorkspaceTabsContext";
 import type { WorkspaceTab } from "./workspace-tabs-state";
 
-export function useWorkspaceListNavigation(tab: WorkspaceTab) {
+function useWorkspaceListNavigation(tab: WorkspaceTab) {
   const navigation = useNavigation();
   const dispatch = useWorkspaceTabs()?.dispatch;
   return () => {

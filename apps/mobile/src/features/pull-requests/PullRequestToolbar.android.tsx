@@ -4,24 +4,22 @@ import { BackHandler, Keyboard, View, type TextInputInstance } from "react-nativ
 import { SearchField } from "../../components/ui/SearchField";
 import { useToolbarLayout } from "../../components/ui/useToolbarLayout";
 import { useHardwareKeyboardCommand } from "../keyboard/hardwareKeyboardCommands";
-import { useWorkspaceTabs } from "../workspace/WorkspaceTabsContext";
-import { useWorkspaceListNavigation } from "../workspace/useAndroidWorkspaceNavigation";
 import { WorkspaceFilterButton } from "../workspace/WorkspaceFilterButton";
 import { WorkspaceListToolbarRow } from "../workspace/WorkspaceListToolbarRow";
+import { useWorkspaceTabs } from "../workspace/WorkspaceTabsContext";
 import type { WorkspaceFilterMenu } from "../workspace/workspace-filter-menu";
+import { openSettings } from "../settings/settings-navigation";
 
+/** PR search shares the thread list's Android header row. */
 export function PullRequestToolbar(props: {
   readonly filters: WorkspaceFilterMenu | null;
-  readonly sidebar?: boolean;
   readonly onRequestVisibility?: () => void;
 }) {
   const navigation = useNavigation();
+  const { filters } = props;
   const workspace = useWorkspaceTabs()!;
-  const filterMenu = props.filters;
-  const { paddingTop, paddingBottom } = useToolbarLayout();
   const { dispatch, getScrollOffset, recordScrollOffset, isTabActive } = workspace;
   const { onRequestVisibility } = props;
-  const showThreads = useWorkspaceListNavigation("threads");
   const tab = workspace.state.tabs.pullRequests;
   const input = useRef<TextInputInstance>(null);
   const searching = tab.searchMode !== "resting";
@@ -57,6 +55,7 @@ export function PullRequestToolbar(props: {
     });
     return () => subscription.remove();
   }, [searching, closeSearch, navigation, isTabActive]);
+  const { paddingTop, paddingBottom } = useToolbarLayout();
   return (
     <View className="bg-header px-2" style={{ paddingTop, paddingBottom }}>
       <WorkspaceListToolbarRow
@@ -72,39 +71,11 @@ export function PullRequestToolbar(props: {
           />
         }
         onCloseSearch={closeSearch}
+        onOpenSearch={openSearch}
+        searchAccessibilityLabel="Search pull requests"
         titleAccessibilityLabel="Supaterm, Pull requests"
-        onOpenEnvironments={() =>
-          navigation.navigate("SettingsSheet", {
-            screen: "SettingsContent",
-            params: { screen: "SettingsEnvironments" },
-          })
-        }
-        actions={[
-          ...(props.sidebar
-            ? [
-                {
-                  accessibilityLabel: "Show threads",
-                  icon: "text.bubble",
-                  onPress: showThreads,
-                } as const,
-              ]
-            : []),
-          {
-            accessibilityLabel: "Search pull requests",
-            icon: "magnifyingglass",
-            onPress: openSearch,
-          },
-          {
-            accessibilityLabel: "Open settings",
-            icon: "gearshape",
-            onPress: () =>
-              navigation.navigate("SettingsSheet", {
-                screen: "SettingsContent",
-                params: { screen: "Settings" },
-              }),
-          },
-        ]}
-        filter={filterMenu ? <WorkspaceFilterButton {...filterMenu} /> : null}
+        onOpenEnvironments={() => openSettings(navigation, "SettingsEnvironments")}
+        filter={filters ? <WorkspaceFilterButton {...filters} /> : null}
       />
     </View>
   );

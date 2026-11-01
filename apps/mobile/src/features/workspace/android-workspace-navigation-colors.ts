@@ -5,11 +5,17 @@ import {
   type MobileThemeVariables,
 } from "../../lib/mobileTheme";
 
-export function androidWorkspaceNavigationColors(colors: MobileThemeVariables, floating = false) {
+export function androidWorkspaceNavigationColors(
+  colors: MobileThemeVariables,
+  rail: boolean,
+  floating = false,
+) {
   const header = flattenThemeColor(colors["--color-header"], colors["--color-screen"]);
-  const containerColor = floating
-    ? flattenThemeColor(colors["--color-secondary"], colors["--color-screen"])
-    : flattenThemeColor(themeColorWithAlpha(colors["--color-header-foreground"], 0.05), header);
+  const containerColor = rail
+    ? header
+    : floating
+      ? flattenThemeColor(colors["--color-secondary"], colors["--color-screen"])
+      : flattenThemeColor(themeColorWithAlpha(colors["--color-header-foreground"], 0.05), header);
   const indicatorColor = themeColorWithContrast(
     flattenThemeColor(colors["--color-secondary"], containerColor),
     containerColor,

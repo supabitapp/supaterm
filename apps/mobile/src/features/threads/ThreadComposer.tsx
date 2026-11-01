@@ -1,4 +1,4 @@
-import { useSidebarWorkspaceTabs } from "../workspace/useSidebarWorkspaceTabs";
+import { useSidebarWorkspaceTabs } from "../workspace/useSystemWorkspaceTabBar";
 import { Button } from "../../components/ui/Button";
 import * as Dialog from "../../components/ui/Dialog";
 import type { ComposerTextPaste } from "../../native/SupatermComposerEditor.types";

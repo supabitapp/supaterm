@@ -32,6 +32,7 @@ import { makeIncomingShareImports } from "../threads/incomingShareImport";
 import { liveNewTaskFlowKeys } from "../threads/new-task-flow-state";
 import { appAtomRegistry } from "../../state/atom-registry";
 import { serverEnvironment } from "../../state/server";
+import { selectWorkspaceDetail } from "../workspace/workspace-detail-selection";
 import {
   getComposerDraftSnapshot,
   mergeComposerDraftContent,
@@ -276,9 +277,12 @@ export function presentPendingIncomingShare(): void {
   });
   presentation = transition.state;
   if (!transition.shareIdToPresent) return;
-  rootNavigationRef.navigate("Thread", {
-    draft: { incomingShareId: transition.shareIdToPresent },
-  });
+  rootNavigationRef.dispatch(
+    selectWorkspaceDetail({
+      name: "Thread",
+      params: { draft: { incomingShareId: transition.shareIdToPresent } },
+    }),
+  );
 }
 
 /** App-lifetime: loads the inbox and re-ingests native handoffs on every resume. */

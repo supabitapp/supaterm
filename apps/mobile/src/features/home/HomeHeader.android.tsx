@@ -14,7 +14,6 @@ export function HomeHeader(props: HomeHeaderProps) {
         searchQuery={props.searchQuery}
         onSearchQueryChange={props.onSearchQueryChange}
         filterMenu={menu}
-        onOpenSettings={props.onOpenSettings}
         onOpenEnvironments={props.onOpenEnvironments}
       />
     </>

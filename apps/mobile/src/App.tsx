@@ -69,6 +69,14 @@ import { installUiRuntimeMemoryWarningGc } from "./lib/useUiRuntimeMemoryWarning
 import { SubscriptionUsageCoordinator } from "./widgets/SubscriptionUsageCoordinator";
 import { installSubscriptionUsageRefresh } from "./widgets/useSubscriptionUsage";
 import { GlobalVoiceInputControl } from "./features/voice-input/GlobalVoiceInputControl";
+import { restoreSettingsLinkState } from "./features/settings/settings-navigation";
+import {
+  hydrateWorkspaceSelections,
+  launchWorkspaceURL,
+  recordWorkspaceSelections,
+  settingsLinkPage,
+} from "./features/workspace/workspace-selection-store";
+import { workspaceDetailLinkAction } from "./features/workspace/workspace-detail-selection";
 import { NativeLayoutMetricsProvider } from "./native/native-layout-metrics";
 import {
   attachRootNavigation,
@@ -87,6 +95,7 @@ if (process.env.EXPO_PUBLIC_SHOWCASE === "1") {
 }
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
+void hydrateWorkspaceSelections();
 
 const linkingConfig = {
   initialRouteName: "Home",
@@ -97,6 +106,7 @@ function getAppStateFromPath(path: string, options: Parameters<typeof getStateFr
   return pipe(
     getStateFromPath(path, options),
     (state) => restoreDraftLinkState(state, path),
+    (state) => restoreSettingsLinkState(state, settingsLinkPage()),
     takeThreadPromptLink,
     takeNewTaskPromptLink,
     withoutPairingTarget,
@@ -109,21 +119,25 @@ const appLinking = {
   prefixes: [Linking.createURL("/"), "supaterm://", "supaterm-dev://", "supaterm-preview://"],
   config: { initialRouteName: "Home" },
   filter: shouldHandleAppLink,
+  getInitialURL: async () => (await Linking.getInitialURL()) ?? (await launchWorkspaceURL()),
   getActionFromState: (
     state: Parameters<typeof getActionFromState>[0],
     options: Parameters<typeof getActionFromState>[1],
   ): ReturnType<typeof getActionFromState> =>
+    // Our router handles the selection; React Navigation's type only lists its own actions.
+    (workspaceDetailLinkAction(state) as ReturnType<typeof getActionFromState>) ??
     pairingFormLinkAction(
       state,
       rootNavigationRef.isReady() ? rootNavigationRef.getRootState() : undefined,
-    ) ?? getActionFromState(state, options),
+    ) ??
+    getActionFromState(state, options),
   getStateFromPath: getAppStateFromPath,
 };
 
 function appLinkAction(href: string): NavigationAction {
   const state = getAppStateFromPath(href, linkingConfig);
   if (!state) throw new Error(`Failed to parse the href to a navigation state (${href}).`);
-  return getActionFromState(state, linkingConfig) ?? CommonActions.reset(state);
+  return appLinking.getActionFromState(state, linkingConfig) ?? CommonActions.reset(state);
 }
 
 function linkToAppPath(href: string): void {
@@ -133,6 +147,7 @@ function linkToAppPath(href: string): void {
 const Navigation = createStaticNavigation(RootStack);
 
 function handleNavigationStateChange(state: NavigationState | undefined): void {
+  recordWorkspaceSelections(state);
   presentPendingIncomingShare();
   resolvePendingNewTaskPromptLink(state);
   resolvePendingThreadPromptLink(state);

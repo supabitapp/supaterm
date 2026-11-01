@@ -21,7 +21,7 @@ import {
   setComposerDraftText,
   waitForComposerDraftsLoaded,
 } from "../../state/use-composer-drafts";
-import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
+import { useSelectWorkspaceDetail } from "../workspace/useSelectWorkspaceDetail";
 
 const CLI_COMMAND = "npx supaterm triage";
 
@@ -36,7 +36,7 @@ function activeRootRoute() {
  */
 export function useStartTriage() {
   const navigation = useNavigation();
-  const { selectThreadRoute } = useAdaptiveWorkspaceLayout();
+  const selectDetail = useSelectWorkspaceDetail();
   const prepare = useAtomCommand(serverEnvironment.prepareTriage, { reportFailure: false });
   const openScratch = useAtomCommand(projectEnvironment.openScratch, { reportFailure: false });
   const inFlight = useRef(false);
@@ -65,13 +65,16 @@ export function useStartTriage() {
       }
       const draftId = createNewTaskDraft({ environmentId, projectId: scratch.value.id });
       setComposerDraftText(draftId, prepared.value.prompt);
-      selectThreadRoute({
-        draft: {
-          requestId: uuidv4(),
-          draftId,
-          environmentId: String(environmentId),
-          projectId: String(scratch.value.id),
-          title: "Triage",
+      selectDetail({
+        name: "Thread",
+        params: {
+          draft: {
+            requestId: uuidv4(),
+            draftId,
+            environmentId: String(environmentId),
+            projectId: String(scratch.value.id),
+            title: "Triage",
+          },
         },
       });
     });

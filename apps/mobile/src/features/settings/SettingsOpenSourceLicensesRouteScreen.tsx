@@ -66,12 +66,8 @@ export function SettingsOpenSourceLicensesRouteScreen() {
     <LicenseRow
       entry={item}
       onPress={() =>
-        navigation.navigate("SettingsSheet", {
-          screen: "SettingsContent",
-          params: {
-            screen: "SettingsOpenSourceLicense",
-            params: { entryKey: thirdPartyLicenseEntryKey(item) },
-          },
+        navigation.navigate("SettingsOpenSourceLicense", {
+          entryKey: thirdPartyLicenseEntryKey(item),
         })
       }
     />

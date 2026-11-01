@@ -84,21 +84,7 @@ function showcaseNavigationAction(scene: ShowcaseScene, environmentId: string): 
   const params = { environmentId, threadId: SHOWCASE_THREAD_ID };
   const routes: ShowcaseResetRoute[] = [{ name: "Home" }];
   if (scene === "environments") {
-    routes.push({
-      name: "SettingsSheet",
-      state: {
-        index: 0,
-        routes: [
-          {
-            name: "SettingsContent",
-            state: {
-              index: 1,
-              routes: [{ name: "Settings" }, { name: "SettingsEnvironments" }],
-            },
-          },
-        ],
-      },
-    });
+    routes.push({ name: "Settings" }, { name: "SettingsEnvironments" });
   } else {
     routes.push({ name: "Thread", params });
     if (scene === "terminal") {

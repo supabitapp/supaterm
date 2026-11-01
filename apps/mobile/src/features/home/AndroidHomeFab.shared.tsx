@@ -4,6 +4,8 @@ export function AndroidHomeFabLayout(props: {
   readonly onStartNewTask: () => void;
   readonly children: ReactNode;
   readonly sidebar?: boolean;
+  readonly disabled?: boolean;
+  readonly paneWidth?: number;
 }) {
   return <>{props.children}</>;
 }

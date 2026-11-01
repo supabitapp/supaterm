@@ -42,8 +42,11 @@ vi.mock("@react-navigation/native", () => ({
     canGoBack: () => state.canGoBack,
     goBack: state.goBack,
     dispatch: state.dispatch,
+    getParent: () => undefined,
+    getState: () => ({ index: 0, routes: [{ name: "ConnectionsNew" }] }),
   }),
 }));
+vi.mock("../workspace/workspace-selection-store", () => ({ workspaceHasColumns: () => false }));
 vi.mock("react-native", () => ({
   Alert: { alert: state.alert },
   Linking: {},
