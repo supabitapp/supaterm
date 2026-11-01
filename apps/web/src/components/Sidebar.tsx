@@ -1,3 +1,4 @@
+import { liveShellEnvironmentIdsAtom } from "../state/shell";
 import { attachSidebarTree, SIDEBAR_TREE_PROPS } from "../lib/sidebarTree";
 import {
   SidebarDragBoundary,
@@ -143,6 +144,7 @@ import { useLocalStorage } from "../hooks/useLocalStorage";
 import { useNowMinute } from "../hooks/useNowMinute";
 import {
   useConnectedEnvironmentIds,
+  useEnvironmentConnectionSummaries,
   useEnvironmentIdentities,
   useEnvironmentMachines,
   usePrimaryEnvironmentId,
@@ -183,6 +185,8 @@ import {
   buildBulkUnpinContextMenuItem,
   deleteSelectedThreadEntries,
   firstValidTimestampMs,
+  belongsInSidebarWorkingShelf,
+  isSidebarEnvironmentDisconnected,
   isSidebarNestedLinkClick,
   isTrailingDoubleClick,
   orderItemsByPreferredIds,
@@ -337,6 +341,7 @@ interface SidebarThreadPartitionInput {
   readonly serverConfigs: ReadonlyMap<EnvironmentId, EnvironmentServerConfig>;
   readonly connectedEnvironmentIds: readonly EnvironmentId[];
   readonly optimisticDrop: SidebarOptimisticDrop | null;
+  readonly disconnectedEnvironmentIds: ReadonlySet<EnvironmentId>;
   // Snooze wakes and the Working shelf's exit grace depend on the clock, so the
   // minute tick, the precise snooze-wake tick and the inbox tracker's expiry
   // version are inputs: any one advancing repartitions.
@@ -398,6 +403,18 @@ function useSidebarThreads(input: {
     routeRowThreadKey,
   } = input;
   const serverThreadRefs = useThreadRefs();
+  const environmentConnections = useEnvironmentConnectionSummaries();
+  const liveShellEnvironmentIds = useAtomValue(liveShellEnvironmentIdsAtom);
+  const disconnectedEnvironmentIds = new Set(
+    environmentConnections
+      .filter((environment) =>
+        isSidebarEnvironmentDisconnected(
+          environment.connectionState,
+          liveShellEnvironmentIds.has(environment.environmentId),
+        ),
+      )
+      .map((environment) => environment.environmentId),
+  );
   const inboxReturnsVersion = useSyncExternalStore(
     inboxReturns.subscribe,
     inboxReturns.getSnapshot,
@@ -457,6 +474,7 @@ function useSidebarThreads(input: {
     serverConfigs,
     connectedEnvironmentIds,
     optimisticDrop,
+    disconnectedEnvironmentIds,
     nowMinute,
     snoozeWakeTickAt,
     inboxReturnsVersion,
@@ -611,7 +629,10 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
   // Only inbox threads fold into Working. Pins stay where the user put them,
   // and snoozed or done threads keep their shelves. A manual move skips the exit grace.
   const inbox = (thread: EnvironmentThreadShell, manuallyMoved = false) =>
-    (manuallyMoved ? isThreadWorking(thread) : inboxObservation.isWorking(thread))
+    belongsInSidebarWorkingShelf(thread, {
+      disconnectedEnvironmentIds: input.disconnectedEnvironmentIds,
+      isWorking: manuallyMoved ? isThreadWorking : inboxObservation.isWorking,
+    })
       ? working
       : active;
   const snoozed: EnvironmentThreadShell[] = [];

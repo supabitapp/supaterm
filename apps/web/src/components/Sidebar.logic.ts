@@ -9,6 +9,7 @@ import {
 } from "@supaterm/client-runtime/state/runtime";
 import { defaultAnimateLayoutChanges, type AnimateLayoutChanges } from "@dnd-kit/sortable";
 import type { ContextMenuItem } from "@supaterm/contracts";
+import type { EnvironmentConnectionPhase } from "@supaterm/client-runtime/connection";
 import type { SidebarProjectSortOrder, SidebarThreadSortOrder } from "@supaterm/contracts/settings";
 import type { AsyncResult } from "effect/reactivity";
 import {
@@ -177,6 +178,24 @@ export function resolveSidebarThreadSection(input: {
   if (input.done) return "done";
   if (input.pinned) return "pinned";
   return "active";
+}
+
+// Keep cached placement on the first connection attempt, matching mobile's threadRouteIsHydrating.
+export function isSidebarEnvironmentDisconnected(
+  phase: EnvironmentConnectionPhase,
+  shellIsLive: boolean,
+): boolean {
+  return phase !== "connecting" && (phase !== "connected" || !shellIsLive);
+}
+
+export function belongsInSidebarWorkingShelf<T extends { readonly environmentId: EnvironmentId }>(
+  thread: T,
+  input: {
+    readonly disconnectedEnvironmentIds: ReadonlySet<EnvironmentId>;
+    readonly isWorking: (thread: T) => boolean;
+  },
+): boolean {
+  return !input.disconnectedEnvironmentIds.has(thread.environmentId) && input.isWorking(thread);
 }
 
 const SIDEBAR_MARKER_PREFIX = "sidebar-marker-";
