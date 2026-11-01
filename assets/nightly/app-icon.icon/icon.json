@@ -26,10 +26,10 @@
           "glass": false,
           "image-name": "01-Housing.png",
           "name": "01-Housing",
-          "opacity-specializations": [
+          "hidden-specializations": [
             {
               "appearance": "dark",
-              "value": 0.4
+              "value": true
             }
           ]
         }
