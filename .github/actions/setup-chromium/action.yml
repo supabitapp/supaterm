@@ -1,0 +1,41 @@
+name: Setup Chromium
+description: Restore the headless Chromium shell a Playwright package pins, and install system libraries only when it is missing some
+inputs:
+  playwright:
+    description: Path of the installed playwright or playwright-core package whose browser to use
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Resolve Playwright version
+      id: version
+      shell: bash
+      env:
+        PLAYWRIGHT_DIR: ${{ inputs.playwright }}
+      run: echo "version=$(node -p "require('./$PLAYWRIGHT_DIR/package.json').version")" >> "$GITHUB_OUTPUT"
+
+    # Keyed by version alone, so every job that pins the same Playwright shares one download.
+    - name: Cache Chromium
+      id: cache
+      uses: actions/cache@v6
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-chromium-shell-${{ runner.os }}-${{ runner.arch }}-${{ steps.version.outputs.version }}
+
+    - name: Install Chromium
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        PLAYWRIGHT_DIR: ${{ inputs.playwright }}
+      run: node "$PLAYWRIGHT_DIR/cli.js" install --only-shell chromium
+
+    - name: Install missing Chromium system dependencies
+      shell: bash
+      env:
+        PLAYWRIGHT_DIR: ${{ inputs.playwright }}
+      run: |
+        browser=$(find "$HOME/.cache/ms-playwright" -name chrome-headless-shell -type f -print -quit)
+        test -n "$browser"
+        if ldd "$browser" | grep '=> not found'; then
+          node "$PLAYWRIGHT_DIR/cli.js" install-deps chromium
+        fi
