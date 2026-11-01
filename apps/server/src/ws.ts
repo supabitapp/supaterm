@@ -12,6 +12,7 @@ import * as Duration from "effect/Duration";
 import * as Base64 from "effect/encoding/Base64";
 import * as Effect from "effect/Effect";
 import * as Equal from "effect/Equal";
+import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -317,6 +318,7 @@ export const withLateConfig = <E, R>(
   liveUpdates: Stream.Stream<ServerConfigStreamEvent, E, R>,
   launcher: EditorDiscovery,
   tunnelEndpoints: Stream.Stream<Option.Option<ServerTunnelEndpoints>>,
+  remoteOpenTargets: RemoteOpenTargets.RemoteOpenTargets["Service"],
 ) => {
   const lateEditorConfig = Stream.fromEffect(launcher.resolveAvailableEditors()).pipe(
     Stream.filter(
@@ -342,7 +344,17 @@ export const withLateConfig = <E, R>(
     Stream.map((endpoints) => ({ type: "tunnelEndpointsResolved" as const, endpoints })),
   );
 
-  return Stream.merge(liveUpdates, Stream.merge(lateEditorConfig, lateTunnelEndpoints)).pipe(
+  const lateRemoteOpenTargets = Stream.fromEffect(remoteOpenTargets.resolveTargets()).pipe(
+    Stream.filter(
+      (targets) => JSON.stringify(targets) !== JSON.stringify(config.remoteOpenTargets ?? []),
+    ),
+    Stream.map((targets) => ({ type: "remoteOpenTargetsResolved" as const, targets })),
+  );
+
+  return Stream.merge(
+    liveUpdates,
+    Stream.merge(lateEditorConfig, Stream.merge(lateTunnelEndpoints, lateRemoteOpenTargets)),
+  ).pipe(
     Stream.mapAccum(
       (): ClientServerConfig => config,
       (current, event): readonly [ClientServerConfig, ReadonlyArray<ServerConfigStreamEvent>] => {
@@ -365,6 +377,10 @@ export const withLateConfig = <E, R>(
               onNone: () => rest,
               onSome: (tunnelEndpoints) => ({ ...rest, tunnelEndpoints }),
             });
+            return [next, [{ version: 1, type: "snapshot", config: next }]];
+          }
+          case "remoteOpenTargetsResolved": {
+            const next = { ...current, remoteOpenTargets: event.targets };
             return [next, [{ version: 1, type: "snapshot", config: next }]];
           }
           case "keybindingsUpdated":
@@ -1653,6 +1669,7 @@ export const layerWsRpc = (
       const loadServerConfig = Effect.fn("ws.loadServerConfig")(function* (options: {
         readonly usageLimitsCommand: boolean;
         readonly workspaceSnapshotsOnDemand: boolean;
+        readonly deferRemoteOpenTargets: boolean;
       }) {
         const keybindingsConfig = yield* keybindings.loadConfigState;
         const currentProviders = yield* providerRegistry.getProviders;
@@ -1672,7 +1689,9 @@ export const layerWsRpc = (
         const discovery = yield* resolveOpenDiscoveryForConfig({
           editors: externalLauncher.resolveAvailableEditors(),
           fileManagerRevealKind: externalLauncher.resolveFileManagerRevealKind(),
-          remoteOpenTargets: remoteOpenTargets.resolveTargets(),
+          remoteOpenTargets: options.deferRemoteOpenTargets
+            ? Effect.succeed([])
+            : remoteOpenTargets.resolveTargets(),
           directEndpoints: directEndpoints.resolve(),
         });
 
@@ -2086,7 +2105,11 @@ export const layerWsRpc = (
           ),
         [WS_METHODS.serverProbe]: (_input) => Effect.succeed({}),
         [WS_METHODS.serverGetConfig]: (_input) =>
-          loadServerConfig({ usageLimitsCommand: false, workspaceSnapshotsOnDemand: false }),
+          loadServerConfig({
+            usageLimitsCommand: false,
+            workspaceSnapshotsOnDemand: false,
+            deferRemoteOpenTargets: false,
+          }),
         [WS_METHODS.serverSearchAcpRegistry]: (input) =>
           acpRegistryCatalog
             .search(input)
@@ -2973,9 +2996,13 @@ export const layerWsRpc = (
               const workspaceSnapshotsOnDemand = input.workspaceSnapshotsOnDemand === true;
               const keybindingsChanges = yield* keybindings.subscribeChanges;
               const settingsChanges = yield* serverSettings.subscribeChanges;
+              const remoteTargets = yield* Effect.forkScoped(remoteOpenTargets.resolveTargets(), {
+                startImmediately: true,
+              });
               const config = yield* loadServerConfig({
                 usageLimitsCommand: true,
                 workspaceSnapshotsOnDemand,
+                deferRemoteOpenTargets: true,
               });
               const keybindingsUpdates = keybindingsChanges.pipe(
                 Stream.map((event) => ({
@@ -3051,9 +3078,22 @@ export const layerWsRpc = (
                 { concurrency: "unbounded" },
               );
 
+              const remoteResult = yield* Effect.sync(() => remoteTargets.pollUnsafe());
+              const initialConfig =
+                remoteResult?._tag === "Success"
+                  ? { ...config, remoteOpenTargets: remoteResult.value }
+                  : config;
               return Stream.concat(
-                rpcInitialItems([{ version: 1 as const, type: "snapshot" as const, config }]),
-                withLateConfig(config, liveUpdates, externalLauncher, directTunnel.advertisements),
+                rpcInitialItems([
+                  { version: 1 as const, type: "snapshot" as const, config: initialConfig },
+                ]),
+                withLateConfig(
+                  initialConfig,
+                  liveUpdates,
+                  externalLauncher,
+                  directTunnel.advertisements,
+                  { resolveTargets: () => Fiber.join(remoteTargets) },
+                ),
               );
             }),
           ),
