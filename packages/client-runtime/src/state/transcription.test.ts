@@ -1,4 +1,4 @@
-import { ProviderInstanceId, type ServerProvider } from "@supaterm/contracts";
+import { ProviderDriverKind, ProviderInstanceId, type ServerProvider } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import { VoiceTranscriptionError } from "../voice-input/transcription.ts";
@@ -54,9 +54,9 @@ describe("resolveVoiceTranscriptionSource", () => {
   it("while unset, picks the first ready login with Claude's ahead, and never a turned-off one", () => {
     const codex = provider({
       instanceId: ProviderInstanceId.make("codex"),
-      driver: "codex",
+      driver: ProviderDriverKind.make("codex"),
       displayName: "Codex",
-    } as Partial<ServerProvider>);
+    });
     const gateway = provider({
       transcription: { status: "unavailable", reason: "unsupportedLogin" },
     });
