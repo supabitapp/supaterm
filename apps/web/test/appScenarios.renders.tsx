@@ -3,6 +3,7 @@
 // chat and settings routes, the sidebar and the right panel, through the same stores and
 // atoms the app reads. See renderScenarios.renders.tsx for the counting rules.
 import { createMemoryHistory } from "@tanstack/react-router";
+import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import type { ThreadId } from "@supaterm/contracts";
 import { DEFAULT_CLIENT_SETTINGS } from "@supaterm/contracts/settings";
 import type * as Context from "effect/Context";
@@ -12,6 +13,7 @@ import { commands, page, userEvent } from "vite-plus/test/browser";
 import "~/index.css";
 
 import { AppRoot } from "~/AppRoot";
+import { openSideChatBeside } from "~/chatPanes/actions";
 import { __setClientSettingsForTests } from "~/hooks/useSettings";
 import { getRouter, type AppRouter } from "~/router";
 import {
@@ -19,6 +21,7 @@ import {
   assistantItem,
   emitTerminalMetadata,
   emitThreadEvent,
+  emitVcsStatus,
   installFakeEnvironment,
   isThreadSubscribed,
   runningRun,
@@ -48,6 +51,7 @@ vi.mock(import("~/rpc/requestLatencyState"), async (original) => ({
   trackRpcRequestSent: () => {},
 }));
 
+const GIT_STATUS_UPDATES = 20;
 const HISTORY_TURNS = 20;
 const STREAM_DELTAS = 30;
 const TYPED_TEXT = "fix the flaky tests!";
@@ -63,7 +67,9 @@ const [WARM, A, B, LIVE] = THREADS.map((thread) => thread.id) as [
   ThreadId,
 ];
 
-installFakeEnvironment(THREADS);
+const SIDE_CHAT = { ...threadWithHistory("thread-side", HISTORY_TURNS), sideChatOf: WARM };
+
+installFakeEnvironment([...THREADS, SIDE_CHAT]);
 // Desktop-sized, so the sidebar, composer and right panel lay out as they do in the app.
 await page.viewport(1400, 900);
 // A returning user: the first-run gate would otherwise wait on onboarding evidence.
@@ -320,4 +326,37 @@ it("app-switch-settings-section", async () => {
   await report("app-switch-settings-section", [
     await measure(openSettings(router, "/settings/appearance")),
   ]);
+});
+
+it("app-git-status-updates-with-side-chat", async () => {
+  using _clock = frozenClock();
+  await using _app = (await openThread(WARM)).screen;
+  const sideChat = {
+    kind: "server",
+    threadRef: scopeThreadRef(ENVIRONMENT_ID, SIDE_CHAT.id),
+  } as const;
+  await act(() =>
+    openSideChatBeside(sideChat, { parentRef: scopeThreadRef(ENVIRONMENT_ID, WARM), sideChat }),
+  );
+  await expect.element(lastAnswer(SIDE_CHAT.id)).toBeVisible();
+  const local = (insertions: number) => ({
+    isRepo: true,
+    hasPrimaryRemote: true,
+    isDefaultRef: true,
+    refName: "main",
+    hasWorkingTreeChanges: insertions % 2 === 1,
+    workingTree: {
+      files: [{ path: "src/app.ts", insertions, deletions: 0 }],
+      insertions,
+      deletions: 0,
+    },
+  });
+  await act(() => emitVcsStatus({ _tag: "snapshot", local: local(0), remote: null }));
+  const counted = await measure(async () => {
+    for (let update = 1; update <= GIT_STATUS_UPDATES; update++) {
+      await act(() => emitVcsStatus({ _tag: "localUpdated", local: local(update) }));
+    }
+  });
+  expect(counted.components.ChatView).toBe(GIT_STATUS_UPDATES * 2);
+  await report("app-git-status-updates-with-side-chat", [counted]);
 });

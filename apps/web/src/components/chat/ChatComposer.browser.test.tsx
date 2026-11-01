@@ -46,7 +46,7 @@ function composerProps(
     activeThreadId: THREAD_REF.threadId,
     activeThread: undefined,
     activeThreadShell: null,
-    promptHistoryMessages: [],
+    promptHistoryEntries: [],
     isServerThread: true,
     isLocalDraftThread: false,
     forceExpandedOnMobile: false,

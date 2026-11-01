@@ -282,16 +282,10 @@ import { PlayIcon, ShieldIcon } from "@supaterm/icons";
 import { NO_PROVIDER_MODEL_SELECTION } from "../../providerInstances";
 import { type AppModelOption, getAppModelOptionsForInstance } from "../../modelSelection";
 import type { UnifiedSettings } from "@supaterm/contracts/settings";
-import {
-  isVideoAttachment,
-  type ChatMessage,
-  type SessionPhase,
-  type Thread,
-  type ThreadShell,
-} from "../../types";
+import { isVideoAttachment, type SessionPhase, type Thread, type ThreadShell } from "../../types";
 import { type ComposerPromptHistoryPosition } from "./composerPromptHistory";
 import type { PendingUserInputDraftAnswer } from "@supaterm/client-runtime/state/pending-user-input";
-import type { PendingApproval, PendingUserInput } from "../../session-logic";
+import type { PendingApproval, PendingUserInput, TimelineEntry } from "../../session-logic";
 import {
   resolveComposerDispatchMode,
   type ComposerDispatchMode,
@@ -407,7 +401,7 @@ export interface ChatComposerProps {
   activeThreadId: ThreadId | null;
   activeThread: Thread | undefined;
   activeThreadShell: ThreadShell | null;
-  promptHistoryMessages: ReadonlyArray<ChatMessage>;
+  promptHistoryEntries: ReadonlyArray<TimelineEntry>;
   isServerThread: boolean;
   isLocalDraftThread: boolean;
   forceExpandedOnMobile: boolean;
@@ -574,7 +568,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     activeThreadId,
     activeThread,
     activeThreadShell,
-    promptHistoryMessages,
+    promptHistoryEntries,
     isServerThread,
     isLocalDraftThread: _isLocalDraftThread,
     forceExpandedOnMobile,
@@ -2321,7 +2315,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       isLiteralPendingAnswer,
       isEditingQueuedMessage,
       pendingUserInputs,
-      promptHistoryMessages,
+      promptHistoryEntries,
       promptHistoryPositionRef,
       composerDraftTarget,
       promptRef,

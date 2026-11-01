@@ -379,6 +379,7 @@ import type { CodexArtifactTemplate } from "@supaterm/shared/codexArtifactTempla
 
 const EMPTY_FEEDBACK_SUBMISSIONS: ReadonlyArray<CodexFeedbackSubmission> = [];
 const EMPTY_PROVIDER_SKILLS: ServerProvider["skills"] = [];
+const EMPTY_COMPOSER_BANNER_ITEMS: ReadonlyArray<ComposerBannerStackItem> = [];
 
 const EMPTY_PENDING_FILE_SURFACE_IDS: ReadonlySet<string> = new Set();
 const EMPTY_PINNED_MESSAGES: ReadonlyArray<ThreadPinnedMessage> = [];
@@ -3677,7 +3678,7 @@ export default function ChatView(props: ChatViewProps) {
                                   activeThreadId={activeThreadId}
                                   activeThread={activeThread}
                                   activeThreadShell={activeThreadShell}
-                                  promptHistoryMessages={timelineMessages}
+                                  promptHistoryEntries={timelineEntries}
                                   isServerThread={isServerThread}
                                   isLocalDraftThread={isLocalDraftThread}
                                   forceExpandedOnMobile={
@@ -3718,7 +3719,11 @@ export default function ChatView(props: ChatViewProps) {
                                       : null
                                   }
                                   queuedRunsControl={queuedRunsControl}
-                                  bannerItems={isDraftHeroState ? [] : composerBannerItems}
+                                  bannerItems={
+                                    isDraftHeroState || composerBannerItems.length === 0
+                                      ? EMPTY_COMPOSER_BANNER_ITEMS
+                                      : composerBannerItems
+                                  }
                                   onUsageLimitsCommand={
                                     usageLimitsOffered &&
                                     usageLimitsKey !== null &&
