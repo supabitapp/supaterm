@@ -11,7 +11,7 @@ it("explains a denied clipboard write and lets the same message be copied again"
       <MessageCopyButton text="A message to copy" />
     </AnchoredToastProvider>,
   );
-  using _write = vi
+  using write = vi
     .spyOn(navigator.clipboard, "writeText")
     .mockRejectedValueOnce(new DOMException("Clipboard access denied", "NotAllowedError"))
     .mockResolvedValue(undefined);
@@ -26,5 +26,5 @@ it("explains a denied clipboard write and lets the same message be copied again"
   await copy.click();
 
   await expect.element(page.getByText("Copied!", { exact: true })).toBeVisible();
-  await expect.element(copy).toBeDisabled();
+  expect(write).toHaveBeenCalledTimes(2);
 });
