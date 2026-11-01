@@ -396,7 +396,7 @@ export function parseShowcaseCliArgs(args: ReadonlyArray<string>): CliOptions {
       if (mode !== "capture") {
         throw new Error("Use only one of --compose-only and --validate-only.");
       }
-      mode = argument.slice(2) as CliOptions["mode"];
+      mode = argument === "--compose-only" ? "compose-only" : "validate-only";
     } else if (argument === "--list") {
       list = true;
     } else if (argument === "--help" || argument === "-h") {
