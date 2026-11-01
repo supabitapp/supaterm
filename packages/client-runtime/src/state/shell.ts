@@ -34,8 +34,9 @@ import type { DeferredShellSnapshot } from "./shellPullRequests.ts";
 import {
   PENDING_SHELL_RESUME,
   advanceShellResume,
-  applyShellStreamEvent,
+  applyShellStreamEvents,
   isAuthoritativeShellSnapshot,
+  type ShellStreamEvent,
   mergeShellSnapshotProjects,
   reuseUnchangedThreadShells,
   sameThreadPullRequests,
@@ -228,7 +229,48 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
     const subscription = yield* Ref.get(activeSubscription);
     let next = initial;
     let snapshotSession: RpcSession | null = null;
+    let deltas: Array<ShellStreamEvent> = [];
+    const flushDeltas = () => {
+      if (deltas.length > 0 && Option.isSome(next.snapshot)) {
+        let sequence = next.snapshot.value.snapshotSequence;
+        let removedAt: Map<ThreadId, number> | undefined;
+        for (const delta of deltas) {
+          if (delta.sequence <= sequence) continue;
+          switch (delta.kind) {
+            case "thread.removed":
+              removedAt ??= new Map(next.removedAt);
+              removedAt.set(delta.threadId, delta.sequence);
+              break;
+            case "thread.updated":
+            case "project.updated":
+            case "project.removed":
+              break;
+            default:
+              continue;
+          }
+          sequence = delta.sequence;
+        }
+        next = {
+          ...next,
+          removedAt: removedAt ?? next.removedAt,
+          snapshot: Option.some(applyShellStreamEvents(next.snapshot.value, deltas)),
+          status: waiting ? "synchronizing" : "live",
+          error: Option.none(),
+        };
+      }
+      deltas = [];
+    };
     for (const [source, item] of entries) {
+      if (item.kind === "unknown-item") {
+        progress = advanceShellResume(progress, item, null);
+        continue;
+      }
+      if (item.kind !== "snapshot" && item.kind !== "synchronized") {
+        deltas.push(item);
+        continue;
+      }
+      // Snapshots can reset the cursor; completion markers change the sync status.
+      flushDeltas();
       if (item.kind === "synchronized") {
         // A marker still buffered from a replaced session says nothing about the current one.
         if (source !== subscription?.session) continue;
@@ -246,48 +288,27 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
         continue;
       }
       progress = advanceShellResume(progress, item, null);
-      if (item.kind === "unknown-item") continue;
       const authoritative = isAuthoritativeShellSnapshot(item);
       if (authoritative) {
         snapshotSession = source;
         yield* Ref.set(lastAuthoritativeAt, yield* Clock.currentTimeMillis);
       }
-      const nextSnapshot =
-        item.kind === "snapshot"
-          ? mergeShellSnapshotProjects(
-              Option.getOrNull(next.snapshot),
-              item.snapshot,
-              item.resolvedRepositoryIdentityRoots === undefined
-                ? undefined
-                : {
-                    resolvedRepositoryIdentityRoots: item.resolvedRepositoryIdentityRoots,
-                  },
-            )
-          : Option.match(next.snapshot, {
-              onNone: () => null,
-              onSome: (snapshot) =>
-                item.sequence > snapshot.snapshotSequence
-                  ? applyShellStreamEvent(snapshot, item)
-                  : snapshot,
-            });
-      if (nextSnapshot === null) continue;
-      const removal =
-        item.kind === "thread.removed" &&
-        Option.exists(next.snapshot, (snapshot) => item.sequence > snapshot.snapshotSequence)
-          ? item
-          : null;
+      const nextSnapshot = mergeShellSnapshotProjects(
+        Option.getOrNull(next.snapshot),
+        item.snapshot,
+        item.resolvedRepositoryIdentityRoots === undefined
+          ? undefined
+          : { resolvedRepositoryIdentityRoots: item.resolvedRepositoryIdentityRoots },
+      );
       next = {
         snapshot: Option.some(nextSnapshot),
         status: waiting ? "synchronizing" : "live",
         error: Option.none(),
         generation: authoritative ? ++lastShellGeneration : next.generation,
-        removedAt: authoritative
-          ? EMPTY_REMOVALS
-          : removal === null
-            ? next.removedAt
-            : new Map(next.removedAt).set(removal.threadId, removal.sequence),
+        removedAt: authoritative ? EMPTY_REMOVALS : next.removedAt,
       };
     }
+    flushDeltas();
     yield* Ref.set(awaitingCompletion, waiting);
     yield* Ref.set(resumeProgress, progress);
     if (next === initial) return;
