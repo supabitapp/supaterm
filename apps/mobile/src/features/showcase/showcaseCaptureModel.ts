@@ -81,6 +81,8 @@ export interface ShowcaseReadinessInput {
   readonly scene: ShowcaseScene | null;
   readonly requestedScene: ShowcaseScene | null;
   readonly hasFixture: boolean;
+  /** The showcase thread finished syncing, so its screen no longer shows a sync status. */
+  readonly threadSynced: boolean;
   readonly orientationSettled: boolean;
   readonly themeApplied: boolean;
   readonly themeId: MobileThemeId;
@@ -99,6 +101,7 @@ export function showcaseReadinessKey(input: ShowcaseReadinessInput): string | nu
     scene === null ||
     scene !== input.requestedScene ||
     !input.hasFixture ||
+    (scene === "thread" && !input.threadSynced) ||
     !input.orientationSettled ||
     !input.themeApplied ||
     !isShowcaseNativeContentReady({

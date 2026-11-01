@@ -18,6 +18,9 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import { SettingsSection } from "../settings/components/SettingsSection";
 import { DisclosureChevron } from "../../components/ui/DisclosureChevron";
 import { MotionPresence } from "../../components/ui/MotionPresence";
+import { showcaseEnvironmentDisplayUrl } from "../showcase/showcaseEnvironmentRows";
+
+const SHOWCASE_ENABLED = process.env.EXPO_PUBLIC_SHOWCASE === "1";
 
 const options: ReadonlyArray<{
   value: PullRequestRoutingPermission;
@@ -54,7 +57,9 @@ export function PullRequestRoutingSettings() {
           const selected = pullRequestRoutingPermissionFor(entry, permissions);
           const disabled =
             !catalog.isReady || saving || pullRequestRoutingConnectionKey(entry) === null;
-          const displayUrl = connectionCatalogDisplayUrl(entry);
+          const displayUrl =
+            (SHOWCASE_ENABLED ? showcaseEnvironmentDisplayUrl(entry.target.label) : undefined) ??
+            connectionCatalogDisplayUrl(entry);
           return (
             <View key={environmentId}>
               <Pressable

@@ -29,6 +29,9 @@ import { ConnectionStatusDot } from "./ConnectionStatusDot";
 import { DisclosureChevron } from "../../components/ui/DisclosureChevron";
 import { environmentStatusText } from "./environmentStatusText";
 
+// Store captures present remote-looking addresses over loopback fixtures on a busy CI host.
+const SHOWCASE_ENABLED = process.env.EXPO_PUBLIC_SHOWCASE === "1";
+
 function connectionStatusLabel(environment: ConnectedEnvironmentSummary): string | null {
   if (!environment.isEnabled && environment.connectionState !== "unsupported") {
     return "Off";
@@ -59,8 +62,11 @@ export function ConnectionEnvironmentRow(props: {
   const serverConfig = useAtomValue(
     serverEnvironment.configValueAtom(props.environment.environmentId),
   );
+  const liveConnectionAddress = useAtomValue(
+    environmentConnectionAddressAtom(props.environment.environmentId),
+  );
   const connectionAddress =
-    useAtomValue(environmentConnectionAddressAtom(props.environment.environmentId)) ??
+    (SHOWCASE_ENABLED ? null : liveConnectionAddress) ??
     connectionAddressLabel(props.environment.displayUrl);
   const unsupported = props.environment.connectionState === "unsupported";
   const presentation = useAtomValue(
@@ -75,9 +81,10 @@ export function ConnectionEnvironmentRow(props: {
   const statusLabel = connectionStatusLabel(props.environment);
   const statusTraceId = enabled ? props.environment.connectionErrorTraceId : null;
   const hasConnectionFailure = enabled && props.environment.connectionError !== null;
-  const freeze = enabled
-    ? hostFreezeNotice(props.environment.environmentLabel, serverConfig?.lastEventLoopStall)
-    : null;
+  const freeze =
+    enabled && !SHOWCASE_ENABLED
+      ? hostFreezeNotice(props.environment.environmentLabel, serverConfig?.lastEventLoopStall)
+      : null;
   const isRetrying =
     enabled &&
     (props.environment.connectionState === "connecting" ||

@@ -161,7 +161,7 @@ export const SHOWCASE_THREADS = [
       {
         request: "Why does a sleeping laptop look the same as a dead VPS in Environments?",
         response:
-          "The card only knows `connected` or `offline`, so it can't tell them apart. The transport already reports why a route failed; it just never reaches the card.",
+          "The card only knows connected or offline, so it can't tell them apart. The transport already reports why a route failed; it just never reaches the card.",
       },
     ],
     request:
