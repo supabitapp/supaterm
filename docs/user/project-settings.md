@@ -142,7 +142,9 @@ Worktrees can be removed after a chosen number of inactive days, a chosen number
 their thread is marked done, after merging, or when they have no commits beyond the default
 branch. Set **Delete done worktrees** to 0 days to remove a worktree at the next cleanup after its
 thread is marked done. A thread marked done automatically counts its done days from its last
-activity, not from when it was marked done. Only Supaterm-managed worktrees are eligible. Active
+activity, not from when it was marked done. In repositories without remotes, unchanged-worktree
+cleanup compares against the branch checked out in the project workspace; if that checkout has a
+detached HEAD, the worktree is kept. Only Supaterm-managed worktrees are eligible. Active
 sessions prevent removal, and so do other threads sharing the worktree, except a thread's own
 subagents: their shared worktree is removed once the parent qualifies and every subagent is idle.
 **Keep worktrees with local changes** defaults
