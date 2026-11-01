@@ -965,7 +965,7 @@ it.effect.each(["committed", "unborn"] as const)(
       });
       const git = (args: ReadonlyArray<string>) =>
         driver.execute({ operation: "checkpoint-test", cwd, args });
-      const checkpointRef = CheckpointRef.make("refs/t3/checkpoints/test");
+      const checkpointRef = CheckpointRef.make("refs/supaterm/checkpoints/test");
       if (head === "committed") {
         yield* makeCheckpointFixture(driver, cwd);
       } else {
@@ -1011,7 +1011,7 @@ it.effect("checkpoint capture outside a repository fails with the common dir loo
 
     const error = yield* captureRecordingGitCommands(
       cwd,
-      CheckpointRef.make("refs/t3/checkpoints/test"),
+      CheckpointRef.make("refs/supaterm/checkpoints/test"),
     ).pipe(Effect.flip);
 
     assert.instanceOf(error, VcsProcessExitError);
