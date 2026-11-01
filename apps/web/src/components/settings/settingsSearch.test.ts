@@ -59,6 +59,13 @@ describe("searchSettings", () => {
     expect(searchSettings("sharing", ITEMS).map((item) => item.id)).toEqual(["network-access"]);
     expect(searchSettings("claude", ITEMS).map((item) => item.id)).toEqual(["providers"]);
     expect(searchSettings("long lines", ITEMS).map((item) => item.id)).toEqual(["word-wrap"]);
+    for (const query of ["fallback", "fallback model"]) {
+      expect(searchSettings(query)[0]).toMatchObject({
+        id: "fallback-model",
+        to: "/settings/threads",
+        scope: "environment-defaults",
+      });
+    }
   });
 
   it("matches normalized title substrings", () => {
@@ -189,6 +196,11 @@ describe("settings search targets", () => {
     expect(isSettingsSearchScopeAvailable(updates.scope, "environment")).toBe(true);
     expect(isSettingsSearchScopeAvailable(updates.scope, "all")).toBe(true);
     expect(isSettingsSearchScopeAvailable(updates.scope, "project")).toBe(false);
+    const fallback = getSettingsSearchTargetScope("fallback-model")!;
+    expect(fallback.scope).toBe("environment-defaults");
+    expect(isSettingsSearchScopeAvailable(fallback.scope, "environment")).toBe(true);
+    expect(isSettingsSearchScopeAvailable(fallback.scope, "all")).toBe(true);
+    expect(isSettingsSearchScopeAvailable(fallback.scope, "project")).toBe(false);
     const streaming = getSettingsSearchTargetScope("response-streaming")!;
     expect(streaming.scope).toBe("project-defaults");
     expect(isSettingsSearchScopeAvailable(streaming.scope, "project")).toBe(true);
