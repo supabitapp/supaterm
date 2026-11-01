@@ -94,6 +94,8 @@ export function ThreadMcpApp(props: {
   const [uri, setUri] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [navigatedAway, setNavigatedAway] = useState(false);
+  const [generation, setGeneration] = useState(0);
+  const [crashed, setCrashed] = useState(false);
   // A different app needs a new document even when its asset URL is unchanged,
   // so the WebView key moves on with the document key, not only the URL.
   const [app, setApp] = useState(props.app);
@@ -103,6 +105,8 @@ export function ThreadMcpApp(props: {
     setUri(null);
     setLoaded(false);
     setNavigatedAway(false);
+    setGeneration(0);
+    setCrashed(false);
     setDocumentKeyState((value) => value + 1);
   }
   const fullscreen = props.displayMode === "fullscreen";
@@ -134,8 +138,6 @@ export function ThreadMcpApp(props: {
 
   if (uri === null && asset._tag === "Success") setUri(asset.url);
 
-  const [generation, setGeneration] = useState(0);
-  const [crashed, setCrashed] = useState(false);
   const restart = () => {
     if (generation > 0) {
       setCrashed(true);
