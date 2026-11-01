@@ -345,7 +345,7 @@ import {
   latestProviderTurnTokenUsage,
 } from "../lib/contextWindow";
 import { MOBILE_COMPOSER_VIEW_TRANSITION_NAME } from "./chat/draftHeroTransition";
-import { animationsSettled } from "../lib/motion";
+import { animationsSettled, runningSizeAnimation } from "../lib/motion";
 import { ScrollToEndPill } from "./chat/ScrollToEndPill";
 import { WorkspaceDropOverlay } from "./WorkspaceDropOverlay";
 import {
@@ -411,20 +411,6 @@ type ChatViewProps =
       routeKind: "draft";
       draftId: DraftId;
     };
-
-function isAnimatingSize(element: Element): boolean {
-  return element
-    .getAnimations({ subtree: true })
-    .some(
-      (animation) =>
-        animation.playState === "running" &&
-        animation.effect instanceof KeyframeEffect &&
-        animation.effect.getComputedTiming().iterations !== Infinity &&
-        animation.effect
-          .getKeyframes()
-          .some((keyframe) => "height" in keyframe || "gridTemplateRows" in keyframe),
-    );
-}
 
 function useChatComposerRef() {
   const localComposerRef = useRef<ChatComposerHandle | null>(null);
@@ -2401,7 +2387,7 @@ export default function ChatView(props: ChatViewProps) {
     let disposed = false;
     const updateHeight = () => {
       if (settling || disposed) return;
-      if (isAnimatingSize(composerOverlayElement)) {
+      if (runningSizeAnimation(composerOverlayElement)) {
         settling = true;
         void animationsSettled(composerOverlayElement, { subtree: true }).then(() => {
           settling = false;
@@ -3353,7 +3339,7 @@ export default function ChatView(props: ChatViewProps) {
         <PreviewPanelSibling>
           <div
             data-chat-column
-            className="flex h-full min-h-0 min-w-0 flex-col overflow-x-hidden bg-background"
+            className="flex h-full min-h-0 min-w-0 flex-col overflow-x-clip bg-background"
           >
             <header
               ref={threadPanelPopoverAnchorRef}
@@ -3573,6 +3559,7 @@ export default function ChatView(props: ChatViewProps) {
                     key={routeThreadKey}
                     show={showScrollToBottom && !isThreadFindActive}
                     bottom={scrollToEndClearance + 4}
+                    composerOverlay={composerOverlayElement}
                     onScrollToEnd={() => {
                       composerRef.current?.restoreAfterTimelineReachedEnd();
                       scrollToEnd(true);
