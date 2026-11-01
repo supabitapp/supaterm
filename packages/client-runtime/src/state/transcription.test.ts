@@ -51,7 +51,7 @@ describe("resolveVoiceTranscriptionSource", () => {
     ).toMatchObject({ message: "Claude can't transcribe voice input." });
   });
 
-  it("while unset, picks the first ready login with Claude's ahead, and never a turned-off one", () => {
+  it("while unset, picks the first ready login, default Claude then other Claude, never one turned off", () => {
     const codex = provider({
       instanceId: ProviderInstanceId.make("codex"),
       driver: ProviderDriverKind.make("codex"),
@@ -67,6 +67,7 @@ describe("resolveVoiceTranscriptionSource", () => {
     const pick = (providers: ReadonlyArray<ServerProvider>) =>
       resolveVoiceTranscriptionSource(config(providers, null));
 
+    expect(pick([voice, codex, provider()]).provider?.displayName).toBe("Claude");
     expect(pick([codex, gateway, voice]).provider?.displayName).toBe("Claude Voice");
     expect(pick([codex, gateway]).provider?.displayName).toBe("Codex");
     expect(pick([gateway, provider({ ...codex, enabled: false })])).toMatchObject({

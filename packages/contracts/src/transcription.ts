@@ -23,23 +23,25 @@ export const ServerProviderTranscription = Schema.Struct({
 export type ServerProviderTranscription = typeof ServerProviderTranscription.Type;
 
 /**
- * What an unset transcription setting resolves to: the first enabled instance whose login
- * can transcribe, Claude's ahead of the rest. With none ready, the first enabled one, so the
- * refusal names its reason.
+ * What an unset transcription setting resolves to: the first enabled instance whose login can
+ * transcribe, trying the default Claude instance, then other Claude instances, then the rest.
+ * With none ready, the first enabled one, so the refusal names its reason.
  */
 export function automaticTranscriptionProvider<
   Provider extends {
+    readonly instanceId: string;
     readonly driver: string;
     readonly enabled: boolean;
     readonly transcription?: ServerProviderTranscription | undefined;
   },
 >(providers: ReadonlyArray<Provider>): Provider | undefined {
+  const preference = (provider: Provider) => {
+    if (provider.instanceId === "claudeAgent") return 0;
+    return provider.driver === "claudeAgent" ? 1 : 2;
+  };
   const candidates = providers
     .filter((provider) => provider.enabled && provider.transcription !== undefined)
-    .sort(
-      (left, right) =>
-        Number(right.driver === "claudeAgent") - Number(left.driver === "claudeAgent"),
-    );
+    .sort((left, right) => preference(left) - preference(right));
   return candidates.find((provider) => provider.transcription?.status === "ready") ?? candidates[0];
 }
 
