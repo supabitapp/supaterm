@@ -402,6 +402,7 @@ export function ProviderEnvironmentSection(props: {
                   className="w-full min-w-0 sm:w-44 sm:shrink-0"
                   value={variable.name}
                   onCommit={(name) => updateVariable(variable.id, { name: name.trim() })}
+                  disabled={variable.valueRedacted === true}
                   placeholder="VARIABLE_NAME"
                   spellCheck={false}
                   aria-label={`Environment variable name ${index + 1}`}
@@ -441,6 +442,7 @@ export function ProviderEnvironmentSection(props: {
                         type="button"
                         size="icon-micro"
                         variant="ghost-muted"
+                        disabled={variable.valueRedacted === true}
                         onClick={() => {
                           const sensitive = !variable.sensitive;
                           updateVariable(variable.id, {
@@ -476,6 +478,9 @@ export function ProviderEnvironmentSection(props: {
           })}
           <p className="text-xs text-muted-foreground">
             Sensitive values are stored separately and never returned to the app.
+            {rows.some((row) => row.valueRedacted === true)
+              ? " Enter a new value to rename a saved one or make it plain text."
+              : null}
           </p>
         </div>
       ) : null}
