@@ -1,5 +1,4 @@
 import { AudioPreview } from "../files/AudioPreview";
-import { page } from "vite-plus/test/browser";
 import {
   ComposerContextId,
   EnvironmentId,
