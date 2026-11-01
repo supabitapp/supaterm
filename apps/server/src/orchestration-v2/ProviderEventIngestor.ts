@@ -113,7 +113,7 @@ interface ProviderTurnAnalyticsInput {
   readonly context?: ProviderTurnAnalyticsContext;
 }
 
-export class ProviderTurnAnalytics extends Context.Reference<{
+class ProviderTurnAnalytics extends Context.Reference<{
   readonly record: (input: ProviderTurnAnalyticsInput) => Effect.Effect<void>;
 }>("supaterm/orchestration-v2/ProviderTurnAnalytics", {
   defaultValue: () => ({ record: () => Effect.void }),
