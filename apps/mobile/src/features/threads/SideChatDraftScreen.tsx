@@ -21,7 +21,7 @@ export function SideChatDraftRouteScreen() {
         )
       : null;
   const parent = useQuietThreadShell(parentRef);
-  const disabledReason = useSideChatDisabledReason(parent);
+  const disabledReason = useSideChatDisabledReason(parentRef?.environmentId ?? null, parent);
   const startSideChat = useStartSideChat();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);

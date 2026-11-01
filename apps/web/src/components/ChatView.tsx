@@ -43,7 +43,7 @@ import { useComposerSelection } from "./chat/useComposerSelection";
 import { useRightPanelActions } from "./chat/useRightPanelActions";
 import { useThreadLifecycle } from "./chat/useThreadLifecycle";
 import { useComposerSend } from "./chat/useComposerSend";
-import { useSideChat } from "./chat/useSideChat";
+import { useSideChat, useSideChatBlockedReason } from "./chat/useSideChat";
 import { SideChatHeaderActions } from "./chat/SideChatHeaderActions";
 import { useComposerResume } from "./chat/useComposerResume";
 import { type TerminalLaunchContext, useChatTerminalActions } from "./chat/useChatTerminalActions";
@@ -79,7 +79,6 @@ import {
   type AssistantCitation,
   type ChatFileAttachment,
   isProviderNativeSubagentThread,
-  orchestrationV2WorktreePending,
   type EnvironmentId,
   type MessageId,
   type ModelSelection,
@@ -1397,37 +1396,18 @@ export default function ChatView(props: ChatViewProps) {
     setLocalServerErrorsByThreadKey,
     setLocalDraftErrorsByDraftId,
   });
-  const isSubagentThread = activeThread?.lineage.relationshipToParent === "subagent";
-  // Side chats do not nest or start from subagents, and older servers would fork a listed thread.
-  const sideChatsOffered =
-    canOperateThread &&
-    !isSideChat &&
-    !isSubagentThread &&
-    serverConfig?.environment.capabilities.sideChats === true;
+  // Main-thread surfaces show this reason; `/side` sent anyway gets it as a toast.
+  const sideChatDisabledReason = useSideChatBlockedReason({
+    environmentId,
+    thread: serverThread,
+    sideChatDraft: isSideChat,
+  });
   const sideChat = useSideChat({
-    parent: sideChatsOffered && isServerThread && activeThread ? activeThread : null,
+    parent: sideChatDisabledReason === null ? serverThread : null,
     onError: (message) => {
       if (activeThread) setThreadError(activeThread.id, message);
     },
   });
-  // Main-thread surfaces show this reason; `/side` sent anyway gets it as a toast.
-  const sideChatDisabledReason = isSideChat
-    ? "Side chats cannot start side chats."
-    : isSubagentThread
-      ? "Subagent threads cannot start side chats."
-      : serverConfig === null
-        ? "Side chats are not ready yet. Try again in a moment."
-        : serverConfig.environment.capabilities.sideChats !== true
-          ? "Update this environment's Supaterm server to use side chats."
-          : sideChatsOffered && !isServerThread
-            ? "Side chats start after the first message."
-            : sideChat.available &&
-                orchestrationV2WorktreePending(
-                  activeThread?.worktreePath ?? null,
-                  serverProjection?.runs ?? [],
-                )
-              ? "Available once the thread's worktree is set up."
-              : null;
   const {
     pendingApprovals,
     pendingUserInputs,
@@ -2914,7 +2894,7 @@ export default function ChatView(props: ChatViewProps) {
         if (!repeat) copyActiveThreadReferenceStable();
       },
       "thread.sideChat": ({ repeat }) => {
-        if (!sideChat.available || sideChatDisabledReason !== null) return false;
+        if (!sideChat.available) return false;
         if (!repeat) sideChat.openDraft();
       },
       "chat.find": () => {
@@ -3767,7 +3747,6 @@ export default function ChatView(props: ChatViewProps) {
                                       : undefined
                                   }
                                   sideChatAvailable={sideChat.available}
-                                  sideChatDisabledReason={sideChatDisabledReason}
                                   environmentUnavailable={activeEnvironmentUnavailableState}
                                   activePendingApproval={
                                     queuedRunEdit.outbox.isEditing ? null : activePendingApproval

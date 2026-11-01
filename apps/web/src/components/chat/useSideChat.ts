@@ -5,7 +5,15 @@ import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
-import type { ScopedThreadRef, ThreadId } from "@supaterm/contracts";
+import { sideChatStartBlockedReason } from "@supaterm/client-runtime/state/side-chats";
+import {
+  AuthOrchestrationOperateScope,
+  type EnvironmentId,
+  type ScopedThreadRef,
+  type ThreadId,
+} from "@supaterm/contracts";
+import { useAtomValue } from "@effect/atom-react";
+import { Atom } from "effect/reactivity";
 import { useRef } from "react";
 
 import { newDraftId, newMessageId, newThreadId } from "~/lib/utils";
@@ -13,11 +21,45 @@ import { openThreadBeside } from "../../chatPanes/actions";
 import { usePaneThreadNavigation } from "../../chatPanes/paneScope";
 import { useComposerDraftStore } from "../../composerDraftStore";
 import { useStableCallback } from "../../hooks/useStableCallback";
-import { readThreadShell, waitForThreadShell } from "../../state/entities";
+import { readThreadShell, useServerConfigs, waitForThreadShell } from "../../state/entities";
+import { useEnvironmentScope } from "../../state/session";
 import { enqueueThreadOutboxTurn } from "../../state/threadOutbox";
-import { threadEnvironment } from "../../state/threads";
+import { environmentThreadDetails, threadEnvironment } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
 import type { ThreadRouteTarget } from "../../threadRoutes";
+
+const NOT_PENDING_ATOM = Atom.make(false).pipe(Atom.withLabel("side-chat:worktree-not-pending"));
+
+/** Why `thread` cannot start a side chat, or null when it can. */
+export function useSideChatBlockedReason(input: {
+  readonly environmentId: EnvironmentId | null;
+  /** The server thread, or null while the thread is a draft on this client. */
+  readonly thread: Pick<EnvironmentThreadShell, "id" | "lineage" | "deletedAt"> | null;
+  readonly sideChatDraft?: boolean;
+}): string | null {
+  const { environmentId, thread } = input;
+  const serverConfig = useServerConfigs().get(environmentId ?? ("" as EnvironmentId)) ?? null;
+  const canOperate = useEnvironmentScope(environmentId, AuthOrchestrationOperateScope);
+  const worktreePending = useAtomValue(
+    environmentId !== null && thread !== null
+      ? environmentThreadDetails.worktreePendingAtom(scopeThreadRef(environmentId, thread.id))
+      : NOT_PENDING_ATOM,
+  );
+  return sideChatStartBlockedReason({
+    parent:
+      thread === null
+        ? { kind: "draft", sideChat: input.sideChatDraft === true }
+        : {
+            kind: "thread",
+            lineage: thread.lineage,
+            deletedAt: thread.deletedAt,
+            worktreePending,
+          },
+    canOperate,
+    supported:
+      serverConfig === null ? null : serverConfig.environment.capabilities.sideChats === true,
+  });
+}
 
 /**
  * Forks `parentRef` into the side chat `targetThreadId` unless that side chat already exists,

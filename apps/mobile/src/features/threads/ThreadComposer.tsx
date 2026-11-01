@@ -484,7 +484,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     return report !== null;
   };
 
-  const sideChat = useSideChat(props.isDraft ? null : props.selectedThread);
+  const sideChat = useSideChat(props.environmentId, props.isDraft ? null : props.selectedThread);
   const composerMenu = useComposerCommandMenu({
     draftMessage: draftMessage,
     ownerKey: composerDraftKey,

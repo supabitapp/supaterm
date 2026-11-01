@@ -343,6 +343,10 @@
       "types": "./src/state/threadGrouping.ts",
       "default": "./src/state/threadGrouping.ts"
     },
+    "./state/side-chats": {
+      "types": "./src/state/sideChats.ts",
+      "default": "./src/state/sideChats.ts"
+    },
     "./state/thread-relationships": {
       "types": "./src/state/threadRelationships.ts",
       "default": "./src/state/threadRelationships.ts"

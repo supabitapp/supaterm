@@ -5,14 +5,16 @@ import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
+import { useAtomValue } from "@effect/atom-react";
+import { sideChatStartBlockedReason } from "@supaterm/client-runtime/state/side-chats";
 import {
   AuthOrchestrationOperateScope,
   CommandId,
-  isListedThreadLineage,
   MessageId,
   ThreadId,
   type EnvironmentId,
 } from "@supaterm/contracts";
+import { Atom } from "effect/reactivity";
 import { useRef } from "react";
 
 import * as Dialog from "../../components/ui/Dialog";
@@ -22,26 +24,44 @@ import { appAtomRegistry } from "../../state/atom-registry";
 import { useEnvironmentServerConfig } from "../../state/entities";
 import { useEnvironmentScope } from "../../state/session";
 import { enqueueThreadOutboxMessage } from "../../state/thread-outbox";
-import { environmentThreadShells, threadEnvironment } from "../../state/threads";
+import {
+  environmentThreadDetails,
+  environmentThreadShells,
+  threadEnvironment,
+} from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { waitForThreadShellReady } from "./threadForkNavigation";
 
-/** Why `parent` cannot start a side chat, or null when it can. */
-export function useSideChatDisabledReason(parent: EnvironmentThreadShell | null): string | null {
-  const serverConfig = useEnvironmentServerConfig(parent?.environmentId ?? null);
-  const canOperate = useEnvironmentScope(
-    parent?.environmentId ?? null,
-    AuthOrchestrationOperateScope,
+const NOT_PENDING_ATOM = Atom.make(false).pipe(Atom.withLabel("side-chat:worktree-not-pending"));
+
+/** Why `parent` cannot start a side chat, or null when it can; a null parent is a draft. */
+export function useSideChatDisabledReason(
+  environmentId: EnvironmentId | null,
+  parent: EnvironmentThreadShell | null,
+): string | null {
+  const serverConfig = useEnvironmentServerConfig(environmentId);
+  const canOperate = useEnvironmentScope(environmentId, AuthOrchestrationOperateScope);
+  const worktreePending = useAtomValue(
+    parent === null
+      ? NOT_PENDING_ATOM
+      : environmentThreadDetails.worktreePendingAtom(
+          scopeThreadRef(parent.environmentId, parent.id),
+        ),
   );
-  if (parent === null || !canOperate) return "This connection cannot start side chats.";
-  if (parent.lineage.sideChat === true) return "Side chats cannot start side chats.";
-  if (!isListedThreadLineage(parent.lineage)) return "Subagent threads cannot start side chats.";
-  if (serverConfig === null) return "Side chats are not ready yet. Try again in a moment.";
-  if (serverConfig.environment.capabilities.sideChats !== true) {
-    return "Update this environment's Supaterm server to use side chats.";
-  }
-  if (parent.latestRun === null) return "Side chats start after the first message.";
-  return null;
+  return sideChatStartBlockedReason({
+    parent:
+      parent === null
+        ? { kind: "draft", sideChat: false }
+        : {
+            kind: "thread",
+            lineage: parent.lineage,
+            deletedAt: parent.deletedAt,
+            worktreePending,
+          },
+    canOperate,
+    supported:
+      serverConfig === null ? null : serverConfig.environment.capabilities.sideChats === true,
+  });
 }
 
 /**
@@ -106,10 +126,13 @@ export function useStartSideChat() {
  * Side chats of `parent`. `openDraft` pushes an empty side chat that forks on its first send;
  * `send` starts one with `prompt` at once and opens it.
  */
-export function useSideChat(parent: EnvironmentThreadShell | null) {
+export function useSideChat(
+  environmentId: EnvironmentId | null,
+  parent: EnvironmentThreadShell | null,
+) {
   const navigation = useNavigation();
   const pendingRef = useRef(false);
-  const disabledReason = useSideChatDisabledReason(parent);
+  const disabledReason = useSideChatDisabledReason(environmentId, parent);
   const startSideChat = useStartSideChat();
 
   const openDraft = () => {

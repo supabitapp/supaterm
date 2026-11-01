@@ -46,8 +46,6 @@ import {
   type DesktopWslState,
   type EnvironmentId,
   type FilesystemBrowseResult,
-  isListedThreadLineage,
-  orchestrationV2WorktreePending,
   SourceControlProviderKind,
   PRIMARY_LOCAL_ENVIRONMENT_ID,
   resolveEnvironmentMachineKind,
@@ -105,7 +103,7 @@ import { useDesktopLocalBootstraps } from "../connection/useDesktopLocalBootstra
 import { useHandleNewThread } from "../hooks/useHandleNewThread";
 import { useActiveThreadRef } from "../hooks/useActiveThreadRef";
 import { useForkThread } from "../hooks/useForkThread";
-import { useSideChat } from "./chat/useSideChat";
+import { useSideChat, useSideChatBlockedReason } from "./chat/useSideChat";
 import { useThreadActionMenu } from "../hooks/useThreadActionMenu";
 import { useOpenPanelPullRequestUrl } from "../hooks/useOpenPanelPullRequestUrl";
 import { copyThreadReference } from "../lib/copyThreadReference";
@@ -498,24 +496,12 @@ function OpenCommandPaletteDialog(props: {
   const activeThreadServerConfig = useServerConfigs().get(
     activeThread?.environmentId ?? ("" as EnvironmentId),
   );
-  const canOperateActiveThread = useEnvironmentScope(
-    activeThread?.environmentId ?? null,
-    AuthOrchestrationOperateScope,
-  );
-  const sideChatParent =
-    activeThread &&
-    activeThreadProjection !== null &&
-    canOperateActiveThread &&
-    activeThreadServerConfig?.environment.capabilities.sideChats === true &&
-    isListedThreadLineage(activeThread.lineage) &&
-    !orchestrationV2WorktreePending(
-      activeThread.worktreePath,
-      activeThreadProjection.projection.runs,
-    )
-      ? activeThread
-      : null;
+  const sideChatBlockedReason = useSideChatBlockedReason({
+    environmentId: activeThread?.environmentId ?? null,
+    thread: activeThread ?? null,
+  });
   const sideChat = useSideChat({
-    parent: sideChatParent,
+    parent: sideChatBlockedReason === null ? (activeThread ?? null) : null,
     onError: (message) =>
       toastManager.add({
         type: "error",

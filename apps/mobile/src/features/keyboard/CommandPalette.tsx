@@ -253,7 +253,7 @@ export function CommandPalette(props: {
   );
   const canFork =
     canOperate && projection !== null && resolveThreadForkSource(projection.projection) !== null;
-  const sideChat = useSideChat(activeThread);
+  const sideChat = useSideChat(activeThreadRef?.environmentId ?? null, activeThread);
   const visitThread = useAtomCommand(threadEnvironment.visit, { reportFailure: false });
   const environments = useWorkspaceEnvironments();
   const { savedConnectionsById } = useSavedRemoteConnections();

@@ -1,6 +1,7 @@
 import {
   OrchestrationV2AppThread,
   OrchestrationV2TurnItem,
+  orchestrationV2WorktreePending,
   type OrchestrationV2ThreadProjection,
   type ScopedThreadRef,
 } from "@supaterm/contracts";
@@ -441,6 +442,15 @@ export function createEnvironmentThreadDetailAtoms<E>(
         Option.getOrNull(get(threadStateValueAtomFamily(key)).data)?.thread.worktreePath ?? null,
     ).pipe(Atom.setIdleTTL(0), Atom.withLabel(`environment-thread-worktree:${key}`)),
   );
+  const worktreePendingAtomFamily = Atom.family((key: string) =>
+    Atom.make((get) => {
+      const projection = Option.getOrNull(get(threadStateValueAtomFamily(key)).data);
+      return (
+        projection !== null &&
+        orchestrationV2WorktreePending(projection.thread.worktreePath, projection.runs)
+      );
+    }).pipe(Atom.setIdleTTL(0), Atom.withLabel(`environment-thread-worktree-pending:${key}`)),
+  );
   const pendingRequestsAtomFamily = Atom.family((key: string) => {
     let previous: Pick<OrchestrationV2ThreadProjection, "runtimeRequests" | "turnItems"> | null =
       null;
@@ -503,6 +513,7 @@ export function createEnvironmentThreadDetailAtoms<E>(
 
   return {
     worktreePathAtom: (ref: ScopedThreadRef) => worktreePathAtomFamily(threadKey(ref)),
+    worktreePendingAtom: (ref: ScopedThreadRef) => worktreePendingAtomFamily(threadKey(ref)),
     updatedAtAtom: (ref: ScopedThreadRef) => updatedAtAtomFamily(threadKey(ref)),
     lastVisitedAtAtom: (ref: ScopedThreadRef) => lastVisitedAtAtomFamily(threadKey(ref)),
     pendingRequestsAtom: (ref: ScopedThreadRef) => pendingRequestsAtomFamily(threadKey(ref)),
