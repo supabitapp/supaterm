@@ -30,6 +30,8 @@ const TEMP_WORKTREE_BRANCH_PATTERN = new RegExp(`^${WORKTREE_BRANCH_PREFIX}[-/][
 
 export function sanitizeBranchFragment(raw: string): string {
   const normalized = raw
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
     .trim()
     .toLowerCase()
     .replace(/['"`]/g, "")
