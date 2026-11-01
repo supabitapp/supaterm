@@ -124,6 +124,7 @@ import * as ProjectEnrichment from "./project/ProjectEnrichmentService.ts";
 import * as ProjectService from "./project/ProjectService.ts";
 import {
   layerWsRpc,
+  resolveOpenDiscoveryForConfig,
   subscribeOrchestrationV2Shell,
   subscribeOrchestrationV2Thread,
   WS_RPC_SERVER_OPTIONS,
@@ -282,6 +283,38 @@ it.effect.each([relayAdvertisement, null])(
       if (late?.type === "snapshot")
         assert.deepEqual(late.config.environment, { ...relayEnvironment, ...payload });
     }),
+);
+
+it.effect("runs editor, remote open target and direct endpoint discovery side by side", () =>
+  Effect.gen(function* () {
+    // Each discovery finishes only once the other two have started, so a
+    // config that ran them one after another would never resolve.
+    const editorsStarted = yield* Deferred.make<void>();
+    const targetsStarted = yield* Deferred.make<void>();
+    const endpointsStarted = yield* Deferred.make<void>();
+    const startThenAwait = <A>(started: Deferred.Deferred<void>, value: A) =>
+      Deferred.succeed(started, undefined).pipe(
+        Effect.andThen(
+          Effect.forEach([editorsStarted, targetsStarted, endpointsStarted], Deferred.await),
+        ),
+        Effect.as(value),
+      );
+
+    const discovery = yield* resolveOpenDiscoveryForConfig({
+      editors: startThenAwait(editorsStarted, ["file-manager" as const]),
+      fileManagerRevealKind: Effect.succeed("finder" as const),
+      remoteOpenTargets: startThenAwait(targetsStarted, []),
+      directEndpoints: startThenAwait(endpointsStarted, []),
+    });
+
+    assert.deepEqual(discovery, {
+      availableEditors: ["file-manager"],
+      shellRevealInFileManager: true,
+      shellRevealInFileManagerKind: "finder",
+      remoteOpenTargets: [],
+      directEndpoints: [],
+    });
+  }),
 );
 
 const ReplayTestLayer = OrchestrationEventStore.layer.pipe(
