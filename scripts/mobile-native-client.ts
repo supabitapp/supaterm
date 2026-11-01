@@ -13,7 +13,7 @@ import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
-import { Argument, Command } from "effect/cli";
+import { Argument, Command, Flag } from "effect/cli";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
 export type NativePlatform = "ios" | "android";
@@ -520,6 +520,7 @@ export const resolveArtifact = Effect.fn("nativeClient.resolveArtifact")(functio
   platform: NativePlatform,
   abi: string | null,
   fingerprint: string,
+  allowBuild = true,
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -533,6 +534,10 @@ export const resolveArtifact = Effect.fn("nativeClient.resolveArtifact")(functio
     yield* fs.utimes(directory, now / 1000, now / 1000).pipe(Effect.ignore);
     return { ...artifact, source: "local" as const };
   }
+  if (!allowBuild)
+    return yield* new NativeClientError({
+      message: `No cached build of ${key} on this machine yet. Run \`vp run mobile:install ${platform}\` once with a local ${platform === "ios" ? "simulator" : "emulator"} of this checkout; it builds the client and caches it.`,
+    });
   yield* fs.makeDirectory(path.dirname(directory), { recursive: true });
   const log = yield* BuildLog;
   yield* Console.error(
@@ -569,15 +574,95 @@ const install = Effect.fn("nativeClient.install")(function* (
     yield* command("adb", ["-s", device, "reverse", "tcp:8081", "tcp:8081"]).pipe(Effect.ignore);
 });
 
+/** Install through the agent-device command device_open returned, using the local cache only. */
+const installIntoSession = Effect.fn("nativeClient.installIntoSession")(function* (
+  home: string,
+  platform: NativePlatform,
+  agentDevice: string,
+  abi: string,
+  metro: string | undefined,
+) {
+  const started = yield* Clock.currentTimeMillis;
+  // agent-device scopes session ownership to the workspace (working directory) it runs in.
+  const workspace = yield* HostProcess.WorkingDirectory;
+  const current = yield* fingerprint(platform);
+  const artifact = yield* resolveArtifact(
+    home,
+    platform,
+    platform === "android" ? abi : null,
+    current,
+    false,
+  );
+  yield* Console.error(`Installing through ${agentDevice}...`);
+  yield* command(agentDevice, ["install", bundleId, artifact.file], false, workspace);
+  if (metro) {
+    const url = encodeURIComponent(metro);
+    yield* command(
+      agentDevice,
+      [
+        "open",
+        bundleId,
+        `supaterm-dev://expo-development-client/?url=${url}&disableOnboarding=1&disableFab=1&disableAutoLaunch=1`,
+      ],
+      false,
+      workspace,
+    );
+  }
+  const seconds = Math.round(((yield* Clock.currentTimeMillis) - started) / 1000);
+  yield* Console.error(
+    `Installed into the agent-device session in ${seconds}s.${metro ? "" : " Open it with Metro: --metro http://<this-machine>:8081."}`,
+  );
+  yield* Console.log(yield* encodeOutput({ status: "installed", fingerprint: current, seconds }));
+});
+
 const main = Command.make(
   "mobile-native-client",
   {
     mode: Argument.Literals("mode", ["check", "ensure"]),
     platform: Argument.Literals("platform", ["ios", "android"]),
     device: Argument.String("device").pipe(Argument.optional),
+    agentDevice: Flag.String("agent-device").pipe(
+      Flag.withDescription(
+        "Install into the device session behind this agentDevice.command from device_open (a cloud or remote host) instead of a local device.",
+      ),
+      Flag.optional,
+    ),
+    abi: Flag.Literals("abi", ["x86_64", "arm64-v8a"]).pipe(
+      Flag.withDescription("With --agent-device, the Android ABI of its device (default x86_64)."),
+      Flag.withDefault("x86_64" as const),
+    ),
+    metro: Flag.String("metro").pipe(
+      Flag.withDescription("With --agent-device, open the dev client against this Metro URL."),
+      Flag.optional,
+    ),
   },
-  Effect.fn("nativeClient.main")(function* ({ mode, platform, device: requested }) {
+  Effect.fn("nativeClient.main")(function* ({
+    mode,
+    platform,
+    device: requested,
+    agentDevice,
+    abi: sessionAbi,
+    metro,
+  }) {
     const started = yield* Clock.currentTimeMillis;
+    if (Option.isSome(agentDevice)) {
+      if (mode !== "ensure" || Option.isSome(requested))
+        return yield* new NativeClientError({
+          message:
+            "--agent-device installs into its device session; use it with ensure and no device id.",
+        });
+      const environment = yield* HostProcess.Environment;
+      const home = environment.HOME ?? environment.USERPROFILE;
+      if (!home)
+        return yield* new NativeClientError({ message: "HOME or USERPROFILE must be set." });
+      return yield* installIntoSession(
+        home,
+        platform,
+        agentDevice.value,
+        sessionAbi,
+        Option.getOrUndefined(metro),
+      );
+    }
     const target = yield* resolveDevice(platform, Option.getOrUndefined(requested));
     const device = target.id;
     yield* Console.error(`Device: ${target.label} (${device})`);
