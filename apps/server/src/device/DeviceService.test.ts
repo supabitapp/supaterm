@@ -55,7 +55,7 @@ it.effect.each([400, 500])(
           ),
         ),
         run: () => Effect.die("Screenshot does not run a command"),
-        androidAvailable: Effect.succeed(false),
+        platforms: Effect.succeed([]),
       });
       const result = yield* operations
         .screenshot({
