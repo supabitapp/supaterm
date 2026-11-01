@@ -43,6 +43,7 @@ import {
   selectPairingEndpoint,
   isTailscaleHttpsEndpoint,
   endpointDefaultPreferenceKey,
+  resolveTailscaleServeBaseUrl,
 } from "./ConnectionsSettings.logic";
 import { SettingsPageContainer, SettingsRow, SettingsSection } from "./settingsLayout";
 import { LocalEnvironmentSetting } from "./LocalEnvironmentSetting";
@@ -351,20 +352,11 @@ export function ConnectionsSettings({ view }: { readonly view: "environments" | 
     parsedTailscaleServePort >= 1 &&
     parsedTailscaleServePort <= 65_535;
 
-  const pendingTailscaleServeBaseUrl = (() => {
-    if (!tailscaleHttpsEndpoint) return null;
-    if (!isTailscaleServePortValid) return tailscaleHttpsEndpoint.httpBaseUrl;
-    if (parsedTailscaleServePort === DEFAULT_TAILSCALE_SERVE_PORT) {
-      return tailscaleHttpsEndpoint.httpBaseUrl;
-    }
-    try {
-      const url = new URL(tailscaleHttpsEndpoint.httpBaseUrl);
-      url.port = String(parsedTailscaleServePort);
-      return url.toString().replace(/\/$/u, "");
-    } catch {
-      return tailscaleHttpsEndpoint.httpBaseUrl;
-    }
-  })();
+  const pendingTailscaleServeBaseUrl = resolveTailscaleServeBaseUrl(
+    tailscaleHttpsEndpoint,
+    parsedTailscaleServePort,
+    isTailscaleServePortValid,
+  );
 
   const handleDesktopServerExposureChange = async (checked: boolean) => {
     if (

@@ -27,6 +27,7 @@ const backgroundThreadId = ThreadId.make("thread:background");
 const oldProviderThreadId = ThreadId.make("thread:old-provider-background");
 const archivedThreadId = ThreadId.make("thread:archived-background");
 const unknownOwnerThreadId = ThreadId.make("thread:unknown-background-owner");
+const sideChatThreadId = ThreadId.make("thread:side-chat");
 
 const backgroundShell = (threadId: ThreadId, providerInstanceId: ProviderInstanceId) => ({
   ...liveThreadShell(threadId, { activeRunId: null }),
@@ -42,6 +43,13 @@ const shells = new Map([
     liveThreadShell(planThreadId, { runtimeMode: "approval-required", interactionMode: "plan" }),
   ],
   [fullAccessThreadId, liveThreadShell(fullAccessThreadId)],
+  [
+    sideChatThreadId,
+    liveThreadShell(sideChatThreadId, {
+      runtimeMode: "approval-required",
+      sideChatOf: supervisedThreadId,
+    }),
+  ],
   [endedThreadId, liveThreadShell(endedThreadId, { activeRunId: null })],
   [backgroundThreadId, backgroundShell(backgroundThreadId, ProviderInstanceId.make("codex"))],
   [oldProviderThreadId, backgroundShell(oldProviderThreadId, ProviderInstanceId.make("claude"))],
@@ -111,9 +119,14 @@ const ProbeToolkit = Toolkit.make(
   Tool.make("reads", probe),
   Tool.make("reads_as_caller", probe),
   Tool.make("acts_as_caller", probe),
+  Tool.make("acts_as_full_thread", probe),
   Tool.make("writes", probe),
   Tool.make("writes_with_capability", probe),
   Tool.make("writes_threads", {
+    ...probe,
+    parameters: Schema.Struct({ threadId: Schema.optional(ThreadId) }),
+  }),
+  Tool.make("forks_threads", {
     ...probe,
     parameters: Schema.Struct({ threadId: Schema.optional(ThreadId) }),
   }),
@@ -131,9 +144,14 @@ const probeHandlers: McpToolAccess.Handlers<typeof ProbeToolkit.tools> = {
   reads: McpToolAccess.reads(() => ran),
   reads_as_caller: McpToolAccess.readsAsCaller(() => ran),
   acts_as_caller: McpToolAccess.actsAsCaller(() => ran),
+  acts_as_full_thread: McpToolAccess.actsAsFullThread(() => ran),
   writes: McpToolAccess.writes(() => ran),
   writes_with_capability: McpToolAccess.writesWithCapability(() => ran),
   writes_threads: McpToolAccess.writesThreads(
+    (input) => [input.threadId],
+    () => ran,
+  ),
+  forks_threads: McpToolAccess.forksThreads(
     (input) => [input.threadId],
     () => ran,
   ),
@@ -177,9 +195,11 @@ export const refusedAtCompileTime = () => {
       reads: unchecked,
       reads_as_caller: unchecked,
       acts_as_caller: unchecked,
+      acts_as_full_thread: unchecked,
       writes: unchecked,
       writes_with_capability: unchecked,
       writes_threads: unchecked,
+      forks_threads: unchecked,
       starts_threads: unchecked,
       writes_environment: unchecked,
     }),
@@ -221,6 +241,7 @@ const background = threadCaller(backgroundThreadId);
 const oldProviderBackground = threadCaller(oldProviderThreadId);
 const archivedBackground = threadCaller(archivedThreadId);
 const unknownOwnerBackground = threadCaller(unknownOwnerThreadId);
+const sideChat = threadCaller(sideChatThreadId);
 const mismatchedProvider = {
   ...background,
   thread: { ...background.thread!, providerInstanceId: ProviderInstanceId.make("claude") },
@@ -283,6 +304,13 @@ it.effect.each([
   ],
   ["writes_threads", supervised, { threadId: "thread:missing" }, "ran"],
 
+  ["acts_as_full_thread", supervised, {}, "ran"],
+  ["acts_as_full_thread", ended, {}, "parent_not_active"],
+  ["acts_as_full_thread", fullAccessClient, {}, "thread_credential_required"],
+  ["forks_threads", supervised, {}, "ran"],
+  ["forks_threads", supervised, { threadId: planThreadId }, "ran"],
+  ["forks_threads", supervised, { threadId: fullAccessThreadId }, "runtime_mode_escalation_denied"],
+
   ["starts_threads", supervised, {}, "approval-required/default"],
   ["starts_threads", supervised, { runtimeMode: "full-access" }, "runtime_mode_escalation_denied"],
   ["starts_threads", plan, {}, "approval-required/plan"],
@@ -298,6 +326,21 @@ it.effect.each([
   ["writes_environment", plan, {}, "capability_denied"],
   ["writes_environment", fullAccessClient, {}, "ran"],
   ["writes_environment", supervisedClient, {}, "capability_denied"],
+
+  ["reads", sideChat, {}, "ran"],
+  ["reads_as_caller", sideChat, {}, "ran"],
+  ["acts_as_caller", sideChat, {}, "ran"],
+  ["writes_with_capability", sideChat, {}, "ran"],
+  ["writes_threads", sideChat, {}, "ran"],
+  ["writes_threads", sideChat, { threadId: sideChatThreadId }, "ran"],
+  ["writes_threads", sideChat, { threadId: supervisedThreadId }, "capability_denied"],
+  ["writes", sideChat, {}, "capability_denied"],
+  ["acts_as_full_thread", sideChat, {}, "capability_denied"],
+  ["forks_threads", sideChat, {}, "capability_denied"],
+  ["forks_threads", sideChat, { threadId: sideChatThreadId }, "capability_denied"],
+  ["forks_threads", sideChat, { threadId: supervisedThreadId }, "capability_denied"],
+  ["starts_threads", sideChat, {}, "capability_denied"],
+  ["writes_environment", sideChat, {}, "capability_denied"],
 ] as const)("%s from %o with %o: %s", ([tool, scope, args, expected]) =>
   call(tool, scope, args).pipe(
     Effect.map((outcome) => expect(outcome).toBe(expected)),

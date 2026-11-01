@@ -1,5 +1,6 @@
 import {
   CommandId,
+  isListedThreadLineage,
   MessageId,
   type OrchestrationV2Notification,
   type PullRequestActivity,
@@ -30,7 +31,11 @@ import * as PullRequestService from "../pullRequest/PullRequestService.ts";
 import { forkParked } from "../serverActivation.ts";
 import * as Orchestrator from "./Orchestrator.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
-import { evaluatePullRequestWatch, pullRequestWatchMessage } from "./pullRequestWatch.ts";
+import {
+  evaluatePullRequestWatch,
+  PULL_REQUEST_WATCH_NO_CHECKS_MS,
+  pullRequestWatchMessage,
+} from "./pullRequestWatch.ts";
 
 /** Checks take minutes; faster sweeps waste the account's shared host quota. */
 const SWEEP_MINUTES = 2;
@@ -128,19 +133,28 @@ function planRead(
   if (last === undefined || group.targets.some((target) => !last.watches.has(watchKey(target)))) {
     return { detail: true, activity: true };
   }
+  // Nothing on the host changes when the no-checks deadline passes, so it alone prompts a read.
+  const checksDue = group.targets.some(
+    ({ watch }) =>
+      watch.checksAwaitedSince != null &&
+      now - Date.parse(watch.checksAwaitedSince) >= PULL_REQUEST_WATCH_NO_CHECKS_MS,
+  );
   if (fingerprint === null) {
     const read =
       last.inFlight ||
       !last.remarksComplete ||
       last.fingerprint !== group.fingerprint ||
       now - last.at >= QUIET_REREAD_MS;
-    return { detail: read, activity: read };
+    return { detail: read || checksDue, activity: read };
   }
   const activity =
     last.remarks !== fingerprint.remarks ||
     !last.remarksComplete ||
     now - last.at >= FINGERPRINT_REREAD_MS;
-  return { detail: activity || last.status !== fingerprint.status || last.inFlight, activity };
+  return {
+    detail: activity || checksDue || last.status !== fingerprint.status || last.inFlight,
+    activity,
+  };
 }
 
 function watchesEqual(left: ThreadPullRequestWatch, right: ThreadPullRequestWatch): boolean {
@@ -388,7 +402,7 @@ export const make = Effect.gen(function* () {
       ? "merged"
       : thread.doneOverride === "done" || thread.doneAt !== null
         ? "done"
-        : thread.lineage.relationshipToParent === "subagent"
+        : !isListedThreadLineage(thread.lineage)
           ? "subagent"
           : undefined;
 

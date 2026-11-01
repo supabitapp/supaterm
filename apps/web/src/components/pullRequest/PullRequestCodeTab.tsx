@@ -83,6 +83,7 @@ import { DiffPanelLoadingState } from "../DiffPanelShell";
 import { useDiffWorkerPool } from "../DiffWorkerPoolProvider";
 import { DiffCommentAnnotation } from "../diffs/DiffCommentAnnotation";
 import { DiffFileTree } from "../diffs/DiffFileTree";
+import { FilePreviewSplit, PR_CODE_FILE_TREE_SIZING } from "../files/FileExplorerPane";
 import { useCodeViewFileReveal } from "../diffs/useCodeViewFileReveal";
 import { useHideTestFiles } from "../diffs/useHideTestFiles";
 import { diffFileTreeEntries, orderDiffFilesLikeTree } from "../diffs/diffFileTree.logic";
@@ -1487,90 +1488,93 @@ function PullRequestCodeTab({
           </Collapsible>
         </div>
       ) : null}
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        <div
-          className="relative min-h-0 min-w-0 flex-1"
-          // The header lives in the viewer's shadow tree, so the capture listener walks
-          // `composedPath` — the only way to see through the shadow boundary.
-          onClickCapture={(event) => {
-            const composedPath = event.nativeEvent.composedPath?.() ?? [];
-            for (const node of composedPath) {
-              if (!(node instanceof HTMLElement)) continue;
-              // A control inside the header — the collapse chevron — handles itself, and
-              // this capture listener fires before its own click does. Leave it alone or
-              // the two toggles cancel out.
-              if (node instanceof HTMLButtonElement || node instanceof HTMLAnchorElement) {
-                return;
+      <FilePreviewSplit
+        showContent
+        showExplorer={fileTreeOpen}
+        sizing={PR_CODE_FILE_TREE_SIZING}
+        content={
+          <div
+            className="relative min-h-0 min-w-0 flex-1"
+            // The header lives in the viewer's shadow tree, so the capture listener walks
+            // `composedPath` — the only way to see through the shadow boundary.
+            onClickCapture={(event) => {
+              const composedPath = event.nativeEvent.composedPath?.() ?? [];
+              for (const node of composedPath) {
+                if (!(node instanceof HTMLElement)) continue;
+                // A control inside the header — the collapse chevron — handles itself, and
+                // this capture listener fires before its own click does. Leave it alone or
+                // the two toggles cancel out.
+                if (node instanceof HTMLButtonElement || node instanceof HTMLAnchorElement) {
+                  return;
+                }
+                if (node.hasAttribute("data-viewed-toggle")) return;
+                if (node.hasAttribute("data-diffs-header")) {
+                  const filePath = node.querySelector("[data-title]")?.textContent?.trim();
+                  if (filePath === undefined || filePath === "") return;
+                  const item = items.find(
+                    (candidate) => resolveFileDiffPath(candidate.fileDiff) === filePath,
+                  );
+                  if (item !== undefined) toggleFile(item.id);
+                  return;
+                }
               }
-              if (node.hasAttribute("data-viewed-toggle")) return;
-              if (node.hasAttribute("data-diffs-header")) {
-                const filePath = node.querySelector("[data-title]")?.textContent?.trim();
-                if (filePath === undefined || filePath === "") return;
-                const item = items.find(
-                  (candidate) => resolveFileDiffPath(candidate.fileDiff) === filePath,
-                );
-                if (item !== undefined) toggleFile(item.id);
-                return;
-              }
-            }
-          }}
-        >
-          {/* The viewer virtualizes against the element it is told is scrolling and places its
+            }}
+          >
+            {/* The viewer virtualizes against the element it is told is scrolling and places its
               rows absolutely, so it has to own that element — the thread diff panel hands it the
               same one. Scrolling from a parent instead leaves it painting over its neighbours. */}
-          <FileViewedToggleContext value={fileViewedToggle}>
-            <StyledDiffCodeView<ReviewAnnotationGroup>
-              className="@container h-full overflow-auto [scrollbar-gutter:stable]"
-              containerRef={scrollerRef}
-              viewerRef={codeViewReveal.attach}
-              items={items}
-              selectedLines={selectedLines}
-              onSelectedLinesChange={setSelectedLines}
-              options={diffViewOptions}
-              renderCodeViewFooter={renderCodeViewFooter}
-              renderHeaderPrefix={renderHeaderPrefix}
-              renderHeaderMetadata={renderHeaderMetadata}
-              renderAnnotation={(...args) => renderAnnotation(args[0])}
-              // Find can ask again before the unfolded file arrives, so this unfolds and never folds.
-              onRevealSearchMatch={(item) =>
-                setToggledFiles((current) =>
-                  toggleFileDiffFoldForViewed(item.id, false, effectiveFoldOverride, current),
-                )
-              }
-              unsafeCSSExtra={REPLACE_FILE_COUNTS_CSS}
-            />
-          </FileViewedToggleContext>
-        </div>
-        {fileTreeOpen ? (
-          <aside className="flex w-[min(20rem,40%)] min-w-48 shrink-0 border-l border-border/60">
-            <DiffFileTree
-              ariaLabel={`${capitalizeTerm(term)} #${detail.number} files`}
-              entries={fileTreeEntries}
-              onSelectFile={revealFile}
-              footer={
-                nextCursor === null ? null : (
-                  <div className="shrink-0 border-t border-border/60 p-2">
-                    <Button
-                      type="button"
-                      size="xs"
-                      variant="outline"
-                      className="w-full"
-                      disabled={diffQuery.isPending}
-                      onClick={diffQuery.error !== null ? () => diffQuery.refresh() : loadNextSlice}
-                    >
-                      {diffQuery.error !== null
-                        ? "Retry"
-                        : diffQuery.isPending
-                          ? "Loading more files..."
-                          : "Load more files"}
-                    </Button>
-                  </div>
-                )
-              }
-            />
-          </aside>
-        ) : null}
-      </div>
+            <FileViewedToggleContext value={fileViewedToggle}>
+              <StyledDiffCodeView<ReviewAnnotationGroup>
+                className="@container h-full overflow-auto [scrollbar-gutter:stable]"
+                containerRef={scrollerRef}
+                viewerRef={codeViewReveal.attach}
+                items={items}
+                selectedLines={selectedLines}
+                onSelectedLinesChange={setSelectedLines}
+                options={diffViewOptions}
+                renderCodeViewFooter={renderCodeViewFooter}
+                renderHeaderPrefix={renderHeaderPrefix}
+                renderHeaderMetadata={renderHeaderMetadata}
+                renderAnnotation={(...args) => renderAnnotation(args[0])}
+                // Find can ask again before the unfolded file arrives, so this unfolds and never folds.
+                onRevealSearchMatch={(item) =>
+                  setToggledFiles((current) =>
+                    toggleFileDiffFoldForViewed(item.id, false, effectiveFoldOverride, current),
+                  )
+                }
+                unsafeCSSExtra={REPLACE_FILE_COUNTS_CSS}
+              />
+            </FileViewedToggleContext>
+          </div>
+        }
+        explorer={
+          <DiffFileTree
+            ariaLabel={`${capitalizeTerm(term)} #${detail.number} files`}
+            entries={fileTreeEntries}
+            onSelectFile={revealFile}
+            footer={
+              nextCursor === null ? null : (
+                <div className="shrink-0 border-t border-border/60 p-2">
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant="outline"
+                    className="w-full"
+                    disabled={diffQuery.isPending}
+                    onClick={diffQuery.error !== null ? () => diffQuery.refresh() : loadNextSlice}
+                  >
+                    {diffQuery.error !== null
+                      ? "Retry"
+                      : diffQuery.isPending
+                        ? "Loading more files..."
+                        : "Load more files"}
+                  </Button>
+                </div>
+              )
+            }
+          />
+        }
+      />
       {unstructured}
     </div>
   );

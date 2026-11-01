@@ -174,7 +174,15 @@ export function backgroundWorkBannerItem(input: {
       />
     ),
     iconInteractive: watchedRun.run !== null,
-    title: <BackgroundWorkTitle {...watchedRun} title={presentation.title} />,
+    title:
+      presentation.items.length === 1 &&
+      (presentation.items[0]?.kind === "command" || presentation.items[0]?.kind === "monitor") ? (
+        <span className="in-data-[slot=popover-popup]:whitespace-pre-wrap">
+          <BackgroundWorkTitle {...watchedRun} title={presentation.title} />
+        </span>
+      ) : (
+        <BackgroundWorkTitle {...watchedRun} title={presentation.title} />
+      ),
     description:
       presentation.items.length === 1 && presentation.items[0]?.childThreadId === undefined
         ? undefined

@@ -820,7 +820,7 @@ const make = Effect.gen(function* () {
         client: toClientMetadata(row.value.client),
         expiresAt: expiresAt.value,
         subject: claims.sub,
-        scopes: claims.scopes,
+        scopes: row.value.scopes,
         ...(claims.rtc ? { runtimeModeCeiling: claims.rtc } : {}),
       } satisfies VerifiedSession;
     },

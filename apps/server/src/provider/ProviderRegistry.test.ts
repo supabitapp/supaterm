@@ -1,3 +1,4 @@
+import * as CodexErrors from "effect-codex-app-server/errors";
 import { vi } from "vite-plus/test";
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import * as CodexInstallation from "./CodexInstallation.ts";
@@ -11,7 +12,9 @@ import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
+import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as Path from "effect/Path";
 import * as PubSub from "effect/PubSub";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
@@ -35,6 +38,7 @@ import {
 } from "@supaterm/contracts";
 import { HttpClient, HttpClientResponse } from "effect/http";
 import { ChildProcessSpawner } from "effect/process";
+import * as HostProcess from "@supaterm/shared/HostProcess";
 import { deepMerge } from "@supaterm/shared/Struct";
 import { createModelCapabilities } from "@supaterm/shared/model";
 import { applyServerSettingsPatch } from "@supaterm/shared/serverSettings";
@@ -88,6 +92,7 @@ const disabledDefaultSlots = (
   );
 
 const defaultClaudeSettings: ClaudeSettings = Schema.decodeSync(ClaudeSettings)({});
+const decodeCodexSettings = Schema.decodeSync(CodexSettings);
 const defaultCodexSettings: CodexSettings = Schema.decodeSync(CodexSettings)({});
 
 process.env.SUPATERM_CURSOR_ENABLED = "1";
@@ -212,6 +217,20 @@ function layerMockSpawner(
   );
 }
 
+// A Codex CLI on disk whose `app-server` and `--version` behave as `script` says.
+const writeFakeCodexCli = Effect.fn("writeFakeCodexCli")(function* (script: string) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const directory = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-fake-codex-" });
+  const binaryPath = path.join(directory, "codex");
+  yield* fs.writeFileString(binaryPath, `#!/bin/sh\n${script}\n`);
+  yield* fs.chmod(binaryPath, 0o755);
+  return { directory, binaryPath };
+});
+
+// The npm `@openai/codex` 0.1 CLI treats `app-server` as a prompt and exits 1.
+const OBSOLETE_CODEX_APP_SERVER = `echo "Missing OpenAI API key." >&2; exit 1`;
+
 const codexModelCapabilities = createModelCapabilities({
   optionDescriptors: [
     selectDescriptor("reasoningEffort", "Reasoning", [
@@ -317,6 +336,13 @@ const layerTestNodeServices = Layer.mergeAll(
   Layer.succeed(ServerEnvironment.ServerEnvironmentIdentity, {
     getEnvironmentId: Effect.succeed(EnvironmentId.make("00000000-0000-4000-8000-000000000001")),
   }),
+  // An empty home, so the developer's own Claude settings never reach provider probes.
+  Layer.effect(
+    HostProcess.HomeDirectory,
+    Effect.gen(function* () {
+      return yield* (yield* FileSystem.FileSystem).makeTempDirectoryScoped();
+    }),
+  ).pipe(Layer.provide(NodeServices.layer)),
 );
 
 it.layer(
@@ -380,6 +406,28 @@ it.layer(
       }),
     );
 
+    it.effect("labels the plan the usage read reports over the cached login plan", () =>
+      Effect.gen(function* () {
+        const statusWithUsagePlan = (planType: string | null) =>
+          checkCodexProviderStatus(defaultCodexSettings, () =>
+            Effect.succeed(
+              makeCodexProbeSnapshot({
+                rateLimits: { snapshot: { planType }, resetCredits: null },
+              }),
+            ),
+          );
+
+        const downgraded = yield* statusWithUsagePlan("free");
+        assert.strictEqual(downgraded.auth.label, "ChatGPT Free Subscription");
+
+        const unreported = yield* statusWithUsagePlan(null);
+        assert.strictEqual(unreported.auth.label, "ChatGPT Pro 200 Subscription");
+
+        const unknown = yield* statusWithUsagePlan("unknown");
+        assert.strictEqual(unknown.auth.label, "ChatGPT Pro 200 Subscription");
+      }),
+    );
+
     it.effect("returns unauthenticated when app-server requires OpenAI auth", () =>
       Effect.gen(function* () {
         const status = yield* checkCodexProviderStatus(defaultCodexSettings, () =>
@@ -421,6 +469,137 @@ it.layer(
 
         assert.strictEqual(status.status, "ready");
         assert.strictEqual(status.auth.status, "unknown");
+      }),
+    );
+
+    it.effect("reads the version of a Codex CLI too old to run app-server (#20351)", () =>
+      Effect.gen(function* () {
+        if ((yield* HostProcess.Platform) === "win32") return;
+        const codexHome = yield* FileSystem.FileSystem.pipe(
+          Effect.flatMap((fs) => fs.makeTempDirectoryScoped({ prefix: "supaterm-codex-home-" })),
+        );
+        const { binaryPath } = yield* writeFakeCodexCli(
+          [
+            `if [ "$1" = "--version" ]; then`,
+            // The fallback runs with the provider's environment and CODEX_HOME.
+            `  [ "$CODEX_HOME" = "${codexHome}" ] && [ "$FAKE_CODEX_ENV" = "kept" ] || exit 2`,
+            `  echo 0.1.4161006; exit 0`,
+            `fi`,
+            OBSOLETE_CODEX_APP_SERVER,
+          ].join("\n"),
+        );
+        const settings = decodeCodexSettings({ binaryPath, homePath: codexHome });
+
+        const status = yield* checkCodexProviderStatus(settings, undefined, {
+          ...process.env,
+          FAKE_CODEX_ENV: "kept",
+        });
+
+        assert.strictEqual(status.status, "error");
+        assert.strictEqual(status.installed, true);
+        assert.strictEqual(status.version, "0.1.4161006");
+        assert.match(status.message ?? "", /^Codex app-server provider probe failed: /);
+        const classified = withBundledCompatibility({
+          ...status,
+          instanceId: ProviderInstanceId.make("codex"),
+          driver: ProviderDriverKind.make("codex"),
+        });
+        assert.strictEqual(classified.compatibilityAdvisory?.status, "broken");
+      }),
+    );
+
+    it.effect("keeps a prerelease --version unclassified instead of reading it as stable", () =>
+      Effect.gen(function* () {
+        if ((yield* HostProcess.Platform) === "win32") return;
+        const { binaryPath } = yield* writeFakeCodexCli(
+          [
+            `[ "$1" = "--version" ] && { echo "codex-cli 0.159.0-alpha.1"; exit 0; }`,
+            OBSOLETE_CODEX_APP_SERVER,
+          ].join("\n"),
+        );
+
+        const status = yield* checkCodexProviderStatus(decodeCodexSettings({ binaryPath }));
+
+        assert.strictEqual(status.version, "0.159.0-alpha.1");
+        const classified = withBundledCompatibility({
+          ...status,
+          instanceId: ProviderInstanceId.make("codex"),
+          driver: ProviderDriverKind.make("codex"),
+        });
+        assert.strictEqual(classified.compatibilityAdvisory?.status, "unknown");
+      }),
+    );
+
+    it.effect("keeps the probe failure without a version when --version also fails", () =>
+      Effect.gen(function* () {
+        if ((yield* HostProcess.Platform) === "win32") return;
+        const { binaryPath } = yield* writeFakeCodexCli(
+          [
+            `[ "$1" = "--version" ] && { echo "codex 0.1.0" >&2; exit 3; }`,
+            OBSOLETE_CODEX_APP_SERVER,
+          ].join("\n"),
+        );
+
+        const status = yield* checkCodexProviderStatus(decodeCodexSettings({ binaryPath }));
+
+        assert.strictEqual(status.status, "error");
+        assert.strictEqual(status.installed, true);
+        assert.strictEqual(status.version, null);
+        assert.match(status.message ?? "", /^Codex app-server provider probe failed: /);
+      }),
+    );
+
+    it.effect("bounds a hanging Codex --version fallback and releases its process scope", () =>
+      Effect.gen(function* () {
+        const started = yield* Deferred.make<void>();
+        const released = yield* Deferred.make<void>();
+        const spawner = ChildProcessSpawner.make(() =>
+          Effect.gen(function* () {
+            yield* Effect.addFinalizer(() => Deferred.succeed(released, undefined));
+            return ChildProcessSpawner.makeHandle({
+              ...mockHandle({ stdout: "", stderr: "", code: 0 }),
+              exitCode: Deferred.succeed(started, undefined).pipe(Effect.andThen(Effect.never)),
+            });
+          }),
+        );
+        const fiber = yield* checkCodexProviderStatus(defaultCodexSettings, () =>
+          Effect.fail(new CodexErrors.CodexAppServerProcessExitedError({ code: 1 })),
+        ).pipe(
+          Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
+          Effect.forkChild,
+        );
+        yield* Deferred.await(started);
+        yield* TestClock.adjust("4 seconds");
+        const status = yield* Fiber.join(fiber);
+        assert.strictEqual(status.version, null);
+        assert.strictEqual(status.status, "error");
+        assert.strictEqual(status.installed, true);
+        assert.match(status.message ?? "", /^Codex app-server provider probe failed: /);
+        assert.isTrue(yield* Deferred.isDone(released));
+      }),
+    );
+
+    it.effect("does not run --version when the Codex executable cannot start", () =>
+      Effect.gen(function* () {
+        if ((yield* HostProcess.Platform) === "win32") return;
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const { directory, binaryPath } = yield* writeFakeCodexCli(
+          `touch "$(dirname "$0")/ran"; echo 0.1.4161006`,
+        );
+
+        const status = yield* checkCodexProviderStatus(decodeCodexSettings({ binaryPath }), () =>
+          Effect.fail(
+            new CodexErrors.CodexAppServerSpawnError({
+              command: `${binaryPath} app-server`,
+              cause: new Error("spawn ENOENT"),
+            }),
+          ),
+        );
+
+        assert.strictEqual(status.installed, false);
+        assert.strictEqual(status.version, null);
+        assert.isFalse(yield* fs.exists(path.join(directory, "ran")));
       }),
     );
   });
@@ -2418,6 +2597,42 @@ it.layer(
       ),
     );
 
+    it.effect("tells a logged-out CLI which models need a Claude Code update", () =>
+      Effect.gen(function* () {
+        const status = yield* checkClaudeProviderStatus(
+          defaultClaudeSettings,
+          claudeCapabilities({
+            tokenSource: "none",
+            apiKeySource: "none",
+            apiProvider: "firstParty",
+          }),
+          { ANTHROPIC_BASE_URL: "" },
+          undefined,
+          {
+            models: [
+              {
+                model: { slug: "claude-next", name: "Next", isCustom: false, capabilities: null },
+                runtime: {},
+                compatibility: { minVersion: "1.1.0" },
+              },
+            ],
+          },
+        );
+        assert.strictEqual(status.auth.status, "unauthenticated");
+        assert.deepStrictEqual(status.updateRequiredModels, [
+          { slug: "claude-next", name: "Next", minVersion: "1.1.0" },
+        ]);
+      }).pipe(
+        Effect.provide(
+          layerMockSpawner((args) => {
+            const joined = args.join(" ");
+            if (joined === "--version") return { stdout: "1.0.0\n", stderr: "", code: 0 };
+            throw new Error(`Unexpected args: ${joined}`);
+          }),
+        ),
+      ),
+    );
+
     it.effect.each([
       { source: "inherited HTTPS endpoint", baseUrl: "https://proxy.example/api", overrides: [] },
       {
@@ -2454,6 +2669,68 @@ it.layer(
           }),
         ),
       ),
+    );
+
+    it.effect.each([
+      {
+        settings: { env: { ANTHROPIC_BASE_URL: "https://hub.example.ts.net:8317" } },
+        baseUrl: "https://api.anthropic.com",
+        type: "customEndpoint",
+        label: "Custom API endpoint",
+      },
+      {
+        settings: { env: { ANTHROPIC_BASE_URL: "https://api.anthropic.com" } },
+        baseUrl: "https://proxy.example",
+        type: "apiKey",
+        label: "Claude API Key",
+      },
+      {
+        settings: {},
+        baseUrl: "https://proxy.example",
+        type: "customEndpoint",
+        label: "Custom API endpoint",
+      },
+    ])(
+      "uses the settings endpoint before the process endpoint: $type / $baseUrl",
+      ({ settings, baseUrl, type, label }) =>
+        Effect.gen(function* () {
+          const fileSystem = yield* FileSystem.FileSystem;
+          const path = yield* Path.Path;
+          const configDir = yield* fileSystem.makeTempDirectoryScoped({
+            prefix: "supaterm-claude-settings-",
+          });
+          yield* fileSystem.writeFileString(
+            path.join(configDir, "settings.json"),
+            JSON.stringify(settings),
+          );
+          const stateDir = yield* fileSystem.makeTempDirectoryScoped();
+          yield* fileSystem.makeDirectory(path.join(stateDir, ".claude"));
+          yield* fileSystem.writeFileString(
+            path.join(stateDir, ".claude", "settings.json"),
+            JSON.stringify({ env: { ANTHROPIC_BASE_URL: "https://state-dir.example" } }),
+          );
+          const status = yield* checkClaudeProviderStatus(
+            { ...defaultClaudeSettings, homePath: configDir },
+            claudeCapabilities({
+              tokenSource: "ANTHROPIC_AUTH_TOKEN",
+              apiKeySource: "none",
+              apiProvider: "firstParty",
+            }),
+            { ANTHROPIC_BASE_URL: baseUrl },
+            stateDir,
+          );
+          assert.strictEqual(status.status, "ready");
+          assert.strictEqual(status.auth.type, type);
+          assert.strictEqual(status.auth.label, label);
+        }).pipe(
+          Effect.provide(
+            layerMockSpawner((args) => {
+              const joined = args.join(" ");
+              if (joined === "--version") return { stdout: "1.0.0\n", stderr: "", code: 0 };
+              throw new Error(`Unexpected args: ${joined}`);
+            }),
+          ),
+        ),
     );
 
     it.effect.each([
@@ -2582,26 +2859,38 @@ it.layer(
         ),
     );
 
-    it.effect("doesn't offer transcription to a subscription behind a custom endpoint", () =>
-      Effect.gen(function* () {
-        const status = yield* checkClaudeProviderStatus(
-          defaultClaudeSettings,
-          claudeCapabilities({ subscriptionType: "Claude Max" }),
-          { ANTHROPIC_BASE_URL: "https://proxy.example/api" },
-        );
-        assert.deepStrictEqual(status.transcription, {
-          status: "unavailable",
-          reason: "unsupportedLogin",
-        });
-      }).pipe(
-        Effect.provide(
-          layerMockSpawner((args) => {
-            const joined = args.join(" ");
-            if (joined === "--version") return { stdout: "1.0.0\n", stderr: "", code: 0 };
-            throw new Error(`Unexpected args: ${joined}`);
-          }),
+    it.effect.each(["process environment", "Claude settings"] as const)(
+      "doesn't offer transcription to a subscription behind a custom endpoint from %s",
+      (source) =>
+        Effect.gen(function* () {
+          const fileSystem = yield* FileSystem.FileSystem;
+          const path = yield* Path.Path;
+          const configDir = yield* fileSystem.makeTempDirectoryScoped();
+          const proxy = "https://proxy.example/api";
+          if (source === "Claude settings") {
+            yield* fileSystem.writeFileString(
+              path.join(configDir, "settings.json"),
+              JSON.stringify({ env: { ANTHROPIC_BASE_URL: proxy } }),
+            );
+          }
+          const status = yield* checkClaudeProviderStatus(
+            { ...defaultClaudeSettings, homePath: configDir },
+            claudeCapabilities({ subscriptionType: "Claude Max" }),
+            { ANTHROPIC_BASE_URL: source === "process environment" ? proxy : "" },
+          );
+          assert.deepStrictEqual(status.transcription, {
+            status: "unavailable",
+            reason: "unsupportedLogin",
+          });
+        }).pipe(
+          Effect.provide(
+            layerMockSpawner((args) => {
+              const joined = args.join(" ");
+              if (joined === "--version") return { stdout: "1.0.0\n", stderr: "", code: 0 };
+              throw new Error(`Unexpected args: ${joined}`);
+            }),
+          ),
         ),
-      ),
     );
 
     it.effect("keeps a CLI that says nothing about its account authenticated", () =>

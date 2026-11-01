@@ -1,4 +1,9 @@
-import type { EnvironmentId, ScopedThreadRef, ThreadId } from "@supaterm/contracts";
+import {
+  isListedThreadLineage,
+  type EnvironmentId,
+  type ScopedThreadRef,
+  type ThreadId,
+} from "@supaterm/contracts";
 import {
   foldSearchQuery,
   rankSearchItems,
@@ -23,7 +28,7 @@ export interface ComposerThreadItem {
 
 /**
  * Threads to reference from the composer, matched and ranked like the command
- * palette, without subagent threads. The agent can only read threads on its
+ * palette, without subagent or side chat threads. The agent can only read threads on its
  * own server, so candidates stay within the composer's environment.
  */
 export function matchComposerThreadItems(input: {
@@ -41,7 +46,7 @@ export function matchComposerThreadItems(input: {
       shell.environmentId === input.environmentId &&
       shell.id !== input.excludeThreadId &&
       shell.archivedAt === null &&
-      shell.lineage.relationshipToParent !== "subagent",
+      isListedThreadLineage(shell.lineage),
   );
   return rankSearchItems(candidates, (shell, options) =>
     scoreThreadSearch(query, threadSearchSubject(shell, null), input.now, {

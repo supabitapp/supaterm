@@ -129,6 +129,7 @@ function UsageLimitsBannerBody({
                 <LimitWindows
                   compact
                   driver={account.driver}
+                  accentColor={account.accentColor}
                   windows={account.limits.windows}
                   now={now}
                 />

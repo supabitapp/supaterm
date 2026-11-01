@@ -60,7 +60,8 @@ const OrchestratorMcpSchedule = Schema.Union([
   ScheduledTaskSchedule,
   OrchestratorMcpScheduleFromJsonString,
 ]).annotate({
-  description: "Trigger: {type:'interval',everyMs} or {type:'fixed_time',timeOfDay,weekdays?}.",
+  description:
+    "Trigger: {type:'interval',everyMs}, {type:'fixed_time',timeOfDay,weekdays?}, or {type:'once',runAt}.",
 });
 
 /**

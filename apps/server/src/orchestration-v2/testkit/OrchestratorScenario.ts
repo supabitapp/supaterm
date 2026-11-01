@@ -157,6 +157,7 @@ function commandThreadIds(command: OrchestrationV2Command): ReadonlyArray<Thread
     case "thread.workflow-run.unwatch":
     case "thread.pull-request.sync":
     case "thread.title.regeneration.complete":
+    case "thread.side-chat.promote":
     case "thread.runtime-mode.set":
     case "thread.interaction-mode.set":
     case "thread.model-selection.set":

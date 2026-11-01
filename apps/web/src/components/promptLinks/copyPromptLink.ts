@@ -14,7 +14,10 @@ import {
 import { type ComposerThreadTarget, useComposerDraftStore } from "~/composerDraftStore";
 import { writeTextToClipboard } from "~/hooks/useCopyToClipboard";
 import { configuredHostedAppUrl } from "~/hostedPairing";
-import { replaceComposerContextReferences } from "@supaterm/shared/composerContextReferences";
+import {
+  isAttachmentOnlyBootstrapPrompt,
+  replaceComposerContextReferences,
+} from "@supaterm/shared/composerContextReferences";
 
 import { stackedThreadToast, toastManager } from "../ui/toast";
 
@@ -27,7 +30,9 @@ export function promptLinkFor(
     readonly model: string | null;
   },
 ): string | null {
-  const trimmed = replaceComposerContextReferences(prompt, (reference) => reference.label).trim();
+  const trimmed = isAttachmentOnlyBootstrapPrompt(prompt)
+    ? ""
+    : replaceComposerContextReferences(prompt, (reference) => reference.label).trim();
   if (trimmed.length === 0 || trimmed.length > PROMPT_LINK_MAX_PROMPT_LENGTH) return null;
   return buildNewThreadLink({ prompt: trimmed, ...context, origin: configuredHostedAppUrl() });
 }

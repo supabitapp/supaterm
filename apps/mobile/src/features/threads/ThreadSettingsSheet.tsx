@@ -38,7 +38,12 @@ import * as Haptics from "expo-haptics";
 import { AsyncResult } from "effect/reactivity";
 import { createContext, use, useEffectEvent, useRef, useState, type ReactNode } from "react";
 import { Platform, Pressable, RefreshControl, ScrollView, TextInput, View } from "react-native";
-import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
+import Animated, {
+  FadeIn,
+  FadeOut,
+  LinearTransition,
+  useReducedMotion,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SymbolView } from "../../components/ui/AppSymbol";
@@ -49,6 +54,7 @@ import { IconButton } from "../../components/ui/IconButton";
 import { ProviderIcon } from "../../components/ProviderIcon";
 import { ThemedSwitch } from "../../components/ui/ThemedSwitch";
 import { cn } from "../../lib/cn";
+import { useReducedMotionPreference } from "../../lib/useReducedMotionPreference";
 import {
   buildModelOptions,
   groupByProvider,
@@ -266,6 +272,8 @@ type ThreadSettingsSessionProps = {
   readonly onUpdateOptionSelections: (selections: ReadonlyArray<ProviderOptionSelection>) => void;
   readonly runtimeMode: RuntimeMode;
   readonly onUpdateRuntimeMode: (mode: RuntimeMode) => void;
+  /** A side chat asks before it acts until it is promoted. */
+  readonly runtimeModeLocked?: boolean;
 };
 
 /** The composer draft the sheet edits: the thread's own, or a queued message being edited. */
@@ -463,7 +471,7 @@ function ThreadSettingsSessionProvider(
     null;
   const runtimeModeChoices = runtimeModeChoicesForSupportedModes(
     displayedModel?.supportedRuntimeModes,
-  );
+  ).filter((choice) => !props.runtimeModeLocked || choice.mode === "approval-required");
   const compatibleRuntimeMode = compatibleRuntimeModeForChoices(
     props.runtimeMode,
     runtimeModeChoices,
@@ -511,12 +519,10 @@ function ThreadSettingsSessionProvider(
           props.onPromptChange(change.prompt);
         }
       }
-      if (!("modelOptions" in change)) return;
     }
-    const next =
-      change && "modelOptions" in change
-        ? (change.modelOptions ?? [])
-        : applyProviderOptionSelection(displayedDescriptors, { id, value });
+    const next = change
+      ? (change.modelOptions ?? [])
+      : applyProviderOptionSelection(displayedDescriptors, { id, value });
     if (!next) {
       return;
     }
@@ -944,7 +950,11 @@ function ThreadSettingsMainContent(props: {
       if (error) Dialog.alert("Could not refresh models", error);
     });
   };
-  const [animationsReady, setAnimationsReady] = useState(false);
+  const [listLoaded, setListLoaded] = useState(false);
+  // Android can drop the first frame of a reduced-motion fade, leaving rows invisible.
+  const reducedMotion = useReducedMotion();
+  const reduceMotionEnabled = useReducedMotionPreference();
+  const animationsReady = listLoaded && !reducedMotion && !reduceMotionEnabled;
   const catalogItems = buildThreadSettingsCatalogItems(session);
   const hasActiveCatalogFilter =
     session.providerFilter !== null || session.searchQuery.trim().length > 0;
@@ -1077,7 +1087,7 @@ function ThreadSettingsMainContent(props: {
           <RefreshControl refreshing={isRefreshingProviders} onRefresh={refreshProviders} />
         ) : undefined
       }
-      onLoad={() => setAnimationsReady(true)}
+      onLoad={() => setListLoaded(true)}
       renderItem={renderCatalogItem}
       showsVerticalScrollIndicator={false}
     />
@@ -1570,6 +1580,7 @@ export function ExistingThreadSettingsRouteScreen({
       }}
       runtimeMode={draftSettings.runtimeMode ?? selectedThread.runtimeMode}
       onUpdateRuntimeMode={(runtimeMode) => updateComposerDraftSettings(threadKey, { runtimeMode })}
+      runtimeModeLocked={selectedThread.lineage.sideChat === true}
       onClose={() => navigation.goBack()}
     />
   );

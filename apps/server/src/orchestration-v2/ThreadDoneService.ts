@@ -375,11 +375,29 @@ export const make = Effect.gen(function* () {
 
     const lookupCandidates = (yield* Effect.forEach(
       candidates,
-      (thread) => markThreadDone(thread, null),
+      (thread) => {
+        const projectSettings = resolveProjectSettings(settings, thread.projectId).settings;
+        // Skip no-op decisions; marking done still reads fresh settings before dispatch.
+        const doneAt = resolveAutoMarkDoneAt({
+          thread,
+          pullRequest: null,
+          nowMs,
+          autoMarkDoneAfterDays: projectSettings.sidebarAutoMarkDoneAfterDays,
+          autoMarkDoneOnMerge: projectSettings.sidebarAutoMarkDoneOnMerge,
+          autoMarkDoneKeepPullRequests: projectSettings.sidebarAutoMarkDoneKeepPullRequests,
+        });
+        return doneAt === null ? Effect.succeed(thread) : markThreadDone(thread, null);
+      },
       { concurrency: 8 },
     ))
       .filter((thread) => thread !== null)
-      .filter((thread) => visibleThreadPullRequests(thread.pullRequests ?? []).length === 0);
+      .filter((thread) => visibleThreadPullRequests(thread.pullRequests ?? []).length === 0)
+      .filter(
+        (thread) =>
+          thread.branch !== null ||
+          thread.linkedPullRequest != null ||
+          thread.branchPullRequest != null,
+      );
     const lookupCwdByThreadId = new Map<string, string>();
     yield* Effect.forEach(
       lookupCandidates,

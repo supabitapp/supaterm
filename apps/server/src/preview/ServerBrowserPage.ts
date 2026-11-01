@@ -608,6 +608,7 @@ const capture = async (
     });
   return {
     ...page,
+    url: withoutDataPayload(page.url),
     // Text that holds a value would otherwise show where the tree masked it. Masked before
     // the cut, so a value crossing it can't leave its start showing.
     visibleText: mask(page.visibleText).slice(0, MAX_VISIBLE_TEXT_LENGTH),
@@ -925,7 +926,8 @@ const NET_ERROR_CODES: Readonly<Record<string, number>> = {
 };
 
 export const parseNetError = (errorText: string) => {
-  const description = /ERR_[A-Z_]+/.exec(errorText)?.[0] ?? errorText;
+  // Names can hold digits, as in ERR_HTTP2_PROTOCOL_ERROR.
+  const description = /ERR_[A-Z\d_]+/.exec(errorText)?.[0] ?? errorText;
   return { description, code: NET_ERROR_CODES[description] ?? -2 };
 };
 

@@ -35,7 +35,6 @@ const makeEnvironment = (path: Path.Path, overrides: Record<string, unknown> = {
     isDevelopment: false,
     displayName: "Supaterm",
     linuxDesktopEntryName: "com.supaterm.desktop.desktop",
-    linuxWmClass: "supaterm",
     linuxApplicationsDir: "/home/alice/.local/share/applications",
     desktopLauncherPath: Option.none(),
     appImagePath: Option.some("/home/alice/Applications/Supaterm.AppImage"),

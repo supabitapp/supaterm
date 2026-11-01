@@ -1,9 +1,15 @@
-import type { EnvironmentId, EnvironmentMachineKind } from "@supaterm/contracts";
+import type {
+  EnvironmentId,
+  EnvironmentMachineKind,
+  ResolvedKeybindingsConfig,
+} from "@supaterm/contracts";
 import { CheckIcon, FolderIcon, SettingsIcon } from "@supaterm/icons";
 import type { KeyboardEvent, MouseEvent } from "react";
+import { shortcutLabelForCommand } from "~/keybindings";
 import type { SidebarProjectSnapshot } from "~/sidebarProjectGrouping";
 import { ProjectEnvironmentBadge } from "../ProjectEnvironmentBadge";
 import { ProjectFavicon } from "../ProjectFavicon";
+import { isProjectPinShortcut, ProjectPinButton } from "../ProjectPinButton";
 import { Button } from "../ui/button";
 import { Kbd } from "../ui/kbd";
 import { MenuRadioGroup, MenuRadioItem, MenuSub, MenuSubPopup, MenuSubTrigger } from "../ui/menu";
@@ -24,6 +30,7 @@ export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
   onSelect,
   onToggle,
   onProjectSettings,
+  pin,
 }: {
   items: readonly TItem[];
   /** The selected projects' keys; empty means all projects. */
@@ -41,6 +48,11 @@ export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
   /** Adds or removes one project while keeping the others, from Shift+click or Shift+Enter. */
   onToggle: (value: string) => void;
   onProjectSettings: (event: MouseEvent<HTMLElement>, project: SidebarProjectSnapshot) => void;
+  pin: {
+    readonly canPin: (project: SidebarProjectSnapshot) => boolean;
+    readonly toggle: (project: SidebarProjectSnapshot) => void;
+    readonly keybindings: ResolvedKeybindingsConfig;
+  };
 }) {
   // With several projects chosen no radio is checked; each chosen row shows its own check.
   const value = values.length === 0 ? "all" : values.length === 1 ? values[0]! : "";
@@ -61,13 +73,27 @@ export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
     event.preventBaseUIHandler?.();
     onToggle(itemValue);
   };
+  // The thread pin shortcut pins the highlighted project here.
+  const pinWithShortcut = (
+    event: KeyboardEvent<HTMLElement>,
+    project: SidebarProjectSnapshot | null,
+  ) => {
+    if (!project || !pin.canPin(project) || !isProjectPinShortcut(event, pin.keybindings)) {
+      return false;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    pin.toggle(project);
+    return true;
+  };
+  const pinShortcutLabel = shortcutLabelForCommand(pin.keybindings, "thread.pin");
   return (
     <MenuSub open={open} onOpenChange={onOpenChange}>
       <MenuSubTrigger>
         <span className="flex-1">Project</span>
         <span className="ml-6 max-w-32 truncate text-muted-foreground">{summary}</span>
       </MenuSubTrigger>
-      <MenuSubPopup className="max-w-[min(18rem,var(--available-width))]">
+      <MenuSubPopup className="max-w-[min(18rem,var(--available-width))]" data-project-pin-list="">
         <MenuRadioGroup
           value={value}
           onValueChange={(next) => {
@@ -85,7 +111,10 @@ export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
                 label={item.label}
                 closeOnClick
                 onClick={(event) => toggleWithShift(event, project, item.value)}
-                onKeyDown={(event) => toggleWithShift(event, project, item.value)}
+                onKeyDown={(event) => {
+                  if (pinWithShortcut(event, project)) return;
+                  toggleWithShift(event, project, item.value);
+                }}
                 onContextMenu={(event) => {
                   if (project) onProjectSettings(event, project);
                 }}
@@ -100,6 +129,14 @@ export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
                   <span className="min-w-0 flex-1 truncate">{item.label}</span>
                   {project && environments ? (
                     <ProjectEnvironmentBadge group={project} {...environments} />
+                  ) : null}
+                  {project && pin.canPin(project) ? (
+                    <ProjectPinButton
+                      name={project.displayName}
+                      pinned={project.pinned}
+                      shortcutLabel={pinShortcutLabel}
+                      onToggle={() => pin.toggle(project)}
+                    />
                   ) : null}
                   {shortcut ? (
                     <Kbd variant="plain" aria-hidden>

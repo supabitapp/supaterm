@@ -28,7 +28,9 @@ import {
   deleteThread,
   editQueuedRun,
   interruptThreadTurn,
+  forkSideChat,
   forkThreadFromRun,
+  promoteSideChat,
   markThreadUnread,
   mergeThreadBack,
   promoteQueuedRun,
@@ -130,6 +132,12 @@ export function createThreadEnvironmentAtoms<R, E>(
     delete: createEnvironmentCommand(runtime, {
       label: "environment-data:commands:thread:delete",
       execute: deleteThread,
+      scheduler,
+      concurrency,
+    }),
+    promoteSideChat: createEnvironmentCommand(runtime, {
+      label: "environment-data:commands:thread:promote-side-chat",
+      execute: promoteSideChat,
       scheduler,
       concurrency,
     }),
@@ -315,6 +323,15 @@ export function createThreadEnvironmentAtoms<R, E>(
     forkFromRun: createEnvironmentCommand(runtime, {
       label: "environment-data:commands:thread:fork-from-run",
       execute: forkThreadFromRun,
+      scheduler,
+      concurrency: {
+        mode: "serial",
+        key: ({ environmentId, input }) => JSON.stringify([environmentId, input.sourceThreadId]),
+      },
+    }),
+    forkSideChat: createEnvironmentCommand(runtime, {
+      label: "environment-data:commands:thread:fork-side-chat",
+      execute: forkSideChat,
       scheduler,
       concurrency: {
         mode: "serial",

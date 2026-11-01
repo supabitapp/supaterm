@@ -1,5 +1,6 @@
 import type { ThreadMoveDestination } from "../threads/threadOrder";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
+import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import * as ThreadUndo from "@supaterm/client-runtime/state/thread-undo";
 import { showThreadUndoNotice } from "./thread-undo-notice";
 import { canSnooze, effectiveSnoozed } from "@supaterm/client-runtime/state/thread-snooze";
@@ -15,6 +16,7 @@ import { refreshArchivedThreadsForEnvironment } from "../archive/useArchivedThre
 import { pinOrderKeyBetween } from "@supaterm/client-runtime/state/thread-sort";
 import { appAtomRegistry } from "../../state/atom-registry";
 import { environmentServerConfigsAtom } from "../../state/server";
+import { connectedEnvironmentIdsAtom } from "../../state/presentation";
 import { readEnvironmentScope } from "../../state/session";
 import { environmentThreadShells, threadEnvironment } from "../../state/threads";
 import { queuedThreadKeysAtom } from "../../state/use-thread-outbox";
@@ -175,7 +177,13 @@ function createDeleteThreadConfirmation(
   return (thread: EnvironmentThreadShell) => {
     if (!checkThreadOperationPermission(thread, actionFailureTitle("delete"))) return;
     const title = "Delete thread?";
-    const message = `“${thread.title}” will be permanently deleted, including its terminal history.`;
+    // Deleting a thread deletes its side chats with it.
+    const sideChats = appAtomRegistry.get(
+      environmentThreadShells.sideChatsAtom(scopeThreadRef(thread.environmentId, thread.id)),
+    ).length;
+    const alsoSideChats =
+      sideChats === 0 ? "" : ` and ${sideChats} side chat${sideChats === 1 ? "" : "s"}`;
+    const message = `“${thread.title}”${alsoSideChats} will be permanently deleted, including terminal history.`;
     Dialog.confirm({
       title,
       message,
@@ -619,7 +627,9 @@ export function useThreadListActions(): {
       });
     }
     const configs = appAtomRegistry.get(environmentServerConfigsAtom);
-    if (!configs.has(thread.environmentId)) {
+    // A config is cached for offline rendering, so its presence does not make a thread writable.
+    const connectedEnvironmentIds = new Set(appAtomRegistry.get(connectedEnvironmentIdsAtom));
+    if (!configs.has(thread.environmentId) || !connectedEnvironmentIds.has(thread.environmentId)) {
       Dialog.alert("Could not move thread", "Connect to this environment to arrange its threads.");
       return false;
     }
@@ -633,7 +643,9 @@ export function useThreadListActions(): {
       allThreads: shells,
       ordered,
       section,
-      reorderableEnvironmentIds: new Set(configs.keys()),
+      reorderableEnvironmentIds: new Set(
+        [...configs.keys()].filter((environmentId) => connectedEnvironmentIds.has(environmentId)),
+      ),
     })(scopedThreadKey(thread.environmentId, thread.id), direction);
     if (assignments === null) return false;
     const crossSection = !ordered.some(

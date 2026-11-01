@@ -61,6 +61,7 @@ export const SUPATERM_PIERRE_ICONS = {
     kt: "supaterm-file-icon-kotlin",
     kts: "supaterm-file-icon-kotlin",
     lua: "supaterm-file-icon-lua",
+    luau: "supaterm-file-icon-lua",
     php: "supaterm-file-icon-php",
     ps1: "supaterm-file-icon-powershell",
     psm1: "supaterm-file-icon-powershell",
@@ -69,6 +70,9 @@ export const SUPATERM_PIERRE_ICONS = {
     scala: "supaterm-file-icon-scala",
     toml: "supaterm-file-icon-toml",
     xml: "supaterm-file-icon-xml",
+    xsd: "supaterm-file-icon-xml",
+    xsl: "supaterm-file-icon-xml",
+    xslt: "supaterm-file-icon-xml",
   },
 } satisfies FileTreeIcons;
 

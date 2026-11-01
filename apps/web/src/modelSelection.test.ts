@@ -1,17 +1,24 @@
 import {
   ANTIGRAVITY_DEFAULT_MODEL,
   DEFAULT_TEXT_GENERATION_MODEL,
+  DEFAULT_SERVER_SETTINGS,
+  ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
   type ServerProvider,
 } from "@supaterm/contracts";
-import { DEFAULT_UNIFIED_SETTINGS, type UnifiedSettings } from "@supaterm/contracts/settings";
+import {
+  DEFAULT_CLIENT_SETTINGS,
+  DEFAULT_UNIFIED_SETTINGS,
+  type UnifiedSettings,
+} from "@supaterm/contracts/settings";
 import { describe, expect, it } from "vite-plus/test";
 import { createModelSelection } from "@supaterm/shared/model";
 import { deriveEffectiveComposerModelState } from "./composerDraftStore";
 import { getComposerProviderState } from "./components/chat/composerProviderState";
 import { deriveProviderInstanceEntries, NO_PROVIDER_MODEL_SELECTION } from "./providerInstances";
 import {
+  defaultModelSelectionsAreMixed,
   getAppModelOptionsForInstance,
   resolveAppModelSelectionForInstance,
   resolveAppModelSelectionState,
@@ -67,6 +74,130 @@ function settingsWithProviderInstances(): UnifiedSettings {
     },
   };
 }
+
+describe("scoped default model selections", () => {
+  // regression: #27997 equal automatic defaults can resolve to different providers
+  it("compares automatic defaults using each environment's models", () => {
+    const codex = {
+      projectId: null,
+      settings: DEFAULT_UNIFIED_SETTINGS,
+      providers: [provider({ instanceId: "codex", models: ["gpt-6-astra"] })],
+    };
+    const claude = {
+      projectId: null,
+      settings: DEFAULT_UNIFIED_SETTINGS,
+      providers: [
+        provider({
+          instanceId: "claudeAgent",
+          provider: ProviderDriverKind.make("claudeAgent"),
+          models: ["claude-sonnet-4-6"],
+        }),
+      ],
+    };
+
+    expect(defaultModelSelectionsAreMixed(DEFAULT_CLIENT_SETTINGS, [codex, claude])).toBe(true);
+    expect(defaultModelSelectionsAreMixed(DEFAULT_CLIENT_SETTINGS, [claude, codex])).toBe(true);
+    expect(defaultModelSelectionsAreMixed(DEFAULT_CLIENT_SETTINGS, [codex, codex])).toBe(false);
+    expect(defaultModelSelectionsAreMixed(DEFAULT_CLIENT_SETTINGS, [claude])).toBe(false);
+    expect(defaultModelSelectionsAreMixed(DEFAULT_CLIENT_SETTINGS, [])).toBe(false);
+    expect(
+      defaultModelSelectionsAreMixed(DEFAULT_CLIENT_SETTINGS, [codex, { ...codex, providers: [] }]),
+    ).toBe(true);
+    expect(
+      defaultModelSelectionsAreMixed(DEFAULT_CLIENT_SETTINGS, [
+        codex,
+        { ...codex, providers: [provider({ instanceId: "codex", models: ["gpt-6-sol"] })] },
+      ]),
+    ).toBe(true);
+
+    const projectId = ProjectId.make("claude-only");
+    const project = {
+      projectId,
+      settings: {
+        ...DEFAULT_SERVER_SETTINGS,
+        projectSettingsOverrides: {
+          [projectId]: {
+            providerInstances: { [ProviderInstanceId.make("codex")]: { enabled: false } },
+          },
+        },
+      },
+      providers: [...codex.providers, ...claude.providers],
+    };
+    const remoteProject = { ...claude, projectId: ProjectId.make("remote-project") };
+    expect(defaultModelSelectionsAreMixed(DEFAULT_CLIENT_SETTINGS, [project, remoteProject])).toBe(
+      false,
+    );
+    expect(defaultModelSelectionsAreMixed(DEFAULT_CLIENT_SETTINGS, [remoteProject, project])).toBe(
+      false,
+    );
+    expect(
+      defaultModelSelectionsAreMixed(DEFAULT_CLIENT_SETTINGS, [
+        project,
+        { ...project, projectId: ProjectId.make("other-project") },
+      ]),
+    ).toBe(true);
+
+    const configured = {
+      projectId: null,
+      settings: {
+        ...DEFAULT_SERVER_SETTINGS,
+        providerModelPreferences: {
+          [ProviderInstanceId.make("codex")]: {
+            hiddenModels: ["gpt-6-astra"],
+            modelOrder: [],
+          },
+        },
+      },
+      providers: [provider({ instanceId: "codex", models: ["gpt-6-astra", "gpt-6-sol"] })],
+    };
+    const inherited = { ...configured, settings: DEFAULT_SERVER_SETTINGS };
+    expect(defaultModelSelectionsAreMixed(DEFAULT_CLIENT_SETTINGS, [configured, inherited])).toBe(
+      true,
+    );
+    expect(defaultModelSelectionsAreMixed(DEFAULT_CLIENT_SETTINGS, [inherited, configured])).toBe(
+      true,
+    );
+  });
+
+  it("keeps automatic, explicit, and different saved options distinct", () => {
+    const providers = [provider({ instanceId: "codex", models: ["gpt-6-astra"] })];
+    const selected = {
+      projectId: null,
+      providers,
+      settings: {
+        ...DEFAULT_UNIFIED_SETTINGS,
+        defaultModelSelection: createModelSelection(
+          ProviderInstanceId.make("codex"),
+          "gpt-6-astra",
+        ),
+      },
+    };
+    expect(
+      defaultModelSelectionsAreMixed(DEFAULT_CLIENT_SETTINGS, [selected, { ...selected }]),
+    ).toBe(false);
+    expect(
+      defaultModelSelectionsAreMixed(DEFAULT_CLIENT_SETTINGS, [
+        selected,
+        { projectId: null, providers, settings: DEFAULT_UNIFIED_SETTINGS },
+      ]),
+    ).toBe(true);
+    expect(
+      defaultModelSelectionsAreMixed(DEFAULT_CLIENT_SETTINGS, [
+        selected,
+        {
+          ...selected,
+          settings: {
+            ...selected.settings,
+            defaultModelSelection: {
+              ...selected.settings.defaultModelSelection,
+              options: [{ id: "reasoningEffort", value: "xhigh" }],
+            },
+          },
+        },
+      ]),
+    ).toBe(true);
+  });
+});
 
 describe("instance-scoped model selection", () => {
   it("keeps custom models on the provider instance that declared them", () => {
@@ -640,6 +771,37 @@ describe("instance-scoped model selection", () => {
     expect(
       createModelSelection(instanceId, state.selectedModel, dispatch.modelOptionsForDispatch),
     ).toEqual(createModelSelection(instanceId, "openai/gpt-5.5"));
+  });
+
+  it("keeps the default instance's draft model off a custom instance of the same driver", () => {
+    const driver = ProviderDriverKind.make("opencode");
+    const defaultInstanceId = ProviderInstanceId.make("opencode");
+    const kimiInstanceId = ProviderInstanceId.make("kimi_api");
+    const kimiModel = "kimi-code-plan-global/k3.1-pro";
+    const providers = [
+      provider({
+        provider: driver,
+        instanceId: defaultInstanceId,
+        models: ["opencode-go/kimi-k3.1-pro"],
+      }),
+      provider({ provider: driver, instanceId: kimiInstanceId, models: [kimiModel] }),
+    ];
+    const state = deriveEffectiveComposerModelState({
+      draft: {
+        activeProvider: kimiInstanceId,
+        modelSelectionByProvider: {
+          [defaultInstanceId]: createModelSelection(defaultInstanceId, "opencode-go/kimi-k3.1-pro"),
+        },
+      },
+      providers,
+      selectedProvider: driver,
+      selectedInstanceId: kimiInstanceId,
+      threadModelSelection: null,
+      projectModelSelection: null,
+      settings: DEFAULT_UNIFIED_SETTINGS,
+    });
+
+    expect(state.selectedModel).toBe(kimiModel);
   });
 
   it("self-heals a persisted selection pointing at a text-generation-incapable instance", () => {

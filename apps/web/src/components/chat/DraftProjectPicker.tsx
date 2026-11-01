@@ -21,12 +21,15 @@ import { useComposerHandleContext } from "~/composerHandleContext";
 import { shortcutLabelForCommand } from "~/keybindings";
 import { primaryServerKeybindingsAtom } from "~/state/server";
 import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
+import { useOrderWhileOpen } from "~/hooks/useOrderWhileOpen";
+import { useProjectPin } from "~/hooks/useProjectGroupUpdate";
 import { useScratchProject } from "~/hooks/useScratchProject";
 import { useClientSettings } from "~/hooks/useSettings";
 import { usePickerShortcuts } from "~/hooks/usePickerShortcuts";
 import { moveDraftToProject, resolveNewDraftWorkspace } from "~/lib/newDraftWorkspace";
 import {
   deriveLogicalProjectKeyFromSettings,
+  pickableProjectGroups,
   selectProjectGroupingSettings,
 } from "@supaterm/client-runtime/state/project-grouping";
 import {
@@ -39,6 +42,7 @@ import { useEnvironments, usePrimaryEnvironmentId } from "~/state/environments";
 import { ComposerContextLabel } from "../ComposerContextLabel";
 import { ProjectEnvironmentBadge } from "../ProjectEnvironmentBadge";
 import { ProjectFavicon } from "../ProjectFavicon";
+import { isProjectPinShortcut, ProjectPinButton } from "../ProjectPinButton";
 import { sortLogicalProjectsForSidebar } from "../Sidebar.logic";
 import {
   Combobox,
@@ -89,7 +93,7 @@ function useDraftProjectCatalog(activeProjectRef: ScopedProjectRef | null) {
     projectSortOrder,
   );
   const projectPickerEntries = buildSidebarProjectPickerEntries({
-    groups: projectGroups,
+    groups: pickableProjectGroups(projectGroups),
     preferredProjectRef: activeProjectRef,
   });
   return {
@@ -146,6 +150,8 @@ export function DraftProjectPicker({
   const composerRef = useComposerHandleContext();
   const composerMenuProps = useComposerMenuProps();
   const pickerRef = useRef<HTMLDivElement>(null);
+  const highlightedPickerValueRef = useRef<string | null>(null);
+  const { canPinProjectGroup, toggleProjectGroupPin } = useProjectPin();
 
   const activeProjectGroup =
     activeProjectRef === null
@@ -252,11 +258,16 @@ export function DraftProjectPicker({
 
   const noProjectItem =
     scratchWorkspaceRoot === null ? undefined : { value: NO_PROJECT_VALUE, label: "No project" };
-  const pickerItems = [
-    ...(noProjectItem ? [noProjectItem] : []),
-    ...menuEntries.map(({ group }) => ({ value: group.projectKey, label: group.displayName })),
-    { value: "add-project", label: "Add project" },
-  ];
+  // Pinning from a row keeps rows in place while the picker is open.
+  const pickerItems = useOrderWhileOpen(
+    [
+      ...(noProjectItem ? [noProjectItem] : []),
+      ...menuEntries.map(({ group }) => ({ value: group.projectKey, label: group.displayName })),
+      { value: "add-project", label: "Add project" },
+    ],
+    (item) => item.value,
+    projectMenuOpen,
+  );
   const pickerQuery = normalizeSearchQuery(projectQuery);
   const filteredPickerItems = pickerQuery
     ? pickerItems
@@ -353,6 +364,9 @@ export function DraftProjectPicker({
           selectPickerItem(item);
         }}
         open={projectMenuOpen}
+        onItemHighlighted={(item) => {
+          highlightedPickerValueRef.current = item?.value ?? null;
+        }}
         onOpenChange={(open) => {
           setProjectMenuOpen(open);
           if (!open) setProjectQuery("");
@@ -390,6 +404,20 @@ export function DraftProjectPicker({
             placeholder="Search projects..."
             value={projectQuery}
             onChange={(event) => setProjectQuery(event.target.value)}
+            onKeyDown={(event) => {
+              const highlighted = highlightedPickerValueRef.current;
+              const group = highlighted ? projectEntryByKey.get(highlighted)?.group : undefined;
+              if (
+                !group ||
+                !canPinProjectGroup(group) ||
+                !isProjectPinShortcut(event, keybindings)
+              ) {
+                return;
+              }
+              event.preventDefault();
+              event.stopPropagation();
+              toggleProjectGroupPin(group);
+            }}
           />
           <ComboboxEmpty>No projects found.</ComboboxEmpty>
           <ComboboxList>
@@ -410,6 +438,14 @@ export function DraftProjectPicker({
                       group={entry.group}
                       primaryEnvironmentId={primaryEnvironmentId}
                       machineByEnvironmentId={environmentMachineById}
+                    />
+                  ) : null}
+                  {entry && canPinProjectGroup(entry.group) ? (
+                    <ProjectPinButton
+                      name={entry.group.displayName}
+                      pinned={entry.group.pinned}
+                      shortcutLabel={shortcutLabelForCommand(keybindings, "thread.pin")}
+                      onToggle={() => toggleProjectGroupPin(entry.group)}
                     />
                   ) : null}
                   {projectJumpLabels.has(item) ? (

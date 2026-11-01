@@ -98,7 +98,8 @@ function AssistantForkButton({
     capabilities: support.providerSession?.capabilities,
   });
 
-  if (!canFork || projectedItem.item.runId === null) return null;
+  const { onForkFromRun } = ctx;
+  if (!canFork || onForkFromRun === null || projectedItem.item.runId === null) return null;
   const runId = projectedItem.item.runId;
 
   return (
@@ -112,9 +113,9 @@ function AssistantForkButton({
             disabled={busy}
             onClick={() => {
               setBusy(true);
-              void ctx
-                .onForkFromRun({ sourceThreadId: projectedItem.sourceThreadId, runId })
-                .finally(() => setBusy(false));
+              void onForkFromRun({ sourceThreadId: projectedItem.sourceThreadId, runId }).finally(
+                () => setBusy(false),
+              );
             }}
             aria-label="Fork from this response"
           />

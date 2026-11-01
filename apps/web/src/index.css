@@ -1400,6 +1400,10 @@ body {
   padding: 0;
 }
 
+[data-preview-url-input] {
+  font-variant-ligatures: none;
+}
+
 html,
 body {
   min-height: calc(100svh + env(safe-area-inset-top));
@@ -1744,8 +1748,13 @@ code,
   margin: 0.65rem 0;
 }
 
-/* Preflight already draws the 1px rule, as it does in chat; only the block
-   spacing needs to match. */
+/* Surface borders can blend into dark message bubbles; rules need a readable color. */
+:is(.chat-markdown, .composer-tiptap) hr {
+  @variant dark {
+    border-color: var(--contrast-muted-foreground);
+  }
+}
+
 .composer-tiptap hr {
   margin: 0.65rem 0;
 }
@@ -1849,6 +1858,20 @@ code,
 
 :is(.chat-markdown, .composer-tiptap) .chat-markdown-shiki .diffs {
   background: transparent !important;
+}
+
+/* Plain-text fences override the highlighter's inline foreground colors. */
+:is(.chat-markdown, .composer-tiptap)
+  .chat-markdown-codeblock:is(
+    [data-language="text" i],
+    [data-language="txt" i],
+    [data-language="plain" i],
+    [data-language="plaintext" i]
+  ) {
+  &,
+  & :is(pre, pre *) {
+    color: inherit !important;
+  }
 }
 
 /* Paragraphs and code blocks arrive in chunks while a response streams. Fade

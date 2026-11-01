@@ -88,15 +88,21 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
       foreground runs). */
   serverSelfUpdate: ForwardCompatibleOptional(ServerSelfUpdateCapability),
   threadStop: Schema.optionalKey(Schema.Boolean),
+  /** Side chats: hidden `lineage.sideChat` forks. Older servers ignore the fork flag. */
+  sideChats: Schema.optionalKey(Schema.Boolean),
   /** Serves `orchestration.forceStopThread`; hide Force stop where it is absent. */
   threadForceStop: Schema.optionalKey(Schema.Boolean),
   /** Absent on older servers and on Windows hosts, which cannot stop a discovered server. */
   localServerStop: Schema.optionalKey(Schema.Boolean),
   /** The server accepts queued-run.start, which sends one held message now. */
   queuedRunStart: Schema.optionalKey(Schema.Boolean),
+  /** Server answers server.getNpmRelease using its configured npm registry. */
+  npmReleaseLookup: Schema.optionalKey(Schema.Boolean),
   /** Manual commands must update this install, not the host's default global prefix. */
   serverInstallation: ForwardCompatibleOptional(ServerInstallation),
   serverSelfUpdateProgress: Schema.optionalKey(Schema.Boolean),
+  /** Server keeps `pinned` and `archived` from project.update. Older servers drop them. */
+  projectOrganization: Schema.optionalKey(Schema.Boolean),
   ignoredFileListing: Schema.optionalKey(Schema.Boolean),
   /** The desktop app supervising this server can be driven over RPC:
       server.updateServer runs its check -> download -> relaunch. Absent on
@@ -109,6 +115,8 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   triage: Schema.optionalKey(Schema.Boolean),
   /** Server answers projects.createFromThread. */
   threadProjectFromScratch: Schema.optionalKey(Schema.Boolean),
+  /** Server accepts `{ type: "once" }` scheduled tasks; older servers reject them on save. */
+  oneTimeSchedules: Schema.optionalKey(Schema.Boolean),
   /** Hide the switch when absent; older servers ignore `telemetryEnabled`. */
   telemetrySetting: Schema.optionalKey(Schema.Boolean),
 });

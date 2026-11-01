@@ -1,9 +1,11 @@
 import type { ThreadId, EnvironmentId } from "@supaterm/contracts";
+import { scopeThreadRef, scopedThreadKey } from "@supaterm/client-runtime/environment";
 import { backgroundWorkHoldsCompletion } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 import { threadPullRequestSearchTerms } from "@supaterm/shared/threadPullRequests";
 import * as React from "react";
 import { defaultAnimateLayoutChanges, type AnimateLayoutChanges } from "@dnd-kit/sortable";
-import type { ContextMenuItem } from "@supaterm/contracts";
+import { isListedThreadLineage, type ContextMenuItem } from "@supaterm/contracts";
+import type { EnvironmentConnectionPhase } from "@supaterm/client-runtime/connection";
 import type { SidebarProjectSortOrder, SidebarThreadSortOrder } from "@supaterm/contracts/settings";
 import {
   effectiveSnoozed,
@@ -173,6 +175,24 @@ export function resolveSidebarThreadSection(input: {
   return "active";
 }
 
+// Keep cached placement on the first connection attempt, matching mobile's threadRouteIsHydrating.
+export function isSidebarEnvironmentDisconnected(
+  phase: EnvironmentConnectionPhase,
+  shellIsLive: boolean,
+): boolean {
+  return phase !== "connecting" && (phase !== "connected" || !shellIsLive);
+}
+
+export function belongsInSidebarWorkingShelf<T extends { readonly environmentId: EnvironmentId }>(
+  thread: T,
+  input: {
+    readonly disconnectedEnvironmentIds: ReadonlySet<EnvironmentId>;
+    readonly isWorking: (thread: T) => boolean;
+  },
+): boolean {
+  return !input.disconnectedEnvironmentIds.has(thread.environmentId) && input.isWorking(thread);
+}
+
 const SIDEBAR_MARKER_PREFIX = "sidebar-marker-";
 
 export type SidebarListMarker =
@@ -331,6 +351,29 @@ export function sidebarThreadKeyAtY(list: HTMLElement, y: number): string | null
   return key;
 }
 
+export function resolveSidebarReorderableThreadKeys(input: {
+  readonly threads: ReadonlyArray<Pick<SidebarThreadSummary, "environmentId" | "id">>;
+  /** Threads the server holds; optimistic rows have nothing to write to yet. */
+  readonly serverThreadKeys: ReadonlySet<string>;
+  readonly serverConfigs: ReadonlyMap<EnvironmentId, unknown>;
+  readonly connectedEnvironmentIds: readonly EnvironmentId[];
+}) {
+  const connectedEnvironmentIds = new Set(input.connectedEnvironmentIds);
+  const draggableThreadKeys = new Set<string>();
+  for (const thread of input.threads) {
+    // Config is cached for offline rendering, so its presence does not make a row writable.
+    if (
+      !connectedEnvironmentIds.has(thread.environmentId) ||
+      !input.serverConfigs.has(thread.environmentId)
+    ) {
+      continue;
+    }
+    const threadKey = scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id));
+    if (input.serverThreadKeys.has(threadKey)) draggableThreadKeys.add(threadKey);
+  }
+  return { draggableThreadKeys };
+}
+
 export function planSidebarThreadDrop(input: {
   readonly activeKey: string;
   readonly activeSection: SidebarSection;
@@ -369,7 +412,16 @@ export function planSidebarThreadDrop(input: {
       keysById,
       movedId: activeKey,
     });
-    return assignments.every(({ id }) => writable.has(id)) ? assignments : null;
+    if (assignments.some(({ id }) => !writable.has(id))) return null;
+    // Keyless pinned rows sort after keyed rows, so a row materialized after a frozen keyless row
+    // cannot persist that position.
+    const assignedIds = new Set(assignments.map(({ id }) => id));
+    let hasFrozenKeylessBefore = false;
+    for (const id of order) {
+      if (hasFrozenKeylessBefore && assignedIds.has(id)) return null;
+      hasFrozenKeylessBefore ||= !writable.has(id) && keysById.get(id) == null;
+    }
+    return assignments;
   };
   switch (target.section) {
     case "active":
@@ -508,8 +560,8 @@ export async function archiveSelectedThreadEntries<
   return { archivedThreadKeys, mutationFailure: null, followupFailures };
 }
 
-export function isSidebarSubagentThread(thread: Pick<SidebarThreadSummary, "lineage">): boolean {
-  return thread.lineage.relationshipToParent === "subagent";
+export function isSidebarHiddenThread(thread: Pick<SidebarThreadSummary, "lineage">): boolean {
+  return !isListedThreadLineage(thread.lineage);
 }
 
 export function resolveSidebarRowThreadId(
@@ -521,7 +573,7 @@ export function resolveSidebarRowThreadId(
     threads.find((thread) => thread.id === id && thread.environmentId === environmentId);
   const visited = new Set<ThreadId>();
   let thread = findThread(threadId);
-  while (thread !== undefined && isSidebarSubagentThread(thread)) {
+  while (thread !== undefined && isSidebarHiddenThread(thread)) {
     if (thread.lineage.parentThreadId === null || visited.has(thread.id)) return threadId;
     visited.add(thread.id);
     thread = findThread(thread.lineage.parentThreadId);
@@ -538,7 +590,7 @@ export function filterSidebarV2VisibleThreads<
   return threads.filter(
     (thread) =>
       thread.archivedAt === null &&
-      !isSidebarSubagentThread(thread) &&
+      !isSidebarHiddenThread(thread) &&
       (scopedProjectKeys === null ||
         scopedProjectKeys.has(`${thread.environmentId}:${thread.projectId}`)),
   );

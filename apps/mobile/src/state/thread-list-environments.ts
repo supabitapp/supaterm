@@ -12,8 +12,9 @@ export type ThreadListProvider = Pick<
   "instanceId" | "driver" | "enabled" | "displayName" | "accentColor" | "iconUrl"
 >;
 
-function selectEnvironment(config: ServerConfig) {
+function selectEnvironment(config: ServerConfig, isConnected: boolean) {
   return {
+    isConnected,
     providers: config.providers.map(
       ({ instanceId, driver, enabled, displayName, accentColor, iconUrl }) => ({
         instanceId,
@@ -55,30 +56,36 @@ function collectEnvironments(environments: ReadonlyMap<EnvironmentId, ListEnviro
   const providersByEnvironmentId = new Map<EnvironmentId, ReadonlyArray<ThreadListProvider>>();
   const machineByEnvironmentId = new Map<EnvironmentId, EnvironmentMachineKind>();
   const snoozePresetsByEnvironmentId = new Map<EnvironmentId, ListEnvironment["snoozePresets"]>();
-  for (const [id, { providers, machineKind, snoozePresets }] of environments) {
+  const reorderEnvironmentIds = new Set<EnvironmentId>();
+  for (const [id, { providers, machineKind, isConnected, snoozePresets }] of environments) {
     providersByEnvironmentId.set(id, providers);
     snoozePresetsByEnvironmentId.set(id, snoozePresets);
     machineByEnvironmentId.set(id, machineKind);
+    if (isConnected) reorderEnvironmentIds.add(id);
   }
   return {
     providersByEnvironmentId,
     machineByEnvironmentId,
     loadedEnvironmentIds: new Set(environments.keys()),
+    // A config is cached for offline rendering; only a connected environment can store an order.
+    reorderEnvironmentIds,
     snoozePresetsByEnvironmentId,
   };
 }
 
 export function createThreadListEnvironmentsAtom(
   configsAtom: Atom.Atom<ReadonlyMap<EnvironmentId, ServerConfig>>,
+  connectedEnvironmentIdsAtom: Atom.Atom<ReadonlyArray<EnvironmentId>>,
 ) {
   let previous = new Map<EnvironmentId, ListEnvironment>();
   let result = collectEnvironments(previous);
   return Atom.make((get) => {
     const configs = get(configsAtom);
+    const connectedEnvironmentIds = new Set(get(connectedEnvironmentIdsAtom));
     const next = new Map<EnvironmentId, ListEnvironment>();
     let changed = configs.size !== previous.size;
     for (const [id, config] of configs) {
-      const selected = selectEnvironment(config);
+      const selected = selectEnvironment(config, connectedEnvironmentIds.has(id));
       const prior = previous.get(id);
       if (prior && sameProviders(prior.providers, selected.providers)) {
         selected.providers = prior.providers;
@@ -90,6 +97,7 @@ export function createThreadListEnvironmentsAtom(
         prior &&
         prior.providers === selected.providers &&
         prior.machineKind === selected.machineKind &&
+        prior.isConnected === selected.isConnected &&
         prior.snoozePresets === selected.snoozePresets;
       next.set(id, unchanged ? prior : selected);
       if (!unchanged) changed = true;

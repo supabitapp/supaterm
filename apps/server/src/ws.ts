@@ -183,6 +183,7 @@ import * as ProviderMaintenanceRunner from "./provider/providerMaintenanceRunner
 import * as ProviderAuthService from "./provider/ProviderAuthService.ts";
 import { makeProviderInstallation } from "./provider/providerInstallation.ts";
 import * as ServerSelfUpdate from "./service/selfUpdate.ts";
+import * as NpmRelease from "./service/npmRelease.ts";
 import * as ServerLifecycleEvents from "./serverLifecycleEvents.ts";
 import * as ServerRuntimeStartup from "./serverRuntimeStartup.ts";
 import * as ServerSettings from "./serverSettings.ts";
@@ -219,7 +220,7 @@ import * as ProjectService from "./project/ProjectService.ts";
 import { threadWorkspaceRoot } from "./project/threadWorkspaceRoot.ts";
 import * as ManagedProjectFolders from "./project/ManagedProjectFolders.ts";
 import * as ScratchThreadPromotion from "./project/ScratchThreadPromotion.ts";
-import { projectMutationOperation } from "./project/ProjectMutation.ts";
+import { mutateProjectWithClone } from "./project/ProjectMutation.ts";
 import * as ProjectCloneTracker from "./project/ProjectCloneTracker.ts";
 import * as RepositoryIdentityResolver from "./project/RepositoryIdentityResolver.ts";
 import * as WorktreeSetupTracker from "./project/WorktreeSetupTracker.ts";
@@ -332,8 +333,8 @@ export const withLateConfig = <E, R>(
         editors.join() !== config.availableEditors.join() ||
         (editors.includes("file-manager") && config.shellRevealInFileManagerKind === undefined),
     ),
-    // Unbounded, unlike the snapshot: the reveal-kind probe is not shared, so
-    // a timeout here would cancel a probe that outlasts it every time.
+    // Unbounded, unlike the snapshot: this exists to deliver a probe that
+    // outlasts the snapshot's timeout.
     Stream.mapEffect((editors) =>
       resolveEditorConfig(editors, launcher.resolveFileManagerRevealKind()),
     ),
@@ -399,6 +400,31 @@ export const withLateConfig = <E, R>(
   );
 };
 
+// Discoveries run side by side so the slowest one, not their sum, bounds the
+// server config snapshot. Each degrades on timeout rather than failing it.
+export const resolveOpenDiscoveryForConfig = <T, D, E1, R1, E2, R2, E3, R3, E4, R4>(discovery: {
+  readonly editors: Effect.Effect<ReadonlyArray<EditorId>, E1, R1>;
+  readonly fileManagerRevealKind: Effect.Effect<FileManagerRevealKind | undefined, E2, R2>;
+  readonly remoteOpenTargets: Effect.Effect<ReadonlyArray<T>, E3, R3>;
+  readonly directEndpoints: Effect.Effect<ReadonlyArray<D>, E4, R4>;
+}) =>
+  Effect.all(
+    {
+      editorConfig: resolveAvailableEditorsForConfig(discovery.editors).pipe(
+        Effect.flatMap((availableEditors) =>
+          resolveEditorConfig(
+            availableEditors,
+            resolveFileManagerRevealKindForConfig(discovery.fileManagerRevealKind),
+          ),
+        ),
+      ),
+      // Same discovery-with-timeout treatment as editors: a slow probe must
+      // not stall server.getConfig, so it degrades to an empty list.
+      remoteOpenTargets: resolveAvailableEditorsForConfig(discovery.remoteOpenTargets),
+      directEndpoints: resolveAvailableEditorsForConfig(discovery.directEndpoints),
+    },
+    { concurrency: "unbounded" },
+  ).pipe(Effect.map(({ editorConfig, ...endpoints }) => ({ ...editorConfig, ...endpoints })));
 function withoutWorkspaceSnapshots(providers: ReadonlyArray<ServerProvider>): ServerProvider[] {
   return providers.map(({ workspaceSnapshots: _workspaceSnapshots, ...provider }) => provider);
 }
@@ -1205,6 +1231,7 @@ export const layerWsRpc = (
   currentSession: EnvironmentAuth.AuthenticatedSession,
   clientAnalyticsProps: Readonly<Record<string, unknown>>,
   serverBrowser: ServerBrowser.ServerBrowser["Service"],
+  reportProfiles: ServerBrowser.ProfileReporter,
 ) =>
   Layer.effectContext(
     Effect.gen(function* () {
@@ -1312,6 +1339,7 @@ export const layerWsRpc = (
       const providerAuth = yield* ProviderAuthService.ProviderAuthService;
       const providerInstallation = yield* makeProviderInstallation();
       const serverSelfUpdate = yield* ServerSelfUpdate.ServerSelfUpdate;
+      const npmRelease = yield* NpmRelease.NpmRelease;
       const config = yield* ServerConfig.ServerConfig;
       const lifecycleEvents = yield* ServerLifecycleEvents.ServerLifecycleEvents;
       const storageCleanup = yield* StorageCleanup.StorageCleanup;
@@ -1711,10 +1739,12 @@ export const layerWsRpc = (
         const auth = yield* serverAuth.getDescriptor();
         const scratchWorkspaceRoot = yield* managedFolders.scratchRoot;
         const lastEventLoopStall = yield* eventLoopMonitor.latestNoticeableStall;
-        const editorConfig = yield* resolveEditorConfig(
-          yield* resolveAvailableEditorsForConfig(externalLauncher.resolveAvailableEditors()),
-          resolveFileManagerRevealKindForConfig(externalLauncher.resolveFileManagerRevealKind()),
-        );
+        const discovery = yield* resolveOpenDiscoveryForConfig({
+          editors: externalLauncher.resolveAvailableEditors(),
+          fileManagerRevealKind: externalLauncher.resolveFileManagerRevealKind(),
+          remoteOpenTargets: remoteOpenTargets.resolveTargets(),
+          directEndpoints: directEndpoints.resolve(),
+        });
 
         return {
           environment,
@@ -1724,11 +1754,7 @@ export const layerWsRpc = (
           keybindings: keybindingsConfig.keybindings,
           issues: keybindingsConfig.issues,
           providers,
-          ...editorConfig,
-          remoteOpenTargets: yield* resolveAvailableEditorsForConfig(
-            remoteOpenTargets.resolveTargets(),
-          ),
-          directEndpoints: yield* resolveAvailableEditorsForConfig(directEndpoints.resolve()),
+          ...discovery,
           ...Option.match(yield* directTunnel.advertisement, {
             onNone: () => ({}),
             onSome: (tunnelEndpoints) => ({ tunnelEndpoints }),
@@ -1836,10 +1862,7 @@ export const layerWsRpc = (
       );
 
       const mutateProject = Effect.fn("ws.projects.mutate")(function* (mutation: ProjectMutation) {
-        const result = yield* projectMutationOperation(projectService, mutation);
-        if (mutation.type === "project.delete")
-          yield* projectCloneTracker.discard(mutation.projectId);
-        return result;
+        return yield* mutateProjectWithClone(projectService, projectCloneTracker, mutation);
       });
 
       const handlers = ServerWsRpcGroup.of({
@@ -2440,6 +2463,7 @@ export const layerWsRpc = (
         [WS_METHODS.providerInstallSubscribe]: (input) => providerInstallation.subscribe(input),
         [WS_METHODS.providerInstallRemove]: (input) => providerInstallation.remove(input),
         [WS_METHODS.serverUpdateServer]: (input) => serverSelfUpdate.update(input),
+        [WS_METHODS.serverGetNpmRelease]: (input) => npmRelease.get(input),
         [WS_METHODS.serverUpdateServerWithProgress]: (input) =>
           ServerSelfUpdate.updateProgressStream(serverSelfUpdate, input),
         [WS_METHODS.serverCommitDesktopUpdate]: (input) =>
@@ -2970,7 +2994,7 @@ export const layerWsRpc = (
         [WS_METHODS.previewClose]: (input) => previewManager.close(input),
         [WS_METHODS.previewList]: (input) => previewManager.list(input),
         [WS_METHODS.previewClearProfile]: (input) => serverBrowser.clearProfile(input.profileId),
-        [WS_METHODS.previewReportProfiles]: (input) => serverBrowser.reportProfiles(input),
+        [WS_METHODS.previewReportProfiles]: (input) => reportProfiles(input),
         [WS_METHODS.previewReportStatus]: (input) => previewManager.reportStatus(input),
         [WS_METHODS.subscribePreviewEvents]: (_input) => previewManager.events,
         [WS_METHODS.deviceConfigure]: (input) => deviceService.configure(input),
@@ -3195,6 +3219,7 @@ export const layer = Layer.unwrap(
   Effect.gen(function* () {
     const serverBrowser = yield* ServerBrowser.ServerBrowser;
     const serverSelfUpdate = yield* ServerSelfUpdate.ServerSelfUpdate;
+    const npmRelease = yield* NpmRelease.NpmRelease;
     const pullRequests = yield* PullRequestService.PullRequestService;
     const reviewGuides = yield* PullRequestReviewGuideService.PullRequestReviewGuideService;
     const transcription = yield* Transcription.Transcription;
@@ -3229,6 +3254,7 @@ export const layer = Layer.unwrap(
         );
         const clientAnalyticsProps = readClientAnalyticsProps(request);
         yield* analytics.recordOwners(readClientOwners(request), "client");
+        const reportProfiles = yield* serverBrowser.profileReporter;
         const rpcWebSocketHttpEffect = yield* Effect.gen(function* () {
           const { protocol, httpEffect } = yield* RpcServer.makeProtocolWithHttpEffectWebsocket;
           yield* RpcServer.make(ServerWsRpcGroup, WS_RPC_SERVER_OPTIONS).pipe(
@@ -3256,7 +3282,7 @@ export const layer = Layer.unwrap(
           return httpEffect;
         }).pipe(
           Effect.provide(
-            layerWsRpc(session, clientAnalyticsProps, serverBrowser).pipe(
+            layerWsRpc(session, clientAnalyticsProps, serverBrowser, reportProfiles).pipe(
               Layer.provideMerge(RpcSerialization.layerJson),
               // Request fibers run in the handlers' context, so this reporter sees
               // their defects, not the rest of the server's.
@@ -3264,6 +3290,7 @@ export const layer = Layer.unwrap(
               Layer.provide(Layer.succeed(SqlClient.SqlClient, sql)),
               Layer.provide(AgentSessionScanner.layer),
               Layer.provide(ProviderMaintenanceRunner.layer),
+              Layer.provide(Layer.succeed(NpmRelease.NpmRelease, npmRelease)),
               Layer.provide(Layer.succeed(ServerSelfUpdate.ServerSelfUpdate, serverSelfUpdate)),
               // One server-lifetime service means clients share the same PR caches, and a WS
               // mutation invalidates the HTTP diff cache that every client reads from.
@@ -3306,4 +3333,4 @@ export const layer = Layer.unwrap(
       ),
     );
   }),
-);
+).pipe(Layer.provide(NpmRelease.layer));

@@ -103,7 +103,7 @@ export function SettingsEnvironmentFilterHeader(props: {
                     },
                     ...selectableProjectGroups.map((group) => ({
                       type: "action" as const,
-                      label: group.label,
+                      label: projectMenuLabel(group),
                       state: selectedProjectKey === group.key ? ("on" as const) : undefined,
                       onPress: () => selectProject(group.key),
                     })),
@@ -163,7 +163,7 @@ export function AndroidSettingsEnvironmentFilter() {
         },
         ...selectableProjectGroups.map((group) => ({
           id: `project:${group.key}`,
-          title: `Project · ${group.label}`,
+          title: `Project · ${projectMenuLabel(group)}`,
           state: selectedProjectKey === group.key ? ("on" as const) : ("off" as const),
         })),
       ]}
@@ -193,3 +193,6 @@ export function AndroidSettingsEnvironmentFilter() {
     </Menu>
   );
 }
+
+const projectMenuLabel = (group: { readonly label: string; readonly archived: boolean }) =>
+  group.archived ? `${group.label} · Archived` : group.label;

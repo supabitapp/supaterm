@@ -53,10 +53,12 @@ export function useComposerMenuItems({
   pullRequestRepository,
   threadPullRequests,
   compactSlashCommandAvailable,
+  sideChatAvailable,
   selectedProvider,
   selectedProviderSkills,
   selectedProviderSlashCommands,
   showSkillsInSlashMenu,
+  workspaceSkillsScanning,
 }: {
   readonly composerTrigger: ComposerTrigger | null;
   readonly environmentId: EnvironmentId;
@@ -66,10 +68,12 @@ export function useComposerMenuItems({
   readonly pullRequestRepository: string | null;
   readonly threadPullRequests: ReadonlyArray<ThreadPullRequestLink> | undefined;
   readonly compactSlashCommandAvailable: boolean;
+  readonly sideChatAvailable: boolean;
   readonly selectedProvider: ProviderDriverKind;
   readonly selectedProviderSkills: ServerProvider["skills"];
   readonly selectedProviderSlashCommands: ServerProvider["slashCommands"];
   readonly showSkillsInSlashMenu: boolean;
+  readonly workspaceSkillsScanning: boolean;
 }) {
   // Thread mentions rank by recency as of when the composer mounted.
   const [now] = useState(() => Date.now());
@@ -185,6 +189,24 @@ export function useComposerMenuItems({
           label: "/model",
           description: "Switch response model for this thread",
         },
+        ...(sideChatAvailable
+          ? ([
+              {
+                id: "slash:side",
+                type: "slash-command",
+                command: "side",
+                label: "/side",
+                description: "Ask a side question in a new side chat",
+              },
+              {
+                id: "slash:btw",
+                type: "slash-command",
+                command: "btw",
+                label: "/btw",
+                description: "Same as /side",
+              },
+            ] as const)
+          : []),
       ] satisfies ReadonlyArray<Extract<ComposerCommandItem, { type: "slash-command" }>>;
       const slashMenuSkills = getProviderSkillsForSlashMenu(
         selectedProviderSkills,
@@ -302,6 +324,10 @@ export function useComposerMenuItems({
   })();
   const isLoading =
     (composerTriggerKind === "path" && pathTriggerQuery.length > 0 && workspaceEntries.isPending) ||
+    ((composerTriggerKind === "skill" ||
+      composerTriggerKind === "slash-command" ||
+      composerTriggerKind === "slash-skill") &&
+      workspaceSkillsScanning) ||
     (composerTriggerKind === "pull-request" &&
       pullRequestProjectId !== null &&
       pullRequestRepository !== null &&

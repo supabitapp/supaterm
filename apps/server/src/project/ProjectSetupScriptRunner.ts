@@ -1,5 +1,4 @@
 import { ProjectId, type ProjectScript } from "@supaterm/contracts";
-import * as HostProcess from "@supaterm/shared/HostProcess";
 import {
   projectScriptRuntimeEnv,
   projectScriptTerminalInput,
@@ -105,9 +104,19 @@ export class ProjectSetupScriptProjectNotFoundError extends Schema.TaggedError<P
   }
 }
 
+export class ProjectSetupScriptUnsupportedShellError extends Schema.TaggedError<ProjectSetupScriptUnsupportedShellError>()(
+  "ProjectSetupScriptUnsupportedShellError",
+  { shell: Schema.String },
+) {
+  override get message(): string {
+    return "Project script completion is not supported in cmd.exe. Install PowerShell and retry.";
+  }
+}
+
 export const ProjectSetupScriptRunnerError = Schema.Union([
   ProjectSetupScriptOperationError,
   ProjectSetupScriptProjectNotFoundError,
+  ProjectSetupScriptUnsupportedShellError,
 ]);
 export type ProjectSetupScriptRunnerError = typeof ProjectSetupScriptRunnerError.Type;
 
@@ -160,13 +169,9 @@ function lineEditorReading(text: string, previous: boolean): boolean {
 
 type CompletionShell = "posix" | "fish" | "powershell";
 
-function resolveCompletionShell(
-  platform: NodeJS.Platform,
-  env: NodeJS.ProcessEnv,
-): CompletionShell {
-  if (platform === "win32") return "powershell";
-  const shell = env.SHELL ?? "";
-  const name = shell.split("/").at(-1) ?? shell;
+function resolveCompletionShell(shell: string): CompletionShell | null {
+  const name = (shell.split(/[/\\]/).at(-1) ?? shell).toLowerCase().replace(/\.exe$/, "");
+  if (name === "cmd") return null;
   if (name === "fish") return "fish";
   if (name === "pwsh" || name === "powershell") return "powershell";
   return "posix";
@@ -201,10 +206,6 @@ export const make = Effect.gen(function* () {
   const serverSettings = yield* ServerSettings.ServerSettingsService;
   const crypto = yield* Crypto.Crypto;
   const serviceScope = yield* Effect.scope;
-  const completionShell = resolveCompletionShell(
-    yield* HostProcess.Platform,
-    yield* HostProcess.Environment,
-  );
 
   const observeTerminalCompletion = Effect.fn("ProjectSetupScriptRunner.observeTerminalCompletion")(
     function* (input: {
@@ -441,15 +442,7 @@ export const make = Effect.gen(function* () {
     const completionToken = observe
       ? (yield* crypto.randomUUIDv4().pipe(Effect.orDie)).replaceAll("-", "")
       : null;
-    const commandLine =
-      observe && completionToken
-        ? wrapCommandForCompletion(
-            script.command,
-            completionShell,
-            completionSentinel(completionToken),
-          )
-        : script.command;
-
+    const echoedWrapperLines: string[] = [];
     // Subscribe before opening so neither startup activity nor the sentinel can race the listeners.
     const observed =
       observe && completionToken
@@ -458,61 +451,80 @@ export const make = Effect.gen(function* () {
             terminalId,
             sentinel: completionSentinel(completionToken),
             sentinelPattern: completionSentinelPattern(completionToken),
-            echoedWrapperLines: commandLine.split("\r").filter((line) => line.length > 0),
+            echoedWrapperLines,
             onOutputLine: observe.onOutputLine,
           })
         : undefined;
-    // PowerShell has no line-editor signal; keep its immediate write.
-    const readiness =
-      completionShell === "powershell"
-        ? undefined
-        : yield* watchShellReadiness({
-            threadId: input.threadId,
-            terminalId,
-            onStartupPrompt: observed?.flushPartialLine ?? Effect.void,
-          });
-
-    yield* terminalManager
-      .open({
-        threadId: input.threadId,
-        terminalId,
-        cwd,
-        worktreePath: input.worktreePath,
-        env: { ...env, NO_COLOR: "1", FORCE_COLOR: "0" },
-      })
-      .pipe(
-        Effect.mapError(
-          (cause) =>
-            new ProjectSetupScriptOperationError({
-              ...errorContext,
-              operation: "openTerminal",
-              cause,
-            }),
-        ),
-        Effect.onError(() =>
-          Effect.sync(() => {
-            observed?.unsubscribe();
-            readiness?.unsubscribe();
-          }),
-        ),
-      );
-
-    const writeCommand = Effect.suspend(() =>
-      terminalManager.write({
-        threadId: input.threadId,
-        terminalId,
-        data: projectScriptTerminalInput(commandLine),
-      }),
-    ).pipe(
-      Effect.mapError(
-        (cause) =>
-          new ProjectSetupScriptOperationError({
-            ...errorContext,
-            operation: "writeCommand",
-            cause,
-          }),
+    const readiness = yield* watchShellReadiness({
+      threadId: input.threadId,
+      terminalId,
+      onStartupPrompt: observed?.flushPartialLine ?? Effect.void,
+    });
+    const { completionShell, commandLine } = yield* Effect.gen(function* () {
+      const shell = yield* terminalManager
+        .open({
+          threadId: input.threadId,
+          terminalId,
+          cwd,
+          worktreePath: input.worktreePath,
+          env: { ...env, NO_COLOR: "1", FORCE_COLOR: "0" },
+        })
+        .pipe(
+          Effect.andThen(() =>
+            terminalManager
+              .getShell({ threadId: input.threadId, terminalId })
+              .pipe(Effect.catchTags({ TerminalNotRunningError: () => Effect.succeed(null) })),
+          ),
+          Effect.mapError(
+            (cause) =>
+              new ProjectSetupScriptOperationError({
+                ...errorContext,
+                operation: "openTerminal",
+                cause,
+              }),
+          ),
+        );
+      if (shell === null) {
+        yield* observed?.abandon ?? Effect.void;
+        return { completionShell: null, commandLine: null };
+      }
+      const completionShell = resolveCompletionShell(shell);
+      let commandLine = script.command;
+      if (observe && completionToken) {
+        if (completionShell === null) {
+          yield* terminalManager.closeIdle({ threadId: input.threadId, terminalId });
+          return yield* new ProjectSetupScriptUnsupportedShellError({ shell });
+        }
+        commandLine = wrapCommandForCompletion(
+          script.command,
+          completionShell,
+          completionSentinel(completionToken),
+        );
+      }
+      echoedWrapperLines.push(...commandLine.split("\r").filter((line) => line.length > 0));
+      return { completionShell, commandLine };
+    }).pipe(
+      Effect.onError(() =>
+        Effect.sync(() => {
+          observed?.unsubscribe();
+          readiness.unsubscribe();
+        }),
       ),
     );
+
+    const writeCommand = (line: string) =>
+      terminalManager
+        .write({ threadId: input.threadId, terminalId, data: projectScriptTerminalInput(line) })
+        .pipe(
+          Effect.mapError(
+            (cause) =>
+              new ProjectSetupScriptOperationError({
+                ...errorContext,
+                operation: "writeCommand",
+                cause,
+              }),
+          ),
+        );
     // A command that never reaches the shell ends its completion and frees the unused shell.
     const abandonUnusedTerminal = (observed?.abandon ?? Effect.void).pipe(
       Effect.andThen(
@@ -520,13 +532,18 @@ export const make = Effect.gen(function* () {
       ),
     );
     // Return once the terminal exists so callers can show it while a startup prompt waits.
-    yield* (readiness?.wait ?? Effect.succeed("ready" as const)).pipe(
+    // PowerShell and cmd have no line-editor signal.
+    yield* (
+      completionShell === "posix" || completionShell === "fish"
+        ? readiness.wait
+        : Effect.succeed("ready" as const)
+    ).pipe(
       Effect.flatMap((shell) =>
-        shell === "exited"
+        shell === "exited" || commandLine === null
           ? Effect.void
           : (input.withCommandWriteGuard
-              ? input.withCommandWriteGuard(writeCommand)
-              : writeCommand.pipe(Effect.as(true))
+              ? input.withCommandWriteGuard(writeCommand(commandLine))
+              : writeCommand(commandLine).pipe(Effect.as(true))
             ).pipe(Effect.flatMap((written) => (written ? Effect.void : abandonUnusedTerminal))),
       ),
       Effect.catchCause((cause) =>
@@ -536,7 +553,7 @@ export const make = Effect.gen(function* () {
           cause,
         }).pipe(Effect.andThen(abandonUnusedTerminal)),
       ),
-      Effect.ensuring(Effect.sync(() => readiness?.unsubscribe())),
+      Effect.ensuring(Effect.sync(() => readiness.unsubscribe())),
       Effect.forkIn(serviceScope),
     );
 

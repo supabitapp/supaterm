@@ -127,11 +127,14 @@ case "$(uname -m)" in
   x86_64 | amd64) arch="x64" ;;
   *) fail "unsupported architecture $(uname -m)" ;;
 esac
+if [ "${platform}-${arch}" = darwin-x64 ]; then
+  fail "there is no supaterm CLI for Intel Macs. Install the desktop app from https://supaterm.com/download, or run a server from source: https://github.com/${repo}/blob/main/docs/user/install.md#intel-macs"
+fi
 command -v tar >/dev/null 2>&1 || fail "tar is required"
 if command -v sha256sum >/dev/null 2>&1; then
-  checksum() { sha256sum "$1" | cut -d' ' -f1; }
+  checksum() { sha256sum < "$1" | cut -d' ' -f1; }
 elif command -v shasum >/dev/null 2>&1; then
-  checksum() { shasum -a 256 "$1" | cut -d' ' -f1; }
+  checksum() { shasum -a 256 < "$1" | cut -d' ' -f1; }
 else
   fail "sha256sum or shasum is required"
 fi
@@ -200,11 +203,11 @@ else
   elif [ "$fetch_status" -ne 0 ]; then
     fail "could not download the release checksums"
   fi
+  expected="$(grep " \*\{0,1\}${archive}\$" "${staging}/SHA256SUMS" | cut -d' ' -f1)"
+  [ -n "$expected" ] || fail "supaterm ${version} has no release archive for ${platform}-${arch}"
   download "${base_url}/v${version}/${archive}" "${staging}/${archive}"
 
   step "Verifying the download..."
-  expected="$(grep " \*\{0,1\}${archive}\$" "${staging}/SHA256SUMS" | cut -d' ' -f1)"
-  [ -n "$expected" ] || fail "${archive} is not listed in SHA256SUMS"
   actual="$(checksum "${staging}/${archive}")"
   [ "$actual" = "$expected" ] || fail "checksum mismatch for ${archive}"
 

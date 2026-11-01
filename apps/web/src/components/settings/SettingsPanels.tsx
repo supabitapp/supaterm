@@ -25,6 +25,7 @@ import { createModelSelection } from "@supaterm/shared/model";
 import * as Equal from "effect/Equal";
 import * as Schema from "effect/Schema";
 import { APP_VERSION, HOSTED_APP_CHANNEL, HOSTED_APP_CHANNEL_LABEL } from "../../branding";
+import { AboutVersionTitle } from "./AboutVersionTitle";
 import { CliCommandSettingsRow } from "./CliCommandSettingsRow";
 import { MobileAppSettingsRow } from "./MobileAppSettingsRow";
 import { DaysField } from "./DaysField";
@@ -133,15 +134,6 @@ const QUIT_CONFIRMATION_MODE_LABELS: Record<QuitConfirmationMode, string> = {
 };
 
 const DEFAULT_DRIVER_KIND = ProviderDriverKind.make("codex");
-function AboutVersionTitle() {
-  return (
-    <span className="inline-flex items-baseline gap-2">
-      <span>Version</span>
-      <code className="text-2xs font-medium text-muted-foreground">{APP_VERSION}</code>
-    </span>
-  );
-}
-
 function AboutVersionSection() {
   const updateState = useDesktopUpdateState();
   const [switchChannel, setSwitchChannel] = useState<DesktopUpdateChannel | null>(null);
@@ -481,7 +473,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       : []),
     ...(settings.diffLayout !== DEFAULT_UNIFIED_SETTINGS.diffLayout ? ["Diff layout"] : []),
     ...(settings.proactivePanelsEnabled !== DEFAULT_UNIFIED_SETTINGS.proactivePanelsEnabled
-      ? ["Proactive panels"]
+      ? ["Open pull requests and changes panels proactively"]
       : []),
     ...(settings.showSkillsInSlashMenu !== DEFAULT_UNIFIED_SETTINGS.showSkillsInSlashMenu
       ? ["Show skills in slash menu"]
@@ -1256,7 +1248,7 @@ export function DiffsSettingsPanel() {
               onCheckedChange={(checked) =>
                 updateSettings({ proactivePanelsEnabled: Boolean(checked) })
               }
-              aria-label="Proactive panels"
+              aria-label="Open pull requests and changes panels proactively"
             />
           }
         />

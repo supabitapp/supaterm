@@ -52,8 +52,8 @@ export function DaysField({
         <NumberFieldDecrement aria-label={`Decrease ${label}`} />
         <NumberFieldInput
           aria-label={`${label} in days`}
-          size={new Intl.NumberFormat().format(draft ?? value).length}
-          className="field-sizing-content w-auto min-w-[1ch] grow-0 text-right"
+          size={5}
+          className="w-auto grow-0 text-right"
         />
         <span aria-hidden="true" className="self-center pr-2 text-xs">
           days

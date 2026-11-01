@@ -4,7 +4,7 @@ export type ComposerTriggerKind =
   | "slash-command"
   | "skill"
   | "slash-skill";
-export type ComposerSlashCommand = "model" | "plan" | "default";
+export type ComposerSlashCommand = "model" | "plan" | "default" | "side" | "btw";
 
 export interface ComposerTrigger {
   kind: ComposerTriggerKind;
@@ -141,6 +141,12 @@ export function extendReplacementRangeForTrailingSpace(
     return rangeEnd;
   }
   return text[rangeEnd] === " " ? rangeEnd + 1 : rangeEnd;
+}
+
+/** `/side [prompt]`, or its alias `/btw [prompt]`, as the whole message. */
+export function parseSideChatCommand(text: string): { prompt: string } | null {
+  const match = /^\/(?:side|btw)(?:\s+([\s\S]*))?$/i.exec(text.trim());
+  return match ? { prompt: match[1]?.trim() ?? "" } : null;
 }
 
 export function replaceTextRange(

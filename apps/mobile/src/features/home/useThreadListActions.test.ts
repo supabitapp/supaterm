@@ -13,6 +13,7 @@ import { AsyncResult } from "effect/reactivity";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const state = vi.hoisted(() => ({
+  connectedEnvironmentIds: [] as EnvironmentId[],
   pendingOrder: null as object | null,
   dropBusy: false,
   failedAction: null as string | null,
@@ -60,6 +61,9 @@ vi.mock("../../state/session", () => ({
   readEnvironmentScope: (environmentId: string, scope: string) =>
     state.scopes.get(environmentId)?.has(scope) === true,
 }));
+vi.mock("../../state/presentation", () => ({
+  connectedEnvironmentIdsAtom: "connected-environments",
+}));
 vi.mock("../../state/server", () => ({
   environmentServerConfigsAtom: "server-configs",
 }));
@@ -69,22 +73,26 @@ vi.mock("../../state/atom-registry", () => ({
       state.dropBusy = value;
     },
     get: (atom: string) =>
-      atom === "thread-drop-busy"
-        ? state.dropBusy
-        : atom === "thread-shells"
-          ? state.shells
-          : atom === "queued-thread-keys"
-            ? new Set<string>()
-            : new Map(
-                [...state.scopes.keys()].map((environmentId) => [
-                  environmentId,
-                  {
-                    environment: {
-                      capabilities: {},
-                    },
-                  },
-                ]),
-              ),
+      atom === "connected-environments"
+        ? state.connectedEnvironmentIds
+        : atom === "thread-drop-busy"
+          ? state.dropBusy
+          : atom === "thread-shells"
+            ? state.shells
+            : atom === "side-chats"
+              ? []
+              : atom === "queued-thread-keys"
+                ? new Set<string>()
+                : new Map(
+                    [...state.scopes.keys()].map((environmentId) => [
+                      environmentId,
+                      {
+                        environment: {
+                          capabilities: {},
+                        },
+                      },
+                    ]),
+                  ),
   },
 }));
 vi.mock("../../state/use-atom-command", () => ({
@@ -108,7 +116,7 @@ vi.mock("../../state/thread-order", () => ({
   },
 }));
 vi.mock("../../state/threads", () => ({
-  environmentThreadShells: { threadShellsAtom: "thread-shells" },
+  environmentThreadShells: { threadShellsAtom: "thread-shells", sideChatsAtom: () => "side-chats" },
   threadEnvironment: Object.fromEntries(
     [
       "archive",
@@ -121,6 +129,7 @@ vi.mock("../../state/threads", () => ({
       "pin",
       "unpin",
       "reorderPin",
+      "reorderActive",
       "updateMetadata",
     ].map((action) => [
       action,
@@ -170,6 +179,7 @@ const mutationCases = [
 ] as const;
 
 beforeEach(() => {
+  state.connectedEnvironmentIds = [primaryEnvironmentId, otherEnvironmentId];
   state.failedAction = null;
   state.archivedRefreshes = [];
   state.pendingOrder = null;
@@ -300,6 +310,60 @@ describe("pinned thread operation permissions", () => {
 
     expect(await useThreadListActions().moveThread(moved, "up")).toBe(false);
     expect(state.requests).toHaveLength(1);
+  });
+});
+
+describe("thread reorder connection availability", () => {
+  it("rejects pinned materialization involving a cached offline neighbor", async () => {
+    const moved = makeThread({ pinnedAt: "2026-09-02T00:00:00.000Z" });
+    state.shells = [
+      moved,
+      makeThread({
+        id: ThreadId.make("offline-neighbor"),
+        environmentId: otherEnvironmentId,
+        createdAt: "2026-09-02T00:00:00.000Z",
+        pinnedAt: moved.pinnedAt,
+      }),
+    ];
+    state.scopes.get(otherEnvironmentId)?.add(AuthOrchestrationOperateScope);
+    state.connectedEnvironmentIds = [primaryEnvironmentId];
+
+    const { moveThread } = useThreadListActions();
+    expect(await moveThread(moved, "up")).toBe(false);
+    expect(state.requests).toEqual([]);
+
+    state.connectedEnvironmentIds = [primaryEnvironmentId, otherEnvironmentId];
+
+    expect(await moveThread(moved, "up")).toBe(true);
+    expect(state.requests).toHaveLength(2);
+    expect(new Set(state.requests.map(({ environmentId }) => environmentId))).toEqual(
+      new Set([primaryEnvironmentId, otherEnvironmentId]),
+    );
+  });
+
+  it("uses the latest connection state in a retained pinned move callback", async () => {
+    const moved = makeThread({ pinnedAt: "2026-09-02T00:00:00.000Z", pinOrderKey: "m" });
+    state.shells = [
+      moved,
+      makeThread({
+        id: ThreadId.make("offline-neighbor"),
+        environmentId: otherEnvironmentId,
+        pinnedAt: moved.pinnedAt,
+        pinOrderKey: "g",
+      }),
+    ];
+    const { moveThread } = useThreadListActions();
+    state.connectedEnvironmentIds = [];
+
+    expect(await moveThread(moved, "up")).toBe(false);
+    expect(state.requests).toEqual([]);
+
+    state.connectedEnvironmentIds = [primaryEnvironmentId];
+
+    expect(await moveThread(moved, "up")).toBe(true);
+    expect(state.requests).toEqual([
+      expect.objectContaining({ action: "reorderPin", environmentId: primaryEnvironmentId }),
+    ]);
   });
 });
 

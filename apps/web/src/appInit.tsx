@@ -1,8 +1,9 @@
 import type { ClientSettings } from "@supaterm/contracts/settings";
 import { createBrowserHistory, createHashHistory } from "@tanstack/react-router";
+import * as Schema from "effect/Schema";
 
 import { applyAppearanceContrast } from "./appearanceContrast";
-import { applyAppearanceFontVariables } from "./appearanceFonts";
+import { applyAppearanceFontVariables, TYPOGRAPHY_ADVANCED_STORAGE_KEY } from "./appearanceFonts";
 import { startElectronBrowserHost } from "./browser/ElectronBrowserHost";
 import { startThreadOverlayRetention } from "./components/chat/threadOverlayRetention";
 import { startBrowserProfileReporting } from "./browser/BrowserProfileReporter";
@@ -25,6 +26,7 @@ import {
 } from "./composerDraftStore";
 import { startDefaultThemeAdoption } from "./hooks/useDefaultTheme";
 import { startEnvironmentThemeRepaint } from "./hooks/useEnvironmentTheme";
+import { readLocalStorageValue, subscribeLocalStorageKey } from "./hooks/useLocalStorage";
 import { getClientSettings, subscribeClientSettings } from "./hooks/useSettings";
 import { syncBrowserChromeTheme } from "./hooks/useTheme";
 import { installDesktopPasteAsText } from "./lib/desktopPasteAsText";
@@ -46,10 +48,18 @@ import { environmentThreadShells } from "./state/threads";
 function startClientAppearance(): void {
   const root = document.documentElement;
   let applied: ClientSettings | null = null;
+  let appliedSeparateFonts: boolean | null = null;
   const apply = () => {
     const settings = getClientSettings();
     const previous = applied;
     applied = settings;
+    const separateFonts = readLocalStorageValue(
+      TYPOGRAPHY_ADVANCED_STORAGE_KEY,
+      false,
+      Schema.Boolean,
+    );
+    const previousSeparateFonts = appliedSeparateFonts;
+    appliedSeparateFonts = separateFonts;
     if (previous?.diffColorScheme !== settings.diffColorScheme) {
       root.dataset.diffColorScheme = settings.diffColorScheme;
     }
@@ -74,7 +84,8 @@ function startClientAppearance(): void {
       previous.fontSizeInterface !== settings.fontSizeInterface ||
       previous.fontSizePrompt !== settings.fontSizePrompt ||
       previous.fontSizeCode !== settings.fontSizeCode ||
-      previous.fontSmoothing !== settings.fontSmoothing
+      previous.fontSmoothing !== settings.fontSmoothing ||
+      previousSeparateFonts !== separateFonts
     ) {
       applyAppearanceFontVariables(root, {
         sans: settings.fontFamilySans,
@@ -84,10 +95,12 @@ function startClientAppearance(): void {
         sizePrompt: settings.fontSizePrompt,
         sizeCode: settings.fontSizeCode,
         smoothing: settings.fontSmoothing,
+        separate: separateFonts,
       });
     }
   };
   subscribeClientSettings(apply);
+  subscribeLocalStorageKey(TYPOGRAPHY_ADVANCED_STORAGE_KEY, apply);
   apply();
 }
 

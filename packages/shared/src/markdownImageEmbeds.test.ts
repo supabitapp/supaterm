@@ -30,6 +30,28 @@ describe("appendMissingImageEmbeds", () => {
     expect(appendMissingImageEmbeds(text, ["/tmp/dog.png"])).toBe(`${text}\n\n![](</tmp/dog.png>)`);
   });
 
+  it.each([
+    {
+      name: "fence",
+      text: 'Created.\n\n~~~js\nconsole.log("done");',
+      expected: 'Created.\n\n~~~js\nconsole.log("done");\n~~~\n\n![](</tmp/a.png>)',
+    },
+    {
+      name: "HTML comment",
+      text: "<!--\n![](</tmp/a.png>)",
+      expected: "<!--\n![](</tmp/a.png>)\n-->\n\n![](</tmp/a.png>)",
+    },
+    {
+      name: "raw HTML block",
+      text: "<pre>\nlog",
+      expected: "<pre>\nlog\n</pre>\n\n![](</tmp/a.png>)",
+    },
+  ])("closes an unclosed trailing $name before appending", ({ text, expected }) => {
+    const result = appendMissingImageEmbeds(text, ["/tmp/a.png"]);
+    expect(result).toBe(expected);
+    expect(appendMissingImageEmbeds(result, ["/tmp/a.png"])).toBe(result);
+  });
+
   it("appends multiple images once and supports an image-only reply", () => {
     expect(appendMissingImageEmbeds("", ["/tmp/dog.png", "/tmp/cat.png", "/tmp/dog.png"])).toBe(
       "![](</tmp/dog.png>)\n\n![](</tmp/cat.png>)",

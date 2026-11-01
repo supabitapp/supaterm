@@ -141,6 +141,17 @@ choose **Update** to install it. If not, the window links to the last version
 that started on your computer. Download and install it to go back. Use **Copy
 details** to include the error in a bug report.
 
+## Registries and proxies
+
+Each server checks Supaterm releases, and providers installed with npm, through
+its own npm, so the checks use npm's configured registry, authentication, and
+proxy settings. Providers installed with Homebrew or pnpm check through those
+tools.
+Configure npm on the server's machine. If that registry cannot be reached, the
+release shows as unavailable; Supaterm does not try the public registry instead.
+Machines without npm, and servers too old to run this check, use the public npm
+registry.
+
 ## Update providers
 
 **Settings → Providers** shows provider updates for the selected environment.

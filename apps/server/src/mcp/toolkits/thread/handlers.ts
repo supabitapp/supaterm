@@ -92,7 +92,12 @@ export const layer = McpToolAccess.toLayer(ThreadToolkit, {
         });
       const { task, threadId } = yield* scheduler
         .runNow({ id: input.taskId })
-        .pipe(Effect.mapError(unavailable));
+        .pipe(
+          Effect.mapError(
+            (error) =>
+              new OrchestratorMcpFailure({ code: "orchestration_error", message: error.message }),
+          ),
+        );
       const scope = yield* McpInvocationContext.McpInvocationContext;
       return {
         taskId: task.id,
@@ -124,25 +129,27 @@ export const layer = McpToolAccess.toLayer(ThreadToolkit, {
       };
     }),
   ),
-  supaterm_thread_fork: writesThread((input) =>
-    Effect.gen(function* () {
-      const { threads, projection } = yield* readThread(input.threadId);
-      const commandId = yield* newCommandId();
-      const targetThreadId = ThreadId.make(`${commandId}:fork`);
-      const result = yield* threads
-        .dispatch({
-          type: "thread.fork",
-          commandId,
-          sourceThreadId: projection.thread.id,
-          targetThreadId,
-          sourcePoint: input.sourcePoint,
-          ...(input.title === undefined ? {} : { title: input.title }),
-          createdBy: "agent",
-          creationSource: "mcp",
-        })
-        .pipe(Effect.mapError(dispatchFailure));
-      return { sequence: result.sequence, targetThreadId };
-    }),
+  supaterm_thread_fork: McpToolAccess.forksThreads(
+    (input) => [input.threadId],
+    (input) =>
+      Effect.gen(function* () {
+        const { threads, projection } = yield* readThread(input.threadId);
+        const commandId = yield* newCommandId();
+        const targetThreadId = ThreadId.make(`${commandId}:fork`);
+        const result = yield* threads
+          .dispatch({
+            type: "thread.fork",
+            commandId,
+            sourceThreadId: projection.thread.id,
+            targetThreadId,
+            sourcePoint: input.sourcePoint,
+            ...(input.title === undefined ? {} : { title: input.title }),
+            createdBy: "agent",
+            creationSource: "mcp",
+          })
+          .pipe(Effect.mapError(dispatchFailure));
+        return { sequence: result.sequence, targetThreadId };
+      }),
   ),
   supaterm_thread_merge_back: McpToolAccess.writesThreads(
     (input) => [input.targetThreadId, input.sourceThreadId],

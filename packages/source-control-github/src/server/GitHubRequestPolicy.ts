@@ -24,6 +24,7 @@ export const PinnedGitHubCredential = Context.Reference<{
   readonly host: string;
   readonly token: Redacted.Redacted<string>;
   readonly credentialFingerprint: string;
+  readonly source?: GitHubCredentials.GitHubCredentialSource;
 } | null>("@supaterm/source-control-github/server/GitHubRequestPolicy/PinnedGitHubCredential", {
   defaultValue: () => null,
 });
@@ -61,7 +62,12 @@ export class GitHubApiRateLimitError extends Schema.TaggedError<GitHubApiRateLim
 
 export class GitHubApiNotFoundError extends Schema.TaggedError<GitHubApiNotFoundError>()(
   "GitHubApiNotFoundError",
-  { host: Schema.String, operation: Schema.String },
+  {
+    host: Schema.String,
+    operation: Schema.String,
+    /** The source of the credential the refused request carried, when known. */
+    credential: Schema.optionalKey(GitHubCredentials.GitHubCredentialSource),
+  },
 ) {
   override get message(): string {
     return "GitHub could not find the requested resource, or the credential cannot see it.";
@@ -183,19 +189,26 @@ export interface GitHubRequest {
 export class GitHubRequestPolicy extends Context.Service<
   GitHubRequestPolicy,
   {
-    /** send receives auth/version headers; its failures pass through unchanged. */
+    /**
+     * send receives auth/version headers and the source of the credential they carry; its
+     * failures pass through unchanged.
+     */
     readonly request: <A, E, R>(
       input: GitHubRequest,
-      send: (headers: Readonly<Record<string, string>>) => Effect.Effect<GitHubAnswer<A>, E, R>,
+      send: (
+        headers: Readonly<Record<string, string>>,
+        source: GitHubCredentials.GitHubCredentialSource | undefined,
+      ) => Effect.Effect<GitHubAnswer<A>, E, R>,
     ) => Effect.Effect<A, E | GitHubApiError, R>;
-    readonly credential: (
-      host: string,
-    ) => Effect.Effect<
-      { readonly token: Redacted.Redacted<string>; readonly fingerprint: string },
-      GitHubApiError
-    >;
+    readonly credential: (host: string) => Effect.Effect<GitHubHeldCredential, GitHubApiError>;
   }
 >()("@supaterm/source-control-github/server/GitHubRequestPolicy") {}
+
+export interface GitHubHeldCredential {
+  readonly source?: GitHubCredentials.GitHubCredentialSource;
+  readonly token: Redacted.Redacted<string>;
+  readonly fingerprint: string;
+}
 
 /** @public */
 export const make = Effect.gen(function* () {
@@ -216,16 +229,23 @@ export const make = Effect.gen(function* () {
           operation: "credential",
         });
       }
-      return { token: pinned.token, fingerprint: pinned.credentialFingerprint };
+      return {
+        token: pinned.token,
+        fingerprint: pinned.credentialFingerprint,
+        ...(pinned.source === undefined ? {} : { source: pinned.source }),
+      };
     }
     const held = yield* credentials.get(normalized);
-    return { token: held.token, fingerprint: held.fingerprint };
+    return { token: held.token, fingerprint: held.fingerprint, source: held.source };
   });
 
   // The REST/GraphQL transport span owns request and quota metadata.
   const request: GitHubRequestPolicy["Service"]["request"] = Effect.fnUntraced(function* <A, E, R>(
     input: GitHubRequest,
-    send: (headers: Readonly<Record<string, string>>) => Effect.Effect<GitHubAnswer<A>, E, R>,
+    send: (
+      headers: Readonly<Record<string, string>>,
+      source: GitHubCredentials.GitHubCredentialSource | undefined,
+    ) => Effect.Effect<GitHubAnswer<A>, E, R>,
   ) {
     const host = normalizeHost(input.host);
     const context = { host, operation: input.operation };
@@ -233,7 +253,7 @@ export const make = Effect.gen(function* () {
       "github.host": host,
       "github.operation": input.operation,
     });
-    const { token, fingerprint } = yield* credential(host);
+    const { token, fingerprint, source } = yield* credential(host);
     const scope = yield* SourceControlRateLimit.CredentialScope;
     // A refusal pauses the whole host, whichever quota it spent: the key PullRequestService
     // records its own backoff under.
@@ -267,7 +287,10 @@ export const make = Effect.gen(function* () {
           yield* credentials.invalidate(host);
           return yield* new GitHubApiAuthenticationError(context);
         case "NotFound":
-          return yield* new GitHubApiNotFoundError(context);
+          return yield* new GitHubApiNotFoundError({
+            ...context,
+            ...(source === undefined ? {} : { credential: source }),
+          });
         case "Failed":
           return yield* new GitHubApiResponseError({
             ...context,
@@ -291,10 +314,10 @@ export const make = Effect.gen(function* () {
         );
       // One deadline covers the headers and the body: a host that answers headers and then
       // stalls must not hold a shared slot for undici's own five-minute body timeout.
-      const answer = yield* send({
-        ...REQUEST_HEADERS,
-        authorization: `Bearer ${Redacted.value(token)}`,
-      }).pipe(
+      const answer = yield* send(
+        { ...REQUEST_HEADERS, authorization: `Bearer ${Redacted.value(token)}` },
+        source,
+      ).pipe(
         Effect.timeoutOrElse({
           duration: input.timeout ?? DEFAULT_TIMEOUT,
           orElse: () =>

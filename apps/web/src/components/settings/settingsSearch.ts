@@ -424,9 +424,9 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "proactive-panels",
-    title: "Proactive panels",
+    title: "Open pull requests and changes panels proactively",
     to: "/settings/diffs",
-    searchTerms: ["automatically open diff pull request pr right panel agent completion"],
+    searchTerms: ["proactive automatically open diff pull request pr right panel agent completion"],
   },
   {
     id: "default-diff-file-state",

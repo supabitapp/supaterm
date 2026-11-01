@@ -97,6 +97,7 @@ export function buildComposerSlashCommandItems(input: {
   readonly hasThread: boolean;
   readonly hasCompactableConversation?: boolean;
   readonly offersUsageLimits?: boolean;
+  readonly offersSideChat?: boolean;
   readonly selectedProviderStatus: Pick<ServerProvider, "driver" | "slashCommands"> | null;
 }): ComposerCommandItem[] {
   const query = input.query.toLowerCase();
@@ -108,6 +109,24 @@ export function buildComposerSlashCommandItems(input: {
       label: "/model",
       description: "Switch model",
     },
+    ...(input.offersSideChat
+      ? [
+          {
+            id: "cmd:side",
+            type: "slash-command" as const,
+            command: "side",
+            label: "/side",
+            description: "Ask a side question in a new side chat",
+          },
+          {
+            id: "cmd:btw",
+            type: "slash-command" as const,
+            command: "btw",
+            label: "/btw",
+            description: "Same as /side",
+          },
+        ]
+      : []),
   ] satisfies ComposerCommandItem[];
   const items: ComposerCommandItem[] = builtIn.filter((item) => item.command.includes(query));
 
@@ -172,6 +191,7 @@ export function useComposerCommandMenu({
   hasThread,
   hasCompactableConversation,
   offersUsageLimits = false,
+  offersSideChat = false,
   enabled = true,
   onChangeDraftMessage,
   onUsageLimits,
@@ -189,6 +209,7 @@ export function useComposerCommandMenu({
   readonly hasThread: boolean;
   readonly hasCompactableConversation: boolean;
   readonly offersUsageLimits?: boolean;
+  readonly offersSideChat?: boolean;
   readonly enabled?: boolean;
   readonly onChangeDraftMessage: (value: string) => void;
   readonly onUsageLimits?: () => void;
@@ -295,6 +316,7 @@ export function useComposerCommandMenu({
         hasThread,
         hasCompactableConversation,
         offersUsageLimits,
+        offersSideChat,
         selectedProviderStatus: selectedProviderStatus
           ? {
               ...selectedProviderStatus,

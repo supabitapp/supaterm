@@ -4,7 +4,6 @@ import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
-import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
 import { HttpClient, HttpClientRequest, type HttpClientResponse } from "effect/http";
 
@@ -49,12 +48,7 @@ export class GitHubRest extends Context.Service<
   GitHubRest,
   {
     readonly rest: (input: GitHubRestInput) => Effect.Effect<GitHubRestResponse, GitHubApiError>;
-    readonly credential: (
-      host: string,
-    ) => Effect.Effect<
-      { readonly token: Redacted.Redacted<string>; readonly fingerprint: string },
-      GitHubApiError
-    >;
+    readonly credential: GitHubRequestPolicy.GitHubRequestPolicy["Service"]["credential"];
   }
 >()("@supaterm/source-control-github/server/GitHubRest") {}
 

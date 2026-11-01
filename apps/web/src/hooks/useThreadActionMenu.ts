@@ -34,6 +34,7 @@ import { readEnvironmentScope } from "../state/session";
 import { readThreadShell, useProjects } from "../state/entities";
 import { usePrimaryEnvironmentId } from "../state/environments";
 import { readLocalApi } from "../localApi";
+import { threadDeleteConfirmation } from "../lib/threadDeleteConfirmation";
 import {
   deriveLogicalProjectKeyFromSettings,
   derivePhysicalProjectKey,
@@ -294,10 +295,7 @@ export function useThreadActionMenu(input: {
         if (confirmThreadDelete) {
           const confirmed = await settlePromise(() =>
             api.dialogs.confirm(
-              [
-                `Delete thread "${thread.title}"?`,
-                "This permanently clears conversation history for this thread.",
-              ].join("\n"),
+              threadDeleteConfirmation({ title: thread.title, threadRefs: [threadRef] }),
               { variant: "destructive" },
             ),
           );

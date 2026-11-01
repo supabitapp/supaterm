@@ -9,6 +9,8 @@ import {
 import { describe, expect, it } from "vite-plus/test";
 import { Atom, AtomRegistry } from "effect/reactivity";
 
+import { createThreadMovePlanner } from "./threadOrder";
+import { makeThreadShellFixture } from "../../test-fixtures";
 import { createThreadListEnvironmentsAtom } from "../../state/thread-list-environments";
 
 import {
@@ -127,7 +129,7 @@ describe("createThreadRowProviderInstanceResolver", () => {
     const configs = Atom.make<ReadonlyMap<EnvironmentId, ServerConfig>>(
       new Map([[environmentId, config]]),
     );
-    const environments = createThreadListEnvironmentsAtom(configs);
+    const environments = createThreadListEnvironmentsAtom(configs, Atom.make([environmentId]));
     const registry = AtomRegistry.make();
     registry.mount(environments);
     try {
@@ -163,6 +165,119 @@ describe("createThreadRowProviderInstanceResolver", () => {
       );
       expect(restored(personal)?.showBadge).toBe(true);
       expect(restored(work)?.showBadge).toBe(true);
+    } finally {
+      registry.dispose();
+    }
+  });
+});
+
+describe("thread list reorder availability", () => {
+  it("updates pinned moves on disconnect and reconnect without changing cached config", () => {
+    const onlineId = EnvironmentId.make("online");
+    const offlineId = EnvironmentId.make("offline");
+    const config = makeConfig([{ instanceId: "codex", driver: "codex" }]);
+    const configs = Atom.make<ReadonlyMap<EnvironmentId, ServerConfig>>(
+      new Map([
+        [onlineId, config],
+        [offlineId, config],
+      ]),
+    );
+    const connected = Atom.make<ReadonlyArray<EnvironmentId>>([onlineId, offlineId]);
+    const environments = createThreadListEnvironmentsAtom(configs, connected);
+    const registry = AtomRegistry.make();
+    registry.mount(environments);
+    try {
+      const ordered = [onlineId, offlineId].map((environmentId, index) =>
+        makeThreadShellFixture({
+          environmentId,
+          id: ThreadId.make(`thread-${index}`),
+          pinnedAt: "2026-09-02T00:00:00.000Z",
+        }),
+      );
+      const movedId = `${onlineId}:thread-0`;
+      const plannerInput = () => {
+        const current = registry.get(environments);
+        return {
+          ordered,
+          section: "pinned" as const,
+          reorderableEnvironmentIds: current.reorderEnvironmentIds,
+        };
+      };
+      expect(createThreadMovePlanner(plannerInput())(movedId, "down")).toHaveLength(2);
+      const before = registry.get(environments);
+
+      registry.set(connected, [onlineId]);
+
+      expect(createThreadMovePlanner(plannerInput())(movedId, "down")).toBeNull();
+      expect(registry.get(environments).loadedEnvironmentIds.has(offlineId)).toBe(true);
+      expect(registry.get(environments).providersByEnvironmentId.get(offlineId)).toBe(
+        before.providersByEnvironmentId.get(offlineId),
+      );
+
+      const keyedInput = {
+        ...plannerInput(),
+        ordered: ordered.map((row, index) => ({
+          ...row,
+          pinOrderKey: index === 0 ? "bb" : "dd",
+        })),
+      };
+      expect(createThreadMovePlanner(keyedInput)(movedId, "down")).toEqual([
+        expect.objectContaining({ id: movedId }),
+      ]);
+      expect(createThreadMovePlanner(keyedInput)(`${offlineId}:thread-1`, "up")).toBeNull();
+
+      const updatedConfig = {
+        ...config,
+        settings: {
+          ...config.settings,
+          snoozePresets: [{ kind: "after" as const, minutes: 90 }],
+        },
+      };
+      registry.set(
+        configs,
+        new Map([
+          [onlineId, config],
+          [offlineId, updatedConfig],
+        ]),
+      );
+
+      const updated = registry.get(environments);
+      expect(updated.snoozePresetsByEnvironmentId.get(offlineId)).toEqual(
+        updatedConfig.settings.snoozePresets,
+      );
+      expect(updated.reorderEnvironmentIds.has(offlineId)).toBe(false);
+      expect(createThreadMovePlanner(plannerInput())(movedId, "down")).toBeNull();
+
+      registry.set(
+        configs,
+        new Map([
+          [onlineId, config],
+          [
+            offlineId,
+            {
+              ...updatedConfig,
+              settings: {
+                ...updatedConfig.settings,
+                snoozePresets: updatedConfig.settings.snoozePresets.map((preset) => ({
+                  ...preset,
+                })),
+              },
+            },
+          ],
+        ]),
+      );
+      expect(registry.get(environments)).toBe(updated);
+
+      registry.set(connected, [onlineId, offlineId]);
+
+      expect(createThreadMovePlanner(plannerInput())(movedId, "down")).toHaveLength(2);
+      expect(registry.get(environments).snoozePresetsByEnvironmentId.get(offlineId)).toBe(
+        updated.snoozePresetsByEnvironmentId.get(offlineId),
+      );
+
+      registry.set(configs, new Map([[onlineId, config]]));
+
+      expect(createThreadMovePlanner(plannerInput())(movedId, "down")).toBeNull();
     } finally {
       registry.dispose();
     }

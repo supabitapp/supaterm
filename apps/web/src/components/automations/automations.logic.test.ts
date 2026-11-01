@@ -7,7 +7,7 @@ import {
   ScheduledTaskId,
   type ScheduledTask,
 } from "@supaterm/contracts";
-import { describe, expect, it } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import type {
   SidebarProjectGroupMember,
@@ -17,10 +17,12 @@ import type {
 import { deriveProviderInstanceEntries } from "../../providerInstances";
 import { resolveSettingsScope, type SettingsScopeSearch } from "../settings/settingsScope";
 import {
+  defaultAutomationProjectId,
   lastRunLabel,
   matchesAutomationScope,
   nextRunLabel,
   relativeLabel,
+  scheduleFromDraft,
   scheduleLabel,
   scheduledTaskDefaultModel,
   taskToDraft,
@@ -74,6 +76,8 @@ function group(
     allRemoteMembersAreDesktopLocal: false,
     allRemoteMembersAreWsl: false,
     remoteEnvironmentLabels: [],
+    pinned: false,
+    archived: false,
   };
 }
 
@@ -130,6 +134,22 @@ describe("automations scope", () => {
     expect(matchesAutomationScope(serverScope, laptopId, stale.id)).toBe(false);
   });
 
+  it("defaults a new automation to a pinned open project, and to an archived one only when scoped to it", () => {
+    const at = "2026-01-01T00:00:00.000Z";
+    const project = (id: string, pinnedAt: string | null, archivedAt: string | null) => ({
+      id: ProjectId.make(id),
+      pinnedAt,
+      archivedAt,
+    });
+    const all = resolveSettingsScope({}, groups, environments);
+    const scoped = resolveSettingsScope({ project: "supaterm" }, groups, environments);
+    expect(
+      defaultAutomationProjectId([project("a", null, null), project("b", at, null)], all),
+    ).toBe("b");
+    expect(defaultAutomationProjectId([project("x", null, at)], all)).toBe("");
+    expect(defaultAutomationProjectId([project("x", null, at)], scoped)).toBe("x");
+  });
+
   it("keeps tasks of removed projects when no project is selected", () => {
     const scope = resolveSettingsScope({}, groups, environments);
     expect(matchesAutomationScope(scope, laptopId, ProjectId.make("removed"))).toBe(true);
@@ -177,6 +197,42 @@ describe("editing scheduled task branch settings", () => {
       workspaceStrategy: { type: "worktree", baseRef: "release", startFromOrigin },
     });
     expect(draft.startFromOrigin).toBe(startFromOrigin);
+  });
+});
+
+describe("one-time scheduled tasks", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("round-trips the run time through the local date-time input", () => {
+    const runAt = "2026-11-03T17:00:42.000Z";
+    const draft = taskToDraft({ ...legacyTask, schedule: { type: "once", runAt } });
+    expect(draft.scheduleMode).toBe("once");
+    expect(scheduleFromDraft(draft)).toEqual({ type: "once", runAt });
+    const moved = scheduleFromDraft({ ...draft, runAt: "2026-11-04T09:30" });
+    expect(moved).toEqual({ type: "once", runAt: new Date("2026-11-04T09:30").toISOString() });
+    expect(scheduleFromDraft({ ...draft, runAt: "" })).toBeNull();
+  });
+
+  it("rejects a time skipped by daylight saving", () => {
+    vi.stubEnv("TZ", "America/Los_Angeles");
+    const draft = taskToDraft({
+      ...legacyTask,
+      schedule: { type: "once", runAt: "2027-03-14T18:00:00.000Z" },
+    });
+    expect(scheduleFromDraft({ ...draft, runAt: "2027-03-14T02:30" })).toBeNull();
+  });
+
+  it("keeps the saved offset when an edit stays in an hour that repeats", () => {
+    vi.stubEnv("TZ", "America/Los_Angeles");
+    // 01:30 PST, the second 01:30 on 2026-11-01.
+    const draft = taskToDraft({
+      ...legacyTask,
+      schedule: { type: "once", runAt: "2026-11-01T09:30:00.000Z" },
+    });
+    expect(scheduleFromDraft({ ...draft, runAt: "2026-11-01T01:35" })).toEqual({
+      type: "once",
+      runAt: "2026-11-01T09:35:00.000Z",
+    });
   });
 });
 

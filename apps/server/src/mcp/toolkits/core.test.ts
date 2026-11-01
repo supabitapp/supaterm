@@ -12,6 +12,8 @@ import {
   ProviderDriverKind,
   ProviderInstanceId,
   RunId,
+  ScheduledTaskError,
+  ScheduledTask,
   RuntimeRequestId,
   ThreadId,
   TurnItemId,
@@ -655,6 +657,46 @@ it.effect("refuses act-as-caller tools to a client caller", () =>
   ),
 );
 
+it.effect.each([
+  ["delegate_task", { task: "Review", mode: "async" }],
+  ["create_threads", { threads: [{ prompt: "Review" }] }],
+  ["supaterm_thread_fork", { sourcePoint: { type: "latest_stable" } }],
+] as const)("refuses %s to a side chat before it starts a thread", ([name, args]) =>
+  Effect.gen(function* () {
+    const server = yield* McpServer.McpServer;
+    const result = yield* server
+      .callTool({ name, arguments: args })
+      .pipe(
+        Effect.provideService(McpInvocationContext.McpInvocationContext, scope),
+        Effect.provideService(McpSchema.McpServerClient, client),
+      );
+    expect(declaredFailure(result)).toMatchObject({ code: "capability_denied" });
+  }).pipe(
+    Effect.provide(
+      Layer.mergeAll(layerOrchestratorToolkit, layerThreadToolkit).pipe(
+        Layer.provideMerge(McpServer.McpServer.layer),
+        Layer.provide(NodeCrypto.layer),
+        Layer.provide(
+          Layer.mock(ThreadManagement.ThreadManagementService)({
+            getThreadShell: () =>
+              Effect.succeed(
+                McpToolAccessTestkit.liveThreadShell(threadId, {
+                  runtimeMode: "approval-required",
+                  sideChatOf: ThreadId.make("mcp-core-parent"),
+                }),
+              ),
+          }),
+        ),
+        Layer.provide(ServerSettings.layerTest()),
+        Layer.provide(Layer.mock(ProviderRegistry.ProviderRegistry)({})),
+        Layer.provide(Layer.mock(ProviderAdapterRegistry.ProviderAdapterRegistryV2)({})),
+        Layer.provide(Layer.mock(ScheduledTaskService.ScheduledTaskService)({})),
+        Layer.provide(Layer.mock(ProjectService.ProjectService)({})),
+      ),
+    ),
+  ),
+);
+
 it.effect("a caller cannot rewrite a scheduled task that runs above its own modes", () =>
   Effect.gen(function* () {
     const server = yield* McpServer.McpServer;
@@ -702,6 +744,58 @@ it.effect("a caller cannot rewrite a scheduled task that runs above its own mode
           }),
         ),
         Layer.provide(Layer.mock(ProjectService.ProjectService)({})),
+      ),
+    ),
+  ),
+);
+
+it.effect.each([
+  {
+    scenario: "explains why a running task cannot run again",
+    tasks: [Schema.decodeSync(ScheduledTask)(scheduledTask("task-running", "full-access"))],
+    error: new ScheduledTaskError({
+      message: "Schedule task is already running.",
+      cause: new Error("private-running-cause"),
+    }),
+    code: "orchestration_error",
+    message: "Schedule task is already running.",
+  },
+  {
+    scenario: "reports a missing task before trying to run it",
+    tasks: [],
+    error: new ScheduledTaskError({ message: "must not run a missing task" }),
+    code: "invalid_request",
+    message: "The scheduled task was not found.",
+  },
+])("run_scheduled_task_now $scenario", ({ tasks, error, code, message }) =>
+  Effect.gen(function* () {
+    const server = yield* McpServer.McpServer;
+    const result = yield* server
+      .callTool({ name: "run_scheduled_task_now", arguments: { taskId: "task-running" } })
+      .pipe(
+        Effect.provideService(
+          McpInvocationContext.McpInvocationContext,
+          clientScope("full-access"),
+        ),
+        Effect.provideService(McpSchema.McpServerClient, client),
+      );
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toBeUndefined();
+    expect(declaredFailure(result)).toEqual({ _tag: "OrchestratorMcpFailure", code, message });
+    expect(JSON.stringify(result)).not.toContain("private-");
+  }).pipe(
+    Effect.provide(
+      McpHttpServer.layerThreadToolkit.pipe(
+        Layer.provideMerge(McpServer.McpServer.layer),
+        Layer.provide(NodeCrypto.layer),
+        Layer.provide(Layer.mock(ThreadManagement.ThreadManagementService)({})),
+        Layer.provide(Layer.mock(ThreadSearch.ThreadSearch)({})),
+        Layer.provide(
+          Layer.mock(ScheduledTaskService.ScheduledTaskService)({
+            list: () => Effect.succeed({ tasks }),
+            runNow: () => Effect.fail(error),
+          }),
+        ),
       ),
     ),
   ),
@@ -939,4 +1033,52 @@ it.effect("only the caller that prepared a pending upload can discard it", () =>
       ),
     ),
   ),
+);
+
+it.effect(
+  "supaterm_thread_list done:false with an empty statuses list lists the threads not done",
+  () => {
+    const open = McpToolAccessTestkit.liveThreadShell(ThreadId.make("open-thread"));
+    const done = {
+      ...McpToolAccessTestkit.liveThreadShell(ThreadId.make("done-thread")),
+      doneOverride: "done",
+    } as const;
+    return Effect.gen(function* () {
+      const server = yield* McpServer.McpServer;
+      const result = yield* server
+        .callTool({
+          name: "supaterm_thread_list",
+          arguments: { projectId: open.projectId, done: false, statuses: [] },
+        })
+        .pipe(
+          Effect.provideService(
+            McpInvocationContext.McpInvocationContext,
+            clientScope("full-access"),
+          ),
+          Effect.provideService(McpSchema.McpServerClient, client),
+        );
+      expect(result.isError).toBe(false);
+      expect(result.structuredContent).toMatchObject({
+        threads: [{ threadId: open.id, done: false }],
+        total: 1,
+      });
+    }).pipe(
+      Effect.provide(
+        layerOrchestratorToolkit.pipe(
+          Layer.provideMerge(McpServer.McpServer.layer),
+          Layer.provide(NodeCrypto.layer),
+          Layer.provide(
+            Layer.mock(ThreadManagement.ThreadManagementService)({
+              listProjectThreads: () => Effect.succeed([open, done]),
+            }),
+          ),
+          Layer.provide(ServerSettings.layerTest()),
+          Layer.provide(Layer.mock(ProviderRegistry.ProviderRegistry)({})),
+          Layer.provide(Layer.mock(ProviderAdapterRegistry.ProviderAdapterRegistryV2)({})),
+          Layer.provide(Layer.mock(ScheduledTaskService.ScheduledTaskService)({})),
+          Layer.provide(Layer.mock(ProjectService.ProjectService)({})),
+        ),
+      ),
+    );
+  },
 );

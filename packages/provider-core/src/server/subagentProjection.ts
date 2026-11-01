@@ -60,6 +60,7 @@ export function makeSubagentChildThread(input: {
     creationSource: input.creationSource,
     id: input.childThreadId,
     title: input.title,
+    titleRegeneration: null,
     linkedPullRequest: null,
     pullRequests: [],
     historyOrigin: undefined,
@@ -85,6 +86,7 @@ export function makeSubagentChildThread(input: {
     pinnedAt: null,
     pinOrderKey: null,
     pinnedMessages: [],
+    autoMarkDoneDisabledAt: null,
     lastVisitedAt: null,
     deletedAt: null,
   };

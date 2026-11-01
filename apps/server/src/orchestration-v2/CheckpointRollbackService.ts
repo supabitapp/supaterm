@@ -23,7 +23,7 @@ import { makeIsManagedWorktreePath } from "../worktreesDirectory.ts";
 import { withWorkspaceLease } from "../workspace/workspaceLease.ts";
 import {
   isCheckpointRestoreIsolated,
-  SHARED_WORKSPACE_RESTORE_MESSAGE,
+  sharedWorkspaceRestoreMessage,
 } from "./CheckpointRestoreSafety.ts";
 import { CheckpointRestoreError, CheckpointServiceV2 } from "./CheckpointService.ts";
 import { EventSinkV2 } from "./EventSink.ts";
@@ -52,6 +52,7 @@ export class CheckpointRollbackExecutionError extends Schema.TaggedError<Checkpo
     threadId: ThreadId,
     providerThreadId: ProviderThreadId,
     checkpointId: CheckpointId,
+    blockingSideChats: Schema.optional(Schema.Array(Schema.String)),
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
@@ -64,7 +65,7 @@ export class CheckpointRollbackExecutionError extends Schema.TaggedError<Checkpo
       case "provider-turn-unavailable":
         return `Provider turn for rollback target ${this.checkpointId} is unavailable on provider thread ${this.providerThreadId}.`;
       case "shared-workspace":
-        return SHARED_WORKSPACE_RESTORE_MESSAGE;
+        return sharedWorkspaceRestoreMessage(this.blockingSideChats ?? []);
       case "unexpected-failure":
         return ROLLBACK_FAILED_MESSAGE;
     }
@@ -213,20 +214,22 @@ export const layer: Layer.Layer<
         }
       }
 
-      if (
-        input.restoreFiles !== false &&
-        !(yield* isCheckpointRestoreIsolated(context.thread, scope, {
-          fileSystem,
-          projections,
-          projects,
-          path,
-        }))
-      ) {
+      const isolation =
+        input.restoreFiles === false
+          ? null
+          : yield* isCheckpointRestoreIsolated(context.thread, scope, {
+              fileSystem,
+              projections,
+              projects,
+              path,
+            });
+      if (isolation !== null && !isolation.isolated) {
         return yield* new CheckpointRollbackExecutionError({
           reason: "shared-workspace",
           threadId: input.threadId,
           providerThreadId: input.providerThreadId,
           checkpointId: input.checkpointId,
+          blockingSideChats: isolation.blockingSideChats,
         });
       }
 

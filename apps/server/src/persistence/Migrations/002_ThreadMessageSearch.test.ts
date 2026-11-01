@@ -1,11 +1,15 @@
 import { assert, it } from "@effect/vitest";
+import { ATTACHMENT_ONLY_BOOTSTRAP_PROMPT } from "@supaterm/shared/composerContextReferences";
 import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import * as Effect from "effect/Effect";
 import * as SqlClient from "effect/sql/SqlClient";
 import * as Migrator from "effect/sql/Migrator";
 
+import { rebuildMessageSearch } from "../../orchestration-v2/messageSearchIndex.ts";
 import { runMigrations } from "../Migrations.ts";
 import Migration0001 from "./001_Baseline.ts";
+import Migration0002 from "./002_ThreadMessageSearch.ts";
+import Migration0003 from "./003_ActiveTurnItemIndexes.ts";
 
 const layer = it.layer(NodeSqliteClient.layer({ filename: ":memory:" }));
 
@@ -58,3 +62,99 @@ layer("002_ThreadMessageSearch", (it) => {
     }),
   );
 });
+
+const migrateThrough = (last: number) =>
+  Migrator.make({})({
+    loader: Migrator.fromRecord(
+      Object.fromEntries(
+        Object.entries({
+          "1_Baseline": Migration0001,
+          "2_ThreadMessageSearch": Migration0002,
+          "3_ActiveTurnItemIndexes": Migration0003,
+        }).slice(0, last),
+      ),
+    ),
+  });
+
+it.effect.each(["inserted", "updated", "backfilled", "rebuilt"])(
+  "keeps normal messages indexed and excludes %s placeholders",
+  (path) =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* migrateThrough(path === "backfilled" ? 1 : 3);
+      if (path !== "backfilled") {
+        // Pre-upgrade triggers indexed user text even when it was an attachment placeholder.
+        yield* sql`DROP TRIGGER orchestration_v2_message_search_insert`;
+        yield* sql`DROP TRIGGER orchestration_v2_message_search_update`;
+        yield* sql`
+          CREATE TRIGGER orchestration_v2_message_search_insert
+          AFTER INSERT ON orchestration_v2_projection_messages
+          BEGIN
+            INSERT INTO orchestration_v2_message_search (rowid, text)
+            VALUES (new.rowid, json_extract(new.payload_json, '$.text'));
+          END
+        `;
+        yield* sql`
+          CREATE TRIGGER orchestration_v2_message_search_update
+          AFTER UPDATE OF payload_json ON orchestration_v2_projection_messages
+          BEGIN
+            DELETE FROM orchestration_v2_message_search WHERE rowid = old.rowid;
+            INSERT INTO orchestration_v2_message_search (rowid, text)
+            VALUES (new.rowid, json_extract(new.payload_json, '$.text'));
+          END
+        `;
+        if (path !== "rebuilt") yield* runMigrations();
+      }
+      const placeholders = [
+        ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
+        ...[
+          "",
+          " ",
+          "\n",
+          "\t\r\n",
+          "\v\f",
+          "\u00a0",
+          "\u1680",
+          "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a",
+          "\u2028\u2029\u202f\u205f\u3000\ufeff",
+        ].map((whitespace) => `uLtRaThInK:${whitespace}${ATTACHMENT_ONLY_BOOTSTRAP_PROMPT}`),
+      ];
+      const normal = [
+        "normal context",
+        ATTACHMENT_ONLY_BOOTSTRAP_PROMPT.toLowerCase(),
+        `Ultrathink:\n${ATTACHMENT_ONLY_BOOTSTRAP_PROMPT.toLowerCase()}`,
+        `quoted ${ATTACHMENT_ONLY_BOOTSTRAP_PROMPT}`,
+        `Ultrathink:\n${ATTACHMENT_ONLY_BOOTSTRAP_PROMPT} extra`,
+        ` ${ATTACHMENT_ONLY_BOOTSTRAP_PROMPT}`,
+        `Ultrathink:\u0085${ATTACHMENT_ONLY_BOOTSTRAP_PROMPT}`,
+      ];
+      for (const [index, text] of [...normal, ...placeholders].entries()) {
+        const payload = JSON.stringify({ text, createdBy: "user" });
+        yield* sql`
+          INSERT INTO orchestration_v2_projection_messages
+            (message_id, thread_id, role, streaming, created_at, updated_at, payload_json)
+          VALUES (${String(index)}, 'thread-1', 'user', 0,
+            '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z',
+            ${path === "updated" ? JSON.stringify({ text: "normal context" }) : payload})
+        `;
+        if (path === "updated") {
+          yield* sql`
+            UPDATE orchestration_v2_projection_messages SET payload_json = ${payload}
+            WHERE message_id = ${String(index)}
+          `;
+        }
+      }
+      yield* path === "backfilled" ? migrateThrough(2) : runMigrations();
+      if (path === "rebuilt") yield* rebuildMessageSearch(sql);
+      const indexed = yield* sql<{ readonly messageId: string }>`
+        SELECT messages.message_id AS "messageId"
+        FROM orchestration_v2_message_search AS search
+        INNER JOIN orchestration_v2_projection_messages AS messages ON messages.rowid = search.rowid
+        ORDER BY messages.rowid
+      `;
+      assert.deepEqual(
+        indexed.map((row) => row.messageId),
+        normal.map((_, index) => String(index)),
+      );
+    }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: ":memory:" }))),
+);

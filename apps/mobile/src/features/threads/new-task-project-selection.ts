@@ -1,5 +1,11 @@
+import type { EnvironmentConnectionPhase } from "@supaterm/client-runtime/connection";
+import { availableScratchWorkspaceRoot } from "@supaterm/client-runtime/operations/projects";
 import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
-import { repositoryGroupingKeyOf, type EnvironmentId } from "@supaterm/contracts";
+import {
+  repositoryGroupingKeyOf,
+  type EnvironmentId,
+  type ServerConfig,
+} from "@supaterm/contracts";
 
 import { scopedProjectKey } from "../../lib/scopedEntities";
 import type { HomeProjectScope } from "../home/homeThreadList";
@@ -44,6 +50,36 @@ export function filterProjectScopes(
           project.workspaceRoot.toLowerCase().includes(query),
       ),
   );
+}
+
+// Cached configuration reserves the row; connection readiness only gates activation.
+export function resolveNewTaskScratchOption(input: {
+  readonly environments: ReadonlyArray<{
+    readonly environmentId: EnvironmentId;
+    readonly connectionState: EnvironmentConnectionPhase;
+  }>;
+  readonly serverConfigs: ReadonlyMap<EnvironmentId, Pick<ServerConfig, "scratchWorkspaceRoot">>;
+  readonly projects: ReadonlyArray<EnvironmentProject>;
+  readonly selectedEnvironmentId: EnvironmentId | null;
+}) {
+  const offering = input.environments.filter(
+    (environment) =>
+      (input.serverConfigs.get(environment.environmentId)?.scratchWorkspaceRoot ?? null) !== null,
+  );
+  const ready = offering.filter(
+    (environment) =>
+      availableScratchWorkspaceRoot({
+        environmentId: environment.environmentId,
+        connectionPhase: environment.connectionState,
+        serverConfig: input.serverConfigs.get(environment.environmentId),
+        projects: input.projects,
+      }) !== null,
+  );
+  const candidates = ready.length > 0 ? ready : offering;
+  const environment =
+    candidates.find((candidate) => candidate.environmentId === input.selectedEnvironmentId) ??
+    candidates[0];
+  return environment ? { environmentId: environment.environmentId, ready: ready.length > 0 } : null;
 }
 
 export function resolveEnvironmentProjectMatch(
@@ -130,10 +166,12 @@ export function newTaskDestination(options: {
     options.projects.find(
       (project) => project.environmentId === ref.environmentId && project.id === ref.projectId,
     );
+  // A remembered project that was archived since opens the picker; the current one still wins.
+  const last = find(options.lastProject);
   const project =
     options.useLastProject === false
       ? undefined
-      : (find(options.currentProject) ?? find(options.lastProject));
+      : (find(options.currentProject) ?? (last?.archivedAt == null ? last : undefined));
   return project
     ? {
         draft: {

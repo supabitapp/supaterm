@@ -94,8 +94,18 @@ const SUPATERM_MCP_TOOLS: Readonly<Record<string, SupatermMcpToolDefinition>> = 
     "link-pr",
     "pull-request",
   ),
+  link_pull_requests: tool(
+    ["Link", "Linking", "Linked", "pull requests"],
+    "link-pr",
+    "pull-request",
+  ),
   unlink_pull_request: tool(
     ["Unlink", "Unlinking", "Unlinked", "a pull request"],
+    "unlink-pr",
+    "pull-request",
+  ),
+  unlink_pull_requests: tool(
+    ["Unlink", "Unlinking", "Unlinked", "pull requests by state"],
     "unlink-pr",
     "pull-request",
   ),
@@ -144,10 +154,7 @@ const SUPATERM_MCP_TOOLS: Readonly<Record<string, SupatermMcpToolDefinition>> = 
     ["Cancel", "Canceling", "Requested cancellation of", "a delegated task"],
     "task-cancel",
   ),
-  schedule_task: tool(
-    ["Schedule", "Scheduling", "Scheduled", "a recurring task"],
-    "schedule-create",
-  ),
+  schedule_task: tool(["Schedule", "Scheduling", "Scheduled", "a task"], "schedule-create"),
   list_scheduled_tasks: tool(["List", "Listing", "Listed", "scheduled tasks"], "schedule-list"),
   update_scheduled_task: tool(
     ["Update", "Updating", "Updated", "a scheduled task"],

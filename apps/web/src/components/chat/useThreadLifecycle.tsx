@@ -40,6 +40,7 @@ import {
 } from "@supaterm/client-runtime/state/runtime";
 import { CircleCheckIcon, ClockSnoozeIcon } from "@supaterm/icons";
 import { stackedThreadToast, toastManager } from "../ui/toast";
+import { isInOpenProjectList } from "../ProjectPinButton";
 import { newMessageId } from "~/lib/utils";
 import { buildThreadRouteParams } from "../../threadRoutes";
 import { composerDraftHasUserContent, useComposerDraftStore } from "../../composerDraftStore";
@@ -68,6 +69,7 @@ import { useAtomValue } from "@effect/atom-react";
 import type { RunStopPresentation } from "@supaterm/client-runtime/state/thread-execution";
 import { Atom } from "effect/reactivity";
 import { environmentThreadDetails } from "../../state/threads";
+import { openThreadBeside } from "../../chatPanes/actions";
 
 const RELATED_THREAD_SHELL_WAIT_MS = 1_000;
 const NO_RUN_STOP_ATOM = Atom.make<RunStopPresentation | null>(null).pipe(
@@ -85,6 +87,8 @@ interface ThreadLifecycleInput {
   readonly activeThread: EnvironmentThreadShell | undefined;
   readonly activeThreadId: ThreadId | null;
   readonly activeThreadRef: ScopedThreadRef | null;
+  /** Null until the thread's detail may load; see resolveThreadDetailRef. */
+  readonly threadDetailRef: ScopedThreadRef | null;
   readonly activeThreadKey: string | null;
   readonly activeThreadShell: EnvironmentThreadShell | null;
   readonly isServerThread: boolean;
@@ -108,7 +112,7 @@ interface ThreadLifecycleInput {
   readonly sendInFlightRef: { current: boolean };
   readonly setThreadError: ReturnType<typeof makeThreadErrorSetter>;
   readonly clearUsageLimitsFor: (threadKey: string) => void;
-  readonly scheduleComposerFocus: () => void;
+  readonly focusComposer: () => void;
   readonly scrollToEnd: (animated?: boolean) => void;
 }
 
@@ -127,6 +131,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     activeThread,
     activeThreadId,
     activeThreadRef,
+    threadDetailRef,
     activeThreadKey,
     activeThreadShell,
     isServerThread,
@@ -147,7 +152,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     sendInFlightRef,
     setThreadError,
     clearUsageLimitsFor,
-    scheduleComposerFocus,
+    focusComposer,
     scrollToEnd,
   } = input;
   const navigate = useNavigate();
@@ -266,7 +271,11 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     setUnsnoozingThreadKey((current) => (current === threadKey ? null : current));
   };
   const handleUnsnoozeActiveThreadStable = useStableCallback(handleUnsnoozeActiveThread);
-  const [isRestoringThreadBranch, setIsRestoringThreadBranch] = useState(false);
+  const [restoringBranchThreadKeys, setRestoringBranchThreadKeys] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const isRestoringThreadBranch =
+    activeThreadKey !== null && restoringBranchThreadKeys.has(activeThreadKey);
   const [revealedBranchMismatchKey, setRevealedBranchMismatchKey] = useState<string | null>(null);
   const [, setBranchMismatchDismissTick] = useState(0);
   const composerHasDraftContent = useComposerDraftStore((store) =>
@@ -302,7 +311,14 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     ) {
       return;
     }
-    setIsRestoringThreadBranch(true);
+    const threadKey = scopedThreadKey(scopeThreadRef(environmentId, activeThread.id));
+    const finishRestore = () =>
+      setRestoringBranchThreadKeys((current) => {
+        const next = new Set(current);
+        next.delete(threadKey);
+        return next;
+      });
+    setRestoringBranchThreadKeys((current) => new Set(current).add(threadKey));
     const checkoutResult = await switchGitRef({
       environmentId,
       input: {
@@ -311,7 +327,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
       },
     });
     if (checkoutResult._tag === "Failure") {
-      setIsRestoringThreadBranch(false);
+      finishRestore();
       if (!isAtomCommandInterrupted(checkoutResult)) {
         toastManager.add(
           stackedThreadToast({
@@ -325,7 +341,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     }
 
     if (!readEnvironmentScope(environmentId, AuthSourceControlWriteScope)) {
-      setIsRestoringThreadBranch(false);
+      finishRestore();
       return;
     }
     const nextBranch = checkoutResult.value.refName ?? localCheckoutBranchMismatch.threadBranch;
@@ -335,7 +351,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
         input: { threadId: activeThread.id, branch: nextBranch, worktreePath: null },
       });
       if (updateResult._tag === "Failure") {
-        setIsRestoringThreadBranch(false);
+        finishRestore();
         if (!isAtomCommandInterrupted(updateResult)) {
           toastManager.add(
             stackedThreadToast({
@@ -350,8 +366,12 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
       }
     }
     gitStatusQuery.refresh();
-    setIsRestoringThreadBranch(false);
-    scheduleComposerFocus();
+    finishRestore();
+    if (currentRouteThreadKeyRef.current === routeThreadKey) {
+      window.requestAnimationFrame(() => {
+        if (currentRouteThreadKeyRef.current === routeThreadKey) focusComposer();
+      });
+    }
   };
   const handleSwitchCheckoutToThreadStable = useStableCallback(handleSwitchCheckoutToThread);
   // The stack renders items[0] front-most, so order is priority and the parked-thread banner goes
@@ -410,6 +430,11 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
       toastManager.add({ type: "info", title: "This thread is no longer available" });
       return;
     }
+    // A side chat and its parent sit side by side; where there is no room, one replaces the other.
+    const sideChatPair =
+      (shell?.lineage.sideChat === true && shell.lineage.parentThreadId === activeThread?.id) ||
+      (activeThread?.lineage.sideChat === true && activeThread.lineage.parentThreadId === threadId);
+    if (sideChatPair && openThreadBeside({ kind: "server", threadRef }, "right")) return;
     void navigate({
       to: "/$environmentId/$threadId",
       params: buildThreadRouteParams(threadRef),
@@ -475,7 +500,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
       : null;
   const forceStop = useForceStopThread(environmentId);
   const anyRunStop = useAtomValue(
-    activeThreadRef ? environmentThreadDetails.runStopAtom(activeThreadRef) : NO_RUN_STOP_ATOM,
+    threadDetailRef ? environmentThreadDetails.runStopAtom(threadDetailRef) : NO_RUN_STOP_ATOM,
   );
   // A background Stop matters only while that work is still pending.
   const runStop = anyRunStop?.background && activeBackgroundTasks.length === 0 ? null : anyRunStop;
@@ -570,7 +595,9 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
         toastThreadActionFailure("Failed to mark thread as Done"),
       );
     },
-    "thread.pin": () => {
+    "thread.pin": ({ event }) => {
+      // An open project list pins its highlighted project with this key instead.
+      if (isInOpenProjectList(event?.target ?? null)) return false;
       if (!readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)) return false;
       if (!isServerThread || !activeThreadRef || !serverConfigLoaded) return;
       void (

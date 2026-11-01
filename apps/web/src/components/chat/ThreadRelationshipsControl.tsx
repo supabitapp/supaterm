@@ -38,9 +38,17 @@ import {
 import { groupBy } from "effect/Array";
 import * as DateTime from "effect/DateTime";
 import { useNavigate } from "@tanstack/react-router";
-import { BotIcon, CornerLeftUpIcon, GitForkIcon, PlusIcon, SquareIcon } from "@supaterm/icons";
-import { useId, useState, type ReactNode } from "react";
+import {
+  BotIcon,
+  CornerLeftUpIcon,
+  GitForkIcon,
+  MessagesSquareIcon,
+  PlusIcon,
+  SquareIcon,
+} from "@supaterm/icons";
+import { useId, useRef, useState, type ReactNode } from "react";
 
+import { openThreadBeside } from "../../chatPanes/actions";
 import { useArchivedThreadSnapshots } from "../../lib/archivedThreadsState";
 import { buildThreadRouteParams } from "../../threadRoutes";
 import {
@@ -49,6 +57,11 @@ import {
   useThreadRelationshipShells,
 } from "../../state/entities";
 import { useEnvironmentProviders } from "../../state/environments";
+import { serverEnvironment } from "../../state/server";
+import {
+  applyProviderInstanceSettings,
+  deriveProviderInstanceEntries,
+} from "../../providerInstances";
 import { threadEnvironment } from "../../state/threads";
 import { orchestrationEnvironment } from "../../state/orchestration";
 import { useAtomCommand } from "../../state/use-atom-command";
@@ -199,10 +212,13 @@ function currentSubagent<Agent extends RuntimeSubagent>(
 export function ThreadRelationshipsPanel(props: {
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
+  readonly showLineage: boolean;
+  readonly showSideChats: boolean;
 }) {
   const ref = scopeThreadRef(props.environmentId, props.threadId);
   const projection = useThreadProjection(ref)?.projection ?? null;
   const providersByEnvironment = useEnvironmentProviders();
+  const settings = useAtomValue(serverEnvironment.settingsValueAtom(props.environmentId));
   const relationshipShells = useThreadRelationshipShells(ref);
   const allProjects = useProjects();
   const archived = useArchivedThreadSnapshots([props.environmentId]);
@@ -235,9 +251,18 @@ export function ThreadRelationshipsPanel(props: {
     orchestrationEnvironment.stopWorkflow.permissionAtom(props.environmentId),
   );
   const [isMerging, setIsMerging] = useState(false);
+  const mergeErrorToastId = useRef<string | null>(null);
   const [stoppingId, setStoppingId] = useState<string | null>(null);
   // Derive graphs after hooks to preserve their compiler cache.
   const providers = providersByEnvironment.get(props.environmentId);
+  const derivedProviderEntries = deriveProviderInstanceEntries(providers ?? []);
+  const providerEntries = settings
+    ? applyProviderInstanceSettings(
+        derivedProviderEntries,
+        settings,
+        currentThread?.projectId ?? null,
+      )
+    : derivedProviderEntries;
   const projects = allProjects.filter((project) => project.environmentId === props.environmentId);
   const parentNativeStatus = parentProjection
     ? deriveProviderSubagentStatus(parentProjection)?.status
@@ -297,8 +322,10 @@ export function ThreadRelationshipsPanel(props: {
     transfers = [],
     active = [],
     previous = [],
-  } = groupBy(relationshipRows, ({ edge }) => {
+    sideChats = [],
+  } = groupBy(relationshipRows, ({ threadId, edge }) => {
     if (isParentThreadRelationship(edge, props.threadId)) return "parent";
+    if (graph.nodes.get(threadId)?.thread?.lineage.sideChat === true) return "sideChats";
     if (edge.kind === "fork") return "forks";
     if (edge.kind === "transfer") return "transfers";
     return ["completed", "failed", "error", "cancelled", "interrupted", "idle"].includes(
@@ -313,34 +340,61 @@ export function ThreadRelationshipsPanel(props: {
     ).length ?? 0;
   const runningCount =
     pendingRunningCount + active.filter(({ edge }) => edge.status === "running").length;
+  const lineageGroups = props.showLineage
+    ? [
+        { id: "parent", label: "Parent", rows: parent, expanded: true },
+        { id: "forks", label: "Forks", rows: forks, expanded: true },
+        { id: "transfers", label: "Context transfers", rows: transfers, expanded: true },
+        {
+          id: "active",
+          label: "Subagents",
+          rows: active,
+          expanded: true,
+          runningCount,
+          pendingCount: pendingRunningCount,
+        },
+        { id: "previous", label: "Previous agents", rows: previous, expanded: false },
+      ]
+    : [];
   const groups = [
-    { id: "parent", label: "Parent", rows: parent, expanded: true },
-    { id: "forks", label: "Forks", rows: forks, expanded: true },
-    { id: "transfers", label: "Context transfers", rows: transfers, expanded: true },
-    {
-      id: "active",
-      label: "Subagents",
-      rows: active,
-      expanded: true,
-      runningCount,
-      pendingCount: pendingRunningCount,
-    },
-    { id: "previous", label: "Previous agents", rows: previous, expanded: false },
+    ...lineageGroups,
+    ...(props.showSideChats
+      ? [
+          {
+            id: "sideChats",
+            label: "Side chats",
+            rows: sideChats,
+            expanded: true,
+            runningCount: sideChats.filter(({ edge }) => edge.status === "running").length,
+          },
+        ]
+      : []),
   ];
 
-  if (relationshipRows.length === 0 && runningCount === 0) {
+  if (
+    groups.every((group) => group.rows.length === 0) &&
+    (!props.showLineage || runningCount === 0)
+  ) {
     return null;
   }
 
+  // Idle children can be omitted from the shell; opening one loads its own detail.
   const openThread = (threadId: ThreadId) => {
+    const threadRef = scopeThreadRef(props.environmentId, threadId);
+    const sideChat = graph.nodes.get(threadId)?.thread?.lineage.sideChat === true;
+    if (sideChat && openThreadBeside({ kind: "server", threadRef }, "right")) return;
     void navigate({
       to: "/$environmentId/$threadId",
-      params: buildThreadRouteParams(scopeThreadRef(props.environmentId, threadId)),
+      params: buildThreadRouteParams(threadRef),
     });
   };
 
   const merge = async () => {
     if (!latestMergeBackRun || mergeTargetThreadId === null || isMerging) return;
+    if (mergeErrorToastId.current !== null) {
+      toastManager.close(mergeErrorToastId.current);
+      mergeErrorToastId.current = null;
+    }
     setIsMerging(true);
     const result = await mergeBack({
       environmentId: props.environmentId,
@@ -351,7 +405,14 @@ export function ThreadRelationshipsPanel(props: {
       },
     });
     setIsMerging(false);
-    if (result._tag === "Success") openThread(mergeTargetThreadId);
+    if (result._tag === "Failure") {
+      mergeErrorToastId.current = toastManager.add({
+        type: "error",
+        title: "Could not merge back",
+      });
+      return;
+    }
+    openThread(mergeTargetThreadId);
   };
 
   const stopSubagent = async (
@@ -411,7 +472,9 @@ export function ThreadRelationshipsPanel(props: {
                 ? CornerLeftUpIcon
                 : isSubagent
                   ? BotIcon
-                  : GitForkIcon;
+                  : node?.thread?.lineage.sideChat === true
+                    ? MessagesSquareIcon
+                    : GitForkIcon;
               const relationship = relationshipLabel(edge, props.threadId);
               const projectedAgent =
                 isSubagent && !isParent ? subagentsByThreadId.get(threadId) : undefined;
@@ -457,9 +520,7 @@ export function ThreadRelationshipsPanel(props: {
                 ? "group-hover:opacity-0 group-focus-within:opacity-0 pointer-coarse:opacity-0 [@media(hover:none)]:opacity-0"
                 : "";
               const project = projects.find((project) => project.id === node?.thread?.projectId);
-              const relationshipHint = node?.missing
-                ? "This related thread is unavailable"
-                : `Open ${relationship.toLowerCase()} in this chat`;
+              const relationshipHint = `Open ${relationship.toLowerCase()} in this chat`;
               const RelationshipPopup = agent ? ThreadHoverCardPopup : TooltipPopup;
               const relationshipTooltip = agent ? (
                 <SubagentTooltipContent
@@ -488,6 +549,7 @@ export function ThreadRelationshipsPanel(props: {
                   <ThreadRelationshipIcon
                     driver={isSubagent && !isParent ? providerDriver : undefined}
                     provider={provider}
+                    providerEntries={providerEntries}
                     fallbackIcon={RelationshipIcon}
                     status={rowStatus}
                   />
@@ -524,7 +586,6 @@ export function ThreadRelationshipsPanel(props: {
                         size="sm"
                         variant="ghost"
                         part={workflowGroup ? "primary" : "row"}
-                        disabled={node?.missing === true}
                         onClick={() => openThread(threadId)}
                       />
                     }
@@ -542,11 +603,9 @@ export function ThreadRelationshipsPanel(props: {
                     providerInstanceId={agent.providerInstanceId}
                     provider={provider}
                     providers={providers}
+                    providerEntries={providerEntries}
                     driver={providerDriver}
                     onOpenThread={(memberThreadId) => openThread(memberThreadId as ThreadId)}
-                    isThreadAvailable={(memberThreadId) =>
-                      graph.nodes.get(memberThreadId as ThreadId)?.missing === false
-                    }
                     onStop={canStopWorkflow ? () => void stopWorkflow(agent.id) : undefined}
                     stopping={stoppingId === agent.id}
                     stopDisabled={stoppingId !== null}
@@ -570,7 +629,6 @@ export function ThreadRelationshipsPanel(props: {
                               variant="ghost"
                               part="primary"
                               aria-label={`${threadTitle} ${threadRelationshipStatusLabel(rowStatus)}`}
-                              disabled={node?.missing === true}
                               onClick={() => openThread(threadId)}
                             />
                           }

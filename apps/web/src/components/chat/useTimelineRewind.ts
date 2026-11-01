@@ -40,6 +40,8 @@ interface TimelineRewindInput {
   readonly isRevertingCheckpoint: boolean;
   readonly threadDetailLoading: boolean;
   readonly supportsConversationRollback: boolean;
+  /** A side chat shares its parent's files, so its rewinds never restore them. */
+  readonly sideChat: boolean;
   readonly activeEnvironmentUnavailable: boolean;
   readonly activeEnvironmentUnavailableLabel: string | null;
   readonly promptRef: { current: string };
@@ -74,6 +76,7 @@ export function useTimelineRewind(input: TimelineRewindInput) {
     composerDraftTarget,
     setThreadError,
     focusComposer,
+    sideChat,
   } = input;
   const createAttachmentAssetUrl = useAtomQueryRunner(assetEnvironment.createUrl, {
     reportFailure: false,
@@ -117,7 +120,7 @@ export function useTimelineRewind(input: TimelineRewindInput) {
       setThreadError(activeThread.id, "Interrupt the current turn before reverting checkpoints.");
       return;
     }
-    if (restoreFiles === undefined) {
+    if (restoreFiles === undefined && !sideChat) {
       openRevertConfirm(routeThreadKey, { turnCount, messageId });
       return;
     }
@@ -132,7 +135,7 @@ export function useTimelineRewind(input: TimelineRewindInput) {
       routeThreadRef,
       threadId: activeThread.id,
       turnCount,
-      restoreFiles,
+      restoreFiles: restoreFiles === true,
       // Keep the live checkpoint identity when command context refetches a bounded window.
       checkpoint: findRevertCheckpoint(serverProjection?.checkpoints ?? [], turnCount),
       draftTarget: composerDraftTarget,

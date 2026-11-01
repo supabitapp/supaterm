@@ -29,7 +29,9 @@ export function SidebarPrimaryNavigation({ projectGroupCount }: { projectGroupCo
   };
   const handleNewThread = () => {
     closeMobileSidebar();
-    void startNewThreadInCurrentProject();
+    void startNewThreadInCurrentProject().then((started) => {
+      if (!started) openCommandPalette({ open: "new-thread-in" });
+    });
   };
 
   return (

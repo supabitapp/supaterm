@@ -10,9 +10,9 @@ import {
 import { EnvironmentId } from "@supaterm/contracts";
 import * as Option from "effect/Option";
 import { Atom, AtomRegistry } from "effect/reactivity";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 
-import { createAllEnvironmentProjectSnapshotsReadyAtom } from "./shell";
+import { createAllEnvironmentProjectSnapshotsReadyAtom, expectsPrimaryEnvironment } from "./shell";
 
 const LOCAL = EnvironmentId.make("local");
 const REMOTE = EnvironmentId.make("remote");
@@ -137,4 +137,17 @@ describe("project snapshot readiness", () => {
     expect(registry.get(ready)).toBe(true);
     registry.dispose();
   });
+});
+
+it("expects a primary environment only on desktops with the local environment enabled", () => {
+  const desktop = (enabled: boolean) => {
+    vi.stubGlobal("window", { desktopBridge: { getLocalEnvironmentEnabled: () => enabled } });
+    try {
+      return expectsPrimaryEnvironment();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  };
+  expect(desktop(true)).toBe(true);
+  expect(desktop(false)).toBe(false);
 });

@@ -19,6 +19,7 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
+  type ReactNode,
 } from "react";
 import { isTrailingDoubleClick } from "../Sidebar.logic";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -60,6 +61,7 @@ interface ChatHeaderProps {
   onNewThreadInProject: () => void;
   onOpenProjectSettings?: (() => void) | undefined;
   onFindInThread?: ((threadRef: ScopedThreadRef) => void) | undefined;
+  trailing?: ReactNode;
 }
 
 function resolveRenameCommit(input: {
@@ -89,6 +91,7 @@ export const ChatHeader = memo(function ChatHeader({
   onNewThreadInProject,
   onOpenProjectSettings,
   onFindInThread,
+  trailing,
 }: ChatHeaderProps) {
   const timestampFormat = useClientSettings((settings) => settings.timestampFormat);
   const activeProjectName = activeProject?.isScratch ? "No project" : activeProject?.title;
@@ -196,7 +199,10 @@ export const ChatHeader = memo(function ChatHeader({
   const commitRename = (title: string) => {
     setRenaming(null);
     if (!readEnvironmentScope(activeThreadEnvironmentId, AuthOrchestrationOperateScope)) return;
-    const resolution = resolveRenameCommit({ title, originalTitle: activeThreadTitle });
+    const resolution = resolveRenameCommit({
+      title,
+      originalTitle: renamingTitle ?? activeThreadTitle,
+    });
     if (resolution.action === "reject-empty") {
       toastManager.add({ type: "warning", title: "Thread title cannot be empty" });
       return;
@@ -450,6 +456,7 @@ export const ChatHeader = memo(function ChatHeader({
         onJump={onJumpToPinnedMessage}
         onUnpin={onUnpinMessage}
       />
+      {trailing}
     </div>
   );
 });

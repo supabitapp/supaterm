@@ -1,10 +1,17 @@
-import { connectionAddressLabel } from "@supaterm/client-runtime/connection";
+import {
+  type ConnectionTarget,
+  connectionAddressLabel,
+  connectionRouteId,
+  connectionRouteLabel,
+  connectionRoutes,
+} from "@supaterm/client-runtime/connection";
 import type { DesktopSshEnvironmentTarget, EnvironmentMachineKind } from "@supaterm/contracts";
 import * as Option from "effect/Option";
 import type { ReactNode } from "react";
 
 import { cn } from "~/lib/utils";
 import type { EnvironmentPresentation } from "~/state/environments";
+import { usePreparedConnection } from "~/state/session";
 import { isDesktopLocalConnectionTarget } from "~/connection/desktopLocal";
 import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
 
@@ -17,9 +24,18 @@ export function formatDesktopSshTarget(target: DesktopSshEnvironmentTarget): str
  * How this client reaches a machine, printed first in every environment row so
  * SSH, WSL, and plain remote links are told apart without a legend.
  */
-export function environmentTransportLabel(environment: EnvironmentPresentation): string {
+export function environmentTransportLabel(
+  environment: EnvironmentPresentation,
+  activeTarget: ConnectionTarget | null = null,
+): string {
   const { entry } = environment;
   if (entry.target._tag === "PrimaryConnectionTarget") return "This machine";
+  const routes = connectionRoutes(entry);
+  if (routes.length > 1 && activeTarget !== null) {
+    const activeId = connectionRouteId(activeTarget);
+    const active = routes.find((route) => connectionRouteId(route.target) === activeId);
+    if (active !== undefined) return `via ${connectionRouteLabel(active)}`;
+  }
   if (isDesktopLocalConnectionTarget(entry.target)) return "WSL";
   if (
     entry.target._tag === "SshConnectionTarget" &&
@@ -31,6 +47,20 @@ export function environmentTransportLabel(environment: EnvironmentPresentation):
   return environment.displayUrl === null
     ? "Remote link"
     : connectionAddressLabel(environment.displayUrl);
+}
+
+export function EnvironmentTransportLabel({
+  environment,
+}: {
+  readonly environment: EnvironmentPresentation;
+}) {
+  const prepared = usePreparedConnection(environment.environmentId);
+  return environmentTransportLabel(
+    environment,
+    environment.connection.phase === "connected" && prepared._tag === "Some"
+      ? prepared.value.target
+      : null,
+  );
 }
 
 export function EnvironmentRow({

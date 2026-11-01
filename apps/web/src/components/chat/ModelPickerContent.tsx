@@ -163,10 +163,10 @@ function adjacentModelPickerProvider(input: {
 }
 
 const EMPTY_MODEL_JUMP_LABELS = new Map<string, string>();
-const MODEL_LIST_ESTIMATED_ITEM_SIZE = 52;
 // Rendered heights in `--spacing` units. Every row shows its provider line, so rows are two lines tall.
 // Chrome is the search box and list padding, plus a 1px border.
 const ROW_UNITS = 11.25;
+const MODEL_LIST_ESTIMATED_ITEM_SIZE = ROW_UNITS * 4;
 const ROW_SEPARATOR_UNITS = 0.5;
 const LIST_CHROME_UNITS = 15.5;
 
@@ -774,7 +774,13 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
   };
 
   const onWindowKeyDown = (event: globalThis.KeyboardEvent) => {
-    if (event.defaultPrevented || event.repeat || isCommandPaletteOpen()) {
+    if (
+      event.defaultPrevented ||
+      event.repeat ||
+      event.isComposing ||
+      event.keyCode === 229 ||
+      isCommandPaletteOpen()
+    ) {
       return;
     }
 
@@ -913,6 +919,11 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
                 setSearchQuery(e.target.value);
               }}
               onKeyDown={(e) => {
+                if (e.nativeEvent.isComposing || e.keyCode === 229) {
+                  (e as typeof e & { preventBaseUIHandler?: () => void }).preventBaseUIHandler?.();
+                  e.stopPropagation();
+                  return;
+                }
                 if (
                   showSidebar &&
                   !e.altKey &&

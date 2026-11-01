@@ -2,8 +2,8 @@ import type { ProviderOptionDescriptor, RuntimeMode } from "@supaterm/contracts"
 
 /**
  * The slider holds reasoning levels only. Prompt-injected values (ultrathink and
- * friends) rewrite the prompt instead, and ultracode is a real option but a
- * workflow trigger; both stay reachable through the descriptor's full choice list.
+ * friends) are typed into the prompt, never picked, and ultracode is a real option
+ * but a workflow trigger that stays reachable through the full choice list.
  */
 const NON_LEVEL_OPTION_IDS: ReadonlySet<string> = new Set(["ultracode"]);
 

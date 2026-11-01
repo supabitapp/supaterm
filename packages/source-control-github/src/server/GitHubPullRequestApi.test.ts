@@ -103,7 +103,12 @@ type ApiAnswer = Effect.Effect<GitHubRest.GitHubRestResponse, GitHubRequestPolic
 const mockedExecute = vi.fn<(call: ApiCall) => ApiAnswer>();
 const defaultCredential = (host: string) =>
   Effect.succeed({ token: Redacted.make("token"), fingerprint: `${host}:token` });
-const mockedCredential = vi.fn(defaultCredential);
+const mockedCredential =
+  vi.fn<
+    (
+      host: string,
+    ) => Effect.Effect<GitHubRequestPolicy.GitHubHeldCredential, GitHubRequestPolicy.GitHubApiError>
+  >(defaultCredential);
 const mockedStackMemberships = vi.fn<(call: ApiCall) => ApiAnswer>(() =>
   Effect.succeed(output('{"data":{}}')),
 );
@@ -168,7 +173,10 @@ const mockHttp = Layer.succeed(
 
 const mockCredentials = Layer.succeed(GitHubCredentials.GitHubCredentials, {
   get: (host) =>
-    Effect.map(mockedCredential(host), (held) => ({ ...held, host, source: "gh" as const })),
+    mockedCredential(host).pipe(
+      Effect.map((held) => ({ source: "gh" as const, ...held, host })),
+      Effect.mapError(() => new GitHubCredentials.GitHubCliMissingError({ host })),
+    ),
   invalidate: () => Effect.void,
   invalidateAll: Effect.void,
 });
@@ -544,6 +552,7 @@ const checkContextsPage = (
   });
 
 const pullRequestRefs = encodeJson({ base: { sha: "a1b2c3d" }, head: { sha: "b1c2d3e" } });
+const pullRequestMergeBase = encodeJson({ merge_base_commit: { sha: "c1d2e3f" } });
 
 const crossRepositoryDetail = (headRefOid = "abc123") =>
   coreResponse({
@@ -1392,6 +1401,91 @@ layer("GitHubPullRequestApi.layer", (it) => {
 
       assert.strictEqual(mockedExecute.mock.calls.length, 2);
       assert.isTrue(batch.truncated);
+    }),
+  );
+
+  /**
+   * Lists a repository GitHub will not return, answering credential lookups in turn (the last
+   * answer repeats; `undefined` is no credential), and returns the error with the tokens sent.
+   */
+  const listUnreadableRepository = (
+    ...lookups: ReadonlyArray<
+      | { readonly token: string; readonly source: GitHubCredentials.GitHubCredentialSource }
+      | undefined
+    >
+  ) => {
+    mockedExecute.mockClear();
+    let lookup = 0;
+    mockedCredential.mockImplementation((host) =>
+      Effect.suspend(() => {
+        const held = lookups[Math.min(lookup++, lookups.length - 1)];
+        return held === undefined
+          ? Effect.fail(
+              new GitHubRequestPolicy.GitHubApiAuthenticationError({
+                host,
+                operation: "credential",
+              }),
+            )
+          : Effect.succeed({
+              token: Redacted.make(held.token),
+              fingerprint: `${host}:${held.token}`,
+              source: held.source,
+            });
+      }),
+    );
+    route(
+      ["PullRequestSearch", { data: { search: { pageInfo: lastPage, nodes: [] } } }],
+      [
+        "PullRequestList",
+        {
+          data: { repository: null },
+          errors: [
+            {
+              type: "NOT_FOUND",
+              path: ["repository"],
+              message: "Could not resolve to a Repository with the name 'acme/private'.",
+            },
+          ],
+        },
+      ],
+    );
+    return GitHubPullRequestProvider.make.pipe(
+      Effect.flatMap((provider) =>
+        Effect.flip(
+          provider.listChangeRequests({
+            cwd: "/w",
+            repository: "acme/private",
+            host: "github.com",
+            state: "open",
+            involvement: "all",
+            viewer: "bilal",
+            limit: 10,
+          }),
+        ),
+      ),
+      Effect.map((error) => ({
+        error,
+        sentWith: mockedExecute.mock.calls.map(([call]) =>
+          call.kind === "graphql" ? call.authorization : undefined,
+        ),
+      })),
+    );
+  };
+
+  it.effect("names the credential GitHub would not return a repository to", () =>
+    Effect.gen(function* () {
+      // The saved token is replaced mid-read; every request still goes out with the one named.
+      const saved = yield* listUnreadableRepository(
+        { token: "first", source: "settings" },
+        { token: "replaced", source: "settings" },
+      );
+      expect(saved.error.accessHint).toContain("saved GitHub token");
+      assert.isAbove(saved.sentWith.length, 1);
+      for (const authorization of saved.sentWith) expect(authorization).toContain("first");
+
+      const gh = yield* listUnreadableRepository({ token: "personal", source: "gh" });
+      expect(gh.error.accessHint).toContain("gh login");
+      for (const authorization of gh.sentWith) expect(authorization).toContain("personal");
     }),
   );
 
@@ -2861,6 +2955,34 @@ layer("GitHubPullRequestApi.layer", (it) => {
     }),
   );
 
+  it.effect("expands a pull request file from its merge base, not the moved base tip", () =>
+    Effect.gen(function* () {
+      const answers: Record<string, string> = {
+        "repos/acme/web/pulls/7": pullRequestRefs,
+        "repos/acme/web/compare/a1b2c3d...b1c2d3e?per_page=1&page=2": pullRequestMergeBase,
+        "repos/acme/web/contents/src/a.ts?ref=a1b2c3d": "base tip\n",
+        "repos/acme/web/contents/src/a.ts?ref=c1d2e3f": "merge base\n",
+        "repos/acme/web/contents/src/a.ts?ref=b1c2d3e": "head\n",
+      };
+      mockedExecute.mockImplementation((call) =>
+        Effect.succeed(output(call.kind === "rest" ? (answers[call.path] ?? "") : "")),
+      );
+      const cli = yield* GitHubPullRequestApi.GitHubPullRequestApi;
+
+      const contents = yield* cli.getPullRequestDiffFileContents({
+        cwd: "/w",
+        repository: "acme/web",
+        host: "github.com",
+        number: 7,
+        changeType: "change",
+        oldPath: "src/a.ts",
+        newPath: "src/a.ts",
+      });
+
+      expect(contents).toEqual({ oldContents: "merge base\n", newContents: "head\n" });
+    }),
+  );
+
   it.effect("reports unusable diff revisions as a structured error", () =>
     Effect.gen(function* () {
       mockedExecute.mockReturnValueOnce(Effect.succeed(output("not-a-sha\tstill-not-a-sha\n")));
@@ -2890,6 +3012,7 @@ layer("GitHubPullRequestApi.layer", (it) => {
   it.effect("reports undecodable diff file contents as binary", () =>
     Effect.gen(function* () {
       mockedExecute.mockReturnValueOnce(Effect.succeed(output(pullRequestRefs)));
+      mockedExecute.mockReturnValueOnce(Effect.succeed(output(pullRequestMergeBase)));
       mockedExecute.mockReturnValueOnce(Effect.succeed(output("binary�contents", false, true)));
       const cli = yield* GitHubPullRequestApi.GitHubPullRequestApi;
 
@@ -2916,6 +3039,7 @@ layer("GitHubPullRequestApi.layer", (it) => {
   it.effect("returns valid text containing a literal replacement character", () =>
     Effect.gen(function* () {
       mockedExecute.mockReturnValueOnce(Effect.succeed(output(pullRequestRefs)));
+      mockedExecute.mockReturnValueOnce(Effect.succeed(output(pullRequestMergeBase)));
       mockedExecute.mockReturnValueOnce(Effect.succeed(output("before�after")));
       const cli = yield* GitHubPullRequestApi.GitHubPullRequestApi;
 

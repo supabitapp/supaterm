@@ -85,11 +85,19 @@ function resolveKeyCommand(scope: CommandScope, event: KeyboardEvent): Keybindin
     : resolveShortcutCommand(event, keybindings, match);
 }
 
+function isInsideConfirmation(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest('[role="alertdialog"]') !== null;
+}
+
 function runKeyScope(scope: CommandScope, event: KeyboardEvent): boolean {
   if (!isLive(scope)) return false;
   if (scope.options.onKeyDown && scope.options.onKeyDown(event) !== false) return true;
   const command = resolveKeyCommand(scope, event);
   if (command === null) return false;
+  if (isInsideConfirmation(event.target)) {
+    event.preventDefault();
+    return true;
+  }
   if (scope.run(command, { source: "keyboard", event, repeat: event.repeat }) === false) {
     return false;
   }

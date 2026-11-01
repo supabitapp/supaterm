@@ -10,6 +10,7 @@ import { expect, it, vi } from "vite-plus/test";
 
 const state = vi.hoisted(() => ({
   settings: {} as typeof DEFAULT_SERVER_SETTINGS,
+  targets: [] as Array<{ environmentId: string; settings: typeof DEFAULT_SERVER_SETTINGS }>,
   run: vi.fn(),
   report: null as StorageCleanupReport | null,
   databaseRecommendations: [] as Array<{ environmentId: string; status: DatabaseStorageStatus }>,
@@ -46,11 +47,15 @@ vi.mock(import("../../state/use-atom-command"), async (original) => ({
 vi.mock(import("./SettingsScopeContext"), async (original) => ({
   ...(await original()),
   useSettingsScope: (() => {
-    const environment = {
-      environmentId: "env",
-      label: "Build workstation",
+    const environmentFor = (
+      environmentId: string,
+      label: string,
+      settings: typeof DEFAULT_SERVER_SETTINGS,
+    ) => ({
+      environmentId,
+      label,
       serverConfig: {
-        settings: state.settings,
+        settings,
         environment: {
           capabilities: {
             storageCleanup: true,
@@ -58,7 +63,20 @@ vi.mock(import("./SettingsScopeContext"), async (original) => ({
           },
         },
       },
-    };
+    });
+    if (state.targets.length > 0) {
+      const environments = state.targets.map(({ environmentId, settings }) =>
+        environmentFor(environmentId, environmentId, settings),
+      );
+      return {
+        scope: { kind: "all" },
+        environments,
+        connectedEnvironments: environments,
+        targets: state.targets,
+        target: null,
+      };
+    }
+    const environment = environmentFor("env", "Build workstation", state.settings);
     const connectedEnvironments = [
       environment,
       ...state.extraEnvironments.map((extra) => ({ ...environment, ...extra })),
@@ -82,10 +100,17 @@ vi.mock(import("./useScopedSettings"), async (original) => ({
 vi.mock(import("./settingsLayout"), async (original) => ({
   ...(await original()),
   SettingsPageContainer: (({ children }: { children: ReactNode }) => children) as never,
-  SettingsRow: ({ title, description, control, children }) => (
+  SettingsRow: ({ title, description, status, control, children }) => (
     <div>
       <h3>{title}</h3>
       {description}
+      {status && (
+        <div
+          data-testid={`${title === "Delete old browser artifacts" ? "artifact" : "logs"}-retention-status`}
+        >
+          {status}
+        </div>
+      )}
       {control}
       {children}
     </div>
@@ -116,6 +141,7 @@ function setup(): Disposable {
     },
     projectSettingsOverrides: {},
   };
+  state.targets = [];
   state.report = null;
   state.databaseRecommendations = [];
   state.databaseRecommendationKeys = [];
@@ -123,6 +149,25 @@ function setup(): Disposable {
   localStorage.removeItem("database-storage-notice-dismissed");
   state.run.mockReset();
   return timers;
+}
+
+function setRetentionValues(
+  artifactDays: ReadonlyArray<number | null>,
+  logDays: ReadonlyArray<number | null> = artifactDays.map(() => null),
+  environmentIds: readonly string[] = ["env-a", "env-b"],
+) {
+  state.targets = artifactDays.map((browserArtifactsAfterDays, index) => ({
+    environmentId: environmentIds[index]!,
+    settings: {
+      ...state.settings,
+      storageCleanup: {
+        ...state.settings.storageCleanup,
+        browserArtifactsAfterDays,
+        logsAfterDays: logDays[index]!,
+      },
+    },
+  }));
+  state.settings = state.targets[0]?.settings ?? state.settings;
 }
 
 const panel = () => (
@@ -191,4 +236,86 @@ it("lists every machine's reclaimable database space and dismisses one machine a
 
   await act(async () => dismissButtons()[0]!.click());
   expect(headings()).not.toContain("Reclaim freed database space");
+});
+
+it("settles mixed retention statuses independently across selected machines", async () => {
+  using _timers = setup();
+  setRetentionValues([null, null]);
+  await using screen = await render(panel());
+  const advance = (ms: number) => act(() => vi.advanceTimersByTime(ms));
+
+  await advance(300);
+  setRetentionValues([8, null], [8, null]);
+  await screen.rerender(panel());
+  await advance(125);
+  await expect.element(screen.getByTestId("artifact-retention-status")).not.toBeInTheDocument();
+  await expect.element(screen.getByTestId("logs-retention-status")).not.toBeInTheDocument();
+  setRetentionValues([null, null], [8, null]);
+  await screen.rerender(panel());
+  await advance(8);
+  await expect.element(screen.getByTestId("logs-retention-status")).not.toBeInTheDocument();
+  await advance(117);
+  await expect.element(screen.getByTestId("logs-retention-status")).not.toBeInTheDocument();
+  setRetentionValues([null, null]);
+  await screen.rerender(panel());
+  await advance(300);
+  await expect.element(screen.getByTestId("artifact-retention-status")).not.toBeInTheDocument();
+  await expect.element(screen.getByTestId("logs-retention-status")).not.toBeInTheDocument();
+
+  setRetentionValues([8, null]);
+  await screen.rerender(panel());
+  await advance(300);
+  await expect
+    .element(screen.getByTestId("artifact-retention-status"))
+    .toHaveTextContent("Mixed across selected machines");
+  await expect.element(screen.getByTestId("logs-retention-status")).not.toBeInTheDocument();
+
+  setRetentionValues([null, null]);
+  await screen.rerender(panel());
+  await advance(75);
+  await expect
+    .element(screen.getByTestId("artifact-retention-status"))
+    .toHaveTextContent("Mixed across selected machines");
+  setRetentionValues([8, null]);
+  await screen.rerender(panel());
+  await advance(133);
+  await expect
+    .element(screen.getByTestId("artifact-retention-status"))
+    .toHaveTextContent("Mixed across selected machines");
+  setRetentionValues([null, null]);
+  await screen.rerender(panel());
+  await advance(133);
+  await expect
+    .element(screen.getByTestId("artifact-retention-status"))
+    .toHaveTextContent("Mixed across selected machines");
+  await advance(117);
+  await expect
+    .element(screen.getByTestId("artifact-retention-status"))
+    .toHaveTextContent("Mixed across selected machines");
+  setRetentionValues([8, null]);
+  await screen.rerender(panel());
+  await advance(300);
+  await expect
+    .element(screen.getByTestId("artifact-retention-status"))
+    .toHaveTextContent("Mixed across selected machines");
+
+  setRetentionValues([8], [null], ["env-c"]);
+  await screen.rerender(panel());
+  await expect.element(screen.getByTestId("artifact-retention-status")).not.toBeInTheDocument();
+
+  setRetentionValues([null, null], [null, null], ["env-c", "env-d"]);
+  await screen.rerender(panel());
+  await expect.element(screen.getByTestId("artifact-retention-status")).not.toBeInTheDocument();
+
+  setRetentionValues([null, null], [8, null]);
+  await screen.rerender(panel());
+  await advance(300);
+  await expect.element(screen.getByTestId("artifact-retention-status")).not.toBeInTheDocument();
+  await expect
+    .element(screen.getByTestId("logs-retention-status"))
+    .toHaveTextContent("Mixed across selected machines");
+  setRetentionValues([null, null]);
+  await screen.rerender(panel());
+  await advance(300);
+  await expect.element(screen.getByTestId("logs-retention-status")).not.toBeInTheDocument();
 });

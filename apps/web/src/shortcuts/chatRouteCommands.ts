@@ -83,7 +83,9 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
     switch (command) {
       case "chat.new":
       case "chat.newLocal":
-        void startNewThreadInCurrentProject(router, handleNewThread);
+        void startNewThreadInCurrentProject(router, handleNewThread).then((started) => {
+          if (!started) openCommandPalette({ open: "new-thread-in" });
+        });
         return true;
       case "chat.newWithoutProject": {
         const { activeThread, activeDraftThread } = readRouteThreadContext(router);

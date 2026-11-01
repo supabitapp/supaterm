@@ -93,6 +93,7 @@ import {
   ArrowRightIcon,
   BotIcon,
   CircleAlertIcon,
+  MessagesSquareIcon,
   ShrinkIcon,
   ChevronDownIcon,
   ChevronRightIcon,
@@ -262,13 +263,15 @@ interface MessagesTimelineProps {
   onOpenTurnDiff: (runId: RunId, filePath?: string) => void;
   onOpenToolDiff?: (target: ToolCallDiffTarget) => void;
   onOpenThread: (threadId: OrchestrationV2TurnItem["threadId"]) => void;
+  /** The thread this one is a subagent or side chat of. */
   parentThreadLink?: {
     readonly threadId: ThreadId;
     readonly title: string;
+    readonly sideChat?: boolean;
   } | null;
   /** Set on a workflow coordinator's thread: its script message renders as this opening. */
   workflowOpening?: WorkflowOpening | null;
-  onForkFromRun: (input: {
+  onForkFromRun?: (input: {
     readonly sourceThreadId: ThreadId;
     readonly runId: RunId;
   }) => Promise<void>;
@@ -1113,7 +1116,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     onOpenTurnDiff,
     onOpenThread,
     workflowOpening,
-    onForkFromRun,
+    onForkFromRun: onForkFromRun ?? null,
     pinnedItemIds,
     onTogglePinnedMessage: onTogglePinnedMessage ?? null,
     onToggleTurnFold,
@@ -1169,9 +1172,9 @@ const ConversationTimeline = memo(function ConversationTimeline({
       <div className="messages-timeline-row-frame">
         <div className="chat-content-lane pt-1 sm:pt-2">
           <TimelineSystemDivider
-            label="Subagent of"
+            label={parentThreadLink.sideChat ? "Context from" : "Subagent of"}
             detail={parentThreadLink.title}
-            icon={BotIcon}
+            icon={parentThreadLink.sideChat ? MessagesSquareIcon : BotIcon}
             actionLabel="Open parent thread"
             onAction={() => onOpenThread(parentThreadLink.threadId)}
           />
@@ -1537,16 +1540,18 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
           ? undefined
           : row.kind === "turn-fold"
             ? "pb-1.5"
-            : (row.kind === "message" &&
-                  row.message.role === "assistant" &&
-                  !row.showAssistantMeta) ||
-                row.kind === "worktree-setup" ||
-                row.kind === "event" ||
-                row.kind === "attempt-fold" ||
-                row.kind === "html-render" ||
-                row.kind === "mcp-app"
-              ? "pb-2"
-              : "pb-4",
+            : row.kind === "message" && row.groupedWithNext
+              ? "pb-1"
+              : (row.kind === "message" &&
+                    row.message.role === "assistant" &&
+                    !row.showAssistantMeta) ||
+                  row.kind === "worktree-setup" ||
+                  row.kind === "event" ||
+                  row.kind === "attempt-fold" ||
+                  row.kind === "html-render" ||
+                  row.kind === "mcp-app"
+                ? "pb-2"
+                : "pb-4",
         (row.kind === "message" && row.message.role === "assistant") ||
           row.kind === "assistant-meta"
           ? "group/assistant"

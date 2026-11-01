@@ -1,11 +1,16 @@
 import { Italic, starInputRegex, starPasteRegex } from "@tiptap/extension-italic";
-import { joinBackward, joinTextblockBackward, joinTextblockForward } from "@tiptap/pm/commands";
+import { joinTextblockBackward, joinTextblockForward } from "@tiptap/pm/commands";
 import {
   Fragment,
   type MarkType,
   type Node as ProseMirrorNode,
   type ResolvedPos,
 } from "@tiptap/pm/model";
+import {
+  Bold,
+  starInputRegex as boldStarInputRegex,
+  underscoreInputRegex as boldUnderscoreInputRegex,
+} from "@tiptap/extension-bold";
 import { Code } from "@tiptap/extension-code";
 import { Blockquote } from "@tiptap/extension-blockquote";
 import { CodeBlock } from "@tiptap/extension-code-block";
@@ -15,11 +20,13 @@ import {
   type Command,
   type Editor,
   Extension,
+  InputRule,
   markInputRule,
   markPasteRule,
   mergeAttributes,
 } from "@tiptap/core";
 import { BulletList, ListItem, OrderedList } from "@tiptap/extension-list";
+import { Strike, inputRegex as strikeInputRegex } from "@tiptap/extension-strike";
 import { TaskItem } from "@tiptap/extension-task-item";
 import { TaskList } from "@tiptap/extension-task-list";
 import { Plugin, PluginKey, Selection, TextSelection, type Transaction } from "@tiptap/pm/state";
@@ -56,14 +63,37 @@ function codePairCaretPlugin(type: MarkType) {
       handleTextInput(view, from, to, text, insert) {
         if (view.composing || from !== to || text !== "`") return false;
         const $from = view.state.doc.resolve(from);
-        if (
-          !$from.parent.isTextblock ||
-          $from.parent.type.spec.code ||
-          !/(^|[^`])`$/.test($from.nodeBefore?.text ?? "")
-        ) {
-          return false;
+        if (!$from.parent.isTextblock || $from.parent.type.spec.code) return false;
+        const before = $from.nodeBefore?.text ?? "";
+        if (/(^|[^`])`$/.test(before)) {
+          view.dispatch(insert().setMeta(codePairKey, { from: from - 1, to: from + 1 }));
+          return true;
         }
-        view.dispatch(insert().setMeta(codePairKey, { from: from - 1, to: from + 1 }));
+        if (before.endsWith("`")) return false;
+
+        // The opening tick can be typed after the closing one. Input rules
+        // cannot recognize that pair because they only read before the caret.
+        const after = $from.parent.textBetween(
+          $from.parentOffset,
+          $from.parent.content.size,
+          "\n",
+          "\n",
+        );
+        const match = /^([^`\n]+)`(?!`)/.exec(after);
+        if (!match) return false;
+        const end = from + match[1]!.length;
+        let plain = true;
+        view.state.doc.nodesBetween(from, end + 1, (node) => {
+          if (node.isInline && (!node.isText || node.marks.length > 0)) plain = false;
+        });
+        if (!plain) return false;
+        const tr = insert()
+          .delete(end + 1, end + 2)
+          .delete(from, from + 1);
+        tr.addMark(from, end, type.create());
+        tr.setSelection(TextSelection.create(tr.doc, from));
+        tr.addStoredMark(type.create());
+        view.dispatch(tr);
         return true;
       },
     },
@@ -111,12 +141,50 @@ export const ComposerCodeExtension = Code.extend({
   },
 });
 
+// Code permits nested emphasis, so Tiptap's exclusion check cannot protect literal delimiters.
+function markInputRuleOutsideCode(find: RegExp, type: MarkType) {
+  const rule = markInputRule({ find, type });
+  return new InputRule({
+    find,
+    handler: (props) => {
+      const { state, range, match } = props;
+      const code = state.schema.marks.code;
+      const content = match[match.length - 1] ?? "";
+      const textStart = range.from + match[0].indexOf(content);
+      const textEnd = textStart + content.length;
+      if (
+        code &&
+        (state.doc.rangeHasMark(range.from + match[0].search(/\S/), textStart, code) ||
+          state.doc.rangeHasMark(textEnd, state.selection.from, code))
+      ) {
+        return null;
+      }
+      return rule.handler(props);
+    },
+  });
+}
+
 export const ComposerItalicExtension = Italic.extend({
   addInputRules() {
-    return [markInputRule({ find: starInputRegex, type: this.type })];
+    return [markInputRuleOutsideCode(starInputRegex, this.type)];
   },
   addPasteRules() {
     return [markPasteRule({ find: starPasteRegex, type: this.type })];
+  },
+});
+
+export const ComposerBoldExtension = Bold.extend({
+  addInputRules() {
+    return [
+      markInputRuleOutsideCode(boldStarInputRegex, this.type),
+      markInputRuleOutsideCode(boldUnderscoreInputRegex, this.type),
+    ];
+  },
+});
+
+export const ComposerStrikeExtension = Strike.extend({
+  addInputRules() {
+    return [markInputRuleOutsideCode(strikeInputRegex, this.type)];
   },
 });
 
@@ -395,8 +463,9 @@ function backspaceAcrossList(editor: Editor): boolean {
       if (moved) alignListItemWithSiblings(tr, itemType);
       return moved;
     };
-
-    return editor.chain().command(lift).run() || joinBackward(state, editor.view.dispatch);
+    // A task with no parent list to lift into joins the line above; joinBackward would
+    // re-nest it or select the parent line.
+    return editor.chain().command(lift).run() || joinTextblockBackward(state, editor.view.dispatch);
   }
   const before = $from.depth === 1 ? $from.node(0).maybeChild($from.index(0) - 1) : null;
   if (before && LIST_NODE_NAMES.has(before.type.name) && $from.parent.type.name !== "codeBlock") {

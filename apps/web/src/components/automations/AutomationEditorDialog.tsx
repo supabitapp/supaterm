@@ -7,7 +7,6 @@ import type {
   ProjectId,
   ScheduledTask,
   ScheduledTaskId,
-  ScheduledTaskSchedule,
   ScheduledTaskUpsertInput,
   ThreadId,
 } from "@supaterm/contracts";
@@ -26,10 +25,12 @@ import { useEnvironmentSettings } from "../../hooks/useSettings";
 import { getCustomModelOptionsByInstance } from "../../modelSelection";
 import { providerInstanceEntriesFor } from "../../providerInstances";
 import { useEnvironment, type EnvironmentPresentation } from "../../state/environments";
-import { useProjects } from "../../state/entities";
+import { useProjects, useThreadShell } from "../../state/entities";
+import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
 import { useEnvironmentQuery } from "../../state/query";
 import { EMPTY_SERVER_PROVIDERS, serverEnvironment } from "../../state/server";
+import { threadFamilies } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { WorktreeBaseBranchPicker } from "../WorktreeBaseBranchPicker";
 import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
@@ -56,9 +57,13 @@ import { ToggleGroup, Toggle } from "../ui/toggle-group";
 import type { ResolvedSettingsScope } from "../settings/settingsScope";
 import { settingsScopeEnvironmentLabels } from "../settings/settingsScopeAxis";
 import {
+  defaultAutomationProjectId,
   matchesAutomationScope,
+  scheduleDraftErrors,
+  scheduleFromDraft,
   scheduledTaskDefaultModel,
   taskToDraft,
+  toDateTimeLocalValue,
   WEEKDAY_LABELS,
   type DraftState,
   type WorkspaceMode,
@@ -82,6 +87,8 @@ const EMPTY_DRAFT: DraftState = {
   scheduleMode: "fixed",
   intervalMinutes: "15",
   timeOfDay: "09:00",
+  runAt: "",
+  savedRunAt: "",
   weekdays: new Set([1, 2, 3, 4, 5]),
   projectId: "",
   threadId: "",
@@ -113,25 +120,44 @@ function Field({
   );
 }
 
+function ScheduledTaskDestination({
+  environmentId,
+  threadId,
+}: {
+  readonly environmentId: EnvironmentId;
+  readonly threadId: ThreadId | null;
+}) {
+  const ref = threadId === null ? null : scopeThreadRef(environmentId, threadId);
+  const shell = useThreadShell(ref);
+  // The shell can omit older done threads; their family read still carries the title.
+  const family = useEnvironmentQuery(
+    ref !== null && shell === null ? threadFamilies.familyAtom(environmentId, ref.threadId) : null,
+  );
+  const thread = shell ?? family.data?.threads.find((row) => row.id === threadId);
+  return (
+    <Field label="Destination">
+      {ref === null ? (
+        <p className="text-sm text-muted-foreground">
+          Each run starts a new thread with the workspace and model below.
+        </p>
+      ) : (
+        <div className="space-y-1 text-sm">
+          <p className="wrap-anywhere">{thread?.title.trim() || `Thread ${ref.threadId}`}</p>
+          <p className="text-muted-foreground">
+            Each run continues this conversation, in its workspace and with its current model.
+          </p>
+        </div>
+      )}
+    </Field>
+  );
+}
+
 function splitModelKey(value: string): ModelSelection | null {
   const index = value.indexOf(":");
   if (index <= 0 || index === value.length - 1) return null;
   return {
     instanceId: ProviderInstanceId.make(value.slice(0, index)),
     model: value.slice(index + 1),
-  };
-}
-
-function scheduleFromDraft(draft: DraftState): ScheduledTaskSchedule {
-  if (draft.scheduleMode === "interval") {
-    const everyMs = Math.round(Number(draft.intervalMinutes) * 60_000);
-    return { type: "interval", everyMs };
-  }
-  const selectedEveryDay = draft.weekdays.size === 0 || draft.weekdays.size === 7;
-  return {
-    type: "fixed_time",
-    timeOfDay: draft.timeOfDay || "09:00",
-    ...(selectedEveryDay ? {} : { weekdays: [...draft.weekdays].toSorted() }),
   };
 }
 
@@ -154,6 +180,10 @@ export function AutomationEditorDialog({
 }) {
   const [environmentId, setEnvironmentId] = useState(initialEnvironmentId);
   const environment = useEnvironment(environmentId);
+  // Older servers reject one-time schedules, so offer Once only where it can save.
+  const offersOnce =
+    environment?.serverConfig?.environment.capabilities.oneTimeSchedules === true ||
+    task?.schedule.type === "once";
   const canOperate = useEnvironmentScope(environmentId, AuthOrchestrationOperateScope);
   const connected =
     environment?.connection.phase === "connected" && environment.serverConfig !== null;
@@ -161,11 +191,11 @@ export function AutomationEditorDialog({
     connected ? serverEnvironment.scheduledTasksLive({ environmentId, input: {} }) : null,
   );
   const allProjects = useProjects();
-  const projects = allProjects.filter(
-    (project) =>
-      project.environmentId === environmentId &&
-      matchesAutomationScope(scope, environmentId, project.id),
-  );
+  const projectsOn = (id: EnvironmentId) =>
+    allProjects.filter(
+      (project) => project.environmentId === id && matchesAutomationScope(scope, id, project.id),
+    );
+  const scopedProjects = projectsOn(environmentId);
   const settings = useEnvironmentSettings(environmentId);
   const providers =
     useAtomValue(serverEnvironment.providersValueAtom(environmentId)) ?? EMPTY_SERVER_PROVIDERS;
@@ -173,8 +203,19 @@ export function AutomationEditorDialog({
     label: "scheduled task upsert",
   });
   const [draft, setDraft] = useState<DraftState>(() =>
-    task ? taskToDraft(task) : { ...EMPTY_DRAFT, projectId: projects[0]?.id ?? "" },
+    task
+      ? taskToDraft(task)
+      : { ...EMPTY_DRAFT, projectId: defaultAutomationProjectId(scopedProjects, scope) },
   );
+  // Pinned first. The chosen project stays listed after it is archived.
+  const projects = scopedProjects
+    .filter(
+      (project) =>
+        project.archivedAt == null ||
+        project.id === draft.projectId ||
+        project.id === task?.projectId,
+    )
+    .toSorted((left, right) => Number(right.pinnedAt != null) - Number(left.pinnedAt != null));
   const [saving, setSaving] = useState(false);
   const submissionPending = useRef(false);
   const editingTaskMissing =
@@ -239,11 +280,22 @@ export function AutomationEditorDialog({
       return;
     }
     const schedule = scheduleFromDraft(draft);
+    if (schedule === null) {
+      for (const error of scheduleDraftErrors(draft)) reportFailure(error.title, error.description);
+      return;
+    }
     if (
       schedule.type === "interval" &&
       (!Number.isSafeInteger(schedule.everyMs) || schedule.everyMs < MIN_SCHEDULED_TASK_INTERVAL_MS)
     ) {
       reportFailure("Invalid interval", "Enter an interval of at least one minute.");
+      return;
+    }
+    if (schedule.type === "once" && !offersOnce) {
+      reportFailure(
+        "Once is not available here",
+        "This environment runs an older Supaterm. Update it to schedule a one-time task, or pick another schedule.",
+      );
       return;
     }
     if (draft.workspaceMode === "existing_worktree" && !draft.existingWorktreePath.trim()) {
@@ -308,7 +360,7 @@ export function AutomationEditorDialog({
         <DialogHeader>
           <DialogTitle>{draft.editingId ? "Edit automation" : "New automation"}</DialogTitle>
           <DialogDescription>
-            Run a prompt automatically, on an interval or at a fixed time.
+            Run a prompt automatically, on an interval, at a fixed time, or once at a set date.
           </DialogDescription>
         </DialogHeader>
 
@@ -332,7 +384,7 @@ export function AutomationEditorDialog({
                   setEnvironmentId(next.environmentId);
                   setDraft((current) => ({
                     ...current,
-                    projectId: "",
+                    projectId: defaultAutomationProjectId(projectsOn(next.environmentId), scope),
                     modelKey: "",
                     baseModelSelection: null,
                     baseRef: "main",
@@ -404,6 +456,11 @@ export function AutomationEditorDialog({
                 }
               />
             </Field>
+
+            <ScheduledTaskDestination
+              environmentId={environmentId}
+              threadId={draft.threadId ? (draft.threadId as ThreadId) : null}
+            />
 
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Project" htmlFor="scheduled-task-project">
@@ -529,11 +586,30 @@ export function AutomationEditorDialog({
                   value={[draft.scheduleMode]}
                   onValueChange={(values) => {
                     const mode = values[0];
-                    if (mode === "fixed" || mode === "interval")
-                      setDraft((current) => ({ ...current, scheduleMode: mode }));
+                    if (mode === "fixed" || mode === "once" || mode === "interval")
+                      setDraft((current) => {
+                        const suggested =
+                          mode === "once" && !current.runAt
+                            ? new Date(Math.ceil(Date.now() / 3_600_000) * 3_600_000)
+                            : null;
+                        return {
+                          ...current,
+                          scheduleMode: mode,
+                          // Keep the instant too, so an hour that repeats when clocks go back stays exact.
+                          ...(suggested === null
+                            ? {}
+                            : {
+                                runAt: toDateTimeLocalValue(suggested),
+                                savedRunAt: suggested.toISOString(),
+                              }),
+                        };
+                      });
                   }}
                 >
                   <Toggle value="fixed">At a time</Toggle>
+                  {offersOnce || draft.scheduleMode === "once" ? (
+                    <Toggle value="once">Once</Toggle>
+                  ) : null}
                   <Toggle value="interval">Every interval</Toggle>
                 </ToggleGroup>
               </div>
@@ -580,6 +656,20 @@ export function AutomationEditorDialog({
                   <p id="scheduled-task-time-zone" className="text-xs text-muted-foreground">
                     Uses the environment's time zone.
                   </p>
+                </div>
+              ) : draft.scheduleMode === "once" ? (
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="scheduled-task-run-at">Run on</Label>
+                  <Input
+                    type="datetime-local"
+                    id="scheduled-task-run-at"
+                    nativeInput
+                    className="w-56"
+                    value={draft.runAt}
+                    onChange={(event) =>
+                      setDraft((current) => ({ ...current, runAt: event.target.value }))
+                    }
+                  />
                 </div>
               ) : (
                 <div className="flex items-center gap-2">

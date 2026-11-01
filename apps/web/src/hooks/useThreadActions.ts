@@ -56,6 +56,7 @@ import { stackedThreadToast, toastManager } from "../components/ui/toast";
 import { useClientSettings } from "./useSettings";
 import * as ThreadUndo from "@supaterm/client-runtime/state/thread-undo";
 import { showThreadUndoNotice } from "./showThreadUndoNotice";
+import { threadDeleteConfirmation } from "../lib/threadDeleteConfirmation";
 import { useAtomCommand } from "../state/use-atom-command";
 import { useOrchestrationCommand } from "../state/use-orchestration-command";
 import { useAtomQueryRunner } from "../state/use-atom-query-runner";
@@ -168,6 +169,13 @@ export function useAcknowledgeThreadWoke() {
       input: { threadId: target.threadId, visitedAt: wokeAt },
     });
   };
+}
+
+// These Undos restore a thread's place in the list, which archiving or deleting it ends.
+const LIST_PLACEMENT_UNDO_KINDS = ["mark-done", "snooze", "pin"];
+
+function expireThreadUndos(target: ScopedThreadRef, kinds: readonly string[]) {
+  for (const kind of kinds) ThreadUndo.invalidate(kind, scopedThreadKey(target));
 }
 
 /** A No project thread that already has its own folder, on a server that can promote it. */
@@ -325,6 +333,7 @@ export function useThreadActions() {
       );
     }
 
+    const requestingRouteHref = router.state.location.href;
     const currentRouteThreadRef = getCurrentRouteThreadRef();
     const shouldNavigateToDraft =
       currentRouteThreadRef?.threadId === threadRef.threadId &&
@@ -338,6 +347,7 @@ export function useThreadActions() {
       action.finish();
       return archiveResult;
     }
+    expireThreadUndos(threadRef, LIST_PLACEMENT_UNDO_KINDS);
     const wokeAt = threadWokeAt(thread, { now: new Date().toISOString() });
     if (wokeAt !== null) {
       acknowledgeThreadWoke(threadRef, wokeAt);
@@ -353,7 +363,7 @@ export function useThreadActions() {
 
     // The focused pane takes a new draft as before; a pane in the background just closes.
     closePaneShowingThread(threadRef, { remember: true, onlyInBackground: true });
-    if (shouldNavigateToDraft) {
+    if (shouldNavigateToDraft && router.state.location.href === requestingRouteHref) {
       const navigationResult = await settlePromise(() =>
         handleNewThread(scopeProjectRef(thread.environmentId, thread.projectId)),
       );
@@ -379,6 +389,7 @@ export function useThreadActions() {
         input: { threadId: target.threadId },
       });
       if (result._tag === "Success") {
+        expireThreadUndos(target, [...LIST_PLACEMENT_UNDO_KINDS, "archive"]);
         refreshArchivedThreadsForEnvironment(target.environmentId);
         clearThreadPreviewState(target);
       }
@@ -498,6 +509,7 @@ export function useThreadActions() {
     if (deleteResult._tag === "Failure") {
       return deleteResult;
     }
+    expireThreadUndos(threadRef, [...LIST_PLACEMENT_UNDO_KINDS, "archive"]);
     refreshArchivedThreadsForEnvironment(threadRef.environmentId);
     releaseComposerDraftUploads(threadRef);
     clearComposerDraftForThread(threadRef);
@@ -771,13 +783,12 @@ export function useThreadActions() {
     const resolved = resolveThreadTarget(target);
 
     if (confirmThreadDelete && localApi) {
-      const title = resolved?.thread.title ?? "this thread";
       const confirmationResult = await settlePromise(() =>
         localApi.dialogs.confirm(
-          [
-            `Delete thread "${title}"?`,
-            "This permanently clears conversation history for this thread.",
-          ].join("\n"),
+          threadDeleteConfirmation({
+            title: resolved?.thread.title ?? null,
+            threadRefs: [target],
+          }),
           { variant: "destructive" },
         ),
       );

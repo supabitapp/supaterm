@@ -29,6 +29,17 @@ type LayoutInput = Parameters<typeof buildThreadListV2Items>[0];
 const NO_LISTED_DONE: ReadonlyArray<EnvironmentThreadShell> = [];
 
 /**
+ * The React Compiler memoizes on the values a callback reads and drops unread entries from a
+ * dependency list, so the version that marks an expired grace must be read to rebuild the list.
+ */
+function observeInbox(
+  threads: Parameters<typeof threadListInboxReturns.observe>[0],
+  _expiredGraceVersion: number,
+) {
+  return threadListInboxReturns.observe(threads);
+}
+
+/**
  * Home's and the iPad sidebar's thread list, so both keep the same partition. Its result is
  * one value a screen only reads: built inline, the list's inputs stayed open to mutation
  * across the screen's other hooks, so the React Compiler cached none of it and every render
@@ -64,11 +75,7 @@ export function useThreadListV2(input: {
     threadListInboxReturns.subscribe,
     threadListInboxReturns.getSnapshot,
   );
-  const inbox = useMemo(
-    () => threadListInboxReturns.observe(threads),
-    // oxlint-disable-next-line react/memo-dependencies -- the version signals an expired grace
-    [threads, inboxVersion],
-  );
+  const inbox = useMemo(() => observeInbox(threads, inboxVersion), [threads, inboxVersion]);
   // Older done threads load in pages; the shelf lists them only as far as they are loaded.
   const scopes = olderDoneScopes(input);
   const olderDoneShelf = useOlderDoneShelf({

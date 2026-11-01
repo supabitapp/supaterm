@@ -25,6 +25,8 @@ export interface SidebarProjectSnapshot extends Project {
   memberProjects: readonly SidebarProjectGroupMember[];
   memberProjectRefs: readonly ScopedProjectRef[];
   remoteEnvironmentLabels: readonly string[];
+  pinned: boolean;
+  archived: boolean;
 }
 
 /** Every checkout in the group as a `scopedProjectKey`, for filtering what projects own. */
@@ -103,7 +105,10 @@ export function resolveSidebarProjectScopeKeys(input: {
   ];
 }
 
-/** A multi-project scope's keys, the groups it shows, and every checkout they own. */
+/**
+ * A multi-project scope's keys, the groups it shows, and every checkout they own.
+ * An archived project reads as all projects, matching the filter menu.
+ */
 export function resolveSidebarProjectScope(input: {
   readonly groups: ReadonlyArray<SidebarProjectSnapshot>;
   readonly keys: ReadonlyArray<string>;
@@ -114,7 +119,10 @@ export function resolveSidebarProjectScope(input: {
   readonly groups: ReadonlyArray<SidebarProjectSnapshot>;
   readonly memberKeys: ReadonlySet<string> | null;
 } {
-  const keys = resolveSidebarProjectScopeKeys(input);
+  const archivedKeys = new Set(
+    input.groups.filter((group) => group.archived).map((group) => group.projectKey),
+  );
+  const keys = resolveSidebarProjectScopeKeys(input).filter((key) => !archivedKeys.has(key));
   const groups = input.groups.filter((group) => keys.includes(group.projectKey));
   return {
     keys,
@@ -208,6 +216,8 @@ export function buildSidebarProjectSnapshots(input: {
       memberProjects: members,
       memberProjectRefs: group.memberProjectRefs,
       remoteEnvironmentLabels,
+      pinned: group.pinned,
+      archived: group.archived,
     };
   });
 }
@@ -245,12 +255,10 @@ export function buildSidebarProjectPickerEntries(input: {
 
     return [{ group, targetProject, isPreferred }];
   });
-  const preferredIndex = entries.findIndex((entry) => entry.isPreferred);
-  if (preferredIndex <= 0) return entries;
-
-  return [
-    entries[preferredIndex]!,
-    ...entries.slice(0, preferredIndex),
-    ...entries.slice(preferredIndex + 1),
-  ];
+  // The preferred project leads the unpinned ones; pinned projects stay first.
+  const preferred = entries.find((entry) => entry.isPreferred);
+  if (!preferred || preferred.group.pinned) return entries;
+  const rest = entries.filter((entry) => entry !== preferred);
+  const pinnedCount = rest.filter((entry) => entry.group.pinned).length;
+  return [...rest.slice(0, pinnedCount), preferred, ...rest.slice(pinnedCount)];
 }

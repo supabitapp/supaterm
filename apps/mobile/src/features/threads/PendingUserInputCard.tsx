@@ -4,6 +4,11 @@ import * as Haptics from "expo-haptics";
 import type { EnvironmentId, RuntimeRequestId } from "@supaterm/contracts";
 import type { ThreadUserInputQuestion } from "@supaterm/client-runtime/state/thread-requests";
 import {
+  markdownProseDirection,
+  textDirection,
+  type TextDirection,
+} from "@supaterm/shared/textDirection";
+import {
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -162,7 +167,19 @@ function QuestionPage(props: {
   );
 }
 
-function QuestionText(props: { readonly markdown: string; readonly environmentId: EnvironmentId }) {
+function proseDirectionStyle(text: string, setDirection: TextDirection | undefined) {
+  const direction = textDirection(text);
+  return {
+    ...(direction ? { direction, writingDirection: direction } : null),
+    textAlign: (direction === "rtl") === (setDirection === "rtl") ? "left" : "right",
+  } as const;
+}
+
+function QuestionText(props: {
+  readonly markdown: string;
+  readonly environmentId: EnvironmentId;
+  readonly setDirection: TextDirection | undefined;
+}) {
   const styles = useMarkdownPreviewStyles();
   const markdown = useLiveThreadLinkLabels(props.markdown, props.environmentId);
   const openLink = useOpenPullRequest();
@@ -174,6 +191,11 @@ function QuestionText(props: { readonly markdown: string; readonly environmentId
     <SelectableMarkdownText
       markdown={markdown}
       textStyle={textStyle}
+      writingDirection={markdownProseDirection(markdown)}
+      // Android's renderer aligns relative to each paragraph's direction.
+      textAlign={
+        Platform.OS === "android" ? undefined : props.setDirection === "rtl" ? "right" : "left"
+      }
       onLinkPress={(href) => void openLink(href)}
     />
   );
@@ -185,6 +207,15 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
   const canRespond = props.pendingUserInput.responseCapability !== "not_resumable";
   const isResponding = props.respondingUserInputId === requestId;
   const responseDisabled = !canRespond || isResponding;
+  const setDirection = markdownProseDirection(
+    questions
+      .flatMap((question) => [
+        question.header,
+        question.question,
+        ...question.options.flatMap((option) => [option.label, option.description ?? ""]),
+      ])
+      .join(" "),
+  );
 
   // One question per page, like the desktop composer. Drafts outlive the card,
   // so a reopened request resumes at its first unanswered question.
@@ -389,6 +420,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
                 <Text
                   numberOfLines={1}
                   className="shrink font-supaterm-bold text-2xs uppercase tracking-[1.1px] text-foreground-secondary"
+                  style={question ? proseDirectionStyle(question.header, setDirection) : undefined}
                 >
                   {question?.header ?? FALLBACK_TITLE}
                 </Text>
@@ -435,7 +467,11 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
           ) : null}
           {question ? (
             <>
-              <QuestionText markdown={question.question} environmentId={props.environmentId} />
+              <QuestionText
+                markdown={question.question}
+                environmentId={props.environmentId}
+                setDirection={setDirection}
+              />
               {question.multiSelect ? (
                 <Text className="font-sans text-xs text-foreground-muted">
                   Select one or more options.
@@ -469,11 +505,15 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
                             "font-supaterm-medium text-sm",
                             selected ? "text-foreground" : "text-foreground-secondary",
                           )}
+                          style={proseDirectionStyle(option.label, setDirection)}
                         >
                           {option.label}
                         </Text>
                         {description ? (
-                          <Text className="font-sans text-sm leading-5 text-foreground-muted">
+                          <Text
+                            className="font-sans text-sm leading-5 text-foreground-muted"
+                            style={proseDirectionStyle(description, setDirection)}
+                          >
                             {description}
                           </Text>
                         ) : null}

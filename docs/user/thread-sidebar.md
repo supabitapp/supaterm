@@ -274,8 +274,9 @@ pin messages for you.
 **Limited** means the provider stopped on a usage or rate limit. The conversation
 keeps the provider's explanation. Retry after the limit resets, or switch to
 another provider instance.
-On web and desktop, press **Resume** in an empty composer to continue a limited
-or interrupted turn manually.
+Press **Resume** in an empty composer to continue a limited or interrupted turn
+manually. Do this when the provider reports no reset time, because nothing
+continues the turn on its own.
 Queued messages stay saved while the limit blocks the thread. They run after
 the continuation finishes. If the queue was held by a restart, resume it then.
 
@@ -307,9 +308,10 @@ Expand a tool call in the conversation to see its full command and output.
 Summaries shorten shell wrappers and can still describe the latest call after it
 finishes; the call's own result shows its status.
 
-On web and desktop, the thread details card lists the web servers that the
-thread's terminals or its Claude agent started, with their ports. A server the
-agent started stays listed after the agent's turn ends.
+On web and desktop, the thread details card lists the local servers that the
+thread's terminals or its Claude agent started, with their ports. Not every one
+serves a web page. A server the agent started stays listed after the agent's
+turn ends.
 Select a server to open it in the browser panel. **Stop** ends the server's job
 and keeps the agent, the terminal, and Supaterm running. Stop needs terminal
 access to the environment and is not available on Windows.
@@ -339,6 +341,39 @@ window is too small for every pane, it shows the focused one with arrows to swit
 between them, and restores the split when there is room again. Each browser tab
 remembers its own arrangement; a new tab or a restarted desktop app starts from the
 most recent one.
+
+## Side chats
+
+A side chat lets you ask a question about a thread without adding to it. It starts
+with what the thread knows, and the thread keeps working while you ask.
+
+On web and desktop, start a message with `/side` or `/btw`, then your question, or
+choose **Start side chat** in the command palette. The side chat opens in a pane
+beside the thread, or in place of it when the window has no room for another pane.
+A bare `/side` opens an empty side chat; nothing is created until you send its first
+message. Side chats do not show in the sidebar or in search. Find one again under
+**Side chats** in thread details.
+
+On mobile, type `/side` or `/btw` in the composer, or choose **Start side chat** in
+the command palette. A thread lists its side chats above the composer; tap one to
+open it.
+
+A side chat works in the same folder as the thread, so it always asks before it
+edits files or runs commands, and its agent cannot start or message other threads.
+It cannot be forked.
+
+The side chat's actions sit at its top on web and desktop, and above its composer on
+mobile:
+
+- **Bring back** gives the thread the side chat with your next message there. It is
+  available while the thread is idle.
+- **Promote** makes the side chat a full thread. It shows in the sidebar, can be
+  forked, can use any permission mode, and stays when you delete the thread it came
+  from.
+- **Delete** removes the side chat.
+
+Side chats stay until you delete or promote them. Deleting a thread also deletes its
+side chats; the confirmation says how many.
 
 ## Snooze until later
 

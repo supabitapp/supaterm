@@ -1,5 +1,6 @@
 import { assert, it } from "@effect/vitest";
 import {
+  CommandId,
   ContextTransferId,
   isForkableSourceRunStatus,
   MessageId,
@@ -12,6 +13,7 @@ import {
   ProviderThreadId,
   RunId,
   ThreadId,
+  TurnItemId,
 } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -110,7 +112,11 @@ function makeSourceProjection(
   };
 }
 
-const planFork = (sourceRun: OrchestrationV2Run, sourceThread = makeSourceThread()) =>
+const planFork = (
+  sourceRun: OrchestrationV2Run,
+  sourceThread = makeSourceThread(),
+  options: { readonly sideChat?: boolean } = {},
+) =>
   Effect.gen(function* () {
     const service = yield* ThreadForkService.ThreadForkServiceV2;
     return yield* service.plan({
@@ -124,6 +130,7 @@ const planFork = (sourceRun: OrchestrationV2Run, sourceThread = makeSourceThread
       transferId: ContextTransferId.make("context-transfer:fork-snoozed-source"),
       targetThreadId,
       title: "Awake fork",
+      ...options,
       createdBy: "user",
       creationSource: "mobile",
       createdAt: forkCreatedAt,
@@ -169,6 +176,21 @@ it.effect("keeps a fork awake when its source thread is snoozed", () =>
       threadId: sourceThreadId,
       runId: sourceRunId,
     });
+  }),
+);
+
+it.effect("starts a fork without the source thread's pending title regeneration", () =>
+  Effect.gen(function* () {
+    const sourceRun = makeSourceRun("completed");
+    const titleRegeneration = {
+      requestId: CommandId.make("command:fork-source-title"),
+      startedAt: snoozedAt,
+    };
+    const sourceThread = { ...makeSourceThread(), titleRegeneration };
+    const result = yield* planFork(sourceRun, sourceThread);
+
+    assert.isNull(result.targetThread.titleRegeneration);
+    assert.deepEqual(sourceThread.titleRegeneration, titleRegeneration);
   }),
 );
 
@@ -227,5 +249,45 @@ it.effect("rejects in-progress and rolled-back fork sources", () =>
       assert.equal(error.targetThreadId, targetThreadId);
       assert.equal(error.cause, ThreadForkService.forkableSourceRunStatusError(sourceRun));
     }
+  }),
+);
+
+it.effect("marks only requested forks as supervised side chats", () =>
+  Effect.gen(function* () {
+    const sourceRun = makeSourceRun("completed");
+    const source: OrchestrationV2AppThread = {
+      ...makeSourceThread(),
+      pinnedAt: snoozedAt,
+      pinnedMessages: [
+        {
+          itemId: TurnItemId.make("turn-item:fork-snoozed-source:pinned"),
+          messageId: MessageId.make("message:fork-snoozed-source"),
+          sourceThreadId,
+          role: "user",
+          preview: "Pinned in the parent",
+          sentAt: "2026-07-24T09:00:00.000Z",
+        },
+      ],
+    };
+    const sideChat = yield* planFork(sourceRun, source, { sideChat: true });
+    assert.isTrue(sideChat.targetThread.lineage.sideChat);
+    assert.equal(sideChat.targetThread.runtimeMode, "approval-required");
+    assert.isNull(sideChat.targetThread.pinnedAt);
+    assert.deepEqual(sideChat.targetThread.pinnedMessages, []);
+
+    const sideChatSource = { ...source, lineage: { ...source.lineage, sideChat: true } };
+    const plainFork = yield* planFork(sourceRun, source);
+    assert.isUndefined(plainFork.targetThread.lineage.sideChat);
+    assert.equal(plainFork.targetThread.runtimeMode, "full-access");
+
+    const nested = yield* planFork(sourceRun, sideChatSource, { sideChat: true }).pipe(Effect.flip);
+    assert.equal(nested.cause, "A side chat cannot start another side chat.");
+
+    const fromSubagent = yield* planFork(
+      sourceRun,
+      { ...source, lineage: { ...source.lineage, relationshipToParent: "subagent" } },
+      { sideChat: true },
+    ).pipe(Effect.flip);
+    assert.equal(fromSubagent.cause, "A subagent cannot start a side chat.");
   }),
 );

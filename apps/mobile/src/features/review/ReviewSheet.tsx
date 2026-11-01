@@ -20,6 +20,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useReducedMotionPreference } from "../../lib/useReducedMotionPreference";
 import { useNativeColumnLayoutMetrics } from "../../native/native-layout-metrics";
 import { NativeInspectorContent } from "../../native/NativeInspectorContent";
 
@@ -423,6 +424,7 @@ type ReviewSheetProps = StaticScreenProps<{
 }>;
 
 export function ReviewSheet(props: ReviewSheetProps) {
+  const reduceMotion = useReducedMotionPreference();
   const { nativeReviewDiffStyle } = useAppearanceCodeSurface();
   useAdaptiveWorkspacePaneRole("inspector");
   const { panes } = useAdaptiveWorkspaceLayout();
@@ -435,7 +437,7 @@ export function ReviewSheet(props: ReviewSheetProps) {
   const environment = useEnvironmentPresentation(environmentId);
   const retryEnvironment = useAtomCommand(environmentCatalog.retryNow, "environment retry");
   const isEnvironmentReady = environment.presentation?.connection.phase === "connected";
-  const { draftMessage } = useThreadDraftForThread({ environmentId, threadId });
+  const { draftMessage, draftContext } = useThreadDraftForThread({ environmentId, threadId });
   const reviewCache = useReviewCacheForThread({ environmentId, threadId });
   const { selectedThreadCwd } = useSelectedThreadWorktree();
   const columnMetrics = useNativeColumnLayoutMetrics();
@@ -475,6 +477,7 @@ export function ReviewSheet(props: ReviewSheetProps) {
     cwd: selectedThreadCwd,
     selectedSection,
     draftMessage,
+    draftContext,
   });
   // Resolution returns null while Expo registers the native view (or forever
   // when the binary lacks it). Rendering a null component type crashes the
@@ -488,6 +491,16 @@ export function ReviewSheet(props: ReviewSheetProps) {
     setIsPullRefreshing(true);
     await refreshSelectedSection().finally(() => setIsPullRefreshing(false));
   };
+  const isRefreshing = isPullRefreshing || isSelectedSectionPending || areFilePatchesPending;
+  // A refresh that starts programmatically adds its height to the native top inset and
+  // subtracts it when it ends. If topContentInset changes in between, the inset ends up
+  // short and the content sits under the header, so the fallback ScrollView starts over.
+  const [fallbackInset, setFallbackInset] = useState(topContentInset);
+  const [fallbackScrollViewKey, setFallbackScrollViewKey] = useState(0);
+  if (fallbackInset !== topContentInset) {
+    setFallbackInset(topContentInset);
+    if (isRefreshing) setFallbackScrollViewKey((key) => key + 1);
+  }
   const reviewFileNavigatorRef = useRef<ReviewFileNavigatorHandle>(null);
   const reviewFiles = parsedDiff.kind === "files" ? parsedDiff.files : [];
   const fileVisibility = useReviewFileVisibility({
@@ -544,8 +557,8 @@ export function ReviewSheet(props: ReviewSheetProps) {
     }
     const navigation =
       fileId === null
-        ? nativeReviewDiffViewRef.current?.scrollToTop(true)
-        : nativeReviewDiffViewRef.current?.scrollToFile(fileId, true);
+        ? nativeReviewDiffViewRef.current?.scrollToTop(!reduceMotion)
+        : nativeReviewDiffViewRef.current?.scrollToFile(fileId, !reduceMotion);
     void navigation?.catch((error: unknown) => {
       console.error("[review] Failed to navigate to diff file", error);
     });
@@ -747,6 +760,7 @@ export function ReviewSheet(props: ReviewSheetProps) {
             </View>
           ) : (
             <ScrollView
+              key={fallbackScrollViewKey}
               contentContainerStyle={
                 Platform.OS === "android" && (parsedDiff.kind === "empty" || !selectedSection)
                   ? { flexGrow: 1, justifyContent: "center" }
@@ -765,7 +779,7 @@ export function ReviewSheet(props: ReviewSheetProps) {
                 // iOS has no other refresh affordance here (the explicit
                 // "Refresh current diff" menu is Android-only).
                 <RefreshControl
-                  refreshing={isPullRefreshing || isSelectedSectionPending || areFilePatchesPending}
+                  refreshing={isRefreshing}
                   onRefresh={() => void handlePullToRefresh()}
                 />
               }

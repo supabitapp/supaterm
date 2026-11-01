@@ -115,8 +115,13 @@ export const OrchestrationV2AppThreadLineage = Schema.Struct({
   parentThreadId: Schema.NullOr(ThreadId),
   relationshipToParent: Schema.NullOr(Schema.Literals(["fork", "subagent"])),
   rootThreadId: ThreadId,
+  sideChat: Schema.optional(Schema.Boolean),
 });
 export type OrchestrationV2AppThreadLineage = typeof OrchestrationV2AppThreadLineage.Type;
+
+/** Subagents and side chats live inside their parent's view, never in thread lists. */
+export const isListedThreadLineage = (lineage: OrchestrationV2AppThreadLineage): boolean =>
+  lineage.relationshipToParent !== "subagent" && lineage.sideChat !== true;
 
 export const OrchestrationV2ContextTransferType = Schema.Literals([
   "fork",
@@ -227,6 +232,13 @@ export const OrchestrationV2ThreadCapabilities = Schema.Struct({
   canForkFromTurn: Schema.Boolean,
   canForkFromSubagentThread: Schema.Boolean,
   exposesNativeThreadId: Schema.Boolean,
+  /**
+   * Whether a native fork works while the source runs another turn: `stable` forks a finished
+   * turn, `live` also the running one. `none` sends a busy source's context portably instead.
+   */
+  forkWhileSourceActive: Schema.Literals(["none", "stable", "live"]).pipe(
+    Schema.withDecodingDefault(Effect.succeed("none" as const)),
+  ),
 });
 export type OrchestrationV2ThreadCapabilities = typeof OrchestrationV2ThreadCapabilities.Type;
 
@@ -472,6 +484,8 @@ export const OrchestrationV2AppThread = Schema.Struct({
   lastSnoozeWakeAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
   limitRecovery: Schema.optional(Schema.NullOr(OrchestrationV2LimitRecovery)),
   pinnedAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
+  /** When a side chat became a full thread; its next turn learns the side chat rules ended. */
+  sideChatPromotedAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
   autoMarkDoneDisabledAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
   pinOrderKey: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
   activeOrderKey: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
@@ -703,6 +717,24 @@ export function orchestrationV2RunWorkStartedAt(
   run: Pick<OrchestrationV2Run, "workStartedAt" | "startedAt" | "requestedAt">,
 ): OrchestrationV2Run["requestedAt"] {
   return run.workStartedAt ?? run.startedAt ?? run.requestedAt;
+}
+
+/**
+ * Work started now would run in the project checkout, not the worktree the thread asked for. A
+ * failed or interrupted setup leaves the request standing until a worktree exists.
+ */
+export function orchestrationV2WorktreePending(
+  worktreePath: string | null,
+  runs: ReadonlyArray<Pick<OrchestrationV2Run, "status" | "workspacePreparation">>,
+): boolean {
+  return (
+    worktreePath === null &&
+    runs.some(
+      (run) =>
+        (run.status === "preparing" || run.status === "failed" || run.status === "interrupted") &&
+        run.workspacePreparation?.type === "worktree",
+    )
+  );
 }
 
 export const OrchestrationV2RunAttempt = Schema.Struct({
@@ -2090,7 +2122,7 @@ export function isOlderDoneThreadShell(
   beforeMs: number,
 ): boolean {
   return (
-    thread.lineage.relationshipToParent !== "subagent" &&
+    isListedThreadLineage(thread.lineage) &&
     thread.doneOverride === "done" &&
     thread.doneAt !== null &&
     DateTime.toEpochMillis(thread.doneAt) < beforeMs
@@ -2221,6 +2253,7 @@ export const OrchestrationV2AppThreadJson = OrchestrationV2AppThread.mapFields((
   snoozedAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtcFromString)),
   lastSnoozeWakeAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtcFromString)),
   pinnedAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtcFromString)),
+  sideChatPromotedAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtcFromString)),
   autoMarkDoneDisabledAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtcFromString)),
   lastVisitedAt: Schema.NullOr(Schema.DateTimeUtcFromString).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
@@ -3049,6 +3082,12 @@ export const OrchestrationV2Command = Schema.Union([
     requestId: CommandId,
     title: Schema.optional(TrimmedNonEmptyString),
   }),
+  /** Makes a side chat a full thread: listed, forkable, and no longer held to approval. */
+  Schema.Struct({
+    type: Schema.Literal("thread.side-chat.promote"),
+    commandId: CommandId,
+    threadId: ThreadId,
+  }),
   Schema.Struct({
     type: Schema.Literal("thread.runtime-mode.set"),
     commandId: CommandId,
@@ -3239,6 +3278,7 @@ export const OrchestrationV2Command = Schema.Union([
     targetThreadId: ThreadId,
     sourcePoint: OrchestrationV2ThreadForkSourcePoint,
     title: Schema.optional(TrimmedNonEmptyString),
+    sideChat: Schema.optional(Schema.Boolean),
     createdAt: Schema.optional(Schema.DateTimeUtc),
   }),
   Schema.Struct({

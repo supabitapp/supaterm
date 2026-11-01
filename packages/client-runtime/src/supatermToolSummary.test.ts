@@ -37,6 +37,25 @@ describe("summarizeSupatermToolCalls", () => {
     ).toBe("Sent 2 messages to 1 thread");
   });
 
+  it("counts the pull requests batch link and unlink calls changed", () => {
+    const urls = ["https://github.com/o/r/pull/1", "https://github.com/o/r/pull/1", "not-a-pr"];
+    const links = completed({ urls }, { linkedCount: 1 });
+    expect(summarizeSupatermToolCalls("link-pr", [links, completed({ number: 3 })]).label).toBe(
+      "Linked 2 pull requests",
+    );
+    expect(summarizeSupatermToolCalls("link-pr", [completed({ urls }, {})]).label).toBe(
+      "Linked pull requests",
+    );
+    const batch = completed({ states: ["merged"] }, { unlinkedCount: 2 });
+    expect(summarizeSupatermToolCalls("unlink-pr", [batch, completed({ number: 3 })]).label).toBe(
+      "Unlinked 3 pull requests",
+    );
+    const uncounted = completed({ states: ["merged"] }, { isError: false });
+    expect(summarizeSupatermToolCalls("unlink-pr", [uncounted]).label).toBe(
+      "Unlinked pull requests",
+    );
+  });
+
   it("excludes failed and unfinished sends even if the provider reports completed", () => {
     const calls: SupatermToolSummaryCall[] = [
       completed({ threadId: "success" }, { messageId: "ok", threadId: "success" }),

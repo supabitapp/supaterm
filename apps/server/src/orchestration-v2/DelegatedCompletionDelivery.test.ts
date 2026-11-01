@@ -25,6 +25,7 @@ import * as Deferred from "effect/Deferred";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
+import * as Tracer from "effect/Tracer";
 
 import * as CheckpointStore from "../checkpointing/CheckpointStore.ts";
 import * as ServerConfig from "../config.ts";
@@ -158,6 +159,11 @@ const seedParentWithTerminalTask = (input: {
   readonly deliveryState: "delivered" | "claimed" | "acknowledged" | "disposed";
   readonly completionWake?: "always" | "settled_only";
   readonly deliveryTaskIds?: ReadonlyArray<NodeId>;
+  readonly parentRunStatus?: "running" | "completed";
+  readonly siblingTasks?: ReadonlyArray<{
+    readonly id: NodeId;
+    readonly deliveryState: "delivered" | "claimed";
+  }>;
   readonly now: DateTime.Utc;
 }) =>
   Effect.gen(function* () {
@@ -240,10 +246,10 @@ const seedParentWithTerminalTask = (input: {
             userMessageId: MessageId.make(`message:seed-user:${input.threadId}`),
             rootNodeId: input.rootNodeId,
             activeAttemptId: null,
-            status: "running",
+            status: input.parentRunStatus ?? "running",
             requestedAt: input.now,
             startedAt: input.now,
-            completedAt: null,
+            completedAt: input.parentRunStatus === "completed" ? input.now : null,
             checkpointId: null,
             contextHandoffId: null,
             delegatedCompletion: {
@@ -260,22 +266,25 @@ const seedParentWithTerminalTask = (input: {
             },
           },
         },
-        {
-          id: EventId.make(`event:seed-task:${input.threadId}`),
-          type: "subagent.updated",
+        ...[
+          { id: input.taskId, deliveryState: input.deliveryState },
+          ...(input.siblingTasks ?? []),
+        ].map((task) => ({
+          id: EventId.make(`event:seed-task:${input.threadId}:${task.id}`),
+          type: "subagent.updated" as const,
           threadId: input.threadId,
           runId: input.runId,
-          nodeId: input.taskId,
+          nodeId: task.id,
           driver,
           providerInstanceId: modelSelection.instanceId,
           occurredAt: input.now,
           payload: {
-            id: input.taskId,
+            id: task.id,
             threadId: input.threadId,
             runId: input.runId,
             parentNodeId: input.rootNodeId,
-            origin: "app_owned",
-            createdBy: "agent",
+            origin: "app_owned" as const,
+            createdBy: "agent" as const,
             driver,
             providerInstanceId: modelSelection.instanceId,
             providerThreadId: null,
@@ -286,16 +295,16 @@ const seedParentWithTerminalTask = (input: {
             model: null,
             completionWake: input.completionWake ?? "settled_only",
             completionDelivery: {
-              state: input.deliveryState,
-              observedByRunId: input.deliveryState === "acknowledged" ? input.runId : null,
+              state: task.deliveryState,
+              observedByRunId: task.deliveryState === "acknowledged" ? input.runId : null,
             },
-            status: "completed",
+            status: "completed" as const,
             result: "child finished",
             startedAt: input.now,
             completedAt: input.now,
             updatedAt: input.now,
           },
-        },
+        })),
       ],
     });
   });
@@ -682,6 +691,57 @@ it.layer(layerTest)("delegated completion delivery repairs", (it) => {
     }),
   );
 
+  it.effect("counts already delivered siblings in the completion notice", () =>
+    Effect.gen(function* () {
+      const orchestrator = yield* Orchestrator.OrchestratorV2;
+      const now = yield* DateTime.now;
+      const threadId = ThreadId.make("thread:delegated-delivery-notice-count");
+      const runId = RunId.make("run:delegated-delivery-notice-count");
+      const firstTaskId = NodeId.make("node:delegated-delivery-notice-count-first");
+      const secondTaskId = NodeId.make("node:delegated-delivery-notice-count-second");
+
+      yield* seedParentWithTerminalTask({
+        threadId,
+        projectId: ProjectId.make("project:delegated-delivery-notice-count"),
+        runId,
+        rootNodeId: NodeId.make("node:delegated-delivery-notice-count-root"),
+        taskId: firstTaskId,
+        deliveryState: "claimed",
+        completionWake: "always",
+        deliveryTaskIds: [firstTaskId, secondTaskId],
+        parentRunStatus: "completed",
+        siblingTasks: [
+          { id: secondTaskId, deliveryState: "claimed" },
+          {
+            id: NodeId.make("node:delegated-delivery-notice-count-earlier"),
+            deliveryState: "delivered",
+          },
+        ],
+        now,
+      });
+
+      yield* orchestrator.dispatch({
+        type: "message.dispatch",
+        commandId: CommandId.make("command:delegated-delivery-notice-count"),
+        threadId,
+        messageId: MessageId.make(`message:delegated-delivery:${threadId}`),
+        text: "Delegated tasks reached a terminal state.",
+        attachments: [],
+        dispatchMode: { type: "queue_after_active" },
+        createdBy: "agent",
+        creationSource: "server",
+        delegatedCompletion: { parentRunId: runId, generation: 1, taskIds: [firstTaskId] },
+      });
+
+      const projection = yield* orchestrator.getThreadProjection(threadId);
+      const notice = projection.turnItems.find((item) => item.type === "notification");
+      assert.match(
+        notice?.type === "notification" ? notice.summary : "",
+        /^2 of 3 delegated tasks finished:/,
+      );
+    }),
+  );
+
   it.effect.each([
     {
       name: "oversized UTF-8 result",
@@ -1048,6 +1108,24 @@ it.layer(layerTest)("delegated completion delivery repairs", (it) => {
         const { delegatedCompletion: _cohort, ...settledRun } = parent;
         const commit = sink.commitCommand;
         let settled = false;
+        const messageReads: Array<string> = [];
+        const tracer = Tracer.make({
+          span(options) {
+            const span = new Tracer.NativeSpan(options);
+            const end = span.end.bind(span);
+            span.end = (endTime, exit) => {
+              end(endTime, exit);
+              const query = span.attributes.get("db.query.text");
+              if (
+                typeof query === "string" &&
+                /FROM orchestration_v2_projection_messages/i.test(query)
+              ) {
+                messageReads.push(query);
+              }
+            };
+            return span;
+          },
+        });
         yield* Effect.acquireUseRelease(
           Effect.sync(() =>
             vi.spyOn(sink, "commitCommand").mockImplementation((input) =>
@@ -1089,25 +1167,32 @@ it.layer(layerTest)("delegated completion delivery repairs", (it) => {
             ),
           ),
           () =>
-            orchestrator.dispatch(
-              command === "accept"
-                ? {
-                    type: "notification.delivery.accept",
-                    commandId: CommandId.make(`command:${race}:accept`),
-                    threadId,
-                    messageId,
-                  }
-                : {
-                    type: "delegated_task.completion-delivery.acknowledge",
-                    commandId: CommandId.make(`command:${race}:task-status`),
-                    parentThreadId: threadId,
-                    taskId,
-                    observedByRunId: runId,
-                  },
-            ),
+            orchestrator
+              .dispatch(
+                command === "accept"
+                  ? {
+                      type: "notification.delivery.accept",
+                      commandId: CommandId.make(`command:${race}:accept`),
+                      threadId,
+                      messageId,
+                    }
+                  : {
+                      type: "delegated_task.completion-delivery.acknowledge",
+                      commandId: CommandId.make(`command:${race}:task-status`),
+                      parentThreadId: threadId,
+                      taskId,
+                      observedByRunId: runId,
+                    },
+              )
+              .pipe(Effect.withTracer(tracer)),
           (spy) => Effect.sync(() => spy.mockRestore()),
         );
         assert.isTrue(settled);
+        if (command === "acknowledge") {
+          // Resolving the delivery reads only its own message, not every user message.
+          assert.isNotEmpty(messageReads);
+          for (const query of messageReads) assert.match(query, /\bmessage_id\s+IN\b/i);
+        }
         const finished = yield* orchestrator.getThreadProjection(threadId);
         assert.equal(
           finished.subagents.find((row) => row.id === taskId)?.completionDelivery?.state,

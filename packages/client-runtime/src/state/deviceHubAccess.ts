@@ -6,6 +6,7 @@
  */
 import type { AuthWebSocketTicketUse } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
+import * as Redacted from "effect/Redacted";
 import type { HttpClient } from "effect/http";
 
 import { issueWebSocketTicketWithFallback } from "../authorization/remote.ts";
@@ -45,7 +46,7 @@ export const resolveDeviceHubAccess = Effect.fn("clientRuntime.state.resolveDevi
     return {
       httpBase,
       wsBase,
-      query: { wsTicket: ticket.ticket },
+      query: { wsTicket: Redacted.value(ticket.ticket) },
       credentials: false,
     };
   },

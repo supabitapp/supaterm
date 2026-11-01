@@ -8,6 +8,8 @@ import {
   getFallbackThreadIdAfterDelete,
   hasUnseenCompletion,
   resolveSidebarRowThreadId,
+  belongsInSidebarWorkingShelf,
+  isSidebarEnvironmentDisconnected,
   pinOrderKeyBetween,
   resolveSidebarSweepKeys,
   resolveSidebarThreadStatus,
@@ -20,6 +22,7 @@ import {
   sortInboxThreadsByReturn,
   resolveSidebarDropTarget,
   planSidebarThreadDrop,
+  resolveSidebarReorderableThreadKeys,
   sortPinnedThreadsForSidebar,
   sortProjectsForSidebar,
   sortScopedProjectsForSidebar,
@@ -30,6 +33,8 @@ import {
   type SidebarSection,
   resolveSidebarDropVerb,
 } from "./Sidebar.logic";
+import { scopeThreadRef, scopedThreadKey } from "@supaterm/client-runtime/environment";
+import { sortPinnedThreadsByOrderKey } from "@supaterm/client-runtime/state/thread-sort";
 
 import { EnvironmentId, ProjectId, ProviderInstanceId, RunId, ThreadId } from "@supaterm/contracts";
 
@@ -1003,6 +1008,35 @@ describe("Working shelf", () => {
     ).toBe(false);
   });
 
+  it.each([
+    ["connected", true, false],
+    ["connected", false, true],
+    ["connecting", false, false],
+    ["reconnecting", false, true],
+    ["offline", false, true],
+    ["error", false, true],
+    ["unsupported", false, true],
+    ["available", false, true],
+  ] as const)(
+    "lists threads outside the shelf on a %s environment: %s",
+    (phase, shellIsLive, disconnected) => {
+      expect(isSidebarEnvironmentDisconnected(phase, shellIsLive)).toBe(disconnected);
+    },
+  );
+
+  it("lists a running thread outside the shelf while its environment is disconnected", () => {
+    const thread = { ...idle, runtime, environmentId: localEnvironmentId };
+    const shelve = (disconnected: ReadonlyArray<EnvironmentId>) =>
+      belongsInSidebarWorkingShelf(thread, {
+        disconnectedEnvironmentIds: new Set(disconnected),
+        isWorking: isSidebarThreadWorking,
+      });
+
+    expect(shelve([])).toBe(true);
+    expect(shelve([localEnvironmentId])).toBe(false);
+    expect(shelve([EnvironmentId.make("environment-other")])).toBe(true);
+  });
+
   describe("sortInboxThreadsByReturn", () => {
     const thread = (
       id: string,
@@ -1111,10 +1145,10 @@ describe("Working shelf", () => {
         activeSection: "pinned",
         target: {
           section: "pinned",
-          pinnedOrder: ["offline", "a2", "a1"],
+          pinnedOrder: ["a2", "a1", "offline"],
           activeOrder: [],
         },
-        pinnedOrder: ["offline", "a1", "a2"],
+        pinnedOrder: ["a1", "a2", "offline"],
         pinnedKeysById: new Map([
           ["offline", null],
           ["a1", null],
@@ -1140,6 +1174,173 @@ describe("Working shelf", () => {
         reorderableKeys: new Set(["a2"]),
       });
       expect(above.kind === "reorder-pinned" && above.assignments[0]!.orderKey < "m").toBe(true);
+    });
+
+    describe("reordering with cached offline configuration", () => {
+      const onlineEnvironmentId = EnvironmentId.make("online");
+      const offlineEnvironmentId = EnvironmentId.make("offline");
+      const serverConfigs = new Map([
+        [onlineEnvironmentId, {}],
+        [offlineEnvironmentId, {}],
+      ]);
+      const thread = (
+        id: string,
+        environmentId = onlineEnvironmentId,
+        key: string | null = null,
+      ) => ({
+        id: ThreadId.make(id),
+        environmentId,
+        createdAt: `2026-03-09T${id === "offline" ? "12" : id === "online" ? "11" : "10"}:00:00.000Z`,
+        pinOrderKey: key,
+      });
+      const keyOf = (entry: ReturnType<typeof thread>) =>
+        scopedThreadKey(scopeThreadRef(entry.environmentId, entry.id));
+      const online = thread("online");
+      const offline = thread("offline", offlineEnvironmentId);
+      const writableKeys = (
+        threads: ReturnType<typeof thread>[],
+        connectedEnvironmentIds = [onlineEnvironmentId],
+        configs: ReadonlyMap<EnvironmentId, unknown> = serverConfigs,
+      ) =>
+        resolveSidebarReorderableThreadKeys({
+          threads,
+          serverThreadKeys: new Set(threads.map(keyOf)),
+          serverConfigs: configs,
+          connectedEnvironmentIds,
+        }).draggableThreadKeys;
+      const planDrop = (input: {
+        rows: ReturnType<typeof thread>[];
+        moved: ReturnType<typeof thread>;
+        order: ReturnType<typeof thread>[];
+        from?: "active" | "pinned";
+        connectedEnvironmentIds?: EnvironmentId[];
+      }) => {
+        const targetOrder = input.order.map(keyOf);
+        const plan = planSidebarThreadDrop({
+          activeKey: keyOf(input.moved),
+          activeSection: input.from ?? "pinned",
+          target: { section: "pinned", pinnedOrder: targetOrder, activeOrder: [] },
+          pinnedOrder: sortPinnedThreadsByOrderKey(input.rows).map(keyOf),
+          pinnedKeysById: new Map(input.rows.map((entry) => [keyOf(entry), entry.pinOrderKey])),
+          reorderableKeys: writableKeys(input.rows, input.connectedEnvironmentIds),
+        });
+        const assignments =
+          plan.kind === "reorder-pinned"
+            ? plan.assignments
+            : plan.kind === "pin"
+              ? [
+                  ...plan.extraAssignments,
+                  ...(plan.orderKey === undefined
+                    ? []
+                    : [{ id: keyOf(input.moved), orderKey: plan.orderKey }]),
+                ]
+              : [];
+        const assignedKeys = new Map(assignments.map(({ id, orderKey }) => [id, orderKey]));
+        const actualOrder = sortPinnedThreadsByOrderKey(
+          input.rows.map((entry) => ({
+            ...entry,
+            pinOrderKey: assignedKeys.get(keyOf(entry)) ?? entry.pinOrderKey,
+          })),
+        ).map(keyOf);
+        return { plan, assignments, actualOrder, targetOrder };
+      };
+
+      it("excludes cached offline rows from the writable set", () => {
+        expect([...writableKeys([online, offline])]).toEqual([keyOf(online)]);
+        expect(serverConfigs.has(offlineEnvironmentId)).toBe(true);
+      });
+
+      it("updates membership through disconnect, reconnect, and missing configuration", () => {
+        expect(writableKeys([online, offline], []).size).toBe(0);
+        expect(
+          writableKeys([online, offline], [onlineEnvironmentId, offlineEnvironmentId]).size,
+        ).toBe(2);
+        expect([
+          ...writableKeys(
+            [online, offline],
+            [onlineEnvironmentId, offlineEnvironmentId],
+            new Map([[onlineEnvironmentId, {}]]),
+          ),
+        ]).toEqual([keyOf(online)]);
+      });
+
+      it("replans a disconnected drag source", () => {
+        const bound = thread("offline", offlineEnvironmentId, "m");
+        const moved = thread("online", onlineEnvironmentId, "t");
+        const input = { rows: [bound, moved], moved, order: [moved, bound] };
+        expect(planDrop(input).plan.kind).toBe("reorder-pinned");
+
+        const disconnected = planDrop({ ...input, connectedEnvironmentIds: [] });
+        expect(disconnected.plan).toEqual({ kind: "none" });
+        expect(disconnected.assignments).toEqual([]);
+      });
+
+      it("preserves a keyed offline bound", () => {
+        const bound = thread("offline", offlineEnvironmentId, "m");
+        const moved = thread("online", onlineEnvironmentId, "t");
+        const result = planDrop({ rows: [bound, moved], moved, order: [moved, bound] });
+
+        expect(result.plan.kind).toBe("reorder-pinned");
+        expect(result.assignments.map(({ id }) => id)).toEqual([keyOf(moved)]);
+        expect(result.actualOrder).toEqual(result.targetOrder);
+      });
+
+      it("rejects rebalancing a keyed offline bound", () => {
+        const bound = thread("offline", offlineEnvironmentId, "m");
+        const neighbor = thread("neighbor");
+        const result = planDrop({
+          rows: [bound, online, neighbor],
+          moved: online,
+          order: [bound, neighbor, online],
+        });
+
+        expect(result.plan).toEqual({ kind: "none" });
+        expect(result.assignments).toEqual([]);
+      });
+
+      it("rejects crossing the frozen keyless boundary", () => {
+        const bound = { ...offline, createdAt: "2026-03-09T10:00:00.000Z" };
+        const result = planDrop({ rows: [bound, online], moved: online, order: [bound, online] });
+
+        expect(result.plan).toEqual({ kind: "none" });
+        expect(result.assignments).toEqual([]);
+      });
+
+      it("allows realizable moves beside a frozen keyless row", () => {
+        const neighbor = thread("neighbor");
+        const result = planDrop({
+          rows: [offline, online, neighbor],
+          moved: online,
+          order: [online, neighbor, offline],
+        });
+
+        expect(result.plan.kind).toBe("reorder-pinned");
+        expect(result.assignments.length).toBeGreaterThan(0);
+        expect(result.assignments.every(({ id }) => id !== keyOf(offline))).toBe(true);
+        expect(result.actualOrder).toEqual(result.targetOrder);
+      });
+
+      it("checks fallback assignments to other rows at the boundary", () => {
+        const neighbor = thread("neighbor");
+        const result = planDrop({
+          rows: [offline, online, neighbor],
+          moved: online,
+          order: [online, offline, neighbor],
+        });
+
+        expect(result.plan).toEqual({ kind: "none" });
+      });
+
+      it("rejects an impossible pin placement across the boundary", () => {
+        const result = planDrop({
+          rows: [offline, online],
+          moved: online,
+          order: [offline, online],
+          from: "active",
+        });
+
+        expect(result.plan).toEqual({ kind: "none" });
+      });
     });
 
     it("only changes lifecycle when dropping into the time-ordered inbox", () => {

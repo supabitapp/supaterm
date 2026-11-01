@@ -379,7 +379,7 @@ export function resolveDefaultProjectRef(
   projectOrder: readonly string[],
 ): ScopedProjectRef | null {
   const [first] = orderItemsByPreferredIds({
-    items: projects,
+    items: projects.filter((project) => project.archivedAt == null),
     preferredIds: projectOrder,
     getId: getProjectOrderKey,
   });
@@ -405,7 +405,10 @@ export function readRouteThreadContext(router: AnyRouter) {
   };
 }
 
-/** Starts a thread in the project being viewed, reading the route and projects when called. */
+/**
+ * Starts a thread in the project being viewed, reading the route and projects when called.
+ * Resolves false when there is no current or open project, such as when every project is archived.
+ */
 export function startNewThreadInCurrentProject(
   router: AnyRouter,
   handleNewThread: NewThreadHandler,

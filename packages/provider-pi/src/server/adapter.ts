@@ -108,6 +108,7 @@ const PiProviderCapabilitiesV2 = {
     canForkThread: true,
     canForkFromTurn: true,
     canForkFromSubagentThread: false,
+    forkWhileSourceActive: "none",
     exposesNativeThreadId: true,
   },
   turns: {
@@ -741,6 +742,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
         nativeItemId: string,
         startedAt: DateTime.Utc,
         updatedAt: DateTime.Utc,
+        parentNativeItemId?: string,
       ) => ({
         id: idAllocator.derive.turnItemFromProviderItem({
           driver: PI_PROVIDER,
@@ -755,7 +757,13 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
         providerThreadId: turn.turnInput.providerThread.id,
         providerTurnId: turn.providerTurn.id,
         nativeItemRef: providerRef(nativeItemId),
-        parentItemId: null,
+        parentItemId:
+          parentNativeItemId === undefined
+            ? null
+            : idAllocator.derive.turnItemFromProviderItem({
+                driver: PI_PROVIDER,
+                nativeItemId: parentNativeItemId,
+              }),
         ordinal: itemOrdinal(turn, nativeItemId),
         startedAt,
         updatedAt,
@@ -768,6 +776,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
         status: OrchestrationV2ExecutionNode["status"],
         startedAt: DateTime.Utc,
         completedAt: DateTime.Utc | null,
+        parentNativeItemId?: string,
       ) =>
         emit({
           type: "node.updated",
@@ -779,7 +788,13 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
             }),
             threadId: turn.turnInput.threadId,
             runId: turn.turnInput.runId,
-            parentNodeId: turn.turnInput.rootNodeId,
+            parentNodeId:
+              parentNativeItemId === undefined
+                ? turn.turnInput.rootNodeId
+                : idAllocator.derive.nodeFromProviderItem({
+                    driver: PI_PROVIDER,
+                    nativeItemId: parentNativeItemId,
+                  }),
             rootNodeId: turn.turnInput.rootNodeId,
             kind,
             status,
@@ -992,6 +1007,8 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
       ) {
         const toolCallId = recordString(event, "toolCallId");
         const toolName = recordString(event, "toolName") ?? "tool";
+        // Pi tags every phase of a call made through ctx.executeTool, such as from a codemode script.
+        const parentToolCallId = recordString(event, "parentToolCallId");
         if (toolCallId === undefined) return;
         if (phase === "start") {
           turn.toolArgs.set(toolCallId, event["args"]);
@@ -1011,7 +1028,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
               : "failed"
             : "completed"
           : "running";
-        const base = baseItemFields(turn, toolCallId, startedAt, emittedAt);
+        const base = baseItemFields(turn, toolCallId, startedAt, emittedAt, parentToolCallId);
         yield* emitItemNode(
           turn,
           toolCallId,
@@ -1019,6 +1036,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
           status,
           startedAt,
           completed ? emittedAt : null,
+          parentToolCallId,
         );
         const shared = {
           ...base,
@@ -1224,6 +1242,59 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
         });
       });
 
+      const emitSystemNotice = Effect.fnUntraced(function* (
+        turn: ActivePiTurn,
+        nativeItemId: string,
+        message: string,
+      ) {
+        const emittedAt = yield* DateTime.now;
+        yield* emitItemNode(turn, nativeItemId, "system", "completed", emittedAt, emittedAt);
+        yield* emit({
+          type: "turn_item.updated",
+          driver: PI_PROVIDER,
+          turnItem: {
+            ...baseItemFields(turn, nativeItemId, emittedAt, emittedAt),
+            status: "completed",
+            completedAt: emittedAt,
+            title: message,
+            type: "system_notice",
+            message,
+          },
+        });
+      });
+
+      // Abort leaves queued steers and follow-ups for Pi's next prompt, and Pi before 0.86 starts them
+      // as soon as abort lands, so Stop clears them first. Pi before 0.84.4 rejects clear_queue.
+      const clearNativeQueue = Effect.fnUntraced(function* (turn: ActivePiTurn) {
+        const cleared = yield* request({ type: "clear_queue" }, 2_000).pipe(
+          Effect.map((data) =>
+            ["steering", "followUp"].flatMap((key) => {
+              const texts = recordField(data, key);
+              return Array.isArray(texts)
+                ? texts.filter((text): text is string => typeof text === "string")
+                : [];
+            }),
+          ),
+          Effect.orElseSucceed((): ReadonlyArray<string> => []),
+        );
+        if (cleared.length === 0) return;
+        yield* sessionEventPermit.withPermits(1)(
+          threadState?.activeTurn === turn
+            ? emitSystemNotice(
+                turn,
+                `queue-cleared:${turn.providerTurn.id}`,
+                [
+                  `Stop cleared ${cleared.length} queued ${cleared.length === 1 ? "message" : "messages"} Pi had not read:`,
+                  // Image-only messages come back as empty text.
+                  ...cleared.filter((text) => text.length > 0),
+                ]
+                  .join("\n\n")
+                  .slice(0, 2_000),
+              )
+            : Effect.void,
+        );
+      });
+
       const handleExtensionUiRequest = Effect.fnUntraced(function* (event: PiRpcRecord) {
         const method = recordString(event, "method");
         const nativeRequestId = recordString(event, "id");
@@ -1233,21 +1304,11 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
           const turn = state?.activeTurn ?? null;
           const message = recordString(event, "message") ?? "";
           if (turn === null || message.length === 0) return;
-          const emittedAt = yield* DateTime.now;
-          const nativeItemId = `notify:${turn.providerTurn.id}:${turn.nextItemOrdinal}`;
-          yield* emitItemNode(turn, nativeItemId, "system", "completed", emittedAt, emittedAt);
-          yield* emit({
-            type: "turn_item.updated",
-            driver: PI_PROVIDER,
-            turnItem: {
-              ...baseItemFields(turn, nativeItemId, emittedAt, emittedAt),
-              status: "completed",
-              completedAt: emittedAt,
-              title: message,
-              type: "system_notice",
-              message,
-            },
-          });
+          yield* emitSystemNotice(
+            turn,
+            `notify:${turn.providerTurn.id}:${turn.nextItemOrdinal}`,
+            message,
+          );
           return;
         }
         if (
@@ -2670,6 +2731,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
               // so Stop covers user /compact as well as detached recovery compact.
               stopRequested = true;
               if (interruptInput.requestRuntimeRestart === true && !turn.settleWhenIdle) {
+                yield* clearNativeQueue(turn);
                 yield* request({ type: "abort" }, 2_000).pipe(Effect.ignore);
               }
               // Terminating fails every later request, so read the stopped
@@ -2686,6 +2748,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
               );
               return;
             }
+            yield* clearNativeQueue(turn);
             yield* request({ type: "abort" }).pipe(
               Effect.tapError(() => Effect.sync(() => (turn.interrupted = false))),
             );
@@ -3300,15 +3363,15 @@ function piQuestion(
               value: "",
             },
           ];
+  // Pi's select and editor dialogs carry only a title, so show it once, as the question.
   // Extensions may send a blank placeholder, which is not a valid question.
-  const question =
-    [recordString(event, "message"), recordString(event, "placeholder")].find(
-      (text) => text !== undefined && text.trim().length > 0,
-    ) ?? title;
+  const detail = [recordString(event, "message"), recordString(event, "placeholder")].find(
+    (text) => text !== undefined && text.trim().length > 0,
+  );
   return {
     id: questionId,
-    header: title,
-    question,
+    header: detail === undefined ? "Question" : title,
+    question: detail ?? title,
     ...(method === "editor" ? { initialAnswer: recordString(event, "prefill") ?? "" } : {}),
     options,
   };

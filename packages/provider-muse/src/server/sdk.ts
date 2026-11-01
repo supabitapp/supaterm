@@ -1,5 +1,5 @@
 // @effect-diagnostics globalTimers:off
-// @effect-diagnostics-next-line nodeBuiltinImport:off -- FileSystem.realPath is Node's JS realpath; museWorkspaceRoot needs the native one.
+// @effect-diagnostics-next-line nodeBuiltinImport:off -- FileSystem.realPath is Node's JS realpath; museCanonicalPath needs the native one.
 import * as NodeFSP from "node:fs/promises";
 
 import {
@@ -70,13 +70,20 @@ export function museVerbatimPath(path: string): string {
   return path.startsWith("\\\\") ? `\\\\?\\UNC\\${path.slice(2)}` : `\\\\?\\${path}`;
 }
 
+// Native realpath corrects filesystem case as well as resolving symlinks.
+export const museCanonicalPath = Effect.fn("museCanonicalPath")(function* (path: string) {
+  return yield* Effect.tryPromise(() => NodeFSP.realpath(path)).pipe(
+    Effect.orElseSucceed(() => path),
+  );
+});
+
 /**
  * On Windows Muse accepts only the verbatim canonical path, so resolve with the
  * native realpath, which unlike FileSystem.realPath fixes case and expands 8.3
  * names. Muse still starts in the plain path: cmd.exe cannot use a verbatim one.
  */
 export const museWorkspaceRoot = Effect.fn("museWorkspaceRoot")(function* (path: string) {
-  if ((yield* HostProcess.Platform) !== "win32") return path;
+  if ((yield* HostProcess.Platform) !== "win32") return yield* museCanonicalPath(path);
   const canonical = yield* Effect.tryPromise(() => NodeFSP.realpath(path)).pipe(
     // A verbatim path takes `/` literally, so an unresolved root needs Windows separators.
     Effect.orElseSucceed(() => path.replaceAll("/", "\\")),

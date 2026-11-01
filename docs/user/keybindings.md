@@ -117,10 +117,11 @@ Join modifiers and a key with `+`, such as `mod+shift+d` or `ctrl+l`.
 
 Available context keys are `terminalFocus`, `terminalOpen`, `previewFocus`,
 `previewOpen`, `modelPickerOpen`, `projectPickerOpen`, `hostPickerOpen`,
-`branchPickerOpen`, `usagePageOpen`, `composerFocus`, `composerDraft`,
+`branchPickerOpen`, `usagePageOpen`, `composerFocus`, `draftThreadRoute`,
 `turnRunning`, `editableFocus`, `textSelected`, `paneClosable`, `isWeb`, and `isDesktop`.
 `paneClosable` is true while [threads are side by side](./thread-sidebar.md#open-threads-side-by-side)
 and the focused pane has no right panel open.
+`draftThreadRoute` is true on a draft thread, including a restored draft, until it is first sent.
 `editableFocus` is true while a text field, the composer, or another editor has
 the keyboard. `textSelected` is true while text is selected in the page or a focused
 text field. `isWeb` is true in a browser tab. `isDesktop` is true in the
@@ -162,6 +163,9 @@ a shortcut.
 `thread.stop` interrupts the running turn in the focused thread with `ctrl+c`,
 including on macOS. The default shortcut skips terminals, previews, and selected
 text so copying keeps working. Change it in **Settings → Keybindings**.
+
+`thread.sideChat` opens an empty side chat beside the focused thread. It has no
+default shortcut; assign one in **Settings → Keybindings**.
 
 `thread.undo` (`mod+z` by default) reverses the actions shown in the notice at the
 bottom of the sidebar, such as unpin, mark as Done, snooze, archive, or discarding a

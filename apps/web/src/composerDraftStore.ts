@@ -264,6 +264,7 @@ const PersistedDraftThreadState = Schema.Struct({
   worktreePath: Schema.NullOr(Schema.String),
   envMode: DraftThreadEnvModeSchema,
   startFromOrigin: Schema.Boolean,
+  sideChatOf: Schema.optionalKey(ThreadId),
   promotedTo: Schema.optionalKey(
     Schema.NullOr(
       Schema.Struct({
@@ -367,6 +368,8 @@ export interface DraftSessionState {
   worktreePath: string | null;
   envMode: DraftThreadEnvMode;
   startFromOrigin: boolean;
+  /** A side chat of this thread in the same environment; its first send forks the thread. */
+  sideChatOf?: ThreadId;
   promotedTo?: ScopedThreadRef | null;
 }
 
@@ -458,6 +461,15 @@ interface ComposerDraftStoreState {
     projectRef: ScopedProjectRef,
     threadRef: ComposerThreadTarget,
   ) => void;
+  /** A side chat draft is never a project's draft, so it maps to no logical project key. */
+  createSideChatDraft: (input: {
+    readonly draftId: DraftId;
+    readonly threadId: ThreadId;
+    readonly parent: Pick<
+      DraftThreadState,
+      "environmentId" | "projectId" | "branch" | "worktreePath"
+    > & { readonly id: ThreadId };
+  }) => void;
   markDraftThreadPromoting: (threadRef: ComposerThreadTarget, promotedTo?: ScopedThreadRef) => void;
   finalizePromotedDraftThread: (threadRef: ComposerThreadTarget) => void;
   clearDraftThread: (threadRef: ComposerThreadTarget) => void;
@@ -953,8 +965,8 @@ export function deriveEffectiveComposerModelState(input: {
   const instanceSelection = input.selectedInstanceId
     ? input.draft?.modelSelectionByProvider?.[input.selectedInstanceId]
     : undefined;
+  // Legacy driver-keyed drafts belong to the default instance.
   const legacySelection =
-    input.selectedProvider === "antigravity" &&
     input.selectedInstanceId &&
     input.selectedInstanceId !== defaultInstanceIdForDriver(input.selectedProvider)
       ? undefined
@@ -1823,6 +1835,7 @@ function toHydratedDraftThreadState(
     worktreePath: persistedDraftThread.worktreePath,
     envMode: persistedDraftThread.envMode,
     startFromOrigin: persistedDraftThread.startFromOrigin,
+    ...(persistedDraftThread.sideChatOf ? { sideChatOf: persistedDraftThread.sideChatOf } : {}),
     ...(persistedDraftThread.environmentSelection
       ? { environmentSelection: persistedDraftThread.environmentSelection }
       : {}),
@@ -2116,6 +2129,7 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
               envMode:
                 options.envMode ?? (nextWorktreePath ? "worktree" : (existing.envMode ?? "local")),
               startFromOrigin: nextStartFromOrigin,
+              ...(existing.sideChatOf ? { sideChatOf: existing.sideChatOf } : {}),
               promotedTo: existing.promotedTo ?? null,
             };
             const isUnchanged =
@@ -2183,6 +2197,28 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
             }
             return removeDraftThreadReferences(state, threadKey);
           });
+        },
+        createSideChatDraft: ({ draftId, threadId, parent }) => {
+          set((state) => ({
+            draftThreadsByThreadKey: {
+              ...state.draftThreadsByThreadKey,
+              [draftId]: {
+                threadId,
+                environmentId: parent.environmentId,
+                projectId: parent.projectId,
+                logicalProjectKey: `side-chat:${parent.environmentId}:${parent.id}`,
+                createdAt: new Date().toISOString(),
+                runtimeMode: "approval-required",
+                interactionMode: DEFAULT_INTERACTION_MODE,
+                branch: parent.branch,
+                worktreePath: parent.worktreePath,
+                envMode: "local",
+                startFromOrigin: false,
+                sideChatOf: parent.id,
+                promotedTo: null,
+              },
+            },
+          }));
         },
         markDraftThreadPromoting: (threadRef, promotedTo) => {
           const threadKey = resolveComposerDraftKey(get(), threadRef);

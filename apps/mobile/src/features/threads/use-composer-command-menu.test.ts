@@ -87,4 +87,16 @@ describe("mobile slash commands", () => {
       }),
     ).toEqual({ text: "/plan ", cursor: 6 });
   });
+
+  it("offers /side and /btw only where the thread can start a side chat", () => {
+    const labels = (offersSideChat: boolean) =>
+      buildComposerSlashCommandItems({
+        query: "",
+        hasThread: true,
+        offersSideChat,
+        selectedProviderStatus: antigravity,
+      }).map((item) => item.label);
+    expect(labels(true)).toEqual(expect.arrayContaining(["/side", "/btw"]));
+    expect(labels(false)).not.toContain("/side");
+  });
 });

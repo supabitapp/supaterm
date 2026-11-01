@@ -31,6 +31,7 @@ import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
 import * as HttpServerRequest from "effect/http/HttpServerRequest";
 
@@ -462,7 +463,10 @@ type BootstrapExchangeResult = {
 };
 
 const AUTHORIZATION_PREFIX = "Bearer ";
-const WEBSOCKET_TICKET_QUERY_PARAM = "wsTicket";
+const WebSocketUpgradeQuery = Schema.Struct({
+  wsTicket: Schema.optionalKey(Schema.RedactedFromValue(Schema.String)),
+});
+const decodeWebSocketUpgradeQuery = Schema.decodeEffect(WebSocketUpgradeQuery);
 
 const bySessionPriority = (left: AuthClientSession, right: AuthClientSession) => {
   const leftCanManage = left.scopes.includes(AuthAccessWriteScope);
@@ -522,7 +526,7 @@ export function selectRequestCredential(
   cookieName: string,
 ) {
   const cookieToken = request.cookies[cookieName];
-  if (cookieToken !== undefined) {
+  if (cookieToken) {
     return { token: cookieToken, source: "cookie" } as const;
   }
 
@@ -1038,7 +1042,7 @@ export const make = Effect.gen(function* () {
         Effect.map(
           (issued) =>
             ({
-              ticket: issued.token,
+              ticket: Redacted.make(issued.token),
               expiresAt: DateTime.toUtc(issued.expiresAt),
             }) satisfies AuthWebSocketTicketResult,
         ),
@@ -1054,7 +1058,10 @@ export const make = Effect.gen(function* () {
     Effect.fn("EnvironmentAuth.authenticateWebSocketUpgrade")(function* (request, use) {
       const requestUrl = HttpServerRequest.toURL(request);
       if (Option.isSome(requestUrl)) {
-        const websocketTicket = requestUrl.value.searchParams.get(WEBSOCKET_TICKET_QUERY_PARAM);
+        const query = yield* decodeWebSocketUpgradeQuery(
+          Object.fromEntries(requestUrl.value.searchParams),
+        ).pipe(Effect.orDie);
+        const websocketTicket = query.wsTicket && Redacted.value(query.wsTicket);
         if (websocketTicket && websocketTicket.trim().length > 0) {
           const session = yield* sessions
             .verifyWebSocketToken(websocketTicket)

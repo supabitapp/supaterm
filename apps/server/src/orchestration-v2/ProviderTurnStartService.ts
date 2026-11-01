@@ -34,6 +34,7 @@ import * as ServerSettings from "../serverSettings.ts";
 import { makeIsManagedWorktreePath } from "../worktreesDirectory.ts";
 import * as EventSink from "./EventSink.ts";
 import * as ContextHandoffService from "./ContextHandoffService.ts";
+import { isActiveRun } from "./CommandPolicy.ts";
 import {
   DEFAULT_HANDOFF_TOKEN_CAP,
   handoffTokenCapConfig,
@@ -43,7 +44,7 @@ import {
   historicalMessage,
   latestNativeContextUsage,
 } from "@supaterm/provider-core/server/handoffBudget";
-import { deliverContextHandoffs } from "./ContextHandoffDelivery.ts";
+import { deliverContextHandoffs, withInlineContext } from "./ContextHandoffDelivery.ts";
 import * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAdapter";
 import * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
 import * as ProjectionStore from "./ProjectionStore.ts";
@@ -87,7 +88,7 @@ class WorktreeRecreateNoBaseError extends Schema.TaggedError<WorktreeRecreateNoB
   { worktreePath: Schema.String, branch: Schema.String },
 ) {
   override get message(): string {
-    return `Could not recreate branch '${this.branch}' at ${this.worktreePath}: the project workspace has no current branch to start it from (detached HEAD?).`;
+    return `Could not recreate branch '${this.branch}' at ${this.worktreePath}: the project workspace has no commit to start it from.`;
   }
 }
 
@@ -155,6 +156,31 @@ export const layer: Layer.Layer<
     const runtimePolicy = yield* RuntimePolicy.RuntimePolicyV2;
     const isManagedWorktreePath = yield* makeIsManagedWorktreePath;
 
+    const resolveRecreateBase = Effect.fn("ProviderTurnStartService.resolveRecreateBase")(
+      function* (cwd: string) {
+        // Recovery can follow an external checkout, before the status cache expires.
+        yield* gitWorkflow.invalidateLocalStatus(cwd);
+        const { refName: currentBranch } = yield* gitWorkflow.localStatus({ cwd });
+        if (currentBranch !== null) {
+          const refName = `refs/heads/${currentBranch}`;
+          return { refName, baseRefName: refName };
+        }
+        if (yield* gitWorkflow.hasCommit({ cwd, refName: "refs/remotes/origin/HEAD" })) {
+          const { commitSha } = yield* gitWorkflow.resolveRemoteTrackingCommit({
+            cwd,
+            refName: "HEAD",
+            fallbackRemoteName: "origin",
+          });
+          // Start from the commit so the thread branch does not track the default branch.
+          return { refName: commitSha, baseRefName: "refs/remotes/origin/HEAD" };
+        }
+        if (yield* gitWorkflow.hasCommit({ cwd, refName: "HEAD" })) {
+          return { refName: "HEAD", baseRefName: undefined };
+        }
+        return null;
+      },
+    );
+
     const recreateMissingWorktree = Effect.fn("ProviderTurnStartService.recreateMissingWorktree")(
       function* (input: {
         readonly cwd: string;
@@ -168,17 +194,26 @@ export const layer: Layer.Layer<
           yield* gitWorkflow.createWorktree({ cwd, refName: branch, path: worktreePath });
           return;
         }
-        // Recovery can follow an external checkout, before the status cache expires.
-        yield* gitWorkflow.invalidateLocalStatus(cwd);
-        const { refName: baseRef } = yield* gitWorkflow.localStatus({ cwd });
-        if (baseRef === null) {
+        // Push keeps the tracking ref current, so recovery reads it without fetching.
+        const pushedRef = `refs/remotes/origin/${branch}`;
+        if (yield* gitWorkflow.hasCommit({ cwd, refName: pushedRef })) {
+          yield* gitWorkflow.createWorktree({
+            cwd,
+            refName: pushedRef,
+            newRefName: branch,
+            path: worktreePath,
+          });
+          return;
+        }
+        const base = yield* resolveRecreateBase(cwd);
+        if (base === null) {
           return yield* new WorktreeRecreateNoBaseError({ worktreePath, branch });
         }
         yield* gitWorkflow.createWorktree({
           cwd,
-          refName: `refs/heads/${baseRef}`,
+          refName: base.refName,
           newRefName: branch,
-          baseRefName: `refs/heads/${baseRef}`,
+          ...(base.baseRefName === undefined ? {} : { baseRefName: base.baseRefName }),
           path: worktreePath,
         });
       },
@@ -325,27 +360,40 @@ export const layer: Layer.Layer<
           .filter((transfer) => transfer.type === "subagent_result")
           .map((transfer) => transfer.id),
       );
+      const isPendingForRun = (handoff: OrchestrationV2ContextHandoff, anyProviderThread = false) =>
+        handoff.status === "ready" &&
+        (handoff.targetRunId === run.id ||
+          ((anyProviderThread || handoff.toProviderThreadId === run.providerThreadId) &&
+            projection.runs.some(
+              (source) =>
+                source.id === handoff.targetRunId &&
+                (source.status === "failed" ||
+                  source.status === "interrupted" ||
+                  source.status === "cancelled" ||
+                  (source.status === "completed" &&
+                    handoff.delivery === undefined &&
+                    // Compaction and /goal turns defer history to the next turn.
+                    projection.messages.some(
+                      (message) =>
+                        message.id === source.userMessageId &&
+                        (isCompactionCommandMessage(message) || parseGoalCommand(message) !== null),
+                    ))),
+            )));
+      const isSideChatHandoff = (handoff: OrchestrationV2ContextHandoff) =>
+        projection.thread.lineage.sideChat === true &&
+        ContextHandoffService.isSideChatContextHandoff(handoff);
       const handoffs = projection.contextHandoffs.filter(
         (handoff) =>
+          !isSideChatHandoff(handoff) &&
           (handoff.transferId == null || !subagentResultTransfers.has(handoff.transferId)) &&
-          handoff.status === "ready" &&
-          (handoff.targetRunId === run.id ||
-            (handoff.toProviderThreadId === run.providerThreadId &&
-              projection.runs.some(
-                (source) =>
-                  source.id === handoff.targetRunId &&
-                  (source.status === "failed" ||
-                    source.status === "interrupted" ||
-                    (source.status === "completed" &&
-                      handoff.delivery === undefined &&
-                      // Compaction and /goal turns defer history to the next turn.
-                      projection.messages.some(
-                        (message) =>
-                          message.id === source.userMessageId &&
-                          (isCompactionCommandMessage(message) ||
-                            parseGoalCommand(message) !== null),
-                      ))),
-              ))),
+          isPendingForRun(handoff),
+      );
+      // Carried forward until a provider turn accepts it, also after a provider switch.
+      const sideChatHandoff = projection.contextHandoffs.find(
+        (handoff) =>
+          isSideChatHandoff(handoff) &&
+          handoff.delivery === undefined &&
+          isPendingForRun(handoff, true),
       );
       const nativeForkTransfer = projection.contextTransfers.find(
         (transfer) =>
@@ -638,8 +686,12 @@ export const layer: Layer.Layer<
       });
       const { isCurrentAttemptInStatus } = runControls;
 
+      // A side chat shares its parent's worktree, so every turn asks before acting until Promote.
       const resolvedRuntimePolicy = yield* runtimePolicy.resolve({
-        thread: projection.thread,
+        thread:
+          projection.thread.lineage.sideChat === true
+            ? { ...projection.thread, runtimeMode: "approval-required" }
+            : projection.thread,
         modelSelection: run.modelSelection,
       });
       if (!(yield* isCurrentAttemptInStatus("starting"))) return;
@@ -777,20 +829,28 @@ export const layer: Layer.Layer<
         projection.providerTurns,
         projection.attempts,
       );
+      const promptlessMessageIds = new Set(
+        projection.messages
+          .filter(
+            (candidate) =>
+              isCompactionCommandMessage(candidate) ||
+              (goalDriver && parseGoalCommand(candidate) !== null),
+          )
+          .map((candidate) => candidate.id),
+      );
       const restartCancelledWork = pendingRestartCancelledBackgroundWork({
         runs: projection.runs,
         providerTurns: projection.providerTurns,
-        compactionMessageIds: new Set(
-          projection.messages
-            .filter(
-              (candidate) =>
-                isCompactionCommandMessage(candidate) ||
-                (goalDriver && parseGoalCommand(candidate) !== null),
-            )
-            .map((candidate) => candidate.id),
-        ),
+        compactionMessageIds: promptlessMessageIds,
         run,
         attempts: projection.attempts,
+      });
+      const sideChatTurnNote = ContextHandoffService.sideChatTurnNote({
+        thread: projection.thread,
+        runs: projection.runs,
+        attempts: projection.attempts,
+        providerTurns: projection.providerTurns,
+        promptlessMessageIds,
       });
       const restartNote =
         restartCancelledWork.length === 0
@@ -1036,6 +1096,7 @@ export const layer: Layer.Layer<
       };
       let resumedRetryHandoff: ReadonlyArray<OrchestrationV2ContextHandoff> | undefined;
       let resumedHandoffContext: ReturnType<typeof handoffContextForThread> | undefined;
+      let portableForkFallback: OrchestrationV2ContextHandoff | undefined;
       const loadedProviderThread = yield* Effect.gen(function* () {
         if (nativeForkTransfer !== undefined) {
           const sourceProjection = yield* projectionStore.getThreadRecords(
@@ -1062,18 +1123,94 @@ export const layer: Layer.Layer<
               cause: `Native fork transfer ${nativeForkTransfer.id} has no source provider execution.`,
             });
           }
-          return yield* loadFromProvider(
-            session.forkThread({
-              sourceProviderThread,
-              sourceProviderTurns: sourceProjection.providerTurns,
-              targetThreadId: projection.thread.id,
+          // A source that started a turn after dispatch planned this fork gets the portable
+          // context dispatch gives a busy source, unless the provider forks a busy thread.
+          const sourceBusy = sourceProjection.runs.some(
+            (candidate) => candidate.ordinal > sourceRun.ordinal && isActiveRun(candidate),
+          );
+          if (
+            !sourceBusy ||
+            session.providerSession.capabilities.threads.forkWhileSourceActive !== "none"
+          ) {
+            return yield* loadFromProvider(
+              session.forkThread({
+                sourceProviderThread,
+                sourceProviderTurns: sourceProjection.providerTurns,
+                targetThreadId: projection.thread.id,
+                modelSelection: run.modelSelection,
+                runtimePolicy: resolvedRuntimePolicy,
+                ...(sourceProviderTurn === undefined
+                  ? {}
+                  : { providerTurnId: sourceProviderTurn.id }),
+              }),
+            );
+          }
+          const sourceItems = yield* ContextHandoffService.readForkHistoryItems(
+            projectionStore,
+            sourceProjection,
+            sourceRun,
+          );
+          const createdAt = yield* DateTime.now;
+          const handoff = yield* contextHandoffService.prepareProviderHandoff({
+            threadId: projection.thread.id,
+            targetRunId: run.id,
+            transferId: nativeForkTransfer.id,
+            fromProviderThreadIds: [sourceProviderThread.id],
+            toProviderThreadId: providerThread.id,
+            fromProviderInstanceId: sourceRun.providerInstanceId,
+            toProviderInstanceId: run.providerInstanceId,
+            coveredRunOrdinals: ContextHandoffService.visibleDeltaRunOrdinals(
+              sourceProjection,
+              sourceItems,
+            ),
+            strategy: "full_thread_summary",
+            items: sourceItems,
+            runs: sourceProjection.runs,
+            createdAt,
+          });
+          const loaded = yield* loadFromProvider(
+            session.ensureThread({
+              threadId: projection.thread.id,
+              title: projection.thread.title,
               modelSelection: run.modelSelection,
               runtimePolicy: resolvedRuntimePolicy,
-              ...(sourceProviderTurn === undefined
-                ? {}
-                : { providerTurnId: sourceProviderTurn.id }),
+              providerSessionId,
+              existingProviderThread: { ...providerThread, forkedFrom: null },
             }),
           );
+          if (loaded === undefined) return undefined;
+          portableForkFallback = handoff;
+          effectiveHandoffs = [handoff, ...effectiveHandoffs];
+          yield* eventSink.write({
+            events: [
+              {
+                id: yield* idAllocator.allocate.event({ threadId: projection.thread.id }),
+                type: "context-handoff.updated",
+                threadId: projection.thread.id,
+                runId: run.id,
+                providerInstanceId: run.providerInstanceId,
+                occurredAt: createdAt,
+                payload: handoff,
+              },
+              {
+                id: yield* idAllocator.allocate.event({ threadId: projection.thread.id }),
+                type: "context-transfer.updated",
+                threadId: projection.thread.id,
+                runId: run.id,
+                providerInstanceId: run.providerInstanceId,
+                occurredAt: createdAt,
+                payload: {
+                  ...nativeForkTransfer,
+                  targetProviderInstanceId: run.providerInstanceId,
+                  status: "resolved_portable",
+                  resolution: { strategy: "portable_context", contextHandoffId: handoff.id },
+                  error: null,
+                  updatedAt: createdAt,
+                },
+              },
+            ],
+          });
+          return loaded;
         }
         if (providerThread.nativeThreadRef === null) {
           // Hand the run's provider thread to the adapter so it adopts this
@@ -1268,8 +1405,11 @@ export const layer: Layer.Layer<
         ownerNodeId: providerThread.ownerNodeId,
         firstRunOrdinal: providerThread.firstRunOrdinal ?? run.ordinal,
         lastRunOrdinal: run.ordinal,
-        handoffIds: providerThread.handoffIds,
-        forkedFrom: providerThread.forkedFrom,
+        handoffIds:
+          portableForkFallback === undefined
+            ? providerThread.handoffIds
+            : [...providerThread.handoffIds, portableForkFallback.id],
+        forkedFrom: portableForkFallback === undefined ? providerThread.forkedFrom : null,
         status: "active",
         createdAt: providerThread.createdAt,
         updatedAt: now,
@@ -1314,7 +1454,9 @@ export const layer: Layer.Layer<
           occurredAt: now,
           payload: runningProviderThread,
         },
-        ...(nativeForkTransfer === undefined || runningProviderThread.nativeThreadRef === null
+        ...(nativeForkTransfer === undefined ||
+        portableForkFallback !== undefined ||
+        runningProviderThread.nativeThreadRef === null
           ? []
           : [
               {
@@ -1384,6 +1526,26 @@ export const layer: Layer.Layer<
       const routableSubagents = projection.subagents.filter((subagent) =>
         RunExecutionService.canRouteRelatedSubagent(subagent.status),
       );
+      const persistHandoff = Effect.fn("ProviderTurnStartService.persist")(function* (
+        handoff: OrchestrationV2ContextHandoff,
+      ) {
+        const updatedAt = yield* DateTime.now;
+        yield* eventSink.write({
+          events: [
+            {
+              id: yield* idAllocator.allocate.event({
+                threadId: projection.thread.id,
+              }),
+              type: "context-handoff.updated",
+              threadId: projection.thread.id,
+              runId: run.id,
+              providerInstanceId: run.providerInstanceId,
+              occurredAt: updatedAt,
+              payload: { ...handoff, updatedAt },
+            },
+          ],
+        });
+      });
       const startWithHandoffs = Effect.fn("ProviderTurnStartService.startWithHandoffs")(
         function* (turnInput: Parameters<typeof session.startTurn>[0], compact = false) {
           const delivery = yield* deliverContextHandoffs({
@@ -1401,28 +1563,18 @@ export const layer: Layer.Layer<
                       ...history,
                     }),
                 }),
-            persist: Effect.fn("ProviderTurnStartService.persist")(function* (handoff) {
-              const updatedAt = yield* DateTime.now;
-              yield* eventSink.write({
-                events: [
-                  {
-                    id: yield* idAllocator.allocate.event({
-                      threadId: projection.thread.id,
-                    }),
-                    type: "context-handoff.updated",
-                    threadId: projection.thread.id,
-                    runId: run.id,
-                    providerInstanceId: run.providerInstanceId,
-                    occurredAt: updatedAt,
-                    payload: { ...handoff, updatedAt },
-                  },
-                ],
-              });
-            }),
+            persist: persistHandoff,
           });
           if (!(yield* isCurrentAttemptInStatus("running"))) return;
           const start = compact ? session.compactThread! : session.startTurn;
-          const context = [delivery.context, restartNote]
+          // Like history, the side chat context waits for a turn that sends a prompt.
+          const sideChatContext =
+            sideChatHandoff === undefined || compact || goalCommand
+              ? ""
+              : sideChatHandoff.summaryText;
+          const sideChatNote =
+            sideChatHandoff !== undefined || compact || goalCommand ? "" : sideChatTurnNote;
+          const context = [delivery.context, sideChatContext, sideChatNote, restartNote]
             .filter((part) => part !== "")
             .join("\n\n");
           const { restartContinuationOfRunId: _resumedRunId, ...promptedInput } = turnInput;
@@ -1430,10 +1582,7 @@ export const layer: Layer.Layer<
             ...(noteContinuation ? promptedInput : turnInput),
             message: {
               ...turnInput.message,
-              text:
-                context === "" || goalCommand
-                  ? userText
-                  : `${context}\n\nUser message:\n${userText}`,
+              text: goalCommand ? userText : withInlineContext(context, userText),
             },
           }).pipe(
             Effect.tapError((error) =>
@@ -1450,13 +1599,30 @@ export const layer: Layer.Layer<
           );
           // The provider already accepted the turn. A stale pending marker
           // can force a fresh thread later, but must not stop live ingestion.
-          yield* delivery.delivered.pipe(
-            Effect.catchCause(() =>
-              Effect.logWarning("Failed to record accepted context handoff delivery", {
-                runId: run.id,
-                deliveryStatus: "pending",
-              }),
-            ),
+          const nativeThreadId = runningProviderThread.nativeThreadRef?.nativeId;
+          yield* Effect.forEach(
+            [
+              delivery.delivered,
+              ...(sideChatContext === "" || sideChatHandoff === undefined || nativeThreadId == null
+                ? []
+                : [
+                    persistHandoff({
+                      ...sideChatHandoff,
+                      toProviderThreadId: runningProviderThread.id,
+                      delivery: { nativeThreadId, status: "inline" as const, itemIds: [] },
+                    }),
+                  ]),
+            ],
+            (record) =>
+              record.pipe(
+                Effect.catchCause(() =>
+                  Effect.logWarning("Failed to record accepted context handoff delivery", {
+                    runId: run.id,
+                    deliveryStatus: "pending",
+                  }),
+                ),
+              ),
+            { discard: true },
           );
         },
         Effect.mapError((cause) =>
@@ -1474,6 +1640,8 @@ export const layer: Layer.Layer<
       const deliverySession =
         effectiveHandoffs.length === 0 &&
         retryHandoff.length === 0 &&
+        sideChatHandoff === undefined &&
+        sideChatTurnNote === "" &&
         restartNote === "" &&
         !noteContinuation
           ? session

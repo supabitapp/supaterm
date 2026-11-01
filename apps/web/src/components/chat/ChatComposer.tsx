@@ -80,12 +80,12 @@ import {
   deriveComposerSendState,
   isComposerDraftEmpty,
   getAntigravitySendBlockReason,
-  readFileAsDataUrl,
 } from "../ChatView.logic";
 import {
   dataTransferHasComposerMention,
   makeComposerMentionDragHandlers,
 } from "./composerMentionDrag";
+import { serializeComposerImages } from "./composerImagePersistence";
 import {
   isInsideCollapsedComposerControls,
   isInsideRestingComposerControlScope,
@@ -94,7 +94,6 @@ import {
   type ComposerFileAttachment,
   type ComposerImageAttachment,
   type DraftId,
-  type PersistedComposerImageAttachment,
   composerFileNeedsReattach,
   composerDraftHasUserContent,
   composerTargetKey,
@@ -423,6 +422,7 @@ export interface ChatComposerProps {
   bannerItems: readonly ComposerBannerStackItem[];
 
   onUsageLimitsCommand?: (() => void) | undefined;
+  sideChatAvailable?: boolean;
   environmentUnavailable: {
     readonly label: string;
     readonly connection: EnvironmentConnectionPresentation;
@@ -542,6 +542,8 @@ export interface ChatComposerProps {
   onOpenProviderSetup: (instanceId: ProviderInstanceId) => void;
   getModelDisabledReason: (instanceId: ProviderInstanceId, model: string) => string | null;
   handleRuntimeModeChange: (mode: RuntimeMode) => void;
+  /** Keeps the thread supervised; the mode control shows this reason instead of a menu. */
+  runtimeModeLockedReason?: string | null;
 
   focusComposer: () => void;
   scheduleComposerFocus: () => void;
@@ -957,10 +959,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const resolvedCompactDisabledReason =
     compactDisabledReason ?? (noProviderAvailable ? "Compacting is unavailable right now" : null);
   const supportedRuntimeModes = selectedProviderEntry?.snapshot.supportedRuntimeModes;
+  const runtimeModeLockedReason = props.runtimeModeLockedReason ?? null;
   const compatibleRuntimeModeOptions =
-    supportedRuntimeModes && supportedRuntimeModes.length > 0
-      ? runtimeModeOptions.filter((option) => supportedRuntimeModes.includes(option.mode))
-      : runtimeModeOptions;
+    runtimeModeLockedReason !== null
+      ? runtimeModeOptions.filter((option) => option.mode === "approval-required")
+      : supportedRuntimeModes && supportedRuntimeModes.length > 0
+        ? runtimeModeOptions.filter((option) => supportedRuntimeModes.includes(option.mode))
+        : runtimeModeOptions;
   const compatibleRuntimeMode = compatibleRuntimeModeOptions.some(
     (option) => option.mode === runtimeMode,
   )
@@ -994,11 +999,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const selectedProviderSlashCommands = selectedProviderStatus
     ? resolveProviderSlashCommandsForCwd(selectedProviderStatus, gitCwd)
     : NO_PROVIDER_SLASH_COMMANDS;
-  const refreshWorkspaceSnapshotOnTyping = useProviderWorkspaceSnapshotRefresh({
-    environmentId,
-    gitCwd,
-    instanceId: selectedProviderEntry?.instanceId,
-  });
+  const { refresh: refreshWorkspaceSnapshotOnTyping, scanning: workspaceSkillsScanning } =
+    useProviderWorkspaceSnapshotRefresh({
+      environmentId,
+      gitCwd,
+      instanceId: selectedProviderEntry?.instanceId,
+    });
 
   const selectedPromptEffort = composerProviderState.promptEffort;
   const selectedModelOptionsForDispatch =
@@ -1190,10 +1196,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     pullRequestRepository,
     threadPullRequests,
     compactSlashCommandAvailable,
+    sideChatAvailable: props.sideChatAvailable === true,
     selectedProvider,
     selectedProviderSkills,
     selectedProviderSlashCommands,
     showSkillsInSlashMenu: settings.showSkillsInSlashMenu,
+    workspaceSkillsScanning,
   });
 
   const isSlashSkillTrigger = composerTrigger?.kind === "slash-skill";
@@ -1417,6 +1425,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     composerContextRecords,
     composerImages,
     composerFilesRef,
+    promptRef,
     pendingThreadImportsRef,
     addComposerFilesToDraft,
   });
@@ -1611,31 +1620,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         getComposerDraft(attachmentDraftTarget)?.persistedAttachments ?? [];
       try {
         const currentPersistedAttachments = getPersistedAttachmentsForThread();
-        const existingPersistedById = new Map(
-          currentPersistedAttachments.map((attachment) => [attachment.id, attachment]),
+        const serialized = await serializeComposerImages(
+          composerImages,
+          currentPersistedAttachments,
         );
-        const stagedAttachmentById = new Map<string, PersistedComposerImageAttachment>();
-        await Promise.all(
-          composerImages.map(async (image) => {
-            const dataUrl = await readFileAsDataUrl(image.file).catch(() => null);
-            if (dataUrl === null) {
-              const existingPersisted = existingPersistedById.get(image.id);
-              if (existingPersisted) {
-                stagedAttachmentById.set(image.id, existingPersisted);
-              }
-              return;
-            }
-            stagedAttachmentById.set(image.id, {
-              id: image.id,
-              name: image.name,
-              mimeType: image.mimeType,
-              sizeBytes: image.sizeBytes,
-              dataUrl,
-              ...(image.source ? { source: image.source } : {}),
-            });
-          }),
-        );
-        const serialized = Array.from(stagedAttachmentById.values());
         if (cancelled) return;
         syncComposerDraftPersistedAttachments(attachmentDraftTarget, serialized);
       } catch {
@@ -1996,6 +1984,16 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           setComposerHighlightedItemId(null);
           setIsComposerModelPickerOpen(true);
         }
+        return;
+      }
+      if (item.command === "side" || item.command === "btw") {
+        const applied = applyPromptReplacement(
+          trigger.rangeStart,
+          trigger.rangeEnd,
+          `/${item.command} `,
+          { expectedText: snapshot.value.slice(trigger.rangeStart, trigger.rangeEnd) },
+        );
+        if (applied) setComposerHighlightedItemId(null);
         return;
       }
       return;
@@ -2681,6 +2679,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       onPromptEdit={editPromptFromTraitsStable}
       compatibleRuntimeMode={compatibleRuntimeMode}
       compatibleRuntimeModeOptions={compatibleRuntimeModeOptions}
+      runtimeModeLockedReason={runtimeModeLockedReason}
       handleRuntimeModeChange={handleRuntimeModeChange}
       composerControlsCollapsed={composerControlsCollapsed}
       composerControlsHidden={composerControlsHidden}
@@ -3253,15 +3252,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           direction,
         });
         if (!change) return;
-        if (change.modelOptions) {
-          useComposerDraftStore
-            .getState()
-            .setProviderModelOptions(composerDraftTarget, selectedProvider, change.modelOptions, {
-              instanceId: selectedInstanceId,
-              model: selectedModel,
-              persistSticky: true,
-            });
-        }
+        useComposerDraftStore
+          .getState()
+          .setProviderModelOptions(composerDraftTarget, selectedProvider, change.modelOptions, {
+            instanceId: selectedInstanceId,
+            model: selectedModel,
+            persistSticky: true,
+          });
         if (change.prompt !== promptRef.current) {
           applyPromptReplacementStable(0, promptRef.current.length, change.prompt, {
             expandedCursorAfterReplace: change.cursor,
@@ -3893,7 +3890,11 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   ? isComposerMenuLoading
                     ? composerTriggerKind === "pull-request"
                       ? "Finding pull request..."
-                      : "Searching workspace files..."
+                      : composerTriggerKind === "skill" ||
+                          composerTriggerKind === "slash-command" ||
+                          composerTriggerKind === "slash-skill"
+                        ? "Searching workspace skills..."
+                        : "Searching workspace files..."
                     : composerMenuEmptyState
                   : ""}
               </div>

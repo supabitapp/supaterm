@@ -13,6 +13,7 @@ import {
 } from "@supaterm/contracts";
 import { buildPairingUrl } from "@supaterm/shared/remote";
 import { relayName } from "@supaterm/shared/relay/name";
+import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as NodeOS from "node:os";
 import { DEFAULT_SIGNAL_EXPORT } from "@supaterm/shared/observability";
 import { buildPairingAppLink } from "@supaterm/shared/remote";
@@ -592,6 +593,7 @@ export const pairCommand = Command.make("pair", {
         environmentId: target.descriptor.environmentId,
         relayUrl,
         routes: resolveBoundEndpoints({
+          platform: yield* HostProcess.Platform,
           host: target.state.host,
           port: target.state.port,
           interfaces: NodeOS.networkInterfaces(),

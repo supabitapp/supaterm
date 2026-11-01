@@ -1,12 +1,19 @@
+import "@supaterm/client-runtime/assembly-highlighting";
 import {
   canUseWASM,
   getSharedHighlighter,
+  setCustomExtension,
   type DiffsHighlighter,
   type HighlighterTypes,
   type SupportedLanguages,
 } from "@pierre/diffs";
 
 import { resolveDiffThemeName } from "./diffRendering";
+
+// Highlights has no lexer for these dialects, so they use their base language's.
+setCustomExtension("luau", "lua");
+setCustomExtension("xsl", "xml");
+setCustomExtension("xslt", "xml");
 
 export const PREFERRED_HIGHLIGHTER: HighlighterTypes = canUseWASM() ? "highlights" : "shiki-wasm";
 

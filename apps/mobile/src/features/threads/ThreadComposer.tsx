@@ -1,6 +1,8 @@
 import { useSidebarWorkspaceTabs } from "../workspace/useSystemWorkspaceTabBar";
 import { Button } from "../../components/ui/Button";
 import * as Dialog from "../../components/ui/Dialog";
+import { resolveSideChatCommand } from "@supaterm/client-runtime/state/side-chats";
+import { useSideChat } from "./useSideChat";
 import type { ComposerTextPaste } from "../../native/SupatermComposerEditor.types";
 import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
@@ -482,6 +484,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     return report !== null;
   };
 
+  const sideChat = useSideChat(props.environmentId, props.isDraft ? null : props.selectedThread);
   const composerMenu = useComposerCommandMenu({
     draftMessage: draftMessage,
     ownerKey: composerDraftKey,
@@ -495,6 +498,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     selectedProviderStatus,
     hasThread: !props.isDraft,
     hasCompactableConversation: props.hasCompactableConversation,
+    offersSideChat: sideChat.disabledReason === null,
     onChangeDraftMessage: props.onChangeDraftMessage,
     offersUsageLimits: usageLimitsOffered,
     onUsageLimits:
@@ -653,6 +657,23 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
       if (openUsageLimits()) onChangeDraftMessage("");
       return;
     }
+    const sideChatCommand = resolveSideChatCommand(draftMessage, sideChat.disabledReason);
+    if (sideChatCommand.kind === "refuse") {
+      Dialog.alert("Side chat not started", sideChatCommand.reason);
+      return;
+    }
+    if (sideChatCommand.kind === "start") {
+      const draft = getComposerDraftSnapshot(composerDraftKey);
+      if (draft.attachments.length > 0 || (draft.context?.records.length ?? 0) > 0) {
+        Dialog.alert(
+          "Side chats take text only",
+          "Remove the attachments and context, then send it again.",
+        );
+        return;
+      }
+      if (await sideChat.send(sideChatCommand.prompt)) onChangeDraftMessage("");
+      return;
+    }
     const threadKey = scopedThreadKey(props.environmentId, props.selectedThread.id);
     if (inFlightThreadIdsRef.current.has(threadKey)) return;
     inFlightThreadIdsRef.current.add(threadKey);
@@ -745,7 +766,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
       ) : showResumeAction ? (
         <ComposerActionButton
           size={rowControlSize}
-          accessibilityLabel="Resume queue"
+          accessibilityLabel="Resume thread"
           disabled={resumingQueue || !props.canOperateThread}
           icon="play"
           variant="primary"

@@ -12,6 +12,7 @@ export const THREAD_DETAILS_ITEMS = [
   { id: "servers", label: "Servers", defaultVisible: true },
   { id: "automations", label: "Automations", defaultVisible: true },
   { id: "lineage", label: "Lineage", defaultVisible: true },
+  { id: "sideChats", label: "Side chats", defaultVisible: true },
   { id: "usage", label: "Usage limits", defaultVisible: false },
 ] as const;
 
@@ -30,6 +31,16 @@ export function resolveThreadDetailsVisibility(
       settings.threadDetailsItems[item.id] ?? item.defaultVisible,
     ]),
   ) as Record<ThreadDetailsItemId, boolean>;
+}
+
+/**
+ * A side chat works in its parent's checkout, so its card leaves out the environment, branch,
+ * worktree, and env-mode controls that would change that checkout.
+ */
+export function withoutParentCheckoutItems(
+  visibility: ThreadDetailsVisibility,
+): ThreadDetailsVisibility {
+  return { ...visibility, environment: false, branch: false };
 }
 
 /** Stores only choices that differ from the default, so a later default change reaches everyone else. */

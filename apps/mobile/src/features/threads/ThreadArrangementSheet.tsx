@@ -14,7 +14,7 @@ import {
   useState,
 } from "react";
 import * as Haptics from "expo-haptics";
-import { Animated, FlatList, Modal, Pressable, View } from "react-native";
+import { Animated, FlatList, Modal, Pressable, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import Reanimated, { ReduceMotion, useAnimatedStyle, withTiming } from "react-native-reanimated";
 import { threadDragGapOffset } from "./threadDragGap";
@@ -23,7 +23,9 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { AppText as Text } from "../../components/ui/AppText";
 import { SymbolView } from "../../components/ui/AppSymbol";
 import { scopedThreadKey } from "../../lib/scopedEntities";
+import { deriveThreadArrangementSizing } from "../../lib/layout";
 import { environmentServerConfigsAtom } from "../../state/server";
+import { threadListEnvironmentsAtom } from "../../state/presentation";
 import { environmentThreadShells } from "../../state/threads";
 import { sortDoneThreads } from "@supaterm/client-runtime/state/thread-sort";
 import { useOlderDoneShelf, useOlderDoneShelfGrowth } from "../../state/olderDoneShelf";
@@ -47,9 +49,8 @@ import {
   threadListInboxReturns,
 } from "./threadListV2";
 import { useThreadListNow } from "./use-thread-list-now";
+import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 
-const ROW_HEIGHT = 56;
-const HEADER_HEIGHT = 48;
 const keyOf = (thread: EnvironmentThreadShell) => scopedThreadKey(thread.environmentId, thread.id);
 type Section = "pinned" | "active" | "snoozed" | "done";
 type Destination = Exclude<ThreadMoveDestination, string>;
@@ -178,8 +179,15 @@ function DragHandle(props: DragHandleProps) {
 }
 
 function ThreadArrangementSheet(props: { onClose: () => void }) {
+  const { appearance } = useAppearancePreferences();
+  const { fontScale } = useWindowDimensions();
+  const { rowHeight, headerHeight } = deriveThreadArrangementSizing({
+    baseFontSize: appearance.baseFontSize,
+    fontScale,
+  });
   const threads = useAtomValue(environmentThreadShells.navigationThreadShellsAtom);
   const configs = useAtomValue(environmentServerConfigsAtom);
+  const listEnvironments = useAtomValue(threadListEnvironmentsAtom);
   const queuedThreadKeys = useAtomValue(queuedThreadKeysAtom);
   const pendingOrder = useAtomValue(pendingThreadOrderAtom);
   const dropBusy = useAtomValue(threadDropBusyAtom);
@@ -222,9 +230,9 @@ function ThreadArrangementSheet(props: { onClose: () => void }) {
         ordered: sections.pinned,
         allThreads: threads,
         section: "pinned",
-        reorderableEnvironmentIds: new Set(configs.keys()),
+        reorderableEnvironmentIds: listEnvironments.reorderEnvironmentIds,
       }),
-    [sections, threads, configs],
+    [sections, threads, listEnvironments],
   );
   const listedDone = sections.done.filter(olderDoneShelf.isListed);
   useOlderDoneShelfGrowth(olderDoneShelf, listedDone);
@@ -235,20 +243,20 @@ function ThreadArrangementSheet(props: { onClose: () => void }) {
     let offset = 0;
     for (const section of ["pinned", "active", "snoozed", "done"] as const) {
       if (section === "snoozed" && sections[section].length === 0) continue;
-      result.push({ key: section, section, offset, height: HEADER_HEIGHT });
-      offset += HEADER_HEIGHT;
+      result.push({ key: section, section, offset, height: headerHeight });
+      offset += headerHeight;
       if ((section === "snoozed" || section === "done") && !expanded[section]) continue;
       for (const thread of section === "done" ? visibleDone : sections[section]) {
-        result.push({ key: keyOf(thread), section, thread, offset, height: ROW_HEIGHT });
-        offset += ROW_HEIGHT;
+        result.push({ key: keyOf(thread), section, thread, offset, height: rowHeight });
+        offset += rowHeight;
       }
       if (section === "done" && doneCount > visibleDone.length) {
-        result.push({ key: "done-more", section, more: true, offset, height: ROW_HEIGHT });
-        offset += ROW_HEIGHT;
+        result.push({ key: "done-more", section, more: true, offset, height: rowHeight });
+        offset += rowHeight;
       }
     }
     return result;
-  }, [sections, expanded, visibleDone, doneCount]);
+  }, [sections, expanded, visibleDone, doneCount, rowHeight, headerHeight]);
   const list = useRef<FlatList<Row>>(null);
   const geometry = useRef({ height: 0, offset: 0 });
   const drag = useRef<Drag | null>(null);
@@ -267,7 +275,9 @@ function ThreadArrangementSheet(props: { onClose: () => void }) {
     drag.current = null;
     setPreview(null);
   }
-  const orderVersion = rows.map((row) => `${row.key}:${row.thread?.pinOrderKey}`).join("|");
+  const orderVersion = rows
+    .map((row) => `${row.key}:${row.height}:${row.thread?.pinOrderKey}`)
+    .join("|");
   const [stoppedOrderVersion, setStoppedOrderVersion] = useState(orderVersion);
   if (stoppedOrderVersion !== orderVersion) {
     setStoppedOrderVersion(orderVersion);
@@ -294,7 +304,7 @@ function ThreadArrangementSheet(props: { onClose: () => void }) {
     current.translation = translation;
     const { height, offset } = geometry.current;
     const y = current.startY + translation;
-    translateY.setValue(Math.max(0, Math.min(height - ROW_HEIGHT, y - ROW_HEIGHT / 2)));
+    translateY.setValue(Math.max(0, Math.min(height - rowHeight, y - rowHeight / 2)));
     const contentY = Math.max(0, y + offset);
     const target =
       latest.current.rows.find((row) => contentY < row.offset + row.height) ??
@@ -337,7 +347,7 @@ function ThreadArrangementSheet(props: { onClose: () => void }) {
       orderVersion,
       sourceSection: row.section,
       thread: row.thread,
-      startY: row.offset + ROW_HEIGHT / 2 - geometry.current.offset,
+      startY: row.offset + row.height / 2 - geometry.current.offset,
       translation: 0,
       destination: null,
     };
@@ -481,7 +491,12 @@ function ThreadArrangementSheet(props: { onClose: () => void }) {
                             </Text>
                             <DragHandle
                               title={thread.title}
-                              disabled={dropBusy || pendingOrder !== null || !loaded}
+                              disabled={
+                                dropBusy ||
+                                pendingOrder !== null ||
+                                !loaded ||
+                                !listEnvironments.reorderEnvironmentIds.has(thread.environmentId)
+                              }
                               sectionActions={sectionActions}
                               onSectionMove={(section) => {
                                 void moveThread(thread, {
@@ -554,7 +569,7 @@ function ThreadArrangementSheet(props: { onClose: () => void }) {
                   <Animated.View
                     pointerEvents="none"
                     className="absolute left-5 right-5 justify-center rounded-xl border border-border bg-screen px-4"
-                    style={{ top: 0, height: ROW_HEIGHT, transform: [{ translateY }] }}
+                    style={{ top: 0, height: rowHeight, transform: [{ translateY }] }}
                   >
                     <Text
                       numberOfLines={visiblePreview.destination?.section ? 1 : 2}

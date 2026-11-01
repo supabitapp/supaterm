@@ -38,7 +38,7 @@ function harness() {
       [OTHER_ID, config],
     ]),
   );
-  const list = createThreadListEnvironmentsAtom(configs);
+  const list = createThreadListEnvironmentsAtom(configs, Atom.make([ID, OTHER_ID]));
   let sourceNotifications = 0;
   let listNotifications = 0;
   registry.subscribe(configs, () => sourceNotifications++);

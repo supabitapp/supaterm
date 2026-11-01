@@ -17,7 +17,10 @@ import * as ServerConfig from "../config.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as GitWorkflowService from "../git/GitWorkflowService.ts";
 import * as CheckpointRollbackService from "./CheckpointRollbackService.ts";
-import { isCheckpointRestoreIsolated } from "./CheckpointRestoreSafety.ts";
+import {
+  isCheckpointRestoreIsolated,
+  sharedWorkspaceRestoreMessage,
+} from "./CheckpointRestoreSafety.ts";
 import * as ThreadCommandExecutor from "./ThreadCommandExecutor.ts";
 import { CheckpointServiceV2 } from "./CheckpointService.ts";
 import { EventSinkV2 } from "./EventSink.ts";
@@ -64,6 +67,7 @@ it.effect.each([
       id: otherId,
       projectId,
       deletedAt: null,
+      lineage: { parentThreadId: null, relationshipToParent: null, rootThreadId: otherId },
       worktreePath:
         owner === "ancestor" || owner === "conversation"
           ? parent
@@ -189,7 +193,7 @@ it.effect("lets rollback recreate a worktree storage cleanup removed", () =>
       prefix: "supaterm-v2-restore-removed-",
     });
     const worktreePath = path.join(parent, "worktree");
-    const isolated = yield* isCheckpointRestoreIsolated(
+    const { isolated } = yield* isCheckpointRestoreIsolated(
       { id: ThreadId.make("restore-removed"), worktreePath },
       { cwd: worktreePath },
       {
@@ -203,4 +207,58 @@ it.effect("lets rollback recreate a worktree storage cleanup removed", () =>
     );
     assert.isTrue(isolated);
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+);
+
+it.effect.each([
+  { sideChat: "answering questions", running: false, toolItems: 0, isolated: true },
+  { sideChat: "running", running: true, toolItems: 0, isolated: false },
+  { sideChat: "after running tools", running: false, toolItems: 1, isolated: false },
+] as const)(
+  "a side chat $sideChat shares the parent's worktree: $isolated",
+  ({ running, toolItems, isolated }) =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const worktreePath = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "supaterm-v2-restore-side-chat-",
+      });
+      const parentId = ThreadId.make("restore-side-chat-parent");
+      const sideChat = {
+        id: ThreadId.make("restore-side-chat"),
+        title: "Why is CI red?",
+        projectId: ProjectId.make("restore-project"),
+        deletedAt: null,
+        worktreePath,
+        activeRunId: running ? "side-chat-run" : null,
+        lineage: {
+          parentThreadId: parentId,
+          relationshipToParent: "fork",
+          rootThreadId: parentId,
+          sideChat: true,
+        },
+      };
+      const result = yield* isCheckpointRestoreIsolated(
+        { id: parentId, worktreePath },
+        { cwd: worktreePath },
+        {
+          fileSystem,
+          path,
+          projections: {
+            getShellSnapshot: () => Effect.succeed({ threads: [sideChat], archivedThreads: [] }),
+            getThreadRecords: () =>
+              Effect.succeed({
+                turnItems: Array.from({ length: toolItems }, () => ({ type: "command_execution" })),
+              }),
+            getCheckpointContext: () => Effect.succeed({ checkpointScopes: [] }),
+            getThreadProviderContext: () => Effect.succeed({ providerSessions: [] }),
+          } as never,
+          projects: {} as never,
+        },
+      );
+      assert.equal(result.isolated, isolated);
+      assert.deepEqual(result.blockingSideChats, isolated ? [] : ["Why is CI red?"]);
+      if (!isolated) {
+        assert.include(sharedWorkspaceRestoreMessage(result.blockingSideChats), '"Why is CI red?"');
+      }
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );

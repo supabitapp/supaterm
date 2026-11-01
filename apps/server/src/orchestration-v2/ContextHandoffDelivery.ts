@@ -12,6 +12,10 @@ import {
   selectHistory,
 } from "@supaterm/provider-core/server/handoffBudget";
 
+/** The provider prompt for a turn that carries inline context ahead of the user's text. */
+export const withInlineContext = (context: string, userText: string): string =>
+  context === "" ? userText : `${context}\n\nUser message:\n${userText}`;
+
 export const deliverContextHandoffs = Effect.fn("orchestrationV2.deliverContextHandoffs")(
   function* <InjectError = never, PersistError = never, BudgetError = never>(input: {
     readonly handoffs: ReadonlyArray<OrchestrationV2ContextHandoff>;

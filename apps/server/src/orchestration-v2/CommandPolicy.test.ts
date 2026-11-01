@@ -322,9 +322,37 @@ layer("CommandPolicyV2", (it) => {
         hasStrongNativeSource: true,
         sourceRunStatus: "completed",
         fromSpecificTurn: true,
+        sourceBusy: false,
       });
 
       assert.equal(result, "portable_context");
+    }),
+  );
+
+  it.effect("forks a busy source natively only where the provider forks a busy thread", () =>
+    Effect.gen(function* () {
+      const policy = yield* CommandPolicy.CommandPolicyV2;
+      const decide = (sourceBusy: boolean, forkWhileSourceActive: "none" | "stable" | "live") =>
+        policy.decideForkExecution({
+          commandId,
+          threadId,
+          providerInstanceId: ProviderInstanceId.make("codex"),
+          capabilities: {
+            ...CodexProviderCapabilitiesV2,
+            threads: { ...CodexProviderCapabilitiesV2.threads, forkWhileSourceActive },
+          },
+          sameProvider: true,
+          hasStrongNativeSource: true,
+          sourceRunStatus: "completed",
+          fromSpecificTurn: true,
+          sourceBusy,
+        });
+
+      assert.equal(CodexProviderCapabilitiesV2.threads.forkWhileSourceActive, "none");
+      assert.equal(yield* decide(false, "none"), "native_fork");
+      assert.equal(yield* decide(true, "none"), "portable_context");
+      assert.equal(yield* decide(true, "stable"), "native_fork");
+      assert.equal(yield* decide(true, "live"), "native_fork");
     }),
   );
 });

@@ -32,10 +32,12 @@ export const ComposerFooterModeControls = memo(function ComposerFooterModeContro
   keybindings: ResolvedKeybindingsConfig;
   runtimeMode: RuntimeMode;
   runtimeModeOptions: ReadonlyArray<RuntimeModeOption>;
+  lockedReason?: string | null;
   size?: "sm" | "xs";
   hidden?: boolean;
   onRuntimeModeChange: (mode: RuntimeMode) => void;
 }) {
+  const locked = props.lockedReason != null;
   const size = props.size ?? "sm";
   const composerFloatingLayerProps = useComposerMenuProps();
   const [open, setOpen] = useComposerMenuState(props.hidden);
@@ -50,8 +52,9 @@ export const ComposerFooterModeControls = memo(function ComposerFooterModeContro
 
       <Tooltip>
         <Select
-          open={open}
+          open={open && !locked}
           onOpenChange={setOpen}
+          disabled={locked}
           value={props.runtimeMode}
           onValueChange={(value) => props.onRuntimeModeChange(value!)}
         >
@@ -93,8 +96,8 @@ export const ComposerFooterModeControls = memo(function ComposerFooterModeContro
             })}
           </SelectPopup>
         </Select>
-        <TooltipPopup side="top" shortcut={runtimeModeShortcut}>
-          {runtimeModeOption.description}
+        <TooltipPopup side="top" shortcut={locked ? undefined : runtimeModeShortcut}>
+          {props.lockedReason ?? runtimeModeOption.description}
         </TooltipPopup>
       </Tooltip>
     </>

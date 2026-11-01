@@ -15,6 +15,7 @@ import {
 } from "../../components/ThreadTerminalDrawer";
 import { GHOSTTY_CELL_WIDE, GhosttyTerminalCore, ghosttyCellText } from "./core";
 import { loadGhosttyRuntime } from "./runtime";
+import { terminalNavigationShortcutData } from "../../keybindings";
 
 vi.mock("./vendor/ghostty-vt.wasm?url", async () => ({
   default: (await import("./vendor/ghostty-vt.wasm?inline")).default,
@@ -101,6 +102,26 @@ describe("GhosttyTerminalCore snapshots", () => {
     for (const core of cores) core.dispose();
     cores.clear();
     vi.restoreAllMocks();
+  });
+
+  it.each([
+    { key: "ArrowLeft", expected: "\x1b[1;5D" },
+    { key: "ArrowRight", expected: "\x1b[1;5C" },
+  ])("sends Ctrl+$key as a modified arrow instead of Alt+B/F", async ({ key, expected }) => {
+    const core = await createCore();
+    const event = {
+      code: key,
+      key,
+      repeat: false,
+      shiftKey: false,
+      ctrlKey: true,
+      altKey: false,
+      metaKey: false,
+      isComposing: false,
+      getModifierState: () => false,
+    } as unknown as KeyboardEvent;
+
+    expect(terminalNavigationShortcutData(event, "Win32") ?? core.encodeKey(event)).toBe(expected);
   });
 
   it.each([
@@ -276,7 +297,10 @@ describe("GhosttyTerminalCore snapshots", () => {
   });
 
   it("clears paste readiness when a capped replay discards a disable sequence", async () => {
-    const core = await createCore();
+    const core = Object.assign(await createCore(), {
+      getSelection: () => "",
+      getSelectionCellCount: () => 0,
+    });
     let state = createSession("\x1b[?2004hprompt$ ");
     let cursor = synchronizeTerminalOutput(core, state, INITIAL_TERMINAL_OUTPUT_CURSOR);
     expect(core.isBracketedPasteMode()).toBe(true);

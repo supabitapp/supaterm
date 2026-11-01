@@ -18,6 +18,7 @@ import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as SessionStore from "./SessionStore.ts";
 import * as ServerSecretStore from "./ServerSecretStore.ts";
+import { base64UrlDecodeUtf8, base64UrlEncode, signPayload } from "./utils.ts";
 
 const layerServerConfig = (overrides?: Partial<ServerConfig.ServerConfig["Service"]>) =>
   Layer.effect(
@@ -264,6 +265,37 @@ it.layer(NodeServices.layer)("SessionStore.layer", (it) => {
       expect((yield* sessions.verify(capped.token)).runtimeModeCeiling).toBe("auto");
       expect((yield* sessions.verify(uncapped.token)).runtimeModeCeiling).toBeUndefined();
     }).pipe(Effect.provide(layerSessionStore())),
+  );
+  it.effect("takes scopes from the session record", () =>
+    Effect.gen(function* () {
+      const sessions = yield* SessionStore.SessionStore;
+      const secrets = yield* ServerSecretStore.ServerSecretStore;
+      const recordedScopes = [
+        "orchestration:read",
+        "terminal:operate",
+        "source-control:write",
+      ] as const;
+      const issued = yield* sessions.issue({ subject: "one-time-token", scopes: recordedScopes });
+      const [encodedPayload] = issued.token.split(".");
+      const currentClaims = base64UrlDecodeUtf8(encodedPayload!);
+      const secret = yield* secrets.getOrCreateRandom("server-signing-key", 32);
+      const editedPayload = base64UrlEncode(
+        currentClaims.replace(/"scopes":\[[^\]]*\]/, '"scopes":["access:write"]'),
+      );
+      const editedToken = `${editedPayload}.${signPayload(editedPayload, secret)}`;
+
+      expect((yield* sessions.verify(issued.token)).scopes).toEqual(recordedScopes);
+      expect((yield* sessions.verify(editedToken)).scopes).toEqual(recordedScopes);
+    }).pipe(
+      Effect.provide(
+        SessionStore.layer.pipe(
+          Layer.provideMerge(ServerSecretStore.layer),
+          Layer.provide(SqlitePersistence.layerMemory),
+          Layer.provide(layerServerEnvironment(EnvironmentId.make("test-environment"))),
+          Layer.provide(layerServerConfig()),
+        ),
+      ),
+    ),
   );
 
   it.effect("atomically replaces active sessions with the same subject and method", () =>

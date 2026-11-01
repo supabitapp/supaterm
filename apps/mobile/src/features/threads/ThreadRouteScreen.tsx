@@ -28,6 +28,7 @@ import {
   DEFAULT_PROVIDER_INTERACTION_MODE,
   DEFAULT_SERVER_SETTINGS,
   EnvironmentId,
+  MessageId,
   ThreadId,
   type ProjectScript,
   type ThreadPinnedMessage,
@@ -68,6 +69,10 @@ import {
 } from "../../state/use-remote-environment-registry";
 import { useKnownTerminalSessions } from "../../state/use-terminal-session";
 import { uuidv4 } from "../../lib/uuid";
+import {
+  isAtomCommandInterrupted,
+  squashAtomCommandFailure,
+} from "@supaterm/client-runtime/state/runtime";
 import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
 import { useSelectedThreadDetailState } from "../../state/use-thread-detail";
 import { useThreadSelection } from "../../state/use-thread-selection";
@@ -94,7 +99,7 @@ import { useSelectedThreadWorktree } from "../../state/use-selected-thread-workt
 import { useThreadComposerState } from "../../state/use-thread-composer-state";
 import { resolveMergeBackTargetThreadId } from "@supaterm/client-runtime/state/thread-relationships";
 import { resolveLatestMergeBackRun } from "@supaterm/client-runtime/state/thread-workflows";
-import { threadEnvironment, useThreadFamily } from "../../state/threads";
+import { threadEnvironment } from "../../state/threads";
 import { EMPTY_ENVIRONMENT_THREAD_STATE } from "@supaterm/client-runtime/state/threads";
 import { useProjects } from "../../state/entities";
 import { projectThreadContentPresentation } from "./threadContentPresentation";
@@ -116,6 +121,7 @@ import {
 } from "./thread-route-hydration";
 import { ThreadHeader } from "./ThreadHeader";
 import type { ThreadFeedPins } from "./ThreadFeed";
+import { resumeThread } from "./resume-thread";
 import {
   useAndroidWorkspaceBack,
   useWorkspaceBackNavigation,
@@ -265,12 +271,6 @@ function LiveThreadRouteController(props: ThreadRouteScreenProps) {
   const connectionsReady = useConnectionsReady();
   const { connectionState } = useRemoteConnectionStatus();
   const { selectedThread } = useThreadSelection();
-  // Subagent rows, the open child's own row and its ancestors come from the family when the
-  // shell leaves idle children out.
-  useThreadFamily(
-    selectedThread?.environmentId ?? null,
-    selectedThread?.lineage.rootThreadId ?? null,
-  );
   const params = props.route.params ?? {};
   const environmentIdRaw = firstRouteParam(params.environmentId);
   const threadIdRaw = firstRouteParam(params.threadId);
@@ -413,7 +413,22 @@ function ThreadRouteContent(
   const gitActions = useSelectedThreadGitActions();
   const requests = useSelectedThreadRequests();
   const interruptThreadTurn = useAtomCommand(threadEnvironment.interruptTurn, "thread interrupt");
-  const resumeThreadQueue = useAtomCommand(threadEnvironment.resumeThreadQueue, "resume queue");
+  const resumeThreadQueue = useAtomCommand(threadEnvironment.resumeThreadQueue, {
+    label: "resume queue",
+    reportFailure: false,
+  });
+  const continueThreadRun = useAtomCommand(threadEnvironment.startTurn, {
+    label: "continue thread",
+    reportFailure: false,
+  });
+  const setThreadRuntimeMode = useAtomCommand(threadEnvironment.setRuntimeMode, {
+    label: "set thread runtime mode",
+    reportFailure: false,
+  });
+  const setThreadInteractionMode = useAtomCommand(threadEnvironment.setInteractionMode, {
+    label: "set thread interaction mode",
+    reportFailure: false,
+  });
   const loadEarlierHistory = useAtomCommand(threadEnvironment.loadEarlierHistory, {
     label: "load earlier thread history",
     reportFailure: false,
@@ -806,10 +821,27 @@ function ThreadRouteContent(
       !readEnvironmentScope(selectedThread.environmentId, AuthOrchestrationOperateScope)
     )
       return;
-    await resumeThreadQueue({
-      environmentId: selectedThread.environmentId,
-      input: { threadId: selectedThread.id },
+    const result = await resumeThread({
+      thread: selectedThread,
+      resumableRunId: composer.resumableRunId,
+      queueHeld: composer.queueHeld,
+      runtimeMode: composer.runtimeMode ?? selectedThread.runtimeMode,
+      interactionMode: selectedThread.interactionMode,
+      modelSelection: composer.modelSelection,
+      messageId: MessageId.make(uuidv4()),
+      createdAt: new Date().toISOString(),
+      setRuntimeMode: setThreadRuntimeMode,
+      setInteractionMode: setThreadInteractionMode,
+      startTurn: continueThreadRun,
+      resumeQueue: resumeThreadQueue,
     });
+    if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+      const error = squashAtomCommandFailure(result);
+      Dialog.alert(
+        "Could not resume thread",
+        error instanceof Error ? error.message : "Try again.",
+      );
+    }
   };
 
   const handleOpenTerminal = (nextTerminalId?: string | null) => {
@@ -1185,7 +1217,11 @@ function ThreadRouteContent(
           onRemoveDraftImage={composer.onRemoveDraftImage}
           serverConfig={serverConfig}
           onStopThread={awaitingBootstrapTurn ? handleCancelWorktreeSetup : handleStopThread}
-          onResumeQueue={composer.queueHeld && canOperateThread ? handleResumeQueue : null}
+          onResumeQueue={
+            (composer.queueHeld || composer.resumableRunId !== null) && canOperateThread
+              ? handleResumeQueue
+              : null
+          }
           onSendMessage={composer.onSendMessage}
           onSendVoiceMessage={composer.onSendVoiceMessage}
           onReconnectEnvironment={handleReconnectEnvironment}

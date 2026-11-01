@@ -241,6 +241,7 @@ export interface LimitAccount {
 export function collectLimitAccounts(presentations: LimitPresentations): readonly LimitAccount[] {
   const accounts = new Map<string, LimitAccount>();
   const creditSources = new Map<string, LimitAccount>();
+  const planSources = new Map<string, LimitAccount>();
   const merge = (key: string, next: LimitAccount) => {
     const previousCredit = creditSources.get(key);
     if (
@@ -249,6 +250,14 @@ export function collectLimitAccounts(presentations: LimitPresentations): readonl
         Date.parse(next.limits.checkedAt) > Date.parse(previousCredit.limits.checkedAt))
     ) {
       creditSources.set(key, next);
+    }
+    const previousPlan = planSources.get(key);
+    if (
+      next.plan &&
+      (!previousPlan ||
+        Date.parse(next.limits.checkedAt) > Date.parse(previousPlan.limits.checkedAt))
+    ) {
+      planSources.set(key, next);
     }
     const previous = accounts.get(key);
     if (!previous) {
@@ -268,7 +277,7 @@ export function collectLimitAccounts(presentations: LimitPresentations): readonl
     accounts.set(key, {
       ...previous,
       displayName: previous.displayName ?? next.displayName,
-      plan: previous.plan ?? next.plan,
+      plan: planSources.get(key)?.plan ?? previous.plan ?? next.plan,
       accentColor: previous.accentColor ?? next.accentColor,
       environments,
       redeem: (creditSource ?? winner).redeem,
@@ -709,6 +718,7 @@ export function collectProviderUsageLimits(
       ...(provider.auth.label ? { plan: provider.auth.label } : {}),
       resetCreditInput: { instanceId: credits?.provider.instanceId ?? provider.instanceId },
       ...(provider.displayName ? { displayName: provider.displayName } : {}),
+      ...(provider.accentColor ? { accentColor: provider.accentColor } : {}),
       limits: shownCredits ? { ...limits, resetCredits: shownCredits } : limits,
     });
   }

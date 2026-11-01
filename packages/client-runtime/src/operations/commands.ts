@@ -59,6 +59,8 @@ export interface UpdateProjectInput extends CommandMetadata {
   readonly faviconPath?: string | null;
   readonly defaultThreadEnvMode?: ThreadEnvMode | null;
   readonly scripts?: ReadonlyArray<ProjectScript>;
+  readonly pinned?: boolean;
+  readonly archived?: boolean;
 }
 
 export interface DeleteProjectInput extends CommandMetadata {
@@ -216,6 +218,12 @@ export interface ForkThreadFromRunInput extends CommandMetadata {
   readonly title?: string;
 }
 
+export interface ForkSideChatInput extends CommandMetadata {
+  readonly sourceThreadId: ThreadId;
+  readonly targetThreadId: ThreadId;
+  readonly title?: string;
+}
+
 export interface MergeThreadBackInput extends CommandMetadata {
   readonly sourceThreadId: ThreadId;
   readonly targetThreadId: ThreadId;
@@ -364,6 +372,8 @@ export const updateProject = Effect.fn("EnvironmentCommands.updateProject")(func
       ? {}
       : { defaultThreadEnvMode: input.defaultThreadEnvMode }),
     ...(input.scripts === undefined ? {} : { scripts: input.scripts }),
+    ...(input.pinned === undefined ? {} : { pinned: input.pinned }),
+    ...(input.archived === undefined ? {} : { archived: input.archived }),
   });
 });
 
@@ -404,13 +414,21 @@ function simpleThreadCommand(
     | "thread.unarchive"
     | "thread.mark-done"
     | "thread.pin"
-    | "thread.unpin",
+    | "thread.unpin"
+    | "thread.side-chat.promote",
   input: ThreadCommandInput,
 ) {
   return allocateCommandId(input).pipe(
     Effect.flatMap((commandId) => dispatch({ type, commandId, threadId: input.threadId })),
   );
 }
+
+/** Makes a side chat a full thread, listed and no longer held to approval. */
+export const promoteSideChat = Effect.fn("EnvironmentCommands.promoteSideChat")(function* (
+  input: ThreadCommandInput,
+) {
+  return yield* simpleThreadCommand("thread.side-chat.promote", input);
+});
 
 export const deleteThread = Effect.fn("EnvironmentCommands.deleteThread")(function* (
   input: DeleteThreadInput,
@@ -937,6 +955,23 @@ export const forkThreadFromRun = Effect.fn("EnvironmentCommands.forkThreadFromRu
     sourceThreadId: input.sourceThreadId,
     targetThreadId: input.targetThreadId,
     sourcePoint: { type: "run", runId: input.runId },
+    ...(input.title === undefined ? {} : { title: input.title }),
+  });
+});
+
+/** Forks the thread's latest stable point into a hidden side chat; works while it runs. */
+export const forkSideChat = Effect.fn("EnvironmentCommands.forkSideChat")(function* (
+  input: ForkSideChatInput,
+) {
+  return yield* dispatch({
+    type: "thread.fork",
+    commandId: yield* allocateCommandId(input),
+    createdBy: "user",
+    creationSource: input.creationSource ?? "web",
+    sourceThreadId: input.sourceThreadId,
+    targetThreadId: input.targetThreadId,
+    sourcePoint: { type: "latest_stable" },
+    sideChat: true,
     ...(input.title === undefined ? {} : { title: input.title }),
   });
 });

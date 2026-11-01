@@ -633,6 +633,9 @@ export const make = Effect.gen(function* () {
 
   return SourceControlProvider.SourceControlProvider.of({
     kind: SourceControlProviderKind.make("github"),
+    resolveRemoteWebHost: Effect.fn("GitHubSourceControlProvider.resolveRemoteWebHost")(
+      ({ context }) => Effect.succeed(gitHubApiHostForRemote(context.remoteUrl)),
+    ),
     // `gh pr list --head` matches the ref name alone, so an `owner:branch` selector silently
     // lists nothing while spending a GraphQL call. A bare branch also lists same-named branches
     // on other forks, so read a full page and let the owner check pick the right head.
@@ -770,10 +773,13 @@ export const make = Effect.gen(function* () {
     ),
     getRepositoryCloneUrls: Effect.fn("GitHubSourceControlProvider.getRepositoryCloneUrls")(
       function* (input) {
-        const fallbackHost = (yield* resolveRepository(input).pipe(
-          Effect.map((locator) => locator.host),
-          Effect.orElseSucceed(() => environment.GH_HOST ?? "github.com"),
-        )).toLowerCase();
+        const fallbackHost = (
+          input.host ??
+          (yield* resolveRepository(input).pipe(
+            Effect.map((locator) => locator.host),
+            Effect.orElseSucceed(() => environment.GH_HOST ?? "github.com"),
+          ))
+        ).toLowerCase();
         const bareName = input.repository.trim().replace(/\.git$/i, "");
         const locator =
           parseGitHubRepositorySelector(input.repository, fallbackHost) ??

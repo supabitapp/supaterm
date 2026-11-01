@@ -10,9 +10,11 @@ import {
 } from "@supaterm/client-runtime/state/thread-search";
 import {
   AuthOrchestrationOperateScope,
+  isListedThreadLineage,
   THREAD_JUMP_KEYBINDING_COMMANDS,
 } from "@supaterm/contracts";
 import { resolveThreadForkSource } from "@supaterm/client-runtime/state/thread-workflows";
+import { useSideChat } from "../threads/useSideChat";
 import {
   foldSearchQuery,
   PALETTE_MESSAGE_LIMIT,
@@ -105,6 +107,7 @@ const ACTION_ICONS: Record<string, AppSymbolName> = {
   review: PullRequestGlyph.pullRequest,
   copyThreadReference: "link",
   forkThread: "arrow.triangle.branch",
+  sideChat: "bubble.left.and.bubble.right",
   sendFeedback: "text.bubble",
 };
 
@@ -250,6 +253,7 @@ export function CommandPalette(props: {
   );
   const canFork =
     canOperate && projection !== null && resolveThreadForkSource(projection.projection) !== null;
+  const sideChat = useSideChat(activeThreadRef?.environmentId ?? null, activeThread);
   const visitThread = useAtomCommand(threadEnvironment.visit, { reportFailure: false });
   const environments = useWorkspaceEnvironments();
   const { savedConnectionsById } = useSavedRemoteConnections();
@@ -430,8 +434,21 @@ export function CommandPalette(props: {
           run: () => runCommand("forkThread"),
         });
       }
+      if (sideChat.disabledReason === null) {
+        actions.push({
+          key: "sideChat",
+          kind: "action",
+          title: "Start side chat",
+          searchTerms: ["side chat", "btw", "aside", "question"],
+          run: sideChat.openDraft,
+        });
+      }
     }
-    const projectItems: CommandPaletteItem[] = projects.map((project) => ({
+    const openProjects = projects.filter((project) => project.archivedAt == null);
+    const projectItems: CommandPaletteItem[] = [
+      ...openProjects.filter((project) => project.pinnedAt != null),
+      ...openProjects.filter((project) => project.pinnedAt == null),
+    ].map((project) => ({
       key: `project:${scopedProjectKey(project.environmentId, project.id)}`,
       kind: "project",
       project,
@@ -452,10 +469,7 @@ export function CommandPalette(props: {
         }),
     }));
     const threadItems: CommandPaletteItem[] = threads
-      .filter(
-        (thread) =>
-          thread.archivedAt === null && thread.lineage.relationshipToParent !== "subagent",
-      )
+      .filter((thread) => thread.archivedAt === null && isListedThreadLineage(thread.lineage))
       .map((thread) => {
         const project = projectByKey.get(scopedProjectKey(thread.environmentId, thread.projectId));
         const environment =
@@ -494,6 +508,8 @@ export function CommandPalette(props: {
     activeThread,
     activeThreadRef,
     canFork,
+    sideChat.disabledReason,
+    sideChat.openDraft,
     canTriage,
     environments.length,
     navigation,

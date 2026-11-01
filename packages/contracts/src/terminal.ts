@@ -273,7 +273,7 @@ export type TerminalCwdError = typeof TerminalCwdError.Type;
 export class TerminalHistoryError extends Schema.TaggedError<TerminalHistoryError>()(
   "TerminalHistoryError",
   {
-    operation: Schema.Literals(["read", "truncate"]),
+    operation: Schema.Literals(["read", "truncate", "migrate"]),
     threadId: Schema.String,
     terminalId: Schema.String,
     cause: Schema.optional(Schema.Defect()),

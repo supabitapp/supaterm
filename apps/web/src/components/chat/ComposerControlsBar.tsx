@@ -45,6 +45,7 @@ export function ComposerControlsBar(props: {
   onPromptEdit: (edit: (prompt: string) => string) => void;
   compatibleRuntimeMode: RuntimeMode;
   compatibleRuntimeModeOptions: ReadonlyArray<RuntimeModeOption>;
+  runtimeModeLockedReason: string | null;
   handleRuntimeModeChange: (mode: RuntimeMode) => void;
   composerControlsCollapsed: boolean;
   composerControlsHidden: boolean;
@@ -88,6 +89,7 @@ export function ComposerControlsBar(props: {
     onPromptEdit,
     compatibleRuntimeMode,
     compatibleRuntimeModeOptions,
+    runtimeModeLockedReason,
     handleRuntimeModeChange,
     composerControlsCollapsed,
     composerControlsHidden,
@@ -169,6 +171,7 @@ export function ComposerControlsBar(props: {
           keybindings={keybindings}
           runtimeMode={compatibleRuntimeMode}
           runtimeModeOptions={compatibleRuntimeModeOptions}
+          lockedReason={runtimeModeLockedReason}
           size={composerControlsCollapsed ? "xs" : "sm"}
           hidden={composerControlsHidden || restingHiddenBlockCount > 0}
           onRuntimeModeChange={handleRuntimeModeChange}
