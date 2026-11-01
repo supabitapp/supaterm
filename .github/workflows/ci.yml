@@ -500,12 +500,26 @@ jobs:
         with:
           persist-credentials: false
 
+      # Runs in the background while Mise and dependencies install; the step before the lint waits for it.
+      - name: Start installing mobile native static analysis tools
+        run: |
+          (
+            set +e
+            brew bundle install --file apps/mobile/Brewfile
+            echo "$?" > "$RUNNER_TEMP/brew-status"
+          ) > "$RUNNER_TEMP/brew.log" 2>&1 < /dev/null &
+
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
       - name: Install workspace dependencies
         run: mise exec -- vp install --filter=@supaterm/scripts...
-      - name: Install mobile native static analysis tools
-        run: brew bundle install --file apps/mobile/Brewfile
+
+      - name: Finish installing mobile native static analysis tools
+        timeout-minutes: 5
+        run: |
+          until test -s "$RUNNER_TEMP/brew-status"; do sleep 1; done
+          cat "$RUNNER_TEMP/brew.log"
+          exit "$(cat "$RUNNER_TEMP/brew-status")"
 
       - name: Lint mobile native sources
         run: vp run lint:mobile
