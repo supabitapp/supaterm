@@ -31,6 +31,7 @@ const ALLOWED_PREVIEW_PERMISSIONS: ReadonlySet<string> = new Set([
   "geolocation",
 
   "fullscreen",
+  "pointerLock",
   // Loopback requests already succeed in Electron 44; permission-aware sign-in widgets query first.
   "loopback-network",
   // Deliberately NOT local-fonts: preview sessions run untrusted web content,
