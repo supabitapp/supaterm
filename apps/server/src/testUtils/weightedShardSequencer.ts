@@ -6,7 +6,8 @@ import { BaseSequencer, type TestSpecification } from "vite-plus/test/node";
 
 import shardWeights from "./shardWeights.json" with { type: "json" };
 
-const FILE_OVERHEAD_SECONDS = 0.5;
+// Recordings omit files that took under this long, including their imports.
+const UNRECORDED_FILE_SECONDS = 0.5;
 
 const recordedSeconds: Readonly<Record<string, number>> = shardWeights;
 
@@ -21,7 +22,7 @@ export class WeightedShardSequencer extends BaseSequencer {
     const weighted = files
       .map((spec) => {
         const key = NodePath.relative(this.ctx.config.root, spec.moduleId).replaceAll("\\", "/");
-        return { spec, key, seconds: (recordedSeconds[key] ?? 0) + FILE_OVERHEAD_SECONDS };
+        return { spec, key, seconds: recordedSeconds[key] ?? UNRECORDED_FILE_SECONDS };
       })
       .toSorted((a, b) => b.seconds - a.seconds || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
 

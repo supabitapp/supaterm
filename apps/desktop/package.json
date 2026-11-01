@@ -7,7 +7,7 @@
   "scripts": {
     "ensure:electron": "node scripts/ensure-electron-runtime.mjs",
     "start": "node scripts/start-electron.mjs",
-    "test": "vp test run --passWithNoTests"
+    "test": "vp test run"
   },
   "dependencies": {
     "@crowecawcaw/xa11y": "0.13.0",

@@ -177,9 +177,13 @@ jobs:
         run: node apps/web/scripts/verify-built-boot.ts
 
   test:
-    name: Test
+    name: Test ${{ matrix.shard }}
     runs-on: depot-ubuntu-24.04-16
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -223,7 +227,7 @@ jobs:
           command -v cc
 
       - name: Test
-        run: vp run --parallel --concurrency-limit 8 --filter '!supaterm' --filter '!@supaterm/monorepo' --filter '!@supaterm/web' --filter '!@supaterm/mobile' test --maxWorkers 4
+        run: vp run --parallel --concurrency-limit 8 --filter '!supaterm' --filter '!@supaterm/monorepo' --filter '!@supaterm/web' --filter '!@supaterm/mobile' test --shard ${{ matrix.shard }}/${{ strategy.job-total }} --passWithNoTests --maxWorkers 4
 
   test_mobile:
     name: Test Mobile ${{ matrix.shard }}
