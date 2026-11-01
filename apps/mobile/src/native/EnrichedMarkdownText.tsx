@@ -277,13 +277,16 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
     };
   }, [props.contextClipboardFragment, props.markdown]);
   const { fontScale } = useWindowDimensions();
-  const markdownStyle = useMemo(
-    () => ({
-      ...enrichedStyle(props.textStyle, themeAppearance === "dark", fontScale),
+  const markdownStyle = useMemo(() => {
+    const style = enrichedStyle(props.textStyle, themeAppearance === "dark", fontScale);
+    return {
+      ...style,
+      paragraph: props.textAlign
+        ? { ...style.paragraph, textAlign: props.textAlign }
+        : style.paragraph,
       linkVariants,
-    }),
-    [props.textStyle, themeAppearance, fontScale, linkVariants],
-  );
+    };
+  }, [props.textStyle, props.textAlign, themeAppearance, fontScale, linkVariants]);
   const renderDiagram = props.isStreaming ? null : (props.renderDiagram ?? null);
   const renderImageBlock = useCallback(
     (block: MarkdownImageBlock) => {
@@ -344,6 +347,7 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
         <EnrichedMarkdownText
           markdown={markdown}
           markdownStyle={markdownStyle}
+          writingDirection={props.writingDirection}
           onLinksChange={onLinksChange}
           renderers={renderers}
           resolveImageSource={resolveNativeImageSource}

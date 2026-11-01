@@ -83,6 +83,7 @@ import {
 } from "@supaterm/shared/composerContextClipboard";
 import { chatMarkdownClipboardPayload } from "../../markdown-clipboard";
 import { cn } from "~/lib/utils";
+import { markdownProseDirection } from "~/textDirection";
 import { useMediaQuery } from "~/hooks/useMediaQuery";
 import { formatDayAwareTimestamp, formatChatTimestampTooltip } from "../../timestampFormat";
 import { AnimatedHeight } from "../AnimatedHeight";
@@ -860,6 +861,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
           <div
             ref={folded ? revealFoldRef : undefined}
             hidden={folded && !expanded}
+            dir={markdownProseDirection(resolvedContext.text)}
             className={cn(
               folded && "px-3 pb-3",
               folded && !ctx.findActive && "max-h-96 overflow-auto",
