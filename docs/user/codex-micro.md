@@ -59,6 +59,6 @@ if you like, a different action. Each keycap comes once in the box, so choosing 
 already on another key swaps the two. **Reset layout** restores the keys, stick, and knob without
 changing your agent keys.
 
-The microphone key works like `mod+shift+space`: press it to start recording, and press it again
+The microphone key works like `ctrl+m`: press it to start recording, and press it again
 to stop and review the transcript in the draft. With **Use separate microphone keys** on, the **MIC1**
 keycap does the same.

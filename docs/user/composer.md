@@ -218,11 +218,13 @@ and use **Attach again** or remove the missing file before sending.
 
 ## Voice input
 
-Press the microphone in the composer, or `mod+shift+space` on web and desktop, to record a
-prompt of up to five minutes. On web and desktop, the recording stays in the composer
-while you speak:
+Press the microphone in the composer, or `ctrl+m` on web and desktop, to record a
+prompt of up to five minutes. Hold `ctrl+m` instead to talk only while it is down; letting
+go stops and reviews. With **Settings → Threads → Hold Space to talk** on, holding Space in
+the composer with no text selected does the same, and a tap still types a space. On web and desktop, the
+recording stays in the composer while you speak:
 
-- **Stop and review**, or `mod+shift+space` again, transcribes the recording into the
+- **Stop and review**, or `ctrl+m` again, transcribes the recording into the
   draft where your cursor was, so you can edit it before sending.
 - **Send**, or your send shortcut, sends the recording as your next message. With an empty draft in a
   thread that has started, it waits in the [queue](#queued-messages) like a typed message,

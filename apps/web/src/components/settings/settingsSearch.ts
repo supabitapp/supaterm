@@ -524,6 +524,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["voice dictation microphone speech transcribe language locale spoken"],
   },
   {
+    id: "voice-hold-space",
+    title: "Hold Space to talk",
+    to: "/settings/threads",
+    searchTerms: ["voice dictation microphone speech push to talk spacebar hold keyboard shortcut"],
+  },
+  {
     id: "next-prompt-suggestions",
     title: "Claude prompt suggestions",
     to: "/settings/threads",

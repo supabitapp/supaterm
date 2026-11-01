@@ -299,7 +299,10 @@ export const make = Effect.gen(function* () {
         // Electron's default Window submenu adds a Ctrl+W close role off macOS.
         role: "windowMenu",
         submenu: [
-          { role: "minimize" },
+          // The minimize role's Ctrl+M off macOS would take the voice input shortcut.
+          environment.platform === "darwin"
+            ? { role: "minimize" }
+            : { label: "Minimize", click: (_item, window) => window?.minimize() },
           { role: "zoom" },
           ...(environment.platform === "darwin"
             ? [{ type: "separator" as const }, { role: "front" as const }]

@@ -433,6 +433,7 @@ export const ClientSettingsSchema = Schema.Struct({
   voiceLanguage: Schema.NullOr(TrimmedNonEmptyString.check(Schema.isMaxLength(35))).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
+  voiceHoldSpaceToTalk: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   proactivePanelsEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   showSkillsInSlashMenu: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   // Sparse show/hide overrides for thread details card items. Missing ids use the client's
@@ -1661,6 +1662,7 @@ export const ClientSettingsPatch = Schema.Struct({
   voiceLanguage: Schema.optionalKey(
     Schema.NullOr(TrimmedNonEmptyString.check(Schema.isMaxLength(35))),
   ),
+  voiceHoldSpaceToTalk: Schema.optionalKey(Schema.Boolean),
   proactivePanelsEnabled: Schema.optionalKey(Schema.Boolean),
   showSkillsInSlashMenu: Schema.optionalKey(Schema.Boolean),
   threadDetailsItems: Schema.optionalKey(Schema.Record(Schema.String, Schema.Boolean)),

@@ -6,9 +6,9 @@ import {
   type SnapShotModifier,
   type SnapShotShortcut,
 } from "@supaterm/contracts";
-import { parseKeybindingShortcut } from "@supaterm/shared/keybindings";
+import { parseKeybindingShortcut, shortcutConflictKey } from "@supaterm/shared/keybindings";
 
-import { formatShortcutKeyLabel, formatShortcutLabel, shortcutConflictKey } from "../keybindings";
+import { formatShortcutKeyLabel, formatShortcutLabel } from "../keybindings";
 import { isMacPlatform, isWindowsPlatform } from "./utils";
 
 const DESKTOP_KEY_ALIASES: Readonly<Record<string, string>> = {
