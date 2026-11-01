@@ -657,6 +657,46 @@ it.effect("refuses act-as-caller tools to a client caller", () =>
   ),
 );
 
+it.effect.each([
+  ["delegate_task", { task: "Review", mode: "async" }],
+  ["create_threads", { threads: [{ prompt: "Review" }] }],
+  ["supaterm_thread_fork", { sourcePoint: { type: "latest_stable" } }],
+] as const)("refuses %s to a side chat before it starts a thread", ([name, args]) =>
+  Effect.gen(function* () {
+    const server = yield* McpServer.McpServer;
+    const result = yield* server
+      .callTool({ name, arguments: args })
+      .pipe(
+        Effect.provideService(McpInvocationContext.McpInvocationContext, scope),
+        Effect.provideService(McpSchema.McpServerClient, client),
+      );
+    expect(declaredFailure(result)).toMatchObject({ code: "capability_denied" });
+  }).pipe(
+    Effect.provide(
+      Layer.mergeAll(layerOrchestratorToolkit, layerThreadToolkit).pipe(
+        Layer.provideMerge(McpServer.McpServer.layer),
+        Layer.provide(NodeCrypto.layer),
+        Layer.provide(
+          Layer.mock(ThreadManagement.ThreadManagementService)({
+            getThreadShell: () =>
+              Effect.succeed(
+                McpToolAccessTestkit.liveThreadShell(threadId, {
+                  runtimeMode: "approval-required",
+                  sideChatOf: ThreadId.make("mcp-core-parent"),
+                }),
+              ),
+          }),
+        ),
+        Layer.provide(ServerSettings.layerTest()),
+        Layer.provide(Layer.mock(ProviderRegistry.ProviderRegistry)({})),
+        Layer.provide(Layer.mock(ProviderAdapterRegistry.ProviderAdapterRegistryV2)({})),
+        Layer.provide(Layer.mock(ScheduledTaskService.ScheduledTaskService)({})),
+        Layer.provide(Layer.mock(ProjectService.ProjectService)({})),
+      ),
+    ),
+  ),
+);
+
 it.effect("a caller cannot rewrite a scheduled task that runs above its own modes", () =>
   Effect.gen(function* () {
     const server = yield* McpServer.McpServer;
