@@ -159,6 +159,7 @@ describe("orchestrator MCP toolkit", () => {
   it.live.each([
     { label: "distinct", result: queuedFollowupResult, latestSummary: queuedFollowupResult },
     { label: "identical", result: delegatedResult, latestSummary: null },
+    { label: "emoji", result: "😀", latestSummary: "😀" },
   ])("reports $label child results", ({ result, latestSummary }) =>
     Effect.scoped(
       Effect.gen(function* () {
@@ -587,7 +588,11 @@ describe("orchestrator MCP toolkit", () => {
           expect(transferReads).toHaveLength(0);
           const parentlessRead = yield* invoke(
             "supaterm_thread_read",
-            { threadId: delegated.childThreadId, limit: 100 },
+            {
+              threadId: delegated.childThreadId,
+              limit: 100,
+              maxCharsPerItem: result === "😀" ? 1 : 20_000,
+            },
             { ...invocation, thread: undefined },
           ).pipe(Effect.withTracer(tracer));
           expect(parentlessRead.isError).not.toBe(true);
@@ -601,6 +606,7 @@ describe("orchestrator MCP toolkit", () => {
           const read = yield* invoke("supaterm_thread_read", {
             threadId: delegated.childThreadId,
             limit: 100,
+            maxCharsPerItem: result === "😀" ? 1 : 20_000,
           }).pipe(Effect.withTracer(tracer));
           expect(read.isError).not.toBe(true);
           expect(transferReads.length).toBeGreaterThan(0);
