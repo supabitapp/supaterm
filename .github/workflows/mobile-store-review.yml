@@ -156,11 +156,6 @@ jobs:
         run: |
           node .github/scripts/export-play-credentials.mjs
           echo "GOOGLE_PLAY_JSON_KEY_PATH=$GOOGLE_PLAY_JSON_KEY_PATH" >> "$GITHUB_ENV"
-      - name: Upload screenshots and submit the exact build for review
-        working-directory: apps/mobile
-        env:
-          MOBILE_PLATFORM: ${{ matrix.platform }}
-        run: bundle exec fastlane "$MOBILE_PLATFORM" review
       - name: Check out the current build history helper
         if: matrix.platform == 'ios'
         uses: actions/checkout@v7
@@ -168,6 +163,11 @@ jobs:
           persist-credentials: false
           sparse-checkout: .github/scripts
           path: .automation
+      - name: Upload screenshots and submit the exact build for review
+        working-directory: apps/mobile
+        env:
+          MOBILE_PLATFORM: ${{ matrix.platform }}
+        run: bundle exec fastlane "$MOBILE_PLATFORM" review
       - name: Record the version sent for App Store review
         if: matrix.platform == 'ios'
         uses: actions/github-script@v9.0.0
