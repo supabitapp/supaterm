@@ -414,13 +414,21 @@ function simpleThreadCommand(
     | "thread.unarchive"
     | "thread.mark-done"
     | "thread.pin"
-    | "thread.unpin",
+    | "thread.unpin"
+    | "thread.side-chat.promote",
   input: ThreadCommandInput,
 ) {
   return allocateCommandId(input).pipe(
     Effect.flatMap((commandId) => dispatch({ type, commandId, threadId: input.threadId })),
   );
 }
+
+/** Makes a side chat a full thread, listed and no longer held to approval. */
+export const promoteSideChat = Effect.fn("EnvironmentCommands.promoteSideChat")(function* (
+  input: ThreadCommandInput,
+) {
+  return yield* simpleThreadCommand("thread.side-chat.promote", input);
+});
 
 export const deleteThread = Effect.fn("EnvironmentCommands.deleteThread")(function* (
   input: DeleteThreadInput,

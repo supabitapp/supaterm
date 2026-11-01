@@ -3860,7 +3860,7 @@ export default function ChatView(props: ChatViewProps) {
                                   handleRuntimeModeChange={handleRuntimeModeChangeStable}
                                   runtimeModeLockedReason={
                                     isSideChat
-                                      ? "A side chat shares its main thread's files, so it asks before it acts."
+                                      ? "A side chat asks before it acts. Promote it to choose another mode."
                                       : null
                                   }
                                   focusComposer={focusComposerStable}

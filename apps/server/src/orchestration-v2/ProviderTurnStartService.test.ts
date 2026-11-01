@@ -301,6 +301,8 @@ function makeLocalCommandHarness(input: {
     readonly switchedProvider?: boolean;
     readonly forkWhileSourceActive?: "none" | "stable";
   };
+  /** A side chat promoted before this run, or before an earlier run that came after it. */
+  readonly promotedSideChat?: "before-this-run" | "before-an-earlier-run";
 }) {
   const now = DateTime.makeUnsafe("2026-09-04T12:00:00Z");
   const threadId = ThreadId.make("thread-native-account-command");
@@ -308,6 +310,8 @@ function makeLocalCommandHarness(input: {
   const rootNodeId = NodeId.make("root-native-account-command");
   const attemptId = RunAttemptId.make("attempt-native-account-command");
   const providerThreadId = ProviderThreadId.make("new-provider-thread");
+  // Side chats, also promoted ones, reach the provider; the rest of the harness runs local commands.
+  const startsProviderTurn = input.sideChat !== undefined || input.promotedSideChat !== undefined;
   const providerSessionId = ProviderSessionId.make("new-provider-session");
   const oldProviderThreadId = ProviderThreadId.make("existing-native-provider-thread");
   const oldInstanceId = ProviderInstanceId.make("antigravity-personal");
@@ -608,6 +612,25 @@ function makeLocalCommandHarness(input: {
       ],
     };
   }
+  if (input.promotedSideChat !== undefined) {
+    projection = {
+      ...projection,
+      thread: { ...projection.thread, sideChatPromotedAt: DateTime.subtract(now, { minutes: 1 }) },
+      runs:
+        input.promotedSideChat === "before-this-run"
+          ? projection.runs
+          : [
+              {
+                ...run,
+                id: RunId.make("run-after-promotion"),
+                ordinal: 1,
+                status: "completed",
+                activeAttemptId: null,
+              },
+              ...projection.runs,
+            ],
+    };
+  }
   if ("historyReadFailureAfterFallback" in input) {
     const nativeThreadRef = {
       driver: providerThread.driver,
@@ -764,7 +787,7 @@ function makeLocalCommandHarness(input: {
     startTurn,
   };
   const open = vi.fn(() =>
-    input.sideChat !== undefined
+    startsProviderTurn
       ? Effect.succeed(sideChatSession as never)
       : input.interruptOpen === true
         ? Effect.interrupt
@@ -798,7 +821,7 @@ function makeLocalCommandHarness(input: {
   const startRootRun = vi.fn<
     (input: RunExecutionService.RunExecutionServiceV2StartRootRunInput) => Effect.Effect<void>
   >((runInput) =>
-    input.sideChat !== undefined
+    startsProviderTurn
       ? runInput.session.startTurn(runInput as never).pipe(Effect.orDie)
       : input.failReadsAfterRunning === true || input.previousTurn !== undefined
         ? Effect.suspend(() =>
@@ -932,7 +955,7 @@ function makeLocalCommandHarness(input: {
               ),
             }),
           getTurnStartHistory: () =>
-            input.sideChat !== undefined
+            startsProviderTurn
               ? Effect.succeed([])
               : Effect.fail(
                   new ProjectionStore.ProjectionStoreReadError({
@@ -1284,7 +1307,11 @@ effectIt.effect.each([
       );
       const sent =
         context === "SIDE_CHAT_NOTE"
-          ? ContextHandoffService.sideChatTurnNote(harness.projection().thread)
+          ? ContextHandoffService.sideChatTurnNote({
+              thread: harness.projection().thread,
+              runs: harness.projection().runs,
+              runId: harness.projection().runs.at(-1)!.id,
+            })
           : context;
       expect(sent).not.toBe("");
       expect(harness.startTurn.mock.calls.map(([turn]) => turn.message.text)).toEqual([
@@ -1296,6 +1323,25 @@ effectIt.effect.each([
           toProviderThreadId: "new-provider-thread",
           delivery: { nativeThreadId: "side-chat-native", status: "inline" },
         },
+      ]);
+    }),
+);
+
+effectIt.effect.each([
+  { promotedSideChat: "before-this-run", note: true },
+  { promotedSideChat: "before-an-earlier-run", note: false },
+] as const)(
+  "tells a promoted side chat once that its rules ended: %j",
+  ({ promotedSideChat, note }) =>
+    Effect.gen(function* () {
+      const harness = makeLocalCommandHarness({ text: "Now fix it", promotedSideChat });
+
+      yield* harness.start;
+
+      const promoted =
+        "This thread was a side chat and is now a full thread. The side chat restrictions no longer apply.";
+      expect(harness.startTurn.mock.calls.map(([turn]) => turn.message.text)).toEqual([
+        note ? withInlineContext(promoted, "Now fix it") : "Now fix it",
       ]);
     }),
 );

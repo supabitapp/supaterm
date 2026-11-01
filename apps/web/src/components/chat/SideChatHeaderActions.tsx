@@ -19,7 +19,7 @@ import { Button } from "../ui/button";
 import { toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 
-/** Bring back and Delete for a side chat, in its pane's header. */
+/** Bring back, Promote and Delete for a side chat, in its pane's header. */
 export function SideChatHeaderActions(props: {
   readonly threadRef: ScopedThreadRef;
   readonly parentRef: ScopedThreadRef;
@@ -31,8 +31,11 @@ export function SideChatHeaderActions(props: {
   const canOperate = useEnvironmentScope(threadRef.environmentId, AuthOrchestrationOperateScope);
   const mergeBack = useAtomCommand(threadEnvironment.mergeBack, { reportFailure: false });
   const deleteThread = useAtomCommand(threadEnvironment.delete, { reportFailure: false });
+  const promoteSideChat = useAtomCommand(threadEnvironment.promoteSideChat, {
+    reportFailure: false,
+  });
   const confirmThreadDelete = useClientSettings((settings) => settings.confirmThreadDelete);
-  const [busy, setBusy] = useState<"bring-back" | "delete" | null>(null);
+  const [busy, setBusy] = useState<"bring-back" | "promote" | "delete" | null>(null);
   const mergeRun = projection ? resolveLatestMergeBackRun(projection) : null;
   // A pending merge-back would fail the main thread's queued message, so the server refuses it.
   const bringBackBlockedReason = !canOperate
@@ -72,6 +75,19 @@ export function SideChatHeaderActions(props: {
       });
     } else if (!isAtomCommandInterrupted(result)) {
       failureToast("Could not bring back the side chat", result);
+    }
+  };
+
+  const promote = async () => {
+    if (!canOperate || busy !== null) return;
+    setBusy("promote");
+    const result = await promoteSideChat({
+      environmentId: threadRef.environmentId,
+      input: { threadId: threadRef.threadId },
+    });
+    setBusy(null);
+    if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+      failureToast("Could not promote the side chat", result);
     }
   };
 
@@ -119,6 +135,23 @@ export function SideChatHeaderActions(props: {
         />
         <TooltipPopup side="bottom">
           {bringBackBlockedReason ?? "Adds this side chat to the main thread's next message."}
+        </TooltipPopup>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="xs"
+              disabled={!canOperate || busy !== null}
+              onClick={() => void promote()}
+            >
+              Promote
+            </Button>
+          }
+        />
+        <TooltipPopup side="bottom">
+          Make this a full thread: it shows in the sidebar, can be forked, and stops asking first.
         </TooltipPopup>
       </Tooltip>
       <Tooltip>

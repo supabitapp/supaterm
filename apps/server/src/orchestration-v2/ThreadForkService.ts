@@ -80,6 +80,7 @@ export const layer: Layer.Layer<ThreadForkServiceV2> = Layer.succeed(
             : "A subagent cannot start a side chat.",
         });
       }
+
       if (sourceRun !== null && !isForkableSourceRunStatus(sourceRun.status)) {
         return yield* new ThreadForkPlanError({
           sourceThreadId: input.sourceProjection.thread.id,

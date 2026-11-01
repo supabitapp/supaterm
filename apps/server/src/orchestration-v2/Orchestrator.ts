@@ -539,6 +539,7 @@ function commandThreadId(command: OrchestrationV2ServerCommand): ThreadId {
     case "thread.workflow-run-watch.end":
     case "thread.pull-request.sync":
     case "thread.title.regeneration.complete":
+    case "thread.side-chat.promote":
     case "thread.project.adopt-folder":
     case "thread.runtime-mode.set":
     case "thread.interaction-mode.set":
@@ -2907,6 +2908,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           | "thread.workflow-run-watch.end"
           | "thread.pull-request.sync"
           | "thread.title.regeneration.complete"
+          | "thread.side-chat.promote"
           | "thread.runtime-mode.set"
           | "thread.interaction-mode.set"
           | "thread.model-selection.set"
@@ -2930,6 +2932,13 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         commandId: command.commandId,
         commandType: command.type,
         cause: `Thread ${command.threadId} is deleted.`,
+      });
+    }
+    if (command.type === "thread.side-chat.promote" && thread.lineage.sideChat !== true) {
+      return yield* new OrchestratorDispatchError({
+        commandId: command.commandId,
+        commandType: command.type,
+        cause: `Thread ${command.threadId} is not a side chat.`,
       });
     }
     if (
@@ -3838,6 +3847,10 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
             : thread;
         case "thread.runtime-mode.set":
           return { ...thread, runtimeMode: command.runtimeMode, updatedAt: now };
+        case "thread.side-chat.promote": {
+          const { sideChat: _sideChat, ...lineage } = thread.lineage;
+          return { ...thread, lineage, sideChatPromotedAt: now, updatedAt: now };
+        }
         case "thread.interaction-mode.set":
           return { ...thread, interactionMode: command.interactionMode, updatedAt: now };
         case "thread.model-selection.set":
@@ -3902,6 +3915,8 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           return "thread.marked-unread" as const;
         case "thread.metadata.update":
         case "thread.title.regeneration.complete":
+        // Released clients know this event; a new one would fail their stream decode.
+        case "thread.side-chat.promote":
           return "thread.metadata-updated" as const;
         case "thread.pull-request.link":
         case "thread.pull-request.unlink":
@@ -4296,6 +4311,15 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       );
     // Only side chat forks lock the source; validate the modes copied here, not an earlier read.
     yield* refuseAboveDispatchModeLimit(command, command.sourceThreadId, sourceProjection.thread);
+    // A portable fork stops at the side chat and drops its parent's history; a native one keeps
+    // it, so what the fork knew would depend on the provider.
+    if (command.sideChat !== true && sourceProjection.thread.lineage.sideChat === true) {
+      return yield* new OrchestratorDispatchError({
+        commandId: command.commandId,
+        commandType: command.type,
+        cause: `Thread ${command.sourceThreadId} is a side chat. Promote it to a full thread before forking it.`,
+      });
+    }
     if (command.sideChat === true && sourceProjection.thread.deletedAt !== null) {
       return yield* new OrchestratorDispatchError({
         commandId: command.commandId,
@@ -12407,6 +12431,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       case "thread.pull-request.watch":
       case "thread.pull-request.sync":
       case "thread.title.regeneration.complete":
+      case "thread.side-chat.promote":
       case "thread.runtime-mode.set":
       case "thread.interaction-mode.set":
       case "thread.model-selection.set":

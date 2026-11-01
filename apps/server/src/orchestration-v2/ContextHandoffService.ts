@@ -282,9 +282,30 @@ export function makeSideChatContext(input: {
  * Prepended to every side chat turn after the one that carried its context. The digest went once;
  * this only keeps the boundary in view.
  */
-export function sideChatTurnNote(thread: Pick<OrchestrationV2AppThread, "lineage">): string {
+export function sideChatTurnNote(input: {
+  readonly thread: Pick<OrchestrationV2AppThread, "lineage" | "sideChatPromotedAt">;
+  readonly runs: ReadonlyArray<Pick<OrchestrationV2Run, "id" | "ordinal" | "requestedAt">>;
+  readonly runId: RunId;
+}): string {
+  const { thread } = input;
   const { parentThreadId } = thread.lineage;
-  if (thread.lineage.sideChat !== true || parentThreadId === null) return "";
+  if (thread.lineage.sideChat !== true) {
+    const promotedAt = thread.sideChatPromotedAt;
+    if (promotedAt == null) return "";
+    // Once, on the first run asked for after the promotion.
+    const firstRunAfter = input.runs
+      .filter(
+        (run) => DateTime.toEpochMillis(run.requestedAt) >= DateTime.toEpochMillis(promotedAt),
+      )
+      .reduce<(typeof input.runs)[number] | undefined>(
+        (first, run) => (first === undefined || run.ordinal < first.ordinal ? run : first),
+        undefined,
+      );
+    return firstRunAfter?.id === input.runId
+      ? "This thread was a side chat and is now a full thread. The side chat restrictions no longer apply."
+      : "";
+  }
+  if (parentThreadId === null) return "";
   return [
     `You are still in a side chat beside main thread ${parentThreadId}, which may be working in the same worktree.`,
     "Answer here and ask before acting; do not continue or redo the main thread's task.",

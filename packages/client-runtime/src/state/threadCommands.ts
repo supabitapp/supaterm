@@ -30,6 +30,7 @@ import {
   interruptThreadTurn,
   forkSideChat,
   forkThreadFromRun,
+  promoteSideChat,
   markThreadUnread,
   mergeThreadBack,
   promoteQueuedRun,
@@ -131,6 +132,12 @@ export function createThreadEnvironmentAtoms<R, E>(
     delete: createEnvironmentCommand(runtime, {
       label: "environment-data:commands:thread:delete",
       execute: deleteThread,
+      scheduler,
+      concurrency,
+    }),
+    promoteSideChat: createEnvironmentCommand(runtime, {
+      label: "environment-data:commands:thread:promote-side-chat",
+      execute: promoteSideChat,
       scheduler,
       concurrency,
     }),

@@ -276,9 +276,9 @@ it.effect("marks only requested forks as supervised side chats", () =>
     assert.deepEqual(sideChat.targetThread.pinnedMessages, []);
 
     const sideChatSource = { ...source, lineage: { ...source.lineage, sideChat: true } };
-    const forkOfSideChat = yield* planFork(sourceRun, sideChatSource);
-    assert.isUndefined(forkOfSideChat.targetThread.lineage.sideChat);
-    assert.equal(forkOfSideChat.targetThread.runtimeMode, "full-access");
+    const plainFork = yield* planFork(sourceRun, source);
+    assert.isUndefined(plainFork.targetThread.lineage.sideChat);
+    assert.equal(plainFork.targetThread.runtimeMode, "full-access");
 
     const nested = yield* planFork(sourceRun, sideChatSource, { sideChat: true }).pipe(Effect.flip);
     assert.equal(nested.cause, "A side chat cannot start another side chat.");

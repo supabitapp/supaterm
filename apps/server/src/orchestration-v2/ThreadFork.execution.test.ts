@@ -1098,6 +1098,67 @@ it.effect("a side chat stays supervised: its runtime mode cannot be raised", () 
   }).pipe(Effect.provide(forkCases[0]!.layer)),
 );
 
+it.effect("promoting a side chat makes it a full thread that outlives its parent", () =>
+  Effect.gen(function* () {
+    const orchestrator = yield* Orchestrator.OrchestratorV2;
+    const parentId = ThreadId.make("side-chat-promote-parent");
+    const sideChatId = ThreadId.make("side-chat-promote-child");
+    yield* createParent(parentId);
+    yield* writeParentRun({
+      threadId: parentId,
+      runId: RunId.make("side-chat-promote-parent-run"),
+      ordinal: 1,
+      status: "completed",
+      text: "Parent work",
+      stable: true,
+    });
+    yield* forkSideChat("side-chat-promote-fork", parentId, sideChatId);
+    const forkOfSideChat = yield* orchestrator
+      .dispatch({
+        type: "thread.fork",
+        commandId: CommandId.make("side-chat-promote-early-fork"),
+        sourceThreadId: sideChatId,
+        targetThreadId: ThreadId.make("side-chat-promote-early-fork"),
+        sourcePoint: { type: "latest_stable" },
+        createdBy: "user",
+        creationSource: "web",
+      })
+      .pipe(Effect.flip);
+    assert.include(String(forkOfSideChat.cause), "Promote it to a full thread");
+    const promote = (commandId: string) =>
+      orchestrator.dispatch({
+        type: "thread.side-chat.promote",
+        commandId: CommandId.make(commandId),
+        threadId: sideChatId,
+      });
+
+    yield* promote("side-chat-promote");
+    const promoted = (yield* orchestrator.getThreadProjection(sideChatId)).thread;
+    assert.isUndefined(promoted.lineage.sideChat);
+    assert.equal(promoted.lineage.parentThreadId, parentId);
+    assert.isNotNull(promoted.sideChatPromotedAt ?? null);
+    assert.include(
+      String((yield* promote("side-chat-promote-again").pipe(Effect.flip)).cause),
+      "not a side chat",
+    );
+    yield* orchestrator.dispatch({
+      type: "thread.runtime-mode.set",
+      commandId: CommandId.make("side-chat-promote-mode"),
+      threadId: sideChatId,
+      runtimeMode: "full-access",
+    });
+
+    yield* orchestrator.dispatch({
+      type: "thread.delete",
+      commandId: CommandId.make("side-chat-promote-delete-parent"),
+      threadId: parentId,
+    });
+    const kept = (yield* orchestrator.getThreadProjection(sideChatId)).thread;
+    assert.isNull(kept.deletedAt);
+    assert.equal(kept.runtimeMode, "full-access");
+  }).pipe(Effect.provide(forkCases[0]!.layer)),
+);
+
 it.effect("a side chat waits for the parent's new worktree, also after its setup ended", () =>
   Effect.gen(function* () {
     for (const status of ["preparing", "failed", "interrupted"] as const) {
@@ -1357,6 +1418,12 @@ it.effect("merge-back rejects a second fork's context until the first is consume
     // That pending merge-back targets the parent, so it does not block one into `first`.
     const nested = { threadId: ThreadId.make("merge-back-guard-nested") };
     const nestedRunId = RunId.make("merge-back-guard-nested-run");
+    // A side chat forks only once it is a full thread.
+    yield* orchestrator.dispatch({
+      type: "thread.side-chat.promote",
+      commandId: CommandId.make("merge-back-guard-promote-first"),
+      threadId: first.threadId,
+    });
     yield* orchestrator.dispatch({
       type: "thread.fork",
       commandId: CommandId.make("merge-back-guard-fork-nested"),
