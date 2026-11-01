@@ -19,6 +19,7 @@ vi.mock(import("~/state/use-atom-command"), async () => {
 
 import "~/index.css";
 import { render } from "../../../test/render";
+import { pressAgain } from "~/test/inlineConfirm";
 import { ToastProvider } from "../ui/toast";
 import { PullRequestStackMenu } from "./PullRequestStackMenu";
 
@@ -67,9 +68,10 @@ it.each([
   if (row.label === "Rebase stack") {
     await screen.getByRole("button", { name: "Stack 1, layer 1 of 1" }).click();
     await page.getByRole("menuitem", { name: row.label }).click();
+    await pressAgain(page.getByRole("menuitem", { name: "Confirm rebase" }).element());
   } else {
     await screen.getByRole("button", { name: row.label, exact: true }).click();
+    await pressAgain(screen.getByRole("button", { name: "Confirm merge", exact: true }).element());
   }
-  await page.getByRole("dialog").getByRole("button", { name: row.label, exact: true }).click();
   await expect.element(page.getByText(row.description, { exact: true })).toBeInTheDocument();
 });
