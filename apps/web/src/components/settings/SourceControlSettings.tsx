@@ -583,7 +583,7 @@ export function SourceControlSettingsPanel() {
             title={`Version Control${environmentSuffix}`}
             headerAction={scanButton}
           />
-          <SourceControlSectionSkeleton title="Source Control Providers" />
+          <SourceControlSectionSkeleton title="Source control providers" />
         </>
       ) : hasDiscoveryItems ? (
         <>
@@ -604,7 +604,7 @@ export function SourceControlSettingsPanel() {
           {result.sourceControlProviders.length > 0 ? (
             <SettingsSection
               id={hasVersionControlSystems ? undefined : searchableSetting("source-control").id}
-              title={`Source Control Providers${environmentSuffix}`}
+              title={`Source control providers${environmentSuffix}`}
               headerAction={hasVersionControlSystems ? null : scanButton}
             >
               {result.sourceControlProviders.map((item) => (

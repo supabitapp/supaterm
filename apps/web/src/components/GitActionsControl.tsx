@@ -194,7 +194,7 @@ function getPublishProviderReadiness(input: {
   if (!discovered) {
     return {
       ready: false,
-      hint: "Provider status unavailable. Open Settings -> Source Control and rescan.",
+      hint: "Provider status unavailable. Open Settings -> Source control and rescan.",
     };
   }
   if (discovered.status !== "available") {
@@ -205,7 +205,7 @@ function getPublishProviderReadiness(input: {
       ready: false,
       hint:
         Option.getOrNull(discovered.auth.detail) ??
-        `${discovered.label} is not authenticated. Open Settings -> Source Control for setup guidance.`,
+        `${discovered.label} is not authenticated. Open Settings -> Source control for setup guidance.`,
     };
   }
   return { ready: true, hint: null };
@@ -590,7 +590,7 @@ function PublishRepositoryDialog(props: PublishRepositoryDialogProps) {
                         />
                         <TooltipPopup side="top" align="end">
                           {readiness.hint ??
-                            "Open Settings -> Source Control to configure this provider."}
+                            "Open Settings -> Source control to configure this provider."}
                         </TooltipPopup>
                       </Tooltip>
                     </div>

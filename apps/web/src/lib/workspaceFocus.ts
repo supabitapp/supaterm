@@ -355,7 +355,7 @@ export const getWorkspaceFocusRequestVersion = () => focusRequestVersion;
 
 /**
  * Starts workspace focus for the app: F6 area moves, focus requests, focus-loss recovery,
- * focus into a panel the user opens, and focus into the Pull Requests page on entry.
+ * focus into a panel the user opens, and focus into the Pull requests page on entry.
  */
 export function startWorkspaceFocus(router: AnyRouter): () => void {
   const active = createWorkspaceFocusController(document);

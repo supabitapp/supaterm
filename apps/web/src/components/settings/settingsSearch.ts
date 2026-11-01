@@ -91,7 +91,7 @@ export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
   "/settings/threads": "Threads",
   "/settings/browser": "Browser",
   "/settings/devices": "Devices",
-  "/settings/source-control": "Source Control",
+  "/settings/source-control": "Source control",
   "/settings/worktrees": "Worktrees",
   "/settings/connections": "Environments",
   "/settings/access": "Sharing & access",
@@ -337,7 +337,7 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "auto-resume-limited-threads",
-    title: "Auto-resume limited threads",
+    title: "Resume after usage limits",
     to: "/settings/threads",
     searchTerms: ["usage quota rate limit reset recover continue"],
   },
@@ -351,7 +351,7 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "snooze-limited-threads",
-    title: "Snooze limited threads",
+    title: "Snooze until limits reset",
     to: "/settings/threads",
     searchTerms: ["usage quota rate limit reset wake recover continue"],
   },

@@ -462,10 +462,10 @@ export function useSettingsRestore(onRestored?: () => void) {
       ? ["Automatically mark merged threads as Done"]
       : []),
     ...(settings.autoResumeLimitedThreads !== DEFAULT_UNIFIED_SETTINGS.autoResumeLimitedThreads
-      ? ["Auto-resume limited threads"]
+      ? ["Resume after usage limits"]
       : []),
     ...(settings.snoozeLimitedThreads !== DEFAULT_UNIFIED_SETTINGS.snoozeLimitedThreads
-      ? ["Snooze limited threads"]
+      ? ["Snooze until limits reset"]
       : []),
     ...(!Equal.equals(settings.snoozePresets, DEFAULT_UNIFIED_SETTINGS.snoozePresets)
       ? ["Snooze options"]
@@ -1379,7 +1379,7 @@ export function ThreadsSettingsPanel() {
               onCheckedChange={(checked) =>
                 updateSettings({ autoResumeLimitedThreads: Boolean(checked) })
               }
-              aria-label="Auto-resume limited threads"
+              aria-label="Resume after usage limits"
             />
           }
         />
@@ -1395,7 +1395,7 @@ export function ThreadsSettingsPanel() {
               onCheckedChange={(checked) =>
                 updateSettings({ snoozeLimitedThreads: Boolean(checked) })
               }
-              aria-label="Snooze limited threads"
+              aria-label="Snooze until limits reset"
             />
           }
         />
