@@ -530,7 +530,7 @@ const resolvePrimaryStartConfig = Effect.fn("desktop.backendConfiguration.resolv
       env: {
         ...backendChildEnvPatch(),
         ELECTRON_RUN_AS_NODE: "1",
-
+        SUPATERM_DESKTOP_SHELL_DISCOVERY_PENDING: "1",
         SUPATERM_CLI_SHIM_PATH: Option.getOrUndefined(input.cliPath),
       },
       extendEnv: true,
