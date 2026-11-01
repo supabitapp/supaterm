@@ -76,7 +76,8 @@ so paths, ids, and text never reach analytics.
 
 Agent tool events report driver kinds, never instance ids: users name
 instances, so an instance id can identify an account or employer.
-[Provider dimensions](../../apps/server/src/telemetry/ProviderDimensions.ts)
+Provider turn and agent tool events take models from
+[provider dimensions](../../apps/server/src/telemetry/ProviderDimensions.ts), which
 report a model only when it is a non-custom entry in a vendor catalog. OpenCode,
 Pi, and ACP agents list models from user configuration, such as local Ollama
 tags, so their models stay out. Handoff settings come from closed enums and
