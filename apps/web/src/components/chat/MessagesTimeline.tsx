@@ -1057,7 +1057,8 @@ const ConversationTimeline = memo(function ConversationTimeline({
   // setting, never with streamed content; measuring per content frame would
   // force a layout on every chunk.
   const measuredLaneWidthRef = useRef<number | null>(null);
-  const observeLaneWidth = (lane: HTMLDivElement | null) => {
+  // A stable ref, so rows keep one observer across streamed renders.
+  const observeLaneWidth = useStableCallback((lane: HTMLDivElement | null) => {
     if (!lane) return;
     return observeResize(lane, (entries) => {
       const width = entries.at(-1)?.contentRect.width;
@@ -1066,7 +1067,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
       const viewportElement = lane.closest<HTMLElement>("[data-assistant-citation-viewport]");
       if (viewportElement) measureTimelineGutter(viewportElement);
     });
-  };
+  });
   const attachTimelineViewportElement = (viewportElement: HTMLDivElement | null) => {
     setTimelineViewportElement(viewportElement);
     if (!viewportElement) return;
