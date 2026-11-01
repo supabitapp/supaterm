@@ -10,6 +10,7 @@ import {
 import { type ReactNode } from "react";
 import { act, render as renderUi, type Screen } from "../../../test/render";
 import { describe, expect, it, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 
 import "~/index.css";
 
@@ -283,6 +284,45 @@ describe("automation permissions", () => {
     expect(pageText()).toContain("This connection does not have permission to manage automations.");
     expect(document.querySelector("fieldset")?.disabled).toBe(true);
     expect((buttonNamed("Save automation") as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("keeps a linked automation's unsaved edits across a disconnect and reconnect", async () => {
+    await using _test = await setupTest();
+    state.tasks.set(primaryId, [task(primaryProjectId)]);
+    state.search = { environmentId: primaryId, taskId };
+    await renderPage();
+    const name = page.getByRole("dialog").getByRole("textbox", { name: "Name" });
+    await expect.element(name).toHaveValue("Read only automation");
+    await userEvent.fill(name, "Review stale changes");
+
+    const connected = state.environments[0]!;
+    state.environments[0] = {
+      ...connected,
+      connection: { phase: "disconnected" },
+      serverConfig: null,
+    };
+    await renderPage();
+    await expect.element(name).toHaveValue("Review stale changes");
+
+    state.environments[0] = connected;
+    await renderPage();
+    await expect.element(name).toHaveValue("Review stale changes");
+  });
+
+  it("keeps an editor the user opened when the linked automation loads later", async () => {
+    await using _test = await setupTest();
+    state.search = { environmentId: primaryId, taskId };
+    await renderPage();
+    await click(buttonNamed("New automation")!);
+    const dialog = page.getByRole("dialog");
+    const name = dialog.getByRole("textbox", { name: "Name" });
+    await userEvent.fill(name, "My draft");
+
+    state.tasks.set(primaryId, [task(primaryProjectId)]);
+    await renderPage();
+
+    await expect.element(dialog.getByRole("heading", { name: "New automation" })).toBeVisible();
+    await expect.element(name).toHaveValue("My draft");
   });
 
   it("rechecks permission at submit after access is revoked while the editor is open", async () => {
