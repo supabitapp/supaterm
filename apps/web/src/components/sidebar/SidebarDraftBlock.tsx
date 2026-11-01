@@ -13,7 +13,6 @@ import {
 } from "react";
 import { useLocalStorage } from "../../hooks/useLocalStorage";
 import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
-import { useShallow } from "zustand/react/shallow";
 import { cn } from "~/lib/utils";
 import { resolveSidebarRowAccessibility } from "../Sidebar.logic";
 import { ProjectFavicon, type ProjectFaviconProject } from "../ProjectFavicon";
