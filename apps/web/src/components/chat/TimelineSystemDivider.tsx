@@ -10,6 +10,7 @@ export function TimelineSystemDivider(props: {
   readonly tone?: "neutral" | "danger";
   readonly icon?: IconComponent;
   readonly showDetailSeparator?: boolean;
+  readonly wrapDetail?: boolean;
   readonly actionLabel?: string;
   readonly onAction?: () => void;
 }) {
@@ -22,7 +23,9 @@ export function TimelineSystemDivider(props: {
         <span
           className={
             typeof props.detail === "string"
-              ? "min-w-0 max-w-80 truncate opacity-70"
+              ? props.wrapDetail
+                ? "min-w-0 max-w-80 whitespace-pre-wrap opacity-70"
+                : "min-w-0 max-w-80 truncate opacity-70"
               : "inline-flex min-w-0 items-center opacity-70"
           }
         >
