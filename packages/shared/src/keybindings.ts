@@ -148,6 +148,7 @@ type WhenToken =
   | { type: "lparen" }
   | { type: "rparen" };
 
+// Saved configs keep every default, so changing one also needs a SAVED_DEFAULT_MOVES entry in the server.
 export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "mod+b", command: "sidebar.toggle" },
   { key: "f6", command: "workspace.focusNext" },

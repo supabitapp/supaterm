@@ -251,14 +251,19 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
       }).pipe(Effect.provide(layerKeybindings())),
   );
 
-  it.effect("upgrades the saved mark Done default once without changing other defaults", () =>
+  it.effect("upgrades saved mark Done and voice defaults once without touching others", () =>
     Effect.gen(function* () {
       const { keybindingsConfigPath } = yield* ServerConfig.ServerConfig;
+      const previousDefaults: Partial<Record<KeybindingRule["command"], string>> = {
+        "thread.mark-done": "mod+shift+s",
+        "composer.voice": "mod+shift+space",
+      };
       yield* writeKeybindingsConfig(
         keybindingsConfigPath,
-        SharedKeybindings.DEFAULT_KEYBINDINGS.map((rule) =>
-          rule.command === "thread.mark-done" ? { ...rule, key: "mod+shift+s" } : rule,
-        ),
+        SharedKeybindings.DEFAULT_KEYBINDINGS.map((rule) => ({
+          ...rule,
+          key: previousDefaults[rule.command] ?? rule.key,
+        })),
       );
 
       const keybindings = yield* Keybindings.Keybindings;
@@ -272,6 +277,10 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
       assert.equal(
         snapshot.keybindings.find((rule) => rule.command === "thread.mark-done")?.shortcut.key,
         "d",
+      );
+      assert.deepInclude(
+        snapshot.keybindings.find((rule) => rule.command === "composer.voice")?.shortcut,
+        { key: "m", ctrlKey: true, modKey: false, shiftKey: false },
       );
 
       yield* keybindings.syncDefaultKeybindingsOnStartup;
@@ -316,17 +325,22 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
       { key: "mod+shift+s", command: "thread.mark-done", when: "!terminalFocus" },
       { key, command: "script.custom-action.run" },
     ]),
-  ])("preserves customized or conflicting mark Done shortcuts on startup %#", (rules) =>
+    // Off macOS, mod+m is Ctrl+M.
+    ...["ctrl+m", "mod+m"].map((key): readonly KeybindingRule[] => [
+      { key: "mod+shift+space", command: "composer.voice", when: "!terminalFocus" },
+      { key, command: "script.custom-action.run" },
+    ]),
+  ])("preserves customized or conflicting moved default shortcuts on startup %#", (rules) =>
     Effect.gen(function* () {
       const { keybindingsConfigPath } = yield* ServerConfig.ServerConfig;
       yield* writeKeybindingsConfig(keybindingsConfigPath, rules);
       const keybindings = yield* Keybindings.Keybindings;
       yield* keybindings.syncDefaultKeybindingsOnStartup;
       const persisted = yield* readKeybindingsConfig(keybindingsConfigPath);
-      assert.deepEqual(persisted.slice(-rules.length), rules);
+      const commands = new Set(rules.map((rule) => rule.command));
       assert.deepEqual(
-        persisted.filter((rule) => rule.command === "thread.mark-done"),
-        rules.filter((rule) => rule.command === "thread.mark-done"),
+        persisted.filter((rule) => commands.has(rule.command)),
+        rules,
       );
     }).pipe(Effect.provide(layerKeybindings())),
   );

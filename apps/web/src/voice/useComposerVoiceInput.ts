@@ -205,8 +205,9 @@ export function useComposerVoiceInput(options: ComposerVoiceInputOptions) {
     }
   }, [runtime, state]);
 
+  const canRecord = availability.canReview || availability.canSend;
   const start = useStableCallback(() => {
-    if (!availability.canReview && !availability.canSend) return;
+    if (!canRecord) return;
     void controller.start();
   });
   const stop = useStableCallback(() => {
@@ -262,8 +263,7 @@ export function useComposerVoiceInput(options: ComposerVoiceInputOptions) {
   useHoldSpaceToTalk(options.holdSpaceTarget, {
     arm: () => {
       const { phase } = controller.currentState;
-      if (phase !== "idle" && phase !== "error") return null;
-      if (!availability.canReview && !availability.canSend) return null;
+      if (!canRecord || (phase !== "idle" && phase !== "error")) return null;
       const { readPrompt, readSelection } = runtime.read();
       return { text: readPrompt(), selection: readSelection() };
     },
