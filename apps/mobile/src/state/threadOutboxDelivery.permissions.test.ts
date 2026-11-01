@@ -40,7 +40,6 @@ const state = vi.hoisted(() => ({
     session: null,
   },
   config: {
-    shellThreadFamilies: false,
     providers: [{ instanceId: "codex", driver: "codex" }],
     environment: { capabilities: {} },
   },
@@ -211,7 +210,6 @@ beforeEach(() => {
   setOperateGrant("primary", true);
   setOperateGrant("secondary", false);
   state.draftText = "Keep this draft separate";
-  state.config.shellThreadFamilies = false;
   state.modelUnavailable.mockReset().mockReturnValue(false);
   state.familyMount.mockReset().mockReturnValue(() => {});
   appAtomRegistry.set(state.threadShells, [state.thread]);
@@ -381,7 +379,6 @@ describe("queued task operation access", () => {
 
   it("starts one delivery when mounting a thread family changes the rows mid-pass", async () => {
     setOperateGrant("secondary", true);
-    state.config.shellThreadFamilies = true;
     const subAgentThread = { ...state.thread, id: "sub-agent" };
     // A cached family merges its rows into the shell list as soon as it is mounted.
     state.familyMount.mockImplementationOnce(() => {

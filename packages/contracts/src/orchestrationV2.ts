@@ -3542,14 +3542,11 @@ export type OrchestrationV2GetThreadProjectionInput =
 export const OrchestrationV2SubscribeShellInput = Schema.Struct({
   afterSequence: Schema.optionalKey(NonNegativeInt),
   requestCompletionMarker: Schema.optionalKey(Schema.Boolean),
-  /**
-   * Snapshots leave out idle subagent children; read them with `getThreadFamily`. Send only to
-   * servers that advertise `shellThreadFamilies`.
-   */
+  /** Snapshots leave out idle subagent children; read them with `getThreadFamily`. */
   omitIdleSubagents: Schema.optionalKey(Schema.Boolean),
   /**
    * Snapshots leave out older done threads and count them in `olderDone`; read them with
-   * `getOlderDoneThreads`. Send only to servers that advertise `shellOlderDone`.
+   * `getOlderDoneThreads`.
    */
   omitOlderDone: Schema.optionalKey(Schema.Boolean),
 });
@@ -3581,7 +3578,6 @@ export type OrchestrationV2GetWorktreeThreadIdsInput =
  * The client's thread search. With `olderDoneBefore`, the result also carries the rows of the
  * best matching threads marked done before it, which shells that omit older done threads leave out:
  * title, branch, pull request and project matches (in `projectIds` when given), then message hits.
- * Send the extra keys only to servers that advertise `shellOlderDone`.
  */
 export const OrchestrationV2SearchThreadsInput = Schema.Struct({
   ...OrchestrationSearchThreadsInput.fields,

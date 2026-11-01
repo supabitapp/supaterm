@@ -1396,11 +1396,7 @@ export function createThreadOutboxDelivery(): {
       const shellStatus = shellStatuses.get(nextQueuedMessage.environmentId) ?? "empty";
       const serverConfig = serverConfigs.get(nextQueuedMessage.environmentId);
       let familyRead: ThreadFamilyRead | undefined;
-      if (
-        thread === undefined &&
-        creation === undefined &&
-        serverConfig?.shellThreadFamilies === true
-      ) {
+      if (thread === undefined && creation === undefined) {
         // The family keeps the row readable through dispatch once it loads; the current shell
         // generation's read decides whether the thread is gone.
         if (!familyMounts.has(nextQueuedMessage.messageId)) {

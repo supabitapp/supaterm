@@ -804,11 +804,7 @@ describe("environment shell synchronization", () => {
       } as unknown as WsRpcProtocolClient;
       const familySession: RpcSession.RpcSession = {
         ...session(client),
-        initialConfig: Effect.succeed({
-          shellResumeCompletionMarker: true,
-          shellThreadFamilies: true,
-          shellOlderDone: true,
-        } as never),
+        initialConfig: Effect.succeed({ shellResumeCompletionMarker: true } as never),
       };
       const supervisor = EnvironmentSupervisor.EnvironmentSupervisor.of({
         target: TARGET,

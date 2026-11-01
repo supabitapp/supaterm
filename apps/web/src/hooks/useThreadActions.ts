@@ -401,7 +401,7 @@ export function useThreadActions() {
     );
     // A shell that leaves idle subagent children out cannot prove nobody else uses the worktree,
     // so the server's list decides. A failed read keeps the worktree.
-    if (orphanedWorktreePath !== null && environmentConfig?.shellThreadFamilies === true) {
+    if (orphanedWorktreePath !== null) {
       const occupants = await loadWorktreeThreadIds({
         environmentId: threadRef.environmentId,
         input: { worktreePath: orphanedWorktreePath },

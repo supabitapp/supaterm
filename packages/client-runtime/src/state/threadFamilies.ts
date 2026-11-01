@@ -18,7 +18,6 @@ import { arrayElementsEqual } from "./entities.ts";
 import { createEnvironmentQueryAtomFamily, selectEnvironmentQueryData } from "./runtime.ts";
 import type { EnvironmentShellState } from "./shell.ts";
 
-const EMPTY_FAMILY: OrchestrationV2ThreadFamily = { snapshotSequence: 0, threads: [] };
 const EMPTY_READS: ReadonlyArray<OrchestrationV2ThreadFamily> = [];
 
 interface MountedRows {
@@ -103,10 +102,6 @@ export function createThreadFamilyAtoms<R, ER, E>(
           message: "The environment has no session.",
         });
       }
-      // A config failure fails the read: an empty family would read as "the thread is gone".
-      const config = yield* session.value.initialConfig;
-      // Servers without families send every child in the shell, so absent means gone.
-      if (config.shellThreadFamilies !== true) return EMPTY_FAMILY;
       return yield* request(ORCHESTRATION_V2_WS_METHODS.getThreadFamily, {
         threadId: input.threadId,
       });
