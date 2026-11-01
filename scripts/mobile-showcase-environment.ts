@@ -486,39 +486,29 @@ function seedDatabase(
         }),
       });
 
-      const earlier = "earlier" in thread ? thread.earlier : [];
-      const transcript = [
-        ...earlier.flatMap((exchange, index) => [
+      const exchanges = [
+        ...("earlier" in thread ? thread.earlier : []),
+        { request: thread.request, response: thread.response },
+      ];
+      const transcript = exchanges.flatMap((exchange, index) => {
+        const minutesAgo = thread.minutesAgo + (exchanges.length - 1 - index) * 30;
+        const request = {
+          id: `${thread.id}-request-${index}`,
+          role: "user" as const,
+          text: exchange.request,
+          at: minutesBefore(now, minutesAgo + 5),
+        };
+        if (exchange.response === null) return [request];
+        return [
+          request,
           {
-            id: `${thread.id}-earlier-${index}-request`,
-            role: "user" as const,
-            text: exchange.request,
-            at: minutesBefore(now, thread.minutesAgo + 40 - index * 10),
-          },
-          {
-            id: `${thread.id}-earlier-${index}-answer`,
+            id: `${thread.id}-answer-${index}`,
             role: "assistant" as const,
             text: exchange.response,
-            at: minutesBefore(now, thread.minutesAgo + 37 - index * 10),
+            at: minutesBefore(now, minutesAgo),
           },
-        ]),
-        {
-          id: `${thread.id}-request`,
-          role: "user" as const,
-          text: thread.request,
-          at: minutesBefore(now, thread.minutesAgo + 5),
-        },
-        ...(thread.response === null
-          ? []
-          : [
-              {
-                id: `${thread.id}-answer`,
-                role: "assistant" as const,
-                text: thread.response,
-                at: updatedAt,
-              },
-            ]),
-      ];
+        ];
+      });
       for (const [index, message] of transcript.entries()) {
         insert("orchestration_v2_projection_messages", {
           message_id: message.id,

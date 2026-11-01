@@ -275,8 +275,7 @@ async function composeCaptureSet(
   );
   const outputDirectory = NodePath.resolve(REPO_ROOT, config.outputDirectory);
   const destination = showcaseCaptureDirectory(outputDirectory, capture);
-  await NodeFSP.rm(destination, { recursive: true, force: true });
-  await NodeFSP.mkdir(destination, { recursive: true });
+  const slides = [];
   for (const scene of capture.scenes) {
     const png = await NodeFSP.readFile(NodePath.join(source, `${scene}.png`));
     const slide = await renderShowcaseSlide(browser, {
@@ -288,7 +287,12 @@ async function composeCaptureSet(
       index: capture.device.scenes.indexOf(scene),
       capture: { png, ...readPngDimensions(png) },
     });
-    await NodeFSP.writeFile(NodePath.join(destination, `${scene}.png`), normalizeStorePng(slide));
+    slides.push({ scene, png: normalizeStorePng(slide) });
+  }
+  await NodeFSP.rm(destination, { recursive: true, force: true });
+  await NodeFSP.mkdir(destination, { recursive: true });
+  for (const { scene, png } of slides) {
+    await NodeFSP.writeFile(NodePath.join(destination, `${scene}.png`), png);
   }
   await validateCaptureSet(capture, outputDirectory);
 }
