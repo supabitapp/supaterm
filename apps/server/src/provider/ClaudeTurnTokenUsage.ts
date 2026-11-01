@@ -15,10 +15,12 @@ const BILLED_USAGE_FIELDS = [
 ] as const;
 
 function addKnownCount(finalCount: unknown, earlierCounts: ReadonlyArray<unknown>): unknown {
-  const counts = [finalCount, ...earlierCounts]
-    .map(finiteNonNegativeInteger)
-    .filter((count) => count !== undefined);
-  return counts.length === 0 ? finalCount : counts.reduce((sum, count) => sum + count, 0);
+  let total: number | undefined;
+  for (const count of [finalCount, ...earlierCounts]) {
+    const known = finiteNonNegativeInteger(count);
+    if (known !== undefined) total = (total ?? 0) + known;
+  }
+  return total ?? finalCount;
 }
 
 // Steering aborts the current segment; each SDK result reports only that segment's usage.
