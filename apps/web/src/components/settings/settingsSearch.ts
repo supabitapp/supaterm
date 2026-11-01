@@ -405,12 +405,6 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["enter return command ctrl multiline prompt new line composer"],
   },
   {
-    id: "voice-language",
-    title: "Voice language",
-    to: "/settings/chat",
-    searchTerms: ["voice dictation microphone speech transcribe language locale spoken"],
-  },
-  {
     id: "follow-up-behavior",
     title: "Follow-up behavior",
     to: "/settings/chat",
@@ -522,6 +516,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     to: "/settings/threads",
     scope: "environment-defaults",
     searchTerms: ["voice dictation microphone speech transcribe provider account login"],
+  },
+  {
+    id: "voice-language",
+    title: "Voice language",
+    to: "/settings/threads",
+    searchTerms: ["voice dictation microphone speech transcribe language locale spoken"],
   },
   {
     id: "next-prompt-suggestions",
@@ -1109,6 +1109,7 @@ const RENAMED_SETTINGS_PATHS: Readonly<Record<string, SettingsPath>> = {
 const SPLIT_SETTINGS_PATHS: ReadonlySet<string> = new Set([
   "/settings/general",
   "/settings/appearance",
+  "/settings/chat",
   "/settings/source-control",
   "/settings/connections",
   ...Object.keys(RENAMED_SETTINGS_PATHS),

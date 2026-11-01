@@ -241,9 +241,10 @@ recording that fails isn't retried with another account. Choose a provider to pi
 account: if it can't transcribe, the microphone says why and Supaterm never switches. A Claude instance that runs on an API key, a gateway's `ANTHROPIC_BASE_URL` and
 token, or Amazon Bedrock can't transcribe; choose Codex, or add a Claude instance with its own
 [config directory](./providers-claude.md#separate-accounts-or-configurations) signed in to
-your subscription. Choose the language you speak under **Settings → Chat → Voice
-language**; it follows your system language by default. On iPhone and Android, voice input
-always uses your phone's language.
+your subscription. Choose the language you speak under **Settings → Threads → Voice
+language**; it follows your system language by default and lists only the languages the chosen
+provider transcribes, which for Codex is many more than for Claude. On iPhone and Android,
+voice input always uses your phone's language.
 
 Recording in a browser needs HTTPS or `localhost`. A remote browser on a plain `http://`
 address can't use the microphone. The first time you record, allow microphone access; on
