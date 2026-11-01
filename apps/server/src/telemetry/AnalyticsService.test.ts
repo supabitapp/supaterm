@@ -319,6 +319,27 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
     }),
   );
 
+  it.effect("sends an owner again after an opt-out discarded its event", () =>
+    Effect.gen(function* () {
+      const owner = { source: "openai" as const, ownerId: "b".repeat(64) };
+      const batches = yield* sendFor(
+        1,
+        respondWithStatus(204),
+        Effect.gen(function* () {
+          const settings = yield* ServerSettings.ServerSettingsService;
+          const analytics = yield* AnalyticsService.AnalyticsService;
+          yield* analytics.recordOwners([owner], "client");
+          yield* settings.updateSettings({ telemetryEnabled: false }).pipe(Effect.orDie);
+          yield* TestClock.adjust("1 second");
+          yield* settings.updateSettings({ telemetryEnabled: true }).pipe(Effect.orDie);
+          yield* analytics.recordOwners([owner], "client");
+        }),
+        { variable: null },
+      );
+      assert.equal(batches.flat().filter((event) => event.properties.observedBy).length, 1);
+    }),
+  );
+
   it.effect("drops a batch the endpoint rejects without sending it again", () =>
     Effect.gen(function* () {
       const batches = yield* sendFor(10, respondWithStatus(400));

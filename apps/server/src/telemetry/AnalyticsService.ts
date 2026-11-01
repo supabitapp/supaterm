@@ -222,9 +222,14 @@ export const make = Effect.gen(function* () {
     );
   });
 
-  const discardPending = Effect.andThen(
-    Ref.set(bufferRef, []),
-    Ref.set(deliveryRef, IDLE_DELIVERY),
+  // Discarded owner events must go out again after opting back in.
+  const discardPending = Effect.all(
+    [
+      Ref.set(bufferRef, []),
+      Ref.set(deliveryRef, IDLE_DELIVERY),
+      Ref.set(recordedOwnersRef, { server: new Set(), client: new Set() }),
+    ],
+    { discard: true },
   );
 
   const takeBatch = Ref.modify(bufferRef, (current) => {
