@@ -8,6 +8,9 @@ const SWIPE_TRIGGER_DISTANCE = 120;
 // Movement needed before the gesture picks an axis; first events are often diagonal.
 const SWIPE_AXIS_LOCK_DISTANCE = 8;
 const MOMENTUM_SAMPLE_SIZE = 5;
+// The terminal and browser previews take horizontal wheel input themselves.
+const SWIPE_EXCLUDED =
+  '[role="dialog"], [data-terminal-owner], [data-preview-viewport], [data-server-browser-surface]';
 
 type SwipeBounds = { left: number; top: number; width: number; height: number };
 type SwipeGesture =
@@ -57,7 +60,7 @@ function lockSwipeAxis(
 ): Exclude<SwipeGesture, { kind: "pending" }> {
   const { path, sumX, sumY } = pending;
   if (Math.abs(sumX) <= Math.abs(sumY)) return { kind: "ignored" };
-  if (path.some((node) => node instanceof Element && node.matches('[role="dialog"]'))) {
+  if (path.some((node) => node instanceof Element && node.matches(SWIPE_EXCLUDED))) {
     return { kind: "ignored" };
   }
   if (canScrollHorizontally(path, sumX)) return { kind: "ignored" };
