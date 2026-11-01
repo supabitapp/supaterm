@@ -297,7 +297,10 @@ describe("GhosttyTerminalCore snapshots", () => {
   });
 
   it("clears paste readiness when a capped replay discards a disable sequence", async () => {
-    const core = await createCore();
+    const core = Object.assign(await createCore(), {
+      getSelection: () => "",
+      getSelectionCellCount: () => 0,
+    });
     let state = createSession("\x1b[?2004hprompt$ ");
     let cursor = synchronizeTerminalOutput(core, state, INITIAL_TERMINAL_OUTPUT_CURSOR);
     expect(core.isBracketedPasteMode()).toBe(true);
