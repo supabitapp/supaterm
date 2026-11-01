@@ -384,6 +384,19 @@ describe("deriveMessagesTimelineRows", () => {
       expect(rows.some((row) => row.kind === "event")).toBe(false);
       expect(workRows[0]).not.toMatchObject({ expanded: true });
       expect(workRows[0]).not.toMatchObject({ isExpandedToolGroup: true });
+      const approvalWaitRows = [entries, entries.slice(1, 2)].flatMap((timelineEntries) =>
+        deriveMessagesTimelineRows({
+          timelineEntries,
+          awaitingApproval: true,
+          isWorking: status === "waiting",
+          runningRunId: fixture.runId,
+          activeTurnStartedAt: fixture.time(0),
+          turnDiffSummaries: [],
+          supportsConversationRollback: false,
+        }),
+      );
+      expect(approvalWaitRows.some((row) => row.kind === "thinking")).toBe(false);
+      expect(approvalWaitRows.some((row) => row.kind === "work-live" && row.active)).toBe(false);
     },
   );
 

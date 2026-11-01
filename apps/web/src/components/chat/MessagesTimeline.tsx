@@ -695,6 +695,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     threadStartCheckpointReady,
     availableRevertTurnCounts,
     worktreeSetup,
+    awaitingApproval: awaitingUser === "approval",
   });
   const rows = useStableRows(rawRows, listIdentityKey);
   // Run status/timestamps churn on every stream event; the shared row context
@@ -1111,6 +1112,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     isRevertingCheckpoint,
     backgroundWorktreeSetup,
     awaitingUser: awaitingUser !== null,
+    awaitingApproval: awaitingUser === "approval",
     isPreparingWorktree,
     latestRunId: latestRun?.runId ?? null,
   };
