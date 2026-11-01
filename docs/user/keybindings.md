@@ -164,6 +164,9 @@ a shortcut.
 including on macOS. The default shortcut skips terminals, previews, and selected
 text so copying keeps working. Change it in **Settings → Keybindings**.
 
+`thread.sideChat` opens an empty side chat beside the focused thread. It has no
+default shortcut; assign one in **Settings → Keybindings**.
+
 `thread.undo` (`mod+z` by default) reverses the actions shown in the notice at the
 bottom of the sidebar, such as unpin, mark as Done, snooze, archive, or discarding a
 draft. Consecutive

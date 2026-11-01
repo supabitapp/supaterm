@@ -347,23 +347,33 @@ most recent one.
 A side chat lets you ask a question about a thread without adding to it. It starts
 with what the thread knows, and the thread keeps working while you ask.
 
-On web and desktop, start a message with `/side` or `/btw`, then your question. The
-side chat opens in a pane beside the thread, or in place of it when the window has
-no room for another pane. A bare `/side` opens an empty side chat; nothing is
-created until you send its first message. Side chats do not show in the sidebar.
-Find one again under **Side chats** in thread details.
+On web and desktop, start a message with `/side` or `/btw`, then your question, or
+choose **Start side chat** in the command palette. The side chat opens in a pane
+beside the thread, or in place of it when the window has no room for another pane.
+A bare `/side` opens an empty side chat; nothing is created until you send its first
+message. Side chats do not show in the sidebar or in search. Find one again under
+**Side chats** in thread details.
 
-A side chat works in the same folder as the thread. It asks before it edits files
-or runs commands.
+On mobile, type `/side` or `/btw` in the composer, or choose **Start side chat** in
+the command palette. A thread lists its side chats above the composer; tap one to
+open it.
 
-To use what you learned, choose **Bring back**. The thread gets the side chat with
-your next message there. Bring back is available while the thread is idle.
+A side chat works in the same folder as the thread, so it always asks before it
+edits files or runs commands, and its agent cannot start or message other threads.
+It cannot be forked.
 
-Side chats stay until you delete them. Choose **Delete** at the top of the side
-chat. Deleting a thread also deletes its side chats.
+The side chat's actions sit at its top on web and desktop, and above its composer on
+mobile:
 
-On mobile, a thread lists its side chats above the composer. Tap one to open it and
-answer its questions.
+- **Bring back** gives the thread the side chat with your next message there. It is
+  available while the thread is idle.
+- **Promote** makes the side chat a full thread. It shows in the sidebar, can be
+  forked, can use any permission mode, and stays when you delete the thread it came
+  from.
+- **Delete** removes the side chat.
+
+Side chats stay until you delete or promote them. Deleting a thread also deletes its
+side chats; the confirmation says how many.
 
 ## Snooze until later
 
