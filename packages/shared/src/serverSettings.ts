@@ -393,17 +393,19 @@ export function applyServerSettingsPatch(
       ProviderInstanceId,
       ModelPreferences["providerModelPreferences"][ProviderInstanceId]
     > = { ...initialModelPreferences };
+    const preferencesOf = (provider: ProviderInstanceId) =>
+      (Object.hasOwn(edited, provider) ? edited[provider] : undefined) ?? {
+        hiddenModels: [],
+        modelOrder: [],
+      };
     for (const change of setModelsHidden ?? []) {
-      const preferences = edited[change.provider] ?? { hiddenModels: [], modelOrder: [] };
+      const preferences = preferencesOf(change.provider);
       const hiddenModels = preferences.hiddenModels.filter((model) => model !== change.model);
       if (change.hidden) hiddenModels.push(change.model);
       edited[change.provider] = { ...preferences, hiddenModels };
     }
     if (setProviderModelOrder !== undefined) {
-      const preferences = edited[setProviderModelOrder.provider] ?? {
-        hiddenModels: [],
-        modelOrder: [],
-      };
+      const preferences = preferencesOf(setProviderModelOrder.provider);
       edited[setProviderModelOrder.provider] = {
         ...preferences,
         modelOrder: [...setProviderModelOrder.modelOrder],
