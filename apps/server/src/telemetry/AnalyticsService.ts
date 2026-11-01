@@ -13,6 +13,7 @@ import * as Random from "effect/Random";
 import * as Ref from "effect/Ref";
 import * as Result from "effect/Result";
 import * as Semaphore from "effect/Semaphore";
+import * as Stream from "effect/Stream";
 import * as HttpClient from "effect/http/HttpClient";
 import * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as HttpClientResponse from "effect/http/HttpClientResponse";
@@ -219,6 +220,16 @@ export const make = Effect.gen(function* () {
     );
   });
 
+  const discardPending = Effect.andThen(
+    Ref.set(bufferRef, []),
+    Ref.update(deliveryRef, (delivery) => ({
+      ...delivery,
+      failedBatch: [],
+      batchAttempts: 0,
+      firstFailedAt: 0,
+    })),
+  );
+
   const takeBatch = Ref.modify(bufferRef, (current) => {
     const nextBatch = current.slice(0, telemetryConfig.flushBatchSize);
     return [nextBatch, current.slice(nextBatch.length)] as const;
@@ -228,13 +239,7 @@ export const make = Effect.gen(function* () {
     while (true) {
       // Checked per batch so nothing recorded before an opt-out is sent after it.
       if (!(yield* isEnabled)) {
-        yield* Ref.set(bufferRef, []);
-        yield* Ref.update(deliveryRef, (delivery) => ({
-          ...delivery,
-          failedBatch: [],
-          batchAttempts: 0,
-          firstFailedAt: 0,
-        }));
+        yield* discardPending;
         return;
       }
       const delivery = yield* Ref.get(deliveryRef);
@@ -344,6 +349,17 @@ export const make = Effect.gen(function* () {
       { discard: true },
     ),
   );
+
+  // Discard on the change itself, so turning the setting back on before a flush cannot send
+  // events recorded before the opt-out. The lock waits out a send already in flight.
+  if (Option.isNone(telemetryConfig.enabled)) {
+    const settingsChanges = yield* serverSettings.subscribeChanges;
+    yield* settingsChanges.pipe(
+      Stream.filter((settings) => !settings.telemetryEnabled),
+      Stream.runForEach(() => flushLock.withPermit(discardPending)),
+      Effect.forkScoped,
+    );
+  }
 
   yield* Effect.forever(Effect.sleep(FLUSH_INTERVAL_MS).pipe(Effect.andThen(flushWhenDue)), {
     disableYield: true,

@@ -1808,17 +1808,22 @@ function ProductUsageDataRow() {
   const { connectedEnvironments } = useSettingsScope();
   const control = resolveProductUsageDataControl(connectedEnvironments);
   if (control === null) return null;
-  const locked = control.lockedValue !== undefined;
+  const { forced } = control;
   return (
     <SettingsRow
       serverScoped
       {...searchableSetting("product-usage-data")}
-      settingKeys={locked ? [] : ["telemetryEnabled"]}
+      settingKeys={forced ? [] : ["telemetryEnabled"]}
       description="Send product usage events from this environment. They never include prompts, responses, or file contents."
       status={control.status}
       control={
-        locked ? (
-          <Switch checked={control.lockedValue} disabled aria-label="Product usage data" />
+        forced ? (
+          <Switch
+            checked={forced.value === true}
+            mixed={forced.value === null}
+            disabled
+            aria-label="Product usage data"
+          />
         ) : (
           <ScopedSwitch
             settingKeys={["telemetryEnabled"]}

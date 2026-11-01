@@ -5,7 +5,9 @@ import * as Clock from "effect/Clock";
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as PubSub from "effect/PubSub";
 import * as Schema from "effect/Schema";
+import * as Stream from "effect/Stream";
 import * as TestClock from "effect/testing/TestClock";
 import * as HttpClient from "effect/http/HttpClient";
 import * as HttpClientError from "effect/http/HttpClientError";
@@ -16,6 +18,7 @@ import * as HttpServerRequest from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 
+import type { ServerSettings as ServerSettingsValue } from "@supaterm/contracts";
 import * as ServerConfig from "../config.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import { getTelemetryIdentity } from "./Identify.ts";
@@ -101,6 +104,26 @@ const failingFor = (minutes: number) => {
   return { respond, answers };
 };
 
+/** `layerTest` settings whose `subscribeChanges` sees updates, as the real service's does. */
+const layerSettingsWithChanges = (setting: boolean | undefined) =>
+  Layer.effect(
+    ServerSettings.ServerSettingsService,
+    Effect.gen(function* () {
+      const settings = yield* ServerSettings.ServerSettingsService;
+      const changes = yield* PubSub.unbounded<ServerSettingsValue>();
+      return ServerSettings.ServerSettingsService.of({
+        ...settings,
+        updateSettings: (patch) =>
+          settings.updateSettings(patch).pipe(Effect.tap((next) => PubSub.publish(changes, next))),
+        subscribeChanges: Effect.map(PubSub.subscribe(changes), Stream.fromSubscription),
+      });
+    }),
+  ).pipe(
+    Layer.provide(
+      ServerSettings.layerTest(setting === undefined ? {} : { telemetryEnabled: setting }),
+    ),
+  );
+
 const recordTwentyEvents = Effect.gen(function* () {
   const analytics = yield* AnalyticsService.AnalyticsService;
   for (let index = 0; index < 20; index += 1) {
@@ -144,11 +167,7 @@ const sendFor = (
       Layer.provideMerge(
         ServerConfig.ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-telemetry-retry-" }),
       ),
-      Layer.provideMerge(
-        ServerSettings.layerTest(
-          options.setting === undefined ? {} : { telemetryEnabled: options.setting },
-        ),
-      ),
+      Layer.provideMerge(layerSettingsWithChanges(options.setting)),
       Layer.provide(
         ConfigProvider.layer(
           ConfigProvider.fromUnknown({
@@ -261,6 +280,23 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
         { variable: null },
       );
       assert.equal(batches.length, 0);
+    }),
+  );
+
+  it.effect("turning the setting off and on before a flush still discards earlier events", () =>
+    Effect.gen(function* () {
+      const batches = yield* sendFor(
+        1,
+        respondWithStatus(204),
+        Effect.gen(function* () {
+          yield* recordTwentyEvents;
+          const settings = yield* ServerSettings.ServerSettingsService;
+          yield* settings.updateSettings({ telemetryEnabled: false }).pipe(Effect.orDie);
+          yield* settings.updateSettings({ telemetryEnabled: true }).pipe(Effect.orDie);
+        }),
+        { variable: null },
+      );
+      assert.isFalse(batches.flat().some((event) => event.event === "test.retry"));
     }),
   );
 

@@ -552,8 +552,8 @@ function ProductUsageDataSection(props: {
             ? "Environment-wide setting. Select All projects to change it."
             : description
         }
-        value={control.lockedValue ?? props.value}
-        disabled={control.lockedValue !== undefined || props.disabled}
+        value={control.forced ? control.forced.value : props.value}
+        disabled={control.forced !== null || props.disabled}
         onValueChange={props.onValueChange}
       />
     </SettingsSection>

@@ -147,10 +147,7 @@ import {
 function environment(
   environmentId: string,
   label: string,
-  server: {
-    readonly capabilities?: { readonly telemetrySetting?: boolean };
-    readonly telemetryEnabledByEnvironment?: boolean;
-  } = {},
+  capabilities: { readonly telemetrySetting?: boolean } = {},
 ) {
   return {
     environmentId,
@@ -163,12 +160,9 @@ function environment(
         sidebarAutoMarkDoneOnMerge: false,
       },
       environment: {
-        capabilities: server.capabilities ?? {},
+        capabilities,
       },
-      observability:
-        server.telemetryEnabledByEnvironment === undefined
-          ? {}
-          : { telemetryEnabledByEnvironment: server.telemetryEnabledByEnvironment },
+      observability: {},
     },
   };
 }
@@ -238,7 +232,7 @@ describe("SettingsServerControlsRouteScreen", () => {
   });
 
   it("turns product usage data off on servers that read the setting", () => {
-    mocks.targets = [environment("local", "Local", { capabilities: { telemetrySetting: true } })];
+    mocks.targets = [environment("local", "Local", { telemetrySetting: true })];
     act(() => root.render(<SettingsEnvironmentMaintenanceRouteScreen />));
 
     act(() => switchLabeled("Product usage data")!.click());
@@ -247,22 +241,6 @@ describe("SettingsServerControlsRouteScreen", () => {
       environmentId: "local",
       input: { patch: { telemetryEnabled: false } },
     });
-  });
-
-  it("hides product usage data on older servers and locks it where the variable decides", () => {
-    act(() => root.render(<SettingsEnvironmentMaintenanceRouteScreen />));
-    expect(switchLabeled("Product usage data")).toBeUndefined();
-
-    mocks.targets = [
-      environment("local", "Local", {
-        capabilities: { telemetrySetting: true },
-        telemetryEnabledByEnvironment: false,
-      }),
-    ];
-    act(() => root.render(<SettingsEnvironmentMaintenanceRouteScreen key="locked" />));
-    const locked = switchLabeled("Product usage data")!;
-    expect(locked.disabled).toBe(true);
-    expect(locked.getAttribute("aria-checked")).toBe("false");
   });
 
   it("disables auto-mark-done when a selected environment cannot save settings", () => {

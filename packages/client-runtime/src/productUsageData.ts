@@ -22,7 +22,8 @@ export function resolveProductUsageDataControl(targets: readonly ProductUsageDat
     const value = target.serverConfig?.observability.telemetryEnabledByEnvironment;
     return value === undefined ? [] : [{ label: target.label, value }];
   });
-  const lockedEverywhere = targets.length > 0 && overrides.length === targets.length;
+  const forcedValues = new Set(overrides.map(({ value }) => value));
+  const [onlyForcedValue] = forcedValues;
   return {
     status:
       overrides.length === 0
@@ -30,7 +31,10 @@ export function resolveProductUsageDataControl(targets: readonly ProductUsageDat
         : overrides
             .map(({ label, value }) => `Set by SUPATERM_TELEMETRY_ENABLED=${value} on ${label}.`)
             .join(" "),
-    // Where the variable decides everywhere, persisted values must not make the switch look mixed.
-    lockedValue: lockedEverywhere ? overrides.every(({ value }) => value) : undefined,
+    // Where the variable decides on every target, the saved setting does not decide what shows.
+    forced:
+      targets.length > 0 && overrides.length === targets.length
+        ? { value: forcedValues.size === 1 ? (onlyForcedValue ?? null) : null }
+        : null,
   };
 }
