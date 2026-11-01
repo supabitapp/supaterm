@@ -18,6 +18,7 @@ import * as ProviderLatestVersions from "@supaterm/provider-core/server/Provider
 import * as McpProviderSessions from "@supaterm/provider-core/server/McpProviderSessions";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as DateTime from "effect/DateTime";
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
