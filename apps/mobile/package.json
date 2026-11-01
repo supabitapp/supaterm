@@ -47,7 +47,7 @@
     "generate:highlights": "node scripts/generate-highlights.mts",
     "test": "vp test run --project unit --project react",
     "typecheck": "tsc --noEmit",
-    "sync:chip-icons": "node scripts/sync-context-chip-icons.mjs"
+    "sync:ui-icons": "node scripts/sync-ui-icons.mjs"
   },
   "dependencies": {
     "@effect/atom-react": "catalog:",

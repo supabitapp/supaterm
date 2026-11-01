@@ -89,9 +89,15 @@ import {
 import type { TimelineEntry } from "../../session-logic";
 import type { CodexArtifactTemplate } from "@supaterm/shared/codexArtifactTemplates";
 import type { ChatFileAttachment, TurnDiffSummary } from "../../types";
-import { ArrowRightIcon, BotIcon, CircleAlertIcon, ShrinkIcon } from "@supaterm/icons";
-import { ChevronDown, ChevronRight } from "@supaterm/icons/nodes";
-import { MorphIcon } from "~/components/MorphIcon";
+import {
+  ArrowRightIcon,
+  BotIcon,
+  CircleAlertIcon,
+  ShrinkIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+} from "@supaterm/icons";
+
 import type { ExpandedImagePreview } from "./ExpandedImagePreview";
 import { ExpandedPreviewHostContext } from "./ExpandedPreviewDialog";
 import {
@@ -1730,6 +1736,7 @@ function TurnFoldTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "turn-
     ctx.onToggleTurnFold(row.runId),
   );
 
+  const Icon = row.expanded ? ChevronDownIcon : ChevronRightIcon;
   return (
     <div className="group/timeline-row border-b border-border/60 pb-2 pe-0.5 pt-1">
       <div className="relative flex items-center gap-1">
@@ -1744,7 +1751,7 @@ function TurnFoldTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "turn-
             {row.label}
             {error ? ` · ${error}` : ""}
           </span>
-          <MorphIcon className="size-3.5" icon={row.expanded ? ChevronDown : ChevronRight} />
+          <Icon className="size-3.5" />
         </button>
         <TimelineRowTimestamp
           createdAt={row.createdAt}
@@ -1763,6 +1770,7 @@ function AttemptFoldTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "at
     ctx.onToggleAttemptFold(row.attemptId),
   );
 
+  const Icon = row.expanded ? ChevronDownIcon : ChevronRightIcon;
   return (
     <div>
       <button
@@ -1773,10 +1781,7 @@ function AttemptFoldTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "at
         aria-busy={loading}
         className="flex w-full cursor-pointer select-none items-center gap-2 rounded-md border border-border/60 bg-muted/20 px-2.5 py-2 text-left transition-colors hover:bg-muted/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70"
       >
-        <MorphIcon
-          className="size-3.5 shrink-0 text-muted-foreground"
-          icon={row.expanded ? ChevronDown : ChevronRight}
-        />
+        <Icon className="size-3.5 shrink-0 text-muted-foreground" />
         <span className="text-xs font-medium text-foreground/80">
           {row.label}
           {error ? ` · ${error}` : ""}

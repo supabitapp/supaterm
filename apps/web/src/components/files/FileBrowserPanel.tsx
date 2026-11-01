@@ -1,3 +1,4 @@
+import { ChevronsDownUpIcon, ChevronsUpDownIcon } from "@supaterm/icons";
 import { RefreshIcon } from "~/components/ui/refresh-icon";
 import type {
   ContextMenuItem as TreeContextMenuItem,
@@ -9,12 +10,11 @@ import { settlePromise } from "@supaterm/client-runtime/state/runtime";
 import { serializeComposerFileLink } from "@supaterm/shared/composerTrigger";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import * as Cause from "effect/Cause";
-import { ChevronsDownUp, ChevronsUpDown } from "@supaterm/icons/nodes";
+
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "~/components/ui/button";
 import { InputGroup, InputGroupInput } from "~/components/ui/input-group";
-import { MorphIcon } from "~/components/MorphIcon";
 import { toastManager } from "~/components/ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 import { useComposerHandleContext } from "~/composerHandleContext";
@@ -475,6 +475,7 @@ export default function FileBrowserPanel({
     });
   }, [entryKinds, model, selectedPath, selectedPathRevealId]);
 
+  const Icon = allDirectoriesExpanded ? ChevronsDownUpIcon : ChevronsUpDownIcon;
   return (
     <div
       className="flex min-h-0 flex-1 flex-col bg-background"
@@ -516,10 +517,7 @@ export default function FileBrowserPanel({
                 />
               }
             >
-              <MorphIcon
-                className="size-3.5"
-                icon={allDirectoriesExpanded ? ChevronsDownUp : ChevronsUpDown}
-              />
+              <Icon className="size-3.5" />
             </TooltipTrigger>
             <TooltipPopup>
               {expandAll || allDirectoriesExpanded ? "Collapse all folders" : "Expand all folders"}

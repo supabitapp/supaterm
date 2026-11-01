@@ -156,7 +156,7 @@ export function ComposerVoiceSession(props: {
             disabled={phase !== "recording"}
             onClick={voice.stop}
           >
-            <SquareIcon aria-hidden className="size-3 fill-current" />
+            <SquareIcon weight="fill" aria-hidden className="size-3" />
           </VoicePillButton>
         ) : null}
         {capturing ? (

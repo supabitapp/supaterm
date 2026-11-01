@@ -31,7 +31,7 @@ import {
   type SpeedToggleLevel,
 } from "@supaterm/client-runtime/provider-speed-toggle";
 import { memo } from "react";
-import { BrainIcon, ZapIcon } from "@supaterm/icons";
+import { BrainIcon, ZapIcon, ZapFilledIcon } from "@supaterm/icons";
 import { UltrafastIcon } from "../Icons";
 import {
   Menu,
@@ -596,6 +596,7 @@ export const TraitsPicker = memo(function TraitsPicker({
   }
 
   const speedOn = speedToggle !== null && speedToggle.level !== "off";
+  const speedIcon = speedOn ? ZapFilledIcon : ZapIcon;
   const speedToggleControl = speedToggle ? (
     <Tooltip>
       <TooltipTrigger
@@ -622,9 +623,9 @@ export const TraitsPicker = memo(function TraitsPicker({
         }
       >
         <ComposerControlIcon
-          icon={speedToggle.level === "ultrafast" ? UltrafastIcon : ZapIcon}
+          icon={speedToggle.level === "ultrafast" ? UltrafastIcon : speedIcon}
           size={size}
-          className={speedOn ? "fill-current text-fast-mode" : undefined}
+          className={speedOn ? "text-fast-mode" : undefined}
         />
       </TooltipTrigger>
       <TooltipPopup side="top">

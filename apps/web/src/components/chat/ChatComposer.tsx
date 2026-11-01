@@ -3834,7 +3834,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   }}
                 >
                   {showResumeAction ? (
-                    <PlayIcon className="size-4 fill-current" aria-hidden="true" />
+                    <PlayIcon weight="fill" className="size-4" aria-hidden="true" />
                   ) : (
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                       <path

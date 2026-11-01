@@ -16,13 +16,15 @@ import {
   InfoIcon,
   TriangleAlertIcon,
   XIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  CopyIcon,
 } from "@supaterm/icons";
-import { Check, ChevronDown, ChevronUp, Copy } from "@supaterm/icons/nodes";
 
 import { cn } from "~/lib/utils";
 import { POPUP_MOTION_CLASS } from "~/components/ui/popup-styles";
 import { Button, buttonVariants } from "~/components/ui/button";
-import { MorphIcon } from "~/components/MorphIcon";
 import { useComposerDraftStore } from "~/composerDraftStore";
 import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
 import {
@@ -147,6 +149,7 @@ function CopyErrorButton({ text }: { text: string }) {
   const { copyToClipboard, isCopied } = useCopyToClipboard({ target: "error-message" });
   const label = isCopied ? "Copied error" : "Copy error";
 
+  const Icon = isCopied ? CheckIcon : CopyIcon;
   return (
     <Tooltip>
       <TooltipTrigger
@@ -160,10 +163,7 @@ function CopyErrorButton({ text }: { text: string }) {
           />
         }
       >
-        <MorphIcon
-          className={cn("size-3", isCopied && "text-success")}
-          icon={isCopied ? Check : Copy}
-        />
+        <Icon className={cn("size-3", isCopied && "text-success")} />
       </TooltipTrigger>
       <TooltipPopup side="top">{label}</TooltipPopup>
     </Tooltip>
@@ -184,6 +184,7 @@ function ToastExpandableSection({
   const expandLabel = labels.expand ?? "Show details";
   const collapseLabel = labels.collapse ?? "Hide details";
 
+  const Icon = open ? ChevronUpIcon : ChevronDownIcon;
   return (
     <div className="min-w-0">
       <button
@@ -192,11 +193,7 @@ function ToastExpandableSection({
         onClick={() => setOpen((prev) => !prev)}
         type="button"
       >
-        <MorphIcon
-          className="size-3.5 shrink-0 opacity-80"
-          icon={open ? ChevronUp : ChevronDown}
-          strokeWidth={2.25}
-        />
+        <Icon className="size-3.5 shrink-0 opacity-80" weight="bold" />
         {open ? collapseLabel : expandLabel}
       </button>
       {open ? <div className={toastExpandablePanelClassName}>{children}</div> : null}
@@ -246,6 +243,7 @@ function ToastDescriptionAndExpandable({
     }
   };
 
+  const Icon = open ? ChevronUpIcon : ChevronDownIcon;
   return (
     <>
       <Tooltip>
@@ -276,11 +274,10 @@ function ToastDescriptionAndExpandable({
               data-slot="toast-description"
             />
           </div>
-          <MorphIcon
+          <Icon
             aria-hidden
             className="size-3.5 h-lh shrink-0 text-muted-foreground opacity-80"
-            icon={open ? ChevronUp : ChevronDown}
-            strokeWidth={2.25}
+            weight="bold"
           />
         </TooltipTrigger>
         <TooltipPopup side="top">{open ? collapseLabel : expandLabel}</TooltipPopup>
@@ -693,7 +690,7 @@ function Toasts({ position }: { position: ToastPosition }) {
                   }
                   type="button"
                 >
-                  <XIcon className="size-3" strokeWidth={2.25} />
+                  <XIcon className="size-3" weight="bold" />
                 </button>
               </div>
               <Toast.Content
@@ -789,7 +786,7 @@ function AnchoredToasts() {
                           }
                           type="button"
                         >
-                          <XIcon className="size-3" strokeWidth={2.25} />
+                          <XIcon className="size-3" weight="bold" />
                         </button>
                       </div>
                       <Toast.Content

@@ -1,5 +1,5 @@
-import { PlayIcon, WrapTextIcon } from "@supaterm/icons";
-import { Check, Copy } from "@supaterm/icons/nodes";
+import { PlayIcon, WrapTextIcon, CheckIcon, CopyIcon } from "@supaterm/icons";
+
 import { toHtml } from "hast-util-to-html";
 import React, { use, useState, type ReactNode } from "react";
 
@@ -15,7 +15,6 @@ import {
   hasSpecificPierreIconForFileName,
   syntheticFileNameForLanguageId,
 } from "../../pierre-icons";
-import { MorphIcon } from "../MorphIcon";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { HighlightedCodeLines } from "./HighlightedCodeLines";
@@ -186,6 +185,7 @@ export function MarkdownCodeBlock({
     // Multi-line scripts are pasted, so their tabs stay literal instead of completing.
     !/[\p{Cc}\p{Cf}]/u.test(code.slice(0, -1).replace(lineCount > 1 ? /[\n\t]/g : /\n/g, ""));
 
+  const Icon = copied ? CheckIcon : CopyIcon;
   const copyButton = (
     <Tooltip>
       <TooltipTrigger
@@ -199,7 +199,7 @@ export function MarkdownCodeBlock({
           />
         }
       >
-        <MorphIcon className="size-3" icon={copied ? Check : Copy} />
+        <Icon className="size-3" />
       </TooltipTrigger>
       <TooltipPopup side="top">{copyLabel}</TooltipPopup>
     </Tooltip>

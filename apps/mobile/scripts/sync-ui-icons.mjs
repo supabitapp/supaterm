@@ -37,9 +37,8 @@ const exportName = (token) =>
     .map((part) => part[0].toUpperCase() + part.slice(1))
     .join("");
 
-// The skill chip draws the same glyph and stroke as SKILL_CHIP_ICON_SVG on web.
-function iconSvg(node, strokeWidth = 2) {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round">${icons.iconSvgElements(node)}</svg>`;
+function iconSvg(node) {
+  return `<svg viewBox="0 0 24 24" ${icons.ICON_SVG_ROOT_ATTRIBUTES}>${icons.iconSvgElements(node)}</svg>`;
 }
 
 async function renderIcon(token, svg) {
@@ -64,7 +63,7 @@ for (const token of chipIcons) {
   if (!node) throw new Error(`@supaterm/icons has no ${exportName(token)} for the ${token} chip`);
   await renderIcon(token, iconSvg(node));
 }
-await renderIcon("skill", iconSvg(icons.Box, 1.85));
+await renderIcon("skill", iconSvg(icons.Box));
 
 const tokens = [...chipIcons, "skill"].sort();
 const generatedSource = `import type { ImageSourcePropType } from "react-native";\n\nexport const CONTEXT_CHIP_ICON_SOURCES = {\n${tokens
@@ -74,3 +73,33 @@ const generatedSource = `import type { ImageSourcePropType } from "react-native"
   )
   .join("\n")}\n} as const satisfies Readonly<Record<string, ImageSourcePropType>>;\n`;
 NodeFS.writeFileSync(generatedModulePath, generatedSource);
+
+const nativeDirectory = NodePath.join(appDirectory, "assets/icons");
+for (const [name, node] of Object.entries({
+  compose: icons.SquarePen,
+  delete: icons.Trash,
+  "chevron-down": icons.ChevronDown,
+})) {
+  NodeFS.writeFileSync(
+    NodePath.join(nativeDirectory, `${name}.xml`),
+    `<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF" android:pathData="${node}" />
+</vector>
+`,
+  );
+}
+for (const [path, node] of [
+  ["assets/icons/file-diff", icons.Diff],
+  ["modules/supaterm-native-controls/ios/Resources/Icons/pull-request", icons.GitPullRequest],
+]) {
+  const svg = iconSvg(node).replaceAll("currentColor", "#000000");
+  for (const scale of [1, 2, 3]) {
+    const suffix = scale === 1 ? "" : `@${scale}x`;
+    await sharp(Buffer.from(svg))
+      .resize(24 * scale, 24 * scale)
+      .png()
+      .toFile(NodePath.join(appDirectory, `${path}${suffix}.png`));
+  }
+}

@@ -1,6 +1,7 @@
+import { ChevronsDownUpIcon, ChevronsUpDownIcon } from "@supaterm/icons";
 import type { GitStatusEntry } from "@pierre/trees";
 import { FileTree, useFileTree, useFileTreeSelector } from "@pierre/trees/react";
-import { ChevronsDownUp, ChevronsUpDown } from "@supaterm/icons/nodes";
+
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { useStableCallback } from "~/hooks/useStableCallback";
@@ -10,7 +11,6 @@ import { PIERRE_TREE_UNSAFE_CSS, pierreTreeStyle } from "~/pierre-tree-theme";
 
 import { areAllDirectoriesExpanded, setAllDirectoriesExpanded } from "../files/fileTreeExpansion";
 import { Button } from "../ui/button";
-import { MorphIcon } from "~/components/MorphIcon";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import {
   buildDiffFileTreeUpdates,
@@ -180,6 +180,7 @@ export function DiffFileTree({
     });
   }, [model, presented, revealRequestId, selectedPath]);
 
+  const Icon = allDirectoriesExpanded ? ChevronsDownUpIcon : ChevronsUpDownIcon;
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col bg-background", className)}>
       <div
@@ -206,10 +207,7 @@ export function DiffFileTree({
                 />
               }
             >
-              <MorphIcon
-                className="size-3.5"
-                icon={allDirectoriesExpanded ? ChevronsDownUp : ChevronsUpDown}
-              />
+              <Icon className="size-3.5" />
             </TooltipTrigger>
             <TooltipPopup>
               {allDirectoriesExpanded ? "Collapse all folders" : "Expand all folders"}

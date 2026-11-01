@@ -1,6 +1,5 @@
-import { Check, Copy } from "@supaterm/icons/nodes";
+import { CheckIcon, CopyIcon } from "@supaterm/icons";
 
-import { MorphIcon } from "~/components/MorphIcon";
 import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
 import { cn } from "~/lib/utils";
 
@@ -19,6 +18,7 @@ export function CommandBlock({
     timeout: 1500,
     target: "command",
   });
+  const Icon = isCopied ? CheckIcon : CopyIcon;
   return (
     <div
       className={cn(
@@ -37,7 +37,7 @@ export function CommandBlock({
         aria-label="Copy command"
         onClick={() => copyToClipboard(command, undefined)}
       >
-        <MorphIcon className="size-3.5" icon={isCopied ? Check : Copy} />
+        <Icon className="size-3.5" />
       </Button>
     </div>
   );

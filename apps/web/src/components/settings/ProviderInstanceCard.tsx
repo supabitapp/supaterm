@@ -11,8 +11,10 @@ import {
   TrashIcon,
   TriangleAlertIcon,
   XIcon,
+  LockIcon,
+  LockOpenIcon,
 } from "@supaterm/icons";
-import { Lock as LockGlyph, LockOpen } from "@supaterm/icons/nodes";
+
 import * as Arr from "effect/Array";
 import * as Result from "effect/Result";
 import { useState, type ReactElement, type ReactNode } from "react";
@@ -43,7 +45,6 @@ import { normalizeProviderAccentColor } from "../../providerInstances";
 import { InlineConfirmButton } from "../InlineConfirm";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { MorphIcon } from "~/components/MorphIcon";
 import { DraftInput } from "../ui/draft-input";
 import { SecretInput } from "./SecretInput";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
@@ -391,88 +392,88 @@ export function ProviderEnvironmentSection(props: {
     >
       {rows.length > 0 ? (
         <div className="mt-3 min-w-0 space-y-2 pb-2">
-          {rows.map((variable, index) => (
-            <div key={variable.id} className="flex min-w-0 flex-wrap items-center gap-1.5">
-              <DraftInput
-                size="sm"
-                font="mono"
-                className="w-full min-w-0 sm:w-44 sm:shrink-0"
-                value={variable.name}
-                onCommit={(name) => updateVariable(variable.id, { name: name.trim() })}
-                placeholder="VARIABLE_NAME"
-                spellCheck={false}
-                aria-label={`Environment variable name ${index + 1}`}
-              />
-              <span className="hidden text-xs text-muted-foreground sm:inline" aria-hidden>
-                =
-              </span>
-              {variable.sensitive ? (
-                <SecretInput
-                  size="sm"
-                  font="mono"
-                  className="min-w-0 flex-1"
-                  value={variable.valueRedacted ? "" : variable.value}
-                  onCommit={(value) => updateVariable(variable.id, { value })}
-                  placeholder="value"
-                  configured={variable.valueRedacted === true}
-                  spellCheck={false}
-                  aria-label={`Environment variable value ${index + 1}`}
-                />
-              ) : (
+          {rows.map((variable, index) => {
+            const Icon = variable.sensitive ? LockIcon : LockOpenIcon;
+            return (
+              <div key={variable.id} className="flex min-w-0 flex-wrap items-center gap-1.5">
                 <DraftInput
                   size="sm"
                   font="mono"
-                  className="min-w-0 flex-1"
-                  value={variable.valueRedacted ? "" : variable.value}
-                  onCommit={(value) => updateVariable(variable.id, { value })}
-                  autoComplete="off"
-                  placeholder="value"
+                  className="w-full min-w-0 sm:w-44 sm:shrink-0"
+                  value={variable.name}
+                  onCommit={(name) => updateVariable(variable.id, { name: name.trim() })}
+                  placeholder="VARIABLE_NAME"
                   spellCheck={false}
-                  aria-label={`Environment variable value ${index + 1}`}
+                  aria-label={`Environment variable name ${index + 1}`}
                 />
-              )}
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      type="button"
-                      size="icon-micro"
-                      variant="ghost-muted"
-                      onClick={() => {
-                        const sensitive = !variable.sensitive;
-                        updateVariable(variable.id, {
-                          sensitive,
-                          ...(sensitive && variable.valueRedacted === undefined
-                            ? {}
-                            : { valueRedacted: sensitive ? variable.valueRedacted : false }),
-                        });
-                      }}
-                      aria-pressed={variable.sensitive}
-                      aria-label={`Mark environment variable ${variable.name || index + 1} as sensitive`}
-                    >
-                      <MorphIcon
-                        className="size-3"
-                        icon={variable.sensitive ? LockGlyph : LockOpen}
-                      />
-                    </Button>
-                  }
+                <span className="hidden text-xs text-muted-foreground sm:inline" aria-hidden>
+                  =
+                </span>
+                {variable.sensitive ? (
+                  <SecretInput
+                    size="sm"
+                    font="mono"
+                    className="min-w-0 flex-1"
+                    value={variable.valueRedacted ? "" : variable.value}
+                    onCommit={(value) => updateVariable(variable.id, { value })}
+                    placeholder="value"
+                    configured={variable.valueRedacted === true}
+                    spellCheck={false}
+                    aria-label={`Environment variable value ${index + 1}`}
+                  />
+                ) : (
+                  <DraftInput
+                    size="sm"
+                    font="mono"
+                    className="min-w-0 flex-1"
+                    value={variable.valueRedacted ? "" : variable.value}
+                    onCommit={(value) => updateVariable(variable.id, { value })}
+                    autoComplete="off"
+                    placeholder="value"
+                    spellCheck={false}
+                    aria-label={`Environment variable value ${index + 1}`}
+                  />
+                )}
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        size="icon-micro"
+                        variant="ghost-muted"
+                        onClick={() => {
+                          const sensitive = !variable.sensitive;
+                          updateVariable(variable.id, {
+                            sensitive,
+                            ...(sensitive && variable.valueRedacted === undefined
+                              ? {}
+                              : { valueRedacted: sensitive ? variable.valueRedacted : false }),
+                          });
+                        }}
+                        aria-pressed={variable.sensitive}
+                        aria-label={`Mark environment variable ${variable.name || index + 1} as sensitive`}
+                      >
+                        <Icon className="size-3" />
+                      </Button>
+                    }
+                  />
+                  <TooltipPopup side="top">
+                    {variable.sensitive ? "Sensitive, stored separately" : "Plain text"}
+                  </TooltipPopup>
+                </Tooltip>
+                <InlineConfirmButton
+                  size="icon-micro"
+                  variant="ghost-destructive"
+                  icon={<XIcon className="size-3" />}
+                  label={`Remove environment variable ${variable.name || index + 1}`}
+                  confirmLabel={`Confirm remove environment variable ${variable.name || index + 1}`}
+                  tooltip="Remove variable"
+                  confirmTooltip={`Click again to remove ${variable.name || "this variable"}.${variable.sensitive ? " Its secret value can't be recovered." : ""}`}
+                  onConfirm={() => removeVariable(variable.id)}
                 />
-                <TooltipPopup side="top">
-                  {variable.sensitive ? "Sensitive, stored separately" : "Plain text"}
-                </TooltipPopup>
-              </Tooltip>
-              <InlineConfirmButton
-                size="icon-micro"
-                variant="ghost-destructive"
-                icon={<XIcon className="size-3" />}
-                label={`Remove environment variable ${variable.name || index + 1}`}
-                confirmLabel={`Confirm remove environment variable ${variable.name || index + 1}`}
-                tooltip="Remove variable"
-                confirmTooltip={`Click again to remove ${variable.name || "this variable"}.${variable.sensitive ? " Its secret value can't be recovered." : ""}`}
-                onConfirm={() => removeVariable(variable.id)}
-              />
-            </div>
-          ))}
+              </div>
+            );
+          })}
           <p className="text-xs text-muted-foreground">
             Sensitive values are stored separately and never returned to the app.
           </p>

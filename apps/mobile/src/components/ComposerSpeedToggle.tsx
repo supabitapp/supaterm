@@ -7,23 +7,15 @@ import type { ProviderOptionDescriptor, ProviderOptionSelection } from "@supater
 import { getProviderOptionCurrentValue } from "@supaterm/shared/model";
 import * as Haptics from "expo-haptics";
 import { Platform, Pressable } from "react-native";
-import { Zap } from "@supaterm/icons/nodes";
-import Svg, { G } from "react-native-svg";
+import { Zap, ZapFilled } from "@supaterm/icons/nodes";
+import Svg, { G, Path } from "react-native-svg";
 import { withUniwind } from "uniwind";
 
 import { applyProviderOptionSelection } from "../lib/providerOptions";
 import { Menu } from "./ui/Menu";
-import { NodeIconElements } from "./ui/NodeIcon";
 import { useAndroidControlSizing } from "./ui/useAndroidControlSizing";
 
 const ThemedSvg = withUniwind(Svg);
-
-const BOLT_STROKE = {
-  stroke: "currentColor",
-  strokeWidth: 2,
-  strokeLinecap: "round",
-  strokeLinejoin: "round",
-} as const;
 
 export function ComposerSpeedToggle(props: {
   readonly provider: string | null | undefined;
@@ -66,26 +58,21 @@ export function ComposerSpeedToggle(props: {
         width={size}
         height={size}
         viewBox="0 0 24 24"
+        fill="currentColor"
+        stroke="none"
         colorClassName={on ? "accent-yellow-500" : "accent-icon-muted"}
       >
         {speedToggle.level === "ultrafast" ? (
           <>
-            <G
-              transform="translate(4.6 1.8) scale(0.85)"
-              opacity={0.4}
-              fill="currentColor"
-              {...BOLT_STROKE}
-            >
-              <NodeIconElements node={Zap} />
+            <G transform="translate(4.6 1.8) scale(0.85)" opacity={0.4}>
+              <Path d={ZapFilled} />
             </G>
-            <G transform="translate(-2.4 1.8) scale(0.85)" fill="currentColor" {...BOLT_STROKE}>
-              <NodeIconElements node={Zap} />
+            <G transform="translate(-2.4 1.8) scale(0.85)">
+              <Path d={ZapFilled} />
             </G>
           </>
         ) : (
-          <G fill={on ? "currentColor" : "none"} {...BOLT_STROKE}>
-            <NodeIconElements node={Zap} />
-          </G>
+          <Path d={on ? ZapFilled : Zap} />
         )}
       </ThemedSvg>
     </Pressable>

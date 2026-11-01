@@ -1,7 +1,7 @@
 {
   "name": "@supaterm/icons",
   "private": true,
-  "license": "SEE LICENSE IN LICENSE.md",
+  "license": "MIT",
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -19,14 +19,19 @@
     }
   },
   "scripts": {
-    "sync": "mise exec github:jdx/fnox@1.35.0 -- fnox --config ../../.github/fnox.toml --profile central-icons --no-defaults --if-missing error exec -- node scripts/sync-central-icons.ts",
+    "sync": "node scripts/sync-phosphor-icons.ts",
     "typecheck": "tsc --noEmit",
     "test": "vp test run --config ../../vite.config.ts --dir ."
   },
+  "dependencies": {
+    "@phosphor-icons/react": "2.1.10"
+  },
   "devDependencies": {
+    "@phosphor-icons/core": "2.1.1",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "react": "catalog:",
+    "svgpath": "2.6.0",
     "vite-plus": "catalog:"
   },
   "peerDependencies": {

@@ -332,7 +332,7 @@ export function ThreadDetailsPrRow({
               <div className="min-w-0 truncate text-foreground/75">{statePresentation.label}</div>
             </div>
             <div className="flex min-w-0 items-center gap-2">
-              <GitBranchIcon className="size-3 shrink-0 stroke-muted-foreground" />
+              <GitBranchIcon className="size-3 shrink-0 text-muted-foreground" />
               <div className="min-w-0 truncate text-foreground/75">
                 {detail.baseBranch} ← {detail.headBranch}
               </div>
@@ -363,14 +363,14 @@ export function ThreadDetailsPrRow({
             ) : null}
             {detail.isDraft && conflicting ? (
               <div className="flex min-w-0 items-start gap-2 text-destructive">
-                <TriangleAlertIcon aria-hidden className="mt-0.5 size-3 shrink-0 stroke-current" />
+                <TriangleAlertIcon aria-hidden className="mt-0.5 size-3 shrink-0" />
                 <div className="min-w-0 flex-1 wrap-break-word">
                   Merge conflicts with {detail.baseBranch}
                 </div>
               </div>
             ) : null}
             <div className="flex min-w-0 items-center gap-2">
-              <DiffIcon className="size-3 shrink-0 stroke-muted-foreground" />
+              <DiffIcon className="size-3 shrink-0 text-muted-foreground" />
               <div className="min-w-0 flex items-baseline gap-1 truncate text-foreground/75">
                 {detail.changedFiles.toLocaleString()}{" "}
                 {detail.changedFiles === 1 ? "file" : "files"}

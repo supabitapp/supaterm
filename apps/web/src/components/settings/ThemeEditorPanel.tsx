@@ -1,5 +1,12 @@
-import { MousePointerIcon, PaintbrushIcon, PlusIcon, XIcon } from "@supaterm/icons";
-import { ChevronDown, ChevronUp } from "@supaterm/icons/nodes";
+import {
+  MousePointerIcon,
+  PaintbrushIcon,
+  PlusIcon,
+  XIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+} from "@supaterm/icons";
+
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import {
   applyThemeColorPreview,
@@ -25,7 +32,6 @@ import {
 import { useViewportSize } from "../../hooks/useViewportSize";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
-import { MorphIcon } from "~/components/MorphIcon";
 import { Input } from "../ui/input";
 import { Switch } from "../ui/switch";
 import { Toggle, ToggleGroup } from "../ui/toggle-group";
@@ -1077,6 +1083,7 @@ export function ThemeEditorPanel({
     resizeStartRef.current = null;
   };
 
+  const Icon = isMinimized ? ChevronUpIcon : ChevronDownIcon;
   return (
     <div
       aria-label={isEditing ? "Edit theme" : "Create theme"}
@@ -1148,7 +1155,7 @@ export function ThemeEditorPanel({
           variant="ghost"
           onClick={() => setIsMinimized(!isMinimized)}
         >
-          <MorphIcon icon={isMinimized ? ChevronUp : ChevronDown} />
+          <Icon />
         </Button>
         <Button
           aria-label="Close the theme editor"

@@ -19,7 +19,7 @@ import {
   type PreviewAutomationWaitForInput,
 } from "@supaterm/contracts";
 import { constVoid } from "effect/Function";
-import { MousePointer, type IconNode } from "@supaterm/icons/nodes";
+import { MousePointer, MousePointerFilled } from "@supaterm/icons/nodes";
 import type { CDPSession, ConsoleMessage, Frame, Locator, Page } from "playwright-core";
 import * as NodeCrypto from "node:crypto";
 import { BrowserControlInterrupted } from "./SessionControl.ts";
@@ -929,20 +929,6 @@ export const parseNetError = (errorText: string) => {
   return { description, code: NET_ERROR_CODES[description] ?? -2 };
 };
 
-// The recording canvas draws the cursor as one Path2D, so its glyph must be paths only.
-function canvasPathData(node: IconNode): string {
-  return node
-    .map(([tag, attrs]) => {
-      if (tag !== "path" || attrs.d === undefined) {
-        throw new Error(`The agent cursor glyph must be paths only, found <${tag}>`);
-      }
-      return attrs.d;
-    })
-    .join(" ");
-}
-
-const AGENT_CURSOR_D = canvasPathData(MousePointer);
-
 export const recordingEncoderScript = (frameRate: BrowserRecordingFrameRate) => `(() => {
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d");
@@ -955,7 +941,8 @@ export const recordingEncoderScript = (frameRate: BrowserRecordingFrameRate) => 
   let frame = null;
   let cursor = null;
   let ring = null;
-  const AGENT_CURSOR_PATH = new Path2D(${JSON.stringify(AGENT_CURSOR_D)});
+  const AGENT_CURSOR_PATH = new Path2D(${JSON.stringify(MousePointer)});
+  const AGENT_CURSOR_FILL_PATH = new Path2D(${JSON.stringify(MousePointerFilled)});
   let ringTimer = null;
   let scale = 1;
   let offsetX = 0;
@@ -989,16 +976,13 @@ export const recordingEncoderScript = (frameRate: BrowserRecordingFrameRate) => 
       context.save();
       context.translate(offsetX + cursor.x * scale - 2 * scale, offsetY + cursor.y * scale - 2 * scale);
       context.scale(s, s);
-      context.lineWidth = 2;
-      context.lineJoin = "round";
-      context.lineCap = "round";
       context.fillStyle = "#fff";
-      context.strokeStyle = "#2563eb";
       context.shadowColor = "rgba(0,0,0,0.25)";
       context.shadowBlur = 2;
-      context.fill(AGENT_CURSOR_PATH);
+      context.fill(AGENT_CURSOR_FILL_PATH);
+      context.fillStyle = "#2563eb";
       context.shadowColor = "transparent";
-      context.stroke(AGENT_CURSOR_PATH);
+      context.fill(AGENT_CURSOR_PATH);
       context.restore();
     }
   };

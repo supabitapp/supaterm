@@ -1,4 +1,9 @@
-import { iconSvgElements, MousePointer } from "@supaterm/icons/nodes";
+import {
+  ICON_SVG_ROOT_ATTRIBUTES,
+  iconSvgElements,
+  MousePointer,
+  MousePointerFilled,
+} from "@supaterm/icons/nodes";
 import {
   createPreviewFramePainter,
   createPreviewStreamClient,
@@ -40,7 +45,7 @@ const PROBE_REUSE_MS = 10_000;
 // A sentinel makes backspace fire input; Gboard keydown supplies only keyCode 229.
 const SENTINEL = "\u200b";
 const AGENT_CURSOR_ACTIVE_MS = 700;
-const AGENT_CURSOR_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="#fff" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconSvgElements(MousePointer)}</svg>`;
+const AGENT_CURSOR_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" ${ICON_SVG_ROOT_ATTRIBUTES} color="#3b82f6"><g color="#fff">${iconSvgElements(MousePointerFilled)}</g>${iconSvgElements(MousePointer)}</svg>`;
 
 interface Viewer {
   readonly stop: () => void;

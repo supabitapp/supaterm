@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type ComponentType, type KeyboardEvent } f
 import {
   ArchiveIcon,
   BotIcon,
-  createIcon,
+  CameraViewfinderIcon,
+  ControlPadIcon,
   DiffIcon,
   FolderTreeIcon,
   GitBranchIcon,
@@ -23,7 +24,6 @@ import {
 } from "@supaterm/icons";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 
-import { CodexMicroIcon } from "../codexMicro/CodexMicroIcon";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import { Kbd } from "../ui/kbd";
@@ -51,18 +51,6 @@ import { validateSettingsScopeSearch } from "./settingsScope";
 import { useSettingsSectionNavigation } from "./useSettingsSectionNavigation";
 import { workspaceAreaProps } from "../../lib/workspaceFocus";
 
-const SnapShotIcon = createIcon("snap-shot", [
-  [
-    "path",
-    {
-      d: "M8 3H6a3 3 0 0 0-3 3v2M16 3h2a3 3 0 0 1 3 3v2M21 16v2a3 3 0 0 1-3 3h-2M8 21H6a3 3 0 0 1-3-3v-2",
-      key: "capture-frame",
-    },
-  ],
-  ["rect", { width: "10", height: "8", x: "7", y: "8", rx: "2", key: "window" }],
-  ["circle", { cx: "12", cy: "12", r: "1.5", key: "lens" }],
-]);
-
 const SETTINGS_SECTION_ICONS: Readonly<
   Record<SettingsPath, ComponentType<{ className?: string }>>
 > = {
@@ -73,8 +61,8 @@ const SETTINGS_SECTION_ICONS: Readonly<
   "/settings/diffs": DiffIcon,
   "/settings/projects": PanelsTopLeftIcon,
   "/settings/keybindings": KeyboardIcon,
-  "/settings/snap-shot": SnapShotIcon,
-  "/settings/codex-micro": CodexMicroIcon,
+  "/settings/snap-shot": CameraViewfinderIcon,
+  "/settings/codex-micro": ControlPadIcon,
   "/settings/providers": BotIcon,
   "/settings/threads": MessagesSquareIcon,
   "/settings/browser": GlobeIcon,

@@ -1,3 +1,4 @@
+import { CheckIcon, CopyIcon } from "@supaterm/icons";
 import { type ServerLifecycleWelcomePayload } from "@supaterm/contracts";
 import {
   Outlet,
@@ -9,7 +10,7 @@ import {
   useNavigate,
   useRouter,
 } from "@tanstack/react-router";
-import { Check, Copy } from "@supaterm/icons/nodes";
+
 import { lazy, Suspense, useEffect, useEffectEvent, useRef, useState } from "react";
 
 import { APP_DISPLAY_NAME, APP_VERSION } from "../branding";
@@ -32,7 +33,6 @@ import { ChatGptWelcomeCoordinator } from "../components/settings/ChatGptWelcome
 import { ThemeEditorHost } from "../components/settings/ThemeEditorHost";
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
 import { Button } from "../components/ui/button";
-import { MorphIcon } from "~/components/MorphIcon";
 import { StandalonePage, StandalonePageHeader } from "../components/ui/standalone-page";
 import { AnchoredToastProvider, ToastProvider } from "../components/ui/toast";
 import { isElectron } from "../env";
@@ -245,9 +245,10 @@ function RootRouteErrorView({ error }: ErrorComponentProps) {
 function CopyErrorButton({ report }: { report: string }) {
   const { copyToClipboard, isCopied } = useCopyToClipboard({ target: "error-report" });
 
+  const Icon = isCopied ? CheckIcon : CopyIcon;
   return (
     <Button size="sm" variant="outline" onClick={() => copyToClipboard(report)}>
-      <MorphIcon className={cn(isCopied && "text-success")} icon={isCopied ? Check : Copy} />
+      <Icon className={cn(isCopied && "text-success")} />
       {isCopied ? "Copied" : "Copy error"}
     </Button>
   );

@@ -107,10 +107,8 @@ export const ModelListRow = memo(function ModelListRow(props: {
                 aria-label={props.isFavorite ? "Remove from favorites" : "Add to favorites"}
               >
                 <StarIcon
-                  className={cn(
-                    "size-3.5 sm:size-3",
-                    props.isFavorite && "fill-current text-warning",
-                  )}
+                  weight={props.isFavorite ? "fill" : "regular"}
+                  className={cn("size-3.5 sm:size-3", props.isFavorite && "text-warning")}
                 />
               </Button>
             }
