@@ -1,5 +1,5 @@
 import { Italic, starInputRegex, starPasteRegex } from "@tiptap/extension-italic";
-import { joinBackward, joinTextblockBackward, joinTextblockForward } from "@tiptap/pm/commands";
+import { joinTextblockBackward, joinTextblockForward } from "@tiptap/pm/commands";
 import {
   Fragment,
   type MarkType,
@@ -463,8 +463,9 @@ function backspaceAcrossList(editor: Editor): boolean {
       if (moved) alignListItemWithSiblings(tr, itemType);
       return moved;
     };
-
-    return editor.chain().command(lift).run() || joinBackward(state, editor.view.dispatch);
+    // A task with no parent list to lift into joins the line above; joinBackward would
+    // re-nest it or select the parent line.
+    return editor.chain().command(lift).run() || joinTextblockBackward(state, editor.view.dispatch);
   }
   const before = $from.depth === 1 ? $from.node(0).maybeChild($from.index(0) - 1) : null;
   if (before && LIST_NODE_NAMES.has(before.type.name) && $from.parent.type.name !== "codeBlock") {
