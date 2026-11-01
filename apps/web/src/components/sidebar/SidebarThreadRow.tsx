@@ -1184,7 +1184,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         {...sortableRootProps}
         {...(fileDropHandlers ?? {})}
         className={cn(
-          "list-none [content-visibility:auto] [contain-intrinsic-size:auto_36px]",
+          "list-none [content-visibility:auto] [contain-intrinsic-size:auto_--spacing(9)]",
           sortable?.isDragging && "relative z-20",
         )}
       >
@@ -1366,7 +1366,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       {...sortableRootProps}
       {...(fileDropHandlers ?? {})}
       className={cn(
-        "list-none [content-visibility:auto] [contain-intrinsic-size:auto_48px]",
+        "list-none [content-visibility:auto] [contain-intrinsic-size:auto_--spacing(12)]",
         sortable?.isDragging && "relative z-20",
       )}
     >
