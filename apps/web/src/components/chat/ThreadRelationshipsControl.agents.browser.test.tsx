@@ -11,6 +11,7 @@ const state = vi.hoisted(() => ({
   projection: null as unknown,
   projections: null as Map<string, unknown> | null,
   navigate: vi.fn(),
+  openThreadBeside: vi.fn(() => true),
   shells: [] as unknown[],
   projects: [] as unknown[],
   configs: new Map<string, unknown>(),
@@ -24,6 +25,10 @@ const state = vi.hoisted(() => ({
 vi.mock(import("@tanstack/react-router"), async (original) => ({
   ...(await original()),
   useNavigate: (() => state.navigate) as never,
+}));
+vi.mock(import("../../chatPanes/actions"), async (original) => ({
+  ...(await original()),
+  openThreadBeside: state.openThreadBeside,
 }));
 vi.mock(import("../../state/entities"), async (original) => ({
   ...(await original()),
@@ -108,6 +113,7 @@ async function setup() {
   state.showTooltips = false;
   state.canOperateThread = true;
   state.navigate.mockClear();
+  state.openThreadBeside.mockClear();
   state.command.mockClear();
   state.workflowCommand.mockReset().mockResolvedValue({ _tag: "Success" });
   state.toast.mockClear();
@@ -487,6 +493,12 @@ it("separates relationship kinds and collapses each group independently", async 
       status: "completed",
       lineage: { parentThreadId: "current", relationshipToParent: "fork" },
     },
+    {
+      id: "side",
+      title: "Side question",
+      status: "completed",
+      lineage: { parentThreadId: "current", relationshipToParent: "fork", sideChat: true },
+    },
   ].map((source) => ({ environmentId, source }));
   await render(
     <ThreadRelationshipsPanel
@@ -504,9 +516,22 @@ it("separates relationship kinds and collapses each group independently", async 
   expect(groupHeader("Parent")?.textContent).not.toContain("failed");
   expect(rows("Forks")).toContain("Forked conversation");
   expect(rows("Forks")).not.toContain("Active worker");
+  expect(rows("Forks")).not.toContain("Side question");
+  expect(rows("Side chats")).toContain("Side question");
   expect(rows("Context transfers")).toContain("Resolved (portable)");
   expect(rows("Subagents")).toContain("Active worker");
   expect(container.textContent).not.toContain("Finished worker");
+
+  await click(
+    [...container.querySelectorAll<HTMLElement>('ul[aria-label="Side chats"] button')].find(
+      (button) => button.textContent?.includes("Side question"),
+    )!,
+  );
+  expect(state.openThreadBeside).toHaveBeenCalledWith(
+    { kind: "server", threadRef: { environmentId, threadId: "side" } },
+    "right",
+  );
+  expect(state.navigate).not.toHaveBeenCalled();
 
   // A collapsing group keeps its rows until the panel's exit animation ends.
   await toggleGroup("Forks");
