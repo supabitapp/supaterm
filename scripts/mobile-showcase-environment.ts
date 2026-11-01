@@ -157,6 +157,13 @@ export const SHOWCASE_THREADS = [
     title: "Explain why a machine is offline",
     branch: "feat/offline-reason",
     minutesAgo: 3,
+    earlier: [
+      {
+        request: "Why does a sleeping laptop look the same as a dead VPS in Environments?",
+        response:
+          "The card only knows `connected` or `offline`, so it can't tell them apart. The transport already reports why a route failed; it just never reaches the card.",
+      },
+    ],
     request:
       "When a paired machine drops, say why on its card (asleep, unreachable, or signed out) and what to do next. Keep it to one line.",
     response:
@@ -479,7 +486,22 @@ function seedDatabase(
         }),
       });
 
+      const earlier = "earlier" in thread ? thread.earlier : [];
       const transcript = [
+        ...earlier.flatMap((exchange, index) => [
+          {
+            id: `${thread.id}-earlier-${index}-request`,
+            role: "user" as const,
+            text: exchange.request,
+            at: minutesBefore(now, thread.minutesAgo + 40 - index * 10),
+          },
+          {
+            id: `${thread.id}-earlier-${index}-answer`,
+            role: "assistant" as const,
+            text: exchange.response,
+            at: minutesBefore(now, thread.minutesAgo + 37 - index * 10),
+          },
+        ]),
         {
           id: `${thread.id}-request`,
           role: "user" as const,

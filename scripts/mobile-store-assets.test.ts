@@ -6,12 +6,14 @@ import * as NodePath from "node:path";
 import { assert, expect, it } from "@effect/vitest";
 import { PNG } from "pngjs";
 
-import { type ShowcaseConfig } from "./mobile-showcase.config.ts";
+import showcaseConfig, { type ShowcaseConfig } from "./mobile-showcase.config.ts";
 import { normalizeStorePng, readPngMetadata } from "./mobile-showcase.ts";
 import { prepareMobileStoreAssets } from "./mobile-store-assets.ts";
 
 const config: ShowcaseConfig = {
+  captureDirectory: "captures",
   outputDirectory: "screenshots",
+  slides: showcaseConfig.slides,
   metroPort: 8199,
   settleDelayMs: 1,
   devices: [
@@ -19,6 +21,7 @@ const config: ShowcaseConfig = {
       id: "tablet",
       platform: "android",
       avd: "Test_Tablet",
+      frame: "android-tablet",
       appearance: "dark",
       theme: "supaterm",
       scenes: ["terminal", "thread"],

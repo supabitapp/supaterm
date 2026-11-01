@@ -46,7 +46,9 @@ const googleSpec: ShowcaseStoreAssetSpec = {
 };
 
 const config: ShowcaseConfig = {
+  captureDirectory: "captures",
   outputDirectory: "artifacts",
+  slides: showcaseConfig.slides,
   metroPort: 8199,
   settleDelayMs: 1,
   devices: [
@@ -54,6 +56,7 @@ const config: ShowcaseConfig = {
       id: "phone",
       platform: "ios",
       simulator: "iPhone Test",
+      frame: "iphone",
       appearance: "dark",
       theme: "supaterm",
       scenes: ["thread", "review"],
@@ -63,6 +66,7 @@ const config: ShowcaseConfig = {
       id: "pixel",
       platform: "android",
       avd: "Pixel_Test",
+      frame: "android",
       appearance: "light",
       theme: "supaterm",
       scenes: ["thread", "terminal"],

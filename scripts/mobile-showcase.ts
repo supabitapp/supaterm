@@ -10,6 +10,7 @@ import * as NodeSqlite from "node:sqlite";
 import * as NodeProcess from "node:process";
 import * as NodeURL from "node:url";
 
+import type { Browser } from "playwright-core";
 import { PNG } from "pngjs";
 import { BUILT_IN_THEMES, getThemeColorsForAppearance } from "@supaterm/shared/themePalettes";
 
@@ -32,6 +33,7 @@ import {
   seedShowcaseEnvironment,
   waitForSeedableSchema,
 } from "./mobile-showcase-environment.ts";
+import { launchShowcaseBrowser, renderShowcaseSlide } from "./mobile-showcase-frame.ts";
 
 const REPO_ROOT = NodePath.resolve(NodePath.dirname(NodeURL.fileURLToPath(import.meta.url)), "..");
 const MOBILE_ROOT = NodePath.join(REPO_ROOT, "apps/mobile");
@@ -89,7 +91,7 @@ interface CliOptions {
   readonly skipBuild: boolean;
   readonly skipMetro: boolean;
   readonly keepRunning: boolean;
-  readonly validateOnly: boolean;
+  readonly mode: "capture" | "compose-only" | "validate-only";
   readonly list: boolean;
 }
 
@@ -258,14 +260,42 @@ async function finalizeCapture(destination: string, device: ShowcaseDevice): Pro
     NodePath.basename(destination),
   );
   NodeProcess.stdout.write(
-    `Captured ${NodePath.relative(REPO_ROOT, destination)} (${metadata.width}×${metadata.height}, 24-bit RGB, validated for ${device.storeAsset.store})\n`,
+    `Captured ${NodePath.relative(REPO_ROOT, destination)} (${metadata.width}×${metadata.height})\n`,
   );
+}
+
+async function composeCaptureSet(
+  capture: ShowcaseCapture,
+  config: ShowcaseConfig,
+  browser: Browser,
+): Promise<void> {
+  const source = showcaseCaptureDirectory(
+    NodePath.resolve(REPO_ROOT, config.captureDirectory),
+    capture,
+  );
+  const outputDirectory = NodePath.resolve(REPO_ROOT, config.outputDirectory);
+  const destination = showcaseCaptureDirectory(outputDirectory, capture);
+  await NodeFSP.rm(destination, { recursive: true, force: true });
+  await NodeFSP.mkdir(destination, { recursive: true });
+  for (const scene of capture.scenes) {
+    const png = await NodeFSP.readFile(NodePath.join(source, `${scene}.png`));
+    const slide = await renderShowcaseSlide(browser, {
+      width: capture.device.storeAsset.width,
+      height: capture.device.storeAsset.height,
+      frame: capture.device.frame,
+      appearance: capture.appearance,
+      slide: config.slides[scene],
+      index: capture.device.scenes.indexOf(scene),
+      capture: { png, ...readPngDimensions(png) },
+    });
+    await NodeFSP.writeFile(NodePath.join(destination, `${scene}.png`), normalizeStorePng(slide));
+  }
+  await validateCaptureSet(capture, outputDirectory);
 }
 
 async function validateCaptureSet(
   capture: ShowcaseCapture,
   outputDirectory: string,
-  requireMinimum: boolean,
 ): Promise<void> {
   const directory = showcaseCaptureDirectory(outputDirectory, capture);
   const files = (await NodeFSP.readdir(directory)).filter((file) => file.endsWith(".png")).sort();
@@ -274,7 +304,11 @@ async function validateCaptureSet(
   if (missingFiles.length > 0) {
     throw new Error(`${capture.device.id} is missing ${missingFiles.join(", ")} in ${directory}.`);
   }
-  validateStoreAssetCount(capture.device.storeAsset, files.length, requireMinimum);
+  validateStoreAssetCount(
+    capture.device.storeAsset,
+    files.length,
+    capture.scenes.length === capture.device.scenes.length,
+  );
   for (const file of files) {
     const bytes = await NodeFSP.readFile(NodePath.join(directory, file));
     validateStoreAsset(capture.device.storeAsset, bytes, `${capture.device.id}/${file}`);
@@ -301,7 +335,7 @@ export function parseShowcaseCliArgs(args: ReadonlyArray<string>): CliOptions {
   let skipBuild = false;
   let skipMetro = false;
   let keepRunning = false;
-  let validateOnly = false;
+  let mode: CliOptions["mode"] = "capture";
   let list = false;
 
   for (let index = 0; index < args.length; index += 1) {
@@ -358,8 +392,11 @@ export function parseShowcaseCliArgs(args: ReadonlyArray<string>): CliOptions {
       skipMetro = true;
     } else if (argument === "--keep-running") {
       keepRunning = true;
-    } else if (argument === "--validate-only") {
-      validateOnly = true;
+    } else if (argument === "--validate-only" || argument === "--compose-only") {
+      if (mode !== "capture") {
+        throw new Error("Use only one of --compose-only and --validate-only.");
+      }
+      mode = argument.slice(2) as CliOptions["mode"];
     } else if (argument === "--list") {
       list = true;
     } else if (argument === "--help" || argument === "-h") {
@@ -378,7 +415,7 @@ export function parseShowcaseCliArgs(args: ReadonlyArray<string>): CliOptions {
     skipBuild,
     skipMetro,
     keepRunning,
-    validateOnly,
+    mode,
     list,
   };
 }
@@ -442,6 +479,7 @@ Options:
   --skip-build               Reuse the existing simulator app / debug APK
   --skip-metro               Reuse an already running showcase Metro server
   --keep-running             Leave devices and Metro running after capture
+  --compose-only             Recompose store slides from existing raw captures
   --validate-only            Validate existing upload assets without capturing
   --list                     Print this help and the configured matrix
 
@@ -1446,25 +1484,43 @@ async function main(): Promise<void> {
     return;
   }
   const captures = planShowcaseCaptures(showcaseConfig, options);
-  const outputDirectory = NodePath.resolve(REPO_ROOT, showcaseConfig.outputDirectory);
-  if (options.validateOnly) {
+  if (options.mode === "validate-only") {
     for (const capture of captures) {
       await validateCaptureSet(
         capture,
-        outputDirectory,
-        capture.scenes.length === capture.device.scenes.length,
+        NodePath.resolve(REPO_ROOT, showcaseConfig.outputDirectory),
       );
     }
     return;
   }
+  const browser = await launchShowcaseBrowser();
+  try {
+    if (options.mode === "compose-only") {
+      for (const capture of captures) await composeCaptureSet(capture, showcaseConfig, browser);
+    } else {
+      await captureShowcase(captures, options, browser);
+    }
+  } finally {
+    await browser.close();
+  }
+}
+
+async function captureShowcase(
+  captures: ReadonlyArray<ShowcaseCapture>,
+  options: CliOptions,
+  browser: Browser,
+): Promise<void> {
+  const captureDirectory = NodePath.resolve(REPO_ROOT, showcaseConfig.captureDirectory);
+  const outputDirectory = NodePath.resolve(REPO_ROOT, showcaseConfig.outputDirectory);
   const hasIos = captures.some((capture) => capture.device.platform === "ios");
   const hasAndroid = captures.some((capture) => capture.device.platform === "android");
   const metroHost = hasIos ? lanIpv4Address() : "127.0.0.1";
-  await NodeFSP.mkdir(outputDirectory, { recursive: true });
   for (const capture of captures) {
-    const directory = showcaseCaptureDirectory(outputDirectory, capture);
-    await NodeFSP.rm(directory, { recursive: true, force: true });
-    await NodeFSP.mkdir(directory, { recursive: true });
+    for (const root of [captureDirectory, outputDirectory]) {
+      const directory = showcaseCaptureDirectory(root, capture);
+      await NodeFSP.rm(directory, { recursive: true, force: true });
+      await NodeFSP.mkdir(directory, { recursive: true });
+    }
   }
 
   const showcaseRootDir = await NodeFSP.mkdtemp(
@@ -1521,7 +1577,7 @@ async function main(): Promise<void> {
         await captureIos(
           capture as ShowcaseCapture & { readonly device: ShowcaseIosDevice },
           iosAppPath,
-          outputDirectory,
+          captureDirectory,
           showcaseConfig,
           metroHost,
           createPairingUrls,
@@ -1531,17 +1587,13 @@ async function main(): Promise<void> {
         await captureAndroid(
           capture as ShowcaseCapture & { readonly device: ShowcaseAndroidDevice },
           androidApkPath,
-          outputDirectory,
+          captureDirectory,
           showcaseConfig,
           await createPairingUrls(),
           (cleanup) => androidCleanups.push(cleanup),
         );
       }
-      await validateCaptureSet(
-        capture,
-        outputDirectory,
-        capture.scenes.length === capture.device.scenes.length,
-      );
+      await composeCaptureSet(capture, showcaseConfig, browser);
     }
 
     NodeProcess.stdout.write(

@@ -115,6 +115,16 @@ jobs:
           retention-days: 14
           overwrite: true
 
+      - name: Upload raw iOS captures
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: app-store-connect-captures
+          path: artifacts/app-store/captures/apple/
+          if-no-files-found: warn
+          retention-days: 14
+          overwrite: true
+
   android:
     name: Android phone, 7-inch tablet, and 10-inch tablet
     if: inputs.platform == 'all' || inputs.platform == 'android'
@@ -196,6 +206,16 @@ jobs:
         with:
           name: google-play-screenshots
           path: artifacts/app-store/screenshots/google-play/
+          if-no-files-found: warn
+          retention-days: 14
+          overwrite: true
+
+      - name: Upload raw Android captures
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: google-play-captures
+          path: artifacts/app-store/captures/google-play/
           if-no-files-found: warn
           retention-days: 14
           overwrite: true
