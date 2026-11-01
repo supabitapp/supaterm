@@ -509,6 +509,29 @@ fs.createReadStream(null, { fd: 3 }).on("end", quit).on("data", (chunk) => {
     }),
   );
 
+  it.live("sizes a spec page to its measured height instead of the agent's guess", (ctx) =>
+    Effect.gen(function* () {
+      const executable = (yield* HostProcess.Environment)[TEST_BROWSER_ENV];
+      if (!executable) return ctx.skip(`Set ${TEST_BROWSER_ENV} to run this test.`);
+      yield* Effect.gen(function* () {
+        const htmlRender = yield* HtmlRender.HtmlRender;
+        const rows = Array.from({ length: 30 }, (_, row) => [`Region ${row}`, row]);
+        const reference = yield* htmlRender.publish({
+          threadId: ThreadId.make("thread-html-render-spec-height"),
+          spec: {
+            root: "table",
+            elements: { table: { type: "Table", props: { headers: ["Region", "Q3"], rows } } },
+          },
+          title: "Regions",
+          height: 120,
+        });
+        const measured = reference.heights?.find(([width]) => width === 728)?.[1];
+        expect(measured).toBeGreaterThan(120);
+        expect(reference.height).toBe(measured);
+      }).pipe(Effect.provide(layerHtmlRender(executable)));
+    }),
+  );
+
   it.live("keeps every local file but the page itself out of the browser", (ctx) =>
     Effect.gen(function* () {
       const executable = (yield* HostProcess.Environment)[TEST_BROWSER_ENV];

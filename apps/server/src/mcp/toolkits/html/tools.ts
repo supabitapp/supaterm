@@ -21,7 +21,7 @@ const Html = Schema.String.check(
   Schema.isMinLength(1),
   Schema.isMaxLength(HtmlRender.HTML_RENDER_MAX_HTML_LENGTH),
 ).annotate({
-  description: "A complete, self-contained HTML document. Pass html or spec, not both.",
+  description: "A complete, self-contained HTML document.",
 });
 
 const SPEC_JSON_SCHEMA = Schema.toJsonSchemaDocument(HtmlRenderSpec).schema;
@@ -33,13 +33,12 @@ const Spec = Schema.Json.check(
 const PAGE_RULES =
   "Inline <style> and <script>. Local images as absolute paths are inlined. Remote URLs load as-is.";
 const SPEC_RULE =
-  "For plain text, tables, bar and line charts, and images, pass spec instead of html.";
+  "For plain text, tables, bar and line charts, and images, pass spec instead of html, with no html_preview.";
 
 export const HtmlPreviewTool = Tool.make("html_preview", {
-  description: `Check an HTML page or spec before html_render. Returns PNG, contentHeight, and console output. If it says the browser is still installing, call again in a minute. ${PAGE_RULES} Theme and layout rules are in html_render.`,
+  description: `Check an HTML page before html_render. Returns PNG, contentHeight, and console output. If it says the browser is still installing, call again in a minute. ${PAGE_RULES} Theme and layout rules are in html_render.`,
   parameters: Schema.Struct({
-    html: Schema.optional(Html),
-    spec: Schema.optional(Spec),
+    html: Html,
     width: Schema.optional(
       Schema.Int.annotate({
         description: `CSS pixels, 240 to 1600. Default ${HTML_RENDER_COLUMN_WIDTH}. Use about 390 for phones.`,
@@ -93,7 +92,7 @@ const HtmlRenderTool = Tool.make(HTML_RENDER_TOOL_NAME, {
       Schema.isMaxLength(HTML_RENDER_MAX_TITLE_LENGTH),
     ),
     height: Schema.Int.annotate({
-      description: `Frame height in CSS pixels, ${HTML_RENDER_MIN_HEIGHT} to ${HTML_RENDER_MAX_HEIGHT}. Use the contentHeight from html_preview.`,
+      description: `Frame height in CSS pixels, ${HTML_RENDER_MIN_HEIGHT} to ${HTML_RENDER_MAX_HEIGHT}. Use the contentHeight from html_preview. With spec, an estimate; Supaterm measures the page.`,
     }),
   }),
   success: Schema.Struct({

@@ -142,7 +142,6 @@ export class HtmlRenderStoreError extends Schema.TaggedError<HtmlRenderStoreErro
 }
 
 export type HtmlRenderPrepareError =
-  | HtmlRenderSourceError
   | HtmlRenderImagesNotFoundError
   | HtmlRenderImageTooLargeError
   | HtmlRenderPageTooLargeError
@@ -167,13 +166,15 @@ export class HtmlRender extends Context.Service<
         readonly title: string;
         readonly height: number;
       },
-    ) => Effect.Effect<HtmlRenderReference, HtmlRenderPrepareError | HtmlRenderStoreError>;
-    readonly preview: (
-      input: HtmlRenderSource & {
-        readonly width?: number | undefined;
-        readonly appearance?: ThemeAppearance | undefined;
-      },
     ) => Effect.Effect<
+      HtmlRenderReference,
+      HtmlRenderSourceError | HtmlRenderPrepareError | HtmlRenderStoreError
+    >;
+    readonly preview: (input: {
+      readonly html: string;
+      readonly width?: number | undefined;
+      readonly appearance?: ThemeAppearance | undefined;
+    }) => Effect.Effect<
       HtmlPreview,
       | Exclude<HtmlRenderPrepareError, HtmlRenderImagesNotFoundError>
       | PreviewBrowser.PreviewBrowserInstallError
@@ -472,8 +473,14 @@ const make = Effect.gen(function* () {
       Effect.uninterruptible,
       Effect.andThen(measure(html)),
       Effect.andThen((heights) => {
+        // A spec goes straight to html_render unpreviewed, so its measured height replaces the guess.
+        const specHeight =
+          input.spec === undefined
+            ? undefined
+            : heights?.find(([width]) => width === HTML_RENDER_COLUMN_WIDTH)?.[1];
         const reference: HtmlRenderReference = {
           ...baseReference,
+          ...(specHeight === undefined ? {} : { height: clampHtmlRenderHeight(specHeight) }),
           ...(heights === undefined ? {} : { heights }),
         };
         return mcpSessions
@@ -493,20 +500,18 @@ const make = Effect.gen(function* () {
     );
   });
 
-  const preview = Effect.fn("HtmlRender.preview")(function* (
-    input: HtmlRenderSource & {
-      readonly width?: number | undefined;
-      readonly appearance?: ThemeAppearance | undefined;
-    },
-  ) {
+  const preview = Effect.fn("HtmlRender.preview")(function* (input: {
+    readonly html: string;
+    readonly width?: number | undefined;
+    readonly appearance?: ThemeAppearance | undefined;
+  }) {
     const width = Math.min(
       MAX_PREVIEW_WIDTH,
       Math.max(MIN_PREVIEW_WIDTH, Math.round(input.width ?? HTML_RENDER_COLUMN_WIDTH)),
     );
     const appearance = input.appearance ?? "dark";
-    const html = yield* sourceHtml(input);
-    yield* rejectViewportHeight(html);
-    const inlined = yield* inline(html);
+    yield* rejectViewportHeight(input.html);
+    const inlined = yield* inline(input.html);
     const executable = yield* previewBrowser.executable;
     const theme = htmlRenderTheme(
       appearance === "light" ? SUPATERM_LIGHT_THEME_COLORS : SUPATERM_DARK_THEME_COLORS,
