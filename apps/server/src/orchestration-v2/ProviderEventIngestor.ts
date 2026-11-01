@@ -13,6 +13,7 @@ import {
   type OrchestrationV2CreationSource,
   type RuntimeMode,
   type ProviderInteractionMode,
+  type ServerProvider,
   ProviderInstanceId,
   ProviderSessionId,
   ProviderThreadId,
@@ -35,6 +36,8 @@ import { getModelSelectionStringOptionValue, modelSelectionsEqual } from "@supat
 import * as AnalyticsService from "../telemetry/AnalyticsService.ts";
 import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
+import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
+import { providerDimensions } from "../telemetry/ProviderDimensions.ts";
 import * as EventSink from "./EventSink.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
 import * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
@@ -104,8 +107,14 @@ export interface ProviderTurnOrigin {
   readonly subagent: boolean;
 }
 
+interface ProviderTurnAnalyticsInput {
+  readonly driver: ProviderAdapter.ProviderAdapterV2Event["driver"];
+  readonly providerTurn: OrchestrationV2ProviderTurn;
+  readonly context?: ProviderTurnAnalyticsContext;
+}
+
 export class ProviderTurnAnalytics extends Context.Reference<{
-  readonly record: (properties: Readonly<Record<string, unknown>>) => Effect.Effect<void>;
+  readonly record: (input: ProviderTurnAnalyticsInput) => Effect.Effect<void>;
 }>("supaterm/orchestration-v2/ProviderTurnAnalytics", {
   defaultValue: () => ({ record: () => Effect.void }),
 }) {}
@@ -114,23 +123,27 @@ export const layerAnalytics = Layer.effect(
   ProviderTurnAnalytics,
   Effect.gen(function* () {
     const analytics = yield* AnalyticsService.AnalyticsService;
+    const registry = yield* ProviderRegistry.ProviderRegistry;
     return {
-      record: Effect.fn("ProviderTurnAnalytics.record")(function (
-        properties: Readonly<Record<string, unknown>>,
+      record: Effect.fn("ProviderTurnAnalytics.record")(function* (
+        input: ProviderTurnAnalyticsInput,
       ) {
-        return analytics.record("provider.turn.completed", properties);
+        yield* analytics.record(
+          "provider.turn.completed",
+          providerTurnAnalyticsProperties(input, yield* registry.getProviders),
+        );
       }),
     };
   }),
 );
 
-function providerTurnAnalyticsProperties(input: {
-  readonly driver: ProviderAdapter.ProviderAdapterV2Event["driver"];
-  readonly providerTurn: OrchestrationV2ProviderTurn;
-  readonly context?: ProviderTurnAnalyticsContext;
-}): Readonly<Record<string, unknown>> {
+function providerTurnAnalyticsProperties(
+  input: ProviderTurnAnalyticsInput,
+  providers: ReadonlyArray<ServerProvider>,
+): Readonly<Record<string, unknown>> {
   const usage = input.providerTurn.turnTokenUsage;
   const modelSelection = input.context?.modelSelection;
+  const model = modelSelection && providerDimensions(providers, modelSelection).model;
   const effort = modelSelection
     ? (getModelSelectionStringOptionValue(modelSelection, "reasoningEffort") ??
       getModelSelectionStringOptionValue(modelSelection, "effort"))
@@ -150,7 +163,8 @@ function providerTurnAnalyticsProperties(input: {
       : { cacheCreationTokens: usage.cacheCreationTokens }),
     ...(usage?.outputTokens === undefined ? {} : { outputTokens: usage.outputTokens }),
     ...(usage?.reasoningTokens === undefined ? {} : { reasoningTokens: usage.reasoningTokens }),
-    ...(modelSelection ? { model: modelSelection.model, mixedModels: false } : {}),
+    ...(model === undefined ? {} : { model }),
+    ...(modelSelection ? { mixedModels: false } : {}),
     ...(effort ? { effort } : {}),
     ...(input.context?.runtimeMode ? { runtimeMode: input.context.runtimeMode } : {}),
     ...(input.context?.interactionMode ? { interactionMode: input.context.interactionMode } : {}),
@@ -897,15 +911,13 @@ export const layer: Layer.Layer<
                     const oldest = completedTurnAnalytics.values().next().value;
                     if (oldest !== undefined) completedTurnAnalytics.delete(oldest);
                   }
-                  yield* analytics.record(
-                    providerTurnAnalyticsProperties({
-                      driver: input.event.driver,
-                      providerTurn,
-                      ...(input.analyticsContext === undefined
-                        ? {}
-                        : { context: input.analyticsContext }),
-                    }),
-                  );
+                  yield* analytics.record({
+                    driver: input.event.driver,
+                    providerTurn,
+                    ...(input.analyticsContext === undefined
+                      ? {}
+                      : { context: input.analyticsContext }),
+                  });
                 }),
               ),
               (effect) =>

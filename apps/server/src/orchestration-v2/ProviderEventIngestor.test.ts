@@ -22,6 +22,7 @@ import {
   RunAttemptId,
   RunId,
   RuntimeRequestId,
+  type ServerProvider,
   TurnItemId,
 } from "@supaterm/contracts";
 import * as Cause from "effect/Cause";
@@ -47,6 +48,8 @@ import * as ProjectionStore from "./ProjectionStore.ts";
 import * as ProviderEventIngestor from "./ProviderEventIngestor.ts";
 import * as ThreadCommandExecutor from "./ThreadCommandExecutor.ts";
 import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
+import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
+import * as AnalyticsService from "../telemetry/AnalyticsService.ts";
 import * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAdapter";
 import type { ProviderInstance } from "@supaterm/provider-core/server/driver";
 import { makeProviderFailure } from "@supaterm/provider-core/server/failure";
@@ -326,12 +329,30 @@ it.effect("refreshes the failing instance snapshot after a committed usage_limit
 
 it.effect("records accepted billed turn usage once without billing the context window", () => {
   const recorded: Array<Readonly<Record<string, unknown>>> = [];
-  const layerAnalytics = Layer.succeed(ProviderEventIngestor.ProviderTurnAnalytics, {
-    record: (properties: Readonly<Record<string, unknown>>) =>
-      Effect.sync(() => {
-        recorded.push(properties);
+  const layerAnalytics = ProviderEventIngestor.layerAnalytics.pipe(
+    Layer.provide(
+      Layer.mock(AnalyticsService.AnalyticsService)({
+        record: (event, properties) =>
+          Effect.sync(() => {
+            if (event === "provider.turn.completed" && properties) recorded.push(properties);
+          }),
       }),
-  });
+    ),
+    Layer.provide(
+      Layer.mock(ProviderRegistry.ProviderRegistry)({
+        getProviders: Effect.succeed([
+          {
+            instanceId: modelSelection.instanceId,
+            driver: CODEX_DRIVER,
+            models: [
+              { slug: modelSelection.model, isCustom: false },
+              { slug: "acme-internal-coder", isCustom: true },
+            ],
+          } as unknown as ServerProvider,
+        ]),
+      }),
+    ),
+  );
   return Effect.gen(function* () {
     const now = yield* DateTime.now;
     const eventSink = yield* EventSink.EventSinkV2;
@@ -431,6 +452,28 @@ it.effect("records accepted billed turn usage once without billing the context w
       subagent: true,
       durationMs: 120,
     });
+
+    yield* ingestor.ingestNormalized({
+      ...input,
+      analyticsContext: {
+        ...input.analyticsContext,
+        modelSelection: { ...modelSelection, model: "acme-internal-coder" },
+      },
+      event: {
+        ...input.event,
+        providerTurn: {
+          ...providerTurn,
+          id: idAllocator.derive.providerTurn({
+            driver: CODEX_DRIVER,
+            nativeTurnId: "custom-model-turn",
+          }),
+          ordinal: 2,
+        },
+      },
+    });
+    assert.lengthOf(recorded, 2);
+    assert.notProperty(recorded[1], "model");
+    assert.include(recorded[1], { provider: CODEX_DRIVER, mixedModels: false });
   }).pipe(Effect.provide(layerTest.pipe(Layer.provide(layerAnalytics))));
 });
 
