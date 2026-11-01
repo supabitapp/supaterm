@@ -66,6 +66,7 @@ vi.mock("../state/entities", async (original) => ({
   ...(await original<typeof import("../state/entities")>()),
   useProjects: () => [],
   useThreadShells: () => [],
+  useThreadProjection: () => null,
   useServerConfigs: () => new Map(),
   waitForProject: async () => undefined,
 }));
