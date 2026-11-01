@@ -1206,6 +1206,7 @@ export const make = Effect.gen(function* () {
             filePath,
             mtimeMs: stats.value.mtime.value.getTime(),
             providerInstanceId,
+            homePath: sessionsDir,
             size: Number(stats.value.size),
           });
         }
