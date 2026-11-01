@@ -417,6 +417,8 @@ export interface AcpAdapterV2Flavor {
    * Grok can keep `task_already_running` state until the process exits.
    */
   readonly restartRuntimeAfterInterrupt?: boolean;
+  /** Prompt failures after which the agent process keeps failing until replaced. */
+  readonly restartRuntimeAfterPromptError?: (error: unknown) => boolean;
   readonly restartRuntimeOnEveryInterrupt?: boolean;
   readonly terminateRuntimeProcessGroupOnInterrupt?: boolean;
   readonly preserveRuntimeOnSettledInterrupt?: boolean;
@@ -7924,12 +7926,16 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                         Result.isSuccess(error) &&
                         error.success._tag === "AcpRequestError" &&
                         error.success.code === -32800);
+                    const failure = Cause.squash(cause);
+                    if (!interrupted && flavor.restartRuntimeAfterPromptError?.(failure) === true) {
+                      yield* Ref.set(runtimeRestartRequired, true);
+                    }
                     yield* finalizeTurn(
                       context,
                       interrupted ? "interrupted" : "failed",
-                      flavor.promptFailure?.(Cause.squash(cause)) ??
+                      flavor.promptFailure?.(failure) ??
                         makeProviderFailure({
-                          cause: Cause.squash(cause),
+                          cause: failure,
                           class: "provider_error",
                         }),
                     ).pipe(
