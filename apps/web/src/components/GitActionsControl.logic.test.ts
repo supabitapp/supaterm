@@ -6,6 +6,7 @@ import {
   buildMenuItems,
   hasChangesToReview,
   requiresDefaultBranchConfirmation,
+  resolveChangesTotals,
   resolveDefaultBranchActionDialogCopy,
   resolveLiveThreadBranchUpdate,
   resolveQuickAction,
@@ -266,5 +267,55 @@ describe("resolveLiveThreadBranchUpdate", () => {
     });
 
     assert.equal(update, null);
+  });
+});
+
+describe("resolveChangesTotals", () => {
+  it("does not let an empty branchChanges hide a dirty working tree", () => {
+    assert.deepEqual(
+      resolveChangesTotals(
+        status({
+          hasWorkingTreeChanges: true,
+          branchChanges: { baseRef: "main", insertions: 0, deletions: 0 },
+          workingTree: {
+            files: [{ path: "a.ts", insertions: 5, deletions: 1 }],
+            insertions: 5,
+            deletions: 1,
+          },
+        }),
+      ),
+      { insertions: 5, deletions: 1 },
+    );
+  });
+
+  it("keeps non-zero branchChanges over the working tree", () => {
+    assert.deepEqual(
+      resolveChangesTotals(
+        status({
+          branchChanges: { baseRef: "main", insertions: 20, deletions: 3 },
+          workingTree: {
+            files: [{ path: "a.ts", insertions: 1, deletions: 0 }],
+            insertions: 1,
+            deletions: 0,
+          },
+        }),
+      ),
+      { insertions: 20, deletions: 3 },
+    );
+  });
+
+  it("falls back to the working tree when branchChanges is omitted", () => {
+    assert.deepEqual(
+      resolveChangesTotals(
+        status({
+          workingTree: {
+            files: [{ path: "a.ts", insertions: 2, deletions: 0 }],
+            insertions: 2,
+            deletions: 0,
+          },
+        }),
+      ),
+      { insertions: 2, deletions: 0 },
+    );
   });
 });

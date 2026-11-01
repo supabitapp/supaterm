@@ -53,6 +53,7 @@ import {
   type DefaultBranchConfirmableAction,
   hasChangesToReview,
   requiresDefaultBranchConfirmation,
+  resolveChangesTotals,
   resolveDefaultBranchActionDialogCopy,
   resolveFeatureBranchUnavailableReason,
   resolveGitActionProgressPresentation,
@@ -988,7 +989,10 @@ export default function GitActionsControl({
   const isRepo = gitStatus?.isRepo ?? true;
   const hasPrimaryRemote = gitStatus?.hasPrimaryRemote ?? false;
   const gitStatusForActions = gitStatus;
-  const changesTotals = gitStatusForActions?.branchChanges ?? gitStatusForActions?.workingTree;
+  const changesTotals = resolveChangesTotals(gitStatusForActions) ?? {
+    insertions: 0,
+    deletions: 0,
+  };
 
   const allFiles = gitStatusForActions?.workingTree.files ?? [];
 
@@ -1577,19 +1581,17 @@ export default function GitActionsControl({
           <span className="flex items-center gap-1.5 font-mono text-xs tabular-nums">
             <span
               className={
-                changesTotals?.insertions
-                  ? "text-diff-addition-foreground"
-                  : "text-muted-foreground"
+                changesTotals.insertions ? "text-diff-addition-foreground" : "text-muted-foreground"
               }
             >
-              +{formatDiffCount(changesTotals?.insertions ?? 0)}
+              +{formatDiffCount(changesTotals.insertions)}
             </span>
             <span
               className={
-                changesTotals?.deletions ? "text-diff-deletion-foreground" : "text-muted-foreground"
+                changesTotals.deletions ? "text-diff-deletion-foreground" : "text-muted-foreground"
               }
             >
-              -{formatDiffCount(changesTotals?.deletions ?? 0)}
+              -{formatDiffCount(changesTotals.deletions)}
             </span>
           </span>
         </ThreadDetailsControl>
