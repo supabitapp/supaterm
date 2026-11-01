@@ -336,10 +336,6 @@ export default defineConfig({
         rules: { "supaterm/no-frame-waits-in-browser-tests": "error" },
       },
       {
-        files: ["**/*.browser.test.*"],
-        rules: { "supaterm/no-real-time-wait-in-tests": "off" },
-      },
-      {
         files: ["apps/**/src/**", "packages/**/src/**"],
         rules: { "supaterm/no-dom-test-environment": "error" },
       },
