@@ -15,6 +15,7 @@ import {
   getNewProjectPublishTarget,
   getNewProjectPublishTargets,
   getNewProjectRepository,
+  githubIncompleteOwnerRepositoryMessage,
   normalizePastedCloneUrl,
   addProjectRemoteSourceLabel,
   addProjectRemoteSourcePathHint,
@@ -2116,6 +2117,21 @@ function OpenCommandPaletteDialog(props: {
     if (addProjectCloneFlow.step === "repository") {
       const rawRepository = query.trim();
       if (rawRepository.length === 0 || isRemoteProjectLookingUp) {
+        return;
+      }
+
+      const incompleteOwnerMessage = githubIncompleteOwnerRepositoryMessage(
+        addProjectCloneFlow.source,
+        rawRepository,
+      );
+      if (incompleteOwnerMessage) {
+        toastManager.add(
+          stackedThreadToast({
+            type: "error",
+            title: "Repository name incomplete",
+            description: incompleteOwnerMessage,
+          }),
+        );
         return;
       }
 
