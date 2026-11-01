@@ -24,6 +24,7 @@ import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 
+import { vitePlusCommand } from "./check-changed-command.ts";
 import { affectedPackages, readWorkspace } from "./lib/changed-packages.ts";
 
 const root = NodePath.resolve(import.meta.dirname, "..");
@@ -352,8 +353,7 @@ const checkPatches = async (deadline: number): Promise<StepResult> => {
       if (NodeFS.existsSync(NodePath.join(root, extra))) copy(extra);
     }
     const result = await spawnStep(
-      "vp",
-      ["install", "--lockfile-only", "--ignore-scripts"],
+      ...vitePlusCommand(["install", "--lockfile-only", "--ignore-scripts"]),
       temp,
       deadline,
     );
@@ -433,8 +433,9 @@ const runStep = async (step: (typeof steps)[number]) => {
     "run" in step
       ? await step.run(deadline)
       : await spawnStep(
-          "command" in step && step.command ? step.command : "vp",
-          step.args,
+          ...("command" in step && step.command
+            ? ([step.command, step.args] as const)
+            : vitePlusCommand(step.args)),
           root,
           deadline,
         );
