@@ -109,6 +109,8 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   triage: Schema.optionalKey(Schema.Boolean),
   /** Server answers projects.createFromThread. */
   threadProjectFromScratch: Schema.optionalKey(Schema.Boolean),
+  /** Hide the switch when absent; older servers ignore `telemetryEnabled`. */
+  telemetrySetting: Schema.optionalKey(Schema.Boolean),
 });
 export type ExecutionEnvironmentCapabilities = typeof ExecutionEnvironmentCapabilities.Type;
 

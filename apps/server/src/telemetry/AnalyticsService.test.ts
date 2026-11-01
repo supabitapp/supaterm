@@ -17,6 +17,7 @@ import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 
 import * as ServerConfig from "../config.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import { getTelemetryIdentity } from "./Identify.ts";
 import * as AnalyticsService from "./AnalyticsService.ts";
 
@@ -110,6 +111,7 @@ const recordTwentyEvents = Effect.gen(function* () {
 /**
  * Runs `record` (20 events by default), then lets `minutes` of background
  * flushes run against a client that answers every send with `respond`.
+ * `SUPATERM_TELEMETRY_ENABLED` is `true` unless `variable` says otherwise; `null` leaves it unset.
  * Returns the sent batches.
  */
 const sendFor = (
@@ -118,8 +120,11 @@ const sendFor = (
   record: Effect.Effect<
     void,
     never,
-    AnalyticsService.AnalyticsService | Effect.Services<typeof getTelemetryIdentity>
+    | AnalyticsService.AnalyticsService
+    | ServerSettings.ServerSettingsService
+    | Effect.Services<typeof getTelemetryIdentity>
   > = recordTwentyEvents,
+  options: { readonly variable?: boolean | null; readonly setting?: boolean } = {},
 ) =>
   Effect.gen(function* () {
     const batches: Array<ReadonlyArray<SentEvent>> = [];
@@ -134,14 +139,20 @@ const sendFor = (
         return yield* respond(request);
       }),
     );
+    const variable = options.variable === undefined ? true : options.variable;
     const runtimeLayer = AnalyticsService.layer.pipe(
       Layer.provideMerge(
         ServerConfig.ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-telemetry-retry-" }),
       ),
+      Layer.provideMerge(
+        ServerSettings.layerTest(
+          options.setting === undefined ? {} : { telemetryEnabled: options.setting },
+        ),
+      ),
       Layer.provide(
         ConfigProvider.layer(
           ConfigProvider.fromUnknown({
-            SUPATERM_TELEMETRY_ENABLED: true,
+            ...(variable === null ? {} : { SUPATERM_TELEMETRY_ENABLED: variable }),
             SUPATERM_POSTHOG_KEY: "phc_test_key",
             SUPATERM_POSTHOG_HOST: "http://localhost",
           }),
@@ -215,6 +226,44 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
     }),
   );
 
+  it.effect("the setting turns usage events off while the variable is unset", () =>
+    Effect.gen(function* () {
+      const batches = yield* sendFor(1, respondWithStatus(204), recordTwentyEvents, {
+        variable: null,
+        setting: false,
+      });
+      assert.equal(batches.length, 0);
+    }),
+  );
+
+  it.effect("the variable overrides the setting", () =>
+    Effect.gen(function* () {
+      const batches = yield* sendFor(1, respondWithStatus(204), recordTwentyEvents, {
+        variable: true,
+        setting: false,
+      });
+      assert.equal(batches.flat().length, 20);
+    }),
+  );
+
+  it.effect("turning the setting off discards events still waiting to be sent", () =>
+    Effect.gen(function* () {
+      const batches = yield* sendFor(
+        1,
+        respondWithStatus(204),
+        Effect.gen(function* () {
+          yield* recordTwentyEvents;
+          const settings = yield* ServerSettings.ServerSettingsService;
+          yield* settings.updateSettings({ telemetryEnabled: false }).pipe(Effect.orDie);
+          const analytics = yield* AnalyticsService.AnalyticsService;
+          yield* analytics.record("test.after-opt-out");
+        }),
+        { variable: null },
+      );
+      assert.equal(batches.length, 0);
+    }),
+  );
+
   it.effect("drops a batch the endpoint rejects without sending it again", () =>
     Effect.gen(function* () {
       const batches = yield* sendFor(10, respondWithStatus(400));
@@ -229,7 +278,10 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
         prefix: "supaterm-telemetry-base-",
       });
 
-      const layerTelemetry = AnalyticsService.layer.pipe(Layer.provideMerge(layerServerConfig));
+      const layerTelemetry = AnalyticsService.layer.pipe(
+        Layer.provideMerge(layerServerConfig),
+        Layer.provide(ServerSettings.layerTest()),
+      );
       const layerConfig = ConfigProvider.layer(
         ConfigProvider.fromUnknown({
           SUPATERM_TELEMETRY_ENABLED: true,
@@ -335,7 +387,10 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
       const layerServerConfig = ServerConfig.ServerConfig.layerTest(process.cwd(), {
         prefix: "supaterm-telemetry-disabled-",
       });
-      const layerTelemetry = AnalyticsService.layer.pipe(Layer.provideMerge(layerServerConfig));
+      const layerTelemetry = AnalyticsService.layer.pipe(
+        Layer.provideMerge(layerServerConfig),
+        Layer.provide(ServerSettings.layerTest()),
+      );
       const layerConfig = ConfigProvider.layer(
         ConfigProvider.fromUnknown({
           SUPATERM_TELEMETRY_ENABLED: false,

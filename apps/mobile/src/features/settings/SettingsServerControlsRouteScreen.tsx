@@ -234,6 +234,16 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
       setPendingWrites((count) => count - 1);
     });
   };
+  // Older servers ignore the setting, so a switch there would claim an opt-out that never happens.
+  const telemetrySettingSupported = selectedTargets.every(
+    (target) => target.serverConfig.environment.capabilities.telemetrySetting === true,
+  );
+  const telemetryOverrides = selectedTargets.flatMap((target) => {
+    const value = target.serverConfig.observability.telemetryEnabledByEnvironment;
+    return value === undefined ? [] : [{ label: target.label, value }];
+  });
+  const telemetryLockedEverywhere =
+    selectedTargets.length > 0 && telemetryOverrides.length === selectedTargets.length;
   const disabled = !canWriteSettings || pendingWrites > 0 || !hasConnectedSelection;
   const disabledFor = (key: string) =>
     disabled ||
@@ -512,6 +522,33 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
                       />
                     </View>
                   </SettingsSection>
+                  {telemetrySettingSupported ? (
+                    <SettingsSection title="Privacy">
+                      <SettingsSwitchRow
+                        icon="chart.bar.xaxis"
+                        label="Product usage data"
+                        subtitle={
+                          projectSelected
+                            ? "Environment-wide setting. Select All projects to change it."
+                            : telemetryOverrides.length > 0
+                              ? telemetryOverrides
+                                  .map(
+                                    ({ label, value }) =>
+                                      `Set by SUPATERM_TELEMETRY_ENABLED=${value} on ${label}.`,
+                                  )
+                                  .join(" ")
+                              : "Send product usage events from this environment. They never include prompts, responses, or file contents."
+                        }
+                        value={
+                          telemetryLockedEverywhere
+                            ? telemetryOverrides.every(({ value }) => value)
+                            : uniform("telemetryEnabled")
+                        }
+                        disabled={telemetryLockedEverywhere || disabledFor("telemetryEnabled")}
+                        onValueChange={(value) => write({ telemetryEnabled: value })}
+                      />
+                    </SettingsSection>
+                  ) : null}
                 </>
               ) : null}
             </>

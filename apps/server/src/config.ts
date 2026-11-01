@@ -79,6 +79,8 @@ export class ServerConfig extends Context.Service<
     readonly otlpLogsSource?: OtlpEndpointSource;
     readonly otlpLogsVariable?: string;
     readonly otelEnvironment: OtelEnvironment.OtelEnvironment;
+    /** `SUPATERM_TELEMETRY_ENABLED` when set; it overrides the `telemetryEnabled` setting. */
+    readonly telemetryEnabledByEnvironment?: boolean | undefined;
     readonly mode: RuntimeMode;
     readonly port: number;
     readonly host: string | undefined;

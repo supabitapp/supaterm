@@ -1801,6 +1801,58 @@ export function MaintenanceSettingsPanel() {
   );
 }
 
+function ProductUsageDataRow() {
+  const settings = useScopedSettings();
+  const updateSettings = useUpdateScopedSettings();
+  const { connectedEnvironments } = useSettingsScope();
+  // Older servers ignore the setting, so a switch there would claim an opt-out that never happens.
+  if (
+    !connectedEnvironments.every(
+      (target) => target.serverConfig?.environment.capabilities.telemetrySetting === true,
+    )
+  ) {
+    return null;
+  }
+  const overrides = connectedEnvironments.flatMap((target) => {
+    const value = target.serverConfig?.observability.telemetryEnabledByEnvironment;
+    return value === undefined ? [] : [{ label: target.label, value }];
+  });
+  const lockedEverywhere =
+    connectedEnvironments.length > 0 && overrides.length === connectedEnvironments.length;
+  return (
+    <SettingsRow
+      serverScoped
+      {...searchableSetting("product-usage-data")}
+      settingKeys={["telemetryEnabled"]}
+      description="Send product usage events from this environment. They never include prompts, responses, or file contents."
+      status={
+        overrides.length > 0
+          ? overrides
+              .map(({ label, value }) => `Set by SUPATERM_TELEMETRY_ENABLED=${value} on ${label}.`)
+              .join(" ")
+          : undefined
+      }
+      control={
+        lockedEverywhere ? (
+          // The variable decides here, so persisted values must not make the switch look mixed.
+          <Switch
+            checked={overrides.every(({ value }) => value)}
+            disabled
+            aria-label="Product usage data"
+          />
+        ) : (
+          <ScopedSwitch
+            settingKeys={["telemetryEnabled"]}
+            checked={settings.telemetryEnabled}
+            onCheckedChange={(checked) => updateSettings({ telemetryEnabled: Boolean(checked) })}
+            aria-label="Product usage data"
+          />
+        )
+      }
+    />
+  );
+}
+
 export function AboutSettingsPanel() {
   return (
     <SettingsPageContainer>
@@ -1826,6 +1878,7 @@ export function AboutSettingsPanel() {
             </Button>
           }
         />
+        <ProductUsageDataRow />
         <SettingsRow
           {...searchableSetting("open-source-licenses")}
           control={

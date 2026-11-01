@@ -19,6 +19,7 @@ import * as HttpClientResponse from "effect/http/HttpClientResponse";
 
 import packageJson from "../../package.json" with { type: "json" };
 import * as ServerConfig from "../config.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import { getTelemetryIdentity, type TelemetryOwner } from "./Identify.ts";
 
 interface BufferedAnalyticsEvent {
@@ -65,7 +66,7 @@ const TelemetryEnvConfig = Config.all({
   posthogHost: Config.String("SUPATERM_POSTHOG_HOST").pipe(
     Config.withDefault("https://ingest.supaterm.com"),
   ),
-  enabled: Config.Boolean("SUPATERM_TELEMETRY_ENABLED").pipe(Config.withDefault(true)),
+  enabled: Config.Boolean("SUPATERM_TELEMETRY_ENABLED").pipe(Config.option),
   flushBatchSize: Config.Number("SUPATERM_TELEMETRY_FLUSH_BATCH_SIZE").pipe(Config.withDefault(20)),
   maxBufferedEvents: Config.Number("SUPATERM_TELEMETRY_MAX_BUFFERED_EVENTS").pipe(
     Config.withDefault(1_000),
@@ -116,6 +117,7 @@ export const make = Effect.gen(function* () {
   const telemetryConfig = yield* TelemetryEnvConfig;
   const httpClient = yield* HttpClient.HttpClient;
   const serverConfig = yield* ServerConfig.ServerConfig;
+  const serverSettings = yield* ServerSettings.ServerSettingsService;
   const { distinctId, installId } = yield* getTelemetryIdentity;
   const crypto = yield* Crypto.Crypto;
   const bufferRef = yield* Ref.make<ReadonlyArray<BufferedAnalyticsEvent>>([]);
@@ -134,6 +136,17 @@ export const make = Effect.gen(function* () {
   const clientType = serverConfig.mode === "desktop" ? "desktop-app" : "cli-web-client";
   const hostPlatform = yield* HostProcess.Platform;
   const hostArchitecture = yield* HostProcess.Architecture;
+
+  // The variable wins when set. An unreadable setting counts as off so a read failure cannot
+  // lose an opt-out.
+  const isEnabled = Option.match(telemetryConfig.enabled, {
+    onSome: Effect.succeed,
+    onNone: () =>
+      serverSettings.getSettings.pipe(
+        Effect.map((settings) => settings.telemetryEnabled),
+        Effect.orElseSucceed(() => false),
+      ),
+  });
 
   const enqueueBufferedEvent = (
     uuid: string,
@@ -170,7 +183,7 @@ export const make = Effect.gen(function* () {
   const sendBatch = Effect.fn("AnalyticsService.sendBatch")(function* (
     events: ReadonlyArray<BufferedAnalyticsEvent>,
   ) {
-    if (!telemetryConfig.enabled || !distinctId) return;
+    if (!distinctId) return;
 
     const payload = {
       api_key: telemetryConfig.posthogKey,
@@ -213,6 +226,17 @@ export const make = Effect.gen(function* () {
 
   const flush: AnalyticsService["Service"]["flush"] = Effect.gen(function* () {
     while (true) {
+      // Checked per batch so nothing recorded before an opt-out is sent after it.
+      if (!(yield* isEnabled)) {
+        yield* Ref.set(bufferRef, []);
+        yield* Ref.update(deliveryRef, (delivery) => ({
+          ...delivery,
+          failedBatch: [],
+          batchAttempts: 0,
+          firstFailedAt: 0,
+        }));
+        return;
+      }
       const delivery = yield* Ref.get(deliveryRef);
       const batch = delivery.failedBatch.length > 0 ? delivery.failedBatch : yield* takeBatch;
       if (batch.length === 0) {
@@ -281,7 +305,7 @@ export const make = Effect.gen(function* () {
 
   const record: AnalyticsService["Service"]["record"] = Effect.fn("AnalyticsService.record")(
     function* (event, properties) {
-      if (!telemetryConfig.enabled || !distinctId) return;
+      if (!distinctId || !(yield* isEnabled)) return;
 
       // Telemetry is best effort: an event without a uuid is not sent. The
       // Node implementation throws (a defect) rather than failing, so catch both.
