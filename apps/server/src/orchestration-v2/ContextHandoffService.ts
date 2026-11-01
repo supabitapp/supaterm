@@ -1,8 +1,11 @@
 import {
+  type MessageId,
   type OrchestrationV2AppThread,
   OrchestrationV2ContextHandoff,
+  type OrchestrationV2ProviderTurn,
   type OrchestrationV2TurnItem,
   type OrchestrationV2Run,
+  type OrchestrationV2RunAttempt,
   type OrchestrationV2ThreadProjection,
   ProviderInstanceId,
   ProviderThreadId,
@@ -280,30 +283,41 @@ export function makeSideChatContext(input: {
 
 /**
  * Prepended to every side chat turn after the one that carried its context. The digest went once;
- * this only keeps the boundary in view.
+ * this only keeps the boundary in view. A promoted side chat is told once, by the first turn after
+ * the promotion that the provider accepted with a prompt.
  */
 export function sideChatTurnNote(input: {
   readonly thread: Pick<OrchestrationV2AppThread, "lineage" | "sideChatPromotedAt">;
-  readonly runs: ReadonlyArray<Pick<OrchestrationV2Run, "id" | "ordinal" | "requestedAt">>;
-  readonly runId: RunId;
+  readonly runs: ReadonlyArray<Pick<OrchestrationV2Run, "id" | "status" | "userMessageId">>;
+  readonly attempts: ReadonlyArray<Pick<OrchestrationV2RunAttempt, "id" | "runId" | "startedAt">>;
+  readonly providerTurns: ReadonlyArray<Pick<OrchestrationV2ProviderTurn, "runAttemptId">>;
+  /** Compaction and goal turns send no prompt context. */
+  readonly promptlessMessageIds: ReadonlySet<MessageId>;
 }): string {
   const { thread } = input;
   const { parentThreadId } = thread.lineage;
   if (thread.lineage.sideChat !== true) {
     const promotedAt = thread.sideChatPromotedAt;
     if (promotedAt == null) return "";
-    // Once, on the first run asked for after the promotion.
-    const firstRunAfter = input.runs
-      .filter(
-        (run) => DateTime.toEpochMillis(run.requestedAt) >= DateTime.toEpochMillis(promotedAt),
-      )
-      .reduce<(typeof input.runs)[number] | undefined>(
-        (first, run) => (first === undefined || run.ordinal < first.ordinal ? run : first),
-        undefined,
-      );
-    return firstRunAfter?.id === input.runId
-      ? "This thread was a side chat and is now a full thread. The side chat restrictions no longer apply."
-      : "";
+    const acceptedAttemptIds = new Set(input.providerTurns.map((turn) => turn.runAttemptId));
+    const promptedRunIds = new Set(
+      input.runs
+        .filter(
+          (run) =>
+            run.status !== "rolled_back" && !input.promptlessMessageIds.has(run.userMessageId),
+        )
+        .map((run) => run.id),
+    );
+    const told = input.attempts.some(
+      (attempt) =>
+        attempt.startedAt !== null &&
+        DateTime.toEpochMillis(attempt.startedAt) >= DateTime.toEpochMillis(promotedAt) &&
+        acceptedAttemptIds.has(attempt.id) &&
+        promptedRunIds.has(attempt.runId),
+    );
+    return told
+      ? ""
+      : "This thread was a side chat and is now a full thread. The side chat restrictions no longer apply.";
   }
   if (parentThreadId === null) return "";
   return [

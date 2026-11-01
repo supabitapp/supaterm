@@ -301,8 +301,13 @@ function makeLocalCommandHarness(input: {
     readonly switchedProvider?: boolean;
     readonly forkWhileSourceActive?: "none" | "stable";
   };
-  /** A side chat promoted before this run, or before an earlier run that came after it. */
-  readonly promotedSideChat?: "before-this-run" | "before-an-earlier-run";
+  /**
+   * A side chat promoted before this run. `earlierRun` started after the promotion, with `text`,
+   * and `accepted` says whether the provider took its turn.
+   */
+  readonly promotedSideChat?: {
+    readonly earlierRun?: { readonly text: string; readonly accepted: boolean };
+  };
 }) {
   const now = DateTime.makeUnsafe("2026-09-04T12:00:00Z");
   const threadId = ThreadId.make("thread-native-account-command");
@@ -613,22 +618,61 @@ function makeLocalCommandHarness(input: {
     };
   }
   if (input.promotedSideChat !== undefined) {
+    const { earlierRun } = input.promotedSideChat;
+    const earlierRunId = RunId.make("run-after-promotion");
+    const earlierAttemptId = RunAttemptId.make("attempt-after-promotion");
+    const earlierMessageId = MessageId.make("message-after-promotion");
+    const earlierStartedAt = DateTime.subtract(now, { seconds: 30 });
     projection = {
       ...projection,
       thread: { ...projection.thread, sideChatPromotedAt: DateTime.subtract(now, { minutes: 1 }) },
-      runs:
-        input.promotedSideChat === "before-this-run"
-          ? projection.runs
-          : [
+      ...(earlierRun === undefined
+        ? {}
+        : {
+            runs: [
               {
                 ...run,
-                id: RunId.make("run-after-promotion"),
+                id: earlierRunId,
                 ordinal: 1,
-                status: "completed",
-                activeAttemptId: null,
+                userMessageId: earlierMessageId,
+                activeAttemptId: earlierAttemptId,
+                status: earlierRun.accepted ? "completed" : "failed",
+                startedAt: earlierStartedAt,
+                completedAt: now,
               },
               ...projection.runs,
             ],
+            attempts: [
+              {
+                ...projection.attempts[0]!,
+                id: earlierAttemptId,
+                runId: earlierRunId,
+                status: earlierRun.accepted ? "completed" : "failed",
+                startedAt: earlierStartedAt,
+                completedAt: now,
+              },
+              ...projection.attempts,
+            ],
+            messages: [
+              { ...message, id: earlierMessageId, runId: earlierRunId, text: earlierRun.text },
+              ...projection.messages,
+            ],
+            providerTurns: earlierRun.accepted
+              ? [
+                  {
+                    id: ProviderTurnId.make("provider-turn-after-promotion"),
+                    providerThreadId,
+                    nodeId: rootNodeId,
+                    runAttemptId: earlierAttemptId,
+                    nativeTurnRef: null,
+                    ordinal: 1,
+                    status: "completed",
+                    startedAt: earlierStartedAt,
+                    completedAt: now,
+                  },
+                ]
+              : [],
+          }),
     };
   }
   if ("historyReadFailureAfterFallback" in input) {
@@ -1308,9 +1352,8 @@ effectIt.effect.each([
       const sent =
         context === "SIDE_CHAT_NOTE"
           ? ContextHandoffService.sideChatTurnNote({
-              thread: harness.projection().thread,
-              runs: harness.projection().runs,
-              runId: harness.projection().runs.at(-1)!.id,
+              ...harness.projection(),
+              promptlessMessageIds: new Set(),
             })
           : context;
       expect(sent).not.toBe("");
@@ -1328,8 +1371,11 @@ effectIt.effect.each([
 );
 
 effectIt.effect.each([
-  { promotedSideChat: "before-this-run", note: true },
-  { promotedSideChat: "before-an-earlier-run", note: false },
+  { promotedSideChat: {}, note: true },
+  { promotedSideChat: { earlierRun: { text: "Look into it", accepted: true } }, note: false },
+  { promotedSideChat: { earlierRun: { text: "/compact", accepted: true } }, note: true },
+  { promotedSideChat: { earlierRun: { text: "/goal ship it", accepted: true } }, note: true },
+  { promotedSideChat: { earlierRun: { text: "Look into it", accepted: false } }, note: true },
 ] as const)(
   "tells a promoted side chat once that its rules ended: %j",
   ({ promotedSideChat, note }) =>

@@ -829,20 +829,28 @@ export const layer: Layer.Layer<
         projection.providerTurns,
         projection.attempts,
       );
+      const promptlessMessageIds = new Set(
+        projection.messages
+          .filter(
+            (candidate) =>
+              isCompactionCommandMessage(candidate) ||
+              (goalDriver && parseGoalCommand(candidate) !== null),
+          )
+          .map((candidate) => candidate.id),
+      );
       const restartCancelledWork = pendingRestartCancelledBackgroundWork({
         runs: projection.runs,
         providerTurns: projection.providerTurns,
-        compactionMessageIds: new Set(
-          projection.messages
-            .filter(
-              (candidate) =>
-                isCompactionCommandMessage(candidate) ||
-                (goalDriver && parseGoalCommand(candidate) !== null),
-            )
-            .map((candidate) => candidate.id),
-        ),
+        compactionMessageIds: promptlessMessageIds,
         run,
         attempts: projection.attempts,
+      });
+      const sideChatTurnNote = ContextHandoffService.sideChatTurnNote({
+        thread: projection.thread,
+        runs: projection.runs,
+        attempts: projection.attempts,
+        providerTurns: projection.providerTurns,
+        promptlessMessageIds,
       });
       const restartNote =
         restartCancelledWork.length === 0
@@ -1565,13 +1573,7 @@ export const layer: Layer.Layer<
               ? ""
               : sideChatHandoff.summaryText;
           const sideChatNote =
-            sideChatHandoff !== undefined || compact || goalCommand
-              ? ""
-              : ContextHandoffService.sideChatTurnNote({
-                  thread: projection.thread,
-                  runs: projection.runs,
-                  runId: run.id,
-                });
+            sideChatHandoff !== undefined || compact || goalCommand ? "" : sideChatTurnNote;
           const context = [delivery.context, sideChatContext, sideChatNote, restartNote]
             .filter((part) => part !== "")
             .join("\n\n");
@@ -1639,8 +1641,7 @@ export const layer: Layer.Layer<
         effectiveHandoffs.length === 0 &&
         retryHandoff.length === 0 &&
         sideChatHandoff === undefined &&
-        projection.thread.lineage.sideChat !== true &&
-        projection.thread.sideChatPromotedAt == null &&
+        sideChatTurnNote === "" &&
         restartNote === "" &&
         !noteContinuation
           ? session
