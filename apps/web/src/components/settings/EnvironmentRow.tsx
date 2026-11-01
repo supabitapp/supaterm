@@ -49,7 +49,11 @@ export function environmentTransportLabel(
     : connectionAddressLabel(environment.displayUrl);
 }
 
-export function useEnvironmentTransportLabel(environment: EnvironmentPresentation): string {
+export function EnvironmentTransportLabel({
+  environment,
+}: {
+  readonly environment: EnvironmentPresentation;
+}) {
   const prepared = usePreparedConnection(environment.environmentId);
   return environmentTransportLabel(
     environment,
@@ -57,12 +61,6 @@ export function useEnvironmentTransportLabel(environment: EnvironmentPresentatio
       ? prepared.value.target
       : null,
   );
-}
-
-export function EnvironmentTransportLabel(props: {
-  readonly environment: EnvironmentPresentation;
-}) {
-  return useEnvironmentTransportLabel(props.environment);
 }
 
 export function EnvironmentRow({
