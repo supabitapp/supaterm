@@ -1620,7 +1620,7 @@ it.live("an agent answers the page's file picker or sets files on a file input",
       const setFiles = vi.fn(async (_files: unknown) => {});
       page.emit("filechooser", {
         isMultiple: () => false,
-        element: () => ({ getAttribute: async () => ".csv" }),
+        element: () => fileChooserElement(".csv"),
         setFiles,
       });
       const status = broker.invoke<PreviewAutomationStatus>({
