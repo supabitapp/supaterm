@@ -1,4 +1,5 @@
 import {
+  automaticTranscriptionProvider,
   TranscriptionError,
   type TranscriptionErrorReason,
   type TranscriptionPrepareUploadInput,
@@ -46,21 +47,27 @@ export type VoiceTranscriptionSource =
 const providerName = (provider: ServerProvider) => provider.displayName ?? provider.instanceId;
 
 /**
- * Mirrors the server, which transcribes only with the instance the setting names:
- * when it can't, nothing stands in for it, because that would charge another account.
+ * Mirrors the server, which transcribes only with the instance the setting names, or the
+ * automatic pick while it's unset: when that can't, nothing stands in for it, because that
+ * would charge another account.
  */
 export function resolveVoiceTranscriptionSource(config: {
   readonly providers: ReadonlyArray<ServerProvider>;
-  readonly settings: { readonly transcriptionProviderInstanceId: ProviderInstanceId };
+  readonly settings: { readonly transcriptionProviderInstanceId: ProviderInstanceId | null };
 }): VoiceTranscriptionSource {
-  const provider = config.providers.find(
-    (candidate) => candidate.instanceId === config.settings.transcriptionProviderInstanceId,
-  );
+  const chosen = config.settings.transcriptionProviderInstanceId;
+  const provider =
+    chosen === null
+      ? automaticTranscriptionProvider(config.providers)
+      : config.providers.find((candidate) => candidate.instanceId === chosen);
   if (!provider) {
     return {
       status: "unavailable",
       provider: null,
-      message: "The voice transcription provider isn't set up on this environment.",
+      message:
+        chosen === null
+          ? "No provider on this environment can transcribe voice input."
+          : "The voice transcription provider isn't set up on this environment.",
     };
   }
   if (!provider.enabled) {

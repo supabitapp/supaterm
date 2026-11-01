@@ -120,8 +120,9 @@ ffmpeg -i memo.m4a -ar 16000 -ac 1 -c:a pcm_s16le memo.wav
 supaterm transcribe memo.wav --project .
 ```
 
-It uses the provider chosen under **Settings → Threads → Voice transcription**;
-`--provider codex` picks another one for a single recording. The recording must
+It uses the provider chosen under **Settings → Threads → Voice transcription**,
+or the first ready one under **Automatic**; `--provider codex` picks another one
+for a single recording. The recording must
 be a 16 kHz mono 16-bit WAV of at most five minutes. Claude
 needs a Claude subscription login and Codex a ChatGPT login; API-key logins
 can't transcribe. With Claude, `--project` or `--thread` helps it spell that

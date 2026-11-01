@@ -108,6 +108,9 @@ const makeHarness = Effect.gen(function* () {
   } as unknown as ProviderInstance;
   const provider = {
     instanceId: INSTANCE,
+    driver: "claudeAgent",
+    enabled: true,
+    transcription: { status: "ready" },
     skills: [skill("machine")],
     workspaceSnapshots: [
       {
@@ -136,7 +139,7 @@ const makeHarness = Effect.gen(function* () {
   } as unknown as Project;
 
   const layer = Transcription.layer.pipe(
-    Layer.provide(
+    Layer.provideMerge(
       Layer.mergeAll(
         Layer.mock(ProviderInstanceRegistry.ProviderInstanceRegistry)({
           getInstance: (instanceId) =>
@@ -152,9 +155,7 @@ const makeHarness = Effect.gen(function* () {
           getById: (projectId) =>
             Effect.succeed(projectId === PROJECT ? Option.some(project) : Option.none()),
         }),
-        ServerSettings.ServerSettingsService.layerTest({
-          transcriptionProviderInstanceId: INSTANCE,
-        }),
+        ServerSettings.ServerSettingsService.layerTest(),
       ),
     ),
     Layer.provideMerge(
@@ -502,11 +503,12 @@ describe("Transcription", () => {
     }),
   );
 
-  it.effect("uses the environment's provider by default and checks it before any audio", () =>
+  it.effect("picks a ready provider while unset and checks it before any audio", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness;
       yield* Effect.gen(function* () {
         const service = yield* Transcription.Transcription;
+        const settings = yield* ServerSettings.ServerSettingsService;
         expect(yield* service.checkSource({ language: "en-US" })).toBe(INSTANCE);
         expect(yield* reason(service.checkSource({ language: "vi" }))).toBe("unsupportedLanguage");
         expect(yield* reason(service.checkSource({ providerInstanceId: OTHER_INSTANCE }))).toBe(
@@ -522,6 +524,9 @@ describe("Transcription", () => {
           text: "default",
         });
         expect(yield* Ref.get(harness.calls)).toHaveLength(1);
+
+        yield* settings.updateSettings({ transcriptionProviderInstanceId: OTHER_INSTANCE });
+        expect(yield* reason(service.checkSource({}))).toBe("sourceUnavailable");
       }).pipe(Effect.provide(harness.layer));
     }),
   );

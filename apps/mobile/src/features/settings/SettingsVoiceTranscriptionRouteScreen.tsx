@@ -2,6 +2,7 @@ import { useAtomValue } from "@effect/atom-react";
 import { resolveVoiceTranscriptionSource } from "@supaterm/client-runtime/state/transcription";
 import {
   AuthSettingsWriteScope,
+  automaticTranscriptionProvider,
   TranscriptionError,
   type ProviderInstanceId,
   type ServerProvider,
@@ -64,8 +65,8 @@ export function SettingsVoiceTranscriptionRouteScreen() {
           )}
           <Text className="px-2 text-sm text-foreground-muted">
             Recordings from every device that uses an environment are transcribed with the account
-            chosen here. If it can't transcribe, voice input says why instead of using another
-            account.
+            chosen here. Automatic uses the first ready login, Claude's first. If an account you
+            choose can't transcribe, voice input says why instead of using another account.
           </Text>
         </ScrollView>
       </SettingsScreen>
@@ -88,13 +89,14 @@ function EnvironmentTranscriptionSection(props: {
   const chosen = config.settings.transcriptionProviderInstanceId;
   const source = resolveVoiceTranscriptionSource(config);
   const candidates = config.providers.filter((provider) => provider.transcription !== undefined);
+  const automatic = automaticTranscriptionProvider(candidates);
   const note =
     candidates.length === 0
       ? "No provider here can transcribe. Update this environment, or sign in to a provider that can."
       : source.status === "unavailable"
         ? source.message
         : null;
-  const choose = (instanceId: ProviderInstanceId) => {
+  const choose = (instanceId: ProviderInstanceId | null) => {
     if (saving || !readEnvironmentScope(environmentId, AuthSettingsWriteScope)) return;
     setSaving(true);
     void writeSettings(resolveMobileSettingsTargets([target], null), [
@@ -104,7 +106,22 @@ function EnvironmentTranscriptionSection(props: {
 
   return (
     <SettingsSection title={props.title}>
-      {candidates.map((provider, index) => {
+      {candidates.length > 0 ? (
+        <SettingsChoiceRow
+          label="Automatic"
+          description={
+            automatic && providerStatus(automatic) === null
+              ? `Uses ${automatic.displayName ?? automatic.instanceId}.`
+              : "No login here is ready."
+          }
+          selected={chosen === null}
+          disabled={!canWrite || saving}
+          onPress={() => {
+            if (chosen !== null) choose(null);
+          }}
+        />
+      ) : null}
+      {candidates.map((provider) => {
         const status = providerStatus(provider);
         const selected = provider.instanceId === chosen;
         return (
@@ -113,7 +130,7 @@ function EnvironmentTranscriptionSection(props: {
             label={provider.displayName ?? provider.instanceId}
             description={status ?? "Ready to transcribe."}
             selected={selected}
-            separated={index > 0}
+            separated
             disabled={!canWrite || saving || (status !== null && !selected)}
             onPress={() => {
               if (!selected) choose(provider.instanceId);

@@ -19,8 +19,11 @@ first and sends through the normal send path, because a submitted upload carries
 
 The server's [`Transcription`](../../apps/server/src/transcription/Transcription.ts)
 service transcribes an uploaded recording with the login of the provider instance the
-request names, or the environment's `transcriptionProviderInstanceId` setting. It never
-falls back to another account. App clients upload through
+request names, or the environment's `transcriptionProviderInstanceId` setting. A named
+instance that can't transcribe is refused, never substituted. Only an unset setting picks,
+through `automaticTranscriptionProvider`, which the clients share so their microphone state
+matches the server's choice. A repeated upload keeps its first pick or is refused as a
+conflict, so a redelivery never moves to another account. App clients upload through
 [`TranscriptionUploads`](../../apps/server/src/transcription/TranscriptionUploads.ts); agents
 and `supaterm transcribe` use the pending-attachment upload. The upload id is the
 idempotency key, and the work belongs to the service, so a dropped connection stops only the

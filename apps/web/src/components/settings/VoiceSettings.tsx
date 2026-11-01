@@ -1,4 +1,8 @@
-import { ProviderInstanceId, type ServerProvider } from "@supaterm/contracts";
+import {
+  automaticTranscriptionProvider,
+  ProviderInstanceId,
+  type ServerProvider,
+} from "@supaterm/contracts";
 import { DEFAULT_UNIFIED_SETTINGS } from "@supaterm/contracts/settings";
 
 import {
@@ -12,6 +16,7 @@ import { searchableSetting } from "./settingsSearch";
 import { useScopedSettings, useUpdateScopedSettings } from "./useScopedSettings";
 
 const SYSTEM_LANGUAGE = "system";
+const AUTOMATIC_TRANSCRIPTION = "@automatic";
 
 function providerName(provider: ServerProvider) {
   return provider.displayName ?? provider.instanceId;
@@ -30,13 +35,26 @@ export function VoiceTranscriptionSettingRow(props: {
   const updateSettings = useUpdateScopedSettings();
   const providers = props.providers.filter((provider) => provider.transcription !== undefined);
   const selectedId = settings.transcriptionProviderInstanceId;
-  const selected = providers.find((provider) => provider.instanceId === selectedId);
+  const automatic = automaticTranscriptionProvider(providers);
+  const options = [
+    {
+      value: AUTOMATIC_TRANSCRIPTION,
+      label: `Automatic (${automatic ? providerName(automatic) : "none"})`,
+      status: automatic ? transcriptionStatus(automatic) : "Can't transcribe",
+    },
+    ...providers.map((provider) => ({
+      value: provider.instanceId,
+      label: providerName(provider),
+      status: transcriptionStatus(provider),
+    })),
+  ];
+  const value = selectedId ?? AUTOMATIC_TRANSCRIPTION;
   return (
     <SettingsRow
       serverScoped
       settingKeys={["transcriptionProviderInstanceId"]}
       {...searchableSetting("voice-transcription")}
-      description="Voice input sent to this environment is transcribed with this login, which is charged for it. Supaterm never switches to another account."
+      description="Voice input sent to this environment is transcribed with this login, which is charged for it. Automatic uses the first ready login, Claude's first. A login you choose is never swapped for another account."
       resetAction={
         selectedId !== DEFAULT_UNIFIED_SETTINGS.transcriptionProviderInstanceId ? (
           <SettingResetButton
@@ -55,10 +73,13 @@ export function VoiceTranscriptionSettingRow(props: {
           <span className="text-muted-foreground text-xs">No provider here can transcribe.</span>
         ) : (
           <Select
-            value={selectedId}
-            onValueChange={(value) => {
-              if (value)
-                updateSettings({ transcriptionProviderInstanceId: ProviderInstanceId.make(value) });
+            value={value}
+            onValueChange={(next) => {
+              if (next)
+                updateSettings({
+                  transcriptionProviderInstanceId:
+                    next === AUTOMATIC_TRANSCRIPTION ? null : ProviderInstanceId.make(next),
+                });
             }}
           >
             <SelectTrigger
@@ -66,14 +87,16 @@ export function VoiceTranscriptionSettingRow(props: {
               className="w-auto min-w-0 max-w-full"
               aria-label="Voice transcription provider"
             >
-              <SelectValue>{selected ? providerName(selected) : selectedId}</SelectValue>
+              <SelectValue>
+                {options.find((option) => option.value === value)?.label ?? value}
+              </SelectValue>
             </SelectTrigger>
             <SelectPopup align="end" alignItemWithTrigger={false}>
-              {providers.map((provider) => (
-                <SelectItem hideIndicator key={provider.instanceId} value={provider.instanceId}>
+              {options.map((option) => (
+                <SelectItem hideIndicator key={option.value} value={option.value}>
                   <span className="flex w-full items-center justify-between gap-6">
-                    {providerName(provider)}
-                    <span className="text-muted-foreground">{transcriptionStatus(provider)}</span>
+                    {option.label}
+                    <span className="text-muted-foreground">{option.status}</span>
                   </span>
                 </SelectItem>
               ))}

@@ -232,12 +232,14 @@ while you speak:
 - **Discard**, or `Escape`, throws the recording away and keeps your draft.
 
 The environment transcribes with the provider chosen under **Settings → Threads → Voice
-transcription** (**Settings → Voice transcription** on mobile), Claude by default, and that
-login is charged for it. Claude needs a Claude subscription login and Codex a ChatGPT login.
-If the chosen login can't transcribe, the microphone says why; Supaterm never switches to
-another account. A Claude instance that runs on an API key, a gateway's
-`ANTHROPIC_BASE_URL` and token, or Amazon Bedrock can't transcribe; choose Codex, or add a
-Claude instance with its own
+transcription** (**Settings → Voice transcription** on mobile), and that login is charged
+for it. Claude needs a Claude subscription login and Codex a ChatGPT login. **Automatic**,
+the default, picks the first login ready to transcribe for each new recording, trying the
+default Claude instance, then other Claude instances, then the rest, so a later recording can
+be charged to a different account. A
+recording that fails isn't retried with another account. Choose a provider to pin one
+account: if it can't transcribe, the microphone says why and Supaterm never switches. A Claude instance that runs on an API key, a gateway's `ANTHROPIC_BASE_URL` and
+token, or Amazon Bedrock can't transcribe; choose Codex, or add a Claude instance with its own
 [config directory](./providers-claude.md#separate-accounts-or-configurations) signed in to
 your subscription. Choose the language you speak under **Settings → Chat → Voice
 language**; it follows your system language by default. On iPhone and Android, voice input

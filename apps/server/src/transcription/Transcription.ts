@@ -1,4 +1,5 @@
 import {
+  automaticTranscriptionProvider,
   type ProviderInstanceId,
   TRANSCRIPTION_MAX_AUDIO_BYTES,
   TRANSCRIPTION_MAX_SECONDS,
@@ -214,7 +215,11 @@ const make = Effect.gen(function* () {
       input.providerInstanceId ??
       (yield* settings.getSettings.pipe(
         Effect.mapError((cause) => new TranscriptionError({ reason: "sourceUnavailable", cause })),
-      )).transcriptionProviderInstanceId;
+      )).transcriptionProviderInstanceId ??
+      automaticTranscriptionProvider(yield* providerRegistry.getProviders)?.instanceId;
+    if (providerInstanceId === undefined) {
+      return yield* new TranscriptionError({ reason: "sourceUnavailable" });
+    }
     return { providerInstanceId, language: normalizeLanguage(input.language) } satisfies RunInputs;
   });
 
