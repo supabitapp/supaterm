@@ -250,7 +250,7 @@ jobs:
             core.setOutput('compatible', Boolean(compatibleBuild));
       - id: build
         name: Compile and sign
-        if: inputs.mode == 'build' || (github.event_name == 'push' && steps.history.outputs.version_exists != 'true')
+        if: inputs.mode == 'build' || (github.event_name == 'push' && (steps.history.outputs.version_exists != 'true' || steps.history.outputs.compatible != 'true'))
         uses: ./.github/actions/build-mobile
         with:
           platform: ${{ matrix.platform }}
