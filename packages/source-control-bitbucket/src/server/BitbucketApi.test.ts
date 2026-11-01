@@ -219,7 +219,7 @@ it.effect.each([false, true])("honors PR URL repositories, context=%s", (withCon
                 baseUrl: "https://bitbucket.org",
               },
               remoteName: "origin",
-              remoteUrl: "git@bitbucket.org:supabitapp/supaterm.git",
+              remoteUrl: "git@bitbucket.org:supabitapp/supacode-next.git",
             },
           }
         : {}),
@@ -260,7 +260,10 @@ it.effect.each([false, true])(
       response: () =>
         Response.json({
           ...bitbucketPullRequest,
-          source: { ...bitbucketPullRequest.source, repository: { full_name: "supabitapp/supaterm" } },
+          source: {
+            ...bitbucketPullRequest.source,
+            repository: { full_name: "supabitapp/supacode-next" },
+          },
         }),
     });
     return Effect.gen(function* () {
@@ -277,7 +280,7 @@ it.effect.each([false, true])(
                   baseUrl: "https://bitbucket.org",
                 },
                 remoteName: "upstream",
-                remoteUrl: "git@bitbucket.org:PingDotGG/SupatermCode.git",
+                remoteUrl: "git@bitbucket.org:SupaBitApp/Supacode-Next.git",
               },
             }
           : {}),
