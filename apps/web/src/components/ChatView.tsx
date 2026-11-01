@@ -3925,6 +3925,7 @@ export default function ChatView(props: ChatViewProps) {
                     projectId={activeThread.projectId}
                     worktreePath={activeThread.worktreePath}
                     isServerThread={isServerThread}
+                    sideChat={isSideChat}
                     {...(draftId ? { draftId } : {})}
                     composerDraftTarget={composerDraftTarget}
                     activeProjectName={activeProject?.title}

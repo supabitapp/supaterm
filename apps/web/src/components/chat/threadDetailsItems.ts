@@ -33,6 +33,16 @@ export function resolveThreadDetailsVisibility(
   ) as Record<ThreadDetailsItemId, boolean>;
 }
 
+/**
+ * A side chat works in its parent's checkout, so its card leaves out the environment, branch,
+ * worktree, and env-mode controls that would change that checkout.
+ */
+export function withoutParentCheckoutItems(
+  visibility: ThreadDetailsVisibility,
+): ThreadDetailsVisibility {
+  return { ...visibility, environment: false, branch: false };
+}
+
 /** Stores only choices that differ from the default, so a later default change reaches everyone else. */
 export function setThreadDetailsItem(
   settings: ThreadDetailsItemSettings,

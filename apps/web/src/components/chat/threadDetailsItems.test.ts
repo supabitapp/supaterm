@@ -5,6 +5,7 @@ import {
   resolveThreadDetailsVisibility,
   setThreadDetailsItem,
   THREAD_DETAILS_ITEMS,
+  withoutParentCheckoutItems,
 } from "./threadDetailsItems";
 
 const usage = THREAD_DETAILS_ITEMS.find((item) => item.id === "usage")!;
@@ -30,5 +31,13 @@ describe("thread details items", () => {
     const hidden = { threadDetailsItems: { servers: false } };
     expect(setThreadDetailsItem(hidden, servers, true)).toEqual({});
     expect(isDefaultThreadDetailsVisibility(resolveThreadDetailsVisibility(hidden))).toBe(false);
+  });
+
+  it("leaves the parent checkout's controls out of a side chat's card", () => {
+    const visibility = withoutParentCheckoutItems(
+      resolveThreadDetailsVisibility({ threadDetailsItems: {} }),
+    );
+    expect(visibility).toMatchObject({ environment: false, branch: false });
+    expect(visibility).toMatchObject({ openIn: true, context: true, sideChats: true });
   });
 });

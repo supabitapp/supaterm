@@ -33,7 +33,11 @@ import { ThreadDetailsForkControl } from "./ThreadDetailsForkControl";
 import { ThreadServersPanel } from "./ThreadServersPanel";
 import { ThreadDetailsLimits, type ThreadDetailsLimitsInput } from "./ThreadDetailsLimits";
 import { ThreadDetailsItemsMenuItems } from "./ThreadDetailsItemsMenu";
-import { resolveThreadDetailsVisibility, THREAD_DETAILS_ITEMS } from "./threadDetailsItems";
+import {
+  resolveThreadDetailsVisibility,
+  THREAD_DETAILS_ITEMS,
+  withoutParentCheckoutItems,
+} from "./threadDetailsItems";
 import { useClientSettings } from "../../hooks/useSettings";
 import { SlidersHorizontalIcon } from "@supaterm/icons";
 import { ThreadDetailsControl } from "./ThreadDetailsControl";
@@ -52,6 +56,8 @@ interface ThreadDetailsPanelProps extends Pick<
   projectId: ProjectId;
   worktreePath: string | null;
   isServerThread: boolean;
+  /** A side chat or side chat draft, which works in its parent's checkout. */
+  sideChat: boolean;
   draftId?: DraftId;
   composerDraftTarget: ScopedThreadRef | DraftId;
   activeProjectName: string | undefined;
@@ -91,7 +97,10 @@ interface ThreadDetailsPanelProps extends Pick<
 }
 
 export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
-  const visible = useClientSettings(resolveThreadDetailsVisibility);
+  const settingsVisibility = useClientSettings(resolveThreadDetailsVisibility);
+  const visible = props.sideChat
+    ? withoutParentCheckoutItems(settingsVisibility)
+    : settingsVisibility;
   const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
   const fileScripts = useSupatermProjectFileScripts(
     props.environmentId,
