@@ -401,8 +401,8 @@ it.effect("sends a self-hosted Bitbucket remote nowhere unless an API base url i
     const cloud = makeLayer({ response, env: cloudEnv });
     yield* defaultBranch(cloud, false);
     assert.deepStrictEqual(requestedUrls(cloud), [
-      "https://api.bitbucket.org/2.0/repositories/supabitapp/supaterm",
-      "https://api.bitbucket.org/2.0/repositories/supabitapp/supaterm/branching-model",
+      "https://api.bitbucket.org/2.0/repositories/supabitapp/supacode-next",
+      "https://api.bitbucket.org/2.0/repositories/supabitapp/supacode-next/branching-model",
     ]);
 
     const configured = makeLayer({ response, remoteUrl });
