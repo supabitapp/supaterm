@@ -50,7 +50,7 @@ it.live("enables CLI caching while respecting overrides and unavailable storage"
     expect(normal.stderr.replaceAll("\\", "/")).toContain(
       `CACHE=${root}/cache/supaterm/compile-cache`.replaceAll("\\", "/"),
     );
-    const appImage = yield* run({ APPIMAGE: `${root}/SupatermCode.AppImage` });
+    const appImage = yield* run({ APPIMAGE: `${root}/supaterm.AppImage` });
     expect(appImage.exitCode).toBe(0);
     expect(appImage.stderr).toContain("CACHE=disabled");
     const existing = yield* run({ NODE_COMPILE_CACHE: `${root}/explicit` });
