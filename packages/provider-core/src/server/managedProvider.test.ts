@@ -432,7 +432,7 @@ describe("makeManagedServerProvider", () => {
                 : count === 2
                   ? Effect.fail(
                       new ServerSettingsError({
-                        settingsPath: "/t3/userdata/settings.json",
+                        settingsPath: "/supaterm/userdata/settings.json",
                         operation: "read-file",
                       }),
                     )
