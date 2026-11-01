@@ -1,7 +1,7 @@
 import { useSidebarWorkspaceTabs } from "../workspace/useSystemWorkspaceTabBar";
 import { Button } from "../../components/ui/Button";
 import * as Dialog from "../../components/ui/Dialog";
-import { parseSideChatCommand } from "@supaterm/shared/composerTrigger";
+import { resolveSideChatCommand } from "@supaterm/client-runtime/state/side-chats";
 import { useSideChat } from "./useSideChat";
 import type { ComposerTextPaste } from "../../native/SupatermComposerEditor.types";
 import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
@@ -657,8 +657,12 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
       if (openUsageLimits()) onChangeDraftMessage("");
       return;
     }
-    const sideChatCommand = props.isDraft ? null : parseSideChatCommand(draftMessage);
-    if (sideChatCommand !== null && sideChat.disabledReason === null) {
+    const sideChatCommand = resolveSideChatCommand(draftMessage, sideChat.disabledReason);
+    if (sideChatCommand.kind === "refuse") {
+      Dialog.alert("Side chat not started", sideChatCommand.reason);
+      return;
+    }
+    if (sideChatCommand.kind === "start") {
       const draft = getComposerDraftSnapshot(composerDraftKey);
       if (draft.attachments.length > 0 || (draft.context?.records.length ?? 0) > 0) {
         Dialog.alert(

@@ -11,7 +11,7 @@ import {
   useComposerDraftStore,
 } from "../../composerDraftStore";
 import { type ComposerSubmissionIntent } from "../../composer-logic";
-import { parseSideChatCommand } from "@supaterm/shared/composerTrigger";
+import { resolveSideChatCommand } from "@supaterm/client-runtime/state/side-chats";
 import { filterTerminalContextsWithText } from "../../lib/terminalContext";
 import { useEnsureSideChat } from "./useSideChat";
 import { type MultipleModelTarget, resolveMultipleModelTargets } from "./chatViewSend";
@@ -321,22 +321,22 @@ export function useComposerSend(input: ComposerSendInput) {
     // `/side` beats an open question and a plan follow-up, which would send the text to main.
     const sideChatCommand =
       sendCtx && !directAnnotation && !queuedRunEdit.isEditing
-        ? parseSideChatCommand(promptAtSend)
+        ? resolveSideChatCommand(promptAtSend, sideChatDisabledReason)
         : null;
     const answeringQuestion =
       Boolean(activePendingProgress) && sendCtx?.answeringPendingUserInput !== false;
     // Where side chats are unavailable, `/side` text can still be a literal answer.
-    if (sideChatDisabledReason !== null && sideChatCommand && !answeringQuestion) {
+    if (sideChatCommand?.kind === "refuse" && !answeringQuestion) {
       toastManager.add(
         stackedThreadToast({
           type: "warning",
           title: "Side chat not started",
-          description: sideChatDisabledReason,
+          description: sideChatCommand.reason,
         }),
       );
       return;
     }
-    if (onSideChat && sendCtx && sideChatCommand && sideChatDisabledReason === null) {
+    if (onSideChat && sendCtx && sideChatCommand?.kind === "start") {
       if (
         sendCtx.images.length > 0 ||
         sendCtx.files.length > 0 ||

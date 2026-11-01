@@ -1,4 +1,5 @@
 import type { OrchestrationV2AppThreadLineage } from "@supaterm/contracts";
+import { parseSideChatCommand } from "@supaterm/shared/composerTrigger";
 
 export type SideChatParent =
   /** A thread that exists only on this client until its first send. */
@@ -35,4 +36,24 @@ export function sideChatStartBlockedReason(input: {
   if (parent.deletedAt != null) return "This thread was deleted.";
   if (parent.worktreePending) return "Available once the thread's worktree is set up.";
   return null;
+}
+
+export type SideChatCommandAction =
+  | { readonly kind: "none" }
+  | { readonly kind: "refuse"; readonly reason: string }
+  | { readonly kind: "start"; readonly prompt: string };
+
+/**
+ * What sending `text` does: `/side [prompt]` or `/btw [prompt]` starts a side chat, or is refused
+ * with `blockedReason` rather than reaching the thread's agent as a message.
+ */
+export function resolveSideChatCommand(
+  text: string,
+  blockedReason: string | null,
+): SideChatCommandAction {
+  const command = parseSideChatCommand(text);
+  if (command === null) return { kind: "none" };
+  return blockedReason === null
+    ? { kind: "start", prompt: command.prompt }
+    : { kind: "refuse", reason: blockedReason };
 }

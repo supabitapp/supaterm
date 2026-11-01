@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { type SideChatParent, sideChatStartBlockedReason } from "./sideChats.ts";
+import {
+  resolveSideChatCommand,
+  type SideChatParent,
+  sideChatStartBlockedReason,
+} from "./sideChats.ts";
 
 const thread = (
   overrides: Partial<Extract<SideChatParent, { kind: "thread" }>> = {},
@@ -83,5 +87,25 @@ describe("sideChatStartBlockedReason", () => {
     readonly [string, SideChatParent, boolean, boolean | null, string | null]
   >)("%s", (_name, parent, canOperate, supported, expected) => {
     expect(sideChatStartBlockedReason({ parent, canOperate, supported })).toBe(expected);
+  });
+});
+
+describe("resolveSideChatCommand", () => {
+  it("starts a side chat from /side or /btw when available", () => {
+    expect(resolveSideChatCommand("/side why is CI red?", null)).toEqual({
+      kind: "start",
+      prompt: "why is CI red?",
+    });
+    expect(resolveSideChatCommand("/btw", null)).toEqual({ kind: "start", prompt: "" });
+  });
+
+  it("refuses /side with the reason instead of sending it to the thread", () => {
+    expect(
+      resolveSideChatCommand("/side why is CI red?", "Side chats start after the first message."),
+    ).toEqual({ kind: "refuse", reason: "Side chats start after the first message." });
+  });
+
+  it("leaves other messages alone", () => {
+    expect(resolveSideChatCommand("fix /side effects", "Blocked.")).toEqual({ kind: "none" });
   });
 });
