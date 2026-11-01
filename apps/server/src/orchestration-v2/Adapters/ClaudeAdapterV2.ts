@@ -3423,13 +3423,19 @@ const withoutSchemaDefaults = (schema: Record<string, unknown>): Record<string, 
   };
 };
 
-// The card collects consent only; schema defaults must never grant unseen permissions.
+// Outside Full access the card collects consent only, so schema defaults must never grant unseen permissions.
 export function claudeMcpElicitationAcceptance(
   request: ElicitationRequest,
+  { fullAccess }: { readonly fullAccess: boolean },
 ): ElicitationResult | undefined {
   if (request.mode === "url" || request.requestedSchema === undefined) return undefined;
   const response = toMcpElicitationResponse(
-    { mode: "form", requestedSchema: withoutSchemaDefaults(request.requestedSchema) },
+    {
+      mode: "form",
+      requestedSchema: fullAccess
+        ? request.requestedSchema
+        : withoutSchemaDefaults(request.requestedSchema),
+    },
     "accept",
   );
   // The helper leaves content out when the schema is not a form it can read.
@@ -9801,8 +9807,9 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
         ) {
           if (callbackOptions.signal.aborted)
             return { action: "cancel" } satisfies ElicitationResult;
-          const acceptance = claudeMcpElicitationAcceptance(request);
           const context = yield* Ref.get(activeTurn);
+          const fullAccess = context?.queryPolicy.permissionMode === "bypassPermissions";
+          const acceptance = claudeMcpElicitationAcceptance(request, { fullAccess });
           if (acceptance === undefined || context === null) {
             yield* Effect.logWarning(
               "Declined an MCP elicitation the approval card cannot answer.",
@@ -9810,12 +9817,13 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                 serverName: request.serverName,
                 mode: request.mode,
                 activeTurn: context !== null,
+                fullAccess,
               },
             );
             return { action: "decline" } satisfies ElicitationResult;
           }
           // Full access approves what Claude forwards, so unattended turns never wait on consent.
-          if (context.queryPolicy.permissionMode === "bypassPermissions") return acceptance;
+          if (fullAccess) return acceptance;
           // The CLI waits on this answer, so a turn held for its prompt echo
           // must show its output now, as canUseTool does.
           if (context.heldRootFrames.length > 0) {

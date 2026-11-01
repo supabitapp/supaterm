@@ -9,6 +9,7 @@ import { beforeEach, vi } from "vite-plus/test";
 
 import type {
   ElicitationRequest,
+  ElicitationResult,
   Query as ClaudeQuery,
   SDKMessage,
   SDKResultMessage,
@@ -1153,9 +1154,11 @@ describe("ClaudeAdapterV2 MCP elicitation acceptance", () => {
     mode: "form",
     requestedSchema: { type: "object", properties, ...(required ? { required } : {}) },
   });
+  const acceptOnCard = (request: ElicitationRequest) =>
+    ClaudeAdapterV2.claudeMcpElicitationAcceptance(request, { fullAccess: false });
 
   it("answers an empty-properties form with empty content", () => {
-    assert.deepEqual(ClaudeAdapterV2.claudeMcpElicitationAcceptance(form({})), {
+    assert.deepEqual(acceptOnCard(form({})), {
       action: "accept",
       content: {},
     });
@@ -1171,7 +1174,7 @@ describe("ClaudeAdapterV2 MCP elicitation acceptance", () => {
       "allow_once_only",
     ]) {
       assert.deepEqual(
-        ClaudeAdapterV2.claudeMcpElicitationAcceptance(
+        acceptOnCard(
           form({ decision: { type: "string", enum: ["disallow", choice, "always"] } }, [
             "decision",
           ]),
@@ -1183,26 +1186,22 @@ describe("ClaudeAdapterV2 MCP elicitation acceptance", () => {
 
   it("answers a persistence toggle with false", () => {
     assert.deepEqual(
-      ClaudeAdapterV2.claudeMcpElicitationAcceptance(
-        form({ remember: { type: "boolean", title: "Always allow" } }, ["remember"]),
-      ),
+      acceptOnCard(form({ remember: { type: "boolean", title: "Always allow" } }, ["remember"])),
       { action: "accept", content: { remember: false } },
     );
   });
 
   it("leaves out optional fields the card does not show", () => {
     assert.deepEqual(
-      ClaudeAdapterV2.claudeMcpElicitationAcceptance(
+      acceptOnCard(
         form({ scope: { type: "string", enum: ["once", "always"], default: "always" } }),
       ),
       { action: "accept", content: { scope: "once" } },
     );
-    assert.deepEqual(
-      ClaudeAdapterV2.claudeMcpElicitationAcceptance(
-        form({ limit: { type: "number", default: 500 } }),
-      ),
-      { action: "accept", content: {} },
-    );
+    assert.deepEqual(acceptOnCard(form({ limit: { type: "number", default: 500 } })), {
+      action: "accept",
+      content: {},
+    });
   });
 
   it("has no answer for URL mode or a form asking for a value", () => {
@@ -1214,7 +1213,7 @@ describe("ClaudeAdapterV2 MCP elicitation acceptance", () => {
       form({ limit: { type: "number", default: 500 } }, ["limit"]),
       { serverName: "deploys", message: "Deploy web?", mode: "form" },
     ] satisfies ReadonlyArray<ElicitationRequest>) {
-      assert.isUndefined(ClaudeAdapterV2.claudeMcpElicitationAcceptance(request));
+      assert.isUndefined(acceptOnCard(request));
     }
   });
 });
@@ -4355,28 +4354,62 @@ describe("ClaudeAdapterV2 background wake turns", () => {
       }).pipe(Effect.scoped, Effect.provide(testLayer)),
     );
 
-    it.effect("accepts in Full access without a card", () =>
-      Effect.gen(function* () {
-        const { elicit, runtimeRequests } = yield* startElicitationTurn(
-          undefined,
-          CLAUDE_TEST_RUNTIME_POLICY,
-        );
-        assert.deepEqual(
-          yield* Fiber.join(
-            yield* elicit({
-              ...approvalOnly,
-              requestedSchema: {
-                type: "object",
-                properties: {
-                  scope: { type: "string", enum: ["once", "always"], default: "always" },
-                },
-              },
-            }),
-          ),
-          { action: "accept", content: { scope: "once" } },
-        );
-        assert.isEmpty(runtimeRequests());
-      }).pipe(Effect.scoped, Effect.provide(testLayer)),
+    const requiredWithDefault: ElicitationRequest = {
+      ...approvalOnly,
+      requestedSchema: {
+        type: "object",
+        properties: { region: { type: "string", default: "us-east-1" } },
+        required: ["region"],
+      },
+    };
+
+    it.effect.each([
+      [
+        "a one-time choice",
+        {
+          ...approvalOnly,
+          requestedSchema: {
+            type: "object",
+            properties: {
+              scope: { type: "string", enum: ["once", "always"], default: "always" },
+            },
+          },
+        },
+        { action: "accept", content: { scope: "once" } },
+      ],
+      [
+        "a required field's default",
+        requiredWithDefault,
+        { action: "accept", content: { region: "us-east-1" } },
+      ],
+      [
+        "URL mode as a decline",
+        { ...approvalOnly, mode: "url", url: "https://example.com/auth" },
+        { action: "decline" },
+      ],
+      [
+        "a value with no default as a decline",
+        {
+          ...approvalOnly,
+          requestedSchema: {
+            type: "object",
+            properties: { reason: { type: "string" } },
+            required: ["reason"],
+          },
+        },
+        { action: "decline" },
+      ],
+    ] satisfies ReadonlyArray<[string, ElicitationRequest, ElicitationResult]>)(
+      "answers %s in Full access without a card",
+      ([, request, expected]) =>
+        Effect.gen(function* () {
+          const { elicit, runtimeRequests } = yield* startElicitationTurn(
+            undefined,
+            CLAUDE_TEST_RUNTIME_POLICY,
+          );
+          assert.deepEqual(yield* Fiber.join(yield* elicit(request)), expected);
+          assert.isEmpty(runtimeRequests());
+        }).pipe(Effect.scoped, Effect.provide(testLayer)),
     );
 
     it.effect.each(["decline", "cancel"] as const)("answers %s with that action", (decision) =>
@@ -4414,6 +4447,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
               required: ["reason"],
             },
           },
+          requiredWithDefault,
         ] satisfies ReadonlyArray<ElicitationRequest>) {
           assert.deepEqual(yield* Fiber.join(yield* elicit(request)), { action: "decline" });
         }
