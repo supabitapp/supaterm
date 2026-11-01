@@ -1629,6 +1629,91 @@ it.layer(
       }),
     );
 
+    it.effect("refreshes a rebuilt instance before its change notification arrives", () =>
+      Effect.gen(function* () {
+        const driver = ProviderDriverKind.make("codex");
+        const instanceId = ProviderInstanceId.make("codex");
+        const refreshedVersions = yield* Ref.make<ReadonlyArray<string>>([]);
+        const makeInstance = (version: string): ProviderInstance => {
+          const provider = {
+            instanceId,
+            driver,
+            status: "ready",
+            enabled: true,
+            installed: true,
+            auth: { status: "authenticated" },
+            checkedAt: "2026-06-10T00:00:00.000Z",
+            version,
+            models: [],
+            slashCommands: [],
+            skills: [],
+          } as const satisfies ServerProvider;
+          return {
+            instanceId,
+            driverKind: driver,
+            continuationIdentity: { driverKind: driver, continuationKey: "codex:instance:codex" },
+            displayName: undefined,
+            enabled: true,
+            snapshot: {
+              resolveMaintenance: () =>
+                Effect.succeed(
+                  makeManualOnlyProviderMaintenanceCapabilities({
+                    provider: driver,
+                    packageName: null,
+                  }),
+                ),
+              getSnapshot: Effect.succeed(provider),
+              refresh: Ref.update(refreshedVersions, (versions) => [...versions, version]).pipe(
+                Effect.as(provider),
+              ),
+              streamChanges: Stream.empty,
+              applyUsageLimits: () => Effect.void,
+            },
+            orchestrationAdapter: {} as ProviderInstance["orchestrationAdapter"],
+            textGeneration: {} as ProviderInstance["textGeneration"],
+          };
+        };
+        let instances: ReadonlyArray<ProviderInstance> = [makeInstance("1.0.0")];
+        const instanceRegistryLayer = Layer.succeed(
+          ProviderInstanceRegistry.ProviderInstanceRegistry,
+          {
+            getInstance: (requestedId) =>
+              Effect.sync(() => instances.find((instance) => instance.instanceId === requestedId)),
+            listInstances: Effect.sync(() => instances),
+            listUnavailable: Effect.succeed([]),
+            streamChanges: Stream.empty,
+            subscribeChanges: Effect.flatMap(PubSub.unbounded<void>(), PubSub.subscribe),
+          },
+        );
+        const scope = yield* Scope.make();
+        yield* Effect.addFinalizer(() => Scope.close(scope, Exit.void));
+        const runtimeServices = yield* Layer.build(
+          ProviderRegistry.layer.pipe(
+            Layer.provideMerge(instanceRegistryLayer),
+            Layer.provideMerge(
+              ServerConfig.layerTest(process.cwd(), {
+                prefix: "supaterm-provider-registry-rebuilt-refresh-",
+              }),
+            ),
+            Layer.provideMerge(NodeServices.layer),
+          ),
+        ).pipe(Scope.provide(scope));
+
+        yield* Effect.gen(function* () {
+          const registry = yield* ProviderRegistry.ProviderRegistry;
+          instances = [makeInstance("2.0.0")];
+          expect(yield* registry.refreshInstance(instanceId)).toEqual([
+            expect.objectContaining({ instanceId, version: "2.0.0" }),
+          ]);
+          instances = [makeInstance("3.0.0")];
+          expect(yield* registry.refresh()).toEqual([
+            expect.objectContaining({ instanceId, version: "3.0.0" }),
+          ]);
+          assert.deepStrictEqual(yield* Ref.get(refreshedVersions), ["2.0.0", "3.0.0"]);
+        }).pipe(Effect.provide(runtimeServices));
+      }),
+    );
+
     it.effect("persists the merged snapshot when a live update has empty models", () =>
       Effect.gen(function* () {
         const cursorDriver = ProviderDriverKind.make("cursor");
