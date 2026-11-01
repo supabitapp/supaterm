@@ -522,20 +522,7 @@ export const layer = Layer.effect(
       // Read before reserving: nothing between the reservation and its release may fail.
       const startedAt = yield* localNow;
       const startedAtIso = iso(startedAt);
-      const reserved = yield* Ref.modify(activeRuns, (active) => {
-        if (active.has(task.id)) return [false, active] as const;
-        const next = new Set(active);
-        next.add(task.id);
-        return [true, next] as const;
-      });
-      if (!reserved) {
-        if (trigger === "manual") {
-          return yield* taskError("Schedule task is already running.", { taskId: task.id });
-        }
-        return { task, threadId: null };
-      }
-
-      return yield* Effect.gen(function* () {
+      const run = Effect.gen(function* () {
         // The in-memory snapshot may be stale: re-read before touching run
         // state. The task may have been deleted, paused, or postponed since
         // the poll loaded it — none of those may fire.
@@ -685,15 +672,30 @@ export const layer = Layer.effect(
           );
         if (written) yield* notifyChanged;
         return { task: recorded, threadId };
-      }).pipe(
-        Effect.onError((cause) => releaseStuckRun(task, startedAtIso, errorMessage(cause))),
-        Effect.ensuring(
-          Ref.update(activeRuns, (active) => {
-            const next = new Set(active);
-            next.delete(task.id);
-            return next;
-          }),
-        ),
+      }).pipe(Effect.onError((cause) => releaseStuckRun(task, startedAtIso, errorMessage(cause))));
+
+      // Reserve and release as one bracket so an interrupt cannot leave the task marked busy.
+      return yield* Effect.acquireUseRelease(
+        Ref.modify(activeRuns, (active) => {
+          if (active.has(task.id)) return [false, active] as const;
+          const next = new Set(active);
+          next.add(task.id);
+          return [true, next] as const;
+        }),
+        (reserved) =>
+          reserved
+            ? run
+            : trigger === "manual"
+              ? Effect.fail(taskError("Schedule task is already running.", { taskId: task.id }))
+              : Effect.succeed({ task, threadId: null }),
+        (reserved) =>
+          reserved
+            ? Ref.update(activeRuns, (active) => {
+                const next = new Set(active);
+                next.delete(task.id);
+                return next;
+              })
+            : Effect.void,
       );
     });
 
