@@ -1556,6 +1556,7 @@ describe("buildThreadFeed", () => {
     const failedCommand: OrchestrationV2TurnItem = {
       ...command(),
       output: "sh: missing-command: command not found",
+      exitCode: undefined,
     };
     const feed = buildThreadFeed([projected(userMessage(), 0), projected(failedCommand, 1)]);
     const presented = deriveThreadFeedPresentation(
