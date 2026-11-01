@@ -94,7 +94,9 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")("installer chec
       );
       expect(availableTools.length).toBeGreaterThan(0);
       for (const checksumTool of availableTools) {
-        const root = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "supaterm-install-checksum-"));
+        const root = await NodeFSP.mkdtemp(
+          NodePath.join(NodeOS.tmpdir(), "supaterm-install-checksum-"),
+        );
         const home = NodePath.join(root, homeName);
         const version = "1.2.3";
         const stem = `supaterm-${version}-linux-${HostProcess.Architecture.defaultValue()}`;
@@ -176,7 +178,7 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")("installer chec
               await NodeFSP.readFile(NodePath.join(versions, version, ".install-complete"), "utf8"),
             ).toBe("1.2.3\n");
             expect(
-              NodeChildProcess.execFileSync(NodePath.join(root, "bin/t3"), ["--version"], {
+              NodeChildProcess.execFileSync(NodePath.join(root, "bin/supaterm"), ["--version"], {
                 encoding: "utf8",
               }).trim(),
             ).toBe("supaterm v1.2.3");
