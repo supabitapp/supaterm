@@ -1,5 +1,6 @@
 import * as Dialog from "../../components/ui/Dialog";
 import { StackActions, useNavigation } from "@react-navigation/native";
+import { Platform } from "react-native";
 import { resolveThreadReferenceCopyTarget } from "@supaterm/client-runtime/thread-reference";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { resolveThreadForkSource } from "@supaterm/client-runtime/state/thread-workflows";
@@ -19,6 +20,10 @@ import {
 
 import { copyThreadReference } from "../../lib/copyThreadReference";
 import { suppressKeyboardMotion } from "../../lib/motionInput";
+import {
+  firstWorkspaceDetailOpen,
+  workspaceHasColumns,
+} from "../workspace/workspace-selection-store";
 import { SupatermKeyboardCommands } from "../../native/SupatermKeyboardCommands";
 import { useThreadShell } from "../../state/entities";
 import { appAtomRegistry } from "../../state/atom-registry";
@@ -43,6 +48,7 @@ import {
   subscribeToHardwareKeyboardCommandRegistrations,
   type HardwareKeyboardCommand,
 } from "./hardwareKeyboardCommands";
+import { selectWorkspaceDetail } from "../workspace/workspace-detail-selection";
 
 const EMPTY_COPY_FEEDBACK: GitActionProgress = {
   phase: "idle",
@@ -197,7 +203,12 @@ export function HardwareKeyboardCommandProvider({
               );
               return;
             }
-            navigation.navigate("Thread", { environmentId, threadId: targetThreadId });
+            navigation.dispatch(
+              selectWorkspaceDetail({
+                name: "Thread",
+                params: { environmentId, threadId: targetThreadId },
+              }),
+            );
           })
           .finally(() => {
             forkInFlight.current = false;
@@ -229,11 +240,14 @@ export function HardwareKeyboardCommandProvider({
 
       if (command === "newTask") {
         void readStartNewTaskDestination(uuidv4()).then((params) =>
-          navigation.navigate("Thread", params),
+          navigation.dispatch(selectWorkspaceDetail({ name: "Thread", params })),
         );
         return;
       }
       if (command === "back") {
+        // Beside a visible list, the first detail page has nothing to go back to.
+        if (Platform.OS === "ios" && workspaceHasColumns() && firstWorkspaceDetailOpen(navigation))
+          return;
         if (navigation.canGoBack()) {
           navigation.goBack();
         } else {

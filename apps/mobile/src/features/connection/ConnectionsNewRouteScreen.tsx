@@ -24,6 +24,8 @@ import { FrostedCutout } from "../../components/ui/FrostedCutout";
 import { pairingUrlForFields, extractPairingUrlFromQrPayload, parsePairingUrl } from "./pairing";
 import { useRemoteConnections } from "../../state/use-remote-environment-registry";
 import { autoConnectReport, devAutoConnectAttemptAtom, linkedPairingUrl } from "./devAutoConnect";
+import { leaveSettingsPage } from "../settings/settings-navigation";
+import { workspaceHasColumns } from "../workspace/workspace-selection-store";
 import { SymbolView } from "../../components/ui/AppSymbol";
 
 type ConnectionsNewRouteParams = {
@@ -158,7 +160,8 @@ function PairingForm({
         if (!navigation.canGoBack()) {
           navigation.dispatch(StackActions.replace("Home"));
         } else {
-          navigation.goBack();
+          // Added from the Settings list, the new environment shows on Environments.
+          leaveSettingsPage(navigation, workspaceHasColumns(), "SettingsEnvironments");
         }
       }
     };

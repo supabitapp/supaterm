@@ -37,6 +37,7 @@ describe("thread work-log text sizing", () => {
 });
 
 describe("deriveThreadFeedInitialContentInset", () => {
+  // regression: #5585 land the first thread open above the composer on Android
   it("does not double native iOS insets", () => {
     expect(
       deriveThreadFeedInitialContentInset({
@@ -49,6 +50,40 @@ describe("deriveThreadFeedInitialContentInset", () => {
 });
 
 describe("native workspace sizing", () => {
+  it.each([
+    { width: 669, height: 951, hasHinge: true, nativeWorkspace: true, overlay: true },
+    { width: 951, height: 669, hasHinge: true, nativeWorkspace: true, overlay: false },
+    { width: 669, height: 951, hasHinge: false, nativeWorkspace: true, overlay: false },
+    { width: 669, height: 951, hasHinge: true, nativeWorkspace: false, overlay: false },
+  ])(
+    "overlays only a native unfolded portrait Duo sidebar: %j",
+    ({ overlay, nativeWorkspace, ...size }) => {
+      const nativeMetrics = {
+        ...size,
+        horizontalSizeClass: "regular" as const,
+        verticalBarEdge: "none" as const,
+        safeArea: { top: 24, bottom: 20, left: 0, right: 0 },
+        reservedRegions: [],
+      };
+      const layout = deriveLayout({ ...size, nativeMetrics, nativeWorkspace });
+      expect(layout.primarySidebarOverlaysContent).toBe(overlay);
+      for (const primarySidebarPreferredVisible of [true, false]) {
+        expect(
+          deriveWorkspacePaneLayout({
+            layout,
+            viewportWidth: size.width,
+            primarySidebarPreferredVisible,
+            auxiliaryPanePreferredVisible: false,
+          }).contentPaneWidth,
+        ).toBe(
+          !overlay && primarySidebarPreferredVisible
+            ? size.width - (layout.listPaneWidth ?? 0)
+            : size.width,
+        );
+      }
+    },
+  );
+
   it("keeps the detail mounted in a narrow iPad window while UIKit still has two columns", () => {
     const nativeMetrics = {
       width: 715,
@@ -84,6 +119,7 @@ describe("native workspace sizing", () => {
 });
 
 describe("isPrimarySidebarPinned", () => {
+  // regression: #20406 sidebar toggle works on iPad and iPhone Duo
   it("keeps compact native roots pinned so search cannot hide the sidebar for a later split", () => {
     expect(
       isPrimarySidebarPinned({ pathname: "/", nativeWorkspace: true, usesSplitView: false }),
@@ -222,13 +258,28 @@ describe("alignListPaneToHinge", () => {
 
   it("ends the list pane at a book-posture hinge", () => {
     expect(
-      alignListPaneToHinge({ layout, hinge: { x: 426, width: 0 }, viewportWidth: 852 }),
+      alignListPaneToHinge({
+        layout,
+        hinge: { x: 426, width: 0 },
+        viewportWidth: 852,
+        leadingWidth: 0,
+      }),
     ).toMatchObject({ listPaneWidth: 426, listPaneGap: 0 });
   });
 
   it("keeps the default split when either side of the hinge would be too narrow", () => {
-    const narrowList = { layout, hinge: { x: 250, width: 0 }, viewportWidth: 852 };
-    const narrowDetail = { layout, hinge: { x: 600, width: 0 }, viewportWidth: 852 };
+    const narrowList = {
+      layout,
+      hinge: { x: 300, width: 0 },
+      viewportWidth: 852,
+      leadingWidth: 96,
+    };
+    const narrowDetail = {
+      layout,
+      hinge: { x: 600, width: 0 },
+      viewportWidth: 852,
+      leadingWidth: 0,
+    };
     expect(alignListPaneToHinge(narrowList)).toBe(layout);
     expect(alignListPaneToHinge(narrowDetail)).toBe(layout);
   });

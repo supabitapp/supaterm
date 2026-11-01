@@ -120,6 +120,8 @@ import {
   useAndroidWorkspaceBack,
   useWorkspaceBackNavigation,
 } from "../workspace/useAndroidWorkspaceNavigation";
+import { openSettings } from "../settings/settings-navigation";
+import { useSelectWorkspaceDetail } from "../workspace/useSelectWorkspaceDetail";
 import {
   InspectorContentScope,
   ThreadInspectorHeader,
@@ -360,10 +362,7 @@ function LiveThreadRouteController(props: ThreadRouteScreenProps) {
           onReconnectEnvironment(environmentId);
           return;
         }
-        navigation.navigate("SettingsSheet", {
-          screen: "SettingsContent",
-          params: { screen: "SettingsEnvironments" },
-        });
+        openSettings(navigation, "SettingsEnvironments");
       }}
     />,
   );
@@ -522,6 +521,7 @@ function ThreadRouteContent(
     );
   };
   const navigation = useNavigation();
+  const selectDetail = useSelectWorkspaceDetail();
   const openPullRequest = useOpenPullRequest();
   const mergeBack = useAtomCommand(threadEnvironment.mergeBack, "merge thread back");
   const mergeBackBusyRef = useRef(false);
@@ -546,9 +546,9 @@ function ThreadRouteContent(
     });
     mergeBackBusyRef.current = false;
     if (result._tag !== "Success") return;
-    navigation.navigate("Thread", {
-      environmentId: selectedThread.environmentId,
-      threadId: mergeBackTargetThreadId,
+    selectDetail({
+      name: "Thread",
+      params: { environmentId: selectedThread.environmentId, threadId: mergeBackTargetThreadId },
     });
   };
   const params = props.route.params ?? {};

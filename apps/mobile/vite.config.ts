@@ -4,6 +4,7 @@ import { defineConfig, normalizePath } from "vite-plus";
 import "vite-plus/test/config";
 
 const reactTests = [
+  "src/features/workspace/workspace-tabs-state.test.ts",
   "src/features/projects/AddProjectScreen.test.ts",
   "src/features/threads/git/GitBranchesSheet.occupancy.test.tsx",
   "src/features/files/useFileTreeEntries.test.tsx",
@@ -32,6 +33,7 @@ const reactTests = [
   "src/features/terminal/useTerminalExitNavigation.test.tsx",
   "src/features/threads/use-thread-list-now.test.tsx",
   "src/features/home/home-list-options.test.tsx",
+  "src/features/workspace/useSearchScrollRestoration.test.tsx",
   "src/features/connection/ConnectionsNewRouteScreen.test.tsx",
   "src/features/triage/useStartTriage.test.tsx",
 ];

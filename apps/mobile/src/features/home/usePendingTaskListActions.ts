@@ -1,7 +1,6 @@
 import * as Dialog from "../../components/ui/Dialog";
 import { useNavigation } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
-import { useHomeThreadRouteSelection } from "./home-thread-navigation";
 import { useCallback } from "react";
 
 import { withThreadDismissal } from "./thread-dismissal";
@@ -16,14 +15,12 @@ import {
 } from "../../state/use-thread-outbox";
 
 export function usePendingTaskListActions(
-  selectRoute?: (params: ReactNavigation.RootParamList["Thread"]) => void,
+  selectThreadRoute: (params: ReactNavigation.RootParamList["Thread"]) => void,
 ): {
   readonly openPendingTask: (pendingTask: PendingNewTask) => void;
   readonly confirmDeletePendingTask: (pendingTask: PendingNewTask) => void;
 } {
   const navigation = useNavigation();
-  const selectHomeRoute = useHomeThreadRouteSelection();
-  const selectThreadRoute = selectRoute ?? selectHomeRoute;
 
   const openPendingTask = useCallback(
     (pendingTask: PendingNewTask) => {

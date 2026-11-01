@@ -55,6 +55,7 @@ import { useThreadSearch } from "../../state/queries";
 import { requestThreadMessageJump } from "../threads/threadMessageJump";
 import { useThreadListSearchMatches } from "../threads/useThreadListSearchMatches";
 import { useThreadListNow } from "../threads/use-thread-list-now";
+import { useSearchScrollRestoration } from "../workspace/useSearchScrollRestoration";
 import { useThreadJumpShortcuts } from "../keyboard/threadKeyboardShortcuts";
 import { usePendingThreadOrder } from "../../state/thread-order";
 import { threadListEnvironmentsAtom } from "../../state/server";
@@ -323,14 +324,13 @@ export function HomeScreen(props: HomeScreenProps) {
   const listRef = useRef<LegendListRef>(null);
   const searchMode = workspace?.state.tabs.threads.searchMode;
   const restoredOffset = workspace?.state.tabs.threads.scrollOffset;
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- restores the thread list's saved scroll offset through the list ref when search goes back to resting
-  useEffect(() => {
-    if (searchMode !== "resting" || restoredOffset === undefined) return;
-    listRef.current?.scrollToOffset({
+  useSearchScrollRestoration(searchMode, () => {
+    if (restoredOffset === undefined) return;
+    void listRef.current?.scrollToOffset({
       offset: restoredOffset - (Platform.OS === "ios" ? insets.top : 0),
       animated: false,
     });
-  }, [searchMode, insets.top, restoredOffset]);
+  });
   const swipeRowActivation = createSwipeRowActivation();
   const activateVisibleRows = (rows: ReadonlyArray<ThreadListV2ListItem>) => {
     const state = listRef.current?.getState();

@@ -8,7 +8,7 @@ type Route = { readonly key: string; readonly name: string; readonly params?: ob
 const harness = vi.hoisted(() => ({
   rootState: { index: 0, routes: [] as Array<Route> },
   draftsLoaded: Promise.resolve(),
-  selectThreadRoute: vi.fn(),
+  selectDetail: vi.fn(),
   alert: vi.fn(),
 }));
 
@@ -36,8 +36,8 @@ vi.mock("../../state/use-composer-drafts", () => ({
   setComposerDraftText: vi.fn(),
   waitForComposerDraftsLoaded: () => harness.draftsLoaded,
 }));
-vi.mock("../layout/AdaptiveWorkspaceLayout", () => ({
-  useAdaptiveWorkspaceLayout: () => ({ selectThreadRoute: harness.selectThreadRoute }),
+vi.mock("../workspace/useSelectWorkspaceDetail", () => ({
+  useSelectWorkspaceDetail: () => harness.selectDetail,
 }));
 
 import { useStartTriage } from "./useStartTriage";
@@ -75,7 +75,7 @@ it("opens the triage draft only while the workspace still shows the thread it st
   showThread({ environmentId: "machine", threadId: "first" });
   const startTriage = await mountStartTriage();
   await act(() => startTriage(environmentId));
-  expect(harness.selectThreadRoute).toHaveBeenCalledTimes(1);
+  expect(harness.selectDetail).toHaveBeenCalledTimes(1);
 
   let loadDrafts!: () => void;
   harness.draftsLoaded = new Promise<void>((resolve) => {
@@ -90,6 +90,6 @@ it("opens the triage draft only while the workspace still shows the thread it st
     loadDrafts();
     await pending;
   });
-  expect(harness.selectThreadRoute).toHaveBeenCalledTimes(1);
+  expect(harness.selectDetail).toHaveBeenCalledTimes(1);
   expect(harness.alert).not.toHaveBeenCalled();
 });

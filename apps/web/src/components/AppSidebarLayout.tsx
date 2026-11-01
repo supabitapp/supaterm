@@ -30,6 +30,8 @@ import {
   usePanelNavigationSuppression,
 } from "../panelAnimations";
 import { BackgroundThreadAnnouncer } from "./BackgroundThreadAnnouncer";
+import { HistorySwipeNavigation } from "./HistorySwipeNavigation";
+import { navigateHistory } from "../navigationHistory";
 import ThreadSidebar from "./Sidebar";
 import { SidebarBrandWidthProbe } from "./sidebar/SidebarChrome";
 import { isAppModalPage } from "./sidebar/mainAppLocation";
@@ -110,8 +112,8 @@ function readRoutePanelsOpen(router: AnyRouter) {
 export function registerNavigationHistoryCommands(router: AnyRouter): () => void {
   return registerCommands(
     {
-      "navigation.back": () => window.history.back(),
-      "navigation.forward": () => window.history.forward(),
+      "navigation.back": () => navigateHistory("back"),
+      "navigation.forward": () => navigateHistory("forward"),
     },
     {
       context: () => ({
@@ -343,10 +345,11 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
           <ThreadSidebar routeReveal={sidebarRouteReveal} />
         </Sidebar>
         <SidebarInsetPanel minWidth={THREAD_MAIN_CONTENT_MIN_WIDTH}>
-          <SidebarBrandWidthProbe onWidthChange={setBrandWidth} />
+          <SidebarBrandWidthProbe isElectron={isElectron} onWidthChange={setBrandWidth} />
           {children}
           <BackgroundThreadAnnouncer />
           <SidebarControl />
+          {isElectron ? <HistorySwipeNavigation /> : null}
         </SidebarInsetPanel>
       </SidebarProvider>
     </PanelAnimationSuppressionProvider>

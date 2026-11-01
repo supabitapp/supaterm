@@ -485,6 +485,11 @@ export default defineConfig({
         rules: { "supaterm/no-mobile-pull-request-glyph-literals": "error" },
       },
       {
+        files: ["apps/mobile/src/**"],
+        excludeFiles: ["**/*.test.{ts,tsx}"],
+        rules: { "supaterm/no-ambiguous-detail-navigation": "error" },
+      },
+      {
         // React commits state set in a raw ResizeObserver callback after the paint, so derived
         // layout lands a frame late. observeResize flushes every observed resize in one render.
         files: ["apps/web/src/**"],

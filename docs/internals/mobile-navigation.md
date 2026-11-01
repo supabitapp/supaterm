@@ -13,6 +13,32 @@ thread, and sending the first message swaps the params in place
 Pushing or replacing the route on submit, or publishing an empty loading screen
 while a draft resolves its project, flashes between two surfaces.
 
+## Selecting versus drilling in
+
+Opening a page has two intents, and each has one action:
+
+- **Select** shows a thread or pull request as the workspace's only page, the
+  way a list row does. Everything that selects (rows, the command palette,
+  compose, quick actions, deep links) uses
+  [`selectWorkspaceDetail`](../../apps/mobile/src/features/workspace/workspace-detail-selection.ts),
+  which the root stack's router handles. The resulting stack is the same on
+  phones, collapsed splits, and expanded splits. Only route keys differ: the
+  page already showing keeps its key, so the detail column updates in place
+  instead of pushing.
+- **Drill in** opens a page over the current one so Back returns, with
+  `StackActions.push`.
+
+`navigate` to `Thread` or `PullRequest` is rejected by lint, because it pushes
+or updates in place depending on what happens to be on top. Never infer the
+choice from transition events: UIKit reports the sidebar column appearing in
+split views too. The one native signal the router uses is the card native Back
+is popping. The workspace navigator reports it, and a selection never reuses
+that card.
+
+Beside the list, Settings pages share one native screen whose content swaps,
+like the system Settings app. A route per page would pop and push the column,
+and would unmount its header configuration, which hides the navigation bar.
+
 ## UIKit constraints
 
 The [react-native-screens fork](../operations/mobile-screens-fork.md)

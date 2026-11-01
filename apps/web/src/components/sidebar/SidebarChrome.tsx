@@ -1,5 +1,6 @@
 import {
   ArrowLeftIcon,
+  ArrowRightIcon,
   ChartColumnIcon,
   CircleHelpIcon,
   GlobeIcon,
@@ -19,7 +20,13 @@ import { useShortcutLabel } from "../../hooks/useShortcutLabel";
 import { formatShortcutLabel } from "../../keybindings";
 import { cn } from "../../lib/utils";
 import { readLocalApi } from "../../localApi";
+import {
+  navigateHistory,
+  useCanNavigateHistory,
+  type HistoryDirection,
+} from "../../navigationHistory";
 import { usePullRequestsSupported } from "../../state/environments";
+import { Button } from "../ui/button";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import {
   SidebarFooter,
@@ -58,16 +65,24 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
       <div className="relative top-[calc(var(--workspace-controls-top)-env(safe-area-inset-top))] ml-[calc(var(--workspace-controls-left)+1px-env(safe-area-inset-left))] flex shrink-0 items-center md:hidden">
         <SidebarTrigger aria-label="Toggle main sidebar" />
       </div>
-      <div className="flex h-[var(--workspace-titlebar-control-size)] min-w-0 flex-1 items-center overflow-hidden">
+      <div className="flex h-[var(--workspace-titlebar-control-size)] min-w-0 flex-1 items-center gap-1 overflow-hidden">
         <SidebarBrand />
+        {isElectron ? (
+          <div className="hidden shrink-0 items-center [-webkit-app-region:no-drag] md:flex">
+            <HistoryNavigationButton direction="back" />
+            <HistoryNavigationButton direction="forward" />
+          </div>
+        ) : null}
       </div>
     </div>
   );
 });
 
 export function SidebarBrandWidthProbe({
+  isElectron,
   onWidthChange,
 }: {
+  isElectron: boolean;
   onWidthChange: (width: number) => void;
 }) {
   const title = useSidebarBrandTitle();
@@ -83,10 +98,42 @@ export function SidebarBrandWidthProbe({
       className="pointer-events-none invisible fixed top-0 left-0 flex w-max border-r border-transparent pr-3"
       ref={observeWidth}
     >
-      <div className="ml-[var(--workspace-titlebar-content-left)] flex">
+      <div className="ml-[var(--workspace-titlebar-content-left)] flex gap-1">
         <SidebarBrandMark title={title} />
+        {isElectron ? <div className="w-[calc(2*var(--workspace-titlebar-control-size))]" /> : null}
       </div>
     </div>
+  );
+}
+
+const HISTORY_BUTTONS = {
+  back: { label: "Go back", command: "navigation.back", Icon: ArrowLeftIcon },
+  forward: { label: "Go forward", command: "navigation.forward", Icon: ArrowRightIcon },
+} as const;
+
+function HistoryNavigationButton({ direction }: { direction: HistoryDirection }) {
+  const { label, command, Icon } = HISTORY_BUTTONS[direction];
+  const enabled = useCanNavigateHistory(direction);
+  const shortcut = useShortcutLabel(command);
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            aria-label={label}
+            disabled={!enabled}
+            onClick={() => navigateHistory(direction)}
+            size="icon-sm"
+            variant="ghost"
+          />
+        }
+      >
+        <Icon className="size-3.5" />
+      </TooltipTrigger>
+      <TooltipPopup side="bottom" shortcut={shortcut}>
+        {label}
+      </TooltipPopup>
+    </Tooltip>
   );
 }
 

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigation, useNavigationState } from "@react-navigation/native";
 import { useWorkspaceTabs } from "../workspace/WorkspaceTabsContext";
-import { useWorkspaceListNavigation } from "../workspace/useAndroidWorkspaceNavigation";
 import {
   BackHandler,
   Keyboard,
@@ -14,7 +13,6 @@ import { SearchField } from "../../components/ui/SearchField";
 import { useHardwareKeyboardCommand } from "../keyboard/hardwareKeyboardCommands";
 import { useWorkspaceState } from "../../state/workspace";
 import { useToolbarLayout } from "../../components/ui/useToolbarLayout";
-import { PullRequestGlyph } from "../pull-requests/pullRequestGlyphs";
 import { WorkspaceFilterButton } from "../workspace/WorkspaceFilterButton";
 import type { WorkspaceFilterMenu } from "../workspace/workspace-filter-menu";
 import { WorkspaceListToolbarRow } from "../workspace/WorkspaceListToolbarRow";
@@ -23,7 +21,6 @@ export function ThreadListToolbar(props: {
   readonly searchQuery: string;
   readonly onSearchQueryChange: (query: string) => void;
   readonly filterMenu: WorkspaceFilterMenu;
-  readonly onOpenSettings: () => void;
   readonly onOpenEnvironments: () => void;
   readonly sidebar?: boolean;
   readonly onLayout?: (event: LayoutChangeEvent) => void;
@@ -38,7 +35,6 @@ export function ThreadListToolbar(props: {
   const { paddingTop, paddingBottom } = useToolbarLayout();
   const { state } = useWorkspaceState();
   const { onRequestVisibility, onSearchQueryChange } = props;
-  const showPullRequests = useWorkspaceListNavigation("pullRequests");
   const searchRef = useRef<TextInputInstance>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const searching = searchOpen || props.searchQuery.length > 0;
@@ -96,20 +92,10 @@ export function ThreadListToolbar(props: {
         searching={searching}
         searchField={searchField}
         onCloseSearch={closeSearch}
+        onOpenSearch={openSearch}
+        searchAccessibilityLabel="Search threads"
+        titleAccessibilityLabel="Supaterm, Threads"
         onOpenEnvironments={props.onOpenEnvironments}
-        actions={[
-          ...(props.sidebar && workspace
-            ? [
-                {
-                  accessibilityLabel: "Show pull requests",
-                  icon: PullRequestGlyph.pullRequest,
-                  onPress: showPullRequests,
-                },
-              ]
-            : []),
-          { accessibilityLabel: "Search threads", icon: "magnifyingglass", onPress: openSearch },
-          { accessibilityLabel: "Open settings", icon: "gearshape", onPress: props.onOpenSettings },
-        ]}
         filter={state.hasConnections ? <WorkspaceFilterButton {...props.filterMenu} /> : null}
       />
     </View>
