@@ -1053,7 +1053,6 @@ export function ChatSettingsPanel() {
             </Select>
           }
         />
-        <VoiceLanguageSettingRow />
         <SettingsRow
           {...searchableSetting("skills-in-slash-menu")}
           description="Skills always appear when you type $."
@@ -1607,7 +1606,6 @@ export function ThreadsSettingsPanel() {
             )
           }
         />
-        <VoiceTranscriptionSettingRow providers={serverProviders} />
         <SettingsRow
           serverScoped
           settingKeys={["nextPromptSuggestionsEnabled"]}
@@ -1682,6 +1680,11 @@ export function ThreadsSettingsPanel() {
             </Select>
           }
         />
+      </SettingsSection>
+
+      <SettingsSection id="voice-input" title="Voice input">
+        <VoiceTranscriptionSettingRow providers={serverProviders} />
+        <VoiceLanguageSettingRow providers={serverProviders} />
       </SettingsSection>
 
       <OrchestrationSkillsSettings />

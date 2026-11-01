@@ -1,5 +1,4 @@
-/** The languages Claude transcribes; Codex accepts any tag, so others stay reachable via the system language. */
-export const VOICE_LANGUAGE_OPTIONS = [
+const CLAUDE_VOICE_LANGUAGES = [
   "en",
   "es",
   "fr",
@@ -20,7 +19,54 @@ export const VOICE_LANGUAGE_OPTIONS = [
   "id",
   "ja",
   "ko",
-] as const;
+];
+
+/** Whisper's languages under 50% word error rate; the server accepts any other ISO 639 code. */
+const CODEX_VOICE_LANGUAGES = [
+  ...CLAUDE_VOICE_LANGUAGES,
+  "af",
+  "ar",
+  "hy",
+  "az",
+  "be",
+  "bs",
+  "bg",
+  "ca",
+  "zh",
+  "hr",
+  "et",
+  "fi",
+  "gl",
+  "he",
+  "hu",
+  "is",
+  "kn",
+  "kk",
+  "lv",
+  "lt",
+  "mk",
+  "ms",
+  "mr",
+  "mi",
+  "ne",
+  "fa",
+  "ro",
+  "sr",
+  "sk",
+  "sl",
+  "sw",
+  "tl",
+  "ta",
+  "th",
+  "ur",
+  "vi",
+  "cy",
+];
+
+/** Unknown drivers get Claude's list, which every transcription backend accepts. */
+export function voiceLanguageOptions(driver: string | undefined): ReadonlyArray<string> {
+  return driver === "codex" ? CODEX_VOICE_LANGUAGES : CLAUDE_VOICE_LANGUAGES;
+}
 
 export function voiceLanguageLabel(tag: string): string {
   try {

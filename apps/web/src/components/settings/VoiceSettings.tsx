@@ -3,8 +3,8 @@ import { DEFAULT_UNIFIED_SETTINGS } from "@supaterm/contracts/settings";
 
 import {
   systemVoiceLanguage,
-  VOICE_LANGUAGE_OPTIONS,
   voiceLanguageLabel,
+  voiceLanguageOptions,
 } from "../../voice/voiceLanguage";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { SettingResetButton, SettingsRow } from "./settingsLayout";
@@ -85,14 +85,21 @@ export function VoiceTranscriptionSettingRow(props: {
   );
 }
 
-export function VoiceLanguageSettingRow() {
+export function VoiceLanguageSettingRow(props: {
+  readonly providers: ReadonlyArray<ServerProvider>;
+}) {
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
   const value = settings.voiceLanguage ?? SYSTEM_LANGUAGE;
+  const transcriber = props.providers.find(
+    (provider) => provider.instanceId === settings.transcriptionProviderInstanceId,
+  );
   const systemLabel = `System (${voiceLanguageLabel(systemVoiceLanguage())})`;
   const options = [
     { value: SYSTEM_LANGUAGE, label: systemLabel },
-    ...VOICE_LANGUAGE_OPTIONS.map((tag) => ({ value: tag, label: voiceLanguageLabel(tag) })),
+    ...voiceLanguageOptions(transcriber?.driver)
+      .map((tag) => ({ value: tag, label: voiceLanguageLabel(tag) }))
+      .toSorted((left, right) => left.label.localeCompare(right.label)),
   ];
   return (
     <SettingsRow
@@ -121,7 +128,7 @@ export function VoiceLanguageSettingRow() {
             aria-label="Voice language"
           >
             <SelectValue>
-              {options.find((option) => option.value === value)?.label ?? value}
+              {options.find((option) => option.value === value)?.label ?? voiceLanguageLabel(value)}
             </SelectValue>
           </SelectTrigger>
           <SelectPopup align="end" alignItemWithTrigger={false}>
