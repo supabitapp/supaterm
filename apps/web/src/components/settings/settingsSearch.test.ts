@@ -344,6 +344,7 @@ describe("movedSettingsPath", () => {
       "/settings/threads",
     );
     expect(movedSettingsPath("/settings/integrations", "")).toBe("/settings/browser");
+    expect(movedSettingsPath("/settings/chat", "voice-language")).toBe("/settings/threads");
   });
 
   it("leaves current pages alone", () => {
@@ -353,5 +354,7 @@ describe("movedSettingsPath", () => {
     expect(movedSettingsPath("/settings/connections", "remote-environments")).toBeNull();
     expect(movedSettingsPath("/settings/appearance", "theme")).toBeNull();
     expect(movedSettingsPath("/settings/codex-micro", "")).toBeNull();
+    expect(movedSettingsPath("/settings/chat", "send-shortcut")).toBeNull();
+    expect(movedSettingsPath("/settings/chat", "")).toBeNull();
   });
 });
