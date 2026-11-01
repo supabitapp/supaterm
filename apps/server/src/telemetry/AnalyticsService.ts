@@ -227,7 +227,7 @@ export const make = Effect.gen(function* () {
     [
       Ref.set(bufferRef, []),
       Ref.set(deliveryRef, IDLE_DELIVERY),
-      Ref.set(recordedOwnersRef, { server: new Set(), client: new Set() }),
+      Ref.set(recordedOwnersRef, { server: new Set<string>(), client: new Set<string>() }),
     ],
     { discard: true },
   );
