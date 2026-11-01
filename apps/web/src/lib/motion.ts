@@ -17,3 +17,20 @@ export function animationsSettled(element: Element, options?: GetAnimationsOptio
     .filter((animation) => animation.effect?.getComputedTiming().iterations !== Infinity);
   return Promise.allSettled(finite.map((animation) => animation.finished)).then(() => undefined);
 }
+
+export function runningSizeAnimation(
+  element: Element,
+  options?: GetAnimationsOptions,
+): Animation | undefined {
+  return element
+    .getAnimations(options)
+    .find(
+      (animation) =>
+        animation.playState === "running" &&
+        animation.effect instanceof KeyframeEffect &&
+        animation.effect.getComputedTiming().iterations !== Infinity &&
+        animation.effect
+          .getKeyframes()
+          .some((keyframe) => "height" in keyframe || "gridTemplateRows" in keyframe),
+    );
+}
