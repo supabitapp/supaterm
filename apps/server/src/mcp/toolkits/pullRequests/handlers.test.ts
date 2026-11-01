@@ -236,7 +236,10 @@ const makeHarness = Effect.fn("makePullRequestsToolkitHarness")(function* (
       Stream.unwrap,
       Stream.runCollect,
       Effect.map(
-        (chunk) => chunk.at(-1)!.result as Tool.Success<(typeof PullRequestsToolkit.tools)[Name]>,
+        (chunk) =>
+          chunk.at(-1)!.encodedResult as Tool.SuccessEncoded<
+            (typeof PullRequestsToolkit.tools)[Name]
+          >,
       ),
       Effect.provideService(McpInvocationContext.McpInvocationContext, invocation(capabilities)),
       Effect.provide(layerDependencies),
