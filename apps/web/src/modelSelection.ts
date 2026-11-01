@@ -4,9 +4,11 @@ import {
   DEFAULT_TEXT_GENERATION_MODEL_BY_PROVIDER,
   defaultInstanceIdForDriver,
   type ModelSelection,
+  type ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
   type ServerProvider,
+  type ServerSettings,
 } from "@supaterm/contracts";
 import {
   type CustomModelDefinition,
@@ -16,8 +18,9 @@ import {
   resolveSelectableModel,
 } from "@supaterm/shared/model";
 import { getComposerProviderState } from "./components/chat/composerProviderState";
-import { UnifiedSettings } from "@supaterm/contracts/settings";
+import { type ClientSettings, UnifiedSettings } from "@supaterm/contracts/settings";
 import * as Arr from "effect/Array";
+import * as Equal from "effect/Equal";
 import * as Result from "effect/Result";
 import {
   getDefaultServerModel,
@@ -29,6 +32,8 @@ import {
   type ProviderInstanceEntry,
   deriveProviderInstanceEntries,
   NO_PROVIDER_MODEL_SELECTION,
+  resolveDefaultProviderModelSelection,
+  resolveProjectDefaultProviderModelSelection,
 } from "./providerInstances";
 import { sortModelsForProviderInstance } from "./modelOrdering";
 import { resolveModelShortName } from "@supaterm/client-runtime/provider-clients";
@@ -306,6 +311,34 @@ export function resolveEffectiveDefaultModelSelection(
     { preserveUnavailableSelection: true },
   );
   return model === null || model === selection.model ? selection : { ...selection, model };
+}
+
+export function defaultModelSelectionsAreMixed(
+  clientSettings: ClientSettings,
+  targets: ReadonlyArray<{
+    projectId: ProjectId | null;
+    settings: ServerSettings;
+    providers: ReadonlyArray<ServerProvider>;
+  }>,
+): boolean {
+  const selections = targets.map(({ projectId, settings, providers }) => {
+    const stored = settings.defaultModelSelection;
+    const selection =
+      stored === null
+        ? resolveProjectDefaultProviderModelSelection(providers, settings, projectId)
+        : resolveDefaultProviderModelSelection(providers, stored);
+    return {
+      stored,
+      effective: selection
+        ? resolveEffectiveDefaultModelSelection(
+            { ...clientSettings, ...settings },
+            providers,
+            selection,
+          )
+        : null,
+    };
+  });
+  return selections.some((selection) => !Equal.equals(selection, selections[0]));
 }
 
 export function getCustomModelOptionsByInstance(
