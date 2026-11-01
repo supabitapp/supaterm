@@ -205,12 +205,11 @@ if (affected.includes("supaterm")) tests.add("apps/server/src/provider/AgentCont
 
 // React Compiler coverage compiles every client source file, so run only the
 // changed files' cases, in one extra step: a -t filter in the main test step
-// would drop every other test. An app is skipped when the main step already
-// runs its coverage file unfiltered. File filters mirror each coverage test.
+// would drop every other test. Coverage files the main step already runs
+// unfiltered are left out. File filters mirror each coverage test.
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const compilerApps = [
   {
-    test: "apps/web/src/reactCompilerCoverage.test.ts",
     root: "apps/web/src/",
     // Test names keep the repo-relative path.
     name: (file: string) => file,
@@ -220,28 +219,32 @@ const compilerApps = [
     always: [],
   },
   {
-    test: "apps/mobile/src/reactCompilerCoverage.test.ts",
     root: "apps/mobile/src/",
     name: (file: string) => file.slice("apps/mobile/".length),
     compiled: (file: string) => /\.tsx?$/.test(file) && !/\.(test\.tsx?|d\.ts)$/.test(file),
     // The Metro, cache, and stale-allowlist cases check more than one file, deletions included.
     always: ["^(?!.*compiles )"],
   },
-].flatMap(({ test, root: appRoot, name, compiled, always }) => {
+].flatMap(({ root: appRoot, name, compiled, always }) => {
   const changed = files.filter((file) => file.startsWith(appRoot) && compiled(file));
-  if (changed.length === 0 || tests.has(test)) return [];
+  // Mobile splits its per-file cases across sweep files beside the main coverage test.
+  const coverage = NodeFS.readdirSync(NodePath.join(root, appRoot))
+    .filter((entry) => /^reactCompilerCoverage.*\.test\.ts$/.test(entry))
+    .map((entry) => `${appRoot}${entry}`)
+    .filter((test) => !tests.has(test));
+  if (changed.length === 0 || coverage.length === 0) return [];
   const names = changed.flatMap((file) =>
     present.includes(file) ? [`compiles ${escapeRegExp(name(file))}$`] : [],
   );
   const pattern = [...names, ...always];
-  return pattern.length > 0 ? [{ test, names, pattern }] : [];
+  return pattern.length > 0 ? [{ coverage, names, pattern }] : [];
 });
 const compilerCoverage = compilerApps.length > 0 && {
   name: `react compiler (${compilerApps.reduce((count, app) => count + app.names.length, 0)} files)`,
   args: [
     "test",
     "run",
-    ...compilerApps.map((app) => app.test),
+    ...compilerApps.flatMap((app) => app.coverage),
     "-t",
     compilerApps.flatMap((app) => app.pattern).join("|"),
   ],

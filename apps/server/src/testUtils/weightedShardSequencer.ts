@@ -6,14 +6,15 @@ import { BaseSequencer, type TestSpecification } from "vite-plus/test/node";
 
 import shardWeights from "./shardWeights.json" with { type: "json" };
 
-const FILE_OVERHEAD_SECONDS = 0.5;
+// Recordings omit files that took under this long, including their imports.
+const UNRECORDED_FILE_SECONDS = 0.5;
 
 const recordedSeconds: Readonly<Record<string, number>> = shardWeights;
 
 /**
  * Vitest's default split hashes paths into equal-count shards, which can stack the slowest files
  * on one runner, so shards fill by recorded duration instead. Every shard derives the same split
- * from the same file list. Record times with `node scripts/update-test-shard-weights.ts`.
+ * from the same file list. Refresh times from CI with `node scripts/update-test-shard-weights.ts`.
  */
 export class WeightedShardSequencer extends BaseSequencer {
   override async shard(files: TestSpecification[]) {
@@ -21,7 +22,7 @@ export class WeightedShardSequencer extends BaseSequencer {
     const weighted = files
       .map((spec) => {
         const key = NodePath.relative(this.ctx.config.root, spec.moduleId).replaceAll("\\", "/");
-        return { spec, key, seconds: (recordedSeconds[key] ?? 0) + FILE_OVERHEAD_SECONDS };
+        return { spec, key, seconds: recordedSeconds[key] ?? UNRECORDED_FILE_SECONDS };
       })
       .toSorted((a, b) => b.seconds - a.seconds || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
 

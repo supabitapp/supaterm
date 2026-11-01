@@ -148,10 +148,22 @@ jobs:
       - name: Verify preload bundle output
         run: node apps/desktop/scripts/verify-preload-bundle.mjs
 
+      # Browser tests run source modules; this boots the production chunk graph
+      # that build:desktop just wrote to apps/web/dist.
+      - uses: ./.github/actions/setup-chromium
+        with:
+          playwright: apps/web/node_modules/playwright
+      - name: Boot the built web client
+        run: node apps/web/scripts/verify-built-boot.ts
+
   test:
-    name: Test
+    name: Test ${{ matrix.shard }}
     runs-on: depot-ubuntu-24.04-16
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -195,7 +207,7 @@ jobs:
           command -v cc
 
       - name: Test
-        run: vp run --parallel --concurrency-limit 4 --filter '!supaterm' --filter '!@supaterm/monorepo' --filter '!@supaterm/web' --filter '!@supaterm/mobile' test --maxWorkers 4
+        run: vp run --parallel --concurrency-limit 8 --filter '!supaterm' --filter '!@supaterm/monorepo' --filter '!@supaterm/web' --filter '!@supaterm/mobile' test --shard ${{ matrix.shard }}/${{ strategy.job-total }} --passWithNoTests --maxWorkers 4
 
   test_mobile:
     name: Test Mobile ${{ matrix.shard }}
@@ -226,7 +238,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -238,40 +250,13 @@ jobs:
       - name: Install workspace dependencies
         uses: ./.github/actions/setup-ci-deps
 
-      # The browser project runs React tests in headless Chromium. Same cache key as
-      # test_server, so both jobs share one downloaded browser.
-      - name: Resolve Playwright version
-        id: playwright_version
-        run: echo "version=$(node -p "require('./apps/web/node_modules/playwright/package.json').version")" >> "$GITHUB_OUTPUT"
-
-      - name: Cache Chromium
-        id: chromium_cache
-        uses: actions/cache@v6
+      # The browser project runs React tests in headless Chromium.
+      - uses: ./.github/actions/setup-chromium
         with:
-          path: ~/.cache/ms-playwright
-          key: playwright-chromium-shell-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright_version.outputs.version }}
-
-      - name: Install Chromium for web browser tests
-        if: steps.chromium_cache.outputs.cache-hit != 'true'
-        run: node apps/web/node_modules/playwright/cli.js install --only-shell chromium
-
-      - name: Install missing Chromium system dependencies
-        run: |
-          browser=$(find "$HOME/.cache/ms-playwright" -name chrome-headless-shell -type f -print -quit)
-          test -n "$browser"
-          if ldd "$browser" | grep '=> not found'; then
-            node apps/web/node_modules/playwright/cli.js install-deps chromium
-          fi
+          playwright: apps/web/node_modules/playwright
 
       - name: Test
         run: vp run --filter @supaterm/web test --shard ${{ matrix.shard }}/${{ strategy.job-total }} --maxWorkers 8
-
-      # Browser tests run source modules; this boots the production chunk graph, once per run.
-      - name: Boot the built web client
-        if: matrix.shard == 1
-        run: |
-          vp run --filter @supaterm/web build
-          node apps/web/scripts/verify-built-boot.ts
 
   test_server:
     name: Test Server ${{ matrix.shard }}
@@ -280,7 +265,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+        shard:
+          [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -291,29 +277,10 @@ jobs:
         uses: ./.github/actions/setup-mise
       - name: Install workspace dependencies
         uses: ./.github/actions/setup-ci-deps
-      # Cache the pinned browser and skip apt unless shared libraries are missing.
-      - name: Resolve Playwright version
-        id: playwright_version
-        run: echo "version=$(node -p "require('./apps/server/node_modules/playwright-core/package.json').version")" >> "$GITHUB_OUTPUT"
-
-      - name: Cache Chromium
-        id: chromium_cache
-        uses: actions/cache@v6
+      # Server browser integration tests drive headless Chromium.
+      - uses: ./.github/actions/setup-chromium
         with:
-          path: ~/.cache/ms-playwright
-          key: playwright-chromium-shell-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright_version.outputs.version }}
-
-      - name: Install Chromium for server browser integration tests
-        if: steps.chromium_cache.outputs.cache-hit != 'true'
-        run: node apps/server/node_modules/playwright-core/cli.js install --only-shell chromium
-
-      - name: Install missing Chromium system dependencies
-        run: |
-          browser=$(find "$HOME/.cache/ms-playwright" -name chrome-headless-shell -type f -print -quit)
-          test -n "$browser"
-          if ldd "$browser" | grep '=> not found'; then
-            node apps/server/node_modules/playwright-core/cli.js install-deps chromium
-          fi
+          playwright: apps/server/node_modules/playwright-core
 
       - name: Test
         env:
@@ -474,12 +441,26 @@ jobs:
         with:
           persist-credentials: false
 
+      # Runs in the background while Mise and dependencies install; the step before the lint waits for it.
+      - name: Start installing mobile native static analysis tools
+        run: |
+          (
+            set +e
+            brew bundle install --file apps/mobile/Brewfile
+            echo "$?" > "$RUNNER_TEMP/brew-status"
+          ) > "$RUNNER_TEMP/brew.log" 2>&1 < /dev/null &
+
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
       - name: Install workspace dependencies
         run: mise exec -- vp install --filter=@supaterm/scripts...
-      - name: Install mobile native static analysis tools
-        run: brew bundle install --file apps/mobile/Brewfile
+
+      - name: Finish installing mobile native static analysis tools
+        timeout-minutes: 5
+        run: |
+          until test -s "$RUNNER_TEMP/brew-status"; do sleep 1; done
+          cat "$RUNNER_TEMP/brew.log"
+          exit "$(cat "$RUNNER_TEMP/brew-status")"
 
       - name: Lint mobile native sources
         run: vp run lint:mobile
