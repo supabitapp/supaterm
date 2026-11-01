@@ -1,5 +1,6 @@
 import type { LegendListRef } from "@legendapp/list/react";
-import { createRef } from "react";
+import { MessageId } from "@supaterm/contracts";
+import { createRef, useState } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import { act, render, stubGlobal } from "../../../test/render";
@@ -12,8 +13,13 @@ const composerRef = createRef<ChatComposerHandle | null>();
 function FollowHarness(props: {
   readonly threadKey: string;
   readonly inset: number;
+  readonly anchorMessageId: MessageId | null;
   readonly listRef: React.RefObject<LegendListRef | null>;
 }) {
+  const [anchor, setAnchor] = useState<{
+    readonly threadKey: string | null;
+    readonly messageId: MessageId | null;
+  }>({ threadKey: props.threadKey, messageId: props.anchorMessageId });
   const follow = useTimelineFollow({
     legendListRef: props.listRef,
     composerRef,
@@ -26,24 +32,28 @@ function FollowHarness(props: {
     activeActivityRun: null,
     activeRunningTurnId: null,
     timelineEntries: [],
-    timelineAnchorMessageId: null,
-    setTimelineAnchor: () => {},
+    timelineAnchorMessageId: anchor.messageId,
+    setTimelineAnchor: setAnchor,
   });
   return (
-    <button type="button" onClick={follow.onTimelineFooterGrowStable}>
-      Footer grew
-    </button>
+    <>
+      <button type="button" onClick={follow.onTimelineFooterGrowStable}>
+        Footer grew
+      </button>
+      <output>{anchor.messageId ?? "released"}</output>
+    </>
   );
 }
 
 describe("useTimelineFollow", () => {
   it.each([
-    { following: true, scrolls: 2 },
-    { following: false, scrolls: 0 },
+    { following: true, anchorMessageId: null, scrolls: 2 },
+    { following: false, anchorMessageId: null, scrolls: 0 },
+    { following: true, anchorMessageId: MessageId.make("new-user-message"), scrolls: 0 },
   ])(
-    "keeps the end in view when the composer inset or footer grows: following $following",
-    async ({ following, scrolls }) => {
-      const threadKey = `environment-local:follow-growth-${following}`;
+    "keeps the end in view when the composer inset or footer grows: following $following, anchor $anchorMessageId",
+    async ({ following, anchorMessageId, scrolls }) => {
+      const threadKey = `environment-local:follow-growth-${following}-${anchorMessageId}`;
       if (!following) {
         rememberTimelinePosition(
           threadKey,
@@ -66,7 +76,12 @@ describe("useTimelineFollow", () => {
         getState: () => ({ isAtEnd: true, scroll: 0, scrollLength: 0, contentLength: 0 }),
       } as unknown as LegendListRef;
       const harness = (inset: number) => (
-        <FollowHarness threadKey={threadKey} inset={inset} listRef={listRef} />
+        <FollowHarness
+          threadKey={threadKey}
+          inset={inset}
+          anchorMessageId={anchorMessageId}
+          listRef={listRef}
+        />
       );
 
       await using screen = await render(harness(80));
@@ -80,6 +95,9 @@ describe("useTimelineFollow", () => {
       flushFrames();
 
       expect(scrollToEnd).toHaveBeenCalledTimes(scrolls);
+      expect(screen.container.querySelector("output")?.textContent).toBe(
+        anchorMessageId ?? "released",
+      );
     },
   );
 });
