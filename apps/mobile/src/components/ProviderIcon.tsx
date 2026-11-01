@@ -10,6 +10,7 @@ import { useId, useState } from "react";
 import { resolveOfficialAcpRegistryIconUrl } from "@supaterm/contracts";
 import { useAppearancePreferences } from "../features/settings/appearance/AppearancePreferencesProvider";
 import { AppText as Text } from "./ui/AppText";
+import { cn } from "../lib/cn";
 import { getProviderClient } from "@supaterm/client-runtime/provider-clients";
 
 type ProviderIconProps = {
@@ -158,7 +159,7 @@ export function ProviderInstanceIcon(props: {
   readonly displayName: string;
   readonly accentColor?: string;
   readonly showBadge?: boolean;
-  readonly surfaceColor: string;
+  readonly surfaceColor?: string;
 }) {
   const accentColor = normalizeProviderAccentColor(props.accentColor);
   return (
@@ -172,7 +173,7 @@ export function ProviderInstanceIcon(props: {
           style={{ position: "absolute", right: -3, bottom: -3, width: 32, alignItems: "flex-end" }}
         >
           <View
-            className={accentColor ? undefined : "bg-card"}
+            className={cn(!accentColor && "bg-card", !props.surfaceColor && "border-screen")}
             style={{
               height: 12,
               minWidth: 12,
