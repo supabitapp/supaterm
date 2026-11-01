@@ -8,6 +8,8 @@ export type ThreadActionMenuId =
   | "filter-by-project"
   | "turn-into-project"
   | "project-settings"
+  | "pin-project"
+  | "unpin-project"
   | "pin"
   | "unpin"
   | "mark-done"
@@ -88,6 +90,8 @@ export interface ThreadActionMenuState {
   readonly canOpenBeside?: boolean;
   /** A No project thread with its own folder. */
   readonly canTurnIntoProject?: boolean;
+  /** Whether the thread's project is pinned; absent where this surface cannot pin it. */
+  readonly projectPinned?: boolean | null;
 }
 
 /** Local navigation, read markers, and copying remain available to read-only clients. */
@@ -212,6 +216,13 @@ export function buildThreadActionMenuItems(
       ],
     },
     { id: "project-settings", label: "Project settings", icon: "settings" },
+    ...(state.projectPinned == null
+      ? []
+      : [
+          state.projectPinned
+            ? { id: "unpin-project" as const, label: "Unpin project", icon: "pin-off" }
+            : { id: "pin-project" as const, label: "Pin project", icon: "pin" },
+        ]),
     // Archive keeps the conversation under Settings > Archived threads, unlike Delete, so it
     // sits beside Delete without borrowing its destructive styling.
     {

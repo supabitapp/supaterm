@@ -52,6 +52,8 @@ const THREAD_PALETTE_COMMANDS: Record<
   "open-beside": null,
   "filter-by-project": null,
   "project-settings": null,
+  "pin-project": null,
+  "unpin-project": null,
   "auto-mark-done": null,
   copy: null,
   "new-thread-on-branch": {

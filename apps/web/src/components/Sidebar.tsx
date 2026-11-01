@@ -1194,7 +1194,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       });
     },
   );
-  const { canPinProjectGroup, toggleProjectGroupPin } = useProjectPin();
+  const { canPinProjectGroup, setProjectGroupPinned, toggleProjectGroupPin } = useProjectPin();
   const handleProjectSettings = useStableCallback(
     (event: ReactMouseEvent<HTMLElement>, projectGroup: SidebarProjectSnapshot) => {
       event.preventDefault();
@@ -2469,6 +2469,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               isRegeneratingTitle,
               isRunning: !threadRuntimeCanArchive(thread.runtime),
               canTurnIntoProject: canTurnThreadIntoProject(threadRef),
+              projectPinned:
+                threadProjectGroup && canPinProjectGroup(threadProjectGroup)
+                  ? threadProjectGroup.pinned
+                  : null,
               snoozePresets,
               canOpenBeside: routeTarget !== null && routeThreadKey !== scopedThreadKey(threadRef),
             }),
@@ -2511,6 +2515,12 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                 environmentId: threadRef.environmentId,
                 projectId: thread.projectId,
               });
+            return;
+          case "pin-project":
+          case "unpin-project":
+            if (threadProjectGroup) {
+              setProjectGroupPinned(threadProjectGroup, clicked.value === "pin-project");
+            }
             return;
           case "new-thread-on-branch": {
             const result = await settlePromise(() =>
