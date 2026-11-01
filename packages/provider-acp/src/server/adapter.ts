@@ -539,6 +539,7 @@ export const AcpProviderCapabilitiesV2 = {
     canForkThread: false,
     canForkFromTurn: false,
     canForkFromSubagentThread: false,
+    forkWhileSourceActive: "none",
     exposesNativeThreadId: true,
   },
   turns: {

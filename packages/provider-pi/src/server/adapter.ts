@@ -108,6 +108,7 @@ const PiProviderCapabilitiesV2 = {
     canForkThread: true,
     canForkFromTurn: true,
     canForkFromSubagentThread: false,
+    forkWhileSourceActive: "none",
     exposesNativeThreadId: true,
   },
   turns: {

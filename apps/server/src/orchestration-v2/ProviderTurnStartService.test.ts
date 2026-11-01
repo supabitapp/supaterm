@@ -299,6 +299,7 @@ function makeLocalCommandHarness(input: {
     readonly contextRun: "current" | "failed" | "cancelled" | "delivered";
     readonly nativeForkFrom?: "idle" | "busy";
     readonly switchedProvider?: boolean;
+    readonly forkWhileSourceActive?: "none" | "stable";
   };
 }) {
   const now = DateTime.makeUnsafe("2026-09-04T12:00:00Z");
@@ -733,7 +734,13 @@ function makeLocalCommandHarness(input: {
     status: "ready",
     cwd: "/tmp/native-account-command",
     model: null,
-    capabilities: CodexProviderCapabilitiesV2,
+    capabilities: {
+      ...CodexProviderCapabilitiesV2,
+      threads: {
+        ...CodexProviderCapabilitiesV2.threads,
+        forkWhileSourceActive: input.sideChat?.forkWhileSourceActive ?? "none",
+      },
+    },
     createdAt: now,
     updatedAt: now,
     lastError: null,
@@ -1301,13 +1308,20 @@ effectIt.effect.each([
     transferStatus: "resolved_portable",
     handoffIds: ["side-chat-fork-context"],
   },
+  {
+    nativeForkFrom: "busy",
+    forkWhileSourceActive: "stable",
+    forks: true,
+    transferStatus: "consumed",
+    handoffIds: [],
+  },
 ] as const)(
-  "runs a planned native side chat fork when the parent is $nativeForkFrom",
-  ({ nativeForkFrom, forks, transferStatus, handoffIds }) =>
+  "runs a planned native side chat fork when the parent is $nativeForkFrom: %j",
+  ({ nativeForkFrom, forks, transferStatus, handoffIds, ...capability }) =>
     Effect.gen(function* () {
       const harness = makeLocalCommandHarness({
         text: "What is the main thread doing?",
-        sideChat: { contextRun: "current", nativeForkFrom },
+        sideChat: { contextRun: "current", nativeForkFrom, ...capability },
       });
 
       yield* harness.start;

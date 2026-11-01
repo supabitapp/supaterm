@@ -232,6 +232,13 @@ export const OrchestrationV2ThreadCapabilities = Schema.Struct({
   canForkFromTurn: Schema.Boolean,
   canForkFromSubagentThread: Schema.Boolean,
   exposesNativeThreadId: Schema.Boolean,
+  /**
+   * Whether a native fork works while the source runs another turn: `stable` forks a finished
+   * turn, `live` also the running one. `none` sends a busy source's context portably instead.
+   */
+  forkWhileSourceActive: Schema.Literals(["none", "stable", "live"]).pipe(
+    Schema.withDecodingDefault(Effect.succeed("none" as const)),
+  ),
 });
 export type OrchestrationV2ThreadCapabilities = typeof OrchestrationV2ThreadCapabilities.Type;
 

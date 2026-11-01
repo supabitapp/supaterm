@@ -104,6 +104,7 @@ const OpenCode2ProviderCapabilities = {
     canForkThread: true,
     canForkFromTurn: true,
     canForkFromSubagentThread: false,
+    forkWhileSourceActive: "none",
     exposesNativeThreadId: true,
   },
   turns: {

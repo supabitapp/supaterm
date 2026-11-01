@@ -1115,12 +1115,15 @@ export const layer: Layer.Layer<
               cause: `Native fork transfer ${nativeForkTransfer.id} has no source provider execution.`,
             });
           }
-          // Providers refuse to fork a busy thread, so a source that started a turn after
-          // dispatch planned this fork gets the portable context dispatch gives a busy source.
+          // A source that started a turn after dispatch planned this fork gets the portable
+          // context dispatch gives a busy source, unless the provider forks a busy thread.
           const sourceBusy = sourceProjection.runs.some(
             (candidate) => candidate.ordinal > sourceRun.ordinal && isActiveRun(candidate),
           );
-          if (!sourceBusy) {
+          if (
+            !sourceBusy ||
+            session.providerSession.capabilities.threads.forkWhileSourceActive !== "none"
+          ) {
             return yield* loadFromProvider(
               session.forkThread({
                 sourceProviderThread,
