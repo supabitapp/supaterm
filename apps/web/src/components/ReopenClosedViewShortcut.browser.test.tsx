@@ -270,7 +270,7 @@ describe("root reopen shortcut", () => {
     },
   );
 
-  it("always forwards workspace focus, the layout toggles and pane focus out of a focused desktop browser", async () => {
+  it("always forwards workspace focus, the layout toggles, pane focus and address-bar focus out of a focused desktop browser", async () => {
     setup();
     await using _view = await renderShortcut();
     const f6 = (command: string, modKey: boolean, shiftKey: boolean) =>
@@ -286,6 +286,7 @@ describe("root reopen shortcut", () => {
       expect.objectContaining({ command: "sidebar.toggle" }),
       expect.objectContaining({ command: "rightPanel.toggle" }),
       ...PANE_FOCUS_KEYBINDING_COMMANDS.map((command) => expect.objectContaining({ command })),
+      expect.objectContaining({ command: "preview.focusUrl" }),
     ]);
   });
 });

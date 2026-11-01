@@ -43,7 +43,7 @@ import { newestClosedPaneAt, useChatPaneStore } from "../chatPanes/store";
 import { isChatPaneWorkspaceMounted } from "../chatPanes/actions";
 import { focusedPane } from "../chatPanes/layout";
 
-const PREVIEW_FORWARDED_LAYOUT_COMMANDS = [
+const PREVIEW_FORWARDED_COMMANDS = [
   "workspace.focusNext",
   "workspace.focusPrevious",
   "sidebar.toggle",
@@ -52,6 +52,7 @@ const PREVIEW_FORWARDED_LAYOUT_COMMANDS = [
   "pane.focusNext",
   "pane.focusPrevious",
   ...PANE_FOCUS_KEYBINDING_COMMANDS,
+  "preview.focusUrl",
 ] as const;
 
 const isGlobalPullRequests = (ref: ScopedThreadRef) =>
@@ -213,7 +214,7 @@ export function ReopenClosedViewShortcut() {
 
     const commands = [
       ...(hasHistory ? (["view.reopenClosed"] as const) : []),
-      ...PREVIEW_FORWARDED_LAYOUT_COMMANDS,
+      ...PREVIEW_FORWARDED_COMMANDS,
     ];
     void preview
       .setForwardedShortcuts(
