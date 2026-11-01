@@ -1050,6 +1050,15 @@ export default function GitActionsControl({
       ? (quickAction.hint ?? "This action is currently unavailable.")
       : null;
   const gitActionProgress = resolveGitActionProgressPresentation(vcsActionState);
+  // A fresh draft or a thread with no turns hides the actions and diff rows until there is work.
+  const quietEmptyDraft =
+    (draftId !== undefined || activeServerThreadShell?.latestRun === null) &&
+    gitActionProgress === null &&
+    !visibleInlineSuccess &&
+    !gitStatusError &&
+    quickAction.disabled &&
+    !changesTotals?.insertions &&
+    !changesTotals?.deletions;
   const pendingDefaultBranchActionCopy = pendingDefaultBranchAction
     ? resolveDefaultBranchActionDialogCopy({
         action: pendingDefaultBranchAction.action,
@@ -1424,7 +1433,7 @@ export default function GitActionsControl({
             {initAction.isPending ? "Initializing..." : "Initialize Git"}
           </span>
         </ThreadDetailsControl>
-      ) : compact && !gitActionProgress && !visibleInlineSuccess ? null : (
+      ) : quietEmptyDraft || (compact && !gitActionProgress && !visibleInlineSuccess) ? null : (
         <div
           role="group"
           aria-label="Git actions"
@@ -1552,7 +1561,7 @@ export default function GitActionsControl({
         </div>
       )}
 
-      {showChanges && isRepo ? (
+      {showChanges && isRepo && !quietEmptyDraft ? (
         <ThreadDetailsControl
           type="button"
           variant="ghost"
