@@ -79,18 +79,20 @@ vi.mock("../../state/atom-registry", () => ({
           ? state.dropBusy
           : atom === "thread-shells"
             ? state.shells
-            : atom === "queued-thread-keys"
-              ? new Set<string>()
-              : new Map(
-                  [...state.scopes.keys()].map((environmentId) => [
-                    environmentId,
-                    {
-                      environment: {
-                        capabilities: {},
+            : atom === "side-chats"
+              ? []
+              : atom === "queued-thread-keys"
+                ? new Set<string>()
+                : new Map(
+                    [...state.scopes.keys()].map((environmentId) => [
+                      environmentId,
+                      {
+                        environment: {
+                          capabilities: {},
+                        },
                       },
-                    },
-                  ]),
-                ),
+                    ]),
+                  ),
   },
 }));
 vi.mock("../../state/use-atom-command", () => ({
@@ -114,7 +116,7 @@ vi.mock("../../state/thread-order", () => ({
   },
 }));
 vi.mock("../../state/threads", () => ({
-  environmentThreadShells: { threadShellsAtom: "thread-shells" },
+  environmentThreadShells: { threadShellsAtom: "thread-shells", sideChatsAtom: () => "side-chats" },
   threadEnvironment: Object.fromEntries(
     [
       "archive",

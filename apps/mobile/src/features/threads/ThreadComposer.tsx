@@ -1,6 +1,8 @@
 import { useSidebarWorkspaceTabs } from "../workspace/useSystemWorkspaceTabBar";
 import { Button } from "../../components/ui/Button";
 import * as Dialog from "../../components/ui/Dialog";
+import { parseSideChatCommand } from "@supaterm/shared/composerTrigger";
+import { useSideChat } from "./useSideChat";
 import type { ComposerTextPaste } from "../../native/SupatermComposerEditor.types";
 import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
@@ -482,6 +484,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     return report !== null;
   };
 
+  const sideChat = useSideChat(props.isDraft ? null : props.selectedThread);
   const composerMenu = useComposerCommandMenu({
     draftMessage: draftMessage,
     ownerKey: composerDraftKey,
@@ -495,6 +498,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     selectedProviderStatus,
     hasThread: !props.isDraft,
     hasCompactableConversation: props.hasCompactableConversation,
+    offersSideChat: sideChat.disabledReason === null,
     onChangeDraftMessage: props.onChangeDraftMessage,
     offersUsageLimits: usageLimitsOffered,
     onUsageLimits:
@@ -651,6 +655,19 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
       return;
     if (usageLimitsOffered && isUsageLimitsCommand(draftMessage) && draftAttachments.length === 0) {
       if (openUsageLimits()) onChangeDraftMessage("");
+      return;
+    }
+    const sideChatCommand = props.isDraft ? null : parseSideChatCommand(draftMessage);
+    if (sideChatCommand !== null && sideChat.disabledReason === null) {
+      const draft = getComposerDraftSnapshot(composerDraftKey);
+      if (draft.attachments.length > 0 || (draft.context?.records.length ?? 0) > 0) {
+        Dialog.alert(
+          "Side chats take text only",
+          "Remove the attachments and context, then send it again.",
+        );
+        return;
+      }
+      if (await sideChat.send(sideChatCommand.prompt)) onChangeDraftMessage("");
       return;
     }
     const threadKey = scopedThreadKey(props.environmentId, props.selectedThread.id);

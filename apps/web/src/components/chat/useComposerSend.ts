@@ -10,7 +10,8 @@ import {
   markPromotedDraftThreadByRef,
   useComposerDraftStore,
 } from "../../composerDraftStore";
-import { type ComposerSubmissionIntent, parseSideChatCommand } from "../../composer-logic";
+import { type ComposerSubmissionIntent } from "../../composer-logic";
+import { parseSideChatCommand } from "@supaterm/shared/composerTrigger";
 import { filterTerminalContextsWithText } from "../../lib/terminalContext";
 import { useEnsureSideChat } from "./useSideChat";
 import { type MultipleModelTarget, resolveMultipleModelTargets } from "./chatViewSend";

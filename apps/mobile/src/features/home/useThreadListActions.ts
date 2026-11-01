@@ -1,5 +1,6 @@
 import type { ThreadMoveDestination } from "../threads/threadOrder";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
+import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import * as ThreadUndo from "@supaterm/client-runtime/state/thread-undo";
 import { showThreadUndoNotice } from "./thread-undo-notice";
 import { canSnooze, effectiveSnoozed } from "@supaterm/client-runtime/state/thread-snooze";
@@ -176,7 +177,13 @@ function createDeleteThreadConfirmation(
   return (thread: EnvironmentThreadShell) => {
     if (!checkThreadOperationPermission(thread, actionFailureTitle("delete"))) return;
     const title = "Delete thread?";
-    const message = `“${thread.title}” will be permanently deleted, including its terminal history.`;
+    // Deleting a thread deletes its side chats with it.
+    const sideChats = appAtomRegistry.get(
+      environmentThreadShells.sideChatsAtom(scopeThreadRef(thread.environmentId, thread.id)),
+    ).length;
+    const alsoSideChats =
+      sideChats === 0 ? "" : ` and ${sideChats} side chat${sideChats === 1 ? "" : "s"}`;
+    const message = `“${thread.title}”${alsoSideChats} will be permanently deleted, including terminal history.`;
     Dialog.confirm({
       title,
       message,

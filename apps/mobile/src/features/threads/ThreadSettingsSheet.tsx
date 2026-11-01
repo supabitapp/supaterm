@@ -272,6 +272,8 @@ type ThreadSettingsSessionProps = {
   readonly onUpdateOptionSelections: (selections: ReadonlyArray<ProviderOptionSelection>) => void;
   readonly runtimeMode: RuntimeMode;
   readonly onUpdateRuntimeMode: (mode: RuntimeMode) => void;
+  /** A side chat asks before it acts until it is promoted. */
+  readonly runtimeModeLocked?: boolean;
 };
 
 /** The composer draft the sheet edits: the thread's own, or a queued message being edited. */
@@ -469,7 +471,7 @@ function ThreadSettingsSessionProvider(
     null;
   const runtimeModeChoices = runtimeModeChoicesForSupportedModes(
     displayedModel?.supportedRuntimeModes,
-  );
+  ).filter((choice) => !props.runtimeModeLocked || choice.mode === "approval-required");
   const compatibleRuntimeMode = compatibleRuntimeModeForChoices(
     props.runtimeMode,
     runtimeModeChoices,
@@ -1578,6 +1580,7 @@ export function ExistingThreadSettingsRouteScreen({
       }}
       runtimeMode={draftSettings.runtimeMode ?? selectedThread.runtimeMode}
       onUpdateRuntimeMode={(runtimeMode) => updateComposerDraftSettings(threadKey, { runtimeMode })}
+      runtimeModeLocked={selectedThread.lineage.sideChat === true}
       onClose={() => navigation.goBack()}
     />
   );

@@ -69,6 +69,7 @@ import {
   FullscreenThreadRouteScreen,
   ThreadRouteScreen,
 } from "./features/threads/ThreadRouteScreen";
+import { SideChatDraftRouteScreen } from "./features/threads/SideChatDraftScreen";
 import { McpAppFullscreenScreen } from "./features/threads/McpAppFullscreenScreen";
 import { MermaidDiagramScreen } from "./features/diagrams/MermaidDiagramScreen";
 import { ConnectionsRouteScreen } from "./features/connection/ConnectionsRouteScreen";
@@ -703,6 +704,10 @@ const RootStackConfig = createWorkspaceStackNavigator({
         ...THREAD_HEADER_OPTIONS,
         headerTitleStyle: undefined,
       },
+    }),
+    SideChatDraft: createNativeStackScreen({
+      screen: SideChatDraftRouteScreen,
+      options: { ...GLASS_HEADER_OPTIONS, title: "Side chat" },
     }),
     NewTaskProject: createNativeStackScreen({
       screen: NewTaskRouteScreen,
