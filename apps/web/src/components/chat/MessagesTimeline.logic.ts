@@ -535,6 +535,7 @@ type MessagesTimelineRowContent =
       kind: "thinking";
       id: string;
       createdAt: string | null;
+      active: boolean;
       groupId?: string;
       expanded?: boolean;
     }
@@ -2074,6 +2075,7 @@ export function deriveMessagesTimelineRows(input: {
     (latestToolFailed || (!hasActivityRow && input.awaitingApproval !== true))
   ) {
     const failedGroupAnchor = latestToolFailed ? activeWorkAnchor : undefined;
+    const active = input.awaitingApproval !== true;
     if (failedGroupAnchor) {
       const groupId = workGroupId(failedGroupAnchor.id);
       const expanded = input.expandedWorkGroupIds?.has(groupId) ?? false;
@@ -2081,6 +2083,7 @@ export function deriveMessagesTimelineRows(input: {
         kind: "thinking",
         id: LIVE_ACTIVITY_ROW_ID,
         createdAt: input.activeTurnStartedAt ?? null,
+        active,
         groupId,
         expanded,
       });
@@ -2098,6 +2101,7 @@ export function deriveMessagesTimelineRows(input: {
         kind: "thinking",
         id: LIVE_ACTIVITY_ROW_ID,
         createdAt: input.activeTurnStartedAt ?? null,
+        active,
       });
     }
   }
@@ -2332,7 +2336,12 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
       return a.createdAt === (b as typeof a).createdAt;
     case "thinking": {
       const bt = b as typeof a;
-      return a.createdAt === bt.createdAt && a.groupId === bt.groupId && a.expanded === bt.expanded;
+      return (
+        a.createdAt === bt.createdAt &&
+        a.active === bt.active &&
+        a.groupId === bt.groupId &&
+        a.expanded === bt.expanded
+      );
     }
     case "worktree-setup":
       return a.snapshot === (b as typeof a).snapshot;

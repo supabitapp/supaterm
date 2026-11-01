@@ -76,7 +76,6 @@ export interface TimelineRowActivityState {
   compactionStartedAt: string | null;
   isRevertingCheckpoint: boolean;
   awaitingUser: boolean;
-  awaitingApproval: boolean;
   isPreparingWorktree: boolean;
   latestRunId: RunId | null;
   backgroundWorktreeSetup: WorktreeSetupSnapshot | null;

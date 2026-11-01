@@ -396,7 +396,11 @@ describe("deriveMessagesTimelineRows", () => {
         }),
       );
       expect(approvalWaitRows.some((row) => row.kind === "thinking")).toBe(false);
-      expect(approvalWaitRows.some((row) => row.kind === "work-live" && row.active)).toBe(false);
+      expect(
+        approvalWaitRows.some(
+          (row) => (row.kind === "work-live" || row.kind === "thinking") && row.active,
+        ),
+      ).toBe(false);
     },
   );
 
@@ -2772,9 +2776,11 @@ describe("deriveMessagesTimelineRows", () => {
     const deriveRows = (
       toolLifecycleStatus: "inProgress" | "completed" | "failed" | "declined" | null,
       expandedWorkGroupIds?: ReadonlySet<string>,
+      awaitingApproval = false,
     ) =>
       deriveMessagesTimelineRows({
         ...(expandedWorkGroupIds ? { expandedWorkGroupIds } : {}),
+        awaitingApproval,
         timelineEntries:
           toolLifecycleStatus === null
             ? []
@@ -2821,7 +2827,16 @@ describe("deriveMessagesTimelineRows", () => {
     expect(runningActivityRow).toMatchObject({ kind: "work-live", active: true });
     expect(completedActivityRow).toMatchObject({ kind: "work-live", active: true });
     expect(failedRows.some((row) => row.kind === "work-live")).toBe(false);
-    expect(failedRows.at(-1)).toMatchObject({ kind: "thinking", id: "live-activity-row" });
+    expect(failedRows.at(-1)).toMatchObject({
+      kind: "thinking",
+      id: "live-activity-row",
+      active: true,
+    });
+    expect(deriveRows("failed", undefined, true).at(-1)).toMatchObject({
+      kind: "thinking",
+      id: "live-activity-row",
+      active: false,
+    });
     const failedThinkingRow = failedRows.at(-1);
     const failedGroupId =
       failedThinkingRow?.kind === "thinking" ? failedThinkingRow.groupId : undefined;

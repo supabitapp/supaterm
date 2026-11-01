@@ -1136,7 +1136,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
     isRevertingCheckpoint,
     backgroundWorktreeSetup,
     awaitingUser: awaitingUser !== null,
-    awaitingApproval: awaitingUser === "approval",
     isPreparingWorktree,
     latestRunId: latestRun?.runId ?? null,
   };
