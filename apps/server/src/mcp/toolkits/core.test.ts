@@ -711,19 +711,14 @@ it.effect("a caller cannot rewrite a scheduled task that runs above its own mode
 
 it.effect.each([
   {
-    scenario: "explains why a webhook task cannot run manually",
-    tasks: [
-      {
-        ...Schema.decodeSync(ScheduledTask)(scheduledTask("task-webhook", "full-access")),
-        schedule: { type: "webhook" as const, signature: null },
-      },
-    ],
+    scenario: "explains why a running task cannot run again",
+    tasks: [Schema.decodeSync(ScheduledTask)(scheduledTask("task-running", "full-access"))],
     error: new ScheduledTaskError({
-      message: "Webhook tasks run when their URL receives a request.",
-      cause: new Error("private-webhook-cause"),
+      message: "Schedule task is already running.",
+      cause: new Error("private-running-cause"),
     }),
     code: "orchestration_error",
-    message: "Webhook tasks run when their URL receives a request.",
+    message: "Schedule task is already running.",
   },
   {
     scenario: "reports a missing task before trying to run it",
@@ -736,7 +731,7 @@ it.effect.each([
   Effect.gen(function* () {
     const server = yield* McpServer.McpServer;
     const result = yield* server
-      .callTool({ name: "run_scheduled_task_now", arguments: { taskId: "task-webhook" } })
+      .callTool({ name: "run_scheduled_task_now", arguments: { taskId: "task-running" } })
       .pipe(
         Effect.provideService(
           McpInvocationContext.McpInvocationContext,
@@ -755,9 +750,6 @@ it.effect.each([
         Layer.provide(NodeCrypto.layer),
         Layer.provide(Layer.mock(ThreadManagement.ThreadManagementService)({})),
         Layer.provide(Layer.mock(ThreadSearch.ThreadSearch)({})),
-        Layer.provide(Layer.mock(PeerForwarding.PeerForwarding)({})),
-        Layer.provide(Layer.mock(PeerLinkRequests.PeerLinkRequests)({})),
-        Layer.provide(Layer.mock(PeerLinks.PeerLinks)({})),
         Layer.provide(
           Layer.mock(ScheduledTaskService.ScheduledTaskService)({
             list: () => Effect.succeed({ tasks }),
