@@ -13,7 +13,7 @@ const recordedSeconds: Readonly<Record<string, number>> = shardWeights;
 /**
  * Vitest's default split hashes paths into equal-count shards, which can stack the slowest files
  * on one runner, so shards fill by recorded duration instead. Every shard derives the same split
- * from the same file list. Record times with `node scripts/update-test-shard-weights.ts`.
+ * from the same file list. Refresh times from CI with `node scripts/update-test-shard-weights.ts`.
  */
 export class WeightedShardSequencer extends BaseSequencer {
   override async shard(files: TestSpecification[]) {

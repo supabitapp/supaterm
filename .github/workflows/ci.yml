@@ -148,6 +148,34 @@ jobs:
       - name: Verify preload bundle output
         run: node apps/desktop/scripts/verify-preload-bundle.mjs
 
+      # Browser tests run source modules; this boots the production chunk graph
+      # that build:desktop just wrote to apps/web/dist.
+      - name: Resolve Playwright version
+        id: playwright_version
+        run: echo "version=$(node -p "require('./apps/web/node_modules/playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Chromium
+        id: chromium_cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-shell-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright_version.outputs.version }}
+
+      - name: Install Chromium for the web boot check
+        if: steps.chromium_cache.outputs.cache-hit != 'true'
+        run: node apps/web/node_modules/playwright/cli.js install --only-shell chromium
+
+      - name: Install missing Chromium system dependencies
+        run: |
+          browser=$(find "$HOME/.cache/ms-playwright" -name chrome-headless-shell -type f -print -quit)
+          test -n "$browser"
+          if ldd "$browser" | grep '=> not found'; then
+            node apps/web/node_modules/playwright/cli.js install-deps chromium
+          fi
+
+      - name: Boot the built web client
+        run: node apps/web/scripts/verify-built-boot.ts
+
   test:
     name: Test
     runs-on: depot-ubuntu-24.04-16
@@ -195,7 +223,7 @@ jobs:
           command -v cc
 
       - name: Test
-        run: vp run --parallel --concurrency-limit 4 --filter '!supaterm' --filter '!@supaterm/monorepo' --filter '!@supaterm/web' --filter '!@supaterm/mobile' test --maxWorkers 4
+        run: vp run --parallel --concurrency-limit 8 --filter '!supaterm' --filter '!@supaterm/monorepo' --filter '!@supaterm/web' --filter '!@supaterm/mobile' test --maxWorkers 4
 
   test_mobile:
     name: Test Mobile ${{ matrix.shard }}
@@ -226,7 +254,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -266,13 +294,6 @@ jobs:
       - name: Test
         run: vp run --filter @supaterm/web test --shard ${{ matrix.shard }}/${{ strategy.job-total }} --maxWorkers 8
 
-      # Browser tests run source modules; this boots the production chunk graph, once per run.
-      - name: Boot the built web client
-        if: matrix.shard == 1
-        run: |
-          vp run --filter @supaterm/web build
-          node apps/web/scripts/verify-built-boot.ts
-
   test_server:
     name: Test Server ${{ matrix.shard }}
     runs-on: depot-ubuntu-24.04-8
@@ -280,7 +301,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+        shard:
+          [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
