@@ -109,18 +109,21 @@ const availableArea = (
     PREVIEW_MINI_PLAYER_EDGE_GAP * 2,
 });
 
+const minimumPreviewMiniPlayerWidth = (source: PreviewMiniPlayerSize) =>
+  Math.max(
+    PREVIEW_MINI_PLAYER_MIN_SIZE.width,
+    (PREVIEW_MINI_PLAYER_MIN_SIZE.height * source.width) / source.height,
+  );
+
 function fitPreviewMiniPlayerWidth(
   desiredWidth: number,
   source: PreviewMiniPlayerSize,
   max: PreviewMiniPlayerSize,
+  minimumWidth = minimumPreviewMiniPlayerWidth(source),
 ): PreviewMiniPlayerSize {
   const aspectRatio = source.width / source.height;
   const width = Math.min(
-    Math.max(
-      desiredWidth,
-      PREVIEW_MINI_PLAYER_MIN_SIZE.width,
-      PREVIEW_MINI_PLAYER_MIN_SIZE.height * aspectRatio,
-    ),
+    Math.max(desiredWidth, minimumWidth),
     Math.max(1, max.width),
     Math.max(1, max.height * aspectRatio),
   );
@@ -246,6 +249,7 @@ export function resolvePreviewMiniPlayerFrame(input: {
       position && width ? { ...obstacles, detailsCard: null } : obstacles,
       position && width ? spanOf(position.x, width) : null,
     ),
+    width ?? undefined,
   );
   const { detailsCard } = obstacles;
   const anchored =
@@ -309,7 +313,12 @@ export function resizePreviewMiniPlayer(input: {
       : horizontal
         ? desiredWidth
         : desiredHeight * aspectRatio;
-  const size = fitPreviewMiniPlayerWidth(desired, source, max);
+  const size = fitPreviewMiniPlayerWidth(
+    desired,
+    source,
+    max,
+    Math.min(start.width, minimumPreviewMiniPlayerWidth(source)),
+  );
   const position = clampPreviewMiniPlayerPosition(
     { x: west ? right - size.width : start.x, y: north ? bottom - size.height : start.y },
     container,
