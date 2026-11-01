@@ -277,6 +277,18 @@ describe("GhosttyTerminalSurface visibility", () => {
     vi.restoreAllMocks();
   });
 
+  it.each([11, 20])("sizes a mount to show exactly the requested rows at %ipx", async (size) => {
+    const harness = createHarness();
+    const surface = await harness.create();
+    await surface.setFont({ size });
+    harness.mount.clientHeight = surface.heightForRows(12);
+    surface.fit();
+    expect(surface.rows).toBe(12);
+    harness.mount.clientHeight -= 1;
+    surface.fit();
+    expect(surface.rows).toBe(11);
+  });
+
   it("pastes a script once a fresh terminal's shell enables bracketed paste", async () => {
     const surface = await createHarness().create();
     const script = "vp i\nvp run dev";
