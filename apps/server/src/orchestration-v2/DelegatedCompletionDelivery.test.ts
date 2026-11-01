@@ -25,6 +25,7 @@ import * as Deferred from "effect/Deferred";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
+import * as Tracer from "effect/Tracer";
 
 import * as CheckpointStore from "../checkpointing/CheckpointStore.ts";
 import * as ServerConfig from "../config.ts";
@@ -1107,6 +1108,24 @@ it.layer(layerTest)("delegated completion delivery repairs", (it) => {
         const { delegatedCompletion: _cohort, ...settledRun } = parent;
         const commit = sink.commitCommand;
         let settled = false;
+        const messageReads: Array<string> = [];
+        const tracer = Tracer.make({
+          span(options) {
+            const span = new Tracer.NativeSpan(options);
+            const end = span.end.bind(span);
+            span.end = (endTime, exit) => {
+              end(endTime, exit);
+              const query = span.attributes.get("db.query.text");
+              if (
+                typeof query === "string" &&
+                /FROM orchestration_v2_projection_messages/i.test(query)
+              ) {
+                messageReads.push(query);
+              }
+            };
+            return span;
+          },
+        });
         yield* Effect.acquireUseRelease(
           Effect.sync(() =>
             vi.spyOn(sink, "commitCommand").mockImplementation((input) =>
@@ -1148,25 +1167,32 @@ it.layer(layerTest)("delegated completion delivery repairs", (it) => {
             ),
           ),
           () =>
-            orchestrator.dispatch(
-              command === "accept"
-                ? {
-                    type: "notification.delivery.accept",
-                    commandId: CommandId.make(`command:${race}:accept`),
-                    threadId,
-                    messageId,
-                  }
-                : {
-                    type: "delegated_task.completion-delivery.acknowledge",
-                    commandId: CommandId.make(`command:${race}:task-status`),
-                    parentThreadId: threadId,
-                    taskId,
-                    observedByRunId: runId,
-                  },
-            ),
+            orchestrator
+              .dispatch(
+                command === "accept"
+                  ? {
+                      type: "notification.delivery.accept",
+                      commandId: CommandId.make(`command:${race}:accept`),
+                      threadId,
+                      messageId,
+                    }
+                  : {
+                      type: "delegated_task.completion-delivery.acknowledge",
+                      commandId: CommandId.make(`command:${race}:task-status`),
+                      parentThreadId: threadId,
+                      taskId,
+                      observedByRunId: runId,
+                    },
+              )
+              .pipe(Effect.withTracer(tracer)),
           (spy) => Effect.sync(() => spy.mockRestore()),
         );
         assert.isTrue(settled);
+        if (command === "acknowledge") {
+          // Resolving the delivery reads only its own message, not every user message.
+          assert.isNotEmpty(messageReads);
+          for (const query of messageReads) assert.match(query, /\bmessage_id\s+IN\b/i);
+        }
         const finished = yield* orchestrator.getThreadProjection(threadId);
         assert.equal(
           finished.subagents.find((row) => row.id === taskId)?.completionDelivery?.state,
