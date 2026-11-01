@@ -647,8 +647,6 @@ function collectUserMessageBlobPreviewUrls(message: ChatMessage): string[] {
   return previewUrls;
 }
 
-export { readFileAsDataUrl } from "../lib/imageCompression";
-
 export { resolveSendEnvMode } from "@supaterm/shared/projectSettings";
 
 export function shouldRequireWorktreeBaseBranch(input: {
