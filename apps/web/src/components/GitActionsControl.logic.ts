@@ -326,6 +326,18 @@ export function resolveQuickAction(
   };
 }
 
+/** Line totals miss binary, rename and mode changes, so files and commits decide instead. */
+export function hasChangesToReview(gitStatus: VcsStatusResult | null): boolean {
+  if (!gitStatus) return false;
+  const totals = gitStatus.branchChanges ?? gitStatus.workingTree;
+  return (
+    totals.insertions > 0 ||
+    totals.deletions > 0 ||
+    gitStatus.workingTree.files.length > 0 ||
+    (gitStatus.aheadOfDefaultCount ?? gitStatus.aheadCount) > 0
+  );
+}
+
 export function resolveDefaultBranchActionDialogCopy(input: {
   action: DefaultBranchConfirmableAction;
   branchName: string;

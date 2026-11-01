@@ -51,6 +51,7 @@ import {
   type GitActionMenuItem,
   type GitQuickAction,
   type DefaultBranchConfirmableAction,
+  hasChangesToReview,
   requiresDefaultBranchConfirmation,
   resolveDefaultBranchActionDialogCopy,
   resolveFeatureBranchUnavailableReason,
@@ -1057,8 +1058,7 @@ export default function GitActionsControl({
     !visibleInlineSuccess &&
     !gitStatusError &&
     quickAction.disabled &&
-    !changesTotals?.insertions &&
-    !changesTotals?.deletions;
+    !hasChangesToReview(gitStatusForActions);
   const pendingDefaultBranchActionCopy = pendingDefaultBranchAction
     ? resolveDefaultBranchActionDialogCopy({
         action: pendingDefaultBranchAction.action,
