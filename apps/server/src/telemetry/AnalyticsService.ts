@@ -329,8 +329,10 @@ export const make = Effect.gen(function* () {
 
   const recordOwners: AnalyticsService["Service"]["recordOwners"] = Effect.fn(
     "AnalyticsService.recordOwners",
-  )((owners, observedBy) =>
-    Effect.forEach(
+  )(function* (owners, observedBy) {
+    // An owner seen while collection is off must still be sent once it is back on.
+    if (!(yield* isEnabled)) return;
+    yield* Effect.forEach(
       owners,
       ({ source, ownerId }) =>
         Ref.modify(recordedOwnersRef, (recorded) => {
@@ -347,11 +349,12 @@ export const make = Effect.gen(function* () {
           ),
         ),
       { discard: true },
-    ),
-  );
+    );
+  });
 
   // Discard on the change itself, so turning the setting back on before a flush cannot send
-  // events recorded before the opt-out. The lock waits out a send already in flight.
+  // events recorded before the opt-out. The lock waits out a send already in flight. Events
+  // recorded just after a quick re-enable may be dropped with them, which is the safe side.
   if (Option.isNone(telemetryConfig.enabled)) {
     const settingsChanges = yield* serverSettings.subscribeChanges;
     yield* settingsChanges.pipe(
