@@ -8,6 +8,7 @@ import { assert, describe, expect, it } from "@effect/vitest";
 import { AgentScope } from "@supaterm/shared/AgentScope";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
@@ -41,11 +42,14 @@ const withFakeSystemd = <A, E>(
     readonly units: Map<string, { activeState: string; result: string }>;
     readonly calls: ReadonlyArray<ReadonlyArray<string>>;
     readonly stateDir: string;
+    readonly cgroupRoot: string;
   }) => Effect.Effect<A, E>,
   { oomPolicy = true }: { readonly oomPolicy?: boolean } = {},
 ) =>
   Effect.gen(function* () {
     const bin = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "supaterm-agent-scope-"));
+    const cgroupRoot = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "supaterm-cgroup-"));
+    const fileSystem = yield* FileSystem.FileSystem;
     for (const name of ["systemd-run", "systemctl", "agent"]) {
       NodeFS.writeFileSync(NodePath.join(bin, name), "", { mode: 0o755 });
     }
@@ -75,7 +79,7 @@ const withFakeSystemd = <A, E>(
           return output(
             state === undefined
               ? "LoadState=not-found\nActiveState=inactive\nResult=success\n"
-              : `LoadState=loaded\nActiveState=${state.activeState}\nResult=${state.result}\n`,
+              : `LoadState=loaded\nActiveState=${state.activeState}\nResult=${state.result}\nControlGroup=/${unit}\n`,
           );
         }),
     });
@@ -83,10 +87,22 @@ const withFakeSystemd = <A, E>(
       Effect.provideService(ProcessRunner.ProcessRunner, runner),
       Effect.provideService(HostProcess.Platform, "linux"),
       Effect.provideService(HostProcess.Environment, { PATH: bin, XDG_RUNTIME_DIR: "/run/user/1" }),
+      Effect.provideService(FileSystem.FileSystem, {
+        ...fileSystem,
+        readFileString: (path, encoding) =>
+          fileSystem.readFileString(path.replace("/sys/fs/cgroup", cgroupRoot), encoding),
+        writeFileString: (path, data, options) =>
+          fileSystem.writeFileString(path.replace("/sys/fs/cgroup", cgroupRoot), data, options),
+      }),
     );
     const { stateDir } = yield* ServerConfig.ServerConfig;
-    return yield* body({ scope, units, calls, stateDir }).pipe(
-      Effect.ensuring(Effect.sync(() => NodeFS.rmSync(bin, { recursive: true, force: true }))),
+    return yield* body({ scope, units, calls, stateDir, cgroupRoot }).pipe(
+      Effect.ensuring(
+        Effect.sync(() => {
+          NodeFS.rmSync(bin, { recursive: true, force: true });
+          NodeFS.rmSync(cgroupRoot, { recursive: true, force: true });
+        }),
+      ),
     );
   }).pipe(
     Effect.scoped,
@@ -189,6 +205,38 @@ describe("AgentScope service", () => {
       ),
   );
 
+  it.effect.each([{ oomPolicy: true }, { oomPolicy: false }])(
+    "Force stop kills a thread's own scope but never a shared Codex scope (OOM policy $oomPolicy)",
+    ({ oomPolicy }) =>
+      withFakeSystemd(
+        ({ scope, units, calls, cgroupRoot }) =>
+          Effect.gen(function* () {
+            const agent = yield* scope.wrap({
+              command: "agent",
+              args: [],
+              name: "t",
+              threadId: "a",
+            });
+            const codex = yield* launchCodex(scope, "b");
+            for (const unit of [unitOf(agent), unitOf(codex)]) {
+              units.set(unit, { activeState: "active", result: "success" });
+              NodeFS.mkdirSync(NodePath.join(cgroupRoot, unit));
+            }
+
+            expect(yield* scope.kill("a")).toBe(true);
+            expect(
+              NodeFS.readFileSync(NodePath.join(cgroupRoot, unitOf(agent), "cgroup.kill"), "utf8"),
+            ).toBe("1");
+            expect(yield* scope.kill("b")).toBe(false);
+            expect(NodeFS.existsSync(NodePath.join(cgroupRoot, unitOf(codex), "cgroup.kill"))).toBe(
+              false,
+            );
+            expect(calls.filter(([, verb]) => verb === "kill")).toEqual([]);
+          }),
+        { oomPolicy },
+      ),
+  );
+
   it.effect("keeps a running scope while hundreds of other threads launch", () =>
     withFakeSystemd(({ scope, units }) =>
       Effect.gen(function* () {
@@ -199,6 +247,52 @@ describe("AgentScope service", () => {
         }
         units.set(unitOf(live), { activeState: "failed", result: "oom-kill" });
         expect(yield* scope.oomKilled("live")).toBe(true);
+      }),
+    ),
+  );
+
+  it.effect("delegates every agent scope so rootless containers can manage their cgroups", () =>
+    withFakeSystemd(({ scope }) =>
+      Effect.gen(function* () {
+        const agent = yield* scope.wrap({ command: "agent", args: [], name: "t", threadId: "a" });
+        const codex = yield* launchCodex(scope, "a");
+        const terminal = yield* scope.wrap({
+          command: "agent",
+          args: [],
+          name: "terminal",
+          survivesRestart: true,
+        });
+        for (const launch of [agent, codex, terminal]) {
+          expect(launch.args).toContain("--property=Delegate=yes");
+        }
+      }),
+    ),
+  );
+
+  it.effect("caps agent memory and yields CPU, disk, and tasks to the server", () =>
+    withFakeSystemd(({ scope, calls }) =>
+      Effect.gen(function* () {
+        yield* scope.wrap({ command: "agent", args: [], name: "t", threadId: "a" });
+        const setProperties = calls.filter(([, verb]) => verb === "set-property");
+        expect(setProperties).toEqual([
+          [
+            "--user",
+            "set-property",
+            "--runtime",
+            "app-supaterm-agents.slice",
+            expect.stringMatching(/^MemoryHigh=\d+$/),
+            expect.stringMatching(/^MemoryMax=\d+$/),
+          ],
+          [
+            "--user",
+            "set-property",
+            "--runtime",
+            "app-supaterm.slice",
+            "CPUWeight=10",
+            "IOWeight=10",
+            "TasksMax=25%",
+          ],
+        ]);
       }),
     ),
   );

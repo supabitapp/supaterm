@@ -63,7 +63,7 @@ export class DesktopLocalEnvironmentAuth extends Context.Service<
   }
 >()("@supaterm/desktop/backend/DesktopLocalEnvironmentAuth") {}
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const pool = yield* DesktopBackendPool.DesktopBackendPool;
   const httpClient = yield* HttpClient.HttpClient;

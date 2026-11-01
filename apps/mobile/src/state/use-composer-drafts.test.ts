@@ -4,6 +4,7 @@ import { createEnvironmentThreadShellAtoms } from "@supaterm/client-runtime/stat
 import {
   applyShellStreamEvent,
   createEnvironmentSnapshotAtom,
+  EMPTY_SHELL_STATE,
   type EnvironmentShellState,
   type EnvironmentShellStatus,
 } from "@supaterm/client-runtime/state/shell";
@@ -166,6 +167,7 @@ import {
   formatComposerContextReference,
 } from "@supaterm/shared/composerContextReferences";
 import { appAtomRegistry } from "./atom-registry";
+import { startComposerDraftOperation } from "./composerDraftOperations";
 import { threadOutboxManager } from "./thread-outbox";
 import {
   appendComposerDraftAttachments,
@@ -282,9 +284,9 @@ function modelReconciliationHarness(
     ],
   };
   const shellStateAtom = Atom.make<EnvironmentShellState>({
+    ...EMPTY_SHELL_STATE,
     snapshot: Option.some(initialSnapshot),
     status: initialStatus,
-    error: Option.none(),
   });
   const shellResultAtom = Atom.map(shellStateAtom, AsyncResult.success);
   const snapshotAtom = createEnvironmentSnapshotAtom(() => shellResultAtom)(environmentId);
@@ -1055,6 +1057,37 @@ describe("mobile composer drafts", () => {
     expect(clearComposerDraftContentState(restored, draftKey)[draftKey]?.context).toBeUndefined();
     setComposerDraftText(draftKey, "Fix next");
     expect(getComposerDraftSnapshot(draftKey).context).toBeUndefined();
+  });
+
+  it("keeps each draft's caret when another composer moves its own caret", () => {
+    const threadKey = "caret-environment:caret-thread";
+    const newTaskKey = "caret-environment:new-task:caret-draft";
+    setComposerDraftText(threadKey, "Fix this next");
+    setComposerDraftText(newTaskKey, "Another task");
+    rememberComposerDraftSelection(threadKey, "Fix this next", { start: 4, end: 8 });
+    rememberComposerDraftSelection(newTaskKey, "Another task", { start: 2, end: 2 });
+    insertComposerDraftContext(threadKey, {
+      text: "[Build output](supaterm-context://v1/terminal/caret-terminal)",
+      context: {
+        version: 1,
+        records: [
+          {
+            version: 1,
+            kind: "terminal",
+            contextId: ComposerContextId.make("caret-terminal"),
+            label: "Build output",
+            terminalId: "main",
+            terminalLabel: "Terminal",
+            lineStart: 1,
+            lineEnd: 1,
+            text: "Build failed",
+          },
+        ],
+      },
+    });
+    expect(getComposerDraftSnapshot(threadKey).text).toBe(
+      "Fix [Build output](supaterm-context://v1/terminal/caret-terminal) next",
+    );
   });
 
   // Hydration is one-shot per module instance and the attachment sweep now
@@ -2454,6 +2487,32 @@ describe("mobile composer drafts", () => {
       [`${retainedEnvironmentId}:thread-local`]: DRAFT,
       "new-task:local-draft": localDraft,
     });
+  });
+
+  it("aborts operations running for drafts an environment removal drops", async () => {
+    const environmentId = EnvironmentId.make("environment-removed");
+    composerDraftFileMocks.setDocument({ schemaVersion: 1, drafts: {} });
+    appAtomRegistry.set(composerDraftsAtom, {
+      "new-task:removed-draft": {
+        ...DRAFT,
+        project: {
+          environmentId,
+          projectId: ProjectId.make("project-removed"),
+          createdAt: "2026-09-05T00:00:00.000Z",
+        },
+      },
+      "environment-kept:thread-kept": DRAFT,
+    });
+    const newTask = startComposerDraftOperation("new-task:removed-draft");
+    const emptyThread = startComposerDraftOperation(`${environmentId}:thread-empty`);
+    const kept = startComposerDraftOperation("environment-kept:thread-kept");
+
+    await clearComposerDraftsEnvironment(environmentId);
+
+    expect(newTask.signal.aborted).toBe(true);
+    expect(emptyThread.signal.aborted).toBe(true);
+    expect(kept.signal.aborted).toBe(false);
+    kept.finish();
   });
 
   it("lands a still-debounced draft write when flushed", async () => {

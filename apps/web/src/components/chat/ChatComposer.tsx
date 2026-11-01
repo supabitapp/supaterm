@@ -114,8 +114,12 @@ import { useComposerImageGroups } from "./useComposerImageGroups";
 import { useComposerStash } from "./useComposerStash";
 import { useComposerContextImport } from "./useComposerContextImport";
 import { useComposerAttachmentIntake } from "./useComposerAttachmentIntake";
+import {
+  countPreparingComposerImages,
+  usePreparingComposerImages,
+} from "./preparingComposerImages";
 import { ComposerControlsBar } from "./ComposerControlsBar";
-import { useComposerCommandKey } from "./useComposerCommandKey";
+import { composerCommandKeyHandler } from "./composerCommandKey";
 import { useNextPromptSuggestion } from "./useNextPromptSuggestion";
 import { useInputsChanged, useInputsChangedWhileActive } from "./useInputsChanged";
 import { useComposerFocusState } from "./useComposerFocusState";
@@ -170,7 +174,10 @@ import {
   type TerminalContextDraft,
   type TerminalContextSelection,
 } from "../../lib/terminalContext";
-import { toKindScopedComposerContextId } from "@supaterm/shared/composerContextReferences";
+import {
+  threadContextRecord,
+  toKindScopedComposerContextId,
+} from "@supaterm/shared/composerContextReferences";
 import {
   shouldUseCompactComposerPrimaryActions,
   shouldUseCompactComposerFooter,
@@ -179,8 +186,8 @@ import {
 import {
   type ComposerCitationCommentRequest,
   type ComposerPromptEditorHandle,
-  ComposerPromptEditor,
-} from "../ComposerPromptEditor";
+  ComposerPromptEditorTiptap as ComposerPromptEditor,
+} from "../ComposerPromptEditorTiptap";
 import {
   ComposerContextActionsContext,
   composerContextRecordsFromDraft,
@@ -204,7 +211,6 @@ import {
   reviewCommentContextRecord,
   terminalContextReference,
   terminalContextRecord,
-  threadContextRecord,
   threadContextReference,
 } from "~/lib/composerContextRecords";
 import { rememberCopiedComposerAttachments } from "~/lib/copiedComposerAttachments";
@@ -283,7 +289,7 @@ import {
   type ThreadShell,
 } from "../../types";
 import { type ComposerPromptHistoryPosition } from "./composerPromptHistory";
-import type { PendingUserInputDraftAnswer } from "../../pendingUserInput";
+import type { PendingUserInputDraftAnswer } from "@supaterm/client-runtime/state/pending-user-input";
 import type { PendingApproval, PendingUserInput } from "../../session-logic";
 import {
   resolveComposerDispatchMode,
@@ -366,7 +372,6 @@ export interface ChatComposerHandle {
     reviewComments: ReviewCommentContext[];
     threadContexts: ThreadContextRecord[];
     selectedPromptEffort: string | null;
-    selectedModelOptionsForDispatch: unknown;
     selectedModelSelection: ModelSelection;
     multipleModelSelections: ReadonlyArray<ModelSelection> | null;
     providerAvailable: boolean;
@@ -399,7 +404,6 @@ export interface ChatComposerProps {
   >;
 
   activeThreadId: ThreadId | null;
-  activeThreadEnvironmentId: EnvironmentId | undefined;
   activeThread: Thread | undefined;
   activeThreadShell: ThreadShell | null;
   promptHistoryMessages: ReadonlyArray<ChatMessage>;
@@ -410,7 +414,6 @@ export interface ChatComposerProps {
 
   phase: SessionPhase;
   canInterrupt: boolean;
-  isConnecting: boolean;
   isSendBusy: boolean;
   canResume: boolean;
   isRevertingCheckpoint?: boolean;
@@ -567,7 +570,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     supportsMultipleModels,
     onMultipleModelSelectionsChange: setMultipleModelSelections,
     activeThreadId,
-    activeThreadEnvironmentId: _activeThreadEnvironmentId,
     activeThread,
     activeThreadShell,
     promptHistoryMessages,
@@ -577,7 +579,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     projectSelectionRequired,
     phase,
     canInterrupt,
-    isConnecting,
     isSendBusy,
     canResume,
     isRevertingCheckpoint = false,
@@ -684,6 +685,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const isEditingQueuedMessage = editingQueuedAttachments !== null;
   const composerDraft = useComposerThreadDraft(composerDraftTarget);
   const composerDraftTargetKeyRef = useRef("");
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes the committed draft target key to a ref read by async handlers
   useLayoutEffect(() => {
     composerDraftTargetKeyRef.current = composerDraftTargetKey;
   });
@@ -704,6 +706,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     !activePendingIsResponding;
   const questionRequest = pendingUserInputs[0];
   // Publish eligibility before async captures can observe a question the UI has already closed.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers the open question's attachment draft in the module tracker before async captures read it
   useLayoutEffect(() => {
     if (!questionAttachmentTarget || !questionRequest || !questionTakesSnapShots) return;
     return trackOpenQuestionAttachmentDraft(routeThreadRef, {
@@ -729,6 +732,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   // An import that finishes after a draft change must compare against the draft open *now*, not
   // the one captured in the closure that started it.
   const attachmentTargetKeyRef = useRef(attachmentTargetKey);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes the committed attachment target key to a ref so async imports reject after a draft switch
   useLayoutEffect(() => {
     attachmentTargetKeyRef.current = attachmentTargetKey;
   });
@@ -764,6 +768,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     uncommittedSnapShotIds,
     standaloneComposerImages,
   } = useComposerImageGroups(attachmentDraftTarget, composerImages, composerPreviewAnnotations);
+  const preparingComposerImages = usePreparingComposerImages(attachmentTargetKey);
   const nonPersistedComposerImageIds = attachmentDraft.nonPersistedImageIds;
   const uploadsByImageId = useAttachmentUploadStore((state) => state.uploadsByImageId);
   const openPrLink = useOpenPrLink(routeThreadRef);
@@ -846,7 +851,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const removeComposerDraftImage = useComposerDraftStore((store) => store.removeImage);
   const addComposerDraftFiles = useComposerDraftStore((store) => store.addFiles);
   const removeComposerDraftFile = useComposerDraftStore((store) => store.removeFile);
-  const setComposerDraftFileUpload = useComposerDraftStore((store) => store.setFileUpload);
   const insertComposerDraftTerminalContext = useComposerDraftStore(
     (store) => store.insertTerminalContext,
   );
@@ -867,6 +871,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   );
   const getComposerDraft = useComposerDraftStore((store) => store.getComposerDraft);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- starts or releases server attachment uploads as upload capability, limits and draft attachments change
   useEffect(() => {
     if (!attachmentUploadsCapabilityKnown) {
       return;
@@ -915,37 +920,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     environmentId,
     maxFileAttachmentBytes,
     supportsAttachmentUploads,
-  ]);
-
-  useEffect(() => {
-    for (const file of composerFiles) {
-      if (
-        !attachmentUploadsCapabilityKnown ||
-        !supportsAttachmentUploads ||
-        maxFileAttachmentBytes === null ||
-        file.sizeBytes > maxFileAttachmentBytes
-      ) {
-        continue;
-      }
-      const upload = uploadsByImageId[file.id];
-      if (upload?.status === "ready" && upload.environmentId === environmentId) {
-        setComposerDraftFileUpload(
-          attachmentDraftTarget,
-          file.id,
-          environmentId,
-          upload.attachmentId,
-        );
-      }
-    }
-  }, [
-    attachmentUploadsCapabilityKnown,
-    attachmentDraftTarget,
-    composerFiles,
-    environmentId,
-    maxFileAttachmentBytes,
-    setComposerDraftFileUpload,
-    supportsAttachmentUploads,
-    uploadsByImageId,
   ]);
 
   const {
@@ -1023,8 +997,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const refreshWorkspaceSnapshotOnTyping = useProviderWorkspaceSnapshotRefresh({
     environmentId,
     gitCwd,
-    selectedProviderEntry,
-    selectedProviderStatus,
+    instanceId: selectedProviderEntry?.instanceId,
   });
 
   const selectedPromptEffort = composerProviderState.promptEffort;
@@ -1100,7 +1073,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     null,
   );
   const [composerMenuAnchor, setComposerMenuAnchor] = useState<HTMLDivElement | null>(null);
-  const hasWrappedPrompt = useComposerMultilinePrompt(composerMenuAnchor);
+  const [hasWrappedPrompt, observeWrappedPrompt] = useComposerMultilinePrompt();
   const hasMultilinePrompt = prompt.includes("\n") || hasWrappedPrompt;
   const [tasksExpandedPreference, setTasksExpandedPreference] = useLocalStorage(
     COMPOSER_TASKS_EXPANDED_KEY,
@@ -1135,13 +1108,14 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const composerScrollCollapseEligibleRef = useRef(false);
   const windowRefocusInFlightRef = useRef(false);
   const composerScrollGestureRef = useRef(createComposerScrollGestureState());
-  const pendingImageCompressionsRef = useRef<Map<string, number>>(new Map());
   const pendingThreadImportsRef = useRef<Map<string, number>>(new Map());
   const isRevertingCheckpointRef = useRef(isRevertingCheckpoint);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes the committed checkpoint revert flag to a ref read by async handlers
   useLayoutEffect(() => {
     isRevertingCheckpointRef.current = isRevertingCheckpoint;
   });
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to window keydown, blur and the desktop paste-as-text event to arm plain-text paste
   useEffect(() => {
     const armPasteAsTextShortcut = () => {
       // Electron can deliver its native menu action just before the paste
@@ -1238,6 +1212,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const activeComposerMenuItem =
     composerMenuItems.find((item) => item.id === activeComposerMenuItemId) ?? null;
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes committed composer menu state to refs read by editor key handlers
   useLayoutEffect(() => {
     composerMenuOpenRef.current = composerMenuOpen;
     composerMenuItemsRef.current = composerMenuItems;
@@ -1318,7 +1293,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     phase === "running" ||
     isSendBusy ||
     isSendDisabled ||
-    isConnecting ||
     !canQueueSelectedProvider ||
     projectSelectionRequired ||
     (environmentUnavailable !== null && showResumeAction) ||
@@ -1443,11 +1417,11 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     composerContextRecords,
     composerImages,
     composerFilesRef,
-    pendingImageCompressionsRef,
     pendingThreadImportsRef,
     addComposerFilesToDraft,
   });
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- keeps the shared prompt ref in step with the committed draft prompt for imperative handlers
   useEffect(() => {
     if (isLiteralPendingAnswer) return;
     promptRef.current = prompt;
@@ -1482,14 +1456,17 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     setProviderInputSubmissionError(null);
   }
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- keeps the shared images ref in step with committed draft images for async handlers
   useEffect(() => {
     composerImagesRef.current = composerImages;
   }, [composerImages, composerImagesRef]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- keeps the shared files ref in step with committed draft files for async handlers
   useEffect(() => {
     composerFilesRef.current = composerFiles;
   }, [composerFiles, composerFilesRef]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- keeps the shared terminal contexts ref in step with committed draft contexts for async handlers
   useEffect(() => {
     composerTerminalContextsRef.current = composerTerminalContexts;
   }, [composerTerminalContexts, composerTerminalContextsRef]);
@@ -1520,6 +1497,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     questionId: string | null;
   } | null>(null);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- moves the prompt ref and caret to the end when the pending question or its answer changes externally
   useEffect(() => {
     const nextCustomAnswer = activePendingProgress?.customAnswer;
     if (typeof nextCustomAnswer !== "string") {
@@ -1574,6 +1552,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     setIsComposerScrollCollapsed(false);
   }
   const editorResetTargetRef = useRef({ draftId, activeThreadId });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- moves the editor caret and composer trigger to the prompt end after the draft or thread changes
   useEffect(() => {
     const previous = editorResetTargetRef.current;
     if (previous.draftId === draftId && previous.activeThreadId === activeThreadId) return;
@@ -1583,6 +1562,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     resetComposerTrigger(trigger);
   }, [draftId, activeThreadId, isLiteralPendingAnswer, promptRef, resetComposerTrigger]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- observes composer form resizes to switch the footer and primary actions between compact layouts
   useLayoutEffect(() => {
     const composerForm = composerFormRef.current;
     if (!composerForm) return;
@@ -1619,6 +1599,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     });
   }, [composerFooterHasWideActions]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reads draft images as data URLs and persists them to the draft store, dropping stale results on cleanup
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -2147,7 +2128,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     if (
       isSendBusy ||
       isSendDisabled ||
-      isConnecting ||
       !canQueueSelectedProvider ||
       (environmentUnavailable !== null && activePendingProgress !== null) ||
       phase === "running"
@@ -2184,7 +2164,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     // A send while a pasted image is still compressing would strand that image:
     // the turn snapshot wouldn't include it, and it would surface in the *next*
     // draft instead.
-    if (activeThreadId && (pendingImageCompressionsRef.current.get(attachmentTargetKey) ?? 0) > 0) {
+    if (activeThreadId && countPreparingComposerImages(attachmentTargetKey) > 0) {
       event?.preventDefault();
       toastManager.add({
         type: "info",
@@ -2274,7 +2254,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       pendingUserInputs.length > 0 ||
       phase === "running" ||
       isSendBusy ||
-      isConnecting ||
       !activeThreadId
     ) {
       return;
@@ -2320,56 +2299,58 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     !isComposerApprovalState &&
     activePendingProgress === null &&
     !projectSelectionRequired &&
-    !showProviderUnavailable &&
-    !isConnecting
+    !showProviderUnavailable
       ? { text: nextPrompt.suggestion, dismiss: nextPrompt.dismiss }
       : null;
 
-  const { onComposerCommandKey, acceptPromptSuggestion } = useComposerCommandKey({
-    keybindings,
-    sendShortcut: settings.sendShortcut,
-    routeKind,
-    phase,
-    isCompacting,
-    followUpBehavior,
-    isSoftwareKeyboardOpen,
-    isLiteralPendingAnswer,
-    isEditingQueuedMessage,
-    pendingUserInputs,
-    promptHistoryMessages,
-    promptHistoryPositionRef,
-    composerDraftTarget,
-    promptRef,
-    composerImagesRef,
-    composerFilesRef,
-    composerTerminalContextsRef,
-    composerPreviewAnnotations,
-    composerReviewComments,
-    promptSuggestion,
-    composerEditorRef,
-    composerMenuOpenRef,
-    composerMenuItemsRef,
-    activeComposerMenuItemRef,
-    setComposerDraftPrompt,
-    setComposerCursor,
-    setComposerTrigger,
-    setComposerHighlightedItemId,
-    dismissComposerTrigger,
-    nudgeComposerMenuHighlight,
-    onSelectComposerItem,
-    resolveActiveComposerTrigger,
-    readComposerSnapshot,
-    applyPromptReplacement,
-    submitComposer,
-    onEditLatestQueuedMessage,
-    onCancelQueuedMessageEdit,
-  });
+  const composerCommandKeys = () =>
+    composerCommandKeyHandler({
+      keybindings,
+      sendShortcut: settings.sendShortcut,
+      routeKind,
+      phase,
+      isCompacting,
+      followUpBehavior,
+      isSoftwareKeyboardOpen,
+      isLiteralPendingAnswer,
+      isEditingQueuedMessage,
+      pendingUserInputs,
+      promptHistoryMessages,
+      promptHistoryPositionRef,
+      composerDraftTarget,
+      promptRef,
+      composerImagesRef,
+      composerFilesRef,
+      composerTerminalContextsRef,
+      composerPreviewAnnotations,
+      composerReviewComments,
+      promptSuggestion,
+      composerEditorRef,
+      composerMenuOpenRef,
+      composerMenuItemsRef,
+      activeComposerMenuItemRef,
+      setComposerDraftPrompt,
+      setComposerCursor,
+      setComposerTrigger,
+      setComposerHighlightedItemId,
+      dismissComposerTrigger,
+      nudgeComposerMenuHighlight,
+      onSelectComposerItem,
+      resolveActiveComposerTrigger,
+      readComposerSnapshot,
+      applyPromptReplacement,
+      submitComposer,
+      onEditLatestQueuedMessage,
+      onCancelQueuedMessageEdit,
+    });
+  const onComposerCommandKey = (key: string, event: KeyboardEvent, isTaskItem?: boolean) =>
+    composerCommandKeys().onComposerCommandKey(key, event, isTaskItem);
 
   const {
     stashQueue,
     isStashMenuOpen,
     setIsStashMenuOpen,
-    stashPulse,
+    stashPulseKey,
     stashSendAllBlockedReason,
     restoreStashEntryStable,
     deleteStashEntryStable,
@@ -2396,7 +2377,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     canQueueMessage,
     canQueueSelectedProvider,
     isSendBusy,
-    isConnecting,
     sendDisabledReason,
     prompt,
     composerMenuOpen,
@@ -2442,7 +2422,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     projectSelectionRequired ||
     composerSubmissionError !== null ||
     providerInputSubmissionError !== null ||
-    hasImageAttachmentAttention;
+    hasImageAttachmentAttention ||
+    preparingComposerImages.length > 0;
   const isComposerResting = shouldUseRestingComposerLayout({
     isExistingThread: routeKind === "server" && activeThreadId !== null,
     isMobileViewport,
@@ -2477,6 +2458,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     [
       ...(editingQueuedAttachments ?? []).map(({ attachment }) => attachment.id),
       ...composerImages.map((image) => image.id),
+      ...preparingComposerImages.map((image) => image.id),
       ...uncommittedSnapShotIds,
       ...composerFiles.map((file) => file.id),
     ],
@@ -2506,15 +2488,18 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   if (composerControlsHidden && isComposerModelPickerOpen) {
     setIsComposerModelPickerOpen(false);
   }
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reports whether resting controls show in the strip to ChatView before paint
   useLayoutEffect(() => {
     onRestingControlsVisibilityChange(composerControlsVisibleInStrip);
   }, [composerControlsVisibleInStrip, onRestingControlsVisibilityChange]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reports the resting state to ChatView's ref before paint
   useLayoutEffect(() => {
     onRestingChange(isComposerResting);
   }, [isComposerResting, onRestingChange]);
 
   const [restingActionsElement, setRestingActionsElement] = useState<HTMLDivElement | null>(null);
   const [restingActionsWidth, setRestingActionsWidth] = useState<number | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- observes resizes of the resting actions DOM node to measure its width
   useLayoutEffect(() => {
     if (!isComposerResting || !restingActionsElement) return;
     const measure = () => setRestingActionsWidth(restingActionsElement.offsetWidth);
@@ -2557,19 +2542,20 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     !hasMultilinePrompt &&
     !composerHasExpandedChrome &&
     !showInlineTasksBadge;
+  // Clear rather than mask: once eligibility drops, the composer stays expanded until the next
+  // scroll gesture even if it becomes eligible again.
+  if (!canScrollCollapseComposer && isComposerScrollCollapsed) {
+    setIsComposerScrollCollapsed(false);
+  }
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes the committed scroll-collapse eligibility to a ref read by the wheel listener
   useLayoutEffect(() => {
     composerScrollCollapseEligibleRef.current = canScrollCollapseComposer && !isComposerResting;
   });
 
-  useEffect(() => {
-    if (!canScrollCollapseComposer) {
-      setIsComposerScrollCollapsed(false);
-    }
-  }, [canScrollCollapseComposer, setIsComposerScrollCollapsed]);
-
   // Returning to the window re-fires focus on the element that already held
   // it. That focus arrives after the window's own event, so a window focus
   // marks the frame in which it should be ignored by the form's capture.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- window focus listener and animation frame that ignore activation focus while the composer is collapsed
   useEffect(() => {
     if (!isComposerScrollCollapsed) return;
     let frame: number | null = null;
@@ -2599,12 +2585,14 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const finishScrollGestureStable = useStableCallback(finishScrollGesture);
 
   const scrollGestureThreadIdRef = useRef(activeThreadId);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- ends the in-flight scroll gesture and clears its collapse timer when the active thread changes
   useEffect(() => {
     if (scrollGestureThreadIdRef.current === activeThreadId) return;
     scrollGestureThreadIdRef.current = activeThreadId;
     finishScrollGestureStable();
   }, [activeThreadId, finishScrollGestureStable]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes a capture-phase document wheel listener that collapses the composer on timeline scroll
   useEffect(() => {
     if (!canTrackComposerScrollGesture) return;
 
@@ -2771,7 +2759,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   ): boolean => {
     if (
       text.length === 0 ||
-      isConnecting ||
       activePendingIsResponding ||
       (pendingUserInputs.length > 0 && !activePendingProgress?.activeQuestion) ||
       projectSelectionRequired ||
@@ -2844,7 +2831,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       pendingUserInputs,
       supportsQuestionAttachments,
       isLiteralPendingAnswer,
-      isConnecting,
       projectSelectionRequired,
       questionAttachmentTarget,
       attachmentTargetKey,
@@ -2854,7 +2840,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       composerFilesRef,
       composerEditorRef,
       isRevertingCheckpointRef,
-      pendingImageCompressionsRef,
       setThreadError,
       countReservedAttachments,
       addComposerImage,
@@ -2867,7 +2852,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
 
   const onComposerCommandKeyStable = useStableCallback(onComposerCommandKey);
   const acceptPromptSuggestionStable = useStableCallback(() => {
-    acceptPromptSuggestion();
+    composerCommandKeys().acceptPromptSuggestion();
     focusComposer();
   });
   const isPathQueryActiveStable = useStableCallback(
@@ -2965,6 +2950,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const setContextInsertionHandler = useComposerDraftStore(
     (store) => store.setContextInsertionHandler,
   );
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers this composer's context insertion handler in the draft store for the current target
   useEffect(() => {
     return setContextInsertionHandler(composerDraftTarget, insertContextReferencesAtCaretStable);
   }, [composerDraftTarget, insertContextReferencesAtCaretStable, setContextInsertionHandler]);
@@ -3067,7 +3053,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     if (questionAttachmentTarget !== null) {
       const canAnswer =
         canOperateThread &&
-        !isConnecting &&
         !activePendingIsResponding &&
         activePendingProgress?.activeQuestion?.allowCustomAnswer !== false;
       const text = `${records.map((record) => formatInlineContextReference(threadContextReference(record))).join(" ")} `;
@@ -3110,6 +3095,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   // target, which would leave the drop highlight stuck. dragend always fires
   // on the in-page drag source and bubbles to window, so it is the reset of
   // last resort while the highlight is up.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- window dragend listener clears the drop highlight when a drag is cancelled without dragleave
   useEffect(() => {
     if (!isDragOverComposer) return;
     const onWindowDragEnd = () => {
@@ -3153,11 +3139,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const scheduleComposerCollapseCheckStable = useStableCallback(scheduleComposerCollapseCheck);
 
   const activePendingUserInputRequestId = activePendingUserInput?.requestId ?? null;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- schedules the collapse check after a dismissed question unmounts focused controls without a blur
   useEffect(() => {
     if (activePendingUserInputRequestId !== null) return;
     scheduleComposerCollapseCheckStable();
   }, [activePendingUserInputRequestId, scheduleComposerCollapseCheckStable]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels pending blur and mobile expand animation frames when the composer unmounts
   useEffect(() => {
     return () => {
       if (composerBlurFrameRef.current !== null) {
@@ -3218,7 +3206,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       },
       addDroppedFolders: addComposerFoldersStable,
       hasPendingAttachments: () =>
-        (pendingImageCompressionsRef.current.get(attachmentTargetKey) ?? 0) > 0 ||
+        countPreparingComposerImages(attachmentTargetKey) > 0 ||
         pendingDraftWork.has(attachmentTargetKey),
       insertTextAtEnd: insertComposerTextAtEndStable,
       pasteTextAtEnd: (text: string, options) => {
@@ -3405,7 +3393,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         reviewComments: composerReviewComments,
         threadContexts: composerThreadContexts,
         selectedPromptEffort,
-        selectedModelOptionsForDispatch,
         selectedModelSelection,
         multipleModelSelections:
           routeKind === "draft" && multipleModelSelections !== null
@@ -3461,7 +3448,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       focusComposer,
       environmentId,
       primaryEnvironmentId,
-      isConnecting,
       isChoiceOnlyPendingQuestion,
       isLiteralPendingAnswer,
       pendingUserInputs.length,
@@ -3475,7 +3461,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       selectedModel,
       selectedInstanceId,
       reportedModelSelection,
-      selectedModelOptionsForDispatch,
       selectedModelSelection,
       multipleModelSelections,
       setMultipleModelSelections,
@@ -3498,10 +3483,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     !isComposerCollapsedMobile &&
     (uncommittedSnapShotIds.length > 0 ||
       videoExits.items.length > 0 ||
-      imageExits.items.length > 0) ? (
+      imageExits.items.length > 0 ||
+      preparingComposerImages.length > 0) ? (
       <ComposerAttachmentMediaRow
         images={composerImages}
         imageExits={imageExits}
+        preparingImages={preparingComposerImages}
         videoExits={videoExits}
         arrivedIds={attachmentTray.arrived}
         pendingSnapShotAnimations={pendingSnapShotAnimations}
@@ -3753,7 +3740,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                             canInterrupt={false}
                             isSendBusy={isSendBusy}
                             sendDisabledReason={sendDisabledReason}
-                            isConnecting={isConnecting}
                             isEnvironmentUnavailable={
                               environmentUnavailable !== null ||
                               noProviderAvailable ||
@@ -3790,8 +3776,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         <ComposerStashBadge
           count={stashQueue.length}
           menuOpen={isStashMenuOpen}
-          pulseKey={stashPulse.key}
-          pulsing={stashPulse.active}
+          pulseKey={stashPulseKey}
           onToggleMenu={toggleStashMenuStable}
         />
       </ComposerBanner.Dock>
@@ -3864,7 +3849,14 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
             ) : null}
 
             <div
-              ref={setComposerMenuAnchor}
+              ref={(node) => {
+                setComposerMenuAnchor(node);
+                const stopObserving = observeWrappedPrompt(node);
+                return () => {
+                  setComposerMenuAnchor(null);
+                  stopObserving?.();
+                };
+              }}
               data-chat-composer-body="true"
               className={cn(
                 "relative px-3 pb-2 sm:px-4",
@@ -3956,7 +3948,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                 <ComposerContextActionsContext value={composerContextActions}>
                   <ComposerPromptEditor
                     draftKey={composerDraftTargetKey}
-                    ariaLabel="Message"
+                    // Switching threads lands focus here, so the label names the thread.
+                    ariaLabel={activeThread ? `Message ${activeThread.title}` : "Message"}
                     suggestionListId={composerSuggestionListId}
                     activeSuggestionId={
                       composerSuggestionListVisible && activeComposerMenuItem
@@ -4008,7 +4001,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                       promptSuggestion
                         ? promptSuggestion.text
                         : isComposerApprovalState
-                          ? "Send a message to decline and redirect the agent"
+                          ? activePendingApproval?.supportsFeedback
+                            ? "Send feedback to decline this request"
+                            : "Send a message to decline and redirect the agent"
                           : activePendingProgress
                             ? isChoiceOnlyPendingQuestion
                               ? "Choose an option above"
@@ -4022,7 +4017,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                                   : "Ask anything, @tag files/folders, $use skills, or / for commands"
                     }
                     disabled={
-                      isConnecting ||
                       projectSelectionRequired ||
                       isChoiceOnlyPendingQuestion ||
                       activePendingIsResponding
@@ -4045,7 +4039,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                       canInterrupt={false}
                       isSendBusy={isSendBusy}
                       sendDisabledReason={sendDisabledReason}
-                      isConnecting={isConnecting}
                       isEnvironmentUnavailable={
                         environmentUnavailable !== null ||
                         noProviderAvailable ||
@@ -4113,7 +4106,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                       {showComposerAttachAction ? (
                         <ComposerVoiceButton
                           voice={voice}
-                          disabled={!canOperateThread || isConnecting}
+                          disabled={!canOperateThread}
                           shortcutLabel={shortcutLabelForCommand(keybindings, "composer.voice")}
                         />
                       ) : null}
@@ -4129,7 +4122,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                         canSteer={!isCompacting}
                         isSendBusy={isSendBusy}
                         sendDisabledReason={sendDisabledReason}
-                        isConnecting={isConnecting}
                         isEnvironmentUnavailable={
                           (environmentUnavailable !== null &&
                             (activePendingProgress !== null || showResumeAction)) ||
@@ -4148,9 +4140,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                         onResume={onResume}
                         onPreviousPendingQuestion={onPreviousActivePendingUserInputQuestion}
                         onInterrupt={handleInterruptPrimaryActionStable}
-                        compactDisabled={
-                          compactDisabled || noProviderAvailable || isSendBusy || isConnecting
-                        }
+                        compactDisabled={compactDisabled || noProviderAvailable || isSendBusy}
                         compactDisabledReason={resolvedCompactDisabledReason}
                         {...(compactCommandAvailable
                           ? { onCompactContext: compactThreadContextStable }

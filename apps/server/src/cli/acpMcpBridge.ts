@@ -4,12 +4,8 @@ import { Argument, Command } from "effect/cli";
 import { runAcpMcpCliFastPath } from "../mcp/AcpMcpStdioBridge.ts";
 
 /**
- * `supaterm acp-mcp-bridge` — internal stdio MCP server that ACP agents spawn.
- *
- * The Supaterm server injects this command (with per-session endpoint and
- * credential environment variables) into `session/new` so every ACP agent
- * reaches the Supaterm toolkit through ACP's required stdio MCP transport.
- * The credential stays in the environment, never on the command line.
+ * Internal stdio MCP server the server injects into ACP `session/new`, since ACP requires the
+ * stdio transport. The per-session credential stays in the environment, never on the command line.
  */
 export const acpMcpBridgeCommand = Command.make("acp-mcp-bridge").pipe(
   Command.withDescription("Bridge Supaterm's MCP endpoint to stdio for ACP agents."),

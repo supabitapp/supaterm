@@ -43,6 +43,7 @@ describe("buildThreadPaletteItems", () => {
       "Turn off automatic completion",
       "Copy workspace path",
       "Copy branch name",
+      "Copy thread",
       "Copy thread ID",
       "Archive thread",
       "Delete thread",
@@ -85,6 +86,7 @@ describe("buildThreadPaletteItems", () => {
       "Mark thread unread",
       "Copy workspace path",
       "Copy branch name",
+      "Copy thread",
       "Copy thread ID",
     ]);
   });

@@ -1,6 +1,7 @@
 import { readCodexAuthHandoff } from "@supaterm/shared/codexAuthHandoff";
 import { promptLinkAppPath } from "@supaterm/shared/promptLinks";
 import { providerAuthReturnUrl } from "@supaterm/shared/providerAuthReturnUrl";
+import { readPairingAppLink } from "@supaterm/shared/remote";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -36,6 +37,7 @@ export const make = Effect.fn("DesktopOpenEvents.make")(function* (isDevelopment
     const destination = providerAuthReturnUrl(url);
     return (
       promptLinkAppPath(url) !== null ||
+      readPairingAppLink(url) !== null ||
       readCodexAuthHandoff(url, isDevelopment) !== undefined ||
       destination?.startsWith(`${isDevelopment ? "supaterm-dev" : "supaterm"}://app/`) === true ||
       (platform === "darwin" && isWebLink(url))
@@ -55,8 +57,8 @@ export const make = Effect.fn("DesktopOpenEvents.make")(function* (isDevelopment
     receive({ type: "second-instance", argv });
   });
   return DesktopOpenEvents.of({
-    subscribe: (listener) =>
-      Effect.acquireRelease(
+    subscribe: Effect.fn("DesktopOpenEvents.subscribe")(function (listener) {
+      return Effect.acquireRelease(
         Effect.sync(() => {
           receiver = listener;
           for (const event of pending.splice(0)) listener(event);
@@ -65,7 +67,8 @@ export const make = Effect.fn("DesktopOpenEvents.make")(function* (isDevelopment
           Effect.sync(() => {
             if (receiver === listener) receiver = undefined;
           }),
-      ).pipe(Effect.asVoid),
+      ).pipe(Effect.asVoid);
+    }),
   });
 });
 

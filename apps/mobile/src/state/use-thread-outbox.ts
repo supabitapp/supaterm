@@ -8,7 +8,7 @@ import { environmentShell } from "./shell";
 import { threadOutboxManager } from "./thread-outbox";
 import { composerDraftsAtom } from "./use-composer-drafts";
 
-const threadOutboxShellStatusesAtom = Atom.make(
+export const threadOutboxShellStatusesAtom = Atom.make(
   (get): ReadonlyMap<EnvironmentId, EnvironmentShellStatus> => {
     const statuses = new Map<EnvironmentId, EnvironmentShellStatus>();
     for (const queue of Object.values(get(threadOutboxManager.queuedMessagesByThreadKeyAtom))) {
@@ -105,8 +105,4 @@ export const queuedThreadKeysAtom = Atom.make((get): ReadonlySet<string> => {
 
 export function useQueuedThreadKeys(): ReadonlySet<string> {
   return useAtomValue(queuedThreadKeysAtom);
-}
-
-export function useThreadOutboxShellStatuses() {
-  return useAtomValue(threadOutboxShellStatusesAtom);
 }

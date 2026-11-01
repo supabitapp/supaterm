@@ -1,7 +1,7 @@
 import { PlayIcon, WrapTextIcon } from "@supaterm/icons";
 import { Check, Copy } from "@supaterm/icons/nodes";
 import { toHtml } from "hast-util-to-html";
-import React, { use, useEffect, useState, type ReactNode } from "react";
+import React, { use, useState, type ReactNode } from "react";
 
 import { useIncrementalHighlightedDocument } from "../../hooks/useIncrementalHighlightedDocument";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
@@ -357,31 +357,32 @@ function UncachedShikiCodeBlock({
     themeName,
   );
   const highlighted = (() => {
-    try {
-      if (incrementalHighlight) return incrementalHighlight(code);
-      return highlighter.codeToHtml(code, { lang: language, theme: themeName });
-    } catch (error) {
-      incrementalHighlight?.dispose();
-      console.warn(
-        `Code highlighting failed for language "${language}", falling back to plain text.`,
-        error instanceof Error ? error.message : error,
-      );
-      return preserveLines
-        ? highlightCodeDocument(highlighter, code, "text", themeName)
-        : highlighter.codeToHtml(code, { lang: "text", theme: themeName });
-    }
-  })();
-
-  useEffect(() => {
+    const result = (() => {
+      try {
+        if (incrementalHighlight) return incrementalHighlight(code);
+        return highlighter.codeToHtml(code, { lang: language, theme: themeName });
+      } catch (error) {
+        incrementalHighlight?.dispose();
+        console.warn(
+          `Code highlighting failed for language "${language}", falling back to plain text.`,
+          error instanceof Error ? error.message : error,
+        );
+        return preserveLines
+          ? highlightCodeDocument(highlighter, code, "text", themeName)
+          : highlighter.codeToHtml(code, { lang: "text", theme: themeName });
+      }
+    })();
+    // A finished block is cached for the next mount; a streaming one is still changing.
     if (!isStreaming) {
-      const highlightedHtml = typeof highlighted === "string" ? highlighted : toHtml(highlighted);
+      const highlightedHtml = typeof result === "string" ? result : toHtml(result);
       highlightedCodeCache.set(
         cacheKey,
         highlightedHtml,
         estimateHighlightedSize(highlightedHtml, code),
       );
     }
-  }, [cacheKey, code, highlighted, isStreaming]);
+    return result;
+  })();
 
   return typeof highlighted === "string" ? (
     <div className="chat-markdown-shiki" dangerouslySetInnerHTML={{ __html: highlighted }} />

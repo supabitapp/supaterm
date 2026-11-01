@@ -6,9 +6,12 @@ import * as NodePath from "node:path";
 import * as NetService from "@supaterm/shared/Net";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { assert, describe, it } from "@effect/vitest";
+import * as ByteSize from "effect/ByteSize";
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as Logger from "effect/Logger";
 import * as Path from "effect/Path";
 import * as PlatformError from "effect/PlatformError";
 import * as Sink from "effect/Sink";
@@ -117,6 +120,31 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
       }),
     );
 
+    it.effect("turns product analytics off unless the developer opts in", () =>
+      Effect.gen(function* () {
+        const input = {
+          mode: "dev",
+          serverOffset: 0,
+          webOffset: 0,
+          supatermHome: undefined,
+          browser: undefined,
+          autoBootstrapProjectFromCwd: undefined,
+          logWebSocketEvents: undefined,
+          host: undefined,
+          port: undefined,
+          devUrl: undefined,
+        } as const;
+        const byDefault = yield* createDevRunnerEnv({ ...input, baseEnv: {} });
+        const optedIn = yield* createDevRunnerEnv({
+          ...input,
+          baseEnv: { SUPATERM_TELEMETRY_ENABLED: "true" },
+        });
+
+        assert.equal(byDefault.SUPATERM_TELEMETRY_ENABLED, "false");
+        assert.equal(optedIn.SUPATERM_TELEMETRY_ENABLED, "true");
+      }),
+    );
+
     it.effect("strips inherited service-launcher context", () =>
       Effect.gen(function* () {
         const env = yield* createDevRunnerEnv({
@@ -165,9 +193,6 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           assert.equal(env.VITE_HTTP_URL, undefined);
           assert.equal(env.VITE_WS_URL, undefined);
           assert.equal(env.SUPATERM_PORT, "13773");
-          // Deleting the keys is not sufficient — vite.config.ts merges
-          // `.env`/`.env.local` underneath this env and would revive them, so
-          // the intent has to be stated positively.
           assert.equal(env.SUPATERM_SINGLE_ORIGIN_DEV, "1");
         }),
     );
@@ -394,8 +419,6 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
       });
     });
 
-    // `tailscale serve` config outlives the process, so a dry run that shared
-    // would replace and then tear down whatever mapping the port already had.
     it.effect("ignores an ambient SUPATERM_HOME when no home is resolved", () =>
       Effect.gen(function* () {
         const env = yield* createDevRunnerEnv({
@@ -413,6 +436,43 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
         });
 
         assert.equal(env.SUPATERM_HOME, undefined);
+      }),
+    );
+
+    it.effect("expands a home-relative Supaterm home the way the server does", () =>
+      Effect.gen(function* () {
+        const path = yield* Path.Path;
+        const homeFor = (supatermHome: string) =>
+          createDevRunnerEnv({
+            mode: "dev",
+            baseEnv: {},
+            serverOffset: 0,
+            webOffset: 0,
+            supatermHome,
+            browser: undefined,
+            autoBootstrapProjectFromCwd: undefined,
+            logWebSocketEvents: undefined,
+            host: undefined,
+            port: undefined,
+            devUrl: undefined,
+          }).pipe(
+            Effect.provideService(HostProcess.HomeDirectory, "/home/dev"),
+            Effect.map((env) => env.SUPATERM_HOME),
+          );
+
+        assert.equal(yield* homeFor("~/supaterm-dev"), path.join("/home/dev", "supaterm-dev"));
+        assert.equal(yield* homeFor("~"), "/home/dev");
+        assert.equal(yield* homeFor("~\\supaterm-dev"), path.join("/home/dev", "supaterm-dev"));
+        assert.equal(yield* homeFor("  ~/supaterm-dev  "), path.join("/home/dev", "supaterm-dev"));
+        assert.equal(
+          yield* homeFor("~someone/supaterm-dev"),
+          path.resolve("~someone/supaterm-dev"),
+        );
+        assert.equal(
+          yield* homeFor("relative/supaterm-dev"),
+          path.resolve("relative/supaterm-dev"),
+        );
+        assert.equal(yield* homeFor("/tmp/supaterm-dev"), path.resolve("/tmp/supaterm-dev"));
       }),
     );
 
@@ -855,6 +915,80 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
             [],
           );
         }).pipe(Effect.scoped),
+      );
+
+      it.effect.each([
+        { sourceBytes: 500 * 1024 * 1024 - 1, shouldSeed: true },
+        { sourceBytes: 500 * 1024 * 1024, shouldSeed: true },
+        { sourceBytes: 500 * 1024 * 1024 + 1, shouldSeed: false },
+      ])(
+        "checks source size before seeding an empty worktree: $sourceBytes bytes",
+        ({ sourceBytes, shouldSeed }) =>
+          Effect.gen(function* () {
+            const fs = yield* FileSystem.FileSystem;
+            const path = yield* Path.Path;
+            const root = yield* makeWorktree;
+            const home = path.join(root, "home");
+            const source = path.join(home, ".supaterm", "userdata", "statev2.sqlite");
+            NodeFS.mkdirSync(path.dirname(source), { recursive: true });
+            NodeFS.writeFileSync(source, "");
+            const spawned: Array<ReadonlyArray<string>> = [];
+            const warnings: Array<string> = [];
+            const spawnerLayer = Layer.succeed(
+              ChildProcessSpawner.ChildProcessSpawner,
+              ChildProcessSpawner.make((command) => {
+                spawned.push((command as unknown as { readonly args: ReadonlyArray<string> }).args);
+                return Effect.succeed(mockProcess(0));
+              }),
+            );
+
+            yield* runDevRunnerWithInput({ ...devServerInput, supatermHome: undefined }).pipe(
+              Effect.provide([
+                emptyConfigLayer,
+                netServiceLayer,
+                spawnerLayer,
+                Logger.layer([
+                  Logger.make((options) => {
+                    if (options.logLevel === "Warn") warnings.push(String(options.message));
+                  }),
+                ]),
+              ]),
+              Effect.provideService(FileSystem.FileSystem, {
+                ...fs,
+                stat: (file) =>
+                  fs
+                    .stat(file)
+                    .pipe(
+                      Effect.map((info) =>
+                        file === source ? { ...info, size: ByteSize.bytes(sourceBytes) } : info,
+                      ),
+                    ),
+              }),
+              Effect.provideService(HostProcess.Platform, "linux"),
+              Effect.provideService(HostProcess.WorkingDirectory, root),
+              Effect.provideService(HostProcess.HomeDirectory, home),
+              Effect.provideService(HostProcess.Environment, {}),
+            );
+
+            assert.equal(
+              spawned.some((args) => args.some((arg) => arg.endsWith("migrate-dev-db.ts"))),
+              shouldSeed,
+            );
+            assert.deepStrictEqual(spawned.at(-1), [
+              "run",
+              "--filter=supaterm",
+              "dev",
+              ...devServerInput.runArgs,
+            ]);
+            if (shouldSeed) {
+              assert.deepStrictEqual(warnings, []);
+            } else {
+              assert.lengthOf(warnings, 1);
+              assert.include(warnings[0]!, source);
+              assert.include(warnings[0]!, "skipping automatic database seeding");
+              assert.include(warnings[0]!, "vp run migrate-dev-db");
+            }
+          }).pipe(Effect.scoped),
       );
 
       it.effect("falls back to an ambient SUPATERM_HOME outside a worktree", () =>

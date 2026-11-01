@@ -85,8 +85,9 @@ export function findInlinedExternalPackages(source: string): {
   readonly inlined: ReadonlyArray<string>;
   readonly inlinedPackages: ReadonlyArray<string>;
 } {
-  // Rolldown marks each inlined module with a `//#region <path>` comment.
-  const regionPattern = /\/\/#region\s+(\S+)/g;
+  // Rolldown marks each inlined module with a `//#region <path>` line; newer
+  // releases (vite-plus 1.4) emit a bare `// <path>` line instead.
+  const regionPattern = /^\/\/(?:#region)?[ \t]+(\S+)[ \t]*$/gm;
   const packagePattern = /node_modules\/((?:@[^/\s]+\/)?[^/\s]+)\//g;
 
   let regionCount = 0;
@@ -116,6 +117,9 @@ const PackageManifest = Schema.Struct({
   devDependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),
   optionalDependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),
   peerDependencies: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+  peerDependenciesMeta: Schema.optional(
+    Schema.Record(Schema.String, Schema.Struct({ optional: Schema.optional(Schema.Boolean) })),
+  ),
 });
 const decodeManifest = Schema.decodeEffect(Schema.fromJsonString(PackageManifest));
 

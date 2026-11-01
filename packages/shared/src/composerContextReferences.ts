@@ -6,6 +6,7 @@ import {
   type ElementContextDetails,
   type EnvironmentId,
   type KnownComposerContextRecord,
+  type ScopedThreadRef,
   type ThreadContextRecord,
 } from "@supaterm/contracts";
 
@@ -19,10 +20,7 @@ const CONTEXT_LINK = new RegExp(
   "g",
 );
 
-/**
- * 64 bits of digest, because the slug in front of it is truncated: two long producer
- * ids that agree on their first 48 characters are told apart by this alone.
- */
+// The digest alone distinguishes producer ids sharing the truncated 48-character slug.
 function fnv1a64(value: string): string {
   let forward = 0x811c9dc5;
   let reverse = 0x9dc5811c;
@@ -77,6 +75,20 @@ export function sanitizeComposerContextLabel(label: string, kind: ComposerContex
   return cleaned.length > 0 ? cleaned : kind;
 }
 
+/** One record per thread, so re-attaching a renamed thread reuses its chip. */
+export function threadContextRecord(ref: ScopedThreadRef, title: string): ThreadContextRecord {
+  const label = sanitizeComposerContextLabel(title, "thread");
+  return {
+    version: 1,
+    kind: "thread",
+    contextId: toKindScopedComposerContextId("thread", ref.threadId),
+    label,
+    environmentId: ref.environmentId,
+    threadId: ref.threadId,
+    title: label,
+  };
+}
+
 export function formatComposerContextReference(reference: {
   kind: ComposerContextKind;
   contextId: ComposerContextId;
@@ -120,6 +132,11 @@ export function collectComposerContextReferences(
 export const ATTACHMENT_ONLY_BOOTSTRAP_PROMPT =
   "[User attached one or more files without additional text. Respond using the conversation context and the attached files.]";
 
+/** Claude's ultrathink effort sends the prompt as `Ultrathink:\n<prompt>`. */
+export function isAttachmentOnlyBootstrapPrompt(text: string): boolean {
+  return text.replace(/^Ultrathink:\s*/i, "") === ATTACHMENT_ONLY_BOOTSTRAP_PROMPT;
+}
+
 export function isImageReferencesOnly(text: string): boolean {
   const references = collectComposerContextReferences(text);
   return (
@@ -162,10 +179,7 @@ function formatComposerContextProviderMarker(
   return `[${kindDisplayName(kind)}: ${escapeComposerContextPayloadText(cleanLabel)}; ref=${contextId}]`;
 }
 
-/**
- * A terminal line or PR comment that contains `</supaterm_context>` or `</context>`
- * must not be able to close the envelope and forge a record.
- */
+// Escape envelope tags so payload text cannot close the envelope and forge records.
 function escapeComposerContextPayloadText(text: string): string {
   return text.replace(
     new RegExp(String.raw`<(?=/?(?:${CONTEXT_ENVELOPE_TAG}|${CONTEXT_ENTRY_TAG})\b)`, "gi"),

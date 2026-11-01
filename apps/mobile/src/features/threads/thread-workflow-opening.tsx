@@ -1,5 +1,4 @@
 import { useAtomValue } from "@effect/atom-react";
-import { StackActions, useNavigation } from "@react-navigation/native";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import {
   resolveWorkflowOpening,
@@ -17,11 +16,10 @@ import { useAppearancePreferences } from "../settings/appearance/AppearancePrefe
 import { useMarkdownCodeHighlight } from "./markdownCodeHighlightState";
 import { SubagentRow } from "./SubagentRow";
 import { WorkLogBlock } from "./work-log-layout";
+import { useOpenLinkedThread } from "./useOpenLinkedThread";
 
-// A script longer than this many lines shows its head until opened.
 const FOLDED_SCRIPT_LINES = 10;
 
-/** The workflow opening for a thread, or null; the parent's detail loads only for a workflow. */
 export function useWorkflowOpening(environmentId: EnvironmentId, threadId: ThreadId) {
   const threadAtom = environmentThreadDetails.threadAtom(scopeThreadRef(environmentId, threadId));
   // Selected as a primitive so an ordinary thread's updates never change the result.
@@ -71,13 +69,12 @@ function memberRowSubagent(
 
 type WorkflowOpeningValue = NonNullable<ReturnType<typeof useWorkflowOpening>>;
 
-/** Replaces a workflow coordinator's script message: the plan, its agents, then the script. */
 export function ThreadWorkflowOpening(props: {
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
   readonly opening: WorkflowOpeningValue;
 }) {
-  const navigation = useNavigation();
+  const openLinkedThread = useOpenLinkedThread();
   const { opening } = props;
   const headline = workflowOpeningHeadline(opening);
   const canListMembers = opening.driver !== null && opening.providerInstanceId !== null;
@@ -93,12 +90,7 @@ export function ThreadWorkflowOpening(props: {
         disabled={threadId === null}
         onPress={() => {
           if (threadId !== null)
-            navigation.dispatch(
-              StackActions.push("Thread", {
-                environmentId: String(props.environmentId),
-                threadId,
-              }),
-            );
+            openLinkedThread({ environmentId: String(props.environmentId), threadId });
         }}
         className="rounded-lg px-3 py-3 active:bg-subtle"
       >
@@ -148,7 +140,6 @@ export function ThreadWorkflowOpening(props: {
   );
 }
 
-/** The script as highlighted code; a long one shows its head until opened. */
 function WorkflowScript(props: { readonly script: string }) {
   const [expanded, setExpanded] = useState(false);
   const { themeAppearance } = useAppearancePreferences();
@@ -162,7 +153,6 @@ function WorkflowScript(props: { readonly script: string }) {
   const lineCount = script.split("\n").length;
   const canFold = lineCount > FOLDED_SCRIPT_LINES;
   const shownLines = canFold && !expanded ? FOLDED_SCRIPT_LINES : lineCount;
-  // Tokens are keyed by their offset into the script, like the work log's REPL code.
   let offset = 0;
   const highlighted = lines?.slice(0, shownLines).flatMap((line, lineIndex) => {
     const separator = lineIndex > 0 ? "\n" : "";

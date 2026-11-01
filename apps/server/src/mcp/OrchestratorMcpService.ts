@@ -5,6 +5,7 @@ import {
   MessageId,
   type ModelSelection,
   NodeId,
+  ORCHESTRATOR_MCP_RUNNING_TASK_NEXT,
   type OrchestrationV2Run,
   type OrchestrationV2Subagent,
   type OrchestrationV2ThreadProjection,
@@ -65,10 +66,11 @@ import {
 } from "@supaterm/contracts";
 import { getProviderOptionCurrentValue } from "@supaterm/shared/model";
 import { runRanAfter } from "@supaterm/shared/orchestrationV2ThreadError";
+import { formatThreadLink } from "@supaterm/shared/threadLinks";
 import {
   normalizeThreadPullRequestKey,
   visibleThreadPullRequests,
-} from "@supaterm/shared/threadPullRequests";
+} from "../sourceControl/threadPullRequests.ts";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
 import * as Crypto from "effect/Crypto";
@@ -105,6 +107,7 @@ import {
   type McpInvocationScope,
   type McpThreadInvocationScope,
   requireThreadScope,
+  threadLinkFor,
 } from "./McpInvocationContext.ts";
 
 const DEFAULT_WAIT_TIMEOUT_MS = 10 * 60 * 1_000;
@@ -202,11 +205,8 @@ function failure(code: OrchestratorMcpFailure["code"], message: string): Orchest
 }
 
 /**
- * A caller's thread is live while it is not archived, runs on the caller's
- * provider instance, and has an active run or a background subagent that
- * instance started. A background subagent outlives its run and calls tools
- * with its thread's credential, which is revoked when the provider process
- * goes away.
+ * A background subagent outlives its run and calls tools with its thread's credential, which is
+ * revoked when the provider process goes away, so it keeps its thread live.
  */
 export const isLiveCallerShell = (
   shell: Pick<
@@ -265,6 +265,11 @@ function threadManagementFailure(error: unknown): OrchestratorMcpFailure {
   }
 }
 
+// Without a reason, a Stop reads as the user's (see RunExecutionService.USER_STOP_REASON).
+function agentStopReason(reason: string | undefined): string {
+  return reason === undefined ? "Stopped by an agent" : `Stopped by an agent: ${reason}`;
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -300,9 +305,9 @@ const FULL_CATALOG_DRIVERS: ReadonlySet<string> = new Set(["codex", "claudeAgent
 const LISTED_MODEL_LIMIT = 8;
 
 /**
- * Picks the models orchestrator_capabilities shows for one provider. Hidden
- * models never appear. With search terms, lists matches; otherwise lists pinned
- * models (custom, favorite, the caller's own) plus the provider's non-legacy
+ * Picks the models orchestrator_capabilities shows for one provider. Hidden models never
+ * appear. Search words naming the provider are dropped; other words list matches. With no
+ * words left, lists pinned models (custom, favorite, the caller's own) plus non-legacy
  * models, or only the first few in the user's model order for large catalogs.
  */
 function listCapabilityModels(input: {
@@ -317,10 +322,13 @@ function listCapabilityModels(input: {
   const visible = input.provider.models
     .filter((model) => model.isCustom || !input.preferences?.hiddenModels.includes(model.slug))
     .toSorted((a, b) => (rank.get(a.slug) ?? rank.size) - (rank.get(b.slug) ?? rank.size));
-  if (input.searchTerms.length > 0) {
+  const { instanceId, driver, displayName } = input.provider;
+  const providerText = `${instanceId} ${driver} ${displayName ?? ""}`.toLowerCase();
+  const modelTerms = input.searchTerms.filter((term) => !providerText.includes(term));
+  if (modelTerms.length > 0) {
     const matches = visible.filter((model) => {
       const text = `${model.slug} ${model.name} ${model.subProvider ?? ""}`.toLowerCase();
-      return input.searchTerms.every((term) => text.includes(term));
+      return modelTerms.every((term) => text.includes(term));
     });
     const listed = matches.slice(0, LISTED_MODEL_LIMIT);
     return { listed, omitted: matches.length - listed.length };
@@ -841,12 +849,15 @@ function threadPullRequests(
 }
 
 function listItemFromShell(
+  scope: McpInvocationScope,
   shell: OrchestrationV2ThreadShell,
   nowMs: number,
 ): OrchestratorMcpThreadListItem {
   return {
     threadId: shell.id,
+    projectId: shell.projectId,
     title: shell.title,
+    link: threadLinkFor(scope, shell.id),
     createdBy: shell.createdBy,
     creationSource: shell.creationSource,
     status: shell.activityRunStatus ?? shell.status,
@@ -868,6 +879,7 @@ function listItemFromShell(
 }
 
 function threadDetail(
+  scope: McpInvocationScope,
   projection: Pick<OrchestrationV2ThreadProjection, "thread" | "runs" | "runtimeRequests">,
   itemCount: number,
   shell: OrchestrationV2ThreadShell,
@@ -879,6 +891,7 @@ function threadDetail(
     threadId: projection.thread.id,
     projectId: projection.thread.projectId,
     title: projection.thread.title,
+    link: threadLinkFor(scope, projection.thread.id),
     createdBy: projection.thread.createdBy,
     creationSource: projection.thread.creationSource,
     status: active?.status ?? latest?.status ?? "idle",
@@ -1326,11 +1339,9 @@ const make = Effect.gen(function* () {
     readonly target: OrchestratorMcpTarget | undefined;
     readonly providers: ReadonlyArray<ServerProvider>;
     /**
-     * Set only when the command that will dispatch this target already has a receipt: that
-     * dispatch can only replay the recorded result, never start anything new, so filtering
-     * candidates by the project's current settings would just refuse a retry that does no new
-     * work. Never set this for a resolution whose dispatch uses a different command id than the
-     * one checked for a receipt.
+     * Set only when the dispatching command already has a receipt: it can only replay the
+     * recorded result, so filtering by the project's current settings would just refuse a no-op
+     * retry. The dispatch must use the same command id that was checked for the receipt.
      */
     readonly skipProjectEnablementFilter?: boolean;
   }): Effect.fn.Return<ResolvedTarget, OrchestratorMcpFailure> {
@@ -1414,7 +1425,7 @@ const make = Effect.gen(function* () {
       requestedModel ??
       (instanceId === inheritedSelection.instanceId
         ? inheritedSelection.model
-        : provider?.models[0]?.slug);
+        : provider.models[0]?.slug);
     if (model === undefined) {
       return yield* failure(
         "model_unavailable",
@@ -1423,7 +1434,6 @@ const make = Effect.gen(function* () {
     }
     if (
       requestedModel !== undefined &&
-      provider !== undefined &&
       provider.models.length > 0 &&
       !provider.models.some((candidate) => candidate.slug === requestedModel)
     ) {
@@ -1598,9 +1608,13 @@ const make = Effect.gen(function* () {
         instanceId: task.providerInstanceId,
         model: task.model,
       };
-    const response = {
+    const result = {
       taskId: task.id,
       childThreadId: task.childThreadId,
+      link: formatThreadLink({
+        environmentId: scope.environmentId,
+        threadId: task.childThreadId,
+      }),
       childRunId: childRun?.id ?? null,
       childNodeId: task.id,
       status,
@@ -1633,6 +1647,10 @@ const make = Effect.gen(function* () {
           : pendingTaskApproval(childControls, task.id, childRun),
       waitTimedOut,
     } satisfies OrchestratorMcpDelegateTaskResult;
+    const response: OrchestratorMcpDelegateTaskResult =
+      endsTaskWait(result) || task.completionDelivery?.state === "disposed"
+        ? result
+        : { ...result, next: ORCHESTRATOR_MCP_RUNNING_TASK_NEXT };
     if (
       acknowledgeTerminal &&
       isTerminalTaskStatus(status) &&
@@ -2188,13 +2206,14 @@ const make = Effect.gen(function* () {
               );
       const stopChild = Effect.gen(function* () {
         const commandId = stableCommandId({ scope, requestKey: key, operation: "cancel-task" });
-        const reason = input.reason;
+        const reason = agentStopReason(input.reason);
         yield* threadManagement
           .dispatch({
             type: "thread.stop",
             commandId,
             threadId: current.childThreadId,
-            ...(reason === undefined ? {} : { reason }),
+            stopDelegatedTasks: false,
+            reason,
           })
           .pipe(
             Effect.mapError((error) =>
@@ -2262,29 +2281,27 @@ const make = Effect.gen(function* () {
           ),
         ),
       );
-      // A follow-up that lost its child run (#19002) stays running on the parent, while its
+      // A follow-up that lost its child run stays running on the parent, while its
       // status here comes from the child's last run. Stop on the parent cancels that task.
       const cancelOrphan = Effect.gen(function* () {
         if (parentTask?.runId == null || !isOrchestrationV2WorkActive(parentTask.status))
           return false;
-        yield* threadManagement
-          .dispatch({
-            type: "subagent.stop",
-            commandId: stableCommandId({
-              scope,
-              requestKey: key,
-              operation: "cancel-task-orphan",
-            }),
-            threadId: scope.thread.threadId,
-            runId: parentTask.runId,
-            subagentId: parentTask.id,
-          })
-          .pipe(Effect.mapError(threadManagementFailure));
-        const { subagents } = yield* threadManagement
-          .getThreadRecords(scope.thread.threadId, ["subagents"])
-          .pipe(Effect.mapError(threadManagementFailure));
+        yield* threadManagement.dispatch({
+          type: "subagent.stop",
+          commandId: stableCommandId({
+            scope,
+            requestKey: key,
+            operation: "cancel-task-orphan",
+          }),
+          threadId: scope.thread.threadId,
+          runId: parentTask.runId,
+          subagentId: parentTask.id,
+        });
+        const { subagents } = yield* threadManagement.getThreadRecords(scope.thread.threadId, [
+          "subagents",
+        ]);
         return subagents.some((task) => task.id === input.taskId && task.status === "cancelled");
-      });
+      }).pipe(Effect.mapError(threadManagementFailure));
       if (isTerminalTaskStatus(current.status)) {
         // The child can still run work for another turn, so it is stopped either way.
         yield* stopWithinLimit;
@@ -2480,6 +2497,7 @@ const make = Effect.gen(function* () {
                 );
               return {
                 threadId,
+                link: formatThreadLink({ environmentId: scope.environmentId, threadId }),
                 runId: run?.id ?? null,
                 status: run?.status ?? "idle",
                 title: projection.thread.title,
@@ -2496,10 +2514,12 @@ const make = Effect.gen(function* () {
     ),
     listThreads: Effect.fn("OrchestratorMcpService.listThreads")(function* (scope, input) {
       const { parent } = yield* loadCaller(scope);
-      const projectId = yield* resolveProjectTarget(parent, input.projectId);
+      const projectId = input.allProjects
+        ? null
+        : yield* resolveProjectTarget(parent, input.projectId);
       const projectThreads = yield* threadManagement
         .listProjectThreads({
-          projectId,
+          projectId: projectId ?? undefined,
           includeSubagents: input.includeSubagents !== false,
         })
         .pipe(
@@ -2529,7 +2549,7 @@ const make = Effect.gen(function* () {
       return {
         projectId,
         currentThreadId: parent?.thread.id ?? null,
-        threads: page.map((shell) => listItemFromShell(shell, nowMs)),
+        threads: page.map((shell) => listItemFromShell(scope, shell, nowMs)),
         nextCursor,
         total: filtered.length,
       } satisfies OrchestratorMcpThreadListResult;
@@ -2609,7 +2629,13 @@ const make = Effect.gen(function* () {
         }
       }
       return {
-        thread: threadDetail(target, timeline.totalItems, shell, yield* Clock.currentTimeMillis),
+        thread: threadDetail(
+          scope,
+          target,
+          timeline.totalItems,
+          shell,
+          yield* Clock.currentTimeMillis,
+        ),
         recentRuns: target.runs
           .toSorted((left, right) => right.ordinal - left.ordinal)
           .slice(0, input.runLimit ?? DEFAULT_THREAD_RUN_LIMIT)
@@ -2668,6 +2694,7 @@ const make = Effect.gen(function* () {
         );
       return {
         threadId: input.threadId,
+        link: threadLinkFor(scope, input.threadId),
         messageId,
         runId: result.run.id,
         ...(result.run.delegatedTaskId === undefined ? {} : { taskId: result.run.delegatedTaskId }),
@@ -2676,7 +2703,7 @@ const make = Effect.gen(function* () {
       } satisfies OrchestratorMcpThreadSendResult;
     }),
     waitForThread: Effect.fn("OrchestratorMcpService.waitForThread")(function* (scope, input) {
-      const { target } = yield* loadScopedThread(scope, input.threadId);
+      const { parent, target } = yield* loadScopedThread(scope, input.threadId);
       const result = yield* threadManagement
         .waitForThread({
           projectId: target.thread.projectId,
@@ -2688,11 +2715,33 @@ const make = Effect.gen(function* () {
           ),
         })
         .pipe(Effect.mapError(threadManagementFailure));
+      const status = result.run === null ? "idle" : runOutcome(result.run);
+      const taskId = result.run?.delegatedTaskId;
+      const ownedTask =
+        result.timedOut &&
+        status !== "waiting" &&
+        parent?.subagents.some(
+          (task) =>
+            task.id === taskId &&
+            task.origin === "app_owned" &&
+            task.threadId === parent.thread.id &&
+            task.childThreadId === input.threadId &&
+            task.completionDelivery?.state !== "disposed",
+        ) === true;
+      // A child waiting on a question or approval needs an answer, not a wake.
+      const childRequests = ownedTask
+        ? (yield* threadManagement
+            .getThreadRecords(input.threadId, ["runtimeRequests"])
+            .pipe(Effect.mapError(threadManagementFailure))).runtimeRequests
+        : [];
+      const wakesCaller =
+        ownedTask && !childRequests.some((request) => request.status === "pending");
       return {
         threadId: input.threadId,
         runId: result.run?.id ?? null,
-        status: result.run === null ? "idle" : runOutcome(result.run),
+        status,
         timedOut: result.timedOut,
+        ...(wakesCaller ? { next: ORCHESTRATOR_MCP_RUNNING_TASK_NEXT } : {}),
       } satisfies OrchestratorMcpThreadWaitResult;
     }),
     interruptThread: Effect.fn("OrchestratorMcpService.interruptThread")(function* (scope, input) {
@@ -2711,7 +2760,7 @@ const make = Effect.gen(function* () {
           }),
           threadId: input.threadId,
           ...(input.runId === undefined ? {} : { runId: input.runId }),
-          ...(input.reason === undefined ? {} : { reason: input.reason }),
+          reason: agentStopReason(input.reason),
         })
         .pipe(
           Effect.mapError((error) =>

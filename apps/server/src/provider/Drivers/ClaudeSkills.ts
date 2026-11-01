@@ -6,7 +6,7 @@ import * as Path from "effect/Path";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as HostProcess from "@supaterm/shared/HostProcess";
-import { parseCliArgs } from "@supaterm/shared/cliArgs";
+import { tokenizeCliArgs } from "@supaterm/shared/cliArgs";
 import { fromLenientJson } from "@supaterm/shared/schemaJson";
 import { SKILL_MENTION_PATTERN } from "@supaterm/shared/composerInlineTokens";
 import { parse as parseYamlDocument } from "yaml";
@@ -414,6 +414,26 @@ const discoverPluginSkillRoots = Effect.fn("discoverPluginSkillRoots")(function*
   return roots;
 });
 
+// Claude's --add-dir is repeatable and variadic; parseCliArgs keeps only one value.
+export function claudeLaunchArgDirectories(launchArgs?: string): ReadonlyArray<string> {
+  const directories: string[] = [];
+  let collecting = false;
+  for (const token of tokenizeCliArgs(launchArgs)) {
+    if (token === "--") break;
+    if (token === "--add-dir") {
+      collecting = true;
+    } else if (token.startsWith("--add-dir=")) {
+      directories.push(token.slice("--add-dir=".length));
+      collecting = false;
+    } else if (token.startsWith("-")) {
+      collecting = false;
+    } else if (collecting) {
+      directories.push(token);
+    }
+  }
+  return directories;
+}
+
 /**
  * Roots are listed highest precedence first and the first hit for a name wins,
  * matching Claude Code: verified against the CLI with the same skill name in
@@ -433,22 +453,15 @@ export const discoverClaudeSkills = Effect.fn("discoverClaudeSkills")(function* 
     environment ?? process.env,
   );
 
-  const additionalDirectory = parseCliArgs(config.launchArgs ?? "").flags["add-dir"];
   const roots: ReadonlyArray<ClaudeSkillRoot> = [
     { directory: path.join(configDirPath, "skills"), scope: "user" },
     ...(cwd ? [{ directory: path.join(cwd, ".claude", "skills"), scope: "project" as const }] : []),
-    ...(additionalDirectory && (cwd || path.isAbsolute(additionalDirectory))
-      ? [
-          {
-            directory: path.join(
-              path.resolve(cwd ?? ".", additionalDirectory),
-              ".claude",
-              "skills",
-            ),
-            scope: "project" as const,
-          },
-        ]
-      : []),
+    ...claudeLaunchArgDirectories(config.launchArgs)
+      .filter((directory) => directory && (cwd || path.isAbsolute(directory)))
+      .map((directory) => ({
+        directory: path.join(path.resolve(cwd ?? ".", directory), ".claude", "skills"),
+        scope: "project" as const,
+      })),
     ...(yield* discoverPluginSkillRoots(
       configDirPath,
       cwd,

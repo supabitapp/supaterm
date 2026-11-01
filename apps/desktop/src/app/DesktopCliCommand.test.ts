@@ -217,10 +217,15 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       const command = yield* commandIn({ home });
       const link = path.join(home, ".local", "bin", "supaterm");
 
-      expect(yield* command.state).toEqual({ supported: true, installedPath: null, onPath: false });
-
+      expect(yield* command.state).toEqual({
+        supported: true,
+        installedPath: null,
+        onPath: false,
+        launcherPath: null,
+      });
       const installed = yield* command.install;
       expect(installed.installedPath).toBe(link);
+      expect(installed.launcherPath).toBe(path.join(home, ".supaterm", "bin", "supaterm"));
       expect(yield* fs.readLink(link)).toBe(path.join(home, ".supaterm", "bin", "supaterm"));
       expect((yield* command.install).installedPath).toBe(link);
 
@@ -249,6 +254,14 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       yield* command.uninstall;
       expect(yield* fs.readFileString(theirs)).toBe("npm's supaterm\n");
       expect(yield* fs.readLink(path.join(home, "bin", "supaterm"))).toBe(path.join(home, "gone"));
+
+      const launcher = path.join(home, ".supaterm", "bin", "supaterm");
+      yield* fs.writeFileString(launcher, "npm's supaterm\n");
+      process.env.PATH = path.dirname(launcher);
+      expect(yield* command.state).toMatchObject({ onPath: false, shadowedBy: launcher });
+      expect((yield* Effect.flip(command.install)).message).toContain("Could not set up");
+      yield* command.uninstall;
+      expect(yield* fs.readFileString(launcher)).toBe("npm's supaterm\n");
     }).pipe(Effect.scoped),
   );
 
@@ -317,6 +330,36 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
         expect(installed.onPath).toBe(true);
         expect(installed.shadowedBy).toBeUndefined();
         expect(installed.installedPath).toBe(path.join(home, ".local", "bin", "supaterm"));
+      }).pipe(Effect.scoped),
+  );
+
+  it.effect(
+    "does not treat its own launcher as another supaterm when its folder is first on PATH",
+    () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const home = yield* fs.makeTempDirectoryScoped();
+        const launcher = path.join(home, ".supaterm", "bin", "supaterm");
+        process.env.PATH = [path.dirname(launcher), path.join(home, ".local", "bin")].join(":");
+
+        const command = yield* commandIn({ home });
+        const installed = yield* command.install;
+
+        expect(yield* fs.exists(launcher)).toBe(true);
+        expect(installed).toMatchObject({
+          onPath: true,
+          installedPath: path.join(home, ".local", "bin", "supaterm"),
+        });
+        expect(installed.shadowedBy).toBeUndefined();
+        expect(yield* command.state).toEqual(installed);
+
+        const removed = yield* command.uninstall;
+        expect(removed.installedPath).toBeNull();
+        expect(removed.onPath).toBe(true);
+        expect(yield* command.state).toEqual(removed);
+        expect(yield* fs.exists(installed.installedPath!)).toBe(false);
+        expect(yield* fs.exists(launcher)).toBe(true);
       }).pipe(Effect.scoped),
   );
 

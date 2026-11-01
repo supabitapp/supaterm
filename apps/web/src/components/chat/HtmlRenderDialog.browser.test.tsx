@@ -26,12 +26,15 @@ vi.mock(import("~/lib/openPullRequestLink"), async (original) => ({
 }));
 vi.mock(import("~/assets/assetUrls"), async (original) => ({
   ...(await original()),
-  useAssetUrlState: () => ({
+  useAssetUrlRefresh: () => refresh,
+}));
+vi.mock(import("~/assets/longLivedAssetUrls"), async (original) => ({
+  ...(await original()),
+  useLongLivedAssetUrl: () => ({
     _tag: "Success",
     url: "https://environment.test/original.html",
     expiresAt: Date.now() + cachedUrl.lifeMs,
   }),
-  useAssetUrlRefresh: () => refresh,
 }));
 vi.mock(import("../ui/toast"), async (original) => {
   const actual = await original();

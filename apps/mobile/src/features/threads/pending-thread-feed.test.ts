@@ -11,7 +11,9 @@ import { deriveThreadFeedPresentation } from "../../lib/threadActivity";
 import type { QueuedThreadMessage } from "../../state/thread-outbox-model";
 import {
   appendPendingThreadMessages,
+  isCompactionCommandFeedEntry,
   retainPendingCreationAttachments,
+  selectPendingAcknowledgedMessages,
 } from "./pending-thread-feed";
 
 const pending = (id: string): QueuedThreadMessage => ({
@@ -25,6 +27,35 @@ const pending = (id: string): QueuedThreadMessage => ({
 });
 
 describe("pending timeline messages", () => {
+  it.each([false, true])(
+    "keeps a queued compact command in the pending message row (attachment: %s)",
+    (withAttachment) => {
+      const queued = {
+        ...pending("compact"),
+        text: "/compact",
+        attachments: withAttachment
+          ? [
+              {
+                id: "image-1",
+                type: "image" as const,
+                name: "photo.png",
+                mimeType: "image/png",
+                sizeBytes: 3,
+                fileUri: "file:///documents/photo.png",
+                previewUri: "file:///documents/photo.png",
+              },
+            ]
+          : [],
+      };
+      const entry = appendPendingThreadMessages([], [], [queued])[0]!;
+      expect(isCompactionCommandFeedEntry(entry)).toBe(false);
+      expect(entry.pendingMessage).toEqual(queued);
+      if (!withAttachment) {
+        expect(isCompactionCommandFeedEntry({ ...entry, pendingMessage: undefined })).toBe(true);
+      }
+    },
+  );
+
   it("marks the synthetic creation prompt pending without duplicating it", () => {
     const queued = {
       ...pending("creation"),
@@ -136,5 +167,24 @@ describe("pending timeline messages", () => {
     const delivered = { ...optimistic, pendingMessage: undefined };
     expect(appendPendingThreadMessages([delivered], [delivered], [queued])).toEqual([delivered]);
     expect(appendPendingThreadMessages([], [delivered], [queued])).toEqual([]);
+  });
+
+  it("stops showing an acknowledged message once the thread catches up, even when the feed hides it", () => {
+    // A rolled-back or cancelled queued run keeps its message in projection.messages
+    // while its user_message item leaves the visible feed.
+    const echoed = pending("rolled-back");
+    // A bounded projection pages an applied message out; it must not come back as pending.
+    const pagedOut = { ...pending("paged-out"), sequence: 40 };
+    const waiting = { ...pending("waiting"), sequence: 50 };
+    const shown = selectPendingAcknowledgedMessages([echoed, pagedOut, waiting], {
+      threadKey: "env:thread",
+      queuedMessages: [],
+      sequence: 45,
+      projectedMessages: [{ id: echoed.messageId }],
+    });
+    expect(shown).toEqual([waiting]);
+    expect(appendPendingThreadMessages([], [], shown).map((entry) => entry.id)).toEqual([
+      "waiting",
+    ]);
   });
 });

@@ -905,7 +905,7 @@ it.layer(NodeServices.layer)("providerMaintenance", (it) => {
       name: "codex",
       prefix: "/usr/local",
     });
-    // A plain /usr/local/bin binary is not evidence of Homebrew (#8832).
+    // A plain /usr/local/bin binary is not evidence of Homebrew.
     expect(homebrewOwnershipFromCommandPath("/usr/local/bin/codex")).toBeNull();
     expect(homebrewOwnershipFromCommandPath("/srv/Cellar/claude/1.0.0/bin/claude")).toMatchObject({
       prefix: "/srv",

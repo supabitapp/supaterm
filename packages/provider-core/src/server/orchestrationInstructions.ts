@@ -3,34 +3,22 @@ import type { ProviderInteractionMode } from "@supaterm/contracts";
 export const SUPATERM_ORCHESTRATION_SECTIONS: ReadonlyArray<string> = [
   `## Supaterm orchestration
 
-The \`supaterm\` MCP server provides app-owned orchestration. Treat these concepts distinctly:
+Ordinary coding tasks need no Supaterm tools.
 
-- A delegated task/subagent is child work owned by the current thread. Use \`orchestrator_capabilities\` to discover the current provider/model IDs from the same live catalog as the composer, including configured custom models. It lists a short set of models per provider; pass \`search\` to find others. Do not treat a native tool's model list as the full list of available subagent models. Prefer native subagent tools for same-provider work only when they support the chosen model and no model options are requested or inherited. Use \`delegate_task\` with that provider instance and model when native tools cannot, including for same-provider work. Also use \`delegate_task\` for cross-provider or explicitly Supaterm-owned child tasks. For a child task that needs a separate checkout, use \`delegate_task\` with \`isolation:"worktree"\` across any provider or model. It starts from the parent local commit and runs project setup; uncommitted edits are not copied. Retain each returned \`taskId\`, and use \`task_status\` or \`task_cancel\` to manage it. The returned \`childThreadId\` is backing storage for the subagent, not the target for starting another delegated review round.
-- \`supaterm_thread_launch\` and \`create_threads\` create ordinary top-level Supaterm conversations. Use them only when the user explicitly asks for separate/new/top-level threads or conversations. Never use them merely because the user said "subagent" or requested parallel delegated work.
-- For every Supaterm delegated review round, call \`delegate_task\` again. Include the original brief, prior findings, responses, and unresolved objections in each new task prompt. Track each round by its own \`taskId\`. Use a distinct \`clientRequestId\` per round, stable across retries of that round. Do not use \`supaterm_thread_send\` on \`childThreadId\` to continue a delegated review.`,
-  `- \`schedule_task\` creates persistent recurring work in the app scheduler. Pass \`schedule\` as a structured object, never as JSON text: \`{"type":"interval","everyMs":3600000}\` for an interval, or \`{"type":"fixed_time","timeOfDay":"09:00","weekdays":[1,2,3,4,5]}\` for a wall-clock schedule. By default runs return to the current thread; set \`bindToCurrentThread=false\` only when the user wants a fresh thread for every run. After scheduling, report the returned cadence and next run time.
-- To mention another thread to the user, link it as \`[title](supaterm-thread://v1/<threadId>)\` with its exact \`threadId\`, not URL-encoded. Supaterm opens the thread in the app and shows its current title.`,
-  `### Choose the workspace before starting a new thread
+- Subagents: use your native tool when the child uses your provider, a model it offers, and no settings beyond yours, and you wait in this turn (Claude \`Agent\` always with \`run_in_background:false\`; Codex \`spawn_agent\`, then wait). Use \`delegate_task\` for another provider's model, user-asked settings, a separate checkout (\`isolation:"worktree"\`), background work, or \`delegate_task\` by name. A native type running another provider's model counts too. Workflow only when asked.
+- Before \`delegate_task\`, call \`orchestrator_capabilities\` once. Again only after an error or a user-named provider change. Settings go in \`target.options\`. One child per named model. Provider or model unavailable: say so. Never switch unasked, or fall back to native tools, Workflow, or CLIs. Never make a child's checkout in the shell or in \`task\`.
+- Every new delegate review or re-check is a new \`delegate_task\` (brief, findings, objections), never a \`supaterm_thread_send\`. Fix small review findings yourself; start no delegate for them. When told to proceed without a delegate, \`task_cancel\` it. Start no replacement.
+- Follow a running delegate's \`next\`. Do not poll it (\`task_status\`, \`sleep\`, watchers, Monitor, ScheduleWakeup). Stop a delegate run you replace or no longer need with \`task_cancel\`, never \`supaterm_thread_interrupt\` on a \`childThreadId\`.
+- If you are a subagent or child, do the work yourself. Start no subagents unless your task says to.`,
+  `- \`supaterm_thread_launch\` and \`create_threads\` make new top-level threads, only when the user asks for a new thread. "Subagent", "delegate", and "parallel" never mean one. Worktree thread: set \`workspaceStrategy\`; shell worktrees do not bind it, and no checkout setup in its prompt. No \`workspaceStrategy\`: project root, not your worktree.
+- Given a thread id, \`supaterm_thread_read\` it before you answer about it.
+- In your reply, mention a thread by its \`link\`, verbatim. Never a plain title or bare id.
+- When asked only to schedule, call \`schedule_task\` without running its prompt.
+- Supaterm tools may load late. Try the name once before you call it absent.`,
+  `### Visuals and preview
 
-For independent implementation or a PR stack in its own worktree, use \`supaterm_thread_launch\` with an explicit \`workspaceStrategy\`. It creates or selects the workspace, binds the new thread to it, and prepares it before the agent starts. Put the task in \`message\`, not \`prompt\`:
-
-- New worktree: \`{"title":"UI cleanup","workspaceStrategy":{"type":"worktree","baseRef":"feature/base","branch":"feature/ui-cleanup","startFromOrigin":false},"message":"Implement the cleanup and open a PR against feature/base."}\`
-- Existing worktree: \`{"title":"Continue cleanup","workspaceStrategy":{"type":"existing_worktree","worktreePath":"/absolute/path/to/worktree","branch":"feature/ui-cleanup"},"message":"Continue the cleanup."}\`
-- Project's main checkout: \`workspaceStrategy:{"type":"root"}\`. Omitting workspaceStrategy also selects root; it does not inherit the caller's worktree.
-
-For stacked work, set \`baseRef\` to the intended parent branch and \`startFromOrigin:false\` to use its local commits. Use \`startFromOrigin:true\` when you intend to fetch the base branch's remote and start from it. Uncommitted edits are not copied. Use \`supaterm_worktree_list\` to discover existing checkout paths. Project, model selection, and modes inherit unless supplied; a launched thread may not run with broader modes than yours.
-
-\`supaterm_thread_launch\` is the single-thread launch tool. Use \`create_threads\` only for a batch of threads intentionally sharing the caller's checkout: it always inherits the caller's project, branch, and worktree and has no workspace override. Asking an agent to run \`git worktree add\` or \`cd\` in its prompt does not update Supaterm's thread binding. Select the workspace in the launch call instead. \`supaterm_worktree_handoff\` moves the calling thread, not another thread, and cannot move a thread already attached to a worktree.
-
-\`supaterm_thread_launch\` has no idempotency key. Retain its returned threadId and inspect it with \`supaterm_thread_read\` / \`supaterm_thread_wait\`; preparation can still be running after acceptance. If a launch fails or its response is lost, inspect \`supaterm_thread_list\` before retrying, since a thread may already exist.`,
-  `Tool names may include a harness-normalized MCP prefix, such as \`mcp__supaterm__delegate_task\`; the semantics are the same. Some harnesses attach optional MCP servers lazily: if an initial tool-catalog scan does not show Supaterm tools, do not conclude that cross-provider delegation is unavailable. Make one bounded direct attempt using the known Supaterm tool name on the next tool step. In Codex code mode, for example, call \`tools.mcp__supaterm__orchestrator_capabilities({})\` before reporting that the capability is absent. Keep polling/wait loops bounded, do not duplicate active work, and use stable \`clientRequestId\` values when retrying tools that accept them.
-
-ACP fallback: some ACP agents accept the injected MCP server but fail to expose its tools. When the Supaterm tools are absent and \`SUPATERM_ACP_MCP_NODE\` is present, call the same tools through the terminal: \`ELECTRON_RUN_AS_NODE=1 "$SUPATERM_ACP_MCP_NODE" \${SUPATERM_ACP_MCP_ENTRYPOINT:+"$SUPATERM_ACP_MCP_ENTRYPOINT"} acp-mcp-call orchestrator_capabilities '{}'\` (\`SUPATERM_ACP_MCP_ENTRYPOINT\` is unset when Supaterm runs as a standalone executable). Delegate with \`acp-mcp-call delegate_task '{"task":"...","target":{"providerInstanceId":"...","model":"..."},"mode":"async","clientRequestId":"..."}'\`. This is the supported Supaterm transport fallback, not an ordinary shell-based substitute for delegation.
-
-### Showing visuals
-
-When a chart, table, diagram, image collage, or mockup would say more than prose, build a self-contained HTML page, check it with \`html_preview\`, then publish it with \`html_render\` before your final reply. The reader sees the page above that reply, so don't announce or restate it; add only what it doesn't say.`,
-  `- When model options are requested or the child keeps the parent's provider instance and model with nonempty \`inheritedOptions\` from \`orchestrator_capabilities\`, use \`delegate_task\` even for native-supported models. Native subagents cannot reliably apply Supaterm model options. Read the selected model's descriptors from \`orchestrator_capabilities\` and put settings in \`target.options\`, not only in the prompt. Claude commonly uses {"effort":"max","fastMode":true}; Codex uses {"reasoningEffort":"max","serviceTier":"priority"}. Do not translate max to high or ignore unsupported settings: report a capability mismatch. Options inherit only for the same provider instance and model; explicit entries override individual values, and [] or {} clears them. Check the returned providerInstanceId, model, and options against the requested selection.`,
+- Asked to show a visual here: pass its HTML to \`html_preview\`, then \`html_render\`. If the visual is a file, pass that file's HTML. A screenshot on disk or a text description does not show it. Never start a server for it. Tools a web page exposes give data only. Never use them to show results. Asked for an image to post, send, or use elsewhere: a \`.png\` file and its path, never \`html_render\`.
+- Never use \`preview_*\` to verify or show your own edit, even a frontend edit or an open tab. Do not repeat preview calls from an earlier turn. Use them only when the current request asks for browser work or names a page or tab. Public pages: web fetch or search unless browser work was asked; then preview tools only, no web fetch. Close a tab you opened before you reply, unless the user asked for it or uses it.`,
 ];
 
 export const SUPATERM_ORCHESTRATION_INSTRUCTIONS = `
@@ -40,19 +28,33 @@ ${SUPATERM_ORCHESTRATION_SECTIONS.join("\n\n")}
 
 export const SUPATERM_BROWSER_TOOL_INSTRUCTIONS = `
 
-## Supaterm collaborative browser
+## Supaterm browser
 
-You are running inside Supaterm. The \`supaterm\` MCP server is the product-native collaborative browser shared with the user. When it exposes \`preview_*\` tools, prefer those tools for browser navigation, inspection, interaction, screenshots, and recordings.
-
-For browser work, first call \`preview_status\`. If no automation-capable preview is attached, call \`preview_open\` before concluding that the browser is unavailable. Then use \`preview_navigate\`, \`preview_snapshot\`, and the focused interaction tools. Prefer snapshot-provided locators over coordinates.
-
-\`preview_status\` lists every browser tab in this thread, including tabs the user opened. When the user asks about "this page" or a page they have open, read their tab: pass its \`tabId\` to \`preview_snapshot\` or \`preview_wait_for\`, or omit \`tabId\` when you have no tab of your own. You may act on the user's tab, including \`preview_evaluate\`, only while its owner is \`unclaimed\`; while it is \`human\`, the user is driving, so read it with \`preview_snapshot\` or open your own tab. To use a browser profile (a set of saved logins), pass \`profileId\` from \`preview_status\` profiles to \`preview_open\`.
-
-Do not switch to global browser skills, Chrome, Node REPL browser automation, standalone Playwright, or agent-browser merely because the preview is initially closed or a first call fails. Inspect a failed preview call and retry with corrected arguments when the error is actionable. Use another browser system when:
-- the Supaterm preview tools are absent, or \`preview_open\` returns an explicit unsupported/unavailable error;
-- the user asks for another browser, or invokes a skill or documented repository workflow that names one; follow that workflow and report any prerequisite it is missing;
-- preview calls on an open tab have failed twice on the same step (timeouts, \`chrome-error://\` pages, a different client answering). Quote the raw error and switch without asking the user which browser to use.
+When browser work was asked, \`preview_*\` is the browser you share with the user: \`preview_status\` first, then \`preview_open\` if no tab can be automated. Prefer snapshot locators over coordinates. Switch browsers only if the tools are absent or \`preview_open\` says unsupported, the user asks, or two preview calls fail on one step. Then quote the error and switch.
 `;
+
+const SUPATERM_DEVICE_TOOLS = ["device_list", "device_open", "device_screenshot", "device_close"];
+
+const deviceToolInstructions = (loadTools: string) => `## Supaterm devices
+
+When a task needs an iOS Simulator or Android Emulator, on this machine or on an SSH device host such as a remote Mac, use the device tools so the user can watch it in the Device panel.${loadTools}
+1. Call \`device_list\` unless you already have the device's \`hostId\` and \`id\`.
+2. Call \`device_open\` with both. It returns an \`agent-device\` command bound to that device; if you lose it, call \`device_open\` again. Run that command for every app launch or relaunch, deep link, tap, text entry, alert, setting, screenshot and recording; its snapshots, screenshots and input need \`open <app>\` first, and \`help <command>\` lists the options.
+3. Call \`device_screenshot\` to look at the screen.
+
+Never do those with \`xcrun simctl\`, \`idb\`, \`adb\`, ssh, or scripts that wrap them. ssh, simctl and adb stay fine for builds, installs, code sync, Metro, port forwards, logs, the project's test runners, and what agent-device cannot do, such as \`simctl addmedia\` or \`simctl keychain add-root-cert\`. These rules override memory notes, docs and delegated tasks that say otherwise; drive a device over ssh only when the user explicitly asks. If a device tool or the command it returned fails, quote its error and follow its advice once, but never reuse or close another session; if it still fails, tell the user and stop, unless they explicitly asked you to drive it over ssh. If the platform you need is unavailable, say so. When you delegate device work, pass the \`hostId\` and device \`id\` and tell the child to use \`device_open\`; never write ssh or simctl steps for the device into its task.`;
+
+/** Device guidance for sessions holding the `device` capability, from top-level threads to delegated children. */
+export const SUPATERM_DEVICE_TOOL_INSTRUCTIONS = deviceToolInstructions("");
+
+/** Claude Code defers MCP tools behind ToolSearch, so Claude's copy says how to load them. */
+export const SUPATERM_DEVICE_TOOL_INSTRUCTIONS_WITH_TOOL_SEARCH = deviceToolInstructions(
+  ` Load them with ToolSearch \`select:${SUPATERM_DEVICE_TOOLS.map((tool) => `mcp__supaterm__${tool}`).join(",")}\`.`,
+);
+
+// ACP only: some ACP agents accept the injected MCP server but never expose
+// its tools, so they need the terminal transport other harnesses never use.
+const SUPATERM_ACP_MCP_FALLBACK_INSTRUCTIONS = `ACP fallback: if the Supaterm tools are absent and \`SUPATERM_ACP_MCP_NODE\` is present, call them through the terminal: \`ELECTRON_RUN_AS_NODE=1 "$SUPATERM_ACP_MCP_NODE" \${SUPATERM_ACP_MCP_ENTRYPOINT:+"$SUPATERM_ACP_MCP_ENTRYPOINT"} acp-mcp-call orchestrator_capabilities '{}'\` (\`SUPATERM_ACP_MCP_ENTRYPOINT\` is unset for a standalone executable). Delegate with \`acp-mcp-call delegate_task '{"task":"...","target":{"providerInstanceId":"...","model":"..."},"mode":"async","clientRequestId":"..."}'\`.`;
 
 const SUPATERM_ACP_DEFAULT_MODE_INSTRUCTIONS = `## Supaterm interaction mode: Default
 
@@ -65,6 +67,7 @@ Investigate with read-only actions and do not edit files or otherwise execute th
 export interface SupatermAcpInstructionState {
   readonly interactionMode: ProviderInteractionMode;
   readonly hasSupatermMcp: boolean;
+  readonly hasDeviceTools: boolean;
 }
 
 /**
@@ -80,7 +83,8 @@ export function supatermAcpPromptWithInstructions(input: {
   if (input.prompt.trimStart().startsWith("/")) return input.prompt;
   if (
     input.previousState?.interactionMode === input.state.interactionMode &&
-    input.previousState.hasSupatermMcp === input.state.hasSupatermMcp
+    input.previousState.hasSupatermMcp === input.state.hasSupatermMcp &&
+    input.previousState.hasDeviceTools === input.state.hasDeviceTools
   ) {
     return input.prompt;
   }
@@ -89,29 +93,52 @@ export function supatermAcpPromptWithInstructions(input: {
       ? SUPATERM_ACP_PLAN_MODE_INSTRUCTIONS
       : SUPATERM_ACP_DEFAULT_MODE_INSTRUCTIONS,
     ...(input.state.hasSupatermMcp
-      ? [SUPATERM_BROWSER_TOOL_INSTRUCTIONS.trim(), SUPATERM_ORCHESTRATION_INSTRUCTIONS.trim()]
+      ? [
+          SUPATERM_BROWSER_TOOL_INSTRUCTIONS.trim(),
+          ...(input.state.hasDeviceTools ? [SUPATERM_DEVICE_TOOL_INSTRUCTIONS] : []),
+          SUPATERM_ORCHESTRATION_INSTRUCTIONS.trim(),
+          SUPATERM_ACP_MCP_FALLBACK_INSTRUCTIONS,
+        ]
       : []),
   ];
   return `<supaterm_instructions>\n${instructions.join("\n\n")}\n</supaterm_instructions>\n\n<user_request>\n${input.prompt}\n</user_request>`;
 }
 
+const orchestrationInstructions = (hasDeviceTools: boolean) =>
+  hasDeviceTools
+    ? `${SUPATERM_ORCHESTRATION_INSTRUCTIONS}\n${SUPATERM_DEVICE_TOOL_INSTRUCTIONS}\n`
+    : SUPATERM_ORCHESTRATION_INSTRUCTIONS;
+
 /**
  * Keep the wrapper explicit so it cannot be mistaken for text authored by the user.
  */
-function prependSupatermOrchestrationInstructions(prompt: string): string {
-  return `<supaterm_orchestration_instructions>${SUPATERM_ORCHESTRATION_INSTRUCTIONS.trim()}</supaterm_orchestration_instructions>\n\n<user_request>\n${prompt}\n</user_request>`;
+function prependSupatermOrchestrationInstructions(prompt: string, instructions: string): string {
+  return `<supaterm_orchestration_instructions>${instructions.trim()}</supaterm_orchestration_instructions>\n\n<user_request>\n${prompt}\n</user_request>`;
 }
 
-export function supatermOrchestrationPromptForFirstRun(input: {
+/** For providers whose instructions ride on the prompt, so a compacted conversation loses them. */
+export function supatermOrchestrationPrompt(input: {
   readonly prompt: string;
-  readonly runOrdinal: number;
   readonly hasSupatermMcp: boolean;
+  readonly hasDeviceTools: boolean;
+  readonly orchestrationDelivered: boolean;
+  readonly deviceInstructionsDelivered: boolean;
 }): string {
-  return input.runOrdinal === 1 && input.hasSupatermMcp
-    ? prependSupatermOrchestrationInstructions(input.prompt)
+  if (!input.hasSupatermMcp) return input.prompt;
+  if (!input.orchestrationDelivered) {
+    return prependSupatermOrchestrationInstructions(
+      input.prompt,
+      orchestrationInstructions(input.hasDeviceTools),
+    );
+  }
+  return input.hasDeviceTools && !input.deviceInstructionsDelivered
+    ? prependSupatermOrchestrationInstructions(input.prompt, SUPATERM_DEVICE_TOOL_INSTRUCTIONS)
     : input.prompt;
 }
 
-export function supatermOrchestrationSystemPrompt(hasSupatermMcp: boolean): string | undefined {
-  return hasSupatermMcp ? SUPATERM_ORCHESTRATION_INSTRUCTIONS : undefined;
+export function supatermOrchestrationSystemPrompt(
+  hasSupatermMcp: boolean,
+  hasDeviceTools: boolean,
+): string | undefined {
+  return hasSupatermMcp ? orchestrationInstructions(hasDeviceTools) : undefined;
 }

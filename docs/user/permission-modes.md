@@ -3,7 +3,7 @@
 Permission modes control when an agent needs your approval to act. Choose a mode in the message
 composer; it applies to that thread.
 
-Set the default for new threads in **Settings → General → New threads → Permissions**.
+Set the default for new threads in **Settings → Threads → New threads → Permissions**.
 Projects can override the environment default. New threads use this setting rather than the
 mode of the thread you were viewing. The initial default is **Full access**; existing threads
 and modes you choose in a draft keep their permissions.
@@ -27,12 +27,15 @@ Dismissal provides no answer and never selects an option. Permission approvals k
 ## Provider differences
 
 Providers enforce permissions differently. Some read-only actions can proceed in **Supervised**.
-**Auto** uses automatic review on Codex, Claude, Cursor, and Grok; providers without an equivalent,
+**Auto** uses automatic review on Codex, Claude, Cursor, Grok, and fx; providers without an equivalent,
 including OpenCode and Antigravity, fall back to asking. On Grok, commands its review blocks come
-to you for approval.
+to you for approval. On fx, prompts it still sends also come to you.
 
 Muse Code offers only **Supervised** and **Full access**. A Muse thread already set to another mode
 runs in **Supervised**.
+
+Supaterm offers no **Auto-accept edits** or **Full access** for fx. An fx thread already set to either runs in
+**Supervised**.
 
 Grok offers no **Auto-accept edits**. A Grok thread already set to it runs in **Supervised**. Grok
 file-change approvals offer **Allow all edits this session**. Its command approvals have no
@@ -41,10 +44,11 @@ session-wide choice, because Grok would remember that command for the whole proj
 ACP Registry agents run their own tools in their own mode; Supaterm answers their approval requests
 by the permission mode. See [ACP Registry permissions](./providers-acp.md#permissions-and-terminals).
 
-Claude can still ask in **Full access** when its settings disable bypass permissions or an ask rule
-matches the action, and for a few safety checks of its own that no setting skips. The approval
-shows Claude's reason when it gives one, and **Why am I being asked this?** explains which case
-applies.
+In **Full access**, Supaterm approves every permission request from Claude, including its own
+safety checks and actions that match an ask rule in your Claude settings. In other modes, a Claude
+approval shows Claude's reason when it gives one.
+While a Claude approval is pending, type a text reply to decline that request and give feedback
+directly to the agent that asked, including a subagent. Other pending requests stay unanswered.
 
 Antigravity can still send native approval requests in **Full access**. It only offers remembered
 approvals for actions that support them.

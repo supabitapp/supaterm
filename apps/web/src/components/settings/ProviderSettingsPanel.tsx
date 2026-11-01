@@ -441,7 +441,7 @@ function ProviderSettingsPanelContent(target: ProviderSettingsTarget) {
       ) : null}
 
       {selectedEnvironment ? (
-        <SelectedEnvironmentProviderSettings
+        <RemoteSessionGatedProviderSettings
           key={selectedEnvironment.environmentId}
           environment={selectedEnvironment}
           deviceTabs={deviceTabs}
@@ -455,27 +455,6 @@ function ProviderSettingsPanelContent(target: ProviderSettingsTarget) {
         />
       ) : null}
     </>
-  );
-}
-
-function SelectedEnvironmentProviderSettings({
-  environment,
-  deviceTabs,
-  targetInstanceId,
-  projectIds,
-}: {
-  readonly environment: EnvironmentPresentation;
-  readonly deviceTabs?: ReactNode;
-  readonly targetInstanceId?: ProviderInstanceId | undefined;
-  readonly projectIds: readonly ProjectId[];
-}) {
-  return (
-    <RemoteSessionGatedProviderSettings
-      environment={environment}
-      deviceTabs={deviceTabs}
-      targetInstanceId={targetInstanceId}
-      projectIds={projectIds}
-    />
   );
 }
 
@@ -991,7 +970,8 @@ export function EnvironmentProviderSettings({
           ) : null
         }
         headerAction={
-          <div className="flex min-w-0 items-center gap-2">
+          // The ghost button's padding would inset its label, so pull the text to the card edge.
+          <div className="-me-2 flex min-w-0 items-center gap-2">
             <ProviderUpdatesAction />
             <Tooltip>
               <TooltipTrigger
@@ -1060,10 +1040,13 @@ export function EnvironmentProviderSettings({
             </ScrollArea>
           </div>
 
-          <div className="min-w-0 @min-[48rem]/providers:min-h-0">
+          <div data-provider-detail className="min-w-0 @min-[48rem]/providers:min-h-0">
             {selectedRow ? (
               <ScrollArea scrollFade chainVerticalScroll className="@min-[48rem]/providers:h-full">
-                <div className="space-y-6 p-4">{renderProviderInstance(selectedRow, "editor")}</div>
+                {/* Flat sections run dividers edge to edge and inset text like the list beside them. */}
+                <div className="space-y-6 py-4">
+                  {renderProviderInstance(selectedRow, "editor")}
+                </div>
               </ScrollArea>
             ) : (
               <div className="p-6 text-sm text-muted-foreground">
@@ -1092,7 +1075,7 @@ export function EnvironmentProviderSettings({
               <PolicyTooltip>
                 This interval is configured here, then the shared Background activity policy decides
                 whether provider probes may run when the timer fires. Custom intervals appear as
-                Advanced in General settings.
+                Advanced in Maintenance settings.
               </PolicyTooltip>
             </span>
           }
@@ -1416,10 +1399,8 @@ function ProviderInstanceRow({
       modelOrder={modelOrder}
       onHiddenModelsChange={(next, affectedModels) => {
         const hidden = new Set(next);
-        const models =
-          affectedModels ?? modelListChanges(hiddenModels, next).map((change) => change.model);
         void actions.updateModelPreferences({
-          setModelsHidden: models.map((model) => ({
+          setModelsHidden: affectedModels.map((model) => ({
             provider: instanceId,
             model,
             hidden: hidden.has(model),

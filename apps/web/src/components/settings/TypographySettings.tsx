@@ -230,7 +230,7 @@ function WordWrapRow() {
   return (
     <SettingsRow
       {...searchableSetting("word-wrap")}
-      description="Applies to code blocks, tables, diffs, and file previews."
+      description="Applies to code blocks, diffs, and file previews."
       resetAction={
         settings.wordWrap !== DEFAULT_UNIFIED_SETTINGS.wordWrap ? (
           <SettingResetButton
@@ -243,7 +243,7 @@ function WordWrapRow() {
         <Switch
           checked={settings.wordWrap}
           onCheckedChange={(checked) => updateSettings({ wordWrap: Boolean(checked) })}
-          aria-label="Wrap code, tables, diffs, and file previews by default"
+          aria-label="Wrap code, diffs, and file previews by default"
         />
       }
     />
@@ -310,6 +310,7 @@ export function TypographySection() {
   );
   const searchTargetId = useSettingsSearchTargetId();
   const lastExpandedTargetRef = useRef<string | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- writes the advanced typography flag to localStorage when a search target needs it
   useEffect(() => {
     if (searchTargetId === null || !ADVANCED_TYPOGRAPHY_TARGET_IDS.has(searchTargetId)) return;
     if (lastExpandedTargetRef.current === searchTargetId) return;
@@ -382,6 +383,7 @@ function FontFamilySettingsRow({
     setDraftSettled(true);
   }
   const timerValueRef = useRef(value);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the pending commit timer before paint when the committed value changes externally
   useLayoutEffect(() => {
     if (timerValueRef.current === value) return;
     timerValueRef.current = value;
@@ -390,6 +392,7 @@ function FontFamilySettingsRow({
       commitTimerRef.current = null;
     }
   }, [value]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the pending commit timer on unmount
   useEffect(
     () => () => {
       if (commitTimerRef.current !== null) window.clearTimeout(commitTimerRef.current);

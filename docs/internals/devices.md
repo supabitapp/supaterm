@@ -37,13 +37,13 @@ its sessions. Sessions it starts are recorded under the state directory and
 stopped by the next server if this one dies; sessions other tools started on
 the same account are never touched.
 
-Each session brings its own serve-sim preview host and agent-device daemon,
-with their own tokens. The proxy asks the host to route each request
-(`DeviceHostReady.upstream`) and adds the session token server-side, so
+Each session brings its own preview host (serve-sim, or serve-emu for Android)
+and agent-device daemon, with their own tokens. The proxy asks the host to
+route each request (`DeviceHostReady.upstream`) and adds the session token server-side, so
 clients never hold it. Agent config files are written per device
 (`DeviceOperations.agentEndpoint`), which is why `device_open` opens the
-device before targeting it. Device settings run `simctl` on the simulator's
-machine, which EAS does not expose, so they are unavailable there.
+device before targeting it. Device settings and tools run `simctl` or `adb` on
+the device's machine, which EAS does not expose, so they are unavailable there.
 
 ## The hub is never exposed
 
@@ -94,16 +94,31 @@ already-running agent without the CLI.
 
 How to drive a device is returned from `device_open`, not kept in an
 always-loaded prompt or skill: it costs nothing in threads that never open a
-device and cannot drift from the pinned CLI version. The always-on prompt block
-is a few lines that point at the tools and prefer them over raw `simctl` and
-`adb`, which stay available for what the tools do not cover.
+device and cannot drift from the pinned CLI version. `device_open` returns a
+launcher bound to its agent-device session, so agents need no target flags.
+The launcher leaves out the flags a command refuses (`cdp` talks to Metro, not
+to the device), refuses the commands that would replace Supaterm's connection, and
+checks that connection first: agent-device reports a sandboxed shell and a
+dropped tunnel alike as an unreachable daemon, so the launcher names which one it
+is. Ending a session (`device_close`, the Device panel, a shutdown) also closes
+its agent-device session, which quits the app that session opened and releases the CLI's claim on the device.
+
+Agents choose between these tools and ssh before they open anything, so
+sessions that hold `device` get a short block from
+[`orchestrationInstructions.ts`](../../packages/provider-core/src/server/orchestrationInstructions.ts)
+through their adapter's instruction channel. It points simulator and emulator UI
+work on local and SSH hosts at the tools; `simctl`, `adb` and ssh stay
+available for what the tools do not cover. Pi and Muse do not send it yet.
+Claude's native subagents never see the session's system prompt, so a
+`SubagentStart` hook passes them the block, where the runtime runs hooks and the
+subagent's context is not isolated.
 
 ## The viewer decodes both vendored protocols
 
 The hub vendors two streaming servers with different wire formats. iOS video is
 an HTTP body of AVCC envelopes decoded with WebCodecs, with input on a separate
 binary WebSocket; Android multiplexes SEMU-framed H.264 and JSON gestures over
-one WebSocket. [`deviceStream.ts`](../../apps/web/src/components/device/deviceStream.ts)
+one WebSocket. [`DeviceStreamView.tsx`](../../apps/web/src/components/device/DeviceStreamView.tsx)
 speaks both so one panel covers both platforms.
 
 Simulators encode H.264 High 5.1 without frame reordering, but the hub's fallback
@@ -112,8 +127,8 @@ decoder then retains frames for seconds despite `optimizeForLatency` and an empt
 `decodeQueueSize`. The iOS AVCC viewer restores the missing metadata before
 configuring the decoder so hardware decoding can remain enabled. WebCodecs is
 secure-context only, so the viewer probes `isConfigSupported` and falls back to
-MJPEG on iOS when decoding is unavailable. Android has no MJPEG; there the panel
-reports that it cannot decode.
+MJPEG on iOS when decoding is unavailable. Android's SEMU socket has no MJPEG;
+there the panel reports that it cannot decode.
 
 serve-sim can also be locked to WebRTC, as on EAS Simulator, and then refuses
 AVCC with a 409 naming the transport. The viewer still asks for AVCC first, so
@@ -121,3 +136,6 @@ hubs that serve it pay nothing, and switches on that 409, or when its MJPEG
 image fails in a browser that has `RTCPeerConnection`. Offers are not trickled:
 serve-sim takes one offer with every candidate. The video element only feeds
 the same canvas sink, so the panel and the mobile WebView keep one surface.
+Android asks serve-emu's `/api` before opening its video socket and streams
+WebRTC when it is advertised (EAS Simulator), keeping a separate `video=0`
+socket for input so input can reconnect without restarting video.

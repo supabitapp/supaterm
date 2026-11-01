@@ -57,6 +57,7 @@ const SETTABLE_SETTINGS = {
   branchNamePrefix: STRING_SETTING,
   branchNamePrefixFromRepository: BOOLEAN_SETTING,
   branchNameInstructions: STRING_SETTING,
+  threadTitleInstructions: STRING_SETTING,
   removeAgentCreditsOnMerge: BOOLEAN_SETTING,
   pullRequestMergeMethod: {
     kind: "string-or-null",

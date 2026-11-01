@@ -1,27 +1,32 @@
 import { describe, expect, it } from "vite-plus/test";
 import { EnvironmentId } from "@supaterm/contracts";
 import type { FilePreviewItem } from "../components/FilePreviewModal.types";
-import { filePreviewGallery, filePreviewKey, settledPreviewGallery } from "./filePreviewGallery";
-
-const first: FilePreviewItem = { kind: "image", uri: "https://example.com/first.png" };
-const second: FilePreviewItem = { kind: "image", uri: "https://example.com/second.png" };
+import { filePreviewGallery, filePreviewKey, settlePreviewGallery } from "./filePreviewGallery";
 
 describe("image preview groups", () => {
-  it("waits for every sibling, then opens without the ones that failed to resolve", () => {
-    const third: FilePreviewItem = { kind: "image", uri: "https://example.com/third.png" };
-    const [firstKey, secondKey, thirdKey] = [first, second, third].map(filePreviewKey);
-    const resolved = { [firstKey!]: "first" };
-    expect(settledPreviewGallery([first, second, third], resolved, new Set())).toBeNull();
-    expect(
-      settledPreviewGallery([first, second, third], resolved, new Set([secondKey!])),
-    ).toBeNull();
-    expect(
-      settledPreviewGallery(
-        [first, second, third],
-        { ...resolved, [thirdKey!]: "third" },
-        new Set([secondKey!]),
-      ),
-    ).toEqual(["first", "third"]);
+  it("waits for every sibling, then opens without the ones that failed to resolve", async () => {
+    const third = Promise.withResolvers<{ uri: string } | null>();
+    let settled = false;
+    const opening = settlePreviewGallery(
+      [Promise.resolve({ uri: "first" }), Promise.reject(new Error("moved")), third.promise],
+      0,
+    ).finally(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    third.resolve({ uri: "third" });
+    await expect(opening).resolves.toEqual({
+      selected: { uri: "first" },
+      gallery: [{ uri: "first" }, { uri: "third" }],
+    });
+  });
+
+  it("fails at once when the selected item cannot resolve", async () => {
+    const sibling = Promise.withResolvers<{ uri: string } | null>();
+    await expect(
+      settlePreviewGallery([sibling.promise, Promise.reject(new Error("deleted"))], 1),
+    ).rejects.toThrow("deleted");
   });
 
   it("matches remote originals despite metadata and property order differences", () => {

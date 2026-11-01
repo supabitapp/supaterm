@@ -10,6 +10,8 @@ import {
 } from "@supaterm/contracts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+import { formatThreadLink } from "@supaterm/shared/threadLinks";
 
 const ALL_MCP_CAPABILITIES = [
   "preview",
@@ -24,26 +26,23 @@ export interface McpThreadCaller {
   readonly threadId: ThreadId;
   readonly providerSessionId: string;
   readonly providerInstanceId: ProviderInstanceId;
+  /** A delegated child task; its parent owns the work it hands back. */
+  readonly subagent?: boolean;
 }
 
 export interface McpClientCaller {
   readonly sessionId: string;
   readonly label: string;
   readonly access: AuthMcpClientAccess;
+  /** The origin an outside client reached; its thread links open the web app there. */
+  readonly webOrigin?: string | undefined;
 }
 
-/**
- * A read-only client never reaches a write (`McpToolAccess` refuses it first),
- * so it maps to the lowest mode rather than to nothing.
- */
+/** Read-only clients map to the lowest mode because McpToolAccess blocks writes first. */
 export const clientRuntimeModeCeiling = (client: McpClientCaller | undefined): RuntimeMode =>
   client === undefined || client.access === "read-only" ? "approval-required" : client.access;
 
-/**
- * A thread caller's omitted target falls back to its own thread; a client
- * caller has no own thread, so tools that act as the caller (delegate_task,
- * preview, worktree handoff) need `thread`.
- */
+/** Thread callers default to their own thread; client callers need thread for tools that act as the caller. */
 export interface McpInvocationScope {
   readonly environmentId: EnvironmentId;
   readonly capabilities: ReadonlySet<McpCapability>;
@@ -53,10 +52,34 @@ export interface McpInvocationScope {
   readonly client: McpClientCaller | undefined;
 }
 
+/**
+ * Supaterm renders `supaterm-thread://` links as thread chips. Other MCP clients cannot open them, so
+ * they get a web URL on the origin they reached instead.
+ */
+export const threadLinkFor = (
+  scope: Pick<McpInvocationScope, "environmentId" | "client">,
+  threadId: ThreadId,
+): string => {
+  const origin = scope.client?.webOrigin;
+  return origin === undefined
+    ? formatThreadLink({ environmentId: scope.environmentId, threadId })
+    : `${origin}/${encodeURIComponent(scope.environmentId)}/${encodeURIComponent(threadId)}`;
+};
+
 export class McpInvocationContext extends Context.Service<
   McpInvocationContext,
   McpInvocationScope
 >()("supaterm/mcp/McpInvocationContext") {}
+
+/**
+ * `McpSchema.EnabledWhen` for tools a delegated child must not see or call.
+ * EnabledWhen only receives the MCP client profile, so read the Supaterm caller from the request fiber.
+ */
+export const hiddenFromSubagents = (): boolean => {
+  const fiber = Fiber.getCurrent();
+  const scope = fiber && Context.getOrUndefined(fiber.context, McpInvocationContext);
+  return scope?.thread?.subagent !== true;
+};
 
 export type McpCapabilityError<C extends McpCapability> = C extends "preview"
   ? PreviewAutomationUnavailableError

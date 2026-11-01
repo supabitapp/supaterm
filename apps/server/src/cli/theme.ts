@@ -196,11 +196,9 @@ const publishThemeFile = Effect.fn(function* (input: {
   const publishFailure = (cause: unknown) =>
     new ThemePublishError({ themesDir: input.themesDir, cause });
 
-  // The staging entry is created O_EXCL after clearing any stale leftover, so a
-  // symlink or file already at that predictable name is never followed or
-  // written through. Written verbatim: appending so much as a newline could
-  // push a file at the size limit past it and have the watcher skip what was
-  // just accepted.
+  // O_EXCL after clearing a stale leftover, so nothing at that predictable name is ever followed
+  // or written through. Written verbatim: even an added newline could push a file at the size
+  // limit past it and have the watcher skip what was just accepted.
   const stagedIno = yield* Effect.try({
     try: () => {
       try {
@@ -296,7 +294,7 @@ const themeSetCommand = Command.make("set", {
   ),
   theme: Argument.String("theme").pipe(
     Argument.withDescription(
-      'A theme id (a built-in, or one this machine publishes — themes/nightfall.json is "nightfall"), or a path to a theme JSON file to publish and set in one step.',
+      'A theme id (a built-in, or one this machine publishes, where themes/nightfall.json is "nightfall"), or a path to a theme JSON file to publish and set in one step.',
     ),
   ),
 }).pipe(

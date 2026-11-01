@@ -1,14 +1,17 @@
 import {
   createElement,
+  useCallback,
   useEffect,
   useImperativeHandle,
+  useRef,
   useState,
   type ComponentType,
   type Ref,
 } from "react";
-import type { NativeSyntheticEvent, ViewProps } from "react-native";
+import { View, type NativeSyntheticEvent, type ViewProps } from "react-native";
 import { requireNativeView } from "expo";
 
+import { EmptyState } from "../../components/ui/EmptyState";
 import { NativeViewResolutionError } from "../../native/nativeViewResolutionError";
 
 const NATIVE_REVIEW_DIFF_MODULE_NAME = "SupatermReviewDiffSurface";
@@ -125,6 +128,7 @@ export interface NativeReviewDiffViewProps extends ViewProps {
   /** Android ignores this and measures the widest row. */
   readonly contentWidth: number;
   readonly initialRowIndex?: number;
+  readonly initialFileId?: string;
   readonly scrollEnabled?: boolean;
   readonly bounces?: boolean;
   readonly refreshing?: boolean;
@@ -161,7 +165,7 @@ export function isNativeReviewDiffDrawEvent(payload: Readonly<Record<string, unk
 interface NativeReviewDiffViewRef {
   readonly setRowsJson: (rowsJson: string) => Promise<void>;
   readonly setTokensJson: (tokensJson: string) => Promise<void>;
-  readonly setTokensPatchJson: (tokensPatchJson: string) => Promise<void>;
+  readonly setTokensPatchJson: (tokensPatchJson: string) => Promise<boolean>;
   readonly scrollToFile: (fileId: string, animated: boolean) => Promise<void>;
   readonly scrollToTop: (animated: boolean) => Promise<void>;
 }
@@ -192,7 +196,11 @@ function useNativeReviewDiffPayload(
   nativeView: NativeReviewDiffViewRef | null,
   method: NativeReviewDiffPayloadMethod,
   payload: string | undefined,
+  resetKey?: string,
+  onFailure?: () => void,
+  onDelivered?: (payload: string) => void,
 ) {
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- sends the payload to the native diff view's imperative method, retrying per frame until it mounts
   useEffect(() => {
     if (payload === undefined) {
       return;
@@ -208,31 +216,46 @@ function useNativeReviewDiffPayload(
       }
 
       const view = nativeView;
-      const command = view?.[method];
+      const command: ((payload: string) => Promise<void | boolean>) | undefined = view?.[method];
       if (!view || !command) {
         if (attempts < NATIVE_REVIEW_DIFF_PAYLOAD_RETRY_FRAMES) {
           attempts += 1;
           frame = requestAnimationFrame(dispatch);
+        } else {
+          console.error(`[native-review-diff] ${method} unavailable`);
+          onFailure?.();
         }
         return;
       }
 
-      void command.call(view, payload).catch((error: unknown) => {
-        if (
-          !cancelled &&
-          attempts < NATIVE_REVIEW_DIFF_PAYLOAD_RETRY_FRAMES &&
-          isPendingNativeViewRegistration(error)
-        ) {
-          attempts += 1;
-          frame = requestAnimationFrame(dispatch);
-          return;
-        }
-        console.error(`[native-review-diff] ${method} failed`, error);
-      });
+      void Promise.resolve()
+        .then(() => {
+          if (!cancelled) return command.call(view, payload);
+        })
+        .then((accepted) => {
+          if (cancelled) return;
+          // This promise resolves after native decode, reset validation, and merge.
+          if (method === "setTokensPatchJson" && accepted !== true) {
+            throw new Error("Native token patch was not accepted");
+          }
+          onDelivered?.(payload);
+        })
+        .catch((error: unknown) => {
+          if (cancelled) return;
+          if (
+            attempts < NATIVE_REVIEW_DIFF_PAYLOAD_RETRY_FRAMES &&
+            isPendingNativeViewRegistration(error)
+          ) {
+            attempts += 1;
+            frame = requestAnimationFrame(dispatch);
+            return;
+          }
+          console.error(`[native-review-diff] ${method} failed`, error);
+          onFailure?.();
+        });
     };
 
-    // Fabric attaches the React ref before Expo registers the native tag used by
-    // view functions. Starting on the next frame avoids racing that registration.
+    // Expo registers native tags after Fabric attaches refs; dispatch next frame.
     frame = requestAnimationFrame(dispatch);
 
     return () => {
@@ -241,7 +264,8 @@ function useNativeReviewDiffPayload(
         cancelAnimationFrame(frame);
       }
     };
-  }, [method, nativeView, payload]);
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- A new content reset replaces native rows, so the same payload must be sent again.
+  }, [method, nativeView, payload, resetKey, onFailure, onDelivered]);
 }
 
 function getExpoViewConfig(moduleName: string) {
@@ -251,11 +275,105 @@ function getExpoViewConfig(moduleName: string) {
 }
 
 function NativeReviewDiffView(props: NativeReviewDiffViewProps) {
-  const { nativeViewRef, rowsJson, tokensJson, tokensPatchJson, ...nativeProps } = props;
+  const [failedRowsJson, setFailedRowsJson] = useState<string | null>(null);
+  const onRowsFailure = useCallback(() => setFailedRowsJson(props.rowsJson), [props.rowsJson]);
+  if (failedRowsJson !== null && failedRowsJson !== props.rowsJson) setFailedRowsJson(null);
+  if (failedRowsJson === props.rowsJson) {
+    return createElement(
+      View,
+      {
+        style: [
+          props.style,
+          {
+            flex: 1,
+            justifyContent: "center",
+            paddingTop: props.contentInsetTop,
+            paddingBottom: props.contentInsetBottom,
+          },
+        ],
+      },
+      createElement(EmptyState, {
+        title: "Could not display diff",
+        detail: "Try loading the diff view again.",
+        variant: "plain",
+        actionLabel: "Retry diff",
+        onAction: () => {
+          props.onDebug?.({
+            nativeEvent: { message: "surface-retry" },
+          } as unknown as NativeSyntheticEvent<Record<string, unknown>>);
+          setFailedRowsJson(null);
+        },
+      }),
+    );
+  }
+  return createElement(NativeReviewDiffContent, { ...props, onRowsFailure });
+}
+
+function NativeReviewDiffContent(
+  props: NativeReviewDiffViewProps & { readonly onRowsFailure: () => void },
+) {
+  const {
+    nativeViewRef,
+    rowsJson,
+    tokensJson,
+    tokensPatchJson,
+    onRowsFailure,
+    onDebug,
+    ...nativeProps
+  } = props;
+  // State, not a ref, so the payload effects run again once the native view attaches.
   const [nativeView, setNativeView] = useState<NativeReviewDiffViewRef | null>(null);
-  useNativeReviewDiffPayload(nativeView, "setRowsJson", rowsJson);
+  useNativeReviewDiffPayload(
+    nativeView,
+    "setRowsJson",
+    rowsJson,
+    props.contentResetKey,
+    onRowsFailure,
+  );
   useNativeReviewDiffPayload(nativeView, "setTokensJson", tokensJson);
-  useNativeReviewDiffPayload(nativeView, "setTokensPatchJson", tokensPatchJson);
+  const onDebugRef = useRef(onDebug);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- keeps the latest onDebug for callbacks the native diff view fires outside render
+  useEffect(() => {
+    onDebugRef.current = onDebug;
+  }, [onDebug]);
+  const reportedMountRef = useRef(false);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reports the native surface mount to the debug callback once per mount
+  useEffect(() => {
+    // Effect replay keeps the same native content; only a new mount loses tokens.
+    if (reportedMountRef.current) return;
+    reportedMountRef.current = true;
+    onDebugRef.current?.({
+      nativeEvent: { message: "surface-content-mounted" },
+    } as unknown as NativeSyntheticEvent<Record<string, unknown>>);
+  }, []);
+  const reportTokenDelivery = useCallback((json: string, message: string) => {
+    const patch = JSON.parse(json) as { resetKey?: string; chunkIndex?: number };
+    if (patch.chunkIndex === undefined) return;
+    onDebugRef.current?.({
+      nativeEvent: {
+        message,
+        resetKey: patch.resetKey,
+        chunkIndex: patch.chunkIndex,
+      },
+    } as unknown as NativeSyntheticEvent<Record<string, unknown>>);
+  }, []);
+  const onTokensDelivered = useCallback(
+    (json: string) => {
+      reportTokenDelivery(json, "tokens-patch-delivered");
+    },
+    [reportTokenDelivery],
+  );
+  const onTokensFailure = useCallback(() => {
+    if (tokensPatchJson !== undefined) reportTokenDelivery(tokensPatchJson, "tokens-patch-failed");
+  }, [reportTokenDelivery, tokensPatchJson]);
+  useNativeReviewDiffPayload(
+    nativeView,
+    "setTokensPatchJson",
+    tokensPatchJson,
+    undefined,
+    onTokensFailure,
+    onTokensDelivered,
+  );
   useImperativeHandle(
     nativeViewRef,
     () => ({
@@ -277,6 +395,13 @@ function NativeReviewDiffView(props: NativeReviewDiffViewProps) {
   return createElement(RawNativeView, {
     ...nativeProps,
     refreshEnabled: props.onPullToRefresh !== undefined,
+    onDebug: (event) => {
+      if (event.nativeEvent.message === "rows-decode-failed") {
+        console.error("[native-review-diff] rows decode failed", event.nativeEvent.error);
+        onRowsFailure();
+      }
+      onDebug?.(event);
+    },
     ref: setNativeView,
   });
 }

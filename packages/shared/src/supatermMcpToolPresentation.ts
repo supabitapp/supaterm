@@ -22,6 +22,7 @@ export type SupatermMcpToolSummaryAction =
   | "thread-wait"
   | "thread-interrupt"
   | "workflow-stop"
+  | "background-wait"
   | "thread-configuration"
   | "thread-configure"
   | "thread-fork"
@@ -168,6 +169,10 @@ const SUPATERM_MCP_TOOLS: Readonly<Record<string, SupatermMcpToolDefinition>> = 
   supaterm_workflow_stop: tool(
     ["Stop", "Stopping", "Requested a stop for", "a workflow"],
     "workflow-stop",
+  ),
+  supaterm_background_wait: tool(
+    ["Update", "Updating", "Updated", "background waits"],
+    "background-wait",
   ),
   supaterm_thread_interrupt: tool(
     ["Interrupt", "Interrupting", "Requested an interrupt of", "a Supaterm thread"],
@@ -405,11 +410,9 @@ function normalizeSupatermMcpToolLabel(value: string): string {
 }
 
 /**
- * ACP agents disagree on how the injected Supaterm server prefixes its tools:
- * `mcp__supaterm__x` (Claude/Cursor), `supaterm.x` (Codex), plus single
- * underscore, colon, slash, dash, and space separators seen from registry
- * agents. The prefix match is deliberately loose because the display-name
- * inventory is the real gate; unknown tools stay on the generic renderer.
+ * Agents disagree on the Supaterm tool prefix (`mcp__supaterm__x`, `supaterm.x`, and
+ * underscore, colon, slash, dash, or space separators). The match is loose because the
+ * display-name inventory is the real gate; unknown tools stay on the generic renderer.
  */
 function resolveSupatermMcpToolName(value: string): string | null {
   const label = normalizeSupatermMcpToolLabel(value);

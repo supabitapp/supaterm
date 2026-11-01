@@ -1,3 +1,4 @@
+import * as DocumentText from "../../provider/DocumentText.ts";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
@@ -18,6 +19,7 @@ import {
   type OrchestrationV2ThreadShell,
 } from "@supaterm/contracts";
 import * as McpProviderSessions from "@supaterm/provider-core/server/McpProviderSessions";
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as TestClock from "effect/testing/TestClock";
 import * as Layer from "effect/Layer";
@@ -48,6 +50,7 @@ import * as McpHttpServer from "../McpHttpServer.ts";
 import * as McpInvocationContext from "../McpInvocationContext.ts";
 import * as McpPendingUploads from "../McpPendingUploads.ts";
 import * as McpToolAccessTestkit from "../McpToolAccess.testkit.ts";
+import * as AnalyticsService from "../../telemetry/AnalyticsService.ts";
 import { dispatchFailure } from "../threadAccess.ts";
 import * as EnvironmentHandlers from "./environment/handlers.ts";
 import * as AttachmentHandlers from "./attachment/handlers.ts";
@@ -57,8 +60,6 @@ const layerOrchestratorToolkit = McpHttpServer.layerOrchestratorToolkit.pipe(
   Layer.provide(Layer.mock(GitVcsDriver.GitVcsDriver)({})),
 );
 
-// Effect returns a declared tool failure as `isError` with its encoded payload
-// as JSON text, never as `structuredContent`.
 const declaredFailure = (result: McpSchema.CallToolResult) => {
   const text = result.content[0];
   return result.isError === true && text?.type === "text" ? JSON.parse(text.text) : undefined;
@@ -273,7 +274,7 @@ it.effect("returns an HTML render reference that Codex and Claude tool rows both
         Layer.provide(
           ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-mcp-html-render-" }),
         ),
-        Layer.provide(NodeServices.layer),
+        Layer.provide(DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer))),
         Layer.provide(FetchHttpClient.layer),
         Layer.provide(
           Layer.mock(ThreadManagement.ThreadManagementService)({
@@ -291,6 +292,103 @@ it.effect("returns an HTML render reference that Codex and Claude tool rows both
     ),
   ),
 );
+
+it.effect("records only failed calls of tools that hand off no work", () => {
+  // Recording runs detached from the tool response, so the first event is awaited.
+  const recorded = Deferred.makeUnsafe<{ event: string; properties: object }>();
+  return Effect.gen(function* () {
+    const server = yield* McpServer.McpServer;
+    const organize = (capabilities: McpInvocationContext.McpInvocationScope["capabilities"]) =>
+      server.callTool({ name: "supaterm_thread_organize", arguments: { action: "pin" } }).pipe(
+        Effect.provideService(McpInvocationContext.McpInvocationContext, {
+          ...scope,
+          capabilities,
+        }),
+        Effect.provideService(McpSchema.McpServerClient, client),
+      );
+    expect((yield* organize(scope.capabilities)).isError).not.toBe(true);
+    expect(declaredFailure(yield* organize(new Set<never>()))).toMatchObject({
+      code: "capability_denied",
+    });
+    // The successful call ran first, so it would be the first event if it were recorded.
+    expect(yield* Deferred.await(recorded)).toMatchObject({
+      event: "mcp.tool.invoked",
+      properties: { tool: "supaterm_thread_organize", outcome: "error" },
+    });
+  }).pipe(
+    Effect.provide(
+      layerThreadToolkit.pipe(
+        Layer.provideMerge(McpServer.McpServer.layer),
+        Layer.provide(NodeCrypto.layer),
+        Layer.provide(
+          Layer.mock(ThreadManagement.ThreadManagementService)({
+            getThreadShell: (id) => Effect.succeed(McpToolAccessTestkit.liveThreadShell(id)),
+            getProjectThreadRecords: ({ threadId: id }) =>
+              Effect.succeed(
+                McpToolAccessTestkit.idleThreadProjection(McpToolAccessTestkit.liveThreadShell(id)),
+              ),
+            dispatch: () => Effect.succeed({ sequence: 1 } as never),
+          }),
+        ),
+        Layer.provide(
+          Layer.succeed(
+            AnalyticsService.AnalyticsService,
+            AnalyticsService.AnalyticsService.of({
+              record: (event, properties) =>
+                Deferred.succeed(recorded, { event, properties: properties ?? {} }).pipe(
+                  Effect.asVoid,
+                ),
+              flush: Effect.void,
+              recordOwners: () => Effect.void,
+            }),
+          ),
+        ),
+      ),
+    ),
+  );
+});
+
+it.effect("rejects an unknown organize target instead of archiving the calling thread", () => {
+  const dispatched: Array<unknown> = [];
+  return Effect.gen(function* () {
+    const server = yield* McpServer.McpServer;
+    const outcome = yield* server
+      .callTool({
+        name: "supaterm_thread_organize",
+        arguments: { action: "archive", threadIds: ["other-thread"] },
+      })
+      .pipe(
+        Effect.provideService(McpInvocationContext.McpInvocationContext, scope),
+        Effect.provideService(McpSchema.McpServerClient, client),
+        Effect.result,
+      );
+    expect(dispatched).toEqual([]);
+    expect(outcome).toMatchObject({
+      _tag: "Failure",
+      failure: { message: expect.stringContaining("Expected no excess property") },
+    });
+  }).pipe(
+    Effect.provide(
+      layerThreadToolkit.pipe(
+        Layer.provideMerge(McpServer.McpServer.layer),
+        Layer.provide(NodeCrypto.layer),
+        Layer.provide(
+          Layer.mock(ThreadManagement.ThreadManagementService)({
+            getThreadShell: (id) => Effect.succeed(McpToolAccessTestkit.liveThreadShell(id)),
+            getProjectThreadRecords: ({ threadId: id }) =>
+              Effect.succeed(
+                McpToolAccessTestkit.idleThreadProjection(McpToolAccessTestkit.liveThreadShell(id)),
+              ),
+            dispatch: (command) => {
+              dispatched.push(command);
+              return Effect.succeed({ sequence: 1 } as never);
+            },
+          }),
+        ),
+      ),
+    ),
+  );
+});
 
 it.effect("keeps unexpected handler defects private through the production registration", () =>
   Effect.gen(function* () {
@@ -837,7 +935,7 @@ it.effect("only the caller that prepared a pending upload can discard it", () =>
         Layer.provide(
           ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-mcp-attachment-" }),
         ),
-        Layer.provide(NodeServices.layer),
+        Layer.provide(DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer))),
       ),
     ),
   ),

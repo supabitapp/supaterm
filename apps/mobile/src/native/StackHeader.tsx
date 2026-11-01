@@ -9,7 +9,6 @@ import type { ColorValue } from "react-native";
 
 export {
   nativeHeaderScrollEdgeEffects,
-  nativeTopScrollEdgeEffect,
   type NativeHeaderScrollEdgeEffects,
   type NativeTopScrollEdgeEffect,
 } from "./scrollEdgeEffects";
@@ -26,6 +25,7 @@ export type AppNativeStackNavigationOptions = Omit<
   readonly unstable_headerSubtitle?: unknown;
   readonly unstable_headerToolbarItems?: unknown;
   readonly unstable_navigationItemStyle?: unknown;
+  readonly unstable_headerMinimizationBehavior?: unknown;
 };
 
 function useNativeStackNavigation(): NativeStackNavigationProp<ParamListBase> | null {
@@ -86,9 +86,7 @@ function optionsSignature(value: unknown, seen = new WeakSet<object>()): string 
     case "undefined":
       return "undefined";
     case "function":
-      // Header factories are frequently recreated inline. Their source is
-      // stable across equivalent renders, while a reference comparison would
-      // make navigation.setOptions re-enter the navigator indefinitely.
+      // Compare factory source; inline references change every render and would loop setOptions.
       return `function:${Function.prototype.toString.call(value)}`;
     case "symbol":
       return `symbol:${String(value)}`;
@@ -109,8 +107,7 @@ function optionsSignature(value: unknown, seen = new WeakSet<object>()): string 
       if (Array.isArray(value)) {
         return `[${value.map((entry) => optionsSignature(entry, seen)).join(",")}]`;
       }
-      // React refs carry mutable native instances that must not make static
-      // screen options appear different after every render.
+      // Ignore mutable native refs when comparing static screen options.
       if ("current" in object) return "[ref]";
       return `{${Object.keys(value as Record<string, unknown>)
         .sort()
@@ -165,12 +162,7 @@ function stabilizeOptionFunctions(
 
 export function NativeStackScreenOptions(props: {
   readonly options?: AppNativeStackNavigationOptions;
-  /**
-   * Causes dynamic native header factories to be reapplied when their closed-over
-   * menu content changes. Factory functions are intentionally stabilized, so
-   * their source alone cannot capture a menu that was initially empty while
-   * asynchronous data was loading.
-   */
+  /** Reapply factories when captured data changes; source equality misses asynchronous menu content. */
   readonly optionsVersion?: unknown;
   readonly listeners?: Record<string, (event: never) => void>;
   readonly name?: string;
@@ -182,6 +174,7 @@ export function NativeStackScreenOptions(props: {
   const optionFunctionWrappersRef = useRef(new Map<string, (...args: unknown[]) => unknown>());
   const normalizedOptions = useMemo(() => normalizeScreenOptions(props.options), [props.options]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- writes stabilized header options to the navigator after commit so discarded renders leave no closures
   useLayoutEffect(() => {
     if (!tabActive) {
       lastAppliedOptionsSignatureRef.current = undefined;
@@ -215,6 +208,7 @@ export function NativeStackScreenOptions(props: {
     );
   }, [navigation, normalizedOptions, props.optionsVersion, tabActive]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes the given listeners to navigator events for the screen's lifetime
   useEffect(() => {
     if (!navigation || !props.listeners) {
       return;

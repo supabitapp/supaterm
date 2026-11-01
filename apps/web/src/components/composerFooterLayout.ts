@@ -31,21 +31,9 @@ export function shouldUseRestingComposerLayout(input: {
   hasMultilinePrompt: boolean;
   timelineOverflows: boolean;
 }): boolean {
-  // Multiline drafts stay readable. Resting only clamps a single prompt
-  // line and overlays its actions; non-image attachment and context
-  // rows keep their natural height above it while image previews move inline.
-  // Banners and the tasks badge dock above the surface, so they are absent
-  // too, and resting hides them along with the model controls and the strip
-  // below.
-  //
-  // Only a timeline scroll rests the composer: the user asked for it with the
-  // gesture, and it lifts on the next composer interaction. Losing focus never
-  // rests it, so clicking a message, copying output, or selecting text for a
-  // citation leaves the composer where it was.
-  //
-  // Resting exists to give reading space back to the timeline. A thread that
-  // fits above the composer has nothing to reclaim, so it stays expanded and
-  // never shows the collapsed row that a fresh thread would otherwise open on.
+  // Resting clamps a single prompt line, so multiline drafts never rest. Only a timeline scroll
+  // rests it, never losing focus, so clicking or selecting text leaves the composer where it was.
+  // Resting gives reading space back to the timeline, so a thread that fits stays expanded.
   return (
     input.isExistingThread &&
     !input.isMobileViewport &&
@@ -64,11 +52,7 @@ export function shouldUseRestingComposerLayout(input: {
  */
 const COMPOSER_RESTING_EXPANSION_MIN_PX = 94;
 
-/**
- * Reserving only the resting height lets a scroll to the end land flush against the short
- * composer, and the expansion that follows then covers the last rows because the timeline never
- * moves for footer growth.
- */
+/** Reserve expansion height because the timeline does not move when footer growth covers its last rows. */
 export function resolveComposerTimelineInset(input: {
   currentInset: number;
   overlayHeight: number;
@@ -163,12 +147,8 @@ function restingComposerControlsWidth(
   );
 }
 
-/**
- * The context strip reserves this much for the composer before deciding whether its own labels
- * may expand. Judging against the currently visible controls instead lets the strip expand into
- * space the composer just gave up, which shrinks the host, hides the controls again, and
- * repeats.
- */
+/** Reserve natural composer width to prevent strip labels from repeatedly expanding into space vacated by
+ * hidden controls. */
 export function resolveRestingComposerControlsNaturalWidth(
   input: RestingComposerControlsMeasurement,
 ): number {
@@ -198,9 +178,8 @@ export function resolveRestingComposerControlsLayout(
       fixedWidth,
       Math.min(candidate, iconSteps),
     );
-  // Promotions need a pixel of slack: recovering a flexible picker's natural
-  // width can jitter by a fraction of a pixel across renders. Demotions are
-  // immediate so a threshold cannot clip or flip React between layouts.
+  // Use 1px slack for natural-width jitter on promotion; demote immediately to avoid clipping or layout
+  // flapping.
   while (
     step < iconSteps + blockWidths.length &&
     widthAtStep(step) > hostWidth - (step < previousStep ? RESTING_CONTROLS_SLACK_PX : 0)

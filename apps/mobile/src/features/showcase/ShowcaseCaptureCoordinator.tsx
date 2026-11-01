@@ -1,21 +1,31 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Keyboard, View } from "react-native";
+import { useSyncExternalStore } from "react";
+import { Appearance, Keyboard, View } from "react-native";
 import {
   CommonActions,
+  type NavigationAction,
   type NavigationState,
   type PartialState,
   StackActions,
-  useNavigation,
 } from "@react-navigation/native";
+import { runAtomCommand } from "@supaterm/client-runtime/state/runtime";
 import { AsyncResult } from "effect/reactivity";
+import { requireOptionalNativeModule } from "expo";
 
-import { useConnectionController } from "../connection/useConnectionController";
-import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
-import type { MobileThemeId } from "../../lib/mobileTheme";
-import { useProjects, useThreadShells } from "../../state/entities";
+import { connectPairingUrl } from "../../connection/onboarding";
+import {
+  normalizeMobileThemeMode,
+  resolveMobileThemeIds,
+  type MobileThemeId,
+} from "../../lib/mobileTheme";
+import { rootNavigationRef } from "../../lib/rootNavigation";
+import { appAtomRegistry } from "../../state/atom-registry";
+import { mobilePreferencesAtom, updateMobilePreferencesAtom } from "../../state/preferences";
+import { environmentProjects } from "../../state/projects";
 import { enqueueThreadOutboxMessage } from "../../state/thread-outbox";
+import { environmentThreadShells } from "../../state/threads";
 import { holdEditingQueuedMessage } from "../../state/use-thread-outbox";
-import { useWorkspaceState } from "../../state/workspace";
+import { workspaceConnections } from "../../state/workspace";
+import { resolveThemeAppearance } from "../settings/appearance/AppearancePreferencesProvider";
 import {
   applyNativeShowcaseOrientation,
   getNativeShowcaseOrientation,
@@ -26,323 +36,331 @@ import {
   type ShowcaseScene,
 } from "./nativeShowcaseScene";
 import {
+  isShowcaseThemeApplied,
+  SHOWCASE_THREAD_ID,
+  showcaseReadinessKey,
+  showcaseSceneOnScreen,
+  showcaseThemePatch,
+  shouldNavigateToShowcaseScene,
+  type ShowcaseNavigationTarget,
+} from "./showcaseCaptureModel";
+import {
   buildShowcasePendingTasks,
   SHOWCASE_PENDING_TASK_DEFINITIONS,
 } from "./showcasePendingTasks";
-import { retryShowcaseOperation } from "./showcaseRetry";
 import {
   clearShowcaseRenderSignal,
-  getShowcaseRenderSignal,
-  isShowcaseNativeContentReady,
-  type ShowcaseRenderSignal,
+  getShowcaseRenderSnapshot,
   subscribeToShowcaseRenderSignal,
 } from "./showcaseRenderSignal";
+import { retryShowcaseOperation } from "./showcaseRetry";
 
 const SHOWCASE_ENABLED = process.env.EXPO_PUBLIC_SHOWCASE === "1";
-const SHOWCASE_THREAD_ID = "offline-reason";
-
+// Native launch requests (pairing links, scene switches) have no change event.
+const NATIVE_POLL_MS = 250;
+const READY_SETTLE_MS = 500;
 type ShowcaseResetRoute = PartialState<NavigationState>["routes"][number];
 
-function sceneFromPathname(pathname: string): ShowcaseScene | null {
-  const routePath = pathname.split(/[?#]/u, 1)[0] ?? pathname;
-  if (routePath === "/settings" || routePath.endsWith("/settings/environments")) {
-    return "environments";
-  }
-  if (routePath.endsWith("/terminal")) return "terminal";
-  if (routePath.endsWith("/review")) return "review";
-  if (routePath.startsWith("/threads/")) return "thread";
-  if (routePath === "/") return "threads";
-  return null;
+const readySceneListeners = new Set<() => void>();
+let readyScene: ShowcaseScene | null = null;
+
+function setReadyScene(scene: ShowcaseScene | null): void {
+  if (readyScene === scene) return;
+  readyScene = scene;
+  for (const listener of readySceneListeners) listener();
 }
 
-function settledShowcaseScene(input: {
-  readonly scene: ShowcaseScene | null;
-  readonly requestedScene: ShowcaseScene | null;
-  readonly hasFixture: boolean;
-  readonly orientationSettled: boolean;
-  readonly themeApplied: boolean;
-  readonly themeId: MobileThemeId;
-  readonly renderSignal: ShowcaseRenderSignal | null;
-}): ShowcaseScene | null {
-  if (
-    !SHOWCASE_ENABLED ||
-    input.scene === null ||
-    input.requestedScene === null ||
-    input.scene !== input.requestedScene ||
-    !input.hasFixture ||
-    !input.orientationSettled ||
-    !input.themeApplied ||
-    !isShowcaseNativeContentReady({
-      scene: input.scene,
-      themeId: input.themeId,
-      renderSignal: input.renderSignal,
-    })
-  ) {
-    return null;
-  }
-  return input.scene;
+function subscribeToReadyScene(listener: () => void): () => void {
+  readySceneListeners.add(listener);
+  return () => readySceneListeners.delete(listener);
 }
 
-export function ShowcaseCaptureCoordinator(props: { readonly pathname: string }) {
-  if (!SHOWCASE_ENABLED) return null;
-  return <EnabledShowcaseCaptureCoordinator pathname={props.pathname} />;
+function getReadyScene(): ShowcaseScene | null {
+  return readyScene;
 }
 
-function EnabledShowcaseCaptureCoordinator(props: { readonly pathname: string }) {
-  const navigation = useNavigation();
-  const { connectPairingUrl } = useConnectionController();
-  const {
-    isReady: appearancePreferencesReady,
-    themeId,
-    themeMode,
-    setThemeIdForBothAppearances,
-    setThemeMode,
-  } = useAppearancePreferences();
-  const workspace = useWorkspaceState();
-  const projects = useProjects();
-  const threads = useThreadShells();
-  const attemptedPairingRef = useRef(new Set<string>());
-  const seededPendingTaskIdsRef = useRef(new Set<string>());
-  const [pairingUrls, setPairingUrls] = useState<ReadonlyArray<string>>([]);
-  const [pendingTasksReady, setPendingTasksReady] = useState(false);
-  const [requestedScene, setRequestedScene] = useState<ShowcaseScene | null>(null);
-  const [requestedTheme, setRequestedTheme] = useState<MobileThemeId | null>(null);
-  const [themeRequestSettled, setThemeRequestSettled] = useState(false);
-  const [readyScene, setReadyScene] = useState<ShowcaseScene | null>(null);
-  const [captureOrientation] = useState(() =>
-    SHOWCASE_ENABLED ? getNativeShowcaseOrientation() : null,
-  );
-  const [orientationSettled, setOrientationSettled] = useState(captureOrientation === null);
-  const requestedSceneRef = useRef<ShowcaseScene | null>(null);
-  const renderSignal = useSyncExternalStore(
-    subscribeToShowcaseRenderSignal,
-    getShowcaseRenderSignal,
-    getShowcaseRenderSignal,
-  );
-
-  useEffect(() => {
-    if (pairingUrls.length > 0) return;
-
-    const readLaunchRequest = () => {
-      const values = getNativeShowcasePairingUrls();
-      if (values.length === 0) return;
-      setRequestedTheme(getNativeShowcaseTheme());
-      setThemeRequestSettled(true);
-      setPairingUrls(values);
-    };
-    readLaunchRequest();
-    const interval = setInterval(readLaunchRequest, 250);
-    return () => clearInterval(interval);
-  }, [pairingUrls.length]);
-
-  useEffect(() => {
-    if (!SHOWCASE_ENABLED || orientationSettled || captureOrientation === null) return;
-
-    let cancelled = false;
-    void retryShowcaseOperation(async () => applyNativeShowcaseOrientation(captureOrientation), {
-      isCancelled: () => cancelled,
-    }).then((applied) => {
-      if (!cancelled && applied) setOrientationSettled(true);
+function showcaseNavigationAction(scene: ShowcaseScene, environmentId: string): NavigationAction {
+  if (scene === "threads") return StackActions.popToTop();
+  const params = { environmentId, threadId: SHOWCASE_THREAD_ID };
+  const routes: ShowcaseResetRoute[] = [{ name: "Home" }];
+  if (scene === "environments") {
+    routes.push({
+      name: "SettingsSheet",
+      state: {
+        index: 0,
+        routes: [
+          {
+            name: "SettingsContent",
+            state: {
+              index: 1,
+              routes: [{ name: "Settings" }, { name: "SettingsEnvironments" }],
+            },
+          },
+        ],
+      },
     });
-    return () => {
-      cancelled = true;
-    };
-  }, [captureOrientation, orientationSettled]);
+  } else {
+    routes.push({ name: "Thread", params });
+    if (scene === "terminal") {
+      routes.push({ name: "ThreadTerminal", params: { ...params, terminalId: "term-1" } });
+    } else if (scene === "review") {
+      routes.push({ name: "ThreadReview", params });
+    }
+  }
+  return CommonActions.reset({ index: routes.length - 1, routes });
+}
 
-  useEffect(() => {
-    const readRequestedScene = () => {
-      const value = getNativeShowcaseScene();
-      if (!value || requestedSceneRef.current === value) return;
-      requestedSceneRef.current = value;
+/**
+ * Drives a showcase capture: pairs servers, seeds the fixture, applies theme and
+ * orientation, and navigates to each scene the native harness requests. Inputs
+ * are read from their stores on each step, so nothing depends on render timing.
+ */
+export function installShowcaseCapture(
+  pathnameFromState: (state: NavigationState) => string,
+): () => void {
+  if (!SHOWCASE_ENABLED) return () => {};
+
+  let disposed = false;
+  let launchRequestRead = false;
+  let requestedTheme: MobileThemeId | null = null;
+  let requestedScene: ShowcaseScene | null = null;
+  let pendingTasks: "unseeded" | "seeding" | "seeded" = "unseeded";
+  let lastNavigation: ShowcaseNavigationTarget | null = null;
+  let readiness: { key: string; cancel: () => void } | null = null;
+  const isCancelled = () => disposed;
+
+  const devMenu = requireOptionalNativeModule<{
+    closeMenu(): void;
+    setToolsButtonVisible(visible: boolean): void;
+  }>("ExpoDevMenu");
+  // The dev menu can open after bundle loading and block orientation requests.
+  const devMenuTimer = setInterval(() => {
+    devMenu?.closeMenu();
+    devMenu?.setToolsButtonVisible(false);
+  }, 1_000);
+
+  const orientation = getNativeShowcaseOrientation();
+  let orientationSettled = orientation === null;
+  if (orientation !== null) {
+    void retryShowcaseOperation(async () => applyNativeShowcaseOrientation(orientation), {
+      isCancelled,
+    }).then((applied) => {
+      if (!applied) return;
+      orientationSettled = true;
+      evaluate();
+    });
+  }
+
+  const pair = (pairingUrls: ReadonlyArray<string>) => {
+    for (const pairingUrl of pairingUrls) {
+      void retryShowcaseOperation(
+        async () =>
+          AsyncResult.isSuccess(
+            await runAtomCommand(
+              appAtomRegistry,
+              connectPairingUrl,
+              { pairingUrl },
+              { reportFailure: false },
+            ),
+          ),
+        { isCancelled },
+      );
+    }
+  };
+
+  const readNativeRequests = () => {
+    if (!launchRequestRead) {
+      const pairingUrls = getNativeShowcasePairingUrls();
+      if (pairingUrls.length > 0) {
+        launchRequestRead = true;
+        requestedTheme = getNativeShowcaseTheme();
+        pair(pairingUrls);
+      }
+    }
+    const scene = getNativeShowcaseScene();
+    if (scene && scene !== requestedScene) {
+      requestedScene = scene;
       // A native draw belongs only to the scene request that produced it. In
       // particular, revisiting review must wait for its newly mounted surface.
       clearShowcaseRenderSignal();
-      setRequestedScene(value);
-    };
-    readRequestedScene();
-    const interval = setInterval(readRequestedScene, 250);
-    return () => clearInterval(interval);
-  }, []);
+    }
+  };
 
-  const themeApplied =
-    appearancePreferencesReady &&
-    themeMode === "system" &&
-    (requestedTheme === null ? themeRequestSettled : themeId === requestedTheme);
+  const seedPendingTasks = () => {
+    const tasks = buildShowcasePendingTasks(
+      appAtomRegistry.get(environmentProjects.projectsAtom),
+      Date.now(),
+    );
+    if (tasks.length !== SHOWCASE_PENDING_TASK_DEFINITIONS.length) return;
+    pendingTasks = "seeding";
+    for (const task of tasks) holdEditingQueuedMessage(task.messageId);
+    void Promise.all(
+      tasks.map((task) =>
+        retryShowcaseOperation(
+          async () => {
+            await enqueueThreadOutboxMessage(task);
+            return true;
+          },
+          { isCancelled },
+        ),
+      ),
+    ).then((results) => {
+      if (!results.every(Boolean)) return;
+      pendingTasks = "seeded";
+      evaluate();
+    });
+  };
 
-  useEffect(() => {
-    if (!themeRequestSettled || themeApplied || !appearancePreferencesReady) {
+  const updateReadiness = (key: string | null, scene: ShowcaseScene | null) => {
+    if (readiness?.key === key) return;
+    readiness?.cancel();
+    readiness = null;
+    if (key === null || scene === null) {
+      setReadyScene(null);
       return;
     }
-    if (themeMode !== "system") {
-      setThemeMode("system");
-      return;
-    }
-    if (requestedTheme !== null) setThemeIdForBothAppearances(requestedTheme);
-  }, [
-    appearancePreferencesReady,
-    requestedTheme,
-    setThemeIdForBothAppearances,
-    setThemeMode,
-    themeApplied,
-    themeMode,
-    themeRequestSettled,
-  ]);
-
-  useEffect(() => {
-    if (pairingUrls.length === 0) return;
-    let cancelled = false;
-    void (async () => {
-      await Promise.all(
-        pairingUrls.map(async (pairingUrl) => {
-          if (cancelled || attemptedPairingRef.current.has(pairingUrl)) return;
-          const paired = await retryShowcaseOperation(
-            async () => AsyncResult.isSuccess(await connectPairingUrl(pairingUrl)),
-            { isCancelled: () => cancelled },
-          );
-          if (paired) attemptedPairingRef.current.add(pairingUrl);
-        }),
-      );
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [connectPairingUrl, pairingUrls]);
-
-  const scene = sceneFromPathname(props.pathname);
-  const hasServerFixture =
-    workspace.state.hasReadyEnvironment &&
-    workspace.environments.length >= 3 &&
-    projects.length >= 3 &&
-    threads.some((thread) => String(thread.id) === SHOWCASE_THREAD_ID);
-  const hasFixture = hasServerFixture && pendingTasksReady;
-  const showcaseThread = threads.find((thread) => String(thread.id) === SHOWCASE_THREAD_ID);
-
-  useEffect(() => {
-    if (!hasServerFixture || pendingTasksReady) return;
-
-    const pendingTasks = buildShowcasePendingTasks(projects, Date.now());
-    if (pendingTasks.length !== SHOWCASE_PENDING_TASK_DEFINITIONS.length) return;
-
-    let cancelled = false;
-    for (const task of pendingTasks) holdEditingQueuedMessage(task.messageId);
-    void (async () => {
-      const results = await Promise.all(
-        pendingTasks.map(async (task) => {
-          const messageId = String(task.messageId);
-          if (seededPendingTaskIdsRef.current.has(messageId)) return true;
-          const seeded = await retryShowcaseOperation(
-            async () => {
-              await enqueueThreadOutboxMessage(task);
-              return true;
-            },
-            { isCancelled: () => cancelled },
-          );
-          if (seeded) seededPendingTaskIdsRef.current.add(messageId);
-          return seeded;
-        }),
-      );
-      if (!cancelled && results.every(Boolean)) setPendingTasksReady(true);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [hasServerFixture, pendingTasksReady, projects]);
-
-  useEffect(() => {
-    if (requestedScene === null || !hasFixture || !showcaseThread) return;
-    if (scene === requestedScene) return;
-
-    const params = {
-      environmentId: String(showcaseThread.environmentId),
-      threadId: SHOWCASE_THREAD_ID,
-    };
-    if (requestedScene === "threads") {
-      navigation.dispatch(StackActions.popToTop());
-      return;
-    }
-    const routes: ShowcaseResetRoute[] = [{ name: "Home" }];
-    if (requestedScene === "environments") {
-      routes.push({
-        name: "SettingsSheet",
-        state: {
-          index: 0,
-          routes: [
-            {
-              name: "SettingsContent",
-              state: {
-                index: 1,
-                routes: [{ name: "Settings" }, { name: "SettingsEnvironments" }],
-              },
-            },
-          ],
-        },
-      });
-    } else {
-      routes.push({ name: "Thread", params });
-      if (requestedScene === "terminal") {
-        routes.push({
-          name: "ThreadTerminal",
-          params: { ...params, terminalId: "term-1" },
+    if (scene === "terminal") Keyboard.dismiss();
+    let frame: number | null = null;
+    // Two frames after the settle delay so the scene has been drawn, not just committed.
+    const settleTimer = setTimeout(() => {
+      frame = requestAnimationFrame(() => {
+        frame = requestAnimationFrame(() => {
+          frame = null;
+          markNativeShowcaseReady(scene);
+          setReadyScene(scene);
         });
-      } else if (requestedScene === "review") {
-        routes.push({ name: "ThreadReview", params });
+      });
+    }, READY_SETTLE_MS);
+    readiness = {
+      key,
+      cancel: () => {
+        clearTimeout(settleTimer);
+        if (frame !== null) cancelAnimationFrame(frame);
+      },
+    };
+  };
+
+  const step = () => {
+    readNativeRequests();
+
+    const preferences = appAtomRegistry.get(mobilePreferencesAtom);
+    const storedPreferences = AsyncResult.isSuccess(preferences) ? preferences.value : null;
+    const themeMode = normalizeMobileThemeMode(storedPreferences?.themeMode);
+    const themeIds = resolveMobileThemeIds(storedPreferences ?? {});
+    const themeId = themeIds[resolveThemeAppearance(storedPreferences)];
+    const themeApplied = isShowcaseThemeApplied({
+      preferencesReady: storedPreferences !== null,
+      launchRequestRead,
+      requestedTheme,
+      themeMode,
+      themeId,
+    });
+    // The write patches preferences optimistically, so the step it triggers sees
+    // it. A failed save rolls the patch back, and the next step writes again.
+    const themePatch =
+      launchRequestRead && storedPreferences
+        ? showcaseThemePatch({ themeMode, themeIds, requestedTheme })
+        : null;
+    if (themePatch) appAtomRegistry.set(updateMobilePreferencesAtom, themePatch);
+
+    const projects = appAtomRegistry.get(environmentProjects.projectsAtom);
+    const threads = appAtomRegistry.get(environmentThreadShells.threadShellsAtom);
+    const showcaseThread = threads.find((thread) => String(thread.id) === SHOWCASE_THREAD_ID);
+    const hasServerFixture =
+      appAtomRegistry.get(workspaceConnections.stateAtom).hasReadyEnvironment &&
+      appAtomRegistry.get(workspaceConnections.environmentsAtom).length >= 3 &&
+      projects.length >= 3 &&
+      showcaseThread !== undefined;
+    if (hasServerFixture && pendingTasks === "unseeded") seedPendingTasks();
+    const hasFixture = hasServerFixture && pendingTasks === "seeded";
+
+    const rootState = rootNavigationRef.isReady() ? rootNavigationRef.getRootState() : undefined;
+    const scene = rootState ? showcaseSceneOnScreen(pathnameFromState(rootState)) : null;
+
+    if (requestedScene !== null && hasFixture && showcaseThread && rootState) {
+      const navigation = { requestedScene, scene, thread: showcaseThread };
+      // Arriving forgets the target, so leaving the scene again navigates back.
+      if (scene === requestedScene) {
+        lastNavigation = null;
+      } else if (shouldNavigateToShowcaseScene(lastNavigation, navigation)) {
+        lastNavigation = navigation;
+        rootNavigationRef.dispatch({
+          ...showcaseNavigationAction(requestedScene, String(showcaseThread.environmentId)),
+          target: rootState.key,
+        });
       }
     }
-    navigation.dispatch(
-      CommonActions.reset({
-        index: routes.length - 1,
-        routes,
+
+    const render = getShowcaseRenderSnapshot();
+    updateReadiness(
+      showcaseReadinessKey({
+        scene,
+        requestedScene,
+        hasFixture,
+        orientationSettled,
+        themeApplied,
+        themeId,
+        renderSignal: render.signal,
+        renderReports: render.reports,
       }),
-    );
-  }, [hasFixture, navigation, requestedScene, scene, showcaseThread]);
-
-  const settledScene = settledShowcaseScene({
-    scene,
-    requestedScene,
-    hasFixture,
-    orientationSettled,
-    themeApplied,
-    themeId,
-    renderSignal,
-  });
-  if (settledScene === null && readyScene !== null) setReadyScene(null);
-
-  useEffect(() => {
-    const target = settledShowcaseScene({
       scene,
-      requestedScene,
-      hasFixture,
-      orientationSettled,
-      themeApplied,
-      themeId,
-      renderSignal,
-    });
-    if (target === null) return;
-    if (target === "terminal") Keyboard.dismiss();
+    );
+  };
 
-    let renderFrame: number | null = null;
-    let readyFrame: number | null = null;
-    const settleTimer = setTimeout(() => {
-      renderFrame = requestAnimationFrame(() => {
-        readyFrame = requestAnimationFrame(() => {
-          markNativeShowcaseReady(target);
-          setReadyScene(target);
-        });
-      });
-    }, 500);
-    return () => {
-      clearTimeout(settleTimer);
-      if (renderFrame !== null) cancelAnimationFrame(renderFrame);
-      if (readyFrame !== null) cancelAnimationFrame(readyFrame);
-    };
-  }, [hasFixture, orientationSettled, renderSignal, requestedScene, scene, themeApplied, themeId]);
+  // Steps write atoms they also observe; a nested change reruns the step once
+  // the current one finishes instead of interleaving with it.
+  let stepping = false;
+  let stepAgain = false;
+  function evaluate() {
+    if (disposed) return;
+    if (stepping) {
+      stepAgain = true;
+      return;
+    }
+    stepping = true;
+    try {
+      do {
+        stepAgain = false;
+        step();
+      } while (stepAgain);
+    } finally {
+      stepping = false;
+    }
+  }
 
-  if (readyScene === null) return null;
+  const unsubscribers = [
+    appAtomRegistry.subscribe(mobilePreferencesAtom, evaluate),
+    appAtomRegistry.subscribe(environmentProjects.projectsAtom, evaluate),
+    appAtomRegistry.subscribe(environmentThreadShells.threadShellsAtom, evaluate),
+    appAtomRegistry.subscribe(workspaceConnections.stateAtom, evaluate),
+    appAtomRegistry.subscribe(workspaceConnections.environmentsAtom, evaluate),
+    subscribeToShowcaseRenderSignal(evaluate),
+    rootNavigationRef.addListener("state", evaluate),
+  ];
+  const appearanceSubscription = Appearance.addChangeListener(evaluate);
+  const pollTimer = setInterval(evaluate, NATIVE_POLL_MS);
+  evaluate();
 
+  return () => {
+    disposed = true;
+    clearInterval(devMenuTimer);
+    clearInterval(pollTimer);
+    appearanceSubscription.remove();
+    for (const unsubscribe of unsubscribers) unsubscribe();
+    readiness?.cancel();
+    readiness = null;
+    setReadyScene(null);
+  };
+}
+
+/** The capture harness waits for this marker before taking a screenshot. */
+export function ShowcaseReadyMarker() {
+  const scene = useSyncExternalStore(subscribeToReadyScene, getReadyScene, getReadyScene);
+  if (scene === null) return null;
   return (
     <View
       pointerEvents="none"
-      testID={`showcase-ready-${readyScene}`}
+      testID={`showcase-ready-${scene}`}
       style={{ position: "absolute", width: 1, height: 1, opacity: 0.01 }}
     />
   );

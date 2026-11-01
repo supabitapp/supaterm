@@ -1,3 +1,4 @@
+import { isCommitSha } from "@supaterm/source-control-core/server/pullRequestUtils";
 import * as Cache from "effect/Cache";
 import * as Context from "effect/Context";
 import * as Duration from "effect/Duration";
@@ -131,6 +132,9 @@ const DIFF_MAX_BYTES = 8 * 1024 * 1024;
  */
 const REVISION_PATCH_TTL = Duration.seconds(5);
 const REVISION_PATCH_CAPACITY = 16;
+const encodeRevisionKey = Schema.encodeSync(
+  Schema.fromJsonString(Schema.Tuple([Schema.String, Schema.Number])),
+);
 export interface BitbucketPullRequestBatch {
   readonly items: ReadonlyArray<BitbucketPullRequest>;
   readonly truncated: boolean;
@@ -147,6 +151,9 @@ export class BitbucketPullRequestApi extends Context.Service<
       readonly limit: number;
       readonly query?: string | undefined;
       readonly cursor?: ProviderListCursor | undefined;
+      /** Matched against the login a row shows, which is the nickname or else the display name. */
+      readonly author?: string | undefined;
+      readonly draft?: boolean | undefined;
     }) => Effect.Effect<BitbucketPullRequestBatch, BitbucketPullRequestApiError>;
 
     readonly getPullRequest: (input: {
@@ -299,10 +306,6 @@ function repositoryPathOf(segments: { readonly workspace: string; readonly slug:
   )}`;
 }
 
-function isCommitSha(value: string): boolean {
-  return /^[0-9a-f]{7,64}$/i.test(value);
-}
-
 /**
  * Bitbucket unions repeated `state` parameters, so a tab that spans several of its states asks
  * for each.
@@ -327,6 +330,11 @@ function stateParams(state: PullRequestListState): ReadonlyArray<string> {
 function searchFilter(query: string): string {
   const literal = filterLiteral(query);
   return `(title ~ "${literal}" OR description ~ "${literal}")`;
+}
+
+function authorFilter(login: string): string {
+  const literal = filterLiteral(login);
+  return `(author.nickname = "${literal}" OR author.display_name = "${literal}")`;
 }
 
 /**
@@ -361,7 +369,7 @@ function bitbucketReviewPosition(
   }
 }
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const bitbucket = yield* BitbucketApi.BitbucketApi;
 
@@ -544,8 +552,8 @@ export const make = Effect.gen(function* () {
   );
 
   return BitbucketPullRequestApi.of({
-    getViewer: () =>
-      bitbucket.request({ method: "GET", url: "/user" }).pipe(
+    getViewer: Effect.fn("BitbucketPullRequestApi.getViewer")(function () {
+      return bitbucket.request({ method: "GET", url: "/user" }).pipe(
         Effect.flatMap((response): Effect.Effect<string, BitbucketPullRequestApiError> => {
           const decoded = decodeViewerJson(response.body);
           if (!Result.isSuccess(decoded)) {
@@ -557,14 +565,17 @@ export const make = Effect.gen(function* () {
             ? Effect.fail(new BitbucketViewerUnavailableError())
             : Effect.succeed(decoded.success);
         }),
-      ),
+      );
+    }),
 
-    listPullRequests: (input) =>
-      withRepository(input.repository, (path) => {
+    listPullRequests: Effect.fn("BitbucketPullRequestApi.listPullRequests")(function (input) {
+      return withRepository(input.repository, (path) => {
         const search = input.query?.trim() ?? "";
         // Exclude already-sent IDs at the inclusive timestamp before applying the page limit.
         const predicates = [
           ...(search.length === 0 ? [] : [searchFilter(search)]),
+          ...(input.author === undefined ? [] : [authorFilter(input.author)]),
+          ...(input.draft === undefined ? [] : [`draft = ${input.draft}`]),
           ...(input.cursor === undefined ? [] : [`updated_on <= ${input.cursor.updatedBefore}`]),
           ...(input.cursor?.seenAt ?? []).map((number) => `id != ${number}`),
         ];
@@ -579,80 +590,92 @@ export const make = Effect.gen(function* () {
           page: 1,
           collected: [],
         });
-      }),
+      });
+    }),
 
-    getPullRequest: (input) =>
-      withRepository(input.repository, (path) =>
+    getPullRequest: Effect.fn("BitbucketPullRequestApi.getPullRequest")(function (input) {
+      return withRepository(input.repository, (path) =>
         readPage({
           operation: "getPullRequest",
           url: `${path}/pullrequests/${input.number}?fields=%2Bclosed_on`,
           decode: decodePullRequestJson,
         }),
-      ),
+      );
+    }),
 
     // Bitbucket has retired permission endpoints before (CHANGE-2770), and some credentials may
     // not reach `/user` endpoints at all. A 403, 404 or 410 here is read as a permission that
     // could not be learned, the same as an empty page: it grants, and the write itself says why
     // if the account may not do it. Other failures (a bad token, a network fault) still fail.
-    getRepositoryPermission: (input) =>
-      withRepository(input.repository, (_path, workspace, slug) =>
-        readPage({
-          operation: "getRepositoryPermission",
-          url: `/user/workspaces/${encodeURIComponent(workspace)}/permissions/repositories?q=${encodeURIComponent(
-            `repository.full_name="${filterLiteral(`${workspace}/${slug}`)}"`,
-          )}`,
-          decode: decodeRepositoryPermissionJson,
-        }),
-      ).pipe(Effect.catchIf(isRepositoryPermissionUnavailableError, () => Effect.succeed(true))),
+    getRepositoryPermission: Effect.fn("BitbucketPullRequestApi.getRepositoryPermission")(
+      function (input) {
+        return withRepository(input.repository, (_path, workspace, slug) =>
+          readPage({
+            operation: "getRepositoryPermission",
+            url: `/user/workspaces/${encodeURIComponent(workspace)}/permissions/repositories?q=${encodeURIComponent(
+              `repository.full_name="${filterLiteral(`${workspace}/${slug}`)}"`,
+            )}`,
+            decode: decodeRepositoryPermissionJson,
+          }),
+        ).pipe(Effect.catchIf(isRepositoryPermissionUnavailableError, () => Effect.succeed(true)));
+      },
+    ),
 
     getPullRequestDiff: pullRequestDiff,
 
-    getFileRevisions: (input) =>
-      input.paths.length === 0
-        ? Effect.succeed({ revisions: new Map(), complete: false })
-        : Cache.get(revisionPatches, JSON.stringify([input.repository, input.number])).pipe(
-            Effect.map((diff) => {
-              const revisions = new Map(diff.revisions);
-              // A patch cut short at the byte ceiling says nothing about the files past the cut,
-              // so those paths are left out rather than reported as removed.
-              if (!diff.truncated) {
-                for (const path of input.paths) {
-                  if (!revisions.has(path)) revisions.set(path, "");
-                }
-              }
-              return { revisions, complete: !diff.truncated };
-            }),
-          ),
+    getFileRevisions: Effect.fn("BitbucketPullRequestApi.getFileRevisions")(function* (input) {
+      if (input.paths.length === 0)
+        return { revisions: new Map<string, string>(), complete: false };
+      return yield* Cache.get(
+        revisionPatches,
+        encodeRevisionKey([input.repository, input.number]),
+      ).pipe(
+        Effect.map((diff) => {
+          const revisions = new Map(diff.revisions);
+          // A patch cut short at the byte ceiling says nothing about the files past the cut,
+          // so those paths are left out rather than reported as removed.
+          if (!diff.truncated) {
+            for (const path of input.paths) {
+              if (!revisions.has(path)) revisions.set(path, "");
+            }
+          }
+          return { revisions, complete: !diff.truncated };
+        }),
+      );
+    }),
 
-    getDiffStat: (input) =>
-      withRepository(input.repository, (path) =>
+    getDiffStat: Effect.fn("BitbucketPullRequestApi.getDiffStat")(function (input) {
+      return withRepository(input.repository, (path) =>
         diffStatPages({
           url: `${path}/pullrequests/${input.number}/diffstat?pagelen=${MAX_PAGE_SIZE}`,
           totals: { additions: 0, deletions: 0, changedFiles: 0 },
         }),
-      ),
+      );
+    }),
 
-    getMergeability: (input) =>
-      withRepository(input.repository, (path) =>
+    getMergeability: Effect.fn("BitbucketPullRequestApi.getMergeability")(function (input) {
+      return withRepository(input.repository, (path) =>
         readPage({
           operation: "getMergeability",
           url: `${path}/pullrequests/${input.number}/conflicts`,
           decode: decodeConflictsJson,
         }),
-      ),
+      );
+    }),
 
-    listComments: (input) =>
-      withRepository(input.repository, (path) =>
+    listComments: Effect.fn("BitbucketPullRequestApi.listComments")(function (input) {
+      return withRepository(input.repository, (path) =>
         commentsPage({
           url: `${path}/pullrequests/${input.number}/comments?pagelen=${CONVERSATION_PAGE_SIZE}`,
           page: 1,
           comments: [],
           entries: [],
         }),
-      ),
+      );
+    }),
 
-    listCommits: (input) =>
-      withRepository(input.repository, (path) =>
+    listCommits: Effect.fn("BitbucketPullRequestApi.listCommits")(function (input) {
+      return withRepository(input.repository, (path) =>
         itemPages({
           operation: "listCommits",
           url: `${path}/pullrequests/${input.number}/commits?pagelen=${CONVERSATION_PAGE_SIZE}`,
@@ -660,10 +683,11 @@ export const make = Effect.gen(function* () {
           items: [],
           prepend: true,
         }),
-      ),
+      );
+    }),
 
-    listChecks: (input) =>
-      withRepository(input.repository, (path) =>
+    listChecks: Effect.fn("BitbucketPullRequestApi.listChecks")(function (input) {
+      return withRepository(input.repository, (path) =>
         itemPages({
           operation: "listChecks",
           url: `${path}/pullrequests/${input.number}/statuses?pagelen=${CONVERSATION_PAGE_SIZE}`,
@@ -671,44 +695,48 @@ export const make = Effect.gen(function* () {
           items: [],
           prepend: false,
         }).pipe(Effect.map(sortChecks)),
-      ),
+      );
+    }),
 
-    listReviewerCandidates: (input) =>
-      withRepository(input.repository, (path, workspace) =>
-        Effect.all(
-          [
-            readPage({
-              operation: "getPullRequest",
-              url: `${path}/pullrequests/${input.number}`,
-              decode: decodePullRequestJson,
+    listReviewerCandidates: Effect.fn("BitbucketPullRequestApi.listReviewerCandidates")(
+      function (input) {
+        return withRepository(input.repository, (path, workspace) =>
+          Effect.all(
+            [
+              readPage({
+                operation: "getPullRequest",
+                url: `${path}/pullrequests/${input.number}`,
+                decode: decodePullRequestJson,
+              }),
+              readPage({
+                operation: "listReviewerCandidates",
+                url: `/workspaces/${encodeURIComponent(workspace)}/members?pagelen=${MAX_PAGE_SIZE}`,
+                decode: decodeWorkspaceMembersJson,
+              }),
+            ],
+            { concurrency: 2 },
+          ).pipe(
+            Effect.map(([pullRequest, members]) => {
+              const requested = new Set(pullRequest.reviewerIds);
+              const author = pullRequest.author?.login;
+              return {
+                // The author is dropped rather than shown unusable: Bitbucket refuses to make the
+                // person who opened a pull request its reviewer.
+                candidates: members.items.flatMap((candidate) =>
+                  candidate.login === author
+                    ? []
+                    : [{ ...candidate, isRequested: requested.has(candidate.id) }],
+                ),
+                truncated: members.next !== null,
+              };
             }),
-            readPage({
-              operation: "listReviewerCandidates",
-              url: `/workspaces/${encodeURIComponent(workspace)}/members?pagelen=${MAX_PAGE_SIZE}`,
-              decode: decodeWorkspaceMembersJson,
-            }),
-          ],
-          { concurrency: 2 },
-        ).pipe(
-          Effect.map(([pullRequest, members]) => {
-            const requested = new Set(pullRequest.reviewerIds);
-            const author = pullRequest.author?.login;
-            return {
-              // The author is dropped rather than shown unusable: Bitbucket refuses to make the
-              // person who opened a pull request its reviewer.
-              candidates: members.items.flatMap((candidate) =>
-                candidate.login === author
-                  ? []
-                  : [{ ...candidate, isRequested: requested.has(candidate.id) }],
-              ),
-              truncated: members.next !== null,
-            };
-          }),
-        ),
-      ),
+          ),
+        );
+      },
+    ),
 
-    setReviewerRequest: (input) =>
-      withRepository(input.repository, (path) => {
+    setReviewerRequest: Effect.fn("BitbucketPullRequestApi.setReviewerRequest")(function (input) {
+      return withRepository(input.repository, (path) => {
         const pullRequest = `${path}/pullrequests/${input.number}`;
         return readPage({
           operation: "getPullRequest",
@@ -732,10 +760,11 @@ export const make = Effect.gen(function* () {
           }),
           Effect.asVoid,
         );
-      }),
+      });
+    }),
 
-    runAction: (input) =>
-      withRepository(input.repository, (path) => {
+    runAction: Effect.fn("BitbucketPullRequestApi.runAction")(function (input) {
+      return withRepository(input.repository, (path) => {
         const pullRequest = `${path}/pullrequests/${input.number}`;
         if (input.action === "merge") {
           return bitbucket
@@ -749,10 +778,11 @@ export const make = Effect.gen(function* () {
         return bitbucket
           .request({ method: "POST", url: `${pullRequest}/decline` })
           .pipe(Effect.asVoid);
-      }),
+      });
+    }),
 
-    updateChangeRequest: (input) =>
-      withRepository(input.repository, (path) =>
+    updateChangeRequest: Effect.fn("BitbucketPullRequestApi.updateChangeRequest")(function (input) {
+      return withRepository(input.repository, (path) =>
         // Only the words this call rewrites travel in the body: as `setReviewerRequest` above
         // relies on, Bitbucket's PUT is a partial update, so any field left out is left as it
         // was — sending `reviewers` back here would overwrite a change another user made to it
@@ -767,10 +797,11 @@ export const make = Effect.gen(function* () {
             }),
           })
           .pipe(Effect.asVoid),
-      ),
+      );
+    }),
 
-    comment: (input) =>
-      withRepository(input.repository, (path) =>
+    comment: Effect.fn("BitbucketPullRequestApi.comment")(function (input) {
+      return withRepository(input.repository, (path) =>
         bitbucket
           .request({
             method: "POST",
@@ -778,10 +809,11 @@ export const make = Effect.gen(function* () {
             body: JSON.stringify({ content: { raw: input.body } }),
           })
           .pipe(Effect.asVoid),
-      ),
+      );
+    }),
 
-    updateComment: (input) =>
-      withRepository(input.repository, (path) =>
+    updateComment: Effect.fn("BitbucketPullRequestApi.updateComment")(function (input) {
+      return withRepository(input.repository, (path) =>
         bitbucket
           .request({
             method: "PUT",
@@ -791,10 +823,11 @@ export const make = Effect.gen(function* () {
             body: JSON.stringify({ content: { raw: input.body } }),
           })
           .pipe(Effect.asVoid),
-      ),
+      );
+    }),
 
-    submitReview: (input) =>
-      withRepository(input.repository, (path) =>
+    submitReview: Effect.fn("BitbucketPullRequestApi.submitReview")(function (input) {
+      return withRepository(input.repository, (path) =>
         Effect.gen(function* () {
           const pullRequest = `${path}/pullrequests/${input.number}`;
           // Bitbucket has no pending review, so a review is replayed as the requests it is
@@ -831,10 +864,11 @@ export const make = Effect.gen(function* () {
             yield* bitbucket.request({ method: "POST", url: `${pullRequest}/request-changes` });
           }
         }),
-      ),
+      );
+    }),
 
-    replyToComment: (input) =>
-      withRepository(input.repository, (path) =>
+    replyToComment: Effect.fn("BitbucketPullRequestApi.replyToComment")(function (input) {
+      return withRepository(input.repository, (path) =>
         bitbucket
           .request({
             method: "POST",
@@ -845,19 +879,23 @@ export const make = Effect.gen(function* () {
             }),
           })
           .pipe(Effect.asVoid),
-      ),
+      );
+    }),
 
-    setCommentResolution: (input) =>
-      withRepository(input.repository, (path) =>
-        bitbucket
-          .request({
-            method: input.resolved ? "POST" : "DELETE",
-            url: `${path}/pullrequests/${input.number}/comments/${encodeURIComponent(
-              input.commentId,
-            )}/resolve`,
-          })
-          .pipe(Effect.asVoid),
-      ),
+    setCommentResolution: Effect.fn("BitbucketPullRequestApi.setCommentResolution")(
+      function (input) {
+        return withRepository(input.repository, (path) =>
+          bitbucket
+            .request({
+              method: input.resolved ? "POST" : "DELETE",
+              url: `${path}/pullrequests/${input.number}/comments/${encodeURIComponent(
+                input.commentId,
+              )}/resolve`,
+            })
+            .pipe(Effect.asVoid),
+        );
+      },
+    ),
   });
 });
 

@@ -1,3 +1,4 @@
+import { pipe } from "effect/Function";
 import { ChevronsLeftRightIcon, PlusIcon, TerminalIcon } from "@supaterm/icons";
 import { useAtomValue } from "@effect/atom-react";
 import { type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from "react";
@@ -117,6 +118,7 @@ export function AddEnvironmentDialog({
   // The discovery atom is kept alive across dialog opens, so re-read SSH config
   // each time the SSH tab is shown; stale hosts stay visible while it refreshes.
   const refreshDesktopSshHosts = desktopSshHosts.refresh;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- rereads desktop SSH config through the bridge each time the SSH tab is shown
   useEffect(() => {
     if (isSshDiscoveryActive) refreshDesktopSshHosts();
   }, [isSshDiscoveryActive, refreshDesktopSshHosts]);
@@ -147,7 +149,7 @@ export function AddEnvironmentDialog({
     });
     if (result._tag === "Failure") {
       if (!isAtomCommandInterrupted(result)) {
-        onErrorChange(formatDesktopSshConnectionError(squashAtomCommandFailure(result)));
+        pipe(squashAtomCommandFailure(result), formatDesktopSshConnectionError, onErrorChange);
       }
       setIsAddingSavedBackend(false);
       return;

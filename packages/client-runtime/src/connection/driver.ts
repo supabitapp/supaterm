@@ -7,6 +7,7 @@ import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Scope from "effect/Scope";
+import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as HttpClient from "effect/http/HttpClient";
 
 import type { ConnectionCatalogEntry, ConnectionRoute } from "./catalog.ts";
@@ -54,6 +55,8 @@ export interface PreparedRoute {
  * cheap check, so they are "unchecked".
  */
 export type RouteCheck = "answered" | "silent" | "unchecked";
+/** A prepared route, or why there is none: "unprepared" answered its check but failed to prepare. */
+export type RoutePreflight = PreparedRoute | "unprepared" | "silent" | "unchecked";
 
 /** How long a route has to answer before it counts as unreachable from here. */
 export const ROUTE_CHECK_TIMEOUT_MS = 2_500;
@@ -68,6 +71,10 @@ const ROUTE_SETUP_TIMEOUT_MS = 15_000;
  */
 export const ROUTE_SNAPSHOT_TIMEOUT_MS = 75_000;
 const ROUTE_PREFERENCE_WAIT_MS = 250;
+// Preferred routes share one head start, so a fallback does not wait the full
+// check timeout for a LAN the device has already left. A route that misses it
+// connects over a fallback, then upgrades with a later reconnect.
+const ROUTE_CHECK_HEAD_START_MS = 500;
 const PREFLIGHT_VALIDITY_NANOS = 10_000_000_000n;
 
 export class ConnectionDriver extends Context.Service<
@@ -91,7 +98,9 @@ export class ConnectionDriver extends Context.Service<
     readonly preflight: (
       entry: ConnectionCatalogEntry,
       route: ConnectionRoute,
-    ) => Effect.Effect<Option.Option<PreparedRoute>>;
+    ) => Effect.Effect<RoutePreflight>;
+    /** Asks the host behind a live session to answer a fresh request on the session's own origin. */
+    readonly checkHost: (prepared: PreparedConnection) => Effect.Effect<RouteCheck>;
   }
 >()("@supaterm/client-runtime/connection/driver/ConnectionDriver") {}
 
@@ -167,6 +176,7 @@ const selectAndConnect = Effect.fnUntraced(function* <R>(
         )
     ).pipe(
       Effect.andThen(Effect.sleep(ROUTE_PREFERENCE_WAIT_MS)),
+      Effect.timeoutOrElse({ duration: ROUTE_CHECK_HEAD_START_MS, orElse: () => Effect.void }),
       Effect.as(Option.none<RouteCheck>()),
     ),
   );
@@ -244,35 +254,62 @@ const selectAndConnect = Effect.fnUntraced(function* <R>(
   );
 });
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const resolver = yield* ConnectionResolver.ConnectionResolver;
   const sessions = yield* RpcSession.RpcSessionFactory;
   const httpClient = yield* HttpClient.HttpClient;
 
-  const checkRoute = (entry: ConnectionCatalogEntry, route: ConnectionRoute, timeoutMs: number) => {
-    const httpBaseUrl = routeHttpBaseUrl(route);
-    if (httpBaseUrl === null) return Effect.succeed<RouteCheck>("unchecked");
-    // The descriptor is public, so this sends no credential to whatever
-    // answers at a saved LAN address on a different network.
-    return leaseRouteOrigin(route, httpBaseUrl).pipe(
+  // The descriptor is public, so this sends no credential to whatever
+  // answers at a saved LAN address on a different network.
+  const checkDescriptor = <E, R>(
+    httpBaseUrl: Effect.Effect<string, E, R>,
+    environmentId: string,
+    timeoutMs: number,
+  ) =>
+    httpBaseUrl.pipe(
       Effect.flatMap((resolved) =>
         fetchRemoteEnvironmentDescriptor({ httpBaseUrl: resolved, timeoutMs }),
       ),
       Effect.map((descriptor): RouteCheck =>
-        descriptor.environmentId === entry.target.environmentId ? "answered" : "silent",
+        descriptor.environmentId === environmentId ? "answered" : "silent",
       ),
       Effect.timeoutOrElse({
         duration: timeoutMs,
         orElse: () => Effect.succeed<RouteCheck>("silent"),
       }),
       Effect.orElseSucceed((): RouteCheck => "silent"),
+      // A cached descriptor would answer for a host that cannot be reached.
+      Effect.provideService(FetchHttpClient.RequestInit, { cache: "no-store" }),
       Effect.provideService(HttpClient.HttpClient, httpClient),
+    );
+
+  const checkRoute = (entry: ConnectionCatalogEntry, route: ConnectionRoute, timeoutMs: number) => {
+    const httpBaseUrl = routeHttpBaseUrl(route);
+    if (httpBaseUrl === null) return Effect.succeed<RouteCheck>("unchecked");
+    return checkDescriptor(
+      leaseRouteOrigin(route, httpBaseUrl),
+      entry.target.environmentId,
+      timeoutMs,
+    ).pipe(
       Effect.withSpan("ConnectionDriver.checkRoute", {
         attributes: { "connection.target.kind": route.target._tag },
       }),
     );
   };
+
+  // A relay session's httpBaseUrl is already its tunnel's origin, so the request
+  // takes the session's own path to the host.
+  const checkHost = (prepared: PreparedConnection) =>
+    checkDescriptor(
+      Effect.succeed(prepared.httpBaseUrl),
+      prepared.environmentId,
+      ROUTE_CHECK_TIMEOUT_MS,
+    ).pipe(
+      Effect.withSpan("ConnectionDriver.checkHost", {
+        attributes: { "connection.target.kind": prepared.target._tag },
+      }),
+    );
 
   const connect = Effect.fn("ConnectionDriver.connect")(function* (
     entry: ConnectionCatalogEntry,
@@ -319,14 +356,14 @@ export const make = Effect.gen(function* () {
       ? Effect.succeed("silent" as const)
       : checkRoute(entry, route, ROUTE_CHECK_TIMEOUT_MS)
     ).pipe(
-      Effect.flatMap((check) =>
-        check === "answered"
-          ? Effect.gen(function* () {
-              const expiresAtNanos = (yield* Clock.monotonicTimeNanos) + PREFLIGHT_VALIDITY_NANOS;
-              const prepared = yield* resolver.prepare(routeEntry(entry, route));
-              return Option.some({ route, prepared, expiresAtNanos });
-            }).pipe(Effect.orElseSucceed(() => Option.none<PreparedRoute>()))
-          : Effect.succeedNone,
+      Effect.filterOrElse(
+        (check): check is Exclude<RouteCheck, "answered"> => check !== "answered",
+        () =>
+          Effect.gen(function* () {
+            const expiresAtNanos = (yield* Clock.monotonicTimeNanos) + PREFLIGHT_VALIDITY_NANOS;
+            const prepared = yield* resolver.prepare(routeEntry(entry, route));
+            return { route, prepared, expiresAtNanos } satisfies PreparedRoute;
+          }).pipe(Effect.orElseSucceed((): RoutePreflight => "unprepared")),
       ),
       Effect.scoped,
       Effect.withSpan("ConnectionDriver.preflight"),
@@ -334,8 +371,11 @@ export const make = Effect.gen(function* () {
 
   return ConnectionDriver.of({
     connect,
-    checkRoute: (entry, route) => Effect.scoped(checkRoute(entry, route, ROUTE_CHECK_TIMEOUT_MS)),
+    checkRoute: Effect.fn("ConnectionDriver.checkRoute")(function (entry, route) {
+      return Effect.scoped(checkRoute(entry, route, ROUTE_CHECK_TIMEOUT_MS));
+    }),
     preflight,
+    checkHost,
   });
 });
 

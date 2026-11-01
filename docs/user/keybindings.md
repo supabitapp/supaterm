@@ -5,7 +5,7 @@ also lists the command IDs and defaults available in your version.
 
 ## Composer controls
 
-In **Settings → General → Send shortcut**, choose whether Enter sends, requires
+In **Settings → Chat → Send shortcut**, choose whether Enter sends, requires
 `mod+Enter` for multiline prompts, or always requires `mod+Enter`. `Shift+Enter`
 inserts a new line. This applies to the web and desktop composer at desktop widths.
 
@@ -52,8 +52,10 @@ in Settings.
 
 With a PR open in the right panel or on the Pull Requests page, use `mod+shift+c`
 to copy its URL and `mod+shift+k` to copy its number with a `#` prefix.
-Both shortcuts can be changed in Settings. Search for “Copy Link or Thread ID”
+Both shortcuts can be changed in Settings. Search for “Copy Link or Thread”
 or “Copy Number”. They copy the selected PR and leave terminal input alone.
+Without a PR, `mod+shift+c` copies the thread itself, which pastes into a
+composer as a thread chip.
 
 ## Find in a diff
 
@@ -193,7 +195,7 @@ with `mod+w` once its right panel is closed. `pane.splitRight` and
 
 In the desktop app, `mod+w` closes the focused terminal or the active right-panel
 tab, then the focused pane when threads are side by side. When nothing remains to
-close, it closes the window. In a browser, `mod+w`
+close, it does nothing; it never closes the window. In a browser, `mod+w`
 closes the browser tab; rebind `rightPanel.close` and `terminal.close` to an available
 shortcut such as `alt+w`.
 

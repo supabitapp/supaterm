@@ -5,7 +5,7 @@ import {
   type PullRequestDetail,
   type PullRequestRef,
 } from "@supaterm/contracts";
-import { parseChangeRequestUrl } from "@supaterm/shared/changeRequestUrl";
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { Atom } from "effect/reactivity";
 import * as Schema from "effect/Schema";
 import { allowsSinglePullRequestMerge } from "../components/pullRequest/pullRequestDetail.logic";
@@ -19,8 +19,7 @@ import { environmentThreadShells } from "./threads";
 
 const sameLinks = Schema.toEquivalence(Schema.Array(ThreadPullRequestLink));
 
-// A shell update re-sends a thread's links as a new array, so equal links keep
-// the previous list and a streaming thread does not re-render the stack.
+// Shell pushes recreate link arrays; reuse equal lists so streaming does not re-render the stack.
 const environmentPullRequestLinksAtom = Atom.family((environmentId: EnvironmentId) => {
   let previous: ReadonlyArray<ThreadPullRequestLink> = [];
   return Atom.make((get) => {
@@ -51,7 +50,10 @@ function pullRequestStackReference(
 ) {
   return detail === null || reference === null || detail.capabilities.stacks !== true
     ? null
-    : { ...reference, host: reference.host ?? parseChangeRequestUrl(detail.url)?.host };
+    : {
+        ...reference,
+        host: reference.host ?? sourceControlClients.parseChangeRequestUrl(detail.url)?.link.host,
+      };
 }
 
 /** A pull request in a native stack merges with its stack, never on its own. */

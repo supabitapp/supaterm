@@ -10,6 +10,7 @@ import {
 import * as Effect from "effect/Effect";
 import { modelSelectionCommandType } from "@supaterm/shared/model";
 
+import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import * as McpToolAccess from "../../McpToolAccess.ts";
 import {
   dispatchFailure,
@@ -92,9 +93,15 @@ export const layer = McpToolAccess.toLayer(ThreadToolkit, {
       const { task, threadId } = yield* scheduler
         .runNow({ id: input.taskId })
         .pipe(Effect.mapError(unavailable));
+      const scope = yield* McpInvocationContext.McpInvocationContext;
       return {
         taskId: task.id,
         threadId,
+        ...(threadId === null
+          ? {}
+          : {
+              link: McpInvocationContext.threadLinkFor(scope, threadId),
+            }),
         lastRunStatus: task.lastRunStatus,
         runCount: task.runCount,
         nextRunAt: task.nextRunAt,
@@ -104,15 +111,16 @@ export const layer = McpToolAccess.toLayer(ThreadToolkit, {
   supaterm_thread_search: McpToolAccess.reads((input) =>
     Effect.gen(function* () {
       const { caller } = yield* readCaller();
-      const { projectId: requested, ...query } = input;
-      const projectId = requested ?? caller?.projectId;
+      const scope = yield* McpInvocationContext.McpInvocationContext;
       const threadSearch = yield* ThreadSearch.ThreadSearch;
-      const result = yield* threadSearch.search(query).pipe(Effect.mapError(unavailable));
+      const { matches } = yield* threadSearch
+        .searchThreads({ ...input, projectId: input.projectId ?? caller?.projectId })
+        .pipe(Effect.mapError(unavailable));
       return {
-        matches:
-          projectId === undefined
-            ? result.matches
-            : result.matches.filter((match) => match.projectId === projectId),
+        matches: matches.map((match) => ({
+          ...match,
+          link: McpInvocationContext.threadLinkFor(scope, match.threadId),
+        })),
       };
     }),
   ),

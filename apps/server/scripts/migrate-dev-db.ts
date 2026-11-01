@@ -17,6 +17,7 @@ import * as SqlClient from "effect/sql/SqlClient";
 import { Command, Flag } from "effect/cli";
 
 import * as ProjectionStore from "../src/orchestration-v2/ProjectionStore.ts";
+import { rebuildMessageSearch } from "../src/orchestration-v2/messageSearchIndex.ts";
 import { runMigrations } from "../src/persistence/Migrations.ts";
 import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 
@@ -226,9 +227,12 @@ const copySourceSlice = Effect.fn("copyDevDbSourceSlice")(function* (sourcePath:
       (row) => row.name,
     ),
   );
+  // Virtual tables and their shadow tables are left out: FTS5 owns those rows,
+  // and the message search index is rebuilt in the compacted copy.
   const tables = (yield* sql<{ name: string }>`
-    SELECT name FROM main.sqlite_master
-    WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name <> 'effect_sql_migrations'`)
+    SELECT name FROM pragma_table_list()
+    WHERE schema = 'main' AND type = 'table'
+      AND name NOT LIKE 'sqlite_%' AND name <> 'effect_sql_migrations'`)
     .map((row) => row.name)
     .filter((name) => sourceTables.has(name) && !CLEARED_TABLES.includes(name));
   const filtered = sourceTables.has("orchestration_v2_projection_threads");
@@ -510,6 +514,8 @@ export const runMigrateDevDb = Effect.fn("runMigrateDevDb")(function* (
     const sql = yield* SqlClient.SqlClient;
     // WAL does not survive VACUUM INTO; turn it back on like server boot does.
     yield* sql.unsafe("PRAGMA journal_mode = WAL").unprepared;
+    // The search index is keyed by message rowid, which VACUUM INTO may renumber.
+    yield* rebuildMessageSearch(sql);
   }).pipe(
     Effect.provide(NodeSqliteClient.layer({ filename: databasePath })),
     wrapPhase("compact", databasePath),

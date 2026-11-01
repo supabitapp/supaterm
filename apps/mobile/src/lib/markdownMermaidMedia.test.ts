@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
+import { markdownForNativeRendering } from "./markdownDocument";
 import { markdownMermaidMedia } from "./markdownMermaidMedia";
 
 describe("markdownMermaidMedia", () => {
@@ -6,6 +7,17 @@ describe("markdownMermaidMedia", () => {
     const result = markdownMermaidMedia("Before\n\n```mermaid\ngraph LR\nA --> B\n```\n\nAfter");
     expect(result.markdown).toBe("Before\n\n![Mermaid](<supaterm-mermaid://block/0>)\n\nAfter");
     expect([...result.sources.values()]).toEqual(["graph LR\nA --> B"]);
+  });
+
+  it("finds diagrams after an escaped Windows destination", () => {
+    const native = markdownForNativeRendering(
+      "![shot](C:\\work\\.supaterm\\shot.png)\n\n```mermaid\ngraph LR\nA --> B\n```",
+      /$^/,
+    );
+    const result = markdownMermaidMedia(native);
+    expect(result.markdown).toBe(
+      "![shot](<C:\\\\work\\\\.supaterm\\\\shot.png>)\n\n![Mermaid](<supaterm-mermaid://block/0>)",
+    );
   });
 
   it.each([

@@ -14,9 +14,8 @@ import * as Schema from "effect/Schema";
 
 const execFile = NodeUtil.promisify(NodeChildProcess.execFile);
 
-export const SHOWCASE_PROJECT_ID = "supaterm";
-export const SHOWCASE_THREAD_ID = "offline-reason";
-export const SHOWCASE_TERMINAL_ID = "term-1";
+const SHOWCASE_PROJECT_ID = "supaterm";
+const SHOWCASE_THREAD_ID = "offline-reason";
 
 export const SHOWCASE_SCENES = ["threads", "thread", "terminal", "review", "environments"] as const;
 export type ShowcaseScene = (typeof SHOWCASE_SCENES)[number];
@@ -42,7 +41,7 @@ const PROJECT_SCRIPTS = JSON.stringify([
 const SHOWCASE_TERMINAL_PROMPT =
   "\u001b[1;36m~/supaterm\u001b[0m \u001b[1;34mfeat/offline-reason\u001b[0m \u001b[1;33m❯\u001b[0m ";
 
-export const SHOWCASE_TERMINAL_BUFFER = [
+const SHOWCASE_TERMINAL_BUFFER = [
   `${SHOWCASE_TERMINAL_PROMPT}vp test`,
   "",
   "  \u001b[1;32m✓ offlineReason.test.ts\u001b[0m (9 tests) \u001b[2m14ms\u001b[0m",
@@ -334,8 +333,8 @@ async function seedCompanionWorkspace(input: {
   });
 }
 
-function encodePayload(schema: Schema.Codec<unknown, unknown>, payload: object): string {
-  Schema.decodeUnknownSync(schema)(payload);
+function encodePayload<A, I extends object>(schema: Schema.Codec<A, I>, payload: I): string {
+  Schema.decodeSync(schema)(payload);
   return JSON.stringify(payload);
 }
 

@@ -90,6 +90,7 @@ function LinkPullRequestDialog({
     }
   }
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- focuses the reference input on the frame after the dialog opens and cancels the frame on close
   useEffect(() => {
     if (!open) return;
     const frame = window.requestAnimationFrame(() => inputRef.current?.focus());

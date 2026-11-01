@@ -31,6 +31,14 @@
       "types": "./src/previewZoom.ts",
       "default": "./src/previewZoom.ts"
     },
+    "./zip/bounded-zip": {
+      "types": "./src/zip/boundedZip.ts",
+      "default": "./src/zip/boundedZip.ts"
+    },
+    "./zip/directory": {
+      "types": "./src/zip/zipDirectory.ts",
+      "default": "./src/zip/zipDirectory.ts"
+    },
     "./workspace-basename-lookup": {
       "types": "./src/workspaceBasenameLookup.ts",
       "default": "./src/workspaceBasenameLookup.ts"
@@ -170,6 +178,14 @@
     "./text-paste": {
       "types": "./src/textPaste.ts",
       "default": "./src/textPaste.ts"
+    },
+    "./queued-run-edit": {
+      "types": "./src/queuedRunEdit.ts",
+      "default": "./src/queuedRunEdit.ts"
+    },
+    "./clock": {
+      "types": "./src/clock.ts",
+      "default": "./src/clock.ts"
     },
     "./delayed-status": {
       "types": "./src/delayedStatus.ts",
@@ -331,6 +347,10 @@
       "types": "./src/state/threadExecution.ts",
       "default": "./src/state/threadExecution.ts"
     },
+    "./state/pending-user-input": {
+      "types": "./src/state/pendingUserInput.ts",
+      "default": "./src/state/pendingUserInput.ts"
+    },
     "./state/thread-requests": {
       "types": "./src/state/threadRequests.ts",
       "default": "./src/state/threadRequests.ts"
@@ -358,6 +378,10 @@
     "./state/thread-search": {
       "types": "./src/state/threadSearch.ts",
       "default": "./src/state/threadSearch.ts"
+    },
+    "./state/thread-visits": {
+      "types": "./src/state/threadVisits.ts",
+      "default": "./src/state/threadVisits.ts"
     },
     "./state/turn-item-presentation": {
       "types": "./src/state/turnItemPresentation.ts",
@@ -394,6 +418,22 @@
     "./pull-request-link-input": {
       "types": "./src/pullRequestLinkInput.ts",
       "default": "./src/pullRequestLinkInput.ts"
+    },
+    "./change-request-links": {
+      "types": "./src/changeRequestLinks.ts",
+      "default": "./src/changeRequestLinks.ts"
+    },
+    "./thread-pull-requests": {
+      "types": "./src/threadPullRequests.ts",
+      "default": "./src/threadPullRequests.ts"
+    },
+    "./thread-reference": {
+      "types": "./src/threadReference.ts",
+      "default": "./src/threadReference.ts"
+    },
+    "./pull-request-project-filter": {
+      "types": "./src/pullRequestProjectFilter.ts",
+      "default": "./src/pullRequestProjectFilter.ts"
     },
     "./file-preview": {
       "types": "./src/filePreview.ts",
@@ -483,9 +523,25 @@
       "types": "./src/pullRequestMarkdown.ts",
       "default": "./src/pullRequestMarkdown.ts"
     },
+    "./pull-request-checks": {
+      "types": "./src/pullRequestChecks.ts",
+      "default": "./src/pullRequestChecks.ts"
+    },
+    "./pull-request-editing": {
+      "types": "./src/pullRequestEditing.ts",
+      "default": "./src/pullRequestEditing.ts"
+    },
+    "./pull-request-reactions": {
+      "types": "./src/pullRequestReactions.ts",
+      "default": "./src/pullRequestReactions.ts"
+    },
     "./pull-request-query": {
       "types": "./src/pullRequestQuery.ts",
       "default": "./src/pullRequestQuery.ts"
+    },
+    "./provider-clients": {
+      "types": "./src/providerClients.ts",
+      "default": "./src/providerClients.ts"
     }
   },
   "scripts": {
@@ -496,15 +552,19 @@
     "@pierre/diffs": "catalog:",
     "@supaterm/contracts": "workspace:*",
     "@supaterm/mermaid": "workspace:*",
+    "@supaterm/provider-acp-registry": "workspace:*",
+    "@supaterm/provider-core": "workspace:*",
+    "@supaterm/provider-cursor": "workspace:*",
+    "@supaterm/provider-fx": "workspace:*",
+    "@supaterm/provider-grok": "workspace:*",
+    "@supaterm/provider-muse": "workspace:*",
+    "@supaterm/provider-opencode": "workspace:*",
+    "@supaterm/provider-pi": "workspace:*",
     "@supaterm/shared": "workspace:*",
-    "@supaterm/source-control-azure-devops": "workspace:*",
-    "@supaterm/source-control-bitbucket": "workspace:*",
     "@supaterm/source-control-core": "workspace:*",
-    "@supaterm/source-control-forgejo": "workspace:*",
-    "@supaterm/source-control-gitcafe": "workspace:*",
-    "@supaterm/source-control-github": "workspace:*",
-    "@supaterm/source-control-gitlab": "workspace:*",
+    "@supaterm/source-control-definitions": "workspace:*",
     "effect": "catalog:",
+    "jszip": "3.10.1",
     "three": "0.180.0"
   },
   "devDependencies": {

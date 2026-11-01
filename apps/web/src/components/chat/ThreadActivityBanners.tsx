@@ -8,10 +8,20 @@ import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shel
 import {
   presentPendingBackgroundWork,
   presentProviderGoal,
+  type RunStopPresentation,
 } from "@supaterm/client-runtime/state/thread-execution";
 import { childThreadInputsTitle } from "@supaterm/client-runtime/state/threads";
-import { GitBranchIcon, MessageCircleIcon, ShieldAlertIcon, TargetIcon } from "@supaterm/icons";
+import { formatDuration } from "@supaterm/shared/orchestrationTiming";
+import {
+  GitBranchIcon,
+  MessageCircleIcon,
+  ShieldAlertIcon,
+  StopFilledIcon,
+  TargetIcon,
+  TriangleAlertIcon,
+} from "@supaterm/icons";
 import { Fragment } from "react";
+import { tickTextContent } from "~/lib/tickTextContent";
 import { InlineConfirmButton } from "../InlineConfirm";
 import { Button, InlineButton } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -70,9 +80,10 @@ export function goalBannerItem(input: {
         ? presentation.title
         : `${presentation.title} · ${presentation.usage}`,
     description: presentation.objective,
-    actions: isWorking ? undefined : (
+    // Clear stops goal work; Resume would stop unrelated work, so it waits.
+    actions: (
       <>
-        {presentation.canResume ? (
+        {presentation.canResume && !isWorking ? (
           <Button
             size="xs"
             variant="ghost"
@@ -88,6 +99,49 @@ export function goalBannerItem(input: {
         >
           Clear
         </Button>
+      </>
+    ),
+  };
+}
+
+/** A Stop the provider has not finished; Force stop once it stops answering. */
+export function runStopBannerItem(input: {
+  readonly threadId: ThreadId;
+  readonly stop: RunStopPresentation;
+  readonly canForceStop: boolean;
+  readonly forceStopping: boolean;
+  readonly onForceStop: () => void;
+}): ComposerBannerStackItem {
+  const unresponsive = input.stop.state === "unresponsive";
+  const requestedAtMs = Date.parse(input.stop.requestedAt);
+  return {
+    id: `run-stop:${input.threadId}`,
+    variant: unresponsive ? "warning" : "default",
+    priority: "activity",
+    icon: unresponsive ? <TriangleAlertIcon /> : <StopFilledIcon />,
+    title: unresponsive ? "Agent not responding to Stop" : "Stopping",
+    description: unresponsive
+      ? "It may be short on memory. Force stop kills its processes."
+      : undefined,
+    actions: (
+      <>
+        <span
+          ref={tickTextContent(
+            (nowMs) => formatDuration(Math.max(1_000, nowMs - requestedAtMs)),
+            true,
+          )}
+          className="text-xs text-muted-foreground tabular-nums"
+        />
+        {unresponsive && input.canForceStop ? (
+          <Button
+            size="xs"
+            variant="ghost"
+            disabled={input.forceStopping}
+            onClick={input.onForceStop}
+          >
+            {input.forceStopping ? "Force stopping..." : "Force stop"}
+          </Button>
+        ) : null}
       </>
     ),
   };
@@ -180,7 +234,7 @@ export function branchMismatchBannerItem(input: {
     icon: <GitBranchIcon />,
     title: (
       <span className="flex min-w-0 items-baseline gap-1.5">
-        <span className="shrink-0 font-normal text-muted-foreground">Branch changed — was</span>
+        <span className="shrink-0 font-normal text-muted-foreground">Branch changed from</span>
         <Tooltip>
           <TooltipTrigger
             render={

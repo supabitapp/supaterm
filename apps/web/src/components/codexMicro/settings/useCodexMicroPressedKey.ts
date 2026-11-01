@@ -19,6 +19,7 @@ export function useCodexMicroPressedKey(separateMicrophoneKeys: boolean): CodexM
       if (key !== null) setFlash({ key, at: pressed.at });
     }
   }
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- timer clears the pressed-key flash after the feedback duration
   useEffect(() => {
     if (flash === null) return;
     const timer = setTimeout(() => setFlash(null), PRESS_FEEDBACK_MS);

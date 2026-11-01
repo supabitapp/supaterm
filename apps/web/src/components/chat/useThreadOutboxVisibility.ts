@@ -14,6 +14,7 @@ export function useThreadOutboxVisibility(
     setVisibility({ scope, hasPending, open: needsAttention });
   }
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- opens the pending outbox notice on a one-second timer and clears it when the scope or pending state changes
   useEffect(() => {
     if (!hasPending) return;
     const timeout = setTimeout(() => setVisibility({ scope, hasPending, open: true }), 1_000);

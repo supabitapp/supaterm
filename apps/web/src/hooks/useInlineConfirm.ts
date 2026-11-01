@@ -18,8 +18,10 @@ export function useInlineConfirm<Key extends string>() {
   const [armed, setArmed] = useState<Key | null>(null);
   const [confirm] = useState(() => createInlineConfirm<Key>(setArmed, schedule));
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- disarms on unmount, which clears the confirm's pending timeout
   useEffect(() => () => confirm.disarm(), [confirm]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- listens on window for Escape and outside pointer presses while a confirm is armed
   useEffect(() => {
     if (armed === null) return;
     const onKeyDown = (event: KeyboardEvent) => {

@@ -8,14 +8,7 @@ import type { AppBarMenuItem } from "../../components/ui/AppBar.types";
 import type { ReviewSectionItem } from "./reviewModel";
 import { useReviewHeaderPresentation } from "./useReviewHeaderPresentation";
 import { Screen, ScreenStack, ScreenStackHeaderConfig } from "react-native-screens";
-import {
-  type Ref,
-  type ReactElement,
-  useEffect,
-  useImperativeHandle,
-  useRef,
-  useState,
-} from "react";
+import { type Ref, type ReactElement, useImperativeHandle, useRef, useState } from "react";
 import {
   FlatList,
   Platform,
@@ -423,14 +416,6 @@ function ReviewFileNavigator({
   );
 }
 
-function RevealInspectorPane() {
-  const { showAuxiliaryPane } = useAdaptiveWorkspaceLayout();
-  useEffect(() => {
-    showAuxiliaryPane("inspector");
-  }, [showAuxiliaryPane]);
-  return null;
-}
-
 type ReviewSheetProps = StaticScreenProps<{
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
@@ -464,7 +449,6 @@ export function ReviewSheet(props: ReviewSheetProps) {
     refreshSelectedSection,
     selectSection,
     isSelectedSectionPending,
-    diffPreviewRevision,
   } = useReviewSections({
     enabled: isEnvironmentReady,
     environmentId,
@@ -488,7 +472,6 @@ export function ReviewSheet(props: ReviewSheetProps) {
     environmentId,
     cwd: selectedThreadCwd,
     selectedSection,
-    revision: diffPreviewRevision,
     draftMessage,
   });
   // Resolution returns null while Expo registers the native view (or forever
@@ -679,7 +662,6 @@ export function ReviewSheet(props: ReviewSheetProps) {
 
   return (
     <>
-      <RevealInspectorPane key={`${environmentId}:${threadId}`} />
       <ReviewHeader
         environmentId={environmentId}
         threadId={threadId}

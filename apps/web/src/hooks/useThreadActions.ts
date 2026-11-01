@@ -34,6 +34,8 @@ import { environmentSession, readEnvironmentScope } from "../state/session";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { environmentServerConfigsAtom } from "../state/server";
 import { isScratchProject } from "@supaterm/client-runtime/state/projects";
+import { orchestrationEnvironment } from "../state/orchestration";
+import { projectEnvironment } from "../state/projects";
 import { threadEnvironment } from "../state/threads";
 import { vcsEnvironment } from "../state/vcs";
 import { useNewThreadHandler } from "./useHandleNewThread";
@@ -52,7 +54,7 @@ import { buildThreadRouteParams, resolveThreadRouteRef } from "../threadRoutes";
 import { formatWorktreePathForDisplay, getOrphanedWorktreePathForThread } from "../worktreeCleanup";
 import { stackedThreadToast, toastManager } from "../components/ui/toast";
 import { useClientSettings } from "./useSettings";
-import * as ThreadUndo from "./threadUndo";
+import * as ThreadUndo from "@supaterm/client-runtime/state/thread-undo";
 import { showThreadUndoNotice } from "./showThreadUndoNotice";
 import { useAtomCommand } from "../state/use-atom-command";
 import { useOrchestrationCommand } from "../state/use-orchestration-command";
@@ -168,6 +170,19 @@ export function useAcknowledgeThreadWoke() {
   };
 }
 
+/** A No project thread that already has its own folder, on a server that can promote it. */
+export function canTurnThreadIntoProject(threadRef: ScopedThreadRef): boolean {
+  const thread = readThreadShell(threadRef);
+  if (!thread?.worktreePath) return false;
+  const config = appAtomRegistry.get(environmentServerConfigsAtom).get(threadRef.environmentId);
+  if (config?.environment.capabilities.threadProjectFromScratch !== true) return false;
+  const project = readProject({
+    environmentId: threadRef.environmentId,
+    projectId: thread.projectId,
+  });
+  return project !== null && isScratchProject(project, config.scratchWorkspaceRoot);
+}
+
 function threadOperationFailure(target: ScopedThreadRef) {
   return readEnvironmentScope(target.environmentId, AuthOrchestrationOperateScope)
     ? null
@@ -216,12 +231,19 @@ export function useThreadActions() {
     reportFailure: false,
   });
   const markThreadUnread = useMarkThreadUnread();
+  const createProjectFromThread = useAtomCommand(projectEnvironment.createFromThread, {
+    reportFailure: false,
+  });
   const stopThreadSession = useOrchestrationCommand(threadEnvironment.stopSession);
   const removeWorktree = useAtomCommand(vcsEnvironment.removeWorktree, {
     reportFailure: false,
   });
   const loadSessionState = useAtomQueryRunner(environmentSession.sessionStateAtom, {
     reportFailure: false,
+  });
+  const loadWorktreeThreadIds = useAtomQueryRunner(orchestrationEnvironment.worktreeThreadIds, {
+    reportFailure: false,
+    refresh: true,
   });
   const refreshVcsStatus = useAtomCommand(vcsEnvironment.refreshStatus, {
     reportFailure: false,
@@ -370,16 +392,32 @@ export function useThreadActions() {
       deletedIds && deletedIds.size > 0
         ? threads.filter((entry) => entry.id === threadRef.threadId || !deletedIds.has(entry.id))
         : threads;
-    const orphanedWorktreePath = getOrphanedWorktreePathForThread(
-      survivingThreads,
-      threadRef.threadId,
-    );
-    const displayWorktreePath = orphanedWorktreePath
-      ? formatWorktreePathForDisplay(orphanedWorktreePath)
-      : null;
     const environmentConfig = appAtomRegistry
       .get(environmentServerConfigsAtom)
       .get(threadRef.environmentId);
+    let orphanedWorktreePath = getOrphanedWorktreePathForThread(
+      survivingThreads,
+      threadRef.threadId,
+    );
+    // A shell that leaves idle subagent children out cannot prove nobody else uses the worktree,
+    // so the server's list decides. A failed read keeps the worktree.
+    if (orphanedWorktreePath !== null && environmentConfig?.shellThreadFamilies === true) {
+      const occupants = await loadWorktreeThreadIds({
+        environmentId: threadRef.environmentId,
+        input: { worktreePath: orphanedWorktreePath },
+      });
+      if (
+        occupants._tag !== "Success" ||
+        occupants.value.threadIds.some(
+          (threadId) => threadId !== threadRef.threadId && deletedIds?.has(threadId) !== true,
+        )
+      ) {
+        orphanedWorktreePath = null;
+      }
+    }
+    const displayWorktreePath = orphanedWorktreePath
+      ? formatWorktreePathForDisplay(orphanedWorktreePath)
+      : null;
     const localApi = readLocalApi();
     let canDeleteWorktree = false;
     if (
@@ -755,5 +793,10 @@ export function useThreadActions() {
     reorderPinnedThread,
     markThreadUnread,
     setThreadAutoMarkDone,
+    turnThreadIntoProject: (target: ScopedThreadRef) =>
+      createProjectFromThread({
+        environmentId: target.environmentId,
+        input: { threadId: target.threadId },
+      }),
   };
 }

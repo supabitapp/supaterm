@@ -52,6 +52,7 @@ export function useOrchestrationSkills(
     if (settled._tag === "Failure") throw squashAtomCommandFailure(settled);
     setResults(settled.value);
   };
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reads each selected environment's skills status over RPC and ignores replies after cleanup
   useEffect(() => {
     let active = true;
     busy.current = true;

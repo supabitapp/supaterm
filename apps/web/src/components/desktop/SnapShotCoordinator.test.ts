@@ -1,5 +1,6 @@
 import { scopeProjectRef, scopeThreadRef } from "@supaterm/client-runtime/environment";
 import {
+  type DesktopBridge,
   type DesktopPendingSnapShot,
   EnvironmentId,
   ProjectId,
@@ -8,7 +9,6 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { DraftId, useComposerDraftStore } from "../../composerDraftStore";
-import type { DesktopSnapShotBridge } from "../../lib/desktopSnapShot";
 import {
   beginSnapShotAnimationWhenReady,
   deliverSnapShot,
@@ -176,7 +176,7 @@ describe("window capture delivery", () => {
         setSnapShotAnimationDestination: vi.fn(() => never),
         onMenuAction: vi.fn(() => () => undefined),
         onSnapShotEvent: vi.fn(() => () => undefined),
-      } as unknown as DesktopSnapShotBridge;
+      } as unknown as DesktopBridge;
       const item: DesktopPendingSnapShot = {
         id: "12345678-1234-1234-1234-123456789abc",
         name: "window.png",
@@ -313,7 +313,7 @@ describe("durable snapshot delivery", () => {
       const bridge = {
         readSnapShot: async () => capture,
         acknowledgeSnapShot,
-      } as unknown as DesktopSnapShotBridge;
+      } as unknown as DesktopBridge;
       vi.stubGlobal("window", { localStorage: storage, dispatchEvent: vi.fn() });
       const write = storage.setItem.getMockImplementation()!;
       storage.setItem.mockImplementation(() => {

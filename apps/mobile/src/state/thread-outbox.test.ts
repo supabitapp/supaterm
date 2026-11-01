@@ -1325,7 +1325,6 @@ describe("thread outbox", () => {
         threadExists: false,
         shellStatus: "synchronizing",
         environmentConnected: true,
-        threadBusy: false,
         awaitingCreatedThread: false,
       }),
     ).toBe("wait");
@@ -1335,7 +1334,6 @@ describe("thread outbox", () => {
         threadExists: false,
         shellStatus: "live",
         environmentConnected: true,
-        threadBusy: false,
         awaitingCreatedThread: false,
       }),
     ).toBe("remove");
@@ -1345,7 +1343,6 @@ describe("thread outbox", () => {
         threadExists: true,
         shellStatus: "live",
         environmentConnected: true,
-        threadBusy: false,
         awaitingCreatedThread: false,
       }),
     ).toBe("send");
@@ -1358,10 +1355,22 @@ describe("thread outbox", () => {
         threadExists: false,
         shellStatus: "live",
         environmentConnected: true,
-        threadBusy: false,
         awaitingCreatedThread: true,
       }),
     ).toBe("wait");
+  });
+
+  it("removes a missing-thread message only after a settled family read when idle children can be omitted", () => {
+    const missing = {
+      isCreation: false,
+      threadExists: false,
+      shellStatus: "live",
+      environmentConnected: true,
+      awaitingCreatedThread: false,
+    } as const;
+    expect(resolveThreadOutboxDeliveryAction({ ...missing, familyRead: "pending" })).toBe("wait");
+    expect(resolveThreadOutboxDeliveryAction({ ...missing, familyRead: "failed" })).toBe("wait");
+    expect(resolveThreadOutboxDeliveryAction({ ...missing, familyRead: "settled" })).toBe("remove");
   });
 
   it("sends existing-thread messages whenever connected so queued messages can steer", () => {
@@ -1371,7 +1380,6 @@ describe("thread outbox", () => {
         threadExists: true,
         shellStatus: "live",
         environmentConnected: true,
-        threadBusy: true,
         awaitingCreatedThread: false,
       }),
     ).toBe("send");
@@ -1381,7 +1389,6 @@ describe("thread outbox", () => {
         threadExists: true,
         shellStatus: "live",
         environmentConnected: false,
-        threadBusy: true,
         awaitingCreatedThread: false,
       }),
     ).toBe("wait");
@@ -1394,7 +1401,6 @@ describe("thread outbox", () => {
         threadExists: false,
         shellStatus: "cached",
         environmentConnected: false,
-        threadBusy: false,
         awaitingCreatedThread: false,
       }),
     ).toBe("wait");
@@ -1404,7 +1410,6 @@ describe("thread outbox", () => {
         threadExists: false,
         shellStatus: "synchronizing",
         environmentConnected: true,
-        threadBusy: false,
         awaitingCreatedThread: false,
       }),
     ).toBe("wait");
@@ -1414,7 +1419,6 @@ describe("thread outbox", () => {
         threadExists: false,
         shellStatus: "live",
         environmentConnected: true,
-        threadBusy: false,
         awaitingCreatedThread: false,
       }),
     ).toBe("send");
@@ -1424,7 +1428,6 @@ describe("thread outbox", () => {
         threadExists: true,
         shellStatus: "live",
         environmentConnected: true,
-        threadBusy: true,
         awaitingCreatedThread: false,
       }),
     ).toBe("remove");

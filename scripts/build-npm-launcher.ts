@@ -1,16 +1,5 @@
 #!/usr/bin/env node
-/**
- * Builds the `supaterm` npm package behind `npx supaterm` / `npm i -g supaterm`: a launcher
- * with no dependencies that downloads this exact version's CLI archive from
- * the GitHub Release on first run (scripts/npm-launcher/supaterm.mjs).
- * The executables are not published to npm. npm's publish-time scanning held
- * 250 MB platform packages back for up to an hour after the launcher went
- * live, and every install in that window ran a launcher with nothing to
- * launch.
- *
- * Output: `<output-dir>/supaterm/` (the package tree) and `<output-dir>/supaterm.tgz`,
- * which is what gets published.
- */
+// GitHub archives avoid npm scanning delays; output <output-dir>/supaterm/ and publishable supaterm.tgz.
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as Effect from "effect/Effect";
@@ -41,8 +30,8 @@ export class NpmLauncherCommandFailedError extends Schema.TaggedError<NpmLaunche
   }
 }
 
-/** package.json for the launcher. `engines` asks for `import.meta.dirname` and `fetch`. */
-export function npmLauncherPackageManifest(version: string) {
+/** engines requires import.meta.dirname and fetch. `supaterm` is read back by npmReleaseDatabaseMigration. */
+export function npmLauncherPackageManifest(version: string, databaseMigration: number) {
   return {
     name: NPM_LAUNCHER_PACKAGE_NAME,
     version,
@@ -53,8 +42,23 @@ export function npmLauncherPackageManifest(version: string) {
     bin: { supaterm: "./bin/supaterm.mjs" },
     files: ["bin"],
     engines: { node: ">=20.11" },
+    supaterm: { databaseMigration },
   };
 }
+
+/** Highest server migration id, from the `NNN_Name.ts` files the server registers. */
+const latestServerMigrationId = Effect.fn("latestServerMigrationId")(function* () {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const dir = yield* path.fromFileUrl(
+    new URL("../apps/server/src/persistence/Migrations/", import.meta.url),
+  );
+  const ids = (yield* fs.readDirectory(dir)).flatMap((name) => {
+    const id = /^(\d+)_\w+\.ts$/.exec(name)?.[1];
+    return id === undefined ? [] : [Number(id)];
+  });
+  return Math.max(0, ...ids);
+});
 
 export const buildNpmLauncher = Effect.fn("buildNpmLauncher")(function* (input: {
   readonly version: string;
@@ -74,7 +78,9 @@ export const buildNpmLauncher = Effect.fn("buildNpmLauncher")(function* (input: 
   yield* fs.makeDirectory(path.join(stageDir, "bin"), { recursive: true });
   yield* fs.writeFileString(
     path.join(stageDir, "package.json"),
-    `${yield* encodePackageJson(npmLauncherPackageManifest(input.version))}\n`,
+    `${yield* encodePackageJson(
+      npmLauncherPackageManifest(input.version, yield* latestServerMigrationId()),
+    )}\n`,
   );
   yield* fs.copyFile(path.join(sourceDir, "supaterm.mjs"), path.join(stageDir, "bin/supaterm.mjs"));
   yield* fs.chmod(path.join(stageDir, "bin/supaterm.mjs"), 0o755);

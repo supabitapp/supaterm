@@ -122,7 +122,13 @@ const testServerConfigs = () =>
   ]);
 
 vi.mock("../rpc/atomRegistry", () => ({
-  appAtomRegistry: { get: () => testServerConfigs() },
+  appAtomRegistry: {
+    get: (atom: unknown) =>
+      atom === "connected-environment-ids" ? [...testServerConfigs().keys()] : testServerConfigs(),
+  },
+}));
+vi.mock("../state/presentation", () => ({
+  environmentSummaries: { connectedEnvironmentIdsAtom: "connected-environment-ids" },
 }));
 
 vi.mock("@effect/atom-react", () => ({
@@ -187,6 +193,7 @@ vi.mock("../lib/chatThreadActions", async (importOriginal) => ({
   hasExplicitComposerModelSelection: () => false,
   resolveNewThreadModelSelectionOverride: () => null,
 }));
+vi.mock("../providerInstances", () => ({ resolveDefaultProviderModelSelection: () => null }));
 vi.mock("../lib/supatermProjectFileDefaults", () => ({
   readSupatermProjectFile: () => testState.projectFileRead,
 }));
@@ -194,7 +201,7 @@ vi.mock("../lib/utils", () => ({
   newDraftId: () => "draft-delayed",
   newThreadId: () => "thread-delayed",
 }));
-vi.mock("../logicalProject", () => ({
+vi.mock("@supaterm/client-runtime/state/project-grouping", () => ({
   deriveLogicalProjectKeyFromSettings: () => "remote-project",
   getProjectOrderKey: () => "remote-project",
   selectProjectGroupingSettings: () => ({}),
@@ -216,6 +223,7 @@ vi.mock("../state/entities", () => {
     useThread: () => null,
   };
 });
+vi.mock("../state/olderDoneShelf", () => ({ readUnloadedThreadCount: () => 0 }));
 vi.mock("../state/server", () => ({
   environmentServerConfigsAtom: {},
   primaryServerSettingsAtom: "primary-settings",
@@ -226,7 +234,7 @@ vi.mock("../threadRoutes", () => ({
 vi.mock("../uiStateStore", () => ({
   useUiStateStore: () => [],
 }));
-vi.mock("./useSettings", () => ({ useClientSettings: () => ({}) }));
+vi.mock("./useSettings", () => ({ getClientSettings: () => ({}) }));
 
 import { useNewThreadHandler } from "./useHandleNewThread";
 

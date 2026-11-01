@@ -1,4 +1,4 @@
-import { isWorkspaceImagePreviewPath } from "@supaterm/shared/filePreview";
+import { isWorkspaceImagePreviewPath } from "@supaterm/shared/mediaPreview";
 import { COMPUTER_USE_TOOL_SOURCE, dynamicToolSurface } from "@supaterm/shared/toolActivity";
 import type {
   ToolActivityIcon,

@@ -1,3 +1,4 @@
+import { normalizeHost } from "@supaterm/source-control-core/server/pullRequestUtils";
 import * as Cache from "effect/Cache";
 import * as Context from "effect/Context";
 import * as Crypto from "effect/Crypto";
@@ -14,10 +15,16 @@ import * as Schema from "effect/Schema";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 
 import * as SourceControlHost from "@supaterm/source-control-core/server/SourceControlHost";
-import { readSourceControlHostSettings } from "@supaterm/source-control-core/client/definition";
+import { readSourceControlHostSettings } from "@supaterm/source-control-core/shared/definition";
 import type { ServerSettings } from "@supaterm/contracts";
 
-import * as GitHubClient from "../client/definition.ts";
+import * as GitHubClient from "../shared/definition.ts";
+
+/**
+ * Every gh run on the server shares this. A burst of them (a status poll across many checkouts)
+ * otherwise starts enough at once to trip GitHub's secondary rate limit.
+ */
+export const GH_PROCESS_CONCURRENCY = { key: "gh", limit: 4 } as const;
 
 const TOKEN_TTL = Duration.minutes(5);
 const MISSING_TTL = Duration.seconds(10);
@@ -87,24 +94,24 @@ export class GitHubCredentials extends Context.Service<
   }
 >()("@supaterm/source-control-github/server/GitHubCredentials") {}
 
-function normalizeHost(host: string): string {
-  return host.trim().toLowerCase();
+const HOSTNAME =
+  /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*(?::\d{1,5})?$/;
+
+/** API URLs are built from the host text, so anything but a bare hostname could redirect a token. */
+export function isGitHubHost(host: string): boolean {
+  return HOSTNAME.test(host);
 }
 
-/** Hosts gh treats as GitHub.com-like for `GH_TOKEN`: github.com and GHE.com data residency. */
 function isGitHubDotCom(host: string): boolean {
   return host === "github.com" || host.endsWith(".ghe.com");
 }
 
-/**
- * The environment token for a host, in gh's precedence order. gh hands `GH_ENTERPRISE_TOKEN` to
- * any non-github.com host; here it only goes to the host `GH_HOST` names, because a remote URL
- * picks the host and a hostile one must not receive an enterprise token.
- */
+/** Restrict GH_ENTERPRISE_TOKEN to GH_HOST to prevent remote URLs from leaking it. */
 export function environmentToken(
   host: string,
   env: Readonly<Record<string, string | undefined>>,
 ): string | null {
+  if (!isGitHubHost(host)) return null;
   const names = isGitHubDotCom(host)
     ? ["GH_TOKEN", "GITHUB_TOKEN"]
     : env.GH_HOST?.trim().toLowerCase() === host
@@ -117,7 +124,7 @@ export function environmentToken(
   return null;
 }
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const sourceControlHost = yield* SourceControlHost.SourceControlHost;
   const process = sourceControlHost.process;
@@ -147,6 +154,7 @@ export const make = Effect.gen(function* () {
         // Never let gh print the token into a debug log.
         env: { GH_DEBUG: "", GH_PROMPT_DISABLED: "1" },
         timeoutMs: 10_000,
+        concurrency: GH_PROCESS_CONCURRENCY,
       })
       .pipe(
         Effect.mapError((error) =>
@@ -221,6 +229,7 @@ export const make = Effect.gen(function* () {
   return GitHubCredentials.of({
     get: Effect.fn("GitHubCredentials.get")(function* (rawHost) {
       const host = normalizeHost(rawHost);
+      if (!isGitHubHost(host)) return yield* new GitHubNotSignedInError({ host });
       const choice = yield* hostChoice(host);
       if (choice?.enabled === false) {
         return yield* new GitHubHostDisabledError({ host });
@@ -236,12 +245,12 @@ export const make = Effect.gen(function* () {
       }
       return yield* Cache.get(cache, cacheKey(host, choice?.account));
     }),
-    invalidate: (rawHost) => {
+    invalidate: Effect.fn("GitHubCredentials.invalidate")(function (rawHost) {
       const host = normalizeHost(rawHost);
       return hostChoice(host).pipe(
         Effect.flatMap((choice) => Cache.invalidate(cache, cacheKey(host, choice?.account))),
       );
-    },
+    }),
     invalidateAll: Cache.invalidateAll(cache),
   });
 });

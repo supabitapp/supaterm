@@ -11,13 +11,13 @@ export const layer = Layer.unwrap(
     yield* Effect.addFinalizer(() => Effect.sync(() => companion.close()));
     const desktop = typeof window === "undefined" ? undefined : window.desktopBridge;
     return RelayGateway.layer({
-      available: Boolean(desktop?.startRelay && desktop.stopRelay) || isRelayCompanion(),
+      available: desktop !== undefined || isRelayCompanion(),
       fetch: (input, init) => globalThis.fetch(input, init),
       open: async (address, relayUrl, directUrls, report) => {
-        if (desktop?.startRelay && desktop.stopRelay) {
+        if (desktop) {
           const { startRelay, stopRelay } = desktop;
           const identity = canonicalRelayAddress(address);
-          const unsubscribe = desktop.onRelayViaChanged?.((change) => {
+          const unsubscribe = desktop.onRelayViaChanged((change) => {
             if (canonicalRelayAddress(change.address) === identity) report(change.via ?? undefined);
           });
           let closed = false;
@@ -43,7 +43,7 @@ export const layer = Layer.unwrap(
             close: () => {
               closed = true;
               started = undefined;
-              unsubscribe?.();
+              unsubscribe();
               return stopRelay(address);
             },
           };

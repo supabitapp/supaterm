@@ -16,8 +16,9 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import { vcsEnvironment } from "../../state/vcs";
 import { useTerminalUiStateStore } from "../../terminalUiStateStore";
 import type { Thread } from "../../types";
+import { focusTerminal } from "../../lib/terminalFocus";
 import { resolveVisibleWorktreeSetup, resolveWorktreeSetupProgress } from "../ChatView.logic";
-import { worktreeSetupAgentStarted } from "./MessagesTimeline.logic";
+import { worktreeSetupAgentStarted } from "@supaterm/client-runtime/worktree-setup";
 
 /** Runs with a workspace preparation retry in flight, across ChatView instances. */
 const retryingWorkspacePreparationRunIds = new Set<RunId>();
@@ -37,7 +38,6 @@ export function useWorktreeSetup(input: {
   readonly threadRef: ScopedThreadRef | null;
   readonly serverProjection: ThreadStructure | null;
   readonly activityRun: Thread["latestRun"] | null;
-  readonly localPreparing: boolean;
   // A send the server queues behind the setup run, or the outbox behind the pending task.
   readonly sendQueuesBehindSetup: boolean;
   readonly followUpSent: boolean;
@@ -49,7 +49,6 @@ export function useWorktreeSetup(input: {
     threadRef,
     serverProjection,
     activityRun,
-    localPreparing,
     sendQueuesBehindSetup,
     followUpSent,
   } = input;
@@ -76,7 +75,7 @@ export function useWorktreeSetup(input: {
   const snapshotQuery = useEnvironmentQuery(
     started ||
       (activeThread?.id === routeThreadRef.threadId &&
-        (localPreparing || runPreparing || activeThread.worktreePath !== null))
+        (runPreparing || activeThread.worktreePath !== null))
       ? vcsEnvironment.worktreeSetup({
           environmentId: target.environmentId,
           input: { threadId: target.threadId },
@@ -103,7 +102,6 @@ export function useWorktreeSetup(input: {
   }
   const { snapshot: liveSnapshot, isPreparingWorktree } = resolveWorktreeSetupProgress({
     threadId: target.threadId,
-    localPreparing,
     runStatus: activityRun?.status,
     latest: latestSnapshot,
     held: heldSnapshot,
@@ -114,11 +112,8 @@ export function useWorktreeSetup(input: {
     turnStarted: activityRun?.startedAt != null,
     followUpSent,
   });
-  // Sends wait for the agent handoff, not for the setup script: an async
-  // script keeps the snapshot running while the agent already works, and a
-  // follow-up must not be held behind a slow install. Before the first
-  // snapshot arrives the starting session stands in for it. A send that
-  // queues behind the setup run or the pending task is never held here.
+  // Sends wait for the agent handoff, not the setup script, so a follow-up is never held behind a
+  // slow install. The starting session stands in until the first snapshot arrives.
   const blocksSend =
     !sendQueuesBehindSetup &&
     (worktreeSetup !== null
@@ -174,6 +169,7 @@ export function useWorktreeSetup(input: {
   const openSetupTerminal = setupThreadRef
     ? (terminalId: string) => {
         storeEnsureTerminal(setupThreadRef, terminalId, { open: true, active: true });
+        focusTerminal(setupThreadRef, terminalId);
       }
     : null;
 

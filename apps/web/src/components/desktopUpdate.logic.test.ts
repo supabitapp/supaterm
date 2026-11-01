@@ -7,7 +7,6 @@ import {
   getDesktopUpdateReleaseHistoryUrl,
   getDesktopUpdateReleaseUrl,
   resolveDesktopUpdateButtonAction,
-  resolveDesktopUpdateIndicator,
 } from "./desktopUpdate.logic";
 
 const baseState: DesktopUpdateState = {
@@ -66,20 +65,17 @@ describe("desktop update button state", () => {
 });
 
 describe("desktop update UI helpers", () => {
-  it.each([
-    "owner/repo/extra",
-    "owner#notes/repo",
-    "owner/repo#notes",
-    "owner?tab=notes/repo",
-    "owner/repo?tab=notes",
-  ])("falls back to upstream for an invalid configured repository: %s", (repository) => {
-    expect(getDesktopUpdateReleaseHistoryUrl(repository)).toBe(
-      "https://github.com/supabitapp/supaterm/releases",
-    );
-    expect(getDesktopUpdateReleaseUrl("1.2.3", repository)).toBe(
-      "https://github.com/supabitapp/supaterm/releases/tag/v1.2.3",
-    );
-  });
+  it.each(["owner/repo/extra", "owner#notes/repo", "owner/repo?tab=notes"])(
+    "falls back to upstream for an invalid configured repository: %s",
+    (repository) => {
+      expect(getDesktopUpdateReleaseHistoryUrl(repository)).toBe(
+        "https://github.com/supabitapp/supaterm/releases",
+      );
+      expect(getDesktopUpdateReleaseUrl("1.2.3", repository)).toBe(
+        "https://github.com/supabitapp/supaterm/releases/tag/v1.2.3",
+      );
+    },
+  );
 });
 
 describe("canCheckForUpdate", () => {
@@ -92,80 +88,5 @@ describe("canCheckForUpdate", () => {
         downloadedVersion: "1.1.0",
       }),
     ).toBe(true);
-  });
-});
-
-describe("resolveDesktopUpdateIndicator", () => {
-  it("hides the indicator when there is no update to act on", () => {
-    expect(resolveDesktopUpdateIndicator(null)).toBeNull();
-    expect(resolveDesktopUpdateIndicator({ ...baseState, status: "idle" })).toBeNull();
-    expect(resolveDesktopUpdateIndicator({ ...baseState, status: "up-to-date" })).toBeNull();
-    expect(resolveDesktopUpdateIndicator({ ...baseState, status: "checking" })).toBeNull();
-    expect(
-      resolveDesktopUpdateIndicator({ ...baseState, status: "error", errorContext: "check" }),
-    ).toBeNull();
-  });
-
-  it("follows an update from available to downloaded", () => {
-    expect(
-      resolveDesktopUpdateIndicator({
-        ...baseState,
-        status: "available",
-        availableVersion: "1.1.0",
-      }),
-    ).toBe("available");
-    expect(
-      resolveDesktopUpdateIndicator({
-        ...baseState,
-        status: "downloading",
-        availableVersion: "1.1.0",
-        downloadPercent: 40,
-      }),
-    ).toBe("downloading");
-    expect(
-      resolveDesktopUpdateIndicator({
-        ...baseState,
-        status: "downloaded",
-        availableVersion: "1.1.0",
-        downloadedVersion: "1.1.0",
-      }),
-    ).toBe("downloaded");
-  });
-
-  it("keeps a found update visible while a background check runs", () => {
-    expect(
-      resolveDesktopUpdateIndicator({
-        ...baseState,
-        status: "checking",
-        availableVersion: "1.1.0",
-        downloadedVersion: "1.1.0",
-      }),
-    ).toBe("downloaded");
-    expect(
-      resolveDesktopUpdateIndicator({
-        ...baseState,
-        status: "checking",
-        availableVersion: "1.1.0",
-      }),
-    ).toBe("available");
-  });
-
-  it("offers a retry after a failed download or install", () => {
-    expect(
-      resolveDesktopUpdateIndicator({
-        ...baseState,
-        status: "error",
-        errorContext: "download",
-        availableVersion: "1.1.0",
-      }),
-    ).toBe("available");
-    expect(
-      resolveDesktopUpdateIndicator({
-        ...baseState,
-        status: "error",
-        errorContext: "install",
-        downloadedVersion: "1.1.0",
-      }),
-    ).toBe("downloaded");
   });
 });

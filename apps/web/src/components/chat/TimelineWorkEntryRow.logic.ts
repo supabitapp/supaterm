@@ -1,8 +1,10 @@
 import type { TimelineRow, TimelineWorkEntry } from "./timelineRowContext";
 import type { WorkEntryIconName } from "./TimelineToolActivityIcon";
-import { toolGroupAction } from "./MessagesTimeline.logic";
 import type { Root, RootContent } from "mdast";
-import { resolveWorkEntryToolPresentation } from "@supaterm/client-runtime/work-log/presentation";
+import {
+  resolveWorkEntryToolPresentation,
+  toolGroupAction,
+} from "@supaterm/client-runtime/work-log/presentation";
 import { isJavaScriptReplTool } from "@supaterm/shared/toolActivity";
 import { formatWorkspaceRelativePath } from "../../filePathDisplay";
 

@@ -187,11 +187,9 @@ const screenshot = await getImage({
     return null;
   }
 
-  // Macs get the installer, which picks the build for the Mac's chip itself.
-  // Browsers cannot reliably tell Apple Silicon from Intel (the UA lies, GPU
-  // strings lie), and a wrong guess hands an Apple Silicon user a broken app.
-  // Releases without the installer fall back to the arm64 build.
-  // Do NOT add arch detection back here.
+  // Macs get the installer, which picks the build for the Mac's chip itself. Browsers cannot
+  // reliably tell Apple Silicon from Intel, and a wrong guess hands an Apple Silicon user a broken
+  // app, so do not add arch detection here. Releases without the installer fall back to arm64.
   function pickAsset(assets: ReleaseAsset[], platform: Platform): string | null {
     if (platform.os === "win") {
       return assets.find((a) => a.name.endsWith("-x64.exe"))?.browser_download_url ?? null;

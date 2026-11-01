@@ -18,7 +18,6 @@ const baseProps = {
   canInterrupt: false,
   isSendBusy: false,
   sendDisabledReason: null,
-  isConnecting: false,
   isEnvironmentUnavailable: false,
   isPreparingWorktree: false,
   hasSendableContent: true,

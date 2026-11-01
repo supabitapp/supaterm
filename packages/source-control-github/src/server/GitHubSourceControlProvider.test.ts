@@ -192,6 +192,8 @@ function harness(input: {
       }),
     fetchRemoteTrackingBranch: (args) => record("fetchRemoteTrackingBranch", undefined)(args),
     setBranchUpstream: (args) => record("setBranchUpstream", undefined)(args),
+    createBranch: (args) => record("createBranch", undefined)(args),
+    writeConfigValue: (args) => record("writeConfigValue", undefined)(args),
     switchRef: (args) => record("switchRef", { refName: args.refName })(args) as never,
     listLocalBranchNames: () =>
       input.gitFailure === undefined
@@ -539,6 +541,19 @@ describe("GitHubSourceControlProvider.checkoutChangeRequest", () => {
     }).pipe(Effect.provide(layer));
   });
 
+  it.effect("records the branch base for gh through the host's config write", () => {
+    const { layer, git } = harness({
+      remotes: remotesOutput(["origin", "git@github.com:acme/web.git"]),
+    });
+    return Effect.gen(function* () {
+      const gh = yield* GitHubSourceControlProvider.make;
+      yield* gh.recordBranchBase!({ cwd: "/repo", branch: "feature", baseBranch: "main" });
+      assert.deepStrictEqual(git, [
+        ["writeConfigValue", { cwd: "/repo", key: "branch.feature.gh-merge-base", value: "main" }],
+      ]);
+    }).pipe(Effect.provide(layer));
+  });
+
   it("names the local branch the way gh pr checkout does", () => {
     const name = (headRefName: string, isCrossRepository: boolean) =>
       GitHubSourceControlProvider.pullRequestCheckoutBranchName({
@@ -768,13 +783,15 @@ it.effect.each(["pull", "issues"])(
         title: "Pairing expiry",
         body: "Preserve remote access",
       });
-      assert.strictEqual(
-        provider.resolveLink?.({
-          cwd: "/unrelated",
-          url: new URL("https://github.com/owner/repo"),
-        }),
-        undefined,
-      );
+      for (const url of [
+        "https://github.com/owner/repo",
+        "https://github.attacker.test/owner/repo/issues/42",
+      ]) {
+        assert.strictEqual(
+          provider.resolveLink?.({ cwd: "/unrelated", url: new URL(url) }),
+          undefined,
+        );
+      }
     }),
 );
 
@@ -960,6 +977,11 @@ it.live.each([
         ["github.com", "repos/team/explicit"],
       ],
     );
+    assert.deepStrictEqual(git.find(([name]) => name === "createBranch")?.[1], {
+      cwd: "/repo",
+      branch: "feature",
+      startPoint: "refs/remotes/enterprise/feature",
+    });
     assert.deepStrictEqual(git.find(([name]) => name === "fetchRemoteTrackingBranch")?.[1], {
       cwd: "/repo",
       remoteName: "enterprise",
@@ -1309,4 +1331,32 @@ it.effect("ignores an empty normalized GH_HOST", () => {
     assert.strictEqual(item.status, "missing");
     assert.deepStrictEqual(hosts, []);
   });
+});
+
+it.effect("says a GH_REPO naming an unparseable host targets no remote rather than failing", () => {
+  const { layer } = harness({
+    remotes: remotesOutput(["upstream", "git@github.com:acme/web.git"]),
+    resolved: "",
+    api: {},
+  });
+  return Effect.gen(function* () {
+    const provider = yield* GitHubSourceControlProvider.make;
+    const targets = yield* provider.createsChangeRequestsIn!({
+      cwd: "/repo",
+      context: {
+        provider: {
+          kind: SourceControlProviderKind.make("github"),
+          name: "GitHub",
+          baseUrl: "https://github.com",
+        },
+        remoteName: "upstream",
+        remoteUrl: "git@github.com:acme/web.git",
+      },
+      repository: "acme/web",
+    });
+    assert.isFalse(targets);
+  }).pipe(
+    Effect.provide(layer),
+    Effect.provideService(HostProcess.Environment, { GH_REPO: "bad host/acme/web" }),
+  );
 });

@@ -56,6 +56,19 @@ Read ports from the `[dev-runner]` output. Worktrees derive stable preferences f
 but occupied ports can shift them. `SUPATERM_PORT_OFFSET` or `SUPATERM_DEV_INSTANCE` can select a
 different preference when needed.
 
+### Replay provider
+
+`vp run dev` registers `Replay (dev)`, a local ACP agent at
+[dev-replay-agent.ts](../../apps/server/scripts/dev-replay-agent.ts). It plays recorded
+ACP transcripts with simulated streaming, so the real adapter, orchestration, and UI run
+without a paid model. Each scenario is a model, and each prompt plays the next recorded turn.
+Bundled servers, including desktop dev, skip it because they have no agent script.
+Dev servers add it back on start, so turn it off in Settings instead of removing it.
+To add a scenario, point a `SCENARIOS` entry at a generic ACP replay fixture
+(`registry_transcript.ndjson`) or a file in [dev-replay](../../apps/server/scripts/dev-replay).
+The agent replays session updates, permission requests, and questions. It drops session setup
+and vendor frames, so Grok and fx recordings lose their vendor-only behavior.
+
 ### Sharing and remote debugging
 
 `vp run dev --share` publishes the web port over the machine's tailnet and prints a pairing URL
@@ -155,11 +168,22 @@ without vault access can ask a maintainer to add the icon. Never commit the key.
 
 `vp run check:changed` runs CI's fast checks for your branch's changes: format and lint of the
 changed files, `knip:check` when code or a manifest changes, the generated GraphQL checks, typecheck
-of the affected packages and their dependents, and the test files beside the changed files. It maps
-files to packages with [changed-packages.ts](../../scripts/lib/changed-packages.ts) and compares
-against the merge base with `origin/main`, or with a ref you pass. A changed `package.json` or a path
-the mapping does not recognize affects every package. CI still runs the full test suites and the
-jobs the summary lists, so a local pass does not promise a green CI run.
+of the affected packages and their dependents, and the test files beside the changed files. It also
+runs the checks that read other files: the agent context budget when the server is affected, and
+React Compiler coverage for only the changed web and mobile files. It maps files to packages with
+[changed-packages.ts](../../scripts/lib/changed-packages.ts) and compares against the merge base
+with `origin/main`, or with a ref you pass. A changed `package.json` or a path the mapping does not
+recognize affects every package. CI still runs the full test suites and the jobs the summary lists,
+so a local pass does not promise a green CI run.
+
+The steps run side by side, as many at once as the machine allows: one per two cores and per 6 GiB
+of available memory. On a large machine a run takes about as long as its slowest step, usually
+knip's exports pass at about 10 s. Pass `--concurrency <n>` or set `CHECK_CHANGED_CONCURRENCY` to
+change the limit (`1` runs the steps one by one). A step that runs past `--timeout <seconds>` or
+`CHECK_CHANGED_TIMEOUT` (default 900) is killed with every process it started and reported as
+`TIMEOUT`, not as a failing check. When the files are exactly those of the last passing run, it prints that
+run's summary instead of running again. Any change to a file, the install, or a generated file runs
+the checks again.
 
 While you iterate, run single checks:
 

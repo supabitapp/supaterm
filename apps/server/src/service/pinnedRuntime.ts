@@ -26,14 +26,9 @@ import * as ProcessRunner from "../processRunner.ts";
 import { isExactServiceVersion, parseServiceState, SERVICE_STATE_FILE } from "./serviceProtocol.ts";
 
 /**
- * A pinned runtime is an exact Supaterm release archive unpacked into
- * <baseDir>/runtime/versions/<version>: the self-contained executable, the
- * web client, and the native packages beside it. The boot service points its
- * unit or launch agent at the executable, and server self-update installs the
- * target version here before switching over. The runtime never depends on a
- * Node or npm on the machine; the only npm involvement in Supaterm is the `supaterm`
- * package for people who prefer `npx supaterm` or `npm install -g supaterm`, and even a
- * CLI installed that way pins an archive when it sets up the service.
+ * An exact release archive unpacked into <baseDir>/runtime/versions/<version>, which the boot
+ * service runs and self-update installs into before switching over. It never depends on the
+ * machine's Node or npm, even when the CLI came from the `supaterm` npm package.
  */
 const PINNED_RUNTIME_DIR = "runtime";
 const PINNED_RUNTIME_INSTALL_TIMEOUT = Duration.minutes(10);
@@ -108,12 +103,8 @@ export type PinnedRuntimeProgress =
   | { readonly stage: "verify" | "extract" | "validate" | "cached" };
 
 /**
- * Installs the Supaterm release archive for `version` into the pinned runtime
- * directory unless a complete install is already there, and returns its
- * paths. The sentinel is written only after extraction and validation
- * succeed; checking the entry file alone is not enough, since tar writes the
- * executable before the last native package and a killed install leaves a
- * plausible-looking but broken tree behind.
+ * The install sentinel is written only after extraction and validation succeed: tar writes the
+ * executable before the last native package, so a killed install leaves a plausible broken tree.
  */
 
 interface PinnedRuntimeInstallInput {
@@ -616,12 +607,9 @@ const selectUnusedRuntimes = Effect.fn("cloud.pinned_runtime.select_unused")(fun
 });
 
 /**
- * Every update publishes a new immutable runtime, so without pruning they pile up. Removes
- * completed runtimes nothing can start again and keeps: the caller's versions, everything the
- * service state references (active, rollback, pending), and runtimes that a running process
- * executes, a `supaterm` launcher points at, or `references` (such as the service unit) name, plus
- * anything published within the last hour. Staging directories, symlinks, and unexpected entries
- * are never touched. Returns the versions removed.
+ * Removes completed runtimes nothing can start again. Kept: the caller's versions, the service
+ * state's active, rollback and pending, anything a running process, launcher or `references`
+ * names, and anything published in the last hour. Staging dirs, symlinks and unknown entries stay.
  */
 export const prunePinnedRuntimes = Effect.fn("cloud.pinned_runtime.prune")(function* (input: {
   readonly baseDir: string;

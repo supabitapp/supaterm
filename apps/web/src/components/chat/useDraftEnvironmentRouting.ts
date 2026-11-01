@@ -15,7 +15,7 @@ import { toastManager } from "../ui/toast";
 import {
   deriveLogicalProjectKeyFromSettings,
   selectProjectGroupingSettings,
-} from "../../logicalProject";
+} from "@supaterm/client-runtime/state/project-grouping";
 import { useComposerDraftStore, DraftId } from "../../composerDraftStore";
 import { type EnvironmentPresentation, useEnvironmentProviders } from "../../state/environments";
 import { useProjects } from "../../state/entities";
@@ -113,6 +113,7 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
     loadBalancingSettings.loadBalancingWeights,
   );
   const refreshLoadBalancing = loadBalancing.refresh;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- writes the resolved load-balanced environment into the draft store once the async pick settles
   useEffect(() => {
     if (!needsLoadBalancing || loadBalancing.pending || !draftId || isSendInFlight()) return;
     if (!draftThread || draftThread.promotedTo || getDraftSession(draftId) !== draftThread) return;
@@ -174,6 +175,7 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
     readonly projectKey: string | null;
   } | null>(null);
   const [isEnvironmentChanging, setIsEnvironmentChanging] = useState(false);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- mirrors the current change scope into a ref that async environment switches compare against
   useLayoutEffect(() => {
     return () => {
       const request = environmentChangeRef.current;

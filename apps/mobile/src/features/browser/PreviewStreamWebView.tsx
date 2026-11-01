@@ -18,7 +18,6 @@ import {
   useEffectEvent,
   useImperativeHandle,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
   type Ref,
@@ -193,6 +192,7 @@ function AuthorizedPreviewStream({
   const processRetried = useRef(false);
   const unauthorized = useRef(0);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the pending unauthorized-refresh backoff timer on unmount
   useEffect(
     () => () => {
       if (refreshTimer.current !== null) clearTimeout(refreshTimer.current);
@@ -328,24 +328,23 @@ function PreviewStreamDocumentView({
   const bootstrapTimedOut = useEffectEvent(() =>
     fail("Browser viewer could not start. Reconnect to try again."),
   );
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- fails the WebView stream if its page has not reported started within 15 seconds
   useEffect(() => {
     if (started) return;
     const timer = setTimeout(bootstrapTimedOut, 15_000);
     return () => clearTimeout(timer);
   }, [started]);
-  const source = useMemo(
-    () => ({
-      html: previewStreamDocument(configuration, previewStreamScript),
-      baseUrl: Platform.OS === "android" ? "https://localhost/" : "file:///",
-    }),
-    [configuration],
-  );
+  const source = {
+    html: previewStreamDocument(configuration, previewStreamScript),
+    baseUrl: Platform.OS === "android" ? "https://localhost/" : "file:///",
+  };
   useImperativeHandle(ref, () => ({
     command,
     paste,
     togglePictureInPicture: () =>
       webView.current?.injectJavaScript("window.SupatermPreviewStream?.pictureInPicture(); true;"),
   }));
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- marks the view live and stops the WebView stream when this view unmounts
   useLayoutEffect(() => {
     active.current = true;
     const view = webView.current;
@@ -354,7 +353,9 @@ function PreviewStreamDocumentView({
       view?.injectJavaScript("window.SupatermPreviewStream?.stop(); true;");
     };
   }, []);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- tells the host's streaming callback the stream stopped when this view unmounts
   useEffect(() => () => onStreamingChange?.(false), [onStreamingChange]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the host's preview stream control state when this view unmounts
   useEffect(() => () => controlChanged(null), []);
   const processTerminated = () => {
     if (!active.current || failed.current) return;

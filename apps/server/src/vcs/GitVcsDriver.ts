@@ -20,6 +20,8 @@ import {
   type VcsCreateRefResult,
   type VcsCreateWorktreeInput,
   type VcsCreateWorktreeResult,
+  type ReviewBranchCommitsInput,
+  type ReviewBranchCommitsResult,
   type ReviewDiffPreviewInput,
   type ReviewDiffPreviewResult,
   type ReviewDiffFileContentsInput,
@@ -62,6 +64,8 @@ export interface ExecuteGitInput {
    */
   readonly keepLineCallbacksAfterTruncation?: boolean;
   readonly progress?: ExecuteGitProgress;
+  /** Writes .git/config, which every worktree shares and Git locks without waiting. */
+  readonly writesSharedConfig?: boolean;
 }
 
 export interface ExecuteGitResult {
@@ -202,15 +206,10 @@ export interface GitRenameBranchResult {
   branch: string;
 }
 
-export interface GitFetchPullRequestBranchInput {
+export interface GitFetchRefInput {
   cwd: string;
-  prNumber: number;
-  branch: string;
-}
-
-export interface GitFetchPullRequestHeadCommitInput {
-  cwd: string;
-  prNumber: number;
+  /** A ref on the primary remote, such as a host's change request head ref. */
+  ref: string;
 }
 
 export interface GitResolveCommitInput {
@@ -288,6 +287,18 @@ export interface GitFetchWorktreeBaseCommitInput {
   refName: string;
 }
 
+export interface GitCreateBranchInput {
+  readonly cwd: string;
+  readonly branch: string;
+  readonly startPoint: string;
+}
+
+export interface GitWriteConfigValueInput {
+  readonly cwd: string;
+  readonly key: string;
+  readonly value: string;
+}
+
 export interface GitSetBranchUpstreamInput {
   cwd: string;
   branch: string;
@@ -333,6 +344,9 @@ export class GitVcsDriver extends Context.Service<
       cwd: string,
       baseRef: string,
     ) => Effect.Effect<GitRangeContext, GitCommandError>;
+    readonly getReviewBranchCommits: (
+      input: ReviewBranchCommitsInput,
+    ) => Effect.Effect<ReviewBranchCommitsResult, GitCommandError>;
     readonly getReviewDiffPreview: (
       input: ReviewDiffPreviewInput,
     ) => Effect.Effect<ReviewDiffPreviewResult, GitCommandError>;
@@ -342,6 +356,14 @@ export class GitVcsDriver extends Context.Service<
     readonly readConfigValue: (
       cwd: string,
       key: string,
+    ) => Effect.Effect<string | null, GitCommandError>;
+    /**
+     * The branch, named as on the host, that Supaterm recorded `branch` was cut from. Null when none
+     * was recorded.
+     */
+    readonly readBranchBase: (
+      cwd: string,
+      branch: string,
     ) => Effect.Effect<string | null, GitCommandError>;
     readonly resolveBranchName: (
       cwd: string,
@@ -355,11 +377,12 @@ export class GitVcsDriver extends Context.Service<
       input: VcsCreateWorktreeInput,
       options?: CreateWorktreeOptions,
     ) => Effect.Effect<VcsCreateWorktreeResult, GitCommandError>;
-    readonly fetchPullRequestBranch: (
-      input: GitFetchPullRequestBranchInput,
+    /** Force-updates local `branch` to the primary remote's `ref`. */
+    readonly fetchRefIntoBranch: (
+      input: GitFetchRefInput & { readonly branch: string },
     ) => Effect.Effect<void, GitCommandError>;
-    readonly fetchPullRequestHeadCommit: (
-      input: GitFetchPullRequestHeadCommitInput,
+    readonly fetchRefCommit: (
+      input: GitFetchRefInput,
     ) => Effect.Effect<GitResolveCommitResult, GitCommandError>;
     readonly resolveCommit: (
       input: GitResolveCommitInput,
@@ -396,6 +419,11 @@ export class GitVcsDriver extends Context.Service<
     ) => Effect.Effect<void, GitCommandError>;
     readonly setBranchUpstream: (
       input: GitSetBranchUpstreamInput,
+    ) => Effect.Effect<void, GitCommandError>;
+    /** Tracks the start point like `git branch` does. */
+    readonly createBranch: (input: GitCreateBranchInput) => Effect.Effect<void, GitCommandError>;
+    readonly writeConfigValue: (
+      input: GitWriteConfigValueInput,
     ) => Effect.Effect<void, GitCommandError>;
     readonly removeWorktree: (
       input: VcsRemoveWorktreeInput,
@@ -471,39 +499,41 @@ function chunkPathsForGitCheckIgnore(relativePaths: ReadonlyArray<string>): stri
   return chunks;
 }
 
-const gitCommand = (
-  process: VcsProcess.VcsProcess["Service"],
-  operation: string,
-  cwd: string,
-  args: ReadonlyArray<string>,
-  options?: {
-    readonly stdin?: string;
-    readonly env?: NodeJS.ProcessEnv;
-    readonly allowNonZeroExit?: boolean;
-    readonly timeoutMs?: number;
-    readonly maxOutputBytes?: number;
-    readonly outputMode?: VcsProcess.VcsProcessInput["outputMode"];
-    readonly appendTruncationMarker?: boolean;
-  },
-) =>
-  process.run({
-    operation,
-    command: "git",
-    args: ["-C", cwd, ...args],
-    cwd,
-    spawnCwd: globalThis.process.cwd(),
-    ...(options?.stdin !== undefined ? { stdin: options.stdin } : {}),
-    ...(options?.env !== undefined ? { env: options.env } : {}),
-    ...(options?.allowNonZeroExit !== undefined
-      ? { allowNonZeroExit: options.allowNonZeroExit }
-      : {}),
-    ...(options?.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
-    ...(options?.maxOutputBytes !== undefined ? { maxOutputBytes: options.maxOutputBytes } : {}),
-    ...(options?.outputMode !== undefined ? { outputMode: options.outputMode } : {}),
-    ...(options?.appendTruncationMarker !== undefined
-      ? { appendTruncationMarker: options.appendTruncationMarker }
-      : {}),
-  });
+const gitCommand = Effect.fn("GitVcsDriver.gitCommand")(
+  (
+    process: VcsProcess.VcsProcess["Service"],
+    operation: string,
+    cwd: string,
+    args: ReadonlyArray<string>,
+    options?: {
+      readonly stdin?: string;
+      readonly env?: NodeJS.ProcessEnv;
+      readonly allowNonZeroExit?: boolean;
+      readonly timeoutMs?: number;
+      readonly maxOutputBytes?: number;
+      readonly outputMode?: VcsProcess.VcsProcessInput["outputMode"];
+      readonly appendTruncationMarker?: boolean;
+    },
+  ) =>
+    process.run({
+      operation,
+      command: "git",
+      args: ["-C", cwd, ...args],
+      cwd,
+      spawnCwd: globalThis.process.cwd(),
+      ...(options?.stdin !== undefined ? { stdin: options.stdin } : {}),
+      ...(options?.env !== undefined ? { env: options.env } : {}),
+      ...(options?.allowNonZeroExit !== undefined
+        ? { allowNonZeroExit: options.allowNonZeroExit }
+        : {}),
+      ...(options?.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
+      ...(options?.maxOutputBytes !== undefined ? { maxOutputBytes: options.maxOutputBytes } : {}),
+      ...(options?.outputMode !== undefined ? { outputMode: options.outputMode } : {}),
+      ...(options?.appendTruncationMarker !== undefined
+        ? { appendTruncationMarker: options.appendTruncationMarker }
+        : {}),
+    }),
+);
 
 export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
@@ -511,15 +541,6 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
   const vcsProcess = yield* VcsProcess.VcsProcess;
   const crypto = yield* Crypto.Crypto;
   const hostPlatform = yield* HostProcess.Platform;
-  const capabilities = {
-    kind: "git" as const,
-    supportsWorktrees: true,
-    supportsBookmarks: false,
-    supportsAtomicSnapshot: false,
-    supportsPushDefaultRemote: true,
-    ignoreClassifier: "native" as const,
-  };
-
   const isInsideWorkTree: VcsDriver.VcsDriver["Service"]["isInsideWorkTree"] = (cwd) =>
     gitCommand(
       vcsProcess,
@@ -552,25 +573,43 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
   const detectRepository: VcsDriver.VcsDriver["Service"]["detectRepository"] = Effect.fn(
     "detectRepository",
   )(function* (cwd) {
-    if (!(yield* isInsideWorkTree(cwd))) {
-      return null;
-    }
-
-    const root = yield* gitCommand(vcsProcess, "GitVcsDriver.detectRepository.root", cwd, [
-      "rev-parse",
-      "--show-toplevel",
-    ]);
-    const gitCommonDir = yield* gitCommand(
+    // One spawn answers all three; outside a work tree it exits non-zero or prints "false".
+    const result = yield* gitCommand(
       vcsProcess,
-      "GitVcsDriver.detectRepository.commonDir",
+      "GitVcsDriver.detectRepository",
       cwd,
-      ["rev-parse", "--git-common-dir"],
-    ).pipe(Effect.orElseSucceed(() => null));
+      ["rev-parse", "--is-inside-work-tree", "--show-toplevel", "--git-common-dir"],
+      {
+        allowNonZeroExit: true,
+        timeoutMs: 5_000,
+        maxOutputBytes: 16_384,
+      },
+    ).pipe(Effect.catchIf(isMissingExecutable, () => Effect.succeed(null)));
+    if (result === null || result.exitCode !== 0) return null;
+    const lines = result.stdout.replace(/\r?\n$/u, "").split(/\r?\n/u);
+    if (lines[0]?.trim() !== "true") return null;
+    // A newline inside a path breaks the line framing; ask for each path on its own.
+    if (lines.length !== 3) {
+      const root = yield* gitCommand(vcsProcess, "GitVcsDriver.detectRepository", cwd, [
+        "rev-parse",
+        "--show-toplevel",
+      ]);
+      const gitCommonDir = yield* gitCommand(vcsProcess, "GitVcsDriver.detectRepository", cwd, [
+        "rev-parse",
+        "--git-common-dir",
+      ]).pipe(Effect.orElseSucceed(() => null));
+      return {
+        kind: "git" as const,
+        rootPath: root.stdout.trim(),
+        metadataPath: gitCommonDir?.stdout.trim() || null,
+        freshness: yield* nowFreshness(),
+      };
+    }
 
     return {
       kind: "git" as const,
-      rootPath: root.stdout.trim(),
-      metadataPath: gitCommonDir?.stdout.trim() || null,
+      rootPath: lines[1]!.trim(),
+      metadataPath: lines[2]!.trim() || null,
       freshness: yield* nowFreshness(),
     };
   });
@@ -866,7 +905,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
             let specialFlags = false;
             let recordStart = true;
             let skipped = false;
-            let skippedRecord: number[] = [];
+            let skippedRecord: Uint8Array[] = [];
             const skippedPaths: string[] = [];
             yield* vcsProcess.run({
               operation,
@@ -876,27 +915,35 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
               env: commitEnv,
               maxOutputBytes: 4_096,
               outputMode: "truncate",
+              // Only tags and sparse skip-worktree paths matter; scan NUL-delimited records.
               onStdoutChunk: (chunk) => {
-                for (const byte of chunk) {
-                  if (recordStart) skipped = byte === 83;
+                let start = 0;
+                while (start < chunk.length) {
+                  const end = chunk.indexOf(0, start);
+                  if (recordStart) {
+                    const tag = chunk[start]!;
+                    skipped = tag === 83;
+                    if ((tag >= 97 && tag <= 122) || (!sparseCheckout && tag === 83)) {
+                      specialFlags = true;
+                    }
+                  }
                   if (skipped && sparseCheckout) {
-                    if (byte !== 0) skippedRecord.push(byte);
-                    else {
-                      if (skippedRecord.at(-1) !== 47) {
-                        const name = Buffer.from(skippedRecord).subarray(2);
+                    skippedRecord.push(
+                      Buffer.from(chunk.subarray(start, end === -1 ? undefined : end)),
+                    );
+                    if (end !== -1) {
+                      const record = Buffer.concat(skippedRecord);
+                      if (record.at(-1) !== 47) {
+                        const name = record.subarray(2);
                         if (!NodeBuffer.isUtf8(name)) specialFlags = true;
                         else skippedPaths.push(name.toString("utf8"));
                       }
                       skippedRecord = [];
                     }
                   }
-                  if (
-                    recordStart &&
-                    ((byte >= 97 && byte <= 122) || (!sparseCheckout && byte === 83))
-                  ) {
-                    specialFlags = true;
-                  }
-                  recordStart = byte === 0;
+                  recordStart = end !== -1;
+                  if (!recordStart) break;
+                  start = end + 1;
                 }
               },
             });
@@ -1361,7 +1408,6 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
   };
 
   return {
-    capabilities,
     execute,
     checkpoints,
     detectRepository,

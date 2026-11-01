@@ -18,6 +18,15 @@ vi.mock(import("@supaterm/client-runtime/state/thread-workflows"), async (import
 vi.mock(import("../../state/entities"), async (importOriginal) => ({
   ...(await importOriginal()),
   useThreadProjection: (() => state.projection) as never,
+  useQuietThreadShell: ((target: unknown) =>
+    target === null ? null : { title: "Release lead" }) as never,
+}));
+
+vi.mock(import("../../state/query"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  useEnvironmentQuery: (() => ({
+    data: { tasks: [{ id: "task:webhook", title: "PR dispatcher" }] },
+  })) as never,
 }));
 
 vi.mock(import("../../state/use-atom-command"), async (importOriginal) => ({
@@ -45,11 +54,12 @@ function setup() {
 
 const baseProps = {
   environmentId: "environment:test" as never,
-  optimisticMessages: [],
   threadId: "thread:test" as never,
   editingRunId: null,
+  editBlockedReason: null,
   onEditQueuedRun: () => undefined,
   onCancelEdit: () => undefined,
+  onOpenThread: () => undefined,
 } satisfies ComponentProps<typeof QueuedRunsControl>;
 
 async function renderQueue(props: Partial<ComponentProps<typeof QueuedRunsControl>> = {}) {
@@ -81,7 +91,6 @@ describe("QueuedRunsControl automatic completion delivery", () => {
     state.workflow = {
       activeRun: { id: "run:active" },
       canPromoteToSteer: true,
-      canReorder: true,
       queuedRuns: [],
     };
 
@@ -95,7 +104,6 @@ describe("QueuedRunsControl attachments and edit mode", () => {
   const workflowWithAttachment = () => ({
     activeRun: { id: "run:active" },
     canPromoteToSteer: true,
-    canReorder: true,
     queuedRuns: [
       {
         run: { id: "run:queued", userMessageId: "message:queued" },
@@ -125,36 +133,8 @@ describe("QueuedRunsControl attachments and edit mode", () => {
     );
     expect(screen.container.textContent).toContain("Queued with a screenshot");
     expect(labels(screen.container)).toContain("Edit queued message");
-    expect(labels(screen.container)).toContain(
-      "Reorder queued message (drag, or press the arrow keys)",
-    );
-    expect(labels(screen.container)).not.toContain("Move queued message up");
-  });
-
-  it("drops the optimistic pending row once the projection holds its message", async () => {
-    setup();
-    state.projection = {
-      projection: { messages: [{ id: "message:acknowledged", text: "hello" }] },
-    };
-    state.workflow = {
-      activeRun: { id: "run:active" },
-      canPromoteToSteer: true,
-      canReorder: true,
-      queuedRuns: [],
-    };
-
-    await using screen = await renderQueue({
-      optimisticMessages: [
-        {
-          id: "message:acknowledged" as never,
-          inputIntent: "queued_turn",
-          text: "hello",
-          attachments: [],
-        },
-      ],
-    });
-
-    expect(screen.container.childElementCount).toBe(0);
+    expect(labels(screen.container).some((label) => label?.startsWith("Reorder"))).toBe(false);
+    expect(screen.container.querySelector("[draggable='true']")).toBeNull();
   });
 
   it("keeps the original queued message visible while editing", async () => {
@@ -176,22 +156,14 @@ describe("QueuedRunsControl send", () => {
       activeRun: null,
       canSendNow: true,
       canPromoteToSteer: false,
-      canReorder: true,
       queuedRuns: [
         { run: { id: "run:held", userMessageId: "message:held" }, text: "Held", attachments: [] },
       ],
     };
     const ref = createRef<QueuedRunsControlHandle>();
 
-    await using _screen = await renderQueue({
-      ref,
-      optimisticMessages: [
-        { id: "message:outbox" as never, inputIntent: "queued_turn", text: "In the outbox" },
-      ],
-    });
-    const sendNow = page.getByRole("button", { name: "Send now" });
-    await expect.element(sendNow.nth(0)).toBeEnabled();
-    await expect.element(sendNow.nth(1)).toBeDisabled();
+    await using _screen = await renderQueue({ ref });
+    await expect.element(page.getByRole("button", { name: "Send now" })).toBeEnabled();
     await act(async () => {
       ref.current?.steerNext(false);
     });
@@ -220,7 +192,6 @@ describe("QueuedRunsControl editLatest", () => {
     state.workflow = {
       activeRun: { id: "run:active" },
       canPromoteToSteer: true,
-      canReorder: true,
       queuedRuns: [queuedRun("first", "first"), queuedRun("second", "second")],
     };
     const ref = createRef<QueuedRunsControlHandle>();
@@ -241,39 +212,11 @@ describe("QueuedRunsControl editLatest", () => {
     });
   });
 
-  it("does not fall back to an older message while the newest is still saving", async () => {
-    state.projection = { projection: { messages: [] } };
-    state.workflow = {
-      activeRun: { id: "run:active" },
-      canPromoteToSteer: true,
-      canReorder: true,
-      queuedRuns: [queuedRun("first", "first")],
-    };
-    const ref = createRef<QueuedRunsControlHandle>();
-    const onEditQueuedRun = vi.fn();
-
-    await using _screen = await renderQueue({
-      ref,
-      onEditQueuedRun,
-      optimisticMessages: [
-        { id: "message:saving" as never, inputIntent: "queued_turn", text: "saving" },
-      ],
-    });
-    let handled = false;
-    await act(async () => {
-      handled = ref.current?.editLatest(false) ?? false;
-    });
-
-    expect(handled).toBe(true);
-    expect(onEditQueuedRun).not.toHaveBeenCalled();
-  });
-
   it("leaves the key alone when nothing is queued", async () => {
     state.projection = { projection: { messages: [] } };
     state.workflow = {
       activeRun: null,
       canPromoteToSteer: false,
-      canReorder: false,
       queuedRuns: [],
     };
     const ref = createRef<QueuedRunsControlHandle>();
@@ -303,7 +246,6 @@ it("previews assistant quotes as readable text and preserves the citation when e
   state.workflow = {
     activeRun: { id: "run:active" },
     canPromoteToSteer: true,
-    canReorder: true,
     queuedRuns: [
       {
         run: { id: "run:quote-only", userMessageId: "message:quote-only" },
@@ -329,4 +271,63 @@ it("previews assistant quotes as readable text and preserves the citation when e
   expect(onEditQueuedRun).toHaveBeenCalledExactlyOnceWith(
     expect.objectContaining({ text: quoteAndText }),
   );
+});
+
+it("names who sent each queued message and opens the sender", async () => {
+  setup();
+  const message = (id: string, fields: Record<string, unknown>) => ({
+    id,
+    role: "user",
+    ...fields,
+  });
+  state.projection = { projection: { messages: [] } };
+  state.workflow = {
+    activeRun: { id: "run:active" },
+    canPromoteToSteer: true,
+    queuedRuns: [
+      [
+        "run:automation",
+        "GitHub labeled a pull request.\nFollow the runbook.",
+        {
+          createdBy: "agent",
+          scheduledTaskId: "task:webhook",
+        },
+      ],
+      [
+        "run:agent",
+        "Review finished.",
+        {
+          createdBy: "agent",
+          creationSource: "provider",
+          senderThreadId: "thread:lead",
+        },
+      ],
+      [
+        "run:server",
+        "Continue where you left off.",
+        {
+          createdBy: "agent",
+          creationSource: "server",
+        },
+      ],
+    ].map(([runId, text, fields]) => ({
+      run: { id: runId, userMessageId: `${runId}:message` },
+      text,
+      attachments: [],
+      message: message(`${runId}:message`, { text, ...(fields as object) }),
+    })),
+  };
+  const onOpenThread = vi.fn();
+  await using _screen = await renderQueue({ onOpenThread });
+
+  await expect
+    .element(page.getByRole("link", { name: "Open automation PR dispatcher" }))
+    .toHaveAttribute("href", expect.stringContaining("taskId=task%3Awebhook"));
+  await expect.element(page.getByText(/Follow the runbook/)).toBeInTheDocument();
+
+  await page.getByRole("button", { name: "Open thread Release lead" }).click();
+  expect(onOpenThread).toHaveBeenCalledExactlyOnceWith("thread:lead");
+
+  await expect.element(page.getByText("Supaterm", { exact: true })).toBeVisible();
+  await expect.element(page.getByText("Continue where you left off.")).toBeVisible();
 });

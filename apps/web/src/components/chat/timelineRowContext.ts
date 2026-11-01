@@ -1,3 +1,4 @@
+import type { ToolCallDiffTarget } from "../../diffPanelStore";
 import type { WorkGroupScrollAnchor, MessagesTimelineRow } from "./MessagesTimeline.logic";
 import type {
   ScopedThreadRef,
@@ -31,7 +32,7 @@ export interface TimelineRowSharedState {
   markdownCwd: string | undefined;
   resolvedTheme: "light" | "dark";
   workspaceRoot: string | undefined;
-  skills: ReadonlyArray<Pick<ServerProviderSkill, "name" | "displayName">>;
+  skills: ReadonlyArray<ServerProviderSkill>;
   runs: ReadonlyArray<HandoffTimelineRun>;
   activeThreadEnvironmentId: EnvironmentId;
   onRevertToTurnCount: (targetTurnCount: number, messageId: MessageId) => void;
@@ -45,6 +46,7 @@ export interface TimelineRowSharedState {
   onImageExpand: (preview: ExpandedImagePreview) => void;
   displayThreadKey?: string;
   onOpenTurnDiff: (runId: RunId, filePath?: string) => void;
+  onOpenToolDiff: ((target: ToolCallDiffTarget) => void) | undefined;
   onOpenThread: (threadId: OrchestrationV2TurnItem["threadId"]) => void;
   workflowOpening: WorkflowOpening | null;
   onForkFromRun: (input: {
@@ -72,8 +74,6 @@ export interface TimelineRowActivityState {
   isWorking: boolean;
   isCompacting: boolean;
   isRevertingCheckpoint: boolean;
-  activeTurnInProgress: boolean;
-
   awaitingUser: boolean;
   isPreparingWorktree: boolean;
   latestRunId: RunId | null;

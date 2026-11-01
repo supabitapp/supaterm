@@ -36,18 +36,10 @@ export interface RunOutcome {
 }
 
 /**
- * Records each run once, when a committed event first shows it finished. A finished run's row is
- * updated again later (its checkpoint, the thread being marked done), so recently counted runs are
- * remembered.
- *
- * A run carries `delegatedTaskId` only when a follow-up is associated with a task, so a subagent
- * thread's first run is recognized by its thread's lineage instead. A failed lookup only costs the
- * label: the events still commit and publish.
- *
- * `prepare` reads lineage, so the EventSink runs it inside the write transaction, on the
- * connection that transaction already holds. `record` runs after the commit, under the publish
- * lane, and must stay free of I/O: a read there waits for the writer connection while holding the
- * lane, and the next writer holds that connection while it waits for the lane.
+ * Records each run once; a finished run's row updates again later, so recent runs are remembered.
+ * Subagent runs are recognized by thread lineage, which `prepare` reads inside the write
+ * transaction. `record` runs after commit under the publish lane and must stay free of I/O: a
+ * read there waits for the writer connection, which the next writer holds while awaiting the lane.
  */
 export const makeRunOutcomeRecorder = <E>(
   isSubagentThread: (threadId: ThreadId) => Effect.Effect<boolean, E>,

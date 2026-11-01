@@ -4,11 +4,9 @@ import {
   type EnvironmentPresentation as BaseEnvironmentPresentation,
 } from "@supaterm/client-runtime/connection";
 import type { EnvironmentId } from "@supaterm/contracts";
-import { useMemo } from "react";
 
 import { environmentCatalog } from "../connection/catalog";
 import { environmentPresentations } from "./presentation";
-import { useEnvironmentQuery } from "./query";
 
 export interface EnvironmentPresentation extends BaseEnvironmentPresentation {
   readonly environmentId: EnvironmentId;
@@ -33,12 +31,8 @@ export function useEnvironments() {
   const networkStatus = useAtomValue(environmentCatalog.networkStatusValueAtom);
   const presentationById = useAtomValue(environmentPresentations.presentationsAtom);
 
-  const environments = useMemo(
-    () =>
-      [...presentationById.entries()].map(([environmentId, presentation]) =>
-        projectEnvironmentPresentation(environmentId, presentation),
-      ),
-    [presentationById],
+  const environments = [...presentationById.entries()].map(([environmentId, presentation]) =>
+    projectEnvironmentPresentation(environmentId, presentation),
   );
 
   return {
@@ -47,8 +41,4 @@ export function useEnvironments() {
     environments,
     presentationById,
   };
-}
-
-export function useEnvironmentConnectionState(environmentId: EnvironmentId) {
-  return useEnvironmentQuery(environmentCatalog.stateAtom(environmentId));
 }

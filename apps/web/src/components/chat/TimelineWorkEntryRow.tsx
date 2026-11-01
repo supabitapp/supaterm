@@ -22,7 +22,6 @@ import {
   threadReadTargetTitle,
   threadReadLabelPrefix,
   workEntryDisplayLabel,
-  toolGroupAction,
   workEntryReadOutput,
 } from "./MessagesTimeline.logic";
 import { WorkLogDetails, WorkLogRow } from "./WorkLog";
@@ -43,6 +42,7 @@ import { notificationChildThreadId } from "@supaterm/client-runtime/state/thread
 import {
   workEntryViewedImagePath,
   resolveViewedImageAsset,
+  toolGroupAction,
   type ViewedImageAsset,
 } from "@supaterm/client-runtime/work-log/presentation";
 import {
@@ -566,8 +566,7 @@ function WorkEntryLogDetails({
               environmentId={ctx.activeThreadEnvironmentId}
               cwd={ctx.markdownCwd}
               workspaceRoot={workspaceRoot}
-              onOpenThread={ctx.onOpenThread}
-              onOpenTurnDiff={ctx.onOpenTurnDiff}
+              onOpenToolDiff={ctx.onOpenToolDiff}
               onImageExpand={ctx.onImageExpand}
             />
           ) : (

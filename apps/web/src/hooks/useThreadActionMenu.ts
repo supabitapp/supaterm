@@ -19,13 +19,15 @@ import {
 } from "@supaterm/contracts";
 import { useRouter } from "@tanstack/react-router";
 
-import { resolveSnoozePresets } from "../components/Sidebar.snooze";
+import { pickSnoozePreset, resolveSnoozePresets } from "../components/Sidebar.snooze";
 import {
   buildThreadActionMenuItems,
   threadActionRequiresOperate,
   type ThreadActionMenuId,
 } from "../components/threadActionMenu.logic";
 import { stackedThreadToast, toastManager } from "../components/ui/toast";
+import { copyThreadReference } from "../lib/copyThreadReference";
+import { threadChipCopyTarget } from "@supaterm/client-runtime/thread-reference";
 import { threadEnvironment } from "../state/threads";
 import { useOrchestrationCommand } from "../state/use-orchestration-command";
 import { readEnvironmentScope } from "../state/session";
@@ -36,13 +38,13 @@ import {
   deriveLogicalProjectKeyFromSettings,
   derivePhysicalProjectKey,
   selectProjectGroupingSettings,
-} from "../logicalProject";
+} from "@supaterm/client-runtime/state/project-grouping";
 import { buildPhysicalToLogicalProjectKeyMap } from "../sidebarProjectGrouping";
 import { threadRuntimeCanArchive } from "@supaterm/client-runtime/state/models";
 import { useCopyToClipboard } from "./useCopyToClipboard";
 import { useNewThreadHandler } from "./useHandleNewThread";
 import { useClientSettings } from "./useSettings";
-import { useThreadActions } from "./useThreadActions";
+import { canTurnThreadIntoProject, useThreadActions } from "./useThreadActions";
 
 function failureToast(title: string, error: unknown) {
   toastManager.add(
@@ -55,21 +57,16 @@ function failureToast(title: string, error: unknown) {
 }
 
 /**
- * The per-thread action menu (pin, mark done, snooze, rename, copy, delete…) as
- * a self-contained hook, for surfaces other than the sidebar row. The chat header
- * renders it through the native context-menu bridge and the command palette lists
- * `threadActions` as commands; both dispatch through the same mutations the
- * sidebar uses.
- *
- * Unlike the sidebar, marking done and snoozing here never navigate away: the caller
- * is acting on the thread they are reading, and ChatView's parked-thread
- * banner already offers the way back.
+ * The thread action menu for surfaces other than the sidebar row, using the sidebar's mutations.
+ * Unlike the sidebar, marking done and snoozing never navigate away: the caller is reading the
+ * thread, and ChatView's parked-thread banner already offers the way back.
  */
 export function useThreadActionMenu(input: {
   readonly threadRef: ScopedThreadRef | null;
   readonly onStartRename: (threadRef: ScopedThreadRef) => void;
+  readonly onFind?: ((threadRef: ScopedThreadRef) => void) | undefined;
 }) {
-  const { threadRef, onStartRename } = input;
+  const { threadRef, onStartRename, onFind } = input;
   const router = useRouter();
   const projects = useProjects();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
@@ -90,6 +87,7 @@ export function useThreadActionMenu(input: {
     archiveThread,
     deleteThread,
     markThreadUnread,
+    turnThreadIntoProject,
   } = useThreadActions();
   const updateThreadMetadata = useOrchestrationCommand(threadEnvironment.updateMetadata, {
     reportFailure: false,
@@ -144,7 +142,12 @@ export function useThreadActionMenu(input: {
       const preset =
         action === "snooze:custom"
           ? await requestCustomSnooze()
-          : snoozePresets.find((candidate) => `snooze:${candidate.id}` === action);
+          : pickSnoozePreset(
+              snoozePresets,
+              action.slice("snooze:".length),
+              timestampFormat,
+              threadRef.environmentId,
+            );
       if (!preset) return;
       const result = await snoozeThread(threadRef, preset.snoozedUntil);
       if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
@@ -162,6 +165,9 @@ export function useThreadActionMenu(input: {
       }
     };
     switch (action) {
+      case "find":
+        onFind?.(threadRef);
+        return;
       case "project-settings": {
         if (!project) return;
         const projectKey =
@@ -224,6 +230,19 @@ export function useThreadActionMenu(input: {
       case "mark-unread":
         markThreadUnread(threadRef);
         return;
+      case "turn-into-project": {
+        const result = await turnThreadIntoProject(threadRef);
+        if (result._tag === "Success") {
+          toastManager.add({
+            type: "success",
+            title: "Project created",
+            description: thread.title,
+          });
+        } else if (!isAtomCommandInterrupted(result)) {
+          failureToast("Could not turn thread into a project", squashAtomCommandFailure(result));
+        }
+        return;
+      }
       case "copy-path": {
         const workspacePath = thread.worktreePath ?? project?.workspaceRoot;
         if (!workspacePath) {
@@ -243,6 +262,9 @@ export function useThreadActionMenu(input: {
         if (thread.branch) {
           copyBranchToClipboard(thread.branch, { branch: thread.branch });
         }
+        return;
+      case "copy-thread":
+        void copyThreadReference(threadChipCopyTarget(threadRef, thread.title));
         return;
       case "copy-thread-id":
         copyThreadIdToClipboard(thread.id, { threadId: thread.id });
@@ -301,11 +323,12 @@ export function useThreadActionMenu(input: {
 
   const threadActions = (thread: EnvironmentThreadShell) => {
     const now = new Date();
-    const snoozePresets = resolveSnoozePresets(now, timestampFormat);
+    const snoozePresets = resolveSnoozePresets(now, timestampFormat, thread.environmentId);
     const isSnoozed = effectiveSnoozed(thread, { now: now.toISOString() });
     return {
       items: buildThreadActionMenuItems({
         canOperate: readEnvironmentScope(thread.environmentId, AuthOrchestrationOperateScope),
+        canFind: onFind !== undefined,
         branch: thread.branch ?? null,
         projectFilter: null,
         isPinned: thread.pinnedAt != null,
@@ -316,6 +339,9 @@ export function useThreadActionMenu(input: {
         isRegeneratingTitle: thread.titleRegeneration != null,
         isRunning: !threadRuntimeCanArchive(thread.runtime),
         snoozePresets,
+        canTurnIntoProject: canTurnThreadIntoProject(
+          scopeThreadRef(thread.environmentId, thread.id),
+        ),
       }),
       run: (action: ThreadActionMenuId) => runAction(thread, action, snoozePresets),
     };

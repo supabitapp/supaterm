@@ -75,6 +75,7 @@ const makeHarness = Effect.fn("RouteLatencyTest.makeHarness")(function* (options
     probe: Effect.sync(() => {
       probes += 1;
     }),
+    inboundFrames: Effect.succeed(0),
     closed: Effect.never,
   };
   let probes = 0;
@@ -121,7 +122,16 @@ const makeHarness = Effect.fn("RouteLatencyTest.makeHarness")(function* (options
   const registry = yield* Effect.acquireRelease(Effect.sync(AtomRegistry.make), (registry) =>
     Effect.sync(() => registry.dispose()),
   );
-  return { atoms, registry, supervisor, probes: () => probes };
+  return { atoms, registry, supervisor, session, probes: () => probes };
+});
+
+/** Prepares a route and brings up a transport session, as the supervisor does on connect. */
+const connect = Effect.fn("SessionStateTest.connect")(function* (
+  supervisor: EnvironmentSupervisor.EnvironmentSupervisor["Service"],
+  session: RpcSession,
+) {
+  yield* SubscriptionRef.set(supervisor.prepared, Option.some(prepared(directRoute("lan"))));
+  yield* SubscriptionRef.set(supervisor.session, Option.some(session));
 });
 
 function prepared(route: ConnectionRoute): PreparedConnection {
@@ -250,7 +260,7 @@ describe("session state", () => {
     Effect.gen(function* () {
       const failed = yield* Deferred.make<void>();
       let requests = 0;
-      const { atoms, registry, supervisor } = yield* makeHarness({
+      const { atoms, registry, supervisor, session } = yield* makeHarness({
         reply: () =>
           Effect.suspend(() => {
             requests += 1;
@@ -263,7 +273,7 @@ describe("session state", () => {
       });
       const atom = atoms.sessionStateAtom(environmentId);
       registry.mount(atom);
-      yield* SubscriptionRef.set(supervisor.prepared, Option.some(prepared(directRoute("lan"))));
+      yield* connect(supervisor, session);
       yield* Deferred.await(failed);
       yield* TestClock.adjust("1 second");
       expect(
@@ -276,7 +286,7 @@ describe("session state", () => {
   it.effect("settles on the failure once the retries run out", () =>
     Effect.gen(function* () {
       const failures = yield* Queue.unbounded<void>();
-      const { atoms, registry, supervisor } = yield* makeHarness({
+      const { atoms, registry, supervisor, session } = yield* makeHarness({
         reply: () =>
           Queue.offer(failures, undefined).pipe(
             Effect.andThen(Effect.fail("connection reset" as const)),
@@ -284,7 +294,7 @@ describe("session state", () => {
       });
       const atom = atoms.sessionStateAtom(environmentId);
       registry.mount(atom);
-      yield* SubscriptionRef.set(supervisor.prepared, Option.some(prepared(directRoute("lan"))));
+      yield* connect(supervisor, session);
       for (const backoff of ["1 second", "2 seconds", "4 seconds"] as const) {
         yield* Queue.take(failures);
         yield* TestClock.adjust(backoff);
@@ -294,6 +304,72 @@ describe("session state", () => {
       );
       expect(result).toMatchObject({ _tag: "RemoteEnvironmentAuthFetchError" });
       expect(yield* Queue.size(failures)).toBe(1);
+    }),
+  );
+
+  it.effect("fetches permissions again when the connection is re-established", () =>
+    Effect.gen(function* () {
+      const failures = yield* Queue.unbounded<void>();
+      let requests = 0;
+      const { atoms, registry, supervisor, session } = yield* makeHarness({
+        reply: () =>
+          Effect.suspend(() => {
+            requests += 1;
+            return requests <= 4
+              ? Queue.offer(failures, undefined).pipe(
+                  Effect.andThen(Effect.fail("connection reset" as const)),
+                )
+              : Effect.succeed(Response.json(grantedSession));
+          }),
+      });
+      const atom = atoms.sessionStateAtom(environmentId);
+      registry.mount(atom);
+      yield* connect(supervisor, session);
+      for (const backoff of ["1 second", "2 seconds", "4 seconds"] as const) {
+        yield* Queue.take(failures);
+        yield* TestClock.adjust(backoff);
+      }
+      yield* AtomRegistry.getResult(registry, atom, { suspendOnWaiting: true }).pipe(Effect.flip);
+
+      yield* SubscriptionRef.set(supervisor.session, Option.some({ ...session }));
+
+      expect(
+        yield* AtomRegistry.getResult(registry, atom, { suspendOnWaiting: true }),
+      ).toMatchObject({ scopes: grantedSession.scopes });
+      expect(requests).toBe(5);
+    }),
+  );
+
+  it.effect("keeps retrying a settled failure while the connection stays up", () =>
+    Effect.gen(function* () {
+      const failures = yield* Queue.unbounded<void>();
+      let requests = 0;
+      const { atoms, registry, supervisor, session } = yield* makeHarness({
+        reply: () =>
+          Effect.suspend(() => {
+            requests += 1;
+            return requests <= 4
+              ? Queue.offer(failures, undefined).pipe(
+                  Effect.andThen(Effect.fail("connection reset" as const)),
+                )
+              : Effect.succeed(Response.json(grantedSession));
+          }),
+      });
+      const atom = atoms.sessionStateAtom(environmentId);
+      registry.mount(atom);
+      yield* connect(supervisor, session);
+      for (const backoff of ["1 second", "2 seconds", "4 seconds"] as const) {
+        yield* Queue.take(failures);
+        yield* TestClock.adjust(backoff);
+      }
+      yield* AtomRegistry.getResult(registry, atom, { suspendOnWaiting: true }).pipe(Effect.flip);
+
+      yield* TestClock.adjust("2 seconds");
+
+      expect(
+        yield* AtomRegistry.getResult(registry, atom, { suspendOnWaiting: true }),
+      ).toMatchObject({ scopes: grantedSession.scopes });
+      expect(requests).toBe(5);
     }),
   );
 });

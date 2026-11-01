@@ -17,11 +17,9 @@ export interface AttachmentTray {
 }
 
 /**
- * Only attachments added to the open draft play the entrance, and the tray's
- * height eases only when attachments arrive or a removed one finishes leaving.
- * Switching drafts or composer layouts (resting, approval, a question), sending,
- * and stashing show the tray as it is. Measures synchronously so a snap-shot's
- * flight (which skips this) reads final geometry.
+ * Only attachments added to the open draft animate; switching drafts or layouts, sending, and
+ * stashing show the tray as it is. Measures synchronously so a snap-shot's flight (which skips
+ * this) reads final geometry.
  */
 export function useAttachmentTrayMotion(
   draftKey: string,
@@ -53,6 +51,7 @@ export function useAttachmentTrayMotion(
   }
   const trayRef = useRef<HTMLDivElement>(null);
   const settledHeightRef = useRef<number | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- observes the tray's size to record its settled height while no animation runs
   useLayoutEffect(() => {
     const element = trayRef.current;
     if (!element) return;
@@ -61,6 +60,7 @@ export function useAttachmentTrayMotion(
       settledHeightRef.current = element.getBoundingClientRect().height;
     });
   }, []);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- starts a Web Animations height transition on the tray before paint when attachments arrive
   useLayoutEffect(() => {
     const element = trayRef.current;
     if (!element) return;
@@ -142,6 +142,7 @@ export function useAttachmentExits<T>(
     entries.length === 0 ? { shown: items, exiting: NO_IDS } : placeRetained(items, getId, entries);
 
   const { findAttachment, exitSettled } = tray;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- waits for each retained attachment's exit animation to settle before dropping it from the tray
   useEffect(() => {
     if (entries.length === 0) return;
     let cancelled = false;

@@ -162,7 +162,10 @@ const proxyRequest = Effect.fn("desktop.protocol.proxyRequest")(function* (
     return new Response(null, { status: 404 });
   }
 
-  const targetUrl = new URL(`${requestUrl.pathname}${requestUrl.search}`, targetOrigin);
+  // Assign the path so leading slashes cannot replace the configured host.
+  const targetUrl = new URL(targetOrigin);
+  targetUrl.pathname = requestUrl.pathname;
+  targetUrl.search = requestUrl.search;
   const headers = new Headers(request.headers);
   const headersToRemove: string[] = [];
   for (const name of headers.keys()) {
@@ -235,7 +238,7 @@ const serveDesktopAsset = Effect.fn("desktop.protocol.serveAsset")(function* (
   });
 });
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const registered = yield* Ref.make(false);
   const context = yield* Effect.context<FileSystem.FileSystem | Path.Path>();

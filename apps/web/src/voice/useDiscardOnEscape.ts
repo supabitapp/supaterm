@@ -8,6 +8,7 @@ const ESCAPE_OWNERS = '[role="dialog"], [role="menu"], [role="listbox"], [aria-a
  * menu or dialog, or in a field driving a suggestion list, still belongs to that.
  */
 export function useDiscardOnEscape(active: boolean, discard: () => void) {
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- holds a capture-phase window Escape listener while a recording is open
   useEffect(() => {
     if (!active) return;
     const onKeyDown = (event: KeyboardEvent) => {

@@ -2,8 +2,6 @@ import type { DesktopUpdateActionResult, DesktopUpdateState } from "@supaterm/co
 
 export type DesktopUpdateButtonAction = "download" | "install" | "none";
 
-export type DesktopUpdateIndicator = "available" | "downloading" | "downloaded";
-
 const DEFAULT_DESKTOP_RELEASE_REPOSITORY = "supabitapp/supaterm";
 const GITHUB_REPOSITORY_SEGMENT = /^[A-Za-z0-9._-]+$/u;
 
@@ -23,11 +21,7 @@ function desktopReleaseRepositoryUrl(repository: string | undefined): string {
   return `https://github.com/${releaseRepository}/releases`;
 }
 
-/**
- * The main process fills `downloadedVersion` from the updater's `update-downloaded`
- * event, which is dispatched on its own fiber. A download RPC can therefore resolve
- * before that write lands, so fall back to the version the download was started for.
- */
+/** The download RPC can beat the updater's downloadedVersion event; fall back to the requested version. */
 export function getDesktopUpdateDownloadedVersion(state: DesktopUpdateState): string | null {
   return state.downloadedVersion ?? state.availableVersion;
 }
@@ -67,23 +61,6 @@ export function resolveDesktopUpdateButtonAction(
     }
   }
   return "none";
-}
-
-/** The sidebar's update state, or null while there is no update to act on. */
-export function resolveDesktopUpdateIndicator(
-  state: DesktopUpdateState | null,
-): DesktopUpdateIndicator | null {
-  if (!state) return null;
-  if (state.status === "downloading") return "downloading";
-  // Background checks keep polling after an update is found; keep showing it meanwhile.
-  if (state.status === "checking") {
-    if (state.downloadedVersion) return "downloaded";
-    return state.availableVersion ? "available" : null;
-  }
-  const action = resolveDesktopUpdateButtonAction(state);
-  if (action === "install") return "downloaded";
-  if (action === "download") return "available";
-  return null;
 }
 
 export function shouldShowArm64IntelBuildWarning(state: DesktopUpdateState | null): boolean {

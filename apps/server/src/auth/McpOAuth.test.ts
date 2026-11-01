@@ -430,11 +430,10 @@ it.live("denies requests and refuses codes without the scopes it grants", () =>
       });
       expect(operatorFull.status).toBe(400);
 
-      const readOnlyCode = yield* auth.issuePairingCredential({ scopes: ["orchestration:read"] });
       const readOnlyApproval = yield* decide(handler, params, {
         _tag: "pairing-code",
         access: "read-only",
-        code: readOnlyCode.credential,
+        code: readOnly.credential,
       });
       expect(readOnlyApproval.status).toBe(200);
       const readOnlyToken = yield* handler(

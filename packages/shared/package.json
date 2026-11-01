@@ -11,9 +11,9 @@
       "types": "./src/changedFileKind.ts",
       "import": "./src/changedFileKind.ts"
     },
-    "./githubMarkdownLinks": {
-      "types": "./src/githubMarkdownLinks.ts",
-      "import": "./src/githubMarkdownLinks.ts"
+    "./authScopeOptions": {
+      "types": "./src/authScopeOptions.ts",
+      "import": "./src/authScopeOptions.ts"
     },
     "./orchestrationV2ThreadError": {
       "types": "./src/orchestrationV2ThreadError.ts",
@@ -43,6 +43,10 @@
       "types": "./src/projectFavicon.ts",
       "import": "./src/projectFavicon.ts"
     },
+    "./projectIdentity": {
+      "types": "./src/projectIdentity.ts",
+      "import": "./src/projectIdentity.ts"
+    },
     "./model": {
       "types": "./src/model.ts",
       "import": "./src/model.ts"
@@ -55,10 +59,6 @@
       "types": "./src/git.ts",
       "import": "./src/git.ts"
     },
-    "./githubMedia": {
-      "types": "./src/githubMedia.ts",
-      "import": "./src/githubMedia.ts"
-    },
     "./sourceControl": {
       "types": "./src/sourceControl.ts",
       "import": "./src/sourceControl.ts"
@@ -66,6 +66,10 @@
     "./logging": {
       "types": "./src/logging.ts",
       "import": "./src/logging.ts"
+    },
+    "./releaseResource": {
+      "types": "./src/releaseResource.ts",
+      "import": "./src/releaseResource.ts"
     },
     "./observability": {
       "types": "./src/observability.ts",
@@ -215,17 +219,13 @@
       "types": "./src/threadTranscript.ts",
       "import": "./src/threadTranscript.ts"
     },
-    "./threadReference": {
-      "types": "./src/threadReference.ts",
-      "import": "./src/threadReference.ts"
+    "./paletteSearch": {
+      "types": "./src/paletteSearch.ts",
+      "import": "./src/paletteSearch.ts"
     },
     "./threadPullRequests": {
       "types": "./src/threadPullRequests.ts",
       "import": "./src/threadPullRequests.ts"
-    },
-    "./changeRequestUrl": {
-      "types": "./src/changeRequestUrl.ts",
-      "import": "./src/changeRequestUrl.ts"
     },
     "./composerTrigger": {
       "types": "./src/composerTrigger.ts",
@@ -270,6 +270,10 @@
     "./previewViewport": {
       "types": "./src/previewViewport.ts",
       "import": "./src/previewViewport.ts"
+    },
+    "./mediaPreview": {
+      "types": "./src/mediaPreview.ts",
+      "import": "./src/mediaPreview.ts"
     },
     "./filePreview": {
       "types": "./src/filePreview.ts",
@@ -375,10 +379,6 @@
       "types": "./src/hostClassification.ts",
       "import": "./src/hostClassification.ts"
     },
-    "./dateTime": {
-      "types": "./src/dateTime.ts",
-      "import": "./src/dateTime.ts"
-    },
     "./cliRelease": {
       "types": "./src/cliRelease.ts",
       "import": "./src/cliRelease.ts"
@@ -399,13 +399,13 @@
       "types": "./src/codexAuthHandoff.ts",
       "import": "./src/codexAuthHandoff.ts"
     },
-    "./authScopeOptions": {
-      "types": "./src/authScopeOptions.ts",
-      "import": "./src/authScopeOptions.ts"
-    },
     "./orchestrationV2BoundedSnapshot": {
       "types": "./src/orchestrationV2BoundedSnapshot.ts",
       "import": "./src/orchestrationV2BoundedSnapshot.ts"
+    },
+    "./orchestrationV2DedupedBodies": {
+      "types": "./src/orchestrationV2DedupedBodies.ts",
+      "import": "./src/orchestrationV2DedupedBodies.ts"
     },
     "./codexArtifactTemplates": {
       "types": "./src/codexArtifactTemplates.ts",
@@ -422,6 +422,10 @@
     "./markdownGithubAlerts": {
       "types": "./src/markdownGithubAlerts.ts",
       "import": "./src/markdownGithubAlerts.ts"
+    },
+    "./markdownFrontmatter": {
+      "types": "./src/markdownFrontmatter.ts",
+      "import": "./src/markdownFrontmatter.ts"
     },
     "./markdownListIndentation": {
       "types": "./src/markdownListIndentation.ts",

@@ -17,7 +17,6 @@ import {
 } from "~/components/ui/menu";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 import { useTheme } from "~/hooks/useTheme";
-import { useWorkspaceMutationRefresh } from "~/hooks/useWorkspaceMutationRefresh";
 import { cn } from "~/lib/utils";
 import { isHostPath } from "@supaterm/shared/path";
 
@@ -85,12 +84,12 @@ function BreadcrumbMenuContent(props: {
   readonly rootPath: string;
   readonly workspaceMutationId: string | null;
 }) {
-  const entriesQuery = useProjectEntriesQuery(props.environmentId, props.cwd, props.directoryPath);
-  useWorkspaceMutationRefresh({
-    mutationId: props.workspaceMutationId,
-    refresh: entriesQuery.refresh,
-    resourceKey: `files:${props.environmentId}:${props.cwd}`,
-  });
+  const entriesQuery = useProjectEntriesQuery(
+    props.environmentId,
+    props.cwd,
+    props.directoryPath,
+    props.workspaceMutationId,
+  );
   const { resolvedTheme } = useTheme();
   const entries = entriesQuery.data?.entries ?? [];
   const entriesTruncated = entriesQuery.data?.truncated ?? false;
@@ -201,7 +200,7 @@ function BreadcrumbMenuContent(props: {
           <MenuSeparator />
           <MenuItem closeOnClick={false} onClick={entriesQuery.refresh}>
             <RefreshIcon refreshing={entriesQuery.isPending} />
-            Refresh failed — retry
+            Refresh failed. Retry
           </MenuItem>
         </>
       ) : null}

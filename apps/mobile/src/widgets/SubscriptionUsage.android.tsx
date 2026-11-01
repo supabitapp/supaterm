@@ -57,8 +57,7 @@ export function SubscriptionUsage(props: SubscriptionUsageProps, environment: Wi
     },
   ];
   return (
-    // The card is one Button so a tap reaches the app's interaction listener,
-    // which opens props.url. expo-widgets has no Android counterpart to widgetURL.
+    // Android lacks widgetURL; one card Button routes taps to the app listener opening props.url.
     <Button
       colors={{ containerColor: colors.surface }}
       modifiers={[fillMaxSize()]}

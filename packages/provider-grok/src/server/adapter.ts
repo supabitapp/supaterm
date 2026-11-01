@@ -4,6 +4,7 @@ import {
   isXAiTaskCompletedWakeNotification,
   xAiRateLimitedErrorCode,
 } from "./xaiAcpExtension.ts";
+import { discoverGrokSkills, leadingGrokSkillMention } from "./skills.ts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { getModelSelectionStringOptionValue } from "@supaterm/shared/model";
 import { resolveSelfInvocation, type SelfInvocation } from "@supaterm/shared/nodeRuntime";
@@ -153,11 +154,7 @@ const registerGrokAcpExtensions: NonNullable<AcpAdapterV2Flavor["registerExtensi
     ),
   );
 
-/**
- * Grok intercepts exit_plan_mode and reverse-requests client approval. Capture
- * the plan into Supaterm's proposed-plan card and abandon the native gate so the turn
- * does not hang (#8358; mirrors the Claude ExitPlanMode pattern).
- */
+// Capture the reverse-requested plan, then abandon the native gate to finish the turn.
 const registerGrokExitPlanModeExtensions = ({
   runtime,
   captureProposedPlan,
@@ -214,11 +211,7 @@ const registerGrokAskUserQuestionExtensions = ({
     { discard: true },
   );
 
-/**
- * Grok's permission mode is fixed at launch. Explicit approval or sandbox
- * overrides launch it asking, so every mutating prompt reaches Supaterm's policy
- * check instead of being bypassed by always-approve or Grok's auto classifier.
- */
+/** Explicit policy overrides launch in ask mode so Grok cannot bypass Supaterm approval checks. */
 export function grokLaunchRuntimeMode(
   runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy,
 ): RuntimeMode {
@@ -236,21 +229,32 @@ export function makeGrokAcpAdapterFlavor(
     runtimeHarness: "Grok",
     capabilities: GrokProviderCapabilitiesV2,
     interruptPromptOnCancel: false,
-    // User Stop (requestRuntimeRestart) still hard-kills the process group and
-    // respawns so existing background tasks stop too. Non-Stop interrupts
-    // (mid-prompt steering, restart_active) omit requestRuntimeRestart and stay
-    // soft: session/cancel carries cancelTrigger=ctrl_c, the session survives,
-    // and background work remains available to the replacement turn.
+    // User Stop restarts the process group; steering cancels softly to preserve background work.
     restartRuntimeAfterInterrupt: true,
     terminateRuntimeProcessGroupOnInterrupt: true,
-    // Steering restarts on a settled turn additionally skip session/cancel so
-    // fire-and-forget subagents survive the steer (E1 harness confirmed the
-    // Grok CLI accepts a concurrent session/prompt in that state).
+    // Settled Grok sessions accept concurrent prompts; skip cancel to preserve background subagents.
     preserveRuntimeOnSettledInterrupt: true,
-    // Grok ACP initialize reports promptCapabilities.image:false but the agent
-    // still accepts image content blocks (verified with real screenshots).
+    // Grok accepts image blocks despite advertising promptCapabilities.image:false.
     supportsImagePrompts: true,
     supportsCompaction: true,
+    // Grok expands only a leading `/name`, while the `$` picker inserts `$name` from the
+    // `grok inspect` catalog. Ask that catalog again so other `$` text is left alone.
+    rewriteUserText: (text, turnInput) => {
+      const mention = leadingGrokSkillMention(text);
+      if (mention === undefined) return Effect.succeed(text);
+      return discoverGrokSkills(
+        options.settings,
+        options.environment,
+        turnInput.runtimePolicy.cwd ?? undefined,
+      ).pipe(
+        Effect.map((skills) =>
+          skills.some((skill) => skill.enabled && skill.name === mention.name)
+            ? `/${mention.name}${mention.rest}`
+            : text,
+        ),
+        Effect.orElseSucceed(() => text),
+      );
+    },
     resolveModelId: (selection) => resolveGrokAcpBaseModelId(selection.model),
     getModelContextWindow: (selection, session) => {
       if (selection.instanceId !== options.instanceId) return undefined;
@@ -303,8 +307,7 @@ export function makeGrokAcpAdapterFlavor(
           environment: options.environment,
           runtimeMode: grokLaunchRuntimeMode(runtimePolicy),
         })),
-    // In its Auto mode Grok decides routine actions itself and only asks about
-    // what its classifier blocked, so every prompt it sends goes to the user.
+    // Auto prompts represent classifier refusals and must reach the user.
     permissionDisposition: (policy, request) =>
       grokLaunchRuntimeMode(policy) === "auto" ? "ask" : acpPermissionDisposition(policy, request),
     approvalOptions: grokApprovalOptions,

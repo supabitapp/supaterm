@@ -22,6 +22,7 @@ export function useNativeWorkspaceColumnsReady() {
     !!nativeControls?.ViewPrototypes?.SupatermNativeControls_LayoutMetrics &&
     metrics === null;
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- arms a timeout so binaries that never report native layout metrics fall back to the compact navigator
   useEffect(() => {
     if (!waiting) return;
     const timeout = setTimeout(() => setTimedOut(true), NATIVE_METRICS_TIMEOUT_MS);

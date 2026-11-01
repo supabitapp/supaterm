@@ -1,3 +1,4 @@
+import { pipe } from "effect/Function";
 import { ThreadDetailsControl } from "./ThreadDetailsControl";
 import type { EnvironmentId, ScopedThreadRef, ThreadPullRequestLink } from "@supaterm/contracts";
 import {
@@ -5,11 +6,12 @@ import {
   resolveThreadPullRequestChains,
   threadPullRequestKeyOf,
   visibleThreadPullRequests,
-} from "@supaterm/shared/threadPullRequests";
+} from "@supaterm/client-runtime/thread-pull-requests";
 import { Minus, Plus } from "@supaterm/icons/nodes";
 import { useState, type ComponentProps, type MouseEvent as ReactMouseEvent } from "react";
 
-import { findProjectOnChangeRequestHost, parseChangeRequestUrl } from "~/lib/openPullRequestLink";
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
+import { findProjectOnChangeRequestHost } from "@supaterm/client-runtime/change-request-links";
 
 import { useProjects } from "~/state/entities";
 import { threadEnvironment } from "~/state/threads";
@@ -37,9 +39,9 @@ function ThreadDetailsPrLinkRow({
   onStopWatching?: (() => void) | undefined;
 }) {
   const projects = useProjects();
-  const parsed = parseChangeRequestUrl(link.url);
+  const parsed = sourceControlClients.parseChangeRequestUrl(link.url)?.link;
   const project =
-    parsed === null
+    parsed === undefined
       ? null
       : (findProjectOnChangeRequestHost(
           projects.filter((candidate) => candidate.environmentId === environmentId),
@@ -97,7 +99,7 @@ export function ThreadDetailsPrRows({
   const rest =
     currentLink === null
       ? []
-      : pullRequestListLines(resolveThreadPullRequestChains(visibleThreadPullRequests(links)))
+      : pipe(visibleThreadPullRequests(links), resolveThreadPullRequestChains, pullRequestListLines)
           .map((line) => line.link)
           .filter((link) => threadPullRequestKeyOf(link) !== threadPullRequestKeyOf(currentLink));
   if (rest.length === 0) return currentRow;

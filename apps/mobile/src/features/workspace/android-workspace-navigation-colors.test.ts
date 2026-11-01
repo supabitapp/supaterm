@@ -39,6 +39,7 @@ describe("Android workspace navigation colors", () => {
       const variables = getMobileThemeRuntimeVariables(themeId, appearance, "android");
       const snapshot = { ...variables };
       expectVisibleSelection(androidWorkspaceNavigationColors(variables));
+      expectVisibleSelection(androidWorkspaceNavigationColors(variables, true));
       expect(variables).toEqual(snapshot);
     }
   });
@@ -86,6 +87,7 @@ describe("Android workspace navigation colors", () => {
           getMobileThemeRuntimeVariables("material-you", appearance, "android"),
         );
         expectVisibleSelection(androidWorkspaceNavigationColors(variables));
+        expectVisibleSelection(androidWorkspaceNavigationColors(variables, true));
       }
     },
   );

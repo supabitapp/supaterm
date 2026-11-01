@@ -1,6 +1,6 @@
 import { ThreadDetailsControl } from "./chat/ThreadDetailsControl";
 import { ComposerContextLabel } from "./ComposerContextLabel";
-import { resolveThreadCurrentPullRequestLink } from "@supaterm/shared/threadPullRequests";
+import { resolveThreadCurrentPullRequestLink } from "@supaterm/client-runtime/thread-pull-requests";
 import { useRightPanelStore } from "../rightPanelStore";
 import { scopeProjectRef, scopeThreadRef } from "@supaterm/client-runtime/environment";
 import {
@@ -126,6 +126,9 @@ export function BranchToolbarBranchSelector({
     "thread metadata update",
   );
   const switchRef = useAtomCommand(vcsEnvironment.switchRef, {
+    reportFailure: false,
+  });
+  const refreshStatus = useAtomCommand(vcsEnvironment.refreshStatus, {
     reportFailure: false,
   });
   const createRefMutation = useAtomCommand(vcsEnvironment.createRef, {
@@ -489,6 +492,9 @@ export function BranchToolbarBranchSelector({
 
   const handleOpenChange = (open: boolean) => {
     setIsBranchMenuOpen(open);
+    if (open && !isBranchMenuOpen && branchCwd !== null) {
+      void refreshStatus({ environmentId, input: { cwd: branchCwd, localOnly: true } });
+    }
     if (!open) {
       setBranchQuery("");
     }
@@ -634,7 +640,6 @@ export function BranchToolbarBranchSelector({
       onSelectItem={selectPickerItem}
       value={resolvedActiveBranch}
       query={branchQuery}
-      resultsQuery={deferredTrimmedBranchQuery}
       onQueryChange={setBranchQuery}
       hasNextPage={hasNextPage}
       isFetchingNextPage={isFetchingNextPage}
@@ -744,7 +749,7 @@ export function BranchToolbarBranchSelector({
             status={displayedPrStatus}
             project={activeProject}
             label={panelPrLabel}
-            openAriaLabel={prUrl ?? "Open pull request"}
+            openAriaLabel={prUrl ?? `Open ${sourceControlPresentation.terminology.singular}`}
             composerTarget={composerDraftTarget ?? draftId ?? threadRef}
             onOpen={(event) => openPrLink(event, prUrl)}
             onActed={() => branchStatusQuery.refresh()}

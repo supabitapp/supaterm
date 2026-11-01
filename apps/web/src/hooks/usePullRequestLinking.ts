@@ -7,8 +7,8 @@ import {
   normalizeThreadPullRequestKey,
   threadPullRequestKeysEqual,
   visibleThreadPullRequests,
-} from "@supaterm/shared/threadPullRequests";
-import { parseChangeRequestUrl } from "~/lib/openPullRequestLink";
+} from "@supaterm/client-runtime/thread-pull-requests";
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { useAtomValue } from "@effect/atom-react";
 import { Atom } from "effect/reactivity";
 import { environmentServerConfigsAtom } from "~/state/server";
@@ -29,23 +29,24 @@ export function usePullRequestLinking(environmentId: EnvironmentId | null | unde
   const supported = useAtomValue(linkSupportedAtom(environmentId ?? null));
   const link = useAtomCommand(threadEnvironment.linkPullRequest, { reportFailure: false });
   const unlink = useAtomCommand(threadEnvironment.unlinkPullRequest, { reportFailure: false });
-  const canLink = (url: string) => supported && parseChangeRequestUrl(url) !== null;
+  const canLink = (url: string) =>
+    supported && sourceControlClients.parseChangeRequestUrl(url) !== null;
   const isLinked = (
     thread: { readonly pullRequests?: readonly ThreadPullRequestLink[] } | null,
     url: string,
   ) => {
     if (thread === null || !supported) return false;
-    const parsed = parseChangeRequestUrl(url);
+    const parsed = sourceControlClients.parseChangeRequestUrl(url)?.link;
     return (
-      parsed !== null &&
+      parsed !== undefined &&
       visibleThreadPullRequests(thread.pullRequests ?? []).some((entry) =>
         threadPullRequestKeysEqual(entry, parsed),
       )
     );
   };
   const changeLink = async (threadRef: ScopedThreadRef, url: string, linked: boolean) => {
-    const parsed = parseChangeRequestUrl(url);
-    if (parsed === null || threadRef.environmentId !== environmentId || !supported)
+    const parsed = sourceControlClients.parseChangeRequestUrl(url)?.link;
+    if (parsed === undefined || threadRef.environmentId !== environmentId || !supported)
       throw new Error("The pull request is not available in this environment.");
     const reference = { ...parsed, url };
     const key = normalizeThreadPullRequestKey(reference);

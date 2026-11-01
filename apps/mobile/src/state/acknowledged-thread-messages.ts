@@ -1,14 +1,13 @@
 import { Atom } from "effect/reactivity";
 import { appAtomRegistry } from "./atom-registry";
-import type { QueuedThreadMessage } from "./thread-outbox-model";
+import type { AcknowledgedThreadMessage, QueuedThreadMessage } from "./thread-outbox-model";
 
-// A command acknowledgment can precede its message in the subscribed timeline.
-// Keep the visible row until that projection arrives, independently of outbox cleanup.
-export const acknowledgedThreadMessagesAtom = Atom.make<ReadonlyArray<QueuedThreadMessage>>(
+// Keep acknowledged rows until the thread catches up; command receipts can precede messages.
+export const acknowledgedThreadMessagesAtom = Atom.make<ReadonlyArray<AcknowledgedThreadMessage>>(
   [],
 ).pipe(Atom.keepAlive);
 
-export function retainAcknowledgedThreadMessage(message: QueuedThreadMessage) {
+export function retainAcknowledgedThreadMessage(message: AcknowledgedThreadMessage) {
   const current = appAtomRegistry.get(acknowledgedThreadMessagesAtom);
   appAtomRegistry.set(
     acknowledgedThreadMessagesAtom,

@@ -1,5 +1,4 @@
 import type { ThreadStructure, ThreadStructureRuntime } from "@supaterm/client-runtime/state/shell";
-import { resolveThreadWorkingStartedAt } from "@supaterm/client-runtime/state/models";
 import {
   type AssetResource,
   type OrchestrationV2Checkpoint,
@@ -226,18 +225,6 @@ export function isLatestRunSettled(
   )
     return false;
   return runtime?.activeRunId !== latestRun.runId;
-}
-
-export function deriveActiveWorkStartedAt(
-  latestRun: Pick<
-    ThreadRunSummary,
-    "runId" | "startedAt" | "requestedAt" | "completedAt" | "status"
-  > | null,
-  runtime: Pick<ThreadRuntimeSummary, "status" | "activeRunId" | "activityStartedAt"> | null,
-  sendStartedAt: string | null,
-): string | null {
-  const startedAt = resolveThreadWorkingStartedAt({ latestRun, runtime });
-  return startedAt ?? (runtime?.activeRunId == null ? sendStartedAt : null);
 }
 
 export function derivePendingApprovals(
@@ -599,15 +586,10 @@ function projectedWorkEntry(row: OrchestrationV2ProjectedTurnItem): WorkLogEntry
   }
 }
 
-/**
- * Builds the web timeline in the exact order committed by `visibleTurnItems`. Persistent
- * client-owned messages are inserted by timestamp without sorting the canonical sequence.
- */
+/** Preserve visibleTurnItems' committed order; interleave client messages by timestamp. */
 export interface TimelineEntriesInput {
   readonly visibleTurnItems: ReadonlyArray<OrchestrationV2ProjectedTurnItem>;
-  readonly optimisticMessages: ReadonlyArray<ChatMessage>;
   readonly anchoredMessages?: ReadonlyArray<ChatMessage>;
-  readonly attachmentUrlById?: ReadonlyMap<string, string>;
   readonly attempts?: ReadonlyArray<OrchestrationV2RunAttempt>;
   readonly nodes?: ReadonlyArray<OrchestrationV2ExecutionNode>;
   readonly plans?: ReadonlyArray<OrchestrationV2PlanArtifact>;
@@ -655,8 +637,14 @@ export function deriveTimelineEntriesFromVisibleTurnItems(
   );
   for (const row of input.visibleTurnItems) {
     const { item } = row;
-    if (turnItemIsWorkspacePreparation(item)) continue;
+    if (turnItemIsWorkspacePreparation(item) && !item.deferredWork) continue;
     if (item.type === "todo_list" || item.type === "checkpoint") continue;
+    if (
+      item.type === "user_message" &&
+      item.inputIntent === "queued_turn" &&
+      item.status === "pending"
+    )
+      continue;
     if (item.type === "user_message" && foldedAnswerMessageIds.has(item.messageId)) continue;
     const createdAt = projectedItemCreatedAt(row);
     const attempt = resolveAttempt(item);
@@ -686,14 +674,7 @@ export function deriveTimelineEntriesFromVisibleTurnItems(
         role: item.type === "user_message" ? "user" : "assistant",
         text: item.text,
         ...(item.type === "user_message" && item.context ? { context: item.context } : {}),
-        ...((item.attachments?.length ?? 0) > 0
-          ? {
-              attachments: (item.attachments ?? []).map((attachment) => {
-                const previewUrl = input.attachmentUrlById?.get(attachment.id);
-                return previewUrl ? { ...attachment, previewUrl } : attachment;
-              }),
-            }
-          : {}),
+        ...(item.attachments?.length ? { attachments: item.attachments } : {}),
         runId: item.runId,
         streaming: item.type === "assistant_message" && item.streaming,
         ...(item.type === "user_message"
@@ -758,10 +739,7 @@ export function deriveTimelineEntriesFromVisibleTurnItems(
       continue;
     }
 
-    const mcpApp =
-      item.type === "dynamic_tool" && item.status === "completed"
-        ? mcpAppFromToolItem(item)
-        : undefined;
+    const mcpApp = item.type === "dynamic_tool" ? mcpAppFromToolItem(item) : undefined;
     if (mcpApp !== undefined) {
       entries.push({
         id: item.id,
@@ -817,18 +795,6 @@ export function deriveTimelineEntriesFromVisibleTurnItems(
     }
   }
 
-  for (const message of input.optimisticMessages) {
-    if (message.inputIntent !== "queued_turn" && !retainedMessageIds.has(message.id)) {
-      retainedMessageIds.add(message.id);
-      entries.push({
-        id: message.id,
-        kind: "message",
-        createdAt: message.createdAt,
-        message,
-      });
-    }
-  }
-
   return entries;
 }
 
@@ -844,23 +810,6 @@ export function selectMessageImageResources(
     const previewUrl = attachment.previewUrl;
     if (previewUrl?.startsWith("blob:") || previewUrl?.startsWith("data:")) continue;
     attachmentIds.add(attachment.id);
-  }
-  return attachmentIds.size === 0
-    ? EMPTY_IMAGE_RESOURCES
-    : Array.from(attachmentIds, (attachmentId) => ({ _tag: "attachment", attachmentId }));
-}
-
-export function selectHandoffImageResources(
-  messages: ReadonlyArray<Pick<ChatMessage, "id" | "role" | "attachments">> | undefined,
-  handoffs: Readonly<Record<string, ReadonlyArray<string>>>,
-): ReadonlyArray<AttachmentResource> {
-  if (Object.keys(handoffs).length === 0) return EMPTY_IMAGE_RESOURCES;
-  const attachmentIds = new Set<string>();
-  for (const message of messages ?? []) {
-    if (message.role !== "user" || !handoffs[message.id]?.length) continue;
-    for (const attachment of message.attachments ?? []) {
-      if (isImageAttachment(attachment)) attachmentIds.add(attachment.id);
-    }
   }
   return attachmentIds.size === 0
     ? EMPTY_IMAGE_RESOURCES
@@ -946,9 +895,29 @@ export function isStreamingTurnItemTextUpdate(
   }
   const { text: _previousText, updatedAt: _previousUpdatedAt, ...previousMetadata } = previousItem;
   const { text: _nextText, updatedAt: _nextUpdatedAt, ...nextMetadata } = nextItem;
-  // Wire decoding can recreate timestamps and attachments on each update.
-  // Compare only the changed item's metadata, never the entire transcript.
+  // Wire decoding recreates timestamps and attachments; compare only the changed item's metadata.
   return Equal.equals(previousMetadata, nextMetadata);
+}
+
+/**
+ * A changed tool or work item maps to exactly one entry with the item's id.
+ * Messages and question answers take part in cross-entry dedupe, and anchored
+ * messages are placed by createdAt, so those changes rebuild.
+ */
+function canRederiveInPlace(
+  input: TimelineEntriesInput,
+  previousItem: OrchestrationV2ProjectedTurnItem,
+  item: OrchestrationV2ProjectedTurnItem,
+): boolean {
+  return (
+    item.item.id === previousItem.item.id &&
+    item.item.type === previousItem.item.type &&
+    item.item.type !== "user_message" &&
+    item.item.type !== "assistant_message" &&
+    item.item.type !== "user_input_request" &&
+    ((input.anchoredMessages?.length ?? 0) === 0 ||
+      projectedItemCreatedAt(item) === projectedItemCreatedAt(previousItem))
+  );
 }
 
 function reuseTimelineEntries(
@@ -958,9 +927,7 @@ function reuseTimelineEntries(
   const before = previous.input;
   if (
     input.visibleTurnItems.length < before.visibleTurnItems.length ||
-    !shallow(input.optimisticMessages, before.optimisticMessages) ||
     !shallow(input.anchoredMessages, before.anchoredMessages) ||
-    !shallow(input.attachmentUrlById, before.attachmentUrlById) ||
     !shallow(input.attempts, before.attempts) ||
     !shallow(input.nodes, before.nodes) ||
     !shallow(input.plans, before.plans)
@@ -968,14 +935,8 @@ function reuseTimelineEntries(
     return null;
   }
   const appended = input.visibleTurnItems.length > before.visibleTurnItems.length;
-  // Anchored and optimistic messages need to be interleaved/deduplicated when
-  // committed items arrive. Keep the full projection for that transition.
-  if (
-    appended &&
-    (input.optimisticMessages.length > 0 || (input.anchoredMessages?.length ?? 0) > 0)
-  ) {
-    return null;
-  }
+  // Keep full projection until committed items interleave and deduplicate anchored messages.
+  if (appended && (input.anchoredMessages?.length ?? 0) > 0) return null;
   // Answer rows can replace a message already present in the retained prefix.
   if (
     appended &&
@@ -992,14 +953,44 @@ function reuseTimelineEntries(
     OrchestrationV2ProjectedTurnItem,
     OrchestrationV2ProjectedTurnItem
   >();
-  for (const [index, previousItem] of before.visibleTurnItems.entries()) {
+  const changedItems: OrchestrationV2ProjectedTurnItem[] = [];
+  for (let index = 0; index < before.visibleTurnItems.length; index += 1) {
+    const previousItem = before.visibleTurnItems[index]!;
     const item = input.visibleTurnItems[index]!;
     if (item === previousItem) continue;
-    if (!isStreamingTurnItemTextUpdate(previousItem, item)) return null;
-    replacements.set(previousItem, item);
+    if (isStreamingTurnItemTextUpdate(previousItem, item)) {
+      replacements.set(previousItem, item);
+      continue;
+    }
+    if (!canRederiveInPlace(input, previousItem, item)) return null;
+    changedItems.push(item);
   }
-  if (replacements.size === 0 && !appended) return previous.entries;
+  // One batch keeps the attempt/node/plan lookups to a single build.
+  const rederived =
+    changedItems.length === 0
+      ? []
+      : deriveTimelineEntriesFromVisibleTurnItems({
+          ...input,
+          visibleTurnItems: changedItems,
+          anchoredMessages: [],
+        });
+  if (
+    rederived.length !== changedItems.length ||
+    rederived.some((entry, index) => entry.id !== changedItems[index]!.item.id)
+  ) {
+    return null;
+  }
+  const rederivedEntries = new Map(rederived.map((entry) => [entry.id, entry]));
+  if (replacements.size === 0 && rederivedEntries.size === 0 && !appended) {
+    return previous.entries;
+  }
+  let rederivedCount = 0;
   const entries = previous.entries.map((entry): TimelineEntry => {
+    const rederivedEntry = rederivedEntries.get(entry.id);
+    if (rederivedEntry !== undefined) {
+      rederivedCount += 1;
+      return rederivedEntry;
+    }
     const row =
       entry.kind === "message" && entry.projectedItem !== undefined
         ? replacements.get(entry.projectedItem)
@@ -1015,6 +1006,7 @@ function reuseTimelineEntries(
       },
     };
   });
+  if (rederivedCount !== rederivedEntries.size) return null;
   if (appended) {
     entries.push(
       ...deriveTimelineEntriesFromVisibleTurnItems({
@@ -1033,9 +1025,7 @@ export function deriveTimelineEntriesFromVisibleTurnItemsWithState(
   const reused = previous === null ? null : reuseTimelineEntries(input, previous);
   if (reused !== null) return { input, entries: reused };
   const entries = deriveTimelineEntriesFromVisibleTurnItems(input);
-  if (previous === null || !shallow(input.attachmentUrlById, previous.input.attachmentUrlById)) {
-    return { input, entries };
-  }
+  if (previous === null) return { input, entries };
   const previousMessages = new Map(
     previous.entries.flatMap((entry) =>
       entry.kind === "message" ? [[entry.id, entry] as const] : [],
@@ -1147,10 +1137,7 @@ export function derivePhase(runtime: ThreadStructureRuntime | null): SessionPhas
   return "ready";
 }
 
-/**
- * The server settles a preparing or starting run on `run.interrupt`
- * (Orchestrator.dispatchRunInterrupt), so Stop must not wait for the phase to reach "running".
- */
+/** Preparing and starting runs can be interrupted; Stop need not wait for running. */
 export function deriveCanInterruptRunningThread(
   hasActiveThread: boolean,
   runtime: ThreadStructureRuntime | null,

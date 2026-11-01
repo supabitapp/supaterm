@@ -45,8 +45,7 @@ const FETCH_BAD_PORTS = new Set([
 // Dev servers bind loopback, so loopback is the only interface whose
 // availability decides whether we can use a port.
 const DEV_PORT_PROBE_HOSTS = ["127.0.0.1", "::1"] as const;
-// A pruned migrate-dev-db copy is tens of MB; some worktrees hold a full copy
-// of the live database instead.
+// Migration prunes after copying, so large sources also need an automatic-seeding limit.
 const LARGE_DEV_DATABASE_BYTES = 500 * 1024 * 1024;
 
 /**
@@ -287,6 +286,12 @@ const resolveBaseDir = Effect.fn("dev-runner.resolveBaseDir")(function* (
   const path = yield* Path.Path;
   const configured = baseDir?.trim();
 
+  if (configured === "~") {
+    return yield* HostProcess.HomeDirectory;
+  }
+  if (configured?.startsWith("~/") || configured?.startsWith("~\\")) {
+    return path.join(yield* HostProcess.HomeDirectory, configured.slice(2));
+  }
   if (configured) {
     return path.resolve(configured);
   }
@@ -341,21 +346,20 @@ export const createDevRunnerEnv = Effect.fn("dev-runner.createDevRunnerEnv")(fun
     delete output.SUPATERM_HOME;
   }
 
-  // A dev-runner server is never launcher-managed. When the shell that runs
-  // this script was itself spawned by the machine's managed Supaterm service (an
-  // agent working inside Supaterm), these leak through and the child server
-  // fails startup with "The service launcher started a different Supaterm version"
-  // (serviceLauncherClient.ts resolveStartup).
+  // A dev-runner server is never launcher-managed. A shell spawned by the managed Supaterm
+  // service leaks these, and the child server then fails startup with "The service launcher
+  // started a different Supaterm version" (serviceLauncherClient.ts resolveStartup).
   delete output.SUPATERM_SERVICE_LAUNCHER_CONTEXT;
   delete output.SUPATERM_BOOT_SERVICE_UNIT;
 
+  // Each worktree has its own state, so a dev server would count as a new
+  // install of the developer's real accounts. Set it explicitly to opt in.
+  output.SUPATERM_TELEMETRY_ENABLED = baseEnv.SUPATERM_TELEMETRY_ENABLED ?? "false";
+
   if (!isDesktopMode) {
     output.SUPATERM_PORT = String(serverPort);
-    // HOST is Vite's own bind address, and the desktop branch below is the
-    // only place we set it. An inherited one (an exported HOST, a container,
-    // a `HOST=0.0.0.0 npm start` habit) would otherwise reach Vite and pin
-    // its HMR socket to that address — see the `explicitHost` gate in
-    // apps/web/vite.config.ts.
+    // HOST is Vite's bind address and only the desktop branch below sets it. An inherited one
+    // would pin Vite's HMR socket to that address; see `explicitHost` in apps/web/vite.config.ts.
     delete output.HOST;
     if (mode === "dev" || mode === "dev:web") {
       // Browser dev is single-origin: everything (including /ws) is proxied
@@ -619,7 +623,7 @@ const runRepoScript = Effect.fn("dev-runner.runRepoScript")(function* (
 });
 
 /**
- * The first start in a worktree seeds its empty database from the live install
+ * The first start in a worktree seeds its empty database from a small live database
  * and warms the web dependency cache. Each step checks for its own output, so
  * later starts skip it. The live database is only ever read, through
  * migrate-dev-db's read-only attach, and only the worktree's own home is written.
@@ -655,17 +659,25 @@ const prepareFirstStart = Effect.fn("dev-runner.prepareFirstStart")(function* (i
     if (
       input.seed &&
       !(yield* exists(path.join(stateDir, "statev2.sqlite"))) &&
-      !(yield* exists(path.join(stateDir, "state.sqlite"))) &&
-      (yield* exists(source))
+      !(yield* exists(path.join(stateDir, "state.sqlite")))
     ) {
-      yield* Effect.logInfo(
-        `[dev-runner] seeding ${input.worktreeHome} from ${source} (read-only). --no-seed or SUPATERM_DEV_SEED=0 skips this.`,
-      );
-      yield* runRepoScript(
-        "apps/server/scripts/migrate-dev-db.ts",
-        ["--base-dir", input.worktreeHome, "--source", source],
-        input.env,
-      );
+      const info = yield* fs.stat(source).pipe(Effect.option);
+      if (Option.isSome(info)) {
+        if (Number(info.value.size) > LARGE_DEV_DATABASE_BYTES) {
+          yield* Effect.logWarning(
+            `[dev-runner] ${source} exceeds 500 MiB; skipping automatic database seeding and starting with an empty database. Run \`vp run migrate-dev-db\` manually with dev stopped if needed; it may use substantial disk space before pruning.`,
+          );
+        } else {
+          yield* Effect.logInfo(
+            `[dev-runner] seeding ${input.worktreeHome} from ${source} (read-only). --no-seed or SUPATERM_DEV_SEED=0 skips this.`,
+          );
+          yield* runRepoScript(
+            "apps/server/scripts/migrate-dev-db.ts",
+            ["--base-dir", input.worktreeHome, "--source", source],
+            input.env,
+          );
+        }
+      }
     }
   }
 
@@ -974,7 +986,7 @@ const devRunnerCli = Command.make("dev-runner", {
   ),
   seed: Flag.Boolean("seed").pipe(
     Flag.withDescription(
-      "Seed an empty worktree database from ~/.supaterm on first start (read-only, via migrate-dev-db). On by default; --no-seed or SUPATERM_DEV_SEED=0 skips it.",
+      "Seed an empty worktree database from ~/.supaterm on first start (read-only, via migrate-dev-db) if the source is at most 500 MiB. On by default; --no-seed or SUPATERM_DEV_SEED=0 skips it.",
     ),
     Flag.withFallbackConfig(optionalBooleanConfig("SUPATERM_DEV_SEED")),
   ),

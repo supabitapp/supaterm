@@ -43,12 +43,15 @@ const ANDROID_ICON_BY_SF_SYMBOL = {
   "checkmark.circle": IconNodes.CircleCheck,
   "checkmark.circle.fill": IconNodes.CircleCheck,
   circle: IconNodes.Circle,
+  "circle.fill": IconNodes.Circle,
   "circle.dashed": IconNodes.CircleDashed,
   "circle.inset.filled": IconNodes.CircleDot,
   "circle.dashed.inset.filled": IconNodes.CircleDot,
   "calendar.badge.clock": IconNodes.CalendarClock,
   clock: IconNodes.Clock,
   timer: IconNodes.Clock,
+  "face.smiling": IconNodes.SmilePlus,
+  tag: IconNodes.Tag,
   ticket: IconNodes.Ticket,
   cloud: IconNodes.Cloud,
   cube: IconNodes.Box,
@@ -105,6 +108,8 @@ const ANDROID_ICON_BY_SF_SYMBOL = {
   "pin.fill": IconNodes.Pin,
   "pin.slash": IconNodes.PinOff,
   play: IconNodes.Play,
+  // The icon set has no pause glyph; stop reads as the same control until one is added.
+  pause: IconNodes.StopFilled,
   plus: IconNodes.Plus,
   minus: IconNodes.Minus,
   "slash.circle": IconNodes.CircleSlash,
@@ -200,7 +205,7 @@ export type AppSymbolName =
 export type AppSymbolViewProps = Omit<SymbolViewProps, "name"> & { name: AppSymbolName };
 
 // The icon set has no solid variant of these, so the outline is filled to tell the states apart.
-const FILLED_OUTLINE_SF_SYMBOLS: ReadonlySet<string> = new Set(["pin.fill"]);
+const FILLED_OUTLINE_SF_SYMBOLS: ReadonlySet<string> = new Set(["circle.fill", "pin.fill"]);
 
 export function isAppSymbolName(name: string): name is Extract<AppSymbolName, string> {
   return Object.prototype.hasOwnProperty.call(ANDROID_ICON_BY_SF_SYMBOL, name);

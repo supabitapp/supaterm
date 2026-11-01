@@ -7,7 +7,7 @@ import {
   projectColorKey,
   projectMonogram,
   type ProjectIdentity,
-} from "../projectIdentity";
+} from "@supaterm/shared/projectIdentity";
 import { environmentProjects } from "./projects";
 
 const projectColorsAtom = Atom.make((get) =>

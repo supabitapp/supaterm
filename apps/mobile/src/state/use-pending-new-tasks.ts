@@ -1,7 +1,6 @@
 import { useAtomValue } from "@effect/atom-react";
 import * as Equal from "effect/Equal";
 import { Atom } from "effect/reactivity";
-import { useMemo } from "react";
 import { appAtomRegistry } from "./atom-registry";
 import {
   applyHeldNewTaskDraft,
@@ -56,11 +55,8 @@ const pendingDraftTasksAtom = Atom.make((get) =>
 export function usePendingNewTasks(): ReadonlyArray<PendingNewTask> {
   const queuedMessagesByThreadKey = useThreadOutboxMessages();
   const draftTasks = useAtomValue(pendingDraftTasksAtom);
-  return useMemo(
-    () => [
-      ...draftTasks,
-      ...buildPendingQueuedTasks(flattenQueuedThreadMessages(queuedMessagesByThreadKey)),
-    ],
-    [queuedMessagesByThreadKey, draftTasks],
-  );
+  return [
+    ...draftTasks,
+    ...buildPendingQueuedTasks(flattenQueuedThreadMessages(queuedMessagesByThreadKey)),
+  ];
 }

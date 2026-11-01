@@ -3,8 +3,6 @@ import { defineConfig } from "vite-plus";
 import * as NodeURL from "node:url";
 import antiSlop from "ultracite/oxlint/anti-slop";
 
-const DOM_TEST_ENVIRONMENT_ALLOWLIST: Array<string> = [];
-
 const TEST_EXCLUDE = [
   "**/.supacode/**",
   "**/.supaterm/**",
@@ -39,6 +37,12 @@ const RESTRICTED_IMPORT_PATHS = [
     name: "@pierre/diffs/react",
     importNames: ["CodeView"],
     message: "Use StyledDiffCodeView so web diff surfaces share styling and virtualized geometry.",
+  },
+  {
+    name: "react-native-screens",
+    importNames: ["ScrollViewMarker"],
+    message:
+      "Use NativeScrollViewMarker or NativeScrollView (src/native/NativeScrollViewMarker.tsx): they carry the header's scroll-edge blur under the Duo's vertical bar.",
   },
 ];
 
@@ -121,7 +125,11 @@ export default defineConfig({
       : {}),
   },
   staged: {
-    "*": "vp fmt --no-error-on-unmatched-pattern",
+    // In order, so lint reads the formatted file. CI lint failures cost a full round trip.
+    "*": ["vp fmt --no-error-on-unmatched-pattern", "vp lint --no-error-on-unmatched-pattern"],
+    // knip checks the whole repo, so it takes no file list. Any code or manifest change can leave
+    // a file, export, or dependency unused.
+    "{*.{js,jsx,ts,tsx,mjs,cjs,mts,cts},package.json,knip.jsonc}": () => "vp run knip:check",
   },
   fmt: {
     ignorePatterns: [
@@ -141,6 +149,9 @@ export default defineConfig({
       "apps/mobile/android/**",
       "apps/mobile/ios/**",
       "apps/mobile/uniwind-types.d.ts",
+      // Vendored and generated C.
+      "apps/mobile/modules/supaterm-highlights/Vendor/**",
+      "apps/mobile/modules/supaterm-highlights/cpp/generated/**",
       "*.icon/**",
     ],
     sortPackageJson: {},
@@ -200,6 +211,38 @@ export default defineConfig({
       "array-guardrails/no-array-filter-map": "error",
       "array-guardrails/no-reduce-accumulator-copy": "error",
       "oxc/no-accumulating-spread": "error",
+      "eslint/no-control-regex": "off",
+      "typescript/no-this-alias": "off",
+      "unicorn/prefer-add-event-listener": "off",
+      "unicorn/prefer-string-starts-ends-with": "off",
+      "unicorn/prefer-set-has": "off",
+      "unicorn/prefer-array-find": "off",
+      "unicorn/no-new-array": "off",
+      "unicorn/no-array-reverse": "off",
+      "react/no-object-type-as-default-prop": "off",
+      "react/jsx-no-constructed-context-values": "off",
+      "react/memo-dependencies": "error",
+      "react/purity": "error",
+      "react/refs": "error",
+      "react/exhaustive-effect-dependencies": "error",
+      "react/set-state-in-effect": "error",
+      "react/immutability": "error",
+      "react/no-array-index-key": "error",
+      "react/no-unstable-nested-components": "error",
+      "react/static-components": "error",
+      "react/capitalized-calls": "error",
+      "typescript/no-extraneous-class": "error",
+      "eslint/no-empty-pattern": "error",
+      "eslint/no-new": "error",
+      "unicorn/no-useless-spread": "error",
+      "eslint/no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" },
+      ],
+      "eslint/no-unsafe-optional-chaining": "error",
+      "eslint/no-unneeded-ternary": "error",
+      "unicorn/no-useless-fallback-in-spread": "error",
+      "unicorn/require-module-specifiers": "error",
       "unicorn/no-array-sort": "off",
       "unicorn/consistent-function-scoping": "off",
       "oxc/no-map-spread": "off",
@@ -298,7 +341,6 @@ export default defineConfig({
       },
       {
         files: ["apps/**/src/**", "packages/**/src/**"],
-        excludeFiles: DOM_TEST_ENVIRONMENT_ALLOWLIST,
         rules: { "supaterm/no-dom-test-environment": "error" },
       },
       {
@@ -320,7 +362,6 @@ export default defineConfig({
       {
         files: [
           "apps/web/src/components/settings/AuthorizedClientsSettings.tsx",
-          "apps/web/src/components/settings/ConnectionsSettings.tsx",
           "apps/mobile/src/features/updates/app-updates.ts",
           "apps/web/src/components/device/DevicePhoneViewport.tsx",
           "apps/web/src/components/device/DeviceDuoViewport.tsx",
@@ -372,8 +413,71 @@ export default defineConfig({
         rules: { "eslint/no-restricted-imports": ["error", { paths: RESTRICTED_IMPORT_PATHS }] },
       },
       {
+        // The server and every client load a forge's shared definition, so a UI runtime
+        // imported there would break the server; client-only forge code goes in `src/client/`.
+        files: ["packages/source-control-*/src/shared/**"],
+        rules: {
+          "eslint/no-restricted-imports": [
+            "error",
+            {
+              paths: [...RESTRICTED_IMPORT_PATHS, RESTRICTED_PULL_REQUEST_GLYPH_IMPORTS],
+              patterns: [
+                {
+                  group: [
+                    "react",
+                    "react/*",
+                    "react-*",
+                    "expo",
+                    "expo-*",
+                    "lucide-react",
+                    "@supaterm/client-runtime",
+                    "@supaterm/client-runtime/*",
+                    "../client/*",
+                    "../server/*",
+                    "../../client/*",
+                    "../../server/*",
+                    "../../../client/*",
+                    "../../../server/*",
+                    "@supaterm/source-control-*/client/*",
+                    "@supaterm/source-control-*/server/*",
+                  ],
+                  message:
+                    "Shared forge definitions load on the server and every client; keep UI and server code out.",
+                },
+              ],
+            },
+          ],
+        },
+      },
+      {
+        files: ["apps/server/src/**", "packages/source-control-*/src/server/**"],
+        rules: {
+          "eslint/no-restricted-imports": [
+            "error",
+            {
+              paths: [...RESTRICTED_IMPORT_PATHS, RESTRICTED_PULL_REQUEST_GLYPH_IMPORTS],
+              patterns: [
+                {
+                  group: [
+                    "@supaterm/source-control-*/client/*",
+                    "../client/*",
+                    "../../client/*",
+                    "../../../client/*",
+                  ],
+                  message:
+                    "A forge's client entry is UI-only; the server reads its `shared/definition`.",
+                },
+              ],
+            },
+          ],
+        },
+      },
+      {
         files: ["apps/mobile/src/**"],
-        rules: { "supaterm/no-mobile-uniwind-theme-escape-hatches": "error" },
+        rules: {
+          "supaterm/no-mobile-uniwind-theme-escape-hatches": "error",
+          "supaterm/require-registered-list-scroll": "error",
+        },
       },
       {
         files: ["apps/mobile/src/**"],
@@ -401,6 +505,17 @@ export default defineConfig({
       {
         files: ["apps/web/src/**"],
         rules: { "supaterm/no-outset-state-indicators": "error" },
+      },
+      {
+        files: ["apps/*/src/**", "packages/*/src/**"],
+        excludeFiles: [
+          "**/*.{test,spec}.{ts,tsx,js,jsx,mts,cts,mjs,cjs}",
+          "**/testkit/**",
+          "**/_generated/**",
+          // Real user quotes stay verbatim.
+          "apps/marketing/src/lib/tweets.ts",
+        ],
+        rules: { "supaterm/no-em-dash-copy": "error" },
       },
       {
         files: ["apps/web/src/**"],
@@ -471,6 +586,9 @@ export default defineConfig({
           "react/jsx-no-constructed-context-values": "off",
           "react/memo-dependencies": "error",
           "react/preserve-manual-memoization": "error",
+          // Render-time clock reads use @supaterm/client-runtime/clock or state seeded with the
+          // time; any other read carries a suppression that says why. oxlint also flags time reads
+          // inside event handlers (oxc#27309); those suppressions cite it.
           "react/purity": "error",
           "react/refs": "error",
           "react/set-state-in-effect": "error",
@@ -498,10 +616,11 @@ export default defineConfig({
         // (apps/mobile/src/reactCompilerCoverage.test.ts). Directives would hide bailouts from it;
         // the manual memo hooks go once the allowlist there is empty.
         files: ["apps/mobile/src/**/*.{ts,tsx}"],
-        rules: {
-          "supaterm/no-manual-memo": ["error", { allowMemoHooks: true }],
-          "react/jsx-no-constructed-context-values": "off",
-        },
+        rules: { "supaterm/no-manual-memo": ["error", { allowMemoHooks: true }] },
+      },
+      {
+        files: ["apps/web/src/**", "apps/mobile/src/**", "packages/*/src/**"],
+        rules: { "supaterm/no-unreasoned-state-sync": "error" },
       },
       {
         files: ["apps/web/src/**/*.{ts,tsx}", "apps/mobile/src/**/*.{ts,tsx}"],
@@ -518,26 +637,21 @@ export default defineConfig({
           "apps/mobile/src/features/files/AttachmentFileScreen.tsx",
           "apps/mobile/src/features/files/ThreadFilesRouteScreen.tsx",
           "apps/mobile/src/features/files/thread-file-navigator-pane.tsx",
-          "apps/mobile/src/features/home/HomeHeader.tsx",
           "apps/mobile/src/features/review/ReviewSheet.tsx",
           "apps/mobile/src/features/review/useNativeReviewDiffBridge.ts",
           "apps/mobile/src/features/settings/SettingsEnvironmentsRouteScreen.tsx",
-          "apps/mobile/src/features/threads/GitActionProgressOverlay.tsx",
-          "apps/mobile/src/features/threads/NewTaskDraftScreen.tsx",
           "apps/mobile/src/features/threads/ThreadComposer.tsx",
           "apps/mobile/src/features/threads/ThreadFeed.tsx",
-          "apps/mobile/src/features/settings/appearance/components/FontSizeSliderRow.tsx",
-          "apps/mobile/src/features/threads/NewTaskContextPickerScreens.tsx",
           "apps/mobile/src/features/threads/ThreadQueueControl.tsx",
           "apps/mobile/src/features/review/ReviewCommentCard.tsx",
           "apps/mobile/src/features/threads/ThreadSettingsSheet.tsx",
-          "apps/mobile/src/features/threads/thread-list-items.tsx",
           "apps/mobile/src/features/threads/thread-list-v2-items.tsx",
           "apps/mobile/src/lib/useMobileNavigationTheme.ts",
           "apps/mobile/src/native/SupatermComposerEditor.ios.tsx",
           "apps/mobile/src/native/SupatermComposerEditor.native.tsx",
           "apps/mobile/src/native/SelectableMarkdownText.tsx",
           "apps/mobile/src/native/NativeMermaidSvg.tsx",
+          "apps/mobile/src/native/useEnrichedLinkVariants.ts",
         ],
         rules: {
           "supaterm/no-mobile-uniwind-theme-escape-hatches": ["error", { allowUniwindTheme: true }],

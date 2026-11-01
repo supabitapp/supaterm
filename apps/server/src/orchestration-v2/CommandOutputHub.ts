@@ -27,13 +27,9 @@ import * as EventSink from "./EventSink.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
 
 /**
- * Live command output.
- *
- * Output never becomes an orchestration event. Adapters push raw chunks here
- * (through the session manager), the hub keeps a bounded, normalized tail per
- * running command, and `subscribe` serves one expanded row: the current tail,
- * then coalesced appends, then the persisted final output. Memory is bounded
- * per command and in count, and a client that is not showing the row receives nothing.
+ * Live command output never becomes an orchestration event. The hub keeps a bounded tail per
+ * running command; `subscribe` serves the tail, coalesced appends, then the persisted output,
+ * and a client not showing the row receives nothing.
  */
 
 /** Fastest a subscriber receives frames while output flows. */

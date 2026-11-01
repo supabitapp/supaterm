@@ -3,6 +3,7 @@ import {
   deriveLatestThreadRun,
   deriveThreadRuntime,
 } from "@supaterm/client-runtime/state/thread-execution";
+import { checkpointFileTotals } from "@supaterm/client-runtime/state/thread-checkpoints";
 import { derivePendingBackgroundWork } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 import {
   latestUnheldRun,
@@ -22,7 +23,7 @@ import type { ReviewCommentContext } from "../reviewCommentContext";
 import type { SetStateAction } from "react";
 import { applyClaudePromptEffortPrefix, resolvePromptInjectedEffort } from "@supaterm/shared/model";
 import { getProviderModelCapabilities } from "../providerModels";
-import { sanitizeThreadErrorMessage } from "~/rpc/transportError";
+import { sanitizeThreadErrorMessage } from "@supaterm/client-runtime/errors";
 import type { EnvironmentThread, ThreadStructure } from "@supaterm/client-runtime/state/shell";
 import {
   ANTIGRAVITY_DEFAULT_MODEL,
@@ -49,7 +50,6 @@ import {
 } from "@supaterm/contracts";
 import { worktreeSetupAgentStarted } from "@supaterm/client-runtime/worktree-setup";
 import * as DateTime from "effect/DateTime";
-import { parseScopedThreadKey } from "@supaterm/client-runtime/environment";
 import { resolveAssetUrl } from "@supaterm/client-runtime/state/assets";
 import {
   squashAtomCommandFailure,
@@ -82,7 +82,7 @@ import { filterTerminalContextsWithText, type TerminalContextDraft } from "../li
 import { stripInlineContextReferences } from "~/lib/composerContextReferences";
 import type { DraftThreadEnvMode } from "../composerDraftStore";
 import { type ComposerSubmissionIntent } from "../composer-logic";
-import { derivePhase, type TimelineEntry } from "../session-logic";
+import { type TimelineEntry } from "../session-logic";
 import type { PreviewMiniPlayerSource } from "../previewMiniPlayerStore";
 import type { RightPanelSurface } from "../rightPanelStore";
 import {
@@ -97,7 +97,7 @@ type ThreadStructureRow = ThreadStructure["visibleTurnItems"][number];
 export const LAST_INVOKED_SCRIPT_BY_PROJECT_KEY = "supaterm:last-invoked-script-by-project";
 export const MAX_HIDDEN_MOUNTED_TERMINAL_THREADS = 10;
 
-const ENVIRONMENT_RECONNECT_WARNING_GRACE_MS = 2_000;
+export const ENVIRONMENT_RECONNECT_WARNING_GRACE_MS = 2_000;
 
 export function shouldRenderPreviewMiniPlayer(
   source: PreviewMiniPlayerSource | null,
@@ -182,7 +182,7 @@ export function shouldOpenProactiveTurnDiff(input: {
 }
 
 export function resolveProactiveTurnDiffAction(input: {
-  checkpoint: Pick<TurnDiffSummary, "status" | "files"> | undefined;
+  checkpoint: Pick<TurnDiffSummary, "status" | "files" | "filesTotal"> | undefined;
   isGitRepo: boolean | undefined;
 }): "defer" | "ignore" | "open" {
   if (input.checkpoint === undefined || input.checkpoint.status === "missing") return "defer";
@@ -194,11 +194,8 @@ export function resolveProactiveTurnDiffAction(input: {
   ) {
     return "ignore";
   }
-  const changedLines = input.checkpoint.files.reduce(
-    (total, file) => total + file.additions + file.deletions,
-    0,
-  );
-  return input.checkpoint.files.length >= 3 || changedLines >= 50 ? "open" : "ignore";
+  const totals = checkpointFileTotals(input.checkpoint);
+  return totals.count >= 3 || totals.additions + totals.deletions >= 50 ? "open" : "ignore";
 }
 
 export function resolveExplicitDiffOpenOnActivate(input: {
@@ -257,14 +254,10 @@ export function shouldReleaseTimelineAnchorForToolActivity(input: {
   });
 }
 
-export {
-  findRecordedWorktreeSetup,
-  resolveVisibleWorktreeSetup,
-} from "@supaterm/client-runtime/worktree-setup";
+export { resolveVisibleWorktreeSetup } from "@supaterm/client-runtime/worktree-setup";
 
 export function resolveWorktreeSetupProgress(input: {
   threadId: ThreadId;
-  localPreparing: boolean;
   runStatus: NonNullable<Thread["latestRun"]>["status"] | undefined;
   latest: WorktreeSetupSnapshot | null | undefined;
   held: WorktreeSetupSnapshot | null;
@@ -275,7 +268,6 @@ export function resolveWorktreeSetupProgress(input: {
   return {
     snapshot,
     isPreparingWorktree:
-      input.localPreparing ||
       input.runStatus === "preparing" ||
       (snapshot?.phase === "running" && !worktreeSetupAgentStarted(snapshot)),
   };
@@ -286,14 +278,10 @@ export function resolveDraftHeroState(input: {
   hasTimelineEntries: boolean;
   isWorking: boolean;
   draftHeroDockRequested: boolean;
-  backgroundSubmissionPending: boolean;
   hasWorktreeSetupCard?: boolean;
 }): boolean {
   if (input.hasWorktreeSetupCard) {
     return false;
-  }
-  if (input.backgroundSubmissionPending) {
-    return true;
   }
   return (
     input.isLocalDraftThread &&
@@ -311,22 +299,14 @@ export function resolveDraftHeroState(input: {
 export type HeldThreadTimeline<T extends readonly unknown[]> = {
   threadKey: string | null;
   entries: T;
-  markdownCwd?: string | null;
-  workspaceRoot?: string | null;
 };
 
 const MAX_REMEMBERED_THREAD_TIMELINES = 16;
 
 let rememberedThreadTimelines = new Map<string, HeldThreadTimeline<readonly unknown[]>>();
 let rememberedThreadTimelineOrder: string[] = [];
-// Per chat pane: a pane loading a thread paints its own last timeline, never another pane's.
-let lastReadyThreadKeyByScope = new Map<string, string>();
-const DEFAULT_TIMELINE_SCOPE = "default";
 
-function rememberThreadTimelineEntries(
-  held: HeldThreadTimeline<readonly unknown[]>,
-  scope: string,
-): void {
+function rememberThreadTimelineEntries(held: HeldThreadTimeline<readonly unknown[]>): void {
   if (held.threadKey === null) {
     return;
   }
@@ -341,17 +321,15 @@ function rememberThreadTimelineEntries(
       rememberedThreadTimelines.delete(evicted);
     }
   }
-  lastReadyThreadKeyByScope.set(scope, held.threadKey);
 }
 
 export function rememberReadyThreadTimeline<T extends readonly unknown[]>(
   held: HeldThreadTimeline<T>,
-  scope: string = DEFAULT_TIMELINE_SCOPE,
 ): void {
   if (held.threadKey === null || held.entries.length === 0) {
     return;
   }
-  rememberThreadTimelineEntries(held, scope);
+  rememberThreadTimelineEntries(held);
 }
 
 export function peekRememberedThreadTimeline<T extends readonly unknown[]>(
@@ -363,42 +341,9 @@ export function peekRememberedThreadTimeline<T extends readonly unknown[]>(
   return (rememberedThreadTimelines.get(threadKey)?.entries as T | undefined) ?? null;
 }
 
-export function peekHeldThreadTimeline<T extends readonly unknown[]>(
-  scope: string = DEFAULT_TIMELINE_SCOPE,
-): HeldThreadTimeline<T> | null {
-  const lastReadyThreadKey = lastReadyThreadKeyByScope.get(scope) ?? null;
-  if (lastReadyThreadKey === null) {
-    return null;
-  }
-  const held = rememberedThreadTimelines.get(lastReadyThreadKey);
-  if (held === undefined || held.entries.length === 0) {
-    return null;
-  }
-  return held as HeldThreadTimeline<T>;
-}
-
 export function resetHeldThreadTimeline(): void {
   rememberedThreadTimelines = new Map();
   rememberedThreadTimelineOrder = [];
-  lastReadyThreadKeyByScope = new Map();
-}
-
-export function threadKeysShareEnvironment(left: string | null, right: string | null): boolean {
-  if (left === null || right === null) {
-    return false;
-  }
-  const leftRef = parseScopedThreadKey(left);
-  const rightRef = parseScopedThreadKey(right);
-  return leftRef !== null && rightRef !== null && leftRef.environmentId === rightRef.environmentId;
-}
-
-export function isPaintOnlyThreadTimeline(
-  displayThreadKey: string | null,
-  activeThreadKey: string | null,
-): boolean {
-  return (
-    displayThreadKey !== null && activeThreadKey !== null && displayThreadKey !== activeThreadKey
-  );
 }
 
 export function resolveThreadSwitchTimeline<T extends readonly unknown[]>(input: {
@@ -406,52 +351,18 @@ export function resolveThreadSwitchTimeline<T extends readonly unknown[]>(input:
   activeThreadKey: string | null;
   nextEntries: T;
   rememberedForActive?: T | null;
-  lastReady?: HeldThreadTimeline<T> | null;
-  scope?: string | undefined;
-}): { entries: T; displayThreadKey: string | null } {
+}): T {
   if (input.nextEntries.length > 0) {
-    return { entries: input.nextEntries, displayThreadKey: input.activeThreadKey };
+    return input.nextEntries;
   }
 
   const rememberedForActive =
     input.rememberedForActive ?? peekRememberedThreadTimeline<T>(input.activeThreadKey);
   if (input.loading && rememberedForActive !== null && rememberedForActive.length > 0) {
-    return { entries: rememberedForActive, displayThreadKey: input.activeThreadKey };
+    return rememberedForActive;
   }
 
-  return { entries: input.nextEntries, displayThreadKey: input.activeThreadKey };
-}
-
-export function resolveDraftPromotionNavigationTarget(input: {
-  serverThreadRef: ScopedThreadRef | null;
-  serverThread: Pick<Thread, "latestRun" | "latestUserMessageAt"> | null | undefined;
-  backgroundSubmissionPending: boolean;
-  pendingThreadRef?: ScopedThreadRef | null;
-}): ScopedThreadRef | null {
-  if (input.backgroundSubmissionPending) {
-    return null;
-  }
-  if (input.pendingThreadRef) return input.pendingThreadRef;
-  const latestRun = input.serverThread?.latestRun ?? null;
-  const runStarted = latestRun?.startedAt != null;
-  const startupStopped =
-    latestRun?.status === "failed" ||
-    latestRun?.status === "interrupted" ||
-    latestRun?.status === "cancelled";
-  const messagePersisted = input.serverThread?.latestUserMessageAt != null;
-  return runStarted || startupStopped || messagePersisted ? input.serverThreadRef : null;
-}
-
-export function scheduleEnvironmentReconnectWarning(showWarning: () => void): () => void {
-  const timeoutId = globalThis.setTimeout(showWarning, ENVIRONMENT_RECONNECT_WARNING_GRACE_MS);
-  return () => globalThis.clearTimeout(timeoutId);
-}
-
-export function hasEnvironmentReconnectWarningGraceElapsed(
-  activeEnvironmentId: EnvironmentId | null,
-  elapsedEnvironmentId: EnvironmentId | null,
-): boolean {
-  return activeEnvironmentId !== null && activeEnvironmentId === elapsedEnvironmentId;
+  return input.nextEntries;
 }
 
 export function startNewThreadForProject(
@@ -653,13 +564,6 @@ export function resolveTerminalWorktreePath(input: {
   return input.threadWorktreePath;
 }
 
-export function revokeBlobPreviewUrl(previewUrl: string | undefined): void {
-  if (!previewUrl || typeof URL === "undefined" || !previewUrl.startsWith("blob:")) {
-    return;
-  }
-  URL.revokeObjectURL(previewUrl);
-}
-
 export async function resolveFileAttachmentUrl(input: {
   attachment: ChatFileAttachment;
   environmentId: EnvironmentId;
@@ -719,18 +623,6 @@ export async function prepareRevertedMessageAttachments(input: {
   );
 }
 
-export function revokeUserMessagePreviewUrls(message: ChatMessage): void {
-  if (message.role !== "user" || !message.attachments) {
-    return;
-  }
-  for (const attachment of message.attachments) {
-    if (!isImageAttachment(attachment)) {
-      continue;
-    }
-    revokeBlobPreviewUrl(attachment.previewUrl);
-  }
-}
-
 export function timelineHasEphemeralPreviewUrls(
   entries: ReadonlyArray<Pick<TimelineEntry, "kind"> & { message?: ChatMessage }>,
 ): boolean {
@@ -742,7 +634,7 @@ export function timelineHasEphemeralPreviewUrls(
   );
 }
 
-export function collectUserMessageBlobPreviewUrls(message: ChatMessage): string[] {
+function collectUserMessageBlobPreviewUrls(message: ChatMessage): string[] {
   if (message.role !== "user" || !message.attachments) {
     return [];
   }
@@ -894,7 +786,7 @@ export function recallCheckoutIsRepo(
     : sessionCheckoutIsRepo.get(checkoutIsRepoKey(environmentId, cwd));
 }
 
-export function threadHasStarted(thread: Thread | null | undefined): boolean {
+function threadHasStarted(thread: Thread | null | undefined): boolean {
   return Boolean(thread && (thread.latestRun !== null || thread.itemCount > 0 || thread.runtime));
 }
 
@@ -930,7 +822,6 @@ export function deriveLockedProvider(input: {
 }
 
 export function getStartedThreadModelChangeBlockReason(input: {
-  providers: ReadonlyArray<Pick<ServerProvider, "instanceId" | "requiresNewThreadForModelChange">>;
   hasStartedSession: boolean;
   supportsProviderSwitchingViaHandoff?: boolean;
   currentModelSelection: ModelSelection;
@@ -945,35 +836,14 @@ export function getStartedThreadModelChangeBlockReason(input: {
     instanceId: input.currentProviderInstanceId ?? input.currentModelSelection.instanceId,
   };
   if (
-    currentModelSelection.instanceId === input.nextModelSelection.instanceId &&
-    currentModelSelection.model === input.nextModelSelection.model
-  ) {
-    return null;
-  }
-  if (currentModelSelection.instanceId !== input.nextModelSelection.instanceId) {
-    if (input.supportsProviderSwitchingViaHandoff === true) {
-      return null;
-    }
-    return {
-      title: "Start a new chat to switch providers",
-      description: "This thread does not support switching providers after it has started.",
-    };
-  }
-  const currentProvider = input.providers.find(
-    (snapshot) => snapshot.instanceId === currentModelSelection.instanceId,
-  );
-  const nextProvider = input.providers.find(
-    (snapshot) => snapshot.instanceId === input.nextModelSelection.instanceId,
-  );
-  if (
-    currentProvider?.requiresNewThreadForModelChange !== true &&
-    nextProvider?.requiresNewThreadForModelChange !== true
+    currentModelSelection.instanceId === input.nextModelSelection.instanceId ||
+    input.supportsProviderSwitchingViaHandoff === true
   ) {
     return null;
   }
   return {
-    title: "Start a new chat to change models",
-    description: "This provider does not allow switching models after a conversation has started.",
+    title: "Start a new chat to switch providers",
+    description: "This thread does not support switching providers after it has started.",
   };
 }
 
@@ -1058,43 +928,6 @@ export async function waitForRevertedMessage(
   });
 }
 
-export interface LocalDispatchSnapshot {
-  startedAt: string;
-  preparingWorktree: boolean;
-  submissionIntent: ComposerSubmissionIntent;
-  latestUserMessageId: ChatMessage["id"] | null;
-  latestRunId: RunId | null;
-  latestRunRequestedAt: string | null;
-  latestRunStartedAt: string | null;
-  latestRunCompletedAt: string | null;
-  runtimeStatus: NonNullable<Thread["runtime"]>["status"] | null;
-  runtimeUpdatedAt: string | null;
-}
-
-export function createLocalDispatchSnapshot(
-  activeThread: Thread | undefined,
-  options?: {
-    preparingWorktree?: boolean;
-    latestUserMessageId?: ChatMessage["id"] | null;
-    submissionIntent?: ComposerSubmissionIntent;
-  },
-): LocalDispatchSnapshot {
-  const latestRun = activeThread?.latestRun ?? null;
-  const runtime = activeThread?.runtime ?? null;
-  return {
-    startedAt: new Date().toISOString(),
-    preparingWorktree: Boolean(options?.preparingWorktree),
-    submissionIntent: options?.submissionIntent ?? "foreground",
-    latestUserMessageId: options?.latestUserMessageId ?? null,
-    latestRunId: latestRun?.runId ?? null,
-    latestRunRequestedAt: latestRun?.requestedAt ?? null,
-    latestRunStartedAt: latestRun?.startedAt ?? null,
-    latestRunCompletedAt: latestRun?.completedAt ?? null,
-    runtimeStatus: runtime?.status ?? null,
-    runtimeUpdatedAt: runtime?.updatedAt ?? null,
-  };
-}
-
 /**
  * The timeline renders committed user rows from `visibleTurnItems`, but
  * `message.updated` can land in `projection.messages` one event earlier than
@@ -1111,63 +944,10 @@ export function deriveCommittedServerUserMessageIds(
   );
 }
 
-export function hasServerAcknowledgedLocalDispatch(input: {
-  localDispatch: LocalDispatchSnapshot | null;
-  phase: SessionPhase;
-  latestRun: Thread["latestRun"] | null;
-  latestUserMessageId?: ChatMessage["id"] | null;
-  runtime: Thread["runtime"] | null;
-  hasPendingApproval: boolean;
-  hasPendingUserInput: boolean;
-  threadError: string | null | undefined;
-}): boolean {
-  if (!input.localDispatch) {
-    return false;
-  }
-  if (input.hasPendingApproval || input.hasPendingUserInput || Boolean(input.threadError)) {
-    return true;
-  }
-  if (input.phase === "connecting" || derivePhase(input.runtime ?? null) === "connecting") {
-    return false;
-  }
-
-  const latestRun = input.latestRun ?? null;
-  const runtime = input.runtime ?? null;
-  const latestUserMessageChanged =
-    input.localDispatch.latestUserMessageId !== (input.latestUserMessageId ?? null);
-  const latestRunChanged =
-    input.localDispatch.latestRunId !== (latestRun?.runId ?? null) ||
-    input.localDispatch.latestRunRequestedAt !== (latestRun?.requestedAt ?? null) ||
-    input.localDispatch.latestRunStartedAt !== (latestRun?.startedAt ?? null) ||
-    input.localDispatch.latestRunCompletedAt !== (latestRun?.completedAt ?? null);
-
-  if (input.phase === "running") {
-    if (latestUserMessageChanged) {
-      return true;
-    }
-    if (!latestRunChanged) {
-      return false;
-    }
-    if (latestRun?.startedAt === null || latestRun === null) {
-      return false;
-    }
-    if (
-      runtime?.activeRunId !== null &&
-      runtime?.activeRunId !== undefined &&
-      latestRun?.runId !== runtime.activeRunId
-    ) {
-      return false;
-    }
-    return true;
-  }
-
-  return (
-    latestRunChanged ||
-    input.localDispatch.runtimeStatus !== (runtime?.status ?? null) ||
-    input.localDispatch.runtimeUpdatedAt !== (runtime?.updatedAt ?? null)
-  );
-}
-
+// Returning to the window should land the caret in the composer, so the reader can type right
+// away. The exceptions are places where focus is deliberate: another text field, a terminal in
+// the drawer or the right panel, an open dialog, menu, or popup, or a region or sidebar row
+// reached from the keyboard. A plain focused button or a clicked row yields to the composer.
 export function shouldRefocusComposerOnWindowFocus(
   activeElement:
     | (Pick<Element, "tagName" | "closest" | "getAttribute"> & { isContentEditable?: boolean })
@@ -1187,7 +967,7 @@ export function shouldRefocusComposerOnWindowFocus(
   }
   return (
     activeElement.closest(
-      '[role="dialog"], [role="alertdialog"], [role="application"], [data-slot$="-popup"], [data-terminal-owner]',
+      '[data-workspace-area]:focus-visible, [role="treeitem"]:focus-visible, [role="dialog"], [role="alertdialog"], [role="application"], [role="menu"], [role="listbox"], [data-slot$="-popup"], [data-terminal-owner]',
     ) === null
   );
 }
@@ -1251,11 +1031,6 @@ export function formatOutgoingPrompt(params: {
   const caps = getProviderModelCapabilities(params.models, params.model, params.provider);
   const promptEffort = resolvePromptInjectedEffort(caps, params.effort);
   return applyClaudePromptEffortPrefix(params.text, promptEffort);
-}
-
-export function isCompactCommandMessage(message: ChatMessage): boolean {
-  const text = message.text.trim().toLowerCase();
-  return message.role === "user" && text === "/compact" && !message.attachments?.length;
 }
 
 // Errors surface through two maps (draft-keyed and thread-keyed) whose entries

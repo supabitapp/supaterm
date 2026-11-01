@@ -8,12 +8,15 @@ export function createDesktopUpdateRestartController() {
   const store = createStore(() => ({ isRestarting: false }));
   let pendingInstall: Promise<void> | null = null;
 
-  function install(bridge: Pick<DesktopBridge, "installUpdate">): Promise<void> {
+  function install(
+    bridge: Pick<DesktopBridge, "installUpdate">,
+    expectedVersion?: string,
+  ): Promise<void> {
     if (pendingInstall) return pendingInstall;
 
     flushSync(() => store.setState({ isRestarting: true }));
     pendingInstall = Promise.resolve()
-      .then(() => bridge.installUpdate())
+      .then(() => bridge.installUpdate(expectedVersion))
       .then((result) => {
         const actionError = getDesktopUpdateActionError(result);
         if (!result.accepted || actionError || result.state.status === "error") {

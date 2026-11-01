@@ -3,7 +3,10 @@ import {
   PrimaryConnectionTarget,
 } from "@supaterm/client-runtime/connection";
 import type { EnvironmentCatalogState } from "@supaterm/client-runtime/state/connections";
-import type { EnvironmentShellState } from "@supaterm/client-runtime/state/shell";
+import {
+  EMPTY_SHELL_STATE,
+  type EnvironmentShellState,
+} from "@supaterm/client-runtime/state/shell";
 import { EnvironmentId } from "@supaterm/contracts";
 import * as Option from "effect/Option";
 import { Atom, AtomRegistry } from "effect/reactivity";
@@ -16,6 +19,7 @@ const REMOTE = EnvironmentId.make("remote");
 
 function shellState(status: EnvironmentShellState["status"]): EnvironmentShellState {
   return {
+    ...EMPTY_SHELL_STATE,
     status,
     snapshot:
       status === "empty"

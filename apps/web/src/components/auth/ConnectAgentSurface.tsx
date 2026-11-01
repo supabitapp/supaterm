@@ -22,7 +22,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { RadioGroup } from "../ui/radio-group";
 import { Spinner } from "../ui/spinner";
-import { StandalonePage } from "../ui/standalone-page";
+import { StandalonePage, StandalonePageHeader } from "../ui/standalone-page";
 
 const accessConfig: Record<
   AuthMcpClientAccess,
@@ -80,9 +80,7 @@ function readAuthorizationRequest(): AuthMcpAuthorizationRequest {
   return Object.fromEntries(new URL(window.location.href).searchParams);
 }
 
-/**
- * A session may only grant access whose scopes it holds itself.
- */
+/** Sessions can grant only scopes they hold. */
 function oneClickApproves(details: AuthMcpApprovalDetails, access: AuthMcpClientAccess) {
   return details.csrfToken !== undefined && (details.oneClickAccess ?? []).includes(access);
 }
@@ -95,6 +93,7 @@ export function ConnectAgentSurface() {
   const [errorMessage, setErrorMessage] = useState("");
   const [pending, setPending] = useState<"approve" | "deny" | null>(null);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- fetches the MCP OAuth approval and redirects the window or stores details, ignoring stale answers
   useEffect(() => {
     let cancelled = false;
     void runApproval((client) => client.mcpOAuth.approval({ payload: authorization })).then(
@@ -140,7 +139,7 @@ export function ConnectAgentSurface() {
 
   if (loaded.status === "loading") {
     return (
-      <StandalonePage tone="pairing">
+      <StandalonePage>
         <ConnectAgentHeading
           title="Checking the sign-in request"
           description="One moment while this environment verifies the agent's request."
@@ -152,7 +151,7 @@ export function ConnectAgentSurface() {
 
   if (loaded.status === "invalid") {
     return (
-      <StandalonePage tone="pairing">
+      <StandalonePage>
         <ConnectAgentHeading title="This sign-in cannot continue" description={loaded.message} />
         <p className="mt-4 text-sm text-muted-foreground">
           Close this page and start the sign-in again from your agent.
@@ -166,7 +165,7 @@ export function ConnectAgentSurface() {
   const canApprove = pending === null && (oneClick || pairingCode.trim().length > 0);
 
   return (
-    <StandalonePage tone="pairing">
+    <StandalonePage>
       <ConnectAgentHeading
         title={`Connect ${details.clientName}`}
         description={
@@ -235,8 +234,8 @@ export function ConnectAgentSurface() {
               value={pairingCode}
             />
             <p className="text-xs text-muted-foreground">
-              Create one in Settings → Connections, or run <code>supaterm auth pairing create</code>{" "}
-              on this machine.
+              Create one in Settings → Sharing & access, or run{" "}
+              <code>supaterm auth pairing create</code> on this machine.
             </p>
           </div>
         )}
@@ -272,13 +271,7 @@ function ConnectAgentHeading({
   readonly title: string;
   readonly description: ReactNode;
 }) {
-  return (
-    <>
-      <p className="text-3xs font-semibold tracking-widest text-primary uppercase">Agent sign-in</p>
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
-      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{description}</p>
-    </>
-  );
+  return <StandalonePageHeader context="Agent sign-in" title={title} description={description} />;
 }
 
 function AccessOption({

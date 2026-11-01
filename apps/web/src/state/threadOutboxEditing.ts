@@ -238,7 +238,9 @@ export function useThreadOutboxEditor(routeKey: string) {
   const editing = useSyncExternalStore(editor.subscribe, editor.getSnapshot);
   const entry = editing?.entry;
   const editingId = entry?.id;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the edit session on unmount or route change, which releases the outbox entry's pause
   useEffect(() => () => editor.cancel(), [editor]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- renews the edited outbox entry's pause lease every 20 seconds and stops on cleanup
   useEffect(() => {
     if (!editingId) return;
     const timer = setInterval(() => {
@@ -276,6 +278,7 @@ export function useThreadOutboxAttachments(entry: PendingThreadTurn | undefined)
     previews = threadOutboxAttachmentPreviews(entry);
     setCurrent({ entry, previews });
   }
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- revokes the replaced or unmounted preview set's blob object URLs
   useEffect(
     () => () => {
       for (const item of previews) if (item.url?.startsWith("blob:")) URL.revokeObjectURL(item.url);

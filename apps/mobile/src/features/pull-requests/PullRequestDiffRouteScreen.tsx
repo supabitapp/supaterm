@@ -10,12 +10,19 @@ import { usePullRequestFilesViewed } from "./usePullRequestFilesViewed";
 import { usePullRequestPermissions } from "./usePullRequestPermissions";
 import { annotatePullRequestDiff, reviewPosition } from "./pullRequestDiffComments";
 import { usePullRequestFileFilter } from "./usePullRequestFileFilter";
-import { isPullRequestTestFile } from "./pullRequestFileFilters";
+import {
+  handlePullRequestDiffDebugEvent,
+  pullRequestDiffInitialPosition,
+} from "./pullRequestDiffDebug";
+import { usePullRequestDiffHighlightFiles } from "./usePullRequestDiffHighlightFiles";
+import { isTestChangedFile } from "@supaterm/shared/changedFileKind";
+import { pullRequestFileJumpScope, subscribePullRequestFileJump } from "./pullRequestFileJump";
 import { useFocusEffect, useNavigation, type StaticScreenProps } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { pullRequestReviewKey } from "./pullRequestReviewDrafts";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 
@@ -30,17 +37,17 @@ import { EmptyState } from "../../components/ui/EmptyState";
 
 import { NativeStackScreenOptions } from "../../native/StackHeader";
 
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { composerPullRequests } from "../../state/pull-requests";
 import { useEnvironmentQuery } from "../../state/query";
 
 import {
-  isNativeReviewDiffDrawEvent,
   resolveNativeReviewDiffView,
   type NativeReviewDiffViewHandle,
   type NativeReviewDiffViewProps,
 } from "../diffs/nativeReviewDiffSurface";
 import {
-  buildNativeReviewDiffData,
+  getCachedNativeReviewDiffData,
   NATIVE_REVIEW_DIFF_CONTENT_WIDTH,
 } from "../review/nativeReviewDiffAdapter";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
@@ -51,36 +58,57 @@ import { PullRequestActionToolbar } from "./PullRequestControls";
 import {
   pullRequestTarget as requestTarget,
   usePullRequestDiff,
+  usePullRequestDiffEntry,
   type PullRequestDiffParams,
 } from "./usePullRequestDiff";
 import { PullRequestReadStatus } from "./PullRequestPresentation";
-export { PullRequestFilesSheet as PullRequestFilesRouteScreen } from "./PullRequestFiles";
 
 import { usePullRequestToolbarHeight } from "./usePullRequestToolbarHeight";
 
 const EMPTY_IDS: readonly string[] = [];
 
-export function PullRequestFileRouteScreen({
-  route,
-}: StaticScreenProps<
+type PullRequestFileRouteProps = StaticScreenProps<
   PullRequestDiffParams & {
     readonly path: string;
-    readonly fileSelectionId?: string;
     readonly replacingDraftId?: string;
     readonly focus?: GuideDiffFocus;
   }
->) {
+>;
+
+export function PullRequestFileRouteScreen(props: PullRequestFileRouteProps) {
+  const navigation =
+    useNavigation<NativeStackNavigationProp<ReactNavigation.RootParamList, "PullRequestFile">>();
+  const ready = usePullRequestDiffEntry(navigation);
+  if (ready) return <PullRequestFileRouteContent {...props} />;
+  const title = props.route.params.commit ? "Commit changes" : "Changes";
+  return (
+    <View className="flex-1 bg-screen">
+      <NativeStackScreenOptions options={{ title, headerTitle: title }} />
+      {Platform.OS === "android" ? (
+        <AndroidScreenHeader title={title} onBack={() => navigation.goBack()} />
+      ) : null}
+      <View className="flex-1 items-center justify-center">
+        <AppActivityIndicator accessibilityLabel="Loading changes" />
+      </View>
+    </View>
+  );
+}
+
+function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
   const { layout } = useAdaptiveWorkspaceLayout();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const [toolbarHeight, setToolbarHeight] = usePullRequestToolbarHeight(insets.bottom);
   const commit = route.params.commit;
-  const result = usePullRequestDiff(route.params);
+  const detail = useEnvironmentQuery(composerPullRequests.detail(requestTarget(route.params)));
+  const terminology = sourceControlClients.get(
+    (detail.data ?? route.params.initialSummary)?.provider,
+  ).changeRequest;
+  const result = usePullRequestDiff(route.params, terminology);
   const filter = usePullRequestFileFilter(
     result.parsed,
     route.params.focus ? route.params.path : undefined,
   );
-  const detail = useEnvironmentQuery(composerPullRequests.detail(requestTarget(route.params)));
   const { refresh: refreshDetail } = detail;
   useFocusEffect(() => refreshDetail());
   const { loadMore } = result;
@@ -104,12 +132,25 @@ export function PullRequestFileRouteScreen({
     !result.isPending &&
     !result.error;
   const activity = useEnvironmentQuery(composerPullRequests.activity(requestTarget(route.params)));
-  const baseData = buildNativeReviewDiffData(parsed);
-  const data = annotatePullRequestDiff(
-    baseData,
-    staleDiff || commit ? [] : (activity.data?.reviewThreads ?? []),
-    commit ? [] : reviewDraft.draft.comments,
-    diffHead.sha ?? undefined,
+  const baseData = useMemo(() => getCachedNativeReviewDiffData({ parsedDiff: parsed }), [parsed]);
+  const highlightFiles = usePullRequestDiffHighlightFiles(route.params, parsed, baseData.files);
+  const data = useMemo(
+    () =>
+      annotatePullRequestDiff(
+        { ...baseData, files: highlightFiles },
+        staleDiff || commit ? [] : (activity.data?.reviewThreads ?? []),
+        commit ? [] : reviewDraft.draft.comments,
+        diffHead.sha ?? undefined,
+      ),
+    [
+      baseData,
+      highlightFiles,
+      staleDiff,
+      commit,
+      activity.data?.reviewThreads,
+      reviewDraft.draft.comments,
+      diffHead.sha,
+    ],
   );
   const viewedIds = data.files
     .filter((file) => (commit ? commitViewedPaths.has(file.path) : viewed.isViewed(file.path)))
@@ -154,48 +195,38 @@ export function PullRequestFileRouteScreen({
   const [collapsedIds, setCollapsedIds] = useState<readonly string[]>(EMPTY_IDS);
   const [visibleFileId, setVisibleFileId] = useState<string | null>(null);
   const nativeView = useRef<NativeReviewDiffViewHandle>(null);
-  const jumpStarted = useRef(false);
-  const lastSelection = useRef({ path: route.params.path, id: route.params.fileSelectionId });
-  // Each sheet selection jumps in this reader, including reselecting its original file.
-  useEffect(() => {
-    if (
-      lastSelection.current.path === route.params.path &&
-      lastSelection.current.id === route.params.fileSelectionId
-    )
-      return;
-    lastSelection.current = { path: route.params.path, id: route.params.fileSelectionId };
-    if (route.params.focus) navigation.setParams({ focus: undefined });
-    setJumpPath(route.params.path);
-    setSelectedRowId(null);
-    jumpStarted.current = false;
-    const file = data.files.find((entry) => entry.path === route.params.path);
-    if (!file || !nativeView.current) return;
-    setCollapsedIds((ids) => ids.filter((id) => id !== file.id));
-    jumpStarted.current = true;
-    void nativeView.current.scrollToFile(file.id, false).catch(() => {
-      jumpStarted.current = false;
+  // The filter the current jump was made under. Hiding or showing test files replaces the rows,
+  // so a jump made under the other filter has to run again. Native applies the entry
+  // destination before its first viewport, so the first one counts as made.
+  const jumpedUnder = useRef<boolean | null>(filter.hideTestFiles);
+  const hasTestFiles =
+    result.parsed.kind === "files" &&
+    result.parsed.files.some((file) => isTestChangedFile(file.path));
+  const jumpStarted = () =>
+    jumpedUnder.current !== null && (!hasTestFiles || jumpedUnder.current === filter.hideTestFiles);
+  const scrollToFile = (fileId: string) => {
+    if (!nativeView.current) return;
+    jumpedUnder.current = filter.hideTestFiles;
+    void nativeView.current.scrollToFile(fileId, false).catch(() => {
+      jumpedUnder.current = null;
     });
-  }, [
-    route.params.path,
-    route.params.fileSelectionId,
-    route.params.focus,
-    data.files,
-    navigation,
-    setCollapsedIds,
-    lastSelection,
-    nativeView,
-  ]);
-  const appliedFilter = useRef(filter.hideTestFiles);
-  useEffect(() => {
-    if (appliedFilter.current === filter.hideTestFiles) return;
-    appliedFilter.current = filter.hideTestFiles;
-    if (
-      result.parsed.kind === "files" &&
-      result.parsed.files.some((file) => isPullRequestTestFile(file.path))
-    ) {
-      jumpStarted.current = false;
-    }
-  }, [filter.hideTestFiles, result.parsed]);
+  };
+  const jumpScope = pullRequestFileJumpScope(route.params);
+  // Each sheet selection jumps in this reader, including reselecting its original file.
+  const jumpToFile = useEffectEvent((path: string) => {
+    if (route.params.focus) navigation.setParams({ focus: undefined });
+    setJumpPath(path);
+    setSelectedRowId(null);
+    jumpedUnder.current = null;
+    const file = data.files.find((entry) => entry.path === path);
+    if (!file) return;
+    setCollapsedIds((ids) => ids.filter((id) => id !== file.id));
+    scrollToFile(file.id);
+  });
+  // Subscribed for the whole screen, so a pick made while the diff is still loading is kept for
+  // the first draw.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to file jumps picked in the files sheet for this pull request's scope
+  useEffect(() => subscribePullRequestFileJump(jumpScope, (path) => jumpToFile(path)), [jumpScope]);
   const { nativeReviewDiffStyle } = useAppearanceCodeSurface();
   const { themeAppearance, appearance, setCodeWordBreak } = useAppearancePreferences();
   const bridge = useNativeReviewDiffBridge({
@@ -210,40 +241,24 @@ export function PullRequestFileRouteScreen({
   });
   const [NativeDiffView] = useState(() => resolveNativeReviewDiffView());
   // A file picked from a later page must be fetched before we can jump to its header.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- fetches the next diff page while the picked target file has not loaded yet
   useEffect(() => {
     if (!targetFile) loadMore();
   }, [targetFile, loadMore]);
-  const { onDebug: updateVisibleRange } = bridge;
-  const onDebug = ((event) => {
-    const drawn = isNativeReviewDiffDrawEvent(event.nativeEvent);
-    const decoded =
-      event.nativeEvent.message === "rows-decoded" && event.nativeEvent.rows === data.rows.length;
-    if (!drawn && !decoded) return;
-    // Filtering replaces the native row payload asynchronously. Old draw events
-    // must not consume the file jump or highlight the new payload's row indices.
-    if (
-      typeof event.nativeEvent.totalRows === "number" &&
-      event.nativeEvent.totalRows !== data.rows.length
-    )
-      return;
-    if (drawn) updateVisibleRange(event);
-    if (
-      targetFile &&
-      !jumpStarted.current &&
-      nativeView.current &&
-      (Platform.OS !== "ios" || decoded)
-    ) {
-      jumpStarted.current = true;
-      if (focusIndex >= 0) return;
-      void nativeView.current.scrollToFile(targetFile.id, false).catch(() => {
-        jumpStarted.current = false;
-      });
-      return;
-    }
-    if (!drawn) return;
-    const lastRow = event.nativeEvent.lastRowIndex;
-    if (typeof lastRow === "number" && lastRow >= data.rows.length - 40) loadMore();
-  }) satisfies NonNullable<NativeReviewDiffViewProps["onDebug"]>;
+  const onDebug = ((event) =>
+    handlePullRequestDiffDebugEvent(event, {
+      rowCount: data.rows.length,
+      targetFileId: targetFile?.id,
+      focusIndex,
+      isIos: Platform.OS === "ios",
+      nativeView,
+      jumpStarted,
+      setJumpStarted: (started) => {
+        jumpedUnder.current = started ? filter.hideTestFiles : null;
+      },
+      onDebug: bridge.onDebug,
+      loadMore,
+    })) satisfies NonNullable<NativeReviewDiffViewProps["onDebug"]>;
   const onToggleFile = ((event) => {
     const id = event.nativeEvent.fileId;
     if (!id) return;
@@ -397,7 +412,7 @@ export function PullRequestFileRouteScreen({
             onPress={() => {
               result.refresh();
               setDiffHead({ scopeKey, sha: detail.data?.headSha ?? null });
-              jumpStarted.current = false;
+              jumpedUnder.current = null;
               setSelectedRowId(null);
               setCollapsedIds(EMPTY_IDS);
             }}
@@ -415,13 +430,17 @@ export function PullRequestFileRouteScreen({
       >
         {loadingDiff || result.error ? (
           <View style={{ paddingTop: Platform.OS === "ios" && !staleDiff ? insets.top : 0 }}>
-            <PullRequestReadStatus pending={loadingDiff} error={result.error} />
+            <PullRequestReadStatus
+              pending={loadingDiff}
+              error={result.error}
+              terminology={terminology}
+            />
           </View>
         ) : null}
         {NativeDiffView && data.rows.length && !seekingFile ? (
           <View className="flex-1" collapsable={false}>
             <NativeDiffView
-              initialRowIndex={focusIndex >= 0 ? Math.max(0, focusIndex - 3) : undefined}
+              {...pullRequestDiffInitialPosition(targetFile?.id, focusIndex)}
               nativeViewRef={nativeView}
               refreshing={result.refreshing}
               onPullToRefresh={result.onPullRefresh}
@@ -507,7 +526,7 @@ export function PullRequestFileRouteScreen({
         ) : !result.isPending && !result.error && !seekingFile ? (
           <EmptyState
             title="Diff unavailable"
-            detail="Open this pull request on its provider to view the changes."
+            detail={`Open this ${terminology.singular} on its provider to view the changes.`}
             variant="plain"
           />
         ) : null}

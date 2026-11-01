@@ -1,7 +1,6 @@
 import { DeviceToolVersions } from "../device/DeviceToolVersions";
 import { DeviceHostAvailability } from "../device/DeviceHostAvailability";
 import { useAtomValue } from "@effect/atom-react";
-import * as Option from "effect/Option";
 import { AsyncResult } from "effect/reactivity";
 import { AuthSettingsWriteScope } from "@supaterm/contracts";
 import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
@@ -250,7 +249,7 @@ function DeviceHostList({
   const states = new Map(
     environmentIds.map(
       (environmentId, index) =>
-        [environmentId, Option.getOrUndefined(AsyncResult.value(results[index]!))] as const,
+        [environmentId, AsyncResult.getOrElse(results[index]!, () => undefined)] as const,
     ),
   );
   const retry = useAtomCommand(deviceEnvironment.list);

@@ -51,7 +51,6 @@ export const ProviderAdapterV2RuntimePolicy = Schema.Struct({
   cwd: Schema.NullOr(Schema.String),
   approvalPolicy: Schema.optional(Schema.Unknown),
   sandboxPolicy: Schema.optional(Schema.Unknown),
-  reasoningEffort: Schema.optional(Schema.String),
 });
 export type ProviderAdapterV2RuntimePolicy = typeof ProviderAdapterV2RuntimePolicy.Type;
 
@@ -206,6 +205,7 @@ export class ProviderAdapterOpenSessionError extends Schema.TaggedError<Provider
   {
     driver: ProviderDriverKind,
     providerSessionId: ProviderSessionId,
+    requiresSignIn: Schema.optional(Schema.Literal(true)),
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
@@ -349,6 +349,21 @@ export class ProviderAdapterInterruptError extends Schema.TaggedError<ProviderAd
   }
 }
 
+/** The provider did not confirm a stop in time; its processes may still be running. */
+export class ProviderAdapterInterruptTimeoutError extends Schema.TaggedError<ProviderAdapterInterruptTimeoutError>()(
+  "ProviderAdapterInterruptTimeoutError",
+  {
+    driver: ProviderDriverKind,
+    providerThreadId: ProviderThreadId,
+    providerTurnId: ProviderTurnId,
+    timeoutMs: Schema.Number,
+  },
+) {
+  override get message(): string {
+    return `The ${this.driver} provider did not confirm stopping turn ${this.providerTurnId} within ${this.timeoutMs} ms.`;
+  }
+}
+
 export class ProviderAdapterRuntimeRequestResponseError extends Schema.TaggedError<ProviderAdapterRuntimeRequestResponseError>()(
   "ProviderAdapterRuntimeRequestResponseError",
   {
@@ -409,6 +424,7 @@ export const ProviderAdapterV2Error = Schema.Union([
   ProviderAdapterSteerRunUnsupportedError,
   ProviderAdapterSteerRunError,
   ProviderAdapterInterruptError,
+  ProviderAdapterInterruptTimeoutError,
   ProviderAdapterRuntimeRequestResponseError,
   ProviderAdapterEventStreamError,
   ProviderAdapterProtocolError,
@@ -432,6 +448,7 @@ export interface ProviderAdapterV2EnsureThreadInput {
   readonly runtimePolicy: ProviderAdapterV2RuntimePolicy;
   readonly providerSessionId?: ProviderSessionId;
   readonly existingProviderThread?: OrchestrationV2ProviderThread;
+  readonly forceNewNativeThread?: boolean;
 }
 
 export interface ProviderAdapterV2TurnInput {
@@ -469,8 +486,8 @@ export interface ProviderAdapterV2InterruptInput {
 export interface ProviderAdapterV2RuntimeRequestResponseInput {
   readonly requestId: RuntimeRequestId;
   readonly decision?: ProviderApprovalDecision;
+  readonly feedback?: string;
   readonly answers?: ProviderUserInputAnswers;
-  readonly response?: unknown;
 }
 
 export interface ProviderAdapterV2ThreadSnapshot {
@@ -577,13 +594,10 @@ export interface ProviderAdapterV2SessionRuntime {
    */
   readonly subscribeEvents?: Effect.Effect<ProviderAdapterV2EventSubscription>;
   readonly hasPendingBackgroundWork?: Effect.Effect<boolean>;
-  /**
-   * When present, RunExecutionService uses only this probe (never the
-   * session-wide hasPendingBackgroundWork) so sibling native threads cannot pin
-   * an unrelated root subscription open.
-   */
+  /** Root-subscription probe; replacement checks opt in to subagents owned by the live process. */
   readonly hasPendingBackgroundWorkForThread?: (
     providerThread: OrchestrationV2ProviderThread,
+    options?: { readonly includeSubagents?: boolean },
   ) => Effect.Effect<boolean>;
   /**
    * Set when every background task this session lists on its provider threads
@@ -625,6 +639,15 @@ export interface ProviderAdapterV2SessionRuntime {
     readonly providerThread: OrchestrationV2ProviderThread;
     readonly taskId: string;
   }) => Effect.Effect<void, ProviderAdapterV2Error>;
+  /**
+   * Marks or unmarks background tasks the agent will resume from, using the ids the agent saw.
+   * Ids not running on this provider thread come back unmatched and change nothing.
+   */
+  readonly awaitBackgroundTasks?: (input: {
+    readonly providerThread: OrchestrationV2ProviderThread;
+    readonly taskIds: ReadonlyArray<string>;
+    readonly awaited: boolean;
+  }) => Effect.Effect<{ readonly matched: ReadonlyArray<string> }, ProviderAdapterV2Error>;
   readonly interruptTurn: (
     input: ProviderAdapterV2InterruptInput,
   ) => Effect.Effect<void, ProviderAdapterV2Error>;

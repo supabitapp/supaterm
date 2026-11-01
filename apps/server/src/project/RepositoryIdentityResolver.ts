@@ -1,9 +1,7 @@
 import type { RepositoryIdentity, SourceControlProviderError } from "@supaterm/contracts";
 import { repositoryPathFromRemoteUrl } from "@supaterm/source-control-core/server/SourceControlProvider";
 import {
-  detectSourceControlProviderFromGitRemoteUrl,
   GH_RESOLVED_CONFIG_ARGS,
-  normalizeGitRemoteUrl,
   parseGhResolvedRemotes,
   parseGitRemoteFetchUrls,
 } from "@supaterm/shared/git";
@@ -16,6 +14,7 @@ import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 
 import * as ProcessRunner from "../processRunner.ts";
+import { sourceControlDefinitions } from "../sourceControl/sourceControlDefinitions.ts";
 import { explicitBareRepositoryEnv } from "../vcs/VcsProcess.ts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 
@@ -28,8 +27,6 @@ const DEFAULT_NEGATIVE_CACHE_TTL = Duration.minutes(1);
 
 export interface RepositoryIdentityResolverOptions {
   readonly cacheCapacity?: number;
-  readonly positiveCacheTtl?: Duration.Input;
-  readonly negativeCacheTtl?: Duration.Input;
   readonly refine?: (
     identity: RepositoryIdentity,
   ) => Effect.Effect<RepositoryIdentity, SourceControlProviderError>;
@@ -81,7 +78,7 @@ function buildRepositoryOrigin(
   canonicalKey: string,
 ): RepositoryIdentity["origin"] {
   if (!originUrl) return undefined;
-  const originKey = normalizeGitRemoteUrl(originUrl);
+  const originKey = sourceControlDefinitions.repositoryKeyFromRemote(originUrl);
   if (originKey === canonicalKey) return undefined;
   const displayName = repositoryPathOf(originKey, originUrl);
   return { canonicalKey: originKey, remoteUrl: originUrl, ...(displayName ? { displayName } : {}) };
@@ -93,8 +90,8 @@ function buildRepositoryIdentity(input: {
   readonly originUrl: string | undefined;
   readonly rootPath: string;
 }): RepositoryIdentity {
-  const canonicalKey = normalizeGitRemoteUrl(input.remoteUrl);
-  const sourceControlProvider = detectSourceControlProviderFromGitRemoteUrl(input.remoteUrl);
+  const canonicalKey = sourceControlDefinitions.repositoryKeyFromRemote(input.remoteUrl);
+  const sourceControlProvider = sourceControlDefinitions.recognizeRemote(input.remoteUrl);
   const repositoryPath = repositoryPathOf(canonicalKey, input.remoteUrl);
   const repositoryPathSegments = repositoryPath.split("/").filter((segment) => segment.length > 0);
   const [owner] = repositoryPathSegments;
@@ -245,9 +242,7 @@ export const make = Effect.fn("RepositoryIdentityResolver.make")(function* (
   const timeToLive = (exit: Exit.Exit<unknown>) =>
     Exit.match(exit, {
       onSuccess: (value) =>
-        value === null
-          ? (options.negativeCacheTtl ?? DEFAULT_NEGATIVE_CACHE_TTL)
-          : (options.positiveCacheTtl ?? DEFAULT_POSITIVE_CACHE_TTL),
+        value === null ? DEFAULT_NEGATIVE_CACHE_TTL : DEFAULT_POSITIVE_CACHE_TTL,
       onFailure: () => Duration.zero,
     });
 

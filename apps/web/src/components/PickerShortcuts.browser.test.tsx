@@ -100,7 +100,6 @@ function RefPicker() {
         filteredItems={items.filter((item) => item.includes(query))}
         value={selected}
         query={query}
-        resultsQuery={query}
         onQueryChange={setQuery}
         open={open}
         onOpenChange={setOpen}

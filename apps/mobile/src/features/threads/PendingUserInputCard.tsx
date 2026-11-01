@@ -1,7 +1,7 @@
 import { Button } from "../../components/ui/Button";
 import { QuestionAttachments } from "./QuestionAttachments";
 import * as Haptics from "expo-haptics";
-import type { RuntimeRequestId } from "@supaterm/contracts";
+import type { EnvironmentId, RuntimeRequestId } from "@supaterm/contracts";
 import type { ThreadUserInputQuestion } from "@supaterm/client-runtime/state/thread-requests";
 import {
   useCallback,
@@ -28,11 +28,11 @@ import Animated, {
   FadeInUp,
   FadeOutDown,
   LayoutAnimationConfig,
-  LinearTransition,
   ReduceMotion,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
+  type DerivedValue,
   type EntryAnimationsValues,
   type ExitAnimationsValues,
   type LayoutAnimation,
@@ -51,18 +51,20 @@ import { SYSTEM_FONT_FAMILY } from "../../lib/fonts";
 import { SelectableMarkdownText } from "../../native/SelectableMarkdownText";
 import { useOpenPullRequest } from "../../native/useOpenPullRequest";
 import { useMarkdownPreviewStyles } from "../files/FileMarkdownPreview";
+import { useLiveThreadLinkLabels } from "../../state/entities";
 import {
   isPendingUserInputOptionSelected,
   isPendingUserInputQuestionAnswered,
   resumePendingUserInputQuestionIndex,
-  type PendingUserInput,
   type PendingUserInputDraftAnswer,
-} from "../../lib/threadActivity";
+} from "@supaterm/client-runtime/state/pending-user-input";
+import type { PendingUserInput } from "../../lib/threadActivity";
 
 export interface PendingUserInputCardProps {
+  readonly environmentId: EnvironmentId;
   readonly canOperateThread: boolean;
   readonly pendingUserInput: PendingUserInput;
-  readonly maxHeight: number;
+  readonly maxHeight: DerivedValue<number>;
   readonly collapsed: boolean;
   readonly onToggleCollapsed: () => void;
   readonly onStopThread?: () => void;
@@ -87,14 +89,8 @@ export interface PendingUserInputCardProps {
   readonly supportsQuestionAutoDismiss?: boolean;
 }
 
-/**
- * Android cannot use the overlay: it does not hit-test touches outside a
- * parent's bounds, which made everything above the bar-sized wrapper
- * untouchable.
- */
+/** Android cannot hit-test overlays beyond their parent's bounds; render its expanded card in-flow. */
 const EXPANDED_CARD_IS_OVERLAY = Platform.OS === "ios";
-
-const CARD_LAYOUT_TRANSITION = LinearTransition.duration(200);
 
 /** Long enough to see the picked option highlight before the next question replaces it. */
 const SINGLE_SELECT_ADVANCE_DELAY_MS = 200;
@@ -166,8 +162,9 @@ function QuestionPage(props: {
   );
 }
 
-function QuestionText(props: { readonly markdown: string }) {
+function QuestionText(props: { readonly markdown: string; readonly environmentId: EnvironmentId }) {
   const styles = useMarkdownPreviewStyles();
+  const markdown = useLiveThreadLinkLabels(props.markdown, props.environmentId);
   const openLink = useOpenPullRequest();
   const textStyle = useMemo(
     () => ({ ...styles.nativeTextStyle, fontFamily: SYSTEM_FONT_FAMILY, fontWeight: "500" }),
@@ -175,7 +172,7 @@ function QuestionText(props: { readonly markdown: string }) {
   );
   return (
     <SelectableMarkdownText
-      markdown={props.markdown}
+      markdown={markdown}
       textStyle={textStyle}
       onLinkPress={(href) => void openLink(href)}
     />
@@ -214,6 +211,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
       advanceTimerRef.current = null;
     }
   }, []);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the pending auto-advance timer on unmount
   useEffect(() => cancelAutoAdvance, [cancelAutoAdvance]);
   const pushDirection = useSharedValue(1);
   const describeQuestion = (index: number) => {
@@ -246,6 +244,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
   // the latest render's advance instead of the one that scheduled it, and skips
   // a request that replaced the one tapped.
   const advanceRef = useRef(advance);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes the committed advance to a ref read by the delayed auto-advance timer
   useLayoutEffect(() => {
     advanceRef.current = advance;
   });
@@ -265,52 +264,36 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
   const barHeightRef = useRef(0);
   const cardHeightRef = useRef(0);
   const cardHeight = useSharedValue(0);
-  const notifyCoverage = useCallback(() => {
+  const notifyCoverage = () => {
     if (!cardCoverage) {
       return;
     }
-    const coverage = Math.max(0, cardHeightRef.current - barHeightRef.current);
-    if (coverage === cardCoverage.get()) {
-      return;
-    }
-    if (cardCoverage.get() === 0) {
-      cardCoverage.set(coverage);
-      return;
-    }
-    cardCoverage.set(
-      withTiming(coverage, {
-        duration: USER_INPUT_TOGGLE_DURATION_MS,
-        easing: Easing.out(Easing.cubic),
-      }),
-    );
-  }, [cardCoverage]);
-  const handleBarLayout = useCallback(
-    (event: LayoutChangeEvent) => {
-      barHeightRef.current = event.nativeEvent.layout.height;
-      notifyCoverage();
-    },
-    [notifyCoverage],
-  );
-  const handleCardLayout = useCallback(
-    (event: LayoutChangeEvent) => {
-      cardHeightRef.current = event.nativeEvent.layout.height;
-      cardHeight.set(event.nativeEvent.layout.height);
-      notifyCoverage();
-    },
-    [cardHeight, notifyCoverage],
-  );
+    // The card resizes with the keyboard every frame, so easing each sample would leave the
+    // feed inset and floating controls trailing it.
+    cardCoverage.set(Math.max(0, cardHeightRef.current - barHeightRef.current));
+  };
+  const handleBarLayout = (event: LayoutChangeEvent) => {
+    barHeightRef.current = event.nativeEvent.layout.height;
+    notifyCoverage();
+  };
+  const handleCardLayout = (event: LayoutChangeEvent) => {
+    cardHeightRef.current = event.nativeEvent.layout.height;
+    cardHeight.set(event.nativeEvent.layout.height);
+    notifyCoverage();
+  };
   const cardProgress = props.cardProgress;
+  const maxHeight = props.maxHeight;
   const cardAnimatedStyle = useAnimatedStyle(() => {
     const progress = cardProgress === undefined ? 1 : cardProgress.value;
     return {
+      maxHeight: maxHeight.value,
       transform: [{ translateY: (1 - progress) * cardHeight.value }],
     };
   });
+  const cardMaxHeightStyle = useAnimatedStyle(() => ({ maxHeight: maxHeight.value }));
+  const overlayHeightStyle = useAnimatedStyle(() => ({ height: maxHeight.value }));
 
-  // On iOS the card stays MOUNTED while collapsed (hidden via the animated
-  // style): expanding animates existing views on the UI thread the same
-  // frame the host starts the progress timing, instead of paying a React
-  // mount + layout before anything moves.
+  // Keep the iOS card mounted so expansion starts on the UI thread without waiting for React layout.
   const renderCard = EXPANDED_CARD_IS_OVERLAY || !props.collapsed;
   const showBar = props.collapsed || EXPANDED_CARD_IS_OVERLAY;
   const autoDismissAt = props.supportsQuestionAutoDismiss
@@ -385,13 +368,8 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
           ? undefined
           : FadeOutDown.duration(USER_INPUT_TOGGLE_DURATION_MS).easing(Easing.out(Easing.cubic))
       }
-      layout={CARD_LAYOUT_TRANSITION}
       className="overflow-hidden gap-2.5 rounded-[20px] border border-border bg-card-alt p-4"
-      style={
-        EXPANDED_CARD_IS_OVERLAY
-          ? [{ maxHeight: props.maxHeight }, cardAnimatedStyle]
-          : { maxHeight: props.maxHeight }
-      }
+      style={EXPANDED_CARD_IS_OVERLAY ? cardAnimatedStyle : cardMaxHeightStyle}
     >
       <QuestionAutoDismissToggle
         deadline={autoDismissAt}
@@ -457,7 +435,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
           ) : null}
           {question ? (
             <>
-              <QuestionText markdown={question.question} />
+              <QuestionText markdown={question.question} environmentId={props.environmentId} />
               {question.multiSelect ? (
                 <Text className="font-sans text-xs text-foreground-muted">
                   Select one or more options.
@@ -506,6 +484,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
               </View>
               {question.allowCustomAnswer !== false ? (
                 <QuestionAttachments
+                  key={`${requestId}:${question.id}`}
                   requestId={requestId}
                   question={question}
                   questions={questions}
@@ -576,13 +555,13 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
     <View className="relative">
       {bar}
       {EXPANDED_CARD_IS_OVERLAY ? (
-        <View
+        <Animated.View
           pointerEvents={props.collapsed ? "none" : "box-none"}
           className="absolute inset-x-0 bottom-0 justify-end overflow-hidden"
-          style={{ height: props.maxHeight }}
+          style={overlayHeightStyle}
         >
           {card}
-        </View>
+        </Animated.View>
       ) : (
         card
       )}

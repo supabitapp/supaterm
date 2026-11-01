@@ -1,12 +1,9 @@
 import { Platform } from "react-native";
 import { ReduceMotion, withTiming, type LayoutAnimationFunction } from "react-native-reanimated";
 
-// The bottom-anchored dock position and clipped surface height use the same
-// transition so the card grows upward without exposing its final-size content.
-// Android gets NO layout transition: the composer rides the keyboard via
-// KeyboardStickyView (frame-synced to the IME), and a time-based morph
-// running alongside that translate reads as jitter. Snapping the layout and
-// letting the keyboard-synced slide be the only motion looks native there.
+// Dock position and clipped surface height share one transition so the card grows upward without
+// exposing its final-size content. Android gets none: the composer rides the IME-synced
+// KeyboardStickyView, and a timed morph alongside that translate reads as jitter.
 export const COMPOSER_TRANSITION_DURATION_MS = 220;
 // Side panes already animate the dock's width. Nested horizontal layout
 // transitions would leave the surface trailing its toolbar's new position.

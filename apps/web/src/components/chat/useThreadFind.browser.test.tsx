@@ -1,3 +1,10 @@
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  RouterProvider,
+} from "@tanstack/react-router";
 import { useLayoutEffect } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
 import {
@@ -7,10 +14,22 @@ import {
   type OrchestrationV2SearchThreadInput,
   type OrchestrationV2SearchThreadResult,
 } from "@supaterm/contracts";
+import { DEFAULT_RESOLVED_KEYBINDINGS } from "@supaterm/shared/keybindings";
 import { act, fakeTimers, render } from "../../../test/render";
+import { PaneScopeProvider, usePaneInputOwner } from "../../chatPanes/paneScope";
+import { useChatPaneStore } from "../../chatPanes/store";
+import { useChatShortcuts } from "./useChatShortcuts";
+import { startThreadOverlayRetention } from "./threadOverlayRetention";
 import { useThreadFind } from "./useThreadFind";
 import { orchestrationEnvironment } from "~/state/orchestration";
-import { requestThreadFindOpen } from "./threadFindActionBus";
+import { scopedThreadKey } from "@supaterm/client-runtime/environment";
+import type { ThreadFindPositionReader } from "./threadFind";
+import {
+  attachThreadFindTimeline,
+  closeThreadFind,
+  openThreadFind,
+  useThreadFindStore,
+} from "./threadFindStore";
 
 const queries = vi.hoisted(() => ({
   results: new Map<string, OrchestrationV2SearchThreadResult>(),
@@ -49,6 +68,8 @@ vi.mock("~/state/query", () => ({
 vi.mock("../ui/toast", () => ({ toastManager: { add: vi.fn() } }));
 
 let find: ReturnType<typeof useThreadFind>;
+let shownThreadKey = "";
+let readPosition: ThreadFindPositionReader | null = null;
 const a = EnvironmentId.make("environment:a");
 const b = EnvironmentId.make("environment:b");
 const threadId = ThreadId.make("shared-thread");
@@ -67,15 +88,29 @@ function Probe({
     enabled,
     progressive,
   });
+  const threadKey = scopedThreadKey({ environmentId, threadId });
   useLayoutEffect(() => {
     find = state;
+    shownThreadKey = threadKey;
   });
+  useLayoutEffect(
+    () =>
+      attachThreadFindTimeline({
+        threadKey,
+        readPosition: (query) => readPosition?.(query),
+        navigate: () => {},
+      }),
+    [threadKey],
+  );
   return null;
 }
+const openFind = () => openThreadFind(shownThreadKey);
 function setup() {
   queries.results.clear();
   queries.pending = false;
   threadDetail.content = undefined;
+  readPosition = null;
+  useThreadFindStore.setState({ finds: new Map() });
   vi.clearAllMocks();
 }
 
@@ -92,7 +127,7 @@ describe("V2 find state", () => {
   it("reveals an early match and updates its count without requesting another jump", async () => {
     setup();
     await using screen = await render(<Probe environmentId={a} progressive />);
-    await act(async () => find.open());
+    await act(async () => openFind());
     await act(async () => find.barProps.onQueryChange("needle"));
     const partial: OrchestrationV2SearchThreadResult = {
       complete: false,
@@ -134,7 +169,7 @@ describe("V2 find state", () => {
     using _timers = fakeTimers();
     queries.pending = true;
     await using screen = await render(<Probe environmentId={a} progressive />);
-    await act(async () => find.open());
+    await act(async () => openFind());
     await act(async () => find.barProps.onQueryChange("needle"));
     queries.results.set(a, { ...messageResult(0), complete: false, totalMatches: 1 });
     threadDetail.content = { visibleTurnItems: [], runs: [] };
@@ -163,15 +198,15 @@ describe("V2 find state", () => {
     setup();
     queries.results.set(a, messageResult(0));
     await using _screen = await render(<Probe environmentId={a} />);
-    await act(async () => find.open());
-    find.timelineProps.findPositionReaderRef.current = () => ({
+    await act(async () => openFind());
+    readPosition = () => ({
       entryId: "reading",
       occurrence: 0,
     });
     await act(async () => find.barProps.onQueryChange("COD4"));
     const firstNavigationId = find.timelineProps.findNavigationId;
     const firstMatch = find.timelineProps.activeFindMatch;
-    find.timelineProps.findPositionReaderRef.current = () => ({ entryId: "bottom", occurrence: 0 });
+    readPosition = () => ({ entryId: "bottom", occurrence: 0 });
     await act(async () => find.barProps.onQueryChange("COD4"));
     expect(find.timelineProps.findNavigationId).toBeGreaterThan(firstNavigationId);
     expect(find.timelineProps.activeFindMatch).toEqual(firstMatch);
@@ -180,11 +215,11 @@ describe("V2 find state", () => {
       input: { threadId, query: "COD4", skills: [], start: { entryId: "bottom", occurrence: 0 } },
     });
     const repeatedNavigationId = find.timelineProps.findNavigationId;
-    find.timelineProps.findPositionReaderRef.current = () => ({
+    readPosition = () => ({
       entryId: "new-bottom",
       occurrence: 0,
     });
-    await act(async () => requestThreadFindOpen());
+    await act(async () => openFind());
     expect(find.timelineProps.findNavigationId).toBeGreaterThan(repeatedNavigationId);
     expect(find.timelineProps.activeFindMatch).toEqual(firstMatch);
     expect(orchestrationEnvironment.threadFind).toHaveBeenLastCalledWith({
@@ -211,7 +246,7 @@ describe("V2 find state", () => {
     };
     queries.results.set(a, initial);
     await using _screen = await render(<Probe environmentId={a} />);
-    await act(async () => find.open());
+    await act(async () => openFind());
     await act(async () => find.barProps.onQueryChange("COD4"));
     const requests = vi.mocked(orchestrationEnvironment.threadFind).mock.calls.length;
     await act(async () => {
@@ -244,7 +279,7 @@ describe("V2 find state", () => {
     };
     queries.results.set(a, initial);
     await using screen = await render(<Probe environmentId={a} />);
-    await act(async () => find.open());
+    await act(async () => openFind());
     await act(async () => find.barProps.onQueryChange("COD4"));
     const requests = vi.mocked(orchestrationEnvironment.threadFind).mock.calls.length;
     await act(async () => find.barProps.onNext());
@@ -275,7 +310,7 @@ describe("V2 find state", () => {
     };
     queries.results.set(a, initial);
     await using screen = await render(<Probe environmentId={a} />);
-    await act(async () => find.open());
+    await act(async () => openFind());
     await act(async () => find.barProps.onQueryChange("COD4"));
     await act(async () => find.barProps.onNext());
     expect(find.timelineProps.activeFindMatch?.occurrence).toBe(1);
@@ -317,7 +352,7 @@ describe("V2 find state", () => {
     };
     queries.results.set(a, initial);
     await using screen = await render(<Probe environmentId={a} />);
-    await act(async () => find.open());
+    await act(async () => openFind());
     await act(async () => find.barProps.onQueryChange("COD4"));
     await act(async () => find.barProps.onNext());
     expect(find.timelineProps.activeFindMatch?.entryId).toBe("second");
@@ -356,7 +391,7 @@ describe("V2 find state", () => {
     };
     queries.results.set(a, initial);
     await using screen = await render(<Probe environmentId={a} />);
-    await act(async () => find.open());
+    await act(async () => openFind());
     await act(async () => find.barProps.onQueryChange("COD4"));
     threadDetail.content = { runs: [], visibleTurnItems: [] };
     await screen.rerender(<Probe environmentId={a} />);
@@ -377,8 +412,8 @@ describe("V2 find state", () => {
     setup();
     queries.results.set(a, messageResult(4));
     await using _screen = await render(<Probe environmentId={a} />);
-    await act(async () => find.open());
-    find.timelineProps.findPositionReaderRef.current = () => ({
+    await act(async () => openFind());
+    readPosition = () => ({
       entryId: "message:6",
       occurrence: 1,
     });
@@ -425,7 +460,7 @@ describe("V2 find state", () => {
     setup();
     queries.results.set(a, messageResult(4));
     await using screen = await render(<Probe environmentId={a} />);
-    await act(async () => find.open());
+    await act(async () => openFind());
     await act(async () => find.barProps.onQueryChange("COD4"));
     queries.pending = true;
     queries.results.delete(a);
@@ -454,7 +489,7 @@ describe("V2 find state", () => {
     using _timers = fakeTimers();
     queries.results.set(a, messageResult(4));
     await using screen = await render(<Probe environmentId={a} />);
-    await act(async () => find.open());
+    await act(async () => openFind());
     await act(async () => find.barProps.onQueryChange("COD4"));
     for (let i = 0; i < 3; i++) {
       threadDetail.content = { visibleTurnItems: [], runs: [] };
@@ -497,7 +532,7 @@ describe("V2 find state", () => {
     using _timers = fakeTimers();
     queries.results.set(a, messageResult(4));
     await using screen = await render(<Probe environmentId={a} />);
-    await act(async () => find.open());
+    await act(async () => openFind());
     await act(async () => find.barProps.onQueryChange("COD4"));
     queries.pending = true;
     queries.results.delete(a);
@@ -529,7 +564,7 @@ describe("V2 find state", () => {
     setup();
     queries.results.set(a, messageResult(0));
     await using screen = await render(<Probe environmentId={a} />);
-    await act(async () => find.open());
+    await act(async () => openFind());
     await act(async () => find.barProps.onQueryChange("COD4"));
     queries.pending = true;
     queries.results.delete(a);
@@ -550,8 +585,8 @@ describe("V2 find state", () => {
     setup();
     queries.pending = true;
     await using _screen = await render(<Probe environmentId={a} />);
-    await act(async () => find.open());
-    find.timelineProps.findPositionReaderRef.current = () => ({
+    await act(async () => openFind());
+    readPosition = () => ({
       entryId: "message:6",
       occurrence: 1,
     });
@@ -572,7 +607,7 @@ describe("V2 find state", () => {
     setup();
     queries.pending = true;
     await using screen = await render(<Probe environmentId={a} />);
-    await act(async () => find.open());
+    await act(async () => openFind());
     await act(async () => find.barProps.onQueryChange("COD4"));
     expect(find.barProps.status).toBe("loading");
     queries.pending = false;
@@ -595,30 +630,29 @@ describe("V2 find state", () => {
     setup();
     await using _screen = await render(<Probe environmentId={a} enabled={false} />);
     await act(async () => {
-      find.open();
-      requestThreadFindOpen();
+      openFind();
+      openFind();
     });
-    expect(find.isOpen).toBe(false);
+    expect(find.barProps.open).toBe(false);
     expect(find.timelineProps.activeFindMatch).toBeNull();
     expect(orchestrationEnvironment.threadFind).not.toHaveBeenCalled();
   });
 
-  it("closes search when support disappears without restoring stale queries", async () => {
+  it("hides search while support is gone and shows the same find when it returns", async () => {
     setup();
     await using screen = await render(<Probe environmentId={a} />);
-    await act(async () => find.open());
+    await act(async () => openFind());
     await act(async () => find.barProps.onQueryChange("needle"));
-    expect(find.isOpen).toBe(true);
+    expect(find.barProps.open).toBe(true);
     vi.mocked(orchestrationEnvironment.threadFind).mockClear();
     await screen.rerender(<Probe environmentId={a} enabled={false} />);
-    expect(find.isOpen).toBe(false);
+    expect(find.barProps.open).toBe(false);
     expect(find.timelineProps.activeFindMatch).toBeNull();
     expect(find.timelineProps.findQuery).toBe("");
     expect(orchestrationEnvironment.threadFind).not.toHaveBeenCalled();
     await screen.rerender(<Probe environmentId={a} />);
-    expect(find.isOpen).toBe(false);
-    await act(async () => find.open());
-    expect(find.barProps.query).toBe("");
+    expect(find.barProps.open).toBe(true);
+    expect(find.barProps.query).toBe("needle");
   });
 
   it("preserves plan item ID and run ownership for navigation", async () => {
@@ -631,7 +665,7 @@ describe("V2 find state", () => {
     });
     await using _screen = await render(<Probe environmentId={a} />);
     await act(async () => {
-      find.open();
+      openFind();
     });
     await act(async () => {
       find.barProps.onQueryChange("needle");
@@ -642,7 +676,7 @@ describe("V2 find state", () => {
       occurrence: 0,
     });
     await act(async () => {
-      find.close();
+      closeThreadFind(shownThreadKey);
     });
     expect(find.timelineProps.activeFindMatch).toBeNull();
     expect(find.timelineProps.findQuery).toBe("");
@@ -664,23 +698,174 @@ describe("V2 find state", () => {
     });
     await using screen = await render(<Probe environmentId={a} />);
     await act(async () => {
-      find.open();
+      openFind();
     });
     await act(async () => {
       find.barProps.onQueryChange("needle");
     });
     expect(find.barProps.matchCount).toBe(3);
     await screen.rerender(<Probe environmentId={b} />);
-    expect(find.isOpen).toBe(false);
+    expect(find.barProps.open).toBe(false);
     expect(find.timelineProps.activeFindMatch).toBeNull();
     await act(async () => {
-      find.open();
+      openFind();
     });
     await act(async () => {
       find.barProps.onQueryChange("needle");
     });
     expect(find.barProps.matchCount).toBe(0);
     await screen.rerender(<Probe environmentId={a} />);
-    expect(find.isOpen).toBe(false);
+    expect(find.barProps).toMatchObject({ open: true, query: "needle", matchCount: 3 });
+  });
+});
+
+const paneFinds = new Map<EnvironmentId, ReturnType<typeof useThreadFind>>();
+
+function FindPane({ environmentId }: { environmentId: EnvironmentId }) {
+  const threadKey = scopedThreadKey({ environmentId, threadId });
+  const state = useThreadFind({ thread: { environmentId, threadId }, enabled: true });
+  const isInputOwner = usePaneInputOwner();
+  useChatShortcuts({
+    enabled: true,
+    isInputOwner,
+    keybindings: DEFAULT_RESOLVED_KEYBINDINGS,
+    scriptKeybindings: [],
+    getShortcutContext: () => ({
+      terminalFocus: false,
+      terminalOpen: false,
+      previewFocus: false,
+      previewOpen: false,
+      isWeb: true,
+      isDesktop: false,
+      modelPickerOpen: false,
+    }),
+    threadFindActive: state.barProps.open,
+    composerRef: { current: null },
+    branchToolbarRef: { current: null },
+    composerShortcutAvailability: { draftProjectControls: true, branchPicker: true },
+    closeThreadFind: state.barProps.onClose,
+    commands: { "chat.find": () => openThreadFind(threadKey) },
+    fallback: () => undefined,
+  });
+  useLayoutEffect(() => {
+    paneFinds.set(environmentId, state);
+  });
+  return null;
+}
+
+const paneTarget = (environmentId: EnvironmentId) => ({
+  kind: "server" as const,
+  threadRef: { environmentId, threadId },
+});
+const paneScope = (paneId: string) => ({
+  paneId,
+  layoutVersion: paneId,
+  narrow: false,
+  collapsed: false,
+  element: null,
+});
+const threadPath = (environmentId: EnvironmentId) =>
+  `/${encodeURIComponent(environmentId)}/${threadId}`;
+const pressFind = () =>
+  window.dispatchEvent(
+    new KeyboardEvent("keydown", {
+      key: "f",
+      code: "KeyF",
+      metaKey: navigator.platform.includes("Mac"),
+      ctrlKey: !navigator.platform.includes("Mac"),
+      bubbles: true,
+      cancelable: true,
+    }),
+  );
+const paneFind = (environmentId: EnvironmentId) => paneFinds.get(environmentId)!.barProps;
+
+/** Panes for threads in environments a and b, a focused, on a router that follows focus. */
+async function renderSplit(resources: AsyncDisposableStack) {
+  resources.defer(() => {
+    useChatPaneStore.setState({ layout: null, closed: [], openToSide: null });
+    paneFinds.clear();
+  });
+  const store = useChatPaneStore.getState();
+  store.reconcileRoute(paneTarget(a), { width: 1600, height: 900 });
+  const paneA = useChatPaneStore.getState().layout!.focusedPaneId;
+  const paneB = store.split(paneA, "right", paneTarget(b))!;
+  store.focus(paneA);
+
+  const root = createRootRoute();
+  const router = createRouter({
+    routeTree: root.addChildren(
+      ["/$environmentId/$threadId", "/pull-requests", "/settings"].map((path) =>
+        createRoute({ getParentRoute: () => root, path }),
+      ),
+    ),
+    history: createMemoryHistory({ initialEntries: [threadPath(a)] }),
+  });
+  resources.defer(startThreadOverlayRetention(router));
+  resources.use(
+    await render(
+      <>
+        <RouterProvider router={router} />
+        <PaneScopeProvider value={paneScope(paneA)}>
+          <FindPane environmentId={a} />
+        </PaneScopeProvider>
+        <PaneScopeProvider value={paneScope(paneB)}>
+          <FindPane environmentId={b} />
+        </PaneScopeProvider>
+      </>,
+      { router: false },
+    ),
+  );
+  const visit = (href: string) => act(() => router.history.push(href));
+  return { paneA, paneB, visit };
+}
+
+describe("find in split panes", () => {
+  it("opens with Cmd+F only in the focused pane, and each pane keeps its own find", async () => {
+    setup();
+    await using resources = new AsyncDisposableStack();
+    const { paneA, paneB, visit } = await renderSplit(resources);
+
+    await act(pressFind);
+    expect(paneFind(a).open).toBe(true);
+    expect(paneFind(b).open).toBe(false);
+    await act(() => paneFind(a).onQueryChange("needle"));
+
+    // Focus moves the URL to the focused pane's thread.
+    await act(() => useChatPaneStore.getState().focus(paneB));
+    await visit(threadPath(b));
+    expect(paneFind(a)).toMatchObject({ open: true, query: "needle" });
+    expect(paneFind(b).open).toBe(false);
+
+    await act(pressFind);
+    await act(() => paneFind(b).onQueryChange("thread"));
+    expect(paneFind(a)).toMatchObject({ open: true, query: "needle" });
+    expect(paneFind(b)).toMatchObject({ open: true, query: "thread" });
+
+    await act(() => useChatPaneStore.getState().focus(paneA));
+    await visit(threadPath(a));
+    expect(paneFind(a)).toMatchObject({ open: true, query: "needle" });
+    expect(paneFind(b)).toMatchObject({ open: true, query: "thread" });
+  });
+
+  it("closes find in a thread once no route or pane shows it", async () => {
+    setup();
+    await using resources = new AsyncDisposableStack();
+    const { paneA, visit } = await renderSplit(resources);
+    await act(() => {
+      openThreadFind(scopedThreadKey({ environmentId: a, threadId }));
+      openThreadFind(scopedThreadKey({ environmentId: b, threadId }));
+    });
+
+    await visit("/settings");
+    expect(paneFind(a).open).toBe(true);
+    expect(paneFind(b).open).toBe(true);
+
+    await visit(threadPath(b));
+    await act(() => useChatPaneStore.getState().close(paneA));
+    expect(paneFind(a).open).toBe(false);
+    expect(paneFind(b).open).toBe(true);
+
+    await visit("/pull-requests");
+    expect(paneFind(b).open).toBe(false);
   });
 });

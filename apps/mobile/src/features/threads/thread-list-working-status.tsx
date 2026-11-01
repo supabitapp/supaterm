@@ -14,6 +14,7 @@ export const ThreadListWorkingStatus = memo(function ThreadListWorkingStatus(pro
     Number.isFinite(startedMs) ? formatWorkingDurationLabel(Date.now() - startedMs) : null,
   );
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- runs the duration clock interval only while AppState is active and follows app state changes
   useEffect(() => {
     if (!Number.isFinite(startedMs)) return;
     let timer: ReturnType<typeof setInterval> | undefined;

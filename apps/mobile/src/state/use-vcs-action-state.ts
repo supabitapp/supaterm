@@ -2,6 +2,7 @@ import { useAtomValue } from "@effect/atom-react";
 import { type VcsActionState, type VcsActionTarget } from "@supaterm/client-runtime/state/vcs";
 import { Atom } from "effect/reactivity";
 import { useEffect, useState } from "react";
+import * as Haptics from "expo-haptics";
 
 import { appAtomRegistry } from "./atom-registry";
 import { vcsActionManager } from "./vcs";
@@ -30,6 +31,12 @@ function broadcast(result: GitActionResultNotification | null): void {
 }
 
 export function showGitActionResult(result: GitActionResultNotification): void {
+  // Best effort: devices without a haptics engine reject.
+  Haptics.notificationAsync(
+    result.type === "success"
+      ? Haptics.NotificationFeedbackType.Success
+      : Haptics.NotificationFeedbackType.Error,
+  ).catch(() => undefined);
   if (dismissTimer) clearTimeout(dismissTimer);
   broadcast(result);
   dismissTimer = setTimeout(() => {
@@ -44,7 +51,7 @@ export function dismissGitActionResult(): void {
   broadcast(null);
 }
 
-export function useGitActionResultNotification(): {
+function useGitActionResultNotification(): {
   readonly result: GitActionResultNotification | null;
   readonly dismiss: () => void;
 } {
@@ -79,6 +86,7 @@ export function useGitActionProgress(target: VcsActionTarget): GitActionProgress
   const { result } = useGitActionResultNotification();
 
   const [nowMs, setNowMs] = useState(() => Date.now());
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- runs a one-second interval that refreshes the elapsed label while the git action runs
   useEffect(() => {
     if (!actionState.isRunning) return;
     const interval = setInterval(() => setNowMs(Date.now()), 1000);

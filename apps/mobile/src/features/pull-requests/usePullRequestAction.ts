@@ -2,6 +2,7 @@ import { AsyncResult } from "effect/reactivity";
 import * as Dialog from "../../components/ui/Dialog";
 import { useAtomRefresh } from "@effect/atom-react";
 import { squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import type {
   PullRequestAction,
   PullRequestDetail,
@@ -46,7 +47,7 @@ export function usePullRequestAction(params: PullRequestParams, pr: PullRequestD
     if (AsyncResult.isFailure(response)) {
       const cause = squashAtomCommandFailure(response);
       Dialog.alert(
-        "Couldn't update this pull request",
+        `Couldn't update this ${sourceControlClients.get(pr?.provider).changeRequest.singular}`,
         cause instanceof Error ? cause.message : "Try again.",
       );
       return;

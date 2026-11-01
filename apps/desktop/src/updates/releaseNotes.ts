@@ -1,6 +1,6 @@
 import type { DesktopUpdateChannel, DesktopUpdateReleaseNote } from "@supaterm/contracts";
 
-import { resolveDefaultDesktopUpdateChannel } from "./updateChannels.ts";
+import { desktopUpdateChannelOf } from "@supaterm/shared/cliRelease";
 
 interface ElectronReleaseNoteInfo {
   readonly version: string;
@@ -30,8 +30,6 @@ const HTML_ENTITY_REPLACEMENTS: Readonly<Record<string, string>> = {
 };
 
 function decodeCodePoint(codePoint: number, entity: string): string {
-  // String.fromCodePoint throws RangeError outside the valid Unicode range, and
-  // Number.isFinite alone lets oversized values (e.g. &#9999999999;) through.
   if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10ffff) {
     return `&${entity};`;
   }
@@ -168,12 +166,7 @@ interface NormalizedDesktopUpdateReleaseNotes {
   readonly omittedReleaseCount: number;
 }
 
-/**
- * With `fullChangelog` on (nightly), electron-updater collects every GitHub
- * release whose version is semver-greater than the running one, whatever train
- * it belongs to; a maintainers' `-preview.` cut sorts above every `-nightly.`
- * of the same base version and would lead the list.
- */
+/** fullChangelog includes all greater semvers, so preview cuts sort above nightlies of the same base version. */
 export function normalizeDesktopUpdateReleaseNotes(
   releaseNotes: unknown,
   fallbackVersion: string,
@@ -186,7 +179,7 @@ export function normalizeDesktopUpdateReleaseNotes(
       : Array.isArray(releaseNotes)
         ? releaseNotes.filter(isElectronReleaseNoteInfo)
         : []
-  ).filter((entry) => resolveDefaultDesktopUpdateChannel(entry.version) === channel);
+  ).filter((entry) => desktopUpdateChannelOf(entry.version) === channel);
 
   const normalizedNotes = rawNotes.flatMap((entry) => {
     const { items, totalItems, intro, stats } = extractReleaseNoteItems(entry.note);

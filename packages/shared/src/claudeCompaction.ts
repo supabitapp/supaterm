@@ -1,4 +1,5 @@
 export const CLAUDE_RESUME_COMPACTION_NEVER_ANSWER = "Don't ask again";
+export const CLAUDE_RESUME_COMPACTION_COMPACT_ANSWER = "Compact and continue";
 
 export function formatClaudeResumeCompactionQuestion(input: {
   readonly ageMinutes: number;

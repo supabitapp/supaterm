@@ -323,6 +323,49 @@ describe("direct route connection attempts", () => {
       }),
   );
 
+  it.effect("opens an unchecked fallback once a silent preferred route misses its head start", () =>
+    Effect.gen(function* () {
+      const checking = yield* Deferred.make<void>();
+      const attempted: ConnectionRoute[] = [];
+      const fiber = yield* connectOverRoutes(
+        entry,
+        (route) =>
+          route.target === lan.target
+            ? Deferred.succeed(checking, undefined).pipe(Effect.andThen(Effect.never))
+            : Effect.succeed("unchecked" as const),
+        (route) =>
+          Effect.sync(() => {
+            attempted.push(route);
+            return lease(route);
+          }),
+      ).pipe(Effect.forkChild);
+      yield* Deferred.await(checking);
+      yield* TestClock.adjust(500);
+      expect((yield* Fiber.join(fiber)).prepared.target).toEqual(tailnet.target);
+      expect(attempted).toEqual([tailnet]);
+    }),
+  );
+
+  it.effect("still prefers a route that answers within its head start", () =>
+    Effect.gen(function* () {
+      const checking = yield* Deferred.make<void>();
+      const fiber = yield* connectOverRoutes(
+        entry,
+        (route) =>
+          route.target === lan.target
+            ? Deferred.succeed(checking, undefined).pipe(
+                Effect.andThen(Effect.sleep(100)),
+                Effect.as("answered" as const),
+              )
+            : Effect.succeed("unchecked" as const),
+        (route) => Effect.succeed(lease(route)),
+      ).pipe(Effect.forkChild);
+      yield* Deferred.await(checking);
+      yield* TestClock.adjust(100);
+      expect((yield* Fiber.join(fiber)).prepared.target).toEqual(lan.target);
+    }),
+  );
+
   it.effect("skips an unreachable LAN and opens the reachable Tailscale route", () =>
     Effect.gen(function* () {
       const attempted: ConnectionRoute[] = [];

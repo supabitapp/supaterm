@@ -8,6 +8,7 @@ import {
   ThreadId,
   TrimmedNonEmptyString,
 } from "./baseSchemas.ts";
+import { SourceControlProviderKind } from "./sourceControl.ts";
 
 export const ORCHESTRATION_PROTOCOL_VERSION = 2;
 export const ORCHESTRATION_PROTOCOL_VERSION_TEXT = "2";
@@ -87,6 +88,10 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
       foreground runs). */
   serverSelfUpdate: ForwardCompatibleOptional(ServerSelfUpdateCapability),
   threadStop: Schema.optionalKey(Schema.Boolean),
+  /** Serves `orchestration.forceStopThread`; hide Force stop where it is absent. */
+  threadForceStop: Schema.optionalKey(Schema.Boolean),
+  /** Absent on older servers and on Windows hosts, which cannot stop a discovered server. */
+  localServerStop: Schema.optionalKey(Schema.Boolean),
   /** The server accepts queued-run.start, which sends one held message now. */
   queuedRunStart: Schema.optionalKey(Schema.Boolean),
   /** Manual commands must update this install, not the host's default global prefix. */
@@ -98,8 +103,12 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
       servers the desktop app does not supervise, where clients tell the user
       to update the app on that machine. */
   desktopAppUpdate: Schema.optionalKey(Schema.Boolean),
+  /** The desktop app switches update tracks when a server update request names one. */
+  desktopAppChannelSwitch: Schema.optionalKey(Schema.Boolean),
   /** Server answers server.prepareTriage. */
   triage: Schema.optionalKey(Schema.Boolean),
+  /** Server answers projects.createFromThread. */
+  threadProjectFromScratch: Schema.optionalKey(Schema.Boolean),
 });
 export type ExecutionEnvironmentCapabilities = typeof ExecutionEnvironmentCapabilities.Type;
 
@@ -113,6 +122,8 @@ export const ExecutionEnvironmentDescriptor = Schema.Struct({
   platform: ExecutionEnvironmentPlatform,
   serverVersion: TrimmedNonEmptyString,
   orchestrationProtocolVersion: Schema.Int,
+  /** Highest migration this server's database holds; absent on older servers. */
+  databaseMigration: Schema.optionalKey(Schema.Int),
   relayEndpoint: Schema.optionalKey(Schema.String),
   relayUrl: Schema.optionalKey(Schema.String),
   capabilities: ExecutionEnvironmentCapabilities,
@@ -140,7 +151,7 @@ export const RepositoryIdentity = Schema.Struct({
   /** Work tree root, or the git dir for a bare repository. */
   rootPath: Schema.optionalKey(TrimmedNonEmptyString),
   displayName: Schema.optionalKey(TrimmedNonEmptyString),
-  provider: Schema.optionalKey(TrimmedNonEmptyString),
+  provider: Schema.optionalKey(SourceControlProviderKind),
   owner: Schema.optionalKey(TrimmedNonEmptyString),
   name: Schema.optionalKey(TrimmedNonEmptyString),
   origin: Schema.optionalKey(RepositoryOrigin),

@@ -38,6 +38,7 @@ export interface ShowcaseIosDevice {
   readonly appearance: ShowcaseAppearance;
   readonly theme: ShowcaseTheme;
   readonly orientation?: "portrait" | "landscape";
+  readonly fold?: "closed" | "open";
   readonly scenes: ReadonlyArray<ShowcaseScene>;
   readonly storeAsset: ShowcaseStoreAssetSpec;
 }
@@ -70,7 +71,7 @@ export interface ShowcaseConfig {
 const ANDROID_ABIS = ["arm64-v8a", "x86_64", "x86", "armeabi-v7a"] as const;
 const STORE_SCENES = ["threads", "thread", "review", "terminal", "environments"] as const;
 
-export function resolveShowcaseAndroidAbi(
+function resolveShowcaseAndroidAbi(
   value: string | undefined,
 ): NonNullable<ShowcaseAndroidDevice["abi"]> {
   if (!value) return "arm64-v8a";
@@ -140,6 +141,26 @@ const config: ShowcaseConfig = {
         maximumUploadCount: 10,
       },
     },
+    ...(["closed", "open"] as const).map((fold): ShowcaseIosDevice => ({
+      id: `iphone-duo-${fold}`,
+      platform: "ios",
+      simulator: `Supaterm Showcase iPhone Duo ${fold}`,
+      simulatorDeviceType: "com.apple.CoreSimulator.SimDeviceType.iPhone-Duo",
+      appearance: "dark",
+      theme: DEFAULT_SHOWCASE_THEME,
+      orientation: fold === "closed" ? "portrait" : "landscape",
+      fold,
+      // Both poses share one ten-image App Store slot.
+      scenes: ["thread", "terminal", "review", "threads", "environments"],
+      storeAsset: {
+        store: "apple",
+        directory: `apple/iphone-duo-${fold}`,
+        width: fold === "closed" ? 1398 : 2853,
+        height: fold === "closed" ? 2034 : 2007,
+        minimumUploadCount: 1,
+        maximumUploadCount: 5,
+      },
+    })),
     {
       id: "ipad-13",
       platform: "ios",

@@ -6,6 +6,8 @@ import * as Exit from "effect/Exit";
 import * as ElectronApp from "../electron/ElectronApp.ts";
 import { make, type DesktopOpenEvent } from "./DesktopOpenEvents.ts";
 
+const PAIR_LINK = "supaterm://pair?pairingUrl=https%3A%2F%2Fvps.example.com%2F%23token%3Dabc";
+
 it.effect("captures supported OS events synchronously and drains them in arrival order", () =>
   Effect.gen(function* () {
     const listeners = new Map<string, (...args: readonly unknown[]) => void>();
@@ -35,9 +37,11 @@ it.effect("captures supported OS events synchronously and drains them in arrival
     };
     listeners.get("open-file")!(event, "/tmp/first.html");
     listeners.get("open-url")!(event, "supaterm://new?prompt=hello");
+    listeners.get("open-url")!(event, PAIR_LINK);
+    listeners.get("open-url")!(event, "supaterm://pair");
     listeners.get("second-instance")!({}, ["supaterm", "https://example.com/last"]);
     listeners.get("open-url")!(event, "mailto:ignored@example.com");
-    expect(prevented).toBe(2);
+    expect(prevented).toBe(3);
     const received: DesktopOpenEvent[] = [];
     yield* events
       .subscribe((entry) => received.push(entry))
@@ -45,6 +49,7 @@ it.effect("captures supported OS events synchronously and drains them in arrival
     expect(received).toEqual([
       { type: "file", path: "/tmp/first.html" },
       { type: "url", url: "supaterm://new?prompt=hello" },
+      { type: "url", url: PAIR_LINK },
       { type: "second-instance", argv: ["supaterm", "https://example.com/last"] },
     ]);
     listeners.get("open-url")!(event, "https://example.com/live");

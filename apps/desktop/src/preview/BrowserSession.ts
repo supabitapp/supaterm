@@ -23,15 +23,10 @@ const PROFILE_PARTITION_MARKER = "profile-";
 
 export type BrowserSessionPartitionNamespace = "profile";
 
-// `clipboard-sanitized-write` is the Electron permission behind
-// `navigator.clipboard.writeText()` — note it is NOT `clipboard-write`, which
-// is not a valid Electron permission name. Async clipboard writes are gated by
-// the permission *check* handler (not only the request handler), so both
-// handlers must allow it; otherwise built-in "Copy" buttons — e.g. the Next.js
-// / Vercel error overlay — fail with `Failed to execute 'writeText' on
-// 'Clipboard': Write permission denied`.
+// `navigator.clipboard.writeText()` needs Electron's `clipboard-sanitized-write`, not the invalid
+// `clipboard-write`. The permission check handler gates it too, so both handlers must allow it or
+// page "Copy" buttons fail with "Write permission denied".
 const ALLOWED_PREVIEW_PERMISSIONS: ReadonlySet<string> = new Set([
-  "clipboard-read",
   "clipboard-sanitized-write",
   "geolocation",
 
@@ -66,6 +61,19 @@ const externalProtocolPromptUrl = (rawUrl: string | undefined): string | null =>
 };
 
 const MAX_PROMPT_URL_LENGTH = 300;
+
+const truncateForPrompt = (text: string): string =>
+  text.length > MAX_PROMPT_URL_LENGTH ? `${text.slice(0, MAX_PROMPT_URL_LENGTH)}…` : text;
+
+const permissionOrigin = (rawUrl: string | undefined): string | null => {
+  if (!rawUrl) return null;
+  try {
+    const { origin } = new URL(rawUrl);
+    return origin === "null" ? null : origin;
+  } catch {
+    return null;
+  }
+};
 
 export class BrowserSessionPartitionDerivationError extends Schema.TaggedError<BrowserSessionPartitionDerivationError>()(
   "BrowserSessionPartitionDerivationError",
@@ -185,51 +193,74 @@ const previewHostWindow = (guest: WebContents | null): BrowserWindow | undefined
   return BrowserWindow.fromWebContents(host) ?? undefined;
 };
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* BrowserSessionMake() {
   const crypto = yield* Crypto.Crypto;
   const electronDialog = yield* ElectronDialog.ElectronDialog;
   const runFork = Effect.runForkWith(yield* Effect.context<never>());
-
-  let externalPromptOpen = false;
-
+  // One prompt at a time, so a page cannot stack dialogs by looping a deep link.
+  let permissionPromptOpen = false;
+  /** Settles with `undefined` when the user gave no answer: another prompt was open or the dialog failed. */
+  const promptPermission = (
+    requester: WebContents | null,
+    prompt: {
+      readonly buttons: readonly [allow: string, deny: string];
+      readonly message: string;
+      readonly detail?: string;
+    },
+    callback: (answer: boolean | undefined) => void,
+  ): void => {
+    if (permissionPromptOpen) {
+      callback(undefined);
+      return;
+    }
+    permissionPromptOpen = true;
+    const settle = (answer: boolean | undefined) =>
+      Effect.sync(() => {
+        permissionPromptOpen = false;
+        callback(answer);
+      });
+    runFork(
+      electronDialog
+        .showMessageBox(
+          {
+            type: "question",
+            buttons: [...prompt.buttons],
+            // Default to deny so an Enter typed into the page cannot accept a prompt it raised.
+            defaultId: 1,
+            cancelId: 1,
+            message: prompt.message,
+            ...(prompt.detail === undefined ? {} : { detail: prompt.detail }),
+          },
+          previewHostWindow(requester),
+        )
+        .pipe(
+          Effect.map(({ response }): boolean | undefined => response === 0),
+          Effect.orElseSucceed(() => undefined),
+          Effect.flatMap(settle),
+          Effect.onInterrupt(() => settle(undefined)),
+        ),
+    );
+  };
+  /** Electron launches external protocols after granting openExternal; untrusted pages require confirmation. */
   const confirmOpenExternal = (
     requester: WebContents | null,
     rawUrl: string | undefined,
     callback: (granted: boolean) => void,
   ): void => {
     const url = externalProtocolPromptUrl(rawUrl);
-    if (url === null || externalPromptOpen) {
+    if (url === null) {
       callback(false);
       return;
     }
-    externalPromptOpen = true;
-    const settle = (granted: boolean) =>
-      Effect.sync(() => {
-        externalPromptOpen = false;
-        callback(granted);
-      });
-    const shownUrl =
-      url.length > MAX_PROMPT_URL_LENGTH ? `${url.slice(0, MAX_PROMPT_URL_LENGTH)}…` : url;
-    runFork(
-      electronDialog
-        .showMessageBox(
-          {
-            type: "question",
-            buttons: ["Open", "Cancel"],
-            defaultId: 0,
-            cancelId: 1,
-            message: `Open this ${new URL(url).protocol.slice(0, -1)} link?`,
-            detail: `A page in the browser wants to open another application:\n\n${shownUrl}`,
-          },
-          previewHostWindow(requester),
-        )
-        .pipe(
-          Effect.map(({ response }) => response === 0),
-          Effect.orElseSucceed(() => false),
-          Effect.flatMap(settle),
-          Effect.onInterrupt(() => settle(false)),
-        ),
+    promptPermission(
+      requester,
+      {
+        buttons: ["Open", "Cancel"],
+        message: `Open this ${new URL(url).protocol.slice(0, -1)} link?`,
+        detail: `A page in the browser wants to open another application:\n\n${truncateForPrompt(url)}`,
+      },
+      (answer) => callback(answer === true),
     );
   };
   const sessionsRef = yield* SynchronizedRef.make<ReadonlyMap<string, Session>>(new Map());
@@ -264,11 +295,38 @@ export const make = Effect.gen(function* BrowserSessionMake() {
       return Effect.try({
         try: () => {
           const browserSession = session.fromPartition(partition);
-          // The guest keeps Electron's native User-Agent. Rewriting it in any
-          // form — even variants that keep the Electron token — makes Cloudflare
-          // Turnstile fail its integrity check with error 600010 and recreate
-          // the challenge every few seconds, so logins behind it never complete
-          // (#5002).
+          // Like Chrome, clipboard reads ask once per origin; both answers last for the session.
+          const clipboardReadDecisions = new Map<string, boolean>();
+          const confirmClipboardRead = (
+            requester: WebContents,
+            rawUrl: string | undefined,
+            callback: (granted: boolean) => void,
+          ): void => {
+            const origin = permissionOrigin(rawUrl);
+            if (origin === null) {
+              callback(false);
+              return;
+            }
+            const remembered = clipboardReadDecisions.get(origin);
+            if (remembered !== undefined) {
+              callback(remembered);
+              return;
+            }
+            promptPermission(
+              requester,
+              {
+                buttons: ["Allow", "Block"],
+                message: `${truncateForPrompt(origin)} wants to see text and images copied to the clipboard`,
+              },
+              (answer) => {
+                if (answer !== undefined) clipboardReadDecisions.set(origin, answer);
+                callback(answer === true);
+              },
+            );
+          };
+          // The guest keeps Electron's native User-Agent. Rewriting it in any form, even keeping
+          // the Electron token, makes Cloudflare Turnstile fail with error 600010 and loop the
+          // challenge, so logins behind it never complete.
           browserSession.setPermissionRequestHandler(
             (webContents, permission, callback, details) => {
               if (permission === "openExternal") {
@@ -279,11 +337,21 @@ export const make = Effect.gen(function* BrowserSessionMake() {
                 );
                 return;
               }
+              if (permission === "clipboard-read") {
+                confirmClipboardRead(
+                  webContents,
+                  "requestingUrl" in details ? details.requestingUrl : undefined,
+                  callback,
+                );
+                return;
+              }
               callback(ALLOWED_PREVIEW_PERMISSIONS.has(permission));
             },
           );
-          browserSession.setPermissionCheckHandler((_webContents, permission) =>
-            ALLOWED_PREVIEW_PERMISSIONS.has(permission),
+          browserSession.setPermissionCheckHandler((_webContents, permission, requestingOrigin) =>
+            permission === "clipboard-read"
+              ? clipboardReadDecisions.get(permissionOrigin(requestingOrigin) ?? "") === true
+              : ALLOWED_PREVIEW_PERMISSIONS.has(permission),
           );
           const next = new Map(sessions);
           next.set(partition, browserSession);
@@ -313,7 +381,7 @@ export const make = Effect.gen(function* BrowserSessionMake() {
           Effect.tryPromise({
             try: () =>
               browserSession.clearStorageData({
-                storages: ["cookies", "localstorage", "indexdb", "serviceworkers"],
+                storages: ["cookies", "localstorage", "indexdb", "serviceworkers", "cachestorage"],
               }),
             catch: (cause) =>
               new BrowserSessionStorageClearError({

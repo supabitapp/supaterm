@@ -1,17 +1,12 @@
 import { useAtomValue } from "@effect/atom-react";
 import { parseScopedProjectKey, scopedProjectKey } from "@supaterm/client-runtime/environment";
 import type { EnvironmentId, ProjectCloneSnapshot, ScopedProjectRef } from "@supaterm/contracts";
-import * as Option from "effect/Option";
 import { AsyncResult, Atom } from "effect/reactivity";
 
 import { serverEnvironment } from "./server";
 import { sourceControlEnvironment } from "./sourceControl";
 
-/**
- * `"pending"` while the environment's clone stream has not delivered its
- * first list yet: the draft opens right after a clone starts, and a caller
- * that treated the gap as "no clone" would enable Start for a moment.
- */
+/** pending means the clone stream has not loaded; treating it as absent would briefly enable Start. */
 export type ProjectCloneState = ProjectCloneSnapshot | "pending" | null;
 
 const EMPTY_CLONES: ReadonlyArray<ProjectCloneSnapshot> = [];
@@ -24,11 +19,9 @@ const environmentProjectClonesAtom = Atom.family((environmentId: EnvironmentId) 
     const config = get(serverEnvironment.configValueAtom(environmentId));
     if (config == null) return EMPTY_CLONES;
     const result = get(sourceControlEnvironment.projectClones({ environmentId, input: {} }));
-    // A failed subscription must not hold Start forever. Treating it as
-    // "no clone tracked" lets the server's own dispatch guard decide; the
-    // registry re-establishes the stream on reconnect.
+    // On subscription failure, let server dispatch guards decide rather than blocking Start until reconnect.
     if (result._tag === "Failure") return EMPTY_CLONES;
-    return Option.getOrElse(AsyncResult.value(result), () => "pending" as const);
+    return AsyncResult.getOrElse(result, () => "pending" as const);
   }).pipe(Atom.withLabel(`mobile-project-clones:${environmentId}`)),
 );
 

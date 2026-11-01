@@ -24,6 +24,7 @@ export function useIncrementalHighlightedDocument(
     highlight: enabled ? createIncrementalHighlightedDocument(highlighter, language, theme) : null,
   });
   const [current, setCurrent] = useState(create);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- disposes the replaced or unmounted incremental highlight document
   useEffect(() => () => current.highlight?.dispose(), [current]);
   if (
     current.enabled !== enabled ||

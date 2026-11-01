@@ -2,6 +2,7 @@ import { CircleAlertIcon, MicIcon, SquareIcon, XIcon } from "@supaterm/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type PointerEvent, type ReactNode } from "react";
 
+import { isElectron } from "~/env";
 import { cn } from "~/lib/utils";
 import { formatVoiceDuration } from "~/voice/formatVoiceDuration";
 import type { ComposerVoiceInput } from "~/voice/useComposerVoiceInput";
@@ -64,6 +65,7 @@ export function ComposerVoiceButton(props: {
 
 function VoiceElapsed(props: { readonly recorder: WebVoiceRecorder }) {
   const [elapsedMs, setElapsedMs] = useState(() => props.recorder.elapsedMs);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- ticks the elapsed label from the live recorder once a second while it records
   useEffect(() => {
     const timer = window.setInterval(() => setElapsedMs(props.recorder.elapsedMs), 1_000);
     return () => window.clearInterval(timer);
@@ -96,10 +98,6 @@ function VoiceLevelMeter(props: { readonly recorder: WebVoiceRecorder }) {
       ))}
     </span>
   );
-}
-
-function canOpenMicrophoneSettings(): boolean {
-  return typeof window.desktopBridge?.openSystemSettings === "function";
 }
 
 function VoicePillButton(props: {
@@ -210,15 +208,15 @@ export function composerVoiceBannerItem(voice: ComposerVoiceInput): ComposerBann
     icon: <CircleAlertIcon />,
     title: state.error ?? "Voice input stopped.",
     description:
-      state.errorAction === "settings" && !canOpenMicrophoneSettings()
+      state.errorAction === "settings" && !isElectron
         ? "Allow microphone access for this site in your browser, then try again."
         : undefined,
     actions:
-      state.errorAction === "settings" && canOpenMicrophoneSettings() ? (
+      state.errorAction === "settings" && isElectron ? (
         <Button
           size="xs"
           variant="ghost"
-          onClick={() => void window.desktopBridge?.openSystemSettings?.("microphone")}
+          onClick={() => void window.desktopBridge?.openSystemSettings("microphone")}
         >
           Open settings
         </Button>

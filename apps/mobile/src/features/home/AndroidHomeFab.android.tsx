@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type ComponentProps } from "react";
+import { useRef, useState, type ComponentProps } from "react";
 import {
   useWindowDimensions,
   View,
@@ -14,7 +14,16 @@ import {
 import { useWorkspaceState } from "../../state/workspace";
 import { FabScrollContext } from "./FabScrollContext";
 import { updateFabScroll } from "./fab-scroll";
-import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
+import { useAndroidControlSizing } from "../../components/ui/useAndroidControlSizing";
+import {
+  FLOATING_TABS,
+  floatingTabsMetrics,
+  WORKSPACE_TAB_COUNT,
+} from "../workspace/floating-workspace-tabs";
+import {
+  useAndroidFloatingTabs,
+  useAppearancePreferences,
+} from "../settings/appearance/AppearancePreferencesProvider";
 
 export function AndroidHomeFabLayout(props: ComponentProps<typeof SharedAndroidHomeFabLayout>) {
   const insets = useSafeAreaInsets();
@@ -23,8 +32,17 @@ export function AndroidHomeFabLayout(props: ComponentProps<typeof SharedAndroidH
   const [layoutWidth, setLayoutWidth] = useState<number | null>(null);
   const { state } = useWorkspaceState();
   const [expanded, setExpanded] = useState(true);
+  // One UI keeps compose beside the floating tabs; the sidebar has no tabs to share a row with.
+  const floatingTabsEnabled = useAndroidFloatingTabs() && !props.sidebar;
+  const { scale, fabSize } = useAndroidControlSizing();
+  const floating = floatingTabsMetrics(
+    WORKSPACE_TAB_COUNT,
+    scale,
+    fabSize,
+    layoutWidth ?? undefined,
+  );
   const scrollState = useRef({ anchor: 0, expanded: true });
-  const onScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+  const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
     const next = updateFabScroll(
       scrollState.current,
@@ -33,7 +51,7 @@ export function AndroidHomeFabLayout(props: ComponentProps<typeof SharedAndroidH
     );
     if (next.expanded !== scrollState.current.expanded) setExpanded(next.expanded);
     scrollState.current = next;
-  }, []);
+  };
 
   // Remount only the FAB when its font or pane changes to clear the cached expanded width.
   return (
@@ -43,10 +61,17 @@ export function AndroidHomeFabLayout(props: ComponentProps<typeof SharedAndroidH
         <NewThreadButton
           key={`${appearance.baseFontSize}:${fontScale}:${layoutWidth}`}
           extended
-          expanded={expanded}
+          expanded={floatingTabsEnabled ? false : expanded}
           onPress={props.onStartNewTask}
           className="absolute"
-          style={androidHomeFabPosition(insets.bottom, props.sidebar)}
+          style={
+            floatingTabsEnabled
+              ? {
+                  right: FLOATING_TABS.edge,
+                  bottom: insets.bottom + FLOATING_TABS.bottom + floating.fabOffset,
+                }
+              : androidHomeFabPosition(insets.bottom, props.sidebar)
+          }
         />
       ) : null}
     </View>

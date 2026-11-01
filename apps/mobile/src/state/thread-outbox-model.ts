@@ -210,6 +210,11 @@ export function isQueuedThreadCreationSendable(message: QueuedThreadMessage): bo
   );
 }
 
+export type AcknowledgedThreadMessage = QueuedThreadMessage & {
+  /** The server sequence that committed the message; older servers do not report it. */
+  readonly sequence?: number;
+};
+
 export type VoiceDeliveryStep =
   | { readonly step: "delivered"; readonly transcript: string }
   /** Waits for the user. `message` replaces the queued entry. */

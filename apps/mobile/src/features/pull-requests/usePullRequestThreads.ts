@@ -10,8 +10,8 @@ import {
   type PullRequestLinkedThreadsResult,
 } from "@supaterm/contracts";
 import { formatComposerContextReference } from "@supaterm/shared/composerContextReferences";
-import { parseChangeRequestUrl } from "@supaterm/shared/changeRequestUrl";
-import { normalizeThreadPullRequestKey } from "@supaterm/shared/threadPullRequests";
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
+import { normalizeThreadPullRequestKey } from "@supaterm/client-runtime/thread-pull-requests";
 import { useRef, useState } from "react";
 import { Platform } from "react-native";
 import { useAndroidWorkspaceSelection } from "../workspace/useAndroidWorkspaceSelection";
@@ -46,7 +46,7 @@ export function usePullRequestThreads(
   const target = pullRequestTarget(params);
   const config = useEnvironmentServerConfig(target.environmentId);
   const supported = config != null;
-  const parsed = pr ? parseChangeRequestUrl(pr.url) : null;
+  const parsed = pr ? sourceControlClients.parseChangeRequestUrl(pr.url)?.link : undefined;
   const reference = {
     ...target,
     input: {
@@ -56,8 +56,7 @@ export function usePullRequestThreads(
   };
   const key = JSON.stringify(reference);
   const route = useRoute();
-  // The iOS split host projects detail screens beneath a synthetic workspace
-  // route. Its parent's focus flag is not the visible detail's focus flag.
+  // The iOS synthetic workspace parent's focus differs from the visible detail's focus.
   const focused = useNavigationState((state) => state.routes[state.index]?.key === route.key);
   const relations = useEnvironmentQuery(
     pr && supported && focused ? composerPullRequests.linkedThreads(reference) : null,
@@ -96,11 +95,14 @@ export function usePullRequestThreads(
   const [busy, setBusy] = useState(false);
   const ask = async (thread?: LinkedThread, task: PullRequestAgentTask = "ask") => {
     if (!pr || !canAsk || pending.current) return;
+    const terminology = sourceControlClients.get(pr.provider).changeRequest;
     pending.current = true;
     setBusy(true);
     const result = await settlePromise(async () => {
       if (connected && !thread && !canCheckout)
-        throw new Error("Starting work from this PR requires source control write access.");
+        throw new Error(
+          `Starting work from this ${terminology.shortLabel} requires source control write access.`,
+        );
       await waitForComposerDraftsLoaded();
       const draftKey = thread
         ? scopedThreadKey(target.environmentId, ThreadId.make(thread.id))
@@ -161,9 +163,14 @@ export function usePullRequestThreads(
       const withContext = getComposerDraftSnapshot(draftKey);
       setComposerDraftText(
         draftKey,
-        appendPullRequestAgentPrompt(withContext.text, task, previousPrompts.current.get(draftKey)),
+        appendPullRequestAgentPrompt(
+          withContext.text,
+          task,
+          terminology,
+          previousPrompts.current.get(draftKey),
+        ),
       );
-      previousPrompts.current.set(draftKey, pullRequestAgentPrompt(task));
+      previousPrompts.current.set(draftKey, pullRequestAgentPrompt(task, terminology));
       if (thread) openThread(thread);
       else
         navigation.navigate("Thread", {

@@ -22,7 +22,12 @@ export function ThreadDetailsSection({
       {...props}
       aria-labelledby={showHeading ? headingId : undefined}
       aria-label={showHeading ? undefined : title}
-      className={cn("px-1.5 py-1", separated && "border-t border-border/65")}
+      // A row can still render nothing (a fresh draft quiets Git actions), so an empty section
+      // collapses, and a divider only follows a section that has content.
+      className={cn(
+        "px-1.5 py-1 has-[>div:last-child:empty]:hidden",
+        separated && "border-border/65 [section:not(:has(>div:last-child:empty))~&]:border-t",
+      )}
     >
       <div
         className={cn(

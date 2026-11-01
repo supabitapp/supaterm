@@ -4,7 +4,6 @@ import {
   planComposerTurn,
   sendTitleFallbackLabels,
   snapshotComposerSend,
-  findRecordedWorktreeSetup,
   mergeDirectPreviewAnnotation,
 } from "./ChatView.logic";
 import { recallCheckoutIsRepo, rememberCheckoutIsRepo } from "./ChatView.logic";
@@ -45,15 +44,11 @@ import {
   rememberReadyThreadTimeline,
   resetHeldThreadTimeline,
   resolveThreadSwitchTimeline,
-  threadKeysShareEnvironment,
   timelineHasEphemeralPreviewUrls,
-  createLocalDispatchSnapshot,
   deriveCommittedServerUserMessageIds,
   deriveComposerSendState,
   isComposerDraftEmpty,
   deriveLockedProvider,
-  hasServerAcknowledgedLocalDispatch,
-  resolveDraftPromotionNavigationTarget,
   shouldRequireWorktreeBaseBranch,
   waitForRevertedMessage,
 } from "./ChatView.logic";
@@ -89,15 +84,6 @@ function makeThread(overrides: Partial<Thread> = {}): Thread {
   });
 }
 
-const completedTurn = {
-  runId: RunId.make("turn-1"),
-  status: "completed" as const,
-  requestedAt: now,
-  startedAt: "2026-03-29T00:00:01.000Z",
-  completedAt: "2026-03-29T00:00:10.000Z",
-  assistantMessageId: null,
-};
-
 const readySession = {
   status: "completed" as const,
   providerName: "codex",
@@ -106,70 +92,6 @@ const readySession = {
   lastError: null,
   updatedAt: "2026-03-29T00:00:10.000Z",
 };
-
-describe("resolveDraftPromotionNavigationTarget", () => {
-  const serverThreadRef = { environmentId, threadId };
-  const preparingRun = {
-    ...completedTurn,
-    status: "preparing" as const,
-    startedAt: null,
-    completedAt: null,
-  };
-
-  it("opens a persisted pending creation before the offline host creates the thread", () => {
-    expect(
-      resolveDraftPromotionNavigationTarget({
-        serverThreadRef: null,
-        serverThread: null,
-        pendingThreadRef: serverThreadRef,
-        backgroundSubmissionPending: false,
-      }),
-    ).toBe(serverThreadRef);
-    expect(
-      resolveDraftPromotionNavigationTarget({
-        serverThreadRef: null,
-        serverThread: null,
-        pendingThreadRef: serverThreadRef,
-        backgroundSubmissionPending: true,
-      }),
-    ).toBeNull();
-  });
-
-  it("stays on the draft until the server owns the send", () => {
-    expect(
-      resolveDraftPromotionNavigationTarget({
-        serverThreadRef,
-        serverThread: makeThread({ latestRun: preparingRun }),
-        backgroundSubmissionPending: false,
-      }),
-    ).toBeNull();
-    expect(
-      resolveDraftPromotionNavigationTarget({
-        serverThreadRef,
-        serverThread: makeThread(),
-        backgroundSubmissionPending: false,
-      }),
-    ).toBeNull();
-  });
-
-  it("promotes a persisted send while its worktree is still preparing", () => {
-    const serverThread = makeThread({ latestRun: preparingRun, latestUserMessageAt: now });
-    expect(
-      resolveDraftPromotionNavigationTarget({
-        serverThreadRef,
-        serverThread,
-        backgroundSubmissionPending: false,
-      }),
-    ).toBe(serverThreadRef);
-    expect(
-      resolveDraftPromotionNavigationTarget({
-        serverThreadRef,
-        serverThread,
-        backgroundSubmissionPending: true,
-      }),
-    ).toBeNull();
-  });
-});
 
 describe("isComposerDraftEmpty", () => {
   const empty = {
@@ -261,131 +183,6 @@ describe("shouldRequireWorktreeBaseBranch", () => {
   it("does not block an explicit branch or an unavailable environment", () => {
     expect(shouldRequireWorktreeBaseBranch({ ...base, activeThreadBranch: "main" })).toBe(false);
     expect(shouldRequireWorktreeBaseBranch({ ...base, environmentUnavailable: true })).toBe(false);
-  });
-});
-
-describe("hasServerAcknowledgedLocalDispatch", () => {
-  it("acknowledges a settled newer background turn", () => {
-    const localDispatch = createLocalDispatchSnapshot(
-      makeThread({ latestRun: completedTurn, runtime: readySession }),
-      { submissionIntent: "background" },
-    );
-    const newerTurn = {
-      ...completedTurn,
-      runId: RunId.make("turn-2"),
-      requestedAt: "2026-03-29T00:01:00.000Z",
-      startedAt: "2026-03-29T00:01:01.000Z",
-      completedAt: "2026-03-29T00:01:30.000Z",
-    };
-
-    expect(
-      hasServerAcknowledgedLocalDispatch({
-        localDispatch,
-        phase: "ready",
-        latestRun: newerTurn,
-        runtime: { ...readySession, updatedAt: newerTurn.completedAt },
-        hasPendingApproval: false,
-        hasPendingUserInput: false,
-        threadError: null,
-      }),
-    ).toBe(true);
-  });
-
-  it("holds a first send while the thread shell still reports a preparing run", () => {
-    const localDispatch = createLocalDispatchSnapshot(makeThread());
-    const preparingRun = {
-      ...completedTurn,
-      status: "preparing" as const,
-      startedAt: null,
-      completedAt: null,
-    };
-
-    expect(
-      hasServerAcknowledgedLocalDispatch({
-        localDispatch,
-        phase: "disconnected",
-        latestRun: preparingRun,
-        runtime: { ...readySession, status: "preparing", activeRunId: preparingRun.runId },
-        hasPendingApproval: false,
-        hasPendingUserInput: false,
-        threadError: null,
-      }),
-    ).toBe(false);
-  });
-
-  it("waits for the matching running turn before acknowledging", () => {
-    const localDispatch = createLocalDispatchSnapshot(
-      makeThread({ latestRun: completedTurn, runtime: readySession }),
-    );
-    const runningTurn = {
-      ...completedTurn,
-      runId: RunId.make("turn-2"),
-      status: "running" as const,
-      requestedAt: "2026-03-29T00:01:00.000Z",
-      startedAt: "2026-03-29T00:01:01.000Z",
-      completedAt: null,
-    };
-
-    expect(
-      hasServerAcknowledgedLocalDispatch({
-        localDispatch,
-        phase: "running",
-        latestRun: runningTurn,
-        runtime: {
-          ...readySession,
-          status: "running",
-          activeRunId: RunId.make("turn-other"),
-        },
-        hasPendingApproval: false,
-        hasPendingUserInput: false,
-        threadError: null,
-      }),
-    ).toBe(false);
-    expect(
-      hasServerAcknowledgedLocalDispatch({
-        localDispatch,
-        phase: "running",
-        latestRun: runningTurn,
-        runtime: {
-          ...readySession,
-          status: "running",
-          activeRunId: runningTurn.runId,
-        },
-        hasPendingApproval: false,
-        hasPendingUserInput: false,
-        threadError: null,
-      }),
-    ).toBe(true);
-  });
-
-  it("acknowledges a steering message projected onto the current running run", () => {
-    const runningRun = {
-      ...completedTurn,
-      status: "running" as const,
-      completedAt: null,
-    };
-    const runningRuntime = {
-      ...readySession,
-      status: "running" as const,
-      activeRunId: runningRun.runId,
-    };
-    const localDispatch = createLocalDispatchSnapshot(
-      makeThread({ latestRun: runningRun, runtime: runningRuntime }),
-      { latestUserMessageId: MessageId.make("message-before-steer") },
-    );
-
-    expect(
-      hasServerAcknowledgedLocalDispatch({
-        localDispatch,
-        phase: "running",
-        latestRun: runningRun,
-        latestUserMessageId: MessageId.make("message-steer"),
-        runtime: runningRuntime,
-        hasPendingApproval: false,
-        hasPendingUserInput: false,
-        threadError: null,
-      }),
-    ).toBe(true);
   });
 });
 
@@ -506,19 +303,18 @@ describe("resolveThreadSwitchTimeline", () => {
         activeThreadKey: "env-1:thread-a",
         nextEntries: [],
       }),
-    ).toEqual({ entries: ["a1", "a2"], displayThreadKey: "env-1:thread-a" });
+    ).toEqual(["a1", "a2"]);
   });
 
-  it("does not hold another environment's timeline across a jump", () => {
-    expect(threadKeysShareEnvironment("env-1:thread-a", "env-2:thread-b")).toBe(false);
+  it("does not paint the last-viewed thread for a destination with nothing remembered", () => {
+    rememberReadyThreadTimeline(held);
     expect(
       resolveThreadSwitchTimeline({
         loading: true,
         activeThreadKey: "env-2:thread-b",
         nextEntries: [],
-        lastReady: held,
       }),
-    ).toEqual({ entries: [], displayThreadKey: "env-2:thread-b" });
+    ).toEqual([]);
   });
 
   it("does not remember a timeline that still has handoff blob previews", () => {
@@ -892,7 +688,6 @@ describe("worktree setup visibility", () => {
     const resolve = (latest: WorktreeSetupSnapshot | null, held: WorktreeSetupSnapshot | null) =>
       resolveWorktreeSetupProgress({
         threadId,
-        localPreparing: false,
         runStatus: "running",
         latest,
         held,
@@ -901,16 +696,6 @@ describe("worktree setup visibility", () => {
     expect(resolve(base, newest)).toEqual({ snapshot: newest, isPreparingWorktree: false });
     const other = { ...base, threadId: ThreadId.make("another-thread") };
     expect(resolve(other, other)).toEqual({ snapshot: null, isPreparingWorktree: false });
-  });
-
-  it("reads the settled snapshot back from the thread's activities", () => {
-    const activities = [
-      { kind: "setup-script.started", payload: {} },
-      { kind: "worktree-setup", payload: settledDone },
-      { kind: "worktree-setup", payload: { not: "a snapshot" } },
-    ];
-    expect(findRecordedWorktreeSetup(activities, threadId)).toEqual(settledDone);
-    expect(findRecordedWorktreeSetup(activities, ThreadId.make("other"))).toBeNull();
   });
 });
 

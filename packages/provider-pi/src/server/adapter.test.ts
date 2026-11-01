@@ -2,6 +2,7 @@ import { assert, describe, it } from "@effect/vitest";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import {
   CheckpointId,
+  ChatAttachmentId,
   EnvironmentId,
   NodeId,
   ProviderInstanceId,
@@ -23,6 +24,7 @@ import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
+import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Queue from "effect/Queue";
 import * as Schema from "effect/Schema";
@@ -36,6 +38,7 @@ import * as ProviderContinuationRequests from "@supaterm/provider-core/server/Pr
 import * as McpProviderSessions from "@supaterm/provider-core/server/McpProviderSessions";
 import * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
 import * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAdapter";
+import * as ProviderHost from "@supaterm/provider-core/server/ProviderHost";
 import { handoffBudget } from "@supaterm/provider-core/server/handoffBudget";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { toolOutputImages, compactDynamicToolOutput } from "@supaterm/shared/toolOutput";
@@ -172,11 +175,7 @@ interface FakePi {
   };
 }
 
-/**
- * Pi 1.0.0's idle `get_state` reply, taken from the `simple` replay fixture
- * (fixtures/simple/pi_transcript.ndjson) minus the model object. Pi omits
- * `model` when none is selected and `sessionName` until one is set.
- */
+/** Pi omits `model` when none is selected and `sessionName` until one is set. */
 const recordedIdleState = (sessionFile: string) => ({
   thinkingLevel: "high",
   isStreaming: false,
@@ -521,6 +520,92 @@ const startTurn = Effect.fnUntraced(function* (
 });
 
 describe("PiAdapterV2", () => {
+  it.effect("keeps native image bytes and the saved path in the prompt", () =>
+    Effect.gen(function* () {
+      const host = yield* ProviderHost.ProviderHost;
+      const fileSystem = yield* FileSystem.FileSystem;
+      const attachment: ChatAttachment = {
+        id: ChatAttachmentId.make("image"),
+        type: "image",
+        name: "image.png",
+        mimeType: "image/png",
+        sizeBytes: 3,
+      };
+      const path = host.resolveAttachmentPath(attachment)!;
+      yield* fileSystem.writeFile(path, new Uint8Array([1, 2, 3]));
+      const fake = yield* makeFakePi;
+      const { runtime } = yield* openRuntime(fake);
+      const providerThread = yield* runtime.ensureThread({
+        threadId: THREAD_ID,
+        modelSelection: modelSelection("default"),
+        runtimePolicy,
+      });
+      yield* startTurn(runtime, providerThread, "default", [attachment]);
+      const prompt = yield* fake.takeRequest("prompt");
+      assert.include(String(prompt["message"]), path);
+      assert.deepEqual(prompt["images"], [{ type: "image", data: "AQID", mimeType: "image/png" }]);
+    }).pipe(Effect.scoped, Effect.provide(layerTest)),
+  );
+
+  it.effect("lists unavailable attachments alongside resolvable files in the native prompt", () =>
+    Effect.gen(function* () {
+      const host = yield* ProviderHost.ProviderHost;
+      const fake = yield* makeFakePi;
+      const { runtime } = yield* openRuntime(fake).pipe(
+        Effect.provideService(ProviderHost.ProviderHost, {
+          ...host,
+          resolveAttachmentPath: (attachment) =>
+            attachment.id === "available" ? host.resolveAttachmentPath(attachment) : null,
+        }),
+      );
+      const providerThread = yield* runtime.ensureThread({
+        threadId: THREAD_ID,
+        modelSelection: modelSelection("default"),
+        runtimePolicy,
+      });
+      const attachments: ReadonlyArray<ChatAttachment> = [
+        {
+          id: ChatAttachmentId.make("available"),
+          type: "file",
+          name: "notes.txt",
+          mimeType: "text/plain",
+          sizeBytes: 1,
+        },
+        {
+          id: ChatAttachmentId.make("missing-file"),
+          type: "file",
+          name: "missing.txt",
+          mimeType: "text/plain",
+          sizeBytes: 1,
+        },
+        {
+          id: ChatAttachmentId.make("missing-image"),
+          type: "image",
+          name: "missing.png",
+          mimeType: "image/png",
+          sizeBytes: 1,
+        },
+        {
+          id: ChatAttachmentId.make("missing-future"),
+          type: "future",
+          name: "future.bin",
+          mimeType: "application/octet-stream",
+          sizeBytes: 1,
+        },
+      ];
+      yield* startTurn(runtime, providerThread, "default", attachments);
+      const prompt = yield* fake.takeRequest("prompt");
+      assert.isString(prompt["message"]);
+      const message = String(prompt["message"]);
+      assert.include(message, host.resolveAttachmentPath(attachments[0]!)!);
+      for (const attachment of attachments.slice(1)) {
+        assert.include(message, attachment.name);
+        assert.include(message, attachment.id);
+      }
+      assert.equal((message.match(/unavailable/g) ?? []).length, 3);
+    }).pipe(Effect.scoped, Effect.provide(layerTest)),
+  );
+
   it.effect.each([false, true])(
     "completes a resumed user turn before native wake events arrive, Pi streaming=%s",
     (streaming) =>
@@ -3131,6 +3216,40 @@ describe("PiAdapterV2", () => {
       const response = yield* fake.takeRequest("extension_ui_response");
       assert.equal(response["value"], "");
       assert.isUndefined(response["cancelled"]);
+    }).pipe(Effect.scoped, Effect.provide(layerTest)),
+  );
+
+  it.effect("asks an input dialog's title when its placeholder is blank", () =>
+    Effect.gen(function* () {
+      const fake = yield* makeFakePi;
+      const { runtime, takeEvent } = yield* openRuntime(fake);
+      yield* runtime.ensureThread({
+        threadId: THREAD_ID,
+        modelSelection: modelSelection("default"),
+        runtimePolicy,
+      });
+      const title = "Which database?\n1. Postgres\n2. Type something.\nType your answer:";
+      yield* fake.emit({
+        type: "extension_ui_request",
+        id: "ui-input",
+        method: "input",
+        title,
+        placeholder: "",
+      });
+      const event = yield* takeEvent(
+        (event) =>
+          event.type === "turn_item.updated" && event.turnItem.type === "user_input_request",
+      );
+      if (event.type !== "turn_item.updated" || event.turnItem.type !== "user_input_request") {
+        return assert.fail("expected a user input request");
+      }
+      assert.equal(decodeUserInputQuestions(event.turnItem.questions)[0]?.question, title);
+      yield* runtime.respondToRuntimeRequest({
+        requestId: event.turnItem.requestId,
+        answers: { "ui-input": "SQLite" },
+      });
+      const response = yield* fake.takeRequest("extension_ui_response");
+      assert.equal(response["value"], "SQLite");
     }).pipe(Effect.scoped, Effect.provide(layerTest)),
   );
 

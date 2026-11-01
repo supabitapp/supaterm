@@ -43,11 +43,6 @@ export async function enqueueVoiceThreadOutboxMessage(
   }
 }
 
-export async function deleteQueuedVoiceRecording(messageId: MessageId): Promise<void> {
-  const file = await queuedVoiceRecordingFile(messageId);
-  if (file.exists) file.delete();
-}
-
 /** Deletes recordings that no queued voice message owns any more. */
 export async function releaseUnusedQueuedVoiceRecordings(): Promise<void> {
   // An unreadable outbox record may still own a recording.

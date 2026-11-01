@@ -6,7 +6,7 @@ desktop when the terminal is not focused. Customize `usage.open` in
 
 ## Understand your usage
 
-**Usage** combines Codex, Claude Code, Grok Build, OpenCode, Antigravity, Pi, and Cursor history
+**Usage** combines Codex, Claude Code, Grok Build, OpenCode, Antigravity, Pi, Muse Code, and Cursor history
 from your connected environments. It shows token use, cache savings, model breakdowns, and estimated API-equivalent
 cost, split by token type and by speed. These estimates are not your subscription bill.
 **Premium** is what Fast and Ultrafast requests cost above standard rates. Cost that cannot be
@@ -34,9 +34,16 @@ variable. Pi reads `~/.pi/agent/sessions`, or the `sessions` directory under
 `PI_CODING_AGENT_DIR`. Set `PI_CODING_AGENT_SESSION_DIR` to read a different session directory.
 To include sessions saved through `--session-dir` or Pi's `sessionDir` setting, set this environment
 variable to the same directory. Pi includes recorded tool and summary costs under `Tools/summaries`.
+Muse Code reads native session history, including child sessions, from the home reported by the
+configured Muse CLI. Its environment settings, including `XDG_DATA_HOME`, apply. Models without
+known prices still contribute tokens and appear as unpriced; set custom prices to estimate their cost.
 Use absolute paths or `~/` paths in the account's environment settings; relative environment paths
 depend on each project's working directory and cannot be reliably discovered by Usage. Accounts
 sharing a history directory count once.
+
+The server saves its first hostname in `<Supaterm home>/usage-host-id`, so a recreated container keeps
+its usage identity when Supaterm home is persisted. Set `SUPATERM_HOST_ID` to choose the identity
+explicitly.
 
 When your app and server support different providers, usage totals may cover only the providers
 your app understands. Update the app to include newly supported providers.
@@ -115,6 +122,11 @@ On wider windows, the composer shows how much of the current model's session, we
 limits is left, taking the busiest window of each length. After a thread starts, the meter stays
 below the composer only when **Usage limits** is enabled in Settings → Appearance. It reads the same
 snapshot and hides while the composer is collapsed.
+
+To keep them in view in the thread details card on web and desktop, turn on **Usage limits** in
+**Settings → Appearance → Thread details**, or right-click the card. The card then shows how much
+is left in each limit window of the current provider account. Some windows, such as a weekly Opus
+limit, count only one model. Hover a row to see when it resets or your pace.
 
 OpenCode Go reports its session, weekly, and monthly allowance when OpenCode runs locally in
 the environment. Supaterm cannot report limits for external OpenCode servers because their credentials

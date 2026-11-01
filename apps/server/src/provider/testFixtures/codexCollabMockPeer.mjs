@@ -1,9 +1,6 @@
-// Minimal codex app-server stand-in, spawned as the Codex binary by the
-// provider readiness probe tests. Answers the handshake and, for session
-// requests, returns REAL captured responses (codexMultiAgentWire.json), then
-// replays a scripted multi-agent notification sequence read from the
-// SUPATERMX_COLLAB_SCRIPT env var (a JSON file path) when the first turn
-// starts. Runs as a plain Node process — stdlib only.
+// Codex app-server stand-in for the provider readiness probe tests. Session requests get real
+// captured responses (codexMultiAgentWire.json); the first turn replays the multi-agent script
+// at the SUPATERMX_COLLAB_SCRIPT path. Plain Node, stdlib only.
 import * as NodeFS from "node:fs";
 import * as NodeReadline from "node:readline";
 import * as NodePath from "node:path";
@@ -29,9 +26,7 @@ rl.on("line", (line) => {
   }
   const { id, method } = message;
   if (openServerRequests.has(id)) {
-    // Real codex identifies the resolved request by its item id — the key the
-    // runtime correlates on — so the receipt exercises the same path that
-    // closes the approval card in the UI.
+    // Match real Codex's resolved item ID so the runtime closes the corresponding approval card.
     const request = openServerRequests.get(id);
     openServerRequests.delete(id);
     NodeFS.appendFileSync(

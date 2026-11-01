@@ -1,5 +1,4 @@
 import { Button } from "../../components/ui/Button";
-import { SubagentStatusDot } from "./SubagentStatusDot";
 import { ThreadSubagentGroup } from "./thread-subagent-group";
 import { DisclosureChevron } from "../../components/ui/DisclosureChevron";
 import { MotionPresence } from "../../components/ui/MotionPresence";
@@ -25,7 +24,6 @@ import { type AppSymbolName, SymbolView } from "../../components/ui/AppSymbol";
 import { MaskedView } from "@expo/ui/community/masked-view";
 import type { LegendListRef } from "@legendapp/list/react-native";
 import { AnimatedLegendList } from "@legendapp/list/reanimated";
-import { StackActions, useNavigation } from "@react-navigation/native";
 import {
   useEffect,
   useEffectEvent,
@@ -65,11 +63,7 @@ import { SupatermIcon } from "../../components/SupatermIcon";
 import { BrowserAppIcon } from "./BrowserAppIcon";
 import { cn } from "../../lib/cn";
 import { THREAD_WORK_ROW_MIN_HEIGHT, type deriveThreadWorkLogSizing } from "../../lib/layout";
-import {
-  type AgentSpawnSummary,
-  type ThreadFeedActivity,
-  workEntryRowLabel,
-} from "../../lib/threadActivity";
+import { type ThreadFeedActivity, workEntryRowLabel } from "../../lib/threadActivity";
 import {
   resolveThreadWorkGroupInitialScroll,
   shouldFollowThreadWorkGroupAppend,
@@ -86,6 +80,7 @@ import type { FilePreviewSource } from "../../components/FilePreviewModal";
 import Animated, { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { useAssetUrl } from "../../state/assets";
 import { PullRequestGlyph } from "../pull-requests/pullRequestGlyphs";
+import { useOpenLinkedThread } from "./useOpenLinkedThread";
 
 const SHIMMER_WIDTH = 72;
 const SHIMMER_SWEEP_MS = 1_350;
@@ -217,6 +212,7 @@ export function ShimmeringWorkContent(props: {
     (props.showIcon ? SHIMMER_ICON_AND_GAP_WIDTH : 0) + Math.ceil(textWidth),
   );
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- starts the native-driver shimmer loop while visible and active, and stops it on cleanup
   useEffect(() => {
     progress.setValue(0);
     if (contentWidth <= 0 || !motionEnabled) return;
@@ -346,6 +342,8 @@ function workRowSymbolName(icon: ThreadFeedActivity["icon"]): WorkContentIcon {
       return { ios: "globe", android: "public" };
     case "search":
       return "magnifyingglass";
+    case "stop":
+      return "stop.fill";
     case "hammer":
       return { ios: "hammer", android: "construction" };
     case "lock":
@@ -606,11 +604,9 @@ function ThreadWorkGroupList(props: {
     finishPendingAppend();
     rememberPosition();
   });
-  // The native ScrollView reports its content size a frame or more after
-  // LegendList has laid the rows out, so a detail toggle rendered the group
-  // at its old height while the rows below already moved. Read the size
-  // LegendList computes on the JS thread instead; it settles in the same
-  // commit as the row measurement that changed it.
+  // The native ScrollView reports content size a frame or more after LegendList lays rows out, so
+  // read LegendList's JS-thread size instead; it settles in the same commit as the row measurement.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to LegendList's totalSize state to report content height in the same commit
   useLayoutEffect(() => {
     const list = listRef.current;
     if (!list) return;
@@ -634,6 +630,7 @@ function ThreadWorkGroupList(props: {
 
   return (
     <View style={{ height, overflow: "hidden" }}>
+      {/* oxlint-disable-next-line supaterm/require-registered-list-scroll -- Nested in a fixed-height card inside the thread feed, which owns the header's scroll view. */}
       <AnimatedLegendList
         ref={listRef}
         data={props.activities}
@@ -779,7 +776,7 @@ const ThreadWorkLogRow = function ThreadWorkLogRow(
   },
 ) {
   const { row, expanded } = props;
-  const navigation = useNavigation();
+  const openLinkedThread = useOpenLinkedThread();
   const motion = useNoticeMotion();
   const failureItem = row.projectedItem.item;
   if (failureItem.type === "error" && failureItem.status === "failed") {
@@ -899,14 +896,10 @@ const ThreadWorkLogRow = function ThreadWorkLogRow(
         accessibilityState={canExpand ? { expanded } : undefined}
         onPress={() => {
           if (notifiedSubagentThreadId !== undefined) {
-            // Push, not navigate: navigate reuses this Thread route, so back
-            // would skip the parent thread and land on Home (matches #15068).
-            navigation.dispatch(
-              StackActions.push("Thread", {
-                environmentId: String(props.environmentId),
-                threadId: String(notifiedSubagentThreadId),
-              }),
-            );
+            openLinkedThread({
+              environmentId: String(props.environmentId),
+              threadId: String(notifiedSubagentThreadId),
+            });
             return;
           }
           if (canExpand) {
@@ -1121,113 +1114,6 @@ export function ThreadWorkGroupToggle(props: {
   );
 }
 
-export const ThreadAgentSpawnCard = function ThreadAgentSpawnCard(props: {
-  readonly summary: AgentSpawnSummary;
-  readonly expanded: boolean;
-  readonly iconSubtleColor: ColorValue;
-  readonly rowSizing: ReturnType<typeof deriveThreadWorkLogSizing>;
-  readonly onToggle: () => void;
-  readonly onCopy: () => void;
-}) {
-  const { summary, expanded } = props;
-  const working = summary.tone === "working";
-  const memberCount = summary.members.length;
-  const canExpand = memberCount > 0;
-  return (
-    <View className="-mx-1 mb-1 px-1">
-      <Pressable
-        accessibilityRole={canExpand ? "button" : undefined}
-        accessibilityState={canExpand ? { expanded } : undefined}
-        accessibilityLabel={`${summary.title}, ${summary.status}`}
-        accessibilityHint={
-          canExpand
-            ? `Double tap to ${expanded ? "hide" : "show"} ${memberCount} ${memberCount === 1 ? "subagent" : "subagents"}. Long press to copy.`
-            : "Long press to copy."
-        }
-        hitSlop={4}
-        onPress={() => {
-          if (!canExpand) return;
-          void Haptics.selectionAsync();
-          props.onToggle();
-        }}
-        onLongPress={props.onCopy}
-        className="rounded-xl border border-border-subtle bg-card px-2.5 py-2 active:bg-subtle"
-      >
-        <View className="flex-row items-center gap-2">
-          <View className="h-6 w-6 shrink-0 items-center justify-center">
-            <SymbolView
-              name={{ ios: "sparkles", android: "auto_awesome" }}
-              size={14}
-              weight="medium"
-              tintColor={props.iconSubtleColor}
-              type="monochrome"
-            />
-          </View>
-          <View className="min-w-0 flex-1 gap-0.5">
-            <Text
-              key={props.rowSizing.textSizeKey}
-              className="font-supaterm-medium text-sm text-foreground"
-              numberOfLines={1}
-            >
-              {summary.title}
-            </Text>
-            <View className="flex-row items-center gap-1.5">
-              <SubagentStatusDot tone={summary.tone} />
-              {working ? (
-                <ShimmeringWorkContent
-                  key={props.rowSizing.textSizeKey}
-                  compact
-                  icon="brain"
-                  iconSubtleColor={props.iconSubtleColor}
-                  label={summary.status}
-                  showIcon={false}
-                />
-              ) : (
-                <Text className="min-w-0 flex-1 text-xs text-foreground-muted" numberOfLines={1}>
-                  {summary.status}
-                </Text>
-              )}
-            </View>
-          </View>
-          {canExpand ? (
-            <ThreadDisclosureChevron
-              expanded={expanded}
-              collapsedDirection="down"
-              size={11}
-              tintColor={props.iconSubtleColor}
-            />
-          ) : null}
-        </View>
-        <MotionPresence
-          visible={expanded && canExpand}
-          className="ml-8 mt-1.5 gap-1.5 border-l border-border pl-3"
-        >
-          {summary.members.map((member) => (
-            <View key={member.title} className="gap-px">
-              <View className="flex-row items-center gap-1.5">
-                <SubagentStatusDot tone={member.tone} />
-                <Text className="min-w-0 flex-1 text-xs text-foreground" numberOfLines={1}>
-                  {member.title}
-                </Text>
-                <Text className="shrink-0 text-2xs text-foreground-muted">{member.status}</Text>
-              </View>
-              {member.detail ? (
-                <Text
-                  selectable
-                  className="pl-3 font-mono text-2xs leading-normal text-foreground-muted"
-                  numberOfLines={6}
-                >
-                  {member.detail}
-                </Text>
-              ) : null}
-            </View>
-          ))}
-        </MotionPresence>
-      </Pressable>
-    </View>
-  );
-};
-
 export function ThreadThinkingRow(props: {
   readonly rowSizing: ReturnType<typeof deriveThreadWorkLogSizing>;
   readonly iconSubtleColor: ColorValue;
@@ -1339,14 +1225,17 @@ function ToolActivityImage(props: {
         <View
           style={[
             StyleSheet.absoluteFill,
-            props.themeAppearance === "light" ? { filter: [{ brightness: 0.6 }] } : undefined,
+            props.themeAppearance === "light" ? { filter: [{ brightness: 0.7 }] } : undefined,
           ]}
         >
           <Image
             source={props.source}
             cachePolicy="memory-disk"
             contentFit="contain"
-            style={[StyleSheet.absoluteFill, { opacity: loaded ? 0.7 : 0 }]}
+            style={[
+              StyleSheet.absoluteFill,
+              { opacity: loaded ? (props.themeAppearance === "dark" ? 0.7 : 1) : 0 },
+            ]}
             onLoad={() => setLoaded(true)}
             onError={() => setFailed(true)}
           />

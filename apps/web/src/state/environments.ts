@@ -7,6 +7,7 @@ import type { EnvironmentId } from "@supaterm/contracts";
 import * as Option from "effect/Option";
 
 import { environmentCatalog } from "../connection/catalog";
+import { appAtomRegistry } from "../rpc/atomRegistry";
 import {
   environmentPresentations,
   environmentSummaries,
@@ -59,6 +60,10 @@ export function usePrimaryEnvironmentId(): EnvironmentId | null {
   return useAtomValue(primaryEnvironmentIdAtom);
 }
 
+export function readPrimaryEnvironmentId(): EnvironmentId | null {
+  return appAtomRegistry.get(primaryEnvironmentIdAtom);
+}
+
 export function useEnvironment(
   environmentId: EnvironmentId | null,
 ): EnvironmentPresentation | null {
@@ -76,10 +81,6 @@ export function useEnvironmentHttpBaseUrl(environmentId: EnvironmentId | null): 
   const prepared = usePreparedConnection(environmentId);
   return Option.isSome(prepared) ? prepared.value.httpBaseUrl : null;
 }
-export function useEnvironmentIds() {
-  return useAtomValue(environmentSummaries.environmentIdsAtom);
-}
-
 export function useEnvironmentIdentities() {
   return useAtomValue(environmentSummaries.identitiesAtom);
 }

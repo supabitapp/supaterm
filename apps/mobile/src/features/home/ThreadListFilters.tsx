@@ -1,6 +1,7 @@
-import { memo } from "react";
+import { memo, use } from "react";
 import { Pressable, ScrollView } from "react-native";
 import { SymbolView } from "../../components/ui/AppSymbol";
+import { NativePrimaryColumnContext } from "../../native/v5-workspace-context";
 import { ListFilterMenu } from "../workspace/ListFilterMenu";
 import {
   buildHomeListFilterMenu,
@@ -10,11 +11,14 @@ import {
 
 export const ThreadListFilters = memo(function ThreadListFilters(props: HomeListFilterMenuInput) {
   const filters = buildHomeListFilterMenu(props).items.filter((item) => item.type === "submenu");
+  // The scroller bleeds through the primary column's list padding so pills start where row content does.
+  const gutter = use(NativePrimaryColumnContext) ? 8 : 0;
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 2, paddingBottom: 10, gap: 8 }}
+      style={{ marginHorizontal: -gutter }}
+      contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 2, paddingBottom: 10, gap: 8 }}
     >
       {filters.map((filter) => (
         <ThreadListFilterPill key={filter.title} filter={filter} />

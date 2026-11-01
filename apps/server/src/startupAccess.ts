@@ -1,7 +1,7 @@
 import * as NodeOS from "node:os";
 
 import { QrCode } from "@supaterm/shared/qrCode";
-import { buildPairingUrl } from "@supaterm/shared/remote";
+import { buildPairingAppLink, buildPairingUrl } from "@supaterm/shared/remote";
 import * as Effect from "effect/Effect";
 import { HttpServer } from "effect/http";
 import * as NetAddress from "effect/net/NetAddress";
@@ -126,6 +126,7 @@ export const formatHeadlessServeOutput = (accessInfo: HeadlessServeAccessInfo): 
     `Connection string: ${accessInfo.connectionString}`,
     `Token: ${accessInfo.token}`,
     `Pairing URL: ${accessInfo.pairingUrl}`,
+    `App link: ${buildPairingAppLink(accessInfo.pairingUrl)}`,
     "",
     renderTerminalQrCode(accessInfo.pairingUrl),
     "",

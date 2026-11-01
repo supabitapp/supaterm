@@ -19,7 +19,7 @@ import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
-import { cast } from "effect/Function";
+import { cast, pipe } from "effect/Function";
 import {
   HttpClient,
   HttpClientResponse,
@@ -34,7 +34,7 @@ import { OtlpTracer, OtlpSerialization } from "effect/observability";
 
 import * as ServerConfig from "./config.ts";
 import { ASSET_ROUTE_PREFIX, readMcpAppHtml, resolveAsset } from "./assets/AssetAccess.ts";
-import { githubMediaResponse } from "./assets/GitHubMediaFetch.ts";
+import { sourceControlMediaResponse } from "./assets/sourceControlMediaResponse.ts";
 import { statMediaFile, streamMediaFile, type OpenMediaFile } from "./assets/MediaFile.ts";
 import {
   ATTACHMENT_UPLOAD_ROUTE_PREFIX,
@@ -187,8 +187,11 @@ export const assetFileResponse = Effect.fn("assetFileResponse")(function* (
     if (bytes === null) {
       return HttpServerResponse.text("MCP app is too large to preview.", { status: 413 });
     }
-    const body = new TextEncoder().encode(
-      injectMcpAppCookieBootstrap(injectMcpAppThemeBootstrap(new TextDecoder().decode(bytes))),
+    const body = pipe(
+      new TextDecoder().decode(bytes),
+      injectMcpAppThemeBootstrap,
+      injectMcpAppCookieBootstrap,
+      (html) => new TextEncoder().encode(html),
     );
     headers["Content-Length"] = String(body.byteLength);
     return method === "HEAD"
@@ -207,7 +210,7 @@ export const assetFileResponse = Effect.fn("assetFileResponse")(function* (
   let status = 200;
   let offset = 0n;
   let bytesToRead: bigint | undefined;
-  if (isMedia) {
+  {
     headers["Accept-Ranges"] = "bytes";
     // If-Range requires a matching validator. A full response is safe when we cannot validate it.
     if (method === "GET" && rangeHeader && ifRangeHeader === undefined) {
@@ -396,8 +399,12 @@ const UNTRACED_REQUEST_PATHS: ReadonlySet<string> = new Set([OTLP_TRACES_PROXY_P
 // layer, never merged into the routes.
 const layerUntracedRequests = Layer.succeed(HttpMiddleware.TracerDisabledWhen)((request) => {
   const queryIndex = request.url.indexOf("?");
-  return UNTRACED_REQUEST_PATHS.has(
-    queryIndex === -1 ? request.url : request.url.slice(0, queryIndex),
+  const path = queryIndex === -1 ? request.url : request.url.slice(0, queryIndex);
+  // Signed URLs carry bearer tokens in the path, so they never reach a trace.
+  return (
+    UNTRACED_REQUEST_PATHS.has(path) ||
+    path.startsWith(`${ASSET_ROUTE_PREFIX}/`) ||
+    path.startsWith(`${ATTACHMENT_UPLOAD_ROUTE_PREFIX}/`)
   );
 });
 
@@ -432,10 +439,15 @@ export const layerAssetRoute = HttpRouter.add(
         headers: { "cache-control": "private, max-age=3600", "x-content-type-options": "nosniff" },
       });
     }
-    if (asset.kind === "github-media") {
-      return yield* githubMediaResponse(asset, request.headers).pipe(
+    if (asset.kind === "source-control-media") {
+      return yield* sourceControlMediaResponse(asset, request.headers).pipe(
         Effect.tapError((cause) =>
-          Effect.logWarning("Failed to fetch GitHub media.", { url: asset.url, cause }),
+          // The URL can carry a token in its query string, and the error keeps the request it
+          // failed on; the host and the failure kind are enough to diagnose.
+          Effect.logWarning("Failed to fetch source control media.", {
+            host: URL.canParse(asset.url) ? new URL(asset.url).host : undefined,
+            reason: cause.reason._tag,
+          }),
         ),
         Effect.orElseSucceed(() =>
           HttpServerResponse.empty({

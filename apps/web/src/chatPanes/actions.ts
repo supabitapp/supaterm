@@ -41,14 +41,6 @@ export function isChatPaneWorkspaceMounted(): boolean {
   return mountedWorkspaces > 0;
 }
 
-/** Pane commands that arrive as desktop menu actions, such as shortcuts forwarded from a browser. */
-export function runPaneMenuAction(action: string): boolean {
-  if (action === "pane.focusNext") return focusAdjacentPaneFromKeyboard(1);
-  if (action === "pane.focusPrevious") return focusAdjacentPaneFromKeyboard(-1);
-  const index = /^pane\.focus\.([1-4])$/.exec(action)?.[1];
-  return index !== undefined && focusPaneIndexFromKeyboard(Number(index) - 1);
-}
-
 /** Arms the next opened thread to land beside the focused pane, then lets the user pick it. */
 export function openThreadPickerBeside(edge: PaneEdge) {
   useChatPaneStore.getState().requestOpenToSide(edge);

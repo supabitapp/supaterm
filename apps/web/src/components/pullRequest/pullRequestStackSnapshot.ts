@@ -1,6 +1,6 @@
 import type { PullRequestRef, PullRequestStack, ThreadPullRequestLink } from "@supaterm/contracts";
 
-/** Saved native membership is enough for navigation, but never supplies action head SHAs. */
+/** Saved membership supports navigation, never action head SHAs. */
 export function savedPullRequestStack(
   links: ReadonlyArray<ThreadPullRequestLink>,
   reference: PullRequestRef,

@@ -79,8 +79,6 @@ vi.mock(import("./useScopedSettings"), async (original) => ({
   useUpdateScopedSettings: () => vi.fn(),
   useClearScopedSettings: () => vi.fn(),
 }));
-// The real page container needs a router and the real row reads write permission and
-// overrides from live environment state; this suite is about the cleanup panel.
 vi.mock(import("./settingsLayout"), async (original) => ({
   ...(await original()),
   SettingsPageContainer: (({ children }: { children: ReactNode }) => children) as never,
@@ -100,7 +98,7 @@ vi.mock(import("../ui/toast"), async (original) => {
 });
 
 import { clickOnFakeClock } from "~/test/inlineConfirm";
-import { StorageSettingsPanel } from "./StorageSettings";
+import { StorageCleanupSections } from "./StorageSettings";
 
 function setup(): Disposable {
   const timers = fakeTimers({ now: 0 });
@@ -129,7 +127,7 @@ function setup(): Disposable {
 
 const panel = () => (
   <RegistryProvider>
-    <StorageSettingsPanel />
+    <StorageCleanupSections />
   </RegistryProvider>
 );
 const deleteButton = (container: HTMLElement) =>

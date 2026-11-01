@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigation, useNavigationState } from "@react-navigation/native";
 import { useWorkspaceTabs } from "../workspace/WorkspaceTabsContext";
 import { useWorkspaceListNavigation } from "../workspace/useAndroidWorkspaceNavigation";
@@ -19,7 +19,6 @@ import { WorkspaceFilterButton } from "../workspace/WorkspaceFilterButton";
 import type { WorkspaceFilterMenu } from "../workspace/workspace-filter-menu";
 import { WorkspaceListToolbarRow } from "../workspace/WorkspaceListToolbarRow";
 
-/** One toolbar height for the compact list and expanded sidebar, including search. */
 export function ThreadListToolbar(props: {
   readonly searchQuery: string;
   readonly onSearchQueryChange: (query: string) => void;
@@ -43,20 +42,21 @@ export function ThreadListToolbar(props: {
   const searchRef = useRef<TextInputInstance>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const searching = searchOpen || props.searchQuery.length > 0;
-  const openSearch = useCallback(() => {
+  const openSearch = () => {
     onRequestVisibility?.();
     setSearchOpen(true);
     searchRef.current?.focus();
     return true;
-  }, [onRequestVisibility]);
+  };
   useHardwareKeyboardCommand("focusSearch", openSearch);
 
-  const closeSearch = useCallback(() => {
+  const closeSearch = () => {
     onSearchQueryChange("");
     setSearchOpen(false);
     Keyboard.dismiss();
-  }, [onSearchQueryChange]);
+  };
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to BackHandler while searching to close search on Android back
   useEffect(() => {
     if (!searching || !listFocused) return;
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {

@@ -21,7 +21,6 @@ import {
   composerStateAtPromptEnd,
   expandCollapsedComposerCursor,
   formatAssistantCitationForComposer,
-  isCollapsedCursorAdjacentToInlineToken,
   isPathSuggestionCurrent,
 } from "./composer-logic";
 import { carryDisplacedCustomAnswerIntoPrompt } from "./pendingUserInput";
@@ -476,9 +475,6 @@ describe("assistant citation cursor offsets", () => {
     for (const offset of [1, citationSource.length - 1, citationSource.length]) {
       expect(collapseExpandedComposerCursor(text, prefix.length + offset)).toBe(prefix.length + 1);
     }
-    expect(isCollapsedCursorAdjacentToInlineToken(text, prefix.length, "right")).toBe(true);
-    expect(isCollapsedCursorAdjacentToInlineToken(text, prefix.length + 1, "left")).toBe(true);
-    expect(isCollapsedCursorAdjacentToInlineToken(text, prefix.length + 2, "left")).toBe(false);
   });
 
   it("deletes one collapsed citation without changing its neighbor or surrounding punctuation", () => {
@@ -492,27 +488,6 @@ describe("assistant citation cursor offsets", () => {
 
     expect(result).toEqual({ text: `(),${citationSource}!`, cursor: 1 });
     expect(collapseExpandedComposerCursor(result.text, result.text.length)).toBe("(),□!".length);
-  });
-});
-
-describe("isCollapsedCursorAdjacentToInlineToken", () => {
-  it("detects left adjacency only when cursor is directly after a mention", () => {
-    const text = "open @AGENTS.md next";
-    const mentionStart = "open ".length;
-    const mentionEnd = mentionStart + 1;
-
-    expect(isCollapsedCursorAdjacentToInlineToken(text, mentionEnd, "left")).toBe(true);
-    expect(isCollapsedCursorAdjacentToInlineToken(text, mentionStart, "left")).toBe(false);
-    expect(isCollapsedCursorAdjacentToInlineToken(text, mentionEnd + 1, "left")).toBe(false);
-  });
-
-  it("treats context reference pills as inline tokens for adjacency checks", () => {
-    const text = `open ${terminalReference} next`;
-    const tokenStart = "open ".length;
-    const tokenEnd = tokenStart + 1;
-
-    expect(isCollapsedCursorAdjacentToInlineToken(text, tokenEnd, "left")).toBe(true);
-    expect(isCollapsedCursorAdjacentToInlineToken(text, tokenStart, "right")).toBe(true);
   });
 });
 

@@ -12,11 +12,7 @@ import { isCommandPaletteOpen } from "../commandPaletteBus";
 import { useClosedViewStore } from "../closedViewStore";
 import { useComposerDraftStore } from "../composerDraftStore";
 import { environmentCatalog } from "../connection/catalog";
-import { effectiveShortcutsForCommand, resolveShortcutCommand } from "../keybindings";
-import { isEditableFocused } from "../lib/editableFocus";
-import { isPreviewFocused } from "../lib/previewFocus";
-import { isTerminalFocused } from "../lib/terminalFocus";
-import { isModelPickerOpen } from "../modelPickerVisibility";
+import { effectiveShortcutsForCommand } from "../keybindings";
 import {
   planNextReopen,
   pullRequestsSearchForRestore,
@@ -30,6 +26,7 @@ import {
   useRightPanelStore,
 } from "../rightPanelStore";
 import { appAtomRegistry } from "../rpc/atomRegistry";
+import { registerCommands } from "../shortcuts/dispatcher";
 import { readProject, readThreadShell } from "../state/entities";
 import { previewEnvironment } from "../state/preview";
 import { primaryServerKeybindingsAtom } from "../state/server";
@@ -47,6 +44,8 @@ import { isChatPaneWorkspaceMounted } from "../chatPanes/actions";
 import { focusedPane } from "../chatPanes/layout";
 
 const PREVIEW_FORWARDED_LAYOUT_COMMANDS = [
+  "workspace.focusNext",
+  "workspace.focusPrevious",
   "sidebar.toggle",
   "rightPanel.toggle",
   "rightPanel.toggleMaximized",
@@ -173,44 +172,32 @@ export function ReopenClosedViewShortcut() {
       });
   });
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (
-        event.defaultPrevented ||
-        isCommandPaletteOpen() ||
-        (useClosedViewStore.getState().entries.length === 0 &&
-          useChatPaneStore.getState().closed.length === 0) ||
-        (event.target instanceof HTMLElement && event.target.closest("[data-keybinding-capture]"))
-      )
-        return;
-      const command = resolveShortcutCommand(event, keybindings, {
-        context: {
-          terminalFocus: isTerminalFocused(),
-          terminalOpen,
-          previewFocus: isPreviewFocused(),
-          previewOpen,
-          editableFocus: isEditableFocused(event.target),
-          modelPickerOpen: isModelPickerOpen(),
+  const readPanelsOpen = useEffectEvent(() => ({ terminalOpen, previewOpen }));
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers the reopen closed view command with the dispatcher for the component's lifetime
+  useEffect(
+    () =>
+      registerCommands(
+        {
+          "view.reopenClosed": ({ repeat }) => {
+            if (!repeat) enqueueReopen();
+          },
         },
-      });
-      if (command !== "view.reopenClosed") return;
-      event.preventDefault();
-      event.stopPropagation();
-      if (!event.repeat) enqueueReopen();
-    };
-    window.addEventListener("keydown", onKeyDown, true);
-    const unsubscribe = window.desktopBridge?.onMenuAction((action) => {
-      if (action === "view.reopenClosed" && !isCommandPaletteOpen()) enqueueReopen();
-    });
-    return () => {
-      window.removeEventListener("keydown", onKeyDown, true);
-      unsubscribe?.();
-    };
-  }, [keybindings, previewOpen, terminalOpen]);
+        {
+          capture: true,
+          when: () =>
+            !isCommandPaletteOpen() &&
+            (useClosedViewStore.getState().entries.length > 0 ||
+              useChatPaneStore.getState().closed.length > 0),
+          context: () => readPanelsOpen(),
+        },
+      ),
+    [],
+  );
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers forwarded shortcut chords with the desktop preview bridge and clears them on cleanup
   useEffect(() => {
     const preview = window.desktopBridge?.preview;
-    if (!preview?.setForwardedShortcuts) return;
+    if (!preview) return;
     const options = {
       context: {
         previewFocus: true,
@@ -239,7 +226,7 @@ export function ReopenClosedViewShortcut() {
       )
       .catch(() => undefined);
     return () => {
-      void preview.setForwardedShortcuts?.([]).catch(() => undefined);
+      void preview.setForwardedShortcuts([]).catch(() => undefined);
     };
   }, [hasHistory, keybindings, terminalOpen]);
 

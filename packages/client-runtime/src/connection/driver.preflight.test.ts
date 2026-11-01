@@ -67,6 +67,7 @@ const makeHarness = Effect.fnUntraced(function* () {
           subscribeServerConfig: () => Stream.empty,
           ready: Effect.void,
           probe: Effect.void,
+          inboundFrames: Effect.succeed(0),
           closed: Effect.never,
         } satisfies RpcSession.RpcSession),
       ),
@@ -97,13 +98,18 @@ const makeHarness = Effect.fnUntraced(function* () {
   return { driver, prepares, prepared, checks, requested, connections };
 });
 
+function preparedRoute(result: ConnectionDriver.RoutePreflight): ConnectionDriver.PreparedRoute {
+  if (typeof result === "string") throw new Error(`Expected a prepared route, got ${result}.`);
+  return result;
+}
+
 describe("route preflight preparation", () => {
   it.effect(
     "opens a socket using fresh preparation without repeating HTTP checks or authentication",
     () =>
       Effect.gen(function* () {
         const harness = yield* makeHarness();
-        const preflight = Option.getOrThrow(yield* harness.driver.preflight(entry, route));
+        const preflight = preparedRoute(yield* harness.driver.preflight(entry, route));
         expect(yield* Ref.get(harness.connections)).toEqual([]);
         const lease = yield* harness.driver.connect(entry, () => Effect.void, preflight);
         expect(lease.prepared).toBe(preflight.prepared);
@@ -116,7 +122,7 @@ describe("route preflight preparation", () => {
   it.effect("renews expired preparation before opening a socket", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness();
-      const preflight = Option.getOrThrow(yield* harness.driver.preflight(entry, route));
+      const preflight = preparedRoute(yield* harness.driver.preflight(entry, route));
       yield* TestClock.adjust("10 seconds");
       const lease = yield* harness.driver.connect(entry, () => Effect.void, preflight);
       expect(lease.prepared.socketUrl).toContain("ticket-2");
@@ -128,7 +134,7 @@ describe("route preflight preparation", () => {
   it.effect("prepares again when a route with the same ID changes address", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness();
-      const preflight = Option.getOrThrow(yield* harness.driver.preflight(entry, route));
+      const preflight = preparedRoute(yield* harness.driver.preflight(entry, route));
       const changed: ConnectionCatalogEntry = {
         ...entry,
         profile: Option.some(
@@ -170,7 +176,7 @@ describe("route preflight preparation", () => {
         ),
       };
       const both: ConnectionCatalogEntry = { ...learned, enabled: true, alternateRoutes: [relay] };
-      expect(yield* harness.driver.preflight(both, learned)).toEqual(Option.none());
+      expect(yield* harness.driver.preflight(both, learned)).toBe("silent");
       const lease = yield* harness.driver.connect(both, () => Effect.void);
       expect(lease.prepared.target).toEqual(relayTarget);
       expect(yield* Ref.get(harness.prepared)).toEqual(["relay"]);

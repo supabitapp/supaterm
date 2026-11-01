@@ -81,6 +81,25 @@ service is still installed and will start at the next login.
 
 Windows background services are not supported.
 
+## Keep the server responsive when agents use all memory
+
+On Linux, agents already run with lower priority than the server. When they
+fill the machine's memory, though, the kernel may still slow down or stop the
+server, because only an administrator can reserve memory for it. Run, as your
+normal user:
+
+```sh
+supaterm service protect
+```
+
+It shows the system settings it will change, asks before applying them, and
+then asks for your sudo password. If the machine runs Tailscale or SSH, it
+also offers to protect them, so you can still reach the machine. Memory
+protection takes effect at once. The server's protection from the kernel's
+out-of-memory killer takes effect after `supaterm service restart`.
+`supaterm service status` reports whether the protection is in place, and
+`supaterm service protect --undo` removes it.
+
 ## Troubleshooting
 
 Start with `supaterm service status` on the host. It prints the log path and, on Linux,
@@ -122,7 +141,7 @@ Downloads, it may need Full Disk Access for the `supaterm` executable listed in
 Supaterm removes superseded internal history on its own while it runs; your
 conversations are kept. Databases created before this shrank automatically
 still hold the freed space on disk until a one-time offline repair returns it
-and turns on automatic shrinking. Settings > Storage (web and desktop) or
+and turns on automatic shrinking. Settings > Maintenance (web and desktop) or
 Settings > Maintenance (mobile) suggests the repair when at least 1 GiB can be
 reclaimed.
 

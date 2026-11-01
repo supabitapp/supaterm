@@ -6,6 +6,7 @@ import {
   ProviderInstanceId,
   ServerSettingsPatch,
   WorktreeCleanupRules,
+  ServerSettings,
   type ServerProvider,
 } from "@supaterm/contracts";
 import * as Duration from "effect/Duration";
@@ -13,7 +14,7 @@ import * as Schema from "effect/Schema";
 import { describe, expect, it } from "vite-plus/test";
 import { resolveServerBackgroundActivitySettings } from "./backgroundActivitySettings.ts";
 import { createModelSelection } from "./model.ts";
-import { resolveProjectScripts, projectScriptsInheritDefaults } from "./projectScripts.ts";
+import { resolveProjectScripts } from "./projectScripts.ts";
 import {
   applyServerSettingsPatch,
   fallbackTextGenerationModelSelection,
@@ -23,6 +24,7 @@ import {
   resolveReviewGuideModelSelection,
 } from "./serverSettings.ts";
 
+const decodeServerSettings = Schema.decodeUnknownSync(ServerSettings);
 const decodeServerSettingsPatch = Schema.decodeUnknownSync(ServerSettingsPatch);
 
 const FOLDED_SERVER_SETTINGS = { ...DEFAULT_SERVER_SETTINGS, projectSettingsFolded: true };
@@ -85,6 +87,24 @@ describe("resolveReviewGuideModelSelection", () => {
 });
 
 describe("fallbackTextGenerationModelSelection", () => {
+  it("replaces and clears the fallback without carrying model options", () => {
+    const fallbackModelSelection = { instanceId: ProviderInstanceId.make("codex"), model: "new" };
+    const settings = applyServerSettingsPatch(
+      {
+        ...DEFAULT_SERVER_SETTINGS,
+        fallbackModelSelection: {
+          ...fallbackModelSelection,
+          model: "old",
+          options: [{ id: "effort", value: "high" }],
+        },
+      },
+      { fallbackModelSelection },
+    );
+    expect(settings.fallbackModelSelection).toEqual(fallbackModelSelection);
+    expect(
+      applyServerSettingsPatch(settings, { fallbackModelSelection: null }).fallbackModelSelection,
+    ).toBeNull();
+  });
   it("ignores a configured non-default instance at machine scope, matching no fallback", () => {
     const configured = ProviderInstanceId.make("codex_work");
     const providerInstances = {
@@ -160,18 +180,15 @@ describe("serverSettings helpers", () => {
       defaultProjectScripts: [action],
     });
     expect(resolveProjectScripts(unfolded, existing)).toEqual(existing.scripts);
-    expect(projectScriptsInheritDefaults(unfolded, existing)).toBe(false);
     const defaults = applyServerSettingsPatch(FOLDED_SERVER_SETTINGS, {
       defaultProjectScripts: [action],
     });
     expect(resolveProjectScripts(defaults, project)).toEqual([action]);
-    expect(projectScriptsInheritDefaults(defaults, project)).toBe(true);
     expect(resolveProjectScripts(defaults, existing)).toEqual([action]);
     const disabled = applyServerSettingsPatch(defaults, {
       projectSettingsOverrides: { [project.id]: { defaultProjectScripts: [] } },
     });
     expect(resolveProjectScripts(disabled, project)).toEqual([]);
-    expect(projectScriptsInheritDefaults(disabled, project)).toBe(false);
     const changedDefault = applyServerSettingsPatch(disabled, {
       defaultProjectScripts: [{ ...action, command: "npm run build" }],
     });
@@ -180,7 +197,6 @@ describe("serverSettings helpers", () => {
       projectSettingsOverrides: { [project.id]: null },
     });
     expect(resolveProjectScripts(reset, existing)).toEqual(changedDefault.defaultProjectScripts);
-    expect(projectScriptsInheritDefaults(reset, existing)).toBe(true);
     expect(
       resolveProjectScripts(
         applyServerSettingsPatch(reset, { defaultProjectScripts: [] }),
@@ -500,6 +516,37 @@ describe("serverSettings helpers", () => {
     });
   });
 
+  // A newer client must still see this server drop a key it does not know.
+  it("drops an override key this server does not know from a patch and keeps one it stored", () => {
+    const projectId = ProjectId.make("project-a");
+    const current = decodeServerSettings({
+      projectSettingsFolded: true,
+      projectSettingsOverrides: {
+        [projectId]: { defaultAutoPull: true, addedByNewerServer: 3 },
+      },
+    });
+    const patch = decodeServerSettingsPatch({
+      projectSettingsOverrides: {
+        [projectId]: { defaultAutoPull: false, addedByNewerServer: 4, addedByNewerClient: "x" },
+      },
+    });
+
+    const updated = applyServerSettingsPatch(current, patch);
+    expect(updated.projectSettingsOverrides[projectId]).toEqual({
+      defaultAutoPull: false,
+      addedByNewerServer: 3,
+    });
+    const reset = applyServerSettingsPatch(updated, {
+      projectSettingsOverrides: { [projectId]: {} },
+    });
+    expect(reset.projectSettingsOverrides[projectId]).toEqual({ addedByNewerServer: 3 });
+    expect(
+      applyServerSettingsPatch(reset, {
+        projectSettingsOverrides: { [projectId]: null },
+      }).projectSettingsOverrides[projectId],
+    ).toBeUndefined();
+  });
+
   it("clears a project's providerInstances override when a patch entry sends an empty map", () => {
     const instanceId = ProviderInstanceId.make("codex_work");
     const projectId = ProjectId.make("project-a");
@@ -532,6 +579,7 @@ describe("serverSettings helpers", () => {
       "gpt-5.4",
     );
     const addedSinceV26_10_1 = {
+      threadTitleInstructions: "Name the feature first.",
       sidebarAutoMarkDoneKeepPullRequests: true,
     } satisfies ProjectSettingsOverrides;
     const rulesAddedSinceV26_10_1 = {

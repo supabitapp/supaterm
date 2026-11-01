@@ -87,7 +87,9 @@ export interface PackageManagedProviderMaintenanceDefinition {
     readonly isCommandPath?: (commandPath: string) => boolean;
     /** The updater cannot detect installs outside `isCommandPath`, so leave those manual-only. */
     readonly requiresCommandPath?: boolean;
-    readonly env?: NodeJS.ProcessEnv;
+    readonly env?:
+      | NodeJS.ProcessEnv
+      | ((context: ProviderMaintenanceResolutionContext) => NodeJS.ProcessEnv);
   } | null;
 }
 
@@ -442,6 +444,7 @@ export const resolvePackageManagedProviderMaintenance = Effect.fn(
   }
 
   const nativeUpdate = definition.nativeUpdate;
+  const nativeEnv = nativeUpdate?.env;
   const native = nativeUpdate
     ? makeProviderMaintenanceCapabilities({
         provider: definition.provider,
@@ -450,7 +453,9 @@ export const resolvePackageManagedProviderMaintenance = Effect.fn(
         updateArgs: nativeUpdate.args,
         updateLockKey: `${definition.provider}-native`,
         platform: context.platform,
-        ...(nativeUpdate.env ? { env: nativeUpdate.env } : {}),
+        ...(nativeEnv
+          ? { env: typeof nativeEnv === "function" ? nativeEnv(context) : nativeEnv }
+          : {}),
       })
     : manual;
   // A native-looking launcher can still delegate to a mise-owned install.
@@ -530,11 +535,9 @@ export const resolvePackageManagedProviderMaintenance = Effect.fn(
   // `Cellar/node/<ver>/lib/node_modules/`, and that is npm's install, not brew's.
   const npmPrefix = yield* resolveNpmGlobalPrefix(context, packageName);
   if (npmPrefix) {
-    // npm 12 blocks install scripts by default (empty allow-scripts allowlist)
-    // and still exits 0, so a package whose postinstall finishes the install
-    // (claude copies its native binary over a placeholder stub) is left broken
-    // while the update reports success. Older npm warns about the unknown
-    // config and continues.
+    // npm 12 blocks install scripts by default and still exits 0, leaving a package whose
+    // postinstall finishes the install (claude's native binary) broken while reporting
+    // success. Older npm warns about the unknown config and continues.
     return makeProviderMaintenanceCapabilities({
       provider: definition.provider,
       packageName,

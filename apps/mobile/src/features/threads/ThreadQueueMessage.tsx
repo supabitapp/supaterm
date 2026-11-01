@@ -1,22 +1,30 @@
+import { scopeThreadRef } from "@supaterm/client-runtime/environment";
+import type { QueuedThreadRun } from "@supaterm/client-runtime/state/thread-workflows";
+import { resolveUserMessagePresentation } from "@supaterm/client-runtime/user-message";
 import type { ChatAttachment, EnvironmentId } from "@supaterm/contracts";
 import { Image } from "expo-image";
 import { useRef } from "react";
 import { type AccessibilityActionEvent, Platform, Pressable, View } from "react-native";
 
+import { SymbolView } from "../../components/ui/AppSymbol";
 import { AppText as Text } from "../../components/ui/AppText";
 import { Menu } from "../../components/ui/Menu";
 import { assetImageSource } from "../../lib/assetImageSource";
 import { useAssetUrl } from "../../state/assets";
+import { useQuietThreadShell } from "../../state/entities";
+import { useEnvironmentQuery } from "../../state/query";
+import { serverEnvironment } from "../../state/server";
 import type { ThreadQueueRowControls } from "./threadQueueControlPresentation";
 
 const THUMBNAIL_LIMIT = 3;
 const TOUCH_SLOP = 10;
 
-export type QueueMessageAction = "steer" | "edit" | "up" | "down" | "remove";
+export type QueueMessageAction = "steer" | "edit" | "remove";
 
 export function ThreadQueueMessage(props: {
   readonly environmentId: EnvironmentId;
   readonly title: string;
+  readonly message: QueuedThreadRun["message"];
   readonly attachments: ReadonlyArray<ChatAttachment>;
   readonly controls: ThreadQueueRowControls;
   readonly canPromoteToSteer: boolean;
@@ -29,9 +37,9 @@ export function ThreadQueueMessage(props: {
       ? [
           {
             id: "steer",
-            title: props.canSendNow ? "Send now" : "Steer now",
+            title: "Send now",
             attributes: { disabled: !props.controls.canSend },
-            image: Platform.OS === "ios" ? "arrow.turn.left.up" : "arrow_upward",
+            image: Platform.OS === "ios" ? "arrow.up" : "arrow_upward",
           },
         ]
       : []),
@@ -41,8 +49,6 @@ export function ThreadQueueMessage(props: {
       attributes: { disabled: !props.controls.canEdit },
       image: Platform.OS === "ios" ? "pencil" : "edit",
     },
-    { id: "up", title: "Move up", attributes: { disabled: !props.controls.canMoveUp } },
-    { id: "down", title: "Move down", attributes: { disabled: !props.controls.canMoveDown } },
     {
       id: "remove",
       title: "Remove",
@@ -98,6 +104,9 @@ export function ThreadQueueMessage(props: {
         {props.controls.isEditing ? (
           <Text className="text-xs text-foreground-muted">Editing in composer</Text>
         ) : null}
+        {props.message ? (
+          <QueuedRunSender environmentId={props.environmentId} message={props.message} />
+        ) : null}
         <Text className="text-base text-foreground" numberOfLines={3}>
           {props.title}
         </Text>
@@ -107,6 +116,58 @@ export function ThreadQueueMessage(props: {
         />
       </Pressable>
     </Menu>
+  );
+}
+
+/** Who sent a queued message, as its sent form shows it in the thread. */
+function QueuedRunSender(props: {
+  readonly environmentId: EnvironmentId;
+  readonly message: NonNullable<QueuedThreadRun["message"]>;
+}) {
+  const { attribution, scheduledTaskId } = resolveUserMessagePresentation(props.message);
+  const senderThreadId = attribution === "agent" ? props.message.senderThreadId : undefined;
+  const senderShell = useQuietThreadShell(
+    senderThreadId ? scopeThreadRef(props.environmentId, senderThreadId) : null,
+  );
+  const tasks = useEnvironmentQuery(
+    scheduledTaskId
+      ? serverEnvironment.scheduledTasksLive({ environmentId: props.environmentId, input: {} })
+      : null,
+  );
+  const sender =
+    attribution === "automation"
+      ? {
+          icon: "calendar.badge.clock" as const,
+          label:
+            tasks.data?.tasks.find((task) => task.id === scheduledTaskId)?.title ?? "Automation",
+        }
+      : attribution === "agent"
+        ? {
+            icon: "bubble.left.and.bubble.right" as const,
+            label: senderShell?.title.trim() || "Agent",
+          }
+        : attribution === "supaterm"
+          ? { icon: null, label: "Sent by Supaterm" }
+          : null;
+  if (sender === null) return null;
+  return (
+    <View className="flex-row items-center gap-1">
+      {sender.icon ? (
+        <SymbolView
+          name={sender.icon}
+          size={11}
+          weight="medium"
+          tintColorClassName="accent-foreground-muted"
+          type="monochrome"
+        />
+      ) : null}
+      <Text
+        numberOfLines={1}
+        className="min-w-0 shrink font-supaterm-medium text-2xs text-foreground-muted"
+      >
+        {sender.label}
+      </Text>
+    </View>
   );
 }
 

@@ -437,22 +437,28 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
     otel,
     "traces",
     { url: env.otlpTracesUrl, export: signalExport },
-    bootstrap?.otlpTracesUrl,
-    persistedObservabilitySettings.otlpTracesUrl,
+    {
+      bootstrapUrl: bootstrap?.otlpTracesUrl,
+      settingsUrl: persistedObservabilitySettings.otlpTracesUrl,
+    },
   );
   const metrics = OtelEnvironment.resolveSignalEndpoint(
     otel,
     "metrics",
     { url: env.otlpMetricsUrl, export: signalExport },
-    bootstrap?.otlpMetricsUrl,
-    persistedObservabilitySettings.otlpMetricsUrl,
+    {
+      bootstrapUrl: bootstrap?.otlpMetricsUrl,
+      settingsUrl: persistedObservabilitySettings.otlpMetricsUrl,
+    },
   );
   const logs = OtelEnvironment.resolveSignalEndpoint(
     otel,
     "logs",
     { url: env.otlpLogsUrl, export: signalExport },
-    bootstrap?.otlpLogsUrl,
-    persistedObservabilitySettings.otlpLogsUrl,
+    {
+      bootstrapUrl: bootstrap?.otlpLogsUrl,
+      settingsUrl: persistedObservabilitySettings.otlpLogsUrl,
+    },
   );
 
   const config: ServerConfig.ServerConfig["Service"] = {
@@ -468,6 +474,12 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
     otlpTracesExport: traces?.export ?? signalExport,
     otlpMetricsExport: metrics?.export ?? signalExport,
     otlpLogsExport: logs?.export ?? signalExport,
+    ...(traces !== undefined ? { otlpTracesSource: traces.source } : {}),
+    ...(traces?.variable !== undefined ? { otlpTracesVariable: traces.variable } : {}),
+    ...(metrics !== undefined ? { otlpMetricsSource: metrics.source } : {}),
+    ...(metrics?.variable !== undefined ? { otlpMetricsVariable: metrics.variable } : {}),
+    ...(logs !== undefined ? { otlpLogsSource: logs.source } : {}),
+    ...(logs?.variable !== undefined ? { otlpLogsVariable: logs.variable } : {}),
     otelEnvironment: otel,
     mode,
     port,
@@ -500,12 +512,9 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
 });
 
 /**
- * Same precedence as dev-runner: without --base-dir, a CLI running from a linked
- * worktree's own source uses only that worktree's `.supaterm`. Commands that open
- * the target database run this checkout's migrations, so falling back to the
- * shared home could migrate the live install with unreleased schema. An installed
- * CLI invoked inside some project's worktree carries released migrations and
- * keeps the normal home.
+ * Same precedence as dev-runner: without --base-dir, a CLI run from a linked worktree's source
+ * uses only that worktree's `.supaterm`, since its migrations could otherwise apply unreleased
+ * schema to the live install. An installed CLI keeps the normal home.
  */
 export const resolveCliWorktreeHome = Effect.fn("config.resolveCliWorktreeHome")(function* (
   explicitBaseDir: Option.Option<string>,

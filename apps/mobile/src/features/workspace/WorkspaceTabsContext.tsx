@@ -40,6 +40,7 @@ export function useWorkspaceTabs() {
 export function WorkspaceTabsProvider(props: { readonly children: ReactNode }) {
   const [state, dispatch] = useReducer(workspaceTabsReducer, undefined, initialWorkspaceTabsState);
   const activeTab = useRef(state.selectedTab);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes the committed selected tab to a ref read by the stable isTabActive callback
   useLayoutEffect(() => {
     activeTab.current = state.selectedTab;
   }, [state.selectedTab]);

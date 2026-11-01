@@ -12,8 +12,10 @@ import {
   type OrchestrationV2ThreadHistoryPage,
 } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import * as Schema from "effect/Schema";
 import * as Fiber from "effect/Fiber";
+import * as Queue from "effect/Queue";
 import { TestClock } from "effect/testing";
 import type { HttpClient } from "effect/http";
 
@@ -27,14 +29,12 @@ import * as PullRequestDiffLoader from "./pullRequestDiffHttp.ts";
 import { withOrchestrationProtocolHeader } from "./environmentHttpAuth.ts";
 import { fetchEnvironmentSessionState } from "./session.ts";
 import { fetchEnvironmentShellSnapshot } from "./shellSnapshotHttp.ts";
-import * as ThreadSnapshotLoader from "./threadSnapshotHttp.ts";
 import { fetchEnvironmentThreadTranscript } from "./threadTranscriptHttp.ts";
 import { fetchEnvironmentBoundedThreadSnapshot } from "./boundedThreadSnapshotHttp.ts";
 
 import { fetchEnvironmentThreadHistoryPage } from "./threadHistoryHttp.ts";
 import { v2Projection } from "./orchestrationV2TestFixtures.ts";
 
-const encodeThreadSnapshot = Schema.encodeSync(OrchestrationV2ThreadDetailSnapshot);
 const encodeBoundedSnapshot = Schema.encodeSync(OrchestrationV2ThreadBoundedSnapshot);
 const encodeThreadTranscript = Schema.encodeSync(OrchestrationV2ThreadTranscript);
 
@@ -114,6 +114,14 @@ function makeHarness(reply: (requestNumber: number) => Response | Promise<Respon
   };
 }
 
+// Resolves "settled" instead of hanging when the load finishes without sending another request.
+function nextRequestOrSettled(requests: Queue.Queue<number>, load: Fiber.Fiber<unknown, unknown>) {
+  return Effect.raceFirst(
+    Queue.take(requests).pipe(Effect.as("sent" as const)),
+    Fiber.await(load).pipe(Effect.as("settled" as const)),
+  );
+}
+
 type HttpInput = ReturnType<typeof makeHarness>["input"];
 const LOADERS: ReadonlyArray<{
   readonly name: string;
@@ -157,18 +165,6 @@ const LOADERS: ReadonlyArray<{
       fetchEnvironmentShellSnapshot(input).pipe(
         Effect.map(({ loadPullRequests: _links, ...snapshot }) => snapshot),
       ),
-  },
-  {
-    name: "thread snapshot",
-    method: "GET",
-    path: `/api/orchestration/threads/${THREAD.projection.thread.id}`,
-    response: encodeThreadSnapshot(THREAD),
-    expected: THREAD,
-    load: (input: HttpInput) =>
-      ThreadSnapshotLoader.fetchEnvironmentThreadSnapshot({
-        ...input,
-        threadId: THREAD.projection.thread.id,
-      }),
   },
   {
     name: "thread transcript",
@@ -245,7 +241,7 @@ describe("authenticated environment HTTP requests", () => {
         const harness = makeHarness(() => Response.json(loader.response));
         const result = yield* loader.load(harness.input).pipe(Effect.provide(harness.layerHttp));
 
-        expect(result).toEqual(loader.response);
+        expect(result).toEqual(loader.expected);
         expect(harness.calls).toHaveLength(1);
         const call = harness.calls[0]!;
         const url = new URL(call.url);
@@ -283,7 +279,7 @@ describe("authenticated environment HTTP requests", () => {
       }),
   );
 
-  it.effect("reports the request URL when the caller's timeout expires", () =>
+  it.effect("reports the request URL when the longest timeout expires", () =>
     Effect.gen(function* () {
       const requested = Promise.withResolvers<void>();
       const response = Promise.withResolvers<Response>();
@@ -293,17 +289,75 @@ describe("authenticated environment HTTP requests", () => {
       });
       const pending = yield* fetchEnvironmentSessionState({
         ...harness.input,
-        timeoutMs: 100,
+        timeoutMs: 60_000,
       }).pipe(Effect.provide(harness.layerHttp), Effect.flip, Effect.forkChild);
       yield* Effect.promise(() => requested.promise);
-      yield* TestClock.adjust(100);
+      yield* TestClock.adjust("60 seconds");
 
       expect(yield* Fiber.join(pending)).toMatchObject({
         _tag: "RemoteEnvironmentAuthTimeoutError",
         requestUrl: `${ORIGIN}/api/auth/session`,
-        timeoutMs: 100,
+        timeoutMs: 60_000,
       });
       response.resolve(Response.json(SESSION));
+    }),
+  );
+
+  it.effect(
+    "waits longer for session permissions after the environment is too slow to answer",
+    () =>
+      Effect.gen(function* () {
+        const requests = yield* Queue.unbounded<number>();
+        const answered = Promise.withResolvers<void>();
+        const harness = makeHarness((requestNumber) => {
+          Queue.offerUnsafe(requests, requestNumber);
+          return requestNumber === 1
+            ? new Promise<Response>(() => {})
+            : answered.promise.then(() => Response.json(SESSION));
+        });
+        const load = yield* fetchEnvironmentSessionState({
+          ...harness.input,
+          timeoutMs: 1_000,
+        }).pipe(Effect.provide(harness.layerHttp), Effect.forkChild({ startImmediately: true }));
+
+        yield* Queue.take(requests);
+        yield* TestClock.adjust("1 second");
+        expect(yield* nextRequestOrSettled(requests, load)).toBe("sent");
+        yield* TestClock.adjust("1500 millis");
+        answered.resolve();
+
+        expect(yield* Fiber.await(load)).toStrictEqual(Exit.succeed(SESSION));
+        expect(harness.calls).toHaveLength(2);
+      }),
+  );
+
+  it.effect("gives up on session permissions once a 60 second wait also times out", () =>
+    Effect.gen(function* () {
+      const requests = yield* Queue.unbounded<number>();
+      const harness = makeHarness((requestNumber) => {
+        Queue.offerUnsafe(requests, requestNumber);
+        return new Promise<Response>(() => {});
+      });
+      const load = yield* fetchEnvironmentSessionState({
+        ...harness.input,
+        timeoutMs: 15_000,
+      }).pipe(Effect.provide(harness.layerHttp), Effect.forkChild({ startImmediately: true }));
+
+      yield* Queue.take(requests);
+      yield* TestClock.adjust("15 seconds");
+      expect(yield* nextRequestOrSettled(requests, load)).toBe("sent");
+      yield* TestClock.adjust("30 seconds");
+      expect(yield* nextRequestOrSettled(requests, load)).toBe("sent");
+      yield* TestClock.adjust("60 seconds");
+      const exit = yield* Fiber.await(load);
+
+      expect(exit).toMatchObject({
+        _tag: "Failure",
+        cause: {
+          reasons: [{ error: { _tag: "RemoteEnvironmentAuthTimeoutError", timeoutMs: 60_000 } }],
+        },
+      });
+      expect(harness.calls).toHaveLength(3);
     }),
   );
 });

@@ -4,6 +4,7 @@ import { cn } from "~/lib/utils";
 
 function useUserInputCountdown(deadline: string) {
   const [now, setNow] = useState(Date.now);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- interval timer and visibilitychange listener tick the countdown until the deadline passes
   useEffect(() => {
     const tick = () => {
       const time = Date.now();

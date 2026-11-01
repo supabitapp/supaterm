@@ -9,11 +9,13 @@ import {
   type Dispatch,
   type RefObject,
   type SetStateAction,
+  use,
   useEffect,
   useRef,
   useState,
 } from "react";
 import { flushSync } from "react-dom";
+import { BackgroundThreadContext } from "./backgroundThread";
 import { collapseExpandedComposerCursor } from "../../composer-logic";
 import {
   type ComposerFileAttachment,
@@ -47,9 +49,9 @@ import {
 } from "../../lib/attachmentUploadQueue";
 import { isCommandPaletteOpen } from "../../commandPaletteBus";
 import { getTerminalFocusOwner } from "../../lib/terminalFocus";
-import { resolveShortcutCommand } from "../../keybindings";
+import { registerCommands } from "../../shortcuts/dispatcher";
 import { replaceComposerContextReferences } from "@supaterm/shared/composerContextReferences";
-import type { ComposerPromptEditorHandle } from "../ComposerPromptEditor";
+import type { ComposerPromptEditorHandle } from "../ComposerPromptEditorTiptap";
 import { formatInlineContextReference } from "~/lib/composerContextReferences";
 import {
   previewAnnotationContextRecord,
@@ -95,7 +97,6 @@ export function useComposerStash(input: {
   readonly canQueueMessage: boolean;
   readonly canQueueSelectedProvider: boolean;
   readonly isSendBusy: boolean;
-  readonly isConnecting: boolean;
   readonly sendDisabledReason: string | null;
   readonly prompt: string;
   readonly composerMenuOpen: boolean;
@@ -143,7 +144,6 @@ export function useComposerStash(input: {
     canQueueMessage,
     canQueueSelectedProvider,
     isSendBusy,
-    isConnecting,
     sendDisabledReason,
     prompt,
     composerMenuOpen,
@@ -182,12 +182,8 @@ export function useComposerStash(input: {
   const setComposerDraftThreadContexts = useComposerDraftStore((store) => store.setThreadContexts);
   const [isStashMenuOpen, setIsStashMenuOpen] = useState(false);
   const [isSendingAllStash, setIsSendingAllStash] = useState(false);
-  const [stashPulse, setStashPulse] = useState<{ key: number; active: boolean }>({
-    key: 0,
-    active: false,
-  });
-  const stashPulseKeyRef = useRef(0);
-  const stashPulseTimeoutRef = useRef<number | null>(null);
+  // Each stash bumps the key; the badge replays its one-shot pulse animation per key.
+  const [stashPulseKey, setStashPulseKey] = useState(0);
   const stashInFlightRef = useRef<Set<string>>(new Set());
 
   const stashQueue = usePromptStashStore((state) => state.entries);
@@ -195,27 +191,12 @@ export function useComposerStash(input: {
   const takeStashEntry = usePromptStashStore((state) => state.takeEntry);
   const finalizeStashEntryImages = usePromptStashStore((state) => state.finalizeEntryImages);
 
-  useEffect(() => {
-    return () => {
-      if (stashPulseTimeoutRef.current !== null) {
-        window.clearTimeout(stashPulseTimeoutRef.current);
-      }
-    };
-  }, []);
-
   const pulseStashBadge = () => {
-    stashPulseKeyRef.current += 1;
-    setStashPulse({ key: stashPulseKeyRef.current, active: true });
-    if (stashPulseTimeoutRef.current !== null) {
-      window.clearTimeout(stashPulseTimeoutRef.current);
-    }
-    stashPulseTimeoutRef.current = window.setTimeout(() => {
-      stashPulseTimeoutRef.current = null;
-      setStashPulse((current) => ({ ...current, active: false }));
-    }, 1200);
+    setStashPulseKey((key) => key + 1);
   };
 
   const composerMountedRef = useRef(true);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- tracks the composer's mount in a ref so stash restores that resolve after unmount stay out of it
   useEffect(() => {
     composerMountedRef.current = true;
     return () => {
@@ -529,7 +510,7 @@ export function useComposerStash(input: {
           ? "Answer the pending question first"
           : !canQueueMessage || !canQueueSelectedProvider
             ? "Sending is unavailable right now"
-            : isSendBusy || isConnecting
+            : isSendBusy
               ? "Wait for the current send to finish"
               : sendDisabledReason;
   const stashSendAllBlockedReason = isSendingAllStash
@@ -676,11 +657,8 @@ export function useComposerStash(input: {
         ...(file.source ? { source: file.source } : {}),
       });
     }
-    // A repeat ⌘S on the *same* still-unencoded snapshot would stash it
-    // twice. Guard on the snapshot itself rather than a bare boolean: once
-    // the composer has been cleared the user can type something genuinely
-    // new (or switch threads) while encoding continues, and that deserves its
-    // own entry.
+    // Deduplicate the snapshot while encoding, not all stashes: new drafts or
+    // thread switches must still be able to create their own entries.
     const attachmentKey = images
       .map((image) => `image:${image.id}`)
       .concat(files.map((file) => `file:${file.id}`))
@@ -692,11 +670,8 @@ export function useComposerStash(input: {
     const stashTarget = composerDraftTarget;
     const entryId = randomUUID();
     const persistStash = async () => {
-      // Persist the text-only entry *first*, then clear. Ordering matters in
-      // both directions: writing before clearing means a crash or closed tab
-      // mid-encode still leaves the prompt recoverable, while clearing before
-      // the async image work means edits typed during encoding are not wiped.
-      // Images are appended to the stored entry as they finish encoding.
+      // Persist the text-only entry first so a crash mid-encode leaves the prompt recoverable,
+      // then clear before the async image work so edits typed during encoding are not wiped.
       const { evicted, written, durable } = stashEntryToQueue({
         id: entryId,
         createdAt: new Date().toISOString(),
@@ -843,52 +818,45 @@ export function useComposerStash(input: {
     setIsStashMenuOpen(false);
   }
 
-  useEffect(() => {
-    const handler = (event: globalThis.KeyboardEvent) => {
-      if (!isPaneInputOwner()) return;
-      const command = resolveShortcutCommand(event, keybindings, {
-        context: {
-          terminalFocus: getTerminalFocusOwner() !== null,
-          terminalOpen,
-          modelPickerOpen: isComposerModelPickerOpen,
-        },
-      });
-      if (command !== "composer.stash") return;
-      // Always claim the shortcut so the browser save dialog never opens,
-      // even when the composer is in a state that can't stash.
-      event.preventDefault();
-      event.stopPropagation();
-      if (isCommandPaletteOpen() || isRevertingCheckpoint) {
-        return;
-      }
-      if (pendingUserInputs.length > 0) {
-        setIsStashMenuOpen((open) => !open);
-        return;
-      }
-      if (projectSelectionRequired || activePendingProgress !== null) {
-        return;
-      }
-      void stashCurrentPromptStable();
-    };
-    window.addEventListener("keydown", handler, true);
-    return () => window.removeEventListener("keydown", handler, true);
-  }, [
-    activePendingProgress,
-    isComposerModelPickerOpen,
-    keybindings,
-    pendingUserInputs.length,
-    projectSelectionRequired,
-    stashCurrentPromptStable,
-    isRevertingCheckpoint,
-    isPaneInputOwner,
+  const handleStashShortcut = useStableCallback(() => {
+    // Always claim the shortcut so the browser save dialog never opens,
+    // even when the composer is in a state that can't stash.
+    if (isCommandPaletteOpen() || isRevertingCheckpoint) return;
+    if (pendingUserInputs.length > 0) {
+      setIsStashMenuOpen((open) => !open);
+      return;
+    }
+    if (projectSelectionRequired || activePendingProgress !== null) return;
+    void stashCurrentPromptStable();
+  });
+  const readShortcutContext = useStableCallback(() => ({
+    terminalFocus: getTerminalFocusOwner() !== null,
     terminalOpen,
-  ]);
+    modelPickerOpen: isComposerModelPickerOpen,
+  }));
+  const readKeybindings = useStableCallback(() => keybindings);
+  const ownsPaneInput = useStableCallback(() => isPaneInputOwner());
+
+  const backgroundThread = use(BackgroundThreadContext);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers the stash shortcut with the dispatcher while this composer owns pane input
+  useEffect(() => {
+    if (backgroundThread) return;
+    return registerCommands(
+      { "composer.stash": handleStashShortcut },
+      {
+        capture: true,
+        when: ownsPaneInput,
+        context: readShortcutContext,
+        keybindings: readKeybindings,
+      },
+    );
+  }, [backgroundThread, handleStashShortcut, ownsPaneInput, readKeybindings, readShortcutContext]);
 
   return {
     stashQueue,
     isStashMenuOpen,
     setIsStashMenuOpen,
-    stashPulse,
+    stashPulseKey,
     stashSendAllBlockedReason,
     restoreStashEntryStable,
     deleteStashEntryStable,

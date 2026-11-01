@@ -113,4 +113,47 @@ describe("shared mobile pending move", () => {
     appAtomRegistry.set(shellsAtom, rows);
     expect(getPendingThreadOrder()).toBeNull();
   });
+
+  it("retires the hold when a snooze expiry changes the section without a shell event", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-06-01T03:00:00.000Z"));
+      const { rows, start } = fixture();
+      const snoozed = makeThreadShellFixture({
+        id: ThreadId.make("c"),
+        environmentId: EnvironmentId.make("env"),
+        createdAt: "2026-06-01T00:00:00.000Z",
+        snoozedUntil: "2026-06-01T03:00:05.000Z",
+      });
+      appAtomRegistry.set(shellsAtom, [...rows, snoozed]);
+      start();
+      expect(getPendingThreadOrder()).not.toBeNull();
+
+      vi.advanceTimersByTime(5_000);
+
+      expect(appAtomRegistry.get(pendingThreadOrderAtom)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("tears down a superseded hold's clocks when another hold begins", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-06-01T03:00:00.000Z"));
+      const { rows, start } = fixture();
+      const snoozed = makeThreadShellFixture({
+        id: ThreadId.make("c"),
+        environmentId: EnvironmentId.make("env"),
+        createdAt: "2026-06-01T00:00:00.000Z",
+        snoozedUntil: "2026-06-01T04:00:00.000Z",
+      });
+      appAtomRegistry.set(shellsAtom, [...rows, snoozed]);
+      start();
+      start().cancel();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

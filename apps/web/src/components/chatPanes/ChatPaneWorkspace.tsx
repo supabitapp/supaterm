@@ -1,5 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { BackgroundThreadContext } from "../chat/backgroundThread";
 
 import {
   focusedPane,
@@ -25,7 +26,7 @@ import { ChatPaneDropOverlay } from "./ChatPaneDropOverlay";
 import { LinkPullRequestDialogHost } from "../pullRequest/LinkPullRequestDialog";
 import { cn } from "~/lib/utils";
 import { useStableCallback } from "~/hooks/useStableCallback";
-import { runPaneMenuAction, trackChatPaneWorkspaceMount } from "../../chatPanes/actions";
+import { trackChatPaneWorkspaceMount } from "../../chatPanes/actions";
 
 function useNavigateToPaneTarget() {
   const navigate = useNavigate();
@@ -47,13 +48,21 @@ function useNavigateToPaneTarget() {
  * single thread renders as a one-cell grid, so splitting it, moving it, or
  * closing its neighbours never remounts the view the user is in.
  */
-export function ChatPaneWorkspace({ target }: { target: ThreadRouteTarget }) {
+/** `background` keeps the panes mounted, inert and in place under Settings or Usage. */
+export function ChatPaneWorkspace({
+  target,
+  background = false,
+}: {
+  target: ThreadRouteTarget;
+  background?: boolean;
+}) {
   const layout = useChatPaneStore((state) => state.layout);
   const navigateToTarget = useNavigateToPaneTarget();
   const routeKey = paneTargetKey(target);
   const routeKeyRef = useRef(routeKey);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reconciles the routed target into the pane store with the container's measured size before paint
   useLayoutEffect(() => {
     routeKeyRef.current = routeKey;
     const rect = containerRef.current?.getBoundingClientRect();
@@ -65,18 +74,20 @@ export function ChatPaneWorkspace({ target }: { target: ThreadRouteTarget }) {
 
   const focusedKey = layout ? paneTargetKey(focusedPane(layout).target) : null;
   // Focus changes move the URL; route changes flow the other way through the reconcile above.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- navigates the router to the focused pane's target when pane focus moves
   useEffect(() => {
-    if (focusedKey === null || focusedKey === routeKeyRef.current) return;
+    if (background || focusedKey === null || focusedKey === routeKeyRef.current) return;
     const { layout: current, historyMode } = useChatPaneStore.getState();
     const focused = current ? focusedPane(current).target : null;
     if (!focused || paneTargetKey(focused) !== focusedKey) return;
     navigateToTarget(focused, historyMode === "replace");
-  }, [focusedKey, navigateToTarget]);
+  }, [background, focusedKey, navigateToTarget]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- counts this workspace in the module-level mount tracker that decides whether focus follows the URL
   useEffect(() => trackChatPaneWorkspaceMount(), []);
-  useEffect(() => window.desktopBridge?.onMenuAction(runPaneMenuAction), []);
 
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- measures the container and observes its resizes before paint
   useLayoutEffect(() => {
     const element = containerRef.current;
     if (!element) return;
@@ -93,11 +104,16 @@ export function ChatPaneWorkspace({ target }: { target: ThreadRouteTarget }) {
   }, []);
 
   return (
-    <SidebarInset className="h-svh min-h-0 overflow-hidden overscroll-y-none md:h-dvh">
-      <div ref={containerRef} className="isolate flex min-h-0 min-w-0 flex-1">
-        {layout && size ? <PaneGrid layout={layout} size={size} /> : null}
-      </div>
-      <LinkPullRequestDialogHost />
+    <SidebarInset
+      className="h-svh min-h-0 overflow-hidden overscroll-y-none md:h-dvh"
+      inert={background}
+    >
+      <BackgroundThreadContext value={background}>
+        <div ref={containerRef} className="isolate flex min-h-0 min-w-0 flex-1">
+          {layout && size ? <PaneGrid layout={layout} size={size} /> : null}
+        </div>
+        <LinkPullRequestDialogHost />
+      </BackgroundThreadContext>
     </SidebarInset>
   );
 }
@@ -135,6 +151,7 @@ function PaneGrid({
   // Sizes that change without a drag, like equalizing or reopening, reach the grid through its
   // handle: once dragged, it keeps the sizes it was given over new default sizes.
   const gridRef = useGridRef();
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- pushes track sizes that change without a drag into the resizable grid's imperative handle
   useLayoutEffect(() => {
     const grid = gridRef.current;
     if (!grid || !split) return;
@@ -235,10 +252,12 @@ function ChatPaneFrame(props: {
   const { cell, layout, split, collapsed, focused } = props;
   const focus = useChatPaneStore((state) => state.focus);
   const [composerRef] = useState(() => ({ current: null as ChatComposerHandle | null }));
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers the pane's composer handle in the module-level pane composer registry
   useEffect(() => registerPaneComposer(cell.id, composerRef), [cell.id, composerRef]);
 
   const [frame, setFrame] = useState<HTMLDivElement | null>(null);
   const [narrow, setNarrow] = useState(false);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- measures the pane frame and observes its resizes before paint to choose the narrow layout
   useLayoutEffect(() => {
     const element = frame;
     if (!element) return;

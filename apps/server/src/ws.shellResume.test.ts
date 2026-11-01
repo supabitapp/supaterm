@@ -71,6 +71,7 @@ const collectShellResume = Effect.fnUntraced(function* (input: {
       Layer.mergeAll(
         Layer.mock(ThreadManagement.ThreadManagementService)({
           getThreadShell: (threadId) => Effect.succeed(input.shells?.get(threadId) ?? null),
+          listActiveSubagentThreadIds: () => Effect.succeed([]),
           readShellSnapshot: () =>
             Effect.succeed(
               Effect.succeed({

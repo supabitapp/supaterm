@@ -14,13 +14,13 @@ import { useProjects, useServerConfigs } from "../../state/entities";
 import {
   createDraft,
   scheduledTaskDefaultModel,
-  hasScheduledTaskDraftChanges,
   type ScheduledTaskDraft,
 } from "./scheduledTaskDraft";
 import { useSettingsEnvironmentFilter } from "./settings-environment-filter";
 import { settingsTargetsForProject } from "./settings-environment-filter.logic";
 
 import {
+  scheduledTaskEditorHasChanges,
   scheduledTaskEditorSessionAtom,
   startScheduledTaskEditor,
   updateScheduledTaskEditor,
@@ -84,36 +84,22 @@ export function ScheduledTaskEditorProvider({ children }: { readonly children: R
   const voiceOwnerKey = `scheduled-task:${session?.id ?? 0}`;
   const editor = session ? session.current : defaultEditor;
   const initial = session ? session.initial : defaultEditor;
-  const hasChanges = Boolean(
-    initial &&
-    editor &&
-    (initial.environmentId !== editor.environmentId ||
-      hasScheduledTaskDraftChanges(initial.draft, editor.draft)),
-  );
-  const setEditor = useCallback<Dispatch<SetStateAction<ScheduledTaskEditor | null>>>(
-    (update) => {
-      updateScheduledTaskEditor(update, defaultEditor);
-    },
-    [defaultEditor],
-  );
-  const resetEditor = useCallback(() => startScheduledTaskEditor(defaultEditor), [defaultEditor]);
-  const readEditor = useCallback(
-    () => readScheduledTaskEditor(voiceOwnerKey, defaultEditor),
-    [defaultEditor, voiceOwnerKey],
-  );
-  const value = useMemo(
-    () => ({
-      editor,
-      voiceOwnerKey,
-      readEditor,
-      setEditor,
-      startEditor: startScheduledTaskEditor,
-      hasChanges,
-      resetEditor,
-      draftForEnvironment,
-    }),
-    [editor, voiceOwnerKey, readEditor, setEditor, hasChanges, resetEditor, draftForEnvironment],
-  );
+  const hasChanges = scheduledTaskEditorHasChanges(initial, editor);
+  const setEditor: Dispatch<SetStateAction<ScheduledTaskEditor | null>> = (update) => {
+    updateScheduledTaskEditor(update, defaultEditor);
+  };
+  const resetEditor = () => startScheduledTaskEditor(defaultEditor);
+  const readEditor = () => readScheduledTaskEditor(voiceOwnerKey, defaultEditor);
+  const value = {
+    editor,
+    voiceOwnerKey,
+    readEditor,
+    setEditor,
+    startEditor: startScheduledTaskEditor,
+    hasChanges,
+    resetEditor,
+    draftForEnvironment,
+  };
   return <ScheduledTaskEditorContext value={value}>{children}</ScheduledTaskEditorContext>;
 }
 

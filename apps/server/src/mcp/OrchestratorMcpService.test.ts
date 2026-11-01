@@ -5,6 +5,7 @@ import {
   EnvironmentId,
   MessageId,
   NodeId,
+  ORCHESTRATOR_MCP_RUNNING_TASK_NEXT,
   type OrchestratorMcpCapabilitiesResult,
   OrchestratorMcpTarget,
   type OrchestrationV2ThreadShell,
@@ -87,7 +88,7 @@ describe("OrchestratorMcpService", () => {
         ],
       } as unknown as OrchestrationV2ThreadProjection;
       const childProjection = {
-        thread: { id: childThreadId },
+        thread: { id: childThreadId, title: "Child" },
         runs: [
           {
             id: childRunId,
@@ -228,7 +229,7 @@ describe("OrchestratorMcpService", () => {
         ],
       } as unknown as OrchestrationV2ThreadProjection;
       const childProjection = {
-        thread: { id: childThreadId },
+        thread: { id: childThreadId, title: "Child" },
         runs: [
           {
             id: RunId.make("run:mcp-restart-child"),
@@ -296,6 +297,113 @@ describe("OrchestratorMcpService", () => {
     }),
   );
 
+  it.effect("tells the parent to end its turn only while its task still runs", () =>
+    Effect.gen(function* () {
+      const parentThreadId = ThreadId.make("thread:mcp-next-parent");
+      const childThreadId = ThreadId.make("thread:mcp-next-child");
+      const taskId = NodeId.make("node:mcp-next-task");
+      let finished = false;
+      let pendingRequest = false;
+      const parentProjection = () =>
+        ({
+          thread: { id: parentThreadId },
+          runs: [],
+          contextTransfers: [],
+          subagents: [
+            {
+              id: taskId,
+              threadId: parentThreadId,
+              origin: "app_owned",
+              childThreadId,
+              driver: "codex",
+              model: "gpt-5.6-terra",
+              status: finished ? "completed" : "running",
+              result: finished ? "done" : null,
+              completionDelivery: { state: "pending" },
+            },
+          ],
+        }) as unknown as OrchestrationV2ThreadProjection;
+      const childRun = () => ({
+        id: RunId.make("run:mcp-next-child"),
+        ordinal: 1,
+        status: finished ? ("completed" as const) : ("running" as const),
+        delegatedTaskId: taskId,
+      });
+      const childProjection = () =>
+        ({
+          thread: { id: childThreadId, title: "Child task" },
+          runs: [childRun()],
+          contextTransfers: [],
+          messages: [],
+          subagents: [],
+          providerThreads: [],
+          runtimeRequests: pendingRequest ? [{ status: "pending" }] : [],
+          nodes: [],
+          turnItems: [],
+        }) as unknown as OrchestrationV2ThreadProjection;
+      const layerDependencies = Layer.mergeAll(
+        NodeServices.layer,
+        Layer.mock(ThreadManagementService.ThreadManagementService)({
+          getThreadRecords: (threadId) =>
+            Effect.succeed(threadId === parentThreadId ? parentProjection() : childProjection()),
+          getThreadShell: (threadId) => Effect.succeed(liveThreadShell(threadId)),
+          getProjectThreadRecords: () => Effect.succeed(childProjection()),
+          waitForThread: () =>
+            Effect.succeed({
+              threadId: childThreadId,
+              run: childRun() as unknown as OrchestrationV2ThreadProjection["runs"][number],
+              timedOut: !finished,
+            }),
+          dispatch: () => Effect.succeed({} as never),
+        }),
+        ServerSettings.layerTest(),
+        Layer.mock(ProviderRegistry.ProviderRegistry)({ getProviders: Effect.succeed([]) }),
+        Layer.mock(ProviderAdapterRegistry.ProviderAdapterRegistryV2)({
+          list: () => Effect.succeed([]),
+        }),
+        Layer.mock(ProjectService.ProjectService)({}),
+        Layer.mock(ScheduledTaskService.ScheduledTaskService)({}),
+      );
+      const scope: McpInvocationScope = {
+        environmentId: EnvironmentId.make("environment:mcp-next"),
+        requestNamespace: "provider-session:mcp-next",
+        thread: {
+          threadId: parentThreadId,
+          providerSessionId: "provider-session:mcp-next",
+          providerInstanceId: ProviderInstanceId.make("codex"),
+        },
+        client: undefined,
+        capabilities: new Set(["orchestration"]),
+        issuedAt: 1,
+      };
+
+      yield* Effect.gen(function* () {
+        const service = yield* OrchestratorMcpService.OrchestratorMcpService;
+        const running = yield* service.taskStatus(scope, taskId);
+        assert.equal(running.status, "running");
+        assert.equal(running.next, ORCHESTRATOR_MCP_RUNNING_TASK_NEXT);
+        const waiting = yield* service.waitForThread(scope, { threadId: childThreadId });
+        assert.isTrue(waiting.timedOut);
+        assert.equal(waiting.next, ORCHESTRATOR_MCP_RUNNING_TASK_NEXT);
+
+        // A child waiting on a question or approval needs an answer, not a wake.
+        pendingRequest = true;
+        const asking = yield* service.waitForThread(scope, { threadId: childThreadId });
+        assert.isTrue(asking.timedOut);
+        assert.notProperty(asking, "next");
+        pendingRequest = false;
+
+        finished = true;
+        const completed = yield* service.taskStatus(scope, taskId);
+        assert.equal(completed.status, "completed");
+        assert.notProperty(completed, "next");
+        const waited = yield* service.waitForThread(scope, { threadId: childThreadId });
+        assert.equal(waited.status, "completed");
+        assert.notProperty(waited, "next");
+      }).pipe(Effect.provide(layerOrchestratorService.pipe(Layer.provide(layerDependencies))));
+    }),
+  );
+
   it.effect("does not dispose delivery when a nonterminal task has no active child run", () =>
     Effect.gen(function* () {
       const parentThreadId = ThreadId.make("thread:mcp-cancel-parent");
@@ -320,7 +428,7 @@ describe("OrchestratorMcpService", () => {
         ],
       } as unknown as OrchestrationV2ThreadProjection;
       const childProjection = {
-        thread: { id: childThreadId },
+        thread: { id: childThreadId, title: "Child" },
         runs: [],
         contextTransfers: [],
         messages: [],
@@ -401,9 +509,9 @@ describe("OrchestratorMcpService", () => {
               },
             ],
           }) as unknown as OrchestrationV2ThreadProjection;
-        // A finished run whose binding to the follow-up was lost (#19002).
+        // A finished run whose binding to the follow-up was lost.
         const childProjection = {
-          thread: { id: childThreadId },
+          thread: { id: childThreadId, title: "Child" },
           runs:
             childState === "no runs"
               ? []
@@ -505,7 +613,7 @@ describe("OrchestratorMcpService", () => {
         ],
       } as unknown as OrchestrationV2ThreadProjection;
       const childProjection = {
-        thread: { id: childThreadId },
+        thread: { id: childThreadId, title: "Child" },
         runs: [{ id: childRunId, status: "running" }],
         contextTransfers: [],
         messages: [],
@@ -584,7 +692,7 @@ describe("OrchestratorMcpService", () => {
         ],
       } as unknown as OrchestrationV2ThreadProjection;
       const childProjection = {
-        thread: { id: childThreadId },
+        thread: { id: childThreadId, title: "Child" },
         runs: [{ id: childRunId, status: "running" }],
         contextTransfers: [],
         messages: [],
@@ -669,7 +777,7 @@ describe("OrchestratorMcpService", () => {
         ],
       } as unknown as OrchestrationV2ThreadProjection;
       const childProjection = {
-        thread: { id: childThreadId },
+        thread: { id: childThreadId, title: "Child" },
         runs: [{ id: childRunId, status: "running" }],
         contextTransfers: [],
         messages: [],
@@ -763,7 +871,7 @@ describe("OrchestratorMcpService", () => {
         [
           childThreadId,
           {
-            thread: { id: childThreadId },
+            thread: { id: childThreadId, title: "Child" },
             runs: [{ id: RunId.make("run:mcp-cancel-grandchild-child"), status: "running" }],
             contextTransfers: [],
             messages: [],
@@ -990,7 +1098,7 @@ describe("OrchestratorMcpService provider resolution", () => {
     }) as unknown as OrchestrationV2ThreadProjection;
 
   const childProjection = {
-    thread: { id: childThreadId },
+    thread: { id: childThreadId, title: "Child" },
     runs: [],
     contextTransfers: [],
     messages: [],
@@ -1298,6 +1406,16 @@ describe("OrchestratorMcpService provider resolution", () => {
           id: opencodeInstanceId,
           models: ["oc/m12", "oc/m01", "oc/m03", "oc/m04", "oc/m05", "oc/m06", "oc/m07", "oc/m08"],
           omitted: 3,
+        });
+        // A word naming the provider matches all its models, so legacy ones stay out.
+        assert.deepEqual(listing(yield* capabilitiesWith("Codex")), [
+          { id: codexInstanceId, models: ["gpt-6", "gpt-4", "gpt-3", "my-alpha"], omitted: 1 },
+          { id: opencodeInstanceId, models: [], omitted: 0 },
+        ]);
+        assert.deepEqual(listing(yield* capabilitiesWith("codex gpt 5"))[0], {
+          id: codexInstanceId,
+          models: ["gpt-5"],
+          omitted: 0,
         });
       }),
     );
@@ -2550,5 +2668,68 @@ describe("OrchestratorMcpService thread lookup", () => {
       assert.equal(read.message, `Thread ${bareId} is no longer available.`);
       assert.equal(send.message, `Thread ${bareId} was not found.`);
     }),
+  );
+});
+
+describe("OrchestratorMcpService thread list", () => {
+  const client: McpInvocationScope = {
+    environmentId: EnvironmentId.make("environment:thread-list"),
+    requestNamespace: "client:thread-list",
+    thread: undefined,
+    client: { sessionId: "thread-list", label: "Claude Code", access: "full-access" },
+    capabilities: new Set(["orchestration"]),
+    issuedAt: 1,
+  };
+  const shell = (id: string, projectId: string, snoozed: boolean) => ({
+    ...liveThreadShell(ThreadId.make(id)),
+    projectId: ProjectId.make(projectId),
+    status: "completed" as const,
+    snoozedUntil: snoozed ? DateTime.makeUnsafe("2099-01-01T00:00:00Z") : null,
+  });
+  const shells = [
+    shell("thread:a-snoozed", "project:a", true),
+    shell("thread:a-awake", "project:a", false),
+    shell("thread:b-snoozed", "project:b", true),
+  ];
+  const service = layerOrchestratorService.pipe(
+    Layer.provide(
+      Layer.mergeAll(
+        NodeServices.layer,
+        Layer.mock(ThreadManagementService.ThreadManagementService)({
+          listProjectThreads: (input) =>
+            Effect.succeed(
+              shells.filter(
+                (thread) => input.projectId === undefined || thread.projectId === input.projectId,
+              ),
+            ),
+        }),
+        ServerSettings.layerTest(),
+        Layer.mock(ProviderRegistry.ProviderRegistry)({ getProviders: Effect.succeed([]) }),
+        Layer.mock(ProviderAdapterRegistry.ProviderAdapterRegistryV2)({
+          list: () => Effect.succeed([]),
+        }),
+        Layer.mock(ProjectService.ProjectService)({}),
+        Layer.mock(ScheduledTaskService.ScheduledTaskService)({}),
+      ),
+    ),
+  );
+
+  it.effect("lists snoozed threads across every project with allProjects", () =>
+    Effect.gen(function* () {
+      const mcp = yield* OrchestratorMcpService.OrchestratorMcpService;
+      const listed = yield* mcp.listThreads(client, {
+        allProjects: true,
+        projectId: ProjectId.make("project:a"),
+        snoozed: true,
+      });
+      assert.equal(listed.projectId, null);
+      assert.deepStrictEqual(
+        listed.threads.map((thread) => [thread.threadId, thread.projectId]),
+        [
+          ["thread:a-snoozed", "project:a"],
+          ["thread:b-snoozed", "project:b"],
+        ],
+      );
+    }).pipe(Effect.provide(service)),
   );
 });

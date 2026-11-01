@@ -105,12 +105,6 @@ export function connectionStatusTitle(connection: EnvironmentConnectionPresentat
   return connectionStatusText({ ...connection, error: null });
 }
 
-export function presentEnvironmentConnection(
-  state: SupervisorConnectionState,
-): EnvironmentConnectionPresentation {
-  return presentConnectionState(state);
-}
-
 export function environmentMcpUrl(input: {
   readonly entry: ConnectionCatalogEntry;
   readonly connectedTarget?: ConnectionTarget | null | undefined;

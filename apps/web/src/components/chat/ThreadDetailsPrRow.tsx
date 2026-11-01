@@ -1,27 +1,19 @@
+import { resolvePullRequestDetailChecks } from "@supaterm/client-runtime/pull-request-checks";
+import {
+  capitalizeTerm,
+  sourceControlClients,
+} from "@supaterm/client-runtime/source-control-clients";
 import { PullRequestChangeBreakdownRows } from "../pullRequest/PullRequestChangeBreakdownStat";
 import { ThreadDetailsControl } from "./ThreadDetailsControl";
 import { PullRequestGlyph } from "../pullRequest/pullRequestIcons";
 /**
- * The thread details panel's pull request row: what the thread's pull request is, and the one
- * thing worth doing to it right now.
- *
- * The row itself opens the pull request in the right panel, exactly as it always has. Around
- * that, the host's richer answer collapses into a single trailing slot, ranked by what unblocks
- * the merge next: "Resolve" on conflicts, "Ready" on a draft, "Fix" under failing checks, and
- * "Merge" only once the branch is clean and its checks pass. While checks run the slot offers
- * "Auto-merge" instead — a merge offered mid-run would race the very runs that gate it. "Fix" and
- * "Resolve" only fill this thread's composer with a subagent hand-off, since this thread already
- * holds the pull request's context; their new-thread variants and the rest of the pull request's
- * actions sit in the trailing overflow menu. Everything else the host knows
- * (title, state, checks tally, diff size) lives in the row's tooltip, so a hover answers what
- * previously took opening the panel.
- *
- * Until the detail arrives — or where pull requests are not supported at all — the row renders
- * from the linked snapshot or branch summary, or just the link when status is unavailable.
+ * The trailing slot shows the one action that unblocks the merge next. While checks run it offers
+ * "Auto-merge", since a merge offered mid-run would race the runs that gate it. "Fix" and "Resolve"
+ * fill this thread's composer because this thread already holds the pull request's context. Until
+ * the detail arrives, or without pull request support, the row renders from the linked snapshot.
  */
 import { selectEnvironmentQueryData } from "@supaterm/client-runtime/state/runtime";
 import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
-import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import type {
   EnvironmentId,
   ProjectId,
@@ -29,7 +21,6 @@ import type {
   PullRequestRef,
   ScopedThreadRef,
 } from "@supaterm/contracts";
-import { sourceControlRepositorySelector } from "@supaterm/shared/sourceControl";
 import {
   ArrowUpRightIcon,
   DiffIcon,
@@ -105,7 +96,7 @@ import {
   THREAD_DETAILS_PANEL_SPLIT_SEPARATOR_CLASS,
 } from "./threadDetailsPanelStyles";
 
-// A server without checks for this pull request answers null; polling it again finds nothing new.
+// A null checks response is settled; polling cannot find checks.
 const isSettledWithoutChecks = (result: AsyncResult.AsyncResult<unknown, unknown>) =>
   result._tag === "Success" && result.value === null;
 
@@ -140,7 +131,7 @@ export function ThreadDetailsPrRow({
 }) {
   const serverConfigs = useServerConfigs();
   const supportsPullRequests = serverConfigs.has(environmentId);
-  const repository = sourceControlRepositorySelector(project?.repositoryIdentity);
+  const repository = sourceControlClients.repositorySelector(project?.repositoryIdentity);
   const reference: PullRequestRef | null =
     supportsPullRequests && project !== null
       ? linkedReference
@@ -156,8 +147,7 @@ export function ThreadDetailsPrRow({
           environmentId,
           input: { ...reference, allowStale: false },
         });
-  // Read the queries part by part: every poll publishes a new result (a new
-  // timestamp, `waiting` on and off) even when nothing in it changed.
+  // Select query parts because polling rebuilds unchanged results.
   const detailData = useEnvironmentQuerySelector(detailAtom, selectEnvironmentQueryData);
   const detailQuery = useEnvironmentQueryRefresh(detailAtom);
   const supportsChecks = serverConfigs.has(environmentId);
@@ -169,12 +159,10 @@ export function ThreadDetailsPrRow({
   const checksSettledEmpty = useEnvironmentQuerySelector(checksAtom, isSettledWithoutChecks);
   const checksQuery = useEnvironmentQueryRefresh(checksAtom);
   const checksAreNewer = useEnvironmentQueryIsNewer(checksAtom, detailAtom);
-  const detail =
-    detailData === null
-      ? null
-      : checksData !== null && checksAreNewer
-        ? { ...detailData, ...checksData }
-        : detailData;
+  const detail = resolvePullRequestDetailChecks(detailData, checksData, checksAreNewer);
+  const terminology = sourceControlClients.get(
+    detail?.provider ?? project?.repositoryIdentity?.provider,
+  ).changeRequest;
   const open = reference !== null && (detail?.state ?? pr?.state) === "open";
   const refreshKey = `${environmentId}:${project?.id}:${reference?.host}:${reference?.repository}:${number}`;
   useLiveRefresh(
@@ -195,6 +183,7 @@ export function ThreadDetailsPrRow({
   const { actionPending, pendingAction, perform } = usePullRequestActionRunner({
     environmentId,
     reference,
+    terminology,
     onSuccess: () => {
       detailQuery.refresh();
       checksQuery.refresh();
@@ -288,7 +277,7 @@ export function ThreadDetailsPrRow({
     toastManager.add({
       type: "success",
       title: "Added to the composer",
-      description: "The task is in the composer — read it over, then send.",
+      description: "The task is in the composer. Read it over, then send.",
     });
   };
 
@@ -318,7 +307,9 @@ export function ThreadDetailsPrRow({
   // detail rows, so the two read as one family.
   const rowTooltip =
     detail === null || statePresentation === null ? (
-      <TooltipPopup side="top">{status?.tooltip ?? `Pull request #${number}`}</TooltipPopup>
+      <TooltipPopup side="top">
+        {status?.tooltip ?? `${capitalizeTerm(terminology.singular)} #${number}`}
+      </TooltipPopup>
     ) : (
       <TooltipPopup
         side="top"
@@ -416,7 +407,7 @@ export function ThreadDetailsPrRow({
             pending: pendingAction === "ready",
             destructive: false,
             suffix: null,
-            tooltip: "Mark this pull request as ready for review",
+            tooltip: `Mark this ${terminology.singular} as ready for review`,
             controlProps: { onClick: () => void perform("ready") },
           }
         : rowAction === "fix"
@@ -442,7 +433,7 @@ export function ThreadDetailsPrRow({
                 pending: pendingAction === "merge",
                 destructive: false,
                 suffix: null,
-                tooltip: `Merge this pull request (${selectedMergeMethod})`,
+                tooltip: `Merge this ${terminology.singular} (${selectedMergeMethod})`,
                 armedTooltip: `Click again to merge #${number} into ${detail?.baseBranch} (${selectedMergeMethod})`,
                 controlProps: confirm.bind(
                   "merge",
@@ -533,7 +524,7 @@ export function ThreadDetailsPrRow({
                       variant="ghost"
                       size="sm"
                       part="secondary"
-                      aria-label="More pull request actions"
+                      aria-label={`More ${terminology.singular} actions`}
                     />
                   }
                 >
@@ -541,7 +532,7 @@ export function ThreadDetailsPrRow({
                 </MenuTrigger>
               }
             />
-            <TooltipPopup side="top">More pull request actions</TooltipPopup>
+            <TooltipPopup side="top">More {terminology.singular} actions</TooltipPopup>
           </Tooltip>
           <MenuPopup align="end" anchor={rowRef} className="w-(--anchor-width)">
             {rowAction === "fix" || rowAction === "resolve" ? (
@@ -578,7 +569,7 @@ export function ThreadDetailsPrRow({
                   disabled={actionPending}
                 >
                   <PullRequestGlyph.closed className="size-3.5" />
-                  {confirm.armed === "close" ? "Confirm close" : "Close pull request"}
+                  {confirm.armed === "close" ? "Confirm close" : `Close ${terminology.singular}`}
                 </MenuItem>
               </>
             ) : canReopen ? (
@@ -586,7 +577,7 @@ export function ThreadDetailsPrRow({
                 <MenuSeparator />
                 <MenuItem disabled={actionPending} onClick={() => void perform("reopen")}>
                   <PullRequestGlyph.reopen className="size-3.5" />
-                  Reopen pull request
+                  Reopen {terminology.singular}
                 </MenuItem>
               </>
             ) : null}

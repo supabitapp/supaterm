@@ -24,19 +24,19 @@ import {
 
 import * as ServerConfig from "../config.ts";
 import { expandHomePath } from "@supaterm/provider-core/server/pathExpansion";
+import * as SourceControlRateLimit from "@supaterm/source-control-core/server/SourceControlRateLimit";
 import {
   parseGitCloneProgressLine,
   type GitCloneProgressLine,
 } from "../project/gitCloneProgress.ts";
 import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
-import * as BitbucketApi from "@supaterm/source-control-bitbucket/server/BitbucketApi";
+import * as SourceControlProvider from "@supaterm/source-control-core/server/SourceControlProvider";
 import * as SourceControlProviderRegistry from "./SourceControlProviderRegistry.ts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { cloneUrlForProtocol, cloneUrlProtocol } from "@supaterm/shared/cloneUrl";
 const isSourceControlRepositoryError = Schema.is(SourceControlRepositoryError);
 const isSourceControlProviderError = Schema.is(SourceControlProviderError);
 const isGitCommandError = Schema.is(GitCommandError);
-const isBitbucketRepositoryLocatorError = Schema.is(BitbucketApi.BitbucketRepositoryLocatorError);
 
 export class SourceControlRepositoryService extends Context.Service<
   SourceControlRepositoryService,
@@ -100,11 +100,9 @@ function mapRepositoryError(operation: string, provider: SourceControlProviderKi
           operation,
           provider,
           detail:
-            isSourceControlProviderError(cause) &&
-            cause.provider === "bitbucket" &&
-            isBitbucketRepositoryLocatorError(cause.cause)
-              ? BitbucketApi.BitbucketRepositoryLocatorError.detail
-              : "The source control operation could not be completed.",
+            (isSourceControlProviderError(cause)
+              ? SourceControlProvider.userFacingSourceControlDetail(cause.cause)
+              : undefined) ?? "The source control operation could not be completed.",
           cause,
         }),
   );
@@ -125,7 +123,7 @@ function toRepositoryInfo(
 /**
  * The URL clients see. A pasted `https://user:token@host/…` must not travel
  * back over `subscribeProjectClones` to every reader; git still gets the
- * original.
+ * credentials.
  */
 function redactRemoteUrl(remoteUrl: string): string {
   try {
@@ -145,10 +143,16 @@ function redactRemoteUrl(remoteUrl: string): string {
 
 // Userinfo may itself contain `@`; everything up to the last one before the
 // host boundary goes.
-const URL_WITH_USERINFO = /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/]+@/gi;
+const URL_WITH_USERINFO = /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/?#]+@/gi;
+// Git leaves quotes inside query tokens unescaped; consume through the closing quote.
+const QUOTED_URL_QUERY = /(['"])([a-z][a-z0-9+.-]*:\/\/[^\s?]*)\?.*\1(?=[\s:]|$)/gi;
+const URL_QUERY = /\b([a-z][a-z0-9+.-]*:\/\/[^\s?]*)\?[^\s]*/gi;
 
 function redactUrlCredentials(text: string): string {
-  return text.replace(URL_WITH_USERINFO, "$1");
+  return text
+    .replace(QUOTED_URL_QUERY, "$1$2$1")
+    .replace(URL_QUERY, "$1")
+    .replace(URL_WITH_USERINFO, "$1");
 }
 
 function publishPushFailureDetail(input: {
@@ -173,12 +177,9 @@ function publishPushFailureDetail(input: {
 }
 
 /**
- * Adding a project clones over SSH for most hosts, and a machine with no SSH
- * key there would fail every time, while the host's HTTPS credential helper
- * may be set up. A clone whose SSH login was refused is retried once over
- * HTTPS, unless the caller asked for SSH. A looked-up repository has the
- * provider's own HTTPS URL; any other URL is rewritten, which is refused
- * where it would have to guess.
+ * A machine with no SSH key for the host may still have its HTTPS credential helper, so a clone
+ * whose SSH login was refused retries once over HTTPS unless the caller asked for SSH. URLs other
+ * than a looked-up repository's own HTTPS URL are rewritten, or refused where that would guess.
  */
 function httpsFallbackUrl(
   input: SourceControlCloneRepositoryInput,
@@ -206,7 +207,7 @@ function selectRemoteUrl(
   }
 }
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const config = yield* ServerConfig.ServerConfig;
   const fileSystem = yield* FileSystem.FileSystem;
@@ -231,20 +232,23 @@ export const make = Effect.gen(function* () {
     );
   };
 
-  const lookupRepository = Effect.fn("SourceControlRepositoryService.lookupRepository")(function* (
-    input: SourceControlRepositoryLookupInput,
-  ) {
-    const providerKind = yield* ensureConcreteProvider({
-      operation: "lookupRepository",
-      provider: input.provider,
-    });
-    const provider = yield* providers.get(providerKind);
-    const urls = yield* provider.getRepositoryCloneUrls({
-      cwd: input.cwd ?? config.cwd,
-      repository: input.repository.trim(),
-    });
-    return toRepositoryInfo(providerKind, urls);
-  });
+  const lookupRepository = Effect.fn("SourceControlRepositoryService.lookupRepository")(
+    function* (input: SourceControlRepositoryLookupInput) {
+      const providerKind = yield* ensureConcreteProvider({
+        operation: "lookupRepository",
+        provider: input.provider,
+      });
+      const provider = yield* providers.get(providerKind);
+      const urls = yield* provider.getRepositoryCloneUrls({
+        cwd: input.cwd ?? config.cwd,
+        repository: input.repository.trim(),
+      });
+      return toRepositoryInfo(providerKind, urls);
+    },
+    // Someone adding or cloning a repository is waiting, so a background rate-limit pause must not
+    // refuse the lookup.
+    Effect.provideService(SourceControlRateLimit.Interactive, true),
+  );
 
   const normalizeDestinationPath = Effect.fn("SourceControlRepositoryService.normalizeDestination")(
     function* (destinationPath: string) {
@@ -358,11 +362,13 @@ export const make = Effect.gen(function* () {
         if (stderrTail.length > 4) stderrTail.shift();
       });
     };
+    // Git misreads @ in a pathless URL's query as userinfo and echoes its suffix as the host.
+    const normalizedCloneUrl = cloneUrl.replace(/^([a-z][a-z0-9+.-]*:\/\/[^/?#]+)\?/i, "$1/?");
     yield* git
       .execute({
         operation: "SourceControlRepositoryService.cloneRepository",
         cwd: path.dirname(destinationPath),
-        args: ["clone", "--progress", "--", cloneUrl, path.basename(destinationPath)],
+        args: ["clone", "--progress", "--", normalizedCloneUrl, path.basename(destinationPath)],
         timeoutMs: options?.timeoutMs === undefined ? CLONE_TIMEOUT_MS : options.timeoutMs,
         // Progress redraws add up on a slow multi-GB clone. The buffered copy
         // is never read (the tail is kept by hand above), so keep it small
@@ -402,6 +408,7 @@ export const make = Effect.gen(function* () {
       options,
     ).pipe(
       Effect.as(prepared.remoteUrl),
+      // @effect-diagnostics-next-line catchConditionalRefailToCatchIf:off - The condition also narrows httpsUrl for the fallback closure.
       Effect.catch((sshError) =>
         httpsUrl === null || !isSshRejection(sshError)
           ? Effect.fail(sshError)
@@ -438,11 +445,9 @@ export const make = Effect.gen(function* () {
     destinationPath: string,
   ) {
     const normalized = yield* normalizeDestinationPath(destinationPath);
-    // Only what git left behind may go. The destination was empty when the
-    // clone started, so anything without a `.git` inside was put there by
-    // someone else since; refuse rather than delete their files.
-    // A missing destination is already discarded; any other read failure
-    // (a file in its place, permissions) is not something to remove through.
+    // Only what git left behind may go: the destination was empty when the clone started, so
+    // anything without a `.git` inside is someone else's. A missing destination is already
+    // discarded; any other read failure (a file in its place, permissions) is not removed through.
     const entries = yield* fileSystem.readDirectory(normalized).pipe(
       Effect.catchIf(
         (cause) => cause.reason._tag === "NotFound",
@@ -549,42 +554,52 @@ export const make = Effect.gen(function* () {
         remoteName,
         remoteUrl,
         branch: pushResult.branch,
-        ...(pushResult.upstreamBranch ? { upstreamBranch: pushResult.upstreamBranch } : {}),
         status: "pushed" as const,
       };
     },
   );
 
+  // Forwarders retain the underlying operation spans.
   return SourceControlRepositoryService.of({
-    lookupRepository: (input) =>
-      lookupRepository(input).pipe(mapRepositoryError("lookupRepository", input.provider)),
-    prepareClone: (input) =>
-      prepareClone(input).pipe(
+    lookupRepository: Effect.fnUntraced(function* (input) {
+      return yield* lookupRepository(input).pipe(
+        mapRepositoryError("lookupRepository", input.provider),
+      );
+    }),
+    prepareClone: Effect.fnUntraced(function* (input) {
+      return yield* prepareClone(input).pipe(
         mapRepositoryError(
           "cloneRepository",
           input.provider ?? SourceControlProviderKind.make("unknown"),
         ),
-      ),
-    cloneRepository: (input, options) =>
-      cloneRepository(input, options).pipe(
+      );
+    }),
+    cloneRepository: Effect.fnUntraced(function* (input, options) {
+      return yield* cloneRepository(input, options).pipe(
         mapRepositoryError(
           "cloneRepository",
           input.provider ?? SourceControlProviderKind.make("unknown"),
         ),
-      ),
-    clonePrepared: (input, prepared, options) =>
-      clonePrepared(input, prepared, options).pipe(
+      );
+    }),
+    clonePrepared: Effect.fnUntraced(function* (input, prepared, options) {
+      return yield* clonePrepared(input, prepared, options).pipe(
         mapRepositoryError(
           "cloneRepository",
           input.provider ?? SourceControlProviderKind.make("unknown"),
         ),
-      ),
-    discardClone: (destinationPath) =>
-      discardClone(destinationPath).pipe(
+      );
+    }),
+    discardClone: Effect.fnUntraced(function* (destinationPath) {
+      return yield* discardClone(destinationPath).pipe(
         mapRepositoryError("discardClone", SourceControlProviderKind.make("unknown")),
-      ),
-    publishRepository: (input) =>
-      publishRepository(input).pipe(mapRepositoryError("publishRepository", input.provider)),
+      );
+    }),
+    publishRepository: Effect.fnUntraced(function* (input) {
+      return yield* publishRepository(input).pipe(
+        mapRepositoryError("publishRepository", input.provider),
+      );
+    }),
   });
 });
 

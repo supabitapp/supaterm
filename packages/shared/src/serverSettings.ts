@@ -13,7 +13,7 @@ import {
   type ModelSelection,
   type ProjectId,
   type ProjectScopedServerSettingKey,
-  type ProjectSettingsOverrides,
+  ProjectSettingsOverrides,
   type ProjectSettingsOverridesPatchEntry,
   ProviderDriverKind,
   ProviderInstanceId,
@@ -60,11 +60,9 @@ const TEXT_GENERATION_FALLBACK_DRIVERS = [
 ].map((driver) => ProviderDriverKind.make(driver));
 
 /**
- * `includeConfiguredInstances` is for the project-scoped caller only: a
- * project that disabled every built-in instance should still be able to
- * fall back to one it configured itself. The machine-level caller leaves it
- * unset, since widening the candidates there would change behavior for
- * every user regardless of project scope.
+ * `includeConfiguredInstances` is for the project-scoped caller only, so a project
+ * that disabled every built-in instance can fall back to one it configured. Set at
+ * machine level it would change behavior for every user.
  */
 export function fallbackTextGenerationModelSelection(
   providerInstances: ServerSettings["providerInstances"],
@@ -97,13 +95,15 @@ export function fallbackTextGenerationModelSelection(
   ) {
     return threadDefault;
   }
-  return {
-    instanceId,
-    model:
-      DEFAULT_TEXT_GENERATION_MODEL_BY_PROVIDER[driver] ??
-      DEFAULT_MODEL_BY_PROVIDER[driver] ??
-      DEFAULT_TEXT_GENERATION_MODEL,
-  };
+  return { instanceId, model: defaultTextGenerationModel(driver) };
+}
+
+export function defaultTextGenerationModel(driver: ProviderDriverKind): string {
+  return (
+    DEFAULT_TEXT_GENERATION_MODEL_BY_PROVIDER[driver] ??
+    DEFAULT_MODEL_BY_PROVIDER[driver] ??
+    DEFAULT_TEXT_GENERATION_MODEL
+  );
 }
 
 export function resolveSourceControlWriterModelSelection(
@@ -243,11 +243,20 @@ function mergeSettingsEntries<Value>(
   return Object.fromEntries(next);
 }
 
+const knownProjectOverrideKeys = new Set(Object.keys(ProjectSettingsOverrides.fields));
+
+function pickOverrideKeys(entry: Readonly<Record<string, unknown>> | undefined, known: boolean) {
+  return Object.fromEntries(
+    Object.entries(entry ?? {}).filter(([key]) => knownProjectOverrideKeys.has(key) === known),
+  );
+}
+
 /** Override keys added after clients already round-tripped a project's whole entry. */
 const OVERRIDE_KEYS_OLDER_CLIENTS_OMIT = [
   "providerInstances",
   "reviewGuideModelSelection",
   "reviewGuideInstructions",
+  "threadTitleInstructions",
   "sidebarAutoMarkDoneKeepPullRequests",
 ] as const;
 
@@ -267,13 +276,10 @@ function withStoredWorktreeRules(
 }
 
 /**
- * `projectSettingsOverrides` entries otherwise replace whole (see the field's
- * doc comment in contracts), but some keys were added after clients already
- * round-trip a project's entry on every edit. A client built before one of
- * them sends an entry that never mentions it, and a whole replace would
- * silently wipe it. When an incoming entry omits such a key, keep what is
- * stored; a client that means to clear one says so explicitly, with
- * `providerInstances: {}` or by listing the key in `removals`.
+ * Entries otherwise replace whole, but a client built before a later key sends
+ * entries that never mention it, and a whole replace would wipe it. An omitted
+ * such key keeps what is stored; clearing one takes `providerInstances: {}` or
+ * listing the key in `removals`.
  */
 function mergeProjectSettingsOverridesPatch(
   current: Readonly<Record<string, ProjectSettingsOverrides>>,
@@ -289,8 +295,10 @@ function mergeProjectSettingsOverridesPatch(
     const stored = current[projectId];
     const { worktreeCleanup, ...rest } = entry;
     next.set(projectId, {
+      // Preserve downgraded storage, but reject new unknown writes so clients can detect unsupported settings.
+      ...pickOverrideKeys(stored, false),
       ...(stored === undefined ? {} : Struct.pick(stored, OVERRIDE_KEYS_OLDER_CLIENTS_OMIT)),
-      ...rest,
+      ...pickOverrideKeys(rest, true),
       ...(worktreeCleanup === undefined
         ? {}
         : {
@@ -489,6 +497,9 @@ export function applyServerSettingsPatch(
       : {}),
     ...(patch.defaultModelSelection !== undefined
       ? { defaultModelSelection: patch.defaultModelSelection }
+      : {}),
+    ...(patch.fallbackModelSelection !== undefined
+      ? { fallbackModelSelection: patch.fallbackModelSelection }
       : {}),
     ...(patch.defaultProjectScripts !== undefined
       ? { defaultProjectScripts: patch.defaultProjectScripts }

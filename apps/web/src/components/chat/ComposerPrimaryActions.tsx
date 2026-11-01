@@ -42,7 +42,6 @@ interface ComposerPrimaryActionsProps {
   canSteer?: boolean;
   isSendBusy: boolean;
   sendDisabledReason: string | null;
-  isConnecting: boolean;
   isEnvironmentUnavailable: boolean;
   isPreparingWorktree: boolean;
   hasSendableContent: boolean;
@@ -180,7 +179,6 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   canSteer = true,
   isSendBusy,
   sendDisabledReason,
-  isConnecting,
   isEnvironmentUnavailable,
   isPreparingWorktree,
   hasSendableContent,
@@ -305,15 +303,13 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   const submitStatus = isEnvironmentUnavailable
     ? "Environment disconnected"
     : (sendDisabledReason ??
-      (isConnecting
-        ? "Connecting"
-        : isPreparingWorktree
-          ? "Preparing worktree"
-          : isSendBusy
-            ? isEditingQueuedMessage
-              ? "Updating queued message"
-              : "Submitting message"
-            : null));
+      (isPreparingWorktree
+        ? "Preparing worktree"
+        : isSendBusy
+          ? isEditingQueuedMessage
+            ? "Updating queued message"
+            : "Submitting message"
+          : null));
 
   const sendButton = (
     <ComposerSendButton
@@ -324,13 +320,12 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
         isSendBusy ||
         !(showResume ? canOperateThread : canQueueMessage) ||
         sendDisabledReason !== null ||
-        isConnecting ||
         isEnvironmentUnavailable ||
         (!hasSendableContent && !showResume)
       }
       aria-label={submitStatus ?? submitLabel}
     >
-      {isConnecting || isSendBusy ? (
+      {isSendBusy ? (
         <Spinner size="sm" aria-hidden="true" />
       ) : showResume ? (
         <PlayIcon className="size-4 fill-current" aria-hidden="true" />

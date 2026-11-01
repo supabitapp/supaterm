@@ -33,9 +33,8 @@ import { useRemoteConnectionStatus } from "../../state/use-remote-environment-re
 import type { WorkspaceState } from "../../state/workspaceModel";
 import { useWorkspaceState } from "../../state/workspace";
 
-import { usePromptLinkResolver } from "../prompt-links/usePromptLinkResolver";
 import { useIncomingShare } from "../sharing/IncomingShareProvider";
-import { useNewTaskFlow } from "./new-task-flow-provider";
+import { useServedNewTaskFlow } from "./new-task-flow-provider";
 import { filterProjectScopes, getProjectScopeSelectionTarget } from "./new-task-project-selection";
 
 type NewTaskRouteParams = {
@@ -151,13 +150,12 @@ function NewTaskHeader(props: {
 export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRouteParams | undefined>) {
   const projects = useProjects();
   const [searchText, setSearchText] = useState("");
-  const { projectScopes, selectedEnvironmentId, setProject } = useNewTaskFlow();
+  const { projectScopes, selectedEnvironmentId, setProject } = useServedNewTaskFlow();
   const { state: catalogState } = useWorkspaceState();
   const navigation = useNavigation();
   const isFocused = useIsFocused();
   const insets = useSafeAreaInsets();
   const { getShare, releaseShareReservation } = useIncomingShare();
-  usePromptLinkResolver(route.params);
   const routeShareId = Array.isArray(route.params?.incomingShareId)
     ? route.params.incomingShareId[0]
     : route.params?.incomingShareId;
@@ -188,6 +186,11 @@ export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRoutePara
       ) ?? null)
     : null;
   const { connectedEnvironments } = useRemoteConnectionStatus();
+  const connectedEnvironmentIds = new Set(
+    connectedEnvironments
+      .filter((environment) => environment.connectionState === "connected")
+      .map((environment) => environment.environmentId),
+  );
   const openScratch = useAtomCommand(projectEnvironment.openScratch, {
     reportFailure: false,
   });
@@ -264,6 +267,7 @@ export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRoutePara
     scratchStartInFlightRef.current = false;
   }
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- navigates to the incoming share's reserved destination draft once its project loads and the screen is focused
   useEffect(() => {
     const destination = incomingShare?.destination;
     if (!destination) {
@@ -271,8 +275,7 @@ export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRoutePara
       return;
     }
     if (!isFocused) {
-      // Returning from the reserved draft is a fresh resume attempt. Keeping
-      // this latch set would leave every project row disabled with no route.
+      // Reset on return so reserved-draft resume can retry without leaving project rows disabled.
       resumedDestinationKeyRef.current = null;
       return;
     }
@@ -460,6 +463,7 @@ export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRoutePara
                 const selectionTarget = getProjectScopeSelectionTarget(
                   scope,
                   selectedEnvironmentId,
+                  connectedEnvironmentIds,
                 );
                 if (Platform.OS === "android") {
                   return (

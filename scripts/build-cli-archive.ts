@@ -29,6 +29,7 @@ import {
   resolveFffNativeDependencies,
   STAGE_INSTALL_ARGS,
 } from "./build-desktop-artifact.ts";
+import { assertLinuxArm64PageCompatibility } from "./lib/linux-arm64-sea.ts";
 import { selectCliRuntimeExternalDependencies } from "./lib/cli-external-packages.ts";
 import { codesignArgs, MacSigningConfig, notarytoolSubmitArgs } from "./lib/mac-signing.ts";
 import { signWithJsign } from "./lib/windows-jsign.ts";
@@ -261,12 +262,73 @@ const stageWebClient = Effect.fn("stageWebClient")(function* (source: string, ta
   }
 });
 
+/** Node links libatomic.so.1, which Ubuntu server and container images lack, so supaterm carries its own. */
+const bundleLinuxLibatomic = Effect.fn("bundleLinuxLibatomic")(function* (input: {
+  readonly repoRoot: string;
+  readonly contentDir: string;
+  readonly executablePath: string;
+}) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+  const ldd = yield* spawner.string(ChildProcess.make("ldd", [input.executablePath]));
+  const source = /libatomic\.so\.1 => (\/\S+)/.exec(ldd)?.[1];
+  if (source === undefined) {
+    return yield* new CliArchiveInputMissingError({
+      inputPath: "libatomic.so.1",
+      hint: `ldd did not resolve it for ${input.executablePath}. Install libatomic1 on the build host.`,
+    });
+  }
+  yield* fs.makeDirectory(path.join(input.contentDir, "lib"));
+  yield* fs.copyFile(source, path.join(input.contentDir, "lib/libatomic.so.1"));
+
+  // libatomic is GPL-3.0-or-later WITH GCC-exception-3.1, so its terms and source travel with it.
+  const owner = yield* spawner.string(
+    ChildProcess.make("dpkg-query", ["-S", yield* fs.realPath(source)]),
+  );
+  // Keep the arch qualifier so a second installed arch cannot add its own line.
+  const [, qualifiedPkg, pkg] = /^(([^:\s]+)(?::[^:\s]+)?): /.exec(owner) ?? [];
+  const versions = qualifiedPkg
+    ? yield* spawner.string(
+        ChildProcess.make("dpkg-query", [
+          "-W",
+          "-f=${Version} ${source:Package} ${source:Version}",
+          qualifiedPkg,
+        ]),
+      )
+    : "";
+  const [version, sourcePackage, sourceVersion] = versions.trim().split(" ");
+  if (!pkg || !version || !sourcePackage || !sourceVersion) {
+    return yield* new CliArchiveInputMissingError({
+      inputPath: `dpkg package for ${source}`,
+      hint: "The archive copies libatomic's license and source reference from its Ubuntu package.",
+    });
+  }
+  const header = [
+    `libatomic.so.1 is copied from the Ubuntu package ${pkg} ${version}.`,
+    `Source: https://launchpad.net/ubuntu/+source/${sourcePackage}/${sourceVersion}`,
+  ].join("\n");
+  // Vendored because CI runner images strip /usr/share/doc.
+  const license = yield* fs.readFileString(
+    path.join(input.repoRoot, "scripts/licenses/libatomic.LICENSE"),
+  );
+  yield* fs.writeFileString(
+    path.join(input.contentDir, "lib/libatomic.so.1.LICENSE"),
+    `${header}\n\n${license}`,
+  );
+
+  // RUNPATH resolves through symlinks and is not inherited by child processes, unlike LD_LIBRARY_PATH.
+  yield* runCommand(
+    ChildProcess.make("patchelf", ["--set-rpath", "$ORIGIN/lib", input.executablePath]),
+    "patchelf --set-rpath",
+  );
+  yield* Effect.log(`[cli-archive] Bundled ${source} as lib/libatomic.so.1.`);
+});
+
 /**
- * Apple Silicon refuses to run unsigned Mach-O binaries at all, so the
- * executable is always signed: ad hoc when no identity is configured, or with
- * the Developer ID plus notarization when it is. The hardened runtime that
- * notarization requires only loads signed libraries, so every native addon in
- * the archive is signed with the same identity.
+ * Apple Silicon refuses unsigned Mach-O binaries, so the executable is always signed: ad hoc
+ * without an identity, Developer ID plus notarization with one. The hardened runtime notarization
+ * requires only loads signed libraries, so every native addon gets the same identity.
  */
 const signMacArchiveContents = Effect.fn("signMacArchiveContents")(function* (input: {
   readonly repoRoot: string;
@@ -335,11 +397,9 @@ const WindowsSigningConfig = Config.all({
 });
 
 /**
- * Node's --build-sea injects the blob into a copy of node.exe by rebuilding its
- * resource section but, unlike its Mach-O path, leaves node's original
- * Authenticode data-directory entry in the PE header. The file grows, so the
- * entry now points into the middle of the new section at bytes that are not a
- * certificate table.
+ * Node's --build-sea rebuilds node.exe's resource section but, unlike its Mach-O path, keeps the
+ * original Authenticode data-directory entry. The file grows, so that entry now points into the
+ * new section at bytes that are not a certificate table.
  */
 const stripStaleAuthenticodeEntry = Effect.fn("stripStaleAuthenticodeEntry")(function* (
   executablePath: string,
@@ -447,7 +507,7 @@ const buildCliArchive = Effect.fn("buildCliArchive")(function* (input: {
 
   yield* requireInput(
     builtExecutable,
-    `Run \`node apps/server/scripts/cli.ts build-exe --target ${targetKey}\` first.`,
+    `Run \`node apps/server/scripts/cli.ts build-exe${targetKey === hostKey ? "" : ` --target ${targetKey}`}\` first.`,
   );
   yield* requireInput(
     path.join(webClient, "index.html"),
@@ -476,6 +536,14 @@ const buildCliArchive = Effect.fn("buildCliArchive")(function* (input: {
   });
 
   const executablePath = path.join(contentDir, executableName);
+  if (input.platform === "linux") {
+    yield* bundleLinuxLibatomic({ repoRoot, contentDir, executablePath });
+  }
+  // TEMPORARY one-time Node fix. Remove when fixed: https://github.com/nodejs/node/issues/67048
+  if (input.platform === "linux" && input.arch === "arm64") {
+    const bytes = yield* fs.readFile(executablePath);
+    yield* Effect.try(() => assertLinuxArm64PageCompatibility(bytes));
+  }
   if (input.platform === "mac") {
     yield* signMacArchiveContents({ repoRoot, contentDir, executablePath });
   } else if (input.platform === "win") {
@@ -507,11 +575,9 @@ const buildCliArchive = Effect.fn("buildCliArchive")(function* (input: {
       "tar (zip)",
     );
   } else {
-    // On Linux, pnpm hard-links identical files out of its store and node-gyp
-    // hard-links build outputs, and GNU tar records those as link entries.
-    // The npm registry rejects a tarball containing any, and the npm platform
-    // packages are re-packed from this archive's contents, so store every
-    // file as a file. macOS's bsdtar has no such flag; pnpm clones there.
+    // pnpm and node-gyp hard-link files on Linux and GNU tar records them as link entries, which
+    // the npm registry rejects in the platform packages re-packed from this archive. macOS's
+    // bsdtar has no such flag; pnpm clones there.
     yield* runCommand(
       ChildProcess.make("tar", [
         ...(input.platform === "linux" ? ["--hard-dereference"] : []),

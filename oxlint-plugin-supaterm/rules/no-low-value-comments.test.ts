@@ -76,4 +76,43 @@ describe("supaterm/no-low-value-comments", () => {
     `,
     (output) => assert.match(output, /only repeats the name below it/),
   );
+
+  rule.valid(
+    "allows a four-line comment and a long license header",
+    `
+      /*!
+       * Copyright the authors.
+       * Licensed under the MIT license.
+       * See the LICENSE file for details.
+       * Keep this notice in redistributions.
+       */
+      // The host rejects batches over 100 rows,
+      // and a partial batch still commits,
+      // so chunk before sending
+      // to keep retries idempotent.
+      export const batchSize = 100;
+    `,
+  );
+
+  rule.invalid(
+    "reports a comment block longer than four lines",
+    `
+      // One.
+      // Two.
+      // Three.
+      // Four.
+      // Five.
+      export const lines = 5;
+    `,
+    (output) => assert.match(output, /Cut this to 4 lines or fewer/),
+  );
+
+  rule.invalid(
+    "reports a bare pull request number",
+    `
+      // Keeps the cursor stable after #2412.
+      export const stable = true;
+    `,
+    (output) => assert.match(output, /Drop the PR or issue number/),
+  );
 });

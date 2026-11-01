@@ -57,15 +57,10 @@ export class EnvironmentThemeService extends Context.Service<
 >()("supaterm/environmentTheme/EnvironmentThemeService") {}
 
 /**
- * Reads a theme file through one opened handle, so every check binds to the
- * file actually read rather than to a path that may have been swapped since:
- * O_NOFOLLOW rejects a symlink outright (a symlinked themes directory stays
- * usable, a symlinked file inside it does not), O_NONBLOCK keeps a FIFO from
- * blocking the open, and the fstat type and size gate examines the open
- * descriptor.
- *
- * Windows has neither flag (the constants are undefined, and OR-ing them in is
- * a no-op), so the symlink check there is an lstat before the open.
+ * Every check binds to one opened handle, not a path that may have been swapped: O_NOFOLLOW
+ * rejects a symlinked file, O_NONBLOCK keeps a FIFO from blocking the open, and fstat gates type
+ * and size. Windows lacks both flags (OR-ing the undefined constants is a no-op), so it lstats
+ * before the open.
  */
 export const readThemeFileGuarded = (filePath: string, maxBytes: number): string | null => {
   let fd: number;
@@ -185,11 +180,9 @@ const make = Effect.gen(function* () {
   const changes = yield* PubSub.sliding<PublishedThemes>(1);
   const published = yield* Ref.make<PublishedThemes>({ seq: 0, themes: [] });
   /**
-   * Guards the whole read/compare/publish, not just the state update. The
-   * directory read is async, so two concurrent refreshes can finish out of
-   * order and a slower read of an older set would publish under a higher
-   * sequence -- which the subscriber filter, ordering publications rather than
-   * observations, could not then drop.
+   * Guards the whole read/compare/publish: concurrent async directory reads can finish out of
+   * order, and a slower read of an older set would publish under a higher sequence that the
+   * subscriber filter could not drop.
    */
   const refreshSemaphore = yield* Semaphore.make(1);
   const watcherScope = yield* Scope.make("sequential");

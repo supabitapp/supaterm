@@ -28,7 +28,10 @@ import {
   previewAnnotationContextReference,
 } from "../../lib/composerContextRecords";
 import { captureOutboxAttachments } from "../../state/threadOutboxEditing";
-import { declinePendingApprovals } from "@supaterm/client-runtime/state/thread-requests";
+import {
+  declinePendingApprovals,
+  sendApprovalFeedback,
+} from "@supaterm/client-runtime/state/thread-requests";
 import { deriveThreadTitleSeed } from "@supaterm/client-runtime/operations";
 import { enqueueThreadOutboxTurn, enqueueThreadOutboxTurns } from "../../state/threadOutbox";
 import type { VoiceRecording } from "../../voice/webVoiceRecorder";
@@ -125,11 +128,9 @@ interface ComposerSendInput {
   readonly promptRef: { current: string };
   readonly feedbackUploadsInFlightRef: { readonly current: Set<string> };
   readonly queuedRunEdit: ReturnType<typeof useQueuedRunEditWithOutbox>;
-  readonly isConnecting: boolean;
   readonly isRevertingCheckpoint: boolean;
   readonly threadDetailLoading: boolean;
   readonly activeEnvironmentUnavailable: boolean;
-  readonly isSendBusy: boolean;
   readonly sendQueuesBehindSetup: boolean;
   readonly isDraftHeroState: boolean;
   readonly panelAnimationsActive: boolean;
@@ -188,11 +189,9 @@ export function useComposerSend(input: ComposerSendInput) {
     promptRef,
     feedbackUploadsInFlightRef,
     queuedRunEdit,
-    isConnecting,
     isRevertingCheckpoint,
     threadDetailLoading,
     activeEnvironmentUnavailable,
-    isSendBusy,
     sendQueuesBehindSetup,
     isDraftHeroState,
     panelAnimationsActive,
@@ -228,6 +227,7 @@ export function useComposerSend(input: ComposerSendInput) {
   // A send awaits its approval declines, so it reads the approvals pending by then.
   const pendingApprovalsRef = useRef(pendingApprovals);
   const respondingRequestIdsRef = useRef(respondingRequestIds);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- mirrors approvals into refs that an async send reads after awaiting uploads
   useLayoutEffect(() => {
     pendingApprovalsRef.current = pendingApprovals;
     respondingRequestIdsRef.current = respondingRequestIds;
@@ -280,8 +280,6 @@ export function useComposerSend(input: ComposerSendInput) {
     if (
       !readCanQueueComposerMessage(environmentId) ||
       !activeThread ||
-      isSendBusy ||
-      isConnecting ||
       isRevertingCheckpoint ||
       !clientSettingsHydrated ||
       (threadDetailLoading && !activeEnvironmentUnavailable) ||
@@ -320,6 +318,10 @@ export function useComposerSend(input: ComposerSendInput) {
       return;
     }
     const multipleModelSelections = sendCtx.multipleModelSelections;
+    const approvalFeedbackTarget = pendingApprovalsRef.current.find(
+      (approval) =>
+        approval.supportsFeedback && approval.requestId === sendCtx.shownPendingApprovalIds[0],
+    );
     const multipleModelBlock =
       multipleModelSelections === null
         ? null
@@ -598,7 +600,7 @@ export function useComposerSend(input: ComposerSendInput) {
             sendCtx.shownPendingApprovalIds.includes(approval.requestId),
           )
         : [];
-    if (approvalsToDecline.length > 0) {
+    if (approvalsToDecline.length > 0 || approvalFeedbackTarget !== undefined) {
       // A draft edited since send, or a paste still landing in it, is no longer the message
       // the user sent.
       const attachmentIdsAtSend = composerAttachmentsSnapshot.map((attachment) => attachment.id);
@@ -634,6 +636,42 @@ export function useComposerSend(input: ComposerSendInput) {
       const approvalResponding = approvalsToDecline.some((approval) =>
         respondingRequestIdsRef.current.includes(approval.requestId),
       );
+      if (approvalFeedbackTarget !== undefined) {
+        if (composerAttachmentsSnapshot.length > 0 || outgoingMessageContext !== undefined) {
+          setThreadError(
+            threadIdForSend,
+            "Send approval feedback without attachments or added context.",
+          );
+          sendInFlightRef.current = false;
+          return;
+        }
+        if (
+          changedBeforeDecline ||
+          approvalResponding ||
+          currentRouteThreadKeyRef.current !== routeThreadKey
+        ) {
+          sendInFlightRef.current = false;
+          return;
+        }
+        const sent = await sendApprovalFeedback(
+          approvalFeedbackTarget,
+          messageTextForSend,
+          onRespondToApprovalStable,
+        ).catch(() => false);
+        sendInFlightRef.current = false;
+        if (
+          sent &&
+          !draftChangedSinceSend() &&
+          currentRouteThreadKeyRef.current === routeThreadKey &&
+          useComposerDraftStore.getState().getComposerDraft(composerDraftTarget) ===
+            draftBeforeDecline
+        ) {
+          promptRef.current = "";
+          clearComposerDraftContent(composerDraftTarget);
+          composerRef.current?.resetCursorState();
+        }
+        return;
+      }
       const declined =
         !changedBeforeDecline &&
         !approvalResponding &&

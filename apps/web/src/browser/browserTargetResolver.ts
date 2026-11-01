@@ -14,12 +14,7 @@ import { readEnvironmentSupportsServerBrowser } from "~/state/entities";
 
 import { readPreparedConnection } from "~/state/session";
 
-export {
-  normalizeHostname,
-  isLocalLoopbackHost,
-  isPrivateNetworkHost,
-  isPublicFaviconHost,
-} from "@supaterm/shared/hostClassification";
+export { normalizeHostname, isLocalLoopbackHost } from "@supaterm/shared/hostClassification";
 
 export class RelayHostBrowserUnavailableError extends Error {
   constructor() {
@@ -77,21 +72,7 @@ const resolveEnvironmentPortTarget = (
   };
 };
 
-export function resolveBrowserNavigationTarget(
-  environmentId: EnvironmentId,
-  target: BrowserNavigationTarget,
-): PreviewUrlResolution {
-  if (target.kind === "url") {
-    return {
-      requestedUrl: target.url,
-      resolvedUrl: target.url,
-      resolutionKind: "direct",
-      environmentId,
-    };
-  }
-  return resolveEnvironmentPortTarget(environmentId, target, readEnvironmentUrl(environmentId));
-}
-
+// Desktop renders primary and WSL tabs locally; loopback servers require localhost even for LAN backends.
 const reachesEnvironmentLoopback = (target: ConnectionTarget): boolean =>
   isElectron &&
   (target._tag === "PrimaryConnectionTarget" || isDesktopLocalConnectionTarget(target));

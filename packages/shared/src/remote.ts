@@ -19,6 +19,8 @@ const PAIRING_QR_BYTE_BUDGET = 287;
 const decodeEnvironmentId = Schema.decodeUnknownOption(EnvironmentId);
 const HOSTED_PAIRING_HOST_PARAM = "host";
 const HOSTED_PAIRING_LABEL_PARAM = "label";
+const PAIRING_APP_LINK_PARAM = "pairingUrl";
+const APP_LINK_PROTOCOL = /^supaterm(?:-[a-z]+)?:$/;
 const SUPPORTED_REMOTE_BACKEND_PROTOCOLS = new Set(["http:", "https:", "ws:", "wss:"]);
 
 const readHashParams = (url: URL): URLSearchParams =>
@@ -281,6 +283,19 @@ export const readHostedPairingRequest = (url: URL): HostedPairingRequest | null 
     token,
     label,
   };
+};
+
+/** Wraps a pairing URL in the `supaterm://pair` link that desktop opens and mobile scans. */
+export const buildPairingAppLink = (pairingUrl: string): string =>
+  `supaterm://pair?${new URLSearchParams([[PAIRING_APP_LINK_PARAM, pairingUrl]])}`;
+
+/** Reads the pairing URL from a `supaterm://pair` link on any app channel scheme. */
+export const readPairingAppLink = (value: string): string | null => {
+  if (!URL.canParse(value)) return null;
+  const url = new URL(value);
+  if (!APP_LINK_PROTOCOL.test(url.protocol) || url.host !== "pair") return null;
+  if (url.pathname !== "" && url.pathname !== "/") return null;
+  return url.searchParams.get(PAIRING_APP_LINK_PARAM)?.trim() || null;
 };
 
 export const resolveRemotePairingTarget = (input: {

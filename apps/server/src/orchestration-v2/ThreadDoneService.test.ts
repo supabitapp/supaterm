@@ -7,7 +7,9 @@ import {
   EventId,
   ProviderInstanceId,
   ProviderSessionId,
+  RunId,
   ThreadId,
+  TurnItemId,
   type OrchestrationProjectShell,
   type OrchestrationV2AppThread,
   type OrchestrationV2Command,
@@ -100,6 +102,33 @@ function shell(overrides: Partial<SettlementShell> = {}): SettlementShell {
     snoozedAt: null,
     pinnedAt: null,
     ...overrides,
+  };
+}
+
+function persistedLink(
+  state: "open" | null,
+  linkedAt: DateTime.Utc,
+): NonNullable<SettlementShell["pullRequests"]>[number] {
+  return {
+    host: "example.test",
+    repository: "owner/repository",
+    number: 42,
+    url: "https://example.test/owner/repository/pull/42",
+    source: "manual",
+    linkedAt: DateTime.formatIso(linkedAt),
+    snapshot:
+      state === null
+        ? null
+        : {
+            state,
+            title: "Pull request",
+            headBranch: "feature",
+            baseBranch: "main",
+            isDraft: false,
+            updatedAt: DateTime.formatIso(linkedAt),
+            syncedAt: DateTime.formatIso(linkedAt),
+          },
+    stack: null,
   };
 }
 
@@ -212,6 +241,51 @@ describe("resolveAutoMarkDoneAt", () => {
         autoMarkDoneKeepPullRequests: true,
       }),
     ).toEqual(at(-4 * DAY_MS));
+  });
+
+  it("marks an idle thread with an open persisted link done only while retention is off", () => {
+    const input = {
+      thread: shell({
+        latestUserMessageAt: at(-4 * DAY_MS),
+        pullRequests: [persistedLink("open", at(-5 * DAY_MS))],
+      }),
+      pullRequest: null,
+      nowMs: NOW_MS,
+      autoMarkDoneAfterDays: 3,
+      autoMarkDoneOnMerge: true,
+      autoMarkDoneKeepPullRequests: false,
+    };
+    expect(ThreadDoneService.resolveAutoMarkDoneAt(input)).toEqual(at(-4 * DAY_MS));
+    expect(
+      ThreadDoneService.resolveAutoMarkDoneAt({
+        ...input,
+        autoMarkDoneKeepPullRequests: true,
+      }),
+    ).toBeNull();
+    // The open link outranks a merged lookup, so only inactivity can mark it done.
+    expect(
+      ThreadDoneService.resolveAutoMarkDoneAt({
+        ...input,
+        pullRequest: { state: "merged", mergedAt: DateTime.formatIso(at(-1)) },
+        autoMarkDoneAfterDays: null,
+      }),
+    ).toBeNull();
+  });
+
+  it("keeps an idle thread whose persisted link was never synced", () => {
+    expect(
+      ThreadDoneService.resolveAutoMarkDoneAt({
+        thread: shell({
+          latestUserMessageAt: at(-4 * DAY_MS),
+          pullRequests: [persistedLink(null, at(-5 * DAY_MS))],
+        }),
+        pullRequest: null,
+        nowMs: NOW_MS,
+        autoMarkDoneAfterDays: 3,
+        autoMarkDoneOnMerge: true,
+        autoMarkDoneKeepPullRequests: false,
+      }),
+    ).toBeNull();
   });
 
   it("uses the latest activity time when the inactivity window elapses", () => {
@@ -629,9 +703,12 @@ const makeHarness = Effect.fn("makeThreadDoneHarness")(function* (options: Harne
       return next;
     });
 
-  const branchPullRequest: GitManager.GitManager["Service"]["branchPullRequest"] = (input) =>
+  const branchPullRequest: GitManager.GitManager["Service"]["branchPullRequest"] = (
+    input,
+    lookupOptions,
+  ) =>
     Ref.update(branchCalls, (calls) => [...calls, input]).pipe(
-      Effect.andThen(options.branchPullRequest?.(input) ?? Effect.succeed(null)),
+      Effect.andThen(options.branchPullRequest?.(input, lookupOptions) ?? Effect.succeed(null)),
     );
   const pullRequestSummary: PullRequestService.PullRequestService["Service"]["summary"] = (
     input,
@@ -670,11 +747,8 @@ const makeHarness = Effect.fn("makeThreadDoneHarness")(function* (options: Harne
         yield* Queue.offer(scriptRuns, input);
         yield* options.onScriptRun?.(input) ?? Effect.void;
         if (input.withCommandWriteGuard === undefined) return { status: "no-script" } as const;
-        const commandWritten = yield* input.withCommandWriteGuard(
-          options.onCommandWrite?.(input) ?? Effect.void,
-        );
+        yield* input.withCommandWriteGuard(options.onCommandWrite?.(input) ?? Effect.void);
         yield* options.onScriptRunnerReturn?.(input) ?? Effect.void;
-        if (!commandWritten) return { status: "skipped" } as const;
         return {
           status: "started",
           scriptId: "mark-done",
@@ -775,7 +849,9 @@ const makeHarness = Effect.fn("makeThreadDoneHarness")(function* (options: Harne
       number: 42,
       mergedAt: NOW,
     }),
-    layer: ThreadDoneService.layer.pipe(Layer.provide(layerDependencies)),
+    layer: Layer.effect(ThreadDoneService.ThreadDoneServiceV2, ThreadDoneService.make).pipe(
+      Layer.provide(layerDependencies),
+    ),
   };
 });
 
@@ -832,6 +908,32 @@ describe("ThreadDoneServiceV2 worker", () => {
           },
         });
 
+        yield* Effect.gen(function* () {
+          const service = yield* ThreadDoneService.ThreadDoneServiceV2;
+          yield* startHarness(service, fixture.activation, fixture.snapshotReads);
+          expect((yield* Ref.get(fixture.commands)).map((command) => command.threadId)).toEqual([
+            thread.id,
+          ]);
+        }).pipe(Effect.provide(fixture.layer));
+      }),
+    ),
+  );
+
+  it.effect("marks an idle thread with an open persisted link done on the inactivity sweep", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        yield* TestClock.setTime(Date.parse(NOW));
+        const thread = makeThread("open-link", {
+          pullRequests: [persistedLink("open", DateTime.makeUnsafe("2026-08-20T00:00:00.000Z"))],
+        });
+        const fixture = yield* makeHarness({
+          snapshot: makeSnapshot([thread]),
+          settings: {
+            ...DEFAULT_SERVER_SETTINGS,
+            sidebarAutoMarkDoneAfterDays: 3,
+            sidebarAutoMarkDoneKeepPullRequests: false,
+          },
+        });
         yield* Effect.gen(function* () {
           const service = yield* ThreadDoneService.ThreadDoneServiceV2;
           yield* startHarness(service, fixture.activation, fixture.snapshotReads);
@@ -950,6 +1052,29 @@ describe("ThreadDoneServiceV2 worker", () => {
     ),
   );
 
+  it.effect("stops marking the rest of a sweep done once auto mark done is turned off", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        yield* TestClock.setTime(Date.parse(NOW));
+        // Sweeps mark 8 threads done at a time, so the ninth starts after a dispatch turned it off.
+        const threads = Array.from({ length: 9 }, (_, index) => makeThread(`idle-${index}`));
+        let disable: Effect.Effect<unknown> = Effect.void;
+        const fixture = yield* makeHarness({
+          snapshot: makeSnapshot(threads),
+          settings: { ...DEFAULT_SERVER_SETTINGS, sidebarAutoMarkDoneAfterDays: 3 },
+          onDispatch: () => disable,
+        });
+        disable = fixture.updateSettings({ sidebarAutoMarkDoneAfterDays: null });
+        yield* Effect.gen(function* () {
+          const service = yield* ThreadDoneService.ThreadDoneServiceV2;
+          yield* startHarness(service, fixture.activation, fixture.snapshotReads);
+          const marked = (yield* Ref.get(fixture.commands)).map((command) => command.threadId);
+          expect(marked).not.toContain(threads[8]!.id);
+        }).pipe(Effect.provide(fixture.layer));
+      }),
+    ),
+  );
+
   it.effect("reevaluates immediately after a pull request merge", () =>
     Effect.scoped(
       Effect.gen(function* () {
@@ -1007,6 +1132,237 @@ describe("ThreadDoneServiceV2 worker", () => {
         }).pipe(Effect.provide(fixture.layer));
       }),
     ),
+  );
+
+  it.effect("settles a merged thread when its background work ends, during a slow full sweep", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        yield* TestClock.setTime(Date.parse(NOW));
+        const periodicLookupStarted = yield* Deferred.make<void>();
+        const releasePeriodicLookup = yield* Deferred.make<void>();
+        const settled = yield* Deferred.make<void>();
+        const branchLookupCount = yield* Ref.make(0);
+        const mergedLink: NonNullable<SettlementShell["pullRequests"]>[number] = {
+          ...persistedLink("open", DateTime.makeUnsafe("2026-08-20T00:00:00.000Z")),
+          snapshot: {
+            state: "merged",
+            title: "Pull request",
+            headBranch: "feature",
+            baseBranch: "main",
+            isDraft: false,
+            updatedAt: NOW,
+            syncedAt: NOW,
+            mergedAt: NOW,
+          },
+        };
+        const waiting = makeThread("waiting-on-subagent", {
+          pullRequests: [mergedLink],
+          pendingBackgroundTasks: [{ taskId: "child", kind: "subagent", description: "Review" }],
+        });
+        const slow = makeThread("slow-periodic-lookup", {
+          branch: "another-feature",
+          latestUserMessageAt: DateTime.makeUnsafe("2026-08-27T00:00:00.000Z"),
+        });
+        const fixture = yield* makeHarness({
+          snapshot: makeSnapshot([waiting, slow]),
+          branchPullRequest: () =>
+            Ref.updateAndGet(branchLookupCount, (count) => count + 1).pipe(
+              Effect.flatMap((count) =>
+                count === 1
+                  ? Effect.succeed(makeBranchPullRequest("open"))
+                  : Deferred.succeed(periodicLookupStarted, undefined).pipe(
+                      Effect.andThen(Deferred.await(releasePeriodicLookup)),
+                      Effect.as(makeBranchPullRequest("open")),
+                    ),
+              ),
+            ),
+          onDispatch: () => Deferred.succeed(settled, undefined),
+        });
+
+        yield* Effect.gen(function* () {
+          const reactor = yield* ThreadDoneService.ThreadDoneServiceV2;
+          yield* startHarness(reactor, fixture.activation, fixture.snapshotReads);
+          assert.deepStrictEqual(yield* Ref.get(fixture.commands), []);
+          yield* fixture.updateSettings({ sidebarAutoMarkDoneAfterDays: 4 });
+          yield* Deferred.await(periodicLookupStarted);
+
+          yield* Ref.set(
+            fixture.snapshots,
+            makeSnapshot([{ ...waiting, pendingBackgroundTasks: [] }, slow]),
+          );
+          yield* fixture.publishEvent({
+            type: "run.background-work-cancelled",
+            id: EventId.make("event:background-ended"),
+            threadId: waiting.id,
+            occurredAt: DateTime.makeUnsafe(NOW),
+            payload: { runId: RunId.make("run:waiting"), restartCancelledBackgroundWork: [] },
+          });
+          yield* Deferred.await(settled);
+
+          assert.deepStrictEqual(
+            (yield* Ref.get(fixture.commands)).map((command) => command.threadId),
+            [waiting.id],
+          );
+          yield* Deferred.succeed(releasePeriodicLookup, undefined);
+          yield* reactor.drain;
+        }).pipe(Effect.provide(fixture.layer));
+      }),
+    ),
+  );
+
+  it.effect("settles a stopped thread while another thread's lookup is slow", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        yield* TestClock.setTime(Date.parse(NOW));
+        const slowLookupStarted = yield* Deferred.make<void>();
+        const releaseSlowLookup = yield* Deferred.make<void>();
+        const settled = yield* Deferred.make<void>();
+        const branchLookupCount = yield* Ref.make(0);
+        const recent = DateTime.makeUnsafe("2026-08-27T00:00:00.000Z");
+        const slow = makeThread("slow-lookup", { branch: "feature", latestUserMessageAt: recent });
+        const merged = makeThread("merged", {
+          latestUserMessageAt: recent,
+          pullRequests: [
+            {
+              ...persistedLink("open", recent),
+              snapshot: {
+                state: "merged",
+                title: "Pull request",
+                headBranch: "feature",
+                baseBranch: "main",
+                isDraft: false,
+                updatedAt: NOW,
+                syncedAt: NOW,
+                mergedAt: NOW,
+              },
+            },
+          ],
+          pendingBackgroundTasks: [{ taskId: "child", kind: "subagent", description: "Review" }],
+        });
+        const fixture = yield* makeHarness({
+          settings: { ...DEFAULT_SERVER_SETTINGS, sidebarAutoMarkDoneOnMerge: true },
+          snapshot: makeSnapshot([slow, merged]),
+          branchPullRequest: () =>
+            Ref.updateAndGet(branchLookupCount, (count) => count + 1).pipe(
+              Effect.flatMap((count) =>
+                count === 1
+                  ? Effect.succeed(makeBranchPullRequest("open"))
+                  : Deferred.succeed(slowLookupStarted, undefined).pipe(
+                      Effect.andThen(Deferred.await(releaseSlowLookup)),
+                      Effect.as(makeBranchPullRequest("open")),
+                    ),
+              ),
+            ),
+          onDispatch: () => Deferred.succeed(settled, undefined),
+        });
+        const backgroundEnded = (threadId: ThreadId): OrchestrationV2DomainEvent => ({
+          type: "run.background-work-cancelled",
+          id: EventId.make(`event:background-ended:${threadId}`),
+          threadId,
+          occurredAt: DateTime.makeUnsafe(NOW),
+          payload: { runId: RunId.make(`run:${threadId}`), restartCancelledBackgroundWork: [] },
+        });
+
+        yield* Effect.gen(function* () {
+          const reactor = yield* ThreadDoneService.ThreadDoneServiceV2;
+          yield* startHarness(reactor, fixture.activation, fixture.snapshotReads);
+          yield* fixture.publishEvent(backgroundEnded(slow.id));
+          yield* Deferred.await(slowLookupStarted);
+          // More events for the slow thread coalesce into one more pass, not more sweeps.
+          for (let index = 0; index < 9; index++) {
+            yield* fixture.publishEvent(backgroundEnded(slow.id));
+          }
+
+          yield* Ref.set(
+            fixture.snapshots,
+            makeSnapshot([slow, { ...merged, pendingBackgroundTasks: [] }]),
+          );
+          yield* fixture.publishEvent(backgroundEnded(merged.id));
+          yield* Deferred.await(settled);
+
+          assert.deepStrictEqual(
+            (yield* Ref.get(fixture.commands)).map((command) => command.threadId),
+            [merged.id],
+          );
+          yield* Deferred.succeed(releaseSlowLookup, undefined);
+          yield* reactor.drain;
+          // The startup sweep, the first per-thread sweep, and one coalesced rerun.
+          assert.strictEqual(yield* Ref.get(branchLookupCount), 3);
+        }).pipe(Effect.provide(fixture.layer));
+      }),
+    ),
+  );
+
+  it.effect(
+    "marks done an unlinked branch thread its agent merged from a shell, past the cache",
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          yield* TestClock.setTime(Date.parse(NOW));
+          const markedDone = yield* Deferred.make<void>();
+          const thread = makeThread("shell-merged", {
+            branch: "saved-feature",
+            latestUserMessageAt: DateTime.makeUnsafe("2026-08-27T00:00:00.000Z"),
+          });
+          const fixture = yield* makeHarness({
+            settings: { ...DEFAULT_SERVER_SETTINGS, sidebarAutoMarkDoneOnMerge: true },
+            snapshot: makeSnapshot([thread]),
+            // The host already merged it; only a fresh read sees that past the cached open lookup.
+            branchPullRequest: (_input, lookupOptions) =>
+              Effect.succeed(makeBranchPullRequest(lookupOptions?.refresh ? "merged" : "open")),
+            onDispatch: () => Deferred.succeed(markedDone, undefined),
+          });
+          const at = DateTime.makeUnsafe(NOW);
+          const runId = RunId.make("run:shell-merged");
+          const runEnded: OrchestrationV2DomainEvent = {
+            type: "run.background-work-cancelled",
+            id: EventId.make("event:shell-merged:run-ended"),
+            threadId: thread.id,
+            occurredAt: at,
+            payload: { runId, restartCancelledBackgroundWork: [] },
+          };
+
+          yield* Effect.gen(function* () {
+            const reactor = yield* ThreadDoneService.ThreadDoneServiceV2;
+            yield* startHarness(reactor, fixture.activation, fixture.snapshotReads);
+            yield* fixture.publishEvent(runEnded);
+            yield* Queue.take(fixture.snapshotReads);
+            yield* reactor.drain;
+            assert.deepStrictEqual(yield* Ref.get(fixture.commands), []);
+
+            yield* fixture.publishEvent({
+              type: "turn-item.updated",
+              id: EventId.make("event:shell-merged:command"),
+              threadId: thread.id,
+              runId,
+              occurredAt: at,
+              payload: {
+                id: TurnItemId.make("item:shell-merged:command"),
+                threadId: thread.id,
+                runId,
+                nodeId: null,
+                providerThreadId: null,
+                providerTurnId: null,
+                nativeItemRef: null,
+                parentItemId: null,
+                ordinal: 1,
+                status: "completed",
+                title: null,
+                startedAt: at,
+                completedAt: at,
+                updatedAt: at,
+                type: "command_execution",
+                input: "gh pr merge 42 --squash",
+              },
+            });
+            yield* Deferred.await(markedDone);
+            assert.deepStrictEqual(
+              (yield* Ref.get(fixture.commands)).map((command) => command.threadId),
+              [thread.id],
+            );
+          }).pipe(Effect.provide(fixture.layer));
+        }),
+      ),
   );
 
   it.effect(

@@ -50,8 +50,8 @@ const ACTION_ICON_SIZE = 15;
 const COMPACT_ACTION_CIRCLE_SIZE = 28;
 const COMPACT_ACTION_ICON_SIZE = 13;
 
-export const THREAD_SWIPE_ACTIONS_WIDTH = ACTION_ITEM_WIDTH * 2;
-export const THREAD_SWIPE_SPRING = {
+const THREAD_SWIPE_ACTIONS_WIDTH = ACTION_ITEM_WIDTH * 2;
+const THREAD_SWIPE_SPRING = {
   damping: 26,
   mass: 0.7,
   overshootClamping: true,
@@ -119,12 +119,7 @@ function resolveSecondaryAction(input: {
   };
 }
 
-/**
- * Delivers the scroll gate to swipeables via context so that flipping it does
- * NOT re-render whole rows: putting the flag in list extraData/renderItem deps
- * re-rendered every visible row (hooks, subscriptions and all) exactly at
- * scroll start — peak frame pressure.
- */
+/** Keep the scroll gate in context so scroll start cannot re-render every row and its subscriptions. */
 const SwipeableScrollGateContext = createContext(true);
 
 export function SwipeableScrollGateProvider(props: {
@@ -141,13 +136,7 @@ export function SwipeableScrollGateProvider(props: {
   );
 }
 
-/**
- * failOffsetY on the swipe pan covers the first pan of a scroll, but trackpad
- * scroll sessions spawn fresh gesture sessions (momentum catch, direction
- * changes) whose reset translation can re-activate a swipe mid-scroll — so
- * while the list has moved vertically during an active drag/momentum phase, row
- * swipes are disabled entirely.
- */
+/** Trackpads can start pans mid-momentum, bypassing failOffsetY; disable swipes during vertical scrolls. */
 export function useSwipeableScrollGate(options?: {
   readonly onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
   readonly onScrollBeginDrag?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
@@ -172,6 +161,7 @@ export function useSwipeableScrollGate(options?: {
       settleTimerRef.current = null;
     }
   }, []);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the scroll settle timer on unmount
   useEffect(() => clearSettle, [clearSettle]);
 
   const onScrollBeginDrag = useCallback(
@@ -227,11 +217,7 @@ interface ThreadSwipeableProps {
   readonly containerStyle?: StyleProp<ViewStyle>;
   readonly enabled?: boolean;
   readonly enableTrackpadSwipe?: boolean;
-  /**
-   * Omitted keeps the v1 Delete behavior only when the built-in Delete
-   * secondary action is in use; custom or absent secondary actions default to
-   * the advertised primary action.
-   */
+  /** Omitted uses Delete only with the built-in Delete secondary action; otherwise it uses primary. */
   readonly fullSwipeAction?: "delete" | "primary";
   readonly fullSwipeWidth: number;
   readonly onDelete: () => void;
@@ -239,11 +225,7 @@ interface ThreadSwipeableProps {
   readonly onSwipeableWillOpen?: (methods: SwipeableMethods) => void;
   readonly primaryAction: ThreadSwipeAction;
   readonly threadKey: string;
-  /**
-   * Omitted keeps the v1 destructive Delete action. Explicit null opts out of
-   * a secondary action entirely so a gated Snooze can never fall back to an
-   * unadvertised Delete.
-   */
+  /** Omitted defaults to Delete; null removes it so gated Snooze cannot fall back to Delete. */
   readonly secondaryAction?: ThreadSwipeAction | null;
   readonly resetKey?: string;
   readonly dormant?: boolean;
@@ -328,6 +310,7 @@ function ThreadSwipeableRow(props: ThreadSwipeableProps) {
     pending.resolve();
   }, []);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the row's Reanimated animations and settles a pending dismissal on unmount
   useLayoutEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -341,6 +324,7 @@ function ThreadSwipeableRow(props: ThreadSwipeableProps) {
   }, [actionOpacity, collapse, fallbackTranslation, finishDismiss]);
 
   // Reset recycled rows in place so their child views stay mounted.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- resets the swipeable and its shared values when the list recycles this row for new content
   useLayoutEffect(() => {
     if (contentRef.current === content) return;
     contentRef.current = content;
@@ -348,6 +332,7 @@ function ThreadSwipeableRow(props: ThreadSwipeableProps) {
     restoreRow();
   }, [content, finishDismiss, restoreRow]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- closes the open swipeable and resets its shared values when the row goes dormant
   useLayoutEffect(() => {
     if (props.dormant && activeTranslationRef.current && dismissalRef.current === null) {
       restoreRow();
@@ -374,6 +359,7 @@ function ThreadSwipeableRow(props: ThreadSwipeableProps) {
     },
     [actionOpacity, collapse, dismissing, finishDismiss, reduceMotion, rowWidth],
   );
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers this row's animated dismissal in the module-level thread dismissal registry
   useLayoutEffect(
     () =>
       props.dormant
@@ -462,10 +448,7 @@ function ThreadSwipeableRow(props: ThreadSwipeableProps) {
           dragOffsetFromRight={-8}
           enabled={!props.dormant && !isDismissing && props.enabled !== false && gateEnabled}
           enableTrackpadTwoFingerGesture={props.enableTrackpadSwipe ?? true}
-          // Fail the swipe once the pan is vertically dominant (patched-in RNGH
-          // prop) — otherwise trackpad scrolls with ~8px of horizontal drift
-          // start opening rows because the swipe pan runs simultaneously with
-          // the list scroll gesture and never gets disqualified by Y movement.
+          // Reject vertical pans via patched RNGH failOffsetY; simultaneous trackpad scrolls otherwise open rows on horizontal drift.
           failOffsetY={[-10, 10]}
           friction={1}
           onSwipeableClose={() => {
@@ -718,7 +701,7 @@ function SwipeActionButton(props: {
   );
 }
 
-export function ThreadSwipeActions(props: {
+function ThreadSwipeActions(props: {
   readonly backgroundColor: ColorValue;
   readonly compact: boolean;
   readonly fullSwipeAction?: "delete" | "primary";

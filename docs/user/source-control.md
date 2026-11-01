@@ -10,6 +10,16 @@ rebases, the files Git brought in are left out. A file stays in the list when th
 committed it, or fixed a conflict in it. Use the branch comparison to review everything that changed
 against your base branch. Restore still returns the complete saved workspace.
 
+On web and desktop, open the Diff pane source picker and choose **Commits** to review one local
+commit at a time. The list shows the newest 100 commits in the branch comparison. A merge commit
+shows its changes against its first parent.
+
+A commit link from a supported code host opens in the Diff pane when the thread's repository has
+that commit locally, on any branch. Otherwise a pull request commit link opens the pull request. Other
+commit links follow your **Open links in** setting; on web, when that opens a new tab, Supaterm first
+shows an **Open link** button. Command/Ctrl+Click always opens the link in your browser. Commit links follow the **Open pull requests in Supaterm**
+setting in **Settings → Diffs**.
+
 ## Connect an account
 
 Install Git and configure authentication on the machine running your Supaterm server. For a remote
@@ -196,15 +206,16 @@ branch with a rebase, enabling auto-merge, approving workflows, merging or rebas
 discarding a review's pending line comments take two presses: the first asks you to confirm, the
 second runs it. Press Escape or click elsewhere to cancel.
 
-GitHub sharing is off by default. In Settings → Connections → GitHub sharing (Environments on mobile), choose
-**Read PRs** or **Read and act** for each environment you trust to share GitHub access.
+Pull request sharing is off by default. In Settings → Environments → Pull request sharing (Pull
+request routing under Environments on mobile), choose **Read PRs** or **Read and act** for each
+environment you trust to share its source control access.
 Enable both the original environment and the environment answering its requests on this client.
-**Read and act** can use broader GitHub permissions than the original environment's credential;
+**Read and act** can use broader permissions than the original environment's credential;
 only enable it for environments you control and trust. Changing a saved endpoint or removing an
 environment clears its permission.
 
-GitHub review details, linked PR status, and permitted review actions can then use another
-connected environment signed in to the same GitHub account. Each needs a project on that host.
+Review details, linked PR status, and permitted review actions can then use another connected
+environment signed in to the same account on the same host. Each needs a project on that host.
 A connected local environment is preferred for actions and can answer slow or failed reads.
 Browsers and mobile clients need a paired environment to use its GitHub credentials.
 Credentials stay on their machines. Previously verified credentials remain usable for routing
@@ -278,10 +289,11 @@ and their marks follow the same rules as on web and desktop.
 
 A thread can hold several pull requests, including reviews from another repository on the same host.
 Use **Link pull request** in the command palette or **Linked pull requests** panel, or right-click a
-pull request link in the conversation. Creating a pull request from Git actions links it automatically.
-Agents can link their pull requests with the `link_pull_request` tool.
+pull request link in the conversation. Creating a pull request from Git actions links it automatically,
+and so does an agent creating one with `gh pr create` or `glab mr create`. Agents can link other
+pull requests with the `link_pull_request` tool.
 
-Use **Link this PR** in a branch-detected badge's tooltip to keep it with the thread. From a review
+Use **Link pull request to thread** in the command palette to keep a pull request with the thread. From a review
 on the Pull Requests page, **Link to thread** lets you search for an active thread. The review header
 also lists the threads that link to it, including archived threads, so you can return to their context.
 

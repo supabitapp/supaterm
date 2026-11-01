@@ -81,6 +81,11 @@ const createFixtureSource = Effect.fn("createMigrateDevDbFixtureSource")(functio
       yield* sql`INSERT INTO orchestration_v2_projection_context_transfers
         (context_transfer_id, source_thread_id, target_thread_id, type, status, updated_at, payload_json)
         VALUES ('transfer-1', 'archived-thread', 'stopped-thread', 'provider_handoff', 'completed', '2026-08-01', '{}')`;
+      yield* sql`INSERT INTO orchestration_v2_projection_messages
+        (message_id, thread_id, run_id, node_id, role, streaming, created_at, updated_at, payload_json)
+        VALUES
+        ('message-kept', 'stopped-thread', NULL, NULL, 'user', 0, '2026-08-01', '2026-08-01', '{"text":"needle kept"}'),
+        ('message-archived', 'archived-thread', NULL, NULL, 'user', 0, '2026-08-01', '2026-08-01', '{"text":"needle archived"}')`;
       yield* sql`INSERT INTO scheduled_tasks
         (task_id, title, prompt, enabled, schedule_json, project_id, workspace_strategy_json,
           model_selection_json, runtime_mode, interaction_mode, created_by, creation_source,
@@ -124,9 +129,13 @@ it.layer(NodeServices.layer)("migrate-dev-db", (it) => {
               (SELECT COUNT(*) FROM auth_sessions) AS auth,
               (SELECT COUNT(*) FROM scheduled_tasks) AS tasks,
               (SELECT COUNT(*) FROM orchestration_v2_projection_context_transfers) AS transfers`;
+          const searchable = yield* sql<{ message_id: string }>`
+            SELECT messages.message_id FROM orchestration_v2_message_search AS search
+            JOIN orchestration_v2_projection_messages AS messages ON messages.rowid = search.rowid
+            WHERE orchestration_v2_message_search MATCH '"needle"'`;
           const [autoVacuum] = yield* sql<{ auto_vacuum: number }>`PRAGMA auto_vacuum`;
           const [journal] = yield* sql<{ journal_mode: string }>`PRAGMA journal_mode`;
-          return { threads, events, sessions, leftovers, autoVacuum, journal };
+          return { threads, events, sessions, leftovers, searchable, autoVacuum, journal };
         }),
       );
       assert.deepStrictEqual(
@@ -142,6 +151,10 @@ it.layer(NodeServices.layer)("migrate-dev-db", (it) => {
         ["session-shared"],
       );
       assert.deepStrictEqual(kept.leftovers, { auth: 0, tasks: 0, transfers: 0 });
+      assert.deepStrictEqual(
+        kept.searchable.map((row) => row.message_id),
+        ["message-kept"],
+      );
       assert.deepStrictEqual(kept.autoVacuum, { auto_vacuum: 2 });
       assert.deepStrictEqual(kept.journal, { journal_mode: "wal" });
     }),

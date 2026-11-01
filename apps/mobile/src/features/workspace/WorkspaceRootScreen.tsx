@@ -1,17 +1,17 @@
 import { useNavigation } from "@react-navigation/native";
-import { use, useCallback, useMemo } from "react";
+import { use } from "react";
 import { Platform, View, useWindowDimensions } from "react-native";
 import { useKeyboardState } from "react-native-keyboard-controller";
-import { SafeAreaInsetsContext, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CompactBrandTitle } from "../../components/CompactBrandTitle";
 import { isDuoDevice } from "../../lib/device-type";
 import { AndroidScreenHeader } from "../../components/ui/AndroidScreenHeader";
+import { HeaderItemsWidthContext } from "../../native/header-items-width";
 import { NativeStackScreenOptions } from "../../native/StackHeader";
 import { NativePrimaryColumnContext } from "../../native/v5-workspace-context";
 import {
   useDeviceType,
-  useDuoBottomBarInset,
   useNativeColumnLayoutMetrics,
   useNativeLayoutMetrics,
 } from "../../native/native-layout-metrics";
@@ -26,7 +26,7 @@ import {
   useWorkspaceTabs,
 } from "./WorkspaceTabsContext";
 import { WorkspaceToolbar } from "./WorkspaceToolbar.ios";
-import { WORKSPACE_TOOLBAR, workspaceToolbarHeight } from "./workspace-tabs-state";
+import { workspaceToolbarHeight } from "./workspace-tabs-state";
 import { WorkspaceSidebarTabs } from "./WorkspaceSidebarTabs";
 import { useSidebarWorkspaceTabs } from "./useSidebarWorkspaceTabs";
 
@@ -36,17 +36,18 @@ const TAB_TITLES = {
 };
 
 function WorkspaceRootTitle(props: {
-  readonly maxWidth: number;
+  readonly columnWidth: number;
   readonly onOpenEnvironments: () => void;
 }) {
   const { state } = useWorkspaceTabs()!;
+  const maxWidth = Math.max(0, props.columnWidth - (use(HeaderItemsWidthContext) ?? 160));
   return (
-    <View style={{ width: props.maxWidth, minHeight: 32, justifyContent: "center" }}>
+    <View style={{ width: maxWidth, minHeight: 32, justifyContent: "center" }}>
       <WorkspaceConnectionTitle
         brand={
           <CompactBrandTitle accessibilityLabel={`Supaterm, ${TAB_TITLES[state.selectedTab]}`} />
         }
-        maxWidth={props.maxWidth}
+        maxWidth={maxWidth}
         onPress={props.onOpenEnvironments}
       />
     </View>
@@ -70,43 +71,35 @@ function WorkspaceRootContent() {
       (nativeMetrics !== null && nativeMetrics.verticalBarEdge !== "none"));
   const width = columnMetrics?.width ?? windowWidth;
   const insets = useSafeAreaInsets();
-  const bottomBarInset = useDuoBottomBarInset();
   const keyboardHeight = useKeyboardState((keyboard) => keyboard.height);
   const workspace = useWorkspaceTabs()!;
   const { state } = workspace;
-  const renderHeaderTitle = useCallback(
-    () => (
-      <WorkspaceRootTitle
-        maxWidth={Math.max(0, width - 160)}
-        onOpenEnvironments={() =>
-          navigation.navigate("SettingsSheet", {
-            screen: "SettingsContent",
-            params: { screen: "SettingsEnvironments" },
-          })
-        }
-      />
-    ),
-    [width, navigation],
+  const renderHeaderTitle = () => (
+    <WorkspaceRootTitle
+      columnWidth={width}
+      onOpenEnvironments={() =>
+        navigation.navigate("SettingsSheet", {
+          screen: "SettingsContent",
+          params: { screen: "SettingsEnvironments" },
+        })
+      }
+    />
   );
   const tab = state.tabs[state.selectedTab];
   const bottomClearance =
     Platform.OS === "ios" && isDuoDevice(deviceType)
-      ? Math.max(bottomBarInset ?? Math.max(insets.bottom, 12), keyboardHeight + 8) +
-        WORKSPACE_TOOLBAR.height +
-        16
+      ? // The column's safe area already holds the Duo's search toolbar and keyboard.
+        Math.max(insets.bottom, keyboardHeight) + 16
       : Platform.OS === "ios"
         ? Math.max(insets.bottom, keyboardHeight) + (sidebarPicker ? 80 : 16)
         : keyboardHeight > 0 && tab.searchMode !== "resting"
           ? keyboardHeight + 64
           : Math.max(insets.bottom, 12) + workspaceToolbarHeight(tab.searchMode) + 16;
-  const context = useMemo(() => ({ ...workspace, bottomClearance }), [workspace, bottomClearance]);
+  const context = { ...workspace, bottomClearance };
 
   return (
     <WorkspaceTabsContext value={context}>
-      <View
-        className={sidebarPicker ? "flex-1 bg-drawer" : "flex-1 bg-screen"}
-        style={sidebarPicker ? { paddingTop: insets.top } : undefined}
-      >
+      <View className={sidebarPicker ? "flex-1 bg-drawer" : "flex-1 bg-screen"}>
         {Platform.OS === "ios" ? (
           <NativeStackScreenOptions
             optionsVersion={[state.selectedTab, state.selectionRevision, width, sidebarNavigation]}
@@ -142,13 +135,11 @@ function WorkspaceRootContent() {
             ]}
           />
         )}
-        <SafeAreaInsetsContext value={sidebarPicker ? { ...insets, top: 0 } : insets}>
-          {state.selectedTab === "threads" ? (
-            <HomeRouteScreen />
-          ) : (
-            <PullRequestsScreen sidebar={sidebarTabs !== null} />
-          )}
-        </SafeAreaInsetsContext>
+        {state.selectedTab === "threads" ? (
+          <HomeRouteScreen />
+        ) : (
+          <PullRequestsScreen sidebar={sidebarTabs !== null} />
+        )}
         {sidebarPicker ? <WorkspaceSidebarTabs /> : null}
         <WorkspaceToolbar sidebar={sidebarNavigation} onNewTask={startNewTask} />
       </View>

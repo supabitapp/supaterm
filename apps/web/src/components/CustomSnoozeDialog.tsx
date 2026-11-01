@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { create } from "zustand";
 import {
   localSnoozeDate,
@@ -7,7 +8,7 @@ import {
   type CustomSnoozeInput,
 } from "@supaterm/client-runtime/state/thread-snooze";
 import { Button } from "./ui/button";
-import { CalendarIcon } from "@supaterm/icons";
+import { CalendarIcon, SlidersHorizontalIcon } from "@supaterm/icons";
 import { Calendar } from "./ui/calendar";
 import { useNowMinuteMs } from "../hooks/useNowMinute";
 import { weekStartsOn } from "../timestampFormat";
@@ -50,12 +51,14 @@ function finish(choice: SnoozeChoice | null) {
 
 export function CustomSnoozeDialogHost() {
   const request = useRequest((state) => state.request);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- resolves any pending snooze request promise with null when the dialog host unmounts
   useEffect(() => () => finish(null), []);
   return request ? <CustomSnoozeDialog /> : null;
 }
 
 function CustomSnoozeDialog() {
   const id = useId();
+  const navigate = useNavigate();
   const [initial] = useState(() => new Date(Date.now() + 3_600_000));
   const [mode, setMode] = useState<CustomSnoozeInput["mode"]>("date");
   const [date, setDate] = useState(initial);
@@ -219,6 +222,21 @@ function CustomSnoozeDialog() {
             )}
           </DialogPanel>
           <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost-muted"
+              className="sm:mr-auto"
+              onClick={() => {
+                finish(null);
+                void navigate({
+                  to: "/settings/threads",
+                  hash: "snooze-options",
+                });
+              }}
+            >
+              <SlidersHorizontalIcon />
+              Edit snooze options
+            </Button>
             <Button type="button" variant="outline" onClick={() => finish(null)}>
               Cancel
             </Button>

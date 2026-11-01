@@ -80,7 +80,7 @@ export function ComposerModelControl(props: {
           />
         )
       }
-      label={props.label}
+      label={props.modelOption?.shortName ?? props.label}
       secondaryLabel={reasoningLabel}
       maxWidth="100%"
       onPress={props.onPress}

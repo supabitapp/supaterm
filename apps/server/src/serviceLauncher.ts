@@ -548,11 +548,9 @@ export class Launcher {
   }
 
   async #recover(): Promise<void> {
-    // A restart deferred by `supaterm update` is done no matter who restarted the
-    // service, but only once this launcher is the version the marker waits
-    // for: a launcher that came up between the CLI writing the marker and
-    // writing the new state still runs the old version, and the marker has
-    // to outlive it.
+    // A deferred `supaterm update` restart is done once this launcher runs the awaited version,
+    // whoever restarted it. A launcher that came up between the CLI writing the marker and the
+    // new state still runs the old version, so the marker must outlive it.
     const restartPending = restartPendingPath(this.#baseDir);
     const awaitedVersion = await NodeFSP.readFile(restartPending, "utf8").catch(() => undefined);
     if (awaitedVersion?.trim() === this.#state.activeVersion) {

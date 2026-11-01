@@ -1,10 +1,7 @@
 // @effect-diagnostics nodeBuiltinImport:off - runs before `vp i`, so only Node built-ins exist.
 /**
- * Worktree setup, run by the supaterm.json "Setup Worktree" action as
- * `node scripts/setup-worktree.ts`. Plain Node keeps one command working in
- * every shell Supaterm spawns (zsh, bash, fish, PowerShell): it installs
- * dependencies and links the main checkout's gitignored `.env` into this
- * worktree. The first `vp run dev` warms the web dependency cache.
+ * Run by the supaterm.json "Setup Worktree" action. Plain Node keeps one command working in every
+ * shell Supaterm spawns (zsh, bash, fish, PowerShell).
  */
 import * as NodeChildProcess from "node:child_process";
 import * as NodeFS from "node:fs";

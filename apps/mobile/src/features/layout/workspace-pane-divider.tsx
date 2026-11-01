@@ -42,6 +42,7 @@ function ResizeGestureDetector(props: {
 }
 export function WorkspacePaneDivider(props: WorkspacePaneDividerProps) {
   const latestProps = useRef(props);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes the committed props to a ref read by the native pan gesture callbacks
   useLayoutEffect(() => {
     latestProps.current = props;
   });
@@ -73,7 +74,7 @@ export function WorkspacePaneDivider(props: WorkspacePaneDividerProps) {
       onResizeEnd={handleResizeEnd}
     >
       <Pressable
-        className="relative z-[100] -mx-[22px] w-11 self-stretch justify-center"
+        className="relative z-[100] -mx-[22px] w-[44px] self-stretch justify-center"
         accessibilityActions={[
           {
             name: "increment",

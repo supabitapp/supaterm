@@ -43,6 +43,7 @@ export function useThreadListMotion(input: {
       deadline.set(performance.now() + 300);
     })();
   }, [deadline, ready, reducedMotion, scrolling, searching]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- compares the committed list frame with the previous one and opens the UI-thread layout animation window
   useLayoutEffect(() => {
     const animate =
       ready &&

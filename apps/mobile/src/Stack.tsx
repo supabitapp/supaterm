@@ -17,7 +17,7 @@ import {
   createNativeStackScreen,
   type NativeStackNavigationOptions,
 } from "@react-navigation/native-stack";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions } from "react-native";
 import { useResolveClassNames } from "uniwind";
 
@@ -25,12 +25,20 @@ import { AppText as Text } from "./components/ui/AppText";
 import { androidWorkspaceDestinationAnimation } from "./lib/android-workspace-navigation";
 import { getCompactBrandHeaderOptions } from "./components/CompactBrandTitle";
 import { WorkspaceRootScreen } from "./features/workspace/WorkspaceRootScreen";
+import {
+  recordHomeFocus,
+  recordHomeTransitionEnd,
+  recordHomeTransitionStart,
+} from "./features/home/home-route-visibility";
 import { AndroidWorkspaceTabsProvider } from "./features/workspace/AndroidWorkspaceTabsProvider";
 import { PullRequestFileRouteScreen } from "./features/pull-requests/PullRequestDiffRouteScreen";
 import { PullRequestRouteScreen } from "./features/pull-requests/PullRequestRouteScreen";
 import { PullRequestFilesSheet } from "./features/pull-requests/PullRequestFiles";
 import { PullRequestReviewSheet } from "./features/pull-requests/PullRequestReviewSheet";
 import { PullRequestReviewersScreen } from "./features/pull-requests/PullRequestReviewersScreen";
+import { PullRequestLabelsScreen } from "./features/pull-requests/PullRequestLabelsScreen";
+import { PullRequestEditScreen } from "./features/pull-requests/PullRequestEditScreen";
+import { PullRequestFilterSearchScreen } from "./features/pull-requests/PullRequestFilterSearchScreen";
 import {
   RenderErrorBoundary,
   RenderFailureView,
@@ -58,7 +66,10 @@ import { ThreadPullRequestsSheet } from "./features/threads/ThreadPullRequestsSh
 import { ThreadAgentsSheet } from "./features/threads/ThreadAgentsSheet";
 import { ThreadBackgroundWorkSheet } from "./features/threads/ThreadBackgroundWorkSheet";
 import { ThreadQueueSheet } from "./features/threads/ThreadQueueControl";
-import { ThreadRouteScreen } from "./features/threads/ThreadRouteScreen";
+import {
+  FullscreenThreadRouteScreen,
+  ThreadRouteScreen,
+} from "./features/threads/ThreadRouteScreen";
 import { McpAppFullscreenScreen } from "./features/threads/McpAppFullscreenScreen";
 import { MermaidDiagramScreen } from "./features/diagrams/MermaidDiagramScreen";
 import { ConnectionsRouteScreen } from "./features/connection/ConnectionsRouteScreen";
@@ -73,11 +84,10 @@ import {
   NewTaskEnvironmentPickerRouteScreen,
 } from "./features/threads/NewTaskContextPickerScreens";
 import {
-  ExistingThreadSettingsRouteProvider,
   ExistingThreadSettingsRouteScreen,
   NewTaskThreadSettingsRouteScreen,
 } from "./features/threads/ThreadSettingsSheet";
-import { NewTaskFlowProvider } from "./features/threads/new-task-flow-provider";
+import { ServedNewTaskRouteProvider } from "./features/threads/new-task-flow-provider";
 import { NewTaskRouteScreen } from "./features/threads/NewTaskRouteScreen";
 import { SettingsAppearanceRouteScreen } from "./features/settings/SettingsAppearanceRouteScreen";
 import { useAppearancePreferences } from "./features/settings/appearance/AppearancePreferencesProvider";
@@ -88,9 +98,9 @@ import { SettingsEnvironmentDetailRouteScreen } from "./features/settings/Settin
 import { SettingsEnvironmentsRouteScreen } from "./features/settings/SettingsEnvironmentsRouteScreen";
 import { SettingsFollowUpRouteScreen } from "./features/settings/SettingsFollowUpRouteScreen";
 import {
-  SettingsEnvironmentAgentBehaviorRouteScreen,
   SettingsEnvironmentMaintenanceRouteScreen,
-  SettingsEnvironmentNewThreadsRouteScreen,
+  SettingsThreadsRouteScreen,
+  SettingsWorktreesRouteScreen,
   SettingsEnvironmentSourceControlRouteScreen,
 } from "./features/settings/SettingsServerControlsRouteScreen";
 import {
@@ -116,32 +126,24 @@ import { UsageLimitAccountScreen } from "./features/usage/UsageLimitsPooled";
 import { UsageRouteScreen } from "./features/usage/UsageRouteScreen";
 import { SettingsAboutRouteScreen } from "./features/settings/SettingsAboutRouteScreen";
 import { SettingsRouteScreen } from "./features/settings/SettingsRouteScreen";
-import { SettingsThreadsRouteScreen } from "./features/settings/SettingsThreadsRouteScreen";
 import { SettingsEnvironmentFilterProvider } from "./features/settings/settings-environment-filter";
-import { ShowcaseCaptureCoordinator } from "./features/showcase/ShowcaseCaptureCoordinator";
+import { ShowcaseReadyMarker } from "./features/showcase/ShowcaseCaptureCoordinator";
 import {
   SettingsLegalDocumentCloseHeaderButton,
   SettingsLegalDocumentExternalHeaderButton,
 } from "./features/settings/components/SettingsLegalDocumentRouteScreen";
-import { useAppShortcuts } from "./features/shortcuts/useAppShortcuts";
-import { useIncomingShare } from "./features/sharing/IncomingShareProvider";
-import {
-  EMPTY_INCOMING_SHARE_PRESENTATION_STATE,
-  transitionIncomingSharePresentation,
-} from "./features/sharing/incoming-share-presentation";
 import { NATIVE_LIQUID_GLASS_SUPPORTED } from "./native/native-glass";
 import { deriveLayout } from "./lib/layout";
 import { useNativeLayoutMetrics } from "./native/native-layout-metrics";
 import { nativeHeaderScrollEdgeEffects } from "./native/StackHeader";
 import { HORIZONTAL_FORM_SHEET_OPTIONS, formSheetDetents } from "./native/sheet-surface";
-import { useThreadOutboxDrain } from "./state/use-thread-outbox-drain";
-import { useComposerAttachmentUploadWorker } from "./state/composer-attachment-uploads";
 import { runningThreadKeepAliveAtom } from "./state/threads";
 
 const HEADER_SCROLL_EDGE_EFFECTS = nativeHeaderScrollEdgeEffects(Platform.OS, Platform.Version);
 
 type AppScreenOptions = NativeStackNavigationOptions & {
   readonly unstable_navigationItemStyle?: "editor";
+  readonly unstable_headerMinimizationBehavior?: "onScrollUp" | "never";
 };
 
 const GLASS_HEADER_OPTIONS: AppScreenOptions = {
@@ -163,6 +165,17 @@ const DETAIL_HEADER_OPTIONS: AppScreenOptions = {
   ...GLASS_HEADER_OPTIONS,
   headerShown: Platform.OS !== "android",
 };
+
+// Like Messages on the Duo: reading back through history (scrolling up) minimizes the
+// header, and reversing toward the latest message restores it. Other devices ignore it.
+const THREAD_HEADER_OPTIONS: AppScreenOptions = {
+  ...DETAIL_HEADER_OPTIONS,
+  unstable_headerMinimizationBehavior: "onScrollUp",
+};
+
+// The Duo minimizes headers on scroll down by default. Home and the pull request lists
+// stutter against it on hardware (not reproducible in the simulator), so they keep theirs.
+const FIXED_DUO_HEADER: AppScreenOptions = { unstable_headerMinimizationBehavior: "never" };
 
 const SOLID_HEADER_OPTIONS: AppScreenOptions = {
   headerBackButtonDisplayMode: "minimal",
@@ -230,10 +243,11 @@ const SettingsContentStack = createV5SheetStackNavigator({
       linking: "environments/:environmentId",
       options: { title: "Environment" },
     }),
+    // Old links to New threads and Agent behavior open Threads, which absorbed them.
     SettingsEnvironmentNewThreads: createNativeStackScreen({
-      screen: SettingsEnvironmentNewThreadsRouteScreen,
+      screen: SettingsThreadsRouteScreen,
       linking: "new-threads",
-      options: { title: "New threads" },
+      options: { title: "Threads" },
     }),
     SettingsEnvironmentSourceControl: createNativeStackScreen({
       screen: SettingsEnvironmentSourceControlRouteScreen,
@@ -241,14 +255,19 @@ const SettingsContentStack = createV5SheetStackNavigator({
       options: { title: "Source control" },
     }),
     SettingsEnvironmentAgentBehavior: createNativeStackScreen({
-      screen: SettingsEnvironmentAgentBehaviorRouteScreen,
+      screen: SettingsThreadsRouteScreen,
       linking: "agent-behavior",
-      options: { title: "Agent behavior" },
+      options: { title: "Threads" },
+    }),
+    SettingsWorktrees: createNativeStackScreen({
+      screen: SettingsWorktreesRouteScreen,
+      linking: "worktrees",
+      options: { title: "Worktrees" },
     }),
     SettingsProviderAccounts: createNativeStackScreen({
       screen: SettingsProviderAccountsRouteScreen,
       linking: "provider-accounts",
-      options: { title: "Provider accounts" },
+      options: { title: "Providers" },
     }),
     SettingsEnvironmentVoiceTranscription: createNativeStackScreen({
       screen: SettingsVoiceTranscriptionRouteScreen,
@@ -263,12 +282,12 @@ const SettingsContentStack = createV5SheetStackNavigator({
     SettingsThreads: createNativeStackScreen({
       screen: SettingsThreadsRouteScreen,
       linking: "thread-preferences",
-      options: { title: "Thread behavior" },
+      options: { title: "Threads" },
     }),
     SettingsAbout: createNativeStackScreen({
       screen: SettingsAboutRouteScreen,
       linking: "about",
-      options: { title: "About Supaterm" },
+      options: { title: "About" },
     }),
     SettingsEnvironmentNew: createNativeStackScreen({
       screen: ConnectionsNewRouteScreen,
@@ -281,7 +300,7 @@ const SettingsContentStack = createV5SheetStackNavigator({
       screen: ArchivedThreadsRouteScreen,
       linking: "archive",
       options: {
-        title: "Archived Threads",
+        title: "Archive",
       },
     }),
     SettingsAppearance: createNativeStackScreen({
@@ -295,20 +314,20 @@ const SettingsContentStack = createV5SheetStackNavigator({
       screen: SettingsProjectGroupingRouteScreen,
       linking: "project-grouping",
       options: {
-        title: "Organization",
+        title: "General",
       },
     }),
     SettingsOrganization: createNativeStackScreen({
       screen: SettingsProjectGroupingRouteScreen,
       linking: "organization",
       options: {
-        title: "Organization",
+        title: "General",
       },
     }),
     SettingsProjectOverview: createNativeStackScreen({
       screen: SettingsProjectOverviewRouteScreen,
       linking: "project",
-      options: { title: "Project overview" },
+      options: { title: "Projects" },
     }),
     SettingsKeyboard: createNativeStackScreen({
       screen: SettingsKeyboardRouteScreen,
@@ -321,14 +340,14 @@ const SettingsContentStack = createV5SheetStackNavigator({
       screen: SettingsFollowUpRouteScreen,
       linking: "follow-ups",
       options: {
-        title: "Follow-ups",
+        title: "Chat",
       },
     }),
     SettingsScheduledTasks: createNativeStackScreen({
       screen: SettingsScheduledTasksRouteScreen,
       linking: "scheduled-tasks",
       options: {
-        title: "Scheduled Tasks",
+        title: "Scheduled tasks",
         headerTitleStyle: { fontSize: 16, fontWeight: "800" },
       },
     }),
@@ -370,11 +389,9 @@ const SettingsContentStack = createV5SheetStackNavigator({
         title: "Diagnostics",
       },
     }),
-    // Its params are a tap-time snapshot, not a stable resource address: `now` is the wall-clock
-    // of the tap, `environmentIds` is the usage screen's local filter selection, and the window
-    // id/kind identify freshly aggregated pools. React Navigation round-trips non-path params
-    // through the URL as query strings, so a path here would bake in a permanently stale
-    // timestamp and filter.
+    // No path: its params are a tap-time snapshot (wall-clock `now`, local filter, freshly
+    // aggregated pools), and React Navigation would round-trip them through the URL as a
+    // permanently stale query string.
     SettingsUsageAccount: createNativeStackScreen({
       screen: UsageLimitAccountScreen,
       options: { title: "Account" },
@@ -468,20 +485,18 @@ function workspaceLocationFromState(state: NavigationState) {
       ? ({ ...state, routes, index: routes.length - 1 } as NavigationState)
       : state;
   const path = getPathFromState(effectiveState, navigationPathConfig);
+  const route = effectiveState.routes[effectiveState.index];
   return {
     pathname: path.startsWith("/") ? path : `/${path}`,
-    routeKey: effectiveState.routes[effectiveState.index]?.key,
+    routeKey: route?.key,
+    routeName: route?.name,
+    routeKeys: effectiveState.routes.map((stackRoute) => stackRoute.key),
   };
 }
 
-// The drain hook subscribes to the outbox, all thread shells, projects, and
-// connection statuses. Hosting it in a null-rendering leaf keeps those
-// updates from re-rendering RootStackLayout (and with it every screen) on
-// each enqueue, shell change, or reconnect.
-function ThreadOutboxDrainWorker() {
-  useThreadOutboxDrain();
-  useComposerAttachmentUploadWorker();
-  return null;
+export function rootPathnameFromState(state: NavigationState): string {
+  const path = getPathFromState(state, navigationPathConfig);
+  return path.startsWith("/") ? path : `/${path}`;
 }
 
 // Keep mounted across backgrounding so foreground recovery also catches up
@@ -495,63 +510,35 @@ function RootStackLayout(props: {
   readonly children: React.ReactNode;
   readonly state: NavigationState;
 }) {
-  const navigation = useNavigation();
-  const { pendingShare } = useIncomingShare();
-  const sharePresentationRef = useRef(EMPTY_INCOMING_SHARE_PRESENTATION_STATE);
   // Keyboard commands follow the top route; the workspace layout follows the
   // thread beneath overlay sheets.
-  const path = getPathFromState(props.state, navigationPathConfig);
-  const pathname = path.startsWith("/") ? path : `/${path}`;
+  const pathname = rootPathnameFromState(props.state);
   const workspaceLocation = workspaceLocationFromState(props.state);
-  const draftRoute = props.state.routes.findLast((route) => route.name === "Thread");
-  const draftParams = (
-    draftRoute?.params as
-      | { draft?: { draftId?: string | string[]; pendingTaskId?: string | string[] } }
-      | undefined
-  )?.draft;
-  const routeDraftId = Array.isArray(draftParams?.draftId)
-    ? draftParams.draftId[0]
-    : draftParams?.draftId;
-  const routePendingTaskId = Array.isArray(draftParams?.pendingTaskId)
-    ? draftParams.pendingTaskId[0]
-    : draftParams?.pendingTaskId;
-  useAppShortcuts(props.state);
-  useEffect(() => {
-    const transition = transitionIncomingSharePresentation(sharePresentationRef.current, {
-      isShareSheetPresented: isDraftThreadRoute(props.state.routes[props.state.index]),
-      pendingShareId: pendingShare?.id ?? null,
-    });
-    sharePresentationRef.current = transition.state;
-    if (!transition.shareIdToPresent) {
-      return;
-    }
-    navigation.navigate("Thread", { draft: { incomingShareId: transition.shareIdToPresent } });
-  }, [navigation, pendingShare, props.state]);
+  // The topmost draft route stays served while a pushed live Thread covers it.
+  const draftRoute = props.state.routes.findLast(isDraftThreadRoute);
+  const draftRouteOnTop =
+    draftRoute !== undefined &&
+    props.state.routes.findLast((route) => route.name === "Thread") === draftRoute;
 
   return (
-    <NewTaskFlowProvider
-      active={isDraftThreadRoute(draftRoute)}
-      routeDraftId={routeDraftId}
-      routePendingTaskId={routePendingTaskId}
-    >
+    <ServedNewTaskRouteProvider route={draftRoute} active={draftRouteOnTop}>
       <HardwareKeyboardCommandProvider pathname={pathname}>
         <RunningThreadKeepAlive />
-        <ThreadOutboxDrainWorker />
-        <ShowcaseCaptureCoordinator pathname={pathname} />
-        <ExistingThreadSettingsRouteProvider>
-          <AndroidWorkspaceTabsProvider>
-            <AdaptiveWorkspaceLayout
-              pathname={workspaceLocation.pathname}
-              workspaceRouteKey={workspaceLocation.routeKey}
-              selectedPullRequestKey={selectedPullRequestKey(props.state)}
-            >
-              {props.children}
-              <HardwareKeyboardCommandOverlay />
-            </AdaptiveWorkspaceLayout>
-          </AndroidWorkspaceTabsProvider>
-        </ExistingThreadSettingsRouteProvider>
+        <ShowcaseReadyMarker />
+        <AndroidWorkspaceTabsProvider>
+          <AdaptiveWorkspaceLayout
+            pathname={workspaceLocation.pathname}
+            workspaceRouteKey={workspaceLocation.routeKey}
+            workspaceRouteName={workspaceLocation.routeName}
+            workspaceRouteKeys={workspaceLocation.routeKeys}
+            selectedPullRequestKey={selectedPullRequestKey(props.state)}
+          >
+            {props.children}
+            <HardwareKeyboardCommandOverlay />
+          </AdaptiveWorkspaceLayout>
+        </AndroidWorkspaceTabsProvider>
       </HardwareKeyboardCommandProvider>
-    </NewTaskFlowProvider>
+    </ServedNewTaskRouteProvider>
   );
 }
 
@@ -616,8 +603,14 @@ const RootStackConfig = createWorkspaceStackNavigator({
     Home: createNativeStackScreen({
       screen: WorkspaceRootScreen,
       linking: "",
+      listeners: {
+        transitionStart: ({ data }) => recordHomeTransitionStart(data.closing),
+        transitionEnd: ({ data }) => recordHomeTransitionEnd(data.closing),
+        focus: recordHomeFocus,
+      },
       options: {
         ...GLASS_HEADER_OPTIONS,
+        ...FIXED_DUO_HEADER,
         contentStyle: { backgroundColor: "transparent" },
         headerBackVisible: false,
         ...getCompactBrandHeaderOptions(),
@@ -629,7 +622,7 @@ const RootStackConfig = createWorkspaceStackNavigator({
         path: "pull-requests/:environmentId/:projectId/:repository/:number",
         parse: { number: Number },
       },
-      options: DETAIL_HEADER_OPTIONS,
+      options: { ...DETAIL_HEADER_OPTIONS, ...FIXED_DUO_HEADER },
     }),
     PullRequestGuideStop: createNativeStackScreen({
       screen: PullRequestGuideStopScreen,
@@ -653,11 +646,41 @@ const RootStackConfig = createWorkspaceStackNavigator({
       screen: PullRequestReviewersScreen,
       options: {
         ...DETAIL_HEADER_OPTIONS,
+        ...FIXED_DUO_HEADER,
         ...HORIZONTAL_FORM_SHEET_OPTIONS,
         sheetAllowedDetents: formSheetDetents(0.75),
         sheetGrabberVisible: true,
         headerBackVisible: false,
       },
+    }),
+    PullRequestLabels: createNativeStackScreen({
+      screen: PullRequestLabelsScreen,
+      // Presented like PullRequestFilterSearch, whose search sheet it shares.
+      options:
+        Platform.OS === "android"
+          ? { presentation: "card", headerShown: false }
+          : {
+              ...DETAIL_HEADER_OPTIONS,
+              ...HORIZONTAL_FORM_SHEET_OPTIONS,
+              sheetAllowedDetents: formSheetDetents(0.75),
+              sheetGrabberVisible: true,
+              headerBackVisible: false,
+            },
+    }),
+    PullRequestFilterSearch: createNativeStackScreen({
+      screen: PullRequestFilterSearchScreen,
+      // Android pushes it like the branch picker; a formSheet there leaves the list's header
+      // peeking above it once the keyboard opens.
+      options:
+        Platform.OS === "android"
+          ? { presentation: "card", headerShown: false }
+          : {
+              ...DETAIL_HEADER_OPTIONS,
+              ...HORIZONTAL_FORM_SHEET_OPTIONS,
+              sheetAllowedDetents: formSheetDetents(0.75),
+              sheetGrabberVisible: true,
+              headerBackVisible: false,
+            },
     }),
     PullRequestDiscussion: createNativeStackScreen({
       screen: PullRequestDiscussionScreen,
@@ -682,11 +705,20 @@ const RootStackConfig = createWorkspaceStackNavigator({
         sheetGrabberVisible: true,
       },
     }),
+    PullRequestEdit: createNativeStackScreen({
+      screen: PullRequestEditScreen,
+      options: {
+        ...(Platform.OS === "ios" ? SHEET_GLASS_HEADER_OPTIONS : undefined),
+        ...HORIZONTAL_FORM_SHEET_OPTIONS,
+        sheetAllowedDetents: formSheetDetents(0.75),
+        sheetGrabberVisible: true,
+      },
+    }),
     Thread: createNativeStackScreen({
       screen: ThreadRouteScreen,
       linking: { path: "threads/:environmentId?/:threadId?", alias: ["new/draft"] },
       options: {
-        ...DETAIL_HEADER_OPTIONS,
+        ...THREAD_HEADER_OPTIONS,
         headerTitleStyle: undefined,
       },
     }),
@@ -764,6 +796,13 @@ const RootStackConfig = createWorkspaceStackNavigator({
       screen: ThreadTerminalRouteScreen,
       linking: `${THREAD_LINKING_PREFIX}/terminal`,
       options: SOLID_HEADER_OPTIONS,
+    }),
+    ThreadInspectorFullscreen: createNativeStackScreen({
+      screen: FullscreenThreadRouteScreen,
+      options: {
+        ...THREAD_HEADER_OPTIONS,
+        presentation: "fullScreenModal",
+      },
     }),
     ThreadDevicePreview: createNativeStackScreen({
       screen: DevicePreviewRouteScreen,

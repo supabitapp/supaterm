@@ -1,19 +1,14 @@
 /**
- * Credentials for the Device panel's media requests.
- *
- * The panel reaches simulator streams through `/api/device-hub/*` on the
- * environment origin. `<img>`, `EventSource`, and `WebSocket` cannot set
- * bearer headers, so bearer connections mint a short-lived WebSocket ticket
- * and pass it as `wsTicket`, the same way the app's own `/ws` upgrade
- * authenticates. Cookie sessions send the cookie.
- *
- * A ticket lives five minutes server-side and is bound to the session, not
- * to one request, so one ticket covers everything a panel opens at once.
- * Callers fetch a fresh one each time they (re)connect a stream.
+ * `<img>`, `EventSource`, and `WebSocket` cannot set bearer headers, so bearer
+ * connections pass a media `wsTicket` to `/api/device-hub/*`. A ticket lasts five
+ * minutes and covers everything a panel opens but not the RPC socket; fetch a
+ * fresh one on each (re)connect. Cookie sessions send the cookie.
  */
+import type { AuthWebSocketTicketUse } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import type { HttpClient } from "effect/http";
 
+import { issueWebSocketTicketWithFallback } from "../authorization/remote.ts";
 import type { PreparedConnection } from "../connection/model.ts";
 import { environmentEndpointUrl } from "../environment/endpoint.ts";
 import type { RemoteEnvironmentRequestError } from "../rpc/http.ts";
@@ -34,13 +29,19 @@ export const resolveDeviceHubAccess = Effect.fn("clientRuntime.state.resolveDevi
     if (input.prepared.httpAuthorization === null) {
       return { httpBase, wsBase, query: {}, credentials: true };
     }
-    const ticket = yield* executeAuthenticatedEnvironmentHttpRequest({
-      prepared: input.prepared,
-      group: "auth",
-      url: (urls) => urls.webSocketTicket(),
-      timeoutMs: TICKET_TIMEOUT_MS,
-      request: ({ client, headers }) => client.webSocketTicket({ headers }),
-    });
+    const mintTicket = (use: AuthWebSocketTicketUse | undefined) =>
+      executeAuthenticatedEnvironmentHttpRequest({
+        prepared: input.prepared,
+        group: "auth",
+        url: (urls) =>
+          use === undefined ? urls.webSocketTicket() : urls.webSocketTicketFor({ params: { use } }),
+        timeoutMs: TICKET_TIMEOUT_MS,
+        request: ({ client, headers }) =>
+          use === undefined
+            ? client.webSocketTicket({ headers })
+            : client.webSocketTicketFor({ headers, params: { use } }),
+      });
+    const ticket = yield* issueWebSocketTicketWithFallback("media", mintTicket);
     return {
       httpBase,
       wsBase,

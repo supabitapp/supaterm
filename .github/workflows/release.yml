@@ -373,6 +373,13 @@ jobs:
       - name: Test
         run: vp run --filter @supaterm/web test --shard ${{ matrix.shard }}/${{ strategy.job-total }} --maxWorkers 8
 
+      # Browser tests run source modules; this boots the production chunk graph, once per run.
+      - name: Boot the built web client
+        if: matrix.shard == 1
+        run: |
+          vp run --filter @supaterm/web build
+          node apps/web/scripts/verify-built-boot.ts
+
   # Server test files run one at a time, so more small runners beat fewer big ones.
   test_server:
     name: Release server tests ${{ matrix.shard }}
@@ -490,6 +497,7 @@ jobs:
       rust_target: aarch64-apple-darwin
       resource_key: darwin-arm64
       cli_archive: true
+      launch_check: true
       mac_installer: ${{ needs.preflight.outputs.release_channel != 'preview' }}
 
   desktop_mac_x64:
@@ -532,6 +540,7 @@ jobs:
       rust_target: x86_64-unknown-linux-gnu
       resource_key: linux-x64
       cli_archive: true
+      launch_check: true
 
   # node-pty has no Linux prebuild and compiles from source, so the arm64 app
   # and archive are built on arm64 hardware rather than cross-built.
@@ -797,6 +806,7 @@ jobs:
           body_path: ${{ needs.preflight.outputs.release_channel == 'preview' && 'release-notes.md' || '' }}
           previous_tag: ${{ needs.preflight.outputs.previous_tag }}
           prerelease: ${{ needs.preflight.outputs.is_prerelease }}
+          draft: ${{ needs.preflight.outputs.is_prerelease }}
           make_latest: ${{ needs.preflight.outputs.make_latest }}
           files: ${{ steps.release_files.outputs.files }}
           fail_on_unmatched_files: true
@@ -812,10 +822,22 @@ jobs:
           generate_release_notes: ${{ needs.preflight.outputs.release_channel != 'preview' }}
           body_path: ${{ needs.preflight.outputs.release_channel == 'preview' && 'release-notes.md' || '' }}
           prerelease: ${{ needs.preflight.outputs.is_prerelease }}
+          draft: ${{ needs.preflight.outputs.is_prerelease }}
           make_latest: ${{ needs.preflight.outputs.make_latest }}
           files: ${{ steps.release_files.outputs.files }}
           fail_on_unmatched_files: true
           token: ${{ github.token }}
+
+      # The action keeps a stable release a draft until its assets finish uploading, but publishes a
+      # prerelease first. Desktop clients update connected servers from the CLI archives as soon as
+      # they see the release, so a prerelease also goes public only once every asset is attached.
+      - name: Publish prerelease
+        if: needs.preflight.outputs.is_prerelease == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.preflight.outputs.tag }}
+        run: gh release edit "$RELEASE_TAG" --draft=false
 
   # Replaces the published body with a short model summary over GitHub's list.
   # It runs after publish so that nothing waits on it: a failed or empty summary

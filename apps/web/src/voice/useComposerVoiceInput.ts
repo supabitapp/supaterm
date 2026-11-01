@@ -170,11 +170,13 @@ export function useComposerVoiceInput(options: ComposerVoiceInputOptions) {
   const availability = useAvailability(options);
   const [state, setState] = useState(IDLE_STATE);
   const [runtime] = useState(() => createVoiceRuntime(setState));
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- hands the latest composer options to the voice runtime, which reads them from recorder callbacks outside React
   useLayoutEffect(() => {
     runtime.setOptions(options);
   });
 
   const { controller, recorder } = runtime;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- disposes the voice controller and releases the microphone when the composer unmounts
   useEffect(
     () => () => {
       controller.dispose();
@@ -188,6 +190,7 @@ export function useComposerVoiceInput(options: ComposerVoiceInputOptions) {
     readonly ownerKey: string;
     readonly submission: ComposerVoiceSubmission;
   } | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- submits a Send-with-draft only after React has committed the reviewed transcript into the editor
   useEffect(() => {
     const pending = submitAfterReview.current;
     if (pending === null || voiceInputBlocksSubmission(state)) return;

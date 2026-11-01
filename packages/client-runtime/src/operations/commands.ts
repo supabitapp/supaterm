@@ -117,6 +117,9 @@ export interface UnsnoozeThreadInput extends ThreadCommandInput {
 
 export interface VisitThreadInput extends ThreadCommandInput {
   readonly visitedAt: string;
+  /** Counts toward search frecency; `searchQuery` is the palette query that picked it. */
+  readonly opened?: boolean;
+  readonly searchQuery?: string;
 }
 
 export type MarkThreadUnreadInput = ThreadCommandInput;
@@ -186,6 +189,7 @@ export interface InterruptThreadTurnInput extends ThreadCommandInput {
 export interface RespondToThreadApprovalInput extends ThreadCommandInput {
   readonly requestId: RuntimeRequestId;
   readonly decision: ProviderApprovalDecision;
+  readonly feedback?: string;
 }
 
 export interface RespondToThreadUserInputInput extends ThreadCommandInput {
@@ -220,11 +224,6 @@ export interface MergeThreadBackInput extends CommandMetadata {
 
 export interface ResumeThreadQueueInput extends ThreadCommandInput {
   readonly runId?: RunId;
-}
-
-export interface ReorderQueuedRunInput extends ThreadCommandInput {
-  readonly runId: RunId;
-  readonly beforeRunId: RunId | null;
 }
 
 export interface PromoteQueuedRunInput extends ThreadCommandInput {
@@ -556,6 +555,8 @@ export const visitThread = Effect.fn("EnvironmentCommands.visitThread")(function
     commandId: yield* allocateCommandId(input),
     threadId: input.threadId,
     visitedAt: input.visitedAt,
+    ...(input.opened ? { opened: true } : {}),
+    ...(input.searchQuery ? { searchQuery: input.searchQuery } : {}),
   });
 });
 
@@ -747,7 +748,7 @@ export const interruptThreadTurn = Effect.fn("EnvironmentCommands.interruptThrea
     const projection = yield* getProjection(input.threadId);
     const subagent = projection.subagents.find((agent) => agent.id === input.subagentId);
     if (subagent?.origin === "app_owned" && subagent.childThreadId !== null) {
-      // The parent ends the task even when its child lost track of it (#19002). Older
+      // The parent ends the task even when its child lost track of it. Older
       // servers reject this for app-owned tasks, so the child stop below still runs.
       if (subagent.runId !== null) {
         yield* dispatch({
@@ -851,6 +852,7 @@ export const respondToThreadApproval = Effect.fn("EnvironmentCommands.respondToT
       threadId: input.threadId,
       requestId: input.requestId,
       decision: input.decision,
+      ...(input.feedback === undefined ? {} : { feedback: input.feedback }),
     });
   },
 );
@@ -985,18 +987,6 @@ export const resumeThreadQueue = Effect.fn("EnvironmentCommands.resumeThreadQueu
     type: "queue.resume",
     commandId: yield* allocateCommandId(input),
     threadId: input.threadId,
-  });
-});
-
-export const reorderQueuedRun = Effect.fn("EnvironmentCommands.reorderQueuedRun")(function* (
-  input: ReorderQueuedRunInput,
-) {
-  return yield* dispatch({
-    type: "queued-run.reorder",
-    commandId: yield* allocateCommandId(input),
-    threadId: input.threadId,
-    runId: input.runId,
-    beforeRunId: input.beforeRunId,
   });
 });
 

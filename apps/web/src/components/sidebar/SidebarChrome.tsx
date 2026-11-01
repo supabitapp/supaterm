@@ -10,6 +10,7 @@ import type { MouseEvent, ReactNode } from "react";
 import { memo } from "react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { parseKeybindingShortcut } from "@supaterm/shared/keybindings";
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 
 import { APP_BASE_NAME, SOURCE_CODE_URL, WEBSITE_URL } from "../../branding";
 import { isElectron } from "../../env";
@@ -19,8 +20,6 @@ import { formatShortcutLabel } from "../../keybindings";
 import { cn } from "../../lib/utils";
 import { readLocalApi } from "../../localApi";
 import { usePullRequestsSupported } from "../../state/environments";
-import { GitHubIcon } from "../Icons";
-import { Kbd } from "../ui/kbd";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import {
   SidebarFooter,
@@ -39,7 +38,10 @@ import { SidebarThreadUndoNotice } from "./SidebarThreadUndoNotice";
 import { SidebarProviderUpdatePill } from "./SidebarProviderUpdatePill";
 import { SidebarUpdateArchitectureWarning, SidebarUpdatePill } from "./SidebarUpdatePill";
 import { PullRequestGlyph } from "~/components/pullRequest/pullRequestIcons";
+import { sourceControlIcon } from "~/sourceControlPresentation";
 import { observeResize } from "~/lib/observeResize";
+
+const GitHubIcon = sourceControlIcon(sourceControlClients.get("github"));
 
 export const SidebarChromeHeader = memo(function SidebarChromeHeader({
   isElectron,
@@ -191,36 +193,7 @@ function SidebarHelpItem({ closeMobileSidebar }: { closeMobileSidebar: () => voi
   );
 }
 
-export function SidebarBackToApp() {
-  const navigateToMainApp = useNavigateToMainApp();
-  const { isMobile, setOpenMobile } = useSidebar();
-  const handleClick = () => {
-    if (isMobile) setOpenMobile(false);
-    void navigateToMainApp();
-  };
-
-  return (
-    <SidebarMenu>
-      <SidebarMenuItem>
-        <SidebarMenuButton variant="outline" onClick={handleClick}>
-          <ArrowLeftIcon />
-          <span>Back to app</span>
-          {isMobile ? null : (
-            <Kbd variant="plain" className="ms-auto" aria-hidden>
-              Esc
-            </Kbd>
-          )}
-        </SidebarMenuButton>
-      </SidebarMenuItem>
-    </SidebarMenu>
-  );
-}
-
-export const SidebarUtilityMenu = memo(function SidebarUtilityMenu({
-  showBack = true,
-}: {
-  showBack?: boolean;
-}) {
+const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
   const navigate = useNavigate();
   const navigateToMainApp = useNavigateToMainApp();
   const { isMobile, setOpenMobile } = useSidebar();
@@ -261,7 +234,7 @@ export const SidebarUtilityMenu = memo(function SidebarUtilityMenu({
 
   return (
     <SidebarMenu className="flex-row items-center">
-      {isOnUtilityPage && showBack ? (
+      {isOnUtilityPage ? (
         <SidebarMenuItem className="min-w-0 flex-1">
           <SidebarMenuButton onClick={handleBackClick}>
             <ArrowLeftIcon />
@@ -298,10 +271,14 @@ export const SidebarUtilityMenu = memo(function SidebarUtilityMenu({
   );
 });
 
-export const SidebarChromeFooter = memo(function SidebarChromeFooter() {
+export const SidebarChromeFooter = memo(function SidebarChromeFooter({
+  showUndoNotice = false,
+}: {
+  showUndoNotice?: boolean;
+}) {
   return (
     <SidebarFooter>
-      <SidebarThreadUndoNotice />
+      {showUndoNotice ? <SidebarThreadUndoNotice /> : null}
       <SidebarProviderUpdatePill />
       <SidebarUpdateArchitectureWarning />
       <SidebarUtilityMenu />

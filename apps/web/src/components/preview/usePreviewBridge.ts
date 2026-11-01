@@ -4,18 +4,13 @@ import type {
   ScopedThreadRef,
   ThreadId,
 } from "@supaterm/contracts";
-import * as Option from "effect/Option";
 import { useEffect, useEffectEvent, useRef } from "react";
 
-import {
-  flushPendingFaviconsForThread,
-  recordFaviconForThread,
-  useFaviconProjectRefForThread,
-} from "~/browserFaviconStore";
+import { recordFaviconForThread } from "~/browserFaviconStore";
 import { useBrowserPointerStore } from "~/browser/browserPointerStore";
+import { acquireBrowserSurfaceActivity } from "~/browser/browserSurfaceStore";
 import { applyPreviewDesktopState, type DesktopPreviewOverlay } from "~/previewStateStore";
 import { previewEnvironment } from "~/state/preview";
-import { usePreparedConnection } from "~/state/session";
 import { useAtomCommand } from "~/state/use-atom-command";
 
 import { previewBridge } from "./previewBridge";
@@ -29,8 +24,22 @@ function originOf(url: string): string | null {
 }
 
 /**
- * Webview lifetime is owned by ElectronBrowserHost.
+ * Keeps a hidden guest painting behind the app while the desktop host captures it; Electron
+ * composites no offscreen guest, so its screenshot or stream would otherwise never finish.
  */
+export function createCaptureActivity(tabId: string) {
+  let release: (() => void) | null = null;
+  const update = (capturing: boolean) => {
+    if (capturing && !release) release = acquireBrowserSurfaceActivity(tabId);
+    else if (!capturing && release) {
+      release();
+      release = null;
+    }
+  };
+  return { update, release: () => update(false) };
+}
+
+/** ElectronBrowserHost owns webview lifetime. */
 export function usePreviewBridge(input: {
   threadRef: ScopedThreadRef;
   tabId: string;
@@ -40,19 +49,13 @@ export function usePreviewBridge(input: {
   const { threadRef, tabId, runtimeTabId, serverDriven = false } = input;
   const clearBrowserPointer = useBrowserPointerStore((state) => state.clear);
   const reportStatus = useAtomCommand(previewEnvironment.reportStatus, "preview status report");
-  // Callers pass a fresh threadRef each render; rebuilding it from its ids keeps the ref
-  // stable for the effects.
   const { environmentId, threadId } = threadRef;
   const stableThreadRef: ScopedThreadRef = { environmentId, threadId };
-  const projectRef = useFaviconProjectRefForThread(stableThreadRef);
-  const preparedConnection = usePreparedConnection(stableThreadRef.environmentId);
-  const environmentHostname = Option.isSome(preparedConnection)
-    ? new URL(preparedConnection.value.httpBaseUrl).hostname
-    : undefined;
 
   const lastReportedUrl = useRef<string | null>(null);
   const lastReportedKind = useRef<DesktopPreviewTabState["navStatus"]["kind"] | null>(null);
   const lastDesktopNavStatus = useRef<DesktopPreviewTabState["navStatus"] | null>(null);
+  const captureActivity = useRef<ReturnType<typeof createCaptureActivity> | null>(null);
   const handleStateChange = useEffectEvent(
     (changedTabId: string, state: DesktopPreviewTabState): void => {
       if (changedTabId !== runtimeTabId) return;
@@ -60,9 +63,10 @@ export function usePreviewBridge(input: {
         clearBrowserPointer(runtimeTabId);
       }
       lastDesktopNavStatus.current = state.navStatus;
+      captureActivity.current?.update(state.capturing);
       applyPreviewDesktopState(stableThreadRef, tabId, projectDesktopState(state));
       if (state.favicon) {
-        recordFaviconForThread(stableThreadRef, state.favicon, projectRef, environmentHostname);
+        recordFaviconForThread(stableThreadRef, state.favicon);
       }
       const reported = buildReportInput({
         threadId: stableThreadRef.threadId,
@@ -80,19 +84,23 @@ export function usePreviewBridge(input: {
       });
     },
   );
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to preview bridge state changes and capture activity for the current tab
   useEffect(() => {
     if (!previewBridge || typeof window === "undefined") return;
     lastReportedUrl.current = null;
     lastReportedKind.current = null;
     lastDesktopNavStatus.current = null;
-    return previewBridge.onStateChange((changedTabId, state) => {
+    const activity = createCaptureActivity(runtimeTabId);
+    captureActivity.current = activity;
+    const unsubscribe = previewBridge.onStateChange((changedTabId, state) => {
       if (changedTabId === runtimeTabId) handleStateChange(changedTabId, state);
     });
+    return () => {
+      unsubscribe();
+      activity.release();
+      if (captureActivity.current === activity) captureActivity.current = null;
+    };
   }, [runtimeTabId]);
-  useEffect(() => {
-    if (!projectRef) return;
-    flushPendingFaviconsForThread(stableThreadRef, projectRef, environmentHostname);
-  }, [environmentHostname, projectRef, stableThreadRef]);
 }
 
 function shouldClearBrowserPointer(

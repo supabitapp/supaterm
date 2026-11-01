@@ -10,6 +10,7 @@ import {
   isRuntimeExternalCliDependency,
   findInlinedExternalPackages,
   readInstalledPackages,
+  selectCliRuntimeExternalDependencies,
   shouldBundleCliDependency,
 } from "./cli-external-packages.ts";
 
@@ -67,6 +68,40 @@ it.layer(NodeServices.layer)("external package dependency closure", (it) => {
       );
     }),
   );
+
+  // The stage installs only externals the server lists, so a required peer must be reachable from them.
+  it.effect("stages a provider for every required peer of a staged external", () =>
+    Effect.gen(function* () {
+      const installed = [...(yield* installedPackages).values()];
+      const byName = new Map(installed.map((manifest) => [manifest.name, manifest]));
+      const server = byName.get("supaterm");
+      assert.isDefined(server);
+
+      const staged = new Set<string>();
+      const queue = Object.keys(selectCliRuntimeExternalDependencies(server.dependencies ?? {}));
+      for (const name of queue) {
+        if (staged.has(name)) continue;
+        staged.add(name);
+        const manifest = byName.get(name);
+        queue.push(
+          ...Object.keys({ ...manifest?.dependencies, ...manifest?.optionalDependencies }),
+        );
+      }
+
+      const missing = [...staged].flatMap((name) => {
+        const manifest = byName.get(name);
+        return Object.keys(manifest?.peerDependencies ?? {})
+          .filter((peer) => !manifest?.peerDependenciesMeta?.[peer]?.optional && !staged.has(peer))
+          .map((peer) => `${name} -> ${peer}`);
+      });
+
+      assert.deepStrictEqual(
+        missing,
+        [],
+        `these peers of staged external packages are missing from the packaged app; add them to apps/server dependencies: ${missing.join(", ")}`,
+      );
+    }),
+  );
 });
 
 describe("findInlinedExternalPackages", () => {
@@ -96,6 +131,21 @@ var x = 1;
 
     assert.deepStrictEqual(result.inlinedPackages, ["effect", "yaml"]);
     assert.deepStrictEqual(result.inlined, []);
+  });
+
+  it("reads the plain `// <path>` markers newer Rolldown emits", () => {
+    const source = [
+      "// \0rolldown/runtime.js",
+      "var x = 1;",
+      "// ../../node_modules/.pnpm/node-addon-api@7.1.1/node_modules/node-addon-api/index.js",
+      "var y = 2; // trailing comment",
+      "// ../../src/server/main.ts",
+      "",
+    ].join("\n");
+    const result = findInlinedExternalPackages(source);
+
+    assert.strictEqual(result.regionCount, 3);
+    assert.deepStrictEqual(result.inlined, ["node-addon-api"]);
   });
 });
 

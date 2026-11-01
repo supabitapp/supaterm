@@ -1,5 +1,5 @@
 import type { SidebarThreadGrouping } from "@supaterm/contracts";
-import { useThreadListV2Layout } from "../threads/use-thread-list-v2-layout";
+import { useThreadListV2 } from "../threads/useThreadListV2";
 import { useActiveNewTask } from "../../state/active-new-task";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { useAndroidControlSizing } from "../../components/ui/useAndroidControlSizing";
@@ -11,13 +11,9 @@ import {
   type EnvironmentProject,
   type EnvironmentThreadShell,
 } from "@supaterm/client-runtime/state/shell";
-import {
-  threadSearchMatchKey,
-  type EnvironmentThreadSearchMatch,
-} from "@supaterm/client-runtime/state/thread-search";
+import { threadSearchMatchKey } from "@supaterm/client-runtime/state/thread-search";
 import { type EnvironmentId, type SidebarProjectGroupingMode } from "@supaterm/contracts";
 import { useAtomValue } from "@effect/atom-react";
-import { useFocusEffect } from "@react-navigation/native";
 import { use, useEffect, useRef, useState, type ComponentProps, type ReactElement } from "react";
 import {
   Platform,
@@ -29,7 +25,7 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from "react-native";
-import { ScrollViewMarker } from "react-native-screens";
+import { NativeScrollViewMarker as ScrollViewMarker } from "../../native/NativeScrollViewMarker";
 import { GestureDetector, useNativeGesture } from "react-native-gesture-handler";
 import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -49,7 +45,6 @@ import {
   NativeWorkspaceTabActivityContext,
 } from "../../native/v5-workspace-context";
 import { nativeHeaderScrollEdgeEffects } from "../../native/scrollEdgeEffects";
-import { useRestingTopOffset } from "../../native/useRestingTopOffset";
 import {
   useNativeColumnLayoutMetrics,
   useNativeLayoutMetrics,
@@ -57,6 +52,9 @@ import {
 import { NATIVE_LIQUID_GLASS_SUPPORTED } from "../../native/native-glass";
 import { useNativeWorkspaceColumnsSupported } from "../../native/NativeWorkspaceColumns";
 import { useThreadSearch } from "../../state/queries";
+import { requestThreadMessageJump } from "../threads/threadMessageJump";
+import { useThreadListSearchMatches } from "../threads/useThreadListSearchMatches";
+import { useThreadListNow } from "../threads/use-thread-list-now";
 import { useThreadJumpShortcuts } from "../keyboard/threadKeyboardShortcuts";
 import { usePendingThreadOrder } from "../../state/thread-order";
 import { threadListEnvironmentsAtom } from "../../state/server";
@@ -77,7 +75,6 @@ import { useThreadRowProviderInstanceResolver } from "../threads/thread-provider
 import { useOpenThreadPullRequests } from "../threads/use-open-thread-pull-requests";
 import type { ThreadPrPresentation } from "../../state/thread-pr-presentation";
 import {
-  buildThreadListV2ListItems,
   threadListV2ListItemsAreEqual,
   THREAD_LIST_V2_DONE_INITIAL_COUNT,
   THREAD_LIST_V2_DONE_PAGE_COUNT,
@@ -140,20 +137,10 @@ interface HomeScreenProps {
   readonly listHeader: ReactElement | undefined;
 }
 
-// v2 rows are mixed-height: done slim rows run ~60dp, single-line cards
-// measured ~74dp on device (252px on the Pixel 10 Pro screenshot), two-line
-// cards ~94dp. The estimate seeds the recycler's initial container count,
-// `ceil((scrollLength + 2 * INITIAL_DRAW_DISTANCE) / estimate)` with the
-// initial draw distance capped at 50, so an estimate at or below the average
-// row height starts the pool at or above the item count for the short lists
-// that LegendList otherwise keeps pooling to exactly its item count — that is
-// what stopped the dev-mode "no unused container available" warning on the
-// seeded short-list device passes. It is a mitigation, not an elimination:
-// after first layout the full drawDistance applies, and a sudden expansion
-// past the pooled headroom (~25+ items appearing at once) still creates a
-// container on demand with the dev-only warning one pass ahead of the
-// measured-height pool expansion. The old tallest-card estimate (~92) fired
-// that warning on every ordinary shelf expand, so the average wins.
+// Rows run ~60dp (slim) to ~94dp (two-line card). The estimate seeds the recycler's initial
+// container count, so staying at or below the average row height pools short lists past their
+// item count and avoids the dev-only "no unused container available" warning; the tallest-card
+// estimate fired it on every shelf expand.
 const ESTIMATED_THREAD_LIST_V2_ROW_HEIGHT = 72;
 // Rows away from the viewport skip their swipe actions (see
 // swipe-row-activation), so render further ahead: a fast fling then reaches
@@ -232,9 +219,7 @@ function HomeTopContentSpacer() {
 }
 
 function HomeScrollView(props: ComponentProps<typeof ScrollView>) {
-  const insets = useSafeAreaInsets();
   const primaryColumn = use(NativePrimaryColumnContext);
-  const restingOffset = useRestingTopOffset(insets.top, props);
   if (Platform.OS !== "ios") return <ScrollView {...props} />;
 
   return (
@@ -248,11 +233,7 @@ function HomeScrollView(props: ComponentProps<typeof ScrollView>) {
     >
       <ScrollView
         {...props}
-        {...restingOffset}
         className={cn(props.className, primaryColumn ? "bg-drawer" : "bg-screen")}
-
-        automaticallyAdjustContentInsets={false}
-        contentInsetAdjustmentBehavior="never"
       />
     </ScrollViewMarker>
   );
@@ -314,20 +295,6 @@ export function HomeScreen(props: HomeScreenProps) {
           )
         ? [props.selectedEnvironmentId]
         : [];
-  const threadSearch = useThreadSearch(
-    searchEnvironmentIds,
-    tabActivity?.active === false ? "" : props.searchQuery,
-  );
-  const threadSearchMatchByKey = (() => {
-    const matches = new Map<string, EnvironmentThreadSearchMatch>();
-    for (const match of threadSearch.matches) {
-      if (match.source === "user" || match.source === "assistant") {
-        matches.set(threadSearchMatchKey(match), match);
-      }
-    }
-    return matches;
-  })();
-  const matchedThreadKeys = new Set(threadSearch.matches.map(threadSearchMatchKey));
   const handleSwipeableWillOpen = (methods: SwipeableMethods) => {
     if (openSwipeableRef.current !== methods) {
       openSwipeableRef.current?.close();
@@ -356,6 +323,7 @@ export function HomeScreen(props: HomeScreenProps) {
   const listRef = useRef<LegendListRef>(null);
   const searchMode = workspace?.state.tabs.threads.searchMode;
   const restoredOffset = workspace?.state.tabs.threads.scrollOffset;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- restores the thread list's saved scroll offset through the list ref when search goes back to resting
   useEffect(() => {
     if (searchMode !== "resting" || restoredOffset === undefined) return;
     listRef.current?.scrollToOffset({
@@ -374,6 +342,7 @@ export function HomeScreen(props: HomeScreenProps) {
   // Status-bar, accessibility and programmatic scrolls never arm the scroll
   // gate, so every scroll also activates the visible rows once it settles.
   const activationTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the row activation timer on unmount
   useEffect(() => () => clearTimeout(activationTimerRef.current), []);
   const handleListScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     onFabScroll?.(event);
@@ -416,6 +385,14 @@ export function HomeScreen(props: HomeScreenProps) {
 
   const v2ProjectScopeKey = props.selectedProjectKey;
   const v2ScopedProjectGroup = findHomeProjectScope(projectScopes, v2ProjectScopeKey);
+  const threadSearch = useThreadSearch(
+    searchEnvironmentIds,
+    tabActivity?.active === false ? "" : props.searchQuery,
+    v2ScopedProjectGroup === null
+      ? {}
+      : { projectIds: v2ScopedProjectGroup.projectRefs.map((ref) => ref.projectId) },
+  );
+  const threadSearchMatchByKey = useThreadListSearchMatches(props.threads, threadSearch);
   const v2ProjectTitleByProjectKey = new Map(
     projectScopes.flatMap((scope) =>
       scope.projectRefs.map(
@@ -424,19 +401,8 @@ export function HomeScreen(props: HomeScreenProps) {
       ),
     ),
   );
-  const v2ScopedProjectKeys =
-    v2ScopedProjectGroup === null
-      ? null
-      : new Set(
-          v2ScopedProjectGroup.projectRefs.map((projectRef) =>
-            scopedProjectKey(projectRef.environmentId, projectRef.projectId),
-          ),
-        );
-  // Thread List v2 (beta): one flat list in creation order, no grouping.
-  // Done threads collapse into a recency tail below the card block.
-  // Done threads stay in the live shell stream (done ≠ archived), so
-  // the partition works directly off live shells — no snapshot merging or
-  // optimistic holds.
+  // Done threads stay in the live shell stream (done is not archived), so the partition works
+  // directly off live shells with no snapshot merging or optimistic holds.
   const handleMarkThreadDone = props.onMarkThreadDone;
   const {
     onSnoozeThread,
@@ -493,28 +459,22 @@ export function HomeScreen(props: HomeScreenProps) {
     toggleWorkingShelf,
     toggleGroup,
   } = useThreadListV2ShelfPreferences();
-  const [nowMinute, setNowMinute] = useState(() => new Date().toISOString().slice(0, 16));
-  const [snoozeWakeTick, bumpSnoozeWakeTick] = useState(0);
-  const [listClock, setListClock] = useState(() => ({
-    nowMinute,
-    snoozeWakeTick,
-    now: new Date().toISOString(),
-  }));
-  if (listClock.nowMinute !== nowMinute || listClock.snoozeWakeTick !== snoozeWakeTick) {
-    // oxlint-disable-next-line react/purity -- Resamples the clock only when the minute or a snooze wake changes; the sample lives in state.
-    setListClock({ nowMinute, snoozeWakeTick, now: new Date().toISOString() });
-  }
-  useFocusEffect(() => {
-    setNowMinute(new Date().toISOString().slice(0, 16));
-    const id = setInterval(() => setNowMinute(new Date().toISOString().slice(0, 16)), 60_000);
-    return () => clearInterval(id);
-  });
+  const now = useThreadListNow(props.threads);
   const listEnvironments = useAtomValue(threadListEnvironmentsAtom);
-  const { providersByEnvironmentId, machineByEnvironmentId, loadedEnvironmentIds } =
-    listEnvironments;
+  const {
+    providersByEnvironmentId,
+    machineByEnvironmentId,
+    loadedEnvironmentIds,
+    snoozePresetsByEnvironmentId,
+  } = listEnvironments;
   const resolveProviderInstance = useThreadRowProviderInstanceResolver(providersByEnvironmentId);
-  const pendingOrder = usePendingThreadOrder(nowMinute, snoozeWakeTick);
-  const { threadListV2Layout } = useThreadListV2Layout({
+  const pendingOrder = usePendingThreadOrder();
+  const {
+    layout: threadListV2Layout,
+    items: threadListV2Items,
+    contentOnlyThreadKeys,
+    olderDoneShelf,
+  } = useThreadListV2({
     grouping: props.threadGrouping,
     groupingProjects: projectScopes.map((scope) => ({
       key: scope.key,
@@ -522,14 +482,17 @@ export function HomeScreen(props: HomeScreenProps) {
       memberProjectRefs: scope.projectRefs,
     })),
     threads: props.threads,
+    pendingTasks: props.pendingTasks,
     environmentId: props.selectedEnvironmentId,
     projectRefs: v2ScopedProjectGroup === null ? null : v2ScopedProjectGroup.projectRefs,
     searchQuery: props.searchQuery,
-    matchedThreadKeys,
+    searchMatches: threadSearchMatchByKey,
     pendingOrder,
     queuedThreadKeys,
+    loadedEnvironmentIds,
     doneLimit: doneVisibleCount,
-    now: listClock.now,
+    now,
+    shelfPreferencesLoaded,
     pinnedShelfExpanded,
     activeShelfExpanded,
     workingShelfExpanded,
@@ -538,44 +501,23 @@ export function HomeScreen(props: HomeScreenProps) {
     doneShelfExpanded,
     selectedThreadKey,
   });
-  const nextSnoozeWakeAt = threadListV2Layout.nextSnoozeWakeAt;
-  useEffect(() => {
-    if (nextSnoozeWakeAt === null) return;
-    const wakeAtMs = Date.parse(nextSnoozeWakeAt);
-    if (Number.isNaN(wakeAtMs)) return;
-    const delayMs = Math.min(Math.max(0, wakeAtMs - Date.now()) + 50, 2_147_483_647);
-    const id = setTimeout(() => bumpSnoozeWakeTick(snoozeWakeTick + 1), delayMs);
-    return () => clearTimeout(id);
-    // snoozeWakeTick must re-arm the timer even when nextSnoozeWakeAt is
-    // unchanged: after a clamped fire (wake beyond the 32-bit setTimeout
-    // range) the boundary string is identical and the chain would die.
-  }, [nextSnoozeWakeAt, snoozeWakeTick]);
-  const v2SearchQuery = props.searchQuery.trim().toLocaleLowerCase();
-  const v2PendingTasks = props.pendingTasks.filter(
-    (pendingTask) =>
-      (props.selectedEnvironmentId === null ||
-        pendingTask.environmentId === props.selectedEnvironmentId) &&
-      (v2ScopedProjectKeys === null ||
-        v2ScopedProjectKeys.has(
-          scopedProjectKey(pendingTask.environmentId, pendingTask.projectId),
-        )) &&
-      (v2SearchQuery.length === 0 || pendingTask.title.toLocaleLowerCase().includes(v2SearchQuery)),
-  );
-  const threadListV2Items = buildThreadListV2ListItems({
-    ...threadListV2Layout,
-    pendingTasks: v2PendingTasks,
-    pinnedShelfExpanded,
-    activeShelfExpanded,
-    workingShelfExpanded,
-    snoozedShelfExpanded,
-    doneShelfExpanded,
-    snoozeLabelNow: `${nowMinute}:00.000Z`,
-    loadedEnvironmentIds,
-    queuedThreadKeys,
-    shelfPreferencesLoading: !shelfPreferencesLoaded,
-  });
-
-  useThreadJumpShortcuts(threadListV2Items, props.onSelectThread);
+  // Called as `props.onSelectThread(...)`, the compiler would cache this handler on the whole
+  // props object, which is new on every render of Home's parent.
+  const { onSelectThread } = props;
+  // A row listed for a message match opens the thread at that message, by
+  // tap or by shortcut.
+  const selectThread = (thread: EnvironmentThreadShell) => {
+    const key = threadSearchMatchKey({ environmentId: thread.environmentId, threadId: thread.id });
+    const messageId = contentOnlyThreadKeys.has(key)
+      ? threadSearchMatchByKey.get(key)?.messageId
+      : undefined;
+    if (messageId) {
+      requestThreadMessageJump(scopedThreadKey(thread.environmentId, thread.id), messageId);
+    }
+    onSelectThread(thread);
+  };
+  useThreadJumpShortcuts(threadListV2Items, selectThread);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reads the list's visible range after commit to enable swipe gestures on those rows
   useEffect(() => {
     if (swipeEnabled) activateVisibleRows(threadListV2Items);
   }, [activateVisibleRows, swipeEnabled, threadListV2Items]);
@@ -648,7 +590,16 @@ export function HomeScreen(props: HomeScreenProps) {
       );
     }
     if (item.type === "v2-show-more") {
-      return <ThreadListV2ShowMoreRow hiddenCount={item.hiddenCount} onPress={showMoreDone} />;
+      return (
+        <ThreadListV2ShowMoreRow
+          hiddenCount={item.hiddenCount}
+          {...(item.state === undefined ? {} : { state: item.state })}
+          onPress={() => {
+            olderDoneShelf.retry();
+            showMoreDone();
+          }}
+        />
+      );
     }
     if (item.type === "v2-pinned-shelf") {
       return (
@@ -712,9 +663,6 @@ export function HomeScreen(props: HomeScreenProps) {
         showTrailingDivider={item.showTrailingDivider}
         showProjectIcon={item.showProjectIcon}
         project={projectByKey.get(scopedProjectKey(thread.environmentId, thread.projectId)) ?? null}
-        projectTitle={v2ProjectTitleByProjectKey.get(
-          scopedProjectKey(thread.environmentId, thread.projectId),
-        )}
         providerInstance={resolveProviderInstance(thread)}
         providers={providersByEnvironmentId.get(thread.environmentId)}
         environmentLabel={
@@ -723,14 +671,18 @@ export function HomeScreen(props: HomeScreenProps) {
             : null
         }
         environmentMachine={machineByEnvironmentId.get(thread.environmentId)}
-        searchMatch={threadSearchMatchByKey.get(
-          threadSearchMatchKey({
-            environmentId: thread.environmentId,
-            threadId: thread.id,
-          }),
-        )}
-        searchQuery={props.searchQuery}
-        onSelectThread={props.onSelectThread}
+        searchMatch={
+          // Only rows listed for their messages show one and open at it.
+          contentOnlyThreadKeys.has(
+            threadSearchMatchKey({ environmentId: thread.environmentId, threadId: thread.id }),
+          )
+            ? threadSearchMatchByKey.get(
+                threadSearchMatchKey({ environmentId: thread.environmentId, threadId: thread.id }),
+              )
+            : undefined
+        }
+        searchQuery={threadSearch.query}
+        onSelectThread={selectThread}
         onOpenThreadPullRequests={handleOpenThreadPullRequests}
         onDeleteThread={handleDeleteThread}
         onArchiveThread={props.onArchiveThread}
@@ -740,6 +692,7 @@ export function HomeScreen(props: HomeScreenProps) {
         markDoneSupported={loadedEnvironmentIds.has(thread.environmentId)}
         onMarkThreadDone={handleMarkThreadDone}
         snoozeSupported={loadedEnvironmentIds.has(thread.environmentId)}
+        snoozePresets={snoozePresetsByEnvironmentId.get(thread.environmentId)}
         pinningSupported={loadedEnvironmentIds.has(thread.environmentId)}
         autoMarkDoneOptOutSupported={loadedEnvironmentIds.has(thread.environmentId)}
         arrangeSupported={loadedEnvironmentIds.has(thread.environmentId)}
@@ -789,7 +742,9 @@ export function HomeScreen(props: HomeScreenProps) {
   // full-page "No threads yet". Done threads are unarchived live shells,
   // so the archived-at check already covers the done shelf.
   const hasAnyThreads =
-    props.threads.some((thread) => thread.archivedAt === null) || props.pendingTasks.length > 0;
+    props.threads.some((thread) => thread.archivedAt === null) ||
+    props.pendingTasks.length > 0 ||
+    (threadListV2Layout.kind === "shelves" && threadListV2Layout.doneCount > 0);
   const selectedEnvironmentLabel =
     props.selectedEnvironmentId === null
       ? null
@@ -920,8 +875,9 @@ export function HomeScreen(props: HomeScreenProps) {
               ListEmptyComponent={v2ListEmpty}
               style={{ flex: 1 }}
               automaticallyAdjustsScrollIndicatorInsets={Platform.OS === "ios"}
-              contentInsetAdjustmentBehavior="never"
-              contentInset={Platform.OS === "ios" ? { top: insets.top } : undefined}
+              // UIKit owns the bar's inset, so a minimizing bar and a resized column move
+              // the list in the same frame as the bar.
+              contentInsetAdjustmentBehavior="automatic"
               contentInsetStartAdjustment={Platform.OS === "ios" ? insets.top : 0}
               initialScrollOffset={
                 initialScrollOffset > 0
@@ -940,7 +896,7 @@ export function HomeScreen(props: HomeScreenProps) {
                   (contentSideInsets?.right ?? 0) + (primaryColumn ? 8 : 0) + androidListGutter,
                 paddingBottom:
                   Platform.OS === "ios"
-                    ? iosBottomClearance
+                    ? iosBottomClearance - (columnMetrics?.safeArea.bottom ?? insets.bottom)
                     : (workspace?.bottomClearance ??
                       Math.max(insets.bottom, 16) +
                         (Platform.OS === "android" ? fabClearance : 88)),

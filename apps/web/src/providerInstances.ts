@@ -1,3 +1,4 @@
+import { pipe } from "effect/Function";
 import {
   DEFAULT_MODEL_BY_PROVIDER,
   defaultInstanceIdForDriver,
@@ -46,27 +47,7 @@ export interface ProviderInstanceEntry {
   readonly models: ReadonlyArray<ServerProviderModel>;
 }
 
-export type ProviderCatalogAvailability = "loading" | "ready" | "unavailable" | "unconfigured";
-
-/**
- * Environment config streams are reactive: treating their initial `null` as a
- * final empty list strands otherwise recoverable threads behind a misleading
- * "no providers" state.
- */
-export function resolveProviderCatalogAvailability(input: {
-  readonly catalogLoaded: boolean;
-  readonly entries: ReadonlyArray<ProviderInstanceEntry>;
-  readonly selectedEntry: ProviderInstanceEntry | undefined;
-}): ProviderCatalogAvailability {
-  if (!input.catalogLoaded) return "loading";
-  if (input.selectedEntry !== undefined) return "ready";
-  return input.entries.length === 0 ? "unconfigured" : "unavailable";
-}
-
-/**
- * Disabling an instance updates `enabled` independently, while its previous `ready` probe
- * status can remain in the streamed snapshot until reconciliation.
- */
+/** Disabled instances may retain ready status until reconciliation. */
 export function isProviderInstancePickerReady(entry: ProviderInstanceEntry): boolean {
   return entry.enabled && entry.isAvailable && entry.status === "ready";
 }
@@ -175,7 +156,20 @@ function applyProviderInstanceBranding(
   };
 }
 
-export function sortProviderInstanceEntries(
+/** Picker order: each driver's default instance first, then its custom instances. */
+export function providerInstanceEntriesFor(
+  providers: ReadonlyArray<ServerProvider>,
+  settings: Pick<ServerSettings, "providerInstances" | "projectSettingsOverrides">,
+  projectId: ProjectId | null,
+): ReadonlyArray<ProviderInstanceEntry> {
+  return pipe(
+    deriveProviderInstanceEntries(providers),
+    (entries) => applyProviderInstanceSettings(entries, settings, projectId),
+    sortProviderInstanceEntries,
+  );
+}
+
+function sortProviderInstanceEntries(
   entries: ReadonlyArray<ProviderInstanceEntry>,
 ): ReadonlyArray<ProviderInstanceEntry> {
   const byKind = new Map<ProviderDriverKind, ProviderInstanceEntry[]>();
@@ -253,4 +247,20 @@ export function resolveDefaultProviderModelSelection(
   if (selection?.instanceId === instanceId) return selection;
   const model = getDefaultProviderInstanceModel(providers, instanceId);
   return model ? { instanceId, model } : null;
+}
+
+export function resolveProjectDefaultProviderModelSelection(
+  providers: ReadonlyArray<ServerProvider>,
+  settings: ServerSettings,
+  projectId: ProjectId | null,
+): ModelSelection | null {
+  const entries = providerInstanceEntriesFor(providers, settings, projectId);
+  // Matches resolveComposerProviderSelection: the first driver group wins before any other.
+  const entry =
+    resolveSelectableProviderInstanceEntry(
+      entries.filter((candidate) => candidate.driverKind === entries[0]?.driverKind),
+      undefined,
+    ) ?? resolveSelectableProviderInstanceEntry(entries, undefined);
+  const model = entry ? getDefaultProviderInstanceModel(providers, entry.instanceId) : undefined;
+  return entry && model ? { instanceId: entry.instanceId, model } : null;
 }

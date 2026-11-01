@@ -35,6 +35,7 @@ import * as McpSessionRegistry from "../mcp/McpSessionRegistry.ts";
 import * as McpToolAccessTestkit from "../mcp/McpToolAccess.testkit.ts";
 import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
 import * as ProjectService from "../project/ProjectService.ts";
+import * as DocumentText from "../provider/DocumentText.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
 import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
@@ -109,7 +110,7 @@ const withServer = <A, E, R>(
       Layer.provideMerge(McpHttpServer.layerMcpTransport),
       Layer.provide(
         Layer.mock(McpSessionRegistry.McpSessionRegistry)({
-          resolve: () => Effect.succeed(undefined),
+          resolve: () => Effect.undefined,
         }),
       ),
       Layer.provide(
@@ -163,7 +164,7 @@ const withServer = <A, E, R>(
           Layer.provideMerge(
             ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-transcribe-cli-" }),
           ),
-          Layer.provideMerge(NodeServices.layer),
+          Layer.provideMerge(DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer))),
         ),
       ),
     ),

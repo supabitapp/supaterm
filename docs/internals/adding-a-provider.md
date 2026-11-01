@@ -46,7 +46,7 @@ capabilities, never the driver kind.
 - **Supaterm MCP tools.** Inject the thread's MCP server so agents can use Supaterm's tools, and make a turn
   survive when that server is unreachable.
 - **Updates.** Run an update only through the installer that provably owns the binary; otherwise
-  leave it manual. See [`providerMaintenance.ts`](../../apps/server/src/provider/providerMaintenanceRunner.ts).
+  leave it manual. See [`providerMaintenanceRunner.ts`](../../apps/server/src/provider/providerMaintenanceRunner.ts).
 
 ## Tests
 

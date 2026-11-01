@@ -1,3 +1,7 @@
+import { threadEnvironment } from "../../state/threads";
+import { useAtomCommand } from "../../state/use-atom-command";
+import type { ToolCallDiffTarget } from "../../diffPanelStore";
+import { AudioPreviewUnmountContext } from "../files/AudioPreview";
 import { TimelineMinimap } from "./TimelineMinimap";
 import {
   type WorkGroupViewState,
@@ -25,7 +29,14 @@ import {
 } from "./TimelineAssistantRows";
 import { V2EventTimelineRow } from "./TimelineV2EventRow";
 import { useIncrementalTimelineRows, useStableRows, useStableHandoffRuns } from "./useTimelineRows";
-import { useTimelinePositionRestore } from "./useTimelinePositionRestore";
+import { usePaneInputOwner } from "../../chatPanes/paneScope";
+import { startTimelinePositionRestore } from "./useTimelinePositionRestore";
+import {
+  attachTimelineViewport,
+  nextListOpening,
+  type TimelineListOpening,
+  type TimelineViewport,
+} from "./timelineViewport";
 import { useThreadFindPositionReader } from "./useThreadFindPositionReader";
 import { ThreadFindTimelineContext } from "./ThreadFindProvider";
 import {
@@ -59,14 +70,17 @@ import { resolveChatListAnchoredEndSpace } from "@supaterm/shared/chatList";
 import { observeVisibleAnimation } from "../../lib/visibleAnimation";
 import {
   type ReactNode,
+  type SyntheticEvent,
   useContext,
   useEffect,
+  useEffectEvent,
   memo,
   useState,
   useRef,
   useLayoutEffect,
   use,
 } from "react";
+import { Skeleton } from "../ui/skeleton";
 import {
   type MaintainScrollAtEndOptions,
   type LegendListRef,
@@ -75,7 +89,7 @@ import {
 import type { TimelineEntry } from "../../session-logic";
 import type { CodexArtifactTemplate } from "@supaterm/shared/codexArtifactTemplates";
 import type { ChatFileAttachment, TurnDiffSummary } from "../../types";
-import { ArrowRightIcon, BotIcon, ShrinkIcon } from "@supaterm/icons";
+import { ArrowRightIcon, BotIcon, CircleAlertIcon, ShrinkIcon } from "@supaterm/icons";
 import { ChevronDown, ChevronRight } from "@supaterm/icons/nodes";
 import { MorphIcon } from "~/components/MorphIcon";
 import type { ExpandedImagePreview } from "./ExpandedImagePreview";
@@ -90,7 +104,8 @@ import {
 import { AssistantSelectionToolbar } from "./AssistantSelectionToolbar";
 import type { AssistantCitationSourceAnchor } from "~/lib/assistantTextSelection";
 import type { AssistantCitationRequest } from "./AssistantCitationSource";
-import { type CitationHistoryPage, useAssistantCitationTarget } from "./useAssistantCitationTarget";
+import { useAssistantCitationTarget } from "./useAssistantCitationTarget";
+import { resolveCitationPhase, type CitedHistory } from "./citationProcedure";
 import {
   type TimelineLatestRun,
   resolveTimelineIsAtEnd,
@@ -101,9 +116,9 @@ import {
   resolveTimelineMinimapCurrentIndex,
   resolveTimelineMinimapHasPersistentGutter,
   resolveTimelineMinimapHitStripWidth,
-  worktreeSetupAgentStarted,
 } from "./MessagesTimeline.logic";
-import type { ThreadFindPositionReader, ThreadFindMatch } from "./threadFind";
+import { worktreeSetupAgentStarted } from "@supaterm/client-runtime/worktree-setup";
+import type { ThreadFindMatch } from "./threadFind";
 import { useThreadFindNavigation } from "./useThreadFindNavigation";
 import { useTimelineMessageJump } from "./useTimelineMessageJump";
 import type { MessageJump, MessageJumpHandlers } from "@supaterm/client-runtime/message-jump";
@@ -123,6 +138,7 @@ import {
 import type { HandoffTimelineRun } from "./V2LifecycleRow";
 import { TimelineSystemDivider } from "./TimelineSystemDivider";
 import { forwardWheelToTimeline } from "./timelineMinimapWheel";
+import { ThreadActivityAnnouncer } from "./ThreadActivityAnnouncer";
 
 const NOOP_USE_ARTIFACT_TEMPLATE = () => {};
 const NOOP_OPEN_ATTACHMENT = (_attachment: ChatFileAttachment) => {};
@@ -163,7 +179,7 @@ function TimelineListFooter({
   );
 }
 
-const EMPTY_TIMELINE_SKILLS: ReadonlyArray<Pick<ServerProviderSkill, "name" | "displayName">> = [];
+const EMPTY_TIMELINE_SKILLS: ReadonlyArray<ServerProviderSkill> = [];
 const TIMELINE_MAINTAIN_SCROLL_AT_END = {
   animated: false,
   on: {
@@ -182,18 +198,19 @@ const TIMELINE_MAINTAIN_SCROLL_AT_END_SMOOTH = {
   animated: true,
 } as const satisfies MaintainScrollAtEndOptions;
 
+const CITED_HISTORY_LOADING: CitedHistory = { _tag: "loading" };
+
 export type MessagesTimelineHistoryControls = ThreadHistoryControls;
 
 interface MessagesTimelineProps {
   citationRequest?: AssistantCitationRequest | null;
-  citationHistoryLoading?: boolean;
+  citationHistory?: CitedHistory;
   onCiteAssistantText?: (
     citation: AssistantCitation,
     sourceAnchor: AssistantCitationSourceAnchor,
   ) => boolean;
   isWorking: boolean;
   runlessWorkActive?: boolean;
-  activeTurnInProgress: boolean;
   activeTurnStartedAt?: string | null;
   worktreeSetup?: WorktreeSetupSnapshot | null;
   onCancelWorktreeSetup?: () => void;
@@ -204,18 +221,26 @@ interface MessagesTimelineProps {
   isPreparingWorktree?: boolean;
   isCompacting?: boolean;
 
-  awaitingUser?: boolean;
+  awaitingUser?: "approval" | "input" | null;
+  /** Which request is waiting, so a second one of the same kind is announced too. */
+  awaitingRequestId?: string | null;
   footer?: ReactNode;
 
   listRef: React.RefObject<LegendListRef | null>;
   timelineEntries: ReadonlyArray<TimelineEntry>;
   latestRun: TimelineLatestRun | null;
+  /** The run the screen reader announcer follows; see announcedRun. */
+  announcedRun?: { readonly runId: RunId; readonly status: TimelineLatestRun["status"] } | null;
+  /** See isDetailBehindShell. */
+  detailBehindShell?: boolean;
   runningRunId?: RunId | null;
   turnDiffSummaries: ReadonlyArray<TurnDiffSummary>;
   routeThreadKey: string;
   displayThreadKey?: string;
-  paintOnly?: boolean;
+  /** Off where another region already speaks the thread's status, like a subagent's bar. */
+  announceTurnStatus?: boolean;
   onOpenTurnDiff: (runId: RunId, filePath?: string) => void;
+  onOpenToolDiff?: (target: ToolCallDiffTarget) => void;
   onOpenThread: (threadId: OrchestrationV2TurnItem["threadId"]) => void;
   parentThreadLink?: {
     readonly threadId: ThreadId;
@@ -243,7 +268,7 @@ interface MessagesTimelineProps {
   resolvedTheme: "light" | "dark";
   timestampFormat: TimestampFormat;
   workspaceRoot: string | undefined;
-  skills?: ReadonlyArray<Pick<ServerProviderSkill, "name" | "displayName">>;
+  skills?: ReadonlyArray<ServerProviderSkill>;
   runs: ReadonlyArray<HandoffTimelineRun>;
   anchorMessageId: MessageId | null;
   onAnchorReady: (messageId: MessageId, anchorIndex: number) => void;
@@ -258,22 +283,20 @@ interface MessagesTimelineProps {
   liveFollowEnabled: boolean;
   onContentOverflowChange?: (overflows: boolean) => void;
   onToolOutputCollapsedAtEnd?: () => void;
-  onManualNavigation: () => void;
+  /** Receives the list's viewport when it mounts; the returned cleanup runs when it goes away. */
+  onViewportAttach?: (viewport: TimelineViewport) => () => void;
   findOpen?: boolean;
-  cancelPositionRestoreRef?: React.RefObject<(() => void) | null> | undefined;
   hideEmptyPlaceholder?: boolean;
   loading?: boolean;
   /** Composer space to center the empty state against; held steady through collapse. */
   emptyPlaceholderInset: number;
   topFadeEnabled?: boolean;
   historyControls?: MessagesTimelineHistoryControls | undefined;
-  loadEarlier?: CitationHistoryPage | null;
   pinnedMessages?: ReadonlyArray<ThreadPinnedMessage>;
   onTogglePinnedMessage?: (projectedItem: PinnableProjectedItem, pinned: boolean) => void;
   onJumpToPinnedMessage: (pin: ThreadPinnedMessage) => void;
   messageJump?: MessageJump | null;
   onMessageJumpFailed?: MessageJumpHandlers["fail"];
-  findPositionReaderRef?: React.RefObject<ThreadFindPositionReader | null>;
   findExpanded?: boolean;
   findQuery?: string;
   activeFindMatch?: ThreadFindMatch | null;
@@ -283,10 +306,6 @@ interface MessagesTimelineProps {
 export function MessagesTimeline(props: MessagesTimelineProps) {
   const find = useContext(ThreadFindTimelineContext);
   const findOpen = find?.findOpen ?? props.findOpen;
-  const { onManualNavigation } = props;
-  useEffect(() => {
-    if (findOpen) onManualNavigation();
-  }, [findOpen, onManualNavigation]);
   return (
     <ConversationTimeline
       {...props}
@@ -298,11 +317,10 @@ export function MessagesTimeline(props: MessagesTimelineProps) {
 
 const ConversationTimeline = memo(function ConversationTimeline({
   citationRequest = null,
-  citationHistoryLoading = false,
+  citationHistory = CITED_HISTORY_LOADING,
   onCiteAssistantText,
   isWorking,
   runlessWorkActive = false,
-  activeTurnInProgress,
   activeTurnStartedAt = null,
   worktreeSetup = null,
   footer = null,
@@ -313,20 +331,24 @@ const ConversationTimeline = memo(function ConversationTimeline({
   onOpenWorktreeSetupTerminal,
   isPreparingWorktree = false,
   isCompacting = false,
-  awaitingUser = false,
+  awaitingUser = null,
+  awaitingRequestId = null,
   listRef,
   timelineEntries,
+  findOpen = false,
   findExpanded = false,
   findQuery = "",
   activeFindMatch = null,
   findNavigationId = 0,
-  findPositionReaderRef,
   latestRun,
+  announcedRun = null,
+  detailBehindShell = false,
   runningRunId = null,
   turnDiffSummaries,
   routeThreadKey,
   displayThreadKey,
-  paintOnly = false,
+  announceTurnStatus = true,
+  onOpenToolDiff,
   onOpenTurnDiff,
   onOpenThread,
   parentThreadLink = null,
@@ -358,14 +380,12 @@ const ConversationTimeline = memo(function ConversationTimeline({
   onContentOverflowChange,
   liveFollowEnabled,
   onToolOutputCollapsedAtEnd,
-  onManualNavigation,
-  cancelPositionRestoreRef,
+  onViewportAttach,
   hideEmptyPlaceholder = false,
   loading = false,
   emptyPlaceholderInset,
   topFadeEnabled = false,
   historyControls,
-  loadEarlier = null,
   pinnedMessages = EMPTY_PINNED_MESSAGES,
   onTogglePinnedMessage,
   onJumpToPinnedMessage,
@@ -373,9 +393,16 @@ const ConversationTimeline = memo(function ConversationTimeline({
   onMessageJumpFailed = NOOP_MESSAGE_JUMP_FAILED,
 }: MessagesTimelineProps) {
   const listIdentityKey = displayThreadKey ?? routeThreadKey;
+  // Keys typed outside every list reach each pane's viewport; only the focused pane's reacts.
+  const isPaneInputOwner = usePaneInputOwner();
   // The remembered position is a snapshot taken when the list identity changes;
   // scrolling keeps rewriting the stored entry, which must not move the restore.
-  const [listState, setListState] = useState(() => timelineListStateFor(listIdentityKey));
+  // Find open at the opening is part of the snapshot: opening find later
+  // announces its own navigation (threadFindStore's announceOpening).
+  const [listState, setListState] = useState(() => ({
+    ...timelineListStateFor(listIdentityKey),
+    findOpenAtOpening: findOpen,
+  }));
   const [expandedRunIds, setExpandedRunIds] = useState<ReadonlySet<RunId>>(
     () => listState.rememberedPosition?.disclosures?.runs ?? new Set(),
   );
@@ -385,12 +412,17 @@ const ConversationTimeline = memo(function ConversationTimeline({
   const [expandedAttemptIds, setExpandedAttemptIds] = useState<ReadonlySet<RunAttemptId>>(
     () => listState.rememberedPosition?.disclosures?.attempts ?? new Set(),
   );
+  // A list that opens on a thread with find open takes the opening step below,
+  // so the restore runs and releases follow once for find.
   const [positionedThreadKey, setPositionedThreadKey] = useState<string | null>(() =>
-    listState.rememberedPosition?.atEnd === false ? null : listIdentityKey,
+    listState.rememberedPosition?.atEnd === false || findOpen ? null : listIdentityKey,
   );
   const restoringThreadPosition = positionedThreadKey !== listIdentityKey;
   const prefersReducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
   const [settlingListIdentity, setSettlingListIdentity] = useState<string | null>(listIdentityKey);
+  const [playingAudioRows, setPlayingAudioRows] = useState<ReadonlyMap<HTMLAudioElement, string>>(
+    () => new Map(),
+  );
   let paintedExpandedRunIds = expandedRunIds;
   let paintedExpandedWorkGroupIds = expandedWorkGroupIds;
   let paintedExpandedAttemptIds = expandedAttemptIds;
@@ -399,7 +431,13 @@ const ConversationTimeline = memo(function ConversationTimeline({
     ? timelineListStateFor(listIdentityKey)
     : listState;
   if (identityChanged) {
-    setListState({ identity: listIdentityKey, rememberedPosition, workGroupViewState });
+    setPlayingAudioRows(new Map());
+    setListState({
+      identity: listIdentityKey,
+      rememberedPosition,
+      workGroupViewState,
+      findOpenAtOpening: findOpen,
+    });
     setPositionedThreadKey(null);
     setSettlingListIdentity(listIdentityKey);
     paintedExpandedRunIds = rememberedPosition?.disclosures?.runs ?? new Set();
@@ -421,11 +459,13 @@ const ConversationTimeline = memo(function ConversationTimeline({
     readonly cancel: () => void;
     readonly followingEnd: boolean;
   } | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the pending disclosure settle wait on unmount
   useEffect(() => () => disclosureSettleRef.current?.cancel(), []);
   const endFollowAllowedRef = useRef(false);
   const normalizedFindQuery = findQuery.trim();
   const findActive = findExpanded;
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the list identity settle flag two animation frames after the new list paints
   useEffect(() => {
     if (settlingListIdentity === null) return;
     let second: number | null = null;
@@ -524,6 +564,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   };
 
   const previousLatestRunRef = useRef({ identity: listIdentityKey, run: latestRun });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- folds the superseded run and opens an interrupted one when the server's latest run changes; the previous run is a ref
   useEffect(() => {
     const { identity, run: previous } = previousLatestRunRef.current;
     previousLatestRunRef.current = { identity: listIdentityKey, run: latestRun };
@@ -567,6 +608,49 @@ const ConversationTimeline = memo(function ConversationTimeline({
     if (activeFindRunId) {
       setExpandedRunIds((previous) =>
         previous.has(activeFindRunId) ? previous : new Set(previous).add(activeFindRunId),
+      );
+    }
+  }
+  // A cited response folded inside a turn opens its fold once per activation;
+  // the user can fold it again. Only a citation that can still land opens one.
+  // The marker stops the O(entries) fold lookup once the entry is found, since
+  // the href stays in the URL after the citation settles.
+  const [citationExpandedFor, setCitationExpandedFor] = useState<string | null>(null);
+  // Back/Forward can restore an earlier activation key, so the marker clears
+  // between activations and a revisit opens the fold again.
+  if (!citationRequest && citationExpandedFor !== null) setCitationExpandedFor(null);
+  const citedEntry =
+    citationRequest &&
+    citationExpandedFor !== citationRequest.key &&
+    citationHistory._tag !== "failed"
+      ? timelineEntries.find(
+          (entry) =>
+            entry.kind === "message" &&
+            entry.message.role === "assistant" &&
+            entry.message.id === citationRequest.citation.messageId,
+        )
+      : undefined;
+  if (citationRequest && citedEntry) {
+    const citedRunId = (
+      findFoldRunIds ??
+      timelineTurnFoldRunIdsByEntryId({
+        timelineEntries,
+        latestRun,
+        runningRunId,
+        isWorking,
+        runlessWorkActive,
+      })
+    ).get(citedEntry.id);
+    setCitationExpandedFor(citationRequest.key);
+    if (citedRunId) {
+      setExpandedRunIds((previous) =>
+        previous.has(citedRunId) ? previous : new Set(previous).add(citedRunId),
+      );
+    }
+    const citedAttempt = citedEntry.attempt;
+    if (citedAttempt?.status === "superseded") {
+      setExpandedAttemptIds((previous) =>
+        previous.has(citedAttempt.id) ? previous : new Set(previous).add(citedAttempt.id),
       );
     }
   }
@@ -622,17 +706,51 @@ const ConversationTimeline = memo(function ConversationTimeline({
       : -1;
   const restoringAlwaysRender =
     restoringThreadPosition && restoreRowIndex >= 0 ? { indices: [restoreRowIndex] } : undefined;
-  useTimelinePositionRestore({
-    listRef,
-    listIdentityKey,
-    restoringThreadPosition,
-    rememberedPosition,
-    rows,
+  const showsEmptyState =
+    rows.length === 0 &&
+    !isWorking &&
+    parentThreadLink === null &&
+    historyControls === undefined &&
+    footer === null;
+  const listMounted = !showsEmptyState && !(timelineEntries.length === 0 && loading);
+  const [listOpening, setListOpening] = useState<TimelineListOpening>(() =>
+    nextListOpening({ mounted: false }, listMounted, listIdentityKey),
+  );
+  const nextOpening = nextListOpening(listOpening, listMounted, listIdentityKey);
+  if (nextOpening !== listOpening) setListOpening(nextOpening);
+  const listOpenedOn = nextOpening.mounted ? nextOpening.identity : null;
+  const viewportRef = useRef<TimelineViewport | null>(null);
+  const navigateTimeline = () => viewportRef.current?.navigate({ releasesFollow: true });
+  const restoreReady = restoringThreadPosition && rows.length > 0;
+  // Z: syncs LegendList's scroll position with which thread it shows. The list
+  // is not keyed per thread and reports no "new data" event, and the restore
+  // must land before paint, after LegendList's own layout effects applied the
+  // new data. A citation request that arrives mid-restore takes over.
+  const { findOpenAtOpening } = identityChanged ? { findOpenAtOpening: findOpen } : listState;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- restores LegendList's scroll position for the shown thread before paint, after the list's own layout
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    const viewport = viewportRef.current;
+    if (!restoreReady || !list || !viewport) return;
+    return startTimelinePositionRestore({
+      list,
+      viewport,
+      listIdentityKey,
+      listOpenedOn,
+      rememberedPosition,
+      citationPending: citationRequest !== null,
+      releaseForFind: findOpenAtOpening,
+      onPositioned: setPositionedThreadKey,
+    });
+  }, [
     citationRequest,
-    cancelPositionRestoreRef,
-    onManualNavigation,
-    onPositioned: setPositionedThreadKey,
-  });
+    findOpenAtOpening,
+    listIdentityKey,
+    listOpenedOn,
+    listRef,
+    rememberedPosition,
+    restoreReady,
+  ]);
 
   const [timelineViewportElement, setTimelineViewportElement] = useState<HTMLDivElement | null>(
     null,
@@ -656,22 +774,22 @@ const ConversationTimeline = memo(function ConversationTimeline({
     alwaysRender: citationAlwaysRender,
   } = useAssistantCitationTarget({
     request: citationRequest,
-    entries: timelineEntries,
-    rows,
-    listRef,
+    phase: citationRequest
+      ? resolveCitationPhase({
+          history: citationHistory,
+          messageId: citationRequest.citation.messageId,
+          entries: timelineEntries,
+          rows,
+        })
+      : null,
     viewport: timelineViewportElement,
-    historyLoading: citationHistoryLoading,
-    loadEarlier,
-    getTurnFoldRunId: turnFoldRunIdOf,
-    onExpandTurn: expandCitedRun,
-    onManualNavigation,
+    onManualNavigation: navigateTimeline,
   });
   const [findListReady, setFindListReady] = useState(false);
   const [prefetchHistory] = useState(createThreadHistoryPrefetcher);
   const handleHistoryPrefetch = () => {
     const state = listRef.current?.getState();
     if (
-      paintOnly ||
       (rows.length > 0 && (!findListReady || restoringThreadPosition)) ||
       findActive ||
       citationPositioning ||
@@ -680,6 +798,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
       return;
     prefetchHistory(listIdentityKey, historyControls, state);
   };
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- schedules a frame that prefetches older thread history from LegendList's rendered state
   useEffect(() => {
     const frame = requestAnimationFrame(handleHistoryPrefetch);
     return () => cancelAnimationFrame(frame);
@@ -694,9 +813,18 @@ const ConversationTimeline = memo(function ConversationTimeline({
     setFullscreenAppRowId((current) => (fullscreen ? rowId : current === rowId ? null : current));
   };
   const alwaysRenderIndices = restoringAlwaysRender?.indices ?? [];
+  // Screen readers can only reach headings in the DOM. Keeping the first and
+  // last messages mounted lets heading navigation wrap to either end.
+  const firstMessageRow = rows.find(isMessageRow);
+  const lastMessageRow = rows.findLast(isMessageRow);
   const alwaysRenderKeys = [
+    ...(firstMessageRow ? [firstMessageRow.id] : []),
+    ...(lastMessageRow && lastMessageRow !== firstMessageRow ? [lastMessageRow.id] : []),
     ...(citationAlwaysRender?.keys ?? []),
     ...(fullscreenAppRowId === null ? [] : [fullscreenAppRowId]),
+    ...new Set(
+      [...playingAudioRows].flatMap(([audio, rowId]) => (audio.isConnected ? [rowId] : [])),
+    ),
   ];
   const alwaysRender =
     alwaysRenderIndices.length === 0 && alwaysRenderKeys.length === 0
@@ -762,7 +890,9 @@ const ConversationTimeline = memo(function ConversationTimeline({
       onContentOverflowChange(measureContentOverflow());
     });
   };
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the pending content overflow measurement frame on cleanup
   useEffect(() => cancelContentOverflowFrame, [cancelContentOverflowFrame]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- measures LegendList's content overflow before paint and reports it to the parent
   useLayoutEffect(() => {
     cancelContentOverflowFrame();
     onContentOverflowChange?.(measureContentOverflow());
@@ -829,7 +959,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     if (restoringThreadPosition || state?.data !== rows) return;
     const isAtEnd = resolveTimelineIsAtEnd(state);
     const position = state?.data?.length ? resolveWorkGroupScrollAnchor(state) : undefined;
-    if (position && state && isAtEnd !== undefined && !paintOnly) {
+    if (position && state && isAtEnd !== undefined) {
       const index = state.indexByKey(position.rowId);
       const row = index === undefined ? undefined : state.elementAtIndex(index);
       const element = listRef.current?.getScrollableNode();
@@ -864,6 +994,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     scheduleMinimapRefresh();
   };
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the pending minimap refresh frame on unmount
   useEffect(
     () => () => {
       if (minimapRefreshFrameRef.current !== null) {
@@ -874,18 +1005,21 @@ const ConversationTimeline = memo(function ConversationTimeline({
     [],
   );
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- schedules a frame that reads LegendList's scroll state to save position, report the end and refresh the minimap
   useEffect(() => {
     const frame = requestAnimationFrame(handleScroll);
     return () => cancelAnimationFrame(frame);
   }, [handleScroll]);
 
   const savedLiveFollowEnabledRef = useRef(liveFollowEnabled);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- re-reads LegendList's scroll state before paint when live follow turns off
   useLayoutEffect(() => {
     const wasFollowing = savedLiveFollowEnabledRef.current;
     savedLiveFollowEnabledRef.current = liveFollowEnabled;
     if (wasFollowing && !liveFollowEnabled) handleScroll();
   }, [handleScroll, liveFollowEnabled]);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- observes the timeline viewport with ResizeObserver to measure the minimap gutter and content overflow
   useEffect(() => {
     if (!timelineViewportElement) {
       return;
@@ -941,6 +1075,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     onAppFullscreenChange,
     onFileDownload,
     openPullRequest,
+    onOpenToolDiff,
     onOpenTurnDiff,
     onOpenThread,
     workflowOpening,
@@ -972,11 +1107,22 @@ const ConversationTimeline = memo(function ConversationTimeline({
     isCompacting: compactionAwaitingRow,
     isRevertingCheckpoint,
     backgroundWorktreeSetup,
-    activeTurnInProgress,
-    awaitingUser,
+    awaitingUser: awaitingUser !== null,
     isPreparingWorktree,
     latestRunId: latestRun?.runId ?? null,
   };
+  // Mounted in both the empty and filled timeline so a thread's first turn
+  // starts from a baseline instead of a fresh, silent region.
+  const activityAnnouncer = (
+    <ThreadActivityAnnouncer
+      threadKey={announceTurnStatus ? listIdentityKey : null}
+      status={awaitingUser ?? (isWorking ? "working" : "idle")}
+      requestId={awaitingRequestId}
+      runId={announcedRun?.runId ?? null}
+      runStatus={announcedRun?.status ?? null}
+      detailBehind={detailBehindShell}
+    />
+  );
   const listHeaderLeadingContent =
     parentThreadLink === null ? (
       topFadeEnabled ? (
@@ -1009,7 +1155,20 @@ const ConversationTimeline = memo(function ConversationTimeline({
   const registerTimeline = canvas?.registerTimeline;
   const setTimelineList = (list: LegendListRef | null) => {
     listRef.current = list;
-    registerTimeline?.(list?.getScrollableNode() ?? null);
+    const scrollNode: HTMLElement | null = list?.getScrollableNode() ?? null;
+    registerTimeline?.(scrollNode);
+    const viewport = scrollNode
+      ? attachTimelineViewport(scrollNode, { isInputOwner: isPaneInputOwner })
+      : null;
+    viewportRef.current = viewport;
+    const detachViewport = viewport ? onViewportAttach?.(viewport) : undefined;
+    return () => {
+      detachViewport?.();
+      viewport?.dispose();
+      if (viewportRef.current === viewport) viewportRef.current = null;
+      listRef.current = null;
+      registerTimeline?.(null);
+    };
   };
   const endFollowAllowed = !(
     citationPositioning ||
@@ -1017,12 +1176,14 @@ const ConversationTimeline = memo(function ConversationTimeline({
     anchoredEndSpace ||
     !liveFollowEnabled
   );
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- mirrors end-follow permission into a ref read by the disclosure settle callback
   useLayoutEffect(() => {
     endFollowAllowedRef.current = endFollowAllowed;
   }, [endFollowAllowed]);
 
   useThreadFindPositionReader({
-    findPositionReaderRef,
+    threadKey: listIdentityKey,
+    navigate: navigateTimeline,
     timelineViewportElement,
     findFoldRunIds,
     timelineEntries,
@@ -1041,7 +1202,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     listReady: findListReady,
     historyControls,
     handlers: {
-      start: onManualNavigation,
+      start: navigateTimeline,
       scroll: (index) => {
         void listRef.current?.scrollToIndex({
           index,
@@ -1069,7 +1230,9 @@ const ConversationTimeline = memo(function ConversationTimeline({
   });
 
   useThreadFindNavigation({
-    listReady: findListReady,
+    // Find reveals its match only after the opening restore settles; both
+    // scroll the list directly, so the restore would otherwise pull it back.
+    listReady: findListReady && !restoringThreadPosition,
     historyControls,
     entries: timelineEntries,
     container: timelineViewportElement,
@@ -1081,21 +1244,42 @@ const ConversationTimeline = memo(function ConversationTimeline({
     contentInsetEndAdjustment,
   });
 
-  // Each row carries its own provider. LegendList moves rows into their
-  // containers one commit after this component renders, so a provider around
-  // the list would re-render the outgoing thread's rows with the incoming
-  // thread's context just before they unmount. extraData hands a changed
-  // sharedState to the rows that stay.
+  // Each row carries its own provider: LegendList moves rows one commit late, so a provider around
+  // the list would re-render the outgoing thread's rows with the incoming thread's context.
+  const onAudioPlaybackChange = (rowId: string, event: SyntheticEvent) => {
+    const audio = event.target;
+    if (!(audio instanceof HTMLAudioElement)) return;
+    setPlayingAudioRows((current) => {
+      const playing = !audio.paused && !audio.ended;
+      if (playing === current.has(audio)) return current;
+      const next = new Map(current);
+      if (playing) next.set(audio, rowId);
+      else next.delete(audio);
+      return next;
+    });
+  };
+  const onAudioUnmount = useStableCallback((audio: HTMLAudioElement) => {
+    setPlayingAudioRows((current) => {
+      if (!current.has(audio)) return current;
+      const next = new Map(current);
+      next.delete(audio);
+      return next;
+    });
+  });
   const renderItem = ({ item }: { item: MessagesTimelineRow }) => (
     <TimelineRowCtx value={sharedState}>
-      <div className="messages-timeline-row-frame">
-        <div
-          className="@container/chat-lane chat-content-lane overflow-x-clip"
-          data-timeline-root="true"
-        >
-          <TimelineRowPreviewHost rowId={item.id}>
-            <TimelineRowContent row={item} />
-          </TimelineRowPreviewHost>
+      <div
+        className="messages-timeline-row-frame"
+        onPlayCapture={(event) => onAudioPlaybackChange(item.id, event)}
+        onPauseCapture={(event) => onAudioPlaybackChange(item.id, event)}
+        onEndedCapture={(event) => onAudioPlaybackChange(item.id, event)}
+      >
+        <div className="chat-content-lane overflow-x-clip" data-timeline-root="true">
+          <AudioPreviewUnmountContext value={onAudioUnmount}>
+            <TimelineRowPreviewHost rowId={item.id}>
+              <TimelineRowContent row={item} />
+            </TimelineRowPreviewHost>
+          </AudioPreviewUnmountContext>
         </div>
       </div>
     </TimelineRowCtx>
@@ -1103,7 +1287,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   const listExtraData = { identity: listIdentityKey, rowCount: rows.length, sharedState };
 
   const scrollToMinimapTurn = (item: TimelineMinimapItem) => {
-    onManualNavigation();
+    navigateTimeline();
     void listRef.current?.scrollToIndex({
       index: item.rowIndex,
       animated: !prefersReducedMotion,
@@ -1120,112 +1304,115 @@ const ConversationTimeline = memo(function ConversationTimeline({
     return <ThreadTimelineLoading bottomInset={contentInsetEndAdjustment} />;
   }
 
-  if (
-    rows.length === 0 &&
-    !isWorking &&
-    parentThreadLink === null &&
-    historyControls === undefined &&
-    footer === null
-  ) {
+  if (showsEmptyState) {
     if (hideEmptyPlaceholder) {
-      return <div className="h-full min-h-0 bg-background" data-timeline-loading="true" />;
+      return (
+        <>
+          {activityAnnouncer}
+          <div className="h-full min-h-0 bg-background" data-timeline-loading="true" />
+        </>
+      );
     }
     return (
-      <div
-        className="flex h-full items-center justify-center ps-(--chat-lane-inset-start) pe-(--chat-lane-inset-end)"
-        style={{ paddingBottom: emptyPlaceholderInset }}
-      >
-        <p className="text-sm text-muted-foreground/30">
-          Send a message to start the conversation.
-        </p>
-      </div>
+      <>
+        {activityAnnouncer}
+        <div
+          className="flex h-full items-center justify-center ps-(--chat-lane-inset-start) pe-(--chat-lane-inset-end)"
+          style={{ paddingBottom: emptyPlaceholderInset }}
+        >
+          <p className="text-sm text-muted-foreground">Send a message to start the conversation.</p>
+        </div>
+      </>
     );
   }
 
   return (
-    <MarkdownFindContext value={findActive}>
-      <TimelineRowActivityCtx value={activityState}>
-        <TimelineDisclosureContext value={onDisclosureToggle}>
-          <TooltipScrollDismissArea
-            ref={setTimelineViewportElement}
-            className="relative h-full min-h-0"
-            data-assistant-citation-viewport="true"
-          >
-            {onCiteAssistantText && citationThreadRef ? (
-              <AssistantSelectionToolbar
-                viewport={timelineViewportElement}
-                threadRef={citationThreadRef}
-                onCite={onCiteAssistantText}
-              />
-            ) : null}
-            <LegendList<MessagesTimelineRow>
-              ref={setTimelineList}
-              data={rows}
-              extraData={listExtraData}
-              keyExtractor={keyExtractor}
-              getItemType={getItemType}
-              renderItem={renderItem}
-              estimatedItemSize={90}
-              initialScrollAtEnd={
-                !findActive && citationRequest === null && rememberedPosition?.atEnd !== false
-              }
-              // Legend needs a data refresh to mount new pins without a scroll event.
-              dataVersion={readyCitationRequest?.key ?? listIdentityKey}
-              {...(alwaysRender ? { alwaysRender } : {})}
-              onLoad={handleListLoad}
-              {...(anchoredEndSpace ? { anchoredEndSpace } : {})}
-              contentInsetEndAdjustment={anchoredEndSpace ? contentInsetEndAdjustment : 0}
-              maintainScrollAtEnd={
-                citationPositioning ||
-                (restoringThreadPosition && rememberedPosition?.atEnd === false) ||
-                anchoredEndSpace ||
-                !liveFollowEnabled ||
-                fullscreenAppRowId !== null ||
-                disclosureToggleSettling
-                  ? false
-                  : isWorking && !prefersReducedMotion && settlingListIdentity === null
-                    ? TIMELINE_MAINTAIN_SCROLL_AT_END_SMOOTH
-                    : TIMELINE_MAINTAIN_SCROLL_AT_END
-              }
-              maintainVisibleContentPosition={
-                findActive ||
-                citationPositioning ||
-                (restoringThreadPosition && rememberedPosition?.atEnd === false)
-                  ? false
-                  : maintainVisibleContentPosition
-              }
-              maintainScrollAtEndThreshold={1}
-              onScroll={handleScroll}
-              onStartReached={handleHistoryPrefetch}
-              onStartReachedThreshold={THREAD_HISTORY_PREFETCH_VIEWPORTS}
-              onItemSizeChanged={handleItemSizeChanged}
-              className={cn(
-                "messages-timeline-scroll scrollbar-gutter-both h-full min-h-0 overflow-x-hidden overscroll-y-contain [overflow-anchor:none]",
-                topFadeEnabled && "topbar-scroll-fade",
-              )}
-              ListHeaderComponent={listHeader}
-              ListFooterComponent={timelineListFooter}
-            />
-            <TimelineMinimap
-              items={minimapItems}
-              hasPersistentGutter={minimapHasPersistentGutter}
-              hitStripWidth={minimapHitStripWidth}
-              currentIndex={minimapCurrentIndex}
-              stripMap={minimapStripMap}
-              onWheel={forwardMinimapWheel}
-              onSelect={(item) => {
-                if (item.pin) {
-                  onJumpToPinnedMessage(item.pin);
-                } else {
-                  scrollToMinimapTurn(item);
+    <>
+      {activityAnnouncer}
+      <MarkdownFindContext value={findActive}>
+        <TimelineRowActivityCtx value={activityState}>
+          <TimelineDisclosureContext value={onDisclosureToggle}>
+            <TooltipScrollDismissArea
+              ref={setTimelineViewportElement}
+              className="relative h-full min-h-0"
+              data-assistant-citation-viewport="true"
+            >
+              {onCiteAssistantText && citationThreadRef ? (
+                <AssistantSelectionToolbar
+                  viewport={timelineViewportElement}
+                  threadRef={citationThreadRef}
+                  onCite={onCiteAssistantText}
+                />
+              ) : null}
+              <LegendList<MessagesTimelineRow>
+                ref={setTimelineList}
+                data={rows}
+                extraData={listExtraData}
+                keyExtractor={keyExtractor}
+                getItemType={getItemType}
+                renderItem={renderItem}
+                estimatedItemSize={90}
+                initialScrollAtEnd={
+                  !findActive && citationRequest === null && rememberedPosition?.atEnd !== false
                 }
-              }}
-              onStep={scrollToMinimapTurn}
-            />
-          </TooltipScrollDismissArea>
-        </TimelineDisclosureContext>
-      </TimelineRowActivityCtx>
-    </MarkdownFindContext>
+                // Legend needs a data refresh to mount new pins without a scroll event.
+                dataVersion={`${readyCitationRequest?.key ?? listIdentityKey}:${alwaysRenderKeys.join(",")}`}
+                {...(alwaysRender ? { alwaysRender } : {})}
+                onLoad={handleListLoad}
+                {...(anchoredEndSpace ? { anchoredEndSpace } : {})}
+                contentInsetEndAdjustment={anchoredEndSpace ? contentInsetEndAdjustment : 0}
+                maintainScrollAtEnd={
+                  citationPositioning ||
+                  (restoringThreadPosition && rememberedPosition?.atEnd === false) ||
+                  anchoredEndSpace ||
+                  !liveFollowEnabled ||
+                  fullscreenAppRowId !== null ||
+                  disclosureToggleSettling
+                    ? false
+                    : isWorking && !prefersReducedMotion && settlingListIdentity === null
+                      ? TIMELINE_MAINTAIN_SCROLL_AT_END_SMOOTH
+                      : TIMELINE_MAINTAIN_SCROLL_AT_END
+                }
+                maintainVisibleContentPosition={
+                  findActive ||
+                  citationPositioning ||
+                  (restoringThreadPosition && rememberedPosition?.atEnd === false)
+                    ? false
+                    : maintainVisibleContentPosition
+                }
+                maintainScrollAtEndThreshold={1}
+                onScroll={handleScroll}
+                onStartReached={handleHistoryPrefetch}
+                onStartReachedThreshold={THREAD_HISTORY_PREFETCH_VIEWPORTS}
+                onItemSizeChanged={handleItemSizeChanged}
+                className={cn(
+                  "messages-timeline-scroll scrollbar-gutter-both h-full min-h-0 overflow-x-hidden overscroll-y-contain [overflow-anchor:none]",
+                  topFadeEnabled && "topbar-scroll-fade",
+                )}
+                ListHeaderComponent={listHeader}
+                ListFooterComponent={timelineListFooter}
+              />
+              <TimelineMinimap
+                items={minimapItems}
+                hasPersistentGutter={minimapHasPersistentGutter}
+                hitStripWidth={minimapHitStripWidth}
+                currentIndex={minimapCurrentIndex}
+                stripMap={minimapStripMap}
+                onWheel={forwardMinimapWheel}
+                onSelect={(item) => {
+                  if (item.pin) {
+                    onJumpToPinnedMessage(item.pin);
+                  } else {
+                    scrollToMinimapTurn(item);
+                  }
+                }}
+                onStep={scrollToMinimapTurn}
+              />
+            </TooltipScrollDismissArea>
+          </TimelineDisclosureContext>
+        </TimelineRowActivityCtx>
+      </MarkdownFindContext>
+    </>
   );
 });
 
@@ -1261,6 +1448,10 @@ function TimelineHistoryControl(props: MessagesTimelineHistoryControls) {
       </div>
     </div>
   );
+}
+
+function isMessageRow(row: MessagesTimelineRow) {
+  return row.kind === "message" && row.message.role !== "system";
 }
 
 function keyExtractor(item: MessagesTimelineRow) {
@@ -1338,7 +1529,7 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
           {row.kind === "thinking" ? <ThinkingTimelineRow row={row} /> : null}
         </WorkLogBlock>
       ) : null}
-      {row.kind === "turn-fold" ? <TurnFoldTimelineRow row={row} /> : null}
+      {row.kind === "turn-fold" ? <TurnFoldTimelineRow key={row.id} row={row} /> : null}
       {row.kind === "attempt-fold" ? <AttemptFoldTimelineRow row={row} /> : null}
       {row.kind === "context-compaction" ? <ContextCompactionTimelineRow row={row} /> : null}
       {row.kind === "message" && row.message.role === "user" ? <UserMessageRow row={row} /> : null}
@@ -1384,8 +1575,12 @@ function ContextCompactionTimelineRow({
   row: Extract<TimelineRow, { kind: "context-compaction" }>;
 }) {
   const content = (
-    <span className="flex items-center gap-1.5">
-      <ShrinkIcon aria-hidden="true" className="size-3" />
+    <span className="flex min-w-0 items-center gap-1.5">
+      {row.failed ? (
+        <CircleAlertIcon aria-hidden="true" className="size-3 shrink-0" />
+      ) : (
+        <ShrinkIcon aria-hidden="true" className="size-3" />
+      )}
       {row.tokenCounts ? (
         <>
           Context compacted {row.tokenCounts.before}
@@ -1395,68 +1590,149 @@ function ContextCompactionTimelineRow({
       ) : (
         row.label
       )}
+      {row.failure ? (
+        <span className="min-w-0 truncate opacity-80">&middot; {row.failure}</span>
+      ) : null}
     </span>
   );
   return (
     <div
       role="separator"
-      aria-label={row.label}
-      className="mx-auto flex w-full max-w-(--chat-content-max-width) items-center gap-3 py-1 text-muted-foreground text-xs"
+      aria-label={row.failure ? `${row.label}: ${row.failure}` : row.label}
+      className={cn(
+        "mx-auto flex w-full max-w-(--chat-content-max-width) items-center gap-3 py-1 text-xs",
+        row.failed ? "text-destructive" : "text-muted-foreground",
+      )}
     >
-      <span className="h-px flex-1 bg-border/70" />
+      <span className={cn("h-px flex-1", row.failed ? "bg-destructive/30" : "bg-border/70")} />
       <span
         ref={row.active ? observeVisibleAnimation : undefined}
-        className="relative shrink-0 overflow-hidden"
+        className="relative min-w-0 overflow-hidden"
       >
         {content}
         {row.active ? <ActivityShimmerOverlay>{content}</ActivityShimmerOverlay> : null}
       </span>
-      <span className="h-px flex-1 bg-border/70" />
+      <span className={cn("h-px flex-1", row.failed ? "bg-destructive/30" : "bg-border/70")} />
+    </div>
+  );
+}
+
+function useDeferredWorkLoading(
+  row: { expanded: boolean; deferredWorkItemIds?: ReadonlyArray<string> },
+  onToggle: () => void,
+) {
+  const ctx = use(TimelineRowCtx);
+  const loadWork = useAtomCommand(threadEnvironment.loadEarlierHistory, { reportFailure: false });
+  const ref = parseScopedThreadKey(ctx.routeThreadKey);
+  const environmentId = ref?.environmentId;
+  const threadId = ref?.threadId;
+  const anchorsKey = row.deferredWorkItemIds?.join("\n") ?? "";
+  const [failed, setFailed] = useState(false);
+  const load = () => {
+    if (!anchorsKey || environmentId === undefined || threadId === undefined) return;
+    void Promise.all(
+      anchorsKey
+        .split("\n")
+        .map((workAnchorId) => loadWork({ environmentId, input: { threadId, workAnchorId } })),
+    ).then((results) =>
+      setFailed(
+        results.some((result) => result._tag === "Failure" || result.value._tag === "error"),
+      ),
+    );
+  };
+  const loadOnExpand = useEffectEvent(load);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Restored expanded folds load their deferred server history on mount.
+  useEffect(() => {
+    if (row.expanded && anchorsKey && environmentId && threadId) loadOnExpand();
+  }, [row.expanded, anchorsKey, environmentId, threadId]);
+  const error = anchorsKey && failed ? "Couldn't load work. Click to retry." : null;
+  const loading = ref !== null && row.expanded && anchorsKey !== "" && !failed;
+  const toggle = () => {
+    setFailed(false);
+    if (error && row.expanded) load();
+    else onToggle();
+  };
+
+  return { loading, error, toggle };
+}
+
+function WorkHistorySkeleton() {
+  return (
+    <div role="status" aria-label="Loading work history" className="space-y-2 px-1 pb-1 pt-3">
+      {[0, 1, 2].map((index) => (
+        <div key={index} className="flex items-center gap-2" aria-hidden="true">
+          <Skeleton className="size-3 shrink-0" />
+          <Skeleton
+            shape="pill"
+            className={index === 0 ? "h-2.5 w-2/5" : index === 1 ? "h-2.5 w-3/5" : "h-2.5 w-1/3"}
+          />
+        </div>
+      ))}
     </div>
   );
 }
 
 function TurnFoldTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "turn-fold" }> }) {
   const ctx = use(TimelineRowCtx);
+  const { loading, error, toggle } = useDeferredWorkLoading(row, () =>
+    ctx.onToggleTurnFold(row.runId),
+  );
 
   return (
-    <div className="group/timeline-row relative flex items-center gap-1 border-b border-border/60 pb-2 pe-0.5 pt-1">
-      <button
-        type="button"
-        aria-expanded={row.expanded}
-        onClick={() => ctx.onToggleTurnFold(row.runId)}
-        className="flex cursor-pointer select-none items-center gap-1 rounded-md px-1 text-sm leading-relaxed text-muted-foreground tabular-nums transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70"
-      >
-        <span>{row.label}</span>
-        <MorphIcon className="size-3.5" icon={row.expanded ? ChevronDown : ChevronRight} />
-      </button>
-      <TimelineRowTimestamp
-        createdAt={row.createdAt}
-        timestampFormat={ctx.timestampFormat}
-        className="ms-auto"
-      />
+    <div className="group/timeline-row border-b border-border/60 pb-2 pe-0.5 pt-1">
+      <div className="relative flex items-center gap-1">
+        <button
+          type="button"
+          aria-expanded={row.expanded}
+          onClick={toggle}
+          aria-busy={loading}
+          className="flex cursor-pointer select-none items-center gap-1 rounded-md px-1 text-sm leading-relaxed text-muted-foreground tabular-nums transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70"
+        >
+          <span>
+            {row.label}
+            {error ? ` · ${error}` : ""}
+          </span>
+          <MorphIcon className="size-3.5" icon={row.expanded ? ChevronDown : ChevronRight} />
+        </button>
+        <TimelineRowTimestamp
+          createdAt={row.createdAt}
+          timestampFormat={ctx.timestampFormat}
+          className="ms-auto"
+        />
+      </div>
+      {loading ? <WorkHistorySkeleton /> : null}
     </div>
   );
 }
 
 function AttemptFoldTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "attempt-fold" }> }) {
   const ctx = use(TimelineRowCtx);
+  const { loading, error, toggle } = useDeferredWorkLoading(row, () =>
+    ctx.onToggleAttemptFold(row.attemptId),
+  );
 
   return (
-    <button
-      type="button"
-      aria-expanded={row.expanded}
-      data-superseded-attempt-id={row.attemptId}
-      onClick={() => ctx.onToggleAttemptFold(row.attemptId)}
-      className="flex w-full cursor-pointer select-none items-center gap-2 rounded-md border border-border/60 bg-muted/20 px-2.5 py-2 text-left transition-colors hover:bg-muted/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70"
-    >
-      <MorphIcon
-        className="size-3.5 shrink-0 text-muted-foreground"
-        icon={row.expanded ? ChevronDown : ChevronRight}
-      />
-      <span className="text-xs font-medium text-foreground/80">{row.label}</span>
-      <span className="text-2xs text-muted-foreground">Cut off by a steer</span>
-    </button>
+    <div>
+      <button
+        type="button"
+        aria-expanded={row.expanded}
+        data-superseded-attempt-id={row.attemptId}
+        onClick={toggle}
+        aria-busy={loading}
+        className="flex w-full cursor-pointer select-none items-center gap-2 rounded-md border border-border/60 bg-muted/20 px-2.5 py-2 text-left transition-colors hover:bg-muted/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70"
+      >
+        <MorphIcon
+          className="size-3.5 shrink-0 text-muted-foreground"
+          icon={row.expanded ? ChevronDown : ChevronRight}
+        />
+        <span className="text-xs font-medium text-foreground/80">
+          {row.label}
+          {error ? ` · ${error}` : ""}
+        </span>
+        <span className="text-2xs text-muted-foreground">Cut off by a steer</span>
+      </button>
+      {loading ? <WorkHistorySkeleton /> : null}
+    </div>
   );
 }
 

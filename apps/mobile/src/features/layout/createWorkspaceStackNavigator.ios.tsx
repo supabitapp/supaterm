@@ -19,9 +19,11 @@ import {
   type NativeStackNavigatorProps,
   type NativeStackTypeBag,
 } from "@react-navigation/native-stack";
-import { use, useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
-import { View } from "react-native";
+import { use, useEffect, useRef, useState, type ComponentProps } from "react";
+import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { Split, type SplitHostCommands } from "react-native-screens";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import { scopedThreadKey } from "../../lib/scopedEntities";
 import { WorkspaceTabsProvider, useWorkspaceTabs } from "../workspace/WorkspaceTabsContext";
@@ -30,6 +32,7 @@ import { isDuoDevice } from "../../lib/device-type";
 import { useDeviceType, useNativeLayoutMetrics } from "../../native/native-layout-metrics";
 
 import { useAdaptiveWorkspaceLayout } from "./AdaptiveWorkspaceLayout";
+import { WorkspacePaneDivider } from "./workspace-pane-divider";
 import { WorkspaceEmptyDetail } from "./WorkspaceEmptyDetail";
 import { NativeColumnContent as ColumnContent } from "../../native/NativeColumnContent.ios";
 import {
@@ -78,16 +81,12 @@ function ColumnScreen(props: {
   readonly navigation: ViewProps["navigation"];
 }) {
   const { descriptor } = props;
-  const primaryColumn = useMemo(
-    () =>
-      props.primary
-        ? {
-            selectedThreadKey: props.selectedThreadKey ?? null,
-            selectedPullRequestKey: props.selectedPullRequestKey ?? null,
-          }
-        : null,
-    [props.primary, props.selectedThreadKey, props.selectedPullRequestKey],
-  );
+  const primaryColumn = props.primary
+    ? {
+        selectedThreadKey: props.selectedThreadKey ?? null,
+        selectedPullRequestKey: props.selectedPullRequestKey ?? null,
+      }
+    : null;
   const key = descriptor.route.key;
   return (
     <Split.Screen
@@ -148,6 +147,15 @@ function WorkspaceColumns(
   const { layout, panes, togglePrimarySidebar, toggleAuxiliaryPane, startNewTask } =
     useAdaptiveWorkspaceLayout();
   const deviceType = useDeviceType();
+  const windowDimensions = useWindowDimensions();
+  const nativeMetrics = useNativeLayoutMetrics();
+  const viewportWidth = nativeMetrics?.width ?? windowDimensions.width;
+  const [inspectorWidthFraction, setInspectorWidthFraction] = useState(0.4);
+  const inspectorWidth = Math.max(
+    260,
+    Math.min(viewportWidth * 0.6, viewportWidth * inspectorWidthFraction),
+  );
+  const resizeStartWidth = useRef(inspectorWidth);
   // Split screens must remain mounted while UIKit animates a detached route away.
   const [screens, setScreens] = useState({
     routes: props.detail,
@@ -215,21 +223,18 @@ function WorkspaceColumns(
           ThreadId.make(threadParams.threadId),
         )
       : null;
-  const handleNativeDismiss = useCallback(
-    (key: string, native: boolean) => {
-      setScreens((current) => ({
-        ...current,
-        routes: current.routes.filter((route) => route.key !== key),
-        completed: new Set([...current.completed, key]),
-      }));
-      if (native) {
-        const state = props.navigation.getState();
-        const action = nativeWorkspacePopAction(state, key);
-        if (action) props.navigation.dispatch(action);
-      }
-    },
-    [props.navigation],
-  );
+  const handleNativeDismiss = (key: string, native: boolean) => {
+    setScreens((current) => ({
+      ...current,
+      routes: current.routes.filter((route) => route.key !== key),
+      completed: new Set([...current.completed, key]),
+    }));
+    if (native) {
+      const state = props.navigation.getState();
+      const action = nativeWorkspacePopAction(state, key);
+      if (action) props.navigation.dispatch(action);
+    }
+  };
   const followCollapsedSplit = (
     type: "willAppear" | "didAppear" | "willDisappear",
     key: string,
@@ -245,6 +250,7 @@ function WorkspaceColumns(
     if (transition.pop) props.navigation.dispatch(transition.pop);
   };
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- tells the native split host which column to show while collapsed
   useEffect(() => {
     // The initial column is a native prop applied before the host attaches; commands only
     // handle later navigation changes.
@@ -260,6 +266,7 @@ function WorkspaceColumns(
       ref={hostRef}
       testID="adaptive-workspace-layout"
       preferredSplitBehavior="tile"
+      primaryBackgroundStyle={deviceType === "pad" ? "none" : "default"}
       topColumnForCollapsing={compactColumn}
       onCollapse={() => {
         collapsed.current = true;
@@ -287,6 +294,10 @@ function WorkspaceColumns(
         maximumPrimaryColumnWidth: Math.max(380, layout.listPaneWidth ?? 0),
         preferredPrimaryColumnWidthOrFraction: layout.listPaneWidth ?? 320,
         minimumSecondaryColumnWidth: 320,
+        // UIKit can retain its automatic width despite a new preference; constrain both edges.
+        minimumInspectorColumnWidth: inspectorWidth,
+        maximumInspectorColumnWidth: inspectorWidth,
+        preferredInspectorColumnWidthOrFraction: inspectorWidth,
       }}
     >
       <Split.Column>
@@ -356,7 +367,45 @@ function WorkspaceColumns(
         {/* Inspector panes host their own native stacks, which UIKit insets for the Duo's
             vertical bar wherever they sit, so each pane insets its own content instead. */}
         <ColumnContent insetHorizontally={false}>
-          <View className="flex-1 bg-screen">{inspector.render?.()}</View>
+          <View className="flex-1 bg-screen">
+            {inspector.render?.()}
+            {inspector.visible ? (
+              <GestureHandlerRootView
+                style={[StyleSheet.absoluteFill, { zIndex: 100 }]}
+                pointerEvents="box-none"
+                collapsable={false}
+              >
+                <SafeAreaView
+                  style={{ flex: 1 }}
+                  edges={["left", "right"]}
+                  pointerEvents="box-none"
+                >
+                  <View className="flex-1" pointerEvents="box-none">
+                    <View
+                      className="absolute inset-y-0 left-0 w-[22px] flex-row"
+                      pointerEvents="box-none"
+                    >
+                      <WorkspacePaneDivider
+                        accessibilityLabel="Resize inspector"
+                        currentWidth={inspectorWidth}
+                        resizeDirection={-1}
+                        onResizeStart={() => {
+                          resizeStartWidth.current = inspectorWidth;
+                        }}
+                        onResizeBy={(delta) => {
+                          const width = Math.max(
+                            260,
+                            Math.min(viewportWidth * 0.6, resizeStartWidth.current + delta),
+                          );
+                          setInspectorWidthFraction(width / viewportWidth);
+                        }}
+                      />
+                    </View>
+                  </View>
+                </SafeAreaView>
+              </GestureHandlerRootView>
+            ) : null}
+          </View>
         </ColumnContent>
       </Split.Inspector>
     </Split.Host>

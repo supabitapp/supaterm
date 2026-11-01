@@ -67,6 +67,9 @@ const EMPTY_VISIBLE_TURN_ITEMS_ATOM = Atom.make(EMPTY_VISIBLE_TURN_ITEMS).pipe(
 const EMPTY_CHECKPOINT_SUMMARIES_ATOM = Atom.make<ReadonlyArray<ThreadCheckpointSummary>>(
   Object.freeze([]),
 ).pipe(Atom.withLabel("web-thread-checkpoint-summaries:empty"));
+const EMPTY_ASSISTANT_MESSAGE_TEXT_ATOM = Atom.make<string | null>(null).pipe(
+  Atom.withLabel("web-assistant-message-text:empty"),
+);
 const EMPTY_LAST_VISITED_AT_ATOM = Atom.make<DateTime.Utc | null>(null).pipe(
   Atom.withLabel("web-thread-last-visited:empty"),
 );
@@ -76,19 +79,6 @@ const EMPTY_UPDATED_AT_ATOM = Atom.make<DateTime.Utc | null>(null).pipe(
 const EMPTY_THREAD_HISTORY_ATOM = Atom.make<ThreadHistoryMeta>(EMPTY_THREAD_HISTORY_META).pipe(
   Atom.withLabel("web-thread-history:empty"),
 );
-
-const activeEnvironmentIdAtom = Atom.make<EnvironmentId | null>(null).pipe(
-  Atom.keepAlive,
-  Atom.withLabel("web-active-environment-id"),
-);
-
-export function useActiveEnvironmentId(): EnvironmentId | null {
-  return useAtomValue(activeEnvironmentIdAtom);
-}
-
-export function setActiveEnvironmentId(environmentId: EnvironmentId | null): void {
-  appAtomRegistry.set(activeEnvironmentIdAtom, environmentId);
-}
 
 export function useThreadRefs(enabled = true): ReadonlyArray<ScopedThreadRef> {
   return useAtomValue(enabled ? environmentThreadShells.threadRefsAtom : EMPTY_THREAD_REFS_ATOM);
@@ -126,6 +116,11 @@ export function useSidebarThreadShells(): ReadonlyArray<EnvironmentThreadShell> 
 /** Sidebar shells held through streaming ticks; see quietThreadShellAtom. */
 export function useQuietSidebarThreadShells(): ReadonlyArray<EnvironmentThreadShell> {
   return useAtomValue(sidebarThreadShells.quietThreadShellsAtom);
+}
+
+/** Every thread shell, held through streaming ticks; see quietThreadShellAtom. */
+export function useQuietThreadShells(): ReadonlyArray<EnvironmentThreadShell> {
+  return useAtomValue(environmentThreadShells.quietThreadShellsAtom);
 }
 
 export function useAllEnvironmentShellsBootstrapped(): boolean {
@@ -231,6 +226,29 @@ export function useThreadVisibleTurnItems(
   );
 }
 
+/** Visible turn items held through streamed assistant text; see useAssistantMessageText. */
+export function useTimelineVisibleTurnItems(
+  ref: ScopedThreadRef | null,
+): ReadonlyArray<OrchestrationV2ProjectedTurnItem> {
+  return useAtomValue(
+    ref === null
+      ? EMPTY_VISIBLE_TURN_ITEMS_ATOM
+      : environmentThreadDetails.timelineVisibleTurnItemsAtom(ref),
+  );
+}
+
+/** One assistant message's live text, or null when the thread does not hold the item. */
+export function useAssistantMessageText(
+  ref: ScopedThreadRef | null,
+  itemId: string | undefined,
+): string | null {
+  return useAtomValue(
+    ref === null || itemId === undefined
+      ? EMPTY_ASSISTANT_MESSAGE_TEXT_ATOM
+      : environmentThreadDetails.assistantMessageTextAtom(ref, itemId),
+  );
+}
+
 /** Visible turn items without their streamed text; see ThreadStructure. */
 export function useQuietThreadVisibleTurnItems(
   ref: ScopedThreadRef | null,
@@ -254,6 +272,13 @@ export function useThreadCheckpointSummaries(
 
 export function readProject(ref: ScopedProjectRef): EnvironmentProject | null {
   return appAtomRegistry.get(environmentProjects.projectAtom(ref));
+}
+
+export function subscribeProject(
+  ref: ScopedProjectRef,
+  listener: (project: EnvironmentProject | null) => void,
+): () => void {
+  return appAtomRegistry.subscribe(environmentProjects.projectAtom(ref), listener);
 }
 
 export function readProjects(): ReadonlyArray<EnvironmentProject> {
@@ -284,11 +309,7 @@ export function waitForProject(
   });
 }
 
-/**
- * Resolves once a deleted project leaves the live client store. The delete
- * command returns before the shell stream does, so anything that picks a
- * project in between (the index route's draft landing) still sees it.
- */
+/** Waits for removal from the live store; delete replies arrive before the shell stream. */
 export function waitForProjectRemoval(ref: ScopedProjectRef, timeoutMs = 5_000): Promise<boolean> {
   return waitForAtomValue({
     registry: appAtomRegistry,
@@ -361,13 +382,7 @@ function shellParentThreadId(
     : thread.lineage.parentThreadId;
 }
 
-/**
- * The live shells the panel's immediate relationships can reach: the thread,
- * its parent, its children, and the threads its subagents, workflow members and
- * context transfers name. Keeps its array while those shells are unchanged, so
- * another thread streaming in the same environment does not re-render the panel.
- */
-/** Exported for tests. */
+/** Retains unchanged reachable shells so unrelated streams do not re-render the panel. */
 export function selectThreadRelationshipShells(
   threadId: ThreadId,
   projection: Pick<

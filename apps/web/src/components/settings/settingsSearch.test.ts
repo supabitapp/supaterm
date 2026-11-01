@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vite-plus/test";
-import { EnvironmentId } from "@supaterm/contracts";
+import {
+  EnvironmentId,
+  makeProviderSettingsSchema,
+  SourceControlProviderKind,
+} from "@supaterm/contracts";
+import { UNKNOWN_SOURCE_CONTROL_CLIENT } from "@supaterm/client-runtime/source-control-clients";
+import * as Schema from "effect/Schema";
 
 import {
   filterAvailableSettingsSearchItems,
@@ -7,8 +13,11 @@ import {
   getThreadAutoMarkDoneSearchAvailability,
   isSettingsSearchScopeAvailable,
   isSettingsSectionAvailable,
+  movedSettingsPath,
   searchSettings,
   SETTINGS_SEARCH_ITEMS,
+  sourceControlHostSearchItems,
+  sourceControlHostSettingsSearchId,
   type SettingsSearchItem,
 } from "./settingsSearch";
 
@@ -22,7 +31,7 @@ const ITEMS: ReadonlyArray<SettingsSearchItem> = [
   {
     id: "network-access",
     title: "Network access",
-    to: "/settings/connections",
+    to: "/settings/access",
     searchTerms: ["remote pairing backend"],
   },
   {
@@ -47,7 +56,7 @@ describe("searchSettings", () => {
   it("matches titles, sections, and remembered setting details", () => {
     expect(searchSettings("word", ITEMS).map((item) => item.id)).toEqual(["word-wrap"]);
     expect(searchSettings("network", ITEMS).map((item) => item.id)).toEqual(["network-access"]);
-    expect(searchSettings("connections", ITEMS).map((item) => item.id)).toEqual(["network-access"]);
+    expect(searchSettings("sharing", ITEMS).map((item) => item.id)).toEqual(["network-access"]);
     expect(searchSettings("claude", ITEMS).map((item) => item.id)).toEqual(["providers"]);
     expect(searchSettings("long lines", ITEMS).map((item) => item.id)).toEqual(["word-wrap"]);
   });
@@ -219,15 +228,6 @@ describe("auto-mark-done search availability", () => {
     ]);
   });
 
-  it("offers connected environments when other targets are unavailable", () => {
-    expect(
-      getThreadAutoMarkDoneSearchAvailability(environments, {
-        kind: "all",
-        environmentIds: environments.map((entry) => entry.environmentId),
-      }),
-    ).toEqual({ eligibleEnvironmentIds: [capable.environmentId], isTargetAvailable: true });
-  });
-
   it.each([offline, loading])(
     "does not render the target on $environmentId or silently fall back",
     (selected) => {
@@ -274,5 +274,84 @@ describe("settings section availability", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+});
+
+describe("source control host search items", () => {
+  const definition = {
+    ...UNKNOWN_SOURCE_CONTROL_CLIENT,
+    kind: SourceControlProviderKind.make("example"),
+    label: "Example",
+    searchKeywords: ["sample"],
+    settings: makeProviderSettingsSchema({ apiToken: Schema.String }),
+  };
+
+  it("lists a host by its label, its keywords, and its settings fields", () => {
+    const items = sourceControlHostSearchItems([UNKNOWN_SOURCE_CONTROL_CLIENT, definition]);
+    expect(items.map((item) => item.title)).toEqual(["Example credentials"]);
+    expect(searchSettings("sample apitoken", items).map((item) => item.id)).toEqual([
+      sourceControlHostSettingsSearchId("example"),
+    ]);
+  });
+
+  it("lists a host with credentials by its accounts, token and CLI", () => {
+    const items = sourceControlHostSearchItems([
+      {
+        ...definition,
+        credentials: {
+          cliName: "ex",
+          cliLabel: "Example CLI",
+          loginCommand: "ex login",
+          tokenEnvVar: "EX_TOKEN",
+          tokenAccess: "access",
+          newTokenUrl: (host) => `https://${host}/tokens`,
+        },
+      },
+    ]);
+    expect(items.map((item) => item.title)).toEqual(["Example accounts and token"]);
+    expect(searchSettings("ex switch accounts", items)).toHaveLength(1);
+  });
+
+  it("finds the built-in hosts by their own words", () => {
+    expect(searchSettings("codeberg").map((item) => item.id)).toContain("source-control");
+    expect(searchSettings("ghes").map((item) => item.id)).toContain(
+      sourceControlHostSettingsSearchId("github"),
+    );
+  });
+});
+
+describe("movedSettingsPath", () => {
+  it("sends old links to the page their row moved to", () => {
+    expect(movedSettingsPath("/settings/general", "text-generation-model")).toBe(
+      "/settings/threads",
+    );
+    expect(movedSettingsPath("/settings/general", "app-version")).toBe("/settings/about");
+    expect(movedSettingsPath("/settings/general", "next-prompt-suggestions")).toBe(
+      "/settings/threads",
+    );
+    expect(movedSettingsPath("/settings/connections", "authorized-clients")).toBe(
+      "/settings/access",
+    );
+    expect(movedSettingsPath("/settings/connections", "public-relay")).toBe("/settings/access");
+    expect(movedSettingsPath("/settings/source-control", "worktree-branch-naming")).toBe(
+      "/settings/worktrees",
+    );
+    expect(movedSettingsPath("/settings/appearance", "diff-color-scheme")).toBe("/settings/diffs");
+    expect(movedSettingsPath("/settings/storage", "storage-worktrees")).toBe("/settings/worktrees");
+    expect(movedSettingsPath("/settings/storage", "")).toBe("/settings/maintenance");
+    expect(movedSettingsPath("/settings/integrations", "devices")).toBe("/settings/devices");
+    expect(movedSettingsPath("/settings/integrations", "orchestration-skills")).toBe(
+      "/settings/threads",
+    );
+    expect(movedSettingsPath("/settings/integrations", "")).toBe("/settings/browser");
+  });
+
+  it("leaves current pages alone", () => {
+    expect(movedSettingsPath("/settings/general", "time-format")).toBeNull();
+    expect(movedSettingsPath("/settings/general", "")).toBeNull();
+    expect(movedSettingsPath("/settings/projects", "project-defaults")).toBeNull();
+    expect(movedSettingsPath("/settings/connections", "remote-environments")).toBeNull();
+    expect(movedSettingsPath("/settings/appearance", "theme")).toBeNull();
+    expect(movedSettingsPath("/settings/codex-micro", "")).toBeNull();
   });
 });

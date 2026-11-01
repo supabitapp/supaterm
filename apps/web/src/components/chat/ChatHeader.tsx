@@ -1,6 +1,7 @@
 import {
   AuthOrchestrationOperateScope,
   type EnvironmentId,
+  type ScopedThreadRef,
   type ThreadId,
   type ThreadPinnedMessage,
 } from "@supaterm/contracts";
@@ -58,6 +59,7 @@ interface ChatHeaderProps {
   onUnpinMessage?: ((pin: ThreadPinnedMessage) => void) | undefined;
   onNewThreadInProject: () => void;
   onOpenProjectSettings?: (() => void) | undefined;
+  onFindInThread?: ((threadRef: ScopedThreadRef) => void) | undefined;
 }
 
 function resolveRenameCommit(input: {
@@ -70,10 +72,7 @@ function resolveRenameCommit(input: {
   return { action: "commit", title: trimmed };
 }
 
-// How long a click on the thread title waits before opening the action menu, so
-// a double-click-to-rename can cancel it first. Only the native desktop menu
-// needs this: it swallows input while open, so the wait must cover the OS
-// double-click interval.
+// Delay the input-swallowing native menu through the double-click rename interval.
 const TITLE_MENU_OPEN_DELAY_MS = 500;
 export const ChatHeader = memo(function ChatHeader({
   activeThreadEnvironmentId,
@@ -89,6 +88,7 @@ export const ChatHeader = memo(function ChatHeader({
   onUnpinMessage,
   onNewThreadInProject,
   onOpenProjectSettings,
+  onFindInThread,
 }: ChatHeaderProps) {
   const timestampFormat = useClientSettings((settings) => settings.timestampFormat);
   const activeProjectName = activeProject?.isScratch ? "No project" : activeProject?.title;
@@ -124,6 +124,7 @@ export const ChatHeader = memo(function ChatHeader({
       ? renaming.title
       : null;
   const isRenamingTitle = renamingTitle !== null;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- measures the breadcrumb list DOM via ResizeObserver, a frame and font loads to collapse the parent title
   useEffect(() => {
     const list = breadcrumbContainerRef.current?.querySelector("ol");
     if (!list || !parentThreadLink) return;
@@ -178,6 +179,7 @@ export const ChatHeader = memo(function ChatHeader({
     });
   });
   const isPaneInputOwner = usePaneInputOwner();
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to the window rename event the command palette dispatches for this thread
   useEffect(
     () =>
       subscribeThreadRename((threadRef) => {
@@ -217,6 +219,7 @@ export const ChatHeader = memo(function ChatHeader({
   const { openMenu, closeMenu } = useThreadActionMenu({
     threadRef: isServerThread ? activeThreadRef : null,
     onStartRename: startRename,
+    onFind: onFindInThread,
   });
   const titleButtonRef = useRef<HTMLButtonElement | null>(null);
   const titleMenuTimerRef = useRef<{
@@ -228,6 +231,7 @@ export const ChatHeader = memo(function ChatHeader({
     clearTimeout(titleMenuTimerRef.current.timeoutId);
     titleMenuTimerRef.current = null;
   };
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the pending title-menu timer when the thread switches or the header unmounts
   useEffect(
     () => () => {
       const pending = titleMenuTimerRef.current;

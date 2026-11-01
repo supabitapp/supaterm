@@ -32,6 +32,7 @@ export function NativeMermaidBlock({
   const fontSize = Math.max(10, Math.round(textStyle.fontSize * 0.8));
   const failed = renderDiagram !== null && result?.source === source && result.diagram === null;
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- runs the async Mermaid renderer at the measured width and drops a render that lands after cleanup
   useEffect(() => {
     if (!renderDiagram || !width) return;
     let active = true;

@@ -7,9 +7,9 @@ import {
   SourceControlProviderKind,
 } from "@supaterm/contracts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
-import { readSourceControlHostSettings } from "@supaterm/source-control-core/client/definition";
+import { readSourceControlHostSettings } from "@supaterm/source-control-core/shared/definition";
 import * as SourceControlHost from "@supaterm/source-control-core/server/SourceControlHost";
-import * as GitHubClient from "../client/definition.ts";
+import * as GitHubClient from "../shared/definition.ts";
 import * as GitHubRest from "./GitHubRest.ts";
 import * as GitHubCredentials from "./GitHubCredentials.ts";
 import {
@@ -224,7 +224,10 @@ export const make = Effect.gen(function* () {
       );
       const cli = yield* probeSourceControlProvider({
         cwd,
-        process,
+        process: {
+          run: (input) =>
+            process.run({ ...input, concurrency: GitHubCredentials.GH_PROCESS_CONCURRENCY }),
+        },
         spec: { ...discovery, parseAuth: (input) => parseGitHubAuth(input, settings) },
       });
       const tokenHosts = discoveryTokenHosts(settings, environment);

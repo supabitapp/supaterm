@@ -41,6 +41,7 @@ function StatusFadeIn(props: { readonly children: ReactNode }) {
   const reducedMotion = useReducedMotionPreference();
   const [opacity] = useState(() => new Animated.Value(reducedMotion ? 1 : 0));
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- runs the Animated opacity fade-in and stops it on cleanup
   useEffect(() => {
     if (reducedMotion) {
       opacity.stopAnimation();

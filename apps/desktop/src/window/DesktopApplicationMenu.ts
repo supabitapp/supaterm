@@ -113,7 +113,7 @@ const handleCheckForUpdatesMenuClick = Effect.gen(function* () {
   yield* checkForUpdatesFromMenu;
 }).pipe(Effect.withSpan("desktop.menu.handleCheckForUpdatesClick"));
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const electronMenu = yield* ElectronMenu.ElectronMenu;
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
@@ -204,7 +204,10 @@ export const make = Effect.gen(function* () {
                 },
                 { type: "separator" as const },
               ]),
-          { role: environment.platform === "darwin" ? "close" : "quit" },
+          // Cmd/Ctrl+W belongs to the renderer's tab close; it must never close the window.
+          environment.platform === "darwin"
+            ? { label: "Close Window", click: (_item, window) => window?.close() }
+            : { role: "quit" },
         ],
       },
       {
@@ -292,7 +295,17 @@ export const make = Effect.gen(function* () {
           { role: "togglefullscreen" },
         ],
       },
-      { role: "windowMenu" },
+      {
+        // Electron's default Window submenu adds a Ctrl+W close role off macOS.
+        role: "windowMenu",
+        submenu: [
+          { role: "minimize" },
+          { role: "zoom" },
+          ...(environment.platform === "darwin"
+            ? [{ type: "separator" as const }, { role: "front" as const }]
+            : []),
+        ],
+      },
       {
         role: "help",
         submenu: [

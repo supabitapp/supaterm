@@ -31,7 +31,7 @@ const notFound = <A, E extends { readonly reason: { readonly _tag: string } }, R
   effect: Effect.Effect<A, E, R>,
 ) =>
   effect.pipe(
-    Effect.map(Option.some),
+    Effect.asSome,
     Effect.catchIf(
       (error) => error.reason._tag === "NotFound",
       () => Effect.succeedNone,

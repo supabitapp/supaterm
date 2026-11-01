@@ -18,6 +18,7 @@ import * as Deferred from "effect/Deferred";
 import * as Duration from "effect/Duration";
 import * as Equal from "effect/Equal";
 import * as Effect from "effect/Effect";
+import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import * as Exit from "effect/Exit";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
@@ -283,6 +284,7 @@ const ATOMIC_SETTINGS_KEYS: ReadonlySet<string> = new Set([
   "sourceControlWriterModelSelection",
   "reviewGuideModelSelection",
   "textGenerationModelSelection",
+  "fallbackModelSelection",
   "pullRequestMergeMethod",
 ]);
 
@@ -515,6 +517,7 @@ const make = Effect.gen(function* () {
           FROM projection_projects
           WHERE deleted_at IS NULL
         `.pipe(
+            NodeSqliteClient.readOnly,
             Effect.mapError(
               (cause) =>
                 new ServerSettingsError({
@@ -582,6 +585,31 @@ const make = Effect.gen(function* () {
         redacted: secret.sensitive && secret.kind === "environment" && secret.redacted,
       }));
     },
+  );
+
+  // Background sweeps read settings every few seconds; reading secret files each time is wasted.
+  // Every secret write rewrites the settings file, so a new cached object implies fresh secrets.
+  // A read that overlaps a secret write may see files a rollback then restores, so it is not kept.
+  let materialized: { readonly source: ServerSettings; readonly value: ServerSettings } | null =
+    null;
+  let secretWriteGeneration = 0;
+  const invalidateMaterialized = Effect.sync(() => {
+    secretWriteGeneration++;
+    materialized = null;
+  });
+  const getMaterializedSettings = getSettingsFromCache.pipe(
+    Effect.flatMap((source) => {
+      if (materialized?.source === source) return Effect.succeed(materialized.value);
+      const generation = secretWriteGeneration;
+      return materializeSettingsSecrets(source).pipe(
+        Effect.map(resolveTextGenerationProvider),
+        Effect.tap((value) =>
+          Effect.sync(() => {
+            if (generation === secretWriteGeneration) materialized = { source, value };
+          }),
+        ),
+      );
+    }),
   );
 
   const materializeChanges = (changes: Stream.Stream<ServerSettings>) =>
@@ -759,8 +787,9 @@ const make = Effect.gen(function* () {
         const updated = yield* update(current);
         const persisted = yield* persistSettingsSecrets(current, updated);
         const next = yield* normalizeServerSettings(persisted.settings);
-        const materialized = yield* Effect.uninterruptibleMask(() =>
+        const materializedNext = yield* Effect.uninterruptibleMask(() =>
           Effect.gen(function* () {
+            yield* invalidateMaterialized;
             const rollbackSecretChanges = yield* applySettingsSecretChanges(persisted.changes);
             const materializedExit = yield* Effect.exit(materializeSettingsSecrets(next));
             if (Exit.isFailure(materializedExit)) {
@@ -773,22 +802,18 @@ const make = Effect.gen(function* () {
               return yield* Effect.failCause(writeExit.cause);
             }
             return materializedExit.value;
-          }),
+          }).pipe(Effect.ensuring(invalidateMaterialized)),
         );
         yield* Cache.set(settingsCache, cacheKey, { settings: next, parseFailure: Option.none() });
+        const resolved = resolveTextGenerationProvider(materializedNext);
+        materialized = { source: next, value: resolved };
         yield* emitChange(next);
-        return resolveTextGenerationProvider(materialized);
+        return resolved;
       }),
     );
 
   const withSettingsSnapshot: ServerSettingsService["Service"]["withSettingsSnapshot"] = (use) =>
-    writeSemaphore.withPermits(1)(
-      getSettingsFromCache.pipe(
-        Effect.flatMap(materializeSettingsSecrets),
-        Effect.map(resolveTextGenerationProvider),
-        Effect.flatMap(use),
-      ),
-    );
+    writeSemaphore.withPermits(1)(getMaterializedSettings.pipe(Effect.flatMap(use)));
 
   const revalidateAndEmit = writeSemaphore.withPermits(1)(
     Effect.gen(function* () {
@@ -896,10 +921,7 @@ const make = Effect.gen(function* () {
   return {
     start,
     ready: Deferred.await(startedDeferred),
-    getSettings: getSettingsFromCache.pipe(
-      Effect.flatMap(materializeSettingsSecrets),
-      Effect.map(resolveTextGenerationProvider),
-    ),
+    getSettings: getMaterializedSettings,
     updateSettings: (patch) =>
       updateAndPersistSettings((current) =>
         Effect.succeed(applyServerSettingsPatch(current, patch)),

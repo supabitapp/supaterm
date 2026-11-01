@@ -3,10 +3,11 @@ import { shouldShowFloatingBrowser } from "@supaterm/client-runtime/preview/floa
 import type { EnvironmentId, PreviewSessionSnapshot, ThreadId } from "@supaterm/contracts";
 import { previewPdfAssetUrl } from "@supaterm/shared/preview";
 import * as Option from "effect/Option";
-import { type ComponentProps, useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Pressable, View } from "react-native";
+import { type ComponentProps, useEffect, useRef, useState } from "react";
+import { Pressable, View } from "react-native";
 
 import { SymbolView } from "../../components/ui/AppSymbol";
+import { useAppForeground } from "../../lib/appState";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { browserTabTitle } from "./browserTabs";
 import { PreviewStreamWebView } from "./PreviewStreamWebView";
@@ -24,6 +25,7 @@ export function ThreadBrowserFloat(props: {
 }) {
   const [tabId, setTabId] = useState<string | null>(null);
   const known = useRef<ReadonlyMap<string, string | undefined> | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- shows the float for a tab the server's preview snapshot newly reveals, diffed against the last loaded one
   useEffect(() => {
     if (!props.loaded) return;
     const previous = known.current;
@@ -39,21 +41,15 @@ export function ThreadBrowserFloat(props: {
     if (opened !== undefined) setTabId(opened.tabId);
   }, [props.loaded, props.tabs]);
   const focused = useIsFocused();
-  const [foreground, setForeground] = useState(AppState.currentState !== "background");
-  useEffect(() => {
-    const subscription = AppState.addEventListener("change", (state) =>
-      setForeground(state !== "background"),
-    );
-    return () => subscription.remove();
-  }, []);
+  const foreground = useAppForeground();
   const tab = props.tabs.find((entry) => entry.tabId === tabId) ?? null;
   const onOpen = props.onOpen;
-  const open = useCallback(() => {
+  const open = () => {
     if (tabId === null) return;
     setTabId(null);
     onOpen(tabId);
-  }, [onOpen, tabId]);
-  const close = useCallback(() => setTabId(null), []);
+  };
+  const close = () => setTabId(null);
   if (!tab || !focused) return null;
   return (
     <FloatingBrowserPlayer

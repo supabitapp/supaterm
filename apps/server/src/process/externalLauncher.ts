@@ -31,6 +31,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Ref from "effect/Ref";
+import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import * as ChildProcess from "effect/process/ChildProcess";
@@ -72,7 +73,6 @@ interface TargetPathAndPosition {
  * line break ends the command there, and a double quote closes the quoting
  * that keeps `&` or `|` literal. Neither can occur in a Windows path.
  */
-// oxlint-disable-next-line no-control-regex
 const WINDOWS_SHIM_UNSAFE_ARG_PATTERN = /[\u0000-\u001f\u007f"]/;
 const TARGET_WITH_POSITION_PATTERN = /^(.*?):(\d+)(?::(\d+))?$/;
 const POWERSHELL_ARGUMENTS_PREFIX = [
@@ -259,14 +259,9 @@ function fileManagerCommandForPlatform(
   }
 }
 
-// A graphical session variable plus an executable `xdg-open` does not prove
-// that opening a directory does anything: without an `inode/directory` MIME
-// handler, `xdg-open` exits nonzero after the launcher has already detached, so
-// the client would see a silent no-op. The probe carries its own timeout well
-// inside the scan timeout `server.getConfig` applies to editor discovery: that
-// outer timeout degrades to an empty editor list, so a hung `xdg-mime` (broken
-// D-Bus or desktop session) must cost only the file manager, not every
-// discovered editor.
+// Without an `inode/directory` MIME handler, `xdg-open` fails after the launcher detached, a
+// silent no-op, so the handler is probed. This sits well inside editor discovery's timeout, which
+// degrades to an empty list: a hung `xdg-mime` must cost only the file manager.
 const LINUX_DIRECTORY_HANDLER_PROBE_TIMEOUT = "2 seconds";
 
 const hasUsableLinuxDirectoryHandler = Effect.fn("externalLauncher.hasUsableLinuxDirectoryHandler")(
@@ -347,13 +342,10 @@ const resolveUsableFileManagerCommand = Effect.fn(
   return undefined;
 });
 
-// Reveal on Windows and WSL runs through PowerShell (see
-// resolveFileManagerRevealLaunch), not the `explorer` command that gates the
-// file-manager editor itself, so the capability must probe the executables the
-// reveal actually spawns. Callers gate on file-manager availability first;
-// the Linux "files" kind relies on that gate for the directory-handler probe,
-// while the WSL fallback re-probes because its availability may have come
-// from the Explorer bridge instead.
+// Reveal on Windows and WSL spawns PowerShell, not the `explorer` that gates the file-manager
+// editor, so this probes what reveal spawns. Linux "files" relies on the callers' file-manager
+// gate for the directory-handler probe; the WSL fallback re-probes because that gate may have
+// passed through the Explorer bridge instead.
 const fileManagerRevealKindForPlatform = Effect.fn(
   "externalLauncher.fileManagerRevealKindForPlatform",
 )(function* (
@@ -471,13 +463,9 @@ const resolveFileManagerRevealKind = Effect.fn("externalLauncher.resolveFileMana
   },
 );
 
-// Callers apply a timeout (`resolveAvailableEditorsForConfig`) and disconnect
-// mid-connect; neither may cancel a scan other connects are waiting on, or
-// throw away work a slow host (a busy server at startup, a long PATH) needs
-// more than one connect to finish. Expiry uses the monotonic clock
-// (Clock.monotonicTimeNanos), matching the command-resolution cache in
-// @supaterm/shared/shell, so a backward wall-clock adjustment cannot keep an
-// expired entry alive.
+// A caller's timeout or disconnect must not cancel a scan other connects wait on, or discard
+// work a slow host needs several connects to finish. Expiry uses the monotonic clock so a
+// backward wall-clock adjustment cannot keep an expired entry alive.
 const EDITOR_DISCOVERY_CACHE_TTL_NANOS = 60_000_000_000n;
 
 interface EditorDiscoveryCacheEntry {
@@ -706,6 +694,56 @@ const launchEditor = Effect.fn("externalLauncher.launchEditor")(function* (
   yield* launchEditorProcess(launch);
 });
 
+const GRAPHICAL_SESSION_ENV_KEYS: ReadonlySet<string> = new Set([
+  "DISPLAY",
+  "WAYLAND_DISPLAY",
+  "XAUTHORITY",
+]);
+
+// The user manager's environment over D-Bus. `systemctl show-environment` would
+// shell-quote values with spaces as $'...', while this JSON carries them raw.
+const decodeManagerEnvironment = Schema.decodeUnknownEffect(
+  Schema.fromJsonString(Schema.Struct({ data: Schema.Array(Schema.String) })),
+);
+
+// Boot services miss the desktop environment imported later into the systemd user manager.
+const readGraphicalSessionEnv = Effect.fn("externalLauncher.readGraphicalSessionEnv")(
+  function* () {
+    const hostEnv = yield* HostProcess.Environment;
+    if ((yield* HostProcess.Platform) !== "linux" || hasGraphicalLinuxSession(hostEnv)) {
+      return {};
+    }
+    const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+    const output = yield* spawner.string(
+      ChildProcess.make(
+        "busctl",
+        [
+          "--user",
+          "--json=short",
+          "get-property",
+          "org.freedesktop.systemd1",
+          "/org/freedesktop/systemd1",
+          "org.freedesktop.systemd1.Manager",
+          "Environment",
+        ],
+        { stdin: "ignore", stderr: "ignore" },
+      ),
+    );
+    const { data } = yield* decodeManagerEnvironment(output);
+    return Object.fromEntries(
+      data.flatMap((line) => {
+        const separator = line.indexOf("=");
+        const key = line.slice(0, separator);
+        return separator > 0 && GRAPHICAL_SESSION_ENV_KEYS.has(key)
+          ? [[key, line.slice(separator + 1)]]
+          : [];
+      }),
+    );
+  },
+  Effect.timeout("2 seconds"),
+  Effect.orElseSucceed((): NodeJS.ProcessEnv => ({})),
+);
+
 const launchAndUnref = Effect.fn("externalLauncher.launchAndUnref")(function* (
   launch: ProcessLaunch,
   onError: (cause: unknown) => ExternalLauncherError,
@@ -715,7 +753,7 @@ const launchAndUnref = Effect.fn("externalLauncher.launchAndUnref")(function* (
   const { ELECTRON_RUN_AS_NODE: _runAsNode, ...env } = yield* HostProcess.Environment;
   const command = ChildProcess.make(launch.command, launch.args, {
     ...launch.options,
-    env,
+    env: { ...env, ...launch.options.env },
     extendEnv: false,
   });
 
@@ -769,6 +807,7 @@ const launchEditorProcess = Effect.fn("externalLauncher.launchEditorProcess")(fu
       options: {
         detached: launch.detached ?? true,
         shell: spawnCommand.shell,
+        env: yield* readGraphicalSessionEnv(),
         stdin: "ignore",
         stdout: "ignore",
         stderr: "ignore",
@@ -785,7 +824,7 @@ const launchEditorProcess = Effect.fn("externalLauncher.launchEditorProcess")(fu
   );
 });
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const fileSystem = yield* FileSystem.FileSystem;
@@ -852,20 +891,29 @@ export const make = Effect.gen(function* () {
   }).pipe(Effect.uninterruptible);
   const cachedAvailableEditors = Effect.flatMap(acquireEditorDiscovery, Deferred.await);
 
+  // Forwarders retain the underlying launcher and discovery spans.
   return ExternalLauncher.of({
-    resolveAvailableEditors: () => cachedAvailableEditors,
-    resolveFileManagerRevealKind: () =>
-      provideCommandResolutionServices(resolveFileManagerRevealKind()).pipe(
-        Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
-      ),
-    launchBrowser: (target) =>
-      launchBrowser(target).pipe(
-        Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
-      ),
-    launchEditor: (input) =>
-      provideCommandResolutionServices(launchEditor(input)).pipe(
-        Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
-      ),
+    resolveAvailableEditors: Effect.fnUntraced(function* () {
+      return yield* cachedAvailableEditors;
+    }),
+    resolveFileManagerRevealKind: Effect.fnUntraced(
+      function* () {
+        return yield* provideCommandResolutionServices(resolveFileManagerRevealKind());
+      },
+      Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
+    ),
+    launchBrowser: Effect.fnUntraced(
+      function* (target) {
+        return yield* launchBrowser(target);
+      },
+      Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
+    ),
+    launchEditor: Effect.fnUntraced(
+      function* (input) {
+        return yield* provideCommandResolutionServices(launchEditor(input));
+      },
+      Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
+    ),
   });
 });
 

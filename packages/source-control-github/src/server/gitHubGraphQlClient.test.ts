@@ -54,7 +54,6 @@ const json = (body: unknown, init?: ResponseInit) =>
     headers: { "content-type": "application/json", ...init?.headers },
   });
 
-/** One stats lookup on `host`, through the client and middleware the pull request reads use. */
 const readStats = (host: string, number = 7) =>
   Effect.gen(function* () {
     const client = yield* GraphQLClient.make(
@@ -121,7 +120,6 @@ describe("GitHubGraphQlAuth", () => {
       yield* TestClock.setTime(NOW);
       const first = yield* Effect.flip(readStats("github.com"));
       expect(first).toMatchObject({ _tag: "GitHubApiRateLimitError", retryAt: reset * 1000 });
-      // The pause is the one REST reads respect too.
       const api = yield* GitHubRest.GitHubRest;
       const rest = yield* Effect.flip(
         api.rest({ host: "github.com", operation: "stack", path: "repos/acme/web/stacks" }),
@@ -219,11 +217,9 @@ describe("GitHubGraphQlAuth", () => {
       yield* readStats("github.com", 1).pipe(
         Effect.provideService(SourceControlRateLimit.Interactive, true),
       );
-      // 100 of 5,000 left is inside the reserve, which a background read may not spend.
       const background = yield* Effect.flip(readStats("github.com", 2));
       expect(background._tag).toBe("SourceControlRateLimitPausedError");
       expect(requests).toHaveLength(1);
-      // REST spends a quota of its own, which the GraphQL reserve does not hold back.
       const api = yield* GitHubRest.GitHubRest;
       yield* api.rest({ host: "github.com", operation: "user", path: "user" });
       expect(requests).toHaveLength(2);
@@ -231,7 +227,6 @@ describe("GitHubGraphQlAuth", () => {
   });
 });
 
-/** One unbatched stats read on github.com, through `call`. */
 const callStats = (target: Partial<GitHubGraphQlClient.GitHubGraphQlTarget["Service"]> = {}) =>
   Effect.gen(function* () {
     const client = yield* GraphQLClient.make(

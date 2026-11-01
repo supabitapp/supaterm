@@ -1,7 +1,8 @@
-import type {
-  ChatAttachment,
-  OrchestrationV2ProjectedTurnItem,
-  OrchestrationV2ProviderCapabilities,
+import {
+  type ChatAttachment,
+  isCompactionCommandMessage,
+  type OrchestrationV2ProjectedTurnItem,
+  type OrchestrationV2ProviderCapabilities,
 } from "@supaterm/contracts";
 import { latestForkableRun } from "@supaterm/contracts";
 import { copySorted } from "@supaterm/shared/Array";
@@ -27,14 +28,17 @@ export interface QueuedThreadRun {
   readonly attachments: ReadonlyArray<ChatAttachment>;
   readonly messageId: Message["id"];
   readonly context?: Message["context"];
+  /** Carries the attribution a sent message shows: automation or agent sender. */
+  readonly message?: Message;
 }
 
 export interface ThreadQueueWorkflowState {
   readonly activeRun: Run | null;
   readonly queuedRuns: ReadonlyArray<QueuedThreadRun>;
   readonly isHeld: boolean;
-  readonly canReorder: boolean;
   readonly canPromoteToSteer: boolean;
+  /** The active run is a compaction, so promoting a queued message stops it instead of steering. */
+  readonly promoteSkipsCompaction: boolean;
   readonly canSendNow: boolean;
 }
 
@@ -144,6 +148,11 @@ export function deriveThreadQueueWorkflowState(projection: Projection): ThreadQu
   const activeRun = resolveActiveThreadRun(projection);
   const session = resolveThreadProviderSession(projection);
   const capabilities = session?.capabilities.turns;
+  const activeMessage = projection.messages.find(
+    (message) => message.id === activeRun?.userMessageId,
+  );
+  const promoteSkipsCompaction =
+    activeMessage !== undefined && isCompactionCommandMessage(activeMessage);
   const hasSteerableProviderTurn =
     activeRun?.status === "running" &&
     activeRun.activeAttemptId !== null &&
@@ -163,6 +172,7 @@ export function deriveThreadQueueWorkflowState(projection: Projection): ThreadQu
       attachments: message?.attachments ?? [],
       messageId: run.userMessageId,
       ...(message?.context ? { context: message.context } : {}),
+      ...(message ? { message } : {}),
     };
   });
 
@@ -170,15 +180,16 @@ export function deriveThreadQueueWorkflowState(projection: Projection): ThreadQu
     activeRun,
     queuedRuns,
     isHeld: projection.runs.some((run) => run.status === "queued" && run.queueHeld === true),
-    canReorder: capabilities?.supportsQueuedMessages === true,
     canSendNow:
       activeRun === null &&
       projection.thread.archivedAt == null &&
       projection.thread.deletedAt == null,
     canPromoteToSteer:
-      hasSteerableProviderTurn &&
-      (capabilities?.supportsActiveSteering === true ||
-        capabilities?.supportsSteeringByInterruptRestart === true),
+      promoteSkipsCompaction ||
+      (hasSteerableProviderTurn &&
+        (capabilities?.supportsActiveSteering === true ||
+          capabilities?.supportsSteeringByInterruptRestart === true)),
+    promoteSkipsCompaction,
   };
 }
 

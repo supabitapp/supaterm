@@ -14,7 +14,7 @@ import { createUserInputAutoDismissPause } from "@supaterm/client-runtime/user-i
 import { useState } from "react";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { randomUUID } from "../../lib/utils";
-import type { PendingUserInputDraftAnswer } from "../../pendingUserInput";
+import type { PendingUserInputDraftAnswer } from "@supaterm/client-runtime/state/pending-user-input";
 import type { PendingUserInput } from "../../session-logic";
 import { serverEnvironment } from "../../state/server";
 import { threadEnvironment } from "../../state/threads";

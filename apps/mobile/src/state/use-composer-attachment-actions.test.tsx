@@ -33,6 +33,7 @@ vi.mock("./use-composer-drafts", () => ({
   },
 }));
 
+import { abortComposerDraftOperations } from "./composerDraftOperations";
 import { useComposerAttachmentActions } from "./use-composer-attachment-actions";
 
 let root: Root | null = null;
@@ -74,10 +75,20 @@ describe("useComposerAttachmentActions", () => {
     expect(harness.removed).toEqual([]);
   });
 
-  it("discards a picker result that finishes after the draft changed", async () => {
+  it("keeps a picker result for its own draft after the composer moves to another one", async () => {
     render("draft-a");
     const pick = latest!.onPickDraftMedia();
     render("draft-b");
+    harness.resolvePick!([{ id: "photo", fileUri: "file:///photo.jpg" }]);
+    await act(() => pick);
+    expect(harness.appended).toEqual(["draft-a"]);
+    expect(harness.removed).toEqual([]);
+  });
+
+  it("discards a picker result whose draft was discarded while it ran", async () => {
+    render("draft-a");
+    const pick = latest!.onPickDraftMedia();
+    abortComposerDraftOperations("draft-a");
     harness.resolvePick!([{ id: "photo", fileUri: "file:///photo.jpg" }]);
     await act(() => pick);
     expect(harness.appended).toEqual([]);

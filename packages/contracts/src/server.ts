@@ -33,6 +33,7 @@ import { ServerProviderUsageLimits } from "./providerUsageLimits.ts";
 import { ServerProviderTranscription } from "./transcription.ts";
 import { ServerSettings } from "./settings.ts";
 import { RelayConnectionInfo, RelayServerUrl } from "./relay.ts";
+import { DesktopUpdateChannelSchema } from "./ipc.ts";
 
 const KeybindingsMalformedConfigIssue = Schema.Struct({
   kind: Schema.Literal("keybindings.malformed-config"),
@@ -305,15 +306,23 @@ export const isProviderTextGenerationCapable = (snapshot: ServerProvider): boole
 
 export const isProviderReviewGuideCapable = (snapshot: ServerProvider): boolean =>
   isProviderTextGenerationCapable(snapshot) && snapshot.supportsReviewGuides === true;
+export const OtlpEndpointSource = Schema.Literals(["environment", "bootstrap", "settings"]);
+export type OtlpEndpointSource = typeof OtlpEndpointSource.Type;
 
 export const ServerObservability = Schema.Struct({
   logsDirectoryPath: TrimmedNonEmptyString,
   localTracingEnabled: Schema.Boolean,
   otlpTracesUrl: Schema.optional(TrimmedNonEmptyString),
+  otlpTracesSource: Schema.optional(OtlpEndpointSource),
+  otlpTracesVariable: Schema.optional(TrimmedNonEmptyString),
   otlpTracesEnabled: Schema.Boolean,
   otlpMetricsUrl: Schema.optional(TrimmedNonEmptyString),
+  otlpMetricsSource: Schema.optional(OtlpEndpointSource),
+  otlpMetricsVariable: Schema.optional(TrimmedNonEmptyString),
   otlpMetricsEnabled: Schema.Boolean,
   otlpLogsUrl: Schema.optional(TrimmedNonEmptyString),
+  otlpLogsSource: Schema.optional(OtlpEndpointSource),
+  otlpLogsVariable: Schema.optional(TrimmedNonEmptyString),
   otlpLogsEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
 });
 export type ServerObservability = typeof ServerObservability.Type;
@@ -673,6 +682,16 @@ export const ServerConfig = Schema.Struct({
    * on a new connection only while this stays the same.
    */
   shellSyncGeneration: Schema.optionalKey(TrimmedNonEmptyString),
+  /**
+   * The shell can leave idle subagent children out of snapshots (`omitIdleSubagents`), and
+   * `getThreadFamily` and `getWorktreeThreadIds` serve the rows it leaves out.
+   */
+  shellThreadFamilies: Schema.optionalKey(Schema.Boolean),
+  /**
+   * The shell can leave older done threads out of snapshots (`omitOlderDone`), and
+   * `getOlderDoneThreads` serves them. Only servers that also advertise `shellThreadFamilies`.
+   */
+  shellOlderDone: Schema.optionalKey(Schema.Boolean),
   shellRevealInFileManager: Schema.optionalKey(Schema.Boolean),
   shellRevealInFileManagerKind: Schema.optionalKey(FileManagerRevealKind),
   threadResumeCompletionMarker: Schema.optionalKey(Schema.Boolean),
@@ -680,7 +699,6 @@ export const ServerConfig = Schema.Struct({
    * Clients must not send window fields to servers that don't advertise this.
    */
   threadSnapshotPagination: Schema.optionalKey(Schema.Boolean),
-  reasoningMessages: Schema.optionalKey(Schema.Boolean),
   threadFind: Schema.optionalKey(Schema.Boolean),
   threadFindProgressive: Schema.optionalKey(Schema.Boolean),
   scratchWorkspaceRoot: Schema.optionalKey(TrimmedNonEmptyString),
@@ -701,12 +719,9 @@ export const ServerConfig = Schema.Struct({
 export type ServerConfig = typeof ServerConfig.Type;
 
 /**
- * The machine an environment should be drawn as: the user's pick, else what
- * the server detected, else a generic server. Settings only exist once
- * connected; a descriptor alone (before any connection) still yields the
- * detected kind. A null config (nothing known yet, or an
- * older server) resolves to the same generic so rows never flicker between
- * glyphs.
+ * The user's pick, else what the server detected, else a generic server. A
+ * descriptor alone, before any connection, still yields the detected kind; a
+ * null config resolves to the same generic so rows never flicker between glyphs.
  */
 export function resolveEnvironmentMachineKind(
   config: {
@@ -943,6 +958,10 @@ export const ServerSelfUpdateInput = Schema.Struct({
   /** Exact npm version of the `supaterm` package to install (never a dist-tag, so
       the server and the acknowledging client agree on what was requested). */
   targetVersion: TrimmedNonEmptyString,
+  /** Desktop-managed hosts move their app to this update track first. Sent only for a track switch. */
+  channel: Schema.optionalKey(DesktopUpdateChannelSchema),
+  /** The target release's highest migration; the host refuses to leave Nightly without it. */
+  targetDatabaseMigration: Schema.optionalKey(Schema.Int),
 });
 export type ServerSelfUpdateInput = typeof ServerSelfUpdateInput.Type;
 

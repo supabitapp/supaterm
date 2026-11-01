@@ -55,12 +55,12 @@ export function useHomeThreadRouteSelection() {
   const dismissingRouteKey = useRef<string | null>(null);
   const selectAndroidWorkspace = useAndroidWorkspaceSelection();
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- tracks a Thread route being swiped back through the native stack's transitionStart and focus events
   useEffect(() => {
     const clear = () => {
       dismissingRouteKey.current = null;
     };
-    // This listener belongs to Home, so swipe-back is its opening transition.
-    // Thread's closing event is targeted at the outgoing Thread route.
+    // For Home, swipe-back is opening; Thread's closing event targets the outgoing route.
     const removeTransitionStart = navigation.addListener("transitionStart", ({ data }) => {
       const state = navigation.getState();
       const currentRoute = state.routes[state.index];

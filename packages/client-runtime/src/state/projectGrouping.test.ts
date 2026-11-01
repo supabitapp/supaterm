@@ -1,4 +1,4 @@
-import { EnvironmentId, ProjectId } from "@supaterm/contracts";
+import { EnvironmentId, ProjectId, SourceControlProviderKind } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import type { EnvironmentProject } from "./models.ts";
@@ -180,7 +180,7 @@ const repositoryIdentity = {
     remoteName: "upstream",
     remoteUrl: "https://github.com/supabitapp/supacode-next.git",
   },
-  provider: "github",
+  provider: SourceControlProviderKind.make("github"),
   owner: "supabitapp",
   name: "supaterm",
   displayName: "supaterm",

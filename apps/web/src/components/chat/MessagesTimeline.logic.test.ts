@@ -25,9 +25,8 @@ import { EnvironmentId, MessageId, RunId } from "@supaterm/contracts";
 import { serializeAssistantCitation } from "@supaterm/shared/assistantCitations";
 import {
   computeStableMessagesTimelineRows,
-  computeMessageDurationStart,
   deriveMessagesTimelineRows,
-  timelineEntryTurnFoldRunId,
+  timelineTurnFoldRunIdsByEntryId,
   deriveMessagesTimelineRowsWithState,
   shouldCollapseUserMessage,
   resolveAssistantMessageCopyState,
@@ -76,118 +75,6 @@ describe("work entry labels", () => {
       });
     },
   );
-});
-
-describe("computeMessageDurationStart", () => {
-  it("uses the previous completed assistant updatedAt for subsequent assistant responses", () => {
-    const result = computeMessageDurationStart([
-      {
-        id: "u1",
-        role: "user",
-        createdAt: "2026-01-01T00:00:00Z",
-        updatedAt: "2026-01-01T00:00:00Z",
-        streaming: false,
-      },
-      {
-        id: "a1",
-        role: "assistant",
-        createdAt: "2026-01-01T00:00:30Z",
-        updatedAt: "2026-01-01T00:00:30Z",
-        streaming: false,
-      },
-      {
-        id: "a2",
-        role: "assistant",
-        createdAt: "2026-01-01T00:00:55Z",
-        updatedAt: "2026-01-01T00:00:55Z",
-        streaming: false,
-      },
-    ]);
-
-    expect(result).toEqual(
-      new Map([
-        ["u1", "2026-01-01T00:00:00Z"],
-        ["a1", "2026-01-01T00:00:00Z"],
-        ["a2", "2026-01-01T00:00:30Z"],
-      ]),
-    );
-  });
-
-  it("does not advance the boundary for a streaming message", () => {
-    const result = computeMessageDurationStart([
-      {
-        id: "u1",
-        role: "user",
-        createdAt: "2026-01-01T00:00:00Z",
-        updatedAt: "2026-01-01T00:00:00Z",
-        streaming: false,
-      },
-      {
-        id: "a1",
-        role: "assistant",
-        createdAt: "2026-01-01T00:00:30Z",
-        updatedAt: "2026-01-01T00:00:40Z",
-        streaming: true,
-      },
-      {
-        id: "a2",
-        role: "assistant",
-        createdAt: "2026-01-01T00:00:55Z",
-        updatedAt: "2026-01-01T00:00:55Z",
-        streaming: false,
-      },
-    ]);
-
-    expect(result).toEqual(
-      new Map([
-        ["u1", "2026-01-01T00:00:00Z"],
-        ["a1", "2026-01-01T00:00:00Z"],
-        ["a2", "2026-01-01T00:00:00Z"],
-      ]),
-    );
-  });
-
-  it("resets the boundary on a new user message", () => {
-    const result = computeMessageDurationStart([
-      {
-        id: "u1",
-        role: "user",
-        createdAt: "2026-01-01T00:00:00Z",
-        updatedAt: "2026-01-01T00:00:00Z",
-        streaming: false,
-      },
-      {
-        id: "a1",
-        role: "assistant",
-        createdAt: "2026-01-01T00:00:30Z",
-        updatedAt: "2026-01-01T00:00:30Z",
-        streaming: false,
-      },
-      {
-        id: "u2",
-        role: "user",
-        createdAt: "2026-01-01T00:01:00Z",
-        updatedAt: "2026-01-01T00:01:00Z",
-        streaming: false,
-      },
-      {
-        id: "a2",
-        role: "assistant",
-        createdAt: "2026-01-01T00:01:20Z",
-        updatedAt: "2026-01-01T00:01:20Z",
-        streaming: false,
-      },
-    ]);
-
-    expect(result).toEqual(
-      new Map([
-        ["u1", "2026-01-01T00:00:00Z"],
-        ["a1", "2026-01-01T00:00:00Z"],
-        ["u2", "2026-01-01T00:01:00Z"],
-        ["a2", "2026-01-01T00:01:00Z"],
-      ]),
-    );
-  });
 });
 
 describe("resolveAssistantMessageCopyState", () => {
@@ -307,7 +194,6 @@ describe("deriveMessagesTimelineRows", () => {
       };
       const entries = deriveTimelineEntriesFromVisibleTurnItems({
         visibleTurnItems: [{ ...source, item }],
-        optimisticMessages: [],
       });
       const work = entries.find((entry) => entry.kind === "work");
       expect(work?.kind === "work" && workEntryDisplayLabel(work.entry, undefined)).toBe(
@@ -345,7 +231,6 @@ describe("deriveMessagesTimelineRows", () => {
     };
     const entries = deriveTimelineEntriesFromVisibleTurnItems({
       visibleTurnItems: [{ ...source, item }],
-      optimisticMessages: [],
     });
     const entry = entries.find((row) => row.kind === "work");
     expect(entry?.kind === "work" && workEntryDisplayLabel(entry.entry, undefined)).toBe(
@@ -400,7 +285,6 @@ describe("deriveMessagesTimelineRows", () => {
         position,
         sourceItemId: item.id,
       })),
-      optimisticMessages: [],
     });
     const work = entries.flatMap((entry) => (entry.kind === "work" ? [entry.entry] : []));
     expect(workEntryDisplayLabel(work[0]!, undefined)).toBe("Listed projects");
@@ -471,7 +355,6 @@ describe("deriveMessagesTimelineRows", () => {
           position,
           sourceItemId: item.id,
         })),
-        optimisticMessages: [],
       });
       expect(entries.map((entry) => entry.kind)).toEqual(["work", "work", "work"]);
       const rows = deriveMessagesTimelineRows({
@@ -534,7 +417,6 @@ describe("deriveMessagesTimelineRows", () => {
       };
       const [notice] = deriveTimelineEntriesFromVisibleTurnItems({
         visibleTurnItems: [source],
-        optimisticMessages: [],
       });
       if (notice?.kind !== "work") throw new Error("Expected a notice work entry");
       expect(notice.entry.projectedItem).toBe(source);
@@ -638,68 +520,271 @@ describe("deriveMessagesTimelineRows", () => {
     ]);
   });
 
-  it("gives live compaction the activity slot and restores Thinking when it completes", () => {
+  it.each([false, true])(
+    "gives live compaction the activity slot and restores Thinking (runless: %s)",
+    (runless) => {
+      const fixture = makeStreamingTimelineFixture();
+      const last = fixture.visibleTurnItems.at(-1)!;
+      if (last.item.type !== "assistant_message") throw new Error("Expected assistant fixture");
+      const compact = {
+        ...last,
+        item: {
+          ...last.item,
+          type: "compaction" as const,
+          status: "running" as const,
+          driver: null,
+          beforeTokenCount: 899_000,
+        },
+      };
+      const input = {
+        isWorking: true,
+        runningRunId: fixture.runId,
+        activeTurnStartedAt: fixture.time(5),
+        turnDiffSummaries: [],
+        supportsConversationRollback: false,
+      };
+      const runningEntries = deriveTimelineEntriesFromVisibleTurnItems({
+        visibleTurnItems: [...fixture.visibleTurnItems.slice(0, -1), compact],
+      });
+      const runningRows = deriveMessagesTimelineRows({
+        ...input,
+        runningRunId: runless ? null : fixture.runId,
+        runlessWorkActive: runless,
+        timelineEntries: runless
+          ? runningEntries.map((entry) =>
+              entry.kind === "work" ? { ...entry, entry: { ...entry.entry, runId: null } } : entry,
+            )
+          : runningEntries,
+      });
+      expect(runningRows.find((row) => row.kind === "context-compaction")).toMatchObject({
+        active: true,
+        label: "Compacting context",
+      });
+      expect(runningRows.some((row) => row.kind === "thinking")).toBe(false);
+
+      const completedRows = deriveMessagesTimelineRows({
+        ...input,
+        timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
+          visibleTurnItems: [
+            ...fixture.visibleTurnItems.slice(0, -1),
+            {
+              ...compact,
+              item: { ...compact.item, status: "completed", afterTokenCount: 19_000 },
+            },
+          ],
+        }),
+      });
+      expect(completedRows.find((row) => row.kind === "context-compaction")).toMatchObject({
+        active: false,
+        label: "Context compacted 899K → 19K tokens",
+        tokenCounts: { before: "899K", after: "19K" },
+      });
+      expect(completedRows.at(-1)?.kind).toBe("thinking");
+
+      const settledRows = deriveMessagesTimelineRows({
+        ...input,
+        isWorking: false,
+        timelineEntries: runningEntries,
+      });
+      expect(settledRows.find((row) => row.kind === "context-compaction")).toMatchObject({
+        active: false,
+      });
+      const stable = computeStableMessagesTimelineRows(runningRows, {
+        result: [],
+        byId: new Map(),
+      });
+      expect(computeStableMessagesTimelineRows(settledRows, stable).result).toEqual(settledRows);
+    },
+  );
+
+  it("shows a typed /compact as one live divider, then a token divider", () => {
     const fixture = makeStreamingTimelineFixture();
-    const last = fixture.visibleTurnItems.at(-1)!;
-    if (last.item.type !== "assistant_message") throw new Error("Expected assistant fixture");
-    const compact = {
-      ...last,
+    const [history0, history1, history2, liveUser, , liveAssistant] = fixture.visibleTurnItems;
+    if (liveUser?.item.type !== "user_message" || liveAssistant?.item.type !== "assistant_message")
+      throw new Error("Expected live fixture items");
+    const prompt = { ...liveUser, item: { ...liveUser.item, text: "/compact" } };
+    const compaction = {
+      ...liveAssistant,
       item: {
-        ...last.item,
+        ...liveAssistant.item,
         type: "compaction" as const,
-        status: "running" as const,
         driver: null,
         beforeTokenCount: 899_000,
       },
     };
-    const input = {
-      isWorking: true,
-      runningRunId: fixture.runId,
-      activeTurnStartedAt: fixture.time(5),
-      turnDiffSummaries: [],
-      supportsConversationRollback: false,
+    const rowsFor = (visibleTurnItems: OrchestrationV2ProjectedTurnItem[], isWorking = true) =>
+      deriveMessagesTimelineRows({
+        timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
+          visibleTurnItems: [history0!, history1!, history2!, ...visibleTurnItems],
+        }),
+        isWorking,
+        runningRunId: fixture.runId,
+        latestRun: {
+          runId: fixture.runId,
+          status: isWorking ? "running" : "completed",
+          startedAt: fixture.time(5),
+          completedAt: isWorking ? null : fixture.time(9),
+        },
+        activeTurnStartedAt: fixture.time(5),
+        turnDiffSummaries: [],
+        supportsConversationRollback: false,
+      });
+    const liveRowsOf = (rows: ReturnType<typeof rowsFor>) =>
+      rows.slice(rows.findIndex((row) => row.id.includes("history-assistant")) + 1);
+
+    for (const rows of [rowsFor([prompt]), rowsFor([prompt, compaction])]) {
+      expect(liveRowsOf(rows)).toMatchObject([{ kind: "context-compaction", active: true }]);
+    }
+    const terminalCompaction = {
+      ...compaction,
+      item: { ...compaction.item, status: "completed" as const, afterTokenCount: 19_000 },
     };
-    const runningEntries = deriveTimelineEntriesFromVisibleTurnItems({
-      visibleTurnItems: [...fixture.visibleTurnItems.slice(0, -1), compact],
-      optimisticMessages: [],
-    });
-    const runningRows = deriveMessagesTimelineRows({ ...input, timelineEntries: runningEntries });
-    expect(runningRows.find((row) => row.kind === "context-compaction")).toMatchObject({
-      active: true,
-      label: "Compacting context",
-    });
-    expect(runningRows.some((row) => row.kind === "thinking")).toBe(false);
-
-    const completedRows = deriveMessagesTimelineRows({
-      ...input,
-      timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
-        visibleTurnItems: [
-          ...fixture.visibleTurnItems.slice(0, -1),
-          {
-            ...compact,
-            item: { ...compact.item, status: "completed", afterTokenCount: 19_000 },
+    const liveRows = liveRowsOf(rowsFor([prompt, terminalCompaction], false));
+    expect(liveRows).toMatchObject([
+      {
+        kind: "context-compaction",
+        active: false,
+        tokenCounts: { before: "899K", after: "19K" },
+      },
+    ]);
+    expect(liveRowsOf(rowsFor([prompt, terminalCompaction]))).toEqual(liveRows);
+    const continuingRows = rowsFor([
+      prompt,
+      terminalCompaction,
+      { ...liveAssistant, item: { ...liveAssistant.item, id: TurnItemId.make("continued") } },
+    ]);
+    expect(continuingRows.filter((row) => row.kind === "context-compaction")).toHaveLength(1);
+    expect(continuingRows.filter((row) => row.kind === "working")).toMatchObject([
+      { kind: "working" },
+    ]);
+    const retries = rowsFor(
+      [
+        prompt,
+        {
+          ...compaction,
+          item: { ...compaction.item, status: "failed", summary: "retry needed" },
+        },
+        {
+          ...compaction,
+          item: {
+            ...compaction.item,
+            id: TurnItemId.make("retry-compaction"),
+            status: "completed",
           },
-        ],
-        optimisticMessages: [],
-      }),
-    });
-    expect(completedRows.find((row) => row.kind === "context-compaction")).toMatchObject({
-      active: false,
-      label: "Context compacted 899K → 19K tokens",
-      tokenCounts: { before: "899K", after: "19K" },
-    });
-    expect(completedRows.at(-1)?.kind).toBe("thinking");
+        },
+      ],
+      false,
+    ).filter((row) => row.kind === "context-compaction");
+    expect(retries).toHaveLength(2);
+    expect(retries[0]).toMatchObject({ failed: true, failure: "retry needed" });
+    expect(new Set(retries.map((row) => row.id)).size).toBe(2);
+    const stable = computeStableMessagesTimelineRows(retries, { result: [], byId: new Map() });
+    expect(computeStableMessagesTimelineRows(retries, stable).result).toEqual(retries);
+  });
 
-    const settledRows = deriveMessagesTimelineRows({
-      ...input,
-      isWorking: false,
-      timelineEntries: runningEntries,
-    });
-    expect(settledRows.find((row) => row.kind === "context-compaction")).toMatchObject({
-      active: false,
-    });
-    const stable = computeStableMessagesTimelineRows(runningRows, { result: [], byId: new Map() });
-    expect(computeStableMessagesTimelineRows(settledRows, stable).result).toEqual(settledRows);
+  it.each(["/compact", "Continue"])(
+    "keeps a completed compaction divider visible while other settled work folds for %s",
+    (promptText) => {
+      const fixture = makeStreamingTimelineFixture();
+      const [, , , liveUser, liveWork, liveAssistant] = fixture.visibleTurnItems;
+      if (
+        liveUser?.item.type !== "user_message" ||
+        liveAssistant?.item.type !== "assistant_message" ||
+        !liveWork
+      )
+        throw new Error("Expected live fixture items");
+      const rows = deriveMessagesTimelineRows({
+        timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
+          visibleTurnItems: [
+            { ...liveUser, item: { ...liveUser.item, text: promptText } },
+            liveWork,
+            {
+              ...liveAssistant,
+              item: {
+                ...liveAssistant.item,
+                type: "compaction",
+                driver: null,
+                status: "completed",
+                beforeTokenCount: 100_000,
+                afterTokenCount: 20_000,
+              },
+            },
+          ],
+        }),
+        isWorking: false,
+        latestRun: {
+          runId: fixture.runId,
+          status: "completed",
+          startedAt: fixture.time(5),
+          completedAt: fixture.time(8),
+        },
+        turnDiffSummaries: [],
+        supportsConversationRollback: false,
+      });
+      expect(rows.filter((row) => row.kind === "turn-fold")).toHaveLength(1);
+      expect(rows.some((row) => row.kind === "work")).toBe(false);
+      expect(rows.filter((row) => row.kind === "context-compaction")).toMatchObject([
+        { active: false, tokenCounts: { before: "100K", after: "20K" } },
+      ]);
+      if (promptText === "/compact") {
+        expect(rows.some((row) => row.kind === "message")).toBe(false);
+      }
+    },
+  );
+
+  it("shows a skipped compaction as stopped, without a separate interrupted divider", () => {
+    const fixture = makeStreamingTimelineFixture();
+    const [history0, history1, history2, liveUser, , liveAssistant] = fixture.visibleTurnItems;
+    if (liveUser?.item.type !== "user_message" || liveAssistant?.item.type !== "assistant_message")
+      throw new Error("Expected live fixture items");
+    const prompt = {
+      ...liveUser,
+      item: { ...liveUser.item, text: "/compact" },
+    };
+    const compaction = {
+      ...liveAssistant,
+      item: {
+        ...liveAssistant.item,
+        type: "compaction" as const,
+        status: "interrupted" as const,
+        driver: null,
+      },
+    };
+    const interruptResult = {
+      ...liveAssistant,
+      item: {
+        ...liveAssistant.item,
+        id: TurnItemId.make("interrupt-result"),
+        type: "run_interrupt_result" as const,
+        status: "interrupted" as const,
+        message: "Skipped compaction to send a queued message",
+      },
+    };
+    const liveRowsFor = (visibleTurnItems: OrchestrationV2ProjectedTurnItem[]) => {
+      const rows = deriveMessagesTimelineRows({
+        timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
+          visibleTurnItems: [history0!, history1!, history2!, ...visibleTurnItems],
+        }),
+        isWorking: false,
+        latestRun: {
+          runId: fixture.runId,
+          status: "interrupted",
+          startedAt: fixture.time(5),
+          completedAt: fixture.time(9),
+        },
+        turnDiffSummaries: [],
+        supportsConversationRollback: false,
+      });
+      return rows.slice(rows.findIndex((row) => row.id.includes("history-assistant")) + 1);
+    };
+
+    expect(liveRowsFor([prompt, compaction, interruptResult])).toMatchObject([
+      { kind: "context-compaction", label: "Context compaction stopped" },
+    ]);
+    // Stopped before the provider started: no compaction row says so, so the interrupt stays.
+    expect(liveRowsFor([prompt, interruptResult]).map((row) => row.id)).toContain(
+      "interrupt-result",
+    );
   });
 
   it("only enables assistant copy for the terminal assistant message in a turn", () => {
@@ -1945,7 +2030,6 @@ describe("deriveMessagesTimelineRows", () => {
       deriveMessagesTimelineRows({
         timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
           visibleTurnItems: items(input.resume),
-          optimisticMessages: [],
         }),
         latestRun: null,
         isWorking: input.working,
@@ -1967,10 +2051,10 @@ describe("deriveMessagesTimelineRows", () => {
     const settled = rows({ resume: "completed", working: false });
     expect(shape(settled)).toEqual([
       "user:launch",
-      "fold:Worked for 8.0s",
+      "fold:Worked for 8s",
       "assistant:launch-answer",
       "user:resume",
-      "fold:Worked for 8.0s",
+      "fold:Worked for 8s",
       "assistant:resume-answer",
     ]);
 
@@ -1983,17 +2067,17 @@ describe("deriveMessagesTimelineRows", () => {
     });
     expect(shape(expanded)).toEqual([
       "user:launch",
-      "fold:Worked for 8.0s",
+      "fold:Worked for 8s",
       "work-toggle",
       "assistant:launch-answer",
       "user:resume",
-      "fold:Worked for 8.0s",
+      "fold:Worked for 8s",
       "assistant:resume-answer",
     ]);
 
     expect(shape(rows({ resume: "running", working: true }))).toEqual([
       "user:launch",
-      "fold:Worked for 8.0s",
+      "fold:Worked for 8s",
       "assistant:launch-answer",
       "user:resume",
       "working",
@@ -2002,7 +2086,7 @@ describe("deriveMessagesTimelineRows", () => {
 
     expect(shape(rows({ resume: "failed", working: false }))).toEqual([
       "user:launch",
-      "fold:Worked for 8.0s",
+      "fold:Worked for 8s",
       "assistant:launch-answer",
       "user:resume",
       "work",
@@ -2084,7 +2168,6 @@ describe("deriveMessagesTimelineRows", () => {
       deriveMessagesTimelineRows({
         timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
           visibleTurnItems: items(settled),
-          optimisticMessages: [],
         }),
         latestRun: {
           runId,
@@ -2202,7 +2285,8 @@ describe("deriveMessagesTimelineRows", () => {
       message("imported-answer", "assistant", 8),
     ];
     const foldInput = { timelineEntries, latestRun: null, isWorking: false };
-    const foldRunId = timelineEntryTurnFoldRunId(foldInput, "imported-update");
+    const foldRunIds = timelineTurnFoldRunIdsByEntryId(foldInput);
+    const foldRunId = foldRunIds.get("imported-update") ?? null;
     expect(foldRunId).not.toBeNull();
 
     const foldRow = deriveMessagesTimelineRows({
@@ -2211,7 +2295,7 @@ describe("deriveMessagesTimelineRows", () => {
       supportsConversationRollback: false,
     }).find((row) => row.kind === "turn-fold");
     expect(foldRow?.kind === "turn-fold" ? foldRow.runId : null).toBe(foldRunId);
-    expect(timelineEntryTurnFoldRunId(foldInput, "imported-answer")).toBeNull();
+    expect(foldRunIds.get("imported-answer") ?? null).toBeNull();
     const expanded = deriveMessagesTimelineRows({
       ...foldInput,
       expandedRunIds: new Set([foldRunId!]),
@@ -3562,6 +3646,15 @@ describe("v2 run and attempt history", () => {
     };
     const timelineEntries = [
       {
+        id: "context-handoff-entry",
+        kind: "event" as const,
+        createdAt: "2026-01-01T00:00:00Z",
+        attempt: supersededAttempt,
+        projectedItem: {
+          item: { type: "handoff", runId },
+        } as never,
+      },
+      {
         id: "initial-user-entry",
         kind: "message" as const,
         createdAt: "2026-01-01T00:00:00Z",
@@ -3603,6 +3696,13 @@ describe("v2 run and attempt history", () => {
           runId,
           label: "Old command",
           tone: "tool" as const,
+          projectedItem: {
+            sourceItemId: "old-work-anchor",
+            item: {
+              type: "command_execution",
+              deferredWork: { cursor: "old-work", itemCount: 200, lastOrdinal: 200 },
+            },
+          } as never,
         },
       },
       {
@@ -3663,6 +3763,7 @@ describe("v2 run and attempt history", () => {
 
     const collapsedRows = deriveMessagesTimelineRows(common);
     expect(collapsedRows.map((row) => row.id)).toEqual([
+      "context-handoff-entry",
       "initial-user-entry",
       `attempt-fold:${supersededAttemptId}`,
       "superseded-thread-created-entry",
@@ -3674,6 +3775,7 @@ describe("v2 run and attempt history", () => {
       runId,
       label: "Superseded attempt",
       expanded: false,
+      deferredWorkItemIds: ["old-work-anchor"],
     });
 
     const expandedRows = deriveMessagesTimelineRows({
@@ -3681,6 +3783,7 @@ describe("v2 run and attempt history", () => {
       expandedAttemptIds: new Set([supersededAttemptId]),
     });
     expect(expandedRows.map((row) => row.id)).toEqual([
+      "context-handoff-entry",
       "initial-user-entry",
       `attempt-fold:${supersededAttemptId}`,
       "superseded-assistant-entry",
@@ -3689,6 +3792,52 @@ describe("v2 run and attempt history", () => {
       "steer-user-entry",
       "active-assistant-entry",
     ]);
+    const settledRows = deriveMessagesTimelineRows({
+      ...common,
+      latestRun: { ...common.latestRun, status: "completed", completedAt: "2026-01-01T00:00:08Z" },
+      timelineEntries: timelineEntries.map((entry) =>
+        entry.kind === "message" && entry.id === "active-assistant-entry"
+          ? { ...entry, message: { ...entry.message, streaming: false } }
+          : entry,
+      ),
+      expandedRunIds: new Set([runId]),
+    });
+    expect(settledRows.find((row) => row.kind === "attempt-fold")).toMatchObject({
+      deferredWorkItemIds: ["old-work-anchor"],
+    });
+    expect(
+      settledRows
+        .filter((row) => row.kind === "turn-fold")
+        .flatMap((row) => row.deferredWorkItemIds ?? []),
+    ).not.toContain("old-work-anchor");
+    const deferredTailRows = deriveMessagesTimelineRows({
+      ...common,
+      timelineEntries: [
+        timelineEntries[0]!,
+        timelineEntries[2]!,
+        timelineEntries[1]!,
+        ...timelineEntries.slice(3),
+      ].map((entry) => ({
+        ...entry,
+        attempt:
+          entry.attempt.id === supersededAttemptId
+            ? { ...entry.attempt, completedAt: DateTime.makeUnsafe("2026-01-01T00:00:08Z") }
+            : entry.attempt,
+        ...(entry.id === "superseded-assistant-entry"
+          ? {
+              projectedItem: {
+                item: {
+                  type: "assistant_message",
+                  ordinal: 2,
+                  status: "completed",
+                  completedAt: DateTime.makeUnsafe("2026-01-01T00:00:03Z"),
+                },
+              } as never,
+            }
+          : {}),
+      })),
+    });
+    expect(deferredTailRows.some((row) => row.kind === "attempt-fold")).toBe(true);
   });
 
   describe("a steer that supersedes an attempt", () => {
@@ -3923,10 +4072,39 @@ describe("v2 run and attempt history", () => {
   });
 });
 
+it.each([
+  [undefined, ["first"]],
+  [["first"], ["second"]],
+  [["first"], []],
+  [
+    ["first", "second"],
+    ["second", "first"],
+  ],
+  [undefined, []],
+] as const)("keeps deferred fold anchors current from %j to %j", (before, after) => {
+  const row: Extract<MessagesTimelineRow, { kind: "turn-fold" }> = {
+    kind: "turn-fold",
+    id: "fold",
+    runId: RunId.make("run"),
+    createdAt: "2026-01-01T00:00:00Z",
+    label: "Worked for 1m",
+    expanded: true,
+    ...(before === undefined ? {} : { deferredWorkItemIds: before }),
+  };
+  const previous = computeStableMessagesTimelineRows([row], { result: [], byId: new Map() });
+  const nextRow = { ...row, deferredWorkItemIds: after };
+  const next = computeStableMessagesTimelineRows([nextRow], previous);
+  const fold = next.result[0];
+  expect(fold?.kind === "turn-fold" ? (fold.deferredWorkItemIds ?? []) : null).toEqual(after);
+  expect(
+    computeStableMessagesTimelineRows([{ ...nextRow, deferredWorkItemIds: [...after] }], next),
+  ).toBe(next);
+});
+
 describe("streaming v2 row projection", () => {
   function fixture(text = "") {
     const source = makeStreamingTimelineFixture(text);
-    const timelineInput = { visibleTurnItems: source.visibleTurnItems, optimisticMessages: [] };
+    const timelineInput = { visibleTurnItems: source.visibleTurnItems };
     const timeline = deriveTimelineEntriesFromVisibleTurnItemsWithState(timelineInput);
     const input = {
       timelineEntries: timeline.entries,
@@ -4019,8 +4197,8 @@ describe("streaming v2 row projection", () => {
     }
   });
 
-  it.each(["file", "image", "handoff", "streaming-image"] as const)(
-    "keeps history references with %s previews through the v2 materializer",
+  it.each(["file", "image", "streaming-image"] as const)(
+    "keeps history references with %s attachments through the v2 materializer",
     (kind) => {
       const initial = fixture("Partial");
       const image = {
@@ -4050,9 +4228,6 @@ describe("streaming v2 row projection", () => {
               }
             : row,
         ),
-        attachmentUrlById: new Map([
-          [image.id, kind === "handoff" ? "blob:handoff" : "https://server.test/image"],
-        ]),
       };
       const timeline = deriveTimelineEntriesFromVisibleTurnItemsWithState(timelineInput);
       const input = { ...initial.input, timelineEntries: timeline.entries };
@@ -4060,7 +4235,6 @@ describe("streaming v2 row projection", () => {
       const nextTimelineInput = {
         ...timelineInput,
         visibleTurnItems: updateText(timelineInput.visibleTurnItems, "Next token"),
-        attachmentUrlById: new Map(timelineInput.attachmentUrlById),
       };
       const nextTimeline = deriveTimelineEntriesFromVisibleTurnItemsWithState(
         nextTimelineInput,
@@ -4076,22 +4250,6 @@ describe("streaming v2 row projection", () => {
         )
           continue;
         expect(next.rows[index]).toBe(row);
-      }
-      const renewedInput = {
-        ...nextTimelineInput,
-        attachmentUrlById: new Map([[image.id, "https://renewed.test/image"]]),
-      };
-      const renewedTimeline = deriveTimelineEntriesFromVisibleTurnItemsWithState(
-        renewedInput,
-        nextTimeline,
-      );
-      const renewedRowsInput = { ...input, timelineEntries: renewedTimeline.entries };
-      const renewed = deriveMessagesTimelineRowsWithState(renewedRowsInput, next);
-      expect(renewed.rows).toEqual(deriveMessagesTimelineRows(renewedRowsInput));
-      if (kind !== "file") {
-        expect(renewed.rows.find((row) => row.id === "history-user")).toMatchObject({
-          message: { attachments: [{ previewUrl: "https://renewed.test/image" }, file] },
-        });
       }
     },
   );
@@ -4535,7 +4693,6 @@ it.each([true, false])(
       visibleTurnItems: fixture.visibleTurnItems.map((row) =>
         row === source ? notification : row,
       ),
-      optimisticMessages: [],
     });
     const rows = deriveMessagesTimelineRows({
       timelineEntries: entries,
@@ -4770,9 +4927,15 @@ it("keeps the working header in place across worktree setup handoff", () => {
 });
 
 describe("failed turn transcript", () => {
-  it.each(["provider_error", "usage_limit"] as const)(
-    "keeps historical %s failures and preceding work visible without disclosures",
-    (failureClass) => {
+  it.each([
+    { position: "historical", failureClass: "provider_error" },
+    { position: "historical", failureClass: "usage_limit" },
+    { position: "latest", failureClass: "usage_limit" },
+  ] as const)(
+    "keeps $position $failureClass failures visible with preceding work grouped appropriately",
+    ({ position, failureClass }) => {
+      const isLatest = position === "latest";
+      const commands = isLatest ? ["pwd", "ls", "false"] : ["pwd"];
       const runId = RunId.make("failed-run");
       const threadId = ThreadId.make("failed-thread");
       const at = DateTime.makeUnsafe("2026-09-20T12:00:00Z");
@@ -4809,23 +4972,24 @@ describe("failed turn transcript", () => {
             attachments: [],
           },
         },
-        {
-          position: 1,
+        ...commands.map((input, index): OrchestrationV2ProjectedTurnItem => ({
+          position: index + 1,
           visibility: "local",
           sourceThreadId: threadId,
-          sourceItemId: TurnItemId.make("command"),
+          sourceItemId: TurnItemId.make(index === 0 ? "command" : `command-${index}`),
           item: {
             ...base,
-            id: TurnItemId.make("command"),
+            id: TurnItemId.make(index === 0 ? "command" : `command-${index}`),
+            ordinal: index + 1,
             type: "command_execution",
             status: "completed",
-            input: "pwd",
+            input,
             output: "",
             exitCode: 0,
           },
-        },
+        })),
         {
-          position: 2,
+          position: commands.length + 1,
           visibility: "local",
           sourceThreadId: threadId,
           sourceItemId: TurnItemId.make("failure"),
@@ -4846,21 +5010,24 @@ describe("failed turn transcript", () => {
       const rows = deriveMessagesTimelineRows({
         timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
           visibleTurnItems: items,
-          optimisticMessages: [],
-        }).map((entry) => ({
-          ...entry,
-          attempt: {
-            id: RunAttemptId.make("superseded-attempt"),
-            runId,
-            attemptOrdinal: 1,
-            rootNodeId: NodeId.make("superseded-root"),
-            status: "superseded" as const,
-            completedAt: null,
-          },
-        })),
+        }).map((entry) =>
+          isLatest
+            ? entry
+            : {
+                ...entry,
+                attempt: {
+                  id: RunAttemptId.make("superseded-attempt"),
+                  runId,
+                  attemptOrdinal: 1,
+                  rootNodeId: NodeId.make("superseded-root"),
+                  status: "superseded" as const,
+                  completedAt: null,
+                },
+              },
+        ),
         latestRun: {
-          runId: RunId.make("newer-run"),
-          status: "completed",
+          runId: isLatest ? runId : RunId.make("newer-run"),
+          status: isLatest ? "failed" : "completed",
           startedAt: DateTime.formatIso(at),
           completedAt: DateTime.formatIso(at),
         },
@@ -4868,19 +5035,21 @@ describe("failed turn transcript", () => {
         turnDiffSummaries: [],
         supportsConversationRollback: false,
       });
-      expect(
-        rows.some(
-          (row) =>
-            row.kind === "turn-fold" || row.kind === "attempt-fold" || row.kind === "work-toggle",
-        ),
-      ).toBe(false);
+      expect(rows.some((row) => row.kind === "turn-fold" || row.kind === "attempt-fold")).toBe(
+        false,
+      );
       const work = rows.flatMap((row) => (row.kind === "work" ? row.groupedEntries : []));
-      expect(work.map((entry) => entry.id)).toEqual(["command", "failure"]);
+      expect(rows.find((row) => row.kind === "work-toggle")).toEqual(
+        isLatest ? expect.objectContaining({ hiddenCount: 3, expanded: false }) : undefined,
+      );
+      expect(work.map((entry) => entry.id)).toEqual(
+        isLatest ? ["failure"] : ["command", "failure"],
+      );
       expect(work.at(-1)?.detail).toBe("The provider stopped this turn.\nRetry later.");
       expect(work.at(-1)?.createdAt).toBe("2026-09-20T12:00:00.000Z");
+      if (isLatest) return;
       const entriesWithoutTools = deriveTimelineEntriesFromVisibleTurnItems({
         visibleTurnItems: items.filter((row) => row.item.type !== "command_execution"),
-        optimisticMessages: [],
       });
       entriesWithoutTools.splice(1, 0, {
         kind: "message",
@@ -5006,7 +5175,6 @@ describe("live subagents after their parent turn settles", () => {
             },
           ] satisfies OrchestrationV2TurnItem[]
         ).map(projected),
-        optimisticMessages: [],
       }),
       latestRun: {
         runId,
@@ -5064,7 +5232,6 @@ describe("live subagents after their parent turn settles", () => {
           child("child", 3, "running"),
         ] satisfies OrchestrationV2TurnItem[]
       ).map(projected),
-      optimisticMessages: [],
     }).map((entry) => ({ ...entry, attempt }));
     const rows = deriveMessagesTimelineRows({
       timelineEntries: entries,
@@ -5169,7 +5336,6 @@ describe("subagent continued by a later turn", () => {
           sourceItemId: item.id,
           item,
         })),
-        optimisticMessages: [],
       }),
       latestRun: {
         runId: run2,

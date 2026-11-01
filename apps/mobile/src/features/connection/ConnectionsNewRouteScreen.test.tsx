@@ -1,24 +1,21 @@
 import { EnvironmentId } from "@supaterm/contracts";
-import * as Cause from "effect/Cause";
-import { AsyncResult } from "effect/reactivity";
 import { CameraView } from "expo-camera";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { ConnectionsNewRouteScreen } from "./ConnectionsNewRouteScreen";
 
+type PairingOutcome = { readonly ok: boolean; readonly error: string | null };
+const PAIRED: PairingOutcome = { ok: true, error: null };
+
 const state = vi.hoisted(() => ({
   connectionPairingUrl: "",
-  pairingConnectionError: null as string | null,
   canGoBack: true,
   goBack: vi.fn(),
   dispatch: vi.fn(),
   alert: vi.fn(),
   requestCameraPermission: vi.fn(async () => ({ granted: true })),
-  onConnectPress:
-    vi.fn<
-      (url: string, environmentId?: EnvironmentId) => Promise<AsyncResult.AsyncResult<null, Error>>
-    >(),
+  onConnectPress: vi.fn<(url: string, environmentId?: EnvironmentId) => Promise<PairingOutcome>>(),
 }));
 
 vi.mock("../../components/ui/ScreenScrollView", () => ({ ScreenScrollView: "ScrollView" }));
@@ -67,13 +64,14 @@ vi.mock("../settings/components/SettingsScreen", () => ({ SettingsScreen: "Setti
 vi.mock("../../components/ui/AppText", () => ({ AppText: "Text", AppTextInput: "TextInput" }));
 vi.mock("../../components/ui/FrostedCutout", () => ({ FrostedCutout: "FrostedCutout" }));
 vi.mock("../../components/ui/AppSymbol", () => ({ SymbolView: "SymbolView" }));
+vi.mock("@effect/atom-react", () => ({ useAtomValue: () => null }));
+vi.mock("./devAutoConnect", () => ({
+  autoConnectReport: () => ({ connecting: false, error: null }),
+  devAutoConnectAttemptAtom: {},
+}));
 vi.mock("../../state/use-remote-environment-registry", () => ({
-  setPendingConnectionError: (error: string | null) => {
-    state.pairingConnectionError = error;
-  },
   useRemoteConnections: () => ({
     connectionPairingUrl: state.connectionPairingUrl,
-    pairingConnectionError: state.pairingConnectionError,
     onChangeConnectionPairingUrl: (url: string) => {
       state.connectionPairingUrl = url;
     },
@@ -88,7 +86,6 @@ beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.clearAllMocks();
   state.connectionPairingUrl = "";
-  state.pairingConnectionError = null;
   state.canGoBack = true;
 });
 
@@ -112,8 +109,8 @@ function scanner() {
 }
 
 function deferredResult() {
-  let resolve!: (result: AsyncResult.AsyncResult<null, Error>) => void;
-  const promise = new Promise<AsyncResult.AsyncResult<null, Error>>((complete) => {
+  let resolve!: (result: PairingOutcome) => void;
+  const promise = new Promise<PairingOutcome>((complete) => {
     resolve = complete;
   });
   return { promise, resolve };
@@ -141,14 +138,14 @@ describe("QR pairing", () => {
       await act(() => scan({ data }));
       expect(state.onConnectPress).toHaveBeenCalledTimes(1);
 
-      await act(() => result.resolve(AsyncResult.success(null)));
+      await act(() => result.resolve(PAIRED));
       expect(state.goBack).toHaveBeenCalledTimes(1);
     },
   );
 
   it("opens Home after pairing when there is no previous screen", async () => {
     state.canGoBack = false;
-    state.onConnectPress.mockResolvedValue(AsyncResult.success(null));
+    state.onConnectPress.mockResolvedValue(PAIRED);
     await mount();
     await act(() => scanner()({ data: pairingUrl }));
 
@@ -159,25 +156,11 @@ describe("QR pairing", () => {
     expect(state.goBack).not.toHaveBeenCalled();
   });
 
-  it("returns to the opener after a dev pairing link connects", async () => {
-    vi.stubGlobal("__DEV__", true);
-    state.onConnectPress.mockResolvedValue(AsyncResult.success(null));
-    await act(() => {
-      renderer = create(
-        <ConnectionsNewRouteScreen route={{ params: { pairingUrl, autoConnect: "1" } }} />,
-      );
-    });
-
-    expect(state.onConnectPress).toHaveBeenCalledExactlyOnceWith(pairingUrl, undefined);
-    expect(state.goBack).toHaveBeenCalledTimes(1);
-    expect(state.dispatch).not.toHaveBeenCalled();
-  });
-
   it("keeps a failed route pairing open and accepts a fresh scan", async () => {
     const environmentId = EnvironmentId.make("machine");
     const result = deferredResult();
     state.onConnectPress.mockReturnValueOnce(result.promise);
-    state.onConnectPress.mockResolvedValue(AsyncResult.success(null));
+    state.onConnectPress.mockResolvedValue(PAIRED);
     await mount(environmentId);
     await act(() => scanner()({ data: pairingUrl }));
 
@@ -186,7 +169,7 @@ describe("QR pairing", () => {
     );
     expect(state.requestCameraPermission).not.toHaveBeenCalled();
 
-    await act(() => result.resolve(AsyncResult.failure(Cause.fail(new Error("Pairing failed")))));
+    await act(() => result.resolve({ ok: false, error: "Pairing failed" }));
     expect(state.goBack).not.toHaveBeenCalled();
     expect(renderer!.root.findByProps({ accessibilityLabel: "Address" }).props.value).toBe(
       "http://192.168.1.10:3773",
@@ -203,9 +186,22 @@ describe("QR pairing", () => {
     expect(state.goBack).toHaveBeenCalledTimes(1);
   });
 
+  it("shows its own pairing failure until the code is edited", async () => {
+    state.onConnectPress.mockResolvedValue({ ok: false, error: "Pairing code expired." });
+    await mount();
+    await act(() => scanner()({ data: pairingUrl }));
+    const failures = () => renderer!.root.findAllByProps({ children: "Pairing code expired." });
+    expect(failures().length).toBeGreaterThan(0);
+
+    await act(() =>
+      renderer!.root.findByProps({ accessibilityLabel: "Code" }).props.onChangeText("fresh"),
+    );
+    expect(failures()).toHaveLength(0);
+  });
+
   it("rejects an empty QR code and reopens scanning", async () => {
     vi.useFakeTimers();
-    state.onConnectPress.mockResolvedValue(AsyncResult.success(null));
+    state.onConnectPress.mockResolvedValue(PAIRED);
     await mount();
     await act(() => scanner()({ data: " " }));
 

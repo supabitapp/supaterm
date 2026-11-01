@@ -27,7 +27,7 @@ vi.mock("react-native-reanimated", () => ({
   default: { View: "View" },
   Easing: { out: (fn: unknown) => fn, cubic: () => {} },
   ReduceMotion: { Never: "never" },
-  useSharedValue: (value: number) => ({ value, set: () => {} }),
+  useDerivedValue: (compute: () => number) => ({ value: compute() }),
   useAnimatedStyle: () => ({}),
   withTiming: (value: number) => value,
 }));

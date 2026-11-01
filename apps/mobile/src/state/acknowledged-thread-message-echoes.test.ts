@@ -6,7 +6,7 @@ import {
   v2Projection,
   v2Now,
 } from "../../../../packages/client-runtime/src/state/orchestrationV2TestFixtures";
-import type { QueuedThreadMessage } from "./thread-outbox-model";
+import type { AcknowledgedThreadMessage, QueuedThreadMessage } from "./thread-outbox-model";
 import { createAcknowledgedThreadMessageEchoesAtom } from "./acknowledged-thread-message-echoes";
 
 const message: QueuedThreadMessage = {
@@ -52,6 +52,7 @@ describe("acknowledged message echoes", () => {
     const echoes = createAcknowledgedThreadMessageEchoesAtom({
       messagesAtom,
       threadAtom: () => source,
+      sequenceAtom: () => Atom.make(0),
     });
     const unsubscribe = registry.subscribe(echoes, () => {});
     try {
@@ -77,11 +78,31 @@ describe("acknowledged message echoes", () => {
     const echoes = createAcknowledgedThreadMessageEchoesAtom({
       messagesAtom,
       threadAtom: (ref) => (ref.environmentId === message.environmentId ? delivered : waiting),
+      sequenceAtom: () => Atom.make(0),
     });
     try {
       expect(registry.get(echoes)).toEqual([message]);
       registry.set(waiting, echoedThread(other.environmentId));
       expect(registry.get(echoes)).toEqual([message, other]);
+    } finally {
+      registry.dispose();
+    }
+  });
+
+  it("treats a thread that applied the delivery's sequence as caught up without the message in its window", () => {
+    const registry = AtomRegistry.make();
+    const acknowledged: AcknowledgedThreadMessage = { ...message, sequence: 7 };
+    const messagesAtom = Atom.make<ReadonlyArray<AcknowledgedThreadMessage>>([acknowledged]);
+    const sequence = Atom.make(6);
+    const echoes = createAcknowledgedThreadMessageEchoesAtom({
+      messagesAtom,
+      threadAtom: () => Atom.make<EnvironmentThread | null>(null),
+      sequenceAtom: () => sequence,
+    });
+    try {
+      expect(registry.get(echoes)).toEqual([]);
+      registry.set(sequence, 7);
+      expect(registry.get(echoes)).toEqual([acknowledged]);
     } finally {
       registry.dispose();
     }

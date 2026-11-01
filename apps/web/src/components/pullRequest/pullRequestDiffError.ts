@@ -1,4 +1,4 @@
-export function describePullRequestDiffError(error: string, providerName: string) {
+export function describePullRequestDiffError(error: string, providerName: string, term: string) {
   if (/\brate limit\b|\brate[-_]limited\b|\btoo many requests\b/i.test(error)) {
     return {
       title: `${providerName} rate limit reached`,
@@ -8,6 +8,6 @@ export function describePullRequestDiffError(error: string, providerName: string
 
   return {
     title: "Couldn't load the changes",
-    description: `The environment couldn't load this pull request's diff. Try again, or view the changes on ${providerName}.`,
+    description: `The environment couldn't load this ${term}'s diff. Try again, or view the changes on ${providerName}.`,
   };
 }

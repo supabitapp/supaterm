@@ -1,7 +1,6 @@
 import type {
   ThreadPendingApproval,
   ThreadPendingUserInput,
-  ThreadUserInputQuestion,
 } from "@supaterm/client-runtime/state/thread-requests";
 import { turnItemIsWorkspacePreparation } from "@supaterm/client-runtime/state/turn-item-presentation";
 import type { ThreadCheckpointSummary } from "@supaterm/client-runtime/state/thread-checkpoints";
@@ -53,7 +52,7 @@ import type {
   ScheduledTaskId,
   TurnItemId,
 } from "@supaterm/contracts";
-import { RunId, ThreadId } from "@supaterm/contracts";
+import { isCompactionCommandMessage, RunId, ThreadId } from "@supaterm/contracts";
 import {
   classifyToolActivity,
   collectToolFilePaths,
@@ -75,15 +74,6 @@ import * as DateTime from "effect/DateTime";
 
 export type PendingApproval = ThreadPendingApproval;
 export type PendingUserInput = ThreadPendingUserInput;
-
-export interface PendingUserInputDraftAnswer {
-  readonly selectedOptionValues?: ReadonlyArray<string>;
-  readonly customAnswer?: string;
-  readonly attachmentCount?: number;
-  /** A paste or pick is still converting; unmounting its field drops the files. */
-  readonly attachmentsPreparing?: boolean;
-  readonly attachmentsBlocked?: boolean;
-}
 
 export interface ThreadFeedActivity {
   readonly id: string;
@@ -108,6 +98,7 @@ export interface ThreadFeedActivity {
     | "eye"
     | "globe"
     | "search"
+    | "stop"
     | "hammer"
     | "lock"
     | "message"
@@ -226,6 +217,7 @@ type ThreadFeedEntryContent =
     }
   | {
       readonly type: "run-fold";
+      readonly deferredWorkItemIds?: ReadonlyArray<string>;
       readonly id: string;
       readonly createdAt: string;
       readonly runId: RunId;
@@ -247,19 +239,6 @@ export interface ThreadFeedLatestRun {
   readonly turnEnded?: boolean;
 }
 
-export interface AgentSpawnSummary {
-  readonly title: string;
-  readonly status: string;
-  readonly tone: "working" | "completed" | "failed" | "stopped";
-  readonly members: ReadonlyArray<{
-    readonly title: string;
-    readonly status: string;
-    readonly tone: "working" | "completed" | "failed" | "stopped";
-    readonly detail: string | undefined;
-    readonly updatedAt: string;
-  }>;
-}
-
 const WORK_LOG_LABEL_MAX_LENGTH = 200;
 
 function compactWorkEntryText(value: string): string {
@@ -267,6 +246,7 @@ function compactWorkEntryText(value: string): string {
 }
 
 export function workEntryRowLabel(entry: WorkLogPresentationEntry, expanded = false): string {
+  if (entry.itemType === "fork") return entry.label;
   if (expanded && entry.itemType === "reasoning")
     return entry.toolLifecycleStatus === "inProgress" ? "Thinking" : "Thought";
   const presentation = resolveWorkEntryToolPresentation(entry);
@@ -354,73 +334,6 @@ export function isContextHandoffActivityGroup(entry: ThreadFeedActivityGroup): b
 
 function isUserInputActivityGroup(entry: ThreadFeedActivityGroup): boolean {
   return entry.activities.some((activity) => activity.workEntry.questionAnswer !== undefined);
-}
-
-function normalizeDraftAnswer(value: string | undefined): string | null {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-function resolvePendingUserInputOptionValue(
-  question: ThreadUserInputQuestion,
-  value: string,
-): string | null {
-  if (question.options.some((option) => option.value === value)) {
-    return value;
-  }
-
-  const label = value.trim();
-  return label.length > 0 &&
-    question.options.some((option) => option.value === undefined && option.label.trim() === label)
-    ? label
-    : null;
-}
-
-function normalizeSelectedOptionValues(
-  question: ThreadUserInputQuestion,
-  value: ReadonlyArray<string> | undefined,
-): ReadonlyArray<string> {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return Array.from(
-    new Set(
-      value
-        .map((entry) => resolvePendingUserInputOptionValue(question, entry))
-        .filter((entry): entry is string => entry !== null),
-    ),
-  );
-}
-
-function resolvePendingUserInputAnswer(
-  question: ThreadUserInputQuestion,
-  draft: PendingUserInputDraftAnswer | undefined,
-): string | ReadonlyArray<string> | null {
-  if (draft?.attachmentsBlocked) return null;
-  const customAnswer =
-    question.allowCustomAnswer === false
-      ? null
-      : question.initialAnswer !== undefined
-        ? (draft?.customAnswer ?? null)
-        : normalizeDraftAnswer(draft?.customAnswer);
-  if (customAnswer !== null && customAnswer.length > 0) {
-    return customAnswer;
-  }
-
-  const selectedOptionValues = normalizeSelectedOptionValues(question, draft?.selectedOptionValues);
-  if (question.multiSelect) {
-    return selectedOptionValues.length > 0
-      ? selectedOptionValues
-      : (customAnswer ??
-          (question.allowCustomAnswer !== false && (draft?.attachmentCount ?? 0) > 0 ? "" : null));
-  }
-  return (
-    selectedOptionValues[0] ??
-    customAnswer ??
-    (question.allowCustomAnswer !== false && (draft?.attachmentCount ?? 0) > 0 ? "" : null)
-  );
 }
 
 function capitalizePhrase(value: string): string {
@@ -561,6 +474,7 @@ function itemIcon(item: OrchestrationV2TurnItem): ThreadFeedActivity["icon"] {
       return "hammer";
     case "run_interrupt_request":
     case "run_interrupt_result":
+      return "stop";
     case "system_notice":
       return "warning";
     case "error":
@@ -1019,6 +933,7 @@ export function threadFeedActivityIsVisible(
 }
 
 interface ThreadFeedRunFold {
+  readonly deferredWorkItemIds?: ReadonlyArray<string>;
   readonly runId: RunId;
   readonly createdAt: string;
   readonly hiddenEntryIds: ReadonlySet<string>;
@@ -1045,6 +960,28 @@ export function failedFeedRunIds(
     }
   }
   return failed;
+}
+
+/**
+ * The key a run fold uses for the message `entryId`: its run, or for an
+ * imported message with no run, the runless key of the user message before
+ * it. Null for user messages, which never fold.
+ */
+export function messageFoldRunId(
+  feed: ReadonlyArray<ThreadFeedEntry>,
+  entryId: string,
+): RunId | null {
+  let runlessKey: RunId | null = null;
+  for (const entry of feed) {
+    if (entry.type !== "message") continue;
+    if (entry.message.role === "user") {
+      if (entry.id === entryId) return null;
+      runlessKey = entry.message.runId == null ? RunId.make(`runless:${entry.id}`) : null;
+    } else if (entry.id === entryId) {
+      return entry.message.runId ?? runlessKey;
+    }
+  }
+  return null;
 }
 
 function deriveThreadFeedRunFolds(
@@ -1144,6 +1081,7 @@ function deriveThreadFeedRunFolds(
             entry.id !== terminalAssistantId &&
             entry.type !== "html-render" &&
             entry.type !== "mcp-app" &&
+            !(entry.type === "activity-group" && isContextCompactionActivityGroup(entry)) &&
             !(
               entry.type === "activity-group" &&
               entry.activities.some(
@@ -1187,7 +1125,17 @@ function deriveThreadFeedRunFolds(
     const duration = elapsedMs === null ? null : formatDuration(elapsedMs);
     const interrupted =
       latestRunMatches && (latestRun.status === "interrupted" || latestRun.status === "cancelled");
+    const deferredWorkItemIds = group.entries.flatMap((entry) =>
+      entry.type === "activity-group"
+        ? entry.activities.flatMap((activity) =>
+            activity.projectedItem.item.deferredWork
+              ? [String(activity.projectedItem.sourceItemId)]
+              : [],
+          )
+        : [],
+    );
     foldsByAnchorId.set(firstHiddenEntry.id, {
+      ...(deferredWorkItemIds.length > 0 ? { deferredWorkItemIds } : {}),
       runId,
       createdAt: firstHiddenEntry.createdAt,
       hiddenEntryIds,
@@ -1198,6 +1146,23 @@ function deriveThreadFeedRunFolds(
         : duration
           ? `Worked for ${duration}`
           : "Worked",
+    });
+  }
+  const covered = new Set(
+    [...foldsByAnchorId.values()].flatMap((fold) => [...fold.hiddenEntryIds]),
+  );
+  for (const entry of feed) {
+    if (entry.type !== "activity-group" || covered.has(entry.id)) continue;
+    const deferredWorkItemIds = entry.activities.flatMap((activity) =>
+      activity.projectedItem.item.deferredWork ? [String(activity.projectedItem.sourceItemId)] : [],
+    );
+    if (deferredWorkItemIds.length === 0) continue;
+    foldsByAnchorId.set(entry.id, {
+      runId: RunId.make(`deferred-work:${entry.id}`),
+      createdAt: entry.createdAt,
+      hiddenEntryIds: new Set([entry.id]),
+      label: "Earlier work",
+      deferredWorkItemIds,
     });
   }
   return foldsByAnchorId;
@@ -1355,6 +1320,25 @@ export function deriveThreadFeedPresentation(
   const failedRunIds = failedFeedRunIds(sourceFeed, latestRun);
   const activeTailGroup = sourceFeed.at(-1);
   const activeRunId = unsettledRunId(latestRun);
+  // A bare `/compact` turn is the compaction itself: its compaction row stands in for the prompt
+  // and the live activity row.
+  const compactionCommandRunIds = new Set<RunId>();
+  const compactionItemRunIds = new Set<RunId>();
+  for (const entry of feed) {
+    if (
+      entry.type === "message" &&
+      entry.message.runId !== null &&
+      isCompactionCommandMessage(entry.message)
+    ) {
+      compactionCommandRunIds.add(entry.message.runId);
+    } else if (
+      entry.type === "activity-group" &&
+      entry.runId !== null &&
+      isContextCompactionActivityGroup(entry)
+    ) {
+      compactionItemRunIds.add(entry.runId);
+    }
+  }
   const isWorking = activeWorkStartedAt !== null && latestRun?.status !== "preparing";
   const foldsByAnchorId = deriveThreadFeedRunFolds(
     sourceFeed,
@@ -1395,11 +1379,13 @@ export function deriveThreadFeedPresentation(
         row.runId !== fold.runId ||
         row.createdAt !== fold.createdAt ||
         row.label !== fold.label ||
-        row.expanded !== expanded
+        row.expanded !== expanded ||
+        row.deferredWorkItemIds?.join("|") !== fold.deferredWorkItemIds?.join("|")
       ) {
         row = {
           type: "run-fold",
           id: `run-fold:${fold.runId}`,
+          ...(fold.deferredWorkItemIds ? { deferredWorkItemIds: fold.deferredWorkItemIds } : {}),
           createdAt: fold.createdAt,
           runId: fold.runId,
           label: fold.label,
@@ -1408,6 +1394,14 @@ export function deriveThreadFeedPresentation(
         runFoldRowsCache.set(entry, row);
       }
       result.push(row);
+    }
+    if (
+      entry.type === "message" &&
+      entry.message.runId !== null &&
+      compactionItemRunIds.has(entry.message.runId) &&
+      isCompactionCommandMessage(entry.message)
+    ) {
+      continue;
     }
     if (!collapsedEntryIds.has(entry.id)) {
       if (
@@ -1446,6 +1440,7 @@ export function deriveThreadFeedPresentation(
     isWorking &&
     activeWorkStartedAt !== null &&
     latestRun?.turnEnded !== true &&
+    (activeRunId === null || !compactionCommandRunIds.has(activeRunId)) &&
     !result.some(
       (row) =>
         row.id === LIVE_ACTIVITY_ROW_ID ||
@@ -1559,7 +1554,7 @@ function isWorkLogFeedRow(row: ThreadFeedEntry | undefined): boolean {
   );
 }
 
-export const LIVE_ACTIVITY_ROW_ID = "live-activity-row";
+const LIVE_ACTIVITY_ROW_ID = "live-activity-row";
 
 function thinkingRow(createdAt: string, runId: RunId | null) {
   if (cachedThinkingRow?.createdAt !== createdAt || cachedThinkingRow.runId !== runId) {
@@ -1826,111 +1821,6 @@ function liveToolActivitySummary(activity: ThreadFeedActivity, presentTense: boo
   return activity.detail ?? activity.summary;
 }
 
-export function setPendingUserInputCustomAnswer(
-  question: ThreadUserInputQuestion,
-  draft: PendingUserInputDraftAnswer | undefined,
-  customAnswer: string,
-): PendingUserInputDraftAnswer {
-  if (question.allowCustomAnswer === false) {
-    return draft ?? {};
-  }
-
-  const selectedOptionValues =
-    question.initialAnswer !== undefined || customAnswer.trim().length > 0
-      ? undefined
-      : normalizeSelectedOptionValues(question, draft?.selectedOptionValues);
-  return {
-    customAnswer,
-    ...(selectedOptionValues && selectedOptionValues.length > 0 ? { selectedOptionValues } : {}),
-  };
-}
-
-export function isPendingUserInputOptionSelected(
-  question: ThreadUserInputQuestion,
-  draft: PendingUserInputDraftAnswer | undefined,
-  optionValue: string,
-): boolean {
-  if (question.allowCustomAnswer !== false && normalizeDraftAnswer(draft?.customAnswer)) {
-    return false;
-  }
-
-  const resolvedOptionValue = resolvePendingUserInputOptionValue(question, optionValue);
-  return (
-    resolvedOptionValue !== null &&
-    normalizeSelectedOptionValues(question, draft?.selectedOptionValues).includes(
-      resolvedOptionValue,
-    )
-  );
-}
-
-export function togglePendingUserInputOptionSelection(
-  question: ThreadUserInputQuestion,
-  draft: PendingUserInputDraftAnswer | undefined,
-  optionValue: string,
-): PendingUserInputDraftAnswer {
-  const resolvedOptionValue = resolvePendingUserInputOptionValue(question, optionValue);
-  if (resolvedOptionValue === null) {
-    return draft ?? {};
-  }
-
-  if (question.multiSelect) {
-    const selectedOptionValues = normalizeSelectedOptionValues(
-      question,
-      draft?.selectedOptionValues,
-    );
-    const nextSelectedOptionValues = selectedOptionValues.includes(resolvedOptionValue)
-      ? selectedOptionValues.filter((value) => value !== resolvedOptionValue)
-      : [...selectedOptionValues, resolvedOptionValue];
-
-    return {
-      customAnswer: "",
-      ...(nextSelectedOptionValues.length > 0
-        ? { selectedOptionValues: nextSelectedOptionValues }
-        : {}),
-    };
-  }
-
-  return {
-    customAnswer: "",
-    selectedOptionValues: [resolvedOptionValue],
-  };
-}
-
-export function isPendingUserInputQuestionAnswered(
-  question: ThreadUserInputQuestion,
-  draft: PendingUserInputDraftAnswer | undefined,
-): boolean {
-  return resolvePendingUserInputAnswer(question, draft) !== null;
-}
-
-/** Where a questionnaire resumes: the first unanswered question, else the last one. */
-export function resumePendingUserInputQuestionIndex(
-  questions: ReadonlyArray<ThreadUserInputQuestion>,
-  draftAnswers: Record<string, PendingUserInputDraftAnswer>,
-): number {
-  const index = questions.findIndex(
-    (question) => !isPendingUserInputQuestionAnswered(question, draftAnswers[question.id]),
-  );
-  return index === -1 ? Math.max(questions.length - 1, 0) : index;
-}
-
-export function buildPendingUserInputAnswers(
-  questions: ReadonlyArray<ThreadUserInputQuestion>,
-  draftAnswers: Record<string, PendingUserInputDraftAnswer>,
-): Record<string, string | ReadonlyArray<string>> | null {
-  const answers: Record<string, string | ReadonlyArray<string>> = {};
-
-  for (const question of questions) {
-    const answer = resolvePendingUserInputAnswer(question, draftAnswers[question.id]);
-    if (answer === null) {
-      return null;
-    }
-    answers[question.id] = answer;
-  }
-
-  return answers;
-}
-
 interface ThreadFeedBuild {
   readonly rows: ReadonlyArray<OrchestrationV2ProjectedTurnItem>;
   readonly attempts: ReadonlyArray<OrchestrationV2RunAttempt> | undefined;
@@ -1944,11 +1834,9 @@ interface ThreadFeedBuild {
 }
 
 /**
- * A streamed chunk changes the newest rows of a thread that can hold thousands.
- * A consumer that keeps one cache across renders lets `buildThreadFeed` and
- * `deriveThreadFeedPresentation` keep the unchanged prefix of their last
- * result instead of redoing the whole thread. Each feed on screen owns its
- * cache, so two threads rendering at once never evict each other.
+ * Lets `buildThreadFeed` and `deriveThreadFeedPresentation` keep the unchanged prefix of their last
+ * result when a streamed chunk only changes the newest rows. Each feed on screen owns its cache, so
+ * two threads rendering at once never evict each other.
  */
 export interface ThreadFeedCache {
   feedBuild: ThreadFeedBuild | null;
@@ -2078,13 +1966,37 @@ export function buildThreadFeed(
 
   const entries: RawThreadFeedEntry[] = [];
   const entryRows: number[] = [];
+  // A stopped compaction's own row already says it stopped. A `/compact` run stopped
+  // before its provider started has no such row, so it keeps the interrupted one.
+  const compactPromptRunIds = new Set<RunId>();
+  const compactedRunIds = new Set<RunId>();
+  for (const { item } of visibleTurnItems) {
+    if (item.runId === null) continue;
+    if (item.type === "user_message" && isCompactionCommandMessage({ role: "user", ...item })) {
+      compactPromptRunIds.add(item.runId);
+    } else if (item.type === "compaction") {
+      compactedRunIds.add(item.runId);
+    }
+  }
   for (let index = restart?.row ?? 0; index < visibleTurnItems.length; index += 1) {
     const row = visibleTurnItems[index]!;
     const item = row.item;
-    if (turnItemIsWorkspacePreparation(item)) continue;
+    if (turnItemIsWorkspacePreparation(item) && !item.deferredWork) continue;
     if (item.type === "todo_list" || item.type === "checkpoint") continue;
+    if (
+      item.type === "user_message" &&
+      item.inputIntent === "queued_turn" &&
+      item.status === "pending"
+    )
+      continue;
     if (item.type === "user_message" && foldedAnswerMessageIds.has(item.messageId)) continue;
-    if (item.type === "run_interrupt_request") {
+    if (
+      item.type === "run_interrupt_request" ||
+      (item.type === "run_interrupt_result" &&
+        item.runId !== null &&
+        compactPromptRunIds.has(item.runId) &&
+        compactedRunIds.has(item.runId))
+    ) {
       continue;
     }
     const attemptId = resolveAttemptId(item);
@@ -2112,10 +2024,7 @@ export function buildThreadFeed(
       entryRows.push(index);
       continue;
     }
-    const app =
-      item.type === "dynamic_tool" && item.status === "completed"
-        ? mcpAppFromToolItem(item)
-        : undefined;
+    const app = item.type === "dynamic_tool" ? mcpAppFromToolItem(item) : undefined;
     if (app) {
       const entry: RawThreadFeedEntry = {
         type: "mcp-app",

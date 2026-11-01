@@ -624,8 +624,12 @@ const make = Effect.gen(function* () {
       Effect.withSpan("desktop.codexMicro.state"),
     ),
     setLighting,
-    subscribeState: (listener) => subscribe(stateListeners, listener),
-    subscribeInput: (listener) => subscribe(inputListeners, listener),
+    subscribeState: Effect.fn("CodexMicro.subscribeState")(function (listener) {
+      return subscribe(stateListeners, listener);
+    }),
+    subscribeInput: Effect.fn("CodexMicro.subscribeInput")(function (listener) {
+      return subscribe(inputListeners, listener);
+    }),
   });
 });
 
@@ -635,10 +639,18 @@ export const layerUnavailable = Layer.succeed(
   CodexMicro,
   CodexMicro.of({
     available: false,
-    configure: () => Effect.void,
+    configure: Effect.fn("CodexMicro.configure")(function () {
+      return Effect.void;
+    }),
     state: Effect.succeed(deviceState("disabled", "unavailable")),
-    setLighting: () => Effect.void,
-    subscribeState: () => Effect.void,
-    subscribeInput: () => Effect.void,
+    setLighting: Effect.fn("CodexMicro.setLighting")(function () {
+      return Effect.void;
+    }),
+    subscribeState: Effect.fn("CodexMicro.subscribeState")(function () {
+      return Effect.void;
+    }),
+    subscribeInput: Effect.fn("CodexMicro.subscribeInput")(function () {
+      return Effect.void;
+    }),
   }),
 );

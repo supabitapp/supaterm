@@ -8,7 +8,7 @@ import { usePaneThreadNavigation } from "../../chatPanes/paneScope";
 import {
   deriveLogicalProjectKeyFromSettings,
   selectProjectGroupingSettings,
-} from "../../logicalProject";
+} from "@supaterm/client-runtime/state/project-grouping";
 import { type DraftThreadEnvMode, useComposerDraftStore, DraftId } from "../../composerDraftStore";
 import { openPullRequestThreadDialog } from "./ChatOverlayHosts";
 

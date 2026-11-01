@@ -43,7 +43,6 @@ function baseProps(): Omit<TimelineProps, "timelineEntries"> {
   return {
     isWorking: false,
     emptyPlaceholderInset: 0,
-    activeTurnInProgress: false,
     listRef: createRef<LegendListRef | null>(),
     latestRun: null,
     turnDiffSummaries: [],
@@ -67,7 +66,6 @@ function baseProps(): Omit<TimelineProps, "timelineEntries"> {
     contentInsetEndAdjustment: 0,
     liveFollowEnabled: true,
     onIsAtEndChange: () => {},
-    onManualNavigation: () => {},
     onJumpToPinnedMessage: () => {},
   };
 }

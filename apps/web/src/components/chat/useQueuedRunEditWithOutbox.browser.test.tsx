@@ -93,7 +93,6 @@ const sendContext: ReturnType<ChatComposerHandle["getSendContext"]> = {
   reviewComments: [],
   threadContexts: [],
   selectedPromptEffort: null,
-  selectedModelOptionsForDispatch: undefined,
   selectedModelSelection: editedModel,
   multipleModelSelections: null,
   providerAvailable: true,

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import type { TimelineEntry } from "../../session-logic";
 import { deriveMessagesTimelineRows } from "./MessagesTimeline.logic";
-import { deriveTimelineMinimapItems } from "./timelineMinimapItems";
+import { deriveTimelineMinimapItems, resolveTimelineMinimapPreview } from "./timelineMinimapItems";
 
 function messageEntry(
   id: string,
@@ -60,5 +60,19 @@ describe("deriveTimelineMinimapItems", () => {
         pin,
       }),
     ]);
+  });
+});
+
+describe("resolveTimelineMinimapPreview", () => {
+  it("previews a thread autolink as prose, not its URL", () => {
+    const preview = resolveTimelineMinimapPreview({
+      id: "turn-1",
+      rowIndex: 0,
+      pin: null,
+      userText: null,
+      assistantText:
+        "Started <supaterm-thread://v2/env-1/thread-1> and [Fix CI](supaterm-thread://v2/env-1/t2).",
+    });
+    expect(preview?.assistantText).toBe("Started a thread and Fix CI.");
   });
 });

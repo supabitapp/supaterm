@@ -82,12 +82,9 @@ const ensureNodePtySpawnHelperExecutable = Effect.fn(function* () {
 });
 
 /**
- * node-pty defers creation to avoid blocking on named pipes:
- * https://github.com/microsoft/node-pty/pull/885
- * Supaterm adopted that behavior when upgrading from 1.1.0 to 1.2.0-beta.15:
- * https://github.com/supabitapp/supaterm/pull/13748
- * Its public API has no readiness event. The private ready_datapipe handler sets
- * pid before our listener runs.
+ * node-pty defers creation to avoid blocking on named pipes
+ * (https://github.com/microsoft/node-pty/pull/885) and has no public readiness event. The
+ * private ready_datapipe handler sets pid before our listener runs.
  */
 const waitForWindowsPid = (
   process: import("node-pty").IPty,

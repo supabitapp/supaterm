@@ -53,6 +53,7 @@ export function useThreadLoadingShimmer() {
   const screenIsFocused = useIsFocused();
   const showShimmer = !reduceMotion && appIsActive && screenIsFocused;
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to the reduce-motion setting and AppState changes that gate the shimmer
   useEffect(() => {
     let mounted = true;
     void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
@@ -72,6 +73,7 @@ export function useThreadLoadingShimmer() {
     };
   }, []);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- runs the shared Reanimated shimmer loop while it shows and cancels the animation on cleanup
   useEffect(() => {
     progress.set(0);
     if (!showShimmer) return;

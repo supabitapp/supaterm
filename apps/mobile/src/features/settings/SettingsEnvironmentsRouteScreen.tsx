@@ -4,7 +4,7 @@ import type { EnvironmentId } from "@supaterm/contracts";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { LocalEnvironmentList } from "../connection/LocalEnvironmentList";
-import { GitHubRoutingSettings } from "../connection/GitHubRoutingSettings";
+import { PullRequestRoutingSettings } from "../connection/PullRequestRoutingSettings";
 import { useUniwindTheme } from "../../lib/useUniwindTheme";
 import { useRemoteConnections } from "../../state/use-remote-environment-registry";
 import {
@@ -101,7 +101,7 @@ export function SettingsEnvironmentsRouteScreen() {
           onSetEnabled={onSetEnvironmentEnabled}
           onUpdate={handleUpdateEnvironment}
         />
-        <GitHubRoutingSettings />
+        <PullRequestRoutingSettings />
       </ScrollView>
     </SettingsScreen>
   );

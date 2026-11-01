@@ -7,7 +7,6 @@ import {
 } from "./auth.ts";
 import * as Effect from "effect/Effect";
 import * as Duration from "effect/Duration";
-import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as SchemaTransformation from "effect/SchemaTransformation";
 import {
@@ -33,6 +32,8 @@ import { ProjectScript, type ProjectMutation } from "./project.ts";
 import { DEFAULT_RUNTIME_MODE, RuntimeMode } from "./providerPolicy.ts";
 import { BrowserProfile, BrowserProfileId, DEFAULT_BROWSER_PROFILE_ID } from "./browserProfile.ts";
 import {
+  BrowserRecordingFrameRate,
+  DEFAULT_BROWSER_RECORDING_FRAME_RATE,
   DEFAULT_PREVIEW_APPEARANCE,
   DEFAULT_PREVIEW_ZOOM_FACTOR,
   FILL_PREVIEW_VIEWPORT,
@@ -94,6 +95,45 @@ export const SidebarAutoMarkDoneAfterDays = Schema.Number.check(
 );
 export type SidebarAutoMarkDoneAfterDays = typeof SidebarAutoMarkDoneAfterDays.Type;
 const DEFAULT_SIDEBAR_AUTO_MARK_DONE_AFTER_DAYS: SidebarAutoMarkDoneAfterDays = 3;
+
+export const MAX_SNOOZE_PRESET_MINUTES = 30 * 24 * 60;
+export const MAX_SNOOZE_PRESETS = 8;
+export const SnoozePresetDay = Schema.Literals([
+  "today",
+  "tomorrow",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+]);
+export type SnoozePresetDay = typeof SnoozePresetDay.Type;
+/** `after` wakes a fixed time from now. `at` wakes at a local time; a weekday is its next occurrence after today. */
+export const SnoozePresetSetting = Schema.Union([
+  Schema.Struct({
+    kind: Schema.Literal("after"),
+    minutes: Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: MAX_SNOOZE_PRESET_MINUTES })),
+  }),
+  Schema.Struct({
+    kind: Schema.Literal("at"),
+    day: SnoozePresetDay,
+    time: Schema.String.check(Schema.isPattern(/^([01]\d|2[0-3]):[0-5]\d$/)),
+  }),
+]);
+export type SnoozePresetSetting = typeof SnoozePresetSetting.Type;
+export const SnoozePresetSettings = Schema.Array(SnoozePresetSetting).check(
+  Schema.isMaxLength(MAX_SNOOZE_PRESETS),
+);
+export const DEFAULT_SNOOZE_PRESETS: ReadonlyArray<SnoozePresetSetting> = [
+  { kind: "after", minutes: 60 },
+  { kind: "after", minutes: 180 },
+  { kind: "at", day: "today", time: "18:00" },
+  { kind: "at", day: "tomorrow", time: "09:00" },
+  { kind: "at", day: "monday", time: "09:00" },
+];
+
 export const MIN_GLASS_OPACITY = 40;
 export const MAX_GLASS_OPACITY = 100;
 export const GlassOpacity = Schema.Int.check(
@@ -220,11 +260,9 @@ export const FontFamilyPreference = Schema.String.check(Schema.isMaxLength(200))
 export type FontFamilyPreference = typeof FontFamilyPreference.Type;
 
 /**
- * The environment's theme, set with `supaterm theme set <id>`. Each client applies
- * it once per value — live when connected, on its next connect otherwise — so
- * setting it switches every client, while a theme a user picks in Settings
- * afterwards sticks until the next set. Empty means "no environment theme",
- * which is also how it is cleared.
+ * Set with `supaterm theme set <id>`. Each client applies it once per value, so a
+ * set switches every client while a later pick in Settings sticks until the next
+ * set. Empty means "no environment theme", which is also how it is cleared.
  */
 export const DefaultThemePreference = Schema.String.check(Schema.isMaxLength(64));
 // Deliberately absent from ServerSettingsPatch: `supaterm theme set` checks that an
@@ -234,10 +272,11 @@ export type DefaultThemePreference = typeof DefaultThemePreference.Type;
 
 export const DEFAULT_BROWSER_VIEWPORT: PreviewViewportSetting = FILL_PREVIEW_VIEWPORT;
 export const DEFAULT_BROWSER_AUTO_SHOW_FLOATING_PREVIEW = true;
-export const BROWSER_RECORDING_FRAME_RATES = [30, 60] as const;
-export const BrowserRecordingFrameRate = Schema.Literals(BROWSER_RECORDING_FRAME_RATES);
-export type BrowserRecordingFrameRate = typeof BrowserRecordingFrameRate.Type;
-export const DEFAULT_BROWSER_RECORDING_FRAME_RATE: BrowserRecordingFrameRate = 30;
+export {
+  BROWSER_RECORDING_FRAME_RATES,
+  BrowserRecordingFrameRate,
+  DEFAULT_BROWSER_RECORDING_FRAME_RATE,
+} from "./preview.ts";
 export const BrowserLinkTarget = Schema.Literals(["system", "app"]);
 export type BrowserLinkTarget = typeof BrowserLinkTarget.Type;
 export const DEFAULT_BROWSER_LINK_TARGET: BrowserLinkTarget = "system";
@@ -396,6 +435,11 @@ export const ClientSettingsSchema = Schema.Struct({
   ),
   proactivePanelsEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   showSkillsInSlashMenu: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  // Sparse show/hide overrides for thread details card items. Missing ids use the client's
+  // default, so new items appear for everyone and unknown ids survive a downgrade.
+  threadDetailsItems: Schema.Record(Schema.String, Schema.Boolean).pipe(
+    Schema.withDecodingDefault(Effect.succeed({})),
+  ),
   sidebarProjectGroupingMode: SidebarProjectGroupingMode.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_PROJECT_GROUPING_MODE)),
   ),
@@ -411,7 +455,7 @@ export const ClientSettingsSchema = Schema.Struct({
   ),
   // An unknown grouping falls back to Default instead of failing the whole settings document.
   sidebarThreadGrouping: SidebarThreadGrouping.pipe(
-    Schema.catchDecoding(() => Effect.succeed(Option.some("status" as const))),
+    Schema.catchDecoding(() => Effect.succeedSome("status" as const)),
     Schema.withDecodingDefault(Effect.succeed("status" as const)),
   ),
   sidebarThreadPreviewCount: SidebarThreadPreviewCount.pipe(
@@ -734,10 +778,6 @@ export const AntigravitySettings = makeProviderSettingsSchema(
 );
 export type AntigravitySettings = typeof AntigravitySettings.Type;
 
-export const GitHubHost = TrimmedNonEmptyString.pipe(
-  Schema.decodeTo(Schema.String, SchemaTransformation.toLowerCase()),
-);
-
 export const SourceControlHostSettings = Schema.Record(Schema.String, Schema.Unknown);
 export type SourceControlHostSettings = typeof SourceControlHostSettings.Type;
 
@@ -912,6 +952,7 @@ export const PROJECT_SCOPED_SERVER_SETTING_KEYS = [
   "enableAgentBrowserAccess",
   "enableAgentDeviceAccess",
   "textGenerationModelSelection",
+  "threadTitleInstructions",
   "sourceControlWriterModelSelection",
   "reviewGuideModelSelection",
   "reviewGuideInstructions",
@@ -936,13 +977,10 @@ export const ProjectProviderInstanceOverride = Schema.Struct({
 export type ProjectProviderInstanceOverride = typeof ProjectProviderInstanceOverride.Type;
 
 /**
- * One project's overrides. An absent key inherits the environment value;
- * `null` is a real value where the environment type is nullable (no default
- * model, no dedicated writer model, never automatically mark as done).
- *
- * `providerInstances` sits outside `PROJECT_SCOPED_SERVER_SETTING_KEYS`: every
- * other key replaces its `ServerSettings` field whole, while this one keeps the
- * settings.json shape but overrides field by field, per `ProviderInstanceId`.
+ * An absent key inherits the environment value; `null` is a real value where the
+ * environment type is nullable. `providerInstances` sits outside
+ * `PROJECT_SCOPED_SERVER_SETTING_KEYS` because it overrides field by field per
+ * `ProviderInstanceId` instead of replacing its `ServerSettings` field whole.
  */
 export const ProjectSettingsOverrides = Schema.Struct({
   worktreeCleanup: Schema.optionalKey(WorktreeCleanup),
@@ -956,6 +994,7 @@ export const ProjectSettingsOverrides = Schema.Struct({
   enableAgentBrowserAccess: Schema.optionalKey(Schema.Boolean),
   enableAgentDeviceAccess: Schema.optionalKey(Schema.Boolean),
   textGenerationModelSelection: Schema.optionalKey(ModelSelection),
+  threadTitleInstructions: Schema.optionalKey(TrimmedString),
   sourceControlWriterModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   reviewGuideModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   reviewGuideInstructions: Schema.optionalKey(TrimmedString),
@@ -976,6 +1015,16 @@ export const ProjectSettingsOverrides = Schema.Struct({
   ),
 } satisfies Record<ProjectScopedServerSettingKey | "providerInstances", unknown>);
 export type ProjectSettingsOverrides = typeof ProjectSettingsOverrides.Type;
+
+// Whole-entry writers must round-trip unknown keys; keep the type closed to catch misspellings.
+const keepUnknownOverrideKeys = <Entry extends Schema.Struct<Schema.Struct.Fields>>(
+  entry: Entry,
+): Schema.Codec<
+  Entry["Type"],
+  Entry["Encoded"],
+  Entry["DecodingServices"],
+  Entry["EncodingServices"]
+> => Schema.StructWithRest(entry, [Schema.Record(Schema.String, Schema.Unknown)]);
 
 /**
  * An override entry as a settings patch carries it. Clients built before `worktreeKeepWhen` or
@@ -1125,6 +1174,9 @@ export const ServerSettings = Schema.Struct({
   defaultModelSelection: Schema.NullOr(ModelSelection).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
+  fallbackModelSelection: Schema.NullOr(ModelSelection).pipe(
+    Schema.withDecodingDefault(Effect.succeed(null)),
+  ),
   defaultRuntimeMode: RuntimeMode.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE)),
   ),
@@ -1132,9 +1184,10 @@ export const ServerSettings = Schema.Struct({
    * Per-project overrides of the keys in `PROJECT_SCOPED_SERVER_SETTING_KEYS`,
    * plus `providerInstances`. The source of truth for project settings.
    */
-  projectSettingsOverrides: Schema.Record(ProjectId, ProjectSettingsOverrides).pipe(
-    Schema.withDecodingDefault(Effect.succeed({})),
-  ),
+  projectSettingsOverrides: Schema.Record(
+    ProjectId,
+    keepUnknownOverrideKeys(ProjectSettingsOverrides),
+  ).pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   /**
    * The fold runs once so a later reset in the settings UI is not undone by the
    * next server start.
@@ -1155,6 +1208,9 @@ export const ServerSettings = Schema.Struct({
   ),
   snoozeLimitedThreads: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   autoResumeLimitedThreads: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  snoozePresets: SnoozePresetSettings.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_SNOOZE_PRESETS)),
+  ),
   sidebarAutoMarkDoneKeepPullRequests: Schema.Boolean.pipe(
     Schema.withDecodingDefault(Effect.succeed(false)),
   ),
@@ -1208,6 +1264,7 @@ export const ServerSettings = Schema.Struct({
   nextPromptSuggestionsEnabled: Schema.Boolean.pipe(
     Schema.withDecodingDefault(Effect.succeed(true)),
   ),
+  threadTitleInstructions: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
   /** Its login transcribes voice input sent to this environment, and is charged for it. */
   transcriptionProviderInstanceId: ProviderInstanceId.pipe(
     Schema.withDecodingDefault(Effect.succeed(ProviderInstanceId.make("claudeAgent"))),
@@ -1273,7 +1330,7 @@ export const providerInstanceConfigEnabledFlag = (config: unknown): boolean | un
 };
 
 const DEFAULT_DISABLED_PROVIDER_DRIVERS: ReadonlySet<ProviderDriverKind> = new Set(
-  ["cursor", "grok", "muse", "pi", "opencode", "antigravity"].map((driver) =>
+  ["cursor", "grok", "fx", "muse", "pi", "opencode", "antigravity"].map((driver) =>
     ProviderDriverKind.make(driver),
   ),
 );
@@ -1417,28 +1474,23 @@ export const ServerSettingsPatch = Schema.Struct({
   defaultProjectScripts: Schema.optionalKey(Schema.Array(ProjectScript)),
   defaultModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   defaultRuntimeMode: Schema.optionalKey(RuntimeMode),
+  fallbackModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   /**
-   * Per-project entry replacement: each entry replaces that project's whole
-   * override set and `null` removes it.
-   *
-   * Keys added after clients already resent whole entries are the exception:
-   * an entry that omits `providerInstances`, `reviewGuideModelSelection`,
-   * `reviewGuideInstructions` or `sidebarAutoMarkDoneKeepPullRequests` keeps
-   * the stored value, and custom worktree rules without `worktreeKeepWhen` or
-   * `worktreeDoneAfterDays` keep the stored rule, so a client built before
-   * those fields cannot wipe them by editing another key. Clearing
-   * every provider override for a project means sending `providerInstances:
-   * {}`; clearing any other key means listing it in
-   * `projectSettingsOverrideRemovals` as well.
+   * Each entry replaces the project's whole override set and `null` removes it, except keys
+   * added after clients already resent whole entries: omitting one keeps the stored value, so
+   * older clients cannot wipe it. Clear provider overrides with `providerInstances: {}` and
+   * other keys via `projectSettingsOverrideRemovals`.
    */
   projectSettingsOverrides: Schema.optionalKey(
     Schema.Record(
       ProjectId,
       Schema.NullOr(
-        Schema.Struct({
-          ...ProjectSettingsOverridesPatchEntry.fields,
-          sourceControlWritingStyle: Schema.optionalKey(SourceControlWritingStyleSettings),
-        }),
+        keepUnknownOverrideKeys(
+          Schema.Struct({
+            ...ProjectSettingsOverridesPatchEntry.fields,
+            sourceControlWritingStyle: Schema.optionalKey(SourceControlWritingStyleSettings),
+          }),
+        ),
       ),
     ),
   ),
@@ -1455,6 +1507,7 @@ export const ServerSettingsPatch = Schema.Struct({
   sidebarAutoMarkDoneOnMerge: Schema.optionalKey(Schema.Boolean),
   autoResumeLimitedThreads: Schema.optionalKey(Schema.Boolean),
   snoozeLimitedThreads: Schema.optionalKey(Schema.Boolean),
+  snoozePresets: Schema.optionalKey(SnoozePresetSettings),
   backgroundActivity: Schema.optionalKey(
     Schema.Struct({
       schemaVersion: Schema.optionalKey(Schema.Literal(1)),
@@ -1473,6 +1526,7 @@ export const ServerSettingsPatch = Schema.Struct({
   addProjectBaseDirectory: Schema.optionalKey(TrimmedString),
   textGenerationModelSelection: Schema.optionalKey(ModelSelectionPatch),
   nextPromptSuggestionsEnabled: Schema.optionalKey(Schema.Boolean),
+  threadTitleInstructions: Schema.optionalKey(TrimmedString),
   transcriptionProviderInstanceId: Schema.optionalKey(ProviderInstanceId),
   branchNamingMode: Schema.optionalKey(BranchNamingMode),
   branchNamePrefix: Schema.optionalKey(TrimmedString),
@@ -1608,6 +1662,7 @@ export const ClientSettingsPatch = Schema.Struct({
   ),
   proactivePanelsEnabled: Schema.optionalKey(Schema.Boolean),
   showSkillsInSlashMenu: Schema.optionalKey(Schema.Boolean),
+  threadDetailsItems: Schema.optionalKey(Schema.Record(Schema.String, Schema.Boolean)),
   sidebarProjectGroupingMode: Schema.optionalKey(SidebarProjectGroupingMode),
   sidebarProjectGroupingOverrides: Schema.optionalKey(
     Schema.Record(TrimmedNonEmptyString, SidebarProjectGroupingMode),

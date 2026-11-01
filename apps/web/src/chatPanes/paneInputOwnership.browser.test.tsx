@@ -3,8 +3,8 @@ import { DEFAULT_RESOLVED_KEYBINDINGS } from "@supaterm/shared/keybindings";
 import { act, render as renderUi, type Screen } from "../../test/render";
 import { describe, expect, it } from "vite-plus/test";
 
-import { dispatchAppCommand } from "../appCommandBus";
 import { useChatShortcuts } from "../components/chat/useChatShortcuts";
+import { dispatchMenuAction, runCommand } from "../shortcuts/dispatcher";
 import { PaneScopeProvider, usePaneInputOwner } from "./paneScope";
 import { useChatPaneStore } from "./store";
 
@@ -54,7 +54,7 @@ const thread = (id: string) => ({
 });
 
 describe("chat shortcuts in a split", () => {
-  it.each(["keyboard", "command"])("run only in the focused pane via %s", async (input) => {
+  it.each(["keyboard", "device", "menu"])("run only in the focused pane via %s", async (input) => {
     await using _test = await setupTest();
     const store = useChatPaneStore.getState();
     store.reconcileRoute(thread("a"), { width: 1600, height: 900 });
@@ -79,18 +79,20 @@ describe("chat shortcuts in a split", () => {
       </>,
     );
     const pressFind = () =>
-      input === "command"
-        ? dispatchAppCommand("chat.find")
-        : window.dispatchEvent(
-            new KeyboardEvent("keydown", {
-              key: "f",
-              code: "KeyF",
-              metaKey: navigator.platform.includes("Mac"),
-              ctrlKey: !navigator.platform.includes("Mac"),
-              bubbles: true,
-              cancelable: true,
-            }),
-          );
+      input === "device"
+        ? runCommand("chat.find", "device")
+        : input === "menu"
+          ? dispatchMenuAction("chat.find")
+          : window.dispatchEvent(
+              new KeyboardEvent("keydown", {
+                key: "f",
+                code: "KeyF",
+                metaKey: navigator.platform.includes("Mac"),
+                ctrlKey: !navigator.platform.includes("Mac"),
+                bubbles: true,
+                cancelable: true,
+              }),
+            );
 
     pressFind();
     expect(found).toEqual(["second"]);

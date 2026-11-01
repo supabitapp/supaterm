@@ -4,10 +4,12 @@ import {
   CircleCheckIcon,
   ClockIcon,
   FolderIcon,
+  FolderPlusIcon,
   GitBranchIcon,
   HashIcon,
   type IconComponent,
   MailUnreadIcon,
+  MessageSquareIcon,
   MessageSquarePlusIcon,
   PencilIcon,
   PinIcon,
@@ -46,6 +48,7 @@ const THREAD_PALETTE_COMMANDS: Record<
   Exclude<ThreadActionMenuId, SnoozePresetAction>,
   ThreadPaletteCommand | null
 > = {
+  find: null,
   "open-beside": null,
   "filter-by-project": null,
   "project-settings": null,
@@ -54,6 +57,10 @@ const THREAD_PALETTE_COMMANDS: Record<
   "new-thread-on-branch": {
     icon: MessageSquarePlusIcon,
     searchTerms: ["new thread", "branch", "worktree", "same"],
+  },
+  "turn-into-project": {
+    icon: FolderPlusIcon,
+    searchTerms: ["turn into project", "promote", "no project", "scratch", "folder"],
   },
   pin: { icon: PinIcon, searchTerms: ["pin", "thread"], shortcutCommand: "thread.pin" },
   unpin: { icon: PinOffIcon, searchTerms: ["unpin", "thread"], shortcutCommand: "thread.pin" },
@@ -102,6 +109,11 @@ const THREAD_PALETTE_COMMANDS: Record<
     title: "Copy branch name",
     icon: GitBranchIcon,
     searchTerms: ["copy", "branch", "git"],
+  },
+  "copy-thread": {
+    title: "Copy thread",
+    icon: MessageSquareIcon,
+    searchTerms: ["copy", "thread", "chip", "reference", "context"],
   },
   "copy-thread-id": {
     title: "Copy thread ID",

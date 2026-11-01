@@ -5,7 +5,7 @@ import {
   type TimelineEntriesInput,
   type TimelineEntry,
 } from "../../session-logic";
-import { useThreadVisibleTurnItems } from "../../state/entities";
+import { useTimelineVisibleTurnItems } from "../../state/entities";
 import {
   peekRememberedThreadTimeline,
   rememberReadyThreadTimeline,
@@ -17,7 +17,8 @@ import { MessagesTimeline } from "./MessagesTimeline";
 /**
  * The timeline with the streamed text. ChatView reads the thread through its quiet
  * atoms, which hold through text deltas; this reads the live turn items, so a
- * delta re-renders the timeline without re-rendering ChatView.
+ * reasoning delta re-renders the timeline without re-rendering ChatView. Streamed
+ * assistant text reaches only its own row, through useAssistantMessageText.
  */
 export function ThreadTimeline({
   threadDetailRef,
@@ -26,9 +27,6 @@ export function ThreadTimeline({
   activeThreadKey,
   syncing,
   detailLoading,
-  readyMarkdownCwd,
-  readyWorkspaceRoot,
-  timelineScope,
   ...timelineProps
 }: Omit<ComponentProps<typeof MessagesTimeline>, "timelineEntries"> & {
   /** Null until the thread's detail may load; see resolveThreadDetailRef. */
@@ -39,45 +37,26 @@ export function ThreadTimeline({
   activeThreadKey: string | null;
   syncing: boolean;
   detailLoading: boolean;
-  readyMarkdownCwd: string | null;
-  readyWorkspaceRoot: string | null;
-  /** The chat pane whose last ready timeline this one becomes. */
-  timelineScope: string | undefined;
 }) {
-  const visibleTurnItems = useThreadVisibleTurnItems(threadDetailRef);
+  const visibleTurnItems = useTimelineVisibleTurnItems(threadDetailRef);
   const [projectTimelineEntries] = useState(createTimelineEntriesProjector);
   const serverEntries = projectTimelineEntries(
     { ...entriesInput, visibleTurnItems },
     activeThreadKey,
   );
   const entries = draftEntries ?? serverEntries;
-  const displayed = resolveThreadSwitchTimeline({
+  const displayedEntries = resolveThreadSwitchTimeline({
     loading: entries.length === 0 && syncing,
     activeThreadKey,
     nextEntries: entries,
     rememberedForActive: peekRememberedThreadTimeline<typeof entries>(activeThreadKey),
-    scope: timelineScope,
   });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- stores the committed ready timeline in the module-level cache used during thread switches
   useLayoutEffect(() => {
     if (detailLoading || entries.length === 0 || timelineHasEphemeralPreviewUrls(entries)) {
       return;
     }
-    rememberReadyThreadTimeline(
-      {
-        threadKey: activeThreadKey,
-        entries,
-        markdownCwd: readyMarkdownCwd,
-        workspaceRoot: readyWorkspaceRoot,
-      },
-      timelineScope,
-    );
-  }, [
-    activeThreadKey,
-    detailLoading,
-    entries,
-    readyMarkdownCwd,
-    readyWorkspaceRoot,
-    timelineScope,
-  ]);
-  return <MessagesTimeline {...timelineProps} timelineEntries={displayed.entries} />;
+    rememberReadyThreadTimeline({ threadKey: activeThreadKey, entries });
+  }, [activeThreadKey, detailLoading, entries]);
+  return <MessagesTimeline {...timelineProps} timelineEntries={displayedEntries} />;
 }

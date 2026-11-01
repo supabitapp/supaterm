@@ -1,4 +1,8 @@
 import { useAtomValue } from "@effect/atom-react";
+import {
+  deriveWorkflowGroups,
+  projectedSubagentsToRuntime,
+} from "@supaterm/client-runtime/state/subagentRuntime";
 import type { ThreadTurnSubagents } from "@supaterm/client-runtime/state/thread-subagents";
 import {
   isOrchestrationV2WorkActive,
@@ -10,7 +14,7 @@ import { deriveSubagentElapsedMs, formatDuration } from "@supaterm/shared/orches
 import { StackActions, useNavigation, type StaticScreenProps } from "@react-navigation/native";
 import * as DateTime from "effect/DateTime";
 import * as Haptics from "expo-haptics";
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import { Platform, Pressable, ScrollView, View } from "react-native";
 import { ScreenStack } from "react-native-screens";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -21,8 +25,13 @@ import { environmentThreadDetails } from "../../state/threads";
 import { NativeStackScreenOptions, nativeHeaderScrollEdgeEffects } from "../../native/StackHeader";
 import { NativeHeader, NativeScreen } from "../../native/ThemedScreenStack";
 import { SubagentRow } from "./SubagentRow";
+import { useVisibleSecondClock } from "./use-visible-second-clock";
+import { SubagentStopButton } from "./SubagentStopButton";
+import { ThreadWorkflowGroup } from "./ThreadWorkflowGroup";
 import { ScreenContent } from "../../components/ui/ScreenContent";
 import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
+
+import { useOpenThreadInspector } from "./thread-inspector-navigation";
 
 const HEADER_SCROLL_EDGE_EFFECTS = nativeHeaderScrollEdgeEffects(Platform.OS, Platform.Version);
 
@@ -36,15 +45,33 @@ export function ThreadAgentsSheet({ route }: StaticScreenProps<AgentsTarget>) {
   const { layout } = useAdaptiveWorkspaceLayout();
   const target = route.params;
   const navigation = useNavigation();
+  const openInspector = useOpenThreadInspector();
   const insets = useSafeAreaInsets();
   const turn = useThreadTurnSubagents(target);
   const subagents = turn?.subagents ?? [];
   const hasLiveAgent = (turn?.liveCount ?? 0) > 0;
+  const workflowGroups = useMemo(
+    () =>
+      new Map(
+        deriveWorkflowGroups(projectedSubagentsToRuntime(subagents)).map((group) => [
+          group.workflow.id,
+          group,
+        ]),
+      ),
+    [subagents],
+  );
 
   const openChildThread = (childThreadId: ThreadId) => {
     void Haptics.selectionAsync();
-    // Replace rather than push: the sheet is a leaf, and the child thread
-    // belongs in the workspace stack where Home's back button expects it.
+    if (
+      openInspector(target, {
+        type: "thread",
+        environmentId: target.environmentId,
+        threadId: childThreadId,
+      })
+    )
+      return;
+    // Replace this leaf sheet so the child enters the workspace stack expected by Home's Back button.
     navigation.dispatch(
       StackActions.replace("Thread", {
         environmentId: target.environmentId,
@@ -57,8 +84,7 @@ export function ThreadAgentsSheet({ route }: StaticScreenProps<AgentsTarget>) {
     <ScrollView
       nestedScrollEnabled
       className="flex-1"
-      // The iOS header is translucent and floats over this view; UIKit has to
-      // inset the content or the first row sits underneath the title.
+      // UIKit must inset content beneath the floating translucent iOS header.
       contentInsetAdjustmentBehavior={Platform.OS === "ios" ? "automatic" : "never"}
       contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 8 }}
     >
@@ -67,23 +93,34 @@ export function ThreadAgentsSheet({ route }: StaticScreenProps<AgentsTarget>) {
           No agents in this turn.
         </Text>
       ) : (
-        subagents.map((subagent, index) => (
-          <AgentRow
-            key={subagent.id}
-            subagent={subagent}
-            environmentId={target.environmentId}
-            tickSeconds={hasLiveAgent}
-            isLast={index === subagents.length - 1}
-            onOpen={openChildThread}
-          />
-        ))
+        subagents.map((subagent, index) => {
+          const group = workflowGroups.get(subagent.id);
+          return group === undefined ? (
+            <AgentRow
+              key={subagent.id}
+              subagent={subagent}
+              environmentId={target.environmentId}
+              tickSeconds={hasLiveAgent}
+              isLast={index === subagents.length - 1}
+              onOpen={openChildThread}
+            />
+          ) : (
+            <View key={subagent.id} className="px-5">
+              <ThreadWorkflowGroup
+                environmentId={target.environmentId}
+                subagent={subagent}
+                group={group}
+                onOpen={openChildThread}
+              />
+            </View>
+          );
+        })
       )}
     </ScrollView>
   );
 
   if (Platform.OS === "ios") {
-    // A plain formSheet screen never renders a stack header, so it comes from
-    // a nested native stack inside the sheet (same shape as the git sheet).
+    // Plain formSheets lack stack headers; host one in a nested native stack.
     return (
       <View collapsable={false} className="flex-1 bg-sheet">
         <ScreenStack style={{ flex: 1 }}>
@@ -147,26 +184,35 @@ function AgentRow(props: {
     </View>
   );
 
-  if (childThreadId === null) {
-    return (
+  const content =
+    childThreadId === null ? (
       <View
         accessible
+        className="min-w-0 flex-1"
         accessibilityHint="Provider-managed agent. Its work appears in the transcript."
       >
         {row}
       </View>
+    ) : (
+      <Pressable
+        accessibilityRole="link"
+        accessibilityHint="Opens this agent's thread"
+        onPress={() => props.onOpen(childThreadId)}
+        className="min-w-0 flex-1 active:bg-subtle"
+      >
+        {row}
+      </Pressable>
     );
-  }
 
   return (
-    <Pressable
-      accessibilityRole="link"
-      accessibilityHint="Opens this agent's thread"
-      onPress={() => props.onOpen(childThreadId)}
-      className="active:bg-subtle"
-    >
-      {row}
-    </Pressable>
+    <View className="flex-row items-center">
+      {content}
+      <SubagentStopButton
+        environmentId={props.environmentId}
+        subagent={subagent}
+        className="mr-3"
+      />
+    </View>
   );
 }
 
@@ -184,13 +230,8 @@ function useSubagentElapsed(
   subagent: Pick<OrchestrationV2Subagent, "status" | "startedAt" | "completedAt">,
   tickSeconds: boolean,
 ): string | null {
-  const [nowMs, setNowMs] = useState(() => Date.now());
   const running = isOrchestrationV2WorkActive(subagent.status);
-  useEffect(() => {
-    if (!tickSeconds || !running) return;
-    const intervalId = setInterval(() => setNowMs(Date.now()), 1_000);
-    return () => clearInterval(intervalId);
-  }, [running, tickSeconds]);
+  const nowMs = useVisibleSecondClock(tickSeconds && running);
   const elapsedMs = deriveSubagentElapsedMs(
     {
       status: subagent.status,

@@ -198,6 +198,7 @@ export function ThemeImportDialog({
     }
   }
   const requestOpenRef = useRef(open);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- bumps the import request counter on open or close so in-flight theme file reads are discarded
   useLayoutEffect(() => {
     if (requestOpenRef.current === open) return;
     requestOpenRef.current = open;
@@ -266,11 +267,10 @@ export function ThemeImportDialog({
         }
       }
       if (installed.length > 0) onImportedMany(installed, { updated: false });
-      if (failures.length > 0) {
-        setError(failures.join(" — "));
-      } else if (conflicting.length > 0) {
+      setError(failures.length > 0 ? failures.join("; ") : null);
+      if (conflicting.length > 0) {
         setConflicts(conflicting);
-      } else if (installed.length > 0) {
+      } else if (installed.length > 0 && failures.length === 0) {
         onOpenChange(false);
       }
     };
@@ -287,7 +287,7 @@ export function ThemeImportDialog({
 
   const openFilePicker = () => {
     const bridge = window.desktopBridge;
-    if (bridge?.pickThemeFiles) {
+    if (bridge) {
       void bridge.pickThemeFiles().then((picked) => {
         if (!picked || picked.length === 0) return;
         readThemeFiles(
@@ -343,8 +343,8 @@ export function ThemeImportDialog({
     }
     if (resolved.length > 0) onImportedMany(resolved, { updated: mode === "update" });
     setConflicts(null);
-    if (failures.length > 0) setError(failures.join(" — "));
-    else onOpenChange(false);
+    if (failures.length > 0) setError([error, ...failures].filter(Boolean).join("; "));
+    else if (!error) onOpenChange(false);
   };
 
   const handleSubmit = () => {

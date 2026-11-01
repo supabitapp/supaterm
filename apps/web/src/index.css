@@ -156,7 +156,8 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(supaterm
    the variables and Settings -> Appearance can override them at runtime. The
    default stacks are mirrored in `appearanceFonts.ts`. */
 @theme {
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Inter Variable", "Segoe UI", system-ui, sans-serif;
   --font-mono:
     "JetBrains Mono", "SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
 }
@@ -212,6 +213,11 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(supaterm
      compositor updates discrete frames instead of every vsync. */
   --animate-status-pulse: status-pulse 2s infinite;
   --animate-status-ping: status-ping 2s infinite;
+  /* Stash pulses hold a highlight for 1.2s; the row then eases back over 200ms, the count snaps.
+     The row alternates two identical keyframes so each stash restarts it without a remount. */
+  --animate-stash-pulse-row: stash-pulse-row 1400ms;
+  --animate-stash-pulse-row-alt: stash-pulse-row-alt 1400ms;
+  --animate-stash-pulse-count: stash-pulse-count 1400ms step-start;
   --color-warning-foreground: var(--warning-foreground);
   --color-warning: var(--warning);
   --color-fast-mode: var(--color-yellow-500);
@@ -222,7 +228,6 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(supaterm
   --color-error-surface: var(--error-surface);
   --color-update-foreground: var(--update-foreground);
   --color-update: var(--update);
-  --color-update-surface: var(--update-surface);
   --color-success-foreground: var(--success-foreground);
   --color-success: var(--success);
   --color-diff-addition: var(--diff-addition);
@@ -256,10 +261,8 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(supaterm
   --color-card-foreground: var(--contrast-card-foreground);
   --color-card: var(--card);
   --color-code: var(--code-background);
-  --color-code-foreground: var(--code-foreground);
   --color-foreground: var(--contrast-foreground);
   --color-background: var(--background);
-  --color-surface-raised: var(--surface-raised);
   --color-message: var(--message-surface);
   --color-message-foreground: var(--contrast-message-foreground);
   --color-message-action: var(--message-action);
@@ -296,6 +299,24 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(supaterm
     }
     100% {
       opacity: 1;
+    }
+  }
+  @keyframes stash-pulse-row {
+    from,
+    85.7% {
+      color: var(--color-foreground);
+    }
+  }
+  @keyframes stash-pulse-row-alt {
+    from,
+    85.7% {
+      color: var(--color-foreground);
+    }
+  }
+  @keyframes stash-pulse-count {
+    from,
+    85.7% {
+      color: var(--color-primary);
     }
   }
   @keyframes status-pulse {
@@ -681,10 +702,6 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(supaterm
     outline: none;
   }
 
-  .surface-subheader {
-    @apply flex h-10 min-h-10 shrink-0 items-center border-b border-border/60 bg-background;
-  }
-
   [data-preview-panel-mode="inline"] [data-right-panel-surface-content] [data-surface-subheader] {
     height: calc(var(--spacing) * 7);
     min-height: calc(var(--spacing) * 7);
@@ -904,7 +921,6 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(supaterm
   --warning-surface: color-mix(in srgb, var(--warning) 8%, transparent);
   --update: var(--primary);
   --update-foreground: var(--primary);
-  --update-surface: color-mix(in srgb, var(--update) 12%, transparent);
   /* Keep every sidebar primitive on the same light surface hierarchy, including
      portaled mobile sheets and settings navigation outside the app sidebar. */
   --sidebar: var(--color-zinc-50);
@@ -951,7 +967,6 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(supaterm
     --warning-foreground: var(--color-amber-400);
     --warning-surface: color-mix(in srgb, var(--warning) 16%, transparent);
     --update-foreground: var(--color-blue-400);
-    --update-surface: color-mix(in srgb, var(--update) 18%, transparent);
     --sidebar: var(--card);
     --sidebar-control-surface: var(--muted);
     --sidebar-row-hover: var(--accent);
@@ -1004,6 +1019,14 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(supaterm
     --sidebar-row-selected: color-mix(in srgb, var(--contrast-foreground) 7%, transparent);
     --sidebar-border: var(--border);
   }
+}
+
+/* Sections in the provider detail pane sit flat in its card instead of nesting cards inside
+   it. Headings and row dividers still separate them. */
+[data-provider-detail] [data-slot="settings-group"] {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
 }
 
 /* Theme files are expressed in app color roles and mapped to the existing
@@ -1059,7 +1082,6 @@ html[data-theme-id]:not([data-theme-id=""]) {
   --warning-surface: var(--app-theme-warning-surface);
   --update: var(--app-theme-update);
   --update-foreground: var(--app-theme-update-foreground);
-  --update-surface: var(--app-theme-update-surface);
   --border: var(--app-theme-border);
   --input: var(--app-theme-input);
   --ring: var(--app-theme-focus);
@@ -1713,16 +1735,13 @@ code,
 }
 
 :is(.chat-markdown, .composer-tiptap) blockquote {
-  border-inline-start: 2px solid var(--contrast-border);
+  border-inline-start: 2px solid color-mix(in srgb, currentcolor 35%, transparent);
   padding-inline-start: 0.8rem;
-  color: var(--contrast-muted-foreground);
+  color: inherit;
 }
 
-/* A quote in the composer is text the user is still writing; muting it reads
-   as disabled in an input, so the border alone carries the quote. */
 .composer-tiptap blockquote {
   margin: 0.65rem 0;
-  color: var(--foreground);
 }
 
 /* Preflight already draws the 1px rule, as it does in chat; only the block
@@ -1776,14 +1795,14 @@ code,
 }
 
 .chat-markdown :not(pre) > code {
-  border: 1px solid var(--contrast-border);
-  border-radius: 0.375rem;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
-  background: var(--muted);
-  padding: 0.1rem 0.35rem;
+  background: color-mix(in srgb, var(--contrast-foreground) 10%, transparent);
+  padding: 0.1em 0.35em;
   color: var(--contrast-foreground);
-  font-size: 0.75rem;
+  font-size: 0.85em;
 }
 
 .chat-markdown pre {
@@ -1849,79 +1868,64 @@ code,
   }
 }
 
-/* Diagnostics-style tables: row separators only, uppercase headers, and a
-   scroll-fade container for horizontal overflow. The root chat-markdown
-   wrapping rules (overflow-wrap: anywhere) would let columns shrink to single
-   characters and defeat the overflow — restore word-boundary wrapping so the
-   min column width is the longest word. */
+/* Diagnostics-style tables: row separators only, and a scroll-fade container
+   for horizontal overflow. Cells wrap and the table fits its lane. The root
+   chat-markdown wrapping rules (overflow-wrap: anywhere) would let columns
+   shrink to single characters, so restore word-boundary wrapping: the min
+   column width is the longest word, and only wider content scrolls. */
 .chat-markdown table {
   width: 100%;
-  min-width: max-content;
   border-collapse: collapse;
   overflow-wrap: normal;
   word-break: normal;
-  font-size: 0.75rem;
+  /* One step under 15px prose. */
+  font-size: 0.875rem;
 }
 
+/* Top-aligned so wrapped rows share a first line, and the outer columns sit
+   flush with the surrounding prose. */
 .chat-markdown th,
 .chat-markdown td {
   padding: 0.45rem 0.75rem;
+  text-wrap: pretty;
   text-align: start;
+  vertical-align: top;
+}
+
+.chat-markdown :is(th, td):first-child {
+  padding-inline-start: 0;
+}
+
+.chat-markdown :is(th, td):last-child {
+  padding-inline-end: 0;
 }
 
 .chat-markdown thead th {
   border-bottom: 1px solid color-mix(in srgb, var(--contrast-border) 60%, transparent);
   padding-block: 0.55rem;
   font-weight: 600;
-  white-space: nowrap;
 }
 
 .chat-markdown tbody td {
   border-bottom: 1px solid color-mix(in srgb, var(--contrast-border) 60%, transparent);
 }
 
-/* Collapsed (default): single-line cells truncate so arbitrary chat content
-   cannot blow the column out; the footer toggle expands cells to wrap. */
-.chat-markdown .chat-markdown-table-container[data-expanded="false"] th,
-.chat-markdown .chat-markdown-table-container[data-expanded="false"] td {
-  overflow: hidden;
+/* Caps a long path, URL, or chip at 24rem; text past the cap wraps. */
+.chat-markdown :is(th, td) {
   max-width: 24rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.chat-markdown .chat-markdown-table-container[data-expanded="true"] td {
-  max-width: 24rem;
-  overflow-wrap: anywhere;
-}
-
-/* Fit expanded tables to wide timeline lanes; narrow lanes keep horizontal
-   scrolling so prose columns remain readable. */
-@container chat-lane (min-width: 36rem) {
-  .chat-markdown .chat-markdown-table-container[data-expanded="true"] table {
-    min-width: 0;
-  }
-
-  .chat-markdown .chat-markdown-table-container[data-expanded="true"] th {
-    white-space: normal;
-  }
-
-  .chat-markdown .chat-markdown-table-container[data-expanded="true"] td {
-    overflow-wrap: break-word;
-  }
+  overflow-wrap: break-word;
 }
 
 /* Formula cells keep their natural width and scroll with the table. */
-.chat-markdown .chat-markdown-table-container td:has([data-markdown-math]) {
+.chat-markdown :is(th, td):has([data-markdown-math]) {
   max-width: none;
-  overflow: visible;
 }
 
 :root {
   --diff-addition: var(--success);
   --diff-deletion: var(--destructive);
-  --diff-addition-foreground: light-dark(var(--color-emerald-600), var(--color-emerald-400));
-  --diff-deletion-foreground: light-dark(var(--color-red-600), var(--color-red-400));
+  --diff-addition-foreground: light-dark(var(--color-emerald-700), var(--color-emerald-400));
+  --diff-deletion-foreground: light-dark(var(--color-red-700), var(--color-red-400));
 }
 
 /* Chat width setting. Comfortable keeps the default --chat-content-max-width,
@@ -2209,4 +2213,10 @@ code,
       );
     }
   }
+}
+
+/* A workspace area with no control of its own takes F6 focus itself; keep that visible. */
+[data-workspace-area]:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
 }

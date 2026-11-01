@@ -13,6 +13,9 @@ import { useAndroidControlSizing } from "./ui/useAndroidControlSizing";
  * Horizontal correction applied to content rendered in the brand title slot,
  * shared with the connection subtitle so both align identically.
  */
+// The brand may grow with Dynamic Type, but not enough to crowd the header bar.
+const BRAND_MAX_FONT_SCALE = 1.4;
+
 export function brandTitleOffset(): number {
   if (Platform.OS !== "ios") return 0;
   return Platform.isPad && !NATIVE_WORKSPACE_COLUMNS_SUPPORTED ? IPAD_HOME_TITLE_OFFSET : 0;
@@ -59,6 +62,7 @@ export function CompactBrandTitle(
     >
       <Text
         allowFontScaling={props.allowFontScaling}
+        maxFontSizeMultiplier={BRAND_MAX_FONT_SCALE}
         numberOfLines={truncate ? 1 : undefined}
         className="font-supaterm-bold text-foreground-muted"
         style={[
@@ -79,6 +83,7 @@ export function CompactBrandTitle(
         >
           <Text
             allowFontScaling={props.allowFontScaling}
+            maxFontSizeMultiplier={BRAND_MAX_FONT_SCALE}
             className="font-supaterm-bold text-foreground-muted uppercase"
             style={{ fontSize: 9 * scale, letterSpacing: 0.9 * scale }}
           >
@@ -101,7 +106,7 @@ export function CompactBrandTitle(
   );
 }
 
-export function renderCompactBrandTitle() {
+function renderCompactBrandTitle() {
   return <CompactBrandTitle allowFontScaling={Platform.OS === "ios"} />;
 }
 

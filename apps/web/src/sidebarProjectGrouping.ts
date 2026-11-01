@@ -3,9 +3,9 @@ import type { EnvironmentId, ScopedProjectRef } from "@supaterm/contracts";
 import {
   buildProjectGroups,
   derivePhysicalProjectKey,
+  resolveScratchProjectScopeKey,
   type ProjectGroupingSettings,
-} from "./logicalProject";
-import { resolveScratchProjectScopeKey } from "@supaterm/client-runtime/state/project-grouping";
+} from "@supaterm/client-runtime/state/project-grouping";
 import type { Project } from "./types";
 
 export type EnvironmentPresence = "local-only" | "remote-only" | "mixed";
@@ -90,6 +90,40 @@ export function resolveSidebarProjectScopeKey(input: {
           candidate.projectKey,
     );
   return group?.projectKey ?? (input.canClearMissingScope ? null : input.key);
+}
+
+export function resolveSidebarProjectScopeKeys(input: {
+  readonly groups: ReadonlyArray<SidebarProjectSnapshot>;
+  readonly keys: ReadonlyArray<string>;
+  readonly settings?: ProjectGroupingSettings;
+  readonly canClearMissingScope?: boolean;
+}): string[] {
+  return [
+    ...new Set(input.keys.flatMap((key) => resolveSidebarProjectScopeKey({ ...input, key }) ?? [])),
+  ];
+}
+
+/** A multi-project scope's keys, the groups it shows, and every checkout they own. */
+export function resolveSidebarProjectScope(input: {
+  readonly groups: ReadonlyArray<SidebarProjectSnapshot>;
+  readonly keys: ReadonlyArray<string>;
+  readonly settings?: ProjectGroupingSettings;
+  readonly canClearMissingScope?: boolean;
+}): {
+  readonly keys: ReadonlyArray<string>;
+  readonly groups: ReadonlyArray<SidebarProjectSnapshot>;
+  readonly memberKeys: ReadonlySet<string> | null;
+} {
+  const keys = resolveSidebarProjectScopeKeys(input);
+  const groups = input.groups.filter((group) => keys.includes(group.projectKey));
+  return {
+    keys,
+    groups,
+    memberKeys:
+      groups.length === 0
+        ? null
+        : new Set(groups.flatMap((group) => group.memberProjectRefs.map(scopedProjectKey))),
+  };
 }
 
 export function buildPhysicalToLogicalProjectKeyMap(input: {

@@ -8,7 +8,7 @@ import {
   ConnectionProfile,
 } from "../connection/catalog.ts";
 import { type ConnectionTarget, PersistedConnectionTarget } from "../connection/model.ts";
-import { StoredGitHubRoutingPermission } from "../connection/githubRoutingPermissions.ts";
+import { StoredPullRequestRoutingPermission } from "../connection/pullRequestRoutingPermissions.ts";
 
 export const StoredConnectionCredential = Schema.Struct({
   connectionId: Schema.String,
@@ -27,7 +27,9 @@ export const ConnectionCatalogDocument = Schema.Struct({
   targets: ForwardCompatibleArray(PersistedConnectionTarget),
   profiles: Schema.Array(ConnectionProfile),
   credentials: Schema.Array(StoredConnectionCredential),
-  githubRoutingPermissions: Schema.optionalKey(Schema.Array(StoredGitHubRoutingPermission)),
+  // Pull request routing grants. The field name predates the rename and stays, so older and
+  // newer clients sharing this document keep reading and revoking the same grants.
+  githubRoutingPermissions: Schema.optionalKey(Schema.Array(StoredPullRequestRoutingPermission)),
   platformLabels: Schema.Array(StoredPlatformLabel).pipe(
     Schema.withDecodingDefaultKey(Effect.succeed([])),
   ),

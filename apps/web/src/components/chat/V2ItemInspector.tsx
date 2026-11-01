@@ -1,9 +1,5 @@
-import type {
-  EnvironmentId,
-  OrchestrationV2ProjectedTurnItem,
-  RunId,
-  ThreadId,
-} from "@supaterm/contracts";
+import type { ToolCallDiffTarget } from "../../diffPanelStore";
+import type { EnvironmentId, OrchestrationV2ProjectedTurnItem } from "@supaterm/contracts";
 import { withOccurrenceKeys } from "@supaterm/shared/occurrenceKeys";
 import {
   toolCallLines,
@@ -14,7 +10,7 @@ import {
 } from "@supaterm/client-runtime/work-log/item-detail";
 import { formatDiffCount } from "@supaterm/client-runtime/diff-count";
 import { isJavaScriptReplTool } from "@supaterm/shared/toolActivity";
-import { ExternalLinkIcon, GitBranchIcon } from "@supaterm/icons";
+import { ExternalLinkIcon } from "@supaterm/icons";
 import { memo, type ReactNode, Suspense, use } from "react";
 
 import { useRenderedAppearance } from "../../hooks/useTheme";
@@ -22,7 +18,6 @@ import { cn } from "../../lib/utils";
 import { resolveDiffThemeName } from "../../lib/diffRendering";
 import { getSyntaxHighlighterPromise } from "../../lib/syntaxHighlighting";
 import { useTurnItemDetail } from "../../state/queries";
-import { useV2ItemSupport } from "../../state/v2ItemSupport";
 import { formatWorkspaceRelativePath } from "../../filePathDisplay";
 import { Button } from "../ui/button";
 import ChatMarkdown from "../ChatMarkdown";
@@ -38,8 +33,7 @@ interface V2ItemInspectorProps {
   readonly environmentId: EnvironmentId;
   readonly cwd?: string | undefined;
   readonly workspaceRoot?: string | undefined;
-  readonly onOpenThread: (threadId: ThreadId) => void;
-  readonly onOpenTurnDiff: (runId: RunId, filePath?: string) => void;
+  readonly onOpenToolDiff?: ((target: ToolCallDiffTarget) => void) | undefined;
   readonly onImageExpand?: ((preview: ExpandedImagePreview) => void) | undefined;
 }
 
@@ -200,7 +194,7 @@ function ToolCallBody(
     readonly args?: unknown;
     readonly toolName?: string | null;
     readonly exitCode?: number | undefined;
-    /** Replaces the fetched output, e.g. with a command's live output. */
+    /** Replaces fetched output. */
     readonly outputSlot?: ReactNode;
   },
 ) {
@@ -237,11 +231,6 @@ export const V2ItemInspector = memo(function V2ItemInspector(props: V2ItemInspec
   const fetched = useFetchedTurnItem(props.projectedItem, props.environmentId, streamsOutput);
   const item = fetched.item;
   const outputState = fetched.output;
-  const support = useV2ItemSupport({
-    environmentId: props.environmentId,
-    sourceThreadId: props.projectedItem.sourceThreadId,
-    sourceItemId: props.projectedItem.sourceItemId,
-  });
   return (
     <div className="space-y-2 text-xs" data-v2-item-inspector={item.type}>
       {item.type === "reasoning" && item.text ? (
@@ -288,11 +277,17 @@ export const V2ItemInspector = memo(function V2ItemInspector(props: V2ItemInspec
                 <span className="text-diff-deletion">-{formatDiffCount(item.deletions ?? 0)}</span>
               </span>
             ) : null}
-            {item.runId !== null ? (
+            {props.onOpenToolDiff ? (
               <Button
                 size="xs"
                 variant="outline"
-                onClick={() => props.onOpenTurnDiff(item.runId!, item.fileName)}
+                onClick={() =>
+                  props.onOpenToolDiff?.({
+                    threadId: props.projectedItem.sourceThreadId,
+                    itemId: props.projectedItem.sourceItemId,
+                    revision: turnItemDetailRevision(item),
+                  })
+                }
               >
                 Open diff
               </Button>
@@ -389,43 +384,12 @@ export const V2ItemInspector = memo(function V2ItemInspector(props: V2ItemInspec
       {item.type === "notification" ? <StructuredValue value={item.detail} /> : null}
       {item.type === "system_notice" ? <StructuredValue value={item.message} /> : null}
       {item.type === "error" ? <StructuredValue value={item.failure.message} /> : null}
-      {item.type === "proposed_plan" ? <StructuredValue value={item.markdown} /> : null}
       {item.type === "todo_list" ? (
         <StructuredValue
           value={item.steps
             .map((step) => `${step.status === "completed" ? "✓" : "○"} ${step.text}`)
             .join("\n")}
         />
-      ) : null}
-
-      {item.type === "fork" ? (
-        <Button size="xs" variant="outline" onClick={() => props.onOpenThread(item.targetThreadId)}>
-          <GitBranchIcon className="size-3" />
-          Open fork
-        </Button>
-      ) : null}
-
-      {item.type === "subagent" && item.childThreadId !== null ? (
-        <Button size="xs" variant="outline" onClick={() => props.onOpenThread(item.childThreadId!)}>
-          Open subagent thread
-        </Button>
-      ) : null}
-
-      {item.type === "handoff" ? (
-        <div className="space-y-1 text-muted-foreground">
-          <p>
-            {item.fromProviderInstanceIds.join(", ")} → {item.toProviderInstanceId}
-          </p>
-          <p>
-            {item.strategy.replaceAll("_", " ")} · {support.contextHandoff?.status ?? item.status}
-          </p>
-          {support.contextTransfer ? (
-            <p>
-              Transfer {support.contextTransfer.type.replaceAll("_", " ")} ·{" "}
-              {support.contextTransfer.status}
-            </p>
-          ) : null}
-        </div>
       ) : null}
     </div>
   );

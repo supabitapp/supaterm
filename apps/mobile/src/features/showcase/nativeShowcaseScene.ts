@@ -2,7 +2,7 @@ import { requireOptionalNativeModule } from "expo";
 
 import { MOBILE_THEME_IDS, type MobileThemeId } from "../../lib/mobileTheme";
 
-export const SHOWCASE_SCENES = ["threads", "thread", "terminal", "review", "environments"] as const;
+const SHOWCASE_SCENES = ["threads", "thread", "terminal", "review", "environments"] as const;
 export type ShowcaseScene = (typeof SHOWCASE_SCENES)[number];
 
 export type ShowcaseOrientation = "portrait" | "landscape";
@@ -86,14 +86,12 @@ export async function applyNativeShowcaseOrientation(
 ): Promise<boolean> {
   const controls = nativeShowcaseControls();
   if (!controls?.applyShowcaseOrientation || !controls.getInterfaceOrientation) {
-    // A development build that predates this helper keeps its default
-    // orientation; report success so callers do not retry forever.
+    // Older binaries cannot change orientation; report success to avoid endless retries.
     return true;
   }
   try {
     await controls.applyShowcaseOrientation(orientation);
-    // The geometry request settles asynchronously; confirm it took effect so
-    // callers can retry attempts made before the scene was foreground-active.
+    // Confirm async geometry changes so requests made before foreground activation can retry.
     await new Promise((resolve) => setTimeout(resolve, 500));
     return (await controls.getInterfaceOrientation()) === orientation;
   } catch {

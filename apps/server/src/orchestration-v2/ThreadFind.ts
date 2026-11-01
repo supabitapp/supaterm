@@ -14,6 +14,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
+import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import * as SqlClient from "effect/sql/SqlClient";
 import {
   ProjectionStoreReadError,
@@ -82,21 +83,6 @@ function parseText(key: TextKey): readonly string[] {
       ) ?? []);
 }
 
-function searchableRows(items: readonly OrchestrationV2ProjectedTurnItem[]) {
-  const foldedAnswers = new Set(
-    items.flatMap(({ item }) =>
-      item.type === "user_input_request" && item.questionAnswer
-        ? [`async-answer:${item.questionAnswer.requestId}`]
-        : [],
-    ),
-  );
-  return items.filter(
-    ({ item }) =>
-      ["user_message", "assistant_message", "proposed_plan"].includes(item.type) &&
-      !(item.type === "user_message" && foldedAnswers.has(item.messageId)),
-  );
-}
-
 function documentFor(row: OrchestrationV2ProjectedTurnItem, count: number): FindDocument {
   return {
     position: row.position,
@@ -141,22 +127,6 @@ function selectMatch(
     occurrence -= document.count;
   }
   return { totalMatches, activeIndex, document: null, occurrence: 0 };
-}
-
-export function findProjectedThreadItems(
-  items: readonly OrchestrationV2ProjectedTurnItem[],
-  input: OrchestrationV2SearchThreadInput,
-  snapshotSequence: number,
-  cwd?: string,
-): OrchestrationV2SearchThreadResult {
-  const rows = searchableRows(items);
-  const docs = rows.map((row) =>
-    documentFor(
-      row,
-      countSegments(parseText(textKey(row.item, cwd, input.skills ?? [])), input.query),
-    ),
-  );
-  return resultForSelection(selectMatch(docs, input), docs, snapshotSequence);
 }
 
 function resultForSelection(
@@ -344,7 +314,7 @@ export const makeThreadFind = Effect.fn("makeThreadFind")(function* (
       }
       return { payloads, cwd, sequence, cacheKey, sourceThreadIds };
     },
-    sql.withTransaction,
+    (effect) => sql.withTransaction(effect).pipe(NodeSqliteClient.readOnly),
     (effect, input) =>
       effect.pipe(
         Effect.mapError((cause) =>

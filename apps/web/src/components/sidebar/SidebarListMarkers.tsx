@@ -1,6 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { ReactNode } from "react";
+import { type ReactNode, useLayoutEffect } from "react";
 import { cn } from "~/lib/utils";
 import {
   animateSidebarLayoutChanges,
@@ -8,6 +8,7 @@ import {
   type SidebarListMarker,
 } from "../Sidebar.logic";
 import { CollapsibleSectionHeader } from "../ui/collapsible-section-header";
+import { SidebarThreadUndoNotice } from "./SidebarThreadUndoNotice";
 
 export const SIDEBAR_SORTABLE_DRAG_DISABLED = { draggable: true } as const;
 
@@ -15,14 +16,21 @@ export function SortableSidebarMarker(
   props: ({ marker: SidebarListMarker; id?: never } | { id: string; marker?: never }) & {
     className?: string;
     children?: ReactNode;
+    revealOverflow?: boolean;
     "data-testid"?: string;
   },
 ) {
-  const { setNodeRef, transform, transition } = useSortable({
+  const { node, setNodeRef, transform, transition } = useSortable({
     id: props.id ?? sidebarMarkerId(props.marker),
     disabled: SIDEBAR_SORTABLE_DRAG_DISABLED,
     animateLayoutChanges: animateSidebarLayoutChanges,
   });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- keeps the projected drop box inside the scroll viewport as drag transforms move it
+  useLayoutEffect(() => {
+    if (props.revealOverflow && transform?.y !== undefined) {
+      node.current?.firstElementChild?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
+  }, [node, props.revealOverflow, transform?.y]);
   return (
     <li
       ref={setNodeRef}
@@ -51,6 +59,7 @@ export function SidebarSectionPlaceholder(props: {
       marker={props.marker}
       data-testid={`sidebar-${props.marker}`}
       className="relative mx-0.5 -mb-px h-0"
+      revealOverflow={props.marker === "done-placeholder" && props.showHint}
     >
       {props.showHint ? (
         <div
@@ -116,15 +125,23 @@ export function SidebarSectionHeader(props: {
   dragging?: boolean;
   isDropTarget?: boolean;
   toggle: { expanded: boolean; onToggle: () => void; prepare: () => void };
+  /** The first shelf at the bottom of the list hosts the undo notice just above itself. */
+  hostsUndoNotice?: boolean;
 }) {
   const shelf = props.marker.replace("-header", "");
   return (
     <SortableSidebarMarker
       marker={props.marker}
       data-testid={`sidebar-${props.marker}`}
-      className={cn("mx-0.5 h-8", props.className)}
+      className={cn("relative mx-0.5 h-8", props.className)}
     >
+      {props.hostsUndoNotice ? (
+        <SidebarThreadUndoNotice className="absolute inset-x-0 bottom-full bg-sidebar surface-grain" />
+      ) : null}
       <CollapsibleSectionHeader
+        role="treeitem"
+        tabIndex={-1}
+        data-sidebar-row={`shelf:${shelf}`}
         onClick={() => {
           props.toggle.prepare();
           props.toggle.onToggle();

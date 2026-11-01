@@ -18,6 +18,7 @@ import { StyleSheet } from "react-native";
 import {
   composerChipSizeSuffix,
   contextChipIcon,
+  contextChipAccent,
   contextChipPresentation,
   contextRecordFileName,
 } from "../lib/composerChipPresentation";
@@ -110,6 +111,13 @@ interface NativeComposerEditorProps extends ViewProps {
 
 const NativeView = requireNativeView<NativeComposerEditorProps>(NATIVE_MODULE_NAME);
 
+// A view command rejects with "Unable to find the view" when the composer's native view is
+// unmounted, which can happen while an open question hides the composer slot. There is nothing
+// to act on then.
+function settleViewCommand(command: Promise<void> | undefined): void {
+  command?.catch(() => undefined);
+}
+
 function basename(path: string): string {
   const separator = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
   return separator >= 0 ? path.slice(separator + 1) : path;
@@ -159,15 +167,16 @@ export function ComposerEditor({
   useImperativeHandle(
     ref,
     () => ({
-      focus: () => void nativeRef.current?.focus(),
-      blur: () => void nativeRef.current?.blur(),
+      focus: () => settleViewCommand(nativeRef.current?.focus()),
+      blur: () => settleViewCommand(nativeRef.current?.blur()),
       setSelection: (nextSelection) =>
-        void nativeRef.current?.setSelection(nextSelection.start, nextSelection.end),
+        settleViewCommand(nativeRef.current?.setSelection(nextSelection.start, nextSelection.end)),
     }),
     [],
   );
 
   const skillLabels = useMemo(() => composerSkillLabels(skills), [skills]);
+  const chipTextColor = createNativeComposerTheme(theme).text;
   const tokensJson = useMemo(() => {
     return JSON.stringify(
       composerContextEditorTokens(props.value, inlineTokens, skillLabels).map((token) => {
@@ -188,7 +197,7 @@ export function ComposerEditor({
           source: token.source,
           start: token.start,
           end: token.end,
-          accent: presentation.accent,
+          accent: contextChipAccent(presentation.accent, theme, chipTextColor),
           label:
             token.type === "skill"
               ? (skillLabels.get(token.value) ?? token.value)
@@ -201,7 +210,7 @@ export function ComposerEditor({
         };
       }),
     );
-  }, [inlineTokens, props.value, props.context, skillLabels]);
+  }, [inlineTokens, props.value, props.context, skillLabels, theme, chipTextColor]);
   // Every render resolves against the snapshot history, so a render whose
   // (value, selection) lags the acknowledged native state is stamped behind
   // the native revision and rejected by the editor instead of re-applying a
@@ -229,6 +238,7 @@ export function ComposerEditor({
     mostRecentEventCount: controlledEventCount,
     isNativeEcho,
   });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- prunes native editor event snapshots once a committed payload acknowledges them
   useEffect(() => {
     if (!acknowledgesLatestNativeEvent) return;
     nativeEventSnapshotsRef.current = pruneAcknowledgedComposerNativeEvents(
@@ -238,6 +248,7 @@ export function ComposerEditor({
   }, [acknowledgesLatestNativeEvent, mostRecentEventCount, nativeEventSnapshotsRef]);
   const assumedValue = props.value;
   const assumedControlledDocumentRef = useRef<string | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- records the committed controlled payload as the native editor's assumed state
   useEffect(() => {
     if (assumedControlledDocumentRef.current === controlledDocumentJson) return;
     assumedControlledDocumentRef.current = controlledDocumentJson;

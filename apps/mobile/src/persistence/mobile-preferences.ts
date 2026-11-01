@@ -14,6 +14,7 @@ import {
   type PullRequestMergeMethod,
   type SidebarProjectGroupingMode,
 } from "@supaterm/contracts";
+import type { AndroidNavigationStyle } from "../lib/androidNavigationStyle";
 import type { ComposerEnterBehavior } from "../lib/composerEnterBehavior";
 import type { FollowUpBehavior } from "../lib/followUpBehavior";
 import { MOBILE_THEME_IDS, type MobileThemeId, type MobileThemeMode } from "../lib/mobileTheme";
@@ -56,15 +57,15 @@ export interface Preferences {
   readonly lightThemeId?: MobileThemeId;
   readonly darkThemeId?: MobileThemeId;
   readonly themeMode?: MobileThemeMode;
+  readonly androidNavigationStyle?: AndroidNavigationStyle;
   readonly baseFontSize?: number;
   readonly terminalFontSize?: number | null;
   readonly codeFontSize?: number | null;
   readonly codeWordBreak?: boolean;
   readonly mathRenderingEnabled?: boolean;
   readonly collapsedProjectGroups?: readonly string[];
-  /** Environments whose "reclaim database space" notice was dismissed. */
   readonly dismissedDatabaseStorageNotices?: readonly string[];
-  /** What the Return key does in the composer on a hardware keyboard. iOS only. */
+  /** Hardware Return behavior is iOS-only. */
   readonly composerEnterBehavior?: ComposerEnterBehavior;
   readonly showSkillsInSlashMenu?: boolean;
   readonly followUpBehavior?: FollowUpBehavior;
@@ -73,6 +74,7 @@ export interface Preferences {
   readonly threadListPinnedShelfExpanded?: boolean;
   readonly threadListActiveShelfExpanded?: boolean;
   readonly threadListDoneShelfExpanded?: boolean;
+  readonly useLastProjectForNewThreads?: boolean;
   readonly threadListSnoozedShelfExpanded?: boolean;
   readonly threadListWorkingShelfExpanded?: boolean;
   readonly threadListCollapsedGroups?: readonly string[];
@@ -124,6 +126,7 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     lightThemeId?: MobileThemeId;
     darkThemeId?: MobileThemeId;
     themeMode?: MobileThemeMode;
+    androidNavigationStyle?: AndroidNavigationStyle;
     baseFontSize?: number;
     terminalFontSize?: number | null;
     codeFontSize?: number | null;
@@ -139,6 +142,7 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     threadListPinnedShelfExpanded?: boolean;
     threadListActiveShelfExpanded?: boolean;
     threadListDoneShelfExpanded?: boolean;
+    useLastProjectForNewThreads?: boolean;
     threadListSnoozedShelfExpanded?: boolean;
     threadListWorkingShelfExpanded?: boolean;
     threadListCollapsedGroups?: readonly string[];
@@ -176,6 +180,9 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     parsed.themeMode === "dark"
   ) {
     preferences.themeMode = parsed.themeMode;
+  }
+  if (parsed.androidNavigationStyle === "one-ui" || parsed.androidNavigationStyle === "material") {
+    preferences.androidNavigationStyle = parsed.androidNavigationStyle;
   }
   if (typeof parsed.baseFontSize === "number") preferences.baseFontSize = parsed.baseFontSize;
   if (typeof parsed.terminalFontSize === "number" || parsed.terminalFontSize === null) {
@@ -219,6 +226,9 @@ function sanitizePreferences(parsed: Preferences): Preferences {
   if (typeof parsed.threadListPinnedShelfExpanded === "boolean") {
     preferences.threadListPinnedShelfExpanded = parsed.threadListPinnedShelfExpanded;
   }
+  if (typeof parsed.useLastProjectForNewThreads === "boolean") {
+    preferences.useLastProjectForNewThreads = parsed.useLastProjectForNewThreads;
+  }
   if (typeof parsed.threadListActiveShelfExpanded === "boolean") {
     preferences.threadListActiveShelfExpanded = parsed.threadListActiveShelfExpanded;
   }
@@ -245,7 +255,7 @@ function sanitizePreferences(parsed: Preferences): Preferences {
   return preferences;
 }
 
-export const make = Effect.fn("MobilePreferencesStore.make")(function* () {
+const make = Effect.fn("MobilePreferencesStore.make")(function* () {
   const database = yield* MobileDatabase.MobileDatabase;
   const secureStorage = yield* MobileSecureStorage.MobileSecureStorage;
   const lock = yield* Semaphore.make(1);

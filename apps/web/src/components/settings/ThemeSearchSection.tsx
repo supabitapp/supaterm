@@ -1,6 +1,7 @@
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { RefreshIcon } from "~/components/ui/refresh-icon";
 import { ExternalLinkIcon, PackagePlusIcon, PaletteIcon, SearchIcon } from "@supaterm/icons";
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { type ReactNode, useEffect, useEffectEvent, useRef, useState } from "react";
 import {
   importOpenVsxThemeExtension,
   searchOpenVsxThemes,
@@ -14,7 +15,7 @@ import {
   replaceCustomThemeCollection,
   type ThemeDefinition,
 } from "../../themePalette";
-import { GitHubIcon, GitLabIcon } from "../Icons";
+import { sourceControlIcon } from "../../sourceControlPresentation";
 import {
   AlertDialog,
   AlertDialogClose,
@@ -51,13 +52,11 @@ function sourceHost(url: string): string | null {
   }
 }
 
-function SourceLinkIcon({ url }: { url: string }) {
+function sourceLinkIcon(url: string): ReactNode {
   const host = sourceHost(url);
-  if (host === "github.com" || host?.endsWith(".github.com"))
-    return <GitHubIcon className="size-3.5" />;
-  if (host === "gitlab.com" || host?.endsWith(".gitlab.com"))
-    return <GitLabIcon className="size-3.5" monochrome />;
-  return <ExternalLinkIcon className="size-3.5" />;
+  const definition = host === null ? undefined : sourceControlClients.findByPublicDomain(host);
+  const Icon = definition ? sourceControlIcon(definition) : ExternalLinkIcon;
+  return <Icon className="size-3.5" />;
 }
 
 function ThemeExtensionIcon({ extension }: { extension: OpenVsxThemeExtension }) {
@@ -96,17 +95,14 @@ export function ThemeSearchSection({
   const [installingId, setInstallingId] = useState<string | null>(null);
   const [pendingUpdate, setPendingUpdate] = useState<OpenVsxThemeExtension | null>(null);
   const requestRef = useRef<AbortController | null>(null);
-  // Recorded only once a search succeeds, so a finished install reruns the
-  // search only when the query or sort changed while it was in flight, and the
-  // install error the user needs to see survives.
+  // Record successful searches only; rerun after install only for changed query/sort to preserve install
+  // errors.
   const [lastSearchKey, setLastSearchKey] = useState<string | null>(null);
   const [handledSearch, setHandledSearch] = useState<{
     key: string;
     query: string;
     fetch: boolean;
   } | null>(null);
-  // An install aborts any search, so once it ends the current key is checked
-  // again even though it has not changed.
   const [searchInterrupted, setSearchInterrupted] = useState(false);
 
   const [wasOpen, setWasOpen] = useState(open);
@@ -126,6 +122,7 @@ export function ThemeSearchSection({
     }
   }
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- aborts the in-flight Open VSX search request when the dialog closes or unmounts
   useEffect(() => {
     if (!open) return;
     return () => {
@@ -150,6 +147,7 @@ export function ThemeSearchSection({
     setHandledSearch(null);
   }
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- aborts the in-flight Open VSX search request once the query is cleared
   useEffect(() => {
     if (!queryCleared) return;
     requestRef.current?.abort();
@@ -196,19 +194,14 @@ export function ThemeSearchSection({
 
   const debouncedQuery = useDebouncedValue(query.trim(), SEARCH_DEBOUNCE_MS);
   const searchKey = `${debouncedQuery}\u0000${sortBy}`;
-  // An unsettled query would hit Open VSX for text that is no longer visible;
-  // wait for the debounce to catch up to the current input instead.
   const searchSettled =
     open && installingId === null && debouncedQuery !== "" && debouncedQuery === query.trim();
 
   const keyChanged = handledSearch?.key !== searchKey;
   if (searchSettled && (keyChanged || searchInterrupted)) {
-    // Typing and then undoing lands back on the key already shown; keep those
-    // results instead of searching again.
     const fetch = lastSearchKey !== searchKey;
     setHandledSearch({ key: searchKey, query: debouncedQuery, fetch });
     setSearchInterrupted(false);
-    // An install error on an unchanged, already-shown query stays visible.
     if (fetch || keyChanged) setError(null);
     setIsSearching(fetch);
   }
@@ -217,14 +210,13 @@ export function ThemeSearchSection({
     fetchResults(searchText, startRequest());
   });
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- starts the Open VSX search for a settled query, or aborts the in-flight one when results are reused
   useEffect(() => {
     if (!handledSearch) return;
     if (handledSearch.fetch) {
       fetchHandledSearch(handledSearch.query);
       return;
     }
-    // A request for a newer key may still be in flight; abort it so it cannot
-    // overwrite the results being kept.
     requestRef.current?.abort();
     requestRef.current = null;
   }, [handledSearch]);
@@ -415,7 +407,7 @@ export function ThemeSearchSection({
                           size="icon-micro"
                           variant="ghost-muted"
                         >
-                          <SourceLinkIcon url={extension.sourceUrl} />
+                          {sourceLinkIcon(extension.sourceUrl)}
                         </Button>
                       ) : null}
                     </div>

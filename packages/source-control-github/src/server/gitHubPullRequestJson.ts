@@ -1,3 +1,4 @@
+import { trimOptionalString as trimmed } from "@supaterm/source-control-core/server/pullRequestUtils";
 import * as Cause from "effect/Cause";
 import * as Exit from "effect/Exit";
 import * as Result from "effect/Result";
@@ -50,10 +51,10 @@ import {
   PullRequestSearch,
 } from "./pullRequestListings.graphql.ts";
 import type {
-  ActorAvatars,
   CheckContext,
   LabelCandidates,
   PullRequestActivity,
+  PullRequestCommitStats,
   PullRequestCheckContexts,
   PullRequestCore,
   PullRequestFilesViewed,
@@ -61,6 +62,8 @@ import type {
   PullRequestHeads,
   PullRequestPreview as PullRequestPreviewQuery,
   PullRequestSubject,
+  RepositoryAuthors,
+  RepositoryLabels,
   ReviewerCandidates,
   ViewerPermissions,
 } from "./pullRequestReads.graphql.ts";
@@ -88,7 +91,7 @@ interface ListItemFields {
   readonly number: number;
   readonly title: string;
   readonly url: string;
-  readonly author?: (ActorFields & { readonly id?: string | null | undefined }) | null | undefined;
+  readonly author?: ActorFields | null | undefined;
   readonly headRefName: string;
   readonly baseRefName: string;
   readonly state?: string | null | undefined;
@@ -260,18 +263,6 @@ const RawPullRequestFileSchema = Schema.Struct({
   deletions: Schema.optional(Schema.NullOr(Schema.Int)),
 });
 
-/** A listing's authors' avatars by login, from their node ids. */
-export function toActorAvatars(result: ActorAvatars.Result): ReadonlyMap<string, string> {
-  const avatarsByLogin = new Map<string, string>();
-  for (const node of result.nodes) {
-    if (node === null || !("login" in node)) continue;
-    const login = trimmed(node.login);
-    const avatarUrl = trimmed(node.avatarUrl);
-    if (login !== null && avatarUrl !== null) avatarsByLogin.set(login, avatarUrl);
-  }
-  return avatarsByLogin;
-}
-
 /** Null for a number that names no pull request the viewer can see. */
 export function toPullRequestPreview(
   result: PullRequestPreviewQuery.Result,
@@ -330,6 +321,8 @@ const ReviewSubmissionSchema = Schema.Struct({
   comments: Schema.Array(
     Schema.Struct({
       path: Schema.String,
+      start_line: Schema.optional(Schema.Int),
+      start_side: Schema.optional(Schema.Literals(["LEFT", "RIGHT"])),
       line: Schema.Int,
       side: Schema.Literals(["LEFT", "RIGHT"]),
       body: Schema.String,
@@ -367,17 +360,24 @@ export function buildReviewSubmission(input: {
   return {
     event: REVIEW_EVENTS[input.verdict],
     body: input.body,
-    comments: input.comments.map((comment) => ({
-      path: comment.path,
-      ...gitHubReviewPosition(comment.position),
-      body: comment.body,
-    })),
+    comments: input.comments.map((comment) => {
+      const end = gitHubReviewPosition(comment.position);
+      const start =
+        comment.startPosition === undefined ? null : gitHubReviewPosition(comment.startPosition);
+      // GitHub refuses a start that is the end itself, so a one-line range is sent as one line.
+      const ranged = start !== null && (start.line !== end.line || start.side !== end.side);
+      return {
+        path: comment.path,
+        ...(ranged ? { start_line: start.line, start_side: start.side } : {}),
+        ...end,
+        body: comment.body,
+      };
+    }),
   };
 }
 
 export interface GitHubPullRequestListItem {
   readonly stack?: PullRequestStackMembership;
-  readonly authorId: string | null;
   readonly number: number;
   readonly title: string;
   readonly url: string;
@@ -431,11 +431,6 @@ export interface GitHubPullRequestActivity {
   readonly commits: ReadonlyArray<PullRequestCommit>;
 }
 
-function trimmed(value: string | null | undefined): string | null {
-  const text = value?.trim() ?? "";
-  return text.length > 0 ? text : null;
-}
-
 /**
  * GitHub sends an `endCursor` on a page that is also the last one, so the flag is what
  * decides, not the cursor's presence.
@@ -445,20 +440,9 @@ function nextCursorOf(pageInfo: PageInfoFields | null | undefined): string | nul
 }
 
 /**
- * The viewer's standing on one pull request. The two halves take opposite defaults on purpose.
- *
- * Updating is a permission, so an install that does not report it grants it and lets the host's
- * own refusal explain anything that fails. Authorship is not a permission but a fact about who
- * wrote the thing, and it is read to decide what an author may do to their own change — so an
- * unknown answer is "not the author", which grants nothing it should not.
- */
-/**
- * The viewer's standing on one pull request. The two halves take opposite defaults on purpose.
- *
- * Updating is a permission, so an install that does not report it grants it and lets the host's
- * own refusal explain anything that fails. Authorship is not a permission but a fact about who
- * wrote the thing, and it is read to decide what an author may do to their own change — so an
- * unknown answer is "not the author", which grants nothing it should not.
+ * The two halves default oppositely on purpose. An unreported update permission is granted and
+ * the host's own refusal explains failures; unknown authorship means "not the author", since it
+ * decides what an author may do to their own change.
  */
 function toPullRequestViewerFields(
   raw:
@@ -798,7 +782,6 @@ function toCommits(
 
 function toListItem(raw: ListItemFields): GitHubPullRequestListItem {
   return {
-    authorId: trimmed(raw.author?.id),
     number: raw.number,
     title: raw.title,
     url: raw.url,
@@ -856,18 +839,6 @@ function toDetail(raw: DetailFields): GitHubPullRequestDetail {
 }
 
 const decodeUnknownList = decodeJsonResult(Schema.Array(Schema.Unknown));
-const decodeDetail = decodeJsonResult(
-  Schema.Struct({
-    number: Schema.Int,
-    title: Schema.String,
-    url: Schema.String,
-    headRefName: Schema.String,
-    baseRefName: Schema.String,
-    state: Schema.optional(Schema.String),
-    createdAt: Schema.String,
-    updatedAt: Schema.String,
-  }),
-);
 const decodeWorkflowRuns = decodeJsonResult(RawWorkflowRunsSchema);
 const decodeWorkflowRunJobs = decodeJsonResult(RawWorkflowRunJobsSchema);
 const decodeWorkflowRun = decodeJsonResult(RawWorkflowRunSchema);
@@ -1110,6 +1081,8 @@ export function toPullRequestWatchFingerprint(
 }
 
 export interface GitHubPullRequestCore extends GitHubPullRequestDetail {
+  readonly maintainerCanModify: boolean;
+  readonly canEditMaintainerEdits: boolean;
   readonly reviewRequestTeams: ReadonlyArray<PullRequestActor>;
   readonly viewerAccess: GitHubViewerAccess & GitHubRepositoryAccess;
   readonly comparison: GitHubBaseComparison | null;
@@ -1134,8 +1107,6 @@ export function toPullRequestCore(result: PullRequestCore.Result): GitHubPullReq
     ),
     ...toDetail({
       ...pr,
-      author:
-        pr.author === null ? null : { ...pr.author, id: "id" in pr.author ? pr.author.id : null },
       latestReviews: [],
       reviewRequests: nodesOf(pr.reviewRequests).flatMap(
         ({ requestedReviewer }: NonNullable<CoreRequestedReviewer>) =>
@@ -1158,6 +1129,14 @@ export function toPullRequestCore(result: PullRequestCore.Result): GitHubPullReq
       statusCheckRollup: toCheckContexts(nodesOf(contexts)),
     }),
     headRepositoryNameWithOwner: trimmed(pr.headRepository?.nameWithOwner),
+    maintainerCanModify: pr.maintainerCanModify,
+    canEditMaintainerEdits:
+      pr.state === "OPEN" &&
+      pr.isCrossRepository &&
+      pr.viewerDidAuthor &&
+      pr.headRepositoryOwner?.__typename === "User" &&
+      pr.headRepository !== null &&
+      pr.headRef !== null,
     viewerAccess: {
       canWrite: toCanWrite(repository.viewerPermission),
       canDeleteBranch: toCanWrite(pr.headRepository?.viewerPermission) && pr.headRef !== null,
@@ -1180,16 +1159,6 @@ export function toPullRequestCore(result: PullRequestCore.Result): GitHubPullReq
           },
     checksTruncated: contexts?.pageInfo.hasNextPage === true,
   };
-}
-
-/** A detail as a REST pull request names it, for the provider's tests and fixtures. */
-export function decodePullRequestDetailJson(
-  raw: string,
-): Result.Result<GitHubPullRequestDetail, DecodeFailure> {
-  const decoded = decodeDetail(raw);
-  return Result.isSuccess(decoded)
-    ? Result.succeed(toDetail(decoded.success))
-    : Result.fail(decoded.failure);
 }
 
 export interface GitHubWorkflowRunPage {
@@ -1269,6 +1238,7 @@ export function toPullRequestHeads(result: PullRequestHeads.Result): {
 }
 
 export interface GitHubPullRequestActivityPage {
+  readonly nonMergeCommitIds: ReadonlyArray<string>;
   readonly author?: PullRequestActor | null;
   readonly commits?: ReadonlyArray<PullRequestCommit>;
   readonly remarks: ReadonlyArray<PullRequestComment>;
@@ -1283,6 +1253,9 @@ export function toPullRequestActivityPage(
   const pr = result.repository?.pullRequest;
   if (pr == null) return null;
   return {
+    nonMergeCommitIds: nodesOf(pr.commits).flatMap(({ commit }) =>
+      commit.parents.totalCount > 1 ? [] : [commit.id],
+    ),
     ...(pr.author === undefined ? {} : { author: toActor(pr.author) }),
     ...(pr.commits === undefined
       ? {}
@@ -1301,6 +1274,24 @@ export function toPullRequestActivityPage(
     nextCommentsCursor: nextCursorOf(pr.comments?.pageInfo),
     nextReviewsCursor: nextCursorOf(pr.reviews?.pageInfo),
   };
+}
+
+export function toPullRequestCommitStats(result: PullRequestCommitStats.Result) {
+  return new Map(
+    (result.nodes ?? []).flatMap((commit) =>
+      commit?.__typename === "Commit"
+        ? [
+            [
+              commit.oid,
+              {
+                additions: Math.max(0, commit.additions),
+                deletions: Math.max(0, commit.deletions),
+              },
+            ] as const,
+          ]
+        : [],
+    ),
+  );
 }
 
 /** A check context as the rollup reports it; opaque outside this module. */
@@ -1350,10 +1341,6 @@ export interface GitHubReviewThreadComments {
   readonly reviewers: ReadonlyArray<PullRequestActor>;
   readonly avatarsByLogin: ReadonlyMap<string, string>;
   readonly botLogins: ReadonlySet<string>;
-  readonly commitStats: ReadonlyMap<
-    string,
-    { readonly additions: number; readonly deletions: number }
-  >;
   /**
    * Empty wherever the read never happened (an install too old for the field, a degraded page),
    * which the caller reads as "keep the `gh pr view` list" rather than as "this pull request has
@@ -1378,10 +1365,6 @@ export interface GitHubReviewThreadPage {
   readonly reviewers: ReadonlyArray<PullRequestActor>;
   readonly avatarsByLogin: ReadonlyMap<string, string>;
   readonly botLogins: ReadonlySet<string>;
-  readonly commitStats: ReadonlyMap<
-    string,
-    { readonly additions: number; readonly deletions: number }
-  >;
   readonly commits: ReadonlyArray<PullRequestCommit>;
   readonly viewer: { readonly canUpdate: boolean; readonly didAuthor: boolean };
   readonly dismissalsByReviewId: ReadonlyMap<string, string>;
@@ -1506,20 +1489,10 @@ export function toReviewThreadPage(result: ReviewThreads.Result): GitHubReviewTh
     const actor = toActor(raw) ?? toRequestedTeam(raw);
     if (actor !== null && !reviewers.has(actor.login)) reviewers.set(actor.login, actor);
   }
-  const commitStats = new Map<string, { readonly additions: number; readonly deletions: number }>();
   const commits: PullRequestCommit[] = [];
   for (const { commit } of nodesOf(pullRequest.commits)) {
     const oid = trimmed(commit.oid);
     if (oid === null) continue;
-    // GitHub measures a merge commit against its first parent, so merging the base into the head
-    // reports every upstream change as if it belonged to the pull request. There is no useful
-    // per-commit stat to show for that integration commit without another comparison request.
-    if (commit.parents.totalCount <= 1) {
-      commitStats.set(oid, {
-        additions: Math.max(0, commit.additions),
-        deletions: Math.max(0, commit.deletions),
-      });
-    }
     const committedDate = trimmed(commit.committedDate);
     if (committedDate === null) continue;
     commits.push({
@@ -1548,7 +1521,6 @@ export function toReviewThreadPage(result: ReviewThreads.Result): GitHubReviewTh
     reviewers: [...reviewers.values()],
     avatarsByLogin,
     botLogins,
-    commitStats,
     commits,
     viewer: toPullRequestViewerFields(pullRequest),
     dismissalsByReviewId: toDismissalEntries(pullRequest.reviewDismissals),
@@ -1605,28 +1577,15 @@ function toCanTriage(viewerPermission: string | null | undefined): boolean {
   return viewerPermission?.trim().toUpperCase() === "TRIAGE" || toCanWrite(viewerPermission);
 }
 
-/**
- * `assignableUsers` is the list GitHub's own reviewer picker is built from — everyone with access
- * to the repository — rather than `collaborators`, which the REST API refuses to anyone without
- * push access and which would therefore be empty for exactly the reader most likely to be looking.
- *
- * The teams a repository could newly be sent to live on the owning organization and need
- * `read:org`, which a repository-scoped token need not carry — and a query GitHub refuses fails
- * whole, taking the people down with the teams.
- */
 export interface GitHubBaseComparison {
   readonly behindBy: number | null;
   readonly viewerCanUpdate: boolean;
 }
 
 /**
- * The people this pull request may be sent to, with whoever is already on it marked. The author is
- * dropped rather than shown as an unusable row: GitHub refuses a review request from the person
- * who opened the pull request, so offering them is offering a failure.
- *
- * Whoever has been asked leads the list even where GitHub does not count them assignable — an
- * outside collaborator, an app — because a request that cannot be seen cannot be taken back.
- * Null for a repository the viewer cannot see.
+ * The author is dropped because GitHub refuses a review request from them. Whoever was already
+ * asked leads even when GitHub does not count them assignable, because a request that cannot be
+ * seen cannot be taken back. Null for a repository the viewer cannot see.
  */
 export function toReviewerCandidates(
   result: ReviewerCandidates.Result,
@@ -1719,6 +1678,36 @@ export function toLabelCandidates(
       ...candidates.values(),
     ],
     truncated: repository.labels?.pageInfo.hasNextPage === true,
+  };
+}
+
+export function toRepositoryLabels(
+  result: RepositoryLabels.Result,
+): { readonly items: ReadonlyArray<PullRequestLabel>; readonly truncated: boolean } | null {
+  const repository = result.repository;
+  if (repository == null) return null;
+  return {
+    items: nodesOf(repository.labels).flatMap((node) => {
+      const name = trimmed(node.name);
+      return name === null ? [] : [{ name, color: trimmed(node.color) }];
+    }),
+    truncated: repository.labels?.pageInfo.hasNextPage === true,
+  };
+}
+
+export function toRepositoryAuthors(
+  result: RepositoryAuthors.Result,
+): { readonly items: ReadonlyArray<PullRequestActor>; readonly truncated: boolean } | null {
+  const repository = result.repository;
+  if (repository == null) return null;
+  return {
+    items: nodesOf(repository.mentionableUsers).flatMap((node) => {
+      const login = trimmed(node.login);
+      return login === null
+        ? []
+        : [{ login, name: trimmed(node.name), avatarUrl: trimmed(node.avatarUrl) }];
+    }),
+    truncated: repository.mentionableUsers.pageInfo.hasNextPage,
   };
 }
 

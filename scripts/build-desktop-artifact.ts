@@ -960,11 +960,9 @@ const NODE_PTY_WINDOWS_EXCLUSIONS = [
   "!**/node_modules/node-pty/prebuilds/win32-*/**/*",
   "!**/node_modules/node-pty/third_party/conpty/**/*",
 ] as const;
-// node-hid publishes its C sources and every platform's prebuild in one package.
-// Each platform keeps only what it loads; foreign .node files would also be
-// unpacked and Authenticode-signed on Windows. electron-builder's native rebuild
-// also compiles a build/ copy, which pkg-prebuilds would load ahead of the
-// equivalent N-API prebuild.
+// node-hid ships its C sources and every platform's prebuild. Foreign .node files would be
+// unpacked and Authenticode-signed on Windows, and pkg-prebuilds would load electron-builder's
+// rebuilt build/ copy ahead of the equivalent N-API prebuild.
 const NODE_HID_SOURCE_EXCLUSIONS = [
   "!**/node_modules/node-hid/hidapi/**/*",
   "!**/node_modules/node-hid/src/**/*",
@@ -3242,6 +3240,42 @@ export const validateWindowsPackagedPayload = Effect.fn(
   return { packagedAppDir, fileCount, unpackedFiles } as const;
 });
 
+export class MacPackagedAppMissingError extends Schema.TaggedError<MacPackagedAppMissingError>()(
+  "MacPackagedAppMissingError",
+  { stageDistDir: Schema.String },
+) {
+  override get message(): string {
+    return `Expected electron-builder to leave a packaged .app with Contents/Resources/app.asar under ${this.stageDistDir}/mac*.`;
+  }
+}
+
+export const validateMacPackagedPayload = Effect.fn("desktopArtifact.validateMacPackagedPayload")(
+  function* (input: { readonly stageDistDir: string; readonly verbose?: boolean }) {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const asarPaths: string[] = [];
+    for (const entry of yield* fs.readDirectory(input.stageDistDir)) {
+      if (!entry.startsWith("mac")) continue;
+      const outputDir = path.join(input.stageDistDir, entry);
+      const apps = yield* fs.readDirectory(outputDir).pipe(Effect.orElseSucceed(() => []));
+      for (const app of apps) {
+        if (app.endsWith(".app")) {
+          asarPaths.push(path.join(outputDir, app, "Contents/Resources/app.asar"));
+        }
+      }
+    }
+    if (asarPaths.length === 0) {
+      return yield* new MacPackagedAppMissingError({ stageDistDir: input.stageDistDir });
+    }
+    for (const asarPath of asarPaths) {
+      yield* verifyPackagedBundleIsSelfContained({ asarPath, verbose: input.verbose ?? false });
+    }
+    yield* Effect.log(
+      `[desktop-artifact] Validated macOS payload (${String(asarPaths.length)} app bundle(s)).`,
+    );
+  },
+);
+
 const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(function* (
   options: ResolvedBuildOptions,
 ) {
@@ -3386,17 +3420,8 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
         packages: ["<no module regions found; the bundle scan needs updating>"],
       });
     }
-    // The check above is one-directional: it only proves nothing external got
-    // inlined. A regression to externalizing everything would also pass it,
-    // since source-file regions still exist -- and that is the failure this
-    // whole change exists to prevent, because those packages are not in the
-    // selected sidecar closure and both backends would die on ERR_MODULE_NOT_FOUND.
-    // `effect` is imported by every server module, so it is inlined in any
-    // correctly bundled build.
-    // The list-based check above only sees packages someone already thought to
-    // list. bufferutil and utf-8-validate were inlined for exactly that reason:
-    // native, but absent from the list, so nothing flagged them. Inspect the
-    // installed graph, including packages in pnpm's shared virtual store.
+    // The list-based check only sees packages someone thought to list, so inspect the installed
+    // graph, including pnpm's shared virtual store, for native packages that got inlined.
     const installed = yield* readInstalledPackages([
       path.join(repoRoot, "apps/server"),
       path.join(repoRoot, "apps/desktop"),
@@ -3725,6 +3750,10 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
       }),
       verbose: options.verbose,
     });
+  }
+  // x64 builds on arm64 runners; the arm64 check covers the shared JS bundle.
+  if (options.platform === "mac" && options.arch === "arm64" && hostPlatform === "darwin") {
+    yield* validateMacPackagedPayload({ stageDistDir, verbose: options.verbose });
   }
 
   const stageEntries = yield* fs.readDirectory(stageDistDir);

@@ -52,7 +52,7 @@ learned over plain HTTP, so its candidate addresses only need to be reachable.
 The host advertises them as `tunnelEndpoints`, apart from `directEndpoints`,
 because older clients turn every direct endpoint into a plain HTTP route.
 
-[GitHub routing trust](../../packages/client-runtime/src/connection/githubRoutingPermissions.ts)
+[Pull request routing trust](../../packages/client-runtime/src/connection/pullRequestRoutingPermissions.ts)
 covers every user-saved route. Adding or changing an address revokes the grant;
 reordering and learned-address changes preserve it.
 

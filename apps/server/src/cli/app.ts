@@ -89,7 +89,7 @@ export class DesktopAppConnectionUnavailableError extends Schema.TaggedError<Des
   { requestId: Schema.String, cause: Schema.Defect() },
 ) {
   override get message(): string {
-    return "Could not complete the connection request. Start or update the desktop app on this machine. If pairing already started, it may still finish; check Settings → Connections before retrying.";
+    return "Could not complete the connection request. Start or update the desktop app on this machine. If pairing already started, it may still finish; check Settings → Environments before retrying.";
   }
 }
 
@@ -106,13 +106,13 @@ export class DesktopAppConnectionFailedError extends Schema.TaggedError<DesktopA
       case "renderer-unavailable":
         return "The desktop window is unavailable. Wait for the app to finish starting and try again.";
       case "request-timeout":
-        return "The connection request timed out. It may still finish; check Settings → Connections before retrying.";
+        return "The connection request timed out. It may still finish; check Settings → Environments before retrying.";
       case "connection-save-failed":
         return "Supaterm could not save the connection. Check secure storage and try pairing again.";
       case "pairing-failed":
         return "Supaterm could not pair with the environment. Check its address and use a fresh pairing link.";
       default:
-        return "Supaterm could not complete the connection request. Check Settings → Connections before retrying.";
+        return "Supaterm could not complete the connection request. Check Settings → Environments before retrying.";
     }
   }
 }
@@ -122,7 +122,7 @@ export class DesktopAppPairingLinkInvalidError extends Schema.TaggedError<Deskto
   {},
 ) {
   override get message(): string {
-    return "The pairing link is invalid. Use the full URL from Settings → Connections or `supaterm pair`.";
+    return "The pairing link is invalid. Use the full URL from Settings → Sharing & access or `supaterm pair`.";
   }
 }
 
@@ -131,7 +131,7 @@ export class DesktopAppConnectionPlatformUnsupportedError extends Schema.TaggedE
   {},
 ) {
   override get message(): string {
-    return "Adding connections from the command line requires macOS or Linux. On Windows, paste the pairing link in Settings → Connections.";
+    return "Adding connections from the command line requires macOS or Linux. On Windows, paste the pairing link in Settings → Environments.";
   }
 }
 
@@ -363,7 +363,9 @@ const runAppCommand = Effect.fn("cli.app")(function* (flags: {
 const addConnectionCommand = Command.make("add", {
   baseDir: baseDirFlag,
   pairingUrl: Argument.String("pairing-link").pipe(
-    Argument.withDescription("Full pairing URL from Settings → Connections or `supaterm pair`."),
+    Argument.withDescription(
+      "Full pairing URL from Settings → Sharing & access or `supaterm pair`.",
+    ),
   ),
 }).pipe(
   Command.withDescription("Pair and save a connection in the running local desktop app."),

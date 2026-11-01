@@ -1,7 +1,10 @@
 import { assert, describe, it } from "@effect/vitest";
 import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
+import * as FileSystem from "effect/FileSystem";
+import * as Path from "effect/Path";
 import * as SqlClient from "effect/sql/SqlClient";
 
 import { migrationManifest, runMigrations } from "./Migrations.ts";
@@ -126,7 +129,7 @@ describe("runMigrations", () => {
 
   it.effect("refuses a history that would skip one of this build's migrations", () =>
     Effect.gen(function* () {
-      yield* createLedger([[2, "SomeOtherBuild"]]);
+      yield* createLedger([[4, "SomeOtherBuild"]]);
 
       const exit = yield* Effect.exit(runMigrations());
 
@@ -140,8 +143,8 @@ describe("runMigrations", () => {
       const sql = yield* SqlClient.SqlClient;
       yield* runMigrations();
       const newer = [
-        [2, "ThreadFailureLookupIndex"],
-        [3, "FromANewerBuild"],
+        [4, "ThreadFailureLookupIndex"],
+        [5, "FromANewerBuild"],
       ] as const;
       for (const [id, name] of newer) {
         yield* sql`INSERT INTO effect_sql_migrations (migration_id, name) VALUES (${id}, ${name})`;
@@ -153,3 +156,20 @@ describe("runMigrations", () => {
     }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: ":memory:" }))),
   );
 });
+
+// The npm launcher reads the highest migration id from these file names.
+it.effect("registers every migration file", () =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const dir = path.join(import.meta.dirname, "Migrations");
+    const files = (yield* fs.readDirectory(dir)).flatMap((name) => {
+      const match = /^(\d+)_(\w+)\.ts$/.exec(name);
+      return match ? [[Number(match[1]), match[2]] as const] : [];
+    });
+    assert.deepStrictEqual(
+      files.toSorted(([a], [b]) => a - b),
+      migrationManifest,
+    );
+  }).pipe(Effect.provide(NodeServices.layer)),
+);

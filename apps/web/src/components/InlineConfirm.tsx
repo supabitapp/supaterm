@@ -44,6 +44,7 @@ export function InlineConfirmLabel({
     readonly confirm: number;
   } | null>(null);
 
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- measures both label widths and observes their resizes before paint to animate the width swap
   useLayoutEffect(() => {
     const idleLabel = idleRef.current;
     const confirmLabel = confirmRef.current;
