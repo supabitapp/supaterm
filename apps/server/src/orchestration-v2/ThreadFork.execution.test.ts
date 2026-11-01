@@ -676,139 +676,6 @@ it.effect.each([
   },
 );
 
-const createParentWithRun = (threadId: ThreadId, runId: RunId) =>
-  Effect.gen(function* () {
-    const orchestrator = yield* Orchestrator.OrchestratorV2;
-    const eventSink = yield* EventSink.EventSinkV2;
-    const now = yield* DateTime.now;
-    const { instanceId, modelSelection } = forkCases[0]!;
-    yield* orchestrator.dispatch({
-      type: "thread.create",
-      commandId: CommandId.make(`${threadId}:create`),
-      threadId,
-      projectId: ProjectId.make(`${threadId}:project`),
-      title: "Fork parent",
-      modelSelection,
-      runtimeMode: "full-access",
-      interactionMode: "default",
-      branch: null,
-      worktreePath: null,
-      createdBy: "user",
-      creationSource: "web",
-    });
-    yield* eventSink.write({
-      events: [
-        {
-          id: EventId.make(`${runId}:created`),
-          type: "run.created",
-          threadId,
-          runId,
-          occurredAt: now,
-          payload: {
-            id: runId,
-            threadId,
-            ordinal: 1,
-            providerInstanceId: instanceId,
-            modelSelection,
-            providerThreadId: null,
-            userMessageId: MessageId.make(`${runId}:message`),
-            rootNodeId: null,
-            activeAttemptId: null,
-            status: "completed",
-            requestedAt: now,
-            startedAt: now,
-            completedAt: now,
-            checkpointId: null,
-            contextHandoffId: null,
-          },
-        },
-      ],
-    });
-  });
-
-it.effect("resolves an explicit checkpoint fork to its source run", () =>
-  Effect.gen(function* () {
-    const orchestrator = yield* Orchestrator.OrchestratorV2;
-    const eventSink = yield* EventSink.EventSinkV2;
-    const now = yield* DateTime.now;
-    const parentId = ThreadId.make("checkpoint-fork-parent");
-    const childId = ThreadId.make("checkpoint-fork-child");
-    const runId = RunId.make("checkpoint-fork-run");
-    const checkpointId = CheckpointId.make("checkpoint-fork-checkpoint");
-    yield* createParentWithRun(parentId, runId);
-    yield* eventSink.write({
-      events: [
-        {
-          id: EventId.make("checkpoint-fork-captured"),
-          type: "checkpoint.captured",
-          threadId: parentId,
-          occurredAt: now,
-          payload: {
-            id: checkpointId,
-            threadId: parentId,
-            scopeId: CheckpointScopeId.make("checkpoint-fork-scope"),
-            runId,
-            nodeId: NodeId.make("checkpoint-fork-node"),
-            parentCheckpointId: null,
-            ordinalWithinScope: 1,
-            appRunOrdinal: 1,
-            ref: CheckpointRef.make("refs/supaterm/checkpoint-fork/1"),
-            status: "ready",
-            files: [],
-            capturedAt: now,
-          },
-        },
-      ],
-    });
-    yield* orchestrator.dispatch({
-      type: "thread.fork",
-      commandId: CommandId.make("checkpoint-fork"),
-      sourceThreadId: parentId,
-      targetThreadId: childId,
-      sourcePoint: { type: "checkpoint", checkpointId },
-      createdBy: "user",
-      creationSource: "mcp",
-    });
-    const child = yield* orchestrator.getThreadShell(childId);
-    assert.deepEqual(child?.forkedFrom, { type: "run", threadId: parentId, runId });
-  }).pipe(Effect.provide(forkCases[0]!.layer)),
-);
-
-it.effect("a run fork reads no parent checkpoints or context transfers", () =>
-  Effect.gen(function* () {
-    const orchestrator = yield* Orchestrator.OrchestratorV2;
-    const parentId = ThreadId.make("run-fork-reads-parent");
-    const runId = RunId.make("run-fork-reads-run");
-    yield* createParentWithRun(parentId, runId);
-
-    const reads: Array<string> = [];
-    const recordReads: Statement.Transformer = (statement) => {
-      const [query] = statement.compile();
-      if (/^\s*SELECT/i.test(query)) reads.push(query);
-      return Effect.succeed(statement);
-    };
-    yield* orchestrator
-      .dispatch({
-        type: "thread.fork",
-        commandId: CommandId.make("run-fork-reads"),
-        sourceThreadId: parentId,
-        targetThreadId: ThreadId.make("run-fork-reads-child"),
-        sourcePoint: { type: "run", runId },
-        createdBy: "user",
-        creationSource: "mcp",
-      })
-      .pipe(Effect.provideService(Statement.CurrentTransformer, recordReads));
-    assert.isNotEmpty(reads);
-    assert.isEmpty(
-      reads.filter(
-        (query) =>
-          query.includes("FROM orchestration_v2_projection_checkpoints") ||
-          query.includes("FROM orchestration_v2_projection_context_transfers"),
-      ),
-    );
-  }).pipe(Effect.provide(forkCases[0]!.layer)),
-);
-
 const writeParentRun = (input: {
   readonly threadId: ThreadId;
   readonly runId: RunId;
@@ -1030,6 +897,61 @@ const askSideChat = (threadId: ThreadId, commandId: string) =>
     });
   });
 
+it.effect("resolves an explicit checkpoint fork to its source run", () =>
+  Effect.gen(function* () {
+    const orchestrator = yield* Orchestrator.OrchestratorV2;
+    const eventSink = yield* EventSink.EventSinkV2;
+    const now = yield* DateTime.now;
+    const parentId = ThreadId.make("checkpoint-fork-parent");
+    const childId = ThreadId.make("checkpoint-fork-child");
+    const runId = RunId.make("checkpoint-fork-run");
+    const checkpointId = CheckpointId.make("checkpoint-fork-checkpoint");
+    yield* createParent(parentId);
+    yield* writeParentRun({
+      threadId: parentId,
+      runId,
+      ordinal: 1,
+      status: "completed",
+      text: "Work",
+    });
+    yield* eventSink.write({
+      events: [
+        {
+          id: EventId.make("checkpoint-fork-captured"),
+          type: "checkpoint.captured",
+          threadId: parentId,
+          occurredAt: now,
+          payload: {
+            id: checkpointId,
+            threadId: parentId,
+            scopeId: CheckpointScopeId.make("checkpoint-fork-scope"),
+            runId,
+            nodeId: NodeId.make("checkpoint-fork-node"),
+            parentCheckpointId: null,
+            ordinalWithinScope: 1,
+            appRunOrdinal: 1,
+            ref: CheckpointRef.make("refs/supaterm/checkpoint-fork/1"),
+            status: "ready",
+            files: [],
+            capturedAt: now,
+          },
+        },
+      ],
+    });
+    yield* orchestrator.dispatch({
+      type: "thread.fork",
+      commandId: CommandId.make("checkpoint-fork"),
+      sourceThreadId: parentId,
+      targetThreadId: childId,
+      sourcePoint: { type: "checkpoint", checkpointId },
+      createdBy: "user",
+      creationSource: "mcp",
+    });
+    const child = yield* orchestrator.getThreadShell(childId);
+    assert.deepEqual(child?.forkedFrom, { type: "run", threadId: parentId, runId });
+  }).pipe(Effect.provide(forkCases[0]!.layer)),
+);
+
 it.effect("a side chat of an idle parent still starts with the framing note", () =>
   Effect.gen(function* () {
     const orchestrator = yield* Orchestrator.OrchestratorV2;
@@ -1045,7 +967,22 @@ it.effect("a side chat of an idle parent still starts with the framing note", ()
       stable: true,
     });
 
-    yield* forkSideChat("side-chat-idle-fork", parentId, sideChatId);
+    const reads: Array<string> = [];
+    const recordReads: Statement.Transformer = (statement) => {
+      const [query] = statement.compile();
+      if (/^\s*SELECT/i.test(query)) reads.push(query);
+      return Effect.succeed(statement);
+    };
+    yield* forkSideChat("side-chat-idle-fork", parentId, sideChatId).pipe(
+      Effect.provideService(Statement.CurrentTransformer, recordReads),
+    );
+    assert.isEmpty(
+      reads.filter(
+        (query) =>
+          query.includes("FROM orchestration_v2_projection_checkpoints") ||
+          query.includes("FROM orchestration_v2_projection_context_transfers"),
+      ),
+    );
     yield* askSideChat(sideChatId, "side-chat-idle-first-message");
 
     const started = yield* orchestrator.getThreadProjection(sideChatId);
