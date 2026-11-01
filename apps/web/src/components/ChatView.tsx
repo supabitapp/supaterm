@@ -2387,7 +2387,7 @@ export default function ChatView(props: ChatViewProps) {
     let disposed = false;
     const updateHeight = () => {
       if (settling || disposed) return;
-      if (runningSizeAnimation(composerOverlayElement)) {
+      if (runningSizeAnimation(composerOverlayElement, { subtree: true })) {
         settling = true;
         void animationsSettled(composerOverlayElement, { subtree: true }).then(() => {
           settling = false;

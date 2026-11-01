@@ -40,7 +40,8 @@ export function ScrollToEndPill({
       if (follow.animation !== hold) return;
       hold.cancel();
       follow.animation = null;
-      const composerAnimation = composerOverlay ? runningSizeAnimation(composerOverlay) : undefined;
+      const surface = composerOverlay?.querySelector('[data-chat-composer-main-surface="true"]');
+      const composerAnimation = surface ? runningSizeAnimation(surface) : undefined;
       const timing = composerAnimation?.effect?.getTiming();
       if (!composerAnimation || !timing) return;
       const animation = element.animate(keyframes, { ...timing, fill: "none" });

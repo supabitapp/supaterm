@@ -19,7 +19,10 @@ function Harness({ ref }: { ref: Ref<(bottom: number) => void> }) {
         composerOverlay={overlay}
         onScrollToEnd={() => undefined}
       />
-      <div ref={setOverlay} data-testid="composer-overlay" />
+      <div ref={setOverlay} data-testid="composer-overlay">
+        <div data-testid="drawer" />
+        <div data-chat-composer-main-surface="true" />
+      </div>
     </div>
   );
 }
@@ -28,7 +31,10 @@ it("rides the composer's height animation and otherwise moves at once", async ()
   const setBottom = createRef<(bottom: number) => void>();
   await using screen = await render(<Harness ref={setBottom} />, { router: false });
   const pill = screen.container.querySelector<HTMLElement>(".chat-scroll-to-bottom")!;
-  const overlay = screen.container.querySelector<HTMLElement>('[data-testid="composer-overlay"]')!;
+  const drawer = screen.container.querySelector<HTMLElement>('[data-testid="drawer"]')!;
+  const surface = screen.container.querySelector<HTMLElement>(
+    '[data-chat-composer-main-surface="true"]',
+  )!;
   const top = () => pill.getBoundingClientRect().top;
   const startTop = top();
 
@@ -37,7 +43,8 @@ it("rides the composer's height animation and otherwise moves at once", async ()
   expect(top()).toBe(startTop - 50);
 
   queueMicrotask(() => {
-    overlay.animate([{ height: "0px" }, { height: "100px" }], { duration: 200 });
+    drawer.animate([{ height: "0px" }, { height: "40px" }], { duration: 150 });
+    surface.animate([{ height: "0px" }, { height: "100px" }], { duration: 200 });
   });
   flushSync(() => setBottom.current?.(110));
   flushSync(() => setBottom.current?.(160));
@@ -45,6 +52,9 @@ it("rides the composer's height animation and otherwise moves at once", async ()
   await Promise.resolve();
   expect(top()).toBe(startTop - 50);
 
-  for (const animation of pill.getAnimations()) animation.finish();
-  expect(top()).toBe(startTop - 150);
+  for (const animation of document.getAnimations()) {
+    animation.pause();
+    animation.currentTime = 150;
+  }
+  expect(top()).toBe(startTop - 125);
 });
