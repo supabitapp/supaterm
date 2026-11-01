@@ -69,9 +69,9 @@ function RunChecksTrigger({
 }
 
 /**
- * The background-work banner's dot. Work that will wake the agent shows at full strength, and a
- * watched CI run colors it the way its checks ring would be. It also holds the checks popover the
- * title opens.
+ * The background-work banner's dot. Only work that will wake the agent shows at full strength,
+ * since a dev server can run for hours after the agent is done. A watched CI run colors it the way
+ * its checks ring would be. It also holds the checks popover the title opens.
  */
 export function BackgroundWorkIcon({
   waiting,
@@ -79,8 +79,6 @@ export function BackgroundWorkIcon({
   ...props
 }: WatchedRunProps & { waiting: boolean; threadRef: ScopedThreadRef | null }) {
   const watched = useWatchedRun(props);
-  // A dev server can run for hours after the agent is done, so only work
-  // that will wake the agent shows at full strength.
   const dot = (
     <span
       className={cn(

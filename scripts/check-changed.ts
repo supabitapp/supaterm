@@ -293,10 +293,8 @@ const spawnStep = (command: string, args: ReadonlyArray<string>, cwd: string, de
   new Promise<StepResult>((resolve) => {
     const output: Array<Buffer> = [];
     const child = NodeChildProcess.spawn(command, args, { cwd, env, detached: true });
-    let timedOut = false;
     const timer = setTimeout(
       () => {
-        timedOut = true;
         try {
           // Windows rejects process-group signals; taskkill /T reaps the tree.
           // oxlint-disable-next-line supaterm/no-global-process-runtime -- This script runs without an Effect runtime.
@@ -322,9 +320,7 @@ const spawnStep = (command: string, args: ReadonlyArray<string>, cwd: string, de
     child.on("error", (error) => output.push(Buffer.from(`${error.message}\n`)));
     child.on("close", (status) => {
       clearTimeout(timer);
-      if (!timedOut) {
-        resolve({ outcome: status === 0 ? "pass" : "FAIL", output: Buffer.concat(output) });
-      }
+      resolve({ outcome: status === 0 ? "pass" : "FAIL", output: Buffer.concat(output) });
     });
   });
 
