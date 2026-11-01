@@ -343,7 +343,7 @@ export interface ChatComposerHandle {
   toggleFastMode: () => SpeedToggleLevel | null;
   /** Sends the draft as the send button would; does nothing when sending isn't possible. */
   submit: () => void;
-  /** Starts voice input, or finishes the recording in progress. */
+  /** Starts voice input, or finishes the recording in progress; a key held past a tap finishes it on release. */
   toggleVoiceInput: (press?: { readonly fromKey: boolean }) => void;
   toggleModelPicker: () => void;
   openControl: (command: KeybindingCommand) => void;

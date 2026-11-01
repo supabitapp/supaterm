@@ -41,6 +41,7 @@ import {
   compileResolvedKeybindingRule,
   compileResolvedKeybindingsConfig,
   parseKeybindingShortcut,
+  shortcutConflictKey,
 } from "@supaterm/shared/keybindings";
 
 export const ResolvedKeybindingFromConfig = KeybindingRule.pipe(
@@ -123,16 +124,6 @@ const SAVED_DEFAULT_MOVES = [
 }>;
 type SavedDefaultMove = (typeof SAVED_DEFAULT_MOVES)[number];
 
-function pressedKeys(shortcut: KeybindingShortcut, mac: boolean): string {
-  return [
-    shortcut.key,
-    shortcut.shiftKey,
-    shortcut.altKey,
-    shortcut.metaKey || (shortcut.modKey && mac),
-    shortcut.ctrlKey || (shortcut.modKey && !mac),
-  ].join();
-}
-
 function moveSavedDefault(rules: readonly KeybindingRule[], move: SavedDefaultMove) {
   const commandRules = rules.filter((rule) => rule.command === move.command);
   const [previous] = commandRules;
@@ -151,7 +142,10 @@ function moveSavedDefault(rules: readonly KeybindingRule[], move: SavedDefaultMo
     return (
       shortcut !== null &&
       target !== null &&
-      [true, false].some((mac) => pressedKeys(shortcut, mac) === pressedKeys(target, mac))
+      ["MacIntel", "Linux"].some(
+        (platform) =>
+          shortcutConflictKey(shortcut, platform) === shortcutConflictKey(target, platform),
+      )
     );
   });
   if (shortcutTaken) return rules;

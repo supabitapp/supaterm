@@ -11,7 +11,7 @@ export interface KeyHold {
  * for Command. Another key press, or the window losing focus, makes it a tap.
  */
 export function followKeyHold(handlers: {
-  readonly onHold?: () => void;
+  readonly onHold?: (() => void) | undefined;
   readonly onHeldRelease: () => void;
 }): KeyHold {
   let held = false;

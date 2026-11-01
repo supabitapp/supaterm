@@ -15,6 +15,7 @@ import {
   matchesKeybindingShortcutModifiers,
   normalizeEventKey,
   resolveEventKeys,
+  shortcutConflictKey,
   type ShortcutEventLike,
   type ShortcutModifierStateLike,
 } from "@supaterm/shared/keybindings";
@@ -87,22 +88,6 @@ function matchesWhenClause(
 ): boolean {
   if (!whenAst) return true;
   return evaluateWhenNode(whenAst, context);
-}
-
-export function shortcutConflictKey(
-  shortcut: KeybindingShortcut,
-  platform = navigator.platform,
-): string {
-  const useMetaForMod = isMacPlatform(platform);
-  const metaKey = shortcut.metaKey || (shortcut.modKey && useMetaForMod);
-  const ctrlKey = shortcut.ctrlKey || (shortcut.modKey && !useMetaForMod);
-  return [
-    shortcut.key,
-    metaKey ? "meta" : "",
-    ctrlKey ? "ctrl" : "",
-    shortcut.shiftKey ? "shift" : "",
-    shortcut.altKey ? "alt" : "",
-  ].join("|");
 }
 
 function shortcutForContext(binding: ResolvedKeybindingRule, context: ShortcutMatchContext) {

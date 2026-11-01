@@ -1,26 +1,39 @@
 import { type RefObject, useEffect } from "react";
 
 import { useStableCallback } from "../hooks/useStableCallback";
-import { followKeyHold, type KeyHold } from "./keyHold";
+import type { KeyHold } from "./keyHold";
 
-export interface HoldSpaceToTalk<Draft> {
-  /** The draft before the space types, or null to leave Space to type. */
-  readonly arm: () => Draft | null;
-  readonly hold: (draft: Draft) => void;
-  readonly release: () => void;
+export interface ComposerDraft {
+  readonly text: string;
+  readonly selection: { readonly start: number; readonly end: number };
+}
+
+export interface HoldSpaceToTalk {
+  readonly canStart: () => boolean;
+  readonly readDraft: () => ComposerDraft;
+  readonly restoreDraft: (draft: ComposerDraft) => void;
+  readonly start: () => void;
+  /** Follows this key press; `onHold` runs once it is held past a tap. */
+  readonly followPress: (onHold: () => void) => KeyHold;
+}
+
+function withSpaceTyped({ text, selection }: ComposerDraft): string {
+  return `${text.slice(0, selection.start)} ${text.slice(selection.end)}`;
 }
 
 /**
  * Space types as usual, so taps and fast typing never wait on it. Once it is held,
- * its repeats are swallowed and `hold` gets the draft from before the first space.
+ * its repeats are swallowed and the space it typed is taken back out before recording.
  */
-export function useHoldSpaceToTalk<Draft>(
+export function useHoldSpaceToTalk(
   target: RefObject<HTMLElement | null> | null,
-  handlers: HoldSpaceToTalk<Draft>,
+  handlers: HoldSpaceToTalk,
 ) {
-  const arm = useStableCallback(handlers.arm);
-  const hold = useStableCallback(handlers.hold);
-  const release = useStableCallback(handlers.release);
+  const canStart = useStableCallback(handlers.canStart);
+  const readDraft = useStableCallback(handlers.readDraft);
+  const restoreDraft = useStableCallback(handlers.restoreDraft);
+  const start = useStableCallback(handlers.start);
+  const followPress = useStableCallback(handlers.followPress);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- listens for Space on the composer's DOM while the setting is on
   useEffect(() => {
     const element = target?.current;
@@ -41,14 +54,17 @@ export function useHoldSpaceToTalk<Draft>(
         if (press?.active()) event.preventDefault();
         return;
       }
-      const draft = arm();
-      if (draft === null) return;
-      press = followKeyHold({ onHold: () => hold(draft), onHeldRelease: release });
+      if (!canStart()) return;
+      const before = readDraft();
+      press = followPress(() => {
+        if (readDraft().text === withSpaceTyped(before)) restoreDraft(before);
+        start();
+      });
     };
     element.addEventListener("keydown", onKeyDown);
     return () => {
       element.removeEventListener("keydown", onKeyDown);
       press?.cancel();
     };
-  }, [target, arm, hold, release]);
+  }, [target, canStart, readDraft, restoreDraft, start, followPress]);
 }
