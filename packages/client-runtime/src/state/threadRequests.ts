@@ -4,7 +4,6 @@ import type {
   OrchestrationV2ThreadProjection,
   OrchestrationV2RuntimeRequest,
   OrchestrationV2UserInputQuestion,
-  ProviderApprovalFullAccessOverride,
   ProviderApprovalOption,
   ProviderApprovalDecision,
   ProviderRequestKind,
@@ -51,21 +50,10 @@ export interface ThreadPendingApproval {
   readonly createdAt: string;
   readonly detail?: string;
   readonly reason?: string;
-  readonly fullAccessOverride?: ProviderApprovalFullAccessOverride;
   readonly appName?: string;
   readonly options?: ReadonlyArray<ProviderApprovalOption>;
   readonly responseCapability: "live" | "not_resumable";
   readonly supportsFeedback?: boolean;
-}
-
-export const FULL_ACCESS_OVERRIDE_QUESTION = "Why am I being asked this?";
-
-export function fullAccessOverrideExplanation(
-  override: ProviderApprovalFullAccessOverride,
-): string {
-  return override === "ask_rule"
-    ? "Full access skips approvals, but an ask rule in the agent's own settings matches this action, so it still asks. Remove or narrow that rule to stop these prompts."
-    : "Full access skips approvals, but the agent still stops for a few safety checks of its own that no setting can skip, such as a delete whose path it can't verify. Supaterm can't turn these off, so check the request and approve it if it's what you expect.";
 }
 
 export interface ThreadUserInputQuestion extends Omit<
@@ -268,9 +256,6 @@ export function derivePendingThreadRequests(
       createdAt: DateTime.formatIso(request.createdAt),
       ...(item?.type === "approval_request" && item.prompt ? { detail: item.prompt } : {}),
       ...(item?.type === "approval_request" && item.reason ? { reason: item.reason } : {}),
-      ...(item?.type === "approval_request" && item.fullAccessOverride
-        ? { fullAccessOverride: item.fullAccessOverride }
-        : {}),
       ...(item?.type === "approval_request" && item.appName ? { appName: item.appName } : {}),
       ...(item?.type === "approval_request" && item.options !== undefined
         ? { options: item.options }
