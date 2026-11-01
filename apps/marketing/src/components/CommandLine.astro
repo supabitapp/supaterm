@@ -13,8 +13,8 @@ const { command, class: className, ...rest } = Astro.props;
 <div class:list={["command-line", className]} {...rest}>
   <code class="command-text">{command}</code>
   <button type="button" class="command-copy" data-command={command} aria-label="Copy command">
-    <svg class="command-icon command-icon--copy" viewBox="0 0 24 24" aria-hidden="true" set:html={iconSvgElements(Copy)}></svg>
-    <svg class="command-icon command-icon--check" viewBox="0 0 24 24" aria-hidden="true" set:html={iconSvgElements(Check)}></svg>
+    <svg fill="currentColor" stroke="none" class="command-icon command-icon--copy" viewBox="0 0 24 24" aria-hidden="true" set:html={iconSvgElements(Copy)}></svg>
+    <svg fill="currentColor" stroke="none" class="command-icon command-icon--check" viewBox="0 0 24 24" aria-hidden="true" set:html={iconSvgElements(Check)}></svg>
   </button>
   <span class="command-status" role="status"></span>
 </div>
@@ -132,11 +132,6 @@ const { command, class: className, ...rest } = Astro.props;
     grid-area: 1 / 1;
     width: 15px;
     height: 15px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.8;
-    stroke-linecap: round;
-    stroke-linejoin: round;
     transition-property: opacity, transform;
     transition-duration: 150ms;
     transition-timing-function: ease-out;

@@ -1,8 +1,8 @@
 import { mergeProps } from "@base-ui/react/merge-props";
 import { Select as SelectPrimitive } from "@base-ui/react/select";
 import { useRender } from "@base-ui/react/use-render";
-import type { ComponentProps, ComponentType, SVGProps } from "react";
-import { ChevronDownIcon } from "@supaterm/icons";
+import type { ComponentProps } from "react";
+import { ChevronDownIcon, type IconComponent } from "@supaterm/icons";
 
 import { cn } from "~/lib/utils";
 import { Separator } from "../ui/separator";
@@ -64,7 +64,7 @@ export function ComposerControlIcon({
   opticalSize = "default",
   size = "sm",
 }: {
-  icon: ComponentType<SVGProps<SVGSVGElement>>;
+  icon: IconComponent;
   className?: string | undefined;
   opticalSize?: "default" | "large";
   size?: ComposerControlSize;
@@ -98,7 +98,7 @@ export function ComposerControlChevron({
         className,
       )}
       data-composer-control-chevron
-      strokeWidth={2.25}
+      weight="bold"
     />
   );
 }

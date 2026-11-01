@@ -1,7 +1,7 @@
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import type { ChangeRequestTerminology } from "@supaterm/client-runtime/source-control-clients";
 import type { PullRequestActor } from "@supaterm/contracts";
-import { TriangleAlert } from "@supaterm/icons/nodes";
+import { TriangleAlertFilled } from "@supaterm/icons/nodes";
 import { Image } from "expo-image";
 import { View } from "react-native";
 import { useResolveClassNames } from "uniwind";
@@ -29,13 +29,14 @@ export function PullRequestReadStatus(props: {
 
 export function PullRequestConflictBadge(props: { readonly surfaceClassName: string }) {
   const { color } = useResolveClassNames("text-danger-foreground");
-  const { color: surface } = useResolveClassNames(props.surfaceClassName);
+  const { color: backgroundColor } = useResolveClassNames(props.surfaceClassName);
   return (
-    <View pointerEvents="none" className="absolute -right-1 -bottom-1">
-      <NodeIcon node={TriangleAlert} size={15} strokeWidth={2.5} color={surface} fill={surface} />
-      <View className="absolute inset-0">
-        <NodeIcon node={TriangleAlert} size={15} strokeWidth={2.5} color={color} />
-      </View>
+    <View
+      pointerEvents="none"
+      className="absolute -right-1 -bottom-1 rounded-sm"
+      style={{ backgroundColor }}
+    >
+      <NodeIcon node={TriangleAlertFilled} size={15} color={color} />
     </View>
   );
 }

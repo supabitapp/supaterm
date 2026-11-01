@@ -1,14 +1,13 @@
 import { DeviceHostUpdates } from "./DeviceHostUpdates";
 import type { DevicePlatform, DeviceServiceState, EnvironmentId } from "@supaterm/contracts";
-import { CheckIcon } from "@supaterm/icons";
-import { Check as CheckGlyph, CircleAlert } from "@supaterm/icons/nodes";
+import { CheckIcon, CircleAlertIcon } from "@supaterm/icons";
+
 import { AuthSettingsWriteScope } from "@supaterm/contracts";
 import { useAtomMount } from "@effect/atom-react";
 import { useState } from "react";
 
 import { Button } from "~/components/ui/button";
 import { DialogClose } from "~/components/ui/dialog";
-import { MorphIcon } from "~/components/MorphIcon";
 import { WizardHeader, WizardPanel, WizardSteps, WizardFooter } from "~/components/ui/wizard";
 import { Spinner } from "~/components/ui/spinner";
 import { Switch } from "~/components/ui/switch";
@@ -366,17 +365,17 @@ export function PlatformStatus(props: {
   readonly compact?: boolean;
 }) {
   const showMessage = !props.compact || !props.status.ready;
+  const Icon = props.status.ready ? CheckIcon : CircleAlertIcon;
   return (
     <div
       className={cn("flex gap-2", !props.compact && "rounded-md border border-border/60 px-3 py-2")}
     >
-      <MorphIcon
+      <Icon
         className={cn(
           "shrink-0",
           props.compact ? "mt-px size-3.5" : "mt-0.5 size-4",
           props.status.ready ? "text-success" : "text-muted-foreground",
         )}
-        icon={props.status.ready ? CheckGlyph : CircleAlert}
       />
       <div>
         <p className="font-medium">

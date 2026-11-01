@@ -152,7 +152,7 @@ export function ThreadServersPanel(props: {
                       {stoppingKey === key ? (
                         <LoaderCircleIcon aria-hidden className="size-3 animate-spin" />
                       ) : (
-                        <SquareIcon aria-hidden className="size-3 fill-current" />
+                        <SquareIcon weight="fill" aria-hidden className="size-3" />
                       )}
                     </TooltipTrigger>
                     <TooltipPopup side="left">Stop server</TooltipPopup>

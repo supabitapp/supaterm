@@ -15,11 +15,12 @@ import {
   SquareIcon,
   TypeIcon,
   XIcon,
+  MoonIcon,
+  SunIcon,
 } from "@supaterm/icons";
-import { Moon, Sun } from "@supaterm/icons/nodes";
+
 import type { ReactNode } from "react";
 import { Button } from "~/components/ui/button";
-import { MorphIcon } from "~/components/MorphIcon";
 import {
   Menu,
   MenuItem,
@@ -56,6 +57,7 @@ export function DeviceControlsRail(props: {
   const inputDisabled = !handle?.inputConnected;
   const runsHostCommands = props.hostKind === "local" || props.hostKind === "ssh";
   const nextAppearance = settings?.appearance === "dark" ? "light" : "dark";
+  const Icon = settings?.appearance === "dark" ? SunIcon : MoonIcon;
   return (
     <aside
       aria-label="Device controls"
@@ -139,7 +141,7 @@ export function DeviceControlsRail(props: {
               disabled={controls.disabled || !settings?.appearance}
               onClick={() => void controls.act({ type: "setAppearance", value: nextAppearance })}
             >
-              <MorphIcon icon={settings?.appearance === "dark" ? Sun : Moon} />
+              <Icon />
             </RailButton>
             <Menu>
               <MenuTrigger

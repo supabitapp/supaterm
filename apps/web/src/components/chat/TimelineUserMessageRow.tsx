@@ -46,8 +46,9 @@ import {
   MessagesSquareIcon,
   PencilIcon,
   RedoIcon,
+  LinkIcon,
 } from "@supaterm/icons";
-import { Link as LinkIconNode } from "@supaterm/icons/nodes";
+
 import { DisclosureChevron } from "../ui/disclosure-chevron";
 import { InlineButton, Button } from "../ui/button";
 import { useAssetUrlState, useAssetUrlRefresh, useAssetUrls } from "../../assets/assetUrls";
@@ -226,7 +227,7 @@ function AutomationMessageRow({ row }: { row: Extract<TimelineRow, { kind: "mess
                 <MessageCopyButton
                   text={promptLink}
                   label="Copy prompt link"
-                  icon={LinkIconNode}
+                  icon={LinkIcon}
                   variant="ghost"
                 />
               )}
@@ -740,7 +741,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
                 <MessageCopyButton
                   text={promptLink}
                   label="Copy prompt link"
-                  icon={LinkIconNode}
+                  icon={LinkIcon}
                   variant="ghost"
                 />
               )}

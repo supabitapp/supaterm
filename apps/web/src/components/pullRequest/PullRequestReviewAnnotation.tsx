@@ -7,8 +7,14 @@ import type {
   PullRequestThreadCommentsResult,
   PullRequestThreadComment,
 } from "@supaterm/contracts";
-import { HammerIcon, MessageSquareIcon, TrashIcon } from "@supaterm/icons";
-import { Circle, CircleCheck } from "@supaterm/icons/nodes";
+import {
+  HammerIcon,
+  MessageSquareIcon,
+  TrashIcon,
+  CircleIcon,
+  CircleCheckIcon,
+} from "@supaterm/icons";
+
 import { useRef, useState } from "react";
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 
@@ -16,7 +22,6 @@ import { RelativeTime } from "~/components/RelativeTime";
 import { cn } from "~/lib/utils";
 
 import { Button } from "../ui/button";
-import { MorphIcon } from "~/components/MorphIcon";
 import { PullRequestEditButton } from "./PullRequestEditButton";
 import { Textarea } from "../ui/textarea";
 import { isCommentSubmitShortcut } from "../diffs/commentSubmitShortcut";
@@ -213,6 +218,7 @@ export function ReviewThreadCard({
     }));
   };
 
+  const Icon = thread.isResolved ? CircleCheckIcon : CircleIcon;
   return (
     <div
       className={CARD_CLASS}
@@ -220,10 +226,7 @@ export function ReviewThreadCard({
       onPointerDown={(event) => event.stopPropagation()}
     >
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <MorphIcon
-          className={cn("size-3.5", thread.isResolved && "text-success-foreground")}
-          icon={thread.isResolved ? CircleCheck : Circle}
-        />
+        <Icon className={cn("size-3.5", thread.isResolved && "text-success-foreground")} />
         <button
           type="button"
           className="hover:text-foreground"

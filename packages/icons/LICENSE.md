@@ -1,7 +1,22 @@
-# Icon license
+MIT License
 
-The glyphs in `src/generated/` come from [Central Icons](https://iconists.co/central) by iconists. They are proprietary, are not covered by the repository's MIT license, and are licensed to Supabit for use in Supaterm.
+Copyright (c) 2020 Phosphor Icons
+Copyright (c) 2023 Phosphor Icons
 
-You may build, run, and modify Supaterm with them. Do not extract the glyphs for use in another product, and do not redistribute them on their own. To use Central Icons elsewhere, buy a license from iconists.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-The rest of this package (the components, scripts, and project icon registry code) is MIT licensed like the rest of the repository.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

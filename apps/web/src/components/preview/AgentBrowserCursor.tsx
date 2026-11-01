@@ -1,5 +1,5 @@
 import type { DesktopPreviewPointerEvent } from "@supaterm/contracts";
-import { MousePointerIcon } from "@supaterm/icons";
+import { MousePointerIcon, MousePointerFilledIcon } from "@supaterm/icons";
 import { useEffect, useState } from "react";
 
 import { useBrowserPointerStore } from "~/browser/browserPointerStore";
@@ -88,10 +88,10 @@ export function AgentCursorMark(props: {
           className="absolute left-0.5 top-0.5 size-4 animate-status-ping rounded-full bg-primary/25 motion-reduce:animate-none"
         />
       ) : null}
-      <MousePointerIcon
-        className="relative size-5 -translate-x-0.5 -translate-y-0.5 fill-background text-primary drop-shadow-sm"
-        strokeWidth={2}
-      />
+      <span className="relative block size-5 -translate-x-0.5 -translate-y-0.5 drop-shadow-sm">
+        <MousePointerFilledIcon className="absolute inset-0 size-5 text-background" />
+        <MousePointerIcon className="absolute inset-0 size-5 text-primary" />
+      </span>
     </div>
   );
 }

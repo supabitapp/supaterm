@@ -147,22 +147,22 @@ for the security model.
 Web, desktop, Android, the marketing site, and the project icon picker draw icons from
 `@supaterm/icons` (`packages/icons`). iOS and macOS native menus use SF Symbols. Surfaces outside
 React (sprites, injected pages, canvas, rasterized assets) render the same glyphs with
-`iconSvgElements` from `@supaterm/icons/nodes`. The glyphs are vendored from
-[Central Icons](https://iconists.co/central) (`round-outlined-radius-2-stroke-2`), which is paid
-and licensed only for use in Supaterm; see `packages/icons/LICENSE.md`.
+`iconSvgElements` from `@supaterm/icons/nodes`. React components come from the official
+[Phosphor package](https://github.com/phosphor-icons/react); generated SVG data serves the other
+surfaces. Both are MIT licensed; see `packages/icons/LICENSE.md`.
 
-Use an existing export when one fits. To add or swap a glyph, add the export name and its Central
-icon to `packages/icons/icons.json` (`project` lists the picker's icons), then regenerate:
+To add an icon, map its app name to a Phosphor name without the `Icon` suffix in
+`packages/icons/icons.json` (for example, `"Activity": "Heartbeat"`). To choose a weight or
+mirror a glyph, use `{ "icon": "Star", "props": { "weight": "fill", "mirrored": false } }`. Then run:
 
 ```sh
 vp run --filter @supaterm/icons sync
+vp run --filter @supaterm/mobile sync:ui-icons
+vp run --filter @supaterm/mobile sync:pierre-icons
 ```
 
-The sync needs the license key. fnox reads `CENTRAL_LICENSE_KEY` from the `Supacode Next Central
-Icons` item in the `Supacode Next CI` 1Password vault (the `central-icons` profile in
-[`.github/fnox.toml`](../../.github/fnox.toml)), so sign in to the 1Password CLI (`op`) with access
-to that vault first. Commit `icons.json` with the regenerated `src/generated/` files. Contributors
-without vault access can ask a maintainer to add the icon. Never commit the key.
+The `project` list controls the project picker. Keep its app names stable because projects persist
+those names. Commit the manifest with the regenerated `src/generated/` files.
 
 ## Checks
 

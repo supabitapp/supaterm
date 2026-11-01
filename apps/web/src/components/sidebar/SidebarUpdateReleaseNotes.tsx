@@ -50,7 +50,7 @@ function ReleaseLink({
       }}
     >
       {children}
-      <ExternalLinkIcon aria-hidden className="size-3 shrink-0" strokeWidth={2} />
+      <ExternalLinkIcon aria-hidden className="size-3 shrink-0" />
     </a>
   );
 }

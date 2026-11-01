@@ -1,11 +1,12 @@
+import { ZapFilled } from "@supaterm/icons/nodes";
 import React, { type SVGProps, useId } from "react";
 import { cn } from "~/lib/utils";
 export type Icon = React.FC<SVGProps<SVGSVGElement>>;
 
 export const UltrafastIcon: Icon = (props) => (
-  <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
-    <path d="m17 2-10 12h7l-1 8 10-12h-7l1-8Z" opacity="0.4" />
-    <path d="m11 2-10 12h7l-1 8 10-12h-7l1-8Z" />
+  <svg viewBox="0 0 24 24" fill="currentColor" stroke="none" {...props}>
+    <path d={ZapFilled} transform="translate(4.6 1.8) scale(0.85)" opacity="0.4" />
+    <path d={ZapFilled} transform="translate(-2.4 1.8) scale(0.85)" />
   </svg>
 );
 

@@ -5,8 +5,15 @@ import { AuthOrchestrationOperateScope } from "@supaterm/contracts";
 import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
 import { AuthEnvironmentMaintainScope } from "@supaterm/contracts";
 import { RefreshIcon } from "~/components/ui/refresh-icon";
-import { CopyIcon, FolderOpenIcon, InfoIcon, TriangleAlertIcon } from "@supaterm/icons";
-import { ChevronDown, ChevronRight } from "@supaterm/icons/nodes";
+import {
+  CopyIcon,
+  FolderOpenIcon,
+  InfoIcon,
+  TriangleAlertIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+} from "@supaterm/icons";
+
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
@@ -27,7 +34,6 @@ import { useEnvironmentQuery } from "../../state/query";
 import { serverEnvironment } from "../../state/server";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 import { Button } from "../ui/button";
-import { MorphIcon } from "~/components/MorphIcon";
 import { ScrollArea } from "../ui/scroll-area";
 import { Toggle, ToggleGroup } from "../ui/toggle-group";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -254,6 +260,7 @@ function ProcessNameCell({
   const name = formatProcessName(process.command);
   const hasChildren = process.childPids.length > 0;
 
+  const Icon = isExpanded ? ChevronDownIcon : ChevronRightIcon;
   return (
     <div
       className="grid min-w-0 grid-cols-[1.25rem_0.375rem_minmax(0,1fr)] items-center gap-2"
@@ -266,7 +273,7 @@ function ProcessNameCell({
           aria-label={isExpanded ? `Collapse ${name}` : `Expand ${name}`}
           onClick={() => onToggle(process.pid)}
         >
-          <MorphIcon className="size-3.5" icon={isExpanded ? ChevronDown : ChevronRight} />
+          <Icon className="size-3.5" />
         </Button>
       ) : (
         <span className="size-5 shrink-0" aria-hidden="true" />

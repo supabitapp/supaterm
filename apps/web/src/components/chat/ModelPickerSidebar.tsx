@@ -111,7 +111,7 @@ export const ModelPickerSidebar = memo(function ModelPickerSidebar(props: {
                         aria-label="Favorites"
                         aria-pressed={props.selectedInstanceId === "favorites"}
                       >
-                        <StarIcon className="size-5 fill-current shrink-0" aria-hidden />
+                        <StarIcon weight="fill" className="size-5 shrink-0" aria-hidden />
                       </Toolbar.Button>
                     }
                   />

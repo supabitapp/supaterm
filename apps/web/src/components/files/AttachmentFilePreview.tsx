@@ -11,14 +11,24 @@ import {
   FILE_TEXT_PREVIEW_MAX_BYTES,
   type FilePreviewKind,
 } from "@supaterm/shared/filePreview";
-import { ChevronRightIcon, DownloadIcon, TrashIcon, WrapTextIcon, XIcon } from "@supaterm/icons";
-import { Check, CodeXml, Copy, Eye, Table } from "@supaterm/icons/nodes";
+import {
+  ChevronRightIcon,
+  DownloadIcon,
+  TrashIcon,
+  WrapTextIcon,
+  XIcon,
+  CheckIcon,
+  CodeXmlIcon,
+  CopyIcon,
+  EyeIcon,
+  TableIcon,
+} from "@supaterm/icons";
+
 import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { useAssetUrlRefresh } from "~/assets/assetUrls";
 import ChatMarkdown from "~/components/ChatMarkdown";
 import { maskMarkdownFrontmatter } from "@supaterm/shared/markdownFrontmatter";
-import { MorphIcon } from "~/components/MorphIcon";
 import { Button } from "~/components/ui/button";
 import { ScrollArea } from "~/components/ui/scroll-area";
 import { toastManager } from "~/components/ui/toast";
@@ -443,6 +453,8 @@ export function AttachmentFilePreview(props: {
     </div>
   );
 
+  const Icon = rendered ? CodeXmlIcon : renderedMode === "table" ? TableIcon : EyeIcon;
+  const StateIcon = isCopied ? CheckIcon : CopyIcon;
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
       <div className={cn(FILE_SURFACE_SUBHEADER_CLASS)} data-surface-subheader>
@@ -466,10 +478,7 @@ export function AttachmentFilePreview(props: {
             pressed={rendered}
             onPress={() => setRendered((value) => !value)}
           >
-            <MorphIcon
-              className="size-3.5"
-              icon={rendered ? CodeXml : renderedMode === "table" ? Table : Eye}
-            />
+            <Icon className="size-3.5" />
           </FileSurfaceAction>
         ) : null}
         {showsRawText ? (
@@ -509,7 +518,7 @@ export function AttachmentFilePreview(props: {
                 );
             }}
           >
-            <MorphIcon className="size-3.5" icon={isCopied ? Check : Copy} />
+            <StateIcon className="size-3.5" />
           </FileSurfaceAction>
         ) : null}
         {url && kind !== "unsupported" ? (
