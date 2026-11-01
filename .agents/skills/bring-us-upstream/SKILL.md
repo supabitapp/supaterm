@@ -34,6 +34,8 @@ Show the user:
 
 Implement only approved items. If the scope expands, present a revised proposal first. Preserve local behavior, add focused tests, update docs when needed, and run targeted checks. Report what changed, what was skipped, validation, and remaining manual checks.
 
+Before declaring a port complete, byte-compare every agent-facing prompt, tool description, MCP schema, and returned instruction against the pinned upstream commit, allowing only required renames and explicitly approved fork exceptions.
+
 Create a final PR including the whole port.
 
 ## Notes

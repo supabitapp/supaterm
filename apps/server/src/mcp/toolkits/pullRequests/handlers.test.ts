@@ -236,7 +236,10 @@ const makeHarness = Effect.fn("makePullRequestsToolkitHarness")(function* (
       Stream.unwrap,
       Stream.runCollect,
       Effect.map(
-        (chunk) => chunk.at(-1)!.result as Tool.Success<(typeof PullRequestsToolkit.tools)[Name]>,
+        (chunk) =>
+          chunk.at(-1)!.encodedResult as Tool.SuccessEncoded<
+            (typeof PullRequestsToolkit.tools)[Name]
+          >,
       ),
       Effect.provideService(McpInvocationContext.McpInvocationContext, invocation(capabilities)),
       Effect.provide(layerDependencies),
@@ -260,30 +263,46 @@ describe("pull request toolkit handlers", () => {
     }),
   );
 
-  it.effect("links by URL with source agent on the token's thread", () =>
-    Effect.gen(function* () {
-      const harness = yield* makeHarness();
-      const result = yield* harness.call("link_pull_request", {
-        url: "https://github.com/supabitapp/supaterm/pull/123/files",
-      });
-      expect(result).toEqual({
-        host: "github.com",
-        repository: "supabitapp/supaterm",
-        number: 123,
-        url: "https://github.com/supabitapp/supaterm/pull/123/files",
-        alreadyLinked: false,
-      });
-      expect(yield* Ref.get(harness.commands)).toMatchObject([
-        {
-          type: "thread.pull-request.link",
-          threadId: THREAD_ID,
+  it.effect.each([null, "fork", "subagent"] as const)(
+    "links by URL with source agent on the token's thread (%s)",
+    (relationshipToParent) =>
+      Effect.gen(function* () {
+        const harness = yield* makeHarness({
+          thread: {
+            ...makeThread([]),
+            lineage: {
+              rootThreadId: relationshipToParent === null ? THREAD_ID : ThreadId.make("parent"),
+              parentThreadId: relationshipToParent === null ? null : ThreadId.make("parent"),
+              relationshipToParent,
+            },
+          },
+        });
+        const result = yield* harness.call("link_pull_request", {
+          url: "https://github.com/supabitapp/supaterm/pull/123/files",
+        });
+        expect(result).toEqual({
           host: "github.com",
           repository: "supabitapp/supaterm",
           number: 123,
-          source: "agent",
-        },
-      ]);
-    }),
+          url: "https://github.com/supabitapp/supaterm/pull/123/files",
+          alreadyLinked: false,
+          ...(relationshipToParent === "subagent"
+            ? {
+                next: "End your reply with: PR <full URL>, head <SHA>, checks and reviews <state>.",
+              }
+            : {}),
+        });
+        expect(yield* Ref.get(harness.commands)).toMatchObject([
+          {
+            type: "thread.pull-request.link",
+            threadId: THREAD_ID,
+            host: "github.com",
+            repository: "supabitapp/supaterm",
+            number: 123,
+            source: "agent",
+          },
+        ]);
+      }),
   );
 
   it.effect("watching an unlinked pull request links it first", () =>
@@ -582,18 +601,38 @@ describe("pull request toolkit handlers", () => {
     }),
   );
 
-  it.effect("treats a duplicate link as alreadyLinked rather than an error", () =>
-    Effect.gen(function* () {
-      const harness = yield* makeHarness({
-        thread: makeThread([makeLink(123)]),
-        reject: (command) =>
-          command.type === "thread.pull-request.link" ? "already linked" : null,
-      });
-      const result = yield* harness.call("link_pull_request", {
-        url: "https://github.com/supabitapp/supaterm/pull/123",
-      });
-      expect(result.alreadyLinked).toBe(true);
-    }),
+  it.effect.each([null, "fork", "subagent"] as const)(
+    "treats a duplicate link as alreadyLinked rather than an error (%s)",
+    (relationshipToParent) =>
+      Effect.gen(function* () {
+        const harness = yield* makeHarness({
+          thread: {
+            ...makeThread([makeLink(123)]),
+            lineage: {
+              rootThreadId: relationshipToParent === null ? THREAD_ID : ThreadId.make("parent"),
+              parentThreadId: relationshipToParent === null ? null : ThreadId.make("parent"),
+              relationshipToParent,
+            },
+          },
+          reject: (command) =>
+            command.type === "thread.pull-request.link" ? "already linked" : null,
+        });
+        const result = yield* harness.call("link_pull_request", {
+          url: "https://github.com/supabitapp/supaterm/pull/123",
+        });
+        expect(result).toEqual({
+          host: "github.com",
+          repository: "supabitapp/supaterm",
+          number: 123,
+          url: "https://github.com/supabitapp/supaterm/pull/123",
+          alreadyLinked: true,
+          ...(relationshipToParent === "subagent"
+            ? {
+                next: "End your reply with: PR <full URL>, head <SHA>, checks and reviews <state>.",
+              }
+            : {}),
+        });
+      }),
   );
 
   it.effect("unlinks a linked pull request and reports a missing one as wasLinked=false", () =>
