@@ -221,7 +221,7 @@ and use **Attach again** or remove the missing file before sending.
 Press the microphone in the composer, or `ctrl+m` on web and desktop, to record a
 prompt of up to five minutes. Hold `ctrl+m` instead to talk only while it is down; letting
 go stops and reviews. With **Settings → Threads → Hold Space to talk** on, holding Space in
-the composer does the same, and a tap still types a space. On web and desktop, the
+the composer with no text selected does the same, and a tap still types a space. On web and desktop, the
 recording stays in the composer while you speak:
 
 - **Stop and review**, or `ctrl+m` again, transcribes the recording into the
