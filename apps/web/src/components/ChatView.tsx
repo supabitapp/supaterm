@@ -2,6 +2,7 @@ import * as DateTime from "effect/DateTime";
 import * as Schema from "effect/Schema";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { useNowMinute } from "../hooks/useNowMinute";
+import { ChildThreadApprovals } from "./chat/ChildThreadApprovals";
 import { workspaceAreaProps } from "../lib/workspaceFocus";
 import { canQueueComposerMessageAtom } from "../state/composerQueue";
 import {
@@ -3618,6 +3619,7 @@ export default function ChatView(props: ChatViewProps) {
                             : undefined
                         }
                       >
+                        <ChildThreadApprovals threadRef={activeThreadRef} />
                         <ComposerSurface.Shell
                           bottomStrip={
                             (composerContextStripPlacement === "bottom" &&
