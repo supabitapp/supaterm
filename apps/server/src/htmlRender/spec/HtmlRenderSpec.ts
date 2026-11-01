@@ -4,7 +4,7 @@ import * as SchemaIssue from "effect/SchemaIssue";
 
 import { IMAGE_EXTENSIONS } from "../imageMimeTypes.ts";
 
-export const HTML_RENDER_SPEC_LIMITS = {
+const HTML_RENDER_SPEC_LIMITS = {
   jsonLength: 128 * 1024,
   elements: 128,
   depth: 16,
@@ -105,11 +105,13 @@ const LOCAL_IMAGE_PATH = new RegExp(
   "i",
 );
 
-const formatPath = (path: ReadonlyArray<PropertyKey>) =>
+const formatPath = (path: ReadonlyArray<PropertyKey | { readonly key: PropertyKey }>) =>
   path
-    .map((key, index) =>
-      typeof key === "number" ? `[${key}]` : index === 0 ? String(key) : `.${String(key)}`,
-    )
+    .map((segment, index) => {
+      const key = typeof segment === "object" ? segment.key : segment;
+      if (typeof key === "number") return `[${key}]`;
+      return index === 0 ? String(key) : `.${String(key)}`;
+    })
     .join("");
 
 const contentIssues = (id: string, element: HtmlRenderSpecElement): ReadonlyArray<string> => {
@@ -226,7 +228,7 @@ export const parseHtmlRenderSpec = (
         formatIssue(decoded.failure.issue).issues.map(({ path, message }) =>
           path === undefined || path.length === 0
             ? `spec: ${message}`
-            : `${formatPath(path.map((segment) => (typeof segment === "object" ? segment.key : segment)))}: ${message}`,
+            : `${formatPath(path)}: ${message}`,
         ),
       ),
     );

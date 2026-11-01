@@ -54,14 +54,13 @@ export const htmlRenderSpecDigest = (spec: unknown) => sha256(canonicalJson(spec
 export const boundHtmlRenderSpec = (spec: unknown) =>
   `${BOUNDED_SPEC_PREFIX}${htmlRenderSpecDigest(spec)}]`;
 
-const specHashOf = (spec: unknown) =>
-  typeof spec === "string"
-    ? spec.startsWith(BOUNDED_SPEC_PREFIX) && spec.endsWith("]")
-      ? spec.slice(BOUNDED_SPEC_PREFIX.length, -1)
-      : undefined
-    : Predicate.isObject(spec)
-      ? htmlRenderSpecDigest(spec)
-      : undefined;
+const specHashOf = (spec: unknown) => {
+  if (Predicate.isObject(spec)) return htmlRenderSpecDigest(spec);
+  if (typeof spec === "string" && spec.startsWith(BOUNDED_SPEC_PREFIX) && spec.endsWith("]")) {
+    return spec.slice(BOUNDED_SPEC_PREFIX.length, -1);
+  }
+  return undefined;
+};
 
 export class McpProviderSessions extends Context.Service<
   McpProviderSessions,
@@ -95,21 +94,22 @@ const matchesHtml = (html: string) => {
     : undefined;
   return (page: KeptHtmlRender) =>
     page.htmlHash === htmlHash ||
-    (page.htmlHash !== undefined &&
-      tail !== undefined &&
+    (tail !== undefined &&
       tail.length > 0 &&
       tail.length < page.htmlLength &&
       page.htmlEnd.endsWith(tail));
 };
 
+const matchesSpec = (spec: unknown) => {
+  const specHash = specHashOf(spec);
+  return specHash === undefined ? undefined : (page: KeptHtmlRender) => page.specHash === specHash;
+};
+
 const matchingPageIndex = (kept: ReadonlyArray<KeptHtmlRender>, input: HtmlRenderInput): number => {
-  const specHash = specHashOf(input.spec);
   const matchesSource =
     typeof input.html === "string" && input.html.length > 0
       ? matchesHtml(input.html)
-      : specHash === undefined
-        ? undefined
-        : (page: KeptHtmlRender) => page.specHash === specHash;
+      : matchesSpec(input.spec);
   if (matchesSource === undefined) {
     return -1;
   }

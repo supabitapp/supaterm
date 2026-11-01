@@ -1,4 +1,4 @@
-import type { HtmlRenderSpec } from "./HtmlRenderSpec.ts";
+import type { HtmlRenderSpec, HtmlRenderSpecElement } from "./HtmlRenderSpec.ts";
 
 const PLOT_WIDTH = 1_000;
 const PLOT_HEIGHT = 200;
@@ -84,8 +84,10 @@ const niceScale = (min: number, max: number) => {
   return { low: ticks[0]!, high: ticks[ticks.length - 1]!, ticks };
 };
 
-type Element = HtmlRenderSpec["elements"][string];
-type Props<T extends Element["type"]> = Extract<Element, { type: T }>["props"];
+type Props<T extends HtmlRenderSpecElement["type"]> = Extract<
+  HtmlRenderSpecElement,
+  { type: T }
+>["props"];
 
 const table = ({ headers, rows, caption }: Props<"Table">) => {
   const numeric = headers.map(
