@@ -504,14 +504,24 @@ function isLocalProjectedRow(
 
 /**
  * Rows a window can cut off but clients still need: interrupt requests, which later result pages
- * need for attempt/run reducers, and background work still running after its turn, which clients
- * list and stop.
+ * need for attempt/run reducers; background work still running after its turn, which clients
+ * list and stop; and open questions and approvals, whose rows clients build answer panels from.
  */
 function windowDependencyTurnItems(
   projection: OrchestrationV2ThreadProjection,
 ): OrchestrationV2TurnItem[] {
+  const pendingRequestIds = new Set(
+    projection.runtimeRequests
+      .filter((request) => request.status === "pending")
+      .map((request) => String(request.id)),
+  );
   return [
-    ...projection.turnItems.filter((item) => item.type === "run_interrupt_request"),
+    ...projection.turnItems.filter(
+      (item) =>
+        item.type === "run_interrupt_request" ||
+        ((item.type === "user_input_request" || item.type === "approval_request") &&
+          pendingRequestIds.has(String(item.requestId))),
+    ),
     ...pendingBackgroundTurnItems({ turnItems: projection.turnItems, runs: projection.runs }),
   ];
 }
