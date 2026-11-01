@@ -5,6 +5,7 @@ import type { HtmlRenderReference } from "@supaterm/shared/htmlRender";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Predicate from "effect/Predicate";
 import * as Ref from "effect/Ref";
 
 import type { McpProviderSessionConfig } from "./mcpSession.ts";
@@ -15,17 +16,52 @@ const MAX_KEPT_HTML_RENDERS = 64;
 // Antigravity truncates long HTML arguments to a marked tail of at most 8,000 characters.
 const BOUNDED_TEXT_MARKER = "[Earlier output truncated]\n\n";
 const KEPT_HTML_END_LENGTH = 8_000;
+const BOUNDED_SPEC_PREFIX = "[Spec sha256 ";
+
+interface HtmlRenderInput {
+  readonly html?: unknown;
+  readonly spec?: unknown;
+  readonly title?: unknown;
+  readonly height?: unknown;
+}
 
 interface KeptHtmlRender {
   readonly title: string;
   readonly height: number;
   readonly htmlLength: number;
-  readonly htmlHash: string;
+  readonly htmlHash: string | undefined;
   readonly htmlEnd: string;
+  readonly specHash: string | undefined;
   readonly reference: HtmlRenderReference;
 }
 
-const hashHtml = (html: string) => NodeCrypto.createHash("sha256").update(html).digest("hex");
+const sha256 = (text: string) => NodeCrypto.createHash("sha256").update(text).digest("hex");
+
+const canonicalJson = (value: unknown): string => {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (!Predicate.isObject(value)) return JSON.stringify(value) ?? "null";
+  return `{${Object.keys(value)
+    .filter((key) => value[key] !== undefined)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
+    .join(",")}}`;
+};
+
+/** Key order is ignored: a provider may report the spec it sent with its keys reordered. */
+export const htmlRenderSpecDigest = (spec: unknown) => sha256(canonicalJson(spec));
+
+/** Stands in for a spec a provider's payload bounds would cut, keeping only what matching needs. */
+export const boundHtmlRenderSpec = (spec: unknown) =>
+  `${BOUNDED_SPEC_PREFIX}${htmlRenderSpecDigest(spec)}]`;
+
+const specHashOf = (spec: unknown) =>
+  typeof spec === "string"
+    ? spec.startsWith(BOUNDED_SPEC_PREFIX) && spec.endsWith("]")
+      ? spec.slice(BOUNDED_SPEC_PREFIX.length, -1)
+      : undefined
+    : Predicate.isObject(spec)
+      ? htmlRenderSpecDigest(spec)
+      : undefined;
 
 export class McpProviderSessions extends Context.Service<
   McpProviderSessions,
@@ -35,44 +71,54 @@ export class McpProviderSessions extends Context.Service<
     readonly clear: (threadId: ThreadId) => Effect.Effect<void>;
     readonly recordHtmlRender: (
       threadId: ThreadId,
-      input: { readonly html: string; readonly title: string; readonly height: number },
+      input: {
+        readonly html?: string | undefined;
+        readonly spec?: unknown;
+        readonly title: string;
+        readonly height: number;
+      },
       reference: HtmlRenderReference,
     ) => Effect.Effect<void>;
     // A reported attachment consumes that exact page; otherwise only unique input matches count.
     readonly takeHtmlRender: (
       threadId: ThreadId,
-      input: { readonly html?: unknown; readonly title?: unknown; readonly height?: unknown },
+      input: HtmlRenderInput,
       reported?: HtmlRenderReference,
     ) => Effect.Effect<HtmlRenderReference | undefined>;
   }
 >()("@supaterm/provider-core/server/McpProviderSessions") {}
 
-const matchingPageIndex = (
-  kept: ReadonlyArray<KeptHtmlRender>,
-  input: { readonly html?: unknown; readonly title?: unknown; readonly height?: unknown },
-): number => {
-  const html = input.html;
-  if (typeof html !== "string" || html.length === 0) {
+const matchesHtml = (html: string) => {
+  const htmlHash = sha256(html);
+  const tail = html.startsWith(BOUNDED_TEXT_MARKER)
+    ? html.slice(BOUNDED_TEXT_MARKER.length)
+    : undefined;
+  return (page: KeptHtmlRender) =>
+    page.htmlHash === htmlHash ||
+    (page.htmlHash !== undefined &&
+      tail !== undefined &&
+      tail.length > 0 &&
+      tail.length < page.htmlLength &&
+      page.htmlEnd.endsWith(tail));
+};
+
+const matchingPageIndex = (kept: ReadonlyArray<KeptHtmlRender>, input: HtmlRenderInput): number => {
+  const specHash = specHashOf(input.spec);
+  const matchesSource =
+    typeof input.html === "string" && input.html.length > 0
+      ? matchesHtml(input.html)
+      : specHash === undefined
+        ? undefined
+        : (page: KeptHtmlRender) => page.specHash === specHash;
+  if (matchesSource === undefined) {
     return -1;
   }
   const height =
     typeof input.height === "string" && input.height.trim() !== ""
       ? Number(input.height)
       : input.height;
-  const htmlHash = hashHtml(html);
-  const tail = html.startsWith(BOUNDED_TEXT_MARKER)
-    ? html.slice(BOUNDED_TEXT_MARKER.length)
-    : undefined;
   const matches = kept.flatMap((page, index) =>
-    page.title === input.title &&
-    page.height === height &&
-    (page.htmlHash === htmlHash ||
-      (tail !== undefined &&
-        tail.length > 0 &&
-        tail.length < page.htmlLength &&
-        page.htmlEnd.endsWith(tail)))
-      ? [index]
-      : [],
+    page.title === input.title && page.height === height && matchesSource(page) ? [index] : [],
   );
   return matches.length === 1 ? matches[0]! : -1;
 };
@@ -120,12 +166,14 @@ const make = Effect.gen(function* () {
               {
                 title: input.title,
                 height: input.height,
-                htmlLength: input.html.length,
-                htmlHash: hashHtml(input.html),
+                htmlLength: input.html?.length ?? 0,
+                htmlHash: input.html === undefined ? undefined : sha256(input.html),
                 // Copy the tail so its backing storage cannot retain the entire HTML string.
-                htmlEnd: Buffer.from(input.html.slice(-KEPT_HTML_END_LENGTH), "utf16le").toString(
+                htmlEnd: Buffer.from(
+                  input.html?.slice(-KEPT_HTML_END_LENGTH) ?? "",
                   "utf16le",
-                ),
+                ).toString("utf16le"),
+                specHash: input.html === undefined ? specHashOf(input.spec) : undefined,
                 reference,
               },
             ].slice(-MAX_KEPT_HTML_RENDERS),

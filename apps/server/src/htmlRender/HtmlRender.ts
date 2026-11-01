@@ -24,6 +24,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import type * as Path from "effect/Path";
+import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
@@ -34,9 +35,13 @@ import { createAttachmentId } from "../attachmentStore.ts";
 import { resolveRootCliCommand } from "../cli/invocation.ts";
 import * as ServerConfig from "../config.ts";
 import * as HeadlessChrome from "./headlessChrome.ts";
+import { IMAGE_EXTENSIONS, IMAGE_MIME_TYPES } from "./imageMimeTypes.ts";
+import { compileHtmlRenderSpec } from "./spec/compileHtmlRenderSpec.ts";
+import { parseHtmlRenderSpec } from "./spec/HtmlRenderSpec.ts";
 import * as PreviewBrowser from "../preview/PreviewBrowser.ts";
 import * as PreviewBrowserHost from "../preview/PreviewBrowserHost.ts";
 
+export const HTML_RENDER_MAX_HTML_LENGTH = 512_000;
 const MIB = 1024 * 1024;
 const MAX_IMAGE_BYTES = 10 * MIB;
 const MAX_PAGE_BYTES = 25 * MIB;
@@ -94,6 +99,39 @@ const rejectViewportHeight = (html: string) => {
   return Effect.void;
 };
 
+export class HtmlRenderSourceError extends Schema.TaggedError<HtmlRenderSourceError>()(
+  "HtmlRenderSourceError",
+  { issues: Schema.Array(Schema.String) },
+) {
+  override get message(): string {
+    return this.issues.join("\n");
+  }
+}
+
+/** Exactly one of a finished page or a spec that Supaterm builds the page from. */
+export interface HtmlRenderSource {
+  readonly html?: string | undefined;
+  readonly spec?: unknown;
+}
+
+const sourceHtml = Effect.fnUntraced(function* (source: HtmlRenderSource) {
+  if ((source.html === undefined) === (source.spec === undefined)) {
+    return yield* new HtmlRenderSourceError({ issues: ["Pass exactly one of html or spec."] });
+  }
+  if (source.html !== undefined) return source.html;
+  const spec = parseHtmlRenderSpec(source.spec);
+  if (Result.isFailure(spec)) return yield* new HtmlRenderSourceError({ issues: spec.failure });
+  const html = compileHtmlRenderSpec(spec.success);
+  if (html.length > HTML_RENDER_MAX_HTML_LENGTH) {
+    return yield* new HtmlRenderSourceError({
+      issues: [
+        `spec: builds a ${html.length}-character page; the limit is ${HTML_RENDER_MAX_HTML_LENGTH}. Use less data.`,
+      ],
+    });
+  }
+  return html;
+});
+
 export class HtmlRenderStoreError extends Schema.TaggedError<HtmlRenderStoreError>()(
   "HtmlRenderStoreError",
   { cause: Schema.Defect() },
@@ -104,6 +142,7 @@ export class HtmlRenderStoreError extends Schema.TaggedError<HtmlRenderStoreErro
 }
 
 export type HtmlRenderPrepareError =
+  | HtmlRenderSourceError
   | HtmlRenderImagesNotFoundError
   | HtmlRenderImageTooLargeError
   | HtmlRenderPageTooLargeError
@@ -122,17 +161,19 @@ export class HtmlRender extends Context.Service<
   HtmlRender,
   {
     readonly prepare: (html: string) => Effect.Effect<string, HtmlRenderPrepareError>;
-    readonly publish: (input: {
-      readonly threadId: ThreadId;
-      readonly html: string;
-      readonly title: string;
-      readonly height: number;
-    }) => Effect.Effect<HtmlRenderReference, HtmlRenderPrepareError | HtmlRenderStoreError>;
-    readonly preview: (input: {
-      readonly html: string;
-      readonly width?: number | undefined;
-      readonly appearance?: ThemeAppearance | undefined;
-    }) => Effect.Effect<
+    readonly publish: (
+      input: HtmlRenderSource & {
+        readonly threadId: ThreadId;
+        readonly title: string;
+        readonly height: number;
+      },
+    ) => Effect.Effect<HtmlRenderReference, HtmlRenderPrepareError | HtmlRenderStoreError>;
+    readonly preview: (
+      input: HtmlRenderSource & {
+        readonly width?: number | undefined;
+        readonly appearance?: ThemeAppearance | undefined;
+      },
+    ) => Effect.Effect<
       HtmlPreview,
       | Exclude<HtmlRenderPrepareError, HtmlRenderImagesNotFoundError>
       | PreviewBrowser.PreviewBrowserInstallError
@@ -144,18 +185,6 @@ export class HtmlRender extends Context.Service<
   }
 >()("supaterm/htmlRender/HtmlRender") {}
 
-const IMAGE_MIME_TYPES: Record<string, string> = {
-  png: "image/png",
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  gif: "image/gif",
-  webp: "image/webp",
-  avif: "image/avif",
-  svg: "image/svg+xml",
-  bmp: "image/bmp",
-  ico: "image/x-icon",
-};
-const IMAGE_EXTENSIONS = Object.keys(IMAGE_MIME_TYPES).join("|");
 const ABSOLUTE_PATH = String.raw`(?:/(?!/)|[a-z]:[\\/])`;
 const LOCAL_IMAGE_PATTERN = new RegExp(
   String.raw`(["'\x60])(${ABSOLUTE_PATH}(?:(?!\1)[^\r\n]){0,2048}?\.(?:${IMAGE_EXTENSIONS}))\1` +
@@ -414,13 +443,14 @@ const make = Effect.gen(function* () {
     return inlined.html;
   });
 
-  const publish = Effect.fn("HtmlRender.publish")(function* (input: {
-    readonly threadId: ThreadId;
-    readonly html: string;
-    readonly title: string;
-    readonly height: number;
-  }) {
-    const html = yield* prepare(input.html);
+  const publish = Effect.fn("HtmlRender.publish")(function* (
+    input: HtmlRenderSource & {
+      readonly threadId: ThreadId;
+      readonly title: string;
+      readonly height: number;
+    },
+  ) {
+    const html = yield* prepare(yield* sourceHtml(input));
     // The `-html` id suffix makes the asset route serve it as a sandboxed text/html document.
     const attachmentId = createAttachmentId(input.threadId, "html");
     const filePath =
@@ -464,18 +494,20 @@ const make = Effect.gen(function* () {
     );
   });
 
-  const preview = Effect.fn("HtmlRender.preview")(function* (input: {
-    readonly html: string;
-    readonly width?: number | undefined;
-    readonly appearance?: ThemeAppearance | undefined;
-  }) {
+  const preview = Effect.fn("HtmlRender.preview")(function* (
+    input: HtmlRenderSource & {
+      readonly width?: number | undefined;
+      readonly appearance?: ThemeAppearance | undefined;
+    },
+  ) {
     const width = Math.min(
       MAX_PREVIEW_WIDTH,
       Math.max(MIN_PREVIEW_WIDTH, Math.round(input.width ?? HTML_RENDER_COLUMN_WIDTH)),
     );
     const appearance = input.appearance ?? "dark";
-    yield* rejectViewportHeight(input.html);
-    const inlined = yield* inline(input.html);
+    const html = yield* sourceHtml(input);
+    yield* rejectViewportHeight(html);
+    const inlined = yield* inline(html);
     const executable = yield* previewBrowser.executable;
     const theme = htmlRenderTheme(
       appearance === "light" ? SUPATERM_LIGHT_THEME_COLORS : SUPATERM_DARK_THEME_COLORS,

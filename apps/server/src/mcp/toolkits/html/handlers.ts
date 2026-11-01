@@ -10,6 +10,7 @@ const INVALID_PAGE_ERRORS = new Set([
   "HtmlRenderImagesNotFoundError",
   "HtmlRenderImageTooLargeError",
   "HtmlRenderPageTooLargeError",
+  "HtmlRenderSourceError",
   "HtmlRenderViewportHeightError",
 ]);
 

@@ -3,6 +3,10 @@ import type {
   ProviderUserInputAnswers,
   UserInputQuestion,
 } from "@supaterm/contracts";
+import {
+  boundHtmlRenderSpec,
+  htmlRenderSpecDigest,
+} from "@supaterm/provider-core/server/McpProviderSessions";
 import { isWorkspaceImagePreviewPath } from "@supaterm/shared/filePreview";
 import * as Option from "effect/Option";
 import * as Predicate from "effect/Predicate";
@@ -216,6 +220,23 @@ export function sanitizeAntigravityToolPayload(payload: unknown): unknown {
   return sanitizeToolValue(payload, { nodes: 512, text: 64_000 }, 0);
 }
 
+// html_render recovery finds a spec's page by its digest, so a spec these bounds would cut keeps only that.
+function sanitizeAntigravityToolInput(rawInput: unknown): unknown {
+  if (!Predicate.isObject(rawInput) || !Predicate.isObject(rawInput.spec)) {
+    return sanitizeAntigravityToolPayload(rawInput);
+  }
+  const { spec, ...rest } = rawInput;
+  const bounded = sanitizeAntigravityToolPayload(spec);
+  const sanitized = sanitizeAntigravityToolPayload(rest);
+  return {
+    ...(Predicate.isObject(sanitized) ? sanitized : {}),
+    spec:
+      htmlRenderSpecDigest(bounded) === htmlRenderSpecDigest(spec)
+        ? bounded
+        : boundHtmlRenderSpec(spec),
+  };
+}
+
 const ANTIGRAVITY_CLIENT_READ_TITLES = new Set([
   "Running client_view_file",
   "Run client_view_file?",
@@ -318,7 +339,7 @@ export function normalizeAntigravitySessionUpdate(
       ...update,
       ...(typeof update.title === "string" ? { title: boundText(update.title) } : {}),
       ...(update.rawInput !== undefined
-        ? { rawInput: sanitizeAntigravityToolPayload(update.rawInput) }
+        ? { rawInput: sanitizeAntigravityToolInput(update.rawInput) }
         : {}),
       ...(update.rawOutput !== undefined
         ? { rawOutput: sanitizeAntigravityToolPayload(update.rawOutput) }
@@ -375,8 +396,10 @@ export function normalizeAntigravityToolCall(toolCall: AcpToolCallState): AcpToo
   const aggregatedOutput = nativeOutput === undefined ? undefined : boundText(nativeOutput);
   const exitCode = output?.exitCode ?? output?.exit_code;
   const imagePath = localImagePath(output?.imagePath);
-  const sanitizedData = sanitizeAntigravityToolPayload(toolCall.data);
+  const { rawInput, ...rest } = toolCall.data;
+  const sanitizedData = sanitizeAntigravityToolPayload(rest);
   const data: Record<string, unknown> = Predicate.isObject(sanitizedData) ? sanitizedData : {};
+  if (rawInput !== undefined) data.rawInput = sanitizeAntigravityToolInput(rawInput);
   const kind = toolCall.kind ?? (command !== undefined ? "execute" : undefined);
   if (kind !== undefined) data.kind = kind;
   if (command !== undefined) data.command = command;

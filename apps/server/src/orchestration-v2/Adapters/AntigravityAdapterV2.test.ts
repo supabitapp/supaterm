@@ -572,6 +572,25 @@ describe("AntigravityAdapterV2 html_render pages", () => {
       // Long enough that Antigravity bounds the html the adapter sees.
       const rows = Array.from({ length: 500 }, (_, row) => `<tr><td>Row ${row}</td></tr>`);
       const report = { html: `<table>${rows.join("")}</table>`, title: "Revenue", height: 240 };
+      // More points than Antigravity's payload bounds keep, so only the spec's digest survives.
+      const charted = {
+        spec: {
+          root: "trend",
+          elements: {
+            trend: {
+              type: "LineChart",
+              props: {
+                data: Array.from({ length: 400 }, (_, day) => ({
+                  label: `Day ${day}`,
+                  value: day,
+                })),
+              },
+            },
+          },
+        },
+        title: "Revenue",
+        height: 240,
+      };
       const failed = { ...report, html: "<p>Revenue</p>" };
       const errored = { ...report, html: "<p>Revenue error</p>" };
       const adapter = yield* makeAntigravityAdapterV2({
@@ -611,6 +630,7 @@ describe("AntigravityAdapterV2 html_render pages", () => {
                         );
                   const calls = [
                     ["published", report],
+                    ["charted", charted],
                     ["unpublished", { ...report, html: "<p>Costs</p>" }],
                     ["failed", failed],
                     ["error", errored],
@@ -626,9 +646,11 @@ describe("AntigravityAdapterV2 html_render pages", () => {
                     });
                   }
                   yield* mcpSessions.recordHtmlRender(threadId, report, page("report"));
+                  yield* mcpSessions.recordHtmlRender(threadId, charted, page("charted"));
                   yield* mcpSessions.recordHtmlRender(threadId, failed, page("failed"));
                   yield* mcpSessions.recordHtmlRender(threadId, errored, page("error"));
                   for (const [toolCallId, status] of [
+                    ["charted", "completed"],
                     ["unpublished", "completed"],
                     ["failed", "failed"],
                     ["published", "completed"],
@@ -786,6 +808,12 @@ describe("AntigravityAdapterV2 html_render pages", () => {
         toolName: "supaterm.html_render",
         page: page("replacement"),
         output: { htmlRender: page("replacement") },
+      });
+      assert.deepEqual(tool("charted"), {
+        status: "completed",
+        toolName: "supaterm.html_render",
+        page: page("charted"),
+        output: { htmlRender: page("charted") },
       });
       assert.deepEqual(tool("unpublished"), {
         status: "completed",

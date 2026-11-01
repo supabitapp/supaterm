@@ -299,6 +299,68 @@ describe("HtmlRender", () => {
     }).pipe(Effect.provide(layerTest)),
   );
 
+  it.effect("publishes a spec as the page it builds and recovers it by the spec", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const config = yield* ServerConfig.ServerConfig;
+      const htmlRender = yield* HtmlRender.HtmlRender;
+      const mcpSessions = yield* McpProviderSessions.McpProviderSessions;
+      const threadId = ThreadId.make("thread-html-render-spec");
+      const spec = {
+        root: "page",
+        elements: {
+          page: { type: "Stack", props: {}, children: ["title"] },
+          title: { type: "Text", props: { text: "Revenue", variant: "heading" } },
+        },
+      };
+      const page = { spec, title: "Revenue", height: 200 };
+
+      const reference = yield* htmlRender.publish({ threadId, ...page });
+
+      const stored = resolveAttachmentPathById({
+        attachmentsDir: config.attachmentsDir,
+        attachmentId: reference.attachmentId,
+      });
+      const html = yield* fileSystem.readFileString(stored ?? "");
+      expect(html).toContain('<style id="supaterm-theme">');
+      expect(html).toContain('<div class="stack"><h2>Revenue</h2></div>');
+      // A provider may report the spec with its keys in another order.
+      const reordered = {
+        elements: { title: spec.elements.title, page: spec.elements.page },
+        root: "page",
+      };
+      expect(
+        yield* mcpSessions.takeHtmlRender(threadId, { ...page, html: JSON.stringify(spec) }),
+      ).toBe(undefined);
+      expect(yield* mcpSessions.takeHtmlRender(threadId, { ...page, spec: reordered })).toEqual(
+        reference,
+      );
+
+      const rejected = (source: HtmlRender.HtmlRenderSource) =>
+        htmlRender.publish({ threadId, ...source, title: "X", height: 200 }).pipe(
+          Effect.flip,
+          Effect.map((error) => [error._tag, error.message]),
+        );
+      expect(yield* rejected({})).toEqual([
+        "HtmlRenderSourceError",
+        "Pass exactly one of html or spec.",
+      ]);
+      expect(yield* rejected({ html: "<p>x</p>", spec })).toEqual([
+        "HtmlRenderSourceError",
+        "Pass exactly one of html or spec.",
+      ]);
+      expect(yield* rejected({ spec: { ...spec, root: "missing" } })).toEqual([
+        "HtmlRenderSourceError",
+        'root: no element has the id "missing".',
+      ]);
+      expect(
+        (yield* fileSystem.readDirectory(config.attachmentsDir, { recursive: true })).filter(
+          (name) => name.endsWith(".html"),
+        ),
+      ).toHaveLength(1);
+    }).pipe(Effect.provide(layerTest)),
+  );
+
   it.effect("removes the page when publishing is interrupted", () =>
     Effect.gen(function* () {
       const threadId = ThreadId.make("thread-html-cancel");
