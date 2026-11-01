@@ -14,16 +14,17 @@ const CLAUDE = ProviderInstanceId.make("claudeAgent");
 const provider = (overrides: Partial<ServerProvider> = {}) =>
   ({
     instanceId: CLAUDE,
+    driver: "claudeAgent",
     displayName: "Claude",
     enabled: true,
     transcription: { status: "ready" },
     ...overrides,
   }) as ServerProvider;
 
-const config = (providers: ReadonlyArray<ServerProvider>) => ({
-  providers,
-  settings: { transcriptionProviderInstanceId: CLAUDE },
-});
+const config = (
+  providers: ReadonlyArray<ServerProvider>,
+  transcriptionProviderInstanceId: ProviderInstanceId | null = CLAUDE,
+) => ({ providers, settings: { transcriptionProviderInstanceId } });
 
 describe("resolveVoiceTranscriptionSource", () => {
   it("uses only the configured instance and says why it can't", () => {
@@ -48,6 +49,35 @@ describe("resolveVoiceTranscriptionSource", () => {
     expect(
       resolveVoiceTranscriptionSource(config([provider({ transcription: undefined })])),
     ).toMatchObject({ message: "Claude can't transcribe voice input." });
+  });
+
+  it("while unset, picks the first ready login with Claude's ahead, and never a turned-off one", () => {
+    const codex = provider({
+      instanceId: ProviderInstanceId.make("codex"),
+      driver: "codex",
+      displayName: "Codex",
+    } as Partial<ServerProvider>);
+    const gateway = provider({
+      transcription: { status: "unavailable", reason: "unsupportedLogin" },
+    });
+    const voice = provider({
+      instanceId: ProviderInstanceId.make("claudeAgent_voice"),
+      displayName: "Claude Voice",
+    });
+    const pick = (providers: ReadonlyArray<ServerProvider>) =>
+      resolveVoiceTranscriptionSource(config(providers, null));
+
+    expect(pick([codex, gateway, voice]).provider?.displayName).toBe("Claude Voice");
+    expect(pick([codex, gateway]).provider?.displayName).toBe("Codex");
+    expect(pick([gateway, provider({ ...codex, enabled: false })])).toMatchObject({
+      status: "unavailable",
+      provider: { displayName: "Claude" },
+      message: "Transcription needs this provider's subscription login, not an API key or gateway.",
+    });
+    expect(pick([provider({ ...codex, transcription: undefined })])).toMatchObject({
+      status: "unavailable",
+      message: "No provider on this environment can transcribe voice input.",
+    });
   });
 });
 

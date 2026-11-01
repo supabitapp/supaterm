@@ -1265,10 +1265,11 @@ export const ServerSettings = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed(true)),
   ),
   threadTitleInstructions: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
-  /** Its login transcribes voice input sent to this environment, and is charged for it. */
-  transcriptionProviderInstanceId: ProviderInstanceId.pipe(
-    Schema.withDecodingDefault(Effect.succeed(ProviderInstanceId.make("claudeAgent"))),
-  ),
+  /**
+   * Its login transcribes voice input sent to this environment, and is charged for it. Null
+   * picks automatically and stays off the wire, so older clients decode their own default.
+   */
+  transcriptionProviderInstanceId: OmittedWhenNull(ProviderInstanceId),
   branchNamingMode: BranchNamingMode.pipe(
     Schema.withDecodingDefault(Effect.succeed("static" as const)),
   ),
@@ -1527,7 +1528,7 @@ export const ServerSettingsPatch = Schema.Struct({
   textGenerationModelSelection: Schema.optionalKey(ModelSelectionPatch),
   nextPromptSuggestionsEnabled: Schema.optionalKey(Schema.Boolean),
   threadTitleInstructions: Schema.optionalKey(TrimmedString),
-  transcriptionProviderInstanceId: Schema.optionalKey(ProviderInstanceId),
+  transcriptionProviderInstanceId: Schema.optionalKey(Schema.NullOr(ProviderInstanceId)),
   branchNamingMode: Schema.optionalKey(BranchNamingMode),
   branchNamePrefix: Schema.optionalKey(TrimmedString),
   branchNamePrefixFromRepository: Schema.optionalKey(Schema.Boolean),

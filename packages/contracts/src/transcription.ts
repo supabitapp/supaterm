@@ -22,6 +22,27 @@ export const ServerProviderTranscription = Schema.Struct({
 });
 export type ServerProviderTranscription = typeof ServerProviderTranscription.Type;
 
+/**
+ * What an unset transcription setting resolves to: the first enabled instance whose login
+ * can transcribe, Claude's ahead of the rest. With none ready, the first enabled one, so the
+ * refusal names its reason.
+ */
+export function automaticTranscriptionProvider<
+  Provider extends {
+    readonly driver: string;
+    readonly enabled: boolean;
+    readonly transcription?: ServerProviderTranscription | undefined;
+  },
+>(providers: ReadonlyArray<Provider>): Provider | undefined {
+  const candidates = providers
+    .filter((provider) => provider.enabled && provider.transcription !== undefined)
+    .sort(
+      (left, right) =>
+        Number(right.driver === "claudeAgent") - Number(left.driver === "claudeAgent"),
+    );
+  return candidates.find((provider) => provider.transcription?.status === "ready") ?? candidates[0];
+}
+
 const AudioAttachmentId = TrimmedNonEmptyString.check(Schema.isMaxLength(256));
 /** BCP 47 tag. Omitted means the backend's default. */
 const TranscriptionLanguage = TrimmedNonEmptyString.check(Schema.isMaxLength(35));
