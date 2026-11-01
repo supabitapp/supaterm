@@ -51,14 +51,14 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
   return (
     <div
       className={cn(
-        "flex h-[var(--workspace-topbar-height)] shrink-0 flex-row items-center gap-2 pr-3",
+        "flex h-[calc((var(--workspace-topbar-height)+var(--workspace-titlebar-control-size))/2)] shrink-0 flex-row items-end gap-2 pr-3",
         isElectron && "drag-region",
       )}
     >
       <div className="relative top-[calc(var(--workspace-controls-top)-env(safe-area-inset-top))] ml-[calc(var(--workspace-controls-left)+1px-env(safe-area-inset-left))] flex shrink-0 items-center md:hidden">
         <SidebarTrigger aria-label="Toggle main sidebar" />
       </div>
-      <div className="flex h-8 min-w-0 flex-1 items-center overflow-hidden py-0.5">
+      <div className="flex h-[var(--workspace-titlebar-control-size)] min-w-0 flex-1 items-center overflow-hidden">
         <SidebarBrand />
       </div>
     </div>
