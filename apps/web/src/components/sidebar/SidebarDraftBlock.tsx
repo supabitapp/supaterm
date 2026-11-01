@@ -13,6 +13,7 @@ import {
 } from "react";
 import { useLocalStorage } from "../../hooks/useLocalStorage";
 import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
+import { useShallow } from "zustand/react/shallow";
 import { cn } from "~/lib/utils";
 import { resolveSidebarRowAccessibility } from "../Sidebar.logic";
 import { ProjectFavicon, type ProjectFaviconProject } from "../ProjectFavicon";
@@ -192,7 +193,15 @@ export const SidebarDraftBlock = memo(function SidebarDraftBlock(props: {
   );
   const paneDraftIds = new Set(paneDraftIdList);
   const draftThreadsByThreadKey = useComposerDraftStore((store) => store.draftThreadsByThreadKey);
-  const draftsByThreadKey = useComposerDraftStore((store) => store.draftsByThreadKey);
+  const draftsByThreadKey = useComposerDraftStore(
+    useShallow((store) =>
+      Object.fromEntries(
+        Object.keys(store.draftThreadsByThreadKey).map(
+          (key) => [key, store.draftsByThreadKey[key]] as const,
+        ),
+      ),
+    ),
+  );
   const [frozenActive, setFrozenActive] = useState<{
     routeDraftId: string | null;
     row: SidebarDraftRowData | null;
