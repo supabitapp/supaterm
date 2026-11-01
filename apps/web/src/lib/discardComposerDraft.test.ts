@@ -101,7 +101,7 @@ describe("discardComposerDraft", () => {
     useComposerDraftStore.getState().addImage(threadRef, newPreview.image);
 
     const result = await undoNotice().undo();
-    expect(result._tag).toBe("Failure");
+    expect(result?._tag).toBe("Failure");
     expect(useComposerDraftStore.getState().getComposerDraft(threadRef)?.prompt).toBe("new reply");
     await expect(fetch(oldPreview.image.previewUrl)).rejects.toThrow();
     expect(await (await fetch(newPreview.image.previewUrl)).text()).toBe("image bytes");
@@ -113,7 +113,7 @@ describe("discardComposerDraft", () => {
     discardComposerDraft(threadRef);
 
     const result = await undoNotice().undo();
-    expect(result._tag).toBe("Success");
+    expect(result?._tag).toBe("Success");
     const restored = useComposerDraftStore.getState().getComposerDraft(threadRef)!.images[0]!;
     expect(restored.previewUrl).toBe(preview.image.previewUrl);
     expect(await (await fetch(restored.previewUrl)).text()).toBe("image bytes");
