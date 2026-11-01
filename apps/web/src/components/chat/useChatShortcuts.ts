@@ -20,6 +20,8 @@ import { composerShortcutCommands, type ComposerShortcutAvailability } from "./c
  */
 export type ChatShortcutHandler = (context: {
   readonly repeat: boolean;
+  /** The key press behind the command; null for menus and devices. */
+  readonly event: KeyboardEvent | null;
   readonly terminalFocusOwner: TerminalFocusOwner | null;
 }) => boolean | void;
 
@@ -93,7 +95,11 @@ export function useChatShortcuts(input: ChatShortcutsInput) {
       )[command] ??
       input.fallback(command);
     return run
-      ? run({ repeat: invocation.repeat, terminalFocusOwner: getTerminalFocusOwner() })
+      ? run({
+          repeat: invocation.repeat,
+          event: invocation.event,
+          terminalFocusOwner: getTerminalFocusOwner(),
+        })
       : false;
   });
   const readShortcutContext = useEffectEvent((event: KeyboardEvent) =>

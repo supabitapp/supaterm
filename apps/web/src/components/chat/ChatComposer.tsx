@@ -344,7 +344,7 @@ export interface ChatComposerHandle {
   /** Sends the draft as the send button would; does nothing when sending isn't possible. */
   submit: () => void;
   /** Starts voice input, or finishes the recording in progress. */
-  toggleVoiceInput: () => void;
+  toggleVoiceInput: (press?: { readonly fromKey: boolean }) => void;
   toggleModelPicker: () => void;
   openControl: (command: KeybindingCommand) => void;
   isModelPickerOpen: () => boolean;
@@ -1922,6 +1922,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     submit: (submission) =>
       void submitComposerStable(undefined, submission.dispatchMode, submission.intent),
     onBusyChange: setVoiceSessionOpen,
+    holdSpaceTarget: settings.voiceHoldSpaceToTalk ? composerFormRef : null,
   });
 
   const readComposerSnapshot = (): {

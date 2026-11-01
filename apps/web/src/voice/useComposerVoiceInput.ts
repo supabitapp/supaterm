@@ -7,14 +7,16 @@ import {
   type VoiceInputState,
 } from "@supaterm/client-runtime/voice-input";
 import type { EnvironmentId, ProjectId, ThreadId } from "@supaterm/contracts";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { ComposerSubmissionIntent } from "../composer-logic";
 import type { ComposerDispatchMode } from "@supaterm/client-runtime/state/composer-dispatch";
 import { useStableCallback } from "../hooks/useStableCallback";
 import { threadOutboxDeliverableAtom } from "../state/threadOutbox";
 import { uploadVoiceAudio, useVoiceTranscriptionSource } from "../state/transcription";
+import { followKeyHold } from "./keyHold";
 import { useDiscardOnEscape } from "./useDiscardOnEscape";
+import { useHoldSpaceToTalk } from "./useHoldSpaceToTalk";
 import {
   canRecordVoice,
   readVoiceRecording,
@@ -54,6 +56,8 @@ export interface ComposerVoiceInputOptions {
   readonly submit: (submission: ComposerVoiceSubmission) => void;
   /** A recording is open or on its way, so its controls must stay on screen. */
   readonly onBusyChange: (busy: boolean) => void;
+  /** Holding Space in this element's editor records; null leaves Space to type. */
+  readonly holdSpaceTarget: RefObject<HTMLElement | null> | null;
 }
 
 export interface ComposerVoiceAvailability {
@@ -228,23 +232,50 @@ export function useComposerVoiceInput(options: ComposerVoiceInputOptions) {
     submitAfterReview.current = { ownerKey: runtime.read().ownerKey, submission };
     await controller.stop();
   });
-  const toggle = useStableCallback(() => {
+  const finish = useStableCallback(() => {
+    if (availability.canReview) stop();
+    else void send();
+  });
+  // Letting go while the microphone still opens, as at the permission prompt, keeps it recording.
+  const finishHeld = useStableCallback(() => {
+    if (controller.currentState.phase === "recording") finish();
+  });
+  /** Pressed by a key, a hold past a tap finishes the recording when the key comes up. */
+  const toggle = useStableCallback((press: { readonly fromKey: boolean } = { fromKey: false }) => {
     switch (controller.currentState.phase) {
       case "idle":
       case "error":
         start();
+        if (press.fromKey) followKeyHold({ onHeldRelease: finishHeld });
         return;
       case "preparing":
         cancel();
         return;
       case "recording":
-        if (availability.canReview) stop();
-        else void send();
+        finish();
         return;
       case "transcribing":
       case "sending":
         return;
     }
+  });
+  useHoldSpaceToTalk(options.holdSpaceTarget, {
+    arm: () => {
+      const { phase } = controller.currentState;
+      if (phase !== "idle" && phase !== "error") return null;
+      if (!availability.canReview && !availability.canSend) return null;
+      const { readPrompt, readSelection } = runtime.read();
+      return { text: readPrompt(), selection: readSelection() };
+    },
+    hold: (before) => {
+      const { readPrompt, commitPrompt } = runtime.read();
+      const { start: from, end: to } = before.selection;
+      if (readPrompt() === `${before.text.slice(0, from)} ${before.text.slice(to)}`) {
+        commitPrompt(before.text, before.selection);
+      }
+      start();
+    },
+    release: finishHeld,
   });
 
   return {

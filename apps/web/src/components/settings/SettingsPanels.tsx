@@ -90,7 +90,11 @@ import {
   SettingsSection,
 } from "./settingsLayout";
 import { searchableSetting } from "./settingsSearch";
-import { VoiceLanguageSettingRow, VoiceTranscriptionSettingRow } from "./VoiceSettings";
+import {
+  VoiceHoldSpaceSettingRow,
+  VoiceLanguageSettingRow,
+  VoiceTranscriptionSettingRow,
+} from "./VoiceSettings";
 import { BackgroundActivitySettingsRow } from "./BackgroundActivitySettings";
 import { PullRequestLinksOpenInAppSetting } from "./IntegrationsSettings";
 import { OrchestrationSkillsSettings } from "./OrchestrationSkillsSettings";
@@ -1685,6 +1689,7 @@ export function ThreadsSettingsPanel() {
       <SettingsSection id="voice-input" title="Voice input">
         <VoiceTranscriptionSettingRow providers={serverProviders} />
         <VoiceLanguageSettingRow providers={serverProviders} />
+        <VoiceHoldSpaceSettingRow />
       </SettingsSection>
 
       <OrchestrationSkillsSettings />
