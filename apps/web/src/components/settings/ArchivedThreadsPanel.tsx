@@ -16,9 +16,9 @@ import { useClientSettings } from "../../hooks/useSettings";
 import { readLocalApi } from "../../localApi";
 import { useArchivedThreadSnapshots } from "../../lib/archivedThreadsState";
 import { RelativeTime } from "../RelativeTime";
-import { deleteSelectedThreadEntries } from "../Sidebar.logic";
+import { deleteSelectedThreadEntries } from "../../lib/threadBatchDelete";
 import { Button } from "../ui/button";
-import { Checkbox, CheckboxMark } from "../ui/checkbox";
+import { Checkbox } from "../ui/checkbox";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group";
 import { Separator } from "../ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
@@ -199,8 +199,13 @@ export function ArchivedThreadsPanel() {
     const clicked = await settlePromise(() =>
       api.contextMenu.show(
         [
-          { id: "unarchive", label: `Unarchive${suffix}` },
-          { id: "delete", label: `Delete${suffix}`, destructive: true },
+          { id: "unarchive", label: `Unarchive${suffix}`, disabled: pendingAction !== null },
+          {
+            id: "delete",
+            label: `Delete${suffix}`,
+            destructive: true,
+            disabled: pendingAction !== null,
+          },
         ],
         position,
       ),
@@ -331,26 +336,40 @@ export function ArchivedThreadsPanel() {
                       onMouseDown={(event) => {
                         if (event.shiftKey) event.preventDefault();
                       }}
-                      onClick={(event) =>
+                      onClick={(event) => {
+                        // The checkbox and its hidden input select the row themselves.
+                        if (
+                          event.target instanceof Element &&
+                          event.target.closest("[data-slot=checkbox], input")
+                        ) {
+                          return;
+                        }
                         setSelection((current) =>
                           selectRow(current, row.key, visibleKeys, event.shiftKey),
-                        )
-                      }
+                        );
+                      }}
                       onContextMenu={(event) => {
                         event.preventDefault();
                         void openRowMenu(row, { x: event.clientX, y: event.clientY });
                       }}
                     >
                       <TableCell>
-                        <button
-                          type="button"
-                          role="checkbox"
-                          aria-checked={selected}
-                          aria-label={`Select ${row.title}`}
-                          className="ms-1 flex size-6 items-center justify-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-                        >
-                          <CheckboxMark checked={selected} />
-                        </button>
+                        <span className="ms-1 flex size-6 items-center justify-center">
+                          <Checkbox
+                            aria-label={`Select ${row.title}`}
+                            checked={selected}
+                            onCheckedChange={(_checked, details) =>
+                              setSelection((current) =>
+                                selectRow(
+                                  current,
+                                  row.key,
+                                  visibleKeys,
+                                  details.event instanceof MouseEvent && details.event.shiftKey,
+                                ),
+                              )
+                            }
+                          />
+                        </span>
                       </TableCell>
                       <TableCell>
                         <span className="block truncate text-sm text-foreground">{row.title}</span>
