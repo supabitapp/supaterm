@@ -3446,6 +3446,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       composerTerminalContextsRef,
       composerPreviewAnnotations,
       composerReviewComments,
+      composerThreadContexts,
       focusComposer,
       environmentId,
       primaryEnvironmentId,
