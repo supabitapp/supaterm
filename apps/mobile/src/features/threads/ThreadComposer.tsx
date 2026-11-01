@@ -741,7 +741,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
       ) : showResumeAction ? (
         <ComposerActionButton
           size={rowControlSize}
-          accessibilityLabel="Resume queue"
+          accessibilityLabel="Resume thread"
           disabled={resumingQueue || !props.canOperateThread}
           icon="play"
           variant="primary"
