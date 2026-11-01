@@ -21,17 +21,17 @@ describe("findProjectForChangeRequest", () => {
   it("matches a nested GitLab group by the whole path below the host", () => {
     const projects = [
       project({
-        canonicalKey: "gitlab.com/t3tools/platform/supaterm",
+        canonicalKey: "gitlab.com/supabitapp/platform/supaterm",
         provider: SourceControlProviderKind.make("gitlab"),
-        displayName: "t3tools/platform/supaterm",
-        owner: "t3tools",
+        displayName: "supabitapp/platform/supaterm",
+        owner: "supabitapp",
         name: "supaterm",
       }),
     ];
     expect(
       findProjectForChangeRequest(projects, {
         host: "gitlab.com",
-        repository: "t3tools/platform/supaterm",
+        repository: "supabitapp/platform/supaterm",
         number: 42,
       }),
     ).toBe(projects[0]);
