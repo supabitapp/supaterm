@@ -1823,7 +1823,7 @@ function ProductUsageDataRow() {
     <SettingsRow
       serverScoped
       {...searchableSetting("product-usage-data")}
-      settingKeys={["telemetryEnabled"]}
+      settingKeys={lockedEverywhere ? [] : ["telemetryEnabled"]}
       description="Send product usage events from this environment. They never include prompts, responses, or file contents."
       status={
         overrides.length > 0
