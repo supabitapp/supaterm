@@ -238,6 +238,7 @@ vi.mock("react-native-reanimated", () => {
     default: { View: ({ children }: { children?: ReactNode }) => children },
     Easing: { bezier: curve, in: curve, out: curve, cubic: () => 0 },
     FadeIn: transition,
+    FadeInDown: transition,
     FadeInUp: transition,
     FadeOut: transition,
     ReduceMotion: { Never: "never", System: "system" },

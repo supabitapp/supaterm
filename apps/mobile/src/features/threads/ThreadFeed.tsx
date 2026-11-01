@@ -152,7 +152,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   Easing,
   FadeIn,
-  FadeInUp,
+  FadeInDown,
   FadeOut,
   ReduceMotion,
   useAnimatedStyle,
@@ -2016,7 +2016,7 @@ function renderFeedEntry(
       return (
         <Animated.View
           className={cn("items-end", props.userMessageGrouping.groupedWithNext ? "mb-1" : "mb-5")}
-          {...(enterAnimated ? { entering: FadeInUp.duration(220) } : {})}
+          {...(enterAnimated ? { entering: FadeInDown.duration(220) } : {})}
         >
           {presentation.attribution === "supaterm" ? (
             <Text className="mb-1 pr-1 font-supaterm-medium text-2xs text-foreground-muted opacity-60">
