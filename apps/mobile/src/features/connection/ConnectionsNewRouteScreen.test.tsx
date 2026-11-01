@@ -11,6 +11,7 @@ const PAIRED: PairingOutcome = { ok: true, error: null };
 
 const state = vi.hoisted(() => ({
   connectionPairingUrl: "",
+  connectionPairingUrlListeners: new Set<() => void>(),
   // The app-wide error slot that composer sends and git refreshes also write to.
   pendingConnectionError: null as string | null,
   autoConnectAttempt: null as DevAutoConnectAttempt | null,
@@ -78,19 +79,29 @@ vi.mock("./devAutoConnect", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./devAutoConnect")>()),
   linkedPairingUrl: (pairingUrl: string | undefined) => pairingUrl?.trim() ?? "",
 }));
-vi.mock("../../state/use-remote-environment-registry", () => ({
-  setPendingConnectionError: (message: string | null) => {
-    state.pendingConnectionError = message;
-  },
-  useRemoteConnections: () => ({
-    connectionPairingUrl: state.connectionPairingUrl,
-    connectionError: state.pendingConnectionError,
-    onChangeConnectionPairingUrl: (url: string) => {
-      state.connectionPairingUrl = url;
+vi.mock("../../state/use-remote-environment-registry", async () => {
+  const { useSyncExternalStore } = await import("react");
+  const subscribe = (listener: () => void) => {
+    state.connectionPairingUrlListeners.add(listener);
+    return () => state.connectionPairingUrlListeners.delete(listener);
+  };
+  return {
+    setPendingConnectionError: (message: string | null) => {
+      state.pendingConnectionError = message;
     },
-    onConnectPress: state.onConnectPress,
-  }),
-}));
+    useRemoteConnections: () => ({
+      connectionPairingUrl: useSyncExternalStore(subscribe, () => state.connectionPairingUrl),
+      connectionError: state.pendingConnectionError,
+      onChangeConnectionPairingUrl: setConnectionPairingUrl,
+      onConnectPress: state.onConnectPress,
+    }),
+  };
+});
+
+function setConnectionPairingUrl(url: string) {
+  state.connectionPairingUrl = url;
+  for (const listener of state.connectionPairingUrlListeners) listener();
+}
 
 let renderer: ReactTestRenderer | undefined;
 
@@ -298,5 +309,24 @@ describe("pairing links", () => {
     await act(() => result.resolve({ ok: false, error: "Old pairing expired." }));
     expect(shown("Old pairing expired.")).toBe(false);
     expect(fieldValue("Address")).toBe("http://second.test");
+  });
+
+  it("keeps a replaced link's successful pairing from closing or clearing the fresh form", async () => {
+    const result = deferredResult();
+    state.onConnectPress.mockReturnValue(result.promise);
+    await openLink(firstLink);
+    await act(() => connectAction().onPress());
+
+    await openLink(secondLink);
+    await act(() => {
+      // A successful pairing clears the shared draft URL.
+      setConnectionPairingUrl("");
+      result.resolve(PAIRED);
+    });
+
+    expect(fieldValue("Address")).toBe("http://second.test");
+    expect(fieldValue("Code")).toBe("new");
+    expect(state.goBack).not.toHaveBeenCalled();
+    expect(state.dispatch).not.toHaveBeenCalled();
   });
 });

@@ -11,7 +11,7 @@ import {
 } from "@react-navigation/native";
 import type { EnvironmentId } from "@supaterm/contracts";
 import { useAtomValue } from "@effect/atom-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Linking, Pressable, StyleSheet, View } from "react-native";
 import Svg, { Defs, RadialGradient, Rect, Stop } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -86,15 +86,14 @@ function PairingForm({
 
   const connectDisabled = connecting || hostInput.trim().length === 0;
 
-  const [syncedConnectionPairingUrl, setSyncedConnectionPairingUrl] =
-    useState(connectionPairingUrl);
-  if (syncedConnectionPairingUrl !== connectionPairingUrl) {
-    setSyncedConnectionPairingUrl(connectionPairingUrl);
-    setOriginalPairingUrl(connectionPairingUrl);
-    const { host, code } = parsePairingUrl(connectionPairingUrl);
-    setHostInput(host);
-    setCodeInput(code);
-  }
+  const currentAttemptRef = useRef<object | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- disowns the pairing still in flight when the form goes away
+  useEffect(
+    () => () => {
+      currentAttemptRef.current = null;
+    },
+    [],
+  );
 
   const clearError = () => {
     setSubmitError(null);
@@ -138,12 +137,15 @@ function PairingForm({
   };
 
   const connectAndClose = async (pairingUrl: string) => {
+    const attempt = {};
+    currentAttemptRef.current = attempt;
     setOwnAttempt(true);
     setSubmitError(null);
     setIsSubmitting(true);
     onChangeConnectionPairingUrl(pairingUrl);
     const connect = async () => {
       const outcome = await onConnectPress(pairingUrl, routeFor);
+      if (currentAttemptRef.current !== attempt) return;
       setSubmitError(outcome.error);
       void Haptics.notificationAsync(
         outcome.ok
