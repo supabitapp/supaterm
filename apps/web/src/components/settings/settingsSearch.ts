@@ -574,6 +574,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["telemetry analytics usage data tracking legal opt out"],
   },
   {
+    id: "product-usage-data",
+    title: "Product usage data",
+    to: "/settings/about",
+    searchTerms: ["telemetry analytics usage data tracking opt out disable posthog privacy"],
+  },
+  {
     id: "diagnostics",
     title: "Diagnostics",
     to: "/settings/maintenance",

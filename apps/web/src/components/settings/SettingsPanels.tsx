@@ -1,5 +1,6 @@
 import { useAtomValue } from "@effect/atom-react";
 import { THREAD_GROUPING_OPTIONS } from "@supaterm/client-runtime/state/thread-grouping";
+import { resolveProductUsageDataControl } from "@supaterm/client-runtime/product-usage-data";
 import { NotificationSettings } from "./NotificationSettings";
 import { PRIVACY_POLICY_URL } from "../../legalLinks";
 import { CheckIcon } from "@supaterm/icons";
@@ -1801,6 +1802,41 @@ export function MaintenanceSettingsPanel() {
   );
 }
 
+function ProductUsageDataRow() {
+  const settings = useScopedSettings();
+  const updateSettings = useUpdateScopedSettings();
+  const { connectedEnvironments } = useSettingsScope();
+  const control = resolveProductUsageDataControl(connectedEnvironments);
+  if (control === null) return null;
+  const { forced } = control;
+  return (
+    <SettingsRow
+      serverScoped
+      {...searchableSetting("product-usage-data")}
+      settingKeys={forced ? [] : ["telemetryEnabled"]}
+      description="Send product usage events from this environment. They never include prompts, responses, or file contents."
+      status={control.status}
+      control={
+        forced ? (
+          <Switch
+            checked={forced.value === true}
+            mixed={forced.value === null}
+            disabled
+            aria-label="Product usage data"
+          />
+        ) : (
+          <ScopedSwitch
+            settingKeys={["telemetryEnabled"]}
+            checked={settings.telemetryEnabled}
+            onCheckedChange={(checked) => updateSettings({ telemetryEnabled: Boolean(checked) })}
+            aria-label="Product usage data"
+          />
+        )
+      }
+    />
+  );
+}
+
 export function AboutSettingsPanel() {
   return (
     <SettingsPageContainer>
@@ -1826,6 +1862,7 @@ export function AboutSettingsPanel() {
             </Button>
           }
         />
+        <ProductUsageDataRow />
         <SettingsRow
           {...searchableSetting("open-source-licenses")}
           control={
