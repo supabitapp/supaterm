@@ -1,3 +1,4 @@
+import { isLocalImagePath } from "../localImages.ts";
 import type { HtmlRenderSpec, HtmlRenderSpecElement } from "./HtmlRenderSpec.ts";
 
 const PLOT_WIDTH = 1_000;
@@ -193,11 +194,16 @@ const render = (spec: HtmlRenderSpec, id: string): string => {
       return barChart(element.props);
     case "LineChart":
       return lineChart(element.props);
-    case "Image":
+    case "Image": {
+      // HtmlRender embeds a local image by the path text it finds, so that text stays the file's name.
+      const src = isLocalImagePath(element.props.src)
+        ? element.props.src
+        : escape(element.props.src);
       return (
-        `<figure><img src="${escape(element.props.src)}" alt="${escape(element.props.alt)}">` +
+        `<figure><img src="${src}" alt="${escape(element.props.alt)}">` +
         `${element.props.caption === undefined ? "" : `<figcaption>${escape(element.props.caption)}</figcaption>`}</figure>`
       );
+    }
   }
 };
 

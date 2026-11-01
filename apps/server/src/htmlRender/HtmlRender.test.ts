@@ -305,12 +305,19 @@ describe("HtmlRender", () => {
       const config = yield* ServerConfig.ServerConfig;
       const htmlRender = yield* HtmlRender.HtmlRender;
       const mcpSessions = yield* McpProviderSessions.McpProviderSessions;
+      const path = yield* Path.Path;
       const threadId = ThreadId.make("thread-html-render-spec");
+      const directory = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "supaterm-html-spec-images-",
+      });
+      const logo = path.join(directory, "R&D.png");
+      yield* fileSystem.writeFile(logo, PNG_BYTES);
       const spec = {
         root: "page",
         elements: {
-          page: { type: "Stack", props: {}, children: ["title"] },
+          page: { type: "Stack", props: {}, children: ["title", "logo"] },
           title: { type: "Text", props: { text: "Revenue", variant: "heading" } },
+          logo: { type: "Image", props: { src: logo, alt: "Logo" } },
         },
       };
       const page = { spec, title: "Revenue", height: 200 };
@@ -323,10 +330,15 @@ describe("HtmlRender", () => {
       });
       const html = yield* fileSystem.readFileString(stored ?? "");
       expect(html).toContain('<style id="supaterm-theme">');
-      expect(html).toContain('<div class="stack"><h2>Revenue</h2></div>');
+      expect(html).toContain("<h2>Revenue</h2>");
+      expect(html).toContain(`<img src="data:image/png;base64,${Base64.encode(PNG_BYTES)}"`);
       // A provider may report the spec with its keys in another order.
       const reordered = {
-        elements: { title: spec.elements.title, page: spec.elements.page },
+        elements: {
+          logo: spec.elements.logo,
+          title: spec.elements.title,
+          page: spec.elements.page,
+        },
         root: "page",
       };
       expect(

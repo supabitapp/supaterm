@@ -221,8 +221,14 @@ export function sanitizeAntigravityToolPayload(payload: unknown): unknown {
 }
 
 // html_render recovery finds a spec's page by its digest, so a spec these bounds would cut keeps only that.
+// The input's shape identifies html_render because updates after the first can arrive without a title.
 function sanitizeAntigravityToolInput(rawInput: unknown): unknown {
-  if (!Predicate.isObject(rawInput) || !Predicate.isObject(rawInput.spec)) {
+  if (
+    !Predicate.isObject(rawInput) ||
+    !Predicate.isObject(rawInput.spec) ||
+    typeof rawInput.title !== "string" ||
+    rawInput.height === undefined
+  ) {
     return sanitizeAntigravityToolPayload(rawInput);
   }
   const { spec, ...rest } = rawInput;

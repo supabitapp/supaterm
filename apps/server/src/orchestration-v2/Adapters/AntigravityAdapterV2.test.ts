@@ -573,24 +573,9 @@ describe("AntigravityAdapterV2 html_render pages", () => {
       const rows = Array.from({ length: 500 }, (_, row) => `<tr><td>Row ${row}</td></tr>`);
       const report = { html: `<table>${rows.join("")}</table>`, title: "Revenue", height: 240 };
       // More points than Antigravity's payload bounds keep, so only the spec's digest survives.
-      const charted = {
-        spec: {
-          root: "trend",
-          elements: {
-            trend: {
-              type: "LineChart",
-              props: {
-                data: Array.from({ length: 400 }, (_, day) => ({
-                  label: `Day ${day}`,
-                  value: day,
-                })),
-              },
-            },
-          },
-        },
-        title: "Revenue",
-        height: 240,
-      };
+      const data = Array.from({ length: 400 }, (_, day) => ({ label: `D${day}`, value: day }));
+      const spec = { root: "a", elements: { a: { type: "LineChart", props: { data } } } };
+      const charted = { spec, title: "Revenue", height: 240 };
       const failed = { ...report, html: "<p>Revenue</p>" };
       const errored = { ...report, html: "<p>Revenue error</p>" };
       const adapter = yield* makeAntigravityAdapterV2({

@@ -2,6 +2,7 @@
 import * as NodeCrypto from "node:crypto";
 import type { ThreadId } from "@supaterm/contracts";
 import type { HtmlRenderReference } from "@supaterm/shared/htmlRender";
+import { stableStringify } from "@supaterm/shared/stableStringify";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -37,18 +38,8 @@ interface KeptHtmlRender {
 
 const sha256 = (text: string) => NodeCrypto.createHash("sha256").update(text).digest("hex");
 
-const canonicalJson = (value: unknown): string => {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  if (!Predicate.isObject(value)) return JSON.stringify(value) ?? "null";
-  return `{${Object.keys(value)
-    .filter((key) => value[key] !== undefined)
-    .sort()
-    .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
-    .join(",")}}`;
-};
-
 /** Key order is ignored: a provider may report the spec it sent with its keys reordered. */
-export const htmlRenderSpecDigest = (spec: unknown) => sha256(canonicalJson(spec));
+export const htmlRenderSpecDigest = (spec: unknown) => sha256(stableStringify(spec));
 
 /** Stands in for a spec a provider's payload bounds would cut, keeping only what matching needs. */
 export const boundHtmlRenderSpec = (spec: unknown) =>

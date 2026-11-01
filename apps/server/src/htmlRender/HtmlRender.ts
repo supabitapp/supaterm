@@ -35,7 +35,7 @@ import { createAttachmentId } from "../attachmentStore.ts";
 import { resolveRootCliCommand } from "../cli/invocation.ts";
 import * as ServerConfig from "../config.ts";
 import * as HeadlessChrome from "./headlessChrome.ts";
-import { IMAGE_EXTENSIONS, IMAGE_MIME_TYPES } from "./imageMimeTypes.ts";
+import { ABSOLUTE_PATH, IMAGE_EXTENSIONS, IMAGE_MIME_TYPES } from "./localImages.ts";
 import { compileHtmlRenderSpec } from "./spec/compileHtmlRenderSpec.ts";
 import { parseHtmlRenderSpec } from "./spec/HtmlRenderSpec.ts";
 import * as PreviewBrowser from "../preview/PreviewBrowser.ts";
@@ -185,7 +185,6 @@ export class HtmlRender extends Context.Service<
   }
 >()("supaterm/htmlRender/HtmlRender") {}
 
-const ABSOLUTE_PATH = String.raw`(?:/(?!/)|[a-z]:[\\/])`;
 const LOCAL_IMAGE_PATTERN = new RegExp(
   String.raw`(["'\x60])(${ABSOLUTE_PATH}(?:(?!\1)[^\r\n]){0,2048}?\.(?:${IMAGE_EXTENSIONS}))\1` +
     String.raw`|url\(\s*(${ABSOLUTE_PATH}[^\s"'\x60()]{0,2048}?\.(?:${IMAGE_EXTENSIONS}))\s*\)`,

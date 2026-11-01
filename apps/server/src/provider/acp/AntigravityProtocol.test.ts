@@ -398,6 +398,27 @@ describe("Antigravity tool results", () => {
     expect(toolCall.data.imagePath).toBe(expected);
   });
 
+  it("keeps a cut spec's digest only for html_render", () => {
+    const spec = { root: "a", rows: Array.from({ length: 600 }, (_, row) => row) };
+    const rawInputOf = (rawInput: Record<string, unknown>) =>
+      parseToolUpdate({
+        sessionId: "session-1",
+        update: {
+          sessionUpdate: "tool_call",
+          toolCallId: "call-1",
+          title: "Running tool",
+          rawInput,
+        },
+      }).toolCall.data.rawInput as Record<string, unknown>;
+
+    expect(rawInputOf({ spec, title: "Rows", height: 200 })).toEqual({
+      title: "Rows",
+      height: 200,
+      spec: expect.stringMatching(/^\[Spec sha256 [0-9a-f]{64}\]$/),
+    });
+    expect(rawInputOf({ spec }).spec).toMatchObject({ root: "a" });
+  });
+
   it("bounds nested tool data and drops image blobs and data URLs", () => {
     const payload = sanitizeAntigravityToolPayload({
       rawOutput: {

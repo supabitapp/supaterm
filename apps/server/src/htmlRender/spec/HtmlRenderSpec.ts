@@ -2,7 +2,7 @@ import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 import * as SchemaIssue from "effect/SchemaIssue";
 
-import { IMAGE_EXTENSIONS } from "../imageMimeTypes.ts";
+import { isLocalImagePath } from "../localImages.ts";
 
 const HTML_RENDER_SPEC_LIMITS = {
   jsonLength: 128 * 1024,
@@ -100,11 +100,6 @@ export type HtmlRenderSpecElement = typeof Element.Type;
 const decodeStrict = Schema.decodeUnknownResult(HtmlRenderSpec);
 const formatIssue = SchemaIssue.makeFormatterStandardSchemaV1();
 
-const LOCAL_IMAGE_PATH = new RegExp(
-  String.raw`^(?:/(?!/)|[a-z]:[\\/])[^\r\n]*\.(?:${IMAGE_EXTENSIONS})$`,
-  "i",
-);
-
 const formatPath = (path: ReadonlyArray<PropertyKey | { readonly key: PropertyKey }>) =>
   path
     .map((segment, index) => {
@@ -126,10 +121,11 @@ const contentIssues = (id: string, element: HtmlRenderSpecElement): ReadonlyArra
             ],
       );
     case "Image":
-      return LOCAL_IMAGE_PATH.test(element.props.src) ||
+      // The compiler writes a local path into a quoted attribute unescaped, so it cannot hold a quote.
+      return (isLocalImagePath(element.props.src) && !element.props.src.includes('"')) ||
         /^https:\/\/[^\s]+$/i.test(element.props.src)
         ? []
-        : [`${at}.src: use an absolute local image path or an https URL.`];
+        : [`${at}.src: use an absolute local image path without quotes, or an https URL.`];
     default:
       return [];
   }
