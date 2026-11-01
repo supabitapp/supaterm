@@ -1,7 +1,7 @@
 import { DownloadIcon, PlusIcon } from "@supaterm/icons";
 import type { ChangeEvent, DragEvent, UIEvent } from "react";
 import { settlePromise } from "@supaterm/client-runtime/state/runtime";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "../../lib/utils";
 import {
   getCustomThemes,
@@ -195,6 +195,19 @@ export function ThemeImportDialog({
     session.controller.abort();
     onOpenChange(false);
   };
+  const liveControllerRef = useRef<AbortController | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- ends an open session's reads, searches and installs when the dialog closes or unmounts; a StrictMode replay re-arms before the deferred abort runs
+  useEffect(() => {
+    if (!open) return;
+    const { controller } = session;
+    liveControllerRef.current = controller;
+    return () => {
+      liveControllerRef.current = null;
+      queueMicrotask(() => {
+        if (liveControllerRef.current !== controller) controller.abort();
+      });
+    };
+  }, [open, session]);
 
   return (
     <Dialog

@@ -15,10 +15,11 @@ import type { OpenVsxThemeExtension } from "../../openVsxThemes";
 import { ThemeImportDialog } from "./ThemeImportDialog";
 
 const searchOpenVsxThemes = vi.hoisted(() => vi.fn());
+const importOpenVsxThemeExtension = vi.hoisted(() => vi.fn());
 
 vi.mock("../../openVsxThemes", () => ({
   searchOpenVsxThemes,
-  importOpenVsxThemeExtension: vi.fn(),
+  importOpenVsxThemeExtension,
 }));
 
 const extension: OpenVsxThemeExtension = {
@@ -60,6 +61,46 @@ describe("ThemeImportDialog", () => {
       "night",
       expect.objectContaining({ sortBy: "downloadCount" }),
     );
+  });
+
+  it("drops an install that finishes after the settings page unmounts the dialog", async () => {
+    using _themes = {
+      [Symbol.dispose]() {
+        window.localStorage.removeItem(CUSTOM_THEMES_STORAGE_KEY);
+        invalidateCustomThemes();
+      },
+    };
+    const collection = { id: "open-vsx:acme.nightfall", label: "Nightfall" };
+    searchOpenVsxThemes.mockReset();
+    searchOpenVsxThemes.mockResolvedValue([{ ...extension, collectionId: collection.id }]);
+    let finishInstall: (themes: ReadonlyArray<unknown>) => void = () => {};
+    const installed = new Promise<ReadonlyArray<unknown>>((resolve) => {
+      finishInstall = resolve;
+    });
+    importOpenVsxThemeExtension.mockReset();
+    importOpenVsxThemeExtension.mockReturnValue(installed);
+    const onImportedMany = vi.fn();
+    await using screen = await render(
+      <StrictMode>
+        <ThemeImportDialog
+          open
+          onOpenChange={() => {}}
+          onImported={() => true}
+          onImportedMany={onImportedMany}
+        />
+      </StrictMode>,
+    );
+    await userEvent.type(page.getByLabelText("Search Open VSX themes"), "night");
+    await page.getByRole("button", { name: "Install Nightfall" }).click();
+    expect(importOpenVsxThemeExtension).toHaveBeenCalledOnce();
+
+    await screen.unmount();
+    finishInstall([parseThemeFile({ ...theme("Nightfall"), collection })]);
+    await installed;
+    invalidateCustomThemes();
+
+    expect(onImportedMany).not.toHaveBeenCalled();
+    expect(getCustomThemes().map((custom) => custom.label)).not.toContain("Nightfall");
   });
 });
 
