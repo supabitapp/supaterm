@@ -1060,7 +1060,11 @@ describe("AcpRegistryAdapterV2", () => {
               ordinal === 1
                 ? supatermAcpPromptWithInstructions({
                     prompt: "test prompt",
-                    state: { interactionMode: "default", hasSupatermMcp: false, hasDeviceTools: false },
+                    state: {
+                      interactionMode: "default",
+                      hasSupatermMcp: false,
+                      hasDeviceTools: false,
+                    },
                   })
                 : "test prompt",
           },
