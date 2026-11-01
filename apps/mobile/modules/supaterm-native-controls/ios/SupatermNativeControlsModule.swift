@@ -33,9 +33,12 @@ public final class SupatermNativeControlsModule: Module {
 
     View(SupatermSidebarTabBarView.self) {
       ViewName("SidebarTabBar")
-      Events("onSelectionChange")
-      Prop("selectedIndex") { (view: SupatermSidebarTabBarView, value: Int) in view.selectedIndex = value }
+      Events("onSelectionChange", "onCompose")
+      Prop("tabs") { (view: SupatermSidebarTabBarView, value: [String]) in view.tabs = value }
+      Prop("selectedTab") { (view: SupatermSidebarTabBarView, value: String) in view.selectedTab = value }
       Prop("selectedColor") { (view: SupatermSidebarTabBarView, value: UIColor) in view.selectedColor = value }
+      Prop("showsCompose") { (view: SupatermSidebarTabBarView, value: Bool) in view.showsCompose = value }
+      Prop("compact") { (view: SupatermSidebarTabBarView, value: Bool) in view.compact = value }
       Prop("appearance") { (view: SupatermSidebarTabBarView, value: String) in view.appearance = value }
     }
 

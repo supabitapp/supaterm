@@ -1,6 +1,6 @@
 import type { ProviderDriverKind, ProviderOptionDescriptor } from "@supaterm/contracts";
 import { getProviderOptionCurrentValue } from "@supaterm/shared/model";
-import { ZapIcon } from "@supaterm/icons";
+import { ZapFilledIcon } from "@supaterm/icons";
 import { UltrafastIcon } from "../Icons";
 import { cn } from "~/lib/utils";
 import { ComposerControlIcon, type ComposerControlSize } from "./ComposerControl";
@@ -51,10 +51,10 @@ export function TraitsSpeedIcon({
   return (
     <>
       <ComposerControlIcon
-        icon={speedIcon === "ultrafast" ? UltrafastIcon : ZapIcon}
+        icon={speedIcon === "ultrafast" ? UltrafastIcon : ZapFilledIcon}
         size={size}
         className={cn(
-          "fill-current opacity-80",
+          "opacity-80",
           size === "xs"
             ? "text-current"
             : provider === "claudeAgent"

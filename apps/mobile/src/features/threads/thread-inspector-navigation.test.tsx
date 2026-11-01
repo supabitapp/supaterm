@@ -225,7 +225,7 @@ it("keeps a focused inspector registered across renders and updates its content"
   } = {};
   const load = (name: string) => {
     if (name === "react" || name.startsWith("react/")) return requireMobile(name);
-    if (name === "./adaptiveWorkspaceContext")
+    if (name === "./adaptive-workspace-context")
       return {
         useAdaptiveWorkspaceLayout: () => ({ registerWorkspaceInspector }),
       };

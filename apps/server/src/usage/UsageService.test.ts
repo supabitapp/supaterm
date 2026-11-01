@@ -2646,7 +2646,7 @@ describe("UsageService", () => {
   it.live("reports saved usage of a removed directory only for windows it reaches", () =>
     Effect.gen(function* () {
       const { transcript, settings, home } = yield* setup;
-      // Saved usage is pruned by file age, so a wall clock would age the fixture out.
+      // Saved usage is kept for 92 days from now, so read it as of a day near the fixture.
       yield* TestClock.setTime(Date.parse("2026-08-15T00:00:00Z"));
       yield* Effect.promise(async () => {
         await NodeFSP.writeFile(transcript, claudeLine(1, 5));

@@ -1,4 +1,4 @@
-/** Runs homepage motion (mark drift, parallax) only while its content is visible. */
+/** Runs the hero's pointer parallax only while its marks are visible. */
 export function startHomeMotion({ hero, field }: { hero: HTMLElement; field: HTMLElement }) {
   if (typeof IntersectionObserver === "undefined") return () => {};
 
@@ -12,12 +12,12 @@ export function startHomeMotion({ hero, field }: { hero: HTMLElement; field: HTM
   let pointerFrame: number | undefined;
   let pointer: { x: number; y: number } | null = null;
 
-  const canMove = (element: Element) =>
+  const canParallax = () =>
     !disposed &&
-    visible.has(element) &&
+    visible.size > 0 &&
     document.visibilityState === "visible" &&
-    !reducedMotion.matches;
-  const canParallax = () => finePointer.matches && marks.some(canMove);
+    !reducedMotion.matches &&
+    finePointer.matches;
 
   function resetPointer() {
     if (pointerFrame !== undefined) cancelAnimationFrame(pointerFrame);
@@ -28,9 +28,6 @@ export function startHomeMotion({ hero, field }: { hero: HTMLElement; field: HTM
   }
 
   function update() {
-    for (const element of marks) {
-      element.style.setProperty("--home-motion-state", canMove(element) ? "running" : "paused");
-    }
     const parallax = canParallax();
     field.style.setProperty("--parallax-duration", parallax ? "0.7s" : "0s");
     if (!parallax) resetPointer();

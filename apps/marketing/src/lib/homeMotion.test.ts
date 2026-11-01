@@ -63,10 +63,9 @@ function fixture() {
   const hero = new ElementStub();
   const field = new ElementStub();
   const mark = new ElementStub();
-  const otherMark = new ElementStub();
-  field.children = [mark, otherMark];
+  field.children = [mark, new ElementStub()];
   dispose = startHomeMotion({ hero, field } as unknown as Parameters<typeof startHomeMotion>[0]);
-  return { hero, field, mark, otherMark, observer: observers[0]! };
+  return { hero, field, mark, observer: observers[0]! };
 }
 
 function movePointer(hero: ElementStub, x = 400, y = 600) {
@@ -74,12 +73,13 @@ function movePointer(hero: ElementStub, x = 400, y = 600) {
 }
 
 describe("homepage motion", () => {
-  it("gates each mark and batches pointer input into one frame", () => {
-    const { hero, field, mark, otherMark, observer } = fixture();
-    expect(mark.properties.get("--home-motion-state")).toBe("paused");
+  it("gates parallax on a visible mark and batches pointer input into one frame", () => {
+    const { hero, field, mark, observer } = fixture();
+    expect(field.properties.get("--parallax-duration")).toBe("0s");
+    movePointer(hero);
+    expect(frames.size).toBe(0);
     observer.report(mark, true);
-    expect(mark.properties.get("--home-motion-state")).toBe("running");
-    expect(otherMark.properties.get("--home-motion-state")).toBe("paused");
+    expect(field.properties.get("--parallax-duration")).toBe("0.7s");
 
     movePointer(hero, 100, 100);
     movePointer(hero);
@@ -96,19 +96,22 @@ describe("homepage motion", () => {
     page.dispatchEvent(new Event("visibilitychange"));
     expect(frames.size).toBe(0);
     expect(field.properties.get("--px")).toBe("0px");
-    expect(mark.properties.get("--home-motion-state")).toBe("paused");
+    expect(field.properties.get("--parallax-duration")).toBe("0s");
     page.visibilityState = "visible";
     page.dispatchEvent(new Event("visibilitychange"));
     reduced.matches = true;
     reduced.dispatchEvent(new Event("change"));
     movePointer(hero);
     expect(frames.size).toBe(0);
-    expect(mark.properties.get("--home-motion-state")).toBe("paused");
     reduced.matches = false;
     fine.matches = false;
     reduced.dispatchEvent(new Event("change"));
     movePointer(hero);
     expect(frames.size).toBe(0);
-    expect(mark.properties.get("--home-motion-state")).toBe("running");
+    fine.matches = true;
+    fine.dispatchEvent(new Event("change"));
+    expect(field.properties.get("--parallax-duration")).toBe("0.7s");
+    observer.report(mark, false);
+    expect(field.properties.get("--parallax-duration")).toBe("0s");
   });
 });

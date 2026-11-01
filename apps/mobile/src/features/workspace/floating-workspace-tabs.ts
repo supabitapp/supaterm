@@ -1,15 +1,13 @@
 // Keep the native drawing inset out of the visible size and edge margins.
 export const FLOATING_TABS = { edge: 16, bottom: 6, gap: 12, shadow: 8 };
 
-/** Threads and Pull requests. */
-export const WORKSPACE_TAB_COUNT = 2;
-
 export function floatingTabsMetrics(
   count: number,
   scale: number,
   fabSize: number,
   paneWidth?: number,
   fillWidth = false,
+  composeVisible = true,
 ) {
   const unit = Math.max(1, scale);
   const height = fabSize;
@@ -19,11 +17,10 @@ export function floatingTabsMetrics(
   const room =
     paneWidth === undefined
       ? count * 60 * unit
-      : sharesRow
+      : sharesRow && composeVisible
         ? paneWidth - beside
         : paneWidth - 2 * FLOATING_TABS.edge;
   return {
-    // Reserve the compose slot even while its button is hidden.
     pill: Math.max(0, fillWidth ? room : Math.min(count * 72 * unit, room)),
     height,
     row,

@@ -195,6 +195,10 @@
       "types": "./src/delayedStatus.ts",
       "default": "./src/delayedStatus.ts"
     },
+    "./product-usage-data": {
+      "types": "./src/productUsageData.ts",
+      "default": "./src/productUsageData.ts"
+    },
     "./inline-confirm": {
       "types": "./src/inlineConfirm.ts",
       "default": "./src/inlineConfirm.ts"

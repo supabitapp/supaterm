@@ -200,7 +200,7 @@ describe("DesktopApplicationMenu", () => {
     }),
   );
 
-  it.effect("never binds Cmd/Ctrl+W to closing the window", () =>
+  it.effect("never binds Cmd/Ctrl+W to closing the window, or Ctrl+M to minimizing it", () =>
     Effect.gen(function* () {
       for (const platform of ["darwin", "linux", "win32"] as const) {
         const applicationMenuTemplate =
@@ -229,6 +229,12 @@ describe("DesktopApplicationMenu", () => {
         );
         assert.isUndefined(
           items.find((item) => item.accelerator?.toLowerCase().endsWith("+w")),
+          platform,
+        );
+        // The minimize role brings CmdOrCtrl+M, which is Ctrl+M off macOS.
+        assert.strictEqual(
+          items.some((item) => item.role === "minimize"),
+          platform === "darwin",
           platform,
         );
       }

@@ -18,7 +18,7 @@ export function AndroidNavigationAppearanceSection() {
         />
         <SettingsChoiceRow
           label="Material"
-          description="Standard Android navigation bar."
+          description="Standard Android navigation bar and side rail."
           disabled={!isReady}
           selected={androidNavigationStyle === "material"}
           onPress={() => setAndroidNavigationStyle("material")}

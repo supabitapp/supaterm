@@ -42,6 +42,7 @@ import {
   compileResolvedKeybindingsConfig,
   parseKeybindingShortcut,
   parseKeybindingWhenExpression,
+  shortcutConflictKey,
 } from "@supaterm/shared/keybindings";
 
 export const ResolvedKeybindingFromConfig = KeybindingRule.pipe(
@@ -110,30 +111,53 @@ function hasSameShortcutContext(left: KeybindingRule, right: KeybindingRule): bo
   return leftContext === rightContext;
 }
 
-function migrateMarkDoneKeybinding(rules: readonly KeybindingRule[]) {
-  const commandRules = rules.filter((rule) => rule.command === "thread.mark-done");
+/**
+ * Saved configs hold every default, so a changed default reaches existing users only by
+ * moving their saved rule. Each move runs once, so a user who picks the old key again keeps it.
+ */
+const SAVED_DEFAULT_MOVES = [
+  {
+    marker: "mark-done-shortcut-v1",
+    command: "thread.mark-done",
+    from: "mod+shift+s",
+    to: "mod+shift+d",
+  },
+  { marker: "voice-shortcut-v1", command: "composer.voice", from: "mod+shift+space", to: "ctrl+m" },
+] as const satisfies ReadonlyArray<{
+  readonly marker: string;
+  readonly command: KeybindingRule["command"];
+  readonly from: string;
+  readonly to: string;
+}>;
+type SavedDefaultMove = (typeof SAVED_DEFAULT_MOVES)[number];
+
+function moveSavedDefault(rules: readonly KeybindingRule[], move: SavedDefaultMove) {
+  const commandRules = rules.filter((rule) => rule.command === move.command);
   const [previous] = commandRules;
   if (
     commandRules.length !== 1 ||
-    previous?.key !== "mod+shift+s" ||
+    previous?.key !== move.from ||
     previous.when !== "!terminalFocus"
   ) {
     return rules;
   }
 
+  const target = parseKeybindingShortcut(move.to);
   const shortcutTaken = rules.some((rule) => {
-    if (rule.command === "thread.mark-done" || rule.when === "terminalFocus") return false;
+    if (rule.command === move.command || rule.when === "terminalFocus") return false;
     const shortcut = parseKeybindingShortcut(rule.key);
     return (
-      shortcut?.key === "d" &&
-      shortcut.shiftKey &&
-      !shortcut.altKey &&
-      (shortcut.modKey || shortcut.metaKey || shortcut.ctrlKey)
+      shortcut !== null &&
+      target !== null &&
+      ["MacIntel", "Linux"].some(
+        (platform) =>
+          shortcutConflictKey(shortcut, platform) === shortcutConflictKey(target, platform),
+      )
     );
   });
   if (shortcutTaken) return rules;
 
-  return rules.map((rule) => (rule === previous ? { ...rule, key: "mod+shift+d" } : rule));
+  return rules.map((rule) => (rule === previous ? { ...rule, key: move.to } : rule));
 }
 
 function keybindingRuleFromInput(input: ServerRemoveKeybindingInput): KeybindingRule {
@@ -252,8 +276,10 @@ const make = Effect.gen(function* () {
   const { keybindingsConfigPath } = yield* ServerConfig.ServerConfig;
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const markDoneMigrationPath = `${keybindingsConfigPath}.mark-done-shortcut-v1`;
-  const markDoneMigrationCompleted = fs.exists(markDoneMigrationPath).pipe(
+  const movedMarkerPath = (move: SavedDefaultMove) => `${keybindingsConfigPath}.${move.marker}`;
+  const pendingSavedDefaultMoves = Effect.filter(SAVED_DEFAULT_MOVES, (move) =>
+    fs.exists(movedMarkerPath(move)).pipe(Effect.map((moved) => !moved)),
+  ).pipe(
     Effect.mapError(
       (cause) =>
         new KeybindingsConfigError({
@@ -263,16 +289,19 @@ const make = Effect.gen(function* () {
         }),
     ),
   );
-  const completeMarkDoneMigration = fs.writeFileString(markDoneMigrationPath, "").pipe(
-    Effect.mapError(
-      (cause) =>
-        new KeybindingsConfigError({
-          configPath: keybindingsConfigPath,
-          detail: "failed to save keybindings migration state",
-          cause,
-        }),
-    ),
-  );
+  const completeSavedDefaultMoves = (moves: ReadonlyArray<SavedDefaultMove>) =>
+    Effect.forEach(moves, (move) => fs.writeFileString(movedMarkerPath(move), ""), {
+      discard: true,
+    }).pipe(
+      Effect.mapError(
+        (cause) =>
+          new KeybindingsConfigError({
+            configPath: keybindingsConfigPath,
+            detail: "failed to save keybindings migration state",
+            cause,
+          }),
+      ),
+    );
   const upsertSemaphore = yield* Semaphore.make(1);
   const resolvedConfigCacheKey = "resolved" as const;
   const changesPubSub = yield* PubSub.unbounded<KeybindingsChangeEvent>();
@@ -459,7 +488,7 @@ const make = Effect.gen(function* () {
       const configExists = yield* readConfigExists;
       if (!configExists) {
         yield* writeConfigAtomically(DEFAULT_KEYBINDINGS);
-        yield* completeMarkDoneMigration;
+        yield* completeSavedDefaultMoves(SAVED_DEFAULT_MOVES);
         yield* Cache.invalidate(resolvedConfigCache, resolvedConfigCacheKey);
         return;
       }
@@ -476,10 +505,8 @@ const make = Effect.gen(function* () {
         yield* Cache.invalidate(resolvedConfigCache, resolvedConfigCacheKey);
         return;
       }
-      const migrationCompleted = yield* markDoneMigrationCompleted;
-      const customConfig = migrationCompleted
-        ? runtimeConfig.keybindings
-        : migrateMarkDoneKeybinding(runtimeConfig.keybindings);
+      const pendingMoves = yield* pendingSavedDefaultMoves;
+      const customConfig = pendingMoves.reduce(moveSavedDefault, runtimeConfig.keybindings);
       const existingCommands = new Set(customConfig.map((entry) => entry.command));
       const missingDefaults: KeybindingRule[] = [];
       const shortcutConflictWarnings: Array<{
@@ -543,7 +570,7 @@ const make = Effect.gen(function* () {
       if (defaultsToAppend.length > 0 || customConfig !== runtimeConfig.keybindings) {
         yield* writeConfigAtomically([...defaultsToAppend, ...customConfig]);
       }
-      if (!migrationCompleted) yield* completeMarkDoneMigration;
+      if (pendingMoves.length > 0) yield* completeSavedDefaultMoves(pendingMoves);
       yield* Cache.invalidate(resolvedConfigCache, resolvedConfigCacheKey);
     }),
   );

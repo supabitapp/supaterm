@@ -64,6 +64,7 @@ export type LayoutVariant = "compact" | "split";
 export interface Layout {
   readonly variant: LayoutVariant;
   readonly usesSplitView: boolean;
+  readonly primarySidebarOverlaysContent: boolean;
   readonly listPaneWidth: number | null;
   readonly listPaneGap?: number;
   readonly shellPadding: number;
@@ -128,6 +129,7 @@ export function deriveLayout(input: {
     return {
       variant: "compact",
       usesSplitView: false,
+      primarySidebarOverlaysContent: false,
       listPaneWidth: null,
       shellPadding: 0,
     };
@@ -143,6 +145,8 @@ export function deriveLayout(input: {
   return {
     variant: "split",
     usesSplitView: true,
+    primarySidebarOverlaysContent:
+      input.nativeWorkspace === true && metrics?.hasHinge === true && width < height,
     listPaneWidth:
       division?.x ??
       clamp(Math.round(width * 0.32), SPLIT_SIDEBAR_MIN_WIDTH, SPLIT_SIDEBAR_DEFAULT_MAX_WIDTH),
@@ -156,18 +160,26 @@ export interface VerticalHinge {
   readonly width: number;
 }
 
-/** Moves the list/detail split onto a book-posture hinge so neither pane straddles the crease. */
+/**
+ * Moves the list/detail split onto a book-posture hinge so neither pane straddles the crease.
+ * `leadingWidth` is chrome left of the list pane, such as the Android navigation rail.
+ */
 export function alignListPaneToHinge(input: {
   readonly layout: Layout;
   readonly hinge: VerticalHinge | null;
   readonly viewportWidth: number;
+  readonly leadingWidth: number;
 }): Layout {
   const { layout, hinge } = input;
   if (!hinge || !layout.usesSplitView) return layout;
-  if (hinge.x < SPLIT_SIDEBAR_MIN_WIDTH || input.viewportWidth - hinge.x - hinge.width < 320) {
+  const listPaneWidth = hinge.x - input.leadingWidth;
+  if (
+    listPaneWidth < SPLIT_SIDEBAR_MIN_WIDTH ||
+    input.viewportWidth - hinge.x - hinge.width < 320
+  ) {
     return layout;
   }
-  return { ...layout, listPaneWidth: hinge.x, listPaneGap: hinge.width };
+  return { ...layout, listPaneWidth, listPaneGap: hinge.width };
 }
 
 /**
@@ -176,12 +188,17 @@ export function alignListPaneToHinge(input: {
  * collapse it there. Compact layouts stay pinned so a reveal request (such as
  * focusing search) cannot flip the saved preference for a later split view.
  */
+/** Home's list, or the Settings list in its place, with no detail selected. */
+export function isWorkspaceListPath(pathname: string): boolean {
+  return pathname === "/" || pathname === "/settings";
+}
+
 export function isPrimarySidebarPinned(input: {
   readonly pathname: string;
   readonly nativeWorkspace: boolean;
   readonly usesSplitView: boolean;
 }): boolean {
-  return input.pathname === "/" && !(input.nativeWorkspace && input.usesSplitView);
+  return isWorkspaceListPath(input.pathname) && !(input.nativeWorkspace && input.usesSplitView);
 }
 
 export function deriveWorkspacePaneLayout(input: {
@@ -197,9 +214,10 @@ export function deriveWorkspacePaneLayout(input: {
   const auxiliaryPaneRole = input.auxiliaryPaneRole ?? "supplementary";
   const preferredPrimarySidebarVisible =
     input.layout.usesSplitView && input.primarySidebarPreferredVisible;
-  const preferredPrimarySidebarWidth = preferredPrimarySidebarVisible
-    ? (input.layout.listPaneWidth ?? 0) + (input.layout.listPaneGap ?? 0)
-    : 0;
+  const preferredPrimarySidebarWidth =
+    preferredPrimarySidebarVisible && !input.layout.primarySidebarOverlaysContent
+      ? (input.layout.listPaneWidth ?? 0) + (input.layout.listPaneGap ?? 0)
+      : 0;
 
   if (auxiliaryPaneRole === "inspector") {
     const fileInspector = deriveFileInspectorPaneLayout({
@@ -212,6 +230,7 @@ export function deriveWorkspacePaneLayout(input: {
     const primarySidebarSuppressedByAuxiliary =
       !input.nativeWorkspace &&
       preferredPrimarySidebarVisible &&
+      !input.layout.primarySidebarOverlaysContent &&
       auxiliaryPaneVisible &&
       fileInspector.width !== null &&
       input.layout.listPaneWidth !== null &&

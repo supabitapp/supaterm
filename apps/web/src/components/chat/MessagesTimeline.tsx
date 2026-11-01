@@ -89,9 +89,15 @@ import {
 import type { TimelineEntry } from "../../session-logic";
 import type { CodexArtifactTemplate } from "@supaterm/shared/codexArtifactTemplates";
 import type { ChatFileAttachment, TurnDiffSummary } from "../../types";
-import { ArrowRightIcon, BotIcon, CircleAlertIcon, ShrinkIcon } from "@supaterm/icons";
-import { ChevronDown, ChevronRight } from "@supaterm/icons/nodes";
-import { MorphIcon } from "~/components/MorphIcon";
+import {
+  ArrowRightIcon,
+  BotIcon,
+  CircleAlertIcon,
+  ShrinkIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+} from "@supaterm/icons";
+
 import type { ExpandedImagePreview } from "./ExpandedImagePreview";
 import { ExpandedPreviewHostContext } from "./ExpandedPreviewDialog";
 import {
@@ -126,7 +132,6 @@ import type { PinnableProjectedItem } from "./PinnedMessages";
 import { TooltipScrollDismissArea } from "../ui/tooltip";
 import { WorktreeSetupCard } from "./WorktreeSetupCard";
 import { useOpenPrLink } from "~/lib/openPullRequestLink";
-import { useClientSettings } from "~/hooks/useSettings";
 import { useMediaQuery } from "~/hooks/useMediaQuery";
 import { cn } from "~/lib/utils";
 import type { TimestampFormat } from "@supaterm/contracts/settings";
@@ -165,14 +170,28 @@ const TIMELINE_LIST_FADE_HEADER = (
 );
 function TimelineListFooter({
   composerInset,
+  onGrow,
   children,
 }: {
   readonly composerInset: number;
+  readonly onGrow: (() => void) | undefined;
   readonly children?: ReactNode;
 }) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reports growth of the footer's content, which the list does not follow
+  useLayoutEffect(() => {
+    const content = contentRef.current;
+    if (!content || !onGrow) return;
+    let height = content.offsetHeight;
+    return observeResize(content, () => {
+      const next = content.offsetHeight;
+      if (next > height) onGrow();
+      height = next;
+    });
+  }, [onGrow]);
   return (
     <div>
-      {children}
+      <div ref={contentRef}>{children}</div>
       <div aria-hidden style={{ height: composerInset }} />
       <div aria-hidden className="h-3 sm:h-4" />
     </div>
@@ -220,6 +239,7 @@ interface MessagesTimelineProps {
   onOpenWorktreeSetupTerminal?: (terminalId: string) => void;
   isPreparingWorktree?: boolean;
   isCompacting?: boolean;
+  compactionStartedAt?: string | null;
 
   awaitingUser?: "approval" | "input" | null;
   /** Which request is waiting, so a second one of the same kind is announced too. */
@@ -285,6 +305,7 @@ interface MessagesTimelineProps {
   onToolOutputCollapsedAtEnd?: () => void;
   /** Receives the list's viewport when it mounts; the returned cleanup runs when it goes away. */
   onViewportAttach?: (viewport: TimelineViewport) => () => void;
+  onFooterGrow?: () => void;
   findOpen?: boolean;
   hideEmptyPlaceholder?: boolean;
   loading?: boolean;
@@ -331,6 +352,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   onOpenWorktreeSetupTerminal,
   isPreparingWorktree = false,
   isCompacting = false,
+  compactionStartedAt = null,
   awaitingUser = null,
   awaitingRequestId = null,
   listRef,
@@ -381,6 +403,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   liveFollowEnabled,
   onToolOutputCollapsedAtEnd,
   onViewportAttach,
+  onFooterGrow,
   hideEmptyPlaceholder = false,
   loading = false,
   emptyPlaceholderInset,
@@ -695,6 +718,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     threadStartCheckpointReady,
     availableRevertTurnCounts,
     worktreeSetup,
+    awaitingApproval: awaitingUser === "approval",
   });
   const rows = useStableRows(rawRows, listIdentityKey);
   // Run status/timestamps churn on every stream event; the shared row context
@@ -759,7 +783,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
   const [timelineViewportElement, setTimelineViewportElement] = useState<HTMLDivElement | null>(
     null,
   );
-  const chatWidth = useClientSettings((settings) => settings.chatWidth);
   const turnFoldRunIdOf = (entryId: string) =>
     (
       findFoldRunIds ??
@@ -867,7 +890,10 @@ const ConversationTimeline = memo(function ConversationTimeline({
     shouldRestorePosition: shouldRestoreVisibleContentPosition,
   };
   const timelineListFooter = (
-    <TimelineListFooter composerInset={anchoredEndSpace ? 0 : contentInsetEndAdjustment}>
+    <TimelineListFooter
+      composerInset={anchoredEndSpace ? 0 : contentInsetEndAdjustment}
+      onGrow={onFooterGrow}
+    >
       {footer}
     </TimelineListFooter>
   );
@@ -1008,12 +1034,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
     [],
   );
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- schedules a frame that reads LegendList's scroll state to save position, report the end and refresh the minimap
-  useEffect(() => {
-    const frame = requestAnimationFrame(handleScroll);
-    return () => cancelAnimationFrame(frame);
-  }, [handleScroll]);
-
   const savedLiveFollowEnabledRef = useRef(liveFollowEnabled);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- re-reads LegendList's scroll state before paint when live follow turns off
   useLayoutEffect(() => {
@@ -1022,39 +1042,50 @@ const ConversationTimeline = memo(function ConversationTimeline({
     if (wasFollowing && !liveFollowEnabled) handleScroll();
   }, [handleScroll, liveFollowEnabled]);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- observes the timeline viewport with ResizeObserver to measure the minimap gutter and content overflow
-  useEffect(() => {
-    if (!timelineViewportElement) {
-      return;
-    }
-
-    const measure = () => {
-      const viewportWidth = timelineViewportElement.getBoundingClientRect().width;
-      const contentWidth =
-        timelineViewportElement
-          .querySelector<HTMLElement>("[data-timeline-root]")
-          ?.getBoundingClientRect().width ?? viewportWidth;
-      const nextHasPersistentGutter = resolveTimelineMinimapHasPersistentGutter(
-        viewportWidth,
-        contentWidth,
-      );
-      setMinimapHasPersistentGutter((current) =>
-        current === nextHasPersistentGutter ? current : nextHasPersistentGutter,
-      );
-      setMinimapHitStripWidth(resolveTimelineMinimapHitStripWidth(viewportWidth, contentWidth));
+  const measureTimelineGutter = (viewportElement: HTMLElement) => {
+    const viewportWidth = viewportElement.getBoundingClientRect().width;
+    const contentWidth =
+      viewportElement.querySelector<HTMLElement>("[data-timeline-root]")?.getBoundingClientRect()
+        .width ?? viewportWidth;
+    const nextHasPersistentGutter = resolveTimelineMinimapHasPersistentGutter(
+      viewportWidth,
+      contentWidth,
+    );
+    setMinimapHasPersistentGutter((current) =>
+      current === nextHasPersistentGutter ? current : nextHasPersistentGutter,
+    );
+    setMinimapHitStripWidth(resolveTimelineMinimapHitStripWidth(viewportWidth, contentWidth));
+  };
+  // Rows added, removed or rewrapped change the content size, which moves the
+  // scroll position and the overflow.
+  const handleContentSizeChanged = useStableCallback(() => handleScroll());
+  // The content lane only changes width with the viewport or the chat width
+  // setting, never with streamed content; measuring per content frame would
+  // force a layout on every chunk.
+  const measuredLaneWidthRef = useRef<number | null>(null);
+  // A stable ref, so rows keep one observer across streamed renders.
+  const observeLaneWidth = useStableCallback((lane: HTMLDivElement | null) => {
+    if (!lane) return;
+    return observeResize(lane, (entries) => {
+      const width = entries.at(-1)?.contentRect.width;
+      if (width === undefined || width === measuredLaneWidthRef.current) return;
+      measuredLaneWidthRef.current = width;
+      const viewportElement = lane.closest<HTMLElement>("[data-assistant-citation-viewport]");
+      if (viewportElement) measureTimelineGutter(viewportElement);
+    });
+  });
+  const attachTimelineViewportElement = (viewportElement: HTMLDivElement | null) => {
+    setTimelineViewportElement(viewportElement);
+    if (!viewportElement) return;
+    const stopObserving = observeResize(viewportElement, () => {
+      measureTimelineGutter(viewportElement);
       reportContentOverflow();
-    };
-
-    const frame = requestAnimationFrame(measure);
-
-    const stopObserving = observeResize(timelineViewportElement, measure);
-
+    });
     return () => {
-      cancelAnimationFrame(frame);
       stopObserving();
+      setTimelineViewportElement(null);
     };
-    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- rows.length and layout inputs trigger a re-measure; the effect reads them through the DOM
-  }, [timelineViewportElement, rows.length, reportContentOverflow, chatWidth]);
+  };
 
   const sharedState: TimelineRowSharedState = {
     citationRequest: readyCitationRequest,
@@ -1108,6 +1139,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   const activityState: TimelineRowActivityState = {
     isWorking,
     isCompacting: compactionAwaitingRow,
+    compactionStartedAt,
     isRevertingCheckpoint,
     backgroundWorktreeSetup,
     awaitingUser: awaitingUser !== null,
@@ -1165,7 +1197,22 @@ const ConversationTimeline = memo(function ConversationTimeline({
       : null;
     viewportRef.current = viewport;
     const detachViewport = viewport ? onViewportAttach?.(viewport) : undefined;
+    // LegendList lays rows out from layout effects; the next frame sees them settled.
+    let contentSizeFrame: number | null = null;
+    const scheduleContentSizeChanged = () => {
+      if (contentSizeFrame !== null) return;
+      contentSizeFrame = requestAnimationFrame(() => {
+        contentSizeFrame = null;
+        handleContentSizeChanged();
+      });
+    };
+    const stopListeningToContentSize = list
+      ?.getState()
+      .listen("totalSize", scheduleContentSizeChanged);
+    scheduleContentSizeChanged();
     return () => {
+      stopListeningToContentSize?.();
+      if (contentSizeFrame !== null) cancelAnimationFrame(contentSizeFrame);
       detachViewport?.();
       viewport?.dispose();
       if (viewportRef.current === viewport) viewportRef.current = null;
@@ -1277,7 +1324,11 @@ const ConversationTimeline = memo(function ConversationTimeline({
         onPauseCapture={(event) => onAudioPlaybackChange(item.id, event)}
         onEndedCapture={(event) => onAudioPlaybackChange(item.id, event)}
       >
-        <div className="chat-content-lane overflow-x-clip" data-timeline-root="true">
+        <div
+          ref={observeLaneWidth}
+          className="chat-content-lane overflow-x-clip"
+          data-timeline-root="true"
+        >
           <AudioPreviewUnmountContext value={onAudioUnmount}>
             <TimelineRowPreviewHost rowId={item.id}>
               <TimelineRowContent row={item} />
@@ -1336,7 +1387,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
         <TimelineRowActivityCtx value={activityState}>
           <TimelineDisclosureContext value={onDisclosureToggle}>
             <TooltipScrollDismissArea
-              ref={setTimelineViewportElement}
+              ref={attachTimelineViewportElement}
               className="relative h-full min-h-0"
               data-assistant-citation-viewport="true"
             >
@@ -1687,6 +1738,7 @@ function TurnFoldTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "turn-
     ctx.onToggleTurnFold(row.runId),
   );
 
+  const Icon = row.expanded ? ChevronDownIcon : ChevronRightIcon;
   return (
     <div className="group/timeline-row border-b border-border/60 pb-2 pe-0.5 pt-1">
       <div className="relative flex items-center gap-1">
@@ -1701,7 +1753,7 @@ function TurnFoldTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "turn-
             {row.label}
             {error ? ` · ${error}` : ""}
           </span>
-          <MorphIcon className="size-3.5" icon={row.expanded ? ChevronDown : ChevronRight} />
+          <Icon className="size-3.5" />
         </button>
         <TimelineRowTimestamp
           createdAt={row.createdAt}
@@ -1720,6 +1772,7 @@ function AttemptFoldTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "at
     ctx.onToggleAttemptFold(row.attemptId),
   );
 
+  const Icon = row.expanded ? ChevronDownIcon : ChevronRightIcon;
   return (
     <div>
       <button
@@ -1730,10 +1783,7 @@ function AttemptFoldTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "at
         aria-busy={loading}
         className="flex w-full cursor-pointer select-none items-center gap-2 rounded-md border border-border/60 bg-muted/20 px-2.5 py-2 text-left transition-colors hover:bg-muted/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70"
       >
-        <MorphIcon
-          className="size-3.5 shrink-0 text-muted-foreground"
-          icon={row.expanded ? ChevronDown : ChevronRight}
-        />
+        <Icon className="size-3.5 shrink-0 text-muted-foreground" />
         <span className="text-xs font-medium text-foreground/80">
           {row.label}
           {error ? ` · ${error}` : ""}

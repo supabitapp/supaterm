@@ -1,4 +1,5 @@
-import { Check, Copy } from "@supaterm/icons/nodes";
+import { CheckIcon, CopyIcon } from "@supaterm/icons";
+
 import { useRef, type ComponentProps } from "react";
 
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
@@ -6,7 +7,6 @@ import {
   serializeTableElementToCsv,
   serializeTableElementToMarkdown,
 } from "../../markdown-clipboard";
-import { MorphIcon } from "../MorphIcon";
 import { Button } from "../ui/button";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import { ScrollArea } from "../ui/scroll-area";
@@ -33,6 +33,7 @@ export function MarkdownTable({ children, ...props }: ComponentProps<"table">) {
     );
   };
 
+  const Icon = copied ? CheckIcon : CopyIcon;
   return (
     <div ref={containerRef} className="chat-markdown-table-container">
       <ScrollArea radius="none" chainVerticalScroll scrollFade className="w-full max-w-full">
@@ -56,7 +57,7 @@ export function MarkdownTable({ children, ...props }: ComponentProps<"table">) {
                 />
               }
             >
-              <MorphIcon className="size-3" icon={copied ? Check : Copy} />
+              <Icon className="size-3" />
             </TooltipTrigger>
             <TooltipPopup side="top">{copyLabel}</TooltipPopup>
           </Tooltip>

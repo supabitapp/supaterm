@@ -203,7 +203,7 @@ function SidebarThreadWorkTime(props: { thread: SidebarThreadSummary }) {
   if (totalMs === null || totalMs < 1000) return null;
   return (
     <div className="flex min-w-0 items-center gap-2">
-      <TimerIcon aria-hidden className="size-3 shrink-0 stroke-muted-foreground" />
+      <TimerIcon aria-hidden className="size-3 shrink-0 text-muted-foreground" />
       <div className="min-w-0 truncate text-foreground/75">
         Total working time:{" "}
         <span className="tabular-nums">{formatWorkingDurationLabel(totalMs)}</span>
@@ -332,20 +332,20 @@ function SidebarThreadTooltip({
           <div className="flex min-w-0 items-center gap-2">
             <EnvironmentMachineIcon
               kind={environmentMachine}
-              className="size-3 shrink-0 stroke-muted-foreground"
+              className="size-3 shrink-0 text-muted-foreground"
             />
             <div className="min-w-0 truncate text-foreground/75">{environmentLabel}</div>
           </div>
         ) : null}
         {thread.branch ? (
           <div className="flex min-w-0 items-center gap-2">
-            <GitBranchIcon className="size-3 shrink-0 stroke-muted-foreground" />
+            <GitBranchIcon className="size-3 shrink-0 text-muted-foreground" />
             <MiddleTruncate value={thread.branch} className="flex" />
           </div>
         ) : null}
         {branchMismatch ? (
           <div className="flex min-w-0 items-start gap-2 text-warning">
-            <CircleAlertIcon aria-hidden className="mt-0.5 size-3 shrink-0 stroke-current" />
+            <CircleAlertIcon aria-hidden className="mt-0.5 size-3 shrink-0" />
             <div className="min-w-0 flex-1 wrap-break-word">
               You're currently checked out on another branch.
             </div>
@@ -375,13 +375,13 @@ function SidebarThreadTooltip({
         ) : null}
         {effortLabel ? (
           <div className="flex min-w-0 items-center gap-2">
-            <BrainIcon aria-hidden className="size-3 shrink-0 stroke-muted-foreground" />
+            <BrainIcon aria-hidden className="size-3 shrink-0 text-muted-foreground" />
             <div className="min-w-0 truncate text-foreground/75">Thinking: {effortLabel}</div>
           </div>
         ) : null}
         {speedToggle ? (
           <div className="flex min-w-0 items-center gap-2">
-            <ZapIcon aria-hidden className="size-3 shrink-0 stroke-muted-foreground" />
+            <ZapIcon aria-hidden className="size-3 shrink-0 text-muted-foreground" />
             <div className="min-w-0 truncate text-foreground/75">
               {SPEED_TOGGLE_LABELS[speedToggle.level]}
             </div>
@@ -390,7 +390,7 @@ function SidebarThreadTooltip({
         <SidebarThreadWorkTime thread={thread} />
         {previousProviderNames.length > 0 ? (
           <div className="flex min-w-0 items-center gap-2">
-            <ArrowRightLeftIcon className="size-3 shrink-0 stroke-muted-foreground" />
+            <ArrowRightLeftIcon className="size-3 shrink-0 text-muted-foreground" />
             <div className="min-w-0 truncate text-foreground/75">
               Handed off from {previousProviderNames.join(", ")}
             </div>
@@ -414,7 +414,7 @@ function SidebarThreadTooltip({
               thread.runtime.lastErrorClass === "usage_limit" ? "text-warning" : "text-error",
             )}
           >
-            <CircleAlertIcon className="size-3 shrink-0 stroke-current" />
+            <CircleAlertIcon className="size-3 shrink-0" />
             <div className="min-w-0 truncate">
               {thread.runtime.lastErrorClass === "usage_limit"
                 ? "Usage limit reached"
@@ -1259,7 +1259,9 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                       Connecting
                     </span>
                   ) : variantAction === "unsnooze" && props.snoozeWakeLabelText !== null ? (
-                    <span className="text-xs tabular-nums">{props.snoozeWakeLabelText}</span>
+                    <span className="text-xs text-info-foreground tabular-nums">
+                      {props.snoozeWakeLabelText}
+                    </span>
                   ) : isWoke ? (
                     // A wake can land straight in the done tail (e.g. PR
                     // merged while snoozed); the signal must survive the trip.
@@ -1520,11 +1522,11 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
             ) : null}
             <div className="mt-0.5 flex h-4 min-w-0 items-center gap-1.5 text-xs text-secondary-label">
               {thread.branch ? (
-                <span className="flex min-w-0 flex-1 text-muted-foreground/60">
+                <span className="flex min-w-0 flex-1">
                   <MiddleTruncate value={thread.branch} showTitle={false} />
                 </span>
               ) : (
-                <span className="min-w-0 flex-1 truncate text-muted-foreground/60">
+                <span className="min-w-0 flex-1 truncate">
                   {showsScratchMachine ? props.scratchMachineLabel : props.projectDisplayName}
                 </span>
               )}

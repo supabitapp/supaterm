@@ -331,3 +331,20 @@ it("opens the details of a long notice right above its button", async () => {
     expect(gap).toBeLessThan(8);
   });
 });
+
+it.each([
+  { variant: "warning", announce: false, alert: true },
+  { variant: "info", announce: false, alert: false },
+  { variant: "info", announce: true, alert: true },
+] as const)(
+  "interrupts a screen reader for a $variant notice only when it needs the user: announce=$announce",
+  async ({ variant, announce, alert }) => {
+    await using screen = await renderUi(
+      <ComposerBannerStack
+        items={[{ id: "notice", variant, announce, icon: null, title: "Notice" }]}
+      />,
+    );
+    await expect.element(screen.getByText("Notice", { exact: true })).toBeVisible();
+    expect(screen.container.querySelector('[role="alert"]') !== null).toBe(alert);
+  },
+);

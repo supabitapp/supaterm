@@ -1,5 +1,7 @@
 import { useOpenThreadInspector } from "./thread-inspector-navigation";
-import { useSidebarWorkspaceTabs } from "../workspace/useSidebarWorkspaceTabs";
+import { useSidebarWorkspaceTabs } from "../workspace/useSystemWorkspaceTabBar";
+import { useWorkspaceTabs } from "../workspace/WorkspaceTabsContext";
+import { useSelectWorkspaceDetail } from "../workspace/useSelectWorkspaceDetail";
 import {
   isAtomCommandInterrupted,
   settlePromise,
@@ -109,6 +111,7 @@ import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
 import { useWorkspaceContentWidth } from "../layout/workspace-content-width";
 import { useNativeWorkspaceColumnsSupported } from "../../native/NativeWorkspaceColumns";
 import {
+  useDeviceType,
   useDuoBottomBarInset,
   useNativeColumnLayoutMetrics,
   useNativeLayoutMetrics,
@@ -413,8 +416,18 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
     ? null
     : { environmentId: props.environmentId, threadId: props.selectedThread.id };
   const usesNativeWorkspaceColumns = useNativeWorkspaceColumnsSupported();
+  const deviceType = useDeviceType();
+  const workspace = useWorkspaceTabs();
+  const sidebarSearchActive =
+    deviceType === "duo-unfolded" &&
+    workspace?.state.tabs[workspace.state.selectedTab].searchMode === "active";
+  // Keep the last input owner through keyboard dismissal, so closing sidebar
+  // search cannot briefly lift the composer into the keyboard's closing frame.
+  const [composerOwnsKeyboard, setComposerOwnsKeyboard] = useState(false);
+  if (sidebarSearchActive && composerOwnsKeyboard) setComposerOwnsKeyboard(false);
   const navigation = useNavigation();
-  const { layout, selectThreadRoute } = useAdaptiveWorkspaceLayout();
+  const { layout } = useAdaptiveWorkspaceLayout();
+  const selectDetail = useSelectWorkspaceDetail();
   const openLinkedThread = useOpenLinkedThread();
   const openInspector = useOpenThreadInspector();
   const { session: voiceInputSession } = useGlobalVoiceInput();
@@ -490,6 +503,8 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
   const handleOwnedInputFocusChange = (focused: boolean) => {
     ownedInputFocusedRef.current = focused;
     if (focused) {
+      if (deviceType === "duo-folded" || deviceType === "duo-unfolded")
+        setComposerOwnsKeyboard(true);
       setKeyboardStateSuspect(false);
     }
   };
@@ -562,10 +577,13 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
     (Platform.OS === "ios" && Platform.isPad
       ? Math.max(bottomSafeArea, 12) - (layout.usesSplitView ? 5 : 0)
       : undefined);
-  const composerBottomInset =
-    alignedBottomInset !== undefined
-      ? Math.max(0, alignedBottomInset - THREAD_COMPOSER_BOTTOM_GUTTER)
-      : Math.max(bottomSafeArea, 12);
+  // The Duo's floating sidebar pill ends three points below the composer's usual gutter.
+  const composerBottomInset = Math.max(
+    0,
+    (alignedBottomInset !== undefined
+      ? alignedBottomInset - THREAD_COMPOSER_BOTTOM_GUTTER
+      : Math.max(bottomSafeArea, 12)) - (hasSidebarTabBar ? 3 : 0),
+  );
   const composerKeyboardOffset = composerBottomInset;
   const contentPresentationKind = props.contentPresentation.kind;
   const clientCreation =
@@ -958,7 +976,10 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
   const reservedKeyboardHeight =
     lastKnownKeyboardHeight > 0 ? lastKnownKeyboardHeight : ESTIMATED_KEYBOARD_HEIGHT;
   // Waiting for a visibility render misses the first keyboard frames.
-  const keyboardStickyEnabled = Platform.OS === "ios" || !keyboardStateSuspect;
+  const keyboardStickyEnabled =
+    Platform.OS === "ios"
+      ? deviceType !== "duo-unfolded" || (composerOwnsKeyboard && !sidebarSearchActive)
+      : !keyboardStateSuspect;
   const estimatedOverlayHeight = composerOverlapHeight;
   // The overlay height already includes the home-indicator inset, and automatic insets make UIKit
   // add the safe-area bottom again. Report it minus the safe area; ThreadFeed hands LegendList the
@@ -1325,11 +1346,14 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
     if (pendingMessageEditBlocked) return;
     const scope = threadScope.current.signal;
     if (message.creation) {
-      selectThreadRoute({
-        draft: {
-          environmentId: String(message.environmentId),
-          projectId: String(message.creation.projectId),
-          pendingTaskId: String(message.messageId),
+      selectDetail({
+        name: "Thread",
+        params: {
+          draft: {
+            environmentId: String(message.environmentId),
+            projectId: String(message.creation.projectId),
+            pendingTaskId: String(message.messageId),
+          },
         },
       });
       return;

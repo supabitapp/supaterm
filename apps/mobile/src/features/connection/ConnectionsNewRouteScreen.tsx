@@ -11,7 +11,7 @@ import {
 } from "@react-navigation/native";
 import type { EnvironmentId } from "@supaterm/contracts";
 import { useAtomValue } from "@effect/atom-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Linking, Pressable, StyleSheet, View } from "react-native";
 import Svg, { Defs, RadialGradient, Rect, Stop } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -23,7 +23,9 @@ import { AppText as Text, AppTextInput, type AppTextInputProps } from "../../com
 import { FrostedCutout } from "../../components/ui/FrostedCutout";
 import { pairingUrlForFields, extractPairingUrlFromQrPayload, parsePairingUrl } from "./pairing";
 import { useRemoteConnections } from "../../state/use-remote-environment-registry";
-import { autoConnectReport, devAutoConnectAttemptAtom } from "./devAutoConnect";
+import { autoConnectReport, devAutoConnectAttemptAtom, linkedPairingUrl } from "./devAutoConnect";
+import { leaveSettingsPage } from "../settings/settings-navigation";
+import { workspaceHasColumns } from "../workspace/workspace-selection-store";
 import { SymbolView } from "../../components/ui/AppSymbol";
 
 type ConnectionsNewRouteParams = {
@@ -36,18 +38,35 @@ type ConnectionsNewRouteParams = {
 export function ConnectionsNewRouteScreen({
   route,
 }: StaticScreenProps<ConnectionsNewRouteParams | undefined>) {
+  const params = route.params ?? {};
+  const routePairingUrl = linkedPairingUrl(params.pairingUrl);
+  // A fresh pairing link replaces the form, including the previous attempt's error and progress.
+  return (
+    <PairingForm
+      key={routePairingUrl}
+      routePairingUrl={routePairingUrl}
+      routeFor={params.routeFor}
+    />
+  );
+}
+
+function PairingForm({
+  routePairingUrl,
+  routeFor,
+}: {
+  readonly routePairingUrl: string;
+  readonly routeFor: EnvironmentId | undefined;
+}) {
   const { connectionPairingUrl, onChangeConnectionPairingUrl, onConnectPress } =
     useRemoteConnections();
   const navigation = useNavigation();
   const routeName = useRoute().name;
-  const params = route.params ?? {};
-  // Deep-link prefill exists for development automation only. A production
-  // link must not arrive with attacker-chosen host and token already filled.
-  const routePairingUrl = __DEV__ ? (params.pairingUrl?.trim() ?? "") : "";
   const insets = useSafeAreaInsets();
-  const [hostInput, setHostInput] = useState("");
-  const [codeInput, setCodeInput] = useState("");
-  const [originalPairingUrl, setOriginalPairingUrl] = useState("");
+  const [originalPairingUrl, setOriginalPairingUrl] = useState(
+    () => routePairingUrl || connectionPairingUrl,
+  );
+  const [hostInput, setHostInput] = useState(() => parsePairingUrl(originalPairingUrl).host);
+  const [codeInput, setCodeInput] = useState(() => parsePairingUrl(originalPairingUrl).code);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   // The user's own edit or submit dismisses the dev auto-connect report.
@@ -69,28 +88,14 @@ export function ConnectionsNewRouteScreen({
 
   const connectDisabled = connecting || hostInput.trim().length === 0;
 
-  const [syncedPairingUrls, setSyncedPairingUrls] = useState<{
-    readonly connection: string;
-    readonly route: string;
-  } | null>(null);
-  if (
-    syncedPairingUrls?.connection !== connectionPairingUrl ||
-    syncedPairingUrls.route !== routePairingUrl
-  ) {
-    setSyncedPairingUrls({ connection: connectionPairingUrl, route: routePairingUrl });
-    const prefillUrl =
-      syncedPairingUrls?.route !== routePairingUrl && routePairingUrl.length > 0
-        ? routePairingUrl
-        : syncedPairingUrls?.connection !== connectionPairingUrl
-          ? connectionPairingUrl
-          : null;
-    if (prefillUrl !== null) {
-      setOriginalPairingUrl(prefillUrl);
-      const { host, code } = parsePairingUrl(prefillUrl);
-      setHostInput(host);
-      setCodeInput(code);
-    }
-  }
+  const currentAttemptRef = useRef<object | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- disowns the pairing still in flight when the form goes away
+  useEffect(
+    () => () => {
+      currentAttemptRef.current = null;
+    },
+    [],
+  );
 
   const clearError = () => {
     setSubmitError(null);
@@ -134,12 +139,15 @@ export function ConnectionsNewRouteScreen({
   };
 
   const connectAndClose = async (pairingUrl: string) => {
+    const attempt = {};
+    currentAttemptRef.current = attempt;
     setOwnAttempt(true);
     setSubmitError(null);
     setIsSubmitting(true);
     onChangeConnectionPairingUrl(pairingUrl);
     const connect = async () => {
-      const outcome = await onConnectPress(pairingUrl, params.routeFor);
+      const outcome = await onConnectPress(pairingUrl, routeFor);
+      if (currentAttemptRef.current !== attempt) return;
       setSubmitError(outcome.error);
       void Haptics.notificationAsync(
         outcome.ok
@@ -152,7 +160,8 @@ export function ConnectionsNewRouteScreen({
         if (!navigation.canGoBack()) {
           navigation.dispatch(StackActions.replace("Home"));
         } else {
-          navigation.goBack();
+          // Added from the Settings list, the new environment shows on Environments.
+          leaveSettingsPage(navigation, workspaceHasColumns(), "SettingsEnvironments");
         }
       }
     };
@@ -194,7 +203,7 @@ export function ConnectionsNewRouteScreen({
   return (
     <SettingsScreen
       formSheet={routeName === "ConnectionsNew"}
-      title={params.routeFor ? "Add route" : "Add environment"}
+      title={routeFor ? "Add route" : "Add environment"}
       actions={[
         {
           accessibilityLabel: connecting ? "Connecting" : "Add environment",

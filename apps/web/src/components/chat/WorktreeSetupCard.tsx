@@ -12,12 +12,13 @@ import {
   MinusIcon,
   TerminalIcon,
   XIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
 } from "@supaterm/icons";
-import { ChevronDown, ChevronRight } from "@supaterm/icons/nodes";
+
 import { type ReactNode } from "react";
 
 import { Button } from "~/components/ui/button";
-import { MorphIcon } from "~/components/MorphIcon";
 import { Spinner } from "~/components/ui/spinner";
 import { MiddleTruncate } from "../ui/middle-truncate";
 import { observeVisibleAnimation } from "~/lib/visibleAnimation";
@@ -333,6 +334,7 @@ export function WorktreeSetupCard({
     (setupStage.status === "failed" ||
       (setupStage.status === "running" && setupStage.tail.length > 0));
 
+  const Icon = detailsOpen ? ChevronDownIcon : ChevronRightIcon;
   return (
     <section aria-label="Worktree setup" data-worktree-setup-phase={snapshot.phase}>
       {showHeader ? <SetupHeaderRow snapshot={snapshot} /> : null}
@@ -374,7 +376,7 @@ export function WorktreeSetupCard({
           aria-expanded={detailsOpen}
           onClick={toggleDetails}
         >
-          <MorphIcon aria-hidden icon={detailsOpen ? ChevronDown : ChevronRight} />
+          <Icon aria-hidden />
           Details
         </Button>
         {showTerminal ? (

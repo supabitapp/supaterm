@@ -35,7 +35,6 @@ function TimelineEvent(props: {
                 node={GitCommit}
                 size={17}
                 color={colors["--color-foreground-muted"] ?? "#838383"}
-                strokeWidth={1.8}
               />
             ) : (
               <SymbolView

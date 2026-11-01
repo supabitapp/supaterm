@@ -30,8 +30,9 @@ To step a new thread to the next machine instead of opening the menu, bind
 The workspace menu includes the current checkout, a new worktree, and the previous
 worktree when available. Use `mod+shift+l` to reuse the previous worktree directly.
 
-`mod+shift+space` starts [voice input](./composer.md#voice-input) in the focused composer.
+`ctrl+m` starts [voice input](./composer.md#voice-input) in the focused composer.
 Press it again to stop and review the transcript, or `Escape` to discard the recording.
+Hold it to record only until you let go.
 
 To change effort one step without opening the picker, bind
 **Composer: Increase Effort** and **Composer: Decrease Effort** in Keybindings.
@@ -50,7 +51,7 @@ in Settings.
 
 ## Copy pull request references
 
-With a PR open in the right panel or on the Pull Requests page, use `mod+shift+c`
+With a PR open in the right panel or on the Pull requests page, use `mod+shift+c`
 to copy its URL and `mod+shift+k` to copy its number with a `#` prefix.
 Both shortcuts can be changed in Settings. Search for “Copy Link or Thread”
 or “Copy Number”. They copy the selected PR and leave terminal input alone.
@@ -173,6 +174,8 @@ field gets its own undo back. Terminals always keep their native shortcut.
 
 `navigation.back` (`mod+[` by default) and `navigation.forward` (`mod+]`) move
 through the pages you have visited, like a browser's back and forward buttons.
+In the desktop app, the arrows beside the app name and a two-finger horizontal
+swipe on a trackpad do the same.
 
 `thread.approve` and `thread.decline` answer the first pending approval in the focused thread.
 `composer.submit` sends the draft as the send button would, and `composer.toggleFastMode` turns

@@ -98,7 +98,7 @@ Leaving an edited form asks before discarding unsaved changes.
 ## Defaults and inheritance
 
 General contains the model and workspace for new threads. Integrations controls agent browser
-access. Source Control contains automatic pull, the default pull request merge method and text
+access. Source control contains automatic pull, the default pull request merge method and text
 generation. The same rows edit environment defaults or project overrides depending on the
 project crumb.
 
@@ -183,7 +183,7 @@ projects. To pick a different color, choose **Monogram** in the icon picker.
 ## Keep the default branch current
 
 **Automatically pull** is enabled by default to keep the default-branch checkout up to date
-with its configured upstream. In Source Control, choose an environment to change the default or a
+with its configured upstream. In Source control, choose an environment to change the default or a
 project to override it.
 On mobile, use **Settings → Source control** to change selected environment defaults or project overrides.
 

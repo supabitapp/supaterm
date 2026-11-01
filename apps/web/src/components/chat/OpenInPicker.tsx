@@ -19,7 +19,7 @@ import {
   useRemoteOpenState,
 } from "../../remoteOpen";
 import { useEnvironment } from "../../state/environments";
-import { ChevronDownIcon, ExternalLinkIcon, FolderIcon } from "@supaterm/icons";
+import { ChevronDownIcon, ExternalLinkIcon, FolderIcon, type IconComponent } from "@supaterm/icons";
 
 import { Group, GroupSeparator } from "../ui/group";
 import {
@@ -39,7 +39,6 @@ import {
   CursorIcon,
   FileExplorerIcon,
   FinderIcon,
-  Icon,
   KiroIcon,
   TraeIcon,
   VisualStudioCode,
@@ -77,7 +76,7 @@ import { useIsPaneInputOwner } from "../../chatPanes/paneScope";
 
 type OpenInOption = {
   label: string;
-  Icon: Icon;
+  Icon: IconComponent;
   value: EditorId;
   kind: "brand" | "generic";
 };

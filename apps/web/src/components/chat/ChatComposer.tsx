@@ -342,8 +342,8 @@ export interface ChatComposerHandle {
   toggleFastMode: () => SpeedToggleLevel | null;
   /** Sends the draft as the send button would; does nothing when sending isn't possible. */
   submit: () => void;
-  /** Starts voice input, or finishes the recording in progress. */
-  toggleVoiceInput: () => void;
+  /** Starts voice input, or finishes the recording in progress; a key held past a tap finishes it on release. */
+  toggleVoiceInput: (press?: { readonly fromKey: boolean }) => void;
   toggleModelPicker: () => void;
   openControl: (command: KeybindingCommand) => void;
   isModelPickerOpen: () => boolean;
@@ -1903,6 +1903,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     submit: (submission) =>
       void submitComposerStable(undefined, submission.dispatchMode, submission.intent),
     onBusyChange: setVoiceSessionOpen,
+    holdSpaceTarget: settings.voiceHoldSpaceToTalk ? composerFormRef : null,
   });
 
   const readComposerSnapshot = (): {
@@ -3424,6 +3425,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       composerTerminalContextsRef,
       composerPreviewAnnotations,
       composerReviewComments,
+      composerThreadContexts,
       focusComposer,
       environmentId,
       primaryEnvironmentId,
@@ -3811,7 +3813,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   }}
                 >
                   {showResumeAction ? (
-                    <PlayIcon className="size-4 fill-current" aria-hidden="true" />
+                    <PlayIcon weight="fill" className="size-4" aria-hidden="true" />
                   ) : (
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                       <path

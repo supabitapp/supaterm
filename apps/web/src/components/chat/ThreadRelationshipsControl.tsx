@@ -662,7 +662,7 @@ export function ThreadRelationshipsPanel(props: {
                           {stoppingId === threadId ? (
                             <Spinner aria-hidden size="xs" />
                           ) : (
-                            <SquareIcon aria-hidden className="size-3 fill-current" />
+                            <SquareIcon weight="fill" aria-hidden className="size-3" />
                           )}
                         </TooltipTrigger>
                         <TooltipPopup side="left">Stop subagent</TooltipPopup>

@@ -96,6 +96,10 @@ jobs:
     runs-on: depot-ubuntu-24.04
     environment: release
     timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
+      deployments: write
     concurrency:
       group: mobile-store-review-${{ matrix.platform }}
       cancel-in-progress: false
@@ -152,11 +156,29 @@ jobs:
         run: |
           node .github/scripts/export-play-credentials.mjs
           echo "GOOGLE_PLAY_JSON_KEY_PATH=$GOOGLE_PLAY_JSON_KEY_PATH" >> "$GITHUB_ENV"
+      - name: Check out the current build history helper
+        if: matrix.platform == 'ios'
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+          path: .automation
       - name: Upload screenshots and submit the exact build for review
         working-directory: apps/mobile
         env:
           MOBILE_PLATFORM: ${{ matrix.platform }}
         run: bundle exec fastlane "$MOBILE_PLATFORM" review
+      - name: Record the version sent for App Store review
+        if: matrix.platform == 'ios'
+        uses: actions/github-script@v9.0.0
+        env:
+          MOBILE_SOURCE_SHA: ${{ inputs.source_sha }}
+        with:
+          script: |
+            const { recordAppStoreReview } = require('./.automation/.github/scripts/mobile-build-history.cjs');
+            await recordAppStoreReview({
+              github, context, version: process.env.MOBILE_VERSION, sha: process.env.MOBILE_SOURCE_SHA,
+            });
       - name: Remove Google Play credentials
         if: always() && matrix.platform == 'android'
         run: rm -f "$GOOGLE_PLAY_JSON_KEY_PATH"

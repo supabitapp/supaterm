@@ -33,7 +33,7 @@ import { ListChoiceRow as SettingsChoiceRow } from "../../components/ui/ListChoi
 import { SettingsSection } from "./components/SettingsSection";
 import { SettingsSwitchRow } from "./components/SettingsSwitchRow";
 import { SettingsProjectOverridesSection } from "./components/SettingsProjectOverridesSection";
-import { useSettingsEnvironmentFilter } from "./settings-environment-filter";
+import { type SettingsTarget, useSettingsEnvironmentFilter } from "./settings-environment-filter";
 import { useSettingsWriter } from "./useSettingsWriter";
 import {
   planMobileScopedSettingsClear,
@@ -43,6 +43,7 @@ import {
   type ScopedMobileSettingsTarget,
 } from "./settings-scoped-server";
 import { PullRequestGlyph } from "../pull-requests/pullRequestGlyphs";
+import { resolveProductUsageDataControl } from "@supaterm/client-runtime/product-usage-data";
 
 type SettingsPage = "threads" | "source-control" | "worktrees" | "maintenance";
 
@@ -474,12 +475,8 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
                           label={target.label}
                           value="Server and provider updates"
                           onPress={() =>
-                            navigation.navigate("SettingsSheet", {
-                              screen: "SettingsContent",
-                              params: {
-                                screen: "SettingsEnvironmentDetail",
-                                params: { environmentId: target.environmentId },
-                              },
+                            navigation.navigate("SettingsEnvironmentDetail", {
+                              environmentId: target.environmentId,
                             })
                           }
                         />
@@ -512,6 +509,13 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
                       />
                     </View>
                   </SettingsSection>
+                  <ProductUsageDataSection
+                    targets={selectedTargets}
+                    projectSelected={projectSelected}
+                    value={uniform("telemetryEnabled")}
+                    disabled={disabledFor("telemetryEnabled")}
+                    onValueChange={(value) => write({ telemetryEnabled: value })}
+                  />
                 </>
               ) : null}
             </>
@@ -519,6 +523,36 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
         </ScrollView>
       </SettingsScreen>
     </>
+  );
+}
+
+function ProductUsageDataSection(props: {
+  readonly targets: readonly SettingsTarget[];
+  readonly projectSelected: boolean;
+  readonly value: boolean | null;
+  readonly disabled: boolean;
+  readonly onValueChange: (value: boolean) => void;
+}) {
+  const control = resolveProductUsageDataControl(props.targets);
+  if (control === null) return null;
+  const description =
+    control.status ??
+    "Send product usage events from this environment. They never include prompts, responses, or file contents.";
+  return (
+    <SettingsSection title="Privacy">
+      <SettingsSwitchRow
+        icon="chart.bar.xaxis"
+        label="Product usage data"
+        subtitle={
+          props.projectSelected
+            ? "Environment-wide setting. Select All projects to change it."
+            : description
+        }
+        value={control.forced ? control.forced.value : props.value}
+        disabled={control.forced !== null || props.disabled}
+        onValueChange={props.onValueChange}
+      />
+    </SettingsSection>
   );
 }
 

@@ -17,12 +17,12 @@ const sections = [
 ---
 
 <LegalPage
-  title="Privacy Policy — Supaterm"
+  title="Privacy Policy | Supaterm"
   description="How Supaterm Limited handles information when you use Supaterm, app.supaterm.com, and supaterm.com."
   heading="Supaterm Privacy Policy"
   lede="This Privacy Policy describes how Supaterm Limited collects, uses, and shares personal information when you use the Supaterm desktop, mobile, and hosted web applications or visit the supaterm.com marketing site."
   effectiveDate="2026-07-14"
-  lastUpdated="2026-07-14"
+  lastUpdated="2026-11-01"
   sections={sections}
 >
   <section id="introduction">
@@ -291,9 +291,10 @@ const sections = [
 
           <h3>Product Usage Data</h3>
           <p>
-            To stop sending product usage data, set the environment variable{" "}
+            To stop sending product usage data, turn off{" "}<strong>Product usage data</strong>{" "}in
+            {" "}<strong>Settings → About</strong>. You can also set the environment variable{" "}
             <code>SUPATERM_TELEMETRY_ENABLED=false</code>{" "}where Supaterm runs, for example in your
-            shell profile, and restart Supaterm.
+            shell profile, and restart Supaterm. The variable takes precedence over the setting.
           </p>
 
           <h3>Cookies and Local Data</h3>

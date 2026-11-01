@@ -2,15 +2,20 @@ import { useSyncLayout } from "@legendapp/list/react";
 import { type OrchestrationV2CheckpointFileTotals, type RunId } from "@supaterm/contracts";
 import { type MouseEvent, type ReactNode, memo, useLayoutEffect, useRef, useState } from "react";
 import { type TurnDiffFileChange } from "../../types";
-import { DiffIcon } from "@supaterm/icons";
-import { ChevronsDownUp, ChevronsUpDown, Folder, FolderOpen } from "@supaterm/icons/nodes";
+import {
+  DiffIcon,
+  ChevronsDownUpIcon,
+  ChevronsUpDownIcon,
+  FolderIcon,
+  FolderOpenIcon,
+} from "@supaterm/icons";
+
 import { buildTurnDiffTree, type TurnDiffTreeNode } from "../../lib/turnDiffTree";
 import { DiffStatLabel, hasNonZeroStat } from "./DiffStatLabel";
 import { PierreEntryIcon } from "./PierreEntryIcon";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { MiddleTruncate } from "../ui/middle-truncate";
-import { MorphIcon } from "~/components/MorphIcon";
 import { DisclosureChevron } from "../ui/disclosure-chevron";
 import { useTimelineDisclosureToggle } from "./timelineDisclosure";
 import { observeResize } from "~/lib/observeResize";
@@ -52,6 +57,7 @@ export const ChangedFilesCard = memo(function ChangedFilesCard(props: {
   const hiddenFileCount = totals.count - files.length;
   const hasDirectories = files.some((file) => /[/\\]/.test(file.path));
 
+  const Icon = allDirectoriesExpanded ? ChevronsDownUpIcon : ChevronsUpDownIcon;
   return (
     <div
       className="@container/changed-files mt-4 rounded-lg bg-secondary dark:bg-input/20"
@@ -94,10 +100,7 @@ export const ChangedFilesCard = memo(function ChangedFilesCard(props: {
                   />
                 }
               >
-                <MorphIcon
-                  className="size-3"
-                  icon={allDirectoriesExpanded ? ChevronsDownUp : ChevronsUpDown}
-                />
+                <Icon className="size-3" />
               </TooltipTrigger>
               <TooltipPopup side="top">
                 {allDirectoriesExpanded ? "Collapse all folders" : "Expand all folders"}
@@ -199,6 +202,7 @@ const ChangedFilesTree = memo(function ChangedFilesTree(props: {
     const leftPadding = 8 + depth * 14;
     if (node.kind === "directory") {
       const isExpanded = expandedDirectories[node.path] ?? allDirectoriesExpanded;
+      const Icon = isExpanded ? FolderOpenIcon : FolderIcon;
       return (
         <button
           key={`dir:${node.path}`}
@@ -213,10 +217,7 @@ const ChangedFilesTree = memo(function ChangedFilesTree(props: {
           }}
         >
           <DisclosureChevron open={isExpanded} size="sm" />
-          <MorphIcon
-            className="size-3.5 shrink-0 text-muted-foreground/75"
-            icon={isExpanded ? FolderOpen : Folder}
-          />
+          <Icon className="size-3.5 shrink-0 text-muted-foreground/75" />
           <span className="truncate font-mono text-2xs text-muted-foreground/90 group-hover:text-foreground/90">
             {node.name}
           </span>

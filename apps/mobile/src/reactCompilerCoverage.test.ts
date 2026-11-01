@@ -187,6 +187,16 @@ describe("React Compiler coverage", () => {
     expect(compilerCachedCalls(file, "repositoryGroupingKeyOf")).toEqual([true, true]);
   });
 
+  // Uncached facets get a new identity every render, and the render-phase facet merge then loops.
+  it("caches the pull request list facets", () => {
+    expect(
+      compilerCachedCalls(
+        "src/features/pull-requests/PullRequestsScreen.tsx",
+        "pullRequestListFacets",
+      ),
+    ).toEqual([true]);
+  });
+
   // An uncached registration would re-register the workspace inspector on every render.
   it("registers the workspace inspector only when its renderer changes", () => {
     expect(

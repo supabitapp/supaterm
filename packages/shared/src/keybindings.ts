@@ -85,6 +85,19 @@ export function isMacPlatform(platform: string): boolean {
   return /mac|iphone|ipad|ipod/i.test(platform);
 }
 
+export function shortcutConflictKey(shortcut: KeybindingShortcut, platform: string): string {
+  const useMetaForMod = isMacPlatform(platform);
+  const metaKey = shortcut.metaKey || (shortcut.modKey && useMetaForMod);
+  const ctrlKey = shortcut.ctrlKey || (shortcut.modKey && !useMetaForMod);
+  return [
+    shortcut.key,
+    metaKey ? "meta" : "",
+    ctrlKey ? "ctrl" : "",
+    shortcut.shiftKey ? "shift" : "",
+    shortcut.altKey ? "alt" : "",
+  ].join("|");
+}
+
 export function normalizeEventKey(key: string): string {
   const normalized = key.toLowerCase();
   if (normalized === "esc") return "escape";
@@ -148,6 +161,7 @@ type WhenToken =
   | { type: "lparen" }
   | { type: "rparen" };
 
+// Saved configs keep every default, so changing one also needs a SAVED_DEFAULT_MOVES entry in the server.
 export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "mod+b", command: "sidebar.toggle" },
   { key: "f6", command: "workspace.focusNext" },
@@ -186,7 +200,7 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "mod+alt+shift+a", command: "appearance.cycle", when: "!terminalFocus" },
   { key: "mod+alt+shift+t", command: "themeEditor.toggle" },
   { key: "mod+s", command: "composer.stash", when: "!terminalFocus" },
-  { key: "mod+shift+space", command: "composer.voice", when: "!terminalFocus" },
+  { key: "ctrl+m", command: "composer.voice", when: "!terminalFocus" },
   {
     key: "ctrl+c",
     command: "thread.stop",

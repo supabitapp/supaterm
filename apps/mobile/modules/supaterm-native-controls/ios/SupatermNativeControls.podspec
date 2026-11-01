@@ -15,6 +15,6 @@ Pod::Spec.new do |s|
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',
   }
-  s.resource_bundles = { 'SupatermNativeControlIcons' => ['Resources/pull-request*.png'] }
+  s.resource_bundles = { 'SupatermNativeControlIcons' => ['Resources/Icons/pull-request*.png'] }
   s.source_files = '**/*.{h,m,mm,swift,hpp,cpp}'
 end

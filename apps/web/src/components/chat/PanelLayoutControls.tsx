@@ -1,6 +1,11 @@
-import { PanelBottomIcon, PanelRightIcon, SquareMenuIcon } from "@supaterm/icons";
-import { Expand, Shrink } from "@supaterm/icons/nodes";
-import { MorphIcon } from "~/components/MorphIcon";
+import {
+  PanelBottomIcon,
+  PanelRightIcon,
+  SquareMenuIcon,
+  ExpandIcon,
+  ShrinkIcon,
+} from "@supaterm/icons";
+
 import { memo, type ReactNode } from "react";
 
 import { cn } from "~/lib/utils";
@@ -146,6 +151,7 @@ export const RightPanelMaximizeControl = memo(function RightPanelMaximizeControl
   onToggle: () => void;
 }) {
   const label = maximized ? "Restore panel size" : "Maximize panel";
+  const Icon = maximized ? ShrinkIcon : ExpandIcon;
   return (
     <Tooltip>
       <TooltipTrigger
@@ -158,7 +164,7 @@ export const RightPanelMaximizeControl = memo(function RightPanelMaximizeControl
             variant="ghost"
             size="sm"
           >
-            <MorphIcon className="size-4" icon={maximized ? Shrink : Expand} />
+            <Icon className="size-4" />
           </Toggle>
         }
       />

@@ -1,3 +1,4 @@
+import * as DateTime from "effect/DateTime";
 import * as Schema from "effect/Schema";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { useNowMinute } from "../hooks/useNowMinute";
@@ -1441,16 +1442,16 @@ export default function ChatView(props: ChatViewProps) {
         item.status === "interrupted" ||
         item.status === "cancelled"),
   );
-  const compactionRunning = serverVisibleTurnItems.some(
+  const runningCompaction = serverVisibleTurnItems.find(
     ({ item }) =>
       item.type === "compaction" &&
       item.runId !== null &&
       item.runId === activeRuntime?.activeRunId &&
       item.status === "running",
-  );
+  )?.item;
   const isCompacting =
     (phase === "connecting" || phase === "running") &&
-    (compactionRunning || (compactRequestIsActive && !compactionSettled));
+    (runningCompaction !== undefined || (compactRequestIsActive && !compactionSettled));
   const isWorking = phase === "running" || isCompacting || runlessWorkStartedAt !== null;
   const activeContextWindow = deriveLatestContextWindowSnapshot(
     serverVisibleTurnItems ?? [],
@@ -1461,6 +1462,9 @@ export default function ChatView(props: ChatViewProps) {
   const activeWorkStartedAt =
     resolveThreadWorkingStartedAt({ latestRun: activeActivityRun, runtime: activeRuntime }) ??
     runlessWorkStartedAt;
+  const compactionStartedAt = runningCompaction?.startedAt
+    ? DateTime.formatIso(runningCompaction.startedAt)
+    : activeWorkStartedAt;
   const activeRunPreparing = activeActivityRun?.status === "preparing";
   // The server queues a message behind a run that is still preparing its
   // worktree or starting its agent, so a send during setup waits there and
@@ -2130,6 +2134,7 @@ export default function ChatView(props: ChatViewProps) {
     onTimelineAnchorReadyStable,
     onTimelineAnchorSizeChangedStable,
     onToolOutputCollapsedAtEndStable,
+    onTimelineFooterGrowStable,
     onIsAtEndChangeStable,
     anchorNewTurn,
     attachTimelineViewport,
@@ -2878,9 +2883,9 @@ export default function ChatView(props: ChatViewProps) {
         if (!composerRef.current) return false;
         if (!repeat) composerRef.current.submit();
       },
-      "composer.voice": ({ repeat }) => {
+      "composer.voice": ({ repeat, event }) => {
         if (!composerRef.current) return false;
-        if (!repeat) composerRef.current.toggleVoiceInput();
+        if (!repeat) composerRef.current.toggleVoiceInput({ fromKey: event !== null });
       },
       "composer.toggleFastMode": ({ repeat }) => {
         if (repeat) return;
@@ -3437,6 +3442,7 @@ export default function ChatView(props: ChatViewProps) {
                     isWorking={isWorking}
                     runlessWorkActive={runlessWorkStartedAt !== null}
                     isCompacting={isCompacting}
+                    compactionStartedAt={compactionStartedAt}
                     awaitingUser={
                       activePendingApproval !== null
                         ? "approval"
@@ -3522,6 +3528,7 @@ export default function ChatView(props: ChatViewProps) {
                     onContentOverflowChange={setTimelineOverflows}
                     onToolOutputCollapsedAtEnd={onToolOutputCollapsedAtEndStable}
                     onViewportAttach={attachTimelineViewport}
+                    onFooterGrow={onTimelineFooterGrowStable}
                     onJumpToPinnedMessage={jumpToPinnedMessageStable}
                     hideEmptyPlaceholder={isDraftHeroState}
                     loading={!isDraftHeroState && threadDetailLoading}

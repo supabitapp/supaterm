@@ -25,10 +25,14 @@ export function projectWorkspaceStack(
 ) {
   const { workspace: workspaceRoutes, overlays } = projectStackPresentation(state, isOverlay);
   const primary = workspaceRoutes.find((route) => route.name === "Home");
-  const detail = workspaceRoutes.filter((route) => route.name !== "Home");
+  // The Settings tab's route only selects what Home shows; its pages are the detail.
+  const detail = workspaceRoutes.filter(
+    (route) => route.name !== "Home" && route.name !== "Settings",
+  );
   return { primary, detail, overlays };
 }
 
+/** Native callbacks can arrive after a JS pop or replace; those must not pop the next screen. */
 export function nativeWorkspacePopCount(
   state: Pick<NavigationState, "index" | "routes">,
   dismissedKey: string,
@@ -37,6 +41,7 @@ export function nativeWorkspacePopCount(
   return index <= 0 || index > state.index ? 0 : state.index - index + 1;
 }
 
+/** POP counts backwards from its source, so dismiss a group from the active descendant. */
 export function nativeWorkspacePopAction(
   state: Pick<NavigationState, "key" | "index" | "routes">,
   dismissedKey: string,
@@ -52,16 +57,20 @@ export function nativeWorkspacePopAction(
     : null;
 }
 
+/** A native card pop must preserve pushes made before its completion event reaches JS. */
 export function nativeStackPopAction(
   state: Pick<NavigationState, "key" | "index" | "routes">,
   dismissedKey: string,
   destinationKey?: string,
 ) {
   const sourceIndex = state.routes.findIndex((route) => route.key === dismissedKey);
-  const destinationIndex =
+  let destinationIndex =
     destinationKey === undefined
       ? sourceIndex - 1
       : state.routes.findIndex((route) => route.key === destinationKey);
+  // Home's screen draws the Settings list, so going back to it from a Settings page stops there.
+  if (destinationIndex >= 0 && state.routes[destinationIndex + 1]?.name === "Settings")
+    destinationIndex += 1;
   if (
     sourceIndex <= 0 ||
     sourceIndex > state.index ||
@@ -137,6 +146,7 @@ export function partitionStackPresentations<T>(
   return groups;
 }
 
+/** Keep outgoing screens in place until dismissal; Fabric moves enqueue native pop/push operations. */
 export function reconcileStackScreens<T extends { readonly key: string }>(
   previous: readonly T[],
   current: readonly T[],

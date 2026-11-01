@@ -1,13 +1,13 @@
+import { PanelLeftIcon, PanelLeftCloseIcon } from "@supaterm/icons";
 import { mergeProps } from "@base-ui/react/merge-props";
 import { useRender } from "@base-ui/react/use-render";
 import { cva, type VariantProps } from "class-variance-authority";
-import { PanelLeft, PanelLeftClose } from "@supaterm/icons/nodes";
+
 import * as React from "react";
 import { cn } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
 import { Input, type InputProps } from "~/components/ui/input";
 import { Kbd } from "~/components/ui/kbd";
-import { MorphIcon } from "~/components/MorphIcon";
 import { ScrollArea } from "~/components/ui/scroll-area";
 import {
   Sheet,
@@ -305,6 +305,7 @@ function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<t
   const { toggleSidebar } = useSidebar();
   const isOpen = useSidebarVisibility();
 
+  const Icon = isOpen ? PanelLeftCloseIcon : PanelLeftIcon;
   return (
     <Button
       className={cn(
@@ -322,7 +323,7 @@ function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<t
       variant="ghost"
       {...props}
     >
-      <MorphIcon className="size-4" icon={isOpen ? PanelLeftClose : PanelLeft} />
+      <Icon className="size-4" />
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   );

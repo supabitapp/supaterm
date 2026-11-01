@@ -4,24 +4,12 @@ import * as NodePath from "node:path";
 import * as NodeURL from "node:url";
 
 import { getBuiltInSpriteSheet } from "@pierre/trees";
+import { SUPATERM_FILE_ICON_SPRITE as customSprite } from "../../web/src/fileIconSprite.ts";
 
 const scriptDirectory = NodePath.dirname(NodeURL.fileURLToPath(import.meta.url));
 const appDirectory = NodePath.resolve(scriptDirectory, "..");
-const repositoryRoot = NodePath.resolve(appDirectory, "../..");
 const outputDirectory = NodePath.join(appDirectory, "assets/file-icons");
 const generatedModulePath = NodePath.join(appDirectory, "src/lib/markdownFileIcons.generated.ts");
-const webIconSource = NodeFS.readFileSync(
-  NodePath.join(repositoryRoot, "apps/web/src/pierre-icons.ts"),
-  "utf8",
-);
-const customSprite = webIconSource.match(/const SUPATERM_FILE_ICON_SPRITE = `([\s\S]*?)`;/)?.[1];
-
-if (!customSprite) {
-  throw new Error(
-    "Could not read the Supaterm Pierre icon sprite from apps/web/src/pierre-icons.ts",
-  );
-}
-
 const colors = {
   astro: "#a631be",
   babel: "#d5a910",

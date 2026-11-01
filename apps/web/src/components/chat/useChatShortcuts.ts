@@ -20,9 +20,9 @@ import { composerShortcutCommands, type ComposerShortcutAvailability } from "./c
  */
 export type ChatShortcutHandler = (context: {
   readonly repeat: boolean;
-  readonly terminalFocusOwner: TerminalFocusOwner | null;
-  /** The key press behind a keyboard command; null for menus and devices. */
+  /** The key press behind the command; null for menus and devices. */
   readonly event: KeyboardEvent | null;
+  readonly terminalFocusOwner: TerminalFocusOwner | null;
 }) => boolean | void;
 
 export type ChatShortcutCommands = Partial<Record<KeybindingCommand, ChatShortcutHandler>>;
@@ -97,8 +97,8 @@ export function useChatShortcuts(input: ChatShortcutsInput) {
     return run
       ? run({
           repeat: invocation.repeat,
-          terminalFocusOwner: getTerminalFocusOwner(),
           event: invocation.event,
+          terminalFocusOwner: getTerminalFocusOwner(),
         })
       : false;
   });

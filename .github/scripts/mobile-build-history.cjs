@@ -77,4 +77,51 @@ async function recordBuild({ github, context, profile, platform, version, finger
   });
 }
 
-module.exports = { findBuilds, recordBuild };
+const APP_STORE_REVIEW = "mobile-app-store-review";
+
+async function findAppStoreReview({ github, context, version }) {
+  for await (const { data: deployments } of github.paginate.iterator(
+    github.rest.repos.listDeployments,
+    {
+      ...context.repo,
+      task: APP_STORE_REVIEW,
+      environment: APP_STORE_REVIEW,
+      per_page: 100,
+    },
+  )) {
+    for (const deployment of deployments) {
+      if (deployment.payload?.schema !== 1 || deployment.payload.version !== version) continue;
+      const { data: statuses } = await github.rest.repos.listDeploymentStatuses({
+        ...context.repo,
+        deployment_id: deployment.id,
+        per_page: 1,
+      });
+      if (statuses[0]?.state === "success") return true;
+    }
+  }
+  return false;
+}
+
+async function recordAppStoreReview({ github, context, version, sha }) {
+  if (!version) throw new Error("An App Store review record requires its version");
+  const { data: deployment } = await github.rest.repos.createDeployment({
+    ...context.repo,
+    ref: sha,
+    task: APP_STORE_REVIEW,
+    environment: APP_STORE_REVIEW,
+    auto_merge: false,
+    required_contexts: [],
+    payload: { schema: 1, version },
+    description: `iOS ${version} sent for App Store review`,
+  });
+  if (!deployment.id) throw new Error("GitHub did not create an App Store review deployment");
+  await github.rest.repos.createDeploymentStatus({
+    ...context.repo,
+    deployment_id: deployment.id,
+    state: "success",
+    auto_inactive: false,
+    log_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+  });
+}
+
+module.exports = { findBuilds, recordBuild, findAppStoreReview, recordAppStoreReview };

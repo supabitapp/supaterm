@@ -4,12 +4,17 @@ import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { ConnectionsNewRouteScreen } from "./ConnectionsNewRouteScreen";
+import type { DevAutoConnectAttempt } from "./devAutoConnect";
 
 type PairingOutcome = { readonly ok: boolean; readonly error: string | null };
 const PAIRED: PairingOutcome = { ok: true, error: null };
 
 const state = vi.hoisted(() => ({
   connectionPairingUrl: "",
+  connectionPairingUrlListeners: new Set<() => void>(),
+  // The app-wide error slot that composer sends and git refreshes also write to.
+  pendingConnectionError: null as string | null,
+  autoConnectAttempt: null as DevAutoConnectAttempt | null,
   canGoBack: true,
   goBack: vi.fn(),
   dispatch: vi.fn(),
@@ -37,8 +42,11 @@ vi.mock("@react-navigation/native", () => ({
     canGoBack: () => state.canGoBack,
     goBack: state.goBack,
     dispatch: state.dispatch,
+    getParent: () => undefined,
+    getState: () => ({ index: 0, routes: [{ name: "ConnectionsNew" }] }),
   }),
 }));
+vi.mock("../workspace/workspace-selection-store", () => ({ workspaceHasColumns: () => false }));
 vi.mock("react-native", () => ({
   Alert: { alert: state.alert },
   Linking: {},
@@ -64,20 +72,39 @@ vi.mock("../settings/components/SettingsScreen", () => ({ SettingsScreen: "Setti
 vi.mock("../../components/ui/AppText", () => ({ AppText: "Text", AppTextInput: "TextInput" }));
 vi.mock("../../components/ui/FrostedCutout", () => ({ FrostedCutout: "FrostedCutout" }));
 vi.mock("../../components/ui/AppSymbol", () => ({ SymbolView: "SymbolView" }));
-vi.mock("@effect/atom-react", () => ({ useAtomValue: () => null }));
-vi.mock("./devAutoConnect", () => ({
-  autoConnectReport: () => ({ connecting: false, error: null }),
-  devAutoConnectAttemptAtom: {},
+vi.mock("@effect/atom-react", () => ({ useAtomValue: () => state.autoConnectAttempt }));
+vi.mock("../../lib/rootNavigation", () => ({
+  rootNavigationRef: {},
+  whenRootNavigationReady: vi.fn(),
 }));
-vi.mock("../../state/use-remote-environment-registry", () => ({
-  useRemoteConnections: () => ({
-    connectionPairingUrl: state.connectionPairingUrl,
-    onChangeConnectionPairingUrl: (url: string) => {
-      state.connectionPairingUrl = url;
+// React tests compile with `__DEV__` inlined to false; links prefill the form only in dev builds.
+vi.mock("./devAutoConnect", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./devAutoConnect")>()),
+  linkedPairingUrl: (pairingUrl: string | undefined) => pairingUrl?.trim() ?? "",
+}));
+vi.mock("../../state/use-remote-environment-registry", async () => {
+  const { useSyncExternalStore } = await import("react");
+  const subscribe = (listener: () => void) => {
+    state.connectionPairingUrlListeners.add(listener);
+    return () => state.connectionPairingUrlListeners.delete(listener);
+  };
+  return {
+    setPendingConnectionError: (message: string | null) => {
+      state.pendingConnectionError = message;
     },
-    onConnectPress: state.onConnectPress,
-  }),
-}));
+    useRemoteConnections: () => ({
+      connectionPairingUrl: useSyncExternalStore(subscribe, () => state.connectionPairingUrl),
+      connectionError: state.pendingConnectionError,
+      onChangeConnectionPairingUrl: setConnectionPairingUrl,
+      onConnectPress: state.onConnectPress,
+    }),
+  };
+});
+
+function setConnectionPairingUrl(url: string) {
+  state.connectionPairingUrl = url;
+  for (const listener of state.connectionPairingUrlListeners) listener();
+}
 
 let renderer: ReactTestRenderer | undefined;
 
@@ -86,6 +113,8 @@ beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.clearAllMocks();
   state.connectionPairingUrl = "";
+  state.pendingConnectionError = null;
+  state.autoConnectAttempt = null;
   state.canGoBack = true;
 });
 
@@ -100,6 +129,29 @@ async function mount(routeFor?: EnvironmentId) {
   await act(() => {
     renderer = create(<ConnectionsNewRouteScreen route={{ params: { routeFor } }} />);
   });
+}
+
+async function openLink(pairingUrl: string) {
+  const screen = <ConnectionsNewRouteScreen route={{ params: { pairingUrl } }} />;
+  await act(() => {
+    if (renderer) renderer.update(screen);
+    else renderer = create(screen);
+  });
+}
+
+function fieldValue(label: "Address" | "Code") {
+  return renderer!.root.findByProps({ accessibilityLabel: label }).props.value as string;
+}
+
+function shown(text: string) {
+  return renderer!.root.findAllByProps({ children: text }).length > 0;
+}
+
+function connectAction() {
+  return renderer!.root.findByType("SettingsScreen" as never).props.actions[0] as {
+    readonly loading: boolean;
+    readonly onPress: () => void;
+  };
 }
 
 function scanner() {
@@ -186,17 +238,24 @@ describe("QR pairing", () => {
     expect(state.goBack).toHaveBeenCalledTimes(1);
   });
 
-  it("shows its own pairing failure until the code is edited", async () => {
+  it("shows only its own pairing failure until the code is edited", async () => {
+    state.pendingConnectionError = "Could not send the message.";
     state.onConnectPress.mockResolvedValue({ ok: false, error: "Pairing code expired." });
     await mount();
+    expect(shown("Could not send the message.")).toBe(false);
+
     await act(() => scanner()({ data: pairingUrl }));
-    const failures = () => renderer!.root.findAllByProps({ children: "Pairing code expired." });
-    expect(failures().length).toBeGreaterThan(0);
+    expect(shown("Pairing code expired.")).toBe(true);
+    expect(shown("Could not send the message.")).toBe(false);
 
     await act(() =>
       renderer!.root.findByProps({ accessibilityLabel: "Code" }).props.onChangeText("fresh"),
     );
-    expect(failures()).toHaveLength(0);
+    expect(shown("Pairing code expired.")).toBe(false);
+
+    await act(() => renderer!.unmount());
+    renderer = undefined;
+    expect(state.pendingConnectionError).toBe("Could not send the message.");
   });
 
   it("rejects an empty QR code and reopens scanning", async () => {
@@ -215,5 +274,62 @@ describe("QR pairing", () => {
     });
     await act(() => scanner()({ data: pairingUrl }));
     expect(state.goBack).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("pairing links", () => {
+  const firstLink = "http://first.test/pair#token=old";
+  const secondLink = "http://second.test/pair#token=new";
+
+  it("gives a fresh link a clean form after a failed attempt", async () => {
+    state.onConnectPress.mockResolvedValue({ ok: false, error: "Old pairing expired." });
+    await openLink(firstLink);
+    await act(() => connectAction().onPress());
+    expect(shown("Old pairing expired.")).toBe(true);
+
+    state.autoConnectAttempt = {
+      pairingUrl: secondLink,
+      status: "failed",
+      error: "New link failed.",
+    };
+    await openLink(secondLink);
+    expect(fieldValue("Address")).toBe("http://second.test");
+    expect(fieldValue("Code")).toBe("new");
+    expect(shown("Old pairing expired.")).toBe(false);
+    expect(shown("New link failed.")).toBe(true);
+  });
+
+  it("keeps a replaced link's pending attempt out of the fresh form", async () => {
+    const result = deferredResult();
+    state.onConnectPress.mockReturnValue(result.promise);
+    await openLink(firstLink);
+    await act(() => connectAction().onPress());
+    expect(connectAction().loading).toBe(true);
+
+    await openLink(secondLink);
+    expect(connectAction().loading).toBe(false);
+
+    await act(() => result.resolve({ ok: false, error: "Old pairing expired." }));
+    expect(shown("Old pairing expired.")).toBe(false);
+    expect(fieldValue("Address")).toBe("http://second.test");
+  });
+
+  it("keeps a replaced link's successful pairing from closing or clearing the fresh form", async () => {
+    const result = deferredResult();
+    state.onConnectPress.mockReturnValue(result.promise);
+    await openLink(firstLink);
+    await act(() => connectAction().onPress());
+
+    await openLink(secondLink);
+    await act(() => {
+      // A successful pairing clears the shared draft URL.
+      setConnectionPairingUrl("");
+      result.resolve(PAIRED);
+    });
+
+    expect(fieldValue("Address")).toBe("http://second.test");
+    expect(fieldValue("Code")).toBe("new");
+    expect(state.goBack).not.toHaveBeenCalled();
+    expect(state.dispatch).not.toHaveBeenCalled();
   });
 });

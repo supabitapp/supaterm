@@ -85,6 +85,7 @@ const fixture = Effect.fn("fixture")(function* (
   installTool?: Parameters<typeof DeviceService.makeWithHosts>[3],
   options: {
     readonly endsDevices?: boolean;
+    readonly routesStreams?: boolean;
     readonly onClose?: Effect.Effect<"ok" | "missing" | "reject" | "http_error" | "malformed">;
     readonly onPlatformAvailability?: Effect.Effect<void>;
   } = {},
@@ -208,6 +209,7 @@ const fixture = Effect.fn("fixture")(function* (
     },
     helpers: { serveSimAxSettings: null, serveSimCli: null },
     run,
+    ...(options.routesStreams ? { upstream: () => Effect.succeed(null) } : {}),
   };
   const host: DeviceHost.DeviceHost["Service"] = {
     ...(inspectError
@@ -487,6 +489,29 @@ describe("device setup consent", () => {
       yield* Ref.set(encoderResult, { code: 0, stdout: " V....D libx264", stderr: "" });
       const emulator = yield* openEmulator;
       expect(emulator.deviceId).toBe("emulator-5554");
+      expect(requests.filter((url) => url.endsWith("/boot"))).toHaveLength(1);
+    }).pipe(Effect.scoped),
+  );
+
+  it.effect("opens emulators on hosts that route their own streams without ffmpeg", () =>
+    Effect.gen(function* () {
+      const { service, requests, encoderResult } = yield* fixture(
+        Effect.void,
+        undefined,
+        false,
+        undefined,
+        false,
+        undefined,
+        { routesStreams: true },
+      );
+      yield* Ref.set(encoderResult, { code: 127, stdout: "", stderr: "host commands unavailable" });
+      yield* service.configure({ enabled: true });
+      const session = yield* service.open({
+        threadId: ThreadId.make("eas-emulator"),
+        deviceId: "Pixel_API_35",
+        platform: "android",
+      });
+      expect(session.deviceId).toBe("emulator-5554");
       expect(requests.filter((url) => url.endsWith("/boot"))).toHaveLength(1);
     }).pipe(Effect.scoped),
   );

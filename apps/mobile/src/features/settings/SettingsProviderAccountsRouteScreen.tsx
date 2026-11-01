@@ -11,7 +11,7 @@ import {
 } from "@supaterm/contracts";
 import { useAtomValue } from "@effect/atom-react";
 import { useRef, useState } from "react";
-import { Linking, Pressable, ScrollView, TextInput, View } from "react-native";
+import { Linking, Pressable, ScrollView, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { AppText as Text } from "../../components/ui/AppText";
@@ -138,6 +138,9 @@ function ProviderAccount({
   const complete = useAtomCommand(serverEnvironment.completeProviderAuth, options);
   const cancel = useAtomCommand(serverEnvironment.cancelProviderAuth, options);
   const logout = useAtomCommand(serverEnvironment.logoutProviderAuth, options);
+  const name = provider.displayName ?? provider.driver;
+  // Matches ListRowLayout: large text moves the action below the status instead of squeezing the name.
+  const stacked = useWindowDimensions().fontScale >= 1.5;
   const [pending, setPending] = useState(false);
   const [choosingMethod, setChoosingMethod] = useState(false);
   const pendingRef = useRef(false);
@@ -181,11 +184,12 @@ function ProviderAccount({
     !choosingMethod &&
     !loading &&
     !auth.error;
-  function signInLabel() {
-    if (pending) return "Working…";
-    if (signedIn) return "Change account";
-    if (state?.phase === "failed" || state?.phase === "cancelled") return "Retry sign-in";
-    return "Sign in";
+  function signInLabels() {
+    if (pending) return { label: "Working…", accessibilityLabel: `Working on ${name} sign-in` };
+    if (signedIn) return { label: "Change account", accessibilityLabel: `Change ${name} account` };
+    if (state?.phase === "failed" || state?.phase === "cancelled")
+      return { label: "Retry sign-in", accessibilityLabel: `Retry ${name} sign-in` };
+    return { label: "Sign in", accessibilityLabel: `Sign in to ${name}` };
   }
   function accountDescription() {
     if (active) return state.message;
@@ -265,47 +269,54 @@ function ProviderAccount({
     }
     setChoosingMethod(true);
   }
+  const trailing = showSignIn ? (
+    <Button {...signInLabels()} disabled={disabled} loading={pending} onPress={chooseMethod} />
+  ) : loading ? (
+    <AppActivityIndicator
+      accessibilityLabel={`Loading ${name} account`}
+      colorClassName="accent-icon"
+    />
+  ) : !active && unavailable ? (
+    <Text className="text-sm text-foreground-muted">
+      {provider.enabled ? "Not installed" : "Disabled"}
+    </Text>
+  ) : !active && auth.error ? (
+    <Button
+      label="Retry"
+      accessibilityLabel={`Retry loading ${name} account`}
+      onPress={auth.refresh}
+    />
+  ) : null;
+  const status = accountDescription();
   return (
     <View className={isLast ? undefined : "border-b border-border-subtle"}>
       <View className="gap-2 p-4">
         <View
           className={cn(
             "flex-row items-center gap-3",
-            unavailable && !active ? "min-h-6" : "min-h-12",
+            (unavailable && !active) || stacked ? "min-h-6" : "min-h-12",
           )}
         >
           <View accessible={false} importantForAccessibility="no-hide-descendants">
             <ProviderIcon provider={provider.driver} iconUrl={provider.iconUrl} size={24} />
           </View>
           <Text className="min-w-0 flex-1 text-base font-supaterm-medium text-foreground">
-            {provider.displayName ?? provider.driver}
+            {name}
           </Text>
-          {showSignIn ? (
-            <Button
-              label={signInLabel()}
-              disabled={disabled}
-              loading={pending}
-              onPress={chooseMethod}
-            />
-          ) : loading ? (
-            <AppActivityIndicator
-              accessibilityLabel="Loading account"
-              colorClassName="accent-icon"
-            />
-          ) : !active && unavailable ? (
-            <Text className="text-sm text-foreground-muted">
-              {provider.enabled ? "Not installed" : "Disabled"}
-            </Text>
-          ) : !active && auth.error ? (
-            <Button label="Retry" onPress={auth.refresh} />
-          ) : null}
+          {stacked ? null : trailing}
         </View>
         <Text accessibilityLiveRegion="polite" className="text-sm text-foreground-muted">
-          {accountDescription()}
+          {status}
         </Text>
         {signedIn && !active && provider.auth.email?.trim() ? (
-          <ProviderAccountEmail key={provider.auth.email} email={provider.auth.email} />
+          <ProviderAccountEmail
+            key={provider.auth.email}
+            name={name}
+            status={status}
+            email={provider.auth.email}
+          />
         ) : null}
+        {stacked && trailing ? <View className="items-start">{trailing}</View> : null}
         {interaction?.type === "deviceCode" ? (
           <Text selectable className="text-foreground">
             Enter code {interaction.userCode} on the sign-in page.
@@ -407,6 +418,7 @@ function ProviderAccount({
               key={method.id}
               icon="person.crop.circle"
               label={method.name}
+              accessibilityLabel={`Sign in to ${name} with ${method.name}`}
               disabled={disabled}
               onPress={() => {
                 setChoosingMethod(false);
@@ -422,13 +434,19 @@ function ProviderAccount({
               }}
             />
           ))}
-          <SettingsActionRow icon="xmark" label="Cancel" onPress={() => setChoosingMethod(false)} />
+          <SettingsActionRow
+            icon="xmark"
+            label="Cancel"
+            accessibilityLabel={`Cancel ${name} sign-in`}
+            onPress={() => setChoosingMethod(false)}
+          />
         </View>
       ) : null}
       {url ? (
         <SettingsActionRow
           icon="globe"
           label="Open sign-in page"
+          accessibilityLabel={`Open ${name} sign-in page`}
           disabled={disabled}
           onPress={() => {
             void (async () => {
@@ -450,6 +468,7 @@ function ProviderAccount({
         <SettingsActionRow
           icon="globe"
           label="Open docs"
+          accessibilityLabel={`Open ${name} setup docs`}
           onPress={() => {
             void Linking.openURL(provider.setup!.documentationUrl!).catch(() =>
               setError("Could not open the provider docs."),
@@ -460,6 +479,7 @@ function ProviderAccount({
         <SettingsActionRow
           icon="xmark"
           label="Cancel sign-in"
+          accessibilityLabel={`Cancel ${name} sign-in`}
           disabled={disabled}
           onPress={() => {
             void run(() =>
@@ -478,6 +498,7 @@ function ProviderAccount({
         <SettingsActionRow
           icon="person.crop.circle"
           label="Sign out"
+          accessibilityLabel={`Sign out of ${name}`}
           tone="danger"
           disabled={disabled || state === null}
           onPress={() =>
@@ -504,12 +525,21 @@ function ProviderAccount({
     </View>
   );
 }
-function ProviderAccountEmail({ email }: { readonly email: string }) {
+function ProviderAccountEmail({
+  name,
+  status,
+  email,
+}: {
+  readonly name: string;
+  readonly status: string | null;
+  readonly email: string;
+}) {
   const [revealed, setRevealed] = useState(false);
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={revealed ? "Hide account email" : "Reveal account email"}
+      accessibilityLabel={[name, status, revealed ? email : null].filter(Boolean).join(", ")}
+      accessibilityHint={revealed ? "Hides the account email" : "Reveals the account email"}
       onPress={() => setRevealed((value) => !value)}
       className="min-h-[44px] justify-center"
     >

@@ -10,10 +10,11 @@ import {
   DEFAULT_RESOLVED_KEYBINDINGS,
   parseKeybindingShortcut,
   parseKeybindingWhenExpression,
+  shortcutConflictKey,
   US_SHIFTED_TO_UNSHIFTED_KEYS,
 } from "@supaterm/shared/keybindings";
 
-import { shortcutConflictKey, shortcutKeyFromEvent } from "../../keybindings";
+import { shortcutKeyFromEvent } from "../../keybindings";
 import { isMacPlatform } from "../../lib/utils";
 import { METRIC_OPTIONS, WINDOW_OPTIONS } from "../usage/usageShortcuts";
 

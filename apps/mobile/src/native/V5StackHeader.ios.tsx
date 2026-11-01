@@ -78,7 +78,6 @@ function convertMenu(menu: MenuInput, id: string): StackHeaderMenuIOS {
         },
       ];
     }
-
     return [
       {
         id: childId,
@@ -215,12 +214,14 @@ export function V5StackHeader(props: {
   }
   // UIKit doesn't stack a column's toolbar against the workspace tab bar, which owns the
   // bottom of the vertical bar and draws over it. Those columns keep the group in their
-  // navigation items. An expanded sidebar's toolbar stays horizontal, outside the bar.
+  // navigation items. Integrated search stays in the column's horizontal bottom toolbar.
   if (
     props.column &&
     nativeMetrics &&
     nativeMetrics.verticalBarEdge !== "none" &&
-    (props.column === "detail" || nativeMetrics.horizontalSizeClass === "compact")
+    (props.column === "detail" ||
+      (nativeMetrics.horizontalSizeClass === "compact" &&
+        !toolbar.some((item) => item.type === "searchBarPlacement")))
   ) {
     if (trailing.length && bottom.length)
       trailing.push({ type: "spacer", id: "toolbar-group", sizing: "fixed", width: 8 });
@@ -228,15 +229,16 @@ export function V5StackHeader(props: {
     bottom.length = 0;
   }
   if (props.onCompose) {
-    if (trailing.length)
-      trailing.push({ type: "spacer", id: "compose-group", sizing: "fixed", width: 8 });
-    trailing.push({
+    const compose: HeaderItem = {
       type: "item",
       id: "workspace-compose",
       title: "New task",
       icon: { type: "sfSymbol", name: "square.and.pencil" },
       onPress: props.onCompose,
-    });
+    };
+    if (trailing.length)
+      trailing.push({ type: "spacer", id: "compose-group", sizing: "fixed", width: 8 });
+    trailing.push(compose);
   }
   // The vertical bar has no keyboard accessory row, so it carries its own dismiss. A regular-width
   // primary column draws a horizontal bar beside the detail column's vertical one. The first
@@ -273,21 +275,12 @@ export function V5StackHeader(props: {
       : undefined;
   const searchOptions = options.headerSearchBarOptions;
   const autofocusRef = searchOptions?.ref ?? searchRef;
-  const searchHasFocus = useRef(false);
+  // iOS ignores the native autoFocus prop, and SearchBar's imperative handle changes every
+  // commit, so a ref callback would refocus on each render; focus once after the header mounts.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- schedules a frame to focus the native SearchBar once after the header mounts, since iOS ignores autoFocus
   useEffect(() => {
-    searchHasFocus.current = false;
     if (!searchOptions?.autoFocus) return;
-    // UIKit attaches integrated search during the toolbar transition. Native
-    // onFocus acknowledges readiness; a single frame can reach it too early.
-    const deadline = Date.now() + 500;
-    let frame = 0;
-    const focusWhenAttached = () => {
-      if (searchHasFocus.current) return;
-      autofocusRef.current?.focus();
-      if (Date.now() < deadline) frame = requestAnimationFrame(focusWhenAttached);
-    };
-    frame = requestAnimationFrame(focusWhenAttached);
+    const frame = requestAnimationFrame(() => autofocusRef.current?.focus());
     return () => cancelAnimationFrame(frame);
   }, [searchOptions?.autoFocus, autofocusRef]);
   const searchButton = !bottomSearch && searchOptions?.placement === "integratedButton";
@@ -354,7 +347,6 @@ export function V5StackHeader(props: {
                 placement={bottomSearch ? "integrated" : (searchOptions?.placement ?? "automatic")}
                 placeholder={mailSearch?.placeholder ?? searchOptions?.placeholder ?? "Search"}
                 onFocus={(event) => {
-                  searchHasFocus.current = true;
                   searchOptions?.onFocus?.(event);
                 }}
                 onChangeText={(event) => {

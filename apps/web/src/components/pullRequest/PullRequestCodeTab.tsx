@@ -28,8 +28,10 @@ import {
   SlidersHorizontalIcon,
   TriangleAlertIcon,
   WrapTextIcon,
+  ChevronsDownUpIcon,
+  ChevronsUpDownIcon,
 } from "@supaterm/icons";
-import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from "@supaterm/icons/nodes";
+
 import { useAtomRefresh } from "@effect/atom-react";
 import * as Schema from "effect/Schema";
 import {
@@ -87,7 +89,6 @@ import { useHideTestFiles } from "../diffs/useHideTestFiles";
 import { diffFileTreeEntries, orderDiffFilesLikeTree } from "../diffs/diffFileTree.logic";
 import { StyledDiffCodeView } from "../diffs/StyledDiffCodeView";
 import { Button } from "../ui/button";
-import { MorphIcon } from "~/components/MorphIcon";
 import { Checkbox } from "../ui/checkbox";
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "../ui/collapsible";
 import {
@@ -854,6 +855,7 @@ function PullRequestCodeTab({
 
   const renderHeaderPrefix = (item: CodeViewItem<ReviewAnnotationGroup>) => {
     const collapsed = item.collapsed === true;
+    const Icon = collapsed ? ChevronRightIcon : ChevronDownIcon;
     return (
       <Button
         size="icon-micro"
@@ -866,7 +868,7 @@ function PullRequestCodeTab({
           toggleFile(item.id);
         }}
       >
-        <MorphIcon className="size-4" icon={collapsed ? ChevronRight : ChevronDown} />
+        <Icon className="size-4" />
       </Button>
     );
   };
@@ -1055,6 +1057,7 @@ function PullRequestCodeTab({
     setDraft(null);
     setSelectedLines(null);
   };
+  const Icon = allFilesCollapsed ? ChevronsUpDownIcon : ChevronsDownUpIcon;
   const toolbar = (
     <div className="@container flex h-10 min-h-10 shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-background px-4 text-xs text-muted-foreground">
       <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -1317,10 +1320,7 @@ function PullRequestCodeTab({
                 />
               }
             >
-              <MorphIcon
-                className="size-3.5"
-                icon={allFilesCollapsed ? ChevronsUpDown : ChevronsDownUp}
-              />
+              <Icon className="size-3.5" />
             </TooltipTrigger>
             <TooltipPopup side="top">
               {allFilesCollapsed ? "Expand all files" : "Collapse all files"}

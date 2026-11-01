@@ -50,8 +50,8 @@ import {
 } from "./pullRequestList";
 import { useDebouncedValue } from "../../state/queries";
 import { useWorkspaceTabs } from "../workspace/WorkspaceTabsContext";
-import { useAndroidWorkspaceSelection } from "../workspace/useAndroidWorkspaceSelection";
 import { useSearchScrollRestoration } from "../workspace/useSearchScrollRestoration";
+import { useSelectWorkspaceDetail } from "../workspace/useSelectWorkspaceDetail";
 
 function PullRequestScrollView(props: ScrollViewProps) {
   return (
@@ -131,7 +131,7 @@ export function PullRequestsScreen(
   const environmentId = environments.some((item) => item.environmentId === selectedEnvironmentId)
     ? selectedEnvironmentId
     : null;
-  const selectAndroidWorkspace = useAndroidWorkspaceSelection();
+  const selectDetail = useSelectWorkspaceDetail();
   const selectPullRequest = (item: EnvironmentPullRequestListEntry) => {
     Keyboard.dismiss();
     const params = {
@@ -142,8 +142,7 @@ export function PullRequestsScreen(
       host: item.host,
       initialSummary: item,
     };
-    if (Platform.OS === "android") selectAndroidWorkspace({ name: "PullRequest", params });
-    else navigation.navigate("PullRequest", params);
+    selectDetail({ name: "PullRequest", params });
   };
   const allProjects = useProjects();
   const savedControls = listControls.controlsFor(environmentId);
@@ -195,7 +194,7 @@ export function PullRequestsScreen(
       ),
     [result.entries, controls, query, result.data, connectedKey],
   );
-  const facets = pullRequestListFacets(result.entries);
+  const facets = useMemo(() => pullRequestListFacets(result.entries), [result.entries]);
   const [knownFacets, setKnownFacets] = useState({ environmentId, source: facets, ...facets });
   if (knownFacets.environmentId !== environmentId || knownFacets.source !== facets) {
     setKnownFacets((previous) => ({

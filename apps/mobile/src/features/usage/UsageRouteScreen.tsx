@@ -3,7 +3,7 @@ import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { ChatGptUsageSummary } from "./ChatGptUsageSummary";
 import { ScreenScrollView as ScrollView } from "../../components/ui/ScreenScrollView";
 import { EnvironmentId, USAGE_CONTRACT_VERSION, type UsageProviderKind } from "@supaterm/contracts";
-import { type RouteProp, useIsFocused, useNavigation, useRoute } from "@react-navigation/native";
+import { type RouteProp, useIsFocused, useRoute } from "@react-navigation/native";
 import { cursorKeychainAccessEnvironments } from "@supaterm/client-runtime/state/usage";
 import {
   updatingProvidersLabel,
@@ -29,7 +29,7 @@ import {
   makeWindow,
   usageSourceMessages,
 } from "@supaterm/shared/usageFormat";
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Platform, Pressable, RefreshControl, View } from "react-native";
 import Animated, { FadeIn, ReduceMotion } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -50,6 +50,8 @@ import { useRefreshLimits } from "./UsageLimitsSection";
 import { UsageLimitsSection } from "./UsageLimitsPooled";
 import { Menu } from "../../components/ui/Menu";
 import { SymbolView } from "../../components/ui/AppSymbol";
+import { NativeStackScreenOptions } from "../../native/StackHeader";
+import { withNativeGlassHeaderItem } from "../layout/native-glass-header-items";
 import type { UsageChartMetric } from "./usageChartData";
 import { PROVIDER_LABEL, useProviderColors, useUsageMixColors } from "./usageProviders";
 
@@ -75,22 +77,28 @@ const MAX_CONTENT_WIDTH = 1080;
 const providerLabel = (provider: UsageProviderKind) => PROVIDER_LABEL[provider];
 const CURSOR_KEYCHAIN_COPY = "Requires access to your Cursor login in macOS Keychain.";
 
-export function UsageRouteScreen() {
+export function UsageRouteScreen(props: { readonly workspace?: boolean }) {
   const route = useRoute<RouteProp<{ Usage: { tab?: string } | undefined }, "Usage">>();
-  const navigation = useNavigation();
+  return <UsageScreen workspace={props.workspace} tabParam={route.params?.tab} />;
+}
+
+function UsageScreen(props: {
+  readonly workspace?: boolean;
+  readonly tabParam: string | undefined;
+}) {
   const insets = useSafeAreaInsets();
   const [selection, setSelection] = useState(() => ({
-    params: route.params,
-    view: (route.params?.tab === "usage" ? "cost" : "limits") as UsageView,
+    params: props.tabParam,
+    view: (props.tabParam === "usage" ? "cost" : "limits") as UsageView,
   }));
-  if (selection.params !== route.params) {
+  if (selection.params !== props.tabParam) {
     setSelection({
-      params: route.params,
-      view: route.params?.tab === "usage" ? "cost" : "limits",
+      params: props.tabParam,
+      view: props.tabParam === "usage" ? "cost" : "limits",
     });
   }
   const { view } = selection;
-  const setView = (view: UsageView) => setSelection({ params: route.params, view });
+  const setView = (view: UsageView) => setSelection({ params: props.tabParam, view });
   const [width, setWidth] = useState(0);
   const wide = width >= WIDE_WIDTH;
   const [windowSelection, setWindowSelection] = useState(() => ({
@@ -239,15 +247,37 @@ export function UsageRouteScreen() {
     </Menu>
   ) : null;
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- puts the environment filter menu in the iOS native-stack header through navigation.setOptions
-  useLayoutEffect(() => {
-    if (Platform.OS === "ios") {
-      navigation.setOptions({ headerRight: () => environmentFilter });
-    }
-  }, [navigation, environmentFilter]);
-
   return (
-    <SettingsScreen title="Usage" trailing={environmentFilter}>
+    <SettingsScreen title="Usage" trailing={environmentFilter} workspaceRoot={props.workspace}>
+      {Platform.OS === "ios" ? (
+        <NativeStackScreenOptions
+          optionsVersion={JSON.stringify({ showEnvironmentFilter, filterIcon, environmentActions })}
+          options={{
+            // A native menu item, unlike a custom view, moves into the Duo's vertical bar.
+            unstable_headerRightItems: () =>
+              showEnvironmentFilter
+                ? [
+                    withNativeGlassHeaderItem({
+                      accessibilityLabel: "Filter usage environments",
+                      icon: { name: filterIcon, type: "sfSymbol" },
+                      label: "",
+                      type: "menu",
+                      menu: {
+                        title: "Environments",
+                        items: environmentActions.map((action) => ({
+                          type: "action" as const,
+                          label: action.title,
+                          description: action.subtitle,
+                          state: action.state === "on" ? ("on" as const) : undefined,
+                          onPress: () => selectEnvironment(action.id),
+                        })),
+                      },
+                    }),
+                  ]
+                : [],
+          }}
+        />
+      ) : null}
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}

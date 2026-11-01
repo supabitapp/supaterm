@@ -22,6 +22,7 @@ import {
   isMacPlatform,
   matchesKeybindingShortcut,
   normalizeEventKey,
+  shortcutConflictKey,
 } from "@supaterm/shared/keybindings";
 import {
   lazy,
@@ -40,7 +41,6 @@ import { useOpenLink } from "~/browser/useOpenLink";
 import { ExpandedImageDialog } from "~/components/chat/ExpandedImageDialog";
 import type { ExpandedImagePreview } from "~/components/chat/ExpandedImagePreview";
 import { useHtmlRenderTheme } from "~/hooks/useHtmlRenderTheme";
-import { shortcutConflictKey } from "~/keybindings";
 import { useOpenChangeRequestLink } from "~/lib/openPullRequestLink";
 import { readLocalApi } from "~/localApi";
 import { cn } from "~/lib/utils";
@@ -216,7 +216,7 @@ export function HtmlRenderDocument(props: {
       HTML_RENDER_SHORTCUT_COMMANDS.has(command) &&
       (shortcut.metaKey || shortcut.ctrlKey || shortcut.modKey)
     ) {
-      shortcutsByKey.set(shortcutConflictKey(shortcut), resolve(shortcut));
+      shortcutsByKey.set(shortcutConflictKey(shortcut, navigator.platform), resolve(shortcut));
     }
   }
   const shortcuts = [...shortcutsByKey.values()];

@@ -62,9 +62,6 @@ vi.mock("@react-navigation/native", () => ({
     canGoBack: () => true,
   }),
 }));
-vi.mock("../home/home-thread-navigation", () => ({
-  useHomeThreadRouteSelection: () => (params: object) => transport.navigate("Thread", params),
-}));
 vi.mock("../../state/shell", () => ({
   environmentShell: {},
   useEnvironmentShellReadiness: () => ({ status: "live", hasError: false, cacheRead: true }),
@@ -301,9 +298,11 @@ const routeFlows = new Map<string, NewTaskFlow>();
 /** The topmost draft route's flow. */
 let flow: NewTaskFlow;
 let pendingActions: ReturnType<typeof usePendingTaskListActions>;
+const selectThreadRoute = (params: ReactNavigation.RootParamList["Thread"]) =>
+  transport.navigate("Thread", params);
 function Probe(props: { readonly routeKey: string; readonly top: boolean }) {
   const current = useNewTaskFlow();
-  const actions = usePendingTaskListActions();
+  const actions = usePendingTaskListActions(selectThreadRoute);
   useLayoutEffect(() => {
     routeFlows.set(props.routeKey, current);
     if (props.top) {

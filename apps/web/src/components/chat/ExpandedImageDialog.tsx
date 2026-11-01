@@ -1,9 +1,8 @@
 import { memo, useRef, useState, type ReactNode, type KeyboardEvent } from "react";
 import { flushSync } from "react-dom";
-import { ChevronLeftIcon, ChevronRightIcon, XIcon } from "@supaterm/icons";
-import { Image as ImageGlyph, Text as TextGlyph } from "@supaterm/icons/nodes";
+import { ChevronLeftIcon, ChevronRightIcon, XIcon, ImageIcon, TextIcon } from "@supaterm/icons";
+
 import { Button } from "../ui/button";
-import { MorphIcon } from "~/components/MorphIcon";
 import { Dialog, DialogPopup, DialogTitle } from "../ui/dialog";
 import type { ExpandedImageItem, ExpandedImagePreview } from "./ExpandedImagePreview";
 import { resolveExternalWebLinkHost } from "./externalLinkContextMenu";
@@ -158,6 +157,7 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
       ? "Show accessibility JSON"
       : "Show extracted text";
 
+  const Icon = showingAccessibilityDetails ? ImageIcon : TextIcon;
   return (
     <Dialog
       open
@@ -258,11 +258,7 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
                       />
                     }
                   >
-                    <MorphIcon
-                      className="size-3"
-                      aria-hidden="true"
-                      icon={showingAccessibilityDetails ? ImageGlyph : TextGlyph}
-                    />
+                    <Icon className="size-3" aria-hidden="true" />
                   </TooltipTrigger>
                   <TooltipPopup side="top">{contentsLabel}</TooltipPopup>
                 </Tooltip>

@@ -1,7 +1,7 @@
+import { CheckIcon, CopyIcon } from "@supaterm/icons";
 import { memo, useRef } from "react";
-import { Check, Copy } from "@supaterm/icons/nodes";
+
 import { Button } from "../ui/button";
-import { MorphIcon } from "~/components/MorphIcon";
 import { cn } from "~/lib/utils";
 import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
 import {
@@ -14,7 +14,7 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 export const MessageCopyButton = memo(function MessageCopyButton({
   text,
   label = "Copy message",
-  icon = Copy,
+  icon = CopyIcon,
   extraFlavors,
   size = "xs",
   variant = "outline",
@@ -22,7 +22,7 @@ export const MessageCopyButton = memo(function MessageCopyButton({
 }: {
   text: string;
   label?: string;
-  icon?: typeof Copy;
+  icon?: typeof CopyIcon;
   extraFlavors?: Readonly<Record<string, string>>;
   size?: "xs" | "icon-xs";
   variant?: "outline" | "ghost";
@@ -36,6 +36,7 @@ export const MessageCopyButton = memo(function MessageCopyButton({
     ...(extraFlavors ? { extraFlavors } : {}),
   });
 
+  const Icon = isCopied ? CheckIcon : icon;
   return (
     <Tooltip>
       <TooltipTrigger
@@ -53,10 +54,7 @@ export const MessageCopyButton = memo(function MessageCopyButton({
           />
         }
       >
-        <MorphIcon
-          className={cn("size-3", isCopied && "text-primary")}
-          icon={isCopied ? Check : icon}
-        />
+        <Icon className={cn("size-3", isCopied && "text-primary")} />
       </TooltipTrigger>
       <TooltipPopup>
         <p>{label}</p>

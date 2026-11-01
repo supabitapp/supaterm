@@ -282,12 +282,26 @@ export function useThreadActions() {
     return resolveThreadRouteRef(currentRouteParams);
   };
 
-  const unarchiveThread = async (target: ScopedThreadRef, opts: { navigate?: boolean } = {}) => {
+  const requestUnarchive = (target: ScopedThreadRef) => {
     ThreadUndo.invalidate("archive", scopedThreadKey(target));
-    const result = await unarchiveThreadMutation({
+    return unarchiveThreadMutation({
       environmentId: target.environmentId,
       input: { threadId: target.threadId },
     });
+  };
+
+  const unarchiveThreads = async (targets: readonly ScopedThreadRef[]) => {
+    const outcomes = await Promise.all(
+      targets.map(async (target) => ({ target, result: await requestUnarchive(target) })),
+    );
+    for (const environmentId of new Set(targets.map((target) => target.environmentId))) {
+      refreshArchivedThreadsForEnvironment(environmentId);
+    }
+    return outcomes;
+  };
+
+  const unarchiveThread = async (target: ScopedThreadRef, opts: { navigate?: boolean } = {}) => {
+    const result = await requestUnarchive(target);
     if (result._tag === "Failure") {
       return result;
     }
@@ -792,6 +806,7 @@ export function useThreadActions() {
   return {
     archiveThread,
     unarchiveThread,
+    unarchiveThreads,
     deleteThread,
     confirmAndDeleteThread,
     markThreadDone,

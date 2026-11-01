@@ -7,11 +7,12 @@ import { ComposerPendingApprovalActions } from "./ComposerPendingApprovalActions
 function renderActions(
   onRespond: () => Promise<undefined>,
   options?: ReadonlyArray<ProviderApprovalOption>,
+  canRespond = true,
 ) {
   return render(
     <ComposerPendingApprovalActions
       requestId={RuntimeRequestId.make("approval-1")}
-      canRespond
+      canRespond={canRespond}
       isResponding={false}
       options={options}
       onRespondToApproval={onRespond}
@@ -65,5 +66,16 @@ describe("ComposerPendingApprovalActions", () => {
         .click(),
     );
     expect(onRespond).toHaveBeenCalledWith(RuntimeRequestId.make("approval-1"), "accept");
+  });
+
+  it("offers no decision once the request can no longer be answered", async () => {
+    const onRespond = vi.fn(async () => undefined);
+    await using screen = await renderActions(onRespond, undefined, false);
+    const buttons = [...screen.container.querySelectorAll("button")];
+    expect(buttons.map((button) => button.disabled)).toEqual([true, true, true]);
+
+    await act(async () => buttons.forEach((button) => button.click()));
+    expect(document.querySelectorAll('[role="menuitem"]')).toHaveLength(0);
+    expect(onRespond).not.toHaveBeenCalled();
   });
 });

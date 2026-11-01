@@ -1,8 +1,5 @@
-<!-- @supaterm/icons ChevronDown, matching AppSymbol's chevron.down.
-     Strokes expanded to fills: Expo UI's vector parser does not support strokes. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp" android:height="24dp"
     android:viewportWidth="24" android:viewportHeight="24">
-    <path android:fillColor="#FFFFFFFF"
-        android:pathData="M20.7071 9.7071L14.1213 16.2929C12.9497 17.4645 11.0503 17.4645 9.8787 16.2929L3.2929 9.7071C2.9024 9.3166 2.9024 8.6834 3.2929 8.2929C3.6834 7.9024 4.3166 7.9024 4.7071 8.2929L11.2929 14.8787C11.6834 15.2692 12.3166 15.2692 12.7071 14.8787L19.2929 8.2929C19.6834 7.9024 20.3166 7.9024 20.7071 8.2929C21.0976 8.6834 21.0976 9.3166 20.7071 9.7071Z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M20.03063 9.53063l-7.5 7.5a0.75 0.75 0 0 1-1.06125 0l-7.5-7.5A0.75 0.75 0 0 1 5.03062 8.46937L12 15.43969l6.96938-6.97032a0.75 0.75 0 0 1 1.06125 1.06125Z" />
 </vector>

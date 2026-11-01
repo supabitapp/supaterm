@@ -11,6 +11,7 @@ import {
   voiceLanguageOptions,
 } from "../../voice/voiceLanguage";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
+import { Switch } from "../ui/switch";
 import { SettingResetButton, SettingsRow } from "./settingsLayout";
 import { searchableSetting } from "./settingsSearch";
 import { useScopedSettings, useUpdateScopedSettings } from "./useScopedSettings";
@@ -162,6 +163,36 @@ export function VoiceLanguageSettingRow(props: {
             ))}
           </SelectPopup>
         </Select>
+      }
+    />
+  );
+}
+
+export function VoiceHoldSpaceSettingRow() {
+  const settings = useScopedSettings();
+  const updateSettings = useUpdateScopedSettings();
+  return (
+    <SettingsRow
+      {...searchableSetting("voice-hold-space")}
+      description="Hold Space in the composer to talk, and let go to stop. A tap still types a space."
+      resetAction={
+        settings.voiceHoldSpaceToTalk !== DEFAULT_UNIFIED_SETTINGS.voiceHoldSpaceToTalk ? (
+          <SettingResetButton
+            label="hold Space to talk"
+            onClick={() =>
+              updateSettings({
+                voiceHoldSpaceToTalk: DEFAULT_UNIFIED_SETTINGS.voiceHoldSpaceToTalk,
+              })
+            }
+          />
+        ) : null
+      }
+      control={
+        <Switch
+          checked={settings.voiceHoldSpaceToTalk}
+          onCheckedChange={(checked) => updateSettings({ voiceHoldSpaceToTalk: Boolean(checked) })}
+          aria-label="Hold Space to talk"
+        />
       }
     />
   );

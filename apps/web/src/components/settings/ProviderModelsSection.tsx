@@ -502,7 +502,10 @@ function ProviderModelRow({
             />
           }
         >
-          <StarIcon className={cn("size-3", isFavorite && "fill-current text-warning")} />
+          <StarIcon
+            weight={isFavorite ? "fill" : "regular"}
+            className={cn("size-3", isFavorite && "text-warning")}
+          />
         </TooltipTrigger>
         <TooltipPopup side="top">
           {isFavorite ? "Remove from favorites" : "Add to favorites"}

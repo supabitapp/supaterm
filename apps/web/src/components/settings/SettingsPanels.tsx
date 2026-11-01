@@ -1,5 +1,6 @@
 import { useAtomValue } from "@effect/atom-react";
 import { THREAD_GROUPING_OPTIONS } from "@supaterm/client-runtime/state/thread-grouping";
+import { resolveProductUsageDataControl } from "@supaterm/client-runtime/product-usage-data";
 import { NotificationSettings } from "./NotificationSettings";
 import { PRIVACY_POLICY_URL } from "../../legalLinks";
 import { CheckIcon } from "@supaterm/icons";
@@ -91,7 +92,11 @@ import {
   SettingsSection,
 } from "./settingsLayout";
 import { searchableSetting } from "./settingsSearch";
-import { VoiceLanguageSettingRow, VoiceTranscriptionSettingRow } from "./VoiceSettings";
+import {
+  VoiceHoldSpaceSettingRow,
+  VoiceLanguageSettingRow,
+  VoiceTranscriptionSettingRow,
+} from "./VoiceSettings";
 import { BackgroundActivitySettingsRow } from "./BackgroundActivitySettings";
 import { PullRequestLinksOpenInAppSetting } from "./IntegrationsSettings";
 import { OrchestrationSkillsSettings } from "./OrchestrationSkillsSettings";
@@ -428,9 +433,6 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.sidebarThreadGrouping !== DEFAULT_UNIFIED_SETTINGS.sidebarThreadGrouping
       ? ["Thread grouping"]
       : []),
-    ...(settings.sidebarThreadPreviewCount !== DEFAULT_UNIFIED_SETTINGS.sidebarThreadPreviewCount
-      ? ["Visible threads"]
-      : []),
     ...(settings.sidebarProjectGroupingMode !== DEFAULT_UNIFIED_SETTINGS.sidebarProjectGroupingMode
       ? ["Project Grouping"]
       : []),
@@ -449,10 +451,10 @@ export function useSettingsRestore(onRestored?: () => void) {
       ? ["Automatically mark merged threads as Done"]
       : []),
     ...(settings.autoResumeLimitedThreads !== DEFAULT_UNIFIED_SETTINGS.autoResumeLimitedThreads
-      ? ["Auto-resume limited threads"]
+      ? ["Resume after usage limits"]
       : []),
     ...(settings.snoozeLimitedThreads !== DEFAULT_UNIFIED_SETTINGS.snoozeLimitedThreads
-      ? ["Snooze limited threads"]
+      ? ["Snooze until limits reset"]
       : []),
     ...(!Equal.equals(settings.snoozePresets, DEFAULT_UNIFIED_SETTINGS.snoozePresets)
       ? ["Snooze options"]
@@ -598,7 +600,6 @@ export function useSettingsRestore(onRestored?: () => void) {
       voiceLanguage: DEFAULT_UNIFIED_SETTINGS.voiceLanguage,
       followUpBehavior: DEFAULT_UNIFIED_SETTINGS.followUpBehavior,
       glassOpacity: DEFAULT_UNIFIED_SETTINGS.glassOpacity,
-      sidebarThreadPreviewCount: DEFAULT_UNIFIED_SETTINGS.sidebarThreadPreviewCount,
       sidebarThreadGrouping: DEFAULT_UNIFIED_SETTINGS.sidebarThreadGrouping,
       sidebarProjectGroupingMode: DEFAULT_UNIFIED_SETTINGS.sidebarProjectGroupingMode,
       sidebarProjectSortOrder: DEFAULT_UNIFIED_SETTINGS.sidebarProjectSortOrder,
@@ -1366,7 +1367,7 @@ export function ThreadsSettingsPanel() {
               onCheckedChange={(checked) =>
                 updateSettings({ autoResumeLimitedThreads: Boolean(checked) })
               }
-              aria-label="Auto-resume limited threads"
+              aria-label="Resume after usage limits"
             />
           }
         />
@@ -1382,7 +1383,7 @@ export function ThreadsSettingsPanel() {
               onCheckedChange={(checked) =>
                 updateSettings({ snoozeLimitedThreads: Boolean(checked) })
               }
-              aria-label="Snooze limited threads"
+              aria-label="Snooze until limits reset"
             />
           }
         />
@@ -1677,6 +1678,7 @@ export function ThreadsSettingsPanel() {
       <SettingsSection id="voice-input" title="Voice input">
         <VoiceTranscriptionSettingRow providers={serverProviders} />
         <VoiceLanguageSettingRow providers={serverProviders} />
+        <VoiceHoldSpaceSettingRow />
       </SettingsSection>
 
       <OrchestrationSkillsSettings />
@@ -1788,6 +1790,41 @@ export function MaintenanceSettingsPanel() {
   );
 }
 
+function ProductUsageDataRow() {
+  const settings = useScopedSettings();
+  const updateSettings = useUpdateScopedSettings();
+  const { connectedEnvironments } = useSettingsScope();
+  const control = resolveProductUsageDataControl(connectedEnvironments);
+  if (control === null) return null;
+  const { forced } = control;
+  return (
+    <SettingsRow
+      serverScoped
+      {...searchableSetting("product-usage-data")}
+      settingKeys={forced ? [] : ["telemetryEnabled"]}
+      description="Send product usage events from this environment. They never include prompts, responses, or file contents."
+      status={control.status}
+      control={
+        forced ? (
+          <Switch
+            checked={forced.value === true}
+            mixed={forced.value === null}
+            disabled
+            aria-label="Product usage data"
+          />
+        ) : (
+          <ScopedSwitch
+            settingKeys={["telemetryEnabled"]}
+            checked={settings.telemetryEnabled}
+            onCheckedChange={(checked) => updateSettings({ telemetryEnabled: Boolean(checked) })}
+            aria-label="Product usage data"
+          />
+        )
+      }
+    />
+  );
+}
+
 export function AboutSettingsPanel() {
   return (
     <SettingsPageContainer>
@@ -1813,6 +1850,7 @@ export function AboutSettingsPanel() {
             </Button>
           }
         />
+        <ProductUsageDataRow />
         <SettingsRow
           {...searchableSetting("open-source-licenses")}
           control={

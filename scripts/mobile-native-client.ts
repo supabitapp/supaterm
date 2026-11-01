@@ -520,7 +520,6 @@ export const resolveArtifact = Effect.fn("nativeClient.resolveArtifact")(functio
   platform: NativePlatform,
   abi: string | null,
   fingerprint: string,
-  allowBuild = true,
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -534,9 +533,9 @@ export const resolveArtifact = Effect.fn("nativeClient.resolveArtifact")(functio
     yield* fs.utimes(directory, now / 1000, now / 1000).pipe(Effect.ignore);
     return { ...artifact, source: "local" as const };
   }
-  if (!allowBuild)
+  if (platform === "ios" && (yield* HostProcess.Platform) !== "darwin")
     return yield* new NativeClientError({
-      message: `No cached build of ${key} on this machine yet. Run \`vp run mobile:install ${platform}\` once with a local ${platform === "ios" ? "simulator" : "emulator"} of this checkout; it builds the client and caches it.`,
+      message: `No cached client for ${key}, and iOS clients build only on a Mac with Xcode. Run this from a Mac checkout.`,
     });
   yield* fs.makeDirectory(path.dirname(directory), { recursive: true });
   const log = yield* BuildLog;
@@ -574,7 +573,7 @@ const install = Effect.fn("nativeClient.install")(function* (
     yield* command("adb", ["-s", device, "reverse", "tcp:8081", "tcp:8081"]).pipe(Effect.ignore);
 });
 
-/** Install through the agent-device command device_open returned, using the local cache only. */
+/** Install through the agent-device command device_open returned; a cache miss builds here first. */
 const installIntoSession = Effect.fn("nativeClient.installIntoSession")(function* (
   home: string,
   platform: NativePlatform,
@@ -591,7 +590,6 @@ const installIntoSession = Effect.fn("nativeClient.installIntoSession")(function
     platform,
     platform === "android" ? abi : null,
     current,
-    false,
   );
   yield* Console.error(`Installing through ${agentDevice}...`);
   yield* command(agentDevice, ["install", bundleId, artifact.file], false, workspace);
@@ -610,10 +608,36 @@ const installIntoSession = Effect.fn("nativeClient.installIntoSession")(function
   }
   const seconds = Math.round(((yield* Clock.currentTimeMillis) - started) / 1000);
   yield* Console.error(
-    `Installed into the agent-device session in ${seconds}s.${metro ? "" : " Open it with Metro: --metro http://<this-machine>:8081."}`,
+    `Installed into the agent-device session in ${seconds}s (${artifact.source}).${metro ? "" : " Open it with Metro: --metro http://<this-machine>:8081."}`,
   );
-  yield* Console.log(yield* encodeOutput({ status: "installed", fingerprint: current, seconds }));
+  yield* Console.log(
+    yield* encodeOutput({
+      status: "installed",
+      source: artifact.source,
+      fingerprint: current,
+      seconds,
+    }),
+  );
 });
+
+/** Build tool output goes to a fresh log file unless SUPATERM_NATIVE_CLIENT_VERBOSE=1, so stdout stays one JSON line. */
+const withBuildLog =
+  (home: string, platform: NativePlatform) =>
+  <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+    Effect.gen(function* () {
+      if ((yield* HostProcess.Environment).SUPATERM_NATIVE_CLIENT_VERBOSE === "1")
+        return yield* effect;
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const logs = path.join(home, ".cache/supaterm/native-clients/logs");
+      yield* fs.makeDirectory(logs, { recursive: true });
+      yield* prune(logs, "");
+      const now = yield* Clock.currentTimeMillis;
+      const stamp = DateTime.formatIso(DateTime.makeUnsafe(now)).replaceAll(":", "-");
+      return yield* effect.pipe(
+        Effect.provideService(BuildLog, path.join(logs, `${stamp}-${platform}.log`)),
+      );
+    });
 
 const main = Command.make(
   "mobile-native-client",
@@ -628,12 +652,20 @@ const main = Command.make(
       Flag.optional,
     ),
     abi: Flag.Literals("abi", ["x86_64", "arm64-v8a"]).pipe(
-      Flag.withDescription("With --agent-device, the Android ABI of its device (default x86_64)."),
+      Flag.withDescription(
+        "With --agent-device or --prepare, the Android ABI of the device (default x86_64).",
+      ),
       Flag.withDefault("x86_64" as const),
     ),
     metro: Flag.String("metro").pipe(
       Flag.withDescription("With --agent-device, open the dev client against this Metro URL."),
       Flag.optional,
+    ),
+    prepare: Flag.Boolean("prepare").pipe(
+      Flag.withDescription(
+        "Reuse or build the client for this checkout without a device (Android: for --abi), so a long build can finish before a device is opened.",
+      ),
+      Flag.withDefault(false),
     ),
   },
   Effect.fn("nativeClient.main")(function* ({
@@ -643,37 +675,52 @@ const main = Command.make(
     agentDevice,
     abi: sessionAbi,
     metro,
+    prepare,
   }) {
     const started = yield* Clock.currentTimeMillis;
+    const environment = yield* HostProcess.Environment;
+    const home = environment.HOME ?? environment.USERPROFILE;
+    if (!home)
+      return yield* new NativeClientError({
+        message: "HOME or USERPROFILE must be set to store native clients.",
+      });
+    if (prepare) {
+      if (mode !== "ensure" || Option.isSome(requested) || Option.isSome(agentDevice))
+        return yield* new NativeClientError({
+          message:
+            "--prepare needs no device; use it with ensure and no device id or --agent-device.",
+        });
+      const current = yield* fingerprint(platform);
+      const artifact = yield* resolveArtifact(
+        home,
+        platform,
+        platform === "android" ? sessionAbi : null,
+        current,
+      ).pipe(withBuildLog(home, platform));
+      yield* Console.error(`Client ready for ${platform} (${artifact.source}).`);
+      return yield* Console.log(
+        yield* encodeOutput({ status: "ready", source: artifact.source, fingerprint: current }),
+      );
+    }
     if (Option.isSome(agentDevice)) {
       if (mode !== "ensure" || Option.isSome(requested))
         return yield* new NativeClientError({
           message:
             "--agent-device installs into its device session; use it with ensure and no device id.",
         });
-      const environment = yield* HostProcess.Environment;
-      const home = environment.HOME ?? environment.USERPROFILE;
-      if (!home)
-        return yield* new NativeClientError({ message: "HOME or USERPROFILE must be set." });
       return yield* installIntoSession(
         home,
         platform,
         agentDevice.value,
         sessionAbi,
         Option.getOrUndefined(metro),
-      );
+      ).pipe(withBuildLog(home, platform));
     }
     const target = yield* resolveDevice(platform, Option.getOrUndefined(requested));
     const device = target.id;
     yield* Console.error(`Device: ${target.label} (${device})`);
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
-    const environment = yield* HostProcess.Environment;
-    const home = environment.HOME ?? environment.USERPROFILE;
-    if (!home)
-      return yield* new NativeClientError({
-        message: "HOME or USERPROFILE must be set to store native client records.",
-      });
     const cache = path.join(home, ".cache/supaterm/native-clients");
     const recordPath = path.join(cache, platform, `${yield* digest(device)}.json`);
     // An iOS simulator build is arm64 for every device; an APK carries only the device's own ABI.
@@ -728,17 +775,7 @@ const main = Command.make(
       process.exitCode = status === "compatible" ? 0 : 2;
       return;
     }
-    const logs = path.join(cache, "logs");
-    yield* fs.makeDirectory(logs, { recursive: true });
-    yield* prune(logs, "");
-    const stamp = DateTime.formatIso(DateTime.makeUnsafe(started)).replaceAll(":", "-");
-    const log = path.join(logs, `${stamp}-${platform}.log`);
-    const result = yield* ensureClient(operations).pipe(
-      Effect.provideService(
-        BuildLog,
-        environment.SUPATERM_NATIVE_CLIENT_VERBOSE === "1" ? null : log,
-      ),
-    );
+    const result = yield* ensureClient(operations).pipe(withBuildLog(home, platform));
     const seconds = Math.round(((yield* Clock.currentTimeMillis) - started) / 1000);
     yield* Console.error(
       result.installed

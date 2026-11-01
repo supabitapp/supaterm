@@ -35,8 +35,10 @@ import {
   PlusIcon,
   SmartphoneIcon,
   SquareTerminalIcon,
+  VolumeIcon,
+  VolumeOffIcon,
 } from "@supaterm/icons";
-import { Volume, VolumeOff } from "@supaterm/icons/nodes";
+
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
@@ -56,7 +58,6 @@ import { resolveShortcutCommand, type ShortcutMatchContext } from "~/keybindings
 import { readLocalApi } from "~/localApi";
 import { useStableCallback } from "~/hooks/useStableCallback";
 import { Button } from "~/components/ui/button";
-import { MorphIcon } from "~/components/MorphIcon";
 import { AndroidIcon, AppleIcon } from "~/components/Icons";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 import { Kbd } from "~/components/ui/kbd";
@@ -822,6 +823,7 @@ function RightPanelTab(
     id: surface.id,
     disabled: props.dragDisabled,
   });
+  const Icon = audio === "muted" ? VolumeOffIcon : VolumeIcon;
   const content = (
     <>
       <PanelTabCloseButton
@@ -860,7 +862,7 @@ function RightPanelTab(
                     .catch(() => undefined);
                 }}
               >
-                <MorphIcon className="size-3" icon={audio === "muted" ? VolumeOff : Volume} />
+                <Icon className="size-3" />
               </button>
             }
           />

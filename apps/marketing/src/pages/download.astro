@@ -17,7 +17,7 @@ const imageProps = {
 } satisfies Partial<ComponentProps<typeof Image>>;
 ---
 
-<Layout title="Download — Supaterm" description="Download Supaterm for macOS, Windows, or Linux.">
+<Layout title="Download | Supaterm" description="Download Supaterm for macOS, Windows, or Linux.">
   <div class="download-page" id="download-page" data-channel="stable" data-installer="true">
     <script is:inline>
       // Set the channel before first paint so ?channel=nightly never flashes the stable page.
@@ -133,7 +133,7 @@ const imageProps = {
 
       <section class="platform-section platform-section--cli" data-rise style="--d:420ms">
         <div class="platform-header">
-          <svg class="platform-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" set:html={iconSvgElements(Terminal)}></svg>
+          <svg fill="currentColor" stroke="none" class="platform-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" set:html={iconSvgElements(Terminal)}></svg>
           <h2 class="platform-name">Terminal</h2>
         </div>
         <CommandLine class="stable-only" command="curl -fsSL https://supaterm.com/install.sh | sh" />

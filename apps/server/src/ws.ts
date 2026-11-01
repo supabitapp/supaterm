@@ -1786,6 +1786,9 @@ export const layerWsRpc = (
                 }
               : {}),
             otlpLogsEnabled: config.otlpLogsUrl !== undefined,
+            ...(config.telemetryEnabledByEnvironment === undefined
+              ? {}
+              : { telemetryEnabledByEnvironment: config.telemetryEnabledByEnvironment }),
           },
           settings,
           shellResumeCompletionMarker: true,

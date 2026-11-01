@@ -1,4 +1,4 @@
-import { useSidebarWorkspaceTabs } from "../workspace/useSidebarWorkspaceTabs";
+import { useSidebarWorkspaceTabs } from "../workspace/useSystemWorkspaceTabBar";
 import { Button } from "../../components/ui/Button";
 import * as Dialog from "../../components/ui/Dialog";
 import type { ComposerTextPaste } from "../../native/SupatermComposerEditor.types";
@@ -134,6 +134,7 @@ function collapsedEditorInset(text: ScaledTextRole): number {
 export const COMPOSER_EXPANDED_CHROME = 156;
 
 const COMPACT_SURFACE_INSET = 2;
+const LARGE_COMPACT_SURFACE_INSET = 9;
 
 export interface ThreadComposerProps {
   readonly canOperateThread: boolean;
@@ -543,6 +544,9 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   const usesLargeControls =
     useSidebarWorkspaceTabs() === "picker" || (Platform.OS === "ios" && Platform.isPad);
   const rowControlSize = usesLargeControls && !isExpanded ? "large" : "regular";
+  const compactSurfaceInset = usesLargeControls
+    ? LARGE_COMPACT_SURFACE_INSET
+    : COMPACT_SURFACE_INSET;
   const { setComposerEditing } = useAdaptiveWorkspaceLayout();
   const showsCompactDictation = isVoiceInputPresented && !isExpanded;
   const isToolbarVisible = isExpanded || isVoiceInputPresented;
@@ -849,12 +853,12 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                   paddingTop: 14,
                 }
               : {
-                  borderRadius: 27,
+                  borderRadius: usesLargeControls ? 31 : 27,
                   minHeight:
                     composerDictationToolbarHeight(voicePresentation.statusKind) +
-                    COMPACT_SURFACE_INSET * 2,
+                    compactSurfaceInset * 2,
                   overflow: "hidden" as const,
-                  paddingVertical: COMPACT_SURFACE_INSET,
+                  paddingVertical: compactSurfaceInset,
                 }
           }
         >
@@ -1101,7 +1105,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                 ? undefined
                 : {
                     position: "absolute",
-                    bottom: COMPACT_SURFACE_INSET,
+                    bottom: compactSurfaceInset,
                     left: 0,
                     right: 0,
                   }

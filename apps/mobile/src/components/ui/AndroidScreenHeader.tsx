@@ -36,7 +36,7 @@ export function AndroidHeaderIconButton(props: {
   return <IconButton {...props} tintColorClassName="accent-header-foreground" />;
 }
 
-export function AndroidHeaderOverflowMenu(props: {
+function AndroidHeaderOverflowMenu(props: {
   readonly actions: ReadonlyArray<AndroidHeaderAction>;
 }) {
   return (

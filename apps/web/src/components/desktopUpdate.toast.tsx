@@ -38,7 +38,7 @@ function ReleaseNotesLink({
       <ArrowRightIcon
         aria-hidden
         className="ml-1 inline size-3 -rotate-45 align-[-0.125em]"
-        strokeWidth={2.25}
+        weight="bold"
       />
     </button>
   );

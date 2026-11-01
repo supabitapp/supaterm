@@ -18,8 +18,11 @@ import {
   PilcrowIcon,
   RowsIcon,
   WrapTextIcon,
+  ChevronRightIcon,
+  ChevronsDownUpIcon,
+  ChevronsUpDownIcon,
 } from "@supaterm/icons";
-import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from "@supaterm/icons/nodes";
+
 import * as Schema from "effect/Schema";
 import { type MouseEvent, useEffect, useRef, useState } from "react";
 import { useCodeViewFileReveal } from "./diffs/useCodeViewFileReveal";
@@ -75,7 +78,6 @@ import { CHANGES_FILE_TREE_SIZING, FilePreviewSplit } from "./files/FileExplorer
 import { diffFileTreeEntries } from "./diffs/diffFileTree.logic";
 import { Button } from "./ui/button";
 import { Kbd } from "./ui/kbd";
-import { MorphIcon } from "~/components/MorphIcon";
 import { ToggleGroup, Toggle } from "./ui/toggle-group";
 import { Switch } from "./ui/switch";
 import {
@@ -151,6 +153,7 @@ function DiffFileCollapseToggle({
   iconClassName: string;
   onToggle: (fileKey: string) => void;
 }) {
+  const Icon = collapsed ? ChevronRightIcon : ChevronDownIcon;
   return (
     <Tooltip>
       <TooltipTrigger
@@ -169,10 +172,7 @@ function DiffFileCollapseToggle({
           />
         }
       >
-        <MorphIcon
-          className={cn("size-4", iconClassName)}
-          icon={collapsed ? ChevronRight : ChevronDown}
-        />
+        <Icon className={cn("size-4", iconClassName)} />
       </TooltipTrigger>
       <TooltipPopup side="top">{collapsed ? "Expand diff" : "Collapse diff"}</TooltipPopup>
     </Tooltip>
@@ -835,6 +835,7 @@ export default function DiffPanel({
     }
   };
 
+  const Icon = allDiffFilesCollapsed ? ChevronsUpDownIcon : ChevronsDownUpIcon;
   const headerRow = (
     <>
       <div className="flex min-w-0 flex-1 items-center gap-3 [-webkit-app-region:no-drag]">
@@ -1174,10 +1175,7 @@ export default function DiffPanel({
                 />
               }
             >
-              <MorphIcon
-                className="size-3.5"
-                icon={allDiffFilesCollapsed ? ChevronsUpDown : ChevronsDownUp}
-              />
+              <Icon className="size-3.5" />
             </TooltipTrigger>
             <TooltipPopup side="top">
               {allDiffFilesCollapsed ? "Expand all files" : "Collapse all files"}

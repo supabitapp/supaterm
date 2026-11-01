@@ -205,7 +205,7 @@ export function MediaVideoPlayer({
           className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-lg focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
         >
           <span className="flex size-8 items-center justify-center rounded-full bg-black/50 text-white">
-            <PlayIcon aria-hidden className="size-4 fill-current" />
+            <PlayIcon weight="fill" aria-hidden className="size-4" />
           </span>
         </button>
       ) : null}

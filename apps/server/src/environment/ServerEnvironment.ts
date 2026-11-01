@@ -227,6 +227,7 @@ export const make = Effect.gen(function* () {
       threadProjectFromScratch: true,
       oneTimeSchedules: true,
       npmReleaseLookup: true,
+      telemetrySetting: true,
       ...(serverSelfUpdate === null ? {} : { serverSelfUpdate }),
       ...(serverInstallation === null ? {} : { serverInstallation }),
       ...(serverSelfUpdate === "boot-service" || desktopAppUpdate

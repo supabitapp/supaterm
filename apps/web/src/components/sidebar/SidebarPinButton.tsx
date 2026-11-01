@@ -47,7 +47,7 @@ export function SidebarPinButton({
       }
     >
       <InlineConfirmIcon armed={armed}>
-        <PinIcon aria-hidden fill={pinned ? "currentColor" : "none"} />
+        <PinIcon aria-hidden weight={pinned ? "fill" : "regular"} />
       </InlineConfirmIcon>
     </InlineConfirmTooltip>
   );

@@ -336,10 +336,6 @@ export default defineConfig({
         rules: { "supaterm/no-frame-waits-in-browser-tests": "error" },
       },
       {
-        files: ["**/*.browser.test.*"],
-        rules: { "supaterm/no-real-time-wait-in-tests": "off" },
-      },
-      {
         files: ["apps/**/src/**", "packages/**/src/**"],
         rules: { "supaterm/no-dom-test-environment": "error" },
       },
@@ -487,6 +483,11 @@ export default defineConfig({
           "apps/mobile/src/features/pull-requests/pullRequestGlyphs.ts",
         ],
         rules: { "supaterm/no-mobile-pull-request-glyph-literals": "error" },
+      },
+      {
+        files: ["apps/mobile/src/**"],
+        excludeFiles: ["**/*.test.{ts,tsx}"],
+        rules: { "supaterm/no-ambiguous-detail-navigation": "error" },
       },
       {
         // React commits state set in a raw ResizeObserver callback after the paint, so derived
