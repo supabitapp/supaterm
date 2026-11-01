@@ -7,7 +7,6 @@ import type {
   ProjectId,
   ScheduledTask,
   ScheduledTaskId,
-  ScheduledTaskSchedule,
   ScheduledTaskUpsertInput,
   ThreadId,
 } from "@supaterm/contracts";
@@ -60,8 +59,11 @@ import { settingsScopeEnvironmentLabels } from "../settings/settingsScopeAxis";
 import {
   defaultAutomationProjectId,
   matchesAutomationScope,
+  scheduleDraftErrors,
+  scheduleFromDraft,
   scheduledTaskDefaultModel,
   taskToDraft,
+  toDateTimeLocalValue,
   WEEKDAY_LABELS,
   type DraftState,
   type WorkspaceMode,
@@ -85,6 +87,8 @@ const EMPTY_DRAFT: DraftState = {
   scheduleMode: "fixed",
   intervalMinutes: "15",
   timeOfDay: "09:00",
+  runAt: "",
+  savedRunAt: "",
   weekdays: new Set([1, 2, 3, 4, 5]),
   projectId: "",
   threadId: "",
@@ -157,19 +161,6 @@ function splitModelKey(value: string): ModelSelection | null {
   };
 }
 
-function scheduleFromDraft(draft: DraftState): ScheduledTaskSchedule {
-  if (draft.scheduleMode === "interval") {
-    const everyMs = Math.round(Number(draft.intervalMinutes) * 60_000);
-    return { type: "interval", everyMs };
-  }
-  const selectedEveryDay = draft.weekdays.size === 0 || draft.weekdays.size === 7;
-  return {
-    type: "fixed_time",
-    timeOfDay: draft.timeOfDay || "09:00",
-    ...(selectedEveryDay ? {} : { weekdays: [...draft.weekdays].toSorted() }),
-  };
-}
-
 /**
  * Creates or edits one automation. `scope` narrows the projects it offers, so
  * a project-scoped page creates into that project by default.
@@ -189,6 +180,10 @@ export function AutomationEditorDialog({
 }) {
   const [environmentId, setEnvironmentId] = useState(initialEnvironmentId);
   const environment = useEnvironment(environmentId);
+  // Older servers reject one-time schedules, so offer Once only where it can save.
+  const offersOnce =
+    environment?.serverConfig?.environment.capabilities.oneTimeSchedules === true ||
+    task?.schedule.type === "once";
   const canOperate = useEnvironmentScope(environmentId, AuthOrchestrationOperateScope);
   const connected =
     environment?.connection.phase === "connected" && environment.serverConfig !== null;
@@ -285,11 +280,22 @@ export function AutomationEditorDialog({
       return;
     }
     const schedule = scheduleFromDraft(draft);
+    if (schedule === null) {
+      for (const error of scheduleDraftErrors(draft)) reportFailure(error.title, error.description);
+      return;
+    }
     if (
       schedule.type === "interval" &&
       (!Number.isSafeInteger(schedule.everyMs) || schedule.everyMs < MIN_SCHEDULED_TASK_INTERVAL_MS)
     ) {
       reportFailure("Invalid interval", "Enter an interval of at least one minute.");
+      return;
+    }
+    if (schedule.type === "once" && !offersOnce) {
+      reportFailure(
+        "Once is not available here",
+        "This environment runs an older Supaterm. Update it to schedule a one-time task, or pick another schedule.",
+      );
       return;
     }
     if (draft.workspaceMode === "existing_worktree" && !draft.existingWorktreePath.trim()) {
@@ -354,7 +360,7 @@ export function AutomationEditorDialog({
         <DialogHeader>
           <DialogTitle>{draft.editingId ? "Edit automation" : "New automation"}</DialogTitle>
           <DialogDescription>
-            Run a prompt automatically, on an interval or at a fixed time.
+            Run a prompt automatically, on an interval, at a fixed time, or once at a set date.
           </DialogDescription>
         </DialogHeader>
 
@@ -580,11 +586,30 @@ export function AutomationEditorDialog({
                   value={[draft.scheduleMode]}
                   onValueChange={(values) => {
                     const mode = values[0];
-                    if (mode === "fixed" || mode === "interval")
-                      setDraft((current) => ({ ...current, scheduleMode: mode }));
+                    if (mode === "fixed" || mode === "once" || mode === "interval")
+                      setDraft((current) => {
+                        const suggested =
+                          mode === "once" && !current.runAt
+                            ? new Date(Math.ceil(Date.now() / 3_600_000) * 3_600_000)
+                            : null;
+                        return {
+                          ...current,
+                          scheduleMode: mode,
+                          // Keep the instant too, so an hour that repeats when clocks go back stays exact.
+                          ...(suggested === null
+                            ? {}
+                            : {
+                                runAt: toDateTimeLocalValue(suggested),
+                                savedRunAt: suggested.toISOString(),
+                              }),
+                        };
+                      });
                   }}
                 >
                   <Toggle value="fixed">At a time</Toggle>
+                  {offersOnce || draft.scheduleMode === "once" ? (
+                    <Toggle value="once">Once</Toggle>
+                  ) : null}
                   <Toggle value="interval">Every interval</Toggle>
                 </ToggleGroup>
               </div>
@@ -631,6 +656,20 @@ export function AutomationEditorDialog({
                   <p id="scheduled-task-time-zone" className="text-xs text-muted-foreground">
                     Uses the environment's time zone.
                   </p>
+                </div>
+              ) : draft.scheduleMode === "once" ? (
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="scheduled-task-run-at">Run on</Label>
+                  <Input
+                    type="datetime-local"
+                    id="scheduled-task-run-at"
+                    nativeInput
+                    className="w-56"
+                    value={draft.runAt}
+                    onChange={(event) =>
+                      setDraft((current) => ({ ...current, runAt: event.target.value }))
+                    }
+                  />
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
