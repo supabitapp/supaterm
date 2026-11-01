@@ -17,7 +17,10 @@ import * as ServerConfig from "../config.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as GitWorkflowService from "../git/GitWorkflowService.ts";
 import * as CheckpointRollbackService from "./CheckpointRollbackService.ts";
-import { isCheckpointRestoreIsolated } from "./CheckpointRestoreSafety.ts";
+import {
+  isCheckpointRestoreIsolated,
+  sharedWorkspaceRestoreMessage,
+} from "./CheckpointRestoreSafety.ts";
 import * as ThreadCommandExecutor from "./ThreadCommandExecutor.ts";
 import { CheckpointServiceV2 } from "./CheckpointService.ts";
 import { EventSinkV2 } from "./EventSink.ts";
@@ -190,7 +193,7 @@ it.effect("lets rollback recreate a worktree storage cleanup removed", () =>
       prefix: "supaterm-v2-restore-removed-",
     });
     const worktreePath = path.join(parent, "worktree");
-    const isolated = yield* isCheckpointRestoreIsolated(
+    const { isolated } = yield* isCheckpointRestoreIsolated(
       { id: ThreadId.make("restore-removed"), worktreePath },
       { cwd: worktreePath },
       {
@@ -222,6 +225,7 @@ it.effect.each([
       const parentId = ThreadId.make("restore-side-chat-parent");
       const sideChat = {
         id: ThreadId.make("restore-side-chat"),
+        title: "Why is CI red?",
         projectId: ProjectId.make("restore-project"),
         deletedAt: null,
         worktreePath,
@@ -251,6 +255,10 @@ it.effect.each([
           projects: {} as never,
         },
       );
-      assert.equal(result, isolated);
+      assert.equal(result.isolated, isolated);
+      assert.deepEqual(result.blockingSideChats, isolated ? [] : ["Why is CI red?"]);
+      if (!isolated) {
+        assert.include(sharedWorkspaceRestoreMessage(result.blockingSideChats), '"Why is CI red?"');
+      }
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
