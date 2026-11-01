@@ -84,9 +84,19 @@ const writingCaller = refuseReadOnlyClient.pipe(
   Effect.tap(assertLiveCaller),
 );
 
+const isSideChatCaller = (caller: Caller) => caller.caller?.lineage.sideChat === true;
+
+/** A side chat is the user's aside: it reads the main thread, but steers and starts nothing. */
+const sideChatDenied = new OrchestratorMcpFailure({
+  code: "capability_denied",
+  message:
+    "A side chat can read threads and work in itself, but cannot start, steer, or change other threads.",
+});
+
 const orchestratingCaller = refuseReadOnlyClient.pipe(
   Effect.andThen(readCaller()),
   Effect.tap(assertLiveCaller),
+  Effect.tap((caller) => (isSideChatCaller(caller) ? Effect.fail(sideChatDenied) : Effect.void)),
 );
 
 const requireThreadCaller = McpInvocationContext.McpInvocationContext.pipe(
@@ -123,6 +133,7 @@ export const writesThreads = <P, A, E, R>(
       const caller = yield* writingCaller;
       for (const threadId of threads(params)) {
         if (threadId === undefined || threadId === caller.scope.thread?.threadId) continue;
+        if (isSideChatCaller(caller)) return yield* sideChatDenied;
         const target = yield* caller.threads
           .getThreadShell(threadId)
           .pipe(Effect.mapError(unavailable));
@@ -168,7 +179,9 @@ export const startsThreads = <P, A, E, R>(
 ) =>
   declare((params: P) =>
     Effect.gen(function* () {
-      const { limits } = yield* writingCaller;
+      const caller = yield* writingCaller;
+      if (isSideChatCaller(caller)) return yield* sideChatDenied;
+      const { limits } = caller;
       const requested = modes(params);
       const started: StartedModes = {
         runtimeMode: yield* resolveRuntimeMode(limits.runtimeMode, requested.runtimeMode),

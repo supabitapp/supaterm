@@ -22,6 +22,7 @@ export const liveThreadShell = (
     readonly runtimeMode?: RuntimeMode;
     readonly interactionMode?: ProviderInteractionMode;
     readonly activeRunId?: RunId | null;
+    readonly sideChatOf?: ThreadId;
   } = {},
 ): OrchestrationV2ThreadShell => {
   const providerInstanceId = ProviderInstanceId.make("codex");
@@ -38,7 +39,15 @@ export const liveThreadShell = (
     createdBy: "user",
     creationSource: "web",
     activeProviderThreadId: null,
-    lineage: { rootThreadId: id, parentThreadId: null, relationshipToParent: null },
+    lineage:
+      modes.sideChatOf === undefined
+        ? { rootThreadId: id, parentThreadId: null, relationshipToParent: null }
+        : {
+            rootThreadId: modes.sideChatOf,
+            parentThreadId: modes.sideChatOf,
+            relationshipToParent: "fork",
+            sideChat: true,
+          },
     forkedFrom: null,
     latestRunId: null,
     activeRunId: modes.activeRunId === undefined ? RunId.make("run:mcp-test") : modes.activeRunId,

@@ -27,6 +27,7 @@ const backgroundThreadId = ThreadId.make("thread:background");
 const oldProviderThreadId = ThreadId.make("thread:old-provider-background");
 const archivedThreadId = ThreadId.make("thread:archived-background");
 const unknownOwnerThreadId = ThreadId.make("thread:unknown-background-owner");
+const sideChatThreadId = ThreadId.make("thread:side-chat");
 
 const backgroundShell = (threadId: ThreadId, providerInstanceId: ProviderInstanceId) => ({
   ...liveThreadShell(threadId, { activeRunId: null }),
@@ -42,6 +43,13 @@ const shells = new Map([
     liveThreadShell(planThreadId, { runtimeMode: "approval-required", interactionMode: "plan" }),
   ],
   [fullAccessThreadId, liveThreadShell(fullAccessThreadId)],
+  [
+    sideChatThreadId,
+    liveThreadShell(sideChatThreadId, {
+      runtimeMode: "approval-required",
+      sideChatOf: supervisedThreadId,
+    }),
+  ],
   [endedThreadId, liveThreadShell(endedThreadId, { activeRunId: null })],
   [backgroundThreadId, backgroundShell(backgroundThreadId, ProviderInstanceId.make("codex"))],
   [oldProviderThreadId, backgroundShell(oldProviderThreadId, ProviderInstanceId.make("claude"))],
@@ -221,6 +229,7 @@ const background = threadCaller(backgroundThreadId);
 const oldProviderBackground = threadCaller(oldProviderThreadId);
 const archivedBackground = threadCaller(archivedThreadId);
 const unknownOwnerBackground = threadCaller(unknownOwnerThreadId);
+const sideChat = threadCaller(sideChatThreadId);
 const mismatchedProvider = {
   ...background,
   thread: { ...background.thread!, providerInstanceId: ProviderInstanceId.make("claude") },
@@ -298,6 +307,17 @@ it.effect.each([
   ["writes_environment", plan, {}, "capability_denied"],
   ["writes_environment", fullAccessClient, {}, "ran"],
   ["writes_environment", supervisedClient, {}, "capability_denied"],
+
+  ["reads", sideChat, {}, "ran"],
+  ["reads_as_caller", sideChat, {}, "ran"],
+  ["acts_as_caller", sideChat, {}, "ran"],
+  ["writes_with_capability", sideChat, {}, "ran"],
+  ["writes_threads", sideChat, {}, "ran"],
+  ["writes_threads", sideChat, { threadId: sideChatThreadId }, "ran"],
+  ["writes_threads", sideChat, { threadId: supervisedThreadId }, "capability_denied"],
+  ["writes", sideChat, {}, "capability_denied"],
+  ["starts_threads", sideChat, {}, "capability_denied"],
+  ["writes_environment", sideChat, {}, "capability_denied"],
 ] as const)("%s from %o with %o: %s", ([tool, scope, args, expected]) =>
   call(tool, scope, args).pipe(
     Effect.map((outcome) => expect(outcome).toBe(expected)),
