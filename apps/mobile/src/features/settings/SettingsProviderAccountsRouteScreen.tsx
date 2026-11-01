@@ -184,11 +184,15 @@ function ProviderAccount({
     !choosingMethod &&
     !loading &&
     !auth.error;
+  const usesCredentials =
+    provider.driver === "antigravity" &&
+    (provider.auth.type === "gemini-api-key" || provider.auth.type === "agent-platform");
   function signInLabels() {
     if (pending) return { label: "Working…", accessibilityLabel: `Working on ${name} sign-in` };
     if (signedIn) return { label: "Change account", accessibilityLabel: `Change ${name} account` };
     if (state?.phase === "failed" || state?.phase === "cancelled")
       return { label: "Retry sign-in", accessibilityLabel: `Retry ${name} sign-in` };
+    if (usesCredentials) return { label: "Connect", accessibilityLabel: `Connect to ${name}` };
     return { label: "Sign in", accessibilityLabel: `Sign in to ${name}` };
   }
   function accountDescription() {
@@ -202,6 +206,7 @@ function ProviderAccount({
     if (signedIn) return "Signed in.";
     if (needsExternalSetup) return "Follow the provider’s setup guide to sign in.";
     if (choosingMethod) return "Choose how to sign in below.";
+    if (usesCredentials) return "Connect to load models.";
     return "Not signed in.";
   }
   async function run(command: () => Promise<AtomCommandResult<unknown, unknown>>) {
