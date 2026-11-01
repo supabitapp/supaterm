@@ -21,8 +21,9 @@
     "scripts": {
       // Knip loads its preprocessor through a CLI option; native verification and
       // worktree setup and cleanup (from supaterm.json) run directly, electron-builder
-      // loads the macOS signer by path, and release-desktop.yml runs the desktop launch
-      // check through xvfb-run, which knip does not trace.
+      // loads the macOS signer by path, mobile-showcase.ts runs agent-device's CLI by path,
+      // and release-desktop.yml runs the desktop launch check through xvfb-run, which knip
+      // does not trace.
       "entry": [
         "check-commit-message.ts",
         "clean-worktree.ts",
@@ -35,7 +36,7 @@
         "smoke-desktop-app.ts",
         "verify-windows-desktop-artifact.ts",
       ],
-      "ignoreDependencies": ["esbuild"],
+      "ignoreDependencies": ["agent-device", "esbuild"],
       // The `supaterm` npm package's files: copied into the package, never imported.
       // knip-schemas.test.ts writes a throwaway project to .knip-test-*, which a
       // knip run beside it in check:changed must not report.
