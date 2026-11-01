@@ -1,5 +1,3 @@
-// @effect-diagnostics nodeBuiltinImport:off - Packaging resolves the signing library's default entitlement resource.
-import * as NodeModule from "node:module";
 import * as Plist from "plist";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
@@ -48,12 +46,8 @@ export const prepareMacTouchIdSigning = Effect.fn("prepareMacTouchIdSigning")(fu
     );
     if (authorized) {
       const entitlementsPath = path.join(input.stageAppDir, "entitlements.mac.plist");
-      const defaultEntitlements = yield* fs
-        .readFileString(
-          NodeModule.createRequire(import.meta.url).resolve(
-            "@electron/osx-sign/entitlements/default.darwin.plist",
-          ),
-        )
+      const appEntitlements = yield* fs
+        .readFileString(path.join(input.repoRoot, "apps/desktop/resources/entitlements.mac.plist"))
         .pipe(
           Effect.flatMap((xml) => Effect.try(() => Plist.parse(xml))),
           Effect.flatMap(decodeEntitlements),
@@ -61,13 +55,10 @@ export const prepareMacTouchIdSigning = Effect.fn("prepareMacTouchIdSigning")(fu
       yield* fs.writeFileString(
         entitlementsPath,
         Plist.build({
-          ...defaultEntitlements,
+          ...appEntitlements,
           "com.apple.application-identifier": `${teamId}.${input.appId}`,
           "com.apple.developer.team-identifier": teamId,
           "keychain-access-groups": [keychainGroup],
-          "com.apple.security.cs.allow-jit": true,
-          "com.apple.security.cs.allow-unsigned-executable-memory": true,
-          "com.apple.security.cs.disable-library-validation": true,
         }),
       );
       yield* Effect.log("[desktop-artifact] Touch ID passkeys enabled.");
