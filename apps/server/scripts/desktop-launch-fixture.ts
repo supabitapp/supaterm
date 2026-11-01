@@ -72,6 +72,7 @@ const threadEvents = (input: {
         archivedAt: null,
         doneOverride: null,
         doneAt: null,
+        autoMarkDoneDisabledAt: CREATED_AT,
         lastVisitedAt: null,
         deletedAt: null,
       },
