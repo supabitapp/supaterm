@@ -99,6 +99,11 @@ const SUPATERM_MCP_TOOLS: Readonly<Record<string, SupatermMcpToolDefinition>> = 
     "unlink-pr",
     "pull-request",
   ),
+  unlink_pull_requests: tool(
+    ["Unlink", "Unlinking", "Unlinked", "pull requests by state"],
+    "unlink-pr",
+    "pull-request",
+  ),
   list_thread_pull_requests: tool(
     ["Check", "Checking", "Checked", "linked pull requests"],
     "list-prs",
