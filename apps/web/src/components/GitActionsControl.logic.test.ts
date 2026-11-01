@@ -4,6 +4,7 @@ import { WORKTREE_BRANCH_PREFIX } from "@supaterm/shared/git";
 import { assert, describe, it } from "vite-plus/test";
 import {
   buildMenuItems,
+  hasChangesToReview,
   requiresDefaultBranchConfirmation,
   resolveDefaultBranchActionDialogCopy,
   resolveLiveThreadBranchUpdate,
@@ -157,6 +158,41 @@ describe("when: the ref is on GitLab", () => {
     });
     assert.equal(copy.title, "Push & create MR from default ref?");
     assert.include(copy.description, "create a merge request on");
+  });
+});
+
+describe("hasChangesToReview", () => {
+  const binaryOnly = {
+    files: [{ path: "assets/logo.png", insertions: 0, deletions: 0 }],
+    insertions: 0,
+    deletions: 0,
+  };
+  it.each([
+    { name: "a clean ref level with its base", gitStatus: status(), expected: false },
+    {
+      name: "a binary-only change on the branch",
+      gitStatus: status({
+        aheadOfDefaultCount: 1,
+        branchChanges: { baseRef: "main", insertions: 0, deletions: 0 },
+      }),
+      expected: true,
+    },
+    {
+      name: "a binary-only change in the working tree",
+      gitStatus: status({
+        hasWorkingTreeChanges: true,
+        workingTree: binaryOnly,
+        branchChanges: { baseRef: "main", insertions: 0, deletions: 0 },
+      }),
+      expected: true,
+    },
+    {
+      name: "line changes on the branch",
+      gitStatus: status({ branchChanges: { baseRef: "main", insertions: 2, deletions: 0 } }),
+      expected: true,
+    },
+  ])("$name: $expected", ({ gitStatus, expected }) => {
+    assert.strictEqual(hasChangesToReview(gitStatus), expected);
   });
 });
 

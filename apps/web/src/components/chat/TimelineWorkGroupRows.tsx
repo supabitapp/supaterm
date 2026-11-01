@@ -36,6 +36,8 @@ import type { WorktreeSetupSnapshot, ToolActivityIcon } from "@supaterm/contract
 import { liveThoughtLine } from "@supaterm/client-runtime/work-log/presentation";
 import { resolveWorkGroupScrollAnchor } from "@supaterm/client-runtime/work-log/scroll-anchor";
 import { observeResize } from "~/lib/observeResize";
+import { tickTextContent } from "~/lib/tickTextContent";
+import { formatElapsedSeconds } from "./AgentElapsed";
 import { observeVisibleAnimation } from "../../lib/visibleAnimation";
 import { memo, use, useRef, useEffect, useState, useLayoutEffect, type ReactNode } from "react";
 import { type LegendListRef, LegendList } from "@legendapp/list/react";
@@ -284,12 +286,12 @@ function ExpandedWorkGroupEntries({
 const workEntryKey = (entry: TimelineWorkEntry) => entry.id;
 
 export function WorkingTimelineRow() {
-  const { isCompacting, isPreparingWorktree, backgroundWorktreeSetup } =
+  const { isCompacting, compactionStartedAt, isPreparingWorktree, backgroundWorktreeSetup } =
     use(TimelineRowActivityCtx);
   const label = isPreparingWorktree ? (
     "Setting up worktree…"
   ) : isCompacting ? (
-    <CompactingLabel />
+    <CompactingLabel startedAt={compactionStartedAt} />
   ) : null;
   if (!label && !backgroundWorktreeSetup) return null;
   return (
@@ -348,11 +350,25 @@ function BackgroundWorktreeSetupChip({ snapshot }: { snapshot: WorktreeSetupSnap
   );
 }
 
-function CompactingLabel() {
+function CompactingLabel({ startedAt }: { startedAt: string | null }) {
+  const startedAtMs = startedAt === null ? Number.NaN : Date.parse(startedAt);
   return (
     <span className="inline-flex items-center gap-1.5">
       <ShrinkIcon aria-hidden="true" className="size-3" />
-      Compacting…
+      {Number.isFinite(startedAtMs) ? (
+        <span>
+          Compacting for{" "}
+          <span
+            ref={tickTextContent(
+              (nowMs) => formatElapsedSeconds((nowMs - startedAtMs) / 1000),
+              true,
+            )}
+            className="tabular-nums"
+          />
+        </span>
+      ) : (
+        "Compacting…"
+      )}
     </span>
   );
 }
@@ -361,7 +377,9 @@ export function ThinkingTimelineRow({ row }: { row: Extract<TimelineRow, { kind:
   const ctx = use(TimelineRowCtx);
   const { isCompacting, isPreparingWorktree } = use(TimelineRowActivityCtx);
   if (isPreparingWorktree || isCompacting) return <WorkLogRow label="" />;
-  const activity = <LiveActivityRow label="Thinking" iconName="brain" active shimmer />;
+  const activity = (
+    <LiveActivityRow label="Thinking" iconName="brain" active={row.active} shimmer={row.active} />
+  );
   const { groupId } = row;
   if (groupId === undefined) return activity;
   return (

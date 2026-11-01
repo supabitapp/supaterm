@@ -147,6 +147,27 @@ describe("MessagesTimeline end-follow", () => {
     },
   );
 
+  it("reports footer growth, which the list does not follow on its own", async () => {
+    await using _fixture = await setup();
+    const props = baseProps();
+    const onFooterGrow = vi.fn();
+    const renderFooter = (height: number) =>
+      act(async () =>
+        fixtureScreen.rerender(
+          <MessagesTimeline
+            {...props}
+            timelineEntries={[]}
+            footer={<div style={{ height }} />}
+            onFooterGrow={onFooterGrow}
+          />,
+        ),
+      );
+    await renderFooter(16);
+    await renderFooter(48);
+
+    await vi.waitFor(() => expect(onFooterGrow).toHaveBeenCalledOnce());
+  });
+
   it("holds end-follow off until a disclosure nested in a row settles", async () => {
     await using _fixture = await setup();
 

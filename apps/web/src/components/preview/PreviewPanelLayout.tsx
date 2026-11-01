@@ -44,10 +44,12 @@ export function PreviewPanelGroup({
 
 /** The column beside an inline preview panel; it yields the row while the panel is maximized. */
 export function PreviewPanelSibling(props: ComponentProps<typeof ResizablePanel>) {
+  const maximized = use(MaximizedContext);
   return (
     <ResizablePanel
       data-preview-panel-sibling=""
       id="preview-panel-sibling"
+      inert={maximized}
       minSize={PREVIEW_PANEL_SIBLING_MIN_WIDTH}
       {...props}
     />

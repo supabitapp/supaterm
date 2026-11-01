@@ -4,6 +4,7 @@ import { Platform, View } from "react-native";
 
 import type { AppBarProps } from "../../../components/ui/AppBar.types";
 import { AppBar } from "../../../components/ui/AppBar";
+import { ScreenScrollViewSurface } from "../../../components/ui/ScreenScrollView";
 import { ScreenContent as SettingsScreenContent } from "../../../components/ui/ScreenContent";
 
 export { SettingsScreenContent };
@@ -26,11 +27,13 @@ export function SettingsScreen(
         onBack={() => navigation.goBack()}
         hideBottomBorder={!props.formSheet}
       />
-      {props.formSheet ? (
-        props.children
-      ) : (
-        <SettingsScreenContent>{props.children}</SettingsScreenContent>
-      )}
+      <ScreenScrollViewSurface value="bg-sheet">
+        {props.formSheet ? (
+          props.children
+        ) : (
+          <SettingsScreenContent>{props.children}</SettingsScreenContent>
+        )}
+      </ScreenScrollViewSurface>
     </View>
   );
 }

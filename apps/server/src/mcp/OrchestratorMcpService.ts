@@ -1125,6 +1125,22 @@ const make = Effect.gen(function* () {
         ),
       );
 
+  // Task waits read on every wake of a parent that may hold thousands of
+  // tasks, so they read only the task they watch and what its status needs.
+  const loadTaskParent = (threadId: ThreadId, taskId: NodeId) =>
+    threadManagement
+      .getThreadRecords(threadId, ["runs", "subagents", "contextTransfers"], {
+        subagentIds: [taskId],
+      })
+      .pipe(
+        Effect.mapError((error) =>
+          failure(
+            "orchestration_error",
+            `Unable to read thread ${threadId}: ${errorMessage(error)}`,
+          ),
+        ),
+      );
+
   const loadProjectThread = (
     projectId: OrchestrationV2ThreadProjection["thread"]["projectId"],
     threadId: ThreadId,
@@ -1490,7 +1506,7 @@ const make = Effect.gen(function* () {
     acknowledgementOperation = "task-status-acknowledge",
   ): Effect.fn.Return<OrchestratorMcpDelegateTaskResult, OrchestratorMcpFailure> {
     yield* requireCapability(scope);
-    const parentProjection = yield* loadProjection(scope.thread.threadId);
+    const parentProjection = yield* loadTaskParent(scope.thread.threadId, taskId);
     const task = parentProjection.subagents.find(
       (candidate) =>
         candidate.id === taskId &&

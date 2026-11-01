@@ -3,7 +3,7 @@ import { isOrchestrationV2WorkActive } from "@supaterm/contracts";
 import { deriveSubagentElapsedMs } from "@supaterm/shared/orchestrationTiming";
 import { tickTextContent } from "~/lib/tickTextContent";
 
-function formatElapsedSeconds(totalSeconds: number): string {
+export function formatElapsedSeconds(totalSeconds: number): string {
   const seconds = Math.max(0, Math.floor(totalSeconds));
   const minutes = Math.floor(seconds / 60);
   if (minutes === 0) {

@@ -23,6 +23,8 @@ export interface ComposerBannerStackItem {
   readonly actions?: ReactNode;
   readonly dismissLabel?: string;
   readonly onDismiss?: () => void;
+  /** Announced assertively although not a warning, because it needs the user. */
+  readonly announce?: boolean;
 }
 
 export type ComposerBannerStackContent = Pick<
@@ -470,7 +472,11 @@ function ComposerBannerStackAlert({
   }
   return (
     <ComposerBanner.Root
-      role="alert"
+      role={
+        item.announce || item.variant === "error" || item.variant === "warning"
+          ? "alert"
+          : undefined
+      }
       placement={attached ? "attached" : "floating"}
       variant={item.variant}
       density="comfortable"
@@ -486,14 +492,22 @@ function ComposerBannerStackAlert({
           </ComposerBanner.Icon>
           <ComposerBanner.Content className="whitespace-nowrap">
             <NoticeText
-              detailsLabel="Show title details"
+              detailsLabel={
+                typeof item.title === "string"
+                  ? `Show full title: ${item.title}`
+                  : "Show title details"
+              }
               className="min-w-0 truncate font-medium leading-7 sm:leading-6"
             >
               {item.title}
             </NoticeText>
             {item.description ? (
               <NoticeText
-                detailsLabel="Show notice details"
+                detailsLabel={
+                  typeof item.title === "string"
+                    ? `Show details: ${item.title}`
+                    : "Show notice details"
+                }
                 className="w-0 min-w-0 grow truncate text-muted-foreground @max-[400px]:sr-only"
               >
                 {item.description}

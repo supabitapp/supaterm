@@ -11,6 +11,7 @@ import Constants from "expo-constants";
 import { useRef, useState } from "react";
 
 import { authClientMetadata } from "../../lib/authClientMetadata";
+import { rootNavigationRef } from "../../lib/rootNavigation";
 import { uuidv4 } from "../../lib/uuid";
 import { projectEnvironment } from "../../state/projects";
 import { serverEnvironment } from "../../state/server";
@@ -23,6 +24,11 @@ import {
 import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
 
 const CLI_COMMAND = "npx supaterm triage";
+
+function activeRootRoute() {
+  const state = rootNavigationRef.getRootState();
+  return state?.routes[state.index];
+}
 
 /**
  * In-app `supaterm triage`, as on web: the server writes the session files and
@@ -37,6 +43,7 @@ export function useStartTriage() {
   const [isPending, setIsPending] = useState(false);
 
   const openTriageDraft = async (environmentId: EnvironmentId) => {
+    const startRoute = activeRootRoute();
     const scratch = await openScratch({ environmentId, input: {} });
     if (scratch._tag === "Failure") return scratch;
     const prepared = await prepare({
@@ -46,8 +53,16 @@ export function useStartTriage() {
     if (prepared._tag === "Failure") return prepared;
     const opened = await settlePromise(async () => {
       await waitForComposerDraftsLoaded();
-      // The user went elsewhere while this waited; leave them there.
-      if (!navigation.isFocused()) return;
+      const route = activeRootRoute();
+      // The user went elsewhere while this waited; leave them there. Split view
+      // selects another thread by changing the route's params, not its key.
+      if (
+        !navigation.isFocused() ||
+        route?.key !== startRoute?.key ||
+        route?.params !== startRoute?.params
+      ) {
+        return;
+      }
       const draftId = createNewTaskDraft({ environmentId, projectId: scratch.value.id });
       setComposerDraftText(draftId, prepared.value.prompt);
       selectThreadRoute({

@@ -43,6 +43,7 @@ export const ComposerPendingApprovalActions = memo(function ComposerPendingAppro
   const moreOptions = options.filter(
     (option) => option.decision !== "decline" && option.decision !== "accept",
   );
+  const unavailable = disabled || isResponding || !canRespond;
 
   return (
     <>
@@ -52,10 +53,10 @@ export const ComposerPendingApprovalActions = memo(function ComposerPendingAppro
             key={option.decision}
             size="xs"
             variant={option.decision === "accept" ? "default" : "outline"}
-            disabled={disabled || isResponding || !canRespond}
+            disabled={unavailable}
             aria-description={option.warning}
             onClick={() => {
-              if (!disabled && !isResponding) {
+              if (!unavailable) {
                 void onRespondToApproval(requestId, option.decision);
               }
             }}
@@ -76,7 +77,7 @@ export const ComposerPendingApprovalActions = memo(function ComposerPendingAppro
       {moreOptions.length > 0 ? (
         <Menu>
           <MenuTrigger
-            disabled={disabled || isResponding}
+            disabled={unavailable}
             render={<Button size="icon-xs" variant="outline" aria-label="More approval options" />}
           >
             <EllipsisIcon />
@@ -86,11 +87,10 @@ export const ComposerPendingApprovalActions = memo(function ComposerPendingAppro
               const item = (
                 <MenuItem
                   key={option.decision}
-                  disabled={disabled || isResponding}
+                  disabled={unavailable}
                   aria-description={option.warning}
                   onClick={() => {
-                    if (!disabled && !isResponding)
-                      void onRespondToApproval(requestId, option.decision);
+                    if (!unavailable) void onRespondToApproval(requestId, option.decision);
                   }}
                 >
                   {option.warning ? <TriangleAlertIcon className="size-3 text-warning" /> : null}

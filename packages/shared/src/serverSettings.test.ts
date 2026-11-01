@@ -914,6 +914,22 @@ describe("worktreesDirectory", () => {
 });
 
 describe("synchronized model preferences", () => {
+  it("supports provider identifiers that match inherited object keys", () => {
+    const hiddenProvider = ProviderInstanceId.make("toString");
+    const orderedProvider = ProviderInstanceId.make("constructor");
+    const next = applyServerSettingsPatch(DEFAULT_SERVER_SETTINGS, {
+      setModelsHidden: [{ provider: hiddenProvider, model: "example", hidden: true }],
+      setProviderModelOrder: { provider: orderedProvider, modelOrder: ["example"] },
+    });
+    expect(next.providerModelPreferences[hiddenProvider]).toEqual({
+      hiddenModels: ["example"],
+      modelOrder: [],
+    });
+    expect(next.providerModelPreferences[orderedProvider]).toEqual({
+      hiddenModels: [],
+      modelOrder: ["example"],
+    });
+  });
   const provider = ProviderInstanceId.make("codex_work");
   const saved = {
     favorites: [{ provider, model: "sol" }],
@@ -927,6 +943,7 @@ describe("synchronized model preferences", () => {
     const remove = { setModelFavorites: [{ provider, model: "sol", favorite: false }] };
     const removed = applyServerSettingsPatch(first, remove);
     expect(applyServerSettingsPatch(removed, remove).favorites).toEqual([]);
+    expect(first.favorites).toEqual([{ provider, model: "sol" }]);
   });
 
   it("preserves unrelated models and providers during bulk visibility and order edits", () => {
@@ -947,6 +964,9 @@ describe("synchronized model preferences", () => {
       ],
       setProviderModelOrder: { provider, modelOrder: ["sol", "luna", "astra"] },
     });
+    expect(initial.providerModelPreferences?.[provider]).toEqual(
+      saved.providerModelPreferences[provider],
+    );
     expect(web.providerModelPreferences?.[provider]).toEqual({
       hiddenModels: ["luna", "sol"],
       modelOrder: ["sol", "luna", "astra"],

@@ -168,7 +168,11 @@ function SelectRow(props: {
   const value = (
     <View className="min-w-0 flex-1 flex-row items-center justify-end gap-2">
       {props.valueIcon}
-      <Text className="shrink text-right text-base text-foreground-muted" numberOfLines={1}>
+      <Text
+        textRole="footnote"
+        className="shrink text-right text-foreground-muted"
+        numberOfLines={1}
+      >
         {props.value}
       </Text>
     </View>
@@ -182,7 +186,9 @@ function SelectRow(props: {
             : "min-h-14 flex-row items-center gap-3 px-4 py-3"
         }
       >
-        <Text className="text-lg text-foreground">{props.label}</Text>
+        <Text textRole="body" className="text-foreground">
+          {props.label}
+        </Text>
         {value}
       </View>
     );
@@ -201,7 +207,9 @@ function SelectRow(props: {
             : "min-h-14 flex-row items-center gap-3 px-4 py-3 active:opacity-70"
         }
       >
-        <Text className="text-lg text-foreground">{props.label}</Text>
+        <Text textRole="body" className="text-foreground">
+          {props.label}
+        </Text>
         {value}
         <SymbolView
           name="chevron.down"
@@ -234,8 +242,14 @@ function PickerRow(props: {
           : "min-h-14 flex-row items-center gap-3 px-4 py-3 active:opacity-70 disabled:opacity-50"
       }
     >
-      <Text className="text-lg text-foreground">{props.label}</Text>
-      <Text className="min-w-0 flex-1 text-right text-base text-foreground-muted" numberOfLines={1}>
+      <Text textRole="body" className="text-foreground">
+        {props.label}
+      </Text>
+      <Text
+        textRole="footnote"
+        className="min-w-0 flex-1 text-right text-foreground-muted"
+        numberOfLines={1}
+      >
         {props.value}
       </Text>
       <SymbolView
@@ -834,8 +848,13 @@ function TaskForm({
                 onPress={() => setTimePickerOpen((open) => !open)}
                 className="min-h-14 flex-row items-center gap-3 border-t border-border-subtle px-4 py-3 active:opacity-70"
               >
-                <Text className="text-lg text-foreground">Time</Text>
-                <Text className="min-w-0 flex-1 text-right text-base text-foreground-muted">
+                <Text textRole="body" className="text-foreground">
+                  Time
+                </Text>
+                <Text
+                  textRole="footnote"
+                  className="min-w-0 flex-1 text-right text-foreground-muted"
+                >
                   {formatTime(draft.schedule.timeOfDay)}
                 </Text>
                 <SymbolView
@@ -924,7 +943,9 @@ function TaskForm({
             </>
           )}
           <View className="min-h-14 flex-row items-center gap-3 border-t border-border-subtle px-4 py-3">
-            <Text className="min-w-0 flex-1 text-lg text-foreground">Enabled</Text>
+            <Text textRole="body" className="min-w-0 flex-1 text-foreground">
+              Enabled
+            </Text>
             <ThemedSwitch
               accessibilityLabel="Task enabled"
               value={draft.enabled}
@@ -1025,8 +1046,8 @@ function EnvironmentTasks({
                 key={task.id}
                 className={
                   index === 0
-                    ? "flex-row items-start gap-1 px-4 py-4"
-                    : "flex-row items-start gap-1 border-t border-border-subtle px-4 py-4"
+                    ? "flex-row items-start gap-1 px-4 py-3"
+                    : "flex-row items-start gap-1 border-t border-border-subtle px-4 py-3"
                 }
                 entering={FadeIn.duration(140)}
                 exiting={FadeOut.duration(120)}
@@ -1040,7 +1061,7 @@ function EnvironmentTasks({
                   }}
                   className="min-w-0 flex-1 gap-1 active:opacity-70"
                 >
-                  <Text className="text-lg font-supaterm-medium text-foreground" numberOfLines={1}>
+                  <Text textRole="body" className="text-foreground" numberOfLines={1}>
                     {task.title}
                   </Text>
                   <Text className="text-sm text-foreground-muted" numberOfLines={2}>

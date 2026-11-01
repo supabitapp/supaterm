@@ -1259,7 +1259,9 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                       Connecting
                     </span>
                   ) : variantAction === "unsnooze" && props.snoozeWakeLabelText !== null ? (
-                    <span className="text-xs tabular-nums">{props.snoozeWakeLabelText}</span>
+                    <span className="text-xs text-info-foreground tabular-nums">
+                      {props.snoozeWakeLabelText}
+                    </span>
                   ) : isWoke ? (
                     // A wake can land straight in the done tail (e.g. PR
                     // merged while snoozed); the signal must survive the trip.
@@ -1520,11 +1522,11 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
             ) : null}
             <div className="mt-0.5 flex h-4 min-w-0 items-center gap-1.5 text-xs text-secondary-label">
               {thread.branch ? (
-                <span className="flex min-w-0 flex-1 text-muted-foreground/60">
+                <span className="flex min-w-0 flex-1">
                   <MiddleTruncate value={thread.branch} showTitle={false} />
                 </span>
               ) : (
-                <span className="min-w-0 flex-1 truncate text-muted-foreground/60">
+                <span className="min-w-0 flex-1 truncate">
                   {showsScratchMachine ? props.scratchMachineLabel : props.projectDisplayName}
                 </span>
               )}

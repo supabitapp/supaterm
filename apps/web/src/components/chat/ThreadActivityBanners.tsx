@@ -41,6 +41,7 @@ export function childInputBannerItem(input: {
     id: `child-input:${first.id}`,
     variant: "info",
     priority: "activity",
+    announce: true,
     icon: first.hasPendingApprovals ? <ShieldAlertIcon /> : <MessageCircleIcon />,
     title: childThreadInputsTitle(childThreadInputs),
     description: childThreadInputs.map((child, index) => (

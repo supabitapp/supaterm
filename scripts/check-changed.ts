@@ -284,10 +284,50 @@ const runPatchCheck = files.some(
     NodePath.basename(file) === "package.json",
 );
 
+// Output is piped, so keep the colors a terminal would get.
+const env = process.stdout.isTTY ? { ...process.env, FORCE_COLOR: "1" } : process.env;
+type Outcome = "pass" | "FAIL" | "TIMEOUT";
+type StepResult = { readonly outcome: Outcome; readonly output: Buffer };
+// Its own process group, so a timeout kills every process the step started.
+const spawnStep = (command: string, args: ReadonlyArray<string>, cwd: string, deadline: number) =>
+  new Promise<StepResult>((resolve) => {
+    const output: Array<Buffer> = [];
+    const child = NodeChildProcess.spawn(command, args, { cwd, env, detached: true });
+    const timer = setTimeout(
+      () => {
+        try {
+          // Windows rejects process-group signals; taskkill /T reaps the tree.
+          // oxlint-disable-next-line supaterm/no-global-process-runtime -- This script runs without an Effect runtime.
+          if (NodeOS.platform() === "win32") {
+            NodeChildProcess.spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
+              stdio: "ignore",
+            });
+          } else if (child.pid !== undefined) process.kill(-child.pid, "SIGKILL");
+        } catch {
+          child.kill("SIGKILL");
+        }
+        // A surviving descendant can hold the pipes open, so "close" may never come.
+        child.stdout.destroy();
+        child.stderr.destroy();
+        child.unref();
+        resolve({ outcome: "TIMEOUT", output: Buffer.alloc(0) });
+      },
+      Math.max(0, deadline - performance.now()),
+    );
+    child.stdout.on("data", (chunk: Buffer) => output.push(chunk));
+    child.stderr.on("data", (chunk: Buffer) => output.push(chunk));
+    // A failed spawn emits "error", then "close" with a nonzero code.
+    child.on("error", (error) => output.push(Buffer.from(`${error.message}\n`)));
+    child.on("close", (status) => {
+      clearTimeout(timer);
+      resolve({ outcome: status === 0 ? "pass" : "FAIL", output: Buffer.concat(output) });
+    });
+  });
+
 // Resolve without the lockfile in a temp copy to preserve the working tree and lockfile.
 // Copy mobile modules too: they are file: dependencies, not workspace packages.
 // Cached registry metadata limits this to patches stranded by local changes, not registry drift.
-const checkPatches = (): boolean => {
+const checkPatches = async (deadline: number): Promise<StepResult> => {
   const temp = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "supaterm-patch-check-"));
   try {
     const copy = (relative: string) => {
@@ -308,24 +348,21 @@ const checkPatches = (): boolean => {
     for (const extra of ["apps/mobile/deps", "patches", ".pnpmfile.cjs"]) {
       if (NodeFS.existsSync(NodePath.join(root, extra))) copy(extra);
     }
-    const { status, stdout, stderr, error } = NodeChildProcess.spawnSync(
+    const result = await spawnStep(
       "vp",
       ["install", "--lockfile-only", "--ignore-scripts"],
-      { cwd: temp, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
+      temp,
+      deadline,
     );
-    if (status === 0) return true;
-    if (stdout) console.log(stdout);
-    if (stderr) console.error(stderr);
-    if (error) console.error(error.message);
-    if (`${stdout ?? ""}${stderr ?? ""}`.includes("ERR_PNPM_UNUSED_PATCH")) {
-      console.error(
-        "Unused dependency patches: remove each patch named above from " +
-          "patchedDependencies in pnpm-workspace.yaml and from patches/, " +
-          "update it to the version the install resolves, " +
-          "or pin the dependency that pulls it in to the patched version.",
-      );
+    if (result.outcome !== "FAIL" || !result.output.includes("ERR_PNPM_UNUSED_PATCH")) {
+      return result;
     }
-    return false;
+    const hint =
+      "Unused dependency patches: remove each patch named above from " +
+      "patchedDependencies in pnpm-workspace.yaml and from patches/, " +
+      "update it to the version the install resolves, " +
+      "or pin the dependency that pulls it in to the patched version.\n";
+    return { outcome: "FAIL", output: Buffer.concat([result.output, Buffer.from(hint)]) };
   } finally {
     NodeFS.rmSync(temp, { recursive: true, force: true });
   }
@@ -386,57 +423,26 @@ const steps = [
   compilerCoverage,
 ].filter((step) => step !== false);
 
-// Output is piped, so keep the colors a terminal would get.
-const env = process.stdout.isTTY ? { ...process.env, FORCE_COLOR: "1" } : process.env;
-type Outcome = "pass" | "FAIL" | "TIMEOUT";
-const runStep = (step: (typeof steps)[number]) =>
-  new Promise<{ name: string; outcome: Outcome; time: string }>((resolve) => {
-    const started = performance.now();
-    const finish = (outcome: Outcome, output?: Buffer) => {
-      const time =
-        outcome === "TIMEOUT"
-          ? `killed after ${timeoutSeconds}s`
-          : `${((performance.now() - started) / 1000).toFixed(1)}s`;
-      console.log(`\n> vp ${step.name}  ${outcome}  ${time}`);
-      if (output) process.stdout.write(output);
-      resolve({ name: step.name, outcome, time });
-    };
-    // In-process steps print their own output. The patch check is first and
-    // takes about a second, so the commands start right after it.
-    if ("run" in step) return finish(step.run() ? "pass" : "FAIL");
-    const output: Array<Buffer> = [];
-    const command = "command" in step && step.command ? step.command : "vp";
-    // Its own process group, so a timeout kills every process the step started.
-    const child = NodeChildProcess.spawn(command, step.args, { cwd: root, env, detached: true });
-    let timedOut = false;
-    const timer = setTimeout(() => {
-      timedOut = true;
-      try {
-        // Windows rejects process-group signals; taskkill /T reaps the tree.
-        // oxlint-disable-next-line supaterm/no-global-process-runtime -- This script runs without an Effect runtime.
-        if (NodeOS.platform() === "win32") {
-          NodeChildProcess.spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
-            stdio: "ignore",
-          });
-        } else if (child.pid !== undefined) process.kill(-child.pid, "SIGKILL");
-      } catch {
-        child.kill("SIGKILL");
-      }
-      // A surviving descendant can hold the pipes open, so "close" may never come.
-      child.stdout.destroy();
-      child.stderr.destroy();
-      child.unref();
-      finish("TIMEOUT");
-    }, timeoutSeconds * 1000);
-    child.stdout.on("data", (chunk: Buffer) => output.push(chunk));
-    child.stderr.on("data", (chunk: Buffer) => output.push(chunk));
-    // A failed spawn emits "error", then "close" with a nonzero code.
-    child.on("error", (error) => output.push(Buffer.from(`${error.message}\n`)));
-    child.on("close", (status) => {
-      clearTimeout(timer);
-      if (!timedOut) finish(status === 0 ? "pass" : "FAIL", Buffer.concat(output));
-    });
-  });
+const runStep = async (step: (typeof steps)[number]) => {
+  const started = performance.now();
+  const deadline = started + timeoutSeconds * 1000;
+  const { outcome, output } =
+    "run" in step
+      ? await step.run(deadline)
+      : await spawnStep(
+          "command" in step && step.command ? step.command : "vp",
+          step.args,
+          root,
+          deadline,
+        );
+  const time =
+    outcome === "TIMEOUT"
+      ? `killed after ${timeoutSeconds}s`
+      : `${((performance.now() - started) / 1000).toFixed(1)}s`;
+  console.log(`\n> vp ${step.name}  ${outcome}  ${time}`);
+  if (output.length > 0) process.stdout.write(output);
+  return { name: step.name, outcome, time };
+};
 
 // Steps claim budget in order, so a light step cannot take free slots ahead of
 // a waiting heavier one, which would delay typecheck.
