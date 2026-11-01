@@ -61,6 +61,7 @@ import {
   formatReadToolLabel,
   formatSearchToolLabel,
 } from "@supaterm/shared/toolActivity";
+import { claudeResumeCompactionAge } from "@supaterm/shared/claudeCompaction";
 import { formatDuration } from "@supaterm/shared/orchestrationTiming";
 import { truncate } from "@supaterm/shared/String";
 import type { HtmlRenderReference } from "@supaterm/shared/htmlRender";
@@ -324,6 +325,34 @@ export function isContextCompactionActivityGroup(entry: ThreadFeedActivityGroup)
   return (
     entry.activities.length === 1 && entry.activities[0]?.projectedItem.item.type === "compaction"
   );
+}
+
+/** Titles for compactions an answered "compact before continuing?" question asked for. */
+export function threadFeedCompactionTitles(feed: ReadonlyArray<ThreadFeedEntry>) {
+  const titlesByEntryId = new Map<string, string>();
+  const pendingResumeAgeByRunId = new Map<RunId, string>();
+  for (const entry of feed) {
+    if (entry.type !== "activity-group" || entry.runId === null) continue;
+    if (isContextCompactionActivityGroup(entry)) {
+      const age = pendingResumeAgeByRunId.get(entry.runId);
+      if (age !== undefined) titlesByEntryId.set(entry.id, `Context compacted after ${age} idle`);
+      pendingResumeAgeByRunId.delete(entry.runId);
+    }
+    for (const activity of entry.activities) {
+      const age = activity.workEntry.questionAnswer
+        ? claudeResumeCompactionAge(activity.workEntry.questionAnswer)
+        : null;
+      if (age !== null) pendingResumeAgeByRunId.set(entry.runId, age);
+    }
+  }
+  return titlesByEntryId;
+}
+
+function isResumeCompactionAnswerGroup(entry: ThreadFeedActivityGroup): boolean {
+  return entry.activities.every((activity) => {
+    const answer = activity.workEntry.questionAnswer;
+    return answer !== undefined && claudeResumeCompactionAge(answer) !== null;
+  });
 }
 
 export function isContextHandoffActivityGroup(entry: ThreadFeedActivityGroup): boolean {
@@ -1321,7 +1350,8 @@ export function deriveThreadFeedPresentation(
   const activeTailGroup = sourceFeed.at(-1);
   const activeRunId = unsettledRunId(latestRun);
   // A bare `/compact` turn is the compaction itself: its compaction row stands in for the prompt
-  // and the live activity row.
+  // and the live activity row. An answered "compact before continuing?" question folds into the
+  // compaction it asked for.
   const compactionCommandRunIds = new Set<RunId>();
   const compactionItemRunIds = new Set<RunId>();
   for (const entry of feed) {
@@ -1396,10 +1426,14 @@ export function deriveThreadFeedPresentation(
       result.push(row);
     }
     if (
-      entry.type === "message" &&
-      entry.message.runId !== null &&
-      compactionItemRunIds.has(entry.message.runId) &&
-      isCompactionCommandMessage(entry.message)
+      (entry.type === "message" &&
+        entry.message.runId !== null &&
+        compactionItemRunIds.has(entry.message.runId) &&
+        isCompactionCommandMessage(entry.message)) ||
+      (entry.type === "activity-group" &&
+        entry.runId !== null &&
+        compactionItemRunIds.has(entry.runId) &&
+        isResumeCompactionAnswerGroup(entry))
     ) {
       continue;
     }

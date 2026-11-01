@@ -36,6 +36,7 @@ import {
   deriveThreadFeedPresentation,
   messageFoldRunId,
   threadFeedActivityIsVisible,
+  threadFeedCompactionTitles,
   type ThreadFeedActivity,
   type ThreadFeedCache,
   type ThreadFeedEntry,
@@ -295,6 +296,71 @@ it("keeps the interrupted row for a compaction stopped before its provider start
         : [],
     ),
   ).toContain("run_interrupt_result");
+});
+
+it("folds a persisted resume answer into the next compaction in its run", () => {
+  const requestId = RuntimeRequestId.make("resume-compaction");
+  const question = projected(
+    {
+      ...base("resume-question", "2026-06-20T00:00:02.000Z", 1),
+      type: "user_input_request",
+      requestId,
+      questions: [],
+      questionAnswer: {
+        requestId,
+        questionTextById: {
+          resume:
+            "This session is 2h 10m old and uses 200,000 tokens. Compact it before continuing?",
+        },
+        answers: { resume: "Compact and continue" },
+        attachmentsByQuestionId: {},
+      },
+    },
+    1,
+  );
+  const compaction = (id: string, position: number, status: "running" | "completed") =>
+    projected(
+      {
+        ...base(id, `2026-06-20T00:00:0${position + 1}.000Z`, position),
+        type: "compaction",
+        driver: ProviderDriverKind.make("claude"),
+        status,
+        beforeTokenCount: 200_000,
+      },
+      position,
+    );
+  const latestRun = {
+    runId,
+    status: "completed" as const,
+    startedAt: "2026-06-20T00:00:01.000Z",
+    completedAt: "2026-06-20T00:00:05.000Z",
+  };
+  for (const status of ["running", "completed"] as const) {
+    // Rebuild from persisted items, without a live question or prior feed cache.
+    const feed = buildThreadFeed([
+      projected(userMessage(), 0),
+      question,
+      compaction("resume-compact", 2, "completed"),
+      compaction("auto-compact", 3, status),
+    ]);
+    const titles = threadFeedCompactionTitles(feed);
+    const compactRows = feed.filter(
+      (entry) =>
+        entry.type === "activity-group" &&
+        entry.activities[0]?.projectedItem.item.type === "compaction",
+    );
+    expect(compactRows).toHaveLength(2);
+    expect(titles.get(compactRows[0]!.id)).toBe("Context compacted after 2h 10m idle");
+    expect(titles.get(compactRows[1]!.id)).toBeUndefined();
+    const presented = deriveThreadFeedPresentation(feed, latestRun, new Set());
+    expect(
+      presented.flatMap((entry) =>
+        entry.type === "activity-group"
+          ? entry.activities.map((activity) => activity.projectedItem.item.type)
+          : [],
+      ),
+    ).not.toContain("user_input_request");
+  }
 });
 
 it.each(["/compact", "Continue"])(
