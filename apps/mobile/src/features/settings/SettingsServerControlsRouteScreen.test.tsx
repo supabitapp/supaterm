@@ -139,11 +139,19 @@ vi.mock("./settings-environment-filter", () => ({
 }));
 
 import {
+  SettingsEnvironmentMaintenanceRouteScreen,
   SettingsThreadsRouteScreen,
   SettingsWorktreesRouteScreen,
 } from "./SettingsServerControlsRouteScreen";
 
-function environment(environmentId: string, label: string) {
+function environment(
+  environmentId: string,
+  label: string,
+  server: {
+    readonly capabilities?: { readonly telemetrySetting?: boolean };
+    readonly telemetryEnabledByEnvironment?: boolean;
+  } = {},
+) {
   return {
     environmentId,
     label,
@@ -155,8 +163,12 @@ function environment(environmentId: string, label: string) {
         sidebarAutoMarkDoneOnMerge: false,
       },
       environment: {
-        capabilities: {},
+        capabilities: server.capabilities ?? {},
       },
+      observability:
+        server.telemetryEnabledByEnvironment === undefined
+          ? {}
+          : { telemetryEnabledByEnvironment: server.telemetryEnabledByEnvironment },
     },
   };
 }
@@ -179,6 +191,11 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
 });
+
+const switchLabeled = (label: string) =>
+  [...container.querySelectorAll<HTMLButtonElement>('[role="switch"]')].find(
+    (button) => button.textContent === label,
+  );
 
 describe("SettingsServerControlsRouteScreen", () => {
   it("sends a draft saved during a pending write once that write settles", async () => {
@@ -218,6 +235,34 @@ describe("SettingsServerControlsRouteScreen", () => {
     // Both rewrite the whole project override, so a second write planned now would drop the first.
     expect(mocks.updateSettings).toHaveBeenCalledOnce();
     await act(async () => pending.resolve(AsyncResult.success(undefined)));
+  });
+
+  it("turns product usage data off on servers that read the setting", () => {
+    mocks.targets = [environment("local", "Local", { capabilities: { telemetrySetting: true } })];
+    act(() => root.render(<SettingsEnvironmentMaintenanceRouteScreen />));
+
+    act(() => switchLabeled("Product usage data")!.click());
+
+    expect(mocks.updateSettings).toHaveBeenCalledWith({
+      environmentId: "local",
+      input: { patch: { telemetryEnabled: false } },
+    });
+  });
+
+  it("hides product usage data on older servers and locks it where the variable decides", () => {
+    act(() => root.render(<SettingsEnvironmentMaintenanceRouteScreen />));
+    expect(switchLabeled("Product usage data")).toBeUndefined();
+
+    mocks.targets = [
+      environment("local", "Local", {
+        capabilities: { telemetrySetting: true },
+        telemetryEnabledByEnvironment: false,
+      }),
+    ];
+    act(() => root.render(<SettingsEnvironmentMaintenanceRouteScreen key="locked" />));
+    const locked = switchLabeled("Product usage data")!;
+    expect(locked.disabled).toBe(true);
+    expect(locked.getAttribute("aria-checked")).toBe("false");
   });
 
   it("disables auto-mark-done when a selected environment cannot save settings", () => {

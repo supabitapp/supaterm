@@ -33,7 +33,7 @@ import { ListChoiceRow as SettingsChoiceRow } from "../../components/ui/ListChoi
 import { SettingsSection } from "./components/SettingsSection";
 import { SettingsSwitchRow } from "./components/SettingsSwitchRow";
 import { SettingsProjectOverridesSection } from "./components/SettingsProjectOverridesSection";
-import { useSettingsEnvironmentFilter } from "./settings-environment-filter";
+import { type SettingsTarget, useSettingsEnvironmentFilter } from "./settings-environment-filter";
 import { useSettingsWriter } from "./useSettingsWriter";
 import {
   planMobileScopedSettingsClear,
@@ -234,16 +234,6 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
       setPendingWrites((count) => count - 1);
     });
   };
-  // Older servers ignore the setting, so a switch there would claim an opt-out that never happens.
-  const telemetrySettingSupported = selectedTargets.every(
-    (target) => target.serverConfig.environment.capabilities.telemetrySetting === true,
-  );
-  const telemetryOverrides = selectedTargets.flatMap((target) => {
-    const value = target.serverConfig.observability.telemetryEnabledByEnvironment;
-    return value === undefined ? [] : [{ label: target.label, value }];
-  });
-  const telemetryLockedEverywhere =
-    selectedTargets.length > 0 && telemetryOverrides.length === selectedTargets.length;
   const disabled = !canWriteSettings || pendingWrites > 0 || !hasConnectedSelection;
   const disabledFor = (key: string) =>
     disabled ||
@@ -522,33 +512,13 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
                       />
                     </View>
                   </SettingsSection>
-                  {telemetrySettingSupported ? (
-                    <SettingsSection title="Privacy">
-                      <SettingsSwitchRow
-                        icon="chart.bar.xaxis"
-                        label="Product usage data"
-                        subtitle={
-                          projectSelected
-                            ? "Environment-wide setting. Select All projects to change it."
-                            : telemetryOverrides.length > 0
-                              ? telemetryOverrides
-                                  .map(
-                                    ({ label, value }) =>
-                                      `Set by SUPATERM_TELEMETRY_ENABLED=${value} on ${label}.`,
-                                  )
-                                  .join(" ")
-                              : "Send product usage events from this environment. They never include prompts, responses, or file contents."
-                        }
-                        value={
-                          telemetryLockedEverywhere
-                            ? telemetryOverrides.every(({ value }) => value)
-                            : uniform("telemetryEnabled")
-                        }
-                        disabled={telemetryLockedEverywhere || disabledFor("telemetryEnabled")}
-                        onValueChange={(value) => write({ telemetryEnabled: value })}
-                      />
-                    </SettingsSection>
-                  ) : null}
+                  <ProductUsageDataSection
+                    targets={selectedTargets}
+                    projectSelected={projectSelected}
+                    value={uniform("telemetryEnabled")}
+                    disabled={disabledFor("telemetryEnabled")}
+                    onValueChange={(value) => write({ telemetryEnabled: value })}
+                  />
                 </>
               ) : null}
             </>
@@ -556,6 +526,50 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
         </ScrollView>
       </SettingsScreen>
     </>
+  );
+}
+
+function ProductUsageDataSection(props: {
+  readonly targets: readonly SettingsTarget[];
+  readonly projectSelected: boolean;
+  readonly value: boolean | null;
+  readonly disabled: boolean;
+  readonly onValueChange: (value: boolean) => void;
+}) {
+  // Older servers ignore the setting, so a switch there would claim an opt-out that never happens.
+  if (
+    !props.targets.every(
+      (target) => target.serverConfig.environment.capabilities.telemetrySetting === true,
+    )
+  ) {
+    return null;
+  }
+  const overrides = props.targets.flatMap((target) => {
+    const value = target.serverConfig.observability.telemetryEnabledByEnvironment;
+    return value === undefined ? [] : [{ label: target.label, value }];
+  });
+  const lockedEverywhere = props.targets.length > 0 && overrides.length === props.targets.length;
+  return (
+    <SettingsSection title="Privacy">
+      <SettingsSwitchRow
+        icon="chart.bar.xaxis"
+        label="Product usage data"
+        subtitle={
+          props.projectSelected
+            ? "Environment-wide setting. Select All projects to change it."
+            : overrides.length > 0
+              ? overrides
+                  .map(
+                    ({ label, value }) => `Set by SUPATERM_TELEMETRY_ENABLED=${value} on ${label}.`,
+                  )
+                  .join(" ")
+              : "Send product usage events from this environment. They never include prompts, responses, or file contents."
+        }
+        value={lockedEverywhere ? overrides.every(({ value }) => value) : props.value}
+        disabled={lockedEverywhere || props.disabled}
+        onValueChange={props.onValueChange}
+      />
+    </SettingsSection>
   );
 }
 
