@@ -5,6 +5,7 @@ import {
   getCloneDestinationPath,
   getCloneDirectoryName,
 } from "@supaterm/client-runtime/operations/projects";
+import { resolvePastedPath } from "@supaterm/shared/path";
 import {
   type EnvironmentId,
   type ProjectIgnoredFile,
@@ -318,7 +319,9 @@ function AddProjectToMachineDialog({ request }: { request: AddProjectToMachineRe
               <Input
                 id={`${id}-path`}
                 value={destinationPath}
-                onChange={(event) => setPathOverride(event.target.value)}
+                onChange={(event) =>
+                  setPathOverride(resolvePastedPath(destinationPath, event.target.value))
+                }
                 spellCheck={false}
                 autoComplete="off"
               />

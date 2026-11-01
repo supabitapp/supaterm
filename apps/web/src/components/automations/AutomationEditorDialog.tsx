@@ -20,6 +20,7 @@ import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
+import { resolvePastedPath } from "@supaterm/shared/path";
 
 import { useEnvironmentSettings } from "../../hooks/useSettings";
 import { getCustomModelOptionsByInstance } from "../../modelSelection";
@@ -543,7 +544,10 @@ export function AutomationEditorDialog({
                   onChange={(event) =>
                     setDraft((current) => ({
                       ...current,
-                      existingWorktreePath: event.target.value,
+                      existingWorktreePath: resolvePastedPath(
+                        current.existingWorktreePath,
+                        event.target.value,
+                      ),
                     }))
                   }
                 />
