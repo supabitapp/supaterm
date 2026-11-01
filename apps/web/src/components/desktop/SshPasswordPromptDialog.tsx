@@ -159,8 +159,8 @@ function ActiveSshPasswordPrompt({
           <DialogTitle>SSH verification required</DialogTitle>
           <DialogDescription>
             Enter the password or verification code required by <code>{target}</code>. Supaterm
-            passes your response passed to the local SSH process and keeps it in memory to reuse for
-            this host. Supaterm does not write it to disk.
+            passes your response to the local SSH process and keeps it in memory to reuse for this
+            host. Supaterm does not write it to disk.
           </DialogDescription>
         </DialogHeader>
         <DialogPanel scrollFade={false}>

@@ -5,7 +5,6 @@ import {
   type AuthEnvironmentScope,
 } from "@supaterm/contracts";
 import { DEFAULT_CLIENT_SETTINGS } from "@supaterm/contracts/settings";
-import { nextTerminalAttachSeedState } from "@supaterm/client-runtime/state/terminal";
 import { AsyncResult } from "effect/reactivity";
 import { expect, it, vi } from "vite-plus/test";
 import type {
@@ -53,10 +52,6 @@ vi.mock(import("../state/use-atom-command"), async (original) => ({
   useAtomCommand: ((command: unknown) =>
     command === "resize" ? state.resize : state.otherCommand) as never,
 }));
-vi.mock(import("../state/terminalSessions"), async (original) => ({
-  ...(await original()),
-  useAttachedTerminalSession: (() => session) as never,
-}));
 vi.mock(import("~/terminal/ghostty/surface"), async (original) => ({
   ...(await original()),
   GhosttyTerminalSurface: { create: state.createSurface } as never,
@@ -87,7 +82,6 @@ const threadRef = {
   environmentId: EnvironmentId.make("secondary-terminal"),
   threadId: ThreadId.make("thread"),
 };
-const session = { ...nextTerminalAttachSeedState(), status: "running" as const, version: 1 };
 // The mocked modules read `state`, so every test starts by resetting all of it.
 function setup() {
   state.allowed = true;

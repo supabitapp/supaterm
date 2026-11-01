@@ -787,6 +787,74 @@ describe("deriveMessagesTimelineRows", () => {
     );
   });
 
+  it("folds an answered compact-on-return question into its compaction row", () => {
+    const fixture = makeStreamingTimelineFixture();
+    const [history0, history1, history2, liveUser, liveWork, liveAssistant] =
+      fixture.visibleTurnItems;
+    if (liveWork?.item.type !== "dynamic_tool" || liveAssistant?.item.type !== "assistant_message")
+      throw new Error("Expected live fixture items");
+    const { toolName: _toolName, input: _input, output: _output, ...workBase } = liveWork.item;
+    const question =
+      "This session is 1h 5m old and uses 412,000 tokens. Compact it before continuing?";
+    const requestId = RuntimeRequestId.make("resume-compaction");
+    const answeredWith = (answer: string) => ({
+      ...liveWork,
+      item: {
+        ...workBase,
+        type: "user_input_request" as const,
+        requestId,
+        questions: [],
+        questionAnswer: {
+          requestId,
+          questionTextById: { resume: question },
+          answers: { resume: answer },
+          attachmentsByQuestionId: {},
+        },
+      },
+    });
+    const assistantItem = liveAssistant.item;
+    const compactionAt = (status: "running" | "completed", id = assistantItem.id) => ({
+      ...liveAssistant,
+      item: { ...assistantItem, id, type: "compaction" as const, status, driver: null },
+    });
+    const liveRowsFor = (visibleTurnItems: OrchestrationV2ProjectedTurnItem[], running = false) => {
+      const rows = deriveMessagesTimelineRows({
+        timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
+          visibleTurnItems: [history0!, history1!, history2!, liveUser!, ...visibleTurnItems],
+        }),
+        isWorking: running,
+        runningRunId: fixture.runId,
+        activeTurnStartedAt: fixture.time(5),
+        turnDiffSummaries: [],
+        supportsConversationRollback: false,
+      });
+      return rows
+        .slice(rows.findIndex((row) => row.id.includes("live-user")) + 1)
+        .filter((row) => row.kind !== "working");
+    };
+    const answered = answeredWith("Compact and continue");
+
+    expect(liveRowsFor([answered, compactionAt("running")], true)).toMatchObject([
+      { kind: "context-compaction", active: true },
+    ]);
+    expect(liveRowsFor([answered, compactionAt("completed")])).toMatchObject([
+      { kind: "context-compaction", title: "Context compacted after 1h 5m idle" },
+    ]);
+    const dividers = liveRowsFor(
+      [answered, compactionAt("completed"), compactionAt("running", TurnItemId.make("later"))],
+      true,
+    );
+    expect(dividers).toMatchObject([
+      { kind: "context-compaction", title: "Context compacted after 1h 5m idle", active: false },
+      { kind: "context-compaction", active: true },
+    ]);
+    expect(dividers[1]).not.toHaveProperty("title");
+    // Declining keeps the answer: no compaction ran for it to fold into.
+    expect(liveRowsFor([answeredWith("Keep full history")]).map((row) => row.kind)).toEqual([
+      "work",
+    ]);
+  });
+
   it("only enables assistant copy for the terminal assistant message in a turn", () => {
     const rows = deriveMessagesTimelineRows({
       timelineEntries: [

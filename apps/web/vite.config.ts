@@ -269,6 +269,7 @@ export default defineConfig(() => {
         "@pierre/diffs",
         "@pierre/diffs/edit",
         "@pierre/diffs/react",
+        "@pierre/diffs/ssr",
         "@pierre/diffs/worker/worker.js",
         "effect/Array",
         "effect/Order",

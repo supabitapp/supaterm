@@ -110,7 +110,7 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
     route.params.focus ? route.params.path : undefined,
   );
   const { refresh: refreshDetail } = detail;
-  useFocusEffect(() => refreshDetail());
+  useFocusEffect(refreshDetail);
   const { loadMore } = result;
   const parsed = filter.parsed;
   const reviewDraft = usePullRequestReviewDraft(route.params);

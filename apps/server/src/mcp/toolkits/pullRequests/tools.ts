@@ -440,7 +440,7 @@ const UnwatchPullRequestTool = Tool.make("unwatch_pull_request", {
 
 const WatchWorkflowRunTool = Tool.make("watch_workflow_run", {
   description:
-    "Have Supaterm watch a GitHub Actions workflow run for this thread and wake you once, when it completes, with every job that did not pass. Use this to wait on CI, a release or a deploy instead of `gh run watch`, a sleep loop, or a background watcher, then end your turn. Pass the run's URL, or its id (from `gh run list`). A run that already completed is not watched: the result's status says how it ended. While Supaterm watches, the thread stays in the user's Working list, not their inbox. Watching ends when the run completes, after six hours, when the thread is marked done or archived, when Supaterm fails to read the run 8 times in a row (a host rate limit only delays it), when the user stops this thread, or when you call unwatch_workflow_run. A subagent cannot watch: its parent thread owns the run.",
+    "Have Supaterm watch a GitHub Actions workflow run for this thread and wake you once, when it completes, with every job that did not pass. Use this to wait on CI, a release or a deploy instead of `gh run watch`, a sleep loop, or a background watcher, then end your turn. Pass the run's URL, or its id (from `gh run list`). A run that already completed is not watched: the result's status says how it ended. While Supaterm watches, the thread stays in the user's Working list, not their inbox. Watching ends when the run completes, after six hours, when the thread is marked done or archived, when Supaterm fails to read the run 8 times in a row (a host rate limit only delays it), when the user stops this thread, or when you call unwatch_workflow_run.",
   parameters: WorkflowRunTargetInput,
   success: WatchWorkflowRunResult,
   failure: PullRequestToolError,
@@ -450,7 +450,8 @@ const WatchWorkflowRunTool = Tool.make("watch_workflow_run", {
   .annotate(Tool.Readonly, false)
   .annotate(Tool.Destructive, false)
   .annotate(Tool.Idempotent, true)
-  .annotate(Tool.OpenWorld, false);
+  .annotate(Tool.OpenWorld, false)
+  .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenFromSubagents);
 
 const UnwatchWorkflowRunTool = Tool.make("unwatch_workflow_run", {
   description:
@@ -464,7 +465,8 @@ const UnwatchWorkflowRunTool = Tool.make("unwatch_workflow_run", {
   .annotate(Tool.Readonly, false)
   .annotate(Tool.Destructive, false)
   .annotate(Tool.Idempotent, true)
-  .annotate(Tool.OpenWorld, false);
+  .annotate(Tool.OpenWorld, false)
+  .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenFromSubagents);
 
 const GuideTarget = Schema.Struct({
   url: PullRequestTargetInput.fields.url,

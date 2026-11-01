@@ -372,6 +372,47 @@ describe("session state", () => {
       expect(requests).toBe(5);
     }),
   );
+  it.effect("restarts the settled-failure backoff on a new connection", () =>
+    Effect.gen(function* () {
+      const failures = yield* Queue.unbounded<void>();
+      let requests = 0;
+      const { atoms, registry, supervisor, session } = yield* makeHarness({
+        reply: () =>
+          Effect.suspend(() => {
+            requests += 1;
+            return requests <= 12
+              ? Queue.offer(failures, undefined).pipe(
+                  Effect.andThen(Effect.fail("connection reset" as const)),
+                )
+              : Effect.succeed(Response.json(grantedSession));
+          }),
+      });
+      const atom = atoms.sessionStateAtom(environmentId);
+      registry.mount(atom);
+      const settleFailure = Effect.gen(function* () {
+        for (const backoff of ["1 second", "2 seconds", "4 seconds"] as const) {
+          yield* Queue.take(failures);
+          yield* TestClock.adjust(backoff);
+        }
+        yield* Queue.take(failures);
+        yield* AtomRegistry.getResult(registry, atom, { suspendOnWaiting: true }).pipe(Effect.flip);
+      });
+
+      yield* connect(supervisor, session);
+      yield* settleFailure;
+      yield* TestClock.adjust("2 seconds");
+      yield* settleFailure;
+
+      yield* SubscriptionRef.set(supervisor.session, Option.some({ ...session }));
+      yield* settleFailure;
+      yield* TestClock.adjust("2 seconds");
+
+      expect(
+        yield* AtomRegistry.getResult(registry, atom, { suspendOnWaiting: true }),
+      ).toMatchObject({ scopes: grantedSession.scopes });
+      expect(requests).toBe(13);
+    }),
+  );
 });
 
 describe("relay transport", () => {

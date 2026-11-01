@@ -206,6 +206,7 @@ import {
 } from "../../lib/markdownLinks";
 import {
   createThreadFeedCache,
+  threadFeedCompactionTitles,
   failedFeedRunIds,
   deriveThreadFeedPresentation,
   threadFeedRunIsUnsettled,
@@ -1344,6 +1345,12 @@ function RunFoldButton({
   );
 }
 
+function compactionLabel(label: string, title: string | undefined) {
+  return title !== undefined && label.startsWith("Context compacted")
+    ? title + label.slice("Context compacted".length)
+    : label;
+}
+
 function renderFeedEntry(
   info: { item: PendingThreadFeedEntry; index: number },
   props: Pick<
@@ -1363,6 +1370,7 @@ function renderFeedEntry(
     readonly workGroupScrollPositions: Map<string, ThreadWorkGroupScrollPosition>;
     readonly terminalAssistantMessageIds: ReadonlySet<string>;
     readonly unsettledTurnId: RunId | null;
+    readonly compactionTitlesByEntryId: ReadonlyMap<string, string>;
     readonly failedRunIds: ReadonlySet<RunId>;
     readonly onCopyWorkRow: (rowId: string, value: string) => void;
     readonly onToggleWorkGroup: (groupId: string, anchorKey?: string) => void;
@@ -1498,7 +1506,11 @@ function renderFeedEntry(
       item.type === "compaction" && item.status === "failed" ? item.summary?.trim() : undefined;
     return (
       <ThreadContextDivider
-        label={failure ? `${label} · ${failure}` : label}
+        label={
+          failure
+            ? `${label} · ${failure}`
+            : compactionLabel(label, props.compactionTitlesByEntryId.get(entry.id))
+        }
         icon={
           item.status === "failed" ? "exclamationmark.circle" : "arrow.down.right.and.arrow.up.left"
         }
@@ -3002,6 +3014,7 @@ export const ThreadFeed = memo(function ThreadFeed({
     { anchorOffset: anchorTopInset + CHAT_LIST_ANCHOR_OFFSET },
   );
   const failedRunIds = failedFeedRunIds(props.feed, props.latestRun);
+  const compactionTitlesByEntryId = threadFeedCompactionTitles(props.feed);
   const terminalAssistantMessageIds = (() => {
     const terminalIdsByTurn = new Map<RunId, string>();
     for (const entry of props.feed) {
@@ -3317,6 +3330,7 @@ export const ThreadFeed = memo(function ThreadFeed({
             workGroupScrollPositions,
             terminalAssistantMessageIds,
             unsettledTurnId,
+            compactionTitlesByEntryId,
             failedRunIds,
             onCopyWorkRow,
             onToggleWorkGroup,

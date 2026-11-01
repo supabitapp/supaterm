@@ -41,6 +41,12 @@ names). The device id may be omitted when exactly one device is booted. It
 prints one JSON line; on failure it names the next command. Authorized mobile
 verification includes that step unless the user prohibits it.
 
+When the opened device is on a cloud or remote host, run
+`vp run mobile:install <ios|android> --agent-device <agentDevice.command>` from
+this checkout instead. It installs this machine's cached build through that
+session (`--abi arm64-v8a` for an ARM Android device; `--metro <url>` also opens
+it against Metro) and never builds.
+
 Start `vp run dev:client` from `apps/mobile`, or reuse a healthy Metro belonging
 to this checkout. Open its printed development-client URL with AgentDevice
 `open com.supaterm.mobile.dev <url>` and all returned target arguments.

@@ -7,6 +7,7 @@ import {
   collectAssistantCitations,
 } from "@supaterm/shared/assistantCitations";
 import { shallow } from "zustand/vanilla/shallow";
+import { claudeResumeCompactionAge } from "@supaterm/shared/claudeCompaction";
 import type { HandoffTimelineRun } from "@supaterm/client-runtime/handoff";
 import { renderCodexDirectivesForCopy } from "@supaterm/shared/codexMarkdownDirectives";
 import {
@@ -577,6 +578,8 @@ type MessagesTimelineRowContent =
       label: string;
       tokenCounts: ReturnType<typeof contextCompactionTokenCounts>;
       active: boolean;
+      /** Replaces "Context compacted" when the compaction says why it ran. */
+      title?: string;
       failed?: true;
       /** The provider's reason, when a failed compaction gave one. */
       failure?: string;
@@ -1580,9 +1583,12 @@ export function deriveMessagesTimelineRows(input: {
     activeWorkRow !== null || latestToolFailed ? activeToolEntries.map((entry) => entry.id) : [],
   );
   // A bare `/compact` turn is the compaction itself: one compaction row stands in for its prompt
-  // and working indicator, from the moment the turn starts.
+  // and working indicator, from the moment the turn starts. Likewise an answered "compact before
+  // continuing?" question folds into the compaction it asked for.
   const compactionRunIds = new Set<RunId>();
   const compactedRunIds = new Set<RunId>();
+  const pendingResumeCompactionAgeByRunId = new Map<RunId, string>();
+  const resumeCompactionAgeByEntryId = new Map<string, string>();
   for (const entry of timelineEntries) {
     if (
       entry.kind === "message" &&
@@ -1590,8 +1596,19 @@ export function deriveMessagesTimelineRows(input: {
       isCompactionCommandMessage(entry.message)
     ) {
       compactionRunIds.add(entry.message.runId);
-    } else if (entry.kind === "work" && entry.entry.runId && timelineEntryIsCompaction(entry)) {
-      compactedRunIds.add(entry.entry.runId);
+    } else if (entry.kind === "work" && entry.entry.runId) {
+      if (timelineEntryIsCompaction(entry)) {
+        compactedRunIds.add(entry.entry.runId);
+        const age = pendingResumeCompactionAgeByRunId.get(entry.entry.runId);
+        if (age !== undefined) {
+          resumeCompactionAgeByEntryId.set(entry.id, age);
+          pendingResumeCompactionAgeByRunId.delete(entry.entry.runId);
+        }
+      }
+      const age = entry.entry.questionAnswer
+        ? claudeResumeCompactionAge(entry.entry.questionAnswer)
+        : null;
+      if (age !== null) pendingResumeCompactionAgeByRunId.set(entry.entry.runId, age);
     }
   }
   const activeCompactionEntry = timelineEntries.find(
@@ -1723,9 +1740,11 @@ export function deriveMessagesTimelineRows(input: {
       const compaction = timelineEntry.entry.structuredPayload;
       const failed = compaction?.type === "compaction" && compaction.status === "failed";
       const failure = failed ? compaction.summary?.trim() || undefined : undefined;
+      const resumeAge = resumeCompactionAgeByEntryId.get(timelineEntry.id);
       nextRows.push({
         kind: "context-compaction",
         id: timelineEntry.id,
+        ...(resumeAge ? { title: `Context compacted after ${resumeAge} idle` } : {}),
         ...(failed ? { failed: true } : {}),
         ...(failure ? { failure } : {}),
         createdAt: timelineEntry.createdAt,
@@ -1734,6 +1753,16 @@ export function deriveMessagesTimelineRows(input: {
           compaction?.type === "compaction" ? contextCompactionTokenCounts(compaction) : null,
         active,
       });
+      continue;
+    }
+
+    if (
+      timelineEntry.kind === "work" &&
+      timelineEntry.entry.runId != null &&
+      compactedRunIds.has(timelineEntry.entry.runId) &&
+      timelineEntry.entry.questionAnswer !== undefined &&
+      claudeResumeCompactionAge(timelineEntry.entry.questionAnswer) !== null
+    ) {
       continue;
     }
 
@@ -2337,6 +2366,7 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
         a.createdAt === bc.createdAt &&
         a.label === bc.label &&
         a.active === bc.active &&
+        a.title === bc.title &&
         a.failed === bc.failed &&
         a.failure === bc.failure
       );

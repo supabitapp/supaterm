@@ -30,7 +30,7 @@ describe("promptLinkSearchFromParams", () => {
 });
 
 describe("stepPendingPromptLink", () => {
-  const waiting = "repo=t3tools%2Ft3code";
+  const waiting = "repo=supabitapp%2Fsupaterm";
 
   it("drops a link whose screen is missing from the first state after it was parsed", () => {
     expect(stepPendingPromptLink(waiting, { screenOnStack: false, ready: true })).toEqual({

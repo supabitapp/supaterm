@@ -850,7 +850,7 @@ it.effect("admits provider and OAuth client credentials and points only clients 
   ).pipe(Effect.provide(NodeHttpServer.layerTest)),
 );
 
-it.effect("lists pull request watch tools only to threads that are not delegated children", () =>
+it.effect("lists watch tools only to threads that are not delegated children", () =>
   Effect.scoped(
     Effect.gen(function* () {
       const scopeFor = (
@@ -929,12 +929,15 @@ it.effect("lists pull request watch tools only to threads that are not delegated
 
       const parentTools = yield* listedTools("parentToken");
       const childTools = yield* listedTools("childToken");
-      expect(parentTools).toEqual(
-        expect.arrayContaining(["link_pull_request", "watch_pull_request", "unwatch_pull_request"]),
-      );
+      const watchTools = [
+        "watch_pull_request",
+        "unwatch_pull_request",
+        "watch_workflow_run",
+        "unwatch_workflow_run",
+      ];
+      expect(parentTools).toEqual(expect.arrayContaining(["link_pull_request", ...watchTools]));
       expect(childTools).toContain("link_pull_request");
-      expect(childTools).not.toContain("watch_pull_request");
-      expect(childTools).not.toContain("unwatch_pull_request");
+      expect(childTools.filter((tool) => watchTools.includes(tool))).toEqual([]);
     }),
   ).pipe(Effect.provide(NodeHttpServer.layerTest)),
 );

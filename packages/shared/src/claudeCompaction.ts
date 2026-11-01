@@ -11,3 +11,24 @@ export function formatClaudeResumeCompactionQuestion(input: {
       : `${input.ageMinutes}m`;
   return `This session is ${ageLabel} old and uses ${input.estimatedTokens.toLocaleString("en-US")} tokens. Compact it before continuing?`;
 }
+
+const CLAUDE_RESUME_COMPACTION_QUESTION_PATTERN =
+  /^This session is (\d+h \d+m|\d+m) old and uses \d{1,3}(?:,\d{3})* tokens\. Compact it before continuing\?$/u;
+
+/**
+ * The session age from an answered resume question whose answer was to compact, or null. Answers
+ * are keyed by question id, and the id may itself be the question text.
+ */
+export function claudeResumeCompactionAge(questionAnswer: {
+  readonly questionTextById?: Readonly<Record<string, string>> | undefined;
+  readonly answers: Readonly<Record<string, unknown>>;
+}): string | null {
+  for (const [id, answer] of Object.entries(questionAnswer.answers)) {
+    const age = CLAUDE_RESUME_COMPACTION_QUESTION_PATTERN.exec(
+      questionAnswer.questionTextById?.[id] ?? id,
+    )?.[1];
+    const chosen = Array.isArray(answer) ? answer : [answer];
+    if (age !== undefined && chosen.includes(CLAUDE_RESUME_COMPACTION_COMPACT_ANSWER)) return age;
+  }
+  return null;
+}

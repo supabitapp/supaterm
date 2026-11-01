@@ -391,6 +391,9 @@ const NO_RUN_STOP_ATOM = Atom.make<RunStopPresentation | null>(null).pipe(
   Atom.withLabel("mobile-thread-run-stop:empty"),
 );
 
+// Past the composer's height animation.
+const COMPOSER_HEIGHT_SETTLE_MS = COMPOSER_TRANSITION_DURATION_MS + 40;
+
 // Anchors, follow state and pending scrolls belong to one thread, so the body
 // remounts when the thread changes.
 export function ThreadDetailScreen(props: ThreadDetailScreenProps) {
@@ -530,6 +533,18 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
   const feedRef = useRef<ThreadFeedHandle>(null);
   const [endFollowEnabled, setEndFollowEnabled] = useState(true);
   const [composerHeight, setComposerHeight] = useState<number | null>(null);
+  // The composer animates its height and reports a layout every frame. The feed follows those
+  // frames on the UI thread through onComposerLayout; this is only an estimate, so committing
+  // each frame would re-render the whole screen for the length of the animation.
+  const composerHeightSettle = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleComposerHeightChange = (height: number) => {
+    setComposerHeight((current) => current ?? height);
+    if (composerHeightSettle.current !== null) clearTimeout(composerHeightSettle.current);
+    composerHeightSettle.current = setTimeout(() => {
+      composerHeightSettle.current = null;
+      setComposerHeight(height);
+    }, COMPOSER_HEIGHT_SETTLE_MS);
+  };
   // Keep the bottom padding fixed while the keyboard animates. Changing it at
   // keyboardDidHide makes the composer land low, then jump back above the safe area.
   const bottomBarInset = useDuoBottomBarInset();
@@ -1096,13 +1111,14 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
     endFollowEnabledRef.current = enabled;
     setEndFollowEnabled(enabled);
   };
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- aborts the thread scope, clears its timers and ends a pending message jump when the thread changes
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- arms a fresh thread scope when shown, then aborts it and clears its timers when the screen hides or unmounts
   useEffect(() => {
     if (threadScope.current.signal.aborted) threadScope.current = new AbortController();
     const scope = threadScope.current;
     return () => {
       scope.abort();
       if (overlayRepinTimerRef.current !== null) clearTimeout(overlayRepinTimerRef.current);
+      if (composerHeightSettle.current !== null) clearTimeout(composerHeightSettle.current);
     };
   }, []);
   const handleToggleUserInputCollapsed = () => {
@@ -1766,7 +1782,7 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
                         canSwitchProvider={props.canSwitchThreadProvider}
                         onUpdateModelSelection={props.onUpdateThreadModelSelection}
                         onExpandedChange={setComposerExpanded}
-                        onHeightChange={setComposerHeight}
+                        onHeightChange={handleComposerHeightChange}
                         onEditorFocusChange={handleOwnedInputFocusChange}
                         onCommandMenuOpenChange={setComposerMenuOpen}
                       />
