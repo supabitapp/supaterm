@@ -17,7 +17,7 @@ vi.mock(import("../../state/use-orchestration-command"), async (importOriginal) 
     }) as never,
 }));
 vi.mock(import("~/hooks/useThreadActionMenu"), () => ({
-  useThreadActionMenu: () => ({ openMenu: () => {}, closeMenu: () => {} }),
+  useThreadActionMenu: (() => ({ openMenu: () => {}, closeMenu: () => {} })) as never,
 }));
 
 import { render } from "../../../test/render";
@@ -36,6 +36,8 @@ function header(title: string) {
         onOpenThread={() => {}}
         rightPanelOpen={false}
         onNewThreadInProject={() => {}}
+        pinnedMessages={[]}
+        onJumpToPinnedMessage={() => {}}
       />
       <div tabIndex={0}>Outside rename</div>
     </>
