@@ -118,8 +118,11 @@ export const actsAsCaller = <P, A, E, R>(handle: (params: P) => Effect.Effect<A,
     ),
   );
 
-/** Starts threads owned by the calling thread, such as workers and children. */
-export const spawnsAsCaller = <P, A, E, R>(handle: (params: P) => Effect.Effect<A, E, R>) =>
+/**
+ * Acts as the calling thread in ways a side chat may not: starting threads it owns, or moving the
+ * checkout it shares with its parent.
+ */
+export const actsAsFullThread = <P, A, E, R>(handle: (params: P) => Effect.Effect<A, E, R>) =>
   declare((params: P) =>
     requireThreadCaller.pipe(
       Effect.andThen(writingCaller),
