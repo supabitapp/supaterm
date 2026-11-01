@@ -373,6 +373,16 @@ export function ArchivedThreadsPanel() {
                       </TableCell>
                       <TableCell>
                         <span className="block truncate text-sm text-foreground">{row.title}</span>
+                        {showProject || hasMultipleEnvironments ? (
+                          <span className="block truncate text-muted-foreground sm:hidden">
+                            {[
+                              showProject ? row.projectTitle : null,
+                              hasMultipleEnvironments ? row.environmentLabel : null,
+                            ]
+                              .filter((label) => label !== null)
+                              .join(" · ")}
+                          </span>
+                        ) : null}
                       </TableCell>
                       {showProject ? (
                         <TableCell className="hidden sm:table-cell">
