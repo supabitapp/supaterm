@@ -123,7 +123,7 @@ it("keeps a subagent child awake when its parent thread is snoozed", () => {
 it.effect.each([
   ["sql", ProjectionStore.layer.pipe(Layer.provideMerge(SqlitePersistence.layerMemory))],
 ] as const)(
-  "%s: a pinned parent's subagent child is born unpinned and settles once idle",
+  "%s: a pinned parent's subagent child is born unpinned and is marked done once idle",
   ([, testLayer]) =>
     Effect.gen(function* () {
       const store = yield* ProjectionStore.ProjectionStoreV2;

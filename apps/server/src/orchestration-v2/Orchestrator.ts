@@ -3424,7 +3424,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
             ),
           };
         case "thread.mark-unread": {
-          // Retire the wake before rewinding the visit, preserving its settlement timer.
+          // Retire the wake before rewinding the visit, preserving its auto mark-done timer.
           const snoozeExpired =
             thread.snoozedUntil != null &&
             DateTime.toEpochMillis(thread.snoozedUntil) <= DateTime.toEpochMillis(now);
