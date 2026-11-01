@@ -7,11 +7,12 @@ interface ProductUsageDataTarget {
 }
 
 /**
- * How the Product usage data switch shows for `targets`, or null when one of their servers
- * ignores the setting and a switch there would claim an opt-out that never happens.
+ * How the Product usage data switch shows for `targets`, or null when there is no server to
+ * apply it or one ignores the setting, where a switch would claim an opt-out that never happens.
  */
 export function resolveProductUsageDataControl(targets: readonly ProductUsageDataTarget[]) {
   if (
+    targets.length === 0 ||
     !targets.every(
       (target) => target.serverConfig?.environment.capabilities.telemetrySetting === true,
     )
@@ -33,7 +34,7 @@ export function resolveProductUsageDataControl(targets: readonly ProductUsageDat
             .join(" "),
     // Where the variable decides on every target, the saved setting does not decide what shows.
     forced:
-      targets.length > 0 && overrides.length === targets.length
+      overrides.length === targets.length
         ? { value: forcedValues.size === 1 ? (onlyForcedValue ?? null) : null }
         : null,
   };

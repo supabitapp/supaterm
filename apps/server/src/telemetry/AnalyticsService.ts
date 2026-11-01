@@ -38,6 +38,14 @@ interface DeliveryState {
   readonly retryAt: number;
 }
 
+const IDLE_DELIVERY: DeliveryState = {
+  failedBatch: [],
+  batchAttempts: 0,
+  firstFailedAt: 0,
+  failures: 0,
+  retryAt: 0,
+};
+
 const FLUSH_INTERVAL_MS = 10_000;
 // A hung send would hold the flush lock, and with it the shutdown flush.
 const SEND_TIMEOUT = "10 seconds";
@@ -122,13 +130,7 @@ export const make = Effect.gen(function* () {
   const { distinctId, installId } = yield* getTelemetryIdentity;
   const crypto = yield* Crypto.Crypto;
   const bufferRef = yield* Ref.make<ReadonlyArray<BufferedAnalyticsEvent>>([]);
-  const deliveryRef = yield* Ref.make<DeliveryState>({
-    failedBatch: [],
-    batchAttempts: 0,
-    firstFailedAt: 0,
-    failures: 0,
-    retryAt: 0,
-  });
+  const deliveryRef = yield* Ref.make(IDLE_DELIVERY);
   const recordedOwnersRef = yield* Ref.make<
     Readonly<Record<"server" | "client", ReadonlySet<string>>>
   >({ server: new Set(), client: new Set() });
@@ -222,12 +224,7 @@ export const make = Effect.gen(function* () {
 
   const discardPending = Effect.andThen(
     Ref.set(bufferRef, []),
-    Ref.update(deliveryRef, (delivery) => ({
-      ...delivery,
-      failedBatch: [],
-      batchAttempts: 0,
-      firstFailedAt: 0,
-    })),
+    Ref.set(deliveryRef, IDLE_DELIVERY),
   );
 
   const takeBatch = Ref.modify(bufferRef, (current) => {
@@ -250,13 +247,7 @@ export const make = Effect.gen(function* () {
 
       const sent = yield* Effect.result(sendBatch(batch));
       if (Result.isSuccess(sent)) {
-        yield* Ref.set(deliveryRef, {
-          failedBatch: [],
-          batchAttempts: 0,
-          firstFailedAt: 0,
-          failures: 0,
-          retryAt: 0,
-        });
+        yield* Ref.set(deliveryRef, IDLE_DELIVERY);
         continue;
       }
 

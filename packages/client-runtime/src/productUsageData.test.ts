@@ -14,6 +14,7 @@ describe("resolveProductUsageDataControl", () => {
   it.each([
     { name: "a server that ignores the setting", targets: [target("A", true), target("B", false)] },
     { name: "a target without a server config", targets: [{ label: "A", serverConfig: null }] },
+    { name: "no connected environment", targets: [] },
   ])("hides the switch for $name", ({ targets }) => {
     expect(resolveProductUsageDataControl(targets)).toBeNull();
   });
