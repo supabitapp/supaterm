@@ -45,6 +45,7 @@ const transport = vi.hoisted(() => ({
   openScratchCommand: Symbol(),
   editorWrite: vi.fn(),
   removePendingTask: vi.fn(),
+  gitStatus: vi.fn((_query: { input: { cwd: string } }) => null),
 }));
 vi.mock("react-native", () => ({ Alert: { alert: vi.fn() } }));
 vi.mock("expo-haptics", () => ({
@@ -101,7 +102,7 @@ vi.mock("../../state/query", () => ({
     isPending: false,
   }),
 }));
-vi.mock("../../state/vcs", () => ({ vcsEnvironment: { status: () => null } }));
+vi.mock("../../state/vcs", () => ({ vcsEnvironment: { status: transport.gitStatus } }));
 vi.mock("../../state/queries", () => ({
   useBranches: () => ({ data: null }),
   useDebouncedValue: (value: string) => value,
@@ -524,11 +525,14 @@ describe("pending task editor dismissal", () => {
 it("keeps a covered draft route on its own draft, project, and submission", async () => {
   await act(() => flow.setProject(repositoryProject));
   const coveredDraft = flow.draftKey;
+  const statusRequests = () => transport.gitStatus.mock.calls.map(([query]) => query.input.cwd);
+  transport.gitStatus.mockClear();
   await act(() => pushDraftRoute());
   await act(() => {
     flow.setProject(secondProject);
     flow.setSubmitting(true);
   });
+  expect(statusRequests()).not.toContain(repositoryProject.workspaceRoot);
   expect(flow.draftKey).not.toBe(coveredDraft);
   expect(coveredFlow()).toMatchObject({
     served: false,
@@ -544,6 +548,7 @@ it("keeps a covered draft route on its own draft, project, and submission", asyn
     draftKey: coveredDraft,
     selectedProject: repositoryProject,
   });
+  expect(statusRequests()).toContain(repositoryProject.workspaceRoot);
 });
 
 describe("new-task environment switching", () => {

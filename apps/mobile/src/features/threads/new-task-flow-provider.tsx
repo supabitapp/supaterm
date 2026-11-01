@@ -490,7 +490,7 @@ function useNewTaskFlowValue(
   const prompt = selectedProjectDraft.text;
   const attachments = selectedProjectDraft.attachments;
   const projectGitStatus = useEnvironmentQuery(
-    selectedProject !== null && selectedProject.workspaceRoot !== ""
+    instance.served && selectedProject !== null && selectedProject.workspaceRoot !== ""
       ? vcsEnvironment.status({
           environmentId: selectedProject.environmentId,
           input: { cwd: selectedProject.workspaceRoot },
