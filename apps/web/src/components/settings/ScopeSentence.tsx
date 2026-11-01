@@ -6,7 +6,7 @@ import type { SidebarProjectSnapshot } from "../../sidebarProjectGrouping";
 import type { EnvironmentPresentation } from "../../state/environments";
 import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
 import { ProjectFavicon } from "../ProjectFavicon";
-import { Button, InlineButton } from "../ui/button";
+import { Button } from "../ui/button";
 import {
   Combobox,
   ComboboxEmpty,
@@ -134,14 +134,12 @@ function ScopeMenu({
   const trigger = (
     <Trigger
       aria-label={`${ariaLabel}: ${label}`}
-      render={
-        presentation === "filters" ? <Button variant="outline" /> : <InlineButton tone="picker" />
-      }
+      render={<Button variant="outline" size={presentation === "filters" ? "default" : "sm"} />}
       className="min-w-0 max-w-72"
     >
       {icon}
       <span className="min-w-0 truncate">{label}</span>
-      <ChevronDownIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+      <ChevronDownIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground opacity-70" />
     </Trigger>
   );
   const choices = allOption ? [allOption, ...options] : options;
