@@ -165,14 +165,28 @@ const TIMELINE_LIST_FADE_HEADER = (
 );
 function TimelineListFooter({
   composerInset,
+  onGrow,
   children,
 }: {
   readonly composerInset: number;
+  readonly onGrow: (() => void) | undefined;
   readonly children?: ReactNode;
 }) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reports growth of the footer's content, which the list does not follow
+  useLayoutEffect(() => {
+    const content = contentRef.current;
+    if (!content || !onGrow) return;
+    let height = content.offsetHeight;
+    return observeResize(content, () => {
+      const next = content.offsetHeight;
+      if (next > height) onGrow();
+      height = next;
+    });
+  }, [onGrow]);
   return (
     <div>
-      {children}
+      <div ref={contentRef}>{children}</div>
       <div aria-hidden style={{ height: composerInset }} />
       <div aria-hidden className="h-3 sm:h-4" />
     </div>
@@ -286,6 +300,7 @@ interface MessagesTimelineProps {
   onToolOutputCollapsedAtEnd?: () => void;
   /** Receives the list's viewport when it mounts; the returned cleanup runs when it goes away. */
   onViewportAttach?: (viewport: TimelineViewport) => () => void;
+  onFooterGrow?: () => void;
   findOpen?: boolean;
   hideEmptyPlaceholder?: boolean;
   loading?: boolean;
@@ -383,6 +398,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   liveFollowEnabled,
   onToolOutputCollapsedAtEnd,
   onViewportAttach,
+  onFooterGrow,
   hideEmptyPlaceholder = false,
   loading = false,
   emptyPlaceholderInset,
@@ -870,7 +886,10 @@ const ConversationTimeline = memo(function ConversationTimeline({
     shouldRestorePosition: shouldRestoreVisibleContentPosition,
   };
   const timelineListFooter = (
-    <TimelineListFooter composerInset={anchoredEndSpace ? 0 : contentInsetEndAdjustment}>
+    <TimelineListFooter
+      composerInset={anchoredEndSpace ? 0 : contentInsetEndAdjustment}
+      onGrow={onFooterGrow}
+    >
       {footer}
     </TimelineListFooter>
   );

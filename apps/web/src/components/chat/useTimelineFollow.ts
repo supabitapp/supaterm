@@ -358,6 +358,15 @@ export function useTimelineFollow(input: TimelineFollowInput) {
     });
   };
   const scrollToEndStable = useStableCallback(scrollToEnd);
+  // The list does not follow footer layout, so growth above the composer (a new notice) would
+  // cover the last rows instead.
+  const followedInsetRef = useRef(composerTimelineInset);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- scrolls the list after its bottom inset grows
+  useLayoutEffect(() => {
+    const grew = composerTimelineInset > followedInsetRef.current;
+    followedInsetRef.current = composerTimelineInset;
+    if (grew && readCurrentFollow().mode === "following") scrollToEndStable();
+  }, [composerTimelineInset, readCurrentFollow, scrollToEndStable]);
   const scrollConversation = (direction: 1 | -1) => {
     const node = viewportRef.current?.scrollNode;
     if (!node) return false;
@@ -513,6 +522,11 @@ export function useTimelineFollow(input: TimelineFollowInput) {
     composerRef.current?.restoreAfterTimelineReachedEnd();
   };
   const onToolOutputCollapsedAtEndStable = useStableCallback(onToolOutputCollapsedAtEnd);
+  // A new status line in the footer would otherwise land under the composer.
+  const onTimelineFooterGrow = () => {
+    if (readFollow().mode === "following") scrollToEndStable();
+  };
+  const onTimelineFooterGrowStable = useStableCallback(onTimelineFooterGrow);
 
   const onIsAtEndChange = (isAtEnd: boolean) => {
     const scroll = visitScroll();
@@ -599,6 +613,7 @@ export function useTimelineFollow(input: TimelineFollowInput) {
     onTimelineAnchorReadyStable,
     onTimelineAnchorSizeChangedStable,
     onToolOutputCollapsedAtEndStable,
+    onTimelineFooterGrowStable,
     onIsAtEndChangeStable,
     anchorNewTurn,
     attachTimelineViewport,

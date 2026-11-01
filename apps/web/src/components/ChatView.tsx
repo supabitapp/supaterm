@@ -2151,6 +2151,7 @@ export default function ChatView(props: ChatViewProps) {
     onTimelineAnchorReadyStable,
     onTimelineAnchorSizeChangedStable,
     onToolOutputCollapsedAtEndStable,
+    onTimelineFooterGrowStable,
     onIsAtEndChangeStable,
     anchorNewTurn,
     attachTimelineViewport,
@@ -3543,6 +3544,7 @@ export default function ChatView(props: ChatViewProps) {
                     onContentOverflowChange={setTimelineOverflows}
                     onToolOutputCollapsedAtEnd={onToolOutputCollapsedAtEndStable}
                     onViewportAttach={attachTimelineViewport}
+                    onFooterGrow={onTimelineFooterGrowStable}
                     onJumpToPinnedMessage={jumpToPinnedMessageStable}
                     hideEmptyPlaceholder={isDraftHeroState}
                     loading={!isDraftHeroState && threadDetailLoading}
