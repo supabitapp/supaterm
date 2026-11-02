@@ -16,7 +16,11 @@ import { makeMutable } from "react-native-reanimated";
 import { preferredMicrophoneInput } from "../../lib/microphonePriority";
 import { createPcmVoiceRecorder } from "../../native/pcmVoiceRecorder";
 import { getNativeShowcaseScene } from "../showcase/nativeShowcaseScene";
-import { voiceInputBlocksSubmission } from "@supaterm/client-runtime/voice-input";
+import {
+  voiceInputBlocksSubmission,
+  voiceInputCue,
+  type VoiceInputCue,
+} from "@supaterm/client-runtime/voice-input";
 import { createDevFakeVoiceRecorder, devFakeMicrophoneSource } from "./devFakeVoiceRecorder";
 import {
   createLazyVoiceRecorder,
@@ -25,6 +29,7 @@ import {
   type VoiceRecordingStatusEvent,
 } from "./lazyVoiceRecorder";
 import { VOICE_WAVEFORM_SAMPLE_COUNT } from "./voiceInputMetering";
+import { playVoiceInputCue } from "./voiceInputCues";
 import { VoiceInputSession } from "./voiceInputSession";
 import {
   acquireAudioSession,
@@ -70,6 +75,7 @@ const voiceInputAtom = Atom.make((get) => {
   );
   let keepAwakeSequence = 0;
   let audioToken: ReturnType<typeof acquireAudioSession> | null = null;
+  let cueAfterRecording: VoiceInputCue | null = null;
   const recorder = createLazyVoiceRecorder({
     create: () => {
       const fakeMicrophone = devFakeMicrophoneSource();
@@ -99,12 +105,18 @@ const voiceInputAtom = Atom.make((get) => {
       try {
         await activateAudioSession(token);
       } catch (error) {
+        audioToken = null;
         await releaseAudioSession(token).catch(() => {});
         throw error;
       }
     },
     releaseRecording: async () => {
-      if (audioToken) await releaseAudioSession(audioToken);
+      if (audioToken) {
+        const cue = cueAfterRecording;
+        cueAfterRecording = null;
+        await playVoiceInputCue(cue, audioToken);
+        await releaseAudioSession(audioToken);
+      }
       audioToken = null;
     },
     deleteRecording: (uri) => new File(uri).delete(),
@@ -130,6 +142,9 @@ const voiceInputAtom = Atom.make((get) => {
     if ((phase === "transcribing" || phase === "sending") && next === "idle") {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
+    const cue = voiceInputCue(phase, next);
+    if (cue === "start" && audioToken) void playVoiceInputCue(cue, audioToken);
+    else if (cue && audioToken) cueAfterRecording = cue;
     phase = next;
   });
   get.addFinalizer(() => {

@@ -1,6 +1,6 @@
 import { AudioModule, setAudioModeAsync, setIsAudioActiveAsync } from "expo-audio";
 
-type AudioSessionToken = {
+export type AudioSessionToken = {
   readonly kind: "playback" | "recording";
   readonly onCancel?: () => void;
   readonly onRelease?: () => void;

@@ -6,9 +6,12 @@ import {
   resetVoiceInputGlobalsForTests,
   resolveTranscriptCommit,
   VoiceInputController,
+  voiceInputCue,
   VOICE_RECORDING_LIMIT_SECONDS,
   type VoiceDraftSnapshot,
   type VoiceInputControllerDependencies,
+  type VoiceInputCue,
+  type VoiceInputPhase,
   type VoiceRecorder,
 } from "./controller.ts";
 import {
@@ -79,6 +82,20 @@ function createHarness(
       currentDraft = next;
     },
   };
+}
+
+function createCueHarness(overrides: Partial<VoiceInputControllerDependencies> = {}) {
+  const cues: VoiceInputCue[] = [];
+  let phase: VoiceInputPhase = "idle";
+  const harness = createHarness({
+    ...overrides,
+    onStateChange: (state) => {
+      const cue = voiceInputCue(phase, state.phase);
+      phase = state.phase;
+      if (cue) cues.push(cue);
+    },
+  });
+  return { harness, cues };
 }
 
 describe("resolveTranscriptCommit", () => {
@@ -673,5 +690,91 @@ describe("VoiceInputController", () => {
 
     expect(harness.recorder.record).toHaveBeenCalled();
     expect(harness.controller.currentState.phase).toBe("recording");
+  });
+
+  it.each([
+    [
+      "a reviewed recording",
+      {},
+      async ({ controller, commits }: ReturnType<typeof createHarness>) => {
+        await controller.start();
+        await controller.stop();
+        expect(commits).toHaveLength(1);
+      },
+      ["start", "stop"],
+    ],
+    [
+      "a sent recording",
+      {},
+      async ({ controller }: ReturnType<typeof createHarness>) => {
+        await controller.start();
+        await controller.send(async () => undefined);
+      },
+      ["start", "stop"],
+    ],
+    [
+      "a discarded recording",
+      {},
+      async ({ controller }: ReturnType<typeof createHarness>) => {
+        await controller.start();
+        controller.cancel();
+      },
+      ["start", "discard"],
+    ],
+    [
+      "a failed transcription",
+      {
+        getTranscriber: () => ({
+          prepare: async () =>
+            preparedTranscription(async () => {
+              throw new Error("upload failed");
+            }),
+        }),
+      },
+      async ({ controller }: ReturnType<typeof createHarness>) => {
+        await controller.start();
+        await controller.stop();
+      },
+      ["start", "stop", "error"],
+    ],
+    [
+      "an interrupted recording",
+      {},
+      async ({ controller }: ReturnType<typeof createHarness>) => {
+        await controller.start();
+        await controller.interruptRecording();
+      },
+      ["start", "error"],
+    ],
+    [
+      "denied microphone access",
+      {
+        requestPermission: async () => ({ granted: false, canAskAgain: true }),
+      },
+      async ({ controller }: ReturnType<typeof createHarness>) => {
+        await controller.start();
+      },
+      ["error"],
+    ],
+  ] as const)(
+    "cues the microphone opening and closing for %s",
+    async (_name, overrides, run, expected) => {
+      const { harness, cues } = createCueHarness(overrides);
+      await run(harness);
+
+      expect(cues).toEqual(expected);
+    },
+  );
+
+  it("stays silent when preparation is canceled before the microphone opens", async () => {
+    const permission = deferred<{ granted: boolean; canAskAgain: boolean }>();
+    const { harness, cues } = createCueHarness({ requestPermission: () => permission.promise });
+    const starting = harness.controller.start();
+    harness.controller.cancel();
+    permission.resolve({ granted: true, canAskAgain: true });
+    await starting;
+
+    expect(harness.recorder.record).not.toHaveBeenCalled();
+    expect(cues).toEqual([]);
   });
 });

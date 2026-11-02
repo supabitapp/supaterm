@@ -313,6 +313,19 @@
     {
       "bundles": ["mobile"],
       "license": "MIT",
+      "name": "cuelume dictation sounds",
+      "sourceUrl": "https://github.com/danielwh2/cuelume",
+      "version": "0.2.8",
+      "generatedNotices": [
+        {
+          "licenseId": "MIT",
+          "copyrights": ["Copyright (c) 2026 Daniel Belyi"]
+        }
+      ]
+    },
+    {
+      "bundles": ["mobile"],
+      "license": "MIT",
       "name": "react-native-uitextview",
       "noticeFile": "apps/mobile/modules/supaterm-source-text/LICENSE",
       "sourceUrl": "https://github.com/bluesky-social/react-native-uitextview",

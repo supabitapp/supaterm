@@ -9,6 +9,7 @@
     "dev:built": "vp build --watch",
     "build": "vp build",
     "preview": "vp preview",
+    "render:voice-cues": "node scripts/render-voice-input-cues.ts",
     "test": "vp test run --passWithNoTests --project unit --project browser"
   },
   "dependencies": {
@@ -53,6 +54,7 @@
     "@tiptap/react": "^3.31.3",
     "@tiptap/starter-kit": "^3.31.3",
     "class-variance-authority": "^0.7.1",
+    "cuelume": "0.2.8",
     "culori": "^4.0.2",
     "dompurify": "^3.4.16",
     "effect": "catalog:",
