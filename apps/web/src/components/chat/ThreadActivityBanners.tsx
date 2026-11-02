@@ -185,6 +185,9 @@ export function backgroundWorkBannerItem(input: {
     presentation.items.length === 1 && only?.hasOutput
       ? { handle: input.outputHandle, target: outputTarget(only) }
       : null;
+  const title = (
+    <BackgroundWorkTitle {...watchedRun} title={presentation.title} output={titleOutput} />
+  );
   return {
     id: `background-work:${input.threadId}`,
     variant: "default",
@@ -199,11 +202,9 @@ export function backgroundWorkBannerItem(input: {
     iconInteractive: watchedRun.run !== null,
     title:
       presentation.items.length === 1 && (only?.kind === "command" || only?.kind === "monitor") ? (
-        <span className="in-data-[slot=popover-popup]:whitespace-pre-wrap">
-          <BackgroundWorkTitle {...watchedRun} title={presentation.title} output={titleOutput} />
-        </span>
+        <span className="in-data-[slot=popover-popup]:whitespace-pre-wrap">{title}</span>
       ) : (
-        <BackgroundWorkTitle {...watchedRun} title={presentation.title} output={titleOutput} />
+        title
       ),
     description:
       presentation.items.length === 1 && only?.childThreadId === undefined

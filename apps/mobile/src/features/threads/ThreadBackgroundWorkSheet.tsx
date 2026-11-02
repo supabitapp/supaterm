@@ -124,15 +124,7 @@ function BackgroundWorkRow(props: {
   const childThreadId = item.childThreadId;
   const [showingOutput, setShowingOutput] = useState(props.initiallyShowingOutput);
   const { themeAppearance } = useAppearancePreferences();
-  const trailingSymbol =
-    childThreadId !== undefined
-      ? "chevron.right"
-      : item.hasOutput
-        ? showingOutput
-          ? "chevron.up"
-          : "chevron.down"
-        : null;
-  const row = (
+  const row = (trailingSymbol: "chevron.right" | "chevron.up" | "chevron.down" | null) => (
     <View className="flex-row items-center gap-3 py-3.5">
       <SymbolView
         name={
@@ -159,14 +151,14 @@ function BackgroundWorkRow(props: {
         onPress={() => props.onOpen(childThreadId)}
         className="border-b border-border active:opacity-70"
       >
-        {row}
+        {row("chevron.right")}
       </Pressable>
     );
   }
   if (!item.hasOutput) {
     return (
       <View accessible className="border-b border-border">
-        {row}
+        {row(null)}
       </View>
     );
   }
@@ -182,7 +174,7 @@ function BackgroundWorkRow(props: {
         }}
         className="active:opacity-70"
       >
-        {row}
+        {row(showingOutput ? "chevron.up" : "chevron.down")}
       </Pressable>
       {showingOutput ? (
         <View className="pb-3.5">
