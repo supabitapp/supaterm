@@ -62,5 +62,6 @@ describe("Sidebar", () => {
     await expect.element(screen.getByRole("button", { name: "Show sidebar" })).toHaveFocus();
     await userEvent.click(screen.getByRole("button", { name: "Show sidebar" }));
     await vi.waitFor(() => expect(sidebar.inert).toBe(false));
+    await expect.element(screen.getByRole("button", { name: "Hide sidebar" })).toHaveFocus();
   });
 });

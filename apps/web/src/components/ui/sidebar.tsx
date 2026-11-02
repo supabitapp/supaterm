@@ -83,16 +83,21 @@ async function persistSidebarOpen(open: boolean) {
   });
 }
 
-// The desktop sidebar turns inert once collapsed, which drops focus to the body. The
-// outside trigger may only show once collapsed, so focus it after React commits.
-function moveFocusOutOfCollapsingSidebar() {
-  const sidebar = document.activeElement?.closest<HTMLElement>('[data-slot="sidebar"]');
-  const wrapper = sidebar?.closest<HTMLElement>('[data-slot="sidebar-wrapper"]');
-  if (!sidebar || !wrapper) return;
+function canHoldFocus(element: HTMLElement) {
+  return element.checkVisibility() && element.closest("[inert]") === null;
+}
+
+// Collapsing makes the desktop sidebar inert, and a trigger shown in only one state hides
+// once toggled; both drop focus to the body. After React commits, hand it to a shown trigger.
+function keepSidebarFocusOnTrigger() {
+  const focused = document.activeElement;
+  const wrapper = focused?.closest<HTMLElement>('[data-slot="sidebar-wrapper"]');
+  if (!(focused instanceof HTMLElement) || !wrapper) return;
   queueMicrotask(() => {
+    if (canHoldFocus(focused)) return;
     const trigger = Array.from(
       wrapper.querySelectorAll<HTMLElement>('[data-sidebar="trigger"]'),
-    ).find((element) => !sidebar.contains(element));
+    ).find(canHoldFocus);
     trigger?.focus({ preventScroll: true });
   });
 }
@@ -114,7 +119,7 @@ function createSidebarOpenStore(defaultOpen: boolean) {
     if (open !== state.open) {
       if (!isMobileViewport()) announceSidebarVisibility(open);
       publish({ ...state, open });
-      if (!open) moveFocusOutOfCollapsingSidebar();
+      keepSidebarFocusOnTrigger();
     }
     void persistSidebarOpen(open);
   };
