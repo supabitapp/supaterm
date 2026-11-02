@@ -142,10 +142,10 @@ export async function downloadLocalUpdate(
 export async function installLocalUpdate(
   bridge: DesktopBridge,
   reportError: ReportLocalUpdateError = toastUpdateError,
-  expectedVersion?: string,
+  expectedVersion: string | null = null,
 ): Promise<boolean> {
   try {
-    await desktopUpdateRestart.install(bridge, expectedVersion);
+    await desktopUpdateRestart.install(bridge, expectedVersion ?? undefined);
     return true;
   } catch (error) {
     reportError(
@@ -249,7 +249,9 @@ function SidebarUpdateControl() {
       setIsActionPending(false);
       return;
     }
-    void installLocalUpdate(bridge).finally(() => setIsActionPending(false));
+    void installLocalUpdate(bridge, toastUpdateError, localUpdateVersion).finally(() =>
+      setIsActionPending(false),
+    );
   };
 
   const runEverything = async () => {
@@ -265,7 +267,10 @@ function SidebarUpdateControl() {
             }
           : {}),
         ...(bridge && action !== "none"
-          ? { installLocal: (reportError) => installLocalUpdate(bridge, reportError) }
+          ? {
+              installLocal: (reportError) =>
+                installLocalUpdate(bridge, reportError, localUpdateVersion),
+            }
           : {}),
       }),
     );
@@ -322,7 +327,13 @@ function SidebarUpdateControl() {
                     failures: [],
                     restarting: [],
                   });
-                  if (!(await installLocalUpdate(window.desktopBridge!))) {
+                  if (
+                    !(await installLocalUpdate(
+                      window.desktopBridge!,
+                      toastUpdateError,
+                      localUpdateVersion,
+                    ))
+                  ) {
                     clearSavedUpdateEverythingResult();
                   }
                 },
