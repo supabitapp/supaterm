@@ -31,6 +31,7 @@
     "vite.config.ts",
     "cloudflare",
     "test",
+    "scripts/render-voice-input-cues.ts",
     "scripts/verify-built-boot.ts",
     "scripts/warm-dep-cache.ts",
     "../../scripts/lib/public-config.ts",

@@ -3,10 +3,12 @@ import { createServerVoiceTranscriber } from "@supaterm/client-runtime/state/tra
 import {
   VoiceInputController,
   voiceInputBlocksSubmission,
+  voiceInputCue,
   type VoiceDraftSnapshot,
   type VoiceInputState,
 } from "@supaterm/client-runtime/voice-input";
 import type { EnvironmentId, ProjectId, ThreadId, VoiceHoldToTalkKey } from "@supaterm/contracts";
+import { unlock } from "cuelume";
 import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { ComposerSubmissionIntent } from "../composer-logic";
@@ -17,6 +19,7 @@ import { uploadVoiceAudio, useVoiceTranscriptionSource } from "../state/transcri
 import { followKeyHold, type KeyHold, type KeyHoldHandlers } from "./keyHold";
 import { useDiscardOnEscape } from "./useDiscardOnEscape";
 import { useHoldToTalk } from "./useHoldToTalk";
+import { playVoiceInputCue } from "./voiceInputCues";
 import {
   canRecordVoice,
   readVoiceRecording,
@@ -124,6 +127,7 @@ function createVoiceRuntime(onStateChange: (state: VoiceInputState) => void) {
     }
     return { ownerKey: current.ownerKey, text, selection: current.readSelection(), revision };
   };
+  let phase = IDLE_STATE.phase;
   const recorder: WebVoiceRecorder = new WebVoiceRecorder({
     onStatus: (status) => void controller.handleRecorderStatus(status),
   });
@@ -154,6 +158,9 @@ function createVoiceRuntime(onStateChange: (state: VoiceInputState) => void) {
     onStateChange: (state) => {
       // The microphone opens while permission is asked, before the controller owns it.
       if (state.phase === "idle" || state.phase === "error") recorder.release();
+      const cue = voiceInputCue(phase, state.phase);
+      phase = state.phase;
+      if (cue) playVoiceInputCue(cue);
       onStateChange(state);
       options?.onBusyChange(voiceInputBlocksSubmission(state));
     },
@@ -228,6 +235,8 @@ export function useComposerVoiceInput(options: ComposerVoiceInputOptions) {
   const canRecord = availability.canReview || availability.canSend;
   const start = useStableCallback(() => {
     if (!canRecord) return;
+    // The start cue plays after the microphone opens, outside this gesture.
+    void unlock();
     void controller.start();
   });
   const stop = useStableCallback(() => {
