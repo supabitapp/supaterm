@@ -66,6 +66,13 @@ jobs:
     if: inputs.platform == 'all' || inputs.platform == 'ios'
     runs-on: xcode-27
     timeout-minutes: 60
+    # The fingerprint evaluates app.config.ts, so it must see the build's environment.
+    env:
+      APP_VARIANT: production
+      MOBILE_VERSION_POLICY: appVersion
+      EXPO_NO_GIT_STATUS: "1"
+      SUPATERM_SHOWCASE_CAPTURE_BUILD: "1"
+      NODE_ENV: development
     outputs:
       devices: ${{ steps.devices.outputs.devices }}
     steps:
@@ -97,14 +104,24 @@ jobs:
           devices="$(node --input-type=module -e 'import config from "./scripts/mobile-showcase.config.ts"; console.log(JSON.stringify(config.devices.filter((device) => device.platform === "ios").map((device) => device.id)));')"
           echo "devices=$devices" >> "$GITHUB_OUTPUT"
 
-      - name: Build iOS showcase app
+      # The Debug build loads its JavaScript from Metro, so builds that share a native
+      # fingerprint are interchangeable and most store versions skip the native build.
+      - id: fingerprint
+        name: Resolve iOS showcase fingerprint
         working-directory: apps/mobile
-        env:
-          APP_VARIANT: production
-          MOBILE_VERSION_POLICY: appVersion
-          EXPO_NO_GIT_STATUS: "1"
-          SUPATERM_SHOWCASE_CAPTURE_BUILD: "1"
-          NODE_ENV: development
+        run: |
+          hash="$(node --eval 'require("expo/fingerprint").createFingerprintAsync(process.cwd(), { platforms: ["ios"], silent: true }).then((fingerprint) => console.log(fingerprint.hash))')"
+          echo "hash=$hash" >> "$GITHUB_OUTPUT"
+      - id: cached-app
+        name: Restore iOS showcase app
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ runner.temp }}/ios-showcase-app.tar
+          key: ios-showcase-app-${{ runner.arch }}-xcode-27.1-${{ steps.fingerprint.outputs.hash }}
+
+      - name: Build iOS showcase app
+        if: steps.cached-app.outputs.cache-hit != 'true'
+        working-directory: apps/mobile
         run: |
           pnpm exec expo prebuild --clean --platform ios
           xcodebuild -workspace ios/Supaterm.xcworkspace -scheme Supaterm -configuration Debug \
@@ -113,7 +130,14 @@ jobs:
 
       # Artifact zips drop the executable bit, so the bundle travels as a tarball.
       - name: Package iOS showcase app
+        if: steps.cached-app.outputs.cache-hit != 'true'
         run: tar -C apps/mobile/.showcase/ios-derived-data/Build/Products/Debug-iphonesimulator -cf "$RUNNER_TEMP/ios-showcase-app.tar" Supaterm.app
+      - name: Save iOS showcase app
+        if: steps.cached-app.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ runner.temp }}/ios-showcase-app.tar
+          key: ${{ steps.cached-app.outputs.cache-primary-key }}
 
       - name: Upload iOS showcase app
         uses: actions/upload-artifact@v7
@@ -246,6 +270,11 @@ jobs:
     timeout-minutes: ${{ inputs.theme == 'all' && 350 || 120 }}
     env:
       SUPATERM_SHOWCASE_ANDROID_ABI: x86_64
+      # The fingerprint evaluates app.config.ts, so it must see the build's environment.
+      APP_VARIANT: production
+      EXPO_NO_GIT_STATUS: "1"
+      SUPATERM_SHOWCASE_CAPTURE_BUILD: "1"
+      NODE_ENV: development
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -262,6 +291,19 @@ jobs:
       - name: Expose pnpm
         run: mise exec -- pnpm --version
 
+      - id: fingerprint
+        name: Resolve Android showcase fingerprint
+        working-directory: apps/mobile
+        run: |
+          hash="$(node --eval 'require("expo/fingerprint").createFingerprintAsync(process.cwd(), { platforms: ["android"], silent: true }).then((fingerprint) => console.log(fingerprint.hash))')"
+          echo "hash=$hash" >> "$GITHUB_OUTPUT"
+      - id: cached-apk
+        name: Restore Android showcase APK
+        uses: actions/cache/restore@v6
+        with:
+          path: apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          key: android-showcase-apk-${{ env.SUPATERM_SHOWCASE_ANDROID_ABI }}-${{ steps.fingerprint.outputs.hash }}
+
       - name: Setup Java
         uses: actions/setup-java@v6
         with:
@@ -269,6 +311,7 @@ jobs:
           java-version: 17
 
       - name: Setup Gradle cache
+        if: steps.cached-apk.outputs.cache-hit != 'true'
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
       - name: Enable KVM
@@ -279,12 +322,9 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       - name: Build Android showcase APK
+        if: steps.cached-apk.outputs.cache-hit != 'true'
         working-directory: apps/mobile
         env:
-          APP_VARIANT: production
-          EXPO_NO_GIT_STATUS: "1"
-          SUPATERM_SHOWCASE_CAPTURE_BUILD: "1"
-          NODE_ENV: development
           GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2
         run: |
           free -m
@@ -293,6 +333,12 @@ jobs:
           ./gradlew app:assembleDebug "-PreactNativeArchitectures=$SUPATERM_SHOWCASE_ANDROID_ABI"
           test -s app/build/outputs/apk/debug/app-debug.apk
           free -m
+      - name: Save Android showcase APK
+        if: steps.cached-apk.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          key: ${{ steps.cached-apk.outputs.cache-primary-key }}
 
       - name: Capture Android showcase
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
