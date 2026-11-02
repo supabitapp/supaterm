@@ -79,7 +79,7 @@ function PopoverPopup({
         collisionAvoidance={collisionAvoidance}
         collisionPadding={variant === "panel" ? 0 : undefined}
         className={cn(
-          "h-(--positioner-height) w-(--positioner-width) max-w-(--available-width) transition-transform data-instant:transition-none motion-reduce:transition-none",
+          "h-(--positioner-height) max-h-(--available-height) w-(--positioner-width) max-w-(--available-width) transition-transform data-instant:transition-none motion-reduce:transition-none",
           variant === "panel"
             ? // The card inside is the panel width, or the anchor less 12px per side; the viewport
               // pads it by --spacing(2) per side.
