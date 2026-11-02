@@ -532,10 +532,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["voice dictation microphone speech transcribe language locale spoken"],
   },
   {
-    id: "voice-hold-space",
-    title: "Hold Space to talk",
+    id: "voice-hold-to-talk",
+    title: "Hold to talk",
     to: "/settings/voice",
-    searchTerms: ["voice dictation microphone speech push to talk spacebar hold keyboard shortcut"],
+    searchTerms: [
+      "voice dictation microphone speech push to talk option alt spacebar hold keyboard shortcut",
+    ],
   },
   {
     id: "next-prompt-suggestions",

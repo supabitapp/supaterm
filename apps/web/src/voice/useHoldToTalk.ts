@@ -1,3 +1,4 @@
+import type { VoiceHoldToTalkKey } from "@supaterm/contracts";
 import { type RefObject, useEffect } from "react";
 
 import { useStableCallback } from "../hooks/useStableCallback";
@@ -8,13 +9,14 @@ export interface ComposerDraft {
   readonly selection: { readonly start: number; readonly end: number };
 }
 
-export interface HoldSpaceToTalk {
+export interface HoldToTalk {
   readonly canStart: () => boolean;
   readonly readDraft: () => ComposerDraft;
   readonly restoreDraft: (draft: ComposerDraft) => void;
   readonly start: () => void;
-  /** Follows this key press; `onHold` runs once it is held past a tap. */
-  readonly followPress: (onHold: () => void) => KeyHold;
+  readonly cancel: () => void;
+  /** Follows this key press; `onHold` runs once it is held past a tap, `onHeldChord` if it then joins a chord. */
+  readonly followPress: (onHold: () => void, onHeldChord?: () => void) => KeyHold;
 }
 
 function withSpaceTyped({ text, selection }: ComposerDraft): string {
@@ -22,24 +24,40 @@ function withSpaceTyped({ text, selection }: ComposerDraft): string {
 }
 
 /**
- * Space types as usual, so taps and fast typing never wait on it. Once it is held,
- * its repeats are swallowed and the space it typed is taken back out before recording.
+ * Alt types nothing, so a held Alt records right away and a chord such as Option+Left
+ * takes the recording back. Space types as usual, so taps and fast typing never wait on
+ * it. Once it is held, its repeats are swallowed and the space it typed is taken back out.
  */
-export function useHoldSpaceToTalk(
-  target: RefObject<HTMLElement | null> | null,
-  handlers: HoldSpaceToTalk,
+export function useHoldToTalk(
+  target: RefObject<HTMLElement | null>,
+  key: VoiceHoldToTalkKey,
+  handlers: HoldToTalk,
 ) {
   const canStart = useStableCallback(handlers.canStart);
   const readDraft = useStableCallback(handlers.readDraft);
   const restoreDraft = useStableCallback(handlers.restoreDraft);
   const start = useStableCallback(handlers.start);
+  const cancel = useStableCallback(handlers.cancel);
   const followPress = useStableCallback(handlers.followPress);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- listens for Space on the composer's DOM while the setting is on
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- listens for the hold-to-talk key on the composer's DOM
   useEffect(() => {
-    const element = target?.current;
-    if (!element) return;
+    const element = target.current;
+    if (!element || key === "off") return;
     let press: KeyHold | null = null;
-    const onKeyDown = (event: KeyboardEvent) => {
+    const onAltDown = (event: KeyboardEvent) => {
+      if (
+        event.key !== "Alt" ||
+        event.repeat ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey ||
+        !canStart()
+      ) {
+        return;
+      }
+      press = followPress(start, cancel);
+    };
+    const onSpaceDown = (event: KeyboardEvent) => {
       if (
         event.key !== " " ||
         event.ctrlKey ||
@@ -63,10 +81,11 @@ export function useHoldSpaceToTalk(
         start();
       });
     };
+    const onKeyDown = key === "alt" ? onAltDown : onSpaceDown;
     element.addEventListener("keydown", onKeyDown);
     return () => {
       element.removeEventListener("keydown", onKeyDown);
       press?.cancel();
     };
-  }, [target, canStart, readDraft, restoreDraft, start, followPress]);
+  }, [target, key, canStart, readDraft, restoreDraft, start, cancel, followPress]);
 }

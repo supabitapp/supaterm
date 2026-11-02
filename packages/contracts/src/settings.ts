@@ -234,6 +234,9 @@ const DEFAULT_SNAP_SHOT_SHORTCUT: SnapShotShortcut = {
   kind: "both-shift-keys",
 };
 
+export const VoiceHoldToTalkKey = Schema.Literals(["alt", "space", "off"]);
+export type VoiceHoldToTalkKey = typeof VoiceHoldToTalkKey.Type;
+
 export const NotificationMode = Schema.Literals([
   "off",
   "notifications",
@@ -423,7 +426,7 @@ export const ClientSettingsSchema = Schema.Struct({
   voiceLanguage: Schema.NullOr(TrimmedNonEmptyString.check(Schema.isMaxLength(35))).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
-  voiceHoldSpaceToTalk: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  voiceHoldToTalkKey: VoiceHoldToTalkKey.pipe(Schema.withDecodingDefault(Effect.succeed("alt"))),
   proactivePanelsEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   showSkillsInSlashMenu: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   // Sparse show/hide overrides for thread details card items. Missing ids use the client's
@@ -1652,7 +1655,7 @@ export const ClientSettingsPatch = Schema.Struct({
   voiceLanguage: Schema.optionalKey(
     Schema.NullOr(TrimmedNonEmptyString.check(Schema.isMaxLength(35))),
   ),
-  voiceHoldSpaceToTalk: Schema.optionalKey(Schema.Boolean),
+  voiceHoldToTalkKey: Schema.optionalKey(VoiceHoldToTalkKey),
   proactivePanelsEnabled: Schema.optionalKey(Schema.Boolean),
   showSkillsInSlashMenu: Schema.optionalKey(Schema.Boolean),
   threadDetailsItems: Schema.optionalKey(Schema.Record(Schema.String, Schema.Boolean)),

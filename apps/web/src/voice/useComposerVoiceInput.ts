@@ -6,7 +6,7 @@ import {
   type VoiceDraftSnapshot,
   type VoiceInputState,
 } from "@supaterm/client-runtime/voice-input";
-import type { EnvironmentId, ProjectId, ThreadId } from "@supaterm/contracts";
+import type { EnvironmentId, ProjectId, ThreadId, VoiceHoldToTalkKey } from "@supaterm/contracts";
 import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { ComposerSubmissionIntent } from "../composer-logic";
@@ -16,7 +16,7 @@ import { threadOutboxDeliverableAtom } from "../state/threadOutbox";
 import { uploadVoiceAudio, useVoiceTranscriptionSource } from "../state/transcription";
 import { followKeyHold, type KeyHold } from "./keyHold";
 import { useDiscardOnEscape } from "./useDiscardOnEscape";
-import { useHoldSpaceToTalk } from "./useHoldSpaceToTalk";
+import { useHoldToTalk } from "./useHoldToTalk";
 import {
   canRecordVoice,
   readVoiceRecording,
@@ -56,8 +56,9 @@ export interface ComposerVoiceInputOptions {
   readonly submit: (submission: ComposerVoiceSubmission) => void;
   /** A recording is open or on its way, so its controls must stay on screen. */
   readonly onBusyChange: (busy: boolean) => void;
-  /** Holding Space in this element's editor records; null leaves Space to type. */
-  readonly holdSpaceTarget: RefObject<HTMLElement | null> | null;
+  /** Holding this key while focus is in `holdToTalkTarget` records. */
+  readonly holdToTalkKey: VoiceHoldToTalkKey;
+  readonly holdToTalkTarget: RefObject<HTMLElement | null>;
 }
 
 export interface ComposerVoiceAvailability {
@@ -257,8 +258,8 @@ export function useComposerVoiceInput(options: ComposerVoiceInputOptions) {
   const finishHeld = useStableCallback(() => {
     if (controller.currentState.phase === "recording") finish();
   });
-  const followPress = useStableCallback((onHold?: () => void) =>
-    runtime.followKeyPress({ onHold, onHeldRelease: finishHeld }),
+  const followPress = useStableCallback((onHold?: () => void, onHeldChord?: () => void) =>
+    runtime.followKeyPress({ onHold, onHeldRelease: finishHeld, onHeldChord }),
   );
   const toggle = useStableCallback((press: { readonly fromKey: boolean } = { fromKey: false }) => {
     switch (controller.currentState.phase) {
@@ -278,7 +279,7 @@ export function useComposerVoiceInput(options: ComposerVoiceInputOptions) {
         return;
     }
   });
-  useHoldSpaceToTalk(options.holdSpaceTarget, {
+  useHoldToTalk(options.holdToTalkTarget, options.holdToTalkKey, {
     canStart: () => {
       const { phase } = controller.currentState;
       return canRecord && (phase === "idle" || phase === "error");
@@ -289,6 +290,7 @@ export function useComposerVoiceInput(options: ComposerVoiceInputOptions) {
     },
     restoreDraft: (draft) => runtime.read().commitPrompt(draft.text, draft.selection),
     start,
+    cancel,
     followPress,
   });
 

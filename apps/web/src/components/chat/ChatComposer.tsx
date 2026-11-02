@@ -1910,7 +1910,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     submit: (submission) =>
       void submitComposerStable(undefined, submission.dispatchMode, submission.intent),
     onBusyChange: setVoiceSessionOpen,
-    holdSpaceTarget: settings.voiceHoldSpaceToTalk ? composerFormRef : null,
+    holdToTalkKey: settings.voiceHoldToTalkKey,
+    holdToTalkTarget: composerFormRef,
   });
 
   const readComposerSnapshot = (): {

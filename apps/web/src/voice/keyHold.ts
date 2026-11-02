@@ -6,13 +6,14 @@ export interface KeyHold {
 }
 
 /**
- * Follows the key press that just started, telling a tap from a hold. The first key
- * release ends it: macOS sends no keyup for a letter let go while Command is down, only
- * for Command. Another key press, or the window losing focus, makes it a tap.
+ * Tells a tap from a hold. The first key release ends it: macOS sends no keyup for a letter
+ * let go while Command is down. Another key press, or losing focus, makes it a tap; once
+ * held, those, or a click, make a modifier hold a chord such as Option+Left (`onHeldChord`).
  */
 export function followKeyHold(handlers: {
   readonly onHold?: (() => void) | undefined;
   readonly onHeldRelease: () => void;
+  readonly onHeldChord?: (() => void) | undefined;
 }): KeyHold {
   let held = false;
   let done = false;
@@ -26,17 +27,27 @@ export function followKeyHold(handlers: {
     window.clearTimeout(timer);
     window.removeEventListener("keydown", onKeyDown, true);
     window.removeEventListener("keyup", onKeyUp, true);
-    window.removeEventListener("blur", end);
+    window.removeEventListener("pointerdown", interrupt, true);
+    window.removeEventListener("blur", interrupt);
+  };
+  const interrupt = () => {
+    if (done) return;
+    end();
+    if (held) handlers.onHeldChord?.();
   };
   const onKeyDown = (event: KeyboardEvent) => {
-    if (!event.repeat) end();
+    if (!event.repeat) interrupt();
   };
-  const onKeyUp = () => {
+  const onKeyUp = (event: KeyboardEvent) => {
     end();
-    if (held) handlers.onHeldRelease();
+    if (!held) return;
+    // Releasing a lone Alt opens the menu bar on Windows and Linux unless the page consumes it.
+    event.preventDefault();
+    handlers.onHeldRelease();
   };
   window.addEventListener("keydown", onKeyDown, true);
   window.addEventListener("keyup", onKeyUp, true);
-  window.addEventListener("blur", end);
+  if (handlers.onHeldChord) window.addEventListener("pointerdown", interrupt, true);
+  window.addEventListener("blur", interrupt);
   return { active: () => !done, cancel: end };
 }

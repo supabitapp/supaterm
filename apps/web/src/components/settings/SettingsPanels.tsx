@@ -480,6 +480,9 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.voiceLanguage !== DEFAULT_UNIFIED_SETTINGS.voiceLanguage
       ? ["Voice language"]
       : []),
+    ...(settings.voiceHoldToTalkKey !== DEFAULT_UNIFIED_SETTINGS.voiceHoldToTalkKey
+      ? ["Hold to talk"]
+      : []),
     ...(settings.followUpBehavior !== DEFAULT_UNIFIED_SETTINGS.followUpBehavior
       ? ["Follow-up behavior"]
       : []),
@@ -593,6 +596,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       composerRichTextEnabled: DEFAULT_UNIFIED_SETTINGS.composerRichTextEnabled,
       sendShortcut: DEFAULT_UNIFIED_SETTINGS.sendShortcut,
       voiceLanguage: DEFAULT_UNIFIED_SETTINGS.voiceLanguage,
+      voiceHoldToTalkKey: DEFAULT_UNIFIED_SETTINGS.voiceHoldToTalkKey,
       followUpBehavior: DEFAULT_UNIFIED_SETTINGS.followUpBehavior,
       glassOpacity: DEFAULT_UNIFIED_SETTINGS.glassOpacity,
       sidebarThreadGrouping: DEFAULT_UNIFIED_SETTINGS.sidebarThreadGrouping,
