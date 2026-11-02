@@ -774,7 +774,6 @@ const HANDOFF_TOOLS: ReadonlySet<string> = new Set([
   "supaterm_thread_launch",
   "supaterm_thread_send",
   "supaterm_thread_send_attachments",
-  "schedule_task",
   "run_scheduled_task_now",
 ]);
 
@@ -799,6 +798,12 @@ const hasAction = (
 
 const isInputTargetHandoff = (tool: string, args: unknown) =>
   hasAction(INPUT_TARGET_ACTIONS, tool, args);
+
+/** With `scheduledTaskId`, `schedule_task` edits a task instead of handing work to a new one. */
+const isScheduledTaskCreate = (tool: string, args: unknown) =>
+  tool === "schedule_task" &&
+  (args as { readonly scheduledTaskId?: unknown } | null | undefined)?.scheduledTaskId ===
+    undefined;
 
 const resultThreadKeys = ["childThreadId", "targetThreadId", "boundThreadId", "threadId"] as const;
 
@@ -880,6 +885,7 @@ const withToolAnalytics =
       ) {
         const handoff =
           HANDOFF_TOOLS.has(tool) ||
+          isScheduledTaskCreate(tool, args) ||
           isInputTargetHandoff(tool, args) ||
           hasAction(RESULT_TARGET_ACTIONS, tool, args);
         const outcome = toolOutcome(result);
