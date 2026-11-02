@@ -84,10 +84,31 @@ const buffers = new Map<string, Promise<AudioBuffer>>();
 
 const playingUntil = new Map<string, number>();
 
+function loadNotificationBuffer(context: AudioContext, url: string): Promise<AudioBuffer> {
+  let buffer = buffers.get(url);
+  if (!buffer) {
+    buffer = fetch(url)
+      .then((response) => response.arrayBuffer())
+      .then((data) => context.decodeAudioData(data))
+      .catch((error: unknown) => {
+        buffers.delete(url);
+        throw error;
+      });
+    buffers.set(url, buffer);
+  }
+  return buffer;
+}
+
 /** Called from a gesture so browsers allow later background playback. */
 export function unlockNotificationAudio() {
+  const firstUnlock = audioContext === undefined;
   audioContext ??= new AudioContext();
   void audioContext.resume().catch(() => undefined);
+  if (!firstUnlock) return;
+  // Fetch and decode during interaction so the first alert is ready when the thread finishes.
+  for (const url of [completionUrl, inputUrl]) {
+    void loadNotificationBuffer(audioContext, url).catch(() => undefined);
+  }
 }
 
 export async function playNotificationSound(
@@ -98,14 +119,7 @@ export async function playNotificationSound(
   const context = audioContext;
   const url = kind === "completion" ? completionUrl : inputUrl;
   try {
-    let buffer = buffers.get(url);
-    if (!buffer) {
-      buffer = fetch(url)
-        .then((response) => response.arrayBuffer())
-        .then((data) => context.decodeAudioData(data));
-      buffers.set(url, buffer);
-    }
-    const decoded = await buffer;
+    const decoded = await loadNotificationBuffer(context, url);
     if (!shouldPlay() || context.state !== "running") return;
 
     if (context.currentTime < (playingUntil.get(url) ?? 0)) return;
@@ -115,6 +129,6 @@ export async function playNotificationSound(
     source.start();
     playingUntil.set(url, context.currentTime + decoded.duration);
   } catch {
-    buffers.delete(url);
+    // A failed load is retried on the next alert.
   }
 }
