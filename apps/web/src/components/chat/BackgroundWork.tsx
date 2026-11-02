@@ -143,7 +143,8 @@ export function BackgroundTaskOutputPopover({ handle }: { handle: BackgroundTask
         payload === undefined ? null : (
           <PopoverPopup side="top" align="start" width="xl" aria-label={`Output: ${payload.label}`}>
             <div className="mb-2 truncate font-medium text-xs">{payload.label}</div>
-            <div className="font-mono text-(length:--font-size-code,var(--text-2xs)) leading-relaxed whitespace-pre-wrap break-words select-text">
+            {/* Fixed, so the popover keeps its place while output streams in. */}
+            <div className="h-80 font-mono text-(length:--font-size-code,var(--text-2xs)) leading-relaxed whitespace-pre-wrap break-words select-text [&_*]:[scrollbar-width:none] [&_*::-webkit-scrollbar]:hidden">
               <CommandOutputPanel
                 output={orchestrationEnvironment.v2.backgroundTaskOutput({
                   environmentId: payload.environmentId,

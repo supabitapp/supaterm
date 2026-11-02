@@ -70,8 +70,9 @@ export function CommandOutputPanel(props: {
   }
   // Parsed after the layout effect, the last hook, so the compiler caches it on text and theme.
   const spans = terminalOutputSpans(text, TERMINAL_PALETTES[resolvedTheme]);
+  // Fills a parent with a fixed height, and sizes to its output up to max-h-80 otherwise.
   return (
-    <div>
+    <div className="flex h-full flex-col">
       {data?.output.truncated ? (
         <div className="text-muted-foreground italic">Earlier output not shown</div>
       ) : null}
@@ -82,7 +83,7 @@ export function CommandOutputPanel(props: {
           followRef.current =
             element.scrollHeight - element.scrollTop - element.clientHeight <= FOLLOW_SLACK_PX;
         }}
-        className="max-h-80 overflow-auto text-muted-foreground"
+        className="max-h-80 min-h-0 flex-auto overflow-auto text-muted-foreground"
       >
         {spans.map((span, index) =>
           span.style === null ? (
