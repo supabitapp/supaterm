@@ -5,6 +5,7 @@ import {
 } from "@supaterm/shared/themePalettes";
 
 import { SHOWCASE_SCENES, type ShowcaseScene } from "./mobile-showcase-environment.ts";
+import type { ShowcaseFrame, ShowcaseSlide } from "./mobile-showcase-frame.ts";
 
 export { SHOWCASE_SCENES };
 export type { ShowcaseScene };
@@ -35,6 +36,7 @@ export interface ShowcaseIosDevice {
   readonly platform: "ios";
   readonly simulator: string;
   readonly simulatorDeviceType?: string;
+  readonly frame: ShowcaseFrame;
   readonly appearance: ShowcaseAppearance;
   readonly theme: ShowcaseTheme;
   readonly orientation?: "portrait" | "landscape";
@@ -47,6 +49,7 @@ export interface ShowcaseAndroidDevice {
   readonly id: string;
   readonly platform: "android";
   readonly avd: string;
+  readonly frame: ShowcaseFrame;
   readonly appearance: ShowcaseAppearance;
   readonly theme: ShowcaseTheme;
   readonly abi?: "arm64-v8a" | "x86_64" | "x86" | "armeabi-v7a";
@@ -62,7 +65,9 @@ export interface ShowcaseAndroidDevice {
 export type ShowcaseDevice = ShowcaseIosDevice | ShowcaseAndroidDevice;
 
 export interface ShowcaseConfig {
+  readonly captureDirectory: string;
   readonly outputDirectory: string;
+  readonly slides: Readonly<Record<ShowcaseScene, ShowcaseSlide>>;
   readonly metroPort: number;
   readonly settleDelayMs: number;
   readonly devices: ReadonlyArray<ShowcaseDevice>;
@@ -84,7 +89,15 @@ function resolveShowcaseAndroidAbi(
 }
 
 const config: ShowcaseConfig = {
+  captureDirectory: "artifacts/app-store/captures",
   outputDirectory: "artifacts/app-store/screenshots",
+  slides: {
+    threads: { eyebrow: "Threads", title: ["Your coding agents,", "in your *pocket*."] },
+    thread: { eyebrow: "Chat", title: ["Unblock agents", "from *anywhere*."] },
+    review: { eyebrow: "Review", title: ["Read every *diff*", "before it ships."] },
+    terminal: { eyebrow: "Terminal", title: ["A real *terminal*,", "one tap away."] },
+    environments: { eyebrow: "Environments", title: ["Every machine,", "*one* app."] },
+  },
   // Dedicated port so the harness cannot attach to a normal mobile dev server
   // (or a second worktree) and capture the wrong bundle.
   metroPort: 8199,
@@ -94,6 +107,7 @@ const config: ShowcaseConfig = {
       id: "iphone-6.9",
       platform: "ios",
       simulator: "Supaterm Showcase iPhone 17 Pro Max",
+      frame: "iphone",
       simulatorDeviceType: "com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro-Max",
       appearance: "dark",
       theme: DEFAULT_SHOWCASE_THEME,
@@ -111,6 +125,7 @@ const config: ShowcaseConfig = {
       id: "iphone-6.3",
       platform: "ios",
       simulator: "Supaterm Showcase iPhone 17 Pro",
+      frame: "iphone",
       simulatorDeviceType: "com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro",
       appearance: "dark",
       theme: DEFAULT_SHOWCASE_THEME,
@@ -128,6 +143,7 @@ const config: ShowcaseConfig = {
       id: "iphone-6.5",
       platform: "ios",
       simulator: "Supaterm Showcase iPhone 14 Plus",
+      frame: "iphone",
       simulatorDeviceType: "com.apple.CoreSimulator.SimDeviceType.iPhone-14-Plus",
       appearance: "dark",
       theme: DEFAULT_SHOWCASE_THEME,
@@ -141,30 +157,11 @@ const config: ShowcaseConfig = {
         maximumUploadCount: 10,
       },
     },
-    ...(["closed", "open"] as const).map((fold): ShowcaseIosDevice => ({
-      id: `iphone-duo-${fold}`,
-      platform: "ios",
-      simulator: `Supaterm Showcase iPhone Duo ${fold}`,
-      simulatorDeviceType: "com.apple.CoreSimulator.SimDeviceType.iPhone-Duo",
-      appearance: "dark",
-      theme: DEFAULT_SHOWCASE_THEME,
-      orientation: fold === "closed" ? "portrait" : "landscape",
-      fold,
-      // Both poses share one ten-image App Store slot.
-      scenes: ["thread", "terminal", "review", "threads", "environments"],
-      storeAsset: {
-        store: "apple",
-        directory: `apple/iphone-duo-${fold}`,
-        width: fold === "closed" ? 1398 : 2853,
-        height: fold === "closed" ? 2034 : 2007,
-        minimumUploadCount: 1,
-        maximumUploadCount: 5,
-      },
-    })),
     {
       id: "ipad-13",
       platform: "ios",
       simulator: "iPad Pro 13-inch (M5)",
+      frame: "ipad",
       simulatorDeviceType: "com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M5-16GB",
       appearance: "dark",
       theme: DEFAULT_SHOWCASE_THEME,
@@ -183,6 +180,7 @@ const config: ShowcaseConfig = {
       id: "pixel",
       platform: "android",
       avd: "Pixel_10_Pro",
+      frame: "android",
       // Apple Silicon uses ARM64 locally; CI overrides this with x86_64 so its
       // Linux runner can use KVM acceleration.
       abi: resolveShowcaseAndroidAbi(process.env.SUPATERM_SHOWCASE_ANDROID_ABI),
@@ -209,6 +207,7 @@ const config: ShowcaseConfig = {
       id: "android-tablet-7",
       platform: "android",
       avd: "Pixel_10_Pro",
+      frame: "android-tablet",
       abi: resolveShowcaseAndroidAbi(process.env.SUPATERM_SHOWCASE_ANDROID_ABI),
       appearance: "dark",
       theme: DEFAULT_SHOWCASE_THEME,
@@ -233,6 +232,7 @@ const config: ShowcaseConfig = {
       id: "android-tablet-10",
       platform: "android",
       avd: "Pixel_10_Pro",
+      frame: "android-tablet",
       abi: resolveShowcaseAndroidAbi(process.env.SUPATERM_SHOWCASE_ANDROID_ABI),
       appearance: "dark",
       theme: DEFAULT_SHOWCASE_THEME,

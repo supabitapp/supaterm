@@ -13,6 +13,7 @@ const ready: ShowcaseReadinessInput = {
   scene: "thread",
   requestedScene: "thread",
   hasFixture: true,
+  threadSynced: true,
   orientationSettled: true,
   themeApplied: true,
   themeId: "supaterm",
@@ -66,6 +67,15 @@ describe("showcaseReadinessKey", () => {
     expect(showcaseReadinessKey(ready)).not.toBeNull();
     expect(showcaseReadinessKey({ ...ready, requestedScene: "terminal" })).toBeNull();
     expect(showcaseReadinessKey({ ...ready, hasFixture: false })).toBeNull();
+    expect(showcaseReadinessKey({ ...ready, threadSynced: false })).toBeNull();
+    expect(
+      showcaseReadinessKey({
+        ...ready,
+        scene: "terminal",
+        requestedScene: "terminal",
+        threadSynced: false,
+      }),
+    ).not.toBeNull();
     expect(showcaseReadinessKey({ ...ready, orientationSettled: false })).toBeNull();
     expect(showcaseReadinessKey({ ...ready, themeApplied: false })).toBeNull();
   });

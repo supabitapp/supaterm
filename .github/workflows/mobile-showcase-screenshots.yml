@@ -60,7 +60,7 @@ env:
 
 jobs:
   ios:
-    name: iPhone 6.9, iPhone 6.3, iPhone 6.5, iPhone Duo, and iPad 13
+    name: iPhone 6.9, iPhone 6.3, iPhone 6.5, and iPad 13
     if: inputs.platform == 'all' || inputs.platform == 'ios'
     runs-on: xcode-27
     # Capturing every palette multiplies the device matrix, and only the one
@@ -111,6 +111,16 @@ jobs:
         with:
           name: app-store-connect-screenshots
           path: artifacts/app-store/screenshots/apple/
+          if-no-files-found: warn
+          retention-days: 14
+          overwrite: true
+
+      - name: Upload raw iOS captures
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: app-store-connect-captures
+          path: artifacts/app-store/captures/apple/
           if-no-files-found: warn
           retention-days: 14
           overwrite: true
@@ -196,6 +206,16 @@ jobs:
         with:
           name: google-play-screenshots
           path: artifacts/app-store/screenshots/google-play/
+          if-no-files-found: warn
+          retention-days: 14
+          overwrite: true
+
+      - name: Upload raw Android captures
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: google-play-captures
+          path: artifacts/app-store/captures/google-play/
           if-no-files-found: warn
           retention-days: 14
           overwrite: true

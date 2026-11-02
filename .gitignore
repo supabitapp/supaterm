@@ -35,6 +35,7 @@ apps/mobile/.showcase/
 apps/mobile/.generated/
 apps/mobile/.android-cache/
 /.generated/
+artifacts/app-store/captures/
 artifacts/app-store/screenshots/
 artifacts/app-store/fastlane/
 apps/mobile/vendor/bundle/

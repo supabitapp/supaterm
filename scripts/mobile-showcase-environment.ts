@@ -157,6 +157,13 @@ export const SHOWCASE_THREADS = [
     title: "Explain why a machine is offline",
     branch: "feat/offline-reason",
     minutesAgo: 3,
+    earlier: [
+      {
+        request: "Why does a sleeping laptop look the same as a dead VPS in Environments?",
+        response:
+          "The card only knows connected or offline, so it can't tell them apart. The transport already reports why a route failed; it just never reaches the card.",
+      },
+    ],
     request:
       "When a paired machine drops, say why on its card (asleep, unreachable, or signed out) and what to do next. Keep it to one line.",
     response:
@@ -479,24 +486,29 @@ function seedDatabase(
         }),
       });
 
-      const transcript = [
-        {
-          id: `${thread.id}-request`,
-          role: "user" as const,
-          text: thread.request,
-          at: minutesBefore(now, thread.minutesAgo + 5),
-        },
-        ...(thread.response === null
-          ? []
-          : [
-              {
-                id: `${thread.id}-answer`,
-                role: "assistant" as const,
-                text: thread.response,
-                at: updatedAt,
-              },
-            ]),
+      const exchanges = [
+        ...("earlier" in thread ? thread.earlier : []),
+        { request: thread.request, response: thread.response },
       ];
+      const transcript = exchanges.flatMap((exchange, index) => {
+        const minutesAgo = thread.minutesAgo + (exchanges.length - 1 - index) * 30;
+        const request = {
+          id: `${thread.id}-request-${index}`,
+          role: "user" as const,
+          text: exchange.request,
+          at: minutesBefore(now, minutesAgo + 5),
+        };
+        if (exchange.response === null) return [request];
+        return [
+          request,
+          {
+            id: `${thread.id}-answer-${index}`,
+            role: "assistant" as const,
+            text: exchange.response,
+            at: minutesBefore(now, minutesAgo),
+          },
+        ];
+      });
       for (const [index, message] of transcript.entries()) {
         insert("orchestration_v2_projection_messages", {
           message_id: message.id,

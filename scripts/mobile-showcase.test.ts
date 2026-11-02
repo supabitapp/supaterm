@@ -46,7 +46,9 @@ const googleSpec: ShowcaseStoreAssetSpec = {
 };
 
 const config: ShowcaseConfig = {
+  captureDirectory: "captures",
   outputDirectory: "artifacts",
+  slides: showcaseConfig.slides,
   metroPort: 8199,
   settleDelayMs: 1,
   devices: [
@@ -54,6 +56,7 @@ const config: ShowcaseConfig = {
       id: "phone",
       platform: "ios",
       simulator: "iPhone Test",
+      frame: "iphone",
       appearance: "dark",
       theme: "supaterm",
       scenes: ["thread", "review"],
@@ -63,6 +66,7 @@ const config: ShowcaseConfig = {
       id: "pixel",
       platform: "android",
       avd: "Pixel_Test",
+      frame: "android",
       appearance: "light",
       theme: "supaterm",
       scenes: ["thread", "terminal"],
@@ -155,8 +159,6 @@ it("configures every default device with an exact upload-ready store target", ()
       ["iphone-6.9", "portrait", "apple/iphone-6.9", 1320, 2868],
       ["iphone-6.3", "portrait", "apple/iphone-6.3", 1206, 2622],
       ["iphone-6.5", "portrait", "apple/iphone-6.5", 1284, 2778],
-      ["iphone-duo-closed", "portrait", "apple/iphone-duo-closed", 1398, 2034],
-      ["iphone-duo-open", "landscape", "apple/iphone-duo-open", 2853, 2007],
       ["ipad-13", "landscape", "apple/ipad-13", 2752, 2064],
       ["pixel", null, "google-play/phone", 1080, 1920],
       ["android-tablet-7", null, "google-play/tablet-7", 1080, 1920],

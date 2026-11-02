@@ -22,7 +22,7 @@ import { appAtomRegistry } from "../../state/atom-registry";
 import { mobilePreferencesAtom, updateMobilePreferencesAtom } from "../../state/preferences";
 import { environmentProjects } from "../../state/projects";
 import { enqueueThreadOutboxMessage } from "../../state/thread-outbox";
-import { environmentThreadShells } from "../../state/threads";
+import { environmentThreads, environmentThreadShells } from "../../state/threads";
 import { holdEditingQueuedMessage } from "../../state/use-thread-outbox";
 import { workspaceConnections } from "../../state/workspace";
 import { resolveThemeAppearance } from "../settings/appearance/AppearancePreferencesProvider";
@@ -277,12 +277,24 @@ export function installShowcaseCapture(
       }
     }
 
+    // Read only while the thread screen keeps the thread mounted.
+    const threadState =
+      scene === "thread" && showcaseThread
+        ? appAtomRegistry.get(
+            environmentThreads.stateAtom(showcaseThread.environmentId, showcaseThread.id),
+          )
+        : null;
+    const threadSynced =
+      threadState !== null &&
+      AsyncResult.isSuccess(threadState) &&
+      threadState.value.status === "live";
     const render = getShowcaseRenderSnapshot();
     updateReadiness(
       showcaseReadinessKey({
         scene,
         requestedScene,
         hasFixture,
+        threadSynced,
         orientationSettled,
         themeApplied,
         themeId,
