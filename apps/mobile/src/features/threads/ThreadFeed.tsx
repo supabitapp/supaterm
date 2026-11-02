@@ -121,6 +121,7 @@ import {
   useState,
   useId,
   type ComponentPropsWithRef,
+  type ComponentRef,
   type ReactNode,
   type Ref,
   type RefObject,
@@ -395,6 +396,8 @@ export interface ThreadFeedProps {
   readonly anchorMessageId: MessageId | null;
   readonly contentInsetEndAdjustment: SharedValue<number>;
   readonly keyboardOffset: number;
+  readonly sendingWithKeyboard?: boolean;
+  readonly fitShortFeedToViewport?: boolean;
   readonly contentTopInset?: number;
   readonly contentBottomInset?: number;
   readonly historyControls?: ThreadFeedHistoryControls;
@@ -2720,6 +2723,13 @@ export const ThreadFeed = memo(function ThreadFeed({
     settledPaneWidth !== null ? Math.round(settledPaneWidth) : measuredViewportWidth;
   const [viewportHeight, setViewportHeight] = useState(0);
   const [disclosureToggleSettling, setDisclosureToggleSettling] = useState(false);
+  const headerEndRef = useRef<ComponentRef<typeof View>>(null);
+  const lastFeedId = props.feed.at(-1)?.id;
+  const [disclosureGap, setDisclosureGap] = useState<{
+    space: number;
+    tail: typeof lastFeedId;
+  } | null>(null);
+  const disclosureTopSpace = disclosureGap?.tail === lastFeedId ? (disclosureGap?.space ?? 0) : 0;
   // LegendList's maintainScrollAtEnd alone re-pins the feed whenever the
   // viewport drifts back inside its geometric threshold, which yanked users off
   // history they were reading every time a stream chunk grew a row.
@@ -3318,6 +3328,7 @@ export const ThreadFeed = memo(function ThreadFeed({
     resetEndFollow: () => {
       clearUserScrollSettle();
       userScrollSessionRef.current = false;
+      setDisclosureGap(null);
       cancelReflow();
       transitionEndFollow({ type: "reset" });
     },
@@ -3447,6 +3458,12 @@ export const ThreadFeed = memo(function ThreadFeed({
     // A native resize re-wraps the rows before JS hears of it. This event reaches JS ahead
     // of the row measurements it caused, since layout events are sent parent first.
     if (Math.abs(measuredViewportWidth - nextWidth) > 1) beginReflow();
+    if (
+      Math.abs(measuredViewportWidth - nextWidth) > 1 ||
+      Math.abs(viewportHeight - nextHeight) > 1
+    ) {
+      setDisclosureGap(null);
+    }
     setViewportWidth((current) => (Math.abs(current - nextWidth) > 1 ? nextWidth : current));
     setViewportHeight((current) => (Math.abs(current - nextHeight) > 1 ? nextHeight : current));
   };
@@ -3545,6 +3562,13 @@ export const ThreadFeed = memo(function ThreadFeed({
     motionStartedAt?: number,
   ) => {
     cancelReflow();
+    // Keep a short feed's bottom-alignment gap through collapse too; replacing it mid-frame moves the tap target.
+    const first = listRef.current?.getState().elementAtIndex(0);
+    if (first && headerEndRef.current) {
+      const gap =
+        first.getBoundingClientRect().top - headerEndRef.current.getBoundingClientRect().bottom;
+      if (gap > 1) setDisclosureGap({ space: disclosureTopSpace + gap, tail: lastFeedId });
+    }
     disclosureAnchorKeyRef.current = anchorKey;
     disclosureMotionUntilRef.current =
       motionStartedAt !== undefined && !reduceMotion && !isKeyboardMotionSuppressed()
@@ -3901,7 +3925,7 @@ export const ThreadFeed = memo(function ThreadFeed({
             // Follow the measured end immediately. Animating toward an estimated
             // end races row measurement when a pending message is acknowledged.
             maintainScrollAtEnd={
-              disclosureToggleSettling || !endFollowEnabled
+              disclosureToggleSettling || props.sendingWithKeyboard || !endFollowEnabled
                 ? false
                 : {
                     animated: false,
@@ -3917,7 +3941,10 @@ export const ThreadFeed = memo(function ThreadFeed({
             maintainScrollAtEndThreshold={reflowFollowsEnd ? Number.POSITIVE_INFINITY : undefined}
             sizeChangeAnchor={reflowAnchorsSizeChanges ? holdReflowAnchor : undefined}
             maintainVisibleContentPosition={
-              endFollowEnabled && !disclosureToggleSettling ? false : maintainVisibleContentPosition
+              (endFollowEnabled && !disclosureToggleSettling) ||
+              (disclosureToggleSettling && disclosureTopSpace > 0)
+                ? false
+                : maintainVisibleContentPosition
             }
             data={groupedFeed}
             extraData={listAppearanceData}
@@ -3927,6 +3954,12 @@ export const ThreadFeed = memo(function ThreadFeed({
             getItemType={(entry) => {
               if (entry.type !== "message") return entry.type;
               if (isCompactionCommandFeedEntry(entry)) return "message:compaction";
+              if (
+                entry.message.role === "assistant" &&
+                !terminalAssistantMessageIds.has(entry.message.id)
+              ) {
+                return "message:assistant-progress";
+              }
               const { attribution } = resolveUserMessagePresentation(entry.message);
               return attribution === "automation" || attribution === "agent"
                 ? `message:${attribution}`
@@ -3939,7 +3972,7 @@ export const ThreadFeed = memo(function ThreadFeed({
             drawDistance={500}
             keyboardShouldPersistTaps="always"
             keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
-            keyboardLiftBehavior="whenAtEnd"
+            keyboardLiftBehavior={props.sendingWithKeyboard ? "persistent" : "whenAtEnd"}
             // Seeding the real viewport before onLayout lets the empty→filled remount see short
             // content underflow and skip programmatic positioning, since any offset write during
             // screen attach races UIKit's adjustedContentInset and lands high or low.
@@ -3972,6 +4005,7 @@ export const ThreadFeed = memo(function ThreadFeed({
                 {props.historyControls ? (
                   <ThreadFeedLoadEarlierControl {...props.historyControls} />
                 ) : null}
+                <View ref={headerEndRef} collapsable={false} />
               </>
             }
             ListFooterComponent={
@@ -3986,7 +4020,8 @@ export const ThreadFeed = memo(function ThreadFeed({
               ) : null
             }
             contentContainerStyle={{
-              paddingTop: FEED_PADDING_TOP,
+              ...(props.fitShortFeedToViewport ? { minHeight: "100%" } : {}),
+              paddingTop: FEED_PADDING_TOP + disclosureTopSpace,
               paddingLeft: contentHorizontalPadding + contentLeftInset,
               paddingRight: contentHorizontalPadding + contentRightInset,
             }}
