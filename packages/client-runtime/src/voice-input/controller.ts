@@ -37,7 +37,6 @@ export function voiceInputFreezesEditor(state: VoiceInputState): boolean {
 
 export type VoiceInputCue = "start" | "stop" | "discard" | "error";
 
-/** The sound a phase change makes. Only the microphone opening and closing are heard. */
 export function voiceInputCue(
   previous: VoiceInputPhase,
   next: VoiceInputPhase,

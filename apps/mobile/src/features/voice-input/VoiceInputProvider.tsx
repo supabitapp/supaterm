@@ -29,7 +29,7 @@ import {
   type VoiceRecordingStatusEvent,
 } from "./lazyVoiceRecorder";
 import { VOICE_WAVEFORM_SAMPLE_COUNT } from "./voiceInputMetering";
-import { playVoiceInputCue } from "./voiceInputCues";
+import { playVoiceInputCue, playVoiceInputCueInRecording } from "./voiceInputCues";
 import { VoiceInputSession } from "./voiceInputSession";
 import {
   acquireAudioSession,
@@ -105,15 +105,21 @@ const voiceInputAtom = Atom.make((get) => {
       try {
         await activateAudioSession(token);
       } catch (error) {
+        audioToken = null;
         await releaseAudioSession(token).catch(() => {});
         throw error;
       }
     },
     releaseRecording: async () => {
-      if (audioToken) await releaseAudioSession(audioToken);
+      const token = audioToken;
+      const cue = cueAfterRecording;
       audioToken = null;
-      if (cueAfterRecording) playVoiceInputCue(cueAfterRecording);
       cueAfterRecording = null;
+      if (!token) return;
+      // The cue rings out in the recording's session; transcription does not wait for it.
+      void playVoiceInputCueInRecording(cue, token)
+        .then(() => releaseAudioSession(token))
+        .catch(() => {});
     },
     deleteRecording: (uri) => new File(uri).delete(),
     sampleRecording: () => {
@@ -139,8 +145,8 @@ const voiceInputAtom = Atom.make((get) => {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     const cue = voiceInputCue(phase, next);
-    // Playback can't take the session from a recording, so these wait for releaseRecording.
-    if (cue && cue !== "start" && audioToken) cueAfterRecording = cue;
+    if (cue === "start" && audioToken) void playVoiceInputCueInRecording(cue, audioToken);
+    else if (cue && audioToken) cueAfterRecording = cue;
     else if (cue) playVoiceInputCue(cue);
     phase = next;
   });

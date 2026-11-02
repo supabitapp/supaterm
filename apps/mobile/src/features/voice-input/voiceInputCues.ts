@@ -1,7 +1,15 @@
 import type { VoiceInputCue } from "@supaterm/client-runtime/voice-input";
 import { createAudioPlayer, type AudioPlayer } from "expo-audio";
+import { AppState } from "react-native";
 
-import { createAudioPlaybackSession } from "../../lib/audioSession";
+import {
+  createAudioPlaybackSession,
+  disposeAudioPlayer,
+  isAudioSessionIdle,
+  isAudioSessionOwner,
+  pauseAudioPlayer,
+  type AudioSessionToken,
+} from "../../lib/audioSession";
 
 /** Renders of the web cues: apps/web/scripts/render-voice-input-cues.ts. */
 const CUE_SOURCES: Record<VoiceInputCue, number> = {
@@ -11,36 +19,54 @@ const CUE_SOURCES: Record<VoiceInputCue, number> = {
   error: require("../../../assets/sounds/voice-input-error.wav"),
 };
 
-type CuePlayer = {
-  readonly player: AudioPlayer;
-  readonly playback: ReturnType<typeof createAudioPlaybackSession>;
-};
+// A cue loads and plays in under half a second; this bounds a player that never reports its end.
+const CUE_LIMIT_MS = 1_000;
 
-const cuePlayers = new Map<VoiceInputCue, CuePlayer>();
+let recordingCue: AudioPlayer | null = null;
 
-function cuePlayer(cue: VoiceInputCue): CuePlayer {
-  const existing = cuePlayers.get(cue);
-  if (existing) return existing;
-  const player = createAudioPlayer(CUE_SOURCES[cue]);
-  const playback = createAudioPlaybackSession(player);
-  player.addListener("playbackStatusUpdate", (status) => {
-    if ((status.didJustFinish || status.error) && playback.requested) playback.pause();
+function untilFinished(player: AudioPlayer): Promise<void> {
+  return new Promise((resolve) => {
+    const finish = () => {
+      clearTimeout(limit);
+      subscription.remove();
+      resolve();
+    };
+    const limit = setTimeout(finish, CUE_LIMIT_MS);
+    const subscription = player.addListener("playbackStatusUpdate", (status) => {
+      if (status.didJustFinish || status.error) finish();
+    });
   });
-  const created = { player, playback };
-  cuePlayers.set(cue, created);
-  return created;
 }
 
 /**
- * The start cue plays in the session the new recording holds. Every other cue takes a
- * playback session, which a recording must release first.
+ * Plays inside the session the recording holds, so a recording ending changes the session
+ * once. Silences the cue the recording is already playing, which a null cue only does.
  */
+export async function playVoiceInputCueInRecording(
+  cue: VoiceInputCue | null,
+  recording: AudioSessionToken,
+): Promise<void> {
+  if (recordingCue) pauseAudioPlayer(recordingCue);
+  recordingCue = null;
+  if (!cue || AppState.currentState !== "active" || !isAudioSessionOwner(recording)) return;
+  const player = createAudioPlayer(CUE_SOURCES[cue]);
+  recordingCue = player;
+  const finished = untilFinished(player);
+  player.play();
+  await finished;
+  if (recordingCue === player) recordingCue = null;
+  disposeAudioPlayer(player);
+}
+
+/** Plays only while nothing holds the audio session, so a cue never pauses the user's media. */
 export function playVoiceInputCue(cue: VoiceInputCue): void {
-  const { player, playback } = cuePlayer(cue);
-  const rewind = () => player.seekTo(0).catch(() => {});
-  if (cue === "start") {
-    void rewind().then(() => player.play());
-    return;
-  }
-  void playback.play(rewind).catch(() => {});
+  if (AppState.currentState !== "active" || !isAudioSessionIdle()) return;
+  const player = createAudioPlayer(CUE_SOURCES[cue]);
+  const playback = createAudioPlaybackSession(player);
+  const finished = untilFinished(player);
+  void playback.play().catch(() => {});
+  void finished.then(() => {
+    playback.pause();
+    disposeAudioPlayer(player);
+  });
 }
