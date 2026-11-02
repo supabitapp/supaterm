@@ -157,6 +157,7 @@ it.effect("resends late editors without rolling back updates already sent", () =
       },
       Stream.empty,
       { resolveTargets: () => Effect.succeed([]) },
+      { resolve: () => Effect.succeed([]) },
     ).pipe(
       Stream.tap((event) =>
         event.type === "settingsUpdated" ? Deferred.succeed(settingsSent, undefined) : Effect.void,
@@ -189,6 +190,7 @@ it.effect("resends a reveal kind and remote targets that outlast the snapshot ti
       },
       Stream.empty,
       { resolveTargets: () => Deferred.await(finishDiscovery) },
+      { resolve: () => Effect.succeed([]) },
     ).pipe(Stream.runCollect, Effect.forkScoped({ startImmediately: true }));
     yield* TestClock.adjust("6 seconds");
     yield* Deferred.succeed(finishDiscovery, targets);
@@ -261,6 +263,7 @@ it.effect("resends the snapshot only when the tunnel endpoints change", () =>
       },
       Stream.make(Option.none(), Option.some(endpoints), Option.some(endpoints), Option.none()),
       { resolveTargets: () => Effect.succeed([]) },
+      { resolve: () => Effect.succeed([]) },
     ).pipe(Stream.runCollect);
     assert.deepEqual(
       Array.from(events).map((event) =>
@@ -287,6 +290,7 @@ it.effect.each([relayAdvertisement, null])(
         },
         Stream.empty,
         { resolveTargets: () => Effect.succeed([]) },
+        { resolve: () => Effect.succeed([]) },
       ).pipe(
         Stream.tap((event) =>
           event.type === "relayAdvertisementUpdated"
@@ -724,8 +728,15 @@ const layerConfigSources = Layer.mergeAll(
   Layer.provideMerge(NodeServices.layer),
 );
 
-it.effect.each(["pending", "cached"] as const)(
-  "%s remote discovery preserves initial config and updates through discovery and ACK",
+it.effect.each([
+  "pending",
+  "cached",
+  "direct-pending",
+  "direct-cached",
+  "direct-failed",
+  "direct-interrupted",
+] as const)(
+  "%s endpoint discovery preserves initial config and updates through discovery and ACK",
   (discovery) =>
     Effect.gen(function* () {
       const keybindings = yield* Keybindings.Keybindings;
@@ -744,6 +755,15 @@ it.effect.each(["pending", "cached"] as const)(
       const remoteDiscoveryStarted = yield* Deferred.make<void>();
       const finishRemoteDiscovery = yield* Deferred.make<void>();
       const targets = [{ kind: "mdns" as const, host: "test.local" }];
+      const direct = discovery.startsWith("direct-");
+      const bound = [{ kind: "lan" as const, httpBaseUrl: "http://192.168.1.10:3773/" }];
+      const endpoints = [
+        ...bound,
+        { kind: "tailnet" as const, httpBaseUrl: "https://test.ts.net/" },
+      ];
+      const directStarted = yield* Deferred.make<void>();
+      const finishDirect = yield* Deferred.make<void>();
+      const directStopped = yield* Deferred.make<void>();
       const responses = yield* Queue.unbounded<ServerConfigStreamEvent>();
       const configRpcServices = Layer.mergeAll(
         layerUnusedConfigRpcServices,
@@ -765,12 +785,30 @@ it.effect.each(["pending", "cached"] as const)(
           resolveTargets: () =>
             Deferred.succeed(remoteDiscoveryStarted, undefined).pipe(
               Effect.andThen(
-                discovery === "cached" ? Effect.void : Deferred.await(finishRemoteDiscovery),
+                discovery === "cached" || direct
+                  ? Effect.void
+                  : Deferred.await(finishRemoteDiscovery),
               ),
               Effect.as(targets),
             ),
         }),
-        Layer.mock(DirectEndpoints.DirectEndpoints)({ resolve: () => Effect.succeed([]) }),
+        Layer.mock(DirectEndpoints.DirectEndpoints)({
+          resolveAvailable: () => Effect.succeed(discovery === "direct-cached" ? endpoints : bound),
+          resolve: () =>
+            direct
+              ? Deferred.succeed(directStarted, undefined).pipe(
+                  Effect.andThen(
+                    discovery === "direct-cached" ? Effect.void : Deferred.await(finishDirect),
+                  ),
+                  Effect.andThen(
+                    discovery === "direct-failed"
+                      ? Effect.die("probe failed")
+                      : Effect.succeed(endpoints),
+                  ),
+                  Effect.onExit(() => Deferred.succeed(directStopped, undefined)),
+                )
+              : Effect.succeed(bound),
+        }),
         Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
           scratchRoot: Effect.succeedNone,
           namedProjectsRoot: process.cwd(),
@@ -850,7 +888,14 @@ it.effect.each(["pending", "cached"] as const)(
       const snapshot = yield* Queue.take(responses);
       assert.equal(snapshot.type, "snapshot");
       if (snapshot.type !== "snapshot") return yield* Effect.die("Missing initial snapshot");
-      assert.deepEqual(snapshot.config.remoteOpenTargets, discovery === "cached" ? targets : []);
+      assert.deepEqual(
+        snapshot.config.remoteOpenTargets,
+        discovery === "cached" || direct ? targets : [],
+      );
+      assert.deepEqual(
+        snapshot.config.directEndpoints,
+        discovery === "direct-cached" ? endpoints : bound,
+      );
       assert.isTrue(snapshot.config.settings.defaultAutoPull);
       assert.equal(snapshot.config.shellSyncGeneration, "generation:config-test");
       assert.deepEqual(snapshot.config.keybindings, initialKeybindings);
@@ -902,7 +947,31 @@ it.effect.each(["pending", "cached"] as const)(
         assert.deepEqual(resolved.config.keybindings, latestKeybindings.keybindings);
         yield* acknowledge;
       }
+      if (direct) {
+        yield* Deferred.await(directStarted);
+        if (discovery === "direct-pending") {
+          yield* Deferred.succeed(finishDirect, undefined);
+          const resolved = yield* Queue.take(responses);
+          assert.equal(resolved.type, "snapshot");
+          if (resolved.type !== "snapshot") return yield* Effect.die("Missing direct endpoints");
+          assert.deepEqual(resolved.config.directEndpoints, endpoints);
+          assert.deepEqual(
+            resolved.config.settings,
+            ServerSettings.redactServerSettingsForClient(latestSettings),
+          );
+          assert.deepEqual(resolved.config.keybindings, latestKeybindings.keybindings);
+          yield* acknowledge;
+        } else if (discovery === "direct-failed") {
+          yield* Deferred.succeed(finishDirect, undefined);
+          yield* Deferred.await(directStopped);
+          yield* settings.updateSettings({ defaultAutoPull: false });
+          const event = yield* Queue.take(responses);
+          assert.equal(event.type, "settingsUpdated");
+          yield* acknowledge;
+        }
+      }
       yield* server.write(0, { _tag: "Interrupt", requestId, interruptors: [] });
+      if (direct) yield* Deferred.await(directStopped);
     }).pipe(
       Effect.provide(
         Layer.mergeAll(
@@ -961,7 +1030,10 @@ it.effect("on-demand clients get provider config without workspace snapshots", (
       Layer.mock(RemoteOpenTargets.RemoteOpenTargets)({
         resolveTargets: () => Effect.succeed([]),
       }),
-      Layer.mock(DirectEndpoints.DirectEndpoints)({ resolve: () => Effect.succeed([]) }),
+      Layer.mock(DirectEndpoints.DirectEndpoints)({
+        resolve: () => Effect.succeed([]),
+        resolveAvailable: () => Effect.succeed([]),
+      }),
       Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
         scratchRoot: Effect.succeedNone,
         namedProjectsRoot: process.cwd(),
