@@ -321,7 +321,10 @@ interface TimelineEndState {
  */
 const TIMELINE_FOLLOW_REARM_THRESHOLD_PX = 40;
 
-export function resolveTimelineIsAtEnd(state: TimelineEndState | undefined): boolean | undefined {
+export function resolveTimelineIsAtEnd(
+  state: TimelineEndState | undefined,
+  pendingScrollPx = 0,
+): boolean | undefined {
   if (!state) {
     return undefined;
   }
@@ -332,7 +335,9 @@ export function resolveTimelineIsAtEnd(state: TimelineEndState | undefined): boo
   // The composer inset spacer and the viewport the composer hides cancel out, so this is the gap
   // above the composer. LegendList's isAtEnd is true anywhere in the composer-height band, so it
   // is only a fallback, never a short-circuit.
-  return contentLength - scroll - scrollLength <= TIMELINE_FOLLOW_REARM_THRESHOLD_PX;
+  return (
+    contentLength - scroll - pendingScrollPx - scrollLength <= TIMELINE_FOLLOW_REARM_THRESHOLD_PX
+  );
 }
 
 export function resolveTimelineMinimapHeightStyle(itemCount: number): string {

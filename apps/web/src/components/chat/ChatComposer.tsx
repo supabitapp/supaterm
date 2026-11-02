@@ -480,7 +480,7 @@ export interface ChatComposerProps {
   restingControlsHaveLeadingContext: boolean;
   onRestingControlsVisibilityChange: (visible: boolean) => void;
   getTimelineScrollableNode: () => HTMLElement | null;
-  isTimelineAtLogicalEnd: () => boolean;
+  isTimelineAtLogicalEnd: (pendingScrollPx?: number) => boolean;
   timelineOverflows: boolean;
   onComposerOverlayHeightChange: (height: number) => void;
   onRestingChange: (resting: boolean) => void;
@@ -2635,7 +2635,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         collapseThresholdPx: COMPOSER_SCROLL_COLLAPSE_THRESHOLD_PX,
         collapseEligible: targetsTimeline && composerScrollCollapseEligibleRef.current,
         canScrollInGestureDirection,
-        atLogicalEnd: isTimelineAtLogicalEnd(),
+        // Wheel events fire before they scroll, so judge the end band where this one lands.
+        atLogicalEnd: isTimelineAtLogicalEnd(Math.sign(event.deltaY) * deltaPx),
       });
       if (!shouldCollapse) {
         return;

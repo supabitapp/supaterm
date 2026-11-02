@@ -31,6 +31,7 @@ import {
   shouldCollapseUserMessage,
   resolveAssistantMessageCopyState,
   type MessagesTimelineRow,
+  resolveTimelineIsAtEnd,
   resolveTimelineToolPresentation,
   workEntryDisplayLabel,
 } from "./MessagesTimeline.logic";
@@ -93,6 +94,16 @@ describe("resolveAssistantMessageCopyState", () => {
       text: "Created [report.xlsx](<outputs/report.xlsx>).\n\nHello World (Document template)",
       visible: true,
     });
+  });
+});
+
+describe("resolveTimelineIsAtEnd", () => {
+  it("judges the end band where a pending scroll lands", () => {
+    const atEnd = { contentLength: 1000, scroll: 400, scrollLength: 600 };
+    expect(resolveTimelineIsAtEnd(atEnd)).toBe(true);
+    expect(resolveTimelineIsAtEnd(atEnd, -30)).toBe(true);
+    expect(resolveTimelineIsAtEnd(atEnd, -100)).toBe(false);
+    expect(resolveTimelineIsAtEnd({ ...atEnd, scroll: 300 }, 80)).toBe(true);
   });
 });
 
