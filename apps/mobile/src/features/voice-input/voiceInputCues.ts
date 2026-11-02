@@ -3,9 +3,7 @@ import { createAudioPlayer, type AudioPlayer } from "expo-audio";
 import { AppState } from "react-native";
 
 import {
-  createAudioPlaybackSession,
   disposeAudioPlayer,
-  isAudioSessionIdle,
   isAudioSessionOwner,
   pauseAudioPlayer,
   type AudioSessionToken,
@@ -39,34 +37,29 @@ function untilFinished(player: AudioPlayer): Promise<void> {
 }
 
 /**
- * Plays inside the session the recording holds, so a recording ending changes the session
- * once. Silences the cue the recording is already playing, which a null cue only does.
+ * Plays only inside the session a recording holds: taking a session of its own would
+ * interrupt other audio. Silences the recording's earlier cue first; a null cue only does
+ * that. Never rejects, so a cue cannot hold up releasing the recording.
  */
-export async function playVoiceInputCueInRecording(
+export async function playVoiceInputCue(
   cue: VoiceInputCue | null,
   recording: AudioSessionToken,
 ): Promise<void> {
-  if (recordingCue) pauseAudioPlayer(recordingCue);
-  recordingCue = null;
-  if (!cue || AppState.currentState !== "active" || !isAudioSessionOwner(recording)) return;
-  const player = createAudioPlayer(CUE_SOURCES[cue]);
-  recordingCue = player;
-  const finished = untilFinished(player);
-  player.play();
-  await finished;
-  if (recordingCue === player) recordingCue = null;
-  disposeAudioPlayer(player);
-}
-
-/** Plays only while nothing holds the audio session, so a cue never pauses the user's media. */
-export function playVoiceInputCue(cue: VoiceInputCue): void {
-  if (AppState.currentState !== "active" || !isAudioSessionIdle()) return;
-  const player = createAudioPlayer(CUE_SOURCES[cue]);
-  const playback = createAudioPlaybackSession(player);
-  const finished = untilFinished(player);
-  void playback.play().catch(() => {});
-  void finished.then(() => {
-    playback.pause();
-    disposeAudioPlayer(player);
-  });
+  let player: AudioPlayer | null = null;
+  try {
+    if (recordingCue) pauseAudioPlayer(recordingCue);
+    recordingCue = null;
+    if (!cue || AppState.currentState !== "active" || !isAudioSessionOwner(recording)) return;
+    player = createAudioPlayer(CUE_SOURCES[cue]);
+    recordingCue = player;
+    const finished = untilFinished(player);
+    player.play();
+    await finished;
+  } catch {
+  } finally {
+    if (player) {
+      if (recordingCue === player) recordingCue = null;
+      disposeAudioPlayer(player);
+    }
+  }
 }

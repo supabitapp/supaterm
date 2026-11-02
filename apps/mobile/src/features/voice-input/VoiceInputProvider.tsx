@@ -29,7 +29,7 @@ import {
   type VoiceRecordingStatusEvent,
 } from "./lazyVoiceRecorder";
 import { VOICE_WAVEFORM_SAMPLE_COUNT } from "./voiceInputMetering";
-import { playVoiceInputCue, playVoiceInputCueInRecording } from "./voiceInputCues";
+import { playVoiceInputCue } from "./voiceInputCues";
 import { VoiceInputSession } from "./voiceInputSession";
 import {
   acquireAudioSession,
@@ -111,15 +111,13 @@ const voiceInputAtom = Atom.make((get) => {
       }
     },
     releaseRecording: async () => {
-      const token = audioToken;
-      const cue = cueAfterRecording;
+      if (audioToken) {
+        const cue = cueAfterRecording;
+        cueAfterRecording = null;
+        await playVoiceInputCue(cue, audioToken);
+        await releaseAudioSession(audioToken);
+      }
       audioToken = null;
-      cueAfterRecording = null;
-      if (!token) return;
-      // The cue rings out in the recording's session; transcription does not wait for it.
-      void playVoiceInputCueInRecording(cue, token)
-        .then(() => releaseAudioSession(token))
-        .catch(() => {});
     },
     deleteRecording: (uri) => new File(uri).delete(),
     sampleRecording: () => {
@@ -145,9 +143,8 @@ const voiceInputAtom = Atom.make((get) => {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     const cue = voiceInputCue(phase, next);
-    if (cue === "start" && audioToken) void playVoiceInputCueInRecording(cue, audioToken);
+    if (cue === "start" && audioToken) void playVoiceInputCue(cue, audioToken);
     else if (cue && audioToken) cueAfterRecording = cue;
-    else if (cue) playVoiceInputCue(cue);
     phase = next;
   });
   get.addFinalizer(() => {
