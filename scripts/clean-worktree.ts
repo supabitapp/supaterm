@@ -27,25 +27,21 @@ const args = ["clean", "-fdX", ...preservedPaths.flatMap((path) => ["-e", `!${pa
 
 NodeChildProcess.execFileSync("git", args, { stdio: "inherit" });
 
-const git = (...gitArgs: ReadonlyArray<string>) =>
-  NodeChildProcess.execFileSync("git", gitArgs, { encoding: "utf8" }).trim();
+const worktree = NodeChildProcess.execFileSync("git", ["rev-parse", "--show-toplevel"], {
+  encoding: "utf8",
+}).trim();
 
-const [gitDir, commonDir] = git(
-  "rev-parse",
-  "--path-format=absolute",
-  "--git-dir",
-  "--git-common-dir",
-).split("\n");
-
-// Devices named `<purpose>-<worktree directory>` belong to this worktree (see test-supaterm-mobile).
+// A linked worktree's .git is a file; the main checkout's is a directory.
 // oxlint-disable-next-line supaterm/no-global-process-runtime -- Standalone project script has no Effect runtime.
-if (gitDir !== commonDir && process.platform !== "win32") {
-  const ownedSuffix = `-${NodePath.basename(git("rev-parse", "--show-toplevel"))}`;
-  deleteIosSimulators(ownedSuffix);
-  deleteAndroidVirtualDevices(ownedSuffix);
+if (NodeFS.statSync(NodePath.join(worktree, ".git")).isFile() && process.platform !== "win32") {
+  // Devices named `<purpose>__<worktree directory>` belong to this worktree (see test-supaterm-mobile).
+  const worktreeName = NodePath.basename(worktree);
+  const isOwned = (deviceName: string) => /^.+?__(.+)$/.exec(deviceName)?.[1] === worktreeName;
+  deleteIosSimulators(isOwned);
+  deleteAndroidVirtualDevices(isOwned);
 }
 
-function deleteIosSimulators(ownedSuffix: string) {
+function deleteIosSimulators(isOwned: (deviceName: string) => boolean) {
   const list = NodeChildProcess.spawnSync("xcrun", ["simctl", "list", "devices", "--json"], {
     encoding: "utf8",
   });
@@ -53,37 +49,48 @@ function deleteIosSimulators(ownedSuffix: string) {
   const { devices }: { devices: Record<string, ReadonlyArray<{ udid: string; name: string }>> } =
     JSON.parse(list.stdout);
   for (const device of Object.values(devices).flat()) {
-    if (!device.name.endsWith(ownedSuffix)) continue;
+    if (!isOwned(device.name)) continue;
     console.log(`Deleting iOS simulator ${device.name}`);
     NodeChildProcess.execFileSync("xcrun", ["simctl", "delete", device.udid], { stdio: "inherit" });
   }
 }
 
-function deleteAndroidVirtualDevices(ownedSuffix: string) {
-  const avdHomes = process.env.ANDROID_AVD_HOME
+function deleteAndroidVirtualDevices(isOwned: (deviceName: string) => boolean) {
+  const homes = process.env.ANDROID_AVD_HOME
     ? [process.env.ANDROID_AVD_HOME]
     : [
         NodePath.join(NodeOS.homedir(), ".android", "avd"),
         NodePath.join(NodeOS.homedir(), ".config", ".android", "avd"),
       ];
-  const owned = avdHomes
-    .filter((home) => NodeFS.existsSync(home))
-    .flatMap((home) =>
-      NodeFS.readdirSync(home)
-        .filter((file) => file.endsWith(`${ownedSuffix}.ini`))
-        .map((file) => NodePath.join(home, file)),
-    );
-  if (owned.length === 0) return;
-  const processes = NodeChildProcess.execFileSync("ps", ["-axo", "args="], { encoding: "utf8" });
-  for (const ini of owned) {
-    const name = NodePath.basename(ini, ".ini");
-    if (processes.includes(`-avd ${name}`) || processes.includes(`@${name}`)) {
-      console.log(`Skipping Android emulator ${name}: it is running. Stop it and run this again.`);
-      continue;
+  const realHomes = new Set(
+    homes.filter((home) => NodeFS.existsSync(home)).map((home) => NodeFS.realpathSync(home)),
+  );
+  for (const home of realHomes) {
+    for (const file of NodeFS.readdirSync(home)) {
+      const name = NodePath.basename(file, ".ini");
+      if (file.endsWith(".ini") && isOwned(name)) deleteAndroidVirtualDevice(home, name);
     }
-    console.log(`Deleting Android emulator ${name}`);
-    const avdPath = /^path=(.+)$/m.exec(NodeFS.readFileSync(ini, "utf8"))?.[1];
-    if (avdPath) NodeFS.rmSync(avdPath, { recursive: true, force: true });
-    NodeFS.rmSync(ini);
   }
+}
+
+function deleteAndroidVirtualDevice(home: string, name: string) {
+  const ini = NodePath.join(home, `${name}.ini`);
+  const recordedPath = /^path=(.+?)\r?$/m.exec(NodeFS.readFileSync(ini, "utf8"))?.[1] ?? "";
+  const directories = [NodePath.join(home, `${name}.avd`), recordedPath].filter(
+    (directory) => NodePath.isAbsolute(directory) && NodePath.basename(directory) === `${name}.avd`,
+  );
+  const processes = NodeChildProcess.execFileSync("ps", ["-axo", "args="], { encoding: "utf8" });
+  const running =
+    processes.includes(`-avd ${name}`) ||
+    processes.includes(`@${name}`) ||
+    directories.some((directory) =>
+      NodeFS.existsSync(NodePath.join(directory, "hardware-qemu.ini.lock")),
+    );
+  if (running) {
+    console.log(`Skipping Android emulator ${name}: it is running. Stop it and run this again.`);
+    return;
+  }
+  console.log(`Deleting Android emulator ${name}`);
+  for (const directory of directories) NodeFS.rmSync(directory, { recursive: true, force: true });
+  NodeFS.rmSync(ini, { force: true });
 }
