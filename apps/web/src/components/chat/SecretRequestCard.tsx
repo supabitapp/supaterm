@@ -1,3 +1,4 @@
+import { useAtomValue } from "@effect/atom-react";
 import { pipe } from "effect/Function";
 import {
   SECRET_REQUEST_DEFAULT_PLACEHOLDER,
@@ -64,8 +65,12 @@ function PendingSecretRequestForm(props: {
     reportFailure: false,
     reportDefect: false,
   });
+  const canAnswer = useAtomValue(
+    serverEnvironment.answerSecretRequest.permissionAtom(props.environmentId),
+  );
   const [secret, setSecret] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const locked = submitting || !canAnswer;
   const [error, setError] = useState<string | null>(null);
   // Enter and click can both submit before a render.
   const inFlight = useRef(false);
@@ -74,7 +79,7 @@ function PendingSecretRequestForm(props: {
     reply: { readonly type: "save"; readonly secret: string } | { readonly type: "decline" },
   ) => {
     const input = secretRequestAnswerInput(item, reply);
-    if (input === null || inFlight.current) return;
+    if (input === null || inFlight.current || !canAnswer) return;
     inFlight.current = true;
     setSubmitting(true);
     setError(null);
@@ -136,13 +141,13 @@ function PendingSecretRequestForm(props: {
             data-bwignore
             placeholder={item.placeholder ?? SECRET_REQUEST_DEFAULT_PLACEHOLDER}
             value={secret}
-            disabled={submitting}
+            disabled={locked}
             aria-invalid={error !== null || undefined}
             aria-describedby={error !== null ? `${privacyId} ${errorId}` : privacyId}
             onChange={(event) => setSecret(event.currentTarget.value)}
           />
         </div>
-        <Button type="submit" disabled={submitting || secret.trim().length === 0}>
+        <Button type="submit" disabled={locked || secret.trim().length === 0}>
           Save securely
         </Button>
       </div>
@@ -163,7 +168,7 @@ function PendingSecretRequestForm(props: {
           type="button"
           size="xs"
           variant="ghost-muted"
-          disabled={submitting}
+          disabled={locked}
           onClick={() => void send({ type: "decline" })}
         >
           Decline

@@ -1,3 +1,4 @@
+import { useAtomValue } from "@effect/atom-react";
 import { pipe } from "effect/Function";
 import {
   SECRET_REQUEST_DEFAULT_PLACEHOLDER,
@@ -69,8 +70,12 @@ function PendingSecretRequestForm(props: {
     reportFailure: false,
     reportDefect: false,
   });
+  const canAnswer = useAtomValue(
+    serverEnvironment.answerSecretRequest.permissionAtom(props.environmentId),
+  );
   const [secret, setSecret] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const locked = submitting || !canAnswer;
   const [error, setError] = useState<string | null>(null);
   // Submit then a tap can both run before a re-render; this guard is synchronous.
   const inFlight = useRef(false);
@@ -79,7 +84,7 @@ function PendingSecretRequestForm(props: {
     reply: { readonly type: "save"; readonly secret: string } | { readonly type: "decline" },
   ) => {
     const input = secretRequestAnswerInput(item, reply);
-    if (input === null || inFlight.current) return;
+    if (input === null || inFlight.current || !canAnswer) return;
     inFlight.current = true;
     setSubmitting(true);
     setError(null);
@@ -111,7 +116,7 @@ function PendingSecretRequestForm(props: {
         placeholder={item.placeholder ?? SECRET_REQUEST_DEFAULT_PLACEHOLDER}
         value={secret}
         onChangeText={setSecret}
-        editable={!submitting}
+        editable={!locked}
         secureTextEntry
         autoCorrect={false}
         autoCapitalize="none"
@@ -135,7 +140,7 @@ function PendingSecretRequestForm(props: {
         label="Save securely"
         tone="primary"
         fullWidth
-        disabled={submitting || secret.trim().length === 0}
+        disabled={locked || secret.trim().length === 0}
         onPress={() => void send({ type: "save", secret })}
       />
       <View className="flex-row items-center justify-between gap-2">
@@ -153,7 +158,7 @@ function PendingSecretRequestForm(props: {
         <Button
           label="Decline"
           tone="text"
-          disabled={submitting}
+          disabled={locked}
           onPress={() => void send({ type: "decline" })}
         />
       </View>
