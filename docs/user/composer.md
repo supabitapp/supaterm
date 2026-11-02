@@ -222,7 +222,7 @@ and use **Attach again** or remove the missing file before sending.
 
 Press the microphone in the composer, or `ctrl+m` on web and desktop, to record a
 prompt of up to five minutes. Hold `ctrl+m` instead to talk only while it is down; letting
-go stops and reviews. With **Settings → Threads → Hold Space to talk** on, holding Space in
+go stops and reviews. With **Settings → Voice transcription → Hold Space to talk** on, holding Space in
 the composer with no text selected does the same, and a tap still types a space. On web and desktop, the
 recording stays in the composer while you speak:
 
@@ -235,8 +235,8 @@ recording stays in the composer while you speak:
   it, and sends everything together.
 - **Discard**, or `Escape`, throws the recording away and keeps your draft.
 
-The environment transcribes with the provider chosen under **Settings → Threads → Voice
-transcription** (**Settings → Voice transcription** on mobile), and that login is charged
+The environment transcribes with the provider chosen under **Settings → Voice
+transcription**, and that login is charged
 for it. Claude needs a Claude subscription login and Codex a ChatGPT login. **Automatic**,
 the default, picks the first login ready to transcribe for each new recording, trying the
 default Claude instance, then other Claude instances, then the rest, so a later recording can
@@ -245,8 +245,8 @@ recording that fails isn't retried with another account. Choose a provider to pi
 account: if it can't transcribe, the microphone says why and Supaterm never switches. A Claude instance that runs on an API key, a gateway's `ANTHROPIC_BASE_URL` and
 token, or Amazon Bedrock can't transcribe; choose Codex, or add a Claude instance with its own
 [config directory](./providers-claude.md#separate-accounts-or-configurations) signed in to
-your subscription. Choose the language you speak under **Settings → Threads → Voice
-language**; it follows your system language by default and lists only the languages the chosen
+your subscription. Choose the language you speak under **Settings → Voice transcription →
+Voice language**; it follows your system language by default and lists only the languages the chosen
 provider transcribes, which for Codex is many more than for Claude. On iPhone and Android,
 voice input always uses your phone's language.
 

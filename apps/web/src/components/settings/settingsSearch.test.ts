@@ -356,7 +356,7 @@ describe("movedSettingsPath", () => {
       "/settings/threads",
     );
     expect(movedSettingsPath("/settings/integrations", "")).toBe("/settings/browser");
-    expect(movedSettingsPath("/settings/chat", "voice-language")).toBe("/settings/threads");
+    expect(movedSettingsPath("/settings/chat", "voice-language")).toBe("/settings/voice");
   });
 
   it("leaves current pages alone", () => {

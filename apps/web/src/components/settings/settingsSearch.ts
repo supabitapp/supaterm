@@ -30,6 +30,7 @@ export type SettingsPath =
   | "/settings/codex-micro"
   | "/settings/providers"
   | "/settings/threads"
+  | "/settings/voice"
   | "/settings/browser"
   | "/settings/devices"
   | "/settings/source-control"
@@ -89,6 +90,7 @@ export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
   "/settings/codex-micro": "Codex Micro",
   "/settings/providers": "Providers",
   "/settings/threads": "Threads",
+  "/settings/voice": "Voice transcription",
   "/settings/browser": "Browser",
   "/settings/devices": "Devices",
   "/settings/source-control": "Source control",
@@ -119,7 +121,13 @@ export const SETTINGS_NAV_GROUPS: ReadonlyArray<{
   },
   {
     heading: "Agents",
-    paths: ["/settings/providers", "/settings/threads", "/settings/browser", "/settings/devices"],
+    paths: [
+      "/settings/providers",
+      "/settings/threads",
+      "/settings/voice",
+      "/settings/browser",
+      "/settings/devices",
+    ],
   },
   {
     heading: "Code",
@@ -513,20 +521,20 @@ export const SETTINGS_SEARCH_ITEMS = [
   {
     id: "voice-transcription",
     title: "Voice transcription",
-    to: "/settings/threads",
+    to: "/settings/voice",
     scope: "environment-defaults",
     searchTerms: ["voice dictation microphone speech transcribe provider account login"],
   },
   {
     id: "voice-language",
     title: "Voice language",
-    to: "/settings/threads",
+    to: "/settings/voice",
     searchTerms: ["voice dictation microphone speech transcribe language locale spoken"],
   },
   {
     id: "voice-hold-space",
     title: "Hold Space to talk",
-    to: "/settings/threads",
+    to: "/settings/voice",
     searchTerms: ["voice dictation microphone speech push to talk spacebar hold keyboard shortcut"],
   },
   {
@@ -1103,6 +1111,7 @@ const SETTINGS_CATEGORY_SCOPES: Readonly<Record<SettingsPath, SettingsSearchScop
   "/settings/keybindings": null,
   "/settings/providers": null,
   "/settings/threads": null,
+  "/settings/voice": null,
   "/settings/browser": null,
   "/settings/devices": null,
   "/settings/source-control": "environment-defaults",
