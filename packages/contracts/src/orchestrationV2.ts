@@ -3495,6 +3495,7 @@ export const ORCHESTRATION_V2_WS_METHODS = {
   subscribeShell: "orchestration.subscribeShell",
   subscribeThread: "orchestration.subscribeThread",
   subscribeCommandOutput: "orchestration.subscribeCommandOutput",
+  subscribeBackgroundTaskOutput: "orchestration.subscribeBackgroundTaskOutput",
 } as const;
 
 export const OrchestrationV2SubscribeCommandOutputInput = Schema.Struct({
@@ -3503,6 +3504,14 @@ export const OrchestrationV2SubscribeCommandOutputInput = Schema.Struct({
 });
 export type OrchestrationV2SubscribeCommandOutputInput =
   typeof OrchestrationV2SubscribeCommandOutputInput.Type;
+
+/** One pending background command or monitor, by the `taskId` the thread lists it under. */
+export const OrchestrationV2SubscribeBackgroundTaskOutputInput = Schema.Struct({
+  threadId: ThreadId,
+  taskId: TrimmedNonEmptyString,
+});
+export type OrchestrationV2SubscribeBackgroundTaskOutputInput =
+  typeof OrchestrationV2SubscribeBackgroundTaskOutputInput.Type;
 
 /**
  * Kept off the thread stream so it is never persisted and only reaches clients
@@ -4164,6 +4173,10 @@ export const OrchestrationV2RpcSchemas = {
   },
   subscribeCommandOutput: {
     input: OrchestrationV2SubscribeCommandOutputInput,
+    output: OrchestrationV2CommandOutputFrame,
+  },
+  subscribeBackgroundTaskOutput: {
+    input: OrchestrationV2SubscribeBackgroundTaskOutputInput,
     output: OrchestrationV2CommandOutputFrame,
   },
 } as const;

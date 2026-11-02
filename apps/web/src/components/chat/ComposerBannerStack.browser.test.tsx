@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { RunId } from "@supaterm/contracts";
 
+import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { ComposerBanner } from "./ComposerBanner";
 import {
   ComposerBannerStack,
@@ -273,6 +274,31 @@ it("leaves out the details button when only a link's hit area reaches past the t
         node.querySelector('[aria-label="Show details"]')),
   );
   expect(details).toEqual([]);
+});
+
+it("leaves out the details button while a popover opened from the notice text is open", async () => {
+  await using screen = await renderUi(
+    // Offset from the viewport origin, where the popover's fixed focus guards sit.
+    <div style={{ paddingLeft: "10rem" }}>
+      {noticeRow(
+        "20rem",
+        <span>
+          <Popover>
+            <PopoverTrigger nativeButton={false} render={<span role="button" tabIndex={0} />}>
+              Waiting on command
+            </PopoverTrigger>
+            <PopoverPopup>Output</PopoverPopup>
+          </Popover>
+        </span>,
+      )}
+    </div>,
+  );
+
+  await userEvent.click(screen.getByRole("button", { name: "Waiting on command" }));
+  await expect.element(screen.getByText("Output")).toBeVisible();
+  await expect
+    .element(screen.getByRole("button", { name: "Show details" }))
+    .not.toBeInTheDocument();
 });
 
 it("shows the details button while text or nested text is cut, until it fits again", async () => {

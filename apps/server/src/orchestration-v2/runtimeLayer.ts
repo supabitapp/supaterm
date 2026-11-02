@@ -40,6 +40,7 @@ import * as NextPromptSuggestionService from "./NextPromptSuggestionService.ts";
 import * as ProviderEventIngestor from "./ProviderEventIngestor.ts";
 import * as ThreadCommandExecutor from "./ThreadCommandExecutor.ts";
 import * as ProviderSessionManager from "./ProviderSessionManager.ts";
+import * as BackgroundTaskOutput from "./BackgroundTaskOutput.ts";
 import * as CommandOutputHub from "./CommandOutputHub.ts";
 import * as PromptSuggestionHub from "./PromptSuggestionHub.ts";
 import * as ProviderRuntimeRecoveryService from "./ProviderRuntimeRecoveryService.ts";
@@ -239,6 +240,16 @@ const layerAgentSessionImporterProvided = AgentSessionImporter.layer.pipe(
   ),
 );
 
+const layerBackgroundTaskOutputProvided = BackgroundTaskOutput.layer.pipe(
+  Layer.provide(
+    Layer.mergeAll(
+      layerOrchestratorProvided,
+      layerProviderSessionManagerProvided,
+      layerCommandOutputHubProvided,
+    ),
+  ),
+);
+
 const layerThreadManagementProvided = ThreadManagementService.layer.pipe(
   Layer.provide(
     Layer.mergeAll(
@@ -351,6 +362,7 @@ const layerMcpAppRequestsProvided = McpAppRequests.layer.pipe(
 
 export const layer = Layer.mergeAll(
   layerCommandOutputHubProvided,
+  layerBackgroundTaskOutputProvided,
   layerOrchestratorProvided,
   layerMcpAppRequestsProvided,
   layerThreadManagementProvided,

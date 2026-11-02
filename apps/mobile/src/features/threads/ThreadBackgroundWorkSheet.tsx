@@ -7,6 +7,7 @@ import {
 } from "@supaterm/client-runtime/state/thread-execution";
 import type { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import * as Haptics from "expo-haptics";
+import { useState } from "react";
 import { Platform, Pressable, ScrollView, View } from "react-native";
 import { ScreenStack } from "react-native-screens";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,8 +18,11 @@ import { AppText as Text } from "../../components/ui/AppText";
 import { ScreenContent } from "../../components/ui/ScreenContent";
 import { NativeStackScreenOptions, nativeHeaderScrollEdgeEffects } from "../../native/StackHeader";
 import { NativeHeader, NativeScreen } from "../../native/ThemedScreenStack";
+import { orchestrationEnvironment } from "../../state/orchestration";
 import { environmentThreadShells } from "../../state/threads";
 import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
+import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
+import { ThreadCommandOutput } from "./thread-command-output";
 
 const HEADER_SCROLL_EDGE_EFFECTS = nativeHeaderScrollEdgeEffects(Platform.OS, Platform.Version);
 const KIND_LABELS = {
@@ -60,7 +64,14 @@ export function ThreadBackgroundWorkSheet({ route }: StaticScreenProps<Backgroun
         </Text>
       ) : (
         presentation.items.map((item) => (
-          <BackgroundWorkRow key={item.taskId} item={item} onOpen={openThread} />
+          <BackgroundWorkRow
+            key={item.taskId}
+            item={item}
+            target={target}
+            // The pill already said what runs; with one command, its output is the detail.
+            initiallyShowingOutput={presentation.items.length === 1}
+            onOpen={openThread}
+          />
         ))
       )}
     </ScrollView>
@@ -105,12 +116,16 @@ export function ThreadBackgroundWorkSheet({ route }: StaticScreenProps<Backgroun
 
 function BackgroundWorkRow(props: {
   readonly item: PendingBackgroundWorkItem;
+  readonly target: BackgroundWorkTarget;
+  readonly initiallyShowingOutput: boolean;
   readonly onOpen: (threadId: ThreadId) => void;
 }) {
-  const { item } = props;
+  const { item, target } = props;
   const childThreadId = item.childThreadId;
-  const row = (
-    <View className="flex-row items-center gap-3 border-b border-border py-3.5">
+  const [showingOutput, setShowingOutput] = useState(props.initiallyShowingOutput);
+  const { themeAppearance } = useAppearancePreferences();
+  const row = (trailingSymbol: "chevron.right" | "chevron.up" | "chevron.down" | null) => (
+    <View className="flex-row items-center gap-3 py-3.5">
       <SymbolView
         name={
           item.kind === "subagent" ? "person.2" : item.kind === "monitor" ? "clock" : "terminal"
@@ -123,21 +138,56 @@ function BackgroundWorkRow(props: {
         <Text className="font-supaterm-medium text-sm text-foreground">{item.label}</Text>
         <Text className="text-xs text-foreground-muted">{KIND_LABELS[item.kind]}</Text>
       </View>
-      {childThreadId === undefined ? null : (
-        <SymbolView name="chevron.right" size={12} tintColorClassName="accent-icon-subtle" />
+      {trailingSymbol === null ? null : (
+        <SymbolView name={trailingSymbol} size={12} tintColorClassName="accent-icon-subtle" />
       )}
     </View>
   );
-  return childThreadId === undefined ? (
-    <View accessible>{row}</View>
-  ) : (
-    <Pressable
-      accessibilityRole="link"
-      accessibilityLabel={`Open subagent ${item.label}`}
-      onPress={() => props.onOpen(childThreadId)}
-      className="active:opacity-70"
-    >
-      {row}
-    </Pressable>
+  if (childThreadId !== undefined) {
+    return (
+      <Pressable
+        accessibilityRole="link"
+        accessibilityLabel={`Open subagent ${item.label}`}
+        onPress={() => props.onOpen(childThreadId)}
+        className="border-b border-border active:opacity-70"
+      >
+        {row("chevron.right")}
+      </Pressable>
+    );
+  }
+  if (!item.hasOutput) {
+    return (
+      <View accessible className="border-b border-border">
+        {row(null)}
+      </View>
+    );
+  }
+  return (
+    <View className="border-b border-border">
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${showingOutput ? "Hide" : "Show"} output of ${item.label}`}
+        accessibilityState={{ expanded: showingOutput }}
+        onPress={() => {
+          void Haptics.selectionAsync();
+          setShowingOutput((showing) => !showing);
+        }}
+        className="active:opacity-70"
+      >
+        {row(showingOutput ? "chevron.up" : "chevron.down")}
+      </Pressable>
+      {showingOutput ? (
+        <View className="pb-3.5">
+          <ThreadCommandOutput
+            output={orchestrationEnvironment.v2.backgroundTaskOutput({
+              environmentId: target.environmentId,
+              input: { threadId: target.threadId, taskId: item.taskId },
+            })}
+            waitingLabel="No output yet."
+            themeAppearance={themeAppearance}
+          />
+        </View>
+      ) : null}
+    </View>
   );
 }

@@ -199,7 +199,10 @@ function pendingTaskFromTurnItem(
   }
 }
 
-function nativeTaskIdFromTurnItem(item: PendingBackgroundWorkTurnItem): string {
+/** The task id a pending turn item is listed under. */
+export function nativeTaskIdFromTurnItem(
+  item: Pick<PendingBackgroundWorkTurnItem, "id" | "nativeItemRef">,
+): string {
   const nativeId = item.nativeItemRef?.nativeId;
   if (typeof nativeId === "string" && nativeId.length > 0) {
     return nativeId;
@@ -223,6 +226,17 @@ export function pendingBackgroundTurnItems<Item extends PendingBackgroundWorkTur
       (item.runId === undefined ||
         item.runId === null ||
         !rolledBackRunIds.has(String(item.runId))),
+  );
+}
+
+const WORKFLOW_RUN_WATCH_TASK_PREFIX = "workflow-run-watch:";
+const PULL_REQUEST_WATCH_TASK_PREFIX = "pull-request-watch:";
+
+/** Supaterm's own pull request and CI watches, which print no output. */
+export function isWatchTaskId(taskId: string): boolean {
+  return (
+    taskId.startsWith(WORKFLOW_RUN_WATCH_TASK_PREFIX) ||
+    taskId.startsWith(PULL_REQUEST_WATCH_TASK_PREFIX)
   );
 }
 
@@ -302,7 +316,7 @@ function watchTasks(input: {
   readonly workflowRunWatches?: ReadonlyArray<ThreadWorkflowRunWatch> | undefined;
 }): Array<PendingBackgroundWorkTask> {
   const runWatches = (input.workflowRunWatches ?? []).map((watch) => ({
-    taskId: `workflow-run-watch:${watch.host}/${watch.repository}#${watch.runId}`,
+    taskId: `${WORKFLOW_RUN_WATCH_TASK_PREFIX}${watch.host}/${watch.repository}#${watch.runId}`,
     description: `Watching ${watch.name} run`,
     kind: "monitor" as const,
     awaited: true as const,
@@ -323,7 +337,7 @@ function pullRequestWatchTasks(
           {
             // Links store their normalized identity, and this id only has to be unique within the
             // thread, so it reads those fields instead of parsing the URL.
-            taskId: `pull-request-watch:${link.host.toLowerCase()}/${link.repository.toLowerCase()}#${link.number}`,
+            taskId: `${PULL_REQUEST_WATCH_TASK_PREFIX}${link.host.toLowerCase()}/${link.repository.toLowerCase()}#${link.number}`,
             description: `Watching pull request #${link.number}`,
             kind: "monitor" as const,
             awaited: true as const,

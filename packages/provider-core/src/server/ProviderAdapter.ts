@@ -648,6 +648,14 @@ export interface ProviderAdapterV2SessionRuntime {
     readonly taskIds: ReadonlyArray<string>;
     readonly awaited: boolean;
   }) => Effect.Effect<{ readonly matched: ReadonlyArray<string> }, ProviderAdapterV2Error>;
+  /**
+   * Raw terminal output of a background command or monitor this provider thread lists, from
+   * a recent tail onward. Fails for any other task id. Runs only while someone reads it.
+   */
+  readonly backgroundTaskOutput?: (input: {
+    readonly providerThread: OrchestrationV2ProviderThread;
+    readonly taskId: string;
+  }) => Stream.Stream<string, ProviderAdapterV2Error>;
   readonly interruptTurn: (
     input: ProviderAdapterV2InterruptInput,
   ) => Effect.Effect<void, ProviderAdapterV2Error>;

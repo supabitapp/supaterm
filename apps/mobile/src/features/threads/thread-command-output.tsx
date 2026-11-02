@@ -1,14 +1,11 @@
-import type {
-  EnvironmentId,
-  OrchestrationV2ProjectedTurnItem,
-  ThreadId,
-  TurnItemId,
-} from "@supaterm/contracts";
+import type { EnvironmentId, OrchestrationV2ProjectedTurnItem } from "@supaterm/contracts";
 import { useAtomValue } from "@effect/atom-react";
 import {
   commandOutputUnavailable,
+  type CommandOutputView,
   NO_COMMAND_OUTPUT,
 } from "@supaterm/client-runtime/state/command-output";
+import type { AsyncResult, Atom } from "effect/reactivity";
 import { TERMINAL_PALETTES, terminalOutputSpans } from "@supaterm/shared/terminalOutput";
 import type React from "react";
 import { useMemo, useRef } from "react";
@@ -44,22 +41,17 @@ export function useCommandOutputStreaming(
 }
 
 /**
- * Output of one expanded command row: streams while the command runs, then
- * shows its final output. Mount it only when `useCommandOutputStreaming` holds.
- * It subscribes only while mounted, so collapsed rows and other threads receive nothing.
+ * Output of one command: streams while it runs, then shows its final output. For a timeline
+ * row, mount it only when `useCommandOutputStreaming` holds. It subscribes only while mounted,
+ * so collapsed rows and other threads receive nothing.
  */
 export function ThreadCommandOutput(props: {
-  readonly environmentId: EnvironmentId;
-  readonly threadId: ThreadId;
-  readonly itemId: TurnItemId;
+  readonly output: Atom.Atom<AsyncResult.AsyncResult<CommandOutputView, unknown>>;
+  /** Shown while the command runs without output; rows whose header says it runs omit it. */
+  readonly waitingLabel?: string;
   readonly themeAppearance: "light" | "dark";
 }) {
-  const { data, error } = useEnvironmentQuery(
-    orchestrationEnvironment.v2.commandOutput({
-      environmentId: props.environmentId,
-      input: { threadId: props.threadId, itemId: props.itemId },
-    }),
-  );
+  const { data, error } = useEnvironmentQuery(props.output);
   const scrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
   // Follow new output until the reader scrolls up; scrolling back down resumes.
   const followRef = useRef(true);
@@ -74,7 +66,7 @@ export function ThreadCommandOutput(props: {
       : data === null
         ? "Loading output…"
         : data.running
-          ? null
+          ? (props.waitingLabel ?? null)
           : "No output.";
     return message === null ? null : (
       <Text className="pt-1.5 font-mono text-2xs leading-normal text-foreground-muted">

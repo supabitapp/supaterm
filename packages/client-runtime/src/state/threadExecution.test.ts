@@ -618,4 +618,25 @@ describe("presentPendingBackgroundWork", () => {
     ]);
     expect(presentation?.items[0]?.label).toBe("mv a.ts b.ts\ncat > b.ts <<'EOF'\nexport {};\nEOF");
   });
+
+  it("offers output only for commands and monitors the agent started", () => {
+    const presentation = presentPendingBackgroundWork([
+      { taskId: "b1", kind: "command", description: "Build" },
+      { taskId: "b2", kind: "monitor", description: "Tail logs" },
+      { taskId: "agent", kind: "subagent", description: "Review" },
+      {
+        taskId: "workflow-run-watch:github.com/acme/app#7",
+        kind: "monitor",
+        description: "Watching CI run",
+      },
+      {
+        taskId: "pull-request-watch:github.com/acme/app#12",
+        kind: "monitor",
+        description: "Watching pull request #12",
+      },
+    ]);
+    expect(presentation?.items.filter((item) => item.hasOutput).map((item) => item.taskId)).toEqual(
+      ["b1", "b2"],
+    );
+  });
 });
