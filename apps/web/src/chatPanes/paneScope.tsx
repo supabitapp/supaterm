@@ -2,6 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { createContext, use, type ReactNode } from "react";
 
 import type { ComposerHandleRef } from "../composerHandleContext";
+import { useStableCallback } from "../hooks/useStableCallback";
 import type { ChatComposerHandle } from "../components/chat/ChatComposer";
 import { useChatPaneStore } from "./store";
 import { buildThreadRouteParams, type ThreadRouteTarget } from "../threadRoutes";
@@ -49,7 +50,7 @@ export function isPaneInputOwner(paneId: string | null): boolean {
 /** A stable check for listeners, read when the event arrives rather than when it was registered. */
 export function usePaneInputOwner(): () => boolean {
   const paneId = use(PaneScopeContext)?.paneId ?? null;
-  return () => isPaneInputOwner(paneId);
+  return useStableCallback(() => isPaneInputOwner(paneId));
 }
 
 export function useIsPaneInputOwner(): boolean {
