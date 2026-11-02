@@ -17,6 +17,7 @@ const SNIPPET_LENGTH = 200;
 export type PullRequestWatchChange =
   | { readonly kind: "checks-failed"; readonly failed: ReadonlyArray<PullRequestCheck> }
   | { readonly kind: "checks-passed"; readonly count: number; readonly required: boolean }
+  | { readonly kind: "checks-finished"; readonly failing: ReadonlyArray<PullRequestCheck> }
   | { readonly kind: "remarks"; readonly remarks: ReadonlyArray<PullRequestComment> }
   | { readonly kind: "no-checks"; readonly minutes: number }
   | { readonly kind: "conflicting" };
@@ -62,28 +63,28 @@ export function evaluatePullRequestWatch(
     const told = passed && passedChecks.length === 0 ? gateNames : passedChecks;
     // Required checks can finish between sweeps; detect new names. With no required checks, ignore advisory gate growth.
     const gateGrew = required.length > 0 && gateNames.some((name) => !told.includes(name));
-    // Other checks still pending when required ones passed are owed one wake when all settle.
-    // Only those are owed, so later advisory churn never wakes. One turned required is gate news.
-    const owed =
-      passedNow && passed
-        ? detail.checks
-            .filter((check) => check.required !== true && owedChecks.includes(check.name))
-            .map((check) => check.name)
-        : [];
-    const settled =
-      failed.length === 0 && detail.checks.every((check) => check.status !== "pending");
-    owedChecks = owed;
-    if (passedNow && (!passed || gateGrew)) {
+    const pending = detail.checks
+      .filter((check) => check.status === "pending")
+      .map((check) => check.name);
+    const gatePassed = passedNow && (!passed || gateGrew);
+    if (gatePassed) {
       changes.push({ kind: "checks-passed", count: gate.length, required: required.length > 0 });
-      owedChecks =
-        required.length > 0
-          ? detail.checks
-              .filter((check) => check.required !== true && check.status === "pending")
-              .map((check) => check.name)
-          : [];
-    } else if (settled && owed.length > 0) {
-      changes.push({ kind: "checks-passed", count: detail.checks.length, required: false });
+    }
+    // Checks still running at a check wake are owed one more once all finish, so later advisory
+    // churn never wakes. A failing owed check waits for its rerun; other failures were reported.
+    const settled =
+      pending.length === 0 && !failed.some((check) => owedChecks.includes(check.name));
+    if (settled) {
+      if (owedChecks.length > 0 && !gatePassed) {
+        changes.push(
+          failed.length === 0
+            ? { kind: "checks-passed", count: detail.checks.length, required: false }
+            : { kind: "checks-finished", failing: failed },
+        );
+      }
       owedChecks = [];
+    } else if (gatePassed || newlyFailed.length > 0) {
+      owedChecks = [...new Set([...owedChecks, ...pending])];
     }
     passed = passedNow;
     passedChecks = passedNow ? gateNames : [];
@@ -169,23 +170,24 @@ function listed<T>(items: ReadonlyArray<T>, line: (item: T) => string): Array<st
   return lines;
 }
 
+const failedCheckLine = (check: PullRequestCheck) =>
+  `  - ${check.name}${check.status === "failure" ? "" : ` (${check.status})`}${check.url ? ` ${check.url}` : ""}`;
+
 function changeLines(
   change: PullRequestWatchChange,
   context: { readonly baseBranch: string; readonly commit: string },
 ): Array<string> {
   switch (change.kind) {
     case "checks-failed":
-      return [
-        `- Checks failed${context.commit}:`,
-        ...listed(
-          change.failed,
-          (check) =>
-            `  - ${check.name}${check.status === "failure" ? "" : ` (${check.status})`}${check.url ? ` ${check.url}` : ""}`,
-        ),
-      ];
+      return [`- Checks failed${context.commit}:`, ...listed(change.failed, failedCheckLine)];
     case "checks-passed":
       return [
         `- All ${change.count} ${change.required ? "required " : ""}${change.count === 1 ? "check" : "checks"} passed${context.commit}.`,
+      ];
+    case "checks-finished":
+      return [
+        `- Every check has finished${context.commit}. These still fail:`,
+        ...listed(change.failing, failedCheckLine),
       ];
     case "remarks":
       return [
@@ -209,6 +211,7 @@ function changeLines(
 const SUMMARY: Record<PullRequestWatchChange["kind"], string> = {
   "checks-failed": "checks failed",
   "checks-passed": "checks passed",
+  "checks-finished": "checks finished",
   remarks: "new comments",
   "no-checks": "no checks reported",
   conflicting: "merge conflict",
@@ -235,7 +238,10 @@ export function pullRequestWatchMessage(input: {
       : "Look into each item and act on it as your task requires. This PR stays linked and watched, so do not link, watch, or list it again. End your turn when you are done, and Supaterm wakes you on the next change. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.",
   ].join("\n");
   const failed = changes.some(
-    (change) => change.kind === "checks-failed" || change.kind === "conflicting",
+    (change) =>
+      change.kind === "checks-failed" ||
+      change.kind === "checks-finished" ||
+      change.kind === "conflicting",
   );
   const summary = changes.map((change) => SUMMARY[change.kind]);
   if (exhausted) summary.push("stopped watching");
