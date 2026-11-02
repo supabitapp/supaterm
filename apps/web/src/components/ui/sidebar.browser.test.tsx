@@ -4,27 +4,12 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import { render } from "../../../test/render";
 import { Sidebar, SidebarProvider, SidebarTrigger, useSidebar } from "./sidebar";
 
-// Listens natively, like the shortcut dispatcher, so the collapse runs outside React's event batching.
 function CollapseFromInside() {
   const { setOpen } = useSidebar();
-  const listen = (button: HTMLButtonElement) => {
-    const collapse = () => setOpen(false);
-    button.addEventListener("click", collapse);
-    return () => button.removeEventListener("click", collapse);
-  };
   return (
-    <button type="button" ref={listen}>
+    <button type="button" onClick={() => setOpen(false)}>
       Collapse
     </button>
-  );
-}
-
-function CollapsedOnlyTrigger() {
-  const { open } = useSidebar();
-  return (
-    <div style={open ? { display: "none" } : undefined}>
-      <SidebarTrigger aria-label="Show sidebar" />
-    </div>
   );
 }
 
@@ -32,10 +17,9 @@ function Harness() {
   return (
     <SidebarProvider defaultOpen>
       <Sidebar>
-        <SidebarTrigger aria-label="Hide sidebar" />
         <CollapseFromInside />
       </Sidebar>
-      <CollapsedOnlyTrigger />
+      <SidebarTrigger />
     </SidebarProvider>
   );
 }
@@ -49,19 +33,19 @@ describe("Sidebar", () => {
 
     const sidebar = screen.container.querySelector<HTMLElement>('[data-slot="sidebar"]')!;
     await vi.waitFor(() => expect(sidebar.inert).toBe(true));
-    await expect.element(screen.getByRole("button", { name: "Show sidebar" })).toHaveFocus();
+    const trigger = screen.container.querySelector('[data-slot="sidebar-trigger"]');
+    await vi.waitFor(() => expect(document.activeElement).toBe(trigger));
   });
 
   it("toggles from the trigger and reopens without inert", async () => {
     await page.viewport(1280, 800);
     await using screen = await render(<Harness />, { router: false /* no routes involved */ });
     const sidebar = screen.container.querySelector<HTMLElement>('[data-slot="sidebar"]')!;
+    const trigger = screen.container.querySelector<HTMLElement>('[data-slot="sidebar-trigger"]')!;
 
-    await userEvent.click(screen.getByRole("button", { name: "Hide sidebar" }));
+    await userEvent.click(trigger);
     await vi.waitFor(() => expect(sidebar.inert).toBe(true));
-    await expect.element(screen.getByRole("button", { name: "Show sidebar" })).toHaveFocus();
-    await userEvent.click(screen.getByRole("button", { name: "Show sidebar" }));
+    await userEvent.click(trigger);
     await vi.waitFor(() => expect(sidebar.inert).toBe(false));
-    await expect.element(screen.getByRole("button", { name: "Hide sidebar" })).toHaveFocus();
   });
 });

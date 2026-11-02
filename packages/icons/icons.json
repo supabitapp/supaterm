@@ -220,7 +220,6 @@
     "Palette": "Palette",
     "PanelBottom": "SquareHalfBottom",
     "PanelLeft": "SidebarSimple",
-    "PanelLeftClose": "ArrowLineLeft",
     "PanelRight": {
       "icon": "SidebarSimple",
       "props": {

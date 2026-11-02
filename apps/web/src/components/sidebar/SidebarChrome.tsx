@@ -60,9 +60,6 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
       </div>
       <div className="flex h-[var(--workspace-titlebar-control-size)] min-w-0 flex-1 items-center gap-1 overflow-hidden">
         <SidebarBrand />
-        <div className="hidden shrink-0 md:flex">
-          <MainSidebarToggle />
-        </div>
       </div>
     </div>
   );
@@ -86,9 +83,8 @@ export function SidebarBrandWidthProbe({
       className="pointer-events-none invisible fixed top-0 left-0 flex w-max border-r border-transparent pr-3"
       ref={observeWidth}
     >
-      <div className="ml-[var(--workspace-controls-left)] flex gap-1">
+      <div className="ml-[var(--workspace-titlebar-content-left)] flex">
         <SidebarBrandMark title={title} />
-        <div className="w-[var(--workspace-titlebar-control-size)]" />
       </div>
     </div>
   );
@@ -114,7 +110,7 @@ function SidebarBrand() {
   return (
     <Link
       aria-label={`${title}, go to threads`}
-      className="flex h-7 w-fit min-w-0 shrink-0 items-center overflow-hidden rounded-md text-foreground outline-hidden ring-ring focus-visible:ring-2 focus-visible:ring-inset md:ml-[var(--workspace-controls-left)]"
+      className="flex h-7 w-fit min-w-0 shrink-0 items-center overflow-hidden rounded-md text-foreground outline-hidden ring-ring focus-visible:ring-2 focus-visible:ring-inset md:ml-[var(--workspace-titlebar-content-left)]"
       to="/"
     >
       <SidebarBrandMark title={title} />
