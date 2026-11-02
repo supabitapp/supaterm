@@ -386,13 +386,34 @@ describe("automation permissions", () => {
     expect(pageText()).not.toContain("Edit automation");
   });
 
+  it("opens the editor from a row but not from the row's controls", async () => {
+    await using _test = await setupTest();
+    const runError = "Provider instance is disabled";
+    state.tasks.set(remoteId, [
+      { ...task(remoteProjectId), lastRunStatus: "failed", lastRunError: runError },
+    ]);
+    await renderPage();
+
+    await click(byLabel("Pause Read only automation")[0]!);
+    await click(byLabel("Actions for Read only automation")[0]!);
+    await click(buttonNamed("Run now")!);
+    await click(buttonNamed(runError)!);
+    expect(state.toggle).toHaveBeenCalledOnce();
+    expect(state.run).toHaveBeenCalledOnce();
+    await expect.element(page.getByRole("dialog").getByText(runError)).toBeVisible();
+    expect(pageText()).not.toContain("Edit automation");
+
+    await click(document.querySelector<HTMLElement>("tbody td")!);
+    expect(pageText()).toContain("Edit automation");
+  });
+
   it("folds environments without automations into one line", async () => {
     await using _test = await setupTest();
     state.tasks.set(remoteId, [task(remoteProjectId)]);
     await renderPage();
 
-    expect(byLabel("Remote")).toHaveLength(1);
-    expect(byLabel("Local")).toHaveLength(0);
+    const rows = [...document.querySelectorAll("tbody tr")].map((row) => row.textContent);
+    expect(rows).toEqual([expect.stringContaining("Remote")]);
     expect(pageText()).toContain("No automations on Local");
   });
 
