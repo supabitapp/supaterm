@@ -150,6 +150,7 @@ import {
   composerVoiceBannerItem,
 } from "./ComposerVoiceInput";
 import { useComposerVoiceInput } from "../../voice/useComposerVoiceInput";
+import { holdToTalkKeyLabel } from "../../voice/useHoldToTalk";
 import { resolveVoiceLanguage } from "../../voice/voiceLanguage";
 import type { VoiceRecording } from "../../voice/webVoiceRecorder";
 import {
@@ -4113,6 +4114,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                           voice={voice}
                           disabled={!canOperateThread}
                           shortcutLabel={shortcutLabelForCommand(keybindings, "composer.voice")}
+                          holdKeyLabel={holdToTalkKeyLabel(settings.voiceHoldToTalkKey)}
                         />
                       ) : null}
                       <ComposerFooterPrimaryActions

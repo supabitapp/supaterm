@@ -21,12 +21,16 @@ export function ComposerVoiceButton(props: {
   readonly voice: ComposerVoiceInput;
   readonly disabled: boolean;
   readonly shortcutLabel: string | null;
+  readonly holdKeyLabel: string | null;
 }) {
   const { voice } = props;
   const { availability } = voice;
   const navigate = useNavigate();
   const unavailable = availability.unavailableReason !== null;
   const label = unavailable ? "Voice input unavailable" : "Voice input";
+  const shortcut = [props.shortcutLabel, props.holdKeyLabel && `hold ${props.holdKeyLabel}`]
+    .filter(Boolean)
+    .join(" or ");
   const detail = unavailable
     ? availability.unavailableReason
     : availability.canReview
@@ -56,7 +60,7 @@ export function ComposerVoiceButton(props: {
         <MicIcon />
       </TooltipTrigger>
       <TooltipPopup>
-        {props.shortcutLabel ? `${label} (${props.shortcutLabel})` : label}
+        {shortcut ? `${label} (${shortcut})` : label}
         {detail ? <span className="block text-muted-foreground">{detail}</span> : null}
       </TooltipPopup>
     </Tooltip>

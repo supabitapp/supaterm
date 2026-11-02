@@ -178,7 +178,7 @@ function VoiceHoldToTalkSettingRow() {
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
   const options = [
-    { value: "alt", label: isMacPlatform(navigator.platform) ? "Option" : "Alt" },
+    { value: "alt", label: isMacPlatform(navigator.platform) ? "⌥ Option" : "Alt" },
     { value: "space", label: "Space" },
     { value: "off", label: "Off" },
   ] as const;
