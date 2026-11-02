@@ -10,10 +10,10 @@ import {
   voiceLanguageLabel,
   voiceLanguageOptions,
 } from "../../voice/voiceLanguage";
+import { isMacPlatform } from "../../lib/utils";
 import { useEnvironmentProviders } from "../../state/environments";
 import { EMPTY_SERVER_PROVIDERS } from "../../state/server";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
-import { Switch } from "../ui/switch";
 import {
   SettingResetButton,
   SettingsPageContainer,
@@ -174,31 +174,49 @@ function VoiceLanguageSettingRow(props: { readonly providers: ReadonlyArray<Serv
   );
 }
 
-function VoiceHoldSpaceSettingRow() {
+function VoiceHoldToTalkSettingRow() {
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
+  const options = [
+    { value: "alt", label: isMacPlatform(navigator.platform) ? "Option" : "Alt" },
+    { value: "space", label: "Space" },
+    { value: "off", label: "Off" },
+  ] as const;
   return (
     <SettingsRow
-      {...searchableSetting("voice-hold-space")}
-      description="Hold Space in the composer to talk, and let go to stop. A tap still types a space."
+      {...searchableSetting("voice-hold-to-talk")}
+      description="Hold this key in the composer to talk, and let go to stop."
       resetAction={
-        settings.voiceHoldSpaceToTalk !== DEFAULT_UNIFIED_SETTINGS.voiceHoldSpaceToTalk ? (
+        settings.voiceHoldToTalkKey !== DEFAULT_UNIFIED_SETTINGS.voiceHoldToTalkKey ? (
           <SettingResetButton
-            label="hold Space to talk"
+            label="hold to talk"
             onClick={() =>
-              updateSettings({
-                voiceHoldSpaceToTalk: DEFAULT_UNIFIED_SETTINGS.voiceHoldSpaceToTalk,
-              })
+              updateSettings({ voiceHoldToTalkKey: DEFAULT_UNIFIED_SETTINGS.voiceHoldToTalkKey })
             }
           />
         ) : null
       }
       control={
-        <Switch
-          checked={settings.voiceHoldSpaceToTalk}
-          onCheckedChange={(checked) => updateSettings({ voiceHoldSpaceToTalk: Boolean(checked) })}
-          aria-label="Hold Space to talk"
-        />
+        <Select
+          value={settings.voiceHoldToTalkKey}
+          onValueChange={(value) => {
+            const option = options.find((option) => option.value === value);
+            if (option) updateSettings({ voiceHoldToTalkKey: option.value });
+          }}
+        >
+          <SelectTrigger size="sm" className="w-auto min-w-0 max-w-full" aria-label="Hold to talk">
+            <SelectValue>
+              {options.find((option) => option.value === settings.voiceHoldToTalkKey)?.label}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectPopup align="end" alignItemWithTrigger={false}>
+            {options.map((option) => (
+              <SelectItem hideIndicator key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectPopup>
+        </Select>
       }
     />
   );
@@ -216,7 +234,7 @@ export function VoiceSettingsPanel() {
       <SettingsSection id="voice-input" title="Voice input">
         <VoiceTranscriptionSettingRow providers={serverProviders} />
         <VoiceLanguageSettingRow providers={serverProviders} />
-        <VoiceHoldSpaceSettingRow />
+        <VoiceHoldToTalkSettingRow />
       </SettingsSection>
     </SettingsPageContainer>
   );

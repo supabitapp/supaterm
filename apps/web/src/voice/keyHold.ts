@@ -5,15 +5,18 @@ export interface KeyHold {
   readonly cancel: () => void;
 }
 
-/**
- * Follows the key press that just started, telling a tap from a hold. The first key
- * release ends it: macOS sends no keyup for a letter let go while Command is down, only
- * for Command. Another key press, or the window losing focus, makes it a tap.
- */
-export function followKeyHold(handlers: {
+export interface KeyHoldHandlers {
   readonly onHold?: (() => void) | undefined;
-  readonly onHeldRelease: () => void;
-}): KeyHold {
+  readonly onHeldRelease: (event: KeyboardEvent) => void;
+  readonly onHeldChord?: (() => void) | undefined;
+}
+
+/**
+ * Tells a tap from a hold of the key at `code`. The first key release ends it: macOS sends no
+ * keyup for a letter let go while Command is down. Any other key, even a repeat, or losing focus
+ * makes it a tap; once held, those or a click make a modifier hold a chord (`onHeldChord`).
+ */
+export function followKeyHold(code: string, handlers: KeyHoldHandlers): KeyHold {
   let held = false;
   let done = false;
   const timer = window.setTimeout(() => {
@@ -26,17 +29,25 @@ export function followKeyHold(handlers: {
     window.clearTimeout(timer);
     window.removeEventListener("keydown", onKeyDown, true);
     window.removeEventListener("keyup", onKeyUp, true);
-    window.removeEventListener("blur", end);
+    window.removeEventListener("pointerdown", interrupt, true);
+    window.removeEventListener("blur", interrupt);
+  };
+  const interrupt = () => {
+    if (done) return;
+    end();
+    if (held) handlers.onHeldChord?.();
   };
   const onKeyDown = (event: KeyboardEvent) => {
-    if (!event.repeat) end();
+    if (event.repeat && event.code === code) return;
+    interrupt();
   };
-  const onKeyUp = () => {
+  const onKeyUp = (event: KeyboardEvent) => {
     end();
-    if (held) handlers.onHeldRelease();
+    if (held) handlers.onHeldRelease(event);
   };
   window.addEventListener("keydown", onKeyDown, true);
   window.addEventListener("keyup", onKeyUp, true);
-  window.addEventListener("blur", end);
+  if (handlers.onHeldChord) window.addEventListener("pointerdown", interrupt, true);
+  window.addEventListener("blur", interrupt);
   return { active: () => !done, cancel: end };
 }

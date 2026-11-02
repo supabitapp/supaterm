@@ -222,8 +222,10 @@ and use **Attach again** or remove the missing file before sending.
 
 Press the microphone in the composer, or `ctrl+m` on web and desktop, to record a
 prompt of up to five minutes. Hold `ctrl+m` instead to talk only while it is down; letting
-go stops and reviews. With **Settings → Voice transcription → Hold Space to talk** on, holding Space in
-the composer with no text selected does the same, and a tap still types a space. On web and desktop, the
+go stops and reviews. Holding Option (Alt off macOS) in the composer does the same. Pressing
+another key or clicking while you hold it treats it as a shortcut and drops the recording.
+**Settings → Voice transcription → Hold to talk** can switch the key to Space, which records when held with no
+text selected while a tap still types a space, or turn it off. On web and desktop, the
 recording stays in the composer while you speak:
 
 - **Stop and review**, or `ctrl+m` again, transcribes the recording into the

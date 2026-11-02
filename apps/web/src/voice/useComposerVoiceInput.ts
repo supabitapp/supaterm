@@ -6,7 +6,7 @@ import {
   type VoiceDraftSnapshot,
   type VoiceInputState,
 } from "@supaterm/client-runtime/voice-input";
-import type { EnvironmentId, ProjectId, ThreadId } from "@supaterm/contracts";
+import type { EnvironmentId, ProjectId, ThreadId, VoiceHoldToTalkKey } from "@supaterm/contracts";
 import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { ComposerSubmissionIntent } from "../composer-logic";
@@ -14,9 +14,9 @@ import type { ComposerDispatchMode } from "@supaterm/client-runtime/state/compos
 import { useStableCallback } from "../hooks/useStableCallback";
 import { threadOutboxDeliverableAtom } from "../state/threadOutbox";
 import { uploadVoiceAudio, useVoiceTranscriptionSource } from "../state/transcription";
-import { followKeyHold, type KeyHold } from "./keyHold";
+import { followKeyHold, type KeyHold, type KeyHoldHandlers } from "./keyHold";
 import { useDiscardOnEscape } from "./useDiscardOnEscape";
-import { useHoldSpaceToTalk } from "./useHoldSpaceToTalk";
+import { useHoldToTalk } from "./useHoldToTalk";
 import {
   canRecordVoice,
   readVoiceRecording,
@@ -56,8 +56,9 @@ export interface ComposerVoiceInputOptions {
   readonly submit: (submission: ComposerVoiceSubmission) => void;
   /** A recording is open or on its way, so its controls must stay on screen. */
   readonly onBusyChange: (busy: boolean) => void;
-  /** Holding Space in this element's editor records; null leaves Space to type. */
-  readonly holdSpaceTarget: RefObject<HTMLElement | null> | null;
+  /** Holding this key while focus is in `holdToTalkTarget` records. */
+  readonly holdToTalkKey: VoiceHoldToTalkKey;
+  readonly holdToTalkTarget: RefObject<HTMLElement | null>;
 }
 
 export interface ComposerVoiceAvailability {
@@ -174,9 +175,9 @@ function createVoiceRuntime(onStateChange: (state: VoiceInputState) => void) {
       releaseHeldKey();
       controller.ownerChanged();
     },
-    followKeyPress: (handlers: Parameters<typeof followKeyHold>[0]) => {
+    followKeyPress: (code: string, handlers: KeyHoldHandlers) => {
       releaseHeldKey();
-      heldKey = followKeyHold(handlers);
+      heldKey = followKeyHold(code, handlers);
       return heldKey;
     },
     releaseHeldKey,
@@ -257,15 +258,13 @@ export function useComposerVoiceInput(options: ComposerVoiceInputOptions) {
   const finishHeld = useStableCallback(() => {
     if (controller.currentState.phase === "recording") finish();
   });
-  const followPress = useStableCallback((onHold?: () => void) =>
-    runtime.followKeyPress({ onHold, onHeldRelease: finishHeld }),
-  );
-  const toggle = useStableCallback((press: { readonly fromKey: boolean } = { fromKey: false }) => {
+  /** `press` is the key that toggled, so holding it records until it comes up. */
+  const toggle = useStableCallback((press?: { readonly code: string }) => {
     switch (controller.currentState.phase) {
       case "idle":
       case "error":
         start();
-        if (press.fromKey) followPress();
+        if (press) runtime.followKeyPress(press.code, { onHeldRelease: finishHeld });
         return;
       case "preparing":
         cancel();
@@ -278,7 +277,7 @@ export function useComposerVoiceInput(options: ComposerVoiceInputOptions) {
         return;
     }
   });
-  useHoldSpaceToTalk(options.holdSpaceTarget, {
+  useHoldToTalk(options.holdToTalkTarget, options.holdToTalkKey, {
     canStart: () => {
       const { phase } = controller.currentState;
       return canRecord && (phase === "idle" || phase === "error");
@@ -288,8 +287,11 @@ export function useComposerVoiceInput(options: ComposerVoiceInputOptions) {
       return { text: readPrompt(), selection: readSelection() };
     },
     restoreDraft: (draft) => runtime.read().commitPrompt(draft.text, draft.selection),
+    opening: () => controller.currentState.phase === "preparing",
     start,
-    followPress,
+    finish: finishHeld,
+    cancel,
+    followPress: runtime.followKeyPress,
   });
 
   return {

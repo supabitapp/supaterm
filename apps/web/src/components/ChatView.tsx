@@ -2928,7 +2928,7 @@ export default function ChatView(props: ChatViewProps) {
       },
       "composer.voice": ({ repeat, event }) => {
         if (!composerRef.current) return false;
-        if (!repeat) composerRef.current.toggleVoiceInput({ fromKey: event !== null });
+        if (!repeat) composerRef.current.toggleVoiceInput(event ? { code: event.code } : undefined);
       },
       "composer.toggleFastMode": ({ repeat }) => {
         if (repeat) return;
