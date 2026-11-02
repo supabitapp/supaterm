@@ -1131,6 +1131,7 @@ const SPLIT_SETTINGS_PATHS: ReadonlySet<string> = new Set([
   "/settings/general",
   "/settings/appearance",
   "/settings/chat",
+  "/settings/threads",
   "/settings/source-control",
   "/settings/connections",
   ...Object.keys(RENAMED_SETTINGS_PATHS),
@@ -1139,6 +1140,7 @@ const SPLIT_SETTINGS_PATHS: ReadonlySet<string> = new Set([
 const MOVED_SECTION_ANCHORS: Readonly<Record<string, SettingsPath>> = {
   "authorized-clients": "/settings/access",
   threads: "/settings/threads",
+  "voice-input": "/settings/voice",
   devices: "/settings/devices",
   composer: "/settings/chat",
   review: "/settings/diffs",
