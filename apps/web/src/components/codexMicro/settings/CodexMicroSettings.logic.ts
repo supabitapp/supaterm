@@ -160,9 +160,9 @@ export const CODEX_MICRO_AGENT_SOURCE_OPTIONS: ReadonlyArray<{
   readonly description: string;
 }> = [
   {
-    value: "recent",
-    label: "Most recent threads",
-    description: "First six recently updated threads, pinned or unpinned",
+    value: "sidebar",
+    label: "Sidebar order",
+    description: "The threads the jump shortcuts open, in the same order",
   },
   { value: "pinned", label: "Pinned threads", description: "First six threads in Pinned" },
   {

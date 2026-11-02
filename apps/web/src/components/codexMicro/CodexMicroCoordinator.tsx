@@ -19,6 +19,7 @@ import { useNowMinute } from "../../hooks/useNowMinute";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { useThreadRouteRef } from "../../hooks/useThreadRouteTarget";
 import { useSidebarThreadShells } from "../../state/entities";
+import { useThreadJumpTargets } from "../sidebar/threadJumpTargets";
 import { environmentPresentations } from "../../state/presentation";
 import { buildThreadRouteParams } from "../../threadRoutes";
 import { resolveCodexMicroEncoderAction, resolveCodexMicroSlotAction } from "./codexMicroCatalog";
@@ -71,6 +72,7 @@ function ActiveCodexMicroCoordinator({ bridge }: { readonly bridge: DesktopCodex
     layout: current.codexMicro.layout,
   }));
   const threads = useSidebarThreadShells();
+  const jumpTargets = useThreadJumpTargets();
   const connectedEnvironmentIds = useAtomValue(
     environmentPresentations.presentationsAtom,
     selectConnectedEnvironmentIds,
@@ -84,6 +86,7 @@ function ActiveCodexMicroCoordinator({ bridge }: { readonly bridge: DesktopCodex
     bindings: selectCodexMicroSlotBindings({
       source: settings.source,
       threads,
+      jumpTargets,
       customAgentKeys: settings.customAgentKeys,
       now: `${nowMinute}:00.000Z`,
     }),

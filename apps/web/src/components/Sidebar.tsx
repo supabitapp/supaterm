@@ -19,6 +19,7 @@ import {
 } from "@supaterm/client-runtime/state/thread-grouping";
 import type { SidebarThreadGrouping } from "@supaterm/contracts/settings";
 import { SidebarPendingThreadRow } from "./SidebarPendingThreadRow";
+import { publishThreadJumpTargets } from "./sidebar/threadJumpTargets";
 import { useThreadOutbox } from "../state/threadOutbox";
 import { type EnvironmentId, type ScopedProjectRef } from "@supaterm/contracts";
 import type { EnvironmentServerConfig } from "@supaterm/client-runtime/connection";
@@ -1286,6 +1287,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     snoozedThreadKeysRef.current = snoozedThreadKeys;
     sectionByThreadKeyRef.current = sectionByThreadKey;
   });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- shares the jump shortcut targets with Codex Micro's agent keys
+  useEffect(() => publishThreadJumpTargets(orderedThreadKeys));
 
   const pinShortcut = shortcutLabelForCommand(keybindings, "thread.pin");
   const doneShortcut = shortcutLabelForCommand(keybindings, "thread.mark-done");

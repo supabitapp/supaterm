@@ -48,43 +48,32 @@ const running = {
   },
 };
 
+function keyOf(shell: EnvironmentThreadShell) {
+  return scopedThreadKey({ environmentId: shell.environmentId, threadId: shell.id });
+}
+
 function boundIds(bindings: ReturnType<typeof selectCodexMicroSlotBindings>) {
   return bindings.map((binding) => (binding.type === "thread" ? binding.ref.threadId : null));
 }
 
 describe("selectCodexMicroSlotBindings", () => {
-  it("follows the six most recent open threads and leaves the rest of the keys empty", () => {
-    const threads = [
-      thread("older", completedAt("2026-03-10T08:00:00.000Z")),
-      thread("newest", completedAt("2026-03-10T11:00:00.000Z")),
-      thread("done", {
-        ...completedAt("2026-03-10T11:30:00.000Z"),
-        doneAt: NOW,
-        doneOverride: "done",
-      }),
-      thread("reopened", {
-        ...completedAt("2026-03-10T10:00:00.000Z"),
-        doneAt: NOW,
-        doneOverride: "active",
-      }),
-      thread("snoozed", {
-        ...completedAt("2026-03-10T11:40:00.000Z"),
-        snoozedUntil: "2026-03-11T09:00:00.000Z",
-        snoozedAt: "2026-03-10T11:45:00.000Z",
-      }),
-      thread("archived", { ...completedAt("2026-03-10T11:50:00.000Z"), archivedAt: NOW }),
-    ];
+  it("follows the jump shortcut targets and leaves the rest of the keys empty", () => {
+    const pinned = thread("pinned", { pinnedAt: NOW });
+    const done = thread("done", { doneAt: NOW, doneOverride: "done" });
+    const bindings = selectCodexMicroSlotBindings({
+      source: "sidebar",
+      threads: [thread("unlisted"), done, pinned],
+      jumpTargets: [
+        keyOf(pinned),
+        keyOf(done),
+        scopedThreadKey({ environmentId, threadId: ThreadId.make("older-done") }),
+      ],
+      customAgentKeys: DEFAULT_CODEX_MICRO_CUSTOM_AGENT_KEYS,
+      now: NOW,
+    });
 
-    expect(
-      boundIds(
-        selectCodexMicroSlotBindings({
-          source: "recent",
-          threads,
-          customAgentKeys: DEFAULT_CODEX_MICRO_CUSTOM_AGENT_KEYS,
-          now: NOW,
-        }),
-      ),
-    ).toEqual(["newest", "reopened", "older", null, null, null]);
+    expect(boundIds(bindings)).toEqual(["pinned", "done", "older-done", null, null, null]);
+    expect(bindings[2]).toMatchObject({ type: "thread", thread: null });
   });
 
   it("follows pinned threads in their saved order", () => {
@@ -99,6 +88,7 @@ describe("selectCodexMicroSlotBindings", () => {
         selectCodexMicroSlotBindings({
           source: "pinned",
           threads,
+          jumpTargets: [],
           customAgentKeys: DEFAULT_CODEX_MICRO_CUSTOM_AGENT_KEYS,
           now: NOW,
         }),
@@ -122,6 +112,7 @@ describe("selectCodexMicroSlotBindings", () => {
         selectCodexMicroSlotBindings({
           source: "attention",
           threads,
+          jumpTargets: [],
           customAgentKeys: DEFAULT_CODEX_MICRO_CUSTOM_AGENT_KEYS,
           now: NOW,
         }),
@@ -133,6 +124,7 @@ describe("selectCodexMicroSlotBindings", () => {
     const bindings = selectCodexMicroSlotBindings({
       source: "custom",
       threads: [thread("assigned")],
+      jumpTargets: [],
       customAgentKeys: {
         ...DEFAULT_CODEX_MICRO_CUSTOM_AGENT_KEYS,
         AG00: { type: "thread", environmentId, threadId: ThreadId.make("assigned") },
@@ -165,8 +157,9 @@ describe("buildCodexMicroSlotViews", () => {
   ) {
     return buildCodexMicroSlotViews({
       bindings: selectCodexMicroSlotBindings({
-        source: "recent",
+        source: "sidebar",
         threads,
+        jumpTargets: threads.map(keyOf),
         customAgentKeys: DEFAULT_CODEX_MICRO_CUSTOM_AGENT_KEYS,
         now: NOW,
       }),

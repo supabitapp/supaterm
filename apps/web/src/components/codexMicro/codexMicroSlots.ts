@@ -8,7 +8,7 @@ import {
   type CodexMicroThreadRef,
   type EnvironmentId,
 } from "@supaterm/contracts";
-import { scopedThreadKey } from "@supaterm/client-runtime/environment";
+import { parseScopedThreadKey, scopedThreadKey } from "@supaterm/client-runtime/environment";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/models";
 import { effectiveSnoozed } from "@supaterm/client-runtime/state/thread-snooze";
 import { sortInboxThreadsByReturn } from "@supaterm/client-runtime/state/thread-inbox";
@@ -61,21 +61,29 @@ function bindThreads(threads: ReadonlyArray<EnvironmentThreadShell>) {
   });
 }
 
-function recentOpenWork(threads: ReadonlyArray<EnvironmentThreadShell>, now: string) {
-  return sortInboxThreadsByReturn(threads.filter((thread) => isOpenWork(thread, now)));
+function threadsByKey(threads: ReadonlyArray<EnvironmentThreadShell>) {
+  return new Map(threads.map((thread) => [scopedThreadKey(threadRef(thread)), thread] as const));
 }
 
 /** The six threads or actions the agent keys follow, in key order. */
 export function selectCodexMicroSlotBindings(input: {
   readonly source: CodexMicroAgentSource;
   readonly threads: ReadonlyArray<EnvironmentThreadShell>;
+  readonly jumpTargets: ReadonlyArray<string>;
   readonly customAgentKeys: CodexMicroCustomAgentKeys;
   readonly now: string;
 }): ReadonlyArray<CodexMicroSlotBinding> {
   const { threads, now } = input;
   switch (input.source) {
-    case "recent":
-      return bindThreads(recentOpenWork(threads, now));
+    case "sidebar": {
+      const byKey = threadsByKey(threads);
+      return CODEX_MICRO_AGENT_KEYS.map((_, index): CodexMicroSlotBinding => {
+        const key = input.jumpTargets[index];
+        const ref = key === undefined ? null : parseScopedThreadKey(key);
+        if (ref === null) return EMPTY_BINDING;
+        return { type: "thread", ref, thread: byKey.get(scopedThreadKey(ref)) ?? null };
+      });
+    }
     case "pinned":
       return bindThreads(
         sortPinnedThreadsByOrderKey(
@@ -85,14 +93,12 @@ export function selectCodexMicroSlotBindings(input: {
     case "attention":
       // toSorted is stable, so equally urgent threads keep their recent order.
       return bindThreads(
-        recentOpenWork(threads, now).toSorted(
+        sortInboxThreadsByReturn(threads.filter((thread) => isOpenWork(thread, now))).toSorted(
           (left, right) => attentionRank(left) - attentionRank(right),
         ),
       );
     case "custom": {
-      const byKey = new Map(
-        threads.map((thread) => [scopedThreadKey(threadRef(thread)), thread] as const),
-      );
+      const byKey = threadsByKey(threads);
       return CODEX_MICRO_AGENT_KEYS.map((key): CodexMicroSlotBinding => {
         const assignment = input.customAgentKeys[key];
         if (assignment === null) return EMPTY_BINDING;
