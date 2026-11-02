@@ -54,6 +54,15 @@ describe("resolveSupatermMcpToolDefinition", () => {
     expect(resolveSupatermMcpToolDefinition("preview_act", { action: "unknown" })?.labels[2]).toBe(
       "Used",
     );
+    expect(
+      resolveSupatermMcpToolDefinition("schedule_task", {
+        scheduledTaskId: "task-1",
+        enabled: false,
+      })?.labels,
+    ).toEqual(resolveSupatermMcpToolDefinition("update_scheduled_task")?.labels);
+    expect(resolveSupatermMcpToolDefinition("supaterm_thread_configure", {})?.labels).toEqual(
+      resolveSupatermMcpToolDefinition("supaterm_thread_configuration")?.labels,
+    );
   });
 });
 

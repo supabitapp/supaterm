@@ -625,6 +625,59 @@ it.effect("a read-only client reads threads and is refused every write before it
 );
 const dispatched: Array<string> = [];
 
+it.effect("moves a queued message to the end when beforeRunId is null", () => {
+  const commands: Array<unknown> = [];
+  return Effect.gen(function* () {
+    const server = yield* McpServer.McpServer;
+    const result = yield* server
+      .callTool({
+        name: "supaterm_queue",
+        arguments: {
+          action: "reorder",
+          threadId: "queue-thread",
+          queuedRunId: "run-queued",
+          beforeRunId: null,
+        },
+      })
+      .pipe(
+        Effect.provideService(McpInvocationContext.McpInvocationContext, clientScope("auto")),
+        Effect.provideService(McpSchema.McpServerClient, client),
+      );
+    expect(result.isError).toBe(false);
+    expect(commands).toMatchObject([
+      { type: "queued-run.reorder", runId: "run-queued", beforeRunId: null },
+    ]);
+  }).pipe(
+    Effect.provide(
+      layerThreadToolkit.pipe(
+        Layer.provideMerge(McpServer.McpServer.layer),
+        Layer.provide(NodeCrypto.layer),
+        Layer.provide(
+          Layer.mock(ThreadManagement.ThreadManagementService)({
+            getThreadShell: () =>
+              Effect.succeed({
+                id: ThreadId.make("queue-thread"),
+                projectId: "queue-project",
+                runtimeMode: "auto",
+                interactionMode: "default",
+                deletedAt: null,
+              } as never),
+            getProjectThreadRecords: () =>
+              Effect.succeed({
+                thread: { id: ThreadId.make("queue-thread"), projectId: "queue-project" },
+              } as never),
+            dispatch: (command) =>
+              Effect.sync(() => {
+                commands.push(command);
+                return { sequence: 3 } as never;
+              }),
+          }),
+        ),
+      ),
+    ),
+  );
+});
+
 it.effect("refuses act-as-caller tools to a client caller", () =>
   Effect.gen(function* () {
     const server = yield* McpServer.McpServer;

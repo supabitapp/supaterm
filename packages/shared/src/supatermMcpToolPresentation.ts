@@ -485,6 +485,14 @@ const ACTION_TOOLS: Readonly<Record<string, (action: string) => string | undefin
     })[action],
 };
 
+/** Tools whose single-purpose counterpart depends on which fields a call sets. */
+const FIELD_TOOLS: Readonly<Record<string, (input: SummaryInput) => string | undefined>> = {
+  supaterm_thread_configure: ({ modelSelection }) =>
+    modelSelection === undefined ? "supaterm_thread_configuration" : undefined,
+  schedule_task: ({ scheduledTaskId }) =>
+    scheduledTaskId === undefined ? undefined : "update_scheduled_task",
+};
+
 /** Pass the call's input so an action tool resolves to the labels and summary of its action. */
 export function resolveSupatermMcpToolDefinition(
   toolName: string | null | undefined,
@@ -492,32 +500,21 @@ export function resolveSupatermMcpToolDefinition(
 ): SupatermMcpToolDefinition | null {
   const name = toolName == null ? null : resolveSupatermMcpToolName(toolName);
   if (name === null || !Object.hasOwn(SUPATERM_MCP_TOOLS, name)) return null;
-  const action = asSummaryInput(input)?.action;
-  const actionTool = typeof action === "string" ? ACTION_TOOLS[name]?.(action) : undefined;
-  return actionTool !== undefined && Object.hasOwn(SUPATERM_MCP_TOOLS, actionTool)
-    ? SUPATERM_MCP_TOOLS[actionTool]!
+  const fields = asSummaryInput(input);
+  const action = fields?.action;
+  const counterpart =
+    (typeof action === "string" ? ACTION_TOOLS[name]?.(action) : undefined) ??
+    (fields === undefined ? undefined : FIELD_TOOLS[name]?.(fields));
+  return counterpart !== undefined && Object.hasOwn(SUPATERM_MCP_TOOLS, counterpart)
+    ? SUPATERM_MCP_TOOLS[counterpart]!
     : SUPATERM_MCP_TOOLS[name]!;
 }
-
-/** Tools whose summary depends on which fields a call sets. */
-const ACTION_SUMMARIES: Readonly<
-  Record<string, (input: SummaryInput) => SupatermMcpToolSummaryAction | undefined>
-> = {
-  supaterm_thread_configure: ({ modelSelection }) =>
-    modelSelection === undefined ? "thread-configuration" : "thread-configure",
-  schedule_task: ({ scheduledTaskId }) =>
-    scheduledTaskId === undefined ? "schedule-create" : "schedule-update",
-};
 
 export function resolveSupatermMcpSummaryAction(
   toolName: string | null | undefined,
   input: unknown,
 ): SupatermMcpToolSummaryAction | null {
-  const definition = resolveSupatermMcpToolDefinition(toolName, input);
-  if (definition === null) return null;
-  const summarize = ACTION_SUMMARIES[resolveSupatermMcpToolName(toolName!) ?? ""];
-  const fields = asSummaryInput(input);
-  return (fields && summarize?.(fields)) ?? definition.summaryAction;
+  return resolveSupatermMcpToolDefinition(toolName, input)?.summaryAction ?? null;
 }
 
 export function resolveSupatermMcpToolPresentation(
