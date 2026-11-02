@@ -120,7 +120,7 @@ ffmpeg -i memo.m4a -ar 16000 -ac 1 -c:a pcm_s16le memo.wav
 supaterm transcribe memo.wav --project .
 ```
 
-It uses the provider chosen under **Settings → Threads → Voice transcription**,
+It uses the provider chosen under **Settings → Voice transcription**,
 or the first ready one under **Automatic**; `--provider codex` picks another one
 for a single recording. The recording must
 be a 16 kHz mono 16-bit WAV of at most five minutes. Claude

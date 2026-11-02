@@ -45,7 +45,7 @@ export function ComposerVoiceButton(props: {
             onPointerDown={keepComposerFocus}
             onClick={() => {
               if (unavailable) {
-                void navigate({ to: "/settings/general" });
+                void navigate({ to: "/settings/voice" });
                 return;
               }
               voice.start();

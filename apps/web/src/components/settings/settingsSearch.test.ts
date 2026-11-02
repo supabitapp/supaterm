@@ -356,12 +356,16 @@ describe("movedSettingsPath", () => {
       "/settings/threads",
     );
     expect(movedSettingsPath("/settings/integrations", "")).toBe("/settings/browser");
-    expect(movedSettingsPath("/settings/chat", "voice-language")).toBe("/settings/threads");
+    expect(movedSettingsPath("/settings/chat", "voice-language")).toBe("/settings/voice");
+    expect(movedSettingsPath("/settings/threads", "voice-transcription")).toBe("/settings/voice");
+    expect(movedSettingsPath("/settings/threads", "voice-input")).toBe("/settings/voice");
   });
 
   it("leaves current pages alone", () => {
     expect(movedSettingsPath("/settings/general", "time-format")).toBeNull();
     expect(movedSettingsPath("/settings/general", "")).toBeNull();
+    expect(movedSettingsPath("/settings/threads", "")).toBeNull();
+    expect(movedSettingsPath("/settings/threads", "auto-resume-limited-threads")).toBeNull();
     expect(movedSettingsPath("/settings/projects", "project-defaults")).toBeNull();
     expect(movedSettingsPath("/settings/connections", "remote-environments")).toBeNull();
     expect(movedSettingsPath("/settings/appearance", "theme")).toBeNull();

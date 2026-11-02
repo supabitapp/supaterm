@@ -10,9 +10,17 @@ import {
   voiceLanguageLabel,
   voiceLanguageOptions,
 } from "../../voice/voiceLanguage";
+import { useEnvironmentProviders } from "../../state/environments";
+import { EMPTY_SERVER_PROVIDERS } from "../../state/server";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Switch } from "../ui/switch";
-import { SettingResetButton, SettingsRow } from "./settingsLayout";
+import {
+  SettingResetButton,
+  SettingsPageContainer,
+  SettingsRow,
+  SettingsSection,
+} from "./settingsLayout";
+import { useSettingsScope } from "./SettingsScopeContext";
 import { searchableSetting } from "./settingsSearch";
 import { useScopedSettings, useUpdateScopedSettings } from "./useScopedSettings";
 
@@ -29,7 +37,7 @@ function transcriptionStatus(provider: ServerProvider) {
   return provider.transcription?.reason === "signedOut" ? "Sign in again" : "Can't transcribe";
 }
 
-export function VoiceTranscriptionSettingRow(props: {
+function VoiceTranscriptionSettingRow(props: {
   readonly providers: ReadonlyArray<ServerProvider>;
 }) {
   const settings = useScopedSettings();
@@ -109,9 +117,7 @@ export function VoiceTranscriptionSettingRow(props: {
   );
 }
 
-export function VoiceLanguageSettingRow(props: {
-  readonly providers: ReadonlyArray<ServerProvider>;
-}) {
+function VoiceLanguageSettingRow(props: { readonly providers: ReadonlyArray<ServerProvider> }) {
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
   const value = settings.voiceLanguage ?? SYSTEM_LANGUAGE;
@@ -168,7 +174,7 @@ export function VoiceLanguageSettingRow(props: {
   );
 }
 
-export function VoiceHoldSpaceSettingRow() {
+function VoiceHoldSpaceSettingRow() {
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
   return (
@@ -195,5 +201,23 @@ export function VoiceHoldSpaceSettingRow() {
         />
       }
     />
+  );
+}
+
+export function VoiceSettingsPanel() {
+  const { environment } = useSettingsScope();
+  const providersByEnvironment = useEnvironmentProviders();
+  const serverProviders =
+    (environment?.serverConfig
+      ? providersByEnvironment.get(environment.environmentId)
+      : undefined) ?? EMPTY_SERVER_PROVIDERS;
+  return (
+    <SettingsPageContainer>
+      <SettingsSection id="voice-input" title="Voice input">
+        <VoiceTranscriptionSettingRow providers={serverProviders} />
+        <VoiceLanguageSettingRow providers={serverProviders} />
+        <VoiceHoldSpaceSettingRow />
+      </SettingsSection>
+    </SettingsPageContainer>
   );
 }
