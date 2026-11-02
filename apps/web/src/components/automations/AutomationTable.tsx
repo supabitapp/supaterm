@@ -162,6 +162,7 @@ function AutomationRow({
       );
     }
   };
+  const titleTone = task.enabled ? "text-foreground" : "text-muted-foreground";
   const projectLabel = project?.displayName ?? "Project removed";
   const schedule = scheduleSummary(task.schedule);
   const details = [
@@ -176,7 +177,6 @@ function AutomationRow({
       onClick={(event) => {
         // Controls in the row and its portaled menu handle their own clicks.
         if (
-          !canOperate ||
           !(event.target instanceof Element) ||
           !event.currentTarget.contains(event.target) ||
           event.target.closest("button, input, [role=switch]")
@@ -194,20 +194,13 @@ function AutomationRow({
               onClick={edit}
               className={cn(
                 "block max-w-full cursor-pointer truncate rounded-sm text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-                task.enabled ? "text-foreground" : "text-muted-foreground",
+                titleTone,
               )}
             >
               {task.title}
             </button>
           ) : (
-            <span
-              className={cn(
-                "block truncate text-sm",
-                task.enabled ? "text-foreground" : "text-muted-foreground",
-              )}
-            >
-              {task.title}
-            </span>
+            <span className={cn("block truncate text-sm", titleTone)}>{task.title}</span>
           )}
           <span className="block truncate text-muted-foreground @2xl/automations:hidden">
             {details.join(" · ")}
