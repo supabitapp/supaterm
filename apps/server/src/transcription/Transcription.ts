@@ -3,6 +3,7 @@ import {
   type ProviderInstanceId,
   TRANSCRIPTION_MAX_AUDIO_BYTES,
   TRANSCRIPTION_MAX_SECONDS,
+  TRANSCRIPTION_MIN_DURATION_MS,
   type TranscriptionCancelInput,
   TranscriptionError,
   type TranscriptionErrorReason,
@@ -42,7 +43,6 @@ import { keytermCandidates } from "./TranscriptionKeyterms.ts";
 // recorded outcome instead of starting another vendor run.
 const OUTCOME_TTL_MS = 10 * 60_000;
 const MAX_ENTRIES = 64;
-const MIN_DURATION_MS = 300;
 const RUN_TIMEOUT_MS = (TRANSCRIPTION_MAX_SECONDS + 120) * 1000;
 const RUNS_PER_INSTANCE = 2;
 const PRUNE_INTERVAL = "1 minute";
@@ -169,7 +169,7 @@ const make = Effect.gen(function* () {
     }
     const audio = parseWav(yield* fileSystem.readFile(path).pipe(Effect.mapError(missing)));
     if (!audio) return yield* new TranscriptionError({ reason: "invalidAudio" });
-    if (audio.durationMs < MIN_DURATION_MS) {
+    if (audio.durationMs < TRANSCRIPTION_MIN_DURATION_MS) {
       return yield* new TranscriptionError({ reason: "audioTooShort" });
     }
     if (audio.durationMs > TRANSCRIPTION_MAX_SECONDS * 1000) {

@@ -15,6 +15,7 @@ import { ProviderInstanceId } from "./providerInstance.ts";
 /** 5 minutes of 16 kHz mono 16-bit PCM is 9.6 MB, plus the WAV header. */
 export const TRANSCRIPTION_MAX_AUDIO_BYTES = 10 * 1024 * 1024;
 export const TRANSCRIPTION_MAX_SECONDS = 5 * 60;
+export const TRANSCRIPTION_MIN_DURATION_MS = 300;
 
 export const ServerProviderTranscription = Schema.Struct({
   status: Schema.Literals(["ready", "unavailable"]),

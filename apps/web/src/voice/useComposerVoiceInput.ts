@@ -135,7 +135,6 @@ function createVoiceRuntime(onStateChange: (state: VoiceInputState) => void) {
         locale: language,
         transcribe: (uri, signal) => {
           const recording = readVoiceRecording(uri);
-          if (!recording) throw new Error("The recording is no longer available.");
           return uploadVoiceAudio({
             environmentId,
             audio: recording.audio,
@@ -207,6 +206,7 @@ export function useComposerVoiceInput(options: ComposerVoiceInputOptions) {
   // Send with a draft submits once React has committed the transcript into it.
   const submitAfterReview = useRef<{
     readonly ownerKey: string;
+    readonly prompt: string;
     readonly submission: ComposerVoiceSubmission;
   } | null>(null);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- submits a Send-with-draft only after React has committed the reviewed transcript into the editor
@@ -215,7 +215,11 @@ export function useComposerVoiceInput(options: ComposerVoiceInputOptions) {
     if (pending === null || voiceInputBlocksSubmission(state)) return;
     submitAfterReview.current = null;
     const current = runtime.read();
-    if (state.phase === "idle" && current.ownerKey === pending.ownerKey) {
+    if (
+      state.phase === "idle" &&
+      current.ownerKey === pending.ownerKey &&
+      current.readPrompt() !== pending.prompt
+    ) {
       current.submit(pending.submission);
     }
   }, [runtime, state]);
@@ -237,15 +241,12 @@ export function useComposerVoiceInput(options: ComposerVoiceInputOptions) {
     if (controller.currentState.phase !== "recording") return;
     if (availability.canSend) {
       const sendVoice = runtime.read().prepareVoiceSend(submission);
-      await controller.send(async (uri) => {
-        const recording = readVoiceRecording(uri);
-        if (!recording) throw new Error("The recording is no longer available.");
-        await sendVoice(recording);
-      });
+      await controller.send((uri) => sendVoice(readVoiceRecording(uri)));
       return;
     }
     if (!availability.canReview) return;
-    submitAfterReview.current = { ownerKey: runtime.read().ownerKey, submission };
+    const { ownerKey, readPrompt } = runtime.read();
+    submitAfterReview.current = { ownerKey, prompt: readPrompt(), submission };
     await controller.stop();
   });
   const finish = useStableCallback(() => {

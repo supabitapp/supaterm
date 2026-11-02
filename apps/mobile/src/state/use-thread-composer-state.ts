@@ -5,6 +5,7 @@ import { readEnvironmentScope } from "./session";
 import { useAtomValue } from "@effect/atom-react";
 import { threadRuntimeIsActive } from "@supaterm/client-runtime/state/shell";
 import type { ThreadCheckpointSummary } from "@supaterm/client-runtime/state/thread-checkpoints";
+import { VoiceUploadError } from "@supaterm/client-runtime/state/transcription";
 import { resolvePendingHandoff } from "@supaterm/client-runtime/handoff";
 import {
   deriveProviderSubagentStatus,
@@ -543,6 +544,7 @@ export function useThreadComposerState() {
     ).then(
       () => messageId,
       (error: unknown) => {
+        if (error instanceof VoiceUploadError && error.reason === "audioTooShort") return null;
         setThreadComposerError(
           threadKey,
           error instanceof Error ? error.message : "The recording couldn't be queued.",

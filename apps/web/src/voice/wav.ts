@@ -33,11 +33,16 @@ export function encodeMonoWav(channels: ReadonlyArray<Float32Array>, sampleRate:
 }
 
 /** Decoding into a 16 kHz context resamples with the browser's own resampler. */
-export async function convertRecordingToWav(recording: Blob): Promise<Blob> {
+export async function convertRecordingToWav(
+  recording: Blob,
+): Promise<{ readonly audio: Blob; readonly durationMs: number }> {
   const context = new OfflineAudioContext(1, 1, VOICE_SAMPLE_RATE);
   const decoded = await context.decodeAudioData(await recording.arrayBuffer());
   const channels = Array.from({ length: decoded.numberOfChannels }, (_, index) =>
     decoded.getChannelData(index),
   );
-  return encodeMonoWav(channels, decoded.sampleRate);
+  return {
+    audio: encodeMonoWav(channels, decoded.sampleRate),
+    durationMs: Math.round(decoded.duration * 1000),
+  };
 }

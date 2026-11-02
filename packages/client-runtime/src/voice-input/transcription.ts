@@ -14,7 +14,10 @@ export type VoiceTranscriber = {
 
 export type VoiceTranscriptionErrorCode =
   /** The environment declined with a reason the user can act on, carried in the message. */
-  "refused" | "cancelled";
+  | "refused"
+  /** Too little audio to transcribe, as from a tap; the recording is dropped without a word. */
+  | "tooShort"
+  | "cancelled";
 
 export class VoiceTranscriptionError extends Error {
   readonly code: VoiceTranscriptionErrorCode;

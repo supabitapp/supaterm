@@ -2,6 +2,7 @@ import { VoiceUploadError } from "@supaterm/client-runtime/state/transcription";
 import {
   TRANSCRIPTION_MAX_AUDIO_BYTES,
   TRANSCRIPTION_MAX_SECONDS,
+  TRANSCRIPTION_MIN_DURATION_MS,
   TranscriptionError,
 } from "@supaterm/contracts";
 
@@ -9,7 +10,6 @@ import { loadExpoFileSystem } from "./expoFileSystem";
 
 const SAMPLE_RATE = 16_000;
 const BYTES_PER_SAMPLE = 2;
-const MIN_DURATION_MS = 300;
 // iOS pads the header with a filler chunk so the samples start on a 4 KiB boundary.
 const HEADER_READ_BYTES = 64 * 1024;
 
@@ -54,7 +54,7 @@ export function checkVoiceRecordingWav(header: Uint8Array, sizeBytes: number): V
   const dataBytes = pcmDataBytes(header, sizeBytes);
   if (dataBytes === null) return { ok: false, reason: "invalidAudio" };
   const durationMs = Math.round((dataBytes / (SAMPLE_RATE * BYTES_PER_SAMPLE)) * 1000);
-  if (durationMs < MIN_DURATION_MS) return { ok: false, reason: "audioTooShort" };
+  if (durationMs < TRANSCRIPTION_MIN_DURATION_MS) return { ok: false, reason: "audioTooShort" };
   if (durationMs > TRANSCRIPTION_MAX_SECONDS * 1000) return { ok: false, reason: "audioTooLong" };
   return { ok: true, durationMs, sizeBytes };
 }

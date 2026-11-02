@@ -12,6 +12,7 @@ export {
   type VoiceRecordingDelivery,
 } from "./controller.ts";
 export {
+  VoiceTranscriptionError,
   type PreparedVoiceTranscription,
   type VoiceTranscriber,
   type VoiceTranscriptionErrorCode,

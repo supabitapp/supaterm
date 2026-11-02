@@ -1,5 +1,7 @@
+import { TranscriptionError } from "@supaterm/contracts";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
+import { createServerVoiceTranscriber, VoiceUploadError } from "../state/transcription.ts";
 import {
   resetVoiceInputGlobalsForTests,
   resolveTranscriptCommit,
@@ -9,7 +11,11 @@ import {
   type VoiceInputControllerDependencies,
   type VoiceRecorder,
 } from "./controller.ts";
-import type { PreparedVoiceTranscription, VoiceTranscriber } from "./transcription.ts";
+import {
+  VoiceTranscriptionError,
+  type PreparedVoiceTranscription,
+  type VoiceTranscriber,
+} from "./transcription.ts";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -174,6 +180,15 @@ describe("VoiceInputController", () => {
     });
 
     resetVoiceInputGlobalsForTests();
+    const tap = createHarness();
+    await tap.controller.start();
+    await tap.controller.send(async () => {
+      throw new VoiceTranscriptionError("tooShort", "too short");
+    });
+    expect(tap.controller.currentState).toEqual({ phase: "idle", error: null, errorAction: null });
+    expect(tap.deleted).toEqual(["file:///voice.m4a"]);
+
+    resetVoiceInputGlobalsForTests();
     const limited = createHarness();
     await limited.controller.start();
     await limited.controller.handleRecorderStatus({
@@ -183,6 +198,34 @@ describe("VoiceInputController", () => {
       url: "file:///voice.m4a",
     });
     expect(limited.commits).toHaveLength(1);
+  });
+
+  it.each([
+    ["audioTooShort", { phase: "idle", error: null, errorAction: null }],
+    [
+      "rateLimited",
+      {
+        phase: "error",
+        error: "Transcription is rate limited. Try again soon.",
+        errorAction: "retry",
+      },
+    ],
+  ] as const)("ends a review the environment refused as %s in %j", async (reason, state) => {
+    const harness = createHarness({
+      getTranscriber: () =>
+        createServerVoiceTranscriber({
+          locale: "en-US",
+          transcribe: async () => {
+            throw new VoiceUploadError(reason, new TranscriptionError({ reason }).message, false);
+          },
+        }),
+    });
+    await harness.controller.start();
+    await harness.controller.stop();
+
+    expect(harness.controller.currentState).toEqual(state);
+    expect(harness.commits).toEqual([]);
+    expect(harness.deleted).toEqual(["file:///voice.m4a"]);
   });
 
   it("checks support and permission before recording", async () => {
