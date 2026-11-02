@@ -92,10 +92,29 @@ jobs:
       - name: Expose foldable simulator controls
         run: echo "AGENT_DEVICE_PATH=$PWD/scripts/node_modules/.bin/agent-device" >> "$GITHUB_ENV"
 
+      - name: Sample host load
+        shell: bash
+        run: |
+          samples="$RUNNER_TEMP/host-load"
+          mkdir -p "$samples"
+          { sysctl hw.ncpu hw.memsize machdep.cpu.brand_string; system_profiler SPHardwareDataType SPDisplaysDataType; } > "$samples/host.txt" 2>&1
+          sample() {
+            set +e
+            while true; do
+              echo "=== $(date -u +%FT%TZ)"
+              sysctl vm.swapusage
+              memory_pressure -Q 2>/dev/null | tail -1
+              vm_stat | grep -E "Pages (free|active|inactive|wired down|occupied by compressor)|Swapins|Swapouts"
+              top -l 2 -s 1 -o cpu -n 15 -stats pid,command,cpu,mem,state | awk '/^Processes/{n++} n==2'
+              sleep 15
+            done
+          }
+          sample > "$samples/samples.log" 2>&1 &
+
       - name: Capture iOS showcase
         run: |
           capture_args=(--platform ios --appearance "$SHOWCASE_APPEARANCE" --theme "$SHOWCASE_THEME")
-          devices="$(node --input-type=module -e 'import config from "./scripts/mobile-showcase.config.ts"; for (const device of config.devices) if (device.platform === "ios") console.log(device.id);')"
+          devices="$(node --input-type=module -e 'import config from "./scripts/mobile-showcase.config.ts"; for (const device of config.devices) if (device.platform === "ios" && device.id.startsWith("iphone-duo")) console.log(device.id);')"
           skip_build=()
           while IFS= read -r device; do
             pnpm screenshots:mobile "${capture_args[@]}" --device "$device" "${skip_build[@]}"
@@ -124,6 +143,14 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
           overwrite: true
+
+      - name: Upload host load samples
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-host-load
+          path: ${{ runner.temp }}/host-load/
+          retention-days: 14
 
   android:
     name: Android phone, 7-inch tablet, and 10-inch tablet
