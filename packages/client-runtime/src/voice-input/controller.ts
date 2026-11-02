@@ -457,7 +457,10 @@ export class VoiceInputController {
           transcription.transcribe(recordingUri, { signal }),
         );
       } catch (error) {
-        if (this.isCurrent(operationToken)) {
+        if (!this.isCurrent(operationToken)) return;
+        if (error instanceof VoiceTranscriptionError && error.code === "tooShort") {
+          this.setState(IDLE_STATE);
+        } else {
           this.setError(transcriptionErrorMessage(error), "retry");
         }
         return;

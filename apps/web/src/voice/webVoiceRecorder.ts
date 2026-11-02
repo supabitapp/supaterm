@@ -210,15 +210,14 @@ export class WebVoiceRecorder implements VoiceRecorder {
     });
     recorder.stop();
     await stopped;
-    const durationMs = Math.max(0, Math.round(performance.now() - this.startedAt));
     const encoded = new Blob(this.chunks, {
       type: recorder.mimeType || this.chunks[0]?.type || "audio/webm",
     });
     this.chunks = [];
     if (encoded.size === 0) return;
-    const audio = await convertRecordingToWav(encoded);
-    const uri = URL.createObjectURL(audio);
-    recordings.set(uri, { audio, durationMs });
+    const recording = await convertRecordingToWav(encoded);
+    const uri = URL.createObjectURL(recording.audio);
+    recordings.set(uri, recording);
     this.uri = uri;
   }
 

@@ -209,9 +209,11 @@ export function createServerVoiceTranscriber(input: {
           return (await input.transcribe(uri, signal)).text;
         } catch (error) {
           if (error instanceof VoiceUploadError) {
-            throw new VoiceTranscriptionError("refused", error.message, {
-              cause: error,
-            });
+            throw new VoiceTranscriptionError(
+              error.reason === "audioTooShort" ? "tooShort" : "refused",
+              error.message,
+              { cause: error },
+            );
           }
           throw error;
         }
