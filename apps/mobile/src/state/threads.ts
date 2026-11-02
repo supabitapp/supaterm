@@ -45,11 +45,11 @@ const threadDetailReadyAtom = createThreadDetailReadiness({
   queuedMessagesAtom: threadOutboxManager.queuedMessagesByThreadKeyAtom,
 });
 
-const messagePins = createOptimisticMessagePins(
-  createEnvironmentThreadStateAtoms(connectionAtomRuntime, (environmentId, threadId) =>
-    threadDetailReadyAtom({ environmentId, threadId }),
-  ).stateAtom,
+const serverThreadStates = createEnvironmentThreadStateAtoms(
+  connectionAtomRuntime,
+  (environmentId, threadId) => threadDetailReadyAtom({ environmentId, threadId }),
 );
+const messagePins = createOptimisticMessagePins(serverThreadStates.stateAtom);
 export const environmentThreads = { stateAtom: messagePins.stateAtom };
 export const threadEnvironment = {
   ...directThreadEnvironment,

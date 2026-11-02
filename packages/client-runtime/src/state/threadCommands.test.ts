@@ -15,7 +15,6 @@ import {
   type OrchestrationV2ThreadProjection,
   type ThreadPinnedMessage,
 } from "@supaterm/contracts";
-import { isPinnableMessageItem, pinnedMessageOf } from "@supaterm/shared/pinnedMessages";
 import * as DateTime from "effect/DateTime";
 import * as Crypto from "effect/Crypto";
 import * as Deferred from "effect/Deferred";
@@ -576,7 +575,14 @@ describe("message pins", () => {
       updatedAt: NOW,
     },
   } as unknown as OrchestrationV2ThreadProjection["visibleTurnItems"][number];
-  const serverPin = isPinnableMessageItem(row.item) ? pinnedMessageOf(row.item, THREAD_ID) : null;
+  const serverPin: ThreadPinnedMessage = {
+    itemId: ITEM_ID,
+    messageId: MessageId.make("message"),
+    sourceThreadId: THREAD_ID,
+    role: "user",
+    preview: "Ship the fix",
+    sentAt: DateTime.formatIso(NOW),
+  };
   const threadState = (
     sequence: number,
     pinnedMessages: ReadonlyArray<ThreadPinnedMessage>,
@@ -623,7 +629,7 @@ describe("message pins", () => {
       expect((yield* Effect.promise(() => result))._tag).toBe("Success");
       h.registry.set(h.source, threadState(2, []));
       expect(h.visiblePins()).toEqual([serverPin]);
-      const confirmed = threadState(3, [serverPin!]);
+      const confirmed = threadState(3, [serverPin]);
       h.registry.set(h.source, confirmed);
       expect(h.registry.get(h.visible)).toBe(confirmed);
     }),
@@ -631,7 +637,7 @@ describe("message pins", () => {
 
   it.effect("restores an unpinned message when the server rejects the unpin", () =>
     Effect.gen(function* () {
-      const initial = threadState(1, [serverPin!]);
+      const initial = threadState(1, [serverPin]);
       const h = yield* makePinHarness(initial);
       const result = h.pins.wrap(h.commands.unpinMessage, false).run(h.registry, {
         environmentId: ENVIRONMENT_ID,

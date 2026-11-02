@@ -33,12 +33,11 @@ function withPendingPins(
   let pins: ReadonlyArray<ThreadPinnedMessage> = current;
   for (const update of pending) {
     if (update.sequence !== undefined && update.sequence <= state.sequence) continue;
-    const isPinned = pins.some((pin) => pin.itemId === update.itemId);
+    if (pins.some((pin) => pin.itemId === update.itemId) === update.pinned) continue;
     if (!update.pinned) {
-      if (isPinned) pins = pins.filter((pin) => pin.itemId !== update.itemId);
+      pins = pins.filter((pin) => pin.itemId !== update.itemId);
       continue;
     }
-    if (isPinned) continue;
     const visible = projection.visibleTurnItems.find((row) => row.sourceItemId === update.itemId);
     if (visible === undefined || !isPinnableMessageItem(visible.item)) continue;
     pins = withPinnedMessage(pins, pinnedMessageOf(visible.item, visible.sourceThreadId));
