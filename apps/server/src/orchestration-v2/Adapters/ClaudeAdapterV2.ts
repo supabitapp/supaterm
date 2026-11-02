@@ -11167,35 +11167,39 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                   });
                 }
                 const root = liveQuery.taskOutputRoot;
-                return Stream.callback<string>((queue) =>
-                  Effect.gen(function* () {
-                    const stop = yield* Deferred.make<void>();
-                    const taskEnded = SubscriptionRef.changes(
-                      pendingBackgroundTasksByNativeThread,
-                    ).pipe(
-                      Stream.filter(
-                        (all) => !rosterForNativeThread(all, liveQuery.nativeThreadId).has(taskId),
-                      ),
-                      Stream.take(1),
-                      Stream.runDrain,
-                    );
-                    yield* Effect.raceFirst(taskEnded, Deferred.await(liveQuery.closed)).pipe(
-                      Effect.andThen(Deferred.succeed(stop, undefined)),
-                      Effect.forkScoped,
-                    );
-                    yield* tailClaudeTaskOutput({
-                      root,
-                      sessionId: liveQuery.nativeThreadId,
-                      taskId,
-                      stop,
-                      onChunk: (chunk) => Queue.offer(queue, chunk).pipe(Effect.asVoid),
-                    }).pipe(
-                      Effect.andThen(Queue.end(queue)),
-                      Effect.provideService(FileSystem.FileSystem, fileSystem),
-                      Effect.provideService(Path.Path, path),
-                      Effect.forkScoped,
-                    );
-                  }),
+                return Stream.callback<string>(
+                  (queue) =>
+                    Effect.gen(function* () {
+                      const stop = yield* Deferred.make<void>();
+                      const taskEnded = SubscriptionRef.changes(
+                        pendingBackgroundTasksByNativeThread,
+                      ).pipe(
+                        Stream.filter(
+                          (all) =>
+                            !rosterForNativeThread(all, liveQuery.nativeThreadId).has(taskId),
+                        ),
+                        Stream.take(1),
+                        Stream.runDrain,
+                      );
+                      yield* Effect.raceFirst(taskEnded, Deferred.await(liveQuery.closed)).pipe(
+                        Effect.andThen(Deferred.succeed(stop, undefined)),
+                        Effect.forkScoped,
+                      );
+                      yield* tailClaudeTaskOutput({
+                        root,
+                        sessionId: liveQuery.nativeThreadId,
+                        taskId,
+                        stop,
+                        onChunk: (chunk) => Queue.offer(queue, chunk).pipe(Effect.asVoid),
+                      }).pipe(
+                        Effect.andThen(Queue.end(queue)),
+                        Effect.provideService(FileSystem.FileSystem, fileSystem),
+                        Effect.provideService(Path.Path, path),
+                        Effect.forkScoped,
+                      );
+                    }),
+                  // A slow client holds the tail back; it then skips ahead to the newest output.
+                  { bufferSize: 1, strategy: "suspend" },
                 );
               }),
             ),
