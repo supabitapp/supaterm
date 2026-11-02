@@ -6,6 +6,8 @@ import {
 import * as DateTime from "effect/DateTime";
 
 const PREVIEW_LENGTH = 160;
+// MARKDOWN_LINK rescans to the line's end from every unmatched `[`, so parse only what a preview can use.
+const PREVIEW_SOURCE_LENGTH = 2_000;
 const LEADING_MARKDOWN = /^\s*(?:#{1,6}\s+|>\s*|[-*+]\s+|\d+[.)]\s+)/;
 const MARKDOWN_LINK = /!?\[([^\]]*)\]\([^)]*\)/g;
 const INLINE_MARKERS = /\*\*|__|`/g;
@@ -24,14 +26,16 @@ function pinnedMessagePreview(text: string): string {
   if (isAttachmentOnlyBootstrapPrompt(text)) return "";
   const plain = replaceComposerContextReferences(text, (reference) => reference.label);
   for (const line of plain.split("\n")) {
+    const clipped = line.length > PREVIEW_SOURCE_LENGTH;
     const preview = line
+      .slice(0, PREVIEW_SOURCE_LENGTH)
       .replace(LEADING_MARKDOWN, "")
       .replace(MARKDOWN_LINK, "$1")
       .replace(INLINE_MARKERS, "")
       .replace(/\s+/g, " ")
       .trim();
     if (preview === "") continue;
-    return preview.length > PREVIEW_LENGTH
+    return clipped || preview.length > PREVIEW_LENGTH
       ? `${preview.slice(0, PREVIEW_LENGTH - 1).trimEnd()}…`
       : preview;
   }
