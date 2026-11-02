@@ -1111,3 +1111,4 @@ export * from "./threadFamilies.ts";
 export * from "./olderDoneThreads.ts";
 export * from "./threadShell.ts";
 export * from "./threadState.ts";
+export * from "./threadMessagePins.ts";

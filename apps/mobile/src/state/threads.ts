@@ -4,6 +4,7 @@ import {
   createEnvironmentThreadDetailAtoms,
   createEnvironmentThreadShellAtoms,
   createEnvironmentThreadStateAtoms,
+  createOptimisticMessagePins,
   createRunningThreadKeepAliveAtom,
   EMPTY_ENVIRONMENT_THREAD_STATE,
   type EnvironmentThreadState,
@@ -30,13 +31,13 @@ export const olderDoneThreads = createOlderDoneThreadAtoms(
   connectionAtomRuntime,
   environmentShell.stateAtom,
 );
-export const threadEnvironment = createThreadEnvironmentAtoms(
+const directThreadEnvironment = createThreadEnvironmentAtoms(
   connectionAtomRuntime,
   threadFamilies.snapshotAtom,
 );
 export const environmentThreadShells = createEnvironmentThreadShellAtoms({
   catalogValueAtom: environmentCatalog.catalogValueAtom,
-  snapshotAtom: threadEnvironment.snapshotAtom,
+  snapshotAtom: directThreadEnvironment.snapshotAtom,
 });
 
 const threadDetailReadyAtom = createThreadDetailReadiness({
@@ -44,10 +45,17 @@ const threadDetailReadyAtom = createThreadDetailReadiness({
   queuedMessagesAtom: threadOutboxManager.queuedMessagesByThreadKeyAtom,
 });
 
-export const environmentThreads = createEnvironmentThreadStateAtoms(
+const serverThreadStates = createEnvironmentThreadStateAtoms(
   connectionAtomRuntime,
   (environmentId, threadId) => threadDetailReadyAtom({ environmentId, threadId }),
 );
+const messagePins = createOptimisticMessagePins(serverThreadStates.stateAtom);
+export const environmentThreads = { stateAtom: messagePins.stateAtom };
+export const threadEnvironment = {
+  ...directThreadEnvironment,
+  pinMessage: messagePins.wrap(directThreadEnvironment.pinMessage, true),
+  unpinMessage: messagePins.wrap(directThreadEnvironment.unpinMessage, false),
+};
 export const environmentThreadDetails = createEnvironmentThreadDetailAtoms(
   environmentThreads.stateAtom,
 );

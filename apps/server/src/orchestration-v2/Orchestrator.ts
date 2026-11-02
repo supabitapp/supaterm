@@ -157,7 +157,11 @@ import * as RunExecutionService from "./RunExecutionService.ts";
 import { ProviderSessionManagerV2 } from "./ProviderSessionManager.ts";
 import { ProviderSwitchServiceV2 } from "./ProviderSwitchService.ts";
 import { isAutomaticCompletionRun, queuedRunsInDeliveryOrder } from "./QueuedRunOrder.ts";
-import { isPinnableMessageItem, pinnedMessageOf, withPinnedMessage } from "./PinnedMessages.ts";
+import {
+  isPinnableMessageItem,
+  pinnedMessageOf,
+  withPinnedMessage,
+} from "@supaterm/shared/pinnedMessages";
 import { RuntimePolicyV2 } from "./RuntimePolicy.ts";
 import {
   endOrphanedNativeSubagent,
