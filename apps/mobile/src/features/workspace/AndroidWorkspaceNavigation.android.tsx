@@ -97,8 +97,8 @@ export function AndroidWorkspaceNavigation(props: {
   );
   // FloatingWorkspaceTabs starts the bar at the left inset, so a cutout narrows the room.
   const barWidth =
-    props.paneWidth ??
-    window.width - (Math.max(insets.left, FLOATING_TABS.edge) - FLOATING_TABS.edge);
+    (props.paneWidth ?? window.width) -
+    (Math.max(insets.left, FLOATING_TABS.edge) - FLOATING_TABS.edge);
   // Compose sits in the Threads list on phones and in the split sidebar alike.
   const composeBesideBar = selectedTab === "threads";
   const metrics = floatingTabsMetrics(
