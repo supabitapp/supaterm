@@ -154,6 +154,7 @@ import {
   claudeSignedOutMessage,
   hasClaudeTranscript,
   makeClaudeEnvironment,
+  mergeClaudeProcessEnvironment,
   resolveClaudeHomePath,
 } from "../../provider/Drivers/ClaudeHome.ts";
 import {
@@ -174,7 +175,6 @@ import {
   type ClaudeScopedLimitNames,
 } from "../../provider/claudeUsageLimits.ts";
 import type { ManagedServerProvider } from "@supaterm/provider-core/server/snapshot";
-import { mergeProviderInstanceEnvironment } from "@supaterm/provider-core/server/instanceEnvironment";
 import {
   SUPATERM_DEVICE_TOOL_INSTRUCTIONS_WITH_TOOL_SEARCH,
   SUPATERM_ORCHESTRATION_INSTRUCTIONS,
@@ -11588,7 +11588,11 @@ export const createClaudeAdapterV2 = Effect.fn("ClaudeAdapterV2Driver.create")(
     const queryRunner = yield* ClaudeAgentSdkQueryRunner;
     const serverConfig = yield* ServerConfig.ServerConfig;
     const continuationRequests = yield* ProviderContinuationRequests.ProviderContinuationRequests;
-    const baseEnvironment = yield* mergeProviderInstanceEnvironment(environment, hostEnvironment);
+    const baseEnvironment = yield* mergeClaudeProcessEnvironment(
+      config,
+      environment,
+      hostEnvironment,
+    );
     const claudeEnvironment = yield* makeClaudeEnvironment(config, baseEnvironment);
     const path = yield* Path.Path;
     const crypto = yield* Crypto.Crypto;
