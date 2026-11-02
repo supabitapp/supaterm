@@ -30,10 +30,10 @@ import { ProjectFavicon } from "../ProjectFavicon";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from "../ui/menu";
+import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { Switch } from "../ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { stackedThreadToast, toastManager } from "../ui/toast";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { lastRunLabel, nextRunLabel, relativeLabel, scheduleSummary } from "./automations.logic";
 
 const RUN_STATUS_BADGE = {
@@ -73,16 +73,24 @@ export function AutomationTable({
             {showProject ? <TableHead className={WIDE_COLUMN}>Project</TableHead> : null}
             {showEnvironment ? <TableHead className={WIDE_COLUMN}>Environment</TableHead> : null}
             <TableHead className={WIDE_COLUMN}>
-              <Tooltip>
-                <TooltipTrigger
+              <Popover>
+                <PopoverTrigger
+                  openOnHover
+                  delay={250}
+                  closeDelay={100}
                   render={
-                    <span className="underline decoration-muted-foreground/50 decoration-dotted underline-offset-4" />
+                    <button
+                      type="button"
+                      className="cursor-help rounded-sm underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                    />
                   }
                 >
                   Schedule
-                </TooltipTrigger>
-                <TooltipPopup>Fixed times use the environment's time zone.</TooltipPopup>
-              </Tooltip>
+                </PopoverTrigger>
+                <PopoverPopup side="top" tooltipStyle>
+                  Fixed times use the environment's time zone.
+                </PopoverPopup>
+              </Popover>
             </TableHead>
             <TableHead className={WIDE_COLUMN}>Last run</TableHead>
             <TableHead>Next run</TableHead>
@@ -205,14 +213,26 @@ function AutomationRow({
             {details.join(" · ")}
           </span>
           {task.lastRunError ? (
-            <Tooltip>
-              <TooltipTrigger render={<span className="block truncate text-destructive" />}>
+            <Popover>
+              <PopoverTrigger
+                openOnHover
+                delay={250}
+                closeDelay={100}
+                render={
+                  <button
+                    type="button"
+                    className="block max-w-full cursor-help truncate rounded-sm text-left text-destructive outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                  />
+                }
+              >
                 {task.lastRunError}
-              </TooltipTrigger>
-              <TooltipPopup className="max-w-sm">
-                <span className="line-clamp-6 wrap-anywhere">{task.lastRunError}</span>
-              </TooltipPopup>
-            </Tooltip>
+              </PopoverTrigger>
+              <PopoverPopup side="bottom" align="start" tooltipStyle className="w-max max-w-sm">
+                <p className="max-h-60 overflow-y-auto whitespace-normal wrap-anywhere">
+                  {task.lastRunError}
+                </p>
+              </PopoverPopup>
+            </Popover>
           ) : null}
         </div>
       </TableCell>

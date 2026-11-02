@@ -388,14 +388,19 @@ describe("automation permissions", () => {
 
   it("opens the editor from a row but not from the row's controls", async () => {
     await using _test = await setupTest();
-    state.tasks.set(remoteId, [task(remoteProjectId)]);
+    const runError = "Provider instance is disabled";
+    state.tasks.set(remoteId, [
+      { ...task(remoteProjectId), lastRunStatus: "failed", lastRunError: runError },
+    ]);
     await renderPage();
 
     await click(byLabel("Pause Read only automation")[0]!);
     await click(byLabel("Actions for Read only automation")[0]!);
     await click(buttonNamed("Run now")!);
+    await click(buttonNamed(runError)!);
     expect(state.toggle).toHaveBeenCalledOnce();
     expect(state.run).toHaveBeenCalledOnce();
+    await expect.element(page.getByRole("dialog").getByText(runError)).toBeVisible();
     expect(pageText()).not.toContain("Edit automation");
 
     await click(document.querySelector<HTMLElement>("tbody td")!);
