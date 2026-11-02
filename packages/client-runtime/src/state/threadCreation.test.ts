@@ -12,6 +12,8 @@ import type { StartThreadTurnInput } from "../operations/commands.ts";
 import { v2Now, v2ShellSnapshot, v2ThreadShell } from "./orchestrationV2TestFixtures.ts";
 import type { AtomCommandResult } from "./runtime.ts";
 import { createOptimisticThreadCreation } from "./threadCreation.ts";
+import { isThreadWorking } from "./threadInbox.ts";
+import { resolveThreadListDurationStartedAt } from "./threadTiming.ts";
 import { createEnvironmentThreadShellAtoms } from "./threadShell.ts";
 import { PrimaryConnectionTarget } from "../connection/model.ts";
 import { sortActiveThreadsByOrderKey } from "./threadSort.ts";
@@ -227,7 +229,8 @@ describe("optimistic thread creation", () => {
     const result = h.start();
     const rows = h.registry.get(sidebar.threadShellsAtom);
     expect(rows.map((thread) => thread.id)).toEqual([v2ThreadShell.id, newThreadId]);
-    expect(rows.at(-1)?.runtime).toBeNull();
+    expect(isThreadWorking(rows.at(-1)!)).toBe(true);
+    expect(resolveThreadListDurationStartedAt(rows.at(-1)!)).toBe(input.createdAt);
     expect(sortActiveThreadsByOrderKey(rows).map((thread) => thread.id)).toEqual([
       newThreadId,
       v2ThreadShell.id,

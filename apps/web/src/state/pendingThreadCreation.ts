@@ -2,6 +2,9 @@ import {
   buildPendingThreadShell,
   type PendingThreadCreation,
 } from "@supaterm/client-runtime/pending-thread-creation";
+import { optimisticThreadCreationShell } from "@supaterm/client-runtime/state/thread-creation";
+import type { OrchestrationV2ThreadShell } from "@supaterm/contracts";
+import * as DateTime from "effect/DateTime";
 import type { PendingThreadTurn } from "./threadOutbox";
 
 // ChatView resets its retained creation during render whenever this identity
@@ -50,3 +53,24 @@ function presentPendingThreadCreation(entry: PendingThreadTurn) {
 }
 
 export type WebPendingThreadCreation = NonNullable<ReturnType<typeof presentPendingThreadCreation>>;
+
+const undeliveredShells = new WeakMap<PendingThreadTurn, OrchestrationV2ThreadShell | null>();
+
+/** Once delivered, the startTurn overlay and then the server's shell own the row instead. */
+export function undeliveredCreationShell(
+  entry: PendingThreadTurn,
+): OrchestrationV2ThreadShell | null {
+  const cached = undeliveredShells.get(entry);
+  if (cached !== undefined) return cached;
+  const creation = entry.payload.input.bootstrap?.createThread;
+  const shell =
+    creation === undefined || entry.status !== "pending"
+      ? null
+      : optimisticThreadCreationShell(
+          entry.payload.input,
+          creation,
+          DateTime.makeUnsafe(entry.createdAt),
+        );
+  undeliveredShells.set(entry, shell);
+  return shell;
+}

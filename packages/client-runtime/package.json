@@ -339,6 +339,10 @@
       "types": "./src/state/threadInbox.ts",
       "default": "./src/state/threadInbox.ts"
     },
+    "./state/thread-creation": {
+      "types": "./src/state/threadCreation.ts",
+      "default": "./src/state/threadCreation.ts"
+    },
     "./state/thread-grouping": {
       "types": "./src/state/threadGrouping.ts",
       "default": "./src/state/threadGrouping.ts"

@@ -9,6 +9,71 @@ import { AsyncResult, Atom } from "effect/reactivity";
 import type { StartThreadTurnInput } from "../operations/commands.ts";
 import type { AtomCommand } from "./runtime.ts";
 
+export function optimisticThreadCreationShell(
+  input: StartThreadTurnInput,
+  creation: NonNullable<NonNullable<StartThreadTurnInput["bootstrap"]>["createThread"]>,
+  createdAt: DateTime.Utc,
+): OrchestrationV2ThreadShell {
+  const prepareWorktree = input.bootstrap?.prepareWorktree;
+  return {
+    id: input.threadId,
+    projectId: creation.projectId,
+    title: input.titleSeed ?? creation.title,
+    providerInstanceId: (input.modelSelection ?? creation.modelSelection).instanceId,
+    modelSelection: input.modelSelection ?? creation.modelSelection,
+    runtimeMode: input.runtimeMode,
+    interactionMode: input.interactionMode,
+    branch: prepareWorktree ? (prepareWorktree.branch ?? null) : creation.branch,
+    worktreePath: prepareWorktree ? null : creation.worktreePath,
+    createdBy: "user",
+    creationSource: input.creationSource ?? "web",
+    lineage: {
+      rootThreadId: input.threadId,
+      parentThreadId: null,
+      relationshipToParent: null,
+    },
+    forkedFrom: null,
+    activeProviderThreadId: null,
+    latestRunId: null,
+    activeRunId: null,
+    // Without a run id yet, only the activity status makes clients count the thread as working.
+    activityRunStatus: "preparing",
+    activityRunStartedAt: createdAt,
+    status: "preparing",
+    pendingRuntimeRequest: null,
+    latestVisibleMessage: null,
+    latestUserMessageAt: null,
+    hasActionableProposedPlan: false,
+    itemCount: 0,
+    visibleItemCount: 0,
+    createdAt,
+    updatedAt: createdAt,
+    archivedAt: null,
+    doneOverride: null,
+    doneAt: null,
+    deletedAt: null,
+  };
+}
+
+/** Appends creations the snapshot doesn't know yet, active or archived, keeping the first of each id. */
+export function withOptimisticThreadCreations(
+  snapshot: OrchestrationV2ShellSnapshot | null,
+  creations: ReadonlyArray<OrchestrationV2ThreadShell>,
+): OrchestrationV2ShellSnapshot | null {
+  if (snapshot === null || creations.length === 0) return snapshot;
+  const knownIds = new Set([
+    ...snapshot.threads.map((thread) => thread.id),
+    ...snapshot.archivedThreads.map((thread) => thread.id),
+  ]);
+  const added: OrchestrationV2ThreadShell[] = [];
+  for (const thread of creations) {
+    if (knownIds.has(thread.id)) continue;
+    knownIds.add(thread.id);
+    added.push(thread);
+  }
+  return added.length === 0 ? snapshot : { ...snapshot, threads: [...snapshot.threads, ...added] };
+}
+
 export function createOptimisticThreadCreation(
   sourceSnapshotAtom: (
     environmentId: EnvironmentId,
@@ -18,24 +83,12 @@ export function createOptimisticThreadCreation(
     Atom.make<ReadonlyArray<OrchestrationV2ThreadShell>>([]).pipe(Atom.keepAlive),
   );
   const snapshotAtom = Atom.family((environmentId: EnvironmentId) =>
-    Atom.make((get) => {
-      const snapshot = get(sourceSnapshotAtom(environmentId));
-      const pending = get(pendingAtom(environmentId));
-      if (snapshot === null || pending.length === 0) return snapshot;
-      const knownIds = new Set([
-        ...snapshot.threads.map((thread) => thread.id),
-        ...snapshot.archivedThreads.map((thread) => thread.id),
-      ]);
-      const creations: OrchestrationV2ThreadShell[] = [];
-      for (const thread of pending) {
-        if (knownIds.has(thread.id)) continue;
-        knownIds.add(thread.id);
-        creations.push(thread);
-      }
-      return creations.length === 0
-        ? snapshot
-        : { ...snapshot, threads: [...snapshot.threads, ...creations] };
-    }),
+    Atom.make((get) =>
+      withOptimisticThreadCreations(
+        get(sourceSnapshotAtom(environmentId)),
+        get(pendingAtom(environmentId)),
+      ),
+    ),
   );
 
   function wrap<A, E>(
@@ -51,7 +104,6 @@ export function createOptimisticThreadCreation(
         const input = target.input;
         const creation = input.bootstrap?.createThread;
         if (creation === undefined) return command.run(registry, target);
-        const prepareWorktree = input.bootstrap?.prepareWorktree;
         const source = sourceSnapshotAtom(target.environmentId);
         const current = registry.get(source);
         if (
@@ -60,45 +112,13 @@ export function createOptimisticThreadCreation(
         ) {
           return command.run(registry, target);
         }
-        const createdAt =
+        const thread = optimisticThreadCreationShell(
+          input,
+          creation,
           input.createdAt === undefined
             ? DateTime.nowUnsafe()
-            : DateTime.makeUnsafe(input.createdAt);
-        const thread: OrchestrationV2ThreadShell = {
-          id: input.threadId,
-          projectId: creation.projectId,
-          title: input.titleSeed ?? creation.title,
-          providerInstanceId: (input.modelSelection ?? creation.modelSelection).instanceId,
-          modelSelection: input.modelSelection ?? creation.modelSelection,
-          runtimeMode: input.runtimeMode,
-          interactionMode: input.interactionMode,
-          branch: prepareWorktree ? (prepareWorktree.branch ?? null) : creation.branch,
-          worktreePath: prepareWorktree ? null : creation.worktreePath,
-          createdBy: "user",
-          creationSource: input.creationSource ?? "web",
-          lineage: {
-            rootThreadId: input.threadId,
-            parentThreadId: null,
-            relationshipToParent: null,
-          },
-          forkedFrom: null,
-          activeProviderThreadId: null,
-          latestRunId: null,
-          activeRunId: null,
-          status: "preparing",
-          pendingRuntimeRequest: null,
-          latestVisibleMessage: null,
-          latestUserMessageAt: null,
-          hasActionableProposedPlan: false,
-          itemCount: 0,
-          visibleItemCount: 0,
-          createdAt,
-          updatedAt: createdAt,
-          archivedAt: null,
-          doneOverride: null,
-          doneAt: null,
-          deletedAt: null,
-        };
+            : DateTime.makeUnsafe(input.createdAt),
+        );
         const pending = pendingAtom(target.environmentId);
         const remove = () =>
           registry.update(pending, (threads) => threads.filter((item) => item !== thread));

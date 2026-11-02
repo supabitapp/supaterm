@@ -7,8 +7,11 @@ import {
   ProviderInstanceId,
   ThreadId,
 } from "@supaterm/contracts";
+import { presentThreadShell } from "@supaterm/client-runtime/state/shell";
+import { isThreadWorking } from "@supaterm/client-runtime/state/thread-inbox";
+import { resolveThreadListDurationStartedAt } from "@supaterm/client-runtime/state/thread-timing";
 
-import { pendingThreadCreation } from "./pendingThreadCreation";
+import { pendingThreadCreation, undeliveredCreationShell } from "./pendingThreadCreation";
 import type { PendingThreadTurn } from "./threadOutbox";
 
 const modelSelection = { instanceId: ProviderInstanceId.make("codex"), model: "gpt" };
@@ -71,5 +74,17 @@ describe("pendingThreadCreation", () => {
     const failed = pendingThreadCreation(entry("failed"));
     expect(failed).not.toBe(pending);
     expect(failed?.outcome).toMatchObject({ kind: "failed", reason: "Provider error" });
+  });
+});
+
+describe("undeliveredCreationShell", () => {
+  it("shows a sent creation as working from its send time until delivery", () => {
+    const shell = undeliveredCreationShell(entry("pending"));
+    expect(shell).toMatchObject({ id: "thread", title: "Say hi." });
+    const presented = presentThreadShell(EnvironmentId.make("environment"), shell!);
+    expect(isThreadWorking(presented)).toBe(true);
+    expect(resolveThreadListDurationStartedAt(presented)).toBe("2026-10-18T00:00:00.000Z");
+    expect(undeliveredCreationShell(entry("failed"))).toBeNull();
+    expect(undeliveredCreationShell(entry("delivered"))).toBeNull();
   });
 });
