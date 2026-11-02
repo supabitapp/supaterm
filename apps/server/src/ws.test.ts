@@ -44,6 +44,7 @@ import * as AnalyticsService from "./telemetry/AnalyticsService.ts";
 import * as AntigravityInstallation from "./provider/AntigravityInstallation.ts";
 import * as BackgroundPolicy from "./background/BackgroundPolicy.ts";
 import * as CheckpointDiffQuery from "./checkpointing/CheckpointDiffQuery.ts";
+import * as BackgroundTaskOutput from "./orchestration-v2/BackgroundTaskOutput.ts";
 import * as CommandOutputHub from "./orchestration-v2/CommandOutputHub.ts";
 import * as CodexInstallation from "./provider/CodexInstallation.ts";
 import * as DeviceService from "./device/DeviceService.ts";
@@ -624,6 +625,7 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(AnalyticsService.AnalyticsService)({}),
   Layer.mock(AntigravityInstallation.AntigravityInstallation)({ managedDirectory: "/unused" }),
   Layer.mock(BackgroundPolicy.BackgroundPolicy)({}),
+  Layer.mock(BackgroundTaskOutput.BackgroundTaskOutput)({}),
   Layer.mock(CheckpointDiffQuery.CheckpointDiffQuery)({}),
   Layer.mock(CommandOutputHub.CommandOutputHub)({}),
   Layer.mock(CodexInstallation.CodexInstallation)({ managedDirectory: "/unused" }),

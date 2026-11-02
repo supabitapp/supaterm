@@ -119,6 +119,7 @@ import * as Keybindings from "./keybindings.ts";
 import * as ExternalLauncher from "./process/externalLauncher.ts";
 import * as ThreadManagementService from "./orchestration-v2/ThreadManagementService.ts";
 import * as NextPromptSuggestionService from "./orchestration-v2/NextPromptSuggestionService.ts";
+import * as BackgroundTaskOutput from "./orchestration-v2/BackgroundTaskOutput.ts";
 import * as CommandOutputHub from "./orchestration-v2/CommandOutputHub.ts";
 import * as McpAppRequests from "./mcpApps/McpAppRequests.ts";
 import * as ProviderSessionManager from "./orchestration-v2/ProviderSessionManager.ts";
@@ -1275,6 +1276,7 @@ export const layerWsRpc = (
       };
       const threadLaunch = yield* ThreadLaunchService.ThreadLaunchService;
       const commandOutputHub = yield* CommandOutputHub.CommandOutputHub;
+      const backgroundTaskOutput = yield* BackgroundTaskOutput.BackgroundTaskOutput;
       const providerSessionManager = yield* ProviderSessionManager.ProviderSessionManagerV2;
       const scheduledTasks = yield* ScheduledTasks.ScheduledTaskService;
       const pullRequests = yield* PullRequestService.PullRequestService;
@@ -2151,6 +2153,12 @@ export const layerWsRpc = (
           Stream.unwrap(
             Effect.annotateCurrentSpan({ "orchestration_v2.thread_id": input.threadId }).pipe(
               Effect.as(commandOutputHub.subscribe(input)),
+            ),
+          ),
+        [ORCHESTRATION_V2_WS_METHODS.subscribeBackgroundTaskOutput]: (input) =>
+          Stream.unwrap(
+            Effect.annotateCurrentSpan({ "orchestration_v2.thread_id": input.threadId }).pipe(
+              Effect.as(backgroundTaskOutput.subscribe(input)),
             ),
           ),
         [WS_METHODS.scheduledTasksSubscribe]: (_input) => scheduledTasks.subscribeList(),

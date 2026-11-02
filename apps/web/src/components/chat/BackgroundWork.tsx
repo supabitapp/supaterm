@@ -2,11 +2,13 @@ import type {
   EnvironmentId,
   ProjectId,
   ScopedThreadRef,
+  ThreadId,
   ThreadWorkflowRunKey,
 } from "@supaterm/contracts";
-import type { ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
 
 import { cn } from "~/lib/utils";
+import { orchestrationEnvironment } from "~/state/orchestration";
 import { pullRequestEnvironment } from "~/state/pullRequests";
 import { useEnvironmentQuery } from "~/state/query";
 
@@ -17,6 +19,7 @@ import {
   pullRequestChecksStateRingToneClassName,
 } from "../pullRequest/pullRequestPresentation";
 import { Popover, type PopoverCreateHandle, PopoverPopup, PopoverTrigger } from "../ui/popover";
+import { CommandOutputPanel } from "./CommandOutputPanel";
 
 type PopoverHandle = ReturnType<typeof PopoverCreateHandle>;
 
@@ -115,15 +118,74 @@ export function BackgroundWorkIcon({
   );
 }
 
-/** The banner's title, which opens the watched run's checks like its dot does. */
-export function BackgroundWorkTitle({ title, ...props }: WatchedRunProps & { title: string }) {
-  const watched = useWatchedRun(props);
-  if (watched === null) return title;
+export interface BackgroundTaskOutputTarget {
+  readonly environmentId: EnvironmentId;
+  readonly threadId: ThreadId;
+  readonly taskId: string;
+  readonly label: string;
+}
+
+const titleTriggerClassName =
+  "cursor-pointer rounded-sm underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring";
+
+/** Opens a background command's live output, which streams only while the popover is open. */
+export function BackgroundTaskOutputPopover({
+  target,
+  render,
+  nativeButton,
+  children,
+}: {
+  target: BackgroundTaskOutputTarget;
+  render: ReactElement;
+  nativeButton: boolean;
+  children: ReactNode;
+}) {
   return (
-    <RunChecksTrigger
-      handle={props.handle}
-      className="cursor-pointer rounded-sm underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
-    >
+    <Popover>
+      <PopoverTrigger nativeButton={nativeButton} render={render}>
+        {children}
+      </PopoverTrigger>
+      <PopoverPopup side="top" align="start" width="xl" aria-label={`Output: ${target.label}`}>
+        <div className="mb-2 truncate font-medium text-xs">{target.label}</div>
+        <div className="font-mono text-(length:--font-size-code,var(--text-2xs)) leading-relaxed whitespace-pre-wrap break-words select-text">
+          <CommandOutputPanel
+            output={orchestrationEnvironment.v2.backgroundTaskOutput({
+              environmentId: target.environmentId,
+              input: { threadId: target.threadId, taskId: target.taskId },
+            })}
+            waitingLabel="No output yet."
+          />
+        </div>
+      </PopoverPopup>
+    </Popover>
+  );
+}
+
+/**
+ * The banner's title. It opens the watched run's checks like its dot does, or else the
+ * output of the one command it names.
+ */
+export function BackgroundWorkTitle({
+  title,
+  output,
+  ...props
+}: WatchedRunProps & { title: string; output: BackgroundTaskOutputTarget | null }) {
+  const watched = useWatchedRun(props);
+  if (watched === null) {
+    return output === null ? (
+      title
+    ) : (
+      <BackgroundTaskOutputPopover
+        target={output}
+        render={<span role="button" tabIndex={0} className={titleTriggerClassName} />}
+        nativeButton={false}
+      >
+        {title}
+      </BackgroundTaskOutputPopover>
+    );
+  }
+  return (
+    <RunChecksTrigger handle={props.handle} className={titleTriggerClassName}>
       {title}
     </RunChecksTrigger>
   );

@@ -8589,6 +8589,65 @@ describe("ClaudeAdapterV2 background wake turns", () => {
       ),
   );
 
+  it.effect.skipIf(process.getuid === undefined)(
+    "streams a background command's output only for a task its thread lists",
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const fileSystem = yield* FileSystem.FileSystem;
+          const path = yield* Path.Path;
+          const root = yield* fileSystem.makeTempDirectoryScoped({
+            prefix: "supaterm-claude-background-output-",
+          });
+          const harness = yield* makeWakeHarnessWithOptions({ environment: { TMPDIR: root } });
+          const tasks = path.join(
+            root,
+            `claude-${process.getuid?.()}`,
+            "project",
+            WAKE_NATIVE_SESSION,
+            "tasks",
+          );
+          yield* fileSystem.makeDirectory(tasks, { recursive: true });
+          yield* fileSystem.writeFileString(
+            path.join(tasks, `${WAKE_TASK_ID}.output`),
+            "building\n",
+          );
+
+          yield* harness.runtime.startTurn(
+            makeClaudeTestTurnInput({
+              threadId: harness.threadId,
+              providerThread: harness.providerThread,
+              now: yield* DateTime.now,
+              attemptId: RunAttemptId.make("attempt-claude-background-output"),
+              text: "Build in the background.",
+              attachments: [],
+            }),
+          );
+          yield* Queue.offer(harness.sdkMessages, wakeTaskStarted);
+          yield* Queue.offer(
+            harness.sdkMessages,
+            makeResultFrame({ uuid: "00000000-0000-4000-8000-000000000b01", result: "STARTED" }),
+          );
+          yield* harness.awaitTerminal(1);
+
+          const output = (taskId: string) =>
+            harness.runtime.backgroundTaskOutput!({
+              providerThread: harness.providerThread,
+              taskId,
+            });
+          const chunks = yield* output(WAKE_TASK_ID).pipe(Stream.take(1), Stream.runCollect);
+          assert.deepEqual(chunks, ["building\n"]);
+          const refused = yield* output(`../${WAKE_TASK_ID}`).pipe(Stream.runCollect, Effect.flip);
+          assert.equal(refused._tag, "ProviderAdapterProtocolError");
+        }).pipe(
+          Effect.provideService(HostProcess.Platform, "linux"),
+          Effect.provide(
+            Layer.mergeAll(IdAllocator.layer, McpProviderSessions.layer, NodeServices.layer),
+          ),
+        ),
+      ),
+  );
+
   it.effect("lets the native SDK acknowledge Stop before closing its own query", () =>
     Effect.scoped(
       Effect.gen(function* () {

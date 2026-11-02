@@ -518,6 +518,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
   const backgroundWorkWatches = serverProjection?.thread.workflowRunWatches ?? [];
   const backgroundWorkBanner = activeThread
     ? backgroundWorkBannerItem({
+        environmentId: activeThread.environmentId,
         threadId: activeThread.id,
         threadRef: activeThreadRef,
         tasks: activeBackgroundTasks,

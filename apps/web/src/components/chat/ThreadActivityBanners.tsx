@@ -1,4 +1,5 @@
 import type {
+  EnvironmentId,
   OrchestrationV2PendingBackgroundTask,
   OrchestrationV2ProviderGoal,
   ScopedThreadRef,
@@ -6,6 +7,7 @@ import type {
 } from "@supaterm/contracts";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import {
+  type PendingBackgroundWorkItem,
   presentPendingBackgroundWork,
   presentProviderGoal,
   type RunStopPresentation,
@@ -25,7 +27,13 @@ import { tickTextContent } from "~/lib/tickTextContent";
 import { InlineConfirmButton } from "../InlineConfirm";
 import { Button, InlineButton } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
-import { BackgroundWorkIcon, BackgroundWorkTitle, type WatchedRunProps } from "./BackgroundWork";
+import {
+  BackgroundTaskOutputPopover,
+  type BackgroundTaskOutputTarget,
+  BackgroundWorkIcon,
+  BackgroundWorkTitle,
+  type WatchedRunProps,
+} from "./BackgroundWork";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
 
 /** Subagents waiting on the user, unless the parent is itself waiting on them. */
@@ -149,6 +157,7 @@ export function runStopBannerItem(input: {
 }
 
 export function backgroundWorkBannerItem(input: {
+  readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
   readonly threadRef: ScopedThreadRef | null;
   readonly tasks: ReadonlyArray<OrchestrationV2PendingBackgroundTask>;
@@ -162,6 +171,15 @@ export function backgroundWorkBannerItem(input: {
   const { onOpenThread, watchedRun } = input;
   const presentation = presentPendingBackgroundWork(input.tasks);
   if (presentation === null) return null;
+  const outputTarget = (item: PendingBackgroundWorkItem): BackgroundTaskOutputTarget => ({
+    environmentId: input.environmentId,
+    threadId: input.threadId,
+    taskId: item.taskId,
+    label: item.label,
+  });
+  const [only] = presentation.items;
+  const titleOutput =
+    presentation.items.length === 1 && only?.hasOutput ? outputTarget(only) : null;
   return {
     id: `background-work:${input.threadId}`,
     variant: "default",
@@ -175,37 +193,48 @@ export function backgroundWorkBannerItem(input: {
     ),
     iconInteractive: watchedRun.run !== null,
     title:
-      presentation.items.length === 1 &&
-      (presentation.items[0]?.kind === "command" || presentation.items[0]?.kind === "monitor") ? (
+      presentation.items.length === 1 && (only?.kind === "command" || only?.kind === "monitor") ? (
         <span className="in-data-[slot=popover-popup]:whitespace-pre-wrap">
-          <BackgroundWorkTitle {...watchedRun} title={presentation.title} />
+          <BackgroundWorkTitle {...watchedRun} title={presentation.title} output={titleOutput} />
         </span>
       ) : (
-        <BackgroundWorkTitle {...watchedRun} title={presentation.title} />
+        <BackgroundWorkTitle {...watchedRun} title={presentation.title} output={titleOutput} />
       ),
     description:
-      presentation.items.length === 1 && presentation.items[0]?.childThreadId === undefined
+      presentation.items.length === 1 && only?.childThreadId === undefined
         ? undefined
         : presentation.items.map((item, index) => {
             const childThreadId = item.childThreadId;
             const separator = index < presentation.items.length - 1 ? "," : null;
+            const link =
+              childThreadId !== undefined ? (
+                <InlineButton
+                  tone="muted"
+                  aria-label={`${presentation.items.length === 1 ? "Show" : "Open"} subagent ${item.label}`}
+                  onClick={() => onOpenThread(childThreadId)}
+                >
+                  {presentation.items.length === 1 ? "Show" : item.label}
+                </InlineButton>
+              ) : item.hasOutput ? (
+                <BackgroundTaskOutputPopover
+                  target={outputTarget(item)}
+                  render={<InlineButton tone="muted" />}
+                  nativeButton
+                >
+                  {item.label}
+                </BackgroundTaskOutputPopover>
+              ) : null;
             return (
               <Fragment key={item.taskId}>
                 {index > 0 ? " " : null}
-                {childThreadId === undefined ? (
+                {link === null ? (
                   <>
                     {item.label}
                     {separator}
                   </>
                 ) : (
                   <span className="whitespace-nowrap">
-                    <InlineButton
-                      tone="muted"
-                      aria-label={`${presentation.items.length === 1 ? "Show" : "Open"} subagent ${item.label}`}
-                      onClick={() => onOpenThread(childThreadId)}
-                    >
-                      {presentation.items.length === 1 ? "Show" : item.label}
-                    </InlineButton>
+                    {link}
                     {separator}
                   </span>
                 )}

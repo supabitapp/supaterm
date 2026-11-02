@@ -23,6 +23,7 @@ import {
 import {
   backgroundWorkHoldsCompletion,
   derivePendingBackgroundWork,
+  isWatchTaskId,
 } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 import {
   getProviderOptionCurrentLabel,
@@ -370,6 +371,8 @@ export interface PendingBackgroundWorkItem {
   readonly kind: BackgroundWorkKind;
   readonly label: string;
   readonly childThreadId: ThreadId | undefined;
+  /** A command or monitor whose live output the server can stream. */
+  readonly hasOutput: boolean;
 }
 
 export interface PendingBackgroundWorkPresentation {
@@ -407,6 +410,8 @@ export function presentPendingBackgroundWork(
             ? BACKGROUND_WORK_KINDS[task.kind].singular
             : label,
         childThreadId: task.kind === "subagent" ? task.childThreadId : undefined,
+        hasOutput:
+          (task.kind === "command" || task.kind === "monitor") && !isWatchTaskId(task.taskId),
       };
     })
     // `map` returned a new array; Hermes has no `toSorted`.

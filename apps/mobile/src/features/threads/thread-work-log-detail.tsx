@@ -18,6 +18,7 @@ import type { FilePreviewSource } from "../../components/FilePreviewModal";
 import type { MarkdownImageRenderer } from "../../native/SelectableMarkdownText";
 import { cn } from "../../lib/cn";
 import { formatItemFullDetail, type ThreadFeedActivity } from "../../lib/threadActivity";
+import { orchestrationEnvironment } from "../../state/orchestration";
 import { useTurnItemDetail } from "../../state/queries";
 import { useMarkdownCodeHighlight } from "./markdownCodeHighlightState";
 import { QuestionAnswerHistory } from "./QuestionAnswerHistory";
@@ -204,9 +205,13 @@ export function ThreadWorkLogDetail(props: {
       {streamsOutput ? (
         <>
           <ThreadCommandOutput
-            environmentId={props.environmentId}
-            threadId={row.projectedItem.sourceThreadId}
-            itemId={row.projectedItem.sourceItemId}
+            output={orchestrationEnvironment.v2.commandOutput({
+              environmentId: props.environmentId,
+              input: {
+                threadId: row.projectedItem.sourceThreadId,
+                itemId: row.projectedItem.sourceItemId,
+              },
+            })}
             themeAppearance={props.themeAppearance}
           />
           {exitLine}

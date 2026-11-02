@@ -11138,6 +11138,48 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             },
             (effect) => sdkMessageLock.withPermits(1)(effect),
           ),
+          backgroundTaskOutput: ({ providerThread, taskId }) =>
+            Stream.unwrap(
+              Effect.gen(function* () {
+                const liveQuery = yield* Ref.get(queryContext);
+                const nativeThreadId = providerThread.nativeThreadRef?.nativeId;
+                // Only a listed task names a file, so a client's task id never reaches a path.
+                const task =
+                  nativeThreadId == null
+                    ? undefined
+                    : rosterForNativeThread(
+                        yield* Ref.get(pendingBackgroundTasksByNativeThread),
+                        nativeThreadId,
+                      ).get(taskId);
+                if (
+                  liveQuery === null ||
+                  liveQuery.nativeThreadId !== nativeThreadId ||
+                  liveQuery.taskOutputRoot === undefined ||
+                  task === undefined ||
+                  task.kind === "subagent"
+                ) {
+                  return yield* new ProviderAdapter.ProviderAdapterProtocolError({
+                    driver: CLAUDE_PROVIDER,
+                    detail: "No running background command belongs to this provider thread",
+                  });
+                }
+                const root = liveQuery.taskOutputRoot;
+                return Stream.callback<string>((queue) =>
+                  tailClaudeTaskOutput({
+                    root,
+                    sessionId: liveQuery.nativeThreadId,
+                    taskId,
+                    stop: liveQuery.closed,
+                    onChunk: (chunk) => Queue.offer(queue, chunk).pipe(Effect.asVoid),
+                  }).pipe(
+                    Effect.andThen(Queue.end(queue)),
+                    Effect.provideService(FileSystem.FileSystem, fileSystem),
+                    Effect.provideService(Path.Path, path),
+                    Effect.forkScoped,
+                  ),
+                );
+              }),
+            ),
           interruptTurn,
           stopSubagent: Effect.fn("ClaudeAdapterV2.stopSubagent")(function* (input) {
             const existing = yield* Ref.get(queryContext);

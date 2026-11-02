@@ -17,6 +17,7 @@ import { useRenderedAppearance } from "../../hooks/useTheme";
 import { cn } from "../../lib/utils";
 import { resolveDiffThemeName } from "../../lib/diffRendering";
 import { getSyntaxHighlighterPromise } from "../../lib/syntaxHighlighting";
+import { orchestrationEnvironment } from "../../state/orchestration";
 import { useTurnItemDetail } from "../../state/queries";
 import { formatWorkspaceRelativePath } from "../../filePathDisplay";
 import { Button } from "../ui/button";
@@ -256,9 +257,13 @@ export const V2ItemInspector = memo(function V2ItemInspector(props: V2ItemInspec
           outputSlot={
             streamsOutput ? (
               <CommandOutputPanel
-                environmentId={props.environmentId}
-                threadId={props.projectedItem.sourceThreadId}
-                itemId={props.projectedItem.sourceItemId}
+                output={orchestrationEnvironment.v2.commandOutput({
+                  environmentId: props.environmentId,
+                  input: {
+                    threadId: props.projectedItem.sourceThreadId,
+                    itemId: props.projectedItem.sourceItemId,
+                  },
+                })}
               />
             ) : undefined
           }

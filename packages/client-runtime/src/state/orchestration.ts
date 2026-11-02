@@ -1,5 +1,6 @@
 import {
   ORCHESTRATION_V2_WS_METHODS,
+  type OrchestrationV2CommandOutputFrame,
   type OrchestrationV2RunStatus,
   type RunId,
   type ThreadId,
@@ -25,6 +26,13 @@ import type { EnvironmentRegistry } from "../connection/registry.ts";
 import * as EnvironmentSupervisor from "../connection/supervisor.ts";
 import { EnvironmentRpcUnavailableError } from "../rpc/client.ts";
 import { fetchEnvironmentThreadTranscript } from "./threadTranscriptHttp.ts";
+
+// `scan` emits its seed first; skipping it keeps the view "loading" until the first frame.
+const commandOutputViews = <E, R>(frames: Stream.Stream<OrchestrationV2CommandOutputFrame, E, R>) =>
+  frames.pipe(
+    Stream.scan(() => EMPTY_COMMAND_OUTPUT, applyCommandOutputFrame),
+    Stream.filter((view) => view !== EMPTY_COMMAND_OUTPUT),
+  );
 
 export function createOrchestrationEnvironmentAtoms<R, E>(
   runtime: Atom.AtomRuntime<EnvironmentRegistry | HttpClient.HttpClient | R, E>,
@@ -80,12 +88,14 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
         label: "environment-data:orchestration-v2:command-output",
         tag: ORCHESTRATION_V2_WS_METHODS.subscribeCommandOutput,
         idleTtlMs: 0,
-        // `scan` emits its seed first; skipping it keeps the row "loading" until the first frame.
-        transform: (frames) =>
-          frames.pipe(
-            Stream.scan(() => EMPTY_COMMAND_OUTPUT, applyCommandOutputFrame),
-            Stream.filter((view) => view !== EMPTY_COMMAND_OUTPUT),
-          ),
+        transform: commandOutputViews,
+      }),
+      // One pending background command's output, while its details are open.
+      backgroundTaskOutput: createEnvironmentRpcSubscriptionAtomFamily(runtime, {
+        label: "environment-data:orchestration-v2:background-task-output",
+        tag: ORCHESTRATION_V2_WS_METHODS.subscribeBackgroundTaskOutput,
+        idleTtlMs: 0,
+        transform: commandOutputViews,
       }),
     },
     turnDiff: createEnvironmentRpcQueryAtomFamily(runtime, {
