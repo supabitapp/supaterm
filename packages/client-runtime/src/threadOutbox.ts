@@ -469,6 +469,7 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
 
   return {
     queuedMessagesByThreadKeyAtom,
+    messagesAtom,
     serialize,
     load,
     reload,

@@ -378,6 +378,7 @@ export function createBrowserThreadOutbox<Payload>(options: {
     cancelWithFollowing,
     drain,
     getSnapshot,
+    entriesAtom: manager.messagesAtom,
     isLoaded: () => loaded,
     clearEnvironment: async (environmentId: EnvironmentId) => {
       await mutation(manager.clearEnvironment(environmentId));

@@ -33,7 +33,6 @@ import {
   CircleAlertIcon,
   CircleCheckIcon,
   CircleDashedIcon,
-  ClockIcon,
   ClockSnoozeIcon,
   GitBranchIcon,
   MessageCircleQuestionIcon,
@@ -762,57 +761,55 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   const topStatus =
     topStatusKind === "connecting"
       ? { label: "Connecting", icon: null, className: "text-secondary-label" }
-      : isPendingCreation
-        ? { label: "Preparing", icon: null, className: "text-info-foreground" }
-        : topStatusKind === "working"
+      : topStatusKind === "working"
+        ? {
+            label: thread.goal?.status === "active" ? "Goal" : "Working",
+            icon: "working" as const,
+            className: "text-info-foreground",
+          }
+        : topStatusKind === "waiting"
           ? {
-              label: thread.goal?.status === "active" ? "Goal" : "Working",
-              icon: "working" as const,
-              className: "text-info-foreground",
+              label: "Waiting",
+              icon: null,
+              className: "text-muted-foreground",
             }
-          : topStatusKind === "waiting"
+          : topStatusKind === "approval"
             ? {
-                label: "Waiting",
-                icon: null,
-                className: "text-muted-foreground",
+                label: "Approval",
+                icon: "approval" as const,
+                className: "text-warning-foreground",
               }
-            : topStatusKind === "approval"
+            : topStatusKind === "input"
               ? {
-                  label: "Approval",
-                  icon: "approval" as const,
-                  className: "text-warning-foreground",
+                  label: "Input",
+                  icon: "input" as const,
+                  className: "text-indigo-600 dark:text-indigo-300",
                 }
-              : topStatusKind === "input"
+              : topStatusKind === "limited"
                 ? {
-                    label: "Input",
-                    icon: "input" as const,
-                    className: "text-indigo-600 dark:text-indigo-300",
+                    label: "Limited",
+                    icon: "failed" as const,
+                    className: "text-warning-foreground",
                   }
-                : topStatusKind === "limited"
+                : topStatusKind === "failed"
                   ? {
-                      label: "Limited",
+                      label: "Failed",
                       icon: "failed" as const,
-                      className: "text-warning-foreground",
+                      className: "text-error-foreground",
                     }
-                  : topStatusKind === "failed"
+                  : topStatusKind === "woke"
                     ? {
-                        label: "Failed",
-                        icon: "failed" as const,
-                        className: "text-error-foreground",
+                        label: "Woke",
+                        icon: "woke" as const,
+                        className: "text-warning-foreground",
                       }
-                    : topStatusKind === "woke"
+                    : topStatusKind === "ready"
                       ? {
-                          label: "Woke",
-                          icon: "woke" as const,
-                          className: "text-warning-foreground",
+                          label: "Ready",
+                          icon: "done" as const,
+                          className: "text-success-foreground",
                         }
-                      : topStatusKind === "ready"
-                        ? {
-                            label: "Ready",
-                            icon: "done" as const,
-                            className: "text-success-foreground",
-                          }
-                        : null;
+                      : null;
   const isWokeStatus = topStatus?.icon === "woke";
 
   const branchMismatch = resolveLocalCheckoutBranchMismatch({
@@ -1351,9 +1348,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         done: CircleCheckIcon,
         woke: ClockSnoozeIcon,
       }[topStatus.icon]
-    : isPendingCreation
-      ? CircleDashedIcon
-      : ClockIcon;
+    : null;
   const showDragDestination = sortable?.isDragging || props.sweepAction !== null;
   const showHoverActions =
     (props.pinningSupported && !isPendingCreation) ||
@@ -1425,7 +1420,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                     jumpHintIndicatorsClassName,
                   )}
                 >
-                  {topStatus && !showDuration && topStatusKind !== "connecting" ? (
+                  {topStatus && StatusIcon && !showDuration ? (
                     <span className={cn("inline-flex shrink-0", topStatus.className)}>
                       <StatusIcon aria-hidden className="size-3.5" />
                       <span className="sr-only">{topStatus.label}</span>

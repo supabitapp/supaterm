@@ -1257,8 +1257,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     // A Working row only drags out as chat context, so it never reveals the pin order.
     dragging: dragState !== null && dragState.activeSection !== "working",
   });
-  // Once delivery starts, the optimistic creation shell owns the row, so
-  // checking only server shells would show the thread twice until the ack.
+  // Sent creations already show through their optimistic shells; this row
+  // covers failures and environments with no shell snapshot to overlay.
   const pendingThreads = outboxEntries.filter((entry) => {
     const creation = entry.payload.input.bootstrap?.createThread;
     return (
