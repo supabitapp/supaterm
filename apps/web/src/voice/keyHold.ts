@@ -5,16 +5,18 @@ export interface KeyHold {
   readonly cancel: () => void;
 }
 
-/**
- * Tells a tap from a hold. The first key release ends it: macOS sends no keyup for a letter
- * let go while Command is down. Another key press, or losing focus, makes it a tap; once
- * held, those, or a click, make a modifier hold a chord such as Option+Left (`onHeldChord`).
- */
-export function followKeyHold(handlers: {
+export interface KeyHoldHandlers {
   readonly onHold?: (() => void) | undefined;
-  readonly onHeldRelease: () => void;
+  readonly onHeldRelease: (event: KeyboardEvent) => void;
   readonly onHeldChord?: (() => void) | undefined;
-}): KeyHold {
+}
+
+/**
+ * Tells a tap from a hold of the key at `code`. The first key release ends it: macOS sends no
+ * keyup for a letter let go while Command is down. Any other key, even a repeat, or losing focus
+ * makes it a tap; once held, those or a click make a modifier hold a chord (`onHeldChord`).
+ */
+export function followKeyHold(code: string, handlers: KeyHoldHandlers): KeyHold {
   let held = false;
   let done = false;
   const timer = window.setTimeout(() => {
@@ -36,14 +38,12 @@ export function followKeyHold(handlers: {
     if (held) handlers.onHeldChord?.();
   };
   const onKeyDown = (event: KeyboardEvent) => {
-    if (!event.repeat) interrupt();
+    if (event.repeat && event.code === code) return;
+    interrupt();
   };
   const onKeyUp = (event: KeyboardEvent) => {
     end();
-    if (!held) return;
-    // Releasing a lone Alt opens the menu bar on Windows and Linux unless the page consumes it.
-    event.preventDefault();
-    handlers.onHeldRelease();
+    if (held) handlers.onHeldRelease(event);
   };
   window.addEventListener("keydown", onKeyDown, true);
   window.addEventListener("keyup", onKeyUp, true);

@@ -2,7 +2,7 @@ import type { VoiceHoldToTalkKey } from "@supaterm/contracts";
 import { type RefObject, useEffect } from "react";
 
 import { useStableCallback } from "../hooks/useStableCallback";
-import type { KeyHold } from "./keyHold";
+import type { KeyHold, KeyHoldHandlers } from "./keyHold";
 
 export interface ComposerDraft {
   readonly text: string;
@@ -13,10 +13,13 @@ export interface HoldToTalk {
   readonly canStart: () => boolean;
   readonly readDraft: () => ComposerDraft;
   readonly restoreDraft: (draft: ComposerDraft) => void;
+  /** The microphone is still opening, as at the permission prompt. */
+  readonly opening: () => boolean;
   readonly start: () => void;
+  /** Stops and reviews or sends; a microphone still opening keeps recording. */
+  readonly finish: () => void;
   readonly cancel: () => void;
-  /** Follows this key press; `onHold` runs once it is held past a tap, `onHeldChord` if it then joins a chord. */
-  readonly followPress: (onHold: () => void, onHeldChord?: () => void) => KeyHold;
+  readonly followPress: (code: string, handlers: KeyHoldHandlers) => KeyHold;
 }
 
 function withSpaceTyped({ text, selection }: ComposerDraft): string {
@@ -24,9 +27,9 @@ function withSpaceTyped({ text, selection }: ComposerDraft): string {
 }
 
 /**
- * Alt types nothing, so a held Alt records right away and a chord such as Option+Left
- * takes the recording back. Space types as usual, so taps and fast typing never wait on
- * it. Once it is held, its repeats are swallowed and the space it typed is taken back out.
+ * Alt types nothing, so a held Alt records right away, and a chord such as Option+Left, or
+ * letting go before the microphone opens, takes it back. Space types as usual, so taps never
+ * wait on it; once held, its repeats are swallowed and the space it typed is taken back out.
  */
 export function useHoldToTalk(
   target: RefObject<HTMLElement | null>,
@@ -36,7 +39,9 @@ export function useHoldToTalk(
   const canStart = useStableCallback(handlers.canStart);
   const readDraft = useStableCallback(handlers.readDraft);
   const restoreDraft = useStableCallback(handlers.restoreDraft);
+  const opening = useStableCallback(handlers.opening);
   const start = useStableCallback(handlers.start);
+  const finish = useStableCallback(handlers.finish);
   const cancel = useStableCallback(handlers.cancel);
   const followPress = useStableCallback(handlers.followPress);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- listens for the hold-to-talk key on the composer's DOM
@@ -55,7 +60,16 @@ export function useHoldToTalk(
       ) {
         return;
       }
-      press = followPress(start, cancel);
+      press = followPress(event.code, {
+        onHold: start,
+        onHeldRelease: (release) => {
+          // Releasing a lone Alt opens the menu bar on Windows and Linux unless the page consumes it.
+          release.preventDefault();
+          if (opening()) cancel();
+          else finish();
+        },
+        onHeldChord: cancel,
+      });
     };
     const onSpaceDown = (event: KeyboardEvent) => {
       if (
@@ -76,9 +90,12 @@ export function useHoldToTalk(
       const before = readDraft();
       // A space typed over a selection can delete context chips, which restoring text can't bring back.
       if (before.selection.start !== before.selection.end) return;
-      press = followPress(() => {
-        if (readDraft().text === withSpaceTyped(before)) restoreDraft(before);
-        start();
+      press = followPress(event.code, {
+        onHold: () => {
+          if (readDraft().text === withSpaceTyped(before)) restoreDraft(before);
+          start();
+        },
+        onHeldRelease: finish,
       });
     };
     const onKeyDown = key === "alt" ? onAltDown : onSpaceDown;
@@ -87,5 +104,5 @@ export function useHoldToTalk(
       element.removeEventListener("keydown", onKeyDown);
       press?.cancel();
     };
-  }, [target, key, canStart, readDraft, restoreDraft, start, cancel, followPress]);
+  }, [target, key, canStart, readDraft, restoreDraft, opening, start, finish, cancel, followPress]);
 }

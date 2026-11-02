@@ -24,10 +24,11 @@ async function setup(initial: ComposerDraft, holdKey: "alt" | "space" = "space")
     restoreDraft: vi.fn((restored: ComposerDraft) => {
       draft = restored;
     }),
+    opening: vi.fn(() => false),
     start: vi.fn(),
+    finish: release,
     cancel: vi.fn(),
-    followPress: (onHold: () => void, onHeldChord?: () => void) =>
-      followKeyHold({ onHold, onHeldRelease: release, onHeldChord }),
+    followPress: followKeyHold,
   };
   const screen = await render(<Composer holdKey={holdKey} handlers={handlers} />, {
     router: false,
@@ -36,7 +37,13 @@ async function setup(initial: ComposerDraft, holdKey: "alt" | "space" = "space")
   /** Returns whether the key went through to the editor. */
   const key = (type: "keydown" | "keyup", init: KeyboardEventInit = {}) =>
     editor.dispatchEvent(
-      new KeyboardEvent(type, { key: " ", bubbles: true, cancelable: true, ...init }),
+      new KeyboardEvent(type, {
+        key: " ",
+        code: "Space",
+        bubbles: true,
+        cancelable: true,
+        ...init,
+      }),
     );
   /** Synthetic key events don't edit, so the test types what the editor would. */
   const type = (text: string) => {
@@ -46,7 +53,9 @@ async function setup(initial: ComposerDraft, holdKey: "alt" | "space" = "space")
 }
 
 const EMPTY_DRAFT: ComposerDraft = { text: "", selection: { start: 0, end: 0 } };
-const ALT = { key: "Alt", altKey: true } as const;
+const ALT = { key: "Alt", code: "AltLeft", altKey: true } as const;
+const ALT_UP = { key: "Alt", code: "AltLeft" } as const;
+const OPTION_LEFT = { key: "ArrowLeft", code: "ArrowLeft", altKey: true } as const;
 
 describe("useHoldToTalk", () => {
   it("leaves a tapped Space to type", async () => {
@@ -142,16 +151,31 @@ describe("useHoldToTalk", () => {
     using _timers = fakeTimers();
 
     key("keydown", ALT);
-    key("keyup", { key: "Alt" });
+    key("keyup", ALT_UP);
     vi.advanceTimersByTime(KEY_HOLD_MS);
     expect(handlers.start).not.toHaveBeenCalled();
 
     key("keydown", ALT);
     vi.advanceTimersByTime(KEY_HOLD_MS);
+    key("keydown", { ...ALT, repeat: true });
     expect(handlers.start).toHaveBeenCalledOnce();
-    expect(key("keyup", { key: "Alt" })).toBe(false);
+    expect(key("keyup", ALT_UP)).toBe(false);
     expect(release).toHaveBeenCalledOnce();
     expect(handlers.cancel).not.toHaveBeenCalled();
+  });
+
+  it("takes back a held Alt let go before the microphone opens", async () => {
+    const { screen, handlers, release, key } = await setup(EMPTY_DRAFT, "alt");
+    await using _screen = screen;
+    using _timers = fakeTimers();
+    handlers.opening.mockReturnValue(true);
+
+    key("keydown", ALT);
+    vi.advanceTimersByTime(KEY_HOLD_MS);
+    key("keyup", ALT_UP);
+
+    expect(handlers.cancel).toHaveBeenCalledOnce();
+    expect(release).not.toHaveBeenCalled();
   });
 
   it("leaves Alt to chords pressed before it is held, or with another modifier down", async () => {
@@ -160,7 +184,10 @@ describe("useHoldToTalk", () => {
     using _timers = fakeTimers();
 
     key("keydown", ALT);
-    key("keydown", { key: "ArrowLeft", altKey: true });
+    key("keydown", OPTION_LEFT);
+    vi.advanceTimersByTime(KEY_HOLD_MS);
+    key("keydown", ALT);
+    key("keydown", { key: "Backspace", code: "Backspace", altKey: true, repeat: true });
     vi.advanceTimersByTime(KEY_HOLD_MS);
     key("keydown", { ...ALT, shiftKey: true });
     vi.advanceTimersByTime(KEY_HOLD_MS);
@@ -173,7 +200,7 @@ describe("useHoldToTalk", () => {
     await using _screen = screen;
     using _timers = fakeTimers();
     const interruptions = [
-      () => key("keydown", { key: "ArrowLeft", altKey: true }),
+      () => key("keydown", OPTION_LEFT),
       () => editor.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true })),
       () => window.dispatchEvent(new Event("blur")),
     ];
@@ -182,7 +209,7 @@ describe("useHoldToTalk", () => {
       key("keydown", ALT);
       vi.advanceTimersByTime(KEY_HOLD_MS);
       interrupt();
-      key("keyup", { key: "Alt" });
+      key("keyup", ALT_UP);
       expect(handlers.start).toHaveBeenCalledTimes(index + 1);
       expect(handlers.cancel).toHaveBeenCalledTimes(index + 1);
     }
