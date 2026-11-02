@@ -184,6 +184,86 @@ describe("evaluatePullRequestWatch", () => {
     const green = evaluatePullRequestWatch(watch(), done, noRemarks);
     assert.deepEqual(green.changes, [{ kind: "checks-passed", count: 1, required: true }]);
     assert.deepEqual(evaluatePullRequestWatch(green.next, botDone, noRemarks).changes, []);
+
+    // An advisory failure already reported must not hold back the wake owed to the rest.
+    const budget = check("budget", "failure");
+    const told = evaluatePullRequestWatch(
+      watch(),
+      detail({ checks: [required("test", "pending"), budget, check("e2e", "pending")] }),
+      noRemarks,
+    );
+    assert.deepEqual(told.changes, [{ kind: "checks-failed", failed: [budget] }]);
+    const gatePassed = evaluatePullRequestWatch(
+      told.next,
+      detail({ checks: [required("test", "success"), budget, check("e2e", "pending")] }),
+      noRemarks,
+    );
+    assert.deepEqual(gatePassed.changes, [{ kind: "checks-passed", count: 1, required: true }]);
+    const finished = detail({
+      checks: [required("test", "success"), budget, check("e2e", "success")],
+    });
+    const rest = evaluatePullRequestWatch(gatePassed.next, finished, noRemarks);
+    assert.deepEqual(rest.changes, [{ kind: "checks-finished", failing: [budget] }]);
+    assert.deepEqual(evaluatePullRequestWatch(rest.next, finished, noRemarks).changes, []);
+  });
+
+  it("wakes once more when the checks still running at a failure finish", () => {
+    const labels = { ...check("labels", "failure"), required: true };
+    const gateFailed = evaluatePullRequestWatch(
+      watch(),
+      detail({ checks: [labels, check("unit", "pending"), check("e2e", "pending")] }),
+      noRemarks,
+    );
+    assert.deepEqual(gateFailed.changes, [{ kind: "checks-failed", failed: [labels] }]);
+    const halfway = evaluatePullRequestWatch(
+      gateFailed.next,
+      detail({ checks: [labels, check("unit", "success"), check("e2e", "pending")] }),
+      noRemarks,
+    );
+    assert.deepEqual(halfway.changes, []);
+    const finished = detail({
+      checks: [labels, check("unit", "success"), check("e2e", "success")],
+    });
+    const rest = evaluatePullRequestWatch(halfway.next, finished, noRemarks);
+    assert.deepEqual(rest.changes, [{ kind: "checks-finished", failing: [labels] }]);
+    assert.deepEqual(evaluatePullRequestWatch(rest.next, finished, noRemarks).changes, []);
+
+    // With no required checks, a late failure is its own news, and its rerun still owes the wake.
+    const sonar = check("sonar", "cancelled");
+    const early = evaluatePullRequestWatch(
+      watch(),
+      detail({ checks: [sonar, check("e2e", "pending")] }),
+      noRemarks,
+    );
+    assert.deepEqual(early.changes, [{ kind: "checks-failed", failed: [sonar] }]);
+    const e2eFailed = detail({ checks: [sonar, check("e2e", "failure")] });
+    const late = evaluatePullRequestWatch(early.next, e2eFailed, noRemarks);
+    assert.deepEqual(late.changes, [{ kind: "checks-failed", failed: [check("e2e", "failure")] }]);
+    assert.deepEqual(evaluatePullRequestWatch(late.next, e2eFailed, noRemarks).changes, []);
+    const rerun = detail({ checks: [sonar, check("e2e", "success")] });
+    const recovered = evaluatePullRequestWatch(late.next, rerun, noRemarks);
+    assert.deepEqual(recovered.changes, [{ kind: "checks-finished", failing: [sonar] }]);
+    assert.deepEqual(evaluatePullRequestWatch(recovered.next, rerun, noRemarks).changes, []);
+
+    // The required checks passing later keeps the wake owed to a failed check's rerun.
+    const unitFailed = check("unit", "failure");
+    const required = { ...labels, status: "success" as const };
+    const bothFailed = evaluatePullRequestWatch(
+      gateFailed.next,
+      detail({ checks: [labels, unitFailed, check("e2e", "success")] }),
+      noRemarks,
+    );
+    assert.deepEqual(bothFailed.changes, [{ kind: "checks-failed", failed: [unitFailed] }]);
+    const gatePassed = evaluatePullRequestWatch(
+      bothFailed.next,
+      detail({ checks: [required, unitFailed, check("e2e", "success")] }),
+      noRemarks,
+    );
+    assert.deepEqual(gatePassed.changes, [{ kind: "checks-passed", count: 1, required: true }]);
+    const green = detail({ checks: [required, check("unit", "success"), check("e2e", "success")] });
+    const unitRerun = evaluatePullRequestWatch(gatePassed.next, green, noRemarks);
+    assert.deepEqual(unitRerun.changes, [{ kind: "checks-passed", count: 3, required: false }]);
+    assert.deepEqual(evaluatePullRequestWatch(unitRerun.next, green, noRemarks).changes, []);
   });
 
   it("reports an owed non-required failure once after the required notice", () => {
