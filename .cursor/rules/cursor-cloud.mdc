@@ -13,8 +13,8 @@ These notes apply only to Cursor Cloud agents. Follow the shared
 Use the tool versions pinned in [mise.toml](../../mise.toml) and follow
 [First checkout](../../docs/operations/development.md#first-checkout) for setup.
 Run commands in a login shell so the provisioned toolchain is on `PATH`, or use
-`mise exec --` as the development runbook describes. Check `node --version` and
-`vp --version` before installing dependencies if the environment selects an older Node.
+`mise exec --` as the development runbook describes. Before installing dependencies,
+check `node --version` and `vp --version` against the pinned tool versions.
 
 ## Running the web app
 
