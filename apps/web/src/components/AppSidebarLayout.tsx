@@ -1,4 +1,3 @@
-import { useAtomValue } from "@effect/atom-react";
 import {
   useEffect,
   useEffectEvent,
@@ -17,13 +16,12 @@ import {
   threadUndoClaimsShortcut,
   undoLatestThreadAction,
 } from "../hooks/showThreadUndoNotice";
-import { isRichTextBoldShortcut, shortcutLabelForCommand } from "../keybindings";
+import { isRichTextBoldShortcut } from "../keybindings";
 import { isEditableFocused } from "../lib/editableFocus";
 import { isModelPickerOpen } from "../modelPickerVisibility";
 import { selectActiveRightPanel, useRightPanelStore } from "../rightPanelStore";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
 import { cn, isMacPlatform } from "../lib/utils";
-import { primaryServerKeybindingsAtom } from "../state/server";
 import {
   PanelAnimationSuppressionProvider,
   usePanelAnimationSettings,
@@ -33,7 +31,7 @@ import { BackgroundThreadAnnouncer } from "./BackgroundThreadAnnouncer";
 import { HistorySwipeNavigation } from "./HistorySwipeNavigation";
 import { navigateHistory } from "../navigationHistory";
 import ThreadSidebar from "./Sidebar";
-import { SidebarBrandWidthProbe } from "./sidebar/SidebarChrome";
+import { MainSidebarToggle, SidebarBrandWidthProbe } from "./sidebar/SidebarChrome";
 import { isAppModalPage } from "./sidebar/mainAppLocation";
 import type { SidebarRouteReveal } from "./sidebar/routeReveal";
 import {
@@ -42,14 +40,7 @@ import {
   THREAD_MAIN_CONTENT_MIN_WIDTH,
   THREAD_SIDEBAR_WIDTH_STORAGE_KEY,
 } from "./threadSidebarWidth";
-import {
-  Sidebar,
-  SidebarInsetPanel,
-  SidebarProvider,
-  SidebarTrigger,
-  useSidebar,
-} from "./ui/sidebar";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
+import { Sidebar, SidebarInsetPanel, SidebarProvider, useSidebar } from "./ui/sidebar";
 import { type CommandHandler, registerCommands, registerMenuAction } from "../shortcuts/dispatcher";
 import { resolveThreadRouteRef } from "../threadRoutes";
 
@@ -252,12 +243,7 @@ function registerAppShellCommands(router: AnyRouter, shellElement: Element): () 
 
 function SidebarControl() {
   const router = useRouter();
-  const usagePageOpen = useLocation({ select: (location) => location.pathname === "/usage" });
-  const keybindings = useAtomValue(primaryServerKeybindingsAtom);
-  const { toggleSidebar, isMobile, mobileSheetMounted } = useSidebar();
-  const shortcutLabel = shortcutLabelForCommand(keybindings, "sidebar.toggle", {
-    context: { usagePageOpen },
-  });
+  const { toggleSidebar, isMobile, open, mobileSheetMounted } = useSidebar();
 
   const toggleSidebarFromCommand = useEffectEvent(() => toggleSidebar());
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers the sidebar toggle with the command dispatcher for the control's lifetime
@@ -270,25 +256,18 @@ function SidebarControl() {
       node === null ? undefined : registerAppShellCommands(router, node),
   );
 
+  // The open desktop sidebar shows its own toggle beside the app name.
+  const hidden = isMobile ? mobileSheetMounted : open;
   return (
     <div
       ref={appShellCommandsRef}
       className={cn(
         "pointer-events-none fixed left-[var(--workspace-controls-left)] top-[var(--workspace-controls-top)] z-50 ml-px flex h-[var(--workspace-topbar-height)] items-center",
-        isMobile && mobileSheetMounted && "hidden",
+        hidden && "hidden",
       )}
       data-sidebar-control=""
     >
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <SidebarTrigger className="pointer-events-auto" aria-label="Toggle main sidebar" />
-          }
-        />
-        <TooltipPopup side="bottom" shortcut={shortcutLabel}>
-          Toggle main sidebar
-        </TooltipPopup>
-      </Tooltip>
+      <MainSidebarToggle className="pointer-events-auto" />
     </div>
   );
 }
@@ -345,7 +324,7 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
           <ThreadSidebar routeReveal={sidebarRouteReveal} />
         </Sidebar>
         <SidebarInsetPanel minWidth={THREAD_MAIN_CONTENT_MIN_WIDTH}>
-          <SidebarBrandWidthProbe isElectron={isElectron} onWidthChange={setBrandWidth} />
+          <SidebarBrandWidthProbe onWidthChange={setBrandWidth} />
           {children}
           <BackgroundThreadAnnouncer />
           <SidebarControl />
