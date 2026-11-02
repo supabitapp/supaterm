@@ -696,28 +696,28 @@ describe("VoiceInputController", () => {
     [
       "a reviewed recording",
       {},
-      async (harness: ReturnType<typeof createHarness>) => {
-        await harness.controller.start();
-        await harness.controller.stop();
-        expect(harness.commits).toHaveLength(1);
+      async ({ controller, commits }: ReturnType<typeof createHarness>) => {
+        await controller.start();
+        await controller.stop();
+        expect(commits).toHaveLength(1);
       },
       ["start", "stop"],
     ],
     [
       "a sent recording",
       {},
-      async (harness: ReturnType<typeof createHarness>) => {
-        await harness.controller.start();
-        await harness.controller.send(async () => undefined);
+      async ({ controller }: ReturnType<typeof createHarness>) => {
+        await controller.start();
+        await controller.send(async () => undefined);
       },
       ["start", "stop"],
     ],
     [
       "a discarded recording",
       {},
-      async (harness: ReturnType<typeof createHarness>) => {
-        await harness.controller.start();
-        harness.controller.cancel();
+      async ({ controller }: ReturnType<typeof createHarness>) => {
+        await controller.start();
+        controller.cancel();
       },
       ["start", "discard"],
     ],
@@ -731,18 +731,18 @@ describe("VoiceInputController", () => {
             }),
         }),
       },
-      async (harness: ReturnType<typeof createHarness>) => {
-        await harness.controller.start();
-        await harness.controller.stop();
+      async ({ controller }: ReturnType<typeof createHarness>) => {
+        await controller.start();
+        await controller.stop();
       },
       ["start", "stop", "error"],
     ],
     [
       "an interrupted recording",
       {},
-      async (harness: ReturnType<typeof createHarness>) => {
-        await harness.controller.start();
-        await harness.controller.interruptRecording();
+      async ({ controller }: ReturnType<typeof createHarness>) => {
+        await controller.start();
+        await controller.interruptRecording();
       },
       ["start", "error"],
     ],
@@ -751,8 +751,8 @@ describe("VoiceInputController", () => {
       {
         requestPermission: async () => ({ granted: false, canAskAgain: true }),
       },
-      async (harness: ReturnType<typeof createHarness>) => {
-        await harness.controller.start();
+      async ({ controller }: ReturnType<typeof createHarness>) => {
+        await controller.start();
       },
       ["error"],
     ],

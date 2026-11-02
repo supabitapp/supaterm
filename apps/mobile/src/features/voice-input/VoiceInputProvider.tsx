@@ -139,8 +139,8 @@ const voiceInputAtom = Atom.make((get) => {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     const cue = voiceInputCue(phase, next);
-    if (cue === "start") playVoiceInputCue(cue, { duringRecording: true });
-    else if (cue && audioToken) cueAfterRecording = cue;
+    // Playback can't take the session from a recording, so these wait for releaseRecording.
+    if (cue && cue !== "start" && audioToken) cueAfterRecording = cue;
     else if (cue) playVoiceInputCue(cue);
     phase = next;
   });

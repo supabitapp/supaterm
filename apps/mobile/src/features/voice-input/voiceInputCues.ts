@@ -32,13 +32,13 @@ function cuePlayer(cue: VoiceInputCue): CuePlayer {
 }
 
 /**
- * A recording that is running owns the audio session, so its start cue plays in that
- * session. Every other cue waits until no recording holds the session, then takes it.
+ * The start cue plays in the session the new recording holds. Every other cue takes a
+ * playback session, which a recording must release first.
  */
-export function playVoiceInputCue(cue: VoiceInputCue, { duringRecording = false } = {}): void {
+export function playVoiceInputCue(cue: VoiceInputCue): void {
   const { player, playback } = cuePlayer(cue);
   const rewind = () => player.seekTo(0).catch(() => {});
-  if (duringRecording) {
+  if (cue === "start") {
     void rewind().then(() => player.play());
     return;
   }
