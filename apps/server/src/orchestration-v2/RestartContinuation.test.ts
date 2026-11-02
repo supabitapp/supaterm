@@ -1225,6 +1225,29 @@ it.effect("does not wake a snoozed or settled thread, but continues once a snooz
   }),
 );
 
+it.effect("does not continue a run waiting on a secret the restart closed", () =>
+  Effect.gen(function* () {
+    const completedAt = DateTime.makeUnsafe("2026-10-03T10:05:00.000Z");
+    const secret = (secretStatus: string, at: DateTime.Utc | null) =>
+      ({ type: "secret_request", runId, secretStatus, completedAt: at }) as never;
+    assert.isUndefined(
+      restartContinuationRun({ ...makeProjection(), turnItems: [secret("pending", null)] }, now),
+    );
+    const cut = cutMidTurn({ completedAt });
+    assert.deepEqual(
+      yield* continuationTexts({ ...cut, turnItems: [secret("cancelled", completedAt)] }),
+      [],
+    );
+    assert.lengthOf(
+      yield* continuationTexts({
+        ...cut,
+        turnItems: [secret("cancelled", DateTime.subtract(completedAt, { seconds: 1 }))],
+      }),
+      1,
+    );
+  }),
+);
+
 it.effect.each(["completed", "failed", "interrupted"] as const)(
   "does not continue when the provider turn %s before the app run settled",
   (status) =>

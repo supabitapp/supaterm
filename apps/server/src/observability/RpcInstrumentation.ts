@@ -93,6 +93,7 @@ const RPC_AGGREGATES = {
   [WS_METHODS.scheduledTasksSetEnabled]: "scheduledTasks",
   [WS_METHODS.scheduledTasksDelete]: "scheduledTasks",
   [WS_METHODS.scheduledTasksRunNow]: "scheduledTasks",
+  [WS_METHODS.secretsAnswerRequest]: "secrets",
   [WS_METHODS.pullRequestsList]: "pull-requests",
   [WS_METHODS.pullRequestsListStats]: "pull-requests",
   [WS_METHODS.pullRequestsFilterOptions]: "pull-requests",

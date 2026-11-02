@@ -89,6 +89,10 @@ export const terminalSessionsTotal = Metric.counter("supaterm_terminal_sessions_
   description: "Total terminal sessions started.",
 });
 
+export const secretRequestsTotal = Metric.counter("supaterm_secret_requests_total", {
+  description: "Secrets agents asked users for, by how each request ended.",
+});
+
 export const metricAttributes = (
   attributes: Readonly<Record<string, unknown>>,
 ): ReadonlyArray<[string, string]> => Object.entries(compactMetricAttributes(attributes));

@@ -653,6 +653,40 @@ export const OrchestratorMcpUpdateScheduledTaskInput = Schema.Struct({
 export type OrchestratorMcpUpdateScheduledTaskInput =
   typeof OrchestratorMcpUpdateScheduledTaskInput.Type;
 
+export const OrchestratorMcpRequestSecretInput = Schema.Struct({
+  label: TrimmedNonEmptyString.annotate({
+    description: "Card title, such as 'GitHub token'.",
+  }),
+  reason: TrimmedNonEmptyString.annotate({
+    description: "What it is for and where to get it.",
+  }),
+  placeholder: Schema.optional(TrimmedNonEmptyString),
+  timeoutMs: Schema.optional(
+    Schema.Int.check(Schema.isBetween({ minimum: 1_000, maximum: 60 * 60 * 1_000 })),
+  ).annotate({ description: "Default 10 min." }),
+  clientRequestId: Schema.optional(OrchestratorMcpClientRequestId).annotate({
+    description: "Retry key for this ask. New key after a timeout or cancel.",
+  }),
+});
+export type OrchestratorMcpRequestSecretInput = typeof OrchestratorMcpRequestSecretInput.Type;
+
+export const OrchestratorMcpRequestSecretResult = Schema.Union([
+  Schema.Struct({
+    status: Schema.Literal("saved"),
+    file: Schema.String.annotate({
+      description:
+        "Owner-only file with the value. Read it inside commands and never print it. Deleted after 24 hours.",
+    }),
+  }),
+  Schema.Struct({
+    status: Schema.Literals(["declined", "cancelled", "timed_out"]).annotate({
+      description:
+        "declined: user chose not to. cancelled: ended with the run. timed_out: no answer in time. Ask again with a new `clientRequestId` if still needed.",
+    }),
+  }),
+]);
+export type OrchestratorMcpRequestSecretResult = typeof OrchestratorMcpRequestSecretResult.Type;
+
 export const OrchestratorMcpDeleteScheduledTaskInput = Schema.Struct({
   scheduledTaskId: ScheduledTaskId,
 });

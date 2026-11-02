@@ -8,6 +8,8 @@ import {
   OrchestratorMcpDelegateTaskResult,
   OrchestratorMcpDeleteScheduledTaskInput,
   OrchestratorMcpDeleteScheduledTaskResult,
+  OrchestratorMcpRequestSecretInput,
+  OrchestratorMcpRequestSecretResult,
   OrchestratorMcpFailure,
   OrchestratorMcpListScheduledTasksInput,
   OrchestratorMcpListScheduledTasksResult,
@@ -172,6 +174,18 @@ const DeleteScheduledTaskTool = Tool.make("delete_scheduled_task", {
   .annotate(Tool.Title, "Delete a scheduled task")
   .annotate(Tool.Destructive, true);
 
+const RequestSecretTool = Tool.make("request_secret", {
+  description:
+    'Ask the user to enter a secret in a private card and wait. Returns an owner-only file path; read it inside a shell command, e.g. TOKEN="$(cat <file>)" wrangler whoami, and never print it. Asked how to provide a secret: call this now, do not explain instead.',
+  parameters: OrchestratorMcpRequestSecretInput,
+  success: OrchestratorMcpRequestSecretResult,
+  failure: OrchestratorMcpFailure,
+  failureMode: "return",
+  dependencies,
+})
+  .annotate(Tool.Title, "Request a secret from the user")
+  .annotate(Tool.Destructive, false);
+
 const CreateThreadsTool = Tool.make("create_threads", {
   description:
     "Create new top-level threads in this checkout. Not delegation. One thread or its own worktree: `supaterm_thread_launch`. Project, branch, and worktree inherit.",
@@ -276,6 +290,7 @@ export const OrchestratorToolkit = Toolkit.make(
   ScheduleTaskTool,
   ListScheduledTasksTool,
   DeleteScheduledTaskTool,
+  RequestSecretTool,
   CreateThreadsTool,
   ThreadListTool,
   ThreadReadTool,

@@ -22,6 +22,7 @@ import {
 } from "../../lib/enrichedLinkPresentation";
 import { ThreadContextDivider } from "./thread-context-divider";
 import { ThreadHandoffDivider, ThreadHandoffRow } from "./thread-handoff-row";
+import { SecretRequestCard } from "./SecretRequestCard";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { WorktreeSetupCard, type WorktreeSetupCardProps } from "./worktree-setup-card";
 import * as Haptics from "expo-haptics";
@@ -220,6 +221,7 @@ import {
   threadFeedRunIsUnsettled,
   isContextCompactionActivityGroup,
   isContextHandoffActivityGroup,
+  isSecretRequestActivityGroup,
   type ThreadFeedEntry,
   type ThreadFeedLatestRun,
   messageFoldRunId,
@@ -1855,6 +1857,16 @@ function renderFeedEntry(
         projectedItem={entry.activities[0]!.projectedItem}
         iconColor={iconSubtleColor}
         surfaceColor={props.screenColor}
+      />
+    );
+  }
+
+  if (entry.type === "activity-group" && isSecretRequestActivityGroup(entry)) {
+    return (
+      <SecretRequestCard
+        environmentId={props.environmentId}
+        projectedItem={entry.activities[0]!.projectedItem}
+        iconColor={iconSubtleColor}
       />
     );
   }

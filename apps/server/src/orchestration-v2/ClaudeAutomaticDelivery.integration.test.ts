@@ -41,6 +41,7 @@ import * as ThreadManagementService from "./ThreadManagementService.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as ProviderReplayHarness from "./testkit/ProviderReplayHarness.ts";
 import { checkpointWorkspace } from "@supaterm/provider-testing/replayWorkspace";
+import * as SecretRequests from "../secrets/SecretRequests.ts";
 
 const sessionId = "automatic-delivery-session";
 const settings = Schema.decodeSync(ClaudeSettings)({});
@@ -323,6 +324,7 @@ it.effect.each(deliveries)(
                   Layer.provide(ThreadManagementService.layer),
                   Layer.provide(ServerSettings.layerTest()),
                   Layer.provide(Layer.mock(ThreadLaunchService.ThreadLaunchService)({})),
+                  Layer.provide(Layer.mock(SecretRequests.SecretRequests)({})),
                   Layer.provide(
                     Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
                       namedProjectsRoot: "/projects",

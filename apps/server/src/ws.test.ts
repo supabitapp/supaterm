@@ -132,6 +132,7 @@ import {
   withLateConfig,
   relayAdvertisementUpdates,
 } from "./ws.ts";
+import * as SecretRequests from "./secrets/SecretRequests.ts";
 
 const snapshotConfig = (fields: Partial<ServerConfig>) =>
   ({ availableEditors: [], settings: {}, ...fields }) as unknown as ServerConfig;
@@ -660,6 +661,7 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(ResourceTelemetry.ResourceTelemetry)({}),
   Layer.mock(ReviewService.ReviewService)({}),
   Layer.mock(ScheduledTasks.ScheduledTaskService)({}),
+  Layer.mock(SecretRequests.SecretRequests)({}),
   Layer.mock(Transcription.Transcription)({}),
   Layer.mock(TranscriptionUploads.TranscriptionUploads)({}),
 

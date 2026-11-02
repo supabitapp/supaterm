@@ -490,6 +490,8 @@ import { ShieldIcon as ShieldSource } from "@phosphor-icons/react/dist/csr/Shiel
 export const ShieldIcon = /* @__PURE__ */ withIconDefaults(ShieldSource);
 import { ShieldWarningIcon as ShieldAlertSource } from "@phosphor-icons/react/dist/csr/ShieldWarning";
 export const ShieldAlertIcon = /* @__PURE__ */ withIconDefaults(ShieldAlertSource);
+import { ShieldCheckIcon as ShieldCheckSource } from "@phosphor-icons/react/dist/csr/ShieldCheck";
+export const ShieldCheckIcon = /* @__PURE__ */ withIconDefaults(ShieldCheckSource);
 import { ShoppingBagIcon as ShoppingBagSource } from "@phosphor-icons/react/dist/csr/ShoppingBag";
 export const ShoppingBagIcon = /* @__PURE__ */ withIconDefaults(ShoppingBagSource);
 import { ArrowsInSimpleIcon as ShrinkSource } from "@phosphor-icons/react/dist/csr/ArrowsInSimple";

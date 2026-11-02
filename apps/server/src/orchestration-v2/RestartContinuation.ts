@@ -37,7 +37,10 @@ const MAX_CONTINUATION_CHAIN = 3;
 const CONTINUATION_LOOP_WINDOW_MS = 5 * 60 * 1_000;
 
 function restartContinuationBlocked(
-  projection: Pick<ProjectionRuntimeRecoveryState, "thread" | "runtimeRequests" | "providerTurns">,
+  projection: Pick<
+    ProjectionRuntimeRecoveryState,
+    "thread" | "runtimeRequests" | "providerTurns" | "turnItems"
+  >,
   source: OrchestrationV2Run,
   now: DateTime.Utc,
   settled: boolean,
@@ -68,7 +71,17 @@ function restartContinuationBlocked(
           turn !== undefined &&
           turn.id === request.providerTurnId)),
   );
-  return waitingRequest;
+  if (waitingRequest) return true;
+  return projection.turnItems.some(
+    (item) =>
+      item.type === "secret_request" &&
+      item.runId === source.id &&
+      (item.secretStatus === "pending" ||
+        (item.secretStatus === "cancelled" &&
+          item.completedAt !== null &&
+          source.completedAt !== null &&
+          DateTime.Equivalence(item.completedAt, source.completedAt))),
+  );
 }
 
 /** App-owned delegations continue in their own threads and report back. */
@@ -178,8 +191,8 @@ export const continueRestartedRun = Effect.fn("RestartContinuation.continueResta
     const messageId = MessageId.make(`message:restart-continuation:${input.sourceRunId}`);
     const projection = yield* threads.getThreadRecords(
       input.threadId,
-      ["messages", "runs", "providerTurns", "attempts", "runtimeRequests"],
-      { messageIds: [messageId] },
+      ["messages", "runs", "providerTurns", "attempts", "runtimeRequests", "turnItems"],
+      { messageIds: [messageId], turnItemTypes: ["secret_request"] },
     );
     if (
       !resolveProjectSettings(enabled, projection.thread.projectId).settings
