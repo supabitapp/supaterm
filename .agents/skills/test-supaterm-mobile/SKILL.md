@@ -15,6 +15,11 @@ on every operation. Use `device_screenshot` to inspect the screen.
 If Supaterm device tools or the selected device are unavailable, report the blocker
 and stop verification. Do not install or switch to another automation system.
 
+Prefer an existing simulator or emulator. Each one you create costs gigabytes, so
+end its name with `-<worktree directory name>`, for example
+`xcrun simctl create "relay-$(basename "$PWD")" <device-type>`. The Clean Worktree
+action deletes those iOS simulators and Android AVDs when the thread is marked Done.
+
 ## Use an isolated backend
 
 Reuse this task's healthy backend. Otherwise run `vp run dev` from the
