@@ -201,6 +201,16 @@ export const forksThreads = <P, A, E, R>(
     ),
   );
 
+/** One tool with two access rules, picked per call, such as create versus update. */
+export const either = <P, A, E, R, A2, E2, R2>(
+  useFirst: (params: P) => boolean,
+  first: Declaration<(params: P) => Effect.Effect<A, E, R>>,
+  second: Declaration<(params: P) => Effect.Effect<A2, E2, R2>>,
+) =>
+  declare((params: P): Effect.Effect<A | A2, E | E2, R | R2> =>
+    useFirst(params) ? checkedHandler(first)(params) : checkedHandler(second)(params),
+  );
+
 const escalationDenied = (refusal: DispatchModeRefusal) =>
   new OrchestratorMcpFailure({
     code:

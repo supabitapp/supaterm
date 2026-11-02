@@ -138,8 +138,8 @@ it.effect("an answered question reports already answered instead of not found", 
     const respond = (id: string) =>
       server
         .callTool({
-          name: "supaterm_pending_request_respond",
-          arguments: { requestId: id, answers: { size: "large" } },
+          name: "supaterm_pending_request",
+          arguments: { action: "respond", requestId: id, answers: { size: "large" } },
         })
         .pipe(
           Effect.provideService(McpInvocationContext.McpInvocationContext, scope),
@@ -523,8 +523,8 @@ it.effect("a client caller targets any thread within its ceiling and cannot act 
     });
 
     const forked = yield* call(
-      "supaterm_thread_fork",
-      { sourcePoint: { type: "latest_stable" } },
+      "supaterm_thread_transfer",
+      { action: "fork", sourcePoint: { type: "latest_stable" } },
       clientScope("auto"),
     );
     expect(declaredFailure(forked)).toMatchObject({ code: "target_required" });
@@ -569,7 +569,7 @@ it.effect("a read-only client reads threads and is refused every write before it
           Effect.provideService(McpSchema.McpServerClient, client),
         );
 
-    const configuration = yield* call("supaterm_thread_configuration", {
+    const configuration = yield* call("supaterm_thread_configure", {
       threadId: "other-project-thread",
     });
     expect(configuration.isError).toBe(false);
@@ -660,7 +660,7 @@ it.effect("refuses act-as-caller tools to a client caller", () =>
 it.effect.each([
   ["delegate_task", { task: "Review", mode: "async" }],
   ["create_threads", { threads: [{ prompt: "Review" }] }],
-  ["supaterm_thread_fork", { sourcePoint: { type: "latest_stable" } }],
+  ["supaterm_thread_transfer", { action: "fork", sourcePoint: { type: "latest_stable" } }],
 ] as const)("refuses %s to a side chat before it starts a thread", ([name, args]) =>
   Effect.gen(function* () {
     const server = yield* McpServer.McpServer;
