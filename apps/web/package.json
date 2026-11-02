@@ -1,6 +1,6 @@
 {
   "name": "@supaterm/web",
-  "version": "26.10.8",
+  "version": "26.10.9",
   "private": true,
   "type": "module",
   "scripts": {
