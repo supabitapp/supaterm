@@ -116,13 +116,25 @@ export function usePullRequestActionRunner({
   const runAction = useAtomCommand(pullRequestEnvironment.runAction, {
     reportFailure: false,
   });
-  const [pendingAction, setPendingAction] = useState<PullRequestAction | null>(null);
-  const pendingRef = useRef(false);
+  const pendingRef = useRef(new Map<string, PullRequestAction>());
+  const [pendingActions, setPendingActions] = useState<ReadonlyMap<string, PullRequestAction>>(
+    () => new Map(),
+  );
+  const actionKey =
+    reference === null
+      ? null
+      : JSON.stringify([
+          environmentId,
+          reference.host ?? null,
+          reference.repository,
+          reference.number,
+        ]);
+  const pendingAction = actionKey === null ? null : (pendingActions.get(actionKey) ?? null);
 
   const perform = async (action: PullRequestAction, method?: PullRequestMergeMethod) => {
-    if (pendingRef.current || reference === null) return false;
-    pendingRef.current = true;
-    setPendingAction(action);
+    if (actionKey === null || reference === null || pendingRef.current.has(actionKey)) return false;
+    pendingRef.current.set(actionKey, action);
+    setPendingActions(new Map(pendingRef.current));
     const result = await runAction({
       environmentId,
       input: {
@@ -131,8 +143,8 @@ export function usePullRequestActionRunner({
         ...(method ? { mergeMethod: method } : resolveMergeMethod ? { resolveMergeMethod } : {}),
       },
     });
-    pendingRef.current = false;
-    setPendingAction(null);
+    pendingRef.current.delete(actionKey);
+    setPendingActions(new Map(pendingRef.current));
     if (result._tag === "Failure") {
       toastManager.add({
         type: "error",
