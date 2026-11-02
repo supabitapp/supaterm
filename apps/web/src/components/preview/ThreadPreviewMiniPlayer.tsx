@@ -6,6 +6,7 @@ import { PanelRightIcon, PictureInPictureIcon, XIcon } from "@supaterm/icons";
 import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
+  use,
   useEffect,
   useRef,
   useState,
@@ -15,6 +16,7 @@ import { create } from "zustand";
 import { useAtomValue } from "@effect/atom-react";
 import { scopedThreadKey } from "@supaterm/client-runtime/environment";
 
+import { BackgroundThreadContext } from "../chat/backgroundThread";
 import { useChatCanvas } from "../chat/ChatCanvasContext";
 import type { ChatCanvasPreview } from "../chat/chatCanvasLayout";
 import { BrowserSurfaceSlot } from "~/browser/BrowserSurfaceSlot";
@@ -83,6 +85,8 @@ interface PointerGesture {
 }
 
 const HANDLE_TAP_SLOP_PX = 6;
+const GESTURE_ATTRIBUTE = "data-preview-mini-player-gesture";
+let activeGestureCount = 0;
 
 interface Props {
   readonly threadRef: ScopedThreadRef;
@@ -499,12 +503,26 @@ function MiniPlayerShell({
   const handleTappedRef = useRef(false);
   const handleRef = useRef<HTMLDivElement | null>(null);
   const [gesturing, setGesturing] = useState(false);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- marks the document so desktop webviews stop taking the pointer moves of a drag or resize that crosses them
+  const background = use(BackgroundThreadContext);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- marks the document so desktop webviews stop taking the pointer moves of a drag or resize that crosses them, and ends the gesture when its control remounts and misses the release
   useEffect(() => {
     if (!gesturing) return;
     const root = document.documentElement;
-    root.setAttribute("data-preview-mini-player-gesture", "");
-    return () => root.removeAttribute("data-preview-mini-player-gesture");
+    activeGestureCount += 1;
+    root.setAttribute(GESTURE_ATTRIBUTE, "");
+    const finish = (event: PointerEvent) => {
+      if (gestureRef.current?.pointerId !== event.pointerId) return;
+      gestureRef.current = null;
+      setGesturing(false);
+    };
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
+    return () => {
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+      activeGestureCount -= 1;
+      if (activeGestureCount === 0) root.removeAttribute(GESTURE_ATTRIBUTE);
+    };
   }, [gesturing]);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- document pointerdown listener closes the open pill on an outside press
   useEffect(() => {
@@ -713,6 +731,7 @@ function MiniPlayerShell({
           {webviewRect
             ? createPortal(
                 <div
+                  inert={background}
                   className="pointer-events-none fixed select-none"
                   style={{
                     left: webviewRect.x,
