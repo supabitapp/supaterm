@@ -1191,7 +1191,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
 
   const canvas = useChatCanvas();
   const registerTimeline = canvas?.registerTimeline;
-  const setTimelineList = (list: LegendListRef | null) => {
+  const setTimelineList = useStableCallback((list: LegendListRef | null) => {
     listRef.current = list;
     const scrollNode: HTMLElement | null = list?.getScrollableNode() ?? null;
     registerTimeline?.(scrollNode);
@@ -1222,7 +1222,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
       listRef.current = null;
       registerTimeline?.(null);
     };
-  };
+  });
   const endFollowAllowed = !(
     citationPositioning ||
     (restoringThreadPosition && rememberedPosition?.atEnd === false) ||

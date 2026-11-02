@@ -53,21 +53,53 @@ const thread = (id: string) => ({
   threadRef: { environmentId: "env" as EnvironmentId, threadId: id as ThreadId },
 });
 
+const scope = (paneId: string, layoutVersion = paneId) => ({
+  paneId,
+  layoutVersion,
+  narrow: false,
+  collapsed: false,
+  element: null,
+});
+
+function splitPanes() {
+  const store = useChatPaneStore.getState();
+  store.reconcileRoute(thread("a"), { width: 1600, height: 900 });
+  const first = useChatPaneStore.getState().layout!.focusedPaneId;
+  const second = store.split(first, "right", thread("b"))!;
+  return { first, second };
+}
+
+function OwnershipCheck({ onRender }: { onRender: (check: () => boolean) => void }) {
+  onRender(usePaneInputOwner());
+  return null;
+}
+
+describe("pane input ownership check", () => {
+  it("stays one function across rerenders and reads the focused pane when called", async () => {
+    await using _test = await setupTest();
+    const { first, second } = splitPanes();
+    const checks = new Set<() => boolean>();
+    const element = (layoutVersion: string) => (
+      <PaneScopeProvider value={scope(second, layoutVersion)}>
+        <OwnershipCheck onRender={(check) => checks.add(check)} />
+      </PaneScopeProvider>
+    );
+    await screen.rerender(element("before"));
+    await screen.rerender(element("after"));
+    expect(checks.size).toBe(1);
+    const [check] = checks;
+    expect(check!()).toBe(true);
+
+    await act(() => useChatPaneStore.getState().focus(first));
+    expect(check!()).toBe(false);
+  });
+});
+
 describe("chat shortcuts in a split", () => {
   it.each(["keyboard", "device", "menu"])("run only in the focused pane via %s", async (input) => {
     await using _test = await setupTest();
-    const store = useChatPaneStore.getState();
-    store.reconcileRoute(thread("a"), { width: 1600, height: 900 });
-    const first = useChatPaneStore.getState().layout!.focusedPaneId;
-    const second = store.split(first, "right", thread("b"))!;
+    const { first, second } = splitPanes();
     const found: string[] = [];
-    const scope = (paneId: string) => ({
-      paneId,
-      layoutVersion: paneId,
-      narrow: false,
-      collapsed: false,
-      element: null,
-    });
     await screen.rerender(
       <>
         <PaneScopeProvider value={scope(first)}>
