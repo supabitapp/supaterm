@@ -284,6 +284,7 @@ import type { MessagesTimelineHistoryControls } from "./chat/MessagesTimeline";
 import type { PinnableProjectedItem } from "./chat/PinnedMessages";
 import type { MessageJump, MessageJumpFailure } from "@supaterm/client-runtime/message-jump";
 import { ThreadTimeline } from "./chat/ThreadTimeline";
+import { NativeChildWorkDialog } from "./chat/NativeChildWorkDialog";
 import { ProviderSubagentBar } from "./chat/ProviderSubagentBar";
 import { getTriggerDisplayModelName } from "./chat/providerIconUtils";
 import {
@@ -3650,6 +3651,14 @@ export default function ChatView(props: ChatViewProps) {
                                     parentThreadLink
                                       ? () => onOpenRelatedThread(parentThreadLink.threadId)
                                       : null
+                                  }
+                                  actions={
+                                    selectedProviderEntry?.driverKind === "antigravity" ? (
+                                      <NativeChildWorkDialog
+                                        environmentId={environmentId}
+                                        threadId={threadId}
+                                      />
+                                    ) : null
                                   }
                                 />
                               ) : null}
