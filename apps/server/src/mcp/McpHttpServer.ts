@@ -774,20 +774,36 @@ const HANDOFF_TOOLS: ReadonlySet<string> = new Set([
   "supaterm_thread_launch",
   "supaterm_thread_send",
   "supaterm_thread_send_attachments",
-  "supaterm_thread_fork",
-  "supaterm_thread_merge_back",
-  "supaterm_queue_edit",
-  "supaterm_queue_promote_to_steer",
-  "supaterm_pending_request_respond",
-  "schedule_task",
   "run_scheduled_task_now",
 ]);
 
-const INPUT_TARGET_TOOLS: ReadonlySet<string> = new Set([
-  "supaterm_queue_edit",
-  "supaterm_queue_promote_to_steer",
-  "supaterm_pending_request_respond",
-]);
+/** Tool actions that hand work over with only a `{ sequence }` result; the input names the thread. */
+const INPUT_TARGET_ACTIONS: Readonly<Record<string, ReadonlySet<string>>> = {
+  supaterm_queue: new Set(["edit", "promote_to_steer"]),
+  supaterm_pending_request: new Set(["respond"]),
+};
+
+/** Tool actions that hand work over and name the receiving thread in their result. */
+const RESULT_TARGET_ACTIONS: Readonly<Record<string, ReadonlySet<string>>> = {
+  supaterm_thread_transfer: new Set(["fork", "merge_back"]),
+};
+
+const hasAction = (
+  actions: Readonly<Record<string, ReadonlySet<string>>>,
+  tool: string,
+  args: unknown,
+) =>
+  actions[tool]?.has(String((args as { readonly action?: unknown } | null | undefined)?.action)) ===
+  true;
+
+const isInputTargetHandoff = (tool: string, args: unknown) =>
+  hasAction(INPUT_TARGET_ACTIONS, tool, args);
+
+/** With `scheduledTaskId`, `schedule_task` edits a task instead of handing work to a new one. */
+const isScheduledTaskCreate = (tool: string, args: unknown) =>
+  tool === "schedule_task" &&
+  (args as { readonly scheduledTaskId?: unknown } | null | undefined)?.scheduledTaskId ===
+    undefined;
 
 const resultThreadKeys = ["childThreadId", "targetThreadId", "boundThreadId", "threadId"] as const;
 
@@ -804,7 +820,7 @@ const handoffTargetIds = (
   args: unknown,
   result: McpSchema.CallToolResult | undefined,
 ): ReadonlyArray<string> => {
-  if (!INPUT_TARGET_TOOLS.has(tool)) return resultThreadIds(result?.structuredContent);
+  if (!isInputTargetHandoff(tool, args)) return resultThreadIds(result?.structuredContent);
   if (result === undefined || toolOutcome(result).outcome !== "ok") return [];
   const threadId = (args as { readonly threadId?: unknown } | null | undefined)?.threadId;
   return typeof threadId === "string" ? [threadId] : [];
@@ -867,7 +883,11 @@ const withToolAnalytics =
         result: McpSchema.CallToolResult | undefined,
         durationMs: number,
       ) {
-        const handoff = HANDOFF_TOOLS.has(tool);
+        const handoff =
+          HANDOFF_TOOLS.has(tool) ||
+          isScheduledTaskCreate(tool, args) ||
+          isInputTargetHandoff(tool, args) ||
+          hasAction(RESULT_TARGET_ACTIONS, tool, args);
         const outcome = toolOutcome(result);
         // Agents call status, read, and preview tools in tight loops, so an
         // event per successful call floods analytics. Only failures count there.

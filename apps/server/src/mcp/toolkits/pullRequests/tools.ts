@@ -402,7 +402,7 @@ export type ListThreadPullRequestsResult = typeof ListThreadPullRequestsResult.T
 
 const LinkPullRequestTool = Tool.make("link_pull_request", {
   description:
-    "Link a PR to this thread. Supaterm shows its status and, when merged threads complete automatically, marks the thread done on merge. For several PRs, use `link_pull_requests`.",
+    "Link a PR to this thread. Supaterm shows its status and marks the thread done on merge. For several PRs, use `link_pull_requests`.",
   parameters: PullRequestTargetInput,
   success: LinkPullRequestResult,
   failure: PullRequestToolError,

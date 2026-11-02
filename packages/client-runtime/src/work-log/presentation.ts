@@ -10,6 +10,7 @@ import {
   type ThreadId,
 } from "@supaterm/contracts";
 import {
+  resolveSupatermMcpSummaryAction,
   resolveSupatermMcpToolDefinition,
   type SupatermMcpToolDefinition,
   type SupatermMcpToolSummaryAction,
@@ -143,6 +144,16 @@ function workEntryToolName(
   return resolveSupatermMcpToolDefinition(entry.toolTitle) ? entry.toolTitle : entry.label;
 }
 
+function workEntryToolInput(
+  entry: Pick<WorkLogPresentationEntry, "toolData" | "structuredPayload">,
+): unknown {
+  const item = entry.structuredPayload;
+  const data = asRecord(entry.toolData);
+  return item?.type === "dynamic_tool"
+    ? item.input
+    : (data?.arguments ?? data?.input ?? data?.rawInput);
+}
+
 function workEntryToolOutput(
   entry: Pick<WorkLogPresentationEntry, "toolData" | "structuredPayload">,
 ): unknown {
@@ -219,7 +230,10 @@ export function resolveWorkEntryToolPresentation(
   >,
   fallbackStatus?: "inProgress" | "completed",
 ) {
-  const definition = resolveSupatermMcpToolDefinition(workEntryToolName(entry));
+  const definition = resolveSupatermMcpToolDefinition(
+    workEntryToolName(entry),
+    workEntryToolInput(entry),
+  );
   const status = entry.toolLifecycleStatus ?? fallbackStatus;
   return resolveSupatermMcpToolPresentation(
     definition,
@@ -445,16 +459,8 @@ function toolGroupActionLabel(action: ToolGroupAction, count: number): string {
 }
 
 function supatermToolSummaryCall(entry: WorkLogPresentationEntry): SupatermToolSummaryCall {
-  const item = entry.structuredPayload;
-  const data =
-    entry.toolData !== null && typeof entry.toolData === "object"
-      ? (entry.toolData as Record<string, unknown>)
-      : undefined;
   return {
-    input:
-      item?.type === "dynamic_tool"
-        ? item.input
-        : (data?.arguments ?? data?.input ?? data?.rawInput),
+    input: workEntryToolInput(entry),
     output: workEntryToolOutput(entry),
     outcome:
       entry.toolLifecycleStatus === "failed" ||
@@ -533,8 +539,10 @@ export function summarizeToolGroup(entries: ReadonlyArray<WorkLogPresentationEnt
   >();
   const sources = new Map<string, ToolActivitySource>();
   for (const entry of entries) {
-    const supatermAction =
-      resolveSupatermMcpToolDefinition(workEntryToolName(entry))?.summaryAction ?? null;
+    const supatermAction = resolveSupatermMcpSummaryAction(
+      workEntryToolName(entry),
+      supatermToolSummaryCall(entry).input,
+    );
     if (entry.toolSource && supatermAction === null) {
       sources.set(entry.toolSource.key, entry.toolSource);
       continue;

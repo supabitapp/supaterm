@@ -529,8 +529,8 @@ function itemToolPresentation(item: OrchestrationV2TurnItem): SupatermMcpToolPre
     return null;
   }
   return (
-    resolveSupatermMcpToolPresentation(item.toolName) ??
-    resolveSupatermMcpToolPresentation(item.title)
+    resolveSupatermMcpToolPresentation(item.toolName, item.input) ??
+    resolveSupatermMcpToolPresentation(item.title, item.input)
   );
 }
 
