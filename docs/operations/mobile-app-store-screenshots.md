@@ -82,9 +82,11 @@ Each target captures thread, terminal, review, thread list, and environments. Ea
 five screenshots satisfy the configured Apple limit of 1–10, Google phone requirement of 2–8, and
 Google tablet recommendation/slot minimum of 4 with a maximum of 8.
 The iPhone Duo is not in the matrix: on CI runners its simulator slows the host until scenes time
-out, and App Store Connect accepts submissions with an empty Duo slot. The harness keeps its fold
-support (`fold` on an iOS device, which needs `agent-device` on PATH or `AGENT_DEVICE_PATH`) so the
-two Duo targets can return to the config once a runner can capture them.
+out, and App Store Connect accepts submissions with an empty Duo slot for now. Apple requires Duo
+screenshots from April 2027 for apps built with the iOS 27.1 SDK or later, so the two Duo targets
+(1398×2034 folded, 2853×2007 unfolded) must return to the config before then. The harness keeps its
+fold support (`fold` on an iOS device, which needs `agent-device` on PATH or `AGENT_DEVICE_PATH`)
+for that.
 
 Every palette gets its own leaf folder so one upload slot never mixes themes and each folder keeps a
 store-legal screenshot count.
