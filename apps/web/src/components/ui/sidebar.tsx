@@ -83,15 +83,18 @@ async function persistSidebarOpen(open: boolean) {
   });
 }
 
-// The desktop sidebar turns inert once collapsed, which drops focus to the body.
+// The desktop sidebar turns inert once collapsed, which drops focus to the body. The
+// outside trigger may only show once collapsed, so focus it after React commits.
 function moveFocusOutOfCollapsingSidebar() {
   const sidebar = document.activeElement?.closest<HTMLElement>('[data-slot="sidebar"]');
   const wrapper = sidebar?.closest<HTMLElement>('[data-slot="sidebar-wrapper"]');
   if (!sidebar || !wrapper) return;
-  const trigger = Array.from(
-    wrapper.querySelectorAll<HTMLElement>('[data-sidebar="trigger"]'),
-  ).find((element) => !sidebar.contains(element));
-  trigger?.focus({ preventScroll: true });
+  queueMicrotask(() => {
+    const trigger = Array.from(
+      wrapper.querySelectorAll<HTMLElement>('[data-sidebar="trigger"]'),
+    ).find((element) => !sidebar.contains(element));
+    trigger?.focus({ preventScroll: true });
+  });
 }
 
 interface SidebarOpenState {
@@ -108,10 +111,10 @@ function createSidebarOpenStore(defaultOpen: boolean) {
     for (const listener of listeners) listener();
   };
   const setOpen = (open: boolean) => {
-    if (!open && state.open) moveFocusOutOfCollapsingSidebar();
     if (open !== state.open) {
       if (!isMobileViewport()) announceSidebarVisibility(open);
       publish({ ...state, open });
+      if (!open) moveFocusOutOfCollapsingSidebar();
     }
     void persistSidebarOpen(open);
   };
