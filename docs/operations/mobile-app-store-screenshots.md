@@ -116,17 +116,20 @@ appearance settings can never drift apart.
 ## Capture in GitHub Actions
 
 Run the `Mobile Showcase Screenshots` workflow from GitHub's Actions tab, choose `all`, `ios`, or
-`android`, select `light`, `dark`, or `both`, and pick a palette (or `all`, which raises each job's
-timeout from 120 to 350 minutes). The default dispatch captures both appearances of the `supaterm`
-palette and runs iOS and Android concurrently: iPhone and iPad capture on macOS, while Android
-phone, 7-inch tablet, and 10-inch tablet capture on Ubuntu with a KVM-accelerated x86_64 emulator.
+`android`, select `light`, `dark`, or `both`, and pick a palette (`all` raises the capture
+timeouts). The default dispatch captures both appearances of the `supaterm` palette and runs iOS
+and Android concurrently. iOS builds the simulator app once on macOS, then captures every
+configured iOS device on its own macOS runner in parallel, because a fresh simulator's first boot
+takes minutes and several booted simulators on one runner starve each other. Android phone, 7-inch
+tablet, and 10-inch tablet capture on one Ubuntu runner with a KVM-accelerated x86_64 emulator.
 
-Every job uploads its slides and its raw captures (`app-store-connect-captures`,
-`google-play-captures`) even when capture fails, which makes partial runs useful for diagnosis.
-The separate validation step is success-gated: it runs before upload only when capture succeeds. If
-capture fails, the `always()` upload still publishes partial PNGs without re-validating them.
-Download `app-store-connect-screenshots` and `google-play-screenshots` from the workflow run's
-Artifacts section. Artifacts are retained for 14 days.
+Every capture job uploads its slides and raw captures even when capture fails, which makes partial
+runs useful for diagnosis: iOS devices upload `app-store-connect-screenshots-<device>` and
+`app-store-connect-captures-<device>`, and a failed device can be retried with "Re-run failed
+jobs". Once every iOS device succeeds, a collect job merges them into
+`app-store-connect-screenshots` and `app-store-connect-captures`. Download those and
+`google-play-screenshots` and `google-play-captures` from the workflow run's Artifacts section.
+Artifacts are retained for 14 days.
 
 The workflow uses the same checked-in device and scene matrix as local capture. Android remains
 ARM64 by default for local Apple Silicon development; CI sets `SUPATERM_SHOWCASE_ANDROID_ABI=x86_64` so the
