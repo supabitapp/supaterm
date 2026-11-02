@@ -41,8 +41,7 @@ const RUN_STATUS_BADGE = {
   running: { Icon: SendIcon, variant: "info" },
 } as const;
 
-const WIDE_COLUMN = "hidden @2xl/automations:table-cell";
-const WIDEST_COLUMN = "hidden @3xl/automations:table-cell";
+const WIDE_COLUMN = "hidden @4xl/automations:table-cell";
 
 export interface AutomationTableEntry {
   readonly environmentId: EnvironmentId;
@@ -72,7 +71,7 @@ export function AutomationTable({
               <span className="ms-2">Automation</span>
             </TableHead>
             {showProject ? <TableHead className={WIDE_COLUMN}>Project</TableHead> : null}
-            {showEnvironment ? <TableHead className={WIDEST_COLUMN}>Environment</TableHead> : null}
+            {showEnvironment ? <TableHead className={WIDE_COLUMN}>Environment</TableHead> : null}
             <TableHead className={WIDE_COLUMN}>
               <Tooltip>
                 <TooltipTrigger
@@ -85,7 +84,7 @@ export function AutomationTable({
                 <TooltipPopup>Fixed times use the environment's time zone.</TooltipPopup>
               </Tooltip>
             </TableHead>
-            <TableHead className={WIDEST_COLUMN}>Last run</TableHead>
+            <TableHead className={WIDE_COLUMN}>Last run</TableHead>
             <TableHead>Next run</TableHead>
             <TableHead>
               <span className="sr-only">Enabled</span>
@@ -202,7 +201,7 @@ function AutomationRow({
           ) : (
             <span className={cn("block truncate text-sm", titleTone)}>{task.title}</span>
           )}
-          <span className="block truncate text-muted-foreground @2xl/automations:hidden">
+          <span className="block truncate text-muted-foreground @4xl/automations:hidden">
             {details.join(" · ")}
           </span>
           {task.lastRunError ? (
@@ -230,14 +229,14 @@ function AutomationRow({
         </TableCell>
       ) : null}
       {showEnvironment ? (
-        <TableCell className={WIDEST_COLUMN}>
+        <TableCell className={WIDE_COLUMN}>
           <span className="block max-w-36 truncate text-muted-foreground">{environmentLabel}</span>
         </TableCell>
       ) : null}
       <TableCell className={WIDE_COLUMN}>
         <span className="tabular-nums text-muted-foreground">{schedule}</span>
       </TableCell>
-      <TableCell className={WIDEST_COLUMN}>
+      <TableCell className={WIDE_COLUMN}>
         <LastRunStatus task={task} now={now} />
       </TableCell>
       <TableCell>
