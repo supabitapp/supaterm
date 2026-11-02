@@ -1,6 +1,11 @@
-import type { VoiceRecorder, VoiceRecorderStatus } from "@supaterm/client-runtime/voice-input";
+import {
+  VoiceTranscriptionError,
+  type VoiceRecorder,
+  type VoiceRecorderStatus,
+} from "@supaterm/client-runtime/voice-input";
+import { TRANSCRIPTION_MIN_DURATION_MS, TranscriptionError } from "@supaterm/contracts";
 
-import { convertRecordingToWav } from "./wav";
+import { convertRecordingToWav, encodeMonoWav, VOICE_SAMPLE_RATE } from "./wav";
 
 const MIME_TYPE_CANDIDATES = [
   "audio/webm;codecs=opus",
@@ -42,8 +47,14 @@ export interface VoiceRecording {
 // Keyed by object URL, the `uri` the shared controller passes around.
 const recordings = new Map<string, VoiceRecording>();
 
-export function readVoiceRecording(uri: string): VoiceRecording | null {
-  return recordings.get(uri) ?? null;
+export function readVoiceRecording(uri: string): VoiceRecording {
+  const recording = recordings.get(uri);
+  if (!recording) throw new Error("The recording is no longer available.");
+  if (recording.durationMs < TRANSCRIPTION_MIN_DURATION_MS) {
+    const { message } = new TranscriptionError({ reason: "audioTooShort" });
+    throw new VoiceTranscriptionError("tooShort", message);
+  }
+  return recording;
 }
 
 export function releaseVoiceRecording(uri: string): void {
@@ -210,12 +221,17 @@ export class WebVoiceRecorder implements VoiceRecorder {
     });
     recorder.stop();
     await stopped;
+    const elapsedMs = performance.now() - this.startedAt;
     const encoded = new Blob(this.chunks, {
       type: recorder.mimeType || this.chunks[0]?.type || "audio/webm",
     });
     this.chunks = [];
-    if (encoded.size === 0) return;
-    const recording = await convertRecordingToWav(encoded);
+    // A tap can stop before the encoder emits any audio; that is an empty recording, not a failure.
+    if (encoded.size === 0 && elapsedMs >= TRANSCRIPTION_MIN_DURATION_MS) return;
+    const recording =
+      encoded.size === 0
+        ? { audio: encodeMonoWav([], VOICE_SAMPLE_RATE), durationMs: 0 }
+        : await convertRecordingToWav(encoded);
     const uri = URL.createObjectURL(recording.audio);
     recordings.set(uri, recording);
     this.uri = uri;

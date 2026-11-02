@@ -11,7 +11,11 @@ import {
   type VoiceInputControllerDependencies,
   type VoiceRecorder,
 } from "./controller.ts";
-import type { PreparedVoiceTranscription, VoiceTranscriber } from "./transcription.ts";
+import {
+  VoiceTranscriptionError,
+  type PreparedVoiceTranscription,
+  type VoiceTranscriber,
+} from "./transcription.ts";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -174,6 +178,15 @@ describe("VoiceInputController", () => {
       error: "Could not save this recording.",
       errorAction: "retry",
     });
+
+    resetVoiceInputGlobalsForTests();
+    const tap = createHarness();
+    await tap.controller.start();
+    await tap.controller.send(async () => {
+      throw new VoiceTranscriptionError("tooShort", "too short");
+    });
+    expect(tap.controller.currentState).toEqual({ phase: "idle", error: null, errorAction: null });
+    expect(tap.deleted).toEqual(["file:///voice.m4a"]);
 
     resetVoiceInputGlobalsForTests();
     const limited = createHarness();

@@ -197,6 +197,10 @@ function preparationErrorMessage(error: unknown): string {
   return "Could not prepare voice transcription.";
 }
 
+function isTooShort(error: unknown): boolean {
+  return error instanceof VoiceTranscriptionError && error.code === "tooShort";
+}
+
 function transcriptionErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message === "voice-operation-busy") {
     return "Voice transcription is still finishing. Try again shortly.";
@@ -429,10 +433,11 @@ export class VoiceInputController {
       if (deliver && this.recordingUri) {
         try {
           await deliver(this.recordingUri);
-        } catch {
-          if (this.isCurrent(operationToken))
+        } catch (error) {
+          if (this.isCurrent(operationToken) && !isTooShort(error)) {
             this.setError("Could not save this recording.", "retry");
-          return;
+            return;
+          }
         }
         if (this.isCurrent(operationToken)) this.setState(IDLE_STATE);
         return;
@@ -458,11 +463,8 @@ export class VoiceInputController {
         );
       } catch (error) {
         if (!this.isCurrent(operationToken)) return;
-        if (error instanceof VoiceTranscriptionError && error.code === "tooShort") {
-          this.setState(IDLE_STATE);
-        } else {
-          this.setError(transcriptionErrorMessage(error), "retry");
-        }
+        if (isTooShort(error)) this.setState(IDLE_STATE);
+        else this.setError(transcriptionErrorMessage(error), "retry");
         return;
       }
       if (!this.isCurrent(operationToken)) return;

@@ -6,12 +6,7 @@ import {
   type VoiceDraftSnapshot,
   type VoiceInputState,
 } from "@supaterm/client-runtime/voice-input";
-import {
-  TRANSCRIPTION_MIN_DURATION_MS,
-  type EnvironmentId,
-  type ProjectId,
-  type ThreadId,
-} from "@supaterm/contracts";
+import type { EnvironmentId, ProjectId, ThreadId } from "@supaterm/contracts";
 import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { ComposerSubmissionIntent } from "../composer-logic";
@@ -140,7 +135,6 @@ function createVoiceRuntime(onStateChange: (state: VoiceInputState) => void) {
         locale: language,
         transcribe: (uri, signal) => {
           const recording = readVoiceRecording(uri);
-          if (!recording) throw new Error("The recording is no longer available.");
           return uploadVoiceAudio({
             environmentId,
             audio: recording.audio,
@@ -242,12 +236,7 @@ export function useComposerVoiceInput(options: ComposerVoiceInputOptions) {
     if (controller.currentState.phase !== "recording") return;
     if (availability.canSend) {
       const sendVoice = runtime.read().prepareVoiceSend(submission);
-      await controller.send(async (uri) => {
-        const recording = readVoiceRecording(uri);
-        if (!recording) throw new Error("The recording is no longer available.");
-        if (recording.durationMs < TRANSCRIPTION_MIN_DURATION_MS) return;
-        await sendVoice(recording);
-      });
+      await controller.send((uri) => sendVoice(readVoiceRecording(uri)));
       return;
     }
     if (!availability.canReview) return;
