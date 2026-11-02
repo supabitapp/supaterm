@@ -406,8 +406,6 @@ import { SquareHalfBottomIcon as PanelBottomSource } from "@phosphor-icons/react
 export const PanelBottomIcon = /* @__PURE__ */ withIconDefaults(PanelBottomSource);
 import { SidebarSimpleIcon as PanelLeftSource } from "@phosphor-icons/react/dist/csr/SidebarSimple";
 export const PanelLeftIcon = /* @__PURE__ */ withIconDefaults(PanelLeftSource);
-import { ArrowLineLeftIcon as PanelLeftCloseSource } from "@phosphor-icons/react/dist/csr/ArrowLineLeft";
-export const PanelLeftCloseIcon = /* @__PURE__ */ withIconDefaults(PanelLeftCloseSource);
 import { SidebarSimpleIcon as PanelRightSource } from "@phosphor-icons/react/dist/csr/SidebarSimple";
 export const PanelRightIcon = /* @__PURE__ */ withIconDefaults(PanelRightSource, {
   mirrored: true,

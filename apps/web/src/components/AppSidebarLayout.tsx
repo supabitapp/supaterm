@@ -243,7 +243,7 @@ function registerAppShellCommands(router: AnyRouter, shellElement: Element): () 
 
 function SidebarControl() {
   const router = useRouter();
-  const { toggleSidebar, isMobile, open, mobileSheetMounted } = useSidebar();
+  const { toggleSidebar, isMobile, mobileSheetMounted } = useSidebar();
 
   const toggleSidebarFromCommand = useEffectEvent(() => toggleSidebar());
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers the sidebar toggle with the command dispatcher for the control's lifetime
@@ -256,14 +256,12 @@ function SidebarControl() {
       node === null ? undefined : registerAppShellCommands(router, node),
   );
 
-  // The open desktop sidebar shows its own toggle beside the app name.
-  const hidden = isMobile ? mobileSheetMounted : open;
   return (
     <div
       ref={appShellCommandsRef}
       className={cn(
         "pointer-events-none fixed left-[var(--workspace-controls-left)] top-[var(--workspace-controls-top)] z-50 ml-px flex h-[var(--workspace-topbar-height)] items-center",
-        hidden && "hidden",
+        isMobile && mobileSheetMounted && "hidden",
       )}
       data-sidebar-control=""
     >

@@ -1,4 +1,4 @@
-import { PanelLeftIcon, PanelLeftCloseIcon } from "@supaterm/icons";
+import { PanelLeftIcon } from "@supaterm/icons";
 import { mergeProps } from "@base-ui/react/merge-props";
 import { useRender } from "@base-ui/react/use-render";
 import { cva, type VariantProps } from "class-variance-authority";
@@ -313,7 +313,6 @@ function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<t
   const { toggleSidebar } = useSidebar();
   const isOpen = useSidebarVisibility();
 
-  const Icon = isOpen ? PanelLeftCloseIcon : PanelLeftIcon;
   return (
     <Button
       className={cn(
@@ -331,7 +330,14 @@ function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<t
       variant="ghost"
       {...props}
     >
-      <Icon className="size-4" />
+      <PanelLeftIcon
+        weight="duotone"
+        className={cn(
+          "size-4 [&>path[opacity]]:opacity-100 [&>path[opacity]]:origin-left [&>path[opacity]]:transform-fill",
+          "[[data-panel-animations=true]_&>path[opacity]]:motion-safe:transition-[scale] [[data-panel-animations=true]_&>path[opacity]]:motion-safe:duration-(--panel-animation-duration) [[data-panel-animations=true]_&>path[opacity]]:motion-safe:ease-drawer",
+          !isOpen && "[&>path[opacity]]:scale-x-0",
+        )}
+      />
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   );
