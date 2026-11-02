@@ -177,10 +177,11 @@ function VoiceLanguageSettingRow(props: { readonly providers: ReadonlyArray<Serv
 function VoiceHoldToTalkSettingRow() {
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
+  const isMac = isMacPlatform(navigator.platform);
   const options = [
-    { value: "alt", label: isMacPlatform(navigator.platform) ? "Option" : "Alt" },
-    { value: "space", label: "Space" },
-    { value: "off", label: "Off" },
+    { value: "alt", label: isMac ? "Option" : "Alt", display: isMac ? "⌥ Option" : "Alt" },
+    { value: "space", label: "Space", display: "Space" },
+    { value: "off", label: "Off", display: "Off" },
   ] as const;
   return (
     <SettingsRow
@@ -206,13 +207,18 @@ function VoiceHoldToTalkSettingRow() {
         >
           <SelectTrigger size="sm" className="w-auto min-w-0 max-w-full" aria-label="Hold to talk">
             <SelectValue>
-              {options.find((option) => option.value === settings.voiceHoldToTalkKey)?.label}
+              {options.find((option) => option.value === settings.voiceHoldToTalkKey)?.display}
             </SelectValue>
           </SelectTrigger>
           <SelectPopup align="end" alignItemWithTrigger={false}>
             {options.map((option) => (
-              <SelectItem hideIndicator key={option.value} value={option.value}>
-                {option.label}
+              <SelectItem
+                hideIndicator
+                key={option.value}
+                value={option.value}
+                label={option.label}
+              >
+                {option.display}
               </SelectItem>
             ))}
           </SelectPopup>

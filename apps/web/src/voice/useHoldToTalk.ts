@@ -2,7 +2,14 @@ import type { VoiceHoldToTalkKey } from "@supaterm/contracts";
 import { type RefObject, useEffect } from "react";
 
 import { useStableCallback } from "../hooks/useStableCallback";
+import { isMacPlatform } from "../lib/utils";
 import type { KeyHold, KeyHoldHandlers } from "./keyHold";
+
+export function holdToTalkKeyLabel(key: VoiceHoldToTalkKey): string | null {
+  if (key === "off") return null;
+  if (key === "space") return "Space";
+  return isMacPlatform(navigator.platform) ? "⌥" : "Alt";
+}
 
 export interface ComposerDraft {
   readonly text: string;
