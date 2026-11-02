@@ -26,8 +26,10 @@ import { Fragment } from "react";
 import { tickTextContent } from "~/lib/tickTextContent";
 import { InlineConfirmButton } from "../InlineConfirm";
 import { Button, InlineButton } from "../ui/button";
+import { PopoverTrigger } from "../ui/popover";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import {
+  type BackgroundTaskOutputHandle,
   BackgroundTaskOutputPopover,
   type BackgroundTaskOutputTarget,
   BackgroundWorkIcon,
@@ -161,6 +163,7 @@ export function backgroundWorkBannerItem(input: {
   readonly threadId: ThreadId;
   readonly threadRef: ScopedThreadRef | null;
   readonly tasks: ReadonlyArray<OrchestrationV2PendingBackgroundTask>;
+  readonly outputHandle: BackgroundTaskOutputHandle;
   /** The workflow run the work watches; it colors the dot and opens its checks. */
   readonly watchedRun: WatchedRunProps;
   readonly stopDisabled: boolean;
@@ -179,7 +182,9 @@ export function backgroundWorkBannerItem(input: {
   });
   const [only] = presentation.items;
   const titleOutput =
-    presentation.items.length === 1 && only?.hasOutput ? outputTarget(only) : null;
+    presentation.items.length === 1 && only?.hasOutput
+      ? { handle: input.outputHandle, target: outputTarget(only) }
+      : null;
   return {
     id: `background-work:${input.threadId}`,
     variant: "default",
@@ -216,13 +221,13 @@ export function backgroundWorkBannerItem(input: {
                   {presentation.items.length === 1 ? "Show" : item.label}
                 </InlineButton>
               ) : item.hasOutput ? (
-                <BackgroundTaskOutputPopover
-                  target={outputTarget(item)}
+                <PopoverTrigger
+                  handle={input.outputHandle}
+                  payload={outputTarget(item)}
                   render={<InlineButton tone="muted" />}
-                  nativeButton
                 >
                   {item.label}
-                </BackgroundTaskOutputPopover>
+                </PopoverTrigger>
               ) : null;
             return (
               <Fragment key={item.taskId}>
@@ -242,14 +247,17 @@ export function backgroundWorkBannerItem(input: {
             );
           }),
     actions: (
-      <Button
-        size="xs"
-        variant="ghost"
-        disabled={input.stopDisabled}
-        onClick={() => void input.onStop()}
-      >
-        {input.stopping ? "Stopping..." : "Stop"}
-      </Button>
+      <>
+        <BackgroundTaskOutputPopover handle={input.outputHandle} />
+        <Button
+          size="xs"
+          variant="ghost"
+          disabled={input.stopDisabled}
+          onClick={() => void input.onStop()}
+        >
+          {input.stopping ? "Stopping..." : "Stop"}
+        </Button>
+      </>
     ),
   };
 }

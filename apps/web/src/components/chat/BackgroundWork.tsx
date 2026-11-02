@@ -5,7 +5,7 @@ import type {
   ThreadId,
   ThreadWorkflowRunKey,
 } from "@supaterm/contracts";
-import type { ReactElement, ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import { cn } from "~/lib/utils";
 import { orchestrationEnvironment } from "~/state/orchestration";
@@ -125,38 +125,36 @@ export interface BackgroundTaskOutputTarget {
   readonly label: string;
 }
 
+export type BackgroundTaskOutputHandle = ReturnType<
+  typeof PopoverCreateHandle<BackgroundTaskOutputTarget>
+>;
+
 const titleTriggerClassName =
   "cursor-pointer rounded-sm underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring";
 
-/** Opens a background command's live output, which streams only while the popover is open. */
-export function BackgroundTaskOutputPopover({
-  target,
-  render,
-  nativeButton,
-  children,
-}: {
-  target: BackgroundTaskOutputTarget;
-  render: ReactElement;
-  nativeButton: boolean;
-  children: ReactNode;
-}) {
+/**
+ * The banner's one output popover. Its triggers sit in the banner's text and name the task;
+ * the root stays outside that text, which measures itself for overflow.
+ */
+export function BackgroundTaskOutputPopover({ handle }: { handle: BackgroundTaskOutputHandle }) {
   return (
-    <Popover>
-      <PopoverTrigger nativeButton={nativeButton} render={render}>
-        {children}
-      </PopoverTrigger>
-      <PopoverPopup side="top" align="start" width="xl" aria-label={`Output: ${target.label}`}>
-        <div className="mb-2 truncate font-medium text-xs">{target.label}</div>
-        <div className="font-mono text-(length:--font-size-code,var(--text-2xs)) leading-relaxed whitespace-pre-wrap break-words select-text">
-          <CommandOutputPanel
-            output={orchestrationEnvironment.v2.backgroundTaskOutput({
-              environmentId: target.environmentId,
-              input: { threadId: target.threadId, taskId: target.taskId },
-            })}
-            waitingLabel="No output yet."
-          />
-        </div>
-      </PopoverPopup>
+    <Popover handle={handle}>
+      {({ payload }) =>
+        payload === undefined ? null : (
+          <PopoverPopup side="top" align="start" width="xl" aria-label={`Output: ${payload.label}`}>
+            <div className="mb-2 truncate font-medium text-xs">{payload.label}</div>
+            <div className="font-mono text-(length:--font-size-code,var(--text-2xs)) leading-relaxed whitespace-pre-wrap break-words select-text">
+              <CommandOutputPanel
+                output={orchestrationEnvironment.v2.backgroundTaskOutput({
+                  environmentId: payload.environmentId,
+                  input: { threadId: payload.threadId, taskId: payload.taskId },
+                })}
+                waitingLabel="No output yet."
+              />
+            </div>
+          </PopoverPopup>
+        )
+      }
     </Popover>
   );
 }
@@ -169,19 +167,23 @@ export function BackgroundWorkTitle({
   title,
   output,
   ...props
-}: WatchedRunProps & { title: string; output: BackgroundTaskOutputTarget | null }) {
+}: WatchedRunProps & {
+  title: string;
+  output: { handle: BackgroundTaskOutputHandle; target: BackgroundTaskOutputTarget } | null;
+}) {
   const watched = useWatchedRun(props);
   if (watched === null) {
     return output === null ? (
       title
     ) : (
-      <BackgroundTaskOutputPopover
-        target={output}
-        render={<span role="button" tabIndex={0} className={titleTriggerClassName} />}
+      <PopoverTrigger
+        handle={output.handle}
+        payload={output.target}
         nativeButton={false}
+        render={<span role="button" tabIndex={0} className={titleTriggerClassName} />}
       >
         {title}
-      </BackgroundTaskOutputPopover>
+      </PopoverTrigger>
     );
   }
   return (

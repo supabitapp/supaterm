@@ -349,6 +349,25 @@ export function ComposerBannerStack({ className, items }: ComposerBannerStackPro
 
 const SUBPIXEL_ROUNDING = 0.001;
 
+/**
+ * The width an element's children lay out to. An open popover puts 1px fixed focus guards
+ * beside its trigger, at the viewport's origin; they are not content. A range counts nested
+ * elements only through the child that holds them, so skipping guard children is enough.
+ */
+function contentWidth(element: Element, range: Range): number {
+  let left = Infinity;
+  let right = -Infinity;
+  for (const node of element.childNodes) {
+    if (node instanceof Element && node.hasAttribute("data-base-ui-focus-guard")) continue;
+    range.selectNode(node);
+    const rect = range.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) continue;
+    left = Math.min(left, rect.left);
+    right = Math.max(right, rect.right);
+  }
+  return right > left ? right - left : 0;
+}
+
 export function NoticeText({
   children,
   className,
@@ -381,9 +400,8 @@ export function NoticeText({
           // such as a link's touch hit area, which overflow without cutting any text.
           // The two rects can disagree by float rounding (~0.00001px on phones); real
           // overflow is at least one layout unit, 1/64 of a device pixel.
-          range.selectNodeContents(element);
           return (
-            range.getBoundingClientRect().width >
+            contentWidth(element, range) >
             element.getBoundingClientRect().width + recoveredWidth + SUBPIXEL_ROUNDING
           );
         });

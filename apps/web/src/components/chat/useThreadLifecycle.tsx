@@ -56,7 +56,8 @@ import { appAtomRegistry } from "../../rpc/atomRegistry";
 import { readEnvironmentScope } from "../../state/session";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { useOrchestrationCommand } from "../../state/use-orchestration-command";
-import type { PopoverCreateHandle } from "../ui/popover";
+import { PopoverCreateHandle } from "../ui/popover";
+import type { BackgroundTaskOutputTarget } from "./BackgroundWork";
 import type { EnvironmentPresentation } from "../../state/environments";
 import {
   backgroundWorkBannerItem,
@@ -379,6 +380,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
   // visible stop; the interrupt path accepts a completed run while background work remains.
   const activeBackgroundTasks = !isWorking && activeThread ? pendingBackgroundTasks : [];
   const [stoppingBackgroundWorkKey, setStoppingBackgroundWorkKey] = useState<string | null>(null);
+  const [backgroundTaskOutputHandle] = useState(PopoverCreateHandle<BackgroundTaskOutputTarget>);
   const isStoppingBackgroundWork =
     stoppingBackgroundWorkKey === `${environmentId}:${activeThreadId}`;
   const handleStopBackgroundWork = async () => {
@@ -522,6 +524,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
         threadId: activeThread.id,
         threadRef: activeThreadRef,
         tasks: activeBackgroundTasks,
+        outputHandle: backgroundTaskOutputHandle,
         watchedRun: {
           run: backgroundWorkWatches.length === 1 ? backgroundWorkWatches[0]! : null,
           environmentId: activeThread.environmentId,
