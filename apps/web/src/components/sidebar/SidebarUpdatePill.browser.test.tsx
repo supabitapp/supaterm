@@ -105,6 +105,37 @@ describe("SidebarUpdatePill release notes", () => {
   });
 });
 
+describe("SidebarUpdatePill background checks", () => {
+  it("stays hidden while checking with no update found", async () => {
+    const upToDate: DesktopUpdateState = {
+      ...nightlyUpdate([]),
+      status: "up-to-date",
+      availableVersion: null,
+    };
+    setup(upToDate);
+    await using screen = await render(<SidebarUpdatePill />);
+
+    await publish({ ...upToDate, status: "checking" });
+    expect(screen.container.querySelector("button")).toBeNull();
+  });
+
+  it("keeps showing a downloaded update while checking", async () => {
+    const downloaded: DesktopUpdateState = {
+      ...nightlyUpdate([]),
+      status: "downloaded",
+      downloadedVersion: "0.0.50-nightly.2",
+      downloadPercent: 100,
+    };
+    const label = "Update 0.0.50-nightly.2 downloaded. Click to restart and install.";
+    setup(downloaded);
+    await using screen = await render(<SidebarUpdatePill />);
+    await expect.element(screen.getByRole("button", { name: label })).toBeVisible();
+
+    await publish({ ...downloaded, status: "checking" });
+    await expect.element(screen.getByRole("button", { name: label })).toBeVisible();
+  });
+});
+
 describe("SidebarUpdatePill update everything", () => {
   it("does not refocus the update button after a pointer cancel", async () => {
     setup(null, { hasUpdates: true });
