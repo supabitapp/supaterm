@@ -2635,7 +2635,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         collapseThresholdPx: COMPOSER_SCROLL_COLLAPSE_THRESHOLD_PX,
         collapseEligible: targetsTimeline && composerScrollCollapseEligibleRef.current,
         canScrollInGestureDirection,
-        scrollsTowardLogicalEnd: event.deltaY > 0 && isTimelineAtLogicalEnd(),
+        atLogicalEnd: isTimelineAtLogicalEnd(),
       });
       if (!shouldCollapse) {
         return;

@@ -55,15 +55,16 @@ export function recordComposerScrollGestureEvent(
     collapseThresholdPx: number;
     collapseEligible: boolean;
     canScrollInGestureDirection: boolean;
-    scrollsTowardLogicalEnd: boolean;
+    atLogicalEnd: boolean;
   },
 ): boolean {
   state.lastEventAt = input.now;
+  // Any wheel-down inside the end band restores the composer, so collapsing there would undo itself.
   if (
     state.collapseSuppressed ||
     !input.collapseEligible ||
     !input.canScrollInGestureDirection ||
-    input.scrollsTowardLogicalEnd
+    input.atLogicalEnd
   ) {
     state.accumulatedDeltaPx = 0;
     return false;
