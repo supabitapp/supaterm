@@ -291,7 +291,9 @@ async function composeCaptureSet(
     validateStoreAsset(capture.device.storeAsset, normalized, `${capture.device.id}/${scene}.png`);
     slides.push({ scene, png: normalized });
   }
-  await NodeFSP.rm(destination, { recursive: true, force: true });
+  if (capture.scenes.length === capture.device.scenes.length) {
+    await NodeFSP.rm(destination, { recursive: true, force: true });
+  }
   await NodeFSP.mkdir(destination, { recursive: true });
   for (const { scene, png } of slides) {
     await NodeFSP.writeFile(NodePath.join(destination, `${scene}.png`), png);
