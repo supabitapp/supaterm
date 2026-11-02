@@ -397,8 +397,7 @@ Counters tell you volume and failure rate:
 - `supaterm_git_commands_total`
 
 `supaterm_secret_requests_total` by `status` (`saved`, `declined`, `cancelled`, `timed_out`) counts
-secrets agents asked users for, and `supaterm_secret_refs_consumed_total` by `result` (`used`,
-`rejected`) counts tools redeeming them. Neither ever carries a value.
+secrets agents asked users for. It never carries a value.
 
 Use metrics when the question is:
 

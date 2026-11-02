@@ -13,7 +13,6 @@ import {
   RunId,
   RuntimeRequestId,
   ScheduledTaskId,
-  SecretRef,
   ThreadId,
   TrimmedNonEmptyString,
   TurnItemId,
@@ -656,16 +655,12 @@ export type OrchestratorMcpUpdateScheduledTaskInput =
 
 export const OrchestratorMcpRequestSecretInput = Schema.Struct({
   label: TrimmedNonEmptyString.annotate({
-    description: "Card title, such as 'GitHub webhook secret'.",
+    description: "Card title, such as 'GitHub token'.",
   }),
   reason: TrimmedNonEmptyString.annotate({
     description: "What it is for and where to get it.",
   }),
   placeholder: Schema.optional(TrimmedNonEmptyString),
-  delivery: Schema.optional(Schema.Literals(["secretRef", "file"])).annotate({
-    description:
-      'secretRef (default) for a Supaterm tool. file for a shell CLI: read the path in your command, e.g. TOKEN="$(cat <file>)" wrangler whoami.',
-  }),
   timeoutMs: Schema.optional(
     Schema.Int.check(Schema.isBetween({ minimum: 1_000, maximum: 60 * 60 * 1_000 })),
   ).annotate({ description: "Default 10 min." }),
@@ -678,12 +673,6 @@ export type OrchestratorMcpRequestSecretInput = typeof OrchestratorMcpRequestSec
 export const OrchestratorMcpRequestSecretResult = Schema.Union([
   Schema.Struct({
     status: Schema.Literal("saved"),
-    secretRef: SecretRef.annotate({
-      description: "One-use. Pass to a tool that accepts a secretRef. You never see the value.",
-    }),
-  }),
-  Schema.Struct({
-    status: Schema.Literal("saved").annotate({ description: "file holds the value." }),
     file: Schema.String.annotate({
       description:
         "Owner-only file with the value. Read it inside commands and never print it. Deleted after 24 hours.",

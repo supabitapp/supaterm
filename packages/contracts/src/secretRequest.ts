@@ -2,7 +2,7 @@ import * as Schema from "effect/Schema";
 
 import { ThreadId, TurnItemId } from "./baseSchemas.ts";
 
-/** Server stores the value under a one-use SecretRef; the thread learns only status. */
+/** Server keeps the value until it moves to the agent's file; the thread learns only status. */
 export const SecretRequestAnswerInput = Schema.Struct({
   threadId: ThreadId,
   turnItemId: TurnItemId,
@@ -23,14 +23,11 @@ const SECRET_REQUEST_FAILURE_MESSAGES = {
   agent_stopped: "The agent that asked has stopped, so this secret can't be used.",
   store_failed: "Could not store the secret.",
   record_failed: "Saved the secret, but could not update the request.",
-  invalid_ref: "That secretRef is not valid.",
   read_failed: "Could not read the secret.",
-  ref_unavailable:
-    "That secretRef was already used or does not exist. Ask the user again with request_secret.",
-  ref_expired: "That secretRef expired. Ask the user again with request_secret.",
-  consume_failed: "Could not use that secretRef. Try again.",
-  not_a_file_request:
-    'The user did not save this secret for shell use. Ask again with request_secret and delivery: "file".',
+  secret_unavailable:
+    "The saved secret is no longer available. Ask the user again with request_secret.",
+  secret_expired: "The saved secret expired. Ask the user again with request_secret.",
+  delivery_failed: "Could not finish writing the secret file. Try again.",
 } as const;
 
 export const SecretRequestFailureReason = Schema.Literals(

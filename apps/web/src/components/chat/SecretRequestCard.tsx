@@ -5,7 +5,7 @@ import {
   secretRequestAnswerInput,
   secretRequestDisplay,
   secretRequestFailureMessage,
-  secretRequestPrivacyNote,
+  SECRET_REQUEST_PRIVACY_NOTE,
   type SecretRequestItem,
 } from "@supaterm/client-runtime/secret-request";
 import {
@@ -162,7 +162,7 @@ function PendingSecretRequestForm(props: {
           className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground"
         >
           <ShieldCheckIcon className="size-3.5 shrink-0" aria-hidden />
-          {secretRequestPrivacyNote(item)}
+          {SECRET_REQUEST_PRIVACY_NOTE}
         </p>
         <Button
           type="button"

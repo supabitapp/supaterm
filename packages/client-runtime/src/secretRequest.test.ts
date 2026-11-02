@@ -11,7 +11,6 @@ import {
   secretRequestAnswerInput,
   secretRequestDisplay,
   secretRequestFailureMessage,
-  secretRequestPrivacyNote,
 } from "./secretRequest.ts";
 
 const decodeAnswer = Schema.decodeUnknownSync(SecretRequestAnswerInput);
@@ -44,13 +43,6 @@ describe("secretRequestAnswerInput", () => {
         answer: { type: "save", secret: "\t\r\n" },
       }),
     ).toThrow();
-  });
-});
-
-describe("secretRequestPrivacyNote", () => {
-  it("does not promise to hide a value that the agent's commands can read", () => {
-    expect(secretRequestPrivacyNote({})).toBe("Stored securely, never shown to the agent");
-    expect(secretRequestPrivacyNote({ delivery: "file" })).not.toContain("never shown");
   });
 });
 
