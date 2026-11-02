@@ -59,31 +59,46 @@ it.layer(NodeServices.layer)("ClaudeHome", (it) => {
     );
   });
 
-  it.effect("labels Claude processes supaterm unless instance env or Claude settings set one", () =>
-    Effect.gen(function* () {
-      const fileSystem = yield* FileSystem.FileSystem;
-      const path = yield* Path.Path;
-      const homePath = yield* fileSystem.makeTempDirectoryScoped({
-        prefix: "supaterm-claude-home-",
-      });
-      const host = { CLAUDE_CODE_ENTRYPOINT: "claude-desktop", KEEP: "1" };
-      const instance = [{ name: "CLAUDE_CODE_ENTRYPOINT", value: "instance", sensitive: false }];
+  it.effect(
+    "drops the launching Claude session and labels processes supaterm unless overridden",
+    () =>
+      Effect.gen(function* () {
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const homePath = yield* fileSystem.makeTempDirectoryScoped({
+          prefix: "supaterm-claude-home-",
+        });
+        const host = {
+          CLAUDE_CODE_ENTRYPOINT: "claude-desktop",
+          CLAUDECODE: "1",
+          CLAUDE_CODE_SESSION_ID: "host-session",
+          CLAUDE_CODE_MESSAGING_SOCKET: "/tmp/host-claude.sock",
+          CLAUDE_EFFORT: "high",
+          KEEP: "1",
+        };
+        const instance = [
+          { name: "CLAUDE_CODE_ENTRYPOINT", value: "instance", sensitive: false },
+          { name: "CLAUDE_EFFORT", value: "low", sensitive: false },
+        ];
 
-      expect(yield* mergeClaudeProcessEnvironment({ homePath }, undefined, host)).toMatchObject({
-        CLAUDE_CODE_ENTRYPOINT: "supaterm",
-        KEEP: "1",
-      });
-      expect(
-        (yield* mergeClaudeProcessEnvironment({ homePath }, instance, host)).CLAUDE_CODE_ENTRYPOINT,
-      ).toBe("instance");
+        expect(yield* mergeClaudeProcessEnvironment({ homePath }, undefined, host)).toEqual({
+          CLAUDE_CODE_ENTRYPOINT: "supaterm",
+          KEEP: "1",
+        });
+        expect(yield* mergeClaudeProcessEnvironment({ homePath }, instance, host)).toEqual({
+          CLAUDE_CODE_ENTRYPOINT: "instance",
+          CLAUDE_EFFORT: "low",
+          KEEP: "1",
+        });
 
-      yield* fileSystem.writeFileString(
-        path.join(homePath, "settings.json"),
-        JSON.stringify({ env: { CLAUDE_CODE_ENTRYPOINT: "custom" } }),
-      );
-      expect(
-        (yield* mergeClaudeProcessEnvironment({ homePath }, instance, host)).CLAUDE_CODE_ENTRYPOINT,
-      ).toBe("custom");
-    }),
+        yield* fileSystem.writeFileString(
+          path.join(homePath, "settings.json"),
+          JSON.stringify({ env: { CLAUDE_CODE_ENTRYPOINT: "custom" } }),
+        );
+        expect(
+          (yield* mergeClaudeProcessEnvironment({ homePath }, instance, host))
+            .CLAUDE_CODE_ENTRYPOINT,
+        ).toBe("custom");
+      }),
   );
 });
