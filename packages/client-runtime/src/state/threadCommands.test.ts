@@ -9,9 +9,13 @@ import {
   ProjectId,
   ProviderInstanceId,
   ThreadId,
+  TurnItemId,
   type OrchestrationV2Command,
   type OrchestrationV2ShellSnapshot,
+  type OrchestrationV2ThreadProjection,
+  type ThreadPinnedMessage,
 } from "@supaterm/contracts";
+import { isPinnableMessageItem, pinnedMessageOf } from "@supaterm/shared/pinnedMessages";
 import * as DateTime from "effect/DateTime";
 import * as Crypto from "effect/Crypto";
 import * as Deferred from "effect/Deferred";
@@ -23,13 +27,16 @@ import * as Option from "effect/Option";
 import * as Queue from "effect/Queue";
 import * as Scope from "effect/Scope";
 import * as SubscriptionRef from "effect/SubscriptionRef";
-import { Atom, AtomRegistry } from "effect/reactivity";
+import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 
 import * as EnvironmentRegistry from "../connection/registry.ts";
 import * as EnvironmentSupervisor from "../connection/supervisor.ts";
 import type { RpcSession } from "../rpc/session.ts";
+import { v2Projection } from "./orchestrationV2TestFixtures.ts";
 import { createThreadEnvironmentAtoms } from "./threadCommands.ts";
 import * as ThreadHistoryController from "./threadHistoryController.ts";
+import { createOptimisticMessagePins } from "./threadMessagePins.ts";
+import { EMPTY_ENVIRONMENT_THREAD_STATE, type EnvironmentThreadState } from "./threadState.ts";
 
 const ENVIRONMENT_ID = EnvironmentId.make("remote");
 const THREAD_ID = ThreadId.make("thread");
@@ -550,5 +557,91 @@ describe("remote thread lifecycle commands", () => {
         expect(h.registry.get(h.visibleAtom)?.threads[0]?.pendingRuntimeRequest).toBeNull();
         expect(h.registry.get(h.snapshotAtom(ENVIRONMENT_ID))).toBe(stale);
       }),
+  );
+});
+
+describe("message pins", () => {
+  const ITEM_ID = TurnItemId.make("item");
+  const row = {
+    position: 0,
+    visibility: "local",
+    sourceThreadId: THREAD_ID,
+    sourceItemId: ITEM_ID,
+    item: {
+      id: ITEM_ID,
+      type: "user_message",
+      messageId: MessageId.make("message"),
+      text: "Ship the **fix**",
+      startedAt: NOW,
+      updatedAt: NOW,
+    },
+  } as unknown as OrchestrationV2ThreadProjection["visibleTurnItems"][number];
+  const serverPin = isPinnableMessageItem(row.item) ? pinnedMessageOf(row.item, THREAD_ID) : null;
+  const threadState = (
+    sequence: number,
+    pinnedMessages: ReadonlyArray<ThreadPinnedMessage>,
+  ): AsyncResult.AsyncResult<EnvironmentThreadState> =>
+    AsyncResult.success({
+      ...EMPTY_ENVIRONMENT_THREAD_STATE,
+      status: "live",
+      sequence,
+      data: Option.some({
+        ...v2Projection,
+        thread: { ...v2Projection.thread, pinnedMessages },
+        visibleTurnItems: [row],
+      }),
+    });
+
+  const makePinHarness = Effect.fn("TestMessagePins.makeHarness")(function* (
+    initial: AsyncResult.AsyncResult<EnvironmentThreadState>,
+  ) {
+    const h = yield* makeHarness();
+    const source = Atom.make(initial);
+    const pins = createOptimisticMessagePins(() => source);
+    const visible = pins.stateAtom(ENVIRONMENT_ID, THREAD_ID);
+    h.registry.mount(visible);
+    const visiblePins = () =>
+      AsyncResult.value(h.registry.get(visible)).pipe(
+        Option.flatMap((state) => state.data),
+        Option.map((projection) => projection.thread.pinnedMessages),
+        Option.getOrNull,
+      );
+    return { ...h, source, pins, visible, visiblePins };
+  });
+
+  it.effect("shows a pin before the reply and holds it until the thread catches up", () =>
+    Effect.gen(function* () {
+      const h = yield* makePinHarness(threadState(1, []));
+      const result = h.pins.wrap(h.commands.pinMessage, true).run(h.registry, {
+        environmentId: ENVIRONMENT_ID,
+        input: { threadId: THREAD_ID, itemId: ITEM_ID },
+      });
+      expect(h.visiblePins()).toEqual([serverPin]);
+      const request = yield* Queue.take(h.requests);
+      expect(request.command.type).toBe("thread.message.pin");
+      yield* Deferred.succeed(request.reply, { sequence: 3 });
+      expect((yield* Effect.promise(() => result))._tag).toBe("Success");
+      h.registry.set(h.source, threadState(2, []));
+      expect(h.visiblePins()).toEqual([serverPin]);
+      const confirmed = threadState(3, [serverPin!]);
+      h.registry.set(h.source, confirmed);
+      expect(h.registry.get(h.visible)).toBe(confirmed);
+    }),
+  );
+
+  it.effect("restores an unpinned message when the server rejects the unpin", () =>
+    Effect.gen(function* () {
+      const initial = threadState(1, [serverPin!]);
+      const h = yield* makePinHarness(initial);
+      const result = h.pins.wrap(h.commands.unpinMessage, false).run(h.registry, {
+        environmentId: ENVIRONMENT_ID,
+        input: { threadId: THREAD_ID, itemId: ITEM_ID },
+      });
+      expect(h.visiblePins()).toEqual([]);
+      const request = yield* Queue.take(h.requests);
+      yield* Deferred.fail(request.reply, new Error("Remote rejected the unpin"));
+      expect((yield* Effect.promise(() => result))._tag).toBe("Failure");
+      expect(h.registry.get(h.visible)).toBe(initial);
+    }),
   );
 });

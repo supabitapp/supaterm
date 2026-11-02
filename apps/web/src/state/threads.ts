@@ -3,6 +3,7 @@ import {
   createEnvironmentThreadDetailAtoms,
   createEnvironmentThreadShellAtoms,
   createEnvironmentThreadStateAtoms,
+  createOptimisticMessagePins,
   createRunningThreadKeepAliveAtom,
   createOlderDoneThreadAtoms,
 } from "@supaterm/client-runtime/state/threads";
@@ -23,10 +24,9 @@ export const olderDoneThreads = createOlderDoneThreadAtoms(
   connectionAtomRuntime,
   environmentShell.stateAtom,
 );
-export const threadEnvironment = directThreadEnvironment;
 export const environmentThreadShells = createEnvironmentThreadShellAtoms({
   catalogValueAtom: environmentCatalog.catalogValueAtom,
-  snapshotAtom: threadEnvironment.snapshotAtom,
+  snapshotAtom: directThreadEnvironment.snapshotAtom,
 });
 
 const threadDetailReadyAtom = createThreadDetailReadiness(environmentThreadShells.threadShellAtom);
@@ -34,14 +34,18 @@ const environmentThreads = createEnvironmentThreadStateAtoms(
   connectionAtomRuntime,
   (environmentId, threadId) => threadDetailReadyAtom({ environmentId, threadId }),
 );
-export const environmentThreadDetails = createEnvironmentThreadDetailAtoms(
-  environmentThreads.stateAtom,
-);
+const messagePins = createOptimisticMessagePins(environmentThreads.stateAtom);
+export const threadEnvironment = {
+  ...directThreadEnvironment,
+  pinMessage: messagePins.wrap(directThreadEnvironment.pinMessage, true),
+  unpinMessage: messagePins.wrap(directThreadEnvironment.unpinMessage, false),
+};
+export const environmentThreadDetails = createEnvironmentThreadDetailAtoms(messagePins.stateAtom);
 // A send waits on local storage before startTurn runs; its outbox entry shows the thread meanwhile.
 const sidebarSnapshotAtom = Atom.family((environmentId: EnvironmentId) =>
   Atom.make((get) =>
     withOptimisticThreadCreations(
-      get(threadEnvironment.sidebarSnapshotAtom(environmentId)),
+      get(directThreadEnvironment.sidebarSnapshotAtom(environmentId)),
       get(webThreadOutbox.entriesAtom).flatMap((entry) =>
         entry.payload.environmentId === environmentId
           ? (undeliveredCreationShell(entry) ?? [])

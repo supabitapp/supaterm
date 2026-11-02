@@ -2,7 +2,7 @@ import type { OrchestrationV2TurnItem, ThreadId, ThreadPinnedMessage } from "@su
 import {
   isAttachmentOnlyBootstrapPrompt,
   replaceComposerContextReferences,
-} from "@supaterm/shared/composerContextReferences";
+} from "./composerContextReferences.ts";
 import * as DateTime from "effect/DateTime";
 
 const PREVIEW_LENGTH = 160;
@@ -56,7 +56,7 @@ export function withPinnedMessage(
   pins: ReadonlyArray<ThreadPinnedMessage>,
   pin: ThreadPinnedMessage,
 ): ReadonlyArray<ThreadPinnedMessage> {
-  return [...pins.filter((existing) => existing.itemId !== pin.itemId), pin].toSorted(
-    (left, right) => left.sentAt.localeCompare(right.sentAt),
+  return [...pins.filter((existing) => existing.itemId !== pin.itemId), pin].sort((left, right) =>
+    left.sentAt.localeCompare(right.sentAt),
   );
 }

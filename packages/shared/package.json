@@ -255,6 +255,10 @@
       "types": "./src/composerContextReferences.ts",
       "import": "./src/composerContextReferences.ts"
     },
+    "./pinnedMessages": {
+      "types": "./src/pinnedMessages.ts",
+      "import": "./src/pinnedMessages.ts"
+    },
     "./composerContextLegacy": {
       "types": "./src/composerContextLegacy.ts",
       "import": "./src/composerContextLegacy.ts"
