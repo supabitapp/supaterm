@@ -173,8 +173,18 @@ export type CodexMicroLayout = typeof CodexMicroLayout.Type;
 
 export const DEFAULT_CODEX_MICRO_LAYOUT = Schema.decodeSync(CodexMicroLayout)({});
 
-export const CodexMicroAgentSource = Schema.Literals(["recent", "pinned", "attention", "custom"]);
+export const CodexMicroAgentSource = Schema.Literals(["sidebar", "pinned", "attention", "custom"]);
 export type CodexMicroAgentSource = typeof CodexMicroAgentSource.Type;
+
+const SavedAgentSource = Schema.Union([
+  CodexMicroAgentSource,
+  Schema.Literal("recent").pipe(
+    Schema.decodeTo(Schema.Literal("sidebar"), {
+      decode: SchemaGetter.transform(() => "sidebar" as const),
+      encode: SchemaGetter.forbidden(() => "The recent agent source was replaced by sidebar."),
+    }),
+  ),
+]);
 
 export const CodexMicroAgentAssignment = Schema.Union([
   Schema.Struct({
@@ -229,8 +239,8 @@ export type CodexMicroAutoDim = typeof CodexMicroAutoDim.Type;
 
 export const CodexMicroSettings = Schema.Struct({
   enabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-  agentSource: CodexMicroAgentSource.pipe(
-    Schema.withDecodingDefault(Effect.succeed("recent" as const)),
+  agentSource: SavedAgentSource.pipe(
+    Schema.withDecodingDefault(Effect.succeed("sidebar" as const)),
   ),
   singleTapFocus: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   brightness: CodexMicroBrightness.pipe(Schema.withDecodingDefault(Effect.succeed(100))),

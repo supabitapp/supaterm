@@ -31,7 +31,7 @@ describe("CodexMicroLayout", () => {
     const settings = decodeClientSettings({});
 
     expect(settings.codexMicro.enabled).toBe(false);
-    expect(settings.codexMicro.agentSource).toBe("recent");
+    expect(settings.codexMicro.agentSource).toBe("sidebar");
     expect(settings.codexMicro.layout).toEqual(DEFAULT_CODEX_MICRO_LAYOUT);
     expect(settings.codexMicro.customAgentKeys.AG03).toBeNull();
     expect(decodeClientSettings({ codexMicro: { enabled: true } }).codexMicro.layout).toEqual(
@@ -39,11 +39,12 @@ describe("CodexMicroLayout", () => {
     );
   });
 
-  it("clears removed voice actions without resetting the rest of the saved settings", () => {
+  it("migrates removed options without resetting the rest of the saved settings", () => {
     const voice = { type: "push-to-talk" };
     const settings = decodeClientSettings({
       codexMicro: {
         enabled: true,
+        agentSource: "recent",
         brightness: 35,
         layout: {
           slots: { ACT06: { keycapId: "FAST", action: voice } },
@@ -56,6 +57,7 @@ describe("CodexMicroLayout", () => {
     });
 
     expect(settings.codexMicro.enabled).toBe(true);
+    expect(settings.codexMicro.agentSource).toBe("sidebar");
     expect(settings.codexMicro.brightness).toBe(35);
     expect(settings.codexMicro.layout.slots.ACT06).toEqual({ keycapId: "FAST", action: null });
     expect(settings.codexMicro.layout.analogStick.up).toBeNull();

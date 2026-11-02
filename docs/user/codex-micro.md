@@ -26,8 +26,9 @@ lighting or battery requests. Supaterm keeps retrying.
 ## Agent keys
 
 The six keys in the top two rows each follow a thread. Choose which threads under **Agent keys**:
-the most recently active threads, your pinned threads, threads that need you first, or a thread or
-shortcut you pick for each key.
+the sidebar order, your pinned threads, threads that need you first, or a thread or shortcut you
+pick for each key. With the sidebar order, key 1 opens the same thread as the first jump shortcut
+(⌘1 on macOS), key 2 the same as the second, and so on.
 
 Press a key to open its thread. Press it twice quickly to also bring Supaterm to the front, or turn
 on **Focus Supaterm with a single tap** to do that with one press. The light under each key shows
