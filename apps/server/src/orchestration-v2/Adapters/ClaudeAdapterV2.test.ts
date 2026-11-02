@@ -8590,7 +8590,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
   );
 
   it.effect.skipIf(process.getuid === undefined)(
-    "streams a background command's output only for a task its thread lists",
+    "streams a listed background command's output until the task leaves the roster",
     () =>
       Effect.scoped(
         Effect.gen(function* () {
@@ -8607,11 +8607,9 @@ describe("ClaudeAdapterV2 background wake turns", () => {
             WAKE_NATIVE_SESSION,
             "tasks",
           );
+          const outputFile = path.join(tasks, `${WAKE_TASK_ID}.output`);
           yield* fileSystem.makeDirectory(tasks, { recursive: true });
-          yield* fileSystem.writeFileString(
-            path.join(tasks, `${WAKE_TASK_ID}.output`),
-            "building\n",
-          );
+          yield* fileSystem.writeFileString(outputFile, "building\n");
 
           yield* harness.runtime.startTurn(
             makeClaudeTestTurnInput({
@@ -8635,10 +8633,24 @@ describe("ClaudeAdapterV2 background wake turns", () => {
               providerThread: harness.providerThread,
               taskId,
             });
-          const chunks = yield* output(WAKE_TASK_ID).pipe(Stream.take(1), Stream.runCollect);
-          assert.deepEqual(chunks, ["building\n"]);
           const refused = yield* output(`../${WAKE_TASK_ID}`).pipe(Stream.runCollect, Effect.flip);
           assert.equal(refused._tag, "ProviderAdapterProtocolError");
+
+          const streamed = yield* output(WAKE_TASK_ID).pipe(Stream.runCollect, Effect.forkScoped);
+          yield* fileSystem.writeFileString(outputFile, "building\ndone\n");
+          // Another task keeps the session busy, so only the roster says this one ended.
+          yield* harness.offerAndWait(
+            claudeSdkFrame({
+              type: "system",
+              subtype: "background_tasks_changed",
+              tasks: [
+                { task_id: "dev-server", task_type: "local_bash", description: "Dev server" },
+              ],
+              uuid: "00000000-0000-4000-8000-000000000b02",
+              session_id: WAKE_NATIVE_SESSION,
+            }),
+          );
+          assert.equal((yield* Fiber.join(streamed)).join(""), "building\ndone\n");
         }).pipe(
           Effect.provideService(HostProcess.Platform, "linux"),
           Effect.provide(

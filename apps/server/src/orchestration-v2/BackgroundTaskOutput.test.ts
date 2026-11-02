@@ -8,8 +8,14 @@ import {
   TurnItemId,
 } from "@supaterm/contracts";
 import type * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAdapter";
+import {
+  appendTerminalOutput,
+  EMPTY_TERMINAL_OUTPUT,
+  TERMINAL_OUTPUT_TAIL_CHARS,
+} from "@supaterm/shared/terminalOutput";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Result from "effect/Result";
 import * as Stream from "effect/Stream";
 
 import * as BackgroundTaskOutput from "./BackgroundTaskOutput.ts";
@@ -95,24 +101,43 @@ const subscribe = (input: {
   }).pipe(Effect.provide(layer));
 };
 
-it.effect("frames a provider's own task output from its runtime", () =>
+it.effect("frames a provider's own task output so a client rebuilds its bounded tail", () =>
   Effect.gen(function* () {
-    const large = "x".repeat(20_000);
+    // Past the tail limit, so the client is sent the bounded tail instead of raw text.
+    const chunks = ["one\n", "x".repeat(TERMINAL_OUTPUT_TAIL_CHARS + 1_000), "\ntail\n"];
     const { result, hubTargets, runtimeTasks } = yield* subscribe({
       taskId: "build",
-      runtimeOutput: ["one\n", large],
+      runtimeOutput: chunks,
     });
 
     expect(runtimeTasks).toEqual(["build"]);
     expect(hubTargets).toEqual([]);
-    expect(result).toMatchObject({
-      success: [
-        { kind: "replace", text: "", running: true },
-        { kind: "append", text: "one\n", running: true },
-        { kind: "replace", running: true },
-        { kind: "append", text: "", running: false },
-      ],
+    const frames = Result.getOrThrow(result);
+    // What a client holds after applying each frame, as `applyCommandOutputFrame` does.
+    const rebuilt = frames.reduce((output, frame) => {
+      const base = frame.kind === "replace" ? EMPTY_TERMINAL_OUTPUT : output;
+      return appendTerminalOutput(
+        { ...base, truncated: base.truncated || frame.truncated },
+        frame.text,
+      );
+    }, EMPTY_TERMINAL_OUTPUT);
+    const expected = chunks.reduce(
+      (output, chunk) => appendTerminalOutput(output, chunk),
+      EMPTY_TERMINAL_OUTPUT,
+    );
+    expect(expected.truncated).toBe(true);
+    expect({ text: rebuilt.text, truncated: rebuilt.truncated }).toEqual({
+      text: expected.text,
+      truncated: expected.truncated,
     });
+    expect(frames.map((frame) => frame.kind)).toEqual([
+      "replace",
+      "append",
+      "replace",
+      "append",
+      "append",
+    ]);
+    expect(frames.map((frame) => frame.running)).toEqual([true, true, true, true, false]);
   }),
 );
 
