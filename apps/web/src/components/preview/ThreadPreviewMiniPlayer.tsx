@@ -6,14 +6,17 @@ import { PanelRightIcon, PictureInPictureIcon, XIcon } from "@supaterm/icons";
 import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
+  use,
   useEffect,
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { create } from "zustand";
 import { useAtomValue } from "@effect/atom-react";
 import { scopedThreadKey } from "@supaterm/client-runtime/environment";
 
+import { BackgroundThreadContext } from "../chat/backgroundThread";
 import { useChatCanvas } from "../chat/ChatCanvasContext";
 import type { ChatCanvasPreview } from "../chat/chatCanvasLayout";
 import { BrowserSurfaceSlot } from "~/browser/BrowserSurfaceSlot";
@@ -21,7 +24,7 @@ import {
   findActiveBrowserRecordingRuntimeTabId,
   useActiveBrowserRecordingTabIds,
 } from "~/browser/browserRecording";
-import { useBrowserSurfaceStore } from "~/browser/browserSurfaceStore";
+import { type BrowserSurfaceRect, useBrowserSurfaceStore } from "~/browser/browserSurfaceStore";
 import type { BrowserViewportResizeDirection } from "~/browser/browserViewportLayout";
 import { previewRuntimeTabId } from "~/browser/previewRuntimeTabId";
 import { rendersServerTabNatively } from "~/browser/previewRuntime";
@@ -82,6 +85,8 @@ interface PointerGesture {
 }
 
 const HANDLE_TAP_SLOP_PX = 6;
+const GESTURE_ATTRIBUTE = "data-preview-mini-player-gesture";
+let activeGestureCount = 0;
 
 interface Props {
   readonly threadRef: ScopedThreadRef;
@@ -263,6 +268,10 @@ function BrowserMiniPlayer({ threadRef, tabId, miniPlayer }: Props & { readonly 
   const recording =
     recordingTabIds.has(runtimeTabId) ||
     findActiveBrowserRecordingRuntimeTabId(threadRef, tabId) !== null;
+  const webviewRect = useBrowserSurfaceStore((state) => {
+    const surface = state.byTabId[runtimeTabId];
+    return !serverTab && surface?.visible ? surface.rect : null;
+  });
   const serverSurfaceRef = useRef<ServerBrowserHandle | null>(null);
   const serverPictureInPicture =
     useServerPictureInPictureKey() === serverPictureInPictureKey(threadRef.threadId, tabId);
@@ -324,6 +333,7 @@ function BrowserMiniPlayer({ threadRef, tabId, miniPlayer }: Props & { readonly 
       miniPlayer={miniPlayer}
       visible={visible}
       sourceSize={sourceSize}
+      webviewRect={webviewRect}
       label="Floating browser preview"
       recording={recording}
       onOpenInPanel={openInPanel}
@@ -467,12 +477,14 @@ function MiniPlayerShell({
   pillActions,
   recording = false,
   visible = true,
+  webviewRect,
   cornerRadius = frameCornerRadius,
   children,
 }: {
   readonly threadRef: ScopedThreadRef;
   readonly miniPlayer: PreviewMiniPlayerState;
   readonly sourceSize: PreviewMiniPlayerSize;
+  readonly webviewRect?: BrowserSurfaceRect | null;
   readonly label: string;
   readonly onOpenInPanel: () => void;
   /** Only the browser source docks the way the preview toggle shortcut does. */
@@ -490,6 +502,28 @@ function MiniPlayerShell({
   const [pillOpen, setPillOpen] = useState(false);
   const handleTappedRef = useRef(false);
   const handleRef = useRef<HTMLDivElement | null>(null);
+  const [gesturing, setGesturing] = useState(false);
+  const background = use(BackgroundThreadContext);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- marks the document so desktop webviews stop taking the pointer moves of a drag or resize that crosses them, and ends the gesture when its control remounts and misses the release
+  useEffect(() => {
+    if (!gesturing) return;
+    const root = document.documentElement;
+    activeGestureCount += 1;
+    root.setAttribute(GESTURE_ATTRIBUTE, "");
+    const finish = (event: PointerEvent) => {
+      if (gestureRef.current?.pointerId !== event.pointerId) return;
+      gestureRef.current = null;
+      setGesturing(false);
+    };
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
+    return () => {
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+      activeGestureCount -= 1;
+      if (activeGestureCount === 0) root.removeAttribute(GESTURE_ATTRIBUTE);
+    };
+  }, [gesturing]);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- document pointerdown listener closes the open pill on an outside press
   useEffect(() => {
     if (!pillOpen) return;
@@ -535,6 +569,7 @@ function MiniPlayerShell({
       direction,
       moved: false,
     };
+    setGesturing(true);
     event.currentTarget.setPointerCapture(event.pointerId);
     event.preventDefault();
     event.stopPropagation();
@@ -573,6 +608,7 @@ function MiniPlayerShell({
     const gesture = gestureRef.current;
     if (gesture?.pointerId !== event.pointerId) return;
     gestureRef.current = null;
+    setGesturing(false);
     handleTappedRef.current =
       event.type === "pointerup" &&
       gesture.direction === null &&
@@ -582,6 +618,95 @@ function MiniPlayerShell({
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
   };
+
+  const controls = (
+    <>
+      <div
+        ref={handleRef}
+        data-pill-open={pillOpen ? "" : undefined}
+        className="group pointer-events-auto absolute z-[49] size-3 touch-none cursor-grab active:cursor-grabbing pointer-coarse:-m-2.5 pointer-coarse:size-8"
+        style={{ right: pillInset, top: pillInset }}
+        onPointerDown={(event) => beginGesture(event, null)}
+        onPointerMove={handlePointerMove}
+        onPointerUp={endGesture}
+        onPointerCancel={endGesture}
+        onClick={() => {
+          if (!handleTappedRef.current) return;
+          handleTappedRef.current = false;
+          setPillOpen((open) => !open);
+        }}
+      >
+        <div
+          role={recording ? "status" : undefined}
+          aria-label={recording ? "Recording preview" : undefined}
+          aria-hidden={!recording}
+          className="absolute right-0 top-0 size-2 transition-opacity group-hover:opacity-0 group-focus-within:opacity-0 group-data-pill-open:opacity-0 pointer-coarse:right-2.5 pointer-coarse:top-2.5"
+        >
+          <span
+            className={cn(
+              "block size-2 rounded-full shadow-sm ring-1 ring-background/70",
+              recording ? "bg-destructive motion-safe:animate-status-pulse" : "bg-foreground/25",
+            )}
+          />
+        </div>
+        <div className="pointer-events-none absolute right-0 top-0 flex h-8 cursor-grab items-center gap-0.5 rounded-lg border border-border/80 bg-popover/92 p-0.5 opacity-0 shadow-lg/20 backdrop-blur-xl transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-data-pill-open:pointer-events-auto group-data-pill-open:opacity-100 active:cursor-grabbing pointer-coarse:right-2.5 pointer-coarse:top-2.5">
+          {recording ? (
+            <span aria-hidden className="flex size-6 shrink-0 items-center justify-center">
+              <span className="size-2 rounded-full bg-destructive motion-safe:animate-status-pulse" />
+            </span>
+          ) : null}
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="Open preview in right panel"
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={onOpenInPanel}
+                />
+              }
+            >
+              <PanelRightIcon />
+            </TooltipTrigger>
+            <TooltipPopup side="top" shortcut={openInPanelShortcut}>
+              Open in right panel
+            </TooltipPopup>
+          </Tooltip>
+          {pillActions}
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="Close floating preview"
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={close}
+                />
+              }
+            >
+              <XIcon />
+            </TooltipTrigger>
+            <TooltipPopup side="top">Close floating preview</TooltipPopup>
+          </Tooltip>
+        </div>
+      </div>
+      <div className="pointer-events-none absolute inset-0 z-[49] rounded-[inherit] ring-1 ring-inset ring-border/80" />
+      {RESIZE_HANDLES.map(({ direction, className }) => (
+        <div
+          key={direction}
+          role="presentation"
+          data-preview-mini-player-resize={direction}
+          className={cn("pointer-events-auto absolute z-[49] touch-none", className)}
+          onPointerDown={(event) => beginGesture(event, direction)}
+          onPointerMove={handlePointerMove}
+          onPointerUp={endGesture}
+          onPointerCancel={endGesture}
+        />
+      ))}
+    </>
+  );
 
   return (
     <div className="pointer-events-none absolute inset-0">
@@ -601,95 +726,27 @@ function MiniPlayerShell({
             opacity: visible ? undefined : 0,
           }}
         >
-          <div
-            ref={handleRef}
-            data-pill-open={pillOpen ? "" : undefined}
-            className="group pointer-events-auto absolute z-[49] size-3 touch-none cursor-grab active:cursor-grabbing pointer-coarse:-m-2.5 pointer-coarse:size-8"
-            style={{ right: pillInset, top: pillInset }}
-            onPointerDown={(event) => beginGesture(event, null)}
-            onPointerMove={handlePointerMove}
-            onPointerUp={endGesture}
-            onPointerCancel={endGesture}
-            onClick={() => {
-              if (!handleTappedRef.current) return;
-              handleTappedRef.current = false;
-              setPillOpen((open) => !open);
-            }}
-          >
-            <div
-              role={recording ? "status" : undefined}
-              aria-label={recording ? "Recording preview" : undefined}
-              aria-hidden={!recording}
-              className="absolute right-0 top-0 size-2 transition-opacity group-hover:opacity-0 group-focus-within:opacity-0 group-data-pill-open:opacity-0 pointer-coarse:right-2.5 pointer-coarse:top-2.5"
-            >
-              <span
-                className={cn(
-                  "block size-2 rounded-full shadow-sm ring-1 ring-background/70",
-                  recording
-                    ? "bg-destructive motion-safe:animate-status-pulse"
-                    : "bg-foreground/25",
-                )}
-              />
-            </div>
-            <div className="pointer-events-none absolute right-0 top-0 flex h-8 cursor-grab items-center gap-0.5 rounded-lg border border-border/80 bg-popover/92 p-0.5 opacity-0 shadow-lg/20 backdrop-blur-xl transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-data-pill-open:pointer-events-auto group-data-pill-open:opacity-100 active:cursor-grabbing pointer-coarse:right-2.5 pointer-coarse:top-2.5">
-              {recording ? (
-                <span aria-hidden className="flex size-6 shrink-0 items-center justify-center">
-                  <span className="size-2 rounded-full bg-destructive motion-safe:animate-status-pulse" />
-                </span>
-              ) : null}
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      aria-label="Open preview in right panel"
-                      onPointerDown={(event) => event.stopPropagation()}
-                      onClick={onOpenInPanel}
-                    />
-                  }
-                >
-                  <PanelRightIcon />
-                </TooltipTrigger>
-                <TooltipPopup side="top" shortcut={openInPanelShortcut}>
-                  Open in right panel
-                </TooltipPopup>
-              </Tooltip>
-              {pillActions}
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      aria-label="Close floating preview"
-                      onPointerDown={(event) => event.stopPropagation()}
-                      onClick={close}
-                    />
-                  }
-                >
-                  <XIcon />
-                </TooltipTrigger>
-                <TooltipPopup side="top">Close floating preview</TooltipPopup>
-              </Tooltip>
-            </div>
-          </div>
-
           <div className="absolute inset-0 z-[47] rounded-[inherit] bg-muted shadow-2xl/35" />
           {children(frame)}
-          <div className="pointer-events-none absolute inset-0 z-[49] rounded-[inherit] ring-1 ring-inset ring-border/80" />
-          {RESIZE_HANDLES.map(({ direction, className }) => (
-            <div
-              key={direction}
-              role="presentation"
-              data-preview-mini-player-resize={direction}
-              className={cn("pointer-events-auto absolute z-[49] touch-none", className)}
-              onPointerDown={(event) => beginGesture(event, direction)}
-              onPointerMove={handlePointerMove}
-              onPointerUp={endGesture}
-              onPointerCancel={endGesture}
-            />
-          ))}
+          {webviewRect
+            ? createPortal(
+                <div
+                  inert={background}
+                  className="pointer-events-none fixed select-none"
+                  style={{
+                    left: webviewRect.x,
+                    top: webviewRect.y,
+                    width: webviewRect.width,
+                    height: webviewRect.height,
+                    borderRadius: radius,
+                    zIndex: PREVIEW_MINI_PLAYER_WEBVIEW_Z_INDEX + 1,
+                  }}
+                >
+                  {controls}
+                </div>,
+                document.body,
+              )
+            : controls}
         </section>
       ) : null}
     </div>
