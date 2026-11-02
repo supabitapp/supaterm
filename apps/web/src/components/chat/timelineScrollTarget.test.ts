@@ -76,7 +76,7 @@ describe("timeline scroll targets", () => {
         collapseThresholdPx: 24,
         collapseEligible: targetsTimeline(target, timeline, -deltaPx),
         canScrollInGestureDirection: timeline.scrollTop > 0,
-        scrollsTowardLogicalEnd: false,
+        atLogicalEnd: false,
       });
 
     expect(record(timeline, 0, 20)).toBe(false);
@@ -84,6 +84,26 @@ describe("timeline scroll targets", () => {
     group.scrollTop = 0;
     expect(record(content, 40, 10)).toBe(false);
     expect(record(content, 60, 14)).toBe(true);
+  });
+
+  it("collapses the composer only after a gesture leaves the timeline end", () => {
+    const state = createComposerScrollGestureState();
+    const record = (now: number, atLogicalEnd: boolean) =>
+      recordComposerScrollGestureEvent(state, {
+        now,
+        deltaPx: 10,
+        collapseThresholdPx: 24,
+        collapseEligible: true,
+        canScrollInGestureDirection: true,
+        atLogicalEnd,
+      });
+
+    expect(record(0, true)).toBe(false);
+    expect(record(16, true)).toBe(false);
+    expect(record(32, true)).toBe(false);
+    expect(record(48, false)).toBe(false);
+    expect(record(64, false)).toBe(false);
+    expect(record(80, false)).toBe(true);
   });
 });
 
