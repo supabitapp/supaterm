@@ -219,9 +219,9 @@ export class WebVoiceRecorder implements VoiceRecorder {
     const stopped = new Promise<void>((resolve) => {
       recorder.addEventListener("stop", () => resolve(), { once: true });
     });
+    const elapsedMs = performance.now() - this.startedAt;
     recorder.stop();
     await stopped;
-    const elapsedMs = performance.now() - this.startedAt;
     const encoded = new Blob(this.chunks, {
       type: recorder.mimeType || this.chunks[0]?.type || "audio/webm",
     });
