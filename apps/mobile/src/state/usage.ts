@@ -6,7 +6,11 @@ import {
   type UsageSummary,
   type UsageSummaryInput,
 } from "@supaterm/contracts";
-import { needsCursorKeychainAccess, refreshUsage } from "@supaterm/client-runtime/state/usage";
+import {
+  needsCursorKeychainAccess,
+  refreshUsage,
+  usageSummaryInput,
+} from "@supaterm/client-runtime/state/usage";
 import { resolveUsageAccess } from "@supaterm/client-runtime/state/usage-access";
 import { mergeUsage, type EnvironmentUsage, type MergedUsage } from "@supaterm/shared/usageMerge";
 import { AsyncResult, Atom } from "effect/reactivity";
@@ -52,7 +56,15 @@ const usageByWindowAtom = Atom.family((windowKey: string) =>
         });
         continue;
       }
-      const result = get(serverEnvironment.usageSummary({ environmentId, input }));
+      const result = get(
+        serverEnvironment.usageSummary({
+          environmentId,
+          input: usageSummaryInput(
+            input,
+            get(serverEnvironment.usageModelFilterAtom(environmentId)),
+          ),
+        }),
+      );
       const summary = AsyncResult.getOrElse(result, () => null);
       statuses.push({
         environmentId,
