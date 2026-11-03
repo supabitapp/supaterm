@@ -1,6 +1,3 @@
-/**
- * The sidebar's top rows: start a thread and open Automations.
- */
 import { Link, useLocation, useParams } from "@tanstack/react-router";
 import { CalendarClockIcon, SquarePenIcon } from "@supaterm/icons";
 
