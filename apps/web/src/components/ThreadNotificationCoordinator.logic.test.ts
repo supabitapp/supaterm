@@ -39,6 +39,7 @@ function harness() {
 describe("createThreadNotificationGate", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    vi.setSystemTime(0);
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -175,7 +176,7 @@ describe("createThreadNotificationGate", () => {
   it("notifies only the turn that background work wakes, not the turn that started it", () => {
     const { notify, observe } = harness();
     observe(working);
-    observe(runningBackgroundWork(1));
+    observe(runningBackgroundWork(0));
     vi.advanceTimersByTime(60_000);
     expect(notify).not.toHaveBeenCalled();
     observe(working);
@@ -189,10 +190,10 @@ describe("createThreadNotificationGate", () => {
   it("notifies a held completion after the grace once its background work ends", () => {
     const { notify, observe } = harness();
     observe(working);
-    observe(runningBackgroundWork(1));
+    observe(runningBackgroundWork(0));
     vi.advanceTimersByTime(60_000);
     expect(notify).not.toHaveBeenCalled();
-    observe(completed(1));
+    observe(completed(0));
     vi.advanceTimersByTime(WORKING_EXIT_GRACE_MS);
     expect(notify.mock.calls).toEqual([["thread", "completion"]]);
     vi.advanceTimersByTime(BACKGROUND_WORK_COMPLETION_DELAY_MS);
@@ -202,9 +203,22 @@ describe("createThreadNotificationGate", () => {
   it("notifies a completion whose background work keeps running once the delay passes", () => {
     const { notify, observe } = harness();
     observe(working);
-    observe(runningBackgroundWork(1));
+    observe(runningBackgroundWork(0));
     vi.advanceTimersByTime(BACKGROUND_WORK_COMPLETION_DELAY_MS - 1);
-    observe(runningBackgroundWork(1));
+    observe(runningBackgroundWork(0));
+    expect(notify).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(notify.mock.calls).toEqual([["thread", "completion"]]);
+  });
+
+  it("keeps a held completion's deadline across a reconnect", () => {
+    const { gate, notify, observe } = harness();
+    observe(working);
+    observe(runningBackgroundWork(0));
+    vi.advanceTimersByTime(BACKGROUND_WORK_COMPLETION_DELAY_MS - 60_000);
+    gate.cancelPending();
+    observe(runningBackgroundWork(0));
+    vi.advanceTimersByTime(59_999);
     expect(notify).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
     expect(notify.mock.calls).toEqual([["thread", "completion"]]);

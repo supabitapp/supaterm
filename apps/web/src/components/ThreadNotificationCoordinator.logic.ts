@@ -2,7 +2,8 @@ import { WORKING_EXIT_GRACE_MS } from "@supaterm/client-runtime/state/thread-inb
 
 export type ThreadNotificationKind = "input" | "completion";
 
-// A dev server never ends, so work the agent left running holds a completion only this long.
+// A dev server never ends, so work the agent left running holds a completion
+// at most this long after its run ends.
 export const BACKGROUND_WORK_COMPLETION_DELAY_MS = 10 * 60_000;
 
 export interface ThreadNotificationObservation {
@@ -73,7 +74,9 @@ export function createThreadNotificationGate<Key>(
             handled.set(key, at);
             notify(key, "completion");
           },
-          held ? BACKGROUND_WORK_COMPLETION_DELAY_MS : WORKING_EXIT_GRACE_MS,
+          held
+            ? Math.max(0, at + BACKGROUND_WORK_COMPLETION_DELAY_MS - Date.now())
+            : WORKING_EXIT_GRACE_MS,
         ),
       });
     },
