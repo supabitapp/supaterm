@@ -24,6 +24,7 @@ const DOTS = COLUMNS * ROWS;
 const SAMPLES = (COLUMNS - 1) * SAMPLES_PER_COLUMN + 1;
 export const DOT_SCOPE_WIDTH = 90;
 export const DOT_SCOPE_HEIGHT = 26;
+const HALF_WIDTH = DOT_SCOPE_WIDTH / 2;
 
 const smoothstep = (a: number, b: number, x: number) => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
@@ -36,10 +37,6 @@ const pair = (length: number) => [new Float32Array(length), new Float32Array(len
 
 const follow = (value: number, target: number, time: number, h: number) =>
   value + (target - value) * (1 - Math.exp(-h / time));
-
-export function loudnessOf(rms: number): number {
-  return 20 * Math.log10(Math.max(0, rms) + 1e-6);
-}
 
 const AUTO_MIN_SPAN = 16;
 const AUTO_RANGE = 24;
@@ -129,6 +126,33 @@ class Trace {
   }
 }
 
+/** The scanner that unfolds the trace from the middle out as recording starts. */
+interface Scan {
+  readonly reach: number;
+  readonly head: number;
+  readonly unfold: number;
+}
+
+const STILL_SCAN: Scan = { reach: 1e4, head: 0, unfold: 1 };
+
+const enterScan = (time: number): Scan => ({
+  reach: (HALF_WIDTH + 12) * (0.5 - 0.5 * Math.cos(Math.PI * Math.min(1, time / ENTER))),
+  head: 2.8 * (1 - smoothstep(0.08, ENTER, time)),
+  unfold: smoothstep(0, 0.1, time),
+});
+
+/** How much of the trace is drawn `own` pt from the middle, how bright, and how far it swells. */
+function scanAt({ reach, head, unfold }: Scan, own: number) {
+  const drawn = unfold * (1 - smoothstep(Math.max(0, reach - 14), Math.max(0.001, reach), own));
+  const amplitude =
+    drawn * (1 - smoothstep(Math.max(0, reach - 22), Math.max(0.001, reach - 3), own));
+  return {
+    amplitude,
+    bright: amplitude + head * bump(own - reach, 6),
+    swell: 1.8 * unfold * (head / 2.8) * bump(own - Math.max(0, reach - 14), 14),
+  };
+}
+
 /**
  * A field of dots lit by a braided pair of oscilloscope traces that follow the voice, stepped at a
  * fixed 240 Hz so every frame rate draws the same picture. `still` holds the braid for reduced motion.
@@ -183,47 +207,31 @@ export class DotScope {
   }
 
   private beam(hb: number): void {
-    const { columns, rows, time } = this;
-    const samples = SAMPLES;
-    const sub = SAMPLES_PER_COLUMN;
-    const width = DOT_SCOPE_WIDTH;
-    const halfWidth = width / 2;
-    this.grid = this.still ? 1 : Math.min(1, time / 0.3);
-    const reach = this.still
-      ? 1e4
-      : (halfWidth + 12) * (0.5 - 0.5 * Math.cos(Math.PI * Math.min(1, time / ENTER)));
-    const scanner = this.still ? 0 : 2.8 * (1 - smoothstep(0.08, ENTER, time));
-    const unfold = this.still ? 1 : smoothstep(0, 0.1, time);
-    const mid = (rows - 1) / 2;
+    this.grid = this.still ? 1 : Math.min(1, this.time / 0.3);
+    this.sampleTraces(this.still ? STILL_SCAN : enterScan(this.time));
+    this.lightDots(hb);
+  }
+
+  /** Each trace's row and brightness at every sample across the field. */
+  private sampleTraces(scan: Scan): void {
+    const mid = (ROWS - 1) / 2;
     const half = mid - 0.55;
-    const breath = this.still ? 0.5 : 0.5 + 0.5 * Math.sin((time * TAU) / BREATH_PERIOD);
+    const breath = this.still ? 0.5 : 0.5 + 0.5 * Math.sin((this.time * TAU) / BREATH_PERIOD);
     const rest = (0.55 + 0.35 * breath) * (0.4 + 0.6 * this.live);
-    for (let k = 0; k < 2; k++) {
-      const trace = this.traces[k]!;
-      const sign = k === 0 ? 1 : -1;
-      const ys = this.ys[k]!;
-      const brightness = this.brightness[k]!;
-      for (let s = 0; s < samples; s++) {
-        const x = (s / sub - (columns - 1) / 2) * PITCH;
-        const own = Math.abs(x);
-        if (own > halfWidth) {
-          ys[s] = mid;
-          brightness[s] = 0;
-          continue;
-        }
-        const drawn =
-          unfold * (1 - smoothstep(Math.max(0, reach - 14), Math.max(0.001, reach), own));
-        const amplitude =
-          drawn * (1 - smoothstep(Math.max(0, reach - 22), Math.max(0.001, reach - 3), own));
-        const bright = amplitude + scanner * bump(own - reach, 6);
-        const swell = 1.8 * unfold * (scanner / 2.8) * bump(own - Math.max(0, reach - 14), 14);
-        const xn = (x + halfWidth) / width;
-        const ends = Math.min(
-          smoothstep(-halfWidth + 3, -halfWidth + 17, x),
-          smoothstep(-halfWidth + 3, -halfWidth + 17, -x),
-        );
-        const fade = 1 - 0.8 * smoothstep(14, halfWidth, own);
-        const delay = own / HISTORY_SPEED;
+    for (let s = 0; s < SAMPLES; s++) {
+      const x = (s / SAMPLES_PER_COLUMN - (COLUMNS - 1) / 2) * PITCH;
+      const own = Math.abs(x);
+      const { amplitude, bright, swell } = scanAt(scan, own);
+      const xn = (x + HALF_WIDTH) / DOT_SCOPE_WIDTH;
+      const ends = Math.min(
+        smoothstep(-HALF_WIDTH + 3, -HALF_WIDTH + 17, x),
+        smoothstep(-HALF_WIDTH + 3, -HALF_WIDTH + 17, -x),
+      );
+      const fade = 1 - 0.8 * smoothstep(14, HALF_WIDTH, own);
+      const delay = own / HISTORY_SPEED;
+      for (let k = 0; k < 2; k++) {
+        const trace = this.traces[k]!;
+        const sign = k === 0 ? 1 : -1;
         const a = trace.past(delay, 0);
         let spread = 0;
         for (let c = 0; c < 4; c++) {
@@ -233,31 +241,39 @@ export class DotScope {
           (rest + swell + half * 0.55 * a * fade) *
           Math.sin(TAU * HELIX_CYCLES * xn - this.carrier);
         const y = half * Math.tanh((helix + half * 0.7 * spread * fade) / half) * ends * amplitude;
-        ys[s] = mid - sign * y;
+        this.ys[k]![s] = mid - sign * y;
         const spatial = (0.3 + 0.7 * Math.min(1, a * 1.8)) * (0.45 + 0.55 * ends);
-        brightness[s] = spatial * amplitude + 0.36 * Math.max(0, bright - amplitude);
+        this.brightness[k]![s] = spatial * amplitude + 0.36 * Math.max(0, bright - amplitude);
       }
-      for (let s = 0; s < samples; s++) {
-        const slope = ((ys[Math.min(s + 1, samples - 1)]! - ys[Math.max(0, s - 1)]!) * sub) / 2;
+    }
+    for (let k = 0; k < 2; k++) {
+      const ys = this.ys[k]!;
+      const brightness = this.brightness[k]!;
+      for (let s = 0; s < SAMPLES; s++) {
+        const slope =
+          ((ys[Math.min(s + 1, SAMPLES - 1)]! - ys[Math.max(0, s - 1)]!) * SAMPLES_PER_COLUMN) / 2;
         brightness[s]! *= 0.45 + 0.55 / Math.sqrt(1 + 0.22 * slope * slope);
       }
     }
+  }
 
+  /** Lights each dot from its distance to the nearest trace segment and decays the phosphor. */
+  private lightDots(hb: number): void {
     const headKeep = Math.exp(-hb / PHOSPHOR_HEAD);
     const tailKeep = Math.exp(-hb / PHOSPHOR_TAIL);
-    const dx = 1 / sub;
-    for (let i = 0; i < columns; i++) {
-      const s0 = Math.max(0, i - 3) * sub;
-      const s1 = Math.min((i + 3) * sub, samples - 1);
-      for (let j = 0; j < rows; j++) {
-        const n = j * columns + i;
+    const dx = 1 / SAMPLES_PER_COLUMN;
+    for (let i = 0; i < COLUMNS; i++) {
+      const s0 = Math.max(0, i - 3) * SAMPLES_PER_COLUMN;
+      const s1 = Math.min((i + 3) * SAMPLES_PER_COLUMN, SAMPLES - 1);
+      for (let j = 0; j < ROWS; j++) {
+        const n = j * COLUMNS + i;
         let now = 0;
         let total = 0;
         let dark = 1;
         for (let k = 0; k < 2; k++) {
           const ys = this.ys[k]!;
           let best = Number.MAX_VALUE;
-          let nearest = i * sub;
+          let nearest = i * SAMPLES_PER_COLUMN;
           for (let s = s0; s < s1; s++) {
             const ay = ys[s]!;
             const dy = ys[s + 1]! - ay;

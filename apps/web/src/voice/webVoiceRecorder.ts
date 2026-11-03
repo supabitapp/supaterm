@@ -6,7 +6,6 @@ import {
 import { TRANSCRIPTION_MIN_DURATION_MS, TranscriptionError } from "@supaterm/contracts";
 
 import pcmCaptureWorkletUrl from "./pcmCapture.worklet.ts?worker&url";
-import { loudnessOf } from "./dotScope";
 import { PCM_CAPTURE_PROCESSOR, VOICE_SAMPLE_RATE, wavFromPcm } from "./wav";
 
 // The worklet answers within a render quantum; a suspended context never would.
@@ -215,7 +214,7 @@ export class WebVoiceRecorder implements VoiceRecorder {
     capture.analyser.getFloatTimeDomainData(capture.samples);
     let sum = 0;
     for (const sample of capture.samples) sum += sample * sample;
-    return loudnessOf(Math.sqrt(sum / capture.samples.length));
+    return 20 * Math.log10(Math.sqrt(sum / capture.samples.length) + 1e-6);
   }
 
   release(): void {

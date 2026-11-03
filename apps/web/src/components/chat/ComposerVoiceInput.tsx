@@ -3,6 +3,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 
 import { isElectron } from "~/env";
+import { useMediaQuery } from "~/hooks/useMediaQuery";
+import { useRenderedAppearance } from "~/hooks/useTheme";
 import { cn } from "~/lib/utils";
 import { DOT_SCOPE_HEIGHT, DOT_SCOPE_WIDTH, DotScope, paintDotScope } from "~/voice/dotScope";
 import { formatVoiceDuration } from "~/voice/formatVoiceDuration";
@@ -79,26 +81,31 @@ function VoiceElapsed(props: { readonly recorder: WebVoiceRecorder }) {
   return <span className="tabular-nums">{formatVoiceDuration(elapsedMs)}</span>;
 }
 
-function VoiceDotScope(props: { readonly recorder: WebVoiceRecorder }) {
+// The scope animates only while recording; preparing can wait on a permission prompt indefinitely.
+function VoiceDotScope(props: {
+  readonly recorder: WebVoiceRecorder;
+  readonly recording: boolean;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
+  const dark = useRenderedAppearance() === "dark";
+  const still = reducedMotion || !props.recording;
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- paints the canvas from the live recorder each frame, outside React
   useEffect(() => {
     const canvas = canvasRef.current;
     const context = canvas?.getContext("2d");
     if (!canvas || !context) return;
-    const ratio = window.devicePixelRatio || 1;
-    canvas.width = Math.round(DOT_SCOPE_WIDTH * ratio);
-    canvas.height = Math.round(DOT_SCOPE_HEIGHT * ratio);
-    context.scale(ratio, ratio);
-    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const scope = new DotScope(still);
-    const paint = () =>
-      paintDotScope(
-        context,
-        scope,
-        getComputedStyle(canvas).color,
-        document.documentElement.classList.contains("dark"),
-      );
+    const paint = () => {
+      const ratio = window.devicePixelRatio || 1;
+      const width = Math.round(DOT_SCOPE_WIDTH * ratio);
+      if (canvas.width !== width) {
+        canvas.width = width;
+        canvas.height = Math.round(DOT_SCOPE_HEIGHT * ratio);
+        context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      }
+      paintDotScope(context, scope, getComputedStyle(canvas).color, dark);
+    };
     if (still) {
       for (let settle = 0; settle < 4; settle++) scope.advance(0.25, -120);
       paint();
@@ -114,7 +121,7 @@ function VoiceDotScope(props: { readonly recorder: WebVoiceRecorder }) {
     };
     let frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [props.recorder]);
+  }, [props.recorder, still, dark]);
   return (
     <canvas
       ref={canvasRef}
@@ -186,7 +193,7 @@ export function ComposerVoiceSession(props: {
         {capturing ? (
           <>
             <VoiceElapsed recorder={voice.recorder} />
-            <VoiceDotScope recorder={voice.recorder} />
+            <VoiceDotScope recorder={voice.recorder} recording={phase === "recording"} />
           </>
         ) : (
           <span aria-live="polite" className="flex items-center gap-2 text-muted-foreground">
