@@ -44,7 +44,7 @@ export function ThreadDetailsCard({
   const mode = placement ? "inline" : "popover";
   const detailsArea = workspaceAreaProps("details", 3, "Thread details");
   const detailsFocusKey = `details:${threadRef.environmentId}:${threadRef.threadId}`;
-  const topInset = canvas?.detailsCardTopInset ?? 0;
+  const popoverSideOffset = canvas?.detailsPopoverSideOffset ?? 0;
   const inlineOpen = useRightPanelStore((state) =>
     selectThreadPanelOpen(state.threadPanelVisibilityByThreadKey, threadRef, "inline"),
   );
@@ -200,11 +200,11 @@ export function ThreadDetailsCard({
         }}
         anchor={anchor}
         align="end"
-        // Lines the card up with the find bar: the panel pads its card by 8px.
+        // Lines the card up with the inline card: the panel pads its card by 8px.
         alignOffset={THREAD_DETAILS_CARD_GAP - 8}
         collisionAvoidance={{ side: "shift", align: "shift", fallbackAxisSide: "none" }}
         side="bottom"
-        sideOffset={topInset}
+        sideOffset={popoverSideOffset}
         variant="panel"
         padding="none"
       >

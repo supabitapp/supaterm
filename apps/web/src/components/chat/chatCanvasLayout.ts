@@ -18,6 +18,12 @@ export interface ChatCanvasPreview {
   readonly lastInteraction?: PreviewMiniPlayerState["lastInteraction"];
 }
 
+/** The open find bar's width and bottom edge; it floats at the top end of the chat lane. */
+export interface ChatCanvasFindBar {
+  readonly width: number;
+  readonly bottom: number;
+}
+
 const GAP = 12;
 export const DETAILS_CARD_CLEARANCE = 32;
 
@@ -38,7 +44,7 @@ export function resolveChatCanvasLayout({
   minChatWidth?: number;
   composerHeight?: number;
   detailsCard?: PreviewMiniPlayerObstacles["detailsCard"];
-  findBar?: PreviewMiniPlayerObstacles["detailsCard"];
+  findBar?: ChatCanvasFindBar | null;
 }) {
   const centeredWidth = Math.max(0, Math.min(maxChatWidth, container.width - padding * 2));
   const laneRight = detailsCard
@@ -53,6 +59,12 @@ export function resolveChatCanvasLayout({
     insetStart: 0,
     insetEnd: Math.max(0, container.width - normalLeft * 2 - normalWidth),
   };
+  const findBarIn = (lane: typeof chat) =>
+    findBar && {
+      left: lane.left + lane.width - findBar.width,
+      right: lane.left + lane.width,
+      bottom: findBar.bottom,
+    };
   let frame: PreviewMiniPlayerFrame | null = null;
   let overlapsChat = false;
   if (preview && container.width > 0 && container.height > 0) {
@@ -64,6 +76,7 @@ export function resolveChatCanvasLayout({
         ? GAP
         : padding + minChatWidth + GAP;
     if (preview.position === null) frame = { ...frame, y: container.height - frame.height - GAP };
+    let resizeContainer = container;
     if (preview.lastInteraction === "resize" && composerHeight > 0) {
       const laneWidth = Math.min(normalWidth, minChatWidth);
       const transitionWidth = Math.max(GAP, normalWidth - laneWidth);
@@ -72,31 +85,23 @@ export function resolveChatCanvasLayout({
         Math.max(0, (padding + normalWidth + GAP - frame.x) / transitionWidth),
       );
       if (lift > 0) {
+        resizeContainer = {
+          ...container,
+          height: Math.max(GAP * 2 + 1, container.height - composerHeight * lift),
+        };
         frame = resolvePreviewMiniPlayerFrame({
           width: frame.width,
           position: frame,
           source: preview.source,
-          container: {
-            ...container,
-            height: Math.max(GAP * 2 + 1, container.height - composerHeight * lift),
-          },
+          container: resizeContainer,
         });
       }
     }
-    const findBarObstacles = findBar ? { detailsCard: findBar, composer: null } : undefined;
     const preferredFrame = {
       ...frame,
-      ...clampPreviewMiniPlayerPosition(frame, container, frame, findBarObstacles, minimumPreviewX),
+      ...clampPreviewMiniPlayerPosition(frame, container, frame, undefined, minimumPreviewX),
     };
-    const dragObstacle =
-      detailsCard && findBar
-        ? {
-            left: Math.min(detailsCard.left, findBar.left),
-            right: Math.max(detailsCard.right, findBar.right),
-            bottom: Math.max(detailsCard.bottom, findBar.bottom),
-          }
-        : (detailsCard ?? findBar);
-    const cardObstacle = preview.lastInteraction === "resize" ? findBar : dragObstacle;
+    const cardObstacle = preview.lastInteraction === "resize" ? null : detailsCard;
     frame = {
       ...frame,
       ...clampPreviewMiniPlayerPosition(
@@ -135,10 +140,18 @@ export function resolveChatCanvasLayout({
         insetStart: 0,
         insetEnd: Math.max(0, container.width - padding * 2 - width),
       };
+      frame = resolvePreviewMiniPlayerFrame({
+        width: frame.width,
+        position: frame,
+        source: preview.source,
+        container: resizeContainer,
+        obstacles: { detailsCard: null, composer: null, findBar: findBarIn(chat) },
+      });
     } else if (overlapsChat) {
       const obstacles = {
         detailsCard: cardObstacle,
         composer: { left: chat.left, right: chat.left + chat.width, height: composerHeight },
+        findBar: findBarIn(chat),
       };
       frame = resolvePreviewMiniPlayerFrame({ ...preview, container, obstacles });
       frame = {
@@ -162,7 +175,7 @@ export function resolveChatCanvasLayout({
             frame,
             container,
             frame,
-            { composer: obstacles.composer, detailsCard: findBar },
+            { ...obstacles, detailsCard: null },
             minimumPreviewX,
           ),
         };

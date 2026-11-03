@@ -12,7 +12,7 @@ export function ChatCanvas({
   threadRef,
   preview,
   composerOverlayElement,
-  detailsCardTopInset = 0,
+  findBarOpen = false,
   children,
   ...props
 }: Omit<ComponentProps<"div">, "className" | "style" | "ref"> & {
@@ -22,7 +22,7 @@ export function ChatCanvas({
   /** The thread's mini player while it renders on this canvas. */
   preview: ChatCanvasPreview | null;
   composerOverlayElement: HTMLElement | null;
-  detailsCardTopInset?: number;
+  findBarOpen?: boolean;
 }) {
   const elementRef = useRef<HTMLDivElement | null>(null);
   const widthProbeRef = useRef<HTMLDivElement | null>(null);
@@ -34,21 +34,17 @@ export function ChatCanvas({
     const element = elementRef.current;
     const probe = widthProbeRef.current;
     if (!element || !probe) return;
-    const findBar =
-      detailsCardTopInset > 0 ? element.querySelector<HTMLElement>("[data-thread-find-bar]") : null;
+    const findBar = findBarOpen
+      ? element.querySelector<HTMLElement>("[data-thread-find-bar]")
+      : null;
     const measure = () => {
       const canvasBounds = element.getBoundingClientRect();
       const findBarBounds = findBar?.getBoundingClientRect();
       const styles = getComputedStyle(probe);
       store.getState().setMeasurements({
-        findBar:
-          detailsCardTopInset > 0
-            ? {
-                left: findBarBounds ? findBarBounds.left - canvasBounds.left : 0,
-                right: findBarBounds ? findBarBounds.right - canvasBounds.left : 0,
-                bottom: findBarBounds ? findBarBounds.bottom - canvasBounds.top : 0,
-              }
-            : null,
+        findBar: findBarBounds
+          ? { width: findBarBounds.width, bottom: findBarBounds.bottom - canvasBounds.top }
+          : null,
         width: element.clientWidth,
         height: element.clientHeight,
         padding: Number.parseFloat(styles.paddingLeft),
@@ -66,7 +62,7 @@ export function ChatCanvas({
     if (composerOverlayElement) observed.push(composerOverlayElement);
     if (timelineElement) observed.push(timelineElement);
     return observeResize(observed, measure);
-  }, [store, composerOverlayElement, timelineElement, detailsCardTopInset]);
+  }, [store, composerOverlayElement, timelineElement, findBarOpen]);
   const detailsCardInlineOpen = useRightPanelStore((state) =>
     threadRef === null
       ? false
@@ -86,7 +82,7 @@ export function ChatCanvas({
     previewKey: preview?.key ?? null,
     registerTimeline,
     measureDetailsCard: store.getState().measureDetailsCard,
-    detailsCardTopInset: model.detailsCardTopInset,
+    detailsPopoverSideOffset: model.detailsPopoverSideOffset,
     preferredDetailsCard: model.preferredDetailsCard,
     detailsCardPlacement: model.detailsCardPlacement,
   };

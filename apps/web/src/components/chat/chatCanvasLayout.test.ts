@@ -135,27 +135,40 @@ describe("chat canvas layout", () => {
       expect(Math.abs(leftAt(width + 1) - leftAt(width))).toBeLessThanOrEqual(1);
     }
   });
-  it("keeps a dragged or resized preview below the open find bar", () => {
-    const findBar = { left: 1292, right: 1572, bottom: 48 };
-    const layout = (lastInteraction: "drag" | "resize") =>
+  it("keeps a preview over the chat below the find bar at the lane's end", () => {
+    const layout = (width: number, x: number, lastInteraction: "drag" | "resize") =>
       resolveChatCanvasLayout({
-        container: { width: 1584, height: 988 },
+        container: { width, height: 988 },
         maxChatWidth: 736,
         composerHeight: 180,
-        findBar,
+        findBar: { width: 280, bottom: 48 },
         preview: {
           ...preview,
           width: 240,
           source: { width: 240, height: 365 },
-          position: { x: 1332, y: 12 },
+          position: { x, y: 12 },
           lastInteraction,
         },
       });
     for (const lastInteraction of ["drag", "resize"] as const) {
-      const result = layout(lastInteraction);
-      expect(result.frame).toEqual({ x: 1332, y: 60, width: 240, height: 365 });
-      expect(result.overlapsDetailsCard).toBe(false);
-      expect(result.chat).toEqual({ left: 424, width: 736, insetStart: 0, insetEnd: 0 });
+      const beside = layout(1584, 1332, lastInteraction);
+      expect(beside.overlapsChat).toBe(false);
+      expect(beside.frame).toEqual({ x: 1332, y: 12, width: 240, height: 365 });
+      const over = layout(900, 600, lastInteraction);
+      expect(over.overlapsChat).toBe(true);
+      expect(over.frame).toEqual({ x: 600, y: 60, width: 240, height: 365 });
+      const tall = resolveChatCanvasLayout({
+        container: { width: 640, height: 800 },
+        composerHeight: 180,
+        findBar: { width: 280, bottom: 48 },
+        preview: {
+          ...preview,
+          source: { width: 500, height: 1000 },
+          position: { x: 308, y: 12 },
+          lastInteraction,
+        },
+      });
+      expect(tall.frame).toEqual({ x: 308, y: 60, width: 274, height: 548 });
     }
   });
   it("uses space beside the full card if a tall preview cannot fit below it", () => {

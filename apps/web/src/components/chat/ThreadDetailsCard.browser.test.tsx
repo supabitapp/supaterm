@@ -18,7 +18,7 @@ const threadB: ScopedThreadRef = {
   threadId: ThreadId.make("thread-b"),
 };
 const container = { width: 1200, height: 800 };
-const placement = { x: 908, y: 0, right: 12, width: 280, height: 400 } as const;
+const placement = { x: 908, y: 12, right: 12, width: 280, height: 400 } as const;
 
 function setup() {
   useRightPanelStore.setState({ threadPanelVisibilityByThreadKey: {} });
@@ -61,7 +61,7 @@ function Card({
           previewKey: null,
           registerTimeline: () => {},
           measureDetailsCard: () => {},
-          detailsCardTopInset: 0,
+          detailsPopoverSideOffset: 0,
           preferredDetailsCard: placement,
           detailsCardPlacement: inline ? placement : null,
         }}
