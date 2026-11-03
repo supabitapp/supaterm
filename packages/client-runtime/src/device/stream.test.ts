@@ -112,6 +112,15 @@ describe("native device stream transport", () => {
     client.stop();
   });
 
+  it("asks an Android device to wake its screen whenever the stream socket opens", async () => {
+    const { client, opened } = setup("android");
+    client.start();
+    const socket = await opened;
+    socket.onopen?.();
+    expect(socket.send).toHaveBeenCalledWith(JSON.stringify({ type: "key", keycode: 224 }));
+    client.stop();
+  });
+
   it.each(["ios", "android"] as const)(
     "keeps a restarted %s stream connected when the discarded socket closes late",
     async (platform) => {
