@@ -121,7 +121,8 @@ jobs:
       # checkout.workers=0 writes the files on every core. Alternating both ways
       # in one job on the Windows runners, it wrote the files about 10s faster
       # (about 40% on arm64).
-      - name: Checkout
+      - &checkout
+        name: Checkout
         shell: bash
         env:
           CHECKOUT_REF: ${{ inputs.ref }}
@@ -133,11 +134,13 @@ jobs:
           git fetch --no-tags --depth=1 origin "$CHECKOUT_REF"
           git -c checkout.workers=0 checkout --detach FETCH_HEAD
 
-      - name: Setup Mise
+      - &setup_mise
+        name: Setup Mise
         uses: ./.github/actions/setup-mise
         with:
           cache: false
-      - name: Select Xcode 27.1
+      - &select_xcode
+        name: Select Xcode 27.1
         if: inputs.platform == 'mac'
         shell: bash
         env:
@@ -148,19 +151,22 @@ jobs:
           echo "DEVELOPER_DIR=$DEVELOPER_DIR" >> "$GITHUB_ENV"
       # pnpm checks the lockfile and policy before reusing this result. A missing
       # artifact leaves the cache empty, so installation runs the checks again.
-      - name: Download dependency verification
+      - &download_dependency_verification
+        name: Download dependency verification
         continue-on-error: true
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: release-dependency-verification
           path: ${{ runner.temp }}/pnpm-metadata
 
-      - name: Install desktop dependencies
+      - &install_dependencies
+        name: Install desktop dependencies
         env:
           pnpm_config_cache_dir: ${{ runner.temp }}/pnpm-metadata
         run: vp install --filter=@supaterm/desktop... --filter=supaterm... --filter=@supaterm/scripts...
 
-      - name: Cache resource monitor
+      - &cache_resource_monitor
+        name: Cache resource monitor
         id: resource_monitor_cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
@@ -184,33 +190,38 @@ jobs:
           toolchain: stable
           targets: ${{ inputs.rust_target }}
 
-      - name: Align package versions to release version
+      - &align_versions
+        name: Align package versions to release version
         shell: bash
         run: node scripts/update-release-package-versions.ts "$INPUTS_VERSION"
 
       # The artifact root is `apps/` (upload-artifact keeps the least common
       # ancestor of its paths), so extracting into `apps` restores
       # apps/server/dist and apps/desktop/dist-electron at their build paths.
-      - name: Download JS bundle
+      - &download_js_bundle
+        name: Download JS bundle
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: js-bundle
           path: apps
 
-      - name: Install cargo-xwin
+      - &install_cargo_xwin
+        name: Install cargo-xwin
         if: inputs.platform == 'win' && steps.resource_monitor_cache.outputs.cache-hit != 'true'
         uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2
         with:
           tool: cargo-xwin@0.23.1
 
-      - name: Build resource monitor
+      - &build_resource_monitor
+        name: Build resource monitor
         if: steps.resource_monitor_cache.outputs.cache-hit != 'true'
         shell: bash
         run: cargo ${{ inputs.platform == 'win' && 'xwin build' || 'build' }} --locked --release --manifest-path native/resource-monitor/Cargo.toml --target "${INPUTS_RUST_TARGET}"
 
       # Off Windows, scripts/lib/windows-jsign.ts signs through jsign instead of
       # the TrustedSigning PowerShell module.
-      - name: Install jsign
+      - &install_jsign
+        name: Install jsign
         if: inputs.platform == 'win'
         shell: bash
         run: |
@@ -223,7 +234,8 @@ jobs:
           chmod +x "$dir/jsign"
           echo "SUPATERM_JSIGN=$dir/jsign" >> "$GITHUB_ENV"
 
-      - name: Load Apple signing credentials
+      - &load_apple_credentials
+        name: Load Apple signing credentials
         if: inputs.platform == 'mac'
         uses: ./.github/actions/load-release-secrets
         with:
@@ -232,7 +244,8 @@ jobs:
 
       # notarytool and electron-builder read the App Store Connect key from a
       # file, so every later step gets its path in place of the key itself.
-      - name: Write App Store Connect key file
+      - &write_app_store_connect_key
+        name: Write App Store Connect key file
         if: inputs.platform == 'mac'
         shell: bash
         run: |
@@ -243,7 +256,8 @@ jobs:
             echo "APPLE_API_KEY=$key_path" >> "$GITHUB_ENV"
           fi
 
-      - uses: ./.github/actions/setup-apt-mirrors
+      - &setup_apt_mirrors
+        uses: ./.github/actions/setup-apt-mirrors
         if: inputs.platform == 'linux'
 
       - name: Install Linux desktop build libraries
@@ -551,51 +565,12 @@ jobs:
       INPUTS_RESOURCE_KEY: ${{ inputs.resource_key }}
       INPUTS_VERSION: ${{ inputs.version }}
     steps:
-      # The same checkout as the build job's.
-      - name: Checkout
-        shell: bash
-        env:
-          CHECKOUT_REF: ${{ inputs.ref }}
-          GIT_TERMINAL_PROMPT: "0"
-        run: |
-          set -euo pipefail
-          git init .
-          git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
-          git fetch --no-tags --depth=1 origin "$CHECKOUT_REF"
-          git -c checkout.workers=0 checkout --detach FETCH_HEAD
-
-      - name: Setup Mise
-        uses: ./.github/actions/setup-mise
-        with:
-          cache: false
-      - name: Select Xcode 27.1
-        if: inputs.platform == 'mac'
-        shell: bash
-        env:
-          DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
-        run: |
-          xcodebuild -version
-          xcrun --find actool
-          echo "DEVELOPER_DIR=$DEVELOPER_DIR" >> "$GITHUB_ENV"
-
-      - name: Download dependency verification
-        continue-on-error: true
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: release-dependency-verification
-          path: ${{ runner.temp }}/pnpm-metadata
-
-      - name: Install dependencies
-        env:
-          pnpm_config_cache_dir: ${{ runner.temp }}/pnpm-metadata
-        run: vp install --filter=@supaterm/desktop... --filter=supaterm... --filter=@supaterm/scripts...
-
-      - name: Cache resource monitor
-        id: resource_monitor_cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: native/resource-monitor/target/${{ inputs.rust_target }}/release/supaterm-resource-monitor${{ inputs.platform == 'win' && '.exe' || '' }}
-          key: resource-monitor-${{ inputs.rust_target }}-${{ hashFiles('native/resource-monitor/Cargo.lock', 'native/resource-monitor/Cargo.toml', 'native/resource-monitor/src/**') }}
+      - *checkout
+      - *setup_mise
+      - *select_xcode
+      - *download_dependency_verification
+      - *install_dependencies
+      - *cache_resource_monitor
 
       - name: Setup Rust
         if: steps.resource_monitor_cache.outputs.cache-hit != 'true'
@@ -604,39 +579,11 @@ jobs:
           toolchain: stable
           targets: ${{ inputs.rust_target }}
 
-      - name: Align package versions to release version
-        shell: bash
-        run: node scripts/update-release-package-versions.ts "$INPUTS_VERSION"
-
-      - name: Download JS bundle
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: js-bundle
-          path: apps
-
-      - name: Install cargo-xwin
-        if: inputs.platform == 'win' && steps.resource_monitor_cache.outputs.cache-hit != 'true'
-        uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2
-        with:
-          tool: cargo-xwin@0.23.1
-
-      - name: Build resource monitor
-        if: steps.resource_monitor_cache.outputs.cache-hit != 'true'
-        shell: bash
-        run: cargo ${{ inputs.platform == 'win' && 'xwin build' || 'build' }} --locked --release --manifest-path native/resource-monitor/Cargo.toml --target "${INPUTS_RUST_TARGET}"
-
-      - name: Install jsign
-        if: inputs.platform == 'win'
-        shell: bash
-        run: |
-          set -euo pipefail
-          dir="$RUNNER_TEMP/jsign"
-          mkdir -p "$dir"
-          curl -fsSL --retry 3 -o "$dir/jsign.jar" https://github.com/ebourg/jsign/releases/download/7.6/jsign-7.6.jar
-          echo "6cf58aa080e7ff82656f320cff8d4a3bff30408df8766806dcba3740dd839fa5  $dir/jsign.jar" | sha256sum -c -
-          printf '#!/bin/sh\nexec java -jar "%s" "$@"\n' "$dir/jsign.jar" > "$dir/jsign"
-          chmod +x "$dir/jsign"
-          echo "SUPATERM_JSIGN=$dir/jsign" >> "$GITHUB_ENV"
+      - *align_versions
+      - *download_js_bundle
+      - *install_cargo_xwin
+      - *build_resource_monitor
+      - *install_jsign
 
       # The CLI archive ships apps/server/dist/client. The desktop build brands
       # its own copy the same way (resolveDesktopWebAssetBrand in
@@ -649,23 +596,8 @@ jobs:
           if [[ "${INPUTS_VERSION}" =~ -nightly\.[0-9]{8}\.[0-9]+$ ]]; then brand=nightly; fi
           node scripts/apply-web-brand-assets.ts "$brand" apps/server/dist/client
 
-      - name: Load Apple signing credentials
-        if: inputs.platform == 'mac'
-        uses: ./.github/actions/load-release-secrets
-        with:
-          profile: apple
-          service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-
-      - name: Write App Store Connect key file
-        if: inputs.platform == 'mac'
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ -n "${APPLE_API_KEY:-}" ]]; then
-            key_path="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
-            printf '%s' "$APPLE_API_KEY" > "$key_path"
-            echo "APPLE_API_KEY=$key_path" >> "$GITHUB_ENV"
-          fi
+      - *load_apple_credentials
+      - *write_app_store_connect_key
 
       # tsdown downloads the target Node with one fetch and no retry, and
       # nodejs.org drops that download often enough to fail releases. Seed
@@ -754,8 +686,7 @@ jobs:
           mkdir -p "$target_dir"
           cp "native/resource-monitor/target/${INPUTS_RUST_TARGET}/release/${binary_name}" "$target_dir/$binary_name"
 
-      - uses: ./.github/actions/setup-apt-mirrors
-        if: inputs.platform == 'linux'
+      - *setup_apt_mirrors
 
       # The Linux archive ships libatomic.so.1 and points supaterm's RUNPATH at it.
       - name: Install patchelf
