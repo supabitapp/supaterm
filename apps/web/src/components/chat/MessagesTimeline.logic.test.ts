@@ -1650,7 +1650,7 @@ describe("deriveMessagesTimelineRows", () => {
     ]);
   });
 
-  it("stacks back-to-back steers as one burst with a single steer label", () => {
+  it("stacks back-to-back steers as one burst", () => {
     const runId = RunId.make("double-steer-run");
     const time = (second: number) => new Date(Date.UTC(2026, 0, 1, 0, 0, second)).toISOString();
     const message = (
