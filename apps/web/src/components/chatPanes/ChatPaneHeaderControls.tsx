@@ -1,14 +1,12 @@
-import { ChevronLeftIcon, ChevronRightIcon, GripVerticalIcon, XIcon } from "@supaterm/icons";
+import { ChevronLeftIcon, ChevronRightIcon, GripVerticalIcon } from "@supaterm/icons";
 
 import { orderedPanes } from "../../chatPanes/layout";
 import { usePaneScope } from "../../chatPanes/paneScope";
 import { useChatPaneStore } from "../../chatPanes/store";
-import { useShortcutLabel } from "../../hooks/useShortcutLabel";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { startPaneDrag } from "./paneHeaderDrag";
 
-/** Grip, pane switcher, and close button for a chat pane in a split. */
 export function ChatPaneHeaderControls({ title }: { title: string }) {
   const scope = usePaneScope();
   const paneId = scope?.paneId ?? null;
@@ -18,7 +16,6 @@ export function ChatPaneHeaderControls({ title }: { title: string }) {
       ? orderedPanes(state.layout).findIndex((pane) => pane.id === paneId)
       : -1,
   );
-  const closeShortcut = useShortcutLabel("pane.close");
   if (paneId === null || panes < 2) return null;
   const store = useChatPaneStore.getState;
   return (
@@ -62,23 +59,6 @@ export function ChatPaneHeaderControls({ title }: { title: string }) {
           <TooltipPopup side="bottom">Drag onto another pane to move it</TooltipPopup>
         </Tooltip>
       )}
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              variant="ghost-muted"
-              size="icon-xs"
-              aria-label="Close pane"
-              onClick={() => store().close(paneId)}
-            />
-          }
-        >
-          <XIcon />
-        </TooltipTrigger>
-        <TooltipPopup side="bottom" shortcut={closeShortcut}>
-          Close pane
-        </TooltipPopup>
-      </Tooltip>
     </div>
   );
 }
