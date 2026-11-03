@@ -2,7 +2,11 @@
 import type * as NodeHttp from "node:http";
 
 import { TranscriptionError } from "@supaterm/contracts";
-import type { ProviderTranscription, WavAudio } from "@supaterm/provider-core/server/transcription";
+import {
+  LiveTranscriptionUnavailable,
+  PCM_BYTES_PER_SECOND,
+  type ProviderTranscription,
+} from "@supaterm/provider-core/server/transcription";
 import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -11,6 +15,7 @@ import * as Path from "effect/Path";
 import * as Queue from "effect/Queue";
 import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
+import * as Stream from "effect/Stream";
 import { ChildProcessSpawner } from "effect/process";
 import WebSocket from "ws";
 
@@ -76,7 +81,7 @@ export function claudeKeytermsHeader(terms: ReadonlyArray<string>): string {
 
 export type VoiceStreamEvent =
   | { readonly _tag: "Message"; readonly data: string }
-  | { readonly _tag: "CloseStreamSent" }
+  | { readonly _tag: "CloseStreamSent"; readonly audioMs: number }
   | { readonly _tag: "Closed"; readonly code: number }
   | { readonly _tag: "Deadline" };
 
@@ -151,7 +156,6 @@ function stepVoiceStream(state: VoiceStreamState, event: VoiceStreamEvent): Voic
 /** Drives the session from its events; timers run on `Clock`, so tests control them. */
 export const runVoiceStream = Effect.fnUntraced(function* (input: {
   readonly events: Queue.Dequeue<VoiceStreamEvent>;
-  readonly audioMs: number;
 }) {
   let state = initialVoiceStreamState;
   let deadlineAt: number | undefined;
@@ -163,7 +167,7 @@ export const runVoiceStream = Effect.fnUntraced(function* (input: {
         : yield* Queue.take(input.events).pipe(Effect.timeoutOption(Math.max(0, deadlineAt - now)));
     const event: VoiceStreamEvent = Option.getOrElse(next, () => ({ _tag: "Deadline" }));
     if (event._tag === "CloseStreamSent") {
-      deadlineAt = (yield* Clock.currentTimeMillis) + Math.max(MIN_DEADLINE_MS, input.audioMs);
+      deadlineAt = (yield* Clock.currentTimeMillis) + Math.max(MIN_DEADLINE_MS, event.audioMs);
     }
     const step = stepVoiceStream(state, event);
     if (step._tag === "Done") return step.text;
@@ -221,10 +225,14 @@ const connect = (url: string, headers: Record<string, string>) =>
     return Effect.sync(() => socket.terminate());
   });
 
+/**
+ * Sends `audio` as it arrives and finishes when the server closes the socket. A refused or
+ * failed connection is `LiveTranscriptionUnavailable`, since no audio has been sent yet.
+ */
 export const streamClaudeTranscription = Effect.fn("ClaudeTranscription.stream")(function* (input: {
   readonly url: string;
   readonly headers: Record<string, string>;
-  readonly audio: WavAudio;
+  readonly audio: Stream.Stream<Uint8Array>;
 }) {
   const socket = yield* Effect.acquireRelease(
     connect(input.url, input.headers).pipe(
@@ -232,6 +240,7 @@ export const streamClaudeTranscription = Effect.fn("ClaudeTranscription.stream")
         duration: CONNECT_TIMEOUT,
         orElse: () => Effect.fail(new TranscriptionError({ reason: "failed" })),
       }),
+      Effect.mapError((cause) => new LiveTranscriptionUnavailable({ cause })),
     ),
     (open) => Effect.sync(() => open.terminate()),
   );
@@ -261,14 +270,23 @@ export const streamClaudeTranscription = Effect.fn("ClaudeTranscription.stream")
   );
   yield* Effect.forkScoped(
     Effect.gen(function* () {
-      for (let offset = 0; offset < input.audio.pcm.byteLength; offset += FRAME_BYTES) {
-        yield* send(input.audio.pcm.subarray(offset, offset + FRAME_BYTES));
-      }
+      let sentBytes = 0;
+      yield* Stream.runForEach(input.audio, (chunk) =>
+        Effect.gen(function* () {
+          for (let offset = 0; offset < chunk.byteLength; offset += FRAME_BYTES) {
+            yield* send(chunk.subarray(offset, offset + FRAME_BYTES));
+          }
+          sentBytes += chunk.byteLength;
+        }),
+      );
       yield* send(CLOSE_STREAM);
-      Queue.offerUnsafe(events, { _tag: "CloseStreamSent" });
+      Queue.offerUnsafe(events, {
+        _tag: "CloseStreamSent",
+        audioMs: (sentBytes / PCM_BYTES_PER_SECOND) * 1000,
+      });
     }).pipe(Effect.catch(() => Queue.offer(events, { _tag: "Closed", code: 1006 }))),
   );
-  return yield* runVoiceStream({ events, audioMs: input.audio.durationMs });
+  return yield* runVoiceStream({ events });
 }, Effect.scoped);
 
 /** The CLI's own request: its query, its identity headers, and its keyterm header. */
@@ -318,16 +336,39 @@ export const makeClaudeTranscription = Effect.fn("makeClaudeTranscription")(func
     Effect.provideService(Path.Path, path),
   );
 
-  const transcribe: ProviderTranscription["transcribe"] = Effect.fn(
-    "ClaudeTranscription.transcribe",
-  )(function* ({ audio, language, keyterms }) {
-    const request = claudeVoiceStreamRequest({
+  const request = Effect.fn("ClaudeTranscription.request")(function* (
+    language: string | undefined,
+    keyterms: ReadonlyArray<string>,
+  ) {
+    return claudeVoiceStreamRequest({
       token: yield* readToken,
       cliVersion: (yield* input.cliVersion) ?? FALLBACK_CLI_VERSION,
       language,
       keyterms,
     });
-    const text = yield* streamClaudeTranscription({ ...request, audio });
+  });
+
+  const stream: NonNullable<ProviderTranscription["stream"]> = Effect.fn(
+    "ClaudeTranscription.streamLive",
+  )(function* ({ audio, language, keyterms }) {
+    const opened = yield* request(language, keyterms).pipe(
+      Effect.mapError((cause) => new LiveTranscriptionUnavailable({ cause })),
+    );
+    return { text: yield* streamClaudeTranscription({ ...opened, audio }) };
+  });
+
+  const transcribe: ProviderTranscription["transcribe"] = Effect.fn(
+    "ClaudeTranscription.transcribe",
+  )(function* ({ audio, language, keyterms }) {
+    const opened = yield* request(language, keyterms);
+    const text = yield* streamClaudeTranscription({
+      ...opened,
+      audio: Stream.make(audio.pcm),
+    }).pipe(
+      Effect.catchTags({
+        LiveTranscriptionUnavailable: (unavailable) => Effect.fail(unavailable.cause),
+      }),
+    );
     return { text };
   });
 
@@ -335,5 +376,6 @@ export const makeClaudeTranscription = Effect.fn("makeClaudeTranscription")(func
     acceptsKeyterms: true,
     supportsLanguage: (code) => CLAUDE_VOICE_LANGUAGES.has(code),
     transcribe,
+    stream,
   } satisfies ProviderTranscription;
 });

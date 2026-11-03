@@ -14,8 +14,15 @@ export {
   type VoiceRecordingDelivery,
 } from "./controller.ts";
 export {
+  LiveDictation,
+  openLiveDictationSocket,
+  type LiveDictationOptions,
+  type LiveDictationSocket,
+} from "./liveDictation.ts";
+export {
   VoiceTranscriptionError,
   type PreparedVoiceTranscription,
+  type VoiceRecordingHandOff,
   type VoiceTranscriber,
   type VoiceTranscriptionErrorCode,
   type VoiceTranscriptionOptions,

@@ -1,5 +1,6 @@
 package expo.modules.supatermpcmrecorder
 
+import java.io.ByteArrayOutputStream
 import java.io.Closeable
 import java.io.File
 import java.io.RandomAccessFile
@@ -20,6 +21,7 @@ private const val MONO: Short = 1
 private const val BITS_PER_SAMPLE: Short = 16
 private const val FMT_CHUNK_BYTES = 16
 private const val FILTER_TAPS = 63
+private const val FRAME_BATCH_BYTES = 3_200
 internal const val SILENCE_DECIBELS = -160.0
 
 /** Mono 16-bit PCM WAV. The header is rewritten with the final sizes on close. */
@@ -34,12 +36,14 @@ internal class WavFileWriter(file: File, private val sampleRate: Int) : Closeabl
     output.write(header(0))
   }
 
-  fun write(samples: ShortArray, count: Int) {
-    if (count <= 0) return
+  /** Returns the bytes appended to the data chunk. */
+  fun write(samples: ShortArray, count: Int): ByteArray {
+    if (count <= 0) return ByteArray(0)
     val bytes = ByteBuffer.allocate(count * BYTES_PER_SAMPLE).order(ByteOrder.LITTLE_ENDIAN)
     for (index in 0 until count) bytes.putShort(samples[index])
     output.write(bytes.array())
     frames += count
+    return bytes.array()
   }
 
   override fun close() {
@@ -68,6 +72,25 @@ internal class WavFileWriter(file: File, private val sampleRate: Int) : Closeabl
       .put("data".toByteArray(Charsets.US_ASCII))
       .putInt(size)
       .array()
+  }
+}
+
+/**
+ * Groups written PCM into ~100 ms batches. Together the batches are exactly the WAV's data chunk,
+ * which the environment relies on to fill a broken stream from the file by byte offset.
+ */
+internal class PcmFrameBatch(private val emit: (ByteArray) -> Unit) {
+  private val pending = ByteArrayOutputStream(FRAME_BATCH_BYTES * 2)
+
+  fun add(bytes: ByteArray) {
+    pending.write(bytes)
+    if (pending.size() >= FRAME_BATCH_BYTES) flush()
+  }
+
+  fun flush() {
+    if (pending.size() == 0) return
+    emit(pending.toByteArray())
+    pending.reset()
   }
 }
 

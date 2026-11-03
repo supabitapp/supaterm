@@ -5,18 +5,12 @@ import {
 } from "@supaterm/client-runtime/voice-input";
 import { TRANSCRIPTION_MIN_DURATION_MS, TranscriptionError } from "@supaterm/contracts";
 
-import { convertRecordingToWav, encodeMonoWav, VOICE_SAMPLE_RATE } from "./wav";
+import pcmCaptureWorkletUrl from "./pcmCapture.worklet.ts?worker&url";
+import { PCM_CAPTURE_PROCESSOR, VOICE_SAMPLE_RATE, wavFromPcm } from "./wav";
 
-const MIME_TYPE_CANDIDATES = [
-  "audio/webm;codecs=opus",
-  "audio/webm",
-  "audio/mp4;codecs=mp4a.40.2",
-  "audio/mp4",
-  "audio/ogg;codecs=opus",
-];
-const AUDIO_BITS_PER_SECOND = 32_000;
-const LEVEL_SAMPLE_MS = 100;
 export const VOICE_LEVEL_HISTORY = 16;
+// The worklet answers within a render quantum; a suspended context never would.
+const FLUSH_TIMEOUT_MS = 1_000;
 
 const DEV_FAKE_MICROPHONE_STORAGE_KEY = "supaterm:dev-fake-microphone";
 
@@ -35,7 +29,7 @@ export function canRecordVoice(): boolean {
     fakeMicrophoneSource() !== null ||
     (window.isSecureContext &&
       typeof navigator.mediaDevices?.getUserMedia === "function" &&
-      typeof MediaRecorder !== "undefined")
+      typeof AudioWorkletNode !== "undefined")
   );
 }
 
@@ -63,6 +57,14 @@ export function releaseVoiceRecording(uri: string): void {
 }
 
 export type VoiceLevelListener = (levels: ReadonlyArray<number>) => void;
+/** Receives 16 kHz mono 16-bit PCM as it is recorded, about every 100 ms. */
+export type VoicePcmListener = (pcm: Uint8Array) => void;
+
+function levelOf(frame: Int16Array): number {
+  let sum = 0;
+  for (const sample of frame) sum += (sample / 32768) ** 2;
+  return Math.min(1, Math.sqrt(Math.sqrt(sum / Math.max(1, frame.length)) * 4));
+}
 
 export class WebVoiceRecorder implements VoiceRecorder {
   uri: string | null = null;
@@ -72,12 +74,16 @@ export class WebVoiceRecorder implements VoiceRecorder {
     readonly start: () => void;
     readonly stop: () => void;
   } | null = null;
-  private mediaRecorder: MediaRecorder | null = null;
-  private chunks: Blob[] = [];
+  private capture: { readonly context: AudioContext; readonly node: AudioWorkletNode } | null =
+    null;
+  private recording = false;
+  private pcm: Array<Uint8Array> = [];
+  private recordedSamples = 0;
+  private readonly pcmListeners = new Set<VoicePcmListener>();
+  private flushed: (() => void) | null = null;
   private startedAt = 0;
   private limitTimer: ReturnType<typeof setTimeout> | null = null;
-  private levelContext: AudioContext | null = null;
-  private levelTimer: ReturnType<typeof setInterval> | null = null;
+  private meterLevels = false;
   private levels: ReadonlyArray<number> = Array<number>(VOICE_LEVEL_HISTORY).fill(0);
   private levelListener: VoiceLevelListener | null = null;
   private stopped: Promise<void> | null = null;
@@ -89,7 +95,13 @@ export class WebVoiceRecorder implements VoiceRecorder {
   }
 
   get elapsedMs(): number {
-    return this.mediaRecorder?.state === "recording" ? performance.now() - this.startedAt : 0;
+    return this.recording ? performance.now() - this.startedAt : 0;
+  }
+
+  /** Follows the recording as it is made; returns the unsubscribe. */
+  onPcm(listener: VoicePcmListener): () => void {
+    this.pcmListeners.add(listener);
+    return () => this.pcmListeners.delete(listener);
   }
 
   async requestPermission(): Promise<{
@@ -133,28 +145,35 @@ export class WebVoiceRecorder implements VoiceRecorder {
     const stream = this.stream;
     if (!stream) throw new Error("The microphone is not open.");
     this.uri = null;
-    this.chunks = [];
-    const mimeType = MIME_TYPE_CANDIDATES.find((type) => MediaRecorder.isTypeSupported(type));
-    const recorder = new MediaRecorder(stream, {
-      ...(mimeType ? { mimeType } : {}),
-      audioBitsPerSecond: AUDIO_BITS_PER_SECOND,
-    });
-    recorder.addEventListener("dataavailable", (event) => {
-      if (event.data.size > 0) this.chunks.push(event.data);
-    });
-    recorder.addEventListener("error", () => {
-      this.onStatus({
-        isFinished: false,
-        hasError: true,
-        error: "Microphone recording failed.",
-        url: null,
+    this.pcm = [];
+    this.recordedSamples = 0;
+    this.closeCapture();
+    const context = new AudioContext();
+    try {
+      await context.audioWorklet.addModule(pcmCaptureWorkletUrl);
+      const node = new AudioWorkletNode(context, PCM_CAPTURE_PROCESSOR, {
+        numberOfInputs: 1,
+        numberOfOutputs: 1,
+        outputChannelCount: [1],
       });
-    });
+      node.port.onmessage = (event: MessageEvent) => {
+        if (event.data instanceof Int16Array) this.receive(event.data);
+        else if (event.data === "flushed") this.flushed?.();
+      };
+      // The node outputs silence; it only renders while connected to the destination.
+      context.createMediaStreamSource(stream).connect(node).connect(context.destination);
+      await context.resume();
+      this.capture = { context, node };
+    } catch (error) {
+      void context.close().catch(() => undefined);
+      throw error;
+    }
+    const capture = this.capture;
     for (const track of stream.getAudioTracks()) {
       track.addEventListener(
         "ended",
         () => {
-          if (this.mediaRecorder !== recorder || recorder.state !== "recording") return;
+          if (this.capture !== capture || !this.recording) return;
           void this.stop().then(() =>
             this.onStatus({
               isFinished: false,
@@ -167,19 +186,20 @@ export class WebVoiceRecorder implements VoiceRecorder {
         { once: true },
       );
     }
-    this.mediaRecorder = recorder;
     this.stopped = null;
   }
 
   record(options: { readonly forDuration: number }): void {
-    const recorder = this.mediaRecorder;
-    if (!recorder || recorder.state !== "inactive") return;
-    recorder.start(1_000);
+    const capture = this.capture;
+    if (!capture || this.recording) return;
+    // oxlint-disable-next-line unicorn/require-post-message-target-origin -- A MessagePort has no target origin.
+    capture.node.port.postMessage("start");
+    this.recording = true;
     this.fakeSource?.start();
     this.startedAt = performance.now();
-    this.startLevelMeter();
+    this.meterLevels = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     this.limitTimer = setTimeout(() => {
-      if (this.mediaRecorder !== recorder || recorder.state !== "recording") return;
+      if (this.capture !== capture || !this.recording) return;
       void this.stop().then(() =>
         this.onStatus({ isFinished: true, hasError: false, error: null, url: this.uri }),
       );
@@ -199,74 +219,68 @@ export class WebVoiceRecorder implements VoiceRecorder {
 
   release(): void {
     this.permissionGeneration += 1;
-    this.stopLevelMeter();
     if (this.limitTimer) clearTimeout(this.limitTimer);
     this.limitTimer = null;
+    this.recording = false;
+    this.resetLevels();
     for (const track of this.stream?.getTracks() ?? []) track.stop();
     this.stream = null;
     this.fakeSource?.stop();
     this.fakeSource = null;
-    if (this.mediaRecorder?.state === "recording") this.mediaRecorder.stop();
-    this.mediaRecorder = null;
+    this.closeCapture();
+  }
+
+  private receive(frame: Int16Array): void {
+    if (!this.recording) return;
+    const bytes = new Uint8Array(frame.buffer, frame.byteOffset, frame.byteLength);
+    this.pcm.push(bytes);
+    this.recordedSamples += frame.length;
+    for (const listener of this.pcmListeners) listener(bytes);
+    if (!this.meterLevels || document.hidden) return;
+    this.levels = [...this.levels.slice(1), levelOf(frame)];
+    this.levelListener?.(this.levels);
   }
 
   private async finish(): Promise<void> {
-    const recorder = this.mediaRecorder;
+    const capture = this.capture;
     if (this.limitTimer) clearTimeout(this.limitTimer);
     this.limitTimer = null;
-    this.stopLevelMeter();
-    if (!recorder || recorder.state === "inactive") return;
-    const stopped = new Promise<void>((resolve) => {
-      recorder.addEventListener("stop", () => resolve(), { once: true });
-    });
+    if (!capture || !this.recording) return;
     const elapsedMs = performance.now() - this.startedAt;
-    recorder.stop();
-    await stopped;
-    const encoded = new Blob(this.chunks, {
-      type: recorder.mimeType || this.chunks[0]?.type || "audio/webm",
+    await new Promise<void>((resolve) => {
+      this.flushed = resolve;
+      setTimeout(resolve, FLUSH_TIMEOUT_MS);
+      // oxlint-disable-next-line unicorn/require-post-message-target-origin -- A MessagePort has no target origin.
+      capture.node.port.postMessage("flush");
     });
-    this.chunks = [];
-    // A tap can stop before the encoder emits any audio; that is an empty recording, not a failure.
-    if (encoded.size === 0 && elapsedMs >= TRANSCRIPTION_MIN_DURATION_MS) return;
-    const recording =
-      encoded.size === 0
-        ? { audio: encodeMonoWav([], VOICE_SAMPLE_RATE), durationMs: 0 }
-        : await convertRecordingToWav(encoded);
-    const uri = URL.createObjectURL(recording.audio);
-    recordings.set(uri, recording);
+    this.flushed = null;
+    this.recording = false;
+    this.resetLevels();
+    this.closeCapture();
+    // A tap can stop before the first frame; that is an empty recording, not a failure.
+    if (this.recordedSamples === 0 && elapsedMs >= TRANSCRIPTION_MIN_DURATION_MS) return;
+    const audio = wavFromPcm(this.pcm);
+    this.pcm = [];
+    const uri = URL.createObjectURL(audio);
+    recordings.set(uri, {
+      audio,
+      durationMs: Math.round((this.recordedSamples / VOICE_SAMPLE_RATE) * 1000),
+    });
     this.uri = uri;
   }
 
-  private startLevelMeter(): void {
-    const stream = this.stream;
-    if (!stream || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const context = this.fakeSource?.context ?? new AudioContext();
-    if (!this.fakeSource) this.levelContext = context;
-    const analyser = context.createAnalyser();
-    analyser.fftSize = 512;
-    context.createMediaStreamSource(stream).connect(analyser);
-    const samples = new Uint8Array(analyser.fftSize);
-    this.levelTimer = setInterval(() => {
-      if (document.hidden) return;
-      analyser.getByteTimeDomainData(samples);
-      let sum = 0;
-      for (const sample of samples) {
-        const centered = (sample - 128) / 128;
-        sum += centered * centered;
-      }
-      const level = Math.min(1, Math.sqrt(Math.sqrt(sum / samples.length) * 4));
-      this.levels = [...this.levels.slice(1), level];
-      this.levelListener?.(this.levels);
-    }, LEVEL_SAMPLE_MS);
-  }
-
-  private stopLevelMeter(): void {
-    if (this.levelTimer) clearInterval(this.levelTimer);
-    this.levelTimer = null;
+  private resetLevels(): void {
     this.levels = Array<number>(VOICE_LEVEL_HISTORY).fill(0);
     this.levelListener?.(this.levels);
-    void this.levelContext?.close().catch(() => undefined);
-    this.levelContext = null;
+  }
+
+  private closeCapture(): void {
+    const capture = this.capture;
+    this.capture = null;
+    if (!capture) return;
+    capture.node.port.onmessage = null;
+    capture.node.disconnect();
+    void capture.context.close().catch(() => undefined);
   }
 
   private async createFakeStream(source: string): Promise<MediaStream> {

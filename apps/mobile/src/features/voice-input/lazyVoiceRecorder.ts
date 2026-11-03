@@ -8,13 +8,11 @@ export interface VoiceRecordingInput {
   readonly type: string;
 }
 
-/** The subset of expo-audio's recording events that both recorders report. */
 export interface VoiceRecordingStatusEvent {
   readonly isFinished: boolean;
   readonly hasError: boolean;
   readonly error: string | null;
   readonly url: string | null;
-  readonly mediaServicesDidReset?: boolean;
 }
 
 export interface VoiceRecordingState {
@@ -33,6 +31,8 @@ export interface NativeVoiceRecorder<TStatus, TRecorderState> {
     eventName: "recordingStatusUpdate",
     listener: (status: TStatus) => void,
   ): Subscription;
+  /** 16 kHz mono 16-bit PCM, byte for byte what the recording's WAV data holds. */
+  addFrameListener(listener: (pcm: Uint8Array) => void): Subscription;
   getAvailableInputs(): ReadonlyArray<VoiceRecordingInput>;
   setInput(uid: string): void;
   release(): void;
@@ -40,6 +40,8 @@ export interface NativeVoiceRecorder<TStatus, TRecorderState> {
 
 export interface LazyVoiceRecorder<TRecorderState> extends VoiceRecorder {
   getStatus(): TRecorderState | null;
+  /** Works before the recorder exists, so a dictation can subscribe before it is prepared. */
+  subscribeFrames(push: (pcm: Uint8Array) => void): () => void;
   release(): void;
 }
 
@@ -51,6 +53,8 @@ export function createLazyVoiceRecorder<TStatus, TRecorderState>(input: {
 }): LazyVoiceRecorder<TRecorderState> {
   let recorder: NativeVoiceRecorder<TStatus, TRecorderState> | null = null;
   let subscription: Subscription | null = null;
+  const frameListeners = new Set<(pcm: Uint8Array) => void>();
+  let frameSubscription: Subscription | null = null;
   let retired: NativeVoiceRecorder<TStatus, TRecorderState> | null = null;
   let retiredUri: string | null = null;
   let pending: Promise<unknown> = Promise.resolve();
@@ -58,6 +62,18 @@ export function createLazyVoiceRecorder<TStatus, TRecorderState>(input: {
   const track = <T>(promise: Promise<T>): Promise<T> => {
     pending = Promise.allSettled([pending, promise]).then(() => undefined);
     return promise;
+  };
+
+  // Listening is what makes the native recorder emit frames, so it only listens while asked to.
+  const syncFrameSubscription = () => {
+    if (recorder && frameListeners.size > 0) {
+      frameSubscription ??= recorder.addFrameListener((pcm) => {
+        for (const listener of frameListeners) listener(pcm);
+      });
+    } else {
+      frameSubscription?.remove();
+      frameSubscription = null;
+    }
   };
 
   return {
@@ -69,6 +85,7 @@ export function createLazyVoiceRecorder<TStatus, TRecorderState>(input: {
       if (!recorder) {
         recorder = input.create();
         subscription = recorder.addListener("recordingStatusUpdate", input.onStatus);
+        syncFrameSubscription();
       }
       const prepared = recorder;
       return track(
@@ -91,12 +108,21 @@ export function createLazyVoiceRecorder<TStatus, TRecorderState>(input: {
     getStatus() {
       return recorder ? recorder.getStatus() : null;
     },
+    subscribeFrames(push) {
+      frameListeners.add(push);
+      syncFrameSubscription();
+      return () => {
+        frameListeners.delete(push);
+        syncFrameSubscription();
+      };
+    },
     release() {
       const released = recorder;
       if (!released) return;
       recorder = null;
       subscription?.remove();
       subscription = null;
+      syncFrameSubscription();
       retired = released;
       void pending.then(() => {
         if (retired === released) {

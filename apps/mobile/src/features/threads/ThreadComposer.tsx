@@ -2,6 +2,7 @@ import { useSidebarWorkspaceTabs } from "../workspace/useSystemWorkspaceTabBar";
 import { Button } from "../../components/ui/Button";
 import * as Dialog from "../../components/ui/Dialog";
 import { resolveSideChatCommand } from "@supaterm/client-runtime/state/side-chats";
+import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input";
 import { useSideChat } from "./useSideChat";
 import type { ComposerTextPaste } from "../../native/SupatermComposerEditor.types";
 import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
@@ -182,7 +183,11 @@ export interface ThreadComposerProps {
   readonly onResumeQueue: (() => Promise<void>) | null;
   /** `stillSendable` reports whether the draft is unchanged after any wait before sending. */
   /** Queues a recording from an empty draft as the message, for the environment to transcribe. */
-  readonly onSendVoiceMessage?: (recordingUri: string, language: string) => Promise<void>;
+  readonly onSendVoiceMessage?: (
+    recordingUri: string,
+    language: string,
+    handOff: VoiceRecordingHandOff | undefined,
+  ) => Promise<void>;
   readonly onSendMessage: (
     followUp?: ActiveTurnComposerAction,
     stillSendable?: () => boolean,

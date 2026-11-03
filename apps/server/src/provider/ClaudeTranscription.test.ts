@@ -4,9 +4,12 @@ import type * as NodeNet from "node:net";
 
 import { parseWav } from "@supaterm/provider-core/server/transcription";
 import { describe, expect, it } from "@effect/vitest";
+import type * as Cause from "effect/Cause";
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Queue from "effect/Queue";
+import * as Stream from "effect/Stream";
 import * as TestClock from "effect/testing/TestClock";
 import { WebSocketServer } from "ws";
 
@@ -42,10 +45,15 @@ const message = (type: string, data?: string): VoiceStreamEvent => ({
   data: JSON.stringify(data === undefined ? { type } : { type, data }),
 });
 
-const session = (audioMs = 1_000) =>
+const closeStreamSent = (audioMs = 1_000): VoiceStreamEvent => ({
+  _tag: "CloseStreamSent",
+  audioMs,
+});
+
+const session = () =>
   Effect.gen(function* () {
     const events = yield* Queue.unbounded<VoiceStreamEvent>();
-    const fiber = yield* Effect.forkChild(runVoiceStream({ events, audioMs }));
+    const fiber = yield* Effect.forkChild(runVoiceStream({ events }));
     const offer = (...batch: ReadonlyArray<VoiceStreamEvent>) =>
       Effect.forEach(batch, (event) => Queue.offer(events, event), { discard: true });
     return { fiber, offer };
@@ -114,7 +122,7 @@ describe("runVoiceStream", () => {
         message("TranscriptText", "open the worktree"),
         message("TranscriptEndpoint"),
         message("TranscriptText", " then run thermos "),
-        { _tag: "CloseStreamSent" },
+        closeStreamSent(),
         { _tag: "Closed", code: 1000 },
       );
       expect(yield* Fiber.join(fiber)).toBe("open the worktree then run thermos");
@@ -125,7 +133,7 @@ describe("runVoiceStream", () => {
     Effect.gen(function* () {
       const { fiber, offer } = yield* session();
       yield* offer(
-        { _tag: "CloseStreamSent" },
+        closeStreamSent(),
         message("TranscriptText", "first part"),
         message("TranscriptEndpoint"),
       );
@@ -143,7 +151,7 @@ describe("runVoiceStream", () => {
     Effect.gen(function* () {
       const { fiber, offer } = yield* session();
       yield* offer(message("TranscriptText", "first"), message("TranscriptEndpoint"));
-      yield* offer({ _tag: "CloseStreamSent" });
+      yield* offer(closeStreamSent());
       yield* TestClock.adjust("5 seconds");
       expect(fiber.pollUnsafe()).toBeUndefined();
       yield* offer(message("TranscriptText", "second"), { _tag: "Closed", code: 1000 });
@@ -153,8 +161,8 @@ describe("runVoiceStream", () => {
 
   it.effect("fails at the deadline when the server never finishes", () =>
     Effect.gen(function* () {
-      const { fiber, offer } = yield* session(40_000);
-      yield* offer({ _tag: "CloseStreamSent" }, message("TranscriptText", "partial"));
+      const { fiber, offer } = yield* session();
+      yield* offer(closeStreamSent(40_000), message("TranscriptText", "partial"));
       yield* TestClock.adjust("39 seconds");
       expect(fiber.pollUnsafe()).toBeUndefined();
       yield* TestClock.adjust("1 second");
@@ -167,7 +175,7 @@ describe("runVoiceStream", () => {
     Effect.gen(function* () {
       for (const ending of [
         [message("TranscriptError", "boom")],
-        [{ _tag: "CloseStreamSent" }, { _tag: "Closed", code: 1011 }],
+        [closeStreamSent(), { _tag: "Closed", code: 1011 }],
         [{ _tag: "Closed", code: 1000 }],
       ] as ReadonlyArray<ReadonlyArray<VoiceStreamEvent>>) {
         const { fiber, offer } = yield* session();
@@ -179,15 +187,18 @@ describe("runVoiceStream", () => {
   );
 });
 
+interface Received {
+  headers?: NodeHttp.IncomingHttpHeaders;
+  readonly frames: Array<Buffer | string>;
+  readonly firstAudio: Deferred.Deferred<void>;
+}
+
 const withServer = <E>(
   options: {
     readonly reject?: { readonly status: number; readonly headers?: Record<string, string> };
     readonly sendInvalidFrame?: boolean;
   },
-  use: (
-    url: string,
-    received: { headers?: NodeHttp.IncomingHttpHeaders; frames: Array<Buffer | string> },
-  ) => Effect.Effect<void, E>,
+  use: (url: string, received: Received) => Effect.Effect<void, E>,
 ) =>
   Effect.acquireUseRelease(
     Effect.callback<WebSocketServer>((resume) => {
@@ -202,14 +213,13 @@ const withServer = <E>(
       server.once("listening", () => resume(Effect.succeed(server)));
     }),
     (server) => {
-      const received: { headers?: NodeHttp.IncomingHttpHeaders; frames: Array<Buffer | string> } = {
-        frames: [],
-      };
+      const received: Received = { frames: [], firstAudio: Deferred.makeUnsafe() };
       server.on("connection", (socket, request) => {
         received.headers = request.headers;
         socket.on("message", (data, isBinary) => {
           const frame = isBinary ? Buffer.from(data as Buffer) : data.toString();
           received.frames.push(frame);
+          if (isBinary) Deferred.doneUnsafe(received.firstAudio, Effect.void);
           if (frame === '{"type":"CloseStream"}' && options.sendInvalidFrame) {
             // Reserved bits set: the client must treat this as a protocol error.
             (socket as unknown as { _socket: NodeNet.Socket })._socket.write(
@@ -237,7 +247,7 @@ describe("streamClaudeTranscription", () => {
         const text = yield* streamClaudeTranscription({
           url,
           headers: { Authorization: "Bearer token", "x-config-keyterms": "supaterm,thermos" },
-          audio,
+          audio: Stream.make(audio.pcm),
         });
         expect(text).toBe("hello from the fixture");
         expect(received.headers?.authorization).toBe("Bearer token");
@@ -251,6 +261,24 @@ describe("streamClaudeTranscription", () => {
     ),
   );
 
+  it.live("forwards audio while the speaker is still talking", () =>
+    withServer({}, (url, received) =>
+      Effect.gen(function* () {
+        const microphone = yield* Queue.unbounded<Uint8Array, Cause.Done>();
+        const fiber = yield* Effect.forkChild(
+          streamClaudeTranscription({ url, headers: {}, audio: Stream.fromQueue(microphone) }),
+        );
+        yield* Queue.offer(microphone, new Uint8Array(3_200).fill(7));
+        yield* Deferred.await(received.firstAudio);
+        expect(received.frames).not.toContain('{"type":"CloseStream"}');
+        yield* Queue.offer(microphone, new Uint8Array(3_200).fill(8));
+        yield* Queue.end(microphone);
+        expect(yield* Fiber.join(fiber)).toBe("hello from the fixture");
+        expect(received.frames.at(-1)).toBe('{"type":"CloseStream"}');
+      }),
+    ),
+  );
+
   it.live("fails promptly when the connection breaks after the clip is sent", () =>
     withServer({ sendInvalidFrame: true }, (url) =>
       Effect.gen(function* () {
@@ -260,9 +288,10 @@ describe("streamClaudeTranscription", () => {
           streamClaudeTranscription({
             url,
             headers: {},
-            audio: parseWav(wavBytes(16_000 * 180))!,
+            audio: Stream.make(parseWav(wavBytes(16_000 * 180))!.pcm),
           }),
         );
+        if (error._tag !== "TranscriptionError") throw error;
         expect(error.reason).toBe("failed");
       }),
     ),
@@ -274,14 +303,19 @@ describe("streamClaudeTranscription", () => {
     [{ status: 429, headers: { "Retry-After": "3" } }, "rateLimited"],
     [{ status: 401, headers: { "cf-mitigated": "challenge" } }, "blocked"],
     [{ status: 500 }, "failed"],
-  ] as const)("maps a refused upgrade %j to %s", ([reject, expected]) =>
+  ] as const)("maps a refused upgrade %j to %s, with nothing sent", ([reject, expected]) =>
     withServer({ reject }, (url) =>
       Effect.gen(function* () {
         const error = yield* Effect.flip(
-          streamClaudeTranscription({ url, headers: {}, audio: parseWav(wavBytes(16_000))! }),
+          streamClaudeTranscription({
+            url,
+            headers: {},
+            audio: Stream.make(parseWav(wavBytes(16_000))!.pcm),
+          }),
         );
-        expect(error.reason).toBe(expected);
-        if (expected === "rateLimited") expect(error.retryAfterMs).toBe(3_000);
+        if (error._tag !== "LiveTranscriptionUnavailable") throw error;
+        expect(error.cause.reason).toBe(expected);
+        if (expected === "rateLimited") expect(error.cause.retryAfterMs).toBe(3_000);
       }),
     ),
   );

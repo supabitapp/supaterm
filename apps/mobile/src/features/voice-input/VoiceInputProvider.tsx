@@ -1,15 +1,10 @@
 import { useAtomValue } from "@effect/atom-react";
-import {
-  AudioModule,
-  AudioQuality,
-  IOSOutputFormat,
-  requestRecordingPermissionsAsync,
-} from "expo-audio";
+import { requestRecordingPermissionsAsync } from "expo-audio";
 import { File } from "expo-file-system";
 import * as Haptics from "expo-haptics";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { useSyncExternalStore } from "react";
-import { AppState, Platform } from "react-native";
+import { AppState } from "react-native";
 import { Atom } from "effect/reactivity";
 import { makeMutable } from "react-native-reanimated";
 
@@ -22,12 +17,7 @@ import {
   type VoiceInputCue,
 } from "@supaterm/client-runtime/voice-input";
 import { createDevFakeVoiceRecorder, devFakeMicrophoneSource } from "./devFakeVoiceRecorder";
-import {
-  createLazyVoiceRecorder,
-  type NativeVoiceRecorder,
-  type VoiceRecordingState,
-  type VoiceRecordingStatusEvent,
-} from "./lazyVoiceRecorder";
+import { createLazyVoiceRecorder, type VoiceRecordingStatusEvent } from "./lazyVoiceRecorder";
 import { VOICE_WAVEFORM_SAMPLE_COUNT } from "./voiceInputMetering";
 import { playVoiceInputCue } from "./voiceInputCues";
 import { VoiceInputSession } from "./voiceInputSession";
@@ -36,27 +26,6 @@ import {
   activateAudioSession,
   releaseAudioSession,
 } from "../../lib/audioSession";
-
-// The format environments transcribe. The native constructor takes the platform-flattened
-// options `useAudioRecorder` would build.
-const IOS_VOICE_RECORDING_OPTIONS = {
-  extension: ".wav",
-  sampleRate: 16_000,
-  numberOfChannels: 1,
-  bitRate: 256_000,
-  isMeteringEnabled: true,
-  outputFormat: IOSOutputFormat.LINEARPCM,
-  audioQuality: AudioQuality.HIGH,
-  linearPCMBitDepth: 16,
-  linearPCMIsBigEndian: false,
-  linearPCMIsFloat: false,
-};
-
-const createNativeVoiceRecorder =
-  Platform.OS === "ios"
-    ? (): NativeVoiceRecorder<VoiceRecordingStatusEvent, VoiceRecordingState> =>
-        new AudioModule.AudioRecorder(IOS_VOICE_RECORDING_OPTIONS)
-    : createPcmVoiceRecorder;
 
 function keepScreenAwake(tag: string): () => void {
   const activation = activateKeepAwakeAsync(tag);
@@ -80,16 +49,11 @@ const voiceInputAtom = Atom.make((get) => {
     create: () => {
       const fakeMicrophone = devFakeMicrophoneSource();
       if (fakeMicrophone) return createDevFakeVoiceRecorder(fakeMicrophone);
-      if (!createNativeVoiceRecorder) throw new Error("This device can't record voice input.");
-      return createNativeVoiceRecorder();
+      if (!createPcmVoiceRecorder) throw new Error("This device can't record voice input.");
+      return createPcmVoiceRecorder();
     },
     onStatus: (status: VoiceRecordingStatusEvent) => {
-      session.controller.handleRecorderStatus({
-        isFinished: status.isFinished,
-        hasError: status.hasError || status.mediaServicesDidReset === true,
-        error: status.error,
-        url: status.url,
-      });
+      session.controller.handleRecorderStatus(status);
     },
     selectInput: preferredMicrophoneInput,
   });
@@ -153,16 +117,17 @@ const voiceInputAtom = Atom.make((get) => {
     session.dispose();
     recorder.release();
   });
-  return { session, audioLevels };
+  return { session, audioLevels, subscribeFrames: recorder.subscribeFrames };
 }).pipe(Atom.keepAlive, Atom.withLabel("mobile:voice-input"));
 
 export function useGlobalVoiceInput() {
-  const { session, audioLevels } = useAtomValue(voiceInputAtom);
+  const { session, audioLevels, subscribeFrames } = useAtomValue(voiceInputAtom);
   const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot);
   return {
     ...snapshot,
-    isAvailable: createNativeVoiceRecorder !== null || getNativeShowcaseScene() !== null,
+    isAvailable: createPcmVoiceRecorder !== null || getNativeShowcaseScene() !== null,
     audioLevels,
+    subscribeFrames,
     isBusy: voiceInputBlocksSubmission(snapshot.state),
     session,
     stop: () => session.controller.stop(),

@@ -23,6 +23,7 @@ type ComposerVoiceEngineResolution =
 export function resolveComposerVoiceEngine(input: {
   readonly environmentId: EnvironmentId | null;
   readonly context?: VoiceTranscriptionContext;
+  readonly subscribeFrames: (push: (pcm: Uint8Array) => void) => () => void;
 }): ComposerVoiceEngineResolution {
   const { environmentId } = input;
   if (environmentId === null) {
@@ -36,6 +37,7 @@ export function resolveComposerVoiceEngine(input: {
     environmentId,
     language,
     ...(input.context ? { context: input.context } : {}),
+    subscribeFrames: input.subscribeFrames,
   });
   return { status: "ready", engine: { transcriber, language } };
 }

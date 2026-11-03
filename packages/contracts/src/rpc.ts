@@ -335,6 +335,7 @@ import {
   TranscriptionCancelUploadInput,
   TranscriptionCancelUploadResult,
   TranscriptionError,
+  TranscriptionPrepareStreamInput,
   TranscriptionPrepareUploadInput,
   TranscriptionPrepareUploadResult,
   TranscriptionTranscribeInput,
@@ -409,6 +410,7 @@ export const WS_METHODS = {
   transcriptionCancel: "transcription.cancel",
   transcriptionPrepareUpload: "transcription.prepareUpload",
   transcriptionCancelUpload: "transcription.cancelUpload",
+  transcriptionPrepareStream: "transcription.prepareStream",
 
   mcpAppsCallTool: "mcpApps.callTool",
   mcpAppsToolInfo: "mcpApps.toolInfo",
@@ -1358,6 +1360,16 @@ const WsTranscriptionPrepareUploadRpc = Rpc.make(WS_METHODS.transcriptionPrepare
   ]),
 });
 
+const WsTranscriptionPrepareStreamRpc = Rpc.make(WS_METHODS.transcriptionPrepareStream, {
+  payload: TranscriptionPrepareStreamInput,
+  success: TranscriptionPrepareUploadResult,
+  error: Schema.Union([
+    TranscriptionError,
+    AttachmentUploadSigningKeyError,
+    EnvironmentAuthorizationError,
+  ]),
+});
+
 const WsTranscriptionCancelUploadRpc = Rpc.make(WS_METHODS.transcriptionCancelUpload, {
   payload: TranscriptionCancelUploadInput,
   success: TranscriptionCancelUploadResult,
@@ -2047,6 +2059,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsTranscriptionTranscribeRpc,
   WsTranscriptionCancelRpc,
   WsTranscriptionPrepareUploadRpc,
+  WsTranscriptionPrepareStreamRpc,
   WsTranscriptionCancelUploadRpc,
   WsMcpAppsCallToolRpc,
   WsMcpAppsToolInfoRpc,

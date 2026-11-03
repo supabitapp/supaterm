@@ -3,7 +3,11 @@ import {
   type ServerProviderTranscription,
   TranscriptionError,
 } from "@supaterm/contracts";
-import type { ProviderTranscription, WavAudio } from "@supaterm/provider-core/server/transcription";
+import {
+  LiveTranscriptionUnavailable,
+  type ProviderTranscription,
+  type WavAudio,
+} from "@supaterm/provider-core/server/transcription";
 import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -12,12 +16,21 @@ import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
 
+import {
+  CODEX_DICTATION_STREAM_URL,
+  codexDictationHeaders,
+  streamCodexDictation,
+} from "./CodexDictationStream.ts";
+
 const TRANSCRIBE_URL = "https://chatgpt.com/backend-api/transcribe";
 // The endpoint answers only Codex Desktop's request identity.
 const CODEX_DESKTOP_VERSION = "26.1021.31345";
 const REQUEST_TIMEOUT = "2 minutes";
 const EXPIRY_MARGIN_MS = 60_000;
 const BLOCKED_STATUSES = new Set([403, 404, 405, 410]);
+const CODEX_DESKTOP_USER_AGENT = `Codex Desktop/${CODEX_DESKTOP_VERSION} (Mac OS; arm64)`;
+// Streaming is rolled out per account, so a refusal holds for a while instead of every recording.
+const STREAMING_REFUSAL_MS = 60 * 60_000;
 
 const AuthFile = Schema.fromJsonString(
   Schema.Struct({
@@ -179,7 +192,7 @@ export const makeCodexTranscription = Effect.fn("makeCodexTranscription")(functi
             authorization: `Bearer ${login.accessToken}`,
             "chatgpt-account-id": login.accountId,
             originator: "Codex Desktop",
-            "user-agent": `Codex Desktop/${CODEX_DESKTOP_VERSION} (Mac OS; arm64)`,
+            "user-agent": CODEX_DESKTOP_USER_AGENT,
             accept: "application/json",
           }),
           HttpClientRequest.bodyFormData(form),
@@ -191,14 +204,18 @@ export const makeCodexTranscription = Effect.fn("makeCodexTranscription")(functi
       );
   };
 
+  const freshLogin = Effect.gen(function* () {
+    const login = yield* readLogin;
+    const now = yield* Clock.currentTimeMillis;
+    return login.expiresAtMs !== undefined && login.expiresAtMs - EXPIRY_MARGIN_MS <= now
+      ? yield* refreshFrom(login)
+      : login;
+  });
+
   const transcribe: ProviderTranscription["transcribe"] = Effect.fn(
     "CodexTranscription.transcribe",
   )(function* ({ audio, language }) {
-    let login = yield* readLogin;
-    const now = yield* Clock.currentTimeMillis;
-    if (login.expiresAtMs !== undefined && login.expiresAtMs - EXPIRY_MARGIN_MS <= now) {
-      login = yield* refreshFrom(login);
-    }
+    let login = yield* freshLogin;
     let response = yield* send(login, audio, language);
     if (response.status === 401) {
       login = yield* refreshFrom(login);
@@ -217,9 +234,41 @@ export const makeCodexTranscription = Effect.fn("makeCodexTranscription")(functi
     return { text: text.trim() };
   });
 
+  let streamingRefusedUntil = 0;
+  const stream: NonNullable<ProviderTranscription["stream"]> = Effect.fn(
+    "CodexTranscription.stream",
+  )(function* ({ audio, language }) {
+    if ((yield* Clock.currentTimeMillis) < streamingRefusedUntil) {
+      return yield* new LiveTranscriptionUnavailable({
+        cause: new TranscriptionError({ reason: "blocked" }),
+      });
+    }
+    const text = yield* streamCodexDictation({
+      url: CODEX_DICTATION_STREAM_URL,
+      headers: (refresh) => {
+        const login = refresh ? Effect.flatMap(readLogin, refreshFrom) : freshLogin;
+        return Effect.map(login, (current) =>
+          codexDictationHeaders(current, CODEX_DESKTOP_USER_AGENT),
+        );
+      },
+      language,
+      audio,
+    }).pipe(
+      Effect.tapError((error) =>
+        error._tag === "LiveTranscriptionUnavailable" && error.cause.reason === "blocked"
+          ? Effect.map(Clock.currentTimeMillis, (now) => {
+              streamingRefusedUntil = now + STREAMING_REFUSAL_MS;
+            })
+          : Effect.void,
+      ),
+    );
+    return { text: text.trim() };
+  });
+
   return {
     acceptsKeyterms: false,
     supportsLanguage: (code) => /^[a-z]{2,3}$/.test(code),
     transcribe,
+    stream,
   } satisfies ProviderTranscription;
 });

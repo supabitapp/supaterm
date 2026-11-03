@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
-import android.net.Uri
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicBoolean
@@ -26,14 +25,16 @@ internal data class PcmRecording(val uri: String, val durationMs: Long) {
 }
 
 /**
- * Captures mono PCM on a dedicated thread and writes 16 kHz WAV straight to disk, so no audio
- * crosses into JS. Devices that refuse 16 kHz capture at 48 or 44.1 kHz and are resampled.
+ * Captures mono PCM on a dedicated thread and writes 16 kHz WAV straight to disk. `onFrames`
+ * receives the same bytes in order, for streaming. Devices that refuse 16 kHz capture at 48 or
+ * 44.1 kHz and are resampled.
  */
 internal class PcmWavRecorder(
   private val file: File,
-  private val onFinished: (Map<String, Any?>) -> Unit
+  val uri: String,
+  private val onFinished: (Map<String, Any?>) -> Unit,
+  private val onFrames: (ByteArray) -> Unit
 ) {
-  val uri: String = Uri.fromFile(file).toString()
   private val released = AtomicBoolean(false)
 
   @Volatile private var audioRecord: AudioRecord? = null
@@ -106,12 +107,15 @@ internal class PcmWavRecorder(
   }
 
   private fun capture(record: AudioRecord, writer: WavFileWriter, maxFrames: Long) {
+    val batch = PcmFrameBatch(onFrames)
     val failure = try {
-      writer.use { pump(record, it, maxFrames) }
+      writer.use { pump(record, it, maxFrames, batch) }
     } catch (error: IOException) {
       error.message ?: SAVE_FAILED
     } catch (_: IllegalStateException) {
       CAPTURE_FAILED
+    } finally {
+      batch.flush()
     }
     stopAudioRecord(record)
     val stoppedByCaller = !capturing
@@ -128,7 +132,12 @@ internal class PcmWavRecorder(
     }
   }
 
-  private fun pump(record: AudioRecord, writer: WavFileWriter, maxFrames: Long): String? {
+  private fun pump(
+    record: AudioRecord,
+    writer: WavFileWriter,
+    maxFrames: Long,
+    batch: PcmFrameBatch
+  ): String? {
     val resampler = if (captureRate == TARGET_SAMPLE_RATE) {
       null
     } else {
@@ -144,7 +153,8 @@ internal class PcmWavRecorder(
         levelDecibels = pcmLevelDecibels(buffer, read)
         val samples = resampler?.process(buffer, read) ?: buffer
         val available = if (resampler == null) read else samples.size
-        writer.write(samples, minOf(available.toLong(), maxFrames - writer.frames).toInt())
+        val count = minOf(available.toLong(), maxFrames - writer.frames).toInt()
+        batch.add(writer.write(samples, count))
         frames = writer.frames
       }
     }

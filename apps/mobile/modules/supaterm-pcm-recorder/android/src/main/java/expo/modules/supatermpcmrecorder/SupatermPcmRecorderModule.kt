@@ -2,6 +2,8 @@ package expo.modules.supatermpcmrecorder
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.util.Base64
 import expo.modules.kotlin.exception.Exceptions
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
@@ -9,15 +11,21 @@ import java.io.File
 import java.util.UUID
 
 private const val STATUS_EVENT = "onStatus"
+private const val FRAMES_EVENT = "onFrames"
 private const val RECORDING_DIRECTORY = "SupatermPcmRecorder"
 
 /** One recording at a time; the JS voice controller already serializes sessions. */
 class SupatermPcmRecorderModule : Module() {
   private var recorder: PcmWavRecorder? = null
 
+  @Volatile private var framesObserved = false
+
   override fun definition() = ModuleDefinition {
     Name("SupatermPcmRecorder")
-    Events(STATUS_EVENT)
+    Events(STATUS_EVENT, FRAMES_EVENT)
+
+    OnStartObserving(FRAMES_EVENT) { framesObserved = true }
+    OnStopObserving(FRAMES_EVENT) { framesObserved = false }
 
     AsyncFunction("prepare") {
       val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
@@ -27,9 +35,14 @@ class SupatermPcmRecorderModule : Module() {
       }
       replace(null)
       val directory = File(context.cacheDir, RECORDING_DIRECTORY).apply { mkdirs() }
-      val next = PcmWavRecorder(File(directory, "${UUID.randomUUID()}.wav")) { status ->
-        sendEvent(STATUS_EVENT, status)
-      }
+      val file = File(directory, "${UUID.randomUUID()}.wav")
+      val uri = Uri.fromFile(file).toString()
+      val next = PcmWavRecorder(
+        file,
+        uri,
+        onFinished = { status -> sendEvent(STATUS_EVENT, status) },
+        onFrames = { pcm -> sendFrames(uri, pcm) }
+      )
       next.prepare()
       replace(next)
       mapOf("uri" to next.uri)
@@ -53,6 +66,12 @@ class SupatermPcmRecorderModule : Module() {
     }
 
     OnDestroy { replace(null) }
+  }
+
+  private fun sendFrames(uri: String, pcm: ByteArray) {
+    if (!framesObserved) return
+    val payload = mapOf("url" to uri, "pcm" to Base64.encodeToString(pcm, Base64.NO_WRAP))
+    sendEvent(FRAMES_EVENT, payload)
   }
 
   private fun current(): PcmWavRecorder? = synchronized(this) { recorder }

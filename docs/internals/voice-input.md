@@ -1,8 +1,19 @@
 # Voice input
 
 Transcription edits a composer draft, or becomes a queued message. Audio is temporary
-client input. Clients record a 16 kHz mono 16-bit WAV, because the server never
-transcodes; the browser records in its own codec and converts when recording stops.
+client input. Clients record 16 kHz mono 16-bit PCM, because the server never transcodes;
+the browser resamples in an AudioWorklet as it records.
+
+The wait after Stop is the provider finishing what it hasn't heard yet, so audio streams to
+the environment while it is recorded (`transcription.prepareStream`) on its own WebSocket,
+kept off the RPC socket. That stream only carries audio. The dictation is a live entry in
+`TranscriptionUploads` under a client-minted id, and the upload with that id collects the
+outcome: an empty body once the stream answered `finished`, or the WAV, whose bytes match the
+stream's, to fill in what a broken stream missed. A voice message is queued under the same id
+so delivery joins the transcript instead of paying for another. Before any audio reaches the
+provider, a refusal forgets the dictation and the upload transcribes it fresh. After that, a
+lost stream or provider failure fails the dictation, because recovering would spend the
+account again.
 
 Stopping for review uploads the recording without `submit` and inserts the returned text
 through the [shared controller](../../packages/client-runtime/src/voice-input/controller.ts).

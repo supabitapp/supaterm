@@ -1,7 +1,9 @@
+import * as NodeHttpServerRequest from "@effect/platform-node/NodeHttpServerRequest";
 import * as Mime from "effect/http/Mime";
 import {
   AuthOrchestrationOperateScope,
   AuthOrchestrationReadScope,
+  AuthSessionId,
   EnvironmentHttpApi,
   TranscriptionError,
   type TranscriptionErrorReason,
@@ -17,6 +19,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
+import * as Pull from "effect/Pull";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { cast, pipe } from "effect/Function";
@@ -43,6 +46,7 @@ import {
 } from "./assets/AttachmentUpload.ts";
 import * as BrowserTraceCollector from "./observability/BrowserTraceCollector.ts";
 import * as TranscriptionUploads from "./transcription/TranscriptionUploads.ts";
+import * as SessionStore from "./auth/SessionStore.ts";
 import * as EnvironmentAuth from "./auth/EnvironmentAuth.ts";
 import {
   annotateEnvironmentRequest,
@@ -536,14 +540,23 @@ export const layerTranscriptionUploadRoute = Layer.unwrap(
         }
         // Keep the request stream in the route scope until the response is sent.
         const bodyPull = yield* Stream.toPull(request.stream);
+        // An empty body collects the outcome even when the transport sends no zero length.
+        const first = yield* bodyPull.pipe(
+          Effect.asSome,
+          Pull.catchDone(() => Effect.succeedNone),
+          Effect.orElseSucceed(() => Option.none()),
+        );
         return yield* uploads
           .receive(
             url.value.pathname.slice(
               `${TranscriptionUploads.TRANSCRIPTION_UPLOAD_ROUTE_PREFIX}/`.length,
             ),
-            request.headers["content-length"] === "0"
+            Option.isNone(first)
               ? undefined
-              : Stream.fromPull(Effect.succeed(bodyPull)),
+              : Stream.concat(
+                  Stream.fromIterable(first.value),
+                  Stream.fromPull(Effect.succeed(bodyPull)),
+                ),
           )
           .pipe(
             Effect.flatMap((result) => transcriptionUploadResponse(result)),
@@ -565,6 +578,39 @@ export const layerTranscriptionUploadRoute = Layer.unwrap(
             ),
           );
       }),
+    );
+  }),
+);
+
+export const layerTranscriptionStreamRoute = Layer.unwrap(
+  Effect.gen(function* () {
+    const uploads = yield* TranscriptionUploads.TranscriptionUploads;
+    const sessions = yield* SessionStore.SessionStore;
+    const revoked = (sessionId: string) =>
+      sessions
+        .awaitInvalidation(AuthSessionId.make(sessionId))
+        .pipe(Effect.catch(() => Effect.never));
+    return HttpRouter.add(
+      "GET",
+      `${TranscriptionUploads.TRANSCRIPTION_STREAM_ROUTE_PREFIX}/*`,
+      Effect.gen(function* () {
+        const request = yield* HttpServerRequest.HttpServerRequest;
+        const url = HttpServerRequest.toURL(request);
+        if (Option.isNone(url) || request.headers.upgrade?.toLowerCase() !== "websocket") {
+          return HttpServerResponse.text("Bad Request", { status: 400 });
+        }
+        // PCM doesn't compress, so negotiating permessage-deflate would only cost CPU.
+        delete NodeHttpServerRequest.toIncomingMessage(request).headers["sec-websocket-extensions"];
+        const socket = yield* request.upgrade;
+        yield* uploads.attachStream(
+          url.value.pathname.slice(
+            `${TranscriptionUploads.TRANSCRIPTION_STREAM_ROUTE_PREFIX}/`.length,
+          ),
+          socket,
+          revoked,
+        );
+        return HttpServerResponse.empty();
+      }).pipe(Effect.scoped),
     );
   }),
 );

@@ -65,6 +65,7 @@ export const CLIENT_GUARDED_RPC_SCOPES = {
   // A prepared upload can also send its transcript to a thread as the user's prompt.
   [WS_METHODS.transcriptionPrepareUpload]: AuthOrchestrationOperateScope,
   [WS_METHODS.transcriptionCancelUpload]: AuthOrchestrationOperateScope,
+  [WS_METHODS.transcriptionPrepareStream]: AuthOrchestrationOperateScope,
   [WS_METHODS.mcpAppsCallTool]: AuthOrchestrationOperateScope,
   [WS_METHODS.mcpAppsUpdateModelContext]: AuthOrchestrationOperateScope,
   [WS_METHODS.previewReportProfiles]: AuthPreviewOperateScope,

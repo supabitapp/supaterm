@@ -191,6 +191,7 @@ async function deliverVoiceTurn(
   const result = await uploadVoiceAudio({
     environmentId: payload.environmentId,
     audio: voice.audio,
+    ...(voice.streamed ? { streamed: true } : {}),
     request: {
       ...(voice.language ? { language: voice.language } : {}),
       submit: {

@@ -699,6 +699,7 @@ export async function deliverQueuedVoiceMessage(
               creationSource: "mobile",
             },
           },
+          ...(voice.streamedUploadId === queuedMessage.commandId ? { streamed: true } : {}),
         }),
       };
     } catch (error) {

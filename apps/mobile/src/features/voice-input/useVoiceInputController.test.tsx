@@ -1,7 +1,11 @@
 import { act, useEffect, useLayoutEffect, useSyncExternalStore } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
-import type { VoiceInputState, VoiceTranscriber } from "@supaterm/client-runtime/voice-input";
+import type {
+  VoiceInputState,
+  VoiceRecordingHandOff,
+  VoiceTranscriber,
+} from "@supaterm/client-runtime/voice-input";
 import { EnvironmentId } from "@supaterm/contracts";
 import { resetVoiceInputGlobalsForTests } from "../../../../../packages/client-runtime/src/voice-input/controller";
 
@@ -58,7 +62,10 @@ import { useVoiceInputController } from "./useVoiceInputController";
 let state: VoiceInputState;
 let session: VoiceInputSession;
 let transcriber: VoiceTranscriber;
-const voiceSends = vi.fn<(uri: string, language: string) => Promise<void>>();
+const voiceSends =
+  vi.fn<
+    (uri: string, language: string, handOff: VoiceRecordingHandOff | undefined) => Promise<void>
+  >();
 let control: ReturnType<typeof useVoiceInputController>;
 let root: Root;
 let ownerKey: string;
@@ -145,6 +152,7 @@ beforeEach(() => {
         transcribing.resolve();
         return transcript.promise;
       },
+      handOff: () => ({ uploadId: "dictation-1", streamed: true }),
     }),
   };
   session = new VoiceInputSession({
@@ -196,7 +204,9 @@ describe("dictation submission", () => {
       control.stopAndSubmit();
       await settled.promise;
     });
-    expect(voiceSends.mock.calls).toEqual([["file:///recording.wav", "en-US"]]);
+    expect(voiceSends.mock.calls).toEqual([
+      ["file:///recording.wav", "en-US", { uploadId: "dictation-1", streamed: true }],
+    ]);
     expect(sends).not.toHaveBeenCalled();
     expect(state.phase).toBe("idle");
   });

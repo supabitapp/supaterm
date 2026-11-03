@@ -9,9 +9,11 @@ import {
   type OrchestrationV2ServerCommand,
   ProviderInstanceId,
   ThreadId,
+  TRANSCRIPTION_STREAM_CLOSED_CODE,
   TranscriptionError,
   type TranscriptionPrepareUploadInput,
 } from "@supaterm/contracts";
+import { LiveTranscriptionUnavailable } from "@supaterm/provider-core/server/transcription";
 import { describe, expect, it } from "@effect/vitest";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
@@ -19,6 +21,7 @@ import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
+import * as Socket from "effect/socket/Socket";
 import * as Stream from "effect/Stream";
 import * as TestClock from "effect/testing/TestClock";
 
@@ -44,6 +47,14 @@ const submit = (commandId: string) => ({
   messageId: MessageId.make(`message-${commandId}`),
 });
 
+/** What the fake vendor does with a live dictation once it starts. */
+type LivePlan =
+  | { readonly _tag: "refuse" }
+  | {
+      readonly _tag: "transcribe";
+      readonly result: Effect.Effect<{ text: string }, TranscriptionError>;
+    };
+
 const environment = ServerSecretStore.layer.pipe(
   Layer.provideMerge(
     ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-transcription-uploads-" }),
@@ -59,6 +70,9 @@ const makeHarness = Effect.gen(function* () {
   const dispatchReplies =
     yield* Queue.unbounded<Effect.Effect<OrchestratorV2DispatchResult, OrchestratorV2Error>>();
   const sourceUsable = yield* Ref.make(true);
+  const livePlans = yield* Queue.unbounded<LivePlan>();
+  const liveAudio = yield* Queue.unbounded<Uint8Array>();
+  const liveEnded = yield* Queue.unbounded<void>();
   const layer = TranscriptionUploads.layer.pipe(
     Layer.provide(
       Layer.mergeAll(
@@ -75,6 +89,18 @@ const makeHarness = Effect.gen(function* () {
               Effect.andThen(Queue.take(transcripts)),
               Effect.flatten,
             ),
+          transcribeLive: (input) =>
+            Effect.gen(function* () {
+              const plan = yield* Queue.take(livePlans);
+              if (plan._tag === "refuse") {
+                return yield* new LiveTranscriptionUnavailable({
+                  cause: new TranscriptionError({ reason: "blocked" }),
+                });
+              }
+              yield* Stream.runForEach(input.audio, (chunk) => Queue.offer(liveAudio, chunk));
+              yield* Queue.offer(liveEnded, undefined);
+              return yield* plan.result;
+            }),
         }),
         Layer.mock(ThreadManagement.ThreadManagementService)({
           dispatch: (command) =>
@@ -93,8 +119,95 @@ const makeHarness = Effect.gen(function* () {
     dispatches,
     dispatchReplies,
     sourceUsable,
+    livePlans,
+    liveAudio,
+    liveEnded,
     layer,
   };
+});
+
+const wavOf = (pcm: Uint8Array) => {
+  const file = new Uint8Array(44 + pcm.byteLength);
+  const view = new DataView(file.buffer);
+  file.set(new TextEncoder().encode("RIFF"), 0);
+  view.setUint32(4, 36 + pcm.byteLength, true);
+  file.set(new TextEncoder().encode("WAVEfmt "), 8);
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, 16_000, true);
+  view.setUint32(28, 32_000, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  file.set(new TextEncoder().encode("data"), 36);
+  view.setUint32(40, pcm.byteLength, true);
+  file.set(pcm, 44);
+  return file;
+};
+
+const frame = (byte: number) => new Uint8Array(3_200).fill(byte);
+
+/** A client connection: `sent` is what the server wrote, close codes as numbers. */
+const connect = Effect.fnUntraced(function* (
+  relativeUrl: string,
+  revoked: Effect.Effect<void> = Effect.never,
+) {
+  const uploads = yield* TranscriptionUploads.TranscriptionUploads;
+  const inbound = yield* Queue.unbounded<Uint8Array | string, Socket.SocketError>();
+  const sent = yield* Queue.unbounded<string | number>();
+  const socket = Socket.make({
+    reader: Effect.succeed({
+      pull: Effect.map(Queue.take(inbound), (item) => [item] as const),
+      upgrade: () => Effect.void,
+    }),
+    writer: Effect.succeed({
+      write: (chunk) =>
+        Queue.offer(sent, chunk instanceof Socket.CloseEvent ? chunk.code : String(chunk)),
+      writeAll: (chunks) => Queue.offerAll(sent, chunks.map(String)),
+    }),
+  });
+  const fiber = yield* Effect.forkChild(
+    Effect.scoped(
+      uploads.attachStream(
+        relativeUrl.slice(`${TranscriptionUploads.TRANSCRIPTION_STREAM_ROUTE_PREFIX}/`.length),
+        socket,
+        () => revoked,
+      ),
+    ),
+  );
+  return {
+    fiber,
+    sent,
+    send: (item: Uint8Array | string) => Queue.offer(inbound, item),
+    finish: Queue.offer(inbound, '{"type":"finish"}'),
+    drop: Queue.fail(
+      inbound,
+      new Socket.SocketError({ reason: new Socket.SocketReadError({ cause: "gone" }) }),
+    ),
+  };
+});
+
+const prepareStream = Effect.fnUntraced(function* (uploadId: string) {
+  const uploads = yield* TranscriptionUploads.TranscriptionUploads;
+  return yield* uploads.prepareStream({ uploadId, providerInstanceId: INSTANCE }, "session-1");
+});
+
+/** Collects a streamed dictation the way a client does once its stream is finished. */
+const collect = Effect.fnUntraced(function* (
+  uploadId: string,
+  body?: Uint8Array,
+  extra: Omit<TranscriptionPrepareUploadInput, "providerInstanceId" | "sizeBytes"> = {},
+) {
+  const uploads = yield* TranscriptionUploads.TranscriptionUploads;
+  const prepared = yield* uploads
+    .prepare({
+      providerInstanceId: INSTANCE,
+      sizeBytes: body?.byteLength ?? 1,
+      uploadId,
+      ...extra,
+    })
+    .pipe(Effect.catchTags({ AttachmentUploadSigningKeyError: Effect.die }));
+  return yield* upload(tokenOf(prepared.relativeUrl), body && Stream.make(body));
 });
 
 const tokenOf = (relativeUrl: string) =>
@@ -469,5 +582,197 @@ describe("TranscriptionUploads", () => {
         expect(yield* upload(tokenOf(prepared.relativeUrl), AUDIO_BODY)).toEqual({ text: "room" });
       }).pipe(Effect.provide(harness.layer));
     }).pipe(Effect.provide(environment)),
+  );
+});
+
+describe("TranscriptionUploads streamed dictations", () => {
+  const live = <A, E, R>(
+    body: (harness: Effect.Success<typeof makeHarness>) => Effect.Effect<A, E, R>,
+  ) =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness;
+      return yield* body(harness).pipe(Effect.provide(harness.layer));
+    }).pipe(Effect.provide(environment));
+
+  it.effect("hands audio to the vendor while recording, then collects the transcript", () =>
+    live((harness) =>
+      Effect.gen(function* () {
+        yield* Queue.offer(harness.livePlans, {
+          _tag: "transcribe",
+          result: Effect.succeed({ text: "ship it" }),
+        });
+        const client = yield* connect((yield* prepareStream("dictation-1")).relativeUrl);
+        expect(yield* Queue.take(client.sent)).toBe('{"type":"ready","receivedBytes":0}');
+        yield* client.send(frame(1));
+        expect(yield* Queue.take(harness.liveAudio)).toEqual(frame(1));
+        yield* client.send(frame(2));
+        yield* client.finish;
+        expect(yield* Queue.take(client.sent)).toBe('{"type":"finished"}');
+
+        expect(yield* collect("dictation-1")).toEqual({ text: "ship it" });
+        expect(yield* Ref.get(harness.transcriptions)).toEqual([]);
+        expect(yield* Queue.take(client.sent)).toBe(1000);
+      }),
+    ),
+  );
+
+  it.effect(
+    "sends a streamed voice message once, whether its transcript is in or still coming",
+    () =>
+      live((harness) =>
+        Effect.gen(function* () {
+          for (const transcriptFirst of [true, false]) {
+            const uploadId = `voice-${transcriptFirst}`;
+            const transcript = yield* Deferred.make<{ text: string }, TranscriptionError>();
+            yield* Queue.offer(harness.livePlans, {
+              _tag: "transcribe",
+              result: Deferred.await(transcript),
+            });
+            const client = yield* connect((yield* prepareStream(uploadId)).relativeUrl);
+            yield* Queue.take(client.sent);
+            yield* client.send(frame(3));
+            yield* client.finish;
+            yield* Queue.take(client.sent);
+            yield* Queue.take(harness.liveEnded);
+
+            if (transcriptFirst) {
+              yield* Deferred.succeed(transcript, { text: "run the tests" });
+              expect(yield* collect(uploadId)).toEqual({ text: "run the tests" });
+            }
+            const send = yield* Effect.forkChild(
+              collect(uploadId, undefined, { submit: submit(uploadId) }),
+            );
+            if (!transcriptFirst) yield* Deferred.succeed(transcript, { text: "run the tests" });
+            expect(yield* Queue.take(harness.dispatches)).toMatchObject({
+              commandId: uploadId,
+              text: "run the tests",
+            });
+            yield* Queue.offer(
+              harness.dispatchReplies,
+              Effect.succeed({ sequence: 3, storedEvents: [] }),
+            );
+            const sent = { text: "run the tests", submission: { status: "sent", sequence: 3 } };
+            expect(yield* Fiber.join(send)).toEqual(sent);
+            expect(yield* collect(uploadId, undefined, { submit: submit(uploadId) })).toEqual(sent);
+            const elsewhere = { ...submit(uploadId), messageId: MessageId.make("another-message") };
+            expect(yield* reason(collect(uploadId, undefined, { submit: elsewhere }))).toBe(
+              "requestConflict",
+            );
+          }
+          expect(yield* Queue.size(harness.dispatches)).toBe(0);
+          expect(yield* Ref.get(harness.transcriptions)).toEqual([]);
+        }),
+      ),
+  );
+
+  it.effect("resumes a reconnecting client from the audio it already took", () =>
+    live((harness) =>
+      Effect.gen(function* () {
+        yield* Queue.offer(harness.livePlans, {
+          _tag: "transcribe",
+          result: Effect.succeed({ text: "resumed" }),
+        });
+        const prepared = yield* prepareStream("dictation-resume");
+        const first = yield* connect(prepared.relativeUrl);
+        yield* Queue.take(first.sent);
+        yield* first.send(frame(4));
+        yield* Queue.take(harness.liveAudio);
+        yield* first.drop;
+        yield* Fiber.join(first.fiber);
+
+        const second = yield* connect(prepared.relativeUrl);
+        expect(yield* Queue.take(second.sent)).toBe('{"type":"ready","receivedBytes":3200}');
+        yield* second.send(frame(5));
+        expect(yield* Queue.take(harness.liveAudio)).toEqual(frame(5));
+        yield* second.finish;
+        yield* Queue.take(second.sent);
+        expect(yield* collect("dictation-resume")).toEqual({ text: "resumed" });
+      }),
+    ),
+  );
+
+  it.effect("fills in what a broken stream missed from the uploaded recording", () =>
+    live((harness) =>
+      Effect.gen(function* () {
+        yield* Queue.offer(harness.livePlans, {
+          _tag: "transcribe",
+          result: Effect.succeed({ text: "whole clip" }),
+        });
+        const client = yield* connect((yield* prepareStream("dictation-gap")).relativeUrl);
+        yield* Queue.take(client.sent);
+        yield* client.send(frame(6));
+        yield* Queue.take(harness.liveAudio);
+        yield* client.drop;
+
+        expect(yield* reason(collect("dictation-gap"))).toBe("uploadExpired");
+        const recording = new Uint8Array([...frame(6), ...frame(7)]);
+        expect(yield* collect("dictation-gap", wavOf(recording))).toEqual({ text: "whole clip" });
+        expect(new Uint8Array(yield* Queue.take(harness.liveAudio))).toEqual(frame(7));
+        expect(yield* Ref.get(harness.transcriptions)).toEqual([]);
+      }),
+    ),
+  );
+
+  it.effect("sends a refused stream back to the client, whose upload transcribes it fresh", () =>
+    live((harness) =>
+      Effect.gen(function* () {
+        yield* Queue.offer(harness.livePlans, { _tag: "refuse" });
+        const client = yield* connect((yield* prepareStream("dictation-refused")).relativeUrl);
+        const sent = [yield* Queue.take(client.sent), yield* Queue.take(client.sent)];
+        expect(sent).toContain(TRANSCRIPTION_STREAM_CLOSED_CODE);
+
+        const recording = wavOf(frame(8));
+        const pending = yield* Effect.forkChild(collect("dictation-refused", recording));
+        yield* Queue.take(harness.transcribing);
+        yield* Queue.offer(harness.transcripts, Effect.succeed({ text: "batch" }));
+        expect(yield* Fiber.join(pending)).toEqual({ text: "batch" });
+      }),
+    ),
+  );
+
+  it.effect("fails a stream whose client never returns instead of transcribing it again", () =>
+    live((harness) =>
+      Effect.gen(function* () {
+        yield* Queue.offer(harness.livePlans, {
+          _tag: "transcribe",
+          result: Effect.never,
+        });
+        const client = yield* connect((yield* prepareStream("dictation-lost")).relativeUrl);
+        yield* Queue.take(client.sent);
+        yield* client.send(frame(9));
+        yield* Queue.take(harness.liveAudio);
+        yield* client.drop;
+        yield* Fiber.join(client.fiber);
+        yield* TestClock.adjust("30 seconds");
+
+        expect(yield* reason(collect("dictation-lost"))).toBe("failed");
+        expect(yield* reason(collect("dictation-lost", wavOf(frame(9))))).toBe("failed");
+        expect(yield* Ref.get(harness.transcriptions)).toEqual([]);
+      }),
+    ),
+  );
+
+  it.effect("ends and cancels the dictation when it is discarded or its session is revoked", () =>
+    live((harness) =>
+      Effect.gen(function* () {
+        yield* Queue.offer(harness.livePlans, { _tag: "transcribe", result: Effect.never });
+        const client = yield* connect((yield* prepareStream("dictation-cancel")).relativeUrl);
+        yield* Queue.take(client.sent);
+        expect(yield* cancel("dictation-cancel")).toEqual({ outcome: "cancelled" });
+        expect(yield* Queue.take(client.sent)).toBe(1000);
+        expect(yield* reason(collect("dictation-cancel", wavOf(frame(1))))).toBe("cancelled");
+
+        yield* Queue.offer(harness.livePlans, { _tag: "transcribe", result: Effect.never });
+        const revocation = yield* Deferred.make<void>();
+        const revoked = yield* connect(
+          (yield* prepareStream("dictation-revoked")).relativeUrl,
+          Deferred.await(revocation),
+        );
+        yield* Queue.take(revoked.sent);
+        yield* Deferred.succeed(revocation, undefined);
+        expect(yield* Queue.take(revoked.sent)).toBe(1000);
+        expect(yield* reason(collect("dictation-revoked"))).toBe("cancelled");
+      }),
+    ),
   );
 });

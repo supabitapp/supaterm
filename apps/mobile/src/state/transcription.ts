@@ -9,15 +9,21 @@ import {
   createTranscriptionEnvironmentAtoms,
   uploadVoiceRecording,
   VoiceUploadError,
+  type StartedLiveDictation,
   type VoiceUploadResponse,
 } from "@supaterm/client-runtime/state/transcription";
 import { shouldRetryThreadOutboxDelivery } from "@supaterm/client-runtime/thread-outbox";
-import type { VoiceTranscriber } from "@supaterm/client-runtime/voice-input";
+import {
+  LiveDictation,
+  openLiveDictationSocket,
+  type VoiceTranscriber,
+} from "@supaterm/client-runtime/voice-input";
 import {
   TranscriptionError,
   type EnvironmentId,
   type ProjectId,
   type ThreadId,
+  type TranscriptionPrepareStreamInput,
   type TranscriptionPrepareUploadInput,
   type TranscriptionPrepareUploadResult,
   type TranscriptionUploadResult,
@@ -26,8 +32,10 @@ import * as Option from "effect/Option";
 
 import { connectionAtomRuntime } from "../connection/runtime";
 import { loadExpoFileSystem } from "../lib/expoFileSystem";
+import { uuidv4 } from "../lib/uuid";
 import { readVoiceRecording } from "../lib/voiceRecordingWav";
 import { appAtomRegistry } from "./atom-registry";
+import { serverEnvironment } from "./server";
 import { environmentSession } from "./session";
 
 export const transcriptionEnvironment = createTranscriptionEnvironmentAtoms(connectionAtomRuntime);
@@ -72,13 +80,7 @@ async function prepareUpload(
   );
 }
 
-async function postRecording(
-  environmentId: EnvironmentId,
-  uri: string,
-  relativeUrl: string,
-  signal: AbortSignal,
-): Promise<VoiceUploadResponse> {
-  const { File, UploadType } = await loadExpoFileSystem();
+function environmentUrl(environmentId: EnvironmentId, relativeUrl: string): string {
   const connection = appAtomRegistry.get(
     environmentSession.preparedConnectionValueAtom(environmentId),
   );
@@ -86,17 +88,44 @@ async function postRecording(
     ? resolveAssetUrl(connection.value.httpBaseUrl, relativeUrl)
     : null;
   if (url === null) throw new Error("The environment is not connected.");
+  return url;
+}
+
+function cancelUpload(environmentId: EnvironmentId, uploadId: string) {
+  return runAtomCommand(
+    appAtomRegistry,
+    transcriptionEnvironment.cancelUpload,
+    { environmentId, input: { uploadId } },
+    { reportFailure: false, reportDefect: false },
+  );
+}
+
+/** An empty body joins the dictation streamed under the upload's id instead of sending it again. */
+async function postRecording(
+  environmentId: EnvironmentId,
+  uri: string,
+  relativeUrl: string,
+  signal: AbortSignal,
+  withAudio: boolean,
+): Promise<VoiceUploadResponse> {
+  const { File, UploadType } = await loadExpoFileSystem();
+  const url = environmentUrl(environmentId, relativeUrl);
   const transfer = new AbortController();
   const abort = () => transfer.abort();
   signal.addEventListener("abort", abort, { once: true });
   const timeout = setTimeout(abort, UPLOAD_TIMEOUT_MS);
   try {
-    const response = await new File(uri).upload(url, {
-      httpMethod: "POST",
-      uploadType: UploadType.BINARY_CONTENT,
-      headers: { "Content-Type": "audio/wav" },
-      signal: transfer.signal,
-    });
+    const headers = { "Content-Type": "audio/wav" };
+    const response = withAudio
+      ? await new File(uri).upload(url, {
+          httpMethod: "POST",
+          uploadType: UploadType.BINARY_CONTENT,
+          headers,
+          signal: transfer.signal,
+        })
+      : await fetch(url, { method: "POST", headers, body: "", signal: transfer.signal }).then(
+          async (empty) => ({ status: empty.status, body: await empty.text() }),
+        );
     let body: unknown = null;
     try {
       body = JSON.parse(response.body);
@@ -113,6 +142,8 @@ export async function uploadEnvironmentVoiceRecording(input: {
   readonly environmentId: EnvironmentId;
   readonly uri: string;
   readonly request: TranscriptionPrepareUploadInput;
+  /** The environment already heard the recording under the upload's id. */
+  readonly streamed?: boolean;
   readonly signal?: AbortSignal;
 }): Promise<TranscriptionUploadResult> {
   const { environmentId, uri } = input;
@@ -120,14 +151,10 @@ export async function uploadEnvironmentVoiceRecording(input: {
     return await uploadVoiceRecording({
       request: input.request,
       prepare: (request) => prepareUpload(environmentId, request),
-      post: (relativeUrl, signal) => postRecording(environmentId, uri, relativeUrl, signal),
-      cancel: (uploadId) =>
-        runAtomCommand(
-          appAtomRegistry,
-          transcriptionEnvironment.cancelUpload,
-          { environmentId, input: { uploadId } },
-          { reportFailure: false, reportDefect: false },
-        ),
+      post: (relativeUrl, signal, withAudio) =>
+        postRecording(environmentId, uri, relativeUrl, signal, withAudio),
+      cancel: (uploadId) => cancelUpload(environmentId, uploadId),
+      ...(input.streamed ? { streamed: true } : {}),
       ...(input.signal ? { signal: input.signal } : {}),
     });
   } catch (error) {
@@ -143,24 +170,70 @@ export async function uploadEnvironmentVoiceRecording(input: {
   }
 }
 
-/** Transcribes for review: the environment returns the text and sends nothing. */
+async function streamUrl(
+  environmentId: EnvironmentId,
+  input: TranscriptionPrepareStreamInput,
+): Promise<string> {
+  const result = await runAtomCommand(
+    appAtomRegistry,
+    transcriptionEnvironment.prepareStream,
+    { environmentId, input },
+    { reportFailure: false, reportDefect: false },
+  );
+  if (result._tag !== "Success") throw squashAtomCommandFailure(result);
+  return environmentUrl(environmentId, result.value.relativeUrl).replace(/^http/, "ws");
+}
+
+function startLiveDictation(
+  environmentId: EnvironmentId,
+  request: Omit<TranscriptionPrepareStreamInput, "uploadId">,
+  subscribe: (push: (pcm: Uint8Array) => void) => () => void,
+): StartedLiveDictation {
+  const uploadId = uuidv4();
+  const live = new LiveDictation({
+    prepare: () => streamUrl(environmentId, { ...request, uploadId }),
+    openSocket: openLiveDictationSocket,
+    subscribe,
+  });
+  return { uploadId, live, cancel: () => cancelUpload(environmentId, uploadId) };
+}
+
+/**
+ * Transcribes for review: the environment returns the text and sends nothing. An environment
+ * that takes dictation while it is recorded hears the recorder's frames as they come, so
+ * stopping leaves only the tail to transcribe.
+ */
 export function createEnvironmentVoiceTranscriber(input: {
   readonly environmentId: EnvironmentId;
   readonly language: string;
   readonly context?: { readonly threadId?: ThreadId; readonly projectId?: ProjectId };
+  readonly subscribeFrames: (push: (pcm: Uint8Array) => void) => () => void;
 }): VoiceTranscriber {
+  const { environmentId, language } = input;
+  const context = input.context ? { context: input.context } : {};
+  const streams =
+    appAtomRegistry.get(serverEnvironment.configValueAtom(environmentId))?.transcriptionStreams ===
+    true;
   return createServerVoiceTranscriber({
-    locale: input.language,
-    transcribe: async (uri, signal) => {
+    locale: language,
+    ...(streams
+      ? {
+          startLive: () =>
+            startLiveDictation(environmentId, { language, ...context }, input.subscribeFrames),
+        }
+      : {}),
+    transcribe: async (uri, signal, dictation) => {
       const { sizeBytes } = await readVoiceRecording(uri);
       return uploadEnvironmentVoiceRecording({
-        environmentId: input.environmentId,
+        environmentId,
         uri,
         request: {
+          ...(dictation ? { uploadId: dictation.uploadId } : {}),
           sizeBytes,
-          language: input.language,
-          ...(input.context ? { context: input.context } : {}),
+          language,
+          ...context,
         },
+        ...(dictation?.streamed ? { streamed: true } : {}),
         signal,
       });
     },

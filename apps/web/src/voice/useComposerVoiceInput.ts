@@ -6,6 +6,7 @@ import {
   voiceInputCue,
   type VoiceDraftSnapshot,
   type VoiceInputState,
+  type VoiceRecordingHandOff,
 } from "@supaterm/client-runtime/voice-input";
 import type { EnvironmentId, ProjectId, ThreadId, VoiceHoldToTalkKey } from "@supaterm/contracts";
 import { unlock } from "cuelume";
@@ -15,7 +16,12 @@ import type { ComposerSubmissionIntent } from "../composer-logic";
 import type { ComposerDispatchMode } from "@supaterm/client-runtime/state/composer-dispatch";
 import { useStableCallback } from "../hooks/useStableCallback";
 import { threadOutboxDeliverableAtom } from "../state/threadOutbox";
-import { uploadVoiceAudio, useVoiceTranscriptionSource } from "../state/transcription";
+import {
+  environmentStreamsDictation,
+  startLiveVoiceDictation,
+  uploadVoiceAudio,
+  useVoiceTranscriptionSource,
+} from "../state/transcription";
 import { followKeyHold, type KeyHold, type KeyHoldHandlers } from "./keyHold";
 import { useDiscardOnEscape } from "./useDiscardOnEscape";
 import { useHoldToTalk } from "./useHoldToTalk";
@@ -55,7 +61,7 @@ export interface ComposerVoiceInputOptions {
   /** Called when Send is pressed; the returned function sends the finished recording. */
   readonly prepareVoiceSend: (
     submission: ComposerVoiceSubmission,
-  ) => (recording: VoiceRecording) => Promise<void>;
+  ) => (recording: VoiceRecording, handOff: VoiceRecordingHandOff | undefined) => Promise<void>;
   readonly submit: (submission: ComposerVoiceSubmission) => void;
   /** A recording is open or on its way, so its controls must stay on screen. */
   readonly onBusyChange: (busy: boolean) => void;
@@ -136,14 +142,24 @@ function createVoiceRuntime(onStateChange: (state: VoiceInputState) => void) {
     getTranscriber: () => {
       const { environmentId, threadId, projectId, language } = read();
       const context = threadId ? { threadId } : projectId ? { projectId } : null;
+      const request = { language, ...(context ? { context } : {}) };
       return createServerVoiceTranscriber({
         locale: language,
-        transcribe: (uri, signal) => {
+        startLive: environmentStreamsDictation(environmentId)
+          ? () =>
+              startLiveVoiceDictation({
+                environmentId,
+                request,
+                subscribe: (push) => recorder.onPcm(push),
+              })
+          : undefined,
+        transcribe: (uri, signal, dictation) => {
           const recording = readVoiceRecording(uri);
           return uploadVoiceAudio({
             environmentId,
             audio: recording.audio,
-            request: { language, ...(context ? { context } : {}) },
+            request: { ...request, ...(dictation ? { uploadId: dictation.uploadId } : {}) },
+            ...(dictation ? { streamed: dictation.streamed } : {}),
             signal,
           });
         },
@@ -251,7 +267,7 @@ export function useComposerVoiceInput(options: ComposerVoiceInputOptions) {
     if (controller.currentState.phase !== "recording") return;
     if (availability.canSend) {
       const sendVoice = runtime.read().prepareVoiceSend(submission);
-      await controller.send((uri) => sendVoice(readVoiceRecording(uri)));
+      await controller.send((uri, handOff) => sendVoice(readVoiceRecording(uri), handOff));
       return;
     }
     if (!availability.canReview) return;

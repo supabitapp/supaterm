@@ -9,6 +9,7 @@ type State = { readonly isRecording: boolean };
 
 function createNativeRecorder(uri: string) {
   const listeners = new Set<(status: Status) => void>();
+  const frameListeners = new Set<(pcm: Uint8Array) => void>();
   return {
     uri: null as string | null,
     prepared: uri,
@@ -22,6 +23,11 @@ function createNativeRecorder(uri: string) {
       listeners.add(listener);
       return { remove: () => listeners.delete(listener) };
     }),
+    addFrameListener: (listener: (pcm: Uint8Array) => void) => {
+      frameListeners.add(listener);
+      return { remove: () => frameListeners.delete(listener) };
+    },
+    frameListeners,
     getAvailableInputs: vi.fn((): ReadonlyArray<VoiceRecordingInput> => [
       { uid: "car", name: "CarPlay", type: "CarAudio" },
       { uid: "built-in", name: "iPhone Microphone", type: "MicrophoneBuiltIn" },
@@ -29,6 +35,7 @@ function createNativeRecorder(uri: string) {
     setInput: vi.fn((_uid: string) => undefined),
     release: vi.fn(),
     emit: (status: Status) => listeners.forEach((listener) => listener(status)),
+    emitFrame: (pcm: Uint8Array) => frameListeners.forEach((listener) => listener(pcm)),
   };
 }
 
@@ -73,6 +80,23 @@ describe("createLazyVoiceRecorder", () => {
     native.emit({ isFinished: false });
 
     expect(statuses).toEqual([{ isFinished: true }]);
+  });
+
+  it("streams frames to a dictation subscribed before the recorder exists, only while it listens", async () => {
+    const { recorder, created } = createHarness();
+    const frames: Uint8Array[] = [];
+    const unsubscribe = recorder.subscribeFrames((pcm) => frames.push(pcm));
+    await recorder.prepareToRecordAsync();
+    const native = created[0]!;
+
+    native.emitFrame(Uint8Array.of(1, 2));
+    unsubscribe();
+    native.emitFrame(Uint8Array.of(3, 4));
+
+    expect(frames).toEqual([Uint8Array.of(1, 2)]);
+    expect(native.frameListeners.size).toBe(0);
+    recorder.subscribeFrames(() => undefined);
+    expect(native.frameListeners.size).toBe(1);
   });
 
   describe("with the voice input controller", () => {

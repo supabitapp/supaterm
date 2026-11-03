@@ -1243,6 +1243,30 @@ describe("queued voice message delivery", () => {
     });
   });
 
+  it("collects a streamed recording without its audio only under the id it streamed with", async () => {
+    harness.uploadVoice.mockResolvedValue({
+      text: "ship it",
+      submission: { status: "sent", sequence: 3 },
+    });
+    const base = voiceMessage();
+    const streamed = await enqueue({
+      ...base,
+      voice: { ...base.voice!, streamedUploadId: base.commandId },
+    });
+    const renamed = await enqueue({
+      ...queuedMessage({ messageId: "voice-2", text: "" }),
+      voice: { ...base.voice!, streamedUploadId: base.commandId },
+    });
+
+    await deliverQueuedVoiceMessage(streamed, modelSelection);
+    await deliverQueuedVoiceMessage(renamed, modelSelection);
+
+    expect(harness.uploadVoice.mock.calls.map(([upload]) => upload.streamed)).toEqual([
+      true,
+      undefined,
+    ]);
+  });
+
   it("holds a refused recording under a fresh command id and keeps its audio", async () => {
     const message = await enqueue(voiceMessage());
     harness.uploadVoice.mockRejectedValue(
