@@ -389,6 +389,7 @@ const ANDROID_KEYCODE_BY_KEY: Readonly<Record<string, number>> = {
   PageUp: 92,
   PageDown: 93,
 };
+const ANDROID_KEYCODE_WAKEUP = 224;
 
 const IOS_ORIENTATIONS: ReadonlyArray<DeviceScreenSize["orientation"]> = [
   "portrait",
@@ -1186,6 +1187,10 @@ export function createDeviceStreamClient(
     socket = ws;
     ws.onopen = () => {
       if (stopped || socket !== ws) return;
+      // scrcpy powers the screen on only when serve-emu first starts it; a dozing phone sends no frames.
+      ws.send(
+        JSON.stringify({ type: "key", keycode: ANDROID_KEYCODE_WAKEUP, record: false, ack: false }),
+      );
       if (!inputOnly) connecting();
       events.onInputConnected(true);
     };
