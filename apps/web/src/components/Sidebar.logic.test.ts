@@ -279,6 +279,13 @@ describe("resolveSidebarV2DurationStartedAt", () => {
 
   it("counts a wait from when the parent run settled, not from when its work began", () => {
     expect(resolveSidebarV2DurationStartedAt(thread)).toBe("2026-03-09T10:05:00.000Z");
+    expect(
+      resolveSidebarV2DurationStartedAt({
+        ...thread,
+        runtime: { ...thread.runtime!, status: "completed" },
+        pendingBackgroundTasks: [{ taskId: "bg-1", kind: "command" }],
+      }),
+    ).toBe("2026-03-09T10:05:00.000Z");
   });
 
   it("counts work from the activity start carried across background wakes", () => {
@@ -911,20 +918,22 @@ describe("navigation after parking a thread", () => {
 describe("unseen completion with background work", () => {
   it.each([
     {
-      roster: "dev server",
+      roster: "unmarked command",
       task: { kind: "command" },
-      status: "ready",
-      topStatus: "ready",
-      receded: false,
-      pill: "Completed",
+      status: "waiting",
+      topStatus: "waiting",
+      receded: true,
+      working: false,
+      pill: "Waiting",
     },
     {
-      roster: "dev server watchdog",
+      roster: "unmarked monitor",
       task: { kind: "monitor" },
-      status: "ready",
-      topStatus: "ready",
-      receded: false,
-      pill: "Completed",
+      status: "waiting",
+      topStatus: "waiting",
+      receded: true,
+      working: false,
+      pill: "Waiting",
     },
     {
       roster: "awaited command",
@@ -932,6 +941,7 @@ describe("unseen completion with background work", () => {
       status: "waiting",
       topStatus: "waiting",
       receded: true,
+      working: true,
       pill: "Waiting",
     },
   ] as const)("presents a completed thread with a $roster roster", (expected) => {
@@ -960,7 +970,7 @@ describe("unseen completion with background work", () => {
         isSelected: false,
       }),
     ).toBe(expected.receded);
-    expect(isSidebarThreadWorking(thread)).toBe(expected.receded);
+    expect(isSidebarThreadWorking(thread)).toBe(expected.working);
     expect(resolveThreadStatusPill({ thread })).toMatchObject({ label: expected.pill });
   });
 });
