@@ -322,7 +322,7 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
           <ThreadSidebar routeReveal={sidebarRouteReveal} />
         </Sidebar>
         <SidebarInsetPanel minWidth={THREAD_MAIN_CONTENT_MIN_WIDTH}>
-          <SidebarHeaderWidthProbe isElectron={isElectron} onWidthChange={setHeaderWidth} />
+          <SidebarHeaderWidthProbe onWidthChange={setHeaderWidth} />
           {children}
           <BackgroundThreadAnnouncer />
           <SidebarControl />

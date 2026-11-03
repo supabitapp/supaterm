@@ -79,10 +79,8 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
 });
 
 export function SidebarHeaderWidthProbe({
-  isElectron,
   onWidthChange,
 }: {
-  isElectron: boolean;
   onWidthChange: (width: number) => void;
 }) {
   const observeWidth = (probe: HTMLDivElement) => {
