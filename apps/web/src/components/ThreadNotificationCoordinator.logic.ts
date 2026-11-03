@@ -61,7 +61,8 @@ export function createThreadNotificationGate<Key>(
       const at = next.completedAt;
       if (!next.settled || at === null || at <= (handled.get(key) ?? -Infinity)) return;
       const held = next.backgroundWorkRunning === true;
-      if (pending.get(key)?.at === at && pending.get(key)?.held === held) return;
+      const scheduled = pending.get(key);
+      if (scheduled?.at === at && scheduled.held === held) return;
       cancel(key);
       pending.set(key, {
         at,
