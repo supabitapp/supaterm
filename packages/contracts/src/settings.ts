@@ -237,6 +237,13 @@ const DEFAULT_SNAP_SHOT_SHORTCUT: SnapShotShortcut = {
 export const VoiceHoldToTalkKey = Schema.Literals(["alt", "space", "off"]);
 export type VoiceHoldToTalkKey = typeof VoiceHoldToTalkKey.Type;
 
+/** A browser input, kept by label too because a browser can reissue its device ids. */
+export const VoiceMicrophone = Schema.Struct({
+  deviceId: Schema.String,
+  label: Schema.String,
+});
+export type VoiceMicrophone = typeof VoiceMicrophone.Type;
+
 export const NotificationMode = Schema.Literals([
   "off",
   "notifications",
@@ -427,6 +434,13 @@ export const ClientSettingsSchema = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
   voiceHoldToTalkKey: VoiceHoldToTalkKey.pipe(Schema.withDecodingDefault(Effect.succeed("alt"))),
+  /** The input voice input records from on this device. Null follows the system default. */
+  voiceMicrophone: Schema.NullOr(VoiceMicrophone).pipe(
+    Schema.withDecodingDefault(Effect.succeed(null)),
+  ),
+  voiceAvoidBluetoothMicrophone: Schema.Boolean.pipe(
+    Schema.withDecodingDefault(Effect.succeed(true)),
+  ),
   proactivePanelsEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   showSkillsInSlashMenu: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   // Sparse show/hide overrides for thread details card items. Missing ids use the client's
@@ -1656,6 +1670,8 @@ export const ClientSettingsPatch = Schema.Struct({
     Schema.NullOr(TrimmedNonEmptyString.check(Schema.isMaxLength(35))),
   ),
   voiceHoldToTalkKey: Schema.optionalKey(VoiceHoldToTalkKey),
+  voiceMicrophone: Schema.optionalKey(Schema.NullOr(VoiceMicrophone)),
+  voiceAvoidBluetoothMicrophone: Schema.optionalKey(Schema.Boolean),
   proactivePanelsEnabled: Schema.optionalKey(Schema.Boolean),
   showSkillsInSlashMenu: Schema.optionalKey(Schema.Boolean),
   threadDetailsItems: Schema.optionalKey(Schema.Record(Schema.String, Schema.Boolean)),

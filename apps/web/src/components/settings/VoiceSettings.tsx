@@ -4,7 +4,15 @@ import {
   type ServerProvider,
 } from "@supaterm/contracts";
 import { DEFAULT_UNIFIED_SETTINGS } from "@supaterm/contracts/settings";
+import { useEffect, useState } from "react";
 
+import {
+  labelsShowTransport,
+  listMicrophoneInputs,
+  type MicrophoneInput,
+  namedMicrophones,
+  resolveMicrophone,
+} from "../../voice/microphone";
 import {
   systemVoiceLanguage,
   voiceLanguageLabel,
@@ -13,7 +21,9 @@ import {
 import { isMacPlatform } from "../../lib/utils";
 import { useEnvironmentProviders } from "../../state/environments";
 import { EMPTY_SERVER_PROVIDERS } from "../../state/server";
+import { Button } from "../ui/button";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
+import { Switch } from "../ui/switch";
 import {
   SettingResetButton,
   SettingsPageContainer,
@@ -26,6 +36,7 @@ import { useScopedSettings, useUpdateScopedSettings } from "./useScopedSettings"
 
 const SYSTEM_LANGUAGE = "system";
 const AUTOMATIC_TRANSCRIPTION = "@automatic";
+const SYSTEM_MICROPHONE = "@system";
 
 function providerName(provider: ServerProvider) {
   return provider.displayName ?? provider.instanceId;
@@ -228,6 +239,165 @@ function VoiceHoldToTalkSettingRow() {
   );
 }
 
+interface MicrophoneList {
+  readonly supported: boolean;
+  /** Null until the browser answers. */
+  readonly inputs: ReadonlyArray<MicrophoneInput> | null;
+  readonly accessDenied: boolean;
+  readonly askForAccess: () => void;
+}
+
+function useMicrophoneList(): MicrophoneList {
+  const supported =
+    window.isSecureContext && typeof navigator.mediaDevices?.enumerateDevices === "function";
+  const [inputs, setInputs] = useState<ReadonlyArray<MicrophoneInput> | null>(null);
+  const [accessDenied, setAccessDenied] = useState(false);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Follows the browser's inputs as microphones connect and disconnect.
+  useEffect(() => {
+    if (!supported) return;
+    let current = true;
+    const refresh = () => {
+      void listMicrophoneInputs().then(
+        (next) => {
+          if (current) setInputs(next);
+        },
+        () => undefined,
+      );
+    };
+    refresh();
+    navigator.mediaDevices.addEventListener("devicechange", refresh);
+    return () => {
+      current = false;
+      navigator.mediaDevices.removeEventListener("devicechange", refresh);
+    };
+  }, [supported]);
+  const askForAccess = () => {
+    void navigator.mediaDevices
+      .getUserMedia({ audio: true })
+      .then((stream) => {
+        for (const track of stream.getTracks()) track.stop();
+        setAccessDenied(false);
+        return listMicrophoneInputs().then(setInputs);
+      })
+      .catch(() => setAccessDenied(true));
+  };
+  return { supported, inputs, accessDenied, askForAccess };
+}
+
+function VoiceMicrophoneSettingRow(props: { readonly microphones: MicrophoneList }) {
+  const settings = useScopedSettings();
+  const updateSettings = useUpdateScopedSettings();
+  const { supported, inputs, accessDenied, askForAccess } = props.microphones;
+  const chosen = settings.voiceMicrophone;
+  const labelsHidden =
+    inputs !== null && inputs.length > 0 && inputs.every((input) => !input.label);
+  const listed = inputs !== null && inputs.length > 0 && !labelsHidden ? inputs : null;
+  const preference = { chosen, avoidBluetooth: settings.voiceAvoidBluetoothMicrophone };
+  const route = listed ? resolveMicrophone(listed, preference) : null;
+  const systemInput = listed
+    ? resolveMicrophone(listed, { ...preference, chosen: null }).input
+    : null;
+  const microphones = listed ? namedMicrophones(listed) : [];
+  const options = [
+    { value: SYSTEM_MICROPHONE, label: "System default", detail: systemInput?.label ?? null },
+    ...microphones.map((input) => ({ value: input.deviceId, label: input.label, detail: null })),
+    ...(chosen && route?.chosenMissing
+      ? [{ value: chosen.deviceId, label: chosen.label, detail: "Not connected" }]
+      : []),
+  ];
+  const value =
+    chosen === null
+      ? SYSTEM_MICROPHONE
+      : route?.chosenMissing
+        ? chosen.deviceId
+        : (route?.input?.deviceId ?? chosen.deviceId);
+  const description =
+    chosen && route?.chosenMissing
+      ? `${chosen.label} isn't connected, so voice input uses the system default.`
+      : route?.passedOver && route.input
+        ? `${route.passedOver.label} is Bluetooth, so voice input uses ${route.input.label}.`
+        : "The microphone voice input records from on this device.";
+  const control = !supported ? (
+    <span className="text-muted-foreground text-xs">Needs HTTPS or localhost.</span>
+  ) : inputs === null ? null : inputs.length === 0 ? (
+    <span className="text-muted-foreground text-xs">No microphone found.</span>
+  ) : labelsHidden ? (
+    <Button size="xs" variant="outline" onClick={askForAccess}>
+      Show microphones
+    </Button>
+  ) : (
+    <Select
+      value={value}
+      onValueChange={(next) => {
+        if (next === SYSTEM_MICROPHONE) {
+          updateSettings({ voiceMicrophone: null });
+          return;
+        }
+        const input = microphones.find((microphone) => microphone.deviceId === next);
+        if (input)
+          updateSettings({ voiceMicrophone: { deviceId: input.deviceId, label: input.label } });
+      }}
+    >
+      <SelectTrigger size="sm" className="w-auto min-w-0 max-w-full" aria-label="Microphone">
+        <SelectValue>{options.find((option) => option.value === value)?.label}</SelectValue>
+      </SelectTrigger>
+      <SelectPopup align="end" alignItemWithTrigger={false}>
+        {options.map((option) => (
+          <SelectItem hideIndicator key={option.value} value={option.value} label={option.label}>
+            <span className="flex w-full items-center justify-between gap-6">
+              {option.label}
+              {option.detail ? (
+                <span className="text-muted-foreground">{option.detail}</span>
+              ) : null}
+            </span>
+          </SelectItem>
+        ))}
+      </SelectPopup>
+    </Select>
+  );
+  return (
+    <SettingsRow
+      {...searchableSetting("voice-microphone")}
+      description={
+        accessDenied && labelsHidden
+          ? "Microphone access is blocked. Allow it in your browser or system settings."
+          : description
+      }
+      resetAction={
+        chosen !== DEFAULT_UNIFIED_SETTINGS.voiceMicrophone ? (
+          <SettingResetButton
+            label="microphone"
+            onClick={() =>
+              updateSettings({ voiceMicrophone: DEFAULT_UNIFIED_SETTINGS.voiceMicrophone })
+            }
+          />
+        ) : null
+      }
+      control={control}
+    />
+  );
+}
+
+function VoiceAvoidBluetoothSettingRow(props: { readonly microphones: MicrophoneList }) {
+  const settings = useScopedSettings();
+  const updateSettings = useUpdateScopedSettings();
+  const { inputs } = props.microphones;
+  if (!isMacPlatform(navigator.platform) || !inputs || !labelsShowTransport(inputs)) return null;
+  return (
+    <SettingsRow
+      {...searchableSetting("voice-avoid-bluetooth")}
+      description="Keeps AirPods and other headsets out of call-quality audio when one is the system default. A microphone you choose is always used."
+      control={
+        <Switch
+          checked={settings.voiceAvoidBluetoothMicrophone}
+          onCheckedChange={(checked) => updateSettings({ voiceAvoidBluetoothMicrophone: checked })}
+          aria-label="Use the Mac's microphone instead of Bluetooth"
+        />
+      }
+    />
+  );
+}
+
 export function VoiceSettingsPanel() {
   const { environment } = useSettingsScope();
   const providersByEnvironment = useEnvironmentProviders();
@@ -235,11 +405,14 @@ export function VoiceSettingsPanel() {
     (environment?.serverConfig
       ? providersByEnvironment.get(environment.environmentId)
       : undefined) ?? EMPTY_SERVER_PROVIDERS;
+  const microphones = useMicrophoneList();
   return (
     <SettingsPageContainer>
       <SettingsSection id="voice-input" title="Voice input">
         <VoiceTranscriptionSettingRow providers={serverProviders} />
         <VoiceLanguageSettingRow providers={serverProviders} />
+        <VoiceMicrophoneSettingRow microphones={microphones} />
+        <VoiceAvoidBluetoothSettingRow microphones={microphones} />
         <VoiceHoldToTalkSettingRow />
       </SettingsSection>
     </SettingsPageContainer>

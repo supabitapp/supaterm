@@ -483,6 +483,13 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.voiceHoldToTalkKey !== DEFAULT_UNIFIED_SETTINGS.voiceHoldToTalkKey
       ? ["Hold to talk"]
       : []),
+    ...(settings.voiceMicrophone !== DEFAULT_UNIFIED_SETTINGS.voiceMicrophone
+      ? ["Microphone"]
+      : []),
+    ...(settings.voiceAvoidBluetoothMicrophone !==
+    DEFAULT_UNIFIED_SETTINGS.voiceAvoidBluetoothMicrophone
+      ? ["Use the Mac's microphone instead of Bluetooth"]
+      : []),
     ...(settings.followUpBehavior !== DEFAULT_UNIFIED_SETTINGS.followUpBehavior
       ? ["Follow-up behavior"]
       : []),
@@ -597,6 +604,8 @@ export function useSettingsRestore(onRestored?: () => void) {
       sendShortcut: DEFAULT_UNIFIED_SETTINGS.sendShortcut,
       voiceLanguage: DEFAULT_UNIFIED_SETTINGS.voiceLanguage,
       voiceHoldToTalkKey: DEFAULT_UNIFIED_SETTINGS.voiceHoldToTalkKey,
+      voiceMicrophone: DEFAULT_UNIFIED_SETTINGS.voiceMicrophone,
+      voiceAvoidBluetoothMicrophone: DEFAULT_UNIFIED_SETTINGS.voiceAvoidBluetoothMicrophone,
       followUpBehavior: DEFAULT_UNIFIED_SETTINGS.followUpBehavior,
       glassOpacity: DEFAULT_UNIFIED_SETTINGS.glassOpacity,
       sidebarThreadGrouping: DEFAULT_UNIFIED_SETTINGS.sidebarThreadGrouping,
