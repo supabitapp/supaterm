@@ -36,11 +36,19 @@ describe("CommandPalette open intents", () => {
     await using _screen = await render(<CommandPalette>{null}</CommandPalette>);
 
     openCommandPalette();
-    await userEvent.type(page.getByRole("combobox"), "open");
+    const input = page.getByRole("combobox");
+    await userEvent.type(input, "open");
 
     const options = page.getByRole("option");
     await expect.element(options.first()).toHaveAttribute("data-active");
     await userEvent.keyboard("{ArrowDown}");
     await expect.element(options.nth(1)).toHaveAttribute("data-active");
+
+    await userEvent.fill(input, "settings");
+    await expect
+      .element(page.getByRole("option", { name: "Open settings" }))
+      .toHaveAttribute("data-active");
+    await userEvent.keyboard("{Enter}");
+    await expect.element(input).not.toBeInTheDocument();
   });
 });

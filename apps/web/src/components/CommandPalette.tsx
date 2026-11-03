@@ -2569,8 +2569,7 @@ function OpenCommandPaletteDialog(props: {
     if (command === "thread.pin") {
       const highlightedItem = findHighlightedCommandPaletteItem(
         displayedGroups,
-        highlightedItemValue ??
-          (autoHighlightsFirstRow ? (resultRows.itemValues[0] ?? null) : null),
+        highlightedItemValue,
       );
       if (highlightedItem?.kind === "action" && highlightedItem.pin) {
         event.preventDefault();
@@ -2681,7 +2680,6 @@ function OpenCommandPaletteDialog(props: {
       return;
     }
 
-    const firstItemValue = autoHighlightsFirstRow ? resultRows.itemValues[0] : undefined;
     // Alt+Enter opens the highlighted thread beside the focused chat pane.
     if (
       event.key === "Enter" &&
@@ -2693,7 +2691,7 @@ function OpenCommandPaletteDialog(props: {
     ) {
       const highlightedItem = findHighlightedCommandPaletteItem(
         displayedGroups,
-        highlightedItemValue ?? firstItemValue ?? null,
+        highlightedItemValue,
       );
       if (highlightedItem?.value.startsWith("thread:")) {
         (event as typeof event & { preventBaseUIHandler?: () => void }).preventBaseUIHandler?.();
@@ -2734,7 +2732,7 @@ function OpenCommandPaletteDialog(props: {
     if (event.key === "Enter" && !event.nativeEvent.isComposing && event.keyCode !== 229) {
       const highlightedItem = findHighlightedCommandPaletteItem(
         displayedGroups,
-        highlightedItemValue ?? firstItemValue ?? null,
+        highlightedItemValue,
       );
       if (highlightedItem) {
         (event as typeof event & { preventBaseUIHandler?: () => void }).preventBaseUIHandler?.();
