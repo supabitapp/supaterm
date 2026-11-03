@@ -74,7 +74,7 @@ export function uploadVoiceAudio(input: {
   });
 }
 
-export function cancelVoiceUpload(environmentId: EnvironmentId, uploadId: string) {
+function cancelVoiceUpload(environmentId: EnvironmentId, uploadId: string) {
   return command(transcriptionEnvironment.cancelUpload, { environmentId, input: { uploadId } });
 }
 
