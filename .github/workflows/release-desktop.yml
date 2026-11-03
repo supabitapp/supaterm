@@ -3,9 +3,10 @@ name: Release desktop build
 # One desktop platform/arch build, called once per target from release.yml so
 # each target is its own job with its own `needs`. The JS bundle (server, web
 # client, Electron main) comes from the `js-bundle` artifact that build_bundle
-# produced; this job only packages it, builds the native helpers, and, where
-# `cli_archive` is set, the self-contained CLI archive for its platform. Where
-# `mac_installer` is set, it also builds the "Install Supaterm" disk image.
+# produced; the build job only packages it and builds the native helpers.
+# Where `cli_archive` is set, the cli job builds the self-contained CLI archive
+# for its platform beside it. Where `mac_installer` is set, the cli job also
+# builds the "Install Supaterm" disk image.
 
 on:
   workflow_call:
@@ -50,14 +51,14 @@ on:
       resource_key:
         required: true
         type: string
-      # Whether the job also builds the self-contained CLI archive for its own
-      # platform/arch, on this runner, and smoke-tests it here. Every archive
-      # is built on hardware of its own architecture.
+      # Whether the cli job builds the self-contained CLI archive for this
+      # platform/arch on `runner` and smoke-tests it. Every archive is built on
+      # hardware of its own architecture.
       cli_archive:
         required: false
         default: false
         type: boolean
-      # Whether the job also builds the "Install Supaterm" disk image. It always
+      # Whether the cli job also builds the "Install Supaterm" disk image. It always
       # installs the latest stable build, so only stable releases publish it.
       mac_installer:
         required: false
@@ -120,7 +121,8 @@ jobs:
       # checkout.workers=0 writes the files on every core. Alternating both ways
       # in one job on the Windows runners, it wrote the files about 10s faster
       # (about 40% on arm64).
-      - name: Checkout
+      - &checkout
+        name: Checkout
         shell: bash
         env:
           CHECKOUT_REF: ${{ inputs.ref }}
@@ -132,11 +134,13 @@ jobs:
           git fetch --no-tags --depth=1 origin "$CHECKOUT_REF"
           git -c checkout.workers=0 checkout --detach FETCH_HEAD
 
-      - name: Setup Mise
+      - &setup_mise
+        name: Setup Mise
         uses: ./.github/actions/setup-mise
         with:
           cache: false
-      - name: Select Xcode 27.1
+      - &select_xcode
+        name: Select Xcode 27.1
         if: inputs.platform == 'mac'
         shell: bash
         env:
@@ -147,19 +151,22 @@ jobs:
           echo "DEVELOPER_DIR=$DEVELOPER_DIR" >> "$GITHUB_ENV"
       # pnpm checks the lockfile and policy before reusing this result. A missing
       # artifact leaves the cache empty, so installation runs the checks again.
-      - name: Download dependency verification
+      - &download_dependency_verification
+        name: Download dependency verification
         continue-on-error: true
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: release-dependency-verification
           path: ${{ runner.temp }}/pnpm-metadata
 
-      - name: Install desktop dependencies
+      - &install_dependencies
+        name: Install desktop dependencies
         env:
           pnpm_config_cache_dir: ${{ runner.temp }}/pnpm-metadata
         run: vp install --filter=@supaterm/desktop... --filter=supaterm... --filter=@supaterm/scripts...
 
-      - name: Cache resource monitor
+      - &cache_resource_monitor
+        name: Cache resource monitor
         id: resource_monitor_cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
@@ -183,35 +190,38 @@ jobs:
           toolchain: stable
           targets: ${{ inputs.rust_target }}
 
-      - name: Align package versions to release version
+      - &align_versions
+        name: Align package versions to release version
         shell: bash
         run: node scripts/update-release-package-versions.ts "$INPUTS_VERSION"
 
       # The artifact root is `apps/` (upload-artifact keeps the least common
       # ancestor of its paths), so extracting into `apps` restores
       # apps/server/dist and apps/desktop/dist-electron at their build paths.
-      - name: Download JS bundle
+      - &download_js_bundle
+        name: Download JS bundle
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: js-bundle
           path: apps
 
-      - name: Install cargo-xwin
+      - &install_cargo_xwin
+        name: Install cargo-xwin
         if: inputs.platform == 'win' && steps.resource_monitor_cache.outputs.cache-hit != 'true'
         uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2
         with:
           tool: cargo-xwin@0.23.1
 
-      # Built here rather than inside the desktop build so the CLI archive,
-      # which bundles the same binary, can be built and uploaded first.
-      - name: Build resource monitor
+      - &build_resource_monitor
+        name: Build resource monitor
         if: steps.resource_monitor_cache.outputs.cache-hit != 'true'
         shell: bash
         run: cargo ${{ inputs.platform == 'win' && 'xwin build' || 'build' }} --locked --release --manifest-path native/resource-monitor/Cargo.toml --target "${INPUTS_RUST_TARGET}"
 
       # Off Windows, scripts/lib/windows-jsign.ts signs through jsign instead of
       # the TrustedSigning PowerShell module.
-      - name: Install jsign
+      - &install_jsign
+        name: Install jsign
         if: inputs.platform == 'win'
         shell: bash
         run: |
@@ -224,18 +234,8 @@ jobs:
           chmod +x "$dir/jsign"
           echo "SUPATERM_JSIGN=$dir/jsign" >> "$GITHUB_ENV"
 
-      # The desktop build applies the same branding to apps/server/dist/client
-      # (resolveDesktopWebAssetBrand in scripts/build-desktop-artifact.ts); the
-      # CLI archive below ships that client and is now built first.
-      - name: Apply web client branding
-        if: inputs.cli_archive
-        shell: bash
-        run: |
-          brand=production
-          if [[ "${INPUTS_VERSION}" =~ -nightly\.[0-9]{8}\.[0-9]+$ ]]; then brand=nightly; fi
-          node scripts/apply-web-brand-assets.ts "$brand" apps/server/dist/client
-
-      - name: Load Apple signing credentials
+      - &load_apple_credentials
+        name: Load Apple signing credentials
         if: inputs.platform == 'mac'
         uses: ./.github/actions/load-release-secrets
         with:
@@ -244,7 +244,8 @@ jobs:
 
       # notarytool and electron-builder read the App Store Connect key from a
       # file, so every later step gets its path in place of the key itself.
-      - name: Write App Store Connect key file
+      - &write_app_store_connect_key
+        name: Write App Store Connect key file
         if: inputs.platform == 'mac'
         shell: bash
         run: |
@@ -255,133 +256,9 @@ jobs:
             echo "APPLE_API_KEY=$key_path" >> "$GITHUB_ENV"
           fi
 
-      # tsdown downloads the target Node with one fetch and no retry, and
-      # nodejs.org drops that download often enough to fail releases. Seed
-      # tsdown's cache with a retried, checksum-verified copy instead. A transfer
-      # under 100 KB/s for 30s counts as failed, so a stall retries.
-      - name: Download target Node.js for the CLI executable
-        if: inputs.cli_archive && inputs.platform == 'win'
-        shell: bash
-        run: |
-          set -euo pipefail
-          version="$(node -p 'require("./apps/server/scripts/seaNodeVersion.ts").SEA_NODE_VERSION')"
-          name="node-v$version-win-${INPUTS_ARCH}"
-          dest="${XDG_CACHE_HOME:-$HOME/.cache}/tsdown/node/v$version/win-${INPUTS_ARCH}"
-          dir="$RUNNER_TEMP/node-download"
-          mkdir -p "$dir" "$dest"
-          fetch=(curl -fsSL --retry 5 --retry-all-errors --connect-timeout 10 --speed-limit 102400 --speed-time 30)
-          "${fetch[@]}" -o "$dir/$name.zip" "https://nodejs.org/dist/v$version/$name.zip"
-          "${fetch[@]}" -o "$dir/SHASUMS256.txt" "https://nodejs.org/dist/v$version/SHASUMS256.txt"
-          (cd "$dir" && grep " $name.zip\$" SHASUMS256.txt | sha256sum -c -)
-          unzip -p "$dir/$name.zip" "$name/node.exe" > "$dest/node.exe"
-
-      # build-exe runs the pack on SEA_NODE_VERSION
-      # (apps/server/scripts/seaNodeVersion.ts) while the repo stays on the mise
-      # Node. Native builds embed that executable; cross-target builds download
-      # the same version for their target.
-      - name: Build CLI single-executable
-        if: inputs.cli_archive
-        shell: bash
-        env:
-          # The executable bundles the server again, so it needs the same stamp
-          # as release.yml's JS bundle.
-          SUPATERM_TELEMETRY_CHANNEL: ${{ github.repository == 'supabitapp/supaterm' && inputs.release_channel || 'dev' }}
-          # vp gives each download of that Node 10 minutes by default, so one
-          # stalled stream holds the job that long. It retries 3 times and resumes
-          # partial bytes, so a shorter limit costs a slow download only a retry.
-          VP_DOWNLOAD_TIMEOUT: "120"
-        run: |
-          args=(build-exe --verbose)
-          if [[ "$INPUTS_PLATFORM" == "win" ]]; then
-            args+=(--target "win-$INPUTS_ARCH")
-          fi
-          node apps/server/scripts/cli.ts "${args[@]}"
-
-      - name: Import macOS signing certificate for the CLI archive and installer
-        if: inputs.platform == 'mac' && (inputs.cli_archive || inputs.mac_installer)
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ -z "$CSC_LINK" || -z "$CSC_KEY_PASSWORD" ]]; then
-            echo "macOS CLI and installer signing disabled (missing CSC_LINK); they are signed ad hoc."
-            exit 0
-          fi
-          keychain="$RUNNER_TEMP/supaterm-cli-signing.keychain-db"
-          keychain_password="$(openssl rand -hex 16)"
-          cert_path="$RUNNER_TEMP/supaterm-cli-signing.p12"
-          printf '%s' "$CSC_LINK" | base64 --decode > "$cert_path"
-          security create-keychain -p "$keychain_password" "$keychain"
-          security set-keychain-settings -lut 21600 "$keychain"
-          security unlock-keychain -p "$keychain_password" "$keychain"
-          security import "$cert_path" -k "$keychain" -P "$CSC_KEY_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain" >/dev/null
-          existing_keychains=()
-          while IFS= read -r existing_keychain; do
-            existing_keychains+=("$existing_keychain")
-          done < <(security list-keychains -d user | sed -E 's/^[[:space:]]*"//; s/"[[:space:]]*$//')
-          security list-keychains -d user -s "$keychain" "${existing_keychains[@]}"
-          identity="$(security find-identity -v -p codesigning "$keychain" | sed -n 's/.*"\(Developer ID Application: [^"]*\)".*/\1/p' | head -n 1)"
-          if [[ -z "$identity" ]]; then
-            echo "No Developer ID Application identity found in CSC_LINK." >&2
-            exit 1
-          fi
-          echo "::add-mask::$keychain_password"
-          echo "SUPATERM_MAC_SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
-          echo "macOS CLI and installer signing enabled."
-
-      - name: Stage resource monitor for the CLI archive
-        if: inputs.cli_archive
-        shell: bash
-        run: |
-          set -euo pipefail
-          binary_name="supaterm-resource-monitor"
-          if [[ "${INPUTS_PLATFORM}" == "win" ]]; then
-            binary_name="${binary_name}.exe"
-          fi
-          target_dir="$RUNNER_TEMP/cli-resource-monitor/${INPUTS_RESOURCE_KEY}"
-          mkdir -p "$target_dir"
-          cp "native/resource-monitor/target/${INPUTS_RUST_TARGET}/release/${binary_name}" "$target_dir/$binary_name"
-
-      - uses: ./.github/actions/setup-apt-mirrors
+      - &setup_apt_mirrors
+        uses: ./.github/actions/setup-apt-mirrors
         if: inputs.platform == 'linux'
-
-      # The Linux archive ships libatomic.so.1 and points supaterm's RUNPATH at it.
-      - name: Install patchelf
-        if: inputs.cli_archive && inputs.platform == 'linux'
-        shell: bash
-        run: command -v patchelf || { sudo apt-get update && sudo apt-get install -y patchelf; }
-
-      - name: Build CLI archive
-        if: inputs.cli_archive
-        shell: bash
-        env:
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
-          AZURE_TRUSTED_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
-          AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME }}
-        run: |
-          set -euo pipefail
-          node scripts/build-cli-archive.ts \
-            --platform "${INPUTS_PLATFORM}" \
-            --arch "${INPUTS_ARCH}" \
-            --version "${INPUTS_VERSION}" \
-            --resource-monitor-dir "$RUNNER_TEMP/cli-resource-monitor" \
-            --output-dir release-cli
-
-      - name: Smoke-test CLI archive
-        if: inputs.cli_archive && inputs.verify_runner == ''
-        shell: bash
-        run: node scripts/smoke-cli-archive.ts --archive release-cli/* --expect-version "${INPUTS_VERSION}"
-
-      - name: Upload CLI archive
-        if: inputs.cli_archive
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: cli-${{ inputs.platform }}-${{ inputs.arch }}
-          path: release-cli/*
-          if-no-files-found: error
 
       - name: Install Linux desktop build libraries
         if: inputs.platform == 'linux'
@@ -401,10 +278,9 @@ jobs:
 
       # The WSL backend runs the Linux CLI archive inside the distro, so the
       # Windows desktop embeds the same-arch archive the release attaches.
-      # This job starts alongside that Linux job instead of after it, and the
-      # Linux job uploads the archive partway through, so the wait is placed
-      # after all other setup. It stops early if the Linux job ended without
-      # uploading the archive.
+      # This job starts alongside the Linux CLI job instead of after it, so the
+      # wait is placed after all other setup. It stops early if that job ended
+      # without uploading the archive.
       - name: Wait for Linux CLI archive
         if: inputs.platform == 'win'
         shell: node {0}
@@ -412,7 +288,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           ARTIFACT: cli-linux-${{ inputs.arch }}
-          LINUX_JOB: Build Linux ${{ inputs.arch }}
+          LINUX_JOB: Build Linux ${{ inputs.arch }} CLI
         run: |
           const { setTimeout: delay } = require("node:timers/promises");
           const { GITHUB_TOKEN, GITHUB_API_URL, GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_RUN_ATTEMPT, ARTIFACT, LINUX_JOB } = process.env;
@@ -542,7 +418,7 @@ jobs:
 
       # A build can package fine and still not open (a missing module in the
       # backend or the bundle). This launches the app from the shipped
-      # AppImage or DMG, before the macOS installer lands beside that DMG.
+      # AppImage or DMG.
       - name: Launch check
         if: inputs.launch_check
         shell: bash
@@ -571,19 +447,6 @@ jobs:
           name: desktop-launch-check-${{ inputs.platform }}-${{ inputs.arch }}
           path: ${{ runner.temp }}/desktop-launch-check
           if-no-files-found: ignore
-
-      # Nightly builds it too, so a broken installer build fails a nightly
-      # before it can fail a stable release, but only stable publishes it.
-      - name: Build macOS installer
-        if: inputs.mac_installer
-        shell: bash
-        run: |
-          set -euo pipefail
-          output_dir="$RUNNER_TEMP/mac-installer"
-          if [[ "${INPUTS_RELEASE_CHANNEL}" == "stable" ]]; then
-            output_dir=release
-          fi
-          node scripts/build-mac-installer.ts --version "${INPUTS_VERSION}" --output-dir "$output_dir"
 
       # The verify job runs what this host could not: the packaged natives and
       # the CLI. Its scripts are bundled so that job needs no install.
@@ -687,10 +550,201 @@ jobs:
           path: resource-monitor-publish/${{ inputs.resource_key }}/*
           if-no-files-found: error
 
+  # The CLI archive and the macOS installer need nothing the desktop build
+  # makes, so they build on a runner of their own beside it.
+  cli:
+    name: Build ${{ inputs.label }} CLI${{ inputs.mac_installer && ' and installer' || '' }}
+    if: inputs.cli_archive || inputs.mac_installer
+    environment: release
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 30
+    env:
+      INPUTS_PLATFORM: ${{ inputs.platform }}
+      INPUTS_ARCH: ${{ inputs.arch }}
+      INPUTS_RUST_TARGET: ${{ inputs.rust_target }}
+      INPUTS_RESOURCE_KEY: ${{ inputs.resource_key }}
+      INPUTS_VERSION: ${{ inputs.version }}
+    steps:
+      - *checkout
+      - *setup_mise
+      - *select_xcode
+      - *download_dependency_verification
+      - *install_dependencies
+      - *cache_resource_monitor
+
+      - name: Setup Rust
+        if: steps.resource_monitor_cache.outputs.cache-hit != 'true'
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          toolchain: stable
+          targets: ${{ inputs.rust_target }}
+
+      - *align_versions
+      - *download_js_bundle
+      - *install_cargo_xwin
+      - *build_resource_monitor
+      - *install_jsign
+
+      # The CLI archive ships apps/server/dist/client. The desktop build brands
+      # its own copy the same way (resolveDesktopWebAssetBrand in
+      # scripts/build-desktop-artifact.ts).
+      - name: Apply web client branding
+        if: inputs.cli_archive
+        shell: bash
+        run: |
+          brand=production
+          if [[ "${INPUTS_VERSION}" =~ -nightly\.[0-9]{8}\.[0-9]+$ ]]; then brand=nightly; fi
+          node scripts/apply-web-brand-assets.ts "$brand" apps/server/dist/client
+
+      - *load_apple_credentials
+      - *write_app_store_connect_key
+
+      # tsdown downloads the target Node with one fetch and no retry, and
+      # nodejs.org drops that download often enough to fail releases. Seed
+      # tsdown's cache with a retried, checksum-verified copy instead. A transfer
+      # under 100 KB/s for 30s counts as failed, so a stall retries.
+      - name: Download target Node.js for the CLI executable
+        if: inputs.cli_archive && inputs.platform == 'win'
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p 'require("./apps/server/scripts/seaNodeVersion.ts").SEA_NODE_VERSION')"
+          name="node-v$version-win-${INPUTS_ARCH}"
+          dest="${XDG_CACHE_HOME:-$HOME/.cache}/tsdown/node/v$version/win-${INPUTS_ARCH}"
+          dir="$RUNNER_TEMP/node-download"
+          mkdir -p "$dir" "$dest"
+          fetch=(curl -fsSL --retry 5 --retry-all-errors --connect-timeout 10 --speed-limit 102400 --speed-time 30)
+          "${fetch[@]}" -o "$dir/$name.zip" "https://nodejs.org/dist/v$version/$name.zip"
+          "${fetch[@]}" -o "$dir/SHASUMS256.txt" "https://nodejs.org/dist/v$version/SHASUMS256.txt"
+          (cd "$dir" && grep " $name.zip\$" SHASUMS256.txt | sha256sum -c -)
+          unzip -p "$dir/$name.zip" "$name/node.exe" > "$dest/node.exe"
+
+      # build-exe runs the pack on SEA_NODE_VERSION
+      # (apps/server/scripts/seaNodeVersion.ts) while the repo stays on the mise
+      # Node. Native builds embed that executable; cross-target builds download
+      # the same version for their target.
+      - name: Build CLI single-executable
+        if: inputs.cli_archive
+        shell: bash
+        env:
+          # The executable bundles the server again, so it needs the same stamp
+          # as release.yml's JS bundle.
+          SUPATERM_TELEMETRY_CHANNEL: ${{ github.repository == 'supabitapp/supaterm' && inputs.release_channel || 'dev' }}
+          # vp gives each download of that Node 10 minutes by default, so one
+          # stalled stream holds the job that long. It retries 3 times and resumes
+          # partial bytes, so a shorter limit costs a slow download only a retry.
+          VP_DOWNLOAD_TIMEOUT: "120"
+        run: |
+          args=(build-exe --verbose)
+          if [[ "$INPUTS_PLATFORM" == "win" ]]; then
+            args+=(--target "win-$INPUTS_ARCH")
+          fi
+          node apps/server/scripts/cli.ts "${args[@]}"
+
+      - name: Import macOS signing certificate for the CLI archive and installer
+        if: inputs.platform == 'mac'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$CSC_LINK" || -z "$CSC_KEY_PASSWORD" ]]; then
+            echo "macOS CLI and installer signing disabled (missing CSC_LINK); they are signed ad hoc."
+            exit 0
+          fi
+          keychain="$RUNNER_TEMP/supaterm-cli-signing.keychain-db"
+          keychain_password="$(openssl rand -hex 16)"
+          cert_path="$RUNNER_TEMP/supaterm-cli-signing.p12"
+          printf '%s' "$CSC_LINK" | base64 --decode > "$cert_path"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$cert_path" -k "$keychain" -P "$CSC_KEY_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain" >/dev/null
+          existing_keychains=()
+          while IFS= read -r existing_keychain; do
+            existing_keychains+=("$existing_keychain")
+          done < <(security list-keychains -d user | sed -E 's/^[[:space:]]*"//; s/"[[:space:]]*$//')
+          security list-keychains -d user -s "$keychain" "${existing_keychains[@]}"
+          identity="$(security find-identity -v -p codesigning "$keychain" | sed -n 's/.*"\(Developer ID Application: [^"]*\)".*/\1/p' | head -n 1)"
+          if [[ -z "$identity" ]]; then
+            echo "No Developer ID Application identity found in CSC_LINK." >&2
+            exit 1
+          fi
+          echo "::add-mask::$keychain_password"
+          echo "SUPATERM_MAC_SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
+          echo "macOS CLI and installer signing enabled."
+
+      - name: Stage resource monitor for the CLI archive
+        if: inputs.cli_archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          binary_name="supaterm-resource-monitor"
+          if [[ "${INPUTS_PLATFORM}" == "win" ]]; then
+            binary_name="${binary_name}.exe"
+          fi
+          target_dir="$RUNNER_TEMP/cli-resource-monitor/${INPUTS_RESOURCE_KEY}"
+          mkdir -p "$target_dir"
+          cp "native/resource-monitor/target/${INPUTS_RUST_TARGET}/release/${binary_name}" "$target_dir/$binary_name"
+
+      - *setup_apt_mirrors
+
+      # The Linux archive ships libatomic.so.1 and points supaterm's RUNPATH at it.
+      - name: Install patchelf
+        if: inputs.cli_archive && inputs.platform == 'linux'
+        shell: bash
+        run: command -v patchelf || { sudo apt-get update && sudo apt-get install -y patchelf; }
+
+      - name: Build CLI archive
+        if: inputs.cli_archive
+        shell: bash
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          AZURE_TRUSTED_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
+          AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME }}
+        run: |
+          set -euo pipefail
+          node scripts/build-cli-archive.ts \
+            --platform "${INPUTS_PLATFORM}" \
+            --arch "${INPUTS_ARCH}" \
+            --version "${INPUTS_VERSION}" \
+            --resource-monitor-dir "$RUNNER_TEMP/cli-resource-monitor" \
+            --output-dir release-cli
+
+      - name: Smoke-test CLI archive
+        if: inputs.cli_archive && inputs.verify_runner == ''
+        shell: bash
+        run: node scripts/smoke-cli-archive.ts --archive release-cli/* --expect-version "${INPUTS_VERSION}"
+
+      - name: Upload CLI archive
+        if: inputs.cli_archive
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cli-${{ inputs.platform }}-${{ inputs.arch }}
+          path: release-cli/*
+          if-no-files-found: error
+
+      # Nightly builds it too, so a broken installer build fails a nightly
+      # before it can fail a stable release, but only stable publishes it.
+      - name: Build macOS installer
+        if: inputs.mac_installer
+        shell: bash
+        run: node scripts/build-mac-installer.ts --version "${INPUTS_VERSION}" --output-dir release-installer
+
+      - name: Upload macOS installer
+        if: inputs.mac_installer && inputs.release_channel == 'stable'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: desktop-${{ inputs.platform }}-${{ inputs.arch }}-installer
+          path: release-installer/*
+          if-no-files-found: error
+
   verify:
     name: Verify
-    needs: [build]
-    if: inputs.verify_runner != ''
+    needs: [build, cli]
+    if: ${{ !failure() && !cancelled() && inputs.verify_runner != '' }}
     runs-on: ${{ inputs.verify_runner }}
     timeout-minutes: 15
     env:
