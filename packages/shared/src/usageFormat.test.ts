@@ -2,7 +2,14 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 import type { UsageSource } from "@supaterm/contracts";
 
-import { formatHourShort, makeWindow, usageSourceMessages } from "./usageFormat.ts";
+import {
+  buildUsageCalendar,
+  completedPeriodAverage,
+  enumerateDays,
+  formatHourShort,
+  makeWindow,
+  usageSourceMessages,
+} from "./usageFormat.ts";
 
 function malformedSource(count: number, overrides: Partial<UsageSource> = {}): UsageSource {
   return {
@@ -175,5 +182,47 @@ describe("hourly usage formatting", () => {
     } finally {
       resolvedOptions.mockRestore();
     }
+  });
+});
+
+describe("usage calendar", () => {
+  it("lays days into Monday-first weeks and leaves days outside the window empty", () => {
+    const days = enumerateDays("2026-09-30", "2026-10-06");
+    const { weeks, months } = buildUsageCalendar(days, [0, 1, 2, 3, 4, 5, 6]);
+
+    expect(weeks.map((week) => week.map((cell) => cell?.day ?? null))).toEqual([
+      [null, null, "2026-09-30", "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04"],
+      ["2026-10-05", "2026-10-06", null, null, null, null, null],
+    ]);
+    expect(months).toEqual([{ week: 0, label: "Oct" }]);
+  });
+
+  it("buckets nonzero days into quartile levels and keeps zero days at level 0", () => {
+    const days = enumerateDays("2026-10-05", "2026-10-13");
+    const { weeks } = buildUsageCalendar(days, [0, 1, 2, 3, 4, 5, 6, 7, 800]);
+
+    expect(weeks.flat().map((cell) => cell?.level ?? null)).toEqual([
+      0,
+      1,
+      1,
+      1,
+      2,
+      2,
+      3,
+      3,
+      4,
+      null,
+      null,
+      null,
+      null,
+      null,
+    ]);
+  });
+});
+
+describe("completed period average", () => {
+  it("leaves out the period still in progress", () => {
+    expect(completedPeriodAverage([10, 20, 30, 1])).toBe(20);
+    expect(completedPeriodAverage([5])).toBe(0);
   });
 });

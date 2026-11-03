@@ -1,9 +1,11 @@
 import { ProviderInstanceIcon } from "../chat/ProviderInstanceIcon";
 import type { UsageProviderKind } from "@supaterm/contracts";
 import {
-  Area,
-  AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
+  Cell,
+  ReferenceLine,
   Tooltip,
   XAxis,
   YAxis,
@@ -13,6 +15,7 @@ import {
 
 import type { DailyTotals, HourlyTotals } from "@supaterm/shared/usageMerge";
 import {
+  completedPeriodAverage,
   formatDayShort,
   formatHourShort,
   formatRelativeHourShort,
@@ -20,12 +23,14 @@ import {
   formatUsd,
 } from "@supaterm/shared/usageFormat";
 import { cn } from "~/lib/utils";
+import { UsageCalendarHeatmap } from "./UsageCalendarHeatmap";
 import { PROVIDER_ORDER, PROVIDER_PRESENTATION } from "./usageProviders";
 
 const TICK_COUNT = 5;
 const PLACEHOLDER_DOMAIN: Readonly<[AxisDomainItem, AxisDomainItem]> = [0, TICK_COUNT - 1];
 const VALUE_DOMAIN: Readonly<[AxisDomainItem, AxisDomainItem]> = [0, "auto"];
 const AXIS_TICK = { fill: "var(--color-muted-foreground)", fontSize: 10 };
+const CALENDAR_MIN_DAYS = 32;
 const NONE_LOADING: ReadonlySet<UsageProviderKind> = new Set();
 
 export type UsageChartMetric = "tokens" | "cost";
@@ -176,14 +181,36 @@ export function UsageProviderChart({
       ? formatRelativeHourShort(period, referenceTime, timeZone, hour12)
       : formatPeriod(period);
 
+  const ariaLabel = `${resolution === "hour" ? "Hourly" : "Daily"} ${metric === "tokens" ? "processed tokens" : "cost"} by provider`;
+  if (resolution === "day" && periods.length >= CALENDAR_MIN_DAYS) {
+    return (
+      <UsageCalendarHeatmap
+        days={periods}
+        columns={columns}
+        providers={providers}
+        format={format}
+        ariaLabel={ariaLabel}
+      />
+    );
+  }
+  const average = completedPeriodAverage(columns.map((column) => column.total));
+  const lastIndex = data.length - 1;
+
   return (
-    <div className="h-64">
-      <AreaChart
+    <div className="relative h-64">
+      {average > 0 ? (
+        <span className="absolute top-0 right-4 flex items-center gap-1.5 text-3xs text-muted-foreground tabular-nums">
+          <span aria-hidden className="w-3 border-t border-dashed border-muted-foreground" />
+          {format(average)} {resolution === "hour" ? "hourly" : "daily"} average
+        </span>
+      ) : null}
+      <BarChart
         responsive
         style={{ width: "100%", height: "100%" }}
         data={data}
-        margin={{ top: 8, right: 16, bottom: 0, left: 0 }}
-        aria-label={`${resolution === "hour" ? "Hourly" : "Daily"} ${metric === "tokens" ? "processed tokens" : "cost"} by provider`}
+        barCategoryGap="12%"
+        margin={{ top: 20, right: 16, bottom: 0, left: 0 }}
+        aria-label={ariaLabel}
       >
         <CartesianGrid vertical={false} stroke="var(--color-border)" />
         <XAxis
@@ -206,7 +233,7 @@ export function UsageProviderChart({
         />
         <Tooltip
           isAnimationActive={false}
-          cursor={{ stroke: "var(--color-muted-foreground)", strokeWidth: 1 }}
+          cursor={{ fill: "var(--color-muted)", fillOpacity: 0.6 }}
           content={
             <UsageChartTooltip
               columns={columns}
@@ -218,24 +245,29 @@ export function UsageProviderChart({
             />
           }
         />
+        {average > 0 ? (
+          <ReferenceLine y={average} stroke="var(--color-muted-foreground)" strokeDasharray="4 4" />
+        ) : null}
         {series.map((provider) => (
-          <Area
+          <Bar
             key={provider}
             dataKey={provider}
-            type="monotone"
+            stackId="usage"
             className={cn(
               "transition-opacity",
               loadingProviders.has(provider) && "opacity-40 delay-150",
             )}
-            stroke={PROVIDER_PRESENTATION[provider].color}
-            strokeWidth={2}
             fill={PROVIDER_PRESENTATION[provider].color}
-            fillOpacity={0.12}
-            activeDot={{ r: 3.5, strokeWidth: 0 }}
+            stroke="var(--color-background)"
+            strokeWidth={1}
             isAnimationActive={false}
-          />
+          >
+            {data.map((row, index) => (
+              <Cell key={row.period} fillOpacity={index === lastIndex ? 0.45 : 1} />
+            ))}
+          </Bar>
         ))}
-      </AreaChart>
+      </BarChart>
     </div>
   );
 }
