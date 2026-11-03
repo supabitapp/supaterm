@@ -296,7 +296,6 @@ import {
   resolveWorkspaceRelativeFilePath,
 } from "../files/filePath";
 import { waitForThreadShellReady } from "./threadForkNavigation";
-import { resolveUserMessageIntentBadge } from "./userMessageIntentBadge";
 import { fileChipClipboardPath, fileChipMenu, resolveFileChipTarget } from "./fileChipMenu";
 import { useFileChipShare } from "./useFileChipShare";
 import { useOpenLinkedThread } from "./useOpenLinkedThread";
@@ -1974,9 +1973,6 @@ function renderFeedEntry(
       const foldRowId = presentation.attribution === "agent" ? `agent:${message.id}` : null;
       const foldExpanded = foldRowId !== null && (props.expandedWorkRows[foldRowId] ?? false);
       const bubbleBodyVisible = foldRowId === null || foldExpanded;
-      const intentBadge = props.userMessageGrouping.continuesSteer
-        ? null
-        : resolveUserMessageIntentBadge(message.inputIntent);
       const referenceIds = new Set(
         collectComposerContextReferences(message.text).map((reference) => reference.contextId),
       );
@@ -2203,28 +2199,6 @@ function renderFeedEntry(
                   environmentId={props.environmentId}
                   senderThreadId={message.senderThreadId}
                 />
-              ) : null}
-              {intentBadge ? (
-                <View
-                  accessible
-                  accessibilityLabel={intentBadge.accessibilityLabel}
-                  className="flex-row items-center gap-1"
-                >
-                  <SymbolView name="arrow.uturn.forward" size={12} tintColor={iconSubtleColor} />
-                  <Text className="font-supaterm-medium text-xs text-foreground-secondary">
-                    {intentBadge.label}
-                  </Text>
-                </View>
-              ) : null}
-              {intentBadge ? (
-                <Text
-                  accessible={false}
-                  accessibilityElementsHidden
-                  importantForAccessibility="no"
-                  className="font-supaterm-medium text-xs text-foreground-secondary"
-                >
-                  ·
-                </Text>
               ) : null}
               <Text
                 className={cn(

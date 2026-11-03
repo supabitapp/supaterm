@@ -58,18 +58,6 @@ describe("pending timeline messages", () => {
     expect(appended[2]?.userMessageGrouping.groupedWithPrevious).toBe(true);
     const removed = group([first, second, reply], {});
     expect(removed[1]?.userMessageGrouping.groupedWithNext).toBe(false);
-    const steer = {
-      ...second,
-      message: { ...second.message, inputIntent: "promoted_queued_to_steer" as const },
-    };
-    const singleSteer = group([first, steer], {});
-    const steers = group(
-      [{ ...first, message: { ...first.message, inputIntent: "steer" } }, steer],
-      {},
-    );
-    expect(steers[1]?.userMessageGrouping.continuesSteer).toBe(true);
-    expect(singleSteer[1]?.userMessageGrouping.continuesSteer).toBe(false);
-    expect(steers[1]).not.toBe(singleSteer[1]);
   });
 
   it("preserves setup, workflow, and compaction grouping boundaries", () => {

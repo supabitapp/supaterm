@@ -87,8 +87,7 @@ export function createThreadFeedGrouping() {
       const previous = rows.get(entry);
       if (
         previous?.userMessageGrouping.groupedWithPrevious === grouping.groupedWithPrevious &&
-        previous.userMessageGrouping.groupedWithNext === grouping.groupedWithNext &&
-        previous.userMessageGrouping.continuesSteer === grouping.continuesSteer
+        previous.userMessageGrouping.groupedWithNext === grouping.groupedWithNext
       )
         return previous;
       const row = { ...entry, userMessageGrouping: grouping };

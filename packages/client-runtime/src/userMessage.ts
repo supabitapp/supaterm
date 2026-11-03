@@ -4,7 +4,6 @@ import {
   type OrchestrationMessageContext,
   type OrchestrationV2Actor,
   type OrchestrationV2CreationSource,
-  type OrchestrationV2UserMessageInputIntent,
   type ScheduledTaskId,
 } from "@supaterm/contracts";
 import {
@@ -76,9 +75,7 @@ export function resolveUserMessagePresentation(message: {
   };
 }
 
-type GroupableUserMessage = Parameters<typeof resolveUserMessagePresentation>[0] & {
-  readonly inputIntent?: OrchestrationV2UserMessageInputIntent;
-};
+type GroupableUserMessage = Parameters<typeof resolveUserMessagePresentation>[0];
 
 export function resolveUserMessageGrouping(
   message: GroupableUserMessage | undefined,
@@ -87,12 +84,8 @@ export function resolveUserMessageGrouping(
 ) {
   const isOwnMessage = (value: GroupableUserMessage | undefined) =>
     value?.role === "user" && resolveUserMessagePresentation(value).attribution === null;
-  const isSteer = (value: GroupableUserMessage | undefined) =>
-    value?.inputIntent === "steer" || value?.inputIntent === "promoted_queued_to_steer";
-  const groupedWithPrevious = isOwnMessage(message) && isOwnMessage(previous);
   return {
-    groupedWithPrevious,
+    groupedWithPrevious: isOwnMessage(message) && isOwnMessage(previous),
     groupedWithNext: isOwnMessage(message) && isOwnMessage(next),
-    continuesSteer: groupedWithPrevious && isSteer(message) && isSteer(previous),
   };
 }
