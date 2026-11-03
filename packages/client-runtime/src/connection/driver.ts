@@ -80,10 +80,12 @@ const PREFLIGHT_VALIDITY_NANOS = 10_000_000_000n;
 export class ConnectionDriver extends Context.Service<
   ConnectionDriver,
   {
+    /** `answered` is a route whose host just answered from here, so its check is skipped. */
     readonly connect: (
       entry: ConnectionCatalogEntry,
       reportProgress: (progress: ConnectionDriverProgress) => Effect.Effect<void>,
       preflight?: PreparedRoute,
+      answered?: ConnectionRoute,
     ) => Effect.Effect<EnvironmentConnectionLease, ConnectionAttemptError, Scope.Scope>;
     /** Whether a route answers as the entry's environment, without credentials. */
     readonly checkRoute: (
@@ -315,6 +317,7 @@ export const make = Effect.gen(function* () {
     entry: ConnectionCatalogEntry,
     reportProgress: (progress: ConnectionDriverProgress) => Effect.Effect<void>,
     preflight?: PreparedRoute,
+    answered?: ConnectionRoute,
   ) {
     const target = entry.target;
     yield* Effect.annotateCurrentSpan({
@@ -334,7 +337,8 @@ export const make = Effect.gen(function* () {
     return yield* connectOverRoutes(
       entry,
       (route) =>
-        preparationFor(route) !== undefined
+        preparationFor(route) !== undefined ||
+        (answered !== undefined && Equal.equals(answered, route))
           ? Effect.succeed<RouteCheck>("answered")
           : checkRoute(entry, route, LATE_ROUTE_CHECK_TIMEOUT_MS),
       Effect.fnUntraced(function* (route) {

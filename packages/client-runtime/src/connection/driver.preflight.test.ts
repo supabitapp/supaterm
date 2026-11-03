@@ -152,6 +152,29 @@ describe("route preflight preparation", () => {
     }),
   );
 
+  it.effect("skips the check of a route whose host just answered", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness();
+      const tailnet: ConnectionRoute = {
+        target: new BearerConnectionTarget({ ...target, connectionId: "tailnet" }),
+        profile: Option.some(
+          new BearerConnectionProfile({
+            ...profile,
+            connectionId: "tailnet",
+            httpBaseUrl: "http://100.100.1.2:4389/",
+            wsBaseUrl: "ws://100.100.1.2:4389/",
+          }),
+        ),
+      };
+      const both: ConnectionCatalogEntry = { ...entry, alternateRoutes: [tailnet] };
+      const lease = yield* harness.driver.connect(both, () => Effect.void, undefined, route);
+      expect(lease.prepared.target).toEqual(target);
+      expect(
+        (yield* Ref.get(harness.requested)).filter((url) => url.startsWith(profile.httpBaseUrl)),
+      ).toEqual([]);
+    }),
+  );
+
   it.effect("sends a relay-paired token to no plain HTTP route it learned", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness();
