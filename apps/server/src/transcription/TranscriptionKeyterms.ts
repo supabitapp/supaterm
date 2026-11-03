@@ -51,10 +51,12 @@ export function keytermCandidates(input: {
   const projectNames = [input.projectTitle?.trim(), input.projectFolder?.trim()].filter(
     isProjectName,
   );
+  // The speech model copies a keyterm's casing and the header keeps a term's first casing,
+  // so these go ahead of lowercase project and branch names.
   return [
+    ...SUPATERM_TERMS,
     ...projectNames,
     ...(input.branch ? splitWords(input.branch) : []),
-    ...SUPATERM_TERMS,
     ...FIXED_TERMS,
     ...input.skills.filter(isSingleWordSkill).map((skill) => skill.name),
   ];

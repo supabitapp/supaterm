@@ -134,7 +134,7 @@ const makeHarness = Effect.gen(function* () {
   } as unknown as OrchestrationV2ThreadShell;
   const project = {
     id: PROJECT,
-    title: "Supaterm",
+    title: "supaterm",
     workspaceRoot: "/code/supaterm-app",
   } as unknown as Project;
 
@@ -483,13 +483,10 @@ describe("Transcription", () => {
         const [call] = yield* Ref.get(harness.calls);
         expect(call?.language).toBe("no");
         expect(call?.durationMs).toBe(1_500);
-        expect(call?.keyterms.slice(0, 5)).toEqual([
-          "Supaterm",
-          "supaterm-app",
-          "supaterm",
-          "voice",
-          "transcription",
-        ]);
+        expect(call?.keyterms).toEqual(
+          expect.arrayContaining(["supaterm-app", "voice", "transcription"]),
+        );
+        expect(call?.keyterms.find((term) => term.toLowerCase() === "supaterm")).toBe("Supaterm");
         expect(call?.keyterms).toContain("worktree");
         expect(call?.keyterms).toEqual(
           expect.arrayContaining(["Claude", "Codex", "Opus", "Sonnet", "Haiku", "GPT"]),
