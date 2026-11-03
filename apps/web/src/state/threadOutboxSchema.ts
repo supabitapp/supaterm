@@ -81,6 +81,8 @@ export const OutboxVoice = Schema.Struct({
   audio: Schema.instanceOf(Blob),
   durationMs: Schema.Number,
   language: Schema.optionalKey(Schema.String),
+  /** The environment heard it while it was recorded, under the turn's command id. */
+  streamed: Schema.optionalKey(Schema.Boolean),
 });
 
 export const OutboxTurn = Schema.Struct({

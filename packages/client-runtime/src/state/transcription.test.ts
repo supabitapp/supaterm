@@ -92,28 +92,45 @@ const prepared = (n: number) => ({
 function harness(responses: ReadonlyArray<VoiceUploadResponse | Error>) {
   let prepares = 0;
   const posted: string[] = [];
+  const withAudio: boolean[] = [];
   const cancelled: string[] = [];
   const queue = [...responses];
   return {
     posted,
+    withAudio,
     cancelled,
-    upload: (signal?: AbortSignal) =>
+    upload: (signal?: AbortSignal, streamed?: boolean) =>
       uploadVoiceRecording({
         request,
         prepare: async () => prepared(++prepares),
-        post: async (url) => {
+        post: async (url, _signal, audio) => {
           posted.push(url);
+          withAudio.push(audio);
           const next = queue.shift();
           if (next instanceof Error) throw next;
           return next!;
         },
         cancel: async (uploadId) => cancelled.push(uploadId),
         ...(signal ? { signal } : {}),
+        ...(streamed === undefined ? {} : { streamed }),
       }),
   };
 }
 
 describe("uploadVoiceRecording", () => {
+  it("collects a streamed dictation without its audio, and sends the audio when asked", async () => {
+    const expired = { status: 410, body: { _tag: "TranscriptionError", reason: "uploadExpired" } };
+    const done = { status: 200, body: { text: "ship it" } };
+
+    const joined = harness([done]);
+    expect(await joined.upload(undefined, true)).toEqual({ text: "ship it" });
+    expect(joined.withAudio).toEqual([false]);
+
+    const filledIn = harness([expired, expired, done]);
+    expect(await filledIn.upload(undefined, true)).toEqual({ text: "ship it" });
+    expect(filledIn.withAudio).toEqual([false, true, true]);
+  });
+
   it("prepares once more when the URL no longer exists, then returns the outcome", async () => {
     const run = harness([
       { status: 410, body: { _tag: "TranscriptionError", reason: "uploadExpired" } },

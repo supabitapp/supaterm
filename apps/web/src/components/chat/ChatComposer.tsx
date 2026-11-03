@@ -1,3 +1,4 @@
+import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input";
 import { readCanQueueComposerMessage } from "../../state/composerQueue";
 import { useComposerTypingGuard } from "./useComposerTypingGuard";
 import { insertAttachmentReferencesForDraft } from "./composerAttachmentReferences";
@@ -516,7 +517,7 @@ export interface ChatComposerProps {
   onPrepareVoiceSend: (
     dispatchMode: ComposerDispatchMode,
     language: string,
-  ) => (recording: VoiceRecording) => Promise<void>;
+  ) => (recording: VoiceRecording, handOff: VoiceRecordingHandOff | undefined) => Promise<void>;
   onResume: () => void;
   onInterrupt: () => void;
   onRespondToApproval: (

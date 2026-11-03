@@ -14,9 +14,11 @@ import * as Schema from "effect/Schema";
 import type { Atom } from "effect/reactivity";
 
 import type { EnvironmentRegistry } from "../connection/registry.ts";
+import type { LiveDictation } from "../voice-input/liveDictation.ts";
 import {
   VoiceTranscriptionError,
   throwIfVoiceTranscriptionAborted,
+  type VoiceRecordingHandOff,
   type VoiceTranscriber,
 } from "../voice-input/transcription.ts";
 import { createEnvironmentRpcCommand } from "./runtime.ts";
@@ -28,6 +30,10 @@ export function createTranscriptionEnvironmentAtoms<R, E>(
     prepareUpload: createEnvironmentRpcCommand(runtime, {
       label: "environment-command:transcription:prepare-upload",
       tag: WS_METHODS.transcriptionPrepareUpload,
+    }),
+    prepareStream: createEnvironmentRpcCommand(runtime, {
+      label: "environment-command:transcription:prepare-stream",
+      tag: WS_METHODS.transcriptionPrepareStream,
     }),
     cancelUpload: createEnvironmentRpcCommand(runtime, {
       label: "environment-command:transcription:cancel-upload",
@@ -165,24 +171,32 @@ async function prepareUpload(
 /**
  * Prepares the upload, then posts the WAV. The upload id stays stable across both, so
  * a POST that may have reached the server is joined rather than paid for again, and a
- * URL that outlived its server is prepared once more.
+ * URL that outlived its server is prepared once more. A dictation that streamed tries an
+ * empty body first, which collects its transcript without sending the audio again.
  */
 export async function uploadVoiceRecording(input: {
   readonly request: TranscriptionPrepareUploadInput;
   readonly prepare: (
     request: TranscriptionPrepareUploadInput,
   ) => Promise<TranscriptionPrepareUploadResult>;
-  readonly post: (relativeUrl: string, signal: AbortSignal) => Promise<VoiceUploadResponse>;
+  readonly post: (
+    relativeUrl: string,
+    signal: AbortSignal,
+    withAudio: boolean,
+  ) => Promise<VoiceUploadResponse>;
   readonly cancel: (uploadId: string) => Promise<unknown>;
   readonly signal?: AbortSignal;
+  readonly streamed?: boolean;
 }): Promise<TranscriptionUploadResult> {
   const signal = input.signal ?? new AbortController().signal;
+  const attempts = input.streamed ? 3 : 2;
   for (let attempt = 0; ; attempt++) {
     throwIfVoiceTranscriptionAborted(signal);
     const prepared = await prepareUpload(() => input.prepare(input.request));
+    const withAudio = !(input.streamed && attempt === 0);
     let response: VoiceUploadResponse;
     try {
-      response = await input.post(prepared.relativeUrl, signal);
+      response = await input.post(prepared.relativeUrl, signal, withAudio);
     } catch (error) {
       if (signal.aborted) {
         await input.cancel(prepared.uploadId).catch(() => undefined);
@@ -191,33 +205,70 @@ export async function uploadVoiceRecording(input: {
       throw unreachable(error);
     }
     if (response.status === 200) return decodeResult(response.body);
-    if (response.status === 410 && attempt === 0) continue;
+    if (response.status === 410 && attempt < attempts - 1) continue;
     throw uploadFailure(response);
   }
+}
+
+/** A recording streaming to the environment while it is made, under the id it will finish with. */
+export interface StartedLiveDictation {
+  readonly uploadId: string;
+  readonly live: LiveDictation;
 }
 
 /** Transcription for review: the text comes back to the draft, nothing is sent. */
 export function createServerVoiceTranscriber(input: {
   readonly locale: string;
-  readonly transcribe: (uri: string, signal: AbortSignal) => Promise<TranscriptionUploadResult>;
+  /** Starts streaming the recording, or null when the environment can't take it. */
+  readonly startLive?: (() => StartedLiveDictation | null) | undefined;
+  readonly cancel?: ((uploadId: string) => Promise<unknown>) | undefined;
+  readonly transcribe: (
+    uri: string,
+    signal: AbortSignal,
+    dictation: VoiceRecordingHandOff | undefined,
+  ) => Promise<TranscriptionUploadResult>;
 }): VoiceTranscriber {
   return {
-    prepare: async () => ({
-      locale: input.locale,
-      transcribe: async (uri, { signal }) => {
-        try {
-          return (await input.transcribe(uri, signal)).text;
-        } catch (error) {
-          if (error instanceof VoiceUploadError) {
-            throw new VoiceTranscriptionError(
-              error.reason === "audioTooShort" ? "tooShort" : "refused",
-              error.message,
-              { cause: error },
-            );
+    prepare: async ({ signal }) => {
+      const started = input.startLive?.() ?? null;
+      signal.addEventListener(
+        "abort",
+        () => {
+          if (started === null) return;
+          started.live.close();
+          void input.cancel?.(started.uploadId).catch(() => undefined);
+        },
+        { once: true },
+      );
+      return {
+        locale: input.locale,
+        ...(started === null
+          ? {}
+          : {
+              handOff: () => {
+                void started.live.finish();
+                return { uploadId: started.uploadId, streamed: true };
+              },
+            }),
+        transcribe: async (uri, { signal: transcribeSignal }) => {
+          try {
+            const dictation =
+              started === null
+                ? undefined
+                : { uploadId: started.uploadId, streamed: await started.live.finish() };
+            return (await input.transcribe(uri, transcribeSignal, dictation)).text;
+          } catch (error) {
+            if (error instanceof VoiceUploadError) {
+              throw new VoiceTranscriptionError(
+                error.reason === "audioTooShort" ? "tooShort" : "refused",
+                error.message,
+                { cause: error },
+              );
+            }
+            throw error;
           }
-          throw error;
-        }
-      },
-    }),
+        },
+      };
+    },
   };
 }

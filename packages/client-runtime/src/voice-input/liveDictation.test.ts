@@ -1,0 +1,113 @@
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+
+import {
+  LiveDictation,
+  type LiveDictationSocket,
+  type LiveDictationSocketEvents,
+} from "./liveDictation.ts";
+
+interface FakeSocket extends LiveDictationSocket {
+  readonly sent: Array<string | number>;
+  readonly events: LiveDictationSocketEvents;
+  closedWith: number | null;
+}
+
+function setup(
+  prepare: () => Promise<string> = async () => "ws://env/api/transcription/streams/t",
+) {
+  const sockets: Array<FakeSocket> = [];
+  let opened: (socket: FakeSocket) => void = () => undefined;
+  const firstSocket = new Promise<FakeSocket>((resolve) => {
+    opened = resolve;
+  });
+  let push: (pcm: Uint8Array) => void = () => undefined;
+  let subscribed = false;
+  const live = new LiveDictation({
+    prepare,
+    openSocket: (_url, events) => {
+      const socket: FakeSocket = {
+        bufferedAmount: 0,
+        sent: [],
+        events,
+        closedWith: null,
+        send: (data) => socket.sent.push(typeof data === "string" ? data : data.byteLength),
+        close: (code) => {
+          socket.closedWith = code ?? 1000;
+        },
+      };
+      sockets.push(socket);
+      opened(socket);
+      return socket;
+    },
+    subscribe: (listener) => {
+      push = listener;
+      subscribed = true;
+      return () => {
+        subscribed = false;
+      };
+    },
+  });
+  return {
+    live,
+    sockets,
+    firstSocket,
+    record: (bytes: number) => push(new Uint8Array(bytes)),
+    subscribed: () => subscribed,
+    ready: (socket: FakeSocket, receivedBytes: number) =>
+      socket.events.message(JSON.stringify({ type: "ready", receivedBytes })),
+  };
+}
+
+describe("LiveDictation", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("sends what was recorded before the stream opened, then finishes once the server has it all", async () => {
+    const dictation = setup();
+    dictation.record(3_200);
+    dictation.record(3_200);
+    const socket = await dictation.firstSocket;
+    expect(socket.sent).toEqual([]);
+
+    dictation.ready(socket, 0);
+    dictation.record(1_000);
+    expect(socket.sent).toEqual([3_200, 3_200, 1_000]);
+
+    const finished = dictation.live.finish();
+    expect(dictation.subscribed()).toBe(false);
+    expect(socket.sent.at(-1)).toBe('{"type":"finish"}');
+    socket.events.message('{"type":"finished"}');
+    expect(await finished).toBe(true);
+    expect(socket.closedWith).toBe(1000);
+  });
+
+  it("resumes a dropped stream from the audio the server already holds", async () => {
+    vi.useFakeTimers();
+    const dictation = setup();
+    const first = await dictation.firstSocket;
+    dictation.ready(first, 0);
+    dictation.record(3_200);
+    dictation.record(3_200);
+    first.events.close(1006);
+    dictation.record(3_200);
+
+    vi.advanceTimersByTime(250);
+    const second = dictation.sockets[1]!;
+    dictation.ready(second, 3_200);
+    expect(second.sent).toEqual([3_200, 3_200]);
+    const finished = dictation.live.finish();
+    second.events.message('{"type":"finished"}');
+    expect(await finished).toBe(true);
+  });
+
+  it("leaves the recording to the upload when the server turns the stream away", async () => {
+    const refused = setup();
+    (await refused.firstSocket).events.close(4001);
+    expect(await refused.live.finish()).toBe(false);
+    expect(refused.sockets).toHaveLength(1);
+
+    const unprepared = setup(() => Promise.reject(new Error("old server")));
+    expect(await unprepared.live.finish()).toBe(false);
+  });
+});

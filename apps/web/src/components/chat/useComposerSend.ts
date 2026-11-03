@@ -2,7 +2,12 @@ import {
   ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
   threadContextsOutsideEnvironment,
 } from "@supaterm/shared/composerContextReferences";
-import { AuthOrchestrationOperateScope, type PreviewAnnotationPayload } from "@supaterm/contracts";
+import {
+  AuthOrchestrationOperateScope,
+  CommandId,
+  type PreviewAnnotationPayload,
+} from "@supaterm/contracts";
+import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input";
 import { type ComposerDispatchMode } from "@supaterm/client-runtime/state/composer-dispatch";
 import {
   type ComposerImageAttachment,
@@ -960,11 +965,17 @@ export function useComposerSend(input: ComposerSendInput) {
       createdAt: new Date().toISOString(),
     };
     const branch = localCheckoutBranchMismatch?.currentBranch;
-    return async (recording: VoiceRecording) => {
+    return async (recording: VoiceRecording, handOff: VoiceRecordingHandOff | undefined) => {
       await enqueueThreadOutboxTurn({
         environmentId,
-        input,
-        voice: { audio: recording.audio, durationMs: recording.durationMs, language },
+        // A streamed recording is sent under its dictation's id, so the environment joins it.
+        input: handOff ? { ...input, commandId: CommandId.make(handOff.uploadId) } : input,
+        voice: {
+          audio: recording.audio,
+          durationMs: recording.durationMs,
+          language,
+          ...(handOff?.streamed ? { streamed: true } : {}),
+        },
         ...(branch === undefined ? {} : { branch }),
       });
     };

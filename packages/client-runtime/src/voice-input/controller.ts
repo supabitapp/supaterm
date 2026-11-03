@@ -3,6 +3,7 @@ import { replaceTextRange } from "@supaterm/shared/composerTrigger";
 import {
   VoiceTranscriptionError,
   type PreparedVoiceTranscription,
+  type VoiceRecordingHandOff,
   type VoiceTranscriber,
 } from "./transcription.ts";
 
@@ -92,9 +93,13 @@ export type VoiceInputControllerDependencies = {
 /**
  * Takes over a finished recording instead of transcribing it here, as a voice message the
  * server transcribes and sends. It must keep its own copy: the recording is deleted once
- * this settles. Bound when Send is pressed, so the message keeps that destination.
+ * this settles. Bound when Send is pressed, so the message keeps that destination. A
+ * recording that streamed while made must be sent under `handOff.uploadId`.
  */
-export type VoiceRecordingDelivery = (uri: string) => Promise<void>;
+export type VoiceRecordingDelivery = (
+  uri: string,
+  handOff: VoiceRecordingHandOff | undefined,
+) => Promise<void>;
 
 type TranscriptCommitResult =
   | {
@@ -445,7 +450,7 @@ export class VoiceInputController {
       if (!this.isCurrent(operationToken)) return;
       if (deliver && this.recordingUri) {
         try {
-          await deliver(this.recordingUri);
+          await deliver(this.recordingUri, this.transcription?.handOff?.());
         } catch (error) {
           if (this.isCurrent(operationToken) && !isTooShort(error)) {
             this.setError("Could not save this recording.", "retry");

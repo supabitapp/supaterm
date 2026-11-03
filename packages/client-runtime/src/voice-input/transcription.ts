@@ -6,6 +6,17 @@ export type VoiceTranscriptionOptions = {
 export type PreparedVoiceTranscription = {
   readonly locale: string;
   readonly transcribe: (uri: string, options: VoiceTranscriptionOptions) => Promise<string>;
+  /**
+   * Ends a recording that becomes a voice message instead of a transcript. Returns the id the
+   * message must be sent under, so the environment joins audio it already has.
+   */
+  readonly handOff?: () => VoiceRecordingHandOff;
+};
+
+export type VoiceRecordingHandOff = {
+  readonly uploadId: string;
+  /** The audio already went to the environment while it was recorded. */
+  readonly streamed: boolean;
 };
 
 export type VoiceTranscriber = {
