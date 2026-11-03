@@ -3677,6 +3677,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   questionIndex={activePendingQuestionIndex}
                   onToggleOption={onSelectActivePendingUserInputOption}
                   onAdvance={onAdvanceActivePendingUserInput}
+                  onPrevious={onPreviousActivePendingUserInputQuestion}
                   onDismiss={onDismissActivePendingUserInput}
                   supportsQuestionAutoDismiss={props.supportsQuestionAutoDismiss}
                 />
@@ -3696,6 +3697,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     questionIndex={activePendingQuestionIndex}
                     onToggleOption={onSelectActivePendingUserInputOption}
                     onAdvance={onAdvanceActivePendingUserInput}
+                    onPrevious={onPreviousActivePendingUserInputQuestion}
                     onDismiss={onDismissActivePendingUserInput}
                     supportsQuestionAutoDismiss={props.supportsQuestionAutoDismiss}
                   />
@@ -3745,7 +3747,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                             isPreparingWorktree={false}
                             hasSendableContent={false}
                             preserveComposerFocusOnPointerDown
-                            onPreviousPendingQuestion={onPreviousActivePendingUserInputQuestion}
                             onInterrupt={handleInterruptPrimaryActionStable}
                           />
                         ) : null}
@@ -4048,7 +4049,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                       isPreparingWorktree={false}
                       hasSendableContent={false}
                       preserveComposerFocusOnPointerDown
-                      onPreviousPendingQuestion={onPreviousActivePendingUserInputQuestion}
                       onInterrupt={handleInterruptPrimaryActionStable}
                     />
                   </div>
@@ -4140,7 +4140,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                         isEditingQueuedMessage={isEditingQueuedMessage}
                         onSubmitMessage={handleSubmitMessageStable}
                         onResume={onResume}
-                        onPreviousPendingQuestion={onPreviousActivePendingUserInputQuestion}
                         onInterrupt={handleInterruptPrimaryActionStable}
                         compactDisabled={compactDisabled || noProviderAvailable || isSendBusy}
                         compactDisabledReason={resolvedCompactDisabledReason}

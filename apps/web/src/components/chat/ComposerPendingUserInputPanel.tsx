@@ -1,11 +1,13 @@
 import { type RuntimeRequestId, type ScopedThreadRef } from "@supaterm/contracts";
+import { ChevronLeftIcon } from "@supaterm/icons";
 import { markdownProseDirection, textDirection } from "~/textDirection";
-import { memo, use, useEffect, useEffectEvent, useRef, useState } from "react";
+import { memo, use, useEffect, useEffectEvent, useRef, useState, type SyntheticEvent } from "react";
 import { BackgroundThreadContext } from "./backgroundThread";
 import { useStableCallback } from "~/hooks/useStableCallback";
 import { type PendingUserInput } from "../../session-logic";
 import type { PendingUserInputDraftAnswer } from "@supaterm/client-runtime/state/pending-user-input";
 import { derivePendingUserInputProgress } from "../../pendingUserInput";
+import { Button } from "../ui/button";
 import { CheckboxMark } from "../ui/checkbox";
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "../ui/collapsible";
 import { Kbd } from "../ui/kbd";
@@ -28,6 +30,7 @@ interface PendingUserInputPanelProps {
   questionIndex: number;
   onToggleOption: (questionId: string, optionValue: string) => void;
   onAdvance: () => void;
+  onPrevious: () => void;
   onDismiss: (requestId: RuntimeRequestId) => void;
   supportsQuestionAutoDismiss?: boolean | undefined;
 }
@@ -42,6 +45,7 @@ export const ComposerPendingUserInputPanel = memo(function ComposerPendingUserIn
   questionIndex,
   onToggleOption,
   onAdvance,
+  onPrevious,
   onDismiss,
   supportsQuestionAutoDismiss = false,
 }: PendingUserInputPanelProps) {
@@ -61,6 +65,7 @@ export const ComposerPendingUserInputPanel = memo(function ComposerPendingUserIn
       questionIndex={questionIndex}
       onToggleOption={onToggleOption}
       onAdvance={onAdvance}
+      onPrevious={onPrevious}
       onDismiss={onDismiss}
       timerDeadline={supportsQuestionAutoDismiss ? (activePrompt.autoDismissAt ?? null) : null}
     />
@@ -77,6 +82,7 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
   questionIndex,
   onToggleOption,
   onAdvance,
+  onPrevious,
   onDismiss,
   timerDeadline,
 }: {
@@ -89,6 +95,7 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
   questionIndex: number;
   onToggleOption: (questionId: string, optionValue: string) => void;
   onAdvance: () => void;
+  onPrevious: () => void;
   onDismiss: (requestId: RuntimeRequestId) => void;
   timerDeadline: string | null;
 }) {
@@ -202,6 +209,12 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
       .join(" "),
   );
   const questionTextAlign = promptDirection === "rtl" ? "text-right" : "text-left";
+  const canGoBack = questionIndex > 0 && !isResponding;
+  const goBack = (event: SyntheticEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (canGoBack) onPrevious();
+  };
 
   return (
     <Collapsible
@@ -248,6 +261,20 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
           {prompt.questions.length > 1 ? (
             <>
               {timerDeadline !== null ? <ComposerBanner.Separator /> : null}
+              <Button
+                render={<span role="button" tabIndex={canGoBack ? 0 : -1} />}
+                size="icon-xs"
+                variant="ghost"
+                aria-label="Previous question"
+                title="Previous question"
+                aria-disabled={!canGoBack}
+                onClick={goBack}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") goBack(event);
+                }}
+              >
+                <ChevronLeftIcon className="size-3.5 rtl:rotate-180" />
+              </Button>
               <span className="shrink-0 font-medium text-muted-foreground tabular-nums">
                 {questionIndex + 1}/{prompt.questions.length}
               </span>

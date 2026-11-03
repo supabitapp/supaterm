@@ -1,11 +1,5 @@
 import { memo, type ComponentProps, type MouseEventHandler, type PointerEventHandler } from "react";
-import {
-  CheckIcon,
-  ChevronLeftIcon,
-  CornerUpRightIcon,
-  ListPlusIcon,
-  PlayIcon,
-} from "@supaterm/icons";
+import { CheckIcon, CornerUpRightIcon, ListPlusIcon, PlayIcon } from "@supaterm/icons";
 import type { ResolvedKeybindingsConfig } from "@supaterm/contracts";
 import type { ClientSettings } from "@supaterm/contracts/settings";
 import { useSoftwareKeyboardOpen } from "~/hooks/useSoftwareKeyboardOpen";
@@ -13,7 +7,6 @@ import { cn } from "~/lib/utils";
 import { composerSendShortcutLabels, type ComposerSendAction } from "../../composer-logic";
 import { shortcutLabelForCommand } from "../../keybindings";
 import { useShortcutModifierState } from "../../shortcutModifierState";
-import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipPopup, TooltipShortcutLabel, TooltipTrigger } from "../ui/tooltip";
 import {
@@ -53,7 +46,6 @@ interface ComposerPrimaryActionsProps {
   isEditingQueuedMessage?: boolean;
   onSubmitMessage?: MouseEventHandler<HTMLButtonElement>;
   onResume?: () => void;
-  onPreviousPendingQuestion: () => void;
   onInterrupt: () => void;
 }
 
@@ -190,7 +182,6 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   isEditingQueuedMessage = false,
   onSubmitMessage,
   onResume,
-  onPreviousPendingQuestion,
   onInterrupt,
 }: ComposerPrimaryActionsProps) {
   const pointerFocusProps = preserveComposerFocusOnPointerDown
@@ -239,30 +230,6 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
     return (
       <div className={cn("flex items-center justify-end", compact ? "gap-1.5" : "gap-2")}>
         {canInterrupt ? renderStopGenerationButton(true) : null}
-        {pendingAction.questionIndex > 0 ? (
-          compact ? (
-            <Button
-              size="icon-sm"
-              variant="outline"
-              {...pointerFocusProps}
-              onClick={onPreviousPendingQuestion}
-              disabled={pendingAction.isResponding}
-              aria-label="Previous question"
-            >
-              <ChevronLeftIcon className="size-3.5" />
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              {...pointerFocusProps}
-              onClick={onPreviousPendingQuestion}
-              disabled={pendingAction.isResponding}
-            >
-              Previous
-            </Button>
-          )
-        ) : null}
         <button
           type="submit"
           className={cn(messageActionPillClassName, "h-8 sm:h-7", compact ? "px-3" : "px-4")}

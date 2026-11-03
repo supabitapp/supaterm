@@ -37,6 +37,7 @@ const renderPanel = (questions: Question[], questionIndex = 0) =>
       questionIndex={questionIndex}
       onToggleOption={() => {}}
       onAdvance={() => {}}
+      onPrevious={() => {}}
       onDismiss={() => {}}
     />,
   );
