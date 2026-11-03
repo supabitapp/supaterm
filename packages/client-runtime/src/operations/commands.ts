@@ -423,7 +423,7 @@ function simpleThreadCommand(
   );
 }
 
-/** Makes a side chat a full thread, listed and no longer held to approval. */
+/** Makes a side chat a full thread, listed and forkable. */
 export const promoteSideChat = Effect.fn("EnvironmentCommands.promoteSideChat")(function* (
   input: ThreadCommandInput,
 ) {

@@ -2947,17 +2947,6 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         cause: `Thread ${command.threadId} is not a side chat.`,
       });
     }
-    if (
-      command.type === "thread.runtime-mode.set" &&
-      thread.lineage.sideChat === true &&
-      command.runtimeMode !== "approval-required"
-    ) {
-      return yield* new OrchestratorDispatchError({
-        commandId: command.commandId,
-        commandType: command.type,
-        cause: `Thread ${command.threadId} is a side chat, which asks before it acts until it is promoted.`,
-      });
-    }
     const startsWatch =
       (command.type === "thread.pull-request.watch" && command.watching) ||
       command.type === "thread.workflow-run-watch.start";

@@ -83,7 +83,14 @@ export function sendSideChatDraftMessage<A>(input: {
 export function useSideChat(input: {
   readonly parent: Pick<
     EnvironmentThreadShell,
-    "environmentId" | "id" | "projectId" | "branch" | "worktreePath"
+    | "environmentId"
+    | "id"
+    | "projectId"
+    | "branch"
+    | "worktreePath"
+    | "modelSelection"
+    | "runtimeMode"
+    | "interactionMode"
   > | null;
   readonly onError: (message: string) => void;
 }) {
@@ -118,20 +125,23 @@ export function useSideChat(input: {
     const result = await sendSideChatDraftMessage({
       parentRef: scopeThreadRef(parent.environmentId, parent.id),
       targetThreadId: threadId,
-      enqueue: () =>
-        enqueueThreadOutboxTurn({
+      enqueue: () => {
+        // The fork copied the parent's current modes; this client's copy of the parent may lag.
+        const modes = readThreadShell(scopeThreadRef(parent.environmentId, threadId)) ?? parent;
+        return enqueueThreadOutboxTurn({
           environmentId: parent.environmentId,
           input: {
             threadId,
             message: { messageId: newMessageId(), role: "user", text, attachments: [] },
             titleSeed: deriveThreadTitleSeed({ text, attachments: [] }),
-            runtimeMode: "approval-required",
-            interactionMode: "default",
+            runtimeMode: modes.runtimeMode,
+            interactionMode: modes.interactionMode,
             dispatchMode: "auto",
             createdAt: new Date().toISOString(),
           },
           draftId,
-        }),
+        });
+      },
     });
     if (result.kind === "failed") input.onError(result.reason);
     if (result.kind === "queued") {

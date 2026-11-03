@@ -467,8 +467,8 @@ interface ComposerDraftStoreState {
     readonly threadId: ThreadId;
     readonly parent: Pick<
       DraftThreadState,
-      "environmentId" | "projectId" | "branch" | "worktreePath"
-    > & { readonly id: ThreadId };
+      "environmentId" | "projectId" | "branch" | "worktreePath" | "runtimeMode" | "interactionMode"
+    > & { readonly id: ThreadId; readonly modelSelection: ModelSelection };
   }) => void;
   markDraftThreadPromoting: (threadRef: ComposerThreadTarget, promotedTo?: ScopedThreadRef) => void;
   finalizePromotedDraftThread: (threadRef: ComposerThreadTarget) => void;
@@ -2208,14 +2208,25 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
                 projectId: parent.projectId,
                 logicalProjectKey: `side-chat:${parent.environmentId}:${parent.id}`,
                 createdAt: new Date().toISOString(),
-                runtimeMode: "approval-required",
-                interactionMode: DEFAULT_INTERACTION_MODE,
+                runtimeMode: parent.runtimeMode,
+                interactionMode: parent.interactionMode,
                 branch: parent.branch,
                 worktreePath: parent.worktreePath,
                 envMode: "local",
                 startFromOrigin: false,
                 sideChatOf: parent.id,
                 promotedTo: null,
+              },
+            },
+            draftsByThreadKey: {
+              ...state.draftsByThreadKey,
+              [draftId]: {
+                ...createEmptyThreadDraft(),
+                modelSelectionByProvider: {
+                  [parent.modelSelection.instanceId]: parent.modelSelection,
+                },
+                activeProvider: parent.modelSelection.instanceId,
+                runtimeMode: parent.runtimeMode,
               },
             },
           }));

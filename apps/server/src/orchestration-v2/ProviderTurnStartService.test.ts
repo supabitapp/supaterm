@@ -1324,19 +1324,14 @@ effectIt.effect("recovers an abandoned failed turn before continuing its native 
 );
 
 effectIt.effect.each([
-  { contextRun: "current", runtimeMode: "approval-required", context: "SIDE_CHAT_CONTEXT" },
-  { contextRun: "failed", runtimeMode: "approval-required", context: "SIDE_CHAT_CONTEXT" },
-  { contextRun: "cancelled", runtimeMode: "approval-required", context: "SIDE_CHAT_CONTEXT" },
-  {
-    contextRun: "failed",
-    switchedProvider: true,
-    runtimeMode: "approval-required",
-    context: "SIDE_CHAT_CONTEXT",
-  },
-  { contextRun: "delivered", runtimeMode: "approval-required", context: "SIDE_CHAT_NOTE" },
+  { contextRun: "current", context: "SIDE_CHAT_CONTEXT" },
+  { contextRun: "failed", context: "SIDE_CHAT_CONTEXT" },
+  { contextRun: "cancelled", context: "SIDE_CHAT_CONTEXT" },
+  { contextRun: "failed", switchedProvider: true, context: "SIDE_CHAT_CONTEXT" },
+  { contextRun: "delivered", context: "SIDE_CHAT_NOTE" },
 ] as const)(
   "sends side chat context inline once, then only the side chat note: %j",
-  ({ runtimeMode, context, ...sideChat }) =>
+  ({ context, ...sideChat }) =>
     Effect.gen(function* () {
       const harness = makeLocalCommandHarness({
         text: "What is the main thread doing?",
@@ -1345,9 +1340,10 @@ effectIt.effect.each([
 
       yield* harness.start;
 
-      // Every side chat turn asks before acting, though the thread itself says full access.
       expect(harness.open).toHaveBeenCalledWith(
-        expect.objectContaining({ runtimePolicy: expect.objectContaining({ runtimeMode }) }),
+        expect.objectContaining({
+          runtimePolicy: expect.objectContaining({ runtimeMode: "full-access" }),
+        }),
       );
       const sent =
         context === "SIDE_CHAT_NOTE"

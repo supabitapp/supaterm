@@ -96,11 +96,8 @@ export const layer: Layer.Layer<ThreadForkServiceV2> = Layer.succeed(
         title: input.title ?? `${input.sourceProjection.thread.title} fork`,
         // The source's title job completes only on the source thread.
         titleRegeneration: null,
-        // Side chats share the parent's worktree, so they start supervised. They show only their
-        // own rows, so the parent's pins would point at nothing.
-        ...(input.sideChat
-          ? { runtimeMode: "approval-required" as const, pinnedAt: null, pinnedMessages: [] }
-          : {}),
+        // Side chats show only their own rows, so the parent's pins would point at nothing.
+        ...(input.sideChat ? { pinnedAt: null, pinnedMessages: [] } : {}),
         activeProviderThreadId: null,
         lineage: {
           parentThreadId: input.sourceProjection.thread.id,

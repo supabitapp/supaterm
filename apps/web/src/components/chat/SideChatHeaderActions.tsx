@@ -150,7 +150,7 @@ export function SideChatHeaderActions(props: {
           }
         />
         <TooltipPopup side="bottom">
-          Make this a full thread: it shows in the sidebar, can be forked, and stops asking first.
+          Make this a full thread: it shows in the sidebar and can be forked.
         </TooltipPopup>
       </Tooltip>
       <Tooltip>

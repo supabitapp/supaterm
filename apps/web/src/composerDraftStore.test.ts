@@ -730,6 +730,45 @@ describe("composerDraftStore thread contexts", () => {
   });
 });
 
+describe("composerDraftStore side chat drafts", () => {
+  beforeEach(() => {
+    resetComposerDraftStore();
+  });
+
+  it("starts a side chat draft on its parent's model and modes", () => {
+    const draftId = DraftId.make("side-chat-draft");
+    const modelSelection = createModelSelection(CLAUDE_AGENT_INSTANCE, "claude-opus-5-5", [
+      { id: "effort", value: "max" },
+    ]);
+    const store = useComposerDraftStore.getState();
+    store.createSideChatDraft({
+      draftId,
+      threadId: ThreadId.make("side-chat-thread"),
+      parent: {
+        id: ThreadId.make("side-chat-parent"),
+        environmentId: TEST_ENVIRONMENT_ID,
+        projectId: ProjectId.make("project-a"),
+        branch: "main",
+        worktreePath: null,
+        modelSelection,
+        runtimeMode: "full-access",
+        interactionMode: "plan",
+      },
+    });
+
+    const state = useComposerDraftStore.getState();
+    expect(state.getDraftSession(draftId)).toMatchObject({
+      runtimeMode: "full-access",
+      interactionMode: "plan",
+    });
+    expect(state.getComposerDraft(draftId)).toMatchObject({
+      modelSelectionByProvider: { [CLAUDE_AGENT_INSTANCE]: modelSelection },
+      activeProvider: CLAUDE_AGENT_INSTANCE,
+      runtimeMode: "full-access",
+    });
+  });
+});
+
 describe("composerDraftStore project draft thread mapping", () => {
   const projectId = ProjectId.make("project-a");
   const otherProjectId = ProjectId.make("project-b");

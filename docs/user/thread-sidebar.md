@@ -358,9 +358,9 @@ On mobile, type `/side` or `/btw` in the composer, or choose **Start side chat**
 the command palette. A thread lists its side chats above the composer; tap one to
 open it.
 
-A side chat works in the same folder as the thread, so it always asks before it
-edits files or runs commands, and its agent cannot start or message other threads.
-It cannot be forked.
+A side chat starts with the thread's model and permission mode, and works in the
+same folder as the thread. Its agent cannot start or message other threads, and it
+cannot be forked.
 
 The side chat's actions sit at its top on web and desktop, and above its composer on
 mobile:
@@ -368,8 +368,7 @@ mobile:
 - **Bring back** gives the thread the side chat with your next message there. It is
   available while the thread is idle.
 - **Promote** makes the side chat a full thread. It shows in the sidebar, can be
-  forked, can use any permission mode, and stays when you delete the thread it came
-  from.
+  forked, and stays when you delete the thread it came from.
 - **Delete** removes the side chat.
 
 Side chats stay until you delete or promote them. Deleting a thread also deletes its

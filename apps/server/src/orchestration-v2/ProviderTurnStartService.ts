@@ -686,12 +686,8 @@ export const layer: Layer.Layer<
       });
       const { isCurrentAttemptInStatus } = runControls;
 
-      // A side chat shares its parent's worktree, so every turn asks before acting until Promote.
       const resolvedRuntimePolicy = yield* runtimePolicy.resolve({
-        thread:
-          projection.thread.lineage.sideChat === true
-            ? { ...projection.thread, runtimeMode: "approval-required" }
-            : projection.thread,
+        thread: projection.thread,
         modelSelection: run.modelSelection,
       });
       if (!(yield* isCurrentAttemptInStatus("starting"))) return;
