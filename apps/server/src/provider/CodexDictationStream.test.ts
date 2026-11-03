@@ -272,14 +272,14 @@ describe("streamCodexDictation", () => {
               audio: Stream.fromQueue(microphone),
             }),
           );
-          yield* Queue.offer(microphone, new Uint8Array(256).fill(3));
+          yield* Queue.offer(microphone, new Uint8Array(300).fill(3));
           yield* Deferred.await(fixture.firstClosed);
           yield* Queue.offer(microphone, new Uint8Array(4_096).fill(4));
           yield* Queue.end(microphone);
 
           expect(yield* Fiber.join(fiber)).toBe("part 1 part 2");
           expect(fixture.sessions.map((session) => sizes(session.frames))).toEqual([
-            [256, 8_000],
+            [256, 44, 8_000],
             [4_096, 8_000],
           ]);
           expect(fixture.sessions.every((session) => session.closed)).toBe(true);

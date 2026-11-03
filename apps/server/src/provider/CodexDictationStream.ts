@@ -330,6 +330,17 @@ export const streamCodexDictation = Effect.fn("CodexDictation.stream")(function*
         frameBytes = FRAME_BYTES;
       }
     });
+    // Like the desktop worklet at a session boundary, the partial frame goes out with the old session.
+    const stop = Effect.gen(function* () {
+      const current = live;
+      if (current === undefined) return;
+      if (pending.byteLength > 0) {
+        yield* current.session.send(pending);
+        current.bytes += pending.byteLength;
+        pending = new Uint8Array(0);
+      }
+      yield* finish;
+    });
     // A stop request closes its session even while no audio arrives; the next frame opens another.
     yield* Stream.merge(
       Stream.map(input.audio, (chunk) => ({ _tag: "Audio", chunk }) as const),
@@ -338,7 +349,7 @@ export const streamCodexDictation = Effect.fn("CodexDictation.stream")(function*
     ).pipe(
       Stream.runForEach((event) => {
         if (event._tag === "Audio") return append(event.chunk);
-        return event.scope === live?.scope ? finish : Effect.void;
+        return event.scope === live?.scope ? stop : Effect.void;
       }),
     );
     if (pending.byteLength > 0) yield* sendFrame(pending);
