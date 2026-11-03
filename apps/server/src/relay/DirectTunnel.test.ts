@@ -59,7 +59,6 @@ const layerRoutes = Layer.mergeAll(
     Effect.gen(function* () {
       const request = yield* HttpServerRequest.HttpServerRequest;
       return HttpServerResponse.jsonUnsafe({
-        connectionMethod: RelayIngress.tunnelConnectionMethod(request) ?? null,
         remoteAddress: Option.getOrNull(request.remoteAddress),
       });
     }),
@@ -319,11 +318,9 @@ it.layer(NodeServices.layer)("DirectTunnel", (it) => {
       expect(tunnel.sockets[0]?.extensions).toBe("");
 
       expect(JSON.parse((yield* tunneled(tunnel, "/api/test/peer")).body)).toEqual({
-        connectionMethod: "direct-tunnel",
         remoteAddress: "127.0.0.1",
       });
       expect(JSON.parse((yield* direct(host.port, "/api/test/peer")).body)).toEqual({
-        connectionMethod: null,
         remoteAddress: "127.0.0.1",
       });
 
@@ -359,7 +356,6 @@ it.layer(NodeServices.layer)("DirectTunnel", (it) => {
         send({ host: origin.hostname, port: Number(origin.port), path: "/api/test/peer" }),
       );
       expect(JSON.parse(peer.body)).toEqual({
-        connectionMethod: "direct-tunnel",
         remoteAddress: "127.0.0.1",
       });
       expect(reports).toEqual(["direct"]);
