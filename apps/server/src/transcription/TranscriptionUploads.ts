@@ -289,6 +289,9 @@ const make = Effect.gen(function* () {
     target: TranscriptionUploadSubmit,
     text: string,
   ) {
+    if (text.trim().length === 0) {
+      return { text, submission: { status: "noSpeech" } } satisfies TranscriptionUploadResult;
+    }
     const dispatched = yield* threads.dispatch(messageDispatch(target, text)).pipe(Effect.exit);
     if (Exit.isSuccess(dispatched)) {
       return {
@@ -344,7 +347,8 @@ const make = Effect.gen(function* () {
     live.lock.withPermits(1)(
       Effect.suspend(() => {
         if (live.finished) return Effect.void;
-        return offerAudio(live, recording?.subarray(live.receivedBytes) ?? new Uint8Array()).pipe(
+        const missed = recording?.subarray(live.receivedBytes) ?? new Uint8Array();
+        return offerAudio(live, missed).pipe(
           Effect.andThen(
             Effect.sync(() => {
               live.finished = true;
@@ -408,10 +412,7 @@ const make = Effect.gen(function* () {
       if (decision.live) yield* closeLive(decision.live, false);
       return;
     }
-    const sent =
-      text.trim().length === 0
-        ? ({ text, submission: { status: "noSpeech" } } satisfies TranscriptionUploadResult)
-        : yield* dispatchTranscript(decision.target, text);
+    const sent = yield* dispatchTranscript(decision.target, text);
     yield* settle(uploadId, result, Exit.succeed(sent));
   });
 
@@ -441,9 +442,10 @@ const make = Effect.gen(function* () {
           return settle(
             uploadId,
             result,
-            error === undefined
-              ? Exit.failCause(Cause.die(Cause.squash(exit.cause)))
-              : Exit.fail(error),
+            Exit.fail(
+              error ??
+                new TranscriptionError({ reason: "failed", cause: Cause.squash(exit.cause) }),
+            ),
           );
         }),
       );
@@ -484,8 +486,8 @@ const make = Effect.gen(function* () {
 
   // Callers hold the store lock. A second connection takes the stream over from the first.
   const attach = Effect.fnUntraced(function* (claims: typeof StreamClaims.Type) {
-    const live = yield* liveEntries;
-    const existing = live.get(claims.uploadId);
+    const entries = yield* liveEntries;
+    const existing = entries.get(claims.uploadId);
     if (existing !== undefined) {
       if (existing._tag !== "Transcribing" || !existing.live || existing.live.finished) {
         return undefined;
@@ -496,7 +498,7 @@ const make = Effect.gen(function* () {
       yield* Deferred.done(previous, Exit.void);
       return stream;
     }
-    const held = [...live.values()].filter((entry) => entry._tag !== "Cancelled").length;
+    const held = [...entries.values()].filter((entry) => entry._tag !== "Cancelled").length;
     if (held >= MAX_ENTRIES) return undefined;
     const stream: Live = {
       audio: yield* Queue.unbounded<Uint8Array, Cause.Done>(),
@@ -510,8 +512,8 @@ const make = Effect.gen(function* () {
     const fiber = yield* runLive(claims.uploadId, claims, stream, result).pipe(
       Effect.forkIn(serviceScope),
     );
-    yield* Ref.update(entriesRef, (entries) =>
-      new Map(entries).set(claims.uploadId, {
+    yield* Ref.update(entriesRef, (current) =>
+      new Map(current).set(claims.uploadId, {
         _tag: "Transcribing",
         request: undefined,
         providerInstanceId: claims.providerInstanceId,
@@ -686,11 +688,7 @@ const make = Effect.gen(function* () {
     }
     const { text } = entry.outcome.value;
     const result = yield* Deferred.make<TranscriptionUploadResult, TranscriptionError>();
-    const sending: Effect.Effect<TranscriptionUploadResult> =
-      text.trim().length === 0
-        ? Effect.succeed({ text, submission: { status: "noSpeech" } })
-        : dispatchTranscript(target, text);
-    const fiber = yield* sending.pipe(
+    const fiber = yield* dispatchTranscript(target, text).pipe(
       Effect.exit,
       Effect.flatMap((exit) => settle(uploadId, result, exit)),
       Effect.forkIn(serviceScope),

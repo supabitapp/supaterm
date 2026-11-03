@@ -52,7 +52,6 @@ export class LiveDictation {
   private sentBytes: number | null = null;
   private reconnects = 0;
   private state: "streaming" | "finishing" | "done" = "streaming";
-  private finishRequested = false;
   private settleFinish: ((streamed: boolean) => void) | null = null;
   private readonly finished: Promise<boolean>;
   private readonly unsubscribe: () => void;
@@ -77,7 +76,6 @@ export class LiveDictation {
   finish(): Promise<boolean> {
     if (this.state === "streaming") {
       this.state = "finishing";
-      this.finishRequested = true;
       this.unsubscribe();
       this.sendFinish();
       setTimeout(() => this.settle(false), FINISH_TIMEOUT_MS);
@@ -116,7 +114,7 @@ export class LiveDictation {
           this.reconnects = 0;
           this.sentBytes = message.receivedBytes;
           this.flush();
-          if (this.finishRequested) this.sendFinish();
+          if (this.state === "finishing") this.sendFinish();
         } else if (message?.type === "finished") {
           this.settle(true);
         }

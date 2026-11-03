@@ -204,14 +204,18 @@ export const makeCodexTranscription = Effect.fn("makeCodexTranscription")(functi
       );
   };
 
+  const freshLogin = Effect.gen(function* () {
+    const login = yield* readLogin;
+    const now = yield* Clock.currentTimeMillis;
+    return login.expiresAtMs !== undefined && login.expiresAtMs - EXPIRY_MARGIN_MS <= now
+      ? yield* refreshFrom(login)
+      : login;
+  });
+
   const transcribe: ProviderTranscription["transcribe"] = Effect.fn(
     "CodexTranscription.transcribe",
   )(function* ({ audio, language }) {
-    let login = yield* readLogin;
-    const now = yield* Clock.currentTimeMillis;
-    if (login.expiresAtMs !== undefined && login.expiresAtMs - EXPIRY_MARGIN_MS <= now) {
-      login = yield* refreshFrom(login);
-    }
+    let login = yield* freshLogin;
     let response = yield* send(login, audio, language);
     if (response.status === 401) {
       login = yield* refreshFrom(login);
@@ -230,14 +234,6 @@ export const makeCodexTranscription = Effect.fn("makeCodexTranscription")(functi
     return { text: text.trim() };
   });
 
-  const freshLogin = Effect.gen(function* () {
-    const login = yield* readLogin;
-    const now = yield* Clock.currentTimeMillis;
-    return login.expiresAtMs !== undefined && login.expiresAtMs - EXPIRY_MARGIN_MS <= now
-      ? yield* refreshFrom(login)
-      : login;
-  });
-
   let streamingRefusedUntil = 0;
   const stream: NonNullable<ProviderTranscription["stream"]> = Effect.fn(
     "CodexTranscription.stream",
@@ -249,10 +245,12 @@ export const makeCodexTranscription = Effect.fn("makeCodexTranscription")(functi
     }
     const text = yield* streamCodexDictation({
       url: CODEX_DICTATION_STREAM_URL,
-      headers: (refresh) =>
-        Effect.map(refresh ? Effect.flatMap(readLogin, refreshFrom) : freshLogin, (login) =>
-          codexDictationHeaders(login, CODEX_DESKTOP_USER_AGENT),
-        ),
+      headers: (refresh) => {
+        const login = refresh ? Effect.flatMap(readLogin, refreshFrom) : freshLogin;
+        return Effect.map(login, (current) =>
+          codexDictationHeaders(current, CODEX_DESKTOP_USER_AGENT),
+        );
+      },
       language,
       audio,
     }).pipe(
