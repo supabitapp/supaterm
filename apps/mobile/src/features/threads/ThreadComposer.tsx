@@ -305,10 +305,12 @@ function ComposerSurface(props: {
   // clip leaves the glass and content at their final height on the first frame.
   return (
     <Animated.View
+      // A shadow on this clipping view moves its children into a separate native container,
+      // so toggling one would detach the editor and drop its focus.
       className={
-        Platform.OS === "android" || props.transparent
+        Platform.OS === "android"
           ? undefined
-          : "shadow-[0_6px_28px] shadow-adaptive-black-a15-a35"
+          : `shadow-[0_6px_28px] ${props.transparent ? "shadow-transparent" : "shadow-adaptive-black-a15-a35"}`
       }
       layout={layoutTransition}
       style={[
@@ -520,6 +522,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     onSubmit: () => {
       if (canSend) void handleSend();
     },
+    onReviewTranscript: () => focusComposerEditor(inputRef),
     environmentId: props.environmentId,
     context: props.isDraft
       ? { projectId: props.selectedThread.projectId }
