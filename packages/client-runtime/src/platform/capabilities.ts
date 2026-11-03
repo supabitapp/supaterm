@@ -20,17 +20,6 @@ export interface ProvisionedSshEnvironment extends PreparedSshEnvironment {
   readonly label: string;
 }
 
-/**
- * A random id this client keeps across launches. Environments it connects to
- * record its hash, so two environments opened from one device share an owner
- * in analytics even when nobody is signed in.
- */
-export class AnalyticsDevice extends Context.Reference<{
-  readonly id: Effect.Effect<Option.Option<string>>;
-}>("@supaterm/client-runtime/platform/capabilities/AnalyticsDevice", {
-  defaultValue: () => ({ id: Effect.succeedNone }),
-}) {}
-
 export class ClientPresentation extends Context.Service<
   ClientPresentation,
   {

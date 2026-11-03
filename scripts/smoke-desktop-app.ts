@@ -46,7 +46,6 @@ try {
       XDG_CONFIG_HOME: NodePath.join(home, ".config"),
       XDG_DATA_HOME: NodePath.join(home, ".local/share"),
       SUPATERM_HOME: supatermHome,
-      SUPATERM_TELEMETRY_ENABLED: "false",
       SUPATERM_DISABLE_AUTO_UPDATE: "true",
     },
     timeout: STEP_TIMEOUT_MS,

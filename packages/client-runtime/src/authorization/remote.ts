@@ -3,18 +3,14 @@ import {
   type AuthClientPresentationMetadata,
   AuthEnvironmentBootstrapTokenType,
   AuthTokenExchangeGrantType,
-  type ClientConnectionMethod,
   type AuthEnvironmentScope,
   type AuthWebSocketTicketResult,
   type AuthWebSocketTicketUse,
 } from "@supaterm/contracts";
 import { encodeOAuthScope } from "@supaterm/shared/oauthScope";
-import { hashTelemetryId } from "@supaterm/shared/telemetryId";
 import * as Effect from "effect/Effect";
-import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
 import { environmentEndpointUrl } from "../environment/endpoint.ts";
-import * as ClientCapabilities from "../platform/capabilities.ts";
 import {
   executeEnvironmentHttpRequest,
   makeEnvironmentHttpApiGroupClient,
@@ -38,59 +34,6 @@ const clientMetadataTokenExchangeFields = (
       ? { client_os: displayOs }
       : {}),
   };
-};
-
-export const readClientDeviceHash = Effect.gen(function* () {
-  const device = yield* (yield* ClientCapabilities.AnalyticsDevice).id;
-  return Option.isSome(device) ? hashTelemetryId(device.value) : undefined;
-});
-
-export const appendClientConnectionParams = (
-  url: URL,
-  clientMetadata: AuthClientPresentationMetadata | undefined,
-  connectionMethod?: ClientConnectionMethod,
-  clientDeviceHash?: string,
-): void => {
-  if (clientMetadata?.surface) {
-    url.searchParams.set("clientSurface", clientMetadata.surface);
-  }
-  if (clientMetadata?.appVersion) {
-    url.searchParams.set("clientAppVersion", clientMetadata.appVersion);
-  }
-  if (clientMetadata?.deviceType) {
-    const deviceType =
-      clientMetadata.deviceType === "mobile"
-        ? "phone"
-        : clientMetadata.deviceType === "desktop" || clientMetadata.deviceType === "tablet"
-          ? clientMetadata.deviceType
-          : "unknown";
-    url.searchParams.set("clientDeviceType", deviceType);
-  }
-  if (clientMetadata?.os) {
-    url.searchParams.set("clientOs", clientMetadata.os);
-  }
-  if (clientMetadata?.surface === "web") {
-    if (clientMetadata.webDeployment) {
-      url.searchParams.set("clientWebDeployment", clientMetadata.webDeployment);
-    }
-    if (clientMetadata.browser) {
-      url.searchParams.set("clientBrowser", clientMetadata.browser);
-    }
-  }
-  if (clientMetadata?.surface === "mobile") {
-    if (clientMetadata.osMajorVersion !== undefined) {
-      url.searchParams.set("clientOsMajorVersion", String(clientMetadata.osMajorVersion));
-    }
-    if (clientMetadata.deviceModel) {
-      url.searchParams.set("clientDeviceModel", clientMetadata.deviceModel);
-    }
-  }
-  if (connectionMethod) {
-    url.searchParams.set("connectionMethod", connectionMethod);
-  }
-  if (clientDeviceHash) {
-    url.searchParams.set("clientDevice", clientDeviceHash);
-  }
 };
 
 export const bootstrapRemoteBearerSession = Effect.fn(
@@ -197,8 +140,6 @@ export const resolveRemoteWebSocketConnectionUrl = Effect.fn(
   readonly wsBaseUrl: string;
   readonly httpBaseUrl: string;
   readonly bearerToken: string;
-  readonly clientMetadata?: AuthClientPresentationMetadata;
-  readonly connectionMethod?: ClientConnectionMethod;
   readonly timeoutMs?: number;
 }) {
   const issued = yield* issueRemoteWebSocketTicket({
@@ -210,11 +151,5 @@ export const resolveRemoteWebSocketConnectionUrl = Effect.fn(
 
   const url = rpcSocketUrl(input.wsBaseUrl);
   url.searchParams.set("wsTicket", Redacted.value(issued.ticket));
-  appendClientConnectionParams(
-    url,
-    input.clientMetadata,
-    input.connectionMethod,
-    yield* readClientDeviceHash,
-  );
   return url.toString();
 });

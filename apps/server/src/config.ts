@@ -23,7 +23,7 @@ import packageJson from "../package.json" with { type: "json" };
 // Official release workflows set this telemetry channel; other builds report dev.
 // Unlike __SUPATERM_BUILD_CHANNEL__, this is not the sign-in page's latest/nightly channel.
 declare const __SUPATERM_TELEMETRY_CHANNEL__: ReleaseChannel | undefined;
-export const telemetryChannel: ReleaseChannel =
+const telemetryChannel: ReleaseChannel =
   typeof __SUPATERM_TELEMETRY_CHANNEL__ === "undefined" ? "dev" : __SUPATERM_TELEMETRY_CHANNEL__;
 
 export const RuntimeMode = Schema.Literals(["web", "desktop"]);
@@ -79,8 +79,6 @@ export class ServerConfig extends Context.Service<
     readonly otlpLogsSource?: OtlpEndpointSource;
     readonly otlpLogsVariable?: string;
     readonly otelEnvironment: OtelEnvironment.OtelEnvironment;
-    /** `SUPATERM_TELEMETRY_ENABLED` when set; it overrides the `telemetryEnabled` setting. */
-    readonly telemetryEnabledByEnvironment?: boolean | undefined;
     readonly mode: RuntimeMode;
     readonly port: number;
     readonly host: string | undefined;

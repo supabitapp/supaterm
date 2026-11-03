@@ -108,7 +108,7 @@ const connectWithRealResolver = Effect.fnUntraced(function* (
     Layer.succeed(
       ClientCapabilities.ClientPresentation,
       ClientCapabilities.ClientPresentation.of({
-        metadata: { label: "Test", deviceType: "mobile", surface: "mobile" },
+        metadata: { label: "Test", deviceType: "mobile" },
       }),
     ),
     Layer.succeed(

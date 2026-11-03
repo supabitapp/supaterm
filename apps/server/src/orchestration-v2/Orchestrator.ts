@@ -317,7 +317,7 @@ export type OrchestratorV2Error = typeof OrchestratorV2Error.Type;
 export interface OrchestratorV2DispatchResult {
   readonly sequence: number;
   readonly storedEvents: ReadonlyArray<OrchestrationV2StoredEvent>;
-  /** The command id was already accepted; analytics skip it. */
+  /** The command id was already accepted. */
   readonly replayed?: true;
 }
 
