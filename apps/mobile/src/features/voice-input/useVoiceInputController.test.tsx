@@ -215,17 +215,24 @@ describe("dictation submission", () => {
     expect(state.phase).toBe("idle");
   });
 
-  it("stops for review without sending", async () => {
-    await start();
-    await act(async () => {
-      void control.stop();
-      await transcribing.promise;
-    });
-    await finish();
-    expect(drafts.get("first")).toBe("Draft spoken words");
-    expect(sends).not.toHaveBeenCalled();
-    expect(reviews).toHaveBeenCalledTimes(1);
-  });
+  it.each(["same", "remounted"] as const)(
+    "stops for review without sending in the %s composer",
+    async (composer) => {
+      await start();
+      if (composer === "remounted") {
+        act(() => root.render(null));
+        act(() => root.render(<Probe />));
+      }
+      await act(async () => {
+        void control.stop();
+        await transcribing.promise;
+      });
+      await finish();
+      expect(drafts.get("first")).toBe("Draft spoken words");
+      expect(sends).not.toHaveBeenCalled();
+      expect(reviews).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("can send after returning to a recording in a remounted composer", async () => {
     await start();
