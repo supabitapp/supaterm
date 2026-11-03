@@ -28,6 +28,8 @@ export function useVoiceInputController(input: {
   readonly onChangeDraftMessage: (value: string) => void;
   readonly onChangeSelection: (selection: ComposerEditorSelection) => void;
   readonly onSubmit?: () => void;
+  /** A transcript landed in this focused composer's draft for review, not to be sent. */
+  readonly onTranscriptInserted?: () => void;
   /** Whose environment transcribes. */
   readonly environmentId: EnvironmentId | null;
   readonly context?: VoiceTranscriptionContext;
@@ -53,6 +55,7 @@ export function useVoiceInputController(input: {
   });
   const mounted = useRef(true);
   const submission = useRef<{ ownerKey: string; text: string } | null>(null);
+  const insertedOwnerKey = useRef<string | null>(null);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- tracks mount so async transcription results skip a composer that has unmounted
   useEffect(() => {
     mounted.current = true;
@@ -98,6 +101,7 @@ export function useVoiceInputController(input: {
           captured.onChangeDraftMessage(text);
           if (mounted.current && latestInput.current.ownerKey === captured.ownerKey) {
             latestInput.current.onChangeSelection(selection);
+            insertedOwnerKey.current = captured.ownerKey;
           }
         },
         captured.selection,
@@ -109,22 +113,30 @@ export function useVoiceInputController(input: {
   }, [session, subscribeFrames]);
   const state = global.ownerKey === input.ownerKey ? global.state : IDLE_STATE;
   const isBusy = voiceInputBlocksSubmission(state);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- submits a stop-and-send transcript once the voice session leaves its busy phase and the draft still holds it
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- once the voice session leaves its busy phase, submits a stop-and-send transcript or hands a review transcript to the editor
   useEffect(() => {
     if (isBusy) return;
     const pending = submission.current;
     submission.current = null;
+    const inserted = insertedOwnerKey.current;
+    insertedOwnerKey.current = null;
     const current = latestInput.current;
+    if (state.phase !== "idle") return;
     if (
-      state.phase === "idle" &&
       pending?.text &&
       pending.ownerKey === current.ownerKey &&
       !current.disabled &&
       current.readDraftMessage() === pending.text
     ) {
       current.onSubmit?.();
+    } else if (
+      inserted !== null &&
+      inserted === current.ownerKey &&
+      session.getSnapshot().focusedOwners.has(inserted)
+    ) {
+      current.onTranscriptInserted?.();
     }
-  }, [isBusy, state.phase]);
+  }, [isBusy, state.phase, session]);
 
   const stopAndSubmit = useCallback(() => {
     const current = latestInput.current;

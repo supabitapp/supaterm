@@ -520,6 +520,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     onSubmit: () => {
       if (canSend) void handleSend();
     },
+    onTranscriptInserted: () => focusComposerEditor(inputRef),
     environmentId: props.environmentId,
     context: props.isDraft
       ? { projectId: props.selectedThread.projectId }
