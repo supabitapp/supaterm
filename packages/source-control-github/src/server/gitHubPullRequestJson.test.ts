@@ -1461,6 +1461,7 @@ describe("decodePullRequestFilesJson", () => {
     expect(result.patch).toBe(
       [
         String.raw`diff --git "a/ old\\name.ts " "b/ new\\name.ts "`,
+        "similarity index 100%",
         String.raw`rename from " old\\name.ts "`,
         String.raw`rename to " new\\name.ts "`,
         String.raw`--- "a/ old\\name.ts "`,
@@ -1516,6 +1517,7 @@ describe("decodePullRequestFilesJson", () => {
     expect(result.patch).toBe(
       [
         "diff --git a/src/old.ts b/src/new.ts",
+        "similarity index 0%",
         "rename from src/old.ts",
         "rename to src/new.ts",
         "--- a/src/old.ts",
