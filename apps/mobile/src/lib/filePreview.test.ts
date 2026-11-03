@@ -60,6 +60,10 @@ const audio = vi.hoisted(() => ({
   navigate: vi.fn(),
   query: vi.fn(),
 }));
+const feedList = vi.hoisted(() => ({
+  data: [] as ReadonlyArray<unknown>,
+  onStartReached: undefined as (() => void) | undefined,
+}));
 vi.mock("expo-audio", () => ({
   AudioModule: { setAudioSessionOwner: audio.setSessionOwner },
   useAudioPlayer: () => audio.player,
@@ -203,11 +207,17 @@ vi.mock("../native/SelectableMarkdownText", () => ({
 vi.mock("@legendapp/list/keyboard", () => ({
   KeyboardAwareLegendList: (props: {
     data: ThreadFeedEntry[];
+    onLoad?: () => void;
+    onStartReached?: () => void;
     renderItem(info: { item: ThreadFeedEntry; index: number }): ReactNode;
-  }) =>
-    props.data.map((item, index) =>
+  }) => {
+    feedList.data = props.data;
+    feedList.onStartReached = props.onStartReached;
+    useEffect(() => props.onLoad?.(), []);
+    return props.data.map((item, index) =>
       createElement("div", { key: item.id }, props.renderItem({ item, index })),
-    ),
+    );
+  },
 }));
 vi.mock("@legendapp/list/react-native", () => ({
   useViewabilityAmount: (callback: (token: { sizeVisible: number }) => void) =>
@@ -1434,6 +1444,76 @@ describe("ThreadFeed previews", () => {
       await act(async () => root.render(element(ThreadId.make("thread-2"), { kind: "loading" })));
       await act(async () => root.render(element(ThreadId.make("thread-2"))));
       expect(container.querySelector("[data-file-preview]")).toBeNull();
+    } finally {
+      await act(async () => root.unmount());
+    }
+  });
+});
+
+describe("ThreadFeed history", () => {
+  it("asks for earlier history when the list nears its start", async () => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const threadId = ThreadId.make("thread-1");
+    const messageId = MessageId.make("message-1");
+    const timestamp = "2026-10-20T00:00:00.000Z";
+    const onLoadEarlier = vi.fn();
+    const listRef = {
+      current: { getState: () => ({ data: feedList.data, scroll: 0, scrollLength: 800 }) },
+    } as unknown as Parameters<typeof ThreadFeed>[0]["listRef"];
+    const root = createRoot(document.createElement("div"));
+    try {
+      await act(async () =>
+        root.render(
+          createElement(ThreadFeed, {
+            environmentId: EnvironmentId.make("environment-1"),
+            threadId,
+            threadTitle: "history",
+            workspaceRoot: "/repo",
+            feed: [
+              {
+                type: "message",
+                id: messageId,
+                createdAt: timestamp,
+                message: {
+                  id: messageId,
+                  role: "assistant",
+                  text: "latest reply",
+                  attachments: [],
+                  createdAt: timestamp,
+                  updatedAt: timestamp,
+                  runId: null,
+                  streaming: false,
+                  visibility: "local",
+                  sourceThreadId: threadId,
+                },
+              },
+            ],
+            queuedMessages: [],
+            dispatchingMessageId: null,
+            onEditPendingMessage: null,
+            contentPresentation: { kind: "ready" },
+            latestRun: null,
+            activeWorkStartedAt: null,
+            listRef,
+            freeze: { value: false } as Parameters<typeof ThreadFeed>[0]["freeze"],
+            contentInsetEndAdjustment: { value: 0 } as Parameters<
+              typeof ThreadFeed
+            >[0]["contentInsetEndAdjustment"],
+            anchorMessageId: null,
+            keyboardOffset: 0,
+            creatingThread: false,
+            historyControls: {
+              historyCursor: "cursor-1",
+              hasMoreHistory: true,
+              loading: false,
+              error: null,
+              onLoadEarlier,
+            },
+          }),
+        ),
+      );
+      await act(async () => feedList.onStartReached?.());
+      expect(onLoadEarlier).toHaveBeenCalledTimes(1);
     } finally {
       await act(async () => root.unmount());
     }
