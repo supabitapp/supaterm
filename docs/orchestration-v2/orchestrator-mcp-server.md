@@ -11,8 +11,9 @@ agent can use this endpoint to:
 - create one or more ordinary top-level Supaterm threads;
 - list a project's threads and incrementally read any thread;
 - rename threads, regenerate titles, and link or unlink pull requests;
-- send or steer follow-up messages; and
-- wait for or interrupt ordinary thread runs.
+- send or steer follow-up messages;
+- wait for or interrupt ordinary thread runs; and
+- schedule recurring work that runs without an active turn.
 
 These are Supaterm orchestration operations, not provider-native sub-agent APIs.
 Delegated tasks always create a Supaterm child thread and run. The child receives
@@ -196,7 +197,12 @@ provider selection model-visible without allowing a request that cannot run.
 
 ## Tool Surface
 
-The server exposes these orchestration tools.
+`OrchestratorToolkit` in
+[`toolkits/orchestrator/tools.ts`](../../apps/server/src/mcp/toolkits/orchestrator/tools.ts)
+is the authoritative list of orchestration tools. The sections below cover
+delegation and thread tools. `supaterm_thread_launch` is documented with them but
+registered by the project toolkit in
+[`toolkits/project/tools.ts`](../../apps/server/src/mcp/toolkits/project/tools.ts).
 
 ### `orchestrator_capabilities`
 
@@ -461,6 +467,20 @@ Stops one running Claude workflow, phases and members included, through the
 provider's task stop. The target is the coordinator's `subagentId` from
 `supaterm_thread_read` with `view='activity'`. It leaves the parent thread and
 other workflows running, and it cannot stop a single phase or member.
+
+### Scheduled tasks
+
+`schedule_task`, `list_scheduled_tasks`, and `delete_scheduled_task` manage
+recurring work in the app scheduler; `schedule_task` with a `scheduledTaskId`
+updates an existing task. A schedule
+runs its prompt on an interval, at a fixed time in the server's local time
+zone, or once at a set time, even when no turn is active.
+`bindToCurrentThread` defaults to `true` only when the caller has a thread in
+the task's project; otherwise it defaults to `false`. Bound runs post into
+that thread; unbound runs each launch a fresh thread in the task's project.
+Explicit `bindToCurrentThread: true` without a caller thread in that project
+is rejected. Pausing uses `schedule_task` with `scheduledTaskId` and `enabled: false`;
+deletion is permanent.
 
 ## Delegated Task Lifecycle
 
