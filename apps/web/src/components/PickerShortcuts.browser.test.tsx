@@ -3,6 +3,7 @@ import { DEFAULT_RESOLVED_KEYBINDINGS } from "@supaterm/shared/keybindings";
 import { Fragment, useState, type ReactNode } from "react";
 import { act, render as renderUi, stubGlobal, type Screen } from "../../test/render";
 import { describe, expect, it, vi } from "vite-plus/test";
+import { userEvent } from "vite-plus/test/browser";
 
 import { BranchToolbarEnvironmentSelector } from "./BranchToolbarEnvironmentSelector";
 import { BranchPicker } from "./BranchPicker";
@@ -150,12 +151,20 @@ async function openPicker(label: string) {
     screen.container.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!.click(),
   );
 }
+const searchInput = () =>
+  document.querySelector<HTMLInputElement>('input[data-slot="combobox-input"]')!;
 async function search(query: string) {
-  const input = document.querySelector<HTMLInputElement>('input[data-slot="combobox-input"]')!;
+  const input = searchInput();
   await act(() => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, query);
     input.dispatchEvent(new Event("input", { bubbles: true }));
   });
+}
+async function acceptWithTab(query: string) {
+  const input = searchInput();
+  await userEvent.type(input, query);
+  await vi.waitFor(() => expect(input.getAttribute("aria-activedescendant")).toBeTruthy());
+  await userEvent.keyboard("{Tab}");
 }
 async function pressNumber(key: string) {
   const event = new KeyboardEvent("keydown", {
@@ -192,6 +201,27 @@ describe.each(["toolbar", "panel"] as const)("host picker in %s", (displayMode) 
     expect((await pressNumber("4")).defaultPrevented).toBe(false);
     expect(screen.container.querySelector("output")!.textContent).toBe("laptop");
   });
+});
+
+it("accepts the highlighted host on Tab and keeps Tab for focus without a highlight", async () => {
+  await using _test = await setupTest();
+  await screen.rerender(<HostPicker displayMode="toolbar" />);
+  await openPicker("Run on");
+  const input = searchInput();
+  await userEvent.type(input, "nothing matches");
+  await userEvent.keyboard("{Tab}");
+  expect(document.activeElement).not.toBe(input);
+  await openPicker("Run on");
+  await acceptWithTab("linux");
+  expect(screen.container.querySelector("output")!.textContent).toBe("linux");
+});
+
+it("accepts the highlighted ref on Tab through the picker's own Enter handling", async () => {
+  await using _test = await setupTest();
+  await screen.rerender(<RefPicker />);
+  await openPicker("Select branch");
+  await acceptWithTab("feature");
+  expect(screen.container.querySelector("output")!.textContent).toBe("feature");
 });
 
 it("numbers the add action when the project is on one host", async () => {
