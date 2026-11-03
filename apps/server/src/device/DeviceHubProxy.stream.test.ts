@@ -1,11 +1,14 @@
 import { expect, it } from "@effect/vitest";
 import { NodeWS } from "@effect/platform-node/NodeSocket";
+import * as NodeHttp from "node:http";
 import * as NodeNet from "node:net";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
+import * as Queue from "effect/Queue";
 import { HttpRouter, HttpServer } from "effect/http";
+import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as Socket from "effect/socket/Socket";
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import {
@@ -17,7 +20,7 @@ import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
 import * as DeviceService from "./DeviceService.ts";
 import * as DeviceHubProxy from "./DeviceHubProxy.ts";
 
-it.effect("preserves binary input and admission frames through the real socket proxy", () =>
+const listenHub = (onConnection: (socket: NodeWS.WebSocket) => void) =>
   Effect.gen(function* () {
     const hub = yield* Effect.acquireRelease(
       Effect.sync(() => new NodeWS.WebSocketServer({ port: 0 })),
@@ -34,13 +37,26 @@ it.effect("preserves binary input and admission frames through the real socket p
       yield* Effect.promise(() => new Promise<void>((resolve) => hub.once("listening", resolve)));
     const address = hub.address();
     if (typeof address !== "object" || !address) throw new Error("Missing hub port");
-    hub.on("connection", (socket) => {
-      socket.send(Uint8Array.of(0x83));
-      socket.on("message", (data, binary) => socket.send(data, { binary }));
-    });
+    hub.on("connection", onConnection);
+    return address.port;
+  });
+
+const serveProxy = (hubPort: number) =>
+  Effect.gen(function* () {
     const services = yield* Layer.build(
       HttpRouter.serve(DeviceHubProxy.layer, { disableListenLog: true }).pipe(
-        Layer.provideMerge(NodeHttpServer.layerTest),
+        Layer.provideMerge(
+          HttpServer.layerTestClient.pipe(
+            Layer.provide(FetchHttpClient.layer),
+            // Production's WebSocket options, so viewers can offer permessage-deflate.
+            Layer.provideMerge(
+              NodeHttpServer.layer(NodeHttp.createServer, {
+                port: 0,
+                websocket: { perMessageDeflate: true },
+              }),
+            ),
+          ),
+        ),
         Layer.provide(
           Layer.succeed(EnvironmentAuth.EnvironmentAuth, {
             authenticateWebSocketUpgrade: () =>
@@ -57,15 +73,25 @@ it.effect("preserves binary input and admission frames through the real socket p
             currentReadiness: () =>
               Effect.succeed({
                 hostId: LOCAL_DEVICE_HOST_ID,
-                hub: { origin: `http://127.0.0.1:${address.port}` },
+                hub: { origin: `http://127.0.0.1:${hubPort}` },
               }),
           } as DeviceService.DeviceService["Service"]),
         ),
       ),
     );
-    const origin = HttpServer.formatAddress(
-      Context.get(services, HttpServer.HttpServer).address,
-    ).replace(/^http/, "ws");
+    return HttpServer.formatAddress(Context.get(services, HttpServer.HttpServer).address).replace(
+      /^http/,
+      "ws",
+    );
+  });
+
+it.effect("preserves binary input and admission frames through the real socket proxy", () =>
+  Effect.gen(function* () {
+    const hubPort = yield* listenHub((socket) => {
+      socket.send(Uint8Array.of(0x83));
+      socket.on("message", (data, binary) => socket.send(data, { binary }));
+    });
+    const origin = yield* serveProxy(hubPort);
     const client = yield* Effect.acquireRelease(
       Effect.sync(
         () =>
@@ -89,6 +115,61 @@ it.effect("preserves binary input and admission frames through the real socket p
     yield* Effect.promise(() => received.promise);
     expect(frames).toEqual([[0x83], [0x03, 1], [0x03, 2]]);
   }),
+);
+
+it.live(
+  "holds the hub back while a viewer stops reading video, then delivers every sent frame",
+  () =>
+    Effect.gen(function* () {
+      // Incompressible like H.264, and 1024 of them overfill every socket buffer between hub and viewer.
+      const frame = crypto.getRandomValues(new Uint8Array(64 * 1024));
+      const ticks = 1024;
+      let sent = 0;
+      let skipped = 0;
+      const handled = yield* Queue.unbounded<void>();
+      // Each viewer tick makes the hub emit one frame, skipping it the way serve-emu does once its
+      // socket to the proxy holds more than 512 KiB.
+      const hubPort = yield* listenHub((socket) => {
+        socket.on("message", () => {
+          if (socket.bufferedAmount > 512 * 1024) skipped += 1;
+          else {
+            socket.send(frame);
+            sent += 1;
+          }
+          Queue.offerUnsafe(handled, undefined);
+        });
+      });
+      const origin = yield* serveProxy(hubPort);
+      const viewer = yield* Effect.acquireRelease(
+        Effect.promise(() => {
+          const socket = new NodeWS.WebSocket(
+            `${origin}/api/device-hub/vendor/serve-emu/ws?wsTicket=test`,
+            { perMessageDeflate: true },
+          );
+          return new Promise<NodeWS.WebSocket>((resolve, reject) => {
+            socket.once("open", () => resolve(socket));
+            socket.once("error", reject);
+          });
+        }),
+        (socket) => Effect.sync(() => socket.terminate()),
+      );
+      let received = 0;
+      const delivered = Promise.withResolvers<void>();
+      viewer.on("message", () => {
+        received += 1;
+        if (received === sent) delivered.resolve();
+      });
+      viewer.pause();
+      for (let tick = 0; tick < ticks; tick += 1) {
+        viewer.send(Uint8Array.of(0));
+        yield* Queue.take(handled);
+      }
+      expect(skipped).toBeGreaterThan(0);
+      expect(viewer.extensions).toBe("");
+      viewer.resume();
+      yield* Effect.promise(() => delivered.promise);
+      expect(received).toBe(ticks - skipped);
+    }),
 );
 
 it.live("closes an upstream socket that is still connecting without an unhandled error", () =>
