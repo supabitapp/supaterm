@@ -306,6 +306,8 @@ patchedDependencies:
   react-native-gesture-handler@3.3.0: patches/react-native-gesture-handler@3.3.0.patch
   # Screens v5 stack, split and tab screens leave at once, like legacy screens. Exiting animations
   # inside one otherwise hold its removal for a later mount, after its stack has moved on.
+  # Upstream #10811: Android drops a one-frame entering animation's only frame and leaves the view
+  # at opacity 0 (blank thread rows). Drop those hunks once a stable release includes it.
   react-native-reanimated@4.7.1: patches/react-native-reanimated@4.7.1.patch
   react-native-keyboard-controller@1.22.8: patches/react-native-keyboard-controller@1.22.8.patch
   react-native-pdf-jsi@5.0.0: patches/react-native-pdf-jsi@5.0.0.patch
