@@ -40,6 +40,11 @@ const UNAVAILABLE_INPUT_ERRORS = new Set([
   "NotReadableError",
 ]);
 
+/** Browsers hide device labels until microphone access is granted. */
+export function labelsHidden(inputs: ReadonlyArray<MicrophoneInput>) {
+  return inputs.every((input) => input.label === "");
+}
+
 export function namedMicrophones(inputs: ReadonlyArray<MicrophoneInput>) {
   return inputs.filter((input) => !ALIAS_IDS.has(input.deviceId));
 }
@@ -69,7 +74,7 @@ export function resolveMicrophone(
   preference: MicrophonePreference,
 ): MicrophoneRoute {
   const { chosen } = preference;
-  if (inputs.every((input) => input.label === "")) {
+  if (labelsHidden(inputs)) {
     return {
       deviceId: chosen?.deviceId ?? null,
       input: null,
@@ -111,17 +116,36 @@ function errorName(error: unknown): string {
     : "";
 }
 
-/** Opens the input `preference` resolves to, or the default when that one is gone or busy. */
-export async function openMicrophone(preference: MicrophonePreference): Promise<MediaStream> {
-  const { deviceId } = resolveMicrophone(await listMicrophoneInputs(), preference);
-  if (deviceId !== null) {
-    try {
-      return await navigator.mediaDevices.getUserMedia({
-        audio: { ...VOICE_PROCESSING, deviceId: { exact: deviceId } },
-      });
-    } catch (error) {
-      if (!UNAVAILABLE_INPUT_ERRORS.has(errorName(error))) throw error;
-    }
+function openInput(deviceId: string | null): Promise<MediaStream> {
+  return navigator.mediaDevices.getUserMedia({
+    audio:
+      deviceId === null ? VOICE_PROCESSING : { ...VOICE_PROCESSING, deviceId: { exact: deviceId } },
+  });
+}
+
+/** An input that won't open is left out and the rest resolved again, ending at the default. */
+async function openResolved(
+  inputs: ReadonlyArray<MicrophoneInput>,
+  preference: MicrophonePreference,
+): Promise<MediaStream> {
+  const { deviceId } = resolveMicrophone(inputs, preference);
+  try {
+    return await openInput(deviceId);
+  } catch (error) {
+    if (deviceId === null || !UNAVAILABLE_INPUT_ERRORS.has(errorName(error))) throw error;
+    const rest = inputs.filter((input) => input.deviceId !== deviceId);
+    return openResolved(rest, { ...preference, chosen: null });
   }
-  return navigator.mediaDevices.getUserMedia({ audio: VOICE_PROCESSING });
+}
+
+export async function openMicrophone(preference: MicrophonePreference): Promise<MediaStream> {
+  const inputs = await listMicrophoneInputs();
+  const stream = await openResolved(inputs, preference);
+  if (!labelsHidden(inputs)) return stream;
+  const exposed = await listMicrophoneInputs();
+  const { deviceId } = resolveMicrophone(exposed, preference);
+  const opened = stream.getAudioTracks()[0]?.getSettings().deviceId;
+  if (deviceId === null || deviceId === opened) return stream;
+  for (const track of stream.getTracks()) track.stop();
+  return openResolved(exposed, preference);
 }

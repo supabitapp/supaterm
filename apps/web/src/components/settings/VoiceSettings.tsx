@@ -4,9 +4,10 @@ import {
   type ServerProvider,
 } from "@supaterm/contracts";
 import { DEFAULT_UNIFIED_SETTINGS, type VoiceMicrophone } from "@supaterm/contracts/settings";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
+  labelsHidden,
   labelsShowTransport,
   listMicrophoneInputs,
   type MicrophoneInput,
@@ -242,19 +243,32 @@ function VoiceHoldToTalkSettingRow() {
 }
 
 type MicrophoneListing =
-  | { readonly kind: "unsupported" | "loading" | "none" | "labelsHidden" }
+  | { readonly kind: "unsupported" | "loading" | "failed" | "none" }
+  | { readonly kind: "labelsHidden"; readonly accessDenied: boolean }
   | { readonly kind: "listed"; readonly inputs: ReadonlyArray<MicrophoneInput> };
 
 interface MicrophoneList {
   readonly listing: MicrophoneListing;
-  readonly accessDenied: boolean;
   readonly askForAccess: () => void;
 }
 
 function listingOf(inputs: ReadonlyArray<MicrophoneInput>): MicrophoneListing {
   if (inputs.length === 0) return { kind: "none" };
-  if (inputs.every((input) => !input.label)) return { kind: "labelsHidden" };
+  if (labelsHidden(inputs)) return { kind: "labelsHidden", accessDenied: false };
   return { kind: "listed", inputs };
+}
+
+/** Only the latest request may land, so a slow listing never replaces a newer one. */
+function refreshListing(
+  latest: { current: number },
+  setListing: (next: MicrophoneListing) => void,
+) {
+  const request = ++latest.current;
+  void listMicrophoneInputs()
+    .then(listingOf, (): MicrophoneListing => ({ kind: "failed" }))
+    .then((next) => {
+      if (request === latest.current) setListing(next);
+    });
 }
 
 function useMicrophoneList(): MicrophoneList {
@@ -263,37 +277,31 @@ function useMicrophoneList(): MicrophoneList {
   const [listing, setListing] = useState<MicrophoneListing>({
     kind: supported ? "loading" : "unsupported",
   });
-  const [accessDenied, setAccessDenied] = useState(false);
+  const latestRequest = useRef(0);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Follows the browser's inputs as microphones connect and disconnect.
   useEffect(() => {
     if (!supported) return;
-    let current = true;
-    const refresh = () => {
-      void listMicrophoneInputs().then(
-        (inputs) => {
-          if (current) setListing(listingOf(inputs));
-        },
-        () => undefined,
-      );
-    };
+    const refresh = () => refreshListing(latestRequest, setListing);
     refresh();
     navigator.mediaDevices.addEventListener("devicechange", refresh);
     return () => {
-      current = false;
+      latestRequest.current += 1;
       navigator.mediaDevices.removeEventListener("devicechange", refresh);
     };
   }, [supported]);
   const askForAccess = () => {
-    void navigator.mediaDevices
-      .getUserMedia({ audio: true })
-      .then((stream) => {
+    void navigator.mediaDevices.getUserMedia({ audio: true }).then(
+      (stream) => {
         for (const track of stream.getTracks()) track.stop();
-        setAccessDenied(false);
-        return listMicrophoneInputs().then((inputs) => setListing(listingOf(inputs)));
-      })
-      .catch(() => setAccessDenied(true));
+        refreshListing(latestRequest, setListing);
+      },
+      () => {
+        latestRequest.current += 1;
+        setListing({ kind: "labelsHidden", accessDenied: true });
+      },
+    );
   };
-  return { listing, accessDenied, askForAccess };
+  return { listing, askForAccess };
 }
 
 function microphoneDescription(chosen: VoiceMicrophone | null, route: MicrophoneRoute | null) {
@@ -363,7 +371,7 @@ function MicrophoneSelect(props: {
 function VoiceMicrophoneSettingRow(props: { readonly microphones: MicrophoneList }) {
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
-  const { listing, accessDenied, askForAccess } = props.microphones;
+  const { listing, askForAccess } = props.microphones;
   const preference = {
     chosen: settings.voiceMicrophone,
     avoidBluetooth: settings.voiceAvoidBluetoothMicrophone,
@@ -372,6 +380,7 @@ function VoiceMicrophoneSettingRow(props: { readonly microphones: MicrophoneList
   const unlistedControls = {
     unsupported: <span className="text-muted-foreground text-xs">Needs HTTPS or localhost.</span>,
     loading: null,
+    failed: <span className="text-muted-foreground text-xs">Couldn't list microphones.</span>,
     none: <span className="text-muted-foreground text-xs">No microphone found.</span>,
     labelsHidden: (
       <Button size="xs" variant="outline" onClick={askForAccess}>
@@ -383,7 +392,7 @@ function VoiceMicrophoneSettingRow(props: { readonly microphones: MicrophoneList
     <SettingsRow
       {...searchableSetting("voice-microphone")}
       description={
-        accessDenied && listing.kind === "labelsHidden"
+        listing.kind === "labelsHidden" && listing.accessDenied
           ? "Microphone access is blocked. Allow it in your browser or system settings."
           : microphoneDescription(preference.chosen, route)
       }
