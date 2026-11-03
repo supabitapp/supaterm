@@ -61,7 +61,7 @@ function Card({
           previewKey: null,
           registerTimeline: () => {},
           measureDetailsCard: () => {},
-          detailsCardTopInset: 0,
+          detailsPopoverSideOffset: 0,
           preferredDetailsCard: placement,
           detailsCardPlacement: inline ? placement : null,
         }}

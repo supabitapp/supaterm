@@ -82,7 +82,7 @@ export function ChatCanvas({
     previewKey: preview?.key ?? null,
     registerTimeline,
     measureDetailsCard: store.getState().measureDetailsCard,
-    detailsCardTopInset: model.detailsCardTopInset,
+    detailsPopoverSideOffset: model.detailsPopoverSideOffset,
     preferredDetailsCard: model.preferredDetailsCard,
     detailsCardPlacement: model.detailsCardPlacement,
   };
