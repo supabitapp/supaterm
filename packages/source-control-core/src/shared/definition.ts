@@ -10,6 +10,7 @@ import {
   TrimmedString,
 } from "@supaterm/contracts";
 import { normalizeGitRemoteUrl, parseGitRemoteRepository } from "@supaterm/shared/git";
+import { userlessScpRemoteHost } from "@supaterm/shared/sourceControl";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as SchemaTransformation from "effect/SchemaTransformation";
@@ -475,7 +476,7 @@ export function parseGitRemoteHost(remoteUrl: string): GitRemoteHost | null {
   const trimmed = remoteUrl.trim();
   if (trimmed.length === 0) return null;
   let host: string;
-  const scpHost = SCP_REMOTE.exec(trimmed)?.[1];
+  const scpHost = SCP_REMOTE.exec(trimmed)?.[1] ?? userlessScpRemoteHost(trimmed);
   if (scpHost) {
     host = scpHost.toLowerCase();
   } else {

@@ -87,6 +87,25 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
     }).pipe(Effect.provide(RepositoryIdentityResolver.layer)),
   );
 
+  it.effect("identifies the host of an SSH remote that leaves its user to ssh config", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const cwd = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "supaterm-repository-identity-userless-remote-test-",
+      });
+
+      yield* git(cwd, ["init"]);
+      yield* git(cwd, ["remote", "add", "origin", "github.com:SupatermTools/supaterm.git"]);
+
+      const resolver = yield* RepositoryIdentityResolver.RepositoryIdentityResolver;
+      const identity = yield* resolver.resolve(cwd);
+
+      expect(identity?.canonicalKey).toBe("github.com/supabitapp/supaterm");
+      expect(identity?.provider).toBe("github");
+      expect(identity?.displayName).toBe("SupatermTools/supaterm");
+    }).pipe(Effect.provide(RepositoryIdentityResolver.layer)),
+  );
+
   it.effect("resolves the fetch remote of a partial clone", () =>
     Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;
