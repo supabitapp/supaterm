@@ -270,9 +270,14 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
   const connectivity = yield* Connectivity.Connectivity;
   const driver = yield* ConnectionDriver.ConnectionDriver;
   const wakeups = yield* ConnectionWakeups.ConnectionWakeups;
+  // The primary environment served this client or runs beside it on loopback,
+  // so the device reporting offline (often wrongly) never parks it. The report
+  // still probes its live session, like any other network change.
+  const targetNetwork = (network: NetworkStatus): NetworkStatus =>
+    network === "offline" && target._tag === "PrimaryConnectionTarget" ? "unknown" : network;
   const initialIntent: SupervisorIntent = {
     desired: options?.initiallyDesired ?? false,
-    network: yield* connectivity.status,
+    network: targetNetwork(yield* connectivity.status),
     backgrounded: yield* wakeups.isBackgrounded ?? Effect.succeed(false),
   };
   const intent = yield* Ref.make(initialIntent);
@@ -501,6 +506,9 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
   });
 
   const waitForEstablishmentInterrupt = Effect.fnUntraced(function* (ignoreOffline: boolean) {
+    // A primary attempt keeps running through an offline report, so the
+    // network returning restarts it in case it stalled meanwhile.
+    let deviceOffline = (yield* connectivity.status) === "offline";
     for (;;) {
       const next = yield* Queue.take(signals);
       switch (next._tag) {
@@ -508,8 +516,14 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
         case "RetryRequested":
           return false;
         case "NetworkChanged":
-          if (next.network === "offline" && !ignoreOffline) {
-            return false;
+          if (target._tag !== "PrimaryConnectionTarget") {
+            if (next.network === "offline" && !ignoreOffline) {
+              return false;
+            }
+          } else if (next.network === "offline") {
+            deviceOffline = true;
+          } else if (deviceOffline) {
+            return true;
           }
           break;
         case "ConnectRequested":
@@ -1187,9 +1201,12 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
 
   yield* connectivity.changes.pipe(
     Stream.runForEach((network) =>
-      Ref.modify(intent, (current) =>
-        current.network === network ? [false, current] : ([true, { ...current, network }] as const),
-      ).pipe(
+      Ref.modify(intent, (current) => {
+        const next = targetNetwork(network);
+        return current.network === next
+          ? [false, current]
+          : ([true, { ...current, network: next }] as const);
+      }).pipe(
         Effect.flatMap((changed) =>
           changed
             ? (network === "offline" ? Effect.void : forgetSilentRoutes).pipe(
