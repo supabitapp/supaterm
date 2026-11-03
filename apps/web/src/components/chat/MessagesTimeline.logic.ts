@@ -2218,7 +2218,6 @@ export interface WorktreeSetupRowPlacement {
   readonly anchorId: string | null;
 }
 
-/** The setup row in `rows`, or the last one seen marked exiting once it leaves. */
 export function nextWorktreeSetupRowPlacement(
   previous: WorktreeSetupRowPlacement | null,
   rows: ReadonlyArray<MessagesTimelineRow>,
@@ -2423,8 +2422,10 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
         a.expanded === bt.expanded
       );
     }
-    case "worktree-setup":
-      return a.snapshot === (b as typeof a).snapshot;
+    case "worktree-setup": {
+      const bw = b as typeof a;
+      return a.snapshot === bw.snapshot && a.embedded === bw.embedded;
+    }
 
     case "assistant-meta": {
       const bm = b as typeof a;

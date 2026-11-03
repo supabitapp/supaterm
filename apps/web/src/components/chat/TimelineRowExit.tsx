@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 
 export const TIMELINE_ROW_EXIT_MS = 200;
 
-/** Fades and collapses its content while `exiting`, for a row the list holds until the exit ends. */
 export function TimelineRowExit({ exiting, children }: { exiting: boolean; children: ReactNode }) {
   return (
     <div
