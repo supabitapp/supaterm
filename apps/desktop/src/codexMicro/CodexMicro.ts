@@ -13,7 +13,9 @@ import {
 import {
   DEVICE_STATUS_METHOD,
   EMPTY_LIGHTING_MODEL,
+  FILE_READ_METHOD,
   JOYSTICK_NOTIFICATION_METHOD,
+  KEYMAP_FILE,
   KEY_ACT_PRESS,
   KEY_ACT_RELEASE,
   KEY_ACT_ROTATE,
@@ -24,9 +26,11 @@ import {
   actionSlotFromWire,
   agentKeySlotIndex,
   decodeDeviceStatus,
+  decodeFileChunk,
   decodeJoystickNotification,
   decodeKeyNotification,
   isAgentKey,
+  mappedAgentKeyCount,
   selectedLightingSlot,
   serializeLighting,
   trackJoystick,
@@ -55,6 +59,7 @@ import * as MacInputMonitoring from "../permissions/MacInputMonitoring.ts";
 
 const DISCOVERY_INTERVAL = Duration.seconds(2);
 const DEVICE_STATUS_INTERVAL = Duration.seconds(60);
+const FILE_CHUNK_BYTES = 1024;
 const SELECTION_HIGHLIGHT = Duration.seconds(4);
 const KNOB_HOLD = Duration.millis(500);
 const STOP_TIMEOUT = Duration.seconds(10);
@@ -94,6 +99,7 @@ const deviceState = (
   battery: null,
   firmwareVersion: null,
   inputMonitoring,
+  mappedAgentKeys: null,
 });
 
 const sameThread = (left: CodexMicroThreadRef | null, right: CodexMicroThreadRef | null) =>
@@ -306,6 +312,29 @@ const make = Effect.gen(function* () {
       });
     });
 
+    const readMappedAgentKeys = Effect.gen(function* () {
+      const chunks: Array<Buffer> = [];
+      let offset = 0;
+      let total = Number.POSITIVE_INFINITY;
+      while (offset < total) {
+        yield* waitForInputQuiet;
+        if (stopping) return;
+        const result = yield* Effect.result(
+          request(FILE_READ_METHOD, { file: KEYMAP_FILE, offset, len: FILE_CHUNK_BYTES }),
+        );
+        if (Result.isFailure(result)) return;
+        const chunk = decodeFileChunk(result.success);
+        if (Option.isNone(chunk)) return;
+        const data = Buffer.from(chunk.value.data, "base64");
+        if (data.length === 0) break;
+        chunks.push(data);
+        offset += data.length;
+        total = chunk.value.total_size;
+      }
+      const count = mappedAgentKeyCount(Buffer.concat(chunks).toString("utf8"));
+      if (count !== undefined) yield* patchState({ mappedAgentKeys: count });
+    });
+
     const lightingLoop = Effect.gen(function* () {
       let failures = 0;
       while (true) {
@@ -318,10 +347,14 @@ const make = Effect.gen(function* () {
           if (!initialized) {
             initialized = true;
             yield* Effect.forkIn(
-              refreshDeviceStatus.pipe(
-                Effect.andThen(Effect.sleep(DEVICE_STATUS_INTERVAL)),
-                Effect.forever,
-              ),
+              Effect.gen(function* () {
+                yield* refreshDeviceStatus;
+                yield* readMappedAgentKeys;
+                while (true) {
+                  yield* Effect.sleep(DEVICE_STATUS_INTERVAL);
+                  yield* refreshDeviceStatus;
+                }
+              }),
               sessionScope,
             );
           }

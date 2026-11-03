@@ -200,10 +200,10 @@ const makeHarness = Effect.gen(function* () {
 
   const connect = Effect.gen(function* () {
     yield* codexMicro.configure(settings());
-    const startup = yield* takeRequests(3);
+    const startup = yield* takeRequests(4);
     assert.deepStrictEqual(
       startup.map((request) => request.method),
-      ["v.oai.rgbcfg", "v.oai.thstatus", "device.status"],
+      ["v.oai.rgbcfg", "v.oai.thstatus", "device.status", "fs.readbin"],
     );
     yield* awaitState((state) => state.status === "connected" && state.battery !== null);
   });
@@ -250,7 +250,37 @@ describe("CodexMicro", () => {
         battery: { percentage: 80, isCharging: false },
         firmwareVersion: "1.0.0",
         inputMonitoring: "granted",
+        mappedAgentKeys: null,
       });
+    }),
+  );
+
+  it.effect("counts the agent keys the keyboard's keymap maps", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness;
+      harness.transport.setDevices([USB]);
+      const keymap = new TextEncoder().encode(
+        JSON.stringify({
+          profiles: [
+            { layers: [{ layout: { keymap: [["KV_OAI_AG00", "KC_A", "KV_OAI_ACT06"]] } }] },
+            { layers: [{ layout: { keymap: [["KV_OAI_AG03", "KV_OAI_AG00"]] } }] },
+          ],
+        }),
+      );
+      harness.transport.respond((request) => {
+        if (request.method !== "fs.readbin") return undefined;
+        const { file, offset } = request.params as { file: string; offset: number };
+        if (file !== "keymap.json") return Effect.succeed(null);
+        // The firmware may answer with less than was asked for.
+        const data = keymap.subarray(offset, offset + 16);
+        return Effect.succeed({
+          data: Buffer.from(data).toString("base64"),
+          total_size: keymap.length,
+        });
+      });
+      yield* harness.codexMicro.configure(settings());
+      const { state } = yield* harness.awaitState((next) => next.mappedAgentKeys !== null);
+      assert.strictEqual(state.mappedAgentKeys, 2);
     }),
   );
 

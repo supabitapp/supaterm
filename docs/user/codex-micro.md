@@ -2,7 +2,8 @@
 
 Codex Micro is a small macro keyboard from Work Louder. In the Supaterm desktop app its six agent
 keys follow your threads and light up with their state, and its other keys, analog stick, and knob
-run Supaterm commands. Connect it with USB to get started.
+run Supaterm commands. Connect it with USB to get started. Work Louder's Creator Micro 2 works too,
+once its keymap has agent keys; see [Creator Micro 2](#creator-micro-2).
 
 ## Turning it on
 
@@ -16,8 +17,8 @@ connected and its battery level.
   `/etc/udev/rules.d/70-codex-micro.rules`, then reconnect the keyboard:
 
   ```
-  SUBSYSTEM=="hidraw", ATTRS{idVendor}=="303a", ATTRS{idProduct}=="8360", TAG+="uaccess"
-  KERNEL=="hidraw*", KERNELS=="*303A:8360*", TAG+="uaccess"
+  SUBSYSTEM=="hidraw", ATTRS{idVendor}=="303a", ATTRS{idProduct}=="8360|8298|8297", TAG+="uaccess"
+  KERNEL=="hidraw*", KERNELS=="*303A:8360*|*303A:8298*|*303A:8297*", TAG+="uaccess"
   ```
 
 **Connected with limited functionality** means key presses work but the keyboard is not accepting
@@ -63,3 +64,13 @@ changing your agent keys.
 The microphone key works like `ctrl+m`: press it to start recording, and press it again
 to stop and review the transcript in the draft. With **Use separate microphone keys** on, the **MIC1**
 keycap does the same.
+
+## Creator Micro 2
+
+Creator Micro 2 runs the same firmware, but its default keymap types ordinary keys. A key follows a
+thread only when the keyboard's keymap maps it to an agent keycode: `KV_OAI_AG00` makes it agent
+key 1, through `KV_OAI_AG05` for agent key 6. The keyboard lights those keys only on a layer that
+has them. The other keys, the stick, and the knob run Supaterm commands only where the keymap uses
+the Codex Micro keycodes; everything else keeps typing what it is mapped to.
+
+**Settings** > **Codex Micro** warns when the keymap maps fewer than six agent keys.

@@ -13,7 +13,7 @@ import * as Semaphore from "effect/Semaphore";
 import type * as NodeHid from "node-hid";
 
 import {
-  CODEX_MICRO_PRODUCT_ID,
+  CODEX_MICRO_PRODUCT_IDS,
   CODEX_MICRO_USAGE_PAGE,
   CODEX_MICRO_VENDOR_ID,
   CodexMicroReportDecoder,
@@ -145,7 +145,7 @@ export function selectCodexMicroDevices(
   const candidates = devices.flatMap((device) => {
     if (
       device.vendorId !== CODEX_MICRO_VENDOR_ID ||
-      device.productId !== CODEX_MICRO_PRODUCT_ID ||
+      !CODEX_MICRO_PRODUCT_IDS.has(device.productId) ||
       device.usagePage !== CODEX_MICRO_USAGE_PAGE ||
       typeof device.path !== "string" ||
       device.path.length === 0
@@ -347,7 +347,8 @@ const make = Effect.gen(function* () {
   const discover = Effect.gen(function* () {
     const hid = yield* loadBinding;
     const devices = yield* Effect.tryPromise({
-      try: () => hid.devicesAsync(CODEX_MICRO_VENDOR_ID, CODEX_MICRO_PRODUCT_ID),
+      // A product id of 0 matches every product from the vendor.
+      try: () => hid.devicesAsync(CODEX_MICRO_VENDOR_ID, 0),
       catch: (cause) => new CodexMicroDiscoveryError({ cause }),
     });
     return selectCodexMicroDevices(devices);

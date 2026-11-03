@@ -256,12 +256,19 @@ describe("selectCodexMicroDevices", () => {
       selectCodexMicroDevices([
         device({ path: "bt" }),
         device({ path: "keyboard", usagePage: 0x0001 }),
-        device({ path: "other-product", productId: 0x8297 }),
+        device({ path: "other-product", productId: 0x8001 }),
         device({ path: undefined }),
         device({ path: "usb" }),
         device({ path: "usb" }),
+        device({ path: "creator-micro-2", productId: 0x8298 }),
+        device({ path: "creator-micro-2-alt", productId: 0x8297 }),
       ]),
-      [{ path: "bt" }, { path: "usb" }],
+      [
+        { path: "bt" },
+        { path: "usb" },
+        { path: "creator-micro-2" },
+        { path: "creator-micro-2-alt" },
+      ],
     );
   });
 

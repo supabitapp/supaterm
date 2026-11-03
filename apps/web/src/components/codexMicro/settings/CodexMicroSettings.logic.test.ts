@@ -33,6 +33,7 @@ const connected: CodexMicroDeviceState = {
   battery: { percentage: 81.6, isCharging: true },
   firmwareVersion: "1.4.0",
   inputMonitoring: "granted",
+  mappedAgentKeys: 6,
 };
 
 describe("codexMicroConnectionSummary", () => {
@@ -45,7 +46,23 @@ describe("codexMicroConnectionSummary", () => {
   });
 
   it("labels an available device as connected", () => {
-    expect(codexMicroConnectionSummary(true, connected).label).toBe("Connected");
+    expect(codexMicroConnectionSummary(true, connected)).toEqual({
+      label: "Connected",
+      description: null,
+      tone: "success",
+    });
+    expect(codexMicroConnectionSummary(true, { ...connected, mappedAgentKeys: null }).tone).toBe(
+      "success",
+    );
+  });
+
+  it("warns when the keymap leaves agent keys unmapped", () => {
+    const partial = codexMicroConnectionSummary(true, { ...connected, mappedAgentKeys: 2 });
+    expect(partial.tone).toBe("warning");
+    expect(partial.description).toContain("Only 2 of the 6 agent keys");
+    const none = codexMicroConnectionSummary(true, { ...connected, mappedAgentKeys: 0 });
+    expect(none.tone).toBe("warning");
+    expect(none.description).toContain("No keys are mapped");
   });
 
   it("explains that key presses keep working when lighting is unavailable", () => {
