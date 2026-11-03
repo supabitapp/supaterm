@@ -528,6 +528,7 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
   const defaultComposerEditorRef = useRef<ComposerEditorHandle>(null);
   const composerEditorRef = props.draftMode?.editorRef ?? defaultComposerEditorRef;
   const isProviderSubagent = isProviderNativeSubagentThread(props.selectedThread.source);
+  const parentThread = resolveParentThread(props.selectedThread.lineage);
   const suggestedPrompt = useNextPromptSuggestion({
     environmentId: props.environmentId,
     threadId: props.draftMode ? null : props.selectedThread.id,
@@ -1509,7 +1510,7 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
               }
               contentMaxWidth={contentMaxWidth}
               historyControls={props.historyControls}
-              parentThread={resolveParentThread(props.selectedThread.lineage)}
+              parentThread={parentThread}
               {...(props.pins ? { pins: props.pins } : {})}
               messageJump={props.messageJump ?? null}
               {...(props.onMessageJumpFailed
