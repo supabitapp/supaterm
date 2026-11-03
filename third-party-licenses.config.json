@@ -397,6 +397,169 @@
           ]
         }
       ]
+    },
+    {
+      "name": "HarfBuzz (bundled in Skia)",
+      "bundles": ["ios", "android", "mobile"],
+      "license": "MIT-Modern-Variant",
+      "sourceUrl": "https://github.com/harfbuzz/harfbuzz",
+      "generatedNotices": [
+        {
+          "licenseId": "MIT-Modern-Variant",
+          "copyrights": [
+            "Copyright © 2010-2022 Google, Inc.",
+            "Copyright © 2015-2020 Ebrahim Byagowi",
+            "Copyright © 2019,2020 Facebook, Inc.",
+            "Copyright © 2012,2015 Mozilla Foundation",
+            "Copyright © 2011 Codethink Limited",
+            "Copyright © 2008,2010 Nokia Corporation and/or its subsidiary(-ies)",
+            "Copyright © 2009 Keith Stribley",
+            "Copyright © 2011 Martin Hosken and SIL International",
+            "Copyright © 2007 Chris Wilson",
+            "Copyright © 2005,2006,2020,2021,2022,2023 Behdad Esfahbod",
+            "Copyright © 2004,2007,2008,2009,2010,2013,2021,2022,2023 Red Hat, Inc.",
+            "Copyright © 1998-2005 David Turner and Werner Lemberg",
+            "Copyright © 2016 Igalia S.L.",
+            "Copyright © 2022 Matthias Clasen",
+            "Copyright © 2018,2021 Khaled Hosny",
+            "Copyright © 2018,2019,2020 Adobe, Inc",
+            "Copyright © 2013-2015 Alexei Podtelezhnikov"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "libpng (bundled in Skia)",
+      "bundles": ["ios", "android", "mobile"],
+      "license": "libpng-2.0",
+      "sourceUrl": "https://github.com/pnggroup/libpng",
+      "generatedNotices": [
+        {
+          "licenseId": "libpng-2.0",
+          "copyrights": [
+            "Copyright (c) 1995-2026 The PNG Reference Library Authors.",
+            "Copyright (c) 2018-2026 Cosmin Truta.",
+            "Copyright (c) 2000-2002, 2004, 2006-2018 Glenn Randers-Pehrson.",
+            "Copyright (c) 1996-1997 Andreas Dilger.",
+            "Copyright (c) 1995-1996 Guy Eric Schalnat, Group 42, Inc."
+          ]
+        }
+      ]
+    },
+    {
+      "name": "zlib (bundled in Skia)",
+      "bundles": ["ios", "android", "mobile"],
+      "license": "Zlib",
+      "sourceUrl": "https://github.com/madler/zlib",
+      "generatedNotices": [
+        {
+          "licenseId": "Zlib",
+          "copyrights": ["Copyright (C) 1995-2026 Jean-loup Gailly and Mark Adler"]
+        }
+      ]
+    },
+    {
+      "name": "libjpeg-turbo (bundled in Skia)",
+      "bundles": ["ios", "android", "mobile"],
+      "license": "IJG AND BSD-3-Clause",
+      "sourceUrl": "https://github.com/libjpeg-turbo/libjpeg-turbo",
+      "generatedNotices": [
+        {
+          "licenseId": "IJG",
+          "copyrights": ["Copyright (C) 1991-2020, Thomas G. Lane, Guido Vollbeding."]
+        },
+        {
+          "licenseId": "BSD-3-Clause",
+          "copyrights": ["Copyright (C) 2009-2026 D. R. Commander. All Rights Reserved."]
+        }
+      ]
+    },
+    {
+      "name": "libwebp (bundled in Skia)",
+      "bundles": ["ios", "android", "mobile"],
+      "license": "BSD-3-Clause",
+      "sourceUrl": "https://github.com/webmproject/libwebp",
+      "generatedNotices": [
+        {
+          "licenseId": "BSD-3-Clause",
+          "copyrights": ["Copyright (c) 2010, Google Inc. All rights reserved."]
+        }
+      ]
+    },
+    {
+      "name": "Expat (bundled in Skia)",
+      "bundles": ["ios", "android", "mobile"],
+      "license": "MIT",
+      "sourceUrl": "https://github.com/libexpat/libexpat",
+      "generatedNotices": [
+        {
+          "licenseId": "MIT",
+          "copyrights": [
+            "Copyright (c) 1998-2000 Thai Open Source Software Center Ltd and Clark Cooper",
+            "Copyright (c) 2001-2025 Expat maintainers"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Wuffs (bundled in Skia)",
+      "bundles": ["ios", "android", "mobile"],
+      "license": "Apache-2.0",
+      "sourceUrl": "https://github.com/google/wuffs",
+      "generatedNotices": [
+        {
+          "licenseId": "Apache-2.0",
+          "copyrights": ["Copyright 2017 The Wuffs Authors"]
+        }
+      ]
+    },
+    {
+      "name": "Piex (bundled in Skia)",
+      "bundles": ["ios", "android", "mobile"],
+      "license": "Apache-2.0",
+      "sourceUrl": "https://github.com/google/piex",
+      "generatedNotices": [
+        {
+          "licenseId": "Apache-2.0",
+          "copyrights": ["Copyright 2015 Google Inc."]
+        }
+      ]
+    },
+    {
+      "name": "DNG SDK (bundled in Skia)",
+      "bundles": ["ios", "android", "mobile"],
+      "license": "LicenseRef-Adobe-DNG-SDK",
+      "sourceUrl": "https://android.googlesource.com/platform/external/dng_sdk",
+      "noticeFile": "third-party-licenses/dng-sdk/LICENSE"
+    },
+    {
+      "name": "FreeType (bundled in Skia)",
+      "bundles": ["android", "mobile"],
+      "license": "FTL",
+      "sourceUrl": "https://gitlab.freedesktop.org/freetype/freetype",
+      "generatedNotices": [
+        {
+          "licenseId": "FTL",
+          "preamble": [
+            "Portions of this software are copyright © 2026 The FreeType Project (https://freetype.org). All rights reserved."
+          ],
+          "copyrights": [
+            "Copyright 1996-2002, 2006 by David Turner, Robert Wilhelm, and Werner Lemberg"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "libgrapheme (bundled in Skia)",
+      "bundles": ["ios", "mobile"],
+      "license": "ISC",
+      "sourceUrl": "https://git.suckless.org/libgrapheme",
+      "generatedNotices": [
+        {
+          "licenseId": "ISC",
+          "copyrights": ["Copyright 2019-2025 Laslo Hunhold <dev@frign.de>"]
+        }
+      ]
     }
   ],
   "packageOverrides": [
