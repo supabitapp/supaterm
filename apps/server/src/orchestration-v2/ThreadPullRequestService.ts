@@ -8,7 +8,6 @@ import {
   type ThreadLinkedPullRequest,
 } from "@supaterm/contracts";
 import { makeDrainableWorker } from "@supaterm/shared/DrainableWorker";
-import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
 import * as SecureRandom from "effect/crypto/SecureRandom";
@@ -122,26 +121,15 @@ export const make = Effect.gen(function* () {
   };
 
   /**
-   * A sweep for one thread reads only that thread's shell, not every thread's.
+   * A sweep for one thread reads only that thread, not every thread.
    * Finished runs and checkpoints queue one of these each. A sweep over all
    * threads reads only active, open ones, since discovery skips the rest;
    * backfill looks up done threads, so its passes read every active thread.
    */
   const readThreadSnapshot = ({ threadId, backfill }: RefreshRequest) =>
-    threadId === null
-      ? orchestrator
-          .getShellSnapshot({
-            location: "active",
-            openOnly: !(backfill || pendingBackfill.size > 0),
-          })
-          .pipe(NodeSqliteClient.readOnly)
-      : Effect.gen(function* () {
-          // Read the sequence first. The thread is then at least this new, so a
-          // sync guarded by the sequence is rejected rather than missing a change.
-          const snapshotSequence = yield* orchestrator.getThreadEventSequence(threadId);
-          const thread = yield* orchestrator.getThreadShell(threadId);
-          return { snapshotSequence, threads: thread === null ? [] : [thread] };
-        });
+    orchestrator.getPullRequestSnapshot(
+      threadId === null ? { openOnly: !(backfill || pendingBackfill.size > 0) } : { threadId },
+    );
 
   const synchronize = Effect.fn("ThreadPullRequestServiceV2.synchronize")(function* (
     request: RefreshRequest,
