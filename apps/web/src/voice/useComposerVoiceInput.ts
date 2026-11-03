@@ -14,6 +14,7 @@ import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from "re
 
 import type { ComposerSubmissionIntent } from "../composer-logic";
 import type { ComposerDispatchMode } from "@supaterm/client-runtime/state/composer-dispatch";
+import { getClientSettings } from "../hooks/useSettings";
 import { useStableCallback } from "../hooks/useStableCallback";
 import { threadOutboxDeliverableAtom } from "../state/threadOutbox";
 import {
@@ -136,6 +137,13 @@ function createVoiceRuntime(onStateChange: (state: VoiceInputState) => void) {
   let phase = IDLE_STATE.phase;
   const recorder: WebVoiceRecorder = new WebVoiceRecorder({
     onStatus: (status) => void controller.handleRecorderStatus(status),
+    readMicrophone: () => {
+      const settings = getClientSettings();
+      return {
+        chosen: settings.voiceMicrophone,
+        avoidBluetooth: settings.voiceAvoidBluetoothMicrophone,
+      };
+    },
   });
   const controller: VoiceInputController = new VoiceInputController({
     recorder,

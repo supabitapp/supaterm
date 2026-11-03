@@ -532,6 +532,19 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["voice dictation microphone speech transcribe language locale spoken"],
   },
   {
+    id: "voice-microphone",
+    title: "Microphone",
+    to: "/settings/voice",
+    searchTerms: ["voice dictation microphone input device mic headset usb select choose"],
+  },
+  {
+    id: "voice-avoid-bluetooth",
+    title: "Use the Mac's microphone instead of Bluetooth",
+    to: "/settings/voice",
+    macOnly: true,
+    searchTerms: ["voice dictation microphone bluetooth airpods headset built-in call quality"],
+  },
+  {
     id: "voice-hold-to-talk",
     title: "Hold to talk",
     to: "/settings/voice",

@@ -5,6 +5,7 @@ import {
 } from "@supaterm/client-runtime/voice-input";
 import { TRANSCRIPTION_MIN_DURATION_MS, TranscriptionError } from "@supaterm/contracts";
 
+import { type MicrophonePreference, openMicrophone } from "./microphone";
 import pcmCaptureWorkletUrl from "./pcmCapture.worklet.ts?worker&url";
 import { PCM_CAPTURE_PROCESSOR, VOICE_SAMPLE_RATE, wavFromPcm } from "./wav";
 
@@ -89,9 +90,14 @@ export class WebVoiceRecorder implements VoiceRecorder {
   private stopped: Promise<void> | null = null;
   private permissionGeneration = 0;
   private readonly onStatus: (status: VoiceRecorderStatus) => void;
+  private readonly readMicrophone: () => MicrophonePreference;
 
-  constructor(options: { readonly onStatus: (status: VoiceRecorderStatus) => void }) {
+  constructor(options: {
+    readonly onStatus: (status: VoiceRecorderStatus) => void;
+    readonly readMicrophone: () => MicrophonePreference;
+  }) {
     this.onStatus = options.onStatus;
+    this.readMicrophone = options.readMicrophone;
   }
 
   get elapsedMs(): number {
@@ -117,9 +123,7 @@ export class WebVoiceRecorder implements VoiceRecorder {
       return { granted: true, canAskAgain: true };
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      });
+      const stream = await openMicrophone(this.readMicrophone());
       if (generation !== this.permissionGeneration) {
         for (const track of stream.getTracks()) track.stop();
         return { granted: false, canAskAgain: true };
