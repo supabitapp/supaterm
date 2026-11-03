@@ -1,5 +1,8 @@
 import type { PullRequestReviewGuideResult } from "@supaterm/contracts";
 
+const GUIDE_DESCRIPTION =
+  "Get a tour of the change, with code excerpts and notes on what needs a closer look.";
+
 export function reviewGuideState(data: PullRequestReviewGuideResult | null) {
   const guide = data?.guide ?? null;
   return {
@@ -52,7 +55,7 @@ export function guideNoticeState(state: {
     return {
       kind: "loading" as const,
       title: "Review guide",
-      description: "Checking for a saved guide…",
+      description: GUIDE_DESCRIPTION,
       action: "Loading guide…",
     };
   }
@@ -67,8 +70,7 @@ export function guideNoticeState(state: {
   return {
     kind: guide ? ("ready" as const) : ("empty" as const),
     title: "Review guide",
-    description:
-      "Get a tour of the change, with code excerpts and notes on what needs a closer look.",
+    description: GUIDE_DESCRIPTION,
     action: "Write guide",
   };
 }

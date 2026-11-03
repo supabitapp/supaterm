@@ -188,7 +188,7 @@ function PullRequestIdentity(props: {
           accessibilityRole="button"
           accessibilityLabel={`Copy base branch ${pr.baseBranch}`}
           onPress={() => void Clipboard.setStringAsync(pr.baseBranch)}
-          className="min-w-0 shrink active:opacity-70"
+          className="max-w-[50%] active:opacity-70"
           hitSlop={8}
         >
           <Text className="font-mono text-2xs text-foreground-muted">{pr.baseBranch}</Text>
