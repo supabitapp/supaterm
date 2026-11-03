@@ -77,6 +77,7 @@ export interface TimelineRowActivityState {
   isRevertingCheckpoint: boolean;
   awaitingUser: boolean;
   isPreparingWorktree: boolean;
+  worktreeSetupLabel: "shown" | "exiting" | null;
   latestRunId: RunId | null;
   backgroundWorktreeSetup: WorktreeSetupSnapshot | null;
 }

@@ -511,6 +511,7 @@ type MessagesTimelineRowContent =
       createdAt: string | null;
       snapshot: WorktreeSetupSnapshot;
       embedded: boolean;
+      exiting?: boolean;
     }
   | {
       kind: "work";
@@ -2212,6 +2213,50 @@ function attachCreatedThreadSummaries(
 
 const WORKTREE_SETUP_ROW_ID = "worktree-setup-row";
 
+export interface WorktreeSetupRowPlacement {
+  readonly row: Extract<MessagesTimelineRow, { kind: "worktree-setup" }>;
+  readonly anchorId: string | null;
+}
+
+export function nextWorktreeSetupRowPlacement(
+  previous: WorktreeSetupRowPlacement | null,
+  rows: ReadonlyArray<MessagesTimelineRow>,
+): WorktreeSetupRowPlacement | null {
+  const index = rows.findIndex((row) => row.kind === "worktree-setup");
+  const row = rows[index];
+  if (row?.kind === "worktree-setup") return { row, anchorId: rows[index - 1]?.id ?? null };
+  if (previous === null || previous.row.exiting) return previous;
+  return { ...previous, row: { ...previous.row, exiting: true } };
+}
+
+/**
+ * A running or done card leaves its "Setting up worktree…" label to the working
+ * row, which exits with the card unless the background setup chip keeps it.
+ */
+export function resolveWorktreeSetupLabel(
+  rows: ReadonlyArray<MessagesTimelineRow>,
+  preparing: boolean,
+  backgroundSetup: boolean,
+): "shown" | "exiting" | null {
+  if (preparing) return "shown";
+  const row = rows.find((candidate) => candidate.kind === "worktree-setup");
+  if (row?.kind !== "worktree-setup" || row.embedded) return null;
+  if (row.snapshot.phase !== "running" && row.snapshot.phase !== "done") return null;
+  if (!row.exiting) return "shown";
+  return backgroundSetup ? null : "exiting";
+}
+
+export function withExitingWorktreeSetupRow(
+  rows: MessagesTimelineRow[],
+  placement: WorktreeSetupRowPlacement | null,
+): MessagesTimelineRow[] {
+  if (!placement?.row.exiting) return rows;
+  const index =
+    placement.anchorId === null ? 0 : rows.findIndex((row) => row.id === placement.anchorId) + 1;
+  if (index === 0 && placement.anchorId !== null) return rows;
+  return rows.toSpliced(index, 0, placement.row);
+}
+
 export type MessagesTimelineRowsInput = Parameters<typeof deriveMessagesTimelineRows>[0];
 
 interface MessagesTimelineRowsProjection {
@@ -2377,8 +2422,10 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
         a.expanded === bt.expanded
       );
     }
-    case "worktree-setup":
-      return a.snapshot === (b as typeof a).snapshot;
+    case "worktree-setup": {
+      const bw = b as typeof a;
+      return a.snapshot === bw.snapshot && a.embedded === bw.embedded;
+    }
 
     case "assistant-meta": {
       const bm = b as typeof a;

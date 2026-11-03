@@ -28,11 +28,14 @@ import {
   deriveMessagesTimelineRows,
   timelineTurnFoldRunIdsByEntryId,
   deriveMessagesTimelineRowsWithState,
+  nextWorktreeSetupRowPlacement,
+  resolveWorktreeSetupLabel,
   shouldCollapseUserMessage,
   resolveAssistantMessageCopyState,
   type MessagesTimelineRow,
   resolveTimelineIsAtEnd,
   resolveTimelineToolPresentation,
+  withExitingWorktreeSetupRow,
   workEntryDisplayLabel,
 } from "./MessagesTimeline.logic";
 
@@ -5101,6 +5104,42 @@ it("keeps the working header in place across worktree setup handoff", () => {
     },
   });
   expect(finishedRows.map((row) => row.kind)).toEqual(["message", "working", "thinking"]);
+
+  const settledPlacement = nextWorktreeSetupRowPlacement(null, settledRows);
+  const exitingPlacement = nextWorktreeSetupRowPlacement(settledPlacement, finishedRows);
+  expect(
+    withExitingWorktreeSetupRow(finishedRows, exitingPlacement).map((row) =>
+      row.kind === "worktree-setup" ? `${row.kind}:${row.exiting}` : row.kind,
+    ),
+  ).toEqual(["message", "working", "worktree-setup:true", "thinking"]);
+  const returnedPlacement = nextWorktreeSetupRowPlacement(exitingPlacement, settledRows);
+  expect(withExitingWorktreeSetupRow(settledRows, returnedPlacement)).toBe(settledRows);
+
+  const failedScript: WorktreeSetupSnapshot = {
+    ...snapshot,
+    phase: "done",
+    stages: [{ ...stage("setup-script", "done"), status: "failed" }, stage("agent", "done")],
+  };
+  const failedInput = {
+    timelineEntries: [userEntry],
+    isWorking: true,
+    activeTurnStartedAt: "2026-01-01T00:00:00Z",
+    turnDiffSummaries: [],
+    supportsConversationRollback: false,
+    worktreeSetup: failedScript,
+  };
+  const beforeTurn = computeStableMessagesTimelineRows(deriveMessagesTimelineRows(failedInput), {
+    byId: new Map(),
+    result: [],
+  });
+  const afterTurn = computeStableMessagesTimelineRows(
+    deriveMessagesTimelineRows({ ...failedInput, latestRun: liveTurn }),
+    beforeTurn,
+  );
+  expect(afterTurn.result.find((row) => row.kind === "worktree-setup")).toMatchObject({
+    embedded: true,
+  });
+  expect(resolveWorktreeSetupLabel(afterTurn.result, false, false)).toBeNull();
 });
 
 describe("failed turn transcript", () => {

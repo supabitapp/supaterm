@@ -3,11 +3,15 @@ import {
   type MessagesTimelineRowsInput,
   type MessagesTimelineRow,
   deriveMessagesTimelineRowsWithState,
+  nextWorktreeSetupRowPlacement,
   sameRowsInput,
   type StableMessagesTimelineRowsState,
   computeStableMessagesTimelineRows,
+  withExitingWorktreeSetupRow,
+  type WorktreeSetupRowPlacement,
 } from "./MessagesTimeline.logic";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { TIMELINE_ROW_EXIT_MS } from "./TimelineRowExit";
 import type { HandoffTimelineRun } from "./V2LifecycleRow";
 
 const EMPTY_TIMELINE_RUNS: ReadonlyArray<HandoffTimelineRun> = [];
@@ -75,4 +79,50 @@ export function useStableRows(
   );
   setState({ identity, source: rows, stable });
   return stable.result;
+}
+
+/**
+ * Keeps a worktree setup row that left the list where it was, marked exiting,
+ * for its exit transition. Switching lists drops it at once.
+ */
+export function useExitingWorktreeSetupRow(
+  rows: MessagesTimelineRow[],
+  identity: string,
+): MessagesTimelineRow[] {
+  const [state, setState] = useState<{
+    readonly identity: string;
+    readonly source: MessagesTimelineRow[] | null;
+    readonly placement: WorktreeSetupRowPlacement | null;
+    readonly result: MessagesTimelineRow[];
+  }>({ identity, source: null, placement: null, result: rows });
+  let current = state;
+  if (state.identity !== identity || state.source !== rows) {
+    const placement = nextWorktreeSetupRowPlacement(
+      state.identity === identity ? state.placement : null,
+      rows,
+    );
+    current = {
+      identity,
+      source: rows,
+      placement,
+      result: withExitingWorktreeSetupRow(rows, placement),
+    };
+    setState(current);
+  }
+  const exitingRow = current.placement?.row.exiting ? current.placement.row : null;
+
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- drops the exiting row once its CSS exit transition has run; the timer is cleared if the setup comes back
+  useEffect(() => {
+    if (!exitingRow) return;
+    const timeout = window.setTimeout(() => {
+      setState((latest) =>
+        latest.placement?.row === exitingRow
+          ? { ...latest, placement: null, result: latest.source ?? [] }
+          : latest,
+      );
+    }, TIMELINE_ROW_EXIT_MS);
+    return () => window.clearTimeout(timeout);
+  }, [exitingRow]);
+
+  return current.result;
 }

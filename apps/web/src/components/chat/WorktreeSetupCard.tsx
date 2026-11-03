@@ -398,7 +398,6 @@ export function WorktreeSetupCard({
           </Button>
         ) : null}
       </div>
-      {detailsOpen ? <SetupDetails snapshot={snapshot} /> : null}
     </section>
   );
 }

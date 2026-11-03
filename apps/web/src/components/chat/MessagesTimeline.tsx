@@ -28,7 +28,13 @@ import {
   McpAppTimelineRow,
 } from "./TimelineAssistantRows";
 import { V2EventTimelineRow } from "./TimelineV2EventRow";
-import { useIncrementalTimelineRows, useStableRows, useStableHandoffRuns } from "./useTimelineRows";
+import {
+  useExitingWorktreeSetupRow,
+  useIncrementalTimelineRows,
+  useStableRows,
+  useStableHandoffRuns,
+} from "./useTimelineRows";
+import { TimelineRowExit } from "./TimelineRowExit";
 import { usePaneInputOwner } from "../../chatPanes/paneScope";
 import { startTimelinePositionRestore } from "./useTimelinePositionRestore";
 import {
@@ -123,6 +129,7 @@ import {
   resolveTimelineMinimapCurrentIndex,
   resolveTimelineMinimapHasPersistentGutter,
   resolveTimelineMinimapHitStripWidth,
+  resolveWorktreeSetupLabel,
 } from "./MessagesTimeline.logic";
 import { worktreeSetupAgentStarted } from "@supaterm/client-runtime/worktree-setup";
 import type { ThreadFindMatch } from "./threadFind";
@@ -723,7 +730,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     worktreeSetup,
     awaitingApproval: awaitingUser === "approval",
   });
-  const rows = useStableRows(rawRows, listIdentityKey);
+  const rows = useExitingWorktreeSetupRow(useStableRows(rawRows, listIdentityKey), listIdentityKey);
   // Run status/timestamps churn on every stream event; the shared row context
   // must not change with them or every timeline row re-renders per event.
   const runs = useStableHandoffRuns(runsProp);
@@ -1147,6 +1154,11 @@ const ConversationTimeline = memo(function ConversationTimeline({
     backgroundWorktreeSetup,
     awaitingUser: awaitingUser !== null,
     isPreparingWorktree,
+    worktreeSetupLabel: resolveWorktreeSetupLabel(
+      rows,
+      isPreparingWorktree,
+      backgroundWorktreeSetup !== null,
+    ),
     latestRunId: latestRun?.runId ?? null,
   };
   // Mounted in both the empty and filled timeline so a thread's first turn
@@ -1536,7 +1548,7 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
   return (
     <div
       className={cn(
-        isWorkLogRow || isSubagentGroup || row.kind === "working"
+        isWorkLogRow || isSubagentGroup || row.kind === "working" || row.kind === "worktree-setup"
           ? undefined
           : row.kind === "turn-fold"
             ? "pb-1.5"
@@ -1545,7 +1557,6 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
               : (row.kind === "message" &&
                     row.message.role === "assistant" &&
                     !row.showAssistantMeta) ||
-                  row.kind === "worktree-setup" ||
                   row.kind === "event" ||
                   row.kind === "attempt-fold" ||
                   row.kind === "html-render" ||
@@ -1616,15 +1627,21 @@ function WorktreeSetupTimelineRow({
   const openTerminal = ctx.onOpenWorktreeSetupTerminal;
   const onOpenTerminal = openTerminal && terminalId ? () => openTerminal(terminalId) : null;
   return (
-    <WorktreeSetupCard
-      snapshot={row.snapshot}
-      embedded={row.embedded}
-      onCancel={row.embedded ? null : ctx.onCancelWorktreeSetup}
-      onWorkLocally={
-        !row.embedded && row.snapshot.phase === "running" ? ctx.onWorktreeSetupWorkLocally : null
-      }
-      onOpenTerminal={onOpenTerminal}
-    />
+    <TimelineRowExit exiting={row.exiting === true}>
+      <div className="pb-2">
+        <WorktreeSetupCard
+          snapshot={row.snapshot}
+          embedded={row.embedded}
+          onCancel={row.embedded ? null : ctx.onCancelWorktreeSetup}
+          onWorkLocally={
+            !row.embedded && row.snapshot.phase === "running"
+              ? ctx.onWorktreeSetupWorkLocally
+              : null
+          }
+          onOpenTerminal={onOpenTerminal}
+        />
+      </div>
+    </TimelineRowExit>
   );
 }
 
