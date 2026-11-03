@@ -269,7 +269,7 @@ index ce1fe00001c9e5aee6c6ea8bb2d4757d4586d002..de20c973b23dce9432eea8a5e652eed1
       * Number of columns to render items in.
       * @default 1
 diff --git a/react-native.js b/react-native.js
-index b3c5a306b293f797a8b338adfca3060c0f6db22b..f072315796fc723152957b84e48304836f687b91 100644
+index b3c5a306b293f797a8b338adfca3060c0f6db22b..552c00a23dbe4308045f6555096d0f138b65808f 100644
 --- a/react-native.js
 +++ b/react-native.js
 @@ -717,6 +717,15 @@ function hasActiveInitialScroll(state) {
@@ -659,7 +659,7 @@ index b3c5a306b293f797a8b338adfca3060c0f6db22b..f072315796fc723152957b84e4830483
      return;
    }
 -  if (Platform.OS !== "web" && Platform.OS !== "android" && Math.abs(bootstrapInitialScroll.seedContentOffset - resolvedOffset) <= 1 && Math.abs(getObservedBootstrapInitialScrollOffset(state) - resolvedOffset) <= 1) {
-+  // T3 patch: a re-armed session keeps its mount seed, but a native scroll event at the target
++  // Supaterm patch: a re-armed session keeps its mount seed, but a native scroll event at the target
 +  // proves the landing too. Dispatching there would wait out the fallback for an event UIKit never sends.
 +  const didNativeReachResolvedOffset = typeof state.lastNativeScroll === "number" && Math.abs(state.lastNativeScroll - resolvedOffset) <= 1;
 +  if (Platform.OS !== "web" && Platform.OS !== "android" && (Math.abs(bootstrapInitialScroll.seedContentOffset - resolvedOffset) <= 1 || didNativeReachResolvedOffset) && Math.abs(getObservedBootstrapInitialScrollOffset(state) - resolvedOffset) <= 1) {
@@ -711,7 +711,7 @@ index b3c5a306b293f797a8b338adfca3060c0f6db22b..f072315796fc723152957b84e4830483
    }
    if (result.didChange) {
      maybeUpdateAnchoredEndSpace(ctx);
-+    // T3 patch: size MVCP is what moves an in-flight initial scroll's target as rows measure.
++    // Supaterm patch: size MVCP is what moves an in-flight initial scroll's target as rows measure.
 +    // Without it, re-aim an index target at its measured offset, or the scroll lands on its estimate.
 +    // A drag leaves this 3.3.5 session in flight; the user owns the scroll from then on.
 +    if (((_b = state.scrollingTo) == null ? void 0 : _b.isInitialScroll) && !state.didUserDrag && ((_c = state.initialScrollSession) == null ? void 0 : _c.kind) !== "offset" && !state.props.maintainVisibleContentPosition.size) {
@@ -954,7 +954,7 @@ index b3c5a306b293f797a8b338adfca3060c0f6db22b..f072315796fc723152957b84e4830483
        recycleItems,
        refreshControl: refreshControlElement ? stylePaddingTopState > 0 ? React2__namespace.cloneElement(refreshControlElement, {
 diff --git a/react-native.mjs b/react-native.mjs
-index 40e87cda8c9bc79a889e5542f29af429a24b24d4..ee4b792d78a73563477e6be89c8c937a6dc8e3bf 100644
+index 40e87cda8c9bc79a889e5542f29af429a24b24d4..c59407787c8eb3ee679539cef08636a3f4db6f52 100644
 --- a/react-native.mjs
 +++ b/react-native.mjs
 @@ -696,6 +696,15 @@ function hasActiveInitialScroll(state) {
@@ -1344,7 +1344,7 @@ index 40e87cda8c9bc79a889e5542f29af429a24b24d4..ee4b792d78a73563477e6be89c8c937a
      return;
    }
 -  if (Platform.OS !== "web" && Platform.OS !== "android" && Math.abs(bootstrapInitialScroll.seedContentOffset - resolvedOffset) <= 1 && Math.abs(getObservedBootstrapInitialScrollOffset(state) - resolvedOffset) <= 1) {
-+  // T3 patch: a re-armed session keeps its mount seed, but a native scroll event at the target
++  // Supaterm patch: a re-armed session keeps its mount seed, but a native scroll event at the target
 +  // proves the landing too. Dispatching there would wait out the fallback for an event UIKit never sends.
 +  const didNativeReachResolvedOffset = typeof state.lastNativeScroll === "number" && Math.abs(state.lastNativeScroll - resolvedOffset) <= 1;
 +  if (Platform.OS !== "web" && Platform.OS !== "android" && (Math.abs(bootstrapInitialScroll.seedContentOffset - resolvedOffset) <= 1 || didNativeReachResolvedOffset) && Math.abs(getObservedBootstrapInitialScrollOffset(state) - resolvedOffset) <= 1) {
@@ -1396,7 +1396,7 @@ index 40e87cda8c9bc79a889e5542f29af429a24b24d4..ee4b792d78a73563477e6be89c8c937a
    }
    if (result.didChange) {
      maybeUpdateAnchoredEndSpace(ctx);
-+    // T3 patch: size MVCP is what moves an in-flight initial scroll's target as rows measure.
++    // Supaterm patch: size MVCP is what moves an in-flight initial scroll's target as rows measure.
 +    // Without it, re-aim an index target at its measured offset, or the scroll lands on its estimate.
 +    // A drag leaves this 3.3.5 session in flight; the user owns the scroll from then on.
 +    if (((_b = state.scrollingTo) == null ? void 0 : _b.isInitialScroll) && !state.didUserDrag && ((_c = state.initialScrollSession) == null ? void 0 : _c.kind) !== "offset" && !state.props.maintainVisibleContentPosition.size) {
@@ -1639,7 +1639,7 @@ index 40e87cda8c9bc79a889e5542f29af429a24b24d4..ee4b792d78a73563477e6be89c8c937a
        recycleItems,
        refreshControl: refreshControlElement ? stylePaddingTopState > 0 ? React2.cloneElement(refreshControlElement, {
 diff --git a/react-native.web.js b/react-native.web.js
-index 914d2dafaafa001c9ab6791a0a0581659295e333..0ad9e4d5441e50f3907d73b9b94c3ace9f031772 100644
+index 914d2dafaafa001c9ab6791a0a0581659295e333..78e2e7da45b0d01520bebef57c62d069a87a23c0 100644
 --- a/react-native.web.js
 +++ b/react-native.web.js
 @@ -4343,7 +4343,7 @@ function calculateItemsInView(ctx, params = {}) {
@@ -1664,7 +1664,7 @@ index 914d2dafaafa001c9ab6791a0a0581659295e333..0ad9e4d5441e50f3907d73b9b94c3ace
    }
    if (result.didChange) {
      maybeUpdateAnchoredEndSpace(ctx);
-+    // T3 patch: size MVCP is what moves an in-flight initial scroll's target as rows measure.
++    // Supaterm patch: size MVCP is what moves an in-flight initial scroll's target as rows measure.
 +    // Without it, re-aim an index target at its measured offset, or the scroll lands on its estimate.
 +    // A drag leaves this 3.3.5 session in flight; the user owns the scroll from then on.
 +    if (((_b = state.scrollingTo) == null ? void 0 : _b.isInitialScroll) && !state.didUserDrag && ((_c = state.initialScrollSession) == null ? void 0 : _c.kind) !== "offset" && !state.props.maintainVisibleContentPosition.size) {
@@ -1809,7 +1809,7 @@ index 914d2dafaafa001c9ab6791a0a0581659295e333..0ad9e4d5441e50f3907d73b9b94c3ace
      }
    }
 diff --git a/react-native.web.mjs b/react-native.web.mjs
-index 95465f2ab89ce41a10553f58af83618f7310e83c..e54ea45f0b2368d496aeb9e2a835a72ab81a1c39 100644
+index 95465f2ab89ce41a10553f58af83618f7310e83c..3b27efd53fd35248146ec077982103ba827dc421 100644
 --- a/react-native.web.mjs
 +++ b/react-native.web.mjs
 @@ -4322,7 +4322,7 @@ function calculateItemsInView(ctx, params = {}) {
@@ -1834,7 +1834,7 @@ index 95465f2ab89ce41a10553f58af83618f7310e83c..e54ea45f0b2368d496aeb9e2a835a72a
    }
    if (result.didChange) {
      maybeUpdateAnchoredEndSpace(ctx);
-+    // T3 patch: size MVCP is what moves an in-flight initial scroll's target as rows measure.
++    // Supaterm patch: size MVCP is what moves an in-flight initial scroll's target as rows measure.
 +    // Without it, re-aim an index target at its measured offset, or the scroll lands on its estimate.
 +    // A drag leaves this 3.3.5 session in flight; the user owns the scroll from then on.
 +    if (((_b = state.scrollingTo) == null ? void 0 : _b.isInitialScroll) && !state.didUserDrag && ((_c = state.initialScrollSession) == null ? void 0 : _c.kind) !== "offset" && !state.props.maintainVisibleContentPosition.size) {
@@ -1957,7 +1957,7 @@ index 95465f2ab89ce41a10553f58af83618f7310e83c..e54ea45f0b2368d496aeb9e2a835a72a
      }
    }
 diff --git a/react.js b/react.js
-index 914d2dafaafa001c9ab6791a0a0581659295e333..e4162e72f6d036e663d742671b1e59e1dd1fccd0 100644
+index 914d2dafaafa001c9ab6791a0a0581659295e333..361f077e2147f2fdf4b5b8b25148ca6993e34ff7 100644
 --- a/react.js
 +++ b/react.js
 @@ -1908,6 +1908,10 @@ function updateScroll(ctx, newScroll, forceUpdate, options) {
@@ -2097,7 +2097,7 @@ index 914d2dafaafa001c9ab6791a0a0581659295e333..e4162e72f6d036e663d742671b1e59e1
    }
    if (result.didChange) {
      maybeUpdateAnchoredEndSpace(ctx);
-+    // T3 patch: size MVCP is what moves an in-flight initial scroll's target as rows measure.
++    // Supaterm patch: size MVCP is what moves an in-flight initial scroll's target as rows measure.
 +    // Without it, re-aim an index target at its measured offset, or the scroll lands on its estimate.
 +    // A drag leaves this 3.3.5 session in flight; the user owns the scroll from then on.
 +    if (((_b = state.scrollingTo) == null ? void 0 : _b.isInitialScroll) && !state.didUserDrag && ((_c = state.initialScrollSession) == null ? void 0 : _c.kind) !== "offset" && !state.props.maintainVisibleContentPosition.size) {
@@ -2366,7 +2366,7 @@ index 914d2dafaafa001c9ab6791a0a0581659295e333..e4162e72f6d036e663d742671b1e59e1
              scrollBy();
              if (resetPaddingRafRef.current !== void 0) {
 diff --git a/react.mjs b/react.mjs
-index 95465f2ab89ce41a10553f58af83618f7310e83c..9213d324d609bf2d205bad6d6c0676cb25c233c6 100644
+index 95465f2ab89ce41a10553f58af83618f7310e83c..30bc534268dd61f92f66ca1b3d59c540a6be0de5 100644
 --- a/react.mjs
 +++ b/react.mjs
 @@ -1887,6 +1887,10 @@ function updateScroll(ctx, newScroll, forceUpdate, options) {
@@ -2506,7 +2506,7 @@ index 95465f2ab89ce41a10553f58af83618f7310e83c..9213d324d609bf2d205bad6d6c0676cb
    }
    if (result.didChange) {
      maybeUpdateAnchoredEndSpace(ctx);
-+    // T3 patch: size MVCP is what moves an in-flight initial scroll's target as rows measure.
++    // Supaterm patch: size MVCP is what moves an in-flight initial scroll's target as rows measure.
 +    // Without it, re-aim an index target at its measured offset, or the scroll lands on its estimate.
 +    // A drag leaves this 3.3.5 session in flight; the user owns the scroll from then on.
 +    if (((_b = state.scrollingTo) == null ? void 0 : _b.isInitialScroll) && !state.didUserDrag && ((_c = state.initialScrollSession) == null ? void 0 : _c.kind) !== "offset" && !state.props.maintainVisibleContentPosition.size) {
