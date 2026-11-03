@@ -574,7 +574,13 @@ const make = Effect.gen(function* () {
         );
       if (result === null) return null;
       if (result.exitCode === 0 || result.exitCode === allowedExitCode) return result;
-      if (result.stderr.toLowerCase().includes("not a git repository")) return null;
+      const stderr = result.stderr.toLowerCase();
+      // Git 2.56 reports a gitfile whose target is gone as "gitfile does not point to a valid repository".
+      if (
+        stderr.includes("not a git repository") ||
+        stderr.includes("does not point to a valid repository")
+      )
+        return null;
       return yield* failure(
         result.stderr.trim().split(/\r?\n/)[0]?.slice(0, 1000) || "command failed",
       );
