@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { AutoLevel } from "./autoLevel.ts";
+import { AutoLevel, VOICE_LEVEL_STEP_MS } from "./autoLevel.ts";
 
-const STEP = 0.08;
+const STEP = VOICE_LEVEL_STEP_MS / 1000;
 
 /** Steps `seconds` of `loudness` at the meters' 80 ms step; returns each level. */
 function run(auto: AutoLevel, seconds: number, loudness: (time: number) => number) {
   return Array.from({ length: Math.round(seconds / STEP) }, (_, step) =>
-    auto.step(loudness(step * STEP), STEP),
+    auto.step(loudness(step * STEP)),
   );
 }
 

@@ -1,4 +1,5 @@
 import {
+  VOICE_LEVEL_STEP_MS,
   VoiceTranscriptionError,
   type VoiceRecorder,
   type VoiceRecorderStatus,
@@ -7,7 +8,6 @@ import { TRANSCRIPTION_MIN_DURATION_MS, TranscriptionError } from "@supaterm/con
 
 import { type MicrophonePreference, openMicrophone } from "./microphone";
 import pcmCaptureWorkletUrl from "./pcmCapture.worklet.ts?worker&url";
-import { VOICE_METER_STEP_MS } from "./voiceMeter";
 import { PCM_CAPTURE_PROCESSOR, VOICE_SAMPLE_RATE, wavFromPcm } from "./wav";
 
 // The worklet answers within a render quantum; a suspended context never would.
@@ -162,7 +162,7 @@ export class WebVoiceRecorder implements VoiceRecorder {
       // At least one meter step of audio at any sample rate, so each step reads all the sound since the last.
       analyser.fftSize = Math.min(
         32_768,
-        2 ** Math.ceil(Math.log2((context.sampleRate * VOICE_METER_STEP_MS) / 1000)),
+        2 ** Math.ceil(Math.log2((context.sampleRate * VOICE_LEVEL_STEP_MS) / 1000)),
       );
       const source = context.createMediaStreamSource(stream);
       source.connect(analyser);

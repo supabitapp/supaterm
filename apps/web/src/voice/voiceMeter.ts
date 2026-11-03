@@ -2,8 +2,6 @@ import { AutoLevel } from "@supaterm/client-runtime/voice-input";
 
 export const VOICE_METER_WIDTH = 90;
 export const VOICE_METER_HEIGHT = 26;
-/** One column is written per step. */
-export const VOICE_METER_STEP_MS = 80;
 
 const COLUMNS = 33;
 const ROWS = 9;
@@ -38,7 +36,7 @@ export class WriteHead {
   /** Writes a column for `loudness` dBFS and returns whether any dot changed. */
   write(loudness: number): boolean {
     this.levels.copyWithin(0, 1);
-    this.levels[HEAD] = this.auto.step(loudness, VOICE_METER_STEP_MS / 1000);
+    this.levels[HEAD] = this.auto.step(loudness);
     return this.render();
   }
 

@@ -1,4 +1,4 @@
-export { AutoLevel } from "./autoLevel.ts";
+export { AutoLevel, VOICE_LEVEL_STEP_MS } from "./autoLevel.ts";
 export {
   VoiceInputController,
   VOICE_RECORDING_LIMIT_SECONDS,

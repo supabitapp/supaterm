@@ -1,5 +1,6 @@
 import {
   AutoLevel,
+  VOICE_LEVEL_STEP_MS,
   VOICE_RECORDING_LIMIT_SECONDS,
   VoiceInputController,
   voiceInputBlocksSubmission,
@@ -13,7 +14,6 @@ import {
 
 import { VOICE_WAVEFORM_SAMPLE_COUNT } from "./voiceInputMetering";
 
-const VOICE_METERING_INTERVAL_MS = 80;
 const IDLE_STATE: VoiceInputState = { phase: "idle", error: null, errorAction: null };
 const SILENT_LEVELS: ReadonlyArray<number> = Array<number>(VOICE_WAVEFORM_SAMPLE_COUNT).fill(0);
 
@@ -216,7 +216,7 @@ export class VoiceInputSession {
   private startRecordingActivity(): void {
     this.releaseKeepAwake = this.dependencies.keepAwake();
     this.sampleRecording();
-    this.meteringInterval = setInterval(() => this.sampleRecording(), VOICE_METERING_INTERVAL_MS);
+    this.meteringInterval = setInterval(() => this.sampleRecording(), VOICE_LEVEL_STEP_MS);
   }
 
   private stopRecordingActivity(): void {
@@ -233,7 +233,7 @@ export class VoiceInputSession {
 
     const { metering } = sample;
     const loudness = typeof metering === "number" && Number.isFinite(metering) ? metering : -120;
-    const level = this.autoLevel.step(loudness, VOICE_METERING_INTERVAL_MS / 1000);
+    const level = this.autoLevel.step(loudness);
     if (level !== 0 || this.audioLevels.some((sample) => sample !== 0)) {
       this.setAudioLevels([...this.audioLevels.slice(1), level]);
     }

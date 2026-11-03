@@ -1,3 +1,4 @@
+import { VOICE_LEVEL_STEP_MS } from "@supaterm/client-runtime/voice-input";
 import { CircleAlertIcon, MicIcon, SquareIcon, XIcon } from "@supaterm/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
@@ -10,7 +11,6 @@ import type { ComposerVoiceInput } from "~/voice/useComposerVoiceInput";
 import {
   paintVoiceMeter,
   VOICE_METER_HEIGHT,
-  VOICE_METER_STEP_MS,
   VOICE_METER_WIDTH,
   WriteHead,
 } from "~/voice/voiceMeter";
@@ -120,7 +120,7 @@ function VoiceLevelMeter(props: {
     const timer = live
       ? window.setInterval(() => {
           if (!document.hidden && meter.write(props.recorder.loudness())) paint();
-        }, VOICE_METER_STEP_MS)
+        }, VOICE_LEVEL_STEP_MS)
       : undefined;
     return () => {
       window.clearInterval(timer);
