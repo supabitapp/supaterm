@@ -7,7 +7,6 @@ import { resolveRemoteWebSocketConnectionUrl } from "./remote.ts";
 import { environmentMismatchError, mapRemoteEnvironmentError } from "../connection/errors.ts";
 import type { ConnectionAttemptError, PreparedHttpAuthorization } from "../connection/model.ts";
 import { fetchRemoteEnvironmentDescriptor } from "../environment/descriptor.ts";
-import * as ClientCapabilities from "../platform/capabilities.ts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -46,7 +45,6 @@ const fetchDescriptor = Effect.fn("clientRuntime.connection.remote.fetchDescript
 });
 
 const make = Effect.gen(function* () {
-  const presentation = yield* ClientCapabilities.ClientPresentation;
   const httpClient = yield* HttpClient.HttpClient;
 
   const authorizeBearer = Effect.fn("clientRuntime.connection.remote.authorizeBearer")(
@@ -73,8 +71,6 @@ const make = Effect.gen(function* () {
         wsBaseUrl: input.wsBaseUrl,
         httpBaseUrl: input.httpBaseUrl,
         bearerToken: input.bearerToken,
-        clientMetadata: presentation.metadata,
-        connectionMethod: input.connectionMethod,
       }).pipe(
         Effect.mapError((error) => mapRemoteEnvironmentError(error, input.connectionMethod)),
         Effect.provideService(HttpClient.HttpClient, httpClient),

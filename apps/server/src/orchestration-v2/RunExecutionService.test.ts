@@ -1416,7 +1416,6 @@ it.effect("ingests new member threads of an owned child after the root turn term
     const subagentNodeId = NodeId.make("node:run-execution-late-child:subagent");
     const childMessageIngested = yield* Deferred.make<void>();
     const order = yield* Ref.make<ReadonlyArray<string>>([]);
-    const origins = yield* Ref.make<ReadonlyArray<readonly [string, unknown]>>([]);
     const layerTest = RunExecutionService.layer.pipe(
       Layer.provide(
         Layer.mergeAll(
@@ -1443,11 +1442,6 @@ it.effect("ingests new member threads of an owned child after the root turn term
           Layer.mock(ProviderEventIngestor.ProviderEventIngestorV2)({
             ingestNormalized: (input) =>
               Effect.gen(function* () {
-                const eventType = input.event.type;
-                yield* Ref.update(origins, (current) => [
-                  ...current,
-                  [eventType, input.analyticsContext?.origin] as const,
-                ]);
                 if (
                   input.event.type === "app_thread.created" &&
                   input.event.appThread.id === memberThreadId
@@ -1636,19 +1630,6 @@ it.effect("ingests new member threads of an owned child after the root turn term
     );
     assert.isTrue(Option.isSome(observed), "child message was not ingested after root terminal");
     assert.deepEqual(yield* Ref.get(order), ["root-finalized", "member-thread", "child-message"]);
-    // The run's message started the root; the parent agent started the child's turn.
-    const recorded = yield* Ref.get(origins);
-    assert.deepEqual(recorded[0], [
-      "app_thread.created",
-      { createdBy: "user", creationSource: "web", scheduled: false, subagent: false },
-    ]);
-    assert.deepEqual(
-      recorded.find(([type]) => type === "provider_turn.updated"),
-      [
-        "provider_turn.updated",
-        { createdBy: "agent", creationSource: "provider", scheduled: false, subagent: true },
-      ],
-    );
   }),
 );
 

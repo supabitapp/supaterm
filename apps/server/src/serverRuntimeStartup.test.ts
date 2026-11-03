@@ -16,7 +16,6 @@ import { HttpServer } from "effect/http";
 import * as NetAddress from "effect/net/NetAddress";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
-import * as FileSystem from "effect/FileSystem";
 import * as Fiber from "effect/Fiber";
 import * as Exit from "effect/Exit";
 import * as Ref from "effect/Ref";
@@ -44,8 +43,6 @@ import * as ProjectService from "./project/ProjectService.ts";
 import { ServerActivation } from "./serverActivation.ts";
 import * as ServerLifecycleEvents from "./serverLifecycleEvents.ts";
 import * as ServerSettings from "./serverSettings.ts";
-import * as ServerSecretStore from "./auth/ServerSecretStore.ts";
-import * as AnalyticsService from "./telemetry/AnalyticsService.ts";
 
 it.effect.each([
   "disabled-codex",
@@ -174,7 +171,6 @@ it.effect.each([
                 }),
         }),
         Layer.mock(ThreadManagement.ThreadManagementService)({
-          countThreads: () => Effect.succeed(0),
           listActiveShellIndex: () => Effect.succeed([]),
         }),
         Layer.mock(ThreadLaunch.ThreadLaunchService)({
@@ -203,10 +199,6 @@ it.effect.each([
           prepareTrial: Effect.succeed(undefined),
         }),
         Layer.mock(GitVcsDriver.GitVcsDriver)({}),
-        Layer.mock(AnalyticsService.AnalyticsService)({}),
-        // No provider logins or Connect link, so startup records no owners.
-        FileSystem.layerNoop({}),
-        Layer.mock(ServerSecretStore.ServerSecretStore)({ get: () => Effect.succeedNone }),
         Layer.mock(EnvironmentAuth.EnvironmentAuth)({}),
         Layer.mock(ExternalLauncher.ExternalLauncher)({}),
         Layer.mock(HttpServer.HttpServer)({

@@ -214,7 +214,6 @@
   "src/sourceControl/SourceControlRepositoryService.test.ts": 0.6,
   "src/startupAccess.test.ts": 0.5,
   "src/storageCleanup.test.ts": 6.5,
-  "src/telemetry/AnalyticsService.test.ts": 0.6,
   "src/terminal/Manager.test.ts": 1.9,
   "src/textGeneration/AntigravityTextGeneration.test.ts": 0.6,
   "src/textGeneration/ClaudeTextGeneration.test.ts": 0.9,

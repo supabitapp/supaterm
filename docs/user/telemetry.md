@@ -1,28 +1,11 @@
-# Product usage data
+# Telemetry
 
-The Supaterm server sends product usage events to PostHog through `https://ingest.supaterm.com`,
-associated with a hashed account or installation identifier. To count how many installations one person
-uses, the server also sends hashed identifiers for your OpenAI and Claude accounts when you are signed
-in, and a random identifier for each device that connects. Events include the provider, the model
-for built-in Codex, Claude, Cursor, Grok, and Antigravity models (custom model names are never sent),
-reasoning effort, permission mode, turn result, duration, release channel, and main-agent token totals when available.
-They also record which features and MCP tools are used, client operation outcomes, and delegated-task
-results, durations, and provider/model choices.
+Supaterm does not collect product usage data. Servers send no usage events or identifiers to us.
 
-Events do not include prompts, responses, file contents, authentication tokens, conversation IDs,
-raw provider events, or child-agent output. Child-agent token use is excluded from the totals.
-
-To stop collection for an environment, turn off **Product usage data** in **Settings > About**, or
-under **Settings > Maintenance > Privacy** in the mobile app. On the server's machine, you can also
-run `supaterm settings set telemetryEnabled false`. Events stop at once, and events not yet sent
-are discarded. If the settings file cannot be read, Supaterm treats the setting as off until the
-file is fixed.
-
-`SUPATERM_TELEMETRY_ENABLED` in the server's environment overrides the setting: `false` turns
-collection off and `true` turns it on, whatever the setting says. Settings shows when the variable
-decides. The desktop app reads the variable from your shell profile (for example `~/.zshrc`) on
-macOS and Linux. On Windows, set it as a user environment variable. Restart the app after changing
-it.
+Earlier releases sent product usage events by default. To stop a server you have not updated, turn
+off **Product usage data** in that version's **Settings > About**, run
+`supaterm settings set telemetryEnabled false` on its machine, or set
+`SUPATERM_TELEMETRY_ENABLED=false` in its environment and restart it.
 
 ## Export diagnostics to your own receiver
 

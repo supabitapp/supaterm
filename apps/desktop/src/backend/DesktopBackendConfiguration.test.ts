@@ -687,12 +687,10 @@ describe("DesktopBackendConfiguration", () => {
 
       const previousWslEnv = process.env.WSLENV;
       const previousDisabled = process.env.OTEL_SDK_DISABLED;
-      const previousTelemetry = process.env.SUPATERM_TELEMETRY_ENABLED;
       const previousResourceAttributes = process.env.OTEL_RESOURCE_ATTRIBUTES;
       try {
         delete process.env.WSLENV;
         process.env.OTEL_SDK_DISABLED = "true";
-        process.env.SUPATERM_TELEMETRY_ENABLED = "false";
         process.env.OTEL_RESOURCE_ATTRIBUTES = "deployment.environment.name=staging";
 
         yield* Effect.gen(function* () {
@@ -701,8 +699,6 @@ describe("DesktopBackendConfiguration", () => {
 
           assert.equal(config.env.OTEL_SDK_DISABLED, "true");
           assert.include((config.env.WSLENV ?? "").split(":"), "OTEL_SDK_DISABLED");
-          assert.equal(config.env.SUPATERM_TELEMETRY_ENABLED, "false");
-          assert.include((config.env.WSLENV ?? "").split(":"), "SUPATERM_TELEMETRY_ENABLED");
           assert.equal(config.env.OTEL_RESOURCE_ATTRIBUTES, "deployment.environment.name=staging");
           assert.include((config.env.WSLENV ?? "").split(":"), "OTEL_RESOURCE_ATTRIBUTES");
         }).pipe(
@@ -725,7 +721,6 @@ describe("DesktopBackendConfiguration", () => {
       } finally {
         restoreEnv("WSLENV", previousWslEnv);
         restoreEnv("OTEL_SDK_DISABLED", previousDisabled);
-        restoreEnv("SUPATERM_TELEMETRY_ENABLED", previousTelemetry);
         restoreEnv("OTEL_RESOURCE_ATTRIBUTES", previousResourceAttributes);
       }
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),

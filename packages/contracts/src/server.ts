@@ -324,8 +324,6 @@ export const ServerObservability = Schema.Struct({
   otlpLogsSource: Schema.optional(OtlpEndpointSource),
   otlpLogsVariable: Schema.optional(TrimmedNonEmptyString),
   otlpLogsEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-  /** `SUPATERM_TELEMETRY_ENABLED` when set; it overrides the `telemetryEnabled` setting. */
-  telemetryEnabledByEnvironment: Schema.optional(Schema.Boolean),
 });
 export type ServerObservability = typeof ServerObservability.Type;
 

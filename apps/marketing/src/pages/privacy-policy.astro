@@ -22,7 +22,7 @@ const sections = [
   heading="Supaterm Privacy Policy"
   lede="This Privacy Policy describes how Supaterm Limited collects, uses, and shares personal information when you use the Supaterm desktop, mobile, and hosted web applications or visit the supaterm.com marketing site."
   effectiveDate="2026-07-14"
-  lastUpdated="2026-11-01"
+  lastUpdated="2026-11-03"
   sections={sections}
 >
   <section id="introduction">
@@ -63,13 +63,14 @@ const sections = [
           </p>
           <ul>
             <li>
-              <strong>Product usage data.</strong> By default, Supaterm sends us usage data such as
-              which provider and model a turn used, whether it succeeded, and your app
-              version and operating system. Events include a hashed Codex account ID or Claude user
-              ID when available, or a hashed installation identifier otherwise. This identifier
-              lets us associate events from the same account or installation. We use this data to
-              improve the product. You can turn this off at any time; see “Product Usage Data”
-              under Your Choices below.
+              <strong>Product usage data from earlier versions.</strong> Supaterm no longer sends us
+              product usage data. Earlier versions sent usage data by default, such as which
+              provider and model a turn used, whether it succeeded, and your app version and
+              operating system. Those events include a hashed Codex account ID or Claude user ID
+              when available, or a hashed installation identifier otherwise. This identifier lets
+              us associate events from the same account or installation. We use this data to
+              improve the product. To stop an earlier version from sending it, see “Product Usage
+              Data” under Your Choices below.
             </li>
             <li>
               <strong>Information you provide to us.</strong> We collect information that you choose
@@ -204,7 +205,7 @@ const sections = [
             </li>
             <li>
               <strong>PostHog</strong> <em>(PostHog, Inc.)</em>.<br />
-              We use PostHog to receive and analyze product usage data.<br />
+              We use PostHog to analyze product usage data sent by earlier versions of Supaterm.<br />
               You can view PostHog's privacy policy here:{" "}<a href="https://posthog.com/privacy"
                 >https://posthog.com/privacy</a
 
@@ -291,10 +292,11 @@ const sections = [
 
           <h3>Product Usage Data</h3>
           <p>
-            To stop sending product usage data, turn off{" "}<strong>Product usage data</strong>{" "}in
+            Supaterm no longer sends product usage data. To stop an earlier version from sending
+            it, update Supaterm, or turn off{" "}<strong>Product usage data</strong>{" "}in
             {" "}<strong>Settings → About</strong>. You can also set the environment variable{" "}
-            <code>SUPATERM_TELEMETRY_ENABLED=false</code>{" "}where Supaterm runs, for example in your
-            shell profile, and restart Supaterm. The variable takes precedence over the setting.
+            <code>SUPATERM_TELEMETRY_ENABLED=false</code>{" "}where that version runs, for example in
+            your shell profile, and restart it. The variable takes precedence over the setting.
           </p>
 
           <h3>Cookies and Local Data</h3>

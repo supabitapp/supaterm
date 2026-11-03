@@ -1,4 +1,3 @@
-import { MobileStorage } from "../persistence/mobile-storage";
 import {
   ClientCapabilities,
   PlatformConnectionSource,
@@ -136,12 +135,6 @@ const layerCapabilities = Layer.succeedContext(
     ClientCapabilities.PrimaryEnvironmentAuth,
     ClientCapabilities.PrimaryEnvironmentAuth.of({ bearerToken: Effect.succeed(Option.none()) }),
   ).pipe(
-    Context.add(ClientCapabilities.AnalyticsDevice, {
-      id: Effect.flatMap(MobileStorage, (storage) => storage.loadOrCreateDeviceId).pipe(
-        Effect.provide(Runtime.layer),
-        Effect.option,
-      ),
-    }),
     Context.add(
       ClientCapabilities.ClientPresentation,
       ClientCapabilities.ClientPresentation.of({

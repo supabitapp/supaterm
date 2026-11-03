@@ -124,10 +124,6 @@ const EnvServerConfig = Config.all({
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  telemetryEnabled: Config.Boolean("SUPATERM_TELEMETRY_ENABLED").pipe(
-    Config.option,
-    Config.map(Option.getOrUndefined),
-  ),
   otlpExportIntervalMs: Config.Int("SUPATERM_OTLP_EXPORT_INTERVAL_MS").pipe(
     Config.withDefault(10_000),
   ),
@@ -486,9 +482,6 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
     ...(logs !== undefined ? { otlpLogsSource: logs.source } : {}),
     ...(logs?.variable !== undefined ? { otlpLogsVariable: logs.variable } : {}),
     otelEnvironment: otel,
-    ...(env.telemetryEnabled === undefined
-      ? {}
-      : { telemetryEnabledByEnvironment: env.telemetryEnabled }),
     mode,
     port,
     cwd,

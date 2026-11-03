@@ -139,16 +139,11 @@ vi.mock("./settings-environment-filter", () => ({
 }));
 
 import {
-  SettingsEnvironmentMaintenanceRouteScreen,
   SettingsThreadsRouteScreen,
   SettingsWorktreesRouteScreen,
 } from "./SettingsServerControlsRouteScreen";
 
-function environment(
-  environmentId: string,
-  label: string,
-  capabilities: { readonly telemetrySetting?: boolean } = {},
-) {
+function environment(environmentId: string, label: string) {
   return {
     environmentId,
     label,
@@ -160,7 +155,7 @@ function environment(
         sidebarAutoMarkDoneOnMerge: false,
       },
       environment: {
-        capabilities,
+        capabilities: {},
       },
       observability: {},
     },
@@ -185,11 +180,6 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
 });
-
-const switchLabeled = (label: string) =>
-  [...container.querySelectorAll<HTMLButtonElement>('[role="switch"]')].find(
-    (button) => button.textContent === label,
-  );
 
 describe("SettingsServerControlsRouteScreen", () => {
   it("sends a draft saved during a pending write once that write settles", async () => {
@@ -229,18 +219,6 @@ describe("SettingsServerControlsRouteScreen", () => {
     // Both rewrite the whole project override, so a second write planned now would drop the first.
     expect(mocks.updateSettings).toHaveBeenCalledOnce();
     await act(async () => pending.resolve(AsyncResult.success(undefined)));
-  });
-
-  it("turns product usage data off on servers that read the setting", () => {
-    mocks.targets = [environment("local", "Local", { telemetrySetting: true })];
-    act(() => root.render(<SettingsEnvironmentMaintenanceRouteScreen />));
-
-    act(() => switchLabeled("Product usage data")!.click());
-
-    expect(mocks.updateSettings).toHaveBeenCalledWith({
-      environmentId: "local",
-      input: { patch: { telemetryEnabled: false } },
-    });
   });
 
   it("disables auto-mark-done when a selected environment cannot save settings", () => {

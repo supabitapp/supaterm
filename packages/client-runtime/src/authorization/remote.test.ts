@@ -3,7 +3,6 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
 import { EnvironmentAuthInvalidError } from "@supaterm/contracts";
-import { hashTelemetryId } from "@supaterm/shared/telemetryId";
 import {
   bootstrapRemoteBearerSession,
   issueRemoteWebSocketTicket,
@@ -11,7 +10,6 @@ import {
 } from "./remote.ts";
 import { mapRemoteEnvironmentError } from "../connection/errors.ts";
 import { fetchRemoteEnvironmentDescriptor } from "../environment/descriptor.ts";
-import * as ClientCapabilities from "../platform/capabilities.ts";
 import * as RpcHttp from "../rpc/http.ts";
 
 const isEnvironmentAuthInvalidError = Schema.is(EnvironmentAuthInvalidError);
@@ -182,20 +180,9 @@ describe("remote environment authorization", () => {
         wsBaseUrl: "wss://remote.example.com/",
         httpBaseUrl: "https://remote.example.com/",
         bearerToken: "bearer-token",
-        clientMetadata: {
-          surface: "mobile",
-          appVersion: "1.2.3",
-          deviceType: "mobile",
-          os: "Android",
-          osMajorVersion: 15,
-          deviceModel: "Pixel 9",
-        },
-        connectionMethod: "ssh",
       }).pipe(provideRemoteHttp(fetch.fetchFn));
 
-      expect(url).toBe(
-        "wss://remote.example.com/ws?wsTicket=ws-ticket&clientSurface=mobile&clientAppVersion=1.2.3&clientDeviceType=phone&clientOs=Android&clientOsMajorVersion=15&clientDeviceModel=Pixel+9&connectionMethod=ssh",
-      );
+      expect(url).toBe("wss://remote.example.com/ws?wsTicket=ws-ticket");
     }),
   );
 
@@ -217,31 +204,6 @@ describe("remote environment authorization", () => {
         "https://remote.example.com/api/auth/websocket-ticket",
       ]);
       expect(new URL(url).searchParams.get("wsTicket")).toBe("old-ticket");
-    }),
-  );
-
-  it.effect("identifies this device by hash only", () =>
-    Effect.gen(function* () {
-      const fetch = recordedFetch(
-        Response.json({ ticket: "ws-ticket", expiresAt: "2026-05-01T12:05:00.000Z" }),
-      );
-
-      const url = new URL(
-        yield* resolveRemoteWebSocketConnectionUrl({
-          wsBaseUrl: "wss://remote.example.com/",
-          httpBaseUrl: "https://remote.example.com/",
-          bearerToken: "bearer-token",
-        }).pipe(
-          provideRemoteHttp(fetch.fetchFn),
-          Effect.provideService(ClientCapabilities.AnalyticsDevice, {
-            id: Effect.succeedSome("device-1"),
-          }),
-        ),
-      );
-
-      expect(url.searchParams.has("clientOwner")).toBe(false);
-      expect(url.searchParams.get("clientDevice")).toBe(hashTelemetryId("device-1"));
-      expect(url.toString()).not.toContain("device-1");
     }),
   );
 });

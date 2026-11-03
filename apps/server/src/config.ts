@@ -23,7 +23,7 @@ import packageJson from "../package.json" with { type: "json" };
 // Official release workflows set this telemetry channel; other builds report dev.
 // Unlike __SUPATERM_BUILD_CHANNEL__, this is not the sign-in page's latest/nightly channel.
 declare const __SUPATERM_TELEMETRY_CHANNEL__: ReleaseChannel | undefined;
-export const telemetryChannel: ReleaseChannel =
+const telemetryChannel: ReleaseChannel =
   typeof __SUPATERM_TELEMETRY_CHANNEL__ === "undefined" ? "dev" : __SUPATERM_TELEMETRY_CHANNEL__;
 
 export const RuntimeMode = Schema.Literals(["web", "desktop"]);
@@ -47,7 +47,6 @@ export interface ServerDerivedPaths {
   readonly providerLogsDir: string;
   readonly providerEventLogPath: string;
   readonly terminalLogsDir: string;
-  readonly anonymousIdPath: string;
   readonly environmentIdPath: string;
   readonly serverRuntimeStatePath: string;
   readonly secretsDir: string;
@@ -79,8 +78,6 @@ export class ServerConfig extends Context.Service<
     readonly otlpLogsSource?: OtlpEndpointSource;
     readonly otlpLogsVariable?: string;
     readonly otelEnvironment: OtelEnvironment.OtelEnvironment;
-    /** `SUPATERM_TELEMETRY_ENABLED` when set; it overrides the `telemetryEnabled` setting. */
-    readonly telemetryEnabledByEnvironment?: boolean | undefined;
     readonly mode: RuntimeMode;
     readonly port: number;
     readonly host: string | undefined;
@@ -163,7 +160,6 @@ export const deriveServerPaths = Effect.fn(function* (
     providerLogsDir,
     providerEventLogPath: join(providerLogsDir, "events.log"),
     terminalLogsDir: join(logsDir, "terminals"),
-    anonymousIdPath: join(stateDir, "anonymous-id"),
     environmentIdPath: join(stateDir, "environment-id"),
     serverRuntimeStatePath: join(stateDir, "server-runtime.json"),
     secretsDir: join(stateDir, "secrets"),
@@ -185,7 +181,6 @@ export const ensureServerDirectories = Effect.fn(function* (derivedPaths: Server
       fs.makeDirectory(path.dirname(derivedPaths.keybindingsConfigPath), { recursive: true }),
       fs.makeDirectory(path.dirname(derivedPaths.settingsPath), { recursive: true }),
       fs.makeDirectory(derivedPaths.providerStatusCacheDir, { recursive: true }),
-      fs.makeDirectory(path.dirname(derivedPaths.anonymousIdPath), { recursive: true }),
       fs.makeDirectory(path.dirname(derivedPaths.serverRuntimeStatePath), { recursive: true }),
     ],
     { concurrency: "unbounded" },

@@ -30,7 +30,6 @@ const SETTABLE_SETTINGS = {
   enableProviderUpdateChecks: BOOLEAN_SETTING,
   nextPromptSuggestionsEnabled: BOOLEAN_SETTING,
   continueThreadsAfterServerUpdate: BOOLEAN_SETTING,
-  telemetryEnabled: BOOLEAN_SETTING,
   enableAgentBrowserAccess: BOOLEAN_SETTING,
   defaultAutoPull: BOOLEAN_SETTING,
   defaultRuntimeMode: { kind: "string", expected: RuntimeMode.literals.join(" | ") },

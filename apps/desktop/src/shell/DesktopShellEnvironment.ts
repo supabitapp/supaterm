@@ -94,7 +94,6 @@ const LOGIN_SHELL_ENV_NAMES = [
   "SSL_CERT_FILE",
   "SSL_CERT_DIR",
   "NODE_EXTRA_CA_CERTS",
-  "SUPATERM_TELEMETRY_ENABLED",
   "__MISE_DIFF",
 ] as const;
 const WINDOWS_PROFILE_ENV_NAMES = ["PATH", "FNM_DIR", "FNM_MULTISHELL_PATH"] as const;
@@ -449,7 +448,6 @@ const installPosixEnvironment = Effect.fn("desktop.shellEnvironment.installPosix
       "SSL_CERT_FILE",
       "SSL_CERT_DIR",
       "NODE_EXTRA_CA_CERTS",
-      "SUPATERM_TELEMETRY_ENABLED",
     ] as const) {
       if (!config.env[name] && shellEnvironment[name]) {
         config.env[name] = shellEnvironment[name];

@@ -33,17 +33,6 @@ const tunnelTransport = (request: HttpServerRequest.HttpServerRequest) =>
     ? request.source.socket.transport
     : undefined;
 
-export const tunnelConnectionMethod = (request: HttpServerRequest.HttpServerRequest) => {
-  switch (tunnelTransport(request)) {
-    case "relay":
-      return "relay" as const;
-    case "direct":
-      return "direct-tunnel" as const;
-    case undefined:
-      return undefined;
-  }
-};
-
 export const isRelayPath = (pathname: string) =>
   pathname === "/ws" ||
   pathname.startsWith("/api/") ||

@@ -486,11 +486,9 @@ const make = Effect.gen(function* () {
       const decoded = decodeServerSettingsJsonExit(raw);
       if (decoded._tag === "Failure") {
         const metadata = decodePersistedServerSettingsMetadataJsonExit(raw);
-        // The unreadable file may hold an opt-out, so telemetry stays off until it is fixed.
         settings = {
           ...settings,
           continueThreadsAfterServerUpdate: false,
-          telemetryEnabled: false,
           publicRelayEnabled:
             metadata._tag === "Success" && metadata.value.publicRelayEnabled === true,
         };
