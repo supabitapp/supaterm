@@ -8,6 +8,7 @@ import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Queue from "effect/Queue";
+import * as TestClock from "effect/testing/TestClock";
 import { HttpRouter, HttpServer } from "effect/http";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as Socket from "effect/socket/Socket";
@@ -114,70 +115,84 @@ it.effect("preserves binary input and admission frames through the real socket p
   }),
 );
 
-it.live(
+// Each viewer tick makes the hub emit one frame, skipped the way serve-emu does once its socket to
+// the proxy holds more than 512 KiB. 1024 incompressible frames overfill every buffer in between.
+const stallViewer = Effect.fn("DeviceHubProxyTest.stallViewer")(function* () {
+  const frame = crypto.getRandomValues(new Uint8Array(64 * 1024));
+  const hub = { sent: 0, skipped: 0, closed: Promise.withResolvers<void>() };
+  const handled = yield* Queue.unbounded<void>();
+  const hubPort = yield* listenHub((socket) => {
+    socket.once("close", () => hub.closed.resolve());
+    socket.on("message", () => {
+      if (socket.bufferedAmount > 512 * 1024) hub.skipped += 1;
+      else {
+        socket.send(frame);
+        hub.sent += 1;
+      }
+      Queue.offerUnsafe(handled, undefined);
+    });
+  });
+  const origin = yield* serveProxy(hubPort);
+  const viewer = yield* Effect.acquireRelease(
+    Effect.promise(() => {
+      const socket = new NodeWS.WebSocket(
+        `${origin}/api/device-hub/vendor/serve-emu/ws?wsTicket=test`,
+        { perMessageDeflate: true },
+      );
+      return new Promise<NodeWS.WebSocket>((resolve, reject) => {
+        socket.once("open", () => resolve(socket));
+        socket.once("error", reject);
+      });
+    }),
+    (socket) => Effect.sync(() => socket.terminate()),
+  );
+  viewer.pause();
+  for (let tick = 0; tick < 1024; tick += 1) {
+    viewer.send(Uint8Array.of(0));
+    yield* Queue.take(handled);
+  }
+  return { hub, viewer };
+});
+
+it.effect(
   "holds the hub back while a viewer stops reading video, then delivers every sent frame",
   () =>
     Effect.gen(function* () {
-      // Incompressible like H.264, and 1024 of them overfill every socket buffer between hub and viewer.
-      const frame = crypto.getRandomValues(new Uint8Array(64 * 1024));
-      const ticks = 1024;
-      let sent = 0;
-      let skipped = 0;
-      const handled = yield* Queue.unbounded<void>();
-      // Each viewer tick makes the hub emit one frame, skipping it the way serve-emu does once its
-      // socket to the proxy holds more than 512 KiB.
-      const hubPort = yield* listenHub((socket) => {
-        socket.on("message", () => {
-          if (socket.bufferedAmount > 512 * 1024) skipped += 1;
-          else {
-            socket.send(frame);
-            sent += 1;
-          }
-          Queue.offerUnsafe(handled, undefined);
-        });
-      });
-      const origin = yield* serveProxy(hubPort);
-      const viewer = yield* Effect.acquireRelease(
-        Effect.promise(() => {
-          const socket = new NodeWS.WebSocket(
-            `${origin}/api/device-hub/vendor/serve-emu/ws?wsTicket=test`,
-            { perMessageDeflate: true },
-          );
-          return new Promise<NodeWS.WebSocket>((resolve, reject) => {
-            socket.once("open", () => resolve(socket));
-            socket.once("error", reject);
-          });
-        }),
-        (socket) => Effect.sync(() => socket.terminate()),
-      );
+      const { hub, viewer } = yield* stallViewer();
+      expect(hub.skipped).toBeGreaterThan(0);
+      expect(viewer.extensions).toBe("");
       let received = 0;
       const delivered = Promise.withResolvers<void>();
       viewer.on("message", () => {
         received += 1;
-        if (received === sent) delivered.resolve();
+        if (received === hub.sent) delivered.resolve();
       });
-      viewer.pause();
-      for (let tick = 0; tick < ticks; tick += 1) {
-        viewer.send(Uint8Array.of(0));
-        yield* Queue.take(handled);
-      }
-      expect(skipped).toBeGreaterThan(0);
-      expect(viewer.extensions).toBe("");
       viewer.resume();
       yield* Effect.promise(() => delivered.promise);
-      expect(received).toBe(ticks - skipped);
     }),
+);
+
+it.effect("closes a viewer that stays stalled and releases its hub connection", () =>
+  Effect.gen(function* () {
+    const { hub, viewer } = yield* stallViewer();
+    yield* TestClock.adjust("10 seconds");
+    yield* Effect.promise(() => hub.closed.promise);
+    const closed = new Promise<number>((resolve) => viewer.once("close", (code) => resolve(code)));
+    viewer.resume();
+    expect(yield* Effect.promise(() => closed)).toBe(1013);
+  }),
 );
 
 it.live("closes an upstream socket that is still connecting without an unhandled error", () =>
   Effect.gen(function* () {
     const dialed = Promise.withResolvers<NodeNet.Socket>();
-    // Accepts the connection and never answers the WebSocket handshake.
+    // Accepts the connection and never answers the WebSocket handshake. It reads what arrives,
+    // since a paused socket never emits `close` for the client's FIN.
     const hub = yield* Effect.acquireRelease(
       Effect.promise(
         () =>
           new Promise<NodeNet.Server>((resolve) => {
-            const server = NodeNet.createServer((socket) => dialed.resolve(socket));
+            const server = NodeNet.createServer((socket) => dialed.resolve(socket.resume()));
             server.listen(0, "127.0.0.1", () => resolve(server));
           }),
       ),

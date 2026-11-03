@@ -84,6 +84,7 @@ const forwardHeaders = (request: HttpServerRequest.HttpServerRequest, origin: st
 };
 
 const VIEWER_BACKLOG_BYTES = 64 * 1024;
+const VIEWER_STALL_TIMEOUT = "10 seconds";
 
 // `ws` sockets pause, so a stalled viewer stops reads from the hub and serve-emu skips frames.
 // Effect drops its listeners before closing a socket that is still connecting, and `ws` then
@@ -109,8 +110,8 @@ const proxyWebSocket = Effect.fn("DeviceHubProxy.proxyWebSocket")(function* (
   // Video doesn't compress, and deflate queues frames where `writableLength` can't see them.
   delete incoming.headers["sec-websocket-extensions"];
   const viewer = incoming.socket;
-  // Checks and subscribes in one step, so a drain between the two cannot be missed.
-  const viewerCaughtUp = Effect.callback<void>((resume) => {
+  // Checks inside the callback, so a drain just before subscribing cannot be missed.
+  const viewerDrained = Effect.callback<void>((resume) => {
     if (viewer.writableLength <= VIEWER_BACKLOG_BYTES) {
       resume(Effect.void);
       return;
@@ -128,6 +129,20 @@ const proxyWebSocket = Effect.fn("DeviceHubProxy.proxyWebSocket")(function* (
     Effect.gen(function* () {
       const writeToClient = yield* client.writer;
       const writeToUpstream = yield* upstream.writer;
+      // A viewer that never drains would keep serve-emu resetting the device's video for every viewer.
+      const viewerCaughtUp = Effect.suspend(() =>
+        viewer.writableLength <= VIEWER_BACKLOG_BYTES
+          ? Effect.void
+          : viewerDrained.pipe(
+              Effect.timeoutOrElse({
+                duration: VIEWER_STALL_TIMEOUT,
+                orElse: () =>
+                  writeToClient
+                    .write(new Socket.CloseEvent(1013, "viewer too slow"))
+                    .pipe(Effect.andThen(Effect.interrupt)),
+              }),
+            ),
+      );
       // Whichever side closes first ends the other via scope teardown: a close
       // fails the pull with a SocketError, which loses the race.
       return yield* Effect.raceFirst(
@@ -144,7 +159,7 @@ const pumpFrames =
   Effect.fnUntraced(function* (
     source: Socket.Socket,
     sink: Socket.Writer,
-    sinkReady: Effect.Effect<void> = Effect.void,
+    sinkReady: Effect.Effect<void, Socket.SocketError> = Effect.void,
   ) {
     const { pull } = yield* source.reader;
     while (true) {
