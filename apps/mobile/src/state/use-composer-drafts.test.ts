@@ -705,9 +705,15 @@ describe("mobile composer drafts", () => {
           },
         ],
       });
-      expect(findLocalComposerClipboardAttachment(environmentId, file.id)).toEqual(file);
+      expect(findLocalComposerClipboardAttachment([environmentId], environmentId, file.id)).toEqual(
+        file,
+      );
       expect(
-        findLocalComposerClipboardAttachment(EnvironmentId.make("different-environment"), file.id),
+        findLocalComposerClipboardAttachment(
+          [environmentId],
+          EnvironmentId.make("different-environment"),
+          file.id,
+        ),
       ).toBeUndefined();
     },
   );
