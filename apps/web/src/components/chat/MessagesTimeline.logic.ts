@@ -2230,6 +2230,23 @@ export function nextWorktreeSetupRowPlacement(
   return { ...previous, row: { ...previous.row, exiting: true } };
 }
 
+/**
+ * A running or done card leaves its "Setting up worktree…" label to the working
+ * row, which exits with the card unless the background setup chip keeps it.
+ */
+export function resolveWorktreeSetupLabel(
+  rows: ReadonlyArray<MessagesTimelineRow>,
+  preparing: boolean,
+  backgroundSetup: boolean,
+): "shown" | "exiting" | null {
+  if (preparing) return "shown";
+  const row = rows.find((candidate) => candidate.kind === "worktree-setup");
+  if (row?.kind !== "worktree-setup" || row.embedded) return null;
+  if (row.snapshot.phase !== "running" && row.snapshot.phase !== "done") return null;
+  if (!row.exiting) return "shown";
+  return backgroundSetup ? null : "exiting";
+}
+
 export function withExitingWorktreeSetupRow(
   rows: MessagesTimelineRow[],
   placement: WorktreeSetupRowPlacement | null,

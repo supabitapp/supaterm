@@ -129,6 +129,7 @@ import {
   resolveTimelineMinimapCurrentIndex,
   resolveTimelineMinimapHasPersistentGutter,
   resolveTimelineMinimapHitStripWidth,
+  resolveWorktreeSetupLabel,
 } from "./MessagesTimeline.logic";
 import { worktreeSetupAgentStarted } from "@supaterm/client-runtime/worktree-setup";
 import type { ThreadFindMatch } from "./threadFind";
@@ -1145,18 +1146,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
     latestRun?.startedAt != null
       ? worktreeSetup
       : null;
-  const setupRow = rows.find((row) => row.kind === "worktree-setup");
-  // A running or done card leaves its "Setting up worktree…" label to the working row.
-  const setupRowLabelled =
-    setupRow?.kind === "worktree-setup" &&
-    !setupRow.embedded &&
-    (setupRow.snapshot.phase === "running" || setupRow.snapshot.phase === "done");
-  const worktreeSetupLabel =
-    isPreparingWorktree || (setupRowLabelled && !setupRow.exiting)
-      ? "shown"
-      : setupRowLabelled && backgroundWorktreeSetup === null
-        ? "exiting"
-        : null;
   const activityState: TimelineRowActivityState = {
     isWorking,
     isCompacting: compactionAwaitingRow,
@@ -1165,7 +1154,11 @@ const ConversationTimeline = memo(function ConversationTimeline({
     backgroundWorktreeSetup,
     awaitingUser: awaitingUser !== null,
     isPreparingWorktree,
-    worktreeSetupLabel,
+    worktreeSetupLabel: resolveWorktreeSetupLabel(
+      rows,
+      isPreparingWorktree,
+      backgroundWorktreeSetup !== null,
+    ),
     latestRunId: latestRun?.runId ?? null,
   };
   // Mounted in both the empty and filled timeline so a thread's first turn
