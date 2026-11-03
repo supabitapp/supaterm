@@ -16,9 +16,9 @@ import { Button } from "../ui/button";
 import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuShortcut, MenuTrigger } from "../ui/menu";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 
-/** A split pane's actions and panel toggles, folded into one menu so narrow panes keep their title. */
 export function ChatPaneActionsMenu({
   paneId,
+  paneClosable,
   showThreadPanelControl = true,
   terminalAvailable,
   terminalOpen,
@@ -32,12 +32,10 @@ export function ChatPaneActionsMenu({
   onToggleTerminal,
   onToggleThreadPanel,
   onToggleRightPanel,
-}: PanelLayoutControlsProps & { readonly paneId: string }) {
+}: PanelLayoutControlsProps & { readonly paneId: string; readonly paneClosable: boolean }) {
   const splitRightShortcut = useShortcutLabel("pane.splitRight");
   const splitDownShortcut = useShortcutLabel("pane.splitDown");
-  const closeShortcut = useShortcutLabel("pane.close", {
-    context: { paneClosable: !rightPanelOpen },
-  });
+  const closeShortcut = useShortcutLabel("pane.close", { context: { paneClosable } });
   const attention = showThreadPanelControl && threadPanelHasAttention;
   return (
     <div

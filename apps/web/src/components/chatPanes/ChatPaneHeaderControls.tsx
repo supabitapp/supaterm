@@ -7,7 +7,6 @@ import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { startPaneDrag } from "./paneHeaderDrag";
 
-/** Grip or pane switcher for a chat pane in a split; its actions live in `ChatPaneActionsMenu`. */
 export function ChatPaneHeaderControls({ title }: { title: string }) {
   const scope = usePaneScope();
   const paneId = scope?.paneId ?? null;

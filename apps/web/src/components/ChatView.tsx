@@ -3232,7 +3232,11 @@ export default function ChatView(props: ChatViewProps) {
   const splitPaneId = paneSplit ? (paneScope?.paneId ?? null) : null;
   const panelToggleControls =
     splitPaneId !== null ? (
-      <ChatPaneActionsMenu {...panelToggleControlProps} paneId={splitPaneId} />
+      <ChatPaneActionsMenu
+        {...panelToggleControlProps}
+        paneId={splitPaneId}
+        paneClosable={!activeRightPanelSurface}
+      />
     ) : (
       <PanelLayoutControls
         {...panelToggleControlProps}
