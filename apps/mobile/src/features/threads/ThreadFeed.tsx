@@ -48,6 +48,7 @@ import {
   type EnvironmentId,
   type MessageId,
   type OrchestrationV2ProjectedTurnItem,
+  type RepositoryIdentity,
   type RunId,
   type ScheduledTaskId,
   type TurnItemId,
@@ -377,6 +378,7 @@ export interface ThreadFeedProps {
   readonly threadId: ThreadId;
   readonly threadTitle: string;
   readonly workspaceRoot?: string | null;
+  readonly repositoryIdentity?: RepositoryIdentity | null;
   readonly feed: ReadonlyArray<ThreadFeedEntry>;
   readonly pendingHandoff?: HandoffEndpoints | null;
   readonly contentPresentation: ThreadContentPresentation;
@@ -1176,6 +1178,7 @@ interface MarkdownLinkHandlers {
   readonly resolveImageSource?: MarkdownImageSourceResolver;
   readonly fileEmbedLabel?: (href: string, standalone: boolean) => string | null;
   readonly linkCustomization?: (href: string) => MarkdownLinkCustomization | undefined;
+  readonly repositoryIdentity?: RepositoryIdentity | null;
 }
 
 interface MarkdownStyleSets {
@@ -3050,6 +3053,7 @@ export const ThreadFeed = memo(function ThreadFeed({
       ),
     onLinkPress: onMarkdownLinkPress,
     linkCustomization: enrichedThreadLinkCustomization,
+    repositoryIdentity: props.repositoryIdentity ?? null,
     onImagePress: (href) => onMarkdownLinkPress(href, true),
     resolveImageSource,
     fileContextMenu: (href) => {

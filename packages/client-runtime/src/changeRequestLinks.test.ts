@@ -7,6 +7,7 @@ import {
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  changeRequestReferenceLabel,
   findProjectForChangeRequest,
   findProjectOnChangeRequestHost,
   projectChangeRequestUrl,
@@ -229,5 +230,41 @@ describe("projectChangeRequestUrl", () => {
     expect(projectChangeRequestUrl(identity("unknown"), "acme/repository", 1)).toBeNull();
     const { provider: _provider, ...withoutProvider } = identity("github");
     expect(projectChangeRequestUrl(withoutProvider, "acme/repository", 1)).toBeNull();
+  });
+});
+
+describe("changeRequestReferenceLabel", () => {
+  const identity: RepositoryIdentity = {
+    canonicalKey: "github.com/acme/web",
+    provider: SourceControlProviderKind.make("github"),
+    displayName: "acme/web",
+    locator: { source: "git-remote", remoteName: "origin", remoteUrl: "git@github.com:acme/web" },
+  };
+
+  it("reads a change request link as its host writes references", () => {
+    expect(changeRequestReferenceLabel("https://github.com/acme/web/pull/681", identity)).toBe(
+      "#681",
+    );
+    expect(changeRequestReferenceLabel("https://github.com/Acme/Web/pull/681/", identity)).toBe(
+      "#681",
+    );
+    expect(changeRequestReferenceLabel("https://github.com/acme/api/pull/12", identity)).toBe(
+      "acme/api#12",
+    );
+    expect(changeRequestReferenceLabel("https://github.com/acme/web/pull/681", null)).toBe(
+      "acme/web#681",
+    );
+  });
+
+  it("keeps the URL of a link into part of a change request, or of anything else", () => {
+    for (const url of [
+      "https://github.com/acme/web/pull/681/files",
+      "https://github.com/acme/web/pull/681#issuecomment-1",
+      "https://github.com/acme/web/pull/681?w=1",
+      "https://github.com/acme/web/issues/681",
+      "https://example.com/acme/web/pull/681x",
+    ]) {
+      expect(changeRequestReferenceLabel(url, identity)).toBeNull();
+    }
   });
 });

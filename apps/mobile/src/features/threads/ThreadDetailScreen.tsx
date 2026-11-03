@@ -46,6 +46,7 @@ import type {
   EnvironmentId,
   MessageId,
   ModelSelection,
+  RepositoryIdentity,
   RuntimeRequestId,
   ScopedThreadRef,
   ServerConfig as SupatermServerConfig,
@@ -266,6 +267,7 @@ export interface ThreadDetailScreenProps {
   readonly environmentId: EnvironmentId;
   readonly projectWorkspaceRoot: string | null;
   readonly threadCwd: string | null;
+  readonly repositoryIdentity?: RepositoryIdentity | null;
   readonly selectedThreadQueueCount: number;
   readonly queuedMessages: ReadonlyArray<QueuedThreadMessage>;
   readonly dispatchingMessageId: MessageId | null;
@@ -1485,6 +1487,7 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
               environmentId={props.environmentId}
               threadId={props.selectedThread.id}
               workspaceRoot={props.threadCwd}
+              repositoryIdentity={props.repositoryIdentity}
               feed={props.selectedThreadFeed}
               pendingHandoff={props.pendingHandoff}
               worktreeSetup={props.worktreeSetup}

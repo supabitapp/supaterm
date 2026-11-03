@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Image } from "react-native";
 import type { LinkPillContent, MarkdownStyle } from "react-native-enriched-markdown";
+import { changeRequestReferenceLabel } from "@supaterm/client-runtime/change-request-links";
 import type { ComposerContextRecord } from "@supaterm/contracts";
 import { contextChipAccent, contextChipPresentation } from "../lib/composerChipPresentation";
 import { CONTEXT_CHIP_ICON_SOURCES } from "../lib/contextChipIcons.generated";
@@ -59,7 +60,11 @@ export function withChipIcon(
 
 function presentation(
   url: string,
-  props: Pick<SelectableMarkdownTextProps, "linkCustomization" | "skills" | "textStyle">,
+  bare: boolean,
+  props: Pick<
+    SelectableMarkdownTextProps,
+    "linkCustomization" | "repositoryIdentity" | "skills" | "textStyle"
+  >,
 ): MarkdownLinkCustomization | undefined {
   const custom = props.linkCustomization?.(url);
   if (custom) return custom;
@@ -79,22 +84,25 @@ function presentation(
       icon: markdownFileIconSource(link.icon),
       chip: { accent: contextChipPresentation("mention").accent, tintsIcon: false },
     };
-  const icon = link.kind === "external" ? markdownLinkIcon(link.host) : null;
-  return icon
-    ? {
-        color: props.textStyle.linkColor,
-        icon: icon.source,
-        ...(icon.tints ? { iconTintColor: props.textStyle.linkColor } : {}),
-      }
-    : undefined;
+  if (link.kind !== "external") return undefined;
+  const icon = markdownLinkIcon(link.host);
+  const label = bare ? changeRequestReferenceLabel(url, props.repositoryIdentity) : null;
+  if (!icon && !label) return undefined;
+  return {
+    color: props.textStyle.linkColor,
+    ...(label ? { label } : {}),
+    ...(icon ? { icon: icon.source } : {}),
+    ...(icon?.tints ? { iconTintColor: props.textStyle.linkColor } : {}),
+  };
 }
 
 export function useEnrichedLinkVariants(
   urls: ReadonlyArray<string>,
+  bareUrls: ReadonlyArray<string>,
   props: SelectableMarkdownTextProps,
   fileHrefs: ReadonlySet<string>,
 ) {
-  const { linkCustomization, skills, textStyle, fileEmbedLabel } = props;
+  const { linkCustomization, repositoryIdentity, skills, textStyle, fileEmbedLabel } = props;
   const theme = useUniwindTheme();
   const links = useMemo(() => {
     const byUrl = new Map<string, MarkdownLinkCustomization>();
@@ -107,11 +115,25 @@ export function useEnrichedLinkVariants(
             color: textStyle.fileTextColor,
             icon: markdownFileIconSource(resolveMarkdownFileIcon(label)),
           }
-        : presentation(url, { linkCustomization, skills, textStyle });
+        : presentation(url, bareUrls.includes(url), {
+            linkCustomization,
+            repositoryIdentity,
+            skills,
+            textStyle,
+          });
       if (value) byUrl.set(url, value);
     }
     return byUrl;
-  }, [urls, linkCustomization, skills, textStyle, fileHrefs, fileEmbedLabel]);
+  }, [
+    urls,
+    bareUrls,
+    linkCustomization,
+    repositoryIdentity,
+    skills,
+    textStyle,
+    fileHrefs,
+    fileEmbedLabel,
+  ]);
   const chipForegrounds = useMemo(
     () =>
       new Map(
