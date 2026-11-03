@@ -6,7 +6,7 @@ const canvas = document.querySelector("canvas");
 canvas.style.width = `${width}px`;
 canvas.style.height = `${height}px`;
 
-const run = {
+const emptyRun = () => ({
   recording: false,
   startedAt: 0,
   receivedFrames: 0,
@@ -16,7 +16,8 @@ const run = {
   first: null,
   echoes: [],
   misreads: 0,
-};
+});
+let run = emptyRun();
 let viewport = null;
 let newest = null;
 const context = canvas.getContext("2d");
@@ -141,17 +142,7 @@ const sourceFps = () => {
 globalThis.bench = {
   isReady: () => ready && echo.readyState === WebSocket.OPEN,
   start: () => {
-    Object.assign(run, {
-      recording: true,
-      startedAt: Date.now(),
-      receivedFrames: 0,
-      receivedBytes: 0,
-      paintLatencies: [],
-      staleFrames: 0,
-      first: null,
-      echoes: [],
-      misreads: 0,
-    });
+    run = { ...emptyRun(), recording: true, startedAt: Date.now() };
   },
   stop: () => {
     run.recording = false;

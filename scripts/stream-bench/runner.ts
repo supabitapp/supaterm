@@ -118,8 +118,10 @@ export interface Link {
   readonly name: string;
   readonly shape: Shape | null;
 }
-export const queueName = ({ shape }: Link) =>
-  shape === null ? "-" : shape.queueKiB === null ? "unbounded" : `${shape.queueKiB}KiB`;
+export const queueName = ({ shape }: Link) => {
+  if (shape === null) return "-";
+  return shape.queueKiB === null ? "unbounded" : `${shape.queueKiB}KiB`;
+};
 
 interface ShaperStats {
   readonly queueMaxKiB: number;
