@@ -14,6 +14,7 @@ import type {
   WorktreeCleanupRules,
   StorageCleanupReport,
   StorageCleanupReportEntry,
+  ThreadId,
 } from "@supaterm/contracts";
 import { resolveWorktreeCleanup } from "@supaterm/shared/projectSettings";
 import { makeDrainableWorker } from "@supaterm/shared/DrainableWorker";
@@ -127,8 +128,15 @@ export function storageCleanupThreadIdle(
   now: number,
   settings: LimitRecoverySettings,
 ): boolean {
+  return thread.worktreePath !== null && threadIdle(thread, now, settings);
+}
+
+function threadIdle(
+  thread: OrchestrationV2ThreadShell,
+  now: number,
+  settings: LimitRecoverySettings,
+): boolean {
   return (
-    thread.worktreePath !== null &&
     thread.activeRunId === null &&
     (thread.status === "idle" ||
       thread.status === "completed" ||
@@ -213,6 +221,36 @@ function worktreeOwner<T extends Pick<OrchestrationV2ThreadShell, "id" | "lineag
     }
   }
   return owner;
+}
+
+function worktreeDoneChain(
+  thread: OrchestrationV2ThreadShell,
+  byId: ReadonlyMap<ThreadId, OrchestrationV2ThreadShell>,
+  now: number,
+  settings: LimitRecoverySettings,
+) {
+  const chain = [thread];
+  let current = thread;
+  while (current.doneAt === null) {
+    if (
+      current.lineage.relationshipToParent !== "subagent" ||
+      current.doneOverride === "active" ||
+      current.pinnedAt != null
+    )
+      return [];
+    const parent = byId.get(current.lineage.parentThreadId!);
+    if (
+      parent === undefined ||
+      chain.some((member) => member.id === parent.id) ||
+      parent.projectId !== thread.projectId ||
+      parent.lineage.rootThreadId !== thread.lineage.rootThreadId ||
+      !threadIdle(parent, now, settings)
+    )
+      return [];
+    chain.push(parent);
+    current = parent;
+  }
+  return chain;
 }
 
 export function storageCleanupPullRequestMerged(
@@ -806,6 +844,7 @@ const make = Effect.gen(function* () {
       ),
     )).filter((thread) => thread.worktreePath !== null && thread.branch !== null);
     const snapshot = yield* readThreads();
+    const threadsById = new Map(snapshot.threads.map((thread) => [thread.id, thread]));
     const refreshedDefaultRefs = new Map<string, Set<string>>();
     const defaultBranches = new Map<string, string | null>();
     const groups = Map.groupBy(
@@ -839,6 +878,8 @@ const make = Effect.gen(function* () {
       const group = groups.get(worktreePath) ?? [];
       const activityAt = Math.max(...group.map(storageCleanupActivityAt));
       const deleted = "workspaceRoot" in thread;
+      const doneChain = deleted ? [] : worktreeDoneChain(thread, threadsById, now, serverSettings);
+      const doneThread = doneChain.at(-1);
       const members = deleted ? [thread, ...group] : group;
       const project = deleted
         ? { workspaceRoot: thread.workspaceRoot }
@@ -894,7 +935,7 @@ const make = Effect.gen(function* () {
         const changes = yield* localChangesReason(worktreePath, settings);
         if (changes !== null) return keep(changes);
         if (
-          group.some(
+          [...group, ...doneChain.slice(1)].some(
             (member) =>
               member.doneAt !== null &&
               now - Math.max(DateTime.toEpochMillis(member.updatedAt), activityAt) <
@@ -908,9 +949,9 @@ const make = Effect.gen(function* () {
           settings.worktreeAfterDays !== null &&
           activityAt < now - settings.worktreeAfterDays * DAY_MS;
         const doneFor =
-          deleted || thread.doneAt === null
+          doneThread?.doneAt == null
             ? null
-            : now - Math.max(DateTime.toEpochMillis(thread.doneAt), activityAt);
+            : now - Math.max(DateTime.toEpochMillis(doneThread.doneAt), activityAt);
         const doneDays = doneFor === null ? null : Math.floor(doneFor / DAY_MS);
         const doneLongEnough =
           doneFor !== null &&
@@ -1081,6 +1122,27 @@ const make = Effect.gen(function* () {
             })
           )
             return waitForStop("thread activity or shared worktree changed since check");
+          if (doneChain.length > 1) {
+            const ancestors = yield* Effect.forEach(doneChain.slice(1), (ancestor) =>
+              projections.getThreadShell(ancestor.id),
+            );
+            const latestDone = worktreeDoneChain(
+              latestGroup.find((shell) => shell.id === thread.id)!,
+              new Map(
+                [...latestGroup, ...ancestors.filter((ancestor) => ancestor !== null)].map(
+                  (ancestor) => [ancestor.id, ancestor],
+                ),
+              ),
+              now,
+              serverSettings,
+            ).at(-1);
+            if (
+              latestDone?.id !== doneThread?.id ||
+              !Equal.equals(latestDone?.doneAt, doneThread?.doneAt) ||
+              !Equal.equals(latestDone?.updatedAt, doneThread?.updatedAt)
+            )
+              return "parent done state changed since check";
+          }
           // Sessions can outlive their run and can be shared across app threads.
           const sessionRows = yield* sql<{ payload_json: string }>`
             SELECT payload_json FROM orchestration_v2_projection_provider_sessions
