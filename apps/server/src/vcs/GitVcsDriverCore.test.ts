@@ -2292,6 +2292,9 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
         yield* writeTextFile(cwd, "untracked.txt", "new\n");
         const driver = yield* GitVcsDriver.GitVcsDriver;
         const nestedCwd = path.join(cwd, "nested");
+        const clone = path.join(nestedCwd, "clone");
+        yield* fileSystem.makeDirectory(clone);
+        yield* initRepoWithCommit(clone);
         const projectDirectories = [nestedCwd];
         if (symlinksSupported) {
           const alias = path.join(directory, "alias");
@@ -2305,7 +2308,7 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
           });
           assert.equal(
             preview.sources.find((source) => source.kind === "working-tree")!.files!.length,
-            2,
+            3,
           );
           for (const source of preview.sources) {
             for (const file of source.files ?? []) {
