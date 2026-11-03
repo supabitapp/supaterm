@@ -20,35 +20,36 @@ wait for a wakeup instead of spending attempts on unchanged conditions, so the c
 only paces failures that may clear on their own.
 
 Foregrounding, a network change, an explicit retry, and an offline report probe
-the established session, and only a failed probe reconnects. Offline reports are
-often wrong, for example for a loopback server. Mobile resume preserves a healthy
-session so its subscriptions can resume without downloading another shell
-snapshot. The OS can kill a suspended socket without a close event, so a probe
-still unanswered after 500 ms asks the host for its public descriptor over a
-fresh request on the session's own origin, again each second until it answers.
+the established session. A failed probe reconnects, and so does a replacement
+session that connects first after a long mobile resume (below). Offline reports
+are often wrong, for example for a loopback server. Mobile resume preserves a
+healthy session so its subscriptions can resume without downloading another
+shell snapshot. The OS can kill a suspended socket without a close event, so a
+probe still unanswered after 500 ms asks the host for its public descriptor over
+a fresh request on the session's own origin, again each second until it answers.
 If the host answers while the socket delivers no frame, the socket is dead and is
 replaced, even while the network reports offline: at once on loopback and LAN,
 and 2.5 seconds after the check starts elsewhere, where one lost packet can stall
-a live socket. Without that evidence the probe deadline decides: 3 seconds on
-loopback and LAN routes and after at least 10 seconds in the background, when the
-data on screen is stale; 15 seconds elsewhere, because a tailnet over DERP or a
-VPN can be slower than that on a live socket. A failed resume probe permits one
-immediate connection attempt even while the network reports offline. A reconnect
-after a silent socket skips the reachability check of the route whose host just
-answered.
+a live socket. The reconnect then skips that route's reachability check. Without
+that evidence the probe deadline decides: 3 seconds on loopback and LAN routes
+and after at least 10 seconds in the background, when the data on screen is
+stale; 15 seconds elsewhere, because a tailnet over DERP or a VPN can be slower
+than that on a live socket. A failed resume probe permits one immediate
+connection attempt even while the network reports offline. The web and desktop
+foreground probe skips the fresh request, because a busy host can answer it
+before a queued probe. Returning to mobile also restarts an in-flight connection
+attempt, whose routes may belong to the previous network. Desktop foregrounding
+leaves ordinary in-flight attempts alone.
 
-A mobile resume after at least 10 seconds in the background over a direct route
-(LAN, tailnet, VPN, or public) also opens a replacement session when the probe
-starts. A live socket answers its probe in one round trip, sooner than a new
-session can finish its handshake, so whichever succeeds first decides. A probe
-answer closes the replacement. A replacement that connects first takes over.
-When the old lease ends first, the reconnect adopts the replacement that is
-still connecting. Relay sockets close when the native tunnel suspends, and an
-SSH tunnel costs too much to open on speculation, so neither one races. The web and
-desktop foreground probe skips the fresh request, because a busy host can answer
-it before a queued probe. Returning to mobile also restarts an in-flight
-connection attempt, whose routes may belong to the previous network. Desktop
-foregrounding leaves ordinary in-flight attempts alone.
+After at least 10 seconds in the background, a mobile resume over a direct route
+(LAN, tailnet, VPN, or public) opens a replacement session alongside the probe,
+and the first to succeed wins. A live socket usually answers in one round trip,
+before a new handshake finishes, so a healthy session is rarely swapped, and a
+swap costs only a resubscription. A dead socket is replaced without waiting out
+the silent check, about 2.5 seconds sooner on a tailnet. When the old lease ends first,
+the reconnect adopts the replacement, including its progress toward the first
+snapshot. Relay sockets close when iOS suspends the native tunnel, and an SSH
+tunnel costs too much to open on speculation, so neither one races.
 
 A replacement session to the same server process may resume the shell from the
 in-memory cursor instead of reloading the HTTP snapshot. Resume covers only rows

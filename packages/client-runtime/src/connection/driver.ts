@@ -50,6 +50,17 @@ export interface PreparedRoute {
   readonly expiresAtNanos: bigint;
 }
 
+/** A route whose host answered a fresh request from here, so a connect skips its check. */
+export interface AnsweredRoute {
+  readonly route: ConnectionRoute;
+  readonly expiresAtNanos: bigint;
+}
+
+export interface ConnectOptions {
+  readonly preflight?: PreparedRoute | undefined;
+  readonly answered?: AnsweredRoute | undefined;
+}
+
 /**
  * The result of an unauthenticated reachability check. SSH routes have no
  * cheap check, so they are "unchecked".
@@ -80,12 +91,10 @@ const PREFLIGHT_VALIDITY_NANOS = 10_000_000_000n;
 export class ConnectionDriver extends Context.Service<
   ConnectionDriver,
   {
-    /** `answered` is a route whose host just answered from here, so its check is skipped. */
     readonly connect: (
       entry: ConnectionCatalogEntry,
       reportProgress: (progress: ConnectionDriverProgress) => Effect.Effect<void>,
-      preflight?: PreparedRoute,
-      answered?: ConnectionRoute,
+      options?: ConnectOptions,
     ) => Effect.Effect<EnvironmentConnectionLease, ConnectionAttemptError, Scope.Scope>;
     /** Whether a route answers as the entry's environment, without credentials. */
     readonly checkRoute: (
@@ -316,8 +325,7 @@ export const make = Effect.gen(function* () {
   const connect = Effect.fn("ConnectionDriver.connect")(function* (
     entry: ConnectionCatalogEntry,
     reportProgress: (progress: ConnectionDriverProgress) => Effect.Effect<void>,
-    preflight?: PreparedRoute,
-    answered?: ConnectionRoute,
+    options?: ConnectOptions,
   ) {
     const target = entry.target;
     yield* Effect.annotateCurrentSpan({
@@ -326,10 +334,11 @@ export const make = Effect.gen(function* () {
       "connection.route.count": connectionRoutes(entry).length,
     });
     yield* reportProgress({ stage: "preparing" });
-    const freshPreflight =
-      preflight !== undefined && preflight.expiresAtNanos > (yield* Clock.monotonicTimeNanos)
-        ? preflight
-        : undefined;
+    const now = yield* Clock.monotonicTimeNanos;
+    const fresh = <A extends { readonly expiresAtNanos: bigint }>(evidence: A | undefined) =>
+      evidence !== undefined && evidence.expiresAtNanos > now ? evidence : undefined;
+    const freshPreflight = fresh(options?.preflight);
+    const answered = fresh(options?.answered);
     const preparationFor = (route: ConnectionRoute) =>
       freshPreflight !== undefined && Equal.equals(freshPreflight.route, route)
         ? freshPreflight
@@ -338,7 +347,7 @@ export const make = Effect.gen(function* () {
       entry,
       (route) =>
         preparationFor(route) !== undefined ||
-        (answered !== undefined && Equal.equals(answered, route))
+        (answered !== undefined && Equal.equals(answered.route, route))
           ? Effect.succeed<RouteCheck>("answered")
           : checkRoute(entry, route, LATE_ROUTE_CHECK_TIMEOUT_MS),
       Effect.fnUntraced(function* (route) {

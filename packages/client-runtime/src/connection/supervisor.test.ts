@@ -35,7 +35,6 @@ import {
 } from "./model.ts";
 import * as RpcSession from "../rpc/session.ts";
 import { presentConnectionState } from "./presentation.ts";
-import { connectionRouteId } from "./routes.ts";
 import * as EnvironmentSupervisor from "./supervisor.ts";
 import * as ConnectionWakeups from "./wakeups.ts";
 
@@ -161,9 +160,7 @@ const makeHarness = Effect.fn("TestConnectionHarness.make")(function* (options?:
   );
   const prepareCount = yield* Ref.make(0);
   const sessionCount = yield* Ref.make(0);
-  const releaseCount = yield* Ref.make(0);
-  const releases = yield* SubscriptionRef.make(0);
-  const answeredRoutes = yield* Ref.make<ReadonlyArray<string | null>>([]);
+  const releaseCount = yield* SubscriptionRef.make(0);
   const wakeups = yield* SubscriptionRef.make<{
     readonly sequence: number;
     readonly reason: ConnectionWakeups.ConnectionWakeup;
@@ -191,13 +188,7 @@ const makeHarness = Effect.fn("TestConnectionHarness.make")(function* (options?:
   const connect = Effect.fn("TestConnectionDriver.connect")(function* (
     entry: ConnectionCatalogEntry,
     reportProgress: (progress: ConnectionDriver.ConnectionDriverProgress) => Effect.Effect<void>,
-    _preflight?: ConnectionDriver.PreparedRoute,
-    answered?: ConnectionRoute,
   ) {
-    yield* Ref.update(answeredRoutes, (routes) => [
-      ...routes,
-      answered === undefined ? null : connectionRouteId(answered.target),
-    ]);
     yield* reportProgress({ stage: "preparing" });
     return yield* ConnectionDriver.connectOverRoutes(
       entry,
@@ -221,10 +212,7 @@ const makeHarness = Effect.fn("TestConnectionHarness.make")(function* (options?:
             inboundFrames: options?.inboundFrames ?? Effect.succeed(0),
             closed: Deferred.await(closed),
           } satisfies RpcSession.RpcSession),
-          () =>
-            Ref.update(releaseCount, (count) => count + 1).pipe(
-              Effect.andThen(SubscriptionRef.update(releases, (count) => count + 1)),
-            ),
+          () => SubscriptionRef.update(releaseCount, (count) => count + 1),
         );
 
         yield* reportProgress({ stage: "synchronizing", prepared });
@@ -285,9 +273,8 @@ const makeHarness = Effect.fn("TestConnectionHarness.make")(function* (options?:
     prepareCount,
     sessionCount,
     releaseCount,
-    answeredRoutes,
     awaitReleases: (count: number) =>
-      SubscriptionRef.changes(releases).pipe(
+      SubscriptionRef.changes(releaseCount).pipe(
         Stream.filter((released) => released >= count),
         Stream.runHead,
       ),
@@ -540,7 +527,7 @@ describe("EnvironmentSupervisor", () => {
       yield* awaitState(supervisor.state, (state) => state.phase === "connected");
 
       expect(yield* Ref.get(harness.sessionCount)).toBe(1);
-      expect(yield* Ref.get(harness.releaseCount)).toBe(0);
+      expect(yield* SubscriptionRef.get(harness.releaseCount)).toBe(0);
     }),
   );
 
@@ -779,7 +766,7 @@ describe("EnvironmentSupervisor", () => {
       yield* harness.wake("application-resumed");
       yield* Deferred.await(resumed);
       expect(yield* Ref.get(harness.sessionCount)).toBe(1);
-      expect(yield* Ref.get(harness.releaseCount)).toBe(0);
+      expect(yield* SubscriptionRef.get(harness.releaseCount)).toBe(0);
       expect(yield* SubscriptionRef.get(supervisor.state)).toMatchObject({
         phase: "connected",
         generation: 1,
@@ -1050,7 +1037,7 @@ describe("EnvironmentSupervisor", () => {
 
       expect(yield* Ref.get(probeCount)).toBe(1);
       expect(yield* Ref.get(harness.sessionCount)).toBe(1);
-      expect(yield* Ref.get(harness.releaseCount)).toBe(0);
+      expect(yield* SubscriptionRef.get(harness.releaseCount)).toBe(0);
       expect((yield* SubscriptionRef.get(supervisor.state)).phase).toBe("connected");
     }),
   );
@@ -1070,7 +1057,7 @@ describe("EnvironmentSupervisor", () => {
       yield* harness.wake("application-resumed");
       yield* Deferred.await(probed);
       expect(yield* Ref.get(harness.sessionCount)).toBe(1);
-      expect(yield* Ref.get(harness.releaseCount)).toBe(0);
+      expect(yield* SubscriptionRef.get(harness.releaseCount)).toBe(0);
       expect(yield* SubscriptionRef.get(supervisor.state)).toMatchObject({
         phase: "connected",
         generation: 1,
@@ -1128,7 +1115,7 @@ describe("EnvironmentSupervisor", () => {
         (state) => state.phase === "connected" && state.generation === 2,
       );
       expect(state.attempt).toBe(1);
-      expect(yield* Ref.get(harness.releaseCount)).toBe(1);
+      expect(yield* SubscriptionRef.get(harness.releaseCount)).toBe(1);
     }).pipe(Effect.provide(TestClock.layer())),
   );
 
@@ -1191,7 +1178,7 @@ describe("EnvironmentSupervisor", () => {
       );
 
       expect(yield* Ref.get(harness.sessionCount)).toBe(2);
-      expect(yield* Ref.get(harness.releaseCount)).toBe(1);
+      expect(yield* SubscriptionRef.get(harness.releaseCount)).toBe(1);
     }).pipe(Effect.provide(TestClock.layer())),
   );
 
@@ -1251,7 +1238,7 @@ describe("EnvironmentSupervisor", () => {
       );
       expect(replaced.attempt).toBe(1);
       expect(yield* Ref.get(harness.hostChecks)).toEqual(["BearerConnectionTarget"]);
-      expect(yield* Ref.get(harness.releaseCount)).toBe(1);
+      expect(yield* SubscriptionRef.get(harness.releaseCount)).toBe(1);
     }).pipe(Effect.provide(TestClock.layer())),
   );
 
@@ -1271,7 +1258,7 @@ describe("EnvironmentSupervisor", () => {
       expect(replaced).toMatchObject({ attempt: 1, lastFailure: null });
       expect(yield* Ref.get(harness.hostChecks)).toEqual([]);
       expect(yield* Ref.get(harness.sessionCount)).toBe(2);
-      expect(yield* Ref.get(harness.releaseCount)).toBe(1);
+      expect(yield* SubscriptionRef.get(harness.releaseCount)).toBe(1);
     }).pipe(Effect.provide(TestClock.layer())),
   );
 
@@ -1297,6 +1284,12 @@ describe("EnvironmentSupervisor", () => {
       yield* TestClock.adjust("1 millis");
       yield* awaitState(supervisor.state, (state) => state.phase === "connecting");
       expect(yield* Ref.get(hostChecks)).toBe(1);
+      // An open session waiting for its first snapshot keeps the snapshot budget.
+      yield* TestClock.adjust("20 seconds");
+      expect(yield* SubscriptionRef.get(supervisor.state)).toMatchObject({
+        phase: "connecting",
+        stage: "synchronizing",
+      });
       yield* Deferred.succeed(replacementReady, undefined);
       yield* awaitState(
         supervisor.state,
@@ -1354,25 +1347,6 @@ describe("EnvironmentSupervisor", () => {
       yield* harness.awaitReleases(1);
       expect(yield* Ref.get(harness.sessionCount)).toBe(2);
       expect((yield* SubscriptionRef.get(supervisor.state)).generation).toBe(1);
-    }).pipe(Effect.provide(TestClock.layer())),
-  );
-
-  it.effect("reconnects a silent socket without checking the route that just answered", () =>
-    Effect.gen(function* () {
-      const harness = yield* makeSilentSocketHarness();
-      const supervisor = yield* EnvironmentSupervisor.make(
-        { ...LAN_ENTRY, alternateRoutes: [TAILNET_ROUTE] },
-        { initiallyDesired: true },
-      ).pipe(Effect.provide(harness.dependencies));
-
-      yield* awaitState(supervisor.state, (state) => state.phase === "connected");
-      yield* harness.wake("application-resumed");
-      yield* TestClock.adjust("500 millis");
-      yield* awaitState(
-        supervisor.state,
-        (state) => state.phase === "connected" && state.generation === 2,
-      );
-      expect(yield* Ref.get(harness.answeredRoutes)).toEqual([null, "lan"]);
     }).pipe(Effect.provide(TestClock.layer())),
   );
 
@@ -1668,7 +1642,7 @@ describe("EnvironmentSupervisor", () => {
       yield* supervisor.disconnect;
       yield* awaitState(supervisor.state, (state) => state.phase === "available");
 
-      expect(yield* Ref.get(harness.releaseCount)).toBe(1);
+      expect(yield* SubscriptionRef.get(harness.releaseCount)).toBe(1);
     }),
   );
 
@@ -1691,7 +1665,7 @@ describe("EnvironmentSupervisor", () => {
       );
       yield* awaitState(supervisor.state, (state) => state.phase === "available");
 
-      expect(yield* Ref.get(harness.releaseCount)).toBe(1);
+      expect(yield* SubscriptionRef.get(harness.releaseCount)).toBe(1);
       expect(Option.isNone(yield* SubscriptionRef.get(supervisor.session))).toBe(true);
     }),
   );
@@ -1721,7 +1695,7 @@ describe("EnvironmentSupervisor", () => {
           RELAY_TARGET,
         );
         expect(yield* Ref.get(harness.sessionCount)).toBe(1);
-        expect(yield* Ref.get(harness.releaseCount)).toBe(0);
+        expect(yield* SubscriptionRef.get(harness.releaseCount)).toBe(0);
       }),
   );
 
@@ -1767,7 +1741,7 @@ describe("EnvironmentSupervisor", () => {
         expect(Option.getOrThrow(yield* SubscriptionRef.get(supervisor.prepared)).target).toEqual(
           direct.target,
         );
-        expect(yield* Ref.get(harness.releaseCount)).toBe(1);
+        expect(yield* SubscriptionRef.get(harness.releaseCount)).toBe(1);
       }),
   );
 

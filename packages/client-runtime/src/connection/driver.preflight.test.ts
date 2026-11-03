@@ -111,7 +111,7 @@ describe("route preflight preparation", () => {
         const harness = yield* makeHarness();
         const preflight = preparedRoute(yield* harness.driver.preflight(entry, route));
         expect(yield* Ref.get(harness.connections)).toEqual([]);
-        const lease = yield* harness.driver.connect(entry, () => Effect.void, preflight);
+        const lease = yield* harness.driver.connect(entry, () => Effect.void, { preflight });
         expect(lease.prepared).toBe(preflight.prepared);
         expect(yield* Ref.get(harness.prepares)).toBe(1);
         expect(yield* Ref.get(harness.checks)).toBe(1);
@@ -124,7 +124,7 @@ describe("route preflight preparation", () => {
       const harness = yield* makeHarness();
       const preflight = preparedRoute(yield* harness.driver.preflight(entry, route));
       yield* TestClock.adjust("10 seconds");
-      const lease = yield* harness.driver.connect(entry, () => Effect.void, preflight);
+      const lease = yield* harness.driver.connect(entry, () => Effect.void, { preflight });
       expect(lease.prepared.socketUrl).toContain("ticket-2");
       expect(yield* Ref.get(harness.prepares)).toBe(2);
       expect(yield* Ref.get(harness.connections)).toHaveLength(1);
@@ -145,14 +145,14 @@ describe("route preflight preparation", () => {
           }),
         ),
       };
-      const lease = yield* harness.driver.connect(changed, () => Effect.void, preflight);
+      const lease = yield* harness.driver.connect(changed, () => Effect.void, { preflight });
       expect(lease.prepared.socketUrl).toContain("ticket-2");
       expect(yield* Ref.get(harness.prepares)).toBe(2);
       expect(yield* Ref.get(harness.connections)).toHaveLength(1);
     }),
   );
 
-  it.effect("skips the check of a route whose host just answered", () =>
+  it.effect("skips only the check of a route whose host just answered", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness();
       const tailnet: ConnectionRoute = {
@@ -167,11 +167,20 @@ describe("route preflight preparation", () => {
         ),
       };
       const both: ConnectionCatalogEntry = { ...entry, alternateRoutes: [tailnet] };
-      const lease = yield* harness.driver.connect(both, () => Effect.void, undefined, route);
+      const answered = { route: tailnet, expiresAtNanos: 10_000_000_000n };
+      const lease = yield* harness.driver.connect(both, () => Effect.void, { answered });
       expect(lease.prepared.target).toEqual(target);
+      const requested = yield* Ref.get(harness.requested);
+      expect(requested.some((url) => url.startsWith(profile.httpBaseUrl))).toBe(true);
+      expect(requested.filter((url) => url.startsWith("http://100.100.1.2:4389/"))).toEqual([]);
+
+      yield* TestClock.adjust("10 seconds");
+      yield* harness.driver.connect(both, () => Effect.void, { answered });
       expect(
-        (yield* Ref.get(harness.requested)).filter((url) => url.startsWith(profile.httpBaseUrl)),
-      ).toEqual([]);
+        (yield* Ref.get(harness.requested)).some((url) =>
+          url.startsWith("http://100.100.1.2:4389/"),
+        ),
+      ).toBe(true);
     }),
   );
 
