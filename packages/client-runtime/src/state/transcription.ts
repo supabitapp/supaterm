@@ -214,6 +214,8 @@ export async function uploadVoiceRecording(input: {
 export interface StartedLiveDictation {
   readonly uploadId: string;
   readonly live: LiveDictation;
+  /** Drops the environment's side of a dictation that won't be finished. */
+  readonly cancel: () => Promise<unknown>;
 }
 
 /** Transcription for review: the text comes back to the draft, nothing is sent. */
@@ -221,7 +223,6 @@ export function createServerVoiceTranscriber(input: {
   readonly locale: string;
   /** Starts streaming the recording, or null when the environment can't take it. */
   readonly startLive?: (() => StartedLiveDictation | null) | undefined;
-  readonly cancel?: ((uploadId: string) => Promise<unknown>) | undefined;
   readonly transcribe: (
     uri: string,
     signal: AbortSignal,
@@ -231,27 +232,30 @@ export function createServerVoiceTranscriber(input: {
   return {
     prepare: async ({ signal }) => {
       const started = input.startLive?.() ?? null;
-      signal.addEventListener(
-        "abort",
-        () => {
-          if (started === null) return;
-          started.live.close();
-          void input.cancel?.(started.uploadId).catch(() => undefined);
-        },
-        { once: true },
-      );
+      // Finishing or handing off takes the stream over; anything else leaves it to be dropped.
+      let used = false;
+      const abandon = () => {
+        if (started === null || used) return;
+        used = true;
+        started.live.close();
+        void started.cancel().catch(() => undefined);
+      };
+      signal.addEventListener("abort", abandon, { once: true });
       return {
         locale: input.locale,
+        dispose: abandon,
         ...(started === null
           ? {}
           : {
               handOff: () => {
+                used = true;
                 void started.live.finish();
                 return { uploadId: started.uploadId, streamed: true };
               },
             }),
         transcribe: async (uri, { signal: transcribeSignal }) => {
           try {
+            used = true;
             const dictation =
               started === null
                 ? undefined

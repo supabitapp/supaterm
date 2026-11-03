@@ -11,6 +11,8 @@ export type PreparedVoiceTranscription = {
    * message must be sent under, so the environment joins audio it already has.
    */
   readonly handOff?: () => VoiceRecordingHandOff;
+  /** Stops work the recording never got to use; safe to call more than once. */
+  readonly dispose?: () => void;
 };
 
 export type VoiceRecordingHandOff = {

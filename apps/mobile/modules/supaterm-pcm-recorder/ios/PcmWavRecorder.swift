@@ -44,6 +44,7 @@ final class PcmWavRecorder {
   private var capturing = false
   private var interrupted = false
   private var finished = false
+  private var saveFailed = false
   private var dataBytes = 0
   private var maxBytes = 0
   private var levelDecibels = silenceDecibels
@@ -83,9 +84,10 @@ final class PcmWavRecorder {
     }
   }
 
-  func stop() -> [String: Any] {
-    queue.sync {
+  func stop() throws -> [String: Any] {
+    try queue.sync {
       teardown()
+      if saveFailed { throw PcmRecorderError.saveFailed }
       return ["uri": url.absoluteString, "durationMs": durationMs]
     }
   }
@@ -114,7 +116,11 @@ final class PcmWavRecorder {
     let targetFormat = targetFormat
     let bufferSize = AVAudioFrameCount(format.sampleRate / 10)
     input.installTap(onBus: 0, bufferSize: bufferSize, format: format) { [weak self] buffer, _ in
-      guard let pcm = Self.convert(buffer, with: converter, to: targetFormat) else { return }
+      guard let pcm = Self.convert(buffer, with: converter, to: targetFormat) else {
+        self?.queue.async { self?.end(failure: captureFailed) }
+        return
+      }
+      guard !pcm.isEmpty else { return }
       self?.queue.async { self?.append(pcm) }
     }
     tapInstalled = true
@@ -164,6 +170,7 @@ final class PcmWavRecorder {
   /// Stops on its own: the duration limit, a failure, or a reset the recording can't survive.
   private func end(failure: String?) {
     guard teardown() else { return }
+    let failure = failure ?? (saveFailed ? PcmRecorderError.saveFailed.errorDescription : nil)
     onStatus([
       "isFinished": true,
       "hasError": failure != nil,
@@ -182,7 +189,11 @@ final class PcmWavRecorder {
     engine.stop()
     removeTap()
     flushFrames()
-    try? writer?.close()
+    do {
+      try writer?.close()
+    } catch {
+      saveFailed = true
+    }
     return true
   }
 
@@ -226,6 +237,7 @@ final class PcmWavRecorder {
     }
   }
 
+  /// Nil when the conversion failed; empty when the converter holds the samples for later.
   private static func convert(
     _ buffer: AVAudioPCMBuffer, with converter: AVAudioConverter, to format: AVAudioFormat
   ) -> Data? {
@@ -252,7 +264,7 @@ final class PcmWavRecorder {
         pcm.append(Data(bytes: samples[0], count: Int(output.frameLength) * bytesPerSample))
       }
     } while status == .haveData
-    return pcm.isEmpty ? nil : pcm
+    return pcm
   }
 
   private static func decibels(_ pcm: Data) -> Double {

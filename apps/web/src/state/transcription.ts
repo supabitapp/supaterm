@@ -12,7 +12,7 @@ import {
   uploadVoiceRecording,
   type VoiceTranscriptionSource,
 } from "@supaterm/client-runtime/state/transcription";
-import { LiveDictation } from "@supaterm/client-runtime/voice-input";
+import { LiveDictation, openLiveDictationSocket } from "@supaterm/client-runtime/voice-input";
 import type {
   EnvironmentId,
   TranscriptionPrepareStreamInput,
@@ -96,16 +96,10 @@ export function startLiveVoiceDictation(input: {
       url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
       return url.toString();
     },
-    openSocket: (url, events) => {
-      const socket = new WebSocket(url);
-      socket.onmessage = (event) => events.message(event.data);
-      socket.onclose = (event) => events.close(event.code);
-      socket.onerror = () => socket.close();
-      return socket;
-    },
+    openSocket: openLiveDictationSocket,
     subscribe: input.subscribe,
   });
-  return { uploadId, live };
+  return { uploadId, live, cancel: () => cancelVoiceUpload(environmentId, uploadId) };
 }
 
 /** Read when recording starts, so a dictation keeps the choice its environment allowed then. */

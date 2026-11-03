@@ -136,6 +136,7 @@ type Entry =
       readonly providerInstanceId: ProviderInstanceId;
       readonly retainUntil: number;
       readonly outcome: Outcome;
+      readonly submit?: TranscriptionUploadSubmit;
     }
   | { readonly _tag: "Cancelled"; readonly retainUntil: number };
 
@@ -164,7 +165,13 @@ const settledEntry = (
   providerInstanceId: entry.providerInstanceId,
   retainUntil: Math.max(entry.retainUntil, settledAt + OUTCOME_TTL_MS),
   outcome,
+  ...(entry.submit === undefined ? {} : { submit: entry.submit }),
 });
+
+const sameTarget = (left: TranscriptionUploadSubmit, right: TranscriptionUploadSubmit) =>
+  left.threadId === right.threadId &&
+  left.commandId === right.commandId &&
+  left.messageId === right.messageId;
 
 const messageDispatch = (
   submit: TranscriptionUploadSubmit,
@@ -673,19 +680,19 @@ const make = Effect.gen(function* () {
     target: TranscriptionUploadSubmit,
   ) {
     const entry = (yield* Ref.get(entriesRef)).get(uploadId);
-    if (entry?._tag === "Transcribing" && entry.submit === undefined) {
+    if (entry === undefined || entry._tag === "Cancelled") return;
+    if (entry.submit !== undefined) {
+      return sameTarget(entry.submit, target)
+        ? undefined
+        : new TranscriptionError({ reason: "requestConflict" });
+    }
+    if (entry._tag === "Transcribing") {
       yield* Ref.update(entriesRef, (entries) =>
         new Map(entries).set(uploadId, { ...entry, submit: target }),
       );
       return;
     }
-    if (
-      entry?._tag !== "Settled" ||
-      !Exit.isSuccess(entry.outcome) ||
-      entry.outcome.value.submission !== undefined
-    ) {
-      return;
-    }
+    if (entry._tag !== "Settled" || !Exit.isSuccess(entry.outcome)) return;
     const { text } = entry.outcome.value;
     const result = yield* Deferred.make<TranscriptionUploadResult, TranscriptionError>();
     const fiber = yield* dispatchTranscript(target, text).pipe(
@@ -700,6 +707,7 @@ const make = Effect.gen(function* () {
         providerInstanceId: entry.providerInstanceId,
         work: { result, fiber },
         retainUntil: entry.retainUntil,
+        submit: target,
       }),
     );
   });
@@ -731,7 +739,8 @@ const make = Effect.gen(function* () {
       }
       const target = claims.request.submit;
       if (target !== undefined && known._tag !== "Cancelled" && known.request === undefined) {
-        yield* storeLock.withPermits(1)(sendStreamed(uploadId, target));
+        const conflict = yield* storeLock.withPermits(1)(sendStreamed(uploadId, target));
+        if (conflict !== undefined) return yield* conflict;
       }
       const current = (yield* storeLock.withPermits(1)(liveEntries)).get(uploadId) ?? known;
       return yield* joinEntry(current, request);

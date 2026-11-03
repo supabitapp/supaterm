@@ -616,49 +616,53 @@ describe("TranscriptionUploads streamed dictations", () => {
     ),
   );
 
-  it.effect("sends a streamed voice message once, whether Send beats the transcript or not", () =>
-    live((harness) =>
-      Effect.gen(function* () {
-        for (const sendFirst of [true, false]) {
-          const uploadId = `voice-${sendFirst}`;
-          const transcript = yield* Deferred.make<{ text: string }, TranscriptionError>();
-          yield* Queue.offer(harness.livePlans, {
-            _tag: "transcribe",
-            result: Deferred.await(transcript),
-          });
-          const client = yield* connect((yield* prepareStream(uploadId)).relativeUrl);
-          yield* Queue.take(client.sent);
-          yield* client.send(frame(3));
-          yield* client.finish;
-          yield* Queue.take(client.sent);
-          yield* Queue.take(harness.liveEnded);
+  it.effect(
+    "sends a streamed voice message once, whether its transcript is in or still coming",
+    () =>
+      live((harness) =>
+        Effect.gen(function* () {
+          for (const transcriptFirst of [true, false]) {
+            const uploadId = `voice-${transcriptFirst}`;
+            const transcript = yield* Deferred.make<{ text: string }, TranscriptionError>();
+            yield* Queue.offer(harness.livePlans, {
+              _tag: "transcribe",
+              result: Deferred.await(transcript),
+            });
+            const client = yield* connect((yield* prepareStream(uploadId)).relativeUrl);
+            yield* Queue.take(client.sent);
+            yield* client.send(frame(3));
+            yield* client.finish;
+            yield* Queue.take(client.sent);
+            yield* Queue.take(harness.liveEnded);
 
-          const sending = sendFirst
-            ? yield* Effect.forkChild(collect(uploadId, undefined, { submit: submit(uploadId) }))
-            : undefined;
-          yield* Deferred.succeed(transcript, { text: "run the tests" });
-          const send =
-            sending ??
-            (yield* Effect.forkChild(collect(uploadId, undefined, { submit: submit(uploadId) })));
-          const dispatched = yield* Queue.take(harness.dispatches);
-          expect(dispatched).toMatchObject({ commandId: uploadId, text: "run the tests" });
-          yield* Queue.offer(
-            harness.dispatchReplies,
-            Effect.succeed({ sequence: 3, storedEvents: [] }),
-          );
-          expect(yield* Fiber.join(send)).toEqual({
-            text: "run the tests",
-            submission: { status: "sent", sequence: 3 },
-          });
-          expect(yield* collect(uploadId, undefined, { submit: submit(uploadId) })).toEqual({
-            text: "run the tests",
-            submission: { status: "sent", sequence: 3 },
-          });
-        }
-        expect(yield* Queue.size(harness.dispatches)).toBe(0);
-        expect(yield* Ref.get(harness.transcriptions)).toEqual([]);
-      }),
-    ),
+            if (transcriptFirst) {
+              yield* Deferred.succeed(transcript, { text: "run the tests" });
+              expect(yield* collect(uploadId)).toEqual({ text: "run the tests" });
+            }
+            const send = yield* Effect.forkChild(
+              collect(uploadId, undefined, { submit: submit(uploadId) }),
+            );
+            if (!transcriptFirst) yield* Deferred.succeed(transcript, { text: "run the tests" });
+            expect(yield* Queue.take(harness.dispatches)).toMatchObject({
+              commandId: uploadId,
+              text: "run the tests",
+            });
+            yield* Queue.offer(
+              harness.dispatchReplies,
+              Effect.succeed({ sequence: 3, storedEvents: [] }),
+            );
+            const sent = { text: "run the tests", submission: { status: "sent", sequence: 3 } };
+            expect(yield* Fiber.join(send)).toEqual(sent);
+            expect(yield* collect(uploadId, undefined, { submit: submit(uploadId) })).toEqual(sent);
+            const elsewhere = { ...submit(uploadId), messageId: MessageId.make("another-message") };
+            expect(yield* reason(collect(uploadId, undefined, { submit: elsewhere }))).toBe(
+              "requestConflict",
+            );
+          }
+          expect(yield* Queue.size(harness.dispatches)).toBe(0);
+          expect(yield* Ref.get(harness.transcriptions)).toEqual([]);
+        }),
+      ),
   );
 
   it.effect("resumes a reconnecting client from the audio it already took", () =>

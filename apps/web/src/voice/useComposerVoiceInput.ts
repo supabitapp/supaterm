@@ -17,7 +17,6 @@ import type { ComposerDispatchMode } from "@supaterm/client-runtime/state/compos
 import { useStableCallback } from "../hooks/useStableCallback";
 import { threadOutboxDeliverableAtom } from "../state/threadOutbox";
 import {
-  cancelVoiceUpload,
   environmentStreamsDictation,
   startLiveVoiceDictation,
   uploadVoiceAudio,
@@ -154,7 +153,6 @@ function createVoiceRuntime(onStateChange: (state: VoiceInputState) => void) {
                 subscribe: (push) => recorder.onPcm(push),
               })
           : undefined,
-        cancel: (uploadId) => cancelVoiceUpload(environmentId, uploadId),
         transcribe: (uri, signal, dictation) => {
           const recording = readVoiceRecording(uri);
           return uploadVoiceAudio({

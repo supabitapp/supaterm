@@ -27,6 +27,18 @@ export interface LiveDictationOptions {
   readonly subscribe: (push: (pcm: Uint8Array) => void) => () => void;
 }
 
+/** Opens the stream with the WebSocket that browsers and React Native share. */
+export function openLiveDictationSocket(
+  url: string,
+  events: LiveDictationSocketEvents,
+): LiveDictationSocket {
+  const socket = new WebSocket(url);
+  socket.onmessage = (event) => events.message(event.data);
+  socket.onclose = (event) => events.close(event.code);
+  socket.onerror = () => socket.close();
+  return socket;
+}
+
 const decodeServerMessage = Schema.decodeUnknownOption(
   Schema.fromJsonString(TranscriptionStreamServerMessage),
 );
@@ -137,7 +149,6 @@ export class LiveDictation {
     this.socket = socket;
   }
 
-  /** Sends every recorded byte past what the server holds. */
   private flush(): void {
     const socket = this.socket;
     if (socket === null || this.sentBytes === null) return;

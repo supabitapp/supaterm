@@ -41,8 +41,8 @@ public final class SupatermPcmRecorderModule: Module {
       try active.start(maxDurationMs: maxDurationMs)
     }
 
-    AsyncFunction("stop") { () -> [String: Any]? in
-      self.current()?.stop()
+    AsyncFunction("stop") { () throws -> [String: Any]? in
+      try self.current()?.stop()
     }
 
     Function("getStatus") { () -> [String: Any]? in

@@ -13,7 +13,11 @@ import {
   type VoiceUploadResponse,
 } from "@supaterm/client-runtime/state/transcription";
 import { shouldRetryThreadOutboxDelivery } from "@supaterm/client-runtime/thread-outbox";
-import { LiveDictation, type VoiceTranscriber } from "@supaterm/client-runtime/voice-input";
+import {
+  LiveDictation,
+  openLiveDictationSocket,
+  type VoiceTranscriber,
+} from "@supaterm/client-runtime/voice-input";
 import {
   TranscriptionError,
   type EnvironmentId,
@@ -188,16 +192,10 @@ function startLiveDictation(
   const uploadId = uuidv4();
   const live = new LiveDictation({
     prepare: () => streamUrl(environmentId, { ...request, uploadId }),
-    openSocket: (url, events) => {
-      const socket = new WebSocket(url);
-      socket.onmessage = (event) => events.message(event.data);
-      socket.onclose = (event) => events.close(event.code);
-      socket.onerror = () => socket.close();
-      return socket;
-    },
+    openSocket: openLiveDictationSocket,
     subscribe,
   });
-  return { uploadId, live };
+  return { uploadId, live, cancel: () => cancelUpload(environmentId, uploadId) };
 }
 
 /**
@@ -222,7 +220,6 @@ export function createEnvironmentVoiceTranscriber(input: {
       ? {
           startLive: () =>
             startLiveDictation(environmentId, { language, ...context }, input.subscribeFrames),
-          cancel: (uploadId) => cancelUpload(environmentId, uploadId),
         }
       : {}),
     transcribe: async (uri, signal, dictation) => {

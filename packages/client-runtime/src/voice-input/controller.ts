@@ -543,6 +543,7 @@ export class VoiceInputController {
     releaseSession(this.sessionToken);
     this.sessionToken = null;
     this.capturedDraft = null;
+    this.transcription?.dispose?.();
     this.transcription = null;
     this.transcriptionAbortController = null;
   }

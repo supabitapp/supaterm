@@ -100,7 +100,6 @@ export interface DictationLogin {
   readonly accountId: string;
 }
 
-/** Why the server refused the upgrade. */
 function dictationUpgradeError(
   status: number | undefined,
   headers: NodeHttp.IncomingHttpHeaders,

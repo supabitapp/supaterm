@@ -14,6 +14,7 @@ import {
   type VoiceInputPhase,
   type VoiceRecorder,
 } from "./controller.ts";
+import { LiveDictation } from "./liveDictation.ts";
 import {
   VoiceTranscriptionError,
   type PreparedVoiceTranscription,
@@ -273,6 +274,51 @@ describe("VoiceInputController", () => {
       error: "No microphone was found.",
       errorAction: "retry",
     });
+  });
+
+  it("drops a dictation stream the recording never used, and leaves a finished one alone", async () => {
+    const streaming = (prepare: () => Promise<string>) => {
+      const calls = { subscribed: 0, unsubscribed: 0, cancelled: 0 };
+      const transcriber = createServerVoiceTranscriber({
+        locale: "en-US",
+        startLive: () => ({
+          uploadId: "dictation-1",
+          live: new LiveDictation({
+            prepare,
+            openSocket: () => {
+              throw new Error("not opened in this test");
+            },
+            subscribe: () => {
+              calls.subscribed += 1;
+              return () => {
+                calls.unsubscribed += 1;
+              };
+            },
+          }),
+          cancel: async () => {
+            calls.cancelled += 1;
+          },
+        }),
+        transcribe: async () => ({ text: "kept" }),
+      });
+      return { calls, transcriber };
+    };
+
+    const abandoned = streaming(() => new Promise(() => undefined));
+    const failing = createHarness({ getTranscriber: () => abandoned.transcriber });
+    failing.recorder.prepareToRecordAsync.mockRejectedValueOnce(new Error("no input"));
+    await failing.controller.start();
+    expect(failing.controller.currentState.phase).toBe("error");
+    expect(abandoned.calls).toEqual({ subscribed: 1, unsubscribed: 1, cancelled: 1 });
+    failing.controller.dispose();
+    expect(abandoned.calls.cancelled).toBe(1);
+
+    const used = streaming(() => Promise.reject(new Error("old server")));
+    const finished = createHarness({ getTranscriber: () => used.transcriber });
+    await finished.controller.start();
+    await finished.controller.stop();
+    expect(finished.commits).toHaveLength(1);
+    expect(used.calls.cancelled).toBe(0);
   });
 
   it.each(["permission", "transcription"] as const)(

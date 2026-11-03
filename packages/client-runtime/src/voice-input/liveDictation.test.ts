@@ -7,10 +7,12 @@ import {
 } from "./liveDictation.ts";
 
 interface FakeSocket extends LiveDictationSocket {
-  readonly sent: Array<string | number>;
+  readonly sent: Array<string | Uint8Array>;
   readonly events: LiveDictationSocketEvents;
   closedWith: number | null;
 }
+
+const frame = (fill: number, bytes = 3_200) => new Uint8Array(bytes).fill(fill);
 
 function setup(
   prepare: () => Promise<string> = async () => "ws://env/api/transcription/streams/t",
@@ -30,7 +32,7 @@ function setup(
         sent: [],
         events,
         closedWith: null,
-        send: (data) => socket.sent.push(typeof data === "string" ? data : data.byteLength),
+        send: (data) => socket.sent.push(typeof data === "string" ? data : new Uint8Array(data)),
         close: (code) => {
           socket.closedWith = code ?? 1000;
         },
@@ -51,7 +53,7 @@ function setup(
     live,
     sockets,
     firstSocket,
-    record: (bytes: number) => push(new Uint8Array(bytes)),
+    record: (frame: Uint8Array) => push(frame),
     subscribed: () => subscribed,
     ready: (socket: FakeSocket, receivedBytes: number) =>
       socket.events.message(JSON.stringify({ type: "ready", receivedBytes })),
@@ -65,14 +67,14 @@ describe("LiveDictation", () => {
 
   it("sends what was recorded before the stream opened, then finishes once the server has it all", async () => {
     const dictation = setup();
-    dictation.record(3_200);
-    dictation.record(3_200);
+    dictation.record(frame(1));
+    dictation.record(frame(2));
     const socket = await dictation.firstSocket;
     expect(socket.sent).toEqual([]);
 
     dictation.ready(socket, 0);
-    dictation.record(1_000);
-    expect(socket.sent).toEqual([3_200, 3_200, 1_000]);
+    dictation.record(frame(3, 1_000));
+    expect(socket.sent).toEqual([frame(1), frame(2), frame(3, 1_000)]);
 
     const finished = dictation.live.finish();
     expect(dictation.subscribed()).toBe(false);
@@ -87,15 +89,15 @@ describe("LiveDictation", () => {
     const dictation = setup();
     const first = await dictation.firstSocket;
     dictation.ready(first, 0);
-    dictation.record(3_200);
-    dictation.record(3_200);
+    dictation.record(frame(1));
+    dictation.record(frame(2));
     first.events.close(1006);
-    dictation.record(3_200);
+    dictation.record(frame(3));
 
     vi.advanceTimersByTime(250);
     const second = dictation.sockets[1]!;
     dictation.ready(second, 3_200);
-    expect(second.sent).toEqual([3_200, 3_200]);
+    expect(second.sent).toEqual([frame(2), frame(3)]);
     const finished = dictation.live.finish();
     second.events.message('{"type":"finished"}');
     expect(await finished).toBe(true);

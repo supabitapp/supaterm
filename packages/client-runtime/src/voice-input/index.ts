@@ -15,6 +15,7 @@ export {
 } from "./controller.ts";
 export {
   LiveDictation,
+  openLiveDictationSocket,
   type LiveDictationOptions,
   type LiveDictationSocket,
 } from "./liveDictation.ts";
