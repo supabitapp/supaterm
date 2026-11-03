@@ -89,6 +89,7 @@ import {
   resolveQueuedThreadSettings,
   shouldRetryThreadOutboxDelivery,
   threadOutboxRetryDelayMs,
+  voiceThreadMessage,
   type QueuedThreadMessage,
 } from "./thread-outbox-model";
 import { createThreadOutboxManager, ThreadOutboxManagerError } from "./thread-outbox-manager";
@@ -356,7 +357,12 @@ describe("thread outbox", () => {
     const message = {
       ...queuedMessage({ messageId: "message-voice", createdAt: "2026-10-30T10:00:01.000Z" }),
       text: "",
-      voice: { durationMs: 4_200, sizeBytes: 134_444, language: "en-US" },
+      voice: {
+        durationMs: 4_200,
+        sizeBytes: 134_444,
+        language: "en-US",
+        streamedUploadId: CommandId.make("dictation-1"),
+      },
       failure: "No speech was detected.",
     } satisfies QueuedThreadMessage;
 
@@ -1658,6 +1664,16 @@ describe("voice message delivery", () => {
         failure: "Sign in to this provider again to transcribe.",
       },
     });
+  });
+
+  it("queues a streamed recording under its dictation's id, so the environment joins it", () => {
+    const { voice, ...draft } = voiceMessage;
+    expect(voiceThreadMessage(draft, voice, { uploadId: "dictation-1", streamed: true })).toEqual({
+      ...voiceMessage,
+      commandId: "dictation-1",
+      voice: { ...voice, streamedUploadId: "dictation-1" },
+    });
+    expect(voiceThreadMessage(draft, voice, undefined)).toEqual(voiceMessage);
   });
 
   it("retries a dropped upload or a rate limit under the same ids", () => {

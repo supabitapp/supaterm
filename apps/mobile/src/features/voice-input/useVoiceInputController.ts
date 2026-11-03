@@ -5,6 +5,7 @@ import { Keyboard } from "react-native";
 import {
   voiceInputBlocksSubmission,
   type VoiceInputState,
+  type VoiceRecordingHandOff,
 } from "@supaterm/client-runtime/voice-input";
 
 import type { EnvironmentId } from "@supaterm/contracts";
@@ -36,11 +37,15 @@ export function useVoiceInputController(input: {
    */
   readonly voiceMessage?: {
     readonly accepts: () => boolean;
-    readonly send: (recordingUri: string, language: string) => Promise<void>;
+    readonly send: (
+      recordingUri: string,
+      language: string,
+      handOff: VoiceRecordingHandOff | undefined,
+    ) => Promise<void>;
   };
 }) {
   const global = useGlobalVoiceInput();
-  const { session } = global;
+  const { session, subscribeFrames } = global;
   const latestInput = useRef(input);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes the committed composer input to a ref read by async voice session callbacks
   useLayoutEffect(() => {
@@ -75,6 +80,7 @@ export function useVoiceInputController(input: {
     const resolution = resolveComposerVoiceEngine({
       environmentId: captured.environmentId,
       ...(captured.context ? { context: captured.context } : {}),
+      subscribeFrames,
     });
     if (resolution.status === "unavailable") {
       Dialog.alert("Voice input unavailable", resolution.message);
@@ -100,7 +106,7 @@ export function useVoiceInputController(input: {
       label: captured.label,
       engine: resolution.engine,
     });
-  }, [session]);
+  }, [session, subscribeFrames]);
   const state = global.ownerKey === input.ownerKey ? global.state : IDLE_STATE;
   const isBusy = voiceInputBlocksSubmission(state);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- submits a stop-and-send transcript once the voice session leaves its busy phase and the draft still holds it
@@ -133,7 +139,7 @@ export function useVoiceInputController(input: {
     const { voiceMessage } = current;
     if (engine && voiceMessage?.accepts()) {
       submission.current = null;
-      void session.send((uri) => voiceMessage.send(uri, engine.language));
+      void session.send((uri, handOff) => voiceMessage.send(uri, engine.language, handOff));
       return;
     }
     if (!current.onSubmit) return;

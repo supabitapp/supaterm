@@ -34,6 +34,7 @@ import {
 } from "@supaterm/contracts";
 import * as Schema from "effect/Schema";
 import { VoiceUploadError } from "@supaterm/client-runtime/state/transcription";
+import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input";
 import type { TranscriptionUploadResult } from "@supaterm/contracts";
 
 import { DraftComposerAttachmentSchema } from "../lib/composer-image-schema";
@@ -59,6 +60,7 @@ const QueuedVoiceRecordingSchema = Schema.Struct({
   durationMs: NonNegativeInt,
   sizeBytes: NonNegativeInt,
   language: Schema.String,
+  streamedUploadId: Schema.optional(CommandId),
 });
 
 const QueuedThreadMessageSchema = Schema.Struct({
@@ -101,6 +103,11 @@ export interface QueuedVoiceRecording {
   readonly sizeBytes: number;
   /** BCP 47, captured when recorded. */
   readonly language: string;
+  /**
+   * The environment heard the recording while it was made, under this id. Only a message still
+   * sent under it can collect that audio; a hold's fresh command id starts over with the file.
+   */
+  readonly streamedUploadId?: CommandId;
 }
 
 export interface QueuedThreadMessage {
@@ -208,6 +215,21 @@ export function isQueuedThreadCreationSendable(message: QueuedThreadMessage): bo
     Boolean(message.creation.branch) ||
     message.creation.useDefaultBranch === true
   );
+}
+
+/** A recording that streamed is sent under its dictation's id, so the environment joins what it heard. */
+export function voiceThreadMessage(
+  draft: Omit<QueuedThreadMessage, "voice">,
+  voice: Omit<QueuedVoiceRecording, "streamedUploadId">,
+  handOff: VoiceRecordingHandOff | undefined,
+): QueuedThreadMessage {
+  if (!handOff) return { ...draft, voice };
+  const commandId = CommandId.make(handOff.uploadId);
+  return {
+    ...draft,
+    commandId,
+    voice: handOff.streamed ? { ...voice, streamedUploadId: commandId } : voice,
+  };
 }
 
 export type AcknowledgedThreadMessage = QueuedThreadMessage & {

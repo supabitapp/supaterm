@@ -6,6 +6,7 @@ import { useAtomValue } from "@effect/atom-react";
 import { threadRuntimeIsActive } from "@supaterm/client-runtime/state/shell";
 import type { ThreadCheckpointSummary } from "@supaterm/client-runtime/state/thread-checkpoints";
 import { VoiceUploadError } from "@supaterm/client-runtime/state/transcription";
+import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input";
 import { resolvePendingHandoff } from "@supaterm/client-runtime/handoff";
 import {
   deriveProviderSubagentStatus,
@@ -509,6 +510,7 @@ export function useThreadComposerState() {
   const onSendVoiceMessage = async (
     recordingUri: string,
     language: string,
+    handOff: VoiceRecordingHandOff | undefined,
   ): Promise<MessageId | null> => {
     const thread = selectedThreadShell;
     if (!thread) return null;
@@ -541,6 +543,7 @@ export function useThreadComposerState() {
         createdAt: metadata.createdAt,
       },
       language,
+      handOff,
     ).then(
       () => messageId,
       (error: unknown) => {

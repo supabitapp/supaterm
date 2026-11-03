@@ -30,6 +30,7 @@ import { type EnvironmentConnectionPhase } from "@supaterm/client-runtime/connec
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import type { HandoffEndpoints } from "@supaterm/client-runtime/handoff";
 import { queuedRunEditBlockedReason } from "@supaterm/client-runtime/queued-run-edit";
+import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input";
 import {
   childThreadInputsTitle,
   type CodexFeedbackSubmission,
@@ -291,6 +292,7 @@ export interface ThreadDetailScreenProps {
   readonly onSendVoiceMessage?: (
     recordingUri: string,
     language: string,
+    handOff: VoiceRecordingHandOff | undefined,
   ) => Promise<MessageId | null>;
   readonly onReconnectEnvironment: () => void;
   readonly canSwitchThreadProvider: boolean;
@@ -1331,13 +1333,17 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
   // Declining approvals to redirect the agent is the text send path's job.
   const handleSendVoiceMessage =
     onSendVoiceMessage && clientCreation === null && props.activePendingApprovals.length === 0
-      ? async (recordingUri: string, language: string) => {
+      ? async (
+          recordingUri: string,
+          language: string,
+          handOff: VoiceRecordingHandOff | undefined,
+        ) => {
           const scope = threadScope.current.signal;
           const targetThreadKey = selectedThreadKey;
           const hasUserMessage = selectedThreadFeed.some(
             (entry) => entry.type === "message" && entry.message.role === "user",
           );
-          const messageId = await onSendVoiceMessage(recordingUri, language);
+          const messageId = await onSendVoiceMessage(recordingUri, language, handOff);
           if (messageId !== null && !scope.aborted) {
             revealSubmittedMessage(scope, targetThreadKey, messageId, hasUserMessage);
           }

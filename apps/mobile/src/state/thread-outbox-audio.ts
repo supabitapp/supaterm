@@ -1,9 +1,10 @@
+import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input";
 import type { MessageId } from "@supaterm/contracts";
 
 import { loadExpoFileSystem } from "../lib/expoFileSystem";
 import { readVoiceRecording } from "../lib/voiceRecordingWav";
 import { enqueueThreadOutboxMessage, threadOutboxManager } from "./thread-outbox";
-import type { QueuedThreadMessage } from "./thread-outbox-model";
+import { voiceThreadMessage, type QueuedThreadMessage } from "./thread-outbox-model";
 
 const THREAD_OUTBOX_AUDIO_DIRECTORY = "thread-outbox-audio";
 const EXTENSION = ".wav";
@@ -28,9 +29,10 @@ export async function enqueueVoiceThreadOutboxMessage(
   recordingUri: string,
   draft: Omit<QueuedThreadMessage, "voice">,
   language: string,
+  handOff: VoiceRecordingHandOff | undefined,
 ): Promise<void> {
   const recording = await readVoiceRecording(recordingUri);
-  const message: QueuedThreadMessage = { ...draft, voice: { ...recording, language } };
+  const message = voiceThreadMessage(draft, { ...recording, language }, handOff);
   const { File } = await loadExpoFileSystem();
   const destination = await queuedVoiceRecordingFile(message.messageId);
   if (destination.exists) destination.delete();

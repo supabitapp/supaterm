@@ -8,11 +8,15 @@ import type {
 
 const SOURCE_NAME = "dev-fake-microphone.wav";
 const SAMPLE_RATE = 16_000;
+const BYTES_PER_SAMPLE = 2;
+const WAV_HEADER_BYTES = 44;
 const LEVEL_WINDOW_MS = 80;
+const FRAME_MS = 100;
 
 /**
  * Dev only: a 16 kHz WAV saved as `dev-fake-microphone.wav` in the app's documents stands in
- * for the microphone, so a simulator on a machine without one can still speak.
+ * for the microphone, so a simulator on a machine without one can still speak. It plays out in
+ * real time, then silence, and the recording holds exactly the frames it streamed.
  */
 export function devFakeMicrophoneSource(): File | null {
   if (!__DEV__) return null;
@@ -40,6 +44,31 @@ function pcmSamples(bytes: ArrayBuffer): Int16Array<ArrayBuffer> {
   return new Int16Array();
 }
 
+function wavFile(pcm: Uint8Array): Uint8Array {
+  const bytes = new Uint8Array(WAV_HEADER_BYTES + pcm.byteLength);
+  const view = new DataView(bytes.buffer);
+  const ascii = (offset: number, text: string) => {
+    for (let index = 0; index < text.length; index++) {
+      view.setUint8(offset + index, text.charCodeAt(index));
+    }
+  };
+  ascii(0, "RIFF");
+  view.setUint32(4, WAV_HEADER_BYTES - 8 + pcm.byteLength, true);
+  ascii(8, "WAVE");
+  ascii(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, SAMPLE_RATE, true);
+  view.setUint32(28, SAMPLE_RATE * BYTES_PER_SAMPLE, true);
+  view.setUint16(32, BYTES_PER_SAMPLE, true);
+  view.setUint16(34, BYTES_PER_SAMPLE * 8, true);
+  ascii(36, "data");
+  view.setUint32(40, pcm.byteLength, true);
+  bytes.set(pcm, WAV_HEADER_BYTES);
+  return bytes;
+}
+
 function decibelsAt(samples: Int16Array<ArrayBuffer>, elapsedMs: number): number {
   const start = Math.floor((elapsedMs / 1000) * SAMPLE_RATE);
   const end = Math.min(samples.length, start + (LEVEL_WINDOW_MS / 1000) * SAMPLE_RATE);
@@ -56,18 +85,46 @@ export function createDevFakeVoiceRecorder(
   source: File,
 ): NativeVoiceRecorder<VoiceRecordingStatusEvent, VoiceRecordingState> {
   const listeners = new Set<(status: VoiceRecordingStatusEvent) => void>();
+  const frameListeners = new Set<(pcm: Uint8Array) => void>();
   let samples: Int16Array<ArrayBuffer> = new Int16Array();
+  let limitBytes = 0;
+  let recordedBytes = 0;
   let uri: string | null = null;
   let startedAt: number | null = null;
   let limit: ReturnType<typeof setTimeout> | null = null;
+  let pacer: ReturnType<typeof setInterval> | null = null;
+
+  // The clip, then silence once it runs out.
+  const clipBytes = (start: number, end: number) => {
+    const pcm = new Uint8Array(end - start);
+    pcm.set(new Uint8Array(samples.buffer).subarray(start, end));
+    return pcm;
+  };
+
+  const emitDueFrames = () => {
+    if (startedAt === null) return;
+    const elapsedSamples = Math.floor(((Date.now() - startedAt) / 1000) * SAMPLE_RATE);
+    const due = Math.min(limitBytes, elapsedSamples * BYTES_PER_SAMPLE);
+    if (due <= recordedBytes) return;
+    const pcm = clipBytes(recordedBytes, due);
+    recordedBytes = due;
+    for (const listener of frameListeners) listener(pcm);
+  };
+
+  const stopTimers = () => {
+    if (limit) clearTimeout(limit);
+    if (pacer) clearInterval(pacer);
+    limit = null;
+    pacer = null;
+  };
 
   const finish = async () => {
-    if (limit) clearTimeout(limit);
-    limit = null;
+    stopTimers();
     if (startedAt === null) return;
+    emitDueFrames();
     startedAt = null;
     const recording = new File(Paths.cache, `dev-fake-microphone-${Date.now()}.wav`);
-    await source.copy(recording);
+    await recording.write(wavFile(clipBytes(0, recordedBytes)));
     uri = recording.uri;
   };
 
@@ -80,7 +137,10 @@ export function createDevFakeVoiceRecorder(
       samples = pcmSamples(await source.arrayBuffer());
     },
     record({ forDuration }) {
+      limitBytes = forDuration * SAMPLE_RATE * BYTES_PER_SAMPLE;
+      recordedBytes = 0;
       startedAt = Date.now();
+      pacer = setInterval(emitDueFrames, FRAME_MS);
       limit = setTimeout(() => {
         void finish().then(() => {
           for (const listener of listeners) {
@@ -102,13 +162,17 @@ export function createDevFakeVoiceRecorder(
       listeners.add(listener);
       return { remove: () => listeners.delete(listener) };
     },
+    addFrameListener(listener) {
+      frameListeners.add(listener);
+      return { remove: () => frameListeners.delete(listener) };
+    },
     getAvailableInputs: () => [],
     setInput: () => undefined,
     release() {
-      if (limit) clearTimeout(limit);
-      limit = null;
+      stopTimers();
       startedAt = null;
       listeners.clear();
+      frameListeners.clear();
     },
   };
 }
