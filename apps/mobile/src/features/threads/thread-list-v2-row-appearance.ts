@@ -2,7 +2,10 @@ import type { ViewStyle } from "react-native";
 import type { MobileThemeVariables } from "../../lib/mobileTheme";
 
 export { CODE_FONT_FAMILY as THREAD_LIST_V2_MONO_FONT } from "../../lib/fonts";
-export const THREAD_LIST_V2_ROW_CONTENT_CLASS_NAME = "px-5 py-2.5";
+// Matches the filter chips' 20pt inset; rem-based spacing has no 20pt step.
+export const THREAD_LIST_V2_SCREEN_INSET_CLASS_NAME = "px-[20px]";
+export const THREAD_LIST_V2_ROW_CONTENT_CLASS_NAME = `${THREAD_LIST_V2_SCREEN_INSET_CLASS_NAME} py-2.5`;
+export const THREAD_LIST_V2_ROW_DIVIDER_CLASS_NAME = "ml-[20px] h-px bg-border-subtle";
 export const THREAD_LIST_V2_ROW_DIVIDERS = true;
 export const THREAD_LIST_V2_SIDEBAR_ROW_STYLE = {
   borderRadius: 12,
