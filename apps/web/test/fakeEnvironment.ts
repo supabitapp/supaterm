@@ -376,6 +376,7 @@ const session: EnvironmentConnectionLease["session"] = {
   configChanges: Stream.never,
   subscribeServerConfig: () =>
     subscribe([{ version: 1 as const, type: "snapshot" as const, config: serverConfig }]),
+  opened: Effect.void,
   ready: Effect.void,
   probe: Effect.void,
   inboundFrames: Effect.succeed(0),

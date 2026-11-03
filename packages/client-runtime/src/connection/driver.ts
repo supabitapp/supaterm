@@ -37,7 +37,16 @@ export type ConnectionDriverProgress =
   | {
       readonly stage: Exclude<ConnectionAttemptStage, "preparing">;
       readonly prepared: PreparedConnection;
+    }
+  | {
+      // The socket opened; the stage stays synchronizing until the first snapshot.
+      readonly stage: "synchronizing";
+      readonly prepared: PreparedConnection;
+      readonly transportOpened: true;
     };
+
+type ReportProgress = (progress: ConnectionDriverProgress) => Effect.Effect<void>;
+const ignoreProgress: ReportProgress = () => Effect.void;
 
 export interface EnvironmentConnectionLease {
   readonly prepared: PreparedConnection;
@@ -152,13 +161,18 @@ export const connectOverRoutes = Effect.fn("ConnectionDriver.connectOverRoutes")
   entry: ConnectionCatalogEntry,
   checkRoute: CheckRoute,
   connectRoute: ConnectRoute<R>,
+  reportProgress: ReportProgress = ignoreProgress,
 ) {
   // Checks, and the relay tunnels they lease, end with route selection.
   // Connecting over a relay resolves its origin, which retains its tunnel.
   const connectionScope = yield* Scope.Scope;
-  return yield* selectAndConnect(entry, connectionScope, checkRoute, connectRoute).pipe(
-    Effect.scoped,
-  );
+  return yield* selectAndConnect(
+    entry,
+    connectionScope,
+    checkRoute,
+    connectRoute,
+    reportProgress,
+  ).pipe(Effect.scoped);
 });
 
 const selectAndConnect = Effect.fnUntraced(function* <R>(
@@ -166,6 +180,7 @@ const selectAndConnect = Effect.fnUntraced(function* <R>(
   connectionScope: Scope.Scope,
   checkRoute: CheckRoute,
   connectRoute: ConnectRoute<R>,
+  reportProgress: ReportProgress,
 ) {
   const routes = usableRoutes(entry);
   const checks =
@@ -208,7 +223,19 @@ const selectAndConnect = Effect.fnUntraced(function* <R>(
       });
     const result = yield* connectRoute(route).pipe(
       timeout(ROUTE_SETUP_TIMEOUT_MS),
-      Effect.tap((lease) => lease.session.ready.pipe(timeout(ROUTE_SNAPSHOT_TIMEOUT_MS))),
+      Effect.tap((lease) =>
+        lease.session.opened.pipe(
+          Effect.andThen(
+            reportProgress({
+              stage: "synchronizing",
+              prepared: lease.prepared,
+              transportOpened: true,
+            }),
+          ),
+          Effect.andThen(lease.session.ready),
+          timeout(ROUTE_SNAPSHOT_TIMEOUT_MS),
+        ),
+      ),
       Scope.provide(routeScope),
       Effect.onExit((exit) => (Exit.isSuccess(exit) ? Effect.void : Scope.close(routeScope, exit))),
       Effect.result,
@@ -218,6 +245,8 @@ const selectAndConnect = Effect.fnUntraced(function* <R>(
     if (result.failure.reason === "unsupported") return yield* result.failure;
     if (failure === undefined || failureRank(result.failure) > failureRank(failure))
       failure = result.failure;
+    // The failed route may have opened its socket; the next route starts over.
+    yield* reportProgress({ stage: "preparing" });
     return Option.none();
   });
   const slow: Array<number> = [];
@@ -361,6 +390,7 @@ export const make = Effect.gen(function* () {
         yield* reportProgress({ stage: "synchronizing", prepared });
         return { prepared, session } satisfies EnvironmentConnectionLease;
       }),
+      reportProgress,
     );
   });
 

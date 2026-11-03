@@ -143,6 +143,16 @@ const layerWakeups = Wakeups.layer({
         ).pipe(Effect.asVoid),
       ),
       networkPathChanges,
+      Stream.callback<"system-resumed">((queue) =>
+        Effect.acquireRelease(
+          Effect.sync(() =>
+            window.desktopBridge?.onSystemWake(() => {
+              Queue.offerUnsafe(queue, "system-resumed");
+            }),
+          ),
+          (unsubscribe) => Effect.sync(() => unsubscribe?.()),
+        ).pipe(Effect.asVoid),
+      ),
     ],
     { concurrency: "unbounded" },
   ),

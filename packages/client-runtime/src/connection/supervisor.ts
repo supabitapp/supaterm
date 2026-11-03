@@ -55,6 +55,9 @@ const SILENT_SOCKET_RECHECK_EVERY = "1 second";
 // socket must stay silent this long. It must end before
 // QUICK_CONNECTION_PROBE_TIMEOUT so a long resume replaces a silent socket.
 const REMOTE_SILENT_SOCKET_AFTER = "2500 millis";
+// The first attempt after a system wake can start before the network is
+// usable. If its socket has not opened by then, it is retried once.
+const WAKE_RECOVERY_OPEN_TIMEOUT = "3 seconds";
 // A mobile resume after this long in the background shows stale data.
 const LONG_BACKGROUND_AFTER_MS = 10_000;
 // A host that answered a fresh request still answers when the reconnect starts right after.
@@ -280,6 +283,7 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
   const signals = yield* Queue.unbounded<SupervisorSignal>();
   const resetRetryState = yield* Ref.make(false);
   const pendingProbe = yield* Ref.make<"idle" | "checking" | "mobile-resume">("idle");
+  const wakeRecoveryPending = yield* Ref.make(false);
   const state = yield* SubscriptionRef.make<SupervisorConnectionState>(
     !initialIntent.desired
       ? availableState(initialIntent, 0)
@@ -436,6 +440,7 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
     generation: number,
     lastFailure: ConnectionAttemptError | null,
     synchronizedRoutes: Ref.Ref<number>,
+    routeOpen: SubscriptionRef.SubscriptionRef<boolean>,
   ) {
     yield* Effect.annotateCurrentSpan({
       "connection.attempt": attempt,
@@ -444,10 +449,16 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
     const next = yield* attemptEntry;
     const answered = Option.getOrUndefined(yield* Ref.getAndSet(answeredRoute, Option.none()));
     const onProgress = (progress: ConnectionDriver.ConnectionDriverProgress) =>
-      (progress.stage === "synchronizing"
-        ? Ref.update(synchronizedRoutes, (count) => count + 1)
-        : Effect.void
-      ).pipe(Effect.andThen(reportProgress(attempt, generation, lastFailure, progress)));
+      "transportOpened" in progress
+        ? SubscriptionRef.set(routeOpen, true)
+        : SubscriptionRef.set(routeOpen, false).pipe(
+            Effect.andThen(
+              progress.stage === "synchronizing"
+                ? Ref.update(synchronizedRoutes, (count) => count + 1)
+                : Effect.void,
+            ),
+            Effect.andThen(reportProgress(attempt, generation, lastFailure, progress)),
+          );
     return yield* Effect.gen(function* () {
       // A switch to a better route outranks the replacement a resume opened.
       if (next.preflight !== undefined) yield* replacement.discard;
@@ -506,7 +517,13 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           break;
         case "Wakeup":
           if (next.reason === "application-background") return false;
-          if (next.reason === "application-resumed" || next.reason === "network-changed") {
+          // The attempt this restarts may have taken the wake's recovery already.
+          if (next.reason === "system-resumed") yield* Ref.set(wakeRecoveryPending, true);
+          if (
+            next.reason === "application-resumed" ||
+            next.reason === "network-changed" ||
+            next.reason === "system-resumed"
+          ) {
             return true;
           }
           break;
@@ -569,7 +586,8 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
         // After a long suspension the data on screen is stale, so a slow
         // answer reconnects as quickly as a missing one, even on a remote
         // route where a reconnect takes longer than the wait it replaces.
-        if (next.afterLongBackground === true) {
+        // A socket from before a sleep is suspect in the same way.
+        if (next.afterLongBackground === true || next.reason === "system-resumed") {
           return QUICK_CONNECTION_PROBE_TIMEOUT;
         }
         if (next.reason !== "application-resumed" && next.reason !== "network-changed") {
@@ -656,6 +674,9 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           ? "mobile-resume"
           : "checking",
       );
+      // A probe for an older signal can answer after the wake armed recovery.
+      if (next._tag === "Wakeup" && next.reason === "system-resumed")
+        yield* Ref.set(wakeRecoveryPending, true);
       const probe = yield* Effect.forkChild(lease.session.probe);
       let replacementFiber =
         next._tag === "Wakeup" &&
@@ -745,6 +766,7 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           if (silentSocket) yield* Fiber.interrupt(silentSocket);
           if (Exit.isSuccess(probeEvent.exit)) {
             yield* Ref.set(pendingProbe, "idle");
+            yield* Ref.set(wakeRecoveryPending, false);
             yield* replacement.discard;
           }
           yield* probeEvent.exit;
@@ -809,6 +831,32 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
     );
   });
 
+  // An open socket pauses the clock; a route that fails after opening gives
+  // the next route its own time to open.
+  const awaitWakeRecoveryStall = Effect.fnUntraced(function* (
+    routeOpen: SubscriptionRef.SubscriptionRef<boolean>,
+  ) {
+    const awaitRouteOpen = (open: boolean) =>
+      SubscriptionRef.changes(routeOpen).pipe(
+        Stream.filter((value) => value === open),
+        Stream.runHead,
+      );
+    while (
+      Option.isSome(
+        yield* awaitRouteOpen(true).pipe(Effect.timeoutOption(WAKE_RECOVERY_OPEN_TIMEOUT)),
+      )
+    ) {
+      yield* awaitRouteOpen(false);
+    }
+    yield* Effect.logInfo("Connection after a wake did not open; retrying it once.").pipe(
+      Effect.annotateLogs({
+        "environment.id": target.environmentId,
+        "environment.label": target.label,
+      }),
+    );
+    return { _tag: "Interrupted", resetRetry: true } as const satisfies EstablishmentEvent;
+  });
+
   const runAttempt = Effect.fnUntraced(function* (
     attempt: number,
     generation: number,
@@ -819,9 +867,11 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
     const routeCount = connectionRoutes(yield* Ref.get(currentEntry)).length;
     yield* SubscriptionRef.set(prepared, Option.none());
     const synchronizedRoutes = yield* Ref.make(0);
+    const routeOpen = yield* SubscriptionRef.make(false);
+    const wakeRecovery = yield* Ref.getAndSet(wakeRecoveryPending, false);
     const establishment = yield* Effect.raceAllFirst([
       exitUnlessInterrupted(
-        establishConnection(attempt, generation, lastFailure, synchronizedRoutes),
+        establishConnection(attempt, generation, lastFailure, synchronizedRoutes, routeOpen),
       ).pipe(
         Effect.map((exit): EstablishmentEvent => ({
           _tag: "Completed",
@@ -857,6 +907,7 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           yield* Effect.sleep(Duration.nanos(remaining));
         }
       }),
+      ...(wakeRecovery ? [awaitWakeRecoveryStall(routeOpen)] : []),
     ]);
 
     if (establishment._tag === "Interrupted") {
@@ -1027,6 +1078,7 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
       if (!currentIntent.desired) {
         resetRetryLadder();
         latestFailure = null;
+        yield* Ref.set(wakeRecoveryPending, false);
         yield* clearLease;
         yield* replacement.discard;
         yield* setState(availableState(currentIntent, generation));
@@ -1174,7 +1226,11 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           since !== null &&
           now - since >= LONG_BACKGROUND_AFTER_MS;
         // A long suspension can hide a network change the platform never reported.
-        if (reason === "network-changed" || afterLongBackground) yield* forgetSilentRoutes;
+        if (reason === "network-changed" || reason === "system-resumed" || afterLongBackground)
+          yield* forgetSilentRoutes;
+        // The next attempt is a post-wake attempt until a probe shows the
+        // socket survived, even across an offline wait.
+        if (reason === "system-resumed") yield* Ref.set(wakeRecoveryPending, true);
         yield* signal({
           _tag: "Wakeup",
           reason,

@@ -141,6 +141,7 @@ const connectWithRealResolver = Effect.fnUntraced(function* (
             initialConfig: Effect.die("unused"),
             configChanges: Stream.never,
             subscribeServerConfig: () => Stream.empty,
+            opened: Effect.void,
             ready: Effect.void,
             probe: Effect.void,
             inboundFrames: Effect.succeed(0),

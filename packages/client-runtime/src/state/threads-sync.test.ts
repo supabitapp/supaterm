@@ -88,6 +88,7 @@ function testSession(client: WsRpcProtocolClient): RpcSession.RpcSession {
     initialConfig: Effect.succeed({} as never),
     configChanges: Stream.empty,
     subscribeServerConfig: (input) => client.subscribeServerConfig(input),
+    opened: Effect.void,
     ready: Effect.void,
     probe: Effect.void,
     inboundFrames: Effect.succeed(0),

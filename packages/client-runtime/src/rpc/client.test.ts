@@ -52,6 +52,7 @@ function session(client: WsRpcProtocolClient): RpcSession.RpcSession {
     initialConfig: Effect.never,
     configChanges: Stream.empty,
     subscribeServerConfig: (input) => client.subscribeServerConfig(input),
+    opened: Effect.void,
     ready: Effect.void,
     probe: Effect.void,
     inboundFrames: Effect.succeed(0),

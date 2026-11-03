@@ -42,10 +42,15 @@ const lan = route("lan", "192.168.1.2:4389");
 const tailnet = route("tailnet", "100.100.1.2:4389");
 const relay = route("relay", `https://${"11".repeat(16)}.${"22".repeat(16)}.relay.supaterm.alt/`);
 const entry = { ...lan, enabled: true, alternateRoutes: [tailnet] };
+const opened: EnvironmentConnectionLease["session"]["opened"] = Effect.void;
 const lease = (
   route: ConnectionRoute,
   ready: EnvironmentConnectionLease["session"]["ready"] = Effect.void,
-) => ({ prepared: { target: route.target }, session: { ready } }) as EnvironmentConnectionLease;
+) =>
+  ({
+    prepared: { target: route.target },
+    session: { opened, ready },
+  }) as EnvironmentConnectionLease;
 const blocked = () =>
   new ConnectionBlockedError({ reason: "authentication", detail: "Token revoked" });
 const transient = () =>
