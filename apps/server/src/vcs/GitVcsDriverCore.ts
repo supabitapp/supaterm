@@ -92,7 +92,7 @@ const REVIEW_BRANCH_COMMIT_MAX_OUTPUT_BYTES = 128 * 1024;
 // prefixes. A repository or global diff.noprefix or diff.mnemonicPrefix would
 // otherwise leak into the patch and leave every parsed file unnamed.
 export const PATCH_RENDER_PREFIX_ARGS = ["--src-prefix=a/", "--dst-prefix=b/"] as const;
-// Client patch parsers drop blank context lines that diff.suppressBlankEmpty prints without a space.
+// Client patch parsers drop blank context lines under diff.suppressBlankEmpty and summaries under diff.submodule.
 const REVIEW_DIFF_ARGS = [
   "-c",
   "diff.suppressBlankEmpty=false",
@@ -101,6 +101,7 @@ const REVIEW_DIFF_ARGS = [
   "--no-color",
   "--no-ext-diff",
   "--no-textconv",
+  "--submodule=short",
   ...PATCH_RENDER_PREFIX_ARGS,
 ];
 const STATUS_UPSTREAM_REFRESH_INTERVAL = Duration.seconds(15);
