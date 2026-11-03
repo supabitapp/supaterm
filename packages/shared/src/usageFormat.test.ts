@@ -197,6 +197,14 @@ describe("usage calendar", () => {
     expect(months).toEqual([{ week: 0, label: "Oct" }]);
     expect(peak).toEqual({ day: "2026-10-03", index: 3, value: 6, level: 3 });
     expect(buildUsageCalendar(days, [0, 0, 0, 0, 0, 0, 0]).peak).toBeNull();
+
+    const quarter = enumerateDays("2026-08-06", "2026-11-03");
+    expect(buildUsageCalendar(quarter, []).months).toEqual([
+      { week: 0, label: "Aug" },
+      { week: 4, label: "Sep" },
+      { week: 8, label: "Oct" },
+      { week: 12, label: "Nov" },
+    ]);
   });
 
   it("buckets nonzero days into quartile levels and keeps zero days at level 0", () => {
