@@ -24,7 +24,6 @@ import { announcedRun, isDetailBehindShell } from "./chat/threadActivityAnnounce
 import {
   deriveAvailableRevertTurnCounts,
   deriveThreadPendingBackgroundTasks,
-  deriveWorkspaceMutationId,
   presentThreadShellFromProjection,
   type LocalThreadErrorEntry,
   makeThreadErrorSetter,
@@ -110,6 +109,7 @@ import { resolvePendingHandoff } from "@supaterm/client-runtime/handoff";
 import { HandoffRow } from "./chat/V2LifecycleRow";
 import {
   codexFeedbackMessage,
+  deriveWorkspaceMutationId,
   isCompleteTurnItemRow,
   shouldShowLoadEarlierControl,
   type CodexFeedbackSubmission,
@@ -137,6 +137,7 @@ import {
 } from "react";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { BackgroundThreadContext } from "./chat/backgroundThread";
+import { WorkspaceMutationIdContext } from "./chat/ChatMarkdownMedia";
 import { assistantCitationFromLocation } from "../lib/assistantCitationNavigation";
 import type { AssistantCitationSourceAnchor } from "~/lib/assistantTextSelection";
 import { useStore } from "zustand";
@@ -3465,124 +3466,128 @@ export default function ChatView(props: ChatViewProps) {
                   {...conversationArea}
                   className="relative flex min-h-0 flex-1 flex-col bg-background"
                 >
-                  <ThreadTimeline
-                    threadDetailRef={routeThreadDetailRef}
-                    entriesInput={timelineEntriesInput}
-                    draftEntries={isServerThread ? null : draftTimelineEntries}
-                    activeThreadKey={activeThreadKey}
-                    syncing={threadSyncPhase !== null}
-                    detailLoading={threadDetailLoading}
-                    citationRequest={citationRequest}
-                    citationHistory={citationHistory}
-                    onCiteAssistantText={citeAssistantTextStable}
-                    {...(activeProject ? { onRunShellCommand: runShellCommandStable } : {})}
-                    isWorking={isWorking}
-                    runlessWorkActive={runlessWorkStartedAt !== null}
-                    isCompacting={isCompacting}
-                    compactionStartedAt={compactionStartedAt}
-                    awaitingUser={
-                      activePendingApproval !== null
-                        ? "approval"
-                        : activePendingUserInput !== null ||
-                            activeThreadShell?.hasPendingUserInput === true
-                          ? "input"
-                          : null
-                    }
-                    awaitingRequestId={
-                      activePendingApproval?.requestId ?? activePendingUserInput?.requestId ?? null
-                    }
-                    announcedRun={announcedRun(activeActivityRun, serverProjection?.runs ?? [])}
-                    detailBehindShell={isDetailBehindShell(
-                      activeLatestRun,
-                      activeThreadShell?.latestRun ?? null,
-                    )}
-                    announceTurnStatus={!isProviderSubagent}
-                    activeTurnStartedAt={activeWorkStartedAt}
-                    worktreeSetup={worktreeSetup}
-                    onCancelWorktreeSetup={onCancelWorktreeSetupStable}
-                    retryableWorkspacePreparationRunIds={retryableWorkspacePreparationRunIds}
-                    onRetryWorkspacePreparation={onRetryWorkspacePreparationStable}
-                    {...(draftId
-                      ? { onWorktreeSetupWorkLocally: onWorktreeSetupWorkLocallyStable }
-                      : {})}
-                    {...(onOpenWorktreeSetupTerminal ? { onOpenWorktreeSetupTerminal } : {})}
-                    isPreparingWorktree={isPreparingWorktree}
-                    footer={
-                      pendingHandoff === null ? (
-                        threadStatusLine
-                      ) : (
-                        <>
-                          <div className="chat-content-lane">
-                            <HandoffRow
-                              environmentId={environmentId}
-                              endpoints={pendingHandoff}
-                              providers={providerStatuses}
-                              pending
-                            />
-                          </div>
-                          {threadStatusLine}
-                        </>
-                      )
-                    }
-                    listRef={legendListRef}
-                    runs={serverProjection?.runs ?? []}
-                    latestRun={activeActivityRun}
-                    runningRunId={activeRunningTurnId}
-                    turnDiffSummaries={turnDiffSummaries}
-                    activeThreadEnvironmentId={
-                      displayedThreadRef?.environmentId ?? activeThread.environmentId
-                    }
-                    routeThreadKey={displayedTimelineKey}
-                    displayThreadKey={displayedTimelineKey}
-                    onOpenToolDiff={onOpenToolDiffStable}
-                    onOpenTurnDiff={onOpenTurnDiffStable}
-                    onOpenThread={onOpenRelatedThreadStable}
-                    parentThreadLink={parentThreadLink}
-                    workflowOpening={workflowOpening}
-                    // Forking a side chat would drop its parent's history on portable providers.
-                    {...(isSideChat ? {} : { onForkFromRun: onForkFromRunStable })}
-                    supportsConversationRollback={supportsConversationRollback}
-                    threadStartCheckpointReady={threadStartCheckpointReady}
-                    availableRevertTurnCounts={availableRevertTurnCounts}
-                    onRevertToTurnCount={onRevertTimelineTurnStable}
-                    onUseArtifactTemplate={insertArtifactTemplateStable}
-                    onSendAppMessage={sendAppMessageStable}
-                    isRevertingCheckpoint={isRevertingCheckpoint}
-                    onImageExpand={onExpandTimelineImageStable}
-                    onFileOpen={openFileAttachmentStable}
-                    onFileDownload={downloadFileAttachmentStable}
-                    markdownCwd={gitCwd ?? undefined}
-                    resolvedTheme={resolvedTheme}
-                    timestampFormat={timestampFormat}
-                    workspaceRoot={activeWorkspaceRoot}
-                    skills={timelineSkills}
-                    anchorMessageId={timelineAnchorMessageId}
-                    onAnchorReady={onTimelineAnchorReadyStable}
-                    onAnchorSizeChanged={onTimelineAnchorSizeChangedStable}
-                    contentInsetEndAdjustment={composerTimelineInset}
-                    emptyPlaceholderInset={composerReservedHeight}
-                    liveFollowEnabled={timelineLiveFollowEnabled}
-                    onIsAtEndChange={onIsAtEndChangeStable}
-                    onContentOverflowChange={setTimelineOverflows}
-                    onToolOutputCollapsedAtEnd={onToolOutputCollapsedAtEndStable}
-                    onViewportAttach={attachTimelineViewport}
-                    onFooterGrow={onTimelineFooterGrowStable}
-                    onJumpToPinnedMessage={jumpToPinnedMessageStable}
-                    hideEmptyPlaceholder={isDraftHeroState}
-                    loading={!isDraftHeroState && threadDetailLoading}
-                    topFadeEnabled={!hasTimelineTopBanner}
-                    {...(threadHistoryControls === undefined
-                      ? {}
-                      : { historyControls: threadHistoryControls })}
-                    pinnedMessages={pinnedMessages}
-                    {...(canOperateThread
-                      ? { onTogglePinnedMessage: togglePinnedMessageStable }
-                      : {})}
-                    messageJump={
-                      pinnedMessageJump?.threadKey === routeThreadKey ? pinnedMessageJump : null
-                    }
-                    onMessageJumpFailed={reportPinnedMessageJumpFailureStable}
-                  />
+                  <WorkspaceMutationIdContext value={workspaceMutationId}>
+                    <ThreadTimeline
+                      threadDetailRef={routeThreadDetailRef}
+                      entriesInput={timelineEntriesInput}
+                      draftEntries={isServerThread ? null : draftTimelineEntries}
+                      activeThreadKey={activeThreadKey}
+                      syncing={threadSyncPhase !== null}
+                      detailLoading={threadDetailLoading}
+                      citationRequest={citationRequest}
+                      citationHistory={citationHistory}
+                      onCiteAssistantText={citeAssistantTextStable}
+                      {...(activeProject ? { onRunShellCommand: runShellCommandStable } : {})}
+                      isWorking={isWorking}
+                      runlessWorkActive={runlessWorkStartedAt !== null}
+                      isCompacting={isCompacting}
+                      compactionStartedAt={compactionStartedAt}
+                      awaitingUser={
+                        activePendingApproval !== null
+                          ? "approval"
+                          : activePendingUserInput !== null ||
+                              activeThreadShell?.hasPendingUserInput === true
+                            ? "input"
+                            : null
+                      }
+                      awaitingRequestId={
+                        activePendingApproval?.requestId ??
+                        activePendingUserInput?.requestId ??
+                        null
+                      }
+                      announcedRun={announcedRun(activeActivityRun, serverProjection?.runs ?? [])}
+                      detailBehindShell={isDetailBehindShell(
+                        activeLatestRun,
+                        activeThreadShell?.latestRun ?? null,
+                      )}
+                      announceTurnStatus={!isProviderSubagent}
+                      activeTurnStartedAt={activeWorkStartedAt}
+                      worktreeSetup={worktreeSetup}
+                      onCancelWorktreeSetup={onCancelWorktreeSetupStable}
+                      retryableWorkspacePreparationRunIds={retryableWorkspacePreparationRunIds}
+                      onRetryWorkspacePreparation={onRetryWorkspacePreparationStable}
+                      {...(draftId
+                        ? { onWorktreeSetupWorkLocally: onWorktreeSetupWorkLocallyStable }
+                        : {})}
+                      {...(onOpenWorktreeSetupTerminal ? { onOpenWorktreeSetupTerminal } : {})}
+                      isPreparingWorktree={isPreparingWorktree}
+                      footer={
+                        pendingHandoff === null ? (
+                          threadStatusLine
+                        ) : (
+                          <>
+                            <div className="chat-content-lane">
+                              <HandoffRow
+                                environmentId={environmentId}
+                                endpoints={pendingHandoff}
+                                providers={providerStatuses}
+                                pending
+                              />
+                            </div>
+                            {threadStatusLine}
+                          </>
+                        )
+                      }
+                      listRef={legendListRef}
+                      runs={serverProjection?.runs ?? []}
+                      latestRun={activeActivityRun}
+                      runningRunId={activeRunningTurnId}
+                      turnDiffSummaries={turnDiffSummaries}
+                      activeThreadEnvironmentId={
+                        displayedThreadRef?.environmentId ?? activeThread.environmentId
+                      }
+                      routeThreadKey={displayedTimelineKey}
+                      displayThreadKey={displayedTimelineKey}
+                      onOpenToolDiff={onOpenToolDiffStable}
+                      onOpenTurnDiff={onOpenTurnDiffStable}
+                      onOpenThread={onOpenRelatedThreadStable}
+                      parentThreadLink={parentThreadLink}
+                      workflowOpening={workflowOpening}
+                      // Forking a side chat would drop its parent's history on portable providers.
+                      {...(isSideChat ? {} : { onForkFromRun: onForkFromRunStable })}
+                      supportsConversationRollback={supportsConversationRollback}
+                      threadStartCheckpointReady={threadStartCheckpointReady}
+                      availableRevertTurnCounts={availableRevertTurnCounts}
+                      onRevertToTurnCount={onRevertTimelineTurnStable}
+                      onUseArtifactTemplate={insertArtifactTemplateStable}
+                      onSendAppMessage={sendAppMessageStable}
+                      isRevertingCheckpoint={isRevertingCheckpoint}
+                      onImageExpand={onExpandTimelineImageStable}
+                      onFileOpen={openFileAttachmentStable}
+                      onFileDownload={downloadFileAttachmentStable}
+                      markdownCwd={gitCwd ?? undefined}
+                      resolvedTheme={resolvedTheme}
+                      timestampFormat={timestampFormat}
+                      workspaceRoot={activeWorkspaceRoot}
+                      skills={timelineSkills}
+                      anchorMessageId={timelineAnchorMessageId}
+                      onAnchorReady={onTimelineAnchorReadyStable}
+                      onAnchorSizeChanged={onTimelineAnchorSizeChangedStable}
+                      contentInsetEndAdjustment={composerTimelineInset}
+                      emptyPlaceholderInset={composerReservedHeight}
+                      liveFollowEnabled={timelineLiveFollowEnabled}
+                      onIsAtEndChange={onIsAtEndChangeStable}
+                      onContentOverflowChange={setTimelineOverflows}
+                      onToolOutputCollapsedAtEnd={onToolOutputCollapsedAtEndStable}
+                      onViewportAttach={attachTimelineViewport}
+                      onFooterGrow={onTimelineFooterGrowStable}
+                      onJumpToPinnedMessage={jumpToPinnedMessageStable}
+                      hideEmptyPlaceholder={isDraftHeroState}
+                      loading={!isDraftHeroState && threadDetailLoading}
+                      topFadeEnabled={!hasTimelineTopBanner}
+                      {...(threadHistoryControls === undefined
+                        ? {}
+                        : { historyControls: threadHistoryControls })}
+                      pinnedMessages={pinnedMessages}
+                      {...(canOperateThread
+                        ? { onTogglePinnedMessage: togglePinnedMessageStable }
+                        : {})}
+                      messageJump={
+                        pinnedMessageJump?.threadKey === routeThreadKey ? pinnedMessageJump : null
+                      }
+                      onMessageJumpFailed={reportPinnedMessageJumpFailureStable}
+                    />
+                  </WorkspaceMutationIdContext>
 
                   <ScrollToEndPill
                     key={routeThreadKey}

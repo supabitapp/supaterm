@@ -1212,31 +1212,6 @@ export function deriveAvailableRevertTurnCounts(projection: ThreadStructure | nu
   return available;
 }
 
-/**
- * Changes when the agent may have changed the workspace, so file views refresh. File tools are
- * explicit; completed commands are included because a shell command can mutate the workspace
- * without reporting the paths it touched.
- */
-export function deriveWorkspaceMutationId(
-  visibleTurnItems: ReadonlyArray<ThreadStructureRow>,
-  latestCheckpointCompletedAt: string | null,
-) {
-  let itemId: string | null = null;
-  for (let index = visibleTurnItems.length - 1; index >= 0; index -= 1) {
-    const item = visibleTurnItems[index]?.item;
-    if (!item) continue;
-    if (item.type !== "command_execution" && item.type !== "file_change") continue;
-    if (item.status === "pending" || item.status === "running" || item.status === "waiting") {
-      continue;
-    }
-    itemId = item.id;
-    break;
-  }
-  return itemId === null && latestCheckpointCompletedAt === null
-    ? null
-    : JSON.stringify([itemId, latestCheckpointCompletedAt]);
-}
-
 /** What the composer held when the user pressed send, after a direct annotation merged in. */
 export interface ComposerSendContents {
   readonly prompt: string;
