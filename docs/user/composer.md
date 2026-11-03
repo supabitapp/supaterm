@@ -257,8 +257,13 @@ address can't use the microphone. The first time you record, allow microphone ac
 macOS you can change it later in System Settings → Privacy & Security → Microphone.
 
 If no speech is heard, the message isn't sent. If the thread refuses a transcribed message,
-the transcript stays in the queue as text so you can edit or retry it. Recordings stay on
-your device until they are sent or discarded.
+the transcript stays in the queue as text so you can edit or retry it.
+
+While you record, the audio goes to the environment and on to the provider as you speak, so
+the text is ready almost as soon as you stop. A copy stays on your device until the
+recording is sent or discarded, so a dropped connection, or an environment that doesn't
+stream, still gets the whole recording after you stop. Discarding a recording stops the
+provider, but it has already heard what you said up to then.
 
 ### On iPhone and Android
 

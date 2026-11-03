@@ -100,7 +100,15 @@ export class LiveDictation {
   private connect(): void {
     if (this.url === null || this.state === "done") return;
     this.sentBytes = null;
-    const socket = this.options.openSocket(this.url, {
+    try {
+      this.open(this.url);
+    } catch {
+      this.settle(false);
+    }
+  }
+
+  private open(url: string): void {
+    const socket = this.options.openSocket(url, {
       message: (data) => {
         if (this.socket !== socket || typeof data !== "string") return;
         const message = Option.getOrUndefined(decodeServerMessage(data));

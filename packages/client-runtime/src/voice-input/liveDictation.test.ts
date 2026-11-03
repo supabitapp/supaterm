@@ -109,5 +109,14 @@ describe("LiveDictation", () => {
 
     const unprepared = setup(() => Promise.reject(new Error("old server")));
     expect(await unprepared.live.finish()).toBe(false);
+
+    const unopenable = new LiveDictation({
+      prepare: async () => "ws://env/stream",
+      openSocket: () => {
+        throw new SyntaxError("blocked");
+      },
+      subscribe: () => () => undefined,
+    });
+    expect(await unopenable.finish()).toBe(false);
   });
 });
