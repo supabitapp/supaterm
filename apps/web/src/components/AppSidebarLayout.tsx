@@ -31,7 +31,7 @@ import { BackgroundThreadAnnouncer } from "./BackgroundThreadAnnouncer";
 import { HistorySwipeNavigation } from "./HistorySwipeNavigation";
 import { navigateHistory } from "../navigationHistory";
 import ThreadSidebar from "./Sidebar";
-import { MainSidebarToggle, SidebarBrandWidthProbe } from "./sidebar/SidebarChrome";
+import { MainSidebarToggle, SidebarHeaderWidthProbe } from "./sidebar/SidebarChrome";
 import { isAppModalPage } from "./sidebar/mainAppLocation";
 import type { SidebarRouteReveal } from "./sidebar/routeReveal";
 import {
@@ -282,8 +282,8 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
   const panelAnimationsSuppressed = usePanelNavigationSuppression(pathname);
   const routePanelAnimationsActive = panelAnimationsActive && !panelAnimationsSuppressed;
   const isMacosDesktop = isMacosDesktopWindow();
-  const [brandWidth, setBrandWidth] = useState(0);
-  const sidebarMinimumWidth = resolveThreadSidebarMinimumWidth(brandWidth);
+  const [headerWidth, setHeaderWidth] = useState(0);
+  const sidebarMinimumWidth = resolveThreadSidebarMinimumWidth(headerWidth);
   const isWindowFullscreen = useSyncExternalStore(
     subscribeToWindowFullscreen,
     readWindowFullscreen,
@@ -322,7 +322,7 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
           <ThreadSidebar routeReveal={sidebarRouteReveal} />
         </Sidebar>
         <SidebarInsetPanel minWidth={THREAD_MAIN_CONTENT_MIN_WIDTH}>
-          <SidebarBrandWidthProbe onWidthChange={setBrandWidth} />
+          <SidebarHeaderWidthProbe isElectron={isElectron} onWidthChange={setHeaderWidth} />
           {children}
           <BackgroundThreadAnnouncer />
           <SidebarControl />

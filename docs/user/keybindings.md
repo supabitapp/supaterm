@@ -177,7 +177,8 @@ field gets its own undo back. Terminals always keep their native shortcut.
 
 `navigation.back` (`mod+[` by default) and `navigation.forward` (`mod+]`) move
 through the pages you have visited, like a browser's back and forward buttons.
-In the desktop app, a two-finger horizontal swipe on a trackpad does the same.
+In the desktop app, the arrows at the top of the sidebar and a two-finger
+horizontal swipe on a trackpad do the same.
 
 `thread.approve` and `thread.decline` answer the first pending approval in the focused thread.
 `composer.submit` sends the draft as the send button would, and `composer.toggleFastMode` turns

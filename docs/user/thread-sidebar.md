@@ -238,8 +238,8 @@ The linked pull request participates in automatic completion.
 
 ## Find and reference work
 
-On web and desktop, open the command palette with `Cmd/Ctrl+K`, or select
-**Search** at the top of the sidebar, to search threads across connected
+On web and desktop, open the command palette with `Cmd/Ctrl+K`, or select the
+search button at the top of the sidebar, to search threads across connected
 environments by title, branch, pull request, or project. Threads you open often
 or recently rank higher, and for three weeks the thread you last picked for a
 query ranks higher when you type that query again. Threads whose messages
