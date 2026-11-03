@@ -412,6 +412,7 @@ const makeHarness = Effect.fn("TestEnvironmentRegistry.makeHarness")(function* (
             configChanges: options?.configChanges ?? Stream.empty,
             subscribeServerConfig: () =>
               Stream.die(new Error("Config is not used by registry tests.")),
+            opened: Effect.void,
             ready: Effect.void,
             probe: Effect.void,
             inboundFrames: Effect.succeed(0),

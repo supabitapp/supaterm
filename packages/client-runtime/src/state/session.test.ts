@@ -71,6 +71,7 @@ const makeHarness = Effect.fn("RouteLatencyTest.makeHarness")(function* (options
     initialConfig: Effect.succeed({ environment: descriptor } as ServerConfig),
     configChanges: Stream.empty,
     subscribeServerConfig: () => Stream.never,
+    opened: Effect.void,
     ready: Effect.void,
     probe: Effect.sync(() => {
       probes += 1;

@@ -105,6 +105,7 @@ const makeHarness = Effect.fn("TestThreadAtoms.makeHarness")(function* (options?
     } as never),
     configChanges: Stream.empty,
     subscribeServerConfig: (input) => client.subscribeServerConfig(input),
+    opened: Effect.void,
     ready: Effect.void,
     probe: Effect.void,
     inboundFrames: Effect.succeed(0),

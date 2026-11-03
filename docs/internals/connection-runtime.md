@@ -41,6 +41,14 @@ before a queued probe. Returning to mobile also restarts an in-flight connection
 attempt, whose routes may belong to the previous network. Desktop foregrounding
 leaves ordinary in-flight attempts alone.
 
+A desktop wake from sleep or unlock comes from Electron's power monitor, once per
+sleep or lock. It gets the 3 second probe and restarts an in-flight attempt. The
+wake and the page becoming visible both arrive before Wi-Fi, Tailscale, or a
+captive portal is usable, and no later signal says when it is. So the first
+attempt after a wake is retried once if no route has opened its socket within 3
+seconds. An open socket keeps its snapshot budget, and a route that fails after
+opening gives the next route its own 3 seconds.
+
 After at least 10 seconds in the background, a mobile resume over a direct route
 (LAN, tailnet, VPN, or public) opens a replacement session alongside the probe,
 and the first to succeed wins. A live socket usually answers in one round trip,

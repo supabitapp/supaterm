@@ -7,10 +7,16 @@ export type ConnectionWakeup =
   | "application-active"
   | "application-resumed"
   | "application-background"
-  | "network-changed";
+  | "network-changed"
+  // Desktop: the machine woke from sleep or was unlocked.
+  | "system-resumed";
 
 export function shouldResubscribeAfterWakeup(reason: ConnectionWakeup): boolean {
-  return reason === "application-active" || reason === "application-resumed";
+  return (
+    reason === "application-active" ||
+    reason === "application-resumed" ||
+    reason === "system-resumed"
+  );
 }
 
 export class ConnectionWakeups extends Context.Service<

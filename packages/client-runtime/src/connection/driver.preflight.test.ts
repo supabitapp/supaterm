@@ -65,6 +65,7 @@ const makeHarness = Effect.fnUntraced(function* () {
           initialConfig: Effect.die("Config is not used by these tests"),
           configChanges: Stream.never,
           subscribeServerConfig: () => Stream.empty,
+          opened: Effect.void,
           ready: Effect.void,
           probe: Effect.void,
           inboundFrames: Effect.succeed(0),
