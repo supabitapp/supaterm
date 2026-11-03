@@ -100,7 +100,7 @@ export function CreatePairingLinkDialog({
   );
   const canCreate = selectedScopes.length > 0 && (!relayEnabled || canPrepareRelay);
   const buttonLabel = {
-    idle: "Create link",
+    idle: "Create link and QR code",
     relay: "Preparing connection…",
     creating: "Creating link…",
   }[stage];
@@ -169,8 +169,7 @@ export function CreatePairingLinkDialog({
         <DialogHeader>
           <DialogTitle>Add a device</DialogTitle>
           <DialogDescription>
-            Create a one-time link, then open it on your other device to connect to this
-            environment.
+            Next, you’ll get a one-time link and QR&nbsp;code to connect your other device.
           </DialogDescription>
         </DialogHeader>
         <DialogPanel>
