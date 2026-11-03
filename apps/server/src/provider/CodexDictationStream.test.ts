@@ -71,6 +71,7 @@ interface Fixture {
   readonly sessions: Array<{ readonly start: unknown; frames: Array<Buffer>; closed: boolean }>;
   readonly headers: Array<NodeHttp.IncomingHttpHeaders>;
   readonly firstAudio: Deferred.Deferred<void>;
+  readonly firstClosed: Deferred.Deferred<void>;
 }
 
 const sizes = (frames: ReadonlyArray<Buffer>) => frames.map((frame) => frame.byteLength);
@@ -109,6 +110,7 @@ const withServer = <E>(
         sessions: [],
         headers: [],
         firstAudio: Deferred.makeUnsafe(),
+        firstClosed: Deferred.makeUnsafe(),
       };
       server.on("connection", (socket, request) => {
         fixture.headers.push(request.headers);
@@ -118,15 +120,17 @@ const withServer = <E>(
           const message = JSON.parse(data.toString()) as { type: string; audio?: string };
           if (message.type === "session.start") {
             Object.assign(session, { start: message });
-            if (options.stopFirstSession && fixture.sessions.length === 1) {
-              socket.send(frame({ type: "session.stop_requested", grace_period_ms: 1_000 }));
-            }
             socket.send(frame({ type: "session.started", session: { status: "active" } }));
           } else if (message.type === "audio.append") {
             session.frames.push(Buffer.from(message.audio ?? "", "base64"));
             Deferred.doneUnsafe(fixture.firstAudio, Effect.void);
+            if (options.stopFirstSession && session === fixture.sessions[0]) {
+              socket.send(frame({ type: "session.stop_requested", grace_period_ms: 1_000 }));
+            }
           } else if (message.type === "session.close") {
             session.closed = true;
+            if (session === fixture.sessions[0])
+              Deferred.doneUnsafe(fixture.firstClosed, Effect.void);
             const part = `part ${fixture.sessions.length}`;
             socket.send(
               frame({ type: "transcript.final", utterance_id: "u", revision: 0, text: part }),
@@ -254,22 +258,32 @@ describe("streamCodexDictation", () => {
     ),
   );
 
-  it.live("moves the rest of the audio to a new session when the server asks to stop", () =>
-    withServer({ stopFirstSession: true }, (fixture) =>
-      Effect.gen(function* () {
-        const text = yield* streamCodexDictation({
-          url: fixture.url,
-          headers,
-          language: undefined,
-          audio: Stream.make(new Uint8Array(256 + 4_096).fill(3)),
-        });
-        expect(text).toBe("part 1 part 2");
-        expect(fixture.sessions.map((session) => sizes(session.frames))).toEqual([
-          [256, 8_000],
-          [4_096, 8_000],
-        ]);
-        expect(fixture.sessions.every((session) => session.closed)).toBe(true);
-      }),
-    ),
+  it.live(
+    "closes the session the server asks to stop at once, and moves later audio to a new one",
+    () =>
+      withServer({ stopFirstSession: true }, (fixture) =>
+        Effect.gen(function* () {
+          const microphone = yield* Queue.unbounded<Uint8Array, Cause.Done>();
+          const fiber = yield* Effect.forkChild(
+            streamCodexDictation({
+              url: fixture.url,
+              headers,
+              language: undefined,
+              audio: Stream.fromQueue(microphone),
+            }),
+          );
+          yield* Queue.offer(microphone, new Uint8Array(256).fill(3));
+          yield* Deferred.await(fixture.firstClosed);
+          yield* Queue.offer(microphone, new Uint8Array(4_096).fill(4));
+          yield* Queue.end(microphone);
+
+          expect(yield* Fiber.join(fiber)).toBe("part 1 part 2");
+          expect(fixture.sessions.map((session) => sizes(session.frames))).toEqual([
+            [256, 8_000],
+            [4_096, 8_000],
+          ]);
+          expect(fixture.sessions.every((session) => session.closed)).toBe(true);
+        }),
+      ),
   );
 });
