@@ -1,3 +1,5 @@
+import { AutoLevel } from "@supaterm/client-runtime/voice-input";
+
 export const VOICE_METER_WIDTH = 90;
 export const VOICE_METER_HEIGHT = 26;
 /** One column is written per step. */
@@ -16,43 +18,6 @@ const smoothstep = (a: number, b: number, x: number) => {
   const t = clamp01((x - a) / (b - a));
   return t * t * (3 - 2 * t);
 };
-
-const follow = (value: number, target: number, time: number, h: number) =>
-  value + (target - value) * (1 - Math.exp(-h / time));
-
-const NOISE_FLOOR = -60;
-const AUTO_RELEASE = 3;
-const AUTO_MIN_SPAN = 16;
-const AUTO_RANGE = 24;
-const AUTO_ROOM_MARGIN = 5;
-const AUTO_ATTACK = 0.04;
-const ROOM_FALL = 0.3;
-const ROOM_RISE = 6;
-
-/**
- * The speaker's recent peak reads as full and the room as silent, so a quiet microphone moves the
- * meter as far as a loud one; the peak stays 16 dB above the room so silence is never boosted.
- */
-class AutoLevel {
-  peak = -30;
-  room = -55;
-
-  step(loudness: number, h: number): number {
-    const db = Math.max(loudness, -120);
-    this.room = follow(this.room, db, db < this.room ? ROOM_FALL : ROOM_RISE, h);
-    const lowest = Math.max(this.room, NOISE_FLOOR) + AUTO_MIN_SPAN;
-    this.peak =
-      db > this.peak
-        ? follow(this.peak, db, AUTO_ATTACK, h)
-        : follow(this.peak, lowest, AUTO_RELEASE, h);
-    this.peak = Math.max(this.peak, lowest);
-    const low = Math.max(
-      Math.max(this.room, NOISE_FLOOR) + AUTO_ROOM_MARGIN,
-      this.peak - AUTO_RANGE,
-    );
-    return clamp01((db - low) / Math.max(1, this.peak - low));
-  }
-}
 
 /**
  * A dot-matrix timeline of the voice. Each step writes the latest level as a column at the right

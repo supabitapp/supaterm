@@ -121,9 +121,11 @@ export function composerDictationToolbarHeight(
 ): number {
   return TOOLBAR_FACES[statusKind ?? "draft"].height;
 }
-const WAVEFORM_BAR_HEIGHT = 16;
-const WAVEFORM_MIN_BAR_HEIGHT = 2;
-const WAVEFORM_BAR_SPACING = 5;
+const WAVEFORM_DOT_ROWS = 5;
+const WAVEFORM_DOT_PITCH = 3.2;
+const COMPACT_WAVEFORM_COLUMNS = 8;
+const COMPACT_WAVEFORM_DOT_ROWS = 3;
+const COMPACT_WAVEFORM_DOT_PITCH = 4;
 const WAVEFORM_TIMING = {
   duration: 100,
   easing: Easing.out(Easing.quad),
@@ -197,38 +199,74 @@ export function ComposerDictationToolbar(props: {
   );
 }
 
-const WaveformBar = memo(function WaveformBar(props: {
+function WaveformDots(props: {
+  readonly rows: number;
+  readonly pitch: number;
+  readonly opacity?: number;
+}) {
+  return (
+    <View className="items-center" style={{ opacity: props.opacity }}>
+      {Array.from({ length: props.rows }, (_, row) => (
+        <View
+          key={row}
+          className="rounded-full bg-foreground"
+          style={{ width: props.pitch / 2, height: props.pitch / 2, margin: props.pitch / 4 }}
+        />
+      ))}
+    </View>
+  );
+}
+
+/** One column of the dot timeline: faint dots, with the lit ones revealed from the middle out. */
+const WaveformColumn = memo(function WaveformColumn(props: {
   readonly audioLevels: SharedValue<ReadonlyArray<number>>;
   readonly sampleIndex: number;
-  readonly height?: number;
+  readonly rows: number;
+  readonly pitch: number;
+  readonly age: number;
+  readonly head: boolean;
 }) {
-  const { audioLevels, sampleIndex } = props;
-  const height = props.height ?? WAVEFORM_BAR_HEIGHT;
-  const animatedStyle = useAnimatedStyle(() => {
+  const { audioLevels, sampleIndex, rows, pitch } = props;
+  const litStyle = useAnimatedStyle(() => {
     const level = audioLevels.get()[sampleIndex] ?? 0;
-    return {
-      opacity: withTiming(0.22 + level * 0.78, WAVEFORM_TIMING),
-      transform: [
-        {
-          scaleY: withTiming(
-            (WAVEFORM_MIN_BAR_HEIGHT + level * (height - WAVEFORM_MIN_BAR_HEIGHT)) / height,
-            WAVEFORM_TIMING,
-          ),
-        },
-      ],
-    };
+    const lit = level < 0.04 ? 0 : 1 + 2 * Math.round(level * ((rows - 1) / 2));
+    return { height: withTiming(lit * pitch, WAVEFORM_TIMING) };
   });
 
   return (
-    <Animated.View
-      className="w-0.5 rounded-full bg-foreground"
-      style={[{ height }, animatedStyle]}
-    />
+    <View className="items-center justify-center" style={{ width: pitch, height: rows * pitch }}>
+      {/* The newest column's faint dots sit brighter, like a terminal cursor. */}
+      <WaveformDots rows={rows} pitch={pitch} opacity={props.head ? 0.32 : 0.14} />
+      <Animated.View
+        className="absolute items-center justify-center overflow-hidden"
+        style={[{ width: pitch, opacity: 0.3 + 0.7 * props.age ** 1.8 }, litStyle]}
+      >
+        <WaveformDots rows={rows} pitch={pitch} />
+      </Animated.View>
+    </View>
   );
 });
 
-const COMPACT_WAVEFORM_BAR_COUNT = 8;
-const COMPACT_WAVEFORM_BAR_HEIGHT = 14;
+/** The newest `columns` levels, oldest on the left and fading with age. */
+function WaveformColumns(props: {
+  readonly audioLevels: SharedValue<ReadonlyArray<number>>;
+  readonly columns: number;
+  readonly rows: number;
+  readonly pitch: number;
+}) {
+  const { columns } = props;
+  return Array.from({ length: columns }, (_, index) => (
+    <WaveformColumn
+      key={index}
+      audioLevels={props.audioLevels}
+      sampleIndex={VOICE_WAVEFORM_SAMPLE_COUNT - columns + index}
+      rows={props.rows}
+      pitch={props.pitch}
+      age={columns > 1 ? index / (columns - 1) : 1}
+      head={index === columns - 1}
+    />
+  ));
+}
 
 export const CompactVoiceWaveform = memo(function CompactVoiceWaveform(props: {
   readonly audioLevels: SharedValue<ReadonlyArray<number>>;
@@ -237,17 +275,14 @@ export const CompactVoiceWaveform = memo(function CompactVoiceWaveform(props: {
     <View
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      className="flex-row items-center gap-0.5"
-      style={{ height: COMPACT_WAVEFORM_BAR_HEIGHT }}
+      className="flex-row items-center"
     >
-      {Array.from({ length: COMPACT_WAVEFORM_BAR_COUNT }, (_, index) => (
-        <WaveformBar
-          key={index}
-          audioLevels={props.audioLevels}
-          height={COMPACT_WAVEFORM_BAR_HEIGHT}
-          sampleIndex={VOICE_WAVEFORM_SAMPLE_COUNT - COMPACT_WAVEFORM_BAR_COUNT + index}
-        />
-      ))}
+      <WaveformColumns
+        audioLevels={props.audioLevels}
+        columns={COMPACT_WAVEFORM_COLUMNS}
+        rows={COMPACT_WAVEFORM_DOT_ROWS}
+        pitch={COMPACT_WAVEFORM_DOT_PITCH}
+      />
     </View>
   );
 });
@@ -255,14 +290,14 @@ export const CompactVoiceWaveform = memo(function CompactVoiceWaveform(props: {
 const VoiceWaveform = memo(function VoiceWaveform(props: {
   readonly audioLevels: SharedValue<ReadonlyArray<number>>;
 }) {
-  const [barCount, setBarCount] = useState(0);
+  const [columns, setColumns] = useState(0);
   const handleLayout = (event: LayoutChangeEvent) => {
-    setBarCount(
+    setColumns(
       Math.max(
         1,
         Math.min(
           VOICE_WAVEFORM_SAMPLE_COUNT,
-          Math.floor(event.nativeEvent.layout.width / WAVEFORM_BAR_SPACING),
+          Math.floor(event.nativeEvent.layout.width / WAVEFORM_DOT_PITCH),
         ),
       ),
     );
@@ -272,17 +307,16 @@ const VoiceWaveform = memo(function VoiceWaveform(props: {
     <View
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      className="min-w-0 flex-1 flex-row items-center justify-between overflow-hidden"
-      style={{ height: WAVEFORM_BAR_HEIGHT }}
+      className="min-w-0 flex-1 flex-row items-center justify-end overflow-hidden"
+      style={{ height: WAVEFORM_DOT_ROWS * WAVEFORM_DOT_PITCH }}
       onLayout={handleLayout}
     >
-      {Array.from({ length: barCount }, (_, index) => (
-        <WaveformBar
-          key={index}
-          audioLevels={props.audioLevels}
-          sampleIndex={VOICE_WAVEFORM_SAMPLE_COUNT - barCount + index}
-        />
-      ))}
+      <WaveformColumns
+        audioLevels={props.audioLevels}
+        columns={columns}
+        rows={WAVEFORM_DOT_ROWS}
+        pitch={WAVEFORM_DOT_PITCH}
+      />
     </View>
   );
 });

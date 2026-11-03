@@ -1,4 +1,5 @@
 import {
+  AutoLevel,
   VOICE_RECORDING_LIMIT_SECONDS,
   VoiceInputController,
   voiceInputBlocksSubmission,
@@ -10,7 +11,7 @@ import {
   type VoiceTranscriber,
 } from "@supaterm/client-runtime/voice-input";
 
-import { normalizeVoiceInputDecibels, VOICE_WAVEFORM_SAMPLE_COUNT } from "./voiceInputMetering";
+import { VOICE_WAVEFORM_SAMPLE_COUNT } from "./voiceInputMetering";
 
 const VOICE_METERING_INTERVAL_MS = 80;
 const IDLE_STATE: VoiceInputState = { phase: "idle", error: null, errorAction: null };
@@ -105,6 +106,7 @@ export class VoiceInputSession {
   };
   private readonly listeners = new Set<() => void>();
   private audioLevels = SILENT_LEVELS;
+  private readonly autoLevel = new AutoLevel();
   private releaseKeepAwake: (() => void) | null = null;
   private meteringInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -228,7 +230,9 @@ export class VoiceInputSession {
     const sample = this.dependencies.sampleRecording();
     if (!sample) return;
 
-    const level = normalizeVoiceInputDecibels(sample.metering);
+    const { metering } = sample;
+    const loudness = typeof metering === "number" && Number.isFinite(metering) ? metering : -120;
+    const level = this.autoLevel.step(loudness, VOICE_METERING_INTERVAL_MS / 1000);
     if (level !== 0 || this.audioLevels.some((sample) => sample !== 0)) {
       this.setAudioLevels([...this.audioLevels.slice(1), level]);
     }

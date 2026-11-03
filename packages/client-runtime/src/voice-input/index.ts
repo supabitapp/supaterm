@@ -1,3 +1,4 @@
+export { AutoLevel } from "./autoLevel.ts";
 export {
   VoiceInputController,
   VOICE_RECORDING_LIMIT_SECONDS,
