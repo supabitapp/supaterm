@@ -942,12 +942,16 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
     }),
   );
 
-  it.effect("status returns an explicit non-repo result for deleted directories", () =>
+  it.effect.each([
+    { case: "deleted directories", gitFile: null },
+    { case: "worktrees whose repository is gone", gitFile: "gitdir: /missing-git-directory\n" },
+  ])("status returns an explicit non-repo result for $case", ({ gitFile }) =>
     Effect.gen(function* () {
       const rootDir = yield* makeTempDir("supaterm-git-manager-missing-dir-");
       const cwd = NodePath.join(rootDir, "deleted-repo");
       yield* makeDirectory(cwd);
-      yield* removePath(cwd);
+      if (gitFile === null) yield* removePath(cwd);
+      else NodeFS.writeFileSync(NodePath.join(cwd, ".git"), gitFile);
       const { manager } = yield* makeManager();
 
       const status = yield* manager.status({ cwd });

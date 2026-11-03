@@ -561,8 +561,6 @@ function isMissingGitCwdError(error: GitCommandError): boolean {
   );
 }
 
-// Git 2.56 reports a .git file whose target is gone as "gitfile does not point
-// to a valid repository" instead of "not a git repository".
 export function isNonRepositoryGitStderr(stderr: string): boolean {
   const normalized = stderr.toLowerCase();
   return (
