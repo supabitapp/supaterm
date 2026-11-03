@@ -1,12 +1,13 @@
 import { CircleAlertIcon, MicIcon, SquareIcon, XIcon } from "@supaterm/icons";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useState, type PointerEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 
 import { isElectron } from "~/env";
 import { cn } from "~/lib/utils";
+import { DOT_SCOPE_HEIGHT, DOT_SCOPE_WIDTH, DotScope, paintDotScope } from "~/voice/dotScope";
 import { formatVoiceDuration } from "~/voice/formatVoiceDuration";
 import type { ComposerVoiceInput } from "~/voice/useComposerVoiceInput";
-import { VOICE_LEVEL_HISTORY, type WebVoiceRecorder } from "~/voice/webVoiceRecorder";
+import type { WebVoiceRecorder } from "~/voice/webVoiceRecorder";
 import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -15,7 +16,8 @@ import { ComposerSendArrowIcon, ComposerSendButton } from "./ComposerPrimaryActi
 
 const keepComposerFocus = (event: PointerEvent) => event.preventDefault();
 
-const VOICE_BAR_INDEXES = Array.from({ length: VOICE_LEVEL_HISTORY }, (_, index) => index);
+// High-refresh displays would otherwise repaint the scope at 120 Hz or more.
+const DOT_SCOPE_FRAME_MS = 1000 / 60 - 1;
 
 export function ComposerVoiceButton(props: {
   readonly voice: ComposerVoiceInput;
@@ -77,30 +79,49 @@ function VoiceElapsed(props: { readonly recorder: WebVoiceRecorder }) {
   return <span className="tabular-nums">{formatVoiceDuration(elapsedMs)}</span>;
 }
 
-/** Bars follow the recorder's level history without re-rendering React on every sample. */
-function VoiceLevelMeter(props: { readonly recorder: WebVoiceRecorder }) {
+function VoiceDotScope(props: { readonly recorder: WebVoiceRecorder }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- paints the canvas from the live recorder each frame, outside React
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return;
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = Math.round(DOT_SCOPE_WIDTH * ratio);
+    canvas.height = Math.round(DOT_SCOPE_HEIGHT * ratio);
+    context.scale(ratio, ratio);
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const scope = new DotScope(still);
+    const paint = () =>
+      paintDotScope(
+        context,
+        scope,
+        getComputedStyle(canvas).color,
+        document.documentElement.classList.contains("dark"),
+      );
+    if (still) {
+      for (let settle = 0; settle < 4; settle++) scope.advance(0.25, -120);
+      paint();
+      return;
+    }
+    let last: number | null = null;
+    const tick = (now: number) => {
+      frame = requestAnimationFrame(tick);
+      if (last !== null && now - last < DOT_SCOPE_FRAME_MS) return;
+      scope.advance(last === null ? 0 : (now - last) / 1000, props.recorder.loudness());
+      last = now;
+      paint();
+    };
+    let frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [props.recorder]);
   return (
-    <span
+    <canvas
+      ref={canvasRef}
       aria-hidden
-      className="pointer-events-none flex h-4 items-center gap-0.5"
-      ref={(element) => {
-        if (!element) return;
-        const bars = Array.from(element.children) as HTMLElement[];
-        props.recorder.setLevelListener((levels) => {
-          bars.forEach((bar, index) => {
-            bar.style.scale = `1 ${Math.max(0.15, levels[index] ?? 0)}`;
-          });
-        });
-        return () => props.recorder.setLevelListener(null);
-      }}
-    >
-      {VOICE_BAR_INDEXES.map((index) => (
-        <span
-          key={index}
-          className="h-full w-0.5 origin-center scale-y-[0.15] rounded-full bg-foreground/70 transition-transform duration-100 ease-out motion-reduce:transition-none"
-        />
-      ))}
-    </span>
+      className="pointer-events-none shrink-0 text-foreground"
+      style={{ width: DOT_SCOPE_WIDTH, height: DOT_SCOPE_HEIGHT }}
+    />
   );
 }
 
@@ -165,7 +186,7 @@ export function ComposerVoiceSession(props: {
         {capturing ? (
           <>
             <VoiceElapsed recorder={voice.recorder} />
-            <VoiceLevelMeter recorder={voice.recorder} />
+            <VoiceDotScope recorder={voice.recorder} />
           </>
         ) : (
           <span aria-live="polite" className="flex items-center gap-2 text-muted-foreground">

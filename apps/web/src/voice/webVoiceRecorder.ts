@@ -6,9 +6,9 @@ import {
 import { TRANSCRIPTION_MIN_DURATION_MS, TranscriptionError } from "@supaterm/contracts";
 
 import pcmCaptureWorkletUrl from "./pcmCapture.worklet.ts?worker&url";
+import { loudnessOf } from "./dotScope";
 import { PCM_CAPTURE_PROCESSOR, VOICE_SAMPLE_RATE, wavFromPcm } from "./wav";
 
-export const VOICE_LEVEL_HISTORY = 16;
 // The worklet answers within a render quantum; a suspended context never would.
 const FLUSH_TIMEOUT_MS = 1_000;
 
@@ -56,15 +56,8 @@ export function releaseVoiceRecording(uri: string): void {
   URL.revokeObjectURL(uri);
 }
 
-export type VoiceLevelListener = (levels: ReadonlyArray<number>) => void;
 /** Receives 16 kHz mono 16-bit PCM as it is recorded, about every 100 ms. */
 export type VoicePcmListener = (pcm: Uint8Array) => void;
-
-function levelOf(frame: Int16Array): number {
-  let sum = 0;
-  for (const sample of frame) sum += (sample / 32768) ** 2;
-  return Math.min(1, Math.sqrt(Math.sqrt(sum / Math.max(1, frame.length)) * 4));
-}
 
 export class WebVoiceRecorder implements VoiceRecorder {
   uri: string | null = null;
@@ -74,8 +67,12 @@ export class WebVoiceRecorder implements VoiceRecorder {
     readonly start: () => void;
     readonly stop: () => void;
   } | null = null;
-  private capture: { readonly context: AudioContext; readonly node: AudioWorkletNode } | null =
-    null;
+  private capture: {
+    readonly context: AudioContext;
+    readonly node: AudioWorkletNode;
+    readonly analyser: AnalyserNode;
+    readonly samples: Float32Array<ArrayBuffer>;
+  } | null = null;
   private recording = false;
   private pcm: Array<Uint8Array> = [];
   private recordedSamples = 0;
@@ -83,9 +80,6 @@ export class WebVoiceRecorder implements VoiceRecorder {
   private flushed: (() => void) | null = null;
   private startedAt = 0;
   private limitTimer: ReturnType<typeof setTimeout> | null = null;
-  private meterLevels = false;
-  private levels: ReadonlyArray<number> = Array<number>(VOICE_LEVEL_HISTORY).fill(0);
-  private levelListener: VoiceLevelListener | null = null;
   private stopped: Promise<void> | null = null;
   private permissionGeneration = 0;
   private readonly onStatus: (status: VoiceRecorderStatus) => void;
@@ -160,10 +154,14 @@ export class WebVoiceRecorder implements VoiceRecorder {
         if (event.data instanceof Int16Array) this.receive(event.data);
         else if (event.data === "flushed") this.flushed?.();
       };
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 1024;
+      const source = context.createMediaStreamSource(stream);
+      source.connect(analyser);
       // The node outputs silence; it only renders while connected to the destination.
-      context.createMediaStreamSource(stream).connect(node).connect(context.destination);
+      source.connect(node).connect(context.destination);
       await context.resume();
-      this.capture = { context, node };
+      this.capture = { context, node, analyser, samples: new Float32Array(analyser.fftSize) };
     } catch (error) {
       void context.close().catch(() => undefined);
       throw error;
@@ -197,7 +195,6 @@ export class WebVoiceRecorder implements VoiceRecorder {
     this.recording = true;
     this.fakeSource?.start();
     this.startedAt = performance.now();
-    this.meterLevels = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     this.limitTimer = setTimeout(() => {
       if (this.capture !== capture || !this.recording) return;
       void this.stop().then(() =>
@@ -211,10 +208,14 @@ export class WebVoiceRecorder implements VoiceRecorder {
     return this.stopped;
   }
 
-  /** The meter reads levels here, outside React, so recording never re-renders the composer. */
-  setLevelListener(listener: VoiceLevelListener | null): void {
-    this.levelListener = listener;
-    listener?.(this.levels);
+  /** The microphone's loudness now, dBFS; the meter reads it each frame outside React. */
+  loudness(): number {
+    const capture = this.capture;
+    if (!capture || !this.recording) return -120;
+    capture.analyser.getFloatTimeDomainData(capture.samples);
+    let sum = 0;
+    for (const sample of capture.samples) sum += sample * sample;
+    return loudnessOf(Math.sqrt(sum / capture.samples.length));
   }
 
   release(): void {
@@ -222,7 +223,6 @@ export class WebVoiceRecorder implements VoiceRecorder {
     if (this.limitTimer) clearTimeout(this.limitTimer);
     this.limitTimer = null;
     this.recording = false;
-    this.resetLevels();
     for (const track of this.stream?.getTracks() ?? []) track.stop();
     this.stream = null;
     this.fakeSource?.stop();
@@ -236,9 +236,6 @@ export class WebVoiceRecorder implements VoiceRecorder {
     this.pcm.push(bytes);
     this.recordedSamples += frame.length;
     for (const listener of this.pcmListeners) listener(bytes);
-    if (!this.meterLevels || document.hidden) return;
-    this.levels = [...this.levels.slice(1), levelOf(frame)];
-    this.levelListener?.(this.levels);
   }
 
   private async finish(): Promise<void> {
@@ -255,7 +252,6 @@ export class WebVoiceRecorder implements VoiceRecorder {
     });
     this.flushed = null;
     this.recording = false;
-    this.resetLevels();
     this.closeCapture();
     // A tap can stop before the first frame; that is an empty recording, not a failure.
     if (this.recordedSamples === 0 && elapsedMs >= TRANSCRIPTION_MIN_DURATION_MS) return;
@@ -267,11 +263,6 @@ export class WebVoiceRecorder implements VoiceRecorder {
       durationMs: Math.round((this.recordedSamples / VOICE_SAMPLE_RATE) * 1000),
     });
     this.uri = uri;
-  }
-
-  private resetLevels(): void {
-    this.levels = Array<number>(VOICE_LEVEL_HISTORY).fill(0);
-    this.levelListener?.(this.levels);
   }
 
   private closeCapture(): void {
