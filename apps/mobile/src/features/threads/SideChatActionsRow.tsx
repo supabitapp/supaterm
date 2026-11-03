@@ -144,7 +144,7 @@ export function SideChatActionsRow(props: {
       />
       <ActionChip
         label="Promote"
-        hint="Makes this a full thread that shows in lists and stops asking first."
+        hint="Makes this a full thread that shows in lists and can be forked."
         disabled={!canOperate || busy}
         onPress={() =>
           void run("Could not promote the side chat", () =>

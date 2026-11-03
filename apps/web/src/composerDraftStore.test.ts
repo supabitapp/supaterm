@@ -765,7 +765,6 @@ describe("composerDraftStore side chat drafts", () => {
       modelSelectionByProvider: { [CLAUDE_AGENT_INSTANCE]: modelSelection },
       activeProvider: CLAUDE_AGENT_INSTANCE,
       runtimeMode: "full-access",
-      interactionMode: "plan",
     });
   });
 });

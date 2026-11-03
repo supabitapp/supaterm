@@ -3106,7 +3106,7 @@ export const OrchestrationV2Command = Schema.Union([
     requestId: CommandId,
     title: Schema.optional(TrimmedNonEmptyString),
   }),
-  /** Makes a side chat a full thread: listed, forkable, and no longer held to approval. */
+  /** Makes a side chat a full thread: listed and forkable. */
   Schema.Struct({
     type: Schema.Literal("thread.side-chat.promote"),
     commandId: CommandId,

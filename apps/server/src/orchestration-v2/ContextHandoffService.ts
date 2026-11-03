@@ -322,7 +322,7 @@ export function sideChatTurnNote(input: {
   if (parentThreadId === null) return "";
   return [
     `You are still in a side chat beside main thread ${parentThreadId}, which may be working in the same worktree.`,
-    "Answer here and ask before acting; do not continue or redo the main thread's task.",
+    "Answer here; do not continue or redo the main thread's task.",
   ].join("\n");
 }
 

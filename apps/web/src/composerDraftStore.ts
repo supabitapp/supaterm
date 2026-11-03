@@ -2227,7 +2227,6 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
                 },
                 activeProvider: parent.modelSelection.instanceId,
                 runtimeMode: parent.runtimeMode,
-                interactionMode: parent.interactionMode,
               },
             },
           }));
