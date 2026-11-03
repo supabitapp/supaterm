@@ -710,7 +710,7 @@ jobs:
           node apps/server/scripts/cli.ts "${args[@]}"
 
       - name: Import macOS signing certificate for the CLI archive and installer
-        if: inputs.platform == 'mac' && (inputs.cli_archive || inputs.mac_installer)
+        if: inputs.platform == 'mac'
         shell: bash
         run: |
           set -euo pipefail
