@@ -1,4 +1,4 @@
-import { attachSidebarTree, SIDEBAR_TREE_PROPS } from "../lib/sidebarTree";
+import { attachSidebarTree } from "../lib/sidebarTree";
 import {
   SidebarDragBoundary,
   SidebarSectionHeader,
@@ -2854,8 +2854,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
             >
               <SortableContext items={sortableIds} strategy={sidebarSortingStrategy}>
                 <ul
-                  {...SIDEBAR_TREE_PROPS}
                   ref={attachTreeRef}
+                  // Presentation flattens VoiceOver's list interaction boundary while preserving descendant
+                  // controls.
+                  role="presentation"
                   className={cn(
                     // The last shelf is bottom-pinned; let it use the group's
                     // bottom inset once instead of adding a second gap above
@@ -3178,8 +3180,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                     <li className="list-none">
                       <button
                         type="button"
-                        role="treeitem"
-                        tabIndex={-1}
                         data-sidebar-row="done:more"
                         data-sidebar-parent="shelf:done"
                         disabled={olderDoneShelf.loading}
