@@ -8102,6 +8102,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         payload: completionPlan.message,
       });
     }
+    return completionPlan.parentRun?.id;
   });
 
   const dispatchCreatedThreadRecord = Effect.fn("orchestrationV2.dispatch.createdThreadRecord")(
@@ -12790,7 +12791,10 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         yield* dispatchDelegatedTaskRequest(command, events, effects);
         break;
       case "delegated_task.wake-policy":
-        yield* dispatchDelegatedTaskWakePolicy(command, events);
+        updateDelegatedCompletionOnlyRunId = yield* dispatchDelegatedTaskWakePolicy(
+          command,
+          events,
+        );
         break;
       case "delegated_task.completion-delivery.acknowledge":
       case "delegated_task.completion-delivery.dispose":
