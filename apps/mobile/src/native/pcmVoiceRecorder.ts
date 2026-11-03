@@ -28,6 +28,8 @@ interface PcmRecorderModule extends NativeModule<PcmRecorderEvents> {
 }
 
 const IDLE: VoiceRecordingState = { isRecording: false, durationMillis: 0 };
+const PCM_BYTES_PER_MS = 32;
+const LAST_FRAMES_TIMEOUT_MS = 1_000;
 
 const pcmRecorder = requireOptionalNativeModule<PcmRecorderModule>("SupatermPcmRecorder");
 
@@ -39,18 +41,30 @@ function createRecorder(
   native: PcmRecorderModule,
 ): NativeVoiceRecorder<VoiceRecordingStatusEvent, VoiceRecordingState> {
   let uri: string | null = null;
+  let frameListeners = 0;
+  let deliveredBytes = 0;
+  let awaiting: { readonly bytes: number; readonly done: () => void } | null = null;
   return {
     get uri() {
       return uri;
     },
     async prepareToRecordAsync() {
       uri = (await native.prepare()).uri;
+      deliveredBytes = 0;
     },
     record({ forDuration }) {
       native.record(forDuration * 1_000);
     },
     async stop() {
-      await native.stop();
+      const stopped = await native.stop();
+      // The last frames cross the bridge apart from stop's reply; a stream must hold all of them.
+      const bytes = stopped === null ? 0 : Math.floor(stopped.durationMs * PCM_BYTES_PER_MS);
+      if (frameListeners === 0 || deliveredBytes >= bytes) return;
+      await new Promise<void>((resolve) => {
+        awaiting = { bytes, done: resolve };
+        setTimeout(resolve, LAST_FRAMES_TIMEOUT_MS);
+      });
+      awaiting = null;
     },
     getStatus: () => native.getStatus() ?? IDLE,
     addListener: (_eventName, listener) =>
@@ -58,10 +72,22 @@ function createRecorder(
         if (status.url === uri) listener(status);
       }),
     // Native only emits frames while this listens, so an environment that can't stream pays nothing.
-    addFrameListener: (listener) =>
-      native.addListener("onFrames", (frames) => {
-        if (frames.url === uri) listener(decodeBase64(frames.pcm));
-      }),
+    addFrameListener: (listener) => {
+      frameListeners += 1;
+      const subscription = native.addListener("onFrames", (frames) => {
+        if (frames.url !== uri) return;
+        const pcm = decodeBase64(frames.pcm);
+        deliveredBytes += pcm.byteLength;
+        listener(pcm);
+        if (awaiting !== null && deliveredBytes >= awaiting.bytes) awaiting.done();
+      });
+      return {
+        remove: () => {
+          frameListeners -= 1;
+          subscription.remove();
+        },
+      };
+    },
     getAvailableInputs: () => native.getAvailableInputs?.() ?? [],
     setInput: (uid) => native.setInput?.(uid),
     release: () => native.release(),

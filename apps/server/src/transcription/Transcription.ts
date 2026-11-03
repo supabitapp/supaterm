@@ -48,6 +48,8 @@ import { keytermCandidates } from "./TranscriptionKeyterms.ts";
 const OUTCOME_TTL_MS = 10 * 60_000;
 const MAX_ENTRIES = 64;
 const RUN_TIMEOUT_MS = (TRANSCRIPTION_MAX_SECONDS + 120) * 1000;
+// A live run starts with the recording, which can pause (a call on iOS) without counting audio.
+const LIVE_RUN_TIMEOUT_MS = (2 * TRANSCRIPTION_MAX_SECONDS + 120) * 1000;
 const RUNS_PER_INSTANCE = 2;
 const PRUNE_INTERVAL = "1 minute";
 const UNUSABLE_AUDIO: ReadonlySet<TranscriptionErrorReason | undefined> = new Set([
@@ -482,7 +484,7 @@ const make = Effect.gen(function* () {
       );
     },
     Effect.timeoutOrElse({
-      duration: RUN_TIMEOUT_MS,
+      duration: LIVE_RUN_TIMEOUT_MS,
       orElse: () => Effect.fail(new TranscriptionError({ reason: "failed" })),
     }),
   );
