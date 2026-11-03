@@ -3229,10 +3229,10 @@ export default function ChatView(props: ChatViewProps) {
     onToggleThreadPanel: toggleThreadPanelStable,
     onToggleRightPanel: toggleRightPanelStable,
   } satisfies PanelLayoutControlsProps;
-  const paneActionsMenuId = paneSplit ? (paneScope?.paneId ?? null) : null;
+  const splitPaneId = paneSplit ? (paneScope?.paneId ?? null) : null;
   const panelToggleControls =
-    paneActionsMenuId !== null ? (
-      <ChatPaneActionsMenu {...panelToggleControlProps} paneId={paneActionsMenuId} />
+    splitPaneId !== null ? (
+      <ChatPaneActionsMenu {...panelToggleControlProps} paneId={splitPaneId} />
     ) : (
       <PanelLayoutControls
         {...panelToggleControlProps}
@@ -3404,7 +3404,7 @@ export default function ChatView(props: ChatViewProps) {
                 />
               ) : null}
               {!rightPanelControlsAtRoot && !rightPanelControlsInPanel ? panelLayoutControls : null}
-              {inlineRightPanelOwnsTitleBar && paneActionsMenuId === null
+              {inlineRightPanelOwnsTitleBar && splitPaneId === null
                 ? threadPanelHeaderControl
                 : null}
               <TooltipProvider>
@@ -3417,7 +3417,7 @@ export default function ChatView(props: ChatViewProps) {
                   activeProject={activeProject ?? null}
                   parentThreadLink={parentThreadLink}
                   onOpenThread={onOpenRelatedThreadStable}
-                  singleTrailingControl={inlineRightPanelOwnsTitleBar || paneActionsMenuId !== null}
+                  singleTrailingControl={inlineRightPanelOwnsTitleBar || splitPaneId !== null}
                   pinnedMessages={pinnedMessages}
                   onJumpToPinnedMessage={jumpToPinnedMessageStable}
                   {...(canOperateThread ? { onUnpinMessage: unpinMessageStable } : {})}
