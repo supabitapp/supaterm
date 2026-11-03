@@ -4,6 +4,7 @@ import { Atom } from "effect/reactivity";
 import { ChevronRightIcon } from "@supaterm/icons";
 import { Fragment, type RefObject, useRef } from "react";
 
+import { cn } from "~/lib/utils";
 import { environmentThreadShells } from "~/state/threads";
 import {
   AlertDialog,
@@ -124,6 +125,8 @@ function UpdateEverythingDialogContent({
   const restarting = new Set(restarts.map((machine) => machine.environmentId));
   const updating = rows.filter((row) => row.app !== null || row.providers.length > 0);
   const skipped = rows.filter((row) => row.skipped !== null);
+  const showApp = updating.some((row) => row.app !== null || row.skipped !== null);
+  const showProviders = updating.some((row) => row.providers.length > 0);
 
   return (
     <>
@@ -151,11 +154,18 @@ function UpdateEverythingDialogContent({
             </p>
           ))}
           {/* Machine names truncate first. Provider lists wrap between names, never inside one. */}
-          <div className="grid grid-cols-[minmax(4rem,max-content)_max-content_minmax(min-content,1fr)_max-content] gap-x-4 text-sm">
+          <div
+            className={cn(
+              "grid gap-x-4 text-sm",
+              showApp && showProviders
+                ? "grid-cols-[minmax(4rem,max-content)_max-content_minmax(min-content,1fr)_max-content]"
+                : "grid-cols-[minmax(4rem,max-content)_minmax(min-content,1fr)_max-content]",
+            )}
+          >
             <div className="col-span-full grid grid-cols-subgrid border-b pb-1.5 text-muted-foreground text-xs">
               <span>Machine</span>
-              <span>Supaterm</span>
-              <span>Providers</span>
+              {showApp ? <span>Supaterm</span> : null}
+              {showProviders ? <span>Providers</span> : null}
               <span />
             </div>
             {updating.map((row) => (
@@ -166,23 +176,27 @@ function UpdateEverythingDialogContent({
                 <span className="max-w-32 min-w-0">
                   <MiddleTruncate value={row.label} />
                 </span>
-                <span>
-                  {row.app !== null ? APP_LABELS[row.app] : null}
-                  {row.app === null && row.skipped !== null ? (
-                    <span className="text-muted-foreground">Skipped</span>
-                  ) : null}
-                  {row.app === "this-app" ? (
-                    <span className="block text-muted-foreground text-xs">restarts last</span>
-                  ) : null}
-                </span>
-                <span>
-                  {row.providers.map((provider, index) => (
-                    <Fragment key={provider}>
-                      <span className="whitespace-nowrap">{provider}</span>
-                      {index < row.providers.length - 1 ? ", " : null}
-                    </Fragment>
-                  ))}
-                </span>
+                {showApp ? (
+                  <span>
+                    {row.app !== null ? APP_LABELS[row.app] : null}
+                    {row.app === null && row.skipped !== null ? (
+                      <span className="text-muted-foreground">Skipped</span>
+                    ) : null}
+                    {row.app === "this-app" ? (
+                      <span className="block text-muted-foreground text-xs">restarts last</span>
+                    ) : null}
+                  </span>
+                ) : null}
+                {showProviders ? (
+                  <span>
+                    {row.providers.map((provider, index) => (
+                      <Fragment key={provider}>
+                        <span className="whitespace-nowrap">{provider}</span>
+                        {index < row.providers.length - 1 ? ", " : null}
+                      </Fragment>
+                    ))}
+                  </span>
+                ) : null}
                 <span className="text-right">
                   {row.environmentId !== null && restarting.has(row.environmentId) ? (
                     <RunningThreads environmentId={row.environmentId} />
@@ -219,7 +233,7 @@ function UpdateEverythingDialogContent({
             {disabledReason}
           </p>
         ) : running > 0 ? (
-          <p className="self-center text-muted-foreground text-sm max-sm:order-1 max-sm:text-center sm:mr-auto">
+          <p className="self-center text-muted-foreground text-sm tabular-nums max-sm:order-1 max-sm:text-center sm:mr-auto">
             {stopped === 0
               ? `${threads} will be interrupted and can resume after the restart.`
               : continuing === 0
@@ -240,5 +254,7 @@ function UpdateEverythingDialogContent({
 
 function RunningThreads({ environmentId }: { readonly environmentId: EnvironmentId }) {
   const count = useAtomValue(runningThreadCountAtom(environmentId));
-  return count > 0 ? <span className="whitespace-nowrap text-warning">{count} running</span> : null;
+  return count > 0 ? (
+    <span className="whitespace-nowrap text-warning tabular-nums">{count} running</span>
+  ) : null;
 }
