@@ -194,6 +194,21 @@ export function htmlRenderFromToolItem(item: {
   return output?.isError ? undefined : output?.htmlRender;
 }
 
+/** The thread-owned file `preview_recording_stop` stored for the agent. */
+export function previewRecordingIdFromToolItem(item: {
+  readonly toolName: string | null | undefined;
+  readonly output?: unknown;
+}): string | undefined {
+  if (resolveSupatermMcpToolId(item.toolName) !== "preview_recording_stop") return undefined;
+  const budget: ResultReadBudget = {
+    remainingBytes: MAX_PARSED_BYTES,
+    remainingNodes: MAX_ENVELOPE_NODES,
+    exceeded: false,
+  };
+  const result = readResult(item.output, budget);
+  return result.failed || budget.exceeded ? undefined : boundedId(result.data?.id);
+}
+
 export function mcpAppFromToolItem(item: {
   readonly toolName: string | null | undefined;
   readonly output?: unknown;
