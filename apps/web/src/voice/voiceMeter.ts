@@ -33,7 +33,7 @@ const ROOM_RISE = 6;
  * The speaker's recent peak reads as full and the room as silent, so a quiet microphone moves the
  * meter as far as a loud one; the peak stays 16 dB above the room so silence is never boosted.
  */
-export class AutoLevel {
+class AutoLevel {
   peak = -30;
   room = -55;
 

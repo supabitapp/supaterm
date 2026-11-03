@@ -1,19 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { AutoLevel, WriteHead } from "./voiceMeter";
+import { VOICE_METER_STEP_MS, WriteHead } from "./voiceMeter";
 
-const H = 1 / 240;
-
-/** Syllables peaking at `peak` dB over a room at `room` dB, 4 a second; returns the levels. */
-function speak(auto: AutoLevel, peak: number, room: number, seconds: number): Array<number> {
-  return Array.from({ length: Math.floor(seconds / H) }, (_, index) => {
-    const syllable = Math.max(0, Math.sin(Math.PI * 2 * 4 * index * H));
-    return auto.step(room + (peak - room) * Math.sqrt(syllable), H);
-  });
-}
-
-const high = (levels: ReadonlyArray<number>) =>
-  levels.toSorted((a, b) => a - b)[Math.floor((levels.length * 9) / 10)]!;
+const STEP = VOICE_METER_STEP_MS / 1000;
 
 /** How many dots in column `i` are more than half lit. */
 const litRows = (meter: WriteHead, i: number) =>
@@ -21,29 +10,17 @@ const litRows = (meter: WriteHead, i: number) =>
     (value) => value > 0.5,
   ).length;
 
-describe("AutoLevel", () => {
-  it("moves a quiet microphone as far as a loud one", () => {
-    const quiet = new AutoLevel();
-    speak(quiet, -36, -58, 4);
-    const loud = new AutoLevel();
-    speak(loud, -14, -50, 4);
-    expect(high(speak(quiet, -36, -58, 2))).toBeGreaterThan(0.8);
-    expect(high(speak(loud, -14, -50, 2))).toBeGreaterThan(0.8);
+/** Writes `seconds` of `loudness` at the meter's step; returns the lit rows of each new column. */
+function write(meter: WriteHead, seconds: number, loudness: (time: number) => number) {
+  return Array.from({ length: Math.round(seconds / STEP) }, (_, step) => {
+    meter.write(loudness(step * STEP));
+    return litRows(meter, meter.columns - 1);
   });
+}
 
-  it("never boosts the room or silence to full", () => {
-    const fan = new AutoLevel();
-    speak(fan, -30, -55, 2);
-    let last = 1;
-    for (let step = 0; step < 20 / H; step++) last = fan.step(-48, H);
-    expect(last).toBeLessThan(0.05);
-    expect(fan.peak).toBeGreaterThanOrEqual(fan.room + 16 - 0.01);
-
-    const silent = new AutoLevel();
-    for (let step = 0; step < 20 / H; step++) last = silent.step(-90, H);
-    expect(last).toBe(0);
-  });
-});
+/** Syllables peaking at `peak` dB over a room at `room` dB, 4 a second. */
+const speech = (peak: number, room: number) => (time: number) =>
+  room + (peak - room) * Math.sqrt(Math.max(0, Math.sin(Math.PI * 2 * 4 * time)));
 
 describe("WriteHead", () => {
   it("writes the newest level at the right edge and scrolls it left", () => {
@@ -57,6 +34,15 @@ describe("WriteHead", () => {
     expect(litRows(meter, head - 1)).toBeGreaterThan(0);
   });
 
+  it("lights a quiet microphone as fully as a loud one", () => {
+    const quiet = new WriteHead();
+    write(quiet, 4, speech(-36, -58));
+    const loud = new WriteHead();
+    write(loud, 4, speech(-14, -50));
+    expect(Math.max(...write(quiet, 2, speech(-36, -58)))).toBe(quiet.rows);
+    expect(Math.max(...write(loud, 2, speech(-14, -50)))).toBe(loud.rows);
+  });
+
   it("lights more rows the louder the voice", () => {
     const quiet = new WriteHead();
     const loud = new WriteHead();
@@ -65,6 +51,14 @@ describe("WriteHead", () => {
     const head = quiet.columns - 1;
     expect(litRows(quiet, head)).toBeGreaterThan(0);
     expect(litRows(loud, head)).toBeGreaterThan(litRows(quiet, head));
+  });
+
+  it("leaves a steady room and silence dark", () => {
+    const fan = new WriteHead();
+    write(fan, 2, speech(-30, -55));
+    expect(write(fan, 20, () => -48).at(-1)).toBe(0);
+    const silent = new WriteHead();
+    expect(Math.max(...write(silent, 20, () => -90))).toBe(0);
   });
 
   it("stops changing once silence has scrolled the voice out", () => {

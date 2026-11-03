@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "
 
 import { isElectron } from "~/env";
 import { useMediaQuery } from "~/hooks/useMediaQuery";
-import { useRenderedAppearance } from "~/hooks/useTheme";
 import { cn } from "~/lib/utils";
 import { formatVoiceDuration } from "~/voice/formatVoiceDuration";
 import type { ComposerVoiceInput } from "~/voice/useComposerVoiceInput";
@@ -91,7 +90,6 @@ function VoiceLevelMeter(props: {
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
-  const dark = useRenderedAppearance() === "dark";
   const live = props.recording && !reducedMotion;
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- writes the live recorder's loudness into the canvas each step, outside React
   useEffect(() => {
@@ -107,15 +105,29 @@ function VoiceLevelMeter(props: {
         canvas.height = Math.round(VOICE_METER_HEIGHT * ratio);
         context.setTransform(ratio, 0, 0, ratio, 0, 0);
       }
+      const dark = document.documentElement.classList.contains("dark");
       paintVoiceMeter(context, meter, getComputedStyle(canvas).color, dark);
     };
     paint();
-    if (!live) return;
-    const timer = window.setInterval(() => {
-      if (meter.write(props.recorder.loudness())) paint();
-    }, VOICE_METER_STEP_MS);
-    return () => window.clearInterval(timer);
-  }, [props.recorder, live, dark]);
+    // Themes restyle the root, and moving to another display changes the pixel ratio.
+    const theme = new MutationObserver(paint);
+    theme.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class", "style", "data-theme-id"],
+    });
+    const resolution = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+    resolution.addEventListener("change", paint);
+    const timer = live
+      ? window.setInterval(() => {
+          if (!document.hidden && meter.write(props.recorder.loudness())) paint();
+        }, VOICE_METER_STEP_MS)
+      : undefined;
+    return () => {
+      window.clearInterval(timer);
+      theme.disconnect();
+      resolution.removeEventListener("change", paint);
+    };
+  }, [props.recorder, live]);
   return (
     <canvas
       ref={canvasRef}
