@@ -43,13 +43,7 @@ import {
   type ProviderInstance,
 } from "@supaterm/provider-core/server/driver";
 import { withInstanceIdentity } from "@supaterm/provider-core/server/instanceIdentity";
-import {
-  enrichProviderSnapshotWithVersionAdvisory,
-  makeCachedProviderMaintenanceResolution,
-  makePackageManagedProviderMaintenanceResolver,
-  normalizeCommandPath,
-  resolveProviderMaintenanceCapabilitiesEffect,
-} from "@supaterm/provider-core/server/maintenanceResolver";
+import { enrichProviderSnapshotWithVersionAdvisory } from "@supaterm/provider-core/server/maintenanceResolver";
 import {
   haveProviderSnapshotSettingsChanged,
   makeProviderSnapshotSettingsSource,
@@ -63,27 +57,10 @@ import {
   resolveClaudeHomePath,
 } from "./ClaudeHome.ts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
+import { makeClaudeMaintenanceResolution } from "./ClaudeMaintenance.ts";
 const decodeClaudeSettings = Schema.decodeSync(ClaudeSettings);
 
 const DRIVER_KIND = ProviderDriverKind.make("claudeAgent");
-
-function isClaudeNativeCommandPath(commandPath: string): boolean {
-  const normalized = normalizeCommandPath(commandPath);
-  return (
-    normalized.endsWith("/.local/bin/claude") ||
-    normalized.endsWith("/.local/bin/claude.exe") ||
-    normalized.includes("/.local/share/claude/")
-  );
-}
-
-const UPDATE = makePackageManagedProviderMaintenanceResolver({
-  provider: DRIVER_KIND,
-  npmPackageName: "@anthropic-ai/claude-code",
-  nativeUpdate: {
-    args: ["update"],
-    isCommandPath: isClaudeNativeCommandPath,
-  },
-});
 
 export type ClaudeDriverEnv =
   | ClaudeAdapterV2DriverEnv
@@ -139,15 +116,14 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
       enabled,
       binaryPath: expandHomePath(config.binaryPath, yield* HostProcess.HomeDirectory),
     } satisfies ClaudeSettings;
-    const resolveMaintenance = yield* makeCachedProviderMaintenanceResolution(
-      resolveProviderMaintenanceCapabilitiesEffect(UPDATE, {
-        binaryPath: effectiveConfig.binaryPath,
-        env: processEnv,
-      }).pipe(
-        Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
-        Effect.provideService(FileSystem.FileSystem, fileSystem),
-        Effect.provideService(Path.Path, path),
-      ),
+    const resolveMaintenance = yield* makeClaudeMaintenanceResolution({
+      binaryPath: effectiveConfig.binaryPath,
+      env: processEnv,
+    }).pipe(
+      Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
+      Effect.provideService(FileSystem.FileSystem, fileSystem),
+      Effect.provideService(Path.Path, path),
+      Effect.provideService(HttpClient.HttpClient, httpClient),
     );
     const continuationGroupKey = yield* makeClaudeContinuationGroupKey(effectiveConfig, processEnv);
     const configDir = yield* resolveClaudeHomePath(effectiveConfig, processEnv);
