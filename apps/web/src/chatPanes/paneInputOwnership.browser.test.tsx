@@ -65,7 +65,7 @@ function splitPanes() {
   const store = useChatPaneStore.getState();
   store.reconcileRoute(thread("a"), { width: 1600, height: 900 });
   const first = useChatPaneStore.getState().layout!.focusedPaneId;
-  const second = store.split(first, "right", thread("b"))!;
+  const second = store.split(first, "right", thread("b"), null)!;
   return { first, second };
 }
 

@@ -1,5 +1,7 @@
 import { scopedThreadKey } from "@supaterm/client-runtime/environment";
+import type { ScopedThreadRef } from "@supaterm/contracts";
 
+import type { DraftId } from "../draftId";
 import type { ThreadRouteTarget } from "../threadRoutes";
 
 const MAX_CHAT_PANES = 4;
@@ -66,6 +68,23 @@ export function findPaneByTarget(layout: PaneLayout, target: ThreadRouteTarget):
   return layout.cells.find((cell) => paneTargetKey(cell.target) === key) ?? null;
 }
 
+/** The pane still showing the draft that became `target`'s thread. */
+export function findPromotedDraftPane(
+  layout: PaneLayout,
+  target: ThreadRouteTarget,
+  draftThread: (draftId: DraftId) => ScopedThreadRef | null,
+): PaneCell | null {
+  if (target.kind !== "server") return null;
+  const key = scopedThreadKey(target.threadRef);
+  return (
+    layout.cells.find((cell) => {
+      if (cell.target.kind !== "draft") return false;
+      const threadRef = draftThread(cell.target.draftId);
+      return threadRef !== null && scopedThreadKey(threadRef) === key;
+    }) ?? null
+  );
+}
+
 export function focusedPane(layout: PaneLayout): PaneCell {
   return findPane(layout, layout.focusedPaneId) ?? layout.cells[0]!;
 }
@@ -97,12 +116,10 @@ function withSideChatOf(cell: PaneCell, parentPaneId: string | undefined): PaneC
   return parentPaneId === undefined ? rest : { ...rest, sideChatOf: parentPaneId };
 }
 
-/** The side chat panes tied to `paneId`, in reading order. */
 export function sideChatPanes(layout: PaneLayout, paneId: string): ReadonlyArray<PaneCell> {
   return orderedPanes(layout).filter((cell) => cell.sideChatOf === paneId);
 }
 
-/** Ties a side chat's pane to its parent's pane, so the pair navigates and closes together. */
 export function linkSideChatPane(
   layout: PaneLayout,
   sideChatPaneId: string,

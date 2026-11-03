@@ -17,13 +17,10 @@ export function openThreadBeside(target: ThreadRouteTarget, edge: PaneEdge): boo
   const fits =
     findPaneByTarget(layout, target) !== null ||
     canSplitPane(layout, layout.focusedPaneId, edge, workspace);
-  return fits && split(layout.focusedPaneId, edge, target) !== null;
+  return fits && split(layout.focusedPaneId, edge, target, workspace) !== null;
 }
 
-/**
- * Opens `target`, one thread of a side chat pair, like `openThreadBeside`, and ties the side chat to
- * its parent's pane so the two navigate and close together.
- */
+/** Like `openThreadBeside` for either thread of a side chat pair, then ties the pair. */
 export function openSideChatBeside(
   target: ThreadRouteTarget,
   pair: { readonly parentRef: ScopedThreadRef; readonly sideChat: ThreadRouteTarget },

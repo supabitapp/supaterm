@@ -144,5 +144,5 @@ export function commitPaneDrop(target: PaneDropTarget, payload: PaneDragPayload)
     store.replace(target.paneId, thread, workspaceSize());
     return true;
   }
-  return store.split(target.paneId, target.zone, thread) !== null;
+  return store.split(target.paneId, target.zone, thread, workspaceSize()) !== null;
 }

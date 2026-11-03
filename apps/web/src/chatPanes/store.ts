@@ -11,11 +11,11 @@ import type { ThreadRouteTarget } from "../threadRoutes";
 import {
   canSplitPane,
   closeOtherPanes,
-  closePane,
   createPaneLayout,
   equalizePaneLayout,
   findPane,
   findPaneByTarget,
+  findPromotedDraftPane,
   focusAdjacentPane,
   focusedPane,
   focusPane,
@@ -29,15 +29,21 @@ import {
   paneTargetKey,
   replacePaneTarget,
   setTrackSizes,
-  sideChatPanes,
-  splitPane,
   swapPanes,
-  unlinkPane,
 } from "./layout";
+import {
+  closePaneWithSideChats,
+  openBeside,
+  type ParkedSideChats,
+  promoteParkedDraft,
+  retargetPane,
+  showInPane,
+  showParkedSideChat,
+  untieSideChat,
+} from "./sideChats";
 
 const STORAGE_KEY = "supaterm:chat-panes:v1";
 const MAX_CLOSED_RECORDS = 20;
-const MAX_PARKED_SIDE_CHATS = 20;
 
 const PaneTargetSchema = Schema.Union([
   Schema.Struct({ kind: Schema.Literal("server"), threadRef: ScopedThreadRef }),
@@ -88,7 +94,6 @@ const PersistedChatPaneState = Schema.Struct({
 const decodePersistedChatPaneState = Schema.decodeUnknownOption(PersistedChatPaneState);
 
 export type ClosedPaneRecord = typeof ClosedPaneRecordSchema.Type;
-type ParkedSideChats = typeof ParkedSideChatsSchema.Type;
 
 /**
  * Reads this tab's own copy first so a reload restores its arrangement, and
@@ -131,16 +136,26 @@ interface ChatPaneState {
   openToSide: { readonly edge: PaneEdge } | null;
   /**
    * The route names the focused pane's thread. With an open-to-side request
-   * armed, a thread that is not on screen opens in a new pane instead.
+   * armed, a thread that is not on screen opens in a new pane instead. A draft's
+   * own thread, per `draftThread`, stays in the draft's pane.
    */
-  reconcileRoute: (target: ThreadRouteTarget, workspace: PaneLayoutSize | null) => void;
+  reconcileRoute: (
+    target: ThreadRouteTarget,
+    workspace: PaneLayoutSize | null,
+    draftThread?: (draftId: DraftId) => ScopedThreadRef | null,
+  ) => void;
   /** The next thread opened from anywhere lands beside the focused pane. */
   requestOpenToSide: (edge: PaneEdge) => void;
   cancelOpenToSide: () => void;
   focus: (paneId: string) => void;
   focusAdjacent: (offset: 1 | -1) => void;
   focusIndex: (index: number) => boolean;
-  split: (paneId: string, edge: PaneEdge, target: ThreadRouteTarget) => string | null;
+  split: (
+    paneId: string,
+    edge: PaneEdge,
+    target: ThreadRouteTarget,
+    workspace: PaneLayoutSize | null,
+  ) => string | null;
   /** Ties an on-screen side chat to its parent's pane; a no-op unless both are on screen. */
   linkSideChat: (pair: {
     readonly parent: ThreadRouteTarget;
@@ -148,6 +163,7 @@ interface ChatPaneState {
   }) => void;
   /** Unties a side chat that became a full thread, so it stays when its parent leaves. */
   unlinkSideChat: (sideChat: ThreadRouteTarget) => void;
+  promoteParkedDraft: (draftId: DraftId, threadRef: ScopedThreadRef) => void;
   replace: (paneId: string, target: ThreadRouteTarget, workspace: PaneLayoutSize | null) => void;
   /** Swaps a pane's thread without moving the URL, for a background draft that was promoted. */
   retarget: (paneId: string, target: ThreadRouteTarget) => void;
@@ -172,88 +188,6 @@ function remember(
   return [record, ...closed].slice(0, MAX_CLOSED_RECORDS);
 }
 
-interface PaneArrangement {
-  readonly layout: PaneLayout;
-  readonly parkedSideChats: ReadonlyArray<ParkedSideChats>;
-}
-
-/** Closes the side chats tied to `paneId` and remembers them under the thread it shows. */
-function parkSideChats(state: PaneArrangement, paneId: string): PaneArrangement {
-  const pane = findPane(state.layout, paneId);
-  const sideChats = sideChatPanes(state.layout, paneId);
-  if (!pane || sideChats.length === 0) return state;
-  const layout = sideChats.reduce(
-    (current, cell) => closePane(current, cell.id)?.layout ?? current,
-    state.layout,
-  );
-  const key = paneTargetKey(pane.target);
-  const targets = sideChats.map((cell) => cell.target);
-  const keys = new Set(targets.map(paneTargetKey));
-  const earlier = state.parkedSideChats.find((entry) => paneTargetKey(entry.parent) === key);
-  const entry = {
-    parent: pane.target,
-    sideChats: [
-      ...targets,
-      ...(earlier?.sideChats ?? []).filter((target) => !keys.has(paneTargetKey(target))),
-    ],
-  };
-  return {
-    layout,
-    parkedSideChats: [entry, ...state.parkedSideChats.filter((other) => other !== earlier)].slice(
-      0,
-      MAX_PARKED_SIDE_CHATS,
-    ),
-  };
-}
-
-/** Reopens the side chats parked under the thread `paneId` shows, beside it, where they fit. */
-function restoreSideChats(
-  state: PaneArrangement,
-  paneId: string,
-  workspace: PaneLayoutSize | null,
-): PaneArrangement {
-  const pane = findPane(state.layout, paneId);
-  const key = pane ? paneTargetKey(pane.target) : null;
-  const entry = state.parkedSideChats.find((other) => paneTargetKey(other.parent) === key);
-  if (!entry || !workspace) return state;
-  let layout = state.layout;
-  const unopened: ThreadRouteTarget[] = [];
-  // Each opens right beside the parent, so the last one goes first to keep their order.
-  for (const target of entry.sideChats.toReversed()) {
-    if (findPaneByTarget(layout, target)) continue;
-    const id = randomUUID();
-    const split = canSplitPane(layout, paneId, "right", workspace)
-      ? splitPane(layout, paneId, "right", target, id, randomUUID)
-      : null;
-    if (split) layout = linkSideChatPane(split, id, paneId);
-    else unopened.unshift(target);
-  }
-  return {
-    layout: { ...layout, focusedPaneId: paneId },
-    parkedSideChats:
-      unopened.length > 0
-        ? state.parkedSideChats.map((other) =>
-            other === entry ? { ...other, sideChats: unopened } : other,
-          )
-        : state.parkedSideChats.filter((other) => other !== entry),
-  };
-}
-
-/**
- * Shows `target` in `paneId` and focuses it. The side chats of the thread it showed leave with
- * that thread, and the side chats parked under `target` come back.
- */
-function showInPane(
-  state: PaneArrangement,
-  paneId: string,
-  target: ThreadRouteTarget,
-  workspace: PaneLayoutSize | null,
-): PaneArrangement {
-  const parked = parkSideChats(state, paneId);
-  const layout = focusPane(replacePaneTarget(parked.layout, paneId, target), paneId);
-  return restoreSideChats({ ...parked, layout }, paneId, workspace);
-}
-
 export const useChatPaneStore = create<ChatPaneState>()(
   persist(
     (set, get) => ({
@@ -263,27 +197,9 @@ export const useChatPaneStore = create<ChatPaneState>()(
       historyMode: "replace",
       openToSide: null,
       // Runs once per navigation, so an armed open-to-side request is used up either way.
-      reconcileRoute: (target, workspace) =>
+      reconcileRoute: (target, workspace, draftThread = () => null) =>
         set((state) => {
-          const request = state.openToSide;
-          const { layout: current } = state;
-          if (
-            current &&
-            request &&
-            workspace &&
-            !findPaneByTarget(current, target) &&
-            canSplitPane(current, current.focusedPaneId, request.edge, workspace)
-          ) {
-            const split = splitPane(
-              current,
-              current.focusedPaneId,
-              request.edge,
-              target,
-              randomUUID(),
-              randomUUID,
-            );
-            if (split) return { layout: split, openToSide: null, historyMode: "replace" };
-          }
+          const { layout: current, openToSide: request } = state;
           if (current === null) {
             return {
               layout: createPaneLayout(target, randomUUID),
@@ -291,22 +207,51 @@ export const useChatPaneStore = create<ChatPaneState>()(
               historyMode: "replace",
             };
           }
+          const draftPane = findPromotedDraftPane(current, target, draftThread);
+          if (draftPane && !findPaneByTarget(current, target)) {
+            const retargeted = retargetPane(
+              { layout: current, parkedSideChats: state.parkedSideChats },
+              draftPane.id,
+              target,
+            );
+            return {
+              ...retargeted,
+              layout: focusPane(retargeted.layout, draftPane.id),
+              openToSide: null,
+              historyMode: "replace",
+            };
+          }
           const existing = findPaneByTarget(current, target);
           if (existing) {
             const layout = focusPane(current, existing.id);
-            return layout === current && state.openToSide === null
+            return layout === current && request === null
               ? state
               : { layout, openToSide: null, historyMode: "replace" };
           }
+          const from = { layout: current, parkedSideChats: state.parkedSideChats };
+          const opened =
+            request &&
+            workspace &&
+            canSplitPane(current, current.focusedPaneId, request.edge, workspace)
+              ? openBeside(
+                  from,
+                  current.focusedPaneId,
+                  request.edge,
+                  target,
+                  randomUUID(),
+                  workspace,
+                )
+              : null;
           // Navigating from a side chat moves its parent's pane, which takes the side chat along.
           const focused = focusedPane(current);
-          const shown = showInPane(
-            { layout: current, parkedSideChats: state.parkedSideChats },
-            focused.sideChatOf ?? focused.id,
-            target,
-            workspace,
-          );
-          return { ...shown, openToSide: null, historyMode: "replace" };
+          const anchorId = focused.sideChatOf ?? focused.id;
+          return {
+            ...(opened ??
+              showParkedSideChat(from, anchorId, target, workspace) ??
+              showInPane(from, anchorId, target, workspace)),
+            openToSide: null,
+            historyMode: "replace",
+          };
         }),
       requestOpenToSide: (edge) => set({ openToSide: { edge } }),
       cancelOpenToSide: () => set((state) => (state.openToSide ? { openToSide: null } : state)),
@@ -329,8 +274,8 @@ export const useChatPaneStore = create<ChatPaneState>()(
         set({ layout: focusPane(layout, pane.id), historyMode: "replace" });
         return true;
       },
-      split: (paneId, edge, target) => {
-        const layout = get().layout;
+      split: (paneId, edge, target, workspace) => {
+        const { layout, parkedSideChats } = get();
         if (!layout) return null;
         const existing = findPaneByTarget(layout, target);
         if (existing) {
@@ -338,9 +283,16 @@ export const useChatPaneStore = create<ChatPaneState>()(
           return existing.id;
         }
         const newPaneId = randomUUID();
-        const next = splitPane(layout, paneId, edge, target, newPaneId, randomUUID);
+        const next = openBeside(
+          { layout, parkedSideChats },
+          paneId,
+          edge,
+          target,
+          newPaneId,
+          workspace,
+        );
         if (!next) return null;
-        set({ layout: next, historyMode: "push" });
+        set({ ...next, historyMode: "push" });
         return newPaneId;
       },
       linkSideChat: ({ parent, sideChat }) =>
@@ -354,11 +306,28 @@ export const useChatPaneStore = create<ChatPaneState>()(
         }),
       unlinkSideChat: (sideChat) =>
         set((state) => {
-          const pane = state.layout ? findPaneByTarget(state.layout, sideChat) : null;
-          if (!state.layout || !pane) return state;
-          const layout = unlinkPane(state.layout, pane.id);
-          return layout === state.layout ? state : { layout };
+          if (!state.layout) return state;
+          const key = paneTargetKey(sideChat);
+          return {
+            ...untieSideChat(
+              { layout: state.layout, parkedSideChats: state.parkedSideChats },
+              sideChat,
+            ),
+            closed: state.closed.map((record) => {
+              if (record.kind !== "pane" || paneTargetKey(record.target) !== key) return record;
+              const { sideChatOf: _sideChatOf, ...untied } = record;
+              return untied;
+            }),
+          };
         }),
+      promoteParkedDraft: (draftId, threadRef) =>
+        set((state) => ({
+          parkedSideChats: promoteParkedDraft(
+            state.parkedSideChats,
+            { kind: "draft", draftId },
+            { kind: "server", threadRef },
+          ),
+        })),
       replace: (paneId, target, workspace) =>
         set((state) => {
           if (!state.layout || !findPane(state.layout, paneId)) return state;
@@ -374,45 +343,32 @@ export const useChatPaneStore = create<ChatPaneState>()(
           );
           return { ...shown, historyMode: "push" };
         }),
-      // The pane keeps its tie: a promoted draft is the same conversation.
       retarget: (paneId, target) =>
         set((state) => {
           if (!state.layout || findPaneByTarget(state.layout, target)) return state;
-          const parked = parkSideChats(
+          return retargetPane(
             { layout: state.layout, parkedSideChats: state.parkedSideChats },
             paneId,
+            target,
           );
-          return {
-            ...parked,
-            layout: {
-              ...parked.layout,
-              cells: parked.layout.cells.map((cell) =>
-                cell.id === paneId ? { ...cell, target } : cell,
-              ),
-            },
-          };
         }),
       close: (paneId, options) => {
         const { layout, closed, parkedSideChats } = get();
         const cell = layout ? findPane(layout, paneId) : null;
         if (!layout || !cell || layout.cells.length < 2) return false;
-        // Its side chats leave with it, unless they are all that would be left.
-        const parked = parkSideChats({ layout, parkedSideChats }, paneId);
-        const from = parked.layout.cells.length < 2 ? { layout, parkedSideChats } : parked;
-        const result = closePane(from.layout, paneId);
+        const result = closePaneWithSideChats({ layout, parkedSideChats }, paneId);
         if (!result) return false;
         const parent = cell.sideChatOf === undefined ? null : findPane(layout, cell.sideChatOf);
         set({
-          layout: result.layout,
-          parkedSideChats: from.parkedSideChats,
+          ...result.arrangement,
           closed:
             options?.remember === false
               ? closed
               : remember(closed, {
                   kind: "pane",
                   target: cell.target,
-                  besidePaneId: result.reopenBeside.paneId,
-                  edge: result.reopenBeside.edge,
+                  besidePaneId: result.closed.reopenBeside.paneId,
+                  edge: result.closed.reopenBeside.edge,
                   ...(parent ? { sideChatOf: parent.target } : {}),
                   closedAt: Date.now(),
                 }),
@@ -472,18 +428,17 @@ export const useChatPaneStore = create<ChatPaneState>()(
         }
         const beside = findPane(layout, record.besidePaneId)?.id ?? layout.focusedPaneId;
         const reopenedId = randomUUID();
-        const next = splitPane(layout, beside, record.edge, record.target, reopenedId, randomUUID);
+        const from = { layout, parkedSideChats };
+        const opened = openBeside(from, beside, record.edge, record.target, reopenedId, workspace);
         const parentPane = record.sideChatOf ? findPaneByTarget(layout, record.sideChatOf) : null;
-        const reopened = next
-          ? restoreSideChats(
-              {
-                layout: parentPane ? linkSideChatPane(next, reopenedId, parentPane.id) : next,
-                parkedSideChats,
-              },
-              reopenedId,
-              workspace,
-            )
-          : showInPane({ layout, parkedSideChats }, layout.focusedPaneId, record.target, workspace);
+        const reopened = opened
+          ? {
+              ...opened,
+              layout: parentPane
+                ? linkSideChatPane(opened.layout, reopenedId, parentPane.id)
+                : opened.layout,
+            }
+          : showInPane(from, layout.focusedPaneId, record.target, workspace);
         set({ ...reopened, closed: rest, historyMode: "push" });
         return true;
       },

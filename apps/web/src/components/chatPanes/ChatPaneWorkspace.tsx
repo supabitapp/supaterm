@@ -1,4 +1,5 @@
-import { scopedThreadKey, scopeThreadRef } from "@supaterm/client-runtime/environment";
+import { scopeThreadRef } from "@supaterm/client-runtime/environment";
+import type { ScopedThreadRef } from "@supaterm/contracts";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { BackgroundThreadContext } from "../chat/backgroundThread";
@@ -17,6 +18,7 @@ import { PaneScopeProvider, registerPaneComposer, type PaneScope } from "../../c
 import { useChatPaneStore } from "../../chatPanes/store";
 import { ComposerHandleContext } from "../../composerHandleContext";
 import { useComposerDraftStore } from "../../composerDraftStore";
+import type { DraftId } from "../../draftId";
 import { observeResize } from "../../lib/observeResize";
 import { RIGHT_PANEL_SHEET_MAX_WIDTH } from "../../rightPanelLayout";
 import { buildThreadRouteParams, type ThreadRouteTarget } from "../../threadRoutes";
@@ -45,21 +47,12 @@ function useNavigateToPaneTarget() {
   });
 }
 
-/** The pane still showing the draft that became the routed thread. */
-function promotedDraftPane(layout: PaneLayout | null, target: ThreadRouteTarget): PaneCell | null {
-  if (!layout || target.kind !== "server") return null;
+function draftThread(draftId: DraftId): ScopedThreadRef | null {
   const drafts = useComposerDraftStore.getState();
-  const threadKey = scopedThreadKey(target.threadRef);
-  return (
-    layout.cells.find((cell) => {
-      if (cell.target.kind !== "draft") return false;
-      const session = drafts.getDraftSession(cell.target.draftId);
-      const threadRef = session
-        ? (session.promotedTo ?? scopeThreadRef(session.environmentId, session.threadId))
-        : drafts.getPromotedDraftRedirect(cell.target.draftId);
-      return threadRef !== null && scopedThreadKey(threadRef) === threadKey;
-    }) ?? null
-  );
+  const session = drafts.getDraftSession(draftId);
+  return session
+    ? (session.promotedTo ?? scopeThreadRef(session.environmentId, session.threadId))
+    : drafts.getPromotedDraftRedirect(draftId);
 }
 
 /**
@@ -85,11 +78,13 @@ export function ChatPaneWorkspace({
   useLayoutEffect(() => {
     routeKeyRef.current = routeKey;
     const rect = containerRef.current?.getBoundingClientRect();
-    const store = useChatPaneStore.getState();
-    // A draft's own thread stays in the draft's pane, which keeps that pane's side chat ties.
-    const draftPane = promotedDraftPane(store.layout, target);
-    if (draftPane) store.retarget(draftPane.id, target);
-    store.reconcileRoute(target, rect ? { width: rect.width, height: rect.height } : null);
+    useChatPaneStore
+      .getState()
+      .reconcileRoute(
+        target,
+        rect ? { width: rect.width, height: rect.height } : null,
+        draftThread,
+      );
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- the key identifies the target; a new object for the same thread is not a navigation
   }, [routeKey]);
 

@@ -59,10 +59,12 @@ it("announces a split-pane thread finishing once the panes are no longer on scre
     { kind: "server", threadRef: scopeThreadRef(environmentId, routeThread) },
     { width: 1600, height: 900 },
   );
-  store.split(useChatPaneStore.getState().layout!.focusedPaneId, "right", {
-    kind: "server",
-    threadRef: scopeThreadRef(environmentId, paneThread),
-  });
+  store.split(
+    useChatPaneStore.getState().layout!.focusedPaneId,
+    "right",
+    { kind: "server", threadRef: scopeThreadRef(environmentId, paneThread) },
+    null,
+  );
 
   const root = createRootRoute();
   const router = createRouter({

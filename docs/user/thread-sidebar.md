@@ -350,9 +350,9 @@ with what the thread knows, and the thread keeps working while you ask.
 On web and desktop, start a message with `/side` or `/btw`, then your question, or
 choose **Start side chat** in the command palette. The side chat opens in a pane
 beside the thread, or in place of it when the window has no room for another pane.
-The pane stays with its thread: switching to another thread from either pane, or
-closing the thread's pane, puts the side chat away, and it comes back beside the
-thread when you return.
+The pane stays with its thread: switching to another thread from either pane puts
+the side chat away, and it comes back beside the thread when you return. Closing
+the thread's pane puts it away too, unless the side chat would be the only pane left.
 A bare `/side` opens an empty side chat; nothing is created until you send its first
 message. Side chats do not show in the sidebar or in search. Find one again under
 **Side chats** in thread details.

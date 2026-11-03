@@ -29,7 +29,7 @@ beforeEach(() => {
 describe("reconcileRoute", () => {
   it("replaces the focused pane's thread, or focuses the pane already showing it", () => {
     store().reconcileRoute(thread("a"), roomy);
-    store().split(layout().focusedPaneId, "right", thread("b"));
+    store().split(layout().focusedPaneId, "right", thread("b"), roomy);
     store().reconcileRoute(thread("a"), roomy);
     expect(layout().focusedPaneId).toBe(paneOf("a"));
     store().reconcileRoute(thread("c"), roomy);
@@ -58,7 +58,7 @@ describe("reconcileRoute", () => {
 describe("closing and reopening", () => {
   it("reopens a closed pane on the edge it sat on", () => {
     store().reconcileRoute(thread("a"), roomy);
-    store().split(layout().focusedPaneId, "right", thread("b"));
+    store().split(layout().focusedPaneId, "right", thread("b"), roomy);
     expect(store().close(paneOf("b"))).toBe(true);
     expect(layout().cells).toHaveLength(1);
     expect(store().reopenClosed(roomy)).toBe(true);
@@ -68,8 +68,8 @@ describe("closing and reopening", () => {
 
   it("restores the arrangement that close-others discarded", () => {
     store().reconcileRoute(thread("a"), roomy);
-    store().split(layout().focusedPaneId, "right", thread("b"));
-    store().split(paneOf("a"), "bottom", thread("c"));
+    store().split(layout().focusedPaneId, "right", thread("b"), roomy);
+    store().split(paneOf("a"), "bottom", thread("c"), roomy);
     store().closeOthers(paneOf("a"));
     expect(layout().cells).toHaveLength(1);
     store().reopenClosed(roomy);
@@ -78,14 +78,14 @@ describe("closing and reopening", () => {
 
   it("does not offer to reopen a thread that disappeared", () => {
     store().reconcileRoute(thread("a"), roomy);
-    store().split(layout().focusedPaneId, "right", thread("b"));
+    store().split(layout().focusedPaneId, "right", thread("b"), roomy);
     expect(closePaneShowingThread(thread("b").threadRef, { remember: false })).toBe(true);
     expect(store().closed).toHaveLength(0);
   });
 
   it("leaves the focused pane to the caller when only background panes may close", () => {
     store().reconcileRoute(thread("a"), roomy);
-    store().split(layout().focusedPaneId, "right", thread("b"));
+    store().split(layout().focusedPaneId, "right", thread("b"), roomy);
     const focused = thread("b").threadRef;
     expect(closePaneShowingThread(focused, { remember: true, onlyInBackground: true })).toBe(false);
     expect(
@@ -97,7 +97,7 @@ describe("closing and reopening", () => {
 describe("side chats", () => {
   const targets = () => orderedPanes(layout()).map((cell) => cell.target);
   const openSideChat = (parent: string, sideChat: ThreadRouteTarget) => {
-    store().split(paneOf(parent), "right", sideChat);
+    store().split(paneOf(parent), "right", sideChat, roomy);
     store().linkSideChat({ parent: thread(parent), sideChat });
   };
 
@@ -116,20 +116,64 @@ describe("side chats", () => {
     expect(targets()).toEqual([thread("a"), thread("s")]);
   });
 
-  it("keep their tie when their draft becomes a thread", () => {
+  it("bring their parent back when the route returns to them", () => {
+    store().reconcileRoute(thread("a"), roomy);
+    openSideChat("a", thread("s"));
+    store().reconcileRoute(thread("x"), roomy);
+    store().reconcileRoute(thread("s"), roomy);
+    expect(targets()).toEqual([thread("a"), thread("s")]);
+    expect(layout().focusedPaneId).toBe(paneOf("s"));
+    store().reconcileRoute(thread("x"), roomy);
+    store().reconcileRoute(thread("s"), { width: 600, height: 900 });
+    expect(targets()).toEqual([thread("s")]);
+  });
+
+  it("come back when their parent opens beside another thread", () => {
+    store().reconcileRoute(thread("a"), roomy);
+    openSideChat("a", thread("s"));
+    store().reconcileRoute(thread("x"), roomy);
+    store().split(paneOf("x"), "right", thread("a"), roomy);
+    expect(targets()).toEqual([thread("x"), thread("a"), thread("s")]);
+    store().close(paneOf("a"));
+    store().requestOpenToSide("right");
+    store().reconcileRoute(thread("a"), roomy);
+    expect(targets()).toEqual([thread("x"), thread("a"), thread("s")]);
+  });
+
+  it("tie back to their parent when they are already on screen as it returns", () => {
+    store().reconcileRoute(thread("a"), roomy);
+    openSideChat("a", thread("s"));
+    store().reconcileRoute(thread("x"), roomy);
+    store().reconcileRoute(thread("s"), { width: 600, height: 900 });
+    store().split(paneOf("s"), "right", thread("y"), roomy);
+    store().reconcileRoute(thread("a"), roomy);
+    store().reconcileRoute(thread("z"), roomy);
+    expect(targets()).toEqual([thread("z")]);
+  });
+
+  it("keep their tie when their draft becomes a thread, on screen or parked", () => {
     const draft = { kind: "draft" as const, draftId: DraftId.make("draft-s") };
+    const draftThread = (draftId: DraftId) =>
+      draftId === draft.draftId ? thread("s").threadRef : null;
     store().reconcileRoute(thread("a"), roomy);
     openSideChat("a", draft);
-    store().retarget(layout().focusedPaneId, thread("s"));
-    store().reconcileRoute(thread("s"), roomy);
+    store().reconcileRoute(thread("s"), roomy, draftThread);
+    expect(targets()).toEqual([thread("a"), thread("s")]);
     store().reconcileRoute(thread("x"), roomy);
     store().reconcileRoute(thread("a"), roomy);
     expect(targets()).toEqual([thread("a"), thread("s")]);
+
+    store().reconcileRoute(thread("b"), roomy);
+    openSideChat("b", draft);
+    store().reconcileRoute(thread("x"), roomy);
+    store().promoteParkedDraft(draft.draftId, thread("t").threadRef);
+    store().reconcileRoute(thread("b"), roomy);
+    expect(targets()).toEqual([thread("b"), thread("t")]);
   });
 
   it("close with their parent and reopen with it, unless nothing else would be left", () => {
     store().reconcileRoute(thread("b"), roomy);
-    store().split(paneOf("b"), "right", thread("a"));
+    store().split(paneOf("b"), "right", thread("a"), roomy);
     openSideChat("a", thread("s"));
     store().close(paneOf("a"));
     expect(targets()).toEqual([thread("b")]);
@@ -150,6 +194,22 @@ describe("side chats", () => {
     store().reconcileRoute(thread("y"), roomy);
     expect(targets()).toEqual([thread("y"), thread("t"), thread("x")]);
   });
+
+  it("stay away once promoted, wherever they were", () => {
+    store().reconcileRoute(thread("a"), roomy);
+    openSideChat("a", thread("s"));
+    openSideChat("a", thread("t"));
+    store().close(paneOf("t"));
+    store().reconcileRoute(thread("x"), roomy);
+    store().unlinkSideChat(thread("s"));
+    store().unlinkSideChat(thread("t"));
+    store().reconcileRoute(thread("a"), roomy);
+    expect(targets()).toEqual([thread("a")]);
+    store().reopenClosed(roomy);
+    store().focus(paneOf("a"));
+    store().reconcileRoute(thread("y"), roomy);
+    expect(targets()).toEqual([thread("y"), thread("t")]);
+  });
 });
 
 describe("isPaneInputOwner", () => {
@@ -157,7 +217,7 @@ describe("isPaneInputOwner", () => {
     store().reconcileRoute(thread("a"), roomy);
     const first = layout().focusedPaneId;
     expect(isPaneInputOwner(first)).toBe(true);
-    store().split(first, "right", thread("b"));
+    store().split(first, "right", thread("b"), roomy);
     expect(isPaneInputOwner(first)).toBe(false);
     expect(isPaneInputOwner(paneOf("b"))).toBe(true);
     expect(isPaneInputOwner(null)).toBe(true);
