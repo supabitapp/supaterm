@@ -433,24 +433,17 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
       return;
     }
     // A side chat and its parent sit side by side; where there is no room, one replaces the other.
-    const sideChatPair =
-      shell?.lineage.sideChat === true && shell.lineage.parentThreadId === activeThread?.id
-        ? { parentRef: scopeThreadRef(environmentId, activeThread.id), sideChatRef: threadRef }
-        : activeThread?.lineage.sideChat === true &&
-            activeThread.lineage.parentThreadId === threadId
-          ? { parentRef: threadRef, sideChatRef: scopeThreadRef(environmentId, activeThread.id) }
-          : null;
-    if (
-      sideChatPair &&
-      openSideChatBeside(
-        { kind: "server", threadRef },
-        {
-          parentRef: sideChatPair.parentRef,
-          sideChat: { kind: "server", threadRef: sideChatPair.sideChatRef },
-        },
-      )
-    ) {
-      return;
+    const opensSideChat =
+      shell?.lineage.sideChat === true && shell.lineage.parentThreadId === activeThread?.id;
+    const opensParent =
+      activeThread?.lineage.sideChat === true && activeThread.lineage.parentThreadId === threadId;
+    if (activeThread && (opensSideChat || opensParent)) {
+      const activeRef = scopeThreadRef(environmentId, activeThread.id);
+      const [parentRef, sideChatRef] = opensSideChat
+        ? [activeRef, threadRef]
+        : [threadRef, activeRef];
+      const sideChat = { kind: "server", threadRef: sideChatRef } as const;
+      if (openSideChatBeside({ kind: "server", threadRef }, { parentRef, sideChat })) return;
     }
     void navigate({
       to: "/$environmentId/$threadId",

@@ -363,8 +363,9 @@ export const useChatPaneStore = create<ChatPaneState>()(
         set((state) => {
           if (!state.layout || !findPane(state.layout, paneId)) return state;
           const existing = findPaneByTarget(state.layout, target);
-          if (existing)
+          if (existing) {
             return { layout: focusPane(state.layout, existing.id), historyMode: "push" };
+          }
           const shown = showInPane(
             { layout: state.layout, parkedSideChats: state.parkedSideChats },
             paneId,
