@@ -85,7 +85,12 @@ final class PcmWavRecorder {
   }
 
   func stop() throws -> [String: Any] {
-    try queue.sync {
+    // A tap still converting when the engine stops queues its samples behind this; they land first.
+    queue.sync {
+      engine.stop()
+      removeTap()
+    }
+    return try queue.sync {
       teardown()
       if saveFailed { throw PcmRecorderError.saveFailed }
       return ["uri": url.absoluteString, "durationMs": durationMs]
@@ -146,7 +151,7 @@ final class PcmWavRecorder {
   }
 
   private func append(_ pcm: Data) {
-    guard capturing, let writer else { return }
+    guard capturing, !interrupted, let writer else { return }
     let chunk = pcm.prefix(maxBytes - dataBytes)
     do {
       try writer.write(chunk)

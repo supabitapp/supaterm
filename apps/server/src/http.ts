@@ -19,6 +19,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
+import * as Pull from "effect/Pull";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { cast, pipe } from "effect/Function";
@@ -539,14 +540,23 @@ export const layerTranscriptionUploadRoute = Layer.unwrap(
         }
         // Keep the request stream in the route scope until the response is sent.
         const bodyPull = yield* Stream.toPull(request.stream);
+        // An empty body collects the outcome even when the transport sends no zero length.
+        const first = yield* bodyPull.pipe(
+          Effect.asSome,
+          Pull.catchDone(() => Effect.succeedNone),
+          Effect.orElseSucceed(() => Option.none()),
+        );
         return yield* uploads
           .receive(
             url.value.pathname.slice(
               `${TranscriptionUploads.TRANSCRIPTION_UPLOAD_ROUTE_PREFIX}/`.length,
             ),
-            request.headers["content-length"] === "0"
+            Option.isNone(first)
               ? undefined
-              : Stream.fromPull(Effect.succeed(bodyPull)),
+              : Stream.concat(
+                  Stream.fromIterable(first.value),
+                  Stream.fromPull(Effect.succeed(bodyPull)),
+                ),
           )
           .pipe(
             Effect.flatMap((result) => transcriptionUploadResponse(result)),
