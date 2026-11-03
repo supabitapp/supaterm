@@ -1,3 +1,4 @@
+// @effect-diagnostics nodeBuiltinImport:off - serves the proxy on a real HTTP server with production WebSocket options.
 import { expect, it } from "@effect/vitest";
 import { NodeWS } from "@effect/platform-node/NodeSocket";
 import * as NodeHttp from "node:http";
@@ -189,10 +190,9 @@ it.live("closes an upstream socket that is still connecting without an unhandled
     );
     const address = hub.address();
     if (typeof address !== "object" || !address) throw new Error("Missing hub port");
-    // Handshake headers select the `ws` package over the global WebSocket.
-    const upstream = yield* Socket.makeWebSocket(`ws://127.0.0.1:${address.port}`, {
-      headers: { authorization: "Bearer test" },
-    }).pipe(Effect.provide(DeviceHubProxy.upstreamWebSocketConstructor));
+    const upstream = yield* Socket.makeWebSocket(`ws://127.0.0.1:${address.port}`).pipe(
+      Effect.provide(DeviceHubProxy.upstreamWebSocketConstructor),
+    );
     const reading = yield* Effect.forkChild(
       Effect.scoped(Effect.flatMap(upstream.reader, ({ pull }) => pull)),
     );

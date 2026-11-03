@@ -16,6 +16,7 @@ import {
   HttpServerResponse,
 } from "effect/http";
 import * as Socket from "effect/socket/Socket";
+import * as NodeHttpServerRequest from "@effect/platform-node/NodeHttpServerRequest";
 import * as NodeSocket from "@effect/platform-node/NodeSocket";
 
 import { authenticateMediaRequest } from "../auth/http.ts";
@@ -82,6 +83,9 @@ const forwardHeaders = (request: HttpServerRequest.HttpServerRequest, origin: st
   return headers;
 };
 
+const VIEWER_BACKLOG_BYTES = 64 * 1024;
+
+// `ws` sockets pause, so a stalled viewer stops reads from the hub and serve-emu skips frames.
 // Effect drops its listeners before closing a socket that is still connecting, and `ws` then
 // emits an `error` nobody handles, which exits the server.
 export const upstreamWebSocketConstructor = Layer.effect(
@@ -94,13 +98,26 @@ export const upstreamWebSocketConstructor = Layer.effect(
       return socket;
     };
   }),
-).pipe(Layer.provide(NodeSocket.layerWebSocketConstructor));
+).pipe(Layer.provide(NodeSocket.layerWebSocketConstructorWS));
 
 const proxyWebSocket = Effect.fn("DeviceHubProxy.proxyWebSocket")(function* (
   request: HttpServerRequest.HttpServerRequest,
   upstreamUrl: string,
   protocols: ReadonlyArray<string> = [],
 ) {
+  const incoming = NodeHttpServerRequest.toIncomingMessage(request);
+  // Video doesn't compress, and deflate queues frames where `writableLength` can't see them.
+  delete incoming.headers["sec-websocket-extensions"];
+  const viewer = incoming.socket;
+  const viewerCaughtUp = Effect.suspend(() =>
+    viewer.writableLength <= VIEWER_BACKLOG_BYTES
+      ? Effect.void
+      : Effect.callback<void>((resume) => {
+          const drained = () => resume(Effect.void);
+          viewer.once("drain", drained);
+          return Effect.sync(() => viewer.off("drain", drained));
+        }),
+  );
   const client = yield* request.upgrade;
   const upstream = yield* Socket.makeWebSocket(upstreamUrl, {
     openTimeout: "10 seconds",
@@ -113,7 +130,7 @@ const proxyWebSocket = Effect.fn("DeviceHubProxy.proxyWebSocket")(function* (
       // Whichever side closes first ends the other via scope teardown: a close
       // fails the pull with a SocketError, which loses the race.
       return yield* Effect.raceFirst(
-        pumpFrames(upstream, writeToClient),
+        pumpFrames(upstream, writeToClient, viewerCaughtUp),
         pumpFrames(client, writeToUpstream),
       );
     }),
@@ -123,9 +140,14 @@ const proxyWebSocket = Effect.fn("DeviceHubProxy.proxyWebSocket")(function* (
 
 const pumpFrames =
   /* Frame pumping runs continuously; a span per frame stream adds no diagnostic value. */
-  Effect.fnUntraced(function* (source: Socket.Socket, sink: Socket.Writer) {
+  Effect.fnUntraced(function* (
+    source: Socket.Socket,
+    sink: Socket.Writer,
+    sinkReady: Effect.Effect<void> = Effect.void,
+  ) {
     const { pull } = yield* source.reader;
     while (true) {
+      yield* sinkReady;
       yield* sink.writeAll(yield* pull);
     }
   });
