@@ -15,7 +15,7 @@ import { useAtomValue } from "@effect/atom-react";
 import { Atom } from "effect/reactivity";
 
 import { newDraftId, newMessageId, newThreadId } from "~/lib/utils";
-import { openThreadBeside } from "../../chatPanes/actions";
+import { openSideChatBeside } from "../../chatPanes/actions";
 import { appAtomRegistry } from "../../rpc/atomRegistry";
 import { usePaneThreadNavigation } from "../../chatPanes/paneScope";
 import { markPromotedDraftThreadByRef, useComposerDraftStore } from "../../composerDraftStore";
@@ -105,7 +105,8 @@ export function useSideChat(input: {
     store.createSideChatDraft({ draftId, threadId, parent });
     if (prompt !== "") store.setPrompt(draftId, prompt);
     const target = { kind: "draft", draftId } as const;
-    if (!openThreadBeside(target, "right")) void openPaneThread(target);
+    const parentRef = scopeThreadRef(parent.environmentId, parent.id);
+    if (!openSideChatBeside(target, { parentRef, sideChat: target })) void openPaneThread(target);
     return { parent, draftId, threadId };
   };
 

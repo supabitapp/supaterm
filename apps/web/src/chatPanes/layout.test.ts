@@ -14,7 +14,8 @@ import {
   paneGridlines,
   type PaneEdge,
   type PaneLayout,
-  reconcileLayoutWithRoute,
+  linkSideChatPane,
+  replacePaneTarget,
   setTrackSizes,
   splitPane,
   swapPanes,
@@ -238,29 +239,29 @@ describe("swapPanes", () => {
   });
 });
 
-describe("reconcileLayoutWithRoute", () => {
-  it("focuses the pane already showing the route thread", () => {
+describe("side chat ties", () => {
+  it("survive moves and swaps, and drop when either pane closes or shows another thread", () => {
     const createId = ids();
     let layout = createPaneLayout(thread("a"), createId);
     const a = layout.cells[0]!.id;
-    layout = splitPane(layout, a, "right", thread("b"), "b", createId)!;
-    expect(reconcileLayoutWithRoute(layout, thread("a"), createId).focusedPaneId).toBe(a);
-  });
-
-  it("replaces the focused pane's thread with a thread that is not on screen", () => {
-    const createId = ids();
-    let layout = createPaneLayout(thread("a"), createId);
-    const a = layout.cells[0]!.id;
-    layout = splitPane(layout, a, "right", thread("b"), "b", createId)!;
-    const next = reconcileLayoutWithRoute(layout, thread("c"), createId);
-    expect(next.cells.find((cell) => cell.id === "b")?.target).toEqual(thread("c"));
-    expect(next.cells.find((cell) => cell.id === a)?.target).toEqual(thread("a"));
-  });
-
-  it("starts a single-pane layout", () => {
-    const layout = reconcileLayoutWithRoute(null, thread("a"), ids());
-    expect(layout.cells).toHaveLength(1);
+    layout = splitPane(layout, a, "right", thread("x"), "x", createId)!;
+    layout = splitPane(layout, a, "right", thread("s"), "s", createId)!;
+    layout = linkSideChatPane(layout, "s", a);
+    const tie = (next: PaneLayout, id = "s") =>
+      next.cells.find((cell) => cell.id === id)?.sideChatOf;
+    expect(tie(layout)).toBe(a);
     expect(isValidPaneLayout(layout)).toBe(true);
+    expect(tie(movePane(layout, "s", "x", "bottom", createId)!)).toBe(a);
+    expect(tie(movePane(layout, a, "x", "bottom", createId)!)).toBe(a);
+    expect(tie(swapPanes(layout, a, "x"))).toBe(a);
+    expect(tie(splitPane(layout, "s", "bottom", thread("n"), "n", createId)!, "n")).toBeUndefined();
+    expect(tie(closePane(layout, a)!.layout)).toBeUndefined();
+    expect(tie(replacePaneTarget(layout, a, thread("b")))).toBeUndefined();
+    expect(tie(replacePaneTarget(layout, "s", thread("b")))).toBeUndefined();
+    const dangling = layout.cells.map((cell) =>
+      cell.id === "x" ? { ...cell, sideChatOf: "gone" } : cell,
+    );
+    expect(isValidPaneLayout({ ...layout, cells: dangling })).toBe(false);
   });
 });
 

@@ -11,6 +11,7 @@ import { AuthOrchestrationOperateScope, type ScopedThreadRef } from "@supaterm/c
 import { TrashIcon } from "@supaterm/icons";
 import { useState } from "react";
 
+import { useChatPaneStore } from "../../chatPanes/store";
 import { useClientSettings } from "../../hooks/useSettings";
 import { readLocalApi } from "../../localApi";
 import { useQuietThreadProjection, useQuietThreadShell } from "../../state/entities";
@@ -85,7 +86,9 @@ export function SideChatHeaderActions(props: {
       input: { threadId: threadRef.threadId },
     });
     setBusy(false);
-    if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+    if (result._tag === "Success") {
+      useChatPaneStore.getState().unlinkSideChat({ kind: "server", threadRef });
+    } else if (!isAtomCommandInterrupted(result)) {
       failureToast("Could not promote the side chat", result);
     }
   };

@@ -70,7 +70,7 @@ import { useAtomValue } from "@effect/atom-react";
 import type { RunStopPresentation } from "@supaterm/client-runtime/state/thread-execution";
 import { Atom } from "effect/reactivity";
 import { environmentThreadDetails } from "../../state/threads";
-import { openThreadBeside } from "../../chatPanes/actions";
+import { openSideChatBeside } from "../../chatPanes/actions";
 
 const RELATED_THREAD_SHELL_WAIT_MS = 1_000;
 const NO_RUN_STOP_ATOM = Atom.make<RunStopPresentation | null>(null).pipe(
@@ -434,9 +434,24 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     }
     // A side chat and its parent sit side by side; where there is no room, one replaces the other.
     const sideChatPair =
-      (shell?.lineage.sideChat === true && shell.lineage.parentThreadId === activeThread?.id) ||
-      (activeThread?.lineage.sideChat === true && activeThread.lineage.parentThreadId === threadId);
-    if (sideChatPair && openThreadBeside({ kind: "server", threadRef }, "right")) return;
+      shell?.lineage.sideChat === true && shell.lineage.parentThreadId === activeThread?.id
+        ? { parentRef: scopeThreadRef(environmentId, activeThread.id), sideChatRef: threadRef }
+        : activeThread?.lineage.sideChat === true &&
+            activeThread.lineage.parentThreadId === threadId
+          ? { parentRef: threadRef, sideChatRef: scopeThreadRef(environmentId, activeThread.id) }
+          : null;
+    if (
+      sideChatPair &&
+      openSideChatBeside(
+        { kind: "server", threadRef },
+        {
+          parentRef: sideChatPair.parentRef,
+          sideChat: { kind: "server", threadRef: sideChatPair.sideChatRef },
+        },
+      )
+    ) {
+      return;
+    }
     void navigate({
       to: "/$environmentId/$threadId",
       params: buildThreadRouteParams(threadRef),

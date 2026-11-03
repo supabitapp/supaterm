@@ -11,7 +11,7 @@ const state = vi.hoisted(() => ({
   projection: null as unknown,
   projections: null as Map<string, unknown> | null,
   navigate: vi.fn(),
-  openThreadBeside: vi.fn(() => true),
+  openSideChatBeside: vi.fn(() => true),
   shells: [] as unknown[],
   projects: [] as unknown[],
   configs: new Map<string, unknown>(),
@@ -28,7 +28,7 @@ vi.mock(import("@tanstack/react-router"), async (original) => ({
 }));
 vi.mock(import("../../chatPanes/actions"), async (original) => ({
   ...(await original()),
-  openThreadBeside: state.openThreadBeside,
+  openSideChatBeside: state.openSideChatBeside,
 }));
 vi.mock(import("../../state/entities"), async (original) => ({
   ...(await original()),
@@ -113,7 +113,7 @@ async function setup() {
   state.showTooltips = false;
   state.canOperateThread = true;
   state.navigate.mockClear();
-  state.openThreadBeside.mockClear();
+  state.openSideChatBeside.mockClear();
   state.command.mockClear();
   state.workflowCommand.mockReset().mockResolvedValue({ _tag: "Success" });
   state.toast.mockClear();
@@ -527,10 +527,11 @@ it("separates relationship kinds and collapses each group independently", async 
       (button) => button.textContent?.includes("Side question"),
     )!,
   );
-  expect(state.openThreadBeside).toHaveBeenCalledWith(
-    { kind: "server", threadRef: { environmentId, threadId: "side" } },
-    "right",
-  );
+  const sideChat = { kind: "server", threadRef: { environmentId, threadId: "side" } };
+  expect(state.openSideChatBeside).toHaveBeenCalledWith(sideChat, {
+    parentRef: { environmentId, threadId: "current" },
+    sideChat,
+  });
   expect(state.navigate).not.toHaveBeenCalled();
 
   // A collapsing group keeps its rows until the panel's exit animation ends.

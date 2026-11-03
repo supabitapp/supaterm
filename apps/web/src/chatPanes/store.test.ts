@@ -1,6 +1,8 @@
 import type { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import { beforeEach, describe, expect, it } from "vite-plus/test";
 
+import { DraftId } from "../draftId";
+import type { ThreadRouteTarget } from "../threadRoutes";
 import { findPaneByTarget, orderedPanes } from "./layout";
 import { isPaneInputOwner } from "./paneScope";
 import { closePaneShowingThread, useChatPaneStore } from "./store";
@@ -15,7 +17,13 @@ const layout = () => store().layout!;
 const paneOf = (id: string) => findPaneByTarget(layout(), thread(id))!.id;
 
 beforeEach(() => {
-  useChatPaneStore.setState({ layout: null, closed: [], openToSide: null, historyMode: "replace" });
+  useChatPaneStore.setState({
+    layout: null,
+    closed: [],
+    parkedSideChats: [],
+    openToSide: null,
+    historyMode: "replace",
+  });
 });
 
 describe("reconcileRoute", () => {
@@ -53,7 +61,7 @@ describe("closing and reopening", () => {
     store().split(layout().focusedPaneId, "right", thread("b"));
     expect(store().close(paneOf("b"))).toBe(true);
     expect(layout().cells).toHaveLength(1);
-    expect(store().reopenClosed()).toBe(true);
+    expect(store().reopenClosed(roomy)).toBe(true);
     expect(orderedPanes(layout()).map((cell) => cell.target)).toEqual([thread("a"), thread("b")]);
     expect(store().historyMode).toBe("push");
   });
@@ -64,7 +72,7 @@ describe("closing and reopening", () => {
     store().split(paneOf("a"), "bottom", thread("c"));
     store().closeOthers(paneOf("a"));
     expect(layout().cells).toHaveLength(1);
-    store().reopenClosed();
+    store().reopenClosed(roomy);
     expect(layout().cells).toHaveLength(3);
   });
 
@@ -83,6 +91,64 @@ describe("closing and reopening", () => {
     expect(
       closePaneShowingThread(thread("a").threadRef, { remember: true, onlyInBackground: true }),
     ).toBe(true);
+  });
+});
+
+describe("side chats", () => {
+  const targets = () => orderedPanes(layout()).map((cell) => cell.target);
+  const openSideChat = (parent: string, sideChat: ThreadRouteTarget) => {
+    store().split(paneOf(parent), "right", sideChat);
+    store().linkSideChat({ parent: thread(parent), sideChat });
+  };
+
+  it("leave with their parent from either pane, and come back beside it", () => {
+    store().reconcileRoute(thread("a"), roomy);
+    openSideChat("a", thread("s"));
+    store().reconcileRoute(thread("x"), roomy);
+    expect(targets()).toEqual([thread("x")]);
+    store().reconcileRoute(thread("a"), roomy);
+    expect(targets()).toEqual([thread("a"), thread("s")]);
+    expect(layout().focusedPaneId).toBe(paneOf("a"));
+    store().focus(paneOf("a"));
+    store().reconcileRoute(thread("y"), roomy);
+    expect(targets()).toEqual([thread("y")]);
+    store().reconcileRoute(thread("a"), roomy);
+    expect(targets()).toEqual([thread("a"), thread("s")]);
+  });
+
+  it("keep their tie when their draft becomes a thread", () => {
+    const draft = { kind: "draft" as const, draftId: DraftId.make("draft-s") };
+    store().reconcileRoute(thread("a"), roomy);
+    openSideChat("a", draft);
+    store().retarget(layout().focusedPaneId, thread("s"));
+    store().reconcileRoute(thread("s"), roomy);
+    store().reconcileRoute(thread("x"), roomy);
+    store().reconcileRoute(thread("a"), roomy);
+    expect(targets()).toEqual([thread("a"), thread("s")]);
+  });
+
+  it("close with their parent and reopen with it, unless nothing else would be left", () => {
+    store().reconcileRoute(thread("b"), roomy);
+    store().split(paneOf("b"), "right", thread("a"));
+    openSideChat("a", thread("s"));
+    store().close(paneOf("a"));
+    expect(targets()).toEqual([thread("b")]);
+    store().reopenClosed(roomy);
+    expect(targets()).toEqual([thread("b"), thread("a"), thread("s")]);
+    store().close(paneOf("b"));
+    store().close(paneOf("a"));
+    expect(targets()).toEqual([thread("s")]);
+  });
+
+  it("let go of a pane that shows another thread or became a full thread", () => {
+    store().reconcileRoute(thread("a"), roomy);
+    openSideChat("a", thread("s"));
+    openSideChat("a", thread("t"));
+    store().replace(paneOf("s"), thread("x"), roomy);
+    store().unlinkSideChat(thread("t"));
+    store().reconcileRoute(thread("a"), roomy);
+    store().reconcileRoute(thread("y"), roomy);
+    expect(targets()).toEqual([thread("y"), thread("t"), thread("x")]);
   });
 });
 

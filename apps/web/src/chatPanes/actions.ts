@@ -20,6 +20,22 @@ export function openThreadBeside(target: ThreadRouteTarget, edge: PaneEdge): boo
   return fits && split(layout.focusedPaneId, edge, target) !== null;
 }
 
+/**
+ * Opens `target`, one thread of a side chat pair, like `openThreadBeside`, and ties the side chat to
+ * its parent's pane so the two navigate and close together.
+ */
+export function openSideChatBeside(
+  target: ThreadRouteTarget,
+  pair: { readonly parentRef: ScopedThreadRef; readonly sideChat: ThreadRouteTarget },
+): boolean {
+  if (!openThreadBeside(target, "right")) return false;
+  useChatPaneStore.getState().linkSideChat({
+    parent: { kind: "server", threadRef: pair.parentRef },
+    sideChat: pair.sideChat,
+  });
+  return true;
+}
+
 /** A click into a desktop browser never reaches the pane's DOM, so the browser claims its pane. */
 export function focusPaneShowingThread(threadRef: ScopedThreadRef) {
   const { layout, focus } = useChatPaneStore.getState();
