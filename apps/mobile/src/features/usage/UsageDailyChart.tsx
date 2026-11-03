@@ -7,10 +7,11 @@ import { runOnJS, useSharedValue } from "react-native-reanimated";
 import Svg, { Line } from "react-native-svg";
 
 import type { UsageChartDay, UsageChartMetric } from "./usageChartData";
-import { useProviderColors } from "./usageProviders";
+import { PROVIDER_LABEL, useProviderColors } from "./usageProviders";
 
 export const AVERAGE_LINE_COLOR = "rgba(142, 142, 147, 0.9)";
 const HOLD_DELAY_MS = 100;
+const ADJUST_ACTIONS = [{ name: "increment" }, { name: "decrement" }];
 
 export interface UsageDailyChartProps {
   readonly chartDays: readonly UsageChartDay[];
@@ -74,6 +75,12 @@ export function UsageDailyChart({
     if (selected >= 0) return selected === index ? 1 : 0.35;
     return index === partialIndex ? 0.45 : 1;
   };
+  const selectedPeriod = chartDays[selected];
+  const adjust = (actionName: string) => {
+    if (count === 0) return;
+    const step = actionName === "increment" ? 1 : -1;
+    select(selected < 0 ? count - 1 : Math.min(count - 1, Math.max(0, selected + step)));
+  };
 
   return (
     <GestureDetector gesture={gesture}>
@@ -81,7 +88,7 @@ export function UsageDailyChart({
         style={{ height }}
         onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
         accessible
-        accessibilityRole="image"
+        accessibilityRole="adjustable"
         accessibilityLabel={[
           peak === undefined
             ? undefined
@@ -90,8 +97,24 @@ export function UsageDailyChart({
         ]
           .filter(Boolean)
           .join(", ")}
+        accessibilityValue={
+          selectedPeriod === undefined
+            ? undefined
+            : {
+                text: [
+                  formatPeriod(selectedPeriod.day),
+                  format(selectedPeriod.total),
+                  ...selectedPeriod.values
+                    .filter((entry) => entry.value > 0)
+                    .map((entry) => `${PROVIDER_LABEL[entry.provider]} ${format(entry.value)}`),
+                ].join(", "),
+              }
+        }
+        accessibilityActions={ADJUST_ACTIONS}
+        onAccessibilityAction={(event) => adjust(event.nativeEvent.actionName)}
       >
         <View className="flex-1 flex-row items-end gap-px">
+          {/* Use column-reverse: provider values are bottom-first and Hermes lacks toReversed. */}
           {chartDays.map((day, index) => (
             <View
               key={day.day}

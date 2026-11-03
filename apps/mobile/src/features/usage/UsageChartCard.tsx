@@ -37,12 +37,18 @@ export function UsageChartCard(props: {
   const { merged, metric, isPast24Hours } = props;
   const colors = useProviderColors();
   const [fillHeight, setFillHeight] = useState(0);
-  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [picked, setPicked] = useState<{ readonly day: string; readonly window: string } | null>(
+    null,
+  );
   const chartDays = useMemo(
     () => buildChartDays(props.days, props.daily, metric),
     [props.days, props.daily, metric],
   );
   const hasActivity = props.daily.some((period) => period.totalTokens > 0);
+  const windowKey = `${props.sinceDay}/${props.untilDay}/${isPast24Hours}`;
+  const selectedDay = hasActivity && picked?.window === windowKey ? picked.day : null;
+  const selectDay = (day: string | null) =>
+    setPicked(day === null ? null : { day, window: windowKey });
   const height = props.fill ? Math.max(fillHeight, props.height) : props.height;
   const showCalendar = !isPast24Hours && chartDays.length >= CALENDAR_MIN_DAYS;
   const average = periodAverage(
@@ -64,7 +70,7 @@ export function UsageChartCard(props: {
       chartDays={chartDays}
       metric={metric}
       selectedDay={selectedDay}
-      onSelectDay={setSelectedDay}
+      onSelectDay={selectDay}
     />
   ) : (
     <UsageDailyChart
@@ -74,7 +80,7 @@ export function UsageChartCard(props: {
       average={average}
       lastInProgress={!isPast24Hours}
       selectedDay={selectedDay}
-      onSelectDay={setSelectedDay}
+      onSelectDay={selectDay}
       formatPeriod={formatPeriod}
     />
   );
