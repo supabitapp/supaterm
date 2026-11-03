@@ -148,7 +148,7 @@ function PendingSecretRequestForm(props: {
           />
         </div>
         <Button type="submit" disabled={locked || secret.trim().length === 0}>
-          Save securely
+          Send
         </Button>
       </div>
       {error !== null ? (

@@ -137,7 +137,7 @@ function PendingSecretRequestForm(props: {
         </Text>
       ) : null}
       <Button
-        label="Save securely"
+        label="Send"
         tone="primary"
         fullWidth
         disabled={locked || secret.trim().length === 0}
