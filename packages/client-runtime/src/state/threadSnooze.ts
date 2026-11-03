@@ -94,8 +94,8 @@ function failureEdgeAt(shell: ThreadSnoozeShell): string | null | undefined {
   const runtime = shell.runtime ?? shell.session ?? null;
   if (runtime?.status !== "error" && runtime?.status !== "failed") return undefined;
   const latestRun = shell.latestRun ?? shell.latestTurn ?? null;
-  if (latestRun?.status === "failed" && latestRun.completedAt != null) {
-    return latestRun.completedAt;
+  if (latestRun?.status === "failed") {
+    return latestRun.completedAt ?? null;
   }
   return runtime.updatedAt ?? null;
 }
