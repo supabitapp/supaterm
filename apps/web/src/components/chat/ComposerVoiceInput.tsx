@@ -149,20 +149,19 @@ export function ComposerVoiceSession(props: {
         aria-label="Voice input"
         className={cn(
           "flex h-8 shrink-0 items-center gap-2 rounded-full bg-foreground/6 text-foreground text-sm",
-          reviews ? "ps-1" : "ps-3",
-          phase === "sending" ? "pe-3" : "pe-1",
+          phase === "sending" ? "ps-3" : "ps-1",
+          reviews ? "pe-1" : "pe-3",
         )}
       >
-        {reviews ? (
+        {phase === "sending" ? null : (
           <VoicePillButton
-            label="Stop and review"
-            shortcut={props.shortcutLabel}
-            disabled={phase !== "recording"}
-            onClick={voice.stop}
+            label={phase === "recording" ? "Discard" : "Cancel"}
+            shortcut={capturing ? "Esc" : null}
+            onClick={voice.cancel}
           >
-            <SquareIcon weight="fill" aria-hidden className="size-3" />
+            <XIcon aria-hidden className="size-3.5 text-muted-foreground" />
           </VoicePillButton>
-        ) : null}
+        )}
         {capturing ? (
           <>
             <VoiceElapsed recorder={voice.recorder} />
@@ -174,15 +173,16 @@ export function ComposerVoiceSession(props: {
             {phase === "transcribing" ? "Transcribing…" : "Saving…"}
           </span>
         )}
-        {phase === "sending" ? null : (
+        {reviews ? (
           <VoicePillButton
-            label={phase === "recording" ? "Discard" : "Cancel"}
-            shortcut={capturing ? "Esc" : null}
-            onClick={voice.cancel}
+            label="Stop and review"
+            shortcut={props.shortcutLabel}
+            disabled={phase !== "recording"}
+            onClick={voice.stop}
           >
-            <XIcon aria-hidden className="size-3.5 text-muted-foreground" />
+            <SquareIcon weight="fill" aria-hidden className="size-3" />
           </VoicePillButton>
-        )}
+        ) : null}
       </div>
       <Tooltip>
         <TooltipTrigger render={<span className="inline-flex" />}>
