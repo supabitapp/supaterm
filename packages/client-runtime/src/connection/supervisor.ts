@@ -27,6 +27,7 @@ import {
 } from "./model.ts";
 import * as RpcSession from "../rpc/session.ts";
 import { safeErrorLogAttributes } from "../errors/safeLog.ts";
+import { makeReplacementSlot } from "./replacement.ts";
 import * as ConnectionWakeups from "./wakeups.ts";
 import {
   advertisedConnectionRoutes,
@@ -56,6 +57,8 @@ const SILENT_SOCKET_RECHECK_EVERY = "1 second";
 const REMOTE_SILENT_SOCKET_AFTER = "2500 millis";
 // A mobile resume after this long in the background shows stale data.
 const LONG_BACKGROUND_AFTER_MS = 10_000;
+// A host that answered a fresh request still answers when the reconnect starts right after.
+const ANSWERED_ROUTE_VALIDITY_NANOS = 10_000_000_000n;
 const BACKOFF_RESET_AFTER_MS = 30_000;
 const BETTER_ROUTE_CHECK_INTERVAL_MS = 60_000;
 // Each check of a dead route can wait out the full probe timeout, so a route
@@ -289,6 +292,8 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
   const currentEntry = options?.entryRef ?? (yield* Ref.make(entry));
   const currentRoutes = Ref.get(currentEntry).pipe(Effect.map(connectionRoutes));
   const preferredRoute = yield* Ref.make(Option.none<ConnectionDriver.PreparedRoute>());
+  const answeredRoute = yield* Ref.make(Option.none<ConnectionDriver.AnsweredRoute>());
+  const replacement = yield* makeReplacementSlot(driver.connect);
   const routeCooldowns = yield* Ref.make<ReadonlyMap<string, bigint>>(new Map());
   // The generation keeps a check that started before a reset from recording
   // its stale failures after it.
@@ -390,6 +395,18 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
     { discard: true },
   );
 
+  const rememberAnsweredRoute = Effect.fnUntraced(function* (
+    lease: ConnectionDriver.EnvironmentConnectionLease,
+  ) {
+    const route = (yield* currentRoutes).find(
+      (candidate) =>
+        connectionRouteId(candidate.target) === connectionRouteId(lease.prepared.target),
+    );
+    if (route === undefined) return;
+    const expiresAtNanos = (yield* Clock.monotonicTimeNanos) + ANSWERED_ROUTE_VALIDITY_NANOS;
+    yield* Ref.set(answeredRoute, Option.some({ route, expiresAtNanos }));
+  });
+
   const setState = Effect.fn("EnvironmentSupervisor.setState")(function* (
     next: SupervisorConnectionState,
   ) {
@@ -425,44 +442,51 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
       "connection.generation": generation,
     });
     const next = yield* attemptEntry;
-    return yield* driver
-      .connect(
-        next.entry,
-        (progress) =>
-          (progress.stage === "synchronizing"
-            ? Ref.update(synchronizedRoutes, (count) => count + 1)
-            : Effect.void
-          ).pipe(Effect.andThen(reportProgress(attempt, generation, lastFailure, progress))),
-        next.preflight,
-      )
-      .pipe(
-        Effect.onExit(
-          Effect.fnUntraced(function* (exit) {
-            if (Exit.isSuccess(exit)) {
-              const leaseTarget = exit.value.prepared.target;
-              const route = (yield* currentRoutes).find(
-                (candidate) =>
-                  connectionRouteId(candidate.target) === connectionRouteId(leaseTarget),
-              );
-              return yield* Effect.annotateCurrentSpan({
-                "connection.outcome": "connected",
-                "connection.route": connectionRouteKind(
-                  route ?? { target: leaseTarget, profile: Option.none() },
-                ),
-              });
-            }
-            if (Cause.hasInterruptsOnly(exit.cause)) {
-              return yield* Effect.annotateCurrentSpan("connection.outcome", "interrupted");
-            }
-            const failure = exit.cause.reasons.find(Cause.isFailReason)?.error;
-            yield* Effect.annotateCurrentSpan({
-              "connection.outcome": "failed",
-              "connection.failure.tag": failure?._tag ?? "defect",
-              "connection.failure.reason": failure?.reason ?? "defect",
+    const answered = Option.getOrUndefined(yield* Ref.getAndSet(answeredRoute, Option.none()));
+    const onProgress = (progress: ConnectionDriver.ConnectionDriverProgress) =>
+      (progress.stage === "synchronizing"
+        ? Ref.update(synchronizedRoutes, (count) => count + 1)
+        : Effect.void
+      ).pipe(Effect.andThen(reportProgress(attempt, generation, lastFailure, progress)));
+    return yield* Effect.gen(function* () {
+      // A switch to a better route outranks the replacement a resume opened.
+      if (next.preflight !== undefined) yield* replacement.discard;
+      const adopted = yield* replacement.adopt(onProgress);
+      if (adopted !== undefined) {
+        yield* Effect.annotateCurrentSpan("connection.replacement", "adopted");
+        return adopted;
+      }
+      return yield* driver.connect(next.entry, onProgress, {
+        preflight: next.preflight,
+        answered,
+      });
+    }).pipe(
+      Effect.onExit(
+        Effect.fnUntraced(function* (exit) {
+          if (Exit.isSuccess(exit)) {
+            const leaseTarget = exit.value.prepared.target;
+            const route = (yield* currentRoutes).find(
+              (candidate) => connectionRouteId(candidate.target) === connectionRouteId(leaseTarget),
+            );
+            return yield* Effect.annotateCurrentSpan({
+              "connection.outcome": "connected",
+              "connection.route": connectionRouteKind(
+                route ?? { target: leaseTarget, profile: Option.none() },
+              ),
             });
-          }),
-        ),
-      );
+          }
+          if (Cause.hasInterruptsOnly(exit.cause)) {
+            return yield* Effect.annotateCurrentSpan("connection.outcome", "interrupted");
+          }
+          const failure = exit.cause.reasons.find(Cause.isFailReason)?.error;
+          yield* Effect.annotateCurrentSpan({
+            "connection.outcome": "failed",
+            "connection.failure.tag": failure?._tag ?? "defect",
+            "connection.failure.reason": failure?.reason ?? "defect",
+          });
+        }),
+      ),
+    );
   });
 
   const waitForEstablishmentInterrupt = Effect.fnUntraced(function* (ignoreOffline: boolean) {
@@ -523,6 +547,11 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
 
   const answersQuickly = (routeKind: ConnectionRouteKind | undefined) =>
     routeKind === "loopback" || routeKind === "lan";
+
+  // Relay sockets close when iOS suspends the tunnel, and an SSH tunnel costs
+  // too much to open on speculation, so only direct routes race a replacement.
+  const racesReplacementOnResume = (routeKind: ConnectionRouteKind | undefined) =>
+    routeKind === "lan" || routeKind === "tailnet" || routeKind === "vpn" || routeKind === "public";
 
   const probeTimeoutFor = (
     next: SupervisorSignal,
@@ -628,6 +657,12 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           : "checking",
       );
       const probe = yield* Effect.forkChild(lease.session.probe);
+      let replacementFiber =
+        next._tag === "Wakeup" &&
+        next.afterLongBackground === true &&
+        racesReplacementOnResume(routeKind)
+          ? yield* replacement.start(yield* Ref.get(currentEntry))
+          : undefined;
       let silentSocket: Fiber.Fiber<"silent" | "alive"> | undefined;
       // A signal during a running check, such as a network change that kills
       // the socket, needs a fresh check only if the running one sees a frame.
@@ -671,7 +706,22 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
                 : { _tag: "SocketAlive" as const },
             ),
           ),
+          (replacementFiber ? Fiber.await(replacementFiber) : Effect.never).pipe(
+            Effect.map((exit) => ({
+              _tag: "ReplacementSettled" as const,
+              connected: Exit.isSuccess(exit),
+            })),
+          ),
         ]);
+        if (probeEvent._tag === "ReplacementSettled") {
+          if (probeEvent.connected) {
+            yield* stopProbe;
+            return true;
+          }
+          replacementFiber = undefined;
+          yield* replacement.discard;
+          continue;
+        }
         if (probeEvent._tag === "SocketAlive") {
           silentSocket = undefined;
           if (recheck) yield* startSilentSocketCheck;
@@ -681,6 +731,7 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           // The host is reachable, so replace the socket at once, even while
           // the network reports offline.
           yield* stopProbe;
+          yield* rememberAnsweredRoute(lease);
           return true;
         }
         if (probeEvent._tag === "TimedOut") {
@@ -694,6 +745,7 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           if (silentSocket) yield* Fiber.interrupt(silentSocket);
           if (Exit.isSuccess(probeEvent.exit)) {
             yield* Ref.set(pendingProbe, "idle");
+            yield* replacement.discard;
           }
           yield* probeEvent.exit;
           break;
@@ -706,6 +758,7 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
         if ((yield* Ref.get(intent)).backgrounded) {
           yield* stopProbe;
           yield* Ref.set(pendingProbe, "idle");
+          yield* replacement.discard;
           break;
         }
         if (
@@ -975,12 +1028,14 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
         resetRetryLadder();
         latestFailure = null;
         yield* clearLease;
+        yield* replacement.discard;
         yield* setState(availableState(currentIntent, generation));
         yield* waitForSignal;
         continue;
       }
       if (currentIntent.backgrounded) {
         yield* clearLease;
+        yield* replacement.discard;
         if (latestFailure?._tag !== "ConnectionBlockedError") {
           latestFailure = null;
           yield* setState(connectingState(currentIntent, generation, 1, null));
@@ -993,6 +1048,7 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
       }
       if (currentIntent.network === "offline" && !attemptWhileOffline) {
         yield* clearLease;
+        yield* replacement.discard;
         yield* setState(offlineState(currentIntent, generation, failureCount + 1, latestFailure));
         const applicationActivated = yield* waitForSignal;
         if (applicationActivated !== null) {

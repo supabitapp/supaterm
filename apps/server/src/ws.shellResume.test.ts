@@ -13,6 +13,7 @@ import * as Option from "effect/Option";
 import * as PubSub from "effect/PubSub";
 import * as Stream from "effect/Stream";
 
+import { OrchestratorProjectionError } from "./orchestration-v2/Orchestrator.ts";
 import * as ProjectStore from "./orchestration-v2/ProjectStore.ts";
 import * as ThreadManagement from "./orchestration-v2/ThreadManagementService.ts";
 import * as OrchestrationEventStore from "./persistence/OrchestrationEventStore.ts";
@@ -53,6 +54,8 @@ const collectShellResume = Effect.fnUntraced(function* (input: {
   readonly projects?: ReadonlyMap<string, OrchestrationProjectShell>;
   readonly snapshotThreads?: ReadonlyArray<OrchestrationV2ThreadShell>;
   readonly take?: number;
+  readonly shellReads?: Array<string>;
+  readonly batchFails?: boolean;
 }) {
   const updates = yield* PubSub.unbounded<never>();
   const items = yield* subscribeOrchestrationV2Shell({
@@ -70,7 +73,28 @@ const collectShellResume = Effect.fnUntraced(function* (input: {
     Effect.provide(
       Layer.mergeAll(
         Layer.mock(ThreadManagement.ThreadManagementService)({
-          getThreadShell: (threadId) => Effect.succeed(input.shells?.get(threadId) ?? null),
+          getThreadShell: (threadId) =>
+            Effect.sync(() => {
+              input.shellReads?.push(threadId);
+              return input.shells?.get(threadId) ?? null;
+            }),
+          getShellSnapshot: (options) =>
+            Effect.suspend(() => {
+              const threadIds = options?.threadIds ?? [];
+              input.shellReads?.push(threadIds.join(","));
+              if (input.batchFails === true) {
+                return Effect.fail(
+                  new OrchestratorProjectionError({ threadId: ThreadId.make("thread:shell") }),
+                );
+              }
+              const shells = threadIds.flatMap((threadId) => input.shells?.get(threadId) ?? []);
+              return Effect.succeed({
+                schemaVersion: 1,
+                snapshotSequence: 0,
+                threads: shells.filter((shell) => shell.archivedAt === null),
+                archivedThreads: shells.filter((shell) => shell.archivedAt !== null),
+              });
+            }),
           listActiveSubagentThreadIds: () => Effect.succeed([]),
           readShellSnapshot: () =>
             Effect.succeed(
@@ -168,14 +192,36 @@ it.live("shell resume removes deleted and archived threads and deleted projects"
       ],
     ]);
 
-    const items = yield* collectShellResume({ afterSequence: cursor, shells });
-
-    assert.deepEqual(items.map(describeResumeItem), [
+    const expected = [
       `thread.updated thread:kept @${kept}`,
       `thread.removed thread:deleted @${deleted}`,
       `thread.removed thread:archived @${archived}`,
       `project.removed project:deleted @${project}`,
       "synchronized",
+    ];
+
+    const batchedReads: Array<string> = [];
+    const batched = yield* collectShellResume({
+      afterSequence: cursor,
+      shells,
+      shellReads: batchedReads,
+    });
+    assert.deepEqual(batched.map(describeResumeItem), expected);
+    assert.deepEqual(batchedReads, ["thread:kept,thread:deleted,thread:archived"]);
+
+    const fallbackReads: Array<string> = [];
+    const fallback = yield* collectShellResume({
+      afterSequence: cursor,
+      shells,
+      shellReads: fallbackReads,
+      batchFails: true,
+    });
+    assert.deepEqual(fallback.map(describeResumeItem), expected);
+    assert.deepEqual(fallbackReads, [
+      "thread:kept,thread:deleted,thread:archived",
+      "thread:kept",
+      "thread:deleted",
+      "thread:archived",
     ]);
   }).pipe(Effect.provide(Layer.fresh(ReplayTestLayer))),
 );
