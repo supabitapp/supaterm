@@ -21,7 +21,10 @@ import {
 } from "./claudeWorkflowProgress.ts";
 
 import { isWorkspaceImagePreviewPath } from "@supaterm/shared/filePreview";
-import { normalizeClaudeTurnTokenUsage } from "../../provider/ClaudeTurnTokenUsage.ts";
+import {
+  claudeReportedContextWindows,
+  normalizeClaudeTurnTokenUsage,
+} from "../../provider/ClaudeTurnTokenUsage.ts";
 import { toMcpElicitationResponse } from "../../provider/CodexMcpElicitation.ts";
 import {
   type CanUseTool,
@@ -213,12 +216,6 @@ import {
 export const CLAUDE_PROVIDER = ProviderDriverKind.make("claudeAgent");
 const CLAUDE_AGENT_SDK_QUERY_PROTOCOL = "claude-agent-sdk.query" as const;
 
-function claudeContextWindow(modelSelection: ModelSelection): number | null {
-  return (
-    resolveClaudeCatalogContextWindowTokens(BUNDLED_CLAUDE_MODEL_CATALOG, modelSelection) ?? null
-  );
-}
-
 // Claude caps the window at the model's context, so a setting at or above it never applies.
 // Below that, Claude compacts 33,000 tokens short of the window: Claude Code 2.1.305's
 // getContextUsage reports a 150,000 window as a 117,000 threshold, for every catalog model.
@@ -250,13 +247,12 @@ function claudeProviderTurnTokenUsage(
     readonly cache_read_input_tokens?: number | null;
     readonly output_tokens: number;
   },
-  modelSelection: ModelSelection,
+  maxTokens: number | null,
   updatedAt: string,
   autoCompactWindow = "",
 ) {
   const inputTokens = claudeMessageInputTokens(usage);
   const outputTokens = usage.output_tokens;
-  const maxTokens = claudeContextWindow(modelSelection);
   return {
     usedTokens: inputTokens + outputTokens,
     maxTokens,
@@ -4011,6 +4007,7 @@ interface ActiveClaudeTurnContext {
     >;
   };
   streamUsage: { readonly messageId: string; usage: ClaudeMessageUsage | null } | null;
+  compactionTokens: number | undefined;
   readonly toolCalls: Map<string, ActiveClaudeToolCall>;
   compaction: Extract<OrchestrationV2TurnItem, { type: "compaction" }> | null;
   readonly ignoredTaskIds: Set<string>;
@@ -4516,6 +4513,12 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
     BUNDLED_CLAUDE_MODEL_CATALOG,
     adapterOptions.settings.customModels,
   );
+  // Results report the window Claude Code compacts against; outside the catalog it is the only source.
+  const reportedContextWindows = new Map<string, number>();
+  const claudeContextWindow = (modelSelection: ModelSelection): number | null =>
+    resolveClaudeCatalogContextWindowTokens(BUNDLED_CLAUDE_MODEL_CATALOG, modelSelection) ??
+    reportedContextWindows.get(compileClaudeModelSelection(modelSelection).apiModelId) ??
+    null;
   const continuationRequests = adapterOptions.continuationRequests ?? {
     offer: () => Effect.void,
   };
@@ -4713,6 +4716,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
         const interruptedTurns = yield* Ref.make(new Set<OrchestrationV2ProviderTurn["id"]>());
         const steeredTurns = yield* Ref.make(new Set<OrchestrationV2ProviderTurn["id"]>());
         const queryContext = yield* Ref.make<ClaudeLiveQueryContext | null>(null);
+        const resultsReportingNewContextWindow = new WeakSet<SDKMessage>();
         const openedNativeThreads = yield* Ref.make(new Set<string>());
         const pdfBudgets = new Map<string, ReturnType<typeof makeClaudeAttachmentBudget>>();
         const latestPlanByKind = yield* Ref.make(new Map<string, OrchestrationV2PlanArtifact>());
@@ -4988,16 +4992,31 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
 
         const emitContextUsage = Effect.fnUntraced(function* (
           context: ActiveClaudeTurnContext,
-          usage: ClaudeMessageUsage,
+          usage: ClaudeMessageUsage | number,
         ) {
           const now = yield* DateTime.now;
-          const tokenUsage = claudeProviderTurnTokenUsage(
-            usage,
-            context.input.modelSelection,
-            DateTime.formatIso(now),
-            adapterOptions.settings.autoCompactWindow,
-          );
-          if (tokenUsage.inputTokens <= 0) return;
+          const maxTokens = claudeContextWindow(context.input.modelSelection);
+          const tokenUsage =
+            typeof usage === "number"
+              ? {
+                  usedTokens: usage,
+                  maxTokens,
+                  ...claudeAutoCompactThreshold(
+                    adapterOptions.settings.autoCompactWindow,
+                    maxTokens,
+                  ),
+                  updatedAt: DateTime.formatIso(now),
+                }
+              : claudeProviderTurnTokenUsage(
+                  usage,
+                  maxTokens,
+                  DateTime.formatIso(now),
+                  adapterOptions.settings.autoCompactWindow,
+                );
+          if (typeof usage !== "number") {
+            if (claudeMessageInputTokens(usage) <= 0) return;
+            context.compactionTokens = undefined;
+          }
           yield* emitProviderEvent({
             type: "provider_turn.updated",
             driver: CLAUDE_PROVIDER,
@@ -8731,38 +8750,8 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
               typeof postTokens === "number" && Number.isFinite(postTokens) && postTokens > 0
                 ? Math.round(postTokens)
                 : undefined;
-            if (afterTokenCount !== undefined) {
-              const maxTokens = claudeContextWindow(context.input.modelSelection);
-              yield* emitProviderEvent({
-                type: "provider_turn.updated",
-                driver: CLAUDE_PROVIDER,
-                threadId: context.input.threadId,
-                providerTurn: {
-                  id: context.providerTurnId,
-                  providerThreadId: context.input.providerThread.id,
-                  nodeId: context.input.rootNodeId,
-                  runAttemptId: context.input.attemptId,
-                  nativeTurnRef: {
-                    driver: CLAUDE_PROVIDER,
-                    nativeId: context.nativeTurnId,
-                    strength: "strong",
-                  },
-                  ordinal: context.providerTurnOrdinal,
-                  status: "running",
-                  startedAt: context.startedAt,
-                  completedAt: null,
-                  tokenUsage: {
-                    usedTokens: afterTokenCount,
-                    maxTokens,
-                    ...claudeAutoCompactThreshold(
-                      adapterOptions.settings.autoCompactWindow,
-                      maxTokens,
-                    ),
-                    updatedAt: DateTime.formatIso(now),
-                  },
-                },
-              });
-            }
+            context.compactionTokens = afterTokenCount;
+            if (afterTokenCount !== undefined) yield* emitContextUsage(context, afterTokenCount);
             yield* emitProviderEvent({
               type: "turn_item.updated",
               driver: CLAUDE_PROVIDER,
@@ -9493,6 +9482,10 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           }
 
           if (message.type === "result") {
+            const contextUsage = context.streamUsage?.usage ?? context.compactionTokens;
+            if (resultsReportingNewContextWindow.has(message) && contextUsage !== undefined) {
+              yield* emitContextUsage(context, contextUsage);
+            }
             const completedAt = yield* DateTime.now;
             const interrupted = (yield* Ref.get(interruptedTurns)).has(context.providerTurnId);
             const wasSteered = (yield* Ref.get(steeredTurns)).has(context.providerTurnId);
@@ -10553,6 +10546,15 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                   ) {
                     context.permissionMode = message.permissionMode;
                   }
+                  if (message.type === "result") {
+                    for (const [model, window] of claudeReportedContextWindows(
+                      message.modelUsage,
+                    )) {
+                      if (reportedContextWindows.get(model) === window) continue;
+                      reportedContextWindows.set(model, window);
+                      resultsReportingNewContextWindow.add(message);
+                    }
+                  }
                   return handleSdkMessage({ query: querySession, message });
                 }),
               ),
@@ -10690,6 +10692,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                 blocks: new Map(),
               },
               streamUsage: null,
+              compactionTokens: undefined,
               toolCalls: new Map(),
               compaction: null,
               ignoredTaskIds: new Set(),
@@ -11207,8 +11210,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           driver: CLAUDE_PROVIDER,
           providerSessionId: input.providerSessionId,
           providerSession: session,
-          getModelContextWindow: (selection) =>
-            resolveClaudeCatalogContextWindowTokens(BUNDLED_CLAUDE_MODEL_CATALOG, selection),
+          getModelContextWindow: (selection) => claudeContextWindow(selection) ?? undefined,
           events: Stream.fromEffectRepeat(Queue.take(events)),
           backgroundTasksEndWithProcess: true,
           hasPendingBackgroundWork: Effect.gen(function* () {
