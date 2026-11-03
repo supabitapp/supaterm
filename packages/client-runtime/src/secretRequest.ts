@@ -22,7 +22,7 @@ export type SecretRequestDisplay =
 const SAVED_DISPLAY: SecretRequestDisplay = {
   kind: "answered",
   outcome: "saved",
-  label: "Saved to a private file",
+  label: "Sent",
 };
 const DECLINED_DISPLAY: SecretRequestDisplay = {
   kind: "answered",
