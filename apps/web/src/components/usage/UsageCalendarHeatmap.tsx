@@ -3,8 +3,8 @@ import { useState } from "react";
 
 import {
   buildUsageCalendar,
-  completedPeriodAverage,
   formatDayShort,
+  periodAverage,
   type UsageCalendarLevel,
 } from "@supaterm/shared/usageFormat";
 import { cn } from "~/lib/utils";
@@ -28,12 +28,14 @@ export function UsageCalendarHeatmap({
   providers,
   format,
   ariaLabel,
+  loading,
 }: {
   readonly days: readonly string[];
   readonly columns: readonly DayColumn[];
   readonly providers: readonly UsageProviderKind[];
   readonly format: (value: number) => string;
   readonly ariaLabel: string;
+  readonly loading: boolean;
 }) {
   const [active, setActive] = useState<number | null>(null);
   const totals = columns.map((column) => column.total);
@@ -42,7 +44,7 @@ export function UsageCalendarHeatmap({
     (best, total, index) => (total > (totals[best] ?? 0) ? index : best),
     0,
   );
-  const average = completedPeriodAverage(totals);
+  const average = periodAverage(totals, true);
   const lastIndex = days.length - 1;
 
   const describe = (index: number) => {
@@ -65,7 +67,9 @@ export function UsageCalendarHeatmap({
   const summary =
     (totals[peak] ?? 0) > 0
       ? `Highest ${formatDayShort(days[peak] ?? "")} · ${format(totals[peak] ?? 0)} · ${format(average)} a day on average`
-      : "No activity in this window";
+      : loading
+        ? ""
+        : "No activity in this window";
 
   const move = (event: React.KeyboardEvent<HTMLDivElement>) => {
     const step = { ArrowLeft: -7, ArrowRight: 7, ArrowUp: -1, ArrowDown: 1 }[event.key];
@@ -75,7 +79,9 @@ export function UsageCalendarHeatmap({
   };
 
   return (
-    <div className="flex flex-col gap-3">
+    <div
+      className={cn("flex flex-col gap-3 transition-opacity", loading && "opacity-40 delay-150")}
+    >
       <p aria-live="polite" className="h-4 truncate text-xs text-muted-foreground tabular-nums">
         {active === null ? summary : describe(active)}
       </p>

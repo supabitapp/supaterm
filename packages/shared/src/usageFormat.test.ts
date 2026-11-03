@@ -4,10 +4,10 @@ import type { UsageSource } from "@supaterm/contracts";
 
 import {
   buildUsageCalendar,
-  completedPeriodAverage,
   enumerateDays,
   formatHourShort,
   makeWindow,
+  periodAverage,
   usageSourceMessages,
 } from "./usageFormat.ts";
 
@@ -220,9 +220,10 @@ describe("usage calendar", () => {
   });
 });
 
-describe("completed period average", () => {
-  it("leaves out the period still in progress", () => {
-    expect(completedPeriodAverage([10, 20, 30, 1])).toBe(20);
-    expect(completedPeriodAverage([5])).toBe(0);
+describe("period average", () => {
+  it("leaves out today but keeps the last hour, which already ended", () => {
+    expect(periodAverage([10, 20, 30, 1], true)).toBe(20);
+    expect(periodAverage([5], true)).toBe(0);
+    expect(periodAverage([0, 0, 2400], false)).toBe(800);
   });
 });

@@ -15,12 +15,12 @@ import {
 
 import type { DailyTotals, HourlyTotals } from "@supaterm/shared/usageMerge";
 import {
-  completedPeriodAverage,
   formatDayShort,
   formatHourShort,
   formatRelativeHourShort,
   formatTokens,
   formatUsd,
+  periodAverage,
 } from "@supaterm/shared/usageFormat";
 import { cn } from "~/lib/utils";
 import { UsageCalendarHeatmap } from "./UsageCalendarHeatmap";
@@ -190,11 +190,16 @@ export function UsageProviderChart({
         providers={providers}
         format={format}
         ariaLabel={ariaLabel}
+        loading={loadingProviders.size > 0}
       />
     );
   }
-  const average = completedPeriodAverage(columns.map((column) => column.total));
-  const lastIndex = data.length - 1;
+  const lastInProgress = resolution === "day";
+  const average = periodAverage(
+    columns.map((column) => column.total),
+    lastInProgress,
+  );
+  const partialIndex = lastInProgress ? data.length - 1 : -1;
 
   return (
     <div className="relative h-64">
@@ -263,7 +268,7 @@ export function UsageProviderChart({
             isAnimationActive={false}
           >
             {data.map((row, index) => (
-              <Cell key={row.period} fillOpacity={index === lastIndex ? 0.45 : 1} />
+              <Cell key={row.period} fillOpacity={index === partialIndex ? 0.45 : 1} />
             ))}
           </Bar>
         ))}

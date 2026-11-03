@@ -181,12 +181,11 @@ export function buildUsageCalendar(
   return { weeks, months: months.filter((month, i) => months[i + 1]?.week !== month.week) };
 }
 
-// The last period is still in progress, so it would drag the average down.
-export function completedPeriodAverage(totals: readonly number[]): number {
-  const completed = totals.slice(0, -1);
-  return completed.length === 0
-    ? 0
-    : completed.reduce((sum, total) => sum + total, 0) / completed.length;
+// A daily window ends on today, which is still in progress and would drag the average down.
+// Hourly windows end at the request time, so their last hour is complete.
+export function periodAverage(totals: readonly number[], lastInProgress: boolean): number {
+  const settled = lastInProgress ? totals.slice(0, -1) : totals;
+  return settled.length === 0 ? 0 : settled.reduce((sum, total) => sum + total, 0) / settled.length;
 }
 
 const HOUR_MS = 60 * 60 * 1000;

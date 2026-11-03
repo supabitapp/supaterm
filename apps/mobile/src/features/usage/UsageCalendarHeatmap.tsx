@@ -61,45 +61,38 @@ export function UsageCalendarHeatmap({
           </View>
         ))}
       </View>
-      <View className="flex-row gap-1">
-        <View className="w-6 gap-1">
-          {WEEKDAYS.map((weekday) => (
-            <View key={weekday} className="aspect-square justify-center">
-              <Text className="text-[9px] text-foreground-tertiary">
-                {LABELED_WEEKDAYS.has(weekday) ? weekday : ""}
-              </Text>
-            </View>
-          ))}
+      {WEEKDAYS.map((weekday, slot) => (
+        <View key={weekday} className="flex-row items-center gap-1">
+          <Text className="w-6 text-[9px] text-foreground-tertiary">
+            {LABELED_WEEKDAYS.has(weekday) ? weekday : ""}
+          </Text>
+          {calendar.weeks.map((week) => {
+            const key = week.find((cell) => cell !== null)?.day;
+            const cell = week[slot];
+            if (cell == null) return <View key={key} className="aspect-square flex-1" />;
+            const isSelected = cell.day === selectedDay;
+            return (
+              <Pressable
+                key={key}
+                accessibilityRole="button"
+                accessibilityLabel={`${formatDayShort(cell.day)}${cell.index === lastIndex ? " so far" : ""}, ${format(cell.value)}`}
+                accessibilityState={{ selected: isSelected }}
+                className="aspect-square flex-1 rounded"
+                style={{
+                  backgroundColor: `rgba(${ink}, ${LEVEL_ALPHA[cell.level]})`,
+                  borderWidth: isSelected ? 2 : cell.index === lastIndex ? 1 : 0,
+                  borderColor: `rgba(${ink}, ${isSelected ? 1 : 0.5})`,
+                }}
+                onPress={() => {
+                  const next = isSelected ? null : cell.day;
+                  onSelectDay(next);
+                  if (next !== null) void Haptics.selectionAsync();
+                }}
+              />
+            );
+          })}
         </View>
-        {calendar.weeks.map((week) => (
-          <View key={week.find((cell) => cell !== null)?.day} className="flex-1 gap-1">
-            {WEEKDAYS.map((weekday, slot) => {
-              const cell = week[slot];
-              if (cell == null) return <View key={weekday} className="aspect-square" />;
-              const isSelected = cell.day === selectedDay;
-              return (
-                <Pressable
-                  key={weekday}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${formatDayShort(cell.day)}${cell.index === lastIndex ? " so far" : ""}, ${format(cell.value)}`}
-                  accessibilityState={{ selected: isSelected }}
-                  className="aspect-square rounded"
-                  style={{
-                    backgroundColor: `rgba(${ink}, ${LEVEL_ALPHA[cell.level]})`,
-                    borderWidth: isSelected ? 2 : cell.index === lastIndex ? 1 : 0,
-                    borderColor: `rgba(${ink}, ${isSelected ? 1 : 0.5})`,
-                  }}
-                  onPress={() => {
-                    const next = isSelected ? null : cell.day;
-                    onSelectDay(next);
-                    if (next !== null) void Haptics.selectionAsync();
-                  }}
-                />
-              );
-            })}
-          </View>
-        ))}
-      </View>
+      ))}
       <View className="mt-1 flex-row items-center gap-1">
         <Text className="mr-1 text-xs text-foreground-tertiary">Less</Text>
         {LEVEL_ALPHA.map((alpha) => (

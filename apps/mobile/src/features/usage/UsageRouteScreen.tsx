@@ -17,7 +17,6 @@ import {
   type MergedUsage,
 } from "@supaterm/shared/usageMerge";
 import {
-  completedPeriodAverage,
   enumerateDays,
   enumerateHourStarts,
   formatCount,
@@ -28,6 +27,7 @@ import {
   formatUsageContractMismatch,
   formatUsd,
   makeWindow,
+  periodAverage,
   usageSourceMessages,
 } from "@supaterm/shared/usageFormat";
 import { useRef, useState, type ReactNode } from "react";
@@ -603,7 +603,10 @@ function ChartCard(props: {
     props.isPast24Hours ? formatHourShort(period, props.timeZone) : formatDayShort(period);
   const chartDays = buildChartDays(props.days, props.daily, metric);
   const selection = chartDays.find((period) => period.day === selectedDay);
-  const average = completedPeriodAverage(chartDays.map((period) => period.total));
+  const average = periodAverage(
+    chartDays.map((period) => period.total),
+    !props.isPast24Hours,
+  );
   const chart = !hasActivity ? (
     <View style={{ height }} className="items-center justify-center">
       <Text className="text-base text-foreground-muted">No activity in this window.</Text>
@@ -622,6 +625,7 @@ function ChartCard(props: {
       daily={props.daily}
       metric={metric}
       height={height}
+      lastInProgress={!props.isPast24Hours}
       selectedDay={selectedDay}
       onSelectDay={setSelectedDay}
       formatPeriod={formatPeriod}
@@ -637,7 +641,7 @@ function ChartCard(props: {
     ) : (
       <SelectionSummary
         period={selection}
-        label={`${formatPeriod(selection.day)}${selection.day === props.days[props.days.length - 1] ? " so far" : ""}`}
+        label={`${formatPeriod(selection.day)}${!props.isPast24Hours && selection.day === props.days[props.days.length - 1] ? " so far" : ""}`}
         metric={metric}
         compact={props.title !== undefined}
       />

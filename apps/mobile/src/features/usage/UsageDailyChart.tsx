@@ -1,6 +1,6 @@
 import type { UsageProviderKind } from "@supaterm/contracts";
 import type { DailyTotals } from "@supaterm/shared/usageMerge";
-import { completedPeriodAverage, formatTokens, formatUsd } from "@supaterm/shared/usageFormat";
+import { formatTokens, formatUsd, periodAverage } from "@supaterm/shared/usageFormat";
 import { DashPathEffect, Line, vec } from "@shopify/react-native-skia";
 import * as Haptics from "expo-haptics";
 import { useMemo } from "react";
@@ -28,6 +28,7 @@ export interface UsageDailyChartProps {
   readonly daily: readonly DailyTotals[];
   readonly metric: UsageChartMetric;
   readonly height: number;
+  readonly lastInProgress: boolean;
   readonly selectedDay: string | null;
   readonly onSelectDay: (day: string | null) => void;
   readonly formatPeriod: (period: string) => string;
@@ -38,6 +39,7 @@ export function UsageDailyChart({
   daily,
   metric,
   height,
+  lastInProgress,
   selectedDay,
   onSelectDay,
   formatPeriod,
@@ -73,9 +75,12 @@ export function UsageDailyChart({
     undefined,
   );
   const domainMax = peak === undefined || peak.total === 0 ? 1 : peak.total;
-  const average = completedPeriodAverage(chartDays.map((day) => day.total));
+  const average = periodAverage(
+    chartDays.map((day) => day.total),
+    lastInProgress,
+  );
   const selected = selectedDay === null ? -1 : days.indexOf(selectedDay);
-  const lastIndex = data.length - 1;
+  const partialIndex = lastInProgress ? data.length - 1 : -1;
   const format = metric === "cost" ? formatUsd : formatTokens;
 
   return (
@@ -112,7 +117,7 @@ export function UsageDailyChart({
                     ? selected === datumIndex
                       ? 1
                       : 0.35
-                    : datumIndex === lastIndex
+                    : datumIndex === partialIndex
                       ? 0.45
                       : 1,
               })}
