@@ -42,6 +42,7 @@ import { toastManager } from "./ui/toast";
 import { newestClosedPaneAt, useChatPaneStore } from "../chatPanes/store";
 import { isChatPaneWorkspaceMounted } from "../chatPanes/actions";
 import { focusedPane } from "../chatPanes/layout";
+import { workspaceSize } from "../chatPanes/paneDrop";
 
 const PREVIEW_FORWARDED_COMMANDS = [
   "workspace.focusNext",
@@ -91,7 +92,7 @@ export function ReopenClosedViewShortcut() {
     const viewClosedAt = useClosedViewStore.getState().entries[0]?.closedAt ?? 0;
     if (paneClosedAt !== null && paneClosedAt >= viewClosedAt) {
       const store = useChatPaneStore.getState();
-      if (!store.reopenClosed() || isChatPaneWorkspaceMounted()) return;
+      if (!store.reopenClosed(workspaceSize()) || isChatPaneWorkspaceMounted()) return;
       const layout = useChatPaneStore.getState().layout;
       const reopened = layout ? focusedPane(layout).target : null;
       if (reopened?.kind === "server") {

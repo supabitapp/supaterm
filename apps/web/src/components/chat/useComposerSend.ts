@@ -921,6 +921,7 @@ export function useComposerSend(input: ComposerSendInput) {
         ? { kind: "queued" as const, value: await settlePromise(saveTurn) }
         : await sendSideChatDraftMessage({
             parentRef: forkSideChatFirst,
+            draftId,
             targetThreadId: threadIdForSend,
             enqueue: () => settlePromise(saveTurn),
           });

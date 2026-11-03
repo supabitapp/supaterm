@@ -15,9 +15,11 @@ import { useAtomValue } from "@effect/atom-react";
 import { Atom } from "effect/reactivity";
 
 import { newDraftId, newMessageId, newThreadId } from "~/lib/utils";
-import { openThreadBeside } from "../../chatPanes/actions";
+import { openSideChatBeside } from "../../chatPanes/actions";
 import { appAtomRegistry } from "../../rpc/atomRegistry";
 import { usePaneThreadNavigation } from "../../chatPanes/paneScope";
+import { useChatPaneStore } from "../../chatPanes/store";
+import type { DraftId } from "../../draftId";
 import { markPromotedDraftThreadByRef, useComposerDraftStore } from "../../composerDraftStore";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { readThreadShell, useServerConfigs, waitForThreadShell } from "../../state/entities";
@@ -59,19 +61,26 @@ export function useSideChatBlockedReason(input: {
 }
 
 /** Sends a side chat draft's first message; see `sendSideChatFirstMessage`. */
-export function sendSideChatDraftMessage<A>(input: {
+export async function sendSideChatDraftMessage<A>(input: {
   readonly parentRef: ScopedThreadRef;
+  readonly draftId: DraftId | null;
   readonly targetThreadId: ThreadId;
   readonly enqueue: () => Promise<A>;
 }) {
-  return sendSideChatFirstMessage({
+  const { draftId, ...send } = input;
+  const result = await sendSideChatFirstMessage({
     registry: appAtomRegistry,
     forkSideChat: threadEnvironment.forkSideChat,
     readThread: readThreadShell,
     waitForThread: waitForThreadShell,
     creationSource: "web",
-    ...input,
+    ...send,
   });
+  if (result.kind === "queued" && draftId !== null) {
+    const threadRef = scopeThreadRef(input.parentRef.environmentId, input.targetThreadId);
+    useChatPaneStore.getState().promoteParkedDraft(draftId, threadRef);
+  }
+  return result;
 }
 
 /**
@@ -105,7 +114,8 @@ export function useSideChat(input: {
     store.createSideChatDraft({ draftId, threadId, parent });
     if (prompt !== "") store.setPrompt(draftId, prompt);
     const target = { kind: "draft", draftId } as const;
-    if (!openThreadBeside(target, "right")) void openPaneThread(target);
+    const parentRef = scopeThreadRef(parent.environmentId, parent.id);
+    if (!openSideChatBeside(target, { parentRef, sideChat: target })) void openPaneThread(target);
     return { parent, draftId, threadId };
   };
 
@@ -124,6 +134,7 @@ export function useSideChat(input: {
   ) => {
     const result = await sendSideChatDraftMessage({
       parentRef: scopeThreadRef(parent.environmentId, parent.id),
+      draftId,
       targetThreadId: threadId,
       enqueue: () => {
         // The fork copied the parent's current modes; this client's copy of the parent may lag.

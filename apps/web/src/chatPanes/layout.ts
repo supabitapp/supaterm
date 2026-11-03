@@ -1,5 +1,7 @@
 import { scopedThreadKey } from "@supaterm/client-runtime/environment";
+import type { ScopedThreadRef } from "@supaterm/contracts";
 
+import type { DraftId } from "../draftId";
 import type { ThreadRouteTarget } from "../threadRoutes";
 
 const MAX_CHAT_PANES = 4;
@@ -22,6 +24,8 @@ export interface PaneCell {
   readonly columnSpan: number;
   readonly row: number;
   readonly rowSpan: number;
+  /** On a side chat's pane: the pane showing its parent. The pair navigates and closes together. */
+  readonly sideChatOf?: string;
 }
 
 /**
@@ -64,6 +68,23 @@ export function findPaneByTarget(layout: PaneLayout, target: ThreadRouteTarget):
   return layout.cells.find((cell) => paneTargetKey(cell.target) === key) ?? null;
 }
 
+/** The pane still showing the draft that became `target`'s thread. */
+export function findPromotedDraftPane(
+  layout: PaneLayout,
+  target: ThreadRouteTarget,
+  draftThread: (draftId: DraftId) => ScopedThreadRef | null,
+): PaneCell | null {
+  if (target.kind !== "server") return null;
+  const key = scopedThreadKey(target.threadRef);
+  return (
+    layout.cells.find((cell) => {
+      if (cell.target.kind !== "draft") return false;
+      const threadRef = draftThread(cell.target.draftId);
+      return threadRef !== null && scopedThreadKey(threadRef) === key;
+    }) ?? null
+  );
+}
+
 export function focusedPane(layout: PaneLayout): PaneCell {
   return findPane(layout, layout.focusedPaneId) ?? layout.cells[0]!;
 }
@@ -89,7 +110,44 @@ export function focusAdjacentPane(layout: PaneLayout, offset: 1 | -1): PaneLayou
   return next ? focusPane(layout, next.id) : layout;
 }
 
-/** Shows `target` in `paneId`. A target already in another pane focuses that pane instead. */
+function withSideChatOf(cell: PaneCell, parentPaneId: string | undefined): PaneCell {
+  if (cell.sideChatOf === parentPaneId) return cell;
+  const { sideChatOf: _sideChatOf, ...rest } = cell;
+  return parentPaneId === undefined ? rest : { ...rest, sideChatOf: parentPaneId };
+}
+
+export function sideChatPanes(layout: PaneLayout, paneId: string): ReadonlyArray<PaneCell> {
+  return orderedPanes(layout).filter((cell) => cell.sideChatOf === paneId);
+}
+
+export function linkSideChatPane(
+  layout: PaneLayout,
+  sideChatPaneId: string,
+  parentPaneId: string,
+): PaneLayout {
+  const parent = findPane(layout, parentPaneId);
+  if (sideChatPaneId === parentPaneId || !parent || parent.sideChatOf !== undefined) return layout;
+  if (sideChatPanes(layout, sideChatPaneId).length > 0) return layout;
+  return {
+    ...layout,
+    cells: layout.cells.map((cell) =>
+      cell.id === sideChatPaneId ? withSideChatOf(cell, parentPaneId) : cell,
+    ),
+  };
+}
+
+/** Drops the ties of `paneId` itself and of the side chats tied to it. */
+export function unlinkPane(layout: PaneLayout, paneId: string): PaneLayout {
+  const cells = layout.cells.map((cell) =>
+    cell.id === paneId || cell.sideChatOf === paneId ? withSideChatOf(cell, undefined) : cell,
+  );
+  return cells.every((cell, index) => cell === layout.cells[index]) ? layout : { ...layout, cells };
+}
+
+/**
+ * Shows `target` in `paneId`, which stops being tied to another thread's side chats. A target
+ * already in another pane focuses that pane instead.
+ */
 export function replacePaneTarget(
   layout: PaneLayout,
   paneId: string,
@@ -97,25 +155,11 @@ export function replacePaneTarget(
 ): PaneLayout {
   const existing = findPaneByTarget(layout, target);
   if (existing) return focusPane(layout, existing.id);
+  const unlinked = unlinkPane(layout, paneId);
   return {
-    ...layout,
-    cells: layout.cells.map((cell) => (cell.id === paneId ? { ...cell, target } : cell)),
+    ...unlinked,
+    cells: unlinked.cells.map((cell) => (cell.id === paneId ? { ...cell, target } : cell)),
   };
-}
-
-/**
- * The route names the focused pane's thread. A route target already on screen
- * focuses its pane; any other target replaces the focused pane's thread.
- */
-export function reconcileLayoutWithRoute(
-  layout: PaneLayout | null,
-  target: ThreadRouteTarget,
-  createId: () => string,
-): PaneLayout {
-  if (layout === null) return createPaneLayout(target, createId);
-  const existing = findPaneByTarget(layout, target);
-  if (existing) return focusPane(layout, existing.id);
-  return replacePaneTarget(layout, focusedPane(layout).id, target);
 }
 
 function axisTracks(layout: PaneLayout, axis: PaneAxis) {
@@ -224,7 +268,7 @@ function insertPane(
   const secondSpan = cellSpan(split, axis) - firstSpan;
   const leading = edgeLeads(edge);
   const newCell = withCellPosition(
-    { ...split, id: newPaneId, target },
+    withSideChatOf({ ...split, id: newPaneId, target }, undefined),
     axis,
     leading ? start : boundary,
     leading ? firstSpan : secondSpan,
@@ -333,7 +377,10 @@ export function closePane(layout: PaneLayout, paneId: string): ClosePaneResult |
     });
     const survivorId = layout.focusedPaneId === paneId ? neighbours[0]!.id : layout.focusedPaneId;
     return {
-      layout: normalizePaneLayout({ ...layout, cells, focusedPaneId: survivorId }),
+      layout: unlinkPane(
+        normalizePaneLayout({ ...layout, cells, focusedPaneId: survivorId }),
+        paneId,
+      ),
       survivorId,
       reopenBeside: { paneId: neighbours[0]!.id, edge: OPPOSITE_EDGE[edge] },
     };
@@ -347,12 +394,12 @@ export function closeOtherPanes(layout: PaneLayout, paneId: string): PaneLayout 
   return {
     columns: [{ id: layout.columns[0]!.id, size: 100 }],
     rows: [{ id: layout.rows[0]!.id, size: 100 }],
-    cells: [{ ...cell, column: 0, columnSpan: 1, row: 0, rowSpan: 1 }],
+    cells: [withSideChatOf({ ...cell, column: 0, columnSpan: 1, row: 0, rowSpan: 1 }, undefined)],
     focusedPaneId: paneId,
   };
 }
 
-/** Moves a pane onto `edge` of another pane, keeping its id so its view stays mounted. */
+/** Moves a pane onto `edge` of another pane, keeping its id and ties so its view stays mounted. */
 export function movePane(
   layout: PaneLayout,
   paneId: string,
@@ -364,7 +411,12 @@ export function movePane(
   if (!moving || paneId === targetPaneId || !findPane(layout, targetPaneId)) return null;
   const closed = closePane(layout, paneId);
   if (!closed) return null;
-  return splitPane(closed.layout, targetPaneId, edge, moving.target, paneId, createId);
+  const moved = splitPane(closed.layout, targetPaneId, edge, moving.target, paneId, createId);
+  if (!moved) return null;
+  return {
+    ...moved,
+    cells: moved.cells.map((cell) => withSideChatOf(cell, findPane(layout, cell.id)?.sideChatOf)),
+  };
 }
 
 /** Exchanges two panes' places; both keep their ids and stay mounted. */
@@ -500,6 +552,13 @@ export function isValidPaneLayout(layout: PaneLayout): boolean {
   if (new Set(cells.map((cell) => cell.id)).size !== cells.length) return false;
   if (new Set(cells.map((cell) => paneTargetKey(cell.target))).size !== cells.length) return false;
   if (!cells.some((cell) => cell.id === layout.focusedPaneId)) return false;
+  const parents = new Map(cells.map((cell) => [cell.id, cell.sideChatOf]));
+  const tiedToParent = (cell: PaneCell) =>
+    cell.sideChatOf === undefined ||
+    (cell.sideChatOf !== cell.id &&
+      parents.has(cell.sideChatOf) &&
+      parents.get(cell.sideChatOf) === undefined);
+  if (!cells.every(tiedToParent)) return false;
   const occupied = new Set<string>();
   for (const cell of cells) {
     if (

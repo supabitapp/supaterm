@@ -13,8 +13,10 @@ import {
   type PaneLayout,
 } from "../../chatPanes/layout";
 import { PaneScopeProvider, registerPaneComposer, type PaneScope } from "../../chatPanes/paneScope";
+import type { DraftThread } from "../../chatPanes/sideChats";
 import { useChatPaneStore } from "../../chatPanes/store";
 import { ComposerHandleContext } from "../../composerHandleContext";
+import { useComposerDraftStore } from "../../composerDraftStore";
 import { observeResize } from "../../lib/observeResize";
 import { RIGHT_PANEL_SHEET_MAX_WIDTH } from "../../rightPanelLayout";
 import { buildThreadRouteParams, type ThreadRouteTarget } from "../../threadRoutes";
@@ -43,6 +45,12 @@ function useNavigateToPaneTarget() {
   });
 }
 
+const draftThread: DraftThread = (draftId) => {
+  const drafts = useComposerDraftStore.getState();
+  const session = drafts.getDraftSession(draftId);
+  return session ? (session.promotedTo ?? null) : drafts.getPromotedDraftRedirect(draftId);
+};
+
 /**
  * The chat area: one pane per open thread, tiled on a resizable grid. Even a
  * single thread renders as a one-cell grid, so splitting it, moving it, or
@@ -68,7 +76,11 @@ export function ChatPaneWorkspace({
     const rect = containerRef.current?.getBoundingClientRect();
     useChatPaneStore
       .getState()
-      .reconcileRoute(target, rect ? { width: rect.width, height: rect.height } : null);
+      .reconcileRoute(
+        target,
+        rect ? { width: rect.width, height: rect.height } : null,
+        draftThread,
+      );
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- the key identifies the target; a new object for the same thread is not a navigation
   }, [routeKey]);
 

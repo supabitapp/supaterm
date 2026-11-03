@@ -1,6 +1,6 @@
 import { openCommandPalette } from "../commandPaletteBus";
 import type { ThreadRouteTarget } from "../threadRoutes";
-import { canSplitPane, findPaneByTarget, type PaneEdge } from "./layout";
+import { canSplitPane, findPaneByTarget, type PaneEdge, paneTargetKey } from "./layout";
 import { workspaceSize } from "./paneDrop";
 import { focusPaneComposer } from "./paneScope";
 import { useChatPaneStore } from "./store";
@@ -17,7 +17,27 @@ export function openThreadBeside(target: ThreadRouteTarget, edge: PaneEdge): boo
   const fits =
     findPaneByTarget(layout, target) !== null ||
     canSplitPane(layout, layout.focusedPaneId, edge, workspace);
-  return fits && split(layout.focusedPaneId, edge, target) !== null;
+  return fits && split(layout.focusedPaneId, edge, target, workspace) !== null;
+}
+
+/**
+ * Like `openThreadBeside` for either thread of a side chat pair, then ties the pair. Without room,
+ * a side chat takes the place of its parent's last side chat.
+ */
+export function openSideChatBeside(
+  target: ThreadRouteTarget,
+  pair: { readonly parentRef: ScopedThreadRef; readonly sideChat: ThreadRouteTarget },
+): boolean {
+  const store = useChatPaneStore.getState();
+  const tied = {
+    parent: { kind: "server", threadRef: pair.parentRef },
+    sideChat: pair.sideChat,
+  } as const;
+  if (openThreadBeside(target, "right")) {
+    store.linkSideChat(tied);
+    return true;
+  }
+  return paneTargetKey(target) === paneTargetKey(pair.sideChat) && store.swapInSideChat(tied);
 }
 
 /** A click into a desktop browser never reaches the pane's DOM, so the browser claims its pane. */

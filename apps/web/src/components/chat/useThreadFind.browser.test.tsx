@@ -788,7 +788,7 @@ async function renderSplit(resources: AsyncDisposableStack) {
   const store = useChatPaneStore.getState();
   store.reconcileRoute(paneTarget(a), { width: 1600, height: 900 });
   const paneA = useChatPaneStore.getState().layout!.focusedPaneId;
-  const paneB = store.split(paneA, "right", paneTarget(b))!;
+  const paneB = store.split(paneA, "right", paneTarget(b), null)!;
   store.focus(paneA);
 
   const root = createRootRoute();

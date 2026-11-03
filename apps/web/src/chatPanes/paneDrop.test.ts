@@ -53,7 +53,7 @@ describe("commitPaneDrop", () => {
   beforeEach(() => {
     useChatPaneStore.setState({ layout: null, closed: [], openToSide: null });
     store().reconcileRoute(thread("a"), { width: 1600, height: 900 });
-    store().split(store().layout!.focusedPaneId, "right", thread("b"));
+    store().split(store().layout!.focusedPaneId, "right", thread("b"), null);
   });
 
   it("moves a thread that is already open instead of opening it twice", () => {
