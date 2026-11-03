@@ -1,5 +1,6 @@
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem";
 import * as NodeHttpClient from "@effect/platform-node/NodeHttpClient";
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
 import * as Deferred from "effect/Deferred";
@@ -81,6 +82,7 @@ function layerEnvironmentFor(baseDir: string, env: Record<string, string | undef
     Layer.provide(
       Layer.mergeAll(
         NodeServices.layer,
+        NodeCrypto.layer,
         DesktopConfig.layerTest({ SUPATERM_HOME: baseDir, ...env }),
       ),
     ),
@@ -142,7 +144,7 @@ const withHarness = <A, E, R>(
         }),
       ),
     );
-  }).pipe(Effect.provide(NodeServices.layer), Effect.scoped);
+  }).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)), Effect.scoped);
 
 describe("DesktopServerExposure", () => {
   it.effect("uses cached Tailscale identity to exclude another VPN's pairing address", () => {
