@@ -22,6 +22,7 @@ import {
 } from "../../lib/enrichedLinkPresentation";
 import { ThreadContextDivider } from "./thread-context-divider";
 import { ThreadHandoffDivider, ThreadHandoffRow } from "./thread-handoff-row";
+import { ThreadParentDivider } from "./thread-parent-divider";
 import { SecretRequestCard } from "./SecretRequestCard";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { WorktreeSetupCard, type WorktreeSetupCardProps } from "./worktree-setup-card";
@@ -36,6 +37,7 @@ import {
 } from "@supaterm/client-runtime/user-message";
 import { canForkProjectedAssistantItem } from "@supaterm/client-runtime/state/thread-workflows";
 import type { ThreadCheckpointSummary } from "@supaterm/client-runtime/state/thread-checkpoints";
+import type { ParentThread } from "@supaterm/client-runtime/state/thread-relationships";
 import { formatDiffCount } from "@supaterm/client-runtime/diff-count";
 import type { WorkflowOpening } from "@supaterm/client-runtime/state/subagentRuntime";
 import {
@@ -391,6 +393,7 @@ export interface ThreadFeedProps {
   readonly contentTopInset?: number;
   readonly contentBottomInset?: number;
   readonly historyControls?: ThreadFeedHistoryControls;
+  readonly parentThread?: ParentThread | null;
   readonly pins?: ThreadFeedPins;
   readonly messageJump?: MessageJump | null;
   readonly onMessageJumpFailed?: MessageJumpHandlers["fail"];
@@ -3970,6 +3973,13 @@ export const ThreadFeed = memo(function ThreadFeed({
                 {props.historyControls ? (
                   <ThreadFeedLoadEarlierControl {...props.historyControls} />
                 ) : null}
+                {props.parentThread ? (
+                  <ThreadParentDivider
+                    environmentId={props.environmentId}
+                    parent={props.parentThread}
+                    iconColor={iconSubtleColor}
+                  />
+                ) : null}
               </>
             }
             ListFooterComponent={
@@ -4012,6 +4022,7 @@ export const ThreadFeed = memo(function ThreadFeed({
         ) : null}
         {presentedFeed.length === 0 &&
         !props.worktreeSetup &&
+        !props.parentThread &&
         props.activeWorkStartedAt === null &&
         props.contentPresentation.kind === "ready" ? (
           <View

@@ -105,6 +105,10 @@ import {
   workflowOpeningParentThreadId,
 } from "@supaterm/client-runtime/state/subagentRuntime";
 import { threadSupportsProviderHandoff } from "@supaterm/client-runtime/state/thread-workflows";
+import {
+  presentParentThreadLink,
+  resolveParentThread,
+} from "@supaterm/client-runtime/state/thread-relationships";
 import { resolvePendingHandoff } from "@supaterm/client-runtime/handoff";
 import { HandoffRow } from "./chat/V2LifecycleRow";
 import {
@@ -856,20 +860,20 @@ export default function ChatView(props: ChatViewProps) {
     : undefined;
   const isServerThread = serverThread !== null;
   const activeThread = serverThread ?? pendingThreadCreation?.message.shell ?? localDraftThread;
-  // A side chat's parent: its lineage parent once forked, or the thread its draft will fork.
-  const sideChatParentRef = (() => {
-    const parentThreadId =
-      activeThread?.lineage.sideChat === true
-        ? activeThread.lineage.parentThreadId
-        : isServerThread
-          ? null
-          : (draftThread?.sideChatOf ?? null);
-    return activeThread && parentThreadId !== null
-      ? scopeThreadRef(activeThread.environmentId, parentThreadId)
+  // A side chat draft has no lineage yet; it forks `sideChatOf` on its first send.
+  const parentThread = !activeThread
+    ? null
+    : (resolveParentThread(activeThread.lineage) ??
+      (isServerThread || !draftThread?.sideChatOf
+        ? null
+        : { threadId: draftThread.sideChatOf, sideChat: true }));
+  const parentThreadRef =
+    activeThread && parentThread
+      ? scopeThreadRef(activeThread.environmentId, parentThread.threadId)
       : null;
-  })();
+  const sideChatParentRef = parentThread?.sideChat ? parentThreadRef : null;
   const isSideChat = sideChatParentRef !== null;
-  const sideChatParent = useQuietThreadShell(sideChatParentRef);
+  const parentThreadShell = useQuietThreadShell(parentThreadRef);
   const serverLatestRun =
     serverProjection === null ? null : deriveLatestThreadRun(serverProjection);
   const serverActivityRun =
@@ -894,18 +898,7 @@ export default function ChatView(props: ChatViewProps) {
     !isServerThread || serverProjection === null
       ? null
       : deriveResumableRunId(serverProjection, serverRuntime);
-  const parentSubagentThreadId =
-    activeThread?.lineage.relationshipToParent === "subagent"
-      ? activeThread.lineage.parentThreadId
-      : null;
   const parentSubagentEnvironmentId = activeThread?.environmentId ?? null;
-  const parentSubagentThreadRef = (() => {
-    if (parentSubagentEnvironmentId === null || parentSubagentThreadId === null) {
-      return null;
-    }
-    return scopeThreadRef(parentSubagentEnvironmentId, parentSubagentThreadId);
-  })();
-  const parentSubagentThread = useQuietThreadShell(parentSubagentThreadRef);
   // A workflow coordinator's thread opens with its script; the plan that replaces it lives on
   // the parent's coordinator row, so the parent's detail loads only for such a thread.
   const workflowOpeningParentId =
@@ -929,18 +922,7 @@ export default function ChatView(props: ChatViewProps) {
           parentSubagents: workflowOpeningParentProjection?.projection.subagents ?? null,
         });
   const parentThreadLink =
-    parentSubagentThreadRef !== null
-      ? {
-          threadId: parentSubagentThreadRef.threadId,
-          title: parentSubagentThread?.title ?? "Parent thread",
-        }
-      : sideChatParentRef !== null
-        ? {
-            threadId: sideChatParentRef.threadId,
-            title: sideChatParent?.title ?? "Parent thread",
-            sideChat: true,
-          }
-        : null;
+    parentThread === null ? null : presentParentThreadLink(parentThread, parentThreadShell);
   const threadError = isServerThread
     ? (localServerError ?? serverRuntime?.lastError ?? null)
     : localDraftError;

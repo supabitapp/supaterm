@@ -1,5 +1,6 @@
 import {
   isOrchestrationV2WorkActive,
+  type OrchestrationV2AppThreadLineage,
   type OrchestrationV2ThreadProjection,
   type OrchestrationV2ThreadShell,
   type ThreadId,
@@ -40,6 +41,42 @@ export function resolveMergeBackTargetThreadId(
   return projection.thread.forkedFrom?.type === "run"
     ? projection.thread.forkedFrom.threadId
     : projection.thread.lineage.parentThreadId;
+}
+
+export interface ParentThread {
+  readonly threadId: ThreadId;
+  readonly sideChat: boolean;
+}
+
+/** The thread a side chat or subagent works under. Its timeline holds none of that thread's items. */
+export function resolveParentThread(
+  lineage: Pick<
+    OrchestrationV2AppThreadLineage,
+    "parentThreadId" | "relationshipToParent" | "sideChat"
+  >,
+): ParentThread | null {
+  if (lineage.parentThreadId === null) return null;
+  if (lineage.relationshipToParent === "subagent") {
+    return { threadId: lineage.parentThreadId, sideChat: false };
+  }
+  return lineage.sideChat === true ? { threadId: lineage.parentThreadId, sideChat: true } : null;
+}
+
+export interface ParentThreadLink extends ParentThread {
+  readonly label: string;
+  readonly title: string;
+}
+
+/** `parentShell` is null until this client loads the parent; the link still opens it by id. */
+export function presentParentThreadLink(
+  parent: ParentThread,
+  parentShell: { readonly title: string } | null,
+): ParentThreadLink {
+  return {
+    ...parent,
+    label: parent.sideChat ? "Context from" : "Subagent of",
+    title: parentShell?.title ?? "Parent thread",
+  };
 }
 
 function edgeKey(edge: ThreadRelationshipEdge): string {

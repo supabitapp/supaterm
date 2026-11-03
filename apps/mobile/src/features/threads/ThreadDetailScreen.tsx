@@ -14,6 +14,7 @@ import { useSelectedThreadComposerMetadata } from "../../state/use-thread-detail
 import { useAtomMount, useAtomValue } from "@effect/atom-react";
 import { parseThreadKey, threadKey } from "@supaterm/client-runtime/state/entities";
 import { createThreadVisitTracker } from "@supaterm/client-runtime/state/thread-visits";
+import { resolveParentThread } from "@supaterm/client-runtime/state/thread-relationships";
 import { useChildThreadInputs } from "../../state/entities";
 import { UsageLimitRecoveryCard } from "./UsageLimitRecoveryCard";
 import { ChatGptUsageLimitNotice } from "./ChatGptUsageLimitNotice";
@@ -1508,6 +1509,7 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
               }
               contentMaxWidth={contentMaxWidth}
               historyControls={props.historyControls}
+              parentThread={resolveParentThread(props.selectedThread.lineage)}
               {...(props.pins ? { pins: props.pins } : {})}
               messageJump={props.messageJump ?? null}
               {...(props.onMessageJumpFailed

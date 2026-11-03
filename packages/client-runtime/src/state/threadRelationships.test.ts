@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vite-plus/test";
-import { ThreadId } from "@supaterm/contracts";
+import { ThreadId, type OrchestrationV2AppThreadLineage } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 
 import {
   deriveThreadRelationshipGraph,
   immediateThreadRelationships,
   orderWebThreadLineageRows,
+  presentParentThreadLink,
   resolveMergeBackTargetThreadId,
+  resolveParentThread,
   threadRelationshipRowStatus,
 } from "./threadRelationships.ts";
 
@@ -299,6 +301,29 @@ describe("thread relationships", () => {
         },
       } as never),
     ).toBeNull();
+  });
+
+  it("opens a side chat or subagent under its parent, even one this client has not loaded", () => {
+    const parentThreadId = ThreadId.make("thread-parent");
+    const parentOf = (lineage: Partial<OrchestrationV2AppThreadLineage>) =>
+      resolveParentThread({
+        rootThreadId: parentThreadId,
+        parentThreadId,
+        relationshipToParent: "fork",
+        ...lineage,
+      });
+
+    expect(parentOf({ sideChat: true })).toEqual({ threadId: parentThreadId, sideChat: true });
+    expect(parentOf({ relationshipToParent: "subagent" })).toEqual({
+      threadId: parentThreadId,
+      sideChat: false,
+    });
+    // A fork, including a promoted side chat, is a thread of its own.
+    expect(parentOf({})).toBeNull();
+    expect(parentOf({ parentThreadId: null, relationshipToParent: null })).toBeNull();
+    expect(
+      presentParentThreadLink({ threadId: parentThreadId, sideChat: true }, null),
+    ).toMatchObject({ threadId: parentThreadId, title: "Parent thread" });
   });
 });
 
