@@ -428,24 +428,16 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
     return fiber;
   });
 
-  const adoptReplacement = Effect.fnUntraced(function* (
-    wanted: boolean,
-    onAdopt: Effect.Effect<void>,
-  ) {
+  const adoptReplacement = Effect.fnUntraced(function* (onAdopt: Effect.Effect<void>) {
     const pending = yield* Ref.getAndSet(pendingReplacement, Option.none());
-    if (Option.isNone(pending)) return Option.none<ConnectionDriver.EnvironmentConnectionLease>();
+    if (Option.isNone(pending)) return undefined;
     // The attempt owns the replacement's session from here on.
     yield* Effect.addFinalizer((exit) => closeReplacement(pending.value, exit));
-    if (wanted) {
-      yield* onAdopt;
-      const exit = yield* Fiber.await(pending.value.fiber);
-      if (Exit.isSuccess(exit)) {
-        yield* Effect.annotateCurrentSpan("connection.replacement", "adopted");
-        return Option.some(exit.value);
-      }
-    }
-    yield* closeReplacement(pending.value, Exit.void);
-    return Option.none<ConnectionDriver.EnvironmentConnectionLease>();
+    yield* onAdopt;
+    const exit = yield* Fiber.await(pending.value.fiber);
+    if (Exit.isFailure(exit)) return undefined;
+    yield* Effect.annotateCurrentSpan("connection.replacement", "adopted");
+    return exit.value;
   });
 
   const rememberAnsweredRoute = Effect.fnUntraced(function* (
@@ -506,11 +498,11 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
     return yield* Effect.gen(function* () {
       const answered = yield* takeAnsweredRoute;
       // A switch to a better route outranks the replacement a resume opened.
+      if (next.preflight !== undefined) yield* discardReplacement;
       const adopted = yield* adoptReplacement(
-        next.preflight === undefined,
         reportProgress(attempt, generation, lastFailure, { stage: "preparing" }),
       );
-      if (Option.isSome(adopted)) return adopted.value;
+      if (adopted !== undefined) return adopted;
       return yield* driver.connect(
         next.entry,
         (progress) =>
