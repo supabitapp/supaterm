@@ -126,7 +126,7 @@ describe("native device stream transport", () => {
       if (platform === "ios") replacement.onmessage?.({ data: Uint8Array.of(0x83).buffer });
       else
         expect(replacement.send).toHaveBeenCalledWith(
-          JSON.stringify({ type: "key", keycode: 224 }),
+          JSON.stringify({ type: "key", keycode: 224, record: false, ack: false }),
         );
       replacement.send.mockClear();
       events.onInputConnected.mockClear();
