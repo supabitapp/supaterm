@@ -137,8 +137,8 @@ export function showInPane(
 }
 
 /**
- * Shows a parked side chat by bringing back its parent, which reopens it beside. Null when the
- * side chat is not parked, its parent is already on screen, or it would not fit.
+ * Shows a parked side chat with its parent: beside the parent's last side chat when the parent is
+ * on screen, else by bringing the parent back. Null when it is not parked or cannot be placed.
  */
 export function showParkedSideChat(
   state: PaneArrangement,
@@ -151,10 +151,32 @@ export function showParkedSideChat(
   const entry = state.parkedSideChats.find((other) =>
     other.sideChats.some((target) => paneTargetKey(target) === key),
   );
-  if (!entry || findPaneByTarget(state.layout, entry.parent)) return null;
-  const shown = showInPane(state, paneId, entry.parent, workspace, draftThread);
-  const pane = findPaneByTarget(shown.layout, sideChat);
-  return pane ? { ...shown, layout: focusPane(shown.layout, pane.id) } : null;
+  if (!entry) return null;
+  const parentPane = findPaneByTarget(state.layout, entry.parent);
+  if (!parentPane) {
+    const shown = showInPane(state, paneId, entry.parent, workspace, draftThread);
+    const pane = findPaneByTarget(shown.layout, sideChat);
+    return pane ? { ...shown, layout: focusPane(shown.layout, pane.id) } : null;
+  }
+  const rest = { ...state, parkedSideChats: dropParked(state.parkedSideChats, key) };
+  const besideId = sideChatPanes(state.layout, parentPane.id).at(-1)?.id ?? parentPane.id;
+  const id = randomUUID();
+  const split =
+    workspace && canSplitPane(state.layout, besideId, "right", workspace)
+      ? splitPane(state.layout, besideId, "right", sideChat, id, randomUUID)
+      : null;
+  if (split) return { ...rest, layout: linkSideChatPane(split, id, parentPane.id) };
+  return swapInSideChat(rest, parentPane.id, sideChat);
+}
+
+function dropParked(
+  parked: ReadonlyArray<ParkedSideChats>,
+  key: string,
+): ReadonlyArray<ParkedSideChats> {
+  return parked.flatMap((entry) => {
+    const sideChats = entry.sideChats.filter((target) => paneTargetKey(target) !== key);
+    return sideChats.length === 0 ? [] : [{ ...entry, sideChats }];
+  });
 }
 
 /**
@@ -227,14 +249,10 @@ export function untieSideChat(
   state: PaneArrangement,
   sideChat: ThreadRouteTarget,
 ): PaneArrangement {
-  const key = paneTargetKey(sideChat);
   const pane = findPaneByTarget(state.layout, sideChat);
   return {
     layout: pane ? unlinkPane(state.layout, pane.id) : state.layout,
-    parkedSideChats: state.parkedSideChats.flatMap((entry) => {
-      const sideChats = entry.sideChats.filter((target) => paneTargetKey(target) !== key);
-      return sideChats.length === 0 ? [] : [{ ...entry, sideChats }];
-    }),
+    parkedSideChats: dropParked(state.parkedSideChats, paneTargetKey(sideChat)),
   };
 }
 

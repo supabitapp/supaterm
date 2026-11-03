@@ -152,6 +152,22 @@ describe("side chats", () => {
     expect(targets()).toEqual([thread("a"), thread("t"), thread("u")]);
   });
 
+  it("come back beside their parent when the route names one put away while it is on screen", () => {
+    const snug = { width: 1200, height: 900 };
+    store().reconcileRoute(thread("a"), snug);
+    openSideChat("a", thread("s"));
+    openSideChat("a", thread("t"));
+    store().swapInSideChat({ parent: thread("a"), sideChat: thread("u") });
+    store().reconcileRoute(thread("s"), snug);
+    expect(targets()).toEqual([thread("a"), thread("t"), thread("s")]);
+    expect(layout().focusedPaneId).toBe(paneOf("s"));
+    store().reconcileRoute(thread("u"), roomy);
+    expect(targets()).toEqual([thread("a"), thread("t"), thread("s"), thread("u")]);
+    store().focus(paneOf("a"));
+    store().reconcileRoute(thread("x"), roomy);
+    expect(targets()).toEqual([thread("x")]);
+  });
+
   it("tie back to their parent when they are already on screen as it returns", () => {
     store().reconcileRoute(thread("a"), roomy);
     openSideChat("a", thread("s"));
