@@ -3,6 +3,7 @@ import {
   type PendingSubagentRequest,
   presentThreadShell,
 } from "@supaterm/client-runtime/state/models";
+import { isThreadRunningBackgroundWork } from "@supaterm/client-runtime/state/thread-inbox";
 import { pendingSubagentRequestsByThread } from "@supaterm/client-runtime/state/threads";
 import type { AnyRouter } from "@tanstack/react-router";
 import {
@@ -201,7 +202,9 @@ export function startThreadNotifications(
           ? `${thread.latestRun?.runId ?? ""}:${status}`
           : null;
       const completedAt = Date.parse(thread.latestRun?.completedAt ?? "");
-      const settled = status === "ready" && thread.latestRun?.status === "completed";
+      const backgroundWorkRunning = status === "waiting" && isThreadRunningBackgroundWork(thread);
+      const settled =
+        (status === "ready" || backgroundWorkRunning) && thread.latestRun?.status === "completed";
       const state = {
         raw: rawThread,
         subagentRequest,
@@ -210,6 +213,7 @@ export function startThreadNotifications(
         attention,
         settled,
         completedAt: settled && Number.isFinite(completedAt) ? completedAt : null,
+        backgroundWorkRunning,
       };
       next.set(thread.id, state);
       changed.push([prior, state]);

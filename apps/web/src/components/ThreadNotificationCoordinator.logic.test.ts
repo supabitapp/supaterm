@@ -2,6 +2,7 @@ import { WORKING_EXIT_GRACE_MS } from "@supaterm/client-runtime/state/thread-inb
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import {
+  BACKGROUND_WORK_COMPLETION_DELAY_MS,
   createThreadNotificationGate,
   type ThreadNotificationObservation,
 } from "./ThreadNotificationCoordinator.logic";
@@ -15,6 +16,10 @@ const completed = (at: number): ThreadNotificationObservation => ({
   attention: null,
   settled: true,
   completedAt: at,
+});
+const runningBackgroundWork = (at: number): ThreadNotificationObservation => ({
+  ...completed(at),
+  backgroundWorkRunning: true,
 });
 const visible = { archived: false, quiet: false };
 
@@ -163,6 +168,44 @@ describe("createThreadNotificationGate", () => {
     expect(notify).not.toHaveBeenCalled();
     vi.advanceTimersByTime(500);
     expect(notify).toHaveBeenCalledTimes(1);
+  });
+
+  it("notifies only the turn that background work wakes, not the turn that started it", () => {
+    const { notify, observe } = harness();
+    observe(working);
+    observe(runningBackgroundWork(1));
+    vi.advanceTimersByTime(60_000);
+    expect(notify).not.toHaveBeenCalled();
+    observe(working);
+    observe(completed(2));
+    vi.advanceTimersByTime(WORKING_EXIT_GRACE_MS);
+    expect(notify.mock.calls).toEqual([["thread", "completion"]]);
+    vi.advanceTimersByTime(BACKGROUND_WORK_COMPLETION_DELAY_MS);
+    expect(notify).toHaveBeenCalledTimes(1);
+  });
+
+  it("notifies a held completion after the grace once its background work ends", () => {
+    const { notify, observe } = harness();
+    observe(working);
+    observe(runningBackgroundWork(1));
+    vi.advanceTimersByTime(60_000);
+    expect(notify).not.toHaveBeenCalled();
+    observe(completed(1));
+    vi.advanceTimersByTime(WORKING_EXIT_GRACE_MS);
+    expect(notify.mock.calls).toEqual([["thread", "completion"]]);
+    vi.advanceTimersByTime(BACKGROUND_WORK_COMPLETION_DELAY_MS);
+    expect(notify).toHaveBeenCalledTimes(1);
+  });
+
+  it("notifies a completion whose background work keeps running once the delay passes", () => {
+    const { notify, observe } = harness();
+    observe(working);
+    observe(runningBackgroundWork(1));
+    vi.advanceTimersByTime(BACKGROUND_WORK_COMPLETION_DELAY_MS - 1);
+    observe(runningBackgroundWork(1));
+    expect(notify).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(notify.mock.calls).toEqual([["thread", "completion"]]);
   });
 
   it("drops a pending completion on archive, stop request, removal or clear", () => {

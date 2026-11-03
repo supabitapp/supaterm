@@ -911,20 +911,22 @@ describe("navigation after parking a thread", () => {
 describe("unseen completion with background work", () => {
   it.each([
     {
-      roster: "dev server",
+      roster: "unmarked command",
       task: { kind: "command" },
-      status: "ready",
-      topStatus: "ready",
-      receded: false,
-      pill: "Completed",
+      status: "waiting",
+      topStatus: "waiting",
+      receded: true,
+      working: false,
+      pill: "Waiting",
     },
     {
-      roster: "dev server watchdog",
+      roster: "unmarked monitor",
       task: { kind: "monitor" },
-      status: "ready",
-      topStatus: "ready",
-      receded: false,
-      pill: "Completed",
+      status: "waiting",
+      topStatus: "waiting",
+      receded: true,
+      working: false,
+      pill: "Waiting",
     },
     {
       roster: "awaited command",
@@ -932,6 +934,7 @@ describe("unseen completion with background work", () => {
       status: "waiting",
       topStatus: "waiting",
       receded: true,
+      working: true,
       pill: "Waiting",
     },
   ] as const)("presents a completed thread with a $roster roster", (expected) => {
@@ -960,7 +963,7 @@ describe("unseen completion with background work", () => {
         isSelected: false,
       }),
     ).toBe(expected.receded);
-    expect(isSidebarThreadWorking(thread)).toBe(expected.receded);
+    expect(isSidebarThreadWorking(thread)).toBe(expected.working);
     expect(resolveThreadStatusPill({ thread })).toMatchObject({ label: expected.pill });
   });
 });
