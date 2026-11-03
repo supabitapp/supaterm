@@ -341,9 +341,9 @@ or onto the middle to swap the two. Drag the lines between panes to resize them.
 Each pane's **⋯** menu at its top right splits it right or down, closes it, and shows
 or hides its thread details, terminal, and right panel. Reopen a closed pane with
 `mod+shift+t`. When the window is too small for every pane, it shows the focused one
-with arrows to switch between them, and restores the split when there is room again. Each browser tab
-remembers its own arrangement; a new tab or a restarted desktop app starts from the
-most recent one.
+with arrows to switch between them, and restores the split when there is room again.
+Each browser tab remembers its own arrangement; a new tab or a restarted desktop app
+starts from the most recent one.
 
 ## Side chats
 
