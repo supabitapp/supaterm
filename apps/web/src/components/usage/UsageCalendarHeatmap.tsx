@@ -66,7 +66,13 @@ export function UsageCalendarHeatmap({
   };
   const summary =
     (totals[peak] ?? 0) > 0
-      ? `Highest ${formatDayShort(days[peak] ?? "")} · ${format(totals[peak] ?? 0)} · ${format(average)} a day on average`
+      ? [
+          `Highest ${formatDayShort(days[peak] ?? "")}`,
+          format(totals[peak] ?? 0),
+          average > 0 ? `${format(average)} a day on average` : undefined,
+        ]
+          .filter(Boolean)
+          .join(" · ")
       : loading
         ? ""
         : "No activity in this window";
