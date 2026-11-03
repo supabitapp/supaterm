@@ -300,7 +300,7 @@ export const streamCodexDictation = Effect.fn("CodexDictation.stream")(function*
       live = undefined;
       if (text) texts.push(text);
     });
-    // Untraced: it runs for every audio frame.
+    // Untraced, like `append`: both run for every chunk or frame of audio.
     const sendFrame = Effect.fnUntraced(function* (frame: Uint8Array) {
       let current = live;
       if (current !== undefined) {
