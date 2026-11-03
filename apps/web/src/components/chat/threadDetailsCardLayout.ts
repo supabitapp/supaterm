@@ -19,20 +19,17 @@ export function resolveThreadDetailsCardLayout({
   lane,
   frame,
   overlapsDetailsCard = false,
-  topInset = 0,
 }: {
   container: { width: number; height: number };
   lane: { padding: number; minChatWidth: number };
   frame: PreviewMiniPlayerFrame | null;
   overlapsDetailsCard?: boolean;
-
-  topInset?: number;
 }) {
   const gap = THREAD_DETAILS_CARD_GAP;
   const width = THREAD_DETAILS_CARD_WIDTH;
   const x = container.width - width - gap;
   if (x - DETAILS_CARD_CLEARANCE - lane.padding < lane.minChatWidth) return null;
-  const y = gap + topInset;
+  const y = gap;
   const height =
     overlapsDetailsCard && frame && frame.x + frame.width > x - gap && frame.x < x + width + gap
       ? Math.min(container.height - y - gap, frame.y - y - gap)

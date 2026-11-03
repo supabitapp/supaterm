@@ -5,9 +5,8 @@ import type { DetailsCardMeasurement } from "./ChatCanvasContext";
 import { resolveChatCanvasLayout, type ChatCanvasPreview } from "./chatCanvasLayout";
 import { resolveThreadDetailsCardLayout } from "./threadDetailsCardLayout";
 
-interface CanvasEdges {
-  readonly left: number;
-  readonly right: number;
+interface FindBarMeasurement {
+  readonly width: number;
   readonly bottom: number;
 }
 
@@ -19,8 +18,8 @@ export interface ChatCanvasMeasurements {
   readonly minChatWidth: number;
   readonly composerHeight: number;
   readonly timelineGutter: number;
-  /** The find bar's box in canvas coordinates while it is shown. */
-  readonly findBar: CanvasEdges | null;
+  /** The find bar's width and bottom edge in canvas coordinates while it is shown. */
+  readonly findBar: FindBarMeasurement | null;
 }
 
 interface ChatCanvasStoreState {
@@ -41,9 +40,8 @@ const INITIAL_MEASUREMENTS: ChatCanvasMeasurements = {
   findBar: null,
 };
 
-const sameEdges = (a: CanvasEdges | null, b: CanvasEdges | null) =>
-  a === b ||
-  (a !== null && b !== null && a.left === b.left && a.right === b.right && a.bottom === b.bottom);
+const sameFindBar = (a: FindBarMeasurement | null, b: FindBarMeasurement | null) =>
+  a === b || (a !== null && b !== null && a.width === b.width && a.bottom === b.bottom);
 
 const sameMeasurements = (a: ChatCanvasMeasurements, b: ChatCanvasMeasurements) =>
   a.width === b.width &&
@@ -53,7 +51,7 @@ const sameMeasurements = (a: ChatCanvasMeasurements, b: ChatCanvasMeasurements) 
   a.minChatWidth === b.minChatWidth &&
   a.composerHeight === b.composerHeight &&
   a.timelineGutter === b.timelineGutter &&
-  sameEdges(a.findBar, b.findBar);
+  sameFindBar(a.findBar, b.findBar);
 
 /**
  * One store per chat view: the canvas measures into it, and the chat view's
@@ -103,7 +101,6 @@ export function resolveChatCanvasModel({
     container,
     lane,
     frame: null,
-    topInset: detailsCardTopInset,
   });
   // The canvas outlives thread switches, so a measurement only counts for the
   // thread whose card is shown now.
@@ -142,7 +139,6 @@ export function resolveChatCanvasModel({
     lane,
     frame: layout.frame,
     overlapsDetailsCard: layout.overlapsDetailsCard,
-    topInset: detailsCardTopInset,
   });
   const detailsCardMode: ThreadPanelPresentation = detailsCardPlacement ? "inline" : "popover";
   return {

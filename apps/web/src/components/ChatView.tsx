@@ -15,7 +15,6 @@ import {
 import { useThreadOutboxAttachments } from "../state/threadOutboxEditing";
 import { ThreadFind, ThreadFindCanvas } from "./chat/ThreadFindProvider";
 import { closeThreadFind, openThreadFind, useThreadFindOpen } from "./chat/threadFindStore";
-import { THREAD_FIND_BAR_RESERVED_HEIGHT } from "./chat/ThreadFindBar";
 import { usageLimitRecoveryBannerItem } from "./chat/UsageLimitRecoveryBanner";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { resolveNewThreadModelSelection } from "@supaterm/shared/usageLimits";
@@ -3444,7 +3443,7 @@ export default function ChatView(props: ChatViewProps) {
                 store={chatCanvasStore}
                 threadRef={activeThreadRef}
                 preview={canvasPreview}
-                detailsCardTopInset={isThreadFindActive ? THREAD_FIND_BAR_RESERVED_HEIGHT : 0}
+                findBarOpen={isThreadFindActive}
                 composerOverlayElement={isDraftHeroState ? null : composerOverlayElement}
                 data-chat-workspace-drop-target="true"
                 onDragEnter={(event) =>

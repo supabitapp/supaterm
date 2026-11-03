@@ -200,7 +200,7 @@ export function ThreadDetailsCard({
         }}
         anchor={anchor}
         align="end"
-        // Lines the card up with the find bar: the panel pads its card by 8px.
+        // Lines the card up with the inline card: the panel pads its card by 8px.
         alignOffset={THREAD_DETAILS_CARD_GAP - 8}
         collisionAvoidance={{ side: "shift", align: "shift", fallbackAxisSide: "none" }}
         side="bottom"
