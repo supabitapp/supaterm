@@ -654,6 +654,51 @@ it.effect("explains a rejected SSH push after creating the repository", () =>
   }).pipe(Effect.provide(layer({ git: failingPush("authentication_failed") }))),
 );
 
+it.effect("switches an auto-selected remote to HTTPS when the SSH push is refused", () => {
+  const gitArgs: Array<ReadonlyArray<string>> = [];
+  let pushAttempts = 0;
+  return Effect.gen(function* () {
+    const service = yield* SourceControlRepositoryService.SourceControlRepositoryService;
+    const result = yield* service.publishRepository({
+      cwd: "/workspace",
+      provider: SourceControlProviderKind.make("github"),
+      repository: "octocat/supaterm",
+      visibility: "private",
+    });
+
+    assert.strictEqual(result.status, "pushed");
+    assert.strictEqual(result.remoteUrl, CLONE_URLS.url);
+    assert.strictEqual(pushAttempts, 2);
+    assert.deepStrictEqual(gitArgs, [
+      ["rev-parse", "--verify", "HEAD"],
+      ["remote", "set-url", "origin", CLONE_URLS.url],
+    ]);
+  }).pipe(
+    Effect.provide(
+      layer({
+        git: {
+          execute: (input) =>
+            Effect.sync(() => {
+              gitArgs.push(input.args);
+              return processOutput();
+            }),
+          pushCurrentBranch: (cwd) => {
+            pushAttempts += 1;
+            return pushAttempts === 1
+              ? failingPush("authentication_failed").pushCurrentBranch(cwd)
+              : Effect.succeed({
+                  status: "pushed" as const,
+                  branch: "main",
+                  upstreamBranch: "origin/main",
+                  setUpstream: true,
+                });
+          },
+        },
+      }),
+    ),
+  );
+});
+
 it.effect("says the repository exists when an unclassified publish push fails", () =>
   Effect.gen(function* () {
     const service = yield* SourceControlRepositoryService.SourceControlRepositoryService;
