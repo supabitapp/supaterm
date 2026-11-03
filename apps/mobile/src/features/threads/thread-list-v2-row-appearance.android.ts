@@ -2,7 +2,9 @@ import type { ViewStyle } from "react-native";
 import type { MobileThemeVariables } from "../../lib/mobileTheme";
 
 export { CODE_FONT_FAMILY as THREAD_LIST_V2_MONO_FONT } from "../../lib/fonts";
+export const THREAD_LIST_V2_SCREEN_INSET_CLASS_NAME = "px-5";
 export const THREAD_LIST_V2_ROW_CONTENT_CLASS_NAME = "px-3 py-2.5";
+export const THREAD_LIST_V2_ROW_DIVIDER_CLASS_NAME = "ml-5 h-px bg-border-subtle";
 export const THREAD_LIST_V2_ROW_DIVIDERS = false;
 export const THREAD_LIST_V2_SIDEBAR_ROW_STYLE = {
   borderRadius: 20,
