@@ -53,7 +53,7 @@ export function ThreadFindBar(props: ThreadFindBarProps) {
   };
 
   return (
-    <div className="chat-composer-lane pointer-events-none absolute inset-x-0 top-3 z-40">
+    <div className="px-3 pt-3 sm:px-12">
       <div className="chat-content-lane flex justify-end">
         <div
           data-thread-find-bar

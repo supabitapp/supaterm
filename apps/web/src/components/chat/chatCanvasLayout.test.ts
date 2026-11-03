@@ -157,6 +157,18 @@ describe("chat canvas layout", () => {
       const over = layout(900, 600, lastInteraction);
       expect(over.overlapsChat).toBe(true);
       expect(over.frame).toEqual({ x: 600, y: 60, width: 240, height: 365 });
+      const tall = resolveChatCanvasLayout({
+        container: { width: 640, height: 800 },
+        composerHeight: 180,
+        findBar: { width: 280, bottom: 48 },
+        preview: {
+          ...preview,
+          source: { width: 500, height: 1000 },
+          position: { x: 308, y: 12 },
+          lastInteraction,
+        },
+      });
+      expect(tall.frame).toEqual({ x: 308, y: 60, width: 274, height: 548 });
     }
   });
   it("uses space beside the full card if a tall preview cannot fit below it", () => {

@@ -76,6 +76,7 @@ export function resolveChatCanvasLayout({
         ? GAP
         : padding + minChatWidth + GAP;
     if (preview.position === null) frame = { ...frame, y: container.height - frame.height - GAP };
+    let resizeContainer = container;
     if (preview.lastInteraction === "resize" && composerHeight > 0) {
       const laneWidth = Math.min(normalWidth, minChatWidth);
       const transitionWidth = Math.max(GAP, normalWidth - laneWidth);
@@ -84,14 +85,15 @@ export function resolveChatCanvasLayout({
         Math.max(0, (padding + normalWidth + GAP - frame.x) / transitionWidth),
       );
       if (lift > 0) {
+        resizeContainer = {
+          ...container,
+          height: Math.max(GAP * 2 + 1, container.height - composerHeight * lift),
+        };
         frame = resolvePreviewMiniPlayerFrame({
           width: frame.width,
           position: frame,
           source: preview.source,
-          container: {
-            ...container,
-            height: Math.max(GAP * 2 + 1, container.height - composerHeight * lift),
-          },
+          container: resizeContainer,
         });
       }
     }
@@ -138,16 +140,13 @@ export function resolveChatCanvasLayout({
         insetStart: 0,
         insetEnd: Math.max(0, container.width - padding * 2 - width),
       };
-      frame = {
-        ...frame,
-        ...clampPreviewMiniPlayerPosition(
-          frame,
-          container,
-          frame,
-          { detailsCard: null, composer: null, findBar: findBarIn(chat) },
-          minimumPreviewX,
-        ),
-      };
+      frame = resolvePreviewMiniPlayerFrame({
+        width: frame.width,
+        position: frame,
+        source: preview.source,
+        container: resizeContainer,
+        obstacles: { detailsCard: null, composer: null, findBar: findBarIn(chat) },
+      });
     } else if (overlapsChat) {
       const obstacles = {
         detailsCard: cardObstacle,

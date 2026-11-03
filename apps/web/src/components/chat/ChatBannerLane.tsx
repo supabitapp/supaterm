@@ -4,13 +4,14 @@ import type {
   ServerProvider,
   ThreadId,
 } from "@supaterm/contracts";
-import type { Dispatch, SetStateAction } from "react";
+import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { ProviderStatusBanner } from "./ProviderStatusBanner";
 import { dismissThreadErrorBannerForSession, ThreadErrorBanner } from "./ThreadErrorBanner";
 
 /**
- * The banners pinned above the timeline. The dismiss handlers are built here from plain
- * values, so a ChatView render that changes neither banner leaves both cached.
+ * The find bar and banners pinned above the timeline, stacked so neither covers the other.
+ * The dismiss handlers are built here from plain values, so a ChatView render that changes
+ * neither banner leaves both cached.
  */
 export function ChatBannerLane(props: {
   routeThreadKey: string;
@@ -25,6 +26,7 @@ export function ChatBannerLane(props: {
   threadErrorBannerKey: string | null;
   setThreadError: (threadId: ThreadId | null, error: string | null) => void;
   setThreadErrorBannerDismissTick: Dispatch<SetStateAction<number>>;
+  children?: ReactNode;
 }) {
   const {
     routeThreadKey,
@@ -39,9 +41,11 @@ export function ChatBannerLane(props: {
     threadErrorBannerKey,
     setThreadError,
     setThreadErrorBannerDismissTick,
+    children,
   } = props;
   return (
     <div className="chat-banner-lane pointer-events-none absolute top-0 z-20 flex flex-col">
+      {children}
       <ProviderStatusBanner
         key={`provider:${routeThreadKey}`}
         status={providerStatus}

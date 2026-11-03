@@ -243,7 +243,7 @@ export function resolvePreviewMiniPlayerFrame(input: {
     source,
     availableArea(
       container,
-      position && width ? { composer: obstacles.composer, detailsCard: null } : obstacles,
+      position && width ? { ...obstacles, detailsCard: null } : obstacles,
       position && width ? spanOf(position.x, width) : null,
     ),
   );
