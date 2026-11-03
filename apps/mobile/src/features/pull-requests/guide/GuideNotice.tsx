@@ -36,7 +36,7 @@ export function GuideNotice({ state }: { readonly state: ReturnType<typeof useRe
           {compact ? notice.title : "Review guide"}
         </Text>
       </View>
-      <View style={compact ? undefined : { minHeight: 100 }} className="pt-3 pb-4">
+      <View className="pt-3 pb-4">
         <Text className="text-sm leading-6 text-foreground-muted">{notice.description}</Text>
       </View>
       <View className="min-h-12 flex-row flex-wrap items-center justify-between gap-3">
