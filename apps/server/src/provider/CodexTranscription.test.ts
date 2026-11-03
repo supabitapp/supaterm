@@ -41,9 +41,28 @@ const EXPIRED = jwt({ exp: 0 });
 
 interface SentRequest {
   readonly headers: Record<string, string>;
-  readonly fields: Record<string, string>;
-  readonly file: { readonly name: string; readonly type: string; readonly size: number };
+  readonly contentType: string | undefined;
+  readonly body: Buffer;
 }
+
+const boundaryOf = (request: SentRequest | undefined) =>
+  request?.contentType?.replace("multipart/form-data; boundary=", "") ?? "";
+
+/** The Codex desktop composer's upload (vCs + SCs in the app's webview bundle). */
+const desktopUpload = (boundary: string, language?: string) =>
+  Buffer.concat([
+    Buffer.from(
+      `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="codex.wav"\r\nContent-Type: audio/wav\r\n\r\n`,
+    ),
+    Buffer.from(AUDIO.file),
+    Buffer.from("\r\n"),
+    Buffer.from(
+      language === undefined
+        ? ""
+        : `--${boundary}\r\nContent-Disposition: form-data; name="language"\r\n\r\n${language}\r\n`,
+    ),
+    Buffer.from(`--${boundary}--\r\n`),
+  ]);
 
 const setup = (input: {
   readonly token?: string | undefined;
@@ -68,17 +87,13 @@ const setup = (input: {
     const pending = [...input.responses];
     const client = HttpClient.make((request: HttpClientRequest.HttpClientRequest) =>
       Effect.gen(function* () {
-        const form = request.body._tag === "FormData" ? request.body.formData : new FormData();
-        const file = form.get("file") as File;
-        const fields = Object.fromEntries(
-          [...form.entries()].filter(([, value]) => typeof value === "string"),
-        ) as Record<string, string>;
+        const { body } = request;
         yield* Ref.update(sent, (current) => [
           ...current,
           {
             headers: { ...request.headers },
-            fields,
-            file: { name: file.name, type: file.type, size: file.size },
+            contentType: body._tag === "Uint8Array" ? body.contentType : undefined,
+            body: Buffer.from(body._tag === "Uint8Array" ? body.body : new Uint8Array()),
           },
         ]);
         return HttpClientResponse.fromWeb(
@@ -106,7 +121,7 @@ const reason = <A>(effect: Effect.Effect<A, TranscriptionError>) =>
   );
 
 describe("makeCodexTranscription", () => {
-  it.effect("uploads the WAV with Codex Desktop's identity and returns the text", () =>
+  it.effect("uploads the WAV as the desktop composer does, with only its headers", () =>
     Effect.gen(function* () {
       const { backend, sent } = yield* setup({
         token: FRESH,
@@ -116,12 +131,20 @@ describe("makeCodexTranscription", () => {
       expect(result).toEqual({ text: "hello there" });
 
       const [request] = yield* Ref.get(sent);
-      expect(request?.headers.authorization).toBe(`Bearer ${FRESH}`);
-      expect(request?.headers["chatgpt-account-id"]).toBe("acct");
-      expect(request?.headers.originator).toBe("Codex Desktop");
-      expect(request?.headers["user-agent"]).toMatch(/^Codex Desktop\//);
-      expect(request?.fields).toEqual({ language: "en" });
-      expect(request?.file).toEqual({ name: "codex.wav", type: "audio/wav", size: 32_044 });
+      const boundary = boundaryOf(request);
+      expect(boundary).toMatch(
+        /^----codex-transcribe-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+      );
+      expect(request?.headers).toEqual({
+        authorization: `Bearer ${FRESH}`,
+        "chatgpt-account-id": "acct",
+        originator: "Codex Desktop",
+        "user-agent": expect.stringMatching(/^Codex Desktop\/\d+\.\d+\.\d+ \(Mac OS; arm64\)$/),
+        "accept-language": Intl.DateTimeFormat().resolvedOptions().locale,
+        "content-type": `multipart/form-data; boundary=${boundary}`,
+        "content-length": String(desktopUpload(boundary, "en").byteLength),
+      });
+      expect(request?.body).toEqual(desktopUpload(boundary, "en"));
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   );
 
@@ -132,7 +155,8 @@ describe("makeCodexTranscription", () => {
         responses: [Response.json({ text: "hola" })],
       });
       yield* backend.transcribe({ audio: AUDIO, language: undefined, keyterms: [] });
-      expect((yield* Ref.get(sent))[0]?.fields).toEqual({});
+      const [request] = yield* Ref.get(sent);
+      expect(request?.body).toEqual(desktopUpload(boundaryOf(request)));
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   );
 

@@ -197,9 +197,26 @@ function voiceStreamUpgradeError(
   return new TranscriptionError({ reason: "failed" });
 }
 
+/**
+ * Claude Code runs on Bun, whose WebSocket writes its own handshake headers first and the
+ * caller's after them in byte order. `ws` keeps a header where it first appears, so seeding
+ * its names here puts them where Bun does.
+ */
+const bunHandshakeHeaders = (url: string, headers: Record<string, string>) => ({
+  Host: new URL(url).host,
+  Connection: "Upgrade",
+  Upgrade: "websocket",
+  "Sec-WebSocket-Version": "13",
+  "Sec-WebSocket-Extensions": "permessage-deflate; client_max_window_bits",
+  "Sec-WebSocket-Key": "",
+  ...Object.fromEntries(
+    Object.entries(headers).toSorted(([left], [right]) => (left < right ? -1 : 1)),
+  ),
+});
+
 const connect = (url: string, headers: Record<string, string>) =>
   Effect.callback<WebSocket, TranscriptionError>((resume) => {
-    const socket = new WebSocket(url, { headers });
+    const socket = new WebSocket(url, { headers: bunHandshakeHeaders(url, headers) });
     const fail = (error: TranscriptionError) => {
       socket.removeAllListeners();
       socket.on("error", () => {});

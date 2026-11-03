@@ -189,6 +189,7 @@ describe("runVoiceStream", () => {
 
 interface Received {
   headers?: NodeHttp.IncomingHttpHeaders;
+  rawHeaders?: ReadonlyArray<string>;
   readonly frames: Array<Buffer | string>;
   readonly firstAudio: Deferred.Deferred<void>;
 }
@@ -216,6 +217,7 @@ const withServer = <E>(
       const received: Received = { frames: [], firstAudio: Deferred.makeUnsafe() };
       server.on("connection", (socket, request) => {
         received.headers = request.headers;
+        received.rawHeaders = request.rawHeaders;
         socket.on("message", (data, isBinary) => {
           const frame = isBinary ? Buffer.from(data as Buffer) : data.toString();
           received.frames.push(frame);
@@ -244,14 +246,34 @@ describe("streamClaudeTranscription", () => {
     withServer({}, (url, received) =>
       Effect.gen(function* () {
         const audio = parseWav(wavBytes(40_000))!;
+        const { headers } = claudeVoiceStreamRequest({
+          token: "token",
+          cliVersion: "2.1.317",
+          language: undefined,
+          keyterms: ["supaterm", "thermos"],
+        });
         const text = yield* streamClaudeTranscription({
           url,
-          headers: { Authorization: "Bearer token", "x-config-keyterms": "supaterm,thermos" },
+          headers,
           audio: Stream.make(audio.pcm),
         });
         expect(text).toBe("hello from the fixture");
         expect(received.headers?.authorization).toBe("Bearer token");
         expect(received.headers?.["x-config-keyterms"]).toBe("supaterm,thermos");
+        // The CLI's Bun WebSocket writes its own headers first, then the caller's in byte order.
+        expect(received.rawHeaders?.filter((_, index) => index % 2 === 0)).toEqual([
+          "Host",
+          "Connection",
+          "Upgrade",
+          "Sec-WebSocket-Version",
+          "Sec-WebSocket-Extensions",
+          "Sec-WebSocket-Key",
+          "Authorization",
+          "User-Agent",
+          "anthropic-client-platform",
+          "x-app",
+          "x-config-keyterms",
+        ]);
         expect(received.frames[0]).toBe('{"type":"KeepAlive"}');
         expect(received.frames.at(-1)).toBe('{"type":"CloseStream"}');
         const binary = received.frames.filter((frame): frame is Buffer => Buffer.isBuffer(frame));
