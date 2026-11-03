@@ -55,6 +55,21 @@ const RESTRICTED_UI_VARIANT_PATTERNS = [
   },
 ];
 
+const TYPEAHEAD_PRIMITIVE_MESSAGE =
+  "Build text fields and pickers from components/ui (Input, Combobox, Autocomplete, Command); the shared Input accepts the highlighted suggestion on Tab.";
+
+const RESTRICTED_TYPEAHEAD_PRIMITIVE_IMPORTS = [
+  ...["input", "combobox", "autocomplete"].map((primitive) => ({
+    name: `@base-ui/react/${primitive}`,
+    message: TYPEAHEAD_PRIMITIVE_MESSAGE,
+  })),
+  {
+    name: "@base-ui/react",
+    importNames: ["Input", "Combobox", "Autocomplete"],
+    message: TYPEAHEAD_PRIMITIVE_MESSAGE,
+  },
+];
+
 const RESTRICTED_PULL_REQUEST_GLYPH_IMPORTS = {
   name: "@supaterm/icons",
   importNames: [
@@ -398,7 +413,11 @@ export default defineConfig({
           "eslint/no-restricted-imports": [
             "error",
             {
-              paths: [...RESTRICTED_IMPORT_PATHS, RESTRICTED_PULL_REQUEST_GLYPH_IMPORTS],
+              paths: [
+                ...RESTRICTED_IMPORT_PATHS,
+                RESTRICTED_PULL_REQUEST_GLYPH_IMPORTS,
+                ...RESTRICTED_TYPEAHEAD_PRIMITIVE_IMPORTS,
+              ],
               patterns: RESTRICTED_UI_VARIANT_PATTERNS,
             },
           ],

@@ -1,4 +1,5 @@
 import { Input as InputPrimitive } from "@base-ui/react/input";
+import { mergeProps } from "@base-ui/react/merge-props";
 import type * as React from "react";
 
 import { cn } from "~/lib/utils";
@@ -10,14 +11,43 @@ type InputProps = Omit<InputPrimitive.Props & React.RefAttributes<HTMLInputEleme
   nativeInput?: boolean;
 };
 
+// A combobox input names its highlighted suggestion in aria-activedescendant. Tab replays
+// as Enter so every picker accepts the row through its own Enter handling.
+function acceptHighlightedSuggestionOnTab(event: React.KeyboardEvent<HTMLInputElement>) {
+  const input = event.currentTarget;
+  if (
+    event.key !== "Tab" ||
+    event.shiftKey ||
+    event.altKey ||
+    event.ctrlKey ||
+    event.metaKey ||
+    event.defaultPrevented ||
+    event.nativeEvent.isComposing ||
+    event.keyCode === 229 ||
+    input.readOnly ||
+    !input.getAttribute("aria-activedescendant")
+  ) {
+    return;
+  }
+  event.preventDefault();
+  input.dispatchEvent(
+    new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true, cancelable: true }),
+  );
+}
+
 function Input({
   className,
   size = "default",
   font = "default",
   unstyled = false,
   nativeInput = false,
+  onKeyDown,
   ...props
 }: InputProps) {
+  const { onKeyDown: handleKeyDown } = mergeProps<"input">(
+    { onKeyDown: acceptHighlightedSuggestionOnTab },
+    { onKeyDown },
+  );
   const inputClassName = cn(
     "h-8.5 w-full min-w-0 rounded-[inherit] px-[calc(--spacing(3)-1px)] leading-8.5 outline-none placeholder:text-placeholder sm:h-7.5 sm:leading-7.5 [transition:background-color_5000000s_ease-in-out_0s]",
     size === "compact" && "h-7 px-[calc(--spacing(2.5)-1px)] text-xs leading-7 sm:h-7 sm:leading-7",
@@ -44,6 +74,7 @@ function Input({
         size={typeof size === "number" ? size : undefined}
         style={nativeStyle}
         {...(nativeInputProps as React.ComponentProps<"input">)}
+        onKeyDown={handleKeyDown}
       />
     );
   } else {
@@ -53,6 +84,7 @@ function Input({
         data-slot="input"
         size={typeof size === "number" ? size : undefined}
         {...props}
+        onKeyDown={handleKeyDown}
       />
     );
   }

@@ -8,6 +8,9 @@ focused pane's, and shortcuts and paste act in that pane. Click a pane or press
 `mod+alt+1` through `mod+alt+4` to focus another.
 While the palette or model picker is open, number shortcuts select its entries instead of
 switching threads. Model shortcuts work in Settings as well as the composer.
+In pickers and search fields with suggestions, Tab chooses the highlighted suggestion, the same
+as Enter, unless the field uses Tab itself, such as completing a folder path. With nothing
+highlighted, Tab moves focus as usual.
 See [Keybindings](./keybindings.md) to customize these shortcuts.
 
 If you return to typing while a terminal is starting, the composer keeps focus when the terminal
