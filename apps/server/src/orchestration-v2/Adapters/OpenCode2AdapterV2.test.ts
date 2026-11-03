@@ -2432,7 +2432,7 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
       // stream drops before `session.inbox.enqueued` would have named it.
       const { runtime, thread } = yield* resumed([
         out("command.list", "<any>"),
-        reply("command.list", { location: { directory: WORK }, data: [{ name: "hello" }] }),
+        reply("command.list", { location: { directory: WORK }, data: [{ name: "git/hello" }] }),
         out("message.list", { sessionID: SESSION, order: "desc", limit: "1" }),
         reply("message.list", {
           data: [
@@ -2440,7 +2440,7 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
           ],
           cursor: {},
         }),
-        out("session.command", { sessionID: SESSION, name: "hello", text: "WORLD" }),
+        out("session.command", { sessionID: SESSION, name: "git/hello", text: "WORLD" }),
         reply("session.command", null),
         { type: "runtime_exit", status: "success" } as const,
         out("event.subscribe"),
@@ -2477,7 +2477,7 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
       );
       yield* runtime.startTurn({
         ...turnInput(thread),
-        message: { ...turnInput(thread).message, text: "/hello WORLD" },
+        message: { ...turnInput(thread).message, text: "/git/hello WORLD" },
       });
       const collected = yield* Fiber.join(events);
       const texts = collected.flatMap((event) =>
