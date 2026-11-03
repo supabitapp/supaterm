@@ -59,7 +59,7 @@ export type DictationStep =
   | { readonly _tag: "Done"; readonly text: string }
   | { readonly _tag: "Failed" };
 
-export const dictationText = (state: DictationState) =>
+const dictationText = (state: DictationState) =>
   [...state.finals.values()]
     .flatMap((final) => (final.text.trim() ? [final.text.trim()] : []))
     .join(" ");
@@ -100,8 +100,8 @@ export interface DictationLogin {
   readonly accountId: string;
 }
 
-/** Why the server refused the upgrade, and whether this login should stop trying to stream. */
-export function dictationUpgradeError(
+/** Why the server refused the upgrade. */
+function dictationUpgradeError(
   status: number | undefined,
   headers: NodeHttp.IncomingHttpHeaders,
 ): TranscriptionError {
