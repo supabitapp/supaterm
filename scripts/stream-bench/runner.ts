@@ -12,6 +12,8 @@ export const STOP_MS = 5_000;
 
 const stopping = new AbortController();
 export const stopSleeps = () => stopping.abort();
+export const exitAfter = (ms: number, code: number) =>
+  setTimeout(() => process.exit(code), ms).unref();
 export const sleep = (ms: number) =>
   NodeTimersPromises.setTimeout(ms, undefined, { signal: stopping.signal });
 export const wallNow = () => NodePerfHooks.performance.timeOrigin + NodePerfHooks.performance.now();

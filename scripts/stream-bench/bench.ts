@@ -22,7 +22,7 @@ import {
   type PreviewCell,
   type PreviewMetrics,
 } from "./preview.ts";
-import { stopSleeps, within, type Link } from "./runner.ts";
+import { exitAfter, stopSleeps, within, type Link } from "./runner.ts";
 import { aggregate, table, type Aggregate } from "./stats.ts";
 
 const USAGE = `Streaming benchmark for the server-browser preview stream and the device hub proxy.
@@ -56,6 +56,7 @@ Chromium installs once into <tmp>/supaterm-stream-bench, never into ~/.supaterm.
 run neither bundles the preview client nor installs Chromium.`;
 
 const SHUTDOWN_MS = 20_000;
+const REPORT_GRACE_MS = 5_000;
 const TARGETS = ["preview", "device"] as const;
 
 const fail = (message: string): never => {
@@ -199,7 +200,7 @@ for (const [signal, code] of [
     console.error(`${signal}: stopping, then reporting completed runs`);
     signalExitCode = code;
     stopSleeps();
-    void shutdown();
+    void shutdown().then(() => exitAfter(REPORT_GRACE_MS, code));
   });
 
 const measure = async <Cell, Metrics>(
@@ -238,6 +239,9 @@ try {
         runDevice(scope, target.cell, deviceConfig),
       );
   }
+} catch (error) {
+  if (signalExitCode === undefined) throw error;
+  console.error(`interrupted: ${String(error)}`);
 } finally {
   await shutdown();
 }
