@@ -7,7 +7,7 @@ export type SecretRequestItem = Extract<
 
 /** The agent's commands read the value from a file, so the card must not promise more. */
 export const SECRET_REQUEST_PRIVACY_NOTE =
-  "Kept out of chat, in a private file this agent's commands can read for 24 hours";
+  "Secrets are kept out of chat history and automatically deleted";
 export const SECRET_REQUEST_DEFAULT_PLACEHOLDER = "Paste the secret";
 
 export type SecretRequestDisplay =
