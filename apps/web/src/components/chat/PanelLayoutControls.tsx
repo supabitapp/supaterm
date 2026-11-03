@@ -1,7 +1,7 @@
 import {
-  PanelBottomIcon,
   PanelRightIcon,
   SquareMenuIcon,
+  SquareTerminalIcon,
   ExpandIcon,
   ShrinkIcon,
 } from "@supaterm/icons";
@@ -107,7 +107,7 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
               size="sm"
               disabled={!terminalAvailable}
             >
-              <PanelBottomIcon className="size-4" />
+              <SquareTerminalIcon className="size-4" />
             </Toggle>
           </TooltipTrigger>
           <TooltipPopup side="bottom" shortcut={terminalAvailable ? terminalShortcutLabel : null}>
