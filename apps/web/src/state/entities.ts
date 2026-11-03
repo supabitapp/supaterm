@@ -18,7 +18,7 @@ import {
   parseThreadKey,
   threadKey,
 } from "@supaterm/client-runtime/state/entities";
-import type { ScopedProjectRef, ScopedThreadRef } from "@supaterm/contracts";
+import type { RepositoryIdentity, ScopedProjectRef, ScopedThreadRef } from "@supaterm/contracts";
 import type {
   EnvironmentId,
   OrchestrationV2ProjectedTurnItem,
@@ -78,6 +78,22 @@ const EMPTY_UPDATED_AT_ATOM = Atom.make<DateTime.Utc | null>(null).pipe(
 );
 const EMPTY_THREAD_HISTORY_ATOM = Atom.make<ThreadHistoryMeta>(EMPTY_THREAD_HISTORY_META).pipe(
   Atom.withLabel("web-thread-history:empty"),
+);
+const EMPTY_REPOSITORY_IDENTITY_ATOM = Atom.make<RepositoryIdentity | null>(null).pipe(
+  Atom.withLabel("web-thread-repository-identity:empty"),
+);
+
+// Every visible reply reads this, so it changes only with the project's repository, not each turn.
+const threadRepositoryIdentityAtom = Atom.family((key: string) =>
+  Atom.make((get) => {
+    const ref = parseThreadKey(key);
+    const projectId = get(environmentThreadShells.quietThreadShellAtom(ref))?.projectId;
+    if (projectId === undefined) return null;
+    const project = get(
+      environmentProjects.projectAtom({ environmentId: ref.environmentId, projectId }),
+    );
+    return project?.repositoryIdentity ?? null;
+  }).pipe(Atom.withLabel(`web-thread-repository-identity:${key}`)),
 );
 
 export function useThreadRefs(enabled = true): ReadonlyArray<ScopedThreadRef> {
@@ -173,6 +189,14 @@ export function useSideChats(ref: ScopedThreadRef | null) {
 
 export function readSideChats(ref: ScopedThreadRef): ReadonlyArray<EnvironmentThreadShell> {
   return appAtomRegistry.get(environmentThreadShells.sideChatsAtom(ref));
+}
+
+export function useThreadRepositoryIdentity(
+  ref: ScopedThreadRef | null,
+): RepositoryIdentity | null {
+  return useAtomValue(
+    ref === null ? EMPTY_REPOSITORY_IDENTITY_ATOM : threadRepositoryIdentityAtom(threadKey(ref)),
+  );
 }
 
 export function useThreadProjection(ref: ScopedThreadRef | null): EnvironmentThread | null {

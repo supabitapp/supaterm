@@ -165,6 +165,15 @@ function enrichedStyle(
   };
 }
 
+const NO_PARSED_LINKS: {
+  readonly urls: ReadonlyArray<string>;
+  readonly bareUrls: ReadonlyArray<string>;
+} = { urls: [], bareUrls: [] };
+
+function sameStrings(left: ReadonlyArray<string>, right: ReadonlyArray<string>) {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
 export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
   const { renderImage, resolveImageSource, fileEmbedLabel } = props;
   const { themeAppearance, mathRenderingEnabled } = useAppearancePreferences();
@@ -191,13 +200,16 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
       fileHrefs: files.fileHrefs,
     };
   }, [props.markdown, fileEmbedLabel]);
-  const [parsedLinkUrls, setParsedLinkUrls] = useState<ReadonlyArray<string>>([]);
+  const [parsedLinks, setParsedLinks] = useState(NO_PARSED_LINKS);
   const onLinksChange = (links: MarkdownLinkOccurrence[]) => {
     const urls = [...new Set(links.map((link) => link.url))];
-    setParsedLinkUrls((previous) =>
-      previous.length === urls.length && previous.every((url, index) => url === urls[index])
+    const bareUrls = urls.filter((url) =>
+      links.every((link) => link.url !== url || link.label === url),
+    );
+    setParsedLinks((previous) =>
+      sameStrings(previous.urls, urls) && sameStrings(previous.bareUrls, bareUrls)
         ? previous
-        : urls,
+        : { urls, bareUrls },
     );
   };
   const skillRegex = useMemo(() => enrichedSkillLinkRegex(props.skills), [props.skills]);
@@ -211,9 +223,14 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
     [markdown, skillRegex],
   );
   const linkUrls = skillLinkKey
-    ? [...new Set([...parsedLinkUrls, ...skillLinkKey.split("\n")])]
-    : parsedLinkUrls;
-  const { linkVariants, linkPillContent } = useEnrichedLinkVariants(linkUrls, props, fileHrefs);
+    ? [...new Set([...parsedLinks.urls, ...skillLinkKey.split("\n")])]
+    : parsedLinks.urls;
+  const { linkVariants, linkPillContent } = useEnrichedLinkVariants(
+    linkUrls,
+    parsedLinks.bareUrls,
+    props,
+    fileHrefs,
+  );
   const linkRecognition = useMemo(() => ({ text: skillRegex ?? undefined }), [skillRegex]);
   const [activeMenu, setActiveMenu] = useState<{
     url: string;

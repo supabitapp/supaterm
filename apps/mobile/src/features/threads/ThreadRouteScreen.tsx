@@ -1199,6 +1199,7 @@ function ThreadRouteContent(
           environmentId={selectedThread.environmentId}
           projectWorkspaceRoot={selectedThreadProject?.workspaceRoot ?? null}
           threadCwd={selectedThreadCwd}
+          repositoryIdentity={selectedThreadProject?.repositoryIdentity ?? null}
           selectedThreadQueueCount={composer.selectedThreadQueueCount}
           queuedMessages={
             selectedThreadCreation && selectedThreadCreation.outcome?.kind !== "delivered"

@@ -77,6 +77,8 @@ export interface SelectableMarkdownTextProps {
   readonly fileContextMenu?: (href: string) => MarkdownFileContextMenu | undefined;
   readonly onFileContextMenuAction?: (href: string, actionId: string) => void;
   readonly linkCustomization?: (href: string) => MarkdownLinkCustomization | undefined;
+  /** The repository whose change request links read as a bare `#123`. */
+  readonly repositoryIdentity?: import("@supaterm/contracts").RepositoryIdentity | null;
   readonly contextClipboardFragment?: string;
   readonly renderImage?: MarkdownImageRenderer;
   readonly fileEmbedLabel?: (href: string, standalone: boolean) => string | null;

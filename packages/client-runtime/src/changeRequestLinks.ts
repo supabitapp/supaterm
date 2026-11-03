@@ -131,6 +131,25 @@ export function resolvePullRequestPreviewTarget({
   };
 }
 
+/**
+ * A bare change request URL as its host writes references: `#12` in the project's own
+ * repository, `owner/repo#12` elsewhere. Null for a link into part of one, such as its files or
+ * a comment, which the reference would misname.
+ */
+export function changeRequestReferenceLabel(
+  url: string,
+  identity: RepositoryIdentity | null | undefined,
+): string | null {
+  const link = sourceControlClients.parseChangeRequestUrl(url)?.link;
+  if (link === undefined) return null;
+  const { pathname, search, hash } = new URL(url);
+  if (search || hash || !pathname.replace(/\/+$/u, "").endsWith(`/${link.number}`)) return null;
+  const own =
+    identity?.provider !== undefined &&
+    sourceControlClients.get(identity.provider).isChangeRequestInRepository(identity, link);
+  return own ? `#${link.number}` : `${link.repository}#${link.number}`;
+}
+
 /** The project host's browser URL for one of its change requests, before its detail loads. */
 export function projectChangeRequestUrl(
   identity: RepositoryIdentity | null | undefined,

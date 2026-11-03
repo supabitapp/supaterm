@@ -151,7 +151,7 @@ import { readLocalApi } from "../localApi";
 import { cn } from "../lib/utils";
 import { resolveRemoteOpenState, useRemoteOpenResolution } from "../remoteOpen";
 import { useRightPanelStore } from "../rightPanelStore";
-import { readThreadShell, useProjects } from "../state/entities";
+import { readThreadShell, useProjects, useThreadRepositoryIdentity } from "../state/entities";
 import { serverEnvironment } from "../state/server";
 import { shellEnvironment } from "../state/shell";
 import { assetEnvironment } from "../state/assets";
@@ -173,7 +173,10 @@ import {
   stripRepeatedWorkspacePrefix,
   WORKSPACE_BASENAME_LOOKUP_LIMIT,
 } from "@supaterm/client-runtime/workspace-basename-lookup";
-import { resolvePullRequestPreviewTarget } from "@supaterm/client-runtime/change-request-links";
+import {
+  changeRequestReferenceLabel,
+  resolvePullRequestPreviewTarget,
+} from "@supaterm/client-runtime/change-request-links";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { useOpenChangeRequestLink } from "~/lib/openPullRequestLink";
 import { useOpenLink } from "../browser/useOpenLink";
@@ -636,6 +639,7 @@ function useChatMarkdownState({
     markdownServerConfigFieldsAtom(environmentId),
   );
   const projects = useProjects();
+  const repositoryIdentity = useThreadRepositoryIdentity(threadRef ?? null);
   const [preferredEditor] = usePreferredEditor(availableEditors);
   const preferredEditorMenuLabel = openInEditorMenuLabel(preferredEditor);
   const openInPreferredEditor = useOpenInPreferredEditor(environmentId, availableEditors);
@@ -929,6 +933,7 @@ function useChatMarkdownState({
     openMarkdownMedia,
     projects,
     linkedThreadPullRequestFor,
+    repositoryIdentity,
     resolveThreadPullRequest,
     resolvedTheme,
     pullRequestsEnabled,
@@ -1087,6 +1092,7 @@ const CHAT_MARKDOWN_COMPONENTS = {
       openExternalLinkInPreview,
       projects,
       linkedThreadPullRequestFor,
+      repositoryIdentity,
       resolveThreadPullRequest,
       pullRequestsEnabled,
       updateThreadPullRequestLink,
@@ -1135,6 +1141,9 @@ const CHAT_MARKDOWN_COMPONENTS = {
             ? plainHastText(node)
             : undefined;
       const isPullRequestAutolink = pullRequestCopy !== undefined;
+      const writtenText = plainHastText(node);
+      const referenceLabel =
+        href && writtenText === href ? changeRequestReferenceLabel(href, repositoryIdentity) : null;
       const confirmBeforeOpen = pullRequestAutolink === "reference";
       const pullRequestCandidateUrl =
         confirmBeforeOpen && href
@@ -1157,7 +1166,7 @@ const CHAT_MARKDOWN_COMPONENTS = {
         <a
           {...props}
           className={cn(props.className, pullRequestAutolink === "commit" && "font-mono")}
-          data-markdown-copy={pullRequestCopy}
+          data-markdown-copy={pullRequestCopy ?? (referenceLabel ? href : undefined)}
           data-markdown-image-link={!hasText || undefined}
           href={href}
           target={isSameDocumentLink ? undefined : "_blank"}
@@ -1287,7 +1296,10 @@ const CHAT_MARKDOWN_COMPONENTS = {
           }}
         >
           {faviconHost && hasText && !isPullRequestAutolink ? (
-            <MarkdownExternalLinkContent host={faviconHost} plainText={plainHastText(node)}>
+            <MarkdownExternalLinkContent
+              host={faviconHost}
+              plainText={referenceLabel ?? writtenText}
+            >
               {linkChildren}
             </MarkdownExternalLinkContent>
           ) : (
