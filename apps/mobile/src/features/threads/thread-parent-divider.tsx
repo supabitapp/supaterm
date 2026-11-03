@@ -18,10 +18,10 @@ export function ThreadParentDivider(props: {
   readonly iconColor: ColorValue;
 }) {
   const openLinkedThread = useOpenLinkedThread();
-  const link = presentParentThreadLink(
-    props.parent,
-    useQuietThreadShell(scopeThreadRef(props.environmentId, props.parent.threadId)),
+  const parentShell = useQuietThreadShell(
+    scopeThreadRef(props.environmentId, props.parent.threadId),
   );
+  const link = presentParentThreadLink(props.parent, parentShell);
   return (
     <ThreadContextDivider
       label={link.label}

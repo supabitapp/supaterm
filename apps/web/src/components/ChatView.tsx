@@ -861,12 +861,11 @@ export default function ChatView(props: ChatViewProps) {
   const isServerThread = serverThread !== null;
   const activeThread = serverThread ?? pendingThreadCreation?.message.shell ?? localDraftThread;
   // A side chat draft has no lineage yet; it forks `sideChatOf` on its first send.
+  const draftSideChatOf = isServerThread ? undefined : draftThread?.sideChatOf;
   const parentThread = !activeThread
     ? null
     : (resolveParentThread(activeThread.lineage) ??
-      (isServerThread || !draftThread?.sideChatOf
-        ? null
-        : { threadId: draftThread.sideChatOf, sideChat: true }));
+      (draftSideChatOf ? { threadId: draftSideChatOf, sideChat: true } : null));
   const parentThreadRef =
     activeThread && parentThread
       ? scopeThreadRef(activeThread.environmentId, parentThread.threadId)
