@@ -3,13 +3,15 @@ import {
   ProviderInstanceId,
   type ServerProvider,
 } from "@supaterm/contracts";
-import { DEFAULT_UNIFIED_SETTINGS } from "@supaterm/contracts/settings";
+import { DEFAULT_UNIFIED_SETTINGS, type VoiceMicrophone } from "@supaterm/contracts/settings";
 import { useEffect, useState } from "react";
 
 import {
   labelsShowTransport,
   listMicrophoneInputs,
   type MicrophoneInput,
+  type MicrophonePreference,
+  type MicrophoneRoute,
   namedMicrophones,
   resolveMicrophone,
 } from "../../voice/microphone";
@@ -239,18 +241,28 @@ function VoiceHoldToTalkSettingRow() {
   );
 }
 
+type MicrophoneListing =
+  | { readonly kind: "unsupported" | "loading" | "none" | "labelsHidden" }
+  | { readonly kind: "listed"; readonly inputs: ReadonlyArray<MicrophoneInput> };
+
 interface MicrophoneList {
-  readonly supported: boolean;
-  /** Null until the browser answers. */
-  readonly inputs: ReadonlyArray<MicrophoneInput> | null;
+  readonly listing: MicrophoneListing;
   readonly accessDenied: boolean;
   readonly askForAccess: () => void;
+}
+
+function listingOf(inputs: ReadonlyArray<MicrophoneInput>): MicrophoneListing {
+  if (inputs.length === 0) return { kind: "none" };
+  if (inputs.every((input) => !input.label)) return { kind: "labelsHidden" };
+  return { kind: "listed", inputs };
 }
 
 function useMicrophoneList(): MicrophoneList {
   const supported =
     window.isSecureContext && typeof navigator.mediaDevices?.enumerateDevices === "function";
-  const [inputs, setInputs] = useState<ReadonlyArray<MicrophoneInput> | null>(null);
+  const [listing, setListing] = useState<MicrophoneListing>({
+    kind: supported ? "loading" : "unsupported",
+  });
   const [accessDenied, setAccessDenied] = useState(false);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Follows the browser's inputs as microphones connect and disconnect.
   useEffect(() => {
@@ -258,8 +270,8 @@ function useMicrophoneList(): MicrophoneList {
     let current = true;
     const refresh = () => {
       void listMicrophoneInputs().then(
-        (next) => {
-          if (current) setInputs(next);
+        (inputs) => {
+          if (current) setListing(listingOf(inputs));
         },
         () => undefined,
       );
@@ -277,65 +289,56 @@ function useMicrophoneList(): MicrophoneList {
       .then((stream) => {
         for (const track of stream.getTracks()) track.stop();
         setAccessDenied(false);
-        return listMicrophoneInputs().then(setInputs);
+        return listMicrophoneInputs().then((inputs) => setListing(listingOf(inputs)));
       })
       .catch(() => setAccessDenied(true));
   };
-  return { supported, inputs, accessDenied, askForAccess };
+  return { listing, accessDenied, askForAccess };
 }
 
-function VoiceMicrophoneSettingRow(props: { readonly microphones: MicrophoneList }) {
-  const settings = useScopedSettings();
-  const updateSettings = useUpdateScopedSettings();
-  const { supported, inputs, accessDenied, askForAccess } = props.microphones;
-  const chosen = settings.voiceMicrophone;
-  const labelsHidden =
-    inputs !== null && inputs.length > 0 && inputs.every((input) => !input.label);
-  const listed = inputs !== null && inputs.length > 0 && !labelsHidden ? inputs : null;
-  const preference = { chosen, avoidBluetooth: settings.voiceAvoidBluetoothMicrophone };
-  const route = listed ? resolveMicrophone(listed, preference) : null;
-  const systemInput = listed
-    ? resolveMicrophone(listed, { ...preference, chosen: null }).input
-    : null;
-  const microphones = listed ? namedMicrophones(listed) : [];
+function microphoneDescription(chosen: VoiceMicrophone | null, route: MicrophoneRoute | null) {
+  if (chosen && route?.chosenMissing) {
+    return `${chosen.label} isn't connected, so voice input uses the system default.`;
+  }
+  if (route?.passedOver && route.input) {
+    return `${route.passedOver.label} is Bluetooth, so voice input uses ${route.input.label}.`;
+  }
+  return "The microphone voice input records from on this device.";
+}
+
+function selectedMicrophone(chosen: VoiceMicrophone | null, route: MicrophoneRoute) {
+  if (chosen === null) return SYSTEM_MICROPHONE;
+  if (route.chosenMissing || !route.input) return chosen.deviceId;
+  return route.input.deviceId;
+}
+
+function MicrophoneSelect(props: {
+  readonly inputs: ReadonlyArray<MicrophoneInput>;
+  readonly preference: MicrophonePreference;
+  readonly onChoose: (microphone: VoiceMicrophone | null) => void;
+}) {
+  const { chosen } = props.preference;
+  const route = resolveMicrophone(props.inputs, props.preference);
+  const systemInput = resolveMicrophone(props.inputs, { ...props.preference, chosen: null }).input;
+  const microphones = namedMicrophones(props.inputs);
   const options = [
     { value: SYSTEM_MICROPHONE, label: "System default", detail: systemInput?.label ?? null },
     ...microphones.map((input) => ({ value: input.deviceId, label: input.label, detail: null })),
-    ...(chosen && route?.chosenMissing
+    ...(chosen && route.chosenMissing
       ? [{ value: chosen.deviceId, label: chosen.label, detail: "Not connected" }]
       : []),
   ];
-  const value =
-    chosen === null
-      ? SYSTEM_MICROPHONE
-      : route?.chosenMissing
-        ? chosen.deviceId
-        : (route?.input?.deviceId ?? chosen.deviceId);
-  const description =
-    chosen && route?.chosenMissing
-      ? `${chosen.label} isn't connected, so voice input uses the system default.`
-      : route?.passedOver && route.input
-        ? `${route.passedOver.label} is Bluetooth, so voice input uses ${route.input.label}.`
-        : "The microphone voice input records from on this device.";
-  const control = !supported ? (
-    <span className="text-muted-foreground text-xs">Needs HTTPS or localhost.</span>
-  ) : inputs === null ? null : inputs.length === 0 ? (
-    <span className="text-muted-foreground text-xs">No microphone found.</span>
-  ) : labelsHidden ? (
-    <Button size="xs" variant="outline" onClick={askForAccess}>
-      Show microphones
-    </Button>
-  ) : (
+  const value = selectedMicrophone(chosen, route);
+  return (
     <Select
       value={value}
       onValueChange={(next) => {
         if (next === SYSTEM_MICROPHONE) {
-          updateSettings({ voiceMicrophone: null });
+          props.onChoose(null);
           return;
         }
         const input = microphones.find((microphone) => microphone.deviceId === next);
-        if (input)
-          updateSettings({ voiceMicrophone: { deviceId: input.deviceId, label: input.label } });
+        if (input) props.onChoose({ deviceId: input.deviceId, label: input.label });
       }}
     >
       <SelectTrigger size="sm" className="w-auto min-w-0 max-w-full" aria-label="Microphone">
@@ -355,16 +358,37 @@ function VoiceMicrophoneSettingRow(props: { readonly microphones: MicrophoneList
       </SelectPopup>
     </Select>
   );
+}
+
+function VoiceMicrophoneSettingRow(props: { readonly microphones: MicrophoneList }) {
+  const settings = useScopedSettings();
+  const updateSettings = useUpdateScopedSettings();
+  const { listing, accessDenied, askForAccess } = props.microphones;
+  const preference = {
+    chosen: settings.voiceMicrophone,
+    avoidBluetooth: settings.voiceAvoidBluetoothMicrophone,
+  };
+  const route = listing.kind === "listed" ? resolveMicrophone(listing.inputs, preference) : null;
+  const unlistedControls = {
+    unsupported: <span className="text-muted-foreground text-xs">Needs HTTPS or localhost.</span>,
+    loading: null,
+    none: <span className="text-muted-foreground text-xs">No microphone found.</span>,
+    labelsHidden: (
+      <Button size="xs" variant="outline" onClick={askForAccess}>
+        Show microphones
+      </Button>
+    ),
+  };
   return (
     <SettingsRow
       {...searchableSetting("voice-microphone")}
       description={
-        accessDenied && labelsHidden
+        accessDenied && listing.kind === "labelsHidden"
           ? "Microphone access is blocked. Allow it in your browser or system settings."
-          : description
+          : microphoneDescription(preference.chosen, route)
       }
       resetAction={
-        chosen !== DEFAULT_UNIFIED_SETTINGS.voiceMicrophone ? (
+        preference.chosen !== DEFAULT_UNIFIED_SETTINGS.voiceMicrophone ? (
           <SettingResetButton
             label="microphone"
             onClick={() =>
@@ -373,7 +397,17 @@ function VoiceMicrophoneSettingRow(props: { readonly microphones: MicrophoneList
           />
         ) : null
       }
-      control={control}
+      control={
+        listing.kind === "listed" ? (
+          <MicrophoneSelect
+            inputs={listing.inputs}
+            preference={preference}
+            onChoose={(voiceMicrophone) => updateSettings({ voiceMicrophone })}
+          />
+        ) : (
+          unlistedControls[listing.kind]
+        )
+      }
     />
   );
 }
@@ -381,8 +415,9 @@ function VoiceMicrophoneSettingRow(props: { readonly microphones: MicrophoneList
 function VoiceAvoidBluetoothSettingRow(props: { readonly microphones: MicrophoneList }) {
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
-  const { inputs } = props.microphones;
-  if (!isMacPlatform(navigator.platform) || !inputs || !labelsShowTransport(inputs)) return null;
+  const { listing } = props.microphones;
+  if (!isMacPlatform(navigator.platform)) return null;
+  if (listing.kind !== "listed" || !labelsShowTransport(listing.inputs)) return null;
   return (
     <SettingsRow
       {...searchableSetting("voice-avoid-bluetooth")}

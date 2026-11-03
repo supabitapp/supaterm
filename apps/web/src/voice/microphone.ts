@@ -51,7 +51,8 @@ export function labelsShowTransport(inputs: ReadonlyArray<MicrophoneInput>) {
 
 function systemDefault(inputs: ReadonlyArray<MicrophoneInput>): MicrophoneInput | null {
   const first = inputs[0];
-  if (!first || !ALIAS_IDS.has(first.deviceId)) return first ?? null;
+  if (!first) return null;
+  if (!ALIAS_IDS.has(first.deviceId)) return first;
   const aliased = namedMicrophones(inputs)
     .filter((input) => first.label.endsWith(input.label))
     .toSorted((left, right) => right.label.length - left.label.length);
@@ -104,10 +105,10 @@ export async function listMicrophoneInputs(): Promise<ReadonlyArray<MicrophoneIn
     .map(({ deviceId, label }) => ({ deviceId, label }));
 }
 
-function errorName(error: unknown): string | null {
+function errorName(error: unknown): string {
   return error instanceof Object && "name" in error && typeof error.name === "string"
     ? error.name
-    : null;
+    : "";
 }
 
 /** Opens the input `preference` resolves to, or the default when that one is gone or busy. */
@@ -119,7 +120,7 @@ export async function openMicrophone(preference: MicrophonePreference): Promise<
         audio: { ...VOICE_PROCESSING, deviceId: { exact: deviceId } },
       });
     } catch (error) {
-      if (!UNAVAILABLE_INPUT_ERRORS.has(errorName(error) ?? "")) throw error;
+      if (!UNAVAILABLE_INPUT_ERRORS.has(errorName(error))) throw error;
     }
   }
   return navigator.mediaDevices.getUserMedia({ audio: VOICE_PROCESSING });
