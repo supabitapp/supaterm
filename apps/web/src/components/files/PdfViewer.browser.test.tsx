@@ -120,6 +120,7 @@ it("restores page, within-page offset and zoom after a remount", async () => {
   try {
     await using screen = await render(viewer(1, "restore:a"));
     await expect.element(screen.getByText("1 / 2 pages")).toBeVisible();
+    using workers = vi.spyOn(window, "Worker");
     await screen.getByRole("button", { name: "Zoom in", exact: true }).click();
     await screen.getByRole("button", { name: "Next page", exact: true }).click();
     await expect.element(screen.getByText("2 / 2 pages")).toBeVisible();
@@ -156,6 +157,7 @@ it("restores page, within-page offset and zoom after a remount", async () => {
     await screen.rerender(viewer(4, "restore:b"));
     await expect.element(screen.getByText("1 / 2 pages")).toBeVisible();
     await expect.element(screen.getByText("Fit width")).toBeVisible();
+    expect(workers).not.toHaveBeenCalled();
   } finally {
     URL.revokeObjectURL(url);
   }
