@@ -1,25 +1,18 @@
 // @effect-diagnostics nodeBuiltinImport:off globalTimers:off globalConsole:off - A raw WebSocket server paced by Node timers.
-// Stands in for serve-emu's video socket: --mbps of frame-meta packets (pts = send time in µs) at
-// --fps with a keyframe every --keyframe-every, behind serve-emu's guard (dist/server.js): past
-// 512 KiB buffered it drops until a keyframe, past 16 MiB it closes.
+// Stands in for serve-emu's video socket: 8 Mbps of 60 fps frame-meta packets (pts = send time in
+// µs), behind serve-emu's guard (dist/server.js): past 512 KiB buffered it drops until a keyframe,
+// past 16 MiB it closes.
 import * as NodeCrypto from "node:crypto";
 import * as NodeHttp from "node:http";
 import type * as NodeNet from "node:net";
 import * as NodePerfHooks from "node:perf_hooks";
-import * as NodeUtil from "node:util";
 
-const { values } = NodeUtil.parseArgs({
-  options: {
-    mbps: { type: "string", default: "8" },
-    fps: { type: "string", default: "60" },
-    "keyframe-every": { type: "string", default: "60" },
-  },
-});
-const fps = Number(values.fps);
-const keyframeEvery = Number(values["keyframe-every"]);
+const MBPS = 8;
+const FPS = 60;
+const KEYFRAME_EVERY = 60;
 const KEYFRAME_SCALE = 4;
 const deltaBytes = Math.round(
-  (Number(values.mbps) * 1e6) / 8 / (fps * (1 + (KEYFRAME_SCALE - 1) / keyframeEvery)),
+  (MBPS * 1e6) / 8 / (FPS * (1 + (KEYFRAME_SCALE - 1) / KEYFRAME_EVERY)),
 );
 // serve-emu's dist/server.js constants.
 const DROP_FRAME_BUFFERED_BYTES = 512 * 1024;
@@ -83,7 +76,7 @@ const stream = (socket: NodeNet.Socket) => {
   const tick = () => {
     if (!open) return;
     const time = now();
-    const isKey = forceKey || sinceKey % keyframeEvery === 0;
+    const isKey = forceKey || sinceKey % KEYFRAME_EVERY === 0;
     if (isKey) {
       forceKey = false;
       sinceKey = 0;
@@ -115,7 +108,7 @@ const stream = (socket: NodeNet.Socket) => {
     }
     sequence++;
     // Node rounds timer delays to whole ms, so pace against the ideal schedule, not the last tick.
-    timer = setTimeout(tick, Math.max(0, start + (sequence * 1000) / fps - now()));
+    timer = setTimeout(tick, Math.max(0, start + (sequence * 1000) / FPS - now()));
   };
   tick();
 };
@@ -152,8 +145,9 @@ process.on("message", (request: { readonly id: number; readonly type: "mark" | "
   process.send?.({ id: request.id, result: request.type === "collect" ? stats : {} });
 });
 
+process.once("disconnect", () => process.exit(0));
 server.listen(0, "127.0.0.1", () => {
   const { port } = server.address() as NodeNet.AddressInfo;
-  if (process.send) process.send({ type: "ready", port, pid: process.pid });
+  if (process.send) process.send({ id: 0, result: { port } });
   else console.log(`hub on ws://127.0.0.1:${port}/vendor/serve-emu/ws`);
 });

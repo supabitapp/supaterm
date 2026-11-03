@@ -1,5 +1,4 @@
-// Runs in the bench's viewer page next to the real client-runtime preview client (client.js).
-// It reads the workload's marker back from the painted canvas; see workload.html for the layout.
+// readMarker decodes the marker workload.html draws; its layout and encoding are described there.
 const params = new URLSearchParams(location.search);
 const width = Number(params.get("width"));
 const height = Number(params.get("height"));
@@ -7,37 +6,19 @@ const canvas = document.querySelector("canvas");
 canvas.style.width = `${width}px`;
 canvas.style.height = `${height}px`;
 
-// Tags each frame's bytes with its receipt time through the painter's Blob and decode, so a
-// painted frame keeps the time it arrived without the painter exposing it.
-const receivedAt = new WeakMap();
-const blobReceivedAt = new WeakMap();
-const NativeBlob = Blob;
-globalThis.Blob = class extends NativeBlob {
-  constructor(parts, options) {
-    super(parts, options);
-    const at = parts && receivedAt.get(parts[0]);
-    if (at !== undefined) blobReceivedAt.set(this, at);
-  }
-};
-const nativeCreateImageBitmap = createImageBitmap;
-let decodedReceivedAt;
-globalThis.createImageBitmap = async (source, ...rest) => {
-  const at = blobReceivedAt.get(source);
-  const bitmap = await nativeCreateImageBitmap(source, ...rest);
-  decodedReceivedAt = at;
-  return bitmap;
-};
-
 const run = {
   recording: false,
   startedAt: 0,
-  received: [],
-  painted: [],
+  receivedFrames: 0,
+  receivedBytes: 0,
+  paintLatencies: [],
+  staleFrames: 0,
+  first: null,
   echoes: [],
   misreads: 0,
 };
 let viewport = null;
-let lastFrame = -1;
+let newest = null;
 const context = canvas.getContext("2d");
 
 const latency = (ms, at) => {
@@ -71,19 +52,22 @@ const readMarker = () => {
 
 const painter = previewStream.createPreviewFramePainter(canvas, () => {
   const at = Date.now();
-  const arrived = decodedReceivedAt;
-  if (!run.recording) return;
   const marker = readMarker();
   if (!marker) {
-    run.misreads++;
+    if (run.recording) run.misreads++;
     return;
   }
-  if (marker.frame === lastFrame) return;
-  lastFrame = marker.frame;
-  run.painted.push([
-    latency(marker.ms, at),
-    arrived === undefined ? null : latency(marker.ms, arrived),
-  ]);
+  // The frame counter is 16 bits, so progress is the forward distance modulo 2^16.
+  const step = newest === null ? 1 : (marker.frame - newest.frame) & 0xffff;
+  if (step === 0) return;
+  if (step >= 0x8000) {
+    if (run.recording) run.staleFrames++;
+    return;
+  }
+  newest = marker;
+  if (!run.recording) return;
+  run.first ??= marker;
+  run.paintLatencies.push(latency(marker.ms, at));
 });
 
 let resized = false;
@@ -103,9 +87,10 @@ const client = previewStream.createPreviewStreamClient(
   },
   {
     onFrame: (jpeg) => {
-      const at = Date.now();
-      receivedAt.set(jpeg, at);
-      if (run.recording) run.received.push(jpeg.byteLength);
+      if (run.recording) {
+        run.receivedFrames++;
+        run.receivedBytes += jpeg.byteLength;
+      }
       painter.paint(jpeg);
     },
     onViewport: (next) => {
@@ -146,14 +131,24 @@ echo.addEventListener("message", (event) => {
   if (run.recording) run.echoes.push(performance.now() - Number(event.data));
 });
 
+const sourceFps = () => {
+  if (run.first === null || newest === run.first) return null;
+  const frames = (newest.frame - run.first.frame) & 0xffff;
+  const ms = (newest.ms - run.first.ms) & 0xffffff;
+  return ms > 0 ? (frames * 1000) / ms : null;
+};
+
 globalThis.bench = {
   isReady: () => ready && echo.readyState === WebSocket.OPEN,
   start: () => {
     Object.assign(run, {
       recording: true,
       startedAt: Date.now(),
-      received: [],
-      painted: [],
+      receivedFrames: 0,
+      receivedBytes: 0,
+      paintLatencies: [],
+      staleFrames: 0,
+      first: null,
       echoes: [],
       misreads: 0,
     });
@@ -163,6 +158,15 @@ globalThis.bench = {
     client.stop();
     painter.stop();
     echo.close();
-    return { ...run, stoppedAt: Date.now() };
+    return {
+      durationMs: Date.now() - run.startedAt,
+      receivedFrames: run.receivedFrames,
+      receivedBytes: run.receivedBytes,
+      paintLatencies: run.paintLatencies,
+      staleFrames: run.staleFrames,
+      sourceFps: sourceFps(),
+      echoes: run.echoes,
+      misreads: run.misreads,
+    };
   },
 };

@@ -37,11 +37,8 @@ let linkFreeAt = 0;
 let queued = 0;
 let paused = false;
 
-const stats = { since: now(), queueArea: 0, queueMax: 0, delivered: 0, lastChange: now() };
+const stats = { since: now(), queueMax: 0, delivered: 0 };
 const setQueued = (next: number) => {
-  const time = now();
-  stats.queueArea += queued * (time - stats.lastChange);
-  stats.lastChange = time;
   queued = next;
   stats.queueMax = Math.max(stats.queueMax, queued);
 };
@@ -132,25 +129,23 @@ const listener = NodeNet.createServer({ noDelay: true }, (client) => {
 
 process.on("message", (request: { readonly id: number; readonly type: "mark" | "collect" }) => {
   if (request.type === "mark") {
-    Object.assign(stats, { since: now(), queueArea: 0, queueMax: queued, delivered: 0 });
-    stats.lastChange = stats.since;
+    Object.assign(stats, { since: now(), queueMax: queued, delivered: 0 });
     process.send?.({ id: request.id, result: {} });
     return;
   }
-  setQueued(queued);
   const elapsed = now() - stats.since;
   process.send?.({
     id: request.id,
     result: {
-      queueMeanKiB: stats.queueArea / Math.max(1, elapsed) / 1024,
       queueMaxKiB: stats.queueMax / 1024,
       deliveredMbps: (stats.delivered * 8) / 1000 / Math.max(1, elapsed),
     },
   });
 });
 
+process.once("disconnect", () => process.exit(0));
 listener.listen(0, "127.0.0.1", () => {
   const { port } = listener.address() as NodeNet.AddressInfo;
-  if (process.send) process.send({ type: "ready", port, pid: process.pid });
+  if (process.send) process.send({ id: 0, result: { port } });
   else console.log(`listening on 127.0.0.1:${port}`);
 });
