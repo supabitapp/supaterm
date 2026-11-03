@@ -49,6 +49,7 @@ import { Button } from "../ui/button";
 import { getVirtualizedScrollFadeClassName } from "../ui/scroll-area";
 import { Popover, PopoverTrigger, PopoverPopup } from "../ui/popover";
 import { Spinner } from "../ui/spinner";
+import { TimelineRowExit } from "./TimelineRowExit";
 import { WorktreeSetupCard } from "./WorktreeSetupCard";
 import { cn } from "~/lib/utils";
 import type { TimestampFormat } from "@supaterm/contracts/settings";
@@ -287,33 +288,35 @@ function ExpandedWorkGroupEntries({
 const workEntryKey = (entry: TimelineWorkEntry) => entry.id;
 
 export function WorkingTimelineRow() {
-  const { isCompacting, compactionStartedAt, isPreparingWorktree, backgroundWorktreeSetup } =
+  const { isCompacting, compactionStartedAt, worktreeSetupLabel, backgroundWorktreeSetup } =
     use(TimelineRowActivityCtx);
-  const label = isPreparingWorktree ? (
+  const label = worktreeSetupLabel ? (
     "Setting up worktree…"
   ) : isCompacting ? (
     <CompactingLabel startedAt={compactionStartedAt} />
   ) : null;
   if (!label && !backgroundWorktreeSetup) return null;
   return (
-    <div className="pb-1.5">
-      <div className="border-b border-border/60 pb-2 pt-1">
-        <div className="flex h-6 min-w-0 items-baseline gap-2 px-1 text-sm leading-relaxed text-muted-foreground">
-          {label ? (
-            <span
-              ref={observeVisibleAnimation}
-              className="relative shrink-0 overflow-hidden whitespace-nowrap"
-            >
-              {label}
-              <ActivityShimmerOverlay>{label}</ActivityShimmerOverlay>
-            </span>
-          ) : null}
-          {backgroundWorktreeSetup ? (
-            <BackgroundWorktreeSetupChip snapshot={backgroundWorktreeSetup} />
-          ) : null}
+    <TimelineRowExit exiting={worktreeSetupLabel === "exiting"}>
+      <div className="pb-1.5">
+        <div className="border-b border-border/60 pb-2 pt-1">
+          <div className="flex h-6 min-w-0 items-baseline gap-2 px-1 text-sm leading-relaxed text-muted-foreground">
+            {label ? (
+              <span
+                ref={observeVisibleAnimation}
+                className="relative shrink-0 overflow-hidden whitespace-nowrap"
+              >
+                {label}
+                <ActivityShimmerOverlay>{label}</ActivityShimmerOverlay>
+              </span>
+            ) : null}
+            {backgroundWorktreeSetup ? (
+              <BackgroundWorktreeSetupChip snapshot={backgroundWorktreeSetup} />
+            ) : null}
+          </div>
         </div>
       </div>
-    </div>
+    </TimelineRowExit>
   );
 }
 

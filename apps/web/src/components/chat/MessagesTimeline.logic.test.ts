@@ -28,11 +28,13 @@ import {
   deriveMessagesTimelineRows,
   timelineTurnFoldRunIdsByEntryId,
   deriveMessagesTimelineRowsWithState,
+  nextWorktreeSetupRowPlacement,
   shouldCollapseUserMessage,
   resolveAssistantMessageCopyState,
   type MessagesTimelineRow,
   resolveTimelineIsAtEnd,
   resolveTimelineToolPresentation,
+  withExitingWorktreeSetupRow,
   workEntryDisplayLabel,
 } from "./MessagesTimeline.logic";
 
@@ -5101,6 +5103,16 @@ it("keeps the working header in place across worktree setup handoff", () => {
     },
   });
   expect(finishedRows.map((row) => row.kind)).toEqual(["message", "working", "thinking"]);
+
+  const settledPlacement = nextWorktreeSetupRowPlacement(null, settledRows);
+  const exitingPlacement = nextWorktreeSetupRowPlacement(settledPlacement, finishedRows);
+  expect(
+    withExitingWorktreeSetupRow(finishedRows, exitingPlacement).map((row) =>
+      row.kind === "worktree-setup" ? `${row.kind}:${row.exiting}` : row.kind,
+    ),
+  ).toEqual(["message", "working", "worktree-setup:true", "thinking"]);
+  const returnedPlacement = nextWorktreeSetupRowPlacement(exitingPlacement, settledRows);
+  expect(withExitingWorktreeSetupRow(settledRows, returnedPlacement)).toBe(settledRows);
 });
 
 describe("failed turn transcript", () => {

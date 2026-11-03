@@ -511,6 +511,7 @@ type MessagesTimelineRowContent =
       createdAt: string | null;
       snapshot: WorktreeSetupSnapshot;
       embedded: boolean;
+      exiting?: boolean;
     }
   | {
       kind: "work";
@@ -2211,6 +2212,34 @@ function attachCreatedThreadSummaries(
 }
 
 const WORKTREE_SETUP_ROW_ID = "worktree-setup-row";
+
+export interface WorktreeSetupRowPlacement {
+  readonly row: Extract<MessagesTimelineRow, { kind: "worktree-setup" }>;
+  readonly anchorId: string | null;
+}
+
+/** The setup row in `rows`, or the last one seen marked exiting once it leaves. */
+export function nextWorktreeSetupRowPlacement(
+  previous: WorktreeSetupRowPlacement | null,
+  rows: ReadonlyArray<MessagesTimelineRow>,
+): WorktreeSetupRowPlacement | null {
+  const index = rows.findIndex((row) => row.kind === "worktree-setup");
+  const row = rows[index];
+  if (row?.kind === "worktree-setup") return { row, anchorId: rows[index - 1]?.id ?? null };
+  if (previous === null || previous.row.exiting) return previous;
+  return { ...previous, row: { ...previous.row, exiting: true } };
+}
+
+export function withExitingWorktreeSetupRow(
+  rows: MessagesTimelineRow[],
+  placement: WorktreeSetupRowPlacement | null,
+): MessagesTimelineRow[] {
+  if (!placement?.row.exiting) return rows;
+  const index =
+    placement.anchorId === null ? 0 : rows.findIndex((row) => row.id === placement.anchorId) + 1;
+  if (index === 0 && placement.anchorId !== null) return rows;
+  return rows.toSpliced(index, 0, placement.row);
+}
 
 export type MessagesTimelineRowsInput = Parameters<typeof deriveMessagesTimelineRows>[0];
 
