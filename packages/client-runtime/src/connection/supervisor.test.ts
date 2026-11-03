@@ -917,6 +917,44 @@ describe("EnvironmentSupervisor", () => {
       }).pipe(Effect.provide(TestClock.layer())),
   );
 
+  it.effect("keeps a wake's recovery when an older probe answers as the wake arrives", () =>
+    Effect.gen(function* () {
+      const olderProbeStarted = yield* Deferred.make<void>();
+      const releaseOlderProbe = yield* Deferred.make<void>();
+      const probeCalls = yield* Ref.make(0);
+      const harness = yield* makeHarness({
+        prepare: (attempt) => (attempt === 2 ? Effect.never : Effect.succeed(PREPARED_CONNECTION)),
+        probe: (attempt) =>
+          attempt === 1
+            ? Ref.updateAndGet(probeCalls, (count) => count + 1).pipe(
+                Effect.flatMap((call) =>
+                  call === 1
+                    ? Deferred.succeed(olderProbeStarted, undefined).pipe(
+                        Effect.andThen(Deferred.await(releaseOlderProbe)),
+                      )
+                    : Effect.never,
+                ),
+              )
+            : Effect.void,
+      });
+      const supervisor = yield* EnvironmentSupervisor.make(RELAY_ENTRY, {
+        initiallyDesired: true,
+      }).pipe(Effect.provide(harness.dependencies));
+      yield* awaitState(supervisor.state, (state) => state.phase === "connected");
+
+      yield* harness.wake("application-active");
+      yield* Deferred.await(olderProbeStarted);
+      yield* Deferred.succeed(releaseOlderProbe, undefined);
+      yield* harness.wake("system-resumed");
+      yield* TestClock.adjust("3 seconds");
+      expect(yield* Ref.get(harness.prepareCount)).toBe(2);
+
+      yield* TestClock.adjust("3 seconds");
+      expect(yield* Ref.get(harness.prepareCount)).toBe(3);
+      yield* awaitState(supervisor.state, (state) => state.phase === "connected");
+    }).pipe(Effect.provide(TestClock.layer())),
+  );
+
   it.effect("gives the attempt after a stalled post-wake attempt the full setup time", () =>
     Effect.gen(function* () {
       const retryStarted = yield* Deferred.make<void>();

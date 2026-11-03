@@ -674,6 +674,9 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           ? "mobile-resume"
           : "checking",
       );
+      // A probe for an older signal can answer after the wake armed recovery.
+      if (next._tag === "Wakeup" && next.reason === "system-resumed")
+        yield* Ref.set(wakeRecoveryPending, true);
       const probe = yield* Effect.forkChild(lease.session.probe);
       let replacementFiber =
         next._tag === "Wakeup" &&
