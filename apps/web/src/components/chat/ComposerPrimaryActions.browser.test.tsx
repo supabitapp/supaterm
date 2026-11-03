@@ -21,7 +21,6 @@ const baseProps = {
   isEnvironmentUnavailable: false,
   isPreparingWorktree: false,
   hasSendableContent: true,
-  onPreviousPendingQuestion: () => {},
   onInterrupt: () => {},
 } satisfies Props;
 

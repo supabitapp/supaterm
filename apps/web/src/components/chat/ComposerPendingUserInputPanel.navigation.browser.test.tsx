@@ -11,8 +11,7 @@ import { useLayoutEffect, useRef, type ComponentProps } from "react";
 import { expect, it, vi } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser";
 
-vi.mock(import("../ChatMarkdown"), async (importOriginal) => ({
-  ...(await importOriginal()),
+vi.mock(import("../ChatMarkdown"), () => ({
   default: (({ text }: { text: string }) => <p>{text}</p>) as never,
 }));
 
@@ -20,6 +19,7 @@ import { act, fakeTimers, render } from "../../../test/render";
 import { useComposerDraftStore } from "../../composerDraftStore";
 import { makeThreadProjectionFixture } from "../../test-fixtures";
 import { toastManager } from "../ui/toast";
+import { ComposerPendingUserInputPanel } from "./ComposerPendingUserInputPanel";
 import { usePendingThreadRequests } from "./usePendingThreadRequests";
 
 const threadRef = { environmentId: EnvironmentId.make("env"), threadId: ThreadId.make("thread") };
@@ -212,6 +212,54 @@ it("stays on an unanswered question when the composer submits", async () => {
   await userEvent.click(screen.getByRole("button", { name: "Choose Incremental" }));
   await userEvent.click(submit);
   await expect.element(screen.getByRole("status")).toHaveTextContent("Question 2");
+});
+
+function QuestionPanelProbe(props: ProbeProps) {
+  const state = useProbeRequests(props);
+  useLayoutEffect(() => {
+    requests = state;
+  });
+  return (
+    <ComposerPendingUserInputPanel
+      pendingUserInputs={state.pendingUserInputs}
+      cwd={undefined}
+      threadRef={threadRef}
+      respondingRequestIds={[]}
+      answers={state.activePendingDraftAnswers}
+      questionIndex={state.activePendingQuestionIndex}
+      onToggleOption={state.onSelectActivePendingUserInputOption}
+      onAdvance={state.onAdvanceActivePendingUserInput}
+      onPrevious={state.onPreviousActivePendingUserInputQuestion}
+      onDismiss={() => {}}
+    />
+  );
+}
+
+it("goes back a question from the question header without collapsing it", async () => {
+  await using screen = await render(
+    <QuestionPanelProbe
+      environmentId={EnvironmentId.make("previous-environment")}
+      projection={questionProjection(threadRef.threadId)}
+    />,
+  );
+  const previous = screen.getByRole("button", { name: "Previous question" });
+  const expanded = screen.getByTitle("Hide the question and its options");
+  await expect.element(previous).toHaveAttribute("aria-disabled", "true");
+  await userEvent.click(previous, { force: true });
+  await expect.element(screen.getByText("1/3")).toBeVisible();
+  await expect.element(expanded).toBeVisible();
+
+  await act(() => requests.onSelectActivePendingUserInputOption("question-0", "Incremental"));
+  await act(() => requests.onAdvanceActivePendingUserInput());
+  await expect.element(screen.getByText("Choose for question 2")).toBeVisible();
+
+  await userEvent.click(previous);
+  await expect.element(screen.getByText("Choose for question 1")).toBeVisible();
+  await expect.element(screen.getByText("1/3")).toBeVisible();
+  await expect.element(expanded).toBeVisible();
+  expect(requests.activePendingDraftAnswers["question-0"]).toMatchObject({
+    selectedOptionValues: ["Incremental"],
+  });
 });
 
 it("isolates drafts by environment, thread and request and discards only resolved requests", async () => {

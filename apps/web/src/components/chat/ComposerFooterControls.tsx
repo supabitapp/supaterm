@@ -130,7 +130,6 @@ export const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryA
   isEditingQueuedMessage: boolean;
   onSubmitMessage: React.MouseEventHandler<HTMLButtonElement>;
   onResume: () => void;
-  onPreviousPendingQuestion: () => void;
   onInterrupt: () => void;
   onCompactContext?: (() => void) | undefined;
   compactDisabled: boolean;
@@ -161,7 +160,6 @@ export const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryA
         isEditingQueuedMessage={props.isEditingQueuedMessage}
         onSubmitMessage={props.onSubmitMessage}
         onResume={props.onResume}
-        onPreviousPendingQuestion={props.onPreviousPendingQuestion}
         onInterrupt={props.onInterrupt}
       />
     </>
