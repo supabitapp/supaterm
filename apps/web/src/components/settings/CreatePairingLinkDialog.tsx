@@ -52,7 +52,7 @@ const PERMISSION_SCOPES = {
 const PERMISSION_PRESETS = [
   {
     value: "standard",
-    label: "Standard",
+    label: "Full access",
     description:
       "Run agents, work with files, use terminals, and manage device access with the permissions you can share.",
   },
