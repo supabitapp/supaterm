@@ -202,6 +202,24 @@ index 6481228..0dc5dd1 100644
    return {
      padding,
      currentHeight,
+diff --git a/lib/commonjs/components/KeyboardChatScrollView/useChatKeyboard/index.js b/lib/commonjs/components/KeyboardChatScrollView/useChatKeyboard/index.js
+index 9b88843..70f1a0a 100644
+--- a/lib/commonjs/components/KeyboardChatScrollView/useChatKeyboard/index.js
++++ b/lib/commonjs/components/KeyboardChatScrollView/useChatKeyboard/index.js
+@@ -188,6 +188,13 @@ function useChatKeyboard(scrollViewRef, options) {
+           return;
+         }
+ 
++        // "whenAtEnd" closing only clamps, so a drag or fling during the close keeps
++        // its offset. At the end, the clamp tracks the keyboard like the shift would.
++        if (keyboardLiftBehavior === "whenAtEnd" && closing.value) {
++          clampScrollIfNeeded(effective, actualTotalPadding);
++          return;
++        }
++
+         // "whenAtEnd" sentinel check (also used for blankSpace full absorption)
+         if (offsetBeforeScroll.value === -1) {
+           if (closing.value) {
 diff --git a/lib/commonjs/components/KeyboardChatScrollView/useExtraContentPadding/index.js b/lib/commonjs/components/KeyboardChatScrollView/useExtraContentPadding/index.js
 index 11e81a9..de39eac 100644
 --- a/lib/commonjs/components/KeyboardChatScrollView/useExtraContentPadding/index.js
@@ -465,6 +483,24 @@ index 043b973..df5a408 100644
    return {
      padding,
      currentHeight,
+diff --git a/lib/module/components/KeyboardChatScrollView/useChatKeyboard/index.js b/lib/module/components/KeyboardChatScrollView/useChatKeyboard/index.js
+index 6199d5c..ff8d98b 100644
+--- a/lib/module/components/KeyboardChatScrollView/useChatKeyboard/index.js
++++ b/lib/module/components/KeyboardChatScrollView/useChatKeyboard/index.js
+@@ -181,6 +181,13 @@ function useChatKeyboard(scrollViewRef, options) {
+           return;
+         }
+ 
++        // "whenAtEnd" closing only clamps, so a drag or fling during the close keeps
++        // its offset. At the end, the clamp tracks the keyboard like the shift would.
++        if (keyboardLiftBehavior === "whenAtEnd" && closing.value) {
++          clampScrollIfNeeded(effective, actualTotalPadding);
++          return;
++        }
++
+         // "whenAtEnd" sentinel check (also used for blankSpace full absorption)
+         if (offsetBeforeScroll.value === -1) {
+           if (closing.value) {
 diff --git a/lib/module/components/KeyboardChatScrollView/useExtraContentPadding/index.js b/lib/module/components/KeyboardChatScrollView/useExtraContentPadding/index.js
 index cdca47b..3ea3a7f 100644
 --- a/lib/module/components/KeyboardChatScrollView/useExtraContentPadding/index.js
@@ -869,6 +905,25 @@ index 1ae9b81..208505b 100644
    );
  
    return {
+diff --git a/src/components/KeyboardChatScrollView/useChatKeyboard/index.ts b/src/components/KeyboardChatScrollView/useChatKeyboard/index.ts
+index 7077fb2..af2dd77 100644
+--- a/src/components/KeyboardChatScrollView/useChatKeyboard/index.ts
++++ b/src/components/KeyboardChatScrollView/useChatKeyboard/index.ts
+@@ -300,6 +300,14 @@ function useChatKeyboard(
+             return;
+           }
+ 
++          // "whenAtEnd" closing only clamps, so a drag or fling during the close keeps
++          // its offset. At the end, the clamp tracks the keyboard like the shift would.
++          if (keyboardLiftBehavior === "whenAtEnd" && closing.value) {
++            clampScrollIfNeeded(effective, actualTotalPadding);
++
++            return;
++          }
++
+           // "whenAtEnd" sentinel check (also used for blankSpace full absorption)
+           if (offsetBeforeScroll.value === -1) {
+             if (closing.value) {
 diff --git a/src/components/KeyboardChatScrollView/useChatKeyboard/types.ts b/src/components/KeyboardChatScrollView/useChatKeyboard/types.ts
 index f89b7c8..02e0e19 100644
 --- a/src/components/KeyboardChatScrollView/useChatKeyboard/types.ts
