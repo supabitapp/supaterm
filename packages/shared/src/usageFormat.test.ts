@@ -188,13 +188,15 @@ describe("hourly usage formatting", () => {
 describe("usage calendar", () => {
   it("lays days into Monday-first weeks and leaves days outside the window empty", () => {
     const days = enumerateDays("2026-09-30", "2026-10-06");
-    const { weeks, months } = buildUsageCalendar(days, [0, 1, 2, 3, 4, 5, 6]);
+    const { weeks, months, peak } = buildUsageCalendar(days, [0, 1, 2, 6, 4, 6, 3]);
 
     expect(weeks.map((week) => week.map((cell) => cell?.day ?? null))).toEqual([
       [null, null, "2026-09-30", "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04"],
       ["2026-10-05", "2026-10-06", null, null, null, null, null],
     ]);
     expect(months).toEqual([{ week: 0, label: "Oct" }]);
+    expect(peak).toEqual({ day: "2026-10-03", index: 3, value: 6, level: 3 });
+    expect(buildUsageCalendar(days, [0, 0, 0, 0, 0, 0, 0]).peak).toBeNull();
   });
 
   it("buckets nonzero days into quartile levels and keeps zero days at level 0", () => {

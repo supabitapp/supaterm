@@ -70,6 +70,10 @@ export function UsageDailyChart({
   const partialIndex = lastInProgress ? chartDays.length - 1 : -1;
   const format = metric === "cost" ? formatUsd : formatTokens;
   const scale = (value: number) => (max === 0 ? 0 : (value / max) * height);
+  const opacityFor = (index: number) => {
+    if (selected >= 0) return selected === index ? 1 : 0.35;
+    return index === partialIndex ? 0.45 : 1;
+  };
 
   return (
     <GestureDetector gesture={gesture}>
@@ -91,17 +95,7 @@ export function UsageDailyChart({
           {chartDays.map((day, index) => (
             <View
               key={day.day}
-              style={{
-                height: scale(day.total),
-                opacity:
-                  selected >= 0
-                    ? selected === index
-                      ? 1
-                      : 0.35
-                    : index === partialIndex
-                      ? 0.45
-                      : 1,
-              }}
+              style={{ height: scale(day.total), opacity: opacityFor(index) }}
               className="flex-1 flex-col-reverse gap-px overflow-hidden rounded-t-sm"
             >
               {day.values

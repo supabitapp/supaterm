@@ -79,19 +79,17 @@ export function UsageChartCard(props: {
     />
   );
   const header =
-    selection === undefined ? (
-      props.title ? (
-        <Text className="text-sm font-supaterm-medium text-foreground">{props.title}</Text>
-      ) : (
-        <UsageSummary merged={merged} metric={metric} />
-      )
-    ) : (
+    selection !== undefined ? (
       <SelectionSummary
         period={selection}
         label={`${formatPeriod(selection.day)}${!isPast24Hours && selection.day === lastDay ? " so far" : ""}`}
         format={format}
         compact={props.title !== undefined}
       />
+    ) : props.title ? (
+      <Text className="text-sm font-supaterm-medium text-foreground">{props.title}</Text>
+    ) : (
+      <UsageSummary merged={merged} metric={metric} />
     );
 
   return (

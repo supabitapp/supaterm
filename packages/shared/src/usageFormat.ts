@@ -139,6 +139,7 @@ export interface UsageCalendarCell {
 export interface UsageCalendar {
   readonly weeks: readonly (readonly (UsageCalendarCell | null)[])[];
   readonly months: readonly { readonly week: number; readonly label: string }[];
+  readonly peak: UsageCalendarCell | null;
 }
 
 const MONDAY_FIRST_WEEKDAY = [6, 0, 1, 2, 3, 4, 5];
@@ -156,11 +157,12 @@ export function buildUsageCalendar(
   values: readonly number[],
 ): UsageCalendar {
   const first = days[0];
-  if (first === undefined) return { weeks: [], months: [] };
+  if (first === undefined) return { weeks: [], months: [], peak: null };
   const lead = MONDAY_FIRST_WEEKDAY[new Date(`${first}T00:00:00Z`).getUTCDay()] ?? 0;
   const cutoffs = quartileCutoffs(values);
   const weeks: (UsageCalendarCell | null)[][] = [];
   const months: { week: number; label: string }[] = [];
+  let peak: UsageCalendarCell | null = null;
   for (let slot = 0; slot < lead + days.length; slot += 1) {
     const week = Math.floor(slot / 7);
     const cells = (weeks[week] ??= Array.from({ length: 7 }, () => null));
@@ -172,12 +174,18 @@ export function buildUsageCalendar(
       value > 0
         ? ((1 + cutoffs.filter((cutoff) => value > cutoff).length) as UsageCalendarLevel)
         : 0;
-    cells[slot % 7] = { day, index, value, level };
+    const cell = { day, index, value, level };
+    cells[slot % 7] = cell;
+    if (value > (peak?.value ?? 0)) peak = cell;
     if (index === 0 || day.endsWith("-01")) {
       months.push({ week, label: formatDayShort(day).split(" ")[0] ?? "" });
     }
   }
-  return { weeks, months: months.filter((month, i) => months[i + 1]?.week !== month.week) };
+  return {
+    weeks,
+    months: months.filter((month, i) => months[i + 1]?.week !== month.week),
+    peak,
+  };
 }
 
 export function periodAverage(totals: readonly number[], lastInProgress: boolean): number {

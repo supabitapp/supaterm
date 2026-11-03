@@ -40,10 +40,6 @@ export function UsageCalendarHeatmap({
   const [active, setActive] = useState<number | null>(null);
   const totals = columns.map((column) => column.total);
   const calendar = buildUsageCalendar(days, totals);
-  const peak = totals.reduce(
-    (best, total, index) => (total > (totals[best] ?? 0) ? index : best),
-    0,
-  );
   const average = periodAverage(totals, true);
   const lastIndex = days.length - 1;
 
@@ -51,12 +47,8 @@ export function UsageCalendarHeatmap({
     const column = columns[index];
     const day = days[index];
     if (column === undefined || day === undefined) return "";
-    const split = providers
-      .map((provider) => ({
-        provider,
-        value: column.bands.find((band) => band.provider === provider)?.value ?? 0,
-      }))
-      .filter((band) => band.value > 0)
+    const split = column.bands
+      .filter((band) => band.value > 0 && providers.includes(band.provider))
       .map((band) => `${PROVIDER_PRESENTATION[band.provider].label} ${format(band.value)}`);
     return [
       `${formatDayShort(day)}${index === lastIndex ? " so far" : ""}`,
@@ -64,18 +56,18 @@ export function UsageCalendarHeatmap({
       ...split,
     ].join(" · ");
   };
+  const { peak } = calendar;
+  const emptySummary = loading ? "" : "No activity in this window";
   const summary =
-    (totals[peak] ?? 0) > 0
-      ? [
-          `Highest ${formatDayShort(days[peak] ?? "")}`,
-          format(totals[peak] ?? 0),
+    peak === null
+      ? emptySummary
+      : [
+          `Highest ${formatDayShort(peak.day)}`,
+          format(peak.value),
           average > 0 ? `${format(average)} a day on average` : undefined,
         ]
           .filter(Boolean)
-          .join(" · ")
-      : loading
-        ? ""
-        : "No activity in this window";
+          .join(" · ");
 
   const move = (event: React.KeyboardEvent<HTMLDivElement>) => {
     const step = { ArrowLeft: -7, ArrowRight: 7, ArrowUp: -1, ArrowDown: 1 }[event.key];

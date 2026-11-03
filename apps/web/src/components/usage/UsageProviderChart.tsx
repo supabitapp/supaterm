@@ -48,6 +48,10 @@ export interface DayColumn {
   readonly total: number;
 }
 
+function bandValue(column: DayColumn | undefined, provider: UsageProviderKind) {
+  return column?.bands.find((band) => band.provider === provider)?.value ?? 0;
+}
+
 function valueFor(
   totals: DailyTotals | HourlyTotals | undefined,
   provider: UsageProviderKind,
@@ -114,7 +118,7 @@ function stackedBars(
   return columns.map((column, index) => {
     let base = 0;
     const segments = series.flatMap((provider) => {
-      const value = column.bands.find((band) => band.provider === provider)?.value ?? 0;
+      const value = bandValue(column, provider);
       if (value <= 0) return [];
       const top = valueToY(base + value, max);
       const segment = { provider, y: top, height: valueToY(base, max) - top };
@@ -169,7 +173,7 @@ function UsageChartTooltip({
                 loadingProviders.has(provider) ? "text-muted-foreground" : "text-foreground",
               )}
             >
-              {format(column?.bands.find((band) => band.provider === provider)?.value ?? 0)}
+              {format(bandValue(column, provider))}
             </span>
           </div>
         );
@@ -324,10 +328,7 @@ export function UsageProviderChart({
   const columns = buildPeriodColumns(periods, byPeriod, metric);
   const scale = chartScale(columns, loadingProviders);
   const seriesTotal = (provider: UsageProviderKind) =>
-    columns.reduce(
-      (sum, column) => sum + (column.bands.find((band) => band.provider === provider)?.value ?? 0),
-      0,
-    );
+    columns.reduce((sum, column) => sum + bandValue(column, provider), 0);
   const series = providers.toSorted((a, b) => seriesTotal(b) - seriesTotal(a));
   const bars = stackedBars(columns, series, scale.max);
   const lastInProgress = resolution === "day";

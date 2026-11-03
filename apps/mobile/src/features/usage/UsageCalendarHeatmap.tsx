@@ -33,18 +33,15 @@ export function UsageCalendarHeatmap({
   const calendar = buildUsageCalendar(days, totals);
   const lastIndex = days.length - 1;
   const format = metric === "cost" ? formatUsd : formatTokens;
-  const peak = totals.reduce(
-    (best, total, index) => (total > (totals[best] ?? 0) ? index : best),
-    0,
-  );
+  const { peak } = calendar;
 
   return (
     <View
       className="gap-1"
       accessibilityLabel={
-        (totals[peak] ?? 0) > 0
-          ? `Highest ${formatDayShort(days[peak] ?? "")}, ${format(totals[peak] ?? 0)}`
-          : "No activity in this window"
+        peak === null
+          ? "No activity in this window"
+          : `Highest ${formatDayShort(peak.day)}, ${format(peak.value)}`
       }
     >
       <View className="flex-row gap-1 pl-7">
