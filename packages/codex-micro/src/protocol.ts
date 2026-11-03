@@ -193,22 +193,6 @@ export const KEY_ACT_RELEASE = 0;
 export const KEY_ACT_PRESS = 1;
 export const KEY_ACT_ROTATE = 2;
 
-export const FILE_READ_METHOD = "fs.readbin";
-export const KEYMAP_FILE = "keymap.json";
-
-const FileChunk = Schema.Struct({ data: Schema.String, total_size: Schema.Number });
-export const decodeFileChunk = Schema.decodeUnknownOption(FileChunk);
-
-/** The firmware lights and reports a key as an agent key only where the keymap says so. */
-export function mappedAgentKeyCount(keymap: string): number | undefined {
-  try {
-    JSON.parse(keymap);
-  } catch {
-    return undefined;
-  }
-  return CODEX_MICRO_AGENT_KEYS.filter((key) => keymap.includes(`KV_OAI_${key}`)).length;
-}
-
 export const isAgentKey = Schema.is(CodexMicroAgentKey);
 const isActionSlot = Schema.is(CodexMicroActionSlot);
 

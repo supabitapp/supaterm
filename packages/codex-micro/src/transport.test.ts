@@ -78,24 +78,14 @@ const makeFakeHandle = Effect.gen(function* () {
 });
 
 describe("makeConnection", () => {
-  it.effect("frames a request and resolves the response with the same id", () =>
+  it.effect("frames a request and resolves only the response to it", () =>
     Effect.gen(function* () {
       const device = yield* makeFakeHandle;
       const connection = yield* makeConnection(device.handle, USB_DEVICE);
       const fiber = yield* connection.request("device.status").pipe(Effect.forkChild);
       const sent = yield* Queue.take(device.sent);
       assert.deepStrictEqual(sent, { method: "device.status", params: null, id: sent.id });
-      device.reply(`{"id":${sent.id},"result":{"battery":50}}`);
-      assert.deepStrictEqual(yield* Fiber.join(fiber), { battery: 50 });
-    }),
-  );
-
-  it.effect("ignores another host app's reply that reuses the request id", () =>
-    Effect.gen(function* () {
-      const device = yield* makeFakeHandle;
-      const connection = yield* makeConnection(device.handle, USB_DEVICE);
-      const fiber = yield* connection.request("device.status").pipe(Effect.forkChild);
-      const sent = yield* Queue.take(device.sent);
+      // Another host app's reply that happens to reuse our id.
       device.reply(`{"id":${sent.id},"method":"v.oai.thstatus","result":{"ok":1}}`);
       device.reply(`{"id":${sent.id},"method":"device.status","result":{"battery":50}}`);
       assert.deepStrictEqual(yield* Fiber.join(fiber), { battery: 50 });

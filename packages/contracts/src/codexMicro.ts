@@ -322,7 +322,9 @@ export const CodexMicroDeviceState = Schema.Struct({
   firmwareVersion: Schema.NullOr(Schema.String),
   inputMonitoring: CodexMicroPermissionStatus,
   /** How many agent keys the keyboard's keymap maps; null until it has been read. */
-  mappedAgentKeys: Schema.NullOr(Schema.Number),
+  mappedAgentKeys: Schema.NullOr(
+    Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: CODEX_MICRO_SLOT_COUNT })),
+  ),
 });
 export type CodexMicroDeviceState = typeof CodexMicroDeviceState.Type;
 

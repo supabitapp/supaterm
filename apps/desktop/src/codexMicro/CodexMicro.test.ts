@@ -203,7 +203,7 @@ const makeHarness = Effect.gen(function* () {
     const startup = yield* takeRequests(4);
     assert.deepStrictEqual(
       startup.map((request) => request.method),
-      ["v.oai.rgbcfg", "v.oai.thstatus", "device.status", "fs.readbin"],
+      ["v.oai.rgbcfg", "v.oai.thstatus", "device.status", "fs.list"],
     );
     yield* awaitState((state) => state.status === "connected" && state.battery !== null);
   });
@@ -255,32 +255,26 @@ describe("CodexMicro", () => {
     }),
   );
 
-  it.effect("counts the agent keys the keyboard's keymap maps", () =>
+  it.effect("reports mapped agent keys and picks up a rewritten keymap", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness;
       harness.transport.setDevices([USB]);
-      const keymap = new TextEncoder().encode(
-        JSON.stringify({
-          profiles: [
-            { layers: [{ layout: { keymap: [["KV_OAI_AG00", "KC_A", "KV_OAI_ACT06"]] } }] },
-            { layers: [{ layout: { keymap: [["KV_OAI_AG03", "KV_OAI_AG00"]] } }] },
-          ],
-        }),
-      );
+      const keymapWith = (keycodes: ReadonlyArray<string>) =>
+        JSON.stringify({ profiles: [{ layers: [{ layout: { keymap: [keycodes] } }] }] });
+      let keymap = keymapWith(["KC_A", "KC_B"]);
       harness.transport.respond((request) => {
+        if (request.method === "fs.list") {
+          return Effect.succeed([{ name: "keymap.json", size: keymap.length, checksum: keymap }]);
+        }
         if (request.method !== "fs.readbin") return undefined;
-        const { file, offset } = request.params as { file: string; offset: number };
-        if (file !== "keymap.json") return Effect.succeed(null);
-        // The firmware may answer with less than was asked for.
-        const data = keymap.subarray(offset, offset + 16);
-        return Effect.succeed({
-          data: Buffer.from(data).toString("base64"),
-          total_size: keymap.length,
-        });
+        return Effect.succeed({ data: Buffer.from(keymap).toString("base64") });
       });
       yield* harness.codexMicro.configure(settings());
-      const { state } = yield* harness.awaitState((next) => next.mappedAgentKeys !== null);
-      assert.strictEqual(state.mappedAgentKeys, 2);
+      yield* harness.awaitState((state) => state.mappedAgentKeys === 0);
+
+      keymap = keymapWith(["KV_OAI_AG00", "KV_OAI_AG01", "KV_OAI_AG02"]);
+      yield* TestClock.adjust(Duration.seconds(60));
+      yield* harness.awaitState((state) => state.mappedAgentKeys === 3);
     }),
   );
 
