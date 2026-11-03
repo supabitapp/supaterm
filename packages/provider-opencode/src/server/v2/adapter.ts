@@ -87,7 +87,7 @@ import {
 import * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAdapter";
 import { turnScopedSelectionTransition } from "@supaterm/provider-core/server/selectionTransition";
 import { OPENCODE_PROVIDER, openCodePermissionRequestKind } from "../adapter.ts";
-import { openCodeToolTurnItem } from "../toolItems.ts";
+import { openCodeCommandFailed, openCodeToolTurnItem } from "../toolItems.ts";
 
 const OpenCode2ProviderCapabilities = {
   sessions: {
@@ -1021,12 +1021,16 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       const startedAt = turn.startedAt.get(id) ?? updatedAt;
       const completedAt = status === "running" ? null : updatedAt;
       const nativeId = `${turn.scope}${id}`;
-      yield* emitNode(state, turn, nativeId, "tool_call", status, startedAt, completedAt);
+      const done =
+        status === "completed" && openCodeCommandFailed(tool.name, result?.metadata)
+          ? "failed"
+          : status;
+      yield* emitNode(state, turn, nativeId, "tool_call", done, startedAt, completedAt);
       yield* emit({
         type: "turn_item.updated",
         driver,
         turnItem: openCodeToolTurnItem(
-          itemBase(state, turn, nativeId, status, startedAt, completedAt, updatedAt),
+          itemBase(state, turn, nativeId, done, startedAt, completedAt, updatedAt),
           {
             name: tool.name,
             input: tool.input,
