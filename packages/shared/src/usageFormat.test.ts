@@ -2,7 +2,14 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 import type { UsageSource } from "@supaterm/contracts";
 
-import { formatHourShort, makeWindow, usageSourceMessages } from "./usageFormat.ts";
+import {
+  buildUsageCalendar,
+  enumerateDays,
+  formatHourShort,
+  makeWindow,
+  periodAverage,
+  usageSourceMessages,
+} from "./usageFormat.ts";
 
 function malformedSource(count: number, overrides: Partial<UsageSource> = {}): UsageSource {
   return {
@@ -175,5 +182,58 @@ describe("hourly usage formatting", () => {
     } finally {
       resolvedOptions.mockRestore();
     }
+  });
+});
+
+describe("usage calendar", () => {
+  it("lays days into Monday-first weeks and leaves days outside the window empty", () => {
+    const days = enumerateDays("2026-09-30", "2026-10-06");
+    const { weeks, months, peak } = buildUsageCalendar(days, [0, 1, 2, 6, 4, 6, 3]);
+
+    expect(weeks.map((week) => week.map((cell) => cell?.day ?? null))).toEqual([
+      [null, null, "2026-09-30", "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04"],
+      ["2026-10-05", "2026-10-06", null, null, null, null, null],
+    ]);
+    expect(months).toEqual([{ week: 0, label: "Oct" }]);
+    expect(peak).toEqual({ day: "2026-10-03", index: 3, value: 6, level: 3 });
+    expect(buildUsageCalendar(days, [0, 0, 0, 0, 0, 0, 0]).peak).toBeNull();
+
+    const quarter = enumerateDays("2026-08-06", "2026-11-03");
+    expect(buildUsageCalendar(quarter, []).months).toEqual([
+      { week: 0, label: "Aug" },
+      { week: 4, label: "Sep" },
+      { week: 8, label: "Oct" },
+      { week: 12, label: "Nov" },
+    ]);
+  });
+
+  it("buckets nonzero days into quartile levels and keeps zero days at level 0", () => {
+    const days = enumerateDays("2026-10-05", "2026-10-13");
+    const { weeks } = buildUsageCalendar(days, [0, 1, 2, 3, 4, 5, 6, 7, 800]);
+
+    expect(weeks.flat().map((cell) => cell?.level ?? null)).toEqual([
+      0,
+      1,
+      1,
+      1,
+      2,
+      2,
+      3,
+      3,
+      4,
+      null,
+      null,
+      null,
+      null,
+      null,
+    ]);
+  });
+});
+
+describe("period average", () => {
+  it("leaves out today but keeps the last hour, which already ended", () => {
+    expect(periodAverage([10, 20, 30, 1], true)).toBe(20);
+    expect(periodAverage([5], true)).toBe(0);
+    expect(periodAverage([0, 0, 2400], false)).toBe(800);
   });
 });

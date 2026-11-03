@@ -127,6 +127,72 @@ export function enumerateDays(sinceDay: string, untilDay: string): readonly stri
   return days;
 }
 
+export type UsageCalendarLevel = 0 | 1 | 2 | 3 | 4;
+
+export interface UsageCalendarCell {
+  readonly day: string;
+  readonly index: number;
+  readonly value: number;
+  readonly level: UsageCalendarLevel;
+}
+
+export interface UsageCalendar {
+  readonly weeks: readonly (readonly (UsageCalendarCell | null)[])[];
+  readonly months: readonly { readonly week: number; readonly label: string }[];
+  readonly peak: UsageCalendarCell | null;
+}
+
+const MONDAY_FIRST_WEEKDAY = [6, 0, 1, 2, 3, 4, 5];
+
+function quartileCutoffs(values: readonly number[]): readonly number[] {
+  const sorted = values.filter((value) => value > 0).sort((a, b) => a - b);
+  if (sorted.length === 0) return [];
+  return [0.25, 0.5, 0.75].map(
+    (share) => sorted[Math.min(sorted.length - 1, Math.floor(share * sorted.length))] ?? 0,
+  );
+}
+
+export function buildUsageCalendar(
+  days: readonly string[],
+  values: readonly number[],
+): UsageCalendar {
+  const first = days[0];
+  if (first === undefined) return { weeks: [], months: [], peak: null };
+  const lead = MONDAY_FIRST_WEEKDAY[new Date(`${first}T00:00:00Z`).getUTCDay()] ?? 0;
+  const cutoffs = quartileCutoffs(values);
+  const weeks: (UsageCalendarCell | null)[][] = [];
+  const months: { week: number; label: string }[] = [];
+  let peak: UsageCalendarCell | null = null;
+  for (let slot = 0; slot < lead + days.length; slot += 1) {
+    const week = Math.floor(slot / 7);
+    const cells = (weeks[week] ??= Array.from({ length: 7 }, () => null));
+    const index = slot - lead;
+    const day = days[index];
+    if (day === undefined) continue;
+    const value = values[index] ?? 0;
+    const level =
+      value > 0
+        ? ((1 + cutoffs.filter((cutoff) => value > cutoff).length) as UsageCalendarLevel)
+        : 0;
+    const cell = { day, index, value, level };
+    cells[slot % 7] = cell;
+    if (value > (peak?.value ?? 0)) peak = cell;
+    if (index === 0 || day.endsWith("-01")) {
+      months.push({ week, label: formatDayShort(day).split(" ")[0] ?? "" });
+    }
+  }
+  return {
+    weeks,
+    months: months.filter((month, i) => months[i + 1]?.week !== month.week),
+    peak,
+  };
+}
+
+export function periodAverage(totals: readonly number[], lastInProgress: boolean): number {
+  const settled = lastInProgress ? totals.slice(0, -1) : totals;
+  return settled.length === 0 ? 0 : settled.reduce((sum, total) => sum + total, 0) / settled.length;
+}
+
 const HOUR_MS = 60 * 60 * 1000;
 
 const dateTimeFormatters = new Map<string, Intl.DateTimeFormat>();
