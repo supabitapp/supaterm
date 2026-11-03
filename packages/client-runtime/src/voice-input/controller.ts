@@ -495,12 +495,7 @@ export class VoiceInputController {
         );
         return;
       }
-      if (result.kind === "empty") {
-        this.setError("No speech was detected.", "retry");
-        return;
-      }
-
-      this.dependencies.commitDraft(result.text, result.selection);
+      if (result.kind === "commit") this.dependencies.commitDraft(result.text, result.selection);
       this.setState(IDLE_STATE);
     } catch {
       if (this.isCurrent(operationToken)) {

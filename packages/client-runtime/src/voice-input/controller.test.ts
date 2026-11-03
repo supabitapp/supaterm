@@ -738,6 +738,17 @@ describe("VoiceInputController", () => {
       ["start", "stop", "error"],
     ],
     [
+      "a recording with no speech",
+      {
+        getTranscriber: () => ({ prepare: async () => preparedTranscription(async () => " ") }),
+      },
+      async ({ controller }: ReturnType<typeof createHarness>) => {
+        await controller.start();
+        await controller.stop();
+      },
+      ["start", "stop"],
+    ],
+    [
       "an interrupted recording",
       {},
       async ({ controller }: ReturnType<typeof createHarness>) => {
