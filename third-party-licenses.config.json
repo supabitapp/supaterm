@@ -965,6 +965,79 @@
       "name": "iobuffer",
       "license": "MIT",
       "sourceUrl": "https://github.com/image-js/iobuffer"
+    },
+    {
+      "name": "react-native-skia-android",
+      "license": "MIT AND BSD-3-Clause",
+      "sourceUrl": "https://github.com/wcandillon/react-native-skia-binaries",
+      "generatedNotices": [
+        {
+          "licenseId": "MIT",
+          "copyrights": ["Copyright (c) 2024 William Candillon"]
+        },
+        {
+          "licenseId": "BSD-3-Clause",
+          "preamble": ["Prebuilt binaries of Skia (https://skia.org)."],
+          "copyrights": ["Copyright (c) 2011 Google Inc. All rights reserved."]
+        }
+      ]
+    },
+    {
+      "name": "react-native-skia-apple-ios",
+      "license": "MIT AND BSD-3-Clause",
+      "sourceUrl": "https://github.com/wcandillon/react-native-skia-binaries",
+      "generatedNotices": [
+        {
+          "licenseId": "MIT",
+          "copyrights": ["Copyright (c) 2024 William Candillon"]
+        },
+        {
+          "licenseId": "BSD-3-Clause",
+          "preamble": ["Prebuilt binaries of Skia (https://skia.org)."],
+          "copyrights": ["Copyright (c) 2011 Google Inc. All rights reserved."]
+        }
+      ]
+    },
+    {
+      "name": "react-native-skia-apple-macos",
+      "license": "MIT AND BSD-3-Clause",
+      "sourceUrl": "https://github.com/wcandillon/react-native-skia-binaries",
+      "generatedNotices": [
+        {
+          "licenseId": "MIT",
+          "copyrights": ["Copyright (c) 2024 William Candillon"]
+        },
+        {
+          "licenseId": "BSD-3-Clause",
+          "preamble": ["Prebuilt binaries of Skia (https://skia.org)."],
+          "copyrights": ["Copyright (c) 2011 Google Inc. All rights reserved."]
+        }
+      ]
+    },
+    {
+      "name": "react-native-skia-apple-tvos",
+      "license": "MIT AND BSD-3-Clause",
+      "sourceUrl": "https://github.com/wcandillon/react-native-skia-binaries",
+      "generatedNotices": [
+        {
+          "licenseId": "MIT",
+          "copyrights": ["Copyright (c) 2024 William Candillon"]
+        },
+        {
+          "licenseId": "BSD-3-Clause",
+          "preamble": ["Prebuilt binaries of Skia (https://skia.org)."],
+          "copyrights": ["Copyright (c) 2011 Google Inc. All rights reserved."]
+        }
+      ]
+    },
+    {
+      "name": "victory-native",
+      "license": "MIT",
+      "sourceUrl": "https://github.com/FormidableLabs/victory-native-xl",
+      "generatedNotice": {
+        "licenseId": "MIT",
+        "copyrights": ["Copyright (c) 2015-2026 Nearform."]
+      }
     }
   ]
 }

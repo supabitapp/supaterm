@@ -74,6 +74,7 @@
     "react-dom": "catalog:",
     "react-markdown": "^10.1.0",
     "react-resizable-panels": "^4.14.4",
+    "recharts": "3.10.1",
     "remark-gfm": "catalog:",
     "remark-math": "6.0.0",
     "remark-parse": "catalog:",
