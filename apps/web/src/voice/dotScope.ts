@@ -17,9 +17,11 @@ const HISTORY_SPEED = 150;
 const AUTO_RELEASE = 3;
 const NOISE_FLOOR = -60;
 
-const DOT_SCOPE_COLUMNS = 33;
-const DOT_SCOPE_ROWS = 9;
-const DOT_SCOPE_PITCH = 2.6;
+const COLUMNS = 33;
+const ROWS = 9;
+const PITCH = 2.6;
+const DOTS = COLUMNS * ROWS;
+const SAMPLES = (COLUMNS - 1) * SAMPLES_PER_COLUMN + 1;
 export const DOT_SCOPE_WIDTH = 90;
 export const DOT_SCOPE_HEIGHT = 26;
 
@@ -29,6 +31,8 @@ const smoothstep = (a: number, b: number, x: number) => {
 };
 
 const bump = (d: number, w: number) => Math.exp(-((d / w) * (d / w)));
+
+const pair = (length: number) => [new Float32Array(length), new Float32Array(length)] as const;
 
 const follow = (value: number, target: number, time: number, h: number) =>
   value + (target - value) * (1 - Math.exp(-h / time));
@@ -130,10 +134,10 @@ class Trace {
  * fixed 240 Hz so every frame rate draws the same picture. `still` holds the braid for reduced motion.
  */
 export class DotScope {
-  readonly columns = DOT_SCOPE_COLUMNS;
-  readonly rows = DOT_SCOPE_ROWS;
+  readonly columns = COLUMNS;
+  readonly rows = ROWS;
   /** Each dot's (brightness, freshness), row by row. */
-  readonly dots = new Float32Array(DOT_SCOPE_COLUMNS * DOT_SCOPE_ROWS * 2);
+  readonly dots = new Float32Array(DOTS * 2);
   live = 0;
   grid = 0;
   private readonly auto = new AutoLevel();
@@ -142,20 +146,10 @@ export class DotScope {
     new Trace([0.1, 1.7, 3.3, 4.6]),
     new Trace([2.4, 0.6, 5.1, 1.9]),
   ] as const;
-  private readonly samples = (DOT_SCOPE_COLUMNS - 1) * SAMPLES_PER_COLUMN + 1;
-  private readonly ys = [new Float32Array(this.samples), new Float32Array(this.samples)] as const;
-  private readonly brightness = [
-    new Float32Array(this.samples),
-    new Float32Array(this.samples),
-  ] as const;
-  private readonly heads = [
-    new Float32Array(DOT_SCOPE_COLUMNS * DOT_SCOPE_ROWS),
-    new Float32Array(DOT_SCOPE_COLUMNS * DOT_SCOPE_ROWS),
-  ] as const;
-  private readonly tails = [
-    new Float32Array(DOT_SCOPE_COLUMNS * DOT_SCOPE_ROWS),
-    new Float32Array(DOT_SCOPE_COLUMNS * DOT_SCOPE_ROWS),
-  ] as const;
+  private readonly ys = pair(SAMPLES);
+  private readonly brightness = pair(SAMPLES);
+  private readonly heads = pair(DOTS);
+  private readonly tails = pair(DOTS);
   private carrier = 0;
   private time = 0;
   private steps = 0;
@@ -189,20 +183,20 @@ export class DotScope {
   }
 
   private beam(hb: number): void {
-    const { columns, rows, samples } = this;
+    const { columns, rows, time } = this;
+    const samples = SAMPLES;
     const sub = SAMPLES_PER_COLUMN;
     const width = DOT_SCOPE_WIDTH;
     const halfWidth = width / 2;
-    const e = this.time;
-    this.grid = this.still ? 1 : Math.min(1, e / 0.3);
+    this.grid = this.still ? 1 : Math.min(1, time / 0.3);
     const reach = this.still
       ? 1e4
-      : (halfWidth + 12) * (0.5 - 0.5 * Math.cos(Math.PI * Math.min(1, e / ENTER)));
-    const scanner = this.still ? 0 : 2.8 * (1 - smoothstep(0.08, ENTER, e));
-    const unfold = this.still ? 1 : smoothstep(0, 0.1, e);
+      : (halfWidth + 12) * (0.5 - 0.5 * Math.cos(Math.PI * Math.min(1, time / ENTER)));
+    const scanner = this.still ? 0 : 2.8 * (1 - smoothstep(0.08, ENTER, time));
+    const unfold = this.still ? 1 : smoothstep(0, 0.1, time);
     const mid = (rows - 1) / 2;
     const half = mid - 0.55;
-    const breath = this.still ? 0.5 : 0.5 + 0.5 * Math.sin((this.time * TAU) / BREATH_PERIOD);
+    const breath = this.still ? 0.5 : 0.5 + 0.5 * Math.sin((time * TAU) / BREATH_PERIOD);
     const rest = (0.55 + 0.35 * breath) * (0.4 + 0.6 * this.live);
     for (let k = 0; k < 2; k++) {
       const trace = this.traces[k]!;
@@ -210,7 +204,7 @@ export class DotScope {
       const ys = this.ys[k]!;
       const brightness = this.brightness[k]!;
       for (let s = 0; s < samples; s++) {
-        const x = (s / sub - (columns - 1) / 2) * DOT_SCOPE_PITCH;
+        const x = (s / sub - (columns - 1) / 2) * PITCH;
         const own = Math.abs(x);
         if (own > halfWidth) {
           ys[s] = mid;
@@ -315,7 +309,6 @@ export function paintDotScope(
   const { columns, rows, dots } = scope;
   const halfX = DOT_SCOPE_WIDTH / 2;
   const halfY = DOT_SCOPE_HEIGHT / 2;
-  const pitch = DOT_SCOPE_PITCH;
   const unlit = dark ? 0.07 : 0.085;
   const full = dark ? 0.96 : 1;
   const curve = dark ? 0.9 : 0.75;
@@ -329,11 +322,11 @@ export function paintDotScope(
     context.fill();
   };
   for (let j = 0; j < rows; j++) {
-    const y = (j - (rows - 1) / 2) * pitch;
+    const y = (j - (rows - 1) / 2) * PITCH;
     const row = Math.abs(y) / halfY;
     const floor = unlit * (1 - 0.7 * smoothstep(0.35, 0.95, row)) * presence * scope.grid;
     for (let i = 0; i < columns; i++) {
-      const x = (i - (columns - 1) / 2) * pitch;
+      const x = (i - (columns - 1) / 2) * PITCH;
       const mask = smoothstep(1.4, 4.6, -roundedBox(x, y, halfX, halfY, halfY));
       if (mask <= 0) continue;
       const n = j * columns + i;
@@ -343,7 +336,7 @@ export function paintDotScope(
       const radius =
         (0.25 + 0.17 * power ** 0.6) *
         (1 - (0.18 - 0.18 * fresh) * smoothstep(0.03, 0.2, power)) *
-        pitch;
+        PITCH;
       const core = Math.min(0.9, power * power * 1.1) * (0.3 + 0.7 * fresh);
       const tone = 0.7 + 0.3 * core;
       if (power > 0.05) fill(x, y, radius * 2, 0.132 * power * power * mask * tone);
