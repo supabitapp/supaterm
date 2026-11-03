@@ -6,6 +6,7 @@ import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as Queue from "effect/Queue";
+import * as Random from "effect/Random";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 import * as Semaphore from "effect/Semaphore";
@@ -16,6 +17,7 @@ import {
   CODEX_MICRO_USAGE_PAGE,
   CODEX_MICRO_VENDOR_ID,
   CodexMicroReportDecoder,
+  REQUEST_ID_RANGE,
   encodeRequest,
   frameMessage,
   nextRequestId,
@@ -211,8 +213,13 @@ export const makeConnection = Effect.fnUntraced(function* (
   const events = yield* Queue.unbounded<CodexMicroDeviceEvent>();
   const disconnected = yield* Deferred.make<void>();
   const permits = yield* Semaphore.make(1);
-  const pending = new Map<string, Deferred.Deferred<ResponseBody>>();
-  let previousId = -1;
+  const pending = new Map<
+    string,
+    { readonly method: string; readonly response: Deferred.Deferred<ResponseBody> }
+  >();
+  // Another host app on the keyboard sees our replies and we see its; a random
+  // start keeps both from counting up through the same ids.
+  let previousId = yield* Random.nextIntBetween(0, REQUEST_ID_RANGE, { halfOpen: true });
 
   handle.onData((report) => {
     for (const event of decoder.push(report)) {
@@ -225,10 +232,12 @@ export const makeConnection = Effect.fnUntraced(function* (
           params: event.message.params,
         });
       } else {
-        const response = pending.get(event.message.id);
-        if (response === undefined) continue;
+        const waiting = pending.get(event.message.id);
+        if (waiting === undefined) continue;
+        const { method } = event.message.body;
+        if (method !== undefined && method !== waiting.method) continue;
         pending.delete(event.message.id);
-        Deferred.doneUnsafe(response, Exit.succeed(event.message.body));
+        Deferred.doneUnsafe(waiting.response, Exit.succeed(event.message.body));
       }
     }
   });
@@ -242,7 +251,7 @@ export const makeConnection = Effect.fnUntraced(function* (
     const id = previousId;
     const key = String(id);
     const response = yield* Deferred.make<ResponseBody>();
-    pending.set(key, response);
+    pending.set(key, { method, response });
     return yield* Effect.gen(function* () {
       yield* Effect.forEach(
         frameMessage(encodeRequest({ method, params, id })),

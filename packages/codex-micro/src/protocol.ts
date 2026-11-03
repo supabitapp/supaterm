@@ -20,7 +20,7 @@ const REPORT_HEADER_SIZE = 3;
 const MAX_FRAGMENT_BYTES = REPORT_SIZE - REPORT_HEADER_SIZE;
 const DEBUG_CHANNEL = 1;
 const RPC_CHANNEL = 2;
-const REQUEST_ID_RANGE = 999;
+export const REQUEST_ID_RANGE = 999;
 // A corrupt fragment would otherwise keep every later line buffered behind it.
 const MAX_BUFFERED_CHARS = 64 * 1024;
 

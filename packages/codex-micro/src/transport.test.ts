@@ -84,8 +84,20 @@ describe("makeConnection", () => {
       const connection = yield* makeConnection(device.handle, USB_DEVICE);
       const fiber = yield* connection.request("device.status").pipe(Effect.forkChild);
       const sent = yield* Queue.take(device.sent);
-      assert.deepStrictEqual(sent, { method: "device.status", params: null, id: 0 });
-      device.reply('{"id":0,"result":{"battery":50}}');
+      assert.deepStrictEqual(sent, { method: "device.status", params: null, id: sent.id });
+      device.reply(`{"id":${sent.id},"result":{"battery":50}}`);
+      assert.deepStrictEqual(yield* Fiber.join(fiber), { battery: 50 });
+    }),
+  );
+
+  it.effect("ignores another host app's reply that reuses the request id", () =>
+    Effect.gen(function* () {
+      const device = yield* makeFakeHandle;
+      const connection = yield* makeConnection(device.handle, USB_DEVICE);
+      const fiber = yield* connection.request("device.status").pipe(Effect.forkChild);
+      const sent = yield* Queue.take(device.sent);
+      device.reply(`{"id":${sent.id},"method":"v.oai.thstatus","result":{"ok":1}}`);
+      device.reply(`{"id":${sent.id},"method":"device.status","result":{"battery":50}}`);
       assert.deepStrictEqual(yield* Fiber.join(fiber), { battery: 50 });
     }),
   );
@@ -103,7 +115,11 @@ describe("makeConnection", () => {
       assert.isTrue(Option.isNone(yield* Queue.poll(device.sent)));
       yield* TestClock.adjust(Duration.millis(50));
       const secondSent = yield* Queue.take(device.sent);
-      assert.deepStrictEqual(secondSent, { method: "v.oai.thstatus", params: [1], id: 1 });
+      assert.deepStrictEqual(secondSent, {
+        method: "v.oai.thstatus",
+        params: [1],
+        id: secondSent.id,
+      });
       device.reply(`{"i":${secondSent.id},"result":true}`);
       assert.strictEqual(yield* Fiber.join(second), true);
     }),
