@@ -893,9 +893,13 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
   const floatingStatus = deriveFloatingStatus(contentPresentationKind === "ready");
   const showWorkingControl = floatingStatus !== null;
   // The pill appears once messages load. Reserving its room while they load lets the feed lay
-  // out once; room that appears mid-load moves the end the feed is settling toward.
+  // out once; room that appears mid-load moves the end the feed is settling toward. A pending
+  // request hides the pill once loaded, so a shell that reports one reserves nothing.
   const reservesStatusRoom =
-    contentPresentationKind === "loading" && deriveFloatingStatus(true) !== null;
+    contentPresentationKind === "loading" &&
+    !props.selectedThread.hasPendingApprovals &&
+    !props.selectedThread.hasPendingUserInput &&
+    deriveFloatingStatus(true) !== null;
   const showFloatingStatus =
     showWorkingControl ||
     reservesStatusRoom ||
