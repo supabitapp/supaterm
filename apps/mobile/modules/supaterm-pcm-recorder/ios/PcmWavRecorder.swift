@@ -44,6 +44,7 @@ final class PcmWavRecorder {
   private var capturing = false
   private var interrupted = false
   private var finished = false
+  private var stopping = false
   private var saveFailed = false
   private var dataBytes = 0
   private var maxBytes = 0
@@ -87,6 +88,7 @@ final class PcmWavRecorder {
   func stop() throws -> [String: Any] {
     // A tap still converting when the engine stops queues its samples behind this; they land first.
     queue.sync {
+      stopping = true
       engine.stop()
       removeTap()
     }
@@ -141,6 +143,7 @@ final class PcmWavRecorder {
 
   /// A new route can change the input format, so the tap is rebuilt for it.
   private func restart() {
+    guard !stopping else { return }
     engine.stop()
     removeTap()
     do {
