@@ -996,7 +996,7 @@ it.effect("a side chat of an idle parent still starts with the framing note", ()
   }).pipe(Effect.provide(forkCases[0]!.layer)),
 );
 
-it.effect("a side chat stays supervised: its runtime mode cannot be raised", () =>
+it.effect("a side chat changes its runtime mode apart from its parent", () =>
   Effect.gen(function* () {
     const orchestrator = yield* Orchestrator.OrchestratorV2;
     const parentId = ThreadId.make("side-chat-mode-parent");
@@ -1011,27 +1011,17 @@ it.effect("a side chat stays supervised: its runtime mode cannot be raised", () 
       stable: true,
     });
     yield* forkSideChat("side-chat-mode-fork", parentId, sideChatId);
-    const setMode = (runtimeMode: "full-access" | "approval-required") =>
+    const setMode = (threadId: ThreadId, runtimeMode: "auto" | "approval-required") =>
       orchestrator.dispatch({
         type: "thread.runtime-mode.set",
-        commandId: CommandId.make(`side-chat-mode:${runtimeMode}`),
-        threadId: sideChatId,
+        commandId: CommandId.make(`side-chat-mode:${threadId}`),
+        threadId,
         runtimeMode,
       });
 
-    const raised = yield* setMode("full-access").pipe(Effect.flip);
-    assert.include(String(raised.cause), "is a side chat");
-    yield* setMode("approval-required");
-    yield* orchestrator.dispatch({
-      type: "thread.runtime-mode.set",
-      commandId: CommandId.make("side-chat-mode:parent"),
-      threadId: parentId,
-      runtimeMode: "auto",
-    });
-    assert.equal(
-      (yield* orchestrator.getThreadProjection(sideChatId)).thread.runtimeMode,
-      "approval-required",
-    );
+    yield* setMode(sideChatId, "auto");
+    yield* setMode(parentId, "approval-required");
+    assert.equal((yield* orchestrator.getThreadProjection(sideChatId)).thread.runtimeMode, "auto");
   }).pipe(Effect.provide(forkCases[0]!.layer)),
 );
 
@@ -1217,7 +1207,6 @@ it.effect("a side chat opened during the parent's first turn starts from a diges
     yield* fork("side-chat-busy-fork", parentId, sideChatId);
     const created = yield* orchestrator.getThreadProjection(sideChatId);
     assert.isTrue(created.thread.lineage.sideChat);
-    assert.equal(created.thread.runtimeMode, "approval-required");
     assert.isNull(created.thread.forkedFrom);
     assert.deepEqual(created.contextTransfers[0]?.sourcePoint, { threadId: parentId });
 

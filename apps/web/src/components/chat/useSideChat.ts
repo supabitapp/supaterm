@@ -83,7 +83,14 @@ export function sendSideChatDraftMessage<A>(input: {
 export function useSideChat(input: {
   readonly parent: Pick<
     EnvironmentThreadShell,
-    "environmentId" | "id" | "projectId" | "branch" | "worktreePath"
+    | "environmentId"
+    | "id"
+    | "projectId"
+    | "branch"
+    | "worktreePath"
+    | "modelSelection"
+    | "runtimeMode"
+    | "interactionMode"
   > | null;
   readonly onError: (message: string) => void;
 }) {
@@ -125,8 +132,8 @@ export function useSideChat(input: {
             threadId,
             message: { messageId: newMessageId(), role: "user", text, attachments: [] },
             titleSeed: deriveThreadTitleSeed({ text, attachments: [] }),
-            runtimeMode: "approval-required",
-            interactionMode: "default",
+            runtimeMode: parent.runtimeMode,
+            interactionMode: parent.interactionMode,
             dispatchMode: "auto",
             createdAt: new Date().toISOString(),
           },

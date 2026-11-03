@@ -958,11 +958,10 @@ export default function ChatView(props: ChatViewProps) {
     localServerError === null && visibleThreadError === serverRuntime?.lastError;
   const defaultRuntimeMode = resolveProjectSettings(settings, activeThread?.projectId ?? null)
     .settings.defaultRuntimeMode;
-  const runtimeMode = isSideChat
-    ? "approval-required"
-    : (composerRuntimeMode ??
-      (isServerThread || pendingThreadCreation ? activeThread?.runtimeMode : undefined) ??
-      defaultRuntimeMode);
+  const runtimeMode =
+    composerRuntimeMode ??
+    (isServerThread || pendingThreadCreation ? activeThread?.runtimeMode : undefined) ??
+    defaultRuntimeMode;
   const isLocalDraftThread =
     !isServerThread && !pendingThreadCreation && localDraftThread !== undefined;
   const canCheckoutPullRequestIntoThread =
@@ -3837,11 +3836,6 @@ export default function ChatView(props: ChatViewProps) {
                                   onOpenProviderSetup={openProviderSetupStable}
                                   getModelDisabledReason={getModelDisabledReason}
                                   handleRuntimeModeChange={handleRuntimeModeChangeStable}
-                                  runtimeModeLockedReason={
-                                    isSideChat
-                                      ? "A side chat asks before it acts. Promote it to choose another mode."
-                                      : null
-                                  }
                                   focusComposer={focusComposerStable}
                                   scheduleComposerFocus={scheduleComposerFocusStable}
                                   setThreadError={setThreadError}

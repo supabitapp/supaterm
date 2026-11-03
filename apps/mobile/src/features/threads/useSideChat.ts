@@ -94,8 +94,6 @@ export async function startSideChat(input: {
         commandId: CommandId.make(metadata.commandId),
         text: input.text,
         attachments: [],
-        runtimeMode: "approval-required",
-        interactionMode: "default",
         createdAt: metadata.createdAt,
       });
     },

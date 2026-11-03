@@ -252,7 +252,7 @@ it.effect("rejects in-progress and rolled-back fork sources", () =>
   }),
 );
 
-it.effect("marks only requested forks as supervised side chats", () =>
+it.effect("marks only requested forks as side chats, which keep the parent's model and modes", () =>
   Effect.gen(function* () {
     const sourceRun = makeSourceRun("completed");
     const source: OrchestrationV2AppThread = {
@@ -271,14 +271,15 @@ it.effect("marks only requested forks as supervised side chats", () =>
     };
     const sideChat = yield* planFork(sourceRun, source, { sideChat: true });
     assert.isTrue(sideChat.targetThread.lineage.sideChat);
-    assert.equal(sideChat.targetThread.runtimeMode, "approval-required");
+    assert.deepEqual(sideChat.targetThread.modelSelection, source.modelSelection);
+    assert.equal(sideChat.targetThread.runtimeMode, source.runtimeMode);
+    assert.equal(sideChat.targetThread.interactionMode, source.interactionMode);
     assert.isNull(sideChat.targetThread.pinnedAt);
     assert.deepEqual(sideChat.targetThread.pinnedMessages, []);
 
     const sideChatSource = { ...source, lineage: { ...source.lineage, sideChat: true } };
     const plainFork = yield* planFork(sourceRun, source);
     assert.isUndefined(plainFork.targetThread.lineage.sideChat);
-    assert.equal(plainFork.targetThread.runtimeMode, "full-access");
 
     const nested = yield* planFork(sourceRun, sideChatSource, { sideChat: true }).pipe(Effect.flip);
     assert.equal(nested.cause, "A side chat cannot start another side chat.");
