@@ -3450,6 +3450,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
               : { pinOrderKey: command.orderKey }),
             doneOverride: thread.doneOverride === "done" ? "active" : thread.doneOverride,
             doneAt: thread.doneOverride === "done" ? null : thread.doneAt,
+            ...(thread.doneOverride === "done" ? { reopenedAt: now } : {}),
             snoozedUntil: null,
             snoozedAt: null,
             lastSnoozeWakeAt: thread.snoozedUntil == null ? thread.lastSnoozeWakeAt : now,
