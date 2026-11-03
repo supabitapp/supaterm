@@ -218,6 +218,7 @@ describe("VoiceInputController", () => {
   });
 
   it.each([
+    [{ text: " " }, { phase: "idle", error: null, errorAction: null }],
     ["audioTooShort", { phase: "idle", error: null, errorAction: null }],
     [
       "rateLimited",
@@ -227,13 +228,15 @@ describe("VoiceInputController", () => {
         errorAction: "retry",
       },
     ],
-  ] as const)("ends a review the environment refused as %s in %j", async (reason, state) => {
+  ] as const)("ends a review the environment answered with %j in %j", async (answer, state) => {
     const harness = createHarness({
       getTranscriber: () =>
         createServerVoiceTranscriber({
           locale: "en-US",
           transcribe: async () => {
-            throw new VoiceUploadError(reason, new TranscriptionError({ reason }).message, false);
+            if (typeof answer !== "string") return answer;
+            const message = new TranscriptionError({ reason: answer }).message;
+            throw new VoiceUploadError(answer, message, false);
           },
         }),
     });
