@@ -68,13 +68,22 @@ describe("stepDictation", () => {
 
 interface Fixture {
   readonly url: string;
-  readonly sessions: Array<{ readonly start: unknown; bytes: number; closed: boolean }>;
+  readonly sessions: Array<{ readonly start: unknown; frames: Array<Buffer>; closed: boolean }>;
   readonly headers: Array<NodeHttp.IncomingHttpHeaders>;
   readonly firstAudio: Deferred.Deferred<void>;
+  readonly firstClosed: Deferred.Deferred<void>;
 }
 
+const sizes = (frames: ReadonlyArray<Buffer>) => frames.map((frame) => frame.byteLength);
+const CLOSING_SILENCE = Buffer.alloc(8_000);
+/** A session's frames without the 250 ms of silence the desktop app ends each one with. */
+const audioOf = (frames: ReadonlyArray<Buffer>) => {
+  expect(frames.at(-1)).toEqual(CLOSING_SILENCE);
+  return Buffer.concat(frames.slice(0, -1));
+};
+
 const withServer = <E>(
-  options: { readonly refuse?: ReadonlyArray<number> },
+  options: { readonly refuse?: ReadonlyArray<number>; readonly stopFirstSession?: boolean },
   use: (fixture: Fixture) => Effect.Effect<void, E>,
 ) => {
   const refusals = [...(options.refuse ?? [])];
@@ -101,10 +110,11 @@ const withServer = <E>(
         sessions: [],
         headers: [],
         firstAudio: Deferred.makeUnsafe(),
+        firstClosed: Deferred.makeUnsafe(),
       };
       server.on("connection", (socket, request) => {
         fixture.headers.push(request.headers);
-        const session = { start: undefined as unknown, bytes: 0, closed: false };
+        const session = { start: undefined as unknown, frames: [] as Array<Buffer>, closed: false };
         fixture.sessions.push(session);
         socket.on("message", (data) => {
           const message = JSON.parse(data.toString()) as { type: string; audio?: string };
@@ -112,10 +122,15 @@ const withServer = <E>(
             Object.assign(session, { start: message });
             socket.send(frame({ type: "session.started", session: { status: "active" } }));
           } else if (message.type === "audio.append") {
-            session.bytes += Buffer.from(message.audio ?? "", "base64").byteLength;
+            session.frames.push(Buffer.from(message.audio ?? "", "base64"));
             Deferred.doneUnsafe(fixture.firstAudio, Effect.void);
+            if (options.stopFirstSession && session === fixture.sessions[0]) {
+              socket.send(frame({ type: "session.stop_requested", grace_period_ms: 1_000 }));
+            }
           } else if (message.type === "session.close") {
             session.closed = true;
+            if (session === fixture.sessions[0])
+              Deferred.doneUnsafe(fixture.firstClosed, Effect.void);
             const part = `part ${fixture.sessions.length}`;
             socket.send(
               frame({ type: "transcript.final", utterance_id: "u", revision: 0, text: part }),
@@ -154,13 +169,34 @@ describe("streamCodexDictation", () => {
           yield* Queue.end(microphone);
 
           expect(yield* Fiber.join(fiber)).toBe("part 1");
-          expect(fixture.sessions[0]).toMatchObject({
-            start: {
-              config: { sample_rate_hz: 16_000, input_audio_format: "pcm16", language: "en" },
+          const [session] = fixture.sessions;
+          expect(session?.start).toEqual({
+            type: "session.start",
+            client_capabilities: ["server_stop_requested"],
+            config: {
+              language: "en",
+              input_audio_format: "pcm16",
+              sample_rate_hz: 16_000,
+              num_channels: 1,
+              max_buffer_size_bytes: 4_194_304,
+              max_utterance_duration_ms: 30_000,
+              session_ttl_ms: 300_000,
+              provider_mode: "streaming_sse",
+              transcript_delivery_mode: "segment",
+              vad: {
+                type: "server_vad",
+                threshold: 0.5,
+                prefix_padding_ms: 300,
+                silence_duration_ms: 500,
+              },
             },
-            bytes: 6_400,
-            closed: true,
           });
+          // The desktop worklet's frames: one 128-sample quantum, then 2048 samples at a time.
+          expect(sizes(session!.frames)).toEqual([256, 4_096, 2_048, 8_000]);
+          expect(audioOf(session!.frames)).toEqual(
+            Buffer.concat([Buffer.alloc(3_200, 1), Buffer.alloc(3_200, 2)]),
+          );
+          expect(session?.closed).toBe(true);
           expect(fixture.headers[0]?.["sec-websocket-protocol"]).toBe(
             "chatgpt-dictation,codex-desktop",
           );
@@ -213,12 +249,41 @@ describe("streamCodexDictation", () => {
           audio: Stream.fromIterable(Array.from({ length: 300 }, () => second)),
         });
         expect(text).toBe("part 1 part 2");
-        expect(fixture.sessions.map((session) => session.bytes)).toEqual([
-          240 * 32_000,
-          60 * 32_000,
-        ]);
+        const [early, late] = fixture.sessions.map((session) => audioOf(session.frames));
+        expect(early!.byteLength).toBeGreaterThanOrEqual(240 * 32_000);
+        expect(early!.byteLength).toBeLessThan(240 * 32_000 + 4_096);
+        expect(early!.byteLength + late!.byteLength).toBe(300 * 32_000);
         expect(fixture.sessions.every((session) => session.closed)).toBe(true);
       }),
     ),
+  );
+
+  it.live(
+    "closes the session the server asks to stop at once, and moves later audio to a new one",
+    () =>
+      withServer({ stopFirstSession: true }, (fixture) =>
+        Effect.gen(function* () {
+          const microphone = yield* Queue.unbounded<Uint8Array, Cause.Done>();
+          const fiber = yield* Effect.forkChild(
+            streamCodexDictation({
+              url: fixture.url,
+              headers,
+              language: undefined,
+              audio: Stream.fromQueue(microphone),
+            }),
+          );
+          yield* Queue.offer(microphone, new Uint8Array(300).fill(3));
+          yield* Deferred.await(fixture.firstClosed);
+          yield* Queue.offer(microphone, new Uint8Array(4_096).fill(4));
+          yield* Queue.end(microphone);
+
+          expect(yield* Fiber.join(fiber)).toBe("part 1 part 2");
+          expect(fixture.sessions.map((session) => sizes(session.frames))).toEqual([
+            [256, 44, 8_000],
+            [4_096, 8_000],
+          ]);
+          expect(fixture.sessions.every((session) => session.closed)).toBe(true);
+        }),
+      ),
   );
 });

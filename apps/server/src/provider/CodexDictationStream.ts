@@ -1,5 +1,4 @@
 // @effect-diagnostics nodeBuiltinImport:off - the dictation WebSocket adapter owns native socket events.
-import * as NodeCrypto from "node:crypto";
 import type * as NodeHttp from "node:http";
 
 import { TranscriptionError } from "@supaterm/contracts";
@@ -27,6 +26,13 @@ const MIN_CLOSE_DEADLINE_MS = 15_000;
 // A session lives 300 s. Rotate in a pause after 240 s of audio, and at 285 s regardless.
 const ROTATE_AFTER_BYTES = 240 * PCM_BYTES_PER_SECOND;
 const FORCE_ROTATE_BYTES = 285 * PCM_BYTES_PER_SECOND;
+// The desktop app's audio worklet posts one 128-sample render quantum, then 2048-sample
+// frames, and pads every session with 250 ms of silence before closing it.
+const FIRST_FRAME_BYTES = 128 * 2;
+const FRAME_BYTES = 2048 * 2;
+const CLOSING_SILENCE = new Uint8Array(PCM_BYTES_PER_SECOND / 4);
+/** The desktop app sends the system's first preferred language. */
+export const ACCEPT_LANGUAGE = Intl.DateTimeFormat().resolvedOptions().locale;
 
 const Frame = Schema.fromJsonString(
   Schema.Struct({
@@ -44,6 +50,7 @@ const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
 export interface DictationState {
   readonly started: boolean;
   readonly speaking: boolean;
+  readonly stopRequested: boolean;
   /** Utterances in the order they first appeared, each at its newest revision. */
   readonly finals: ReadonlyMap<string, { readonly revision: number; readonly text: string }>;
 }
@@ -51,6 +58,7 @@ export interface DictationState {
 export const initialDictationState: DictationState = {
   started: false,
   speaking: false,
+  stopRequested: false,
   finals: new Map(),
 };
 
@@ -74,6 +82,8 @@ export function stepDictation(state: DictationState, data: string): DictationSte
       return { _tag: "Continue", state: { ...state, speaking: true } };
     case "speech.stopped":
       return { _tag: "Continue", state: { ...state, speaking: false } };
+    case "session.stop_requested":
+      return { _tag: "Continue", state: { ...state, stopRequested: true } };
     case "transcript.final": {
       const id = frame.utterance_id;
       const revision = frame.revision ?? 0;
@@ -113,6 +123,12 @@ function dictationUpgradeError(
   return new TranscriptionError({ reason: "failed" });
 }
 
+interface Live {
+  readonly session: Session;
+  readonly scope: Scope.Closeable;
+  bytes: number;
+}
+
 interface Session {
   readonly send: (chunk: Uint8Array) => Effect.Effect<void, TranscriptionError>;
   /** Ends the audio and waits for the server's final word on this session. */
@@ -124,6 +140,7 @@ const openSession = Effect.fnUntraced(function* (input: {
   readonly url: string;
   readonly headers: Record<string, string>;
   readonly language: string | undefined;
+  readonly onStopRequested: Effect.Effect<void>;
 }): Effect.fn.Return<Session, TranscriptionError, Scope.Scope> {
   const events = yield* Queue.unbounded<
     { readonly _tag: "Message"; readonly data: string } | { readonly _tag: "Closed" }
@@ -179,11 +196,13 @@ const openSession = Effect.fnUntraced(function* (input: {
         if (event._tag === "Closed") {
           return yield* new TranscriptionError({ reason: "failed" });
         }
-        const step = stepDictation(yield* Ref.get(state), event.data);
+        const previous = yield* Ref.get(state);
+        const step = stepDictation(previous, event.data);
         if (step._tag === "Failed") return yield* new TranscriptionError({ reason: "failed" });
         if (step._tag === "Done") return step.text;
         yield* Ref.set(state, step.state);
         if (step.state.started) yield* Deferred.succeed(started, undefined);
+        if (step.state.stopRequested && !previous.stopRequested) yield* input.onStopRequested;
       }
     }).pipe(
       Effect.exit,
@@ -193,10 +212,10 @@ const openSession = Effect.fnUntraced(function* (input: {
     ),
   );
 
+  // The desktop composer's start: no session ids, segments for its live preview, server stops honored.
   yield* send({
     type: "session.start",
-    dictation_session_id: NodeCrypto.randomUUID(),
-    attempt_id: NodeCrypto.randomUUID(),
+    client_capabilities: ["server_stop_requested"],
     config: {
       ...(input.language === undefined ? {} : { language: input.language }),
       input_audio_format: "pcm16",
@@ -206,7 +225,7 @@ const openSession = Effect.fnUntraced(function* (input: {
       max_utterance_duration_ms: 30_000,
       session_ttl_ms: 300_000,
       provider_mode: "streaming_sse",
-      transcript_delivery_mode: "final_only",
+      transcript_delivery_mode: "segment",
       vad: { type: "server_vad", threshold: 0.5, prefix_padding_ms: 300, silence_duration_ms: 500 },
     },
   });
@@ -242,55 +261,109 @@ export const streamCodexDictation = Effect.fn("CodexDictation.stream")(function*
   readonly language: string | undefined;
   readonly audio: Stream.Stream<Uint8Array>;
 }) {
-  const open = (scope: Scope.Closeable) => {
+  const stopRequests = yield* Queue.unbounded<Scope.Closeable>();
+  const open = Effect.gen(function* () {
+    const scope = yield* Scope.make();
     const attempt = (refresh: boolean) =>
       Effect.flatMap(input.headers(refresh), (headers) =>
-        openSession({ url: input.url, headers, language: input.language }),
+        openSession({
+          url: input.url,
+          headers,
+          language: input.language,
+          onStopRequested: Queue.offer(stopRequests, scope).pipe(Effect.asVoid),
+        }),
       );
-    return attempt(false).pipe(
+    const session = yield* attempt(false).pipe(
       Effect.catchIf(
         (error) => error.reason === "signedOut",
         () => attempt(true),
       ),
       Scope.provide(scope),
+      Effect.onError(() => Scope.close(scope, Exit.void)),
     );
-  };
+    const opened: Live = { session, scope, bytes: 0 };
+    return opened;
+  });
 
-  let scope = yield* Scope.make();
-  const closeScope = Effect.suspend(() => Scope.close(scope, Exit.void));
+  let live: Live | undefined;
   return yield* Effect.gen(function* () {
-    let session = yield* open(scope).pipe(
+    live = yield* open.pipe(
       Effect.mapError((cause) => new LiveTranscriptionUnavailable({ cause })),
     );
-    let sessionBytes = 0;
     const texts: Array<string> = [];
-    const finishSession = Effect.gen(function* () {
-      const text = yield* session.close((sessionBytes / PCM_BYTES_PER_SECOND) * 1000);
-      yield* closeScope;
+    const finish = Effect.gen(function* () {
+      const current = live;
+      if (current === undefined) return;
+      if (current.bytes > 0) yield* current.session.send(CLOSING_SILENCE);
+      const text = yield* current.session.close((current.bytes / PCM_BYTES_PER_SECOND) * 1000);
+      yield* Scope.close(current.scope, Exit.void);
+      live = undefined;
       if (text) texts.push(text);
     });
-
-    yield* Stream.runForEach(input.audio, (chunk) =>
-      Effect.gen(function* () {
+    // Untraced, like `append`: both run for every chunk or frame of audio.
+    const sendFrame = Effect.fnUntraced(function* (frame: Uint8Array) {
+      let current = live;
+      if (current !== undefined) {
         const due =
-          sessionBytes >= FORCE_ROTATE_BYTES ||
-          (sessionBytes >= ROTATE_AFTER_BYTES && !(yield* session.speaking));
+          current.bytes >= FORCE_ROTATE_BYTES ||
+          (current.bytes >= ROTATE_AFTER_BYTES && !(yield* current.session.speaking));
         if (due) {
-          yield* finishSession;
-          scope = yield* Scope.make();
-          session = yield* open(scope);
-          sessionBytes = 0;
+          yield* finish;
+          current = undefined;
         }
-        yield* session.send(chunk);
-        sessionBytes += chunk.byteLength;
+      }
+      if (current === undefined) {
+        current = yield* open;
+        live = current;
+      }
+      yield* current.session.send(frame);
+      current.bytes += frame.byteLength;
+    });
+
+    let pending: Uint8Array = new Uint8Array(0);
+    let frameBytes = FIRST_FRAME_BYTES;
+    const append = Effect.fnUntraced(function* (chunk: Uint8Array) {
+      pending = Buffer.concat([pending, chunk]);
+      while (pending.byteLength >= frameBytes) {
+        yield* sendFrame(pending.subarray(0, frameBytes));
+        pending = pending.subarray(frameBytes);
+        frameBytes = FRAME_BYTES;
+      }
+    });
+    // Like the desktop worklet at a session boundary, the partial frame goes out with the old session.
+    const stop = Effect.gen(function* () {
+      const current = live;
+      if (current === undefined) return;
+      if (pending.byteLength > 0) {
+        yield* current.session.send(pending);
+        current.bytes += pending.byteLength;
+        pending = new Uint8Array(0);
+      }
+      yield* finish;
+    });
+    // A stop request closes its session even while no audio arrives; the next frame opens another.
+    yield* Stream.merge(
+      Stream.map(input.audio, (chunk) => ({ _tag: "Audio", chunk }) as const),
+      Stream.map(Stream.fromQueue(stopRequests), (scope) => ({ _tag: "Stop", scope }) as const),
+      { haltStrategy: "left" },
+    ).pipe(
+      Stream.runForEach((event) => {
+        if (event._tag === "Audio") return append(event.chunk);
+        return event.scope === live?.scope ? stop : Effect.void;
       }),
     );
-    yield* finishSession;
+    if (pending.byteLength > 0) yield* sendFrame(pending);
+    yield* finish;
     return texts.join(" ");
-  }).pipe(Effect.ensuring(closeScope));
+  }).pipe(
+    Effect.ensuring(
+      Effect.suspend(() => (live === undefined ? Effect.void : Scope.close(live.scope, Exit.void))),
+    ),
+  );
 });
 
 export const codexDictationHeaders = (login: DictationLogin, userAgent: string) => ({
+  "Accept-Language": ACCEPT_LANGUAGE,
   Authorization: `Bearer ${login.accessToken}`,
   "ChatGPT-Account-Id": login.accountId,
   originator: "Codex Desktop",

@@ -6,9 +6,9 @@ import {
 import {
   LiveTranscriptionUnavailable,
   type ProviderTranscription,
-  type WavAudio,
 } from "@supaterm/provider-core/server/transcription";
 import * as Clock from "effect/Clock";
+import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
@@ -17,6 +17,7 @@ import * as Schema from "effect/Schema";
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
 
 import {
+  ACCEPT_LANGUAGE,
   CODEX_DICTATION_STREAM_URL,
   codexDictationHeaders,
   streamCodexDictation,
@@ -24,7 +25,7 @@ import {
 
 const TRANSCRIBE_URL = "https://chatgpt.com/backend-api/transcribe";
 // The endpoint answers only Codex Desktop's request identity.
-const CODEX_DESKTOP_VERSION = "26.1021.31345";
+const CODEX_DESKTOP_VERSION = "26.1027.61615";
 const REQUEST_TIMEOUT = "2 minutes";
 const EXPIRY_MARGIN_MS = 60_000;
 const BLOCKED_STATUSES = new Set([403, 404, 405, 410]);
@@ -105,6 +106,23 @@ const statusError = (status: number, code: string | undefined, retryAfter: strin
   return new TranscriptionError({ reason: "failed" });
 };
 
+/** The desktop composer's upload, byte for byte: its boundary, part order, and part headers. */
+const transcribeBody = (wav: Uint8Array, language: string | undefined, uuid: string) => {
+  const boundary = `----codex-transcribe-${uuid}`;
+  const languagePart =
+    language === undefined
+      ? ""
+      : `--${boundary}\r\nContent-Disposition: form-data; name="language"\r\n\r\n${language}\r\n`;
+  const body = Buffer.concat([
+    Buffer.from(
+      `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="codex.wav"\r\nContent-Type: audio/wav\r\n\r\n`,
+    ),
+    wav,
+    Buffer.from(`\r\n${languagePart}--${boundary}--\r\n`),
+  ]);
+  return { body, contentType: `multipart/form-data; boundary=${boundary}` };
+};
+
 /** Status from the provider check. Credentials are only checked for presence, never read. */
 export const codexTranscriptionStatus = (
   auth: ServerProvider["auth"],
@@ -132,6 +150,7 @@ export const makeCodexTranscription = Effect.fn("makeCodexTranscription")(functi
   ) => Effect.Effect<A, TranscriptionError>;
 }) {
   const httpClient = yield* HttpClient.HttpClient;
+  const crypto = yield* Crypto.Crypto;
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const authFilePath = path.join(input.authHomePath, "auth.json");
@@ -181,11 +200,8 @@ export const makeCodexTranscription = Effect.fn("makeCodexTranscription")(functi
       }),
     );
 
-  const send = (login: CodexLogin, audio: WavAudio, language: string | undefined) => {
-    const form = new FormData();
-    form.append("file", new Blob([audio.file.slice()], { type: "audio/wav" }), "codex.wav");
-    if (language !== undefined) form.append("language", language);
-    return httpClient
+  const send = (login: CodexLogin, { body, contentType }: ReturnType<typeof transcribeBody>) =>
+    httpClient
       .execute(
         HttpClientRequest.post(TRANSCRIBE_URL).pipe(
           HttpClientRequest.setHeaders({
@@ -193,16 +209,17 @@ export const makeCodexTranscription = Effect.fn("makeCodexTranscription")(functi
             "chatgpt-account-id": login.accountId,
             originator: "Codex Desktop",
             "user-agent": CODEX_DESKTOP_USER_AGENT,
-            accept: "application/json",
+            "accept-language": ACCEPT_LANGUAGE,
           }),
-          HttpClientRequest.bodyFormData(form),
+          HttpClientRequest.bodyUint8Array(body, contentType),
         ),
       )
       .pipe(
+        // Trace headers would carry our span ids to the vendor; the desktop app sends none.
+        Effect.provideService(HttpClient.TracerPropagationEnabled, false),
         Effect.timeout(REQUEST_TIMEOUT),
         Effect.mapError((cause) => new TranscriptionError({ reason: "failed", cause })),
       );
-  };
 
   const freshLogin = Effect.gen(function* () {
     const login = yield* readLogin;
@@ -215,11 +232,15 @@ export const makeCodexTranscription = Effect.fn("makeCodexTranscription")(functi
   const transcribe: ProviderTranscription["transcribe"] = Effect.fn(
     "CodexTranscription.transcribe",
   )(function* ({ audio, language }) {
+    const uuid = yield* crypto
+      .randomUUIDv4()
+      .pipe(Effect.mapError((cause) => new TranscriptionError({ reason: "failed", cause })));
+    const upload = transcribeBody(audio.file, language, uuid);
     let login = yield* freshLogin;
-    let response = yield* send(login, audio, language);
+    let response = yield* send(login, upload);
     if (response.status === 401) {
       login = yield* refreshFrom(login);
-      response = yield* send(login, audio, language);
+      response = yield* send(login, upload);
     }
     if (response.headers["cf-mitigated"] !== undefined) {
       return yield* new TranscriptionError({ reason: "blocked" });
