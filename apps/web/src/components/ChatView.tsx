@@ -379,6 +379,7 @@ import {
   focusPaneIndexFromKeyboard,
   openThreadPickerBeside,
 } from "../chatPanes/actions";
+import { ChatPaneActionsMenu } from "./chatPanes/ChatPaneActionsMenu";
 import { ChatPaneHeaderControls } from "./chatPanes/ChatPaneHeaderControls";
 
 const EMPTY_PROVIDERS: ServerProvider[] = [];
@@ -3228,12 +3229,16 @@ export default function ChatView(props: ChatViewProps) {
     onToggleThreadPanel: toggleThreadPanelStable,
     onToggleRightPanel: toggleRightPanelStable,
   } satisfies PanelLayoutControlsProps;
-  const panelToggleControls = (
-    <PanelLayoutControls
-      {...panelToggleControlProps}
-      showThreadPanelControl={routeKind === "server" && !inlineRightPanelOwnsTitleBar}
-    />
-  );
+  const paneActionsMenuId = paneSplit ? (paneScope?.paneId ?? null) : null;
+  const panelToggleControls =
+    paneActionsMenuId !== null ? (
+      <ChatPaneActionsMenu {...panelToggleControlProps} paneId={paneActionsMenuId} />
+    ) : (
+      <PanelLayoutControls
+        {...panelToggleControlProps}
+        showThreadPanelControl={routeKind === "server" && !inlineRightPanelOwnsTitleBar}
+      />
+    );
   const threadPanelHeaderControl = <ThreadPanelHeaderControl {...panelToggleControlProps} />;
   const panelLayoutControls = (
     <WorkspaceTitlebarControls
@@ -3399,7 +3404,9 @@ export default function ChatView(props: ChatViewProps) {
                 />
               ) : null}
               {!rightPanelControlsAtRoot && !rightPanelControlsInPanel ? panelLayoutControls : null}
-              {inlineRightPanelOwnsTitleBar ? threadPanelHeaderControl : null}
+              {inlineRightPanelOwnsTitleBar && paneActionsMenuId === null
+                ? threadPanelHeaderControl
+                : null}
               <TooltipProvider>
                 <ChatPaneHeaderControls title={activeThread.title} />
                 <ChatHeader
@@ -3410,7 +3417,7 @@ export default function ChatView(props: ChatViewProps) {
                   activeProject={activeProject ?? null}
                   parentThreadLink={parentThreadLink}
                   onOpenThread={onOpenRelatedThreadStable}
-                  rightPanelOpen={inlineRightPanelOwnsTitleBar}
+                  singleTrailingControl={inlineRightPanelOwnsTitleBar || paneActionsMenuId !== null}
                   pinnedMessages={pinnedMessages}
                   onJumpToPinnedMessage={jumpToPinnedMessageStable}
                   {...(canOperateThread ? { onUnpinMessage: unpinMessageStable } : {})}

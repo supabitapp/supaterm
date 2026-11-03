@@ -54,7 +54,7 @@ interface ChatHeaderProps {
   activeProject: EnvironmentProject | null;
   parentThreadLink: { threadId: ThreadId; title: string } | null;
   onOpenThread: (threadId: ThreadId) => void;
-  rightPanelOpen: boolean;
+  singleTrailingControl: boolean;
   pinnedMessages: ReadonlyArray<ThreadPinnedMessage>;
   onJumpToPinnedMessage: (pin: ThreadPinnedMessage) => void;
   onUnpinMessage?: ((pin: ThreadPinnedMessage) => void) | undefined;
@@ -84,7 +84,7 @@ export const ChatHeader = memo(function ChatHeader({
   activeProject,
   parentThreadLink,
   onOpenThread,
-  rightPanelOpen,
+  singleTrailingControl,
   pinnedMessages,
   onJumpToPinnedMessage,
   onUnpinMessage,
@@ -312,7 +312,7 @@ export const ChatHeader = memo(function ChatHeader({
       ref={breadcrumbContainerRef}
       className={cn(
         "flex min-w-0 flex-1 items-center gap-2 sm:gap-3",
-        rightPanelOpen ? "pr-10" : "pr-24",
+        singleTrailingControl ? "pr-10" : "pr-24",
       )}
       onContextMenu={handleHeaderContextMenu}
     >

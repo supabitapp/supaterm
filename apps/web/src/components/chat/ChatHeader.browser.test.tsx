@@ -34,7 +34,7 @@ function header(title: string) {
         activeProject={null}
         parentThreadLink={null}
         onOpenThread={() => {}}
-        rightPanelOpen={false}
+        singleTrailingControl={false}
         onNewThreadInProject={() => {}}
         pinnedMessages={[]}
         onJumpToPinnedMessage={() => {}}
