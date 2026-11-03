@@ -11,11 +11,13 @@ const working: ThreadNotificationObservation = {
   attention: null,
   settled: false,
   completedAt: null,
+  backgroundWorkRunning: false,
 };
 const completed = (at: number): ThreadNotificationObservation => ({
   attention: null,
   settled: true,
   completedAt: at,
+  backgroundWorkRunning: false,
 });
 const runningBackgroundWork = (at: number): ThreadNotificationObservation => ({
   ...completed(at),
@@ -70,7 +72,7 @@ describe("createThreadNotificationGate", () => {
     observe(working);
     observe(completed(1));
     vi.advanceTimersByTime(500);
-    observe({ attention: "run-1:approval", settled: false, completedAt: null });
+    observe({ ...working, attention: "run-1:approval" });
     expect(notify.mock.calls).toEqual([["thread", "input"]]);
     vi.advanceTimersByTime(60_000);
     // The request resolves and the same run reads as completed again.
@@ -101,7 +103,7 @@ describe("createThreadNotificationGate", () => {
     observe(completed(1));
     vi.advanceTimersByTime(500);
     observe(working);
-    observe({ attention: "run-1:approval", settled: false, completedAt: null });
+    observe({ ...working, attention: "run-1:approval" });
     vi.advanceTimersByTime(60_000);
     observe(completed(1));
     vi.advanceTimersByTime(WORKING_EXIT_GRACE_MS * 2);
@@ -113,7 +115,7 @@ describe("createThreadNotificationGate", () => {
     observe(working);
     observe(completed(1));
     vi.advanceTimersByTime(WORKING_EXIT_GRACE_MS);
-    observe({ attention: "run-1:limited", settled: false, completedAt: null });
+    observe({ ...working, attention: "run-1:limited" });
     observe(completed(1));
     vi.advanceTimersByTime(WORKING_EXIT_GRACE_MS * 2);
     expect(notify.mock.calls).toEqual([
@@ -127,7 +129,7 @@ describe("createThreadNotificationGate", () => {
     observe(working);
     observe(completed(1));
     vi.advanceTimersByTime(500);
-    observe({ attention: "run-2:approval", settled: false, completedAt: null });
+    observe({ ...working, attention: "run-2:approval" });
     observe(working);
     observe(completed(2));
     vi.advanceTimersByTime(WORKING_EXIT_GRACE_MS);

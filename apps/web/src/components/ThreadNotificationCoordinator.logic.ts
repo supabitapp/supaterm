@@ -13,7 +13,7 @@ export interface ThreadNotificationObservation {
   /** When the latest run completed, if it did. */
   readonly completedAt: number | null;
   /** Background work the agent did not mark as awaited is still running. */
-  readonly backgroundWorkRunning?: boolean;
+  readonly backgroundWorkRunning: boolean;
 }
 
 /**
@@ -60,7 +60,7 @@ export function createThreadNotificationGate<Key>(
       }
       const at = next.completedAt;
       if (!next.settled || at === null || at <= (handled.get(key) ?? -Infinity)) return;
-      const held = next.backgroundWorkRunning === true;
+      const held = next.backgroundWorkRunning;
       const scheduled = pending.get(key);
       if (scheduled?.at === at && scheduled.held === held) return;
       cancel(key);
