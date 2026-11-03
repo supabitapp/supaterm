@@ -126,11 +126,6 @@ const WAVEFORM_DOT_PITCH = 3.2;
 const COMPACT_WAVEFORM_COLUMNS = 8;
 const COMPACT_WAVEFORM_DOT_ROWS = 3;
 const COMPACT_WAVEFORM_DOT_PITCH = 4;
-const WAVEFORM_TIMING = {
-  duration: 100,
-  easing: Easing.out(Easing.quad),
-  reduceMotion: ReduceMotion.System,
-} as const;
 
 export function ComposerDictationDraftContent(props: {
   readonly children: ReactNode;
@@ -199,52 +194,32 @@ export function ComposerDictationToolbar(props: {
   );
 }
 
-function WaveformDots(props: {
-  readonly rows: number;
-  readonly pitch: number;
-  readonly opacity?: number;
-}) {
-  return (
-    <View className="items-center" style={{ opacity: props.opacity }}>
-      {Array.from({ length: props.rows }, (_, row) => (
-        <View
-          key={row}
-          className="rounded-full bg-foreground"
-          style={{ width: props.pitch / 2, height: props.pitch / 2, margin: props.pitch / 4 }}
-        />
-      ))}
-    </View>
-  );
-}
-
-/** One column of the dot timeline: faint dots, with the lit ones revealed from the middle out. */
-const WaveformColumn = memo(function WaveformColumn(props: {
+/** The dots `distance` rows from a column's middle, lit as the level reaches them. */
+const WaveformDots = memo(function WaveformDots(props: {
   readonly audioLevels: SharedValue<ReadonlyArray<number>>;
   readonly sampleIndex: number;
+  readonly distance: number;
   readonly rows: number;
   readonly pitch: number;
-  readonly age: number;
-  readonly head: boolean;
+  readonly fade: number;
+  readonly resting: number;
 }) {
-  const { audioLevels, sampleIndex, rows, pitch } = props;
-  const litStyle = useAnimatedStyle(() => {
+  const { audioLevels, sampleIndex, distance, rows, pitch, fade, resting } = props;
+  const style = useAnimatedStyle(() => {
     const level = audioLevels.get()[sampleIndex] ?? 0;
-    const lit = level < 0.04 ? 0 : 1 + 2 * Math.round(level * ((rows - 1) / 2));
-    return { height: withTiming(lit * pitch, WAVEFORM_TIMING) };
+    const lit = Math.min(1, Math.max(0, level * (rows / 2) - distance + 0.3));
+    return { opacity: resting + (1 - resting) * fade * lit };
   });
-
-  return (
-    <View className="items-center justify-center" style={{ width: pitch, height: rows * pitch }}>
-      {/* The newest column's faint dots sit brighter, like a terminal cursor. */}
-      <WaveformDots rows={rows} pitch={pitch} opacity={props.head ? 0.32 : 0.14} />
-      <Animated.View
-        className="absolute items-center justify-center overflow-hidden"
-        style={[{ width: pitch, opacity: 0.3 + 0.7 * props.age ** 1.8 }, litStyle]}
-      >
-        <WaveformDots rows={rows} pitch={pitch} />
-      </Animated.View>
-    </View>
-  );
+  const middle = (rows - 1) / 2;
+  const size = pitch / 2;
+  const dotRows = distance === 0 ? [middle] : [middle - distance, middle + distance];
+  return dotRows.map((row) => (
+    <Animated.View
+      key={row}
+      className="absolute rounded-full bg-foreground"
+      style={[{ top: row * pitch + size / 2, left: size / 2, width: size, height: size }, style]}
+    />
+  ));
 });
 
 /** The newest `columns` levels, oldest on the left and fading with age. */
@@ -254,18 +229,28 @@ function WaveformColumns(props: {
   readonly rows: number;
   readonly pitch: number;
 }) {
-  const { columns } = props;
-  return Array.from({ length: columns }, (_, index) => (
-    <WaveformColumn
-      key={index}
-      audioLevels={props.audioLevels}
-      sampleIndex={VOICE_WAVEFORM_SAMPLE_COUNT - columns + index}
-      rows={props.rows}
-      pitch={props.pitch}
-      age={columns > 1 ? index / (columns - 1) : 1}
-      head={index === columns - 1}
-    />
-  ));
+  const { columns, rows, pitch } = props;
+  return Array.from({ length: columns }, (_, index) => {
+    const head = index === columns - 1;
+    const age = columns > 1 ? index / (columns - 1) : 1;
+    return (
+      <View key={index} style={{ width: pitch, height: rows * pitch }}>
+        {Array.from({ length: Math.ceil(rows / 2) }, (_, distance) => (
+          <WaveformDots
+            key={distance}
+            audioLevels={props.audioLevels}
+            sampleIndex={VOICE_WAVEFORM_SAMPLE_COUNT - columns + index}
+            distance={distance}
+            rows={rows}
+            pitch={pitch}
+            fade={0.3 + 0.7 * age ** 1.8}
+            // The newest column's unlit dots sit brighter, like a terminal cursor.
+            resting={head ? 0.32 : 0.14}
+          />
+        ))}
+      </View>
+    );
+  });
 }
 
 export const CompactVoiceWaveform = memo(function CompactVoiceWaveform(props: {
