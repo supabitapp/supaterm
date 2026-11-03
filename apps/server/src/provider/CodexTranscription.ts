@@ -109,19 +109,17 @@ const statusError = (status: number, code: string | undefined, retryAfter: strin
 /** The desktop composer's upload, byte for byte: its boundary, part order, and part headers. */
 const transcribeBody = (wav: Uint8Array, language: string | undefined, uuid: string) => {
   const boundary = `----codex-transcribe-${uuid}`;
-  const encoder = new TextEncoder();
-  const head = encoder.encode(
-    `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="codex.wav"\r\nContent-Type: audio/wav\r\n\r\n`,
-  );
   const languagePart =
     language === undefined
       ? ""
       : `--${boundary}\r\nContent-Disposition: form-data; name="language"\r\n\r\n${language}\r\n`;
-  const tail = encoder.encode(`\r\n${languagePart}--${boundary}--\r\n`);
-  const body = new Uint8Array(head.byteLength + wav.byteLength + tail.byteLength);
-  body.set(head);
-  body.set(wav, head.byteLength);
-  body.set(tail, head.byteLength + wav.byteLength);
+  const body = Buffer.concat([
+    Buffer.from(
+      `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="codex.wav"\r\nContent-Type: audio/wav\r\n\r\n`,
+    ),
+    wav,
+    Buffer.from(`\r\n${languagePart}--${boundary}--\r\n`),
+  ]);
   return { body, contentType: `multipart/form-data; boundary=${boundary}` };
 };
 

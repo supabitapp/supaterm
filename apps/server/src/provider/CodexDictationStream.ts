@@ -297,14 +297,11 @@ export const streamCodexDictation = Effect.fn("CodexDictation.stream")(function*
       sessionBytes += frame.byteLength;
     });
 
-    let pending = new Uint8Array(0);
+    let pending: Uint8Array = new Uint8Array(0);
     let frameBytes = FIRST_FRAME_BYTES;
     yield* Stream.runForEach(input.audio, (chunk) =>
       Effect.gen(function* () {
-        const joined = new Uint8Array(pending.byteLength + chunk.byteLength);
-        joined.set(pending);
-        joined.set(chunk, pending.byteLength);
-        pending = joined;
+        pending = Buffer.concat([pending, chunk]);
         while (pending.byteLength >= frameBytes) {
           yield* sendFrame(pending.subarray(0, frameBytes));
           pending = pending.subarray(frameBytes);
