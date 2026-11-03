@@ -109,15 +109,16 @@ const proxyWebSocket = Effect.fn("DeviceHubProxy.proxyWebSocket")(function* (
   // Video doesn't compress, and deflate queues frames where `writableLength` can't see them.
   delete incoming.headers["sec-websocket-extensions"];
   const viewer = incoming.socket;
-  const viewerCaughtUp = Effect.suspend(() =>
-    viewer.writableLength <= VIEWER_BACKLOG_BYTES
-      ? Effect.void
-      : Effect.callback<void>((resume) => {
-          const drained = () => resume(Effect.void);
-          viewer.once("drain", drained);
-          return Effect.sync(() => viewer.off("drain", drained));
-        }),
-  );
+  // Checks and subscribes in one step, so a drain between the two cannot be missed.
+  const viewerCaughtUp = Effect.callback<void>((resume) => {
+    if (viewer.writableLength <= VIEWER_BACKLOG_BYTES) {
+      resume(Effect.void);
+      return;
+    }
+    const drained = () => resume(Effect.void);
+    viewer.once("drain", drained);
+    return Effect.sync(() => viewer.off("drain", drained));
+  });
   const client = yield* request.upgrade;
   const upstream = yield* Socket.makeWebSocket(upstreamUrl, {
     openTimeout: "10 seconds",

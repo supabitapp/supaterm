@@ -21,70 +21,66 @@ import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
 import * as DeviceService from "./DeviceService.ts";
 import * as DeviceHubProxy from "./DeviceHubProxy.ts";
 
-const listenHub = (onConnection: (socket: NodeWS.WebSocket) => void) =>
-  Effect.gen(function* () {
-    const hub = yield* Effect.acquireRelease(
-      Effect.sync(() => new NodeWS.WebSocketServer({ port: 0 })),
-      (server) =>
-        Effect.promise(
-          () =>
-            new Promise<void>((resolve) => {
-              for (const client of server.clients) client.terminate();
-              server.close(() => resolve());
-            }),
-        ),
-    );
-    if (!hub.address())
-      yield* Effect.promise(() => new Promise<void>((resolve) => hub.once("listening", resolve)));
-    const address = hub.address();
-    if (typeof address !== "object" || !address) throw new Error("Missing hub port");
-    hub.on("connection", onConnection);
-    return address.port;
-  });
-
-const serveProxy = (hubPort: number) =>
-  Effect.gen(function* () {
-    const services = yield* Layer.build(
-      HttpRouter.serve(DeviceHubProxy.layer, { disableListenLog: true }).pipe(
-        Layer.provideMerge(
-          HttpServer.layerTestClient.pipe(
-            Layer.provide(FetchHttpClient.layer),
-            // Production's WebSocket options, so viewers can offer permessage-deflate.
-            Layer.provideMerge(
-              NodeHttpServer.layer(NodeHttp.createServer, {
-                port: 0,
-                websocket: { perMessageDeflate: true },
-              }),
-            ),
-          ),
-        ),
-        Layer.provide(
-          Layer.succeed(EnvironmentAuth.EnvironmentAuth, {
-            authenticateWebSocketUpgrade: () =>
-              Effect.succeed({
-                sessionId: AuthSessionId.make("test"),
-                subject: "test",
-                method: "bearer-access-token",
-                scopes: [AuthOrchestrationOperateScope],
-              }),
-          } as unknown as EnvironmentAuth.EnvironmentAuth["Service"]),
-        ),
-        Layer.provide(
-          Layer.succeed(DeviceService.DeviceService, {
-            currentReadiness: () =>
-              Effect.succeed({
-                hostId: LOCAL_DEVICE_HOST_ID,
-                hub: { origin: `http://127.0.0.1:${hubPort}` },
-              }),
-          } as DeviceService.DeviceService["Service"]),
-        ),
+const listenHub = Effect.fn("DeviceHubProxyTest.listenHub")(function* (
+  onConnection: (socket: NodeWS.WebSocket) => void,
+) {
+  const hub = yield* Effect.acquireRelease(
+    Effect.sync(() => new NodeWS.WebSocketServer({ port: 0 })),
+    (server) =>
+      Effect.promise(
+        () =>
+          new Promise<void>((resolve) => {
+            for (const client of server.clients) client.terminate();
+            server.close(() => resolve());
+          }),
       ),
-    );
-    return HttpServer.formatAddress(Context.get(services, HttpServer.HttpServer).address).replace(
-      /^http/,
-      "ws",
-    );
-  });
+  );
+  if (!hub.address())
+    yield* Effect.promise(() => new Promise<void>((resolve) => hub.once("listening", resolve)));
+  const address = hub.address();
+  if (typeof address !== "object" || !address) throw new Error("Missing hub port");
+  hub.on("connection", onConnection);
+  return address.port;
+});
+
+const serveProxy = Effect.fn("DeviceHubProxyTest.serveProxy")(function* (hubPort: number) {
+  const services = yield* Layer.build(
+    HttpRouter.serve(DeviceHubProxy.layer, { disableListenLog: true }).pipe(
+      // Production's WebSocket options, so viewers can offer permessage-deflate.
+      Layer.provideMerge(
+        NodeHttpServer.layer(NodeHttp.createServer, {
+          port: 0,
+          websocket: { perMessageDeflate: true },
+        }),
+      ),
+      Layer.provide(FetchHttpClient.layer),
+      Layer.provide(
+        Layer.succeed(EnvironmentAuth.EnvironmentAuth, {
+          authenticateWebSocketUpgrade: () =>
+            Effect.succeed({
+              sessionId: AuthSessionId.make("test"),
+              subject: "test",
+              method: "bearer-access-token",
+              scopes: [AuthOrchestrationOperateScope],
+            }),
+        } as unknown as EnvironmentAuth.EnvironmentAuth["Service"]),
+      ),
+      Layer.provide(
+        Layer.succeed(DeviceService.DeviceService, {
+          currentReadiness: () =>
+            Effect.succeed({
+              hostId: LOCAL_DEVICE_HOST_ID,
+              hub: { origin: `http://127.0.0.1:${hubPort}` },
+            }),
+        } as DeviceService.DeviceService["Service"]),
+      ),
+    ),
+  );
+  return HttpServer.formatAddress(Context.get(services, HttpServer.HttpServer).address).replace(
+    /^http/,
+    "ws",
+  );
+});
 
 it.effect("preserves binary input and admission frames through the real socket proxy", () =>
   Effect.gen(function* () {
