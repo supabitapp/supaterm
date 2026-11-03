@@ -1,6 +1,5 @@
 import type { UsageProviderKind } from "@supaterm/contracts";
-import type { DailyTotals } from "@supaterm/shared/usageMerge";
-import { formatTokens, formatUsd, periodAverage } from "@supaterm/shared/usageFormat";
+import { formatTokens, formatUsd } from "@supaterm/shared/usageFormat";
 import { DashPathEffect, Line, vec } from "@shopify/react-native-skia";
 import * as Haptics from "expo-haptics";
 import { useMemo } from "react";
@@ -8,7 +7,7 @@ import { View } from "react-native";
 import { runOnJS, useAnimatedReaction } from "react-native-reanimated";
 import { CartesianChart, StackedBar, useChartPressState } from "victory-native";
 
-import { buildChartDays, type UsageChartDay, type UsageChartMetric } from "./usageChartData";
+import type { UsageChartDay, UsageChartMetric } from "./usageChartData";
 import { PROVIDER_ORDER, useProviderColors } from "./usageProviders";
 
 const SERIES = [...PROVIDER_ORDER];
@@ -24,10 +23,10 @@ const HIDDEN_Y_AXIS = [{ lineWidth: 0 }];
 export const AVERAGE_LINE_COLOR = "rgba(142, 142, 147, 0.9)";
 
 export interface UsageDailyChartProps {
-  readonly days: readonly string[];
-  readonly daily: readonly DailyTotals[];
+  readonly chartDays: readonly UsageChartDay[];
   readonly metric: UsageChartMetric;
   readonly height: number;
+  readonly average: number;
   readonly lastInProgress: boolean;
   readonly selectedDay: string | null;
   readonly onSelectDay: (day: string | null) => void;
@@ -35,10 +34,10 @@ export interface UsageDailyChartProps {
 }
 
 export function UsageDailyChart({
-  days,
-  daily,
+  chartDays,
   metric,
   height,
+  average,
   lastInProgress,
   selectedDay,
   onSelectDay,
@@ -47,7 +46,7 @@ export function UsageDailyChart({
   const colors = useProviderColors();
   const { state } = useChartPressState(PRESS_STATE);
   const select = (index: number) => {
-    const day = index < 0 ? null : (days[index] ?? null);
+    const day = index < 0 ? null : (chartDays[index]?.day ?? null);
     onSelectDay(day);
     if (day !== null) void Haptics.selectionAsync();
   };
@@ -57,8 +56,6 @@ export function UsageDailyChart({
       if (index !== previous) runOnJS(select)(index);
     },
   );
-  // victory-native resets its press state whenever `data` changes identity.
-  const chartDays = useMemo(() => buildChartDays(days, daily, metric), [days, daily, metric]);
   const data = useMemo(
     () =>
       chartDays.map((day, index) => ({
@@ -75,11 +72,7 @@ export function UsageDailyChart({
     undefined,
   );
   const domainMax = peak === undefined || peak.total === 0 ? 1 : peak.total;
-  const average = periodAverage(
-    chartDays.map((day) => day.total),
-    lastInProgress,
-  );
-  const selected = selectedDay === null ? -1 : days.indexOf(selectedDay);
+  const selected = chartDays.findIndex((day) => day.day === selectedDay);
   const partialIndex = lastInProgress ? data.length - 1 : -1;
   const format = metric === "cost" ? formatUsd : formatTokens;
 

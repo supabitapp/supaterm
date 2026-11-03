@@ -19,19 +19,14 @@ import {
 import {
   enumerateDays,
   enumerateHourStarts,
-  formatCount,
-  formatDayShort,
-  formatHourShort,
   formatPercent,
   formatTokens,
   formatUsageContractMismatch,
   formatUsd,
   makeWindow,
-  periodAverage,
   usageSourceMessages,
 } from "@supaterm/shared/usageFormat";
 import { useRef, useState, type ReactNode } from "react";
-import Svg, { Line as SvgLine } from "react-native-svg";
 import { Platform, Pressable, RefreshControl, View } from "react-native";
 import Animated, { FadeIn, ReduceMotion } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -46,8 +41,7 @@ import { useUsage, type EnvironmentUsageStatus } from "../../state/usage";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { SettingsSection } from "../settings/components/SettingsSection";
-import { UsageCalendarHeatmap } from "./UsageCalendarHeatmap";
-import { AVERAGE_LINE_COLOR, UsageDailyChart } from "./UsageDailyChart";
+import { UsageChartCard, UsageSummary } from "./UsageChartCard";
 import { toggleUsageEnvironment } from "./usageEnvironmentSelection";
 import { useRefreshLimits } from "./UsageLimitsSection";
 import { UsageLimitsSection } from "./UsageLimitsPooled";
@@ -55,7 +49,7 @@ import { Menu } from "../../components/ui/Menu";
 import { SymbolView } from "../../components/ui/AppSymbol";
 import { NativeStackScreenOptions } from "../../native/StackHeader";
 import { withNativeGlassHeaderItem } from "../layout/native-glass-header-items";
-import { buildChartDays, type UsageChartDay, type UsageChartMetric } from "./usageChartData";
+import type { UsageChartMetric } from "./usageChartData";
 import { PROVIDER_LABEL, useProviderColors, useUsageMixColors } from "./usageProviders";
 
 type UsageView = UsageChartMetric | "limits";
@@ -74,7 +68,6 @@ const WINDOW_OPTIONS = [
 
 const CHART_HEIGHT = 180;
 const WIDE_CHART_HEIGHT = 260;
-const CALENDAR_MIN_DAYS = 32;
 // Below this the page keeps the phone's single column.
 const WIDE_WIDTH = 600;
 const MAX_CONTENT_WIDTH = 1080;
@@ -405,7 +398,7 @@ function UsageScreen(props: {
                             {providers}
                           </View>
                           <View className="min-w-0 flex-1">
-                            <ChartCard
+                            <UsageChartCard
                               {...chart}
                               height={WIDE_CHART_HEIGHT}
                               fill
@@ -415,7 +408,7 @@ function UsageScreen(props: {
                         </View>
                       ) : (
                         <>
-                          <ChartCard {...chart} height={CHART_HEIGHT} />
+                          <UsageChartCard {...chart} height={CHART_HEIGHT} />
                           {providers}
                         </>
                       )}
@@ -573,196 +566,6 @@ function CursorEnableLimits({
           ))}
         </View>
       </View>
-    </View>
-  );
-}
-
-function ChartCard(props: {
-  readonly merged: MergedUsage;
-  readonly days: readonly string[];
-  readonly daily: readonly DailyTotals[];
-  readonly metric: UsageChartMetric;
-  readonly sinceDay: string;
-  readonly untilDay: string;
-  readonly isPast24Hours: boolean;
-  readonly timeZone: string;
-  readonly height: number;
-  /** Replaces the summary when it sits beside the chart. */
-  readonly title?: string;
-  /** Grows the chart past `height` to match a taller neighbouring column. */
-  readonly fill?: boolean;
-}) {
-  const { merged, metric } = props;
-  const colors = useProviderColors();
-  const hasActivity = props.daily.some((period) => period.totalTokens > 0);
-  const [fillHeight, setFillHeight] = useState(0);
-  const [selectedDay, setSelectedDay] = useState<string | null>(null);
-  const height = props.fill ? Math.max(fillHeight, props.height) : props.height;
-  const showCalendar = !props.isPast24Hours && props.days.length >= CALENDAR_MIN_DAYS;
-  const formatPeriod = (period: string) =>
-    props.isPast24Hours ? formatHourShort(period, props.timeZone) : formatDayShort(period);
-  const chartDays = buildChartDays(props.days, props.daily, metric);
-  const selection = chartDays.find((period) => period.day === selectedDay);
-  const average = periodAverage(
-    chartDays.map((period) => period.total),
-    !props.isPast24Hours,
-  );
-  const chart = !hasActivity ? (
-    <View style={{ height }} className="items-center justify-center">
-      <Text className="text-base text-foreground-muted">No activity in this window.</Text>
-    </View>
-  ) : showCalendar ? (
-    <UsageCalendarHeatmap
-      days={props.days}
-      daily={props.daily}
-      metric={metric}
-      selectedDay={selectedDay}
-      onSelectDay={setSelectedDay}
-    />
-  ) : (
-    <UsageDailyChart
-      days={props.days}
-      daily={props.daily}
-      metric={metric}
-      height={height}
-      lastInProgress={!props.isPast24Hours}
-      selectedDay={selectedDay}
-      onSelectDay={setSelectedDay}
-      formatPeriod={formatPeriod}
-    />
-  );
-  const header =
-    selection === undefined ? (
-      props.title ? (
-        <Text className="text-sm font-supaterm-medium text-foreground">{props.title}</Text>
-      ) : (
-        <UsageSummary merged={merged} metric={metric} />
-      )
-    ) : (
-      <SelectionSummary
-        period={selection}
-        label={`${formatPeriod(selection.day)}${!props.isPast24Hours && selection.day === props.days[props.days.length - 1] ? " so far" : ""}`}
-        metric={metric}
-        compact={props.title !== undefined}
-      />
-    );
-
-  return (
-    <View
-      className={`gap-4 rounded-[24px] border-continuous bg-grouped-card p-4${props.fill ? " flex-1" : ""}`}
-    >
-      {header}
-
-      {props.fill && !showCalendar ? (
-        // Absolute so the measured slot can shrink again when the neighbour gets shorter.
-        <View
-          className="flex-1"
-          style={{ minHeight: props.height }}
-          onLayout={(event) => setFillHeight(event.nativeEvent.layout.height)}
-        >
-          <View className="absolute inset-0">{chart}</View>
-        </View>
-      ) : (
-        chart
-      )}
-
-      {showCalendar ? null : (
-        <View className="gap-2">
-          <View className="flex-row items-center justify-between">
-            <Text className="text-xs text-foreground-tertiary">
-              {props.isPast24Hours
-                ? formatHourShort(props.days[0] ?? "", props.timeZone)
-                : formatDayShort(props.sinceDay)}
-            </Text>
-            {average > 0 ? (
-              <View className="flex-row items-center gap-1.5">
-                <Svg width={12} height={2}>
-                  <SvgLine
-                    x1={0}
-                    y1={1}
-                    x2={12}
-                    y2={1}
-                    stroke={AVERAGE_LINE_COLOR}
-                    strokeWidth={1}
-                    strokeDasharray="3 2"
-                  />
-                </Svg>
-                <Text className="text-xs text-foreground-tertiary tabular-nums">
-                  avg {(metric === "cost" ? formatUsd : formatTokens)(average)}
-                </Text>
-              </View>
-            ) : null}
-            <Text className="text-xs text-foreground-tertiary">
-              {props.isPast24Hours
-                ? formatHourShort(props.days[props.days.length - 1] ?? "", props.timeZone)
-                : formatDayShort(props.untilDay)}
-            </Text>
-          </View>
-          <View className="flex-row flex-wrap items-center gap-x-4 gap-y-1">
-            {merged.providers.map((provider) => (
-              <View key={provider.provider} className="flex-row items-center gap-1.5">
-                <View
-                  className="size-2 rounded-full"
-                  style={{ backgroundColor: colors[provider.provider] }}
-                />
-                <Text className="text-xs text-foreground-muted">
-                  {PROVIDER_LABEL[provider.provider]}
-                </Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      )}
-    </View>
-  );
-}
-
-function SelectionSummary(props: {
-  readonly period: UsageChartDay;
-  readonly label: string;
-  readonly metric: UsageChartMetric;
-  readonly compact: boolean;
-}) {
-  const format = props.metric === "cost" ? formatUsd : formatTokens;
-  const split = props.period.values
-    .filter((entry) => entry.value > 0)
-    .map((entry) => `${PROVIDER_LABEL[entry.provider]} ${format(entry.value)}`)
-    .join(" · ");
-  if (props.compact) {
-    return (
-      <Text numberOfLines={1} className="text-sm font-supaterm-medium text-foreground tabular-nums">
-        {[props.label, format(props.period.total), split].filter(Boolean).join(" · ")}
-      </Text>
-    );
-  }
-  return (
-    <View className="gap-0.5">
-      <Text className="text-sm text-foreground-muted">{props.label}</Text>
-      <Text className="text-4xl font-supaterm-bold tabular-nums text-foreground">
-        {format(props.period.total)}
-      </Text>
-      <Text numberOfLines={1} className="text-sm text-foreground-muted tabular-nums">
-        {split || "No activity"}
-      </Text>
-    </View>
-  );
-}
-
-function UsageSummary(props: { readonly merged: MergedUsage; readonly metric: UsageChartMetric }) {
-  const { merged, metric } = props;
-  return (
-    <View className="gap-0.5">
-      <Text className="text-sm text-foreground-muted">
-        {metric === "cost" ? "Raw token cost" : "Processed tokens"}
-      </Text>
-      <Text className="text-4xl font-supaterm-bold tabular-nums text-foreground">
-        {metric === "cost" ? `${formatUsd(merged.costUsd)}*` : formatTokens(merged.totalTokens)}
-      </Text>
-      <Text className="text-sm text-foreground-muted">
-        {metric === "cost"
-          ? "* if billed at full API rate"
-          : `Across ${formatCount(merged.sessions)} sessions`}
-      </Text>
     </View>
   );
 }

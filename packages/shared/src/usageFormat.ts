@@ -151,7 +151,6 @@ function quartileCutoffs(values: readonly number[]): readonly number[] {
   );
 }
 
-// Weeks run Monday to Sunday; slots before the first day or after the last stay null.
 export function buildUsageCalendar(
   days: readonly string[],
   values: readonly number[],
@@ -181,8 +180,6 @@ export function buildUsageCalendar(
   return { weeks, months: months.filter((month, i) => months[i + 1]?.week !== month.week) };
 }
 
-// A daily window ends on today, which is still in progress and would drag the average down.
-// Hourly windows end at the request time, so their last hour is complete.
 export function periodAverage(totals: readonly number[], lastInProgress: boolean): number {
   const settled = lastInProgress ? totals.slice(0, -1) : totals;
   return settled.length === 0 ? 0 : settled.reduce((sum, total) => sum + total, 0) / settled.length;

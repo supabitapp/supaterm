@@ -1,4 +1,3 @@
-import type { DailyTotals } from "@supaterm/shared/usageMerge";
 import {
   buildUsageCalendar,
   formatDayShort,
@@ -10,28 +9,27 @@ import { Pressable, View } from "react-native";
 
 import { AppText as Text } from "../../components/ui/AppText";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
-import { buildChartDays, type UsageChartMetric } from "./usageChartData";
+import type { UsageChartDay, UsageChartMetric } from "./usageChartData";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const LABELED_WEEKDAYS = new Set(["Mon", "Wed", "Fri"]);
 const LEVEL_ALPHA = [0.08, 0.25, 0.45, 0.7, 0.95];
 
 export function UsageCalendarHeatmap({
-  days,
-  daily,
+  chartDays,
   metric,
   selectedDay,
   onSelectDay,
 }: {
-  readonly days: readonly string[];
-  readonly daily: readonly DailyTotals[];
+  readonly chartDays: readonly UsageChartDay[];
   readonly metric: UsageChartMetric;
   readonly selectedDay: string | null;
   readonly onSelectDay: (day: string | null) => void;
 }) {
   const { themeAppearance } = useAppearancePreferences();
   const ink = themeAppearance === "dark" ? "230, 230, 230" : "60, 60, 67";
-  const totals = buildChartDays(days, daily, metric).map((day) => day.total);
+  const days = chartDays.map((day) => day.day);
+  const totals = chartDays.map((day) => day.total);
   const calendar = buildUsageCalendar(days, totals);
   const lastIndex = days.length - 1;
   const format = metric === "cost" ? formatUsd : formatTokens;
