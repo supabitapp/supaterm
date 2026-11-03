@@ -1,4 +1,5 @@
 import { Input as InputPrimitive } from "@base-ui/react/input";
+import { mergeProps } from "@base-ui/react/merge-props";
 import type * as React from "react";
 
 import { cn } from "~/lib/utils";
@@ -22,6 +23,8 @@ function acceptHighlightedSuggestionOnTab(event: React.KeyboardEvent<HTMLInputEl
     event.metaKey ||
     event.defaultPrevented ||
     event.nativeEvent.isComposing ||
+    event.keyCode === 229 ||
+    input.readOnly ||
     !input.getAttribute("aria-activedescendant")
   ) {
     return;
@@ -41,10 +44,10 @@ function Input({
   onKeyDown,
   ...props
 }: InputProps) {
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    onKeyDown?.(event as Parameters<NonNullable<typeof onKeyDown>>[0]);
-    acceptHighlightedSuggestionOnTab(event);
-  };
+  const { onKeyDown: handleKeyDown } = mergeProps<"input">(
+    { onKeyDown: acceptHighlightedSuggestionOnTab },
+    { onKeyDown },
+  );
   const inputClassName = cn(
     "h-8.5 w-full min-w-0 rounded-[inherit] px-[calc(--spacing(3)-1px)] leading-8.5 outline-none placeholder:text-placeholder sm:h-7.5 sm:leading-7.5 [transition:background-color_5000000s_ease-in-out_0s]",
     size === "compact" && "h-7 px-[calc(--spacing(2.5)-1px)] text-xs leading-7 sm:h-7 sm:leading-7",
