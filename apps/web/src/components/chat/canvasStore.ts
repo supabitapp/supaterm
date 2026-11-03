@@ -2,13 +2,12 @@ import type { ScopedThreadRef } from "@supaterm/contracts";
 import { createStore } from "zustand";
 import type { ThreadPanelPresentation } from "../../rightPanelLayout";
 import type { DetailsCardMeasurement } from "./ChatCanvasContext";
-import { resolveChatCanvasLayout, type ChatCanvasPreview } from "./chatCanvasLayout";
+import {
+  resolveChatCanvasLayout,
+  type ChatCanvasFindBar,
+  type ChatCanvasPreview,
+} from "./chatCanvasLayout";
 import { resolveThreadDetailsCardLayout } from "./threadDetailsCardLayout";
-
-interface FindBarMeasurement {
-  readonly width: number;
-  readonly bottom: number;
-}
 
 export interface ChatCanvasMeasurements {
   readonly width: number;
@@ -18,8 +17,7 @@ export interface ChatCanvasMeasurements {
   readonly minChatWidth: number;
   readonly composerHeight: number;
   readonly timelineGutter: number;
-  /** The find bar's width and bottom edge in canvas coordinates while it is shown. */
-  readonly findBar: FindBarMeasurement | null;
+  readonly findBar: ChatCanvasFindBar | null;
 }
 
 interface ChatCanvasStoreState {
@@ -40,7 +38,7 @@ const INITIAL_MEASUREMENTS: ChatCanvasMeasurements = {
   findBar: null,
 };
 
-const sameFindBar = (a: FindBarMeasurement | null, b: FindBarMeasurement | null) =>
+const sameFindBar = (a: ChatCanvasFindBar | null, b: ChatCanvasFindBar | null) =>
   a === b || (a !== null && b !== null && a.width === b.width && a.bottom === b.bottom);
 
 const sameMeasurements = (a: ChatCanvasMeasurements, b: ChatCanvasMeasurements) =>

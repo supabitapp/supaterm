@@ -18,6 +18,12 @@ export interface ChatCanvasPreview {
   readonly lastInteraction?: PreviewMiniPlayerState["lastInteraction"];
 }
 
+/** The open find bar's width and bottom edge; it floats at the top end of the chat lane. */
+export interface ChatCanvasFindBar {
+  readonly width: number;
+  readonly bottom: number;
+}
+
 const GAP = 12;
 export const DETAILS_CARD_CLEARANCE = 32;
 
@@ -38,8 +44,7 @@ export function resolveChatCanvasLayout({
   minChatWidth?: number;
   composerHeight?: number;
   detailsCard?: PreviewMiniPlayerObstacles["detailsCard"];
-  /** The open find bar, which floats at the top end of the chat lane. */
-  findBar?: { readonly width: number; readonly bottom: number } | null;
+  findBar?: ChatCanvasFindBar | null;
 }) {
   const centeredWidth = Math.max(0, Math.min(maxChatWidth, container.width - padding * 2));
   const laneRight = detailsCard
