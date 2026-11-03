@@ -115,8 +115,18 @@ function VoiceLevelMeter(props: {
       attributes: true,
       attributeFilter: ["class", "style", "data-theme-id"],
     });
-    const resolution = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
-    resolution.addEventListener("change", paint);
+    // A resolution query only reports leaving its own ratio, so each change watches the new one.
+    const resolution = new AbortController();
+    const watchResolution = () =>
+      window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`).addEventListener(
+        "change",
+        () => {
+          paint();
+          watchResolution();
+        },
+        { once: true, signal: resolution.signal },
+      );
+    watchResolution();
     const timer = live
       ? window.setInterval(() => {
           if (!document.hidden && meter.write(props.recorder.loudness())) paint();
@@ -125,7 +135,7 @@ function VoiceLevelMeter(props: {
     return () => {
       window.clearInterval(timer);
       theme.disconnect();
-      resolution.removeEventListener("change", paint);
+      resolution.abort();
     };
   }, [props.recorder, live]);
   return (
