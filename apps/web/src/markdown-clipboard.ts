@@ -451,6 +451,16 @@ export function chatMarkdownClipboardPayload(
       htmls.push(`<meta charset="utf-8">${mathSourceElement(math).outerHTML}`);
       continue;
     }
+    // A range inside a relabeled link, such as a PR URL shown as `#123`, would clone only its label.
+    const link = ancestorElement?.closest("a[data-markdown-copy]");
+    if (link) {
+      const text = link.getAttribute("data-markdown-copy")?.trim();
+      if (!text) continue;
+      texts.push(text);
+      container.replaceChildren(link.cloneNode(true));
+      htmls.push(sanitizedHtmlFrom(container));
+      continue;
+    }
     if (ancestorElement?.closest("pre")) {
       const text = range.toString();
       if (text) {
