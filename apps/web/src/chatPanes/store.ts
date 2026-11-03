@@ -33,12 +33,14 @@ import {
 } from "./layout";
 import {
   closePaneWithSideChats,
+  type DraftThread,
   openBeside,
   type ParkedSideChats,
   promoteParkedDraft,
   retargetPane,
   showInPane,
   showParkedSideChat,
+  swapInSideChat,
   untieSideChat,
 } from "./sideChats";
 
@@ -142,7 +144,7 @@ interface ChatPaneState {
   reconcileRoute: (
     target: ThreadRouteTarget,
     workspace: PaneLayoutSize | null,
-    draftThread?: (draftId: DraftId) => ScopedThreadRef | null,
+    draftThread?: DraftThread,
   ) => void;
   /** The next thread opened from anywhere lands beside the focused pane. */
   requestOpenToSide: (edge: PaneEdge) => void;
@@ -161,6 +163,11 @@ interface ChatPaneState {
     readonly parent: ThreadRouteTarget;
     readonly sideChat: ThreadRouteTarget;
   }) => void;
+  /** Puts a side chat in its parent's last side chat pane; false without one on screen. */
+  swapInSideChat: (pair: {
+    readonly parent: ThreadRouteTarget;
+    readonly sideChat: ThreadRouteTarget;
+  }) => boolean;
   /** Unties a side chat that became a full thread, so it stays when its parent leaves. */
   unlinkSideChat: (sideChat: ThreadRouteTarget) => void;
   promoteParkedDraft: (draftId: DraftId, threadRef: ScopedThreadRef) => void;
@@ -247,8 +254,8 @@ export const useChatPaneStore = create<ChatPaneState>()(
           const anchorId = focused.sideChatOf ?? focused.id;
           return {
             ...(opened ??
-              showParkedSideChat(from, anchorId, target, workspace) ??
-              showInPane(from, anchorId, target, workspace)),
+              showParkedSideChat(from, anchorId, target, workspace, draftThread) ??
+              showInPane(from, anchorId, target, workspace, draftThread)),
             openToSide: null,
             historyMode: "replace",
           };
@@ -304,6 +311,15 @@ export const useChatPaneStore = create<ChatPaneState>()(
           const layout = linkSideChatPane(state.layout, sideChatPane.id, parentPane.id);
           return layout === state.layout ? state : { layout };
         }),
+      swapInSideChat: ({ parent, sideChat }) => {
+        const { layout, parkedSideChats } = get();
+        const parentPane = layout ? findPaneByTarget(layout, parent) : null;
+        if (!layout || !parentPane) return false;
+        const swapped = swapInSideChat({ layout, parkedSideChats }, parentPane.id, sideChat);
+        if (!swapped) return false;
+        set({ ...swapped, historyMode: "push" });
+        return true;
+      },
       unlinkSideChat: (sideChat) =>
         set((state) => {
           if (!state.layout) return state;
@@ -356,7 +372,11 @@ export const useChatPaneStore = create<ChatPaneState>()(
         const { layout, closed, parkedSideChats } = get();
         const cell = layout ? findPane(layout, paneId) : null;
         if (!layout || !cell || layout.cells.length < 2) return false;
-        const result = closePaneWithSideChats({ layout, parkedSideChats }, paneId);
+        const result = closePaneWithSideChats(
+          { layout, parkedSideChats },
+          paneId,
+          options?.remember === false,
+        );
         if (!result) return false;
         const parent = cell.sideChatOf === undefined ? null : findPane(layout, cell.sideChatOf);
         set({

@@ -140,6 +140,18 @@ describe("side chats", () => {
     expect(targets()).toEqual([thread("x"), thread("a"), thread("s")]);
   });
 
+  it("take the place of their parent's last side chat when there is no room", () => {
+    const snug = { width: 1200, height: 900 };
+    store().reconcileRoute(thread("a"), snug);
+    openSideChat("a", thread("s"));
+    openSideChat("a", thread("t"));
+    expect(store().swapInSideChat({ parent: thread("a"), sideChat: thread("u") })).toBe(true);
+    expect(targets()).toEqual([thread("a"), thread("t"), thread("u")]);
+    store().reconcileRoute(thread("x"), snug);
+    store().reconcileRoute(thread("a"), snug);
+    expect(targets()).toEqual([thread("a"), thread("t"), thread("u")]);
+  });
+
   it("tie back to their parent when they are already on screen as it returns", () => {
     store().reconcileRoute(thread("a"), roomy);
     openSideChat("a", thread("s"));
@@ -169,6 +181,15 @@ describe("side chats", () => {
     store().promoteParkedDraft(draft.draftId, thread("t").threadRef);
     store().reconcileRoute(thread("b"), roomy);
     expect(targets()).toEqual([thread("b"), thread("t")]);
+
+    const sent = { kind: "draft" as const, draftId: DraftId.make("draft-u") };
+    store().reconcileRoute(thread("c"), roomy);
+    openSideChat("c", sent);
+    store().reconcileRoute(thread("x"), roomy, (draftId) =>
+      draftId === sent.draftId ? thread("u").threadRef : null,
+    );
+    store().reconcileRoute(thread("c"), roomy);
+    expect(targets()).toEqual([thread("c"), thread("u")]);
   });
 
   it("close with their parent and reopen with it, unless nothing else would be left", () => {
@@ -182,6 +203,15 @@ describe("side chats", () => {
     store().close(paneOf("b"));
     store().close(paneOf("a"));
     expect(targets()).toEqual([thread("s")]);
+  });
+
+  it("stay on screen when their parent's pane closes because the thread is gone", () => {
+    store().reconcileRoute(thread("b"), roomy);
+    store().split(paneOf("b"), "right", thread("a"), roomy);
+    openSideChat("a", thread("s"));
+    store().close(paneOf("a"), { remember: false });
+    expect(targets()).toEqual([thread("b"), thread("s")]);
+    expect(store().parkedSideChats).toEqual([]);
   });
 
   it("let go of a pane that shows another thread or became a full thread", () => {

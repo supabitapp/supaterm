@@ -1,5 +1,3 @@
-import { scopeThreadRef } from "@supaterm/client-runtime/environment";
-import type { ScopedThreadRef } from "@supaterm/contracts";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { BackgroundThreadContext } from "../chat/backgroundThread";
@@ -15,10 +13,10 @@ import {
   type PaneLayout,
 } from "../../chatPanes/layout";
 import { PaneScopeProvider, registerPaneComposer, type PaneScope } from "../../chatPanes/paneScope";
+import type { DraftThread } from "../../chatPanes/sideChats";
 import { useChatPaneStore } from "../../chatPanes/store";
 import { ComposerHandleContext } from "../../composerHandleContext";
 import { useComposerDraftStore } from "../../composerDraftStore";
-import type { DraftId } from "../../draftId";
 import { observeResize } from "../../lib/observeResize";
 import { RIGHT_PANEL_SHEET_MAX_WIDTH } from "../../rightPanelLayout";
 import { buildThreadRouteParams, type ThreadRouteTarget } from "../../threadRoutes";
@@ -47,13 +45,11 @@ function useNavigateToPaneTarget() {
   });
 }
 
-function draftThread(draftId: DraftId): ScopedThreadRef | null {
+const draftThread: DraftThread = (draftId) => {
   const drafts = useComposerDraftStore.getState();
   const session = drafts.getDraftSession(draftId);
-  return session
-    ? (session.promotedTo ?? scopeThreadRef(session.environmentId, session.threadId))
-    : drafts.getPromotedDraftRedirect(draftId);
-}
+  return session ? (session.promotedTo ?? null) : drafts.getPromotedDraftRedirect(draftId);
+};
 
 /**
  * The chat area: one pane per open thread, tiled on a resizable grid. Even a

@@ -1,3 +1,6 @@
+import type { ScopedThreadRef } from "@supaterm/contracts";
+
+import type { DraftId } from "../draftId";
 import { randomUUID } from "../lib/utils";
 import type { ThreadRouteTarget } from "../threadRoutes";
 import {
@@ -20,6 +23,10 @@ import {
 
 const MAX_PARKED_SIDE_CHATS = 20;
 
+/** The thread a sent draft became, or null while it is unsent. */
+export type DraftThread = (draftId: DraftId) => ScopedThreadRef | null;
+const noDraftThread: DraftThread = () => null;
+
 export interface ParkedSideChats {
   readonly parent: ThreadRouteTarget;
   readonly sideChats: ReadonlyArray<ThreadRouteTarget>;
@@ -31,7 +38,17 @@ export interface PaneArrangement {
   readonly parkedSideChats: ReadonlyArray<ParkedSideChats>;
 }
 
-function parkSideChats(state: PaneArrangement, paneId: string): PaneArrangement {
+// A sent draft is parked as its thread: the draft goes away once the thread takes over.
+function parkedTarget(target: ThreadRouteTarget, draftThread: DraftThread): ThreadRouteTarget {
+  const threadRef = target.kind === "draft" ? draftThread(target.draftId) : null;
+  return threadRef ? { kind: "server", threadRef } : target;
+}
+
+function parkSideChats(
+  state: PaneArrangement,
+  paneId: string,
+  draftThread: DraftThread,
+): PaneArrangement {
   const pane = findPane(state.layout, paneId);
   const sideChats = sideChatPanes(state.layout, paneId);
   if (!pane || sideChats.length === 0) return state;
@@ -39,24 +56,27 @@ function parkSideChats(state: PaneArrangement, paneId: string): PaneArrangement 
     (current, cell) => closePane(current, cell.id)?.layout ?? current,
     state.layout,
   );
-  const key = paneTargetKey(pane.target);
-  const targets = sideChats.map((cell) => cell.target);
-  const keys = new Set(targets.map(paneTargetKey));
-  const earlier = state.parkedSideChats.find((entry) => paneTargetKey(entry.parent) === key);
+  const targets = sideChats.map((cell) => parkedTarget(cell.target, draftThread));
+  return { layout, parkedSideChats: parkUnder(state.parkedSideChats, pane.target, targets) };
+}
+
+/** Earlier entries go first when they come back, so ones already parked under `parent` follow. */
+function parkUnder(
+  parked: ReadonlyArray<ParkedSideChats>,
+  parent: ThreadRouteTarget,
+  sideChats: ReadonlyArray<ThreadRouteTarget>,
+): ReadonlyArray<ParkedSideChats> {
+  const key = paneTargetKey(parent);
+  const keys = new Set(sideChats.map(paneTargetKey));
+  const earlier = parked.find((entry) => paneTargetKey(entry.parent) === key);
   const entry = {
-    parent: pane.target,
+    parent,
     sideChats: [
-      ...targets,
+      ...sideChats,
       ...(earlier?.sideChats ?? []).filter((target) => !keys.has(paneTargetKey(target))),
     ],
   };
-  return {
-    layout,
-    parkedSideChats: [entry, ...state.parkedSideChats.filter((other) => other !== earlier)].slice(
-      0,
-      MAX_PARKED_SIDE_CHATS,
-    ),
-  };
+  return [entry, ...parked.filter((other) => other !== earlier)].slice(0, MAX_PARKED_SIDE_CHATS);
 }
 
 /** Side chats that do not fit stay parked; one already on screen is tied back to its parent. */
@@ -70,20 +90,24 @@ function restoreSideChats(
   const entry = state.parkedSideChats.find((other) => paneTargetKey(other.parent) === key);
   if (!entry || !workspace) return state;
   let layout = state.layout;
+  let previousId = paneId;
   const unopened: ThreadRouteTarget[] = [];
-  // Each opens right beside the parent, so the last one goes first to keep their order.
-  for (const target of entry.sideChats.toReversed()) {
+  for (const target of entry.sideChats) {
     const shown = findPaneByTarget(layout, target);
     if (shown) {
       layout = linkSideChatPane(layout, shown.id, paneId);
       continue;
     }
     const id = randomUUID();
-    const split = canSplitPane(layout, paneId, "right", workspace)
-      ? splitPane(layout, paneId, "right", target, id, randomUUID)
+    const split = canSplitPane(layout, previousId, "right", workspace)
+      ? splitPane(layout, previousId, "right", target, id, randomUUID)
       : null;
-    if (split) layout = linkSideChatPane(split, id, paneId);
-    else unopened.unshift(target);
+    if (split) {
+      layout = linkSideChatPane(split, id, paneId);
+      previousId = id;
+    } else {
+      unopened.push(target);
+    }
   }
   return {
     layout: focusPane(layout, paneId),
@@ -105,8 +129,9 @@ export function showInPane(
   paneId: string,
   target: ThreadRouteTarget,
   workspace: PaneLayoutSize | null,
+  draftThread: DraftThread = noDraftThread,
 ): PaneArrangement {
-  const parked = parkSideChats(state, paneId);
+  const parked = parkSideChats(state, paneId, draftThread);
   const layout = focusPane(replacePaneTarget(parked.layout, paneId, target), paneId);
   return restoreSideChats({ ...parked, layout }, paneId, workspace);
 }
@@ -120,15 +145,37 @@ export function showParkedSideChat(
   paneId: string,
   sideChat: ThreadRouteTarget,
   workspace: PaneLayoutSize | null,
+  draftThread: DraftThread,
 ): PaneArrangement | null {
   const key = paneTargetKey(sideChat);
   const entry = state.parkedSideChats.find((other) =>
     other.sideChats.some((target) => paneTargetKey(target) === key),
   );
   if (!entry || findPaneByTarget(state.layout, entry.parent)) return null;
-  const shown = showInPane(state, paneId, entry.parent, workspace);
+  const shown = showInPane(state, paneId, entry.parent, workspace, draftThread);
   const pane = findPaneByTarget(shown.layout, sideChat);
   return pane ? { ...shown, layout: focusPane(shown.layout, pane.id) } : null;
+}
+
+/**
+ * With no room beside its parent, a side chat takes the pane of the parent's last side chat,
+ * which is parked. Null when the parent has no side chat on screen.
+ */
+export function swapInSideChat(
+  state: PaneArrangement,
+  parentPaneId: string,
+  sideChat: ThreadRouteTarget,
+): PaneArrangement | null {
+  const parent = findPane(state.layout, parentPaneId);
+  const last = sideChatPanes(state.layout, parentPaneId).at(-1);
+  if (!parent || !last || findPaneByTarget(state.layout, sideChat)) return null;
+  const cells = state.layout.cells.map((cell) =>
+    cell.id === last.id ? { ...cell, target: sideChat } : cell,
+  );
+  return {
+    layout: focusPane({ ...state.layout, cells }, last.id),
+    parkedSideChats: parkUnder(state.parkedSideChats, parent.target, [last.target]),
+  };
 }
 
 /** Opens `target` beside `paneId` with its parked side chats; null when it cannot split. */
@@ -150,7 +197,7 @@ export function retargetPane(
   paneId: string,
   target: ThreadRouteTarget,
 ): PaneArrangement {
-  const parked = parkSideChats(state, paneId);
+  const parked = parkSideChats(state, paneId, noDraftThread);
   return {
     ...parked,
     layout: {
@@ -160,12 +207,16 @@ export function retargetPane(
   };
 }
 
-/** Closes `paneId` and parks its side chats, unless they are all that would be left. */
+/**
+ * Closes `paneId` and parks its side chats, unless they are all that would be left or the
+ * thread is gone for good.
+ */
 export function closePaneWithSideChats(
   state: PaneArrangement,
   paneId: string,
+  threadGone: boolean,
 ): { readonly arrangement: PaneArrangement; readonly closed: ClosePaneResult } | null {
-  const parked = parkSideChats(state, paneId);
+  const parked = threadGone ? state : parkSideChats(state, paneId, noDraftThread);
   const from = parked.layout.cells.length < 2 ? state : parked;
   const closed = closePane(from.layout, paneId);
   return closed ? { arrangement: { ...from, layout: closed.layout }, closed } : null;
