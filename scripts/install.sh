@@ -20,6 +20,14 @@ set -eu
 repo="supabitapp/supaterm"
 base_url="${SUPATERM_RELEASE_BASE_URL:-https://github.com/${repo}/releases/download}"
 supaterm_home="${SUPATERM_HOME:-$HOME/.supaterm}"
+case "$supaterm_home" in
+  /*) ;;
+  *)
+    # Preserve cwd's trailing newlines; trim only pwd's newline and the sentinel.
+    supaterm_cwd="$(pwd -P && printf .)"
+    supaterm_home="${supaterm_cwd%??}/$supaterm_home"
+    ;;
+esac
 bin_dir="${SUPATERM_INSTALL_BIN_DIR:-$HOME/.local/bin}"
 
 fail() {
