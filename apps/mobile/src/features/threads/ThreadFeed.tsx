@@ -3355,7 +3355,7 @@ export const ThreadFeed = memo(function ThreadFeed({
   const [prefetchHistory] = useState(createThreadHistoryPrefetcher);
   const handleHistoryPrefetch = () => {
     const state = listRef.current?.getState();
-    if (props.freeze.value || feedLoading || state?.data !== presentedFeed) return;
+    if (props.freeze.value || feedLoading || state?.data !== groupedFeed) return;
     prefetchHistory(feedThreadKey, props.historyControls, state);
   };
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reads the native list's imperative state on the next frame after each commit to prefetch older history
