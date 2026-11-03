@@ -22,7 +22,7 @@ import {
   type PreviewCell,
   type PreviewMetrics,
 } from "./preview.ts";
-import { within, type Link } from "./runner.ts";
+import { stopSleeps, within, type Link } from "./runner.ts";
 import { aggregate, table, type Aggregate } from "./stats.ts";
 
 const USAGE = `Streaming benchmark for the server-browser preview stream and the device hub proxy.
@@ -190,13 +190,16 @@ const shutdown = () =>
     cleanup.disposeAsync().catch((error: unknown) => console.error(`cleanup failed: ${error}`)),
     SHUTDOWN_MS,
   ));
+let signalExitCode: number | undefined;
 for (const [signal, code] of [
   ["SIGINT", 130],
   ["SIGTERM", 143],
 ] as const)
   process.once(signal, () => {
-    console.error(`${signal}: stopping`);
-    void shutdown().then(() => process.exit(code));
+    console.error(`${signal}: stopping, then reporting completed runs`);
+    signalExitCode = code;
+    stopSleeps();
+    void shutdown();
   });
 
 const measure = async <Cell, Metrics>(
@@ -296,3 +299,4 @@ const rows = <Cell, Metrics extends Record<keyof Metrics, number | null>>(
 table(rows(previewOutcomes, previewColumns));
 table(rows(deviceOutcomes, deviceColumns));
 console.log(`results: ${out}`);
+if (signalExitCode !== undefined) process.exit(signalExitCode);

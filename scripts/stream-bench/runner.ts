@@ -2,6 +2,7 @@
 import * as NodeChildProcess from "node:child_process";
 import * as NodePath from "node:path";
 import * as NodePerfHooks from "node:perf_hooks";
+import * as NodeTimersPromises from "node:timers/promises";
 
 import { round } from "./stats.ts";
 
@@ -9,7 +10,10 @@ const READY_MS = 30_000;
 const REQUEST_MS = 60_000;
 export const STOP_MS = 5_000;
 
-export const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+const stopping = new AbortController();
+export const stopSleeps = () => stopping.abort();
+export const sleep = (ms: number) =>
+  NodeTimersPromises.setTimeout(ms, undefined, { signal: stopping.signal });
 export const wallNow = () => NodePerfHooks.performance.timeOrigin + NodePerfHooks.performance.now();
 
 export const within = (promise: Promise<unknown>, ms: number) => {
