@@ -95,7 +95,7 @@ export class VoiceInputSession {
   private readonly dependencies: VoiceInputSessionDependencies;
   private target: VoiceInputTarget | null = null;
   private unsubscribe: (() => void) | null = null;
-  private onCommit: ((text: string) => void) | undefined;
+  private onCommit: VoiceInputTarget["commitDraft"] | undefined;
   private snapshot: VoiceInputSnapshot = {
     state: IDLE_STATE,
     ownerKey: null,
@@ -117,7 +117,7 @@ export class VoiceInputSession {
       readDraft: () => this.target?.readDraft() ?? null,
       commitDraft: (text, selection) => {
         this.target?.commitDraft(text, selection);
-        this.onCommit?.(text);
+        this.onCommit?.(text, selection);
       },
     });
   }
@@ -157,7 +157,7 @@ export class VoiceInputSession {
     return this.target ? this.start(this.target) : Promise.resolve();
   }
 
-  stop(onCommit?: (text: string) => void): Promise<void> {
+  stop(onCommit?: VoiceInputTarget["commitDraft"]): Promise<void> {
     if (this.controller.currentState.phase !== "recording") return Promise.resolve();
     this.onCommit = onCommit;
     return this.controller.stop();
