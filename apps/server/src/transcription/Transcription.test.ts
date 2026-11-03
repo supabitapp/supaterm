@@ -486,7 +486,6 @@ describe("Transcription", () => {
         expect(call?.keyterms).toEqual(
           expect.arrayContaining(["supaterm-app", "voice", "transcription"]),
         );
-        // The speech model copies a keyterm's casing, and the header keeps a term's first casing.
         expect(call?.keyterms.find((term) => term.toLowerCase() === "supaterm")).toBe("Supaterm");
         expect(call?.keyterms).toContain("worktree");
         expect(call?.keyterms).toEqual(
