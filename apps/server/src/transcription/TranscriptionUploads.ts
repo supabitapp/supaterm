@@ -77,6 +77,8 @@ const StreamClaims = Schema.Struct({
   uploadId: Schema.String,
   expiresAt: Schema.Number,
   providerInstanceId: ProviderInstanceId,
+  /** The session that may send audio; the stream ends once it is revoked. */
+  sessionId: Schema.String,
   request: TranscriptionPrepareStreamInput,
 });
 const streamClaimsJson = Schema.fromJsonString(StreamClaims);
@@ -207,14 +209,19 @@ export class TranscriptionUploads extends Context.Service<
     ) => Effect.Effect<TranscriptionCancelUploadResult>;
     readonly prepareStream: (
       input: TranscriptionPrepareStreamInput,
+      sessionId: string,
     ) => Effect.Effect<
       TranscriptionPrepareUploadResult,
       AttachmentUploadSigningKeyError | TranscriptionError
     >;
-    /** Takes a dictation's audio from `socket` until it finishes or the client goes away. */
+    /**
+     * Takes a dictation's audio from `socket` until it finishes or the client goes away.
+     * `revoked` completes when a session loses access, which cancels the dictation.
+     */
     readonly attachStream: (
       token: string,
       socket: Socket.Socket,
+      revoked: (sessionId: string) => Effect.Effect<void>,
     ) => Effect.Effect<void, never, Scope.Scope>;
   }
 >()("supaterm/transcription/TranscriptionUploads") {}
@@ -518,7 +525,7 @@ const make = Effect.gen(function* () {
 
   const attachStream: TranscriptionUploads["Service"]["attachStream"] = Effect.fn(
     "TranscriptionUploads.attachStream",
-  )(function* (token, socket) {
+  )(function* (token, socket, revoked) {
     const writer = yield* socket.writer;
     const close = (code: number) => writer.write(new Socket.CloseEvent(code)).pipe(Effect.ignore);
     const payload = yield* verifyUploadToken(token).pipe(
@@ -554,15 +561,18 @@ const make = Effect.gen(function* () {
         }
       }
     });
-    const ended = yield* Effect.raceFirst(
+    const ended = yield* Effect.raceAll([
       pump().pipe(Effect.orElseSucceed(() => "disconnected" as const)),
-      Effect.raceFirst(
-        Deferred.await(live.closed).pipe(
-          Effect.map((upload) => (upload ? ("upload" as const) : ("closed" as const))),
-        ),
-        Deferred.await(attachment).pipe(Effect.as("replaced" as const)),
+      Deferred.await(live.closed).pipe(
+        Effect.map((upload) => (upload ? ("upload" as const) : ("closed" as const))),
       ),
-    );
+      Deferred.await(attachment).pipe(Effect.as("replaced" as const)),
+      revoked(claims.sessionId).pipe(Effect.as("revoked" as const)),
+    ]);
+    if (ended === "revoked") {
+      yield* cancel({ uploadId: claims.uploadId });
+      return yield* close(1000);
+    }
     if (ended === "upload") return yield* close(TRANSCRIPTION_STREAM_CLOSED_CODE);
     if (ended !== "disconnected") return yield* close(1000);
     if (!live.finished && live.attachment === attachment) {
@@ -785,7 +795,7 @@ const make = Effect.gen(function* () {
 
   const prepareStream: TranscriptionUploads["Service"]["prepareStream"] = Effect.fn(
     "TranscriptionUploads.prepareStream",
-  )(function* (input) {
+  )(function* (input, sessionId) {
     const expiresAt = (yield* Clock.currentTimeMillis) + ATTACHMENT_UPLOAD_URL_TTL_MS;
     const known = (yield* storeLock.withPermits(1)(liveEntries)).get(input.uploadId);
     const providerInstanceId =
@@ -800,6 +810,7 @@ const make = Effect.gen(function* () {
         uploadId: input.uploadId,
         expiresAt,
         providerInstanceId,
+        sessionId,
         request: input,
       }),
     ).pipe(Effect.provideService(ServerSecretStore.ServerSecretStore, secretStore));

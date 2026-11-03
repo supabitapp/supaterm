@@ -3,6 +3,7 @@ import * as Mime from "effect/http/Mime";
 import {
   AuthOrchestrationOperateScope,
   AuthOrchestrationReadScope,
+  AuthSessionId,
   EnvironmentHttpApi,
   TranscriptionError,
   type TranscriptionErrorReason,
@@ -44,6 +45,7 @@ import {
 } from "./assets/AttachmentUpload.ts";
 import * as BrowserTraceCollector from "./observability/BrowserTraceCollector.ts";
 import * as TranscriptionUploads from "./transcription/TranscriptionUploads.ts";
+import * as SessionStore from "./auth/SessionStore.ts";
 import * as EnvironmentAuth from "./auth/EnvironmentAuth.ts";
 import {
   annotateEnvironmentRequest,
@@ -573,6 +575,11 @@ export const layerTranscriptionUploadRoute = Layer.unwrap(
 export const layerTranscriptionStreamRoute = Layer.unwrap(
   Effect.gen(function* () {
     const uploads = yield* TranscriptionUploads.TranscriptionUploads;
+    const sessions = yield* SessionStore.SessionStore;
+    const revoked = (sessionId: string) =>
+      sessions
+        .awaitInvalidation(AuthSessionId.make(sessionId))
+        .pipe(Effect.catch(() => Effect.never));
     return HttpRouter.add(
       "GET",
       `${TranscriptionUploads.TRANSCRIPTION_STREAM_ROUTE_PREFIX}/*`,
@@ -590,6 +597,7 @@ export const layerTranscriptionStreamRoute = Layer.unwrap(
             `${TranscriptionUploads.TRANSCRIPTION_STREAM_ROUTE_PREFIX}/`.length,
           ),
           socket,
+          revoked,
         );
         return HttpServerResponse.empty();
       }).pipe(Effect.scoped),

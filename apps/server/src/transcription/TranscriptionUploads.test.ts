@@ -148,7 +148,10 @@ const wavOf = (pcm: Uint8Array) => {
 const frame = (byte: number) => new Uint8Array(3_200).fill(byte);
 
 /** A client connection: `sent` is what the server wrote, close codes as numbers. */
-const connect = Effect.fnUntraced(function* (relativeUrl: string) {
+const connect = Effect.fnUntraced(function* (
+  relativeUrl: string,
+  revoked: Effect.Effect<void> = Effect.never,
+) {
   const uploads = yield* TranscriptionUploads.TranscriptionUploads;
   const inbound = yield* Queue.unbounded<Uint8Array | string, Socket.SocketError>();
   const sent = yield* Queue.unbounded<string | number>();
@@ -168,6 +171,7 @@ const connect = Effect.fnUntraced(function* (relativeUrl: string) {
       uploads.attachStream(
         relativeUrl.slice(`${TranscriptionUploads.TRANSCRIPTION_STREAM_ROUTE_PREFIX}/`.length),
         socket,
+        () => revoked,
       ),
     ),
   );
@@ -185,7 +189,7 @@ const connect = Effect.fnUntraced(function* (relativeUrl: string) {
 
 const prepareStream = Effect.fnUntraced(function* (uploadId: string) {
   const uploads = yield* TranscriptionUploads.TranscriptionUploads;
-  return yield* uploads.prepareStream({ uploadId, providerInstanceId: INSTANCE });
+  return yield* uploads.prepareStream({ uploadId, providerInstanceId: INSTANCE }, "session-1");
 });
 
 /** Collects a streamed dictation the way a client does once its stream is finished. */
@@ -744,7 +748,7 @@ describe("TranscriptionUploads streamed dictations", () => {
     ),
   );
 
-  it.effect("closes the stream and refuses its upload once cancelled", () =>
+  it.effect("ends and cancels the dictation when it is discarded or its session is revoked", () =>
     live((harness) =>
       Effect.gen(function* () {
         yield* Queue.offer(harness.livePlans, { _tag: "transcribe", result: Effect.never });
@@ -753,6 +757,17 @@ describe("TranscriptionUploads streamed dictations", () => {
         expect(yield* cancel("dictation-cancel")).toEqual({ outcome: "cancelled" });
         expect(yield* Queue.take(client.sent)).toBe(1000);
         expect(yield* reason(collect("dictation-cancel", wavOf(frame(1))))).toBe("cancelled");
+
+        yield* Queue.offer(harness.livePlans, { _tag: "transcribe", result: Effect.never });
+        const revocation = yield* Deferred.make<void>();
+        const revoked = yield* connect(
+          (yield* prepareStream("dictation-revoked")).relativeUrl,
+          Deferred.await(revocation),
+        );
+        yield* Queue.take(revoked.sent);
+        yield* Deferred.succeed(revocation, undefined);
+        expect(yield* Queue.take(revoked.sent)).toBe(1000);
+        expect(yield* reason(collect("dictation-revoked"))).toBe("cancelled");
       }),
     ),
   );
