@@ -64,6 +64,10 @@ describe("labels and reference links", () => {
       collectComposerContextReferences(`[${"x".repeat(300)}](supaterm-context://v1/file/ctx_1)`)[0]
         ?.label,
     ).toHaveLength(200);
+    expect(
+      collectComposerContextReferences(`[${"x".repeat(199)}😀tail](supaterm-context://v1/file/ctx_1)`)[0]
+        ?.label,
+    ).toBe("x".repeat(199));
   });
 
   it("collects occurrences in document order with offsets, sharing a payload", () => {
