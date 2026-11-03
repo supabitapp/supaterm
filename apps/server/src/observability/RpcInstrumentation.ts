@@ -157,6 +157,7 @@ const RPC_AGGREGATES = {
   [WS_METHODS.transcriptionTranscribe]: "transcription",
   [WS_METHODS.transcriptionCancel]: "transcription",
   [WS_METHODS.transcriptionPrepareUpload]: "transcription",
+  [WS_METHODS.transcriptionPrepareStream]: "transcription",
   [WS_METHODS.transcriptionCancelUpload]: "transcription",
   [WS_METHODS.providerUploadFeedback]: "provider",
   [WS_METHODS.mcpAppsCallTool]: "provider",

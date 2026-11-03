@@ -1,9 +1,17 @@
 import type { TranscriptionError } from "@supaterm/contracts";
+import * as Data from "effect/Data";
 import type * as Effect from "effect/Effect";
+import type * as Stream from "effect/Stream";
 
 const SAMPLE_RATE = 16_000;
 const BYTES_PER_SAMPLE = 2;
 const PCM_FORMAT = 1;
+export const PCM_BYTES_PER_SECOND = SAMPLE_RATE * BYTES_PER_SAMPLE;
+
+/** Live transcription failed before taking any audio, so nothing was spent and batch can run. */
+export class LiveTranscriptionUnavailable extends Data.TaggedError("LiveTranscriptionUnavailable")<{
+  readonly cause: TranscriptionError;
+}> {}
 
 export interface WavAudio {
   /** The whole file, for backends that upload WAV. */
@@ -22,6 +30,15 @@ export interface ProviderTranscription {
     readonly language: string | undefined;
     readonly keyterms: ReadonlyArray<string>;
   }) => Effect.Effect<{ readonly text: string }, TranscriptionError>;
+  /**
+   * Transcribes while `audio`, 16 kHz mono 16-bit PCM, is still arriving; it ends when the
+   * speaker stops. Fails with `LiveTranscriptionUnavailable` only before taking any audio.
+   */
+  readonly stream?: (input: {
+    readonly audio: Stream.Stream<Uint8Array>;
+    readonly language: string | undefined;
+    readonly keyterms: ReadonlyArray<string>;
+  }) => Effect.Effect<{ readonly text: string }, TranscriptionError | LiveTranscriptionUnavailable>;
 }
 
 const ascii = (bytes: Uint8Array, offset: number) =>

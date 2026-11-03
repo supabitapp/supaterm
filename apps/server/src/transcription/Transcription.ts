@@ -10,7 +10,10 @@ import {
   type TranscriptionTranscribeInput,
   type TranscriptionTranscribeResult,
 } from "@supaterm/contracts";
-import { parseWav } from "@supaterm/provider-core/server/transcription";
+import {
+  LiveTranscriptionUnavailable,
+  parseWav,
+} from "@supaterm/provider-core/server/transcription";
 import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
@@ -23,6 +26,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
 import * as Semaphore from "effect/Semaphore";
+import type * as Stream from "effect/Stream";
 
 import { deletePendingAttachment } from "../assets/AttachmentUpload.ts";
 import {
@@ -126,6 +130,19 @@ export class Transcription extends Context.Service<
     readonly transcribeFile: (
       input: TranscribeFileInput,
     ) => Effect.Effect<TranscriptionTranscribeResult, TranscriptionError>;
+    /**
+     * Transcribes audio while it is still being recorded. It never waits for capacity: a busy
+     * instance is `LiveTranscriptionUnavailable`, like any refusal before audio was taken.
+     */
+    readonly transcribeLive: (input: {
+      readonly providerInstanceId: ProviderInstanceId;
+      readonly language?: string | undefined;
+      readonly context?: TranscriptionTranscribeInput["context"];
+      readonly audio: Stream.Stream<Uint8Array>;
+    }) => Effect.Effect<
+      TranscriptionTranscribeResult,
+      TranscriptionError | LiveTranscriptionUnavailable
+    >;
   }
 >()("supaterm/transcription/Transcription") {}
 
@@ -430,7 +447,47 @@ const make = Effect.gen(function* () {
     return inputs.providerInstanceId;
   });
 
-  return Transcription.of({ transcribe, cancel, checkSource, transcribeFile });
+  const unavailable = (reason: TranscriptionErrorReason) =>
+    new LiveTranscriptionUnavailable({ cause: new TranscriptionError({ reason }) });
+
+  const transcribeLive: Transcription["Service"]["transcribeLive"] = Effect.fn(
+    "Transcription.live",
+  )(
+    function* (input) {
+      const inputs: RunInputs = {
+        providerInstanceId: input.providerInstanceId,
+        language: normalizeLanguage(input.language),
+      };
+      const { instance, backend } = yield* resolveSource(inputs).pipe(
+        Effect.mapError((cause) => new LiveTranscriptionUnavailable({ cause })),
+      );
+      if (backend.stream === undefined) return yield* unavailable("sourceUnavailable");
+      const keyterms = backend.acceptsKeyterms
+        ? yield* readKeyterms(inputs.providerInstanceId, input.context)
+        : [];
+      yield* Effect.annotateCurrentSpan({
+        instanceId: inputs.providerInstanceId,
+        driver: instance.driverKind,
+        keytermCount: keyterms.length,
+      });
+      const limiter = yield* limiterFor(inputs.providerInstanceId);
+      const stream = backend.stream;
+      return yield* Effect.acquireUseRelease(
+        limiter.takeIfAvailable(1),
+        (taken) =>
+          taken
+            ? stream({ audio: input.audio, language: inputs.language, keyterms })
+            : Effect.fail(unavailable("rateLimited")),
+        (taken) => (taken ? limiter.release(1) : Effect.void),
+      );
+    },
+    Effect.timeoutOrElse({
+      duration: RUN_TIMEOUT_MS,
+      orElse: () => Effect.fail(new TranscriptionError({ reason: "failed" })),
+    }),
+  );
+
+  return Transcription.of({ transcribe, cancel, checkSource, transcribeFile, transcribeLive });
 });
 
 export const layer = Layer.effect(Transcription, make);

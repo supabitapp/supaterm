@@ -1826,6 +1826,7 @@ export const layerWsRpc = (
           threadSnapshotPagination: true,
           threadFind: true,
           threadFindProgressive: true,
+          transcriptionStreams: true,
           ...Option.match(scratchWorkspaceRoot, {
             onNone: () => ({}),
             onSome: (root) => ({ scratchWorkspaceRoot: root }),
@@ -2841,6 +2842,10 @@ export const layerWsRpc = (
             Effect.andThen(transcriptionUploads.prepare(input)),
           ),
         [WS_METHODS.transcriptionCancelUpload]: (input) => transcriptionUploads.cancel(input),
+        [WS_METHODS.transcriptionPrepareStream]: (input) =>
+          Effect.annotateCurrentSpan({ instanceId: input.providerInstanceId }).pipe(
+            Effect.andThen(transcriptionUploads.prepareStream(input)),
+          ),
         [WS_METHODS.agentSessionsScan]: () => agentSessionScanner.scan,
         [WS_METHODS.agentSessionsImport]: (input) =>
           agentSessionImporter.importRecentAgentThreads(input),

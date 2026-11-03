@@ -1,3 +1,4 @@
+import * as NodeHttpServerRequest from "@effect/platform-node/NodeHttpServerRequest";
 import * as Mime from "effect/http/Mime";
 import {
   AuthOrchestrationOperateScope,
@@ -565,6 +566,33 @@ export const layerTranscriptionUploadRoute = Layer.unwrap(
             ),
           );
       }),
+    );
+  }),
+);
+
+export const layerTranscriptionStreamRoute = Layer.unwrap(
+  Effect.gen(function* () {
+    const uploads = yield* TranscriptionUploads.TranscriptionUploads;
+    return HttpRouter.add(
+      "GET",
+      `${TranscriptionUploads.TRANSCRIPTION_STREAM_ROUTE_PREFIX}/*`,
+      Effect.gen(function* () {
+        const request = yield* HttpServerRequest.HttpServerRequest;
+        const url = HttpServerRequest.toURL(request);
+        if (Option.isNone(url) || request.headers.upgrade?.toLowerCase() !== "websocket") {
+          return HttpServerResponse.text("Bad Request", { status: 400 });
+        }
+        // PCM doesn't compress, so negotiating permessage-deflate would only cost CPU.
+        delete NodeHttpServerRequest.toIncomingMessage(request).headers["sec-websocket-extensions"];
+        const socket = yield* request.upgrade;
+        yield* uploads.attachStream(
+          url.value.pathname.slice(
+            `${TranscriptionUploads.TRANSCRIPTION_STREAM_ROUTE_PREFIX}/`.length,
+          ),
+          socket,
+        );
+        return HttpServerResponse.empty();
+      }).pipe(Effect.scoped),
     );
   }),
 );
