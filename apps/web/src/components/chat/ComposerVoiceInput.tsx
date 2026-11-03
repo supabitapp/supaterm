@@ -6,9 +6,15 @@ import { isElectron } from "~/env";
 import { useMediaQuery } from "~/hooks/useMediaQuery";
 import { useRenderedAppearance } from "~/hooks/useTheme";
 import { cn } from "~/lib/utils";
-import { DOT_SCOPE_HEIGHT, DOT_SCOPE_WIDTH, DotScope, paintDotScope } from "~/voice/dotScope";
 import { formatVoiceDuration } from "~/voice/formatVoiceDuration";
 import type { ComposerVoiceInput } from "~/voice/useComposerVoiceInput";
+import {
+  paintVoiceMeter,
+  VOICE_METER_HEIGHT,
+  VOICE_METER_STEP_MS,
+  VOICE_METER_WIDTH,
+  WriteHead,
+} from "~/voice/voiceMeter";
 import type { WebVoiceRecorder } from "~/voice/webVoiceRecorder";
 import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
@@ -17,9 +23,6 @@ import type { ComposerBannerStackItem } from "./ComposerBannerStack";
 import { ComposerSendArrowIcon, ComposerSendButton } from "./ComposerPrimaryActions";
 
 const keepComposerFocus = (event: PointerEvent) => event.preventDefault();
-
-// High-refresh displays would otherwise repaint the scope at 120 Hz or more.
-const DOT_SCOPE_FRAME_MS = 1000 / 60 - 1;
 
 export function ComposerVoiceButton(props: {
   readonly voice: ComposerVoiceInput;
@@ -81,53 +84,44 @@ function VoiceElapsed(props: { readonly recorder: WebVoiceRecorder }) {
   return <span className="tabular-nums">{formatVoiceDuration(elapsedMs)}</span>;
 }
 
-// The scope animates only while recording; preparing can wait on a permission prompt indefinitely.
-function VoiceDotScope(props: {
+// The meter moves only while recording; preparing can wait on a permission prompt indefinitely.
+function VoiceLevelMeter(props: {
   readonly recorder: WebVoiceRecorder;
   readonly recording: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
   const dark = useRenderedAppearance() === "dark";
-  const still = reducedMotion || !props.recording;
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- paints the canvas from the live recorder each frame, outside React
+  const live = props.recording && !reducedMotion;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- writes the live recorder's loudness into the canvas each step, outside React
   useEffect(() => {
     const canvas = canvasRef.current;
     const context = canvas?.getContext("2d");
     if (!canvas || !context) return;
-    const scope = new DotScope(still);
+    const meter = new WriteHead();
     const paint = () => {
       const ratio = window.devicePixelRatio || 1;
-      const width = Math.round(DOT_SCOPE_WIDTH * ratio);
+      const width = Math.round(VOICE_METER_WIDTH * ratio);
       if (canvas.width !== width) {
         canvas.width = width;
-        canvas.height = Math.round(DOT_SCOPE_HEIGHT * ratio);
+        canvas.height = Math.round(VOICE_METER_HEIGHT * ratio);
         context.setTransform(ratio, 0, 0, ratio, 0, 0);
       }
-      paintDotScope(context, scope, getComputedStyle(canvas).color, dark);
+      paintVoiceMeter(context, meter, getComputedStyle(canvas).color, dark);
     };
-    if (still) {
-      for (let settle = 0; settle < 4; settle++) scope.advance(0.25, -120);
-      paint();
-      return;
-    }
-    let last: number | null = null;
-    const tick = (now: number) => {
-      frame = requestAnimationFrame(tick);
-      if (last !== null && now - last < DOT_SCOPE_FRAME_MS) return;
-      scope.advance(last === null ? 0 : (now - last) / 1000, props.recorder.loudness());
-      last = now;
-      paint();
-    };
-    let frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [props.recorder, still, dark]);
+    paint();
+    if (!live) return;
+    const timer = window.setInterval(() => {
+      if (meter.write(props.recorder.loudness())) paint();
+    }, VOICE_METER_STEP_MS);
+    return () => window.clearInterval(timer);
+  }, [props.recorder, live, dark]);
   return (
     <canvas
       ref={canvasRef}
       aria-hidden
       className="pointer-events-none shrink-0 text-foreground"
-      style={{ width: DOT_SCOPE_WIDTH, height: DOT_SCOPE_HEIGHT }}
+      style={{ width: VOICE_METER_WIDTH, height: VOICE_METER_HEIGHT }}
     />
   );
 }
@@ -193,7 +187,7 @@ export function ComposerVoiceSession(props: {
         {capturing ? (
           <>
             <VoiceElapsed recorder={voice.recorder} />
-            <VoiceDotScope recorder={voice.recorder} recording={phase === "recording"} />
+            <VoiceLevelMeter recorder={voice.recorder} recording={phase === "recording"} />
           </>
         ) : (
           <span aria-live="polite" className="flex items-center gap-2 text-muted-foreground">

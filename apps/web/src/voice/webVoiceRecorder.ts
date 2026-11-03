@@ -154,7 +154,8 @@ export class WebVoiceRecorder implements VoiceRecorder {
         else if (event.data === "flushed") this.flushed?.();
       };
       const analyser = context.createAnalyser();
-      analyser.fftSize = 1024;
+      // About one meter step of audio at 48 kHz, so each step reads the sound since the last one.
+      analyser.fftSize = 4096;
       const source = context.createMediaStreamSource(stream);
       source.connect(analyser);
       // The node outputs silence; it only renders while connected to the destination.
@@ -207,7 +208,7 @@ export class WebVoiceRecorder implements VoiceRecorder {
     return this.stopped;
   }
 
-  /** The microphone's loudness now, dBFS; the meter reads it each frame outside React. */
+  /** The microphone's loudness now, dBFS; the meter reads it each step outside React. */
   loudness(): number {
     const capture = this.capture;
     if (!capture || !this.recording) return -120;
