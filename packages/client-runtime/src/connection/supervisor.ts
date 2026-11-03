@@ -90,9 +90,6 @@ type SupervisorSignal =
     }
   | { readonly _tag: "BetterRouteAvailable"; readonly preflight: ConnectionDriver.PreparedRoute };
 
-const isSystemWake = (signal: SupervisorSignal) =>
-  signal._tag === "Wakeup" && signal.reason === "system-resumed";
-
 type AttemptOutcome =
   | {
       readonly _tag: "Interrupted";
@@ -520,11 +517,13 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           break;
         case "Wakeup":
           if (next.reason === "application-background") return false;
-          if (next.reason === "system-resumed") {
-            yield* Ref.set(wakeRecoveryPending, true);
-            return true;
-          }
-          if (next.reason === "application-resumed" || next.reason === "network-changed") {
+          // The attempt this restarts may have taken the wake's recovery already.
+          if (next.reason === "system-resumed") yield* Ref.set(wakeRecoveryPending, true);
+          if (
+            next.reason === "application-resumed" ||
+            next.reason === "network-changed" ||
+            next.reason === "system-resumed"
+          ) {
             return true;
           }
           break;
@@ -675,8 +674,6 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           ? "mobile-resume"
           : "checking",
       );
-      // Until the socket answers, the next attempt is a post-wake attempt.
-      if (isSystemWake(next)) yield* Ref.set(wakeRecoveryPending, true);
       const probe = yield* Effect.forkChild(lease.session.probe);
       let replacementFiber =
         next._tag === "Wakeup" &&
@@ -788,7 +785,6 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           probeEvent.signal.reason === "application-resumed"
         )
           yield* Ref.set(pendingProbe, "mobile-resume");
-        if (isSystemWake(probeEvent.signal)) yield* Ref.set(wakeRecoveryPending, true);
         const signalTimeout = probeTimeoutFor(probeEvent.signal, routeKind);
         if (signalTimeout !== undefined) {
           yield* armSilentSocketCheck(probeEvent.signal);
@@ -1031,7 +1027,6 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           const next = yield* Queue.take(signals);
           switch (next._tag) {
             case "Wakeup":
-              if (next.reason === "system-resumed") yield* Ref.set(wakeRecoveryPending, true);
               return ConnectionWakeups.shouldResubscribeAfterWakeup(next.reason)
                 ? next.reason
                 : null;
@@ -1050,8 +1045,6 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
 
   const waitForSignal = Queue.take(signals).pipe(
     Effect.repeat({ while: (next) => next._tag === "BetterRouteAvailable" }),
-    // An offline wait keeps a wake's recovery for the attempt that follows.
-    Effect.tap((next) => (isSystemWake(next) ? Ref.set(wakeRecoveryPending, true) : Effect.void)),
     Effect.map((next) =>
       next._tag === "Wakeup" && ConnectionWakeups.shouldResubscribeAfterWakeup(next.reason)
         ? next.reason
@@ -1232,6 +1225,9 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
         // A long suspension can hide a network change the platform never reported.
         if (reason === "network-changed" || reason === "system-resumed" || afterLongBackground)
           yield* forgetSilentRoutes;
+        // The next attempt is a post-wake attempt until a probe shows the
+        // socket survived, even across an offline wait.
+        if (reason === "system-resumed") yield* Ref.set(wakeRecoveryPending, true);
         yield* signal({
           _tag: "Wakeup",
           reason,
