@@ -106,7 +106,7 @@ export class VoiceInputSession {
   };
   private readonly listeners = new Set<() => void>();
   private audioLevels = SILENT_LEVELS;
-  private readonly autoLevel = new AutoLevel();
+  private autoLevel = new AutoLevel();
   private releaseKeepAwake: (() => void) | null = null;
   private meteringInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -196,6 +196,7 @@ export class VoiceInputSession {
     if (state.phase !== previousPhase) {
       if (previousPhase === "recording") this.stopRecordingActivity();
       if (capturesAudio(state.phase)) {
+        this.autoLevel = new AutoLevel();
         if (this.audioLevels.some((level) => level !== 0)) this.setAudioLevels(SILENT_LEVELS);
         elapsedSeconds = 0;
       }

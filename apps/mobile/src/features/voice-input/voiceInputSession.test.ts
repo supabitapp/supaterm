@@ -389,6 +389,7 @@ describe("global voice input", () => {
       vi.advanceTimersByTime(80);
       expect(session.getSnapshot().elapsedSeconds).toBe(2);
       expect(publishAudioLevels).toHaveBeenLastCalledWith(expect.arrayContaining([1]));
+      vi.advanceTimersByTime(2_000);
 
       await session.controller.stop();
       expect(releaseKeepAwake).toHaveBeenCalledTimes(1);
@@ -404,6 +405,10 @@ describe("global voice input", () => {
       await session.start(createTarget("first", () => "first", vi.fn(), { start: 5, end: 5 }));
       expect(session.getSnapshot().elapsedSeconds).toBe(0);
       expect(publishAudioLevels).toHaveBeenLastCalledWith(expect.not.arrayContaining([1]));
+      // A quiet voice still moves the meter after a loud recording.
+      sample = { durationMillis: 80, metering: -40 };
+      vi.advanceTimersByTime(80);
+      expect(publishAudioLevels.mock.lastCall?.[0].at(-1)).toBeGreaterThan(0);
       expect(keepAwake).toHaveBeenCalledTimes(2);
       session.dispose();
       expect(releaseKeepAwake).toHaveBeenCalledTimes(2);
