@@ -16,7 +16,6 @@ describe("resolveUserMessageGrouping", () => {
     expect(resolveUserMessageGrouping(own, own, own)).toEqual({
       groupedWithPrevious: true,
       groupedWithNext: true,
-      continuesSteer: false,
     });
     expect(resolveUserMessageGrouping(own, undefined, own)).toMatchObject({
       groupedWithPrevious: false,
@@ -32,32 +31,11 @@ describe("resolveUserMessageGrouping", () => {
       expect(resolveUserMessageGrouping(own, boundary, boundary)).toEqual({
         groupedWithPrevious: false,
         groupedWithNext: false,
-        continuesSteer: false,
       });
       expect(resolveUserMessageGrouping(boundary, own, own)).toEqual({
         groupedWithPrevious: false,
         groupedWithNext: false,
-        continuesSteer: false,
       });
-    }
-  });
-
-  it("shows one label for consecutive steers, including promoted queued messages", () => {
-    for (const inputIntent of ["steer", "promoted_queued_to_steer"] as const) {
-      const steer = { ...own, inputIntent };
-      expect(
-        resolveUserMessageGrouping(steer, { ...own, inputIntent: "steer" }, undefined)
-          .continuesSteer,
-      ).toBe(true);
-      expect(
-        resolveUserMessageGrouping(
-          steer,
-          { ...own, inputIntent: "promoted_queued_to_steer" },
-          undefined,
-        ).continuesSteer,
-      ).toBe(true);
-      expect(resolveUserMessageGrouping(steer, own, undefined).continuesSteer).toBe(false);
-      expect(resolveUserMessageGrouping(own, steer, undefined).continuesSteer).toBe(false);
     }
   });
 });
