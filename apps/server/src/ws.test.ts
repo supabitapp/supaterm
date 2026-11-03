@@ -1,3 +1,4 @@
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as RelayAccess from "./relay/RelayAccess.ts";
 import * as DirectTunnel from "./relay/DirectTunnel.ts";
 import * as OrchestrationSkills from "./provider/OrchestrationSkills.ts";
@@ -725,7 +726,7 @@ const layerConfigSources = Layer.mergeAll(
       ServerConfigModule.layerTest(process.cwd(), { prefix: "supaterm-config-subscription-test-" }),
     ),
   ),
-  Layer.provideMerge(NodeServices.layer),
+  Layer.provideMerge(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
 );
 
 it.effect.each([

@@ -1,5 +1,6 @@
 import { AuthStandardClientScopes } from "@supaterm/contracts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import { expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -41,56 +42,59 @@ const layerEnvironmentAuth = (
     Layer.provide(layerServerConfig(overrides)),
   );
 
-it.layer(NodeServices.layer)("EnvironmentAuth administrative operations", (it) => {
-  it.effect("creates, lists, and revokes client pairing links", () =>
-    Effect.gen(function* () {
-      const environmentAuth = yield* EnvironmentAuth.EnvironmentAuth;
+it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))(
+  "EnvironmentAuth administrative operations",
+  (it) => {
+    it.effect("creates, lists, and revokes client pairing links", () =>
+      Effect.gen(function* () {
+        const environmentAuth = yield* EnvironmentAuth.EnvironmentAuth;
 
-      const created = yield* environmentAuth.createPairingLink({
-        scopes: ["orchestration:read"],
-        subject: "one-time-token",
-        label: "CI phone",
-      });
-      const listedBeforeRevoke = yield* environmentAuth.listPairingLinks();
-      const revoked = yield* environmentAuth.revokePairingLink(created.id);
-      const listedAfterRevoke = yield* environmentAuth.listPairingLinks();
+        const created = yield* environmentAuth.createPairingLink({
+          scopes: ["orchestration:read"],
+          subject: "one-time-token",
+          label: "CI phone",
+        });
+        const listedBeforeRevoke = yield* environmentAuth.listPairingLinks();
+        const revoked = yield* environmentAuth.revokePairingLink(created.id);
+        const listedAfterRevoke = yield* environmentAuth.listPairingLinks();
 
-      expect(created.scopes).toEqual(["orchestration:read"]);
-      expect(created.credential.length).toBeGreaterThan(0);
-      expect(listedBeforeRevoke).toHaveLength(1);
-      expect(listedBeforeRevoke[0]?.id).toBe(created.id);
-      expect(listedBeforeRevoke[0]?.label).toBe("CI phone");
-      expect(listedBeforeRevoke[0]).not.toHaveProperty("credential");
-      expect(revoked).toBe(true);
-      expect(listedAfterRevoke).toHaveLength(0);
-    }).pipe(Effect.provide(layerEnvironmentAuth())),
-  );
+        expect(created.scopes).toEqual(["orchestration:read"]);
+        expect(created.credential.length).toBeGreaterThan(0);
+        expect(listedBeforeRevoke).toHaveLength(1);
+        expect(listedBeforeRevoke[0]?.id).toBe(created.id);
+        expect(listedBeforeRevoke[0]?.label).toBe("CI phone");
+        expect(listedBeforeRevoke[0]).not.toHaveProperty("credential");
+        expect(revoked).toBe(true);
+        expect(listedAfterRevoke).toHaveLength(0);
+      }).pipe(Effect.provide(layerEnvironmentAuth())),
+    );
 
-  it.effect("issues bearer access token sessions without exposing raw tokens", () =>
-    Effect.gen(function* () {
-      const environmentAuth = yield* EnvironmentAuth.EnvironmentAuth;
-      const sessionCredentials = yield* SessionStore.SessionStore;
+    it.effect("issues bearer access token sessions without exposing raw tokens", () =>
+      Effect.gen(function* () {
+        const environmentAuth = yield* EnvironmentAuth.EnvironmentAuth;
+        const sessionCredentials = yield* SessionStore.SessionStore;
 
-      const issued = yield* environmentAuth.issueSession({
-        label: "deploy-bot",
-      });
-      const verified = yield* sessionCredentials.verify(issued.token);
-      const listedBeforeRevoke = yield* environmentAuth.listSessions();
-      const revoked = yield* environmentAuth.revokeSession(issued.sessionId);
-      const listedAfterRevoke = yield* environmentAuth.listSessions();
+        const issued = yield* environmentAuth.issueSession({
+          label: "deploy-bot",
+        });
+        const verified = yield* sessionCredentials.verify(issued.token);
+        const listedBeforeRevoke = yield* environmentAuth.listSessions();
+        const revoked = yield* environmentAuth.revokeSession(issued.sessionId);
+        const listedAfterRevoke = yield* environmentAuth.listSessions();
 
-      expect(issued.method).toBe("bearer-access-token");
-      expect(issued.scopes).toEqual(AuthStandardClientScopes);
-      expect(issued.client.deviceType).toBe("bot");
-      expect(issued.client.label).toBe("deploy-bot");
-      expect(verified.sessionId).toBe(issued.sessionId);
-      expect(verified.scopes).toEqual(AuthStandardClientScopes);
-      expect(verified.method).toBe("bearer-access-token");
-      expect(listedBeforeRevoke).toHaveLength(1);
-      expect(listedBeforeRevoke[0]?.sessionId).toBe(issued.sessionId);
-      expect("token" in (listedBeforeRevoke[0] ?? {})).toBe(false);
-      expect(revoked).toBe(true);
-      expect(listedAfterRevoke).toHaveLength(0);
-    }).pipe(Effect.provide(layerEnvironmentAuth())),
-  );
-});
+        expect(issued.method).toBe("bearer-access-token");
+        expect(issued.scopes).toEqual(AuthStandardClientScopes);
+        expect(issued.client.deviceType).toBe("bot");
+        expect(issued.client.label).toBe("deploy-bot");
+        expect(verified.sessionId).toBe(issued.sessionId);
+        expect(verified.scopes).toEqual(AuthStandardClientScopes);
+        expect(verified.method).toBe("bearer-access-token");
+        expect(listedBeforeRevoke).toHaveLength(1);
+        expect(listedBeforeRevoke[0]?.sessionId).toBe(issued.sessionId);
+        expect("token" in (listedBeforeRevoke[0] ?? {})).toBe(false);
+        expect(revoked).toBe(true);
+        expect(listedAfterRevoke).toHaveLength(0);
+      }).pipe(Effect.provide(layerEnvironmentAuth())),
+    );
+  },
+);

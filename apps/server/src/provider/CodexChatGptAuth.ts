@@ -10,7 +10,7 @@ import {
 } from "@supaterm/contracts";
 import { codexCallbackUrl } from "@supaterm/shared/codexAuthHandoff";
 import * as Clock from "effect/Clock";
-import * as Crypto from "effect/Crypto";
+import * as Digest from "effect/crypto/Digest";
 import * as Hex from "effect/encoding/Hex";
 import * as Exit from "effect/Exit";
 import { codexAuthCallbackPage, codexAuthReturnUrl } from "./CodexAuthCallbackPage.ts";
@@ -107,7 +107,7 @@ export const makeCodexChatGptAuth = Effect.fn("makeCodexChatGptAuth")(function* 
     options.instanceId,
   );
   const secrets = yield* ServerSecretStore.ServerSecretStore;
-  const crypto = yield* Crypto.Crypto;
+  const digest = yield* Digest.Digest;
   const environmentLocks = sessionLocks.get(secrets) ?? new Map<string, Semaphore.Semaphore>();
   sessionLocks.set(secrets, environmentLocks);
   const lock = environmentLocks.get(store.binding.key) ?? (yield* Semaphore.make(1));
@@ -607,9 +607,9 @@ export const makeCodexChatGptAuth = Effect.fn("makeCodexChatGptAuth")(function* 
   // ID tokens survive renewal but change on sign-in. Bind active children to the
   // launch profile without putting an identity token or subject in their argv.
   const profileKey = (record: CodexChatGptCredentials) =>
-    crypto
+    digest
       .digest(
-        "SHA-256",
+        Digest.sha256,
         new TextEncoder().encode(
           JSON.stringify([record.clientId, record.subject, record.idToken ?? null]),
         ),

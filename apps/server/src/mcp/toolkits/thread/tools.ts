@@ -20,7 +20,7 @@ import {
   NonNegativeInt,
   ProjectId,
 } from "@supaterm/contracts";
-import * as Crypto from "effect/Crypto";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Schema from "effect/Schema";
 import { Tool, Toolkit } from "effect/ai";
 
@@ -59,7 +59,7 @@ const ThreadOrganizeTool = Tool.make("supaterm_thread_organize", {
   dependencies: [
     McpInvocationContext.McpInvocationContext,
     ThreadManagementService.ThreadManagementService,
-    Crypto.Crypto,
+    SecureRandom.SecureRandom,
   ],
 })
   .annotate(Tool.Title, "Organize a thread")
@@ -73,7 +73,7 @@ const commandTool = {
   dependencies: [
     McpInvocationContext.McpInvocationContext,
     ThreadManagementService.ThreadManagementService,
-    Crypto.Crypto,
+    SecureRandom.SecureRandom,
   ],
 };
 const queueEntry = Schema.Struct({

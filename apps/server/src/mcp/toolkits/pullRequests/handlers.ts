@@ -8,7 +8,7 @@ import {
 } from "@supaterm/contracts";
 import { canonicalizeGitCafePullRequestUrl } from "@supaterm/source-control-definitions/registry";
 import * as Cause from "effect/Cause";
-import * as Crypto from "effect/Crypto";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 
@@ -168,7 +168,7 @@ const make = Effect.gen(function* () {
 
   const projects = yield* ProjectService.ProjectService;
   const repositoryIdentities = yield* RepositoryIdentityResolver.RepositoryIdentityResolver;
-  const crypto = yield* Crypto.Crypto;
+  const random = yield* SecureRandom.SecureRandom;
 
   const withRepositoryIdentity = (project: OrchestrationProjectShell) =>
     project.repositoryIdentity != null
@@ -178,7 +178,7 @@ const make = Effect.gen(function* () {
           .pipe(Effect.map((repositoryIdentity) => ({ ...project, repositoryIdentity })));
 
   const commandId = (tag: string, threadId: ThreadId) =>
-    crypto.randomUUIDv4().pipe(
+    random.uuidV4().pipe(
       Effect.orDie,
       Effect.map((uuid) => CommandId.make(`server:${tag}:${threadId}:${uuid}`)),
     );

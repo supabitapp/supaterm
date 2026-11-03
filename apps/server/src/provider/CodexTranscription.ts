@@ -8,7 +8,7 @@ import {
   type ProviderTranscription,
 } from "@supaterm/provider-core/server/transcription";
 import * as Clock from "effect/Clock";
-import * as Crypto from "effect/Crypto";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
@@ -150,7 +150,7 @@ export const makeCodexTranscription = Effect.fn("makeCodexTranscription")(functi
   ) => Effect.Effect<A, TranscriptionError>;
 }) {
   const httpClient = yield* HttpClient.HttpClient;
-  const crypto = yield* Crypto.Crypto;
+  const random = yield* SecureRandom.SecureRandom;
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const authFilePath = path.join(input.authHomePath, "auth.json");
@@ -232,9 +232,7 @@ export const makeCodexTranscription = Effect.fn("makeCodexTranscription")(functi
   const transcribe: ProviderTranscription["transcribe"] = Effect.fn(
     "CodexTranscription.transcribe",
   )(function* ({ audio, language }) {
-    const uuid = yield* crypto
-      .randomUUIDv4()
-      .pipe(Effect.mapError((cause) => new TranscriptionError({ reason: "failed", cause })));
+    const uuid = yield* random.uuidV4();
     const upload = transcribeBody(audio.file, language, uuid);
     let login = yield* freshLogin;
     let response = yield* send(login, upload);

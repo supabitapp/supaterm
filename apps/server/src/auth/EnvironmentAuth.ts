@@ -44,6 +44,7 @@ import * as SessionStore from "./SessionStore.ts";
 import { REUSABLE_DEV_SESSION_EXPIRES_AT, resolveReusableDevAuth } from "./ReusableDevAuth.ts";
 import { DESKTOP_RENDERER_ORIGINS } from "../httpCors.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
+import { requestUrl } from "../requestUrl.ts";
 
 const DEFAULT_SESSION_SUBJECT = "cli-issued-session";
 export const INTERNAL_ADMINISTRATIVE_BOOTSTRAP_SUBJECT = "administrative-bootstrap";
@@ -1056,10 +1057,10 @@ export const make = Effect.gen(function* () {
 
   const authenticateWebSocketUpgrade: EnvironmentAuth["Service"]["authenticateWebSocketUpgrade"] =
     Effect.fn("EnvironmentAuth.authenticateWebSocketUpgrade")(function* (request, use) {
-      const requestUrl = HttpServerRequest.toURL(request);
-      if (Option.isSome(requestUrl)) {
+      const url = requestUrl(request);
+      if (Option.isSome(url)) {
         const query = yield* decodeWebSocketUpgradeQuery(
-          Object.fromEntries(requestUrl.value.searchParams),
+          Object.fromEntries(url.value.searchParams),
         ).pipe(Effect.orDie);
         const websocketTicket = query.wsTicket && Redacted.value(query.wsTicket);
         if (websocketTicket && websocketTicket.trim().length > 0) {

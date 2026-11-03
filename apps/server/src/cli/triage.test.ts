@@ -3,6 +3,7 @@ import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NetService from "@supaterm/shared/Net";
 import { assert, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
@@ -28,6 +29,8 @@ it.effect("--print prints the prompt with machine facts inline and writes nothin
     assert.isFalse(NodeFS.existsSync(NodePath.join(baseDir, "userdata", "triage")));
   }).pipe(
     Effect.scoped,
-    Effect.provide(Layer.mergeAll(NodeServices.layer, NetService.layer, TestConsole.layer)),
+    Effect.provide(
+      Layer.mergeAll(NodeServices.layer, NodeCrypto.layer, NetService.layer, TestConsole.layer),
+    ),
   ),
 );

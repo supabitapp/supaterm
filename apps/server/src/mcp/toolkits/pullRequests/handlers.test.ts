@@ -12,7 +12,7 @@ import {
   SourceControlProviderKind,
 } from "@supaterm/contracts";
 import { describe, expect, it } from "@effect/vitest";
-import * as Crypto from "effect/Crypto";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -38,10 +38,7 @@ import { PullRequestsToolkit } from "./tools.ts";
 const PROJECT_ID = ProjectId.make("project-1");
 const THREAD_ID = ThreadId.make("thread-1");
 
-const testCrypto = Crypto.make({
-  randomBytes: (size) => new Uint8Array(size).fill(7),
-  digest: (_algorithm, data) => Effect.succeed(data),
-});
+const testCrypto = SecureRandom.make((size) => new Uint8Array(size).fill(7));
 
 const invocation = (
   capabilities: ReadonlyArray<McpInvocationContext.McpCapability>,
@@ -202,7 +199,7 @@ const makeHarness = Effect.fn("makePullRequestsToolkitHarness")(function* (
         Effect.succeed(id === THREAD_ID && thread ? v2PullRequestThread(thread) : null),
       dispatch,
     }),
-    Layer.succeed(Crypto.Crypto, testCrypto),
+    Layer.succeed(SecureRandom.SecureRandom, testCrypto),
     McpToolAccessTestkit.liveThreadsLayer,
   );
   const toolkit = yield* PullRequestsToolkit.pipe(

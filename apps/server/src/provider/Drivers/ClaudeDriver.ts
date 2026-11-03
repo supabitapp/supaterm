@@ -1,5 +1,5 @@
 import { ClaudeSettings, ProviderDriverKind } from "@supaterm/contracts";
-import * as Crypto from "effect/Crypto";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
@@ -90,7 +90,7 @@ export type ClaudeDriverEnv =
   | ProviderHost.ProviderHost
   | ChildProcessSpawner.ChildProcessSpawner
   | ResetCreditCoordinator.ResetCreditCoordinator
-  | Crypto.Crypto
+  | SecureRandom.SecureRandom
   | FileSystem.FileSystem
   | HttpClient.HttpClient
   | ProviderLatestVersions.ProviderLatestVersions

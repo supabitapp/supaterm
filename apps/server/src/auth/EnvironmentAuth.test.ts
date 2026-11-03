@@ -1,4 +1,5 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import { authScopeResponse, AuthStandardClientScopes } from "@supaterm/contracts";
 import { expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
@@ -72,7 +73,7 @@ const requestMetadata = {
   ipAddress: "192.168.1.23",
 };
 
-it.layer(NodeServices.layer)("EnvironmentAuth.layer", (it) => {
+it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("EnvironmentAuth.layer", (it) => {
   it.effect("uses the reusable dev cookie without overriding a normal scoped cookie", () =>
     Effect.gen(function* () {
       const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;

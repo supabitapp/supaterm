@@ -40,7 +40,7 @@ import {
 import type * as Cause from "effect/Cause";
 import * as DateTime from "effect/DateTime";
 import * as Deferred from "effect/Deferred";
-import * as Crypto from "effect/Crypto";
+import * as Digest from "effect/crypto/Digest";
 import * as Effect from "effect/Effect";
 import * as Hex from "effect/encoding/Hex";
 import * as Exit from "effect/Exit";
@@ -368,9 +368,9 @@ export const supatermMcpServerName = Effect.fn("supatermMcpServerName")(function
 ) {
   const name = `supaterm-${threadId.replaceAll(/[^a-zA-Z0-9_-]/g, "_")}`;
   if (name.length <= 64) return name;
-  const crypto = yield* Crypto.Crypto;
+  const crypto = yield* Digest.Digest;
   const digest = yield* crypto
-    .digest("SHA-256", new TextEncoder().encode(threadId))
+    .digest(Digest.sha256, new TextEncoder().encode(threadId))
     .pipe(Effect.orDie);
   return `supaterm-${Hex.encode(digest).slice(0, 16)}`;
 });
@@ -693,10 +693,10 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
   const mcpSessions = yield* McpProviderSessions.McpProviderSessions;
   const fileSystem = yield* FileSystem.FileSystem;
   const continuationRequests = yield* ProviderContinuationRequests.ProviderContinuationRequests;
-  const crypto = yield* Crypto.Crypto;
+  const crypto = yield* Digest.Digest;
   const driver = OPENCODE_PROVIDER;
   const mcpServerNameFor = (threadId: string) =>
-    supatermMcpServerName(threadId).pipe(Effect.provideService(Crypto.Crypto, crypto));
+    supatermMcpServerName(threadId).pipe(Effect.provideService(Digest.Digest, crypto));
 
   const borrow = Effect.gen(function* () {
     const lent = yield* Deferred.make<

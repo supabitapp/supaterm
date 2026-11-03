@@ -9,7 +9,7 @@ import type { KiroSettings } from "../settings.ts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { createModelCapabilities } from "@supaterm/shared/model";
 import { resolveSpawnCommand } from "@supaterm/shared/shell";
-import type * as Crypto from "effect/Crypto";
+import type * as SecureRandom from "effect/crypto/SecureRandom";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
@@ -360,7 +360,7 @@ export const checkKiroProviderStatus = Effect.fn("checkKiroProviderStatus")(func
 ): Effect.fn.Return<
   ServerProviderDraft,
   never,
-  ChildProcessSpawner.ChildProcessSpawner | Crypto.Crypto
+  ChildProcessSpawner.ChildProcessSpawner | SecureRandom.SecureRandom
 > {
   const checkedAt = DateTime.formatIso(yield* DateTime.now);
   if (!settings.enabled) {

@@ -3,7 +3,7 @@ import * as DirectTunnel from "./relay/DirectTunnel.ts";
 import * as OrchestrationSkills from "./provider/OrchestrationSkills.ts";
 import { OrchestrationDispatchCommandError } from "@supaterm/contracts";
 import * as Context from "effect/Context";
-import * as Crypto from "effect/Crypto";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Orchestrator from "./orchestration-v2/Orchestrator.ts";
 import * as ShellSyncGeneration from "./orchestration-v2/ShellSyncGeneration.ts";
 
@@ -256,6 +256,7 @@ import { isNetworkPath } from "@supaterm/shared/path";
 import { withUsageLimitsCommands } from "@supaterm/shared/usageLimits";
 import * as AgentSessionScanner from "./project/AgentSessionScanner.ts";
 import * as AgentSessionImporter from "./project/AgentSessionImporter.ts";
+import { requestUrl } from "./requestUrl.ts";
 
 const CONFIG_DISCOVERY_TIMEOUT = Duration.seconds(5);
 const isProviderUploadFeedbackError = Schema.is(ProviderUploadFeedbackError);
@@ -1249,14 +1250,14 @@ export const layerWsRpc = (
       const deviceHostContext =
         yield* Effect.context<Effect.Services<ReturnType<typeof remoteSshDeviceHosts>>>();
       const orchestrationEngine = yield* Orchestrator.OrchestratorV2;
-      const crypto = yield* Crypto.Crypto;
+      const random = yield* SecureRandom.SecureRandom;
       const shellSyncGeneration = yield* ShellSyncGeneration.ShellSyncGeneration;
       // RPC client ids are only unique within one socket; terminals share viewers across sockets.
-      const terminalViewerPrefix = yield* crypto.randomUUIDv4().pipe(Effect.orDie);
+      const terminalViewerPrefix = yield* random.uuidV4();
       const terminalViewerId = (metadata: { readonly client: { readonly id: number } }) =>
         `${terminalViewerPrefix}:${metadata.client.id}`;
       const serverCommandId = (tag: string) =>
-        crypto.randomUUIDv4().pipe(
+        random.uuidV4().pipe(
           Effect.orDie,
           Effect.map((id) => CommandId.make(`server:${tag}:${id}`)),
         );
@@ -1482,7 +1483,7 @@ export const layerWsRpc = (
               provider?.models.find((candidate) => candidate.isDefault)?.slug ??
               provider?.models[0]?.slug ??
               "default";
-            const commandId = CommandId.make(yield* crypto.randomUUIDv4().pipe(Effect.orDie));
+            const commandId = CommandId.make(yield* random.uuidV4());
             const launched = yield* Effect.result(
               startup.enqueueCommand(
                 threadLaunch.launch({
@@ -3217,8 +3218,8 @@ export const layer = Layer.unwrap(
       "/ws",
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest;
-        const requestUrl = HttpServerRequest.toURL(request);
-        if (Option.isNone(requestUrl) || !hasCompatibleOrchestrationProtocol(requestUrl.value)) {
+        const url = requestUrl(request);
+        if (Option.isNone(url) || !hasCompatibleOrchestrationProtocol(url.value)) {
           return HttpServerResponse.jsonUnsafe(
             {
               code: "orchestration_protocol_incompatible",

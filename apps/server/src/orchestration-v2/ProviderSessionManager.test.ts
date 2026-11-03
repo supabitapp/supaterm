@@ -1,4 +1,5 @@
 import * as NetAddress from "effect/net/NetAddress";
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import { AgentScope } from "@supaterm/shared/AgentScope";
@@ -593,7 +594,7 @@ function layerTest(input: {
         ),
       ),
     ),
-  ).pipe(Layer.provide(NodeServices.layer));
+  ).pipe(Layer.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)));
 }
 
 const fakeHttpServer = HttpServer.HttpServer.of({
@@ -612,7 +613,7 @@ const layerTestMcpRegistry = Layer.effect(
 ).pipe(
   Layer.provide(Layer.succeed(HttpServer.HttpServer, fakeHttpServer)),
   Layer.provide(Layer.succeed(ServerEnvironment.ServerEnvironment, fakeEnvironment)),
-  Layer.provide(NodeServices.layer),
+  Layer.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
 );
 
 const layerPausingMcpRegistry = (pause: {
@@ -4195,7 +4196,7 @@ it.effect.each(["missing", "file"] as const)(
           [],
         );
       }).pipe(Effect.provide(layerTest({ state, idleTimeoutMs: 60_000 })));
-    }).pipe(Effect.provide(NodeServices.layer)),
+    }).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
 );
 
 it.effect(
@@ -4245,7 +4246,7 @@ it.effect(
           before.providerSessions,
         );
       }).pipe(Effect.provide(layerTest({ state, idleTimeoutMs: 60_000 })));
-    }).pipe(Effect.provide(NodeServices.layer)),
+    }).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
 );
 
 it.effect(

@@ -8,6 +8,7 @@ import {
   type SDKMessage,
   type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { SpawnExecutableResolution } from "@supaterm/shared/shell";
@@ -18,7 +19,7 @@ import {
   type ProviderReplayTranscript,
 } from "@supaterm/contracts";
 import * as Cause from "effect/Cause";
-import * as Crypto from "effect/Crypto";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
@@ -1023,7 +1024,7 @@ function layerClaudeProviderAdapterRegistryReplay(
   const layerServerConfig = Layer.effect(
     ServerConfig.ServerConfig,
     makeReplayServerConfig(transcript.scenario).pipe(Effect.orDie),
-  ).pipe(Layer.provide(NodeServices.layer));
+  ).pipe(Layer.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)));
   return Layer.unwrap(
     writeReplayTaskOutputFiles(transcript).pipe(
       Effect.orDie,
@@ -1050,7 +1051,7 @@ function layerClaudeProviderAdapterRegistryReplay(
           ).pipe(Effect.map((adapter) => [adapter])),
         ),
       ),
-      Effect.provide(NodeServices.layer),
+      Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
     ),
   ).pipe(
     Layer.provide(
@@ -1058,6 +1059,7 @@ function layerClaudeProviderAdapterRegistryReplay(
         layerClaudeAgentSdkReplay(transcript, options),
         IdAllocator.layer,
         NodeServices.layer,
+        NodeCrypto.layer,
         layerServerConfig,
       ),
     ),
@@ -1620,10 +1622,10 @@ async function recordClaudeStreamingQuery(input: {
       const message = ClaudeAdapterV2.makeClaudeUserMessage({
         text: prompt,
         uuid: await Effect.runPromise(
-          Crypto.Crypto.pipe(
-            Effect.flatMap((crypto) => crypto.randomUUIDv4()),
+          SecureRandom.SecureRandom.pipe(
+            Effect.flatMap((random) => random.uuidV4()),
             Effect.filterOrFail(ClaudeAdapterV2.isClaudePromptUuid),
-            Effect.provide(NodeServices.layer),
+            Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
           ),
         ),
       });

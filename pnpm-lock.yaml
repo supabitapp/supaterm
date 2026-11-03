@@ -173,11 +173,11 @@ settings:
 catalogs:
   default:
     '@effect/graphql-generator':
-      specifier: 4.0.5
-      version: 4.0.5
+      specifier: 4.1.2
+      version: 4.1.2
     '@effect/openapi-generator':
-      specifier: 4.0.5
-      version: 4.0.5
+      specifier: 4.1.2
+      version: 4.1.2
     '@noble/hashes':
       specifier: 1.8.0
       version: 1.8.0
@@ -279,10 +279,10 @@ overrides:
   '@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-linux-x64-musl': '-'
   '@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-win32-arm64': '-'
   '@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-win32-x64': '-'
-  '@effect/atom-react': 4.0.5
-  '@effect/platform-node': 4.0.5
-  '@effect/platform-node-shared': 4.0.5
-  '@effect/vitest': 4.0.5
+  '@effect/atom-react': 4.1.2
+  '@effect/platform-node': 4.1.2
+  '@effect/platform-node-shared': 4.1.2
+  '@effect/vitest': 4.1.2
   '@expo/dom-webview': 58.0.2
   '@expo/metro-config': 58.0.14
   expo-constants: 58.0.12
@@ -296,9 +296,9 @@ overrides:
   '@tailwindcss/oxide': 4.3.3
   '@tailwindcss/vite': 4.3.3
   '@types/node': 24.12.4
-  effect: 4.0.5
-  '@opencode/protocol>effect': 4.0.5
-  '@opencode/schema>effect': 4.0.5
+  effect: 4.1.2
+  '@opencode/protocol>effect': 4.1.2
+  '@opencode/schema>effect': 4.1.2
   node-abi: 4.33.0
   lightningcss: 1.33.0
   tailwindcss: 4.3.3
@@ -353,8 +353,8 @@ importers:
         specifier: 24.12.4
         version: 24.12.4
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
       knip:
         specifier: 6.34.0
         version: 6.34.0
@@ -377,8 +377,8 @@ importers:
         specifier: 0.13.0
         version: 0.13.0
       '@effect/platform-node':
-        specifier: 4.0.5
-        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.2
+        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@napi-rs/keyring':
         specifier: ^1.3.0
         version: 1.3.0
@@ -407,8 +407,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/tailscale
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
       electron:
         specifier: 44.10.0
         version: 44.10.0(supports-color@8.1.1)
@@ -429,8 +429,8 @@ importers:
         version: 0.1.44(@types/react@19.3.0)(react@19.3.0)
     devDependencies:
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@types/node':
         specifier: 24.12.4
         version: 24.12.4
@@ -475,8 +475,8 @@ importers:
   apps/mobile:
     dependencies:
       '@effect/atom-react':
-        specifier: 4.0.5
-        version: 4.0.5(@types/react@19.3.0)(@types/scheduler@0.16.8)(effect@4.0.5)(react@19.3.0)(scheduler@0.28.0)
+        specifier: 4.1.2
+        version: 4.1.2(@types/react@19.3.0)(@types/scheduler@0.16.8)(effect@4.1.2)(react@19.3.0)(scheduler@0.28.0)
       '@expo-google-fonts/jetbrains-mono':
         specifier: ^0.4.1
         version: 0.4.1
@@ -556,8 +556,8 @@ importers:
         specifier: 8.0.3
         version: 8.0.3
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
       expo:
         specifier: 58.0.14
         version: 58.0.14(ed6053e824e1f32ccdf163b2f5116f3c)
@@ -728,11 +728,11 @@ importers:
         specifier: ^7.29.7
         version: 7.29.7(supports-color@8.1.1)
       '@effect/platform-node':
-        specifier: 4.0.5
-        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.2
+        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@pierre/trees':
         specifier: 1.0.0-beta.6
         version: 1.0.0-beta.6(@pierre/theme@2.0.0)(@shikijs/themes@4.2.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(shiki@4.2.0)
@@ -770,11 +770,11 @@ importers:
         specifier: 1.2.0
         version: 1.2.0(zod@4.6.5)
       '@effect/platform-node':
-        specifier: 4.0.5
-        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.2
+        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/platform-node-shared':
-        specifier: 4.0.5
-        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(utf-8-validate@6.0.6)
+        specifier: 4.1.2
+        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(utf-8-validate@6.0.6)
       '@ff-labs/fff-node':
         specifier: 0.11.0
         version: 0.11.0(patch_hash=921980ae26fa7d5c70f0415e333eb1f05991f75d6f4beafdfd3f319af81f0112)
@@ -851,8 +851,8 @@ importers:
         specifier: 8.0.3
         version: 8.0.3
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
       jose:
         specifier: 'catalog:'
         version: 6.2.12
@@ -892,10 +892,10 @@ importers:
     devDependencies:
       '@effect/graphql-generator':
         specifier: 'catalog:'
-        version: 4.0.5(@effect/platform-node@4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6))(effect@4.0.5)
+        version: 4.1.2(@effect/platform-node@4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6))(effect@4.1.2)
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@muse-code/sdk':
         specifier: 1.4.6
         version: 1.4.6(@types/node@24.12.4)
@@ -975,8 +975,8 @@ importers:
         specifier: ^3.2.2
         version: 3.2.2(react@19.3.0)
       '@effect/atom-react':
-        specifier: 4.0.5
-        version: 4.0.5(@types/react@19.3.0)(@types/scheduler@0.16.8)(effect@4.0.5)(react@19.3.0)(scheduler@0.28.0)
+        specifier: 4.1.2
+        version: 4.1.2(@types/react@19.3.0)(@types/scheduler@0.16.8)(effect@4.1.2)(react@19.3.0)(scheduler@0.28.0)
       '@fontsource-variable/inter':
         specifier: ^5.3.0
         version: 5.3.0
@@ -1092,8 +1092,8 @@ importers:
         specifier: ^3.4.16
         version: 3.4.17
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
       entities:
         specifier: 8.1.0
         version: 8.1.0
@@ -1183,11 +1183,11 @@ importers:
         version: 5.0.14(@types/react@19.3.0)(react@19.3.0)(use-sync-external-store@1.6.0(react@19.3.0))
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.0.5
-        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.2
+        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@tailwindcss/vite':
         specifier: 4.3.3
         version: 4.3.3(@voidzero-dev/vite-plus-core@1.4.0(@tsc-rs/typescript@0.8.0)(@types/node@24.12.4)(@volar/typescript@2.4.28(@tsc-rs/typescript@0.8.0))(esbuild@0.28.2)(jiti@2.7.0)(terser@5.48.0)(unrun@0.2.39)(yaml@2.9.0))
@@ -1237,15 +1237,15 @@ importers:
         specifier: 1.88.0
         version: 1.88.0
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.0.5
-        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.2
+        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       vite-plus:
         specifier: 1.4.0
         version: 1.4.0(@astrojs/compiler-rs@0.5.1)(@tsc-rs/typescript@0.8.0)(@types/jsdom@30.0.0)(@types/node@24.12.4)(@vitest/browser-playwright@5.0.5)(@vitest/ui@5.0.5)(@volar/typescript@2.4.28(@tsc-rs/typescript@0.8.0))(bufferutil@4.1.0)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.1.0(@noble/hashes@1.8.0))(playwright@1.60.0)(terser@5.48.0)(unrun@0.2.39)(utf-8-validate@6.0.6)(yaml@2.9.0)
@@ -1301,8 +1301,8 @@ importers:
         specifier: 0.180.0
         version: 0.180.0
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
       jszip:
         specifier: 3.10.1
         version: 3.10.1
@@ -1311,8 +1311,8 @@ importers:
         version: 0.180.0
     devDependencies:
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       vite-plus:
         specifier: 1.4.0
         version: 1.4.0(@astrojs/compiler-rs@0.5.1)(@tsc-rs/typescript@0.8.0)(@types/jsdom@30.0.0)(@types/node@24.12.4)(@vitest/browser-playwright@5.0.5)(@vitest/ui@5.0.5)(@volar/typescript@2.4.28(@tsc-rs/typescript@0.8.0))(bufferutil@4.1.0)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.1.0(@noble/hashes@1.8.0))(playwright@1.60.0)(terser@5.48.0)(unrun@0.2.39)(utf-8-validate@6.0.6)(yaml@2.9.0)
@@ -1326,12 +1326,12 @@ importers:
         specifier: workspace:*
         version: link:../shared
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
     devDependencies:
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@types/node':
         specifier: 24.12.4
         version: 24.12.4
@@ -1345,12 +1345,12 @@ importers:
   packages/contracts:
     dependencies:
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
     devDependencies:
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       vite-plus:
         specifier: 1.4.0
         version: 1.4.0(@astrojs/compiler-rs@0.5.1)(@tsc-rs/typescript@0.8.0)(@types/jsdom@30.0.0)(@types/node@24.12.4)(@vitest/browser-playwright@5.0.5)(@vitest/ui@5.0.5)(@volar/typescript@2.4.28(@tsc-rs/typescript@0.8.0))(bufferutil@4.1.0)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.1.0(@noble/hashes@1.8.0))(playwright@1.60.0)(terser@5.48.0)(unrun@0.2.39)(utf-8-validate@6.0.6)(yaml@2.9.0)
@@ -1358,18 +1358,18 @@ importers:
   packages/effect-acp:
     dependencies:
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
     devDependencies:
       '@effect/openapi-generator':
         specifier: 'catalog:'
-        version: 4.0.5(@effect/platform-node@4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6))(effect@4.0.5)(encoding@0.1.13)
+        version: 4.1.2(@effect/platform-node@4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6))(effect@4.1.2)(encoding@0.1.13)
       '@effect/platform-node':
-        specifier: 4.0.5
-        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.2
+        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@types/node':
         specifier: 24.12.4
         version: 24.12.4
@@ -1380,18 +1380,18 @@ importers:
   packages/effect-codex-app-server:
     dependencies:
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
     devDependencies:
       '@effect/openapi-generator':
         specifier: 'catalog:'
-        version: 4.0.5(@effect/platform-node@4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6))(effect@4.0.5)(encoding@0.1.13)
+        version: 4.1.2(@effect/platform-node@4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6))(effect@4.1.2)(encoding@0.1.13)
       '@effect/platform-node':
-        specifier: 4.0.5
-        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.2
+        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@types/node':
         specifier: 24.12.4
         version: 24.12.4
@@ -1452,15 +1452,15 @@ importers:
         specifier: 8.0.3
         version: 8.0.3
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.0.5
-        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.2
+        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@types/node':
         specifier: 24.12.4
         version: 24.12.4
@@ -1489,15 +1489,15 @@ importers:
         specifier: workspace:*
         version: link:../shared
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.0.5
-        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.2
+        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@supaterm/provider-testing':
         specifier: workspace:*
         version: link:../provider-testing
@@ -1520,15 +1520,15 @@ importers:
         specifier: workspace:*
         version: link:../shared
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.0.5
-        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.2
+        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@types/node':
         specifier: 24.12.4
         version: 24.12.4
@@ -1554,18 +1554,18 @@ importers:
         specifier: workspace:*
         version: link:../shared
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
       yaml:
         specifier: ^2.9.0
         version: 2.9.0
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.0.5
-        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.2
+        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@supaterm/provider-testing':
         specifier: workspace:*
         version: link:../provider-testing
@@ -1591,15 +1591,15 @@ importers:
         specifier: workspace:*
         version: link:../shared
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.0.5
-        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.2
+        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@types/node':
         specifier: 24.12.4
         version: 24.12.4
@@ -1625,15 +1625,15 @@ importers:
         specifier: workspace:*
         version: link:../shared
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.0.5
-        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.2
+        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@supaterm/provider-testing':
         specifier: workspace:*
         version: link:../provider-testing
@@ -1662,12 +1662,12 @@ importers:
         specifier: workspace:*
         version: link:../shared
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
     devDependencies:
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@types/node':
         specifier: 24.12.4
         version: 24.12.4
@@ -1693,15 +1693,15 @@ importers:
         specifier: workspace:*
         version: link:../shared
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.0.5
-        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.2
+        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@supaterm/provider-testing':
         specifier: workspace:*
         version: link:../provider-testing
@@ -1719,7 +1719,7 @@ importers:
         version: 1.15.13
       '@opencode/client':
         specifier: 2.0.28
-        version: 2.0.28(effect@4.0.5)
+        version: 2.0.28(effect@4.1.2)
       '@opencode/protocol':
         specifier: 2.0.28
         version: 2.0.28
@@ -1736,15 +1736,15 @@ importers:
         specifier: workspace:*
         version: link:../shared
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.0.5
-        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.2
+        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@supaterm/provider-testing':
         specifier: workspace:*
         version: link:../provider-testing
@@ -1767,15 +1767,15 @@ importers:
         specifier: workspace:*
         version: link:../shared
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.0.5
-        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.2
+        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@supaterm/provider-testing':
         specifier: workspace:*
         version: link:../provider-testing
@@ -1789,8 +1789,8 @@ importers:
   packages/provider-testing:
     dependencies:
       '@effect/platform-node':
-        specifier: 4.0.5
-        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.2
+        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@supaterm/contracts':
         specifier: workspace:*
         version: link:../contracts
@@ -1801,8 +1801,8 @@ importers:
         specifier: workspace:*
         version: link:../shared
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
     devDependencies:
       '@types/node':
         specifier: 24.12.4
@@ -1823,8 +1823,8 @@ importers:
         specifier: workspace:*
         version: link:../contracts
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
       mdast-util-directive:
         specifier: 'catalog:'
         version: 3.1.0(supports-color@8.1.1)
@@ -1869,11 +1869,11 @@ importers:
         version: 2.9.0
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.0.5
-        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.2
+        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@types/mdast':
         specifier: ^4.0.4
         version: 4.0.4
@@ -1902,15 +1902,15 @@ importers:
         specifier: 8.0.3
         version: 8.0.3
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.0.5
-        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.2
+        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@supaterm/source-control-testing':
         specifier: workspace:*
         version: link:../source-control-testing
@@ -1936,15 +1936,15 @@ importers:
         specifier: workspace:*
         version: link:../source-control-core
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.0.5
-        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.2
+        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@supaterm/source-control-testing':
         specifier: workspace:*
         version: link:../source-control-testing
@@ -1964,12 +1964,12 @@ importers:
         specifier: workspace:*
         version: link:../shared
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
     devDependencies:
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@types/node':
         specifier: 24.12.4
         version: 24.12.4
@@ -2016,15 +2016,15 @@ importers:
         specifier: workspace:*
         version: link:../source-control-core
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.0.5
-        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.2
+        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@supaterm/source-control-testing':
         specifier: workspace:*
         version: link:../source-control-testing
@@ -2050,12 +2050,12 @@ importers:
         specifier: workspace:*
         version: link:../source-control-core
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
     devDependencies:
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@supaterm/source-control-testing':
         specifier: workspace:*
         version: link:../source-control-testing
@@ -2081,18 +2081,18 @@ importers:
         specifier: workspace:*
         version: link:../source-control-core
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
     devDependencies:
       '@effect/graphql-generator':
         specifier: 'catalog:'
-        version: 4.0.5(@effect/platform-node@4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6))(effect@4.0.5)
+        version: 4.1.2(@effect/platform-node@4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6))(effect@4.1.2)
       '@effect/platform-node':
-        specifier: 4.0.5
-        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.2
+        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@supaterm/source-control-testing':
         specifier: workspace:*
         version: link:../source-control-testing
@@ -2115,12 +2115,12 @@ importers:
         specifier: workspace:*
         version: link:../source-control-core
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
     devDependencies:
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@supaterm/source-control-testing':
         specifier: workspace:*
         version: link:../source-control-testing
@@ -2134,8 +2134,8 @@ importers:
   packages/source-control-testing:
     dependencies:
       '@effect/platform-node':
-        specifier: 4.0.5
-        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.2
+        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@supaterm/contracts':
         specifier: workspace:*
         version: link:../contracts
@@ -2146,8 +2146,8 @@ importers:
         specifier: workspace:*
         version: link:../source-control-core
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
     devDependencies:
       '@types/node':
         specifier: 24.12.4
@@ -2162,15 +2162,15 @@ importers:
         specifier: workspace:*
         version: link:../shared
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.0.5
-        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.2
+        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@types/node':
         specifier: 24.12.4
         version: 24.12.4
@@ -2184,12 +2184,12 @@ importers:
         specifier: workspace:*
         version: link:../shared
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
     devDependencies:
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@types/node':
         specifier: 24.12.4
         version: 24.12.4
@@ -2200,8 +2200,8 @@ importers:
   scripts:
     dependencies:
       '@effect/platform-node':
-        specifier: 4.0.5
-        version: 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
+        specifier: 4.1.2
+        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@electron/asar':
         specifier: ^4.3.0
         version: 4.3.0
@@ -2227,8 +2227,8 @@ importers:
         specifier: 0.21.32
         version: 0.21.32
       effect:
-        specifier: 4.0.5
-        version: 4.0.5
+        specifier: 4.1.2
+        version: 4.1.2
       playwright-core:
         specifier: 1.60.0
         version: 1.60.0
@@ -2243,8 +2243,8 @@ importers:
         version: 0.35.5(@types/node@24.12.4)
     devDependencies:
       '@effect/vitest':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(vitest@5.0.5)
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       esbuild:
         specifier: 0.28.2
         version: 0.28.2
@@ -3080,46 +3080,46 @@ packages:
     peerDependencies:
       react: '>=16.8.0'
 
-  '@effect/atom-react@4.0.5':
-    resolution: {integrity: sha512-tqTSiy0rWBitej7kPfvTSw29q4ipof52+txDg6bIBJx0ksHVzVXaFTsssDa+AZBeImafK0xmjm9m1XzPfE6k2A==}
+  '@effect/atom-react@4.1.2':
+    resolution: {integrity: sha512-XRAm4lks2kzNFQIz9QTGKR02CaDTR9VJNRXDjDAR8OzM15ybrK4YkB7OlFZ9U+hxXe3DXJZx7RU1/xI2Em2PGQ==}
     peerDependencies:
       '@types/react': '*'
       '@types/scheduler': '*'
-      effect: 4.0.5
+      effect: 4.1.2
       react: '>=19.0.0 <20.0.0'
       scheduler: '>=0.25.0 <0.29.0'
 
-  '@effect/graphql-generator@4.0.5':
-    resolution: {integrity: sha512-2QtEQxP4RRANWVJVe/wQBmG6SGePDfhgqpOeyfa7JlTsbnJbf3J25lmTz/faO3fGgicTVTTMruHTY6CR16KILg==}
+  '@effect/graphql-generator@4.1.2':
+    resolution: {integrity: sha512-V6y46lsINE3mHzNTYlYY4UA5RJZkywYAorPL0Bl7U4ggGk8P8gqVcc8iGnUoHzlR97TKbNucOSYvCiFv2oidVg==}
     hasBin: true
     peerDependencies:
-      '@effect/platform-node': 4.0.5
-      effect: 4.0.5
+      '@effect/platform-node': 4.1.2
+      effect: 4.1.2
 
-  '@effect/openapi-generator@4.0.5':
-    resolution: {integrity: sha512-pksR5BhRKQQfDcpA8AbxCiAFLAbdnZseiRmgr1UtVi1x/IyEuS8WmXoFD1C424TEyS+n2Q6lPpR0ue/WQ743aw==}
+  '@effect/openapi-generator@4.1.2':
+    resolution: {integrity: sha512-seh1li7cp6XE734rWmsQ/lQ2RFp1YCMb1PP6pZ7CvFAeoAUsgM4J2z8iCllY8yE2VnswWWw9GQ/XKHLm/gpGzg==}
     hasBin: true
     peerDependencies:
-      '@effect/platform-node': 4.0.5
-      effect: 4.0.5
+      '@effect/platform-node': 4.1.2
+      effect: 4.1.2
 
-  '@effect/platform-node-shared@4.0.5':
-    resolution: {integrity: sha512-a8rCdEkfZBGe9C6bsIjxVZuRp73svIyK5IHwHdDAVsvZXjrbkxusfI+rZ8WlX31RP1mKizwI/E72GQTNfdMWHw==}
-    engines: {node: '>=18.0.0'}
+  '@effect/platform-node-shared@4.1.2':
+    resolution: {integrity: sha512-wSwl9A/G1hcVvF8nLI+YfB3EyOIDvWS6+lsTZBkmgDnPBL7m8YWZF+1HD+mdEsb52SUGfukip46Q3gRwSdk3QA==}
+    engines: {node: '>=22.19.0'}
     peerDependencies:
-      effect: 4.0.5
+      effect: 4.1.2
 
-  '@effect/platform-node@4.0.5':
-    resolution: {integrity: sha512-v4KD5fWvEUa4QmWFpZFbBsRhmfnTP6ETCME2r9ifyXVDPjhfpxpTZl41prjgQFMqZBHdWWCl7YC5ImbXv5ui5g==}
-    engines: {node: '>=18.0.0'}
+  '@effect/platform-node@4.1.2':
+    resolution: {integrity: sha512-ye0UjxORdd5Qu3paZ1LljgGOALWHt7muP9VTpjUSCNfcesiB/Hm7wPJIvZeu4gnwpTe5BtEnO1VHngWqjJp8mA==}
+    engines: {node: '>=22.19.0'}
     peerDependencies:
-      effect: 4.0.5
-      redis: '>=5.0.0 <7.0.0'
+      effect: 4.1.2
+      redis: '>=5.1.0 <7.0.0'
 
-  '@effect/vitest@4.0.5':
-    resolution: {integrity: sha512-q64paZ/i4V2NiRhTyqCmT2KiDbFjlxc2EZrZca8GGt+Nf8844946HyJM5bPk/q+YeRkFSxIrlCs+J+LSfky/wA==}
+  '@effect/vitest@4.1.2':
+    resolution: {integrity: sha512-JJPwAHkJHxvM/woW9mMW/khjasAHcmwWdOMAgMy16rfqsxcVhFDnrRsvN9VI2+kMv8zDCCyBE2q1n5hzZlfE0w==}
     peerDependencies:
-      effect: 4.0.5
+      effect: 4.1.2
       vitest: 5.0.5
 
   '@electron-internal/extract-zip@1.0.5':
@@ -4234,7 +4234,7 @@ packages:
   '@opencode/client@2.0.28':
     resolution: {integrity: sha512-YV0Yxk93/K2h4Xy/sEW/4ZYGMwn7ltxG2Y/Vdy2VCIZ2z0/r9MI6x5/XawSNfCvImBxuHkQNbYtu9Rgp3ArJ4g==}
     peerDependencies:
-      effect: 4.0.5
+      effect: 4.1.2
       solid-js: '>=1.9.0'
     peerDependenciesMeta:
       effect:
@@ -7695,8 +7695,8 @@ packages:
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
-  effect@4.0.5:
-    resolution: {integrity: sha512-BY4/28NlpOd99yzmV741xbVGmp+1U7tks4oB7F/Png64bTa5tm5eCA6W0RiXsnuLDDoJpjfVSo4Dnq4BZb/89Q==}
+  effect@4.1.2:
+    resolution: {integrity: sha512-d3Oah1WyKxFLFh19yWheS5IXIVaITzxZ71JkE1rkUozq/6EcJSU5nPk5bF2QrSygZ3SQoiNQB8TsxFriyMeMaQ==}
 
   ejs@3.1.10:
     resolution: {integrity: sha512-UeJmFfOrAQS8OJWPZ4qtgHyWExa088/MtK5UEyoJGFH67cDEXkZSviOiKRCZ4Xij0zxI3JECgYs3oKx+AizQBA==}
@@ -11441,6 +11441,18 @@ packages:
       utf-8-validate:
         optional: true
 
+  ws@8.22.2:
+    resolution: {integrity: sha512-/rEZ2ejown2N5gxVTHUu9bVVC7ttu0/Tgzf5hbTOixR3Fs7mbbXgn2DbdbcKgJOmpQMtrIUWivtYuVMnp/W/yA==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
   xcode@3.0.1:
     resolution: {integrity: sha512-kCz5k7J7XbJtjABOvkc5lJmkiDh8VhjVCGNiqdKCscmVpdVUpEAyXv1xmCLkQJ5dsHqx3IPO4XW+NTDhU/fatA==}
     engines: {node: '>=10.0.0'}
@@ -12448,50 +12460,50 @@ snapshots:
       react: 19.3.0
       tslib: 2.8.1
 
-  '@effect/atom-react@4.0.5(@types/react@19.3.0)(@types/scheduler@0.16.8)(effect@4.0.5)(react@19.3.0)(scheduler@0.28.0)':
+  '@effect/atom-react@4.1.2(@types/react@19.3.0)(@types/scheduler@0.16.8)(effect@4.1.2)(react@19.3.0)(scheduler@0.28.0)':
     dependencies:
       '@types/react': 19.3.0
       '@types/scheduler': 0.16.8
-      effect: 4.0.5
+      effect: 4.1.2
       react: 19.3.0
       scheduler: 0.28.0
 
-  '@effect/graphql-generator@4.0.5(@effect/platform-node@4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6))(effect@4.0.5)':
+  '@effect/graphql-generator@4.1.2(@effect/platform-node@4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6))(effect@4.1.2)':
     dependencies:
-      '@effect/platform-node': 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
-      effect: 4.0.5
+      '@effect/platform-node': 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6)
+      effect: 4.1.2
 
-  '@effect/openapi-generator@4.0.5(@effect/platform-node@4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6))(effect@4.0.5)(encoding@0.1.13)':
+  '@effect/openapi-generator@4.1.2(@effect/platform-node@4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6))(effect@4.1.2)(encoding@0.1.13)':
     dependencies:
-      '@effect/platform-node': 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)
+      '@effect/platform-node': 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@types/swagger2openapi': 7.0.4
-      effect: 4.0.5
+      effect: 4.1.2
       swagger2openapi: 7.0.8(encoding@0.1.13)
     transitivePeerDependencies:
       - encoding
 
-  '@effect/platform-node-shared@4.0.5(bufferutil@4.1.0)(effect@4.0.5)(utf-8-validate@6.0.6)':
+  '@effect/platform-node-shared@4.1.2(bufferutil@4.1.0)(effect@4.1.2)(utf-8-validate@6.0.6)':
     dependencies:
       '@types/ws': 8.18.2
-      effect: 4.0.5
-      ws: 8.22.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      effect: 4.1.2
+      ws: 8.22.2(bufferutil@4.1.0)(utf-8-validate@6.0.6)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@effect/platform-node@4.0.5(bufferutil@4.1.0)(effect@4.0.5)(redis@6.2.1)(utf-8-validate@6.0.6)':
+  '@effect/platform-node@4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6)':
     dependencies:
-      '@effect/platform-node-shared': 4.0.5(bufferutil@4.1.0)(effect@4.0.5)(utf-8-validate@6.0.6)
-      effect: 4.0.5
+      '@effect/platform-node-shared': 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(utf-8-validate@6.0.6)
+      effect: 4.1.2
       redis: 6.2.1
       undici: 8.12.3
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@effect/vitest@4.0.5(effect@4.0.5)(vitest@5.0.5)':
+  '@effect/vitest@4.1.2(effect@4.1.2)(vitest@5.0.5)':
     dependencies:
-      effect: 4.0.5
+      effect: 4.1.2
       vitest: 5.0.5(@tsc-rs/typescript@0.8.0)(@types/jsdom@30.0.0)(@types/node@24.12.4)(@vitest/browser-playwright@5.0.5)(@vitest/browser-preview@5.0.5)(@vitest/ui@5.0.5)(@voidzero-dev/vite-plus-core@1.4.0(@tsc-rs/typescript@0.8.0)(@types/node@24.12.4)(@volar/typescript@2.4.28(@tsc-rs/typescript@0.8.0))(esbuild@0.28.2)(jiti@2.7.0)(terser@5.48.0)(unrun@0.2.39)(yaml@2.9.0))(@volar/typescript@2.4.28(@tsc-rs/typescript@0.8.0))(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.1.0(@noble/hashes@1.8.0))(terser@5.48.0)(unrun@0.2.39)(yaml@2.9.0)
 
   '@electron-internal/extract-zip@1.0.5': {}
@@ -13753,22 +13765,22 @@ snapshots:
       '@types/cross-spawn': 6.0.6
       cross-spawn: 7.0.6
 
-  '@opencode/client@2.0.28(effect@4.0.5)':
+  '@opencode/client@2.0.28(effect@4.1.2)':
     dependencies:
       '@opencode/protocol': 2.0.28
       '@opencode/schema': 2.0.28
     optionalDependencies:
-      effect: 4.0.5
+      effect: 4.1.2
 
   '@opencode/protocol@2.0.28':
     dependencies:
       '@opencode/schema': 2.0.28
-      effect: 4.0.5
+      effect: 4.1.2
 
   '@opencode/schema@2.0.28':
     dependencies:
       '@standard-schema/spec': 1.1.0
-      effect: 4.0.5
+      effect: 4.1.2
 
   '@oslojs/encoding@1.1.0': {}
 
@@ -17008,7 +17020,7 @@ snapshots:
 
   ee-first@1.1.1: {}
 
-  effect@4.0.5: {}
+  effect@4.1.2: {}
 
   ejs@3.1.10:
     dependencies:
@@ -21670,6 +21682,11 @@ snapshots:
       utf-8-validate: 6.0.6
 
   ws@8.22.0(bufferutil@4.1.0)(utf-8-validate@6.0.6):
+    optionalDependencies:
+      bufferutil: 4.1.0
+      utf-8-validate: 6.0.6
+
+  ws@8.22.2(bufferutil@4.1.0)(utf-8-validate@6.0.6):
     optionalDependencies:
       bufferutil: 4.1.0
       utf-8-validate: 6.0.6

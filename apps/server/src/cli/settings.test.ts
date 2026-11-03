@@ -4,6 +4,7 @@ import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NetService from "@supaterm/shared/Net";
 import { assert, describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
@@ -19,7 +20,9 @@ const makeBaseDir = () =>
   NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "supaterm-settings-cli-"));
 const runCli = (args: ReadonlyArray<string>) =>
   Command.runWith(cli, { version: "0.0.0" })(args).pipe(
-    Effect.provide(Layer.mergeAll(NodeServices.layer, NetService.layer, TestConsole.layer)),
+    Effect.provide(
+      Layer.mergeAll(NodeServices.layer, NodeCrypto.layer, NetService.layer, TestConsole.layer),
+    ),
   );
 
 const captureStdout = <A, E, R>(effect: Effect.Effect<A, E, R>) =>

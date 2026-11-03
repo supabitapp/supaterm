@@ -20,7 +20,7 @@ import { PCM_BYTES_PER_SECOND, parseWav } from "@supaterm/provider-core/server/t
 import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
-import * as Crypto from "effect/Crypto";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
@@ -238,13 +238,13 @@ const make = Effect.gen(function* () {
   const config = yield* ServerConfig.ServerConfig;
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const crypto = yield* Crypto.Crypto;
+  const random = yield* SecureRandom.SecureRandom;
   const secretStore = yield* ServerSecretStore.ServerSecretStore;
   const threads = yield* ThreadManagement.ThreadManagementService;
   const transcription = yield* Transcription.Transcription;
   const entriesRef = yield* Ref.make<ReadonlyMap<string, Entry>>(new Map());
   const storeLock = yield* Semaphore.make(1);
-  const randomId = crypto.randomUUIDv4().pipe(Effect.orDie);
+  const randomId = random.uuidV4();
   // Outcomes don't survive a restart, so URLs issued before it must not start work again.
   const bootId = yield* randomId;
   // Kept apart from pending attachments, so the attachment and transcription APIs can't

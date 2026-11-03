@@ -9,6 +9,7 @@ import * as NodeZlib from "node:zlib";
 
 import { assert, describe, it } from "@effect/vitest";
 import { vi } from "vite-plus/test";
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { mergeUsage } from "@supaterm/shared/usageMerge";
@@ -170,7 +171,7 @@ const layerService = (input: {
     Layer.provideMerge(
       ServerConfig.layerTest(process.cwd(), NodePath.join(input.home, input.prefix)),
     ),
-    Layer.provideMerge(NodeServices.layer),
+    Layer.provideMerge(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
     Layer.provideMerge(Layer.succeed(HostProcess.Platform, input.platform ?? "linux")),
     Layer.provideMerge(Layer.succeed(HostProcess.Hostname, input.hostname ?? "usage-test-host")),
     Layer.provideMerge(ServerSettings.layerTest(input.settings)),

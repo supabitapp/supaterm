@@ -17,7 +17,7 @@ import {
 } from "@supaterm/contracts";
 import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
-import * as Crypto from "effect/Crypto";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
@@ -247,7 +247,7 @@ export const layer = Layer.effect(
   ScheduledTaskService,
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
-    const crypto = yield* Crypto.Crypto;
+    const random = yield* SecureRandom.SecureRandom;
     const threadLaunch = yield* ThreadLaunchService.ThreadLaunchService;
     const threadManagement = yield* ThreadManagementService.ThreadManagementService;
     const managedFolders = yield* ManagedProjectFolders.ManagedProjectFolders;
@@ -840,8 +840,8 @@ export const layer = Layer.effect(
       const now = yield* localNow;
       const uuid =
         input.commandId === undefined
-          ? yield* crypto
-              .randomUUIDv4()
+          ? yield* random
+              .uuidV4()
               .pipe(
                 Effect.mapError((cause) =>
                   taskError("Could not generate schedule task id.", { cause }),

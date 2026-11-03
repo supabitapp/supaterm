@@ -23,7 +23,7 @@ import {
 } from "@supaterm/contracts";
 import { applyServerSettingsPatch } from "@supaterm/shared/serverSettings";
 import * as KeyedLock from "@supaterm/shared/KeyedLock";
-import * as Crypto from "effect/Crypto";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -537,10 +537,7 @@ type AutoMarkDoneCommand = Extract<
   { readonly type: "thread.auto-mark-done" }
 >;
 
-const testCrypto = Crypto.make({
-  randomBytes: (size) => new Uint8Array(size).fill(1),
-  digest: (_algorithm, data) => Effect.succeed(data),
-});
+const testCrypto = SecureRandom.make((size) => new Uint8Array(size).fill(1));
 
 function makeProject(
   id: ProjectId = PROJECT_ID,
@@ -823,7 +820,7 @@ const makeHarness = Effect.fn("makeThreadDoneHarness")(function* (options: Harne
     }),
     Layer.succeed(ServerSettings.ServerSettingsService, serverSettings),
     Layer.succeed(ServerActivation.ServerActivation, Deferred.await(activation)),
-    Layer.succeed(Crypto.Crypto, testCrypto),
+    Layer.succeed(SecureRandom.SecureRandom, testCrypto),
     FileSystem.layerNoop({
       exists: (path) => Effect.succeed(options.existingWorktreePaths?.includes(path) ?? false),
     }),
