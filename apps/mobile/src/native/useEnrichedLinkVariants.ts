@@ -87,14 +87,13 @@ function presentation(
   if (link.kind !== "external") return undefined;
   const icon = markdownLinkIcon(link.host);
   const label = bare ? changeRequestReferenceLabel(url, props.repositoryIdentity) : null;
-  return icon || label
-    ? {
-        color: props.textStyle.linkColor,
-        ...(label ? { label } : {}),
-        ...(icon ? { icon: icon.source } : {}),
-        ...(icon?.tints ? { iconTintColor: props.textStyle.linkColor } : {}),
-      }
-    : undefined;
+  if (!icon && !label) return undefined;
+  return {
+    color: props.textStyle.linkColor,
+    ...(label ? { label } : {}),
+    ...(icon ? { icon: icon.source } : {}),
+    ...(icon?.tints ? { iconTintColor: props.textStyle.linkColor } : {}),
+  };
 }
 
 export function useEnrichedLinkVariants(
