@@ -11,7 +11,8 @@ import * as Predicate from "effect/Predicate";
 import * as Schema from "effect/Schema";
 
 export const CODEX_MICRO_VENDOR_ID = 0x303a;
-export const CODEX_MICRO_PRODUCT_ID = 0x8360;
+// Creator Micro 2 (0x8298, 0x8297) runs the same firmware with an ordinary default keymap.
+export const CODEX_MICRO_PRODUCT_IDS: ReadonlySet<number> = new Set([0x8360, 0x8298, 0x8297]);
 export const CODEX_MICRO_USAGE_PAGE = 0xff00;
 
 const REPORT_SIZE = 64;
@@ -20,7 +21,7 @@ const REPORT_HEADER_SIZE = 3;
 const MAX_FRAGMENT_BYTES = REPORT_SIZE - REPORT_HEADER_SIZE;
 const DEBUG_CHANNEL = 1;
 const RPC_CHANNEL = 2;
-const REQUEST_ID_RANGE = 999;
+export const REQUEST_ID_RANGE = 999;
 // A corrupt fragment would otherwise keep every later line buffered behind it.
 const MAX_BUFFERED_CHARS = 64 * 1024;
 

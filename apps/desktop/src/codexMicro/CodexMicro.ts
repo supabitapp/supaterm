@@ -32,6 +32,7 @@ import {
   trackJoystick,
   type CodexMicroLightingPayload,
 } from "@supaterm/codex-micro/protocol";
+import * as CodexMicroKeymap from "@supaterm/codex-micro/keymap";
 import * as CodexMicroTransport from "@supaterm/codex-micro/transport";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
@@ -94,6 +95,7 @@ const deviceState = (
   battery: null,
   firmwareVersion: null,
   inputMonitoring,
+  mappedAgentKeys: null,
 });
 
 const sameThread = (left: CodexMicroThreadRef | null, right: CodexMicroThreadRef | null) =>
@@ -306,6 +308,20 @@ const make = Effect.gen(function* () {
       });
     });
 
+    let keymap: CodexMicroKeymap.CodexMicroKeymap | undefined;
+    const quietRequest = (method: string, params?: unknown) =>
+      waitForInputQuiet.pipe(
+        Effect.andThen(
+          Effect.suspend(() => (stopping ? Effect.interrupt : request(method, params))),
+        ),
+      );
+    const refreshKeymap = Effect.gen(function* () {
+      const next = yield* CodexMicroKeymap.refreshKeymap(quietRequest, keymap);
+      if (next === undefined) return;
+      keymap = next;
+      yield* patchState({ mappedAgentKeys: next.mappedAgentKeys });
+    });
+
     const lightingLoop = Effect.gen(function* () {
       let failures = 0;
       while (true) {
@@ -319,6 +335,7 @@ const make = Effect.gen(function* () {
             initialized = true;
             yield* Effect.forkIn(
               refreshDeviceStatus.pipe(
+                Effect.andThen(refreshKeymap),
                 Effect.andThen(Effect.sleep(DEVICE_STATUS_INTERVAL)),
                 Effect.forever,
               ),

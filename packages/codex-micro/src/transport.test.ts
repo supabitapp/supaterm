@@ -78,14 +78,16 @@ const makeFakeHandle = Effect.gen(function* () {
 });
 
 describe("makeConnection", () => {
-  it.effect("frames a request and resolves the response with the same id", () =>
+  it.effect("frames a request and resolves only the response to it", () =>
     Effect.gen(function* () {
       const device = yield* makeFakeHandle;
       const connection = yield* makeConnection(device.handle, USB_DEVICE);
       const fiber = yield* connection.request("device.status").pipe(Effect.forkChild);
       const sent = yield* Queue.take(device.sent);
-      assert.deepStrictEqual(sent, { method: "device.status", params: null, id: 0 });
-      device.reply('{"id":0,"result":{"battery":50}}');
+      assert.deepStrictEqual(sent, { method: "device.status", params: null, id: sent.id });
+      // Another host app's reply that happens to reuse our id.
+      device.reply(`{"id":${sent.id},"method":"v.oai.thstatus","result":{"ok":1}}`);
+      device.reply(`{"id":${sent.id},"method":"device.status","result":{"battery":50}}`);
       assert.deepStrictEqual(yield* Fiber.join(fiber), { battery: 50 });
     }),
   );
@@ -103,7 +105,11 @@ describe("makeConnection", () => {
       assert.isTrue(Option.isNone(yield* Queue.poll(device.sent)));
       yield* TestClock.adjust(Duration.millis(50));
       const secondSent = yield* Queue.take(device.sent);
-      assert.deepStrictEqual(secondSent, { method: "v.oai.thstatus", params: [1], id: 1 });
+      assert.deepStrictEqual(secondSent, {
+        method: "v.oai.thstatus",
+        params: [1],
+        id: secondSent.id,
+      });
       device.reply(`{"i":${secondSent.id},"result":true}`);
       assert.strictEqual(yield* Fiber.join(second), true);
     }),
@@ -240,12 +246,19 @@ describe("selectCodexMicroDevices", () => {
       selectCodexMicroDevices([
         device({ path: "bt" }),
         device({ path: "keyboard", usagePage: 0x0001 }),
-        device({ path: "other-product", productId: 0x8297 }),
+        device({ path: "other-product", productId: 0x8001 }),
         device({ path: undefined }),
         device({ path: "usb" }),
         device({ path: "usb" }),
+        device({ path: "creator-micro-2", productId: 0x8298 }),
+        device({ path: "creator-micro-2-alt", productId: 0x8297 }),
       ]),
-      [{ path: "bt" }, { path: "usb" }],
+      [
+        { path: "bt" },
+        { path: "usb" },
+        { path: "creator-micro-2" },
+        { path: "creator-micro-2-alt" },
+      ],
     );
   });
 

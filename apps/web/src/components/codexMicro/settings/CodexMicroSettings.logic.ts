@@ -1,5 +1,6 @@
 import {
   CODEX_MICRO_AGENT_KEYS,
+  CODEX_MICRO_SLOT_COUNT,
   CODEX_MICRO_STATUS_COLORS,
   CodexMicroAgentKey,
   CodexMicroAgentSource,
@@ -57,7 +58,7 @@ export function codexMicroConnectionSummary(
     case "not-detected":
       return {
         label: "Not detected",
-        description: "Connect Codex Micro with USB.",
+        description: "Connect Codex Micro or Creator Micro 2 with USB.",
         tone: "muted",
       };
     case "detected":
@@ -70,11 +71,18 @@ export function codexMicroConnectionSummary(
           tone: "warning",
         };
       }
-      return {
-        label: "Connected",
-        description: null,
-        tone: "success",
-      };
+      if (state.mappedAgentKeys !== null && state.mappedAgentKeys < CODEX_MICRO_SLOT_COUNT) {
+        const mapped =
+          state.mappedAgentKeys === 0
+            ? "No keys are mapped"
+            : `Only ${state.mappedAgentKeys} of the ${CODEX_MICRO_SLOT_COUNT} agent keys are mapped`;
+        return {
+          label: "Connected",
+          description: `${mapped} in the keyboard's keymap. A key follows a thread only when it is mapped to KV_OAI_AG00 through KV_OAI_AG05.`,
+          tone: "warning",
+        };
+      }
+      return { label: "Connected", description: null, tone: "success" };
     case "error":
       if (state.error === "discovery-failed") {
         return {

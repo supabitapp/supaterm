@@ -200,10 +200,10 @@ const makeHarness = Effect.gen(function* () {
 
   const connect = Effect.gen(function* () {
     yield* codexMicro.configure(settings());
-    const startup = yield* takeRequests(3);
+    const startup = yield* takeRequests(4);
     assert.deepStrictEqual(
       startup.map((request) => request.method),
-      ["v.oai.rgbcfg", "v.oai.thstatus", "device.status"],
+      ["v.oai.rgbcfg", "v.oai.thstatus", "device.status", "fs.list"],
     );
     yield* awaitState((state) => state.status === "connected" && state.battery !== null);
   });
@@ -250,7 +250,31 @@ describe("CodexMicro", () => {
         battery: { percentage: 80, isCharging: false },
         firmwareVersion: "1.0.0",
         inputMonitoring: "granted",
+        mappedAgentKeys: null,
       });
+    }),
+  );
+
+  it.effect("reports mapped agent keys and picks up a rewritten keymap", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness;
+      harness.transport.setDevices([USB]);
+      const keymapWith = (keycodes: ReadonlyArray<string>) =>
+        JSON.stringify({ profiles: [{ layers: [{ layout: { keymap: [keycodes] } }] }] });
+      let keymap = keymapWith(["KC_A", "KC_B"]);
+      harness.transport.respond((request) => {
+        if (request.method === "fs.list") {
+          return Effect.succeed([{ name: "keymap.json", size: keymap.length, checksum: keymap }]);
+        }
+        if (request.method !== "fs.readbin") return undefined;
+        return Effect.succeed({ data: Buffer.from(keymap).toString("base64") });
+      });
+      yield* harness.codexMicro.configure(settings());
+      yield* harness.awaitState((state) => state.mappedAgentKeys === 0);
+
+      keymap = keymapWith(["KV_OAI_AG00", "KV_OAI_AG01", "KV_OAI_AG02"]);
+      yield* TestClock.adjust(Duration.seconds(60));
+      yield* harness.awaitState((state) => state.mappedAgentKeys === 3);
     }),
   );
 

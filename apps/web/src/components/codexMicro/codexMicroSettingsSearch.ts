@@ -6,7 +6,7 @@ export const CODEX_MICRO_SETTINGS_SEARCH_ITEMS = [
     title: "Codex Micro",
     to: "/settings/codex-micro",
     searchTerms: [
-      "keyboard macro keypad hardware device enable connect usb bluetooth battery firmware",
+      "keyboard macro keypad hardware device enable connect usb bluetooth battery firmware creator micro 2 work louder keymap",
     ],
   },
   {
