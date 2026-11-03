@@ -1,0 +1,96 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>stream-bench workload</title>
+    <style>
+      body {
+        margin: 0;
+        font:
+          16px/1.5 Georgia,
+          serif;
+        color: #222;
+        background: #fafafa;
+      }
+      main {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+      #marker {
+        position: fixed;
+        left: 300px;
+        top: 150px;
+        width: 384px;
+        height: 72px;
+        z-index: 2;
+      }
+      #spin {
+        position: fixed;
+        inset: -50%;
+        background: repeating-conic-gradient(
+          #d4553a 0 10deg,
+          #2a6f97 10deg 20deg,
+          #f2c14e 20deg 30deg
+        );
+        animation: spin 6s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .anim main {
+        position: relative;
+        color: #fff;
+        text-shadow: 0 1px 2px #000;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="marker" width="768" height="144"></canvas>
+    <main></main>
+    <script>
+      // Marker: 48 bits in 16x3 cells of 24 CSS px at (300, 150), white for 1. Bits 0-15 are a
+      // frame counter, 16-39 the low 24 bits of Date.now(), 40-47 a check byte.
+      const kind = new URLSearchParams(location.search).get("kind") ?? "idle";
+      document.body.className = kind;
+      const words =
+        "lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua".split(
+          " ",
+        );
+      let seed = 1;
+      const word = () => words[(seed = (seed * 48271) % 2147483647) % words.length];
+      const paragraphs = kind === "scroll" ? 4000 : 40;
+      const main = document.querySelector("main");
+      main.innerHTML = Array.from({ length: paragraphs }, (_, i) =>
+        i % 12 === 0
+          ? `<h2>Section ${i / 12}</h2><pre>fn main() { println!("hello ${i}"); }</pre>`
+          : `<p><b>${i}.</b> ${Array.from({ length: 20 + (i % 30) }, word).join(" ")}</p>`,
+      ).join("");
+      if (kind === "anim") document.body.insertAdjacentHTML("afterbegin", '<div id="spin"></div>');
+
+      const context = document.getElementById("marker").getContext("2d");
+      let frame = 0;
+      const draw = () => {
+        const ms = Date.now() & 0xffffff;
+        const f = frame++ & 0xffff;
+        const check = (f ^ (f >> 8) ^ ms ^ (ms >> 8) ^ (ms >> 16) ^ 0xa5) & 0xff;
+        const bits = [f, 16, ms, 24, check, 8];
+        let index = 0;
+        for (let part = 0; part < bits.length; part += 2) {
+          for (let bit = 0; bit < bits[part + 1]; bit++, index++) {
+            context.fillStyle = (bits[part] >> bit) & 1 ? "#fff" : "#000";
+            context.fillRect((index % 16) * 48, Math.floor(index / 16) * 48, 48, 48);
+          }
+        }
+      };
+      if (kind === "idle") setInterval(draw, 500);
+      else
+        requestAnimationFrame(function loop() {
+          draw();
+          requestAnimationFrame(loop);
+        });
+    </script>
+  </body>
+</html>
