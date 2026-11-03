@@ -256,6 +256,14 @@ Recording in a browser needs HTTPS or `localhost`. A remote browser on a plain `
 address can't use the microphone. The first time you record, allow microphone access; on
 macOS you can change it later in System Settings → Privacy & Security → Microphone.
 
+Choose the input you record from under **Settings → Voice transcription → Microphone**. The
+choice is saved on that device, and while the chosen microphone isn't connected, voice input
+uses the system default. On a Mac, **Use the Mac's microphone instead of Bluetooth**, on by
+default, records from the Mac's own microphone when AirPods or another Bluetooth headset is
+the system default, so the headset doesn't drop into call-quality audio. It works in the
+desktop app and Chromium browsers such as Chrome, and a Bluetooth microphone you choose is
+always used.
+
 If no speech is heard, the message isn't sent. If the thread refuses a transcribed message,
 the transcript stays in the queue as text so you can edit or retry it.
 

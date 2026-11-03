@@ -18,6 +18,12 @@ import { createVoiceInputTarget } from "./voiceInputSession";
 
 const IDLE_STATE: VoiceInputState = { phase: "idle", error: null, errorAction: null };
 
+type StopIntent = {
+  readonly outcome: "submit" | "review";
+  readonly ownerKey: string;
+  committed: { readonly text: string; readonly selection: ComposerEditorSelection } | null;
+};
+
 export function useVoiceInputController(input: {
   readonly ownerKey: string | null;
   readonly label: string;
@@ -28,6 +34,8 @@ export function useVoiceInputController(input: {
   readonly onChangeDraftMessage: (value: string) => void;
   readonly onChangeSelection: (selection: ComposerEditorSelection) => void;
   readonly onSubmit?: () => void;
+  /** A stop for review committed the transcript into the draft. */
+  readonly onReviewTranscript?: () => void;
   /** Whose environment transcribes. */
   readonly environmentId: EnvironmentId | null;
   readonly context?: VoiceTranscriptionContext;
@@ -52,13 +60,13 @@ export function useVoiceInputController(input: {
     latestInput.current = input;
   });
   const mounted = useRef(true);
-  const submission = useRef<{ ownerKey: string; text: string } | null>(null);
+  const stopIntent = useRef<StopIntent | null>(null);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- tracks mount so async transcription results skip a composer that has unmounted
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
-      submission.current = null;
+      stopIntent.current = null;
     };
   }, []);
 
@@ -68,7 +76,7 @@ export function useVoiceInputController(input: {
       if (!ownerKey) return;
       session.setOwnerFocused(ownerKey, true);
       return () => {
-        submission.current = null;
+        stopIntent.current = null;
         session.setOwnerFocused(ownerKey, false);
       };
     }, [input.ownerKey, session]),
@@ -86,7 +94,7 @@ export function useVoiceInputController(input: {
       Dialog.alert("Voice input unavailable", resolution.message);
       return;
     }
-    submission.current = null;
+    stopIntent.current = null;
     Keyboard.dismiss();
     // Played before the microphone opens; iOS mutes haptics while recording.
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -109,22 +117,41 @@ export function useVoiceInputController(input: {
   }, [session, subscribeFrames]);
   const state = global.ownerKey === input.ownerKey ? global.state : IDLE_STATE;
   const isBusy = voiceInputBlocksSubmission(state);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- submits a stop-and-send transcript once the voice session leaves its busy phase and the draft still holds it
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- once the voice session leaves its busy phase, hands the committed transcript to review or submits it while the draft still holds it
   useEffect(() => {
     if (isBusy) return;
-    const pending = submission.current;
-    submission.current = null;
+    const intent = stopIntent.current;
+    stopIntent.current = null;
     const current = latestInput.current;
-    if (
-      state.phase === "idle" &&
-      pending?.text &&
-      pending.ownerKey === current.ownerKey &&
-      !current.disabled &&
-      current.readDraftMessage() === pending.text
-    ) {
+    if (state.phase !== "idle" || !intent?.committed || intent.ownerKey !== current.ownerKey) {
+      return;
+    }
+    const { committed } = intent;
+    if (intent.outcome === "review") {
+      current.onChangeSelection(committed.selection);
+      current.onReviewTranscript?.();
+    } else if (!current.disabled && current.readDraftMessage() === committed.text) {
       current.onSubmit?.();
     }
   }, [isBusy, state.phase]);
+
+  const stopWithIntent = useCallback(
+    (outcome: StopIntent["outcome"]) => {
+      const ownerKey = latestInput.current.ownerKey;
+      if (
+        !ownerKey ||
+        session.ownerKey !== ownerKey ||
+        session.controller.currentState.phase !== "recording"
+      )
+        return;
+      const intent: StopIntent = { outcome, ownerKey, committed: null };
+      stopIntent.current = intent;
+      void session.stop((text, selection) => {
+        if (stopIntent.current === intent) intent.committed = { text, selection };
+      });
+    },
+    [session],
+  );
 
   const stopAndSubmit = useCallback(() => {
     const current = latestInput.current;
@@ -138,17 +165,13 @@ export function useVoiceInputController(input: {
     const { engine } = session;
     const { voiceMessage } = current;
     if (engine && voiceMessage?.accepts()) {
-      submission.current = null;
+      stopIntent.current = null;
       void session.send((uri, handOff) => voiceMessage.send(uri, engine.language, handOff));
       return;
     }
-    if (!current.onSubmit) return;
-    const pending = { ownerKey: current.ownerKey, text: "" };
-    submission.current = pending;
-    void session.stop((text) => {
-      if (submission.current === pending) pending.text = text;
-    });
-  }, [session]);
+    if (current.onSubmit) stopWithIntent("submit");
+  }, [session, stopWithIntent]);
+  const stop = useCallback(() => stopWithIntent("review"), [stopWithIntent]);
   return {
     isAvailable: global.isAvailable && (!global.isBusy || global.ownerKey === input.ownerKey),
     state,
@@ -158,7 +181,7 @@ export function useVoiceInputController(input: {
     freezesEditor: isBusy,
     blocksSubmission: isBusy,
     start,
-    stop: global.stop,
+    stop,
     stopAndSubmit,
     cancel: global.cancel,
   };

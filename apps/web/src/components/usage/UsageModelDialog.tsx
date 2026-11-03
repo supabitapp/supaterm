@@ -1,5 +1,6 @@
 import { formatPercent, formatTokens, formatUsd } from "@supaterm/shared/usageFormat";
 import { isModelCostUnknown, type ModelTotals } from "@supaterm/shared/usageMerge";
+import { useRef } from "react";
 
 import { mergeAnsweredUsage, type EnvironmentUsageStatus } from "../../state/usage";
 import { ProviderInstanceIcon } from "../chat/ProviderInstanceIcon";
@@ -57,6 +58,7 @@ export function UsageModelDialog({
   const costUnknown = isModelCostUnknown(model);
   const hitRate = cacheHitRate(model);
   const perMillion = costPerMillionTokens(model);
+  const popupRef = useRef<HTMLDivElement>(null);
   const stats = [
     { label: "Cost", value: costUnknown ? "Unpriced" : formatUsd(model.costUsd) },
     { label: "Tokens", value: formatTokens(model.totalTokens) },
@@ -71,7 +73,7 @@ export function UsageModelDialog({
         if (!open) onClose();
       }}
     >
-      <DialogPopup className="max-w-3xl">
+      <DialogPopup ref={popupRef} initialFocus={popupRef} className="max-w-3xl">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <ProviderInstanceIcon

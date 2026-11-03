@@ -27,6 +27,7 @@ import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { WorktreeSetupCard, type WorktreeSetupCardProps } from "./worktree-setup-card";
 import * as Haptics from "expo-haptics";
 import { KeyboardAwareLegendList } from "@legendapp/list/keyboard";
+import { KeyboardController } from "react-native-keyboard-controller";
 import { useViewabilityAmount, type LegendListRef } from "@legendapp/list/react-native";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import type { HandoffEndpoints } from "@supaterm/client-runtime/handoff";
@@ -3252,6 +3253,10 @@ export const ThreadFeed = memo(function ThreadFeed({
     }
   };
   const handleScrollBeginDrag = () => {
+    // Android's on-drag only blurs RN TextInputs, not the native composer editor.
+    if (Platform.OS === "android" && KeyboardController.isVisible()) {
+      void KeyboardController.dismiss();
+    }
     clearUserScrollSettle();
     userScrollSessionRef.current = true;
     cancelReflow();
@@ -3912,7 +3917,7 @@ export const ThreadFeed = memo(function ThreadFeed({
             onItemSizeChanged={handleItemSizeChanged}
             drawDistance={500}
             keyboardShouldPersistTaps="always"
-            keyboardDismissMode="none"
+            keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
             keyboardLiftBehavior="whenAtEnd"
             // Seeding the real viewport before onLayout lets the empty→filled remount see short
             // content underflow and skip programmatic positioning, since any offset write during

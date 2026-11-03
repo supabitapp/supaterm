@@ -128,3 +128,28 @@ it("closes an exited terminal on its own thread after navigating to one reusing 
   });
   expect(onCloseTerminal.mock.calls).toEqual([["term-1", original]]);
 });
+
+it("marks the pointer idle after it rests on the terminal, and active again when it moves", async () => {
+  const { other } = setup();
+  await using screen = await render(<Drawer threadRef={other} onCloseTerminal={() => {}} />);
+  using _timers = fakeTimers();
+  const drawer = screen.container.querySelector<HTMLElement>("[data-thread-terminal-drawer]")!;
+  const viewport = drawer.querySelector<HTMLElement>("[tabindex='-1']")!;
+  const move = () => viewport.dispatchEvent(new PointerEvent("pointermove", { bubbles: true }));
+
+  move();
+  expect(drawer.dataset.pointer).toBe("active");
+  await act(() => vi.advanceTimersByTime(1_500));
+  move();
+  await act(() => vi.advanceTimersByTime(1_500));
+  expect(drawer.dataset.pointer).toBe("active");
+  await act(() => vi.advanceTimersByTime(500));
+  expect(drawer.dataset.pointer).toBe("idle");
+
+  move();
+  expect(drawer.dataset.pointer).toBe("active");
+  viewport.dispatchEvent(
+    new PointerEvent("pointerout", { bubbles: true, relatedTarget: document.body }),
+  );
+  expect(drawer.dataset.pointer).toBeUndefined();
+});

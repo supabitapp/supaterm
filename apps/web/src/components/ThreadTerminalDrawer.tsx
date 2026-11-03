@@ -83,6 +83,7 @@ import { readLocalApi } from "~/localApi";
 import { confirmTerminalClose } from "~/lib/terminalCloseConfirm";
 import { useClientSettings } from "../hooks/useSettings";
 import { useLocalStorage } from "../hooks/useLocalStorage";
+import { usePointerIdle } from "../hooks/usePointerIdle";
 import { attachedTerminalSessionAtom } from "../state/terminalSessions";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { serverEnvironment } from "../state/server";
@@ -132,6 +133,7 @@ function resolveTerminalDrawerMaxHeight(input: DrawerLayout): number {
 }
 
 const DRAG_HEIGHT_PROPERTY = "--terminal-drawer-drag-height";
+const TERMINAL_POINTER_IDLE_MS = 2_000;
 
 function clampDrawerHeight(height: number, maxHeight: number): number {
   const safeHeight = Number.isFinite(height) ? height : DEFAULT_THREAD_TERMINAL_HEIGHT;
@@ -1396,6 +1398,7 @@ export default function ThreadTerminalDrawer({
     Schema.Boolean,
   );
   const drawerRef = useRef<HTMLElement | null>(null);
+  const pointerIdle = usePointerIdle(drawerRef, TERMINAL_POINTER_IDLE_MS);
   const [drawerLayout, setDrawerLayout] = useState(() => readDrawerLayout(null));
   const maxDrawerHeight = resolveTerminalDrawerMaxHeight({ ...drawerLayout, composerHeight });
   const drawerHeight = clampDrawerHeight(height, maxDrawerHeight);
@@ -1733,7 +1736,7 @@ export default function ThreadTerminalDrawer({
       data-thread-terminal-drawer
       data-terminal-owner={isPanel ? "right-panel" : "drawer"}
       className={cn(
-        "relative flex min-w-0 flex-col overflow-hidden bg-background",
+        "group/terminal relative flex min-w-0 flex-col overflow-hidden bg-background data-[pointer=idle]:**:cursor-none!",
         isPanel ? "h-full flex-1" : "z-45 shrink-0 border-t border-border/80",
       )}
       style={isPanel ? undefined : { height: `var(${DRAG_HEIGHT_PROPERTY}, ${drawerHeight}px)` }}
@@ -1750,7 +1753,7 @@ export default function ThreadTerminalDrawer({
       ) : null}
 
       {!hasTerminalSidebar && (
-        <div className="pointer-events-none absolute right-2 top-2 z-20">
+        <div className="pointer-events-none absolute right-2 top-2 z-20 opacity-0 transition-opacity duration-150 ease-out group-data-[pointer=active]/terminal:opacity-100 hover:opacity-100 focus-within:opacity-100 motion-reduce:transition-none pointer-coarse:opacity-100">
           <div className="pointer-events-auto inline-flex items-center overflow-hidden rounded-md border border-border/80 bg-background shadow-xs">
             <TerminalActionButton
               disabled={!canOperateTerminal}
@@ -1810,7 +1813,11 @@ export default function ThreadTerminalDrawer({
             hasTerminalSidebar && "gap-1.5",
           )}
         >
-          <div className="min-w-0 flex-1">
+          <div
+            className="min-w-0 flex-1"
+            onPointerMove={pointerIdle.onPointerMove}
+            onPointerLeave={pointerIdle.onPointerLeave}
+          >
             {activeTerminalGroup ? (
               <TerminalSplitPanels
                 idPrefix={`${scopedThreadKey(threadRef)}:${activeTerminalGroup.id}:`}
