@@ -594,7 +594,15 @@ function ChartCard(props: {
   const [fillHeight, setFillHeight] = useState(0);
   const height = props.fill ? Math.max(fillHeight, props.height) : props.height;
   const chart = hasActivity ? (
-    <UsageDailyChart days={props.days} daily={props.daily} metric={metric} height={height} />
+    <UsageDailyChart
+      days={props.days}
+      daily={props.daily}
+      metric={metric}
+      height={height}
+      formatPeriod={(period) =>
+        props.isPast24Hours ? formatHourShort(period, props.timeZone) : formatDayShort(period)
+      }
+    />
   ) : (
     <View style={{ height }} className="items-center justify-center">
       <Text className="text-base text-foreground-muted">No activity in this window.</Text>
