@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { page } from "vite-plus/test/browser";
+import { page, userEvent } from "vite-plus/test/browser";
 
 import { render } from "../../test/render";
 import { openCommandPalette } from "../commandPaletteBus";
@@ -29,5 +29,26 @@ describe("CommandPalette open intents", () => {
     const input = page.getByPlaceholder("Search commands, projects, and threads...");
     await expect.element(input).toHaveFocus();
     await expect.element(input).toHaveValue("acme");
+  });
+
+  it("keeps the row Enter runs highlighted while typing", async () => {
+    setup();
+    await using _screen = await render(<CommandPalette>{null}</CommandPalette>);
+
+    openCommandPalette();
+    const input = page.getByRole("combobox");
+    await userEvent.type(input, "open");
+
+    const options = page.getByRole("option");
+    await expect.element(options.first()).toHaveAttribute("data-active");
+    await userEvent.keyboard("{ArrowDown}");
+    await expect.element(options.nth(1)).toHaveAttribute("data-active");
+
+    await userEvent.fill(input, "settings");
+    await expect
+      .element(page.getByRole("option", { name: "Open settings" }))
+      .toHaveAttribute("data-active");
+    await userEvent.keyboard("{Enter}");
+    await expect.element(input).not.toBeInTheDocument();
   });
 });
