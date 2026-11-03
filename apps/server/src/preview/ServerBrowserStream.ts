@@ -5,6 +5,7 @@ import {
   PREVIEW_STREAM_HOST_SETUP_CLOSE_CODE,
   PreviewStreamHostSetup,
 } from "@supaterm/contracts";
+import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Queue from "effect/Queue";
@@ -30,6 +31,11 @@ const TAB_GONE_CODE = 4404;
 
 const DEFAULT_QUALITY = 70;
 const MAX_SOCKET_BUFFER_BYTES = 8 * 1024 * 1024;
+const PING_INTERVAL_MS = 500;
+const PING_SAMPLES = 20;
+// Video a viewer's path may queue beyond its round trip, and how late its oldest frame may run.
+const QUEUE_ALLOWANCE_MS = 40;
+const LATE_FRAME_ALLOWANCE_MS = 120;
 const textDecoder = new TextDecoder();
 
 const intParam = (params: URLSearchParams, name: string, fallback: number, max: number) => {
@@ -39,8 +45,83 @@ const intParam = (params: URLSearchParams, name: string, fallback: number, max: 
 
 type Frame = Extract<ServerBrowser.ServerBrowserViewerOutput, { readonly _tag: "frame" }>;
 
-const isAck = (message: unknown) =>
-  typeof message === "object" && message !== null && "type" in message && message.type === "ack";
+const decodeReply = Schema.decodeUnknownOption(
+  Schema.Union([
+    Schema.Struct({ type: Schema.Literal("ack"), id: Schema.optional(Schema.Number) }),
+    Schema.Struct({ type: Schema.Literal("pong"), at: Schema.Number }),
+  ]),
+);
+
+/**
+ * Frames on the wire to one viewer. A viewer that numbers its acks and answers pings may have
+ * up to its path's round trip of video in flight, measured from ping times and how long frames
+ * that did not queue took to arrive; any other viewer gets one frame at a time.
+ */
+const makeFrameWindow = () => {
+  const inFlight: Array<{
+    readonly seq: number;
+    readonly bytes: number;
+    readonly sentAt: number;
+    readonly ack: Effect.Effect<void>;
+  }> = [];
+  let inFlightBytes = 0;
+  let sent = 0;
+  let numbered = false;
+  const pingRtts: Array<number> = [];
+  let rttMs: number | null = null;
+  let bytesPerMs: number | null = null;
+  let lastAckAt = -Infinity;
+  let lastPingAt = -Infinity;
+  return {
+    /** Pings go out only onto an empty pipe; behind frames they would time the queue. */
+    pingDue: (now: number) => {
+      if (!numbered || inFlight.length > 0 || now - lastPingAt < PING_INTERVAL_MS) return false;
+      lastPingAt = now;
+      return true;
+    },
+    admits: (bytes: number, now: number) =>
+      inFlight.length === 0 ||
+      (numbered &&
+        rttMs !== null &&
+        bytesPerMs !== null &&
+        now - inFlight[0]!.sentAt <= rttMs + LATE_FRAME_ALLOWANCE_MS &&
+        inFlightBytes + bytes <= bytesPerMs * (rttMs + QUEUE_ALLOWANCE_MS)),
+    sent: (frame: Frame, now: number) => {
+      const bytes = frame.data.byteLength;
+      inFlight.push({ seq: ++sent, bytes, sentAt: now, ack: frame.ack });
+      inFlightBytes += bytes;
+    },
+    /** Acks are cumulative; one without an id acks the oldest frame. */
+    acked: (id: number | undefined, now: number) => {
+      if (id !== undefined && id > sent) return [];
+      if (id !== undefined) numbered = true;
+      const count = id === undefined ? 1 : inFlight.filter((frame) => frame.seq <= id).length;
+      const acked = inFlight.splice(0, count);
+      for (const frame of acked) inFlightBytes -= frame.bytes;
+      const first = acked[0];
+      if (first === undefined) return [];
+      // A frame sent after the one ahead of it could have arrived did not queue behind it, so
+      // it spent all but a round trip on the link; a late ack only makes the link look slower.
+      if (rttMs !== null && first.sentAt + rttMs >= lastAckAt && now - first.sentAt > rttMs) {
+        const sample = first.bytes / (now - first.sentAt - rttMs);
+        bytesPerMs = bytesPerMs === null ? sample : bytesPerMs * 0.7 + sample * 0.3;
+      }
+      lastAckAt = now;
+      return acked.map((frame) => frame.ack);
+    },
+    pong: (rtt: number) => {
+      if (!numbered) return;
+      pingRtts.push(rtt);
+      if (pingRtts.length > PING_SAMPLES) pingRtts.shift();
+      rttMs = Math.min(...pingRtts);
+    },
+  };
+};
+
+const pingMessage = (at: number) => JSON.stringify({ type: "ping", at });
+
+// Elapsed times must not jump with the wall clock.
+const nowMs = Clock.monotonicTimeNanos.pipe(Effect.map((nanos) => Number(nanos) / 1_000_000));
 
 const parseMessage = (chunk: Uint8Array | string): unknown => {
   try {
@@ -120,11 +201,10 @@ const makeHandler = Effect.fnUntraced(function* (browser: ServerBrowser.ServerBr
         return HttpServerResponse.empty();
       }
       const viewer = attached.viewer;
-      // `write` returns once the frame is queued, so Chromium's ack for each
-      // frame waits for the viewer's `ack` message instead. Only one frame
-      // is on the wire and only the newest waits behind it, so replies never
-      // queue behind stale images on a slow link.
-      let inFlight: Effect.Effect<void> | null = null;
+      // `write` returns once the frame is queued, so Chromium's ack for each frame waits
+      // for the viewer's `ack` message instead. Only the newest frame waits for room on
+      // the wire, so replies never queue behind stale images on a slow link.
+      const frames = makeFrameWindow();
       let pending: Frame | null = null;
       const disconnectSlowViewer = Effect.sync(() => transport.destroy()).pipe(
         Effect.andThen(Effect.interrupt),
@@ -137,19 +217,26 @@ const makeHandler = Effect.fnUntraced(function* (browser: ServerBrowser.ServerBr
           }
           return writer.write(data);
         });
-      const sendFrame = (frame: Frame) => {
-        inFlight = frame.ack;
-        return write(frame.data);
-      };
+      const sendPending = Effect.gen(function* () {
+        const now = yield* nowMs;
+        if (pending === null || !frames.admits(pending.data.byteLength, now)) return;
+        const next = pending;
+        pending = null;
+        if (frames.pingDue(now)) yield* write(pingMessage(now));
+        frames.sent(next, now);
+        yield* write(next.data);
+      });
       const sendOutput = Queue.take(viewer.output).pipe(
         Effect.flatMap((output) => {
           switch (output._tag) {
             case "frame": {
-              if (inFlight === null) return sendFrame(output);
               const superseded = pending;
               pending = output;
               // Never sent, but Chromium still waits for its ack.
-              return superseded ? Effect.forkScoped(superseded.ack) : Effect.void;
+              return Effect.andThen(
+                superseded ? Effect.forkScoped(superseded.ack) : Effect.void,
+                sendPending,
+              );
             }
             case "viewport":
             case "control":
@@ -177,19 +264,16 @@ const makeHandler = Effect.fnUntraced(function* (browser: ServerBrowser.ServerBr
         const message = parseMessage(chunk);
         // Ownership serializes actions in the service. Keep reading so dialog
         // replies and takeover can unblock an action already waiting on the page.
-        if (!isAck(message))
+        const reply = decodeReply(message);
+        if (Option.isNone(reply))
           return yield* canOperate
             ? viewer.input(message).pipe(Effect.forkScoped, Effect.asVoid)
             : Effect.void;
-        const ack = inFlight;
-        const next = pending;
-        inFlight = null;
-        pending = null;
+        const now = yield* nowMs;
+        if (reply.value.type === "pong") frames.pong(Math.max(0, now - reply.value.at));
         // Forked: Chromium acks are paced and must not hold up input.
-        return yield* Effect.andThen(
-          ack ? Effect.forkScoped(ack) : Effect.void,
-          next ? sendFrame(next) : Effect.void,
-        );
+        else for (const ack of frames.acked(reply.value.id, now)) yield* Effect.forkScoped(ack);
+        return yield* sendPending;
       });
       const receiveInput = reader.pull.pipe(
         Effect.flatMap((chunks) => Effect.forEach(chunks, receive, { discard: true })),

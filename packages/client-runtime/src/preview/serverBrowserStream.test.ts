@@ -88,11 +88,17 @@ describe("preview stream control", () => {
     socket.control({ ...agent, canOperate: false });
     const frame = new ArrayBuffer(3);
     socket.message(frame);
+    socket.message(JSON.stringify({ type: "ping", at: 1500 }));
+    socket.message(frame);
     expect(onFrame).toHaveBeenCalledWith(frame);
     expect(client.send({ type: "takeControl" })).toBe(false);
     expect(client.send({ type: "resize", width: 390, height: 844 })).toBe(false);
     expect(client.send({ type: "reload" })).toBe(false);
-    expect(socket.sent).toEqual(['{"type":"ack"}']);
+    expect(socket.sent.map((sent) => JSON.parse(sent))).toEqual([
+      { type: "ack", id: 1 },
+      { type: "pong", at: 1500 },
+      { type: "ack", id: 2 },
+    ]);
     client.stop();
   });
 

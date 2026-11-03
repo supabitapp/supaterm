@@ -18,6 +18,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Queue from "effect/Queue";
 import * as Schema from "effect/Schema";
+import * as TestClock from "effect/testing/TestClock";
 import { HttpRouter, HttpServer } from "effect/http";
 
 import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
@@ -231,6 +232,118 @@ it.effect("sends replies ahead of stale frames and only the newest frame after a
     expect(received).toEqual([1, "probe", 4]);
     expect(released).toEqual([2, 3, 1]);
   }).pipe(Effect.scoped),
+);
+
+it.effect.each([
+  { link: "150 ms away on a fast link", rttMs: 150, deliveryMs: 1, inFlight: [4, 5, 6] },
+  {
+    link: "60 ms away on a link that takes 650 ms per frame",
+    rttMs: 60,
+    deliveryMs: 650,
+    inFlight: [4],
+  },
+])(
+  "a viewer that numbers its acks gets frames ahead of them while its link has room ($link)",
+  ({ rttMs, deliveryMs, inFlight }) =>
+    Effect.gen(function* () {
+      const output = yield* Queue.make<ServerBrowser.ServerBrowserViewerOutput>();
+      const released = yield* Queue.unbounded<number>();
+      const inputs = yield* Queue.unbounded<unknown>();
+      const frame = (id: number): ServerBrowser.ServerBrowserViewerOutput => ({
+        _tag: "frame",
+        data: new Uint8Array(10_000).fill(id),
+        ack: Queue.offer(released, id).pipe(Effect.asVoid),
+      });
+      const browser = ServerBrowser.ServerBrowser.of({
+        clearProfile: () => Effect.void,
+        profileReporter: Effect.succeed(() => Effect.void),
+        openDownload: () => Effect.succeedNone,
+        answerFileChooser: () => Effect.succeed(false),
+        attachViewer: () =>
+          Effect.succeed({ output, input: (message) => Queue.offer(inputs, message) }),
+      });
+      const services = yield* Layer.build(
+        HttpRouter.serve(
+          routeLayer.pipe(
+            Layer.provide(Layer.succeed(ServerBrowser.ServerBrowser, browser)),
+            Layer.provide(platformLayer),
+          ),
+          { disableListenLog: true },
+        ).pipe(
+          Layer.provideMerge(NodeHttpServer.layerTest),
+          Layer.provide(makeAuth([AuthOrchestrationReadScope, AuthPreviewOperateScope]).layer),
+        ),
+      );
+      const server = Context.get(services, HttpServer.HttpServer);
+      const origin = HttpServer.formatAddress(server.address).replace(/^http/, "ws");
+      const frames = yield* Queue.unbounded<number | "probe">();
+      const pings = yield* Queue.unbounded<number>();
+      const socket = yield* Effect.acquireRelease(
+        Effect.sync(
+          () =>
+            new WebSocket(
+              `${origin}/api/preview-stream/ws?threadId=thread&tabId=tab&wsTicket=one-use-ticket`,
+            ),
+        ),
+        (socket) => Effect.sync(() => socket.close()),
+      );
+      socket.binaryType = "arraybuffer";
+      socket.addEventListener("message", (event) => {
+        if (typeof event.data !== "string") {
+          Queue.offerUnsafe(frames, new Uint8Array(event.data as ArrayBuffer)[0]!);
+          return;
+        }
+        const message = JSON.parse(event.data);
+        if (message.type === "ping") Queue.offerUnsafe(pings, message.at);
+        if (message.type === "probe") Queue.offerUnsafe(frames, "probe");
+      });
+      const reply = (message: object) => Effect.sync(() => socket.send(JSON.stringify(message)));
+      // Replies go out unwindowed, so a probe arrives after every frame sent before it.
+      const sentAhead = Effect.gen(function* () {
+        yield* Queue.offer(output, { _tag: "probe", x: 0, y: 0, editable: false });
+        const sent: Array<number | "probe"> = [];
+        for (
+          let next = yield* Queue.take(frames);
+          next !== "probe";
+          next = yield* Queue.take(frames)
+        )
+          sent.push(next);
+        return sent;
+      });
+
+      // Until its link is measured, a viewer gets one frame at a time.
+      yield* Queue.offerAll(output, [frame(1), frame(2)]);
+      expect(yield* sentAhead).toEqual([1]);
+      // Its first numbered ack gets the next frame a ping ahead of it, while nothing is queued.
+      yield* reply({ type: "ack", id: 1 });
+      const pinged = yield* Queue.take(pings);
+      expect(yield* Queue.take(frames)).toBe(2);
+      yield* TestClock.adjust(rttMs);
+      yield* reply({ type: "pong", at: pinged });
+      yield* reply({ type: "ack", id: 2 });
+      expect(yield* Queue.takeN(released, 2)).toEqual([1, 2]);
+      yield* Queue.offer(output, frame(3));
+      expect(yield* Queue.take(frames)).toBe(3);
+      yield* TestClock.adjust(rttMs + deliveryMs);
+      yield* reply({ type: "ack", id: 3 });
+      expect(yield* Queue.take(released)).toBe(3);
+
+      yield* Queue.offerAll(output, [frame(4), frame(5), frame(6)]);
+      expect(yield* sentAhead).toEqual(inFlight);
+      // Nothing more goes out once the oldest frame is late.
+      yield* TestClock.adjust(rttMs + 121);
+      yield* Queue.offerAll(output, [frame(7), frame(8)]);
+      expect(yield* sentAhead).toEqual([]);
+      // Acks are cumulative, so a repeated one releases nothing twice, and one for a frame
+      // never sent releases nothing.
+      yield* reply({ type: "ack", id: inFlight.at(-1)! });
+      yield* reply({ type: "ack", id: inFlight.at(-1)! });
+      yield* reply({ type: "ack", id: 999 });
+      yield* reply({ type: "takeControl" });
+      expect(yield* Queue.take(inputs)).toEqual({ type: "takeControl" });
+      expect(yield* Queue.take(frames)).toBe(8);
+      expect((yield* Queue.clear(released)).toSorted()).toEqual([4, 5, 6, 7]);
+    }).pipe(Effect.scoped),
 );
 
 it.effect.each([

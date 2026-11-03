@@ -231,7 +231,6 @@ export interface PreviewStreamClient {
   readonly stop: () => void;
 }
 
-const ACK_MESSAGE = JSON.stringify({ type: "ack" });
 export function createPreviewStreamClient(
   target: PreviewStreamTarget,
   events: PreviewStreamEvents,
@@ -257,6 +256,7 @@ export function createPreviewStreamClient(
     ws.binaryType = "arraybuffer";
     socket = ws;
     let opened = false;
+    let frames = 0;
     ws.addEventListener("open", () => {
       if (socket !== ws) return;
       opened = true;
@@ -266,7 +266,8 @@ export function createPreviewStreamClient(
       if (socket !== ws) return;
       if (event.data instanceof ArrayBuffer) {
         failures = 0;
-        ws.send(ACK_MESSAGE);
+        // Numbered acks let the server send frames ahead of them; it ignores ids it predates.
+        ws.send(JSON.stringify({ type: "ack", id: ++frames }));
         events.onFrame(event.data);
         return;
       }
@@ -298,8 +299,11 @@ export function createPreviewStreamClient(
         phase,
         sequence,
         tabId,
+        at,
       } = message as Record<string, unknown>;
-      if (
+      if (type === "ping" && typeof at === "number") {
+        ws.send(JSON.stringify({ type: "pong", at }));
+      } else if (
         type === "fileChooser" &&
         typeof id === "string" &&
         typeof multiple === "boolean" &&
