@@ -347,7 +347,7 @@ describe("CodexAdapterV2 native protocol logging", () => {
 });
 
 describe("CodexAdapterV2 rollback mapping", () => {
-  it.effect("derives native rollback count from durable provider turns", () =>
+  it.effect("derives native rollback IDs from durable provider turns", () =>
     Effect.gen(function* () {
       const now = yield* DateTime.now;
       const providerThreadId = ProviderThreadId.make("provider-thread-codex-rollback");
@@ -400,18 +400,41 @@ describe("CodexAdapterV2 rollback mapping", () => {
         nativeTurnRef: null,
       };
 
-      const numTurns = yield* CodexAdapterV2.resolveCodexRollbackTurnCount({
-        providerThread,
-        target: {
-          type: "provider_turn",
-          checkpointId: CheckpointId.make("checkpoint-first"),
-          appRunOrdinal: 1,
-          providerTurn: firstTurn,
+      const missingNativeId = {
+        ...providerTurn("provider-turn-no-native-id", 6, "completed"),
+        nativeTurnRef: {
+          driver: CodexAdapterV2.CODEX_DRIVER_KIND,
+          nativeId: null,
+          strength: "none" as const,
         },
-        providerThreadTurns: [goalCommandTurn, interruptedTurn, runningTurn, secondTurn, firstTurn],
-      });
-
-      assert.equal(numTurns, 2);
+      };
+      const providerTurns = [
+        missingNativeId,
+        goalCommandTurn,
+        interruptedTurn,
+        runningTurn,
+        secondTurn,
+      ];
+      for (const target of [firstTurn, { ...firstTurn, nativeTurnRef: null }]) {
+        const boundary = yield* CodexAdapterV2.resolveCodexRollbackTarget({
+          providerThread,
+          target: {
+            type: "provider_turn",
+            checkpointId: CheckpointId.make("checkpoint-first"),
+            appRunOrdinal: 1,
+            providerTurn: target,
+          },
+          providerThreadTurns: [...providerTurns, target],
+        });
+        assert.deepEqual(
+          boundary.removed,
+          new Set(["native-provider-turn-second", "native-provider-turn-interrupted"]),
+        );
+        assert.deepEqual(
+          boundary.retained,
+          new Set(target.nativeTurnRef === null ? [] : ["native-provider-turn-first"]),
+        );
+      }
     }),
   );
 });
@@ -7326,6 +7349,147 @@ describe("CodexAdapterV2 post-settle continuation", () => {
         Layer.mergeAll(IdAllocator.layer, McpProviderSessions.layer, NodeServices.layer),
       ),
     ),
+  );
+
+  it.effect.each(["provider_turn", "thread_start", "lost_response", "no_native_target"] as const)(
+    "keeps retained native history when retrying rollback (%s)",
+    (scenario) =>
+      Effect.gen(function* () {
+        const nativeThreadId = "retry-rollback-thread";
+        const thread = codexReplayThreadResult({ nativeThreadId, forkedFromId: null });
+        const exchanges = [
+          {
+            method: "thread/read",
+            params: { threadId: nativeThreadId, includeTurns: false },
+            result: { thread: { id: nativeThreadId, historyMode: "paginated" } },
+          },
+          {
+            method: "thread/turns/list",
+            params: {
+              threadId: nativeThreadId,
+              cursor: null,
+              limit: 1,
+              sortDirection: "desc",
+              itemsView: "summary",
+            },
+            result: {
+              data: [{ id: "native-turn-second", items: [], status: "completed", error: null }],
+              nextCursor: null,
+            },
+          },
+          {
+            method: "thread/revert",
+            params: { threadId: nativeThreadId, beforeTurnId: "native-turn-second" },
+            ...(scenario === "lost_response"
+              ? { error: { code: -32603, message: "response lost after native mutation" } }
+              : { result: thread }),
+          },
+          {
+            method: "thread/read",
+            params: { threadId: nativeThreadId, includeTurns: false },
+            result: { thread: { id: nativeThreadId, historyMode: "paginated" } },
+          },
+          {
+            method: "thread/turns/list",
+            params: {
+              threadId: nativeThreadId,
+              cursor: null,
+              limit: 1,
+              sortDirection: "desc",
+              itemsView: "summary",
+            },
+            result: {
+              data: [{ id: "native-turn-first", items: [], status: "completed", error: null }],
+              nextCursor: null,
+            },
+          },
+          {
+            method: "thread/read",
+            params: { threadId: nativeThreadId, includeTurns: false },
+            result: thread,
+          },
+        ];
+        const transcript = makeCodexReplayTranscript({
+          scenario: `codex-retry-rollback-${scenario}`,
+          entries: [
+            ...codexReplayPreamble({
+              nativeThreadId,
+              nativeTurnId: "unused",
+              prompt: "unused",
+            }).slice(0, 5),
+            ...exchanges.flatMap((exchange, index) => [
+              {
+                type: "expect_outbound" as const,
+                frame: { id: index + 3, method: exchange.method, params: exchange.params },
+              },
+              {
+                type: "emit_inbound" as const,
+                frame: {
+                  id: index + 3,
+                  ...(!("error" in exchange)
+                    ? { result: exchange.result }
+                    : { error: exchange.error }),
+                },
+              },
+            ]),
+          ],
+        });
+        const outbound: string[] = [];
+        const harness = yield* makeCodexReplayHarness(
+          transcript,
+          () => Effect.void,
+          (method) =>
+            Effect.sync(() => {
+              outbound.push(method);
+            }),
+        );
+        const now = yield* DateTime.now;
+        const firstTurn = codexReplaySourceTurn({
+          id: "provider-turn-first",
+          ordinal: 1,
+          nativeId: scenario === "no_native_target" ? null : "native-turn-first",
+          providerThreadId: harness.providerThread.id,
+          now,
+        });
+        const secondTurn = codexReplaySourceTurn({
+          id: "provider-turn-second",
+          ordinal: 2,
+          nativeId: "native-turn-second",
+          providerThreadId: harness.providerThread.id,
+          now,
+        });
+        const input: ProviderAdapter.ProviderAdapterV2RollbackThreadInput = {
+          providerThread: harness.providerThread,
+          target:
+            scenario === "thread_start"
+              ? {
+                  type: "thread_start",
+                  checkpointId: CheckpointId.make("checkpoint-start"),
+                  appRunOrdinal: 0,
+                }
+              : {
+                  type: "provider_turn",
+                  checkpointId: CheckpointId.make("checkpoint-retry-rollback"),
+                  appRunOrdinal: 1,
+                  providerTurn: firstTurn,
+                },
+          providerThreadTurns: scenario === "thread_start" ? [secondTurn] : [firstTurn, secondTurn],
+        };
+        const first = yield* harness.runtime.rollbackThread(input).pipe(Effect.exit);
+        assert.equal(Exit.isFailure(first), scenario === "lost_response");
+        const retried = yield* harness.runtime.rollbackThread(input);
+        assert.equal(retried.providerThread.nativeThreadRef?.nativeId, nativeThreadId);
+        assert.deepEqual(
+          outbound.filter((method) => method === "thread/revert"),
+          ["thread/revert"],
+        );
+        assert.equal(outbound.at(-1), "thread/read");
+      }).pipe(
+        Effect.scoped,
+        Effect.provide(
+          Layer.mergeAll(IdAllocator.layer, McpProviderSessions.layer, NodeServices.layer),
+        ),
+      ),
   );
 
   it.effect(

@@ -34,7 +34,7 @@ import * as ServerSettings from "../serverSettings.ts";
 import * as GitWorkflow from "../git/GitWorkflowService.ts";
 import { withWorkspaceLease } from "../workspace/workspaceLease.ts";
 import { ProviderWorkspaceMissingError } from "../provider/Errors.ts";
-import { resolveCodexRollbackTurnCount } from "./Adapters/CodexAdapterV2.ts";
+import { resolveCodexRollbackTarget } from "./Adapters/CodexAdapterV2.ts";
 import * as CheckpointService from "./CheckpointService.ts";
 import * as CheckpointRollbackService from "./CheckpointRollbackService.ts";
 import * as ThreadCommandExecutor from "./ThreadCommandExecutor.ts";
@@ -599,7 +599,7 @@ const seedRollbackHistory = Effect.gen(function* () {
             Effect.succeed({
               rollbackThread: (input: ProviderAdapter.ProviderAdapterV2RollbackThreadInput) =>
                 Effect.gen(function* () {
-                  rollbackCounts.push(yield* resolveCodexRollbackTurnCount(input));
+                  rollbackCounts.push((yield* resolveCodexRollbackTarget(input)).removed.size);
                   return { providerThread: input.providerThread };
                 }),
             } as never),
