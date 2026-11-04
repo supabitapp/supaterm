@@ -173,16 +173,6 @@ const VIEWER_CACHE_CAPACITY = 32;
 
 export type PullRequestError = PullRequestUnavailableError | PullRequestOperationError;
 
-/** A rate limit is the host asking to wait, not a sign the read cannot succeed. */
-export const isRateLimited = (cause: Cause.Cause<PullRequestError>): boolean =>
-  Option.match(Cause.findErrorOption(cause), {
-    onNone: () => false,
-    onSome: (error) =>
-      error._tag === "PullRequestOperationError" &&
-      isPullRequestProviderError(error.cause) &&
-      error.cause.reason === "rate-limited",
-  });
-
 const routingCredential = Context.Reference<{
   readonly credentialFingerprint: string;
   readonly viewer: string;
