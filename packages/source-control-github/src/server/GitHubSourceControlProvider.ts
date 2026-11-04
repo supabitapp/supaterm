@@ -20,7 +20,7 @@ import {
   type ChangeRequest,
   type SourceControlRepositoryCloneUrls,
 } from "@supaterm/contracts";
-import { normalizeGitRemoteUrl } from "@supaterm/shared/git";
+import { GH_RESOLVED_CONFIG_ARGS, normalizeGitRemoteUrl } from "@supaterm/shared/git";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { decodeJsonResult } from "@supaterm/shared/schemaJson";
 import { isSshRemoteUrl } from "@supaterm/shared/sourceControl";
@@ -38,7 +38,6 @@ import {
   parseFetchRemotes,
   parseGitHubRepositorySelector,
   parsePullRequestReference,
-  readCheckoutGitHubRepository,
   resolveGitHubRepository,
   type GitHubRepositoryLocator,
 } from "./gitHubRepositoryResolution.ts";
@@ -241,10 +240,13 @@ export const make = Effect.gen(function* () {
         const locator = parseGitHubRepositorySelector(envRepository, defaultHost);
         if (locator !== null) return locator;
       }
-      const { host, locator } = yield* readCheckoutGitHubRepository({
-        process,
-        operation: "GitHubSourceControlProvider.resolveRepository",
-        cwd: input.cwd,
+      const [remotes, resolved] = yield* Effect.all([
+        gitRead(input.cwd, ["remote", "-v"]),
+        gitRead(input.cwd, GH_RESOLVED_CONFIG_ARGS),
+      ]).pipe(Effect.orElseSucceed(() => [null, null] as const));
+      const { host, locator } = resolveGitHubRepository({
+        remotes: remotes?.exitCode === 0 ? remotes.stdout : "",
+        resolved: resolved?.exitCode === 0 ? resolved.stdout : "",
         hostHint,
         defaultHost,
       });

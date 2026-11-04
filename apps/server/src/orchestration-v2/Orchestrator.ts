@@ -678,16 +678,6 @@ function hasLiveRun(projection: Pick<OrchestrationV2ThreadProjection, "runs">): 
   return projection.runs.some(isLiveRun);
 }
 
-/** Same rule as a direct message.dispatch: a provider-native subagent takes no messages. */
-function takesNoWakes(thread: OrchestrationV2AppThread): boolean {
-  return (
-    thread.archivedAt !== null ||
-    thread.doneOverride === "done" ||
-    thread.doneAt !== null ||
-    isProviderNativeSubagentThread(thread)
-  );
-}
-
 function legacyPullRequestLink(
   thread: OrchestrationV2AppThread,
   linked: ThreadLinkedPullRequest,
@@ -2831,52 +2821,59 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
 
   // Checked under the thread lock: the watch or the thread can change while the host is read.
   // The watch is recorded first so the wake's own thread events carry it.
-  const dispatchWatchUpdate = Effect.fn("orchestrationV2.dispatch.watchUpdate")(function* (
-    command: Extract<
-      OrchestrationV2ServerCommand,
-      { readonly type: "thread.pull-request-watch.sync" }
-    >,
-    events: Ref.Ref<Array<OrchestrationV2DomainEvent>>,
-    effects: Ref.Ref<Array<PendingOrchestrationEffectV2>>,
-  ) {
-    const thread = yield* projectionStore
-      .getThread(command.threadId)
-      .pipe(
-        Effect.mapError(
-          (cause) => new OrchestratorProjectionError({ threadId: command.threadId, cause }),
-        ),
+  const dispatchPullRequestWatchSync = Effect.fn("orchestrationV2.dispatch.pullRequestWatchSync")(
+    function* (
+      command: Extract<
+        OrchestrationV2ServerCommand,
+        { readonly type: "thread.pull-request-watch.sync" }
+      >,
+      events: Ref.Ref<Array<OrchestrationV2DomainEvent>>,
+      effects: Ref.Ref<Array<PendingOrchestrationEffectV2>>,
+    ) {
+      const thread = yield* projectionStore
+        .getThread(command.threadId)
+        .pipe(
+          Effect.mapError(
+            (cause) => new OrchestratorProjectionError({ threadId: command.threadId, cause }),
+          ),
+        );
+      const startedAt = threadPullRequestsOf(thread).find(
+        (candidate) =>
+          candidate.source !== "stack-dismissed" &&
+          threadPullRequestKeysEqual(candidate, normalizeThreadPullRequestKey(command)),
+      )?.watch?.startedAt;
+      const inactive =
+        thread.archivedAt !== null ||
+        thread.doneOverride === "done" ||
+        thread.doneAt !== null ||
+        isProviderNativeSubagentThread(thread);
+      if (startedAt !== command.startedAt || (command.wake && inactive)) {
+        return yield* new OrchestratorDispatchError({
+          commandId: command.commandId,
+          commandType: command.type,
+          cause: "The pull request watch ended or its thread was marked Done while it was read.",
+        });
+      }
+      yield* dispatchThreadMutation(command, events, effects);
+      if (command.wake === undefined) return;
+      yield* dispatchMessage(
+        {
+          type: "message.dispatch",
+          commandId: command.commandId,
+          threadId: command.threadId,
+          messageId: command.wake.messageId,
+          text: command.wake.text,
+          notification: command.wake.notification,
+          attachments: [],
+          dispatchMode: { type: "queue_after_active" },
+          createdBy: "agent",
+          creationSource: "server",
+        },
+        events,
+        effects,
       );
-    const startedAt = threadPullRequestsOf(thread).find(
-      (candidate) =>
-        candidate.source !== "stack-dismissed" &&
-        threadPullRequestKeysEqual(candidate, normalizeThreadPullRequestKey(command)),
-    )?.watch?.startedAt;
-    if (startedAt !== command.startedAt || (command.wake && takesNoWakes(thread))) {
-      return yield* new OrchestratorDispatchError({
-        commandId: command.commandId,
-        commandType: command.type,
-        cause: "The watch ended or its thread was marked Done while it was read.",
-      });
-    }
-    yield* dispatchThreadMutation(command, events, effects);
-    if (command.wake === undefined) return;
-    yield* dispatchMessage(
-      {
-        type: "message.dispatch",
-        commandId: command.commandId,
-        threadId: command.threadId,
-        messageId: command.wake.messageId,
-        text: command.wake.text,
-        notification: command.wake.notification,
-        attachments: [],
-        dispatchMode: { type: "queue_after_active" },
-        createdBy: "agent",
-        creationSource: "server",
-      },
-      events,
-      effects,
-    );
-  });
+    },
+  );
 
   const dispatchThreadMutation = Effect.fn("orchestrationV2.dispatch.threadMutation")(function* (
     command: Extract<
@@ -12482,7 +12479,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         yield* dispatchThreadMutation(command, events, effects);
         break;
       case "thread.pull-request-watch.sync":
-        yield* dispatchWatchUpdate(command, events, effects);
+        yield* dispatchPullRequestWatchSync(command, events, effects);
         break;
       case "provider-session.detach":
         yield* dispatchProviderSessionDetach(command, events, effects);

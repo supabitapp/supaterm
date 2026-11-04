@@ -3428,8 +3428,8 @@ const OrchestrationV2InternalCommand = Schema.Union([
   }),
   /**
    * Stop for one thread, whatever it is doing: interrupts its running turn, holds its queue,
-   * ends its pull request and workflow run watches, and drops pending delegated-task wakes. Nothing to stop is
-   * an accepted no-op. Delegated tasks under the thread get their own `thread.stop`.
+   * ends its pull request watches, and drops pending delegated-task wakes. Nothing to stop is an
+   * accepted no-op. Delegated tasks under the thread get their own `thread.stop`.
    */
   Schema.Struct({
     type: Schema.Literal("thread.stop"),
