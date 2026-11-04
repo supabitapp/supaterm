@@ -20,7 +20,6 @@ import { PCM_BYTES_PER_SECOND, parseWav } from "@supaterm/provider-core/server/t
 import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
-import * as Mac from "effect/crypto/Mac";
 import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
@@ -38,6 +37,7 @@ import * as Semaphore from "effect/Semaphore";
 import * as Socket from "effect/socket/Socket";
 import * as Stream from "effect/Stream";
 
+import * as AssetSigner from "../assets/AssetSigner.ts";
 import * as AttachmentUpload from "../assets/AttachmentUpload.ts";
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import * as ServerConfig from "../config.ts";
@@ -240,11 +240,15 @@ const make = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const random = yield* SecureRandom.SecureRandom;
-  const mac = yield* Mac.Mac;
+  const assetSigner = yield* AssetSigner.AssetSigner;
   const signUploadToken = (payloadJson: string) =>
-    AttachmentUpload.signUploadToken(payloadJson).pipe(Effect.provideService(Mac.Mac, mac));
+    AttachmentUpload.signUploadToken(payloadJson).pipe(
+      Effect.provideService(AssetSigner.AssetSigner, assetSigner),
+    );
   const verifyUploadToken = (token: string) =>
-    AttachmentUpload.verifyUploadToken(token).pipe(Effect.provideService(Mac.Mac, mac));
+    AttachmentUpload.verifyUploadToken(token).pipe(
+      Effect.provideService(AssetSigner.AssetSigner, assetSigner),
+    );
   const secretStore = yield* ServerSecretStore.ServerSecretStore;
   const threads = yield* ThreadManagement.ThreadManagementService;
   const transcription = yield* Transcription.Transcription;
