@@ -229,10 +229,15 @@ export function pendingBackgroundTurnItems<Item extends PendingBackgroundWorkTur
 }
 
 const PULL_REQUEST_WATCH_TASK_PREFIX = "pull-request-watch:";
+// Older servers still report their GitHub Actions run watches under this prefix.
+const RETIRED_WORKFLOW_RUN_WATCH_TASK_PREFIX = "workflow-run-watch:";
 
-/** Supaterm's own pull request watches, which print no output. */
+/** Supaterm's own watches, which print no output. */
 export function isWatchTaskId(taskId: string): boolean {
-  return taskId.startsWith(PULL_REQUEST_WATCH_TASK_PREFIX);
+  return (
+    taskId.startsWith(PULL_REQUEST_WATCH_TASK_PREFIX) ||
+    taskId.startsWith(RETIRED_WORKFLOW_RUN_WATCH_TASK_PREFIX)
+  );
 }
 
 /**

@@ -625,6 +625,11 @@ describe("presentPendingBackgroundWork", () => {
       { taskId: "b2", kind: "monitor", description: "Tail logs" },
       { taskId: "agent", kind: "subagent", description: "Review" },
       {
+        taskId: "workflow-run-watch:github.com/acme/app#7",
+        kind: "monitor",
+        description: "Watching CI run",
+      },
+      {
         taskId: "pull-request-watch:github.com/acme/app#12",
         kind: "monitor",
         description: "Watching pull request #12",
