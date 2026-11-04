@@ -1,5 +1,6 @@
 import {
   VoiceTranscriptionError,
+  voiceLevelFromDecibels,
   type VoiceRecorder,
   type VoiceRecorderStatus,
 } from "@supaterm/client-runtime/voice-input";
@@ -64,7 +65,7 @@ export type VoicePcmListener = (pcm: Uint8Array) => void;
 function levelOf(frame: Int16Array): number {
   let sum = 0;
   for (const sample of frame) sum += (sample / 32768) ** 2;
-  return Math.min(1, Math.sqrt(Math.sqrt(sum / Math.max(1, frame.length)) * 4));
+  return voiceLevelFromDecibels(10 * Math.log10(sum / Math.max(1, frame.length)));
 }
 
 export class WebVoiceRecorder implements VoiceRecorder {
@@ -84,7 +85,6 @@ export class WebVoiceRecorder implements VoiceRecorder {
   private flushed: (() => void) | null = null;
   private startedAt = 0;
   private limitTimer: ReturnType<typeof setTimeout> | null = null;
-  private meterLevels = false;
   private levels: ReadonlyArray<number> = Array<number>(VOICE_LEVEL_HISTORY).fill(0);
   private levelListener: VoiceLevelListener | null = null;
   private stopped: Promise<void> | null = null;
@@ -201,7 +201,6 @@ export class WebVoiceRecorder implements VoiceRecorder {
     this.recording = true;
     this.fakeSource?.start();
     this.startedAt = performance.now();
-    this.meterLevels = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     this.limitTimer = setTimeout(() => {
       if (this.capture !== capture || !this.recording) return;
       void this.stop().then(() =>
@@ -240,7 +239,7 @@ export class WebVoiceRecorder implements VoiceRecorder {
     this.pcm.push(bytes);
     this.recordedSamples += frame.length;
     for (const listener of this.pcmListeners) listener(bytes);
-    if (!this.meterLevels || document.hidden) return;
+    if (document.hidden) return;
     this.levels = [...this.levels.slice(1), levelOf(frame)];
     this.levelListener?.(this.levels);
   }

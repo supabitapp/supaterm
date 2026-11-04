@@ -13,6 +13,7 @@ export {
   type VoiceRecorderStatus,
   type VoiceRecordingDelivery,
 } from "./controller.ts";
+export { voiceLevelFromDecibels } from "./level.ts";
 export {
   LiveDictation,
   openLiveDictationSocket,
