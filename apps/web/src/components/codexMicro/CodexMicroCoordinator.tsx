@@ -110,14 +110,15 @@ function ActiveCodexMicroCoordinator({ bridge }: { readonly bridge: DesktopCodex
       .setLighting(buildCodexMicroLightingModel(views, voiceActivity))
       .catch(() => undefined);
   }, [bridge, views, voiceActivity]);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the slots published to the Codex Micro store on unmount
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- releases hardware lighting and published slots when the coordinator unmounts
   useEffect(
     () => () => {
       // A remount (StrictMode, or an Activity boundary) must publish again after this clears.
       sentViewsKeyRef.current = null;
       publishCodexMicroSlots([]);
+      void bridge.setLighting(buildCodexMicroLightingModel([], "idle")).catch(() => undefined);
     },
-    [],
+    [bridge],
   );
 
   const runAction = (action: CodexMicroAction | null) => {

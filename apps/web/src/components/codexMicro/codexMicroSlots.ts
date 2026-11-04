@@ -176,10 +176,14 @@ export function buildCodexMicroLightingModel(
 ): CodexMicroLightingModel {
   return {
     voiceActivity,
-    slots: views.map((view) => ({
-      thread: view.status === "off" ? null : view.thread,
-      status: view.status,
-      selected: view.selected,
-    })),
+    slots: CODEX_MICRO_AGENT_KEYS.map((_key, index) => {
+      const view = views[index];
+      if (!view) return { thread: null, status: "off", selected: false };
+      return {
+        thread: view.status === "off" ? null : view.thread,
+        status: view.status,
+        selected: view.selected,
+      };
+    }),
   };
 }

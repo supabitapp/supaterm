@@ -219,5 +219,9 @@ describe("buildCodexMicroSlotViews", () => {
     expect(model.slots).toHaveLength(6);
     expect(model.slots[0]).toMatchObject({ thread: { threadId: "only" }, status: "idle" });
     expect(model.slots[1]).toEqual({ thread: null, status: "off", selected: false });
+    expect(buildCodexMicroLightingModel([], "idle")).toEqual({
+      voiceActivity: "idle",
+      slots: Array.from({ length: 6 }, () => ({ thread: null, status: "off", selected: false })),
+    });
   });
 });
