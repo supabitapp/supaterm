@@ -47,8 +47,8 @@ export interface Look {
 export const shellMaterial = (shell: RGB): Material => ({
   albedo: linear(shell),
   f0: 0.04,
-  spec: 0.3,
-  shininess: 40,
+  spec: 0.2,
+  shininess: 14,
   rim: 0.5,
 });
 
@@ -297,6 +297,7 @@ export class BoltComputerRenderer {
   private readonly previous: Grid = newGrid();
   private readonly leds = new LedPainter(this.grid.cols, this.grid.rows);
   private readonly projected = new Float32Array(bodyMesh().pos.length);
+  private readonly shaded = new Float32Array(bodyMesh().pos.length);
 
   /** Paint a frame; with no sim, the still pose of the look's state. */
   paint(canvas: HTMLCanvasElement, frame: Frame, sim: BoltComputerSim | null, look: Look) {
@@ -511,13 +512,24 @@ export class BoltComputerRenderer {
   }
 
   private drawBody(ctx: CanvasRenderingContext2D, { R, U, project }: View, shell: Material) {
-    const { pos, quads, normals } = bodyMesh();
+    const { pos, quads, normals, vertexNormals } = bodyMesh();
     const projected = this.projected;
+    const shaded = this.shaded;
     for (let i = 0; i < pos.length; i += 3) {
       const p = project(pos[i] ?? 0, pos[i + 1] ?? 0, pos[i + 2] ?? 0);
       projected[i] = p[0];
       projected[i + 1] = p[1];
       projected[i + 2] = p[2];
+      const n = rotate(
+        R,
+        vertexNormals[i] ?? 0,
+        vertexNormals[i + 1] ?? 0,
+        vertexNormals[i + 2] ?? 0,
+      );
+      const c = radiance(shell, n[0], n[1], n[2]);
+      shaded[i] = c[0];
+      shaded[i + 1] = c[1];
+      shaded[i + 2] = c[2];
     }
     const at = (quad: number, corner: number) => (quads[quad * 4 + corner] ?? 0) * 3;
     // The housing is convex, so culling back faces and painting far to near is exact.
@@ -534,22 +546,94 @@ export class BoltComputerRenderer {
     order.sort((a, b) => a[0] - b[0]);
     ctx.lineWidth = Math.max(0.6, U / 260);
     ctx.lineJoin = "round";
+    const corners = [0, 0, 0, 0];
     for (const [, k] of order) {
-      const w = rotate(R, normals[k * 3] ?? 0, normals[k * 3 + 1] ?? 0, normals[k * 3 + 2] ?? 0);
-      const color = css(radiance(shell, w[0], w[1], w[2]));
       ctx.beginPath();
       for (let j = 0; j < 4; j++) {
         const i = at(k, j);
+        corners[j] = i;
         if (j === 0) ctx.moveTo(projected[i] ?? 0, projected[i + 1] ?? 0);
         else ctx.lineTo(projected[i] ?? 0, projected[i + 1] ?? 0);
       }
       ctx.closePath();
+      const color = gouraud(ctx, projected, shaded, corners);
       ctx.fillStyle = color;
       ctx.strokeStyle = color;
       ctx.fill();
       ctx.stroke();
     }
   }
+}
+
+/**
+ * Smooth shading across one quad as a linear gradient. A least-squares plane through the light at
+ * its corners sets the gradient's direction, and each channel is fitted along it.
+ */
+function gouraud(
+  ctx: CanvasRenderingContext2D,
+  projected: Float32Array,
+  shaded: Float32Array,
+  corners: readonly number[],
+): CanvasGradient | string {
+  let mx = 0;
+  let my = 0;
+  let mr = 0;
+  let mg = 0;
+  let mb = 0;
+  for (const i of corners) {
+    mx += (projected[i] ?? 0) / 4;
+    my += (projected[i + 1] ?? 0) / 4;
+    mr += (shaded[i] ?? 0) / 4;
+    mg += (shaded[i + 1] ?? 0) / 4;
+    mb += (shaded[i + 2] ?? 0) / 4;
+  }
+  let sxx = 0;
+  let sxy = 0;
+  let syy = 0;
+  let sxl = 0;
+  let syl = 0;
+  for (const i of corners) {
+    const dx = (projected[i] ?? 0) - mx;
+    const dy = (projected[i + 1] ?? 0) - my;
+    const dl = (shaded[i] ?? 0) + (shaded[i + 1] ?? 0) + (shaded[i + 2] ?? 0) - mr - mg - mb;
+    sxx += dx * dx;
+    sxy += dx * dy;
+    syy += dy * dy;
+    sxl += dx * dl;
+    syl += dy * dl;
+  }
+  const gx = syy * sxl - sxy * syl;
+  const gy = sxx * syl - sxy * sxl;
+  const g = Math.hypot(gx, gy);
+  if (sxx * syy - sxy * sxy <= 1e-6 || g <= 1e-9) return css([mr, mg, mb]);
+  const ux = gx / g;
+  const uy = gy / g;
+  let lo = 0;
+  let hi = 0;
+  let stt = 0;
+  let sr = 0;
+  let sg = 0;
+  let sb = 0;
+  for (const i of corners) {
+    const t = ((projected[i] ?? 0) - mx) * ux + ((projected[i + 1] ?? 0) - my) * uy;
+    lo = Math.min(lo, t);
+    hi = Math.max(hi, t);
+    stt += t * t;
+    sr += t * ((shaded[i] ?? 0) - mr);
+    sg += t * ((shaded[i + 1] ?? 0) - mg);
+    sb += t * ((shaded[i + 2] ?? 0) - mb);
+  }
+  if (hi - lo < 1e-3) return css([mr, mg, mb]);
+  const fitted = (t: number) =>
+    css([
+      Math.max(0, mr + (sr / stt) * t),
+      Math.max(0, mg + (sg / stt) * t),
+      Math.max(0, mb + (sb / stt) * t),
+    ]);
+  const gradient = ctx.createLinearGradient(mx + ux * lo, my + uy * lo, mx + ux * hi, my + uy * hi);
+  gradient.addColorStop(0, fitted(lo));
+  gradient.addColorStop(1, fitted(hi));
+  return gradient;
 }
 
 /** The screen hole and the recessed glass with the LED screen behind it. */

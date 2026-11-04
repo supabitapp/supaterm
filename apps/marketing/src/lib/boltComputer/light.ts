@@ -28,7 +28,7 @@ function environment(rx: number, ry: number, rz: number): number {
   const up = -ry;
   const horizon = 0.05 + 0.12 * smooth(-0.25, 0.3, up);
   const softbox = 1.1 * smooth(0.42, 0.78, up) * smooth(-0.9, -0.2, rz - 0.6 * Math.abs(rx));
-  const window = 2.6 * smooth(0.86, 0.97, rx * KEY[0] + ry * KEY[1] + rz * KEY[2]);
+  const window = 1.4 * smooth(0.62, 0.96, rx * KEY[0] + ry * KEY[1] + rz * KEY[2]);
   const strip = 0.5 * smooth(0.6, 0.85, -rx) * smooth(-0.35, 0.05, up) * (1 - smooth(0.2, 0.5, up));
   return horizon + softbox + window + strip;
 }
@@ -47,7 +47,7 @@ export function radiance(m: Material, nx: number, ny: number, nz: number): V3 {
   const key = Math.max(0, (nx * KEY[0] + ny * KEY[1] + nz * KEY[2] + 0.12) / 1.12);
   const fill = Math.max(0, nx * FILL[0] + ny * FILL[1] + nz * FILL[2]);
   const sky = 0.5 - 0.5 * ny;
-  const ndv = Math.max(0, nz);
+  const ndv = Math.min(1, Math.max(0, nz));
   const fresnel = m.f0 + (1 - m.f0) * (1 - ndv) ** 5;
   const env = environment(2 * ndv * nx, 2 * ndv * ny, 2 * ndv * nz - 1) * fresnel;
   const spec = m.spec * Math.max(0, nx * HALF[0] + ny * HALF[1] + nz * HALF[2]) ** m.shininess;
