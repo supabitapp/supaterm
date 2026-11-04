@@ -17,7 +17,6 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import { useNavigationState } from "@react-navigation/native";
 import { use, type ComponentProps } from "react";
 import { Platform, View } from "react-native";
-import { useWorkspaceSurface } from "../workspace/useWorkspaceSurface";
 import { useNativeColumnLayoutMetrics } from "../../native/native-layout-metrics";
 import { deriveProjectGroupLabel } from "@supaterm/client-runtime/state/project-grouping";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -55,7 +54,6 @@ export function SettingsListScreen(props: {
   readonly sidebar: boolean;
   readonly selected: string | null;
 }) {
-  const surface = useWorkspaceSurface();
   const workspace = useWorkspaceTabs();
   const environmentMenu = useSettingsEnvironmentMenu();
   const inSidebar = props.sidebar;
@@ -65,7 +63,7 @@ export function SettingsListScreen(props: {
 
   return (
     <SettingsSidebarContext value={sidebar}>
-      <View className={`flex-1 ${inSidebar ? surface.className : "bg-screen"}`}>
+      <View className="flex-1 bg-screen">
         <SettingsEnvironmentFilterHeader />
         {Platform.OS === "android" ? (
           <SettingsScreen
