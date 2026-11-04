@@ -2269,6 +2269,71 @@ it.effect("shares one cold viewer lookup across distinct concurrent lists", () =
   }),
 );
 
+it.effect("narrows read-only repositories only when listing everything across projects", () =>
+  Effect.gen(function* () {
+    const asked: Array<boolean | undefined> = [];
+    const service = yield* makeService({
+      projects: [
+        project({ id: "p1", title: "web", workspaceRoot: "/a", repository: "acme/web" }),
+        project({ id: "p2", title: "neovim", workspaceRoot: "/b", repository: "neovim/neovim" }),
+      ],
+      providers: [
+        fakePullRequestProvider(SourceControlProviderKind.make("github"), {
+          listChangeRequestsAcross: (input) => {
+            asked.push(input.involvedWhereReadOnly);
+            return Effect.succeed({ items: [], truncated: false });
+          },
+        }),
+      ],
+    });
+
+    yield* service.list({ state: "open" });
+    yield* service.list({ state: "open", projectId: "p2" as ProjectId });
+    yield* service.list({ state: "open", involvement: "authored" });
+
+    assert.deepStrictEqual(asked, [true, false, false]);
+  }),
+);
+
+it.effect("lists a pull request once when a renamed repository's old name still answers", () =>
+  Effect.gen(function* () {
+    const moved = {
+      ...changeRequest(9889, "2026-07-02T00:00:00Z"),
+      url: "https://github.com/earendil-works/pi/pull/9889",
+    };
+    const service = yield* makeService({
+      projects: [
+        project({
+          id: "p1",
+          title: "pi-mono",
+          workspaceRoot: "/a",
+          repository: "badlogic/pi-mono",
+        }),
+        project({ id: "p2", title: "pi", workspaceRoot: "/b", repository: "earendil-works/pi" }),
+      ],
+      providers: [
+        fakePullRequestProvider(SourceControlProviderKind.make("github"), {
+          listChangeRequestsAcross: () =>
+            Effect.succeed({
+              items: [{ ...moved, repository: "earendil-works/pi" }],
+              truncated: false,
+              unresolved: ["badlogic/pi-mono"],
+            }),
+          listChangeRequests: () =>
+            Effect.succeed({ items: [moved], truncated: false, continues: true }),
+        }),
+      ],
+    });
+
+    const result = yield* service.list({ state: "open" });
+
+    assert.deepStrictEqual(
+      result.entries.map((entry) => [entry.repository, entry.number]),
+      [["earendil-works/pi", 9889]],
+    );
+  }),
+);
+
 it.effect("a listing narrowed to some projects is its own cache entry", () =>
   Effect.gen(function* () {
     const asked: ReadonlyArray<string>[] = [];

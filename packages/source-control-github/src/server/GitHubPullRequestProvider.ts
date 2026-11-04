@@ -197,31 +197,35 @@ export function loginAvatarUrl(login: string, host: string): string | null {
 const SEARCH_COVERAGE_TTL = Duration.hours(1);
 const SEARCH_COVERAGE_CAPACITY = 4096;
 const SEARCH_COVERAGE_CONCURRENCY = 4;
+const VIEWER_PERMISSION_TTL = Duration.hours(1);
 
 /**
- * Whether GitHub search covers a repository. `cwd` only says where to ask, so equality ignores
- * it and `lookup`, and every checkout of a repository shares one answer.
+ * One answer about a repository, such as whether search covers it. `cwd` only says where to ask,
+ * so equality ignores it and `lookup`, and every checkout of a repository shares one answer.
  */
-class SearchCoverage {
+class RepositoryLookup {
   readonly key: string;
   readonly lookup: Effect.Effect<boolean, GitHubPullRequestApi.GitHubPullRequestApiError>;
 
   constructor(
-    host: string,
-    repository: string,
+    parts: ReadonlyArray<string>,
     lookup: Effect.Effect<boolean, GitHubPullRequestApi.GitHubPullRequestApiError>,
   ) {
-    this.key = `${host.toLowerCase()}\n${repository.trim().toLowerCase()}`;
+    this.key = parts.map((part) => part.trim().toLowerCase()).join("\n");
     this.lookup = lookup;
   }
 
   [Equal.symbol](that: unknown): boolean {
-    return that instanceof SearchCoverage && that.key === this.key;
+    return that instanceof RepositoryLookup && that.key === this.key;
   }
   [Hash.symbol](): number {
     return Hash.string(this.key);
   }
 }
+
+type ListAcrossInput = Parameters<
+  NonNullable<PullRequestProviderApi["listChangeRequestsAcross"]>
+>[0];
 
 const rendersEmpty = (body: string): boolean =>
   body.replace(/<!--[\s\S]*?-->/g, "").trim().length === 0;
@@ -233,17 +237,13 @@ export const make = Effect.gen(function* () {
   // with silence rather than with an error. Where search has any pull request for a repository it
   // covers it, so its silence on a page is a real empty answer; any other the caller reads on its
   // own. A failed check is not kept.
-  const searchCoverage = yield* Cache.makeWith((request: SearchCoverage) => request.lookup, {
+  const searchCoverage = yield* Cache.makeWith((request: RepositoryLookup) => request.lookup, {
     capacity: SEARCH_COVERAGE_CAPACITY,
     timeToLive: (exit) => (Exit.isSuccess(exit) ? SEARCH_COVERAGE_TTL : Duration.zero),
   });
-  const coverageOf = (
-    input: Parameters<NonNullable<PullRequestProviderApi["listChangeRequestsAcross"]>>[0],
-    repository: string,
-  ) =>
-    new SearchCoverage(
-      input.host,
-      repository,
+  const coverageOf = (input: ListAcrossInput, repository: string) =>
+    new RepositoryLookup(
+      [input.host, repository],
       Effect.suspend(() =>
         cli.searchPullRequests({
           cwd: input.cwd,
@@ -257,7 +257,7 @@ export const make = Effect.gen(function* () {
       ).pipe(Effect.map((batch) => batch.items.length > 0)),
     );
   const unresolvedBySearch = Effect.fn("GitHubPullRequestProvider.unresolvedBySearch")(function* (
-    input: Parameters<NonNullable<PullRequestProviderApi["listChangeRequestsAcross"]>>[0],
+    input: ListAcrossInput,
     batch: GitHubPullRequestApi.GitHubPullRequestSearchBatch,
   ) {
     // A repository a page has rows for is covered without asking.
@@ -284,6 +284,35 @@ export const make = Effect.gen(function* () {
       { concurrency: SEARCH_COVERAGE_CONCURRENCY },
     );
   });
+
+  const readOnly = yield* Cache.makeWith((request: RepositoryLookup) => request.lookup, {
+    capacity: SEARCH_COVERAGE_CAPACITY,
+    timeToLive: (exit) => (Exit.isSuccess(exit) ? VIEWER_PERMISSION_TTL : Duration.zero),
+  });
+  const involvementFor = (
+    input: Pick<
+      ListAcrossInput,
+      "cwd" | "host" | "viewer" | "involvement" | "involvedWhereReadOnly"
+    >,
+    repository: string,
+  ): Effect.Effect<GitHubPullRequestApi.GitHubListInvolvement> =>
+    input.involvement !== "all" || input.involvedWhereReadOnly !== true
+      ? Effect.succeed(input.involvement)
+      : Cache.get(
+          readOnly,
+          new RepositoryLookup(
+            [input.host, input.viewer, repository],
+            Effect.suspend(() =>
+              cli.getViewerPermission({ cwd: input.cwd, host: input.host, repository }),
+            ).pipe(Effect.map((permission) => permission === "READ")),
+          ),
+        ).pipe(
+          Effect.map((only): GitHubPullRequestApi.GitHubListInvolvement =>
+            only ? "involved" : "all",
+          ),
+          // Without an answer the repository is listed whole, as it was before the check.
+          Effect.orElseSucceed(() => "all" as const),
+        );
 
   const fail = (operation: string) => (error: GitHubPullRequestApi.GitHubPullRequestApiError) =>
     new PullRequestProviderError({
@@ -364,57 +393,81 @@ export const make = Effect.gen(function* () {
         .pipe(Effect.mapError(fail("getViewer"))),
 
     listChangeRequests: (input) =>
-      cli
-        .listPullRequests({
-          cwd: input.cwd,
-          repository: input.repository,
-          host: input.host,
-          state: input.state,
-          involvement: input.involvement,
-          viewer: input.viewer,
-          limit: input.limit,
-          query: input.query,
-          cursor: input.cursor,
-          filters: input.filters,
-        })
-        .pipe(
-          Effect.mapError(fail("listChangeRequests")),
-          Effect.map((page) => ({
-            ...page,
-            items: page.items.map((item) => ({
+      involvementFor(input, input.repository).pipe(
+        Effect.flatMap((involvement) =>
+          cli.listPullRequests({
+            cwd: input.cwd,
+            repository: input.repository,
+            host: input.host,
+            state: input.state,
+            involvement,
+            viewer: input.viewer,
+            limit: input.limit,
+            query: input.query,
+            cursor: input.cursor,
+            filters: input.filters,
+          }),
+        ),
+        Effect.mapError(fail("listChangeRequests")),
+        Effect.map((page) => ({
+          ...page,
+          items: page.items.map((item) => ({
+            ...item,
+            author: withAvatar(item.author, new Map<string, string>(), input.host),
+          })),
+        })),
+      ),
+
+    listChangeRequestsAcross: (input) =>
+      Effect.forEach(input.repositories, (repository) => involvementFor(input, repository), {
+        concurrency: "unbounded",
+      }).pipe(
+        Effect.flatMap((involvements) => {
+          const searches = Map.groupBy(input.repositories, (_, index) => involvements[index]!);
+          // Each search answers for its own repositories: one cut short by a busy repository
+          // says nothing about the quiet ones in the other.
+          return Effect.forEach(
+            searches,
+            ([involvement, repositories]) =>
+              cli
+                .searchPullRequests({
+                  cwd: input.cwd,
+                  host: input.host,
+                  repositories,
+                  state: input.state,
+                  involvement,
+                  viewer: input.viewer,
+                  limit: input.limit,
+                  query: input.query,
+                  cursor: input.cursor,
+                  filters: input.filters,
+                })
+                .pipe(
+                  Effect.flatMap((batch) =>
+                    Effect.map(
+                      unresolvedBySearch({ ...input, repositories }, batch),
+                      (unresolved) => ({ batch, unresolved }),
+                    ),
+                  ),
+                ),
+            { concurrency: "unbounded" },
+          );
+        }),
+        Effect.mapError(fail("listChangeRequestsAcross")),
+        Effect.map((answers) => {
+          const items = answers
+            .flatMap(({ batch }) => batch.items)
+            .toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+          return {
+            truncated: items.length > input.limit || answers.some(({ batch }) => batch.truncated),
+            items: items.slice(0, input.limit).map((item) => ({
               ...item,
               author: withAvatar(item.author, new Map<string, string>(), input.host),
             })),
-          })),
-        ),
-
-    listChangeRequestsAcross: (input) =>
-      cli
-        .searchPullRequests({
-          cwd: input.cwd,
-          host: input.host,
-          repositories: input.repositories,
-          state: input.state,
-          involvement: input.involvement,
-          viewer: input.viewer,
-          limit: input.limit,
-          query: input.query,
-          cursor: input.cursor,
-          filters: input.filters,
-        })
-        .pipe(
-          Effect.mapError(fail("listChangeRequestsAcross")),
-          Effect.flatMap((batch) =>
-            Effect.map(unresolvedBySearch(input, batch), (unresolved) => ({
-              truncated: batch.truncated,
-              items: batch.items.map((item) => ({
-                ...item,
-                author: withAvatar(item.author, new Map<string, string>(), input.host),
-              })),
-              unresolved,
-            })),
-          ),
-        ),
+            unresolved: answers.flatMap(({ unresolved }) => unresolved),
+          };
+        }),
+      ),
 
     listChangeRequestStats: (input) =>
       cli

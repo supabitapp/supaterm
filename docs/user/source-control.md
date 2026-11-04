@@ -176,6 +176,11 @@ A GitHub checkout with an `upstream` remote lists the upstream repository's pull
 your own repository's instead, run `gh repo set-default` in the checkout and choose it. The list
 follows within about 15 minutes.
 
+On GitHub, **All** lists every pull request in repositories you can push to. In a repository you
+can only read, such as an open-source project you cloned, it lists only pull requests that
+involve you: ones you opened, are assigned to, were mentioned in, or commented on. Pick the
+project in the project filter to list all of its pull requests.
+
 On mobile, **Pull requests** lists reviews across your connected environments. Open a review
 to read its description, activity, commits, and changed files. Line comments stay as drafts
 until you submit the review. **Work on PR** opens a chat with the review attached; sending

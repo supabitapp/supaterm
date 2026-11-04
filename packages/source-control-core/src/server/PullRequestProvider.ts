@@ -326,6 +326,11 @@ export interface PullRequestProviderApi {
     input: ProviderRepositoryRef & {
       readonly state: PullRequestListState;
       readonly involvement: PullRequestInvolvement;
+      /**
+       * With `all`, a repository the viewer can only read lists just what involves the viewer.
+       * A host that cannot tell lists everything.
+       */
+      readonly involvedWhereReadOnly?: boolean | undefined;
       readonly viewer: string;
       readonly limit: number;
       /** Hosts may ignore unsupported search; the caller filters returned rows. */
@@ -343,6 +348,7 @@ export interface PullRequestProviderApi {
     readonly repositories: ReadonlyArray<string>;
     readonly state: PullRequestListState;
     readonly involvement: PullRequestInvolvement;
+    readonly involvedWhereReadOnly?: boolean | undefined;
     readonly viewer: string;
     readonly limit: number;
     readonly query?: string | undefined;

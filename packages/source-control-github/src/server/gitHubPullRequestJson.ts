@@ -975,16 +975,23 @@ const REPOSITORY_PART = /^[A-Za-z0-9._-]+$/;
  * The variables of one pull request lookup, or null for a selector or number GitHub cannot
  * name: a batch would send it, and GitHub would refuse the whole request rather than its part.
  */
+export function repositoryLookup(
+  repository: string,
+): { readonly owner: string; readonly name: string } | null {
+  const [owner, name, ...rest] = repository.trim().split("/");
+  if (rest.length > 0 || owner === undefined || name === undefined) return null;
+  return REPOSITORY_PART.test(owner) && REPOSITORY_PART.test(name) ? { owner, name } : null;
+}
+
 export function pullRequestLookup(changeRequest: {
   readonly repository: string;
   readonly number: number;
 }): { readonly owner: string; readonly name: string; readonly number: number } | null {
-  const [owner, name, ...rest] = changeRequest.repository.trim().split("/");
-  if (rest.length > 0 || owner === undefined || name === undefined) return null;
-  if (!REPOSITORY_PART.test(owner) || !REPOSITORY_PART.test(name)) return null;
+  const repository = repositoryLookup(changeRequest.repository);
+  if (repository === null) return null;
   const { number } = changeRequest;
   return Number.isSafeInteger(number) && number > 0 && number <= 2_147_483_647
-    ? { owner, name, number }
+    ? { ...repository, number }
     : null;
 }
 

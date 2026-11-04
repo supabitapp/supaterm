@@ -1323,6 +1323,9 @@ export const make = Effect.gen(function* () {
     "PullRequestService.listUncached",
   )(function* (input) {
     const involvement = input.involvement ?? "all";
+    // Across projects, as on a host's own dashboard, a repository the viewer only reads lists
+    // what involves them; one project picked out lists whole, as on its own pull request tab.
+    const involvedWhereReadOnly = involvement === "all" && input.projectId === undefined;
     const continuation = yield* decodeCursors(input.cursors);
     const {
       supported: projects,
@@ -1418,6 +1421,7 @@ export const make = Effect.gen(function* () {
             host: project.host,
             state: input.state,
             involvement,
+            involvedWhereReadOnly,
             viewer,
             limit,
             query: input.query,
@@ -1530,6 +1534,7 @@ export const make = Effect.gen(function* () {
         repositories: chunk.map((project) => project.repository),
         state: input.state,
         involvement,
+        involvedWhereReadOnly,
         viewer,
         limit,
         query: input.query,
@@ -1617,11 +1622,18 @@ export const make = Effect.gen(function* () {
       if (batch.nextCursor !== null) nextCursors[batch.key] = batch.nextCursor;
     }
 
+    // A renamed repository still answers for its old name, so a project whose remote kept it
+    // lists the same pull requests as a project under the new name, whose own URLs name it.
+    const listsUnderOwnName = (entry: PullRequestListEntry) =>
+      entry.url.toLowerCase().includes(`/${entry.repository.toLowerCase()}/`);
+    const entries = batches.flatMap((batch) => batch.entries);
+    const ownNamed = new Set(entries.filter(listsUnderOwnName).map((entry) => entry.url));
+
     return {
       viewers: viewers as PullRequestListResult["viewers"],
       providers,
-      entries: batches
-        .flatMap((batch) => batch.entries)
+      entries: entries
+        .filter((entry) => listsUnderOwnName(entry) || !ownNamed.has(entry.url))
         .toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
       errors: [...unreadable, ...batches.flatMap((batch) => batch.errors)],
       truncated: batches.some((batch) => batch.truncated),
