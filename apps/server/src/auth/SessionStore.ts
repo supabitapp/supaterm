@@ -13,6 +13,7 @@ import * as Context from "effect/Context";
 import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as DateTime from "effect/DateTime";
 import * as Duration from "effect/Duration";
+import * as Mac from "effect/crypto/Mac";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as PubSub from "effect/PubSub";
@@ -35,7 +36,7 @@ import {
   base64UrlEncode,
   resolveSessionCookieName,
   signPayload,
-  timingSafeEqualBase64Url,
+  verifyPayloadSignature,
 } from "./utils.ts";
 
 export interface IssuedSession {
@@ -485,6 +486,13 @@ const make = Effect.gen(function* () {
   const secretStore = yield* ServerSecretStore.ServerSecretStore;
   const authSessions = yield* AuthSessions.AuthSessionRepository;
   const signingSecret = yield* secretStore.getOrCreateRandom(SIGNING_SECRET_NAME, 32);
+  const mac = yield* Mac.Mac;
+  const sign = (payload: string) =>
+    signPayload(payload, signingSecret).pipe(Effect.provideService(Mac.Mac, mac));
+  const verifySignature = (payload: string, signature: string) =>
+    verifyPayloadSignature(payload, signature, signingSecret).pipe(
+      Effect.provideService(Mac.Mac, mac),
+    );
   const connectedSessionsRef = yield* Ref.make(new Map<AuthSessionId, number>());
   const changesPubSub = yield* PubSub.unbounded<SessionCredentialChange>();
   const cookieInput = {
@@ -661,7 +669,7 @@ const make = Effect.gen(function* () {
             }),
         ),
       );
-      const signature = signPayload(encodedPayload, signingSecret);
+      const signature = yield* sign(encodedPayload);
       const client = input?.client ?? createDefaultClientMetadata();
       const sessionRecord = {
         sessionId,
@@ -771,8 +779,7 @@ const make = Effect.gen(function* () {
         return yield* new MalformedSessionTokenError({});
       }
 
-      const expectedSignature = signPayload(encodedPayload, signingSecret);
-      if (!timingSafeEqualBase64Url(signature, expectedSignature)) {
+      if (!(yield* verifySignature(encodedPayload, signature))) {
         return yield* new InvalidSessionTokenSignatureError({});
       }
 
@@ -856,7 +863,7 @@ const make = Effect.gen(function* () {
           }),
       ),
     );
-    const signature = signPayload(encodedPayload, signingSecret);
+    const signature = yield* sign(encodedPayload);
     return {
       token: `${encodedPayload}.${signature}`,
       expiresAt,
@@ -871,8 +878,7 @@ const make = Effect.gen(function* () {
       return yield* new MalformedWebSocketTokenError({});
     }
 
-    const expectedSignature = signPayload(encodedPayload, signingSecret);
-    if (!timingSafeEqualBase64Url(signature, expectedSignature)) {
+    if (!(yield* verifySignature(encodedPayload, signature))) {
       return yield* new InvalidWebSocketTokenSignatureError({});
     }
 

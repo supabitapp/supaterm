@@ -167,7 +167,7 @@ describe("AttachmentUpload", () => {
           expiresAt: issued.expiresAt,
         }),
       );
-      const legacyToken = `${encodedPayload}.${signPayload(encodedPayload, secret)}`;
+      const legacyToken = `${encodedPayload}.${yield* signPayload(encodedPayload, secret)}`;
 
       expect(yield* validateAttachmentUploadToken(legacyToken)).toMatchObject({
         type: "image",

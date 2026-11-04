@@ -20,6 +20,7 @@ import { PCM_BYTES_PER_SECOND, parseWav } from "@supaterm/provider-core/server/t
 import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
+import * as Mac from "effect/crypto/Mac";
 import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
@@ -37,7 +38,7 @@ import * as Semaphore from "effect/Semaphore";
 import * as Socket from "effect/socket/Socket";
 import * as Stream from "effect/Stream";
 
-import { signUploadToken, verifyUploadToken, writeUploadBody } from "../assets/AttachmentUpload.ts";
+import * as AttachmentUpload from "../assets/AttachmentUpload.ts";
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import * as ServerConfig from "../config.ts";
 import * as ThreadManagement from "../orchestration-v2/ThreadManagementService.ts";
@@ -239,6 +240,11 @@ const make = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const random = yield* SecureRandom.SecureRandom;
+  const mac = yield* Mac.Mac;
+  const signUploadToken = (payloadJson: string) =>
+    AttachmentUpload.signUploadToken(payloadJson).pipe(Effect.provideService(Mac.Mac, mac));
+  const verifyUploadToken = (token: string) =>
+    AttachmentUpload.verifyUploadToken(token).pipe(Effect.provideService(Mac.Mac, mac));
   const secretStore = yield* ServerSecretStore.ServerSecretStore;
   const threads = yield* ThreadManagement.ThreadManagementService;
   const transcription = yield* Transcription.Transcription;
@@ -658,7 +664,7 @@ const make = Effect.gen(function* () {
     sizeBytes: number,
   ) {
     const partPath = path.join(directory, `${yield* randomId}.part`);
-    const audio = yield* writeUploadBody(body, sizeBytes, partPath).pipe(
+    const audio = yield* AttachmentUpload.writeUploadBody(body, sizeBytes, partPath).pipe(
       Effect.provideService(FileSystem.FileSystem, fileSystem),
       Effect.provideService(Path.Path, path),
       Effect.flatMap((receivedBytes) =>
@@ -751,7 +757,7 @@ const make = Effect.gen(function* () {
 
     const partPath = path.join(directory, `${yield* randomId}.part`);
     const outcome = yield* Effect.uninterruptibleMask((restore) =>
-      restore(writeUploadBody(body, claims.request.sizeBytes, partPath)).pipe(
+      restore(AttachmentUpload.writeUploadBody(body, claims.request.sizeBytes, partPath)).pipe(
         Effect.provideService(FileSystem.FileSystem, fileSystem),
         Effect.provideService(Path.Path, path),
         Effect.mapError((cause) => new TranscriptionError({ reason: "failed", cause })),

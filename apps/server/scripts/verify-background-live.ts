@@ -8,6 +8,7 @@ import * as NodeHttp from "node:http";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 import * as NodeUtil from "node:util";
+import * as EffectNodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
@@ -200,7 +201,13 @@ await new Promise<void>((done) => reservation.close(() => done()));
 const port = address.port;
 const origin = `http://127.0.0.1:${port}`;
 const bootstrapSecret = NodeCrypto.randomBytes(32).toString("hex");
-const bootstrap = currentDesktopBootstrapToken(bootstrapSecret, Date.now());
+const desktopBootstrapToken = (nowMs: number) =>
+  Effect.runPromise(
+    currentDesktopBootstrapToken(bootstrapSecret, nowMs).pipe(
+      Effect.provide(EffectNodeCrypto.layer),
+    ),
+  );
+const bootstrap = await desktopBootstrapToken(Date.now());
 function startServer() {
   const server = NodeChildProcess.spawn(
     process.execPath,
@@ -258,7 +265,7 @@ try {
     method: "POST",
     body: new URLSearchParams({
       grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
-      subject_token: currentDesktopBootstrapToken(bootstrapSecret, Date.now()),
+      subject_token: await desktopBootstrapToken(Date.now()),
       subject_token_type: "urn:supaterm:params:oauth:token-type:environment-bootstrap",
       requested_token_type: "urn:ietf:params:oauth:token-type:access_token",
     }),

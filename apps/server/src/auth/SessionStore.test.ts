@@ -283,7 +283,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("SessionStore.lay
       const editedPayload = base64UrlEncode(
         currentClaims.replace(/"scopes":\[[^\]]*\]/, '"scopes":["access:write"]'),
       );
-      const editedToken = `${editedPayload}.${signPayload(editedPayload, secret)}`;
+      const editedToken = `${editedPayload}.${yield* signPayload(editedPayload, secret)}`;
 
       expect((yield* sessions.verify(issued.token)).scopes).toEqual(recordedScopes);
       expect((yield* sessions.verify(editedToken)).scopes).toEqual(recordedScopes);

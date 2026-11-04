@@ -1,4 +1,5 @@
 import { type ChatAttachment, MessageId, OrchestratorMcpFailure } from "@supaterm/contracts";
+import * as Mac from "effect/crypto/Mac";
 import * as Effect from "effect/Effect";
 import * as Upload from "../../../assets/AttachmentUpload.ts";
 import * as Claims from "../../../orchestration-v2/AttachmentClaims.ts";
@@ -31,11 +32,13 @@ export function resolveAttachmentReferences(
 export const layer = McpToolAccess.toLayer(
   AttachmentToolkit,
   Effect.gen(function* () {
+    const mac = yield* Mac.Mac;
     const pendingUploads = yield* McpPendingUploads.McpPendingUploads;
     return {
       supaterm_attachment_prepare_upload: McpToolAccess.writes((input) =>
         Effect.gen(function* () {
           const result = yield* Upload.issueAttachmentUploadUrl(input.upload).pipe(
+            Effect.provideService(Mac.Mac, mac),
             Effect.mapError(unavailable),
           );
           yield* pendingUploads.record(result.attachmentId);

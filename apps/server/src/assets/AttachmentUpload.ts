@@ -31,7 +31,7 @@ import {
   base64UrlDecodeUtf8,
   base64UrlEncode,
   signPayload,
-  timingSafeEqualBase64Url,
+  verifyPayloadSignature,
 } from "../auth/utils.ts";
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import * as ServerConfig from "../config.ts";
@@ -74,7 +74,7 @@ export const signUploadToken = Effect.fn("AttachmentUpload.signToken")(function*
     Effect.mapError((cause) => new AttachmentUploadSigningKeyError({ cause })),
   );
   const encodedPayload = base64UrlEncode(payloadJson);
-  return `${encodedPayload}.${signPayload(encodedPayload, secret)}`;
+  return `${encodedPayload}.${yield* signPayload(encodedPayload, secret)}`;
 });
 
 function decodePayload(encodedPayload: string): string | null {
@@ -100,7 +100,7 @@ export const verifyUploadToken = Effect.fn("AttachmentUpload.verifyToken")(funct
     ),
     Effect.orElseSucceed(() => null),
   );
-  if (!secret || !timingSafeEqualBase64Url(signature, signPayload(encodedPayload, secret))) {
+  if (!secret || !(yield* verifyPayloadSignature(encodedPayload, signature, secret))) {
     return null;
   }
   return decodePayload(encodedPayload);

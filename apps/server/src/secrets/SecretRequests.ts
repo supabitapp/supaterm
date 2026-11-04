@@ -1,19 +1,18 @@
 // Answers wait in the secret store until delivered; orchestration records only request status.
 // Delivery moves the value to an owner-only file that the agent's shell commands read.
 // A secret the user pasted in chat goes straight to such a file, with no card.
-import { pipe } from "effect/Function";
 import {
   CommandId,
   SecretRequestError,
   type SecretRequestAnswerInput,
   type ThreadId,
 } from "@supaterm/contracts";
-// @effect-diagnostics-next-line nodeBuiltinImport:off -- Effect's Crypto has no createHmac.
-import * as NodeCrypto from "node:crypto";
 
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
+import * as Mac from "effect/crypto/Mac";
 import * as Effect from "effect/Effect";
+import * as Hex from "effect/encoding/Hex";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -29,12 +28,6 @@ const SECRET_TTL_MS = 24 * 60 * 60 * 1000;
 const STORE_NAME_PATTERN = /^(secret-request-[0-9a-f]{32})\.bin$/;
 const FILE_NAME_PATTERN = /^[0-9a-f]{32}(\.partial)?$/;
 
-/** Names a request's stored value and its file without exposing thread or card ids. */
-const keyFor = (salt: string, threadId: ThreadId, turnItemId: string) =>
-  NodeCrypto.createHmac("sha256", salt)
-    .update(`${threadId}\u0000${turnItemId}`)
-    .digest("hex")
-    .slice(0, 32);
 const storeName = (key: string) => `secret-request-${key}`;
 
 const StoredSecret = Schema.fromJsonString(
@@ -71,9 +64,20 @@ const make = Effect.gen(function* () {
   // Beside the store's own files so the same owner-only directory and cleanup rules apply.
   const filesDir = store.directory === undefined ? undefined : path.join(store.directory, "files");
 
-  const salt = Buffer.from(
-    yield* store.getOrCreateRandom("secret-request-salt", 32).pipe(Effect.orDie),
-  ).toString("hex");
+  const mac = yield* Mac.Mac;
+  // Keyed by the salt's hex text, as names saved by earlier versions were.
+  const saltKey = yield* Mac.key(
+    Mac.hmacSha256,
+    new TextEncoder().encode(
+      Hex.encode(yield* store.getOrCreateRandom("secret-request-salt", 32).pipe(Effect.orDie)),
+    ),
+  ).pipe(Effect.orDie);
+  /** Names a request's stored value and its file without exposing thread or card ids. */
+  const keyFor = (threadId: ThreadId, turnItemId: string) =>
+    mac.sign(saltKey, new TextEncoder().encode(`${threadId}\u0000${turnItemId}`)).pipe(
+      Effect.orDie,
+      Effect.map((tag) => Hex.encode(tag).slice(0, 32)),
+    );
 
   const answer: SecretRequests["Service"]["answer"] = Effect.fn("SecretRequests.answer")(
     function* (input) {
@@ -107,7 +111,7 @@ const make = Effect.gen(function* () {
         }).pipe(Effect.orDie);
         yield* store
           .create(
-            storeName(keyFor(salt, input.threadId, item.id)),
+            storeName(yield* keyFor(input.threadId, item.id)),
             new TextEncoder().encode(encoded),
           )
           .pipe(
@@ -136,7 +140,9 @@ const make = Effect.gen(function* () {
           // Clear failed saves so the pending card can be answered again.
           Effect.tapError(() =>
             input.answer.type === "save"
-              ? pipe(keyFor(salt, input.threadId, item.id), storeName, removeLogged)
+              ? keyFor(input.threadId, item.id).pipe(
+                  Effect.flatMap((key) => removeLogged(storeName(key))),
+                )
               : Effect.void,
           ),
         );
@@ -152,7 +158,7 @@ const make = Effect.gen(function* () {
         );
       const card = recorded.turnItems.find((candidate) => candidate.id === item.id);
       if (card?.type === "secret_request" && card.secretStatus !== "saved") {
-        yield* pipe(keyFor(salt, input.threadId, item.id), storeName, removeLogged);
+        yield* removeLogged(storeName(yield* keyFor(input.threadId, item.id)));
         return yield* new SecretRequestError({ reason: "agent_stopped" });
       }
     },
@@ -220,7 +226,7 @@ const make = Effect.gen(function* () {
       return yield* new SecretRequestError({ reason: "not_found" });
     }
     if (filesDir === undefined) return yield* new SecretRequestError({ reason: "store_failed" });
-    const key = keyFor(salt, input.threadId, item.id);
+    const key = yield* keyFor(input.threadId, item.id);
     const file = path.join(filesDir, key);
     return yield* Effect.gen(function* () {
       // The file counts as delivered only once the stored copy is gone. A retry with the same
@@ -246,8 +252,7 @@ const make = Effect.gen(function* () {
     if (filesDir === undefined) return yield* new SecretRequestError({ reason: "store_failed" });
     const file = path.join(
       filesDir,
-      keyFor(
-        salt,
+      yield* keyFor(
         input.threadId,
         `pasted\u0000${input.requestNamespace}\u0000${input.requestKey}`,
       ),
