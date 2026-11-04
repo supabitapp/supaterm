@@ -299,7 +299,7 @@ describe("V2 environment commands", () => {
     }).pipe(Effect.provide(layerTestCrypto)),
   );
 
-  it.effect("Stop with no run left ends the thread's pull request and workflow run watches", () =>
+  it.effect("Stop with no run left ends the thread's pull request watches", () =>
     Effect.gen(function* () {
       const link = {
         host: "github.com",
@@ -330,16 +330,6 @@ describe("V2 environment commands", () => {
             { ...link, number: 8 },
             { ...link, number: 9, source: "stack-dismissed", watch },
           ],
-          workflowRunWatches: [
-            {
-              host: "github.com",
-              repository: "supabitapp/supaterm",
-              runId: 42,
-              name: "CI",
-              url: null,
-              startedAt: "2026-10-05T00:00:00.000Z",
-            },
-          ],
         },
       };
       const commands: OrchestrationV2Command[] = [];
@@ -358,14 +348,6 @@ describe("V2 environment commands", () => {
           repository: "supabitapp/supaterm",
           number: 7,
           watching: false,
-        },
-        {
-          type: "thread.workflow-run.unwatch",
-          commandId: expect.any(String),
-          threadId: v2ThreadId,
-          host: "github.com",
-          repository: "supabitapp/supaterm",
-          runId: 42,
         },
       ]);
     }).pipe(Effect.provide(layerTestCrypto)),

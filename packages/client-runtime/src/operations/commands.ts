@@ -755,8 +755,8 @@ export const startThreadTurn = Effect.fn("EnvironmentCommands.startThreadTurn")(
 
 /**
  * Stop for the thread's latest work: interrupts the active run, or the settled run whose
- * background work still runs. With no run to stop, it ends the thread's pull request and
- * workflow run watches, the only background work that has no run.
+ * background work still runs. With no run to stop, it ends the thread's pull request watches,
+ * the only background work that has no run.
  */
 export const interruptThreadTurn = Effect.fn("EnvironmentCommands.interruptThreadTurn")(function* (
   input: InterruptThreadTurnInput,
@@ -837,16 +837,6 @@ export const interruptThreadTurn = Effect.fn("EnvironmentCommands.interruptThrea
           repository: link.repository,
           number: link.number,
           watching: false,
-        });
-      }
-      for (const watch of projection.thread.workflowRunWatches ?? []) {
-        result = yield* dispatch({
-          type: "thread.workflow-run.unwatch",
-          commandId: yield* allocateCommandId(result.sequence === 0 ? input : {}),
-          threadId: input.threadId,
-          host: watch.host,
-          repository: watch.repository,
-          runId: watch.runId,
         });
       }
       return result;

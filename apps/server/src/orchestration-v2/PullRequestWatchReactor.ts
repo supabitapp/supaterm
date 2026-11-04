@@ -24,9 +24,13 @@ import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schedule from "effect/Schedule";
+import * as Schema from "effect/Schema";
 import type * as Scope from "effect/Scope";
 
-import type { ProviderChangeRequestWatchFingerprint } from "@supaterm/source-control-core/server/PullRequestProvider";
+import {
+  type ProviderChangeRequestWatchFingerprint,
+  PullRequestProviderError,
+} from "@supaterm/source-control-core/server/PullRequestProvider";
 import * as PullRequestService from "../pullRequest/PullRequestService.ts";
 import { forkParked } from "../serverActivation.ts";
 import * as Orchestrator from "./Orchestrator.ts";
@@ -44,6 +48,18 @@ const READ_FAILURE_LIMIT = 8;
 const QUIET_REREAD_MS = 10 * 60_000;
 /** Reread despite unchanged fingerprints; they miss review-thread comment edits. */
 const FINGERPRINT_REREAD_MS = 30 * 60_000;
+
+const isProviderError = Schema.is(PullRequestProviderError);
+
+/** A rate limit is the host asking us to wait, not a sign the pull request cannot be read. */
+const isRateLimited = (cause: Cause.Cause<PullRequestService.PullRequestError>) =>
+  Option.match(Cause.findErrorOption(cause), {
+    onNone: () => false,
+    onSome: (error) =>
+      error._tag === "PullRequestOperationError" &&
+      isProviderError(error.cause) &&
+      error.cause.reason === "rate-limited",
+  });
 
 const logFailure =
   (message: string, fields: Record<string, unknown>) =>
@@ -434,7 +450,7 @@ export const make = Effect.gen(function* () {
         (cause): Effect.Effect<ProviderChangeRequestWatchFingerprint | null | "paused"> =>
           Cause.hasInterruptsOnly(cause)
             ? Effect.interrupt
-            : PullRequestService.isRateLimited(cause)
+            : isRateLimited(cause)
               ? Effect.succeed("paused")
               : Effect.logDebug("pull request watch fingerprint failed", {
                   pullRequest: group.key,
@@ -476,7 +492,7 @@ export const make = Effect.gen(function* () {
     if (Exit.isFailure(read)) {
       if (Cause.hasInterruptsOnly(read.cause)) return yield* Effect.failCause(read.cause);
       lastReads.delete(group.key);
-      if (PullRequestService.isRateLimited(read.cause)) return;
+      if (isRateLimited(read.cause)) return;
       const failures = (readFailures.get(group.key) ?? 0) + 1;
       readFailures.set(group.key, failures);
       if (failures >= READ_FAILURE_LIMIT && (yield* eachTarget(group, giveUp))) {

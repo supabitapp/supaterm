@@ -180,8 +180,6 @@ import {
   PullRequestOperationError,
   PullRequestReactionInput,
   PullRequestRef,
-  PullRequestWorkflowRun,
-  PullRequestWorkflowRunRef,
   PullRequestRoutingResult,
   PullRequestRoutingIdentityInput,
   PullRequestRoutingIdentityResult,
@@ -538,7 +536,6 @@ export const WS_METHODS = {
   pullRequestsDetail: "pullRequests.detail",
   pullRequestsPreview: "pullRequests.preview",
   pullRequestsChecks: "pullRequests.checks",
-  pullRequestsWorkflowRun: "pullRequests.workflowRun",
   pullRequestsActivity: "pullRequests.activity",
   pullRequestsReviewGuide: "pullRequests.reviewGuide",
   pullRequestsGenerateReviewGuide: "pullRequests.generateReviewGuide",
@@ -1019,13 +1016,6 @@ const WsPullRequestsPreviewRpc = Rpc.make(WS_METHODS.pullRequestsPreview, {
 const WsPullRequestsChecksRpc = Rpc.make(WS_METHODS.pullRequestsChecks, {
   payload: PullRequestRef,
   success: Schema.NullOr(PullRequestChecks),
-  error: PullRequestRpcError,
-});
-
-/** Null where the host has no workflow runs to read. */
-const WsPullRequestsWorkflowRunRpc = Rpc.make(WS_METHODS.pullRequestsWorkflowRun, {
-  payload: PullRequestWorkflowRunRef,
-  success: Schema.NullOr(PullRequestWorkflowRun),
   error: PullRequestRpcError,
 });
 
@@ -2006,7 +1996,6 @@ export const WsRpcGroup = RpcGroup.make(
   WsPullRequestsDetailRpc,
   WsPullRequestsPreviewRpc,
   WsPullRequestsChecksRpc,
-  WsPullRequestsWorkflowRunRpc,
   WsPullRequestsActivityRpc,
   WsPullRequestsReviewGuideRpc,
   WsPullRequestsGenerateReviewGuideRpc,

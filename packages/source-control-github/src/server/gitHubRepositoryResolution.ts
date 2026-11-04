@@ -1,13 +1,10 @@
 import {
-  GH_RESOLVED_CONFIG_ARGS,
   normalizeGitRemoteUrl,
   parseGhResolvedRemotes,
   parseGitRemoteFetchUrls,
 } from "@supaterm/shared/git";
 import { isSshRemoteUrl } from "@supaterm/shared/sourceControl";
 import { parseGitRemoteHost } from "@supaterm/source-control-core/shared/definition";
-import type * as SourceControlHost from "@supaterm/source-control-core/server/SourceControlHost";
-import * as Effect from "effect/Effect";
 import { definition } from "../shared/definition.ts";
 import { isGitHubHost } from "./GitHubCredentials.ts";
 
@@ -106,39 +103,6 @@ export function resolveGitHubRepository(input: {
   }
   return { host, locator: null };
 }
-
-/**
- * The repository `gh` picks in a checkout: its `gh repo set-default` mark, else gh's own ranking
- * of the remotes. Unreadable git answers resolve as a checkout without remotes.
- */
-export const readCheckoutGitHubRepository = (input: {
-  readonly process: SourceControlHost.SourceControlHost["Service"]["process"];
-  readonly operation: string;
-  readonly cwd: string;
-  readonly hostHint: string | undefined;
-  readonly defaultHost: string;
-}) => {
-  const gitRead = (args: ReadonlyArray<string>) =>
-    input.process.run({
-      operation: input.operation,
-      command: "git",
-      args,
-      cwd: input.cwd,
-      allowNonZeroExit: true,
-      timeoutMs: 5_000,
-    });
-  return Effect.all([gitRead(["remote", "-v"]), gitRead(GH_RESOLVED_CONFIG_ARGS)]).pipe(
-    Effect.orElseSucceed(() => [null, null] as const),
-    Effect.map(([remotes, resolved]) =>
-      resolveGitHubRepository({
-        remotes: remotes?.exitCode === 0 ? remotes.stdout : "",
-        resolved: resolved?.exitCode === 0 ? resolved.stdout : "",
-        hostHint: input.hostHint,
-        defaultHost: input.defaultHost,
-      }),
-    ),
-  );
-};
 
 export function parseGitHubRepositorySelector(
   selector: string,

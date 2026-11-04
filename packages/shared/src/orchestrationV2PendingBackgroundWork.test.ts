@@ -445,46 +445,4 @@ describe("derivePendingBackgroundWork kinds", () => {
       ).toEqual([]);
     });
   });
-
-  describe("workflow run watches", () => {
-    const workflowRunWatches = [
-      {
-        host: "github.com",
-        repository: "acme/app",
-        runId: 42,
-        name: "Release",
-        url: "https://github.com/acme/app/actions/runs/42",
-        startedAt: "2026-10-05T00:00:00.000Z",
-      },
-    ];
-
-    it("keeps a settled run waiting on each watch, as a monitor naming its run", () => {
-      const tasks = derivePendingBackgroundWork({
-        latestRun: { id: "run-1" as never, ordinal: 1, status: "completed" },
-        providerThreads: [],
-        turnItems: [],
-        workflowRunWatches,
-      });
-      expect(tasks).toEqual([
-        {
-          taskId: "workflow-run-watch:github.com/acme/app#42",
-          description: "Watching Release run",
-          kind: "monitor",
-          awaited: true,
-        },
-      ]);
-      expect(backgroundWorkHoldsCompletion(tasks)).toBe(true);
-    });
-
-    it("keeps a thread that never ran waiting on its watch", () => {
-      expect(
-        derivePendingBackgroundWork({
-          latestRun: null,
-          providerThreads: [],
-          turnItems: [],
-          workflowRunWatches,
-        }).map((task) => task.taskId),
-      ).toEqual(["workflow-run-watch:github.com/acme/app#42"]);
-    });
-  });
 });

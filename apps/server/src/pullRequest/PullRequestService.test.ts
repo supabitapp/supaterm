@@ -1611,65 +1611,6 @@ it.effect("stops new reads after a rate limit while leaving manual actions avail
   }),
 );
 
-it.effect("reads a bare workflow run id from the project's checkout, a named one as named", () =>
-  Effect.gen(function* () {
-    const reads: Array<{ cwd: string; repository?: string; host: string; runId: number }> = [];
-    const job = { name: "Lint", status: "pending" as const, description: null, url: null };
-    const service = yield* makeService({
-      projects: [
-        project({ id: "p1", title: "web", workspaceRoot: "/repo", repository: "acme/web" }),
-        project({ id: "p2", title: "notes", workspaceRoot: "/notes" }),
-        project({
-          id: "p3",
-          title: "lab",
-          workspaceRoot: "/lab",
-          repository: "acme/lab",
-          provider: SourceControlProviderKind.make("gitlab"),
-        }),
-      ],
-      providers: [
-        fakePullRequestProvider(SourceControlProviderKind.make("github"), {
-          getWorkflowRun: (input) => {
-            reads.push(input);
-            return Effect.succeed({
-              repository: input.repository ?? "acme/web",
-              name: "Release",
-              url: null,
-              status: "pending" as const,
-              checks: [job],
-            });
-          },
-        }),
-        fakePullRequestProvider(SourceControlProviderKind.make("gitlab")),
-      ],
-    });
-
-    assert.deepStrictEqual(
-      yield* service.workflowRun({ projectId: "p1" as ProjectId, runId: 42 }),
-      {
-        host: "github.com",
-        repository: "acme/web",
-        name: "Release",
-        url: null,
-        status: "pending",
-        checks: [job],
-      },
-    );
-    yield* service.workflowRun({
-      projectId: "p1" as ProjectId,
-      repository: "acme/api",
-      runId: 43,
-    });
-    assert.deepStrictEqual(reads, [
-      { cwd: "/repo", host: "github.com", runId: 42 },
-      { cwd: "/repo", repository: "acme/api", host: "github.com", runId: 43 },
-    ]);
-    assert.isNull(yield* service.workflowRun({ projectId: "p2" as ProjectId, runId: 42 }));
-    assert.isNull(yield* service.workflowRun({ projectId: "p3" as ProjectId, runId: 42 }));
-    assert.strictEqual(reads.length, 2);
-  }),
-);
-
 it.effect("refuses a repository that does not belong to the requested project", () =>
   Effect.gen(function* () {
     const service = yield* makeService({

@@ -2,7 +2,6 @@ import type {
   EnvironmentId,
   OrchestrationV2PendingBackgroundTask,
   OrchestrationV2ProviderGoal,
-  ScopedThreadRef,
   ThreadId,
 } from "@supaterm/contracts";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
@@ -34,7 +33,6 @@ import {
   type BackgroundTaskOutputTarget,
   BackgroundWorkIcon,
   BackgroundWorkTitle,
-  type WatchedRunProps,
 } from "./BackgroundWork";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
 
@@ -161,17 +159,14 @@ export function runStopBannerItem(input: {
 export function backgroundWorkBannerItem(input: {
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
-  readonly threadRef: ScopedThreadRef | null;
   readonly tasks: ReadonlyArray<OrchestrationV2PendingBackgroundTask>;
   readonly outputHandle: BackgroundTaskOutputHandle;
-  /** The workflow run the work watches; it colors the dot and opens its checks. */
-  readonly watchedRun: WatchedRunProps;
   readonly stopDisabled: boolean;
   readonly stopping: boolean;
   readonly onStop: () => Promise<void>;
   readonly onOpenThread: (threadId: ThreadId) => void;
 }): ComposerBannerStackItem | null {
-  const { onOpenThread, watchedRun } = input;
+  const { onOpenThread } = input;
   const presentation = presentPendingBackgroundWork(input.tasks);
   if (presentation === null) return null;
   const outputTarget = (item: PendingBackgroundWorkItem): BackgroundTaskOutputTarget => ({
@@ -185,21 +180,12 @@ export function backgroundWorkBannerItem(input: {
     presentation.items.length === 1 && only?.hasOutput
       ? { handle: input.outputHandle, target: outputTarget(only) }
       : null;
-  const title = (
-    <BackgroundWorkTitle {...watchedRun} title={presentation.title} output={titleOutput} />
-  );
+  const title = <BackgroundWorkTitle title={presentation.title} output={titleOutput} />;
   return {
     id: `background-work:${input.threadId}`,
     variant: "default",
     priority: "activity",
-    icon: (
-      <BackgroundWorkIcon
-        {...watchedRun}
-        waiting={presentation.waiting}
-        threadRef={input.threadRef}
-      />
-    ),
-    iconInteractive: watchedRun.run !== null,
+    icon: <BackgroundWorkIcon waiting={presentation.waiting} />,
     title:
       presentation.items.length === 1 && (only?.kind === "command" || only?.kind === "monitor") ? (
         <span className="in-data-[slot=popover-popup]:whitespace-pre-wrap">{title}</span>

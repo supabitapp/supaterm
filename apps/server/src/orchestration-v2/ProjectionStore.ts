@@ -40,7 +40,6 @@ import type {
   ProviderThreadId,
   ProviderTurnId,
   RunAttemptId,
-  ThreadWorkflowRunWatch,
 } from "@supaterm/contracts";
 import {
   OrchestrationV2AppThreadJson as OrchestrationV2AppThreadJsonSchema,
@@ -186,14 +185,6 @@ export type ProjectionThreadPullRequests = Pick<
   OrchestrationV2AppThread,
   "id" | "projectId" | "lineage" | "doneOverride" | "doneAt" | "pullRequests"
 >;
-
-/** The thread fields a workflow run watch reads, for a thread watching at least one run. */
-export type ProjectionThreadWorkflowRunWatches = Pick<
-  OrchestrationV2AppThread,
-  "id" | "projectId"
-> & {
-  readonly workflowRunWatches: ReadonlyArray<ThreadWorkflowRunWatch>;
-};
 
 /**
  * Thread activity needed to mark threads done, without transcript or fork history.
@@ -526,11 +517,6 @@ export interface ProjectionStoreV2Shape {
   readonly getThreadsWithPullRequests: (
     threadId?: ThreadId,
   ) => Effect.Effect<ReadonlyArray<ProjectionThreadPullRequests>, ProjectionStoreV2Error>;
-  /** Active (not deleted, not archived) threads watching at least one workflow run. */
-  readonly getThreadsWithWorkflowRunWatches: () => Effect.Effect<
-    ReadonlyArray<ProjectionThreadWorkflowRunWatches>,
-    ProjectionStoreV2Error
-  >;
   readonly getThreadWorktreePaths: (options?: {
     readonly includeArchived?: boolean;
   }) => Effect.Effect<
@@ -1490,7 +1476,6 @@ export function threadShellFromProjection(
     activeProviderThreadId: projection.thread.activeProviderThreadId,
     runs: projection.runs,
     pullRequests: projection.thread.pullRequests,
-    workflowRunWatches: projection.thread.workflowRunWatches,
   });
   return {
     createdBy: projection.thread.createdBy,
@@ -6417,7 +6402,6 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
                     activeProviderThreadId: thread.activeProviderThreadId,
                     hasActiveRun: false,
                     pullRequests: thread.pullRequests,
-                    workflowRunWatches: thread.workflowRunWatches,
                   }),
                 } satisfies ProjectionDoneCandidate;
               }),
@@ -6451,29 +6435,6 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
           );
         },
         Effect.mapError((cause) => new ProjectionStoreSetupError({ cause })),
-      );
-
-    const getThreadsWithWorkflowRunWatches: ProjectionStoreV2Shape["getThreadsWithWorkflowRunWatches"] =
-      Effect.fn("ProjectionStore.getThreadsWithWorkflowRunWatches")(() =>
-        Effect.gen(function* () {
-          const rows = yield* sql<PayloadRow>`
-            SELECT payload_json
-            FROM orchestration_v2_projection_threads
-            WHERE deleted_at IS NULL
-              AND json_extract(payload_json, '$.archivedAt') IS NULL
-              AND json_array_length(payload_json, '$.workflowRunWatches') > 0
-            ORDER BY updated_at ASC, thread_id ASC
-          `;
-          return yield* Effect.forEach(rows, (row) =>
-            decodeThreadPayload(row.payload_json).pipe(
-              Effect.map((thread): ProjectionThreadWorkflowRunWatches => ({
-                id: thread.id,
-                projectId: thread.projectId,
-                workflowRunWatches: thread.workflowRunWatches ?? [],
-              })),
-            ),
-          );
-        }).pipe(Effect.mapError((cause) => new ProjectionStoreSetupError({ cause }))),
       );
 
     const getThreadWorktreePaths: ProjectionStoreV2Shape["getThreadWorktreePaths"] = (options) =>
@@ -6599,7 +6560,6 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
             activeProviderThreadId: thread.activeProviderThreadId,
             hasActiveRun: row.active_run_id !== null,
             pullRequests: thread.pullRequests,
-            workflowRunWatches: thread.workflowRunWatches,
           }),
         ];
         return {
@@ -7054,7 +7014,6 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
       getThread: readOnReader(getThread),
       getAutoMarkDoneCandidates: readOnReader(getAutoMarkDoneCandidates),
       getThreadsWithPullRequests: readOnReader(getThreadsWithPullRequests),
-      getThreadsWithWorkflowRunWatches,
       getThreadWorktreePaths: readOnReader(getThreadWorktreePaths),
       getThreadProjection,
       getTurnStartContext: readOnReader(getTurnStartContext),

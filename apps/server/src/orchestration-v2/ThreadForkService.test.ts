@@ -222,20 +222,9 @@ it.effect("leaves the source's watches behind, so only the source is woken", () 
           },
         },
       ],
-      workflowRunWatches: [
-        {
-          host: "github.com",
-          repository: "supabitapp/supacode-next",
-          runId: 42,
-          name: "CI",
-          url: null,
-          startedAt,
-        },
-      ],
     });
     assert.equal(result.targetThread.pullRequests?.[0]?.number, 7);
     assert.isUndefined(result.targetThread.pullRequests?.[0]?.watch);
-    assert.deepEqual(result.targetThread.workflowRunWatches, []);
   }),
 );
 

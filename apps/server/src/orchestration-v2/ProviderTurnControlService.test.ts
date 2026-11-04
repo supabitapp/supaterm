@@ -222,8 +222,6 @@ it.effect(
           getThread: () => Ref.get(projection).pipe(Effect.map((state) => state.thread)),
           getAutoMarkDoneCandidates: () => Effect.die("unused getAutoMarkDoneCandidates"),
           getThreadsWithPullRequests: () => Effect.die("unused getThreadsWithPullRequests"),
-          getThreadsWithWorkflowRunWatches: () =>
-            Effect.die("unused getThreadsWithWorkflowRunWatches"),
           getThreadWorktreePaths: () => Effect.die("unused getThreadWorktreePaths"),
           getThreadProjection: () => Effect.die("control effects must not load transcript"),
           getTurnStartContext: () => Effect.die("unused"),

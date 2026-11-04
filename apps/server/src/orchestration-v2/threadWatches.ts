@@ -19,7 +19,6 @@ export function endWatches(thread: OrchestrationV2AppThread): OrchestrationV2App
   return {
     ...thread,
     pullRequests: thread.pullRequests?.map((link) => withPullRequestWatch(link, undefined)),
-    ...(thread.workflowRunWatches === undefined ? {} : { workflowRunWatches: [] }),
   };
 }
 
@@ -31,6 +30,5 @@ export function withoutInheritedWatches(
     pullRequests: thread.pullRequests?.map(
       ({ watch: _watch, endedWatch: _endedWatch, ...link }) => link,
     ),
-    ...(thread.workflowRunWatches === undefined ? {} : { workflowRunWatches: [] }),
   };
 }

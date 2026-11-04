@@ -424,16 +424,6 @@ export function summarizeSupatermToolCalls(
         quantity(selected.length, "pull request"),
       );
       break;
-    case "watch-run":
-      label = phrase("Watching", "watch", quantity(selected.length, "workflow run"));
-      break;
-    case "unwatch-run":
-      label = phrase(
-        "Stopped watching",
-        "stop watching",
-        quantity(selected.length, "workflow run"),
-      );
-      break;
     case "list-prs":
       label = phrase(
         "Checked",

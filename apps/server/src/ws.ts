@@ -2471,7 +2471,6 @@ export const layerWsRpc = (
           pullRequests.withRoutingCredential(input, pullRequests.preview(input)),
         [WS_METHODS.pullRequestsChecks]: (input) =>
           pullRequests.withRoutingCredential(input, pullRequests.checks(input)),
-        [WS_METHODS.pullRequestsWorkflowRun]: (input) => pullRequests.workflowRun(input),
         [WS_METHODS.pullRequestsActivity]: (input) =>
           pullRequests.withRoutingCredential(input, pullRequests.activity(input)),
         [WS_METHODS.pullRequestsReviewGuide]: (input) =>
