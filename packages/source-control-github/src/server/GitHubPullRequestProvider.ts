@@ -227,6 +227,40 @@ type ListAcrossInput = Parameters<
   NonNullable<PullRequestProviderApi["listChangeRequestsAcross"]>
 >[0];
 
+// `involves:` leaves out review requests, so a repository the viewer only reads is searched for both.
+const READ_ONLY_SEARCHES = ["involved", "reviewing"] as const;
+
+/**
+ * Newest `limit` rows of several searches. A search cut short stops at its oldest row, so rows
+ * older than the latest such stop wait for the next page rather than let the cursor skip past
+ * that search's unread rows.
+ */
+function mergeSearches(
+  batches: ReadonlyArray<GitHubPullRequestApi.GitHubPullRequestSearchBatch>,
+  limit: number,
+): GitHubPullRequestApi.GitHubPullRequestSearchBatch {
+  let stop: string | undefined;
+  for (const batch of batches) {
+    if (!batch.truncated) continue;
+    const oldest = batch.items.map((item) => item.updatedAt).toSorted()[0];
+    if (oldest !== undefined && (stop === undefined || oldest > stop)) stop = oldest;
+  }
+  const seen = new Set<string>();
+  const rows = batches
+    .flatMap((batch) => batch.items)
+    .filter((item) => {
+      const key = `${item.repository.toLowerCase()}#${item.number}`;
+      if (seen.has(key) || (stop !== undefined && item.updatedAt < stop)) return false;
+      seen.add(key);
+      return true;
+    })
+    .toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  return {
+    items: rows.slice(0, limit),
+    truncated: rows.length > limit || batches.some((batch) => batch.truncated),
+  };
+}
+
 const rendersEmpty = (body: string): boolean =>
   body.replace(/<!--[\s\S]*?-->/g, "").trim().length === 0;
 
@@ -289,15 +323,15 @@ export const make = Effect.gen(function* () {
     capacity: SEARCH_COVERAGE_CAPACITY,
     timeToLive: (exit) => (Exit.isSuccess(exit) ? VIEWER_PERMISSION_TTL : Duration.zero),
   });
-  const involvementFor = (
+  const narrowsToInvolved = (
     input: Pick<
       ListAcrossInput,
       "cwd" | "host" | "viewer" | "involvement" | "involvedWhereReadOnly"
     >,
     repository: string,
-  ): Effect.Effect<GitHubPullRequestApi.GitHubListInvolvement> =>
+  ): Effect.Effect<boolean> =>
     input.involvement !== "all" || input.involvedWhereReadOnly !== true
-      ? Effect.succeed(input.involvement)
+      ? Effect.succeed(false)
       : Cache.get(
           readOnly,
           new RepositoryLookup(
@@ -307,11 +341,8 @@ export const make = Effect.gen(function* () {
             ).pipe(Effect.map((permission) => permission === "READ")),
           ),
         ).pipe(
-          Effect.map((only): GitHubPullRequestApi.GitHubListInvolvement =>
-            only ? "involved" : "all",
-          ),
           // Without an answer the repository is listed whole, as it was before the check.
-          Effect.orElseSucceed(() => "all" as const),
+          Effect.orElseSucceed(() => false),
         );
 
   const fail = (operation: string) => (error: GitHubPullRequestApi.GitHubPullRequestApiError) =>
@@ -393,14 +424,14 @@ export const make = Effect.gen(function* () {
         .pipe(Effect.mapError(fail("getViewer"))),
 
     listChangeRequests: (input) =>
-      involvementFor(input, input.repository).pipe(
-        Effect.flatMap((involvement) =>
+      narrowsToInvolved(input, input.repository).pipe(
+        Effect.flatMap((narrowed) =>
           cli.listPullRequests({
             cwd: input.cwd,
             repository: input.repository,
             host: input.host,
             state: input.state,
-            involvement,
+            involvement: narrowed ? "involved" : input.involvement,
             viewer: input.viewer,
             limit: input.limit,
             query: input.query,
@@ -419,17 +450,26 @@ export const make = Effect.gen(function* () {
       ),
 
     listChangeRequestsAcross: (input) =>
-      Effect.forEach(input.repositories, (repository) => involvementFor(input, repository), {
+      Effect.forEach(input.repositories, (repository) => narrowsToInvolved(input, repository), {
         concurrency: "unbounded",
       }).pipe(
-        Effect.flatMap((involvements) => {
-          const searches = Map.groupBy(input.repositories, (_, index) => involvements[index]!);
+        Effect.flatMap((narrowed) => {
+          const searches = Map.groupBy(
+            input.repositories.flatMap((repository, index) =>
+              (narrowed[index] ? READ_ONLY_SEARCHES : [input.involvement]).map((involvement) => ({
+                involvement,
+                repository,
+              })),
+            ),
+            ({ involvement }) => involvement,
+          );
           // Each search answers for its own repositories: one cut short by a busy repository
           // says nothing about the quiet ones in the other.
           return Effect.forEach(
             searches,
-            ([involvement, repositories]) =>
-              cli
+            ([involvement, members]) => {
+              const repositories = members.map(({ repository }) => repository);
+              return cli
                 .searchPullRequests({
                   cwd: input.cwd,
                   host: input.host,
@@ -449,22 +489,24 @@ export const make = Effect.gen(function* () {
                       (unresolved) => ({ batch, unresolved }),
                     ),
                   ),
-                ),
+                );
+            },
             { concurrency: "unbounded" },
           );
         }),
         Effect.mapError(fail("listChangeRequestsAcross")),
         Effect.map((answers) => {
-          const items = answers
-            .flatMap(({ batch }) => batch.items)
-            .toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+          const page = mergeSearches(
+            answers.map(({ batch }) => batch),
+            input.limit,
+          );
           return {
-            truncated: items.length > input.limit || answers.some(({ batch }) => batch.truncated),
-            items: items.slice(0, input.limit).map((item) => ({
+            truncated: page.truncated,
+            items: page.items.map((item) => ({
               ...item,
               author: withAvatar(item.author, new Map<string, string>(), input.host),
             })),
-            unresolved: answers.flatMap(({ unresolved }) => unresolved),
+            unresolved: [...new Set(answers.flatMap(({ unresolved }) => unresolved))],
           };
         }),
       ),

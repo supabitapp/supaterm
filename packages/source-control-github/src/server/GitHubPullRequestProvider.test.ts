@@ -951,62 +951,73 @@ describe("listChangeRequestsAcross", () => {
     }),
   );
 
-  it.effect("searches repositories the viewer only reads for what involves the viewer", () =>
-    Effect.gen(function* () {
-      const searches: Array<Search> = [];
-      const permissionReads: Array<string> = [];
-      const read = yield* make.pipe(
-        Effect.provide(
-          Layer.mock(GitHubPullRequestApi.GitHubPullRequestApi)({
-            getViewerPermission: ({ repository }) => {
-              permissionReads.push(repository);
-              if (repository === "acme/docs") {
-                return Effect.fail(
-                  new GitHubPullRequestApi.GitHubViewerLoginUnavailableError({ cwd: "/w" }),
-                );
-              }
-              return Effect.succeed(repository.startsWith("acme/") ? "WRITE" : "READ");
-            },
-            searchPullRequests: (search: Search) => {
-              if (search.state === "all") {
-                return Effect.succeed({
-                  items: [searched(search.repositories[0]!)],
-                  truncated: false,
-                });
-              }
-              searches.push(search);
-              return Effect.succeed(
-                search.involvement === "involved"
-                  ? {
-                      items: [{ ...searched("neovim/neovim"), updatedAt: "2026-07-03T00:00:00Z" }],
-                      truncated: false,
-                    }
-                  : { items: [searched("acme/web")], truncated: true },
-              );
-            },
-          }),
-        ),
-        Effect.map((provider) => provider.listChangeRequestsAcross!),
-      );
-      const inbox = {
-        ...across,
-        repositories: ["acme/web", "neovim/neovim", "vim/vim", "acme/docs"],
-        involvedWhereReadOnly: true,
-        limit: 1,
-      };
+  it.effect(
+    "searches repositories the viewer only reads for what involves or asks the viewer",
+    () =>
+      Effect.gen(function* () {
+        const searches: Array<Search> = [];
+        const permissionReads: Array<string> = [];
+        const read = yield* make.pipe(
+          Effect.provide(
+            Layer.mock(GitHubPullRequestApi.GitHubPullRequestApi)({
+              getViewerPermission: ({ repository }) => {
+                permissionReads.push(repository);
+                if (repository === "acme/docs") {
+                  return Effect.fail(
+                    new GitHubPullRequestApi.GitHubViewerLoginUnavailableError({ cwd: "/w" }),
+                  );
+                }
+                return Effect.succeed(repository.startsWith("acme/") ? "WRITE" : "READ");
+              },
+              searchPullRequests: (search: Search) => {
+                if (search.state === "all") {
+                  return Effect.succeed({
+                    items: [searched(search.repositories[0]!)],
+                    truncated: false,
+                  });
+                }
+                searches.push(search);
+                const asked = { ...searched("neovim/neovim"), updatedAt: "2026-07-03T00:00:00Z" };
+                const older = { ...asked, number: 2, updatedAt: "2026-07-01T00:00:00Z" };
+                if (search.involvement === "involved") {
+                  return Effect.succeed({ items: [asked, older], truncated: false });
+                }
+                if (search.involvement === "reviewing") {
+                  return Effect.succeed({ items: [asked], truncated: false });
+                }
+                return Effect.succeed({ items: [searched("acme/web")], truncated: true });
+              },
+            }),
+          ),
+          Effect.map((provider) => provider.listChangeRequestsAcross!),
+        );
+        const inbox = {
+          ...across,
+          repositories: ["acme/web", "neovim/neovim", "vim/vim", "acme/docs"],
+          involvedWhereReadOnly: true,
+          limit: 10,
+        };
 
-      const page = yield* read(inbox);
+        const page = yield* read(inbox);
 
-      expect(
-        Object.fromEntries(searches.map((search) => [search.involvement, search.repositories])),
-      ).toEqual({ all: ["acme/web", "acme/docs"], involved: ["neovim/neovim", "vim/vim"] });
-      expect(page.items.map((item) => item.repository)).toEqual(["neovim/neovim"]);
-      expect(page.truncated).toBe(true);
-      expect(page.unresolved).toEqual(["acme/docs"]);
+        expect(
+          Object.fromEntries(searches.map((search) => [search.involvement, search.repositories])),
+        ).toEqual({
+          all: ["acme/web", "acme/docs"],
+          involved: ["neovim/neovim", "vim/vim"],
+          reviewing: ["neovim/neovim", "vim/vim"],
+        });
+        // Once, and nothing older than where the cut-short search stopped.
+        expect(page.items.map((item) => [item.repository, item.number])).toEqual([
+          ["neovim/neovim", 1],
+          ["acme/web", 1],
+        ]);
+        expect(page.truncated).toBe(true);
+        expect(page.unresolved).toEqual(["acme/docs"]);
 
-      yield* read(inbox);
-      expect(permissionReads).toEqual([...inbox.repositories, "acme/docs"]);
-    }),
+        yield* read(inbox);
+        expect(permissionReads).toEqual([...inbox.repositories, "acme/docs"]);
+      }),
   );
 
   it.effect("asks again after a failed check, and after coverage has had time to change", () =>
