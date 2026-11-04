@@ -1554,13 +1554,16 @@ function isSensitiveCodexProtocolKey(key: string): boolean {
 export const layerAppServerClientFactory: Layer.Layer<
   CodexAppServerClientFactory,
   never,
-  ChildProcessSpawner.ChildProcessSpawner | ProviderEventLoggers.ProviderEventLoggers
+  | ChildProcessSpawner.ChildProcessSpawner
+  | PortScanner.PortDiscovery
+  | ProviderEventLoggers.ProviderEventLoggers
 > = Layer.effect(
   CodexAppServerClientFactory,
   Effect.gen(function* () {
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
     const { native: nativeEventLogger } = yield* ProviderEventLoggers.ProviderEventLoggers;
     const agentScope = yield* AgentScope;
+    const portDiscovery = yield* PortScanner.PortDiscovery;
 
     return CodexAppServerClientFactory.of({
       open: Effect.fn("CodexAdapterV2.open")(function* (input) {
@@ -1588,6 +1591,10 @@ export const layerAppServerClientFactory: Layer.Layer<
                 cause,
               }),
           ),
+        );
+        // Its shells carry each thread's SUPATERM_THREAD_ID, so port discovery reads listeners' threads.
+        yield* Effect.acquireRelease(Effect.sync(portDiscovery.trackAgent), (release) =>
+          Effect.sync(release),
         );
         const protocolLogger = makeCodexAppServerProtocolLogger({
           nativeEventLogger,
