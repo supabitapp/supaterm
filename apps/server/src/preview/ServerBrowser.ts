@@ -91,7 +91,11 @@ import { installPdfDocumentNavigation, isPdfAssetUrl } from "./PdfDocumentNaviga
 const SERVER_HOST_CLIENT_ID = SERVER_BROWSER_AUTOMATION_CLIENT_ID;
 const RENDER_SCALE = 2;
 // Chromium allows three unacked frames, so 100 ms pacing caps viewers near 30 fps.
+const SCREENCAST_UNACKED_LIMIT = 3;
 const SCREENCAST_ACK_PACE_MS = 100;
+// Chromium takes a frame's slot before encoding it, so a frame it captured before reading
+// an ack can arrive after that ack is answered, within its encode time.
+const SCREENCAST_ENCODE_ALLOWANCE_MS = 100;
 const SCREENCAST_SETTLE_MS = 200;
 const SCREENCAST_MOTION_FRAMES = 4;
 const SCREENCAST_MOTION_WINDOW_MS = 300;
@@ -2502,9 +2506,12 @@ const make = Effect.gen(function* () {
         ),
     );
     const quality = Math.min(100, Math.max(1, Math.round(input.quality)));
-    // Chromium may drop the final frame during a burst; send a still when it settles.
+    // Chromium skips captures while its unacked frames are all out, and motion frames are
+    // scaled down, so either needs a still of the page once it settles.
     let framesInFlight = 0;
-    let mayHaveDropped = false;
+    let newestCapture = -Infinity;
+    let stillNeeded = false;
+    let stillRequestedAt: number | null = null;
     let motion = false;
     const recentFrames: Array<number> = [];
     let screencastParams = Promise.resolve();
@@ -2533,7 +2540,10 @@ const make = Effect.gen(function* () {
       push: (next) => {
         // Dropped frames must still release Chromium.
         if (Queue.offerUnsafe(output, next)) return;
-        if (next._tag === "frame") runFork(next.ack);
+        if (next._tag === "frame") {
+          stillNeeded = true;
+          runFork(next.ack);
+        }
         // State a stalled viewer cannot miss compacts its backlog. It runs
         // synchronously so an older compaction can never land after a newer one.
         else if (["gone", "reconnect", "control", "viewport", "fileChooser"].includes(next._tag)) {
@@ -2550,7 +2560,11 @@ const make = Effect.gen(function* () {
           );
           for (const item of [...rest.slice(state.length - VIEWER_OUTPUT_LIMIT), ...state])
             Queue.offerUnsafe(output, item);
-          for (const item of dropped.value) if (item._tag === "frame") runFork(item.ack);
+          for (const item of dropped.value) {
+            if (item._tag !== "frame") continue;
+            stillNeeded = true;
+            runFork(item.ack);
+          }
         }
       },
       pause: () => {
@@ -2582,6 +2596,7 @@ const make = Effect.gen(function* () {
     broadcastControl(tab);
     pushFileChooser(tab);
     const pushStill = async () => {
+      stillRequestedAt = Date.now();
       const data = await withCaptureLock(tab, () =>
         ServerBrowserPage.captureViewport(session, { format: "jpeg", quality }),
       ).catch(() => null);
@@ -2596,8 +2611,16 @@ const make = Effect.gen(function* () {
     let screencastStarted = false;
     session.on("Page.screencastFrame", (frame) => {
       screencastStarted = true;
-      if (framesInFlight > 0) mayHaveDropped = true;
       framesInFlight += 1;
+      if (framesInFlight >= SCREENCAST_UNACKED_LIMIT) stillNeeded = true;
+      // Chromium encodes frames in parallel, so an older capture can arrive after a newer one.
+      const capturedAt = frame.metadata.timestamp ?? -Infinity;
+      if (capturedAt < newestCapture) stillNeeded = true;
+      else newestCapture = capturedAt;
+      // Capturing a still repaints the page, and Chromium sends that repaint too. It shows what
+      // the still shows, so its slot is not held for the viewer, or stills would beget stills.
+      const stillTwin = stillRequestedAt !== null && capturedAt * 1000 >= stillRequestedAt;
+      if (stillTwin) stillRequestedAt = null;
       const arrivedAt = Date.now();
       recentFrames.push(arrivedAt);
       while (recentFrames[0]! < arrivedAt - SCREENCAST_MOTION_WINDOW_MS) recentFrames.shift();
@@ -2607,6 +2630,7 @@ const make = Effect.gen(function* () {
         arrivedAt - viewer.scrolledAt < SCREENCAST_MOTION_WINDOW_MS
       ) {
         motion = true;
+        stillNeeded = true;
         void startScreencast(0.5);
       } else if (motion && arrivedAt - viewer.scrolledAt > SCREENCAST_SETTLE_MS) {
         motion = false;
@@ -2616,26 +2640,33 @@ const make = Effect.gen(function* () {
       if (settleTimer !== null) clearTimeout(settleTimer);
       settleTimer = setTimeout(() => {
         settleTimer = null;
-        if (!motion && !mayHaveDropped) return;
-        mayHaveDropped = false;
+        if (!stillNeeded) return;
+        stillNeeded = false;
         if (motion) {
           motion = false;
           recentFrames.length = 0;
           void startScreencast(1);
         }
-        void pushStill();
+        // Capturing repaints the page, which a scaled screencast would send after the still.
+        void screencastParams.then(pushStill);
       }, SCREENCAST_SETTLE_MS);
+      const ack = Effect.promise(() =>
+        sleepUntil(arrivedAt + SCREENCAST_ACK_PACE_MS)
+          .then(() =>
+            session
+              .send("Page.screencastFrameAck", { sessionId: frame.sessionId })
+              .catch(constVoid),
+          )
+          .then(() => sleepUntil(Date.now() + SCREENCAST_ENCODE_ALLOWANCE_MS))
+          .then(() => {
+            framesInFlight -= 1;
+          }),
+      );
+      if (stillTwin) runFork(ack);
       viewer.push({
         _tag: "frame",
         data: Buffer.from(frame.data, "base64"),
-        ack: Effect.promise(() =>
-          sleepUntil(arrivedAt + SCREENCAST_ACK_PACE_MS).then(() => {
-            framesInFlight -= 1;
-            return session
-              .send("Page.screencastFrameAck", { sessionId: frame.sessionId })
-              .catch(constVoid);
-          }),
-        ),
+        ack: stillTwin ? Effect.void : ack,
       });
     });
     void broadcastViewport(tab).catch(constVoid);

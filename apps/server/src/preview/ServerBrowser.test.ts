@@ -782,6 +782,119 @@ it.live("streams to a read-only viewer without allowing takeover, input, or view
   ).pipe(Effect.provide(layer)),
 );
 
+it.effect("a viewer gets a settle still only when it may lack the page's final look", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const { browser, tabId } = yield* ready;
+      const viewer = yield* browser.attachViewer(viewerInput(tabId, true));
+      yield* viewer.input({ type: "takeControl" });
+      const session = contexts[0]!.sessions.at(-1)!;
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+      yield* Effect.addFinalizer(() => Effect.sync(() => vi.useRealTimers()));
+      const advance = (ms: number) => Effect.promise(() => vi.advanceTimersByTimeAsync(ms));
+      const frames = Queue.clear(viewer.output).pipe(
+        Effect.map((items) => items.flatMap((item) => (item._tag === "frame" ? [item] : []))),
+      );
+      const painted = (items: ReadonlyArray<{ readonly data: Uint8Array }>) =>
+        items.map((item) => Buffer.from(item.data).toString());
+      const capturedNow = () => vi.getMockedSystemTime()!.getTime() / 1000;
+      const screencastFrame = (data: string, timestamp = capturedNow()) =>
+        session.emit("Page.screencastFrame", {
+          data: Buffer.from(data).toString("base64"),
+          metadata: { timestamp },
+          sessionId: 1,
+        });
+      const ack = (items: ReadonlyArray<{ readonly ack: Effect.Effect<void> }>) =>
+        Effect.forEach(items, (item) =>
+          item.ack.pipe(Effect.forkScoped({ startImmediately: true })),
+        );
+      const chromiumAcks = () =>
+        session.send.mock.calls.filter(([method]) => method === "Page.screencastFrameAck").length;
+      yield* frames;
+
+      // The still a viewer starts from repaints the page; Chromium's frame of that repaint shows
+      // nothing new, so its slot is released on Chromium's usual pace, not the viewer's.
+      const acked = chromiumAcks();
+      screencastFrame("repaint");
+      yield* advance(200);
+      expect(chromiumAcks()).toBe(acked + 1);
+      expect(painted(yield* frames)).toEqual(["repaint"]);
+
+      // Chromium skips a capture only when all three of its unacked frames are out.
+      screencastFrame("one");
+      screencastFrame("two");
+      const burst = yield* frames;
+      yield* advance(200);
+      expect(painted(yield* frames)).toEqual([]);
+
+      // Chromium may have captured this one before it read the first ack, then encoded it.
+      yield* ack(burst.slice(0, 1));
+      yield* advance(50);
+      screencastFrame("three");
+      yield* advance(200);
+      const settled = yield* frames;
+      expect(painted(settled)).toEqual(["three", "frame"]);
+
+      // A capture that finished encoding after a newer one would otherwise be the last image.
+      yield* ack([...burst.slice(1), ...settled]);
+      yield* advance(200);
+      screencastFrame("newer");
+      screencastFrame("older", capturedNow() - 1);
+      const reordered = yield* frames;
+      yield* advance(200);
+      expect(painted(yield* frames)).toEqual(["frame"]);
+
+      // A frame the viewer's full backlog drops never reaches it.
+      yield* ack(reordered);
+      yield* advance(200);
+      const backlog =
+        viewer.output as unknown as Queue.Queue<ServerBrowser.ServerBrowserViewerOutput>;
+      while (Queue.offerUnsafe(backlog, { _tag: "probe", x: 0, y: 0, editable: false }));
+      screencastFrame("dropped");
+      yield* Queue.clear(viewer.output);
+      yield* advance(200);
+      expect(painted(yield* frames)).toEqual(["frame"]);
+
+      // A scroll's frames are scaled down, so it ends with a full-scale still, even when the
+      // page moves on after the last wheel, once the screencast is back to full scale.
+      const send = session.send.getMockImplementation()!;
+      const restored = Promise.withResolvers<void>();
+      session.send.mockImplementation(async (method, input) => {
+        if (method === "Page.startScreencast" && (input as { maxWidth: number }).maxWidth === 1280)
+          await restored.promise;
+        return send(method, input);
+      });
+      session.send.mockClear();
+      for (const [wait, data, wheel] of [
+        [300, "4", true],
+        [10, "5", true],
+        [190, "6", true],
+        [90, "7", true],
+        [150, "8", false],
+        [100, "9", false],
+      ] as const) {
+        yield* advance(wait);
+        if (wheel) yield* viewer.input({ type: "wheel", x: 1, y: 1, deltaY: 8 });
+        screencastFrame(data);
+        yield* ack(yield* frames);
+      }
+      yield* advance(200);
+      expect(painted(yield* frames)).toEqual([]);
+      restored.resolve();
+      yield* advance(0);
+      expect(painted(yield* frames)).toEqual(["frame"]);
+      const captures = session.send.mock.calls.flatMap(([method, input]) =>
+        method === "Page.startScreencast"
+          ? [`screencast ${(input as { maxWidth: number }).maxWidth}`]
+          : method === "Page.captureScreenshot"
+            ? ["still"]
+            : [],
+      );
+      expect(captures).toEqual(["screencast 640", "screencast 1280", "still"]);
+    }),
+  ).pipe(Effect.provide(layer)),
+);
+
 it.live(
   "takeover waits for the running agent and revokes snapshot refs before returning control",
   () =>
