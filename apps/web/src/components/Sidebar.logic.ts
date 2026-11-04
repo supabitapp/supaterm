@@ -1,6 +1,5 @@
 import type { ThreadId, EnvironmentId } from "@supaterm/contracts";
 import { scopeThreadRef, scopedThreadKey } from "@supaterm/client-runtime/environment";
-import { isThreadRunningBackgroundWork } from "@supaterm/client-runtime/state/thread-inbox";
 import { backgroundWorkHoldsCompletion } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 import { threadPullRequestSearchTerms } from "@supaterm/shared/threadPullRequests";
 import * as React from "react";
@@ -795,8 +794,7 @@ type SidebarThreadStatusInput = Pick<
   | "pendingSubagentRequest"
   | "runtime"
   | "blockedOnThreadWait"
-> &
-  Partial<Pick<SidebarThreadSummary, "pendingBackgroundTasks">>;
+>;
 
 export function resolveSidebarThreadStatus(thread: SidebarThreadStatusInput): SidebarThreadStatus {
   if (thread.hasPendingApprovals || thread.pendingSubagentRequest === "approval") {
@@ -814,7 +812,7 @@ export function resolveSidebarThreadStatus(thread: SidebarThreadStatusInput): Si
   ) {
     return "working";
   }
-  if (thread.runtime?.status === "idle" || isThreadRunningBackgroundWork(thread)) {
+  if (thread.runtime?.status === "idle") {
     return "waiting";
   }
   if (thread.runtime?.status === "failed") {
@@ -956,8 +954,7 @@ export function resolveThreadStatusPill(input: {
 
   if (
     (thread.runtime?.status === "running" && thread.blockedOnThreadWait === true) ||
-    backgroundWorkHoldsCompletion(thread.pendingBackgroundTasks ?? []) ||
-    isThreadRunningBackgroundWork(thread)
+    backgroundWorkHoldsCompletion(thread.pendingBackgroundTasks ?? [])
   ) {
     return {
       label: "Waiting",

@@ -1,5 +1,4 @@
 import { resolveThreadWorkingStartedAt, type EnvironmentThreadShell } from "./models.ts";
-import { isThreadRunningBackgroundWork } from "./threadInbox.ts";
 
 export function formatWorkingDurationLabel(elapsedMs: number): string {
   const seconds = Number.isFinite(elapsedMs) ? Math.max(0, Math.floor(elapsedMs / 1000)) : 0;
@@ -13,13 +12,9 @@ export function formatWorkingDurationLabel(elapsedMs: number): string {
  * steers. Waiting counts only since the work parked on background tasks; a run
  * that never started, such as a cancelled queued message, never parked. */
 export function resolveThreadListDurationStartedAt(
-  thread: Pick<EnvironmentThreadShell, "latestRun" | "runtime"> & {
-    readonly pendingBackgroundTasks?: EnvironmentThreadShell["pendingBackgroundTasks"] | undefined;
-  },
+  thread: Pick<EnvironmentThreadShell, "latestRun" | "runtime">,
 ): string | null {
-  if (thread.runtime?.status !== "idle" && !isThreadRunningBackgroundWork(thread)) {
-    return resolveThreadWorkingStartedAt(thread);
-  }
+  if (thread.runtime?.status !== "idle") return resolveThreadWorkingStartedAt(thread);
   const run = thread.latestRun;
   if (run?.startedAt == null || run.completedAt == null) return null;
   return Number.isFinite(Date.parse(run.completedAt)) ? run.completedAt : null;

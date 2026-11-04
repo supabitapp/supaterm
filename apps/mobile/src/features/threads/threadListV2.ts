@@ -28,7 +28,6 @@ import {
 } from "@supaterm/shared/paletteSearch";
 import {
   createInboxReturnTracker,
-  isThreadRunningBackgroundWork,
   isThreadWorking,
   sortInboxThreadsByReturn,
   sortWorkingThreadsBySend,
@@ -205,7 +204,6 @@ export function resolveThreadListV2Status(
     | "pendingSubagentRequest"
     | "runtime"
     | "blockedOnThreadWait"
-    | "pendingBackgroundTasks"
   >,
 ): ThreadListV2Status {
   if (thread.hasPendingApprovals || thread.pendingSubagentRequest === "approval") {
@@ -223,7 +221,7 @@ export function resolveThreadListV2Status(
   ) {
     return "working";
   }
-  if (thread.runtime?.status === "idle" || isThreadRunningBackgroundWork(thread)) {
+  if (thread.runtime?.status === "idle") {
     return "waiting";
   }
   if (thread.runtime?.status === "failed") {
