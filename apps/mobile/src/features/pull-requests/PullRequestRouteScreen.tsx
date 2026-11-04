@@ -61,6 +61,7 @@ import { useAndroidWorkspaceBack } from "../workspace/useAndroidWorkspaceNavigat
 
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
 import { SymbolView } from "../../components/ui/AppSymbol";
+import { ScreenContent } from "../../components/ui/ScreenContent";
 import { RelativeTime } from "../../components/RelativeTime";
 import { NativeStackScreenOptions } from "../../native/StackHeader";
 import { usePullRequestConnected } from "./usePullRequestConnected";
@@ -657,16 +658,8 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
             ) : null}
           </Toolbar.Menu>
         </Toolbar>
-        <View
-          style={{
-            flex: 1,
-            marginHorizontal: Platform.OS === "android" && layout.usesSplitView ? 4 : 0,
-          }}
-          className={
-            Platform.OS === "android"
-              ? "overflow-hidden rounded-t-[28px] bg-sheet-solid"
-              : undefined
-          }
+        <ScreenContent
+          insetHorizontal={layout.usesSplitView}
           onLayout={(event) => setViewportHeight(event.nativeEvent.layout.height)}
         >
           {/* oxlint-disable-next-line array-guardrails/no-array-filter-map -- Three tabs. */}
@@ -883,7 +876,7 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
                 />
               </View>
             ))}
-        </View>
+        </ScreenContent>
         <PullRequestActionToolbar
           pr={pr}
           params={params}
