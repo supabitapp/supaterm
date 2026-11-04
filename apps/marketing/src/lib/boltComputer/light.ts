@@ -47,7 +47,7 @@ export function radiance(m: Material, nx: number, ny: number, nz: number): V3 {
   const key = Math.max(0, (nx * KEY[0] + ny * KEY[1] + nz * KEY[2] + 0.12) / 1.12);
   const fill = Math.max(0, nx * FILL[0] + ny * FILL[1] + nz * FILL[2]);
   const sky = 0.5 - 0.5 * ny;
-  const ndv = Math.max(0, nz);
+  const ndv = Math.min(1, Math.max(0, nz));
   const fresnel = m.f0 + (1 - m.f0) * (1 - ndv) ** 5;
   const env = environment(2 * ndv * nx, 2 * ndv * ny, 2 * ndv * nz - 1) * fresnel;
   const spec = m.spec * Math.max(0, nx * HALF[0] + ny * HALF[1] + nz * HALF[2]) ** m.shininess;
