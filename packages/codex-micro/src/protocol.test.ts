@@ -44,6 +44,7 @@ const pushAll = (decoder: CodexMicroReportDecoder, reports: ReadonlyArray<Uint8A
 const model = (
   slots: Partial<Record<number, Partial<CodexMicroLightingModel["slots"][number]>>>,
 ): CodexMicroLightingModel => ({
+  ...EMPTY_LIGHTING_MODEL,
   slots: EMPTY_LIGHTING_MODEL.slots.map((slot, index) => ({ ...slot, ...slots[index] })),
 });
 
@@ -266,6 +267,30 @@ describe("serializeLighting", () => {
       ambient: { e: 1, b: 0.5, s: 0, m: 0, c: 0x00ff4c },
       keys: { e: 1, b: 0.5, s: 0, m: 0, c: 0x00ff4c },
     });
+  });
+
+  it("pulses the ring while recording and holds it steady while transcribing", () => {
+    const selected = model({ 0: { status: "working", selected: true } });
+    const normal = serializeLighting(selected, options);
+    for (const [voiceActivity, effect, speed] of [
+      ["recording", 4, 0.2],
+      ["transcribing", 1, 0],
+    ] as const) {
+      const payload = serializeLighting({ ...selected, voiceActivity }, options);
+      assert.deepStrictEqual(payload.rgbcfg.ambient, {
+        e: effect,
+        b: 0.5,
+        s: speed,
+        m: 0,
+        c: 0x2e8b57,
+      });
+      assert.deepStrictEqual(payload.thstatus, normal.thstatus);
+      assert.deepStrictEqual(payload.rgbcfg.keys, normal.rgbcfg.keys);
+    }
+    assert.deepStrictEqual(
+      serializeLighting({ ...selected, voiceActivity: "idle" }, options),
+      normal,
+    );
   });
 
   it("ignores a selected slot that is off", () => {

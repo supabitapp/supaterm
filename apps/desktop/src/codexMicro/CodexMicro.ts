@@ -117,6 +117,7 @@ export class CodexMicro extends Context.Service<
     readonly configure: (settings: CodexMicroSettings) => Effect.Effect<void>;
     readonly state: Effect.Effect<CodexMicroDeviceState>;
     readonly setLighting: (model: CodexMicroLightingModel) => Effect.Effect<void>;
+    readonly clearVoiceActivity: Effect.Effect<void>;
     readonly subscribeState: (listener: StateListener) => Effect.Effect<void, never, Scope.Scope>;
     readonly subscribeInput: (listener: InputListener) => Effect.Effect<void, never, Scope.Scope>;
   }
@@ -176,7 +177,8 @@ const make = Effect.gen(function* () {
 
   const scheduleDim = Effect.suspend(() => {
     const delay = settings.autoDimMs;
-    if (delay === null || !settings.enabled) return FiberHandle.clear(dimTimer);
+    if (delay === null || !settings.enabled || latestModel.voiceActivity !== "idle")
+      return FiberHandle.clear(dimTimer);
     const scheduledActivity = activityId;
     return FiberHandle.run(
       dimTimer,
@@ -641,6 +643,9 @@ const make = Effect.gen(function* () {
       Effect.withSpan("desktop.codexMicro.state"),
     ),
     setLighting,
+    clearVoiceActivity: Effect.suspend(() =>
+      setLighting({ ...latestModel, voiceActivity: "idle" }),
+    ),
     subscribeState: Effect.fn("CodexMicro.subscribeState")(function (listener) {
       return subscribe(stateListeners, listener);
     }),
@@ -663,6 +668,7 @@ export const layerUnavailable = Layer.succeed(
     setLighting: Effect.fn("CodexMicro.setLighting")(function () {
       return Effect.void;
     }),
+    clearVoiceActivity: Effect.void,
     subscribeState: Effect.fn("CodexMicro.subscribeState")(function () {
       return Effect.void;
     }),

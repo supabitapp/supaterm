@@ -62,8 +62,12 @@ already on another key swaps the two. **Reset layout** restores the keys, stick,
 changing your agent keys.
 
 The microphone key works like `ctrl+m`: press it to start recording, and press it again
-to stop and review the transcript in the draft. With **Use separate microphone keys** on, the **MIC1**
-keycap does the same.
+to stop and review the transcript in the draft. With **Use separate microphone keys** on, the
+**MIC1** keycap does the same.
+
+Whenever you record in the composer, the underglow pulses sea-green while recording and stays
+sea-green while transcribing, then returns to its normal lighting. Voice feedback stays lit
+until it finishes, even with Auto-dim enabled.
 
 ## Creator Micro 2
 

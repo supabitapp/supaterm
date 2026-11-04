@@ -58,22 +58,43 @@ export const getState = DesktopIpc.makeIpcMethod({
   }),
 });
 
-export const setLighting = DesktopIpc.makeIpcMethod({
-  channel: IpcChannels.CODEX_MICRO_SET_LIGHTING_CHANNEL,
-  payload: CodexMicroLightingModel,
-  result: Schema.Void,
-  handler: Effect.fn("desktop.ipc.codexMicro.setLighting")(function* (model, event) {
-    // Only the main window owns the keyboard; other windows would fight over its lights.
-    const main = yield* (yield* ElectronWindow.ElectronWindow).main;
-    if (
-      event === undefined ||
-      Option.isNone(main) ||
-      main.value.webContents.id !== event.sender.id
-    ) {
-      return;
-    }
-    yield* (yield* CodexMicro.CodexMicro).setLighting(model);
-  }),
+export const makeSetLighting = Effect.gen(function* () {
+  const codexMicro = yield* CodexMicro.CodexMicro;
+  const electronWindow = yield* ElectronWindow.ElectronWindow;
+  const runFork = Effect.runForkWith(yield* Effect.context<never>());
+  let owner: Electron.WebContents | undefined;
+  let removeOwnerListeners = () => {};
+  yield* Effect.addFinalizer(() => Effect.sync(() => removeOwnerListeners()));
+
+  return DesktopIpc.makeIpcMethod({
+    channel: IpcChannels.CODEX_MICRO_SET_LIGHTING_CHANNEL,
+    payload: CodexMicroLightingModel,
+    result: Schema.Void,
+    handler: Effect.fn("desktop.ipc.codexMicro.setLighting")(function* (model, event) {
+      const main = yield* electronWindow.main;
+      if (
+        event === undefined ||
+        Option.isNone(main) ||
+        main.value.webContents.id !== event.sender.id
+      )
+        return;
+      if (owner !== main.value.webContents) {
+        removeOwnerListeners();
+        const contents = main.value.webContents;
+        owner = contents;
+        const clearVoice = () => {
+          runFork(codexMicro.clearVoiceActivity);
+        };
+        contents.on("destroyed", clearVoice);
+        contents.on("render-process-gone", clearVoice);
+        removeOwnerListeners = () => {
+          contents.removeListener("destroyed", clearVoice);
+          contents.removeListener("render-process-gone", clearVoice);
+        };
+      }
+      yield* codexMicro.setLighting(model);
+    }),
+  });
 });
 
 export const getAvailability = DesktopIpc.makeSyncIpcMethod({
