@@ -46,6 +46,7 @@ import {
   deriveWorkspacePaneLayout,
   isPrimarySidebarPinned,
   isWorkspaceListPath,
+  nativeInspectorColumnWidth,
 } from "../../lib/layout";
 import type { ThreadListFilters } from "../../persistence/mobile-preferences";
 import { mobilePreferencesAtom } from "../../state/preferences";
@@ -233,6 +234,11 @@ function AdaptiveWorkspaceLayoutContent(
   const navigation = useNavigation();
   const [primarySidebarPreferredVisible, setPrimarySidebarPreferredVisible] = useState(true);
   const [fileInspectorPreferredVisible, setFileInspectorPreferredVisible] = useState(true);
+  const [nativeInspectorWidthFraction, setNativeInspectorWidthFraction] = useState(0.4);
+  const nativeInspectorWidth = nativeInspectorColumnWidth(
+    viewportWidth,
+    nativeInspectorWidthFraction,
+  );
   const [fileInspectorPreferredWidth, setFileInspectorPreferredWidth] = useState<number | null>(
     null,
   );
@@ -381,8 +387,10 @@ function AdaptiveWorkspaceLayoutContent(
         auxiliaryPanePreferredVisible:
           !workspacePage && inspectorActive && fileInspectorPreferredVisible,
         auxiliaryPanePreferredWidth: fileInspectorPreferredWidth ?? undefined,
+        nativeInspectorWidth,
       }),
     [
+      nativeInspectorWidth,
       fileInspectorPreferredVisible,
       fileInspectorPreferredWidth,
       inspectorActive,
@@ -794,6 +802,11 @@ function AdaptiveWorkspaceLayoutContent(
     setPrimarySidebarVisible,
     openWorkspaceTab,
     setAuxiliaryPaneWidth: setFileInspectorPreferredWidth,
+    nativeInspectorWidth,
+    setNativeInspectorWidth: (width: number) =>
+      setNativeInspectorWidthFraction(
+        nativeInspectorColumnWidth(viewportWidth, width / viewportWidth) / viewportWidth,
+      ),
     composerKeyboardActive,
     setComposerEditing,
     sidebarByOrientation,
