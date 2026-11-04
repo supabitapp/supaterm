@@ -1,4 +1,5 @@
 import * as DocumentText from "../../provider/DocumentText.ts";
+import { mcpToolResultOutput, toolOutputImages } from "@supaterm/shared/toolOutput";
 import { makeProviderTextDeltaCoalescer } from "./ProviderTextDeltaCoalescer.ts";
 import { claudeTaskOutputRoot, tailClaudeTaskOutput } from "./ClaudeTaskOutputTail.ts";
 import {
@@ -2989,7 +2990,14 @@ function claudeNativeToolOutputValue(output: ClaudeNativeToolOutput): unknown | 
     case "none":
       return undefined;
     case "content_block":
+      return output.value;
     case "structured_tool_use_result":
+      if (toolOutputImages(output.value).length === 0) {
+        return mcpToolResultOutput({
+          content: output.fallbackValue,
+          structuredContent: output.value,
+        });
+      }
       return output.value;
     default:
       return assertNever(output);

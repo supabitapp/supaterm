@@ -47,10 +47,10 @@ import {
   dynamicToolSurface,
   dynamicToolTitle,
 } from "@supaterm/shared/toolActivity";
-import { toolOutputImages } from "@supaterm/shared/toolOutput";
 import { appendMissingImageEmbeds } from "@supaterm/shared/markdownImageEmbeds";
 import { getModelSelectionStringOptionValue, modelSelectionsEqual } from "@supaterm/shared/model";
 import { resolveSpawnCommand } from "@supaterm/shared/shell";
+import { mcpToolResultOutput } from "@supaterm/shared/toolOutput";
 import type {
   ChatAttachment,
   OrchestrationV2AppThread,
@@ -499,13 +499,10 @@ export interface CodexDynamicToolProjection extends McpToolPresentation {
 function codexMcpToolOutput(
   item: Extract<CodexDynamicToolItem, { readonly type: "mcpToolCall" }>,
 ): unknown | undefined {
-  const result = item.result;
-  const structuredContent = result?.structuredContent;
-  const content = result?.content;
-  let resultOutput = structuredContent ?? content;
-  if (structuredContent != null && content !== undefined && toolOutputImages(content).length > 0) {
-    resultOutput = { content, structuredContent };
-  }
+  const resultOutput =
+    item.result === null || item.result === undefined
+      ? undefined
+      : mcpToolResultOutput(item.result);
 
   if (item.error === null || item.error === undefined) {
     return resultOutput;
