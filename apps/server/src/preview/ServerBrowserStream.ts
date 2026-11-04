@@ -10,6 +10,7 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Queue from "effect/Queue";
 import * as Schema from "effect/Schema";
+import * as Semaphore from "effect/Semaphore";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import {
@@ -217,6 +218,8 @@ const makeHandler = Effect.fnUntraced(function* (browser: ServerBrowser.ServerBr
           }
           return writer.write(data);
         });
+      // Both fibers send frames. One at a time keeps the window's order the wire's order.
+      const sending = yield* Semaphore.make(1);
       const sendPending = Effect.gen(function* () {
         const now = yield* nowMs;
         if (pending === null || !frames.admits(pending.data.byteLength, now)) return;
@@ -225,7 +228,7 @@ const makeHandler = Effect.fnUntraced(function* (browser: ServerBrowser.ServerBr
         if (frames.pingDue(now)) yield* write(pingMessage(now));
         frames.sent(next, now);
         yield* write(next.data);
-      });
+      }).pipe(sending.withPermits(1));
       const sendOutput = Queue.take(viewer.output).pipe(
         Effect.flatMap((output) => {
           switch (output._tag) {

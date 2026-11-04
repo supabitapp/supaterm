@@ -12,6 +12,7 @@ import {
   type AuthEnvironmentScope,
 } from "@supaterm/contracts";
 import * as Context from "effect/Context";
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
@@ -19,7 +20,8 @@ import * as Option from "effect/Option";
 import * as Queue from "effect/Queue";
 import * as Schema from "effect/Schema";
 import * as TestClock from "effect/testing/TestClock";
-import { HttpRouter, HttpServer } from "effect/http";
+import { HttpRouter, HttpServer, HttpServerRequest } from "effect/http";
+import * as Socket from "effect/socket/Socket";
 
 import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
 import * as PreviewBrowserHost from "./PreviewBrowserHost.ts";
@@ -27,6 +29,8 @@ import * as ServerBrowser from "./ServerBrowser.ts";
 import { routeLayer } from "./ServerBrowserStream.ts";
 
 const platformLayer = NodeHttpPlatform.layer.pipe(Layer.provideMerge(NodeServices.layer));
+
+type Chunk = Parameters<Socket.Writer["write"]>[0];
 
 const makeAuth = (
   scopes: ReadonlyArray<AuthEnvironmentScope>,
@@ -344,6 +348,161 @@ it.effect.each([
       expect(yield* Queue.take(frames)).toBe(8);
       expect((yield* Queue.clear(released)).toSorted()).toEqual([4, 5, 6, 7]);
     }).pipe(Effect.scoped),
+);
+
+it.effect("keeps frames in order and acks matched while an ack's send is mid-write", () =>
+  Effect.gen(function* () {
+    const output = yield* Queue.make<ServerBrowser.ServerBrowserViewerOutput>();
+    const released = yield* Queue.unbounded<number>();
+    const frame = (id: number): ServerBrowser.ServerBrowserViewerOutput => ({
+      _tag: "frame",
+      data: new Uint8Array(10_000).fill(id),
+      ack: Queue.offer(released, id).pipe(Effect.asVoid),
+    });
+    const browser = ServerBrowser.ServerBrowser.of({
+      clearProfile: () => Effect.void,
+      profileReporter: Effect.succeed(() => Effect.void),
+      openDownload: () => Effect.succeedNone,
+      answerFileChooser: () => Effect.succeed(false),
+      attachViewer: () => Effect.succeed({ output, input: () => Effect.void }),
+    });
+    let hold:
+      | {
+          readonly matches: (chunk: Chunk) => boolean;
+          readonly reached: Deferred.Deferred<void>;
+          readonly release: Deferred.Deferred<void>;
+        }
+      | undefined;
+    const heldWrites = (request: HttpServerRequest.HttpServerRequest) =>
+      Object.create(request, {
+        upgrade: {
+          value: request.upgrade.pipe(
+            Effect.map((socket) =>
+              Socket.make({
+                reader: socket.reader,
+                writer: Effect.map(socket.writer, (writer) => ({
+                  ...writer,
+                  write: (chunk: Chunk) =>
+                    Effect.suspend(() => {
+                      const held = hold?.matches(chunk) ? hold : undefined;
+                      if (held === undefined) return writer.write(chunk);
+                      hold = undefined;
+                      return Deferred.succeed(held.reached, undefined).pipe(
+                        Effect.andThen(Deferred.await(held.release)),
+                        Effect.andThen(writer.write(chunk)),
+                      );
+                    }),
+                })),
+              }),
+            ),
+          ),
+        },
+      }) as HttpServerRequest.HttpServerRequest;
+    const services = yield* Layer.build(
+      HttpRouter.serve(
+        routeLayer.pipe(
+          Layer.provide(Layer.succeed(ServerBrowser.ServerBrowser, browser)),
+          Layer.provide(platformLayer),
+        ),
+        {
+          disableListenLog: true,
+          middleware: Effect.updateService(HttpServerRequest.HttpServerRequest, heldWrites),
+        },
+      ).pipe(
+        Layer.provideMerge(NodeHttpServer.layerTest),
+        Layer.provide(makeAuth([AuthOrchestrationReadScope]).layer),
+      ),
+    );
+    const server = Context.get(services, HttpServer.HttpServer);
+    const origin = HttpServer.formatAddress(server.address).replace(/^http/, "ws");
+    const frames = yield* Queue.unbounded<number | "probe">();
+    const pings = yield* Queue.unbounded<number>();
+    const socket = yield* Effect.acquireRelease(
+      Effect.sync(
+        () =>
+          new WebSocket(
+            `${origin}/api/preview-stream/ws?threadId=thread&tabId=tab&wsTicket=one-use-ticket`,
+          ),
+      ),
+      (socket) => Effect.sync(() => socket.close()),
+    );
+    socket.binaryType = "arraybuffer";
+    socket.addEventListener("message", (event) => {
+      if (typeof event.data !== "string") {
+        Queue.offerUnsafe(frames, new Uint8Array(event.data as ArrayBuffer)[0]!);
+        return;
+      }
+      const message = JSON.parse(event.data);
+      if (message.type === "ping") Queue.offerUnsafe(pings, message.at);
+      if (message.type === "probe") Queue.offerUnsafe(frames, "probe");
+    });
+    const reply = (message: object) => Effect.sync(() => socket.send(JSON.stringify(message)));
+    const sentAhead = Effect.gen(function* () {
+      yield* Queue.offer(output, { _tag: "probe", x: 0, y: 0, editable: false });
+      const sent: Array<number | "probe"> = [];
+      for (let next = yield* Queue.take(frames); next !== "probe"; next = yield* Queue.take(frames))
+        sent.push(next);
+      return sent;
+    });
+    // Holds the write `trigger` leads to while frame `id` reaches the stream, which takes it
+    // before the write resumes.
+    const arrivesMidWrite = (
+      matches: (chunk: Chunk) => boolean,
+      trigger: Effect.Effect<void>,
+      id: number,
+    ) =>
+      Effect.gen(function* () {
+        const held = {
+          matches,
+          reached: yield* Deferred.make<void>(),
+          release: yield* Deferred.make<void>(),
+        };
+        hold = held;
+        yield* trigger;
+        yield* Deferred.await(held.reached);
+        yield* Queue.offer(output, frame(id));
+        yield* Effect.yieldNow;
+        yield* Deferred.succeed(held.release, undefined);
+      });
+
+    yield* Queue.offerAll(output, [frame(1), frame(2)]);
+    expect(yield* sentAhead).toEqual([1]);
+    // The first numbered ack sends frame 2 a ping ahead of it.
+    yield* arrivesMidWrite(
+      (chunk) => typeof chunk === "string" && chunk.includes('"ping"'),
+      reply({ type: "ack", id: 1 }),
+      3,
+    );
+    // An unmeasured viewer gets one frame at a time, and frame 3 must not overtake frame 2.
+    expect(yield* sentAhead).toEqual([2]);
+    yield* TestClock.adjust(150);
+    yield* reply({ type: "pong", at: yield* Queue.take(pings) });
+    yield* reply({ type: "ack", id: 2 });
+    expect(yield* Queue.take(frames)).toBe(3);
+    yield* TestClock.adjust(151);
+    yield* reply({ type: "ack", id: 3 });
+    expect(yield* Queue.takeN(released, 3)).toEqual([1, 2, 3]);
+
+    // Measured now; frame 4 runs late so frame 5 waits for its ack.
+    yield* Queue.offer(output, frame(4));
+    expect(yield* Queue.take(frames)).toBe(4);
+    yield* TestClock.adjust(150 + 121);
+    yield* Queue.offer(output, frame(5));
+    expect(yield* sentAhead).toEqual([]);
+    yield* arrivesMidWrite(
+      (chunk) => chunk instanceof Uint8Array && chunk[0] === 5,
+      reply({ type: "ack", id: 4 }),
+      6,
+    );
+    const received = yield* sentAhead;
+    // Ack n releases the Chromium ack of the viewer's nth binary, once.
+    yield* reply({ type: "ack", id: 5 });
+    expect(yield* Queue.takeN(released, 2)).toEqual([4, received[0]]);
+    yield* reply({ type: "ack", id: 6 });
+    expect(yield* Queue.take(released)).toBe(received[1]);
+    expect(received).toEqual([5, 6]);
+    expect(yield* Queue.clear(released)).toEqual([]);
+  }).pipe(Effect.scoped),
 );
 
 it.effect.each([
