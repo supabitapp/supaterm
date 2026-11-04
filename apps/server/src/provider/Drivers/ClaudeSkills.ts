@@ -423,6 +423,9 @@ const discoverPluginSkillRoots = Effect.fn("discoverPluginSkillRoots")(function*
 const SettingsEnv = Schema.Struct({
   ANTHROPIC_BASE_URL: Schema.optional(Schema.String),
   CLAUDE_CODE_ENTRYPOINT: Schema.optional(Schema.String),
+  // Unquoted JSON values must not fail the decode and drop ANTHROPIC_BASE_URL with them.
+  CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY: Schema.optional(Schema.Unknown),
+  CLAUDE_CODE_GATEWAY_MODEL_DISCOVERY_TIMEOUT_MS: Schema.optional(Schema.Unknown),
 });
 const decodeSettingsEnv = Schema.decodeUnknownEffect(
   fromLenientJson(Schema.Struct({ env: Schema.optional(SettingsEnv) })),
