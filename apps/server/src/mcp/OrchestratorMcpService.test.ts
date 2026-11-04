@@ -74,11 +74,12 @@ const layerOrchestratorService = OrchestratorMcpService.layer.pipe(
 describe("OrchestratorMcpService", () => {
   const acknowledgementTest =
     "retries terminal acknowledgement with a fresh command id (follow-up: %s)";
-  const cases = [false, true, "never-started", "queued"] as const;
+  const cases = [false, true, "never-started", "queued", "rolled-back"] as const;
   it.effect.each(cases)(acknowledgementTest, (followup) =>
     Effect.gen(function* () {
       const failedBeforeStart = followup === "never-started";
       const queued = followup === "queued";
+      const rolledBack = followup === "rolled-back";
       const parentThreadId = ThreadId.make("thread:mcp-ack-parent");
       const childThreadId = ThreadId.make("thread:mcp-ack-child");
       const childRunId = RunId.make("run:mcp-ack-child");
@@ -97,7 +98,7 @@ describe("OrchestratorMcpService", () => {
             childThreadId,
             driver: "codex",
             model: "gpt-5.6-terra",
-            result: failedBeforeStart || queued ? null : "terminal result",
+            result: failedBeforeStart || queued || rolledBack ? null : "terminal result",
             completionDelivery: { state: "pending" },
           },
         ],
@@ -114,6 +115,7 @@ describe("OrchestratorMcpService", () => {
             ...(failedBeforeStart || queued
               ? { ordinal: 3, status: failedBeforeStart ? "failed" : "queued", startedAt: null }
               : {}),
+            ...(rolledBack ? { status: "rolled_back" } : {}),
             completedAt: DateTime.makeUnsafe("2026-10-03T10:10:00Z"),
           },
           {
@@ -138,7 +140,7 @@ describe("OrchestratorMcpService", () => {
         turnItems: [],
         runtimeRequests: [],
       } as unknown as OrchestrationV2ThreadProjection;
-      let hasNestedWork = !failedBeforeStart && !queued;
+      let hasNestedWork = !failedBeforeStart && !queued && !rolledBack;
       const layerDependencies = Layer.mergeAll(
         NodeServices.layer,
         Layer.mock(ThreadManagementService.ThreadManagementService)({
@@ -212,7 +214,7 @@ describe("OrchestratorMcpService", () => {
           assert.equal(pending.workState, "working");
           return;
         }
-        if (!failedBeforeStart) {
+        if (!failedBeforeStart && !rolledBack) {
           const pending = yield* service.taskStatus(scope, taskId);
           assert.equal(pending.status, "running");
           assert.equal(pending.workState, "waiting_for_children");
@@ -224,8 +226,8 @@ describe("OrchestratorMcpService", () => {
         assert.equal(error.code, "orchestration_error");
 
         const result = yield* service.taskStatus(scope, taskId);
-        if (failedBeforeStart) {
-          assert.equal(result.status, "failed");
+        if (failedBeforeStart || rolledBack) {
+          assert.equal(result.status, rolledBack ? "cancelled" : "failed");
           assert.equal(result.workState, "result_available");
           return;
         }

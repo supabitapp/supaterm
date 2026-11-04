@@ -1614,7 +1614,7 @@ const make = Effect.gen(function* () {
       childRun?.delegatedTaskId === task.id
         ? taskResultRun !== undefined &&
           isTerminalTaskStatus(taskStatusForRun(taskResultRun)) &&
-          taskRuns.every(neverStarted)
+          (taskRuns.every(neverStarted) || taskRuns.every((run) => run.status === "rolled_back"))
           ? "result_available"
           : delegatedTaskProgress({
               ...childControls,

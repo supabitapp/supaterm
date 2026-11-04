@@ -11834,8 +11834,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       }
 
       // Each follow-up waits for its own nested work, independently of later queued follow-ups.
+      // Rolled-back runs leave nothing to wait for; they settle the task as cancelled.
       if (
-        taskRuns.length > 0 &&
+        taskRuns.some((taskRun) => taskRun.status !== "rolled_back") &&
         !taskRuns.every(neverStarted) &&
         delegatedTaskProgress({
           ...childControls,
@@ -13306,6 +13307,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         if (run === undefined || delegatedTaskTerminalStatus(run.status) === null) return true;
         if (runs.every(neverStarted)) return false;
         if (
+          runs.some((taskRun) => taskRun.status !== "rolled_back") &&
           delegatedTaskProgress({
             ...child,
             runs,

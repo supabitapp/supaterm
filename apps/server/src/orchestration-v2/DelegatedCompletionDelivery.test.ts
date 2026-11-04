@@ -1970,6 +1970,7 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
       "overlapping",
       "nested",
       "nested-active",
+      "rolled_back",
     ] as const;
     it.effect.each(outcomes)(
       "delivers a %s follow-up independently of the original task",
@@ -2390,7 +2391,9 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
                 ? "completed"
                 : outcome === "never-started"
                   ? "failed"
-                  : outcome,
+                  : outcome === "rolled_back"
+                    ? "cancelled"
+                    : outcome,
           );
           assert.equal(
             followup.completionDelivery?.state,
