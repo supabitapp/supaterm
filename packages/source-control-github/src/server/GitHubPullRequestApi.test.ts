@@ -1512,6 +1512,20 @@ layer("GitHubPullRequestApi.layer", (it) => {
         'is:pr is:closed is:unmerged review-requested:bilal "pull requests page" ' +
           "updated:<=2026-07-02T00:00:00Z sort:updated-desc repo:acme/web repo:supabitapp/supaterm",
       );
+
+      yield* cli.searchPullRequests({
+        cwd: "/w",
+        host: "github.com",
+        repositories: ["neovim/neovim"],
+        state: "open",
+        involvement: "involved",
+        viewer: "bilal",
+        limit: 10,
+      });
+      assert.strictEqual(
+        searchQueryOfCall(1),
+        "is:pr is:open involves:bilal sort:updated-desc repo:neovim/neovim",
+      );
     }),
   );
 
@@ -2035,6 +2049,36 @@ layer("GitHubPullRequestApi.layer", (it) => {
       expect(batch.items.map((item) => item.number)).toEqual([1, 2]);
       expect(searchOfCall(1)).toBeUndefined();
       assert.isFalse(batch.continues);
+
+      mockedExecute.mockReturnValueOnce(Effect.succeed(emptySearch()));
+      mockedExecute.mockReturnValueOnce(
+        Effect.succeed(
+          output(
+            listedPullRequests(2, 1, (number) =>
+              number === 1
+                ? {
+                    author: {
+                      __typename: "User",
+                      login: "bilal",
+                      avatarUrl: "https://avatars/bilal",
+                      name: null,
+                    },
+                  }
+                : { reviewRequests: [{ login: "bilal" }] },
+            ),
+          ),
+        ),
+      );
+      const involved = yield* cli.listPullRequests({
+        cwd: "/w",
+        repository: "acme/web",
+        host: "github.com",
+        state: "open",
+        involvement: "involved",
+        viewer: "bilal",
+        limit: 10,
+      });
+      expect(involved.items.map((item) => item.number)).toEqual([1]);
     }),
   );
 

@@ -126,3 +126,9 @@ query PullRequestWatchFingerprint($owner: String!, $name: String!, $number: Int!
     }
   }
 }
+
+query RepositoryViewerPermission($owner: String!, $name: String!) {
+  repository(owner: $owner, name: $name) {
+    viewerPermission
+  }
+}

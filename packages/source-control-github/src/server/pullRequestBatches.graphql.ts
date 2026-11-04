@@ -416,5 +416,38 @@ export declare namespace PullRequestWatchFingerprint {
   export type Result = typeof PullRequestWatchFingerprint.result.Type
 }
 
+/** A repository contains the content for a project. */
+export const RepositoryViewerPermissionRepositoryRepository = Schema.Struct({
+  /** The users permission level on the repository. Will return null if authenticated as an GitHub App. */
+  viewerPermission: Schema.NullOr(GraphQL.enumLiterals(Shared.RepositoryPermission.literals))
+})
+export interface RepositoryViewerPermissionRepositoryRepository extends Schema.Struct.Type<typeof RepositoryViewerPermissionRepositoryRepository.fields> {}
+
+/** `query RepositoryViewerPermission` */
+export const RepositoryViewerPermission = GraphQL.query("RepositoryViewerPermission", {
+  document: {
+    variables: [
+      { name: "owner", body: "String!" },
+      { name: "name", body: "String!" }
+    ],
+    selections: [
+      { name: "repository", body: ["(owner:$", "owner", " name:$", "name", "){viewerPermission}"] }
+    ],
+    fragments: []
+  },
+  variables: {
+    owner: Schema.String,
+    name: Schema.String
+  },
+  result: Schema.Struct({
+    /** Lookup a given repository by the owner and repository name. */
+    repository: Schema.NullOr(RepositoryViewerPermissionRepositoryRepository)
+  })
+})
+export declare namespace RepositoryViewerPermission {
+  export type Variables = typeof RepositoryViewerPermission.variables.Type
+  export type Result = typeof RepositoryViewerPermission.result.Type
+}
+
 /** Every operation in pullRequestBatches.graphql. */
-export const PullRequestBatchesGraphQLGroup = GraphQLGroup.make(PullRequestSummary, PullRequestStats, PullRequestStackMembership, PullRequestWatchFingerprint)
+export const PullRequestBatchesGraphQLGroup = GraphQLGroup.make(PullRequestSummary, PullRequestStats, PullRequestStackMembership, PullRequestWatchFingerprint, RepositoryViewerPermission)

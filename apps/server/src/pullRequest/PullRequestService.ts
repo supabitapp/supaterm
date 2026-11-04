@@ -1323,6 +1323,9 @@ export const make = Effect.gen(function* () {
     "PullRequestService.listUncached",
   )(function* (input) {
     const involvement = input.involvement ?? "all";
+    // Across projects, as on a host's own dashboard, a repository the viewer only reads lists
+    // what involves them; one project picked out lists whole, as on its own pull request tab.
+    const involvedWhereReadOnly = involvement === "all" && input.projectId === undefined;
     const continuation = yield* decodeCursors(input.cursors);
     const {
       supported: projects,
@@ -1418,6 +1421,7 @@ export const make = Effect.gen(function* () {
             host: project.host,
             state: input.state,
             involvement,
+            involvedWhereReadOnly,
             viewer,
             limit,
             query: input.query,
@@ -1530,6 +1534,7 @@ export const make = Effect.gen(function* () {
         repositories: chunk.map((project) => project.repository),
         state: input.state,
         involvement,
+        involvedWhereReadOnly,
         viewer,
         limit,
         query: input.query,
@@ -1617,11 +1622,26 @@ export const make = Effect.gen(function* () {
       if (batch.nextCursor !== null) nextCursors[batch.key] = batch.nextCursor;
     }
 
+    // A renamed repository still answers for its old name, so a project whose remote kept it
+    // lists the pull requests of a project under the new name, which its URLs name instead.
+    const listedRepositories = new Set(
+      projects.map(({ host, repository }) => `${host}/${repository.toLowerCase()}`),
+    );
+    const listedUnderNewName = (entry: PullRequestListEntry) => {
+      const named = sourceControlDefinitions.parseChangeRequestUrl(entry.url)?.link.repository;
+      return (
+        named !== undefined &&
+        named !== entry.repository.toLowerCase() &&
+        listedRepositories.has(`${entry.host}/${named}`)
+      );
+    };
+
     return {
       viewers: viewers as PullRequestListResult["viewers"],
       providers,
       entries: batches
         .flatMap((batch) => batch.entries)
+        .filter((entry) => !listedUnderNewName(entry))
         .toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
       errors: [...unreadable, ...batches.flatMap((batch) => batch.errors)],
       truncated: batches.some((batch) => batch.truncated),
