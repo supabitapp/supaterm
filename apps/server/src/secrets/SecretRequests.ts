@@ -1,5 +1,6 @@
 // Answers wait in the secret store until delivered; orchestration records only request status.
 // Delivery moves the value to an owner-only file that the agent's shell commands read.
+// A secret the user pasted in chat goes straight to such a file, with no card.
 import { pipe } from "effect/Function";
 import {
   CommandId,
@@ -50,6 +51,14 @@ export class SecretRequests extends Context.Service<
     readonly saveToFile: (input: {
       readonly threadId: ThreadId;
       readonly turnItemId: string;
+    }) => Effect.Effect<string, SecretRequestError>;
+    /** Writes a secret the user pasted in chat to an owner-only file and returns its path. */
+    readonly savePasted: (input: {
+      readonly threadId: ThreadId;
+      /** The provider session's namespace, so two sessions' keys never share a file. */
+      readonly requestNamespace: string;
+      readonly requestKey: string;
+      readonly value: string;
     }) => Effect.Effect<string, SecretRequestError>;
   }
 >()("supaterm/secrets/SecretRequests") {}
@@ -180,6 +189,23 @@ const make = Effect.gen(function* () {
     return decoded.value.value;
   });
 
+  const writeSecretFile = (dir: string, file: string, value: string) => {
+    const partial = `${file}.partial`;
+    return fileSystem.makeDirectory(dir, { recursive: true, mode: 0o700 }).pipe(
+      Effect.andThen(fileSystem.chmod(dir, 0o700)),
+      Effect.andThen(fileSystem.remove(partial, { force: true })),
+      // `wx` never follows or replaces an existing path.
+      Effect.andThen(
+        fileSystem.writeFile(partial, new TextEncoder().encode(value), {
+          flag: "wx",
+          mode: 0o600,
+        }),
+      ),
+      Effect.andThen(fileSystem.rename(partial, file)),
+      Effect.mapError((cause) => new SecretRequestError({ reason: "store_failed", cause })),
+    );
+  };
+
   const saveToFile: SecretRequests["Service"]["saveToFile"] = Effect.fn(
     "SecretRequests.saveToFile",
   )(function* (input) {
@@ -209,21 +235,29 @@ const make = Effect.gen(function* () {
       }
       // The stored value goes only after the file is complete, so a failed write can retry.
       const value = yield* readStored(key);
-      const partial = `${file}.partial`;
-      yield* fileSystem.makeDirectory(filesDir, { recursive: true, mode: 0o700 }).pipe(
-        Effect.andThen(fileSystem.chmod(filesDir, 0o700)),
-        Effect.andThen(fileSystem.remove(partial, { force: true })),
-        // `wx` never follows or replaces an existing path.
-        Effect.andThen(
-          fileSystem.writeFile(partial, new TextEncoder().encode(value), {
-            flag: "wx",
-            mode: 0o600,
-          }),
-        ),
-        Effect.andThen(fileSystem.rename(partial, file)),
-        Effect.mapError((cause) => new SecretRequestError({ reason: "store_failed", cause })),
-      );
+      yield* writeSecretFile(filesDir, file, value);
       return yield* removeStored;
+    }).pipe(deliveryLock.withPermits(1));
+  });
+
+  const savePasted: SecretRequests["Service"]["savePasted"] = Effect.fn(
+    "SecretRequests.savePasted",
+  )(function* (input) {
+    if (filesDir === undefined) return yield* new SecretRequestError({ reason: "store_failed" });
+    const file = path.join(
+      filesDir,
+      keyFor(
+        salt,
+        input.threadId,
+        `pasted\u0000${input.requestNamespace}\u0000${input.requestKey}`,
+      ),
+    );
+    // A retry with the same clientRequestId gets the file the first call wrote, unchanged, so a
+    // command already holding that path never reads another value.
+    return yield* Effect.gen(function* () {
+      if (yield* fileSystem.exists(file).pipe(Effect.orElseSucceed(() => false))) return file;
+      yield* writeSecretFile(filesDir, file, input.value);
+      return file;
     }).pipe(deliveryLock.withPermits(1));
   });
 
@@ -273,7 +307,7 @@ const make = Effect.gen(function* () {
     Effect.forkScoped,
   );
 
-  return SecretRequests.of({ answer, saveToFile });
+  return SecretRequests.of({ answer, saveToFile, savePasted });
 });
 
 export const layer = Layer.effect(SecretRequests, make);
