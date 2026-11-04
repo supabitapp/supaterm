@@ -1,4 +1,4 @@
-import { ThreadDetailsControl } from "./chat/ThreadDetailsControl";
+import { ThreadDetailsComboboxControl } from "./chat/ThreadDetailsControl";
 import { ComposerContextLabel } from "./ComposerContextLabel";
 import { resolveThreadCurrentPullRequestLink } from "@supaterm/client-runtime/thread-pull-requests";
 import { useRightPanelStore } from "../rightPanelStore";
@@ -16,7 +16,7 @@ import {
   type ScopedThreadRef,
   type ThreadId,
 } from "@supaterm/contracts";
-import { ChevronDownIcon, GitBranchIcon } from "@supaterm/icons";
+import { GitBranchIcon } from "@supaterm/icons";
 import {
   useDeferredValue,
   useImperativeHandle,
@@ -40,10 +40,7 @@ import { threadEnvironment } from "../state/threads";
 import { useAtomCommand } from "../state/use-atom-command";
 import { vcsEnvironment } from "../state/vcs";
 import { cn } from "../lib/utils";
-import {
-  THREAD_DETAILS_PANEL_CHEVRON_CLASS,
-  THREAD_DETAILS_PANEL_ICON_CLASS,
-} from "./chat/threadDetailsPanelStyles";
+import { THREAD_DETAILS_PANEL_ICON_CLASS } from "./chat/threadDetailsPanelStyles";
 import { ThreadDetailsPrRows } from "./chat/ThreadDetailsPrRows";
 import { parsePullRequestReference } from "@supaterm/client-runtime/pull-request-link-input";
 import { getSourceControlPresentation } from "../sourceControlPresentation";
@@ -66,7 +63,7 @@ import {
   useLinkedThreadPullRequest,
 } from "./ThreadStatusIndicators";
 
-import { ComboboxItem, ComboboxTrigger } from "./ui/combobox";
+import { ComboboxItem } from "./ui/combobox";
 import { ComposerControl } from "./chat/ComposerControl";
 import { MiddleTruncate } from "./ui/middle-truncate";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
@@ -699,14 +696,8 @@ export function BranchToolbarBranchSelector({
           <Tooltip disabled={displayMode === "panel"}>
             <TooltipTrigger
               render={
-                <ComboboxTrigger
-                  render={
-                    displayMode === "panel" ? (
-                      <ThreadDetailsControl part="select" />
-                    ) : (
-                      <ComposerControl size="xs" />
-                    )
-                  }
+                <ThreadDetailsComboboxControl
+                  panel={displayMode === "panel"}
                   className="min-w-0 max-w-full active:scale-100"
                   disabled={isInitialBranchesLoadPending || isBranchActionPending}
                 />
@@ -725,13 +716,6 @@ export function BranchToolbarBranchSelector({
                   className="w-full"
                 />
               </ComposerContextLabel>
-              {displayMode === "panel" ? (
-                <span data-slot="select-icon">
-                  <ChevronDownIcon className={THREAD_DETAILS_PANEL_CHEVRON_CLASS} />
-                </span>
-              ) : (
-                <ChevronDownIcon className="size-3 shrink-0 opacity-50" />
-              )}
             </TooltipTrigger>
             <TooltipPopup shortcut={branchShortcut}>{triggerLabel}</TooltipPopup>
           </Tooltip>

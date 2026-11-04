@@ -123,9 +123,7 @@ export function ThreadDetailsComboboxControl({
       }
     >
       {children}
-      <ChevronDownIcon
-        className={panel ? THREAD_DETAILS_PANEL_CHEVRON_CLASS : "size-3 shrink-0 opacity-50"}
-      />
+      {panel ? null : <ChevronDownIcon className="size-3 shrink-0 opacity-50" />}
     </ComboboxTrigger>
   );
 }
