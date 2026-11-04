@@ -72,8 +72,14 @@ const layerOrchestratorService = OrchestratorMcpService.layer.pipe(
 );
 
 describe("OrchestratorMcpService", () => {
-  it.effect("retries terminal acknowledgement with a fresh command id", () =>
+  const acknowledgementTest =
+    "retries terminal acknowledgement with a fresh command id (follow-up: %s)";
+  const cases = [false, true, "never-started", "queued", "rolled-back"] as const;
+  it.effect.each(cases)(acknowledgementTest, (followup) =>
     Effect.gen(function* () {
+      const failedBeforeStart = followup === "never-started";
+      const queued = followup === "queued";
+      const rolledBack = followup === "rolled-back";
       const parentThreadId = ThreadId.make("thread:mcp-ack-parent");
       const childThreadId = ThreadId.make("thread:mcp-ack-child");
       const childRunId = RunId.make("run:mcp-ack-child");
@@ -92,7 +98,7 @@ describe("OrchestratorMcpService", () => {
             childThreadId,
             driver: "codex",
             model: "gpt-5.6-terra",
-            result: "terminal result",
+            result: failedBeforeStart || queued || rolledBack ? null : "terminal result",
             completionDelivery: { state: "pending" },
           },
         ],
@@ -102,9 +108,14 @@ describe("OrchestratorMcpService", () => {
         runs: [
           {
             id: childRunId,
+            ...(followup ? { delegatedTaskId: taskId } : {}),
             ordinal: 1,
             status: "completed",
             startedAt: DateTime.makeUnsafe("2026-10-03T10:00:00Z"),
+            ...(failedBeforeStart || queued
+              ? { ordinal: 3, status: failedBeforeStart ? "failed" : "queued", startedAt: null }
+              : {}),
+            ...(rolledBack ? { status: "rolled_back" } : {}),
             completedAt: DateTime.makeUnsafe("2026-10-03T10:10:00Z"),
           },
           {
@@ -129,7 +140,7 @@ describe("OrchestratorMcpService", () => {
         turnItems: [],
         runtimeRequests: [],
       } as unknown as OrchestrationV2ThreadProjection;
-      let hasNestedWork = true;
+      let hasNestedWork = !failedBeforeStart && !queued && !rolledBack;
       const layerDependencies = Layer.mergeAll(
         NodeServices.layer,
         Layer.mock(ThreadManagementService.ThreadManagementService)({
@@ -150,7 +161,11 @@ describe("OrchestratorMcpService", () => {
                   ? {
                       ...childProjection,
                       subagents: [
-                        { ...parentProjection.subagents[0]!, status: "running" as const },
+                        {
+                          ...parentProjection.subagents[0]!,
+                          runId: childRunId,
+                          status: "running" as const,
+                        },
                       ],
                     }
                   : childProjection,
@@ -162,11 +177,12 @@ describe("OrchestratorMcpService", () => {
             ]).pipe(
               Effect.andThen(Ref.updateAndGet(acknowledgementAttempts, (count) => count + 1)),
               Effect.flatMap((attempt) =>
-                attempt === 1
+                attempt === 1 && !hasNestedWork
                   ? Effect.fail(new Error("simulated acknowledgement failure") as never)
                   : Effect.succeed({} as never),
               ),
             ),
+          delegatedTaskResultPending: () => Effect.succeed(false),
         }),
         ServerSettings.layerTest(),
         Layer.mock(ProviderRegistry.ProviderRegistry)({ getProviders: Effect.succeed([]) }),
@@ -192,16 +208,29 @@ describe("OrchestratorMcpService", () => {
 
       yield* Effect.gen(function* () {
         const service = yield* OrchestratorMcpService.OrchestratorMcpService;
-        const pending = yield* service.taskStatus(scope, taskId);
-        assert.equal(pending.status, "running");
-        assert.equal(pending.workState, "waiting_for_children");
-        assert.isNull(pending.summary);
-        assert.equal(yield* Ref.get(acknowledgementAttempts), 0);
-        hasNestedWork = false;
+        if (queued) {
+          const pending = yield* service.taskStatus(scope, taskId);
+          assert.equal(pending.status, "queued");
+          assert.equal(pending.workState, "working");
+          return;
+        }
+        if (!failedBeforeStart && !rolledBack) {
+          const pending = yield* service.taskStatus(scope, taskId);
+          assert.equal(pending.status, "running");
+          assert.equal(pending.workState, "waiting_for_children");
+          assert.isNull(pending.summary);
+          assert.equal(yield* Ref.get(acknowledgementAttempts), 0);
+          hasNestedWork = false;
+        }
         const error = yield* service.taskStatus(scope, taskId).pipe(Effect.flip);
         assert.equal(error.code, "orchestration_error");
 
         const result = yield* service.taskStatus(scope, taskId);
+        if (failedBeforeStart || rolledBack) {
+          assert.equal(result.status, rolledBack ? "cancelled" : "failed");
+          assert.equal(result.workState, "result_available");
+          return;
+        }
         assert.equal(result.status, "completed");
         assert.equal(result.summary, "terminal result");
         assert.equal(result.latestTerminalRunId, childRunId);
