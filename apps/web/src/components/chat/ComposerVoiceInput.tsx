@@ -67,12 +67,19 @@ export function ComposerVoiceButton(props: {
   );
 }
 
-function VoiceElapsed(props: { readonly recorder: WebVoiceRecorder }) {
+export function VoiceElapsed(props: { readonly recorder: Pick<WebVoiceRecorder, "elapsedMs"> }) {
   const [elapsedMs, setElapsedMs] = useState(() => props.recorder.elapsedMs);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- ticks the elapsed label from the live recorder once a second while it records
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- ticks the elapsed label from the live recorder on each of its whole seconds
   useEffect(() => {
-    const timer = window.setInterval(() => setElapsedMs(props.recorder.elapsedMs), 1_000);
-    return () => window.clearInterval(timer);
+    const recorder = props.recorder;
+    let timer = 0;
+    const tick = () => {
+      const elapsed = recorder.elapsedMs;
+      setElapsedMs(elapsed);
+      timer = window.setTimeout(tick, 1_000 - (elapsed % 1_000));
+    };
+    timer = window.setTimeout(tick, 1_000 - (recorder.elapsedMs % 1_000));
+    return () => window.clearTimeout(timer);
   }, [props.recorder]);
   return <span className="tabular-nums">{formatVoiceDuration(elapsedMs)}</span>;
 }

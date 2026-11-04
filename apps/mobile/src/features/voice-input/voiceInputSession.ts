@@ -8,9 +8,10 @@ import {
   type VoiceInputState,
   type VoiceRecordingDelivery,
   type VoiceTranscriber,
+  voiceLevelFromDecibels,
 } from "@supaterm/client-runtime/voice-input";
 
-import { normalizeVoiceInputDecibels, VOICE_WAVEFORM_SAMPLE_COUNT } from "./voiceInputMetering";
+import { VOICE_WAVEFORM_SAMPLE_COUNT } from "./voiceInputMetering";
 
 const VOICE_METERING_INTERVAL_MS = 80;
 const IDLE_STATE: VoiceInputState = { phase: "idle", error: null, errorAction: null };
@@ -228,7 +229,7 @@ export class VoiceInputSession {
     const sample = this.dependencies.sampleRecording();
     if (!sample) return;
 
-    const level = normalizeVoiceInputDecibels(sample.metering);
+    const level = voiceLevelFromDecibels(sample.metering);
     if (level !== 0 || this.audioLevels.some((sample) => sample !== 0)) {
       this.setAudioLevels([...this.audioLevels.slice(1), level]);
     }
