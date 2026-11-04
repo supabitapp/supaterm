@@ -84,6 +84,7 @@ export interface Mesh {
   readonly pos: Float32Array;
   readonly quads: Uint16Array;
   readonly normals: Float32Array;
+  readonly vertexNormals: Float32Array;
 }
 
 const CORNER_STEPS = 14;
@@ -153,7 +154,12 @@ function buildBody(): Mesh {
     const l = Math.hypot(x, y, z) || 1;
     normals.set([x / l, y / l, z / l], q * 3);
   }
-  return { pos: new Float32Array(pos), quads: new Uint16Array(quads), normals };
+  return {
+    pos: new Float32Array(pos),
+    quads: new Uint16Array(quads),
+    normals,
+    vertexNormals: new Float32Array(vertexNormals),
+  };
 }
 
 let body: Mesh | null = null;

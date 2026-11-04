@@ -28,7 +28,7 @@ function environment(rx: number, ry: number, rz: number): number {
   const up = -ry;
   const horizon = 0.05 + 0.12 * smooth(-0.25, 0.3, up);
   const softbox = 1.1 * smooth(0.42, 0.78, up) * smooth(-0.9, -0.2, rz - 0.6 * Math.abs(rx));
-  const window = 2.6 * smooth(0.86, 0.97, rx * KEY[0] + ry * KEY[1] + rz * KEY[2]);
+  const window = 1.4 * smooth(0.62, 0.96, rx * KEY[0] + ry * KEY[1] + rz * KEY[2]);
   const strip = 0.5 * smooth(0.6, 0.85, -rx) * smooth(-0.35, 0.05, up) * (1 - smooth(0.2, 0.5, up));
   return horizon + softbox + window + strip;
 }

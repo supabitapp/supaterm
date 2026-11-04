@@ -44,7 +44,7 @@ export function context2d(canvas: HTMLCanvasElement) {
 }
 
 /** Lighting of a tilted bit of the plate, relative to the flat plate. */
-function tilt(nx: number, ny: number, nz: number, gloss = 0.55, power = 36): number {
+function tilt(nx: number, ny: number, nz: number, gloss = 0.35, power = 14): number {
   const l = Math.hypot(nx, ny, nz);
   const [x, y, z] = [nx / l, ny / l, nz / l];
   const diffuse = (x * KEY[0] + y * KEY[1] + z * KEY[2] - KEY[2]) * 0.95;
