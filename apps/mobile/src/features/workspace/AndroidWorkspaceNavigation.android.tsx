@@ -81,7 +81,7 @@ export function AndroidWorkspaceNavigation(props: {
   const toolbar = useToolbarLayout();
   const connectionState = useWorkspaceConnectionState();
   const keyboardVisible = useSoftKeyboardShowing();
-  const { layout } = useAdaptiveWorkspaceLayout();
+  const { layout, keyboardHoldsSidebar } = useAdaptiveWorkspaceLayout();
   const { themeAppearance, themeVariables: colors } = useAppearancePreferences();
   const { scale, fabSize } = useAndroidControlSizing();
   const window = useWindowDimensions();
@@ -111,7 +111,8 @@ export function AndroidWorkspaceNavigation(props: {
     props.fillWidth,
     composeBesideBar && connectionState.hasConnections,
   );
-  if (!rail && keyboardVisible) return null;
+  // The composer's keyboard slides the sidebar away with the bar on it; other keyboards don't.
+  if (!rail && keyboardVisible && !keyboardHoldsSidebar) return null;
 
   return (
     <View
