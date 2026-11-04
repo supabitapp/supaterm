@@ -982,8 +982,9 @@ describe("listChangeRequestsAcross", () => {
                 if (search.involvement === "involved") {
                   return Effect.succeed({ items: [asked, older], truncated: false });
                 }
+                // Cut short, it vouches for no silent repository, yet `vim/vim` stays resolved.
                 if (search.involvement === "reviewing") {
-                  return Effect.succeed({ items: [asked], truncated: false });
+                  return Effect.succeed({ items: [asked], truncated: true });
                 }
                 return Effect.succeed({ items: [searched("acme/web")], truncated: true });
               },
@@ -1007,10 +1008,9 @@ describe("listChangeRequestsAcross", () => {
           involved: ["neovim/neovim", "vim/vim"],
           reviewing: ["neovim/neovim", "vim/vim"],
         });
-        // Once, and nothing older than where the cut-short search stopped.
+        // Once, and nothing older than where the latest cut-short search stopped.
         expect(page.items.map((item) => [item.repository, item.number])).toEqual([
           ["neovim/neovim", 1],
-          ["acme/web", 1],
         ]);
         expect(page.truncated).toBe(true);
         expect(page.unresolved).toEqual(["acme/docs"]);

@@ -464,11 +464,14 @@ export const make = Effect.gen(function* () {
             ({ involvement }) => involvement,
           );
           // Each search answers for its own repositories: one cut short by a busy repository
-          // says nothing about the quiet ones in the other.
+          // says nothing about the quiet ones in the other. Search covers a repository whatever
+          // the qualifier, so the review requests paired with `involves:` leave coverage to it.
           return Effect.forEach(
             searches,
             ([involvement, members]) => {
               const repositories = members.map(({ repository }) => repository);
+              const judgesCoverage =
+                involvement === input.involvement || involvement === "involved";
               return cli
                 .searchPullRequests({
                   cwd: input.cwd,
@@ -485,7 +488,9 @@ export const make = Effect.gen(function* () {
                 .pipe(
                   Effect.flatMap((batch) =>
                     Effect.map(
-                      unresolvedBySearch({ ...input, repositories }, batch),
+                      judgesCoverage
+                        ? unresolvedBySearch({ ...input, repositories }, batch)
+                        : Effect.succeed([]),
                       (unresolved) => ({ batch, unresolved }),
                     ),
                   ),
