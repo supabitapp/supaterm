@@ -1,4 +1,4 @@
-import { ThreadDetailsControl } from "./chat/ThreadDetailsControl";
+import { ThreadDetailsComboboxControl } from "./chat/ThreadDetailsControl";
 import { ComposerContextLabel } from "./ComposerContextLabel";
 import { resolveThreadCurrentPullRequestLink } from "@supaterm/client-runtime/thread-pull-requests";
 import { useRightPanelStore } from "../rightPanelStore";
@@ -16,7 +16,7 @@ import {
   type ScopedThreadRef,
   type ThreadId,
 } from "@supaterm/contracts";
-import { ChevronDownIcon, GitBranchIcon } from "@supaterm/icons";
+import { GitBranchIcon } from "@supaterm/icons";
 import {
   useDeferredValue,
   useImperativeHandle,
@@ -63,7 +63,7 @@ import {
   useLinkedThreadPullRequest,
 } from "./ThreadStatusIndicators";
 
-import { ComboboxItem, ComboboxTrigger } from "./ui/combobox";
+import { ComboboxItem } from "./ui/combobox";
 import { ComposerControl } from "./chat/ComposerControl";
 import { MiddleTruncate } from "./ui/middle-truncate";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
@@ -696,14 +696,8 @@ export function BranchToolbarBranchSelector({
           <Tooltip disabled={displayMode === "panel"}>
             <TooltipTrigger
               render={
-                <ComboboxTrigger
-                  render={
-                    displayMode === "panel" ? (
-                      <ThreadDetailsControl part="select" />
-                    ) : (
-                      <ComposerControl size="xs" />
-                    )
-                  }
+                <ThreadDetailsComboboxControl
+                  panel={displayMode === "panel"}
                   className="min-w-0 max-w-full active:scale-100"
                   disabled={isInitialBranchesLoadPending || isBranchActionPending}
                 />
@@ -722,9 +716,6 @@ export function BranchToolbarBranchSelector({
                   className="w-full"
                 />
               </ComposerContextLabel>
-              {displayMode !== "panel" ? (
-                <ChevronDownIcon className="size-3 shrink-0 opacity-50" />
-              ) : null}
             </TooltipTrigger>
             <TooltipPopup shortcut={branchShortcut}>{triggerLabel}</TooltipPopup>
           </Tooltip>
