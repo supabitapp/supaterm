@@ -104,11 +104,7 @@ import { EMPTY_ENVIRONMENT_THREAD_STATE } from "@supaterm/client-runtime/state/t
 import { useProjects } from "../../state/entities";
 import { projectThreadContentPresentation } from "./threadContentPresentation";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
-import {
-  useAdaptiveWorkspaceLayout,
-  useAdaptiveWorkspacePaneRole,
-  useRegisterWorkspaceInspector,
-} from "../layout/AdaptiveWorkspaceLayout";
+import { Inspector, useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
 import { ThreadFileNavigatorPane } from "../files/thread-file-navigator-pane";
 import {
   ThreadInspectorContentStack,
@@ -142,11 +138,6 @@ interface ThreadInspectorSelection {
 }
 
 const EMPTY_PINNED_MESSAGES: ReadonlyArray<ThreadPinnedMessage> = [];
-
-function InspectorPaneRoleActivation() {
-  useAdaptiveWorkspacePaneRole("inspector");
-  return null;
-}
 
 function firstRouteParam(value: string | string[] | undefined): string | null {
   const first = Array.isArray(value) ? value[0] : value;
@@ -375,7 +366,7 @@ function ThreadRouteContent(
 ) {
   const { themeVariables } = useAppearancePreferences();
   const headerColor = themeVariables["--color-header"];
-  const { fileInspector, layout, panes, showAuxiliaryPane, toggleAuxiliaryPane } =
+  const { fileInspector, layout, panes, showInspector, toggleAuxiliaryPane } =
     useAdaptiveWorkspaceLayout();
   const { connectionState } = useRemoteConnectionStatus();
   const { onReconnectEnvironment } = useRemoteConnections();
@@ -586,26 +577,6 @@ function ThreadRouteContent(
     }
     return null;
   })();
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- closes the workspace navigator's auxiliary pane when the thread has no cwd for the file inspector
-  useEffect(() => {
-    if (
-      props.inspectorPresentation === undefined &&
-      fileInspector.supported &&
-      selectedThreadCwd === null &&
-      inspectorMode === null &&
-      panes.auxiliaryPaneVisible
-    ) {
-      toggleAuxiliaryPane();
-    }
-  }, [
-    fileInspector.supported,
-    inspectorMode,
-    panes.auxiliaryPaneVisible,
-    props.inspectorPresentation,
-    selectedThreadCwd,
-    toggleAuxiliaryPane,
-  ]);
-
   const [inspectorSelectionSource, setInspectorSelectionSource] = useState({
     renderInspector: props.renderInspector,
     routeThreadIdentity,
@@ -631,7 +602,7 @@ function ThreadRouteContent(
     });
   }
 
-  const revealPreview = useEffectEvent(() => showAuxiliaryPane("inspector"));
+  const revealPreview = useEffectEvent(() => showInspector());
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- opens the workspace navigator's inspector pane when route params bring a preview target
   useEffect(() => {
     if (previewTarget) revealPreview();
@@ -697,7 +668,7 @@ function ThreadRouteContent(
     }
     navigation.setParams({ inspector: undefined });
     setInspectorSelection({ routeThreadIdentity, mode: "git" });
-    showAuxiliaryPane("inspector");
+    showInspector();
   };
   const handleOpenFilesInspector = () => {
     if (selectedThread === null || selectedThreadCwd === null) {
@@ -715,7 +686,7 @@ function ThreadRouteContent(
       routeThreadIdentity,
       mode: props.renderInspector === undefined ? "files" : "route",
     });
-    showAuxiliaryPane("inspector");
+    showInspector();
   };
   const handleToggleInspector = () => {
     if (inspectorMode === null) {
@@ -791,9 +762,7 @@ function ThreadRouteContent(
         renderRoute={props.renderInspector ? renderRouteInspector : undefined}
       />
     );
-  const activeInspectorRenderer =
-    props.inspectorPresentation || inspectorMode === null ? undefined : renderInspectorStack;
-  useRegisterWorkspaceInspector(activeInspectorRenderer);
+  const showsInspector = !props.inspectorPresentation && inspectorMode !== null;
 
   const handleOpenConnectionEditor = () => {
     void navigation.navigate("Connections");
@@ -1240,7 +1209,18 @@ function ThreadRouteContent(
 
   return (
     <>
-      {activeInspectorRenderer ? <InspectorPaneRoleActivation /> : null}
+      {showsInspector ? (
+        <Inspector
+          // A route's own inspector (files) opens once per thread; going back keeps the user's choice.
+          revealKey={
+            props.renderInspector !== undefined && selectedThreadCwd !== null
+              ? (routeThreadIdentity ?? undefined)
+              : undefined
+          }
+        >
+          {renderInspectorStack()}
+        </Inspector>
+      ) : null}
 
       {renderThreadRouteBody()}
     </>

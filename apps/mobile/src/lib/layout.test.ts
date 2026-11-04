@@ -141,27 +141,6 @@ describe("isPrimarySidebarPinned", () => {
 });
 
 describe("deriveWorkspacePaneLayout", () => {
-  it("keeps the auxiliary pane out of a standard iPad detail column", () => {
-    const layout = deriveLayout({ width: 1_194, height: 834 });
-
-    expect(
-      deriveWorkspacePaneLayout({
-        layout,
-        viewportWidth: 1_194,
-        primarySidebarPreferredVisible: true,
-        auxiliaryPanePreferredVisible: true,
-      }),
-    ).toEqual({
-      primarySidebarVisible: true,
-      primarySidebarWhenExpanded: true,
-      primarySidebarSuppressedByAuxiliary: false,
-      contentPaneWidth: 814,
-      supportsAuxiliaryPane: false,
-      auxiliaryPaneVisible: false,
-      auxiliaryPaneWidth: null,
-    });
-  });
-
   it("offers an auxiliary pane when maximizing a standard iPad landscape window", () => {
     const layout = deriveLayout({ width: 1_194, height: 834 });
 
@@ -192,7 +171,6 @@ describe("deriveWorkspacePaneLayout", () => {
         viewportWidth: 1_024,
         primarySidebarPreferredVisible: true,
         auxiliaryPanePreferredVisible: true,
-        auxiliaryPaneRole: "inspector",
       }),
     ).toEqual({
       primarySidebarVisible: false,
@@ -214,7 +192,6 @@ describe("deriveWorkspacePaneLayout", () => {
         viewportWidth: 1_366,
         primarySidebarPreferredVisible: true,
         auxiliaryPanePreferredVisible: true,
-        auxiliaryPaneRole: "inspector",
       }),
     ).toEqual({
       primarySidebarVisible: true,
@@ -237,7 +214,6 @@ describe("deriveWorkspacePaneLayout", () => {
           nativeWorkspace: true,
           primarySidebarPreferredVisible,
           auxiliaryPanePreferredVisible: true,
-          auxiliaryPaneRole: "inspector",
         }),
       ).toMatchObject({
         primarySidebarVisible: primarySidebarPreferredVisible,
@@ -256,7 +232,6 @@ describe("deriveWorkspacePaneLayout", () => {
         viewportWidth: 1_024,
         primarySidebarPreferredVisible: false,
         auxiliaryPanePreferredVisible: true,
-        auxiliaryPaneRole: "inspector",
       }),
     ).toMatchObject({
       primarySidebarVisible: false,
