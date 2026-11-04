@@ -73,16 +73,12 @@ export function VoiceElapsed(props: { readonly recorder: Pick<WebVoiceRecorder, 
   useEffect(() => {
     const recorder = props.recorder;
     let timer = 0;
-    const schedule = () => {
-      timer = window.setTimeout(
-        () => {
-          setElapsedMs(recorder.elapsedMs);
-          schedule();
-        },
-        1_000 - (recorder.elapsedMs % 1_000),
-      );
+    const tick = () => {
+      const elapsed = recorder.elapsedMs;
+      setElapsedMs(elapsed);
+      timer = window.setTimeout(tick, 1_000 - (elapsed % 1_000));
     };
-    schedule();
+    timer = window.setTimeout(tick, 1_000 - (recorder.elapsedMs % 1_000));
     return () => window.clearTimeout(timer);
   }, [props.recorder]);
   return <span className="tabular-nums">{formatVoiceDuration(elapsedMs)}</span>;
