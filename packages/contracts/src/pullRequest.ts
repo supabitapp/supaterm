@@ -426,31 +426,6 @@ export const PullRequestRef = Schema.Struct({
 });
 export type PullRequestRef = typeof PullRequestRef.Type;
 
-/**
- * A GitHub Actions run, read as checks: one per job. Without a `repository`, the run is read
- * from the repository `gh` picks in the project's checkout. `host` only qualifies a repository.
- */
-export const PullRequestWorkflowRunRef = Schema.Struct({
-  projectId: ProjectId,
-  host: Schema.optional(TrimmedNonEmptyString),
-  repository: Schema.optional(TrimmedNonEmptyString),
-  runId: PositiveInt,
-});
-export type PullRequestWorkflowRunRef = typeof PullRequestWorkflowRunRef.Type;
-
-/** A GitHub Actions run read as checks: its jobs, and its own verdict once it completes. */
-export const PullRequestWorkflowRun = Schema.Struct({
-  host: TrimmedNonEmptyString,
-  /** `owner/name`, resolved from the checkout when the reference named none. */
-  repository: TrimmedNonEmptyString,
-  name: TrimmedNonEmptyString,
-  url: Schema.NullOr(TrimmedNonEmptyString),
-  /** Pending until the run completes. */
-  status: PullRequestCheckStatus,
-  checks: Schema.Array(PullRequestCheck),
-});
-export type PullRequestWorkflowRun = typeof PullRequestWorkflowRun.Type;
-
 export const PullRequestRoutingIdentityInput = Schema.Struct({
   host: TrimmedNonEmptyString,
 });

@@ -323,12 +323,6 @@ export function pullRequestChecksStatePresentation(state: PullRequestChecksState
   return CHECKS_STATE_PRESENTATION[state];
 }
 
-/** The ring's own color for a rollup, for an indicator that stands in for the ring. */
-export function pullRequestChecksStateRingToneClassName(state: PullRequestChecksState): string {
-  const status = state === "passing" ? "success" : state === "failing" ? "failure" : "pending";
-  return CHECK_STATUS_PRESENTATION[status].toneClassName;
-}
-
 export function pullRequestChecksState(
   checks: ReadonlyArray<PullRequestCheck>,
 ): PullRequestChecksState | null {

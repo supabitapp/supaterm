@@ -213,7 +213,7 @@ export function PullRequestChecksPopover({
  * What a checks popover lists: the rollup's headline, its counts, then every check. Shared by
  * every popover that opens on checks, whatever its trigger.
  */
-export function PullRequestChecksDetails({
+function PullRequestChecksDetails({
   checksState,
   checks,
   stale = false,

@@ -1037,12 +1037,7 @@ it.effect("lists watch tools only to threads that are not delegated children", (
 
       const parentTools = yield* listedTools("parentToken");
       const childTools = yield* listedTools("childToken");
-      const watchTools = [
-        "watch_pull_request",
-        "unwatch_pull_request",
-        "watch_workflow_run",
-        "unwatch_workflow_run",
-      ];
+      const watchTools = ["watch_pull_request", "unwatch_pull_request"];
       expect(parentTools).toEqual(expect.arrayContaining(["link_pull_request", ...watchTools]));
       expect(childTools).toContain("link_pull_request");
       expect(childTools.filter((tool) => watchTools.includes(tool))).toEqual([]);

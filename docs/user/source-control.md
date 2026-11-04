@@ -328,14 +328,6 @@ watch already reported; unlinking the pull request clears that. Subagents cannot
 it yourself, use the row menu in the **Linked pull requests** panel. In the thread details card, a
 watched pull request shows an eye; click it to stop watching.
 
-Ask the agent to wait on a GitHub Actions run, such as CI, a release, or a deploy, and it calls
-`watch_workflow_run` instead of running a watcher in its shell. The server checks the run every
-minute and wakes the agent once when it completes, naming each job that failed, was cancelled, or
-was skipped. Watching ends when the run completes, after six hours, after 8 failed reads in a row,
-or when you press Stop on the thread.
-Marking Done or archiving the thread also ends it. Subagents cannot watch runs. On web and desktop,
-click the run's dot in the thread's background-work banner to see each job.
-
 A watched thread counts as working between wakes, so it stays in the **Working** section and does
 not get marked Done automatically. Agents stop watching when they hand the work back to you, and the thread then
 returns to your inbox.

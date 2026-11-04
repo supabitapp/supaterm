@@ -1,5 +1,4 @@
 import type {
-  ThreadWorkflowRunWatch,
   OrchestrationV2PendingBackgroundTask,
   OrchestrationV2ProviderThread,
   OrchestrationV2Run,
@@ -229,15 +228,11 @@ export function pendingBackgroundTurnItems<Item extends PendingBackgroundWorkTur
   );
 }
 
-const WORKFLOW_RUN_WATCH_TASK_PREFIX = "workflow-run-watch:";
 const PULL_REQUEST_WATCH_TASK_PREFIX = "pull-request-watch:";
 
-/** Supaterm's own pull request and CI watches, which print no output. */
+/** Supaterm's own pull request watches, which print no output. */
 export function isWatchTaskId(taskId: string): boolean {
-  return (
-    taskId.startsWith(WORKFLOW_RUN_WATCH_TASK_PREFIX) ||
-    taskId.startsWith(PULL_REQUEST_WATCH_TASK_PREFIX)
-  );
+  return taskId.startsWith(PULL_REQUEST_WATCH_TASK_PREFIX);
 }
 
 /**
@@ -255,7 +250,6 @@ export function derivePendingBackgroundWork(input: {
   /** Excludes rolled-back runs; optional only when the caller already filtered them, as SQL shell reads do. */
   readonly runs?: ReadonlyArray<PendingBackgroundWorkRun>;
   readonly pullRequests?: ReadonlyArray<PendingBackgroundWorkPullRequest> | undefined;
-  readonly workflowRunWatches?: ReadonlyArray<ThreadWorkflowRunWatch> | undefined;
 }): ReadonlyArray<PendingBackgroundWorkTask> {
   const hasActiveRun =
     input.hasActiveRun ??
@@ -267,7 +261,7 @@ export function derivePendingBackgroundWork(input: {
     return [];
   }
   if (input.latestRun == null) {
-    return watchTasks(input);
+    return pullRequestWatchTasks(input.pullRequests);
   }
   if (!isLatestRunSettledForBackgroundWait(input.latestRun)) {
     return [];
@@ -306,22 +300,9 @@ export function derivePendingBackgroundWork(input: {
     byTaskId.set(taskId, pendingTaskFromTurnItem(taskId, item));
   }
 
-  for (const task of watchTasks(input)) byTaskId.set(task.taskId, task);
+  for (const task of pullRequestWatchTasks(input.pullRequests)) byTaskId.set(task.taskId, task);
 
   return Array.from(byTaskId.values());
-}
-
-function watchTasks(input: {
-  readonly pullRequests?: ReadonlyArray<PendingBackgroundWorkPullRequest> | undefined;
-  readonly workflowRunWatches?: ReadonlyArray<ThreadWorkflowRunWatch> | undefined;
-}): Array<PendingBackgroundWorkTask> {
-  const runWatches = (input.workflowRunWatches ?? []).map((watch) => ({
-    taskId: `${WORKFLOW_RUN_WATCH_TASK_PREFIX}${watch.host}/${watch.repository}#${watch.runId}`,
-    description: `Watching ${watch.name} run`,
-    kind: "monitor" as const,
-    awaited: true as const,
-  }));
-  return [...pullRequestWatchTasks(input.pullRequests), ...runWatches];
 }
 
 function pullRequestWatchTasks(

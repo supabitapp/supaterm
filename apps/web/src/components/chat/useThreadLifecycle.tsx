@@ -1,4 +1,4 @@
-import type { EnvironmentThreadShell, ThreadStructure } from "@supaterm/client-runtime/state/shell";
+import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import type { ComposerThreadTarget } from "../../composerDraftStore";
 import type { ComposerHandleRef } from "../../composerHandleContext";
 import {
@@ -96,7 +96,6 @@ interface ThreadLifecycleInput {
   readonly activeLatestRun: EnvironmentThreadShell["latestRun"];
   readonly activeProjectCwd: string | null;
   readonly serverConfig: EnvironmentPresentation["serverConfig"] | null;
-  readonly serverProjection: ThreadStructure | null;
   readonly runtimeMode: RuntimeMode;
   readonly isWorking: boolean;
   readonly pendingBackgroundTasks: Parameters<typeof backgroundWorkBannerItem>[0]["tasks"];
@@ -107,7 +106,6 @@ interface ThreadLifecycleInput {
     readonly currentBranch: string;
   } | null;
   readonly gitStatusQuery: { readonly refresh: () => void };
-  readonly backgroundWorkChecksHandle: ReturnType<typeof PopoverCreateHandle>;
   readonly composerRef: ComposerHandleRef;
   readonly composerDraftTarget: ComposerThreadTarget;
   readonly sendInFlightRef: { current: boolean };
@@ -139,7 +137,6 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     activeLatestRun,
     activeProjectCwd,
     serverConfig,
-    serverProjection,
     runtimeMode,
     isWorking,
     pendingBackgroundTasks,
@@ -147,7 +144,6 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     activePendingUserInput,
     localCheckoutBranchMismatch,
     gitStatusQuery,
-    backgroundWorkChecksHandle,
     composerRef,
     composerDraftTarget,
     sendInFlightRef,
@@ -524,21 +520,12 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
           onForceStop: () => void forceStop.forceStopThread(activeThread.id, runStop.runId),
         })
       : null;
-  // One watched run colors the dot; with more, no one run speaks for the banner.
-  const backgroundWorkWatches = serverProjection?.thread.workflowRunWatches ?? [];
   const backgroundWorkBanner = activeThread
     ? backgroundWorkBannerItem({
         environmentId: activeThread.environmentId,
         threadId: activeThread.id,
-        threadRef: activeThreadRef,
         tasks: activeBackgroundTasks,
         outputHandle: backgroundTaskOutputHandle,
-        watchedRun: {
-          run: backgroundWorkWatches.length === 1 ? backgroundWorkWatches[0]! : null,
-          environmentId: activeThread.environmentId,
-          projectId: activeThread.projectId,
-          handle: backgroundWorkChecksHandle,
-        },
         stopDisabled: !canOperateThread || isStoppingBackgroundWork,
         stopping: isStoppingBackgroundWork,
         onStop: handleStopBackgroundWorkStable,

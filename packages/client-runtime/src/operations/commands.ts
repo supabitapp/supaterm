@@ -839,16 +839,6 @@ export const interruptThreadTurn = Effect.fn("EnvironmentCommands.interruptThrea
           watching: false,
         });
       }
-      for (const watch of projection.thread.workflowRunWatches ?? []) {
-        result = yield* dispatch({
-          type: "thread.workflow-run.unwatch",
-          commandId: yield* allocateCommandId(result.sequence === 0 ? input : {}),
-          threadId: input.threadId,
-          host: watch.host,
-          repository: watch.repository,
-          runId: watch.runId,
-        });
-      }
       return result;
     }
   }

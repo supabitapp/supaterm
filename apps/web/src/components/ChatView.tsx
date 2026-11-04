@@ -1119,7 +1119,6 @@ export default function ChatView(props: ChatViewProps) {
   const rightPanelMaximized = canMaximizeRightPanel && rightPanelState.maximized === true;
   const inlineRightPanelOwnsTitleBar = rightPanelOpen && !shouldUsePlanSidebarSheet;
   const [threadPanelPopoverHandle] = useState(PopoverCreateHandle);
-  const [backgroundWorkChecksHandle] = useState(PopoverCreateHandle);
   const [chatCanvasStore] = useState(createChatCanvasStore);
 
   const latestRunSettled = isLatestRunSettled(activeLatestRun, activeRuntime);
@@ -2548,7 +2547,6 @@ export default function ChatView(props: ChatViewProps) {
     activeLatestRun,
     activeProjectCwd,
     serverConfig,
-    serverProjection,
     runtimeMode,
     isWorking,
     pendingBackgroundTasks,
@@ -2556,7 +2554,6 @@ export default function ChatView(props: ChatViewProps) {
     activePendingUserInput,
     localCheckoutBranchMismatch,
     gitStatusQuery,
-    backgroundWorkChecksHandle,
     composerRef,
     composerDraftTarget,
     sendInFlightRef,

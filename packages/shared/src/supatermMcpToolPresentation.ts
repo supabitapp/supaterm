@@ -62,8 +62,6 @@ export type SupatermMcpToolSummaryAction =
   | "list-prs"
   | "watch-pr"
   | "unwatch-pr"
-  | "watch-run"
-  | "unwatch-run"
   | "write-pr-guides"
   | "read-pr-guide"
   | "browser"
@@ -123,16 +121,6 @@ const SUPATERM_MCP_TOOLS: Readonly<Record<string, SupatermMcpToolDefinition>> = 
   unwatch_pull_request: tool(
     ["Stop watching", "Unwatching", "Stopped watching", "a pull request"],
     "unwatch-pr",
-    "pull-request",
-  ),
-  watch_workflow_run: tool(
-    ["Watch", "Watching", "Watching", "a workflow run"],
-    "watch-run",
-    "pull-request",
-  ),
-  unwatch_workflow_run: tool(
-    ["Stop watching", "Stopping watching", "Stopped watching", "a workflow run"],
-    "unwatch-run",
     "pull-request",
   ),
   write_pull_request_guides: tool(
