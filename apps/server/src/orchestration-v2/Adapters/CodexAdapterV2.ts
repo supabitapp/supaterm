@@ -1052,36 +1052,43 @@ const readCodexThreadHistoryMetadata = Effect.fn("CodexAdapterV2.readThreadHisto
   },
 );
 
-export const resolveCodexRollbackTurnCount = Effect.fn("CodexAdapterV2.resolveRollbackTurnCount")(
+export const resolveCodexRollbackTarget = Effect.fn("CodexAdapterV2.resolveRollbackTurnCount")(
   function* (input: ProviderAdapter.ProviderAdapterV2RollbackThreadInput) {
     const providerTurns = input.providerThreadTurns;
-    switch (input.target.type) {
-      case "thread_start":
-        return providerTurns.filter(isTerminalProviderTurn).length;
-      case "provider_turn": {
-        if (input.target.providerTurn.providerThreadId !== input.providerThread.id) {
-          return yield* new ProviderAdapter.ProviderAdapterRollbackThreadError({
-            driver: CODEX_PROVIDER,
-            providerThreadId: input.providerThread.id,
-            cause: `Cannot roll back Codex thread ${input.providerThread.id} to provider turn ${input.target.providerTurn.id}: target turn belongs to provider thread ${input.target.providerTurn.providerThreadId}.`,
-          });
-        }
+    const target = input.target;
+    let boundaryOrdinal: number | undefined;
+    if (target.type === "provider_turn") {
+      if (target.providerTurn.providerThreadId !== input.providerThread.id) {
+        return yield* new ProviderAdapter.ProviderAdapterRollbackThreadError({
+          driver: CODEX_PROVIDER,
+          providerThreadId: input.providerThread.id,
+          cause: `Cannot roll back Codex thread ${input.providerThread.id} to provider turn ${target.providerTurn.id}: target turn belongs to provider thread ${target.providerTurn.providerThreadId}.`,
+        });
+      }
 
-        const rollbackTurnCount = countTerminalTurnsAfterBoundary(
-          providerTurns,
-          input.target.providerTurn.id,
-        );
-        if (rollbackTurnCount === null) {
-          return yield* new ProviderAdapter.ProviderAdapterRollbackThreadError({
-            driver: CODEX_PROVIDER,
-            providerThreadId: input.providerThread.id,
-            cause: `Cannot roll back Codex thread ${input.providerThread.id} to provider turn ${input.target.providerTurn.id}: target turn was not found in durable provider turn history.`,
-          });
-        }
+      const boundary = providerTurns.find((turn) => turn.id === target.providerTurn.id);
+      if (boundary === undefined) {
+        return yield* new ProviderAdapter.ProviderAdapterRollbackThreadError({
+          driver: CODEX_PROVIDER,
+          providerThreadId: input.providerThread.id,
+          cause: `Cannot roll back Codex thread ${input.providerThread.id} to provider turn ${target.providerTurn.id}: target turn was not found in durable provider turn history.`,
+        });
+      }
 
-        return rollbackTurnCount;
+      boundaryOrdinal = boundary.ordinal;
+    }
+    const removed = new Set<string>();
+    const retained = new Set<string>();
+    for (const turn of providerTurns) {
+      const nativeId = turn.nativeTurnRef?.nativeId;
+      if (nativeId === undefined || nativeId === null) continue;
+      if (boundaryOrdinal !== undefined && turn.ordinal <= boundaryOrdinal) {
+        retained.add(nativeId);
+      } else if (isTerminalProviderTurn(turn)) {
+        removed.add(nativeId);
       }
     }
+    return { removed, retained };
   },
 );
 
@@ -7758,12 +7765,12 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
           rollbackThread: Effect.fn("CodexAdapterV2.rollbackThread")(
             function* (threadInput) {
               const threadId = yield* getNativeThreadId(threadInput.providerThread);
-              const numTurns = yield* resolveCodexRollbackTurnCount(threadInput);
+              const target = yield* resolveCodexRollbackTarget(threadInput);
               const nativeConversationHeadRef =
                 threadInput.target.type === "provider_turn"
                   ? threadInput.target.providerTurn.nativeTurnRef
                   : null;
-              if (numTurns === 0) {
+              if (target.removed.size === 0) {
                 return {
                   providerThread: {
                     ...threadInput.providerThread,
@@ -7800,7 +7807,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                 });
               }
               const response = yield* ensureInitialized.pipe(
-                Effect.andThen(revertCodexThread(client, threadId, numTurns)),
+                Effect.andThen(revertCodexThread(client, threadId, target)),
               );
               turnTokenUsageByThread.delete(threadId);
               return {

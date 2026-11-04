@@ -6,9 +6,12 @@ import * as Effect from "effect/Effect";
 export const revertCodexThread = Effect.fn("revertCodexThread")(function* (
   client: Pick<CodexClient.CodexAppServerClient["Service"], "request">,
   threadId: string,
-  numTurns: number,
+  target:
+    | number
+    | { readonly removed: ReadonlySet<string>; readonly retained: ReadonlySet<string> },
 ) {
-  let remaining = numTurns;
+  const boundary = typeof target === "number" ? undefined : target;
+  let remaining = typeof target === "number" ? target : target.removed.size;
   let beforeTurnId: string | undefined;
   let cursor: string | null = null;
   const visited = new Set<string | null>();
@@ -24,13 +27,19 @@ export const revertCodexThread = Effect.fn("revertCodexThread")(function* (
     const page: CodexSchema.V2ThreadTurnsListResponse = yield* client.request("thread/turns/list", {
       threadId,
       cursor,
-      limit: Math.min(remaining, 100),
+      limit: boundary !== undefined && cursor !== null ? 100 : Math.min(remaining, 100),
       sortDirection: "desc",
       itemsView: "summary",
     });
     for (const turn of page.data) {
-      beforeTurnId = turn.id;
-      if (--remaining === 0) break;
+      if (boundary?.retained.has(turn.id)) {
+        remaining = 0;
+        break;
+      }
+      if (boundary === undefined || boundary.removed.has(turn.id)) {
+        beforeTurnId = turn.id;
+        if (--remaining === 0) break;
+      }
     }
     cursor = page.nextCursor ?? null;
     if (cursor === null) break;

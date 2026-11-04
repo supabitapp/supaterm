@@ -104,6 +104,7 @@ export function makeMcpAppRequests(options: {
       );
     },
     downloadFile: async (files) => {
+      const { environmentId, input } = scope();
       if (!(await options.confirmDownload(files))) {
         throw new McpAppHostRefusal("Declined by the user.");
       }
@@ -113,7 +114,6 @@ export function makeMcpAppRequests(options: {
         if (file._tag === "embedded") {
           bytes = file.bytes;
         } else {
-          const { environmentId, input } = scope();
           const read = commandValue(
             await options
               .commands()

@@ -72,10 +72,49 @@ it.effect("finds the revert boundary across pages of newest-first turns", () =>
   ),
 );
 
-it.effect("rejects repeated cursors instead of looping or reverting incomplete history", () =>
+it.effect("finds the oldest surviving removed ID without crossing retained history", () =>
   Effect.gen(function* () {
     const client = yield* CodexClient.CodexAppServerClient;
-    const result = yield* revertCodexThread(client, "thread", 3).pipe(Effect.flip);
+    const result = yield* revertCodexThread(client, "thread", {
+      removed: new Set(["missing", "older", "newer"]),
+      retained: new Set(["kept"]),
+    }).pipe(Effect.flip);
+    assert.equal(result.message, "boundary reached");
+  }).pipe(
+    Effect.provide(
+      CodexReplay.layerReplay({
+        provider: "codex",
+        protocol: "codex.app-server",
+        version: "test",
+        scenario: "revert-surviving-ids",
+        entries: [
+          ...page(1, null, 3, ["unknown", "newer"], "older-page"),
+          ...page(2, "older-page", 100, ["older", "kept"], "unneeded-page"),
+          {
+            type: "expect_outbound",
+            frame: {
+              id: 3,
+              method: "thread/revert",
+              params: { threadId: "thread", beforeTurnId: "older" },
+            },
+          },
+          {
+            type: "emit_inbound",
+            frame: { id: 3, error: { code: -32603, message: "boundary reached" } },
+          },
+        ],
+      }),
+    ),
+    Effect.scoped,
+  ),
+);
+
+it.effect.each(["count", "ids"] as const)("rejects repeated cursors in %s mode", (mode) =>
+  Effect.gen(function* () {
+    const client = yield* CodexClient.CodexAppServerClient;
+    const target =
+      mode === "count" ? 3 : { removed: new Set(["missing"]), retained: new Set<string>() };
+    const result = yield* revertCodexThread(client, "thread", target).pipe(Effect.flip);
     assert.equal(result.message, "Thread history pagination repeated a cursor.");
   }).pipe(
     Effect.provide(
@@ -84,7 +123,10 @@ it.effect("rejects repeated cursors instead of looping or reverting incomplete h
         protocol: "codex.app-server",
         version: "test",
         scenario: "revert-loop",
-        entries: [...page(1, null, 3, ["newest"], "again"), ...page(2, "again", 2, [], "again")],
+        entries: [
+          ...page(1, null, mode === "count" ? 3 : 1, ["newest"], "again"),
+          ...page(2, "again", mode === "count" ? 2 : 100, [], "again"),
+        ],
       }),
     ),
     Effect.scoped,
