@@ -2295,7 +2295,7 @@ it.effect("narrows read-only repositories only when listing everything across pr
   }),
 );
 
-it.effect("lists a pull request once when a renamed repository's old name still answers", () =>
+it.effect("lists a renamed repository's pull requests only under its new name", () =>
   Effect.gen(function* () {
     const moved = {
       ...changeRequest(9889, "2026-07-02T00:00:00Z"),
@@ -2316,11 +2316,22 @@ it.effect("lists a pull request once when a renamed repository's old name still 
           listChangeRequestsAcross: () =>
             Effect.succeed({
               items: [{ ...moved, repository: "earendil-works/pi" }],
-              truncated: false,
+              truncated: true,
               unresolved: ["badlogic/pi-mono"],
             }),
+          // The old name reads further back than the new name's first page reaches.
           listChangeRequests: () =>
-            Effect.succeed({ items: [moved], truncated: false, continues: true }),
+            Effect.succeed({
+              items: [
+                moved,
+                {
+                  ...changeRequest(9001, "2026-07-01T00:00:00Z"),
+                  url: "https://github.com/earendil-works/pi/pull/9001",
+                },
+              ],
+              truncated: false,
+              continues: true,
+            }),
         }),
       ],
     });

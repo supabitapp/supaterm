@@ -1623,17 +1623,19 @@ export const make = Effect.gen(function* () {
     }
 
     // A renamed repository still answers for its old name, so a project whose remote kept it
-    // lists the same pull requests as a project under the new name, whose own URLs name it.
-    const listsUnderOwnName = (entry: PullRequestListEntry) =>
-      entry.url.toLowerCase().includes(`/${entry.repository.toLowerCase()}/`);
-    const entries = batches.flatMap((batch) => batch.entries);
-    const ownNamed = new Set(entries.filter(listsUnderOwnName).map((entry) => entry.url));
+    // lists the pull requests of a project under the new name, which its URLs name instead.
+    const names = (entry: PullRequestListEntry, repository: string) =>
+      entry.url.toLowerCase().includes(`/${repository.toLowerCase()}/`);
+    const listedUnderNewName = (entry: PullRequestListEntry) =>
+      !names(entry, entry.repository) &&
+      projects.some(({ host, repository }) => host === entry.host && names(entry, repository));
 
     return {
       viewers: viewers as PullRequestListResult["viewers"],
       providers,
-      entries: entries
-        .filter((entry) => listsUnderOwnName(entry) || !ownNamed.has(entry.url))
+      entries: batches
+        .flatMap((batch) => batch.entries)
+        .filter((entry) => !listedUnderNewName(entry))
         .toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
       errors: [...unreadable, ...batches.flatMap((batch) => batch.errors)],
       truncated: batches.some((batch) => batch.truncated),
