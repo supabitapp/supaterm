@@ -399,6 +399,7 @@ interface PointerMotion {
 
 // Chromium acknowledges pointer input only after a page frame, so motion waiting behind it
 // collapses to the latest move and the summed wheel, as clients collapse it per frame.
+// Splitting by point or direction would let touch pans and jittery trackpads queue again.
 const pointerMotionOf = (message: Record<string, unknown>): PointerMotion | null => {
   if (message.type === "wheel") return { move: null, wheel: message };
   const move =
