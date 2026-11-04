@@ -2049,6 +2049,36 @@ layer("GitHubPullRequestApi.layer", (it) => {
       expect(batch.items.map((item) => item.number)).toEqual([1, 2]);
       expect(searchOfCall(1)).toBeUndefined();
       assert.isFalse(batch.continues);
+
+      mockedExecute.mockReturnValueOnce(Effect.succeed(emptySearch()));
+      mockedExecute.mockReturnValueOnce(
+        Effect.succeed(
+          output(
+            listedPullRequests(2, 1, (number) =>
+              number === 1
+                ? {
+                    author: {
+                      __typename: "User",
+                      login: "bilal",
+                      avatarUrl: "https://avatars/bilal",
+                      name: null,
+                    },
+                  }
+                : { reviewRequests: [{ login: "bilal" }] },
+            ),
+          ),
+        ),
+      );
+      const involved = yield* cli.listPullRequests({
+        cwd: "/w",
+        repository: "acme/web",
+        host: "github.com",
+        state: "open",
+        involvement: "involved",
+        viewer: "bilal",
+        limit: 10,
+      });
+      expect(involved.items.map((item) => item.number)).toEqual([1]);
     }),
   );
 

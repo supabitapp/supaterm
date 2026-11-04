@@ -1624,11 +1624,17 @@ export const make = Effect.gen(function* () {
 
     // A renamed repository still answers for its old name, so a project whose remote kept it
     // lists the pull requests of a project under the new name, which its URLs name instead.
-    const names = (entry: PullRequestListEntry, repository: string) =>
-      entry.url.toLowerCase().includes(`/${repository.toLowerCase()}/`);
-    const listedUnderNewName = (entry: PullRequestListEntry) =>
-      !names(entry, entry.repository) &&
-      projects.some(({ host, repository }) => host === entry.host && names(entry, repository));
+    const listedRepositories = new Set(
+      projects.map(({ host, repository }) => `${host}/${repository.toLowerCase()}`),
+    );
+    const listedUnderNewName = (entry: PullRequestListEntry) => {
+      const named = sourceControlDefinitions.parseChangeRequestUrl(entry.url)?.link.repository;
+      return (
+        named !== undefined &&
+        named !== entry.repository.toLowerCase() &&
+        listedRepositories.has(`${entry.host}/${named}`)
+      );
+    };
 
     return {
       viewers: viewers as PullRequestListResult["viewers"],

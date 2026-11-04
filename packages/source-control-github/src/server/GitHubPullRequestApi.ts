@@ -864,13 +864,15 @@ function matchesUnsortedListing(
   const matchesState = input.state === "all" || item.state === input.state;
   const viewer = input.viewer.toLowerCase();
   const authored = item.author?.login.toLowerCase() === viewer;
-  const requested = item.reviewRequestLogins.some((login) => login.toLowerCase() === viewer);
-  // A row carries no assignees, mentions or commenters, so `involved` is narrower than `involves:`.
+  // A row names no assignees, mentions or commenters, so of what `involves:` matches, only
+  // authorship can be checked here.
   const matchesInvolvement: Record<GitHubListInvolvement, boolean> = {
     all: true,
     authored,
-    reviewing: item.hasTeamReviewRequest || requested,
-    involved: authored || requested,
+    involved: authored,
+    reviewing:
+      item.hasTeamReviewRequest ||
+      item.reviewRequestLogins.some((login) => login.toLowerCase() === viewer),
   };
   return (
     matchesState &&
