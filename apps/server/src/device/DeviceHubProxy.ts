@@ -16,6 +16,7 @@ import {
   HttpServerResponse,
 } from "effect/http";
 import * as Socket from "effect/socket/Socket";
+import * as NodeHttpServerRequest from "@effect/platform-node/NodeHttpServerRequest";
 import * as NodeSocket from "@effect/platform-node/NodeSocket";
 
 import { authenticateMediaRequest } from "../auth/http.ts";
@@ -82,6 +83,10 @@ const forwardHeaders = (request: HttpServerRequest.HttpServerRequest, origin: st
   return headers;
 };
 
+const VIEWER_BACKLOG_BYTES = 64 * 1024;
+const VIEWER_STALL_TIMEOUT = "10 seconds";
+
+// `ws` sockets pause, so a stalled viewer stops reads from the hub and serve-emu skips frames.
 // Effect drops its listeners before closing a socket that is still connecting, and `ws` then
 // emits an `error` nobody handles, which exits the server.
 export const upstreamWebSocketConstructor = Layer.effect(
@@ -94,13 +99,27 @@ export const upstreamWebSocketConstructor = Layer.effect(
       return socket;
     };
   }),
-).pipe(Layer.provide(NodeSocket.layerWebSocketConstructor));
+).pipe(Layer.provide(NodeSocket.layerWebSocketConstructorWS));
 
 const proxyWebSocket = Effect.fn("DeviceHubProxy.proxyWebSocket")(function* (
   request: HttpServerRequest.HttpServerRequest,
   upstreamUrl: string,
   protocols: ReadonlyArray<string> = [],
 ) {
+  const incoming = NodeHttpServerRequest.toIncomingMessage(request);
+  // Video doesn't compress, and deflate queues frames where `writableLength` can't see them.
+  delete incoming.headers["sec-websocket-extensions"];
+  const viewer = incoming.socket;
+  // Checks inside the callback, so a drain just before subscribing cannot be missed.
+  const viewerDrained = Effect.callback<void>((resume) => {
+    if (viewer.writableLength <= VIEWER_BACKLOG_BYTES) {
+      resume(Effect.void);
+      return;
+    }
+    const drained = () => resume(Effect.void);
+    viewer.once("drain", drained);
+    return Effect.sync(() => viewer.off("drain", drained));
+  });
   const client = yield* request.upgrade;
   const upstream = yield* Socket.makeWebSocket(upstreamUrl, {
     openTimeout: "10 seconds",
@@ -110,10 +129,24 @@ const proxyWebSocket = Effect.fn("DeviceHubProxy.proxyWebSocket")(function* (
     Effect.gen(function* () {
       const writeToClient = yield* client.writer;
       const writeToUpstream = yield* upstream.writer;
+      // A viewer that never drains would keep serve-emu resetting the device's video for every viewer.
+      const viewerCaughtUp = Effect.suspend(() =>
+        viewer.writableLength <= VIEWER_BACKLOG_BYTES
+          ? Effect.void
+          : viewerDrained.pipe(
+              Effect.timeoutOrElse({
+                duration: VIEWER_STALL_TIMEOUT,
+                orElse: () =>
+                  writeToClient
+                    .write(new Socket.CloseEvent(1013, "viewer too slow"))
+                    .pipe(Effect.andThen(Effect.interrupt)),
+              }),
+            ),
+      );
       // Whichever side closes first ends the other via scope teardown: a close
       // fails the pull with a SocketError, which loses the race.
       return yield* Effect.raceFirst(
-        pumpFrames(upstream, writeToClient),
+        pumpFrames(upstream, writeToClient, viewerCaughtUp),
         pumpFrames(client, writeToUpstream),
       );
     }),
@@ -123,9 +156,14 @@ const proxyWebSocket = Effect.fn("DeviceHubProxy.proxyWebSocket")(function* (
 
 const pumpFrames =
   /* Frame pumping runs continuously; a span per frame stream adds no diagnostic value. */
-  Effect.fnUntraced(function* (source: Socket.Socket, sink: Socket.Writer) {
+  Effect.fnUntraced(function* (
+    source: Socket.Socket,
+    sink: Socket.Writer,
+    sinkReady: Effect.Effect<void, Socket.SocketError> = Effect.void,
+  ) {
     const { pull } = yield* source.reader;
     while (true) {
+      yield* sinkReady;
       yield* sink.writeAll(yield* pull);
     }
   });
