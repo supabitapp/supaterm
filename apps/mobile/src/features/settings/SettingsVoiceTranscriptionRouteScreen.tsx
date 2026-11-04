@@ -15,7 +15,7 @@ import { ScreenScrollView as ScrollView } from "../../components/ui/ScreenScroll
 import { serverEnvironment } from "../../state/server";
 import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
 import {
-  AndroidSettingsEnvironmentFilter,
+  useSettingsEnvironmentMenu,
   SettingsEnvironmentFilterHeader,
 } from "./components/SettingsEnvironmentFilterHeader";
 import { ListChoiceRow as SettingsChoiceRow } from "../../components/ui/ListChoiceRow";
@@ -38,11 +38,12 @@ function providerStatus(provider: ServerProvider): string | null {
 /** Chooses whose account transcribes voice input on each environment, for every device. */
 export function SettingsVoiceTranscriptionRouteScreen() {
   const insets = useSafeAreaInsets();
+  const environmentMenu = useSettingsEnvironmentMenu();
   const { selectedTargets } = useSettingsEnvironmentFilter();
   return (
     <>
       <SettingsEnvironmentFilterHeader />
-      <SettingsScreen title="Voice transcription" trailing={<AndroidSettingsEnvironmentFilter />}>
+      <SettingsScreen title="Voice transcription" menus={[environmentMenu]}>
         <ScrollView
           contentInsetAdjustmentBehavior="automatic"
           showsVerticalScrollIndicator={false}

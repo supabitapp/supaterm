@@ -1,16 +1,17 @@
 import { useNavigation } from "@react-navigation/native";
-import { useEffect, useRef } from "react";
-import { BackHandler, Keyboard, View, type TextInputInstance } from "react-native";
-import { SearchField } from "../../components/ui/SearchField";
-import { useToolbarLayout } from "../../components/ui/useToolbarLayout";
+import { useEffect } from "react";
+import { BackHandler, Keyboard } from "react-native";
+import { AppBar } from "../../components/ui/AppBar";
 import { useHardwareKeyboardCommand } from "../keyboard/hardwareKeyboardCommands";
-import { WorkspaceFilterButton } from "../workspace/WorkspaceFilterButton";
-import { WorkspaceListToolbarRow } from "../workspace/WorkspaceListToolbarRow";
+import { WorkspaceBrandTitle } from "../workspace/WorkspaceBrandTitle";
 import { useWorkspaceTabs } from "../workspace/WorkspaceTabsContext";
-import type { WorkspaceFilterMenu } from "../workspace/workspace-filter-menu";
+import {
+  type WorkspaceFilterMenu,
+  workspaceFilterAppBarMenu,
+} from "../workspace/workspace-filter-menu";
 import { openSettings } from "../settings/settings-navigation";
 
-/** PR search shares the thread list's Android header row. */
+/** PR search shares the thread list's Android header. */
 export function PullRequestToolbar(props: {
   readonly filters: WorkspaceFilterMenu | null;
   readonly onRequestVisibility?: () => void;
@@ -21,7 +22,6 @@ export function PullRequestToolbar(props: {
   const { dispatch, getScrollOffset, recordScrollOffset, isTabActive } = workspace;
   const { onRequestVisibility } = props;
   const tab = workspace.state.tabs.pullRequests;
-  const input = useRef<TextInputInstance>(null);
   const searching = tab.searchMode !== "resting";
   const openSearch = () => {
     onRequestVisibility?.();
@@ -31,7 +31,6 @@ export function PullRequestToolbar(props: {
       offset: getScrollOffset("pullRequests"),
     });
     dispatch({ type: "search", tab: "pullRequests" });
-    input.current?.focus();
     return true;
   };
   useHardwareKeyboardCommand("focusSearch", openSearch);
@@ -55,28 +54,25 @@ export function PullRequestToolbar(props: {
     });
     return () => subscription.remove();
   }, [searching, closeSearch, navigation, isTabActive]);
-  const { paddingTop, paddingBottom } = useToolbarLayout();
   return (
-    <View className="bg-header px-2" style={{ paddingTop, paddingBottom }}>
-      <WorkspaceListToolbarRow
-        searching={searching}
-        searchField={
-          <SearchField
-            inputRef={input}
-            accessibilityLabel="Search pull requests"
-            clearAccessibilityLabel="Clear search"
-            placeholder="Search pull requests"
-            value={tab.query}
-            onChangeText={(query) => dispatch({ type: "query", tab: "pullRequests", query })}
-          />
-        }
-        onCloseSearch={closeSearch}
-        onOpenSearch={openSearch}
-        searchAccessibilityLabel="Search pull requests"
-        titleAccessibilityLabel="Supaterm, Pull requests"
-        onOpenEnvironments={() => openSettings(navigation, "SettingsEnvironments")}
-        filter={filters ? <WorkspaceFilterButton {...filters} /> : null}
-      />
-    </View>
+    <AppBar
+      title="Supaterm"
+      titleContent={
+        <WorkspaceBrandTitle
+          accessibilityLabel="Supaterm, Pull requests"
+          onOpenEnvironments={() => openSettings(navigation, "SettingsEnvironments")}
+        />
+      }
+      sidebar={false}
+      search={{
+        value: tab.query,
+        onChangeText: (query) => dispatch({ type: "query", tab: "pullRequests", query }),
+        placeholder: "Search pull requests",
+        active: searching,
+        onOpen: openSearch,
+        onClose: closeSearch,
+      }}
+      menus={filters ? [workspaceFilterAppBarMenu(filters)] : undefined}
+    />
   );
 }

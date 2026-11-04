@@ -10,7 +10,7 @@ import { useKeyboardState } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CompactBrandTitle } from "../../components/CompactBrandTitle";
-import { AndroidScreenHeader } from "../../components/ui/AndroidScreenHeader";
+import { AppBar } from "../../components/ui/AppBar";
 import { HeaderItemsWidthContext } from "../../native/header-items-width";
 import { NativeStackScreenOptions } from "../../native/StackHeader";
 import { NativePrimaryColumnContext } from "../../native/v5-workspace-context";
@@ -159,7 +159,9 @@ function WorkspaceRootContent() {
             }}
           />
         ) : (
-          <AndroidScreenHeader
+          <AppBar
+            embedded
+            sidebar={false}
             title="Supaterm"
             titleContent={renderHeaderTitle()}
             actions={[
