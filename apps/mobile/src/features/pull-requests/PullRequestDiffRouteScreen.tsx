@@ -86,7 +86,7 @@ export function PullRequestFileRouteScreen(props: PullRequestFileRouteProps) {
     <View className="flex-1 bg-screen">
       <NativeStackScreenOptions options={{ title, headerTitle: title }} />
       {Platform.OS === "android" ? (
-        <AppBar embedded sidebar={false} title={title} onBack={() => navigation.goBack()} />
+        <AppBar embedded title={title} onBack={() => navigation.goBack()} />
       ) : null}
       <View className="flex-1 items-center justify-center">
         <AppActivityIndicator accessibilityLabel="Loading changes" />
@@ -288,7 +288,6 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
       {Platform.OS === "android" ? (
         <AppBar
           embedded
-          sidebar={false}
           title={title}
           onBack={() => navigation.goBack()}
           trailing={

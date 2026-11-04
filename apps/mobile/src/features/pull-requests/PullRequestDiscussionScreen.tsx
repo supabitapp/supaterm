@@ -172,7 +172,6 @@ function Discussion({
         {Platform.OS === "android" ? (
           <AppBar
             embedded
-            sidebar={false}
             title="Discussion"
             subtitle={`#${params.number}`}
             onBack={() => navigation.goBack()}

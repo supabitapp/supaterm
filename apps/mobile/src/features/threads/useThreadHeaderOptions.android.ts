@@ -8,7 +8,6 @@ export function useThreadHeaderOptions(
     options: { contentStyle: { backgroundColor: props.headerColor } },
 
     optionsVersion: [],
-    sidebar: true,
     fallback: null,
   };
 }

@@ -161,7 +161,6 @@ function WorkspaceRootContent() {
         ) : (
           <AppBar
             embedded
-            sidebar={false}
             title="Supaterm"
             titleContent={renderHeaderTitle()}
             actions={[

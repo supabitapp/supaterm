@@ -56,7 +56,6 @@ import { AppText as Text } from "../../components/ui/AppText";
 import { AppBar } from "../../components/ui/AppBar";
 
 import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
-import { AndroidWorkspaceSidebarButton } from "../layout/workspace-sidebar-toolbar";
 import { useWorkspaceSidebarHeaderItem } from "../layout/useWorkspaceSidebarHeaderItem";
 import { useAndroidWorkspaceBack } from "../workspace/useAndroidWorkspaceNavigation";
 
@@ -443,18 +442,16 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
             unstable_headerSubtitle: connected
               ? params.repository
               : `${params.repository} · Offline`,
-            unstable_headerLeftItems: layout.usesSplitView ? () => [sidebarHeaderItem] : undefined,
+            unstable_headerLeftItems: sidebarHeaderItem ? () => [sidebarHeaderItem] : undefined,
           }}
-          optionsVersion={[layout.usesSplitView, sidebarHeaderItem]}
+          optionsVersion={[sidebarHeaderItem]}
         />
         {Platform.OS === "android" ? (
           <AppBar
             embedded
-            sidebar={false}
             title={`#${params.number}${connected ? "" : " · Offline"}`}
             subtitle={params.repository}
             onBack={layout.usesSplitView ? undefined : returnToList}
-            leading={layout.usesSplitView ? <AndroidWorkspaceSidebarButton /> : undefined}
             actions={[
               ...(permissions.verdicts.length
                 ? [

@@ -466,7 +466,6 @@ function GitOverviewSheetContent(props: GitOverviewSheetProps) {
       ) : (
         <AppBar
           sheet
-          sidebar={false}
           title={currentBranchLabel}
           hideBottomBorder={Platform.OS === "android"}
           subtitle={currentStatusSummary}

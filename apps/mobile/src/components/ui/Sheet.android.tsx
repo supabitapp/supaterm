@@ -23,13 +23,7 @@ export function Sheet(props: SheetProps) {
       <RoutedFormSheetContext value={false}>
         <View collapsable={false} className="absolute inset-0 flex-col-reverse bg-header">
           <ScreenContent>{props.children}</ScreenContent>
-          <AppBar
-            sheet
-            sidebar={false}
-            title={props.title}
-            onBack={() => setIsOpen(false)}
-            hideBottomBorder
-          />
+          <AppBar sheet title={props.title} onBack={() => setIsOpen(false)} hideBottomBorder />
           <View
             pointerEvents="none"
             className="absolute top-1 h-1 w-8 self-center rounded-full bg-header-foreground/40"
