@@ -2511,6 +2511,7 @@ const make = Effect.gen(function* () {
     let framesInFlight = 0;
     let newestCapture = -Infinity;
     let stillNeeded = false;
+    let stillRequestedAt: number | null = null;
     let motion = false;
     const recentFrames: Array<number> = [];
     let screencastParams = Promise.resolve();
@@ -2595,6 +2596,7 @@ const make = Effect.gen(function* () {
     broadcastControl(tab);
     pushFileChooser(tab);
     const pushStill = async () => {
+      stillRequestedAt = Date.now();
       const data = await withCaptureLock(tab, () =>
         ServerBrowserPage.captureViewport(session, { format: "jpeg", quality }),
       ).catch(() => null);
@@ -2615,6 +2617,10 @@ const make = Effect.gen(function* () {
       const capturedAt = frame.metadata.timestamp ?? -Infinity;
       if (capturedAt < newestCapture) stillNeeded = true;
       else newestCapture = capturedAt;
+      // Capturing a still repaints the page, and Chromium sends that repaint too. It shows what
+      // the still shows, so its slot is not held for the viewer, or stills would beget stills.
+      const stillTwin = stillRequestedAt !== null && capturedAt * 1000 >= stillRequestedAt;
+      if (stillTwin) stillRequestedAt = null;
       const arrivedAt = Date.now();
       recentFrames.push(arrivedAt);
       while (recentFrames[0]! < arrivedAt - SCREENCAST_MOTION_WINDOW_MS) recentFrames.shift();
@@ -2644,21 +2650,23 @@ const make = Effect.gen(function* () {
         // Capturing repaints the page, which a scaled screencast would send after the still.
         void screencastParams.then(pushStill);
       }, SCREENCAST_SETTLE_MS);
+      const ack = Effect.promise(() =>
+        sleepUntil(arrivedAt + SCREENCAST_ACK_PACE_MS)
+          .then(() =>
+            session
+              .send("Page.screencastFrameAck", { sessionId: frame.sessionId })
+              .catch(constVoid),
+          )
+          .then(() => sleepUntil(Date.now() + SCREENCAST_ENCODE_ALLOWANCE_MS))
+          .then(() => {
+            framesInFlight -= 1;
+          }),
+      );
+      if (stillTwin) runFork(ack);
       viewer.push({
         _tag: "frame",
         data: Buffer.from(frame.data, "base64"),
-        ack: Effect.promise(() =>
-          sleepUntil(arrivedAt + SCREENCAST_ACK_PACE_MS)
-            .then(() =>
-              session
-                .send("Page.screencastFrameAck", { sessionId: frame.sessionId })
-                .catch(constVoid),
-            )
-            .then(() => sleepUntil(Date.now() + SCREENCAST_ENCODE_ALLOWANCE_MS))
-            .then(() => {
-              framesInFlight -= 1;
-            }),
-        ),
+        ack: stillTwin ? Effect.void : ack,
       });
     });
     void broadcastViewport(tab).catch(constVoid);

@@ -797,8 +797,8 @@ it.effect("a viewer gets a settle still only when it may lack the page's final l
       );
       const painted = (items: ReadonlyArray<{ readonly data: Uint8Array }>) =>
         items.map((item) => Buffer.from(item.data).toString());
-      let captured = 0;
-      const screencastFrame = (data: string, timestamp = ++captured) =>
+      const capturedNow = () => vi.getMockedSystemTime()!.getTime() / 1000;
+      const screencastFrame = (data: string, timestamp = capturedNow()) =>
         session.emit("Page.screencastFrame", {
           data: Buffer.from(data).toString("base64"),
           metadata: { timestamp },
@@ -808,7 +808,17 @@ it.effect("a viewer gets a settle still only when it may lack the page's final l
         Effect.forEach(items, (item) =>
           item.ack.pipe(Effect.forkScoped({ startImmediately: true })),
         );
+      const chromiumAcks = () =>
+        session.send.mock.calls.filter(([method]) => method === "Page.screencastFrameAck").length;
       yield* frames;
+
+      // The still a viewer starts from repaints the page; Chromium's frame of that repaint shows
+      // nothing new, so its slot is released on Chromium's usual pace, not the viewer's.
+      const acked = chromiumAcks();
+      screencastFrame("repaint");
+      yield* advance(200);
+      expect(chromiumAcks()).toBe(acked + 1);
+      expect(painted(yield* frames)).toEqual(["repaint"]);
 
       // Chromium skips a capture only when all three of its unacked frames are out.
       screencastFrame("one");
@@ -829,7 +839,7 @@ it.effect("a viewer gets a settle still only when it may lack the page's final l
       yield* ack([...burst.slice(1), ...settled]);
       yield* advance(200);
       screencastFrame("newer");
-      screencastFrame("older", captured - 1);
+      screencastFrame("older", capturedNow() - 1);
       const reordered = yield* frames;
       yield* advance(200);
       expect(painted(yield* frames)).toEqual(["frame"]);
