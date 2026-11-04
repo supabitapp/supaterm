@@ -18,6 +18,10 @@ import { useClientSettings } from "../../hooks/useSettings";
 import { useNowMinute } from "../../hooks/useNowMinute";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { useThreadRouteRef } from "../../hooks/useThreadRouteTarget";
+import {
+  readVoiceInputActivity,
+  subscribeVoiceInputActivity,
+} from "../../voice/voiceInputActivity";
 import { useSidebarThreadShells } from "../../state/entities";
 import { useThreadJumpTargets } from "../sidebar/threadJumpTargets";
 import { environmentPresentations } from "../../state/presentation";
@@ -81,6 +85,7 @@ function ActiveCodexMicroCoordinator({ bridge }: { readonly bridge: DesktopCodex
   const routeThreadKey = routeThreadRef === null ? null : scopedThreadKey(routeThreadRef);
   const windowFocused = useSyncExternalStore(subscribeWindowFocus, readWindowFocus);
   const nowMinute = useNowMinute();
+  const voiceActivity = useSyncExternalStore(subscribeVoiceInputActivity, readVoiceInputActivity);
 
   const views = buildCodexMicroSlotViews({
     bindings: selectCodexMicroSlotBindings({
@@ -95,14 +100,16 @@ function ActiveCodexMicroCoordinator({ bridge }: { readonly bridge: DesktopCodex
     connectedEnvironmentIds,
   });
   const sentViewsKeyRef = useRef<string | null>(null);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- sends changed slot bindings to the keyboard's lighting over the desktop bridge and to the slot store
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- sends slot bindings and voice activity to the keyboard's lighting over the desktop bridge and publishes slot views
   useEffect(() => {
-    const key = JSON.stringify(views);
+    const key = JSON.stringify({ views, voiceActivity });
     if (key === sentViewsKeyRef.current) return;
     sentViewsKeyRef.current = key;
     publishCodexMicroSlots(views);
-    void bridge.setLighting(buildCodexMicroLightingModel(views)).catch(() => undefined);
-  }, [bridge, views]);
+    void bridge
+      .setLighting(buildCodexMicroLightingModel(views, voiceActivity))
+      .catch(() => undefined);
+  }, [bridge, views, voiceActivity]);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the slots published to the Codex Micro store on unmount
   useEffect(
     () => () => {

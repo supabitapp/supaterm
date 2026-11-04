@@ -239,6 +239,8 @@ const EFFECT_SOLID = 1;
 const EFFECT_SNAKE = 2;
 const EFFECT_BREATH = 4;
 const ANIMATION_SPEED = 0.4;
+const VOICE_COLOR = 0x2e8b57;
+const VOICE_PULSE_SPEED = 0.2;
 
 export interface CodexMicroZoneLighting {
   readonly e: number;
@@ -310,14 +312,20 @@ export function serializeLighting(
   const keys =
     highlightColor === undefined ? ZONE_OFF : zone(EFFECT_SOLID, highlightColor, brightness);
 
-  const ambient =
+  let ambient =
     selectedStatus === "working"
       ? zone(EFFECT_SNAKE, CODEX_MICRO_STATUS_COLORS.working, brightness, ANIMATION_SPEED)
       : keys;
+  if (model.voiceActivity === "recording") {
+    ambient = zone(EFFECT_BREATH, VOICE_COLOR, brightness, VOICE_PULSE_SPEED);
+  } else if (model.voiceActivity === "transcribing") {
+    ambient = zone(EFFECT_SOLID, VOICE_COLOR, brightness);
+  }
   return { rgbcfg: { ambient, keys }, thstatus };
 }
 
 export const EMPTY_LIGHTING_MODEL: CodexMicroLightingModel = {
+  voiceActivity: "idle",
   slots: Array.from({ length: CODEX_MICRO_SLOT_COUNT }, () => ({
     thread: null,
     status: "off",

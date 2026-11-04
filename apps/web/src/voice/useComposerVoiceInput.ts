@@ -27,6 +27,7 @@ import { followKeyHold, type KeyHold, type KeyHoldHandlers } from "./keyHold";
 import { useDiscardOnEscape } from "./useDiscardOnEscape";
 import { useHoldToTalk } from "./useHoldToTalk";
 import { playVoiceInputCue } from "./voiceInputCues";
+import { publishVoiceInputActivity } from "./voiceInputActivity";
 import {
   canRecordVoice,
   readVoiceRecording,
@@ -180,6 +181,7 @@ function createVoiceRuntime(onStateChange: (state: VoiceInputState) => void) {
     readDraft,
     commitDraft: (text, selection) => read().commitPrompt(text, selection),
     onStateChange: (state) => {
+      publishVoiceInputActivity(recorder, state.phase);
       // The microphone opens while permission is asked, before the controller owns it.
       if (state.phase === "idle" || state.phase === "error") recorder.release();
       const cue = voiceInputCue(phase, state.phase);

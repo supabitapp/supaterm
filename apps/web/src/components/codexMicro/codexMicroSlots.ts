@@ -172,8 +172,10 @@ export function buildCodexMicroSlotViews(input: {
 
 export function buildCodexMicroLightingModel(
   views: ReadonlyArray<CodexMicroSlotView>,
+  voiceActivity: CodexMicroLightingModel["voiceActivity"],
 ): CodexMicroLightingModel {
   return {
+    voiceActivity,
     slots: views.map((view) => ({
       thread: view.status === "off" ? null : view.thread,
       status: view.status,

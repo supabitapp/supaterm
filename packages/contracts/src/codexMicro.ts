@@ -286,6 +286,7 @@ const CodexMicroLightingSlot = Schema.Struct({
 export const CODEX_MICRO_SLOT_COUNT = CODEX_MICRO_AGENT_KEYS.length;
 
 export const CodexMicroLightingModel = Schema.Struct({
+  voiceActivity: Schema.Literals(["idle", "recording", "transcribing"]),
   slots: Schema.Array(CodexMicroLightingSlot).check(
     Schema.isMinLength(CODEX_MICRO_SLOT_COUNT),
     Schema.isMaxLength(CODEX_MICRO_SLOT_COUNT),

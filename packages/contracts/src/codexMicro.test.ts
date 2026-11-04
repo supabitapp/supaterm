@@ -84,9 +84,10 @@ describe("CodexMicroLightingModel", () => {
   it("requires exactly one entry per agent key", () => {
     const slot = { thread: null, status: "off", selected: false };
 
-    expect(() => decodeLightingModel({ slots: [slot] })).toThrow();
+    expect(() => decodeLightingModel({ voiceActivity: "idle", slots: [slot] })).toThrow();
     expect(
       decodeLightingModel({
+        voiceActivity: "idle",
         slots: Array.from({ length: 6 }, () => slot),
       }).slots,
     ).toHaveLength(6);

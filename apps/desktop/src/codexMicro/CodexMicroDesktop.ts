@@ -49,7 +49,7 @@ export const install = Effect.gen(function* () {
   if (!codexMicro.available) return;
   yield* CodexMicroIpc.installEventForwarding();
   yield* ipc.handle(CodexMicroIpc.getState);
-  yield* ipc.handle(CodexMicroIpc.setLighting);
+  yield* ipc.handle(yield* CodexMicroIpc.makeSetLighting);
   yield* (yield* DesktopClientSettings.DesktopClientSettings).get.pipe(
     Effect.map(
       Option.match({
