@@ -3859,7 +3859,12 @@ export const ThreadFeed = memo(function ThreadFeed({
 
   return (
     <PresentationSource identifier={fileShareSourceIdentifier} style={{ flex: 1 }}>
-      <View className="flex-1" onLayout={handleViewportLayout}>
+      {/* While the pane tracks a sliding sidebar, rows keep its done width and re-wrap once. */}
+      <View
+        className="flex-1"
+        style={settledPaneWidth !== null ? { width: settledPaneWidth } : undefined}
+        onLayout={handleViewportLayout}
+      >
         <Animated.View
           className="flex-1"
           style={reduceMotion ? { opacity: feedLoading ? 0 : 1 } : feedRevealStyle}

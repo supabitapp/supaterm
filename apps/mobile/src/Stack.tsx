@@ -1029,11 +1029,17 @@ export const RootStack = RootStackConfig.with(function AdaptiveRootStack({ Navig
   return (
     <Navigator
       screenLayout={renderGuardedScreenLayout}
-      screenOptions={({ route }) => {
+      screenOptions={({ route, navigation }) => {
         const statusBarStyle = themeAppearance === "dark" ? "light" : "dark";
         const statusBarOptions = Platform.OS === "ios" ? ({ statusBarStyle } as const) : {};
         return Platform.OS === "android"
-          ? { animation: androidWorkspaceDestinationAnimation(route.name, usesSplitView) }
+          ? {
+              animation: androidWorkspaceDestinationAnimation(
+                route,
+                navigation.getState().routes,
+                usesSplitView,
+              ),
+            }
           : statusBarOptions;
       }}
     />
