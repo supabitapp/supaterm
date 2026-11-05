@@ -292,7 +292,7 @@ function ChatPaneFrame(props: {
     layoutVersion,
     narrow,
     collapsed,
-    element: split ? frame : null,
+    element: split ? frame : undefined,
   };
 
   const claimFocus = () => {
