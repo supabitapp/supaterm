@@ -45,6 +45,7 @@ describe("SidePulse", () => {
       const { fs, root, mount, read, sidePulse } = yield* setup();
       yield* mount("SidePulse");
       yield* mount("SidePulse Pro");
+      yield* mount("SidePulseDot");
       yield* mount("Backup");
       yield* fs.makeDirectory(`${root}/SidePulse 1`);
 
@@ -53,6 +54,7 @@ describe("SidePulse", () => {
 
       assert.strictEqual(yield* read("SidePulse"), WORKING);
       assert.strictEqual(yield* read("SidePulse Pro"), WORKING);
+      assert.strictEqual(yield* read("SidePulseDot"), "");
       assert.strictEqual(yield* read("Backup"), "");
       assert.isFalse(yield* fs.exists(`${root}/SidePulse 1/LEDS.LED`));
       assert.deepStrictEqual(

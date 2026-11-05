@@ -41,12 +41,11 @@ function sidePulseMountRoots(platform: NodeJS.Platform, user: string): ReadonlyA
   return [];
 }
 
-// SidePulse Pro ships with the FAT12 volume label "SidePulse".
+// SidePulse Pro ships with the FAT12 volume label "SidePulse"; a trailing number is a duplicate mount.
+const SIDE_PULSE_PRO_VOLUME = /^sidepulse(?:pro)?\d*$/;
+
 function isSidePulseVolume(name: string): boolean {
-  return name
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9]/g, "")
-    .includes("sidepulse");
+  return SIDE_PULSE_PRO_VOLUME.test(name.toLowerCase().replaceAll(/[^a-z0-9]/g, ""));
 }
 
 function errorCode(error: PlatformError.PlatformError): unknown {
