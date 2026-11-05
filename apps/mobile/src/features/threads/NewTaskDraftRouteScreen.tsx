@@ -32,7 +32,7 @@ import {
 import { draftFlowRoute, liveNewTaskFlowKeys } from "./new-task-flow-state";
 import { NewTaskFlowProvider } from "./new-task-flow-provider";
 import { AppBar } from "../../components/ui/AppBar";
-import { useWorkspaceBackNavigation } from "../workspace/useAndroidWorkspaceNavigation";
+import { useWorkspaceBackNavigation } from "../layout/workspace/useAndroidWorkspaceNavigation";
 
 import { ThreadScreenFallback } from "./ThreadScreenHost";
 import { NewTaskDraftScreen } from "./NewTaskDraftScreen";

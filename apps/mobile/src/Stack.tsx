@@ -19,14 +19,14 @@ import { useResolveClassNames } from "uniwind";
 
 import { AppText as Text } from "./components/ui/AppText";
 import { androidWorkspaceDestinationAnimation } from "./lib/android-workspace-navigation";
-import { getCompactBrandHeaderOptions } from "./components/CompactBrandTitle";
-import { WorkspaceRootScreen } from "./features/workspace/WorkspaceRootScreen";
+import { getCompactBrandHeaderOptions } from "./features/layout/workspace/brand-header-options";
+import { WorkspaceRootScreen } from "./features/layout/workspace/WorkspaceRootScreen";
 import {
   recordHomeFocus,
   recordHomeTransitionEnd,
   recordHomeTransitionStart,
 } from "./features/home/home-route-visibility";
-import { AndroidWorkspaceTabsProvider } from "./features/workspace/AndroidWorkspaceTabsProvider";
+import { AndroidWorkspaceTabsProvider } from "./features/layout/workspace/AndroidWorkspaceTabsProvider";
 import { PullRequestFileRouteScreen } from "./features/pull-requests/PullRequestDiffRouteScreen";
 import { PullRequestRouteScreen } from "./features/pull-requests/PullRequestRouteScreen";
 import { PullRequestFilesSheet } from "./features/pull-requests/PullRequestFiles";
@@ -124,7 +124,7 @@ import { SettingsAboutRouteScreen } from "./features/settings/SettingsAboutRoute
 import { SettingsRouteScreen } from "./features/settings/SettingsRouteScreen";
 import { SettingsEnvironmentFilterProvider } from "./features/settings/settings-environment-filter";
 import { openSettings, settingsOpenIn } from "./features/settings/settings-navigation";
-import { DEFAULT_SETTINGS_PAGE } from "./features/workspace/workspace-tab-navigation";
+import { DEFAULT_SETTINGS_PAGE } from "./features/layout/workspace/workspace-tab-navigation";
 import {
   isWorkspaceOverlayRoute,
   registerPresentedRoutes,
@@ -135,7 +135,7 @@ import { deriveLayout } from "./lib/layout";
 import { useNativeLayoutMetrics } from "./native/native-layout-metrics";
 import { isPresentedRoute } from "./native/workspace-stack-projection";
 import { runningThreadKeepAliveAtom } from "./state/threads";
-import { workspaceDetailRouter } from "./features/workspace/workspace-detail-selection";
+import { workspaceDetailRouter } from "./features/layout/workspace/workspace-detail-selection";
 
 const settingsPage = (title: string) => pageRoute({ title, itemStyle: "standard" });
 

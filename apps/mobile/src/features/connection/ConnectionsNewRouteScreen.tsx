@@ -24,7 +24,7 @@ import { pairingUrlForFields, extractPairingUrlFromQrPayload, parsePairingUrl } 
 import { useRemoteConnections } from "../../state/use-remote-environment-registry";
 import { autoConnectReport, devAutoConnectAttemptAtom, linkedPairingUrl } from "./devAutoConnect";
 import { leaveSettingsPage } from "../settings/settings-navigation";
-import { workspaceHasColumns } from "../workspace/workspace-selection-store";
+import { workspaceHasColumns } from "../layout/workspace/workspace-selection-store";
 import { SymbolView } from "../../components/ui/AppSymbol";
 
 type ConnectionsNewRouteParams = {

@@ -4,7 +4,7 @@ import {
   applyPullRequestDraftFilterChange,
   parsePullRequestQuery,
 } from "@supaterm/client-runtime/pull-request-query";
-import { WorkspaceHeaderActions } from "../workspace/WorkspaceHeaderActions";
+import { WorkspaceHeaderActions } from "../layout/workspace/WorkspaceHeaderActions";
 import { LegendList, type LegendListRef } from "@legendapp/list/react-native";
 import { useNavigation } from "@react-navigation/native";
 import { use, useMemo, useRef, useState, type ReactNode } from "react";
@@ -31,7 +31,7 @@ import { createPullRequestListFilterMenu } from "./pullRequestListFilterMenu";
 import { usePullRequestList } from "./usePullRequestList";
 import { usePullRequestListControls } from "./usePullRequestListControls";
 import { usePullRequestListActions } from "./usePullRequestListActions";
-import type { WorkspaceFilterMenu } from "../workspace/workspace-filter-menu";
+import type { WorkspaceFilterMenu } from "../layout/workspace/workspace-filter-menu";
 import {
   filterPullRequestList,
   pullRequestListFacets,
@@ -43,9 +43,9 @@ import {
   pullRequestProjectChoices,
 } from "./pullRequestList";
 import { useDebouncedValue } from "../../state/queries";
-import { useWorkspaceTabs } from "../workspace/WorkspaceTabsContext";
-import { useSearchScrollRestoration } from "../workspace/useSearchScrollRestoration";
-import { useSelectWorkspaceDetail } from "../workspace/useSelectWorkspaceDetail";
+import { useWorkspaceTabs } from "../layout/workspace/WorkspaceTabsContext";
+import { useSearchScrollRestoration } from "../layout/workspace/useSearchScrollRestoration";
+import { useSelectWorkspaceDetail } from "../layout/workspace/useSelectWorkspaceDetail";
 
 function PullRequestListError(props: { readonly message: string }) {
   const [expanded, setExpanded] = useState(false);

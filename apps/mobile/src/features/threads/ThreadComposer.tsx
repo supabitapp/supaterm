@@ -1,4 +1,4 @@
-import { useSidebarWorkspaceTabs } from "../workspace/useSystemWorkspaceTabBar";
+import { useSidebarWorkspaceTabs } from "../layout/workspace/useSystemWorkspaceTabBar";
 import { Button } from "../../components/ui/Button";
 import * as Dialog from "../../components/ui/Dialog";
 import { resolveSideChatCommand } from "@supaterm/client-runtime/state/side-chats";
