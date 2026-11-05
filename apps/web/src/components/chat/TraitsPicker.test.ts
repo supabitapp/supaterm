@@ -111,6 +111,17 @@ describe("buildTraitsTriggerLabel", () => {
     expect(label([EFFORT, thinking])).toBe("High · Thinking On");
   });
 
+  it("names the Ultracode toggle beside any effort only while it is on", () => {
+    const ultracode = (currentValue: boolean): ProviderOptionDescriptor => ({
+      id: "ultracode",
+      label: "Ultracode",
+      type: "boolean",
+      currentValue,
+    });
+    expect(label([EFFORT, ultracode(true)])).toBe("High · Ultracode");
+    expect(label([EFFORT, ultracode(false)])).toBe("High");
+  });
+
   it("stays blank when descriptors resolve to no label and there is no speed tier", () => {
     const unresolved: Extract<ProviderOptionDescriptor, { type: "select" }> = {
       id: "effort",

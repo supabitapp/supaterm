@@ -220,7 +220,9 @@ function getTraitsSectionVisibility(input: {
     selected.descriptors.some(
       (descriptor) =>
         descriptor.id !== toggleOnlyDescriptorId &&
-        (descriptor.type === "select" || descriptor.id === "thinking"),
+        (descriptor.type === "select" ||
+          descriptor.id === "thinking" ||
+          descriptor.id === "ultracode"),
     ) ||
     (selected.modelIsUnavailable && selected.descriptors.length > 0);
 
