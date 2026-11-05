@@ -2803,14 +2803,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                           open={projectFilterOpen}
                           onOpenChange={setProjectFilterOpen}
                           projects={projectGroupByScopeKey}
-                          environments={
-                            showProjectEnvironments
-                              ? {
-                                  primaryEnvironmentId,
-                                  machineByEnvironmentId: environmentMachineById,
-                                }
-                              : null
-                          }
                           shortcutLabels={projectScopeJumpLabels}
                           onSelect={(value) => {
                             if (suppressNextScopeChangeRef.current) {
