@@ -1,4 +1,5 @@
 import { formatProviderSkillDisplayName } from "@supaterm/shared/inlineSkills";
+import type { ComposerModelItem } from "@supaterm/client-runtime/composerModelMentions";
 import type { ComposerPathSearchTarget } from "@supaterm/client-runtime/state/threads";
 import {
   resolveProviderSkillSourceKind,
@@ -28,6 +29,7 @@ import { cn } from "~/lib/utils";
 import { Badge } from "../ui/badge";
 import { Command, CommandGroup, CommandItem, CommandList } from "../ui/command";
 import { PierreEntryIcon } from "./PierreEntryIcon";
+import { ProviderInstanceIcon } from "./ProviderInstanceIcon";
 import { ComposerBanner } from "./ComposerBanner";
 import { resolvePullRequestState } from "../pullRequest/pullRequestPresentation";
 
@@ -77,7 +79,8 @@ export type ComposerCommandItem =
       thread: ScopedThreadRef;
       label: string;
       description: string;
-    };
+    }
+  | ComposerModelItem;
 
 export const ComposerCommandMenu = memo(function ComposerCommandMenu(props: {
   listId: string;
@@ -204,6 +207,13 @@ const ComposerCommandMenuItem = memo(function ComposerCommandMenuItem(props: {
       ) : null}
       {props.item.type === "thread" ? (
         <MessagesSquareIcon aria-hidden="true" className="size-4 shrink-0 text-secondary-label" />
+      ) : null}
+      {props.item.type === "model" ? (
+        <ProviderInstanceIcon
+          driverKind={props.item.record.driver}
+          displayName={props.item.record.providerName}
+          iconClassName="size-4"
+        />
       ) : null}
       {pullRequestPresentation ? (
         <pullRequestPresentation.Icon

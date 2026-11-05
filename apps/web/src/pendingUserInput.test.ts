@@ -1,14 +1,22 @@
-import { EnvironmentId, ThreadId } from "@supaterm/contracts";
+import {
+  EnvironmentId,
+  ProviderDriverKind,
+  ProviderInstanceId,
+  ThreadId,
+} from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 import { formatInlineContextReference } from "./lib/composerContextReferences";
-import { threadContextReference } from "./lib/composerContextRecords";
-import { threadContextRecord } from "@supaterm/shared/composerContextReferences";
+import { referenceContextReference } from "./lib/composerContextRecords";
+import {
+  modelContextRecord,
+  threadContextRecord,
+} from "@supaterm/shared/composerContextReferences";
 
 import {
   carryDisplacedCustomAnswerIntoPrompt,
   derivePendingUserInputProgress,
   projectPendingUserInputAnswer,
-  threadContextsReferencedByAnswer,
+  referenceContextsReferencedByAnswer,
 } from "./pendingUserInput";
 
 describe("projectPendingUserInputAnswer", () => {
@@ -20,10 +28,20 @@ describe("projectPendingUserInputAnswer", () => {
     "Reference work",
   );
 
-  it("sends thread chips as readable links with the actual thread ID", () => {
-    const answer = `Compare ${formatInlineContextReference(threadContextReference(record))}`;
-    expect(projectPendingUserInputAnswer(answer, [record])).toBe(
-      "Compare [Reference work](supaterm-thread://v2/env-answer/reference-thread)",
+  it("sends thread and model chips as text naming what they point at", () => {
+    const model = modelContextRecord({
+      instanceId: ProviderInstanceId.make("claudeAgent"),
+      driver: ProviderDriverKind.make("claudeAgent"),
+      model: "claude-opus-4-5",
+      name: "Claude Opus 4.5",
+      providerName: "Claude",
+    });
+    const chip = (reference: Parameters<typeof referenceContextReference>[0]) =>
+      formatInlineContextReference(referenceContextReference(reference));
+    expect(
+      projectPendingUserInputAnswer(`Compare ${chip(record)} with ${chip(model)}`, [record, model]),
+    ).toBe(
+      'Compare [Reference work](supaterm-thread://v2/env-answer/reference-thread) with Claude Opus 4.5 (delegate_task target {"providerInstanceId":"claudeAgent","model":"claude-opus-4-5"})',
     );
   });
 
@@ -34,7 +52,7 @@ describe("projectPendingUserInputAnswer", () => {
   });
 });
 
-describe("threadContextsReferencedByAnswer", () => {
+describe("referenceContextsReferencedByAnswer", () => {
   const kept = threadContextRecord(
     { environmentId: EnvironmentId.make("env-answer"), threadId: ThreadId.make("kept-thread") },
     "Kept work",
@@ -45,8 +63,8 @@ describe("threadContextsReferencedByAnswer", () => {
   );
 
   it("preserves remaining chips without restoring deleted thread records", () => {
-    const answer = `Compare ${formatInlineContextReference(threadContextReference(kept))}`;
-    expect(threadContextsReferencedByAnswer(answer, [deleted, kept])).toEqual([kept]);
+    const answer = `Compare ${formatInlineContextReference(referenceContextReference(kept))}`;
+    expect(referenceContextsReferencedByAnswer(answer, [deleted, kept])).toEqual([kept]);
   });
 });
 

@@ -23,7 +23,6 @@ import type {
   ProjectId,
   PreviewAnnotationPayload,
   ProviderApprovalDecision,
-  ThreadContextRecord,
   ProviderInteractionMode,
   ResolvedKeybindingsConfig,
   RuntimeMode,
@@ -212,7 +211,8 @@ import {
   reviewCommentContextRecord,
   terminalContextReference,
   terminalContextRecord,
-  threadContextReference,
+  referenceContextReference,
+  type ReferenceContextRecord,
 } from "~/lib/composerContextRecords";
 import { rememberCopiedComposerAttachments } from "~/lib/copiedComposerAttachments";
 import { usePaneInputOwner } from "../../chatPanes/paneScope";
@@ -371,7 +371,7 @@ export interface ChatComposerHandle {
     terminalContexts: TerminalContextDraft[];
     previewAnnotations: PreviewAnnotationPayload[];
     reviewComments: ReviewCommentContext[];
-    threadContexts: ThreadContextRecord[];
+    referenceContexts: ReferenceContextRecord[];
     selectedPromptEffort: string | null;
     selectedModelSelection: ModelSelection;
     multipleModelSelections: ReadonlyArray<ModelSelection> | null;
@@ -762,7 +762,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const composerTerminalContexts = composerDraft.terminalContexts;
   const composerPreviewAnnotations = composerDraft.previewAnnotations;
   const composerReviewComments = composerDraft.reviewComments;
-  const composerThreadContexts = attachmentDraft.threadContexts;
+  const composerReferenceContexts = attachmentDraft.referenceContexts;
   const {
     pendingSnapShotAnimations,
     pendingSnapShotIds,
@@ -813,7 +813,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     terminalContexts: composerTerminalContexts,
     reviewComments: composerReviewComments,
     previewAnnotations: composerPreviewAnnotations,
-    threadContexts: composerThreadContexts,
+    referenceContexts: composerReferenceContexts,
     images: composerImages,
     files: composerFiles,
     uploadsByImageId,
@@ -1192,6 +1192,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     pullRequestProjectId,
     pullRequestRepository,
     threadPullRequests,
+    providerInstanceEntries,
+    modelOptionsByInstance,
     compactSlashCommandAvailable,
     sideChatAvailable: props.sideChatAvailable === true,
     selectedProvider,
@@ -1347,8 +1349,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const addComposerDraftPreviewAnnotation = useComposerDraftStore(
     (store) => store.addPreviewAnnotation,
   );
-  const addComposerDraftThreadContexts = useComposerDraftStore((store) => store.addThreadContexts);
-  const setComposerDraftThreadContexts = useComposerDraftStore((store) => store.setThreadContexts);
+  const addComposerDraftReferenceContexts = useComposerDraftStore(
+    (store) => store.addReferenceContexts,
+  );
+  const setComposerDraftReferenceContexts = useComposerDraftStore(
+    (store) => store.setReferenceContexts,
+  );
   const buildContextClipboardFragment = (contextIds: ReadonlyArray<string>): string | null => {
     const wanted = new Set(contextIds);
     const copiedFiles = new Map<string, File>();
@@ -1364,7 +1370,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       ...composerTerminalContexts
         .filter((c) => wanted.has(terminalContextReference(c).contextId))
         .map(terminalContextRecord),
-      ...composerThreadContexts.filter((record) => wanted.has(record.contextId)),
+      ...composerReferenceContexts.filter((record) => wanted.has(record.contextId)),
       ...composerReviewComments
         .filter((c) => wanted.has(reviewCommentContextId(c.id)))
         .map(reviewCommentContextRecord),
@@ -1721,21 +1727,26 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       setComposerDraftTerminalContexts(composerDraftTarget, nextTerminals);
     }
 
-    const liveThreadIds = new Set<string>(composerThreadContexts.map((record) => record.contextId));
-    const restoredThreads = [...referenced].flatMap((contextId) => {
-      if (liveThreadIds.has(contextId)) return [];
-      const record = retained.threads.get(contextId);
+    const liveReferenceIds = new Set<string>(
+      composerReferenceContexts.map((record) => record.contextId),
+    );
+    const restoredReferences = [...referenced].flatMap((contextId) => {
+      if (liveReferenceIds.has(contextId)) return [];
+      const record = retained.references.get(contextId);
       return record ? [record] : [];
     });
-    const nextThreads = [
-      ...composerThreadContexts.filter((record) => referenced.has(record.contextId)),
-      ...restoredThreads,
+    const nextReferences = [
+      ...composerReferenceContexts.filter((record) => referenced.has(record.contextId)),
+      ...restoredReferences,
     ];
-    for (const record of composerThreadContexts) {
-      if (!referenced.has(record.contextId)) retained.threads.set(record.contextId, record);
+    for (const record of composerReferenceContexts) {
+      if (!referenced.has(record.contextId)) retained.references.set(record.contextId, record);
     }
-    if (nextThreads.length !== composerThreadContexts.length || restoredThreads.length > 0) {
-      setComposerDraftThreadContexts(composerDraftTarget, nextThreads);
+    if (
+      nextReferences.length !== composerReferenceContexts.length ||
+      restoredReferences.length > 0
+    ) {
+      setComposerDraftReferenceContexts(composerDraftTarget, nextReferences);
     }
 
     for (const comment of composerReviewComments) {
@@ -2062,12 +2073,15 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       }
       return;
     }
-    if (item.type === "thread") {
+    if (item.type === "thread" || item.type === "model") {
       if (trigger.kind !== "path") return;
-      const shell = readThreadShell(item.thread);
-      if (!shell) return;
-      const record = threadContextRecord(item.thread, shell.title);
-      const replacement = `${formatInlineContextReference(threadContextReference(record))} `;
+      const shell = item.type === "thread" ? readThreadShell(item.thread) : null;
+      const record =
+        item.type === "model"
+          ? item.record
+          : shell && threadContextRecord(item.thread, shell.title);
+      if (!record) return;
+      const replacement = `${formatInlineContextReference(referenceContextReference(record))} `;
       const replacementRangeEnd = extendReplacementRangeForTrailingSpace(
         snapshot.value,
         trigger.rangeEnd,
@@ -2077,7 +2091,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         expectedText: snapshot.value.slice(trigger.rangeStart, replacementRangeEnd),
       });
       if (applied) {
-        addComposerDraftThreadContexts(attachmentDraftTarget, [record], {
+        addComposerDraftReferenceContexts(attachmentDraftTarget, [record], {
           appendReference: false,
         });
         setComposerHighlightedItemId(null);
@@ -2381,7 +2395,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     isComposerCollapsedMobile,
     composerPreviewAnnotations,
     composerReviewComments,
-    composerThreadContexts,
+    composerReferenceContexts,
     attachmentTargetKeyRef,
     composerDraftTargetKeyRef,
     composerEditorRef,
@@ -3053,7 +3067,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         canOperateThread &&
         !activePendingIsResponding &&
         activePendingProgress?.activeQuestion?.allowCustomAnswer !== false;
-      const text = `${records.map((record) => formatInlineContextReference(threadContextReference(record))).join(" ")} `;
+      const text = `${records.map((record) => formatInlineContextReference(referenceContextReference(record))).join(" ")} `;
       const snapshot = readComposerSnapshotStable();
       const cursor = snapshot.expandedCursor;
       const leadingSpace = cursor > 0 && !/\s/.test(snapshot.value[cursor - 1] ?? "");
@@ -3072,12 +3086,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         });
         return;
       }
-      addComposerDraftThreadContexts(questionAttachmentTarget, records, {
+      addComposerDraftReferenceContexts(questionAttachmentTarget, records, {
         appendReference: false,
       });
       if (isComposerCollapsedMobile) expandMobileComposerStable();
     } else {
-      addComposerDraftThreadContexts(composerDraftTarget, records);
+      addComposerDraftReferenceContexts(composerDraftTarget, records);
     }
   });
 
@@ -3387,7 +3401,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         terminalContexts: composerTerminalContextsRef.current,
         previewAnnotations: composerPreviewAnnotations,
         reviewComments: composerReviewComments,
-        threadContexts: composerThreadContexts,
+        referenceContexts: composerReferenceContexts,
         selectedPromptEffort,
         selectedModelSelection,
         multipleModelSelections:
@@ -3441,7 +3455,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       composerTerminalContextsRef,
       composerPreviewAnnotations,
       composerReviewComments,
-      composerThreadContexts,
+      composerReferenceContexts,
       focusComposer,
       environmentId,
       primaryEnvironmentId,

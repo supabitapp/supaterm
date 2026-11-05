@@ -1,9 +1,14 @@
+import {
+  isMentionableProvider,
+  matchComposerModelItems,
+} from "@supaterm/client-runtime/composerModelMentions";
 import { matchComposerThreadItems } from "@supaterm/client-runtime/composerThreadItems";
 import { useState } from "react";
 import type {
   EnvironmentId,
   ProjectId,
   ProviderDriverKind,
+  ProviderInstanceId,
   PullRequestListInput,
   ServerProvider,
   ThreadId,
@@ -31,12 +36,15 @@ import {
 } from "~/state/pullRequests";
 import { useEnvironmentQuery } from "~/state/query";
 import { useComposerPathSearch, useDebouncedValue, useThreadSearch } from "~/state/queries";
+import type { AppModelOption } from "../../modelSelection";
+import type { ProviderInstanceEntry } from "../../providerInstances";
 import {
   matchesPullRequestQuery,
   rankPullRequestMatches,
 } from "../pullRequest/pullRequestList.logic";
 import type { ComposerCommandItem } from "./ComposerCommandMenu";
 import { searchSlashCommandItems } from "./composerSlashCommandSearch";
+import { getDisplayModelName } from "./providerIconUtils";
 
 const COMPOSER_PULL_REQUEST_LIST_LIMIT = 99;
 const COMPOSER_PULL_REQUEST_RESULT_LIMIT = 12;
@@ -52,6 +60,8 @@ export function useComposerMenuItems({
   pullRequestProjectId,
   pullRequestRepository,
   threadPullRequests,
+  providerInstanceEntries,
+  modelOptionsByInstance,
   compactSlashCommandAvailable,
   sideChatAvailable,
   selectedProvider,
@@ -67,6 +77,8 @@ export function useComposerMenuItems({
   readonly pullRequestProjectId: ProjectId | null;
   readonly pullRequestRepository: string | null;
   readonly threadPullRequests: ReadonlyArray<ThreadPullRequestLink> | undefined;
+  readonly providerInstanceEntries: ReadonlyArray<ProviderInstanceEntry>;
+  readonly modelOptionsByInstance: ReadonlyMap<ProviderInstanceId, ReadonlyArray<AppModelOption>>;
   readonly compactSlashCommandAvailable: boolean;
   readonly sideChatAvailable: boolean;
   readonly selectedProvider: ProviderDriverKind;
@@ -169,6 +181,28 @@ export function useComposerMenuItems({
           query: composerTrigger.query,
           now,
         }),
+        ...matchComposerModelItems(
+          providerInstanceEntries.flatMap((entry) =>
+            isMentionableProvider(entry.snapshot, entry.enabled)
+              ? (modelOptionsByInstance.get(entry.instanceId) ?? []).flatMap((option) =>
+                  option.isLegacy || option.isUnavailable
+                    ? []
+                    : [
+                        {
+                          instanceId: entry.instanceId,
+                          driver: entry.driverKind,
+                          providerName: entry.displayName,
+                          model: option.slug,
+                          name: getDisplayModelName(option),
+                          shortName: option.shortName,
+                          subProvider: option.subProvider,
+                        },
+                      ],
+                )
+              : [],
+          ),
+          composerTrigger.query,
+        ),
         ...workspaceEntries.entries.map((entry) => ({
           id: `path:${entry.kind}:${entry.path}`,
           type: "path" as const,

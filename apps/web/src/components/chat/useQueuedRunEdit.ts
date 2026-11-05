@@ -13,7 +13,6 @@ import {
   type PreviewAnnotationPayload,
   type RunId,
   type ScopedThreadRef,
-  type ThreadContextRecord,
   type ThreadId,
 } from "@supaterm/contracts";
 import { scopedThreadKey } from "@supaterm/client-runtime/environment";
@@ -38,7 +37,7 @@ import {
   releaseDraftAttachments,
   startAttachmentUpload,
 } from "../../lib/attachmentUploadQueue";
-import { buildMessageContext } from "../../lib/composerContextRecords";
+import { buildMessageContext, type ReferenceContextRecord } from "../../lib/composerContextRecords";
 import { readFileAsDataUrl } from "../../lib/imageCompression";
 import type { TerminalContextDraft } from "../../lib/terminalContext";
 import type { ReviewCommentContext } from "../../reviewCommentContext";
@@ -79,7 +78,7 @@ export interface QueuedRunEditContent {
   readonly terminalContexts: ReadonlyArray<TerminalContextDraft>;
   readonly reviewComments: ReadonlyArray<ReviewCommentContext>;
   readonly previewAnnotations: ReadonlyArray<PreviewAnnotationPayload>;
-  readonly threadContexts: ReadonlyArray<ThreadContextRecord>;
+  readonly referenceContexts: ReadonlyArray<ReferenceContextRecord>;
 }
 
 function queuedEditDraftTarget(routeThreadRef: ScopedThreadRef, runId: RunId) {
@@ -136,7 +135,7 @@ async function submitQueuedRunEdit(input: {
         ),
         reviewComments: content.reviewComments,
         previewAnnotations: content.previewAnnotations,
-        threadContexts: content.threadContexts,
+        referenceContexts: content.referenceContexts,
         attachments: newAttachments.map((attachment, index) => ({
           attachment,
           attachmentId: uploads[editing.existingAttachments.length + index]?.id ?? attachment.id,

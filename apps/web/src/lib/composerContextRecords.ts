@@ -14,6 +14,7 @@ import type {
   ImageContextRecord,
   KnownComposerContextRecord,
   MessageId,
+  ModelContextRecord,
   OrchestrationMessageContext,
   PreviewAnnotationContextRecord,
   PreviewAnnotationPayload,
@@ -152,8 +153,13 @@ export function previewAnnotationContextReference(
   };
 }
 
-export function threadContextReference(record: ThreadContextRecord): ComposerContextReference {
-  return { kind: "thread", contextId: record.contextId, label: record.label };
+/** Records a draft keeps as sent, because they only point at something the agent can look up. */
+export type ReferenceContextRecord = ThreadContextRecord | ModelContextRecord;
+
+export function referenceContextReference(
+  record: ReferenceContextRecord,
+): ComposerContextReference {
+  return { kind: record.kind, contextId: record.contextId, label: record.label };
 }
 
 export function terminalContextRecord(context: TerminalContextDraft): TerminalContextRecord {
@@ -294,7 +300,7 @@ export function buildMessageContext(input: {
   terminalContexts: ReadonlyArray<TerminalContextDraft>;
   reviewComments: ReadonlyArray<ReviewCommentContext>;
   previewAnnotations: ReadonlyArray<PreviewAnnotationPayload>;
-  threadContexts?: ReadonlyArray<ThreadContextRecord>;
+  referenceContexts?: ReadonlyArray<ReferenceContextRecord>;
   attachments?: ReadonlyArray<BoundComposerAttachment>;
 }): OrchestrationMessageContext | undefined {
   const screenshotAttachmentIds = new Set(
@@ -305,7 +311,7 @@ export function buildMessageContext(input: {
   const records: ComposerContextRecord[] = [
     ...input.terminalContexts.map(terminalContextRecord),
     ...input.reviewComments.map(reviewCommentContextRecord),
-    ...(input.threadContexts ?? []),
+    ...(input.referenceContexts ?? []),
     ...input.previewAnnotations.map((annotation) =>
       previewAnnotationContextRecord(annotation, {
         screenshotContextId: screenshotAttachmentIds.has(annotation.id) ? annotation.id : undefined,

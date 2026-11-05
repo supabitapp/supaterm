@@ -1,5 +1,8 @@
-import type { ThreadContextRecord, UserInputQuestion } from "@supaterm/contracts";
-import { replaceComposerContextReferences } from "@supaterm/shared/composerContextReferences";
+import type { UserInputQuestion } from "@supaterm/contracts";
+import {
+  formatModelContextText,
+  replaceComposerContextReferences,
+} from "@supaterm/shared/composerContextReferences";
 import { formatThreadLink } from "@supaterm/shared/threadLinks";
 import {
   buildPendingUserInputAnswers,
@@ -10,26 +13,30 @@ import {
 } from "@supaterm/client-runtime/state/pending-user-input";
 
 import { collectInlineContextIds } from "./lib/composerContextReferences";
+import type { ReferenceContextRecord } from "./lib/composerContextRecords";
 
 export function projectPendingUserInputAnswer(
   answer: unknown,
-  threadContexts: ReadonlyArray<ThreadContextRecord>,
+  referenceContexts: ReadonlyArray<ReferenceContextRecord>,
 ) {
-  if (typeof answer !== "string" || threadContexts.length === 0) return answer;
-  const recordsById = new Map(threadContexts.map((record) => [record.contextId, record]));
+  if (typeof answer !== "string" || referenceContexts.length === 0) return answer;
+  const recordsById = new Map(referenceContexts.map((record) => [record.contextId, record]));
   return replaceComposerContextReferences(answer, (reference) => {
-    const record = reference.kind === "thread" ? recordsById.get(reference.contextId) : undefined;
-    return record ? formatThreadLink(record, reference.label) : reference.source;
+    const record = recordsById.get(reference.contextId);
+    if (record?.kind !== reference.kind) return reference.source;
+    return record.kind === "thread"
+      ? formatThreadLink(record, reference.label)
+      : formatModelContextText(record);
   });
 }
 
 // Question drafts retain deleted chip records for undo; only transfer referenced records.
-export function threadContextsReferencedByAnswer(
+export function referenceContextsReferencedByAnswer(
   answer: string,
-  threadContexts: ReadonlyArray<ThreadContextRecord>,
+  referenceContexts: ReadonlyArray<ReferenceContextRecord>,
 ) {
   const referencedIds = new Set(collectInlineContextIds(answer));
-  return threadContexts.filter((record) => referencedIds.has(record.contextId));
+  return referenceContexts.filter((record) => referencedIds.has(record.contextId));
 }
 
 export interface PendingUserInputProgress {
