@@ -3974,7 +3974,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         const { messages } = yield* orchestrator.getThreadRecords(threadId, ["messages"]);
         assert.deepEqual(
           messages.map((message) => message.notification?.summary),
-          ["#7: checks failed"],
+          ["#7: checks finished"],
         );
         yield* TestClock.adjust("1 millis");
         recovering = true;
@@ -3990,8 +3990,8 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           message.notification === undefined ? [] : [message.notification.summary],
         ),
         incomplete
-          ? ["#7: checks failed", "#7: new comments"]
-          : ["#7: checks failed, new comments"],
+          ? ["#7: checks finished", "#7: new comments"]
+          : ["#7: checks finished, new comments"],
       );
       if (mode !== "single page") {
         const wake = messages.at(-1);
