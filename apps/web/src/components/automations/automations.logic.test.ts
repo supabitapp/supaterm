@@ -343,6 +343,11 @@ describe("automation labels", () => {
       "Daily at 18:30 (environment time)",
     );
     expect(scheduleLabel({ type: "interval", everyMs: 15 * 60_000 })).toBe("Every 15 min");
+    expect(scheduleLabel({ type: "interval", everyMs: 90 * 60_000 })).toBe("Every 90 min");
+    expect(scheduleLabel({ type: "interval", everyMs: 60 * 60_000 })).toBe("Every hour");
+    expect(scheduleLabel({ type: "interval", everyMs: 6 * 60 * 60_000 })).toBe("Every 6 hours");
+    expect(scheduleLabel({ type: "interval", everyMs: 24 * 60 * 60_000 })).toBe("Every day");
+    expect(scheduleLabel({ type: "interval", everyMs: 7 * 24 * 60 * 60_000 })).toBe("Every 7 days");
   });
 
   it.each([

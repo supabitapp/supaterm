@@ -49,6 +49,7 @@ import {
 } from "../ui/dialog";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
+import { MiddleTruncate } from "../ui/middle-truncate";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Switch } from "../ui/switch";
 import { Textarea } from "../ui/textarea";
@@ -395,12 +396,14 @@ export function AutomationEditorDialog({
               >
                 <SelectTrigger id="scheduled-task-environment" size="sm">
                   <SelectValue>
-                    <span className="flex items-center gap-2">
+                    <span className="flex min-w-0 items-center gap-2">
                       <EnvironmentMachineIcon
                         kind={resolveEnvironmentMachineKind(environment?.serverConfig ?? null)}
-                        className="size-4"
+                        className="size-4 shrink-0"
                       />
-                      {environment?.label ?? "Unavailable environment"}
+                      <span className="min-w-0 truncate">
+                        {environment?.label ?? "Unavailable environment"}
+                      </span>
                     </span>
                   </SelectValue>
                 </SelectTrigger>
@@ -437,12 +440,12 @@ export function AutomationEditorDialog({
               </Select>
             </Field>
             {tasksQuery.error ? (
-              <p className="text-sm text-destructive" role="status">
+              <p className="text-sm text-destructive wrap-anywhere" role="status">
                 {tasksQuery.error}
               </p>
             ) : null}
             {editingTaskMissing ? (
-              <p className="text-xs text-destructive" role="status">
+              <p className="text-xs text-destructive wrap-anywhere" role="status">
                 This automation no longer exists.
               </p>
             ) : null}
@@ -485,8 +488,8 @@ export function AutomationEditorDialog({
                             (other.environmentId !== project.environmentId ||
                               other.id !== project.id),
                         ) ? (
-                          <span className="block max-w-72 truncate text-xs text-muted-foreground">
-                            {project.workspaceRoot}
+                          <span className="flex max-w-72 text-xs text-muted-foreground">
+                            <MiddleTruncate value={project.workspaceRoot} />
                           </span>
                         ) : null}
                       </SelectItem>

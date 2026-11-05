@@ -59,6 +59,7 @@ import { readLocalApi } from "~/localApi";
 import { useStableCallback } from "~/hooks/useStableCallback";
 import { Button } from "~/components/ui/button";
 import { AndroidIcon, AppleIcon } from "~/components/Icons";
+import { MiddleTruncate } from "~/components/ui/middle-truncate";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 import { Kbd } from "~/components/ui/kbd";
 import {
@@ -900,7 +901,11 @@ function RightPanelTab(
                 className="cursor-pointer flex min-w-0 items-center"
                 onClick={() => onActivate(surface)}
               >
-                <span className="truncate">{title}</span>
+                {surface.kind === "file" ? (
+                  <MiddleTruncate value={title} showTitle={false} />
+                ) : (
+                  <span className="truncate">{title}</span>
+                )}
               </button>
             }
           />
@@ -911,6 +916,8 @@ function RightPanelTab(
                 environmentId={props.environmentId}
                 title={title}
               />
+            ) : surface.kind === "file" ? (
+              surface.relativePath
             ) : (
               title
             )}

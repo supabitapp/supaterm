@@ -20,10 +20,11 @@ export function TimelineSystemDivider(props: {
       <span className="font-medium">{props.label}</span>
       {props.detail ? (
         <span
-          className={cn(
-            "inline-flex min-w-0 items-center opacity-70",
-            typeof props.detail === "string" && "max-w-80 truncate",
-          )}
+          className={
+            typeof props.detail === "string"
+              ? "min-w-0 max-w-80 truncate opacity-70"
+              : "inline-flex min-w-0 items-center opacity-70"
+          }
         >
           {props.showDetailSeparator === false ? null : "·\u00a0"}
           {props.detail}

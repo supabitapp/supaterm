@@ -6,6 +6,7 @@ import { environmentIdsKey } from "~/state/environmentAtomList";
 import { environmentUpdateStatesAtom } from "~/state/server";
 import { useServerUpdate } from "../ServerUpdateAction";
 import { Button } from "../ui/button";
+import { MiddleTruncate } from "../ui/middle-truncate";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import {
   describeUpdateCapsule,
@@ -144,7 +145,7 @@ export function SidebarUpdateCapsule({
           {machines.map(({ machine, status }) => (
             <div key={machine.environmentId} className="flex min-w-0 flex-col">
               <div className="flex items-center justify-between gap-3">
-                <span className="truncate">{machine.label}</span>
+                <MiddleTruncate value={machine.label} />
                 <span
                   className={cn(
                     "shrink-0 tabular-nums",

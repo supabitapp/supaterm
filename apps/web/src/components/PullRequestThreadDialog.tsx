@@ -22,6 +22,7 @@ import { useEnvironmentQuery } from "~/state/query";
 import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
 import { vcsEnvironment } from "~/state/vcs";
 import { offHeadPullRequestCheckoutToast } from "./pullRequest/pullRequestCheckoutToast";
+import { PullRequestRowBranches } from "./pullRequest/PullRequestListRow";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -244,10 +245,15 @@ export function PullRequestThreadDialog({
             <div className="rounded-xl border border-border/70 bg-muted/24 p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate font-medium text-sm">{resolvedPullRequest.title}</p>
-                  <p className="truncate text-muted-foreground text-xs">
-                    #{resolvedPullRequest.number} · {resolvedPullRequest.headBranch} to{" "}
-                    {resolvedPullRequest.baseBranch}
+                  <p className="line-clamp-2 font-medium text-sm wrap-anywhere">
+                    {resolvedPullRequest.title}
+                  </p>
+                  <p className="flex min-w-0 gap-1 text-muted-foreground text-xs">
+                    <span className="shrink-0">#{resolvedPullRequest.number} ·</span>
+                    <PullRequestRowBranches
+                      head={resolvedPullRequest.headBranch}
+                      base={resolvedPullRequest.baseBranch}
+                    />
                   </p>
                 </div>
                 <span className={cn("shrink-0 text-xs capitalize", statusTone)}>

@@ -3023,7 +3023,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                 key="pinned-header"
                                 marker="pinned-header"
                                 label={
-                                  pinnedShelfVisible ? "Pinned" : `Pinned (${pinnedThreads.length})`
+                                  pinnedShelfVisible
+                                    ? "Pinned"
+                                    : `Pinned (${pinnedThreads.length.toLocaleString()})`
                                 }
                                 dragging={from !== null}
                                 isDropTarget={dragTargetSection === "pinned"}
@@ -3137,7 +3139,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                             <SidebarSectionHeader
                               key="done-shelf-header"
                               marker="done-header"
-                              label={doneShelfExpanded ? "Done" : `Done (${doneCount})`}
+                              label={
+                                doneShelfExpanded ? "Done" : `Done (${doneCount.toLocaleString()})`
+                              }
                               dragging={from !== null}
                               isDropTarget={dragTargetSection === "done"}
                               toggle={{
@@ -3206,7 +3210,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
             snoozedThreads.length +
             doneCount ===
             0 ? (
-            <div className="flex flex-col items-center gap-2 px-2 py-6 text-center text-xs text-muted-foreground/60">
+            <div className="flex flex-col items-center gap-2 px-2 py-6 text-center text-xs text-muted-foreground/60 wrap-anywhere">
               {projects.length === 0 ? (
                 <>
                   <span>No projects yet</span>

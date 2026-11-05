@@ -115,7 +115,7 @@ export function DeviceHostsSettings(props: { environmentId: EnvironmentId | null
       toastManager.add({
         type: failed.length ? "error" : "success",
         title: failed.length
-          ? `${host.label}: ${failed.length} of ${targets.length} environments failed`
+          ? `${host.label}: ${failed.length} of ${targets.length} ${targets.length === 1 ? "environment" : "environments"} failed`
           : `${host.label}: connection checks passed`,
         description: failed.length
           ? `Could not connect from ${failed.map((target) => target.label).join(", ")}.`
@@ -436,7 +436,7 @@ function DeviceHostList({
                   </Tooltip>
                 ))}
               </div>
-              <p className="truncate text-xs text-muted-foreground">{host.target}</p>
+              <p className="text-xs text-muted-foreground wrap-anywhere">{host.target}</p>
               {results.flatMap((result) =>
                 result.status?.status === "ready" && result.status.androidDiscoveryIncomplete
                   ? [
@@ -471,12 +471,12 @@ function DeviceHostList({
                         <div key={result.environmentId}>
                           <p className="text-xs text-muted-foreground">{result.label}</p>
                           {result.address ? (
-                            <p className="truncate text-xs text-muted-foreground">
+                            <p className="text-xs text-muted-foreground wrap-anywhere">
                               {result.address}
                             </p>
                           ) : null}
                           {result.error ? (
-                            <p role="status" className="text-xs text-destructive">
+                            <p role="status" className="text-xs text-destructive wrap-anywhere">
                               {result.error}
                             </p>
                           ) : null}

@@ -570,11 +570,13 @@ export function UsagePriceOverrides({
                 const result = attempt.results.get(destination.environmentId);
                 return (
                   <div key={destination.environmentId} className="flex justify-between gap-3">
-                    <span className="truncate text-muted-foreground">{destination.label}</span>
+                    <span className="max-w-[40%] shrink-0 truncate text-muted-foreground">
+                      {destination.label}
+                    </span>
                     <span
                       className={
                         result?.status === "failed"
-                          ? "text-right text-destructive"
+                          ? "min-w-0 text-right text-destructive wrap-anywhere"
                           : "text-muted-foreground"
                       }
                     >

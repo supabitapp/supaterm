@@ -47,7 +47,7 @@ function toastFailure(title: string, failure: AsyncResult.Failure<unknown, unkno
 }
 
 function threadCount(count: number) {
-  return `${count} thread${count === 1 ? "" : "s"}`;
+  return `${count.toLocaleString()} thread${count === 1 ? "" : "s"}`;
 }
 
 export function ArchivedThreadsPanel() {
@@ -259,7 +259,9 @@ export function ArchivedThreadsPanel() {
         headerAction={
           <div className="flex items-center gap-3">
             <span className="hidden text-xs tabular-nums text-muted-foreground sm:inline">
-              {needle === "" ? threadCount(rows.length) : `${visibleRows.length} of ${rows.length}`}
+              {needle === ""
+                ? threadCount(rows.length)
+                : `${visibleRows.length.toLocaleString()} of ${rows.length.toLocaleString()}`}
             </span>
             <InputGroup className="w-40 sm:w-52">
               <InputGroupAddon>

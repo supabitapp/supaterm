@@ -67,7 +67,7 @@ export function DiffCommentAnnotation({
       >
         <MessageCircleIcon className="size-3.5 h-5 shrink-0 text-primary/70" aria-hidden="true" />
         <p
-          className="min-w-0 flex-1 whitespace-pre-wrap text-sm leading-5"
+          className="min-w-0 flex-1 whitespace-pre-wrap text-sm leading-5 wrap-anywhere"
           dir={textDirection(displayedText)}
         >
           {displayedText}

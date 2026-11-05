@@ -1322,8 +1322,12 @@ export default function DiffPanel({
             )}
             {omittedToolCallFiles > 0 && (
               <p className="shrink-0 border-b border-border/70 bg-muted/40 px-3 py-1.5 text-2xs text-muted-foreground">
-                This tool call changed {recordedToolCallFileCount} files. The recorded patch omits{" "}
-                {omittedToolCallFiles} of them.
+                This tool call changed {recordedToolCallFileCount.toLocaleString()}{" "}
+                {recordedToolCallFileCount === 1 ? "file" : "files"}. The recorded patch omits{" "}
+                {recordedToolCallFileCount === 1
+                  ? "it"
+                  : `${omittedToolCallFiles.toLocaleString()} of them`}
+                .
               </p>
             )}
             {selectedPatchError && !renderablePatch && (

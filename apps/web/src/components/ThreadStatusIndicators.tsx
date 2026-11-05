@@ -409,10 +409,13 @@ function ThreadPullRequestMiniListItem({
     <>
       <Icon
         aria-hidden
-        className={cn("size-3 shrink-0", presentation?.toneClassName ?? "text-muted-foreground")}
+        className={cn(
+          "mt-0.5 size-3 shrink-0",
+          presentation?.toneClassName ?? "text-muted-foreground",
+        )}
       />
       <span className="shrink-0 font-mono tabular-nums">#{number}</span>
-      <span className="min-w-0 truncate text-foreground/75">{title}</span>
+      <span className="line-clamp-2 min-w-0 text-foreground/75 wrap-anywhere">{title}</span>
       {children}
     </>
   );
@@ -423,7 +426,7 @@ function ThreadPullRequestMiniListItem({
           href={url}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex min-w-0 items-center gap-2 rounded-sm px-1 py-1 hover:bg-accent focus-visible:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+          className="flex min-w-0 items-start gap-2 rounded-sm px-1 py-1 hover:bg-accent focus-visible:bg-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => onOpenPullRequest(event, url)}
           onContextMenu={(event) => showPullRequestContextMenuAt(event, url)}
@@ -431,7 +434,7 @@ function ThreadPullRequestMiniListItem({
           {content}
         </a>
       ) : (
-        <div className="flex min-w-0 items-center gap-2">{content}</div>
+        <div className="flex min-w-0 items-start gap-2">{content}</div>
       )}
     </li>
   );
@@ -471,10 +474,10 @@ export function ChangeRequestStatusIcon({
 
 function PrStatusTooltipContent({ status }: { status: PrStatusIndicator }) {
   return (
-    <span className="flex max-w-[min(34rem,calc(100vw-2rem))] items-stretch overflow-hidden whitespace-nowrap">
-      <span className="shrink-0 pr-2 font-medium">{status.tooltipLead}</span>
+    <span className="flex max-w-[min(34rem,calc(100vw-2rem))] items-stretch overflow-hidden">
+      <span className="shrink-0 whitespace-nowrap pr-2 font-medium">{status.tooltipLead}</span>
       <span className="min-h-4 shrink-0 border-border/70 border-l" aria-hidden="true" />
-      <span className="min-w-0 truncate pl-2">{status.tooltipTitle}</span>
+      <span className="line-clamp-3 min-w-0 pl-2 wrap-anywhere">{status.tooltipTitle}</span>
     </span>
   );
 }

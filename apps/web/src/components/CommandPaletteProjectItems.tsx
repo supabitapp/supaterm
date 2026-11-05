@@ -11,6 +11,7 @@ import {
 } from "./CommandPalette.logic";
 import { EnvironmentMachineIcon } from "./EnvironmentMachineIcon";
 import { ProjectFavicon } from "./ProjectFavicon";
+import { MiddleTruncate } from "./ui/middle-truncate";
 import { COMMAND_PALETTE_META_ICON_CLASS, CommandPaletteMetaDot } from "./ThreadCommandSubtitle";
 
 export interface CommandPaletteProjectLocation {
@@ -104,7 +105,7 @@ function ProjectLocationDescription(props: {
   const location = props.location ?? UNKNOWN_PROJECT_LOCATION;
   return (
     <span className="flex min-w-0 items-center gap-1">
-      <span className="inline-flex min-w-0 items-center gap-1">
+      <span className="inline-flex min-w-0 max-w-[40%] shrink-0 items-center gap-1">
         {location.kind === "remote" ? (
           <EnvironmentMachineIcon
             aria-hidden
@@ -115,7 +116,7 @@ function ProjectLocationDescription(props: {
         <span className="truncate">{location.label}</span>
       </span>
       <CommandPaletteMetaDot />
-      <span className="truncate">{props.workspaceRoot}</span>
+      <MiddleTruncate value={props.workspaceRoot} />
     </span>
   );
 }

@@ -742,7 +742,7 @@ function UsageOverview({
             <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
               <span>
                 <span className={figureClass(loadingPartial)}>
-                  {formatCount(merged.sessions)} sessions
+                  {formatCount(merged.sessions)} {merged.sessions === 1 ? "session" : "sessions"}
                 </span>
                 {metric === "cost" && " · API estimate"}
               </span>
@@ -1301,7 +1301,7 @@ function UsageCoverageNotice({
   }
 
   return (
-    <div className="flex flex-col gap-1 border-t border-border px-2 py-2 text-xs text-muted-foreground">
+    <div className="flex max-w-80 flex-col gap-1 border-t border-border px-2 py-2 text-xs text-muted-foreground wrap-anywhere">
       {failed.map((environment) => (
         <span key={environment.label}>
           {environment.label}: {environment.error}

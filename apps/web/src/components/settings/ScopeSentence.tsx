@@ -7,6 +7,7 @@ import type { EnvironmentPresentation } from "../../state/environments";
 import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
 import { ProjectFavicon } from "../ProjectFavicon";
 import { Button } from "../ui/button";
+import { MiddleTruncate } from "../ui/middle-truncate";
 import {
   Combobox,
   ComboboxEmpty,
@@ -98,7 +99,9 @@ function ScopeOptionLabel({ option }: { option: ScopeOption }) {
       <span className="min-w-0 flex-1">
         <span className="block truncate">{option.label}</span>
         {option.secondary ? (
-          <span className="block truncate text-xs text-muted-foreground">{option.secondary}</span>
+          <span className="flex text-xs text-muted-foreground">
+            <MiddleTruncate value={option.secondary} />
+          </span>
         ) : null}
       </span>
       {option.offline ? (

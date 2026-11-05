@@ -43,7 +43,7 @@ export function ThreadContextChip(props: {
         {props.unreadable
           ? "On another machine, so this machine's agent can't read it. Remove it or switch back to send."
           : shell || mayBeOmitted
-            ? "Open thread"
+            ? `Open ${title}`
             : "Thread no longer available"}
       </TooltipPopup>
     </Tooltip>

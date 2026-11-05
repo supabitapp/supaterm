@@ -218,8 +218,8 @@ const ChangedFilesTree = memo(function ChangedFilesTree(props: {
         >
           <DisclosureChevron open={isExpanded} size="sm" />
           <Icon className="size-3.5 shrink-0 text-muted-foreground/75" />
-          <span className="truncate font-mono text-2xs text-muted-foreground/90 group-hover:text-foreground/90">
-            {node.name}
+          <span className="flex min-w-0 font-mono text-2xs text-muted-foreground/90 group-hover:text-foreground/90">
+            <MiddleTruncate value={node.name} />
           </span>
           {hasNonZeroStat(node.stat) && (
             <span className="ml-auto shrink-0 font-mono text-3xs tabular-nums">

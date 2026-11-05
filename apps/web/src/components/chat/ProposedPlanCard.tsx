@@ -161,11 +161,14 @@ export const ProposedPlanCard = memo(function ProposedPlanCard({
 
   return (
     <div className="rounded-3xl border border-border/80 bg-card/70 p-4 sm:p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <Badge variant="secondary">Plan</Badge>
           {}
-          <h3 data-thread-find-text="true" className="truncate text-sm font-medium text-foreground">
+          <h3
+            data-thread-find-text="true"
+            className="line-clamp-2 text-sm font-medium text-foreground wrap-anywhere"
+          >
             {title}
           </h3>
         </div>

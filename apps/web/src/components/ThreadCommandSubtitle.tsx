@@ -71,7 +71,7 @@ export function ThreadCommandSubtitle(props: {
           {props.environmentLabel ? (
             <>
               <CommandPaletteMetaDot />
-              <span className="shrink-0">{props.environmentLabel}</span>
+              <span className="max-w-[40%] shrink-0 truncate">{props.environmentLabel}</span>
             </>
           ) : null}
         </span>
