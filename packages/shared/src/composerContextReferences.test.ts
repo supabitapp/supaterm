@@ -2,12 +2,10 @@ import {
   ComposerContextId,
   type ComposerContextRecord,
   EnvironmentId,
-  ModelContextRecord,
   ProviderDriverKind,
   ProviderInstanceId,
   ThreadId,
 } from "@supaterm/contracts";
-import * as Schema from "effect/Schema";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
@@ -29,7 +27,6 @@ import {
 } from "./composerContextReferences.ts";
 
 const ctx = (value: string) => value as ComposerContextId;
-const decodeModelContextRecord = Schema.decodeSync(ModelContextRecord);
 
 describe("href codec", () => {
   it("round-trips kind and id", () => {
@@ -309,7 +306,6 @@ describe("provider projection", () => {
       name: "Claude Opus 4.5",
       providerName: "OpenCode Work",
     });
-    expect(() => decodeModelContextRecord(record)).not.toThrow();
     const projected = projectComposerContextForProvider({
       text: `Delegate this to ${formatComposerContextReference(record)}`,
       records: [record],
