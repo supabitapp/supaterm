@@ -903,31 +903,6 @@ describe("ThreadDoneServiceV2 worker", () => {
     ),
   );
 
-  it.effect("keeps recently merged threads active with default settings", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        yield* TestClock.setTime(Date.parse(NOW));
-        const latestUserMessageAt = DateTime.makeUnsafe("2026-08-27T00:00:00.000Z");
-        const fixture = yield* makeHarness({
-          snapshot: makeSnapshot([
-            makeThread("merged-link", {
-              latestUserMessageAt,
-              pullRequests: [makeMergedPullRequestLink()],
-            }),
-            makeThread("merged-branch", { latestUserMessageAt, branch: "feature" }),
-          ]),
-          branchPullRequest: () => Effect.succeed(makeBranchPullRequest("merged")),
-        });
-
-        yield* Effect.gen(function* () {
-          const service = yield* ThreadDoneService.ThreadDoneServiceV2;
-          yield* startHarness(service, fixture.activation, fixture.snapshotReads);
-          expect(yield* Ref.get(fixture.commands)).toEqual([]);
-        }).pipe(Effect.provide(fixture.layer));
-      }),
-    ),
-  );
-
   it.effect("marks done a merged pull request stored only in the thread links", () =>
     Effect.scoped(
       Effect.gen(function* () {

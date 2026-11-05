@@ -288,10 +288,10 @@ describe("ClientSettings follow-up behavior", () => {
 });
 
 describe("ServerSettings thread completion", () => {
-  it("defaults merge completion off and inactivity completion to three days", () => {
+  it("defaults merge completion on and inactivity completion to three days", () => {
     const settings = decodeServerSettings({});
     expect(settings.sidebarAutoMarkDoneAfterDays).toBe(3);
-    expect(settings.sidebarAutoMarkDoneOnMerge).toBe(false);
+    expect(settings.sidebarAutoMarkDoneOnMerge).toBe(true);
   });
 
   it.each([-1, 0, 91])("rejects an auto-mark done threshold outside 1..90: %s", (value) => {
