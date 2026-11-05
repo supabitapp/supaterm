@@ -228,13 +228,14 @@ function reportCheckoutCommandError(error: Error) {
 }
 
 function pullRequestMarkdownContext(
-  detail: Pick<PullRequestDetail, "provider" | "url"> | null,
+  detail: Pick<PullRequestDetail, "provider" | "url" | "repository"> | null,
   threadRef: ScopedThreadRef | null,
 ) {
   return {
     remarkPlugins: pullRequestAutolinkPlugins(detail),
     lineBreaks: sourceControlClients.find(detail?.provider ?? "")?.hardLineBreaks ?? false,
     threadRef,
+    repository: detail?.repository ?? null,
   };
 }
 
