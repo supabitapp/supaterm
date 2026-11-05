@@ -422,39 +422,40 @@ function toolGroupActionCount(
 }
 
 function toolGroupActionLabel(action: ToolGroupAction, count: number): string {
+  const n = count.toLocaleString();
   switch (action) {
     case "link-pr":
-      return `Linked ${count} ${count === 1 ? "pull request" : "pull requests"}`;
+      return `Linked ${n} ${count === 1 ? "pull request" : "pull requests"}`;
     case "unlink-pr":
-      return `Unlinked ${count} ${count === 1 ? "pull request" : "pull requests"}`;
+      return `Unlinked ${n} ${count === 1 ? "pull request" : "pull requests"}`;
     case "watch-pr":
-      return `Watching ${count} ${count === 1 ? "pull request" : "pull requests"}`;
+      return `Watching ${n} ${count === 1 ? "pull request" : "pull requests"}`;
     case "unwatch-pr":
-      return `Stopped watching ${count} ${count === 1 ? "pull request" : "pull requests"}`;
+      return `Stopped watching ${n} ${count === 1 ? "pull request" : "pull requests"}`;
     case "list-prs":
       return count === 1
         ? "Checked linked pull requests"
-        : `Checked linked pull requests ${count} times`;
+        : `Checked linked pull requests ${n} times`;
     case "read":
-      return `Read ${count} ${count === 1 ? "file" : "files"}`;
+      return `Read ${n} ${count === 1 ? "file" : "files"}`;
     case "edit":
-      return `Changed ${count} ${count === 1 ? "file" : "files"}`;
+      return `Changed ${n} ${count === 1 ? "file" : "files"}`;
     case "command":
-      return `Ran ${count} ${count === 1 ? "command" : "commands"}`;
+      return `Ran ${n} ${count === 1 ? "command" : "commands"}`;
     case "thread-create":
-      return `Created ${count} ${count === 1 ? "thread" : "threads"}`;
+      return `Created ${n} ${count === 1 ? "thread" : "threads"}`;
     case "device":
-      return `Used device controls ${count} ${count === 1 ? "time" : "times"}`;
+      return `Used device controls ${n} ${count === 1 ? "time" : "times"}`;
     case "browser":
-      return `Used browser ${count} ${count === 1 ? "time" : "times"}`;
+      return `Used browser ${n} ${count === 1 ? "time" : "times"}`;
     case "search":
-      return `Searched the web ${count} ${count === 1 ? "time" : "times"}`;
+      return `Searched the web ${n} ${count === 1 ? "time" : "times"}`;
     case "code-search":
-      return `Searched code ${count} ${count === 1 ? "time" : "times"}`;
+      return `Searched code ${n} ${count === 1 ? "time" : "times"}`;
     case "other":
-      return `Used ${count} ${count === 1 ? "tool" : "tools"}`;
+      return `Used ${n} ${count === 1 ? "tool" : "tools"}`;
     case "update":
-      return `Received ${count} ${count === 1 ? "update" : "updates"}`;
+      return `Received ${n} ${count === 1 ? "update" : "updates"}`;
   }
 }
 
@@ -524,7 +525,7 @@ export function summarizeToolGroup(entries: ReadonlyArray<WorkLogPresentationEnt
   const toolEntries = entries.filter((entry) => entry.itemType !== "reasoning");
   if (entries.length > 0 && toolEntries.length === 0) {
     return {
-      summary: entries.length === 1 ? "Thought" : `Thought (×${entries.length})`,
+      summary: entries.length === 1 ? "Thought" : `Thought (×${entries.length.toLocaleString()})`,
       hasFailure: false,
     };
   }
@@ -594,7 +595,9 @@ export function summarizeToolGroup(entries: ReadonlyArray<WorkLogPresentationEnt
   const remainingCount =
     entries.length - sourcedCount - selected.reduce((count, group) => count + group.count, 0);
   if (remainingCount > 0) {
-    labels.push(`Performed ${remainingCount} other ${remainingCount === 1 ? "action" : "actions"}`);
+    labels.push(
+      `Performed ${remainingCount.toLocaleString()} other ${remainingCount === 1 ? "action" : "actions"}`,
+    );
   }
   const sentenceLabels = labels.map((label, index) =>
     index === 0 ? label : label.charAt(0).toLowerCase() + label.slice(1),
