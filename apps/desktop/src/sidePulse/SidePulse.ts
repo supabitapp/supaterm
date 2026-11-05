@@ -6,6 +6,7 @@ import {
   type SidePulseLedState,
   type SidePulseSettings,
 } from "@supaterm/contracts";
+import { SIDE_PULSE_OFF_PROGRAM, sidePulseProgram } from "@supaterm/shared/sidePulsePrograms";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
 import * as Duration from "effect/Duration";
@@ -28,43 +29,9 @@ const SCAN_INTERVAL = Duration.seconds(2);
 const KEEPALIVE_INTERVAL_MS = 60_000;
 const LED_FILE = "LEDS.LED";
 const KEEPALIVE_FILE = "keepalive";
-const OFF_PROGRAM = "off 1s";
 const READ_ONLY_CODES: ReadonlySet<unknown> = new Set(["EROFS", "EACCES", "EPERM"]);
 
 const { logInfo, logWarning } = makeComponentLogger("desktop-sidepulse");
-
-type LedCount = SidePulseDevice["ledCount"];
-
-const cyanRoll = (ledCount: LedCount) => {
-  const delayMs = ledCount === 2 ? 260 : 95;
-  const segments = Array.from(
-    { length: ledCount },
-    (_, index) => `${index}:#00E5FF 760ms pulse ${index * delayMs}ms`,
-  );
-  return `off 320ms cosine\n${segments.join("; ")}\nrepeat`;
-};
-
-// The animations SidePulse's own agent monitor shows for each state.
-const PROGRAMS: Readonly<Record<SidePulseLedState, Readonly<Record<LedCount, string>>>> = {
-  idle: {
-    2: "off 2s\n0:#006060 1:#006060 2s ease\nrepeat",
-    8: "off 2s\n2:#006060 3:#00E5FF 4:#00E5FF 5:#006060 2s ease\nrepeat",
-  },
-  done: { 2: "#00FF66 320ms cosine", 8: "#00FF66 320ms cosine" },
-  working: { 2: cyanRoll(2), 8: cyanRoll(8) },
-  attention: { 2: "off\n#FF3A00 1.6s pulse\nrepeat", 8: "off\n#FF3A00 1.6s pulse\nrepeat" },
-};
-
-function sidePulseProgram(
-  ledState: SidePulseLedState | null,
-  ledCount: LedCount,
-  brightness: number,
-): string {
-  if (ledState === null) return OFF_PROGRAM;
-  const program = PROGRAMS[ledState][ledCount];
-  const level = Math.round((brightness / 100) * 255);
-  return level >= 255 ? program : `brightness ${level}\n${program}`;
-}
 
 function sidePulseMountRoots(platform: NodeJS.Platform, user: string): ReadonlyArray<string> {
   if (platform === "darwin") return ["/Volumes"];
@@ -74,7 +41,7 @@ function sidePulseMountRoots(platform: NodeJS.Platform, user: string): ReadonlyA
   return [];
 }
 
-function ledCountForVolume(name: string): LedCount | null {
+function ledCountForVolume(name: string): SidePulseDevice["ledCount"] | null {
   const normalized = name.toLowerCase().replaceAll(/[^a-z0-9]/g, "");
   if (normalized.includes("pulsedot")) return 2;
   if (normalized.includes("sidepulsepro")) return 8;
@@ -198,7 +165,8 @@ export const make = Effect.fn("SidePulse.make")(function* (mountRoots: ReadonlyA
 
   const turnOff = Effect.gen(function* () {
     for (const tracked of devices.values()) {
-      if (tracked.written !== null) yield* writeLedFile(tracked.device.path, OFF_PROGRAM);
+      if (tracked.written !== null)
+        yield* writeLedFile(tracked.device.path, SIDE_PULSE_OFF_PROGRAM);
     }
     devices = new Map();
   });

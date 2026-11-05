@@ -13,6 +13,7 @@ import { BrightnessSlider } from "../../settings/BrightnessSlider";
 import { SettingsPageContainer, SettingsRow, SettingsSection } from "../../settings/settingsLayout";
 import { searchableSetting } from "../../settings/settingsSearch";
 import { getSidePulseBridge } from "../sidePulseBridge";
+import { SidePulseLedPreview } from "./SidePulseLedPreview";
 
 type Tone = "muted" | "success" | "error";
 
@@ -105,6 +106,7 @@ function SidePulseSettingsPage({ bridge }: { readonly bridge: DesktopSidePulseBr
   const summary = connectionSummary(settings.enabled, state);
   const devices = settings.enabled && state?.enabled ? state.devices : [];
   const showing = devices.length > 0 ? (state?.ledState ?? null) : null;
+  const previewLedCount = devices[0]?.ledCount ?? 8;
 
   return (
     <SettingsPageContainer>
@@ -157,10 +159,11 @@ function SidePulseSettingsPage({ bridge }: { readonly bridge: DesktopSidePulseBr
                 {showing === light.state ? (
                   <span className="text-xs text-muted-foreground">Showing now</span>
                 ) : null}
-                <span
-                  aria-hidden
-                  className="size-3 rounded-full"
-                  style={{ backgroundColor: light.color }}
+                <SidePulseLedPreview
+                  ledState={light.state}
+                  ledCount={previewLedCount}
+                  brightness={settings.brightness}
+                  fallbackColor={light.color}
                 />
               </>
             }
