@@ -228,6 +228,7 @@ export const make = Effect.gen(function* () {
       threadProjectFromScratch: true,
       oneTimeSchedules: true,
       freshContext: true,
+      scheduledTaskThreadModes: true,
       npmReleaseLookup: true,
       ...(serverSelfUpdate === null ? {} : { serverSelfUpdate }),
       ...(serverInstallation === null ? {} : { serverInstallation }),
