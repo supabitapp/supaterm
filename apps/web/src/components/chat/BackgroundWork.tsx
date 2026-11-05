@@ -118,20 +118,44 @@ export function BackgroundTaskOutputPopover({ handle }: { handle: BackgroundTask
   );
 }
 
-/** The banner's title. It opens the output of the one command it names. */
+export type BackgroundWorkTitleAction =
+  | {
+      readonly kind: "output";
+      readonly handle: BackgroundTaskOutputHandle;
+      readonly target: BackgroundTaskOutputTarget;
+    }
+  | { readonly kind: "thread"; readonly open: () => void };
+
+/** The banner's title. It opens the output of the one command it names, or the one subagent. */
 export function BackgroundWorkTitle({
   title,
-  output,
+  action,
 }: {
   title: string;
-  output: { handle: BackgroundTaskOutputHandle; target: BackgroundTaskOutputTarget } | null;
+  action: BackgroundWorkTitleAction | null;
 }) {
-  return output === null ? (
-    title
-  ) : (
+  if (action === null) return title;
+  if (action.kind === "thread") {
+    return (
+      <span
+        role="link"
+        tabIndex={0}
+        className={titleTriggerClassName}
+        onClick={action.open}
+        onKeyDown={(event) => {
+          if (event.key !== "Enter") return;
+          event.preventDefault();
+          action.open();
+        }}
+      >
+        {title}
+      </span>
+    );
+  }
+  return (
     <PopoverTrigger
-      handle={output.handle}
-      payload={output.target}
+      handle={action.handle}
+      payload={action.target}
       nativeButton={false}
       render={<span role="button" tabIndex={0} className={titleTriggerClassName} />}
     >
