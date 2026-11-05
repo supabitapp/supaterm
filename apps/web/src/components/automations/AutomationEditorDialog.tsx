@@ -7,6 +7,7 @@ import type {
   ProjectId,
   ScheduledTask,
   ScheduledTaskId,
+  ScheduledTaskThreadMode,
   ScheduledTaskUpsertInput,
   ThreadId,
 } from "@supaterm/contracts";
@@ -94,6 +95,7 @@ const EMPTY_DRAFT: DraftState = {
   weekdays: new Set([1, 2, 3, 4, 5]),
   projectId: "",
   threadId: "",
+  threadMode: "new_thread",
   workspaceMode: "worktree",
   baseRef: "main",
   startFromOrigin: true,
@@ -122,12 +124,23 @@ function Field({
   );
 }
 
+const THREAD_MODE_LABELS: Record<ScheduledTaskThreadMode, string> = {
+  new_thread: "New thread each run",
+  continue: "One thread, continuing the conversation",
+  fresh_session: "One thread, fresh session each run",
+};
+
 function ScheduledTaskDestination({
   environmentId,
   threadId,
+  threadMode,
+  onThreadModeChange,
 }: {
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId | null;
+  readonly threadMode: ScheduledTaskThreadMode;
+  /** Absent on servers that predate thread modes. */
+  readonly onThreadModeChange: ((mode: ScheduledTaskThreadMode) => void) | undefined;
 }) {
   const ref = threadId === null ? null : scopeThreadRef(environmentId, threadId);
   const shell = useThreadShell(ref);
@@ -136,20 +149,45 @@ function ScheduledTaskDestination({
     ref !== null && shell === null ? threadFamilies.familyAtom(environmentId, ref.threadId) : null,
   );
   const thread = shell ?? family.data?.threads.find((row) => row.id === threadId);
+  const bound = ref !== null && threadMode !== "new_thread";
+  const detail =
+    threadMode === "new_thread"
+      ? "Each run starts a new thread with the workspace and model below."
+      : !bound
+        ? threadMode === "continue"
+          ? "The first run starts a thread with the workspace and model below. Later runs continue that conversation."
+          : "The first run starts a thread with the workspace and model below. Later runs post there, each in a fresh session without earlier runs' context."
+        : threadMode === "continue"
+          ? "Each run continues this conversation, in its workspace and with its current model."
+          : "Each run starts a fresh session in this thread, without earlier runs' context.";
   return (
-    <Field label="Destination">
-      {ref === null ? (
-        <p className="text-sm text-muted-foreground">
-          Each run starts a new thread with the workspace and model below.
-        </p>
-      ) : (
-        <div className="space-y-1 text-sm">
+    <Field label="Destination" htmlFor="scheduled-task-destination">
+      {onThreadModeChange ? (
+        <Select
+          value={threadMode}
+          onValueChange={(value) => onThreadModeChange(value as ScheduledTaskThreadMode)}
+        >
+          <SelectTrigger size="sm" id="scheduled-task-destination">
+            <SelectValue>{THREAD_MODE_LABELS[threadMode]}</SelectValue>
+          </SelectTrigger>
+          <SelectPopup>
+            {(Object.keys(THREAD_MODE_LABELS) as ScheduledTaskThreadMode[]).map((mode) => (
+              <SelectItem key={mode} value={mode}>
+                {THREAD_MODE_LABELS[mode]}
+              </SelectItem>
+            ))}
+          </SelectPopup>
+        </Select>
+      ) : null}
+      <div className="space-y-1 text-sm">
+        {bound ? (
           <p className="wrap-anywhere">{thread?.title.trim() || `Thread ${ref.threadId}`}</p>
-          <p className="text-muted-foreground">
-            Each run continues this conversation, in its workspace and with its current model.
-          </p>
-        </div>
-      )}
+        ) : null}
+        <p className="text-muted-foreground">{detail}</p>
+        {threadMode !== "new_thread" ? (
+          <p className="text-muted-foreground">Deleting the thread also deletes this task.</p>
+        ) : null}
+      </div>
     </Field>
   );
 }
@@ -186,6 +224,8 @@ export function AutomationEditorDialog({
   const offersOnce =
     environment?.serverConfig?.environment.capabilities.oneTimeSchedules === true ||
     task?.schedule.type === "once";
+  const offersThreadModes =
+    environment?.serverConfig?.environment.capabilities.scheduledTaskThreadModes === true;
   const canOperate = useEnvironmentScope(environmentId, AuthOrchestrationOperateScope);
   const connected =
     environment?.connection.phase === "connected" && environment.serverConfig !== null;
@@ -330,6 +370,7 @@ export function AutomationEditorDialog({
       schedule,
       projectId: selectedProjectId as ProjectId,
       threadId: draft.threadId ? (draft.threadId as ThreadId) : null,
+      ...(offersThreadModes ? { threadMode: draft.threadMode } : {}),
       workspaceStrategy,
       modelSelection,
       runtimeMode: draft.runtimeMode,
@@ -464,6 +505,12 @@ export function AutomationEditorDialog({
             <ScheduledTaskDestination
               environmentId={environmentId}
               threadId={draft.threadId ? (draft.threadId as ThreadId) : null}
+              threadMode={draft.threadMode}
+              onThreadModeChange={
+                offersThreadModes
+                  ? (threadMode) => setDraft((current) => ({ ...current, threadMode }))
+                  : undefined
+              }
             />
 
             <div className="grid gap-3 sm:grid-cols-2">
