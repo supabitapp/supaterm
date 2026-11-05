@@ -227,6 +227,13 @@ describe("evaluatePullRequestWatch", () => {
     const rest = evaluatePullRequestWatch(halfway.next, finished, noRemarks);
     assert.deepEqual(rest.changes, [{ kind: "checks-finished", failing: [labels] }]);
     assert.deepEqual(evaluatePullRequestWatch(rest.next, finished, noRemarks).changes, []);
+    const lint = check("lint", "failure");
+    const lateLint = evaluatePullRequestWatch(
+      halfway.next,
+      detail({ checks: [...finished.checks, lint] }),
+      noRemarks,
+    );
+    assert.deepEqual(lateLint.changes, [{ kind: "checks-finished", failing: [labels, lint] }]);
 
     // A failure after everything else finished says so, and its rerun still owes the wake.
     const sonar = check("sonar", "cancelled");
