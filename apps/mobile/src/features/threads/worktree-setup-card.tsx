@@ -6,9 +6,16 @@ import {
 } from "@supaterm/contracts";
 import { worktreeSetupAgentStarted } from "@supaterm/client-runtime/worktree-setup";
 import { formatDuration } from "@supaterm/shared/orchestrationTiming";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Platform, Pressable, ScrollView, View } from "react-native";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useReduceMotion } from "../../lib/useReducedMotionPreference";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { AppText as Text } from "../../components/ui/AppText";
 import { SymbolView, type AppSymbolName } from "../../components/ui/AppSymbol";
@@ -37,7 +44,42 @@ const icons: Record<WorktreeSetupStage["status"], AppSymbolName> = {
   warning: "exclamationmark.triangle",
 };
 
-export function WorktreeSetupCard(props: WorktreeSetupCardProps) {
+export const WORKTREE_SETUP_EXIT_MS = 200;
+const EXIT_EASING = Easing.bezier(0.32, 0.72, 0, 1);
+
+export function WorktreeSetupCard({
+  exiting,
+  ...props
+}: WorktreeSetupCardProps & { exiting: boolean }) {
+  const reduceMotion = useReduceMotion();
+  const height = useSharedValue(0);
+  const progress = useSharedValue(1);
+  const collapseStyle = useAnimatedStyle(() => {
+    const remaining = progress.get();
+    return remaining < 1 ? { height: height.get() * remaining, opacity: remaining } : {};
+  });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- hands the collapse to the UI thread once the setup leaves the feed
+  useEffect(() => {
+    if (!exiting) return;
+    progress.set(
+      withTiming(0, { duration: WORKTREE_SETUP_EXIT_MS, easing: EXIT_EASING, reduceMotion }),
+    );
+  }, [exiting, progress, reduceMotion]);
+  return (
+    <Animated.View
+      style={collapseStyle}
+      className="overflow-hidden"
+      onLayout={exiting ? undefined : (event) => height.set(event.nativeEvent.layout.height)}
+      pointerEvents={exiting ? "none" : "auto"}
+      accessibilityElementsHidden={exiting}
+      importantForAccessibility={exiting ? "no-hide-descendants" : "auto"}
+    >
+      <SetupCard {...props} />
+    </Animated.View>
+  );
+}
+
+function SetupCard(props: WorktreeSetupCardProps) {
   const { snapshot, turnStarted } = props;
   const handedOff = turnStarted && worktreeSetupAgentStarted(snapshot);
   const running = snapshot.phase === "running";
