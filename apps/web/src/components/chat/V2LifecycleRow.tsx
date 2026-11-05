@@ -40,6 +40,7 @@ import {
   ChevronRightIcon,
   GitForkIcon,
   MessageSquareIcon,
+  RotateCcwIcon,
   StopFilledIcon,
 } from "@supaterm/icons";
 
@@ -561,6 +562,11 @@ function EnvironmentHandoffRow({
   const providers =
     useAtomValue(serverEnvironment.providersValueAtom(environmentId)) ?? EMPTY_SERVER_PROVIDERS;
   return <HandoffRow {...props} environmentId={environmentId} providers={providers} />;
+}
+
+/** Marks where `/clear` or an automation started a new provider session in this thread. */
+export function FreshSessionRow() {
+  return <TimelineSystemDivider label="New session" icon={RotateCcwIcon} />;
 }
 
 /** A same-harness model or effort change. Shows only what changed. */

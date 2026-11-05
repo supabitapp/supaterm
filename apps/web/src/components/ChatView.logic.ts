@@ -1268,9 +1268,15 @@ export function planComposerTurn(input: {
   readonly environmentUnavailable: boolean;
   readonly phase: SessionPhase;
   readonly dispatchMode: ComposerDispatchMode;
+  /** The turn starts a new provider session, so it cannot steer into the running one. */
+  readonly freshContext: boolean;
 }) {
   const shouldCreateWorktree =
     input.isLocalDraftThread && input.sendEnvMode === "worktree" && !input.worktreePath;
+  const dispatchMode =
+    input.freshContext && (input.dispatchMode === "steer" || input.dispatchMode === "restart")
+      ? "queue"
+      : input.dispatchMode;
   return {
     shouldCreateWorktree,
     missingWorktreeBaseBranch: shouldRequireWorktreeBaseBranch({
@@ -1280,9 +1286,9 @@ export function planComposerTurn(input: {
       environmentUnavailable: input.environmentUnavailable,
     }),
     baseBranchForWorktree: shouldCreateWorktree ? input.activeThreadBranch : null,
-    turnDispatchMode: input.sendQueuesBehindSetup ? ("queue" as const) : input.dispatchMode,
+    turnDispatchMode: input.sendQueuesBehindSetup ? ("queue" as const) : dispatchMode,
     shouldQueueBehindActiveRun:
-      input.sendQueuesBehindSetup || (input.phase === "running" && input.dispatchMode === "queue"),
+      input.sendQueuesBehindSetup || (input.phase === "running" && dispatchMode === "queue"),
   };
 }
 

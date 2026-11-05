@@ -47,6 +47,7 @@ export const OutboxTurnInput = Schema.Struct({
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
   dispatchMode: Schema.optionalKey(Schema.Literals(["auto", "queue", "steer", "restart", "start"])),
+  freshContext: Schema.optionalKey(Schema.Boolean),
   sourceProposedPlan: Schema.optionalKey(Schema.Struct({ threadId: ThreadId, planId: PlanId })),
   bootstrap: Schema.optionalKey(
     Schema.Struct({
