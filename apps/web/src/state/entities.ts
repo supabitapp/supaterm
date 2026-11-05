@@ -27,11 +27,12 @@ import type {
   ThreadId,
 } from "@supaterm/contracts";
 import type { ThreadCheckpointSummary } from "@supaterm/client-runtime/state/thread-checkpoints";
+import { subagentChildTitles } from "@supaterm/client-runtime/state/thread-relationships";
 import { Atom } from "effect/reactivity";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { environmentProjects } from "./projects";
 import { environmentPresentations } from "./presentation";
-import { environmentServerConfigsAtom } from "./server";
+import { environmentServerConfigsAtom, serverEnvironment } from "./server";
 import {
   allEnvironmentProjectSnapshotsReadyAtom,
   allEnvironmentShellsBootstrappedAtom,
@@ -161,6 +162,45 @@ export function useThreadShell(ref: ScopedThreadRef | null): EnvironmentThreadSh
   return useAtomValue(
     ref === null ? EMPTY_THREAD_SHELL_ATOM : environmentThreadShells.threadShellAtom(ref),
   );
+}
+
+const EMPTY_CHILD_TITLES: ReadonlyMap<ThreadId, string> = new Map();
+const EMPTY_CHILD_TITLES_ATOM = Atom.make(EMPTY_CHILD_TITLES).pipe(
+  Atom.withLabel("web-subagent-child-titles:empty"),
+);
+
+// Held while unchanged, so links in a streaming thread re-render only when its children change.
+const subagentChildTitlesAtomFamily = Atom.family((key: string) => {
+  const ref = parseThreadKey(key);
+  let previous = EMPTY_CHILD_TITLES;
+  return Atom.make((get) => {
+    const next = subagentChildTitles(
+      get(environmentThreadDetails.threadAtom(ref))?.projection.subagents ?? [],
+    );
+    const unchanged =
+      next.size === previous.size &&
+      [...next].every(([threadId, title]) => previous.get(threadId) === title);
+    if (!unchanged) previous = next;
+    return previous;
+  }).pipe(Atom.withLabel(`web-subagent-child-titles:${key}`));
+});
+
+/** The child threads a loaded thread's subagents name, which the shell can leave out once idle. */
+export function useSubagentChildTitles(ref: ScopedThreadRef | null): ReadonlyMap<ThreadId, string> {
+  return useAtomValue(
+    ref === null ? EMPTY_CHILD_TITLES_ATOM : subagentChildTitlesAtomFamily(threadKey(ref)),
+  );
+}
+
+const shellOmitsThreadsAtom = Atom.family((environmentId: EnvironmentId) =>
+  Atom.make(
+    (get) => get(serverEnvironment.configValueAtom(environmentId))?.shellThreadFamilies === true,
+  ).pipe(Atom.withLabel(`web-shell-omits-threads:${environmentId}`)),
+);
+
+/** Whether this environment's shell leaves out idle subagents and older done threads. */
+export function useShellOmitsThreads(environmentId: EnvironmentId): boolean {
+  return useAtomValue(shellOmitsThreadsAtom(environmentId));
 }
 
 /** Includes threads still being created from a pending send. */
