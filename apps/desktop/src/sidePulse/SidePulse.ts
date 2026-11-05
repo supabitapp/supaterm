@@ -76,7 +76,7 @@ function sidePulseMountRoots(platform: NodeJS.Platform, user: string): ReadonlyA
 
 function ledCountForVolume(name: string): LedCount | null {
   const normalized = name.toLowerCase().replaceAll(/[^a-z0-9]/g, "");
-  if (normalized.includes("sidepulsedot") || normalized.includes("pulsedot")) return 2;
+  if (normalized.includes("pulsedot")) return 2;
   if (normalized.includes("sidepulsepro")) return 8;
   return null;
 }
@@ -162,7 +162,7 @@ export const make = Effect.fn("SidePulse.make")(function* (mountRoots: ReadonlyA
     );
 
   const syncDevices = Effect.gen(function* () {
-    if (!settings.enabled) return;
+    if (!settings.enabled) return yield* publish;
     const found = (yield* Effect.forEach(mountRoots, scanMountRoot)).flat();
     const now = yield* Clock.currentTimeMillis;
     const next = new Map<string, TrackedDevice>();
@@ -242,7 +242,7 @@ export const make = Effect.fn("SidePulse.make")(function* (mountRoots: ReadonlyA
     yield* lock.withPermit(
       Effect.suspend(() => {
         ledState = next;
-        return settings.enabled ? syncDevices : publish;
+        return syncDevices;
       }),
     );
   });
