@@ -11,6 +11,7 @@ import { contextBridge, ipcRenderer, webFrame, webUtils } from "electron";
 
 import { makeCodexMicroBridge } from "./codexMicro/CodexMicroPreload.ts";
 import * as IpcChannels from "./ipc/channels.ts";
+import { makeSidePulseBridge } from "./sidePulse/SidePulsePreload.ts";
 
 const SNAP_SHOT_EVENT_TYPES = new Set([
   "requested",
@@ -67,9 +68,11 @@ function unwrapEnsureSshEnvironmentResult(result: unknown) {
 }
 
 const codexMicro = makeCodexMicroBridge();
+const sidePulse = makeSidePulseBridge(clientPlatform);
 
 contextBridge.exposeInMainWorld("desktopBridge", {
   ...(codexMicro ? { codexMicro } : {}),
+  ...(sidePulse ? { sidePulse } : {}),
   getAppBranding: () => {
     const result = ipcRenderer.sendSync(IpcChannels.GET_APP_BRANDING_CHANNEL);
     if (typeof result !== "object" || result === null) {

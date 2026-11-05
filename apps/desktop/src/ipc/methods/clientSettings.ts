@@ -5,6 +5,7 @@ import * as Schema from "effect/Schema";
 
 import * as CodexMicro from "../../codexMicro/CodexMicro.ts";
 import * as DesktopClientSettings from "../../settings/DesktopClientSettings.ts";
+import * as SidePulse from "../../sidePulse/SidePulse.ts";
 import * as DesktopSnapShot from "../../snapShot/DesktopSnapShot.ts";
 import * as IpcChannels from "../channels.ts";
 import * as DesktopIpc from "../DesktopIpc.ts";
@@ -27,8 +28,10 @@ export const setClientSettings = DesktopIpc.makeIpcMethod({
     const clientSettings = yield* DesktopClientSettings.DesktopClientSettings;
     const snapShot = yield* DesktopSnapShot.DesktopSnapShot;
     const codexMicro = yield* CodexMicro.CodexMicro;
+    const sidePulse = yield* SidePulse.SidePulse;
     yield* clientSettings.set(settings);
     yield* snapShot.configure(settings);
     yield* codexMicro.configure(settings.codexMicro);
+    yield* sidePulse.configure(settings.sidePulse);
   }),
 });

@@ -27,6 +27,7 @@ import { DesktopWebLinkCoordinator } from "../components/desktop/DesktopWebLinkC
 import { DesktopAppActivationCoordinator } from "../components/desktop/DesktopAppActivationCoordinator";
 import { RunningThreadKeepAlive } from "../components/desktop/RunningThreadKeepAlive";
 import { getCodexMicroBridge } from "../components/codexMicro/codexMicroBridge";
+import { SidePulseCoordinator } from "../components/sidePulse/SidePulseCoordinator";
 import { ReopenClosedViewShortcut } from "../components/ReopenClosedViewShortcut";
 import { ProjectCloneToastCoordinator } from "../components/ProjectCloneToastCoordinator";
 import { ChatGptWelcomeCoordinator } from "../components/settings/ChatGptWelcomeCoordinator";
@@ -172,6 +173,7 @@ function RootRouteBranch() {
           <CodexMicroCoordinator />
         </Suspense>
       )}
+      <SidePulseCoordinator />
       <AppSidebarLayout>
         <Outlet />
       </AppSidebarLayout>

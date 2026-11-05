@@ -12,6 +12,8 @@ import { DEFAULT_KEYBINDINGS } from "@supaterm/shared/keybindings";
 import { BUILT_IN_THEMES } from "@supaterm/shared/themePalettes";
 import { getCodexMicroBridge } from "../codexMicro/codexMicroBridge";
 import { CODEX_MICRO_SETTINGS_SEARCH_ITEMS } from "../codexMicro/codexMicroSettingsSearch";
+import { getSidePulseBridge } from "../sidePulse/sidePulseBridge";
+import { SIDE_PULSE_SETTINGS_SEARCH_ITEMS } from "../sidePulse/sidePulseSettingsSearch";
 import * as Schema from "effect/Schema";
 import { TYPOGRAPHY_ADVANCED_STORAGE_KEY } from "../../appearanceFonts";
 import { writeLocalStorageValue } from "../../hooks/useLocalStorage";
@@ -28,6 +30,7 @@ export type SettingsPath =
   | "/settings/keybindings"
   | "/settings/snap-shot"
   | "/settings/codex-micro"
+  | "/settings/sidepulse"
   | "/settings/providers"
   | "/settings/threads"
   | "/settings/voice"
@@ -88,6 +91,7 @@ export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
   "/settings/keybindings": "Keybindings",
   "/settings/snap-shot": "SnapShots",
   "/settings/codex-micro": "Codex Micro",
+  "/settings/sidepulse": "SidePulse",
   "/settings/providers": "Providers",
   "/settings/threads": "Threads",
   "/settings/voice": "Voice transcription",
@@ -117,6 +121,7 @@ export const SETTINGS_NAV_GROUPS: ReadonlyArray<{
       "/settings/keybindings",
       "/settings/snap-shot",
       "/settings/codex-micro",
+      "/settings/sidepulse",
     ],
   },
   {
@@ -142,6 +147,7 @@ export const SETTINGS_NAV_GROUPS: ReadonlyArray<{
 
 const SETTINGS_SECTION_AVAILABILITY: Partial<Record<SettingsPath, () => boolean>> = {
   "/settings/codex-micro": () => getCodexMicroBridge() !== null,
+  "/settings/sidepulse": () => getSidePulseBridge() !== null,
 };
 
 /** An unavailable section is hidden from navigation and search, and its route redirects. */
@@ -762,6 +768,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     targetId: "snap-shot-enabled",
   },
   ...CODEX_MICRO_SETTINGS_SEARCH_ITEMS,
+  ...SIDE_PULSE_SETTINGS_SEARCH_ITEMS,
   {
     id: "providers",
     title: "Providers",
@@ -1117,6 +1124,7 @@ const SETTINGS_CATEGORY_SCOPES: Readonly<Record<SettingsPath, SettingsSearchScop
   "/settings/diffs": null,
   "/settings/snap-shot": null,
   "/settings/codex-micro": null,
+  "/settings/sidepulse": null,
   "/settings/keybindings": null,
   "/settings/providers": null,
   "/settings/threads": null,

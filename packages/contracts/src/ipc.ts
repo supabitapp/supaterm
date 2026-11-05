@@ -16,6 +16,7 @@ import { type ClientSettings, type QuitConfirmationMode, SnapShotShortcut } from
 import type { EditorId } from "./editor.ts";
 import type { PreviewForwardedShortcut } from "./keybindings.ts";
 import type { DesktopCodexMicroBridge } from "./codexMicro.ts";
+import type { DesktopSidePulseBridge } from "./sidePulse.ts";
 
 import type {
   DesktopAppActivationRequest,
@@ -1148,6 +1149,7 @@ export interface DesktopBridge {
   };
   preview: DesktopPreviewBridge;
   codexMicro?: DesktopCodexMicroBridge;
+  sidePulse?: DesktopSidePulseBridge;
 }
 
 /** Renderer callback invoked by Electron with a fresh user gesture before display-media capture. */

@@ -26,6 +26,7 @@ export * from "./checkpointDiff.ts";
 export * from "./model.ts";
 export * from "./keybindings.ts";
 export * from "./codexMicro.ts";
+export * from "./sidePulse.ts";
 export * from "./server.ts";
 export * from "./settings.ts";
 export * from "./git.ts";
