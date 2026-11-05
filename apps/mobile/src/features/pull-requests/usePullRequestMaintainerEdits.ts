@@ -11,6 +11,8 @@ import * as Dialog from "../../components/ui/Dialog";
 import { composerPullRequests } from "../../state/pull-requests";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff";
+import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
+import * as Haptics from "expo-haptics";
 
 export function usePullRequestMaintainerEdits(
   params: PullRequestParams,
@@ -31,6 +33,7 @@ export function usePullRequestMaintainerEdits(
   const save = async (next: boolean) => {
     if (pending.current || pr === null || !canEdit) return;
     pending.current = true;
+    void Haptics.selectionAsync();
     const previousChoice = choice;
     setSaving(true);
     setChoice({ key: pr.url, observedAt: pr.observedAt, value: next });
@@ -42,6 +45,7 @@ export function usePullRequestMaintainerEdits(
     setSaving(false);
     if (AsyncResult.isFailure(response)) {
       setChoice(previousChoice);
+      playOutcomeHaptic(false);
       const cause = squashAtomCommandFailure(response);
       Dialog.alert(
         "Could not save maintainer access",

@@ -25,6 +25,8 @@ import { useEnvironmentQuery } from "../../state/query";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff";
 import { usePullRequestPermissions } from "./usePullRequestPermissions";
+import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
+import * as Haptics from "expo-haptics";
 
 const EMPTY_PENDING: ReadonlyMap<PullRequestReactionContent, boolean> = new Map();
 const PILL = "min-h-8 flex-row items-center gap-1 rounded-full border px-2.5 active:opacity-70";
@@ -45,6 +47,7 @@ function ReactionPills(props: {
   const values = pending.signature === signature ? pending.values : EMPTY_PENDING;
   const shown = applyPendingPullRequestReactions(props.reactions, values);
   const toggle = async (content: PullRequestReactionContent, reacted: boolean) => {
+    void Haptics.selectionAsync();
     setPending({ signature, values: new Map([...values, [content, reacted]]) });
     const result = await setReaction({
       ...target,
@@ -61,6 +64,7 @@ function ReactionPills(props: {
         next.delete(content);
         return { signature: current.signature, values: next };
       });
+      playOutcomeHaptic(false);
       Dialog.alert("Couldn't save the reaction", "Try again in a moment.");
       return;
     }

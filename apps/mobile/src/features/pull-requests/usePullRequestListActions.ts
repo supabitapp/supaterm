@@ -23,6 +23,7 @@ import { scopedPullRequestListKey, type EnvironmentPullRequestListEntry } from "
 import { copyPullRequestLink, sharePullRequestLink } from "./pullRequestLink";
 import { pullRequestTarget } from "./usePullRequestDiff";
 import { useSelectWorkspaceDetail } from "../workspace/useSelectWorkspaceDetail";
+import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
 export function usePullRequestListActions(
   environmentIds: readonly EnvironmentId[],
   onChanged: (
@@ -109,10 +110,12 @@ export function usePullRequestListActions(
                 isDraft: action === "draft",
               },
       );
+      playOutcomeHaptic(true);
     });
     pending.current = false;
     setBusyKey(null);
     if (AsyncResult.isFailure(result)) {
+      playOutcomeHaptic(false);
       const cause = squashAtomCommandFailure(result);
       Dialog.alert(
         `Couldn't update this ${terminology.singular}`,

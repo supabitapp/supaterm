@@ -14,6 +14,7 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import { canPerformPullRequestAction } from "./pullRequestActions";
 import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff";
 import { usePullRequestPermissions } from "./usePullRequestPermissions";
+import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
 export function usePullRequestAction(params: PullRequestParams, pr: PullRequestDetail | null) {
   const target = pullRequestTarget(params);
   const permissions = usePullRequestPermissions(params, pr);
@@ -44,6 +45,7 @@ export function usePullRequestAction(params: PullRequestParams, pr: PullRequestD
     });
     pending.current = false;
     setBusy(false);
+    playOutcomeHaptic(AsyncResult.isSuccess(response));
     if (AsyncResult.isFailure(response)) {
       const cause = squashAtomCommandFailure(response);
       Dialog.alert(

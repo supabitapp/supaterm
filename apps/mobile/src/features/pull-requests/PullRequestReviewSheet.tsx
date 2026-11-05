@@ -19,6 +19,7 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import { PullRequestSheetContent as SheetContent } from "./PullRequestSheetContent";
 import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff";
 import { usePullRequestPermissions } from "./usePullRequestPermissions";
+import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
 function useActionSubmission(params: PullRequestParams) {
   const navigation = useNavigation();
   const refreshDetail = useAtomRefresh(composerPullRequests.detail(pullRequestTarget(params)));
@@ -35,11 +36,13 @@ function useActionSubmission(params: PullRequestParams) {
       await operation();
       refreshDetail();
       refreshActivity();
+      playOutcomeHaptic(true);
       navigation.goBack();
     });
     pending.current = false;
     setBusy(false);
     if (AsyncResult.isFailure(result)) {
+      playOutcomeHaptic(false);
       const cause = squashAtomCommandFailure(result);
       setError(
         cause instanceof Error
