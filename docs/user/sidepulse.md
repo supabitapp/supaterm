@@ -8,7 +8,13 @@ when one needs you without switching windows.
 
 Open **Settings** > **SidePulse** and turn on **SidePulse**, then insert or plug in the device.
 Supaterm finds it once its volume mounts, and the page shows each connected device. Turning
-SidePulse off, or quitting Supaterm, turns the LEDs off.
+SidePulse off, or quitting Supaterm, turns the LEDs off. While SidePulse is off, Supaterm doesn't
+open any removable volume.
+
+The first time Supaterm opens the device, macOS asks whether it may access files on a removable
+volume. Choose **Allow**. If you chose **Don't Allow**, the page shows **No access**; turn on
+**Removable Volumes** for Supaterm in **System Settings** > **Privacy & Security** >
+**Files & Folders**.
 
 Quit SidePulse's own menu bar app first. Both apps write to the same device, and each overwrites
 the other.

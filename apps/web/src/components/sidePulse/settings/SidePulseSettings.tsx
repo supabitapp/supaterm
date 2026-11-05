@@ -77,6 +77,14 @@ function connectionSummary(
     };
   }
   const errors = new Set(state.devices.map((device) => device.error));
+  if (errors.has("access-denied")) {
+    return {
+      label: "No access",
+      description:
+        "Allow Supaterm to use removable volumes in System Settings > Privacy & Security > Files & Folders.",
+      tone: "error",
+    };
+  }
   if (errors.has("read-only")) {
     return {
       label: "Can't write",

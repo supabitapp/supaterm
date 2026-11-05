@@ -29,7 +29,7 @@ const SCAN_INTERVAL = Duration.seconds(2);
 const KEEPALIVE_INTERVAL_MS = 60_000;
 const LED_FILE = "LEDS.LED";
 const KEEPALIVE_FILE = "keepalive";
-const READ_ONLY_CODES: ReadonlySet<unknown> = new Set(["EROFS", "EACCES", "EPERM"]);
+const PERMISSION_CODES: ReadonlySet<unknown> = new Set(["EACCES", "EPERM"]);
 
 const { logInfo, logWarning } = makeComponentLogger("desktop-sidepulse");
 
@@ -48,11 +48,25 @@ function ledCountForVolume(name: string): SidePulseDevice["ledCount"] | null {
   return null;
 }
 
-function deviceError(error: PlatformError.PlatformError): SidePulseDeviceError {
-  const { reason } = error;
-  if (reason._tag === "PermissionDenied") return "read-only";
-  const code = Predicate.hasProperty(reason.cause, "code") ? reason.cause.code : undefined;
-  return READ_ONLY_CODES.has(code) ? "read-only" : "write-failed";
+function errorCode(error: PlatformError.PlatformError): unknown {
+  const { cause } = error.reason;
+  return Predicate.hasProperty(cause, "code") ? cause.code : undefined;
+}
+
+// macOS answers EPERM for a removable volume the user has not allowed Supaterm to open.
+function isPermissionDenied(error: PlatformError.PlatformError): boolean {
+  return error.reason._tag === "PermissionDenied" || PERMISSION_CODES.has(errorCode(error));
+}
+
+function writeError(error: PlatformError.PlatformError): SidePulseDeviceError {
+  return isPermissionDenied(error) || errorCode(error) === "EROFS" ? "read-only" : "write-failed";
+}
+
+interface MountedVolume {
+  readonly name: string;
+  readonly path: string;
+  readonly ledCount: SidePulseDevice["ledCount"];
+  readonly denied: boolean;
 }
 
 interface TrackedDevice {
@@ -99,20 +113,30 @@ export const make = Effect.fn("SidePulse.make")(function* (mountRoots: ReadonlyA
     return Effect.forEach(stateListeners, (listener) => listener(next), { discard: true });
   });
 
+  // Opening the volume is what asks macOS for removable-volume access, so it only runs
+  // for volumes named like a SidePulse and only while SidePulse is on.
+  const probeVolume = (volume: Omit<MountedVolume, "denied">) =>
+    fs.access(path.join(volume.path, LED_FILE)).pipe(
+      Effect.as<ReadonlyArray<MountedVolume>>([{ ...volume, denied: false }]),
+      // A volume that was not ejected cleanly can leave an empty mount point behind.
+      Effect.catch((error) =>
+        Effect.succeed(isPermissionDenied(error) ? [{ ...volume, denied: true }] : []),
+      ),
+    );
+
   const scanMountRoot = (root: string) =>
     fs.readDirectory(root).pipe(
       Effect.orElseSucceed((): ReadonlyArray<string> => []),
       Effect.flatMap((names) =>
-        Effect.filter(
+        Effect.forEach(
           names.flatMap((name) => {
             const ledCount = ledCountForVolume(name);
             return ledCount === null ? [] : [{ name, path: path.join(root, name), ledCount }];
           }),
-          // A volume that was not ejected cleanly can leave an empty mount point behind.
-          (volume) =>
-            fs.exists(path.join(volume.path, LED_FILE)).pipe(Effect.orElseSucceed(() => false)),
+          probeVolume,
         ),
       ),
+      Effect.map((volumes) => volumes.flat()),
     );
 
   const writeLedFile = (volume: string, program: string) =>
@@ -125,7 +149,7 @@ export const make = Effect.fn("SidePulse.make")(function* (mountRoots: ReadonlyA
       }),
     ).pipe(
       Effect.as(null),
-      Effect.catch((error) => Effect.succeed(deviceError(error))),
+      Effect.catch((error) => Effect.succeed(writeError(error))),
     );
 
   const syncDevices = Effect.gen(function* () {
@@ -137,12 +161,21 @@ export const make = Effect.fn("SidePulse.make")(function* (mountRoots: ReadonlyA
       if (next.has(volume.path)) continue;
       const previous = devices.get(volume.path);
       if (previous === undefined) yield* logInfo("device mounted", { path: volume.path });
-      const program = sidePulseProgram(ledState, volume.ledCount, settings.brightness);
-      let tracked: TrackedDevice = previous ?? {
-        device: { ...volume, error: null },
-        written: null,
-        activityAt: now,
+      const device: SidePulseDevice = {
+        name: volume.name,
+        path: volume.path,
+        ledCount: volume.ledCount,
+        error: volume.denied ? "access-denied" : (previous?.device.error ?? null),
       };
+      if (volume.denied) {
+        if (previous?.device.error !== "access-denied") {
+          yield* logWarning("not allowed to open the volume", { path: volume.path });
+        }
+        next.set(volume.path, { device, written: null, activityAt: now });
+        continue;
+      }
+      const program = sidePulseProgram(ledState, volume.ledCount, settings.brightness);
+      let tracked: TrackedDevice = previous ?? { device, written: null, activityAt: now };
       if (tracked.written !== program) {
         const error = yield* writeLedFile(volume.path, program);
         if (error !== null && error !== tracked.device.error) {

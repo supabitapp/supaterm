@@ -14,7 +14,7 @@ export const SIDE_PULSE_LED_STATES = ["idle", "done", "working", "attention"] as
 export const SidePulseLedState = Schema.Literals(SIDE_PULSE_LED_STATES);
 export type SidePulseLedState = typeof SidePulseLedState.Type;
 
-export const SidePulseDeviceError = Schema.Literals(["read-only", "write-failed"]);
+export const SidePulseDeviceError = Schema.Literals(["access-denied", "read-only", "write-failed"]);
 export type SidePulseDeviceError = typeof SidePulseDeviceError.Type;
 
 export const SidePulseDevice = Schema.Struct({
