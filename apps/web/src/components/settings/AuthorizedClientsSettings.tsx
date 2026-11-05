@@ -5,6 +5,7 @@ import {
   type AuthEnvironmentScope,
   type AuthPairingCredentialResult,
   type AdvertisedEndpoint,
+  type EnvironmentId,
   type RelayConnectionInfo,
   type ServerSettings,
 } from "@supaterm/contracts";
@@ -160,6 +161,8 @@ type PairingLinkListRowProps = {
   pairingLink: ServerPairingLinkRecord;
   credential: string | undefined;
   preparedRelay: RelayConnectionInfo | undefined;
+  /** Whether this page is served by the environment the link pairs with. */
+  servedByEnvironment: boolean;
   endpointUrl: string | null | undefined;
   endpoints: ReadonlyArray<AdvertisedEndpoint>;
   defaultEndpointKey: string | null;
@@ -174,6 +177,7 @@ const PairingLinkListRow = memo(function PairingLinkListRow({
   pairingLink,
   credential,
   preparedRelay,
+  servedByEnvironment,
   endpointUrl,
   endpoints: advertisedEndpoints,
   defaultEndpointKey,
@@ -237,7 +241,7 @@ const PairingLinkListRow = memo(function PairingLinkListRow({
     endpointPairingUrl ??
     (credential && endpointUrl != null && endpointUrl !== ""
       ? (hostedPairingUrl ?? resolveDesktopPairingUrl(endpointUrl, credential, pairingHints))
-      : isLoopbackHostname(window.location.hostname)
+      : !servedByEnvironment || isLoopbackHostname(window.location.hostname)
         ? null
         : currentOriginPairingUrl);
   const [failedCopyValue, setFailedCopyValue] = useState<string | null>(null);
@@ -617,6 +621,7 @@ const ConnectedClientListRow = memo(function ConnectedClientListRow({
 });
 
 type AuthorizedClientsHeaderActionProps = {
+  environmentId: EnvironmentId;
   triggerRef: RefObject<HTMLButtonElement | null>;
   relayEnabled: boolean;
   onPairingLinkCreated: (result: AuthPairingCredentialResult, relay?: RelayConnectionInfo) => void;
@@ -627,6 +632,7 @@ type AuthorizedClientsHeaderActionProps = {
 };
 
 export const AuthorizedClientsHeaderAction = memo(function AuthorizedClientsHeaderAction({
+  environmentId,
   triggerRef,
   relayEnabled,
   onPairingLinkCreated,
@@ -651,6 +657,7 @@ export const AuthorizedClientsHeaderAction = memo(function AuthorizedClientsHead
         onRevoke={onRevokeOtherClients}
       />
       <CreatePairingLinkDialog
+        environmentId={environmentId}
         triggerRef={triggerRef}
         relayEnabled={relayEnabled}
         delegatableScopes={delegatableScopes}
@@ -663,6 +670,7 @@ export const AuthorizedClientsHeaderAction = memo(function AuthorizedClientsHead
 type PairingClientsListProps = {
   relaySettings: Pick<ServerSettings, "publicRelayEnabled" | "publicRelayUrl"> | undefined;
   pairingHints: PairingRouteHints;
+  servedByEnvironment: boolean;
   endpointUrl: string | null | undefined;
   endpoints: ReadonlyArray<AdvertisedEndpoint>;
   defaultEndpointKey: string | null;
@@ -680,6 +688,7 @@ type PairingClientsListProps = {
 export const PairingClientsList = memo(function PairingClientsList({
   relaySettings,
   pairingHints,
+  servedByEnvironment,
   endpointUrl,
   endpoints,
   defaultEndpointKey,
@@ -703,6 +712,7 @@ export const PairingClientsList = memo(function PairingClientsList({
           pairingLink={pairingLink}
           credential={createdPairingCredentials.get(pairingLink.id)?.credential}
           preparedRelay={createdPairingCredentials.get(pairingLink.id)?.relay}
+          servedByEnvironment={servedByEnvironment}
           endpointUrl={endpointUrl}
           endpoints={endpoints}
           defaultEndpointKey={defaultEndpointKey}
