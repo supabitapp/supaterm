@@ -3,7 +3,13 @@ import { resolveVisibleWorktreeSetup } from "@supaterm/client-runtime/worktree-s
 import { useState } from "react";
 import { useEnvironmentQuery } from "../../state/query";
 import { vcsEnvironment } from "../../state/vcs";
-import { resolveWorktreeSetupSnapshot } from "./worktree-setup-state";
+import type { WorktreeSetupCardProps } from "./worktree-setup-card";
+import {
+  finishWorktreeSetupExit,
+  nextWorktreeSetupPresence,
+  resolveWorktreeSetupSnapshot,
+  type WorktreeSetupPresence,
+} from "./worktree-setup-state";
 
 export function useWorktreeSetup(input: {
   environmentId: EnvironmentId | null;
@@ -33,4 +39,23 @@ export function useWorktreeSetup(input: {
     turnStarted: input.turnStarted,
     followUpSent: input.followUpSent,
   });
+}
+
+export function useExitingWorktreeSetup(setup: WorktreeSetupCardProps | null) {
+  const [presence, setPresence] = useState<WorktreeSetupPresence>({
+    setup,
+    exiting: false,
+    generation: 0,
+  });
+  const next = nextWorktreeSetupPresence(presence, setup);
+  if (next !== presence) setPresence(next);
+  const card = setup ?? next.setup;
+  return card
+    ? {
+        card,
+        exiting: next.exiting,
+        generation: next.generation,
+        onExited: () => setPresence(finishWorktreeSetupExit),
+      }
+    : null;
 }

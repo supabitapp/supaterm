@@ -25,6 +25,7 @@ import { ThreadHandoffDivider, ThreadHandoffRow } from "./thread-handoff-row";
 import { SecretRequestCard } from "./SecretRequestCard";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { WorktreeSetupCard, type WorktreeSetupCardProps } from "./worktree-setup-card";
+import { useExitingWorktreeSetup } from "./use-worktree-setup";
 import * as Haptics from "expo-haptics";
 import { KeyboardAwareLegendList } from "@legendapp/list/keyboard";
 import { KeyboardController } from "react-native-keyboard-controller";
@@ -3217,11 +3218,20 @@ export const ThreadFeed = memo(function ThreadFeed({
   );
   const reviewCommentColors = useReviewCommentColors();
   const unsettledTurnId = threadFeedRunIsUnsettled(props.latestRun) ? props.latestRun.runId : null;
+  const worktreeSetup = useExitingWorktreeSetup(props.worktreeSetup ?? null);
+  const worktreeSetupCard = worktreeSetup ? (
+    <WorktreeSetupCard
+      key={`${props.threadId}:${worktreeSetup.generation}`}
+      {...worktreeSetup.card}
+      exiting={worktreeSetup.exiting}
+      onExited={worktreeSetup.onExited}
+    />
+  ) : null;
   // LegendList does not invalidate visible rows when only the renderItem closure changes.
   // Include turn completion so unchanged message rows reveal their footer and spacing
   // even when the final message update arrives before the turn settles.
   const listAppearanceData = {
-    worktreeSetup: props.worktreeSetup,
+    worktreeSetup,
     dispatchingMessageId: props.dispatchingMessageId,
     unsettledTurnId,
     copiedRowId,
@@ -3317,7 +3327,7 @@ export const ThreadFeed = memo(function ThreadFeed({
   const [groupFeed] = useState(createThreadFeedGrouping);
   const groupedFeed = groupFeed(presentedFeed, {
     workflowOpeningMessageId: workflowOpening?.messageId,
-    setupAnchorIndex: props.worktreeSetup ? setupAnchorIndex : undefined,
+    setupAnchorIndex: worktreeSetup ? setupAnchorIndex : undefined,
   });
   // The empty↔filled key below remounts the list and resets its imperative
   // content-inset override. Seed each fresh instance as it attaches with the
@@ -3793,9 +3803,7 @@ export const ThreadFeed = memo(function ThreadFeed({
             workflowOpening,
             pins: props.pins,
           })}
-          {props.worktreeSetup && info.index === setupAnchorIndex ? (
-            <WorktreeSetupCard key={props.threadId} {...props.worktreeSetup} />
-          ) : null}
+          {info.index === setupAnchorIndex ? worktreeSetupCard : null}
         </ThreadMediaVisibility>
       </MessageImageGalleryScope>
     </Animated.View>
@@ -3947,9 +3955,7 @@ export const ThreadFeed = memo(function ThreadFeed({
             ListHeaderComponent={
               <>
                 {usesNativeAutomaticInsets ? null : <View style={{ height: topContentInset }} />}
-                {setupAnchorIndex < 0 && props.worktreeSetup ? (
-                  <WorktreeSetupCard key={props.threadId} {...props.worktreeSetup} />
-                ) : null}
+                {setupAnchorIndex < 0 ? worktreeSetupCard : null}
                 {props.historyControls ? (
                   <ThreadFeedLoadEarlierControl {...props.historyControls} />
                 ) : null}
@@ -3994,7 +4000,7 @@ export const ThreadFeed = memo(function ThreadFeed({
           </Animated.View>
         ) : null}
         {presentedFeed.length === 0 &&
-        !props.worktreeSetup &&
+        !worktreeSetup &&
         props.activeWorkStartedAt === null &&
         props.contentPresentation.kind === "ready" ? (
           <View

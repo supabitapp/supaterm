@@ -1,7 +1,11 @@
 import { ThreadId, type WorktreeSetupSnapshot } from "@supaterm/contracts";
 import { resolveVisibleWorktreeSetup } from "@supaterm/client-runtime/worktree-setup";
 import { describe, expect, it } from "vite-plus/test";
-import { resolveWorktreeSetupSnapshot } from "./worktree-setup-state";
+import {
+  finishWorktreeSetupExit,
+  nextWorktreeSetupPresence,
+  resolveWorktreeSetupSnapshot,
+} from "./worktree-setup-state";
 
 const threadId = ThreadId.make("setup-thread");
 const running: WorktreeSetupSnapshot = {
@@ -67,6 +71,25 @@ describe("mobile worktree setup handoff", () => {
       ).toBeNull();
     },
   );
+
+  it("keeps a card that leaves the feed until its collapse finishes", () => {
+    const done = { ...running, phase: "done" as const, sequence: 2 };
+    const card = { snapshot: done, turnStarted: false, onCancel: () => {}, onWorkLocally: null };
+    const shown = nextWorktreeSetupPresence({ setup: null, exiting: false, generation: 0 }, card);
+    expect(nextWorktreeSetupPresence(shown, { ...card, onCancel: () => {} })).toBe(shown);
+
+    const leaving = nextWorktreeSetupPresence(shown, null);
+    expect(leaving).toEqual({ setup: card, exiting: true, generation: 0 });
+    expect(nextWorktreeSetupPresence(leaving, null)).toBe(leaving);
+    expect(nextWorktreeSetupPresence(finishWorktreeSetupExit(leaving), null).setup).toBeNull();
+
+    const returned = { ...card, turnStarted: true, snapshot: { ...done, sequence: 3 } };
+    expect(nextWorktreeSetupPresence(leaving, returned)).toEqual({
+      setup: returned,
+      exiting: false,
+      generation: 1,
+    });
+  });
 
   it("does not carry a previous thread's progress across navigation", () => {
     const otherId = ThreadId.make("other-thread");
