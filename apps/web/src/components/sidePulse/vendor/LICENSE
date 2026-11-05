@@ -1,7 +1,3 @@
-sdled.wasm is SidePulse's LEDS.LED firmware engine, copied unmodified from
-https://github.com/inteliwear/sidepulse/blob/e4146395e94181e8dc4ad190ed7444fbf1da9cfd/src/sidepulse/resources/sdled.wasm
-under the license below.
-
 MIT License
 
 Copyright (c) 2026 Peter Kuhar
