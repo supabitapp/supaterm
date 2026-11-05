@@ -174,19 +174,18 @@ export function composerModelCandidates(
   );
   return buildModelOptions(serverConfig, null, undefined, projectId).flatMap((option) => {
     const provider = mentionable.get(option.selection.instanceId);
-    return provider && !option.isLegacy && !option.isUnavailable
-      ? [
-          {
-            instanceId: provider.instanceId,
-            driver: provider.driver,
-            providerName: option.providerLabel,
-            model: option.selection.model,
-            name: option.label,
-            shortName: option.shortName,
-            subProvider: option.subtitle || undefined,
-          },
-        ]
-      : [];
+    if (!provider || option.isLegacy || option.isUnavailable) return [];
+    return [
+      {
+        instanceId: provider.instanceId,
+        driver: provider.driver,
+        providerName: option.providerLabel,
+        model: option.selection.model,
+        name: option.label,
+        shortName: option.shortName,
+        subProvider: option.subtitle || undefined,
+      },
+    ];
   });
 }
 

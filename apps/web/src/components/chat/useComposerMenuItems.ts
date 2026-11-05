@@ -1,6 +1,7 @@
 import {
   isMentionableProvider,
   matchComposerModelItems,
+  type ComposerModelCandidate,
 } from "@supaterm/client-runtime/composerModelMentions";
 import { matchComposerThreadItems } from "@supaterm/client-runtime/composerThreadItems";
 import { useState } from "react";
@@ -50,6 +51,27 @@ const COMPOSER_PULL_REQUEST_LIST_LIMIT = 99;
 const COMPOSER_PULL_REQUEST_RESULT_LIMIT = 12;
 const EMPTY_PULL_REQUEST_LIST_TARGETS: ReadonlyArray<EnvironmentQueryTarget<PullRequestListInput>> =
   [];
+
+function composerModelCandidates(
+  entries: ReadonlyArray<ProviderInstanceEntry>,
+  modelOptionsByInstance: ReadonlyMap<ProviderInstanceId, ReadonlyArray<AppModelOption>>,
+): ComposerModelCandidate[] {
+  return entries.flatMap((entry) => {
+    if (!isMentionableProvider(entry.snapshot, entry.enabled)) return [];
+    const options = modelOptionsByInstance.get(entry.instanceId) ?? [];
+    return options
+      .filter((option) => !option.isLegacy && !option.isUnavailable)
+      .map((option) => ({
+        instanceId: entry.instanceId,
+        driver: entry.driverKind,
+        providerName: entry.displayName,
+        model: option.slug,
+        name: getDisplayModelName(option),
+        shortName: option.shortName,
+        subProvider: option.subProvider,
+      }));
+  });
+}
 
 /** Builds the @, /, $ and # suggestion lists, running the searches each trigger needs. */
 export function useComposerMenuItems({
@@ -182,25 +204,7 @@ export function useComposerMenuItems({
           now,
         }),
         ...matchComposerModelItems(
-          providerInstanceEntries.flatMap((entry) =>
-            isMentionableProvider(entry.snapshot, entry.enabled)
-              ? (modelOptionsByInstance.get(entry.instanceId) ?? []).flatMap((option) =>
-                  option.isLegacy || option.isUnavailable
-                    ? []
-                    : [
-                        {
-                          instanceId: entry.instanceId,
-                          driver: entry.driverKind,
-                          providerName: entry.displayName,
-                          model: option.slug,
-                          name: getDisplayModelName(option),
-                          shortName: option.shortName,
-                          subProvider: option.subProvider,
-                        },
-                      ],
-                )
-              : [],
-          ),
+          composerModelCandidates(providerInstanceEntries, modelOptionsByInstance),
           composerTrigger.query,
         ),
         ...workspaceEntries.entries.map((entry) => ({
