@@ -58,7 +58,8 @@ export function SidebarSectionPlaceholder(props: {
       marker={props.marker}
       data-testid={`sidebar-${props.marker}`}
       className="relative mx-0.5 -mb-px h-0"
-      revealOverflow={props.marker === "done-placeholder" && props.showHint}
+      // Revealing on every drag scrolls the list out from under the pointer.
+      revealOverflow={props.marker === "done-placeholder" && props.showHint && props.isDropTarget}
     >
       {props.showHint ? (
         <div

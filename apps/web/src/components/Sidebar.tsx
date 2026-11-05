@@ -2865,6 +2865,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                     "relative -mb-2 flex flex-col gap-px",
                     sidebarHasThreadSections && "flex-1",
                     actionSweep !== null && "**:pointer-events-none",
+                    // Projected rows (two boundary labels, two hints) extend the scroll range; a range that
+                    // shrinks as the target changes clamps scrollTop and flips the target under a still pointer.
+                    dragState !== null &&
+                      "after:pointer-events-none after:absolute after:inset-x-0 after:-bottom-30 after:h-px after:content-['']",
                   )}
                 >
                   {(() => {
