@@ -12,10 +12,10 @@ import {
   presentPendingBackgroundWork,
   presentProviderGoal,
   type RunStopPresentation,
+  soleWatchedPullRequest,
 } from "@supaterm/client-runtime/state/thread-execution";
 import { childThreadInputsTitle } from "@supaterm/client-runtime/state/threads";
 import { formatDuration } from "@supaterm/shared/orchestrationTiming";
-import { pullRequestWatchTaskId } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 import {
   GitBranchIcon,
   MessageCircleIcon,
@@ -187,11 +187,9 @@ export function backgroundWorkBannerItem(input: {
       ? { handle: input.outputHandle, target: outputTarget(only) }
       : null;
   const title = <BackgroundWorkTitle title={presentation.title} output={titleOutput} />;
-  const [watchedLink, ...otherWatchedLinks] = input.pullRequests.filter((link) =>
-    presentation.items.some((item) => item.taskId === pullRequestWatchTaskId(link)),
-  );
+  const watchedLink = soleWatchedPullRequest(presentation.items, input.pullRequests);
   const watchedPullRequest: WatchedPullRequest | null =
-    watchedLink !== undefined && otherWatchedLinks.length === 0
+    watchedLink !== null
       ? {
           threadRef: { environmentId: input.environmentId, threadId: input.threadId },
           reference: {
@@ -209,6 +207,7 @@ export function backgroundWorkBannerItem(input: {
     icon: (
       <BackgroundWorkIcon waiting={presentation.waiting} watchedPullRequest={watchedPullRequest} />
     ),
+    iconInteractive: watchedPullRequest !== null,
     title:
       presentation.items.length === 1 && (only?.kind === "command" || only?.kind === "monitor") ? (
         <span className="in-data-[slot=popover-popup]:whitespace-pre-wrap">{title}</span>

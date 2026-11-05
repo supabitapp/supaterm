@@ -65,7 +65,8 @@ function WatchedPullRequestChecks({
       if (!checksQuery.isPending()) checksQuery.refresh();
     },
     enabled: !settledWithoutChecks,
-    key: `background-work-pr-checks:${environmentId}:${reference.projectId}:${reference.host}:${reference.repository}:${reference.number}`,
+    // The thread details PR row polls the same query under this key, so the two share a schedule.
+    key: `workspace-pr-checks:${environmentId}:${reference.projectId}:${reference.host}:${reference.repository}:${reference.number}`,
     checks: checks ?? [],
   });
   const checksState = checks === undefined ? null : pullRequestChecksState(checks);
