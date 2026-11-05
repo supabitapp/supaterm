@@ -660,7 +660,7 @@ export function buildBoundedThreadProjection(input: {
   });
 
   const windowBudget = Math.max(
-    dependencyReserve === 0 ? policy.maxEncodedBytes / 2 : 0,
+    Math.max(policy.maxEncodedBytes / 2 - dependencyReserve, 0),
     policy.maxEncodedBytes - dependencyReserve - controlBytes - 1_024,
   );
   const windowPolicy: ThreadHistoryPagePolicy = { ...policy, maxEncodedBytes: windowBudget };
