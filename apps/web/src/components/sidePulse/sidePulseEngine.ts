@@ -1,4 +1,4 @@
-import type { SidePulseDevice } from "@supaterm/contracts";
+import { SIDE_PULSE_LED_COUNT } from "@supaterm/shared/sidePulsePrograms";
 
 import sdledWasmUrl from "./vendor/sdled.wasm?url";
 
@@ -40,34 +40,35 @@ export interface SidePulseEngine {
 
 export async function instantiateSidePulseEngine(
   module: WebAssembly.Module,
-  ledCount: SidePulseDevice["ledCount"],
 ): Promise<SidePulseEngine> {
   const { exports } = await WebAssembly.instantiate(module, {});
   if (!isSdledExports(exports)) throw new Error("The SidePulse LED engine has unexpected exports");
   const encoder = new TextEncoder();
   return {
     play: (program) => {
-      exports.sdled_reset(ledCount, 0);
+      exports.sdled_reset(SIDE_PULSE_LED_COUNT, 0);
       const bytes = encoder.encode(program);
       const input = new Uint8Array(exports.memory.buffer, exports.sdled_input_ptr(), INPUT_BYTES);
       input.fill(0);
       input.set(bytes.subarray(0, INPUT_BYTES));
       // The engine rejects anything past its input buffer as too long.
       const length = bytes.length > INPUT_BYTES ? INPUT_BYTES + 1 : bytes.length;
-      return (exports.sdled_parse(ledCount, length, 0) & 1) === 1;
+      return (exports.sdled_parse(SIDE_PULSE_LED_COUNT, length, 0) & 1) === 1;
     },
     step: (nowMs) => {
-      exports.sdled_step(ledCount, Math.floor(nowMs));
-      return new Uint8Array(exports.memory.buffer, exports.sdled_output_ptr(), ledCount * 3);
+      exports.sdled_step(SIDE_PULSE_LED_COUNT, Math.floor(nowMs));
+      return new Uint8Array(
+        exports.memory.buffer,
+        exports.sdled_output_ptr(),
+        SIDE_PULSE_LED_COUNT * 3,
+      );
     },
   };
 }
 
 let compiled: Promise<WebAssembly.Module> | null = null;
 
-export function createSidePulseEngine(
-  ledCount: SidePulseDevice["ledCount"],
-): Promise<SidePulseEngine> {
+export function createSidePulseEngine(): Promise<SidePulseEngine> {
   compiled ??= fetch(sdledWasmUrl)
     .then((response) => {
       if (!response.ok)
@@ -79,5 +80,5 @@ export function createSidePulseEngine(
       compiled = null;
       throw error;
     });
-  return compiled.then((module) => instantiateSidePulseEngine(module, ledCount));
+  return compiled.then((module) => instantiateSidePulseEngine(module));
 }

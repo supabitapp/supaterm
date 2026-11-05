@@ -1,12 +1,12 @@
 # SidePulse
 
-SidePulse Pro sits in a MacBook Pro's SD card slot, and SidePulse Dot plugs into USB-C. In the
-Supaterm desktop app on macOS and Linux, their LEDs show what your agents are doing, so you can see
-when one needs you without switching windows.
+SidePulse Pro sits in a MacBook Pro's SD card slot. In the Supaterm desktop app on macOS and Linux,
+its LEDs show what your agents are doing, so you can see when one needs you without switching
+windows.
 
 ## Turning it on
 
-Open **Settings** > **SidePulse** and turn on **SidePulse**, then insert or plug in the device.
+Open **Settings** > **SidePulse** and turn on **SidePulse**, then insert the device.
 Supaterm finds it once its volume mounts, and the page shows each connected device. Turning
 SidePulse off, or quitting Supaterm, turns the LEDs off. While SidePulse is off, Supaterm doesn't
 open any removable volume.

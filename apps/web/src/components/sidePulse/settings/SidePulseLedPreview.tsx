@@ -1,5 +1,5 @@
-import type { SidePulseDevice, SidePulseLedState } from "@supaterm/contracts";
-import { sidePulseProgram } from "@supaterm/shared/sidePulsePrograms";
+import type { SidePulseLedState } from "@supaterm/contracts";
+import { SIDE_PULSE_LED_COUNT, sidePulseProgram } from "@supaterm/shared/sidePulsePrograms";
 import { useEffect, useRef } from "react";
 
 import { observeIntersection } from "../../../lib/observeIntersection";
@@ -19,7 +19,7 @@ const LIT_MS: Readonly<Record<SidePulseLedState, number>> = {
   idle: 3900,
 };
 
-const panelWidth = (ledCount: number) => ledCount * LED_PITCH + GLOW_ROOM * 2;
+const PANEL_WIDTH = SIDE_PULSE_LED_COUNT * LED_PITCH + GLOW_ROOM * 2;
 
 // One ticker paints every preview in the same animation frame, so the page composites once per tick.
 const frameListeners = new Set<(now: number) => void>();
@@ -56,18 +56,17 @@ function hexToRgb(hex: string): ReadonlyArray<number> {
   return [1, 3, 5].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16));
 }
 
-function drawLeds(canvas: HTMLCanvasElement, rgb: ArrayLike<number>, ledCount: number) {
+function drawLeds(canvas: HTMLCanvasElement, rgb: ArrayLike<number>) {
   const context = canvas.getContext("2d");
   if (context === null) return;
   const scale = window.devicePixelRatio || 1;
-  const width = panelWidth(ledCount);
-  if (canvas.width !== Math.round(width * scale)) {
-    canvas.width = Math.round(width * scale);
+  if (canvas.width !== Math.round(PANEL_WIDTH * scale)) {
+    canvas.width = Math.round(PANEL_WIDTH * scale);
     canvas.height = Math.round(HEIGHT * scale);
   }
   context.setTransform(scale, 0, 0, scale, 0, 0);
-  context.clearRect(0, 0, width, HEIGHT);
-  for (let index = 0; index < ledCount; index += 1) {
+  context.clearRect(0, 0, PANEL_WIDTH, HEIGHT);
+  for (let index = 0; index < SIDE_PULSE_LED_COUNT; index += 1) {
     const red = rgb[index * 3] ?? 0;
     const green = rgb[index * 3 + 1] ?? 0;
     const blue = rgb[index * 3 + 2] ?? 0;
@@ -97,12 +96,10 @@ function drawLeds(canvas: HTMLCanvasElement, rgb: ArrayLike<number>, ledCount: n
 /** A SidePulse running `ledState` through its own firmware engine, as the device would show it. */
 export function SidePulseLedPreview({
   ledState,
-  ledCount,
   brightness,
   fallbackColor,
 }: {
   readonly ledState: SidePulseLedState;
-  readonly ledCount: SidePulseDevice["ledCount"];
   readonly brightness: number;
   readonly fallbackColor: string;
 }) {
@@ -112,7 +109,7 @@ export function SidePulseLedPreview({
     const canvas = canvasRef.current;
     if (canvas === null) return;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const program = sidePulseProgram(ledState, ledCount, brightness);
+    const program = sidePulseProgram(ledState, brightness);
     let engine: SidePulseEngine | null = null;
     let startedAt = 0;
     let disposed = false;
@@ -125,7 +122,7 @@ export function SidePulseLedPreview({
       const frame = engine.step(engineMs);
       if (painted !== null && frame.every((value, index) => value === painted?.[index])) return;
       painted = frame.slice();
-      drawLeds(canvas, frame, ledCount);
+      drawLeds(canvas, frame);
     };
     // Restarts at the lit moment: the first frame, the reduced-motion still, and where motion resumes.
     const showLitFrame = () => {
@@ -152,14 +149,14 @@ export function SidePulseLedPreview({
       sync();
     };
 
-    drawLeds(canvas, new Uint8Array(ledCount * 3), ledCount);
+    drawLeds(canvas, new Uint8Array(SIDE_PULSE_LED_COUNT * 3));
     const stopObserving = observeIntersection(canvas, (entry) => {
       visible = entry.isIntersecting;
       sync();
     });
     document.addEventListener("visibilitychange", sync);
     reducedMotion.addEventListener("change", onMotionPreferenceChange);
-    void createSidePulseEngine(ledCount).then(
+    void createSidePulseEngine().then(
       (created) => {
         if (disposed || !created.play(program)) return;
         engine = created;
@@ -170,8 +167,7 @@ export function SidePulseLedPreview({
         if (disposed) return;
         drawLeds(
           canvas,
-          Array.from({ length: ledCount }, () => hexToRgb(fallbackColor)).flat(),
-          ledCount,
+          Array.from({ length: SIDE_PULSE_LED_COUNT }, () => hexToRgb(fallbackColor)).flat(),
         );
       },
     );
@@ -182,11 +178,11 @@ export function SidePulseLedPreview({
       document.removeEventListener("visibilitychange", sync);
       reducedMotion.removeEventListener("change", onMotionPreferenceChange);
     };
-  }, [ledState, ledCount, brightness, fallbackColor]);
+  }, [ledState, brightness, fallbackColor]);
 
   return (
     <span className="inline-flex rounded-full bg-led-panel px-1 py-0.5 ring-1 ring-border">
-      <canvas ref={canvasRef} aria-hidden style={{ width: panelWidth(ledCount), height: HEIGHT }} />
+      <canvas ref={canvasRef} aria-hidden style={{ width: PANEL_WIDTH, height: HEIGHT }} />
     </span>
   );
 }

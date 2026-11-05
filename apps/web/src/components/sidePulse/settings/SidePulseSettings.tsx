@@ -25,7 +25,7 @@ const TONE_TEXT_CLASS_NAMES: Readonly<Record<Tone, string>> = {
 
 const isMacHost = isMacPlatform(navigator.platform);
 
-const DEFAULT_DESCRIPTION = "Show what your agents are doing on SidePulse Pro or SidePulse Dot.";
+const DEFAULT_DESCRIPTION = "Show what your agents are doing on SidePulse Pro.";
 
 const LIGHTS: ReadonlyArray<{
   readonly state: SidePulseLedState;
@@ -74,7 +74,7 @@ function connectionSummary(
   if (state.devices.length === 0) {
     return {
       label: "Not detected",
-      description: "Insert SidePulse Pro in the SD card slot or plug in SidePulse Dot.",
+      description: "Insert SidePulse Pro in the SD card slot.",
       tone: "muted",
     };
   }
@@ -117,7 +117,6 @@ function SidePulseSettingsPage({ bridge }: { readonly bridge: DesktopSidePulseBr
   const summary = connectionSummary(settings.enabled, state);
   const devices = settings.enabled && state?.enabled ? state.devices : [];
   const showing = devices.length > 0 ? (state?.ledState ?? null) : null;
-  const previewLedCount = devices[0]?.ledCount ?? 8;
 
   return (
     <SettingsPageContainer>
@@ -125,11 +124,7 @@ function SidePulseSettingsPage({ bridge }: { readonly bridge: DesktopSidePulseBr
         <SettingsRow
           {...searchableSetting("sidepulse-enabled")}
           description={summary.description}
-          status={
-            devices.length > 0
-              ? devices.map((device) => `${device.name} · ${device.ledCount} LEDs`).join(", ")
-              : null
-          }
+          status={devices.length > 0 ? devices.map((device) => device.name).join(", ") : null}
           control={
             <>
               {summary.label ? (
@@ -172,7 +167,6 @@ function SidePulseSettingsPage({ bridge }: { readonly bridge: DesktopSidePulseBr
                 ) : null}
                 <SidePulseLedPreview
                   ledState={light.state}
-                  ledCount={previewLedCount}
                   brightness={settings.brightness}
                   fallbackColor={light.color}
                 />
