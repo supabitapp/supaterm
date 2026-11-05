@@ -33,7 +33,7 @@ const makeSetLedState = Effect.gen(function* () {
 
   return DesktopIpc.makeIpcMethod({
     channel: IpcChannels.SIDE_PULSE_SET_LED_STATE_CHANNEL,
-    payload: SidePulseLedState,
+    payload: Schema.NullOr(SidePulseLedState),
     result: Schema.Void,
     handler: Effect.fn("desktop.ipc.sidePulse.setLedState")(function* (ledState, event) {
       if (yield* admit(event)) yield* sidePulse.setLedState(ledState);

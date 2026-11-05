@@ -36,5 +36,6 @@ export type SidePulseDeviceState = typeof SidePulseDeviceState.Type;
 export interface DesktopSidePulseBridge {
   getState: () => Promise<SidePulseDeviceState>;
   onStateChange: (listener: (state: SidePulseDeviceState) => void) => () => void;
-  setLedState: (state: SidePulseLedState) => Promise<void>;
+  /** Null when this window stops reporting thread state, which turns the LEDs off. */
+  setLedState: (state: SidePulseLedState | null) => Promise<void>;
 }

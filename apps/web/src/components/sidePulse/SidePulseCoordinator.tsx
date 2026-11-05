@@ -35,5 +35,12 @@ function ActiveSidePulseCoordinator({ bridge }: { readonly bridge: DesktopSidePu
   useEffect(() => {
     void bridge.setLedState(ledState).catch(() => undefined);
   }, [bridge, ledState]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the LEDs when this window stops reporting thread state, such as when the app shell unmounts for the auth gate
+  useEffect(
+    () => () => {
+      void bridge.setLedState(null).catch(() => undefined);
+    },
+    [bridge],
+  );
   return null;
 }

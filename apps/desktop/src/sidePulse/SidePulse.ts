@@ -197,9 +197,10 @@ export const make = Effect.fn("SidePulse.make")(function* (mountRoots: ReadonlyA
   });
 
   const turnOff = Effect.gen(function* () {
-    for (const tracked of devices.values()) {
-      if (tracked.written !== null)
-        yield* writeLedFile(tracked.device.path, SIDE_PULSE_OFF_PROGRAM);
+    // A failed write can follow one that lit the device, so only volumes never opened are skipped.
+    for (const { device } of devices.values()) {
+      if (device.error !== "access-denied")
+        yield* writeLedFile(device.path, SIDE_PULSE_OFF_PROGRAM);
     }
     devices = new Map();
   });

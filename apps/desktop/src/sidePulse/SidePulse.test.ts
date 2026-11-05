@@ -172,6 +172,41 @@ describe("SidePulse", () => {
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   );
 
+  it.effect("still turns the LEDs off after a later write fails", () =>
+    Effect.gen(function* () {
+      let failWrites = false;
+      const { mount, read, sidePulse } = yield* setup((fs) => ({
+        ...fs,
+        open: (path, options) =>
+          failWrites
+            ? Effect.fail(
+                PlatformError.systemError({
+                  _tag: "Busy",
+                  module: "FileSystem",
+                  method: "open",
+                  pathOrDescriptor: path,
+                }),
+              )
+            : fs.open(path, options),
+      }));
+      yield* mount("SidePulseDot");
+      yield* sidePulse.setLedState("working");
+      yield* sidePulse.configure({ enabled: true, brightness: 100 });
+      assert.strictEqual(yield* read("SidePulseDot"), DOT_WORKING);
+
+      failWrites = true;
+      yield* sidePulse.setLedState("attention");
+      assert.deepStrictEqual(
+        (yield* sidePulse.state).devices.map((device) => device.error),
+        ["write-failed"],
+      );
+
+      failWrites = false;
+      yield* sidePulse.configure({ enabled: false, brightness: 100 });
+      assert.strictEqual(yield* read("SidePulseDot"), "off 1s");
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+  );
+
   it.effect("turns the LEDs off when the window closes behind a queued update", () =>
     Effect.gen(function* () {
       const { mount, read, sidePulse } = yield* setup();
