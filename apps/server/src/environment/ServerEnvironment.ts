@@ -227,6 +227,7 @@ export const make = Effect.gen(function* () {
       triage: true,
       threadProjectFromScratch: true,
       oneTimeSchedules: true,
+      freshContext: true,
       npmReleaseLookup: true,
       ...(serverSelfUpdate === null ? {} : { serverSelfUpdate }),
       ...(serverInstallation === null ? {} : { serverInstallation }),
