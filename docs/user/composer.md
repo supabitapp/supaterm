@@ -417,6 +417,13 @@ saved text context at the time of the drop; later messages and the contents of a
 are not copied. The agent can read the saved transcript after the source disconnects. Normal
 file attachment limits apply.
 
+To name a model for the agent, type `@` followed by part of the model or provider name, such as
+`@opus` or `@gpt`, and pick it from the list. A mention ends at a space, so join words with `:`,
+`/`, or `-`, as in `@claude:opus`. The list offers models from this server's providers that are
+turned on, signed in, and available. The chip tells the agent the exact provider and model, so a
+prompt like "delegate this to @opus" hands the work to that model. Naming a model never changes
+the model your thread runs on; use the model picker for that.
+
 Images keep their thumbnail shelf above the text and also get a chip at your cursor, so you can
 say exactly which image you mean. Deleting an image chip leaves the image on the shelf; removing
 the thumbnail asks first when the image is still mentioned in your text, then removes both. Files

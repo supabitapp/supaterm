@@ -4,9 +4,9 @@
 
 Inline context references let a user message point at a typed payload from an exact position in
 its prose: an image, a file, a terminal excerpt, a picked page element, a preview annotation, a
-review comment, a file mention, or a skill. This document covers the wire contract and the pure
-codecs. Editor, rendering, and clipboard behaviour land in later PRs and get their own sections
-here as they arrive.
+review comment, a file mention, a skill, a thread, or a model. This document covers the wire
+contract and the pure codecs. Editor, rendering, and clipboard behaviour land in later PRs and get
+their own sections here as they arrive.
 
 ## Two linked concepts
 
