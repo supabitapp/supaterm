@@ -3,7 +3,7 @@ import type { ThreadContextRecord } from "@supaterm/contracts";
 import { Link } from "@tanstack/react-router";
 import { MessagesSquareIcon } from "@supaterm/icons";
 
-import { useProject, useThreadShell } from "~/state/entities";
+import { useProject, useShellOmitsThreads, useThreadShell } from "~/state/entities";
 import { ContextChip, ContextChipLabel } from "./ContextChip";
 import { ProjectFavicon } from "./ProjectFavicon";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
@@ -15,6 +15,7 @@ export function ThreadContextChip(props: {
 }) {
   const { environmentId, threadId } = props.record;
   const shell = useThreadShell({ environmentId, threadId });
+  const mayBeOmitted = useShellOmitsThreads(environmentId);
   const project = useProject(shell ? scopeProjectRef(environmentId, shell.projectId) : null);
   const title = shell?.title?.trim() || props.record.title;
   return (
@@ -41,7 +42,7 @@ export function ThreadContextChip(props: {
       <TooltipPopup side="top">
         {props.unreadable
           ? "On another machine, so this machine's agent can't read it. Remove it or switch back to send."
-          : shell
+          : shell || mayBeOmitted
             ? "Open thread"
             : "Thread no longer available"}
       </TooltipPopup>

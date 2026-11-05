@@ -7,6 +7,7 @@ import {
   immediateThreadRelationships,
   orderWebThreadLineageRows,
   resolveMergeBackTargetThreadId,
+  subagentChildTitles,
   threadRelationshipRowStatus,
 } from "./threadRelationships.ts";
 
@@ -346,6 +347,31 @@ function orderedLineageIds(input: {
     mergeTargetThreadId: input.mergeTargetThreadId ?? null,
   }).map(({ threadId }) => threadId);
 }
+
+describe("subagentChildTitles", () => {
+  it("names delegated and workflow children, untitled ones as empty", () => {
+    const titles = subagentChildTitles([
+      { childThreadId: ThreadId.make("review"), title: "Correctness review", workflow: undefined },
+      { childThreadId: ThreadId.make("untitled"), title: null, workflow: undefined },
+      { childThreadId: null, title: "Never started", workflow: undefined },
+      {
+        childThreadId: null,
+        title: "Fan out",
+        workflow: {
+          agents: [
+            { label: "Audit server", childThreadId: ThreadId.make("audit") },
+            { label: "Queued", childThreadId: undefined },
+          ],
+        } as never,
+      },
+    ]);
+    expect([...titles]).toEqual([
+      ["review", "Correctness review"],
+      ["untitled", ""],
+      ["audit", "Audit server"],
+    ]);
+  });
+});
 
 describe("web thread lineage ordering", () => {
   it("does not reorder when related-thread activity arrives", () => {

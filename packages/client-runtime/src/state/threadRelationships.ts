@@ -1,10 +1,13 @@
 import {
   isOrchestrationV2WorkActive,
+  type OrchestrationV2Subagent,
   type OrchestrationV2ThreadProjection,
   type OrchestrationV2ThreadShell,
   type ThreadId,
 } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
+
+import { formatSubagentDisplayTitle } from "./subagentDisplay.ts";
 
 export type ThreadRelationshipKind = "parent" | "fork" | "subagent" | "transfer";
 
@@ -127,6 +130,25 @@ export function deriveThreadRelationshipGraph(input: {
   }
 
   return { nodes, edges: [...edgesByKey.values()] };
+}
+
+/**
+ * The child threads a thread's subagents and workflow agents name, with their titles. The shell
+ * leaves idle children out, so this record is how a client knows them; an untitled child maps to "".
+ */
+export function subagentChildTitles(
+  subagents: ReadonlyArray<Pick<OrchestrationV2Subagent, "childThreadId" | "title" | "workflow">>,
+): ReadonlyMap<ThreadId, string> {
+  const titles = new Map<ThreadId, string>();
+  for (const subagent of subagents) {
+    if (subagent.childThreadId !== null) {
+      titles.set(subagent.childThreadId, formatSubagentDisplayTitle(subagent.title ?? ""));
+    }
+    for (const agent of subagent.workflow?.agents ?? []) {
+      if (agent.childThreadId !== undefined) titles.set(agent.childThreadId, agent.label);
+    }
+  }
+  return titles;
 }
 
 export function immediateThreadRelationships(

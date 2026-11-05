@@ -143,12 +143,14 @@ advertise `shellOlderDone` keep only the 25 newest done top-level threads
 snapshot's `olderDone` names that cut and counts the rest per project. Left-out
 rows load on demand and merge behind shell rows
 ([thread families](../../packages/client-runtime/src/state/threadFamilies.ts)):
-the family a thread view or a queued message mounts holds every active thread
-sharing the thread's root, so it also brings back an old done thread opened by
-link; the Done shelf reads pages below the cut; searches return the rows of
-older matches. A missing shell row therefore does not prove a thread is gone:
+the family a queued message mounts holds every active thread sharing the
+thread's root; the Done shelf reads pages below the cut; searches return the
+rows of older matches. A thread view loads only its own detail, so a thread
+opened by link needs no shell row. A missing shell row therefore does not prove a thread is gone:
 code that deletes data or a worktree on absence must check the family or the
-server first.
+server first, and a link or chip must not call the thread unavailable. Render
+paths do not read families to settle that: a family read can hold the server's
+shared database reader for seconds on a large history.
 
 The Done count is local Done rows, minus local rows below the cut, plus the
 server's counts
