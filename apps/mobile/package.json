@@ -45,7 +45,7 @@
     "measure-renders": "node scripts/measure-renders.mts",
     "generate": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/generate-uniwind-themes.mts",
     "generate:highlights": "node scripts/generate-highlights.mts",
-    "test": "vp test run --project unit --project react",
+    "test": "vp test run --project unit --project react && MOBILE_TEST_PLATFORM=android vp test run --project react src/components/FilePreviewModal.test.tsx",
     "typecheck": "tsc --noEmit",
     "sync:ui-icons": "node scripts/sync-ui-icons.mjs"
   },

@@ -28,23 +28,6 @@ export function filePreviewGallery(source: FilePreviewSource, group: readonly Fi
   return items;
 }
 
-/**
- * The gallery once every item settled, without the siblings that failed to resolve.
- * Only the selected item failing rejects, and it does so without waiting for the rest.
- */
-export async function settlePreviewGallery<Resolved extends object>(
-  resolving: readonly Promise<Resolved | null>[],
-  selectedIndex: number,
-): Promise<{ readonly selected: Resolved; readonly gallery: readonly Resolved[] } | null> {
-  const settled = Promise.allSettled(resolving);
-  const selected = await resolving[selectedIndex];
-  if (!selected) return null;
-  const gallery = (await settled).flatMap((item) =>
-    item.status === "fulfilled" && item.value !== null ? [item.value] : [],
-  );
-  return { selected, gallery };
-}
-
 export function filePreviewName(source: FilePreviewItem): string {
   const uriName = "uri" in source ? source.uri.split(/[?#]/)[0]?.split("/").pop() : undefined;
   const name =
