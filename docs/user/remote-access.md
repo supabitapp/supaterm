@@ -366,6 +366,10 @@ If the link's address is one the device already uses for that machine but cannot
 reach right now, such as a LAN address while on cellular, it pairs through the
 machine's other saved routes instead.
 
+When the app connects to more than one environment, choose one at the top of the
+page. A desktop app with **Local environment** off can manage a background
+service on the same machine this way.
+
 A session with an open connection stays listed after its access credential
 expires.
 

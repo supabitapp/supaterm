@@ -22,7 +22,9 @@ import * as HttpApiClient from "effect/http-api/HttpApiClient";
 const isEnvironmentHttpCommonError = Schema.is(EnvironmentHttpCommonError);
 const isRelayTunnelFailure = Schema.is(RelayTunnelFailure);
 
-class RemoteEnvironmentAuthFetchError extends Data.TaggedError("RemoteEnvironmentAuthFetchError")<{
+export class RemoteEnvironmentAuthFetchError extends Data.TaggedError(
+  "RemoteEnvironmentAuthFetchError",
+)<{
   readonly message: string;
   readonly cause: unknown;
 }> {}
