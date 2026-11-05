@@ -252,18 +252,16 @@ function useCollapsiblePanel(options: ResizablePanelWidthOptions) {
     [panel, subscribe],
   );
 
-  const collapsed = React.useRef(false);
   // Sizes are measured, so a toggle reports every animated frame; keep the pinned width.
-  const onResize = (size: PanelSize) => {
+  const onResize = (size: PanelSize, _id: unknown, previous: PanelSize | undefined) => {
     const element = elementRef.current;
     if (!element) return;
-    const nextCollapsed = size.inPixels === 0;
-    if (collapsed.current !== nextCollapsed) {
+    const collapsed = size.inPixels === 0;
+    if (previous && (previous.inPixels === 0) !== collapsed) {
       const dragging = element.parentElement?.querySelector(":scope > [data-separator=active]");
       if (dragging) window.desktopBridge?.performAlignmentHaptic();
     }
-    collapsed.current = nextCollapsed;
-    if (nextCollapsed || element.hasAttribute(PANEL_TOGGLING_ATTRIBUTE)) return;
+    if (collapsed || element.hasAttribute(PANEL_TOGGLING_ATTRIBUTE)) return;
     element.style.setProperty(PANEL_WIDTH_PROPERTY, `${size.inPixels}px`);
   };
 
