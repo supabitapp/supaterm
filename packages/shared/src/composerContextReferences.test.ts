@@ -29,6 +29,7 @@ import {
 } from "./composerContextReferences.ts";
 
 const ctx = (value: string) => value as ComposerContextId;
+const decodeModelContextRecord = Schema.decodeSync(ModelContextRecord);
 
 describe("href codec", () => {
   it("round-trips kind and id", () => {
@@ -308,7 +309,7 @@ describe("provider projection", () => {
       name: "Claude Opus 4.5",
       providerName: "OpenCode Work",
     });
-    expect(() => Schema.decodeUnknownSync(ModelContextRecord)(record)).not.toThrow();
+    expect(() => decodeModelContextRecord(record)).not.toThrow();
     const projected = projectComposerContextForProvider({
       text: `Delegate this to ${formatComposerContextReference(record)}`,
       records: [record],

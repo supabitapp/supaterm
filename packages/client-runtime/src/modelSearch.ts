@@ -118,7 +118,7 @@ export function rankModelPickerSearch<T>(
     }
   });
   return ranked
-    .toSorted(
+    .sort(
       (a, b) =>
         a.score - b.score || Number(b.isFavorite) - Number(a.isFavorite) || a.order - b.order,
     )
