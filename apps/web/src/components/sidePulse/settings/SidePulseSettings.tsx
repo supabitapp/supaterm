@@ -7,7 +7,7 @@ import type {
 
 import { useDesktopDeviceState } from "../../../hooks/useDesktopDeviceState";
 import { updateClientSettings, useClientSettings } from "../../../hooks/useSettings";
-import { cn } from "../../../lib/utils";
+import { cn, isMacPlatform } from "../../../lib/utils";
 import { Switch } from "../../ui/switch";
 import { BrightnessSlider } from "../../settings/BrightnessSlider";
 import { SettingsPageContainer, SettingsRow, SettingsSection } from "../../settings/settingsLayout";
@@ -22,6 +22,8 @@ const TONE_TEXT_CLASS_NAMES: Readonly<Record<Tone, string>> = {
   success: "text-success-foreground",
   error: "text-destructive-foreground",
 };
+
+const isMacHost = isMacPlatform(navigator.platform);
 
 const DEFAULT_DESCRIPTION = "Show what your agents are doing on SidePulse Pro or SidePulse Dot.";
 
@@ -80,8 +82,9 @@ function connectionSummary(
   if (errors.has("access-denied")) {
     return {
       label: "No access",
-      description:
-        "Allow Supaterm to use removable volumes in System Settings > Privacy & Security > Files & Folders.",
+      description: isMacHost
+        ? "Allow Supaterm to use removable volumes in System Settings > Privacy & Security > Files & Folders."
+        : "Supaterm can't open the SidePulse volume. Make sure your user can read and write it.",
       tone: "error",
     };
   }

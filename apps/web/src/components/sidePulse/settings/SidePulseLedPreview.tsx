@@ -28,9 +28,18 @@ let frameTimer: ReturnType<typeof setTimeout> | undefined;
 function scheduleFrame() {
   frameTimer = setTimeout(() => {
     requestAnimationFrame((now) => {
-      for (const listener of frameListeners) listener(now);
+      frameTimer = undefined;
+      for (const listener of frameListeners) {
+        try {
+          listener(now);
+        } catch (error) {
+          // One preview's failure must not stop the others; report it without breaking the loop.
+          queueMicrotask(() => {
+            throw error;
+          });
+        }
+      }
       if (frameListeners.size > 0) scheduleFrame();
-      else frameTimer = undefined;
     });
   }, FRAME_MS);
 }
