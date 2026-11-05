@@ -186,7 +186,14 @@ export function backgroundWorkBannerItem(input: {
     presentation.items.length === 1 && only?.hasOutput
       ? { handle: input.outputHandle, target: outputTarget(only) }
       : null;
-  const title = <BackgroundWorkTitle title={presentation.title} output={titleOutput} />;
+  const onlyChildThreadId = presentation.items.length === 1 ? only?.childThreadId : undefined;
+  const title = (
+    <BackgroundWorkTitle
+      title={presentation.title}
+      output={titleOutput}
+      onOpenThread={onlyChildThreadId === undefined ? null : () => onOpenThread(onlyChildThreadId)}
+    />
+  );
   const watchedLink = soleWatchedPullRequest(presentation.items, input.pullRequests);
   const watchedPullRequest: WatchedPullRequest | null =
     watchedLink !== null
@@ -215,7 +222,7 @@ export function backgroundWorkBannerItem(input: {
         title
       ),
     description:
-      presentation.items.length === 1 && only?.childThreadId === undefined
+      presentation.items.length === 1
         ? undefined
         : presentation.items.map((item, index) => {
             const childThreadId = item.childThreadId;
@@ -224,10 +231,10 @@ export function backgroundWorkBannerItem(input: {
               childThreadId !== undefined ? (
                 <InlineButton
                   tone="muted"
-                  aria-label={`${presentation.items.length === 1 ? "Show" : "Open"} subagent ${item.label}`}
+                  aria-label={`Open subagent ${item.label}`}
                   onClick={() => onOpenThread(childThreadId)}
                 >
-                  {presentation.items.length === 1 ? "Show" : item.label}
+                  {item.label}
                 </InlineButton>
               ) : item.hasOutput ? (
                 <PopoverTrigger

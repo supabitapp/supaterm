@@ -118,14 +118,33 @@ export function BackgroundTaskOutputPopover({ handle }: { handle: BackgroundTask
   );
 }
 
-/** The banner's title. It opens the output of the one command it names. */
+/** The banner's title. It opens the output of the one command it names, or the one subagent. */
 export function BackgroundWorkTitle({
   title,
   output,
+  onOpenThread,
 }: {
   title: string;
   output: { handle: BackgroundTaskOutputHandle; target: BackgroundTaskOutputTarget } | null;
+  onOpenThread: (() => void) | null;
 }) {
+  if (onOpenThread !== null) {
+    return (
+      <span
+        role="link"
+        tabIndex={0}
+        className={titleTriggerClassName}
+        onClick={onOpenThread}
+        onKeyDown={(event) => {
+          if (event.key !== "Enter") return;
+          event.preventDefault();
+          onOpenThread();
+        }}
+      >
+        {title}
+      </span>
+    );
+  }
   return output === null ? (
     title
   ) : (

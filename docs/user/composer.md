@@ -310,9 +310,9 @@ example because the machine is out of memory, shows **Agent not responding to St
 **Force stop** on web, desktop, and mobile. Force stop ends the turn and kills the agent's
 processes; a process that other working threads share keeps running for them.
 
-When a turn ends with commands or monitors still running, the composer shows what is running and
-**Stop** ends it. Click a command's name to watch its live output. On mobile, tap the background
-work pill, then the command.
+When a turn ends with commands, monitors, or subagents still running, the composer shows what is
+running and **Stop** ends it. Click a command's name to watch its live output, or a subagent's name
+to open it. On mobile, tap the background work pill, then the command or subagent.
 
 Queued messages appear above the composer. Rows show a thumbnail of any attached image alongside
 the text. **Send now** sends a message right away, into the running turn if there is one. You can
