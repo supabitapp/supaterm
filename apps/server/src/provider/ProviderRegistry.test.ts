@@ -3569,5 +3569,51 @@ it.layer(
           Effect.provide(layerMockSpawner(() => ({ stdout: "2.1.296\n", stderr: "", code: 0 }))),
         ),
     );
+
+    it.effect("advertises Ultracode as a toggle on custom models", () =>
+      Effect.gen(function* () {
+        const status = yield* checkClaudeProviderStatus(
+          {
+            ...defaultClaudeSettings,
+            customModels: [
+              {
+                slug: "claude-custom-tuned",
+                capabilities: {
+                  optionDescriptors: [
+                    {
+                      id: "effort",
+                      label: "Reasoning",
+                      type: "select",
+                      options: [
+                        { id: "high", label: "High", isDefault: true },
+                        { id: "ultracode", label: "Ultracode" },
+                      ],
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+          claudeCapabilities(),
+        );
+        const custom = status.models.find((model) => model.slug === "claude-custom-tuned");
+        assert.deepStrictEqual(
+          custom?.capabilities?.optionDescriptors?.map((descriptor) =>
+            descriptor.type === "select"
+              ? `${descriptor.id}:${descriptor.options.map((option) => option.id).join("|")}`
+              : `${descriptor.id}:${descriptor.type}`,
+          ),
+          ["effort:high|xhigh", "ultracode:boolean"],
+        );
+      }).pipe(
+        Effect.provide(
+          layerMockSpawner((args) => {
+            const joined = args.join(" ");
+            if (joined === "--version") return { stdout: "1.0.0\n", stderr: "", code: 0 };
+            throw new Error(`Unexpected args: ${joined}`);
+          }),
+        ),
+      ),
+    );
   });
 });

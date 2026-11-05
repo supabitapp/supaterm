@@ -70,7 +70,7 @@ import {
   resolveProjectProviderInstanceEnabled,
   SECRET_REQUEST_UNSAVED_NOTE,
 } from "@supaterm/contracts";
-import { getProviderOptionCurrentValue } from "@supaterm/shared/model";
+import { getProviderOptionCurrentValue, withLegacyUltracodeEffort } from "@supaterm/shared/model";
 import { runRanAfter } from "@supaterm/shared/orchestrationV2ThreadError";
 import { formatThreadLink } from "@supaterm/shared/threadLinks";
 import {
@@ -1555,7 +1555,7 @@ const make = Effect.gen(function* () {
 
     const descriptors = provider.models.find((candidate) => candidate.slug === model)?.capabilities
       ?.optionDescriptors;
-    const requestedOptions = input.target?.options;
+    const requestedOptions = withLegacyUltracodeEffort(descriptors, input.target?.options);
     if (requestedOptions !== undefined) {
       const invalid = invalidOptionSelections(requestedOptions, descriptors, provider.driver);
       if (invalid.length > 0) {
@@ -1569,7 +1569,10 @@ const make = Effect.gen(function* () {
     const inheritsOptions =
       instanceId === inheritedSelection.instanceId && model === inheritedSelection.model;
     let options = inheritsOptions
-      ? knownOptions(inheritedSelection.options, descriptors)
+      ? knownOptions(
+          withLegacyUltracodeEffort(descriptors, inheritedSelection.options),
+          descriptors,
+        )
       : undefined;
     if (requestedOptions !== undefined) {
       const selections = new Map(
