@@ -27,6 +27,8 @@ Do not spend a paid model to see a turn render. `vp run dev` registers the
 `Replay (dev)` provider, which replays recorded turns with simulated streaming
 through the real adapter and orchestration. Its models are scenarios:
 `showcase` covers thinking, a plan, tool calls, an approval, and markdown.
+`worst-case` streams deep file paths, a long command, a long MCP tool name, and an
+unbreakable URL and token, for layout checks against realistic worst-case data.
 Press `Ctrl+Alt+Shift+R` for a picker (GNOME takes that key for screen
 recording), call `window.supatermDev.replay("showcase")`
 with `preview_evaluate`, or run
