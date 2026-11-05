@@ -44,7 +44,8 @@ function sidePulseMountRoots(platform: NodeJS.Platform, user: string): ReadonlyA
 function ledCountForVolume(name: string): SidePulseDevice["ledCount"] | null {
   const normalized = name.toLowerCase().replaceAll(/[^a-z0-9]/g, "");
   if (normalized.includes("pulsedot")) return 2;
-  if (normalized.includes("sidepulsepro")) return 8;
+  // SidePulse Pro ships with the volume label "SidePulse".
+  if (normalized.includes("sidepulse")) return 8;
   return null;
 }
 

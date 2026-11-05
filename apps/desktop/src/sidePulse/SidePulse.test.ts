@@ -49,6 +49,7 @@ describe("SidePulse", () => {
     Effect.gen(function* () {
       const { fs, root, mount, read, sidePulse } = yield* setup();
       yield* mount("SidePulsePro");
+      yield* mount("SidePulse");
       yield* mount("SidePulseDot");
       yield* mount("Backup");
       yield* fs.makeDirectory(`${root}/SidePulseDot 1`);
@@ -57,12 +58,14 @@ describe("SidePulse", () => {
       yield* sidePulse.configure({ enabled: true, brightness: 100 });
 
       assert.strictEqual(yield* read("SidePulsePro"), PRO_WORKING);
+      assert.strictEqual(yield* read("SidePulse"), PRO_WORKING);
       assert.strictEqual(yield* read("SidePulseDot"), DOT_WORKING);
       assert.strictEqual(yield* read("Backup"), "");
       assert.isFalse(yield* fs.exists(`${root}/SidePulseDot 1/LEDS.LED`));
       assert.deepStrictEqual(
         (yield* sidePulse.state).devices.map((device) => [device.name, device.ledCount]),
         [
+          ["SidePulse", 8],
           ["SidePulseDot", 2],
           ["SidePulsePro", 8],
         ],
