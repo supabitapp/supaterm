@@ -1996,6 +1996,9 @@ export default function ChatView(props: ChatViewProps) {
   const visiblePullRequestCount = visiblePullRequests.length;
   const pullRequestsSurfaceAvailable = isServerThread && visiblePullRequestCount > 0;
   const { state: deviceState } = useDeviceState(activeThreadRef?.environmentId ?? null);
+  const activeThreadDeviceRunning =
+    activeThreadRef !== null &&
+    deviceState.sessions.some((session) => session.threadId === activeThreadRef.threadId);
   const activeProjectRepository = sourceControlClients.repositorySelector(
     activeProject?.repositoryIdentity,
   );
@@ -3189,6 +3192,7 @@ export default function ChatView(props: ChatViewProps) {
     threadPanelHasAttention: activeEnvironmentUnavailableState !== null,
     rightPanelAvailable: activeProject !== null,
     rightPanelOpen,
+    rightPanelDeviceRunning: activeThreadDeviceRunning,
     rightPanelShortcutLabel: shortcutLabelForCommand(keybindings, "rightPanel.toggle"),
     onToggleTerminal: toggleTerminalVisibilityStable,
     onToggleThreadPanel: toggleThreadPanelStable,
@@ -3334,9 +3338,7 @@ export default function ChatView(props: ChatViewProps) {
     pullRequestAvailable: pullRequestSurfaceAvailable,
     pullRequestsAvailable: pullRequestsSurfaceAvailable,
     deviceAvailable: activeThreadRef !== null,
-    deviceRunning:
-      activeThreadRef !== null &&
-      deviceState.sessions.some((session) => session.threadId === activeThreadRef.threadId),
+    deviceRunning: activeThreadDeviceRunning,
     children: rightPanelContent,
   };
   const content = (

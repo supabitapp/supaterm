@@ -29,6 +29,8 @@ export interface PanelLayoutControlsProps {
   threadPanelHasAttention?: boolean;
   rightPanelAvailable: boolean;
   rightPanelOpen: boolean;
+  /** A device session is live for this thread; marks the toggle while the panel is closed. */
+  rightPanelDeviceRunning?: boolean;
   rightPanelShortcutLabel: string | null;
   rightPanelUnavailableLabel?: string;
   onToggleTerminal: () => void;
@@ -50,6 +52,7 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
   threadPanelHasAttention = false,
   rightPanelAvailable,
   rightPanelOpen,
+  rightPanelDeviceRunning = false,
   rightPanelShortcutLabel,
   rightPanelUnavailableLabel = "Right panel is unavailable",
   onToggleTerminal,
@@ -74,6 +77,7 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
       ) : null}
     </Toggle>
   );
+  const rightPanelMarked = rightPanelDeviceRunning && !rightPanelOpen;
   const threadPanelControl = (
     <Tooltip>
       <TooltipTrigger render={<span className="flex shrink-0" />}>
@@ -119,23 +123,35 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
         <Tooltip>
           <TooltipTrigger render={<span className="flex shrink-0" />}>
             <Toggle
-              className="shrink-0 [-webkit-app-region:no-drag]"
+              className="relative shrink-0 [-webkit-app-region:no-drag]"
               pressed={rightPanelOpen}
               onPressedChange={onToggleRightPanel}
-              aria-label="Toggle right panel"
+              aria-label={
+                rightPanelMarked ? "Toggle right panel, a device is running" : "Toggle right panel"
+              }
               data-right-panel-toggle
               variant="ghost"
               size="sm"
               disabled={!rightPanelAvailable}
             >
               <PanelRightIcon className="size-4" />
+              {rightPanelMarked ? (
+                <span
+                  className="absolute right-1 top-1 size-1.5 rounded-full bg-success ring-2 ring-background"
+                  aria-hidden="true"
+                />
+              ) : null}
             </Toggle>
           </TooltipTrigger>
           <TooltipPopup
             side="bottom"
             shortcut={rightPanelAvailable ? rightPanelShortcutLabel : null}
           >
-            {rightPanelAvailable ? "Toggle right panel" : rightPanelUnavailableLabel}
+            {!rightPanelAvailable
+              ? rightPanelUnavailableLabel
+              : rightPanelMarked
+                ? "Toggle right panel · A device is running"
+                : "Toggle right panel"}
           </TooltipPopup>
         </Tooltip>
       ) : null}
