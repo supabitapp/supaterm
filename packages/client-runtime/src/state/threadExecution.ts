@@ -24,6 +24,7 @@ import {
   backgroundWorkHoldsCompletion,
   derivePendingBackgroundWork,
   isWatchTaskId,
+  pullRequestWatchTaskId,
 } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 import {
   getProviderOptionCurrentLabel,
@@ -383,6 +384,16 @@ export interface PendingBackgroundWorkPresentation {
 function joinWithAnd(parts: ReadonlyArray<string>): string {
   if (parts.length <= 1) return parts.join("");
   return `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`;
+}
+
+/** The PR link behind the background work's one PR watch, if it holds exactly one. */
+export function soleWatchedPullRequest<
+  Link extends { readonly host: string; readonly repository: string; readonly number: number },
+>(items: ReadonlyArray<PendingBackgroundWorkItem>, links: ReadonlyArray<Link>): Link | null {
+  const [watched, ...others] = links.filter((link) =>
+    items.some((item) => item.taskId === pullRequestWatchTaskId(link)),
+  );
+  return watched !== undefined && others.length === 0 ? watched : null;
 }
 
 export function presentPendingBackgroundWork(

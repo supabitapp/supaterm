@@ -524,6 +524,8 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     ? backgroundWorkBannerItem({
         environmentId: activeThread.environmentId,
         threadId: activeThread.id,
+        projectId: activeThread.projectId,
+        pullRequests: activeThread.pullRequests,
         tasks: activeBackgroundTasks,
         outputHandle: backgroundTaskOutputHandle,
         stopDisabled: !canOperateThread || isStoppingBackgroundWork,

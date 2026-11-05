@@ -2,7 +2,9 @@ import type {
   EnvironmentId,
   OrchestrationV2PendingBackgroundTask,
   OrchestrationV2ProviderGoal,
+  ProjectId,
   ThreadId,
+  ThreadPullRequestLink,
 } from "@supaterm/contracts";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import {
@@ -10,6 +12,7 @@ import {
   presentPendingBackgroundWork,
   presentProviderGoal,
   type RunStopPresentation,
+  soleWatchedPullRequest,
 } from "@supaterm/client-runtime/state/thread-execution";
 import { childThreadInputsTitle } from "@supaterm/client-runtime/state/threads";
 import { formatDuration } from "@supaterm/shared/orchestrationTiming";
@@ -33,6 +36,7 @@ import {
   type BackgroundTaskOutputTarget,
   BackgroundWorkIcon,
   BackgroundWorkTitle,
+  type WatchedPullRequest,
 } from "./BackgroundWork";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
 
@@ -159,6 +163,8 @@ export function runStopBannerItem(input: {
 export function backgroundWorkBannerItem(input: {
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
+  readonly projectId: ProjectId;
+  readonly pullRequests: ReadonlyArray<ThreadPullRequestLink>;
   readonly tasks: ReadonlyArray<OrchestrationV2PendingBackgroundTask>;
   readonly outputHandle: BackgroundTaskOutputHandle;
   readonly stopDisabled: boolean;
@@ -181,11 +187,27 @@ export function backgroundWorkBannerItem(input: {
       ? { handle: input.outputHandle, target: outputTarget(only) }
       : null;
   const title = <BackgroundWorkTitle title={presentation.title} output={titleOutput} />;
+  const watchedLink = soleWatchedPullRequest(presentation.items, input.pullRequests);
+  const watchedPullRequest: WatchedPullRequest | null =
+    watchedLink !== null
+      ? {
+          threadRef: { environmentId: input.environmentId, threadId: input.threadId },
+          reference: {
+            projectId: input.projectId,
+            host: watchedLink.host,
+            repository: watchedLink.repository,
+            number: watchedLink.number,
+          },
+        }
+      : null;
   return {
     id: `background-work:${input.threadId}`,
     variant: "default",
     priority: "activity",
-    icon: <BackgroundWorkIcon waiting={presentation.waiting} />,
+    icon: (
+      <BackgroundWorkIcon waiting={presentation.waiting} watchedPullRequest={watchedPullRequest} />
+    ),
+    iconInteractive: watchedPullRequest !== null,
     title:
       presentation.items.length === 1 && (only?.kind === "command" || only?.kind === "monitor") ? (
         <span className="in-data-[slot=popover-popup]:whitespace-pre-wrap">{title}</span>

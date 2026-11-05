@@ -232,6 +232,16 @@ const PULL_REQUEST_WATCH_TASK_PREFIX = "pull-request-watch:";
 // Older servers still report their GitHub Actions run watches under this prefix.
 const RETIRED_WORKFLOW_RUN_WATCH_TASK_PREFIX = "workflow-run-watch:";
 
+// Links store their normalized identity, and this id only has to be unique within the thread,
+// so it reads those fields instead of parsing the URL.
+export function pullRequestWatchTaskId(link: {
+  readonly host: string;
+  readonly repository: string;
+  readonly number: number;
+}): string {
+  return `${PULL_REQUEST_WATCH_TASK_PREFIX}${link.host.toLowerCase()}/${link.repository.toLowerCase()}#${link.number}`;
+}
+
 /** Supaterm's own watches, which print no output. */
 export function isWatchTaskId(taskId: string): boolean {
   return (
@@ -321,9 +331,7 @@ function pullRequestWatchTasks(
       ? []
       : [
           {
-            // Links store their normalized identity, and this id only has to be unique within the
-            // thread, so it reads those fields instead of parsing the URL.
-            taskId: `${PULL_REQUEST_WATCH_TASK_PREFIX}${link.host.toLowerCase()}/${link.repository.toLowerCase()}#${link.number}`,
+            taskId: pullRequestWatchTaskId(link),
             description: `Watching pull request #${link.number}`,
             kind: "monitor" as const,
             awaited: true as const,
