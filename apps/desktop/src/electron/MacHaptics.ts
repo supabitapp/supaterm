@@ -15,18 +15,18 @@ function loadAlignmentPerformer() {
         paramsType: [DataType.String],
         paramsValue: [value],
       }) as bigint;
-    const performer = load({
-      library,
-      funcName: "objc_msgSend",
-      retType: DataType.BigInt,
-      paramsType: [DataType.BigInt, DataType.BigInt],
-      paramsValue: [
-        call("objc_getClass", "NSHapticFeedbackManager"),
-        call("sel_registerName", "defaultPerformer"),
-      ],
-    }) as bigint;
+    const managerClass = call("objc_getClass", "NSHapticFeedbackManager");
+    const defaultPerformer = call("sel_registerName", "defaultPerformer");
     const perform = call("sel_registerName", "performFeedbackPattern:performanceTime:");
     return () => {
+      // Apple asks for the performer per use; it changes with input devices and preferences.
+      const performer = load({
+        library,
+        funcName: "objc_msgSend",
+        retType: DataType.BigInt,
+        paramsType: [DataType.BigInt, DataType.BigInt],
+        paramsValue: [managerClass, defaultPerformer],
+      }) as bigint;
       load({
         library,
         funcName: "objc_msgSend",
