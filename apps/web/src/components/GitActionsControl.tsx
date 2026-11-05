@@ -1523,7 +1523,7 @@ export default function GitActionsControl({
             // Use the disabled menu's slot for elapsed time, preserving the status label's width.
             <GitActionElapsedTime
               startedAtMs={gitActionProgress.startedAtMs}
-              className="flex h-7 shrink-0 items-center self-start pe-2 text-2xs font-normal tabular-nums text-muted-foreground pointer-coarse:h-11"
+              className="flex h-6 shrink-0 items-center self-start pe-2 text-2xs font-normal tabular-nums text-muted-foreground pointer-coarse:h-11"
             />
           ) : (
             <>

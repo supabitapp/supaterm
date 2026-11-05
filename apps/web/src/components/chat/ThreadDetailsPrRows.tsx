@@ -133,7 +133,7 @@ export function ThreadDetailsPrRows({
         tone="muted"
         className="w-full active:scale-100"
       >
-        <Icon aria-hidden className="size-4 shrink-0" />
+        <Icon aria-hidden className="size-3.5 shrink-0" />
         {expanded ? "Show less" : `Show ${rest.length} more`}
       </ThreadDetailsControl>
     </>

@@ -291,7 +291,7 @@ export function ThreadDetailsPrRow({
   const icon = statePresentation ? (
     <statePresentation.Icon
       aria-hidden
-      className={cn("size-4 shrink-0", statePresentation.toneClassName)}
+      className={cn("size-3.5 shrink-0", statePresentation.toneClassName)}
     />
   ) : pr && status ? (
     <ChangeRequestStatusIcon
@@ -496,8 +496,8 @@ export function ThreadDetailsPrRow({
               />
             }
           >
-            <EyeIcon aria-hidden className="size-4 group-hover/watch:hidden" />
-            <EyeOffIcon aria-hidden className="hidden size-4 group-hover/watch:block" />
+            <EyeIcon aria-hidden className="size-3.5 group-hover/watch:hidden" />
+            <EyeOffIcon aria-hidden className="hidden size-3.5 group-hover/watch:block" />
           </TooltipTrigger>
           <TooltipPopup side="top">
             Watching: the agent wakes when checks finish, someone comments, or the branch conflicts.

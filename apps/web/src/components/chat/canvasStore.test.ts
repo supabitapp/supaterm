@@ -47,7 +47,7 @@ describe("chat canvas model", () => {
     const resolve = (fullContentHeight: number) =>
       resolveChatCanvasModel({
         measurements: measurements(1100, 300),
-        detailsCardMeasurement: { threadRef, width: 280, fullContentHeight },
+        detailsCardMeasurement: { threadRef, width: 264, fullContentHeight },
         threadRef,
         preview: { ...preview, position: { x: 760, y: 150 }, lastInteraction: "drag" },
         detailsCardInlineOpen: true,
@@ -60,7 +60,7 @@ describe("chat canvas model", () => {
   it("ignores a details card measured for another thread", () => {
     const model = resolveChatCanvasModel({
       measurements: measurements(1100, 300),
-      detailsCardMeasurement: { threadRef: otherThreadRef, width: 280, fullContentHeight: 400 },
+      detailsCardMeasurement: { threadRef: otherThreadRef, width: 264, fullContentHeight: 400 },
       threadRef,
       preview: { ...preview, position: { x: 760, y: 150 }, lastInteraction: "drag" },
       detailsCardInlineOpen: true,
@@ -74,9 +74,9 @@ describe("chat canvas model", () => {
     store.getState().setMeasurements(measurements(1400));
     const before = store.getState();
     store.getState().setMeasurements(measurements(1400));
-    store.getState().measureDetailsCard({ threadRef, width: 280, fullContentHeight: 300 });
+    store.getState().measureDetailsCard({ threadRef, width: 264, fullContentHeight: 300 });
     const measured = store.getState();
-    store.getState().measureDetailsCard({ threadRef, width: 280, fullContentHeight: 300 });
+    store.getState().measureDetailsCard({ threadRef, width: 264, fullContentHeight: 300 });
     expect(measured.measurements).toBe(before.measurements);
     expect(store.getState()).toBe(measured);
   });

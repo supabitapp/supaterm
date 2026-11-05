@@ -46,7 +46,7 @@ function AutomationStatusIcon({ task, now }: { task: ScheduledTask; now: number 
     <Tooltip>
       <TooltipTrigger
         render={
-          <span className="relative inline-flex size-4 shrink-0 items-center justify-center" />
+          <span className="relative inline-flex size-3.5 shrink-0 items-center justify-center" />
         }
       >
         <CalendarClockIcon className={THREAD_DETAILS_PANEL_ICON_CLASS} />
@@ -181,7 +181,7 @@ export function ThreadAutomationsPanel(props: {
             <AutomationStatusIcon task={task} now={now} />
             <Tooltip>
               <TooltipTrigger render={<div className="min-w-0 flex-1" />}>
-                <span className="block truncate text-sm font-medium text-foreground/80">
+                <span className="block truncate text-xs font-medium text-foreground/80">
                   {task.title}
                 </span>
                 <p className="truncate text-2xs text-muted-foreground">

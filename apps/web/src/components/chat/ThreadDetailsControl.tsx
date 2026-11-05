@@ -57,10 +57,10 @@ export function ThreadDetailsControl({
       {
         type: render ? undefined : "button",
         className: cn(
-          "relative inline-flex shrink-0 cursor-pointer items-center whitespace-nowrap border outline-none transition-[background-color,color,box-shadow,scale] duration-150 ease-out [&:active:not([aria-haspopup])]:scale-[0.96] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-muted-foreground/50 focus-visible:ring-offset-1 focus-visible:ring-offset-background motion-reduce:transition-none [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 disabled:pointer-events-none disabled:opacity-64 aria-disabled:cursor-not-allowed aria-disabled:opacity-64 [&_svg]:shrink-0",
+          "relative inline-flex shrink-0 cursor-pointer items-center whitespace-nowrap border outline-none transition-[background-color,color,box-shadow,scale] duration-150 ease-out [&:active:not([aria-haspopup])]:scale-[0.96] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-muted-foreground/50 focus-visible:ring-offset-1 focus-visible:ring-offset-background motion-reduce:transition-none [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-3.5 disabled:pointer-events-none disabled:opacity-64 aria-disabled:cursor-not-allowed aria-disabled:opacity-64 [&_svg]:shrink-0",
           parts[part],
           multiline &&
-            "h-auto min-h-7 py-0.75 disabled:opacity-100 pointer-coarse:h-auto pointer-coarse:min-h-11",
+            "h-auto min-h-6 py-0.75 disabled:opacity-100 pointer-coarse:h-auto pointer-coarse:min-h-11",
           tone === "muted" && "text-muted-foreground/70 hover:text-foreground/80",
           tone === "destructive" &&
             "text-destructive hover:text-destructive data-pressed:text-destructive",
