@@ -15,9 +15,8 @@ import { Popover, type PopoverCreateHandle, PopoverPopup, PopoverTrigger } from 
 import { CommandOutputPanel } from "./CommandOutputPanel";
 
 export interface WatchedPullRequest {
-  readonly environmentId: EnvironmentId;
-  readonly reference: PullRequestRef;
   readonly threadRef: ScopedThreadRef;
+  readonly reference: PullRequestRef;
 }
 
 /**
@@ -55,7 +54,8 @@ function WatchedPullRequestChecks({
   watched: WatchedPullRequest;
   fallback: ReactElement;
 }) {
-  const { environmentId, reference } = watched;
+  const { threadRef, reference } = watched;
+  const { environmentId } = threadRef;
   const checksAtom = pullRequestEnvironment.checks({ environmentId, input: reference });
   const checks = useEnvironmentQuerySelector(checksAtom, selectEnvironmentQueryData)?.checks;
   const settledWithoutChecks = useEnvironmentQuerySelector(checksAtom, isSettledWithoutChecks);
@@ -69,14 +69,9 @@ function WatchedPullRequestChecks({
     checks: checks ?? [],
   });
   const checksState = checks === undefined ? null : pullRequestChecksState(checks);
-  return checks === undefined || checksState === null ? (
-    fallback
-  ) : (
-    <PullRequestChecksPopover
-      checksState={checksState}
-      checks={checks}
-      threadRef={watched.threadRef}
-    />
+  if (checks === undefined || checksState === null) return fallback;
+  return (
+    <PullRequestChecksPopover checksState={checksState} checks={checks} threadRef={threadRef} />
   );
 }
 

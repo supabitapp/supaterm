@@ -187,21 +187,19 @@ export function backgroundWorkBannerItem(input: {
       ? { handle: input.outputHandle, target: outputTarget(only) }
       : null;
   const title = <BackgroundWorkTitle title={presentation.title} output={titleOutput} />;
-  const watchedLinks = input.pullRequests.filter((link) =>
+  const [watchedLink, ...otherWatchedLinks] = input.pullRequests.filter((link) =>
     presentation.items.some((item) => item.taskId === pullRequestWatchTaskId(link)),
   );
-  const [watchedLink] = watchedLinks;
   const watchedPullRequest: WatchedPullRequest | null =
-    watchedLinks.length === 1 && watchedLink !== undefined
+    watchedLink !== undefined && otherWatchedLinks.length === 0
       ? {
-          environmentId: input.environmentId,
+          threadRef: { environmentId: input.environmentId, threadId: input.threadId },
           reference: {
             projectId: input.projectId,
             host: watchedLink.host,
             repository: watchedLink.repository,
             number: watchedLink.number,
           },
-          threadRef: { environmentId: input.environmentId, threadId: input.threadId },
         }
       : null;
   return {
