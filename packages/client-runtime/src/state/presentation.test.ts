@@ -34,7 +34,7 @@ function config(cwd = "/workspace"): ServerConfig {
     environment: { capabilities: {}, platform: { machine: "desktop" } },
   } as ServerConfig;
 }
-function harness() {
+function harness(registryOptions?: Parameters<typeof AtomRegistry.make>[0]) {
   const catalog = Atom.make<EnvironmentCatalogState>({
     isReady: true,
     entries: new Map([
@@ -53,7 +53,14 @@ function harness() {
     catalogValueAtom: catalog,
     presentationAtom: full.presentationAtom,
   });
-  return { catalog, configs, state, full, ...summaries, registry: AtomRegistry.make() };
+  return {
+    catalog,
+    configs,
+    state,
+    full,
+    ...summaries,
+    registry: AtomRegistry.make(registryOptions),
+  };
 }
 
 describe("environment summary subscriptions", () => {
@@ -312,14 +319,23 @@ describe("environment summary subscriptions", () => {
 describe("offline environments", () => {
   it("lists an environment once it stays disconnected past the grace period", () => {
     vi.useFakeTimers();
-    const h = harness();
+    const removals: Array<() => void> = [];
+    const h = harness({
+      scheduleTask: (task) => {
+        removals.push(task);
+        return () => {};
+      },
+    });
+    const removeUnobservedAtoms = () => removals.splice(0).forEach((task) => task());
     const stop = h.registry.subscribe(h.offlineEnvironmentIdsAtom, () => {});
     const offline = () => [...h.registry.get(h.offlineEnvironmentIdsAtom)];
-    const offlineAfter = (phase: "connected" | "connecting" | "backoff" | "blocked") => {
+    const setPhase = (phase: "connected" | "connecting" | "backoff" | "blocked") =>
       h.registry.set(
         h.state,
         AsyncResult.success({ ...AVAILABLE_CONNECTION_STATE, phase, attempt: 1 }),
       );
+    const offlineAfter = (phase: Parameters<typeof setPhase>[0]) => {
+      setPhase(phase);
       return offline();
     };
     try {
@@ -335,8 +351,20 @@ describe("offline environments", () => {
       expect(offlineAfter("backoff")).toEqual([]);
       // Retrying cannot fix a blocked connection, so it is offline at once.
       expect(offlineAfter("blocked")).toEqual([FIRST, SECOND]);
-    } finally {
+
+      // With no list open, a reconnect still resets the grace period and retries still do not.
       stop();
+      removeUnobservedAtoms();
+      vi.advanceTimersByTime(OFFLINE_ENVIRONMENT_GRACE_MS);
+      setPhase("connected");
+      setPhase("backoff");
+      expect(offline()).toEqual([]);
+      removeUnobservedAtoms();
+      vi.advanceTimersByTime(OFFLINE_ENVIRONMENT_GRACE_MS / 2);
+      setPhase("connecting");
+      vi.advanceTimersByTime(OFFLINE_ENVIRONMENT_GRACE_MS / 2);
+      expect(offline()).toEqual([FIRST, SECOND]);
+    } finally {
       h.registry.dispose();
       vi.useRealTimers();
     }
