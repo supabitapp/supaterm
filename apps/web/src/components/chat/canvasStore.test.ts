@@ -5,7 +5,6 @@ import {
   resolveChatCanvasModel,
   type ChatCanvasMeasurements,
 } from "./canvasStore";
-import type { ChatCanvasPreview } from "./chatCanvasLayout";
 
 const threadRef = {
   environmentId: EnvironmentId.make("environment-1"),
@@ -18,16 +17,9 @@ const measurements = (width: number, height = 900): ChatCanvasMeasurements => ({
   padding: 48,
   maxChatWidth: 768,
   minChatWidth: 640,
-  composerHeight: 180,
   timelineGutter: 0,
   findBar: null,
 });
-const preview: ChatCanvasPreview = {
-  key: "browser:one",
-  width: 320,
-  position: null,
-  source: { width: 1600, height: 1000 },
-};
 
 describe("chat canvas model", () => {
   it("shows the details card inline only where the canvas fits it beside the chat", () => {
@@ -36,37 +28,22 @@ describe("chat canvas model", () => {
         measurements: measurements(width),
         detailsCardMeasurement: null,
         threadRef,
-        preview: null,
         detailsCardInlineOpen: true,
       }).detailsCardMode;
     expect(resolve(1400)).toBe("inline");
     expect(resolve(900)).toBe("popover");
   });
 
-  it("moves the card into a popover when a preview below it leaves too little height", () => {
-    const resolve = (fullContentHeight: number) =>
+  it("makes room in the chat lane only for a card measured for the shown thread", () => {
+    const chatLeft = (measuredFor: typeof threadRef) =>
       resolveChatCanvasModel({
-        measurements: measurements(1100, 300),
-        detailsCardMeasurement: { threadRef, width: 264, fullContentHeight },
+        measurements: measurements(1100),
+        detailsCardMeasurement: { threadRef: measuredFor, width: 264, fullContentHeight: 400 },
         threadRef,
-        preview: { ...preview, position: { x: 760, y: 150 }, lastInteraction: "drag" },
         detailsCardInlineOpen: true,
-      });
-    const model = resolve(400);
-    expect(model.layout.overlapsDetailsCard).toBe(true);
-    expect(model.detailsCardMode).toBe("popover");
-  });
-
-  it("ignores a details card measured for another thread", () => {
-    const model = resolveChatCanvasModel({
-      measurements: measurements(1100, 300),
-      detailsCardMeasurement: { threadRef: otherThreadRef, width: 264, fullContentHeight: 400 },
-      threadRef,
-      preview: { ...preview, position: { x: 760, y: 150 }, lastInteraction: "drag" },
-      detailsCardInlineOpen: true,
-    });
-    expect(model.layout.overlapsDetailsCard).toBe(false);
-    expect(model.detailsCardMode).toBe("inline");
+      }).layout.chat.left;
+    expect(chatLeft(threadRef)).toBe(48);
+    expect(chatLeft(otherThreadRef)).toBe((1100 - 768) / 2);
   });
 
   it("keeps state identity when a measurement repeats", () => {

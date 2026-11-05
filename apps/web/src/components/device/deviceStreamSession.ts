@@ -62,19 +62,9 @@ export const IDLE_DEVICE_STREAM_STATE: DeviceStreamState = {
 export const deviceScreenKey = (environmentId: EnvironmentId, hostId: string, deviceId: string) =>
   `${environmentId}\u0000${hostId}\u0000${deviceId}`;
 
-/**
- * The screen one view's stream last reported, null while that view streams nothing.
- * Keyed by view, not device: two views of one device stream independently, and one
- * ending must not clear the other's size. The mini player lays out its frame from it.
- */
-export const deviceStreamScreenAtom = Atom.family((viewId: string) =>
-  Atom.make<DeviceScreenSize | null>(null).pipe(Atom.withLabel(`device-stream-screen:${viewId}`)),
-);
-
 /** A device's video and input connection, live while a view reads it. */
 export const deviceStreamSessionAtom = Atom.family((key: DeviceStreamKey) =>
   Atom.make((get): DeviceStreamSession => {
-    const screenAtom = deviceStreamScreenAtom(key.viewId);
     const canvas = document.createElement("canvas");
     canvas.style.display = "block";
     canvas.style.width = "100%";
@@ -100,10 +90,7 @@ export const deviceStreamSessionAtom = Atom.family((key: DeviceStreamKey) =>
         onDuoUnavailable: () => update({ phoneUnavailable: true }),
         onStatus: (status, detail) =>
           update({ status, detail, ...(status === "streaming" ? { hasFrame: true } : {}) }),
-        onScreen: (screen) => {
-          get.set(screenAtom, screen);
-          update({ screen });
-        },
+        onScreen: (screen) => update({ screen }),
         onUnauthorized: () => refreshDeviceHubAccess(key.environmentId),
         onMjpegFallback: (mjpegUrl) =>
           update({ mjpegUrl, mjpegGeneration: state.mjpegGeneration + 1 }),
@@ -129,10 +116,7 @@ export const deviceStreamSessionAtom = Atom.family((key: DeviceStreamKey) =>
       },
       state,
     };
-    get.addFinalizer(() => {
-      client.stop();
-      get.registry.set(screenAtom, null);
-    });
+    get.addFinalizer(() => client.stop());
     client.start();
     return session;
   }).pipe(Atom.withLabel(`device-stream:${key.platform}:${key.deviceId}`)),

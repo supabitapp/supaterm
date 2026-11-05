@@ -295,9 +295,8 @@ picker, and a finished download is offered for you to save. Popups such as
 sign-in windows open as their own tabs. Downloads stay on the host until the
 tab closes. Audio does not play on your device.
 
-On a phone, tap the floating preview's corner dot to show its controls, then
-**Pop into separate window** to keep watching in picture-in-picture over other
-apps.
+On a phone, choose **Open separate preview window** from the tab's **More**
+menu to keep watching in picture-in-picture over other apps.
 
 ### Local servers
 

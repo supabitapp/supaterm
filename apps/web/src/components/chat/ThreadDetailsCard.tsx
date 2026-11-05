@@ -39,7 +39,6 @@ export function ThreadDetailsCard({
   children: (density: "full" | "compact" | "essential") => ReactNode;
 }) {
   const canvas = useChatCanvas();
-  const preferredPlacement = canvas?.preferredDetailsCard ?? null;
   const placement = canvas?.detailsCardPlacement ?? null;
   const mode = placement ? "inline" : "popover";
   const detailsArea = workspaceAreaProps("details", 3, "Thread details");
@@ -52,7 +51,7 @@ export function ThreadDetailsCard({
     selectThreadPanelOpen(state.threadPanelVisibilityByThreadKey, threadRef, "popover"),
   );
   const threadKey = `${threadRef.environmentId}:${threadRef.threadId}`;
-  const measurementKey = `${threadKey}:${preferredPlacement?.width ?? "popup"}:${contentKey}`;
+  const measurementKey = `${threadKey}:${placement?.width ?? "popup"}:${contentKey}`;
   const [measurements, setMeasurements] = useState({
     key: measurementKey,
     heights: { full: 0, compact: 0 },
@@ -62,10 +61,9 @@ export function ThreadDetailsCard({
   const height = placement?.height ?? Math.max(0, (canvas?.container.height ?? 0) - 52);
   const density = resolveThreadDetailsCardDensity(height, contentHeights);
   const measureDetailsCard = canvas?.measureDetailsCard;
-  const cardWidth = preferredPlacement?.width;
-  // The mode derives from canvas measurements, the preview frame and the
-  // inline flag, which live in three stores, so no single write site sees the
-  // card leave popover mode. A flag left set would reopen the popover unasked
+  const cardWidth = placement?.width;
+  // The mode derives from canvas measurements and the inline flag, which live
+  // in two stores, so no single write site sees the card leave popover mode. A flag left set would reopen the popover unasked
   // when the card returns to popover mode.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- closes the popover flag in the right panel store when the derived mode turns inline
   useLayoutEffect(() => {
@@ -98,8 +96,8 @@ export function ThreadDetailsCard({
           ? current
           : { key: measurementKey, heights: { ...heights, [density]: fittingHeight } };
       });
-      // Only the laid-out DOM knows the full card height, and the canvas keeps preview
-      // frames clear of it, so it is reported from this measure effect.
+      // Only the laid-out DOM knows the card is shown, and the chat lane makes room
+      // for it once it is, so it is reported from this measure effect.
       if (density === "full" && cardWidth !== undefined) {
         measureDetailsCard?.({
           threadRef: { environmentId, threadId },

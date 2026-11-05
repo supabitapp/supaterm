@@ -1,193 +1,35 @@
-import {
-  clampPreviewMiniPlayerPosition,
-  resolvePreviewMiniPlayerFrame,
-  type PreviewMiniPlayerFrame,
-  type PreviewMiniPlayerObstacles,
-} from "../preview/previewMiniPlayerLayout";
-import type {
-  PreviewMiniPlayerPosition,
-  PreviewMiniPlayerSize,
-  PreviewMiniPlayerState,
-} from "~/previewMiniPlayerStore";
-
-export interface ChatCanvasPreview {
-  readonly key: string;
-  readonly width: number | null;
-  readonly position: PreviewMiniPlayerPosition | null;
-  readonly source: PreviewMiniPlayerSize;
-  readonly lastInteraction?: PreviewMiniPlayerState["lastInteraction"];
-}
-
 /** The open find bar's width and bottom edge; it floats at the top end of the chat lane. */
 export interface ChatCanvasFindBar {
   readonly width: number;
   readonly bottom: number;
 }
 
-const GAP = 12;
 export const DETAILS_CARD_CLEARANCE = 32;
 
 export function resolveChatCanvasLayout({
   container,
-  preview,
   padding = 48,
   maxChatWidth = 768,
-  minChatWidth = 640,
-  composerHeight = 0,
   detailsCard = null,
-  findBar = null,
 }: {
-  container: PreviewMiniPlayerSize;
-  preview: ChatCanvasPreview | null;
+  container: { width: number; height: number };
   padding?: number;
   maxChatWidth?: number;
-  minChatWidth?: number;
-  composerHeight?: number;
-  detailsCard?: PreviewMiniPlayerObstacles["detailsCard"];
-  findBar?: ChatCanvasFindBar | null;
+  detailsCard?: { readonly left: number } | null;
 }) {
   const centeredWidth = Math.max(0, Math.min(maxChatWidth, container.width - padding * 2));
   const laneRight = detailsCard
     ? detailsCard.left - DETAILS_CARD_CLEARANCE
     : container.width - padding;
-  const normalWidth = Math.max(0, Math.min(centeredWidth, laneRight - padding));
-  const canvasCenterLeft = (container.width - normalWidth) / 2;
-  const normalLeft = Math.max(padding, Math.min(canvasCenterLeft, laneRight - normalWidth));
-  let chat = {
-    left: normalLeft,
-    width: normalWidth,
-    insetStart: 0,
-    insetEnd: Math.max(0, container.width - normalLeft * 2 - normalWidth),
+  const width = Math.max(0, Math.min(centeredWidth, laneRight - padding));
+  const canvasCenterLeft = (container.width - width) / 2;
+  const left = Math.max(padding, Math.min(canvasCenterLeft, laneRight - width));
+  return {
+    chat: {
+      left,
+      width,
+      insetStart: 0,
+      insetEnd: Math.max(0, container.width - left * 2 - width),
+    },
   };
-  const findBarIn = (lane: typeof chat) =>
-    findBar && {
-      left: lane.left + lane.width - findBar.width,
-      right: lane.left + lane.width,
-      bottom: findBar.bottom,
-    };
-  let frame: PreviewMiniPlayerFrame | null = null;
-  let overlapsChat = false;
-  if (preview && container.width > 0 && container.height > 0) {
-    frame = resolvePreviewMiniPlayerFrame({ ...preview, container });
-    // Reserve a chat lane only if the preview still has room to drag.
-    const minimumPreviewX =
-      preview.lastInteraction === "resize" ||
-      container.width <= padding + minChatWidth + frame.width + GAP * 2
-        ? GAP
-        : padding + minChatWidth + GAP;
-    if (preview.position === null) frame = { ...frame, y: container.height - frame.height - GAP };
-    let resizeContainer = container;
-    if (preview.lastInteraction === "resize" && composerHeight > 0) {
-      const laneWidth = Math.min(normalWidth, minChatWidth);
-      const transitionWidth = Math.max(GAP, normalWidth - laneWidth);
-      const lift = Math.min(
-        1,
-        Math.max(0, (padding + normalWidth + GAP - frame.x) / transitionWidth),
-      );
-      if (lift > 0) {
-        resizeContainer = {
-          ...container,
-          height: Math.max(GAP * 2 + 1, container.height - composerHeight * lift),
-        };
-        frame = resolvePreviewMiniPlayerFrame({
-          width: frame.width,
-          position: frame,
-          source: preview.source,
-          container: resizeContainer,
-        });
-      }
-    }
-    const preferredFrame = {
-      ...frame,
-      ...clampPreviewMiniPlayerPosition(frame, container, frame, undefined, minimumPreviewX),
-    };
-    const cardObstacle = preview.lastInteraction === "resize" ? null : detailsCard;
-    frame = {
-      ...frame,
-      ...clampPreviewMiniPlayerPosition(
-        frame,
-        container,
-        frame,
-        { detailsCard: cardObstacle, composer: null },
-        minimumPreviewX,
-      ),
-    };
-    const chatBeside = (player: PreviewMiniPlayerFrame) => {
-      const normalRight = normalLeft + normalWidth;
-      if (player.x >= normalRight + GAP) return chat;
-      const width = Math.min(maxChatWidth, player.x - GAP - padding);
-      if (width < minChatWidth) return null;
-      const left = Math.min(normalLeft, player.x - GAP - width);
-      return {
-        left,
-        width,
-        insetStart: 0,
-        insetEnd: Math.max(0, container.width - left * 2 - width),
-      };
-    };
-    let nextChat = chatBeside(frame);
-    if (!nextChat && detailsCard) {
-      nextChat = chatBeside(preferredFrame);
-      if (nextChat) frame = preferredFrame;
-    }
-    if (nextChat) chat = nextChat;
-    else overlapsChat = true;
-    if (overlapsChat && preview.lastInteraction === "resize") {
-      const width = Math.min(normalWidth, minChatWidth);
-      chat = {
-        left: padding,
-        width,
-        insetStart: 0,
-        insetEnd: Math.max(0, container.width - padding * 2 - width),
-      };
-      frame = resolvePreviewMiniPlayerFrame({
-        width: frame.width,
-        position: frame,
-        source: preview.source,
-        container: resizeContainer,
-        obstacles: { detailsCard: null, composer: null, findBar: findBarIn(chat) },
-      });
-    } else if (overlapsChat) {
-      const obstacles = {
-        detailsCard: cardObstacle,
-        composer: { left: chat.left, right: chat.left + chat.width, height: composerHeight },
-        findBar: findBarIn(chat),
-      };
-      frame = resolvePreviewMiniPlayerFrame({ ...preview, container, obstacles });
-      frame = {
-        ...frame,
-        ...clampPreviewMiniPlayerPosition(
-          preview.position ?? { x: frame.x, y: container.height - frame.height - GAP },
-          container,
-          frame,
-          obstacles,
-          minimumPreviewX,
-        ),
-      };
-      if (
-        frame.x < obstacles.composer.right &&
-        frame.x + frame.width > obstacles.composer.left &&
-        frame.y + frame.height > container.height - composerHeight
-      ) {
-        frame = {
-          ...frame,
-          ...clampPreviewMiniPlayerPosition(
-            frame,
-            container,
-            frame,
-            { ...obstacles, detailsCard: null },
-            minimumPreviewX,
-          ),
-        };
-      }
-    }
-  }
-  const overlapsDetailsCard = Boolean(
-    frame &&
-    detailsCard &&
-    frame.x < detailsCard.right &&
-    frame.x + frame.width > detailsCard.left &&
-    frame.y < detailsCard.bottom,
-  );
-  return { chat, frame, overlapsChat, overlapsDetailsCard };
 }

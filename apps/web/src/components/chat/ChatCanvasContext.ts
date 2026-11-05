@@ -14,13 +14,10 @@ export const ChatCanvasContext = createContext<{
   container: { width: number; height: number };
   lane: { padding: number; minChatWidth: number };
   layout: ReturnType<typeof resolveChatCanvasLayout>;
-  previewKey: string | null;
   registerTimeline: (element: HTMLElement | null) => void;
   measureDetailsCard: (measurement: DetailsCardMeasurement) => void;
   detailsPopoverSideOffset: number;
-  /** Where an inline card sits when nothing overlaps it; null when the canvas is too narrow. */
-  preferredDetailsCard: ReturnType<typeof resolveThreadDetailsCardLayout>;
-  /** Where the inline card sits now; null when it shows as a popover. */
+  /** Where the inline card sits; null when the canvas is too narrow and it shows as a popover. */
   detailsCardPlacement: ReturnType<typeof resolveThreadDetailsCardLayout>;
 } | null>(null);
 

@@ -7,7 +7,6 @@ import {
   HouseIcon,
   KeyboardIcon,
   MaximizeIcon,
-  PictureInPictureIcon,
   PowerIcon,
   RotateCcwIcon,
   SlidersHorizontalIcon,
@@ -46,7 +45,6 @@ export function DeviceControlsRail(props: {
   onScreenshot: () => void;
   toolsOpen: boolean;
   onTools: () => void;
-  onFloat: () => void;
   onClose: () => void;
   onPowerOff: () => void;
 }) {
@@ -220,10 +218,6 @@ export function DeviceControlsRail(props: {
             <EllipsisIcon />
           </MenuTrigger>
           <MenuPopup side={popupSide} align="end">
-            <MenuItem onClick={props.onFloat}>
-              <PictureInPictureIcon />
-              Float device over chat
-            </MenuItem>
             <MenuItem onClick={props.onClose}>
               <XIcon />
               Close device panel

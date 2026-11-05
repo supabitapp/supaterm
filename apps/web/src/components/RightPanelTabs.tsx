@@ -137,6 +137,8 @@ export interface RightPanelTabsProps {
   pullRequestAvailable: boolean;
   pullRequestsAvailable: boolean;
   deviceAvailable: boolean;
+  /** A device session is live for this thread, whether or not it has a tab. */
+  deviceRunning?: boolean;
   pullRequestStatusSeeds?: Readonly<Record<string, PullRequestTabStatusSeed>>;
   children: ReactNode;
 }
@@ -294,6 +296,21 @@ function SurfaceMenuItem(props: {
   return <DisabledReasonTooltip reason={props.disabledReason} trigger={item} />;
 }
 
+function SurfaceRunningDot(props: { readonly className: string }) {
+  return (
+    <>
+      <span
+        aria-hidden
+        className={cn(
+          "absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-success ring-2",
+          props.className,
+        )}
+      />
+      <span className="sr-only">(running)</span>
+    </>
+  );
+}
+
 function RightPanelEmptyState(props: {
   onAddBrowser: () => void;
   onAddBrowserInProfile: (profileId: string) => void;
@@ -311,6 +328,7 @@ function RightPanelEmptyState(props: {
   pullRequestAvailable: boolean;
   pullRequestsAvailable: boolean;
   deviceAvailable: boolean;
+  deviceRunning: boolean;
 }) {
   const [highlight, setHighlight] = useState(-1);
 
@@ -433,6 +451,9 @@ function RightPanelEmptyState(props: {
     return (
       <span className="relative inline-flex shrink-0">
         <Icon className={iconClassName} />
+        {action.label === "Device" && props.deviceRunning ? (
+          <SurfaceRunningDot className="ring-background" />
+        ) : null}
       </span>
     );
   };
@@ -1371,7 +1392,14 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
                         shortcut={action.shortcut}
                         onClick={action.onClick}
                       >
-                        <Icon />
+                        {action.label === "Device" && props.deviceRunning ? (
+                          <span className="relative inline-flex shrink-0">
+                            <Icon />
+                            <SurfaceRunningDot className="ring-popover" />
+                          </span>
+                        ) : (
+                          <Icon />
+                        )}
                         {action.label}
                       </SurfaceMenuItem>
                     );
@@ -1455,6 +1483,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
             pullRequestAvailable={props.pullRequestAvailable}
             pullRequestsAvailable={props.pullRequestsAvailable}
             deviceAvailable={props.deviceAvailable}
+            deviceRunning={props.deviceRunning === true}
           />
         ) : (
           props.children

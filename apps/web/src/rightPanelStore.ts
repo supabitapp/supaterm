@@ -25,6 +25,9 @@ const RIGHT_PANEL_KINDS = [
 ] as const;
 export type RightPanelKind = (typeof RIGHT_PANEL_KINDS)[number];
 
+/** An agent open never counts as a user action; a quiet one adds the tab without showing the panel. */
+export type PanelOpenOrigin = "user" | "agent" | "agent-quiet";
+
 export type PullRequestDetailTab = "summary" | "guide" | "timeline" | "code";
 
 export interface DeviceTabTarget {
@@ -122,9 +125,13 @@ interface RightPanelStoreState {
     ref: ScopedThreadRef,
     kind: Exclude<RightPanelKind, "file" | "terminal" | "pull-request">,
   ) => void;
-  openDevice: (ref: ScopedThreadRef, target: DeviceTabTarget, automatic?: boolean) => void;
+  openDevice: (ref: ScopedThreadRef, target: DeviceTabTarget, origin?: PanelOpenOrigin) => void;
   renameDevice: (ref: ScopedThreadRef, surfaceId: string, title: string) => void;
-  openBrowser: (ref: ScopedThreadRef, tabId: string | null) => void;
+  openBrowser: (
+    ref: ScopedThreadRef,
+    tabId: string | null,
+    origin?: Exclude<PanelOpenOrigin, "agent-quiet">,
+  ) => void;
   openFile: (ref: ScopedThreadRef, relativePath: string, line?: number) => void;
   /** Moves in place; "" opens the root explorer. folderTrail keeps the return path; keepSource opens beside the source. */
   navigateFolder: (
@@ -378,6 +385,8 @@ const updateThread = (
   return { byThreadKey, threadPanelVisibilityByThreadKey };
 };
 
+const updateFrom = (origin: PanelOpenOrigin) => (origin === "user" ? userAction : automaticUpdate);
+
 const automaticUpdate = (
   state: RightPanelStoreState,
   threadKey: string,
@@ -511,14 +520,18 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
             return upsertSurface(current, singletonSurface(kind));
           }),
         ),
-      openDevice: (ref, target, automatic = false) =>
+      openDevice: (ref, target, origin = "user") =>
         set((state) =>
-          (automatic ? automaticUpdate : userAction)(state, scopedThreadKey(ref), (current) => {
+          updateFrom(origin)(state, scopedThreadKey(ref), (current) => {
             const id =
               `device:${encodeURIComponent(target.hostId)}:${encodeURIComponent(target.deviceId)}` as const;
-            if (automatic && current.dismissedDeviceSurfaceIds?.includes(id)) return current;
+            if (origin !== "user" && current.dismissedDeviceSurfaceIds?.includes(id))
+              return current;
             const surface: RightPanelSurface = { id, kind: "device", target };
             const existing = current.surfaces.find((entry) => entry.id === id);
+            if (origin === "agent-quiet") {
+              return existing ? current : { ...current, surfaces: [...current.surfaces, surface] };
+            }
             const surfaces = existing
               ? current.surfaces.filter((entry) => entry.id !== "device")
               : current.surfaces.map((entry) => (entry.id === "device" ? surface : entry));
@@ -545,9 +558,9 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
             ),
           })),
         ),
-      openBrowser: (ref, tabId) =>
+      openBrowser: (ref, tabId, origin = "user") =>
         set((state) =>
-          userAction(state, scopedThreadKey(ref), (current) => {
+          updateFrom(origin)(state, scopedThreadKey(ref), (current) => {
             const surface = browserSurface(tabId);
             const withoutPlaceholder = tabId
               ? current.surfaces.filter((entry) => entry.id !== "browser:new")

@@ -183,19 +183,10 @@ import {
 } from "../rightPanelStore";
 import { isPreviewSupportedInRuntime, useThreadPreviewState } from "../previewStateStore";
 import { previewRuntimeTabId } from "../browser/previewRuntimeTabId";
-import {
-  ThreadPreviewMiniPlayer,
-  useThreadPreviewCanvasSource,
-} from "./preview/ThreadPreviewMiniPlayer";
 import { createChatCanvasStore, resolveChatCanvasModel } from "./chat/canvasStore";
 import { usePreviewSession } from "./preview/usePreviewSession";
 import { getConfiguredPreviewUrls } from "./preview/previewEmptyStateLogic";
 
-import {
-  previewMiniPlayerSourceKey,
-  selectThreadPreviewMiniPlayer,
-  usePreviewMiniPlayerStore,
-} from "../previewMiniPlayerStore";
 import { threadPullRequestPanelTarget } from "./pullRequest/pullRequestDetail.logic";
 import { useDeviceState } from "~/state/device";
 import { BranchToolbar, type BranchToolbarHandle } from "./BranchToolbar";
@@ -351,7 +342,6 @@ import {
   buildLocalDraftThread,
   deriveCommittedServerUserMessageIds,
   dismissBranchMismatchForSession,
-  shouldRenderPreviewMiniPlayer,
   deriveLockedProvider,
   resolveFileAttachmentUrl,
   resolveComposerProviderSelection,
@@ -1078,9 +1068,6 @@ export default function ChatView(props: ChatViewProps) {
   const resolvePreviewRuntimeTabId = activeThreadRef
     ? (tabId: string) => previewRuntimeTabId(activeThreadRef, activePreviewServerEpoch, tabId)
     : undefined;
-  const activePreviewMiniPlayer = usePreviewMiniPlayerStore((state) =>
-    selectThreadPreviewMiniPlayer(state.byThreadKey, activeThreadRef),
-  );
   const panelTerminalIds = new Set(
     rightPanelState.surfaces.flatMap((surface) =>
       surface.kind === "terminal" ? surface.terminalIds : [],
@@ -1108,10 +1095,6 @@ export default function ChatView(props: ChatViewProps) {
   const rightPanelControlsAtRoot = rightPanelPresent && !shouldUsePlanSidebarSheet;
   const renderedRightPanelSurface = rightPanelPresence.value?.activeSurface ?? null;
   const renderedRightPanelSurfaces = rightPanelPresence.value?.surfaces ?? [];
-  const previewMiniPlayerVisible = shouldRenderPreviewMiniPlayer(
-    activePreviewMiniPlayer?.source ?? null,
-    renderedRightPanelSurface,
-  );
   const canMaximizeRightPanel = rightPanelOpen;
   const rightPanelMaximized = canMaximizeRightPanel && rightPanelState.maximized === true;
   const inlineRightPanelOwnsTitleBar = rightPanelOpen && !shouldUsePlanSidebarSheet;
@@ -1985,14 +1968,6 @@ export default function ChatView(props: ChatViewProps) {
     activeThreadRef?.environmentId ?? null,
     AuthPreviewOperateScope,
   );
-  const shownPreviewMiniPlayer =
-    activeThreadRef &&
-    activePreviewMiniPlayer &&
-    previewMiniPlayerVisible &&
-    (activePreviewMiniPlayer.source.kind === "device" || canOperatePreview)
-      ? activePreviewMiniPlayer
-      : null;
-  const canvasPreview = useThreadPreviewCanvasSource(activeThreadRef, shownPreviewMiniPlayer);
   const threadPanelInlineOpen = useRightPanelStore((state) =>
     selectThreadPanelOpen(state.threadPanelVisibilityByThreadKey, activeThreadRef, "inline"),
   );
@@ -2005,7 +1980,6 @@ export default function ChatView(props: ChatViewProps) {
         measurements: state.measurements,
         detailsCardMeasurement: state.detailsCardMeasurement,
         threadRef: activeThreadRef,
-        preview: canvasPreview,
         detailsCardInlineOpen: threadPanelInlineOpen,
       }).detailsCardMode,
   );
@@ -2021,9 +1995,10 @@ export default function ChatView(props: ChatViewProps) {
   );
   const visiblePullRequestCount = visiblePullRequests.length;
   const pullRequestsSurfaceAvailable = isServerThread && visiblePullRequestCount > 0;
-  const { state: deviceState, loaded: deviceStateLoaded } = useDeviceState(
-    activeThreadRef?.environmentId ?? null,
-  );
+  const { state: deviceState } = useDeviceState(activeThreadRef?.environmentId ?? null);
+  const activeThreadDeviceRunning =
+    activeThreadRef !== null &&
+    deviceState.sessions.some((session) => session.threadId === activeThreadRef.threadId);
   const activeProjectRepository = sourceControlClients.repositorySelector(
     activeProject?.repositoryIdentity,
   );
@@ -2493,7 +2468,6 @@ export default function ChatView(props: ChatViewProps) {
     activeRightPanelSurface,
     activePreviewState,
     deviceState,
-    deviceStateLoaded,
     pullRequestPanelTarget,
     threadPanelPresentation,
     isServerThread,
@@ -3218,6 +3192,7 @@ export default function ChatView(props: ChatViewProps) {
     threadPanelHasAttention: activeEnvironmentUnavailableState !== null,
     rightPanelAvailable: activeProject !== null,
     rightPanelOpen,
+    rightPanelDeviceRunning: activeThreadDeviceRunning,
     rightPanelShortcutLabel: shortcutLabelForCommand(keybindings, "rightPanel.toggle"),
     onToggleTerminal: toggleTerminalVisibilityStable,
     onToggleThreadPanel: toggleThreadPanelStable,
@@ -3363,6 +3338,7 @@ export default function ChatView(props: ChatViewProps) {
     pullRequestAvailable: pullRequestSurfaceAvailable,
     pullRequestsAvailable: pullRequestsSurfaceAvailable,
     deviceAvailable: activeThreadRef !== null,
+    deviceRunning: activeThreadDeviceRunning,
     children: rightPanelContent,
   };
   const content = (
@@ -3446,9 +3422,7 @@ export default function ChatView(props: ChatViewProps) {
                 }}
                 store={chatCanvasStore}
                 threadRef={activeThreadRef}
-                preview={canvasPreview}
                 findBarOpen={isThreadFindActive}
-                composerOverlayElement={isDraftHeroState ? null : composerOverlayElement}
                 data-chat-workspace-drop-target="true"
                 onDragEnter={(event) =>
                   makeWorkspaceFileDropHandlers(workspaceFileDropHost).onDragEnter(event)
@@ -3905,13 +3879,6 @@ export default function ChatView(props: ChatViewProps) {
 
                 {canOperatePreview && activeThreadRef && activeEnvironmentServerBrowser ? (
                   <PreviewSessionSync threadRef={activeThreadRef} />
-                ) : null}
-                {activeThreadRef && shownPreviewMiniPlayer ? (
-                  <ThreadPreviewMiniPlayer
-                    key={`${activeThreadKey}:${previewMiniPlayerSourceKey(shownPreviewMiniPlayer.source)}`}
-                    threadRef={activeThreadRef}
-                    miniPlayer={shownPreviewMiniPlayer}
-                  />
                 ) : null}
 
                 {routeKind === "server" ? (

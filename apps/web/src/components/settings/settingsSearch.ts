@@ -906,10 +906,10 @@ export const SETTINGS_SEARCH_ITEMS = [
     ],
   },
   {
-    id: "browser-auto-show-floating-preview",
-    title: "Auto-show floating preview",
+    id: "browser-auto-open-panel",
+    title: "Auto-open right panel",
     to: "/settings/browser",
-    searchTerms: ["agent opens browser device simulator pop into view hide"],
+    searchTerms: ["agent opens browser device simulator emulator sidebar right panel show hide"],
   },
   {
     id: "automatic-pull",
