@@ -59,7 +59,7 @@ export function PendingApprovalCard(props: PendingApprovalCardProps) {
       {warning ? (
         <Text className="font-sans text-xs leading-normal text-warning-foreground">{warning}</Text>
       ) : null}
-      <View className="flex-row flex-wrap gap-2.5">
+      <View className="gap-2">
         {options.map((option) => (
           <Button
             key={option.decision}
@@ -76,6 +76,7 @@ export function PendingApprovalCard(props: PendingApprovalCardProps) {
               playDecisionHaptic(option.decision !== "decline" && option.decision !== "cancel");
               void props.onRespond(props.approval.requestId, option.decision);
             }}
+            fullWidth
           />
         ))}
       </View>
