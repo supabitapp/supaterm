@@ -29,6 +29,7 @@ import {
 import * as Clipboard from "expo-clipboard";
 
 import { usePullRequestPermissions } from "./usePullRequestPermissions";
+import { usePullRequestDescription } from "./usePullRequestDescription";
 import { usePullRequestAction } from "./usePullRequestAction";
 
 import { useFocusEffect, useNavigation, type StaticScreenProps } from "@react-navigation/native";
@@ -260,6 +261,7 @@ function PullRequestLabels(props: {
 
 function PullRequestOverview(props: {
   readonly pr: PullRequestDetail;
+  readonly description: ReturnType<typeof usePullRequestDescription>;
   readonly params: PullRequestParams;
   readonly stack: PullRequestStackState;
   readonly onDescriptionLayout: (y: number) => void;
@@ -287,7 +289,8 @@ function PullRequestOverview(props: {
         onLayout={(event) => props.onDescriptionLayout(event.nativeEvent.layout.y)}
       >
         <PullRequestDescription
-          markdown={pr.body}
+          markdown={props.description.body}
+          onTaskListChange={props.description.toggleTask}
           onCollapse={props.onDescriptionCollapse}
           expanded={props.descriptionExpanded}
           onExpandedChange={props.onDescriptionExpandedChange}
@@ -378,6 +381,7 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
   const identity = pr ?? summary;
   const terminology = sourceControlClients.get(identity?.provider).changeRequest;
   const permissions = usePullRequestPermissions(params, pr);
+  const description = usePullRequestDescription(params, pr, permissions.canEditChangeRequest);
   const action = usePullRequestAction(params, pr);
   const maintainerEdits = usePullRequestMaintainerEdits(
     params,
@@ -486,6 +490,8 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
                     {
                       accessibilityLabel: "Edit description",
                       icon: "doc.text" as const,
+                      disabled: description.pending,
+                      subtitle: description.pending ? "Saving…" : undefined,
                       overflowOnly: true,
                       onPress: () =>
                         navigation.navigate("PullRequestEdit", { ...params, field: "body" }),
@@ -591,6 +597,8 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
             {permissions.canEditChangeRequest ? (
               <Toolbar.MenuAction
                 icon="doc.text"
+                disabled={description.pending}
+                subtitle={description.pending ? "Saving…" : undefined}
                 onPress={() => navigation.navigate("PullRequestEdit", { ...params, field: "body" })}
               >
                 <Toolbar.Label>Edit description</Toolbar.Label>
@@ -736,6 +744,7 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
                               {pr ? (
                                 <PullRequestOverview
                                   pr={pr}
+                                  description={description}
                                   params={params}
                                   stack={stack}
                                   descriptionExpanded={descriptionExpanded}
