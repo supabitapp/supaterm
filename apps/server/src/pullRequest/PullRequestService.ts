@@ -1301,6 +1301,7 @@ export const make = Effect.gen(function* () {
     // Across projects, as on a host's own dashboard, a repository the viewer only reads lists
     // what involves them; one project picked out lists whole, as on its own pull request tab.
     const involvedWhereReadOnly = involvement === "all" && input.projectId === undefined;
+    const epochAtStart = epochCounter;
     const continuation = yield* decodeCursors(input.cursors);
     const {
       supported: projects,
@@ -1596,7 +1597,6 @@ export const make = Effect.gen(function* () {
     for (const batch of batches) {
       if (batch.nextCursor !== null) nextCursors[batch.key] = batch.nextCursor;
     }
-
     // A renamed repository still answers for its old name, so a project whose remote kept it
     // lists the pull requests of a project under the new name, which its URLs name instead.
     const listedRepositories = new Set(
@@ -1611,13 +1611,26 @@ export const make = Effect.gen(function* () {
       );
     };
 
+    const entries = batches
+      .flatMap((batch) => batch.entries)
+      .filter((entry) => !listedUnderNewName(entry))
+      .toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    // Hover cards on listed rows read from here. A pinned account or a mid-read refresh is another
+    // scope; half the cache stays free for previews read directly.
+    if ((yield* routingCredential) === null && epochCounter === epochAtStart) {
+      const seeds = entries
+        .slice(0, DETAIL_CACHE_CAPACITY / 2)
+        .map((entry) => [refCacheKey(entry), previewFields(entry)] as const)
+        .toReversed();
+      for (const [key, value] of seeds) {
+        if (!(yield* Cache.has(previewCache, key))) yield* Cache.set(previewCache, key, value);
+      }
+    }
+
     return {
       viewers: viewers as PullRequestListResult["viewers"],
       providers,
-      entries: batches
-        .flatMap((batch) => batch.entries)
-        .filter((entry) => !listedUnderNewName(entry))
-        .toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
+      entries,
       errors: [...unreadable, ...batches.flatMap((batch) => batch.errors)],
       truncated: batches.some((batch) => batch.truncated),
       nextCursors,
