@@ -78,6 +78,9 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
     </Toggle>
   );
   const rightPanelMarked = rightPanelDeviceRunning && !rightPanelOpen;
+  let rightPanelTooltip = "Toggle right panel";
+  if (!rightPanelAvailable) rightPanelTooltip = rightPanelUnavailableLabel;
+  else if (rightPanelMarked) rightPanelTooltip = "Toggle right panel · A device is running";
   const threadPanelControl = (
     <Tooltip>
       <TooltipTrigger render={<span className="flex shrink-0" />}>
@@ -147,11 +150,7 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
             side="bottom"
             shortcut={rightPanelAvailable ? rightPanelShortcutLabel : null}
           >
-            {!rightPanelAvailable
-              ? rightPanelUnavailableLabel
-              : rightPanelMarked
-                ? "Toggle right panel · A device is running"
-                : "Toggle right panel"}
+            {rightPanelTooltip}
           </TooltipPopup>
         </Tooltip>
       ) : null}

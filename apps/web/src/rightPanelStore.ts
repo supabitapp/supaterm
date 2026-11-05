@@ -127,7 +127,11 @@ interface RightPanelStoreState {
   ) => void;
   openDevice: (ref: ScopedThreadRef, target: DeviceTabTarget, origin?: PanelOpenOrigin) => void;
   renameDevice: (ref: ScopedThreadRef, surfaceId: string, title: string) => void;
-  openBrowser: (ref: ScopedThreadRef, tabId: string | null, origin?: PanelOpenOrigin) => void;
+  openBrowser: (
+    ref: ScopedThreadRef,
+    tabId: string | null,
+    origin?: Exclude<PanelOpenOrigin, "agent-quiet">,
+  ) => void;
   openFile: (ref: ScopedThreadRef, relativePath: string, line?: number) => void;
   /** Moves in place; "" opens the root explorer. folderTrail keeps the return path; keepSource opens beside the source. */
   navigateFolder: (
@@ -381,17 +385,6 @@ const updateThread = (
   return { byThreadKey, threadPanelVisibilityByThreadKey };
 };
 
-const placeSurface = (
-  current: ThreadRightPanelState,
-  surface: RightPanelSurface,
-  origin: PanelOpenOrigin,
-): ThreadRightPanelState =>
-  origin !== "agent-quiet"
-    ? upsertSurface(current, surface)
-    : current.surfaces.some((entry) => entry.id === surface.id)
-      ? current
-      : { ...current, surfaces: [...current.surfaces, surface] };
-
 const updateFrom = (origin: PanelOpenOrigin) => (origin === "user" ? userAction : automaticUpdate);
 
 const automaticUpdate = (
@@ -536,13 +529,13 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
               return current;
             const surface: RightPanelSurface = { id, kind: "device", target };
             const existing = current.surfaces.find((entry) => entry.id === id);
-            const surfaces =
-              origin === "agent-quiet"
-                ? current.surfaces
-                : existing
-                  ? current.surfaces.filter((entry) => entry.id !== "device")
-                  : current.surfaces.map((entry) => (entry.id === "device" ? surface : entry));
-            return placeSurface(
+            if (origin === "agent-quiet") {
+              return existing ? current : { ...current, surfaces: [...current.surfaces, surface] };
+            }
+            const surfaces = existing
+              ? current.surfaces.filter((entry) => entry.id !== "device")
+              : current.surfaces.map((entry) => (entry.id === "device" ? surface : entry));
+            return upsertSurface(
               {
                 ...current,
                 surfaces,
@@ -551,7 +544,6 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
                 ),
               },
               existing ?? surface,
-              origin,
             );
           }),
         ),
@@ -570,11 +562,10 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
         set((state) =>
           updateFrom(origin)(state, scopedThreadKey(ref), (current) => {
             const surface = browserSurface(tabId);
-            const withoutPlaceholder =
-              tabId && origin !== "agent-quiet"
-                ? current.surfaces.filter((entry) => entry.id !== "browser:new")
-                : current.surfaces;
-            return placeSurface({ ...current, surfaces: withoutPlaceholder }, surface, origin);
+            const withoutPlaceholder = tabId
+              ? current.surfaces.filter((entry) => entry.id !== "browser:new")
+              : current.surfaces;
+            return upsertSurface({ ...current, surfaces: withoutPlaceholder }, surface);
           }),
         ),
       openPullRequest: (ref, target) =>
