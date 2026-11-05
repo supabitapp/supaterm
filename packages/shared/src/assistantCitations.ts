@@ -109,7 +109,6 @@ export function assistantCitationExcerpt(citation: AssistantCitation): string {
   return citationPreview(citation.text);
 }
 
-/** The text a sent message shows for a citation: the excerpt, then the full comment. */
 export function assistantCitationMessageText(citation: AssistantCitation): string {
   return assistantCitationExcerpt(citation) + (citation.comment?.trim() ?? "");
 }

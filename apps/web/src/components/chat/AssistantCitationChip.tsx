@@ -137,32 +137,32 @@ export function AssistantCitationChip({
       </ContextChipLabel>
     </Link>
   );
-  const comment = citation.comment?.trim();
-  if (!composer && comment) {
-    const excerpt = assistantCitationExcerpt(citation);
-    const { "data-markdown-copy": markdownCopy, ...annotationLinkProps } = sourceLinkProps;
-    return (
-      <span
-        className="my-2.5 flex flex-col gap-1 first:mt-0 last:mb-0"
-        data-markdown-copy={markdownCopy}
-      >
-        <Link
-          {...annotationLinkProps}
-          data-assistant-citation-source=""
-          className="flex min-w-0 max-w-full self-start border-s-2 border-muted-foreground/40 ps-2 text-xs/5 text-muted-foreground no-underline transition-colors duration-150 hover:border-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
-          aria-label={`Go to quoted assistant text: ${excerpt}`}
-        >
-          <span className="truncate" dir={textDirection(excerpt)}>
-            {excerpt}
-          </span>
-        </Link>
-        <span className="whitespace-pre-wrap wrap-break-word" dir={textDirection(comment)}>
-          {comment}
-        </span>
-      </span>
-    );
-  }
   if (!composer) {
+    const comment = citation.comment?.trim();
+    if (comment) {
+      const excerpt = assistantCitationExcerpt(citation);
+      const { "data-markdown-copy": markdownCopy, ...annotationLinkProps } = sourceLinkProps;
+      return (
+        <span
+          className="my-2.5 flex flex-col gap-1 first:mt-0 last:mb-0"
+          data-markdown-copy={markdownCopy}
+        >
+          <Link
+            {...annotationLinkProps}
+            data-assistant-citation-source=""
+            className="flex min-w-0 max-w-full self-start border-s-2 border-muted-foreground/40 ps-2 text-xs/5 text-muted-foreground no-underline transition-colors duration-150 hover:border-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+            aria-label={`Go to quoted assistant text: ${excerpt}`}
+          >
+            <span className="truncate" dir={textDirection(excerpt)}>
+              {excerpt}
+            </span>
+          </Link>
+          <span className="whitespace-pre-wrap wrap-break-word" dir={textDirection(comment)}>
+            {comment}
+          </span>
+        </span>
+      );
+    }
     return (
       <ContextChipPopover
         kind="citation"
