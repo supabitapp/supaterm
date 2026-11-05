@@ -3224,7 +3224,6 @@ export const ThreadFeed = memo(function ThreadFeed({
       key={`${props.threadId}:${worktreeSetup.generation}`}
       {...worktreeSetup.card}
       exiting={worktreeSetup.exiting}
-      onExited={worktreeSetup.onExited}
     />
   ) : null;
   // LegendList does not invalidate visible rows when only the renderItem closure changes.

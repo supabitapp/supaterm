@@ -19,8 +19,8 @@ export interface WorktreeSetupPresence {
 }
 
 /**
- * A setup that leaves the feed stays, marked exiting, for its collapse. One that
- * returns mid-collapse takes a new generation so its card remounts at full size.
+ * A setup that leaves the feed stays, marked exiting, for its collapse. Ending an
+ * exit starts a new generation, so the next card never reuses a collapsed one.
  */
 export function nextWorktreeSetupPresence(
   previous: WorktreeSetupPresence,
@@ -38,6 +38,11 @@ export function nextWorktreeSetupPresence(
     : { ...previous, setup: current };
 }
 
-export function finishWorktreeSetupExit(presence: WorktreeSetupPresence): WorktreeSetupPresence {
-  return presence.exiting ? { ...presence, setup: null, exiting: false } : presence;
+export function finishWorktreeSetupExit(
+  presence: WorktreeSetupPresence,
+  generation: number,
+): WorktreeSetupPresence {
+  return presence.exiting && presence.generation === generation
+    ? { setup: null, exiting: false, generation: generation + 1 }
+    : presence;
 }

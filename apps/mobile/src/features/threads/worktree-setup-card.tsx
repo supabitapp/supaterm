@@ -6,7 +6,7 @@ import {
 } from "@supaterm/contracts";
 import { worktreeSetupAgentStarted } from "@supaterm/client-runtime/worktree-setup";
 import { formatDuration } from "@supaterm/shared/orchestrationTiming";
-import { useEffect, useEffectEvent, useState } from "react";
+import { useEffect, useState } from "react";
 import { Platform, Pressable, ScrollView, View } from "react-native";
 import Animated, {
   Easing,
@@ -15,7 +15,6 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { scheduleOnRN } from "react-native-worklets";
 import { useReduceMotion } from "../../lib/useReducedMotionPreference";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { AppText as Text } from "../../components/ui/AppText";
@@ -45,13 +44,13 @@ const icons: Record<WorktreeSetupStage["status"], AppSymbolName> = {
   warning: "exclamationmark.triangle",
 };
 
-const EXIT_TIMING = { duration: 200, easing: Easing.bezier(0.32, 0.72, 0, 1) } as const;
+export const WORKTREE_SETUP_EXIT_MS = 200;
+const EXIT_EASING = Easing.bezier(0.32, 0.72, 0, 1);
 
 export function WorktreeSetupCard({
   exiting,
-  onExited,
   ...props
-}: WorktreeSetupCardProps & { exiting: boolean; onExited: () => void }) {
+}: WorktreeSetupCardProps & { exiting: boolean }) {
   const reduceMotion = useReduceMotion();
   const height = useSharedValue(0);
   const progress = useSharedValue(1);
@@ -59,17 +58,13 @@ export function WorktreeSetupCard({
     const remaining = progress.get();
     return remaining < 1 ? { height: height.get() * remaining, opacity: remaining } : {};
   });
-  const startExit = useEffectEvent(() => {
-    progress.set(
-      withTiming(0, { ...EXIT_TIMING, reduceMotion }, (finished) => {
-        if (finished) scheduleOnRN(onExited);
-      }),
-    );
-  });
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- hands the collapse to the UI thread once the setup leaves the feed
   useEffect(() => {
-    if (exiting) startExit();
-  }, [exiting]);
+    if (!exiting) return;
+    progress.set(
+      withTiming(0, { duration: WORKTREE_SETUP_EXIT_MS, easing: EXIT_EASING, reduceMotion }),
+    );
+  }, [exiting, progress, reduceMotion]);
   return (
     <Animated.View
       style={collapseStyle}

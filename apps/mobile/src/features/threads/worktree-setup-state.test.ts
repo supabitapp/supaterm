@@ -35,15 +35,34 @@ describe("mobile worktree setup handoff", () => {
         followUpSent: false,
       }),
     ).toBe(done);
-    expect(
-      resolveVisibleWorktreeSetup({
-        live: held,
-        recorded: null,
-        turnStarted: true,
-        followUpSent: false,
-      }),
-    ).toBeNull();
+    const retired = resolveVisibleWorktreeSetup({
+      live: held,
+      recorded: null,
+      turnStarted: true,
+      followUpSent: false,
+    });
+    expect(retired).toBeNull();
     expect(resolveWorktreeSetupSnapshot(threadId, undefined, held)).toBe(done);
+
+    const card = { snapshot: done, turnStarted: false, onCancel: () => {}, onWorkLocally: null };
+    const shown = nextWorktreeSetupPresence({ setup: null, exiting: false, generation: 0 }, card);
+    expect(nextWorktreeSetupPresence(shown, { ...card, onCancel: () => {} })).toBe(shown);
+    const leaving = nextWorktreeSetupPresence(shown, retired && { ...card, snapshot: retired });
+    expect(leaving).toEqual({ setup: card, exiting: true, generation: 0 });
+    expect(nextWorktreeSetupPresence(leaving, null)).toBe(leaving);
+    expect(finishWorktreeSetupExit(leaving, 0)).toEqual({
+      setup: null,
+      exiting: false,
+      generation: 1,
+    });
+
+    const returned = { ...card, turnStarted: true, snapshot: { ...done, sequence: 3 } };
+    const leavingAgain = nextWorktreeSetupPresence(
+      nextWorktreeSetupPresence(leaving, returned),
+      null,
+    );
+    expect(leavingAgain).toEqual({ setup: returned, exiting: true, generation: 1 });
+    expect(finishWorktreeSetupExit(leavingAgain, 0)).toBe(leavingAgain);
   });
 
   it.each(["failed", "cancelled"] as const)(
@@ -71,25 +90,6 @@ describe("mobile worktree setup handoff", () => {
       ).toBeNull();
     },
   );
-
-  it("keeps a card that leaves the feed until its collapse finishes", () => {
-    const done = { ...running, phase: "done" as const, sequence: 2 };
-    const card = { snapshot: done, turnStarted: false, onCancel: () => {}, onWorkLocally: null };
-    const shown = nextWorktreeSetupPresence({ setup: null, exiting: false, generation: 0 }, card);
-    expect(nextWorktreeSetupPresence(shown, { ...card, onCancel: () => {} })).toBe(shown);
-
-    const leaving = nextWorktreeSetupPresence(shown, null);
-    expect(leaving).toEqual({ setup: card, exiting: true, generation: 0 });
-    expect(nextWorktreeSetupPresence(leaving, null)).toBe(leaving);
-    expect(nextWorktreeSetupPresence(finishWorktreeSetupExit(leaving), null).setup).toBeNull();
-
-    const returned = { ...card, turnStarted: true, snapshot: { ...done, sequence: 3 } };
-    expect(nextWorktreeSetupPresence(leaving, returned)).toEqual({
-      setup: returned,
-      exiting: false,
-      generation: 1,
-    });
-  });
 
   it("does not carry a previous thread's progress across navigation", () => {
     const otherId = ThreadId.make("other-thread");
