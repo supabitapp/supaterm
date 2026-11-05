@@ -15,8 +15,11 @@ export interface PaneScope {
   readonly narrow: boolean;
   /** The workspace is too small for the split, so only this, the focused pane, shows. */
   readonly collapsed: boolean;
-  /** The pane's element while split, so overlays like the right panel sheet stay inside it. */
-  readonly element: HTMLElement | null;
+  /**
+   * The pane's element while split, so overlays like the right panel sheet stay inside it.
+   * Portals wait on `null` until it mounts; `undefined` outside a split portals into the page.
+   */
+  readonly element: HTMLElement | null | undefined;
 }
 
 const PaneScopeContext = createContext<PaneScope | null>(null);
