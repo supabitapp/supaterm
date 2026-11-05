@@ -96,7 +96,7 @@ it("indexes nested disclosure summaries and bodies in rendered order", () => {
   ).toEqual(["Outer", "first", "Inner", "second"]);
 });
 
-it("indexes the citation chip label instead of its link text", () => {
+it("indexes the citation's rendered excerpt and comment instead of its link text", () => {
   const citation = {
     version: 1 as const,
     environmentId: EnvironmentId.make("environment"),
@@ -114,6 +114,6 @@ it("indexes the citation chip label instead of its link text", () => {
   ]);
   const commented = serializeAssistantCitation({ ...citation, comment: "my note" });
   expect(searchableMessageSegments({ role: "user", text: commented, streaming: false })).toEqual([
-    "my note",
+    "cited needlemy note",
   ]);
 });

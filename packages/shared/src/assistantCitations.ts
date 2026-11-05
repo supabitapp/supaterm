@@ -96,9 +96,21 @@ export function parseAssistantCitationHref(href: string): AssistantCitation | nu
   }
 }
 
-export function assistantCitationLabel(citation: AssistantCitation): string {
-  const preview = (citation.comment?.trim() || citation.text).replace(/\s+/g, " ");
+function citationPreview(text: string): string {
+  const preview = text.replace(/\s+/g, " ");
   return preview.length > 64 ? `${preview.slice(0, 64)}…` : preview;
+}
+
+export function assistantCitationLabel(citation: AssistantCitation): string {
+  return citationPreview(citation.comment?.trim() || citation.text);
+}
+
+export function assistantCitationExcerpt(citation: AssistantCitation): string {
+  return citationPreview(citation.text);
+}
+
+export function assistantCitationSearchText(citation: AssistantCitation): string {
+  return assistantCitationExcerpt(citation) + (citation.comment?.trim() ?? "");
 }
 
 export function serializeAssistantCitation(citation: AssistantCitation): string {
